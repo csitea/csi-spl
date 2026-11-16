@@ -1074,7 +1074,81 @@ check) is step (d).
   - The unemployment insurance's two payroll bands: the accountant sets the
     band's rate.
   - A rate per insurer policy: one rate per component and year.
-  - The worker side: step (d).
+  - The worker side: step (d), section 16.5.
+
+### 16.5 Step (d): the worker side and the payslip check (SPL-5433)
+
+The owner's Q4 B (poll 2ff12c21) asks for the worker side too: the
+employee's statutory shares, the tax withheld from the tax card with a
+running year-to-date income, and the net pay, each checked against the
+payslip. Under Q5 A (management reporting) the worker side is part of the
+gross: it is never booked, never added to a report or a total, and only the
+accountant sees it.
+
+- **The tables (rdb 0286).**
+  - `hr_worker_rates`: the employee's share of `tyel_employee` or
+    `unemployment_employee`, per year and age band (`age_from`..`age_to`,
+    at most 10 bands, no overlap), a percent with up to 4 decimals. The
+    accountant sets each year's bands from the pension insurer's and the
+    Unemployment Insurance Fund's letters. No row = no share computed.
+  - `hr_tax_cards`: one person's card for one year, typed by hand: `base_pct`
+    up to `income_limit` of the year's income, `extra_pct` above it.
+  - `hr_payslips`: the worker-side values one payslip carries for a person,
+    month and currency (`tyel_employee`, `unemployment_employee`,
+    `tax_withheld`, `net_pay`), each empty when the payslip does not show it.
+  - Tax cards and payslips are personal. Like `hr_person_names`, their
+    policy asks `app.costs_names = 'on'` as well as the operator scope, and
+    the hub sets it only for a `costs.write` caller.
+- **The calculation (`store.ComputeHRWorker`, pure)**, per person, month and
+  currency, from the employer side's gross (16.4):
+  - **Age** is the month's year minus the person's birth year. Both shares
+    go by age band, so a person with no birth year gets no share, and the row
+    says `birth_year` is missing.
+  - **The shares** (an `employee` or `hourly` person only: an owner in
+    management pays YEL, typed as a line, and a contractor invoices) are
+    gross x the band's rate / 100, rounded to cents.
+  - **Year-to-date** (`store.HRYearToDate`) is the gross of the person's
+    monthly lines of the same year and currency before the month.
+  - **The tax** (not for a contractor) is `base_pct` on the part of the
+    month's gross still under the card's limit after the year-to-date income,
+    and `extra_pct` on the part above it. With no card for the year, the tax
+    is not computed and the row says `tax_card` is missing.
+  - **The net** is gross minus the shares minus the tax, each as it counts.
+  - **The payslip wins.** A typed value replaces the computed one, and a
+    difference above one cent is flagged `diff`. The net is computed from
+    the values that count, so its flag shows only its own difference.
+- **Routes** (`internal/hub/hr_worker.go`):
+  - `GET /v1/operator/hr-worker-rates?year=` (the hr reads' doors) and
+    `PUT /v1/operator/hr-worker-rates/{year}/{kind}` (the cost entries'
+    write doors), whose bands replace the year's bands of that share.
+  - `GET /v1/operator/hr-tax-cards?year=`, and `PUT` and
+    `DELETE /v1/operator/hr-tax-cards/{person_id}/{year}`: a `costs.write`
+    member only. Another reader who passes the hr doors gets 403
+    `costs.write`.
+  - `PUT` and `DELETE /v1/operator/hr-payslips/{month}/{person_id}`: a
+    `costs.write` member only, and 409 `month_closed` in a closed month.
+  - `GET /v1/operator/hr-payroll/{month}` adds `worker` (one row per person
+    and currency) for a `costs.write` member only. Every other reader gets
+    the employer side as before.
+  - The log names the year or month and who acted, never a card's or a
+    payslip's figures.
+- **Tests.**
+  - `store/hr_worker_test.go` covers the calculation (age bands, the limit
+    crossed in a month, owner and contractor, a missing birth year or card),
+    the payslip check, the checks, the store on both drivers, and on
+    Postgres that both personal tables hide without `app.costs_names`.
+  - `hub/hr_worker_test.go` covers bands, card, payslip and the payroll's
+    worker side with made-up figures in 2005, the product owner's payroll
+    with no worker side, and the closed month, plus every wrong caller on
+    every new route. Red control: without the `readsHRNames` check in
+    `handleHRPayroll`, the product owner's payroll carries `worker`.
+- **Not here.**
+  - Filing to the Incomes Register (Q6): the accountant files with their own
+    tool.
+  - The tax card's withholding rate for a second job, the 60 % rate with no
+    card, and taxable benefits in the tax base: the tax base is the gross of
+    16.4.
+  - A tax limit counted across currencies: year-to-date is per currency.
 
 ### 16.5 The cost labels in the interface language, with a master language (SPL-5546)
 

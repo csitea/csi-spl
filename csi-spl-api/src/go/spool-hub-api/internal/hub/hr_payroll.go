@@ -14,7 +14,7 @@ import (
 //	GET    /v1/operator/hr-rates?year=YYYY            {year, rates: [store.HRRate]}
 //	PUT    /v1/operator/hr-rates/{year}/{component}   {rate_pct, applies_to, source} -> the rate
 //	DELETE /v1/operator/hr-rates/{year}/{component}   -> 204
-//	GET    /v1/operator/hr-payroll/{month}            store.HRPayroll + {period}
+//	GET    /v1/operator/hr-payroll/{month}            store.HRPayroll + {period}, + {worker} for costs.write (step d)
 //	POST   /v1/operator/hr-payroll/{month}/book       {booked, removed, payroll}
 //
 // The reads have the hr reads' doors, the writes the cost entries' (an
@@ -195,7 +195,7 @@ func hrPayrollMonth(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 func (s *Server) handleHRPayroll(w http.ResponseWriter, r *http.Request) {
-	hs, _, _, ok := s.hrCaller(w, r, s.operatorReadCaller, true)
+	hs, actor, _, ok := s.hrCaller(w, r, s.operatorReadCaller, true)
 	if !ok {
 		return
 	}
@@ -213,8 +213,20 @@ func (s *Server) handleHRPayroll(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "hr payroll unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"month": p.Month, "year": p.Year, "rates": p.Rates, "people": p.People,
-		"totals": p.Totals, "flags": p.Flags, "period": period})
+	out := map[string]any{"month": p.Month, "year": p.Year, "rates": p.Rates, "people": p.People,
+		"totals": p.Totals, "flags": p.Flags, "period": period}
+	// The worker side (step d) is personal: a costs.write caller's only, and
+	// never in totals. A store without it simply has no "worker".
+	if _, has := s.o.Store.(store.HRWorkerStore); has && s.readsHRNames(r, actor) {
+		worker, err := s.hrWorkerOf(r, hs, p)
+		if err != nil {
+			s.o.Log.Error().Err(err).Msg("hr payroll worker side")
+			writeErr(w, http.StatusInternalServerError, "internal", "hr payroll worker side unavailable")
+			return
+		}
+		out["worker"] = worker
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleHRPayrollBook(w http.ResponseWriter, r *http.Request) {

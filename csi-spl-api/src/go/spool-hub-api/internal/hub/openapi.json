@@ -14427,7 +14427,7 @@
             "$ref": "#/components/responses/Forbidden"
           }
         },
-        "summary": "A month's employer side per person: gross, each contribution computed, typed or booked, flags (SPL-5433 step c)",
+        "summary": "A month's employer side per person: gross, each contribution computed, typed or booked, flags (SPL-5433 step c); a costs.write member also gets the worker side (SPL-5433 step d)",
         "tags": [
           "operator"
         ],
@@ -14470,6 +14470,153 @@
           }
         },
         "summary": "Book a month's computed employer contributions as hr lines, replacing stale booked ones (SPL-5433 step c)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/hr-payslips/{month}/{person_id}": {
+      "delete": {
+        "operationId": "deleteOperatorHrPayslipsByMonthByPersonId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the month YYYY-MM",
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "an hr_people id",
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the payslip's currency (default EUR)",
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "deleted"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "no such person, card or payslip"
+          },
+          "409": {
+            "description": "month_closed: the payslip's month is closed"
+          }
+        },
+        "summary": "Remove a person's payslip values of a month; a costs.write member only (SPL-5433 step d)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "put": {
+        "operationId": "putOperatorHrPayslipsByMonthByPersonId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the month YYYY-MM",
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "an hr_people id",
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "currency": {
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  },
+                  "net_pay": {
+                    "type": "number"
+                  },
+                  "tax_withheld": {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "tyel_employee": {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "unemployment_employee": {
+                    "minimum": 0,
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the payslip"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "no such person, card or payslip"
+          },
+          "409": {
+            "description": "month_closed: the payslip's month is closed"
+          }
+        },
+        "summary": "Type the worker-side values of a person's payslip; a costs.write member only (SPL-5433 step d)",
         "tags": [
           "operator"
         ],
@@ -14754,6 +14901,322 @@
           }
         },
         "summary": "Set a year's rate of an employer contribution (costs.write or the operator admin, SPL-5433 step c)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/hr-tax-cards": {
+      "get": {
+        "operationId": "getOperatorHrTaxCards",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the year YYYY (default: this year)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {year, tax_cards}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "A year's tax cards; a costs.write member only (SPL-5433 step d)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/hr-tax-cards/{person_id}/{year}": {
+      "delete": {
+        "operationId": "deleteOperatorHrTaxCardsByPersonIdByYear",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "an hr_people id",
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the year YYYY",
+            "in": "path",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "deleted"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "no such person, card or payslip"
+          }
+        },
+        "summary": "Remove a person's tax card for a year; a costs.write member only (SPL-5433 step d)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "put": {
+        "operationId": "putOperatorHrTaxCardsByPersonIdByYear",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "an hr_people id",
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the year YYYY",
+            "in": "path",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "base_pct": {
+                    "exclusiveMaximum": true,
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "extra_pct": {
+                    "exclusiveMaximum": true,
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "income_limit": {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "source": {
+                    "maxLength": 200,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "base_pct",
+                  "extra_pct",
+                  "income_limit"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the card"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "no such person, card or payslip"
+          }
+        },
+        "summary": "Set a person's tax card for a year; a costs.write member only (SPL-5433 step d)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/hr-worker-rates": {
+      "get": {
+        "operationId": "getOperatorHrWorkerRates",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the year YYYY (default: this year)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {year, rates}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "A year's employee share bands by age (SPL-5433 step d)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/hr-worker-rates/{year}/{kind}": {
+      "put": {
+        "operationId": "putOperatorHrWorkerRatesByYearByKind",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the year YYYY",
+            "in": "path",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{4}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the employee's share: tyel_employee or unemployment_employee",
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "tyel_employee",
+                "unemployment_employee"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "bands": {
+                    "items": {
+                      "properties": {
+                        "age_from": {
+                          "maximum": 120,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "age_to": {
+                          "maximum": 120,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "rate_pct": {
+                          "exclusiveMaximum": true,
+                          "maximum": 100,
+                          "minimum": 0,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "age_from",
+                        "age_to",
+                        "rate_pct"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10,
+                    "type": "array"
+                  },
+                  "source": {
+                    "maxLength": 200,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "bands"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {year, kind, rates}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Replace a year's age bands of one employee share; no bands removes them (SPL-5433 step d)",
         "tags": [
           "operator"
         ],

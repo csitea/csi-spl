@@ -479,11 +479,18 @@ _pp_missing_tools() {  # <part> <tree>
 # Every part runs under a hard timeout so the hook can never block a push
 # forever: `timeout` returns 124, reported as "TIMED OUT", never a hang.
 # The budgets are cnf, not code (SPL-5574): see "The part budgets" below.
-# hygiene is ~1 s and cannot hang, so it runs directly (no timeout, no subshell).
+# hygiene is ~2 s and cannot hang, so it runs directly (no timeout, no subshell).
 # The fleet rules drift check (csi-spl-orc, csi-spl-doc/doc/md/fleet-rules-index.md)
-# rides along: under a second, read-only, red when two rule copies disagree.
-# So does the qto doc map check (SPL-2164): read-only, ~0.1 s, red when an
+# rides along: read-only, 1.0..1.7 s, red when two rule copies disagree.
+# So does the qto doc map check (SPL-2164): read-only, 0.5..0.7 s, red when an
 # exported md file and the qto doc map disagree.
+# The three run at once (perf round 11, row 03): three reads of one tree, and
+# none reads another's result. The two drift checks run in the background,
+# each into its own file (never the part's stdout: that is _pp_capture's tee
+# pipe, SPL-3907), beside do_check_dist_hygiene in the foreground. Their
+# outputs are printed after it, in the old order, and fold into rc as before.
+# The part runs in-process, inside _pp_run_parts' INT/TERM/HUP traps: a signal
+# stops both jobs' whole trees, removes their dir, then goes to those traps.
 # The commit messages too (SPL-5613): a push publishes them, the file sweep
 # never reads them: PRE_PUSH_BASE..HEAD, handed to do_check_dist_hygiene as
 # HYGIENE_MSG_RANGES (it runs do_check_commit_msg_hygiene over them).
@@ -492,19 +499,56 @@ _pp_missing_tools() {  # <part> <tree>
 _pp_part_hygiene() {
   local rc=0 drift="$1/csi-spl-orc/src/bash/run/check-fleet-rules-drift.func.sh"
   local qto="$1/csi-spl-orc/src/bash/run/check-qto-doc-drift.func.sh"
-  local mr="${PRE_PUSH_BASE:-origin/master}..HEAD"
+  local mr="${PRE_PUSH_BASE:-origin/master}..HEAD" hyg_d hyg_j1="" hyg_j2="" hyg_traps
   git -C "$1" rev-parse -q --verify "${PRE_PUSH_BASE:-origin/master}^{commit}" >/dev/null 2>&1 ||
     { echo "hygiene: WARN unknown base '${PRE_PUSH_BASE:-origin/master}' -- no outgoing commit messages swept"; mr=""; }
-  HYGIENE_TREE="$1" HYGIENE_MSG_RANGES="$mr" do_check_dist_hygiene || rc=$?
+  hyg_d="$(mktemp -d)" || return 1
+  hyg_traps="$(trap -p HUP INT TERM)"
+  trap '_pp_hygiene_signal HUP' HUP
+  trap '_pp_hygiene_signal INT' INT
+  trap '_pp_hygiene_signal TERM' TERM
   if [[ -r "$drift" ]]; then
     # shellcheck source=/dev/null
-    ( source "$drift" && FLEET_RULES_TREE="$1" do_check_fleet_rules_drift ) || rc=1
+    { ( source "$drift" && FLEET_RULES_TREE="$1" do_check_fleet_rules_drift )
+      echo "$?" >"$hyg_d/fleet.rc"; } >"$hyg_d/fleet.out" 2>&1 </dev/null &
+    hyg_j1=$!
   fi
   if [[ -r "$qto" ]]; then
     # shellcheck source=/dev/null
-    ( source "$qto" && QTO_DRIFT_TREE="$1" QTO_DRIFT_LIVE=0 do_check_qto_doc_drift ) || rc=1
+    { ( source "$qto" && QTO_DRIFT_TREE="$1" QTO_DRIFT_LIVE=0 do_check_qto_doc_drift )
+      echo "$?" >"$hyg_d/qto.rc"; } >"$hyg_d/qto.out" 2>&1 </dev/null &
+    hyg_j2=$!
   fi
+  HYGIENE_TREE="$1" HYGIENE_MSG_RANGES="$mr" do_check_dist_hygiene || rc=$?
+  [[ -z "$hyg_j1" ]] || { wait "$hyg_j1"; _pp_hygiene_verdict "$hyg_d/fleet" || rc=1; }
+  [[ -z "$hyg_j2" ]] || { wait "$hyg_j2"; _pp_hygiene_verdict "$hyg_d/qto" || rc=1; }
+  rm -rf "$hyg_d"
+  trap - HUP INT TERM
+  [[ -z "$hyg_traps" ]] || eval "$hyg_traps"
   return "$rc"
+}
+# A drift job's verdict: its output, then 0 only for a recorded rc of 0 (a
+# missing rc file is a failure, as a failed check was before).
+_pp_hygiene_verdict() {  # <dir>/<name>
+  cat "$1.out" 2>/dev/null
+  [[ "$(cat "$1.rc" 2>/dev/null)" == 0 ]]
+}
+# The hygiene part's HUP/INT/TERM handler. It stops each drift job's whole
+# tree (a kill of the job pid alone leaves the python3 of
+# check-qto-doc-drift.func.sh running), removes the dir, puts the caller's
+# traps back and sends itself the signal, so the caller's handler (or the
+# default action) runs. Reads the part's hyg_* locals.
+_pp_hygiene_signal() {  # <HUP|INT|TERM>
+  local p pids=""
+  # shellcheck source=/dev/null
+  declare -F _pp_proc_tree >/dev/null || . "$(dirname "${BASH_SOURCE[0]}")/stop-pre-push.func.sh"
+  for p in $hyg_j1 $hyg_j2; do pids+=" $(_pp_proc_tree "$p")"; done
+  for p in $pids; do kill -TERM "$p" 2>/dev/null; done
+  for p in $hyg_j1 $hyg_j2; do wait "$p" 2>/dev/null; done
+  rm -rf "$hyg_d"
+  trap - HUP INT TERM
+  [[ -z "$hyg_traps" ]] || eval "$hyg_traps"
+  kill -s "$1" "$BASHPID"
 }
 # The part budgets (s) are ONE cnf table, env.prepush.part_budget_s in
 # csi-spl-cnf/csi-spl/all.env.yaml (rendered into <env>.env.json by tpl-gen),

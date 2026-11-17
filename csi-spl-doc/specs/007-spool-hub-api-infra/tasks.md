@@ -26,10 +26,12 @@ only served the LB are marked `[-]` and kept as the audit trail.
 
 - [x] T004 `000-gcp-remote-bucket` applied dev + prd — FR-002 (tfstate:
       1 resource each)
-- [~] T005 `001-enable-gcp-services`: dev enabled; **prd re-apply** with the
-      current cnf list (run, sqladmin, compute, secretmanager,
-      artifactregistry, certificatemanager missing; iamcredentials + sts
-      added by `2a7888c`, re-apply dev too) — FR-003
+- [x] T005 `001-enable-gcp-services` matches the cnf list (17 APIs) in dev
+      and prd — FR-003. Re-measured 2026-11-17 (SPL-309, owner go t1
+      80e54ed8 msg 116787fe): `make do-tf-plan` on `802739f1e` reads "No
+      changes" in both, 17 `google_project_service` in each state, so no
+      apply was needed; every cnf API is in `gcloud services list --enabled`
+      (dev 55, prd 52 enabled in all, as the env SA).
 
 ## Phase 2: DNS zone — the gap (step 3, US3)
 

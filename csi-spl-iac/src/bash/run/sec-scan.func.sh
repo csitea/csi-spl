@@ -146,8 +146,23 @@ EOF
   printf '%s\n' "$d"
 }
 
+# pnpm is often a user-local install ($HOME/.local/bin) that a non-login
+# `sudo -u <repo user> ./run` shell has not on PATH (SPL-5833). Resolve it as
+# the pre-push gate does (_pp_pnpm: PATH, then ~/.local/bin, /usr/local/bin,
+# /usr/bin); SEC_SCAN_PNPM_BIN wins. Not found: the bare name, so
+# _sec_scan_need fails closed with its "not on PATH" line. The source guard
+# sits inside the function so this file stays definitions-only (lazy loader).
+_sec_scan_pnpm() {
+  [[ -n "${SEC_SCAN_PNPM_BIN:-}" ]] && { printf '%s\n' "$SEC_SCAN_PNPM_BIN"; return 0; }
+  declare -F _pp_pnpm >/dev/null 2>&1 \
+    || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push.func.sh"
+  _pp_pnpm 2>/dev/null || printf 'pnpm'
+  printf '\n'
+}
+
 _sec_scan_wui() {
-  local bin="${SEC_SCAN_PNPM_BIN:-pnpm}"
+  local bin
+  bin=$(_sec_scan_pnpm)
   _sec_scan_need "$bin" || return 1
   local root wui ctl rc log
   root=$(_sec_scan_root) || return 1

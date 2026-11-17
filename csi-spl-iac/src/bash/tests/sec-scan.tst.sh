@@ -136,6 +136,40 @@ set -e
   && pass "a pnpm advisory fails the gate" \
   || fail "a pnpm advisory did not fail (rc=$rc)"
 
+# --- wui: pnpm only in $HOME/.local/bin, not on PATH (SPL-5833) ------------
+# A non-login `sudo -u <repo user> ./run` shell has no ~/.local/bin on PATH.
+# The action resolves pnpm as the pre-push gate's _pp_pnpm does.
+H="$T/home"
+mkdir -p "$H/.local/bin"
+printf '#!/bin/bash\nif [[ "$1" == install ]]; then printf "lock\\n" > pnpm-lock.yaml; exit 0; fi
+if [[ "${SEC_SCAN_PHASE:-}" == control ]]; then echo "1 vulnerabilities found"; echo "Severity: 1 critical"; exit 1; fi
+echo "No known vulnerabilities found"; exit 0\n' >"$H/.local/bin/pnpm"
+chmod +x "$H/.local/bin/pnpm"
+NOPN_PATH=/usr/bin:/bin
+sys_pnpm=$(PATH="$NOPN_PATH" bash -c 'command -v pnpm; for p in /usr/local/bin/pnpm /usr/bin/pnpm; do [[ -x "$p" ]] && echo "$p"; done' 2>/dev/null || true)
+if [[ -n "$sys_pnpm" ]]; then
+  echo "SKIP: a system pnpm ($sys_pnpm) is found before \$HOME/.local/bin; the PATH case cannot isolate it here"
+else
+  set +e
+  out=$(HOME="$H" PATH="$NOPN_PATH" SEC_SCAN=wui SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1)
+  rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] && grep -q 'no moderate' <<<"$out" \
+    && pass "pnpm in \$HOME/.local/bin, not on PATH, is found and runs the audit" \
+    || { fail "pnpm in \$HOME/.local/bin was not found with ~/.local/bin off PATH (rc=$rc)"; sed 's/^/    | /' <<<"$out"; }
+  got=$(HOME="$H" PATH="$NOPN_PATH" SEC_SCAN_PNPM_BIN="$T/explicit-pnpm" _sec_scan_pnpm)
+  [[ "$got" == "$T/explicit-pnpm" ]] \
+    && pass "SEC_SCAN_PNPM_BIN still wins over the resolved pnpm" \
+    || fail "SEC_SCAN_PNPM_BIN did not win (got '$got')"
+  set +e
+  out=$(HOME="$T/nohome" PATH="$NOPN_PATH" SEC_SCAN=wui SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1)
+  rc=$?
+  set -e
+  [[ "$rc" -ne 0 ]] && grep -q 'pnpm is not on PATH' <<<"$out" \
+    && pass "no pnpm anywhere still fails closed" \
+    || fail "no pnpm anywhere did not fail closed (rc=$rc)"
+fi
+
 # --- secrets: control that finds nothing fails ------------------------------
 stub gitleaks 'exit 0'
 set +e

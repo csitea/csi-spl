@@ -1422,7 +1422,9 @@
     "clear_selection": "Borrar selección",
     "delete_confirm_title": "¿Eliminar las entradas seleccionadas ({n})?",
     "delete_confirm_body": "Esto no se puede deshacer.",
-    "delete_failed": "No se pudieron eliminar las entradas seleccionadas."
+    "delete_failed": "No se pudieron eliminar las entradas seleccionadas.",
+    "network": "Red",
+    "network_hint": "La conexión se cortó o la pestaña estaba inactiva. La pantalla no falló."
   },
   "snackbar": {
     "dismiss": "Cerrar",

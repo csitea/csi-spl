@@ -18,7 +18,12 @@
      Issues list's pure selection (utils/issues-bulk.ts). The selection holds
      row ids, survives sort and filter, and drops ids no longer held. With a
      row checked EventsBulkBar takes the head actions' place; Delete selected
-     asks first, one POST /delete per 200 ids (utils/event-delete.ts). -->
+     asks first, one POST /delete per 200 ids (utils/event-delete.ts).
+
+     SPL-5745 (spec 162 F5): a transport drop coded net.offline or
+     net.resumed (composables/errorJournal.mjs) is the network going away,
+     not the screen failing: its row says Network and reads muted. A drop
+     while online and awake (net.unreachable) stays an error row. -->
 <template>
   <div class="monitoring-events" data-test="events-page">
     <!-- a desktop's Clear log sits in the Monitoring header row, top right,
@@ -102,7 +107,7 @@
             </template>
           </SheetHead>
           <tbody>
-            <tr v-for="r in view" :id="r.id > 0 ? String(r.id) : undefined" :key="r.id" data-test="events-row" :class="{ 'events-row--focus': route.hash === '#' + r.id }">
+            <tr v-for="r in view" :id="r.id > 0 ? String(r.id) : undefined" :key="r.id" data-test="events-row" :class="{ 'events-row--focus': route.hash === '#' + r.id, 'events-row--network': isNetworkEventCode(r.code) }">
               <td class="events-check" :data-label="t('events.col_select')">
                 <input
                   type="checkbox"
@@ -118,7 +123,7 @@
               <td dir="ltr" :data-label="t('events.col_source')">{{ r.source }}</td>
               <td dir="ltr" :data-label="t('events.col_status')">{{ r.status ? String(r.status) : '' }}</td>
               <td :data-label="t('events.col_request')" data-test="events-request"><code v-if="eventRequestText(r)" dir="ltr" :title="r.origin || undefined">{{ eventRequestText(r) }}</code></td>
-              <td :data-label="t('events.col_code')" data-test="events-code"><span class="events-code"><code v-if="r.code" dir="ltr">{{ r.code }}</code><code v-if="r.name" dir="ltr" class="events-code__name">{{ r.name }}</code></span></td>
+              <td :data-label="t('events.col_code')" data-test="events-code"><span class="events-code"><span v-if="isNetworkEventCode(r.code)" class="events-network" data-test="events-network" :title="t('events.network_hint')">{{ t('events.network') }}</span><code v-if="r.code" dir="ltr">{{ r.code }}</code><code v-if="r.name" dir="ltr" class="events-code__name">{{ r.name }}</code></span></td>
               <td :data-label="t('events.col_message')" data-test="events-message">{{ r.message }}</td>
               <td :data-label="t('events.col_route')"><code dir="ltr">{{ r.route }}</code></td>
             </tr>
@@ -186,6 +191,7 @@ import { isoDateTimeOffset } from '~/utils/date-iso-offset.mjs'
 import { formatIsoTs } from '~/utils/channel-feed.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { eventRowsOf } from '~/utils/event-rows.mjs'
+import { isNetworkEventCode } from '~/utils/net-event-code.mjs'
 import { usePhone } from '~/composables/useTouchUi'
 import {
   EVENT_COLUMNS,
@@ -465,6 +471,15 @@ watch(() => route.hash, () => revealEvent())
 /* the code cell: the code, then the error name on a second line */
 .events-code { display: flex; flex-direction: column; min-width: 0; }
 .events-code__name { color: var(--color-muted); }
+/* SPL-5745: a network row (offline, or the tab was asleep) is no failure */
+.events-network {
+  align-self: flex-start;
+  padding: 0 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+}
+.events-table tbody tr.events-row--network td { color: var(--color-muted); }
 /* spec 162 B7: the box column, before When */
 .events-table :deep(.events-check-h),
 .events-table td.events-check { width: 2.25rem; }

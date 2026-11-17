@@ -1422,7 +1422,9 @@
     "clear_selection": "Clear selection",
     "delete_confirm_title": "Delete the selected entries ({n})?",
     "delete_confirm_body": "This cannot be undone.",
-    "delete_failed": "The selected entries could not be deleted."
+    "delete_failed": "The selected entries could not be deleted.",
+    "network": "Network",
+    "network_hint": "The connection dropped or the tab was asleep. The screen did not fail."
   },
   "snackbar": {
     "dismiss": "Dismiss",

@@ -1422,7 +1422,9 @@
     "clear_selection": "Tyhjennä valinta",
     "delete_confirm_title": "Poistetaanko valitut merkinnät ({n})?",
     "delete_confirm_body": "Tätä ei voi perua.",
-    "delete_failed": "Valittuja merkintöjä ei voitu poistaa."
+    "delete_failed": "Valittuja merkintöjä ei voitu poistaa.",
+    "network": "Verkko",
+    "network_hint": "Yhteys katkesi tai välilehti oli lepotilassa. Näkymä ei kaatunut."
   },
   "snackbar": {
     "dismiss": "Sulje",

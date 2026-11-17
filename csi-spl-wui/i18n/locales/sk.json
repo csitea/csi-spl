@@ -1422,7 +1422,9 @@
     "clear_selection": "Zrušiť výber",
     "delete_confirm_title": "Odstrániť vybrané záznamy ({n})?",
     "delete_confirm_body": "Túto akciu nie je možné vrátiť.",
-    "delete_failed": "Vybrané záznamy sa nepodarilo odstrániť."
+    "delete_failed": "Vybrané záznamy sa nepodarilo odstrániť.",
+    "network": "Sieť",
+    "network_hint": "Spojenie sa prerušilo alebo karta bola uspaná. Obrazovka nezlyhala."
   },
   "snackbar": {
     "dismiss": "Zavrieť",

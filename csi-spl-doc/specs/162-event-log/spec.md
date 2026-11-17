@@ -261,6 +261,17 @@ test each; this spec adds none beyond this set.
 - **Clear log** (E2, Mine only) asks first too: "Delete all entries of
   your log?", naming the count shown and, when `next_before` says older
   rows exist, that those go too.
+- **A transport drop says why** (F5, SPL-5745; topic 955ab0bd). A request
+  that got no answer (`TypeError`, no status) is recorded with the
+  browser's `navigator.onLine`, `document.visibilityState` and the ms
+  since the tab last woke or came online, and a code:
+  `net.offline` (no network), `net.resumed` (the tab was hidden, or woke
+  or came online <= 10 s before) or `net.unreachable` (online and awake:
+  the hub did not answer). A drop of another class is its own record.
+  Mine marks a `net.offline` / `net.resumed` row **Network** and reads it
+  muted: the network went away, the screen did not fail. A
+  `net.unreachable` row stays an error row. Only the code reaches the hub
+  (`human_events.code`); the three readings stay in the tab's journal.
 - Every new string is a translation key in every locale; the last step of
   each WUI row is an agy review of its text (the language rule).
 

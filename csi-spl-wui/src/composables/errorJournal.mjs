@@ -259,6 +259,62 @@ function stampErrorId(err, id) {
   }
 }
 
+// ── a transport drop, classified (SPL-5745, spec 162 F5) ───────────────────
+//
+// prd human_events (SPL-5733): `GET /v1/view/channels` (n=13), `/topics`
+// (n=12), `/topics/<id>` (n=6) and `/flow` (n=3) were `TypeError Failed to
+// fetch` rows with no code: a phone that went offline, or a tab the browser
+// had frozen and just woke, read in the Events page as a broken screen. The
+// record now says which: the browser's own online flag, the tab's visibility
+// and the ms since the tab last woke or came back online, and a code.
+//
+//   net.offline      navigator.onLine was false: the device had no network
+//   net.resumed      the tab was hidden, or woke / came online <= NET_RESUME_MS ago
+//   net.unreachable  online and awake: the hub did not answer. Still an error.
+
+/** A drop this soon after the tab woke or came online is the wake, not the hub. */
+export const NET_RESUME_MS = 10_000
+
+let lastWakeMs = 0
+
+/**
+ * The tab woke (visible again, back from the bfcache, resumed) or came back
+ * online. Exported for the test; the listeners below call it in a browser.
+ * @param {number} [ms]
+ */
+export function noteWake(ms) {
+  lastWakeMs = ms > 0 ? ms : Date.now()
+}
+
+// In a browser: the wakes. Without window (node, a test) every drop reads as
+// online and awake unless the test calls noteWake.
+if (typeof window !== 'undefined' && window.addEventListener) {
+  const wake = () => noteWake()
+  addEventListener('online', wake)
+  addEventListener('pageshow', (e) => { if (e.persisted) wake() })
+  document.addEventListener('resume', wake)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake() })
+}
+
+/**
+ * What the browser knew when a request never got an answer, and its code.
+ * Reads `navigator.onLine` and `document.visibilityState` where they exist;
+ * without them (node, a test) the tab counts as online and visible.
+ *
+ * @param {number} [nowMs]
+ * @returns {{ online: boolean, visibility: string, sinceWakeMs: number | null, code: string }}
+ */
+function transportContext(nowMs) {
+  const g = /** @type {any} */ (globalThis)
+  const online = g.navigator?.onLine !== false
+  const visibility = g.document?.visibilityState || 'visible'
+  const sinceWakeMs = lastWakeMs > 0 ? (nowMs > 0 ? nowMs : Date.now()) - lastWakeMs : null
+  const code = !online ? 'net.offline'
+    : visibility !== 'visible' || (sinceWakeMs !== null && sinceWakeMs <= NET_RESUME_MS) ? 'net.resumed'
+      : 'net.unreachable'
+  return { online, visibility, sinceWakeMs, code }
+}
+
 /** Longest component trail a Vue error's record keeps in `path` (the hub's cap). */
 const MAX_TRAIL_CHARS = 200
 
@@ -273,11 +329,13 @@ const MAX_TRAIL_CHARS = 200
  * }} [input]  `trail`: a Vue error's component trail, kept in `path` when
  *   the record has no URL (utils/vue-error-trail.mjs); `inline: true` = the
  *   page already says it in place, so the snackbar skips it (SPL-1833)
+ * @param {number} [nowMs] the clock a transport drop is classified against
  * @returns {object | null}
  */
-export function buildErrorRecord(input) {
+export function buildErrorRecord(input, nowMs) {
   if (!input || typeof input !== 'object') return null
   const err = input.error && typeof input.error === 'object' ? input.error : null
+  const net = isTransportInput(input) ? transportContext(nowMs) : null
 
   const status = (() => {
     const direct = Number(input.status)
@@ -299,7 +357,7 @@ export function buildErrorRecord(input) {
   // the event log, with the reason nowhere.
   const token = err && typeof err.token === 'string' ? err.token : ''
   const code = redactText(
-    input.code ?? (envelope && typeof envelope === 'object' ? envelope.code : token),
+    input.code ?? (net ? net.code : envelope && typeof envelope === 'object' ? envelope.code : token),
     120,
   )
   const message = recordMessage(input)
@@ -332,6 +390,7 @@ export function buildErrorRecord(input) {
     // `route` is a pathname too — scrubbed per segment like `path`.
     route: input.route === undefined ? currentRoute() : redactPath(input.route, 200),
     ...(input.inline === true ? { inline: true } : {}),
+    ...(net ? { online: net.online, visibility: net.visibility, sinceWakeMs: net.sinceWakeMs } : {}),
   }
 }
 
@@ -391,8 +450,10 @@ function mergeSameFailure(input, nowMs) {
   if (!isTransportInput(input)) return null
   // Same drop text only: fetch() also throws a status-less TypeError for a
   // code bug (invalid header name, invalid URL), which must keep its own record.
+  // Same class only: a drop while offline and one while online are two records.
   const message = recordMessage(input)
-  return mergeRecord((r) => isTransportRecord(r) && r.message === message
+  const code = input.code ?? transportContext(nowMs).code
+  return mergeRecord((r) => isTransportRecord(r) && r.message === message && r.code === code
     && nowMs - Date.parse(String(r.lastAt || r.at)) <= TRANSPORT_COALESCE_MS, bump)
 }
 
@@ -415,7 +476,7 @@ export function noteError(input, opts) {
     if (isAbortError(input.error)) return null
     const nowMs = opts && Number.isFinite(opts.now) ? Number(opts.now) : Date.now()
     const merged = mergeSameFailure(input, nowMs)
-    const rec = merged || buildErrorRecord(input)
+    const rec = merged || buildErrorRecord(input, nowMs)
     if (!rec) return null
     // The UI shows what the journal recorded — one failure, one id.
     stampErrorId(input.error, rec.errorId)

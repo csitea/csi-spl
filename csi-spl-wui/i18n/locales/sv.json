@@ -1422,7 +1422,9 @@
     "clear_selection": "Rensa markering",
     "delete_confirm_title": "Ta bort de markerade posterna ({n})?",
     "delete_confirm_body": "Det går inte att ångra.",
-    "delete_failed": "De markerade posterna kunde inte tas bort."
+    "delete_failed": "De markerade posterna kunde inte tas bort.",
+    "network": "Nätverk",
+    "network_hint": "Anslutningen bröts eller fliken var i viloläge. Skärmen fungerade."
   },
   "snackbar": {
     "dismiss": "Stäng",

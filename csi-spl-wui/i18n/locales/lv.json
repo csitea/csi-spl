@@ -1422,7 +1422,9 @@
     "clear_selection": "Notīrīt atlasi",
     "delete_confirm_title": "Vai dzēst atlasītos ierakstus ({n})?",
     "delete_confirm_body": "To nevar atsaukt.",
-    "delete_failed": "Atlasītos ierakstus neizdevās izdzēst."
+    "delete_failed": "Atlasītos ierakstus neizdevās izdzēst.",
+    "network": "Tīkls",
+    "network_hint": "Savienojums pārtrūka vai cilne bija miega režīmā. Ekrānā kļūdas nebija."
   },
   "snackbar": {
     "dismiss": "Aizvērt",

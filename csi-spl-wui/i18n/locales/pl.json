@@ -1422,7 +1422,9 @@
     "clear_selection": "Wyczyść zaznaczenie",
     "delete_confirm_title": "Usunąć zaznaczone wpisy ({n})?",
     "delete_confirm_body": "Tej operacji nie można cofnąć.",
-    "delete_failed": "Nie udało się usunąć zaznaczonych wpisów."
+    "delete_failed": "Nie udało się usunąć zaznaczonych wpisów.",
+    "network": "Sieć",
+    "network_hint": "Połączenie zostało przerwane lub karta była uśpiona. Ekran nie zgłosił błędu."
   },
   "snackbar": {
     "dismiss": "Zamknij",

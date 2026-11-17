@@ -91,9 +91,12 @@ else fail "control: a test that ignores TERM should end rc=137, got: $v"; fi
 
 # The spin control: only the extracted step (its $0 is .../sweep.sh) gets the
 # wait() that ignores TERM; the KILL after the grace stops the old $(...) read.
-printf '%s\n' '[[ "$0" == */sweep.sh ]] && wait() { trap "" TERM; while :; do echo spin; sleep 0.05; done; }' >"$T/spin.env"
+# The wait() leaves $T/spin.mark, so a plant that never fired (the step's $0
+# or its BASH_ENV changed) fails as setup, not as a clean verdict (R7 c-175 N1).
+printf '%s\n' "[[ \"\$0\" == */sweep.sh ]] && wait() { : >'$T/spin.mark'; trap '' TERM; while :; do echo spin; sleep 0.05; done; }" >"$T/spin.env"
 v=$(KT_BASH_ENV="$T/spin.env" kill_once "$TEST_DIR/hygiene-box-users-allow.tst.sh" "$T/spin.ctl")
-if [[ "$v" == clean ]]; then pass "control: hygiene-box-users-allow.tst.sh ends clean when its step spins in wait and ignores TERM"
+if [[ ! -e "$T/spin.mark" ]]; then fail "control: SETUP, the step's planted wait() never ran (verdict: $v)"
+elif [[ "$v" == clean ]]; then pass "control: hygiene-box-users-allow.tst.sh ends clean when its step spins in wait and ignores TERM"
 else fail "control: hygiene-box-users-allow.tst.sh should end clean when its step spins in wait, got: $v"; fi
 
 for name in hygiene-owner-email-allow.tst.sh hygiene-box-users-allow.tst.sh hygiene-retired-relay.tst.sh; do

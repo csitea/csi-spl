@@ -54,7 +54,10 @@ export_tree() {
 # and the trap KILLs the step before the cleanup. A KILLed step leaves its own
 # mktemp dir, so its TMPDIR is inside T. The trap then ignores TERM: the test
 # now reaches its EXIT rm before timeout's second TERM (to the whole group),
-# which would kill that rm (round 4: a 10663-inode leak).
+# which would kill that rm (round 4: a 10663-inode leak). The step's jobs go
+# with it: a TERM to the test alone (no group TERM) left seven sweep.sh jobs
+# running past the test (R7 c-175 W1), so the trap STOPs and KILLs the step's
+# whole process tree, children first; a stopped process cannot fork a new one.
 sweep_pid=""
 mkdir -p "$T/step-tmp"
 sweep() {
@@ -64,7 +67,13 @@ sweep() {
   sweep_pid=""
   return "$rc"
 }
-stop_sweep() { trap '' TERM; [[ -z "$sweep_pid" ]] || kill -KILL "$sweep_pid" 2>/dev/null; }
+kill_tree() { # <pid>
+  local c
+  kill -STOP "$1" 2>/dev/null || return 0
+  for c in $(pgrep -P "$1"); do kill_tree "$c"; done
+  kill -KILL "$1" 2>/dev/null
+}
+stop_sweep() { trap '' HUP INT TERM; [[ -z "$sweep_pid" ]] || kill_tree "$sweep_pid"; }
 trap 'stop_sweep; exit 129' HUP; trap 'stop_sweep; exit 130' INT; trap 'stop_sweep; exit 143' TERM
 
 owner=$(yq -r '.env.steps."060-gcp-vm-satellite".box_owner_user // ""' "$APP_ROOT/$CNF")

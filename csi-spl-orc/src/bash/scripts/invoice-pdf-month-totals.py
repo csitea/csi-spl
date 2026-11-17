@@ -15,7 +15,10 @@ Prints: file  month  account_last4  net  currency  status
             2025" and the like); else the month before the file's date prefix
             (the invoice is issued in the month after the one it bills)
   account   the last 4 characters of the billing account id, never more
-  net       the subtotal before VAT, as a plain decimal (1234.50)
+  net       the subtotal before VAT, as a plain decimal (1234.50); when
+            the text holds two or more different subtotals, the one that
+            adds up with the VAT line to the Total line, else none; one
+            subtotal that does not add up with them is refused too
   currency  the ISO 4217 code ("Subtotal in EUR", "Total in EUR"), else
             the amount's symbol (EUR, USD, GBP)
   status    ok, or unparsed:<field>[,<field>] for each field not found; a
@@ -65,6 +68,13 @@ NET_RX = [
         re.I,
     ),
 ]
+# the cross-check lines: amounts with a 2 digit decimal part only, so a VAT
+# number ("VAT number 12345678") is never read as an amount
+CHECK_AMOUNT = r"(?P<sym>[€$£])?\s*(?P<num>-?[0-9][0-9.,  ]*[.,][0-9]{2})\s*(?P<sym2>[€$£])?(?:\s+[A-Z]{3})?"
+TOTAL_RX = re.compile(
+    r"^\s*Total(?:\s+in\s+[A-Z]{3})?\s*:?\s+" + CHECK_AMOUNT + r"\s*$", re.I
+)
+VAT_RX = re.compile(r"^\s*(?:VAT|Tax)\b.*?\s" + CHECK_AMOUNT + r"\s*$", re.I)
 CURRENCY_RX = re.compile(r"\b(?:Sub)?[Tt]otal\s+in\s+([A-Z]{3})\b")
 
 
@@ -111,7 +121,8 @@ def file_month(name):
 
 def number(raw):
     """1.234,56 / 1,234.56 / 1 234,56 / 64.80 / 12 -> "1234.56"; None when
-    it cannot tell (a lone separator with 3 digits after it: 1,234)."""
+    it cannot tell: the last separator, with 3 digits after it, is the only
+    one of its kind (1,234 and 1.234,567)."""
     s = raw.replace(" ", "").replace(" ", "")
     neg = s.startswith("-")
     s = s.lstrip("-")
@@ -119,12 +130,7 @@ def number(raw):
     tail = len(s) - last - 1
     if last >= 0 and tail in (1, 2):
         whole, frac = s[:last], s[last + 1 :]
-    elif (
-        last >= 0
-        and tail == 3
-        and not (s.count(".") and s.count(","))
-        and s.count(s[last]) == 1
-    ):
+    elif last >= 0 and tail == 3 and s.count(s[last]) == 1:
         return None
     else:
         whole, frac = s, ""
@@ -135,7 +141,25 @@ def number(raw):
     return "-" + v if neg else v
 
 
+def _cents(v):
+    whole, _, frac = v.lstrip("-").partition(".")
+    c = int(whole) * 100 + int((frac + "00")[:2])
+    return -c if v.startswith("-") else c
+
+
+def _only(rx, text):
+    """The one value of rx's lines in text, else None (none, several, or one
+    that does not parse)."""
+    vals = {number(m.group("num")) for m in map(rx.match, text.splitlines()) if m}
+    return vals.pop() if len(vals) == 1 else None
+
+
 def net_and_currency(text):
+    """Every Subtotal / excl. VAT line is a candidate. One value is the net,
+    unless a Total and a VAT line exist and it does not add up with them;
+    of two or more values, the one that adds up with them, else no net
+    (never the first one found)."""
+    cands = []
     for line in text.splitlines():
         for rx in NET_RX:
             m = rx.match(line)
@@ -143,11 +167,20 @@ def net_and_currency(text):
                 continue
             sym = m.group("sym") or m.group("sym2")
             cur = m.group("cur") or m.group("cur2") or SYMBOLS.get(sym or "")
-            if not cur:
-                c = CURRENCY_RX.search(text)
-                cur = c.group(1) if c else None
-            return number(m.group("num")), cur
-    return None, None
+            cands.append((number(m.group("num")), cur))
+            break
+    if not cands:
+        return None, None
+    nets = {v for v, _ in cands}
+    total, vat = _only(TOTAL_RX, text), _only(VAT_RX, text)
+    if total and vat:
+        nets = {v for v in nets if v and _cents(v) + _cents(vat) == _cents(total)}
+    net = nets.pop() if len(nets) == 1 else None
+    cur = next((c for v, c in cands if v == net and c), None)
+    if not cur:
+        c = CURRENCY_RX.search(text)
+        cur = c.group(1) if c else None
+    return net, cur
 
 
 def account(text, pdf_path):

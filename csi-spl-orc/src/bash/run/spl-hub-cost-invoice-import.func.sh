@@ -38,7 +38,6 @@
 # @param ENV (optional) - dev or prd, the hub read and written; needed with COST_INVOICE_CMD=import
 # @param COST_INVOICE_CMD (optional) - import (default) or totals (parse and write the TSV only, no cloud call)
 # @param COST_INVOICE_TSV (optional) - the month-totals TSV, default <COST_INVOICE_DIR>/month-totals.tsv
-# @param COST_INVOICE_LABEL (optional) - the entry label prefix, default "Google Cloud"
 # @param COST_INVOICE_PLAN_SHA (optional) - the plan's sha256 from the dry run; needed with DRY_RUN=0
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
@@ -114,7 +113,8 @@ _scii_totals() {
 }
 
 # _scii_hub_gcp_periods -> the periods that hold a cloud entry labelled
-# Google Cloud or GCP, one per line; reads only period and label of the
+# Google Cloud or GCP (the label _scii_create writes, so a re-run finds
+# its own rows), one per line; reads only period and label of the
 # hub's answer, prints no figure, also not on a refusal
 _scii_hub_gcp_periods() {
   spl_hub_operator_call GET '/v1/operator/cost-entries?type=cloud' || return 1
@@ -175,10 +175,10 @@ _scii_print() {
 # _scii_create <plan> <dry 0|1> -> each create row through
 # do_spl_hub_cost_entries COST_CMD=create; stops at the first failure
 _scii_create() {
-  local month acct net cur action label="${COST_INVOICE_LABEL:-Google Cloud}" n=0
+  local month acct net cur action n=0
   while IFS=$'\t' read -r month acct net cur action; do
     [[ "$action" == create ]] || continue
-    COST_CMD=create COST_TYPE=cloud COST_LABEL="$label (billing account ending $acct)" COST_AMOUNT="$net" \
+    COST_CMD=create COST_TYPE=cloud COST_LABEL="Google Cloud (billing account ending $acct)" COST_AMOUNT="$net" \
       COST_CURRENCY="$cur" COST_PERIOD="$month" COST_NOTE="invoice PDF import, SPL-5802" COST_GROSS="" \
       DRY_RUN="$2" do_spl_hub_cost_entries ||
       { do_log "FATAL the create of $month (account ending $acct) failed after $n created: the rest is not written"; return 1; }

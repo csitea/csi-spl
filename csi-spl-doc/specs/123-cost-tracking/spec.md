@@ -907,9 +907,13 @@ puts the PDFs in one dir; the action (csi-spl-orc) imports them:
   parses it: the month (the service period line, else the month before the
   file's `YYYY-MM-DD-` prefix), the billing account (from the text, else the
   dir name; only its last 4 are ever written), the net before VAT (the
-  `Subtotal` line) and the currency. A field it cannot read is `-` with
-  `unparsed:<field>`, never a guess (`1,234` alone is not read: thousands
-  or decimals cannot be told apart).
+  `Subtotal` or `excl. VAT` line) and the currency. A field it cannot
+  read is `-` with `unparsed:<field>`, never a guess: `1,234` and
+  `1.234,567` are not read (thousands or decimals cannot be told
+  apart), and the net is never the first of several. Two or more
+  different subtotals give the one that adds up with the `VAT` line to
+  the `Total` line, else no net; a single subtotal that does not add up
+  with them (when both exist) is refused too.
 - It writes `COST_INVOICE_TSV` (default `<dir>/month-totals.tsv`, mode 600,
   refused inside a git work tree). `COST_INVOICE_CMD=totals` stops there,
   with no cloud call.
@@ -924,7 +928,8 @@ puts the PDFs in one dir; the action (csi-spl-orc) imports them:
   invoice of the same month and account, and an unparsed row are skipped.
   Only `create` rows are written, each through `do_spl_hub_cost_entries
   COST_CMD=create` (cloud, the net, label `Google Cloud (billing account
-  ending <last4>)`).
+  ending <last4>)`, fixed: the conflict check reads that label, so a
+  re-run finds the rows it wrote).
 - `DRY_RUN=1` (default) runs each create row through that action's dry
   create and prints the table's sha256. `DRY_RUN=0` needs
   `COST_INVOICE_PLAN_SHA` equal to it: only the table the owner OKed is

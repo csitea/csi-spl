@@ -5,8 +5,11 @@
 #   1. the parser: the service month (three date forms, the file date
 #      fallback), the account's last 4 (text, else the pdf/<id>/ dir), the
 #      net in 1,234.50 / 1.234,56 / 1 234,56 / 12 forms, the currency (code
-#      or symbol); an amount it cannot tell (1,234), two numbers on one line,
-#      and a missing field read "-" with unparsed:<field>, never a guess
+#      or symbol); an amount it cannot tell (1,234, 1.234,567), two numbers
+#      on one line, and a missing field read "-" with unparsed:<field>,
+#      never a guess; several different subtotals give the one that adds
+#      up with VAT to the Total, else none; one that does not add up is
+#      refused; a VAT number is not a VAT amount
 #   2. totals: one TSV row per PDF (sub dirs too), mode 600, no cloud call;
 #      no full account id in any output; refusals: COST_INVOICE_DIR unset or
 #      not a dir, a TSV inside a git work tree, a dir with no PDF
@@ -46,6 +49,12 @@ check "1 Oct 2026 \xe2\x80\x93 31 Oct 2026\nTotal excluding VAT   1.234,56 \xe2\
 check "2026-02-01 - 2026-02-28\nSubtotal:  1 234,56 USD\n" "$T/$ACCT/y.pdf" $'y.pdf\t2026-02\t7B8C\t1234.56\tUSD\tok' "ISO period, spaced thousands"
 check "Subtotal in EUR   12\n" "$T/$ACCT/2026-01-05-9.pdf" $'2026-01-05-9.pdf\t2025-12\t7B8C\t12.00\tEUR\tok' "file date fallback is the month before"
 check "Subtotal in EUR   1,234\n" "$T/$ACCT/2026-01-05-9.pdf" $'2026-01-05-9.pdf\t2025-12\t7B8C\t-\tEUR\tunparsed:net' "1,234 is not guessed"
+check "Subtotal in EUR   1.234,567\n" "$T/$ACCT/2026-01-05-9.pdf" $'2026-01-05-9.pdf\t2025-12\t7B8C\t-\tEUR\tunparsed:net' "1.234,567 is not guessed"
+check "Subtotal   12.00\nSubtotal   52.80\nSubtotal in EUR   64.80\n" "$T/$ACCT/2026-01-05-9.pdf" $'2026-01-05-9.pdf\t2025-12\t7B8C\t-\tEUR\tunparsed:net' "several subtotals, no VAT and Total: no net"
+check "Total excl. VAT   70.00\nSubtotal in EUR   64.80\n" "$T/$ACCT/2026-01-05-9.pdf" $'2026-01-05-9.pdf\t2025-12\t7B8C\t-\tEUR\tunparsed:net' "excl. VAT and Subtotal differ: no net"
+check "Subtotal   12.00\nSubtotal   52.80\nSubtotal in EUR   64.80\nVAT (25.5%) 16.52\nTotal in EUR   81.32\n" "$T/$ACCT/2026-01-05-9.pdf" $'2026-01-05-9.pdf\t2025-12\t7B8C\t64.80\tEUR\tok' "several subtotals: the one that adds up with VAT to the Total"
+check "Subtotal in EUR   64.80\nVAT 24 % 15.55\nTotal in EUR   81.00\n" "$T/$ACCT/2026-01-05-9.pdf" $'2026-01-05-9.pdf\t2025-12\t7B8C\t-\tEUR\tunparsed:net' "one subtotal that does not add up is refused"
+check "Subtotal in EUR   64.80\nVAT number 12345678\nTotal in EUR   64.80\n" "$T/$ACCT/2026-01-05-9.pdf" $'2026-01-05-9.pdf\t2025-12\t7B8C\t64.80\tEUR\tok' "a VAT number is not a VAT amount"
 check "Subtotal   1   64.80\n" "$T/$ACCT/2026-01-05-9.pdf" $'2026-01-05-9.pdf\t2025-12\t7B8C\t-\t-\tunparsed:net,currency' "two numbers on a line never merge"
 check "nothing here\n" "$T/z.pdf" $'z.pdf\t-\t-\t-\t-\tunparsed:month,account,net,currency' "nothing found, nothing guessed"
 

@@ -165,6 +165,9 @@ bash "$HERE/store-pg-groups.tst.sh"
 echo "== hub Postgres groups: every internal/hub test in exactly one process (both tiers, no Postgres) =="
 bash "$HERE/hub-pg-groups.tst.sh"
 
+echo "== hub Postgres group pool: store and hub groups share one HUB_PG_GROUP_JOBS cap (p14-02, no Postgres) =="
+bash "$HERE/hub-pg-pool.tst.sh"
+
 echo "== throwaway live hub stack: no hub is a failure, never a skip (SPL-2167; the full stack is wf 10 hub-live) =="
 bash "$HERE/hub-live-stack.tst.sh"
 fi

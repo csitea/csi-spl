@@ -18,7 +18,7 @@
       </p>
 
       <ErrorNotice
-        v-if="!is404"
+        v-if="!is404 && !staleChunk"
         :message="String(props.error?.message || '')"
         :error="props.error"
         source="error-page"
@@ -43,6 +43,7 @@
 
 <script setup lang="ts">
 import type { NuxtError } from '#app'
+import { chunkReloadsThisLoad, isChunkLoadError } from '~/utils/chunk-reload'
 /* CLE-77925: Nuxt imports this page statically, so a static ErrorNotice put
    it, UiIcon and the whole icon table in every first load. It shows only for
    a non-404 error; if its chunk cannot load, the page still says what
@@ -56,6 +57,12 @@ const localePath = useLocalePath()
 
 const statusCode = computed(() => Number(props.error?.statusCode) || 404)
 const is404 = computed(() => statusCode.value === 404)
+/* SPL-5742 (F1): a stale chunk that chunk-reload reloads the tab for is an
+   app update, not an error. The app:error hook (error-journal.client.ts) has
+   already written its one info note before this page renders, so the notice,
+   which journals on mount, stays out: no `error-page` row for it. Offline or
+   inside chunk-reload's 10 s guard it is a real error and shows as one. */
+const staleChunk = import.meta.client && isChunkLoadError(props.error) && chunkReloadsThisLoad()
 
 // The spool's top-level pages — the always-safe fallback suggestions (labels
 // are nav.* i18n keys, paths are real pages/ routes).

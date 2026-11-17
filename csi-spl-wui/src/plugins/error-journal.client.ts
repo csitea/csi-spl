@@ -53,19 +53,29 @@ export default defineNuxtPlugin((nuxtApp) => {
   // tab, and the journal keeps one info note per page load (SPL-4525). Only
   // when chunk-reload reloads: offline or inside its 10 s guard the failure
   // stays an error, so chunk-reload's own decision is asked.
+  // SPL-5742 (F1): ONE rule for every source below. vue:error alone asked it,
+  // so the same stale chunk came back as `promise`, `app` and `window` rows.
   const chunkNote = createChunkNoteFilter(chunkReloadsThisLoad)
-  nuxtApp.hook('vue:error', (err, instance, info) => {
+  /** True when `err` is a stale chunk chunk-reload reloads for: the one note, never an error. */
+  function asAppUpdate(err: unknown): boolean {
     const kind = chunkNote(err)
-    if (kind === 'skip') return
-    if (kind === 'note') return record('app-update', undefined, APP_UPDATED_NOTE)
+    if (kind === 'note') record('app-update', undefined, APP_UPDATED_NOTE)
+    return kind !== 'error'
+  }
+  nuxtApp.hook('vue:error', (err, instance, info) => {
+    if (asAppUpdate(err)) return
     void import('~/utils/vue-error-trail.mjs').then(
       (m) => record('vue', err, { trail: m.vueComponentTrail(instance), code: m.vueErrorInfo(info) || undefined }),
       () => record('vue', err),
     )
   })
 
-  // Nuxt app-level errors (navigation, plugin failures, showError()).
+  // Nuxt app-level errors (navigation, plugin failures, showError()). Hookable
+  // runs this handler in a promise, after showError() has set the error, so
+  // it is not ordered before error.vue: error.vue asks chunkReloadsThisLoad()
+  // itself and keeps its notice silent for a stale chunk; the note is here.
   nuxtApp.hook('app:error', (err) => {
+    if (asAppUpdate(err)) return
     record('app', err)
   })
 
@@ -83,12 +93,15 @@ export default defineNuxtPlugin((nuxtApp) => {
     // (newest last follows the bottom that way, topic c6994436), and on prd
     // e2e the snackbar showed it to the reader as an error. Exact text only.
     if (!ev.error && BENIGN_WINDOW_ERRORS.includes(String(ev.message || ''))) return
-    record('window', ev.error ?? { name: 'Error', message: ev.message }, {
-      url: ev.filename || '',
-    })
+    const err = ev.error ?? { name: 'Error', message: ev.message }
+    if (asAppUpdate(err)) return
+    record('window', err, { url: ev.filename || '' })
   })
 
+  // chunk-reload.client.ts reloads the tab for a chunk rejection; the journal
+  // keeps the note for it, as for vue:error.
   window.addEventListener('unhandledrejection', (ev: PromiseRejectionEvent) => {
+    if (asAppUpdate(ev.reason)) return
     record('promise', ev.reason)
   })
 })

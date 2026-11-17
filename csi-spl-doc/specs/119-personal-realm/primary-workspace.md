@@ -1,11 +1,10 @@
 # 119 addition: the primary workspace of a person
 
-**Status**: v0.2.1, 2026-11-17, c-958 (SPL-5788, epic SPL-2396). Docs only:
-builds nothing. The owner answered Q1, Q2, Q3 and Q7 (section 9.1:
-`1a`, `2c`, `3a`, `7b`); Q4..Q6 fall away under `1a`. `2c` raises two
-follow-up questions, Q8 and Q9 (section 9.2); the rows that depend on
-them wait. Nothing is built before a review seat passes this file. Build
-rows: [tasks.md](tasks.md), section "Primary workspace".
+**Status**: v0.3, 2026-11-17, c-958 (SPL-5788, epic SPL-2396). Docs only:
+builds nothing. Every owner question is answered (section 9: `1a`, `2c`,
+`3a`, `7b`, then `8b`, `9c`); Q4..Q6 fall away under `1a`. Nothing is
+built before a review seat passes this file. Build rows:
+[tasks.md](tasks.md), section "Primary workspace".
 Topic: t1 #spool-hub-ui `69d3f60c-d161-43de-ad64-e73683414064`.
 
 Part of [119 personal realm](spec.md) (section 16 links here). Builds on,
@@ -61,7 +60,7 @@ operator scope); only names and counts are written here.
 | F6 | The person's workspaces are `Memberships(human)`: no `channel_guest` seat, no disabled human or membership, none past `access_until` | `GO/store/memberships.go:140-152` | the list the setting offers starts from it |
 | F7 | A browser calendar write needs `notes.send`, refuses a demo visitor and a workspace whose billing does not allow writes | `GO/hub/calendar.go:935-945` (`calendarWriter`) | the setting offers only workspaces where those pass (section 2.1) |
 | F8 | The personal calendar's create dialog asks for the workspace first, preselecting the last one used, else the one the person came from; an entry never moves between workspaces | [calendar-across-workspaces.md](calendar-across-workspaces.md) section 5 | the setting becomes the first preselect (2.5) |
-| F9 | Before this file, a leaver keeps hours receipts, never content; a calendar entry is content and stays in its workspace | 119 REQ-4/5 (section 6.1); calendar-across-workspaces section 7 | the owner's `2c` makes a realm copy of entries; what that copy does on a leave is Q9 (section 3.5) |
+| F9 | Before this file, a leaver keeps hours receipts, never content; a calendar entry is content and stays in its workspace | 119 REQ-4/5 (section 6.1); calendar-across-workspaces section 7 | it still holds: under the owner's `9c` the realm copy of `2c` is dropped on a leave (3.5) |
 | F10 | The contacts Google sync binds exactly one of the person's workspace connections: `contacts_sync`, key `human_id`, FK to `tenant_memberships`; a second binding is 409 `contacts_sync_elsewhere` | `RDB/0226_contacts.sql:142-166`; `GO/hub/contacts.go:516`; 154 section 2.2 step 3 | the binding has a workspace even though the list does not; it stays as today (`7b`, section 5) |
 | F11 | A Google Calendar connection is per member per workspace (`UNIQUE (tenant_id, human_id)`); imports land as that member's private events in that workspace | `RDB/0217_google_calendar.sql:17,40`; 149 sections 2.1, 2.10 B | where Google imports land is the connection's workspace, not this setting (section 5) |
 | F12 | The daily public dataset export reads the workspaces `t1`, `spool` and `demo` | `csi-spl-cnf/csi-spl/prd.env.yaml:487-488` (`public_dataset.workspace_ids`) | personal data stored in t1 would sit in an exported workspace, fenced by one allow-list (`1b`, not chosen) |
@@ -130,34 +129,44 @@ dialog's first preselect (F8), the primary workspace, else the last one
 used, else the one P came from. The workspace's own calendar page still
 creates in that workspace. An existing entry never moves (F8).
 
-## 3. Calendar entries: the realm mirror (owner: `2c`)
+## 3. Calendar entries: the realm mirror (owner: `2c`, `8b`, `9c`)
 
-The owner chose `2c`, "Mirror every entry into the realm". Every
-calendar entry stays in its workspace and is still edited there (F1); the
-person's realm keeps a read-only copy of it, the **mirror**. The
-workspace row is the source; the mirror follows it and is never edited
-by itself.
+The owner chose `2c`, "Mirror every entry into the realm", then `8b`
+(every entry the person can read, other people's included) and `9c` (a
+leaver's mirror of that workspace is dropped; a leaver keeps hours, never
+content). Every calendar entry stays in its workspace and is still edited
+there (F1). While P is a member of W, P's realm holds a read-only copy of
+every W entry P can read: the **mirror**. The workspace row is the
+source; the mirror follows it, is never edited by itself, and never
+outlives P's access to W.
 
-### 3.1 Which entries
+### 3.1 Which entries: exactly what P can read in W
 
-"Every entry" is read as **every entry that is P's** in each workspace of
-`Memberships(P)` that passes the `topics.read` gate: the "mine" rule of
-[calendar across workspaces](calendar-across-workspaces.md) section 3.1
-(P made it, P owns it, P is a guest or `@`-mentioned on it; a Google
-import is P's own event). Issue deadlines are not events and are not
-mirrored. The other reading, every entry P can read (a whole workspace
-calendar, other people's entries included), is Q8 `8b` (section 9.2).
+For each workspace W of `Memberships(P)` (F6) where P holds `topics.read`
+(the per-workspace gate of calendar-across-workspaces section 4), the
+mirror holds every live (not trashed) `calendar_events` row of W that W's
+own calendar shows to P:
 
-**The private filter applies first.** The source row is selected, for
-each human, with the workspace's own private filter for that human as the
-viewer, ANDed with the "mine" predicate, exactly as calendar-across-workspaces
-3.1 reads it: `calendarPrivateSQL` = `(audience <> 'private' OR ($2::text <> ''
-AND (creator_id = $2 OR $2 = ANY (mentions))))`
-(`GO/store/calendar_postgres.go:35`, viewer at `$2`). That filter does not
-include `owner_id`, so a private entry whose owner is P, made by someone
-else and not naming P, is hidden from P in W and makes **no** mirror row.
-The mirror never holds an entry the workspace calendar would hide from P;
-an entry that turns private and hidden from P is deleted from P's mirror.
+- the workspace's **private filter** with P as the viewer:
+  `calendarPrivateSQL` = `(audience <> 'private' OR ($2::text <> '' AND
+  (creator_id = $2 OR $2 = ANY (mentions))))`
+  (`GO/store/calendar_postgres.go:35`, viewer at `$2`). It does not
+  include `owner_id`: a private entry whose owner is P, made by someone
+  else and not naming P, is hidden from P in W and makes **no** mirror row
+  (R7 W2);
+- for a demo visitor in W (`isDemoVisitor`, `GO/hub/demo_quota.go:38`),
+  only `workspace` and `public` entries, as the workspace route's
+  `visibleTo` keeps (`GO/hub/calendar.go:636`).
+
+Series masters and their exception rows are copied as rows (recurrence is
+expanded on read, as the store's `calendarWithSeries` does,
+`GO/store/calendar_series.go:140`). Issue deadlines are not
+events and are not mirrored. Official days are not mirrored.
+
+So the mirror never holds an entry the workspace calendar would hide from
+P, and an entry that turns private and hidden from P is deleted from P's
+mirror. The "mine" predicate of calendar-across-workspaces 3.1 is **not**
+applied: under `8b` other people's readable entries are copied too.
 
 ### 3.2 The table
 
@@ -170,21 +179,23 @@ One new realm table, in the shape of every `personal.*` table (F2, F3):
 | `person_id` | `text NOT NULL REFERENCES public.humans (human_id) ON DELETE CASCADE` | P |
 | `workspace_id` | `text NOT NULL` (1..200, no FK, like `personal.note_links.workspace_id`) | the source workspace |
 | `event_id` | `uuid NOT NULL` (no FK) | the source `calendar_events.event_id` |
-| `workspace_name` | `text NOT NULL` | the workspace's display name at the last copy |
-| `relation` | `text NOT NULL CHECK (relation IN ('creator','owner','guest','mention'))` | how the event is P's (3.1), the first that holds in this order: `creator` (`creator_id = P`), `owner` (`owner_id = P`), `guest` (P is in the event's guest list), `mention` (P is in `mentions` only; guests are a subset of `mentions`, 097 3.2) |
-| `title`, `description`, `kind`, `starts_at`, `ends_at`, `all_day`, `time_zone`, `rrule`, `recur_until`, `recurring_event_id`, `original_start`, `status` | as in `calendar_events` (rdb 0125, 0139), same checks | the source row |
-| `source_updated_at` | `timestamptz NOT NULL` | the source `updated_at` |
+| `title`, `description`, `kind`, `starts_at`, `ends_at`, `all_day`, `audience`, `time_zone`, `rrule`, `recur_until`, `recurring_event_id`, `original_start`, `status` | as in `calendar_events` (rdb 0125, 0139, 0159..0161), same checks | the source row |
+| `source_updated_at` | `timestamptz NOT NULL` | the source `updated_at`, for display only (3.3) |
 | `copied_at` | `timestamptz NOT NULL DEFAULT now()` | |
-| `left_at` | `timestamptz NULL` | set when P's access to the workspace ends (3.5); NULL while P is a member |
 
 Key `(person_id, workspace_id, event_id)`. FORCE RLS with the one
 `person_scope` policy and no other (F3): no admin, member or operator
 reads a mirror row, and the operator scope reads 0 rows of it as it does
-of notes and contacts (F4). Not copied: `mentions`, the guest list,
-`props`, `topic_id`, `issue_keys`, `remind_at`, `audience`, `creator_id`
-and `owner_id`. Those name other people, link workspace content, or drive
-workspace behaviour; the mirror keeps what P needs to see their own
-calendar.
+of notes and contacts (F4).
+
+No `relation` column (R7 W1): v0.2 had one to tell creator, owner and
+guest apart for Q9 `9b`; under `8b` most rows are no relation of P's at
+all, and under `9c` nothing reads it. Not copied either: `mentions`, the
+guest list, `props`, `topic_id`, `issue_keys`, `remind_at`, `creator_id`,
+`owner_id`, `source_key`. They name other people, link workspace content
+or drive workspace behaviour (reminders stay the workspace's,
+calendar-across-workspaces 4.1); the mirror keeps what the calendar grid
+shows.
 
 ### 3.3 How it is written
 
@@ -192,86 +203,80 @@ Each step is its own transaction and the scopes are never set together
 (119 8.1, 118 5.2).
 
 1. The workspace write commits as today, in `inTenant(W)`: create,
-   update, delete, restore from trash, an RSVP, a guest added or removed,
-   a Google import (149).
-2. Then, for each human H the write may concern (the creator, the
-   owner, each human guest or mention, before and after the write), the
-   hub first checks H's gate in W (`Memberships(H)` holds W and H has
-   `topics.read` there, 3.1); a human who fails it gets no row and loses
-   any row of W. For the rest it reads the source row fresh in
-   `inTenant(W)` with H as the private filter's viewer and the "mine"
-   predicate (3.1), then runs one `inPerson(H)` transaction that writes
-   what that read returned: an upsert (`ON CONFLICT (person_id,
-   workspace_id, event_id) DO UPDATE` of every copied column), or a
-   delete when the read returned nothing (the entry was deleted or
-   trashed, is no longer H's, or is now private and hidden from H). The
-   write is not ordered by `updated_at`: a trash keeps `updated_at`
-   (`GO/store/calendar_postgres.go:292`), and an RSVP or a guest change is
-   not known to bump it (unchecked), so each step 2 copies the state it
-   has just read. Two step 2s racing on one row can leave the older state;
-   the sweep repairs it. A trashed entry is deleted from the
-   mirror and comes back on restore. Writing a realm row for a person
-   other than the session's follows the receipt precedent (119 8.1: the
-   hub writes the leaver's receipt during an admin's removal).
-3. A failed step 2 does not fail the workspace write (the source is
-   already right). It is logged with ids and counts only, never a title,
-   and the sweep repairs it.
+   update, delete, trash, restore, an RSVP, a guest added or removed, an
+   audience change, a Google import (149).
+2. Then the hub refreshes the mirror of that one event for the humans it
+   may concern. A `private` entry concerns its creator and the humans in
+   `mentions`, before and after the write. Any other audience concerns
+   every human of `Memberships` in W who passes the gate (3.1): under
+   `8b` a workspace-wide entry is in every member's mirror. For each such
+   human H it reads the source row fresh in `inTenant(W)` with the 3.1
+   filter and H as the viewer, then runs one `inPerson(H)` transaction
+   that writes what that read returned: an upsert (`ON CONFLICT
+   (person_id, workspace_id, event_id) DO UPDATE` of every copied
+   column), or a delete when the read returned nothing (deleted, trashed,
+   or now hidden from H). A human who fails the gate gets a delete.
+   Writing a realm row for a person other than the session's follows the
+   receipt precedent (119 8.1: the hub writes the leaver's receipt during
+   an admin's removal).
+3. Step 2 runs after the response, at most 2 humans in flight (the 118
+   bound). A failed step 2 does not fail the workspace write (the source
+   is already right). It is logged with ids and counts only, never a
+   title, and the sweep repairs it.
+
+The write is not ordered by `updated_at`: a trash keeps `updated_at`
+(`GO/store/calendar_postgres.go:292`), and an RSVP or a guest change is
+not known to bump it (unchecked). So each step 2 copies the state it has
+just read. Two step 2s racing on one row can leave the older state; the
+sweep repairs it.
 
 **The sweep**: a named action on the existing sweep cadence (119 8.1's).
-For each person with a live membership it compares the mirror with the
-source "mine" set, one workspace at a time (`inTenant(W)` read with P as
-the private filter's viewer, the same read as step 2, then `inPerson(P)`
-write), and fixes what differs, comparing every copied column. Its first run fills the
-mirror for every existing entry. The person list comes from the
-membership list, the sweep's only operator read (the 119 8.1 shape).
+For each person P with a membership it reads, one workspace at a time,
+the 3.1 set for P (`inTenant(W)`, P as viewer, the same read as step 2),
+then in `inPerson(P)` upserts what differs (every copied column
+compared) and deletes the rest. It also deletes every mirror row of a
+workspace that is no longer in `Memberships(P)` or fails P's gate (3.5).
+Its first run fills the mirror for every existing entry. The person list
+comes from the membership list, the sweep's only operator read (the 119
+8.1 shape).
 
 ### 3.4 How it is read
 
-- `GET /v1/me/realm/calendar/events` (calendar across workspaces section
-  4) still reads each live workspace directly. The mirror is not a second
-  source for those: P never sees the same entry twice.
-- The mirror's rows with `left_at` set (Q9 `9a` / `9b` only) are added to
-  that answer as read-only entries, workspace `{"workspace_id","name",
-  "state":"left"}`, never draggable and never editable, opening a
-  read-only sheet that says P left that workspace.
-- `GET /v1/me/realm/calendar/mirror?start=&end=` (same 62-day bound,
-  realm gate F16) reads the mirror alone, for the export (section 6) and
-  tests.
+- `GET /v1/me/realm/calendar/events` (calendar-across-workspaces section
+  4) still reads each live workspace directly, with its "mine" predicate;
+  it does not read the mirror, so P never sees an entry twice and the view
+  is never staler than the workspace.
+- `GET /v1/me/realm/calendar/mirror?start=&end=` (the same 62-day bound,
+  realm gate F16) reads the mirror alone: every entry P can read across
+  P's workspaces, each with its `workspace_id` and the workspace's current
+  name. It is filtered at read time to the workspaces that are in
+  `Memberships(P)` and pass P's gate **now**, so a row the sweep has not
+  yet dropped (3.5) is never answered.
 - Under act-as, a clone, an agent or a box token: 403 `person_only` (F16).
 
-### 3.5 Leaving, lost access, workspace deleted (Q9)
+What the mirror gives P that the live view does not: one realm read of
+P's whole readable calendar across workspaces (the `/mirror` route and its
+export, section 6), with no fan-out of up to 20 workspace reads. Under
+`9c` it keeps nothing after a leave.
 
-This is where `2c` meets 119: a receipt holds hours and never content
-(REQ-5), and calendar-across-workspaces section 7 drops a left
-workspace's entries from the view. A mirror kept after a leave hands the
-leaver content, including meetings that others made in which P was
-only a guest. So Q9 (section 9.2) asks what the copy does on a leave:
+### 3.5 Leaving, lost access, workspace deleted (owner: `9c`)
 
-- `9a` keep every mirror row of W, read-only, with `left_at` set.
-- **`9b` (recommended)** keep the entries P made or owns
-  (`relation in ('creator','owner')`) with `left_at` set; delete the
-  ones where P was only a guest. P keeps their own entries; other
-  people's meetings stay with the workspace.
-- `9c` delete every mirror row of W. The mirror is then only a copy for
-  the members of W, and 119 REQ-5 and calendar-across-workspaces section
-  7 stand unchanged.
+The owner chose `9c`: when P's access to W ends, every mirror row of W in
+P's realm is deleted. 119 REQ-4/5 (a leaver keeps hours receipts, never
+content) and calendar-across-workspaces section 7 stand unchanged; no
+edit to either.
 
-The order is 119 8.1's, copy first and change second: before a removal,
-a ban or a workspace delete, the hub brings P's mirror of W up to date
-(3.3 step 2 for all of P's entries in W), then applies Q9 to it, then
-runs the change. A failed refresh blocks the change (503
-`mirror_failed`, retried), as a failed receipt does. A lapsed
-`access_until` is handled by the sweep, which can only apply Q9 to the
-mirror as last copied: access already ended. A **disabled** membership
-(rdb 0074) is not a leave: its rows stay as they are and the sweep skips
-it until it is enabled or removed. A rejoin clears `left_at` and the
-sweep re-syncs the rows.
+The order is **drop first, change second**, the mirror image of 119
+8.1's copy first:
 
-Under `9a` / `9b`, 119 REQ-5 gains one sentence: "A person keeps the
-calendar mirror of section 3 of primary-workspace.md (its Q9), which is
-not a receipt." Calendar-across-workspaces section 7 gains the
-`state:"left"` rows of 3.4. Both edits land with the build row, not
-before.
+| trigger | how |
+|---|---|
+| removal or ban | in the request, before the membership change: `inPerson(P)` deletes P's rows of W, then the change runs. A failed delete blocks the removal (503 `mirror_failed`, retried), so a leaver never keeps a row. A change that fails after the delete leaves P a member with an empty mirror of W; the next sweep refills it |
+| `access_until` passes | access already ended (rdb 0113, `Memberships`); the sweep deletes the rows. Until it runs they stay in the table, but the read-time filter of 3.4 never answers them |
+| membership disabled (rdb 0074) | `Memberships` drops it: the sweep deletes the rows, the read filter hides them at once; enabled again, the sweep refills them |
+| workspace deleted | the delete action deletes the rows of W for every member, in `inPerson` per member, before `DELETE FROM tenants`; a delete that cannot drop them is refused |
+| P loses `topics.read` in W | as `access_until`: the read filter hides them at once, the sweep deletes them |
+| rejoin | the sweep refills the mirror from the live rows |
 
 ## 4. Notes and contacts (owner: `1a`)
 
@@ -294,27 +299,31 @@ Q4..Q6) fall away with them.
   workspace is. No T021 "binding follows" row.
 - **Calendar** (149): unchanged. Each workspace connection imports into
   its own workspace (F11). The imports are P's own private events, so
-  they are mirrored (3.1) like any other entry of P's.
+  they are mirrored (3.1) like any other entry P can read.
 
 ## 6. Export, erase, backups
 
 - **Export**: unchanged for notes (`GET /v1/me/realm/notes/export`, 155
   2.8) and contacts (`GET /v1/me/contacts/export`, 154 2.6). The mirror
-  gets `GET /v1/me/realm/calendar/mirror/export`: the person's mirror rows
-  as JSON, realm gate (F16). No workspace export carries any of them.
+  gets `GET /v1/me/realm/calendar/mirror/export`: P's mirror rows, with
+  3.4's read-time filter, as JSON, realm gate (F16). It holds what P can
+  already read in each workspace today, no more. No workspace export
+  carries any of it.
 - **Public dataset export** (091): the realm is never in it.
   `personal.calendar_mirror` goes on 091's never-exported list (its
   section 4.2), so the gate refuses it whatever an allow-list says; a
   catalogue test fails if it is missing there.
-- **Erase**: the `humans` delete cascades the mirror (realm FK, 3.2).
-  `DELETE /v1/me/realm/calendar/mirror?workspace=W` lets P drop the kept
-  rows of a workspace P has left (`left_at` set). For a workspace P is
-  still in it is 409 `mirror_live`: the sweep would copy the rows back.
+- **Erase**: the `humans` delete cascades the mirror (realm FK, 3.2); a
+  leave drops a workspace's rows (3.5). No separate erase route: the
+  sweep would copy live rows back.
 - **Backups**: one instance, every workspace and the realm together
   (F15); the mirror changes nothing about who backs up or restores.
-- **Size**: prd holds 2738 `calendar_events` rows in all (F4). The mirror
-  holds one row per (person, entry) pair whose entry is "mine", so it is
-  bounded by the entries times the people on each.
+- **Size, prd 2026-11-17** (`do_spl_db_query`, read only): 1817 live
+  `calendar_events` rows, 1700 of them `private`; 22 workspaces with
+  84 non-guest seats, at most 19 in one. The non-private live rows times
+  their workspace's seats come to 542 mirror rows; each private row adds
+  one per human it shows to (creator plus mentions). A few thousand rows
+  in all today.
 
 ## 7. Not built
 
@@ -323,21 +332,31 @@ Q4..Q6) fall away with them.
   T021).
 - Under `2c`: the `2b` private realm calendar. The mirror is never a place
   to create or edit an entry.
+- Under `9c`: no kept copy after a leave, no `left_at`, no "left
+  workspace" rows in the personal view, no change to 119 REQ-5 or to
+  calendar-across-workspaces section 7.
 
 ## 8. Risks
 
 - **Two copies drift**: the source wins. A missed step 2 is repaired by
   the next sweep, so the mirror lags by at most one sweep interval; T-PW5
-  pins the repair.
-- **Write fan-out**: one workspace write makes at most 1 + (guests and
-  mentions) realm transactions, run after the response at most 2 in flight
-  (the 118 bound), never inside the workspace transaction.
-- **Content kept by a leaver** under `9a` / `9b`: the owner's call (Q9),
-  written here so it is a decision and not a side effect.
+  pins the repair. The personal view reads the live rows (3.4), so a lag
+  shows only in the `/mirror` route and its export.
+- **Write fan-out under `8b`**: a non-private write refreshes one row per
+  gated member of W: at most 19 on prd today (section 6), each a small
+  `inPerson` transaction after the response, 2 in flight. A private write
+  touches its creator and mentions only. The sweep is the bulk path.
+- **A leaver's rows** (`9c`): a removal, a ban or a workspace delete
+  drops them before the change; an expiry, a disable or a lost
+  `topics.read` leaves them in the table until the next sweep, never
+  answered by a read (3.4). T-PW6 pins both.
+- **Other people's entries in P's realm** (`8b`): only what W shows P
+  today (3.1), dropped when P's access ends; no admin or operator reads
+  them (F3, F4).
 
-## 9. The owner's answers and the open questions
+## 9. The owner's answers
 
-### 9.1 Answered (HUM-10, t1 `69d3f60c`, msg `6fccf8a9`, 2026-11-17, poll `6312c024`)
+### 9.1 Poll `6312c024` (HUM-10, t1 `69d3f60c`, msg `6fccf8a9`, 2026-11-17)
 
 | # | question | answer | so |
 |---|---|---|---|
@@ -347,18 +366,18 @@ Q4..Q6) fall away with them.
 | Q4..Q6 | only under `1b` / `1c` | fall away (c-002, msg `89c52d2e`) | v0.1 sections 5, 6 dropped |
 | Q7 | Contacts Google sync | **`7b`** as today, on in any one workspace | section 5 |
 
-### 9.2 Open: raised by `2c` (recommended option first; keys at most 3 characters)
+### 9.2 Poll `1dd970be` (HUM-10, t1 `69d3f60c`, msg `4cb7194f`, 2026-11-17)
 
-| # | question | options |
-|---|---|---|
-| Q8 | Which calendar entries go into a person's mirror? | **`8a` (recommended)** the person's own: made, owned, guest or mentioned, Google imports (3.1). `8b` every entry the person can read in each workspace, other people's included |
-| Q9 | When a person leaves a workspace, what happens to its entries in their mirror? | **`9b` (recommended)** they keep the entries they made or own, read-only; meetings where they were only a guest are dropped. `9a` they keep every mirrored entry, read-only. `9c` all of that workspace's entries are dropped (as today: a leaver keeps hours, never content) |
+| # | question | answer | so |
+|---|---|---|---|
+| Q8 | Which calendar entries go into a person's mirror? | **`8b`** every entry the person can read in each workspace, other people's included | 3.1: W's own read for P, private filter and demo rule included |
+| Q9 | When a person leaves a workspace, what happens to its entries in their mirror? | **`9c`** all of that workspace's entries are dropped, as today: a leaver keeps hours, never content | 3.5: drop first, change second; 119 REQ-5 unchanged |
 
-With `8a` and `9b`, the owner's own case reads: every csitea, t1 and
-other entry that is the owner's is also in the owner's realm; new entries
-made in "My calendar" go to csitea by default; notes and contacts stay in
-the realm, read by no one else; contacts sync stays where it is now; on
-leaving a workspace the owner keeps the entries they made there.
+No question is open. The owner's own case reads: every entry the owner
+can read in csitea, t1 and each other workspace is also in the owner's
+realm, read by no one else; new entries made in "My calendar" go to csitea
+by default; notes and contacts stay in the realm; contacts sync stays
+where it is; on leaving a workspace its entries leave the owner's realm.
 
 ## 10. Tests (for the build rows; Postgres, runtime role)
 
@@ -373,16 +392,16 @@ leaving a workspace the owner keeps the entries they made there.
   stale primary (membership removed) is treated as unset and the notice
   shows. Red control: skip the 2.1 check on read, the removed workspace is
   preselected.
-- **T-PW3** mirror write (3.3): create, edit, trash, restore and delete an
-  entry with a guest; after each step the creator's and the guest's
-  mirror rows match the source; removing the guest deletes the guest's
-  row; an entry P can merely read (`workspace` audience, not P's) makes no
-  row (under `8a`); an entry that names P only in `mentions` makes a
-  row with `relation = 'mention'`; a `private` entry whose `owner_id` is
-  P, made by someone else and not naming P, makes no row for P. Red
-  controls: skip the guest in step 2, the guest's row is missing; drop
-  the private filter from the step-2 read, the owner-only private entry
-  gets a row.
+- **T-PW3** mirror write (3.3): in W with members P, Q, R: Q creates a
+  `workspace` entry, and P's, Q's and R's mirrors each get the row; Q
+  edits it and all three follow; Q trashes it and all three rows go;
+  restore brings them back; delete removes them. A `private` entry by Q
+  naming P makes rows for Q and P and none for R. **A `private` entry by
+  Q with `owner_id = P` and P not in `mentions` makes no row for P** (R7
+  W2). An `internal` entry makes no row for a demo visitor. Red controls:
+  drop the private filter from the step-2 read, the owner-only private
+  entry gets a row for P (and R gets the private row); drop the demo
+  rule, the demo visitor gets the `internal` row.
 - **T-PW4** isolation: under `inTenant(W)` and the operator scope,
   `personal.profile`'s new column and `personal.calendar_mirror` read 0
   rows; another person's `inPerson` reads 0 rows (119 T-N2, T-N4
@@ -390,16 +409,18 @@ leaving a workspace the owner keeps the entries they made there.
   the operator read returns rows.
 - **T-PW5** sweep repair: delete a mirror row by hand, and edit a source
   row with step 2 disabled; one sweep run restores both; a second run
-  changes nothing; a private, owner-only entry not naming P gets no row
-  from the sweep either. Red controls: the sweep skips the compare, the
-  row stays missing; the sweep reads without the private filter, the
-  owner-only entry gets a row.
-- **T-PW6** leave (Q9's answer): remove P from W; the rows Q9 keeps have
-  `left_at` set and show in the personal view as `state:"left"`, read
-  only; the rows it drops are gone; a failed refresh blocks the removal
-  with 503 `mirror_failed`. A disabled membership changes no row. Red
-  control: run the change before the copy, the last edit is missing from
-  the kept row.
+  changes nothing; the sweep never writes the owner-only private entry of
+  T-PW3 for P. Red controls: the sweep skips the compare, the row stays
+  missing; the sweep reads without the private filter, the owner-only
+  entry gets a row.
+- **T-PW6** leave (`9c`): remove P from W, and P's rows of W are gone
+  before the membership row changes; a failed delete blocks the removal
+  with 503 `mirror_failed`; a workspace delete leaves no row of W in any
+  realm; after `access_until` passes and after a disable, `/mirror`
+  answers no row of W at once and the next sweep deletes them; re-enable
+  refills them. Red controls: run the change before the delete with the
+  delete failing, P is out with rows left; drop the read-time filter, the
+  expired workspace's rows are answered.
 - **T-PW7** export gate: `personal.calendar_mirror` is on 091's
   never-exported list; removing it fails the catalogue test.
 
@@ -410,5 +431,6 @@ leaving a workspace the owner keeps the entries they made there.
 | 0.1 | 2026-11-17 | c-958 | draft: facts F1..F16, the setting (stored on `personal.profile`), calendar options `2a`..`2c`, notes and contacts options `1a`..`1c` (realm, t1, picked workspace), moves and leaves under `1b` / `1c`, readers, Google sync, export / erase / backups, Q1..Q7, tests T-PW1..T-PW4 |
 | 0.2 | 2026-11-17 | c-958 | the owner's answers `1a`, `2c`, `3a`, `7b` (msg `6fccf8a9`): the setting is the "My calendar" preselect (2.5); the realm calendar mirror (section 3: table, write, sweep, read, leave); notes and contacts unchanged; v0.1 sections 5, 6 and the contacts-binding row dropped; new open questions Q8 (which entries) and Q9 (on leaving); tests T-PW1..T-PW7 |
 | 0.2.1 | 2026-11-17 | c-958 | R7 c-990 (msg `d9e33ac3`): `relation` gains `mention` (W1); step 2 and the sweep read the source with the workspace private filter for each human, so an owner-only private entry is not mirrored (W2); step 2 checks each human's gate (N3); no `updated_at` ordering (N4); F1 cites `:48` (N5); T-PW3, T-PW5 red controls |
+| 0.3 | 2026-11-17 | c-958 | the owner's `8b`, `9c` (msg `4cb7194f`): the mirror holds every entry P can read in W (W's private filter with P as viewer, the demo rule), dropped on a leave, drop first; no `relation`, no `left_at` (R7 W1 resolved by removal); step 2 fans out to the gated members for a non-private write; prd size; no open questions; T-PW3, T-PW6 rewritten with red controls (R7 W2) |
 
-<!-- version: 0.2.1 · updated: 2026-11-17 -->
+<!-- version: 0.3.0 · updated: 2026-11-17 -->

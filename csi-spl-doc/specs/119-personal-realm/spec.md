@@ -389,6 +389,6 @@ switch per workspace (its section 4.1). Its build rows are in
 
 ## 16. Primary workspace
 
-The owner's ask of 2026-11-17 (a primary workspace per person for calendar entries, notes and contacts; SPL-5788) is specified in [primary-workspace.md](primary-workspace.md) (v0.2: the owner answered `1a`, `2c`, `3a`, `7b`; a realm calendar mirror; Q8, Q9 open); build rows in [tasks.md](tasks.md), "Primary workspace".
+The owner's ask of 2026-11-17 (a primary workspace per person for calendar entries, notes and contacts; SPL-5788) is specified in [primary-workspace.md](primary-workspace.md) (v0.3: the owner answered `1a`, `2c`, `3a`, `7b`, `8b`, `9c`: notes and contacts stay in the realm; a realm mirror of every calendar entry the person can read, dropped on a leave); build rows in [tasks.md](tasks.md), "Primary workspace".
 
-<!-- version: 1.4.0 · updated: 2026-11-17 · last-edit: 2026-11-17 -->
+<!-- version: 1.5.0 · updated: 2026-11-17 · last-edit: 2026-11-17 -->

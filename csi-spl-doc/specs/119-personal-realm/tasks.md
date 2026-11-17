@@ -449,12 +449,11 @@ order first.
   strings (language rule); deployed dev and prd.
 
 ## Primary workspace
-v0.2.1 (SPL-5788), [primary-workspace.md](primary-workspace.md). The owner
-answered `1a`, `2c`, `3a`, `7b`. T019 and T020 are ready to place once
-the file passes review. T021 and T022 wait on the owner's Q8 and Q9
-(its section 9.2); the rows are written for the recommended `8a`, `9b`.
-v0.1's T021 (the contacts binding follows the primary workspace) is
-dropped under `7b`. Tests are that file's section 10.
+v0.3 (SPL-5788), [primary-workspace.md](primary-workspace.md). The owner
+answered `1a`, `2c`, `3a`, `7b`, then `8b`, `9c`; no question is open.
+All four rows are ready to place once the file passes review. v0.1's
+T021 (the contacts binding follows the primary workspace) is dropped
+under `7b`. Tests are that file's section 10.
 
 - [ ] T019 **Lane R: the setting** (SPL-5788; claude, rdb + store + hub). One
   additive migration (number from `do_rdb_migration_next`): column
@@ -480,12 +479,15 @@ dropped under `7b`. Tests are that file's section 10.
   (language rule); deployed dev and prd.
 
 - [ ] T021 **Lane U: the calendar mirror, table, write and sweep**
-  (SPL-5788; claude, rdb + store + hub; waits on the owner's Q8). One additive
-  migration: `personal.calendar_mirror` as the file's 3.2 (person FK,
-  FORCE RLS, `person_scope` only); the step-2 realm write after each
-  calendar write (3.3); the sweep action on 119 8.1's cadence, whose first
-  run fills the mirror; `GET /v1/me/realm/calendar/mirror` and its
-  `/export`; the table on 091's never-exported list.
+  (SPL-5788; claude, rdb + store + hub; `8b`). One additive migration:
+  `personal.calendar_mirror` as the file's 3.2 (person FK, FORCE RLS,
+  `person_scope` only, no `relation`, no `left_at`); the step-2 realm
+  write after each calendar write, read with W's private filter and demo
+  rule for each gated human (3.1, 3.3); the sweep action on 119 8.1's
+  cadence, whose first run fills the mirror and which drops rows of
+  workspaces no longer in `Memberships`; `GET /v1/me/realm/calendar/mirror`
+  with the read-time membership filter (3.4) and its `/export`; the table
+  on 091's never-exported list.
   Files (owns): the migration, a new `GO/store/personal_calendar_mirror*.go`,
   a new `GO/hub/realm_calendar_mirror*.go`, the step-2 calls in
   `GO/hub/calendar*.go`, the sweep action and its test, the 091 list
@@ -493,15 +495,13 @@ dropped under `7b`. Tests are that file's section 10.
   Done: T-PW3, T-PW4 (mirror part), T-PW5, T-PW7 on Postgres with red
   controls; `PRE_PUSH_TIER=full`; deployed dev and prd.
 
-- [ ] T022 **Lane V: leaving keeps the mirror (Q9) and the view shows it**
-  (SPL-5788; claude, hub + WUI; waits on T021 landed and on the owner's Q9). The
-  copy-first refresh and the Q9 rule in the removal, ban and workspace
-  delete paths and in the `access_until` sweep (3.5); 503
-  `mirror_failed`; `state:"left"` rows in the personal view, read-only
-  sheet; `DELETE /v1/me/realm/calendar/mirror?workspace=`; 119 REQ-5's
-  added sentence and calendar-across-workspaces section 7's `left` rows
-  (only under `9a` / `9b`).
-  Done: T-PW6 with its red control; e2e of a left-workspace entry at
-  390 px and desktop; agy review of new strings; deployed dev and prd.
+- [ ] T022 **Lane V: a leave drops the mirror first** (SPL-5788; claude,
+  hub; `9c`; waits on T021 landed). The drop-first delete in the removal,
+  ban and workspace delete paths (3.5); 503 `mirror_failed`. No WUI, no
+  change to 119 REQ-5 or to calendar-across-workspaces section 7.
+  Files (owns): the drop step in the membership removal and workspace
+  delete handlers and their tests.
+  Done: T-PW6 with its red controls on Postgres; `PRE_PUSH_TIER=full`;
+  deployed dev and prd.
 
-<!-- version: 1.4.0 · updated: 2026-11-17 · last-edit: 2026-11-17 -->
+<!-- version: 1.5.0 · updated: 2026-11-17 · last-edit: 2026-11-17 -->

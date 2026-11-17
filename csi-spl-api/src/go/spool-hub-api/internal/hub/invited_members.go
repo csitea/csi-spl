@@ -2,11 +2,14 @@ package hub
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -71,7 +74,7 @@ func (s *Server) handleInvitedMembers(w http.ResponseWriter, r *http.Request) {
 	out := make([]invitedRow, 0, len(ins))
 	for _, in := range ins {
 		label, masked := inviteLabel(in.Email, show)
-		out = append(out, invitedRow{ID: inviteID(t.ID, in.Email), Label: label, Masked: masked,
+		out = append(out, invitedRow{ID: s.inviteID(t.ID, in.Email), Label: label, Masked: masked,
 			InvitedOn: rfc(in.CreatedAt), ExpiresAt: rfc(in.ExpiresAt)})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"invited": out})
@@ -107,7 +110,7 @@ func (s *Server) inviteEmailByID(ctx context.Context, tenant, id string) string 
 		return ""
 	}
 	for _, in := range ins {
-		if inviteID(tenant, in.Email) == id {
+		if s.inviteID(tenant, in.Email) == id {
 			return in.Email
 		}
 	}
@@ -124,10 +127,37 @@ func (s *Server) showsInviteAddress(ctx context.Context, tenant, hum string) boo
 }
 
 // inviteID is the opaque handle of tenant's invite to email: "INV-" and 16
-// hex of a sha256, stable while the invite lives, never the address itself.
-func inviteID(tenant, email string) string {
-	sum := sha256.Sum256([]byte(tenant + "\x00" + strings.ToLower(email)))
-	return "INV-" + hex.EncodeToString(sum[:8])
+// hex of an HMAC-SHA256 under the hub's InviteIDKey, stable while the invite
+// lives and the same on every instance, never the address itself. Keyed
+// (R7 W2): an unkeyed hash let a masked caller, who knows the tenant, the
+// first letter and the domain, confirm a guessed address offline.
+func (s *Server) inviteID(tenant, email string) string {
+	return inviteIDWith(s.inviteIDKey(), tenant, email)
+}
+
+// inviteIDWith is inviteID under key.
+func inviteIDWith(key []byte, tenant, email string) string {
+	m := hmac.New(sha256.New, key)
+	m.Write([]byte(tenant + "\x00" + strings.ToLower(email)))
+	return "INV-" + hex.EncodeToString(m.Sum(nil)[:8])
+}
+
+// processInviteKey is the random InviteIDKey of a hub with no session key:
+// ids then hold for this process only, and are never unkeyed.
+var processInviteKey = sync.OnceValue(func() []byte {
+	k := make([]byte, 32)
+	if _, err := rand.Read(k); err != nil {
+		panic("invite id key: " + err.Error())
+	}
+	return k
+})
+
+// inviteIDKey is Options.InviteIDKey, or the per-process key without one.
+func (s *Server) inviteIDKey() []byte {
+	if len(s.o.InviteIDKey) > 0 {
+		return s.o.InviteIDKey
+	}
+	return processInviteKey()
 }
 
 // isInviteID reports whether v has inviteID's shape.
@@ -163,7 +193,7 @@ func (s *Server) channelInviteeRows(ctx context.Context, tenant, hum string, ema
 	for _, e := range emails {
 		label, masked := inviteLabel(e, show)
 		labels = append(labels, label)
-		rows = append(rows, channelInviteeRow{ID: inviteID(tenant, e), Label: label, Masked: masked})
+		rows = append(rows, channelInviteeRow{ID: s.inviteID(tenant, e), Label: label, Masked: masked})
 	}
 	return labels, rows
 }

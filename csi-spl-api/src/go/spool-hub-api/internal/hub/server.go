@@ -66,6 +66,10 @@ type Options struct {
 	// a box's only on its own revision (SPL-1815, SPL-1826,
 	// upload_token.go); nil = the per-process map only.
 	UploadTokenKey []byte
+	// InviteIDKey keys the opaque INV- id of an open invite (SPL-5706,
+	// invited_members.go) so a masked caller cannot confirm a guessed
+	// address; nil = a random key per process.
+	InviteIDKey []byte
 	// JoinTokenTTL is an agent join token's lifetime (spec 073 4.1, cnf
 	// SPOOL_HUB_JOIN_TOKEN_TTL, bounds in config.checkLimits); 0 = the mint
 	// route answers 503 join_tokens_off.

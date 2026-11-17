@@ -4,8 +4,8 @@
 // members of the workspace but just be inactive." and "even being inactive,
 // it should be possible ... to add them in the properties of a channel".
 //
-// The mock bundle answers one open invite (newcomer@example.com, masked as
-// n…@example.com in t1, invited-members-client.mjs). This test checks:
+// The mock bundle answers one open invite (invitee@example.com, masked as
+// i…@example.com in t1, invited-members-client.mjs). This test checks:
 //   1. the People panel lists it after the members, tagged "inactive";
 //   2. a fresh channel's Properties offers it as "<label> · inactive", and Add
 //      puts it in the channel's list as invited (the 0231 pending row).
@@ -24,7 +24,7 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const SHOT_DIR = process.env.SHOT_DIR || ''
 const CHANNEL = 'spl-5706-inactive'
 // the mock's one open invite: its address, or its masked form in t1
-const LABELS = ['newcomer@example.com', 'n…@example.com']
+const LABELS = ['invitee@example.com', 'i…@example.com']
 
 const results = []
 const ok = (name, pass, ev) => {

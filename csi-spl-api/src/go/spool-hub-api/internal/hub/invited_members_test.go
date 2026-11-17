@@ -13,6 +13,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -131,8 +132,9 @@ func TestChannelAddInactiveMember(t *testing.T) {
 	elsewhere := chInviteHub{e, other}.admit(t, "late@example.com") // a HUM-*, active in OTHER only
 	id := hub.InviteIDForTest(tid, "late@example.com")
 	code, out := call(t, e, tid, http.MethodPost, "/v1/channels/plan/members", owner, map[string]string{"invite_id": id})
-	if code != http.StatusCreated || out["pending"] != true || out["invite"] != "existing" {
-		t.Fatalf("add by invite id: %d %v, want 201 pending existing", code, out)
+	if code != http.StatusCreated || out["pending"] != true || out["invite"] != "existing" ||
+		out["invite_id"] != id || out["email"] != "late@example.com" || out["masked"] != false {
+		t.Fatalf("add by invite id: %d %v, want 201 pending existing, the address shown", code, out)
 	}
 	if rows := chInvitees(t, e, tid, "plan", owner); len(rows) != 1 || rows[0]["id"] != id || rows[0]["label"] != "late@example.com" {
 		t.Fatalf("invitees %v, want the one row %s", rows, id)
@@ -163,6 +165,18 @@ func TestChannelAddInactiveMember(t *testing.T) {
 		if code != http.StatusNotFound || out["error"] != "no_open_invite" {
 			t.Errorf("invite_id %q: %d %v, want 404 no_open_invite", bad, code, out)
 		}
+	}
+	// N2: another workspace's invite id is no invite here.
+	putInvite(t, e.st, other, "far@example.com", time.Now().Add(time.Hour))
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/plan/members", owner,
+		map[string]string{"invite_id": hub.InviteIDForTest(other, "far@example.com")}); code != http.StatusNotFound || out["error"] != "no_open_invite" {
+		t.Errorf("foreign workspace id: %d %v, want 404 no_open_invite", code, out)
+	}
+	// N2: a member outside the private channel adds nobody by id.
+	putInvite(t, e.st, tid, "side@example.com", time.Now().Add(time.Hour))
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/plan/members", seat(t, e, tid, "developer"),
+		map[string]string{"invite_id": hub.InviteIDForTest(tid, "side@example.com")}); code != http.StatusNotFound || out["error"] != "unknown_channel" {
+		t.Errorf("non-member add by id: %d %v, want 404 unknown_channel", code, out)
 	}
 	if code, _ := call(t, e, tid, http.MethodPost, "/v1/channels/plan/members", owner,
 		map[string]string{"invite_id": id, "email": "late@example.com"}); code != http.StatusBadRequest {
@@ -211,8 +225,10 @@ func TestChannelInviteesMaskedNameOnly(t *testing.T) {
 	}
 	putInvite(t, e.st, tid, "open@example.com", time.Now().Add(time.Hour))
 	id := hub.InviteIDForTest(tid, "open@example.com")
-	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/quiet/members", dev, map[string]string{"invite_id": id}); code != http.StatusCreated {
-		t.Fatalf("add by id: %d %v", code, out)
+	// R7 W1: the 201 answer carries no more than the masked picker showed.
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/quiet/members", dev, map[string]string{"invite_id": id}); code != http.StatusCreated ||
+		out["email"] != "o…@example.com" || out["masked"] != true || out["invite_id"] != id || strings.Contains(fmt.Sprint(out), "open@") {
+		t.Fatalf("add by id: %d %v, want 201 with the masked label only", code, out)
 	}
 	code, out := call(t, e, tid, http.MethodGet, "/v1/channels/quiet/members", dev, nil)
 	rows := chInvitees(t, e, tid, "quiet", dev)

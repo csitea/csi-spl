@@ -27,6 +27,19 @@ var (
 // labelUpload signs the hub's upload token (SPL-1815, hub/upload_token.go).
 const labelUpload = "spool-hub-upload-token-v1"
 
+// labelInviteID keys the hub's invite ids (SPL-5706, hub/invited_members.go).
+const labelInviteID = "spool-hub-invite-id-v1"
+
+// InviteIDKey is the key every hub instance derives an invite's opaque id
+// with, from SPOOL_HUB_AUTH_SESSION_KEY, so the id never confirms a guessed
+// address; nil when no session key is set (the hub then keys per process).
+func InviteIDKey(c *Config) []byte {
+	if c == nil || len(c.SessionKey) < minSessionKeyLen || isPlaceholder(c.SessionKey) {
+		return nil
+	}
+	return subkey(c.SessionKey, labelInviteID)
+}
+
 // UploadTokenKey is the key every hub instance signs and checks the upload
 // token with, derived from SPOOL_HUB_AUTH_SESSION_KEY; nil when no session
 // key is set (the hub then keeps its per-process token map).

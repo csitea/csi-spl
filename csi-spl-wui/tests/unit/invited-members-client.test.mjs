@@ -9,11 +9,11 @@ describe('invited members client', () => {
   it('the mock answers one invitee, masked in t1 like the hub', async () => {
     const shown = await invitedMembers({ mock: true, tenant: 'acme' })
     assert.equal(shown.length, 1)
-    assert.equal(shown[0].label, 'newcomer@example.com')
+    assert.equal(shown[0].label, 'invitee@example.com')
     assert.equal(shown[0].masked, false)
     assert.match(shown[0].id, /^INV-[0-9a-f]{16}$/)
     const masked = await invitedMembers({ mock: true, tenant: 't1' })
-    assert.equal(masked[0].label, 'n…@example.com')
+    assert.equal(masked[0].label, 'i…@example.com')
     assert.equal(masked[0].masked, true)
   })
 

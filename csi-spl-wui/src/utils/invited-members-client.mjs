@@ -23,8 +23,8 @@ function invitedMembersUrl(api) {
   return `${String(api.base || '').replace(/\/+$/, '')}/v1/view/members/invited${q}`
 }
 
-/** The mock's one invitee: newcomer@example.com, masked in t1. */
-const MOCK_INVITEE = Object.freeze({ id: 'INV-6e6577636f6d6572', email: 'newcomer@example.com', masked: 'n…@example.com' })
+/** The mock's one invitee: invitee@example.com, masked in t1. */
+const MOCK_INVITEE = Object.freeze({ id: 'INV-6e6577636f6d6572', email: 'invitee@example.com', masked: 'i…@example.com' })
 
 /** The rows as the hub sends them; a row with no id or label is dropped. */
 function invitedRows(out) {

@@ -27,7 +27,7 @@ import (
 
 // addChannelInvitee answers the {"email"} add; the channel door, the owner
 // rule and billing were already checked by handleAddChannelMember.
-func (s *Server) addChannelInvitee(w http.ResponseWriter, r *http.Request, t store.Tenant, ch, hum, raw string) {
+func (s *Server) addChannelInvitee(w http.ResponseWriter, r *http.Request, t store.Tenant, ch, hum, raw, byID string) {
 	email := store.NormalizeInviteEmail(raw)
 	if len(email) < 3 || len(email) > 320 || !strings.Contains(email, "@") {
 		writeErr(w, http.StatusBadRequest, "bad_email", "email must be an address")
@@ -62,6 +62,13 @@ func (s *Server) addChannelInvitee(w http.ResponseWriter, r *http.Request, t sto
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("invite", invite).
 		Str("by", hum).Msg("channel member pending")
 	out := map[string]any{"channel": ch, "email": email, "pending": true, "invite": invite, "added_by": hum}
+	if byID != "" {
+		// Added by its invite id (SPL-5706): the caller may see the address
+		// masked, so the answer never carries more than the picker showed
+		// (spec 025 section 13.1, R7 W1).
+		label, masked := inviteLabel(email, s.showsInviteAddress(r.Context(), t.ID, hum))
+		out["email"], out["invite_id"], out["masked"] = label, byID, masked
+	}
 	if mail != "" {
 		out["mail"] = mail
 	}

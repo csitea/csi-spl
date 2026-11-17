@@ -356,11 +356,11 @@ func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) 
 			writeErr(w, http.StatusNotFound, "no_open_invite", "no open invite with that id in this workspace")
 			return
 		}
-		s.addChannelInvitee(w, r, t, ch, hum, email)
+		s.addChannelInvitee(w, r, t, ch, hum, email, body.InviteID)
 		return
 	}
 	if body.Email != "" {
-		s.addChannelInvitee(w, r, t, ch, hum, body.Email)
+		s.addChannelInvitee(w, r, t, ch, hum, body.Email, "")
 		return
 	}
 	s.addChannelHuman(w, r, t, ch, hum, body.HumanID)

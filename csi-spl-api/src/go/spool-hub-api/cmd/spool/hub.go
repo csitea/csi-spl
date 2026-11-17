@@ -252,6 +252,7 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 		return opts, err
 	}
 	opts.UploadTokenKey = auth.UploadTokenKey(ac) // SPL-1815: any instance checks the upload token
+	opts.InviteIDKey = auth.InviteIDKey(ac)       // SPL-5706: invite ids keyed, same on every instance
 	logCookiePosture(log, ac, nc)
 	logRLSPosture(ctx, log, st)
 	opts.Auth = auth.New(ac, log, authOptions(hc, log, st, bs, originTenant))

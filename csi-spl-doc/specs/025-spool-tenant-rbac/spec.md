@@ -726,11 +726,16 @@ before the first sign-in.
   `j…@example.com` (first letter, an ellipsis, the domain), to everyone but a
   `members.invite` holder. The same mask applies to the channel members
   answer (`invited`, and the new `invitees: [{id, label, masked}]`).
-- **id** is `INV-` and 16 hex of sha256(workspace, address): stable while the
-  invite lives, never the address. `POST /v1/channels/{channel}/members`
-  takes `{"invite_id"}` (exactly one of `human_id`, `email`, `invite_id`): a
-  pending row on that open invite, under the section 11 rule; 404
-  `no_open_invite` when none; it never creates an invite. `DELETE
+- **id** is `INV-` and 16 hex of HMAC-SHA256(workspace, address) under a
+  key derived from `SPOOL_HUB_AUTH_SESSION_KEY` (a random key per process
+  without one): stable while the invite lives, the same on every instance,
+  never the address, and not computable from a guessed address. `POST
+  /v1/channels/{channel}/members` takes `{"invite_id"}` (exactly one of
+  `human_id`, `email`, `invite_id`): a pending row on that open invite,
+  under the section 11 rule; its 201 answer carries `invite_id`, `masked`
+  and `email` as the caller may see it (the masked label where the picker
+  showed one); 404 `no_open_invite` when none, or when the id is another
+  workspace's; it never creates an invite. `DELETE
   /v1/channels/{channel}/members/{INV-id}` undoes it.
 
 ### 13.2 Web UI

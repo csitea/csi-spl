@@ -1,0 +1,140 @@
+# Bug-fix round 12 - plan (3 rows)
+
+Epic: SPL-2402  
+Spec: csi-spl-doc/specs/157-dispatch-automation  
+Issue: SPL-5806 (this plan).  
+Discussion: t1 #spool-hub-bugs `8b6cf04c-9f73-426b-9ad1-63d99986486e` ("Bug round 12", opener msg ae9868d5, opened by c-002@sat 14:42:16Z; its discussion issue is SPL-5805). Requested by c-001 spawn-share 64777d81: bug 16% of the live lanes and 19% over 24 h, no bug row queued.  
+Round focus: three defects that are live on `origin/master` today: an owner-go keyword that escapes the review-go scan when a `/` joins it to another word (row 01, a follow-up of b11-02), terraform apply and destroy that can wait on an input prompt nobody sees and write world-readable logs (row 02, the SPL-5797 follow-ups), and an archived-discussion priority copy that is tried again every 5 minutes for ever (row 03).  
+Round size: at most 10 items (rulebook 1.1); this round has 3.  
+Consensus: **no owner go, no question to the owner** (rulebook 1.4).  
+Rules: [rounds-rulebook.md](rounds-rulebook.md) (round size, push caps, bands, R1-R16), linked here, not copied.  
+Model: [bug-round-11-plan.md](bug-round-11-plan.md) (same shape, same 5 sources).
+
+**Status: v0.1** (draft for the panel).  
+Editor: **c-210@<box2>** (claude, `specs_and_docs`).  
+Panel: asked of the dispatch holder (section 8).
+
+**One sha:** every count below is measured on **`e9748a03d`** (`origin/master`, committed 2026-11-17T14:46:59Z), on <box2>, between 14:50Z and 15:05Z. n=1 per command unless stated. `origin/master` moved to `c7ee2effd` during the work: three docs commits (the refactor round 34 plan); `git diff --stat e9748a03d c7ee2effd` over every row's files is empty, so the sites and red controls below hold there too.
+
+---
+
+## 1. How to read this
+
+- One row = one defect = one lane, at the sites named and nowhere else. Each row has a **red control** that fails on `e9748a03d` and passes after the fix (section 3.2).
+- **Paths** are repo-relative. Line numbers are as of `e9748a03d`.
+- **Box:** the preferred box. The placer may move a row (no pin).
+- **Vendor:** `do_spl_lane_mix` by kind, then the owner rules and R14. All three rows are bash tooling (`simple_coding`). The lane mix picks codex today (`pick=codex ... codex has 0 of the last 20 simple_coding spawns`); codex has not yet landed a row in this repository, so R14 puts the rows on claude. Mistral writes no code.
+- **Subject** (R6 reads it): `fix(b12-NN-<slug>, SPL-<row issue>): ...`.
+- **R7 line:** rulebook 2.7.4 (box-free form in the commit body).
+
+---
+
+## 2. Where the rows come from (measured on `e9748a03d`)
+
+| source | command | count (n) | result |
+|---|---|---|---|
+| **1. Owner and member reports in t1 and csitea since round 11 was planned** | `cd csi-spl-orc && sudo -u <DEV_USER> env ENV=prd SQL="select tenant_id, count(*), count(*) filter (where body ~* '(bug\|broken\|does not work\|not working\|error\|wrong\|fails\|failed\|crash\|blank\|missing\|stuck\|regress)' and body not like '[spool-probe]%'), count(*) filter (where body like '[spool-probe]%') from messages where ts > '2026-11-17T10:41:19Z' and ts <= '2026-11-17T14:52:00Z' and from_id like 'HUM%' group by 1" ./run -a do_spl_db_query`, then every human body that is not a probe was read (34) | t1 30 (24 `[spool-probe]`, 0 defect-worded); csitea 27 (1 defect-worded); csi-rel 1 | The 34 are poll answers, orders and questions. The one defect-worded post (csitea c75a6768, "This error: troubleshoot and fix it.", topic d4bc145f) is customer delivery work (wf-12), held by its topic seat. t1 93b73456 ("what is the status of this one") is spec 143 row B-6, live lane c-044@sat. **0 rows.** |
+| **2. CI signatures** | `cd csi-spl-iac && sudo -u <DEV_USER> env CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate` (14:50:43Z) | 100 runs 2026-11-16T13:04:45Z .. 2026-11-17T14:48:38Z: 74 success, 18 cancelled, 4 failure, 1 timeout, 3 running. Every timeout headroom line `ok` (highest p90: 56 %) | 5 failed runs, 5 first-red jobs, each seen once. Four were already in round 11 (sections 5 and 6 there): `TestAgentRunPresenceFrames` (41d35321), `hygiene-killed-cleanup` via `hygiene-box-users-allow.tst.sh` (01de192f), wui e2e 7/8 45 min timeout (e0670d71), `TestGCS` (f88535e3); none of them is seen again since. The new one is wui e2e 2/8 on fd9e5a27a (run 44098957006, "the card shows, with no Email row"), owned by c-521@sat (SPL-5706; its fix e9748a03d is on master). wf 15 and 70 (nuxt 3 advisories) are lane c-204@<box2>. **0 rows.** |
+| **3. Skipped or disabled tests** | `for s in d0137722c e9748a03d; do for d in csi-spl-api csi-spl-wui csi-spl-orc csi-spl-iac csi-spl-utl; do echo -n "$s $d: "; git grep -n -E "(t\.Skip\|test\.skip\|\.skip\(\|ci-skip\.txt)" $s -- "$d" \| wc -l; done; done` | api 197, wui 17, orc 10, iac 21, utl 0 on both shas (round 11's sha `d0137722c` and this one); `csi-spl-wui/tests/e2e/ci-skip.txt` 4 entries | No new skip since round 11. **0 rows.** |
+| **4. Box cron logs and GC notes, last 24 h** | <box2>: `grep -E 'unbound variable\|command not found\|syntax error\|Traceback\|FATAL\|panic:'` over `/var/csi/csi-spl/*/cron.{out,log}`, counted per distinct line, then each cron's `STOP <name> rc=` lines per day; `spool tail --task gc-<box2>` | `archived-followup` ends rc 1 on 181 of 181 runs today (to 15:01Z) and on 1601 of 1724 runs since 2026-11-11, every one on the same priority copy (`did not take its priority ... not_found (no such target topic)`); `agent-steps-log` 7168 FATAL lines for one id since 2026-11-06 (section 4); `issue-close-landed` 180 `spl_private_has_tokens: command not found`, last 2026-11-15T19:00Z (section 5); the rest are network or GitHub answers (`git fetch ... failed`, `gh run list failed: error connecting`, `HTTP 403: API rate limit`), each a few a day | **1 row (03).** gc-<box2> has no note since 2026-10-26: the GC runs on the orch box sat. Its `gc-sat` notes are not readable from <box2> (the hub holds none: `select count(*) from messages where task_id::text='gc-sat'` -> 0), so the holder reads them (section 8). |
+| **5. Open defect issues, round 11's leftovers, today's review follow-ups** | `cd csi-spl-orc && sudo -u <DEV_USER> env ENV=prd SQL="select number, status, assignee, labels, title from issues where tenant_id='t1' and deleted_at is null and archived_at is null and status in ('eval','todo','wip','blocked','onhold','qas') and kind='issue' and ('bug' = any(labels) or title ~* '(bug:\|broken\|does not\|not work\|error\|wrong\|fails\|failed\|crash\|blank\|missing\|stuck\|regress\|flake)')" ./run -a do_spl_db_query`; round 11 sections 4 to 6 and the reviewer notes of b11-02 (c-187 N1), SPL-5797 (the holder's GO note to c-161) and SPL-5772 B-5 (c-966's result, msg 2c2d32be), each re-run on `e9748a03d` | 27 issues matched | Open defect issues are owned by lanes, programs or the desk (section 6); SPL-3811 is fixed and only waits in `qas` (section 4). b11-02's N1 **reproduces (row 01)**. SPL-5797's two follow-ups **reproduce (row 02)**. SPL-5772 N1 and N2 belong to the spec 143 program, whose row B-6 is live (section 6). **2 rows.** |
+
+---
+
+## 3. The 3 rows
+
+| # | defect | evidence | sites file:line | red control (fails on `e9748a03d`) | fix scope | box | vendor | R7 reviewer | kind | batch |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 01 `fix(b12-01-orc-review-go-keyword-after-a-slash)` | Since b11-02 (770de68f4), `_spl_review_go_owner_go` reads `apply`, `IAM` or `billing` joined by `/` to another word as part of a name, so prose such as "an IAM/billing change" or "plan/apply on prd" names **no** owner-go keyword, and review-go can GO a lane whose brief asks for a real IAM, billing or apply step with no `Owner-go:` line. Before 770de68f4 both phrases held. | (1) Run on `e9748a03d`: `_spl_review_go_owner_go <brief> c-002` on a brief whose `## Do` step 1 is `This is an IAM/billing change.` -> rc 0, no output; the same for `Run plan/apply on prd for step 016.` -> rc 0. (2) The same two briefs through the function of `770de68f4^` -> rc 1, `the author brief names owner-go keyword 'IAM'` and `... 'apply' and has no Owner-go: line`. (3) Named by the b11-02 reviewer c-187 as N1 ("'/'-joined prose ... now GOes"); no commit after 770de68f4 touches the file (`git log 770de68f4..origin/master -- csi-spl-orc/src/bash/run/spl-review-go.func.sh` -> empty). (4) The suite asserts the name form on purpose: `spl-review-go.tst.sh:1017-1020` (section 27) GOes on `` `x/billing` `` in backticks, so the fix must keep that. | `csi-spl-orc/src/bash/run/spl-review-go.func.sh:653-666` (`_spl_review_go_owner_go`: the comment, the `b` / `a` boundary classes at `:662`, the two greps at `:665-666`); test `csi-spl-orc/src/bash/tests/spl-review-go.tst.sh` (section 27, `:1010-1020`) | A new case in `spl-review-go.tst.sh` section 27: `abrief` with `## Do` step `This is an IAM/billing change.`, and one with `Run plan/apply on prd for step 016.`. On `e9748a03d` both GO (rc 0 at the owner-go step). PASS requires: both hold (rc 4, keyword `IAM` and `apply`); `` `x/billing` ``, `` `apply.sh` ``, `apply-gh-runner-cpu-budget`, `IAM_ROLE`, `apply_x` and `reapply` still GO (the existing section 27 cases); the whole suite green. | In `:662-666`, a `/` joins a keyword to a name only inside a backticked span or inside a path token (a token that starts with `/` or `./`, or holds another `/` or a `.`). A `/` between two bare words in prose (`IAM/billing`, `plan/apply`, `apply/destroy`) does not hide the keyword. `-`, `_` and `.` stay as b11-02 left them. Trace first and name in the report the cases of b11-02's 35-phrase probe (its review line) that change verdict. Docs: spec 157 rule 1 [4] (the name rule) in the same commit. | sat | claude | a codex seat (cross-vendor); grok instead if `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` picks a box at row time; else the claude waiver seat as in round 11 (c-001 ruling 5fb1bdab), GO by hand. The holder decides at placement | simple_coding | 1 (after c-167@<box2>, the b11-02 lane, is retired: R3) |
+| 02 `fix(b12-02-iac-tf-apply-no-input-log-0640)` | The five terraform apply and destroy actions run `terraform apply` / `destroy` without `-input=false`, and since SPL-5797 pipe its output through `do_tf_log_mask` (a line filter, `sed -u`). A missing variable then makes terraform print `Enter a value:` with no newline: the filter holds that line, so the prompt is never shown and the run waits on a hidden question (a cron or tf-runner run has no terminal at all). The `tee -a` also creates `dat/log/tf_*.log` with the caller's umask, 0664 on the boxes: every local user reads terraform's output, the masked billing id's tail and every output value included. | (1) Run on `e9748a03d`: the red control below (a stub terraform that prompts unless it gets `-input=false`, stdin `/dev/null`, umask 0002) -> each of the 5 actions makes 1 apply or destroy call without `-input=false` and writes its log 0664, rc 1. (2) `grep -c -- '-input=false' csi-spl-iac/src/bash/run/tf-{apply,apply-target,destroy,destroy-target,destroy-local-step-bucket}.func.sh` -> 0 in each. (3) The SPL-5797 lane measured 2 logs at 0664 on the applying box (commit 057d6a7d8 body); the holder named both items as follow-ups not in that lane ("Follow-ups NOT in this lane: -input=false on tf apply/destroy (N2), tf logs 0640", its GO note to c-161). | `csi-spl-iac/src/bash/run/tf-apply.func.sh:28-30`, `tf-apply-target.func.sh:53-54`, `tf-destroy.func.sh:28-31`, `tf-destroy-target.func.sh:43-44` (verb `:22-24`), `tf-destroy-local-step-bucket.func.sh:59-61` (verb `:17-19`); test `csi-spl-iac/src/bash/tests/tf-log-mask-billing-id.tst.sh` (its stub and `run_action` harness) or a new `tf-apply-no-input.tst.sh` beside it | For each of `do_tf_apply`, `do_tf_apply_target`, `do_tf_destroy`, `do_tf_destroy_target`, `do_tf_destroy_local_step_bucket`, in the `run_action` harness of `tf-log-mask-billing-id.tst.sh`: a stub terraform logs its args and, without `-input=false`, prints `Enter a value: ` and fails on EOF; the run's umask is 0002. On `e9748a03d`: every action logs 1 apply/destroy call without `-input=false` and a log of mode 664 (the editor's script, section 3.2: `rc=1`). PASS requires: 0 such calls and mode 640 for every action; a log that already exists at 0664 is 0640 after the run; every case of `tf-log-mask-billing-id.tst.sh` still green (terraform's exit status through the mask included). | Add `-input=false` to the apply / destroy calls (and their `plan -destroy` dry-run verb) at the five sites; create the log 0640 before the first `tee -a` (and lower an existing one), in one helper beside `do_tf_log_mask` in `csi-spl-iac/lib/bash/funcs/tf-log-mask.func.sh`, or at each site. No terraform run, no GCP: the test is stub-only. `do_tf_plan` / `do_tf_plan_pending` are out of scope (a plan prompt is not an apply). Docs: step 002 README section 5 or spec 123 section 15.2, or `Docs: none (<why>)`. | sat | claude | as row 01 | simple_coding | 1 (after c-161@<box2>, the SPL-5797 lane, is retired: R3) |
+| 03 `fix(b12-03-orc-archived-followup-dead-copy)` | `do_spl_archived_followup` keeps a priority copy in `inherit.pending` for ever while the hub answers `not_found`: `spl_afu_final_refusal` does not count `not_found` as final (it may be a follow-up the hub has not stored yet, case 14e), and nothing ends the wait. On <box2> one copy (t1 `4f48f878` -> `388af5b0`, a target topic with 0 messages in prd) has made the cron end rc 1 on almost every 5-minute run since 2026-11-11, with 5 tries and 4 sleeps each run, and hides any real failure of that cron behind the same rc 1. | (1) `/var/csi/csi-spl/archived-seats-free/cron.log` on <box2>: `STOP archived-followup rc=1` on 1601 of 1724 runs from 2026-11-11 to 2026-11-17T15:01Z (11-11 261, 11-12 287, 11-13 203, 11-14 232, 11-15 227, 11-16 210, 11-17 181 of 181), and 1993 lines `t1 topic 4f48f878-...: 388af5b0-... did not take its priority: FATAL spool issue inherit-priority as c-002: spool: hub refused: not_found (no such target topic)`. (2) `inherit.pending` (`<spool root>/dispatch/archived-followup/`) holds that one row and is rewritten every run. (3) prd: `select count(*) from messages where task_id::text='388af5b0-f9fd-419d-becb-3fd0d37056e8'` -> 0; the source topic `4f48f878` has 28. (4) Red control below on `e9748a03d`: 13 runs, 13 WARN lines, the copy still pending. | `csi-spl-orc/src/bash/run/spl-archived-followup.func.sh:200-215` (`spl_afu_inherit`, the in-run `not_found` retries), `:227-230` (`spl_afu_final_refusal`), `:232-243` (`spl_afu_inherit_failed`, the journal line), `:245-268` (`spl_afu_pending`); test `csi-spl-orc/src/bash/tests/spl-archived-followup.tst.sh` (cases 14j and 14e, `:405-414`) | Source `spl-archived-followup.func.sh` with `do_log` and `spl_afu_desk_seated` stubbed, `ARCHIVED_FOLLOWUP_PRIORITY_CMD` a stub that always answers `not_found (no such target topic)`, `ARCHIVED_FOLLOWUP_PRIORITY_WAIT=0`, and `inherit.pending` holding one copy; call `spl_afu_pending <dir> 0` 13 times (13 runs = 65 minutes of the cron). On `e9748a03d`: every run rc 1, the copy still in the file after run 13, 0 `refused for good` lines (section 3.2). PASS requires: within a bound the fix names (a count of runs or an age, its default and env knob in the action header), the copy leaves `inherit.pending` with one `refused for good` WARN and one blocker naming the hub's answer; a copy inside the bound is still tried again (case 14e stays green: a follow-up the hub has not stored yet takes on a later run); the whole suite green. | Give a pending copy a bound: record when it was first journalled (or count its runs) in `inherit.pending`, read the old 3-column rows as "first seen now", and treat a `not_found` past the bound as a final refusal through the existing `spl_afu_final_refusal` path. Keep the in-run retries and every other answer as they are. Name the bound in the `@param` block. Do not edit the live `inherit.pending` on any box by hand: the fixed action drops the <box2> copy itself once the bound passes. Docs: the action header and the archived-follow-up section of spec 157 (SPL-5147), or `Docs: none (<why>)`. | sat | claude | as row 01 | simple_coding | 1 |
+
+### 3.1 Files (R1) and batches
+
+- **Batch 1:** rows 01, 02 and 03; their file sets are disjoint:
+  - row 01: `csi-spl-orc/src/bash/run/spl-review-go.func.sh`, `csi-spl-orc/src/bash/tests/spl-review-go.tst.sh`, `csi-spl-doc/specs/157-dispatch-automation/spec.md`;
+  - row 02: the five `csi-spl-iac/src/bash/run/tf-*.func.sh` of the sites, `csi-spl-iac/lib/bash/funcs/tf-log-mask.func.sh`, `csi-spl-iac/src/bash/tests/tf-log-mask-billing-id.tst.sh` (or the new test beside it), and its doc;
+  - row 03: `csi-spl-orc/src/bash/run/spl-archived-followup.func.sh`, `csi-spl-orc/src/bash/tests/spl-archived-followup.tst.sh`.
+  - Row 01 and row 03 both may touch `csi-spl-doc/specs/157-dispatch-automation/spec.md`. If both do, that file is serialised (R1): whichever lands second rebases onto the first.
+- **Waits (R3):** row 01 starts once c-167@<box2> (b11-02, the last lane on `spl-review-go`) is retired, row 02 once c-161@<box2> (SPL-5797, the last lane on the `tf-*` actions) is retired. Both have landed (770de68f4; 057d6a7d8 and 013cb71bf). Row 03 has no live owner.
+- **How the files were checked (2026-11-17, from <box2>):**
+  - 14:51:38Z `lane-map.sh` (all boxes): 34 live rows (7 older hidden). No lane's brief names review-go, the tf apply/destroy actions or archived-followup except c-167 and c-161 above.
+  - 14:58:21Z `lane-map.sh --check csi-spl-doc/doc/md/bug-round-12-plan.md,<every row file above> --agent c-210` -> exit 4: no live lane lists these files; 8 lanes on sat record no files (c-004 spec 119 T019, c-025 perf round 14 planner, c-041 refactor round 34 planner, c-044 spec 143 B-6, c-197 and c-762 seats, c-521 SPL-5706, m-031 perf round 14 panel). Their review branches were read instead: `refactor-round-34-plan.md` (r60, `review/c002-refactor-round-34-planner-v3`, since landed as c7ee2effd) names `spl-review-go.tst.sh` only as a test its row 03 runs, no edit; `perf-round-14-plan.md` (`review/c001-perf-round-14-planner`) names none of these files. The orchestrator re-runs the check before each spawn (R3) and asks an exit 4 lane first.
+  - 14:52:15Z `sudo -u <DEV_USER> env SPOOL_ROOT=/var/spool-hub ENV=prd ./run -a do_spl_spawn_queue` -> 2 rows (two agy i18n reviews, SPL-32 and SPL-5707); neither touches these files.
+  - Origin review branches committed since 2026-11-14 (40 of 231): `git diff --name-only origin/master...<branch>` over each -> none touches a row file.
+- **Slug b12 is unused** (14:5xZ, <box2>): `git log origin/master -E --grep='\bb12-[0-9]{2}-'` -> empty; `git ls-remote origin | grep -E 'b12-[0-9]{2}|bug-round-12'` -> empty; `grep -rlE '(^|[^0-9a-f])b12-[0-9]{2}-'` over `/var/spool-hub/dispatch/briefs`, `/var/spool-hub/asks` and `/var/spool-hub/spawn-remote/briefs` -> this planner's brief only. sat's briefs and asks: asked of the holder (section 8).
+
+### 3.2 Red controls run on `e9748a03d`
+
+| row | command (repo untouched) | output on `e9748a03d` | output with the fix | who |
+|---|---|---|---|---|
+| 01 | `printf '# b\n\n## Do\n\n1. %s\n' 'This is an IAM/billing change.' > b.md; bash -c 'do_log(){ :; }; source csi-spl-orc/src/bash/run/spl-review-go.func.sh; SPOOL_ROOT=/nonexistent _spl_review_go_owner_go b.md c-002'; echo rc=$?`, then the same with `Run plan/apply on prd for step 016.`, then with `` Names only: `x/billing`, `apply.sh`. `` | `rc=0` (no output), `rc=0`, `rc=0`. The function of `770de68f4^` on the first two: rc 1, keyword `IAM`, keyword `apply` | rc 1 `IAM`, rc 1 `apply`, rc 0 (the backticked names stay names) | editor c-210 |
+| 02 | the editor's script: a stub `terraform` on `PATH` that appends `$*` to a file, exits 0 for `init`, and for `apply` / `destroy` / `plan` without `-input=false` prints `Enter a value: ` and exits 1 on EOF; each of the 5 actions sourced with `tf-log-mask.func.sh` in the `run_action` environment of `tf-log-mask-billing-id.tst.sh` (`env -i`, `do_tf_init` stubbed, `DRY_RUN=0`), stdin `/dev/null`, umask 0002; it counts apply/destroy calls without `-input=false` and reads `stat -c %a` of `dat/log/tf_*.log` | `do_tf_apply: apply/destroy calls without -input=false: 1; log mode 664`, the same line for `do_tf_apply_target`, `do_tf_destroy`, `do_tf_destroy_target`, `do_tf_destroy_local_step_bucket`; `rc=1` | 0 calls and mode 640 for all 5; `rc=0` | editor c-210 |
+| 03 | `bash -c 'do_log(){ echo "$*" >>log; }; source csi-spl-orc/src/bash/run/spl-archived-followup.func.sh; spl_afu_desk_seated(){ return 0; }; AFU_AGENT=c-002 AFU_BOX=boxa ARCHIVED_FOLLOWUP_PRIORITY_CMD=<stub: prints the not_found FATAL, exits 1> ARCHIVED_FOLLOWUP_PRIORITY_WAIT=0; for run in $(seq 1 13); do spl_afu_pending <dir> 0; echo "run $run rc=$? pending=$(wc -l <<dir>/inherit.pending)"; done'` with one copy in `<dir>/inherit.pending` | `run 1 rc=1 pending=1` ... `run 13 rc=1 pending=1`; `tries logged: 13  refused-for-good: 0` | with a bound under 13 runs (or the age knob set so): the copy leaves the file within the bound, one `refused for good` line, later runs rc 0 | editor c-210 |
+
+The scripts of rows 02 and 03 are in the editor's scratch dir on <box2> and go to each row lane with its brief; the row lane turns them into suite cases.
+
+---
+
+## 4. Measured and not a bug
+
+| candidate | command | result | why not a row |
+|---|---|---|---|
+| `agent-steps-log` cron on <box2>: `FATAL agent-steps-log: c-141: no claude session jsonl under ...` every minute | `grep -c 'no claude session jsonl' /var/csi/csi-spl/agent-steps-log/cron.log` -> 9769 (7168 for c-141, 60 an hour today); `grep AGENT_STEPS_LOG_AGENTS /var/spool-hub/box.env` -> `"c-141"`; `grep c-141 registry.retired.tsv` -> retired 11-13, 11-15, 11-17 | The box's own setting names an id with no live session; rc 3 for an id with no session is designed and tested (`spl-agent-steps-log.tst.sh:142`). | A box setting, not code: reported to the holder (section 8) to update or empty `AGENT_STEPS_LOG_AGENTS` on <box2>. |
+| SPL-3811 (e2e-shard-pack `--list` runners drop their stdout tail), status `qas` | `git log origin/master -E --grep='SPL-3811'` -> 86ad7b7d6; `run-unit-tests.mjs:60-65` and `run-live-proofs.mjs:143-144` write once and exit after the write | Fixed on trunk. | `qas` waits on a human review by design (developer guide 1.4, Q7); not a defect. |
+| desk-cron `bin/spool` older than its sources | every orc cron line on <box2>: `spool-env: WARN /opt/csi/csi-spl-desk-cron/.../bin/spool is older than its sources (built 2026-10-31T02:29:14Z ...); not using it` | The guard works as designed and the crons use another binary. | A box upkeep step (rebuild), reported to the holder. |
+
+---
+
+## 5. Not reproduced
+
+| candidate | command | result |
+|---|---|---|
+| `issue-close-landed` cron: `spl-cloud-cnf.func.sh: line 68: spl_private_has_tokens: command not found` | `grep -c spl_private_has_tokens /var/csi/csi-spl/issue-close-landed/cron.log` -> 180; the last one's run started 2026-11-15T19:00Z; `git grep -n 'spl_private_has_tokens()' e9748a03d` -> `csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh:91` | None in the last 24 h. Watch: if it comes back, the row is "orc `spl-cloud-cnf.func.sh:68` calls an iac lib function it does not source". |
+| `hygiene-killed-cleanup.tst.sh` (round 11 section 5), `TestAgentRunPresenceFrames`, `TestGCS`, wui e2e 7/8 timeout | `do_report_ci_gate` above | Still 1 sighting each in 100 runs, all already counted by round 11; none since. Below the R11 flake threshold (a lane on the 3rd). |
+| Network and GitHub failures in the <box2> crons (`git fetch origin failed`, `gh run list failed: error connecting to api.github.com`, `HTTP 403: API rate limit`) | the cron log scan of section 2, source 4, last 24 h | 1 to 4 in the last 24 h per cron, each followed by a green run. |
+
+---
+
+## 6. Owned elsewhere (R3)
+
+| item | owner | status |
+|---|---|---|
+| wui e2e 2/8 red on fd9e5a27a (people-email card, run 44098957006) | c-521@sat, SPL-5706 | Fix e9748a03d on master. |
+| wf 15 and 70, nuxt 3 advisories | c-204@<box2> | Live lane. |
+| SPL-5772 B-5 reviewer notes: N1 `internal/hub/rbac_test.go:32` (the `SessionID` stub ignores the tenant), N2 `internal/hub/reporting_releases.go:175` (`Default = projects[0].Slug`; measured: the store's join drops a project with no repo, `internal/store/release_projects.go:19,66`, so a default project with no repo yet makes another project the answer's default), N3 to N5 | spec 143 program, row B-6 live (c-044@sat, discussion 93b73456) | The holder routes them to that program; not re-planned here. |
+| Event type SPL-5751 (`vue: insertBefore`, n=6) | owner's event-log order, t1 955ab0bd (F9) | In that program. |
+| SPL-4120: a received pack whose deposit fails midway leaves its earlier members landed (the release transfer tool) | that tool lives in another repository (its sync script, named in the issue, is not a tracked file here: `git ls-files` grep -> 0), and the issue is a decision ("To decide: should a failed deposit remove what it already landed") | Not a csi-spl row. |
+| SPL-5609, 5411, 5396, 5368, 5254, 5232, 5104, 4934 | dispatch desk (c-002), `wip` / `onhold` | Placed by the holder. |
+| SPL-455 / SPL-450 / SPL-435 | spec 011 regression gates | Labelled `bug`, not defects (as in rounds 10 and 11). |
+
+---
+
+## 7. Counts
+
+| item | count |
+|---|---|
+| rows | 3 (defect fixes, red controls run on `e9748a03d`) |
+| vendor | claude 3 (lane mix pick codex, R14) |
+| R7 | codex seat, else grok if it picks at row time, else the claude waiver seat; all rows |
+| box (preferred) | sat 3 |
+| batches | 1 (rows 01 and 02 each wait for a landed lane to retire) |
+
+---
+
+## 8. Panel and reviewer (rulebook 3.2)
+
+- **Editor:** c-210@<box2> (claude, `specs_and_docs`).
+- **Panel:** asked of the dispatch holder (c-002@sat) on task `dispatch-8b6cf04c`: at least one non-claude seat. At 15:0xZ agy is paused until 2026-11-17T19:31Z (`do_spl_lane_mix`: "usage limit"), grok weekly is 99 % on both boxes (`do_spl_box_pick`: `pick=hold`), so a mistral doc seat (as round 11, c-001 ruling 5e043b52) or a codex doc seat is what is available today.
+- **Asked of the holder with the plan:** read `gc-sat` for the last 24 h (source 4 on sat), grep sat's briefs and asks for a `b12-NN-` slug, and the two box items of section 4 (<box2> `AGENT_STEPS_LOG_AGENTS`, the desk-cron `bin/spool`).
+- **Review history:**
+  - 2026-11-17: editor pushed v0.1 to `review/c002-bug-round-12-planner`, result to the holder.
+
+---
+
+## 9. Consensus
+
+| seat | id | status |
+|---|---|---|
+| Editor | c-210@<box2> | **v0.1** |
+| Panel | asked | - |

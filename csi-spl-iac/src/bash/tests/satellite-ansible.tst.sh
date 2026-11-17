@@ -246,10 +246,11 @@ grep -q 'yq_sha256: [0-9a-f]\{64\}$' "$r2/defaults/main.yml" && grep -q 'sha256s
   && pass "role 02 installs yq system-wide, sha256-pinned" || fail "role 02 has no pinned system-wide yq"
 grep -q '^      - postgresql-client$' "$r2/tasks/main.yml" && grep -q '^      - pandoc$' "$r2/tasks/main.yml" \
   && grep -q '^      - zstd$' "$r2/tasks/main.yml" && grep -q '^      - rsync$' "$r2/tasks/main.yml" \
-  && pass "role 02 installs psql (postgresql-client), pandoc, zstd and rsync" || fail "role 02 lacks postgresql-client, pandoc, zstd or rsync"
+  && grep -q '^      - poppler-utils$' "$r2/tasks/main.yml" \
+  && pass "role 02 installs psql (postgresql-client), pandoc, zstd, rsync and pdftotext (poppler-utils)" || fail "role 02 lacks postgresql-client, pandoc, zstd, rsync or poppler-utils"
 miss=""
 for b in $(grep -rhoE 'do_require_bin [a-z0-9 _.-]+' "$PROJ_PATH/../csi-spl-orc/src/bash/run" | sed 's/do_require_bin //' | tr ' ' '\n' | grep -E '^[a-z0-9_-]+$' | sort -u); do
-  case "$b" in yq|python3|psql|curl|gcloud|jq|sha256sum|git|setsid|flock|docker|gh|crontab|setfacl|getfacl|perl|pandoc|openssl|tmux|zstd) ;;
+  case "$b" in yq|python3|psql|curl|gcloud|jq|sha256sum|git|setsid|flock|docker|gh|crontab|setfacl|getfacl|perl|pandoc|openssl|tmux|zstd|pdftotext) ;;
     # coreutils / base system, or not a box-user tool: pnpm + node (WUI lanes, the agent), sudo, systemctl, install, getent, tee ...
     sudo|pnpm|node|install|getent|tee|sed|mkdir|hostname|find|date|awk|tar|systemctl|df|du|readlink) ;;
     *) miss="$miss $b" ;; esac
@@ -350,7 +351,7 @@ grep -qx 'postgres:16-alpine' <<<"$imgs" && grep -qx 'fsouza/fake-gcs-server:[0-
   && pass "14. do_pull_test_images reads hub-pg's and hub-gcs's image defaults from the tests ($(tr '\n' ' ' <<<"$imgs"))" || fail "14. do_pull_test_images lists: ${imgs:-nothing}"
 rows=$(sed -nE "s/^img-[a-z-]+	docker image inspect -f '\{\{\.Id\}\}' ([^	]+)	.*/\1/p" "$tsv" | sort)
 [[ -n "$rows" && "$rows" == "$imgs" ]] && pass "14. the manifest's img-* rows are exactly the images the tests use" || fail "14. manifest img rows ($(tr '\n' ' ' <<<"$rows")) != test images ($(tr '\n' ' ' <<<"$imgs"))"
-for b in terraform pnpm google-chrome; do
+for b in terraform pnpm google-chrome pdftotext; do
   grep -qE "owner_tools=\"[^\"]* $b( |\")" "$v" || { fail "14. verify does not check $b on the box user's PATH"; continue; }
   pass "14. verify checks $b on the box user's login PATH"
 done

@@ -39,6 +39,8 @@
       - zstd
       # the box state restore plans with rsync -cn
       - rsync
+      # do_require_bin pdftotext: the invoice PDF month import (SPL-5802)
+      - poppler-utils
     state: present
     update_cache: true
     cache_valid_time: 3600

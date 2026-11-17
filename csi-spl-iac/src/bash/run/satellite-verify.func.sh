@@ -188,7 +188,7 @@ _satellite_verify_users() {
   # shellcheck disable=SC2029
   # the names go AFTER sudo: sudo drops env set before it (run 4: 13 false FAILs)
   # terraform / pnpm / google-chrome: the box user runs the iac, api and WUI suites too (satellite gaps 10, 13, 14)
-  local owner_tools="yq jq python3 psql pandoc curl git gh docker setsid flock sha256sum setfacl getfacl crontab openssl perl tmux terraform pnpm google-chrome zstd gcloud"
+  local owner_tools="yq jq python3 psql pandoc curl git gh docker setsid flock sha256sum setfacl getfacl crontab openssl perl tmux terraform pnpm google-chrome zstd pdftotext gcloud"
   out=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "sudo -n env O='${owner}' A='${agent}' OWNER_TOOLS='${owner_tools}' C='${sv_clone}' OD='${sv_org}' V='${sv_var}' bash -s" 2>/dev/null <<'REMOTE'
 for u in "$O" "$A"; do
   id "$u" >/dev/null 2>&1 || { echo "user $u missing"; continue; }

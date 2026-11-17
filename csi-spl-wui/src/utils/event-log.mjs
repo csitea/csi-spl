@@ -20,6 +20,10 @@
 // SECURITY — only the fields the journal already redacted at capture leave the
 // page (EVENT_FIELDS). No body, no header, no query string, no stack.
 //
+// ERRORS ONLY — a journal record whose code starts with `info.` (the
+// chunk-reload "app updated, reloaded" note, chunk-note.ts) is a note, not an
+// error: it stays in the tab journal and is never shipped (SPL-5740).
+//
 // NO LOOP — the shipper talks to fetch directly, never through spool-client
 // (whose transport failures are journaled) and never calls noteError. A POST
 // that fails is dropped or retried quietly; it is never itself an error event.
@@ -55,6 +59,8 @@ export const EVENT_QUEUE_MAX = 100
 export const EVENT_FLUSH_DELAY_MS = 1500
 /** Transport/5xx retries of one batch before it is dropped. */
 export const EVENT_RETRY_MAX = 3
+/** A journal code with this prefix is an info note: never shipped. */
+const EVENT_INFO_CODE_PREFIX = 'info.'
 /** sessionStorage key of the unsent queue (wire-form events, a JSON array). */
 export const EVENT_QUEUE_STORE_KEY = 'spl.event-log.queue.v1'
 
@@ -70,6 +76,9 @@ const cut = (v, n) => {
 export function toEventPayload(rec) {
   return wireForm(rec, (from) => rec[from])
 }
+
+/** Whether a wire-form event is an info note, not an error. @param {{ code: string } | null} ev */
+const isInfoNote = (ev) => !!ev && ev.code.startsWith(EVENT_INFO_CODE_PREFIX)
 
 /**
  * A stored event back in wire form, or null when it is not one. The store is
@@ -112,7 +121,7 @@ export function createQueueStore(storage, key = EVENT_QUEUE_STORE_KEY) {
         const raw = storage ? storage.getItem(key) : null
         const arr = raw ? JSON.parse(raw) : []
         if (!Array.isArray(arr)) return []
-        return arr.map(storedEvent).filter(Boolean).slice(-EVENT_QUEUE_MAX)
+        return arr.map(storedEvent).filter((ev) => ev && !isInfoNote(ev)).slice(-EVENT_QUEUE_MAX)
       } catch {
         return []
       }
@@ -261,7 +270,7 @@ function shipperNote(s, rec) {
     const st = s.session()
     if (st === 'out') return
     const ev = toEventPayload(rec)
-    if (!ev) return
+    if (!ev || isInfoNote(ev)) return
     s.queue.push(ev)
     if (st === 'in') shipperSchedule(s, s.delay)
   } catch {

@@ -23,6 +23,14 @@
 #   retired-relay cleanup outlasted the 5 s and ended rc=137 (wf 10 run
 #   43823538144, 2026-11-16). Two controls hold the grace: a fixture whose
 #   cleanup takes 8 s ends clean, one that ignores TERM ends rc=137.
+#   The spin (SPL-5827): the 30 s grace did not hold either (wf 10 runs
+#   44043493365 and 44146018540, rc=137): on CI's ubuntu 26.04 (bash 5.3) the
+#   hygiene step's own shell, TERMed in its sweeps, can spin in its `wait`
+#   ("wait: pid <n> is not a child of this shell" without end, on its stdout),
+#   so a test that reads the step in a $(...) never runs its TERM trap (3 in
+#   ~1030 kills in an ubuntu:26.04 container, 0 in 1292 on bash 5.2). A third control
+#   stands in for it: a BASH_ENV wait() in the step that ignores TERM and
+#   writes forever; hygiene-box-users-allow.tst.sh must still end clean.
 #------------------------------------------------------------------------------
 # test-timeout: 400
 # pre-push-tier: slow  (24 tree exports; CI workflow 10 runs it)
@@ -44,7 +52,7 @@ stub grep "case \"\$PWD/\" in \"\$KT_TMP\"/*) : >\"\$KT_MARK\"; sleep 120 ;; esa
 kill_once() {
   local path="$1" tmp="$2/tmp" mark="$2/mark" log="$2/log" tp rc i left
   mkdir -p "$tmp"
-  ( cd "$APP_ROOT" && PATH="$T/bin:$PATH" TMPDIR="$tmp" KT_TMP="$tmp" KT_MARK="$mark" \
+  ( cd "$APP_ROOT" && PATH="$T/bin:$PATH" TMPDIR="$tmp" KT_TMP="$tmp" KT_MARK="$mark" BASH_ENV="${KT_BASH_ENV:-${BASH_ENV:-}}" \
       exec timeout -k "$grace" 300 bash "$path" >"$log" 2>&1 ) &
   tp=$!
   for ((i = 0; i < 1200; i++)); do [[ -e "$mark" ]] && break; sleep 0.1; done
@@ -80,6 +88,13 @@ else fail "control: a TERM cleanup of 8 s should end clean, got: $v"; fi
 v=$(kill_once "$T/deaf.fx.sh" "$T/deaf.ctl")
 if [[ "$v" == rc=137,* ]]; then pass "control: a test that ignores TERM is KILLed after $grace s and fails"
 else fail "control: a test that ignores TERM should end rc=137, got: $v"; fi
+
+# The spin control: only the extracted step (its $0 is .../sweep.sh) gets the
+# wait() that ignores TERM; the KILL after the grace stops the old $(...) read.
+printf '%s\n' '[[ "$0" == */sweep.sh ]] && wait() { trap "" TERM; while :; do echo spin; sleep 0.05; done; }' >"$T/spin.env"
+v=$(KT_BASH_ENV="$T/spin.env" kill_once "$TEST_DIR/hygiene-box-users-allow.tst.sh" "$T/spin.ctl")
+if [[ "$v" == clean ]]; then pass "control: hygiene-box-users-allow.tst.sh ends clean when its step spins in wait and ignores TERM"
+else fail "control: hygiene-box-users-allow.tst.sh should end clean when its step spins in wait, got: $v"; fi
 
 for name in hygiene-owner-email-allow.tst.sh hygiene-box-users-allow.tst.sh hygiene-retired-relay.tst.sh; do
   clean=0 bad=""

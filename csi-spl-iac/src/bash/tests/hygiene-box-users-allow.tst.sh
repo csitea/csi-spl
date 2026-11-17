@@ -45,7 +45,27 @@ export_tree() {
   got=$(find "$1" \( -type f -o -type l \) | wc -l)
   [[ "$got" -eq "$want" ]] || { echo "    | the export holds $got of $want files"; return 1; }
 }
-sweep() { (cd "$1" && bash "$T/sweep.sh" 2>&1); }
+# sweep <dir> -> the step's output in $T/sweep.out, rc as its exit code. Not
+# out=$(sweep ...) (SPL-5827): on CI's bash 5.3 the step's own shell, TERMed in
+# its sweeps, can spin in its `wait`, printing "wait: pid <n> is not a child of
+# this shell" without end, so a test reading that $(...) never ran its TERM
+# trap and was KILLed after the grace (wf 10 run 44043493365; ubuntu:26.04
+# container: 3 in ~1030 kills). A background step that the test `wait`s on lets the trap run,
+# and the trap KILLs the step before the cleanup. A KILLed step leaves its own
+# mktemp dir, so its TMPDIR is inside T. The trap then ignores TERM: the test
+# now reaches its EXIT rm before timeout's second TERM (to the whole group),
+# which would kill that rm (round 4: a 10663-inode leak).
+sweep_pid=""
+mkdir -p "$T/step-tmp"
+sweep() {
+  (cd "$1" && TMPDIR="$T/step-tmp" exec bash "$T/sweep.sh") >"$T/sweep.out" 2>&1 &
+  sweep_pid=$!
+  wait "$sweep_pid"; local rc=$?
+  sweep_pid=""
+  return "$rc"
+}
+stop_sweep() { trap '' TERM; [[ -z "$sweep_pid" ]] || kill -KILL "$sweep_pid" 2>/dev/null; }
+trap 'stop_sweep; exit 129' HUP; trap 'stop_sweep; exit 130' INT; trap 'stop_sweep; exit 143' TERM
 
 owner=$(yq -r '.env.steps."060-gcp-vm-satellite".box_owner_user // ""' "$APP_ROOT/$CNF")
 agent=$(yq -r '.env.steps."060-gcp-vm-satellite".box_agent_user // ""' "$APP_ROOT/$CNF")
@@ -54,7 +74,7 @@ agent=$(yq -r '.env.steps."060-gcp-vm-satellite".box_agent_user // ""' "$APP_ROO
 # --- 1. the real tree ---------------------------------------------------------
 export_tree "$T/real" && pass "exported the whole tracked tree" \
   || { fail "SETUP: the tree export is incomplete (disk full? TMPDIR=${TMPDIR:-/tmp})"; exit 1; }
-out=$(sweep "$T/real"); rc=$?
+sweep "$T/real"; rc=$?; out=$(<"$T/sweep.out")
 echo "$out" | sed 's/^/    | /'
 [[ $rc -eq 0 ]] && pass "the real tree passes the sweep (rc 0)" || fail "the real tree fails the sweep (rc=$rc)"
 grep -q "^allowed - $LABEL: 4 line(s) = the owner-approved box_owner_user / box_agent_user keys" <<<"$out" \
@@ -68,7 +88,7 @@ ctl() { # <label> <id> <setup command run inside the copy>
     fail "CONTROL $label -> SETUP failed, the plant did not land: ${err%%$'\n'*}"
     rm -rf "$dir"; return
   fi
-  out=$(sweep "$dir"); rc=$?
+  sweep "$dir"; rc=$?; out=$(<"$T/sweep.out")
   rm -rf "$dir"
   if [[ $rc -ne 0 ]] && grep -qF "::error::hygiene: $LABEL" <<<"$out"; then
     pass "CONTROL $label -> sweep fails (rc=$rc): $(grep -F "::error::hygiene: $LABEL" <<<"$out" | sed -n 1p)"

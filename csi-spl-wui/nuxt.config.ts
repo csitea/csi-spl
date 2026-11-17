@@ -9,7 +9,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Rollup } from "vite"
 import type { NuxtPage } from "@nuxt/schema"
-import { addTemplate, addTypeTemplate, addVitePlugin, extendViteConfig } from "@nuxt/kit"
+import { addTemplate, addTypeTemplate, addVitePlugin } from "@nuxt/kit"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
 import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
 import { buildEarlyConfigScript } from "./src/utils/runtime-config.mjs"
@@ -273,9 +273,16 @@ const DEFAULT_LOCALE = _envDefaultLocale as SpoolLocaleCode
 // and so does a build with NUXT_I18N_SPLIT=0 (the A/B and rollback switch).
 const I18N_SPLIT = !isDev && process.env.NUXT_I18N_SPLIT !== "0"
 if (I18N_SPLIT) writeSplitCatalogues(I18N_LOCALES.map((l) => l.file))
-const I18N_MODULE_LOCALES = I18N_SPLIT
-  ? I18N_LOCALES.map((l) => ({ ...l, file: `../.split/${l.file}` }))
-  : I18N_LOCALES
+const I18N_CATALOGUE_FILES = I18N_SPLIT
+  ? I18N_LOCALES.map((l) => ({ code: l.code, file: `../.split/${l.file}` }))
+  : I18N_LOCALES.map((l) => ({ code: l.code, file: l.file }))
+// i18n/client-loaders.ts, second and uncached: it makes every locale
+// "dynamic" for @nuxtjs/i18n 10.6, so the client loads the precompiled
+// catalogues, never the raw /_i18n/.../messages.json (SPL-5070; that file says why)
+const I18N_MODULE_LOCALES = I18N_LOCALES.map(({ file: _file, ...l }, i) => ({
+  ...l,
+  files: [I18N_CATALOGUE_FILES[i]!.file, { path: "../client-loaders.ts", cache: false }],
+}))
 const I18N_SPLIT_CORE = join(dirname(fileURLToPath(import.meta.url)), "i18n/.split/")
 /**
  * Never hint the second catalogues as prefetch: a page needs one of the 19,
@@ -298,24 +305,6 @@ function i18nSplitModule(_options: unknown, nuxt: { hook: (name: "build:manifest
     for (const [src, chunk] of Object.entries(manifest)) {
       if (src.includes("i18n/.split/more/")) chunk.prefetch = false
     }
-  })
-}
-/**
- * The app loads its catalogues from its own precompiled chunks, never from the
- * i18n module's /_i18n/<hash>/<locale>/messages.json (SPL-4356). @nuxtjs/i18n
- * 10 fetches that route whenever every locale file is static JSON
- * (`__I18N_FULL_STATIC__`), and the route serves the raw source strings,
- * which only a message compiler turns into text: this vue-i18n has none
- * (bundle.dropMessageCompiler), so "#{name}" reached the screen. With the
- * flag false a generated build takes the module's client loaders, as v9 did.
- * The module adds its defines in its modules:done hook; this module is listed
- * after it, so its own modules:done hook runs later and this define wins.
- */
-function i18nClientMessagesModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
-  nuxt.hook("modules:done", () => {
-    extendViteConfig((config) => {
-      config.define = { ...config.define, __I18N_FULL_STATIC__: "false" }
-    })
   })
 }
 // Locale preference cookie (strictly necessary). Written by
@@ -526,7 +515,7 @@ function publicSeoModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
 // document perf-budget's ci_initial_gzip_kb reads).
 // the catalogue file i18n loads per locale (P3-06: the split first-screen one),
 // read at config load: @nuxtjs/i18n later rewrites each locale's `file` in place
-const LOCALE_FILES: Record<string, string> = Object.fromEntries(I18N_MODULE_LOCALES.map((l) => [l.code, l.file]))
+const LOCALE_FILES: Record<string, string> = Object.fromEntries(I18N_CATALOGUE_FILES.map((l) => [l.code, l.file]))
 // Rolldown puts every module the entry reaches through a static import into
 // the entry's chunk, used or not, BEFORE tree-shaking (Rollup decided after).
 // @nuxtjs/i18n and @pinia/nuxt import from the "#app" barrel, which re-exports
@@ -698,7 +687,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css", "@/assets/css/tap-anim.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nClientMessagesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule, publicSeoModule, asyncErrorComponentModule, directAppImportsModule],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule, publicSeoModule, asyncErrorComponentModule, directAppImportsModule],
 
   hooks: {
     // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches

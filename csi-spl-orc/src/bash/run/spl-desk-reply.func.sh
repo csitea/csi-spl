@@ -166,7 +166,7 @@ do_spl_desk_reply() {
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local hop_to
   if hop_to="$(spl_desk_action_hop_to "$tenant" "$box")"; then
-    spl_desk_action_hop do_spl_desk_reply "$hop_to" "$tenant" "$box" "$agent"; return $?
+    spl_desk_live_hop do_spl_desk_reply "$hop_to" "$tenant" "$box" "$agent"; return $?
   fi
   _spl_desk_reply_body_file || return 1
   spl_post_time_apply body || return 1

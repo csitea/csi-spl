@@ -754,6 +754,18 @@ another root gets no hop. It hops with `SPOOL_DESK_USER` set too (SPL-4985,
 8.4.4): the fleet loop's owner page runs it as `<box-user>` after
 `MOVE_CMD=switch`. Test: `desk-user-hops.tst.sh` cases 6 and 13.
 
+sudo drops the environment, so the hop (`spl_desk_action_hop`,
+`csi-spl-orc/lib/bash/funcs/spl-desk-moved.func.sh`) passes by name every
+`DESK_*` variable, `ENV`, `TENANT_ID`, `DRY_RUN`, `SPOOL_ROOT`,
+`SPOOL_BOX_ENV`, `RUN_STDOUT_IS_DATA` and the names its caller lists.
+`do_spl_desk_reply` and `do_spl_desk_post` hop with the inputs of a **Live**
+post's proof that are no `DESK_*` (`spl_desk_live_hop`): `LIVE_REPO`,
+`LANE_WT`, `LANE_REMOTE`, `LANE_BRANCH`, `LANE_ENVS`, `LANE_FETCH_SCRIPT`.
+The callers name them, not the hop, since `LANE_*` means other things to other
+hopped actions (SPL-5824: on 2026-11-17 a **Live** post with `LIVE_REPO` set
+hopped without it and was refused "none of the body's hex words is a commit").
+Test: `desk-user-hops.tst.sh` cases 6 and 7.
+
 A post with nowhere to go is refused (SPL-5115): when the caller's copy is an
 unpinned stub with no live sidecar and no pinned copy can be hopped to,
 `do_spl_desk_reply` and `do_spl_desk_post` (so `do_spl_fleet_notice` too) end

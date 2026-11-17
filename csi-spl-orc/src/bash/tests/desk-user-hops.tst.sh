@@ -28,7 +28,9 @@
 #      caller's pinned desk, the desk nowhere, an unpinned copy elsewhere
 #      and a run already hopped: no hop. SPOOL_DESK_USER set: the hop too
 #      (SPL-4985, case 13). do_spl_take posts
-#      through the reply, so it gets the same hop. RED CONTROL: before SPL-4938
+#      through the reply, so it gets the same hop. The Live proof's inputs
+#      (LIVE_REPO, LANE_*) go along by name (SPL-5824, the post too in 7).
+#      RED CONTROL: before SPL-4938
 #      the first case read "FATAL no desk" and the stub case hopped nowhere
 # The scripts run from a sandbox copy of the feature tree, so their default
 # orc (<copy>/run, a stub that logs its user and HOME) is the one called and
@@ -243,6 +245,12 @@ has "6. moved: the hop runs this checkout's action" "$PROJ_ROOT/run -a do_spl_de
 hasnt "6. moved: the caller's SPL_STATE_DIR stays behind" "SPL_STATE_DIR" "$log"
 hasnt "6. moved: no FATAL in the caller" "no desk for" "$out"
 has "6. moved: the hopped run's rc is the action's rc" "rc=7" "$(reply6 hop-a AS_RC=7)"
+# SPL-5824: the Live proof's inputs that are no DESK_* go along by name. RED
+# before: the hop dropped LIVE_REPO, the customer-repo proof FATALed as the owner.
+reply6 hop-a LIVE_REPO=t-repo LANE_BRANCH=main >/dev/null; log="$(cat "$T/as.log")"
+for v in LIVE_REPO=t-repo LANE_BRANCH=main LANE_WT= LANE_REMOTE= LANE_ENVS= LANE_FETCH_SCRIPT=; do
+  has "6. moved: the hop carries the Live proof's $v (SPL-5824)" " $v " "$log"
+done
 
 # the live defect: the agent user's root is 0700, only its sudo sees the desk
 mkdir -p "$T/stub6" "$T/hidden6"
@@ -321,6 +329,8 @@ has "7. post: the hop runs the post" "$PROJ_ROOT/run -a do_spl_desk_post" "$log"
 has "7. post: the env goes along" " ENV=dev " "$log"
 hasnt "7. post: no FATAL in the caller" "no desk for" "$out"
 has "7. post: the hopped run's rc" "rc=7" "$(act7 do_spl_desk_post hop-g AS_RC=7)"
+log="$(act7 do_spl_desk_post hop-g LIVE_REPO=t-repo >/dev/null; cat "$T/as.log")"
+has "7. post: the hop carries LIVE_REPO (SPL-5824)" " LIVE_REPO=t-repo " "$log"
 out="$(act7 do_spl_desk_post hop-g SPOOL_DESK_USER="$DU")"
 eq "7. post: a switched box hops too" "1" "$(hop6)"
 hasnt "7. post: a switched box has no refusal" "FATAL" "$out"

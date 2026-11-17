@@ -139,3 +139,15 @@ spl_desk_action_hop() {
     DRY_RUN="${DRY_RUN:-1}" SPOOL_ROOT="${SPOOL_ROOT:-}" SPOOL_BOX_ENV="${SPOOL_BOX_ENV:-}" RUN_STDOUT_IS_DATA="${RUN_STDOUT_IS_DATA:-}" \
     SPL_DESK_HOPPED="$(id -un)" "$PROJ_PATH/run" -a "$run_action" 9>&-
 }
+
+# spl_desk_live_hop <action> <user> <workspace> <desk id> <agent>:
+# spl_desk_action_hop for do_spl_desk_reply and do_spl_desk_post, with the
+# inputs of spl_desk_live_proof that are no DESK_* by name. Those callers use
+# it, not the hop itself: LANE_* means other things to other hopped actions.
+# Why (SPL-5824): a **Live** post with LIVE_REPO=<customer repo> hopped
+# without it and FATALed "none of the body's hex words is a commit" (sat
+# 2026-11-17, n=1). The other inputs its checks read are test seams or the
+# box env the hopped run loads itself.
+spl_desk_live_hop() {
+  spl_desk_action_hop "$@" LIVE_REPO LANE_WT LANE_REMOTE LANE_BRANCH LANE_ENVS LANE_FETCH_SCRIPT
+}

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { isUploadDoor, sessionExpiredError, uploadWithFreshToken } from '../../src/utils/upload-retry.mjs'
+import { hubDownWhileRedialling, isUploadDoor, sessionExpiredError, uploadWithFreshToken } from '../../src/utils/upload-retry.mjs'
 
 const door = () => Object.assign(new Error('spool 401 door'), { status: 401, token: 'door' })
 
@@ -29,6 +29,54 @@ function fakeLive(first, forced) {
     },
   }
 }
+
+describe('upload-retry: hub_down while the socket redials (SPL-5755)', () => {
+  const hubDown = () => Object.assign(new Error('hub unreachable'), { status: 0, token: 'hub_down' })
+  /* the POST fails `fails` times; the socket is redialling from the first failure until `upAfter` reads */
+  function droppingLive(api) {
+    let reads = 0
+    return {
+      state: { get value() { return api.failed && reads++ < 2 ? 'reconnecting' : 'open' } },
+      ensure() {},
+      async freshUploadToken() { return 't' },
+    }
+  }
+  function failingApi(fails) {
+    const a = { calls: 0, failed: false }
+    a.uploadFile = async () => {
+      a.calls++
+      if (a.calls <= fails) { a.failed = true; throw hubDown() }
+      return { file_id: 'f' }
+    }
+    return a
+  }
+
+  it('names a drop under the upload only for hub_down while redialling', () => {
+    assert.equal(hubDownWhileRedialling(hubDown(), true), true)
+    assert.equal(hubDownWhileRedialling(hubDown(), false), false)
+    assert.equal(hubDownWhileRedialling(door(), true), false)
+    assert.equal(hubDownWhileRedialling(null, true), false)
+  })
+
+  it('hub_down while the socket redials: sent once more after the redial', async () => {
+    const api = failingApi(1)
+    assert.equal((await uploadWithFreshToken(api, droppingLive(api), 'file')).file_id, 'f')
+    assert.equal(api.calls, 2)
+  })
+
+  it('a second hub_down is reported, not retried forever', async () => {
+    const api = failingApi(2)
+    await assert.rejects(uploadWithFreshToken(api, droppingLive(api), 'file'), (e) => e.token === 'hub_down')
+    assert.equal(api.calls, 2)
+  })
+
+  it('hub_down with the socket open (the hub is down, not rolling) is reported at once', async () => {
+    const api = failingApi(1)
+    const live = { state: { value: 'open' }, ensure() {}, async freshUploadToken() { return 't' } }
+    await assert.rejects(uploadWithFreshToken(api, live, 'file'), (e) => e.token === 'hub_down')
+    assert.equal(api.calls, 1)
+  })
+})
 
 describe('upload-retry (CLE-77795)', () => {
   it('recognises only the hub upload-token 401', () => {

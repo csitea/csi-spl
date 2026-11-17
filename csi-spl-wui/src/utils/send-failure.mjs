@@ -19,7 +19,7 @@
  * not open and flushes it on welcome, rejects everything pending on close
  * with token 'closed', and rejects after `ackTimeoutMs` with token 'timeout'.
  * A caller-supplied `msg_id` makes a resend idempotent, which is what lets a
- * 'closed' rejection be retried rather than reported.
+ * 'closed' or 'timeout' rejection be retried once rather than reported.
  */
 
 /** The rejection's token, when the thrower set one ('closed', 'timeout', …). */
@@ -40,13 +40,16 @@ export function failureToken(err) {
  * msg_id, so the hub de-dupes even in the race where the first copy did get
  * through. Worth retrying.
  *
- * 'timeout': the hub may simply be slow and may still be writing the row.
- * Resending is idempotent by msg_id, but it is also a second write against a
- * hub that is already not answering in 10s, so this reports instead. The
- * human keeps their text and a Retry button.
+ * 'timeout' (SPL-5749): no ack in ackTimeoutMs. live-ws has dropped the
+ * silent socket and is dialling again, as after a close: a socket the hub
+ * closes at its max life (1012) can go quiet before its close arrives. The
+ * resend carries the same msg_id, so a first copy that did land is acked
+ * with its stored row, never posted twice. A second timeout is reported:
+ * the human keeps their text and a Retry button.
  */
 export function shouldAutoResend(err) {
-  return failureToken(err) === 'closed'
+  const t = failureToken(err)
+  return t === 'closed' || t === 'timeout'
 }
 
 /**

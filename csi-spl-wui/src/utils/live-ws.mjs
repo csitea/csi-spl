@@ -690,13 +690,27 @@ function send(c, { task_id, kind = 'note', body = '', files = [], to, to_box, ch
   if (parent_task_id) frame.parent_task_id = String(parent_task_id)
   if (is_parent === 0 || is_parent === 1) frame.is_parent = is_parent
   return new Promise((resolve, reject) => {
-    const timer = c.o.setTimer(() => {
-      c.pending.delete(msg_id)
-      reject(Object.assign(new Error('send timed out'), { token: 'timeout' }))
-    }, c.o.ackTimeoutMs)
+    const timer = c.o.setTimer(() => ackTimedOut(c, msg_id, reject), c.o.ackTimeoutMs)
     c.pending.set(msg_id, { resolve, reject, timer })
     rawOrQueue(c, frame)
   })
+}
+
+/**
+ * SPL-5749: no ack within ackTimeoutMs is treated like a close. The socket
+ * that swallowed the frame is suspect: one the hub is closing at its max life
+ * (1012 max_life, ws_maxlife.go) answers nothing more, and its close can
+ * reach us after this timer. So drop it and dial again, as a close would, and
+ * take the frame out of the queue so it is not flushed a second time. The
+ * rejection stays 'timeout'; sendWithResend sends once more with the same
+ * msg_id, which the hub acks with the stored row if the first copy landed
+ * (wui.go wuiAck).
+ */
+function ackTimedOut(c, msgId, reject) {
+  if (!c.pending.delete(msgId)) return
+  c.queue = c.queue.filter((f) => f.msg_id !== msgId)
+  if (c.state === 'open') redial(c)
+  reject(Object.assign(new Error('send timed out'), { token: 'timeout' }))
 }
 
 /** A subscription kind (task / channel / peer): `key` reads the id, `field` names it on the frame. */

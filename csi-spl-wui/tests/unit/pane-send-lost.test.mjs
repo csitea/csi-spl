@@ -53,12 +53,25 @@ describe('sendWithResend: one resend, only where it cannot double-post', () => {
     assert.equal(c.calls.length, 2)
   })
 
-  it('a timeout or any other failure is reported at once', async () => {
-    for (const e of [timeout(), new Error('403 tenant_mismatch')]) {
-      const c = flaky(e)
-      await assert.rejects(sendWithResend(() => c.send({})), (x) => x === e)
-      assert.equal(c.calls.length, 1)
-    }
+  it('a timed-out frame is sent again once, the SAME frame (SPL-5749)', async () => {
+    const c = flaky(timeout())
+    const frame = { msg_id: 'm2', body: 'hi' }
+    assert.deepEqual(await sendWithResend(() => c.send(frame)), { cursor: 'c1' })
+    assert.equal(c.calls.length, 2)
+    assert.equal(c.calls[0], c.calls[1])
+  })
+
+  it('a second timeout is reported, not retried forever', async () => {
+    const c = flaky(timeout(), timeout())
+    await assert.rejects(sendWithResend(() => c.send({})), (e) => e.token === 'timeout')
+    assert.equal(c.calls.length, 2)
+  })
+
+  it('any other failure is reported at once', async () => {
+    const e = new Error('403 tenant_mismatch')
+    const c = flaky(e)
+    await assert.rejects(sendWithResend(() => c.send({})), (x) => x === e)
+    assert.equal(c.calls.length, 1)
   })
 })
 

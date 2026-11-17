@@ -17,6 +17,8 @@
  *
  * SPL-2285: a hub the upload cannot reach (socket down for a few seconds, no
  * connection, no answer) is 'hub_down', which the composer names with a Retry.
+ * SPL-5755: a 'hub_down' that comes while the socket redials (the hub closed
+ * it under the upload) is retried once, after the redial, before it is shown.
  */
 
 /** The hub's 401 for a bad/missing/expired upload token (rest.go tokenTenant). */
@@ -39,5 +41,20 @@ export function sessionExpiredError() {
  */
 export async function uploadWithFreshToken(api, live, file) {
   /* SPL-2285: the retry, the socket wait and 'hub_down' load with the upload, never with `/` (ci_home_gzip_kb) */
-  return (await import('./upload-fail.mjs')).uploadWithLink(api, live, file)
+  const up = await import('./upload-fail.mjs')
+  /* a socket still down after the wait is 'hub_down' at once, never retried */
+  await up.linkUp(live)
+  try {
+    return await up.uploadWithLink(api, live, file)
+  } catch (e) {
+    if (!hubDownWhileRedialling(e, up.linkDown(live))) throw e
+  }
+  /* SPL-5755: the hub closed the socket (a roll, 1012 max_life) under the
+     upload: wait for the redial and send the same bytes once more */
+  return up.uploadWithLink(api, live, file)
+}
+
+/** SPL-5755: 'hub_down' while the live socket redials is a drop under the upload, worth one retry. */
+export function hubDownWhileRedialling(err, redialling) {
+  return Boolean(redialling) && /** @type {{ token?: unknown } | null | undefined} */ (err)?.token === 'hub_down'
 }

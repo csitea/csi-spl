@@ -162,6 +162,33 @@ describe('live-ws client', () => {
     assert.equal((await p).msg_id, sent.msg_id)
   })
 
+  it('SPL-5749: an ack timeout redials the silent socket and rejects timeout; the other pending sends fail closed', async () => {
+    const { FakeWS, sockets } = fakeWs()
+    const t = manualTimers()
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer })
+    c.connect(); sockets[0].open(); sockets[0].recv({ type: 'welcome' })
+    const p1 = c.send({ task_id: 'L', body: 'a', msg_id: 'm1' })
+    const p2 = c.send({ task_id: 'L', body: 'b', msg_id: 'm2' })
+    t.fire(t.timers.findIndex((x) => x.ms === 10000 && !x.done))
+    await assert.rejects(p1, (e) => e.token === 'timeout')
+    await assert.rejects(p2, (e) => e.token === 'closed')
+    assert.equal(sockets.length, 2, 'a new socket is dialled')
+    assert.equal(c.state, 'connecting')
+  })
+
+  it('SPL-5749: a send that times out in the queue is not flushed by the next welcome', async () => {
+    const { FakeWS, sockets } = fakeWs()
+    const t = manualTimers()
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer })
+    c.connect()
+    const p = c.send({ task_id: 'L', body: 'a', msg_id: 'm1' })
+    t.fire(t.timers.findIndex((x) => x.ms === 10000 && !x.done))
+    await assert.rejects(p, (e) => e.token === 'timeout')
+    assert.equal(sockets.length, 1, 'a dial in progress is left to finish')
+    sockets[0].open(); sockets[0].recv({ type: 'welcome' })
+    assert.equal(sockets[0].sent.some((f) => f.type === 'send'), false)
+  })
+
   it('rejects a send on its error frame', async () => {
     const { FakeWS, sockets } = fakeWs()
     const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS })

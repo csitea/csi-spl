@@ -39,11 +39,11 @@ describe('classifying a failed send', () => {
     assert.equal(failureToken('closed'), '')
   })
 
-  it("auto-resends ONLY 'closed' — the case that provably did not land", () => {
+  it("auto-resends 'closed' and 'timeout' — a resend under the same msg_id cannot double-post", () => {
     assert.equal(shouldAutoResend(closed), true)
-    /* a timeout may still be being written hub-side; a second write against a
-       hub that is already not answering in 10s is reported, not attempted */
-    assert.equal(shouldAutoResend(timeout), false)
+    /* SPL-5749: live-ws has redialled the silent socket; the hub acks a
+       duplicate msg_id with its stored row (wui.go wuiAck) */
+    assert.equal(shouldAutoResend(timeout), true)
     assert.equal(shouldAutoResend(new Error('anything else')), false)
     assert.equal(shouldAutoResend(null), false)
   })

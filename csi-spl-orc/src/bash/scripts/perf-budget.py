@@ -91,6 +91,18 @@ ROUTE_CHUNKS = (
     # (MarketingDraftHandover.vue with utils/marketing-handover.mjs)
     ("ci_marketing_handover_gzip_kb", ('"marketing-draft-handover"',)),
 )
+
+
+# A marker is written with double quotes; the minifier may print the same
+# string with single quotes or as a template literal (vite 8's oxc writes
+# `roadmap-page`), so each quote form counts.
+def marker_forms(mk):
+    if len(mk) > 1 and mk[0] == '"' and mk[-1] == '"':
+        inner = mk[1:-1]
+        return tuple(q + inner + q for q in ('"', "'", "`"))
+    return (mk,)
+
+
 # Route budgets that also cap the uncompressed size: raw key -> its route's
 # gzip key. Same chunks, summed before gzip.
 ROUTE_RAW = (("ci_marketing_handover_raw_kb", "ci_marketing_handover_gzip_kb"),)
@@ -551,7 +563,7 @@ def route_chunks(pub):
         names = [
             n
             for n, body in bodies.items()
-            if any(mk.encode() in body for mk in markers)
+            if any(f.encode() in body for mk in markers for f in marker_forms(mk))
         ]
         total = sum(gzip_len(bodies[n]) for n in names)
         raw = sum(len(bodies[n]) for n in names)

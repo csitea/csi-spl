@@ -180,6 +180,21 @@ rc=$?
 [[ $rc -eq 1 ]] && grep -q 'ci_roadmap_route_gzip_kb was not measured' "$T/bout" \
   && pass "CONTROL: a route budget whose chunks are missing fails, never passes unmeasured" || fail "CONTROL route missing: rc=$rc $(cat "$T/bout")"
 
+# --- 2c'. a marker the minifier printed as a template literal (vite 8 / oxc) --
+mkdir -p "$T/tick/_nuxt"
+cp "$T/route/200.html" "$T/route/index.html" "$T/tick/"
+cp "$T/pub/_nuxt/"*.js "$T/tick/_nuxt/" 2>/dev/null
+python3 -c 'import os,sys; open(sys.argv[1]+"/_nuxt/roadmap.js","wb").write(b"x={\"data-test\":`roadmap-page`};"+os.urandom(6000))' "$T/tick"
+python3 "$PY" bundle --pub "$T/tick" --budgets "$T/route.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 0 ]] && grep -q '^ROUTE ci_roadmap_route_gzip_kb 1 chunk(s) gzip [56]\.[0-9] KB' "$T/bout" && grep -q '^PASS ci_roadmap_route_gzip_kb ' "$T/bout" \
+  && pass "a route marker printed with backticks is measured" || fail "backtick marker: rc=$rc $(cat "$T/bout")"
+python3 -c 'import os,sys; open(sys.argv[1]+"/_nuxt/roadmap.js","wb").write(b"x={\"data-test\":roadmap-page};"+os.urandom(6000))' "$T/tick"
+python3 "$PY" bundle --pub "$T/tick" --budgets "$T/route.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 1 ]] && grep -q 'ci_roadmap_route_gzip_kb was not measured' "$T/bout" \
+  && pass "CONTROL: the marker without any quotes is not a match" || fail "CONTROL unquoted marker: rc=$rc $(cat "$T/bout")"
+
 # --- 2d. the costs route budget (spec 123 5, SPL-2056), beside the roadmap one ----
 python3 -c 'import os,sys; open(sys.argv[1]+"/_nuxt/costs.js","wb").write(b"z={\"data-test\":\"costs-page\"};"+os.urandom(4000))' "$T/route"
 printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":99999,"ci_home_gzip_kb":99999,"ci_roadmap_route_gzip_kb":25,"ci_costs_route_gzip_kb":25}}' >"$T/costs.json"

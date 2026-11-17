@@ -449,7 +449,7 @@ order first.
   strings (language rule); deployed dev and prd.
 
 ## Primary workspace
-v0.3 (SPL-5788), [primary-workspace.md](primary-workspace.md). The owner
+v0.3.1 (SPL-5788), [primary-workspace.md](primary-workspace.md). The owner
 answered `1a`, `2c`, `3a`, `7b`, then `8b`, `9c`; no question is open.
 All four rows are ready to place once the file passes review. v0.1's
 T021 (the contacts binding follows the primary workspace) is dropped
@@ -492,12 +492,13 @@ under `7b`. Tests are that file's section 10.
   a new `GO/hub/realm_calendar_mirror*.go`, the step-2 calls in
   `GO/hub/calendar*.go`, the sweep action and its test, the 091 list
   entry, `GO/hub/openapi.json` operations.
-  Done: T-PW3, T-PW4 (mirror part), T-PW5, T-PW7 on Postgres with red
+  Done: T-PW3, T-PW4 (mirror part), T-PW5, T-PW6b, T-PW7 on Postgres with red
   controls; `PRE_PUSH_TIER=full`; deployed dev and prd.
 
 - [ ] T022 **Lane V: a leave drops the mirror first** (SPL-5788; claude,
-  hub; `9c`; waits on T021 landed). The drop-first delete in the removal,
-  ban and workspace delete paths (3.5); 503 `mirror_failed`. No WUI, no
+  hub; `9c`; waits on T021 landed). The drop-first delete, and the second
+  delete after the change, in the removal, ban and workspace delete paths
+  (3.5); 503 `mirror_failed`. No WUI, no
   change to 119 REQ-5 or to calendar-across-workspaces section 7.
   Files (owns): the drop step in the membership removal and workspace
   delete handlers and their tests.

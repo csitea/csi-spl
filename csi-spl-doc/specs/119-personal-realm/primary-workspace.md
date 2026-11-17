@@ -1,6 +1,6 @@
 # 119 addition: the primary workspace of a person
 
-**Status**: v0.3, 2026-11-17, c-958 (SPL-5788, epic SPL-2396). Docs only:
+**Status**: v0.3.1, 2026-11-17, c-958 (SPL-5788, epic SPL-2396). Docs only:
 builds nothing. Every owner question is answered (section 9: `1a`, `2c`,
 `3a`, `7b`, then `8b`, `9c`); Q4..Q6 fall away under `1a`. Nothing is
 built before a review seat passes this file. Build rows:
@@ -206,10 +206,16 @@ Each step is its own transaction and the scopes are never set together
    update, delete, trash, restore, an RSVP, a guest added or removed, an
    audience change, a Google import (149).
 2. Then the hub refreshes the mirror of that one event for the humans it
-   may concern. A `private` entry concerns its creator and the humans in
-   `mentions`, before and after the write. Any other audience concerns
-   every human of `Memberships` in W who passes the gate (3.1): under
-   `8b` a workspace-wide entry is in every member's mirror. For each such
+   may concern: the **union** of the set the row concerned **before**
+   the write and the set it concerns **after** it. A `private` row
+   concerns its creator and the humans in its `mentions`; a row of any
+   other audience concerns every human of `Memberships` in W who passes
+   the gate (3.1), since under `8b` a workspace-wide entry is in every
+   member's mirror. So if either the before-row or the after-row was not
+   private, every gated member is refreshed: a `workspace` entry turned
+   `private` deletes the row of each member it no longer shows to, at
+   once, not at the next sweep (R7 v0.3 W1). A create has no before-row,
+   a delete no after-row. For each such
    human H it reads the source row fresh in `inTenant(W)` with the 3.1
    filter and H as the viewer, then runs one `inPerson(H)` transaction
    that writes what that read returned: an upsert (`ON CONFLICT
@@ -271,7 +277,7 @@ The order is **drop first, change second**, the mirror image of 119
 
 | trigger | how |
 |---|---|
-| removal or ban | in the request, before the membership change: `inPerson(P)` deletes P's rows of W, then the change runs. A failed delete blocks the removal (503 `mirror_failed`, retried), so a leaver never keeps a row. A change that fails after the delete leaves P a member with an empty mirror of W; the next sweep refills it |
+| removal or ban | in the request: `inPerson(P)` deletes P's rows of W, then the membership change runs, then `inPerson(P)` deletes P's rows of W once more. A failed first delete blocks the removal (503 `mirror_failed`, retried). The second delete catches a row that another member's step 2 wrote between the first delete and the change (P was still a member then); if it fails, the read filter of 3.4 already hides the row (P is out of `Memberships`) and the sweep deletes it. A change that fails after the first delete leaves P a member with an empty mirror of W; the next sweep refills it |
 | `access_until` passes | access already ended (rdb 0113, `Memberships`); the sweep deletes the rows. Until it runs they stay in the table, but the read-time filter of 3.4 never answers them |
 | membership disabled (rdb 0074) | `Memberships` drops it: the sweep deletes the rows, the read filter hides them at once; enabled again, the sweep refills them |
 | workspace deleted | the delete action deletes the rows of W for every member, in `inPerson` per member, before `DELETE FROM tenants`; a delete that cannot drop them is refused |
@@ -349,7 +355,7 @@ Q4..Q6) fall away with them.
 - **A leaver's rows** (`9c`): a removal, a ban or a workspace delete
   drops them before the change; an expiry, a disable or a lost
   `topics.read` leaves them in the table until the next sweep, never
-  answered by a read (3.4). T-PW6 pins both.
+  answered by a read (3.4). T-PW6 and T-PW6b pin both.
 - **Other people's entries in P's realm** (`8b`): only what W shows P
   today (3.1), dropped when P's access ends; no admin or operator reads
   them (F3, F4).
@@ -395,13 +401,17 @@ where it is; on leaving a workspace its entries leave the owner's realm.
 - **T-PW3** mirror write (3.3): in W with members P, Q, R: Q creates a
   `workspace` entry, and P's, Q's and R's mirrors each get the row; Q
   edits it and all three follow; Q trashes it and all three rows go;
-  restore brings them back; delete removes them. A `private` entry by Q
+  restore brings them back; delete removes them. Q creates a `workspace`
+  entry, all three mirrors get it, then Q turns it `private` naming P
+  only: Q's and P's rows are updated and **R's row is deleted** by that
+  step 2, with no sweep run (R7 v0.3 W1). A `private` entry by Q
   naming P makes rows for Q and P and none for R. **A `private` entry by
   Q with `owner_id = P` and P not in `mentions` makes no row for P** (R7
   W2). An `internal` entry makes no row for a demo visitor. Red controls:
   drop the private filter from the step-2 read, the owner-only private
   entry gets a row for P (and R gets the private row); drop the demo
-  rule, the demo visitor gets the `internal` row.
+  rule, the demo visitor gets the `internal` row; refresh only the
+  after-set in step 2, R keeps the now-private row.
 - **T-PW4** isolation: under `inTenant(W)` and the operator scope,
   `personal.profile`'s new column and `personal.calendar_mirror` read 0
   rows; another person's `inPerson` reads 0 rows (119 T-N2, T-N4
@@ -413,13 +423,18 @@ where it is; on leaving a workspace its entries leave the owner's realm.
   T-PW3 for P. Red controls: the sweep skips the compare, the row stays
   missing; the sweep reads without the private filter, the owner-only
   entry gets a row.
-- **T-PW6** leave (`9c`): remove P from W, and P's rows of W are gone
-  before the membership row changes; a failed delete blocks the removal
-  with 503 `mirror_failed`; a workspace delete leaves no row of W in any
-  realm; after `access_until` passes and after a disable, `/mirror`
-  answers no row of W at once and the next sweep deletes them; re-enable
-  refills them. Red controls: run the change before the delete with the
-  delete failing, P is out with rows left; drop the read-time filter, the
+- **T-PW6** leave (`9c`, T022): remove P from W, and P's rows of W are
+  gone before the membership row changes; a failed first delete blocks
+  the removal with 503 `mirror_failed`; a step 2 for Q's write injected
+  between the first delete and the change leaves no row of P's after the
+  removal returns (the second delete); a workspace delete leaves no row
+  of W in any realm. Red control: run the change before the delete with
+  the delete failing, P is out with rows left; skip the second delete,
+  the injected row stays.
+- **T-PW6b** lost access without a request (`9c`, T021: the read filter
+  and the sweep): after `access_until` passes and after a disable,
+  `/mirror` answers no row of W at once and the next sweep deletes them;
+  re-enable refills them. Red control: drop the read-time filter, the
   expired workspace's rows are answered.
 - **T-PW7** export gate: `personal.calendar_mirror` is on 091's
   never-exported list; removing it fails the catalogue test.
@@ -432,5 +447,6 @@ where it is; on leaving a workspace its entries leave the owner's realm.
 | 0.2 | 2026-11-17 | c-958 | the owner's answers `1a`, `2c`, `3a`, `7b` (msg `6fccf8a9`): the setting is the "My calendar" preselect (2.5); the realm calendar mirror (section 3: table, write, sweep, read, leave); notes and contacts unchanged; v0.1 sections 5, 6 and the contacts-binding row dropped; new open questions Q8 (which entries) and Q9 (on leaving); tests T-PW1..T-PW7 |
 | 0.2.1 | 2026-11-17 | c-958 | R7 c-990 (msg `d9e33ac3`): `relation` gains `mention` (W1); step 2 and the sweep read the source with the workspace private filter for each human, so an owner-only private entry is not mirrored (W2); step 2 checks each human's gate (N3); no `updated_at` ordering (N4); F1 cites `:48` (N5); T-PW3, T-PW5 red controls |
 | 0.3 | 2026-11-17 | c-958 | the owner's `8b`, `9c` (msg `4cb7194f`): the mirror holds every entry P can read in W (W's private filter with P as viewer, the demo rule), dropped on a leave, drop first; no `relation`, no `left_at` (R7 W1 resolved by removal); step 2 fans out to the gated members for a non-private write; prd size; no open questions; T-PW3, T-PW6 rewritten with red controls (R7 W2) |
+| 0.3.1 | 2026-11-17 | c-958 | R7 c-990 on v0.3 (msg `7b94207f`): step 2 refreshes the union of the before- and after-row sets, so a `workspace` entry turned `private` deletes other members' rows at once (W1), with a T-PW3 case and red control; a removal deletes again after the change (N1); the read-filter and sweep cases move to T-PW6b under T021 (N2) |
 
-<!-- version: 0.3.0 · updated: 2026-11-17 -->
+<!-- version: 0.3.1 · updated: 2026-11-17 -->

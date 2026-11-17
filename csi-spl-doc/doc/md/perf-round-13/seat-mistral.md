@@ -5,26 +5,35 @@ Seat: **m-909@sat** (mistral), ask 9c0a6cef, placed by c-001@sat
 Issue SPL-5774, epic SPL-2402, spec `csi-spl-doc/specs/027-spool-performance`.
 Brief: `/var/spool-hub/dispatch/briefs/c002-perf-round-13-mistral-panel-seat.md`.
 
-**Reviewed sha: `1774838a26c81095c5cc23aeba786ddd1883967b`** on
-`review/c001-perf-round-13-planner`, named by c-882@sat as plan v0.2 in its
-result of 2026-11-17T07:46:21Z on task `dispatch-perf-r13`. My fetch agrees:
+**Reviewed shas** on `review/c001-perf-round-13-planner`, each named by
+c-882@sat on task `dispatch-perf-r13`:
+
+- v0.2 `1774838a26c81095c5cc23aeba786ddd1883967b` (c-882 result
+  2026-11-17T07:46:21Z) -> **FAIL**, one defect W1, fixed in v0.3.
+- v0.3 `d4e8e8572b6d1fecf695462169b27cfb30afe33a` (c-882 result
+  2026-11-17T08:05:57Z) -> **PASS**, re-review below.
+
+My fetch agrees for both:
 
 - `git fetch origin review/c001-perf-round-13-planner && git rev-parse FETCH_HEAD`
-  -> `1774838a26c81095c5cc23aeba786ddd1883967b`
+  -> `d4e8e8572b6d1fecf695462169b27cfb30afe33a` (v0.2 read earlier at
+  `1774838a26c81095c5cc23aeba786ddd1883967b`)
 - `git ls-remote origin refs/heads/review/c001-perf-round-13-planner`
-  -> `1774838a26c81095c5cc23aeba786ddd1883967b`
+  -> `d4e8e8572b6d1fecf695462169b27cfb30afe33a`
 
-Files read at that sha (via `git show 1774838a2:<file>`):
-`csi-spl-doc/doc/md/perf-round-13-plan.md` (259 lines),
-`csi-spl-doc/doc/md/perf-round-13/editor.md` (160 lines). Rulebook read on
-`origin/master` (`d8f6beb59` at first read, `d55657565` at push):
-`csi-spl-doc/doc/md/rounds-rulebook.md` sections 1-4. Every file:line cited
-below was checked with `git show <sha>:<file> | sed -n <N>p` first.
+Files read at each sha (via `git show <sha>:<file>`):
+`csi-spl-doc/doc/md/perf-round-13-plan.md`,
+`csi-spl-doc/doc/md/perf-round-13/editor.md`. Rulebook read on
+`origin/master` (`d8f6beb59` at first read, `01de192fbd` at the v0.3
+re-review): `csi-spl-doc/doc/md/rounds-rulebook.md` sections 1-4. Every
+file:line cited below was checked with `git show <sha>:<file> | sed -n <N>p`
+first.
 
-## Verdict: FAIL on 1774838a2
+## Verdict: FAIL on 1774838a2 (v0.2); PASS on d4e8e8572b6d1fecf695462169b27cfb30afe33a (v0.3)
 
-One defect (W1) must be folded into v1.0 before this seat signs. All other
-checks below pass with their output.
+v0.2 carried one defect (W1, below), folded into v0.3. The v0.3 re-review
+finds W1 fixed and all checks green; this seat signs v0.3. The v0.2 checks
+are kept below as the record, then the v0.3 delta.
 
 ## Checks
 
@@ -198,3 +207,68 @@ Plan claims re-verified: rulebook 4.4 command on `9310612f3`
 - **N5** - the 4.4 floor re-run on `9310612f3` prints exactly the plan's
   `perf 18 refactor 101 perf-share 15.1% under-20`, so the round's reason to
   exist holds at the measured sha.
+
+## Re-review of v0.3: d4e8e8572b6d1fecf695462169b27cfb30afe33a
+
+Named by c-882@sat in its result of 2026-11-17T08:05:57Z on task
+`dispatch-perf-r13` ("W1 fixed, plan v0.3 = `d4e8e857...`").
+`git ls-remote origin refs/heads/review/c001-perf-round-13-planner`
+-> `d4e8e8572b6d1fecf695462169b27cfb30afe33a` (branch head matches the named
+sha). Branch log since v0.2:
+`git log --oneline --format='%h %cI %s' 1774838a2..FETCH_HEAD`
+-> `d4e8e8572 ... docs(p13-plan, SPL-5774): perf round 13 plan v0.3: row 02 names 5 code sites (mistral seat W1)` and
+`f6dc26c17 ... editor state at the 08:12Z rotation`.
+`git diff --stat f6dc26c17 d4e8e857 --stat` -> 1 file:
+`csi-spl-doc/doc/md/perf-round-13-plan.md` only (the editor.md change sits in
+f6dc26c17, not in the fix commit), as c-882 claimed.
+
+### W1 fixed, verified at d4e8e857
+
+Plan line 102 (row 02 sites cell) at v0.3 now names exactly **5 code sites**:
+`check-pre-push-lint.func.sh:102-109`, `:158`, `:443`;
+`sec-gosec.func.sh:1-17`, `:117-137` - and says so ("**5 code sites**
+(rulebook 3.1)"), with `pre-push-gate.md` listed as "Doc, outside the
+code-site count". The contradictory "5 edit ranges" against 7 entries is
+gone. The merge of `:117` and `:124-137` into `:117-137` is legitimate:
+`grep -nE '^[a-zA-Z_]+\(\) ?\{|^\}'` on `sec-gosec.func.sh` at d4e8e857 shows
+`do_sec_gosec() {` at line 87 and its closing `}` at line 141, so lines
+117-137 are one function body, one range. Row 01 (plan line 101) is
+unchanged: 3 sites. Both rows are within rulebook 3.1's at-most-5 cap.
+
+### Delta checks re-run at v0.3 (commands and output)
+
+- Slug, origin/master `01de192fbd`:
+  `git log origin/master --oneline -E --grep='\(p13-' | wc -l` -> `0`;
+  `git ls-remote origin 'refs/heads/*p13-*' | grep -v c002-perf-round-13-mistral-seat | wc -l`
+  -> `0` (only this seat's own branch carries p13).
+- Sites at d4e8e857, `git show d4e8e857:<file> | sed -n <N>p`:
+  `check-pre-push.func.sh:1131` -> `_pp_timed_out ...; return 0`;
+  `:1149` -> `_pp_timed_out() { ...`; `check-pre-push-lint.func.sh:158` ->
+  the `lint-gosec` `*.go`/`go.mod`/`go.sum` selection; `:443` ->
+  `SEC_GOSEC_ROOT="$tree" do_sec_gosec`; `sec-gosec.func.sh:117` -> the
+  `./...` scan; `:137` -> `_sec_baseline_gate ...`; `pre-push-gate.md:255`
+  -> the TIMED OUT paragraph. Drift
+  `git log --oneline 1774838a2..origin/master -- <row files + tests>` -> 0
+  lines: no site drifted between v0.2, v0.3 and master.
+- Re-measure (read-only), push user's log:
+  `sudo awk '$1>="2026-11-15T12:45:06Z" && $3=="PART" && $4=="lint-gosec" && $5=="PASS" {...}' ~/.cache/csi-spl/pre-push.log`
+  -> `n=46 sum=48593 mean=1056.4 min=628 max=1696` (unchanged since my v0.2
+  read; the row keeps its n=44 reading on `9310612f3`, noted in plan v0.3
+  section 8). `sudo awk '$1>="2026-11-15T12:45:06Z" && /TIMED OUT after/' ~/.cache/csi-spl/pre-push.log | wc -l`
+  -> `2` (unchanged; both FAIL). Verdicts agree.
+- R3 lane map, row files only:
+  `lane-map.sh --check <7 row paths> --agent m-909` -> exit 4, 0 `owned by`
+  lines (15 `unknown:` on the second fleet box, none naming a row file).
+- Plan bookkeeping: section 8 (v0.3 entry) records the m-909 FAIL on v0.2
+  `1774838a2` and the W1 fix; section 9 consensus records
+  `m-909 ... v0.2 1774838a2 | FAIL, W1 (sites > 5), fixed in v0.3`.
+  `git diff 1774838a2 d4e8e857 -- csi-spl-doc/doc/md/perf-round-13-plan.md`
+  shows only the title/status, the row 02 sites cell, section 8 and section
+  9 changed - no row content, baseline, test, vendor or batch moved.
+
+### Verdict on v0.3
+
+**PASS on `d4e8e8572b6d1fecf695462169b27cfb30afe33a`.** W1 is fixed (5 code
+sites, doc outside the count, merge into `:117-137` verified against the
+function body 87-141), every other check re-run at v0.3 is green with the
+output above, and nothing else in the plan moved. This seat signs v0.3.

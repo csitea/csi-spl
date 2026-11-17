@@ -16,8 +16,12 @@
 # @description owner logs in there himself each run, and no session, password
 # @description or cookie survives the run or is read, printed or logged.
 # @description
-# @description FRAGILE: it reads the console's billing documents page, which
-# @description Google may change at any time (then it says so and exits 2).
+# @description FRAGILE: it opens each account's overview and follows the
+# @description console's own Billing menu to Invoices (else Payment status),
+# @description never a deep path (/billing/<id>/documents is gone, SPL-5810).
+# @description Google may change those pages at any time: a not-found page,
+# @description no such entry or no documents list prints one FATAL line per
+# @description account (id masked to its last 4) and the run exits 2.
 # @description
 # @description playwright-core is PINNED to 1.65.0 and installed AT RUN TIME on
 # @description the owner's desk (npm, into BILLING_PW_DIR, default

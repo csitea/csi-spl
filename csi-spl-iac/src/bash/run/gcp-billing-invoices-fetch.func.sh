@@ -127,10 +127,10 @@ _gbf_summary() {
   {
     echo "# Billing invoices, ${n} months to ${today}"
     echo
-    echo "PDFs: no API returns them. Download each \"todo\" in the console (Billing > Documents), or run do_gcp_billing_invoices_browser at your desk."
+    echo "PDFs: no API returns them. Download each \"todo\" in the console (the account's Billing menu > Invoices, or Payment status for an invoiced account), or run do_gcp_billing_invoices_browser at your desk."
   } >"${out}/README.md"
   while IFS=$'\t' read -r id name _; do
-    printf '\n## %s (%s)\n\nhttps://console.cloud.google.com/billing/%s/documents\n\n' "${name}" "${id}" "${id}" >>"${out}/README.md"
+    printf '\n## %s (%s)\n\nhttps://console.cloud.google.com/billing/%s (then Invoices, or Payment status)\n\n' "${name}" "${id}" "${id}" >>"${out}/README.md"
     for m in ${months}; do
       next=$(_gbf_next_month "${m}")
       IFS=$'\t' read -r cur amt < <(awk -F'\t' -v a="${id}" -v m="${m}" '$1 == a && $2 == m { print $3 "\t" $4 }' "${out}/amounts.tsv")

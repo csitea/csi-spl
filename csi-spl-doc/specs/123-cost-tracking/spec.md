@@ -860,17 +860,27 @@ under `pdf/<id>/`. Ids are logged masked.
   each run, as his B answer says ("you have to log in each time"). No
   session survives the run; no password or cookie is read, logged or stored.
 - For each account (`BILLING_ACCOUNT_IDS`, or the newest fetch run's), it opens
-  the billing documents page and picks the invoice rows dated in the window
-  (`src/js/billing-invoices/lib.mjs`). It saves each one as
+  the account's overview (`/billing/<id>`) and follows the console's own
+  Billing navigation link to **Invoices** (a self-serve account), else to
+  **Payment status** (an invoiced account), the pages Google's get-invoice
+  how-to names (read 2026-11-17). It never opens a hard-coded deep path: the
+  old `/billing/<id>/documents` answered "URL not found" (owner, #laskut
+  f655b326, msg 917d252a; SPL-5810). There it picks the invoice rows dated in
+  the window (`src/js/billing-invoices/lib.mjs`) and saves each one, one row
+  at a time (a row's download control, else its checkbox and "Download
+  selected", which gives one PDF for one row), as
   `pdf/<id>/<date>-<number>.pdf`, the checklist the fetch ticks off.
   `BILLING_DRY=1` lists the rows and saves nothing.
 - **playwright-core is pinned to 1.65.0** and installed at run time on the
   owner's desk with npm, once, into `BILLING_PW_DIR`
   (`$HOME/.cache/<org>-<app>/playwright-core-1.65.0`). It drives the
   installed Chrome and downloads no browser.
-- FRAGILE, as the owner accepted: when any account's page shows no invoice
-  row in the window (Google changed the page, or the account has none), the
-  run says so for that account, saves the others, and exits 2. It guesses
+- FRAGILE, as the owner accepted: a "URL not found" page (the overview, or
+  the page behind the entry), no Invoices or Payment status entry, no
+  documents list, or no invoice row in the window (Google changed the page,
+  or the account has none) fails that account with ONE line,
+  `FATAL XXXXXX-XXXXXX-XX<last 4>: <what was looked for>`; the run saves the
+  other accounts and exits 2, never 0 with nothing saved. It guesses
   nothing.
 
 ### 15.5 Tests
@@ -891,7 +901,14 @@ test covers:
   mode-700 `TMPDIR` that is gone after the run and after a TERM, and
   `download.mjs` with no persistent context;
 - the out dir inside a git work tree, refused before any call;
-- `node --test` of `lib.mjs` on synthetic rows.
+- `node --test` of `lib.mjs` on synthetic rows and page snippets;
+- `download.mjs` itself on static console pages
+  (`src/bash/tests/fixtures/billing-invoices/*.html`) through a fake
+  playwright-core: the overview's Invoices link and the Payment status
+  fallback are followed and `/documents` is never opened; the not-found
+  overview, no entry, a not-found page behind the entry and an empty
+  Invoices page each give one masked FATAL line and rc 2. CONTROL: the old
+  `/documents` path on the same pages fails (SPL-5810).
 
 Not covered: the real console page. Only the owner's own run can show it.
 

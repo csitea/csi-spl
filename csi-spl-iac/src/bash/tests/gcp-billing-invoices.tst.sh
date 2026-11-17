@@ -31,8 +31,14 @@
 #      persistent context. The out dir inside a git work tree is refused.
 #   D. node --test of src/js/billing-invoices/lib.mjs (the row choice), when
 #      node is on the box; else NOT RUN.
-# Stubs: gcloud, curl, npm, node on PATH (they log their argv). Nothing
-# reaches GCP, npm or a browser.
+#   E. download.mjs itself on static console pages (fixtures/billing-invoices,
+#      a fake playwright-core, SPL-5810): it opens /billing/<id> and follows the
+#      overview's own "Invoices" (else "Payment status") link, never
+#      /billing/<id>/documents; a not-found page, no such entry, a not-found
+#      page behind it or no documents list -> one FATAL line, the id masked to
+#      its last 4, rc 2. CONTROL: the old /documents path on the same pages.
+# Stubs: gcloud, curl, npm, node on PATH (they log their argv); E runs the
+# real node on a fake playwright-core. Nothing reaches GCP, npm or a browser.
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -117,8 +123,9 @@ S="$OUT/2026-11-10/summary.tsv"
 jq -e '[.queryParameters[].parameterValue.value] == ["202511", "202610"] and (.query | test("gcp_billing_export_v1_\\*"))' "$T/log.body" >/dev/null 2>&1 \
   && grep -q '^curl .*/projects/csi-spl-all/queries$' "$T/log" \
   && pass "fetch: one query over the export, invoice.month 202511..202610, its job in csi-spl-all" || fail "query: $(cat "$T/log.body" 2>&1)"
-[[ -s "$OUT/2026-11-10/projects-$A1.tsv" ]] && grep -q "console.cloud.google.com/billing/$A1/documents" "$OUT/2026-11-10/README.md" \
-  && pass "fetch: projects per account and the README checklist with each account's documents link" || fail "projects/README"
+[[ -s "$OUT/2026-11-10/projects-$A1.tsv" ]] && grep -qx "https://console.cloud.google.com/billing/$A1 (then Invoices, or Payment status)" "$OUT/2026-11-10/README.md" \
+  && ! grep -q "/documents" "$OUT/2026-11-10/README.md" \
+  && pass "fetch: projects per account and the README checklist with each account's overview link (never the gone /documents, SPL-5810)" || fail "projects/README"
 ! grep -qF "$A1" "$T/o" && ! grep -qF "$A2" "$T/o" && grep -q 'XXXXXX-XXXXXX-6A7B8C' "$T/o" \
   && pass "fetch: billing account ids are logged masked only" || fail "ids leaked: $(grep -E "$A1|$A2" "$T/o")"
 ! grep -q 'tok-SECRET' "$T/o" "$T/log" && grep -q 'Bearer tok-SECRET-1' "$T/log.stdin" \
@@ -246,6 +253,81 @@ if command -v node >/dev/null 2>&1 && [[ "$(command -v node)" != "$T/bin/node" ]
     && pass "node --test lib.test.mjs ($(grep -c '^ok ' "$T/n") ok)" || fail "node --test: $(tail -20 "$T/n")"
 else
   echo "NOT RUN: node --test lib.test.mjs (no node on this box)"
+fi
+
+# --- E. download.mjs on static console pages (SPL-5810) -------------------------------
+# A fake playwright-core serves the fixture pages by the last path segment of
+# the URL (the account id = the overview); an unknown path gets the console's
+# not-found page, as Google answered /billing/<id>/documents (owner msg 917d252a).
+FIX="$TEST_DIR/fixtures/billing-invoices"
+DL="$PROJ_ROOT/src/js/billing-invoices/download.mjs"
+mkdir -p "$T/fakepw/node_modules/playwright-core"
+echo '{"name":"playwright-core","main":"index.js"}' >"$T/fakepw/node_modules/playwright-core/package.json"
+cat >"$T/fakepw/node_modules/playwright-core/index.js" <<'JS'
+const fs = require('node:fs');
+const map = Object.fromEntries((process.env.FAKE_MAP || '').split(',').filter(Boolean).map((kv) => kv.split('=')));
+const serve = (url) => {
+  const seg = new URL(url).pathname.split('/').filter(Boolean).pop();
+  const key = /^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$/.test(seg) ? 'overview' : seg;
+  return fs.readFileSync(`${process.env.FAKE_FIX}/${map[key] || 'not-found.html'}`, 'utf8');
+};
+const rows = (html) => [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+function page() {
+  let url = 'about:blank', html = '';
+  const p = {
+    goto: async (u) => { url = u; html = serve(u); fs.appendFileSync(process.env.FAKE_LOG, `goto ${u}\n`); },
+    url: () => url, content: async () => html, waitForTimeout: async () => {},
+    getByRole: () => ({ first: () => ({ click: async () => { throw new Error('no href click in the fake'); } }) }),
+  };
+  const frame = { url: () => url, content: async () => html,
+    locator: () => ({ count: async () => rows(html).length, allInnerTexts: async () => rows(html), nth: () => ({}) }) };
+  p.frames = () => [frame];
+  return p;
+}
+exports.chromium = { launch: async () => ({ newContext: async () => ({ newPage: async () => page() }), close: async () => {} }) };
+JS
+# dl <out> <FAKE_MAP> [mjs] - download.mjs (or a copy) on the fixtures, DRY, rc on the last line
+dl() {
+  : >"$T/fake.log"
+  env -i PATH="$PATH" HOME="$T/home" FAKE_FIX="$FIX" FAKE_LOG="$T/fake.log" FAKE_MAP="$2" \
+    BILLING_ACCOUNTS="$A1" BILLING_TODAY=2026-11-10 BILLING_MONTHS=12 BILLING_PDF_DIR="$T/dlpdf" \
+    BILLING_PW_DIR="$T/fakepw" BILLING_CHROME=/bin/false BILLING_DRY=1 BILLING_PAGE_WAIT_MS=20 \
+    node "${3:-$DL}" >"$1" 2>&1
+  echo "rc=$?" >>"$1"
+}
+if command -v node >/dev/null 2>&1 && [[ "$(command -v node)" != "$T/bin/node" ]]; then
+  dl "$T/e" overview=overview.html,invoices=invoices.html
+  [[ "$(grep -c "^INFO DRY XXXXXX-XXXXXX-XX7B8C would save .* (Invoices)$" "$T/e")" -eq 3 ]] \
+    && grep -q 'would save 2026-11-01-5123456789.pdf' "$T/e" && grep -q 'would save 2025-12-01-5100000002.pdf' "$T/e" \
+    && ! grep -q '5100000001\|5123456790' "$T/e" && grep -q '^rc=0$' "$T/e" \
+    && pass "download: overview -> its own 'Invoices' entry -> the 12-month rows (3 invoices, no payment, nothing older), rc 0" \
+    || fail "download good: $(cat "$T/e")"
+  [[ "$(sed -n 1p "$T/fake.log")" == "goto https://console.cloud.google.com/billing/$A1" ]] \
+    && [[ "$(sed -n 2p "$T/fake.log")" == "goto https://console.cloud.google.com/billing/$A1/invoices?organizationId=0&x=1" ]] \
+    && ! grep -q '/documents' "$T/fake.log" \
+    && pass "download: opens /billing/<id>, then the href the console's nav gives; never /documents" || fail "download gotos: $(cat "$T/fake.log")"
+  dl "$T/e" overview=overview-invoiced.html,payment-status=invoices.html
+  grep -q '^rc=0$' "$T/e" && [[ "$(grep -c '(Payment status)$' "$T/e")" -eq 3 ]] \
+    && pass "download: an invoiced account (no 'Invoices') -> 'Payment status' (its aria-label), rc 0" || fail "download invoiced: $(cat "$T/e")"
+  # each failure: one FATAL line for the account, the id masked to its last 4, exit 2
+  for c in "overview=not-found.html|URL not found\" for the billing account overview" \
+           "overview=overview-no-nav.html|no \"Invoices\" or \"Payment status\" entry in the Billing navigation" \
+           "overview=overview.html|URL not found\" behind the \"Invoices\" entry" \
+           "overview=overview.html,invoices=invoices-empty.html|no documents list on the \"Invoices\" page"; do
+    dl "$T/e" "${c%%|*}"
+    [[ "$(grep -c "^FATAL XXXXXX-XXXXXX-XX7B8C: " "$T/e")" -eq 1 ]] && grep -qF "${c#*|}" "$T/e" \
+      && grep -q '^FATAL 1 of 1 account(s) failed' "$T/e" && grep -q '^rc=2$' "$T/e" \
+      && ! grep -qF "$A1" "$T/e" && ! grep -q 'would save\|^OK ' "$T/e" \
+      && pass "download: ${c%%|*} -> one FATAL line (${c#*|}), id masked, rc 2" || fail "download ${c%%|*}: $(cat "$T/e")"
+  done
+  # CONTROL: the old deep link (/billing/<id>/documents) on the same good pages fails loudly
+  mkdir -p "$T/ctl" && cp "$(dirname "$DL")/lib.mjs" "$T/ctl/"
+  sed "s#\`\${CONSOLE}/billing/\${id}\`#\`\${CONSOLE}/billing/\${id}/documents\`#" "$DL" >"$T/ctl/download.mjs"
+  dl "$T/e" overview=overview.html,invoices=invoices.html "$T/ctl/download.mjs"
+  grep -q '^rc=2$' "$T/e" && grep -q 'URL not found' "$T/e" && grep -q '/documents$' "$T/fake.log" \
+    && pass "download CONTROL: the old /billing/<id>/documents path on the same pages -> FATAL, rc 2" || fail "download control: $(cat "$T/e" "$T/fake.log")"
+else
+  echo "NOT RUN: download.mjs on the fixture pages (no node on this box)"
 fi
 
 [[ $fails -eq 0 ]] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

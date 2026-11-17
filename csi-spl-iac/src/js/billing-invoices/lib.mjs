@@ -53,3 +53,48 @@ export function selectRows(texts, today, months) {
   });
   return out;
 }
+
+// maskId('0A1B2C-3D4E5F-6A7B8C') -> 'XXXXXX-XXXXXX-XX7B8C': an account id in a
+// log line, the last 4 kept (SPL-5810).
+export const maskId = (id) => `XXXXXX-XXXXXX-XX${String(id).slice(-4)}`;
+
+// failLine(id, what) -> the one line a failed account prints (SPL-5810).
+export const failLine = (id, what) => `FATAL ${maskId(id)}: ${what}`;
+
+const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", nbsp: ' ' };
+const decode = (s) => s.replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (_, k) => ENT[k]);
+
+// htmlText(html) -> the visible text of a page or a fragment, one space apart.
+export function htmlText(html) {
+  return decode(String(html).replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ').trim();
+}
+
+// isNotFound(html): the console's "URL not found" page (owner msg 917d252a),
+// or another not-found page shown in place of the one asked for.
+export function isNotFound(html) {
+  return /\b(URL|page) (was )?not found\b|\brequested URL was not found\b/i.test(htmlText(html));
+}
+
+// navEntries(html) -> [{label, href}]: every link of the page, labelled by its
+// aria-label, else by its text.
+export function navEntries(html) {
+  const out = [];
+  for (const m of String(html).matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const attr = (k) => (new RegExp(`\\s${k}\\s*=\\s*"([^"]*)"`, 'i').exec(m[1]) || [])[1];
+    const label = htmlText(attr('aria-label') || m[2]);
+    if (label) out.push({ label, href: attr('href') ? decode(attr('href')) : null });
+  }
+  return out;
+}
+
+// pickInvoicesEntry(entries) -> the Billing navigation entry that leads to the
+// documents: "Invoices" (a self-serve account), else "Payment status" (an
+// invoiced account), as Google's get-invoice how-to names them; null if neither.
+export function pickInvoicesEntry(entries) {
+  for (const re of [/^invoices$/i, /^payment status$/i]) {
+    const e = entries.find((x) => re.test(x.label));
+    if (e) return e;
+  }
+  return null;
+}

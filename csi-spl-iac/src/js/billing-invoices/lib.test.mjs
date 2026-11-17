@@ -2,7 +2,7 @@
 // the row choice, on synthetic rows. No browser, no login, no network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { windowStart, parseDocDate, selectRows } from './lib.mjs';
+import { windowStart, parseDocDate, selectRows, maskId, failLine, htmlText, isNotFound, navEntries, pickInvoicesEntry } from './lib.mjs';
 
 test('windowStart: 12 months back, the day clamped to the month', () => {
   assert.equal(windowStart('2026-11-10', 12), '2025-11-10');
@@ -42,4 +42,24 @@ test('selectRows CONTROL: a wider window takes the older invoice too', () => {
   const rows = ['Nov 1, 2025 Invoice 5100000001'];
   assert.equal(selectRows(rows, '2026-11-10', 12).length, 0);
   assert.equal(selectRows(rows, '2026-11-10', 13).length, 1);
+});
+
+test('maskId / failLine: the id masked to its last 4 (SPL-5810)', () => {
+  assert.equal(maskId('0A1B2C-3D4E5F-6A7B8C'), 'XXXXXX-XXXXXX-XX7B8C');
+  assert.equal(failLine('0A1B2C-3D4E5F-6A7B8C', 'x'), 'FATAL XXXXXX-XXXXXX-XX7B8C: x');
+});
+
+test('isNotFound: the console not-found page, not a page that mentions it', () => {
+  assert.equal(isNotFound('<h1>URL not found</h1><p>Check the URL</p>'), true);
+  assert.equal(isNotFound('<p>The requested URL was not found on this server.</p>'), true);
+  assert.equal(isNotFound('<h1>Invoices</h1><script>"URL not found"</script>'), false);
+  assert.equal(isNotFound('<h1>Overview</h1>'), false);
+});
+
+test('navEntries + pickInvoicesEntry: Invoices first, else Payment status, else null', () => {
+  const nav = navEntries('<a href="/b/1">Overview</a><a aria-label="Payment status" href="/b/1/ps"><i></i></a><a href="/b/1/inv?o=0&amp;x=1"><span>Invoices</span></a>');
+  assert.deepEqual(pickInvoicesEntry(nav), { label: 'Invoices', href: '/b/1/inv?o=0&x=1' });
+  assert.deepEqual(pickInvoicesEntry(nav.filter((e) => e.label !== 'Invoices')), { label: 'Payment status', href: '/b/1/ps' });
+  assert.equal(pickInvoicesEntry(navEntries('<a href="/b/1/documents">Documents</a><a href="/b/1">Invoices overview</a>')), null);
+  assert.equal(htmlText('<p>a&nbsp;&amp; <b>b</b></p>'), 'a & b');
 });

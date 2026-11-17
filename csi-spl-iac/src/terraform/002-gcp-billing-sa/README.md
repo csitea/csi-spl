@@ -94,3 +94,19 @@ then `make do-deprovision`, `make do-tf-plan` and `make do-provision`, each
 on the owner's go, each with `GCP_BILLING_ACCOUNT_IDS` set (the variable has
 no default). A recreated SA has a new unique id: every grant outside this
 step (the owner's steps above) must be made again.
+
+## 5. Logs and one gcloud trap
+
+- Every `do_tf_apply` / `do_tf_destroy` run (and their `_target` and
+  local-bucket twins) pipes terraform through `do_tf_log_mask`
+  (`csi-spl-iac/lib/bash/funcs/tf-log-mask.func.sh`, SPL-5797) before its
+  tee: stdout and `csi-spl-iac/dat/log/tf_{apply,destroy}.<org>-<app>-<env>.<step>.log`
+  show a billing account id only as `XXXXXX-XXXXXX-XX<last 4>`. Before it, a
+  step-002 apply left the full id 9 times in its log. Count what a log
+  still holds (numbers only, never the match):
+  `grep -cE '[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}' <log>`.
+- `gcloud billing accounts get-iam-policy <id> --account=<sa>` fails with
+  HTTP 400 INVALID_ARGUMENT: the global `--account` flag collides with that
+  command's own ACCOUNT argument, so gcloud sends the SA email as the billing
+  id. Set the identity as `CLOUDSDK_CORE_ACCOUNT=<sa>` in a throwaway
+  `CLOUDSDK_CONFIG` instead, and pass no `--account` to that one command.

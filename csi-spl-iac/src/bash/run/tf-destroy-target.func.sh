@@ -15,6 +15,8 @@
 # @example   TARGET=google_dns_record_set.api_prd,google_dns_record_set.api_tst \
 # @example   DRY_RUN=0 ./run -a do_tf_destroy_target
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/tf-log-mask.func.sh
+declare -F do_tf_log_mask >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/tf-log-mask.func.sh"
 do_tf_destroy_target() {
 
   local dry_run="${DRY_RUN:-1}" verb="apply -destroy -auto-approve"
@@ -38,8 +40,8 @@ do_tf_destroy_target() {
   while IFS=',' read -ra TARGETS; do
     for target in "${TARGETS[@]}"; do
       # shellcheck disable=SC2086  # verb is two or three words on purpose
-      terraform -chdir=${tf_run_path} ${verb} -var-file=$vars_path -lock=false -target=${target} |
-        tee -a $tf_destroy_log_fle
+      terraform -chdir=${tf_run_path} ${verb} -var-file=$vars_path -lock=false -target=${target} 2>&1 |
+        do_tf_log_mask | tee -a $tf_destroy_log_fle
     done
   done <<<"$TARGET"
 

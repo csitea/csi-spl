@@ -4,6 +4,8 @@
 # @description Tf apply target.
 # @example cd csi-spl-orc && ENV=dev STEP=030-cloud-run-hub TARGET='<address>' make do-tf-apply-target
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/tf-log-mask.func.sh
+declare -F do_tf_log_mask >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/tf-log-mask.func.sh"
 declare -F env_order_gate >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/check-dev-leads-prd.func.sh"
 # SPL-3775: a targeted apply runs terraform here, never through do_provision,
@@ -49,7 +51,7 @@ do_tf_apply_target() {
   while IFS=',' read -ra TARGETS; do
     for target in "${TARGETS[@]}"; do
       terraform -chdir=${tf_run_path} apply -var-file=$vars_path -auto-approve -lock=false -target=${target} \
-        2>&1 | tee -a "$tf_apply_log_fle"
+        2>&1 | do_tf_log_mask | tee -a "$tf_apply_log_fle"
     done
   done <<<"$TARGET"
 

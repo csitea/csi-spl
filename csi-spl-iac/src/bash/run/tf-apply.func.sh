@@ -4,6 +4,8 @@
 # @description Tf apply.
 # @example cd csi-spl-orc && ENV=dev STEP=030-cloud-run-hub make do-provision
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/tf-log-mask.func.sh
+declare -F do_tf_log_mask >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/tf-log-mask.func.sh"
 declare -F env_order_gate >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/check-dev-leads-prd.func.sh"
 
@@ -25,7 +27,7 @@ do_tf_apply() {
   {
     terraform -chdir="${tf_run_path}" init -backend-config="$backend_config_path" -upgrade -get=true -reconfigure 2>&1 &&
     terraform -chdir="${tf_run_path}" apply -var-file="$vars_path" -auto-approve -lock=false 2>&1
-  } | tee -a "$tf_apply_log_fle"
+  } | do_tf_log_mask | tee -a "$tf_apply_log_fle"
   local _rc=${PIPESTATUS[0]}
   set +x
 
@@ -35,7 +37,7 @@ do_tf_apply() {
     echo "=========================================="
     echo "TERRAFORM OUTPUTS:"
     echo "=========================================="
-    terraform -chdir="${tf_run_path}" output 2>&1 | tee -a "$tf_apply_log_fle"
+    terraform -chdir="${tf_run_path}" output 2>&1 | do_tf_log_mask | tee -a "$tf_apply_log_fle"
     echo "=========================================="
   fi
 

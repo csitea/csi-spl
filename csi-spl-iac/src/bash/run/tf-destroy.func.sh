@@ -4,6 +4,8 @@
 # @description The terraform destroy command is a convenient way to destroy all remote objects managed by a particular Terraform configuration. https://developer.hashicorp.com/terraform/cli/commands/destroy
 # @example cd csi-spl-orc && ENV=<env> STEP=<step> make do-deprovision
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/tf-log-mask.func.sh
+declare -F do_tf_log_mask >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/tf-log-mask.func.sh"
 do_tf_destroy() {
 
   do_log "INFO START ::: tf_destroy for step ${STEP}"
@@ -26,7 +28,7 @@ do_tf_destroy() {
     terraform -chdir="$tf_run_path" init -backend-config="$backend_config_path" \
       -upgrade -reconfigure 2>&1 &&
       terraform -chdir="$tf_run_path" destroy -var-file="$vars_path" -auto-approve -lock=false 2>&1
-  } | tee -a "$tf_destroy_log_fle"
+  } | do_tf_log_mask | tee -a "$tf_destroy_log_fle"
   set +x
 
   do_log "INFO STOP  ::: tf_destroy for step $tf_proj"

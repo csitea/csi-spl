@@ -10,6 +10,8 @@
 # @param DRY_RUN 1 (default) plans only, 0 destroys
 # @example ENV=dev STEP=<step>-remote-bucket DRY_RUN=0 ./run -a do_tf_destroy_local_step_bucket
 #------------------------------------------------------------------------------
+# shellcheck source=../../../lib/bash/funcs/tf-log-mask.func.sh
+declare -F do_tf_log_mask >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/tf-log-mask.func.sh"
 do_tf_destroy_local_step_bucket() {
 
   local dry_run="${DRY_RUN:-1}" verb="destroy -auto-approve"
@@ -56,7 +58,7 @@ do_tf_destroy_local_step_bucket() {
   {
     terraform -chdir=$tf_run_path init -upgrade 2>&1 &&
     terraform -chdir=$tf_run_path ${verb} -var-file=$vars_path 2>&1
-  } | tee -a $tf_destroy_log_fle
+  } | do_tf_log_mask | tee -a $tf_destroy_log_fle
 
   set +x
   set +e

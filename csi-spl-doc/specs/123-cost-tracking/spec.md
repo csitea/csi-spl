@@ -803,6 +803,13 @@ to log in each time)".
   csi-spl-all's owners and editors.
 - Moving a project's billing, and closing an account, are the owner's go for
   each call. No action here does either.
+- The tf logs mask the ids (SPL-5797): `do_tf_apply` / `do_tf_destroy` and
+  their twins pipe terraform through `do_tf_log_mask` before the tee, so
+  stdout and `csi-spl-iac/dat/log/tf_*.log` keep only the last 4 chars of an
+  id. `gcloud billing accounts get-iam-policy <id>` takes no `--account`
+  (it collides with the command's ACCOUNT argument, HTTP 400): use
+  `CLOUDSDK_CORE_ACCOUNT` in a throwaway `CLOUDSDK_CONFIG`. Detail: the step
+  002 README section 5.
 
 ### 15.3 `do_gcp_billing_invoices_fetch` (read only)
 

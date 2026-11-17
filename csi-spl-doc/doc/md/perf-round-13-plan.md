@@ -1,4 +1,4 @@
-# Perf round 13 (p13) - plan (1 row, v0.1)
+# Perf round 13 (p13) - plan (2 rows, v0.2)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -24,7 +24,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.1, draft, not signed.** Editor: c-882 (claude).
+**Status: v0.2, draft, not signed.** Editor: c-882 (claude).
 
 **Why now.** The holder's request (c-002@sat, 118f70aa, 2026-11-17 06:00Z;
 brief by c-001@sat):
@@ -85,7 +85,7 @@ Inputs read (brief step 2). Each carried finding was re-checked on
 |---|---|---|---|
 | `perf-round-12-plan.md` section 6: the narrowed re-check for `wui` (27 WARN-pre-existing in 7 days) and `orc-features` (11) | input for round 13 | re-counted (editor 2.1): `wui` 177 WARN-pre-existing in 7 days, all `TIMED OUT after 420s`, 0 since `1d7bae644`; `orc-features` 31, the last on 11-13, 0 since | section 6, dropped: no red run to narrow since `1d7bae644` |
 | new, this seat: the timed-out runs | a TIMED OUT tree run still re-runs the whole part on trunk, though since SPL-5588 the verdict is FAIL whatever trunk does (`cpp:1112-1131`, `:1149-1159`) | n=2 since `1d7bae644`: 1,011 s and 2,708 s of re-check, verdict FAIL both (editor 2.2) | **row 01** |
-| new, this seat: the full tier | `lint-gosec` runs on every full-tier push, n=44 since `1d7bae644`, 628..1,696 s, PASS every time | probe running (editor 2.3): whole module vs one package on `9310612f3`; the first `./...` run passed 15 min under load ~40..60 | v0.2: a row or dropped, by the probe |
+| new, this seat: the full tier | `lint-gosec` runs on every full-tier push, n=44 since `1d7bae644`, 628..1,696 s, PASS every time | probe on `9310612f3` (editor 2.3), n=2 per arm: `./...` 1,307.6 and 1,168.1 s; `internal/store` + `internal/hub` 750.9 and 739.7 s; `internal/wire` 5.1 and 8.6 s. The parts run one after another (`cpp:1405-1411`), so these seconds are the push's own wait | **row 02** |
 | `perf-round-12-plan.md` section 6: CI shard rebalance; per-case wait audit; `commit-links`' prd key; `iac-cross`; a-827's 3 and 5; `fsync=off`; p5 inputs; p6-08/09 | carried | not re-measured, for p12's reasons (no key, no container, no lab) | section 6, carried |
 | brief carried input 2 (c-873, msg 63de2ba8): WUI AC-02 initial download 154.3 of 155 KB gzip | headroom 0.7 KB | CI wf 10 run 44026337999 on `b4b9c4f1b`, job 133847535842: `PASS ci_initial_gzip_kb 154.3 <= 155`, n=1; job 133848327552: `OK AC-02: the initial download is <= 155 KB gzip 154.3` | section 6, not a row: a ceiling's headroom is not a measured wait; no trim was probed (needs a `nuxt generate` with the CI node, and this seat installs nothing) |
 | brief carried input 1: SPL-5734 N1, N3, N4; SPL-5736 N2; SPL-5750 N1, N2 | bugs and tests | two checked here (editor 4): `jq fromdate` refuses `2026-11-17T06:00:00.123Z`; `LiveTopicPane.vue` has 0 `:error`/`@error` | not perf work: sent to c-001 as their own asks (task `dispatch-perf-r13`) |
@@ -99,6 +99,7 @@ Inputs read (brief step 2). Each carried finding was re-checked on
 | # | id | practice | baseline on `9310612f3` (command, number, n) | after | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 | `perf(p13-01-timeout-skips-base-recheck)` | a part that TIMED OUT on the tree (rc 124 or 137) builds no base worktree and runs nothing on trunk: since SPL-5588 its verdict is FAIL whatever trunk does, so the re-check changes no verdict. The verdict field reads `trunk=not-checked timed-out-not-compared` | editor 2.2: `sudo awk '$1>="2026-11-15T12:45:06Z" && /TIMED OUT after/' ~/.cache/csi-spl/pre-push.log` -> **n=2**, the trunk re-check after the timeout **1,011 s** (`wui-e2e`, budget 1,870 s, total 2,881 s) and **2,708 s** (`api`, budget 2,700 s, total 5,408 s); verdict FAIL in both | by construction, 0 s of re-check and no base worktree per timed-out part; the same FAIL verdict. Not probed: the saving is the whole re-check, which the counting test proves is gone | `cpp:1112-1131` (`_pp_run`: return to `_pp_timed_out` before `_pp_baseline_tree` when rc is 124 or 137) and `cpp:1142-1159` (`_pp_timed_out` and its comment: no base state); `csi-spl-doc/doc/md/pre-push-gate.md:255-262` (the verdict field); 3 edit ranges | a new case in **`iac/src/bash/tests/check-pre-push-timeout-red-trunk.tst.sh`** (its header lists cases a-e): a stub part that counts its calls and exits 124 -> called **once** (today **twice**: tree, then trunk), no base worktree built, verdict FAIL with `trunk=not-checked timed-out-not-compared`. Red: today's `_pp_run` -> 2 calls, FAIL. Cases a, d and e change their `trunk=` expectation to `not-checked` in the same commit. Also run and green: **`check-pre-push-recheck-narrow.tst.sh`**, **`check-pre-push-verdict-forks.tst.sh`**, **`check-pre-push-baseline.tst.sh`**, `check-pre-push-api-timeout.tst.sh`, `check-pre-push-part-timeout.tst.sh`, `check-pre-push-timeout-label.tst.sh`, `check-pre-push-lint-timeout.tst.sh`, `check-pre-push-orphan-pipe.tst.sh`, `check-pre-push-scope.tst.sh`, `check-pre-push-features.tst.sh`, `check-pre-push.tst.sh`, `report-pre-push-part-times.tst.sh`, `bash-cleancode.tst.sh` | either fleet box | claude / simple_coding (R9: a gate, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 1 |
+| 02 | `perf(p13-02-gosec-changed-packages)` | `lint-gosec` (full tier only, normal mode) scans the Go packages the push changes, not `./...`; the baseline gate compares only the baseline lines of the files in those packages. `./...` stays for a change to `go.mod`/`go.sum` or to the scanner's own files (`sec-gosec.func.sh`, `.gosec-baseline.txt`, `62_gosec.yml`, which today select no gosec scan at all), for `PRE_PUSH_MODE=full`, the weekly scan and CI wf 62 (which still scans `./...` on every master push that touches the module) | log, editor 2.1: `lint-gosec PASS` since `1d7bae644` -> **n=44, 628..1,696 s, mean 1,039 s**. Probe, editor 2.3, scratch copy of `9310612f3`: `gosec -fmt=json -quiet -severity high ./...` -> **1,307.6 s and 1,168.1 s, n=2** (1-min load 25.0 and 39.9), 4 findings = the 4 baseline lines | the same probe: the two packages most full-tier pushes change (store 77 files, hub 52, of 39 HEADs) **750.9 s and 739.7 s, n=2**, at load 97.7 and 76.1 (higher than A's, so the gap is if anything understated; the arms were not alternated with A); `internal/store` alone 347.4 and 537.6 s; `internal/wire` alone 5.1 and 8.6 s, the same `G101 wire.go` finding as `./...`. Suggested, not proven: a store+hub push saves ~400..550 s of its gosec part | `iac/src/bash/run/check-pre-push-lint.func.sh:102-109` (an `own=` entry for lint-gosec), `:158` (the package dirs of the changed `.go` files instead of `ALL`), `:443` (hand them to `do_sec_gosec`); `iac/src/bash/run/sec-gosec.func.sh:1-17` (the `@param`), `:117` (scan the given packages; drop `-quiet` or read empty output as 0 findings: with `-quiet` a clean package prints nothing, which `:118-122` FATALs), `:124-137` (filter the baseline to the scanned dirs before `_sec_baseline_gate`); `pre-push-gate.md` (the gosec line); 5 edit ranges, `lib/.../sec-baseline.func.sh` unchanged | **`iac/src/bash/tests/sec-gosec.tst.sh`** (its stub `SEC_GOSEC_BIN`): new cases (a) given one package, the stub is called with that package only (count of package args **1**; today `./...`), (b) a baseline line of an unscanned package does not fail the gate, (c) an extra finding in the scanned package still fails it, (d) empty stub output reads as 0 findings, PASS. **`iac/src/bash/tests/check-pre-push-lint.tst.sh`**: a changed `internal/wire/x.go` selects `.../internal/wire`, not `ALL`; `go.mod` -> `ALL`; `.gosec-baseline.txt` alone -> `ALL` (today: no gosec part). Red: today's code -> (a) `./...`, the selection `ALL`, the baseline-only change selects nothing. Also run and green: `check-pre-push-lint-timeout.tst.sh`, `check-pre-push.tst.sh`, `bash-cleancode.tst.sh` | either fleet box | claude / simple_coding (R9: a gate, so `PRE_PUSH_TIER=full` and once with `PRE_PUSH_*` unset) | 2 |
 
 Every row is claude: rulebook R14 (an established vendor) and the owner's
 10-17 rule (no mistral coding or testing).
@@ -107,6 +108,7 @@ Every row is claude: rulebook R14 (an established vendor) and the owner's
 ### 3.1 Batches and disjoint files (R1)
 
 - **Batch 1**: row 01. Files: `cpp`, `check-pre-push-timeout-red-trunk.tst.sh`, `pre-push-gate.md`.
+- **Batch 2**: row 02, after row 01 lands: both edit `pre-push-gate.md`. Files: `check-pre-push-lint.func.sh`, `sec-gosec.func.sh`, `sec-gosec.tst.sh`, `check-pre-push-lint.tst.sh`, `pre-push-gate.md`. No file of row 01 but the doc.
 - No row file is a file of an unlanded round row (3.2).
 
 <a id="p13-r3"></a>
@@ -132,6 +134,15 @@ Read on 2026-11-17, each with its time:
 - **Unlanded round rows** (06:2xZ, on `9310612f3`): p12-01, p12-02 landed;
   `git log origin/master --format=%s -E --grep='\(<r>-[0-9]{2}-'` -> r59 6
   lines, r60 0, r61 0, r62 0. No r-round plan on the tree names `cpp`.
+- **Re-read for row 02** (07:43:04Z, one call): `lane-map.sh --check
+  <check-pre-push-lint.func.sh, sec-gosec.func.sh, sec-gosec.tst.sh,
+  check-pre-push-lint.tst.sh, cpp, pre-push-gate.md> --agent c-882` -> exit 4,
+  `0` `owned by`, the same `17` `unknown:` lanes on the second box. Spawn queue
+  (07:43:13Z) -> `7 queued, 0 placing`: this round's mistral seat, the three
+  bug asks from section 2 (ci-overflow `fromdate`, lobby proof, LiveTopicPane),
+  an i18n review and the two agy i18n reviews; none names a pre-push or gosec
+  file. `git log 9310612f3..origin/master -- <the row files,
+  .gosec-baseline.txt>` at `fedcbc299` (07:43Z) -> 0 lines.
 
 <a id="p13-per-row"></a>
 ## 4. Per row: what the lane does
@@ -153,6 +164,31 @@ Read on 2026-11-17, each with its time:
     hand; the verdict was FAIL either way.
   - The lane states the counting test's RED and GREEN output; no timing
     probe is needed, the call count is the gain.
+
+- **02**:
+  - Scope (`check-pre-push-lint.func.sh:158`): each changed `*.go` under
+    `csi-spl-api/src/go/spool-hub-api/` gives its package dir; the part runs
+    with that sorted, unique set. `go.mod`/`go.sum` and the new `own=` entry
+    (`sec-gosec.func.sh`, `.gosec-baseline.txt`, `.github/workflows/62_gosec.yml`)
+    give `ALL`. A deleted `.go` file's dir counts while the dir exists (`:122`
+    skips gone files today), so a finding fixed by a delete still meets its
+    lowered baseline line.
+  - `do_sec_gosec` takes the package list from an env var (named in its
+    `@param`; default `./...`, so the weekly scan and CI wf 62 are unchanged).
+    Given a list, it scans those packages and filters `.gosec-baseline.txt` to
+    the lines whose file is in a scanned dir before `_sec_baseline_gate`; the
+    control (planted G404) is unchanged.
+  - Empty output with no finding: either drop `-quiet` for the narrowed scan
+    (arm D ran without it: 144-byte JSON, 0 issues) or read empty as 0; the
+    lane picks one and its test (d) pins it.
+  - What it gives up, said in the commit body: a finding that a change in
+    package X makes gosec report in an UNCHANGED package Y is found by CI wf
+    62 after the push, not before. The lane states whether any gosec 2.22.4
+    high-severity rule crosses packages, from the tool's docs, or says it did
+    not check.
+  - The lane re-times one store+hub push's part before and after on one
+    named sha (n>=2 each, alternating, load at start) and puts it in the
+    commit body.
 
 <a id="p13-panel"></a>
 ## 5. Panel and reviewers (R7)
@@ -190,7 +226,6 @@ So the only vendors that can sit now are claude and mistral.
 | the narrowed re-check for `wui` and `orc-features` (p12 section 6) | **dropped: no red run left to narrow** | since `1d7bae644`: `wui` WARN-pre-existing 0, FAIL 2; `orc-features` WARN-pre-existing 0, FAIL 0, PASS 73. The 7-day 177 `wui` WARN-pre-existing were timeouts, which are not narrowed (`cpp:1120`). Editor 2.1 |
 | WUI AC-02 initial download 154.3 of 155 KB gzip (c-873) | **not a row**: headroom under a ceiling is not a measured wait, and no trim was probed | CI `b4b9c4f1b`, n=1 (section 2). Input for a later round, with a probe on the CI node (memory of the fleet: box node reads ~0.3..0.7 KB low) |
 | `api` on the full tier, 2,355..3,419 s per push (n=14 since `1d7bae644`) | **not probed here**: the Postgres run needs a container; this seat starts none | editor 2.1; input for round 14 |
-| `lint-gosec` on the full tier (n=44 since `1d7bae644`, 628..1,696 s, every one PASS) | **probe running** (editor 2.3); v0.2 makes it a row or drops it here with its numbers. A narrowed scan must also narrow the baseline: `.gosec-baseline.txt` fails a count BELOW its line (r5-05), so an unscanned file would read as fixed | editor 2.1, 2.3 |
 | rebalancing CI wf 10 shards; per-case wait audit | dropped in p12, not re-measured | p12 editor 2.4 |
 | `commit-links`' prd key lookup; `iac-cross`; a-827's 3 and 5; `fsync=off`; p5 inputs 1 and 3; p6-08/09 | not here: a key, a container, a lab or a built bundle | carried from p12 |
 | SPL-5734 N1, N3, N4; SPL-5736 N2; SPL-5750 N1, N2 | not perf work | sent to c-001 as their own asks, task `dispatch-perf-r13` |
@@ -198,11 +233,11 @@ So the only vendors that can sit now are claude and mistral.
 <a id="p13-counts"></a>
 ## 7. Counts
 
-- Rows: 1 (rulebook 1.1: at most 10).
+- Rows: 2 (rulebook 1.1: at most 10).
 - Every row aims for one push (1.2) and lands with a counting test and its red
   control (4.1).
 - Status (R6): `git fetch origin master && git log origin/master --grep='(p13-' --format='%h %cI %s'`.
-- Review count (2.7.5): `git log origin/master --grep='p13-' --format=%B | grep -c '^review: '` must reach 1.
+- Review count (2.7.5): `git log origin/master --grep='p13-' --format=%B | grep -c '^review: '` must reach 2 (one per row).
 
 <a id="p13-changes"></a>
 ## 8. Changes
@@ -213,11 +248,12 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 8 to 12. From then on the Qto doc is the primary copy.
 
 - v0.1 (c-882, 2026-11-17): first draft on `9310612f3`.
+- v0.2 (c-882, 2026-11-17 07:4xZ): row 02 (gosec on the changed packages) from the probe, n=2 per arm (editor 2.3); R3 re-read at 07:43Z.
 
 <a id="p13-consensus"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-882 (editor) | claude | v0.1 | author |
+| c-882 (editor) | claude | v0.2 | author |
 | mistral seat (ask 9c0a6cef) | mistral | - | queued, not placed yet |

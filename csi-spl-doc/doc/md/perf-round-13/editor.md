@@ -89,40 +89,46 @@ csi-spl-api` into a scratch dir, then, alternating, `gosec -fmt=json -quiet
 `./internal/store/...`; seconds, the 1-minute load and the issue count per
 run.
 
-Run 1 (n=1 per arm, alternating, on `9310612f3`):
+Runs 1 and 2 (A, B, C alternating, then D twice; all on `9310612f3`):
 
-| arm | packages | seconds | 1-min load at start | findings |
-|---|---|---|---|---|
-| A | `./...` (today's scan) | 1,307.6 | 24.95 | 4: the four `G101` lines of `.gosec-baseline.txt` |
-| B | `./internal/wire/...` | 5.1 | 37.40 | 1: `G101 internal/wire/wire.go`, the same as A for that package |
-| C | `./internal/store/...` | 347.4 | 36.01 | 0 (rc 0, an EMPTY output file) |
+| run | arm | packages | seconds | 1-min load at start | findings |
+|---|---|---|---|---|---|
+| 1 | A | `./...` (today's scan) | 1,307.6 | 24.95 | 4: the four `G101` lines of `.gosec-baseline.txt` |
+| 1 | B | `./internal/wire/...` | 5.1 | 37.40 | 1: `G101 internal/wire/wire.go`, the same as A for that package |
+| 1 | C | `./internal/store/...` | 347.4 | 36.01 | 0 (rc 0, an EMPTY output file) |
+| 2 | A | `./...` | 1,168.1 | 39.90 | 4 |
+| 2 | B | `./internal/wire/...` | 8.6 | 36.65 | 1 |
+| 2 | C | `./internal/store/...` | 537.6 | 37.99 | 0 (empty output) |
+| 1 | D | `./internal/store/... ./internal/hub/...`, no `-quiet` | 750.9 | 97.71 | 0 (144-byte JSON) |
+| 2 | D | the same | 739.7 | 76.06 | 0 (144-byte JSON) |
 
+- D ran after A, B, C (`gosec-d.sh`, not alternated with A), at a higher
+  load than either A run: the A-vs-D gap is if anything understated, and it
+  is n=2, a suggestion, not a proof. The row's lane re-times it.
 - With `-quiet` and no finding gosec prints nothing; `do_sec_gosec`
   (`sec-gosec.func.sh:118-122`) FATALs on output that is not JSON, so a
   narrowed scan of a clean package must not pass `-quiet` (or must read
-  empty as zero findings).
+  empty as zero findings). Without `-quiet` (arm D) the JSON is valid.
 - `.gosec-baseline.txt` fails a count BELOW its line (r5-05): a narrowed scan
   compares only the baseline lines of the packages it scanned.
 - What the full tier changes: for each distinct HEAD of a `lint-gosec PASS`
   line since `1d7bae644` (39), `git diff --name-only <h>~1 <h> -- '*.go'`
   grouped by package -> `internal/store` 77 files, `internal/hub` 52,
-  `internal/auth` 5, `cmd/spool` 5, others <= 4. So the realistic narrowed
-  set is store + hub: arm D (`./internal/store/... ./internal/hub/...`, no
-  `-quiet`, n=2) runs after run 2.
+  `internal/auth` 5, `cmd/spool` 5, others <= 4.
+- The parts run one after another (`_pp_run_parts`, `cpp:1405-1411` on
+  `9310612f3`), so `lint-gosec`'s seconds are the push's own wait.
+- `lint-gosec` has no `own=` entry (`check-pre-push-lint.func.sh:102-109`)
+  and `:158` selects only on `.go`/`go.mod`/`go.sum`: a change to
+  `.gosec-baseline.txt` or `sec-gosec.func.sh` alone runs no gosec before the
+  push (CI wf 62 does run on them).
 
-## 2.4 State at the 07:16Z rotation (written 07:0xZ)
+### 2.4 State
 
-- v0.1 pushed: `review/c001-perf-round-13-planner` = `ab4d89f0f`, sent to
-  c-002@sat (not for signing).
-- Probe still running, detached: `gosec-ab.sh` run 2 (arms A, B, C), then
-  `gosec-d.sh` (arm D, n=2), appending to `gosec-ab.out` in the editor's
-  scratch dir (not readable by a successor; the numbers above are copied).
-- Next: when run 2 and arm D are in, v0.2 adds row 02
-  `p13-02-gosec-changed-packages` (`lint-gosec` on the full tier scans the
-  changed Go packages, the baseline narrowed to them, no `-quiet`) with
-  those numbers, or drops it in section 6 with them; push v0.2, name its sha
-  to c-002@sat for the mistral seat (ask 9c0a6cef). A successor without the
-  scratch dir re-runs the four arms on `9310612f3` (command in 2.3).
+- 07:16Z rotation: v0.1 + the state above pushed (`96e6eef4a`).
+- 07:42Z (the next session): run 2 and arm D in; plan v0.2 adds row 02
+  `p13-02-gosec-changed-packages`. Next: push v0.2 to
+  `review/c001-perf-round-13-planner`, name its sha to the dispatch holder for
+  the mistral seat (ask 9c0a6cef).
 
 ## 3. R3 reads
 
@@ -135,6 +141,13 @@ Run 1 (n=1 per arm, alternating, on `9310612f3`):
   do_spl_spawn_queue`): `3 queued, 0 placing`:
   `c001-spl5735-doc-announce-refusal-followup` (docs) and two agy i18n
   reviews (`spl5706`, `spl5707`).
+- Re-read for row 02, 07:43:04Z: the same `--check` with
+  `check-pre-push-lint.func.sh, sec-gosec.func.sh, sec-gosec.tst.sh,
+  check-pre-push-lint.tst.sh, cpp, pre-push-gate.md` -> exit 4, 0 `owned by`,
+  the same 17 `unknown:`. Queue 07:43:13Z: `7 queued, 0 placing` (the mistral
+  seat, the three bug asks, three i18n reviews); none names those files.
+  `git log 9310612f3..origin/master -- <those files> .gosec-baseline.txt` at
+  `fedcbc299` -> 0 lines.
 - Round rows: p12-01, p12-02 landed; `git log origin/master --format=%s -E
   --grep='\(<r>-[0-9]{2}-'` -> r59 6 lines, r60 0, r61 0, r62 0.
 

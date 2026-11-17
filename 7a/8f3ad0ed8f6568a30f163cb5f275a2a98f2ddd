@@ -1,0 +1,6 @@
+Lay-What: An agent that reports finished work stored as a document, not as code, is no longer told off for having no code change to show.
+Lay-How: The automatic check now recognises a report that names a stored document and records it as a document result instead of warning.
+Lay-Why: Work that was correctly accepted kept getting a false warning saying its code change could not be found.
+Tech-What: spl_done_claim_check gives a no-sha result that names a qto doc-store doc the verdict doc: ledger row only, no note.
+Tech-How: new spl_done_claim_doc reads a doc id/qto doc label before a UUID or 8-hex head, or a "doc: <id>" line; asked only when no sha is claimed.
+Tech-Why: the checker judged every result by its git sha, so a doc-store claim with sha none was flagged as no sha not in the repository.

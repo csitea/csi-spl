@@ -86,7 +86,9 @@ no_billing_grant() {
 # dataViewer; no other resource names a provider, and the default (unaliased)
 # provider names no identity of its own: its block is found by any header
 # form (quoted or bare label, indented, single-line) and read to its matching
-# brace, and an identity is an attribute or a nested block (external_credentials);
+# brace, an alias counts only at the block's own depth (not a map key such as
+# default_labels = { alias = ... }), and an identity is an attribute or a
+# nested block (external_credentials);
 # a *.tf.json in the step (never read by these checks) fails it
 dataset_grant_as_source() {
   local all
@@ -107,7 +109,7 @@ dataset_grant_as_source() {
        r && /^}/ { r = 0 } END { exit !(c == 1 && !bad) }' <<<"$all" \
     && awk 'function scan(s) {
          if (s !~ /^[[:space:]]*(#|\/\/)/) {
-           if (s ~ /(^|[{[:space:]])alias[[:space:]]*=/) a = 1
+           if (d == 1 && s ~ /^[[:space:]]*alias[[:space:]]*=/) a = 1
            if (s ~ /(^|[{[:space:]])(credentials|access_token|impersonate_service_account|external_credentials)[[:space:]]*[={]/) i = 1
          }
          d += gsub(/[{]/, "{", s) - gsub(/[}]/, "}", s)
@@ -219,6 +221,8 @@ plant_default oneline "a single-line default provider with credentials" 'provide
 plant_default indent "an indented default provider header with credentials" '  provider "google" {' '  credentials = "x"' '  }'
 plant_default extblk "an external_credentials block on the default provider" 'provider "google" {' '  external_credentials {' '    audience = "x"' '  }' '}'
 plant_default exteq "an external_credentials attribute on the default provider" 'provider "google" {' '  external_credentials = {}' '}'
+plant_default lblone "a default provider made to look aliased by a one-line default_labels alias key" 'provider "google" {' '  default_labels = { alias = "x" }' '  credentials = "x"' '}'
+plant_default lblmulti "a default provider made to look aliased by a multi-line default_labels alias key" 'provider "google" {' '  default_labels = {' '    alias = "x"' '  }' '  credentials = "x"' '}'
 c="$tmp/cmt"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; printf '%s\n' 'provider "google" {' '  # credentials = "x"' '}' >"$c/99-planted_override.tf"
 dataset_grant_as_source "$c" && pass "control: a commented credentials line stays green" || fail "control: a commented credentials line turned red"
 c="$tmp/json"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; printf '%s\n' '{"provider":{"google":{"credentials":"x"}}}' >"$c/01-providers_override.tf.json"

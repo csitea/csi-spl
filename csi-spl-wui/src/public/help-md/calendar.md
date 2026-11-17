@@ -41,3 +41,15 @@ The shown day and view are kept in the address (`/calendar?d=YYYY-MM-DD`, plus
 
 Events are **public** by default: everyone who can open the workspace sees
 them. Only the event's owner can make an event **private**.
+
+## Imported from Outlook
+
+A member's Outlook calendar can be copied into their spool-hub calendar
+(spec 180). Each meeting arrives as a **private** event that only that member
+sees. It is shown in every workspace through My calendar, and it also goes to
+their connected Google Calendar. Its description says "Imported from Outlook".
+These events are read only: change them in Outlook, and the next import
+brings the change. A meeting that is moved or cancelled in Outlook is moved
+or removed here. Nothing is ever written back to Outlook. An operator runs
+the import with `do_spl_calendar_import_outlook`, and it is off until
+`SPOOL_HUB_CALENDAR_OUTLOOK_IMPORT_ENABLED` is switched on.

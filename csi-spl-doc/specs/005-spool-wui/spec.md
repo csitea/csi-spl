@@ -266,7 +266,8 @@ opening it.
   close button, `role="alert"`. Owner, 2026-09-25, topic 4335f075: *"implement the feature for
   all of the errors to occur via a cool sliding snackbar from the top"*.
 - **FR-017** — Implemented (CLE-34990, `./contracts/events-v1.md`, rdb `0045_human_events.sql`):
-  every journal record of a signed-in human is saved to their **personal event log** in the hub
+  every journal record of a signed-in human, except an `info.*` note (it stays in the tab
+  journal and is never shipped, SPL-5740), is saved to their **personal event log** in the hub
   DB (`POST /api/v1/auth/events`, newest 500 kept per human, hub-wide like `human_keys`), and
   read back on `/events`, opened by the left rail's **Event log** icon directly after Flow.
   Only the fields the journal already redacted are stored; the hub refuses any other field.
@@ -362,4 +363,4 @@ Named here, not specified.
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.13.0 · updated: 2026-11-04 · last-edit: 2026-11-04T12:00:00Z -->
+<!-- version: 1.13.1 · updated: 2026-11-17 · last-edit: 2026-11-17T04:40:00Z -->

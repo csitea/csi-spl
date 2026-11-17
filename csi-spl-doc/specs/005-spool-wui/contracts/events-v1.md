@@ -104,11 +104,13 @@ Body `{}` (any field = `400`). Deletes every row of the caller.
   chunk-reload reloads it, and the Vue error hook journals ONE note per page
   load, `source: app-update`, `name: Info`, `code: info.app_updated`,
   "app updated, reloaded", kept out of the snackbar (`src/utils/chunk-note.ts`).
-  The hub stores it with `kind: error`, the only kind today. Offline the tab
-  does not reload, so the failure stays an error.
+  The note stays in the tab journal and is never shipped to the hub: the
+  shipper skips every record whose code starts with `info.`, also in a queue
+  an older page left in `sessionStorage` (SPL-5740, `src/utils/event-log.mjs`).
+  Offline the tab does not reload, so the failure stays an error.
 - **Snackbar**: slides down from the top, newest first, ≤ 3 rows; an identical
   error within 5 s bumps a ×N count; 8 s on screen after its last occurrence,
   paused while hovered or focused; close button; `role="alert"`.
 - **Event log page**: `/events`, from the left rail's icon directly after Flow.
 
-<!-- version: 1.2.0 · updated: 2026-10-31 · last-edit: 2026-10-31T00:00:00Z -->
+<!-- version: 1.2.1 · updated: 2026-11-17 · last-edit: 2026-11-17T04:40:00Z -->

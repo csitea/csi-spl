@@ -231,6 +231,36 @@ describe('createEventShipper', () => {
   })
 })
 
+describe('an info note is not an error event (SPL-5740)', () => {
+  // The chunk-reload note (chunk-note.ts, info.app_updated) stays in the tab
+  // journal; it shipped 33 rows in 14 days to the human's event log.
+  const note = (over = {}) => rec({ code: 'info.app_updated', name: 'Info', message: 'app updated, reloaded', status: 0, ...over })
+
+  it('the shipper skips a record whose code starts with info.', async () => {
+    const f = fakeFetch([{ status: 200 }])
+    const t = manualTimers()
+    const s = createEventShipper({ client: createEventsClient({ fetchFn: f.fn }), session: () => 'in', ...t })
+    s.note(note({ seq: 1 })); s.note(rec({ seq: 2 }))
+    assert.equal(s.size(), 1)
+    await t.runAll()
+    assert.equal(f.calls.length, 1)
+    assert.deepEqual(f.calls[0].body.events.map((e) => e.code), [''])
+  })
+
+  it('a stored info note from an older page is not shipped either', () => {
+    const stored = [toEventPayload(note()), toEventPayload(rec())]
+    const got = createQueueStore(fakeStorage({ [EVENT_QUEUE_STORE_KEY]: JSON.stringify(stored) })).load()
+    assert.deepEqual(got.map((e) => e.code), [''])
+  })
+
+  it('a code that only contains info is still an error event', () => {
+    const f = fakeFetch([{ status: 200 }])
+    const s = createEventShipper({ client: createEventsClient({ fetchFn: f.fn }), session: () => 'in', ...manualTimers() })
+    s.note(rec({ code: 'net.info_missing' }))
+    assert.equal(s.size(), 1)
+  })
+})
+
 describe('bindShipperToJournal', () => {
   it('notes buffered and new records once each', () => {
     const seen = []

@@ -84,7 +84,7 @@ func operatorInForce(t *testing.T, e *env, want string) {
 
 func notesIn(t *testing.T, e *env, tid string) []store.ReleaseNote {
 	t.Helper()
-	rows, err := e.st.(store.ReleaseNotes).ListReleaseNotes(context.Background(), tid, "", 50)
+	rows, err := e.st.(store.ReleaseNotes).ListReleaseNotes(context.Background(), tid, "", "", 50)
 	if err != nil {
 		t.Fatal(err)
 	}

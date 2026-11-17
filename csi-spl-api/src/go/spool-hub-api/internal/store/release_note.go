@@ -105,20 +105,23 @@ type ReleaseNotes interface {
 	// column takes the new value, so a re-ingest or a correction note
 	// (spec 6.1) replaces the text.
 	PutReleaseNotes(ctx context.Context, tenant, repo string, batch []ReleaseNote, now time.Time) error
+	// The reads take repo, one repo slug of tenant, or "" for every repo
+	// (releases-projects.md section 6.3: the modal reads the primary repo).
+	//
 	// ReleaseNote reads one row of tenant by its full sha or a prefix of 7+
 	// hex chars. ErrNotFound when none matches, ErrAmbiguousRef when several
-	// do, which includes one sha stored in two repos of the workspace.
-	ReleaseNote(ctx context.Context, tenant, ref string) (ReleaseNote, error)
+	// do, which includes one sha stored in two repos when repo is "".
+	ReleaseNote(ctx context.Context, tenant, repo, ref string) (ReleaseNote, error)
 	// ListReleaseNotes is every row of the newest `versions` versions
 	// (capped at ReleaseVersionsMax) strictly older than before ("" = from
 	// the newest), of tenant: version newest first (numeric: cycle, then
 	// X.Y.Z; a tag with no key after those, by its newest row), then newest
-	// row first, each with its Seq.
+	// row first, each with its Seq among the rows of repo.
 	// Rows with no version yet are not listed.
-	ListReleaseNotes(ctx context.Context, tenant, before string, versions int) ([]ReleaseNote, error)
+	ListReleaseNotes(ctx context.Context, tenant, repo, before string, versions int) ([]ReleaseNote, error)
 	// ReleaseNotesOfVersion is one version's rows of tenant, newest row first,
 	// each with its Seq (spec 7.2: /releases/<version>); version is the full tag.
-	ReleaseNotesOfVersion(ctx context.Context, tenant, version string) ([]ReleaseNote, error)
+	ReleaseNotesOfVersion(ctx context.Context, tenant, repo, version string) ([]ReleaseNote, error)
 }
 
 // CheckReleaseNote names the first field a row may not carry ("" = fine):
@@ -306,9 +309,15 @@ func (s *Memory) releases() map[memReleaseKey]ReleaseNote {
 // tenantReleases is tenant's rows, ReleasedAt set as releaseNoteCols sets it.
 // The caller holds memReleaseMu.
 func (s *Memory) tenantReleases(tenant string) []ReleaseNote {
+	return s.repoReleases(tenant, "")
+}
+
+// repoReleases is tenantReleases of one repo, every repo for repo "".
+// The caller holds memReleaseMu.
+func (s *Memory) repoReleases(tenant, repo string) []ReleaseNote {
 	out := []ReleaseNote{}
 	for k, n := range s.releases() {
-		if k.tenant != tenant {
+		if k.tenant != tenant || (repo != "" && k.repo != repo) {
 			continue
 		}
 		n.ReleasedAt = n.CommittedAt
@@ -362,7 +371,7 @@ func (s *Memory) PutReleaseNotes(_ context.Context, tenant, repo string, batch [
 	return nil
 }
 
-func (s *Memory) ReleaseNote(_ context.Context, tenant, ref string) (ReleaseNote, error) {
+func (s *Memory) ReleaseNote(_ context.Context, tenant, repo, ref string) (ReleaseNote, error) {
 	ref, err := CheckReleaseRef(ref)
 	if err != nil {
 		return ReleaseNote{}, err
@@ -373,7 +382,7 @@ func (s *Memory) ReleaseNote(_ context.Context, tenant, ref string) (ReleaseNote
 	memReleaseMu.Lock()
 	defer memReleaseMu.Unlock()
 	var hit []ReleaseNote
-	for _, n := range s.tenantReleases(tenant) {
+	for _, n := range s.repoReleases(tenant, repo) {
 		if strings.HasPrefix(n.SHA, ref) {
 			hit = append(hit, n)
 		}
@@ -387,7 +396,7 @@ func (s *Memory) ReleaseNote(_ context.Context, tenant, ref string) (ReleaseNote
 	return ReleaseNote{}, ErrAmbiguousRef
 }
 
-func (s *Memory) ListReleaseNotes(_ context.Context, tenant, before string, versions int) ([]ReleaseNote, error) {
+func (s *Memory) ListReleaseNotes(_ context.Context, tenant, repo, before string, versions int) ([]ReleaseNote, error) {
 	if err := checkBefore(before); err != nil {
 		return nil, err
 	}
@@ -396,7 +405,7 @@ func (s *Memory) ListReleaseNotes(_ context.Context, tenant, before string, vers
 	}
 	memReleaseMu.Lock()
 	defer memReleaseMu.Unlock()
-	all := s.tenantReleases(tenant)
+	all := s.repoReleases(tenant, repo)
 	sorted := slices.DeleteFunc(slices.Clone(all), func(n ReleaseNote) bool { return n.Version == "" })
 	sortReleaseNotes(sorted)
 	page := releasePage(sorted, before, ClampReleaseVersions(versions))
@@ -430,7 +439,7 @@ func releasePage(sorted []ReleaseNote, before string, limit int) map[string]bool
 	return page
 }
 
-func (s *Memory) ReleaseNotesOfVersion(_ context.Context, tenant, version string) ([]ReleaseNote, error) {
+func (s *Memory) ReleaseNotesOfVersion(_ context.Context, tenant, repo, version string) ([]ReleaseNote, error) {
 	if !releaseVersionRe.MatchString(version) {
 		return nil, errReleaseVersionShape
 	}
@@ -439,7 +448,7 @@ func (s *Memory) ReleaseNotesOfVersion(_ context.Context, tenant, version string
 	}
 	memReleaseMu.Lock()
 	defer memReleaseMu.Unlock()
-	all := s.tenantReleases(tenant)
+	all := s.repoReleases(tenant, repo)
 	out := slices.DeleteFunc(slices.Clone(all), func(n ReleaseNote) bool { return n.Version != version })
 	// A tag with no key ranks by its newest row; out holds that version whole.
 	sortReleaseNotes(out)

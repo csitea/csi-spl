@@ -31,14 +31,25 @@ func releaseKeySQL(expr string) string {
 // releaseRatSQL is the time a row ranks by: released, else committed.
 const releaseRatSQL = `coalesce(released_at, committed_at)`
 
+// releaseRepoSQL keeps the rows of repo parameter p, every repo when it is
+// ” (releases-projects.md section 6.3: the modal reads one repo).
+func releaseRepoSQL(col, p string) string {
+	return ` AND (` + p + `::text = '' OR ` + col + ` = ` + p + `::text)`
+}
+
 // releaseNumberedSQL is every versioned row of tenant $1 with its seq, the
-// list order reversed (numberReleaseNotes in SQL): the oldest is 1.
-func releaseNumberedSQL() string {
+// list order reversed (numberReleaseNotes in SQL): the oldest is 1. repo is
+// the repo parameter ("" = every repo), so the seq counts that repo's rows.
+func releaseNumberedSQL(repo string) string {
 	vk := releaseKeySQL("version")
+	only := ""
+	if repo != "" {
+		only = releaseRepoSQL("repo_slug", repo)
+	}
 	return `SELECT n.*, row_number() OVER (ORDER BY k NULLS FIRST, vat, version DESC, rat, committed_at, sha DESC, repo_slug DESC) AS seq
 		FROM (SELECT r.*, ` + vk + ` AS k, ` + releaseRatSQL + ` AS rat,
 			CASE WHEN ` + vk + ` IS NULL THEN max(` + releaseRatSQL + `) OVER (PARTITION BY version) END AS vat
-			FROM release_notes r WHERE tenant_id = $1 AND version IS NOT NULL) n`
+			FROM release_notes r WHERE tenant_id = $1 AND version IS NOT NULL` + only + `) n`
 }
 
 // scanReleaseNote reads releaseNoteCols, and the seq after them when withSeq.
@@ -163,14 +174,14 @@ func releasedAt(version string, now time.Time) any {
 	return now.UTC()
 }
 
-func (s *Postgres) ReleaseNote(ctx context.Context, tenant, ref string) (ReleaseNote, error) {
+func (s *Postgres) ReleaseNote(ctx context.Context, tenant, repo, ref string) (ReleaseNote, error) {
 	ref, err := CheckReleaseRef(ref)
 	if err != nil {
 		return ReleaseNote{}, err
 	}
 	// The ref is hex only, so it carries no LIKE wildcard.
 	hit, err := s.queryReleaseNotes(ctx, tenant, false, `SELECT `+releaseNoteCols+` FROM release_notes
-		WHERE tenant_id = $1 AND sha LIKE $2 || '%' ORDER BY sha, repo_slug LIMIT 2`, tenant, ref)
+		WHERE tenant_id = $1 AND sha LIKE $2 || '%'`+releaseRepoSQL("repo_slug", "$3")+` ORDER BY sha, repo_slug LIMIT 2`, tenant, ref, repo)
 	switch {
 	case err != nil:
 		return ReleaseNote{}, err
@@ -182,16 +193,17 @@ func (s *Postgres) ReleaseNote(ctx context.Context, tenant, ref string) (Release
 	return hit[0], nil
 }
 
-// releaseListSQL is one page for a cursor of no kind, a keyed version ($3) or
-// another tag ($3). $1 is the tenant and $2 the page size in versions. The
+// releaseListSQL is one page for a cursor of no kind, a keyed version ($4) or
+// another tag ($4). $1 is the tenant, $2 the page size in versions and $3
+// the repo (” = every repo). The
 // keyed versions walk rdb 0270's index; the tags with no key, ranked by their
 // newest row, follow them. The seq is the versioned count minus the rows newer
 // than the page, minus the row's place in the page, which equals
 // releaseNumberedSQL's row_number() (TestReleaseNotesPageSeqOracle) without
 // sorting every row (perf round 5, P5-08).
 func releaseListSQL(before string) string {
-	const scope = `tenant_id = $1 AND version IS NOT NULL`
-	vk, cut := releaseKeySQL("version"), releaseKeySQL("$3::text")
+	scope := `tenant_id = $1 AND version IS NOT NULL` + releaseRepoSQL("repo_slug", "$3")
+	vk, cut := releaseKeySQL("version"), releaseKeySQL("$4::text")
 	_, keyed := releaseVersionKey(before)
 	keyedFilter, tagFilter, newer := "", "", "0"
 	switch {
@@ -200,13 +212,13 @@ func releaseListSQL(before string) string {
 		newer = `(SELECT count(*) FROM release_notes WHERE ` + scope + ` AND ` + vk + ` >= ` + cut + `)`
 	case before != "":
 		keyedFilter = ` AND false`
-		tagFilter = ` WHERE vat < (SELECT vat FROM cur) OR (vat = (SELECT vat FROM cur) AND version > $3)`
+		tagFilter = ` WHERE vat < (SELECT vat FROM cur) OR (vat = (SELECT vat FROM cur) AND version > $4)`
 		newer = `(SELECT count(*) FROM release_notes WHERE ` + scope + ` AND (` + vk + ` IS NOT NULL OR version IN
-			(SELECT version FROM uv WHERE vat > (SELECT vat FROM cur) OR (vat = (SELECT vat FROM cur) AND version <= $3))))`
+			(SELECT version FROM uv WHERE vat > (SELECT vat FROM cur) OR (vat = (SELECT vat FROM cur) AND version <= $4))))`
 	}
 	cur := ""
 	if tagFilter != "" {
-		cur = ` cur AS (SELECT vat FROM uv WHERE version = $3),`
+		cur = ` cur AS (SELECT vat FROM uv WHERE version = $4),`
 	}
 	return `WITH uv AS (SELECT version, max(` + releaseRatSQL + `) AS vat FROM release_notes
 			WHERE ` + scope + ` AND ` + vk + ` IS NULL GROUP BY version),` + cur + `
@@ -218,7 +230,7 @@ func releaseListSQL(before string) string {
 				WHERE ` + scope + ` AND ` + vk + ` >= (SELECT min(k) FROM kp) AND ` + vk + ` <= (SELECT max(k) FROM kp)
 			UNION ALL
 			SELECT r.*, NULL::int[], up.vat, ` + releaseRatSQL + ` FROM release_notes r JOIN up ON up.version = r.version
-				WHERE r.tenant_id = $1 AND ` + releaseKeySQL("r.version") + ` IS NULL)
+				WHERE r.tenant_id = $1 AND ` + releaseKeySQL("r.version") + ` IS NULL` + releaseRepoSQL("r.repo_slug", "$3") + `)
 		SELECT ` + releaseNoteCols + `,
 			(SELECT count(*) FROM release_notes WHERE ` + scope + `) - ` + newer + `
 			+ 1 - row_number() OVER (ORDER BY k DESC NULLS LAST, vat DESC, version, rat DESC, committed_at DESC, sha, repo_slug)
@@ -226,11 +238,11 @@ func releaseListSQL(before string) string {
 }
 
 // ListReleaseNotes reads only the page (see releaseListSQL).
-func (s *Postgres) ListReleaseNotes(ctx context.Context, tenant, before string, versions int) ([]ReleaseNote, error) {
+func (s *Postgres) ListReleaseNotes(ctx context.Context, tenant, repo, before string, versions int) ([]ReleaseNote, error) {
 	if err := checkBefore(before); err != nil {
 		return nil, err
 	}
-	args := []any{tenant, ClampReleaseVersions(versions)}
+	args := []any{tenant, ClampReleaseVersions(versions), repo}
 	if before != "" {
 		args = append(args, before)
 	}
@@ -239,12 +251,12 @@ func (s *Postgres) ListReleaseNotes(ctx context.Context, tenant, before string, 
 	return out, err
 }
 
-func (s *Postgres) ReleaseNotesOfVersion(ctx context.Context, tenant, version string) ([]ReleaseNote, error) {
+func (s *Postgres) ReleaseNotesOfVersion(ctx context.Context, tenant, repo, version string) ([]ReleaseNote, error) {
 	if !releaseVersionRe.MatchString(version) {
 		return nil, errReleaseVersionShape
 	}
-	out, err := s.queryReleaseNotes(ctx, tenant, true, `WITH numbered AS (`+releaseNumberedSQL()+`)
-		SELECT `+releaseNoteCols+`, seq FROM numbered WHERE version = $2`, tenant, version)
+	out, err := s.queryReleaseNotes(ctx, tenant, true, `WITH numbered AS (`+releaseNumberedSQL("$3")+`)
+		SELECT `+releaseNoteCols+`, seq FROM numbered WHERE version = $2`, tenant, version, repo)
 	sortReleaseNotes(out)
 	return out, err
 }

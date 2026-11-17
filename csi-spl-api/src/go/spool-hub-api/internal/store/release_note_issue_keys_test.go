@@ -73,7 +73,7 @@ func TestReleaseNotesIssueKeys(t *testing.T) {
 			}
 			read := func() ReleaseNote {
 				t.Helper()
-				got, err := rs.ReleaseNote(ctx, relTenant, sha)
+				got, err := rs.ReleaseNote(ctx, relTenant, "", sha)
 				if err != nil {
 					t.Fatal(err)
 				}

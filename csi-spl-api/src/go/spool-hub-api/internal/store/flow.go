@@ -489,13 +489,15 @@ func (s *Memory) flowChannelKeysLocked(tenant, member string, keys map[string]in
 	}
 }
 
-// flowReleaseDaysAfter is the UTC days with a release of tenant after t.
+// flowReleaseDaysAfter is the UTC days with a release of tenant's primary
+// repo (flowPrimaryRepoSQL) after t.
 func (s *Memory) flowReleaseDaysAfter(tenant string, t time.Time) int {
+	primary, _ := s.WorkspaceRepo(context.Background(), tenant, "")
 	memReleaseMu.Lock()
 	defer memReleaseMu.Unlock()
 	days := map[string]bool{}
 	for k, at := range memReleased[s] {
-		if k.tenant == tenant && at.After(t) && s.releases()[k].Version != "" {
+		if k.tenant == tenant && (primary == "" || k.repo == primary) && at.After(t) && s.releases()[k].Version != "" {
 			days[flowDay(at)] = true
 		}
 	}

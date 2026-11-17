@@ -248,7 +248,7 @@ func (rn *releaseNotes) handleList(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, releaseListBody{Off: true, Versions: []releaseVersion{}})
 		return
 	}
-	rows, err := rs.ListReleaseNotes(r.Context(), tenant, q.Get("before"), limit)
+	rows, err := rs.ListReleaseNotes(r.Context(), tenant, "", q.Get("before"), limit)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_query", err.Error())
 		return
@@ -284,7 +284,7 @@ func (rn *releaseNotes) handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 	// A stored version wins, so a hex-like tag or 2026.11.05 opens its version.
 	ref := r.PathValue("ref")
-	rows, err := rs.ReleaseNotesOfVersion(r.Context(), tenant, ref)
+	rows, err := rs.ReleaseNotesOfVersion(r.Context(), tenant, "", ref)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_ref", err.Error())
 		return
@@ -297,7 +297,7 @@ func (rn *releaseNotes) handleGet(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "not_found", "no release notes for "+ref)
 		return
 	}
-	n, err := rs.ReleaseNote(r.Context(), tenant, ref)
+	n, err := rs.ReleaseNote(r.Context(), tenant, "", ref)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", "no release note for that sha")

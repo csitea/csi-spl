@@ -32,17 +32,17 @@ func TestReleaseNotesScopedByWorkspace(t *testing.T) {
 			if err := rn.PutReleaseNotes(ctx, b, otherRepo, []ReleaseNote{noteOK(sb, "v1.0.0", now)}, now); err != nil {
 				t.Fatal(err)
 			}
-			list, err := rn.ListReleaseNotes(ctx, a, "", 10)
+			list, err := rn.ListReleaseNotes(ctx, a, "", "", 10)
 			if err != nil || len(list) != 1 || list[0].SHA != sa || list[0].TenantID != a || list[0].RepoSlug != relRepo || list[0].Seq != 1 {
 				t.Fatalf("A's list: %+v %v", list, err)
 			}
-			if _, err := rn.ReleaseNote(ctx, a, sb); !errors.Is(err, ErrNotFound) {
+			if _, err := rn.ReleaseNote(ctx, a, "", sb); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("A read B's sha: %v", err)
 			}
-			if n, err := rn.ReleaseNote(ctx, b, sb); err != nil || n.RepoSlug != otherRepo {
+			if n, err := rn.ReleaseNote(ctx, b, "", sb); err != nil || n.RepoSlug != otherRepo {
 				t.Fatalf("CONTROL, B reads its own: %+v %v", n, err)
 			}
-			rows, err := rn.ReleaseNotesOfVersion(ctx, a, "v1.0.0")
+			rows, err := rn.ReleaseNotesOfVersion(ctx, a, "", "v1.0.0")
 			if err != nil || len(rows) != 1 || rows[0].SHA != sa {
 				t.Fatalf("A's version: %+v %v", rows, err)
 			}
@@ -94,7 +94,7 @@ func TestReleaseNotesAnyTag(t *testing.T) {
 			}{{"v2.0.0", []int{5}}, {"v1.2.", []int{4}}, {"2026.11.05", []int{3, 2}}, {"v0.4.2-beta.1", []int{1}}}
 			before := ""
 			for _, w := range want {
-				page, err := rn.ListReleaseNotes(ctx, tid, before, 1)
+				page, err := rn.ListReleaseNotes(ctx, tid, "", before, 1)
 				if err != nil {
 					t.Fatalf("page after %q: %v", before, err)
 				}
@@ -106,22 +106,22 @@ func TestReleaseNotesAnyTag(t *testing.T) {
 						t.Errorf("page after %q row %d: %s seq %d, want %v", before, i, n.Version, n.Seq, w)
 					}
 				}
-				rows, err := rn.ReleaseNotesOfVersion(ctx, tid, w.version)
+				rows, err := rn.ReleaseNotesOfVersion(ctx, tid, "", w.version)
 				if err != nil || len(rows) != len(w.seqs) || rows[0].Seq != w.seqs[0] {
 					t.Errorf("version %s: %+v %v", w.version, rows, err)
 				}
 				before = w.version
 			}
-			if page, err := rn.ListReleaseNotes(ctx, tid, before, 1); err != nil || len(page) != 0 {
+			if page, err := rn.ListReleaseNotes(ctx, tid, "", before, 1); err != nil || len(page) != 0 {
 				t.Fatalf("past the oldest: %+v %v", page, err)
 			}
-			if page, err := rn.ListReleaseNotes(ctx, tid, "2026.11.05", 10); err != nil || len(page) != 1 || page[0].Version != "v0.4.2-beta.1" {
+			if page, err := rn.ListReleaseNotes(ctx, tid, "", "2026.11.05", 10); err != nil || len(page) != 1 || page[0].Version != "v0.4.2-beta.1" {
 				t.Fatalf("a tag cursor: %+v %v", page, err)
 			}
-			if page, err := rn.ListReleaseNotes(ctx, tid, "v2.0.0", 2); err != nil || len(page) != 3 || page[0].Version != "v1.2." || page[1].Version != "2026.11.05" {
+			if page, err := rn.ListReleaseNotes(ctx, tid, "", "v2.0.0", 2); err != nil || len(page) != 3 || page[0].Version != "v1.2." || page[1].Version != "2026.11.05" {
 				t.Fatalf("a keyed cursor reaches the tags: %+v %v", page, err)
 			}
-			if _, err := rn.ListReleaseNotes(ctx, tid, "-bad", 1); err == nil {
+			if _, err := rn.ListReleaseNotes(ctx, tid, "", "-bad", 1); err == nil {
 				t.Fatal("a bad cursor was accepted")
 			}
 		})
@@ -149,11 +149,11 @@ func TestReleaseNotesSameSHATwoReposMemory(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	rows, err := m.ReleaseNotesOfVersion(ctx, relTenant, "v1.0.0")
+	rows, err := m.ReleaseNotesOfVersion(ctx, relTenant, "", "v1.0.0")
 	if err != nil || len(rows) != 2 || rows[0].RepoSlug == rows[1].RepoSlug {
 		t.Fatalf("one sha in two repos: %+v %v", rows, err)
 	}
-	if _, err := m.ReleaseNote(ctx, relTenant, sha); !errors.Is(err, ErrAmbiguousRef) {
+	if _, err := m.ReleaseNote(ctx, relTenant, "", sha); !errors.Is(err, ErrAmbiguousRef) {
 		t.Fatalf("a sha in two repos must not pick one: %v", err)
 	}
 }

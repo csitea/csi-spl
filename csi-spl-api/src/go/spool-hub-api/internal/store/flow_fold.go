@@ -283,14 +283,15 @@ func (s *Memory) flowTopicLocked(tenant, task string) (string, int) {
 	return title, 0
 }
 
-// flowReleases is the versioned release rows released in [from, to),
-// newest first.
+// flowReleases is the versioned release rows of the primary repo
+// (flowPrimaryRepoSQL) released in [from, to), newest first.
 func (s *Memory) flowReleases(tenant string, from, to time.Time) []flowRelease {
+	primary, _ := s.WorkspaceRepo(context.Background(), tenant, "")
 	memReleaseMu.Lock()
 	defer memReleaseMu.Unlock()
 	var out []flowRelease
 	for k, at := range memReleased[s] {
-		if k.tenant == tenant && !at.Before(from) && at.Before(to) {
+		if k.tenant == tenant && (primary == "" || k.repo == primary) && !at.Before(from) && at.Before(to) {
 			out = append(out, flowRelease{version: s.releases()[k].Version, sha: k.sha, at: at})
 		}
 	}
@@ -346,14 +347,23 @@ func flowFoldSQL() string {
 		SELECT raw.*, tt.title, tt.issue FROM raw JOIN tt ON tt.task_id = raw.task_id ORDER BY raw.ev_at DESC, raw.msg_id DESC`
 }
 
-// flowReleasesSQL is the versioned rows released in [$1, $2), newest first
-// (rdb 0177's release_notes_released_at), and whether member $4 of tenant
-// $3 opened the line of each version (f:rel:<version>) and its f:seen.
+// flowPrimaryRepoSQL keeps a release_notes row r of the workspace's primary
+// repo only (releases-projects.md section 6.3): two repos' v1.0.0 would
+// otherwise share one line and one f:rel mark. A workspace with no primary
+// repo keeps every row, as before row B-5.
+const flowPrimaryRepoSQL = ` AND NOT EXISTS (SELECT 1 FROM workspace_repos w
+		WHERE w.tenant_id = r.tenant_id AND w.is_primary AND w.repo_slug <> r.repo_slug)`
+
+// flowReleasesSQL is the versioned rows of the primary repo released in
+// [$1, $2), newest first (rdb 0177's release_notes_released_at), and whether
+// member $4 of tenant $3 opened the line of each version (f:rel:<version>)
+// and its f:seen.
 const flowReleasesSQL = `SELECT r.version, r.sha, r.released_at,
 		EXISTS (SELECT 1 FROM read_marks k WHERE k.tenant_id = $3 AND k.member_id = $4 AND k.mark_key = 'f:rel:' || r.version),
 		coalesce((SELECT s.at FROM read_marks s WHERE s.tenant_id = $3 AND s.member_id = $4 AND s.mark_key = 'f:seen'), 'epoch'::timestamptz)
 	FROM release_notes r
-	WHERE r.tenant_id = $3 AND r.released_at IS NOT NULL AND r.version IS NOT NULL AND r.released_at >= $1 AND r.released_at < $2
+	WHERE r.tenant_id = $3 AND r.released_at IS NOT NULL AND r.version IS NOT NULL AND r.released_at >= $1 AND r.released_at < $2` +
+	flowPrimaryRepoSQL + `
 	ORDER BY r.released_at DESC, r.sha DESC`
 
 func (s *Postgres) FlowFoldRead(ctx context.Context, q FlowQuery) (FlowFold, error) {

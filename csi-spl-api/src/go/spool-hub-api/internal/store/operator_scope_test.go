@@ -143,6 +143,7 @@ var operatorCallers = map[string]string{
 	"PutEstateDeploy":    "POST /v1/operator/deploys (spec 143 2.3.2): one workspace's deploy row (rdb 0267), written only by the operator scope; only the operator service account (operatorAuth) reaches it",
 	"PutReleaseNotes":    "POST /v1/operator/release-notes (spec 171 Lane 2, SPL-5108): release_notes rows of the one workspace and repo the hub resolved (rdb 0267), written only by the operator scope once row B-3 adds RLS; only the operator service account (operatorAuth) reaches it",
 	"LatestEstateDeploy": "the hub's deploy reconcile check (hub goroutine, spec 143 2.3.2): the newest deploy row of (tenant, env, component), WHERE tenant_id names the operator workspace; no route",
+	"PutSoftwareProject": "PUT /v1/operator/workspaces/{id}/projects/{project} (spec 143 releases-projects.md 4.5, SPL-5772): one workspace's software_projects rows, which rdb 0266 lets only the operator scope write; only the operator service account (operatorAuth) reaches it",
 	"FillEstateDeploy":   "the hub's deploy reconcile check (hub goroutine, spec 143 2.3.2): writes the operator workspace's deploy row the workflow missed, resolving its primary repo in the same transaction; no route",
 
 	// spec 121 T102: the visitor's request names no workspace until one row is read.

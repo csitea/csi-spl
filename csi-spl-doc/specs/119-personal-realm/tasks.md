@@ -449,14 +449,14 @@ order first.
   strings (language rule); deployed dev and prd.
 
 ## Primary workspace
-v0.2 (SPL-5788), [primary-workspace.md](primary-workspace.md). The owner
+v0.2.1 (SPL-5788), [primary-workspace.md](primary-workspace.md). The owner
 answered `1a`, `2c`, `3a`, `7b`. T019 and T020 are ready to place once
 the file passes review. T021 and T022 wait on the owner's Q8 and Q9
 (its section 9.2); the rows are written for the recommended `8a`, `9b`.
 v0.1's T021 (the contacts binding follows the primary workspace) is
 dropped under `7b`. Tests are that file's section 10.
 
-- [ ] T019 **Lane R: the setting** (claude, rdb + store + hub). One
+- [ ] T019 **Lane R: the setting** (SPL-5788; claude, rdb + store + hub). One
   additive migration (number from `do_rdb_migration_next`): column
   `personal.profile.primary_workspace_id text NULL` (1..200, no FK);
   `GET` / `PUT /v1/me/realm/profile` read and write it, the `PUT` checked
@@ -469,7 +469,7 @@ dropped under `7b`. Tests are that file's section 10.
   `PRE_PUSH_TIER=full`.
 
 - [ ] T020 **Lane S: the settings row and the calendar preselect**
-  (claude, WUI; waits on T019 deployed and on T017 landed). The "Primary
+  (SPL-5788; claude, WUI; waits on T019 deployed and on T017 landed). The "Primary
   workspace" row in `WUI/components/settings/profile.vue`; the create
   dialog of `/me/calendar` (T017's `WUI/components/RealmCalendarDialog.vue`)
   preselects it (the file's 2.5); the stale-primary notice. Keys under
@@ -480,7 +480,7 @@ dropped under `7b`. Tests are that file's section 10.
   (language rule); deployed dev and prd.
 
 - [ ] T021 **Lane U: the calendar mirror, table, write and sweep**
-  (claude, rdb + store + hub; waits on the owner's Q8). One additive
+  (SPL-5788; claude, rdb + store + hub; waits on the owner's Q8). One additive
   migration: `personal.calendar_mirror` as the file's 3.2 (person FK,
   FORCE RLS, `person_scope` only); the step-2 realm write after each
   calendar write (3.3); the sweep action on 119 8.1's cadence, whose first
@@ -494,7 +494,7 @@ dropped under `7b`. Tests are that file's section 10.
   controls; `PRE_PUSH_TIER=full`; deployed dev and prd.
 
 - [ ] T022 **Lane V: leaving keeps the mirror (Q9) and the view shows it**
-  (claude, hub + WUI; waits on T021 landed and on the owner's Q9). The
+  (SPL-5788; claude, hub + WUI; waits on T021 landed and on the owner's Q9). The
   copy-first refresh and the Q9 rule in the removal, ban and workspace
   delete paths and in the `access_until` sweep (3.5); 503
   `mirror_failed`; `state:"left"` rows in the personal view, read-only

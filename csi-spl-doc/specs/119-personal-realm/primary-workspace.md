@@ -1,6 +1,6 @@
 # 119 addition: the primary workspace of a person
 
-**Status**: v0.2, 2026-11-17, c-958 (SPL-5788, epic SPL-2396). Docs only:
+**Status**: v0.2.1, 2026-11-17, c-958 (SPL-5788, epic SPL-2396). Docs only:
 builds nothing. The owner answered Q1, Q2, Q3 and Q7 (section 9.1:
 `1a`, `2c`, `3a`, `7b`); Q4..Q6 fall away under `1a`. `2c` raises two
 follow-up questions, Q8 and Q9 (section 9.2); the rows that depend on
@@ -53,7 +53,7 @@ operator scope); only names and counts are written here.
 
 | # | fact | check | so |
 |---|---|---|---|
-| F1 | A calendar entry belongs to one workspace: `calendar_events.tenant_id NOT NULL`, FORCE RLS on `app.tenant_id` | `RDB/0125_calendar.sql:21` | an entry has one home; its audience, guests, reminders and trash are that workspace's |
+| F1 | A calendar entry belongs to one workspace: `calendar_events.tenant_id NOT NULL`, FORCE RLS on `app.tenant_id` | `RDB/0125_calendar.sql:21` (the column), `:48` (FORCE RLS) | an entry has one home; its audience, guests, reminders and trash are that workspace's |
 | F2 | Notes and contacts are realm tables: `personal.notes`, `note_items`, `note_links` (`RDB/0225_personal_notes.sql:27,41,53`), `personal.contacts` (`RDB/0226_contacts.sql:62`), `personal.contact_photos` (`RDB/0265_contacts_import.sql:39`); each with `person_id` first, no `tenant_id`, FORCE RLS and the one `person_scope` policy | the files named; prd: `select table_name, string_agg(column_name, ',') from information_schema.columns where table_schema='personal' group by 1` -> 9 tables, none with a `tenant_id` column | one list per person, the same in every workspace (154 O5 = B, 155 D1) |
 | F3 | `person_scope` matches only when `app.person_id` is the row's person, no workspace scope is set and the scope is not operator | `RDB/0168_personal_realm.sql:142-148` | no admin, member or operator reads a realm row |
 | F4 | The operator scope reads 0 realm rows on prd, and reads workspace rows | prd: `select (select count(*) from personal.notes), (select count(*) from personal.contacts), (select count(*) from calendar_events)` -> `0`, `0`, `2738` | the realm fence holds even for the operator; a workspace table would not have it |
@@ -148,6 +148,17 @@ import is P's own event). Issue deadlines are not events and are not
 mirrored. The other reading, every entry P can read (a whole workspace
 calendar, other people's entries included), is Q8 `8b` (section 9.2).
 
+**The private filter applies first.** The source row is selected, for
+each human, with the workspace's own private filter for that human as the
+viewer, ANDed with the "mine" predicate, exactly as calendar-across-workspaces
+3.1 reads it: `calendarPrivateSQL` = `(audience <> 'private' OR ($2::text <> ''
+AND (creator_id = $2 OR $2 = ANY (mentions))))`
+(`GO/store/calendar_postgres.go:35`, viewer at `$2`). That filter does not
+include `owner_id`, so a private entry whose owner is P, made by someone
+else and not naming P, is hidden from P in W and makes **no** mirror row.
+The mirror never holds an entry the workspace calendar would hide from P;
+an entry that turns private and hidden from P is deleted from P's mirror.
+
 ### 3.2 The table
 
 One new realm table, in the shape of every `personal.*` table (F2, F3):
@@ -160,7 +171,7 @@ One new realm table, in the shape of every `personal.*` table (F2, F3):
 | `workspace_id` | `text NOT NULL` (1..200, no FK, like `personal.note_links.workspace_id`) | the source workspace |
 | `event_id` | `uuid NOT NULL` (no FK) | the source `calendar_events.event_id` |
 | `workspace_name` | `text NOT NULL` | the workspace's display name at the last copy |
-| `relation` | `text NOT NULL CHECK (relation IN ('creator','owner','guest'))` | how the event is P's (3.1), the first that holds |
+| `relation` | `text NOT NULL CHECK (relation IN ('creator','owner','guest','mention'))` | how the event is P's (3.1), the first that holds in this order: `creator` (`creator_id = P`), `owner` (`owner_id = P`), `guest` (P is in the event's guest list), `mention` (P is in `mentions` only; guests are a subset of `mentions`, 097 3.2) |
 | `title`, `description`, `kind`, `starts_at`, `ends_at`, `all_day`, `time_zone`, `rrule`, `recur_until`, `recurring_event_id`, `original_start`, `status` | as in `calendar_events` (rdb 0125, 0139), same checks | the source row |
 | `source_updated_at` | `timestamptz NOT NULL` | the source `updated_at` |
 | `copied_at` | `timestamptz NOT NULL DEFAULT now()` | |
@@ -183,12 +194,22 @@ Each step is its own transaction and the scopes are never set together
 1. The workspace write commits as today, in `inTenant(W)`: create,
    update, delete, restore from trash, an RSVP, a guest added or removed,
    a Google import (149).
-2. Then, for each human whose "mine" set the write changed (the creator,
-   the owner, each human guest or mention, before and after), the hub
-   runs one `inPerson(that human)` transaction that upserts the mirror row
-   (`ON CONFLICT (person_id, workspace_id, event_id) DO UPDATE` when
-   `source_updated_at` is newer) or deletes it: the entry was deleted, or
-   is no longer that person's. A trashed entry is deleted from the
+2. Then, for each human H the write may concern (the creator, the
+   owner, each human guest or mention, before and after the write), the
+   hub first checks H's gate in W (`Memberships(H)` holds W and H has
+   `topics.read` there, 3.1); a human who fails it gets no row and loses
+   any row of W. For the rest it reads the source row fresh in
+   `inTenant(W)` with H as the private filter's viewer and the "mine"
+   predicate (3.1), then runs one `inPerson(H)` transaction that writes
+   what that read returned: an upsert (`ON CONFLICT (person_id,
+   workspace_id, event_id) DO UPDATE` of every copied column), or a
+   delete when the read returned nothing (the entry was deleted or
+   trashed, is no longer H's, or is now private and hidden from H). The
+   write is not ordered by `updated_at`: a trash keeps `updated_at`
+   (`GO/store/calendar_postgres.go:292`), and an RSVP or a guest change is
+   not known to bump it (unchecked), so each step 2 copies the state it
+   has just read. Two step 2s racing on one row can leave the older state;
+   the sweep repairs it. A trashed entry is deleted from the
    mirror and comes back on restore. Writing a realm row for a person
    other than the session's follows the receipt precedent (119 8.1: the
    hub writes the leaver's receipt during an admin's removal).
@@ -198,8 +219,9 @@ Each step is its own transaction and the scopes are never set together
 
 **The sweep**: a named action on the existing sweep cadence (119 8.1's).
 For each person with a live membership it compares the mirror with the
-source "mine" set, one workspace at a time (`inTenant(W)` read, then
-`inPerson(P)` write), and fixes what differs. Its first run fills the
+source "mine" set, one workspace at a time (`inTenant(W)` read with P as
+the private filter's viewer, the same read as step 2, then `inPerson(P)`
+write), and fixes what differs, comparing every copied column. Its first run fills the
 mirror for every existing entry. The person list comes from the
 membership list, the sweep's only operator read (the 119 8.1 shape).
 
@@ -355,8 +377,12 @@ leaving a workspace the owner keeps the entries they made there.
   entry with a guest; after each step the creator's and the guest's
   mirror rows match the source; removing the guest deletes the guest's
   row; an entry P can merely read (`workspace` audience, not P's) makes no
-  row (under `8a`). Red control: skip the guest in step 2, the guest's
-  row is missing.
+  row (under `8a`); an entry that names P only in `mentions` makes a
+  row with `relation = 'mention'`; a `private` entry whose `owner_id` is
+  P, made by someone else and not naming P, makes no row for P. Red
+  controls: skip the guest in step 2, the guest's row is missing; drop
+  the private filter from the step-2 read, the owner-only private entry
+  gets a row.
 - **T-PW4** isolation: under `inTenant(W)` and the operator scope,
   `personal.profile`'s new column and `personal.calendar_mirror` read 0
   rows; another person's `inPerson` reads 0 rows (119 T-N2, T-N4
@@ -364,8 +390,10 @@ leaving a workspace the owner keeps the entries they made there.
   the operator read returns rows.
 - **T-PW5** sweep repair: delete a mirror row by hand, and edit a source
   row with step 2 disabled; one sweep run restores both; a second run
-  changes nothing. Red control: the sweep skips the compare, the row
-  stays missing.
+  changes nothing; a private, owner-only entry not naming P gets no row
+  from the sweep either. Red controls: the sweep skips the compare, the
+  row stays missing; the sweep reads without the private filter, the
+  owner-only entry gets a row.
 - **T-PW6** leave (Q9's answer): remove P from W; the rows Q9 keeps have
   `left_at` set and show in the personal view as `state:"left"`, read
   only; the rows it drops are gone; a failed refresh blocks the removal
@@ -381,5 +409,6 @@ leaving a workspace the owner keeps the entries they made there.
 |---|---|---|---|
 | 0.1 | 2026-11-17 | c-958 | draft: facts F1..F16, the setting (stored on `personal.profile`), calendar options `2a`..`2c`, notes and contacts options `1a`..`1c` (realm, t1, picked workspace), moves and leaves under `1b` / `1c`, readers, Google sync, export / erase / backups, Q1..Q7, tests T-PW1..T-PW4 |
 | 0.2 | 2026-11-17 | c-958 | the owner's answers `1a`, `2c`, `3a`, `7b` (msg `6fccf8a9`): the setting is the "My calendar" preselect (2.5); the realm calendar mirror (section 3: table, write, sweep, read, leave); notes and contacts unchanged; v0.1 sections 5, 6 and the contacts-binding row dropped; new open questions Q8 (which entries) and Q9 (on leaving); tests T-PW1..T-PW7 |
+| 0.2.1 | 2026-11-17 | c-958 | R7 c-990 (msg `d9e33ac3`): `relation` gains `mention` (W1); step 2 and the sweep read the source with the workspace private filter for each human, so an owner-only private entry is not mirrored (W2); step 2 checks each human's gate (N3); no `updated_at` ordering (N4); F1 cites `:48` (N5); T-PW3, T-PW5 red controls |
 
-<!-- version: 0.2.0 · updated: 2026-11-17 -->
+<!-- version: 0.2.1 · updated: 2026-11-17 -->

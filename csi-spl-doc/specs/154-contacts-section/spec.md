@@ -3,7 +3,7 @@
 Version v1.6 (2026-11-17, SPL-5830): adds section 12.6, an invitee in a
 name-only workspace (t1) shows no address and no domain to anyone, only
 "Dear future spool-hub user" (owner HUM-10, msg `10b28abb`), as built, and
-cases C50..C52 in 12.3.
+cases C56..C58 in 12.3 (renumbered from C50..C52, which 12.2 already uses; R7 c-448 W1).
 
 Version v1.4 (2026-11-13, SPL-5431): adds section 12, contacts on in every
 workspace and every member's address on the member card, as built (owner
@@ -1748,8 +1748,8 @@ t1).
 | C54 | rdb 0290 on `"  Mary \t Ann  Smith "`, `"Solo"`, a human with `first_name` already set, a blank name; applied twice | first/last split, the set one kept, `display_name` byte-identical, `040 123 4567` refused by `humans_phone_check` | `TestHumanProfileMigration`; red control: a backfill that trims `display_name` turns it red |
 | C55 | the WUI: Settings fields; the card in w2, under act-as and in t1 | the three fields save together, a national phone is refused in the page; Phone row in w2 only | `csi-spl-wui/tests/e2e/display-name.test.mjs`, `people-email.test.mjs`, `tests/unit/display-name.test.mjs` |
 | C45 | cnf `[all]` | 030 carries `SPOOL_HUB_CONTACTS_WORKSPACES="all"` for dev and prd | `csi-spl-iac/src/bash/tests/hub-contacts-030.tst.sh` |
-| C50 | W1 is name-only; an open invite to W1; a developer, an admin and the admin who invited them each list the invitees | one row each, `label` "", `masked` true, an `INV-` id, no `@` and no domain in the body | `TestInvitedMembersHiddenNameOnly`; twin: the same invite in W2 (not name-only) shows the address; red control: `inviteHidden` answering the masked form turns it red |
-| C51 | name-only workspace: a developer adds an invitee to a channel by its id; the developer and an admin read the channel's members | the 201 `email` "", the `invitees` row `label` "" with its id, `invited` [""], no domain; the undo by id works | `TestChannelInviteesHiddenNameOnly`; twin: a workspace that is not name-only shows the address |
-| C52 | the WUI in t1: People, the Properties picker and the invited list | "Dear future spool-hub user", no `@` in any invitee row, no `…@example.com` on the page | `csi-spl-wui/tests/e2e/invited-inactive-member.test.mjs`, `people-email.test.mjs`; twin: the same flow outside t1 shows the address |
+| C56 | W1 is name-only; an open invite to W1; a developer, an admin and the admin who invited them each list the invitees | one row each, `label` "", `masked` true, an `INV-` id, no `@` and no domain in the body | `TestInvitedMembersHiddenNameOnly`; twin: the same invite in W2 (not name-only) shows the address; red control: `inviteHidden` answering the masked form turns it red |
+| C57 | name-only workspace: a developer adds an invitee to a channel by its id; the developer and an admin read the channel's members | the 201 `email` "", the `invitees` row `label` "" with its id, `invited` [""], no domain; the undo by id works | `TestChannelInviteesHiddenNameOnly`; twin: a workspace that is not name-only shows the address |
+| C58 | the WUI in t1: People, the Properties picker and the invited list | "Dear future spool-hub user", no `@` in any invitee row, no `…@example.com` on the page | `csi-spl-wui/tests/e2e/invited-inactive-member.test.mjs`, `people-email.test.mjs`; twin: the same flow outside t1 shows the address |
 
 <!-- version: 1.6 · updated: 2026-11-17 -->

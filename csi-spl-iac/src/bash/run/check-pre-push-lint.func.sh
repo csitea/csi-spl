@@ -107,6 +107,7 @@ _ppl_select() {  # <scanner> <changed> <tree>
     lint-semgrep)    own=(csi-spl-iac/src/bash/run/sec-semgrep.func.sh .semgrep-baseline.txt .github/workflows/61_semgrep.yml) ;;
     lint-checkov)    own=(csi-spl-iac/src/bash/run/sec-checkov.func.sh .github/workflows/65_iac-checkov.yml) ;;
     lint-tmp-path)   own=(csi-spl-iac/src/bash/scripts/tmp-path-lint.py .tmp-path-baseline.txt) ;;
+    lint-gosec)      own=(csi-spl-iac/src/bash/run/sec-gosec.func.sh .gosec-baseline.txt .github/workflows/62_gosec.yml) ;;
   esac
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
@@ -119,6 +120,7 @@ _ppl_select() {  # <scanner> <changed> <tree>
     done <<<"$changed"
     return 0
   fi
+  [[ "$sc" == lint-gosec ]] && { _ppl_gosec_pkgs "$changed" "$tree"; return 0; }
   while IFS= read -r f; do
     [[ -n "$f" && -f "$tree/$f" ]] || continue
     b="${f##*/}"
@@ -155,9 +157,25 @@ _ppl_select() {  # <scanner> <changed> <tree>
       lint-tmp-path)
         [[ "$f" == *.tst.sh || "$f" == *_test.go ]] && echo "$f"
         [[ "$f" == csi-spl-wui/tests/e2e/*.mjs && "$f" != csi-spl-wui/tests/e2e/*/* ]] && echo "$f" ;;
-      lint-gosec)      [[ "$f" == *.go || "$f" == */go.mod || "$f" == */go.sum ]] && { echo ALL; return 0; } ;;
     esac
   done <<<"$changed"
+  return 0
+}
+
+# lint-gosec: the package dir of each changed .go file of the hub module,
+# sorted and unique, or ALL when go.mod / go.sum changed. A deleted file's dir
+# counts while it still holds a .go file, so a fix by delete meets its lowered
+# baseline line.
+_PPL_GO_MOD="csi-spl-api/src/go/spool-hub-api"
+_ppl_gosec_pkgs() {  # <changed> <tree>
+  local changed="$1" tree="$2" f
+  while IFS= read -r f; do
+    [[ "$f" == "$_PPL_GO_MOD"/go.mod || "$f" == "$_PPL_GO_MOD"/go.sum ]] && { echo ALL; return 0; }
+  done <<<"$changed"
+  while IFS= read -r f; do
+    [[ "$f" == "$_PPL_GO_MOD"/*.go && "$f" != */testdata/* ]] || continue
+    compgen -G "$tree/${f%/*}/*.go" >/dev/null && echo "${f%/*}"
+  done <<<"$changed" | sort -u
   return 0
 }
 
@@ -294,6 +312,16 @@ _ppl_files_env() {  # <tree> <scanner> -> the list for the action, or empty for 
   _ppl_present "$1" "$2"
 }
 
+# lint-gosec's package dirs that hold a .go file on <tree>, module-relative
+# (./internal/wire, . for the module root): a package new on the push is not
+# on the base tree, so it is clean there.
+_ppl_gosec_present() {  # <tree>
+  local d
+  while IFS= read -r d; do
+    [[ -n "$d" ]] && compgen -G "$1/$d/*.go" >/dev/null && echo ".${d#"$_PPL_GO_MOD"}"
+  done <<<"${_PPL_FILES[lint-gosec]:-}"
+  return 0
+}
 
 # The test files lint-tmp-path scans. ALL is every tracked in-scope file.
 _ppl_tmp_files() {  # <tree>
@@ -390,6 +418,7 @@ _ppl_tf() {  # <tree> <files>
 _ppl_run_one() {  # <scanner> <tree>
   local sc="$1" tree="$2" files rc=0 f
   files="$(_ppl_files_env "$tree" "$sc")"
+  [[ "$sc" == lint-gosec && "${_PPL_FILES[$sc]:-}" != ALL ]] && files="$(_ppl_gosec_present "$tree")"
   if [[ "${_PPL_FILES[$sc]:-}" != ALL && -z "$files" && "$sc" != lint-migration ]]; then return 0; fi
   case "$sc" in
     lint-syntax)     _ppl_syntax "$tree" "$files" || rc=1 ;;
@@ -440,7 +469,7 @@ _ppl_run_one() {  # <scanner> <tree>
         # shellcheck source=/dev/null
         source ../../bash/use-go-toolchain.sh && spl_export_go_path || exit 127
         go mod tidy -diff ) || { echo "GO MOD: go.mod/go.sum are not tidy -- run 'go mod tidy' in csi-spl-api/src/go/spool-hub-api"; rc=1; } ;;
-    lint-gosec)      SEC_GOSEC_ROOT="$tree" do_sec_gosec || rc=$? ;;
+    lint-gosec)      SEC_GOSEC_ROOT="$tree" SEC_GOSEC_PKGS="$files" do_sec_gosec || rc=$? ;;
   esac
   [[ "$rc" -eq 0 ]] && return 0
   # rc 127 stays 127 so the gate reports an environment gap, never "pre-existing".

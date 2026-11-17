@@ -14,7 +14,9 @@
 #   5. a broken .json is a lint-syntax FAIL
 #   6. routing: workflow -> actionlint, Dockerfile -> hadolint, wui .mjs ->
 #      eslint, a hub .sh -> syntax but not shellcheck (not CI 67's scope), the
-#      action sec-shellcheck itself -> its whole scope (ALL)
+#      action sec-shellcheck itself -> its whole scope (ALL); lint-gosec (full
+#      tier, p13-02): a changed internal/wire/x.go -> that package dir, go.mod
+#      -> ALL, .gosec-baseline.txt alone -> ALL; the action gets ./internal/wire
 #   7. the FAIL prints the exact command that reproduces the finding
 #   8. with the REAL shellcheck (when installed): SC1087 refused, clean passes
 #   9. PRE_PUSH_LINT=0 skips every lint part (the rollback), and says so
@@ -480,6 +482,24 @@ p="$(plan_of csi-spl-api/src/go/spool-hub-api/x.go)"; [[ " $p " == *" lint-semgr
 p="$(plan_of csi-spl-api/src/go/spool-hub-api/go.mod)"; [[ " $p " == *" lint-gomod "* ]] && pass "6i. go.mod -> go mod tidy -diff" || fail "6i" "$p"
 mkdir -p "$R/csi-spl-wui/tests/e2e"; echo x >"$R/csi-spl-wui/tests/e2e/a.test.mjs"
 p="$(plan_of csi-spl-wui/tests/e2e/a.test.mjs)"; [[ " $p " == *" lint-tmp-path "* ]] && pass "6j. an e2e test -> lint-tmp-path" || fail "6j" "$p"
+# lint-gosec (full tier, p13-02): the changed packages, not the whole module
+gosec_sel() {  # <changed-files...> -> _PPL_FILES[lint-gosec], or "none"
+  local -A _PPL_FILES=()
+  local _PPL_SELECTED=""
+  _ppl_plan "$(printf '%s\n' "$@")" fast full "$R" >/dev/null
+  echo "${_PPL_FILES[lint-gosec]:-none}"
+}
+mkdir -p "$R/csi-spl-api/src/go/spool-hub-api/internal/wire"; echo 'package wire' >"$R/csi-spl-api/src/go/spool-hub-api/internal/wire/x.go"
+p="$(gosec_sel csi-spl-api/src/go/spool-hub-api/internal/wire/x.go)"
+[[ "$p" == csi-spl-api/src/go/spool-hub-api/internal/wire ]] && pass "6k. a changed internal/wire/x.go -> gosec on .../internal/wire, not ALL" || fail "6k" "$p"
+p="$(gosec_sel csi-spl-api/src/go/spool-hub-api/go.mod)"
+[[ "$p" == ALL ]] && pass "6l. go.mod -> gosec on ALL" || fail "6l" "$p"
+p="$(gosec_sel .gosec-baseline.txt)"
+[[ "$p" == ALL ]] && pass "6m. .gosec-baseline.txt alone -> gosec on ALL" || fail "6m" "$p"
+declare -A _PPL_FILES=([lint-gosec]=csi-spl-api/src/go/spool-hub-api/internal/wire)
+p="$(_ppl_gosec_present "$R")"
+[[ "$p" == ./internal/wire ]] && pass "6n. the action is handed ./internal/wire" || fail "6n" "$p"
+unset _PPL_FILES
 p="$(plan_of doc/readme.md)"
 [[ " $p " != *" lint-shellcheck "* && " $p " != *" lint-syntax "* ]] && pass "6f. a doc-only push runs no scanner but trufflehog" || fail "6f" "$p"
 unset _PPL_FILES

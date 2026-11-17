@@ -14,7 +14,12 @@
 # @param SEC_GOSEC_WRITE_BASELINE (optional) - 1 to rewrite the baseline counts
 # @param SEC_GOSEC_GO_FALLBACK (optional) - dir holding go when go is not on PATH;
 # @param   default /usr/local/go/bin (sudo's secure_path drops it)
+# @param SEC_GOSEC_PKGS (optional) - the packages to scan, relative to the module,
+# @param   separated by spaces or newlines (e.g. ./internal/wire); default ./...
+# @param   (the weekly scan, CI wf 62). Given a list, the gate compares only the
+# @param   baseline lines of the files in those packages (the pre-push part).
 # @example ./run -a do_sec_gosec
+# @example SEC_GOSEC_PKGS='./internal/store ./internal/hub' ./run -a do_sec_gosec
 #------------------------------------------------------------------------------
 
 _SEC_GOSEC_VER=2.22.4
@@ -84,6 +89,19 @@ EOF
   printf '%s\n' "$d"
 }
 
+# The baseline rows whose file sits in one of <pkgs> (module-relative dirs such
+# as ./internal/wire or .): gosec scans a package, not its subpackages.
+_sec_gosec_baseline_of() {  # <baseline> <pkgs...>
+  python3 - "$@" <<'PY'
+import os, sys
+pk = {os.path.normpath(p) for p in sys.argv[2:]}
+for line in open(sys.argv[1]):
+    row = line.split("#", 1)[0].strip()
+    if row and os.path.normpath(os.path.dirname(row.split("|")[1]) or ".") in pk:
+        print(line, end="")
+PY
+}
+
 do_sec_gosec() {
   _sec_gosec_go || return 1
   local bin
@@ -111,10 +129,14 @@ except Exception: print(-1)' "$ctl/out.json" 2>/dev/null)
     return 1
   fi
 
-  # --- scan: gosec on the hub, HIGH severity, JSON --------------------------
-  local out; out=$(mktemp)
-  do_log "INFO gosec -severity high on $mod"
-  ( cd "$mod" && SEC_GOSEC_PHASE=scan "$bin" -fmt=json -quiet -severity high ./... ) >"$out" 2>/dev/null || true
+  # --- scan: gosec on the hub (or SEC_GOSEC_PKGS), HIGH severity, JSON -------
+  local out grc=0 bl="$baseline"; out=$(mktemp)
+  local -a scan=(); read -r -d '' -a scan <<<"${SEC_GOSEC_PKGS:-./...}" || true
+  [[ "${#scan[@]}" -gt 0 ]] || scan=(./...)
+  do_log "INFO gosec -severity high on $mod: ${scan[*]}"
+  ( cd "$mod" && SEC_GOSEC_PHASE=scan "$bin" -fmt=json -quiet -severity high "${scan[@]}" ) >"$out" 2>/dev/null || grc=$?
+  # -quiet prints nothing on a clean scan (exit 0): that reads as 0 findings.
+  [[ "$grc" -eq 0 && ! -s "$out" ]] && printf '{"Issues":[]}\n' >"$out"
   if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$out" 2>/dev/null; then
     do_log "FATAL gosec produced no parseable JSON -- the scan proved nothing (tool/build error)"
     rm -f "$out"
@@ -131,11 +153,16 @@ for (rule,rel),n in sorted(cur.items()): print(f"{rule}|{rel}|{n}")
 PY
   rm -f "$out"
   rc=0
+  if [[ " ${scan[*]} " != *" ./... "* ]]; then
+    [[ "${SEC_GOSEC_WRITE_BASELINE:-0}" == 1 ]] && { do_log "FATAL SEC_GOSEC_WRITE_BASELINE=1 needs the whole module: unset SEC_GOSEC_PKGS"; rm -f "$counts"; return 1; }
+    bl=$(mktemp); _sec_gosec_baseline_of "$baseline" "${scan[@]}" >"$bl"
+  fi
   if [[ "${SEC_GOSEC_WRITE_BASELINE:-0}" == 1 ]]; then
     _sec_baseline_write "$counts" "$baseline" || rc=1
   else
-    _sec_baseline_gate "gosec high-severity" "$counts" "$baseline" || rc=1
+    _sec_baseline_gate "gosec high-severity" "$counts" "$bl" || rc=1
   fi
   rm -f "$counts"
+  [[ "$bl" == "$baseline" ]] || rm -f "$bl"
   return "$rc"
 }

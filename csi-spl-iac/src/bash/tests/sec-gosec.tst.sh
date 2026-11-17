@@ -7,6 +7,10 @@
 #          gosec runs from .github/workflows/62_gosec.yml. With go missing from
 #          PATH (sudo's secure_path) the action falls back to SEC_GOSEC_GO_FALLBACK
 #          and to $(go env GOPATH)/bin for gosec, or refuses.
+#          SEC_GOSEC_PKGS (p13-02, the pre-push part): (a) the given package is
+#          the only package arg, (b) a baseline line of an unscanned package
+#          does not fail the gate, (c) an extra finding in the scanned package
+#          still does, (d) empty output with exit 0 reads as 0 findings, PASS.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -110,6 +114,45 @@ set -e
 [[ "$rc" -eq 0 ]] && [[ "$(cat "$ROOT/.gosec-baseline.txt")" == $'# header\nG101|internal/auth/idp.go|2' ]] \
   && pass "the baseline writer keeps the header and writes the counts" || fail "writer: rc=$rc $(cat "$ROOT/.gosec-baseline.txt")"
 printf '# header\nG101|internal/auth/idp.go|1\n' >"$ROOT/.gosec-baseline.txt"
+
+# --- SEC_GOSEC_PKGS: scan the given packages only (p13-02) --------------------
+CTL='if [[ "${SEC_GOSEC_PHASE:-}" == control ]]; then echo "{\"Issues\":[{\"rule_id\":\"G404\",\"file\":\"/x/spool-hub-api/main.go\"}]}"; exit 1; fi'
+ARGS="$T/scan-args"
+LOGARGS="printf '%s\\n' \"\$@\" >$(printf %q "$ARGS")"
+printf '# header\nG101|internal/auth/idp.go|1\nG101|internal/wire/wire.go|1\n' >"$ROOT/.gosec-baseline.txt"
+stub gosec "$CTL; $LOGARGS"' ; echo "{\"Issues\":[{\"rule_id\":\"G101\",\"file\":\"/x/spool-hub-api/internal/wire/wire.go\"}]}"; exit 1'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_GOSEC_ROOT="$ROOT" SEC_GOSEC_PKGS=./internal/wire do_sec_gosec 2>&1); rc=$?
+set -e
+pk=$(grep -cE '^\.(/|$)' "$ARGS" 2>/dev/null || true); pk=${pk:-0}
+[[ "$pk" -eq 1 ]] && grep -qx './internal/wire' "$ARGS" \
+  && pass "(a) SEC_GOSEC_PKGS=./internal/wire: the scan gets that package only (package args 1)" \
+  || { fail "(a) package args: $(paste -sd' ' "$ARGS" 2>/dev/null)"; }
+[[ "$rc" -eq 0 ]] && grep -q 'no new findings' <<<"$out" \
+  && pass "(b) the baseline line of the unscanned internal/auth does not fail the gate" \
+  || { fail "(b) unscanned package's baseline line failed it (rc=$rc)"; sed 's/^/    | /' <<<"$out"; }
+stub gosec "$CTL"' ; echo "{\"Issues\":[{\"rule_id\":\"G101\",\"file\":\"/x/spool-hub-api/internal/wire/wire.go\"},{\"rule_id\":\"G101\",\"file\":\"/x/spool-hub-api/internal/wire/wire.go\"}]}"; exit 1'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_GOSEC_ROOT="$ROOT" SEC_GOSEC_PKGS=./internal/wire do_sec_gosec 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'NEW G101 internal/wire/wire.go: 2 found, 1 baselined' <<<"$out" \
+  && pass "(c) an extra finding in the scanned package still fails the gate" \
+  || { fail "(c) extra finding in the scanned package passed (rc=$rc)"; sed 's/^/    | /' <<<"$out"; }
+printf '# header\nG101|internal/auth/idp.go|1\n' >"$ROOT/.gosec-baseline.txt"
+stub gosec "$CTL"'; exit 0'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_GOSEC_ROOT="$ROOT" SEC_GOSEC_PKGS=./internal/uid do_sec_gosec 2>&1); rc=$?
+set -e
+[[ "$rc" -eq 0 ]] && grep -q 'no new findings' <<<"$out" \
+  && pass "(d) empty output with exit 0 (-quiet on a clean package) reads as 0 findings, PASS" \
+  || { fail "(d) empty clean output not read as 0 (rc=$rc)"; sed 's/^/    | /' <<<"$out"; }
+stub gosec "$CTL"'; exit 2'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_GOSEC_ROOT="$ROOT" SEC_GOSEC_PKGS=./internal/uid do_sec_gosec 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'no parseable JSON' <<<"$out" \
+  && pass "(d) empty output with a non-zero exit still fails closed" \
+  || { fail "(d) empty output + exit 2 accepted (rc=$rc)"; sed 's/^/    | /' <<<"$out"; }
 
 # --- go not on PATH: the fallback dir puts it there --------------------------
 # gosec without go cannot load packages: the stub then prints no JSON, as the

@@ -317,7 +317,8 @@ command that reproduces it.
 | `lint-gomod` | — | `go mod tidy -diff` (offline) when `go.mod`/`go.sum` change | hook |
 | `lint-sigpipe` | — | touched `.sh` under pipefail (it sets it, or is a `*.func.sh` run by `./run`): no early-exit consumer (`\| grep -q`, `\| grep -m`, `\| head`) after a producer -- the producer dies of SIGPIPE (141) and the pipeline reads false. Fix: `grep ... >/dev/null`, `sed -n 1p`, a here-string; a reviewed safe site carries `# sigpipe-ok: <why>` (`sigpipe-lint.sh --list-optouts` lists them) | hook |
 | `lint-tmp-path` | — | touched e2e `.mjs`, `*.tst.sh` and Go `_test.go`: a fixed `/tmp/<name>` or `/var/tmp/<name>` write (a quoted path, a redirect, or an assignment). A per-run dir is `mkdtemp`, `mktemp -d`, `t.TempDir` or `SHOT_DIR`. Counts in `.tmp-path-baseline.txt`; a new one fails (`tmp-path-lint.py`) | hook |
-| `lint-checkov` / `lint-gosec` | 65 / 62 | the action over its whole scope (65 s / >300 s) | `PRE_PUSH_TIER=full` + CI |
+| `lint-checkov` | 65 | the action over its whole scope (65 s) | `PRE_PUSH_TIER=full` + CI |
+| `lint-gosec` | 62 | `do_sec_gosec` on the hub packages the push changes (`SEC_GOSEC_PKGS`, SPL-5787): the dir of each changed `.go` under `csi-spl-api/src/go/spool-hub-api/`, a deleted file's dir while it still holds a `.go`; the gate compares only the `.gosec-baseline.txt` lines of the files in those packages. `./...` (>300 s) when `go.mod`/`go.sum`, `sec-gosec.func.sh`, `.gosec-baseline.txt` or `62_gosec.yml` change, in `PRE_PUSH_MODE=full`, in the weekly scan and in CI wf 62. A finding that a change in one package makes gosec report in an unchanged package is found by wf 62 after the push | `PRE_PUSH_TIER=full` + CI |
 | CodeQL / DAST | 60 / 68 | need the whole repo / a live host | CI only |
 
 **Weekly full scan** (Friday 21:00 box time, the night of

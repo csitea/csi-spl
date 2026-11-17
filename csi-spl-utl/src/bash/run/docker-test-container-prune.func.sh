@@ -73,9 +73,11 @@ _dtcp_is_agent_id() {
 
 # _dtcp_created_epoch <docker CreatedAt>: "2026-10-17 17:16:02 +0300 EEST" ->
 # epoch; the trailing zone name is dropped (date -d reads the offset). Prints
-# nothing for a value it cannot read.
+# nothing for a value it cannot read, and for one that does not start with a
+# date: `date -d ""` would read an empty value as today's midnight (SPL-5832).
 _dtcp_created_epoch() {
   local c="$1"
+  [[ "$c" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} ]] || return 0
   [[ "$c" =~ ^([0-9-]+\ [0-9:]+\ [+-][0-9]{4}) ]] && c="${BASH_REMATCH[1]}"
   date -d "$c" +%s 2>/dev/null || true
 }
@@ -162,9 +164,19 @@ _dtcp_note() {
 # listing (in), total, prune, report, kept (classify), done_names, failed
 # (remove).
 
-# _dtcp_list: the docker listing into listing; 2 when docker is unusable.
+# _dtcp_unquote <json string>: the value between the quotes docker's {{json}}
+# put around it ("" -> empty).
+_dtcp_unquote() {
+  local v="${1#\"}"
+  printf "%s" "${v%\"}"
+}
+
+# _dtcp_list: the docker listing into listing, one line per container; 2 when
+# docker is unusable. The label columns go through {{json}}: a label value may
+# hold newlines (an image description), which json escapes, so it can never
+# split one container into several rows (SPL-5832).
 _dtcp_list() {
-  local fmt="{{.ID}}${fs}{{.Names}}${fs}{{.CreatedAt}}${fs}{{.Label \"csi-spl.lane\"}}${fs}{{.Label \"com.docker.compose.project\"}}${fs}{{.Labels}}"
+  local fmt="{{.ID}}${fs}{{.Names}}${fs}{{.CreatedAt}}${fs}{{json (.Label \"csi-spl.lane\")}}${fs}{{json (.Label \"com.docker.compose.project\")}}${fs}{{json .Labels}}"
   if ! listing="$("${dk[@]}" ps -a --no-trunc --format "$fmt" 2>&1)"; then
     do_log "FATAL docker ps failed: ${listing:0:200}"
     return 2
@@ -183,8 +195,9 @@ _dtcp_classify() {
   local id name created lane project labels epoch age_min lane_id
   while IFS="$fs" read -r id name created lane project labels; do
     [[ -z "$id" ]] && continue
+    lane="$(_dtcp_unquote "$lane")" project="$(_dtcp_unquote "$project")" labels="$(_dtcp_unquote "$labels")"
     total=$((total + 1))
-    if [[ -n "${keep[$name]:-}" ]]; then kept+=("$name:infrastructure"); continue; fi
+    if [[ -n "$name" && -n "${keep[$name]:-}" ]]; then kept+=("$name:infrastructure"); continue; fi
     epoch="$(_dtcp_created_epoch "$created")"
     if [[ -z "$epoch" ]]; then
       do_log "WARN $name: cannot read its creation time '$created': left alone"

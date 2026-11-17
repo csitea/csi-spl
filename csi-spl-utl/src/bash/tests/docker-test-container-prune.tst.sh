@@ -28,6 +28,8 @@
 #  18. report only (a long-lived non-test container, e.g. another project's
 #      tf-runner): exit 0, one note per set, never repeated by the throttle;
 #      a changed set notes once more; a failed removal next to it still exits 1
+#  19. a label value with newlines: one row per container, its real name
+#  20. an empty or blank CreatedAt is refused, never dated to midnight
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -59,14 +61,26 @@ row() {
   printf '%s\n' "$id$FS$name$FS$(ctime "$ago")$FS$lane$FS$proj$FS$labels"
 }
 
-# the stub docker: ps prints $LIST; rm logs its args (fails when $T/rm.fail)
+# the stub docker: ps renders $LIST the way docker renders the --format it is
+# given (a `\n` in a LIST label is a real newline in a plain {{.Labels}}
+# column, and stays escaped inside {{json ...}}); rm logs its args (fails
+# when $T/rm.fail)
 cat >"$BIN/docker-stub" <<EOF
 #!/bin/bash
-case "\$1" in
+T="$T" LIST="$LIST" RM_LOG="$RM_LOG" LIVE="$LIVE" FS="$FS"
+EOF
+cat >>"$BIN/docker-stub" <<'EOF'
+case "$1" in
   ps) [[ -f "$T/ps.fail" ]] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
-      cat "$LIST" ;;
-  rm) printf '%s\n' "\$*" >>"$RM_LOG"; [[ -f "$T/rm.fail" ]] && { echo "conflict" >&2; exit 1; }; exit 0 ;;
-  *) echo "unexpected docker \$*" >>"$LIVE"; exit 1 ;;
+      while IFS="$FS" read -r id name created lane proj labels; do
+        if [[ "$*" == *'json .Labels'* ]]; then
+          printf '%s\n' "$id$FS$name$FS$created$FS\"$lane\"$FS\"$proj\"$FS\"$labels\""
+        else
+          printf '%s\n' "$id$FS$name$FS$created$FS$lane$FS$proj$FS${labels//\\n/$'\n'}"
+        fi
+      done <"$LIST" ;;
+  rm) printf '%s\n' "$*" >>"$RM_LOG"; [[ -f "$T/rm.fail" ]] && { echo "conflict" >&2; exit 1; }; exit 0 ;;
+  *) echo "unexpected docker $*" >>"$LIVE"; exit 1 ;;
 esac
 EOF
 cat >"$BIN/tmux-stub" <<EOF
@@ -261,6 +275,33 @@ DRY_RUN=0 run_fn
 rm -f "$T/rm.fail"
 if [[ "$(rc)" == 1 ]] && has "failed 1"; then pass "18c. a failed removal next to the report-only rows still exits 1"
 else fail "18c. rc=$(rc) $(cat "$T/out")"; fi
+
+# 19. a label value with newlines (an image's org.opencontainers.image.description)
+# stays one container: one row, its real name, never fake id-less rows (SPL-5832)
+ml='org.opencontainers.image.description=Ubuntu is a Debian-based Linux\n\noperating system.\n  It is the\nworld'"'"'s most popular\n\nLinux.'
+{
+  printf '%s\n' "id-ml${FS}c361-ub${FS}$(ctime 3000)${FS}${FS}${FS}$ml"
+  printf '%s\n' "id-ml2${FS}c302-pg${FS}$(ctime 3000)${FS}c-300${FS}${FS}$ml,csi-spl.lane=c-300"
+} >"$LIST"
+rm -f "$T/state/alert.stamp"; : >"$RM_LOG"; : >"$SENT"
+DRY_RUN=1 run_fn
+if has "2 container(s), would remove 1, reported 1" && [[ "$(grep -c 'WARN unlabelled, report only:' "$T/out")" == 1 ]] &&
+  has "WARN unlabelled, report only: c361-ub (3000 min, no csi-spl.lane label)" &&
+  has "PLAN remove c302-pg (lane c-300 gone, 3000 min old)" && ! has "cannot read its creation time"; then
+  pass "19. a multi-line label: one row per container, real names, lane read right"
+else fail "19. $(cat "$T/out")"; fi
+
+# 20. an empty or blank CreatedAt is refused, never dated to midnight
+e1="$(source "$FUNC_SH"; _dtcp_created_epoch '')"
+e2="$(source "$FUNC_SH"; _dtcp_created_epoch '   ')"
+printf '%s\n' "id-nodate${FS}nodate-pg${FS}${FS}c-300${FS}${FS}csi-spl.lane=c-300" \
+  "id-nodate2${FS}nodate-x${FS}${FS}${FS}${FS}" >"$LIST"
+: >"$RM_LOG"
+DRY_RUN=1 run_fn
+if [[ -z "$e1" && -z "$e2" && "$(rc)" == 0 ]] && has "would remove 0, reported 0" &&
+  has "WARN nodate-pg: cannot read its creation time" && ! has "PLAN remove"; then
+  pass "20. an empty CreatedAt is not dated: the row is left alone, never removed or reported"
+else fail "20. e1='$e1' e2='$e2' rc=$(rc) $(cat "$T/out")"; fi
 
 # 17. live guard
 if [[ ! -s "$LIVE" ]]; then pass "17. LIVE GUARD: no real docker, tmux or spool reached"

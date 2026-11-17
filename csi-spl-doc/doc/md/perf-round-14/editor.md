@@ -169,6 +169,18 @@ A first run on a `git archive` (no `.git`) failed
 - 14:5xZ (session after the 14:26Z rotation): the api probe's end read (2.3),
   the parallel arm run (2.4), plan v0.2 with row 02, rebased on `770de68f4`,
   pushed; the sha named to m-031 and the holder.
+- 15:2xZ, at the 15:26Z rotation: plan v0.2 = **`ad7621455`** on
+  `review/c001-perf-round-14-planner` (a fast-forward of `5929030f0`, a merge
+  with `770de68f4`; `git ls-remote` read 15:2xZ). Named to m-031 (msg
+  `57ec4e23`, 14:49:59Z) and reported to the holder c-002@sat (result
+  `298bd2e1`, 14:50:11Z). No reply from either by 15:2xZ (`spool recv`).
+  m-031's seat file on `review/c002-perf-round-14-mistral-seat` (`7ab0c2e50`)
+  is its 14:34Z state, verdict PENDING, written before the sha was named.
+- Next session: wait for m-031's verdict on `ad7621455` and any send-back;
+  fold findings into v0.3 (new sha, named again). This state commit is local
+  only, so the reviewed branch head stays `ad7621455`; push it with v0.3 or
+  at the round's end. Exit only on a message on `dispatch-perf-r14` whose body
+  starts with ACCEPTED.
 - Scratch to remove after the round (push user's): `/var/tmp/p14-api-probe.*`,
   `/var/tmp/p14-api-clone.*`, `/var/tmp/p14-wui-probe.*`,
   `/var/tmp/p14-wui-clone.*`, `/var/tmp/p14-probe-scripts.*` (also `pg-arm.sh`,

@@ -81,7 +81,7 @@ box_cpu_throttled() {
 }
 
 do_box_cpu_ceiling() {
-  local cmd="${BOX_CPU_CMD:-check}" app cnf cores want u cur have bad=0
+  local cmd="${BOX_CPU_CMD:-check}" app cnf cores want u cur have units_txt bad=0
   local -a units
   case "$cmd" in check|apply|remove) ;; *) do_log "FATAL BOX_CPU_CMD must be check, apply or remove, got: '$cmd'"; return 1 ;; esac
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
@@ -91,12 +91,15 @@ do_box_cpu_ceiling() {
   cores="${BOX_CPU_NPROC:-$(nproc)}"
   [[ "$cores" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL cannot count the cores, got: '$cores'"; return 1; }
   if [[ "$cmd" == remove ]]; then want=""; else box_cpu_cap "$cnf" || return 1; want=$((cores * BOX_CPU_CAP)); fi
-  mapfile -t units < <(box_cpu_units) || return 1
+  # captured first: a FATAL from box_cpu_units is on stdout and must not become a unit
+  units_txt="$(box_cpu_units)" || { [[ -n "$units_txt" ]] && echo "$units_txt"; return 1; }
+  mapfile -t units <<<"$units_txt"
   ((${#units[@]})) || return 1
   if [[ -n "$want" ]]; then echo "CEILING cores=$cores cap=${BOX_CPU_CAP}% -> CPUQuota=${want}% per unit"; else echo "CEILING cores=$cores remove: no CPUQuota"; fi
   for u in "${units[@]}"; do
     cur="$($BOX_CPU_SYSTEMCTL show "$u" -p CPUQuotaPerSecUSec --value 2>/dev/null)"
     have="$(box_cpu_pct "$cur")"
+    [[ -n "$have" || -z "$cur" || "$cur" == infinity ]] || { do_log "FATAL $u: cannot read CPUQuotaPerSecUSec '$cur'"; return 1; }
     echo "UNIT $u CPUQuota=$([[ -n "$have" ]] && echo "$have%" || echo none) ($(box_cpu_throttled "$u"))"
     [[ "$have" == "$want" ]] && continue
     bad=$((bad + 1))

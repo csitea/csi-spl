@@ -12,7 +12,8 @@
 #   4. apply again changes nothing; check is OK
 #   5. BOX_CPU_CAP_PCT over the cnf; a unit at another quota is set again
 #   6. remove takes the ceiling off (CPUQuota=), check then fails
-#   7. guards: a cap outside 50..100, a bad BOX_CPU_CMD, no agent user
+#   7. guards: a cap outside 50..100, a bad BOX_CPU_CMD, no or an unknown agent
+#      user (refused before any unit is read), a quota it cannot parse
 #   8. the units by default: cron.service and user-<uid>.slice of the agent user
 #   9. through the csi-spl-utl ./run harness (dry run)
 #------------------------------------------------------------------------------
@@ -113,7 +114,16 @@ out="$(run_bc BOX_CPU_CMD=apply DRY_RUN=0 BOX_CPU_CAP_PCT=40)"; rc=$?
 out="$(run_bc BOX_CPU_CMD=nuke)"; rc=$?
 [[ $rc == 1 && "$out" == *"BOX_CPU_CMD must be"* ]] && pass "7. a bad BOX_CPU_CMD is refused" || fail "7. bad cmd (rc $rc): $out"
 out="$(run_bc BOX_CPU_UNITS= SPOOL_AGENT_USER= BOX_CPU_AGENT_USER= SPOOL_ROOT="$T/none")"; rc=$?
-[[ $rc == 1 && "$out" == *"no agent user"* ]] && pass "7. no agent user: refused" || fail "7. no agent user (rc $rc): $out"
+[[ $rc == 1 && "$out" == *"FATAL no agent user"* && "$out" != *"UNIT "* ]] && pass "7. no agent user: refused, no unit read" || fail "7. no agent user (rc $rc): $out"
+n="$(sets)"
+out="$(run_bc BOX_CPU_CMD=apply BOX_CPU_UNITS= BOX_CPU_AGENT_USER=nosuchuser9)"; rc=$?
+[[ $rc == 1 && "$out" == *"FATAL the agent user 'nosuchuser9' does not exist"* && "$out" != *"UNIT "* && "$out" != *"PLAN "* && "$(sets)" == "$n" ]] &&
+  pass "7. unknown agent user, apply dry run: exit 1, no UNIT or PLAN line" || fail "7. unknown user (rc $rc): $out"
+printf '1min 0.400000s\n' >"$T/units/cron.service"
+out="$(run_bc BOX_CPU_CMD=apply DRY_RUN=0)"; rc=$?
+[[ $rc == 1 && "$out" == *"cannot read CPUQuotaPerSecUSec '1min 0.400000s'"* && "$(sets)" == "$n" ]] &&
+  pass "7. a quota it cannot parse is refused, not read as none" || fail "7. unparsed quota (rc $rc): $out"
+rm -f "$T/units/cron.service"
 
 # 8. default units ---------------------------------------------------------------
 me="$(id -un)" uid="$(id -u)"

@@ -387,4 +387,8 @@ section 11); Q4 `4b`: reminder pop-ups from every workspace, with a mute
 switch per workspace (its section 4.1). Its build rows are in
 [tasks.md](tasks.md), "Calendar across workspaces".
 
-<!-- version: 1.3.0 · updated: 2026-11-15 · last-edit: 2026-11-15 -->
+## 16. Primary workspace
+
+The owner's ask of 2026-11-17 (a primary workspace per person for calendar entries, notes and contacts; SPL-5788) is specified in [primary-workspace.md](primary-workspace.md) (v0.1, owner questions open); build rows in [tasks.md](tasks.md), "Primary workspace".
+
+<!-- version: 1.3.0 · updated: 2026-11-17 · last-edit: 2026-11-17 -->

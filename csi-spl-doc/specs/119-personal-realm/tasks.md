@@ -448,4 +448,40 @@ order first.
   `perf-budget.py` initial JS within the ceiling; agy review of the
   strings (language rule); deployed dev and prd.
 
-<!-- version: 1.2.0 · updated: 2026-11-15 · last-edit: 2026-11-15 -->
+## Primary workspace
+v0.1 (SPL-5788), [primary-workspace.md](primary-workspace.md). **Not ready
+to place**: the owner answers its Q1..Q7 first. The rows below are for the
+recommended `1a`, `2a`, `3a`, `7a`; under `1b` / `1c` they are rewritten
+with the move, leave and fence rows of its sections 5 and 6. Tests are
+that file's section 10.
+
+- [ ] T019 **Lane R: the setting** (claude, rdb + store + hub). One
+  additive migration (number from `do_rdb_migration_next`): column
+  `personal.profile.primary_workspace_id text NULL` (1..200, no FK);
+  `GET` / `PUT /v1/me/realm/profile` read and write it, the `PUT` checked
+  against the file's 2.1 list (`Memberships`, `notes.send`, not a demo
+  visit, billing allows writes), else 400 `bad_primary_workspace`.
+  Files (owns): the migration, `GO/store/personal*.go` for the profile
+  column and its tests, `GO/hub/realm.go` profile handlers and their test,
+  the profile operation in `GO/hub/openapi.json`.
+  Done: T-PW1, T-PW4 on Postgres with red controls; `PRE_PUSH_TIER=full`.
+
+- [ ] T020 **Lane S: the settings row and the calendar preselect**
+  (claude, WUI; waits on T019 deployed and on T017 landed). The "Primary
+  workspace" row in `WUI/components/settings/profile.vue`; the create
+  dialog of `/me/calendar` (T017's `WUI/components/RealmCalendarDialog.vue`)
+  preselects it; the stale-primary notice. Keys under
+  `settings.primary_workspace.*` in the 19 locale files, after T018 in the
+  serial locale order.
+  Done: T-PW2; `pnpm run typecheck`; `perf-budget.py` initial JS
+  unchanged; e2e at 390 px and desktop; agy review of the strings
+  (language rule); deployed dev and prd.
+
+- [ ] T021 **Lane T: the contacts binding follows the primary workspace**
+  (claude, hub; `7a`; waits on T019 landed). Turning Contacts sync on
+  binds the primary workspace's Google connection; a change of the
+  primary moves the binding (154 2.2 steps 3..5).
+  Files (owns): the binding path in `GO/hub/contacts.go` and its test.
+  Done: T-PW3 with its red control.
+
+<!-- version: 1.3.0 · updated: 2026-11-17 · last-edit: 2026-11-17 -->

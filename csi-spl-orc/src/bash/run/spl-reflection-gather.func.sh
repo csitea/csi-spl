@@ -30,7 +30,11 @@
 # @description env.rhythm.reflection_discussion, a live topic: the placer refuses
 # @description a lane with no discussion, an archived one raises the archived-seat
 # @description blocker, SPL-5646; not a uuid = FATAL, nothing gathered or
-# @description queued), and asks for the day's Qto
+# @description queued; it is the backlog topic, the placer's fallback only),
+# @description its origin topics (the live topics of section 4 other than the
+# @description backlog, which the lane links and each proposed row names on
+# @description its own Discussion: line: the commit-links gate refuses an
+# @description issue linking only the backlog, SPL-5829), and asks for the day's Qto
 # @description page plus at most 3 proposed rows. The ask goes through
 # @description do_spl_spawn_enqueue and its gates. A source that cannot be read
 # @description is one "(not read: <its last stderr line>)" line, never a stop. Nothing is written
@@ -93,7 +97,7 @@ do_spl_reflection_gather() {
     { do_log "FATAL reflection: the gathered file $gather was not written"; return 1; }
   echo "OK reflection: gathered $gather ($(grep -c '^- ' "$gather") item line(s))"
   brief="$(mktemp)" || return 1
-  DISCUSSION="$disc" spl_reflection_brief "$night" "$gather" "$since" "$until" >"$brief" || { rm -f "$brief"; return 1; }
+  ORIGIN_TOPICS="$(spl_reflection_origin_topics "$gather" "$disc")" DISCUSSION="$disc" spl_reflection_brief "$night" "$gather" "$since" "$until" >"$brief" || { rm -f "$brief"; return 1; }
   local rc=0
   if ((dry)); then
     echo "PLAN reflection: would queue reflection-$night (refactor, specs_and_docs) with this brief:"
@@ -123,6 +127,29 @@ spl_reflection_discussion() {
   [[ "$v" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]] ||
     { do_log "FATAL reflection: cnf env.rhythm.reflection_discussion in $cnf must be a live topic's uuid, got: '${v:0:80}'" >&2; return 1; }
   echo "$v"
+}
+
+# spl_reflection_origin_topics <gather file> <backlog topic>: the topics of the
+# night's owner messages (section 4), newest first, that a lane's issue may
+# link as the discussion it came from (SPL-5829): the commit-links gate passes
+# a commit only when its issue links a discussion other than the workspace's
+# backlog topic (owner HUM-10, t1 ef94396b msg 61bf7791), and cnf
+# reflection_discussion IS that topic, so a row lane filed on it alone failed
+# its push (SPL-5826). Left out: the backlog topic (cnf and the tenant's
+# default), a version-5 uuid (a relay task's hash, not a discussion) and a
+# topic that is archived or whose archive state could not be read (SPL-5646:
+# never an archived one). One "- <uuid>" line each, else one "(none: ...)".
+spl_reflection_origin_topics() {
+  local t def="" n=0 rc skip=0
+  declare -F spl_lane_issue_default_topic >/dev/null && def="$(spl_lane_issue_default_topic 2>/dev/null)"
+  [[ -n "${LANE_FLEET:-}" ]] || spl_spawn_q_init >/dev/null 2>&1 || true
+  while read -r t; do
+    [[ "$t" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-46-9a-f][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$ && "$t" != "$2" && "$t" != "$def" ]] || continue
+    rc=0; spl_spawn_topic_archived "$t" >/dev/null 2>&1 || rc=$?
+    ((rc == 1)) || { skip=$((skip + 1)); continue; }
+    echo "- $t"; n=$((n + 1))
+  done < <(sed -nE 's/^- msg [^,]+, topic ([^,]+), ([0-9TZ:-]+)$/\2 \1/p' "$1" | sort -r | awk '!seen[$2]++ { print $2 }')
+  ((n)) || echo "(none: no owner message of the night is in a live topic other than the backlog; ${skip} archived or unread)"
 }
 
 # spl_reflection_gate <root> <holder>: the night's date on stdout when this
@@ -387,7 +414,7 @@ e = os.environ
 gather = open(e["GATHER_FILE"], encoding="utf-8").read().rstrip("\n")
 # the gathered file's own headings sit two levels below the brief's section
 gather = "\n".join("##" + l if l.startswith("#") else l for l in gather.splitlines())
-for k, v in {"NIGHT": e["NIGHT"], "SINCE": e["SINCE"], "UNTIL": e["UNTIL"], "DISCUSSION": e["DISCUSSION"],
+for k, v in {"ORIGIN_TOPICS": e.get("ORIGIN_TOPICS") or "(none: not gathered)", "NIGHT": e["NIGHT"], "SINCE": e["SINCE"], "UNTIL": e["UNTIL"], "DISCUSSION": e["DISCUSSION"],
              "GATHER_FILE": e["GATHER_FILE"], "GATHER": gather}.items():
     s = s.replace("{" + k + "}", v)
 sys.stdout.write(s)

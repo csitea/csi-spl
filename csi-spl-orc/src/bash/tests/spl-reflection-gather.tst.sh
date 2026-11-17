@@ -63,6 +63,14 @@
 #      not count; SPL-70 is not named by SPL-703. Red control: the same issue
 #      with its live lane taken out of the lane map is listed. A lane map read
 #      LOCAL-ONLY is one "(not read" line and no issue line
+#  17. the brief lists the night's live origin topics (SPL-5829): the
+#      topics of section 4 newest first, once each, without the backlog
+#      (cnf) topic, an archived one, one whose archive state is unread and a
+#      relay hash; it binds each proposed row to a Discussion: line of its
+#      own, never the backlog alone, and the lane to link its origin topics.
+#      Red control: master's template renders none, so a lane on it links
+#      only the backlog topic and its push fails commit-links (SPL-5826).
+#      A night with no live owner topic is one (none line
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -373,6 +381,52 @@ reset; run "$NIGHT_NOW" LANES_JSON="$T/lanes-local.json"
 got="$(s7)"
 [[ "$got" == "(not read: the fleet lane map (do_spl_lane_map; LOCAL-ONLY is not read): hub: unreachable)" ]] &&
   pass "16. a lane map read LOCAL-ONLY: one (not read line, no issue line" || fail "16. local-only: $got"
+
+# --- 17. the brief lists the live origin topics, never the backlog alone (SPL-5829)
+LIVE_OLD=44444444-0000-4000-8000-000000000004
+LIVE_NEW=55555555-0000-4000-8000-000000000005
+ARCH=66666666-0000-4000-8000-000000000006
+UNREAD=77777777-0000-4000-8000-000000000007
+RELAY=88888888-0000-5000-8000-000000000008
+printf '%s\t%s\t%s\n' "$M1" "$LIVE_OLD" 2026-01-15T05:00:00Z "$M1" "$DISC" 2026-01-15T06:00:00Z "$M1" "$ARCH" 2026-01-15T07:00:00Z \
+  "$M1" "$RELAY" 2026-01-15T08:00:00Z "$M1" "$UNREAD" 2026-01-15T09:00:00Z "$M2" "$LIVE_NEW" 2026-01-15T10:00:00Z \
+  "$M2" "$LIVE_NEW" 2026-01-15T11:00:00Z >"$T/owner-origin.tsv"
+cat >"$T/bin/archived" <<EOF2
+#!/bin/bash
+echo "\$1" >>"$T/archived.log"
+case "\$1" in
+  $ARCH) echo '{"lanes": [], "topic_archived_at": "2026-01-14T00:00:00Z"}' ;;
+  $UNREAD) echo 'hub: 503' ;;
+  *) echo '{"lanes": []}' ;;
+esac
+EOF2
+chmod +x "$T/bin/archived"
+# origin_of BRIEF: the uuids of its "## Origin topics" section other than the
+# backlog topic, the discussions a lane's issue may link besides the fallback.
+origin_of() { sed -n '/^## Origin topics$/,/^## /p' "$1" | grep -oE '^- [0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$' | cut -c3- | grep -vx "$DISC" | tr '\n' ' '; }
+cp "$T/owner.tsv" "$T/owner.keep"; cp "$T/owner-origin.tsv" "$T/owner.tsv"
+reset; rm -f "$T/archived.log"; run "$NIGHT_NOW" DRY_RUN=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived"
+B="$T/briefs/$SLUG.md"
+[[ $rc == 0 && "$(origin_of "$B")" == "$LIVE_NEW $LIVE_OLD " ]] && grep -qx "Discussion: $DISC" "$B" &&
+  pass "17. the brief lists the live origin topics newest first, once each; the backlog, an archived, an unread and a relay-hash topic are left out" ||
+  fail "17. origin topics: rc=$rc '$(origin_of "$B")' $(sed -n '/^## Origin topics$/,/^## Do$/p' "$B" 2>/dev/null) $(tail -3 "$T/out")"
+! grep -qx "$RELAY" "$T/archived.log" 2>/dev/null && ! grep -qx "$DISC" "$T/archived.log" 2>/dev/null &&
+  pass "17. the backlog and a relay hash are not even read for their archive state" || fail "17. archive reads: $(cat "$T/archived.log")"
+grep -q "Never \`$DISC\` alone" "$B" && grep -q '`Discussion: <topic>` line naming the live topic it came from' "$B" &&
+  grep -q 'spool issue link --ref <your key> --discussion <topic>' "$B" &&
+  pass "17. the brief binds each row to a Discussion: line of its own and the lane to link its origin topics" || fail "17. row rule missing"
+# red control: master's template (no Origin topics section) names no origin
+# topic, so a lane on it links only the backlog
+sed '/^## Origin topics$/,/^## Do$/{/^## Do$/!d}' "$TPL" >"$T/master.tpl.md"
+reset; run "$NIGHT_NOW" DRY_RUN=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived" REFLECTION_TPL="$T/master.tpl.md"
+[[ -s "$T/master.tpl.md" && -z "$(origin_of "$T/briefs/$SLUG.md")" ]] && [[ "$(disc_of "$T/briefs/$SLUG.md")" == "$DISC" ]] &&
+  pass "17. red control: master's template names no origin topic, only the backlog $DISC" || fail "17. red control did not go red: '$(origin_of "$T/briefs/$SLUG.md")'"
+# no live owner topic in the night: one (none line, the fallback stays
+printf '%s\t%s\t%s\n' "$M1" "$DISC" 2026-01-15T06:00:00Z "$M1" "$ARCH" 2026-01-15T07:00:00Z >"$T/owner.tsv"
+reset; run "$NIGHT_NOW" DRY_RUN=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived"
+[[ $rc == 0 && -z "$(origin_of "$T/briefs/$SLUG.md")" ]] && grep -qx '(none: no owner message of the night is in a live topic other than the backlog; 1 archived or unread)' "$T/briefs/$SLUG.md" &&
+  pass "17. no live owner topic: one (none line, the lane still queued on the fallback" || fail "17. none: rc=$rc $(sed -n '/^## Origin topics$/,/^## Do$/p' "$T/briefs/$SLUG.md" 2>/dev/null)"
+cp "$T/owner.keep" "$T/owner.tsv"
 
 # --- 13. the owner SQL on a REAL Postgres: an admin owner listed, a tester not ------
 # (SPL-5460: prd t1's owner holds role admin, not owner; the old role = 'owner'

@@ -668,11 +668,26 @@ _pp_part_api() {
   _pp_load_read
   SPL_API_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_budget _pp_part_api)" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"
 }
+# On the base-ref tree it runs only the files that failed on the tree
+# (_PP_BASE_ONLY, from _pp_run) through the runner's IAC_TEST_ONLY: the verdict
+# compares only the tree's failures, and the whole suite again cost 189..203 s
+# for them (p12-02). The runner exits 2 on a name with no file, so a file the
+# tree added is dropped (it reads NEW, right: it cannot fail on trunk). With no
+# such file left it runs the whole suite, as before.
 _pp_part_iac() {
+  local t="$1/csi-spl-iac/src/bash/tests" only="" f
+  local -a envv=(env)
   # Read the load in this shell. $(_pp_budget) is a subshell, so a read there
   # never reaches the TIMED OUT note (api and orc already read here).
   _pp_load_read
-  IAC_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_budget _pp_part_iac)" bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"
+  if [[ -n "${_PP_BASE_ONLY:-}" && "$1" != "${_PP_TOP:-}" ]]; then
+    for f in $_PP_BASE_ONLY; do [[ -f "$t/$f" ]] && only+="${only:+ }$f"; done
+    if [[ -n "$only" ]]; then
+      echo "pre-push iac: the trunk re-check runs only the files that failed on your tree: $only"
+      envv+=(IAC_TEST_ONLY="$only")
+    fi
+  fi
+  IAC_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_budget _pp_part_iac)" "${envv[@]}" bash "$t/run-all-tests.sh"
 }
 # An orc-only push ran no orc test, and orc was the real red in 7 of the 19 red
 # workflow 10 runs among the last 100 on master (refactor round 5, action 07).
@@ -1027,16 +1042,18 @@ _pp_record() {  # <label> <STAT> <secs>
   _PP_NAMES+=("$1"); _PP_STAT+=("$2"); _PP_SECS+=("$3")
 }
 
-# The suite files a tree signature names (its `suite <file>` items), space
-# separated, for the base re-check to run alone (_PP_BASE_ONLY). Empty when it
-# names none, or names one that is not a plain *.tst.sh name (the runner's
-# live-spool-root line reads `suite a`): then the base runs the whole part.
+# The suite files a tree signature names (its `suite <file>` items, and the
+# iac runner's `timeout <file>`: a file it killed prints no FAILED: line),
+# space separated, for the base re-check to run alone (_PP_BASE_ONLY). Empty
+# when it names none, or names one that is not a plain *.tst.sh name (the
+# runner's live-spool-root line reads `suite a`): then the base runs the whole part.
 _pp_sig_suites() {  # <tree-sig>
-  local item out=""
+  local item f out=""
   while IFS= read -r item; do
-    [[ "$item" == "suite "* ]] || continue
-    [[ "${item#suite }" =~ ^[A-Za-z0-9._-]+\.tst\.sh$ ]] || return 0
-    out+="${out:+ }${item#suite }"
+    [[ "$item" == "suite "* || "$item" == "timeout "* ]] || continue
+    f="${item#* }"
+    [[ "$f" =~ ^[A-Za-z0-9._-]+\.tst\.sh$ ]] || return 0
+    out+="${out:+ }$f"
   done <<<"$1"
   printf '%s' "$out"
 }

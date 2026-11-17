@@ -29,8 +29,10 @@
 #      the step's ONE provider line, so the six other resources stay on the
 #      default provider (the csi-spl-all SA): R7 W1, c-060 b2f7d59e; and
 #      that default provider carries no credentials, access_token or
-#      impersonate_service_account, so do_tf_init's key (the csi-spl-all SA)
-#      is what it runs as (R7 W1, c-070 124808a2).
+#      impersonate_service_account (nor an external_credentials block, in
+#      any header form), so do_tf_init's key (the csi-spl-all SA) is what it
+#      runs as (R7 W1, c-070 124808a2; W1/W2/N2, c-245 854db92c), and the
+#      step has no *.tf.json, which these checks do not read.
 #   2b. the billing-account grants: for_each over the ids of
 #      var.billing_account_ids, which has no default and refuses an empty or
 #      malformed value (the ids are never committed); no id literal in a .tf.
@@ -82,9 +84,13 @@ no_billing_grant() {
 # export_source vars, through google.export_source; that alias runs on the
 # export project's own key (pathexpand, no literal home); no project-level
 # dataViewer; no other resource names a provider, and the default (unaliased)
-# provider names no identity of its own
+# provider names no identity of its own: its block is found by any header
+# form (quoted or bare label, indented, single-line) and read to its matching
+# brace, and an identity is an attribute or a nested block (external_credentials);
+# a *.tf.json in the step (never read by these checks) fails it
 dataset_grant_as_source() {
   local all
+  compgen -G "$1/*.tf.json" >/dev/null && return 1
   all=$(cat "$1"/*.tf)
   awk '/^resource "google_bigquery_dataset_iam_member" "billing_export_viewer"/ { r = 1 }
        r && /provider *= *google\.export_source$/ { p = 1 }
@@ -99,9 +105,16 @@ dataset_grant_as_source() {
        v && /^}/ { v = 0 } END { exit !(j && c) }' <<<"$all" \
     && awk '/^resource "/ { r = 1; n = $0 } r && /^[[:space:]]*provider[[:space:]]*=/ { c++; if (n !~ /"billing_export_viewer"/) bad = 1 }
        r && /^}/ { r = 0 } END { exit !(c == 1 && !bad) }' <<<"$all" \
-    && awk '/^provider "google"/ { v = 1; a = 0; i = 0 } v && /^[[:space:]]*alias[[:space:]]*=/ { a = 1 }
-       v && /^[[:space:]]*(credentials|access_token|impersonate_service_account)[[:space:]]*=/ { i = 1 }
-       v && /^}/ { v = 0; if (!a && i) bad = 1 } END { exit bad }' <<<"$all" \
+    && awk 'function scan(s) {
+         if (s !~ /^[[:space:]]*(#|\/\/)/) {
+           if (s ~ /(^|[{[:space:]])alias[[:space:]]*=/) a = 1
+           if (s ~ /(^|[{[:space:]])(credentials|access_token|impersonate_service_account|external_credentials)[[:space:]]*[={]/) i = 1
+         }
+         d += gsub(/[{]/, "{", s) - gsub(/[}]/, "}", s)
+         if (d <= 0) { v = 0; if (!a && i) bad = 1 } }
+       v { scan($0); next }
+       /^[[:space:]]*provider[[:space:]]+"?google"?[[:space:]]*[{]/ { v = 1; a = 0; i = 0; d = 0; s = $0; sub(/^[^{]*/, "", s); scan(s) }
+       END { exit bad }' <<<"$all" \
     && ! awk '/^resource "google_project_iam_[a-z]+"/ { r = 1 } r && /bigquery\.dataViewer/ { f = 1 } r && /^}/ { r = 0 } END { exit !f }' <<<"$all"
 }
 # billing_grants_from_var <dir> - both members for_each the ids of the
@@ -195,6 +208,21 @@ dataset_grant_as_source "$c" && fail "control: the SA moved onto google.export_s
 c="$tmp/defcred"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; sed -i '0,/^  region  = var.gcp_region$/s##  region  = var.gcp_region\n  credentials = file(pathexpand("~/.gcp/.${var.org}/key-${var.export_source_project}.json"))#' "$c/01-providers.tf"
 awk '/^provider "google" \{/ { v++ } v == 1 && /^  credentials = / { f = 1 } END { exit !f }' "$c/01-providers.tf" || fail "control setup: the default provider plant did not apply"
 dataset_grant_as_source "$c" && fail "control: the export project's key on the default provider was NOT caught" || pass "control: the export project's key on the default provider is caught"
+# W1/W2 (c-245): each plant is an override file holding a default provider
+# that names an identity; one commented identity must stay green
+plant_default() {
+  c="$tmp/$1"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; printf '%s\n' "${@:3}" >"$c/99-planted_override.tf"
+  dataset_grant_as_source "$c" && fail "control: $2 was NOT caught" || pass "control: $2 is caught"
+}
+plant_default bare "a bare provider google label with credentials" 'provider google {' '  credentials = "x"' '}'
+plant_default oneline "a single-line default provider with credentials" 'provider "google" { credentials = file("x") }'
+plant_default indent "an indented default provider header with credentials" '  provider "google" {' '  credentials = "x"' '  }'
+plant_default extblk "an external_credentials block on the default provider" 'provider "google" {' '  external_credentials {' '    audience = "x"' '  }' '}'
+plant_default exteq "an external_credentials attribute on the default provider" 'provider "google" {' '  external_credentials = {}' '}'
+c="$tmp/cmt"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; printf '%s\n' 'provider "google" {' '  # credentials = "x"' '}' >"$c/99-planted_override.tf"
+dataset_grant_as_source "$c" && pass "control: a commented credentials line stays green" || fail "control: a commented credentials line turned red"
+c="$tmp/json"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; printf '%s\n' '{"provider":{"google":{"credentials":"x"}}}' >"$c/01-providers_override.tf.json"
+dataset_grant_as_source "$c" && fail "control: a *.tf.json in the step was NOT caught" || pass "control: a *.tf.json in the step is caught"
 c="$tmp/lit"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; sed -i 's/billing_account_id = each.value/billing_account_id = "0A1B2C-3D4E5F-678901"/' "$c/03-sa.tf"
 billing_grants_from_var "$c" && fail "control: a planted billing account id literal was NOT caught" || pass "control: a planted billing account id literal is caught"
 c="$tmp/def"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; sed -i '/^variable "billing_account_ids"/a\  default = ""' "$c/02-variables.tf"

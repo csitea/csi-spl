@@ -47,7 +47,7 @@ baks() { ls "$T"/proj/dat/terraform/s1-remote-bucket/terraform.*.bak.tfstate 2>/
 
 # --- 1. default = dry run -----------------------------------------------------------
 run_action; rc=$?
-[[ $rc -eq 0 ]] && grep -qx "plan -destroy $vars" "$T/calls.log" \
+[[ $rc -eq 0 ]] && grep -qx "plan -destroy -input=false $vars" "$T/calls.log" \
   && pass "default: plan -destroy with the step's var file" || fail "default: rc=$rc calls=$(calls) out=$(cat "$T/out.log")"
 ! grep -q '^destroy' "$T/calls.log" && pass "default: no destroy runs" || fail "default destroyed: $(calls)"
 [[ "$(cat "$saved")" == before && "$(baks)" -eq 0 ]] \
@@ -59,7 +59,7 @@ run_action DRY_RUN=1
 
 # --- 2. DRY_RUN=0 destroys and saves the state ---------------------------------------
 run_action DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && grep -qx "destroy -auto-approve $vars" "$T/calls.log" \
+[[ $rc -eq 0 ]] && grep -qx "destroy -auto-approve -input=false $vars" "$T/calls.log" \
   && pass "DRY_RUN=0: destroy -auto-approve with the step's var file" || fail "DRY_RUN=0: rc=$rc calls=$(calls)"
 init_at=$(grep -n '^init -upgrade$' "$T/calls.log" | cut -d: -f1); d_at=$(grep -n '^destroy' "$T/calls.log" | cut -d: -f1)
 [[ -n "$init_at" && -n "$d_at" && "$init_at" -lt "$d_at" ]] && pass "DRY_RUN=0: the init comes first" || fail "order: $(calls)"

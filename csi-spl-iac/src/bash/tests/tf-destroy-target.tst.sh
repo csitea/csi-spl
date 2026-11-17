@@ -42,7 +42,7 @@ vars="-var-file=$T/app/o-a-cnf/o-a/dev/tf/s1.vars.tfvars"
 # --- 1. default = dry run -----------------------------------------------------------
 run_action; rc=$?
 plans=$(grep '^plan -destroy' "$T/calls.log")
-[[ $rc -eq 0 && "$plans" == "plan -destroy $vars -lock=false -target=x.a"$'\n'"plan -destroy $vars -lock=false -target=x.b" ]] \
+[[ $rc -eq 0 && "$plans" == "plan -destroy -input=false $vars -lock=false -target=x.a"$'\n'"plan -destroy -input=false $vars -lock=false -target=x.b" ]] \
   && pass "default: plan -destroy -target=<t> once per target" || fail "default: rc=$rc calls=$(calls) out=$(cat "$T/out.log")"
 ! grep -q '^apply' "$T/calls.log" && pass "default: no apply runs" || fail "default applied: $(calls)"
 grep -q 'DRY_RUN: nothing destroyed; DRY_RUN=0 destroys' "$T/out.log" \
@@ -53,7 +53,7 @@ run_action DRY_RUN=1
 # --- 2. DRY_RUN=0 destroys each target, nothing else ----------------------------------
 run_action DRY_RUN=0; rc=$?
 applies=$(grep '^apply' "$T/calls.log")
-[[ $rc -eq 0 && "$applies" == "apply -destroy -auto-approve $vars -lock=false -target=x.a"$'\n'"apply -destroy -auto-approve $vars -lock=false -target=x.b" ]] \
+[[ $rc -eq 0 && "$applies" == "apply -destroy -auto-approve -input=false $vars -lock=false -target=x.a"$'\n'"apply -destroy -auto-approve -input=false $vars -lock=false -target=x.b" ]] \
   && pass "DRY_RUN=0: apply -destroy -target=<t> once per target, nothing untargeted" || fail "DRY_RUN=0: rc=$rc calls=$(calls)"
 init_at=$(grep -n '^init -backend-config=.*/s1.backend-config.tfvars ' "$T/calls.log" | cut -d: -f1)
 [[ -n "$init_at" && "$init_at" -lt "$(grep -n '^apply' "$T/calls.log" | sed -n 1p | cut -d: -f1)" ]] \

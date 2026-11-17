@@ -28,12 +28,13 @@ printf '#!/bin/bash\necho ANSIBLE-RAN >>"%s"\n' "$T/ansible.out" >"$ANSIBLE"; ch
 # run_action <file> <function> <argv-log> -> runs one action under the stubs
 run_action() {
   env -i PATH="$T/bin:/usr/bin:/bin" STUB_TF_ARGV="$3" ACTION_FILE="$1" RUN_DIR="$R" \
-      PROJ_PATH="$P" APP_PATH="$A" ORG=csi APP=spl ENV=dev STEP=000-step FN="$2" bash -c '
+      PROJ_PATH="$P" APP_PATH="$A" ORG=csi APP=spl ENV=dev STEP=000-step FN="$2" MASK_LIB="$PROJ_ROOT/lib/bash/funcs/tf-log-mask.func.sh" bash -c '
     set -u
     do_log() { echo "$*"; }
     do_simple_log() { echo "$*"; }
     sleep() { :; }
     do_tf_init() { tf_run_path="$RUN_DIR"; tf_proj=000-step; }
+    source "$MASK_LIB"
     source "$ACTION_FILE"
     "$FN"
   ' >/dev/null 2>&1

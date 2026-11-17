@@ -73,6 +73,27 @@ func (s *Postgres) ClaimFallback(ctx context.Context, d FallbackDelivery) (bool,
 	return tag.RowsAffected() == 1, nil
 }
 
+// The conjuncts the three fallback queries below share, written once so a
+// fix to one cannot drift from the others (refactor round 34, row 01).
+const (
+	// fallbackHumanPostSQL: a signed browser post by a person, into a channel
+	// or to an agent (a DM to a person or a guest, or ALL-0, never falls
+	// back), in a channel that did not opt out (rdb 0068).
+	fallbackHumanPostSQL = `
+		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
+		  AND (m.channel IS NOT NULL OR (m.to_id NOT LIKE 'HUM-%' AND m.to_id NOT LIKE 'GST-%' AND m.to_id <> 'ALL-0'))
+		  AND NOT EXISTS (SELECT 1 FROM channels c
+		                  WHERE c.tenant_id = m.tenant_id AND c.channel_id = m.channel AND c.no_fallback)`
+	// fallbackNoAgentReplySQL: no later message in the same topic from a
+	// non-human sender (an agent posts through its desk).
+	fallbackNoAgentReplySQL = `
+		  AND NOT EXISTS (SELECT 1 FROM messages r
+		                  WHERE r.tenant_id = m.tenant_id AND r.task_id = m.task_id
+		                    AND r.received_at > m.received_at
+		                    AND r.from_box <> 'box-wui'
+		                    AND r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%')`
+)
+
 // UnheardPosts walks messages_received (tenant_id, received_at) over a
 // window of minutes; the NOT EXISTS probes are primary-key lookups. A DM to
 // a person and a channel that opted out (rdb 0068) never fall back, so they
@@ -80,11 +101,7 @@ func (s *Postgres) ClaimFallback(ctx context.Context, d FallbackDelivery) (bool,
 func (s *Postgres) UnheardPosts(ctx context.Context, tenant string, since, until time.Time, limit int) ([]Queued, error) {
 	var out []Queued
 	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env, m.task_id::text FROM messages m
-		WHERE m.tenant_id = $1 AND m.received_at >= $2 AND m.received_at < $3
-		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
-		  AND (m.channel IS NOT NULL OR (m.to_id NOT LIKE 'HUM-%' AND m.to_id NOT LIKE 'GST-%' AND m.to_id <> 'ALL-0'))
-		  AND NOT EXISTS (SELECT 1 FROM channels c
-		                  WHERE c.tenant_id = m.tenant_id AND c.channel_id = m.channel AND c.no_fallback)
+		WHERE m.tenant_id = $1 AND m.received_at >= $2 AND m.received_at < $3`+fallbackHumanPostSQL+`
 		  AND NOT EXISTS (SELECT 1 FROM fallback_deliveries f
 		                  WHERE f.tenant_id = m.tenant_id AND f.msg_id = m.msg_id)
 		  AND NOT EXISTS (SELECT 1 FROM deliveries d
@@ -115,18 +132,9 @@ func (s *Postgres) UnansweredPosts(ctx context.Context, tenant string, since, un
 	var out []Queued
 	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env, m.task_id::text FROM messages m
 		LEFT JOIN topic_priorities tp ON tp.tenant_id = m.tenant_id AND tp.task_id = m.task_id
-		WHERE m.tenant_id = $1 AND m.received_at >= $2 AND m.received_at < $3
-		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
-		  AND (m.channel IS NOT NULL OR (m.to_id NOT LIKE 'HUM-%' AND m.to_id NOT LIKE 'GST-%' AND m.to_id <> 'ALL-0'))
-		  AND NOT EXISTS (SELECT 1 FROM channels c
-		                  WHERE c.tenant_id = m.tenant_id AND c.channel_id = m.channel AND c.no_fallback)
+		WHERE m.tenant_id = $1 AND m.received_at >= $2 AND m.received_at < $3`+fallbackHumanPostSQL+`
 		  AND NOT EXISTS (SELECT 1 FROM fallback_deliveries f
-		                  WHERE f.tenant_id = m.tenant_id AND f.msg_id = m.msg_id)
-		  AND NOT EXISTS (SELECT 1 FROM messages r
-		                  WHERE r.tenant_id = m.tenant_id AND r.task_id = m.task_id
-		                    AND r.received_at > m.received_at
-		                    AND r.from_box <> 'box-wui'
-		                    AND r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%')
+		                  WHERE f.tenant_id = m.tenant_id AND f.msg_id = m.msg_id)`+fallbackNoAgentReplySQL+`
 		ORDER BY coalesce(tp.priority, $5), m.received_at, m.msg_id LIMIT $4`, []any{tenant, since, until, limit, TopicPriorityDefault},
 		func(rows pgx.Rows) error {
 			var q Queued
@@ -149,16 +157,7 @@ func (s *Postgres) ReescalatablePosts(ctx context.Context, tenant string, since,
 	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env, f.agent_id, m.task_id::text FROM messages m
 		JOIN fallback_deliveries f ON f.tenant_id = m.tenant_id AND f.msg_id = m.msg_id
 		WHERE m.tenant_id = $1 AND m.received_at >= $6 AND m.received_at < $3
-		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
-		  AND f.delivered_at < $2 AND f.attempts < $5
-		  AND (m.channel IS NOT NULL OR (m.to_id NOT LIKE 'HUM-%' AND m.to_id NOT LIKE 'GST-%' AND m.to_id <> 'ALL-0'))
-		  AND NOT EXISTS (SELECT 1 FROM channels c
-		                  WHERE c.tenant_id = m.tenant_id AND c.channel_id = m.channel AND c.no_fallback)
-		  AND NOT EXISTS (SELECT 1 FROM messages r
-		                  WHERE r.tenant_id = m.tenant_id AND r.task_id = m.task_id
-		                    AND r.received_at > m.received_at
-		                    AND r.from_box <> 'box-wui'
-		                    AND r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%')
+		  AND f.delivered_at < $2 AND f.attempts < $5`+fallbackHumanPostSQL+fallbackNoAgentReplySQL+`
 		ORDER BY f.delivered_at, m.msg_id LIMIT $4`, []any{tenant, escalatedBefore, until, limit, maxAttempts, since},
 		func(rows pgx.Rows) error {
 			var q Queued

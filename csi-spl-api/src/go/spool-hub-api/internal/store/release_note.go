@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // The release notes table (spec 065 section 4.2, rdb 0108): one row per trunk
@@ -45,9 +46,10 @@ const (
 	ReleaseAreaMax      = 64
 	ReleaseTrailerMax   = 500 // one Lay-* / Tech-* line; the rule asks ~200
 	ReleaseLinkMax      = 300
-	ReleaseBatchMax     = 500 // rows one put takes at most
-	ReleaseVersionsMax  = 50  // versions one list page carries at most (spec 7.1 item 4)
-	ReleaseIssueKeysMax = 20  // issue keys one row names at most (rdb 0261)
+	ReleaseBatchMax     = 500  // rows one put takes at most
+	ReleaseVersionsMax  = 50   // versions one list page carries at most (spec 7.1 item 4)
+	ReleaseIssueKeysMax = 20   // issue keys one row names at most (rdb 0261)
+	ReleaseBodyMax      = 2000 // a trailer-free commit's body (rdb 0267, releases-projects.md A6)
 )
 
 // ErrAmbiguousRef: a sha prefix matches more than one release note.
@@ -83,8 +85,12 @@ type ReleaseNote struct {
 	State       string    `json:"state"`
 	Reverts     string    `json:"reverts,omitempty"`
 	Link        string    `json:"link"`
-	IngestedAt  time.Time `json:"ingested_at"`
-	Seq         int       `json:"seq,omitempty"`
+	// Body is a trailer-free commit's message after its subject (rdb 0267,
+	// releases-projects.md A6 and section 5): the row a workspace repo stores
+	// with state skip when the trailer rule does not bind it. "" otherwise.
+	Body       string    `json:"body,omitempty"`
+	IngestedAt time.Time `json:"ingested_at"`
+	Seq        int       `json:"seq,omitempty"`
 	// IssueTenant is the workspace whose issues IssueKeys are (rdb 0261,
 	// SPL-4789); "" until an ingest names it. IssueKeys are the keys of its
 	// issue prefix the message cites, subject first (ReleaseIssueKeys).
@@ -147,6 +153,8 @@ func CheckReleaseNote(n ReleaseNote) string {
 		return "state must be one of " + strings.Join(ReleaseNoteStates, ", ")
 	case n.Reverts != "" && (n.State != "revert" || !releaseSHARe.MatchString(n.Reverts)):
 		return "reverts must be a full sha, on a revert row only"
+	case len(n.Body) > ReleaseBodyMax || !utf8.ValidString(n.Body):
+		return "body must be valid text of up to 2000 bytes"
 	case n.Link != "" && (len(n.Link) > ReleaseLinkMax || !releaseLinkRe.MatchString(n.Link)):
 		return "link must be an https URL"
 	case len(n.IssueTenant) > 64:

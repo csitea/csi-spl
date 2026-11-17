@@ -102,7 +102,10 @@ func TestReleaseNotesIngestAndRead(t *testing.T) {
 		n["tech_why"] != "The read call was only sent on scroll-to-bottom." {
 		t.Fatalf("full note: %v", n)
 	}
-	want := map[string]string{"b": "skip", "c": "missing", "d": "missing", "e": "revert"}
+	// tid is not the operator workspace, so a commit with no trailer at all
+	// (d) is skip (releases-projects.md section 5, row B-6); the operator
+	// workspace's missing: TestReleaseNotesTrailerRuleByRepoRow.
+	want := map[string]string{"b": "skip", "c": "missing", "d": "skip", "e": "revert"}
 	for c, st := range want {
 		if got := noteOf(t, e, tid, hum, releaseSHA(c)); got["state"] != st {
 			t.Fatalf("%s: state %v, want %s", c, got["state"], st)

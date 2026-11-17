@@ -136,7 +136,12 @@ func (rn *releaseNotes) handleIngest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_json", err.Error())
 		return
 	}
-	rows, res := rn.buildRows(body.Notes, body.IssueTenant, prefix)
+	optional, err := rn.trailersOptional(r.Context(), tenant)
+	if err != nil {
+		writeErrCause(w, http.StatusServiceUnavailable, "internal", "the operator workspace is not readable", err)
+		return
+	}
+	rows, res := rn.buildRows(body.Notes, body.IssueTenant, prefix, optional)
 	if err := rs.PutReleaseNotes(r.Context(), tenant, repo, rows, rn.s.o.Now()); err != nil {
 		rn.s.o.Log.Error().Err(err).Int("rows", len(rows)).Msg("release notes ingest")
 		writeErr(w, http.StatusServiceUnavailable, "internal", "release notes not stored")
@@ -166,13 +171,25 @@ func (rn *releaseNotes) issuePrefix(ctx context.Context, tenant string) (string,
 	return p, nil
 }
 
+// trailersOptional is whether the trailer rule (spec 065) does not bind the
+// repos of tenant, the workspace of the repo row the ingest resolved: it binds
+// the operator workspace's repos only (releases-projects.md section 5, the
+// interim rule of row B-6; a per-repo column is a later migration). It reads
+// the row's workspace, never the repo's name.
+func (rn *releaseNotes) trailersOptional(ctx context.Context, tenant string) (bool, error) {
+	op, err := rn.s.operatorTenant(ctx)
+	return tenant != op, err
+}
+
 // buildRows turns the wire rows into checked, filtered store rows, each
-// naming the issues of tenant (key prefix prefix) its message cites.
-func (rn *releaseNotes) buildRows(in []releaseNoteIn, tenant, prefix string) ([]store.ReleaseNote, releaseIngestResult) {
+// naming the issues of tenant (key prefix prefix) its message cites. Every
+// row the ingest stores passes here, so none skips the hygiene filter;
+// optional is trailersOptional of the rows' workspace.
+func (rn *releaseNotes) buildRows(in []releaseNoteIn, tenant, prefix string, optional bool) ([]store.ReleaseNote, releaseIngestResult) {
 	res := releaseIngestResult{States: map[string]int{}, Rejected: []releaseRejected{}}
 	rows := make([]store.ReleaseNote, 0, len(in))
 	for _, wn := range in {
-		n := wn.row()
+		n := wn.row(optional)
 		if tenant != "" {
 			n.IssueTenant, n.IssueKeys = tenant, store.ReleaseIssueKeys(prefix, wn.Message)
 		}

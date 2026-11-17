@@ -83,7 +83,10 @@ func clip(s string, max int) string {
 }
 
 // row is the store row: parsed, overlaid, clipped and given its state.
-func (in releaseNoteIn) row() store.ReleaseNote {
+// optional: the trailer rule does not bind the row's repo (trailersOptional),
+// so a commit with no Lay-* / Tech-* trailer at all is state skip and keeps
+// its body (releases-projects.md section 5, A6).
+func (in releaseNoteIn) row(optional bool) store.ReleaseNote {
 	subject, _, _ := strings.Cut(strings.TrimSpace(in.Message), "\n")
 	subject = pick(in.Subject, strings.TrimSpace(subject))
 	kind, area := "", in.Area
@@ -108,11 +111,25 @@ func (in releaseNoteIn) row() store.ReleaseNote {
 	}
 	if n.State == "" {
 		n.State = releaseState(n, in.DocOnly, strings.EqualFold(pick(note["release-note"], msg["release-note"]), "skip"))
+		if optional && n.State == "missing" && !hasLayTech(msg) && !hasLayTech(note) {
+			_, body, _ := strings.Cut(strings.TrimSpace(in.Message), "\n")
+			n.State, n.Body = "skip", clip(strings.TrimSpace(body), store.ReleaseBodyMax)
+		}
 	}
 	if n.State != "revert" {
 		n.Reverts = ""
 	}
 	return n
+}
+
+// hasLayTech is whether trailers holds any Lay-* / Tech-* key.
+func hasLayTech(trailers map[string]string) bool {
+	for k := range trailers {
+		if strings.HasPrefix(k, "lay-") || strings.HasPrefix(k, "tech-") {
+			return true
+		}
+	}
+	return false
 }
 
 // releaseState derives the state (spec 4.2, 5.2): a revert, then an explicit
@@ -163,7 +180,7 @@ func newReleaseFilter(extra string, bad func(string, error)) releaseFilter {
 // apply redacts every shown text field of n; true when anything matched.
 func (f releaseFilter) apply(n *store.ReleaseNote) bool {
 	hit := false
-	for _, p := range []*string{&n.Subject, &n.Area, &n.LayWhat, &n.LayHow, &n.LayWhy, &n.TechWhat, &n.TechHow, &n.TechWhy} {
+	for _, p := range []*string{&n.Subject, &n.Area, &n.LayWhat, &n.LayHow, &n.LayWhy, &n.TechWhat, &n.TechHow, &n.TechWhy, &n.Body} {
 		for _, re := range f {
 			if re.MatchString(*p) {
 				*p, hit = re.ReplaceAllLiteralString(*p, releaseRedacted), true

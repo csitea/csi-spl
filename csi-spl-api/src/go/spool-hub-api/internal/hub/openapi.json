@@ -16612,6 +16612,94 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/workspaces/{id}/repos": {
+      "put": {
+        "description": "Spec 143 releases-projects.md 4.5, row B-6: create or update a repo of workspace id under one of its software projects (spec 171's repos route with a required project_slug). A workspace's first repo becomes its primary; is_primary moves the primary to it, false never moves it away. Operator token only, driven by the box action do_workspace_repo_register. 404 unknown_project for a project the workspace lacks; 409 repo_taken when another workspace holds the slug. Answers {workspace, repo_slug, project_slug, is_primary, notes_public}.",
+        "operationId": "putOperatorWorkspaceRepo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "auth_mode": {
+                    "enum": [
+                      "github_app",
+                      "pat_kms",
+                      "public",
+                      "ingest_only"
+                    ],
+                    "type": "string"
+                  },
+                  "is_primary": {
+                    "type": "boolean"
+                  },
+                  "notes_public": {
+                    "type": "boolean"
+                  },
+                  "project_slug": {
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                    "type": "string"
+                  },
+                  "repo_slug": {
+                    "pattern": "^[a-z0-9._-]+/[a-z0-9._-]+$",
+                    "type": "string"
+                  },
+                  "repo_web_url": {
+                    "maxLength": 300,
+                    "type": "string"
+                  },
+                  "trunk_branch": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "repo_slug",
+                  "project_slug",
+                  "repo_web_url"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {workspace, repo_slug, project_slug, is_primary, notes_public}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: repo_taken, another workspace has registered that repo slug"
+          }
+        },
+        "summary": "Register a repo of a workspace's software project (operator)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/zombie-topics": {
       "get": {
         "operationId": "getOperatorZombieTopics",

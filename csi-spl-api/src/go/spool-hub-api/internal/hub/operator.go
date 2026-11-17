@@ -291,6 +291,7 @@ func (s *Server) routeOperator(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /v1/operator/members/{human_id}", s.handleOperatorMemberAccessUntil)
 	s.routeOperatorWorkspaces(mux)  // spec 074: workspace CRUD, operator-workspace admins only
 	s.routeOperatorProjects(mux)    // spec 143 B-5: a workspace's software projects, operator_projects.go
+	s.routeOperatorRepos(mux)       // spec 143 B-6: a workspace's repos, operator_repos.go
 	s.routeAgentCaps(mux)           // spec 147: agent caps by vendor, operator_agent_caps.go
 	s.routeFleetLoad(mux)           // rdb 0118: the instance's fleet load target, same rule
 	s.routeOperatorCalendar(mux)    // HUM-10 b13c164c: an agent's event, calendar_operator.go

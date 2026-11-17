@@ -2308,7 +2308,7 @@
     "hours_norm_hint": "Šīs personas vidējais rādītājs, piem., 7:30. Atstājiet tukšu, lai izmantotu darbvietas vidējo ({workspace}); 0:00 = šai personai vidējā nav. Dienai, kas to pārsniedz, rāda brīdinājumu; nevienu stundu nenoraida.",
     "hours_norm_no_workspace": "vidējā nav",
     "inactive": "neaktīvs",
-    "inactive_hint": "Uzaicināts uz šo darbvietu; aktīvs no pirmās pierakstīšanās."
+    "inactive_hint": "Uzaicināts uz šo darbvietu; aktīvs no pirmās pieteikšanās."
   },
   "contacts": {
     "group": "Kontakti",

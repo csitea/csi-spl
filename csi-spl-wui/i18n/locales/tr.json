@@ -1285,13 +1285,14 @@
         "forbidden": "Kutuları yalnızca çalışma alanı yöneticisi değiştirebilir.",
         "generic": "Kutular kaydedilemedi. Yeniden deneyin.",
         "load": "Kutular yüklenemedi."
-      }
+      },
+      "invite_inactive": "{label} · etkin değil"
     }
   },
   "users": {
     "title": "Kullanıcılar",
     "members": "Üyeler ({n})",
-    "invites": "Bekleyen davetler ({n})",
+    "invites": "Etkin olmayan üyeler, davetli ({n})",
     "no_invites": "Bekleyen davet yok.",
     "loading": "Kullanıcılar yükleniyor…",
     "forbidden": "Kullanıcıları yalnızca bu çalışma alanının yöneticisi yönetebilir.",
@@ -2305,7 +2306,9 @@
     "contact_tag": "rehberde",
     "hours_norm": "Günlük ortalama saat",
     "hours_norm_hint": "Bu kişinin kendi ortalaması, ör. 7:30. Çalışma alanının ortalamasını ({workspace}) kullanmak için boş bırakın; 0:00 = bu kişi için ortalama yok. Bunun üzerindeki bir gün uyarı gösterir; hiçbir saat reddedilmez.",
-    "hours_norm_no_workspace": "ortalama yok"
+    "hours_norm_no_workspace": "ortalama yok",
+    "inactive": "etkin değil",
+    "inactive_hint": "Bu çalışma alanına davet edildi; ilk girişten itibaren etkin."
   },
   "contacts": {
     "group": "Rehber",

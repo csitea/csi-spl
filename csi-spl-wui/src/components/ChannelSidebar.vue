@@ -557,6 +557,8 @@
               <span v-if="p.contactId" class="muted people-row__tag" data-testid="people-contact-tag">{{ t('people.contact_tag') }}</span>
             </NuxtLink>
           </div>
+          <!-- spec 025 section 13: the inactive members (open invites) follow the members -->
+          <LazyPeopleInvitedRows />
           <LazyPeopleContactRows v-if="contactsOn" :rows="peopleGroups.contacts" :show="peopleFilter !== PEOPLE_FILTER_WORKSPACE" @list="contactRows = $event" @refused="contactsRefused = true" />
         </div>
       </div>

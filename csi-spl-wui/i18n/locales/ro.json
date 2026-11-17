@@ -1285,13 +1285,14 @@
         "forbidden": "Doar un administrator al spațiului de lucru poate schimba boxurile.",
         "generic": "Boxurile nu au putut fi salvate. Încercați din nou.",
         "load": "Boxurile nu au putut fi încărcate."
-      }
+      },
+      "invite_inactive": "{label} · inactiv"
     }
   },
   "users": {
     "title": "Utilizatori",
     "members": "Membri ({n})",
-    "invites": "Invitații în așteptare ({n})",
+    "invites": "Membri inactivi, invitați ({n})",
     "no_invites": "Nicio invitație în așteptare.",
     "loading": "Se încarcă utilizatorii…",
     "forbidden": "Doar un administrator al acestui spațiu de lucru poate gestiona utilizatorii.",
@@ -2305,7 +2306,9 @@
     "contact_tag": "contact",
     "hours_norm": "Media orelor pe zi",
     "hours_norm_hint": "Media proprie a acestei persoane, de ex. 7:30. Lasă gol pentru a folosi media spațiului de lucru ({workspace}); 0:00 = fără medie pentru această persoană. O zi peste ea afișează un avertisment; nicio oră nu este refuzată.",
-    "hours_norm_no_workspace": "fără medie"
+    "hours_norm_no_workspace": "fără medie",
+    "inactive": "inactiv",
+    "inactive_hint": "Invitat în acest spațiu de lucru; activ de la prima autentificare."
   },
   "contacts": {
     "group": "Contacte",

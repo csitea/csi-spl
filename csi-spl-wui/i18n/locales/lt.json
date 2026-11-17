@@ -1285,13 +1285,14 @@
         "forbidden": "Dėžes keisti gali tik darbo srities administratorius.",
         "generic": "Nepavyko išsaugoti dėžių. Bandykite dar kartą.",
         "load": "Nepavyko įkelti dėžių."
-      }
+      },
+      "invite_inactive": "{label} · neaktyvus"
     }
   },
   "users": {
     "title": "Naudotojai",
     "members": "Nariai ({n})",
-    "invites": "Laukiantys kvietimai ({n})",
+    "invites": "Neaktyvūs nariai, pakviesti ({n})",
     "no_invites": "Laukiančių kvietimų nėra.",
     "loading": "Įkeliami naudotojai…",
     "forbidden": "Naudotojus gali tvarkyti tik šios darbo srities administratorius.",
@@ -2305,7 +2306,9 @@
     "contact_tag": "kontaktas",
     "hours_norm": "Vidutinis valandų skaičius per dieną",
     "hours_norm_hint": "Šio asmens asmeninis vidurkis, pvz., 7:30. Palikite tuščią, kad būtų naudojamas darbo srities vidurkis ({workspace}); 0:00 = šiam asmeniui vidurkio nėra. Dienai, kuri jį viršija, rodomas įspėjimas; jokios valandos neatmetamos.",
-    "hours_norm_no_workspace": "vidurkio nėra"
+    "hours_norm_no_workspace": "vidurkio nėra",
+    "inactive": "neaktyvus",
+    "inactive_hint": "Pakviestas į šią darbo sritį; aktyvus nuo pirmojo prisijungimo."
   },
   "contacts": {
     "group": "Kontaktai",

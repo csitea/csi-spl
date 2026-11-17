@@ -1285,13 +1285,14 @@
         "forbidden": "Kastes var mainīt tikai darbvietas administrators.",
         "generic": "Kastes neizdevās saglabāt. Mēģiniet vēlreiz.",
         "load": "Kastes neizdevās ielādēt."
-      }
+      },
+      "invite_inactive": "{label} · neaktīvs"
     }
   },
   "users": {
     "title": "Lietotāji",
     "members": "Dalībnieki ({n})",
-    "invites": "Gaidošie uzaicinājumi ({n})",
+    "invites": "Neaktīvi dalībnieki, uzaicināti ({n})",
     "no_invites": "Nav gaidošu uzaicinājumu.",
     "loading": "Ielādē lietotājus…",
     "forbidden": "Lietotājus var pārvaldīt tikai šīs darbvietas administrators.",
@@ -2305,7 +2306,9 @@
     "contact_tag": "kontakts",
     "hours_norm": "Vidējais stundu skaits dienā",
     "hours_norm_hint": "Šīs personas vidējais rādītājs, piem., 7:30. Atstājiet tukšu, lai izmantotu darbvietas vidējo ({workspace}); 0:00 = šai personai vidējā nav. Dienai, kas to pārsniedz, rāda brīdinājumu; nevienu stundu nenoraida.",
-    "hours_norm_no_workspace": "vidējā nav"
+    "hours_norm_no_workspace": "vidējā nav",
+    "inactive": "neaktīvs",
+    "inactive_hint": "Uzaicināts uz šo darbvietu; aktīvs no pirmās pierakstīšanās."
   },
   "contacts": {
     "group": "Kontakti",

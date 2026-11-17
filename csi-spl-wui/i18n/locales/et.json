@@ -1285,13 +1285,14 @@
         "forbidden": "Kaste saab muuta ainult tööruumi administraator.",
         "generic": "Kaste ei õnnestunud salvestada. Proovi uuesti.",
         "load": "Kaste ei õnnestunud laadida."
-      }
+      },
+      "invite_inactive": "{label} · mitteaktiivne"
     }
   },
   "users": {
     "title": "Kasutajad",
     "members": "Liikmed ({n})",
-    "invites": "Ootel kutsed ({n})",
+    "invites": "Mitteaktiivsed liikmed, kutsutud ({n})",
     "no_invites": "Ootel kutseid pole.",
     "loading": "Kasutajate laadimine…",
     "forbidden": "Kasutajaid saab hallata ainult selle tööruumi administraator.",
@@ -2305,7 +2306,9 @@
     "contact_tag": "kontakt",
     "hours_norm": "Keskmine tundide arv päevas",
     "hours_norm_hint": "Selle inimese enda keskmine, nt 7:30. Jäta tühjaks, et kasutada tööruumi keskmist ({workspace}); 0:00 = sellel inimesel keskmist pole. Seda ületava päeva puhul kuvatakse hoiatus; ühtegi tundi ei lükata tagasi.",
-    "hours_norm_no_workspace": "keskmist pole"
+    "hours_norm_no_workspace": "keskmist pole",
+    "inactive": "mitteaktiivne",
+    "inactive_hint": "Kutsutud sellesse tööruumi; aktiivne alates esimesest sisselogimisest."
   },
   "contacts": {
     "group": "Kontaktid",

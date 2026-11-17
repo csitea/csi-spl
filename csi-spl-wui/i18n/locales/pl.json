@@ -1285,13 +1285,14 @@
         "forbidden": "Tylko administrator obszaru roboczego może zmieniać boxy.",
         "generic": "Nie udało się zapisać boxów. Spróbuj ponownie.",
         "load": "Nie udało się wczytać boxów."
-      }
+      },
+      "invite_inactive": "{label} · nieaktywny"
     }
   },
   "users": {
     "title": "Użytkownicy",
     "members": "Członkowie ({n})",
-    "invites": "Oczekujące zaproszenia ({n})",
+    "invites": "Nieaktywni członkowie, zaproszeni ({n})",
     "no_invites": "Brak oczekujących zaproszeń.",
     "loading": "Wczytywanie użytkowników…",
     "forbidden": "Tylko administrator tego obszaru roboczego może zarządzać użytkownikami.",
@@ -2305,7 +2306,9 @@
     "contact_tag": "kontakt",
     "hours_norm": "Średnia liczba godzin dziennie",
     "hours_norm_hint": "Własna średnia tej osoby, np. 7:30. Zostaw puste, aby użyć średniej przestrzeni roboczej ({workspace}); 0:00 = brak średniej dla tej osoby. Dzień powyżej niej pokazuje ostrzeżenie; żadne godziny nie są odrzucane.",
-    "hours_norm_no_workspace": "brak średniej"
+    "hours_norm_no_workspace": "brak średniej",
+    "inactive": "nieaktywny",
+    "inactive_hint": "Zaproszony do tego obszaru roboczego; aktywny od pierwszego logowania."
   },
   "contacts": {
     "group": "Kontakty",

@@ -101,7 +101,13 @@
                       v-slot="{ active, selected }"
                     >
                       <li
-                        v-if="inviteEmail(id)"
+                        v-if="inactiveSet.has(id)"
+                        class="invite-add__option"
+                        :class="{ 'is-active': active, 'is-selected': selected }"
+                        :data-testid="'channel-invite-pick-inactive-' + id"
+                      ><SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" /> {{ t('channels.properties.invite_inactive', { label: personLabel(id) }) }}</li>
+                      <li
+                        v-else-if="inviteEmail(id)"
                         class="invite-add__option"
                         :class="{ 'is-active': active, 'is-selected': selected }"
                         data-testid="channel-invite-pick-email"
@@ -142,13 +148,13 @@
               </li>
               <li v-for="email in localInvited" :key="email" :data-testid="'channel-invited-' + email">
                 <SpoolAvatar :id="email" :box="HUMAN_BOX" :size="22" />
-                <span class="member-rows__name">{{ email }}</span>
+                <span class="member-rows__name">{{ personLabel(email) }}</span>
                 <span class="muted" :title="t('channels.properties.invited_hint')">{{ t('channels.properties.invited') }}</span>
                 <button
                   type="button"
                   class="icon-btn"
                   :data-testid="'channel-invited-remove-' + email"
-                  :aria-label="t('channels.properties.remove_invited', { email })"
+                  :aria-label="t('channels.properties.remove_invited', { email: personLabel(email) })"
                   :disabled="busy || !canAdd"
                   @click="removePerson(email)"
                 >
@@ -420,6 +426,7 @@ import {
 } from '~/utils/channel-members'
 import { channelAgentsLive } from '~/utils/channel-agents-live'
 import { rosterHumanIds } from '~/utils/spool-client.mjs'
+import { invitedMembers, inviteeKeys } from '~/utils/invited-members-client.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { useLive } from '~/composables/useLive'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -468,6 +475,10 @@ const aiAgentsOn = ref(true)
 const localMembers = ref<string[]>([])
 // spec 025 section 11: addresses added before they joined the workspace
 const localInvited = ref<string[]>([])
+// spec 025 section 13: the workspace's inactive members (open invites), by
+// key (the address, or the INV- id where it is masked), and every key's label
+const inactiveKeys = ref<string[]>([])
+const inviteLabels = ref<Record<string, string>>({})
 const rosterIds = ref<string[]>([])
 const rosterBag = ref<Record<string, string[]>>({})
 const createdByLive = ref('')
@@ -525,13 +536,17 @@ const canAdd = computed(() => canAddChannelMember({
   createdBy: effectiveCreatedBy.value,
   membersOpenInvite: openInvite.value,
 }))
-const candidates = computed(() => channelInviteCandidates(rosterIds.value, localMembers.value))
+const candidates = computed(() => [
+  ...channelInviteCandidates(rosterIds.value, localMembers.value),
+  ...inactiveKeys.value.filter((k) => !localInvited.value.includes(k)),
+])
+const inactiveSet = computed(() => new Set(inactiveKeys.value))
 const peopleChoices = computed(() => {
-  const found = filterPeopleContains(candidates.value, personQuery.value, people.names.value)
+  const found = filterPeopleContains(candidates.value, personQuery.value, { ...people.names.value, ...inviteLabels.value })
   // spec 025 section 11: a typed address is offered too, for a person who
   // has not joined the workspace yet (pending until they accept the invite)
   const email = inviteEmail(personQuery.value)
-  return email && !localInvited.value.includes(email) ? [...found, email] : found
+  return email && !localInvited.value.includes(email) && !found.includes(email) ? [...found, email] : found
 })
 // SPL-3717: each badge follows the roster store's live presence (refreshed on
 // open below, then kept by the socket's presence frames), as the sidebar does.
@@ -547,7 +562,7 @@ const { agentLabel, onAgentQuery, onChooseAgent, addChosenAgent, removeAgent } =
   api, channelId: () => props.channelId, busy, canAdd, error, agents, chosenAgent, agentQuery, fallback,
 })
 const { personLabel, onPersonQuery, onChoosePerson, addChosen, removePerson } = useChannelPersonPick({
-  api, props, people, busy, canAdd, error, selfId, localMembers, localInvited, chosenPerson, personQuery,
+  api, props, people, busy, canAdd, error, selfId, localMembers, localInvited, inviteLabels, chosenPerson, personQuery,
 })
 
 // spec 164 B6 (SPL-5560): the channel's box pins, read when the Settings
@@ -583,6 +598,8 @@ watch(() => props.open, async (isOpen) => {
   aiAgentsOn.value = true
   localMembers.value = []
   localInvited.value = []
+  inactiveKeys.value = []
+  inviteLabels.value = {}
   rosterIds.value = []
   rosterBag.value = {}
   createdByLive.value = ''
@@ -596,10 +613,12 @@ watch(() => props.open, async (isOpen) => {
   try {
     // SPL-3717: the roster is read into the shared store, so its presence is
     // fresh on open and the badges below stay live with the socket's frames.
-    const [mem] = await Promise.all([
+    const [mem, inactive] = await Promise.all([
       withSessionRetry(api, () => api.listChannelMembers(props.channelId)),
+      // spec 025 section 13: no list (an act-as session, an old hub) offers none
+      withSessionRetry(api, () => invitedMembers(api)).catch(() => []),
       roster.refresh(),
-    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, ai_agents_off?: boolean, created_by?: string, invited?: string[], agents?: { id: string, box: string, online?: boolean, seated?: boolean }[], fallback?: unknown }, unknown]
+    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, ai_agents_off?: boolean, created_by?: string, invited?: string[], invitees?: { id: string, label: string, masked: boolean }[], agents?: { id: string, box: string, online?: boolean, seated?: boolean }[], fallback?: unknown }, { id: string, label: string, masked: boolean }[], unknown]
     if (my !== ticket) return
     fallback.value = channelFallbackLine(mem.fallback)
     aiAgentsOn.value = mem.ai_agents_off !== true
@@ -614,7 +633,7 @@ watch(() => props.open, async (isOpen) => {
       return
     }
     localMembers.value = Array.isArray(mem.members) ? mem.members.map((id) => String(id)) : []
-    localInvited.value = Array.isArray(mem.invited) ? mem.invited.map((e) => String(e)) : []
+    showInvited(mem.invited, mem.invitees, inactive)
     openInvite.value = mem.members_open_invite === true
     createdByLive.value = String(mem.created_by || '')
     agents.value = Array.isArray(mem.agents) ? mem.agents : []
@@ -627,6 +646,16 @@ watch(() => props.open, async (isOpen) => {
     if (my === ticket) loaded.value = true
   }
 }, { immediate: true })
+
+// spec 025 section 13: the channel's pending rows and the workspace's
+// inactive members, each by its key, with one label map for both.
+function showInvited(invited: string[] | undefined, rows: { id: string, label: string, masked: boolean }[] | undefined, inactive: { id: string, label: string, masked: boolean }[]) {
+  const pending = inviteeKeys(rows)
+  const open = inviteeKeys(inactive)
+  localInvited.value = rows && rows.length ? pending.keys : (Array.isArray(invited) ? invited.map((e) => String(e)) : [])
+  inactiveKeys.value = open.keys
+  inviteLabels.value = { ...open.labels, ...pending.labels }
+}
 
 async function loadBoxes() {
   const my = ticket

@@ -1285,13 +1285,14 @@
         "forbidden": "Only a workspace admin can change the boxes.",
         "generic": "The boxes could not be saved. Try again.",
         "load": "The boxes could not be loaded."
-      }
+      },
+      "invite_inactive": "{label} · inactive"
     }
   },
   "users": {
     "title": "Users",
     "members": "Members ({n})",
-    "invites": "Pending invites ({n})",
+    "invites": "Inactive members, invited ({n})",
     "no_invites": "No pending invites.",
     "loading": "Loading users…",
     "forbidden": "Only an admin of this workspace can manage users.",
@@ -2305,7 +2306,9 @@
     "contact_tag": "contact",
     "hours_norm": "Average hours per day",
     "hours_norm_hint": "This person's own average, e.g. 7:30. Leave it empty to use the workspace's average ({workspace}); 0:00 = no average for this person. A day above it shows a warning; no hours are refused.",
-    "hours_norm_no_workspace": "no average"
+    "hours_norm_no_workspace": "no average",
+    "inactive": "inactive",
+    "inactive_hint": "Invited to this workspace; active from the first sign-in."
   },
   "contacts": {
     "group": "Contacts",

@@ -10,6 +10,9 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { useSpoolApi } from '~/composables/useSpoolApi'
 import type { useHumanNames } from '~/composables/useHumanNames'
 
+/** spec 025 section 13: the opaque handle of an open invite (hub inviteID). */
+const INVITE_ID_RE = /^INV-[0-9a-f]{16}$/
+
 interface PersonPickOpts {
   api: ReturnType<typeof useSpoolApi>
   props: { readonly channelId: string }
@@ -21,17 +24,20 @@ interface PersonPickOpts {
   localMembers: Ref<string[]>
   /** spec 025 section 11: addresses added before they joined the workspace. */
   localInvited: Ref<string[]>
+  /** spec 025 section 13: an inactive member's shown label, by its key (an address, or an INV- id where masked). */
+  inviteLabels: Ref<Record<string, string>>
   chosenPerson: Ref<string | null>
   personQuery: Ref<string>
 }
 
 // The label, the query input and the choice: the steps that ask the hub nothing.
 function personInputSteps(o: PersonPickOpts) {
-  const { people, chosenPerson, personQuery } = o
+  const { people, chosenPerson, personQuery, inviteLabels } = o
 
-  /** The chosen display name, else the bare HUM id (no box); an address as typed. */
+  /** The chosen display name, else the bare HUM id (no box); an address as typed; an invitee's label. */
   function personLabel(id: unknown) {
     if (typeof id !== 'string' || !id) return ''
+    if (inviteLabels.value[id]) return inviteLabels.value[id]
     return inviteEmail(id) ? id : people.label(id)
   }
 
@@ -72,7 +78,9 @@ async function pick(o: PersonPickOpts, id: string) {
   busy.value = true
   error.value = ''
   try {
-    if (inviteEmail(id)) {
+    if (INVITE_ID_RE.test(id)) {
+      await addByInviteId(o, id)
+    } else if (inviteEmail(id)) {
       await addByEmail(o, id)
     } else {
       await withSessionRetry(api, () => api.addChannelMember(props.channelId, id))
@@ -83,6 +91,13 @@ async function pick(o: PersonPickOpts, id: string) {
   } finally {
     busy.value = false
   }
+}
+
+/** spec 025 section 13: an inactive member whose address is masked joins by its invite id, pending. */
+async function addByInviteId(o: PersonPickOpts, id: string) {
+  const { api, props, localInvited } = o
+  await withSessionRetry(api, () => api.addChannelInviteById(props.channelId, id))
+  if (!localInvited.value.includes(id)) localInvited.value = [...localInvited.value, id]
 }
 
 /** A member's address joins at once (human_id back); any other is pending. */

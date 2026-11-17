@@ -1285,13 +1285,14 @@
         "forbidden": "Vain työtilan ylläpitäjä voi muuttaa koneita.",
         "generic": "Koneita ei voitu tallentaa. Yritä uudelleen.",
         "load": "Koneita ei voitu ladata."
-      }
+      },
+      "invite_inactive": "{label} · ei aktiivinen"
     }
   },
   "users": {
     "title": "Käyttäjät",
     "members": "Jäsenet ({n})",
-    "invites": "Avoimet kutsut ({n})",
+    "invites": "Ei-aktiiviset jäsenet, kutsutut ({n})",
     "no_invites": "Ei avoimia kutsuja.",
     "loading": "Ladataan käyttäjiä…",
     "forbidden": "Vain tämän työtilan ylläpitäjä voi hallita käyttäjiä.",
@@ -2305,7 +2306,9 @@
     "contact_tag": "yhteystieto",
     "hours_norm": "Keskimääräinen tuntimäärä päivässä",
     "hours_norm_hint": "Tämän henkilön oma keskiarvo, esim. 7:30. Jätä tyhjäksi, niin käytetään työtilan keskiarvoa ({workspace}); 0:00 = ei keskiarvoa tälle henkilölle. Sen ylittävästä päivästä näytetään varoitus; tunteja ei hylätä.",
-    "hours_norm_no_workspace": "ei keskiarvoa"
+    "hours_norm_no_workspace": "ei keskiarvoa",
+    "inactive": "ei aktiivinen",
+    "inactive_hint": "Kutsuttu tähän työtilaan; aktiivinen ensimmäisestä kirjautumisesta alkaen."
   },
   "contacts": {
     "group": "Yhteystiedot",

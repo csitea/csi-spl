@@ -253,7 +253,8 @@ describe('the Properties dialog', () => {
     const addAt = peoplePanel.indexOf('data-testid="channel-people-add"')
     const membersAt = peoplePanel.indexOf('data-testid="channel-invite-members"')
     assert.ok(searchAt > 0 && searchAt < addAt && addAt < membersAt)
-    assert.match(dialog, /filterPeopleContains\(candidates\.value, personQuery\.value, people\.names\.value\)/)
+    // spec 025 section 13: an inactive member matches on its label too
+    assert.match(dialog, /filterPeopleContains\(candidates\.value, personQuery\.value, \{ \.\.\.people\.names\.value, \.\.\.inviteLabels\.value \}\)/)
     assert.match(dialog, /filterAgentsContains\(agentCandidates\.value, agentQuery\.value\)/)
     assert.match(src('src/composables/useChannelPersonPick.ts'), /function addChosen/)
     assert.match(src('src/composables/useChannelAgentPick.ts'), /function addChosenAgent/)

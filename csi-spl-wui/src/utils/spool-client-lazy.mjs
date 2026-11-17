@@ -74,8 +74,19 @@ function parseMemberList(data, channel) {
     responders,
     // spec 025 section 11: addresses added before they joined the workspace
     invited: Array.isArray(data && data.invited) ? data.invited.map((e) => String(e)).filter(Boolean) : [],
+    // spec 025 section 13: the same rows with their invite ids; a masked label
+    // (j…@example.com) is undone by its id
+    invitees: parseInvitees(data && data.invitees),
     ...(data && data.ai_agents_off === true ? { ai_agents_off: true } : {}), // SPL-1684
   }
+}
+
+/** spec 025 section 13: [{id, label, masked}] of a members answer; [] when absent. */
+function parseInvitees(rows) {
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map((r) => ({ id: String((r && r.id) || ''), label: String((r && r.label) || ''), masked: Boolean(r && r.masked === true) }))
+    .filter((r) => r.id && r.label)
 }
 
 function memberError(status, token, detail) {
@@ -111,6 +122,7 @@ function mockMemberList(ctx, channel) {
     created_by: String((row && row.created_by) || ''),
     agents: (state.agentMembers[id] || []).slice(),
     invited: mockInvited(state, id).slice(),
+    invitees: mockInvited(state, id).map((e) => ({ id: e, label: e, masked: false })),
     ...mockAIAgentsOff(state, id),
   }
 }
@@ -172,8 +184,10 @@ function mockAddMember(ctx, channel, humanId) {
 function mockAddInvitee(ctx, channel, email) {
   const { state } = ctx
   const id = normalizeChannelId(channel)
-  const addr = String(email || '').trim().toLowerCase()
-  if (!addr.includes('@')) throw memberError(400, 'bad_email', 'email must be an address')
+  const raw = String(email || '').trim()
+  const byId = /^INV-[0-9a-f]{16}$/.test(raw) // spec 025 section 13: an invite id
+  const addr = byId ? raw : raw.toLowerCase()
+  if (!byId && !addr.includes('@')) throw memberError(400, 'bad_email', 'email must be an address')
   const row = state.channels.find((c) => c.channel_id === id)
   if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
   if (isPublicChannel(id)) {
@@ -226,7 +240,7 @@ function mockRemoveMember(ctx, channel, humanId) {
     throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
   }
   if (hid !== state.me.id && !mockMayInvite(ctx, row)) throw memberError(403, 'forbidden', 'forbidden')
-  if (hid.includes('@')) { // a pending address (spec 025 section 11)
+  if (hid.includes('@') || hid.startsWith('INV-')) { // a pending address (spec 025 sections 11, 13)
     const invited = mockInvited(state, id)
     if (!invited.includes(hid)) throw memberError(404, 'not_found', `no pending invite for that address in #${id}`)
     state.channelInvites[id] = invited.filter((e) => e !== hid)
@@ -1515,6 +1529,24 @@ async function addChannelInvitee(ctx, channel, email) {
 }
 
 /**
+ * spec 025 section 13: POST `{invite_id}`, an inactive member picked from the
+ * workspace's open invites where its address is masked. 201 `{email, pending:
+ * true, invite: "existing"}`; 404 `no_open_invite` when the invite is gone.
+ * It never creates an invite. Mock: the id is kept as the pending row.
+ */
+async function addChannelInviteById(ctx, channel, inviteId) {
+  const { live, mock } = ctx
+  const id = String(inviteId || '')
+  if (mock) return mockAddInvitee(ctx, channel, id)
+  const data = await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/members`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ invite_id: id }),
+  })
+  return data || { channel: String(channel || ''), pending: true }
+}
+
+/**
  * Invite one announced agent into the channel. The row survives the
  * box's next announce. 201 {channel, id, box}.
  */
@@ -2511,6 +2543,7 @@ export const lazySpoolMethods = {
   listChannelMembers,
   addChannelMember,
   addChannelInvitee,
+  addChannelInviteById,
   addChannelAgent,
   removeChannelMember,
   removeChannelAgent,

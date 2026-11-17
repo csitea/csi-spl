@@ -1285,13 +1285,14 @@
         "forbidden": "Alleen een beheerder van de werkruimte kan de boxen wijzigen.",
         "generic": "De boxen konden niet worden opgeslagen. Probeer het opnieuw.",
         "load": "De boxen konden niet worden geladen."
-      }
+      },
+      "invite_inactive": "{label} · inactief"
     }
   },
   "users": {
     "title": "Gebruikers",
     "members": "Leden ({n})",
-    "invites": "Openstaande uitnodigingen ({n})",
+    "invites": "Inactieve leden, uitgenodigd ({n})",
     "no_invites": "Geen openstaande uitnodigingen.",
     "loading": "Gebruikers laden…",
     "forbidden": "Alleen een beheerder van deze werkruimte kan gebruikers beheren.",
@@ -2305,7 +2306,9 @@
     "contact_tag": "contact",
     "hours_norm": "Gemiddeld aantal uren per dag",
     "hours_norm_hint": "Het eigen gemiddelde van deze persoon, bijv. 7:30. Laat leeg om het werkruimtegemiddelde te gebruiken ({workspace}); 0:00 = geen gemiddelde voor deze persoon. Een dag erboven toont een waarschuwing; er worden geen uren geweigerd.",
-    "hours_norm_no_workspace": "geen gemiddelde"
+    "hours_norm_no_workspace": "geen gemiddelde",
+    "inactive": "inactief",
+    "inactive_hint": "Uitgenodigd voor deze werkruimte; actief vanaf de eerste aanmelding."
   },
   "contacts": {
     "group": "Contacten",

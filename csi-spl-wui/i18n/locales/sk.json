@@ -1285,13 +1285,14 @@
         "forbidden": "Boxy môže meniť iba správca pracovného priestoru.",
         "generic": "Boxy sa nepodarilo uložiť. Skúste to znova.",
         "load": "Boxy sa nepodarilo načítať."
-      }
+      },
+      "invite_inactive": "{label} · neaktívny"
     }
   },
   "users": {
     "title": "Používatelia",
     "members": "Členovia ({n})",
-    "invites": "Čakajúce pozvánky ({n})",
+    "invites": "Neaktívni členovia, pozvaní ({n})",
     "no_invites": "Žiadne čakajúce pozvánky.",
     "loading": "Načítavajú sa používatelia…",
     "forbidden": "Používateľov môže spravovať iba správca tohto pracovného priestoru.",
@@ -2305,7 +2306,9 @@
     "contact_tag": "kontakt",
     "hours_norm": "Priemerný počet hodín za deň",
     "hours_norm_hint": "Vlastný priemer tejto osoby, napr. 7:30. Nechajte prázdne, ak sa má použiť priemer pracovného priestoru ({workspace}); 0:00 = bez priemeru pre túto osobu. Deň nad ním zobrazí upozornenie; žiadne hodiny sa neodmietnu.",
-    "hours_norm_no_workspace": "bez priemeru"
+    "hours_norm_no_workspace": "bez priemeru",
+    "inactive": "neaktívny",
+    "inactive_hint": "Pozvaný do tohto pracovného priestoru; aktívny od prvého prihlásenia."
   },
   "contacts": {
     "group": "Kontakty",

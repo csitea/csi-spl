@@ -18,10 +18,16 @@
 //      L2 is present once that topic is opened on the right
 // The channel and t surfaces post into CHANNEL, the hidden members-only test
 // channel (wf 30: cnf env.wui.live_proof_channel, default probe; owner answer
-// 5cb37834, SPL-1632), so #lobby stays clean. Surface `lobby` posts nothing:
-// /lobby renders its cards and a composer, and a card's topic opens on the
-// right with the left tab untouched. The level-1/level-2 send on /lobby is
-// left to the mock e2e: a live send there is a post in #lobby.
+// 5cb37834, SPL-1632), so #lobby stays clean. Surface `lobby` posts nothing
+// while #lobby has a live topic: /lobby renders its cards and a composer, and
+// a card's topic opens on the right with the left tab untouched. The
+// level-1/level-2 send on /lobby is left to the mock e2e: a live send there is
+// a post in #lobby. SPL-5736: #lobby rows age out with the hub's channel
+// retention (720h) and on dev nobody else posts there, so a lobby the HUB
+// serves empty to this member (LOBBY_TASK, 0 rows) gets ONE marked
+// `[spool-probe] lobby seed` line, which keeps it non-empty for the next 30
+// days of deploys. A lobby the hub serves non-empty is never posted into, and
+// a page that shows no card for it still fails.
 // Surface `home`: `/` lands on #lobby and shows no Topics rows (owner t1
 // e4bfddb1 removed the Topics view, 0f89c5bb0). It posts nothing: the lobby
 // surface already proves the levels there.
@@ -34,7 +40,7 @@
 // right pane's own messages exclude the born-topics stack.
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
-//     [TENANT=t1] [CHANNEL=probe] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home,t] \
+//     [TENANT=t1] [CHANNEL=probe] [LOBBY_TASK=<hub lobby task id>] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home,t] \
 //     [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/parent-level-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -48,6 +54,8 @@ const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
 const CHANNEL = process.env.CHANNEL || 'probe'
 const PEER = process.env.PEER || ''
+/* the hub's lobby task (cnf hub.env.SPOOL_HUB_LOBBY_TASK_ID); empty = never seed */
+const LOBBY_TASK = process.env.LOBBY_TASK || ''
 const SURFACES = (process.env.SURFACES || 'channel,dm,lobby,home,t').split(',').map((s) => s.trim()).filter(Boolean)
 mkdirSync(OUT, { recursive: true })
 
@@ -348,21 +356,52 @@ async function surfaceRun(p, surface) {
   await closePane(p)
 }
 
+/** The hub's own read of the lobby for this member: how many live rows it serves. */
+async function hubLobbyRows(p) {
+  if (!res.apiRoot || !LOBBY_TASK) return { status: 0, rows: -1 }
+  return p.evaluate(async (root, id) => {
+    const r = await fetch(`${root}/v1/view/topics/${encodeURIComponent(id)}?order=desc&limit=30`, { credentials: 'include', headers: { accept: 'application/json' } })
+    if (!r.ok) return { status: r.status, rows: -1 }
+    const j = await r.json()
+    return { status: r.status, rows: (j.messages || []).length }
+  }, res.apiRoot, LOBBY_TASK)
+}
+
+/* SPL-5736: the one post the lobby surface may make. Only when the hub serves
+   NO live row of the lobby to this member (its rows aged out): then one marked
+   line, so the cards check has a topic. Returns the seed's text, or ''. */
+async function seedEmptyLobby(p, ev) {
+  const hub = await hubLobbyRows(p)
+  ev.hubBefore = hub
+  if (hub.status !== 200 || hub.rows !== 0) return ''
+  const line = `${PROBE_MARK} lobby seed ${run} (SPL-5736: #lobby had no live topic)`
+  await send(p, line)
+  ev.posts = 1
+  ev.seeded = line
+  return line
+}
+
 /* SPL-1632: /lobby is checked without a post. It renders the lobby's cards
    and its composer; opening a card's topic shows it on the right and leaves
-   the left tab where it was. Nothing is typed into the composer. */
+   the left tab where it was. Nothing is typed into the composer, except the
+   one line of seedEmptyLobby when the hub serves the lobby empty (SPL-5736). */
 async function lobbyRun(p) {
   const tag = (n) => `lobby: ${n}`
-  res.surfaces.lobby = { posts: 0 }
+  const ev = { posts: 0 }
+  res.surfaces.lobby = ev
   await p.goto(BASE + '/lobby', { waitUntil: 'networkidle2' })
   await sleep(1500)
   await closePane(p)
   let s = await waitFor(p, (x) => x.middle.some((m) => m.task), 15000)
   step(tag('renders on /lobby'), /\/lobby\/?$/.test(new URL(p.url()).pathname), { url: p.url() })
+  if (!s.middle.some((m) => m.task)) {
+    const seed = await seedEmptyLobby(p, ev)
+    if (seed) s = await waitFor(p, (x) => has(x.middle, seed), 15000)
+  }
   const card = s.middle.find((m) => m.task)
-  step(tag('shows the lobby cards'), !!card, { cards: s.middle.length })
+  step(tag('shows the lobby cards'), !!card, { cards: s.middle.length, hub: ev.hubBefore, seeded: !!ev.seeded })
   const composer = await p.$('form.composer textarea')
-  step(tag('has a composer (not typed into)'), !!composer, {})
+  step(tag('has a composer'), !!composer, {})
   if (!card) return
   const tabBefore = s.tab
   const opened = await openTopic(p, 'lobby', card.task)

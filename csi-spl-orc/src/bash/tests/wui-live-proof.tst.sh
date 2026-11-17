@@ -12,7 +12,9 @@
 #   - a failing proof -> rc 1 and ::error::
 #   - SPL-1632: the proof posts into the hidden test channel, cnf
 #     env.wui.live_proof_channel, default probe; #lobby is refused, and the
-#     proof's lobby surface sends nothing
+#     proof's lobby surface sends nothing while the hub serves #lobby rows
+#   - SPL-5736: the cnf lobby task reaches the proof as LOBBY_TASK; its one
+#     possible send is the seed, gated on the hub serving the lobby EMPTY
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"
@@ -25,7 +27,7 @@ FUNC="$PROJ_ROOT/src/bash/run/spl-wui-live-proof.func.sh"
 PW='s3cr3t-not-real-$(x) "q"'
 mkdir -p "$T/app/csi-spl-orc" "$T/app/csi-spl-cnf/csi-spl" "$T/tmp"
 cnf() { # <email> <tenant> [channel]
-  printf '{"env":{"dns":{"fqdn":"dev.example.com"},"wui":{"live_proof_email":"%s","live_proof_tenant":"%s"%s}}}\n' \
+  printf '{"env":{"dns":{"fqdn":"dev.example.com"},"hub":{"env":{"SPOOL_HUB_LOBBY_TASK_ID":"00000000-0000-4000-8000-0000000000aa"}},"wui":{"live_proof_email":"%s","live_proof_tenant":"%s"%s}}}\n' \
     "$1" "$2" "${3:+,\"live_proof_channel\":\"$3\"}" >"$T/app/csi-spl-cnf/csi-spl/dev.env.json"
 }
 # the fake proof: records what it was given, exits FAKE_RC
@@ -35,6 +37,7 @@ cat >"$T/fake-proof.sh" <<'SH'
   echo "argv=$*"
   echo "base=$BASE email=$EMAIL tenant=$TENANT surfaces=$SURFACES out=$OUT"
   echo "channel=${CHANNEL:-}"
+  echo "lobby=${LOBBY_TASK:-}"
   echo "mode=$(stat -c %a "$PW_FILE")"
   echo "pw=$(cat "$PW_FILE")"
   env | grep '^SPL_PROBE_PW' >/dev/null && echo "env-has-secret" || echo "env-clean"
@@ -85,6 +88,7 @@ pwf="$(sed -n 's/^pwfile=//p' "$T/fake.log")"
 [[ -n "$pwf" && ! -e "$pwf" ]] && pass "PW_FILE is removed after the run" || fail "PW_FILE left behind: $pwf"
 
 grep -qx 'channel=probe' "$T/fake.log" && pass "no cnf channel: the proof posts into #probe" || fail "default channel: $(grep channel= "$T/fake.log")"
+grep -qx 'lobby=00000000-0000-4000-8000-0000000000aa' "$T/fake.log" && pass "SPL-5736: cnf hub lobby task reaches the proof as LOBBY_TASK" || fail "lobby task: $(grep lobby= "$T/fake.log")"
 
 # 3b. SPL-1632: the channel is cnf, and never #lobby
 cnf probe@example.com t1 qa-probe
@@ -100,10 +104,19 @@ done
 cnf probe@example.com t1
 
 # 3c. SPL-1632: the proof's lobby surface renders /lobby and sends nothing
+# itself; SPL-5736: its one possible send is seedEmptyLobby's, which returns
+# before send() unless the hub served the lobby with 0 rows
 PROOF="$PROJ_ROOT/../csi-spl-wui/tests/e2e/parent-level-live.proof.mjs"
-lobby_fn="$(awk '/^async function lobbyRun\(/{f=1} f{print} f && /^}/{exit}' "$PROOF")"
+fn_of() { awk -v f="^async function $1\\(" '$0 ~ f{on=1} on{print} on && /^}/{exit}' "$PROOF"; }
+lobby_fn="$(fn_of lobbyRun)"
 [[ -n "$lobby_fn" ]] && grep -q "'/lobby'" <<<"$lobby_fn" && ! grep -qE '\bsend\(' <<<"$lobby_fn" \
   && pass "lobby surface: lobbyRun opens /lobby and calls no send()" || fail "lobby surface: no lobbyRun, or it sends"
+seed_fn="$(fn_of seedEmptyLobby)"
+gate_ln="$(grep -n 'hub.rows !== 0) return' <<<"$seed_fn" | cut -d: -f1)"
+send_ln="$(grep -nE '\bsend\(' <<<"$seed_fn" | cut -d: -f1)"
+[[ -n "$gate_ln" && -n "$send_ln" && "$(grep -cE '\bsend\(' <<<"$seed_fn")" -eq 1 && $gate_ln -lt $send_ln ]] \
+  && grep -q 'seedEmptyLobby(p' <<<"$lobby_fn" \
+  && pass "SPL-5736: the lobby's one send is the seed, after the hub-empty gate" || fail "SPL-5736: seed send not gated (gate=$gate_ln send=$send_ln)"
 grep -q "surface === 'lobby') await lobbyRun(p)" "$PROOF" \
   && pass "the lobby surface runs lobbyRun, not the posting surfaceRun" || fail "the lobby surface is not routed to lobbyRun"
 

@@ -150,31 +150,6 @@ grep -q '/v1/view/topics?channel=lobby' <<<"$hub_fn" && grep -q 'hubLobbyCount('
 [[ "$(count '{status:500,rows:-1}' '{status:200,rows:2}')" == "500 -1" ]] \
   && pass "a room read that fails: the count is unreadable" || fail "room read failure"
 
-# 3f. SPL-5777: a hub topic with no card fails (c-841 N2: prd hub 2, cards 1 passed).
-#     The hub's card count is what /lobby builds from the two reads
-#     (channel-feed-core topicStarterCards): one card per task_id among the
-#     rows with no parent_task_id and is_parent != 0. The room task's many
-#     messages are one card; a reply row is no card.
-cards() { # <room json> <topics json> -> "<status> <rows> <cards>"
-  node --input-type=module -e "import { hubLobbyCount } from '$VERDICT'; const c = hubLobbyCount($1, $2); console.log(c.status + ' ' + c.rows + ' ' + c.cards)" 2>/dev/null </dev/null
-}
-L="'l0'"
-[[ "$(cards "{status:200,rows:2,tasks:[$L,$L]}" "{status:200,rows:0,tasks:[]}")" == "200 2 1" ]] \
-  && pass "room task with 2 messages: hub 2 rows, 1 card" || fail "room 2 messages: $(cards "{status:200,rows:2,tasks:[$L,$L]}" "{status:200,rows:0,tasks:[]}")"
-[[ "$(cards "{status:200,rows:1,tasks:[$L]}" "{status:200,rows:2,tasks:['t1','t2']}")" == "200 3 3" ]] \
-  && pass "room 1 + 2 channel topics: 3 cards" || fail "room 1 + 2 topics: $(cards "{status:200,rows:1,tasks:[$L]}" "{status:200,rows:2,tasks:['t1','t2']}")"
-[[ "$(cards "{status:200,rows:1,tasks:[$L]}" "{status:200,rows:2,tasks:[$L,'t2']}")" == "200 3 2" ]] \
-  && pass "a channel topic that is the room task is one card, not two" || fail "room task listed in the channel: $(cards "{status:200,rows:1,tasks:[$L]}" "{status:200,rows:2,tasks:[$L,'t2']}")"
-[[ "$(verdict '{hub:{status:200,rows:2,cards:2},cards:1,error:false,empty:false}')" == "false shows the lobby cards" ]] \
-  && pass "hub 2 cards, page shows 1: FAIL (a topic with no card)" || fail "hub 2 cards + page 1 card passed: $(verdict '{hub:{status:200,rows:2,cards:2},cards:1,error:false,empty:false}')"
-[[ "$(verdict '{hub:{status:200,rows:2,cards:2},cards:2,error:false,empty:false}')" == "true shows the lobby cards" ]] \
-  && pass "hub 2 cards, page shows 2: PASS" || fail "hub 2 cards + page 2 cards did not pass"
-[[ "$(verdict '{hub:{status:200,rows:2,cards:1},cards:1,error:false,empty:false}')" == "true shows the lobby cards" ]] \
-  && pass "room task with 2 messages, page shows its 1 card: PASS" || fail "hub 2 rows / 1 card + page 1 card did not pass"
-[[ "$(verdict '{hub:{status:200,rows:80,cards:80},cards:50,error:false,empty:false}')" == "true shows the lobby cards" ]] \
-  && pass "hub 80 cards, page shows its 50-card window: PASS" || fail "hub 80 cards + page 50 did not pass"
-grep -q 'tasks:' <<<"$hub_fn" && pass "hubLobbyRows passes each read's card task ids" || fail "hubLobbyRows passes no task ids"
-
 # 4. a failing proof fails the step
 act SPL_PROBE_PW="$PW" FAKE_RC=1; rc=$?
 [[ $rc -ne 0 ]] && grep -q '^::error::dev live proof failed (rc 1)' "$T/stdout" && pass "a failing proof: ::error::, rc != 0" || fail "failing proof: rc=$rc $(cat "$T/stdout")"

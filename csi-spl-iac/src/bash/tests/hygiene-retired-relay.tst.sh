@@ -32,13 +32,39 @@ yq -r '.jobs."distribution-hygiene".steps[] | select(.name == "Sweep") | .run' "
 [[ -s "$T/sweep.sh" ]] && grep -qF "sweep \"$LABEL\"" "$T/sweep.sh" \
   && pass "extracted the workflow's Sweep step, with the $LABEL sweep" || fail "no Sweep step / no $LABEL sweep in $WF"
 
-sweep() { (cd "$1" && bash "$T/sweep.sh" 2>&1); }
+# sweep <dir> -> the step's output in $T/sweep.out, rc as its exit code. Not
+# out=$(sweep ...) (SPL-5834, as SPL-5827 did for hygiene-box-users-allow):
+# on CI's bash 5.3 the step's own shell, TERMed in its sweeps, could spin in
+# its `wait` printing without end, so a test reading that $(...) never ran its
+# TERM trap and was KILLed after the grace (wf 10 run 44146018540). The step
+# runs in the background and the test `wait`s on its pid, which a trapped
+# signal interrupts; the trap then ignores HUP/INT/TERM (timeout's second TERM
+# to the group cannot kill the EXIT rm) and KILLs the step with its sweep jobs
+# (kill_tree: STOP, then its children, then KILL). The step's TMPDIR is
+# inside T, so a KILLed step's mktemp dir goes with T.
+sweep_pid=""
+mkdir -p "$T/step-tmp"
+sweep() {
+  (cd "$1" && TMPDIR="$T/step-tmp" exec bash "$T/sweep.sh") >"$T/sweep.out" 2>&1 &
+  sweep_pid=$!
+  wait "$sweep_pid"; local rc=$?
+  sweep_pid=""
+  return "$rc"
+}
+kill_tree() { # <pid>: the step and every process under it
+  local c
+  kill -STOP "$1" 2>/dev/null || return 0
+  for c in $(pgrep -P "$1"); do kill_tree "$c"; done
+  kill -KILL "$1" 2>/dev/null
+}
+stop_sweep() { trap '' HUP INT TERM; [[ -z "$sweep_pid" ]] || kill_tree "$sweep_pid"; }
+trap 'stop_sweep; exit 129' HUP; trap 'stop_sweep; exit 130' INT; trap 'stop_sweep; exit 143' TERM
 
 # --- 1. the real tree ---------------------------------------------------------
 mkdir -p "$T/real"
 git -C "$APP_ROOT" ls-files -z | (cd "$APP_ROOT" && tar --null -T - -cf - 2>/dev/null) | tar -xf - -C "$T/real" \
   && pass "exported the tracked tree" || { fail "SETUP: the tree export failed (disk full? TMPDIR=${TMPDIR:-/tmp})"; exit 1; }
-out=$(sweep "$T/real"); rc=$?
+sweep "$T/real"; rc=$?; out=$(<"$T/sweep.out")
 grep -qxF "ok - $LABEL" <<<"$out" && pass "the real tree is clean under the $LABEL sweep" \
   || { fail "the real tree trips the $LABEL sweep"; grep -A20 -F "::error::hygiene: $LABEL" <<<"$out" | sed 's/^/    | /'; }
 [[ $rc -eq 0 ]] && pass "the real tree passes the whole sweep (rc 0)" || fail "the real tree fails the sweep (rc=$rc)"
@@ -52,7 +78,7 @@ plant() { # <id> <text>: a one-file tree holding the text
 for form in "git-$r" "git_$r" "GIT${r^^}" "$n-nfs/x" "relay-$b" "relay_$b" "${c}-all-x" "on box ${n^^} today"; do
   id=$(tr -c 'a-zA-Z0-9' _ <<<"$form")
   plant "$id" "$form" || { fail "CONTROL SETUP: the plant '$id' did not land"; continue; }
-  out=$(sweep "$T/p-$id"); rc=$?
+  sweep "$T/p-$id"; rc=$?; out=$(<"$T/sweep.out")
   if [[ $rc -ne 0 ]] && grep -qF "::error::hygiene: $LABEL -- 1 line(s)" <<<"$out" && grep -q '^  \./notes\.md:2$' <<<"$out"; then
     pass "CONTROL planted '$id' -> sweep fails at ./notes.md:2"
   else
@@ -63,7 +89,7 @@ done
 
 # --- 3. CONTROL: look-alikes stay clean ----------------------------------------
 plant lookalike "near the linear, kneaded ${n}r line, una lí${n} nueva" || fail "CONTROL SETUP: the look-alike plant did not land"
-out=$(sweep "$T/p-lookalike"); rc=$?
+sweep "$T/p-lookalike"; rc=$?; out=$(<"$T/sweep.out")
 grep -qxF "ok - $LABEL" <<<"$out" && pass "CONTROL look-alike words do not trip the $LABEL sweep" \
   || { fail "CONTROL look-alike words trip the $LABEL sweep"; echo "$out" | sed 's/^/    | /'; }
 

@@ -48,8 +48,33 @@ export_tree() {
   got=$(find "$1" \( -type f -o -type l \) | wc -l)
   [[ "$got" -eq "$want" ]] || { echo "    | the export holds $got of $want files"; return 1; }
 }
-# sweep <dir> -> output on stdout, rc as the step's exit code
-sweep() { (cd "$1" && bash "$T/sweep.sh" 2>&1); }
+# sweep <dir> -> the step's output in $T/sweep.out, rc as its exit code. Not
+# out=$(sweep ...) (SPL-5834, as SPL-5827 did for hygiene-box-users-allow):
+# on CI's bash 5.3 the step's own shell, TERMed in its sweeps, could spin in
+# its `wait` printing without end, so a test reading that $(...) never ran its
+# TERM trap and was KILLed after the grace (wf 10 run 44146018540). The step
+# runs in the background and the test `wait`s on its pid, which a trapped
+# signal interrupts; the trap then ignores HUP/INT/TERM (timeout's second TERM
+# to the group cannot kill the EXIT rm) and KILLs the step with its sweep jobs
+# (kill_tree: STOP, then its children, then KILL). The step's TMPDIR is
+# inside T, so a KILLed step's mktemp dir goes with T.
+sweep_pid=""
+mkdir -p "$T/step-tmp"
+sweep() {
+  (cd "$1" && TMPDIR="$T/step-tmp" exec bash "$T/sweep.sh") >"$T/sweep.out" 2>&1 &
+  sweep_pid=$!
+  wait "$sweep_pid"; local rc=$?
+  sweep_pid=""
+  return "$rc"
+}
+kill_tree() { # <pid>: the step and every process under it
+  local c
+  kill -STOP "$1" 2>/dev/null || return 0
+  for c in $(pgrep -P "$1"); do kill_tree "$c"; done
+  kill -KILL "$1" 2>/dev/null
+}
+stop_sweep() { trap '' HUP INT TERM; [[ -z "$sweep_pid" ]] || kill_tree "$sweep_pid"; }
+trap 'stop_sweep; exit 129' HUP; trap 'stop_sweep; exit 130' INT; trap 'stop_sweep; exit 143' TERM
 
 owner=$(yq -r '.env.gcp.gcp_account_owner_email // ""' "$APP_ROOT/$CNF")
 [[ -n "$owner" ]] && pass "$CNF sets env.gcp.gcp_account_owner_email" || fail "$CNF has no gcp_account_owner_email value"
@@ -57,7 +82,7 @@ owner=$(yq -r '.env.gcp.gcp_account_owner_email // ""' "$APP_ROOT/$CNF")
 # --- 1. the real tree ---------------------------------------------------------
 export_tree "$T/real" && pass "exported the whole tracked tree" \
   || { fail "SETUP: the tree export is incomplete (disk full? TMPDIR=${TMPDIR:-/tmp}), so no verdict below would mean anything"; exit 1; }
-out=$(sweep "$T/real"); rc=$?
+sweep "$T/real"; rc=$?; out=$(<"$T/sweep.out")
 echo "$out" | sed 's/^/    | /'
 [[ $rc -eq 0 ]] && pass "the real tree passes the sweep (rc 0)" || fail "the real tree fails the sweep (rc=$rc)"
 grep -q '^allowed - owner mail address or domain' <<<"$out" \
@@ -75,7 +100,7 @@ ctl() { # <label> <setup command run inside the copy>
     fail "CONTROL $label -> SETUP failed, the plant did not land (disk full? TMPDIR=${TMPDIR:-/tmp}): ${err%%$'\n'*}"
     rm -rf "$dir"; return
   fi
-  out=$(sweep "$dir"); rc=$?
+  sweep "$dir"; rc=$?; out=$(<"$T/sweep.out")
   rm -rf "$dir"
   if [[ $rc -ne 0 ]] && grep -q '::error::hygiene: owner mail address or domain' <<<"$out"; then
     pass "CONTROL $label -> sweep fails (rc=$rc): $(grep '::error::hygiene: owner mail' <<<"$out" | sed -n 1p)"

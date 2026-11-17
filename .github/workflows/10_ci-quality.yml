@@ -1693,10 +1693,18 @@ jobs:
           # after it, removes the dir and exits 1 on any failed verdict. A
           # HUP / INT / TERM stops the step's own sweep jobs and leaves with
           # 129 / 130 / 143: a killed sweep has no verdict to fold.
+          # SPL-5834: the join waits on each sweep's recorded pid, never a bare
+          # `wait`. On bash 5.3 (ubuntu 26.04 runners) a TERMed step could spin
+          # in the bare `wait` with no child left, printing "wait: pid <n> is
+          # not a child of this shell" without end and never running its TERM
+          # trap (ubuntu:26.04 container, real step and tree, TERMed in its
+          # sweeps: the bare wait hung 14 in 960 kills, this join 0 in 960).
           sweep_dir="$(mktemp -d)"; sweep_n=0; sweep_shown=0; sweep_killed=0
+          sweep_pids=()
           sweep_join() {
-            local i v
-            wait
+            local i v p
+            for p in "${sweep_pids[@]}"; do wait "$p" 2>/dev/null || true; done
+            sweep_pids=()
             for (( i = sweep_shown + 1; i <= sweep_n; i++ )); do
               cat "$sweep_dir/$i.out" 2>/dev/null || true
               v=""; [[ -f "$sweep_dir/$i.rc" ]] && read -r v <"$sweep_dir/$i.rc"
@@ -1712,7 +1720,7 @@ jobs:
           sweep_stop() { # <exit code>
             local p
             sweep_killed=1
-            for p in $(jobs -p); do kill "$p" 2>/dev/null || true; done
+            for p in "${sweep_pids[@]}"; do kill "$p" 2>/dev/null || true; done
             exit "$1"
           }
           # shellcheck disable=SC2317,SC2329  # called by the traps below
@@ -1758,6 +1766,7 @@ jobs:
           sweep() { # <label> <pattern> [<allowed line regex> <what it allows>]
             sweep_n=$((sweep_n + 1))
             ( fail=0; sweep_one "$@"; echo "$fail" >"$sweep_dir/$sweep_n.rc" ) >"$sweep_dir/$sweep_n.out" 2>&1 &
+            sweep_pids+=("${!-}")  # unset only in check-dist-hygiene control g (no &)
           }
           sweep_one() {
             local label="$1" pattern="$2" re="${3:-}" what="${4:-}" hits rc=0 h kept="" n_allowed=0

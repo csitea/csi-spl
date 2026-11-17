@@ -14,8 +14,10 @@
 //
 // Every error is caught, three ways: `pageerror`, `console.error`, and the
 // Vue app's own errorHandler (a render error Nuxt swallows still lands there).
-// CONTROL, each run: a reply whose body throws, pushed into the same feed must be caught,
-// so a collector that sees nothing cannot read as green.
+// CONTROL, each run: a reply whose body throws, pushed into the same feed must be
+// caught BY ITS OWN TEXT, so a collector that sees nothing (or only network
+// noise) cannot read as green. A run whose page saw net::ERR_NETWORK_CHANGED
+// (docker veth churn) is retried once, as lib/page-log.mjs does for every e2e.
 //
 // Run:
 //   pnpm test:e2e topic-pane-locale-live
@@ -26,6 +28,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+import { watchPage, retryOnNetworkChanged } from './lib/page-log.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const LOCALE = 'bg'
@@ -42,6 +45,18 @@ const ok = (name, pass, ev) => {
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
   if (!pass) fails.push(name)
 }
+/** One attempt's checks, kept until the attempt is final (see run()). */
+const checks = () => {
+  const list = []
+  return { list, ok: (name, pass, ev) => list.push({ name, pass, ev }) }
+}
+/** A run, retried ONCE only when its page saw net::ERR_NETWORK_CHANGED (docker
+    veth churn on the shared box and runners, lib/page-log.mjs); then reported. */
+async function run(name, fn) {
+  const list = await retryOnNetworkChanged(name, fn, { failed: (l) => l.filter((c) => !c.pass).map((c) => c.name).join('; ') })
+  for (const c of list) ok(c.name, c.pass, c.ev)
+}
+const CONTROL_ERROR = 'SPL-5738 control row'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function launch() {
@@ -63,7 +78,7 @@ async function launch() {
 
 /** Open the shell in LOCALE with every error collected; returns { page, errors }. */
 async function openShell(browser, base) {
-  const page = await browser.newPage()
+  const page = watchPage(await browser.newPage())
   await page.setViewport({ width: 1280, height: 800 })
   page.setDefaultNavigationTimeout(NAV_TIMEOUT)
   const errors = []
@@ -106,24 +121,50 @@ const pane = (page) => page.evaluate(() => {
   }
 })
 
-/** A live burst: n copies of the open topic's newest reply, written to the
-    channel store the pane reads (topic.messages is a view of channel.messages),
-    one write a frame apart, as frames off the socket arrive. */
+/** A live burst: n copies of the open topic's newest reply, one a frame
+    apart, as frames off the socket arrive. Each row is delivered the way the
+    mock hub holds a reply its socket just sent: added to the mock's
+    `spool.mock.extra-messages` hook, which every mock listMessages reads, AND
+    written to the channel store the pane reads (topic.messages is a view of
+    channel.messages). The app's own refresh replaces channel.messages (mock
+    catchUp = refresh, src/stores/channel.ts), so a row only in the store
+    would be wiped by it; with the hook the refresh reads it back. */
 const burst = (page, n, tag) => page.evaluate(async (n, tag) => {
   const stores = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s
   const topic = stores.get('topic')
   const channel = stores.get('channel')
+  const KEY = 'spool.mock.extra-messages'
   for (let i = 0; i < n; i++) {
     const like = topic.messages[topic.messages.length - 1]
     if (!like) return 'no-row'
     const ts = new Date(Date.now() + i).toISOString()
-    channel.messages = [...channel.messages, { ...like, msg_id: `live-${tag}-${i}-${Date.now()}`, ts, received_at: ts, body: `live ${tag} ${i}` }]
+    const row = { ...JSON.parse(JSON.stringify(like)), msg_id: `live-${tag}-${i}-${Date.now()}`, ts, received_at: ts, body: `live ${tag} ${i}` }
+    const held = JSON.parse(localStorage.getItem(KEY) || '[]')
+    localStorage.setItem(KEY, JSON.stringify([...held, row]))
+    channel.messages = [...channel.messages, row]
     await new Promise((r) => requestAnimationFrame(() => r()))
   }
   return 'ok'
 }, n, tag)
 
 const vueErrors = (page) => page.evaluate(() => window.__vueErrors || [])
+
+/** The feed settled: no request in flight for 500 ms, then two frames painted.
+    A "no error" claim cannot wait on an error event, so it waits on this. */
+async function settled(page) {
+  await page.waitForNetworkIdle({ idleTime: 500, timeout: 15000 }).catch(() => {})
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+}
+
+/** Wait until the planted error is collected (page, console or Vue handler), max 10 s. */
+async function waitError(page, errors) {
+  const end = Date.now() + 10000
+  while (Date.now() < end) {
+    if (errors.some((e) => e.includes(CONTROL_ERROR))) return
+    const got = await page.waitForFunction((t) => (window.__vueErrors || []).some((e) => e.includes(t)), { timeout: 250 }, CONTROL_ERROR).then(() => true, () => false)
+    if (got) return
+  }
+}
 
 async function waitRows(page, want) {
   const end = Date.now() + 15000
@@ -133,50 +174,59 @@ async function waitRows(page, want) {
 }
 
 async function liveRun(browser, base) {
+  const { list, ok } = checks()
   const { page, errors, hooked } = await openShell(browser, base)
-  ok('the Vue error handler is hooked', hooked)
-  await topicDo(page, 'open', TASK_A)
-  const first = await waitRows(page, 1)
-  ok(`TopicPane opens in ${LOCALE} (its feed label is the ${LOCALE} text)`, first.open && first.rows >= 1 && first.label === LABEL && LABEL !== LABEL_EN, first)
-  ok('burst 1 (8 rows) lands', (await burst(page, 8, 'a1')) === 'ok')
-  await topicDo(page, 'open', TASK_B)
-  const pB = burst(page, 6, 'b1')
-  await topicDo(page, 'open', TASK_A)
-  await pB
-  await topicDo(page, 'close')
-  await sleep(50)
-  await topicDo(page, 'open', TASK_A)
-  ok('burst 2 (8 rows) after close / reopen lands', (await burst(page, 8, 'a2')) === 'ok')
-  const end = await waitRows(page, first.rows + 8)
-  ok('the pane shows the live rows', end.open && end.rows >= first.rows + 8, { before: first.rows, after: end.rows })
-  await sleep(600)
-  const all = [...errors, ...(await vueErrors(page)).map((e) => `vue: ${e}`)]
-  ok('no Vue, page or console error through the live bursts', all.length === 0, all.slice(0, 5))
-  await page.close()
+  try {
+    ok('the Vue error handler is hooked', hooked)
+    await topicDo(page, 'open', TASK_A)
+    const first = await waitRows(page, 1)
+    ok(`TopicPane opens in ${LOCALE} (its feed label is the ${LOCALE} text)`, first.open && first.rows >= 1 && first.label === LABEL && LABEL !== LABEL_EN, first)
+    ok('burst 1 (8 rows) lands', (await burst(page, 8, 'a1')) === 'ok')
+    await topicDo(page, 'open', TASK_B)
+    const pB = burst(page, 6, 'b1')
+    await topicDo(page, 'open', TASK_A)
+    await pB
+    await topicDo(page, 'close')
+    await sleep(50)
+    await topicDo(page, 'open', TASK_A)
+    ok('burst 2 (8 rows) after close / reopen lands', (await burst(page, 8, 'a2')) === 'ok')
+    const end = await waitRows(page, first.rows + 8)
+    ok('the pane shows the live rows', end.open && end.rows >= first.rows + 8, { before: first.rows, after: end.rows })
+    await settled(page)
+    const all = [...errors, ...(await vueErrors(page)).map((e) => `vue: ${e}`)]
+    ok('no Vue, page or console error through the live bursts', all.length === 0, all.slice(0, 5))
+  } finally { await page.close() }
+  return list
 }
 
+/* The control must catch the error it planted, by its own text: any other
+   console line (a churned request, say) is not that error and proves nothing. */
 async function control(browser, base) {
-  const { page, errors } = await openShell(browser, base)
-  await topicDo(page, 'open', TASK_A)
-  await waitRows(page, 1)
-  await page.evaluate(() => {
-    const stores = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s
-    const like = stores.get('topic').messages.at(-1)
-    /* a reply of the open topic whose body throws when the card reads it */
-    const bad = { ...like, msg_id: `bad-${Date.now()}`, get body() { throw new Error('SPL-5738 control row') } }
-    stores.get('channel').messages = [...stores.get('channel').messages, bad]
-  })
-  await sleep(800)
-  const all = [...errors, ...(await vueErrors(page))]
-  ok('CONTROL: a reply whose body throws in the same feed is caught as an error', all.length > 0, all.slice(0, 2))
-  await page.close()
+  const { list, ok } = checks()
+  const { page, errors, hooked } = await openShell(browser, base)
+  try {
+    ok('CONTROL: the Vue error handler is hooked', hooked)
+    await topicDo(page, 'open', TASK_A)
+    await waitRows(page, 1)
+    await page.evaluate(() => {
+      const stores = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s
+      const like = stores.get('topic').messages.at(-1)
+      /* a reply of the open topic whose body throws when the card reads it */
+      const bad = { ...like, msg_id: `bad-${Date.now()}`, get body() { throw new Error('SPL-5738 control row') } }
+      stores.get('channel').messages = [...stores.get('channel').messages, bad]
+    })
+    await waitError(page, errors)
+    const all = [...errors, ...(await vueErrors(page))]
+    ok('CONTROL: the planted throwing reply is caught as an error', all.some((e) => e.includes(CONTROL_ERROR)), all.slice(0, 3))
+  } finally { await page.close() }
+  return list
 }
 
 const srv = await startServer()
 const browser = await launch()
 try {
-  await liveRun(browser, srv.base)
-  await control(browser, srv.base)
+  await run('live bursts', () => liveRun(browser, srv.base))
+  await run('control', () => control(browser, srv.base))
 } finally {
   await browser.close()
   await srv.stop()

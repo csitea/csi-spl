@@ -1,5 +1,7 @@
 # Perf round 13 (p13) - plan (2 rows, v1.0)
 
+> Generated from qto doc `f20d8346-01d1-424b-9f3f-142ccf698c14`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
 Class: refactor  
@@ -54,6 +56,8 @@ guess its content. It reads `perf-round-12-plan.md` (its section 6 first),
 and `lesson-speed-up-measure-first.md`.
 
 <a id="p13-how-to-read"></a>
+
+<a id="ws-doc-290a4fd8-da48-4133-a3e8-e967cebd6315"></a>
 ## 1. How to read this
 
 - A row is one logical change made by one lane, with the subject
@@ -76,6 +80,7 @@ and `lesson-speed-up-measure-first.md`.
   costs is row 01.
 
 <a id="p13-inputs"></a>
+<a id="ws-doc-c84bcb5f-a0f4-4dd0-90f2-35e0ae54e33d"></a>
 ## 2. Where the rows come from
 
 Inputs read (brief step 2). Each carried finding was re-checked on
@@ -94,6 +99,7 @@ Inputs read (brief step 2). Each carried finding was re-checked on
 | `lesson-speed-up-measure-first.md` | time the real waiting, count the cost, guard it with a counting test | applied: the log first (editor 2.1), then the code path, then a probe (editor 2.3) | - |
 
 <a id="p13-rows"></a>
+<a id="ws-doc-3af70a77-3d02-44a4-85eb-d0723cec1cf2"></a>
 ## 3. The rows
 
 | # | id | practice | baseline on `9310612f3` (command, number, n) | after | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
@@ -105,6 +111,7 @@ Every row is claude: rulebook R14 (an established vendor) and the owner's
 10-17 rule (no mistral coding or testing).
 
 <a id="p13-batches"></a>
+<a id="ws-doc-efe23cb1-3083-4fc7-94a8-11ff0ec5bfce"></a>
 ### 3.1 Batches and disjoint files (R1)
 
 - **Batch 1**: row 01. Files: `cpp`, `check-pre-push-timeout-red-trunk.tst.sh`, `pre-push-gate.md`.
@@ -112,6 +119,7 @@ Every row is claude: rulebook R14 (an established vendor) and the owner's
 - No row file is a file of an unlanded round row (3.2).
 
 <a id="p13-r3"></a>
+<a id="ws-doc-7747b85a-3b4e-4e2d-bfb8-7b5509ad5a79"></a>
 ### 3.2 Off every live lane, every queued row and every open round row (R3)
 
 Read on 2026-11-17, each with its time:
@@ -145,6 +153,7 @@ Read on 2026-11-17, each with its time:
   .gosec-baseline.txt>` at `fedcbc299` (07:43Z) -> 0 lines.
 
 <a id="p13-per-row"></a>
+<a id="ws-doc-1e66cf00-52e0-4634-9ce3-98882159addc"></a>
 ## 4. Per row: what the lane does
 
 - **01**:
@@ -191,6 +200,7 @@ Read on 2026-11-17, each with its time:
     commit body.
 
 <a id="p13-panel"></a>
+<a id="ws-doc-9b581926-5032-45ae-b260-ddca1ca4b979"></a>
 ## 5. Panel and reviewers (R7)
 
 Read on 2026-11-17 06:22:24Z:
@@ -219,6 +229,7 @@ So the only vendors that can sit now are claude and mistral.
 **Ruling (c-001 cbada223, relayed by c-002@sat msg c91e9816, 2026-11-17 06:3xZ)**: owner ruling e895dea6 (p12 poll 8ede28e3, C: claude + mistral sign, no agy) **carries to p13 while its conditions hold**: grok `pick=hold` on both boxes and agy at its quota limit. It lapses on the first grok pick on either box or agy's reset; then the panel is per rulebook again. So the panel is **c-882 (claude, editor) + the mistral seat** (ask 9c0a6cef, `mistral:c002-perf-round-13-mistral-panel-seat`, queued 1 of 6 at 06:3xZ), and the mistral seat reviews each claude row under the same ruling. The seat signs only a sha this editor names.
 
 <a id="p13-left-out"></a>
+<a id="ws-doc-10e9c046-12f1-41b3-a871-bdd9a9e4c826"></a>
 ## 6. Left out, measured or not measurable here
 
 | candidate | why not a row | measurement |
@@ -231,6 +242,7 @@ So the only vendors that can sit now are claude and mistral.
 | SPL-5734 N1, N3, N4; SPL-5736 N2; SPL-5750 N1, N2 | not perf work | sent to c-001 as their own asks, task `dispatch-perf-r13` |
 
 <a id="p13-counts"></a>
+<a id="ws-doc-7708e729-10ed-4281-8f7b-ae5f1eaa5ad4"></a>
 ## 7. Counts
 
 - Rows: 2 (rulebook 1.1: at most 10).
@@ -240,6 +252,7 @@ So the only vendors that can sit now are claude and mistral.
 - Review count (2.7.5): `git log origin/master --grep='p13-' --format=%B | grep -c '^review: '` must reach 2 (one per row).
 
 <a id="p13-changes"></a>
+<a id="ws-doc-f954abb5-e6bd-4fc0-9715-d75c907994b2"></a>
 ## 8. Changes
 
 Qto (rulebook 4.5): this file is imported once into the `system` workspace with
@@ -253,6 +266,7 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 - v1.0 (c-882, 2026-11-17 08:3xZ): mistral m-909 PASS on v0.3 `d4e8e8572` (msg 5fd28edf, seat `a69af00ef`), W none; rows unchanged. Only the status, this line and section 9 change; the editor signs (holder c-002@sat msg fa5b6178).
 
 <a id="p13-consensus"></a>
+<a id="ws-doc-71fa89dc-1cf2-4d2d-b4af-acb25699536d"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |

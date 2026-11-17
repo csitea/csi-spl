@@ -127,11 +127,12 @@ internal/marketing 86.5
 internal/mcp 90.0
 internal/msg 90.8
 internal/notify 96.6
-# internal/payments: 80.9 with stripe_refund_test.go (r16-04, 712/880), 78.6
-# without; paypal_payments_test.go (r14-06) took it 72.4 -> 78.6 (637 -> 692
-# of 880); go test -count=1 -cover ./internal/payments/, go1.26.10, n=3 read
-# 80.9 each.
-internal/payments 84.3
+# internal/payments: 86.1 with capture_status_test.go (r60-02, paypalCapture
+# and status refusals), 84.3 without; floor = 86.1 - 0.5 headroom.
+# go test -count=1 -cover ./internal/payments/, go1.26.11, n=3 read 86.1 each.
+# Before: 80.9 with stripe_refund_test.go (r16-04), 78.6 without;
+# paypal_payments_test.go (r14-06) took it 72.4 -> 78.6.
+internal/payments 85.6
 internal/pollform 100.0
 internal/quiesce 96.8
 internal/rbac 98.9

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,7 +119,7 @@ func realmContract(t *testing.T, f realmFix) {
 		t.Errorf("profile before any put: %+v %v, want the zero profile with {}", got, err)
 	}
 	if err := st.PutRealmProfile(ctx, p, RealmProfile{TimeZone: "Europe/Helsinki", Locale: "fi",
-		CommPrefs: json.RawMessage(`{"digest":"weekly"}`)}, now); err != nil {
+		CommPrefs: json.RawMessage(`{"digest":"weekly"}`), PrimaryWorkspaceID: "ws-primary"}, now); err != nil {
 		t.Fatalf("put profile: %v", err)
 	}
 	got, err := st.RealmProfileOf(ctx, p)
@@ -126,23 +127,25 @@ func realmContract(t *testing.T, f realmFix) {
 	if err == nil {
 		err = json.Unmarshal(got.CommPrefs, &prefs)
 	}
-	if err != nil || got.TimeZone != "Europe/Helsinki" || got.Locale != "fi" || prefs["digest"] != "weekly" || !got.UpdatedAt.Equal(now) {
+	if err != nil || got.TimeZone != "Europe/Helsinki" || got.Locale != "fi" || prefs["digest"] != "weekly" ||
+		got.PrimaryWorkspaceID != "ws-primary" || !got.UpdatedAt.Equal(now) {
 		t.Errorf("profile after put: %+v %v", got, err)
 	}
 	if err := st.PutRealmProfile(ctx, p, RealmProfile{}, now); err != nil {
 		t.Fatalf("put empty profile: %v", err)
 	}
-	if got, err := st.RealmProfileOf(ctx, p); err != nil || got.TimeZone != "" || got.Locale != "" || string(got.CommPrefs) != "{}" {
-		t.Errorf("profile put whole with nothing set: %+v %v, want zone and locale NULL, {}", got, err)
+	if got, err := st.RealmProfileOf(ctx, p); err != nil || got.TimeZone != "" || got.Locale != "" || string(got.CommPrefs) != "{}" || got.PrimaryWorkspaceID != "" {
+		t.Errorf("profile put whole with nothing set: %+v %v, want zone, locale and primary workspace NULL, {}", got, err)
 	}
 	if got, err := st.RealmProfileOf(ctx, q); err != nil || got.TimeZone != "" {
 		t.Errorf("T-N1: Q's profile after P's put: %+v %v, want the zero profile", got, err)
 	}
 	for name, bad := range map[string]RealmProfile{
-		"zone":   {TimeZone: "not a zone"},
-		"locale": {Locale: "xx-nope"},
-		"prefs":  {CommPrefs: json.RawMessage(`[1]`)},
-		"big":    {CommPrefs: json.RawMessage(fmt.Sprintf(`{"a":"%0*d"}`, RealmCommPrefsMax, 0))},
+		"zone":    {TimeZone: "not a zone"},
+		"locale":  {Locale: "xx-nope"},
+		"prefs":   {CommPrefs: json.RawMessage(`[1]`)},
+		"primary": {PrimaryWorkspaceID: strings.Repeat("w", realmWorkspaceIDMx+1)},
+		"big":     {CommPrefs: json.RawMessage(fmt.Sprintf(`{"a":"%0*d"}`, RealmCommPrefsMax, 0))},
 	} {
 		if err := st.PutRealmProfile(ctx, p, bad, now); !errors.Is(err, ErrRealmBad) {
 			t.Errorf("put profile with a bad %s: %v, want ErrRealmBad", name, err)

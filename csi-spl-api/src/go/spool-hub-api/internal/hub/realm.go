@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -20,7 +21,7 @@ import (
 //
 //	GET    /v1/me/realm/settings                the hours limits (118 C3)
 //	PUT    /v1/me/realm/settings                a new limits row from valid_from
-//	GET    /v1/me/realm/profile                 time zone, locale, comm prefs
+//	GET    /v1/me/realm/profile                 time zone, locale, comm prefs, primary workspace
 //	PUT    /v1/me/realm/profile                 the whole profile
 //	GET    /v1/me/realm/receipts                the receipts, newest rev (8.2)
 //	DELETE /v1/me/realm/receipts/{workspace_id} the person's own erasure (8.3)
@@ -286,15 +287,30 @@ func (s *Server) handlePutRealmSettings(w http.ResponseWriter, r *http.Request) 
 
 // ---- profile -----------------------------------------------------------------
 
+// realmProfileJSON is the profile on the wire. primary_workspace_id (spec 119
+// primary-workspace.md 2.2) is "" when none; primary_workspace_stale is
+// answered (never read from a body) when the stored id no longer passes 2.1:
+// the value is kept, read as unset, and the WUI asks for another (2.4).
 type realmProfileJSON struct {
-	TimeZone  string          `json:"time_zone"`
-	Locale    string          `json:"locale"`
-	CommPrefs json.RawMessage `json:"comm_prefs"`
-	UpdatedAt string          `json:"updated_at,omitempty"`
+	TimeZone              string          `json:"time_zone"`
+	Locale                string          `json:"locale"`
+	CommPrefs             json.RawMessage `json:"comm_prefs"`
+	PrimaryWorkspaceID    string          `json:"primary_workspace_id"`
+	PrimaryWorkspaceStale bool            `json:"primary_workspace_stale,omitempty"`
+	UpdatedAt             string          `json:"updated_at,omitempty"`
 }
 
-func realmProfileOut(p store.RealmProfile) realmProfileJSON {
-	out := realmProfileJSON{TimeZone: p.TimeZone, Locale: p.Locale, CommPrefs: p.CommPrefs}
+// realmProfilePut is the PUT body: the profile's fields, nothing answered.
+type realmProfilePut struct {
+	TimeZone           string          `json:"time_zone"`
+	Locale             string          `json:"locale"`
+	CommPrefs          json.RawMessage `json:"comm_prefs"`
+	PrimaryWorkspaceID string          `json:"primary_workspace_id"`
+}
+
+func realmProfileOut(p store.RealmProfile, stale bool) realmProfileJSON {
+	out := realmProfileJSON{TimeZone: p.TimeZone, Locale: p.Locale, CommPrefs: p.CommPrefs,
+		PrimaryWorkspaceID: p.PrimaryWorkspaceID, PrimaryWorkspaceStale: stale}
 	if len(out.CommPrefs) == 0 {
 		out.CommPrefs = json.RawMessage(`{}`)
 	}
@@ -311,21 +327,68 @@ func (s *Server) handleGetRealmProfile(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	p, err := c.st.RealmProfileOf(r.Context(), c.person)
+	s.realmProfileAnswer(r.Context(), w, c)
+}
+
+// realmProfileAnswer writes the person's profile, the primary workspace
+// checked against 2.1 again (a stale one is flagged, 2.4).
+func (s *Server) realmProfileAnswer(ctx context.Context, w http.ResponseWriter, c realmMe) {
+	p, err := c.st.RealmProfileOf(ctx, c.person)
 	if err != nil {
 		s.realmFail(w, "profile_get", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, realmProfileOut(p))
+	stale := false
+	if p.PrimaryWorkspaceID != "" {
+		ok, err := s.primaryWorkspaceOK(ctx, c.person, p.PrimaryWorkspaceID)
+		if err != nil {
+			s.realmFail(w, "primary_workspace", err)
+			return
+		}
+		stale = !ok
+	}
+	writeJSON(w, http.StatusOK, realmProfileOut(p, stale))
 }
 
-// PUT /v1/me/realm/profile {time_zone, locale, comm_prefs}: the whole profile.
+// primaryWorkspaceOK is spec 119 primary-workspace.md 2.1 for one workspace:
+// ws is in Memberships(person) (no channel_guest seat, nothing disabled,
+// access_until not passed), the person holds notes.send there, the seat is
+// not a demo visit, and the workspace's billing allows writes; the three
+// checks of calendarWriter.
+func (s *Server) primaryWorkspaceOK(ctx context.Context, person, ws string) (bool, error) {
+	ml, ok := s.o.Store.(store.MembershipLister)
+	if !ok {
+		return false, errors.New("realm: the store lists no memberships")
+	}
+	seats, err := ml.Memberships(ctx, person)
+	if err != nil {
+		return false, err
+	}
+	if !slices.ContainsFunc(seats, func(m store.Membership) bool { return m.TenantID == ws }) {
+		return false, nil
+	}
+	if !s.allowed(ctx, person, ws, rbac.NotesSend) || s.isDemoVisitor(ctx, ws, person) {
+		return false, nil
+	}
+	t, err := s.o.Store.GetTenant(ctx, ws)
+	if errors.Is(err, store.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return billing.AllowsWrite(t.BillingStatus), nil
+}
+
+// PUT /v1/me/realm/profile {time_zone, locale, comm_prefs,
+// primary_workspace_id}: the whole profile. A primary workspace outside 2.1
+// is 400 bad_primary_workspace and writes nothing; "" clears it.
 func (s *Server) handlePutRealmProfile(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.realmCaller(w, r)
 	if !ok {
 		return
 	}
-	var body realmProfileJSON
+	var body realmProfilePut
 	if !readRealmJSON(w, r, &body) {
 		return
 	}
@@ -334,17 +397,25 @@ func (s *Server) handlePutRealmProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	p := store.RealmProfile{TimeZone: body.TimeZone, Locale: body.Locale, CommPrefs: body.CommPrefs}
+	if ws := body.PrimaryWorkspaceID; ws != "" {
+		ok, err := s.primaryWorkspaceOK(ctx, c.person, ws)
+		if err != nil {
+			s.realmFail(w, "primary_workspace", err)
+			return
+		}
+		if !ok {
+			writeErr(w, http.StatusBadRequest, "bad_primary_workspace",
+				"primary_workspace_id must be a workspace where you may write: a member, with notes.send, not a demo visit, billing allowing writes")
+			return
+		}
+	}
+	p := store.RealmProfile{TimeZone: body.TimeZone, Locale: body.Locale, CommPrefs: body.CommPrefs,
+		PrimaryWorkspaceID: body.PrimaryWorkspaceID}
 	if err := c.st.PutRealmProfile(ctx, c.person, p, s.o.Now()); err != nil {
 		s.realmFail(w, "profile_put", err)
 		return
 	}
-	got, err := c.st.RealmProfileOf(ctx, c.person)
-	if err != nil {
-		s.realmFail(w, "profile_get", err)
-		return
-	}
-	writeJSON(w, http.StatusOK, realmProfileOut(got))
+	s.realmProfileAnswer(ctx, w, c)
 }
 
 // ---- receipts ----------------------------------------------------------------

@@ -455,7 +455,7 @@ All four rows are ready to place once the file passes review. v0.1's
 T021 (the contacts binding follows the primary workspace) is dropped
 under `7b`. Tests are that file's section 10.
 
-- [ ] T019 **Lane R: the setting** (SPL-5788; claude, rdb + store + hub). One
+- [x] T019 **Lane R: the setting** (SPL-5788; claude, rdb + store + hub). One
   additive migration (number from `do_rdb_migration_next`): column
   `personal.profile.primary_workspace_id text NULL` (1..200, no FK);
   `GET` / `PUT /v1/me/realm/profile` read and write it, the `PUT` checked

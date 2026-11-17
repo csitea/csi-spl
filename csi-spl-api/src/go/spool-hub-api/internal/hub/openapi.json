@@ -916,6 +916,14 @@
             "description": "\"\" = none",
             "type": "string"
           },
+          "primary_workspace_id": {
+            "description": "the Primary workspace (spec 119 primary-workspace.md 2.2): the workspace a new entry made in My calendar goes to by default; \"\" = none",
+            "type": "string"
+          },
+          "primary_workspace_stale": {
+            "description": "answered true when the stored primary workspace no longer passes 2.1 (left, read-only billing, no notes.send, ...): it is kept but read as unset (2.4); absent otherwise",
+            "type": "boolean"
+          },
           "time_zone": {
             "description": "IANA zone; \"\" = none",
             "type": "string"
@@ -9529,7 +9537,7 @@
     },
     "/v1/me/realm/profile": {
       "get": {
-        "description": "Time zone, locale and communication preferences; the name shown is humans.display_name. Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",
+        "description": "Time zone, locale, communication preferences and the Primary workspace (primary_workspace_stale when it no longer passes spec 119 primary-workspace.md 2.1); the name shown is humans.display_name. Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",
         "operationId": "getMeRealmProfile",
         "responses": {
           "200": {
@@ -9558,7 +9566,7 @@
         ]
       },
       "put": {
-        "description": "Writes the whole profile. Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",
+        "description": "Writes the whole profile. primary_workspace_id must be a workspace the person may write in (spec 119 primary-workspace.md 2.1: a member, not a channel_guest seat, holding notes.send, not a demo visit, billing allowing writes), else 400 bad_primary_workspace and nothing is written; \"\" or absent clears it. Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",
         "operationId": "putMeRealmProfile",
         "requestBody": {
           "content": {
@@ -9571,6 +9579,11 @@
                     "type": "object"
                   },
                   "locale": {
+                    "type": "string"
+                  },
+                  "primary_workspace_id": {
+                    "description": "a workspace id of spec 119 primary-workspace.md 2.1; \"\" = none",
+                    "maxLength": 200,
                     "type": "string"
                   },
                   "time_zone": {

@@ -36,9 +36,10 @@ func (s *Postgres) RealmProfileOf(ctx context.Context, person string) (RealmProf
 	p := RealmProfile{CommPrefs: json.RawMessage(`{}`)}
 	err := s.inPerson(ctx, person, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `
-			SELECT COALESCE(time_zone, ''), COALESCE(locale, ''), comm_prefs, updated_at
+			SELECT COALESCE(time_zone, ''), COALESCE(locale, ''), comm_prefs,
+			       COALESCE(primary_workspace_id, ''), updated_at
 			FROM personal.profile WHERE person_id = $1`, person).
-			Scan(&p.TimeZone, &p.Locale, &p.CommPrefs, &p.UpdatedAt)
+			Scan(&p.TimeZone, &p.Locale, &p.CommPrefs, &p.PrimaryWorkspaceID, &p.UpdatedAt)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
@@ -58,11 +59,12 @@ func (s *Postgres) PutRealmProfile(ctx context.Context, person string, p RealmPr
 	}
 	err = s.inPerson(ctx, person, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO personal.profile (person_id, time_zone, locale, comm_prefs, updated_at)
-			VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), $4::jsonb, $5)
+			INSERT INTO personal.profile (person_id, time_zone, locale, comm_prefs, primary_workspace_id, updated_at)
+			VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), $4::jsonb, NULLIF($5, ''), $6)
 			ON CONFLICT (person_id) DO UPDATE SET time_zone = EXCLUDED.time_zone, locale = EXCLUDED.locale,
-			       comm_prefs = EXCLUDED.comm_prefs, updated_at = EXCLUDED.updated_at`,
-			person, p.TimeZone, p.Locale, string(p.CommPrefs), now.UTC())
+			       comm_prefs = EXCLUDED.comm_prefs, primary_workspace_id = EXCLUDED.primary_workspace_id,
+			       updated_at = EXCLUDED.updated_at`,
+			person, p.TimeZone, p.Locale, string(p.CommPrefs), p.PrimaryWorkspaceID, now.UTC())
 		return err
 	})
 	return realmPGErr(err)

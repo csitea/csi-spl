@@ -41,12 +41,16 @@ const (
 )
 
 // RealmProfile is personal.profile. "" = NULL: no zone (the browser's, 118
-// C4), no locale. CommPrefs is a JSON object, "{}" when none.
+// C4), no locale, no primary workspace. CommPrefs is a JSON object, "{}"
+// when none. PrimaryWorkspaceID (rdb 0292, spec 119 primary-workspace.md
+// 2.2) is a workspace id with no FK; the store checks its length only, the
+// hub checks it against the person's writable workspaces (2.1).
 type RealmProfile struct {
-	TimeZone  string
-	Locale    string
-	CommPrefs json.RawMessage
-	UpdatedAt time.Time
+	TimeZone           string
+	Locale             string
+	CommPrefs          json.RawMessage
+	PrimaryWorkspaceID string
+	UpdatedAt          time.Time
 }
 
 // RealmLimits is one personal.settings row: the hours limits in force from
@@ -106,10 +110,14 @@ var (
 	_ Realm = (*Postgres)(nil)
 )
 
-// normalizeRealmProfile checks p against rdb 0168 and fills CommPrefs "{}".
+// normalizeRealmProfile checks p against rdb 0168 and 0292 and fills
+// CommPrefs "{}".
 func normalizeRealmProfile(p RealmProfile) (RealmProfile, error) {
 	if p.TimeZone != "" && !auth.IsTimeZone(p.TimeZone) {
 		return p, fmt.Errorf("%w: time_zone must be an IANA zone name", ErrRealmBad)
+	}
+	if len(p.PrimaryWorkspaceID) > realmWorkspaceIDMx {
+		return p, fmt.Errorf("%w: primary_workspace_id above %d bytes", ErrRealmBad, realmWorkspaceIDMx)
 	}
 	if err := checkLocale(p.Locale); err != nil {
 		return p, fmt.Errorf("%w: %v", ErrRealmBad, err)

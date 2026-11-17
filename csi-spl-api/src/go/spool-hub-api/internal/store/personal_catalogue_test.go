@@ -95,10 +95,10 @@ func personalCatalogueGaps(ctx context.Context, q rowQuerier, rt string) []strin
 			WHERE attrelid = 'personal.hours_receipts'::regclass AND attnum > 0 AND NOT attisdropped
 			HAVING string_agg(attname, ',' ORDER BY attnum) IS DISTINCT FROM
 			  'person_id,workspace_id,workspace_name,day,minutes,label,kind,period_start,period_end,approval_state,approver_name,decided_at,rev,copied_at'`},
-		{"T-C5 profile columns are exactly 7.3's (no name column)", `
+		{"T-C5 profile columns are exactly 7.3's plus rdb 0292's primary_workspace_id (no name column)", `
 			SELECT string_agg(attname, ',' ORDER BY attnum) FROM pg_attribute
 			WHERE attrelid = 'personal.profile'::regclass AND attnum > 0 AND NOT attisdropped
-			HAVING string_agg(attname, ',' ORDER BY attnum) IS DISTINCT FROM 'person_id,time_zone,locale,comm_prefs,updated_at'`},
+			HAVING string_agg(attname, ',' ORDER BY attnum) IS DISTINCT FROM 'person_id,time_zone,locale,comm_prefs,updated_at,primary_workspace_id'`},
 		{"T-C6 the runtime's UPDATE in personal is profile, settings, receipt_due, contacts, contact_photos and the notes tables; DELETE profile, settings, contacts, contact_photos and the notes tables", fmt.Sprintf(`
 			SELECT string_agg(format('%%s %%s', p, c.relname), ', ' ORDER BY p, c.relname) FROM pg_class c,
 			       unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) p
@@ -332,7 +332,7 @@ func seedRealm(t *testing.T, pg *Postgres, rt string, plants ...string) (pgx.Tx,
 		}{
 			{`INSERT INTO humans (human_id, display_name) VALUES ($1, 'FirstName LastName')`, []any{who}},
 			{`SELECT set_config('app.person_id', $1, true)`, []any{who}},
-			{`INSERT INTO personal.profile (person_id, time_zone) VALUES ($1, 'Europe/Helsinki')`, []any{who}},
+			{`INSERT INTO personal.profile (person_id, time_zone, primary_workspace_id) VALUES ($1, 'Europe/Helsinki', $2)`, []any{who, s.w1}},
 			{`INSERT INTO personal.settings (person_id, valid_from, hours_limit_day_minutes) VALUES ($1, $2, 480)`, []any{who, day}},
 			{`INSERT INTO personal.hours_receipts (person_id, workspace_id, workspace_name, day, minutes, label, kind,
 				period_start, period_end, approval_state, rev)

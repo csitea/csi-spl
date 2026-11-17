@@ -8,15 +8,15 @@
 # @description drifts; spawn routing reads this line. Through the Cloud SQL
 # @description proxy as the env's project service account, one SELECT, values
 # @description as psql variables. Prints no secret.
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @description With --kind <k> (spec 115 HUB-1, rdb 0163) it prints that task
 # @description kind's row instead, the LANE_MIX_SPLIT line plus its backup:
 # @description   claude=80 grok=0 agy=0 qwen=0 mistral=20 codex=0 backup=mistral
 # @description A kind the workspace has not set prints the cnf
 # @description env.box.agent_split_by_kind row (the log says source=cnf).
-# @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
+# @param ENV (required) - dev or prd
+# @param TENANT_ID (required) - the tenant slug
 # @param --kind <k> (optional) - specs_and_docs, tests, simple_coding,
 # @param   complex_coding, i18n, secret or orchestration; the picker's aliases spec, hard and
 # @param   default are read as specs_and_docs, complex_coding, simple_coding

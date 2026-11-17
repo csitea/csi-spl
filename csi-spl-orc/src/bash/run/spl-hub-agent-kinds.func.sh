@@ -12,10 +12,10 @@
 # @description refuses switching every kind off. KINDS_OFF unset: read only,
 # @description print the kinds off and the running pauses. DRY_RUN=1 (default)
 # @description with KINDS_OFF: print the change, call no cloud.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param KINDS_OFF (optional) - the WHOLE set to switch off, comma separated
 # @param   (claude,grok,agy,qwen,mistral,codex), or 'none' to switch every kind on; unset = read
-# @param ORDERED_BY - required when DRY_RUN=0: the human who ordered it, a HUM-* id
+# @param ORDERED_BY (optional) - the human who ordered it, a HUM-* id; needed with DRY_RUN=0
 # @param ORDERED_VIA (optional) - the agent or channel that carried the order, at most 64 chars
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev ./run -a do_spl_hub_agent_kinds

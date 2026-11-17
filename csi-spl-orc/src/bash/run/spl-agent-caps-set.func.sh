@@ -16,11 +16,11 @@
 # @description One transaction; it prints "<ws> | <before> -> <after>" per
 # @description workspace, then reads every one back. DRY_RUN=1 (default) runs
 # @description the same writes and rolls them back.
-# @param ENV - required: dev or prd
+# @param ENV (required) - dev or prd
 # @param TENANT_ID - the workspace slug; or ALL=1 for every workspace (one of the two)
 # @param ALL (optional) - 1: every workspace of the env
-# @param CAPS_VENDOR - required: claude, grok, mistral, agy, qwen or codex
-# @param CAPS_MAX_LIVE - required: a whole number >= 0 (0 forbids the vendor), or none (uncapped)
+# @param CAPS_VENDOR (required) - claude, grok, mistral, agy, qwen or codex
+# @param CAPS_MAX_LIVE (required) - a whole number >= 0 (0 forbids the vendor), or none (uncapped)
 # @param AGENT_ID (DRY_RUN=0 only) - the acting agent (c-080, c-080@sat): the audit row's actor_hum
 # @param ORDERED_BY (DRY_RUN=0 only) - the HUM-n who ordered it
 # @param OWNER_MSG_ID (DRY_RUN=0 only) - the uuid of the owner's message that ordered it

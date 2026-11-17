@@ -1066,6 +1066,9 @@
               @cancel="commentFiles.onPickCancel"
             >
           </div>
+          <!-- spec 155 2.12 (SPL-5769): the person's own notes that link this
+               issue, under the comment box; nobody else's -->
+          <LazyIssueMyNotes :issue-key="form.key" />
           <!-- SPL-1593 (owner t1 fcf09921, msg 9a8e4764): the discussions it
                links; below the comment box since SPL-5710 -->
           <LazyIssueDiscussions :issue-key="form.key" :stamp="historyStamp" />

@@ -3410,6 +3410,9 @@
     "error_last": "Problema visada turi bent vieną aptarimą: pirmiausia susiekite kitą.",
     "error_failed": "Aptarimų pakeisti nepavyko."
   },
+  "issue_my_notes": {
+    "title": "Mano užrašai"
+  },
   "discussion_gone": {
     "title": "Šio aptarimo nebėra",
     "body": "Jis ištrintas, todėl jo atidaryti negalima. Problema išlaiko kitus savo aptarimus; jei šis buvo paskutinis, problema dabar susieta su numatytuoju darbo srities aptarimu.",

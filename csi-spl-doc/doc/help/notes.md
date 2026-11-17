@@ -129,8 +129,10 @@ channel row. It opens a list of your notes, latest changed first, with
   the box and shows **Not saved, retry**; press **Enter** again.
 
 The note is yours (see above): it shows in **Notes** in every workspace you
-belong to, not inside the issue. To write something everyone on an issue
-sees, use its **Comment** box instead.
+belong to. In the open issue, **My notes** under the **Comment** box lists
+your own notes that link that issue (not the archived ones); click one to
+open it. Nobody else sees your notes there, and you never see theirs. To
+write something everyone on an issue sees, use its **Comment** box instead.
 
 ## Coming next
 

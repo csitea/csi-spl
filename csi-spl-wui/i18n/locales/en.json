@@ -3410,6 +3410,9 @@
     "error_last": "An issue keeps at least one discussion: link another one first.",
     "error_failed": "The discussions could not be changed."
   },
+  "issue_my_notes": {
+    "title": "My notes"
+  },
   "discussion_gone": {
     "title": "This discussion no longer exists",
     "body": "It was deleted, so it cannot be opened. The issue keeps its other discussions; if this was its last one, it now links the workspace's default discussion.",

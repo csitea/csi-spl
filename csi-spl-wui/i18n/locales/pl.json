@@ -3410,6 +3410,9 @@
     "error_last": "Zgłoszenie zawsze ma co najmniej jedną dyskusję: najpierw połącz inną.",
     "error_failed": "Nie udało się zmienić dyskusji."
   },
+  "issue_my_notes": {
+    "title": "Moje notatki"
+  },
   "discussion_gone": {
     "title": "Ta dyskusja już nie istnieje",
     "body": "Została usunięta, więc nie można jej otworzyć. Zgłoszenie zachowuje pozostałe dyskusje; jeśli była ostatnia, zgłoszenie jest teraz połączone z domyślną dyskusją przestrzeni roboczej.",

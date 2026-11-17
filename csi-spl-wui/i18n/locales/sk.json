@@ -3410,6 +3410,9 @@
     "error_last": "Úloha si vždy ponechá aspoň jednu diskusiu: najprv prepojte inú.",
     "error_failed": "Diskusie sa nepodarilo zmeniť."
   },
+  "issue_my_notes": {
+    "title": "Moje poznámky"
+  },
   "discussion_gone": {
     "title": "Táto diskusia už neexistuje",
     "body": "Bola odstránená, takže ju nemožno otvoriť. Úloha si ponecháva ostatné diskusie; ak bola posledná, úloha je teraz prepojená s predvolenou diskusiou pracovného priestoru.",

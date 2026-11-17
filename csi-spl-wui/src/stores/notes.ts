@@ -21,6 +21,7 @@ import { compareNotes, NOTE_PRIORITY_DEFAULT, notePriority } from '~/utils/note-
  * the same routes from here:
  *   POST   /v1/me/realm/notes/{id}/links            one more link (B7, SPL-4330)
  *   DELETE /v1/me/realm/notes/{id}/links/{link_id}  one link
+ *   GET    /v1/me/realm/notes?workspace=&issue=     the notes that link an issue (2.12, SPL-5769)
  */
 
 /** A list row, as the hub writes it (hub/realm_notes.go noteSummaryJSON). */
@@ -54,6 +55,9 @@ export type NoteLink = {
   position?: number
   created_at?: string
 }
+
+/** A note that links an issue (hub/realm_notes.go noteOnIssueJSON, spec 155 2.12): no body, no other link. */
+export type NoteOnIssue = { id: string, title: string, archived: boolean, archived_at?: string, updated_at: string, link: NoteLink }
 
 /** A link as POST takes it: no id yet. */
 export type NoteLinkIn = Omit<NoteLink, 'id' | 'left' | 'position' | 'created_at'>
@@ -149,6 +153,12 @@ function hubNoteLinks(api: NotesApi) {
       })
       if (!r.ok && r.status !== 404) throw await refusal(r, 'notes link delete')
     },
+    async onIssue(ws: string, key: string): Promise<NoteOnIssue[]> {
+      const q = `?workspace=${encodeURIComponent(ws)}&issue=${encodeURIComponent(key)}`
+      const r = await fetch(notesUrl(api, q), { credentials: api.credentials, headers: headersOf(api), signal: AbortSignal.timeout(HUB_READ_TIMEOUT_MS) })
+      if (!r.ok) throw await refusal(r, 'notes on issue')
+      return ((await r.json())?.notes || []) as NoteOnIssue[]
+    },
   }
 }
 
@@ -230,6 +240,10 @@ function mockNotes(): ReturnType<typeof hubNotes> {
     async removeLink(id: string, linkId: string) {
       write(id, (n) => { n.links = n.links.filter((l) => l.id !== linkId) })
     },
+    async onIssue(ws: string, key: string) {
+      const of = (n: Note) => n.links.find((l) => l.kind === 'issue' && l.ref === key && (l.workspace_id || ws) === ws)
+      return all.filter(of).map((n) => ({ id: n.id, title: n.title, archived: n.archived, archived_at: n.archived_at, updated_at: n.updated_at, link: of(n)! }))
+    },
     async remove(id: string) {
       all = all.filter((n) => n.id !== id)
       return true
@@ -252,6 +266,8 @@ function linkActions(wire: () => ReturnType<typeof hubNotes>, notes: Ref<NoteSum
       await wire().removeLink(id, linkId)
       count(id, -1)
     },
+    /** 2.12: the person's own notes that link issue `key` of workspace `ws` */
+    onIssue: (ws: string, key: string): Promise<NoteOnIssue[]> => wire().onIssue(ws, key),
   }
 }
 

@@ -3410,6 +3410,9 @@
     "error_last": "Probleemil jääb alati vähemalt üks arutelu: seo esmalt mõni teine.",
     "error_failed": "Arutelusid ei õnnestunud muuta."
   },
+  "issue_my_notes": {
+    "title": "Minu märkmed"
+  },
   "discussion_gone": {
     "title": "Seda arutelu enam ei ole",
     "body": "See kustutati, seega ei saa seda avada. Probleem säilitab oma teised arutelud; kui see oli viimane, on probleem nüüd seotud tööruumi vaikearuteluga.",

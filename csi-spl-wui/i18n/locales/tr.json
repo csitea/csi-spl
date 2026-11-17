@@ -3410,6 +3410,9 @@
     "error_last": "Bir kayıt her zaman en az bir tartışmayı korur: önce başka birini bağlayın.",
     "error_failed": "Tartışmalar değiştirilemedi."
   },
+  "issue_my_notes": {
+    "title": "Notlarım"
+  },
   "discussion_gone": {
     "title": "Bu tartışma artık yok",
     "body": "Silindiği için açılamaz. Kayıt diğer tartışmalarını korur; bu sonuncusuysa kayıt artık çalışma alanının varsayılan tartışmasına bağlıdır.",

@@ -3410,6 +3410,9 @@
     "error_last": "Problēmai vienmēr paliek vismaz viena diskusija: vispirms piesaistiet citu.",
     "error_failed": "Diskusijas neizdevās mainīt."
   },
+  "issue_my_notes": {
+    "title": "Manas piezīmes"
+  },
   "discussion_gone": {
     "title": "Šī diskusija vairs nepastāv",
     "body": "Tā tika dzēsta, tāpēc to nevar atvērt. Problēma saglabā pārējās diskusijas; ja šī bija pēdējā, problēma tagad ir piesaistīta darbvietas noklusējuma diskusijai.",

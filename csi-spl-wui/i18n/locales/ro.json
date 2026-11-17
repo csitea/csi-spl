@@ -3410,6 +3410,9 @@
     "error_last": "O problemă păstrează cel puțin o discuție: asociază mai întâi alta.",
     "error_failed": "Discuțiile nu au putut fi modificate."
   },
+  "issue_my_notes": {
+    "title": "Notițele mele"
+  },
   "discussion_gone": {
     "title": "Această discuție nu mai există",
     "body": "A fost ștearsă, deci nu poate fi deschisă. Problema își păstrează celelalte discuții; dacă aceasta era ultima, problema este acum asociată discuției implicite a spațiului de lucru.",

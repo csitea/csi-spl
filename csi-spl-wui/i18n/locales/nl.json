@@ -3410,6 +3410,9 @@
     "error_last": "Een kwestie houdt altijd minstens één bespreking: koppel eerst een andere.",
     "error_failed": "De besprekingen konden niet worden gewijzigd."
   },
+  "issue_my_notes": {
+    "title": "Mijn notities"
+  },
   "discussion_gone": {
     "title": "Deze bespreking bestaat niet meer",
     "body": "Ze is verwijderd en kan dus niet worden geopend. De kwestie houdt haar andere besprekingen; was dit de laatste, dan is de kwestie nu gekoppeld aan de standaardbespreking van de werkruimte.",

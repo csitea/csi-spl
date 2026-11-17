@@ -3410,6 +3410,9 @@
     "error_last": "Una incidencia conserva al menos una conversación: vincula otra primero.",
     "error_failed": "No se pudieron cambiar las conversaciones."
   },
+  "issue_my_notes": {
+    "title": "Mis notas"
+  },
   "discussion_gone": {
     "title": "Esta conversación ya no existe",
     "body": "Se eliminó, así que no se puede abrir. La incidencia conserva sus otras conversaciones; si era la última, ahora enlaza la conversación predeterminada del espacio de trabajo.",

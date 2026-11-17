@@ -2308,7 +2308,8 @@
     "hours_norm_hint": "Własna średnia tej osoby, np. 7:30. Zostaw puste, aby użyć średniej przestrzeni roboczej ({workspace}); 0:00 = brak średniej dla tej osoby. Dzień powyżej niej pokazuje ostrzeżenie; żadne godziny nie są odrzucane.",
     "hours_norm_no_workspace": "brak średniej",
     "inactive": "nieaktywny",
-    "inactive_hint": "Zaproszony do tego obszaru roboczego; aktywny od pierwszego logowania."
+    "inactive_hint": "Zaproszony do tego obszaru roboczego; aktywny od pierwszego logowania.",
+    "invitee_no_name": "Drogi przyszły użytkownik spool-hub"
   },
   "contacts": {
     "group": "Kontakty",

@@ -103,8 +103,9 @@ async function run(browser, base) {
 
   // t1 is name-only (spec 154 12.4): the hub answers email null, so no row
   // and no address in the card. The People list beside it may hold an
-  // inactive member (SPL-5706, spec 025 13): in t1 its label is masked
-  // (i…@example.com), so the page never shows the full invitee address.
+  // inactive member (SPL-5706, spec 025 13): in t1 it carries no address and
+  // no domain at all (spec 154 12.6, SPL-5830), only "Dear future spool-hub
+  // user", so the page shows neither the address nor a masked i…@ form.
   const t1 = await browser.newPage()
   await t1.setViewport({ width: 1440, height: 900 })
   await t1.goto(`${base}/?tenant=t1`, { waitUntil: 'networkidle2', timeout: NAV })
@@ -113,9 +114,9 @@ async function run(browser, base) {
   await go(t1, '/people/HUM-2')
   await t1.waitForSelector('[data-test=person-role]', { timeout: NAV }).catch(() => null)
   await sleep(800)
-  const t1Card = await t1.evaluate(() => ({ card: Boolean(document.querySelector('[data-test=person-role]')), email: Boolean(document.querySelector('[data-test=person-email]')), at: (document.querySelector('[data-test=person-card]')?.innerText || '').includes('@example.com'), invitee: document.body.innerText.includes('invitee@example.com'), phone: Boolean(document.querySelector('[data-test=person-phone]')), number: document.body.innerText.includes('+3584') }))
+  const t1Card = await t1.evaluate(() => ({ card: Boolean(document.querySelector('[data-test=person-role]')), email: Boolean(document.querySelector('[data-test=person-email]')), at: (document.querySelector('[data-test=person-card]')?.innerText || '').includes('@example.com'), invitee: document.body.innerText.includes('invitee@example.com') || document.body.innerText.includes('…@example.com') || [...document.querySelectorAll('[data-test=people-invited-row]')].some((r) => r.textContent.includes('@') || (r.querySelector('[title]')?.getAttribute('title') || '').includes('@')), phone: Boolean(document.querySelector('[data-test=person-phone]')), number: document.body.innerText.includes('+3584') }))
   check('t1: the card shows, with no Email row and no address', t1Card.card && !t1Card.email && !t1Card.at, t1Card)
-  check('t1: the inactive member\'s address shows masked, never in full', !t1Card.invitee, t1Card)
+  check('t1: the inactive member shows no address, masked or in full', !t1Card.invitee, t1Card)
   check('t1: no Phone row and no number', t1Card.card && !t1Card.phone && !t1Card.number, t1Card)
   if (process.env.SHOT_DIR) await t1.screenshot({ path: `${process.env.SHOT_DIR}/people-card-t1-name-only.png` })
   await t1.close()

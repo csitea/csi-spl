@@ -6,15 +6,17 @@ import assert from 'node:assert/strict'
 import { invitedMembers, inviteeKeys } from '../../src/utils/invited-members-client.mjs'
 
 describe('invited members client', () => {
-  it('the mock answers one invitee, masked in t1 like the hub', async () => {
+  it('the mock answers one invitee, with no label in t1 like the hub (spec 154 section 12.6)', async () => {
     const shown = await invitedMembers({ mock: true, tenant: 'acme' })
     assert.equal(shown.length, 1)
     assert.equal(shown[0].label, 'invitee@example.com')
     assert.equal(shown[0].masked, false)
     assert.match(shown[0].id, /^INV-[0-9a-f]{16}$/)
-    const masked = await invitedMembers({ mock: true, tenant: 't1' })
-    assert.equal(masked[0].label, 'i…@example.com')
-    assert.equal(masked[0].masked, true)
+    const hidden = await invitedMembers({ mock: true, tenant: 't1' })
+    assert.equal(hidden.length, 1, 'the invitee is listed in t1')
+    assert.equal(hidden[0].label, '', 'no address and no domain in t1')
+    assert.equal(hidden[0].masked, true)
+    assert.ok(!JSON.stringify(hidden).includes('@'), 'nothing of the address in t1')
   })
 
   it('a live answer is read from the hub, a refusal throws its status and token', async () => {
@@ -23,11 +25,13 @@ describe('invited members client', () => {
       let asked = ''
       globalThis.fetch = async (url) => {
         asked = String(url)
-        return new Response(JSON.stringify({ invited: [{ id: 'INV-0123456789abcdef', label: 'a…@example.com', masked: true }, { id: '', label: 'x' }] }), { status: 200 })
+        return new Response(JSON.stringify({ invited: [{ id: 'INV-0123456789abcdef', label: 'a…@example.com', masked: true }, { id: '', label: 'x' },
+          { id: 'INV-00000000000000aa', label: '', masked: true }, { id: 'INV-00000000000000bb', label: '', masked: false }] }), { status: 200 })
       }
       const rows = await invitedMembers({ base: 'https://api.example.com/', tenant: 'w1', credentials: 'include' })
       assert.equal(asked, 'https://api.example.com/v1/view/members/invited?workspace=w1')
-      assert.deepEqual(rows.map((r) => r.id), ['INV-0123456789abcdef'], 'a row with no id is dropped')
+      assert.deepEqual(rows.map((r) => r.id), ['INV-0123456789abcdef', 'INV-00000000000000aa'],
+        'a row with no id is dropped; a masked row with no label (name-only) is kept; an unmasked one with none is dropped')
       globalThis.fetch = async () => new Response(JSON.stringify({ error: 'person_only' }), { status: 403 })
       await assert.rejects(invitedMembers({ base: 'https://api.example.com', tenant: 'w1' }), (e) => e.status === 403 && e.error === 'person_only')
     } finally {
@@ -45,5 +49,12 @@ describe('invited members client', () => {
     assert.deepEqual(keys, ['open@example.com', 'INV-0000000000000002'])
     assert.deepEqual(labels, { 'open@example.com': 'open@example.com', 'INV-0000000000000002': 'h…@example.com' })
     assert.deepEqual(inviteeKeys(undefined), { keys: [], labels: {} })
+  })
+
+  it('keys: a masked row with no label (name-only, t1) takes the page\'s words, never an address', () => {
+    const rows = [{ id: 'INV-0000000000000003', label: '', masked: true }, { id: 'INV-0000000000000004', label: '', masked: false }]
+    assert.deepEqual(inviteeKeys(rows, 'Dear future spool-hub user'),
+      { keys: ['INV-0000000000000003'], labels: { 'INV-0000000000000003': 'Dear future spool-hub user' } })
+    assert.deepEqual(inviteeKeys(rows), { keys: [], labels: {} }, 'no words given: no row')
   })
 })

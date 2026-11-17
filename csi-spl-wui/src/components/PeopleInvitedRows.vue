@@ -4,13 +4,15 @@
      must become actual members of the workspace but just be inactive." They
      follow the members, marked inactive, with no person page (no HUM-* yet).
      A lazy chunk with invited-members-client.mjs, so the initial download
-     never carries it. No list (an act-as session, an older hub) shows none. -->
+     never carries it. No list (an act-as session, an older hub) shows none.
+     In a name-only workspace (t1) an invitee has no label for anyone: it
+     shows as people.invitee_no_name (spec 154 section 12.6, SPL-5830). -->
 <template>
   <div v-if="rows.length" class="people-invited" data-test="people-invited-rows">
     <div v-for="r in rows" :key="r.id" class="nav-row">
       <span class="nav-item people-invited__row" :data-key="r.id" data-test="people-invited-row" :title="t('people.inactive_hint')">
         <SpoolAvatar :id="r.id" box="box-wui" :size="22" />
-        <span class="label people-invited__label" :title="r.label">{{ r.label }}</span>
+        <span class="label people-invited__label" :title="r.label || t('people.invitee_no_name')">{{ r.label || t('people.invitee_no_name') }}</span>
         <span class="muted people-row__tag" data-test="people-inactive-tag">{{ t('people.inactive') }}</span>
       </span>
     </div>

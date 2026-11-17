@@ -2308,7 +2308,8 @@
     "hours_norm_hint": "La media propia de esta persona, p. ej. 7:30. Déjalo vacío para usar la media del espacio de trabajo ({workspace}); 0:00 = sin media para esta persona. Un día por encima muestra un aviso; no se rechaza ninguna hora.",
     "hours_norm_no_workspace": "sin media",
     "inactive": "inactivo",
-    "inactive_hint": "Invitado a este espacio de trabajo; activo desde el primer inicio de sesión."
+    "inactive_hint": "Invitado a este espacio de trabajo; activo desde el primer inicio de sesión.",
+    "invitee_no_name": "Estimado futuro usuario de spool-hub"
   },
   "contacts": {
     "group": "Contactos",

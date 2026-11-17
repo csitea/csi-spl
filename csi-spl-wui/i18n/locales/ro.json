@@ -2308,7 +2308,8 @@
     "hours_norm_hint": "Media proprie a acestei persoane, de ex. 7:30. Lasă gol pentru a folosi media spațiului de lucru ({workspace}); 0:00 = fără medie pentru această persoană. O zi peste ea afișează un avertisment; nicio oră nu este refuzată.",
     "hours_norm_no_workspace": "fără medie",
     "inactive": "inactiv",
-    "inactive_hint": "Invitat în acest spațiu de lucru; activ de la prima autentificare."
+    "inactive_hint": "Invitat în acest spațiu de lucru; activ de la prima autentificare.",
+    "invitee_no_name": "Stimatul viitor utilizator spool-hub"
   },
   "contacts": {
     "group": "Contacte",

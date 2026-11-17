@@ -2308,7 +2308,8 @@
     "hours_norm_hint": "Bu kişinin kendi ortalaması, ör. 7:30. Çalışma alanının ortalamasını ({workspace}) kullanmak için boş bırakın; 0:00 = bu kişi için ortalama yok. Bunun üzerindeki bir gün uyarı gösterir; hiçbir saat reddedilmez.",
     "hours_norm_no_workspace": "ortalama yok",
     "inactive": "etkin değil",
-    "inactive_hint": "Bu çalışma alanına davet edildi; ilk girişten itibaren etkin."
+    "inactive_hint": "Bu çalışma alanına davet edildi; ilk girişten itibaren etkin.",
+    "invitee_no_name": "Sevgili geleceğin spool-hub kullanıcısı"
   },
   "contacts": {
     "group": "Rehber",

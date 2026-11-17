@@ -81,12 +81,16 @@ function parseMemberList(data, channel) {
   }
 }
 
-/** spec 025 section 13: [{id, label, masked}] of a members answer; [] when absent. */
+/**
+ * spec 025 section 13: [{id, label, masked}] of a members answer; [] when
+ * absent. A masked row with no label (a name-only workspace, spec 154 section
+ * 12.6) is kept: the dialog names it.
+ */
 function parseInvitees(rows) {
   if (!Array.isArray(rows)) return []
   return rows
     .map((r) => ({ id: String((r && r.id) || ''), label: String((r && r.label) || ''), masked: Boolean(r && r.masked === true) }))
-    .filter((r) => r.id && r.label)
+    .filter((r) => r.id && (r.label || r.masked))
 }
 
 function memberError(status, token, detail) {
@@ -121,11 +125,16 @@ function mockMemberList(ctx, channel) {
     members_open_invite: state.openInvite[id] === true,
     created_by: String((row && row.created_by) || ''),
     agents: (state.agentMembers[id] || []).slice(),
-    invited: mockInvited(state, id).slice(),
-    invitees: mockInvited(state, id).map((e) => ({ id: e, label: e, masked: false })),
+    // an invite id (a masked pick, t1) carries no label, like the hub's
+    // name-only answer (spec 154 section 12.6); an address shows itself
+    invited: mockInvited(state, id).map((e) => (INVITE_ID_RX.test(e) ? '' : e)),
+    invitees: mockInvited(state, id).map((e) => (INVITE_ID_RX.test(e) ? { id: e, label: '', masked: true } : { id: e, label: e, masked: false })),
     ...mockAIAgentsOff(state, id),
   }
 }
+
+/** spec 025 section 13: an invite id, INV- and 16 hex. */
+const INVITE_ID_RX = /^INV-[0-9a-f]{16}$/
 
 /** spec 025 section 11: the mock's pending addresses of one channel. */
 function mockInvited(state, id) {
@@ -185,7 +194,7 @@ function mockAddInvitee(ctx, channel, email) {
   const { state } = ctx
   const id = normalizeChannelId(channel)
   const raw = String(email || '').trim()
-  const byId = /^INV-[0-9a-f]{16}$/.test(raw) // spec 025 section 13: an invite id
+  const byId = INVITE_ID_RX.test(raw) // spec 025 section 13: an invite id
   const addr = byId ? raw : raw.toLowerCase()
   if (!byId && !addr.includes('@')) throw memberError(400, 'bad_email', 'email must be an address')
   const row = state.channels.find((c) => c.channel_id === id)

@@ -2308,7 +2308,8 @@
     "hours_norm_hint": "Tämän henkilön oma keskiarvo, esim. 7:30. Jätä tyhjäksi, niin käytetään työtilan keskiarvoa ({workspace}); 0:00 = ei keskiarvoa tälle henkilölle. Sen ylittävästä päivästä näytetään varoitus; tunteja ei hylätä.",
     "hours_norm_no_workspace": "ei keskiarvoa",
     "inactive": "ei aktiivinen",
-    "inactive_hint": "Kutsuttu tähän työtilaan; aktiivinen ensimmäisestä kirjautumisesta alkaen."
+    "inactive_hint": "Kutsuttu tähän työtilaan; aktiivinen ensimmäisestä kirjautumisesta alkaen.",
+    "invitee_no_name": "Hyvä tuleva spool-hubin käyttäjä"
   },
   "contacts": {
     "group": "Yhteystiedot",

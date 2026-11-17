@@ -66,7 +66,7 @@ func (s *Server) addChannelInvitee(w http.ResponseWriter, r *http.Request, t sto
 		// Added by its invite id (SPL-5706): the caller may see the address
 		// masked, so the answer never carries more than the picker showed
 		// (spec 025 section 13.1, R7 W1).
-		label, masked := inviteLabel(email, s.showsInviteAddress(r.Context(), t.ID, hum))
+		label, masked := inviteLabel(email, s.inviteViewFor(r.Context(), t.ID, hum))
 		out["email"], out["invite_id"], out["masked"] = label, byID, masked
 	}
 	if mail != "" {

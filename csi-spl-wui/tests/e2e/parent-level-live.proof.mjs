@@ -44,7 +44,7 @@
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
-import { lobbyVerdict } from './lib/lobby-verdict.mjs'
+import { lobbyVerdict, hubLobbyCount } from './lib/lobby-verdict.mjs'
 
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
@@ -355,15 +355,23 @@ async function surfaceRun(p, surface) {
   await closePane(p)
 }
 
-/** The hub's own read of the lobby for this member: how many live rows it serves. */
+/** The hub's own read of the lobby for this member: the room task's rows
+    plus the topics in channel lobby, the two reads /lobby makes (hubLobbyCount). */
 async function hubLobbyRows(p) {
   if (!res.apiRoot || !LOBBY_TASK) return { status: 0, rows: -1 }
-  return p.evaluate(async (root, id) => {
-    const r = await fetch(`${root}/v1/view/topics/${encodeURIComponent(id)}?order=desc&limit=30`, { credentials: 'include', headers: { accept: 'application/json' } })
-    if (!r.ok) return { status: r.status, rows: -1 }
-    const j = await r.json()
-    return { status: r.status, rows: (j.messages || []).length }
+  const [room, topics] = await p.evaluate(async (root, id) => {
+    const get = async (path, key) => {
+      const r = await fetch(`${root}${path}`, { credentials: 'include', headers: { accept: 'application/json' } })
+      if (!r.ok) return { status: r.status, rows: -1 }
+      const j = await r.json()
+      return { status: r.status, rows: (j[key] || []).length }
+    }
+    return Promise.all([
+      get(`/v1/view/topics/${encodeURIComponent(id)}?order=desc&limit=30`, 'messages'),
+      get('/v1/view/topics?channel=lobby&limit=50', 'topics'),
+    ])
   }, res.apiRoot, LOBBY_TASK)
+  return { ...hubLobbyCount(room, topics), room: room.rows, topics: topics.rows }
 }
 
 /** The lobby page's empty line and error notice, as booleans. */

@@ -133,6 +133,22 @@ grep -q 'lobbyVerdict(' <<<"$lobby_fn" && pass "SPL-5736: lobbyRun judges its ca
 # hub unreadable: as before SPL-5736, a card is required
 [[ "$(verdict '{hub:{status:401,rows:-1},cards:0,error:false,empty:true}')" == "false shows the lobby cards" ]] \
   && pass "hub unreadable, no card: FAIL as before" || fail "hub unreadable + 0 cards did not fail"
+# 3e. the hub count is the two reads /lobby makes: the room task + the topics
+#     in channel lobby (prd wf30 44006585029 read hub:0 cards:1 counting the room alone)
+count() { # <room json> <topics json> -> "<status> <rows>"
+  node --input-type=module -e "import { hubLobbyCount } from '$VERDICT'; const c = hubLobbyCount($1, $2); console.log(c.status + ' ' + c.rows)" 2>/dev/null </dev/null
+}
+hub_fn="$(awk '/^async function hubLobbyRows\(/{f=1} f{print} f && /^}/{exit}' "$PROOF")"
+grep -q '/v1/view/topics?channel=lobby' <<<"$hub_fn" && grep -q 'hubLobbyCount(' <<<"$hub_fn" \
+  && pass "hubLobbyRows reads channel lobby too and counts with hubLobbyCount" || fail "hubLobbyRows does not read channel lobby"
+[[ "$(count '{status:200,rows:0}' '{status:200,rows:1}')" == "200 1" ]] \
+  && pass "room 0 + 1 channel topic: hub 1 (the prd case: a card is required)" || fail "room 0 + 1 topic: $(count '{status:200,rows:0}' '{status:200,rows:1}')"
+[[ "$(count '{status:200,rows:0}' '{status:200,rows:0}')" == "200 0" ]] \
+  && pass "room 0 + no channel topic: hub 0 (the dev case: empty state)" || fail "room 0 + 0 topics"
+[[ "$(count '{status:200,rows:3}' '{status:403,rows:-1}')" == "403 -1" ]] \
+  && pass "a channel read that fails: the count is unreadable" || fail "channel read failure: $(count '{status:200,rows:3}' '{status:403,rows:-1}')"
+[[ "$(count '{status:500,rows:-1}' '{status:200,rows:2}')" == "500 -1" ]] \
+  && pass "a room read that fails: the count is unreadable" || fail "room read failure"
 
 # 4. a failing proof fails the step
 act SPL_PROBE_PW="$PW" FAKE_RC=1; rc=$?

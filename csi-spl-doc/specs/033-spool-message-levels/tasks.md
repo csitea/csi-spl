@@ -257,6 +257,12 @@ needs an agent peer) against `https://<cnf env.dns.fqdn>`.
   PASS named `lobby: empty on the hub, empty state shown`
   (`tests/e2e/lib/lobby-verdict.mjs`). It still posts nothing in `#lobby`
   (owner answer 5cb37834).
+  The hub's count is the two reads `/lobby` makes (`src/pages/lobby.vue`
+  `openLobby`): the room task plus the topics in channel `lobby`
+  (`GET /v1/view/topics?channel=lobby`), `hubLobbyCount`; either read failing
+  makes it unreadable. Counting the room task alone read `hub:0` on prd while
+  a channel topic showed a card (wf30 run 44006585029 on cf99e148d,
+  `{hub:0,cards:1}`).
 
 T010 needs a member password, so it runs by hand today. Wire it into the
 deploy workflow with the m3-e2e member's secret, so a regression on either

@@ -27,7 +27,10 @@
 #      provider, which runs as key-<export_source_project>.json by
 #      pathexpand (the 025 pattern), not as the step's own identity; it is
 #      the step's ONE provider line, so the six other resources stay on the
-#      default provider (the csi-spl-all SA): R7 W1, c-060 b2f7d59e.
+#      default provider (the csi-spl-all SA): R7 W1, c-060 b2f7d59e; and
+#      that default provider carries no credentials, access_token or
+#      impersonate_service_account, so do_tf_init's key (the csi-spl-all SA)
+#      is what it runs as (R7 W1, c-070 124808a2).
 #   2b. the billing-account grants: for_each over the ids of
 #      var.billing_account_ids, which has no default and refuses an empty or
 #      malformed value (the ids are never committed); no id literal in a .tf.
@@ -44,7 +47,8 @@
 #      home path are caught by 2, a planted billing account policy by 2, a
 #      planted eighth resource by 1, a planted id literal and a default on
 #      the ids by 2b, a project-level dataViewer, the grant on the
-#      default provider and the SA moved onto google.export_source by 2c,
+#      default provider, the SA moved onto google.export_source and the
+#      export project's key on the default provider by 2c,
 #      and a planted gcloud create in the action by 5.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -77,7 +81,8 @@ no_billing_grant() {
 # dataset_grant_as_source <dir> - the dataViewer is a dataset member on the
 # export_source vars, through google.export_source; that alias runs on the
 # export project's own key (pathexpand, no literal home); no project-level
-# dataViewer; no other resource names a provider
+# dataViewer; no other resource names a provider, and the default (unaliased)
+# provider names no identity of its own
 dataset_grant_as_source() {
   local all
   all=$(cat "$1"/*.tf)
@@ -94,6 +99,9 @@ dataset_grant_as_source() {
        v && /^}/ { v = 0 } END { exit !(j && c) }' <<<"$all" \
     && awk '/^resource "/ { r = 1; n = $0 } r && /^[[:space:]]*provider[[:space:]]*=/ { c++; if (n !~ /"billing_export_viewer"/) bad = 1 }
        r && /^}/ { r = 0 } END { exit !(c == 1 && !bad) }' <<<"$all" \
+    && awk '/^provider "google"/ { v = 1; a = 0; i = 0 } v && /^[[:space:]]*alias[[:space:]]*=/ { a = 1 }
+       v && /^[[:space:]]*(credentials|access_token|impersonate_service_account)[[:space:]]*=/ { i = 1 }
+       v && /^}/ { v = 0; if (!a && i) bad = 1 } END { exit bad }' <<<"$all" \
     && ! awk '/^resource "google_project_iam_[a-z]+"/ { r = 1 } r && /bigquery\.dataViewer/ { f = 1 } r && /^}/ { r = 0 } END { exit !f }' <<<"$all"
 }
 # billing_grants_from_var <dir> - both members for_each the ids of the
@@ -184,6 +192,9 @@ c="$tmp/prov"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; sed -i '/provider   = google.
 dataset_grant_as_source "$c" && fail "control: the dataset grant on the step's own provider was NOT caught" || pass "control: the dataset grant on the step's own provider is caught"
 c="$tmp/saprov"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; sed -i '/^resource "google_service_account" "billing"/a\  provider     = google.export_source' "$c/03-sa.tf"
 dataset_grant_as_source "$c" && fail "control: the SA moved onto google.export_source was NOT caught" || pass "control: the SA moved onto google.export_source is caught"
+c="$tmp/defcred"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; sed -i '0,/^  region  = var.gcp_region$/s##  region  = var.gcp_region\n  credentials = file(pathexpand("~/.gcp/.${var.org}/key-${var.export_source_project}.json"))#' "$c/01-providers.tf"
+awk '/^provider "google" \{/ { v++ } v == 1 && /^  credentials = / { f = 1 } END { exit !f }' "$c/01-providers.tf" || fail "control setup: the default provider plant did not apply"
+dataset_grant_as_source "$c" && fail "control: the export project's key on the default provider was NOT caught" || pass "control: the export project's key on the default provider is caught"
 c="$tmp/lit"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; sed -i 's/billing_account_id = each.value/billing_account_id = "0A1B2C-3D4E5F-678901"/' "$c/03-sa.tf"
 billing_grants_from_var "$c" && fail "control: a planted billing account id literal was NOT caught" || pass "control: a planted billing account id literal is caught"
 c="$tmp/def"; mkdir -p "$c"; cp "$SD"/*.tf "$c/"; sed -i '/^variable "billing_account_ids"/a\  default = ""' "$c/02-variables.tf"

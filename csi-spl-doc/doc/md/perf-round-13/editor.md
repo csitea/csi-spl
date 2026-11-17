@@ -129,6 +129,14 @@ Runs 1 and 2 (A, B, C alternating, then D twice; all on `9310612f3`):
   `p13-02-gosec-changed-packages`. Next: push v0.2 to
   `review/c001-perf-round-13-planner`, name its sha to the dispatch holder for
   the mistral seat (ask 9c0a6cef).
+- 07:46Z: v0.2 pushed, `review/c001-perf-round-13-planner` =
+  `1774838a2` (`git ls-remote`); the result sent to the dispatch holder
+  c-002@sat, task `dispatch-perf-r13`, msg 2b196069 (07:46:21Z).
+- At the 08:12Z rotation: the plan waits for the mistral seat (ask 9c0a6cef,
+  queue 1/7 at 07:43Z, not placed) to sign `1774838a2`. Nothing is in
+  flight: no probe, nothing unpushed. Next session: stay idle, answer
+  send-backs; a review finding means v0.3 on this branch and its sha to the
+  holder. Exit only on an ACCEPTED on `dispatch-perf-r13`.
 
 ## 3. R3 reads
 

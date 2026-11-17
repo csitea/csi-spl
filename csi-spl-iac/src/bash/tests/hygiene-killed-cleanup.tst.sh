@@ -13,11 +13,16 @@
 #   it, which relays the signal as on a timeout (child, then group), and assert:
 #   1. the sweep was reached (else the kill proves nothing)
 #   2. the test died by the signal (rc 124, or 143: timeout re-raises a TERM
-#      it relayed)
+#      it relayed); timeout KILLs it (rc 137) only after KT_GRACE s, so a
+#      cleanup that is merely slow ends clean, one that ignores TERM does not
 #   3. nothing is left under the test's TMPDIR
 #   The leak is a race: without the fix 3/15, 8/24 and 7/24 kills leaked
 #   (2026-11-11), so with 8 rounds x 3 tests this file stays red unless all 24
 #   kills miss it, ~0.8^24 = 0.5%; one test alone can miss (8 clean kills seen).
+#   The grace (SPL-5731): it was `timeout -k 5`, and on a loaded runner one
+#   retired-relay cleanup outlasted the 5 s and ended rc=137 (wf 10 run
+#   43823538144, 2026-11-16). Two controls hold the grace: a fixture whose
+#   cleanup takes 8 s ends clean, one that ignores TERM ends rc=137.
 #------------------------------------------------------------------------------
 # test-timeout: 400
 # pre-push-tier: slow  (24 tree exports; CI workflow 10 runs it)
@@ -29,17 +34,18 @@ tmp_dir
 
 fails=0
 rounds="${KT_ROUNDS:-8}"
+grace="${KT_GRACE:-30}"
 
 real_grep=$(type -P grep) || { echo "FAIL: no grep on PATH"; exit 1; }
 stub grep "case \"\$PWD/\" in \"\$KT_TMP\"/*) : >\"\$KT_MARK\"; sleep 120 ;; esac; exec $real_grep \"\$@\""
 
-# kill_once <test> <dir>: run it, TERM it in its first sweep; prints the
+# kill_once <test path> <dir>: run it, TERM it in its first sweep; prints the
 # verdict (setup: / rc=<n> / leak: / clean)
 kill_once() {
-  local name="$1" tmp="$2/tmp" mark="$2/mark" log="$2/log" tp rc i left
+  local path="$1" tmp="$2/tmp" mark="$2/mark" log="$2/log" tp rc i left
   mkdir -p "$tmp"
   ( cd "$APP_ROOT" && PATH="$T/bin:$PATH" TMPDIR="$tmp" KT_TMP="$tmp" KT_MARK="$mark" \
-      exec timeout -k 5 300 bash "$TEST_DIR/$name" >"$log" 2>&1 ) &
+      exec timeout -k "$grace" 300 bash "$path" >"$log" 2>&1 ) &
   tp=$!
   for ((i = 0; i < 1200; i++)); do [[ -e "$mark" ]] && break; sleep 0.1; done
   if [[ ! -e "$mark" ]]; then
@@ -48,6 +54,7 @@ kill_once() {
   fi
   kill -TERM "$tp"
   wait "$tp"; rc=$?
+  if [[ $rc -eq 137 ]]; then echo "rc=137, KILLed: still running $grace s after the TERM"; return; fi
   if [[ $rc -ne 124 && $rc -ne 143 ]]; then echo "rc=$rc, not stopped by the TERM"; return; fi
   if [[ -n "$(find "$tmp" -mindepth 1 -maxdepth 1)" ]]; then
     left=$(find "$tmp" -mindepth 1 -maxdepth 2 -printf '%P ')
@@ -58,10 +65,26 @@ kill_once() {
   rm -rf "$2"
 }
 
+# The grace controls: a test-lib fixture that sweeps from its temp dir like the
+# real tests; slow: its EXIT cleanup takes 8 s (past the old 5 s grace),
+# deaf: it ignores TERM, so only the KILL after the grace stops it.
+fixture() {
+  printf '%s\n' "source '$TEST_DIR/test-lib.inc.sh'; tmp_dir" "$2" \
+    'cd "$T" && out=$(grep -r x .)' 'echo "not reached: $out"' >"$T/$1.fx.sh"
+}
+fixture slow "trap 'trap \"\" TERM; sleep 8; rm -rf \"\$T\"' EXIT"
+fixture deaf "trap '' TERM"
+v=$(kill_once "$T/slow.fx.sh" "$T/slow.ctl")
+if [[ "$v" == clean ]]; then pass "control: a TERM cleanup of 8 s ends clean within the $grace s grace"
+else fail "control: a TERM cleanup of 8 s should end clean, got: $v"; fi
+v=$(kill_once "$T/deaf.fx.sh" "$T/deaf.ctl")
+if [[ "$v" == rc=137,* ]]; then pass "control: a test that ignores TERM is KILLed after $grace s and fails"
+else fail "control: a test that ignores TERM should end rc=137, got: $v"; fi
+
 for name in hygiene-owner-email-allow.tst.sh hygiene-box-users-allow.tst.sh hygiene-retired-relay.tst.sh; do
   clean=0 bad=""
   for ((r = 1; r <= rounds; r++)); do
-    v=$(kill_once "$name" "$T/$name.$r")
+    v=$(kill_once "$TEST_DIR/$name" "$T/$name.$r")
     if [[ "$v" == clean ]]; then clean=$((clean + 1)); else bad+="    | round $r: $v"$'\n'; fi
   done
   if [[ $clean -eq $rounds ]]; then

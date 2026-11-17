@@ -183,12 +183,12 @@ GO_TEST_TIMEOUT="${SPOOL_TEST_GO_TIMEOUT:-20m}"
 # bound, not a hang. Locally (docker pg16, load 38, n = 1) they were 207 s of
 # the package's 489 s of test time, the property test alone 171 s.
 # The rest of the store suite still hit 20m on a loaded runner (job
-# 114504882724): it runs as SEQUENTIAL groups (store-pg-groups.inc.sh), each
+# 114504882724): it runs as separate groups (store-pg-groups.inc.sh), each
 # its own go test process and -timeout, on its own database, in the same
 # job slot; store-pg-groups.tst.sh proves each test runs in exactly one.
 # shellcheck source=store-pg-groups.inc.sh
 source "$HERE/store-pg-groups.inc.sh"
-# internal/hub likewise took 1038 s of the 20m (same job): its own SEQUENTIAL
+# internal/hub likewise took 1038 s of the 20m (same job): its own separate
 # groups (hub-pg-groups.inc.sh), each on its own database; hub-pg-groups.tst.sh
 # proves each test runs in exactly one.
 # shellcheck source=hub-pg-groups.inc.sh
@@ -224,29 +224,40 @@ group_db_unlocked() { # <db> <dir>
 group_db() { # <db> <dir>: a fresh database, migrated, DML granted to RT_ROLE
   db_lock group_db_unlocked "$1" "$2"
 }
-store_groups() { # the store groups one after another, each on its own database; a red group does not stop the next
-  local g t0 m rc=0
-  for g in "${STORE_PG_GROUPS[@]}"; do
-    t0="$SECONDS"
-    group_db "spool_hub_store_$g" store
-    m="$((SECONDS - t0))"
-    if pg_go_test "spool_hub_store_$g" store "store-$g" -run "$(store_pg_group_run "$g")" -skip "$(store_pg_group_skip "$g")"; then
-      echo "ok   - store group $g: $((SECONDS - t0)) s, its fresh database $m s of it (timeout $GO_TEST_TIMEOUT)"
-    else echo "FAIL - store group $g after $((SECONDS - t0)) s"; rc=1; fi
-  done
-  return "$rc"
+# p14-02 (SPL-5819): the store and the hub groups run side by side in ONE
+# pool of HUB_PG_GROUP_JOBS slots (hub-pg-pool.inc.sh), each list still in
+# its order; a group takes a slot before its database and frees it at its end.
+# The default is the fastest cap measured whose slowest group stays under half
+# the 20m GO_TEST_TIMEOUT (the timings: the commit that added the pool).
+HUB_PG_GROUP_JOBS="${HUB_PG_GROUP_JOBS:-4}"
+# shellcheck source=hub-pg-pool.inc.sh
+source "$HERE/hub-pg-pool.inc.sh"
+pg_pool_open "$WORK" "$HUB_PG_GROUP_JOBS"
+store_group() { # <g>: one store group on its own fresh database, its ok/FAIL line with its seconds
+  local g="$1" t0="$SECONDS" m
+  group_db "spool_hub_store_$g" store
+  m="$((SECONDS - t0))"
+  if pg_go_test "spool_hub_store_$g" store "store-$g" -run "$(store_pg_group_run "$g")" -skip "$(store_pg_group_skip "$g")"; then
+    echo "ok   - store group $g: $((SECONDS - t0)) s, its fresh database $m s of it (timeout $GO_TEST_TIMEOUT)"
+  else echo "FAIL - store group $g after $((SECONDS - t0)) s"; return 1; fi
 }
-hub_groups() { # the hub groups one after another, each on its own database; a red group does not stop the next
-  local g t0 m rc=0
-  for g in "${HUB_PG_GROUPS[@]}"; do
-    t0="$SECONDS"
-    group_db "spool_hub_hub_$g" hub
-    m="$((SECONDS - t0))"
-    if pg_go_test "spool_hub_hub_$g" hub "hub-$g" -run "$(hub_pg_group_run "$g")"; then
-      echo "ok   - hub group $g: $((SECONDS - t0)) s, its fresh database $m s of it (timeout $GO_TEST_TIMEOUT)"
-    else echo "FAIL - hub group $g after $((SECONDS - t0)) s"; rc=1; fi
-  done
-  return "$rc"
+store_groups() { # every store group in the shared pool, each on its own database; a red group does not stop the next
+  local g
+  for g in "${STORE_PG_GROUPS[@]}"; do pg_pool_run store_group "$g"; done
+  pg_pool_wait
+}
+hub_group() { # <g>: one hub group on its own fresh database, its ok/FAIL line with its seconds
+  local g="$1" t0="$SECONDS" m
+  group_db "spool_hub_hub_$g" hub
+  m="$((SECONDS - t0))"
+  if pg_go_test "spool_hub_hub_$g" hub "hub-$g" -run "$(hub_pg_group_run "$g")"; then
+    echo "ok   - hub group $g: $((SECONDS - t0)) s, its fresh database $m s of it (timeout $GO_TEST_TIMEOUT)"
+  else echo "FAIL - hub group $g after $((SECONDS - t0)) s"; return 1; fi
+}
+hub_groups() { # every hub group in the shared pool, each on its own database; a red group does not stop the next
+  local g
+  for g in "${HUB_PG_GROUPS[@]}"; do pg_pool_run hub_group "$g"; done
+  pg_pool_wait
 }
 pids=()
 # channelmove: spec 169 T1, TestCatalogueSchemaMatchesPostgres proves the catalogue
@@ -267,7 +278,7 @@ done
 rc=0
 for p in "${pids[@]}"; do wait "$p" || rc=1; done
 [ "$rc" -eq 0 ] || { echo "FAIL - Postgres package suites"; exit 1; }
-echo "ok   - internal/store (${#STORE_PG_GROUPS[@]} sequential groups, each on its own database; spec 113 workspace docs in their own run) + internal/hub (${#HUB_PG_GROUPS[@]} sequential groups, each on its own database) + internal/auth (015 CredStore) + internal/repodocs (075 worker) suites green against Postgres"
+echo "ok   - internal/store (${#STORE_PG_GROUPS[@]} groups) + internal/hub (${#HUB_PG_GROUPS[@]} groups), each group on its own database, at most $HUB_PG_GROUP_JOBS at once (spec 113 workspace docs in their own run) + internal/auth (015 CredStore) + internal/repodocs (075 worker) suites green against Postgres"
 
 # 017 T021 + FR-SEC-014 CONTROL: EVERY ^TestRLS test must RUN and PASS (a
 # skip is a failure), counted from the source so a new one cannot hide.

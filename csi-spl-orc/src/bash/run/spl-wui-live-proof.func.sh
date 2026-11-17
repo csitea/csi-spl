@@ -18,6 +18,9 @@
 # @description test channel (cnf env.wui.live_proof_channel, default probe;
 # @description owner answer 5cb37834, SPL-1632), never #lobby: lobby only
 # @description renders /lobby and opens a topic there, it posts nothing.
+# @description SPL-5736: LOBBY_TASK (cnf hub.env.SPOOL_HUB_LOBBY_TASK_ID) is
+# @description the lobby task the proof asks the hub about: its cards are
+# @description judged against the hub's count (0 rows = the empty state).
 # @description Create the channel once per env with do_spl_channel_create
 # @description (ORDERED_BY = the probe member, so only it is seated).
 # @param ENV (required) - dev or prd
@@ -36,8 +39,8 @@ do_spl_wui_live_proof() {
   cnf="$app/$org_app-cnf/$org_app/${ENV}.env.json"
   secret="SPL_PROBE_PW_${ENV^^}"
   [[ -r "$cnf" ]] || { do_log "FATAL no readable cnf $cnf"; return 1; }
-  local fqdn email tenant channel
-  { read -r fqdn; read -r email; read -r tenant; read -r channel; } < <(python3 - "$cnf" <<'PY'
+  local fqdn email tenant channel lobby
+  { read -r fqdn; read -r email; read -r tenant; read -r channel; read -r lobby; } < <(python3 - "$cnf" <<'PY'
 import json, sys
 e = json.load(open(sys.argv[1]))["env"]
 w = e.get("wui", {})
@@ -45,6 +48,7 @@ print(e.get("dns", {}).get("fqdn", ""))
 print(str(w.get("live_proof_email") or "").strip())
 print(str(w.get("live_proof_tenant") or "").strip())
 print(str(w.get("live_proof_channel") or "probe").strip())
+print(str(e.get("hub", {}).get("env", {}).get("SPOOL_HUB_LOBBY_TASK_ID") or "").strip())
 PY
   )
   if [[ -z "${SPL_PROBE_PW:-}" ]]; then
@@ -66,7 +70,7 @@ PY
   [[ -n "${LIVE_PROOF_CMD:-}" ]] && read -r -a cmd <<<"$LIVE_PROOF_CMD"
   do_log "INFO $ENV live proof: $base, workspace $tenant, as $email, channel #$channel, surfaces $surfaces"
   env -u SPL_PROBE_PW -u "$secret" BASE="$base" EMAIL="$email" PW_FILE="$pwf" OUT="$out" \
-    TENANT="$tenant" CHANNEL="$channel" SURFACES="$surfaces" "${cmd[@]}" || rc=$?
+    TENANT="$tenant" CHANNEL="$channel" LOBBY_TASK="$lobby" SURFACES="$surfaces" "${cmd[@]}" || rc=$?
   rm -f "$pwf"
   if [[ $rc -ne 0 ]]; then
     echo "::error::$ENV live proof failed (rc $rc): see the FAIL lines above, evidence in $out"

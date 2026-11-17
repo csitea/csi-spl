@@ -13,6 +13,9 @@
 #   - SPL-1632: the proof posts into the hidden test channel, cnf
 #     env.wui.live_proof_channel, default probe; #lobby is refused, and the
 #     proof's lobby surface sends nothing
+#   - SPL-5736: the cnf lobby task reaches the proof as LOBBY_TASK, and the
+#     lobby verdict follows the hub's count: hub >= 1 row needs a card, hub 0
+#     rows needs the empty state (no card, no error notice)
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"
@@ -25,7 +28,7 @@ FUNC="$PROJ_ROOT/src/bash/run/spl-wui-live-proof.func.sh"
 PW='s3cr3t-not-real-$(x) "q"'
 mkdir -p "$T/app/csi-spl-orc" "$T/app/csi-spl-cnf/csi-spl" "$T/tmp"
 cnf() { # <email> <tenant> [channel]
-  printf '{"env":{"dns":{"fqdn":"dev.example.com"},"wui":{"live_proof_email":"%s","live_proof_tenant":"%s"%s}}}\n' \
+  printf '{"env":{"dns":{"fqdn":"dev.example.com"},"hub":{"env":{"SPOOL_HUB_LOBBY_TASK_ID":"00000000-0000-4000-8000-0000000000aa"}},"wui":{"live_proof_email":"%s","live_proof_tenant":"%s"%s}}}\n' \
     "$1" "$2" "${3:+,\"live_proof_channel\":\"$3\"}" >"$T/app/csi-spl-cnf/csi-spl/dev.env.json"
 }
 # the fake proof: records what it was given, exits FAKE_RC
@@ -35,6 +38,7 @@ cat >"$T/fake-proof.sh" <<'SH'
   echo "argv=$*"
   echo "base=$BASE email=$EMAIL tenant=$TENANT surfaces=$SURFACES out=$OUT"
   echo "channel=${CHANNEL:-}"
+  echo "lobby=${LOBBY_TASK:-}"
   echo "mode=$(stat -c %a "$PW_FILE")"
   echo "pw=$(cat "$PW_FILE")"
   env | grep '^SPL_PROBE_PW' >/dev/null && echo "env-has-secret" || echo "env-clean"
@@ -85,6 +89,7 @@ pwf="$(sed -n 's/^pwfile=//p' "$T/fake.log")"
 [[ -n "$pwf" && ! -e "$pwf" ]] && pass "PW_FILE is removed after the run" || fail "PW_FILE left behind: $pwf"
 
 grep -qx 'channel=probe' "$T/fake.log" && pass "no cnf channel: the proof posts into #probe" || fail "default channel: $(grep channel= "$T/fake.log")"
+grep -qx 'lobby=00000000-0000-4000-8000-0000000000aa' "$T/fake.log" && pass "SPL-5736: cnf hub lobby task reaches the proof as LOBBY_TASK" || fail "lobby task: $(grep lobby= "$T/fake.log")"
 
 # 3b. SPL-1632: the channel is cnf, and never #lobby
 cnf probe@example.com t1 qa-probe
@@ -106,6 +111,28 @@ lobby_fn="$(awk '/^async function lobbyRun\(/{f=1} f{print} f && /^}/{exit}' "$P
   && pass "lobby surface: lobbyRun opens /lobby and calls no send()" || fail "lobby surface: no lobbyRun, or it sends"
 grep -q "surface === 'lobby') await lobbyRun(p)" "$PROOF" \
   && pass "the lobby surface runs lobbyRun, not the posting surfaceRun" || fail "the lobby surface is not routed to lobbyRun"
+
+# 3d. SPL-5736: the lobby verdict follows the hub's count (lib/lobby-verdict.mjs)
+VERDICT="$PROJ_ROOT/../csi-spl-wui/tests/e2e/lib/lobby-verdict.mjs"
+verdict() { # <json input> -> "<ok> <name>"
+  node --input-type=module -e "import { lobbyVerdict } from '$VERDICT'; const v = lobbyVerdict($1); console.log(v.ok + ' ' + v.name)" 2>/dev/null </dev/null
+}
+grep -q 'lobbyVerdict(' <<<"$lobby_fn" && pass "SPL-5736: lobbyRun judges its cards with lobbyVerdict" || fail "SPL-5736: lobbyRun does not call lobbyVerdict"
+# hub 0 rows
+[[ "$(verdict '{hub:{status:200,rows:0},cards:0,error:false,empty:true}')" == "true empty on the hub, empty state shown" ]] \
+  && pass "hub 0 rows, page empty, no error: PASS named 'empty on the hub, empty state shown'" || fail "hub 0 rows: the empty state is not a PASS"
+[[ "$(verdict '{hub:{status:200,rows:0},cards:0,error:true,empty:false}')" == false* ]] \
+  && pass "hub 0 rows, page shows an error notice: FAIL" || fail "hub 0 rows + error notice passed"
+[[ "$(verdict '{hub:{status:200,rows:0},cards:1,error:false,empty:false}')" == false* ]] \
+  && pass "hub 0 rows, page shows a card: FAIL" || fail "hub 0 rows + a card passed"
+# hub >= 1 row
+[[ "$(verdict '{hub:{status:200,rows:2},cards:0,error:false,empty:true}')" == "false shows the lobby cards" ]] \
+  && pass "hub 2 rows, page shows no card: FAIL (a WUI that hides cards fails)" || fail "hub 2 rows + 0 cards did not fail"
+[[ "$(verdict '{hub:{status:200,rows:2},cards:2,error:false,empty:false}')" == "true shows the lobby cards" ]] \
+  && pass "hub 2 rows, page shows cards: PASS" || fail "hub 2 rows + cards did not pass"
+# hub unreadable: as before SPL-5736, a card is required
+[[ "$(verdict '{hub:{status:401,rows:-1},cards:0,error:false,empty:true}')" == "false shows the lobby cards" ]] \
+  && pass "hub unreadable, no card: FAIL as before" || fail "hub unreadable + 0 cards did not fail"
 
 # 4. a failing proof fails the step
 act SPL_PROBE_PW="$PW" FAKE_RC=1; rc=$?

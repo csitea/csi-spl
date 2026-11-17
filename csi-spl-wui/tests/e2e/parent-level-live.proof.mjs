@@ -22,6 +22,10 @@
 // /lobby renders its cards and a composer, and a card's topic opens on the
 // right with the left tab untouched. The level-1/level-2 send on /lobby is
 // left to the mock e2e: a live send there is a post in #lobby.
+// SPL-5736: #lobby rows age out with the hub's channel retention (720h), so
+// the lobby surface judges its cards against the hub's own count for the
+// probe member (LOBBY_TASK, tests/e2e/lib/lobby-verdict.mjs): hub >= 1 row ->
+// >= 1 card; hub 0 rows -> the empty state. It still posts nothing (5cb37834).
 // Surface `home`: `/` lands on #lobby and shows no Topics rows (owner t1
 // e4bfddb1 removed the Topics view, 0f89c5bb0). It posts nothing: the lobby
 // surface already proves the levels there.
@@ -34,12 +38,13 @@
 // right pane's own messages exclude the born-topics stack.
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
-//     [TENANT=t1] [CHANNEL=probe] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home,t] \
+//     [TENANT=t1] [CHANNEL=probe] [LOBBY_TASK=<hub lobby task id>] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home,t] \
 //     [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/parent-level-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
+import { lobbyVerdict } from './lib/lobby-verdict.mjs'
 
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
@@ -48,6 +53,8 @@ const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
 const CHANNEL = process.env.CHANNEL || 'probe'
 const PEER = process.env.PEER || ''
+/* the hub's lobby task (cnf hub.env.SPOOL_HUB_LOBBY_TASK_ID); empty = the hub is not asked */
+const LOBBY_TASK = process.env.LOBBY_TASK || ''
 const SURFACES = (process.env.SURFACES || 'channel,dm,lobby,home,t').split(',').map((s) => s.trim()).filter(Boolean)
 mkdirSync(OUT, { recursive: true })
 
@@ -348,9 +355,29 @@ async function surfaceRun(p, surface) {
   await closePane(p)
 }
 
+/** The hub's own read of the lobby for this member: how many live rows it serves. */
+async function hubLobbyRows(p) {
+  if (!res.apiRoot || !LOBBY_TASK) return { status: 0, rows: -1 }
+  return p.evaluate(async (root, id) => {
+    const r = await fetch(`${root}/v1/view/topics/${encodeURIComponent(id)}?order=desc&limit=30`, { credentials: 'include', headers: { accept: 'application/json' } })
+    if (!r.ok) return { status: r.status, rows: -1 }
+    const j = await r.json()
+    return { status: r.status, rows: (j.messages || []).length }
+  }, res.apiRoot, LOBBY_TASK)
+}
+
+/** The lobby page's empty line and error notice, as booleans. */
+const LOBBY_STATE = () => ({
+  empty: !!document.querySelector('.feed-col p.empty'),
+  error: !!document.querySelector('[data-test=lobby-error], [data-testid=lobby-none]'),
+})
+
 /* SPL-1632: /lobby is checked without a post. It renders the lobby's cards
    and its composer; opening a card's topic shows it on the right and leaves
-   the left tab where it was. Nothing is typed into the composer. */
+   the left tab where it was. Nothing is typed into the composer.
+   SPL-5736: the cards are judged against the hub's own count for this
+   member (lobbyVerdict): a lobby whose rows aged out must show its empty
+   state, never a seeded post (owner answer 5cb37834). */
 async function lobbyRun(p) {
   const tag = (n) => `lobby: ${n}`
   res.surfaces.lobby = { posts: 0 }
@@ -359,8 +386,12 @@ async function lobbyRun(p) {
   await closePane(p)
   let s = await waitFor(p, (x) => x.middle.some((m) => m.task), 15000)
   step(tag('renders on /lobby'), /\/lobby\/?$/.test(new URL(p.url()).pathname), { url: p.url() })
+  const hub = await hubLobbyRows(p)
+  const page = await p.evaluate(LOBBY_STATE)
   const card = s.middle.find((m) => m.task)
-  step(tag('shows the lobby cards'), !!card, { cards: s.middle.length })
+  const v = lobbyVerdict({ hub, cards: s.middle.filter((m) => m.task).length, ...page })
+  res.surfaces.lobby.hub = hub
+  step(tag(v.name), v.ok, v.ev)
   const composer = await p.$('form.composer textarea')
   step(tag('has a composer (not typed into)'), !!composer, {})
   if (!card) return

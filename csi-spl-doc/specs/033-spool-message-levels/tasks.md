@@ -245,6 +245,18 @@ needs an agent peer) against `https://<cnf env.dns.fqdn>`.
   `ENV=<env> TENANT_ID=t1 CHANNEL=probe ORDERED_BY=<probe member: HUM-57 dev, HUM-51 prd> DRY_RUN=0 ./run -a do_spl_channel_create`
   (`ORDERED_BY` is seated as the creator, so it is the probe member, never
   the owner).
+- SPL-5736: `#lobby` rows age out with the hub's channel retention
+  (`SPOOL_HUB_RETENTION_CHANNELS`, 720h). On dev nobody else posts there, so
+  on 2026-11-17 the newest lobby row a read mark records (2026-10-18 01:22Z)
+  expired between the green wf30 run 43989103673 (00:45Z, `cards:2`) and the
+  red run 43994538686 (01:27Z, 01:44Z, 01:55Z: `cards:0`, n=3); prd passed on
+  the same bundle. The `lobby` surface now checks its cards against the hub's
+  count: it reads the lobby task (cnf `hub.env.SPOOL_HUB_LOBBY_TASK_ID`,
+  passed as `LOBBY_TASK`) as the probe member; hub >= 1 row requires >= 1
+  card, hub 0 rows requires the empty state (no card, no error notice), a
+  PASS named `lobby: empty on the hub, empty state shown`
+  (`tests/e2e/lib/lobby-verdict.mjs`). It still posts nothing in `#lobby`
+  (owner answer 5cb37834).
 
 T010 needs a member password, so it runs by hand today. Wire it into the
 deploy workflow with the m3-e2e member's secret, so a regression on either

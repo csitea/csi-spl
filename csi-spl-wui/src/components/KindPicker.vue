@@ -24,10 +24,21 @@
         class="kind-picker__item"
         :aria-checked="k === current ? 'true' : 'false'"
         :data-kind="k"
+        :aria-keyshortcuts="keysOn ? kindKeyHint(k) || undefined : undefined"
         @click.stop="choose(k)"
       >
         <KindGlyph :kind="k" />
         <span>{{ t('feed.kind.' + k) }}</span>
+        <!-- SPL-5836: the item's letter, muted, on the right, as the message
+             menu's keys (UiPointMenu .point-menu__key): drawn from data-key
+             by CSS, so the item's accessible name stays the kind's word -->
+        <span
+          v-if="keysOn && kindKeyHint(k)"
+          class="kind-picker__key"
+          data-testid="kind-picker-key"
+          :data-key="kindKeyHint(k)"
+          aria-hidden="true"
+        />
       </button>
     </div>
   </Teleport>
@@ -37,6 +48,8 @@
 import { MSG_KINDS } from '~/utils/msg-kind.mjs'
 import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover'
 import { usePhone } from '~/composables/useTouchUi'
+import { useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
+import { kindForKey, kindKeyHint } from '~/utils/kind-picker-keys'
 
 const props = defineProps<{ open: boolean, x: number, y: number, current: string }>()
 const emit = defineEmits<{ close: [], choose: [kind: string] }>()
@@ -44,6 +57,8 @@ const emit = defineEmits<{ close: [], choose: [kind: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
 const sheet = usePhone()
+/* SPL-5836: the letters and their hints follow Keyboard shortcuts (spec 081 FR-012); off on a phone */
+const keysOn = useMsgShortcutsOn()
 /* SPL-994: on a phone the sheet is the top level while open - Back closes it first */
 useMobileStack().overlay(() => props.open, () => emit('close'))
 
@@ -87,6 +102,13 @@ function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') e.preventDefault()
     e.stopPropagation()
     emit('close')
+    return
+  }
+  const picked = keysOn.value ? kindForKey(e, MSG_KINDS) : ''
+  if (picked) {
+    e.preventDefault()
+    e.stopPropagation()
+    choose(picked)
     return
   }
   const list = items()
@@ -144,6 +166,14 @@ function choose(kind: string) {
   padding: 4px 8px;
   cursor: pointer;
 }
+.kind-picker__key {
+  margin-inline-start: auto;
+  padding-inline-start: 12px;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.kind-picker__key::after { content: attr(data-key); }
 .kind-picker__item:hover,
 .kind-picker__item:focus-visible,
 .kind-picker__item[aria-checked='true'] {

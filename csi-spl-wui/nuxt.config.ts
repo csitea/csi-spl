@@ -680,6 +680,10 @@ export default defineNuxtConfig({
     // so it registers the island-link-navigation client plugin anyway, and
     // that plugin pulls NuxtLink into the entry chunk (SPL-5070).
     componentIslands: false,
+    // The app never calls useCookie (only @nuxtjs/i18n detection does, and it
+    // does not need cookie-change events). Nuxt 4 defaults this on, which
+    // ships a CookieStore listener in the first-screen JS (SPL-5070).
+    cookieStore: false,
   },
 
   typescript: {
@@ -879,8 +883,9 @@ export default defineNuxtConfig({
         // Oxc (Vite 8's default) minifies the first-screen chunks to 157.0 KB
         // gzip, terser to 153.2 and esbuild to 161.5 (same input, n=1,
         // SPL-5070); the ci_initial_gzip_kb budget is 155 (spec 178 A3).
+        // ecma 2020 (Vite 8's default target is newer) and 3 passes: -0.5 KB.
         minify: "terser",
-        terserOptions: { compress: { passes: 2 } },
+        terserOptions: { ecma: 2020, compress: { passes: 3 } },
         sourcemap: process.env.NUXT_CLIENT_SOURCEMAP === "true",
       },
     },

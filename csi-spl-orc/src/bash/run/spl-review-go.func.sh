@@ -650,18 +650,39 @@ print(re.sub(neg, "", "\n".join(out)))
 EOF_PY
 }
 
+# _spl_review_go_prose_slash: stdin to stdout, each `/` of a prose token made a
+# space, so `IAM/billing` reads as two words. Kept as written: a backticked
+# span (per line; an unclosed backtick is prose) and a path token, one that
+# (less its leading `(`/quotes and trailing punctuation) starts with `/` or
+# `./`, or holds another `/` or a `.` (`/etc/hosts`, `a/b/c`, `IAM/v1.2`).
+_spl_review_go_prose_slash() {
+  python3 -c '
+import re, sys
+def tok(m):
+    w = m.group(0); c = w.lstrip("([{\"*").rstrip(".,;:!?)]}\"*")
+    path = c.startswith(("/", "./")) or c.count("/") > 1 or "." in c
+    return w if path else w.replace("/", " ")
+for l in sys.stdin.read().split("\n"):
+    p = l.split("`")
+    print("`".join(s if i % 2 and i < len(p) - 1 else re.sub(r"\S+", tok, s) for i, s in enumerate(p)))
+'
+}
+
 # _spl_review_go_owner_go <author brief> <holder>: 0 when the brief's
 # instruction text (_spl_review_go_instr) names no owner-go keyword, or its
 # `Owner-go: <msg id>` names a message from HUM-<n> found in the holder's
 # spool or its desk spools; 1 (the why on stdout) otherwise. A bare `apply`,
 # `IAM` or `billing` counts only when it is no part of a longer name
 # (SPL-5798): no letter, digit or `_` next to it, and no `-`, `.` or `/` that
-# joins it to one (`apply-gh-runner-cpu-budget`, `IAM_ROLE`, `x/billing`);
-# a sentence's full stop (`then apply.`) still counts.
+# joins it to one (`apply-gh-runner-cpu-budget`, `IAM_ROLE`, `` `x/billing` ``);
+# a sentence's full stop (`then apply.`) still counts. A `/` joins only inside
+# a backticked span or a path token (_spl_review_go_prose_slash, SPL-5820):
+# `IAM/billing` and `plan/apply` in prose still hold.
 _spl_review_go_owner_go() {
   local kw id text b='(^|[^-_./[:alnum:]]|(^|[^_[:alnum:]])[-./])' a='([^-_./[:alnum:]]|$|[-./]([^_[:alnum:]]|$))'
   local fixed='do-provision|do-tf-apply|PROBE_PRD_GO|DRY_RUN=0|ENV=prd|service account key|/etc/'
   text="$(_spl_review_go_instr "$1")" || text="$(cat "$1")"
+  text="$(_spl_review_go_prose_slash <<<"$text")"
   kw="$(grep -oiE "${b}apply${a}" <<<"$text" | grep -oiE 'apply')"
   [[ -n "$kw" ]] || kw="$(grep -oE "${fixed}|${b}(IAM|billing)${a}" <<<"$text" | grep -oE "${fixed}|IAM|billing")"
   [[ -n "$kw" ]] || return 0

@@ -1024,6 +1024,12 @@ for fx in 'apply|run `terraform apply` for step 016' 'apply|terraform plan, then
   f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 27000000-0000-4000-8000-000000000003)
   run REVIEW_GO_MSG="$f"; refused "27. control: '${fx#*|}' still holds" $? 4 "owner-go keyword '${fx%%|*}'"
 done
+# SPL-5820 (bug round 12 row 01): a `/` between two bare words in prose joins no name
+for fx in 'IAM|This is an IAM/billing change.' 'apply|Run plan/apply on prd for step 016.'; do
+  reset; abrief c-222 $'## Do\n\n1. '"${fx#*|}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 27000000-0000-4000-8000-000000000004)
+  run REVIEW_GO_MSG="$f"; refused "27. RED CONTROL: '${fx#*|}' in prose holds" $? 4 "owner-go keyword '${fx%%|*}'"
+done
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

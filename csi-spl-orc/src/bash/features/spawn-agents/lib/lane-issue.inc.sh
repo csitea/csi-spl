@@ -218,7 +218,9 @@ li_landed() {
 
 # li_cites WORKDIR KEY -> the trunk commits that name KEY in the subject scope
 # (any type, docs and test too) or a Closes: trailer: the lane's work, which
-# the docs verdict reads; li_landed keeps the ones that close it.
+# the docs verdict reads; li_landed keeps the ones that close it. git's trailer
+# parse reads the last paragraph only, so a Closes: block above the Lay-/Tech-
+# block is read by the closer's parser, issue-close-landed.py --keys (SPL-5783).
 li_cites() {
   local t h subj k="(^|[^A-Za-z0-9-])$2([^0-9]|\$)"
   t="$(li_trunk "$1")" || return 1
@@ -226,6 +228,9 @@ li_cites() {
     if [[ "$subj" =~ ^[a-z]+\(([^\)]*)\)!?: ]] && [[ "${BASH_REMATCH[1]}" =~ $k ]]; then
       printf '%s\n' "$h"
     elif li_git "$1" log -1 --format='%(trailers:key=Closes,valueonly)' "$h" | grep -qE "$k"; then
+      printf '%s\n' "$h"
+    elif GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*' \
+      python3 "$LI_CLOSE_PY" --keys "$1" "$h" 2>/dev/null | grep -qx "$2"; then
       printf '%s\n' "$h"
     fi
   done < <(li_git "$1" log "$t" --format='%H %s' -E --grep="$k" 2>/dev/null)

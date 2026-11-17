@@ -27,7 +27,11 @@ Which commits count:
     "fix(orc, SPL-12): ..." (a "!" before the colon is allowed)
   - any commit but a revert with a "Closes: SPL-12" trailer (comma list
     allowed), whatever its type: the trailer is the author's explicit word,
-    so a docs(...) or chore(...) commit carrying it closes
+    so a docs(...) or chore(...) commit carrying it closes. git reads
+    trailers in the last paragraph only; a "Closes:" line whose value is
+    keys only counts in ANY paragraph made of trailer lines alone, so a
+    "Closes:" block above the Lay-/Tech- block closes too (SPL-5783:
+    a979d45d8 left SPL-4991 and SPL-4992 open for 6 days)
   A bare mention in the body, a "Refs: SPL-12" trailer, the key in the scope
   of a docs / test / chore subject and a revert (its scope or its trailer)
   never close.
@@ -71,6 +75,35 @@ REVERT = re.compile(r"^(Revert\b|revert(\([^)]*\))?!?:)")
 KEY = re.compile(r"\b([A-Z][A-Z0-9]{0,9}-[1-9][0-9]*)\b")
 SEP = "\x1f"
 END = "\x1e"
+TRAILER = re.compile(r"^[A-Za-z][A-Za-z0-9-]*:[ \t]")
+CLOSES_LINE = re.compile(
+    r"^closes:[ \t]*(%s(?:[ \t]*,[ \t]*%s)*)[ \t]*$" % ((KEY.pattern[2:-2],) * 2),
+    re.IGNORECASE,
+)
+
+
+def body_closes(body):
+    """The values of the "Closes: KEY[, KEY]" lines of every paragraph of the
+    body that holds trailer lines only (an indented line continues the one
+    above it), not only of the last one, which is all git reads (SPL-5783).
+    A Closes: line an indented line continues is not keys only: skipped."""
+    vals = []
+    for para in re.split(r"\n[ \t]*\n", body or ""):
+        lines = [ln for ln in para.split("\n") if ln.strip()]
+        if not lines or not TRAILER.match(lines[0]):
+            continue
+        if all(TRAILER.match(ln) or ln[:1] in (" ", "\t") for ln in lines):
+            vals += [
+                m.group(1)
+                for i, m in enumerate(map(CLOSES_LINE.match, lines))
+                if m and not (i + 1 < len(lines) and lines[i + 1][:1] in (" ", "\t"))
+            ]
+    return vals
+
+
+def closes_of(trailers, body):
+    """The Closes values git's trailer parse gave plus those of body_closes."""
+    return [c for c in trailers.split(",") if c.strip()] + body_closes(body)
 
 
 def open_issues(path):
@@ -114,7 +147,9 @@ def commit_keys(subject, closes):
 def commits(gdir, rng):
     """(sha, unix time, subject, [Closes values]) newest first, no merges."""
     fmt = (
-        SEP.join(["%H", "%ct", "%s", "%(trailers:key=Closes,valueonly,separator=%x2C)"])
+        SEP.join(
+            ["%H", "%ct", "%s", "%(trailers:key=Closes,valueonly,separator=%x2C)", "%b"]
+        )
         + END
     )
     out = subprocess.run(
@@ -127,8 +162,8 @@ def commits(gdir, rng):
         rec = rec.strip("\n")
         if not rec:
             continue
-        sha, ct, subject, closes = (rec.split(SEP) + ["", "", "", ""])[:4]
-        yield sha, int(ct or 0), subject, [c for c in closes.split(",") if c.strip()]
+        sha, ct, subject, closes, body = (rec.split(SEP) + [""] * 5)[:5]
+        yield sha, int(ct or 0), subject, closes_of(closes, body)
 
 
 def iso_epoch(s):
@@ -348,18 +383,16 @@ def keys_of(gdir, shas):
     """The keys the given commits close by the rule, in order, no repeats."""
     keys = []
     for sha in shas:
-        fmt = "%s" + SEP + "%(trailers:key=Closes,valueonly,separator=%x2C)"
+        fmt = SEP.join(["%s", "%(trailers:key=Closes,valueonly,separator=%x2C)", "%b"])
         out = subprocess.run(
             ["git", "-C", gdir, "log", "-1", "--format=" + fmt, sha],
             check=True,
             capture_output=True,
             text=True,
         ).stdout.strip("\n")
-        subject, _, closes = out.partition(SEP)
+        subject, closes, body = (out.split(SEP) + ["", ""])[:3]
         keys += [
-            k
-            for k in commit_keys(subject, [c for c in closes.split(",") if c.strip()])
-            if k not in keys
+            k for k in commit_keys(subject, closes_of(closes, body)) if k not in keys
         ]
     return keys
 

@@ -230,6 +230,17 @@ Docs: none (internal)" csi-spl-api/z.go
 gate "$T_SCRIPTS" c-076
 eq "C9 a 'Closes: SPL-10' trailer closes it: exits" 0 "$RC"
 
+accepted c-083; echo SPL-5783 >"$SPOOL_ROOT/c-083/lifetime/issue"
+land "test(orc): a Closes: block above the Lay-/Tech- block, no key in the scope
+
+Closes: SPL-5783
+
+Lay-What: a lay line
+Tech-Why: a tech line" csi-spl-orc/src/bash/tests/only.tst.sh
+gate "$T_SCRIPTS" c-083
+eq "C10 a Closes: block above the Lay-/Tech- block, the last paragraph git reads (a979d45d8, SPL-5783): landed, exits" 0 "$RC"
+has "C10 ... by its landed commit, not the hub's status" "issue gate: SPL-5783 landed in 1 commit(s)" "$(cat "$T_TMP/e")"
+
 # --- D. the hub's status, when nothing landed (SPL-1813) ----------------------
 # The stub hub: prints the do_spl_issue_status line for HUB_KEY (default the
 # asked key) with HUB_STATUS; HUB_STATUS=down fails, =slow outlasts the timeout.

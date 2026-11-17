@@ -553,4 +553,42 @@ for r in 1 0; do CRON_LOG="$T/cron.log" SEND_LOG="$T/send.log" SPOOL_ROOT="$T/ro
 grep -q 'the last 2 ticks of do_spl_issue_close_landed were red; the runs that failed: prd t1 1/2, workspace acme 2/2\.' "$T/send.log" &&
   grep -q ' STOP issue-close-landed rc=0$' "$T/o23" &&
   pass "23. control: over the streak the alarm counts each failed run (prd t1 1/2, workspace acme 2/2)" || fail "23. tally: $(cat "$T/send.log") // $(cat "$T/o23")"
+
+# 24. SPL-5783: a979d45d8 put "Closes: SPL-4991" and "Closes: SPL-4992" in a
+# paragraph above its Lay-/Tech- trailer block. git reads trailers in the last
+# paragraph only, so both stayed open for 6 days. A "Closes: <keys>" line counts
+# in any paragraph of trailer lines alone; one in prose, or with words after
+# the keys, still does not.
+R24="$T/repo24"; mkdir -p "$R24"
+g24() { git -C "$R24" -c user.name=t -c user.email=t@example.com "$@"; }
+g24 init -q -b master; echo 0 >"$R24/f"; g24 add f; g24 commit -q -m "chore: base"
+B24=$(g24 rev-parse HEAD)
+echo 1 >>"$R24/f"; g24 add f
+g24 commit -q -m "fix(hub, SPL-50): an archived topic refuses changes
+
+Prose first.
+
+Closes: SPL-51
+Closes: SPL-52, SPL-53
+
+Not a trailer paragraph:
+Closes: SPL-54
+
+Closes: SPL-55 is the word the gate reads
+
+Closes: SPL-56
+  continued, so not keys only
+
+Lay-What: a lay line
+Tech-Why: a tech line"
+S24=$(g24 rev-parse HEAD)
+printf '{"result":{"issues":[%s]}}\n' "$(for k in 50 51 52 53 54 55 56; do printf '%s{"key":"SPL-%s","status":"eval","kind":"issue","created_at":"2000-01-01T00:00:00Z"}' "${c24:-}" "$k"; c24=,; done)" >"$T/list24.json"
+keys24="$(python3 "$TEST_DIR/../scripts/issue-close-landed.py" --keys "$R24" "$S24" | tr '\n' ' ')"
+[ "$keys24" = "SPL-50 SPL-51 SPL-52 SPL-53 " ] &&
+  pass "24. --keys: the Closes: block above the Lay-/Tech- block closes SPL-51..53 (4 keys); a Closes: line in prose (SPL-54) or with words after the key (SPL-55), or one a line continues (SPL-56) does not" ||
+  fail "24. --keys got '$keys24' want 'SPL-50 SPL-51 SPL-52 SPL-53 '"
+python3 "$TEST_DIR/../scripts/issue-close-landed.py" "$T/list24.json" "$R24" "$B24..$S24" "$T/ledger24.tsv" >"$T/o24"
+v24="$(awk -F'\t' '$2 == "close" { print $1 }' "$T/o24" | sort | tr '\n' ' ')"
+[ "$v24" = "SPL-50 SPL-51 SPL-52 SPL-53 " ] && [ "$(wc -l <"$T/o24")" = 4 ] &&
+  pass "24. the sweep plans a close for the same 4 keys and no other row" || fail "24. plan got '$v24': $(cat "$T/o24")"
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

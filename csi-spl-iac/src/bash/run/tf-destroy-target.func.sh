@@ -29,6 +29,7 @@ do_tf_destroy_target() {
 
   tf_destroy_log_fle=$PROJ_PATH/dat/log/tf_destroy.${ORG:-}-${APP:-}-${ENV:-}.${STEP:-}.log
   test -f $tf_destroy_log_fle && rm -f $tf_destroy_log_fle
+  do_tf_log_open "$tf_destroy_log_fle" || return 1
 
   vars_path="${tf_vars_path:-$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars}"
   backend_config_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.backend-config.tfvars"
@@ -40,7 +41,7 @@ do_tf_destroy_target() {
   while IFS=',' read -ra TARGETS; do
     for target in "${TARGETS[@]}"; do
       # shellcheck disable=SC2086  # verb is two or three words on purpose
-      terraform -chdir=${tf_run_path} ${verb} -var-file=$vars_path -lock=false -target=${target} 2>&1 |
+      terraform -chdir=${tf_run_path} ${verb} -input=false -var-file=$vars_path -lock=false -target=${target} 2>&1 |
         do_tf_log_mask | tee -a $tf_destroy_log_fle
     done
   done <<<"$TARGET"

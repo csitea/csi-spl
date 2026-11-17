@@ -35,6 +35,7 @@ do_tf_apply_target() {
   tf_apply_log_fle=$PROJ_PATH/dat/log/tf_apply.${ORG:-}-${APP:-}-${ENV:-}.${STEP:-}.log
   mkdir -p "$(dirname "$tf_apply_log_fle")" 2>/dev/null || true
   test -f "$tf_apply_log_fle" && rm -f "$tf_apply_log_fle"
+  do_tf_log_open "$tf_apply_log_fle" || return 1
 
   do_tf_init
 
@@ -50,7 +51,7 @@ do_tf_apply_target() {
 
   while IFS=',' read -ra TARGETS; do
     for target in "${TARGETS[@]}"; do
-      terraform -chdir=${tf_run_path} apply -var-file=$vars_path -auto-approve -lock=false -target=${target} \
+      terraform -chdir=${tf_run_path} apply -input=false -var-file=$vars_path -auto-approve -lock=false -target=${target} \
         2>&1 | do_tf_log_mask | tee -a "$tf_apply_log_fle"
     done
   done <<<"$TARGET"

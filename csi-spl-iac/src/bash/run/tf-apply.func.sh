@@ -19,6 +19,7 @@ do_tf_apply() {
 
   tf_apply_log_fle=$PROJ_PATH/dat/log/tf_apply.${ORG:-}-${APP:-}-${ENV:-}.${STEP:-}.log
   test -f "$tf_apply_log_fle" && rm -f "$tf_apply_log_fle"
+  do_tf_log_open "$tf_apply_log_fle" || return 1
 
   vars_path="${tf_vars_path:-$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars}"
   backend_config_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.backend-config.tfvars"
@@ -26,7 +27,7 @@ do_tf_apply() {
   set -x
   {
     terraform -chdir="${tf_run_path}" init -backend-config="$backend_config_path" -upgrade -get=true -reconfigure 2>&1 &&
-    terraform -chdir="${tf_run_path}" apply -var-file="$vars_path" -auto-approve -lock=false 2>&1
+    terraform -chdir="${tf_run_path}" apply -input=false -var-file="$vars_path" -auto-approve -lock=false 2>&1
   } | do_tf_log_mask | tee -a "$tf_apply_log_fle"
   local _rc=${PIPESTATUS[0]}
   set +x

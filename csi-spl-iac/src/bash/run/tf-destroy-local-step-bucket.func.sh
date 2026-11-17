@@ -24,6 +24,7 @@ do_tf_destroy_local_step_bucket() {
 
   tf_destroy_log_fle=$PROJ_PATH/dat/log/tf_destroy.${ORG:-}-${APP:-}-${ENV:-}.${STEP:-}.log
   test -f $tf_destroy_log_fle && rm -f $tf_destroy_log_fle
+  do_tf_log_open "$tf_destroy_log_fle" || return 1
 
   # for do_tf_local_apply $tf_proj is evaluated as step-remote-bucket;
   # strip that marker in-process (no sed fork, SC2001)
@@ -57,7 +58,7 @@ do_tf_destroy_local_step_bucket() {
   # shellcheck disable=SC2086  # verb is two words on purpose
   {
     terraform -chdir=$tf_run_path init -upgrade 2>&1 &&
-    terraform -chdir=$tf_run_path ${verb} -var-file=$vars_path 2>&1
+    terraform -chdir=$tf_run_path ${verb} -input=false -var-file=$vars_path 2>&1
   } | do_tf_log_mask | tee -a $tf_destroy_log_fle
 
   set +x

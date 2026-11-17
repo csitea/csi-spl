@@ -12,3 +12,16 @@
 do_tf_log_mask() {
   sed -u -E 's/[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6}-[0-9A-Fa-f]{2}([0-9A-Fa-f]{4})/XXXXXX-XXXXXX-XX\1/g'
 }
+
+#------------------------------------------------------------------------------
+# @description Create a terraform log 0640 before the first `tee -a` writes it,
+# @description and lower one that already exists (SPL-5822): with the caller's
+# @description umask (0002 on the boxes) tee made dat/log/tf_*.log 0664, so
+# @description every local user read terraform's output and output values.
+# @description The file is born under umask 027, so it is never briefly 0664.
+# @example do_tf_log_open "$tf_apply_log_fle" || return 1
+#------------------------------------------------------------------------------
+do_tf_log_open() {
+  local f="${1:?do_tf_log_open: the log file}"
+  mkdir -p "${f%/*}" && (umask 027 && : >>"$f") && chmod 0640 "$f"
+}

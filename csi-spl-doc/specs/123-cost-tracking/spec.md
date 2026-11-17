@@ -820,6 +820,15 @@ to log in each time)".
   (it collides with the command's ACCOUNT argument, HTTP 400): use
   `CLOUDSDK_CORE_ACCOUNT` in a throwaway `CLOUDSDK_CONFIG`. Detail: the step
   002 README section 5.
+- Those logs are 0640 and the apply / destroy never prompts (SPL-5822, the
+  SPL-5797 follow-ups): `do_tf_log_open` (same file as `do_tf_log_mask`)
+  creates each `tf_*.log` 0640 before the first `tee -a`, and lowers one that
+  already exists (with the boxes' umask 0002 tee made it 0664: every local
+  user read terraform's output). The five apply / destroy actions pass
+  `-input=false`, their `plan -destroy` dry run too: a missing variable fails
+  at once instead of waiting on an `Enter a value:` prompt that the line
+  filter holds back and a cron run never answers. Test:
+  `csi-spl-iac/src/bash/tests/tf-apply-no-input.tst.sh`.
 
 ### 15.3 `do_gcp_billing_invoices_fetch` (read only)
 

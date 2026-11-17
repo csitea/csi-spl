@@ -1,4 +1,4 @@
-# Perf round 14 (p14) - plan (draft v0.2)
+# Perf round 14 (p14) - plan (2 rows, v1.0)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -24,7 +24,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: draft v0.2, not signed.** Editor: c-025 (claude).
+**Status: v1.0, signed** (claude c-025 author, mistral m-031 PASS on `ad7621455`). Editor: c-025 (claude).
 
 **Why now.** The holder's request (c-003@sat, 2839cb8c, 2026-11-17 13:2xZ;
 brief by c-001@sat):
@@ -93,7 +93,7 @@ Inputs read (brief step 2). Each carried finding was re-checked on
 
 | # | id | practice | baseline on `f9661ccf0` (command, number, n) | after | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 | `perf(p14-01-wui-unit-pool)` | the WUI unit runner runs its test files N at a time (a pool of `spawn`, not `spawnSync`), default `min(4, cpus)`, `WUI_UNIT_JOBS=<n>` overrides, `1` = today's serial loop. Each file's output is buffered and printed whole, in the sorted order, with its `──[i/n] file` header, so the log reads as today; the exit code, the failure list and `FAIL_FAST` keep their meaning | editor 2.2, probe on a clone of `f9661ccf0`: `node src/node/test/run-unit-tests.mjs` (today) -> **565.6 s and 546.7 s, n=2**, 524 files green. Pre-push log since p12-01: `wui` PASS fast n=14 mean 650 s, full n=7 mean 640 s (unit + typecheck); CI wf 10 "Unit tests" 124..168 s, n=5 | the same files 4 at a time (`xargs -P 4`) -> **126.9 s and 120.3 s, n=2**, alternated with the serial arm, 524 green each. Suggested: ~420..440 s off every `wui` part run on the desk box; the CI step gains too, not probed there | `wui/src/node/test/run-unit-tests.mjs:1-21` (the header: the pool, `WUI_UNIT_JOBS`), `:68-84` (the loop becomes the pool), `:86-94` (the summary reads the collected results); 3 edit ranges in 1 file | a new **`wui/tests/unit/unit-runner-pool.test.mjs`**: the runner pointed at a temp dir of 4 stub files (`UNIT_DIR` from an env var, a new 4th edit range at `:29`) that each record their start and end time and wait for a file event the next one writes; asserts the peak number of stub files running at once is **4** with `WUI_UNIT_JOBS=4` and **1** with `WUI_UNIT_JOBS=1`, the output is in sorted order with each header, and one failing stub still exits 1 naming it. Red: today's runner -> peak **1** with `WUI_UNIT_JOBS=4`. Also run and green: **`unit-runner-coverage.test.mjs`** (it reads the runner's source), `pnpm run test:unit` twice in full (both green, its seconds in the commit body), `cleancode.test.mjs` | either fleet box | claude / simple_coding | 1 |
+| 01 | `perf(p14-01-wui-unit-pool)` | the WUI unit runner runs its test files N at a time (a pool of `spawn`, not `spawnSync`), default `min(4, cpus)`, `WUI_UNIT_JOBS=<n>` overrides, `1` = today's serial loop. Each file's output is buffered and printed whole, in the sorted order, with its `──[i/n] file` header, so the log reads as today; the exit code, the failure list and `FAIL_FAST` keep their meaning | editor 2.2, probe on a clone of `f9661ccf0`: `node src/node/test/run-unit-tests.mjs` (today) -> **565.6 s and 546.7 s, n=2**, 524 files green. Pre-push log since p12-01: `wui` PASS fast n=14 mean 650 s, full n=7 mean 640 s (unit + typecheck); CI wf 10 "Unit tests" 124..168 s, n=5 | the same files 4 at a time (`xargs -P 4`) -> **126.9 s and 120.3 s, n=2**, alternated with the serial arm, 524 green each. Suggested: ~420..440 s off every `wui` part run on the desk box; the CI step gains too, not probed there | `wui/src/node/test/run-unit-tests.mjs:1-21` (the header: the pool, `WUI_UNIT_JOBS`), `:68-84` (the loop becomes the pool), `:86-94` (the summary reads the collected results), `:29` (`UNIT_DIR` from an env var, for the test); 4 edit ranges in 1 file | a new **`wui/tests/unit/unit-runner-pool.test.mjs`**: the runner pointed at a temp dir of 4 stub files (`UNIT_DIR` from an env var, a new 4th edit range at `:29`) that each record their start and end time and wait for a file event the next one writes; asserts the peak number of stub files running at once is **4** with `WUI_UNIT_JOBS=4` and **1** with `WUI_UNIT_JOBS=1`, the output is in sorted order with each header, and one failing stub still exits 1 naming it. Red: today's runner -> peak **1** with `WUI_UNIT_JOBS=4`. Also run and green: **`unit-runner-coverage.test.mjs`** (it reads the runner's source), `pnpm run test:unit` twice in full (both green, its seconds in the commit body), `cleancode.test.mjs` | either fleet box | claude / simple_coding | 1 |
 | 02 | `perf(p14-02-api-pg-groups-pool)` | `hub-pg.tst.sh` runs the store groups and the hub groups side by side, up to a cap, instead of one after another within each chain. Since SPL-5654 (`543aca847`) every group has its own freshly migrated database, so the one-at-a-time order no longer protects anything; the database setup stays one at a time (the `db_lock` flock, `:215`). One cap over both lists, `HUB_PG_GROUP_JOBS=<n>`; today runs at most 2 at once (one per chain); the lane picks the default from its own timing (below) | editor 2.3, `SPL_API_TEST_TIER=full bash csi-spl-api/src/bash/tests/run-all-tests.sh` on a clone of `f9661ccf0`, n=1: the whole run **2,754 s**, of it the hub Postgres gate **1,830 s** (13:55:13..14:25:43Z), of that the package suites **~1,632 s**: store chain 568+316+156+217 = 1,257 s, hub chain 551+369+384+267 = 1,571 s, side by side. Pre-push log since p12-01: `api` PASS full n=9, mean 3,270 s | editor 2.4, the same gate with every group started at once (a scratch copy `hub-pg-par.tst.sh`, uncapped), n=1, standalone: the package suites **967 s**, the whole gate **1,189 s**, all green, RC 0. Suggested: ~640 s off every full-tier `api` run. Each group got slower under the contention (store a 568 -> 922 s, hub b 369 -> 851 s; the per-group timeout is 20 min), hence the cap. The CI `hub-pg` job (wf 10) runs the same script; not probed there | `csi-spl-api/src/bash/tests/hub-pg.tst.sh:227-238` (`store_groups`), `:239-250` (`hub_groups`): each becomes a pool under one shared cap; `:251-268` (the launch and wait, so the two chains share the cap); `:270` (the "sequential groups" wording); 4 edit ranges in 1 file | a new **`csi-spl-api/src/bash/tests/hub-pg-pool.tst.sh`**, no Postgres: it sources the pool function from `hub-pg.tst.sh` (or a new `hub-pg-pool.inc.sh`, the lane's pick) with `group_db` and `pg_go_test` stubbed to record start and end and to wait for the next stub's start; asserts the peak number of groups running at once is the cap (**3** with `HUB_PG_GROUP_JOBS=3`) and **1** with `HUB_PG_GROUP_JOBS=1`, that every group of both lists runs exactly once, and that one red stub still fails the gate and names its group. Red: today's script -> peak **2** with `HUB_PG_GROUP_JOBS=3`. Also run and green: `hub-pg-groups.tst.sh`, `store-pg-groups.tst.sh`, and `PRE_PUSH_TIER=full ./run -a do_check_pre_push` (the real gate on Postgres) twice | either fleet box | claude / simple_coding | 1 |
 
 Every row is claude: rulebook R14 (an established vendor) and the owner's
@@ -239,7 +239,7 @@ No finding of this seat is non-perf work, so no ask went to the orchestrator.
 
 ## 7. Counts
 
-- Rows: 2 in v0.2 (rulebook 1.1: at most 10).
+- Rows: 2 in v1.0, unchanged from v0.2 (rulebook 1.1: at most 10).
 - Every row aims for one push (1.2) and lands with a counting test and its red
   control (4.1).
 - Status (R6): `git fetch origin master && git log origin/master --grep='(p14-' --format='%h %cI %s'`.
@@ -259,6 +259,15 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 - v0.2 (c-025, 2026-11-17 14:5xZ): the api probe ended (editor 2.3); row 02,
   the hub-pg groups side by side under a cap, from an uncapped probe arm
   (editor 2.4); R3 re-read at 14:27Z; rebased on `770de68f4`.
+- v1.0 (c-025, 2026-11-17 15:3xZ): mistral m-031 PASS on v0.2 `ad7621455`
+  (msg 11630893, seat `fff01fa97`), W none; rows unchanged. Folded: N1, row 01's
+  sites column now names the 4th edit range `:29` its test column already
+  added (4 ranges, within 5). N3, the seat's re-measure of row 01 on a clone of
+  `f9661ccf0`, n=3 per arm, 524 green each: serial 475, 538, 553 s; pool of 4
+  146, 179, 118 s; same direction and verdict as the row's n=2, the seconds
+  move with the box load. Only the status, row 01's sites column, the counts
+  line, this line and section 9 change; the editor signs (holder c-002@sat msg
+  ff0f2c32).
 
 <a id="p14-consensus"></a>
 
@@ -266,5 +275,5 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-025 (editor) | claude | v0.2 | author |
-| m-031 (mistral seat, ask 8aaab744) | mistral | - | waits for a named sha |
+| c-025 (editor) | claude | v0.1, v0.2; v1.0 | author; **signs** v1.0 (the rows of `ad7621455`, unchanged) |
+| m-031 (mistral seat, ask 8aaab744) | mistral | v0.2 `ad7621455` | **PASS**, W none, N1..N4 (seat `fff01fa97`, msg 11630893) |

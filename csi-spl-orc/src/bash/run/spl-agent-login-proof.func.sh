@@ -22,7 +22,8 @@
 # @description the renewal interval: the delta between successive expiresAt
 # @description at each sha change, in minutes. Prints sha prefixes (12) and
 # @description times only, never credential content.
-# @param LOGIN_STATE_DIR (optional) - default /var/csi/csi-spl/agent-login-check
+# @param LOGIN_STATE_DIR (optional) - default <SPL_VAR_APP_DIR>/agent-login-check
+# @param   (SPL_VAR_APP_DIR, spl_run_paths)
 # @param LOGIN_PROOF_LOG (optional) - the cron log, default <state>/cron.log
 # @param LOGIN_PROOF_SAMPLES (optional) - the samples, default <state>/cred.log
 # @param LOGIN_PROOF_START (optional) - the start, UTC (YYYY-MM-DDTHH:MM:SSZ) or epoch; default <state>/proof.start
@@ -34,7 +35,9 @@
 # @example LOGIN_PROOF_START=2026-10-12T08:00:00Z ./run -a do_spl_agent_login_proof
 #------------------------------------------------------------------------------
 do_spl_agent_login_proof() {
-  local state="${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}"
+  local state
+  declare -F _lc_state_dir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/spl-agent-login-check.func.sh"
+  state="$(_lc_state_dir)" || return 1
   local log="${LOGIN_PROOF_LOG:-$state/cron.log}" samples="${LOGIN_PROOF_SAMPLES:-$state/cred.log}"
   local hours="${LOGIN_PROOF_HOURS:-48}" want="${LOGIN_PROOF_RENEWALS:-5}" pct="${LOGIN_PROOF_TICK_PCT:-95}"
   local now="${LOGIN_NOW:-$(date +%s)}" start s0 end e0 s e

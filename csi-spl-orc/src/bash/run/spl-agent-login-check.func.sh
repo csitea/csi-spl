@@ -57,7 +57,8 @@
 # @param LOGIN_PROBE_EVERY (optional) - s between probes on a healthy box, default 300 (0 = every tick)
 # @param LOGIN_STOP_WAIT (optional) - s a stopped claude gets before KILL, default 15
 # @param LOGIN_COOLDOWN_MIN (optional) - minutes a just restored or started seat is left alone; default cnf env.box.login_check.cooldown_min (10)
-# @param LOGIN_STATE_DIR (optional) - default /var/csi/csi-spl/agent-login-check
+# @param LOGIN_STATE_DIR (optional) - default <SPL_VAR_APP_DIR>/agent-login-check
+# @param   (SPL_VAR_APP_DIR, spl_run_paths); the tick fails when neither is known
 # @param LOGIN_PEERS (optional) - overrides SPOOL_LOGIN_PEERS of box.env
 # @param LOGIN_ALERT_TO (optional) - default the dispatch lease holder
 # @param LOGIN_EXPIRY_WARN_MIN (optional) - early warning under this many minutes to expiry, default 60 (0 = off)
@@ -91,7 +92,7 @@ do_spl_agent_login_check() {
   # shellcheck source=../features/spawn-agents/lib/agent-identity.inc.sh
   source "$feat/lib/agent-identity.inc.sh" || return 1
   if [[ "${SPOOL_TEST:-}" == 1 ]]; then spool_test_guard || return 96; fi
-  LC_STATE="$(_lc_state_dir)"
+  LC_STATE="$(_lc_state_dir)" || return 1
   LC_CRED="${LOGIN_CRED_CMD:-bash $PROJ_PATH/src/bash/scripts/agent-login-cred.sh}"
   mkdir -p "$LC_STATE" 2>/dev/null || { do_log "FATAL cannot create $LC_STATE"; return 1; }
   exec 8>>"$LC_STATE/tick.lock" || return 1
@@ -230,8 +231,14 @@ _lc_probe() {
   echo "$line"
 }
 
-# The login-check state dir: LOGIN_STATE_DIR, else the box default.
-_lc_state_dir() { echo "${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}"; }
+# The login-check state dir: spl_claude_login_state_dir (LOGIN_STATE_DIR,
+# else <SPL_VAR_APP_DIR>/agent-login-check), sourced on the first call so the
+# ./run loader keeps this file lazy; rc 1 with a FATAL line when neither is known.
+_lc_state_dir() {
+  declare -F spl_claude_login_state_dir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-claude-login.func.sh"
+  spl_claude_login_state_dir ||
+    { echo "FATAL cannot derive the login check state dir (no tree for spl_run_paths): set LOGIN_STATE_DIR" >&2; return 1; }
+}
 
 # spl_lc_login_ok_after T NOW: 0 when this box's probe (<state>/probe) says
 # ok, was taken after epoch T and not after NOW, at most WD_LOGIN_HEAL_GRACE

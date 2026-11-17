@@ -3,10 +3,6 @@
 2 csi-spl-orc/src/bash/run/install-box-crons.func.sh
 2 csi-spl-orc/src/bash/run/prune-docker-images-install-cron.func.sh
 2 csi-spl-orc/src/bash/run/setup-reverse-tunnel.func.sh
-2 csi-spl-orc/src/bash/run/spl-agent-login-check.func.sh
-2 csi-spl-orc/src/bash/run/spl-agent-login-proof-start.func.sh
-2 csi-spl-orc/src/bash/run/spl-agent-login-proof.func.sh
-2 csi-spl-orc/src/bash/run/spl-agent-steps-log.func.sh
 1 csi-spl-orc/src/bash/run/spl-box-msg-probe.func.sh
 3 csi-spl-orc/src/bash/run/spl-box-state-backup.func.sh
 3 csi-spl-orc/src/bash/run/spl-cmd-guard-mode.func.sh

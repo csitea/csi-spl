@@ -14,7 +14,8 @@
 # @description credential (the same sha prefix: no /login there yet).
 # @description Dry run unless DRY_RUN=0.
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @param LOGIN_STATE_DIR (optional) - default /var/csi/csi-spl/agent-login-check
+# @param LOGIN_STATE_DIR (optional) - default <SPL_VAR_APP_DIR>/agent-login-check
+# @param   (SPL_VAR_APP_DIR, spl_run_paths)
 # @param LOGIN_NOW (optional) - the clock, epoch (tests)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ./run -a do_spl_agent_login_proof_start
@@ -28,7 +29,7 @@ do_spl_agent_login_proof_start() {
     source "$PROJ_PATH/src/bash/features/spawn-agents/lib/agent-identity.inc.sh" || return 1
     spool_test_guard || return 96
   fi
-  state="${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}"
+  state="$(_lc_state_dir)" || return 1
   LC_CRED="${LOGIN_CRED_CMD:-bash $PROJ_PATH/src/bash/scripts/agent-login-cred.sh}"
   # the file's peers, never a LOGIN_PEERS override: the file is what the tick reads
   peers="$(unset LOGIN_PEERS; _lc_peer_list | xargs)"

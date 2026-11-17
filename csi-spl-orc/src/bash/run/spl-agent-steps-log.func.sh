@@ -19,7 +19,8 @@
 # @param   space separated
 # @param AGENT_STEPS_LOG_SESSION (optional) - the session jsonl, one AGENT_ID
 # @param   only; default the newest *.jsonl of the agent's project dir
-# @param AGENT_STEPS_LOG_DIR (optional) - default /var/csi/csi-spl/agent-logs
+# @param AGENT_STEPS_LOG_DIR (optional) - default <SPL_VAR_APP_DIR>/agent-logs
+# @param   (SPL_VAR_APP_DIR, spl_run_paths); refused when neither is known
 # @param AGENT_STEPS_LOG_USER (optional) - default the first
 # @param   spl_cost_agent_users user (box.env SPOOL_AGENT_USER)
 # @param AGENT_STEPS_LOG_PROJECTS (optional) - default
@@ -46,7 +47,10 @@ do_spl_agent_steps_log() {
   fi
   user="${AGENT_STEPS_LOG_USER:-$(spl_cost_agent_users "${SPOOL_ROOT:-/var/spool-hub}" | sed -n 1p)}"
   [[ "$user" =~ ^[a-z_][a-z0-9_-]*$ && "$user" != root ]] || { echo "FATAL agent-steps-log: bad agent user '$user'"; return 1; }
-  dir="${AGENT_STEPS_LOG_DIR:-/var/csi/csi-spl/agent-logs}"
+  declare -F spl_run_paths >/dev/null || source "$orc/lib/bash/funcs/spl-run-paths.func.sh"
+  [[ -n "${AGENT_STEPS_LOG_DIR:-}" ]] || spl_run_paths ||
+    { echo "FATAL agent-steps-log: cannot derive the log dir (no tree for spl_run_paths): set AGENT_STEPS_LOG_DIR"; return 1; }
+  dir="${AGENT_STEPS_LOG_DIR:-${SPL_VAR_APP_DIR}/agent-logs}"
   [[ -d "$dir" ]] || { mkdir -p "${dir%/*}" && mkdir -m 0755 "$dir"; } 2>/dev/null
   [[ -w "$dir" ]] || { echo "FATAL agent-steps-log: $(id -un) cannot write $dir"; return 1; }
   for id in $ids; do

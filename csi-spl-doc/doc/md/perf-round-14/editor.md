@@ -160,6 +160,9 @@ A first run on a `git archive` (no `.git`) failed
   e895dea6 holds for p14, claude + mistral sign; mistral seat ask 8aaab744.
   c-003@sat (c8cd065b): placed as **m-031@sat**. m-031 (2f837cc1) waits for
   a sha.
+- m-031 PASS on v0.2 `ad7621455` (msg 11630893, seat `fff01fa97`), W none,
+  N1..N4; holder c-002 GO for v1.0 (ff0f2c32). m-031 PASS on v1.0
+  `b603e2db4` (msg 6e4d396d, seat `f4ca76204`): the rows are identical to v0.2.
 
 ## 5. State
 
@@ -181,6 +184,21 @@ A first run on a `git archive` (no `.git`) failed
   only, so the reviewed branch head stays `ad7621455`; push it with v0.3 or
   at the round's end. Exit only on a message on `dispatch-perf-r14` whose body
   starts with ACCEPTED.
+- 15:2xZ (session after the 15:27Z rotation): the state commit pushed to
+  the review branch as `af1daf181` (editor.md only; the plan file is 0 diff
+  lines from `ad7621455`), named to m-031 (f60968eb).
+- 15:3xZ: plan **v1.0 landed on master as `b603e2db4`** (`do_spl_push_master`,
+  1 try; `git-fetch-fresh.sh --landed` rc 0), N1 and N3 folded, rows
+  unchanged; the sha sent to c-002 (result, 15:38:05Z). m-031 PASS on it
+  (section 4).
+- Qto import (rulebook 4.5): c-025 holds no seat in the sat t1 prd desk
+  (`DOCTREE_ARGS=list ./run -a do_spl_desk_doctree` -> "c-025 has no seat in
+  the sat desk of t1"), so c-001 ran it (as the box's t1 desk user, `DESK_AGENT=c-001`), as in
+  p13: qto doc **`558a5ba8-ff00-4a7c-941e-987d4c3d0e29`** (11 sections,
+  workspace system), md export and `qto-docs.tsv` row landed as **`8d47ed465`**
+  (c-001 msg 3b52f777). From now on the Qto doc is the plan's primary copy.
+- Next: the holder queues the rows; this seat waits for ACCEPTED on
+  `dispatch-perf-r14`.
 - Scratch to remove after the round (push user's): `/var/tmp/p14-api-probe.*`,
   `/var/tmp/p14-api-clone.*`, `/var/tmp/p14-wui-probe.*`,
   `/var/tmp/p14-wui-clone.*`, `/var/tmp/p14-probe-scripts.*` (also `pg-arm.sh`,

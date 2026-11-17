@@ -15,7 +15,7 @@
 // account with one FATAL line (the id masked to its last 4); the run then
 // exits 2. Nothing is guessed.
 import { createRequire } from 'node:module';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync, readSync, closeSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { selectRows, maskId, failLine, isNotFound, navEntries, pickInvoicesEntry } from './lib.mjs';
 
@@ -33,6 +33,7 @@ const LOGIN_WAIT_MS = 10 * 60 * 1000;
 const PAGE_WAIT_MS = Number(process.env.BILLING_PAGE_WAIT_MS || 90000);
 const CONSOLE = 'https://console.cloud.google.com';
 const ROWS = '[role="row"], tr';
+const STABLE_READS = 3;
 
 const require = createRequire(path.join(env('BILLING_PW_DIR'), 'package.json'));
 const { chromium } = require('playwright-core');
@@ -75,17 +76,39 @@ async function invoicesEntry(page, id) {
 }
 
 // documentsFrame - the frame that holds the documents list: the payments
-// iframe when there is one, else the page itself.
+// iframe when there is one, else the page itself. The list may fill in
+// lazily, so it is taken only when no progress bar shows and its row count
+// read the same STABLE_READS polls in a row (R7 c-073 W1).
 async function documentsFrame(page, id, label) {
+  let last = -1, same = 0;
   const got = await poll(page, async () => {
     if (isNotFound(await page.content())) return 'not-found';
     const frames = page.frames().sort((a, b) => /payments\.google\.com/.test(b.url()) - /payments\.google\.com/.test(a.url()));
-    for (const f of frames) if ((await f.locator(ROWS).count()) > 1) return f;
+    for (const f of frames) {
+      const n = await f.locator(ROWS).count();
+      if (n <= 1) continue;
+      if (await f.locator('[role="progressbar"]').count()) { last = -1; same = 0; return null; }
+      same = n === last ? same + 1 : 1;
+      last = n;
+      return same >= STABLE_READS ? f : null;
+    }
+    last = -1;
     return null;
   });
   if (got === 'not-found') fail(id, `the console shows "URL not found" behind the "${label}" entry`);
-  if (!got) fail(id, `no documents list on the "${label}" page (the console changed?)`);
+  if (!got) fail(id, `no documents list on the "${label}" page, or it never stopped loading (the console changed?)`);
+  if (await got.locator('[aria-label*="next page" i]:not([disabled]):not([aria-disabled="true"])').count()) {
+    fail(id, `the documents list on the "${label}" page has more pages; this run reads one page only`);
+  }
   return got;
+}
+
+// isPdf(file) - the saved file starts with the PDF magic number.
+function isPdf(file) {
+  const fd = openSync(file, 'r');
+  const b = Buffer.alloc(5);
+  try { readSync(fd, b, 0, 5, 0); } finally { closeSync(fd); }
+  return b.toString('latin1') === '%PDF-';
 }
 
 async function clickDownload(page, frame, row) {
@@ -108,7 +131,9 @@ async function oneAccount(page, id) {
   await page.goto(`${CONSOLE}/billing/${id}`);
   await waitLoggedIn(page);
   const entry = await invoicesEntry(page, id);
-  if (entry.href) await page.goto(new URL(entry.href, page.url()).href);
+  const to = entry.href ? new URL(entry.href, page.url()) : null;
+  if (to && to.hostname !== new URL(CONSOLE).hostname) fail(id, `the "${entry.label}" entry leads off the console (${to.hostname})`);
+  if (to) await page.goto(to.href);
   else await page.getByRole('link', { name: entry.label, exact: true }).first().click();
   const frame = await documentsFrame(page, id, entry.label);
   const rows = frame.locator(ROWS);
@@ -121,13 +146,21 @@ async function oneAccount(page, id) {
     if (existsSync(file)) { console.log(`OK ${maskId(id)} ${p.file} already there`); continue; }
     if (dry) { console.log(`INFO DRY ${maskId(id)} would save ${p.file} (${entry.label})`); continue; }
     const dl = await clickDownload(page, frame, rows.nth(p.index));
-    if (/\.zip$/i.test(dl.suggestedFilename())) fail(id, `one row gave a zip, not a PDF (${p.file})`);
+    if (!/\.pdf$/i.test(dl.suggestedFilename())) fail(id, `one row gave no PDF (a .${dl.suggestedFilename().split('.').pop()} file) for ${p.file}`);
     await dl.saveAs(file);
+    if (!isPdf(file)) { rmSync(file, { force: true }); fail(id, `the file saved for ${p.file} is no PDF (removed)`); }
     console.log(`OK ${maskId(id)} saved ${p.file}`);
   }
 }
 
-const browser = await chromium.launch({ executablePath: env('BILLING_CHROME'), headless: false });
+let browser;
+try {
+  browser = await chromium.launch({ executablePath: env('BILLING_CHROME'), headless: false });
+} catch (e) {
+  const why = String(e.message).split('\n')[0].replace(/--user-data-dir=\S+/g, '--user-data-dir=<throwaway>').slice(0, 200);
+  console.log(`FATAL cannot start Chrome (BILLING_CHROME): ${why}`);
+  process.exit(2);
+}
 let failed = 0;
 try {
   const ctx = await browser.newContext({ acceptDownloads: true });

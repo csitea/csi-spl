@@ -37,6 +37,13 @@
 #      /billing/<id>/documents; a not-found page, no such entry, a not-found
 #      page behind it or no documents list -> one FATAL line, the id masked to
 #      its last 4, rc 2. CONTROL: the old /documents path on the same pages.
+#      R7 c-073: a lazily filling list is read once its row count holds
+#      (CONTROL: one read saves 1 of 3, rc 0); a list that never stops
+#      loading or has more pages, or an entry leading off the console -> FATAL;
+#      the direct, checkbox + "Download selected" and menu paths save real
+#      %PDF- files; a .zip name or a non-PDF body -> FATAL, nothing left; the
+#      payments iframe beats the page's own table; an href-less entry is
+#      clicked; a Chrome that fails to start -> one line, rc 2.
 # Stubs: gcloud, curl, npm, node on PATH (they log their argv); E runs the
 # real node on a fake playwright-core. Nothing reaches GCP, npm or a browser.
 #------------------------------------------------------------------------------
@@ -265,35 +272,62 @@ mkdir -p "$T/fakepw/node_modules/playwright-core"
 echo '{"name":"playwright-core","main":"index.js"}' >"$T/fakepw/node_modules/playwright-core/package.json"
 cat >"$T/fakepw/node_modules/playwright-core/index.js" <<'JS'
 const fs = require('node:fs');
-const map = Object.fromEntries((process.env.FAKE_MAP || '').split(',').filter(Boolean).map((kv) => kv.split('=')));
+const E = process.env;
+const log = (l) => fs.appendFileSync(E.FAKE_LOG, `${l}\n`);
+const map = Object.fromEntries((E.FAKE_MAP || '').split(',').filter(Boolean).map((kv) => kv.split('=')));
+const file = (f) => fs.readFileSync(`${E.FAKE_FIX}/${f}`, 'utf8');
 const serve = (url) => {
   const seg = new URL(url).pathname.split('/').filter(Boolean).pop();
   const key = /^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$/.test(seg) ? 'overview' : seg;
-  return fs.readFileSync(`${process.env.FAKE_FIX}/${map[key] || 'not-found.html'}`, 'utf8');
+  return [key, file(map[key] || 'not-found.html')];
 };
 const rows = (html) => [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+if (E.FAKE_LAUNCH_FAIL) exports.chromium = { launch: async () => { throw new Error('Failed to launch: /bin/false --user-data-dir=/tmp/x\n  at stack'); } };
+else exports.chromium = { launch: async () => ({ newContext: async () => ({ newPage: async () => page() }), close: async () => {} }) };
 function page() {
-  let url = 'about:blank', html = '';
+  let url = 'about:blank', html = '', key = '', reads = 0, fire = null;
+  const download = () => { const n = E.FAKE_DL_NAME || 'invoice.pdf'; log(`download ${n}`);
+    fire({ suggestedFilename: () => n, saveAs: async (f) => fs.writeFileSync(f, E.FAKE_DL_BODY || '%PDF-1.4 fake') }); };
+  const ctl = (on, act) => ({ first: () => ({ count: async () => (on ? 1 : 0), click: async () => act && act() }) });
+  // a row: its controls per FAKE_DL (direct | checkbox | menu); the zip/html name and body come from FAKE_DL_*
+  const row = () => ({ locator: (sel) => {
+    if (/ownload/.test(sel)) return ctl(E.FAKE_DL === 'direct', download);
+    if (/checkbox/.test(sel)) return ctl(E.FAKE_DL === 'checkbox', () => log('tick'));
+    return ctl(E.FAKE_DL === 'menu', () => log('menu'));
+  } });
+  const frameOf = (furl, fhtml) => ({ url: () => furl, content: async () => fhtml(),
+    getByRole: (role) => ctl(true, () => { log(`click ${role}`); if (role !== 'link') download(); }),
+    locator: (sel) => {
+      const h = fhtml();
+      if (/progressbar/.test(sel)) return { count: async () => (/role="progressbar"/.test(h) ? 1 : 0) };
+      if (/next page/.test(sel)) return { count: async () => (/aria-label="Next page"(?![^>]*disabled)/.test(h) ? 1 : 0) };
+      return { count: async () => { reads += 1; const r = rows(h); return reads <= Number(E.FAKE_LAZY || 0) ? Math.min(r.length, 2) : r.length; },
+        allInnerTexts: async () => { const r = rows(h); return reads <= Number(E.FAKE_LAZY || 0) ? r.slice(0, 2) : r; },
+        nth: () => row() };
+    } });
   const p = {
-    goto: async (u) => { url = u; html = serve(u); fs.appendFileSync(process.env.FAKE_LOG, `goto ${u}\n`); },
+    goto: async (u) => { url = u; [key, html] = serve(u); log(`goto ${u}`); },
     url: () => url, content: async () => html, waitForTimeout: async () => {},
-    getByRole: () => ({ first: () => ({ click: async () => { throw new Error('no href click in the fake'); } }) }),
+    waitForEvent: () => new Promise((res) => { fire = res; }),
+    getByRole: (role, o) => ctl(true, async () => { log(`click ${role} ${o.name}`); await p.goto(`${url}/invoices`); }),
   };
-  const frame = { url: () => url, content: async () => html,
-    locator: () => ({ count: async () => rows(html).length, allInnerTexts: async () => rows(html), nth: () => ({}) }) };
-  p.frames = () => [frame];
+  const main = frameOf('', () => html);
+  main.url = () => url;
+  const pay = frameOf('https://payments.google.com/frame', () => (key && key !== 'overview' ? file(E.FAKE_IFRAME) : ''));
+  p.frames = () => (E.FAKE_IFRAME ? [main, pay] : [main]);
   return p;
 }
-exports.chromium = { launch: async () => ({ newContext: async () => ({ newPage: async () => page() }), close: async () => {} }) };
 JS
-# dl <out> <FAKE_MAP> [mjs] - download.mjs (or a copy) on the fixtures, DRY, rc on the last line
+# dl <out> <FAKE_MAP> [VAR=value ...] - download.mjs (or DLMJS, a copy) on the
+# fixtures, DRY unless BILLING_DRY=0 is passed; rc on the last line
 dl() {
-  : >"$T/fake.log"
-  env -i PATH="$PATH" HOME="$T/home" FAKE_FIX="$FIX" FAKE_LOG="$T/fake.log" FAKE_MAP="$2" \
+  local out="$1" m="$2"; shift 2
+  : >"$T/fake.log"; rm -rf "$T/dlpdf"
+  env -i PATH="$PATH" HOME="$T/home" FAKE_FIX="$FIX" FAKE_LOG="$T/fake.log" FAKE_MAP="$m" \
     BILLING_ACCOUNTS="$A1" BILLING_TODAY=2026-11-10 BILLING_MONTHS=12 BILLING_PDF_DIR="$T/dlpdf" \
-    BILLING_PW_DIR="$T/fakepw" BILLING_CHROME=/bin/false BILLING_DRY=1 BILLING_PAGE_WAIT_MS=20 \
-    node "${3:-$DL}" >"$1" 2>&1
-  echo "rc=$?" >>"$1"
+    BILLING_PW_DIR="$T/fakepw" BILLING_CHROME=/bin/false BILLING_DRY=1 BILLING_PAGE_WAIT_MS=20 "$@" \
+    node "${DLMJS:-$DL}" >"$out" 2>&1
+  echo "rc=$?" >>"$out"
 }
 if command -v node >/dev/null 2>&1 && [[ "$(command -v node)" != "$T/bin/node" ]]; then
   dl "$T/e" overview=overview.html,invoices=invoices.html
@@ -323,9 +357,51 @@ if command -v node >/dev/null 2>&1 && [[ "$(command -v node)" != "$T/bin/node" ]
   # CONTROL: the old deep link (/billing/<id>/documents) on the same good pages fails loudly
   mkdir -p "$T/ctl" && cp "$(dirname "$DL")/lib.mjs" "$T/ctl/"
   sed "s#\`\${CONSOLE}/billing/\${id}\`#\`\${CONSOLE}/billing/\${id}/documents\`#" "$DL" >"$T/ctl/download.mjs"
-  dl "$T/e" overview=overview.html,invoices=invoices.html "$T/ctl/download.mjs"
+  DLMJS="$T/ctl/download.mjs" dl "$T/e" overview=overview.html,invoices=invoices.html
   grep -q '^rc=2$' "$T/e" && grep -q 'URL not found' "$T/e" && grep -q '/documents$' "$T/fake.log" \
     && pass "download CONTROL: the old /billing/<id>/documents path on the same pages -> FATAL, rc 2" || fail "download control: $(cat "$T/e" "$T/fake.log")"
+  # R7 c-073 W1: a list that fills in lazily (2 reads of 1 row, then all) is read only once stable
+  dl "$T/e" overview=overview.html,invoices=invoices.html FAKE_LAZY=2
+  [[ "$(grep -c 'would save' "$T/e")" -eq 3 ]] && grep -q '^rc=0$' "$T/e" \
+    && pass "download: a lazily filling list -> all 3 rows, once the row count holds (W1)" || fail "download lazy: $(cat "$T/e")"
+  # CONTROL: the same lazy list with the stability wait cut to one read -> fewer rows (c-073's plant)
+  mkdir -p "$T/ctl1" && cp "$(dirname "$DL")/lib.mjs" "$T/ctl1/"
+  sed 's/^const STABLE_READS = 3;/const STABLE_READS = 1;/' "$DL" >"$T/ctl1/download.mjs"
+  DLMJS="$T/ctl1/download.mjs" dl "$T/e" overview=overview.html,invoices=invoices.html FAKE_LAZY=2
+  [[ "$(grep -c 'would save' "$T/e")" -eq 1 ]] && grep -q '^rc=0$' "$T/e" \
+    && pass "download CONTROL: one read of the lazy list saves 1 of 3 and exits 0 (the W1 defect)" || fail "download lazy control: $(cat "$T/e")"
+  for c in "overview=overview.html,invoices=invoices-loading.html|never stopped loading" \
+           "overview=overview.html,invoices=invoices-paged.html|has more pages" \
+           "overview=overview-offsite.html,invoices=invoices.html|leads off the console (elsewhere.example.com)"; do
+    dl "$T/e" "${c%%|*}"
+    [[ "$(grep -c '^FATAL XXXXXX-XXXXXX-XX7B8C: ' "$T/e")" -eq 1 ]] && grep -qF "${c#*|}" "$T/e" && grep -q '^rc=2$' "$T/e" \
+      && pass "download: ${c%%|*} -> one FATAL line (${c#*|}), rc 2" || fail "download ${c%%|*}: $(cat "$T/e")"
+  done
+  # W2: the download half, for real (BILLING_DRY=0): each control path saves 3 PDFs
+  for mode in direct checkbox menu; do
+    dl "$T/e" overview=overview.html,invoices=invoices.html BILLING_DRY=0 FAKE_DL="$mode"
+    n=$(find "$T/dlpdf/$A1" -name '*.pdf' 2>/dev/null | wc -l)
+    [[ "$n" -eq 3 && "$(grep -c '^OK XXXXXX-XXXXXX-XX7B8C saved ' "$T/e")" -eq 3 ]] && grep -q '^rc=0$' "$T/e" \
+      && [[ "$(head -c 5 "$T/dlpdf/$A1/2026-11-01-5123456789.pdf")" == '%PDF-' ]] \
+      && case $mode in checkbox) [[ "$(grep -c '^tick$' "$T/fake.log")" -eq 6 ]] && grep -q '^click button$' "$T/fake.log" ;;
+           menu) grep -q '^menu$' "$T/fake.log" && grep -q '^click menuitem$' "$T/fake.log" ;; *) true ;; esac \
+      && pass "download: the $mode control path saves 3 PDFs (%PDF-), rc 0" || fail "download $mode: $(cat "$T/e" "$T/fake.log")"
+  done
+  for c in "FAKE_DL_NAME=invoices.zip|no PDF (a .zip file)" "FAKE_DL_BODY=<html>error</html>|is no PDF (removed)"; do
+    dl "$T/e" overview=overview.html,invoices=invoices.html BILLING_DRY=0 FAKE_DL=direct "${c%%|*}"
+    [[ -z "$(find "$T/dlpdf" -name '*.pdf' 2>/dev/null)" ]] && grep -qF "${c#*|}" "$T/e" && grep -q '^rc=2$' "$T/e" \
+      && pass "download: ${c%%=*} -> FATAL (${c#*|}), no .pdf left, rc 2 (W3)" || fail "download ${c%%|*}: $(cat "$T/e"; find "$T/dlpdf")"
+  done
+  dl "$T/e" overview=overview.html,invoices=invoices-decoy.html BILLING_DRY=0 FAKE_DL=direct FAKE_IFRAME=invoices.html
+  [[ -e "$T/dlpdf/$A1/2026-11-01-5123456789.pdf" && -z "$(find "$T/dlpdf" -name '*59999999*')" ]] && grep -q '^rc=0$' "$T/e" \
+    && pass "download: the payments.google.com iframe's list wins over the page's own table" || fail "download iframe: $(cat "$T/e"; find "$T/dlpdf")"
+  dl "$T/e" overview=overview-nohref.html,invoices=invoices.html
+  grep -q '^click link Invoices$' "$T/fake.log" && [[ "$(grep -c 'would save' "$T/e")" -eq 3 ]] && grep -q '^rc=0$' "$T/e" \
+    && pass "download: an 'Invoices' entry with no href is clicked by its name" || fail "download nohref: $(cat "$T/e" "$T/fake.log")"
+  dl "$T/e" overview=overview.html FAKE_LAUNCH_FAIL=1
+  grep -q '^FATAL cannot start Chrome (BILLING_CHROME): Failed to launch' "$T/e" && grep -q '^rc=2$' "$T/e" \
+    && [[ "$(grep -vc '^rc=' "$T/e")" -eq 1 ]] && ! grep -q '/tmp/x\|at stack' "$T/e" \
+    && pass "download: Chrome fails to start -> one FATAL line, no stack, no profile path, rc 2 (N2)" || fail "download launch: $(cat "$T/e")"
 else
   echo "NOT RUN: download.mjs on the fixture pages (no node on this box)"
 fi

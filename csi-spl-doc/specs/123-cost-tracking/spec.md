@@ -868,8 +868,13 @@ under `pdf/<id>/`. Ids are logged masked.
   f655b326, msg 917d252a; SPL-5810). There it picks the invoice rows dated in
   the window (`src/js/billing-invoices/lib.mjs`) and saves each one, one row
   at a time (a row's download control, else its checkbox and "Download
-  selected", which gives one PDF for one row), as
-  `pdf/<id>/<date>-<number>.pdf`, the checklist the fetch ticks off.
+  selected", which gives one PDF for one row, else the row's menu item
+  "Download"), as `pdf/<id>/<date>-<number>.pdf`, the checklist the fetch
+  ticks off. The list is read from the payments.google.com iframe when there
+  is one, else from the page, and only once no progress bar shows and its
+  row count reads the same three polls in a row: a list that fills in lazily
+  is never read half full (R7 c-073 W1). A link off
+  console.cloud.google.com is never followed.
   `BILLING_DRY=1` lists the rows and saves nothing.
 - **playwright-core is pinned to 1.65.0** and installed at run time on the
   owner's desk with npm, once, into `BILLING_PW_DIR`
@@ -877,10 +882,14 @@ under `pdf/<id>/`. Ids are logged masked.
   installed Chrome and downloads no browser.
 - FRAGILE, as the owner accepted: a "URL not found" page (the overview, or
   the page behind the entry), no Invoices or Payment status entry, no
-  documents list, or no invoice row in the window (Google changed the page,
-  or the account has none) fails that account with ONE line,
+  documents list, a list that never stops loading or has a next page, no
+  invoice row in the window (Google changed the page, or the account has
+  none), or a download that is not a PDF (a name not ending in `.pdf`, a zip
+  among them, or a saved file not starting `%PDF-`, which is removed) fails
+  that account with ONE line,
   `FATAL XXXXXX-XXXXXX-XX<last 4>: <what was looked for>`; the run saves the
-  other accounts and exits 2, never 0 with nothing saved. It guesses
+  other accounts and exits 2, never 0 with nothing saved. A Chrome that
+  does not start prints one FATAL line (no stack) and exits 2. It guesses
   nothing.
 
 ### 15.5 Tests
@@ -908,7 +917,13 @@ test covers:
   fallback are followed and `/documents` is never opened; the not-found
   overview, no entry, a not-found page behind the entry and an empty
   Invoices page each give one masked FATAL line and rc 2. CONTROL: the old
-  `/documents` path on the same pages fails (SPL-5810).
+  `/documents` path on the same pages fails (SPL-5810). After R7 c-073: a
+  lazily filling list gives all its rows (CONTROL: one read gives 1 of 3,
+  rc 0); a list still loading or with a next page, and a link off the
+  console, fail; the direct, checkbox and menu download paths save real
+  `%PDF-` files; a zip or a non-PDF body fails with nothing left; the
+  payments iframe beats the page's own table; an entry with no href is
+  clicked by name; a Chrome launch error is one line.
 
 Not covered: the real console page. Only the owner's own run can show it.
 

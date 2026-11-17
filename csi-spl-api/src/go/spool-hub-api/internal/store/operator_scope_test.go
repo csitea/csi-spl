@@ -87,6 +87,8 @@ var operatorCallers = map[string]string{
 	"DeleteHRPayslip":            "DELETE /v1/operator/hr-payslips/{month}/{person_id} (SPL-5433 step d, rdb 0286): one estate payslip (no tenant_id), app.costs_names set; a costs.write caller only",
 	"CostAllocations":            "GET /v1/operator/cost-allocations and the cost reads (SPL-5291, rdb 0275): every estate item's split, operator-scope rows (no tenant_id) that name the workspaces a share goes to",
 	"PutCostAllocation":          "PUT /v1/operator/cost-allocations and /v1/tenant/cost-allocations (SPL-5291, rdb 0275): one estate item's split across workspaces; a customer admin's write is checked against the stored split inside the transaction",
+	"CostSplits":                 "GET /v1/operator/cost-splits and the cost reads (SPL-5768, rdb 0293): the instance's token and person splits, operator-scope rows (no tenant_id) that name the workspaces a share goes to",
+	"PutCostSplit":               "PUT /v1/operator/cost-splits (SPL-5768, rdb 0293): one token or person split across workspaces, replaced in one transaction",
 	"CostEstateLineKnown":        "PUT /v1/operator/cost-allocations (SPL-5291): whether any month holds the estate item (cost_lines, tenant_id NULL) has no tenant to name; answers a bool, never a row",
 	"ListFleetDeskBoxes":         "GET /v1/operator/fleet-desks (spec 158 4.2.2, rdb 0230): the instance's fleet desk boxes, estate rows (no tenant_id); only the operator admin / service account (fleetLoadCaller) reaches it",
 	"PutFleetDeskBox":            "PUT /v1/operator/fleet-desks/{box} (spec 158 4.2.2, rdb 0230): one estate row by box id (no tenant_id), only for a box with a live pin in the operator workspace; only the operator admin / service account (fleetLoadCaller) reaches it",

@@ -26,9 +26,14 @@
 #       (<lease dir>/unanswered.rows) say the topic is archived, or its last
 #       post is another agent's to a person after the take: not listed; a
 #       topic whose last line is the take itself, or an agent relay, stays
+#   (i) SPL-5737: the topic has an unanswered.acks row ("no reply needed"):
+#       an ack at or after the take, or at most 300 s before it (the
+#       2026-11-16 a6d4d910 shape: ack 10 s before the take), drops the take;
+#       an ack 400 s before it does not
 #
 # Red control: ROTATE_LIB=<origin/master's spl-rotate-lib.func.sh> lists 0;
-# the lib before SPL-5629 fails (f) and (g); before SPL-5704 fails (h).
+# the lib before SPL-5629 fails (f) and (g); before SPL-5704 fails (h);
+# before SPL-5737 fails (i).
 # Run: bash csi-spl-orc/src/bash/tests/rotate-open-takes.tst.sh </dev/null
 # shellcheck disable=SC2034 # the ROTATE_* / LEASE_* globals are read by the sourced lib
 set -uo pipefail
@@ -183,6 +188,28 @@ sec="$(sed -n '/^## 10\. Open takes/,$p' "$T/handoff5.md" 2>/dev/null)"
 grep -q "^- topic $K, workspace ?, ?, " <<<"$sec" && grep -q "^- topic $L, workspace ?, ?, " <<<"$sec" &&
   pass "(h) a topic whose last line is the take, or an agent relay, stays listed" || fail "(h) want $K and $L: $sec"
 rm -f "$LEASE_DIR/unanswered.rows"
+
+# (i) SPL-5737: <lease dir>/unanswered.acks, do_spl_unanswered_ack's rows
+# "<epoch>\t<topic or prefix>\t<by>\t<reason>". The 2026-11-16 c-002 seed
+# listed a6d4d910 although c-002 had acked it 10 s before the take
+# (acks 1794834423, take.log 1794834433).
+M=55555555-0000-4000-8000-00000000000b P=44444444-0000-4000-8000-00000000000c
+Q=33333333-0000-4000-8000-00000000000d S=22222222-0000-4000-8000-00000000000e
+: > "$LEASE_DIR/take.log"
+take $((now - 1000)) "$M" "$ID@$BOX" "I read your post now"
+take $((now - 900)) "$P" "$ID@$BOX" "I check the status"
+take $((now - 800)) "$Q" "$ID@$BOX" "I answer the comment"
+take $((now - 700)) "$S" "$ID@$BOX" "I read the issue"
+{ printf '%s\t%s\tc-002\tstatus comment, no agent reply\n' $((now - 1010)) "$M"
+  printf '%s\t%s\tc-002\tan old ack\n' $((now - 1300)) "$P"
+  printf '%s\t%s\tc-001\tno reply needed\n' $((now - 600)) "${Q:0:8}"; } > "$LEASE_DIR/unanswered.acks"
+spl_rotate_handoff master "$ID" rid-6 "$T/handoff6.md" >/dev/null 2>&1 || true
+sec="$(sed -n '/^## 10\. Open takes/,$p' "$T/handoff6.md" 2>/dev/null)"
+! grep -q "$M" <<<"$sec" && pass "(i) an ack 10 s before the take drops it (a6d4d910)" || fail "(i) acked $M listed: $sec"
+grep -q "^- topic $P, " <<<"$sec" && pass "(i) an ack 400 s before the take does not drop it" || fail "(i) want $P listed: $sec"
+! grep -q "$Q" <<<"$sec" && pass "(i) an ack after the take (by topic prefix) drops it" || fail "(i) acked $Q listed: $sec"
+grep -q "^- topic $S, " <<<"$sec" && pass "(i) a take with no ack stays listed" || fail "(i) want $S listed: $sec"
+rm -f "$LEASE_DIR/unanswered.acks"
 
 echo
 (( fails == 0 )) && { echo "rotate-open-takes: all passed"; exit 0; }

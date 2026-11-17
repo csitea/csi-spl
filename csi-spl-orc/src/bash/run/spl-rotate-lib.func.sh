@@ -45,6 +45,7 @@
 # LEASE_PROC_ROOT (/proc), ROTATE_NOTIFY (spool-notify.sh),
 # ROTATE_TAKES_OUTBOXES (the desk outbox walk of spl_rotate_open_takes),
 # ROTATE_TAKES_ROWS (the unanswered-sweep topic rows it reads),
+# ROTATE_TAKES_ACKS (the unanswered.acks rows it reads),
 # ROTATE_SUDO (sudo, the read of a desk outbox as its owner).
 #
 # NOTE ./run runs every action under `set -E` and an ERR trap that exits: a
@@ -1105,6 +1106,12 @@ spl_rotate_handoff_body() {
 # its last line) says the topic is archived, or its last line is any agent's
 # post to a person or the channel after the take (SPL-5704: 2026-11-15 two
 # archived topics, one answered by c-003, sat as "workspace ?" for 48 h).
+# A take is also answered when the topic has a "no reply needed" ack
+# (ROTATE_TAKES_ACKS, default <lease dir>/unanswered.acks, do_spl_unanswered_ack:
+# epoch, topic or prefix, by, reason; no msg id) at or after the take, or at
+# most ACK_BEFORE_TAKE_S (300) s before it: an ack and a take that close
+# answer the same human post (SPL-5737: 2026-11-16 c-002 acked a6d4d910 10 s
+# before its take, the seed listed it). An older ack does not count.
 spl_rotate_open_takes() {
   local id="$1" f="${ROTATE_TAKE_LOG:-$LEASE_DIR/take.log}" since
   [[ -s "$f" ]] || return 0
@@ -1113,26 +1120,8 @@ spl_rotate_open_takes() {
   awk -F'\t' -v b="$id@$ROTATE_BOX" -v s="$since" '$3 == b && $1 + 0 >= s { f = 1 } END { exit !f }' "$f" || return 0
   # the script is an argument: stdin is the message stream
   local py
-  py="$(cat <<'EOF_OPEN_TAKES'
-import calendar, json, re, sys, time
-log, by, since, me, rows = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
-TAKE = re.compile(r"^Taken by .*: .* I post the result here\.$", re.S)
-takes = {}
-for line in open(log, encoding="utf-8", errors="replace"):
-    f = line.rstrip("\n").split("\t")
-    if len(f) < 4 or f[2] != by or not f[0].isdigit() or int(f[0]) < since:
-        continue
-    t = f[1].lower()
-    if t not in takes or int(f[0]) >= takes[t]["at"]:
-        takes[t] = {"at": int(f[0]), "plan": f[3], "ws": "?", "to": "?", "line": 0}
-try:  # the sweep's topic rows (SPL-5704): archived, or a later agent answer
-    for f in (x.rstrip("\n").split("\t") for x in open(rows, encoding="utf-8", errors="replace")):
-        k = takes.get(f[3].lower()) if len(f) >= 10 and f[5].isdigit() else None
-        if k and (f[9] == "archived" or f[8] == "agent" and int(f[5]) > k["at"]
-                  and re.match(r"(ALL-0|HUM-)", f[7].split("@")[0])):
-            takes.pop(f[3].lower())
-except OSError:
-    pass
+  py="$(spl_rotate_open_takes_py_load)
+$(cat <<'EOF_OPEN_TAKES'
 def epoch(ts):
     try:
         return calendar.timegm(time.strptime(str(ts)[:19], "%Y-%m-%dT%H:%M:%S"))
@@ -1174,8 +1163,45 @@ for _, r in sorted(rows, reverse=True)[:20]:
 EOF_OPEN_TAKES
 )"
   spl_rotate_take_msgs "$id" | python3 -c "$py" "$f" "$id@$ROTATE_BOX" "$since" "$(id -un)" \
-    "${ROTATE_TAKES_ROWS:-$LEASE_DIR/unanswered.rows}" 2>/dev/null || true
+    "${ROTATE_TAKES_ROWS:-$LEASE_DIR/unanswered.rows}" "${ROTATE_TAKES_ACKS:-$LEASE_DIR/unanswered.acks}" 2>/dev/null || true
   return 0
+}
+
+# spl_rotate_open_takes_py_load: the head of spl_rotate_open_takes's script:
+# the ledger's takes of argv[2], less those the sweep's topic rows (SPL-5704)
+# or "no reply needed" acks (SPL-5737) answer. The caller appends the outbox walk.
+spl_rotate_open_takes_py_load() {
+  cat <<'EOF_OPEN_TAKES_LOAD'
+import calendar, json, re, sys, time
+log, by, since, me, rows, acks = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5], sys.argv[6]
+ACK_BEFORE_TAKE_S = 300  # an ack this close before the take answers the same post (SPL-5737)
+TAKE = re.compile(r"^Taken by .*: .* I post the result here\.$", re.S)
+takes = {}
+for line in open(log, encoding="utf-8", errors="replace"):
+    f = line.rstrip("\n").split("\t")
+    if len(f) < 4 or f[2] != by or not f[0].isdigit() or int(f[0]) < since:
+        continue
+    t = f[1].lower()
+    if t not in takes or int(f[0]) >= takes[t]["at"]:
+        takes[t] = {"at": int(f[0]), "plan": f[3], "ws": "?", "to": "?", "line": 0}
+try:  # the sweep's topic rows (SPL-5704): archived, or a later agent answer
+    for f in (x.rstrip("\n").split("\t") for x in open(rows, encoding="utf-8", errors="replace")):
+        k = takes.get(f[3].lower()) if len(f) >= 10 and f[5].isdigit() else None
+        if k and (f[9] == "archived" or f[8] == "agent" and int(f[5]) > k["at"]
+                  and re.match(r"(ALL-0|HUM-)", f[7].split("@")[0])):
+            takes.pop(f[3].lower())
+except OSError:
+    pass
+try:  # the sweep's "no reply needed" acks (SPL-5737): at or after the take, or just before it
+    for f in (x.rstrip("\n").split("\t") for x in open(acks, encoding="utf-8", errors="replace")):
+        if len(f) < 2 or not f[0].isdigit() or not re.fullmatch(r"[0-9a-f-]{8,36}", f[1].lower()):
+            continue
+        for t in [t for t, k in takes.items() if t.startswith(f[1].lower())
+                  and int(f[0]) >= k["at"] - ACK_BEFORE_TAKE_S]:
+            takes.pop(t)
+except OSError:
+    pass
+EOF_OPEN_TAKES_LOAD
 }
 
 # spl_rotate_take_outboxes ID: "<workspace>\t<ID's desk outbox>\t<read as>"

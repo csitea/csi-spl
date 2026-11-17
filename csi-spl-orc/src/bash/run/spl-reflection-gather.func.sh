@@ -319,13 +319,15 @@ spl_reflection_ask_id() {
 }
 
 # spl_reflection_queue <night> <brief> <root>: the brief file, the ask, the enqueue.
+# The brief is written 0660 like the other briefs: its source is a 0600 mktemp
+# file, and the placer reads it as another user of the group (SPL-5826).
 spl_reflection_queue() {
   local night="$1" slug="reflection-$1" dir vendor id from out
   dir="${SPAWN_PLACE_BRIEF_DIR:-$3/dispatch/briefs}"
   spl_spawn_q_init || return 1
   vendor="$(spl_reflection_vendor)"
   [[ -n "$vendor" ]] || { do_log "WARN reflection: the lane mix gave no vendor for private data (claude, grok or mistral): not queued"; return 1; }
-  { mkdir -p "$dir" && cp "$2" "$dir/$slug.md"; } || { do_log "WARN reflection: the brief $dir/$slug.md was not written: not queued"; return 1; }
+  { mkdir -p "$dir" && install -m 0660 "$2" "$dir/$slug.md"; } || { do_log "WARN reflection: the brief $dir/$slug.md was not written: not queued"; return 1; }
   id="$(spl_reflection_ask_id "$night")"
   from="$(spl_spawn_place_dispatch)"; from="${from:-$(spl_asks_holder)}"
   out="$(spl_asks_hub put --fleet "$LANE_FLEET" --id "$id" --kind task --role orch --from "$from" \

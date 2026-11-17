@@ -11,6 +11,9 @@
 #      do_spl_spawn_enqueue, li_brief_epic_spec on a fixture specs repo): the
 #      queue op is called with refactor and claude:reflection-<night>; the
 #      ask goes to the hub once; the night is stamped
+#   2b. the queued brief is mode 0660, group-readable: written from a 0600
+#      mktemp file by plain cp it kept 0600 and the placer could not read it
+#      (SPL-5826). Red control: master's cp gives 600
 #   3. nothing is written to git: the fixture repo's refs and status, and this
 #      checkout's status, are the same before and after
 #   4. red control: the same brief without its Spec: line is refused by the
@@ -155,6 +158,8 @@ B="$T/briefs/$SLUG.md"
 grep -qx 'Class: refactor' "$B" 2>/dev/null && grep -qx 'Kind: specs_and_docs' "$B" && grep -qx 'Epic: SPL-2129' "$B" &&
   grep -qx 'Spec: csi-spl-doc/specs/166-orchestrator-daily-rhythm' "$B" && grep -q "msg $M1" "$B" && ! grep -q '{GATHER}\|{NIGHT}' "$B" &&
   pass "2. the brief carries Class: refactor, Kind, Epic: and Spec: lines and the gathered file" || fail "2. brief: $(cat "$B" 2>/dev/null)"
+[[ "$(stat -c %a "$B" 2>/dev/null)" == 660 ]] &&
+  pass "2b. the queued brief is group-readable, mode 0660 (the placer runs as another user)" || fail "2b. brief mode: $(stat -c %a "$B" 2>/dev/null)"
 grep -q "^qop queue .* c-001@box-a  claude:$SLUG refactor" "$T/calls.log" &&
   pass "2. it passes the enqueue gate: the queue op takes refactor, claude:$SLUG" || fail "2. qop: $(cat "$T/calls.log") $(cat "$T/out")"
 [[ "$(grep -c '^hub put .*--topic '"$SLUG" "$T/calls.log")" == 1 ]] && grep -qx 'mix kind=specs_and_docs sensitive=1' "$T/mix.log" &&

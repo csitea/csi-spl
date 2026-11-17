@@ -1,0 +1,142 @@
+# Perf round 14: editor seat (c-025, claude)
+
+Issue SPL-5795, epic SPL-2402, spec `csi-spl-doc/specs/027-spool-performance`,
+round topic `9611738e`; report to the dispatch lease holder on task
+`dispatch-perf-r14`. The plan: [perf-round-14-plan.md](../perf-round-14-plan.md).
+
+## 1. Done
+
+- STEP 0: developer guide acked (blob `8b1916cd`), fetched.
+- One sha for every baseline: **`f9661ccf0`** (`origin/master` at 13:31Z,
+  2026-11-17).
+- Rulebook 4.4 on `f9661ccf0` (13:31:41Z), the command verbatim:
+  `perf 20 refactor 100 perf-share 16.7% under-20`.
+- Slug: `git log origin/master --oneline -E --grep='\(p14-'` -> 0 lines;
+  `git ls-tree -r --name-only origin/master | grep -c perf-round-14` -> 0.
+- Retro: `git ls-tree -r --name-only origin/master | grep -E 'perf-round-1[23]'`
+  -> `perf-round-12-plan.md`, `perf-round-12/editor.md`,
+  `perf-round-13-plan.md`, `perf-round-13/editor.md`: there is no
+  `perf-round-13-retro.md`. p13-01 `05791365d` and p13-02 `e3388fce3` are on
+  `origin/master`.
+
+## 2. Measurements
+
+### 2.1 The desk box pre-push log (the push user's `~/.cache/csi-spl/pre-push.log`)
+
+Window: since p12-01 (`d5f6f6887`, 2026-11-16T23:52Z) to 13:30Z, parts with
+a verdict that ran (no SKIP, no cached), split by tier:
+
+```bash
+sudo awk -v s="2026-11-16T23:52" '$1>=s && $3=="PART" && $5!~/SKIP|cached/ {gsub(/s$/,"",$6); tier="?"; for(i=7;i<=NF;i++) if($i~/^tier=/) tier=$i; k=$4" "$5" "tier; n[k]++; t[k]+=$6} END{for(k in n) if(t[k]>200) printf "%-45s n=%d sum=%d mean=%d\n",k,n[k],t[k],t[k]/n[k]}' ~/.cache/csi-spl/pre-push.log | sort
+```
+
+| part verdict tier | n | sum s | mean s |
+|---|---|---|---|
+| `api` PASS full | 9 | 29,430 | 3,270 (2,649..3,804) |
+| `lint-gosec` PASS full | 15 | 12,890 | 859 |
+| `orc` PASS fast | 25 | 9,174 | 366 |
+| `wui` PASS fast | 14 | 9,111 | 650 |
+| `wui-e2e` PASS fast | 14 | 6,007 | 429 |
+| `orc` WARN-pre-existing full | 1 | 5,316 | 5,316 |
+| `wui` PASS full | 7 | 4,485 | 640 |
+| `wui-e2e` PASS full | 7 | 4,383 | 626 |
+| `iac` PASS fast | 8 | 2,963 | 370 |
+
+The parts run one after another, so a part's seconds are the push's own
+wait. `lint-gosec` since p13-02 (`e3388fce3`, 12:37Z): n=3 (1,007 s on the
+row's own push, 767, 536); the p13 retro's to measure, not this plan's.
+
+### 2.2 The WUI unit runner: serial vs a pool of 4 (row 01)
+
+`csi-spl-wui/src/node/test/run-unit-tests.mjs:70-84` spawns one `node`
+per `tests/unit/*.test.mjs`, one after another (`spawnSync`), 524 files. The
+`wui` part runs it (`check-pre-push.func.sh:786`), and so does CI wf 10
+(`10_ci-quality.yml:605`, step "Unit tests").
+
+Probe (scratch, never committed): a `git clone --shared` of the repo at
+`f9661ccf0` in `/var/tmp`, `csi-spl-wui/node_modules` a symlink to a lane's
+`node_modules` whose `.pnpm/lock.yaml` equals `f9661ccf0`'s
+`pnpm-lock.yaml` (`cmp`), nothing installed. Arm S =
+`node src/node/test/run-unit-tests.mjs` (today); arm P4 = the same 524 files,
+`ls tests/unit/*.test.mjs | xargs -P 4 -I{} node {}`, per-file wall
+recorded. Alternated S, P4, S, P4, run as the push user:
+
+| arm | seconds | 1-min load start / end | result |
+|---|---|---|---|
+| S | 565.6 | 23.62 / 32.44 | `unit runner: all 524 file(s) passed` |
+| P4 | 126.9 | 32.44 / 27.78 | 524 lines `rc=0` |
+| S | 546.7 | 27.78 / 20.50 | all 524 passed |
+| P4 | 120.3 | 20.50 / 23.87 | 524 lines `rc=0` |
+
+- n=2 per arm: S 546.7..565.6 s, P4 120.3..126.9 s.
+- P4's slowest files: `eslint-gate.test.mjs` 30.3 / 31.2 s, then
+  `blog-sync` 8.1 / 10.2 s, `e2e-runner-coverage` 7.9 / 8.3 s: the floor of
+  a pool is ~31 s.
+- Shared state: `grep -lE "writeFileSync\(|rmSync\(" tests/unit/*.test.mjs | xargs grep -L mkdtemp`
+  -> 0 files (27 files write, all 27 use `mkdtemp`). A grep cannot prove
+  absence of every shared path; the row's lane runs the pool twice green.
+- CI wf 10 "Unit tests" step, 5 green master jobs (hosted runner):
+  124 s (`f9661ccf0`, job 134074428993), 168, 151, 136, 167 s. Not probed on
+  CI.
+- A first arm on a wui-only `git archive` failed 3 files that read
+  `csi-spl-orc/` (not in the archive): 564.6 s, discarded.
+
+### 2.3 The api part, full tier (row candidate, probe in flight)
+
+Probe: `SPL_API_TEST_TIER=full bash csi-spl-api/src/bash/tests/run-all-tests.sh`
+on a `--shared` clone at `f9661ccf0`, each line time-stamped (UTC), start
+13:39:59Z, load 25.17. Postgres from the cached docker image (`ok - temp
+Postgres up (docker postgres:16-alpine)`). So far:
+
+| section | start | seconds |
+|---|---|---|
+| toolchain tests + build-stripped + build-warm-mod-cache + cli-cross-build | 13:39:59 | 210 |
+| gofmt + go vet | 13:43:29 | 28 |
+| `go test -race ./...` (plain, no DSN) | 13:43:57 | 485 |
+| coverage, hub-init, hygiene greps, smoke, the groups tests, live-stack | 13:52:02 | 191 |
+| hub Postgres gate (`hub-pg.tst.sh`) | 13:55:13 | running |
+
+hub-pg so far: store group a 568 s, hub group a 551 s, store group b 316 s,
+hub group b 369 s, store group c 156 s (each "its fresh database" 7..20 s of
+it); the store and hub chains run side by side, each chain's groups one after
+another.
+
+A first run on a `git archive` (no `.git`) failed
+`build-warm-mod-cache.tst.sh` case 3 (rc 128), discarded.
+
+## 3. R3 reads
+
+- Lane map, every machine, 13:40:11Z: `lane-map.sh --check
+  csi-spl-api/src/bash/tests/run-all-tests.sh,csi-spl-api/src/bash/tests/hub-pg.tst.sh,csi-spl-wui/src/node/test/run-unit-tests.mjs,csi-spl-iac/src/bash/run/check-pre-push.func.sh,csi-spl-doc/doc/md/pre-push-gate.md,csi-spl-doc/doc/md/perf-round-14-plan.md,csi-spl-doc/doc/md/perf-round-14/editor.md
+  --agent c-025` -> exit 4: 0 `owned by`, 13 `unknown:`, all on the second
+  box (8 rotation seats; 5 lanes: two blog drafts, a price, cost allocation,
+  release projects). None names a test runner.
+- Spawn queue, 13:40:18Z (`ENV=prd SPAWN_QUEUE_SHARE=0 ./run -a
+  do_spl_spawn_queue`): `2 queued, 1 placing`: b11-02 (orc review-go) placing,
+  two agy i18n reviews (SPL-5706, SPL-5707) waiting.
+- Round rows: r59 01..06 all on `origin/master`; r60..r63 0 lines; bug round
+  11: b11-01 landed (`d3fd3032d`), b11-02 placing, its files are orc
+  review-go (`grep -cE 'run-all-tests.sh|hub-pg|run-unit-tests|check-pre-push.func|pre-push-gate.md' bug-round-11-plan.md`
+  -> 0).
+
+## 4. Panel
+
+- 13:40:50Z: grok `pick=hold` (99% on both boxes), agy `pick=nokind` (no CLI;
+  agy on the second box at its limit until 2026-11-20T23:04:20Z), mistral `pick=hold` on
+  load only; `do_spl_hub_agent_kinds` -> off [qwen], paused [].
+- Asked c-002@sat (msg ade5d260, 13:41:47Z); c-002 (31c1b060): ruling
+  e895dea6 holds for p14, claude + mistral sign; mistral seat ask 8aaab744.
+  c-003@sat (c8cd065b): placed as **m-031@sat**. m-031 (2f837cc1) waits for
+  a sha.
+
+## 5. State at the 14:30Z rotation
+
+- Plan v0.1 (row 01) and this file pushed to
+  `review/c001-perf-round-14-planner`. The api probe (`run2.log` under the
+  push user's `/var/tmp/p14-probe-scripts.*`) still runs.
+- Next: read the api probe's end; decide row 02 (the api full tier) or list
+  it as dropped/not-a-row with its numbers; then name the sha to m-031 and the
+  holder.
+- Scratch to remove after the round (push user's): `/var/tmp/p14-api-probe.*`,
+  `/var/tmp/p14-api-clone.*`, `/var/tmp/p14-wui-probe.*`,
+  `/var/tmp/p14-wui-clone.*`, `/var/tmp/p14-probe-scripts.*`.

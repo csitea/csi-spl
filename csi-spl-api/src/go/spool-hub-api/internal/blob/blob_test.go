@@ -8,6 +8,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"mime"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -154,6 +157,50 @@ func TestGCSDeleteUntilGone(t *testing.T) {
 	}
 }
 
+// An aborted PutReader must never send the server a COMPLETE body: a
+// complete body is a finalize the server may land at any time, even after
+// the cleanup proved the key gone (run 43932247998). A stub upload endpoint
+// reads each body to its end and reports whether the multipart closed. The
+// object reads answer 404, so the cleanup itself returns at once.
+func TestGCSAbortedPutSendsNoCompleteBody(t *testing.T) {
+	bodies := make(chan bool, 4)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, `{"error":{"code":404,"message":"no such object"}}`, http.StatusNotFound)
+			return
+		}
+		_, params, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		body, err := io.ReadAll(r.Body)
+		closed := err == nil && bytes.HasSuffix(bytes.TrimRight(body, "\r\n"), []byte("--"+params["boundary"]+"--"))
+		bodies <- closed
+		if closed {
+			w.Write([]byte(`{"bucket":"b","name":"finalized"}`)) //nolint:errcheck
+			return
+		}
+		http.Error(w, `{"error":{"code":400,"message":"incomplete body"}}`, http.StatusBadRequest)
+	}))
+	defer srv.Close()
+	t.Setenv("STORAGE_EMULATOR_HOST", srv.URL)
+	ctx := context.Background()
+	c, err := storage.NewClient(ctx)
+	if err != nil {
+		t.Fatalf("gcs client: %v", err)
+	}
+	defer c.Close()
+	g := &GCS{client: c, bucket: c.Bucket("b")}
+	if _, err := g.PutReader(ctx, TmpKey("t-"+uid(), uid()), &failAfter{n: 256 << 10}); err == nil {
+		t.Fatal("PutReader of a failing reader succeeded")
+	}
+	select {
+	case closed := <-bodies:
+		if closed {
+			t.Fatal("the aborted upload sent a complete body: the server can finalize it after the cleanup")
+		}
+	case <-time.After(10 * time.Second): // a cap, not the wait
+		t.Fatal("the upload never reached the stub server")
+	}
+}
+
 func uid() string {
 	b := make([]byte, 6)
 	rand.Read(b) //nolint:errcheck
@@ -265,11 +312,15 @@ func testStream(t *testing.T, s Store) {
 		t.Fatalf("PrefixBytes after dup promote: %d, want one object of %d", n, len(data))
 	}
 	tmp := TmpKey(tenant, uid())
-	if _, err := s.PutReader(ctx, tmp, &failAfter{n: 2 << 20}); err == nil {
+	_, perr := s.PutReader(ctx, tmp, &failAfter{n: 2 << 20})
+	if perr == nil {
 		t.Fatal("PutReader of a failing reader succeeded")
 	}
 	if ok, _ := s.Exists(ctx, tmp); ok {
-		t.Fatal("failed PutReader left an object at its key")
+		if errors.Is(perr, errStillPresent) {
+			t.Fatalf("failed PutReader left an object at its key: the cleanup gave up with it still there (%v)", perr)
+		}
+		t.Fatalf("failed PutReader left an object at its key: the cleanup proved it gone, then a late finalize put it back (PutReader: %v)", perr)
 	}
 	if n, _ := s.PrefixBytes(ctx, "tmp/"+tenant+"/"); n != 0 {
 		t.Fatalf("failed PutReader left %d bytes under tmp/", n)

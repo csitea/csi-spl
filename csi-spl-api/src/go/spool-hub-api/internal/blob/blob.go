@@ -287,14 +287,20 @@ func (g *GCS) PutReader(parent context.Context, key string, r io.Reader) (int64,
 	w.ChunkSize = 0
 	n, err := io.Copy(w, r)
 	if err != nil {
-		// Cancel aborts the upload, but Close can still race it and finalize
-		// the bytes sent so far (seen on a slow CI runner). One delete after
-		// Close is not enough: the finalize has landed AFTER that delete
-		// returned, leaving the object at key and failing the contract above
-		// (run 35634691126, 2026-09-21: "failed PutReader left an object at
-		// its key"). So delete until the key is provably gone.
+		// Abort the body with err BEFORE anything closes the writer. Close
+		// ends the pipe under the upload with EOF, which completes the
+		// request body, and the server finalizes the bytes sent so far, at
+		// a time of its choosing: even after the cleanup below has proved
+		// the key gone (run 43932247998, 2026-11-16: "failed PutReader left
+		// an object at its key"). cancel() alone does not stop that: the
+		// writer turns it into this same abort on its own goroutine, which
+		// a Close right after loses to. Aborted, the body never ends, so
+		// there is nothing for the server to finalize.
+		w.CloseWithError(err) //nolint:staticcheck // the only synchronous abort; cancel is async
 		cancel()
 		w.Close()
+		// Belt and braces for the contract above: an object at key from
+		// any other path is still removed, and proved gone.
 		if derr := g.deleteUntilGone(context.WithoutCancel(parent), key); derr != nil {
 			return n, errors.Join(err, derr)
 		}
@@ -302,6 +308,10 @@ func (g *GCS) PutReader(parent context.Context, key string, r io.Reader) (int64,
 	}
 	return n, w.Close()
 }
+
+// errStillPresent is deleteUntilGone giving up: the key still held an
+// object after its last attempt.
+var errStillPresent = errors.New("still present after an aborted upload")
 
 // deleteUntilGone removes key and then PROVES it gone, briefly retrying: an
 // aborted upload can be finalized by the server after the first delete has
@@ -322,7 +332,7 @@ func (g *GCS) deleteUntilGone(ctx context.Context, key string) error {
 		}
 		time.Sleep(gap)
 	}
-	return errors.Join(last, fmt.Errorf("blob: %s is still present after an aborted upload", key))
+	return errors.Join(last, fmt.Errorf("blob: %s: %w", key, errStillPresent))
 }
 
 // Promote is a server-side copy (no bytes through the hub) guarded by

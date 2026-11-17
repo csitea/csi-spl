@@ -15,6 +15,13 @@
 # @description A commit with counted keys needs a body or trailer line
 # @description   Lang-review: a-NNN <msg id>
 # @description (the agy seat that reviewed the text, its message id, 8+ hex).
+# @description A Claude seat stands in only with the owner's waiver on the
+# @description same line (SPL-5767; first case: answer B, t1 028ac340 msg
+# @description 3a71dac1, for SPL-5706 + SPL-5707), and the agy review still
+# @description follows:
+# @description   Lang-review: c-NNN <msg id> waiver <owner msg id>
+# @description A bare c-NNN line, a waiver with no id or any other seat
+# @description prefix does not count.
 # @description Exempt: a commit that only removes keys; a commit whose every
 # @description counted key is in en.json and listed under 'keys' of
 # @description csi-spl-wui/i18n/i18n-lang-review-exempt.json (en-only typo
@@ -39,7 +46,9 @@
 _PPR_LOCALES=csi-spl-wui/i18n/locales
 _PPR_EXEMPT=csi-spl-wui/i18n/i18n-lang-review-exempt.json
 _PPR_KEYS_PY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/lang-review-keys.py"
-_PPR_LINE_RX='^Lang-review:[[:space:]]+a-[0-9]{3}(@[A-Za-z0-9._-]+)?[[:space:]]+[0-9a-f]{8}'
+# a-NNN[@box] <msg id>, or c-NNN[@box] <msg id> waiver <owner msg id> (SPL-5767).
+# Both callers (the pre-push range and the CI range) read this one pattern.
+_PPR_LINE_RX='^Lang-review:[[:space:]]+(a-[0-9]{3}(@[A-Za-z0-9._-]+)?[[:space:]]+[0-9a-f]{8}|c-[0-9]{3}(@[A-Za-z0-9._-]+)?[[:space:]]+[0-9a-f]{8}[0-9a-f-]*[[:space:]]+waiver[[:space:]]+[0-9a-f]{8})'
 
 # The keys each commit adds or changes, "<sha><TAB><file><TAB><key>" per line
 # (lang-review-keys.py, one process for the whole list).
@@ -96,7 +105,7 @@ _ppr_check_range() {  # <tree> <range>
       echo "wui-lang-review: PASS ${c:0:9} $n key(s), exempt by $_PPR_EXEMPT: $subj"
     else
       bad=$((bad + 1))
-      echo "wui-lang-review: FAIL ${c:0:9} adds or changes $n locale key(s) (first: $first) with no 'Lang-review: a-NNN <msg id>' line -- send the new text to an agy seat for review (/agy-spawn, LANE_MIX_KIND=i18n), apply its verdict, then add its seat id and message id as that line in the commit body: $subj"
+      echo "wui-lang-review: FAIL ${c:0:9} adds or changes $n locale key(s) (first: $first) with no 'Lang-review: a-NNN <msg id>' line -- send the new text to an agy seat for review (/agy-spawn, LANE_MIX_KIND=i18n), apply its verdict, then add its seat id and message id as that line in the commit body (a Claude review counts only with the owner's waiver: 'Lang-review: c-NNN <msg id> waiver <owner msg id>', and the agy review still follows): $subj"
     fi
   done
   echo "WUI_LANG_REVIEW range=$range commits=$seen refused=$bad"

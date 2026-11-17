@@ -22,6 +22,10 @@
 #  11. a malformed line (no msg id, a claude seat) does not count
 #  12. the action CI workflow 10 calls resolves through ./run (the loader maps
 #      do_a_b to a-b.func.sh; a name that maps nowhere is "NOT found" in CI)
+#  13. a Claude seat with the owner's waiver (SPL-5767): 'c-NNN[@box] <msg>
+#      waiver <8hex>' passes; a bare c-NNN line, a waiver with no id and the
+#      g-/m-/x- prefixes FAIL; a-NNN still passes. Each case through both
+#      callers: the pre-push range and the CI range (LANG_REVIEW_RANGE)
 #------------------------------------------------------------------------------
 set -uo pipefail
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
@@ -146,6 +150,29 @@ eq "12. workflow 10 job wui-lang-review names do_check_pre_push_lang_review" do_
 ( cd "$PROJ_ROOT" && LANG_REVIEW_TREE="$A" ./run -a "${act:-none}" ) >"$ROOT/run" 2>&1
 eq "12. ... ./run -a $act resolves and passes" 0 "$?"
 grep -q 'NOT found' "$ROOT/run" && fail "12. ... no 'NOT found'" "$(tail -3 "$ROOT/run")" || pass "12. ... no 'NOT found'"
+
+# 13. the owner's waiver for a Claude review, both callers
+lr() {  # <want rc> <label> <line> -> one commit with <line>, checked by both callers
+  reset; printf '{"a":{"b":"Hello","c":"Bye","w":"Waiver %s"}}\n' "$RANDOM" >"$R/$L/en.json"
+  git -C "$R" add -A; git -C "$R" commit -qm "feat(wui): waiver case" -m "$3"
+  part; eq "13. pre-push: $2" "$1" "$?"
+  LANG_REVIEW_TREE="$R" LANG_REVIEW_RANGE=trunk..HEAD do_check_pre_push_lang_review >"$ROOT/ci" 2>&1
+  eq "13. CI range: $2" "$1" "$?"
+}
+lr 0 "c-NNN <msg> waiver <8hex> -> PASS" "Lang-review: c-523 94eea503 waiver 3a71dac1"
+lr 0 "c-NNN@box <msg> waiver <8hex> -> PASS" "Lang-review: c-523@box1 94eea503 waiver 3a71dac1"
+lr 0 "c-NNN <uuid msg> waiver <uuid> -> PASS" "Lang-review: c-523 94eea503-aaaa-bbbb-cccc-0123456789ab waiver 3a71dac1-aaaa-bbbb-cccc-0123456789ab"
+lr 1 "bare c-NNN <msg> -> FAIL" "Lang-review: c-523 94eea503"
+lr 1 "c-NNN <msg> waiver (no id) -> FAIL" "Lang-review: c-523 94eea503 waiver"
+lr 1 "c-NNN <msg> waiver <short id> -> FAIL" "Lang-review: c-523 94eea503 waiver 3a71"
+lr 1 "c-NNN waiver <8hex> (no msg id) -> FAIL" "Lang-review: c-523 waiver 3a71dac1"
+lr 0 "a-NNN <msg> -> PASS" "Lang-review: a-511 d30773a7"
+lr 0 "a-NNN@box <msg> -> PASS" "Lang-review: a-511@box1 d30773a7"
+for px in g m x; do
+  lr 1 "$px-NNN <msg> waiver <8hex> -> FAIL" "Lang-review: $px-123 94eea503 waiver 3a71dac1"
+done
+lr 1 "a waiver line not at line start -> FAIL" "see Lang-review: c-523 94eea503 waiver 3a71dac1"
+grep -q "waiver <owner msg id>" "$ROOT/part" && pass "13. the FAIL line names the waiver form" || fail "13. FAIL names waiver" "$(cat "$ROOT/part")"
 
 echo "check-pre-push-lang-review: $fails failure(s)"
 ((fails == 0))

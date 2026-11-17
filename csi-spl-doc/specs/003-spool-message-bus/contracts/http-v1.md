@@ -173,7 +173,7 @@ Every frame is one JSON text message with a `type` discriminator. Unknown
 | 1 | hub → box | `challenge` | `nonce` | sent once, immediately after the upgrade. `nonce` = 32 random bytes, base64. Single use, bound to this socket |
 | 2 | box → hub | `hello` | `box_id`, `ts`, `nonce`, `sig`, `role`, `agents`, `channels?` | first frame, within 10 s, else close `4408`. See §2.2 |
 | 3 | hub → box | `welcome` | `box_id`, `upload_token`, `upload_token_expires_at`, `roster` | hello accepted. `roster` = tenant roster (§2.3) |
-| 4 | box → hub | `announce` | `agents`, `channels?` | `role=box` only. Replaces this box's announced set (and, M3, its channel subscriptions: `./channels-v1.md` §3). Duplicate id in the list → error `roster_duplicate` (409) |
+| 4 | box → hub | `announce` | `agents`, `channels?` | `role=box` only. Replaces this box's announced set (and, M3, its channel subscriptions: `./channels-v1.md` §3). Duplicate id in the list → `announce_error` `roster_duplicate` (409), frame 15 |
 | 5 | hub → box | `roster` | `roster` | pushed to every `role=box` socket of the tenant when any box's set changes |
 | 6 | box → hub | `send` | `env` | §2.4. Reply is frame 7 or an `error` frame carrying the same `msg_id` |
 | 7 | hub → box | `sent` | `msg_id`, `task_id`, `ts`, `to_box`, `delivery` | `delivery` ∈ `sent`, `queued` |
@@ -185,6 +185,7 @@ Every frame is one JSON text message with a `type` discriminator. Unknown
 | 12 | box → hub | `token` | — | asks for a fresh upload token |
 | 13 | hub → box | `token` | `upload_token`, `upload_token_expires_at` | |
 | 14 | hub → box | `error` | `error`, `status`, `detail`, `msg_id?` | stable token per `./error-envelope.md` |
+| 15 | hub → box | `announce_error` | `error`, `status`, `detail` | the refusal of an `announce` (frame 4), which no request waits for: `roster_duplicate` 409, `quota` 402 (bot seat cap), `internal` 500 (roster or subscriptions not stored), `bad_frame` 400 (not `role=box`). Never an `error` frame: a box takes an `error` with no `msg_id` as the answer of its request in flight (SPL-5735). A box logs it (`hubclient` `AnnounceRefusals`) and also treats an older hub's `msg_id`-less `error` naming a roster write as one (`wire.IsAnnounceRefusal`) |
 
 Liveness uses WebSocket ping/pong control frames, not JSON frames.
 

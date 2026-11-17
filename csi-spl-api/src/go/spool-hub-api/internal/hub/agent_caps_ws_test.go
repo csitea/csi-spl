@@ -57,7 +57,7 @@ func TestVendorCapAnnounceAndHello(t *testing.T) {
 		if err != nil {
 			t.Fatalf("no roster push for an announce over the cap: %v", err)
 		}
-		if f.Type == wire.TError {
+		if f.Type == wire.TError || f.Type == wire.TAnnounceError {
 			t.Fatalf("announce over the cap answered an error frame: %+v", f)
 		}
 	}

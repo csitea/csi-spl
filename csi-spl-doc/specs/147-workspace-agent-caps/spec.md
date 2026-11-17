@@ -1,6 +1,6 @@
 # Feature Specification: Per-Workspace Agent Caps by Kind
 
-**Feature ID**: `147-workspace-agent-caps` · **Milestone**: M3 / M4 · **Status**: Planned (Spec Only) · **Version**: 1.1.1
+**Feature ID**: `147-workspace-agent-caps` · **Milestone**: M3 / M4 · **Status**: Planned (Spec Only) · **Version**: 1.1.2
 **Created**: 2026-10-19 · **Updated**: 2026-10-19 · **Epic**: SPL-2400 · **Issue**: SPL-2586 · **Lane**: a-799-c002-spec-workspace-agent-caps
 **Authority**: this file for system behaviour, database schema, protocol rules, API contracts, and enforcement semantics. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
 **Reviews**: [review-claude.md](review-claude.md) (c-864, R7 seat, signed off on master in commit 0a97ae54d).
@@ -268,6 +268,7 @@ Implementation logic for `vendorCapGate`:
 4. Count prospective agents per vendor using `agentid.Kind(agent_id)`.
 5. For each vendor $V$, if configured cap $max\_live(V)$ exists and $Count(V) > max\_live(V)$, return `store.ErrVendorCapExceeded{Vendor: V, Cap: max_live, Live: Count(V)}`.
 6. **In `onAnnounce` (`ws.go:483`, the trim call at `ws.go:500`):** If `errors.Is(err, store.ErrVendorCapExceeded)`, trim the announce exactly as item 7 trims a hello (`admitUnderCaps`): keep the box's already-seated agents, seat each addition the caps still admit, leave out only the capped ones with a hub log line naming each (P6 text in the log), and answer no error frame. Changed by SPL-5642 (R5 below): the first build failed the whole announce 409 `vendor_cap_exceeded`.
+   The announce refusals left (the bot seat cap 402 `quota`, `roster_duplicate`, a store error) are `announce_error` frames, never `error` frames (SPL-5735): an announce is fire and forget, and a send in flight on the same socket took a `msg_id`-less `error` as its own answer, so `do_spl_desk_reply` reported a stored post as refused. The box client logs an announce refusal and keeps it out of every request's reply, also an older hub's `msg_id`-less `error` that names a roster write (`wire.IsAnnounceRefusal`, `internal/wire/announce.go`); the frame: `../003-spool-message-bus/contracts/http-v1.md` §2.1 frame 15.
 7. **In `seatRoster` (`ws.go:536`):** When handling `wire.THello`, trim incoming agents that would violate the vendor cap, seat only the allowed subset (retaining previously seated agents on that box), and pass only the trimmed admitted agent list to `SetSubscriptions` (`ws.go:347`).
 
 ### 5.2 Host Desk Seating Action (`do_spl_desk_up`)
@@ -554,4 +555,4 @@ The work is partitioned into 6 build rows across 2 designated lanes with complet
 
 ---
 
-<!-- version: 1.1.1 · updated: 2026-11-16 · last-edit: 2026-11-16T23:20:00Z -->
+<!-- version: 1.1.2 · updated: 2026-11-17 · last-edit: 2026-11-17T04:20:00Z -->

@@ -332,10 +332,13 @@ type Session struct {
 	priv ed25519.PrivateKey
 	role string
 
-	mu        sync.Mutex
-	token     string
-	tokenExp  time.Time
-	recvErrs  []error
+	mu       sync.Mutex
+	token    string
+	tokenExp time.Time
+	recvErrs []error
+	// annErrs are the hub's announce refusals (SPL-5735): logged and kept
+	// here, never handed to a request in flight.
+	annErrs   []error
 	delivered int
 	// backfilled counts the inbox files a back-fill run wrote, per
 	// (channel, agent), until its backfill_end rings the pane (backfill.go).
@@ -601,6 +604,10 @@ func (s *Session) readLoop() {
 			s.mu.Unlock()
 			return
 		}
+		if wire.IsAnnounceRefusal(f) {
+			s.announceRefused(f)
+			continue
+		}
 		switch f.Type {
 		case wire.TRecv:
 			var err error
@@ -666,6 +673,26 @@ func (s *Session) RecvErrors() []error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]error(nil), s.recvErrs...)
+}
+
+// announceRefused logs the hub's refusal of an announce and keeps it. An
+// announce is fire and forget, so its refusal answers no request: an older
+// hub wrote it as an error frame with no msg_id, which a send in flight took
+// as its own answer and reported a post the hub had stored as refused
+// (SPL-5735).
+func (s *Session) announceRefused(f wire.Frame) {
+	err := &HubError{Token: f.Error, Status: f.Status, Detail: f.Detail}
+	s.c.Log.Warn().Err(err).Str("box", s.box).Msg("announce refused: roster not updated on the hub")
+	s.mu.Lock()
+	s.annErrs = append(s.annErrs, err)
+	s.mu.Unlock()
+}
+
+// AnnounceRefusals returns the hub's announce refusals so far (SPL-5735).
+func (s *Session) AnnounceRefusals() []error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]error(nil), s.annErrs...)
 }
 
 // Delivered counts recv frames written into local inboxes.

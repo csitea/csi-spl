@@ -122,6 +122,14 @@ func (x *session) fail(ctx context.Context, msgID, token string, status int, det
 	x.write(ctx, wire.Frame{Type: wire.TError, MsgID: msgID, Error: token, Status: status, Detail: detail}) //nolint:errcheck
 }
 
+// failAnnounce refuses an announce. An announce is fire and forget, so its
+// refusal is an announce_error frame, never an error frame: a box client
+// takes an error frame with no msg_id as the answer of the request it has in
+// flight, and a send reported this refusal as its own (SPL-5735).
+func (x *session) failAnnounce(ctx context.Context, token string, status int, detail string) {
+	x.write(ctx, wire.Frame{Type: wire.TAnnounceError, Error: token, Status: status, Detail: detail}) //nolint:errcheck
+}
+
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	t, ok := s.boxTenant(w, r) // specs/026: named by the box, proven by the hello below
 	if !ok {
@@ -495,11 +503,11 @@ func (s *Server) push(ctx context.Context, x *session, msgID string, env []byte)
 
 func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []string, run map[string]bool) {
 	if x.role != wire.RoleBox {
-		x.fail(ctx, "", "bad_frame", http.StatusBadRequest, "announce needs role=box")
+		x.failAnnounce(ctx, "bad_frame", http.StatusBadRequest, wire.DetailAnnounceNotBox)
 		return
 	}
 	if !validRoster(agents) {
-		x.fail(ctx, "", "roster_duplicate", http.StatusConflict, "invalid or duplicate agent id in roster")
+		x.failAnnounce(ctx, wire.TokenRosterDuplicate, http.StatusConflict, wire.DetailAnnounceDuplicate)
 		return
 	}
 	agents = s.dropRetiredIDs(x.tenant, x.box, agents)
@@ -509,21 +517,21 @@ func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []
 		// A new agent over its vendor's workspace cap (spec 147 5.1,
 		// SPL-5642): only that id stays out, as on a hello. Refusing the
 		// whole replace kept a box's every new agent out for one stale id,
-		// and its MsgID-less error frame answered a send in flight.
+		// and its refusal answered a send in flight (SPL-5735).
 		agents, err = s.admitUnderCaps(ctx, x.tenant, x.box, before[x.box], agents, s.o.Now())
 	}
 	if errors.Is(err, store.ErrSeatQuota) {
 		// A new bot seat over the M4 cap (009 D-3): the previous roster stands.
-		x.fail(ctx, "", billing.TokenQuota, billing.HTTPSeatQuota, "bot seat cap reached: roster not updated")
+		x.failAnnounce(ctx, billing.TokenQuota, billing.HTTPSeatQuota, wire.DetailAnnounceSeatCap)
 		return
 	} else if err != nil {
-		x.fail(ctx, "", "internal", http.StatusInternalServerError, "roster not stored")
+		x.failAnnounce(ctx, "internal", http.StatusInternalServerError, wire.DetailAnnounceRosterNotStored)
 		return
 	}
 	x.agents = append([]string(nil), agents...)
 	sort.Strings(x.agents)
 	if err := s.o.Store.SetSubscriptions(ctx, x.tenant, x.box, agents, channels, s.o.Now()); err != nil {
-		x.fail(ctx, "", "internal", http.StatusInternalServerError, "subscriptions not stored")
+		x.failAnnounce(ctx, "internal", http.StatusInternalServerError, wire.DetailAnnounceSubsNotStored)
 		return
 	}
 	run = cleanAgentRun(agents, run)

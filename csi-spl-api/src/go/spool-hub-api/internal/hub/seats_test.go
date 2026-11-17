@@ -50,7 +50,7 @@ func TestBotSeatCapAnnounceAndHello(t *testing.T) {
 			if err != nil {
 				return f, false
 			}
-			if f.Type == wire.TError {
+			if f.Type == wire.TError || f.Type == wire.TAnnounceError {
 				return f, true
 			}
 		}
@@ -63,7 +63,9 @@ func TestBotSeatCapAnnounceAndHello(t *testing.T) {
 	// CONTROL: re-announce growing past cap → 402 quota, roster unchanged.
 	wsjson.Write(ctx, c, wire.Frame{Type: wire.TAnnounce, Agents: []string{"CLE-1", "CLE-2", "CLE-3"}}) //nolint:errcheck
 	f, ok := next(c, 2*time.Second)
-	if !ok || f.Error != "quota" || f.Status != http.StatusPaymentRequired {
+	// SPL-5735: an announce_error frame, never an error frame a send in
+	// flight would take as its own answer.
+	if !ok || f.Type != wire.TAnnounceError || f.Error != "quota" || f.Status != http.StatusPaymentRequired {
 		t.Fatalf("grow past cap: %v %+v", ok, f)
 	}
 	if roster() != "CLE-1,CLE-2" {

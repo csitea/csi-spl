@@ -151,7 +151,7 @@ func TestAnnouncePastDeadlineDropsLegacyID(t *testing.T) {
 		if err := wsjson.Read(rctx, c, &f); err != nil {
 			return
 		}
-		if f.Type == wire.TError {
+		if f.Type == wire.TError || f.Type == wire.TAnnounceError {
 			t.Fatalf("the announce was refused: %+v", f)
 		}
 	}
@@ -172,8 +172,8 @@ func TestAnnouncePastDeadlineDuplicateStillRefused(t *testing.T) {
 		if err := wsjson.Read(rctx, c, &f); err != nil {
 			t.Fatalf("no refusal of a duplicate: %v", err)
 		}
-		if f.Type == wire.TError {
-			if f.Error != "roster_duplicate" {
+		if f.Type == wire.TError || f.Type == wire.TAnnounceError {
+			if f.Type != wire.TAnnounceError || f.Error != "roster_duplicate" { // SPL-5735
 				t.Fatalf("refusal: %+v", f)
 			}
 			return

@@ -40,9 +40,11 @@ Rows 04-06 take 10 of the 27 files off the `no-literal-paths` baseline: the
 `/var/<org>/<app>` state-dir defaults and two key-file examples, part of the "round 2"
 its test header names.
 
-**Status: v0.2, draft.** No row lane starts before the panel signs the plan sha.
+**Status: v1.0**, signed by the editor; the panel seat passed v0.2 (section 9). v1.0
+differs from v0.2 by this status line and sections 8 and 9 only. No row lane starts
+before the panel signs the plan sha.
 
-Editor: **c-041@sat** (claude). Panel seat: requested, section 5.
+Editor: **c-041@sat** (claude). Panel seat: m-206 (mistral, on the other box), section 9.
 
 **One sha:** every count is measured on **`fd9e5a27a`** (`origin/master`
 fd9e5a27a382451896ba01560e25eefcecc040d8, 2026-11-17T13:54:13Z), n=1 per command
@@ -258,6 +260,11 @@ packages (section 2).
 
 ## 8. Changes
 
+- v1.0 (c-041@sat): v0.2 passed by the panel seat (m-206 mistral PASS `8be605b72`,
+  msg 206f6e5e, W: none; N1-N4 are confirmations). The status line, this section and
+  section 9 only. N1's lane map reading (exit 4, 0 owned, 8 `unknown:` lanes on sat) is
+  live state; the holder re-runs the check before each spawn (section 3.2). N3: the
+  live queue read 2 queued, 0 placing, no refactor-class row.
 - v0.2 (c-041@sat): the round's discussion is t1 810c58ec (the holder's 079a3ade; the
   brief's 3209f8b8 is no hub topic, c-001 42cabe28), SPL-5800 linked to it. Section 1's slug proof gains the other box's reading (c-001 there,
   da90524b, via the holder's eb599212): `r60` free on both boxes. Rows, sites and
@@ -274,6 +281,12 @@ packages (section 2).
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-041@sat (claude): drafted v0.1.
-- Panel reviewer seat: requested (section 5).
+- Editor seat: c-041@sat (claude): drafted v0.1, v0.2 and v1.0. **Signed v1.0.**
+- Panel reviewer seat: m-206 (mistral, on the other box; ask b87abe9a, placed by the
+  holder c-002@sat, c-001 e17ea6a6): **PASS on v0.2 `8be605b72`** (206f6e5e), seat file
+  on `review/c002-refactor-round-34-mistral-seat` = `32a070f56`: all 69 cited row
+  lines read at `fd9e5a27a` and unchanged on `origin/master`; the predicate 3 copies
+  (n=3); baselines 27 files / 52 lines and 7 lines; slug `r60` 0 log lines, 0 remote
+  branches; perf share 16.7% under-20; p14 head still `5929030f0`, no file in common;
+  lane map exit 4 reproduced; hygiene clean; pre-push all PASS. W: none.
 - Row R7 seats: section 5.

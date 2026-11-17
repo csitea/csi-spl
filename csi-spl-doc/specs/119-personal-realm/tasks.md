@@ -449,11 +449,12 @@ order first.
   strings (language rule); deployed dev and prd.
 
 ## Primary workspace
-v0.1 (SPL-5788), [primary-workspace.md](primary-workspace.md). **Not ready
-to place**: the owner answers its Q1..Q7 first. The rows below are for the
-recommended `1a`, `2a`, `3a`, `7a`; under `1b` / `1c` they are rewritten
-with the move, leave and fence rows of its sections 5 and 6. Tests are
-that file's section 10.
+v0.2 (SPL-5788), [primary-workspace.md](primary-workspace.md). The owner
+answered `1a`, `2c`, `3a`, `7b`. T019 and T020 are ready to place once
+the file passes review. T021 and T022 wait on the owner's Q8 and Q9
+(its section 9.2); the rows are written for the recommended `8a`, `9b`.
+v0.1's T021 (the contacts binding follows the primary workspace) is
+dropped under `7b`. Tests are that file's section 10.
 
 - [ ] T019 **Lane R: the setting** (claude, rdb + store + hub). One
   additive migration (number from `do_rdb_migration_next`): column
@@ -464,24 +465,43 @@ that file's section 10.
   Files (owns): the migration, `GO/store/personal*.go` for the profile
   column and its tests, `GO/hub/realm.go` profile handlers and their test,
   the profile operation in `GO/hub/openapi.json`.
-  Done: T-PW1, T-PW4 on Postgres with red controls; `PRE_PUSH_TIER=full`.
+  Done: T-PW1, T-PW4 (profile column part) on Postgres with red controls;
+  `PRE_PUSH_TIER=full`.
 
 - [ ] T020 **Lane S: the settings row and the calendar preselect**
   (claude, WUI; waits on T019 deployed and on T017 landed). The "Primary
   workspace" row in `WUI/components/settings/profile.vue`; the create
   dialog of `/me/calendar` (T017's `WUI/components/RealmCalendarDialog.vue`)
-  preselects it; the stale-primary notice. Keys under
+  preselects it (the file's 2.5); the stale-primary notice. Keys under
   `settings.primary_workspace.*` in the 19 locale files, after T018 in the
   serial locale order.
   Done: T-PW2; `pnpm run typecheck`; `perf-budget.py` initial JS
   unchanged; e2e at 390 px and desktop; agy review of the strings
   (language rule); deployed dev and prd.
 
-- [ ] T021 **Lane T: the contacts binding follows the primary workspace**
-  (claude, hub; `7a`; waits on T019 landed). Turning Contacts sync on
-  binds the primary workspace's Google connection; a change of the
-  primary moves the binding (154 2.2 steps 3..5).
-  Files (owns): the binding path in `GO/hub/contacts.go` and its test.
-  Done: T-PW3 with its red control.
+- [ ] T021 **Lane U: the calendar mirror, table, write and sweep**
+  (claude, rdb + store + hub; waits on the owner's Q8). One additive
+  migration: `personal.calendar_mirror` as the file's 3.2 (person FK,
+  FORCE RLS, `person_scope` only); the step-2 realm write after each
+  calendar write (3.3); the sweep action on 119 8.1's cadence, whose first
+  run fills the mirror; `GET /v1/me/realm/calendar/mirror` and its
+  `/export`; the table on 091's never-exported list.
+  Files (owns): the migration, a new `GO/store/personal_calendar_mirror*.go`,
+  a new `GO/hub/realm_calendar_mirror*.go`, the step-2 calls in
+  `GO/hub/calendar*.go`, the sweep action and its test, the 091 list
+  entry, `GO/hub/openapi.json` operations.
+  Done: T-PW3, T-PW4 (mirror part), T-PW5, T-PW7 on Postgres with red
+  controls; `PRE_PUSH_TIER=full`; deployed dev and prd.
 
-<!-- version: 1.3.0 · updated: 2026-11-17 · last-edit: 2026-11-17 -->
+- [ ] T022 **Lane V: leaving keeps the mirror (Q9) and the view shows it**
+  (claude, hub + WUI; waits on T021 landed and on the owner's Q9). The
+  copy-first refresh and the Q9 rule in the removal, ban and workspace
+  delete paths and in the `access_until` sweep (3.5); 503
+  `mirror_failed`; `state:"left"` rows in the personal view, read-only
+  sheet; `DELETE /v1/me/realm/calendar/mirror?workspace=`; 119 REQ-5's
+  added sentence and calendar-across-workspaces section 7's `left` rows
+  (only under `9a` / `9b`).
+  Done: T-PW6 with its red control; e2e of a left-workspace entry at
+  390 px and desktop; agy review of new strings; deployed dev and prd.
+
+<!-- version: 1.4.0 · updated: 2026-11-17 · last-edit: 2026-11-17 -->

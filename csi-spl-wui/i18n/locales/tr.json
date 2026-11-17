@@ -1421,7 +1421,9 @@
     "clear_selection": "Seçimi temizle",
     "delete_confirm_title": "Seçili kayıtlar ({n}) silinsin mi?",
     "delete_confirm_body": "Bu işlem geri alınamaz.",
-    "delete_failed": "Seçili kayıtlar silinemedi."
+    "delete_failed": "Seçili kayıtlar silinemedi.",
+    "network": "Ağ",
+    "network_hint": "Bağlantı koptu veya sekme uyku modundaydı. Ekran hata vermedi."
   },
   "snackbar": {
     "dismiss": "Kapat",

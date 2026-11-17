@@ -1421,7 +1421,9 @@
     "clear_selection": "Išvalyti pasirinkimą",
     "delete_confirm_title": "Ištrinti pasirinktus įrašus ({n})?",
     "delete_confirm_body": "To negalima atšaukti.",
-    "delete_failed": "Nepavyko ištrinti pasirinktų įrašų."
+    "delete_failed": "Nepavyko ištrinti pasirinktų įrašų.",
+    "network": "Tinklas",
+    "network_hint": "Ryšys nutrūko arba skirtukas buvo užmigęs. Ekranas nesugedo."
   },
   "snackbar": {
     "dismiss": "Atmesti",

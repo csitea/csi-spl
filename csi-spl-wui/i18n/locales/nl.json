@@ -1421,7 +1421,9 @@
     "clear_selection": "Selectie wissen",
     "delete_confirm_title": "De geselecteerde items ({n}) verwijderen?",
     "delete_confirm_body": "Dit kan niet ongedaan worden gemaakt.",
-    "delete_failed": "De geselecteerde items konden niet worden verwijderd."
+    "delete_failed": "De geselecteerde items konden niet worden verwijderd.",
+    "network": "Netwerk",
+    "network_hint": "De verbinding viel weg of het tabblad sliep. Het scherm faalde niet."
   },
   "snackbar": {
     "dismiss": "Sluiten",

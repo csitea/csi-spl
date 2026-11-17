@@ -1421,7 +1421,9 @@
     "clear_selection": "Tühjenda valik",
     "delete_confirm_title": "Kas kustutada valitud kirjed ({n})?",
     "delete_confirm_body": "Seda ei saa tagasi võtta.",
-    "delete_failed": "Valitud kirjeid ei õnnestunud kustutada."
+    "delete_failed": "Valitud kirjeid ei õnnestunud kustutada.",
+    "network": "Võrk",
+    "network_hint": "Ühendus katkes või vaheleht oli unerežiimis. Ekraan ei andnud viga."
   },
   "snackbar": {
     "dismiss": "Sulge",

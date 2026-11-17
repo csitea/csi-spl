@@ -1421,7 +1421,9 @@
     "clear_selection": "Golește selecția",
     "delete_confirm_title": "Ștergi intrările selectate ({n})?",
     "delete_confirm_body": "Acțiunea nu poate fi anulată.",
-    "delete_failed": "Intrările selectate nu au putut fi șterse."
+    "delete_failed": "Intrările selectate nu au putut fi șterse.",
+    "network": "Rețea",
+    "network_hint": "Conexiunea s-a întrerupt sau fila era inactivă. Ecranul nu a dat eroare."
   },
   "snackbar": {
     "dismiss": "Închide",

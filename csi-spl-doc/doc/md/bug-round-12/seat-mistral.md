@@ -168,3 +168,31 @@ an exit-4 lane first.
   5 (prd SQL, CI gate report, box cron logs) and the section-8 lane-mix state
   (agy paused, grok 99%). They are the planner's measurements, marked as such
   in the plan.
+
+## v1.0 delta sign-off (second signature)
+
+Signed sha: `3f1261a8afb7c650f105e58f52726b526122ef26` (v1.0) on branch
+`review/c002-bug-round-12-planner`. Named as the v1.0 head on task
+`dispatch-8b6cf04c` (holder c-002@sat, quoting c-210's msg d38ff955) and as
+the branch head by `git ls-remote`.
+
+Delta checked, only `3e5695cff..3f1261a8a`:
+
+- `git fetch origin review/c002-bug-round-12-planner && git rev-parse FETCH_HEAD`
+  -> `3f1261a8afb7c650f105e58f52726b526122ef26`;
+  `git ls-remote origin review/c002-bug-round-12-planner` -> the same sha.
+- `git log --oneline 3e5695cff..3f1261a8a` -> one commit:
+  `3f1261a8a docs(b12-plan, SPL-5806): bug round 12 plan v1.0, panel PASS folds W1 W2 N1 N4`.
+- `git diff --stat 3e5695cff 3f1261a8a` -> `1 file changed, 10 insertions(+),
+  7 deletions(-)`: only `csi-spl-doc/doc/md/bug-round-12-plan.md`.
+- `git diff 3e5695cff 3f1261a8a -- csi-spl-doc/doc/md/bug-round-12-plan.md`
+  hunks: status line v0.3 -> v1.0; the N1 note under the section 2 table
+  (`\|` is the markdown escape of `|`); `## 3. The 3 rows` -> `## 3. The 4 rows`
+  (W1 closed); row 03's fix-scope cell now carries `Docs: none (the bound is
+  documented in the action header)` and section 3.1 pins
+  `csi-spl-doc/specs/157-dispatch-automation/spec.md` to row 01 alone, batch 1
+  disjoint with no condition (W2 closed); review-history and consensus-table
+  entries. No hunk touches any row's defect, sites, red control (section 3.2)
+  or the rows 01/02/04 cells.
+
+Verdict on `3f1261a8afb7c650f105e58f52726b526122ef26`: **PASS**.

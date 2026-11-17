@@ -1,7 +1,9 @@
 # Costs: a cost assigned or split to workspaces by hand (SPL-5291)
 
-Status: **v0.4: hub + store + Settings -> Cost allocation built on branch
-`c-569-c003-feat-costs-workspace-allocation`; nothing on master yet.** v0.2
+Status: **v0.5 (SPL-5768, 2026-11-17): section 7 adds the instance's
+splits, tokens and per person, set by the operator workspace's admins and
+business owners; it replaces answer 1 B for those two kinds only.** v0.4:
+hub + store + Settings -> Cost allocation (SPL-5291). v0.2
 was revised on the owner's answers (poll `01cbbdea`); v0.3 adds the
 customer admin's partial body (section 3) and the settings page as built
 (section 5.1). v0.4 takes the R7 review (c-580 `027c803f`): token burn
@@ -47,10 +49,12 @@ across months.
 | Persons | the `hr` cost entries (the estate answer's `human` list) | `cost_entry / <entry label> / hr` |
 | Cloud | the estate GCP parts of `cost_lines`, the `cloud` cost entries | `<gcp source> / <project> / <service>`, `cost_entry / <invoice label> / cloud` |
 
-**Tokens are never split by hand** (answer 1 B): the paid AI items
-(`ai_paid`, `ai_share`) and the token burn (`fleet_tokens` per workspace,
-`fleet_tokens.<box>` on the estate) keep the automatic share by
-tokens (3.3.1). A split of a Tokens item is refused, 400.
+**Tokens are never split by hand, item by item** (answer 1 B): the paid AI
+items (`ai_paid`, `ai_share`) and the token burn (`fleet_tokens` per
+workspace, `fleet_tokens.<box>` on the estate) keep the automatic share by
+tokens (3.3.1). A split of a Tokens item on this route is refused, 400.
+Since v0.5 the instance's **token split** (section 7) replaces the automatic
+share of the paid AI items while it is set; the token burn stays automatic.
 
 ## 2. Storage: rdb `0275_cost_allocations.sql`
 
@@ -208,4 +212,94 @@ estate part gains `allocation` (its shares).
   the workspace's page; every new string in all locales, the agy review
   last.
 
-<!-- version: 0.4.0 · updated: 2026-11-11 -->
+## 7. Splits per instance: tokens and persons (v0.5, SPL-5768)
+
+Owner HUM-10, csitea topic `f655b326`, 2026-11-16:
+
+- msg `666ce94d`: "for the tokens costs we need to do a different division -
+  the spool-hub workspace should take some 70% of the costs for the tokens
+  and thre csitea should take 30%";
+- poll `4b4dbf1a`, msg `202a45d1`: the tokens are "What was paid: the AI
+  subscriptions and top-ups, from 2024-07";
+- msg `0142ae24`: personnel costs, 70 % of person P1's gross costs and 30 %
+  of person P2's to t1 (the rest to csitea, c-003's reply `c568e20f`);
+- msg `3440bf12` (verbatim; "school hub" is read as "spool hub"): "the
+  admin and the business owner should be able to define percentages for
+  the division of the costs, both for the tokens and for the personnel
+  costs, on a percentage basis, divided for each workspace. This should be
+  done on a cloud-instance basis."
+
+So answer 1 B ("Tokens stay automatic") no longer holds for the paid AI
+items, and a person's costs get one split for the person, not one per hr
+item. Every other part of 1 B and of sections 1-6 stands.
+
+### 7.1 What a split is
+
+A **split** is one set of rows per instance (one hub): a share per workspace
+in basis points, 1..10000, that sum to 10000, for one of two kinds:
+
+| kind | subject | applies to |
+|---|---|---|
+| `tokens` | none (`""`) | every paid AI item (`ai_paid`: the subscriptions and top-ups of every agent type), every month |
+| `person` | the hr person's hub id (`hr_people.id`, rdb 0280) | every `hr` cost entry booked for that person, every month |
+
+As in section 2, a split has no month: it holds for every month, past ones
+too (answer 2 B), and a change re-attributes them. The owner's values
+(tokens t1 70 % / csitea 30 %; P1 t1 70 % / csitea 30 %; P2 t1 30 % /
+csitea 70 %) are the first data entered through the API, never constants
+in code.
+
+### 7.2 Storage: rdb `cost_splits`
+
+Operator scope, no `tenant_id`, RLS `operator_scope` (the rdb 0275
+pattern). Columns: `split_kind` (`tokens` | `person`), `subject` (`""` for
+tokens, the person id for person), `workspace_id` (FK `tenants`, ON DELETE
+CASCADE), `share_bp` (1..10000), `created_by`, `created_at`. PRIMARY KEY
+`(split_kind, subject, workspace_id)`. The hub writes a split in one
+transaction; `shares: []` removes it.
+
+### 7.3 Who
+
+The operator workspace's **admin** and **business owner** (`biz_owner`)
+read and write, as does the operator service account; never a live act-as
+clone. Anyone else: 403. There is no customer-admin door (section 3 does
+not apply).
+
+### 7.4 Hub API
+
+| route | answer |
+|---|---|
+| `GET /v1/operator/cost-splits` | `{splits: [{split_kind, subject, shares, created_by, created_at}], people: [{id, code}], workspaces: [{id, name}]}` |
+| `PUT /v1/operator/cost-splits` `{split_kind, subject, shares: [{workspace_id, share_bp}]}` | 200, the split; `shares: []` removes it; an unknown kind, a tokens split with a subject, a person split whose subject is no hr person, a sum other than 10000, a duplicate or not-live workspace, a share outside 1..10000: 400 `bad_cost_split` |
+
+### 7.5 How the reads apply it
+
+- **Tokens.** With a tokens split set, a customer workspace W's month read
+  carries, in place of its automatic `ai_share` parts, one `ai_share` part
+  per agent type (kind `share`, no plan, as the automatic one, so the Tokens
+  label keeps it): `allocated_source` `ai_paid`, `share_bp` W's share, money
+  the sum over that type's estate `ai_paid` parts of
+  `floor(amount * share_bp / 10000)` (section 4's rounding; the remainder
+  stays with the estate). `ai_share_from` is the month's first day. With no
+  tokens split, the automatic share by tokens of 3.3.1 reads as before.
+- **Persons.** A customer workspace W's Human rows add, for every `hr`
+  entry of a person whose split holds W, that entry's part at W's share
+  (the same `allocated` shape, `allocated_source` `cost_entry`). An hr item
+  that also has its own item split (section 2) keeps that split: the item
+  split wins, so no cost counts twice.
+- **The estate** keeps the full amounts (a share is an attribution); each
+  `ai_paid` part and each hr row of a split person names its split in
+  `allocation`, as in section 4.
+
+### 7.6 Tests
+
+Store (Memory and Postgres, RLS as in section 6); hub: the 403 for a
+developer and an act-as clone, the biz_owner write, the 400s (a sum of
+9999, a tokens subject, an unknown person), a tokens split replacing
+`ai_share` with floor rounding (red control: the split not applied, W
+keeps its token share), a person split adding W's Human row, and an item
+split winning over it.
+
+The web UI screen for the splits is a later lane.
+
+<!-- version: 0.5.0 · updated: 2026-11-17 -->

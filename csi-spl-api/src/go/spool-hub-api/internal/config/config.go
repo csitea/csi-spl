@@ -314,6 +314,9 @@ type Hub struct {
 	// 2.11 and section 6, OQ-5 A): false, the box-socket note_add op answers
 	// 404 notes_off while the person's own notes routes keep serving.
 	NotesAgentAddEnabled bool `env:"SPOOL_HUB_NOTES_AGENT_ADD_ENABLED" envDefault:"false"`
+	// CalendarOutlookImportEnabled is the Outlook import switch (spec 180
+	// FR-11): off, PUT /v1/operator/calendar/import/outlook answers 404.
+	CalendarOutlookImportEnabled bool `env:"SPOOL_HUB_CALENDAR_OUTLOOK_IMPORT_ENABLED" envDefault:"false"`
 	// Editable Repo Docs (spec 075 repo-edit; cnf env.docs.repo_edit, which
 	// do_spl_merged_cnf derives into SPOOL_HUB_DOCS_EDIT_*). Enabled false is
 	// the kill switch: the edit routes 404 and no worker pushes. The App key

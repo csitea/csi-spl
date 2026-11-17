@@ -1,6 +1,6 @@
 # Spec 180: Import an Outlook calendar into a member's spool-hub calendar
 
-Version **0.1.0** (2026-11-17). Authored by lane `c-060` (`claude`).
+Version **0.2.0** (2026-11-17). Authored by lane `c-060` (`claude`).
 Issue: **SPL-5784** (status `wip`, tenant `t1`). Epic: **SPL-2750** (from the
 seat brief; to be confirmed by the dispatcher). Class: `feature`.
 Discussion: csitea topic `40c3f89d-bedb-427d-90fe-78699a2a0f0a`.
@@ -84,17 +84,17 @@ Outlook box" below; its Windows user and home are `$WIN_USR` / `$WIN_HOME`.
 
 | id | requirement | status |
 |---|---|---|
-| FR-1 | **Export script** `csi-spl-orc/src/powershell/outlook-calendar-export.ps1`: Outlook COM, the next `-Days` days (default 14) from today 00:00 local, recurrences expanded, cancelled left out, JSON `format: spool-hub-outlook-export/1` with `exported_at`, `time_zone`, `from`, `to`, `count`, `events[]` (`source_id`, `title`, `starts_at`, `ends_at` UTC RFC 3339, `all_day`, `day`, `end_day`, `location`, `busy_status`, `private`, `recurring`). No body, no attendees. Every date is formatted with `InvariantCulture`. `-OutFile STDOUT` prints the JSON. | Partial: works (section 1.5), not in git |
-| FR-2 | **Import route** `PUT /v1/operator/calendar/import/outlook?tenant=<t>&owner=<HUM-n>`, body = one FR-1 export. The caller is an operator (service account in `SPOOL_HUB_OPERATOR_EMAILS`). Answers `{created, updated, unchanged, deleted}`. | Planned |
-| FR-3 | **Validation before any write:** the format string, `from <= to`, at most 2000 events, every `starts_at`/`ends_at` RFC 3339 with `ends_at > starts_at` (all-day: `day <= end_day`), a non-empty `source_id`, `title` cut to 200 chars. One bad event refuses the whole batch (400, which event and why); nothing is written. | Planned |
-| FR-4 | **Upsert by key.** Key family `outlook:` is added to `calendarSourceKeyRe`. Key = `outlook:<owner>:<first 24 hex of SHA-256(source_id)>` (hashed: the raw id was 128 chars in the 2026-11-17 export and is opaque). Each row: kind `other`, `audience=private`, `owner_id=<owner>`, `mentions={<owner>}`, creator = the operator, description `Imported from Outlook`, plus busy status and location. A row whose fields did not change is left alone (`updated_at` too), as in spec 112. | Planned |
-| FR-5 | **Moved or cancelled meetings.** An `outlook:<owner>:` row that starts inside the batch window `[from, to)` and is not in the batch is soft-deleted (`deleted_by` = the operator). A row outside the window is never touched. A key back in a later batch restores its row with the same id. | Planned |
-| FR-6 | **Private to the owner** in the owner's chosen workspace (csitea), and visible in every workspace through My calendar (spec 119). | Planned (follows from FR-4) |
-| FR-7 | **Out to Google.** `outlook:` rows go out through spec 149 2.5 like any of the owner's events: an exception to 149 2.10 B (owner `1c9f6219`). The `gcal:` skip in `gcal_sync.go` `push` is not widened. Test: an `outlook:` row gets a map row. | Implemented by the current code (section 1.4); test Planned |
+| FR-1 | **Export script** `csi-spl-orc/src/powershell/outlook-calendar-export.ps1`: Outlook COM, the next `-Days` days (default 14) from today 00:00 local, recurrences expanded, cancelled left out, JSON `format: spool-hub-outlook-export/1` with `exported_at`, `time_zone`, `from`, `to`, `count`, `events[]` (`source_id`, `title`, `starts_at`, `ends_at` UTC RFC 3339, `all_day`, `day`, `end_day`, `location`, `busy_status`, `private`, `recurring`). No body, no attendees. Every date is formatted with `InvariantCulture`. `-OutFile STDOUT` prints the JSON. | Implemented: `outlook-calendar-export.ps1`, `-SelfTest`; test `outlook-calendar-export.tst.sh` (T1) |
+| FR-2 | **Import route** `PUT /v1/operator/calendar/import/outlook?tenant=<t>&owner=<HUM-n>`, body = one FR-1 export. The caller is an operator (service account in `SPOOL_HUB_OPERATOR_EMAILS`). Answers `{created, updated, unchanged, deleted}`. | Implemented: `hub/calendar_operator_import.go` (T3) |
+| FR-3 | **Validation before any write:** the format string, `from <= to`, at most 2000 events, every `starts_at`/`ends_at` RFC 3339 with `ends_at > starts_at` (all-day: `day <= end_day`), a non-empty `source_id`, `title` cut to 200 chars. One bad event refuses the whole batch (400, which event and why); nothing is written. | Implemented (T3) |
+| FR-4 | **Upsert by key.** Key family `outlook:` is added to `calendarSourceKeyRe`. Key = `outlook:<owner>:<first 24 hex of SHA-256(source_id)>` (hashed: the raw id was 128 chars in the 2026-11-17 export and is opaque). Each row: kind `other`, `audience=private`, `owner_id=<owner>`, `mentions={<owner>}`, creator = the operator, description `Imported from Outlook`, plus busy status and location. A row whose fields did not change is left alone (`updated_at` too), as in spec 112. | Implemented: `store/calendar_import.go` `ImportCalendarBySourceKey`, both stores (T2). Creator: `system` / `outlook-import`; busy status is a `Show as:` line of the description, location `props.location` |
+| FR-5 | **Moved or cancelled meetings.** An `outlook:<owner>:` row that starts inside the batch window `[from, to)` and is not in the batch is soft-deleted (`deleted_by` = the operator). A row outside the window is never touched. A key back in a later batch restores its row with the same id. | Implemented (T2); `deleted_by` is `outlook-import` |
+| FR-6 | **Private to the owner** in the owner's chosen workspace (csitea), and visible in every workspace through My calendar (spec 119). | Implemented (follows from FR-4) |
+| FR-7 | **Out to Google.** `outlook:` rows go out through spec 149 2.5 like any of the owner's events: an exception to 149 2.10 B (owner `1c9f6219`). The `gcal:` skip in `gcal_sync.go` `push` is not widened. Test: an `outlook:` row gets a map row. | Implemented; test `hub/gcal_sync_outlook_test.go` |
 | FR-8 | **Nothing written back** to Outlook or Teams. The export is read-only COM. | Implemented (script) |
-| FR-9 | **Orc action** `do_spl_calendar_import_outlook` (`ENV`, `TENANT_ID`, `EVENT_OWNER`, `IMPORT_FILE`, `DRY_RUN`, default 1): validates the file locally, calls FR-2, logs the four counts, and never logs a title. | Planned |
+| FR-9 | **Orc action** `do_spl_calendar_import_outlook` (`ENV`, `TENANT_ID`, `EVENT_OWNER`, `IMPORT_FILE`, `DRY_RUN`, default 1): validates the file locally, calls FR-2, logs the four counts, and never logs a title. | Implemented: `spl-calendar-import-outlook.func.sh` (T4) |
 | FR-10 | **Schedule:** every 30 min from `06:30` to `20:30` Europe/Helsinki, Monday to Friday (29 runs a day). Section 3 covers where the timer lives. | Planned |
-| FR-11 | **Kill switch:** cnf `calendar.outlook_import.enabled` (false by default). When it is off, the route answers 404 and the schedule does nothing. | Planned |
+| FR-11 | **Kill switch:** cnf `hub.env.SPOOL_HUB_CALENDAR_OUTLOOK_IMPORT_ENABLED` (`all.env.yaml`, `"false"` by default; the hub's env map is where a hub switch lives, see `SPOOL_HUB_NOTES_ENABLED`). When it is off, the route answers 404 and the schedule does nothing. | Implemented for the route (T3); the schedule is T5 |
 
 ## 3. The schedule and the transfer (owner question)
 
@@ -152,7 +152,7 @@ on a valid batch).
 | T3 | FR-2/3/11 route and its tests (cases 2, 3, 4, 6, 7, 8) | `internal/hub/calendar_operator*.go` |
 | T4 | FR-9 action and its test | `csi-spl-orc/src/bash/run/` |
 | T5 | FR-10 timer, per the owner's answer in section 3 | orc cron (A), or the box link outside this repo (B) |
-| T6 | Adopt the 16 rows of 2026-11-17: set their `source_key` from the `source:` line of their description (a one-time operator action, dry run first), so the first scheduled run updates them and does not duplicate them | orc action |
+| T6 | Adopt the 16 rows of 2026-11-17: set their `source_key` from the `source:` line of their description (a one-time operator action, dry run first), so the first scheduled run updates them and does not duplicate them | orc action `do_spl_calendar_adopt_outlook` (the prd write needs the owner's go, `OWNER_GO`). The one-off wrote `source: <GlobalAppointmentID>@<yyyyMMddTHHmmss>` at the end of a one-line description; the FR-1 script writes the same `source_id`, so the keys match. prd dry run 2026-11-17: 15 candidates (the 16th row is deleted), 15 distinct keys, 0 taken |
 | T7 | Docs: calendar user guide, a line on the import | `csi-spl-doc/doc/md/` |
 
 ## 6. Owner steps (never a lane)
@@ -161,4 +161,4 @@ on a valid batch).
 - For B only: register the Task Scheduler entry on the Outlook box.
 - Keep Outlook signed in on the Outlook box during the window.
 
-<!-- version: 0.1.0 · updated: 2026-11-17 · last-edit: 2026-11-17T17:10:00Z -->
+<!-- version: 0.2.0 · updated: 2026-11-17 · last-edit: 2026-11-17T22:30:00Z -->

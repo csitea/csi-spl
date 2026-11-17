@@ -283,6 +283,10 @@ type Options struct {
 	// 155 2.11, section 6): off, or NotesEnabled off, the box-socket note_add
 	// op answers 404 notes_off (notes_agent.go); the routes are untouched.
 	NotesAgentAddEnabled bool
+	// CalendarOutlookImportEnabled is hub env
+	// SPOOL_HUB_CALENDAR_OUTLOOK_IMPORT_ENABLED (spec 180 FR-11): off, PUT
+	// /v1/operator/calendar/import/outlook answers 404 (calendar_operator_import.go).
+	CalendarOutlookImportEnabled bool
 	// EmbedEnabled is cnf env.hub.embed.enabled (specs/121, off until T207):
 	// off, every /v1/embed/* route answers as an unknown path.
 	// EmbedTokenLife is the visitor token's sliding life and hard cap;

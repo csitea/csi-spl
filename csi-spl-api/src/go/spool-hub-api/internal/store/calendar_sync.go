@@ -51,8 +51,12 @@ var (
 	_ CalendarSync = (*Postgres)(nil)
 )
 
-// calendarSourceKeyRe is spec 4.2's key families.
-var calendarSourceKeyRe = regexp.MustCompile(`^(goal|spec|release|db):[A-Za-z0-9._:-]{1,200}$`)
+// calendarSourceKeyRe is spec 4.2's key families, and spec 180's outlook:
+// (written only by ImportCalendarBySourceKey, never by a roadmap sync).
+var calendarSourceKeyRe = regexp.MustCompile(`^(goal|spec|release|db|outlook):[A-Za-z0-9._:-]{1,200}$`)
+
+// calendarOutlookKey: key is in the family the Outlook import owns.
+func calendarOutlookKey(key string) bool { return strings.HasPrefix(key, "outlook:") }
 
 // calendarPruned: key is in a family a sync owns whole (goal:, spec:).
 func calendarPruned(key string) bool {
@@ -60,7 +64,9 @@ func calendarPruned(key string) bool {
 }
 
 // normalizeCalendarSync checks a batch and normalizes its events in place.
-func normalizeCalendarSync(batch []CalendarSyncEvent) error {
+// prefix "" is a roadmap sync, which may not write an outlook: key; an
+// import's prefix (outlook:<owner>:) is the one every key starts with.
+func normalizeCalendarSync(batch []CalendarSyncEvent, prefix string) error {
 	bad := func(key, what string) error {
 		return fmt.Errorf("%w: source_key %q: %s", ErrInvalidCalendarEvent, key, what)
 	}
@@ -72,7 +78,11 @@ func normalizeCalendarSync(batch []CalendarSyncEvent) error {
 		k, e := batch[i].SourceKey, &batch[i].Event
 		switch {
 		case !calendarSourceKeyRe.MatchString(k):
-			return bad(k, "must be goal:, spec:, release: or db: and 1..200 key characters")
+			return bad(k, "must be goal:, spec:, release:, db: or outlook: and 1..200 key characters")
+		case prefix == "" && calendarOutlookKey(k):
+			return bad(k, "an outlook: key is written by the Outlook import only")
+		case prefix != "" && !strings.HasPrefix(k, prefix):
+			return bad(k, "an import writes only keys that start with "+prefix)
 		case seen[k]:
 			return bad(k, "is twice in the batch")
 		case e.Audience == "":
@@ -110,7 +120,7 @@ func (s *Memory) UpsertCalendarBySourceKey(_ context.Context, tenant string, bat
 		return res, err
 	}
 	batch = slices.Clone(batch)
-	if err := normalizeCalendarSync(batch); err != nil {
+	if err := normalizeCalendarSync(batch, ""); err != nil {
 		return res, err
 	}
 	s.mu.Lock()
@@ -118,6 +128,22 @@ func (s *Memory) UpsertCalendarBySourceKey(_ context.Context, tenant string, bat
 	if _, ok := s.tenants[tenant]; !ok {
 		return res, ErrNotFound
 	}
+	at := calendarNow(now)
+	res, inBatch := s.upsertCalendarKeyedLocked(tenant, batch, at)
+	for k, id := range s.cal.keys[tenant] {
+		e := s.cal.events[tenant][id]
+		if !inBatch[k] && calendarPruned(k) && e.DeletedAt.IsZero() {
+			e.DeletedAt, e.DeletedBy = at, e.CreatorID
+			res.Deleted++
+		}
+	}
+	return res, nil
+}
+
+// upsertCalendarKeyedLocked writes a checked batch by key (s.mu held) and
+// answers the counts (Deleted is the caller's) and the keys it holds.
+func (s *Memory) upsertCalendarKeyedLocked(tenant string, batch []CalendarSyncEvent, at time.Time) (CalendarSyncResult, map[string]bool) {
+	var res CalendarSyncResult
 	if s.cal.events == nil {
 		s.cal.events = map[string]map[string]*CalendarEvent{}
 	}
@@ -130,7 +156,6 @@ func (s *Memory) UpsertCalendarBySourceKey(_ context.Context, tenant string, bat
 	if s.cal.keys[tenant] == nil {
 		s.cal.keys[tenant] = map[string]string{}
 	}
-	at := calendarNow(now)
 	inBatch := map[string]bool{}
 	for i := range batch {
 		k, n := batch[i].SourceKey, cloneCalendarEvent(&batch[i].Event)
@@ -159,14 +184,7 @@ func (s *Memory) UpsertCalendarBySourceKey(_ context.Context, tenant string, bat
 		s.cal.events[tenant][n.ID] = &n
 		s.cal.keys[tenant][k] = n.ID
 	}
-	for k, id := range s.cal.keys[tenant] {
-		e := s.cal.events[tenant][id]
-		if !inBatch[k] && calendarPruned(k) && e.DeletedAt.IsZero() {
-			e.DeletedAt, e.DeletedBy = at, e.CreatorID
-			res.Deleted++
-		}
-	}
-	return res, nil
+	return res, inBatch
 }
 
 // calendarSyncDiffers compares the columns a sync writes, stored against
@@ -220,32 +238,61 @@ func (s *Postgres) UpsertCalendarBySourceKey(ctx context.Context, tenant string,
 		return res, err
 	}
 	batch = slices.Clone(batch)
-	if err := normalizeCalendarSync(batch); err != nil {
+	if err := normalizeCalendarSync(batch, ""); err != nil {
 		return res, err
 	}
 	if !s.hasCalendar(ctx) {
 		return res, ErrCalendarUnavailable
 	}
+	keys := make([]string, 0, len(batch))
+	for _, x := range batch {
+		keys = append(keys, x.SourceKey)
+	}
 	at := calendarNow(now)
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		res = CalendarSyncResult{}
-		var has bool
-		if err := tx.QueryRow(ctx, calendarHasSourceKey).Scan(&has); err != nil {
-			return err
-		}
-		if !has {
-			return ErrCalendarUnavailable
-		}
-		b := &pgx.Batch{}
-		keys := make([]string, 0, len(batch))
-		for _, x := range batch {
+	return s.upsertCalendarKeyed(ctx, tenant, batch, calendarKeyedSQL{
+		upsert: func(b *pgx.Batch, x CalendarSyncEvent) {
 			e := x.Event
-			keys = append(keys, x.SourceKey)
 			b.Queue(calendarSyncUpsert, tenant, x.SourceKey, e.Title, e.Description, e.Kind, e.StartsAt, e.EndsAt,
 				e.AllDay, e.Audience, e.Mentions, e.CreatorType, e.CreatorID, nullTime(e.RemindAt),
 				nullIfEmpty(e.TopicID), nullIfEmpty(e.ReleaseVersion), e.Props, e.TimeZone, at)
+		},
+		prune: calendarSyncPrune, pruneArgs: []any{tenant, keys, at},
+	})
+}
+
+// calendarKeyedSQL is one keyed write: how each event is queued (a query
+// that answers xmax = 0, or no row when unchanged), the prune after it, and
+// a catalogue probe beside calendarHasSourceKey ("" for none).
+type calendarKeyedSQL struct {
+	upsert    func(b *pgx.Batch, x CalendarSyncEvent)
+	prune     string
+	pruneArgs []any
+	probe     string
+}
+
+// upsertCalendarKeyed runs q for a checked batch in one transaction in
+// tenant; ErrCalendarUnavailable until rdb 0156 (and q.probe) reach the db.
+func (s *Postgres) upsertCalendarKeyed(ctx context.Context, tenant string, batch []CalendarSyncEvent, q calendarKeyedSQL) (CalendarSyncResult, error) {
+	var res CalendarSyncResult
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		res = CalendarSyncResult{}
+		for _, probe := range []string{calendarHasSourceKey, q.probe} {
+			var has bool
+			if probe == "" {
+				continue
+			}
+			if err := tx.QueryRow(ctx, probe).Scan(&has); err != nil {
+				return err
+			}
+			if !has {
+				return ErrCalendarUnavailable
+			}
 		}
-		b.Queue(calendarSyncPrune, tenant, keys, at)
+		b := &pgx.Batch{}
+		for _, x := range batch {
+			q.upsert(b, x)
+		}
+		b.Queue(q.prune, q.pruneArgs...)
 		br := tx.SendBatch(ctx, b)
 		defer br.Close()
 		for range batch {

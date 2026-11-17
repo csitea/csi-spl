@@ -350,25 +350,35 @@ func (s *Server) costAllocSplits(ctx context.Context) ([]store.CostAllocation, e
 	return ca.CostAllocations(ctx)
 }
 
+// costAllocQuery is the month read costAllocatedParts answers for.
+type costAllocQuery struct {
+	op, tenant string
+	win        costMonthWindow
+	cur        string
+}
+
 // costAllocatedParts is workspace tenant's share of every estate item
 // allocated to it, in this month: source allocated, the item's key and
 // origin, its own source in allocated_source, and each amount floor(amount
 // * share_bp / 10000). spend counts in the workspace's total, human (hr
-// items) in its Human rows, as the estate's (SPL-4840).
-func (s *Server) costAllocatedParts(ctx context.Context, op, tenant string, win costMonthWindow, cur string,
-	splits []store.CostAllocation) (spend, human []store.CostPart, err error) {
+// items) in its Human rows, as the estate's (SPL-4840); human also holds
+// its share of the hr lines of a split person (SPL-5768,
+// costPersonSplitParts).
+func (s *Server) costAllocatedParts(ctx context.Context, q costAllocQuery, splits []store.CostAllocation,
+	person map[string][]store.CostAllocShare) (spend, human []store.CostPart, err error) {
+	if human, err = s.costPersonSplitParts(ctx, q, person, costAllocByKey(splits)); err != nil {
+		return nil, nil, err
+	}
 	mine := map[store.CostItemKey]int{}
 	for _, a := range splits {
-		for _, sh := range a.Shares {
-			if sh.WorkspaceID == tenant {
-				mine[a.CostItemKey] = sh.ShareBP
-			}
+		if bp := store.ShareOf(a.Shares, q.tenant); bp > 0 {
+			mine[a.CostItemKey] = bp
 		}
 	}
 	if len(mine) == 0 {
-		return nil, nil, nil
+		return nil, human, nil
 	}
-	items, err := s.costEstateItems(ctx, op, win, cur)
+	items, err := s.costEstateItems(ctx, q.op, q.win, q.cur)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -377,11 +387,11 @@ func (s *Server) costAllocatedParts(ctx context.Context, op, tenant string, win 
 		if !ok {
 			continue
 		}
-		q := costAllocShare(p, bp)
+		part := costAllocShare(p, bp)
 		if CostItemLabel(p.Source, p.Kind) == "persons" {
-			human = append(human, q)
+			human = append(human, part)
 		} else {
-			spend = append(spend, q)
+			spend = append(spend, part)
 		}
 	}
 	return spend, human, nil
@@ -406,13 +416,20 @@ func costAllocShare(p store.CostPart, bp int) store.CostPart {
 }
 
 // costAllocAnnotate names, on the estate answer, each part's and Human
-// row's split (the amounts stay whole: a share is an attribution).
-func costAllocAnnotate(b *costMonthBody, splits []store.CostAllocation) {
+// row's split (the amounts stay whole: a share is an attribution): its item
+// split, else (SPL-5768) the tokens split of a paid AI part. An hr row is a
+// component's, never a person's (spec 123 13.6), so it names no person
+// split.
+func costAllocAnnotate(b *costMonthBody, splits []store.CostAllocation, costSplits []store.CostSplit) {
 	byKey := costAllocByKey(splits)
+	tokens, _ := store.CostSplitShares(costSplits)
 	for _, rows := range [][]costPartOut{b.Parts, b.Human} {
 		for i := range rows {
-			if a, ok := byKey[costItemKeyOf(rows[i].CostPart)]; ok {
+			p := rows[i].CostPart
+			if a, ok := byKey[costItemKeyOf(p)]; ok {
 				rows[i].Allocation = a.Shares
+			} else if p.Source == store.CostSourceAIPaid && tokens != nil {
+				rows[i].Allocation = tokens
 			}
 		}
 	}

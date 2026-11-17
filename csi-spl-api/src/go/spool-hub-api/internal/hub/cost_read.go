@@ -217,6 +217,7 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 type costReadParts struct {
 	burn        []store.WorkspaceTokenPart
 	splits      []store.CostAllocation
+	costSplits  []store.CostSplit // SPL-5768: the token and person splits
 	ai          *store.AIPaidMonth
 	hand, human []store.CostPart
 }
@@ -231,15 +232,27 @@ func (s *Server) costReadGather(ctx context.Context, op, tenant string, estate b
 	if d.splits, err = s.costAllocSplits(ctx); err != nil {
 		return d, err
 	}
-	if d.ai, err = s.aiCostParts(ctx, op, estate, tenant, win, cur); err != nil {
+	if d.costSplits, err = s.costSplitsOf(ctx); err != nil {
+		return d, err
+	}
+	tokens, person := store.CostSplitShares(d.costSplits)
+	if !estate && tenant != op && tokens != nil {
+		// SPL-5768: the tokens split replaces the automatic share
+		d.ai, err = s.costSplitAIParts(ctx, op, tenant, win, cur, tokens)
+	} else {
+		d.ai, err = s.aiCostParts(ctx, op, estate, tenant, win, cur)
+	}
+	if err != nil {
 		return d, err
 	}
 	switch {
 	case estate:
 		d.hand, d.human, err = s.costEntryMonthParts(ctx, win.Month, cur)
 	case tenant != op:
-		// SPL-5291: a customer workspace's share of the items split by hand
-		d.hand, d.human, err = s.costAllocatedParts(ctx, op, tenant, win, cur, d.splits)
+		// SPL-5291: a customer workspace's share of the items split by
+		// hand; SPL-5768: and of the hr entries of a split person
+		d.hand, d.human, err = s.costAllocatedParts(ctx, costAllocQuery{op: op, tenant: tenant, win: win, cur: cur},
+			d.splits, person)
 	}
 	return d, err
 }
@@ -265,7 +278,7 @@ func costReadBody(win costMonthWindow, estate bool, cur string, cm store.CostMon
 	}
 	if estate {
 		// after Human: the annotation marks its rows too
-		costAllocAnnotate(&b, d.splits)
+		costAllocAnnotate(&b, d.splits, d.costSplits)
 	}
 	return b
 }

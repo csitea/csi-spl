@@ -13478,6 +13478,107 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/cost-splits": {
+      "get": {
+        "operationId": "getOperatorCostSplits",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {splits: [{split_kind, subject, shares, created_by, created_at}], people: [{id, code}], workspaces: [{id, name}]} (SPL-5768)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the instance's token and person cost splits",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "put": {
+        "operationId": "putOperatorCostSplit",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "One split (SPL-5768, rdb 0291): split_kind tokens (subject \"\", every paid AI item) or person (subject = the hr person id, every hr line of that person), each workspace's share in basis points summing to 10000; shares [] removes it. The operator workspace's admin or biz_owner, or the operator service account.",
+                "properties": {
+                  "shares": {
+                    "items": {
+                      "properties": {
+                        "share_bp": {
+                          "maximum": 10000,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "workspace_id",
+                        "share_bp"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "split_kind": {
+                    "enum": [
+                      "tokens",
+                      "person"
+                    ],
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "split_kind",
+                  "subject",
+                  "shares"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the stored split (SPL-5768)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Set or remove the tokens split or one person's cost split across workspaces",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/cost/day": {
       "post": {
         "operationId": "postOperatorCostDay",

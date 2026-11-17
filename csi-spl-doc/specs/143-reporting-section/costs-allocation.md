@@ -272,6 +272,14 @@ not apply).
 | `GET /v1/operator/cost-splits` | `{splits: [{split_kind, subject, shares, created_by, created_at}], people: [{id, code}], workspaces: [{id, name}]}` |
 | `PUT /v1/operator/cost-splits` `{split_kind, subject, shares: [{workspace_id, share_bp}]}` | 200, the split; `shares: []` removes it; an unknown kind, a tokens split with a subject, a person split whose subject is no hr person, a sum other than 10000, a duplicate or not-live workspace, a share outside 1..10000: 400 `bad_cost_split` |
 
+Data is entered through these routes and section 4's, never by SQL:
+`cd csi-spl-orc && ENV=<env> ./run -a do_spl_cost_split_apply` allocates
+every Cloud item of a month range (a cost line whose project starts with
+`COST_SPLIT_CLOUD_PREFIX`, default `csi-spl-`, to the operator workspace;
+every other line and every cloud cost entry to `COST_SPLIT_OTHER`) and sets
+`COST_SPLIT_TOKENS` and `COST_SPLIT_PERSONS` (by hr person code). It is a
+dry run unless `DRY_RUN=0` and prints counts only.
+
 ### 7.5 How the reads apply it
 
 - **Tokens.** With a tokens split set, a customer workspace W's month read
@@ -282,19 +290,23 @@ not apply).
   `floor(amount * share_bp / 10000)` (section 4's rounding; the remainder
   stays with the estate). `ai_share_from` is the month's first day. With no
   tokens split, the automatic share by tokens of 3.3.1 reads as before.
-- **Persons.** A customer workspace W's Human rows add, for every `hr`
-  entry of a person whose split holds W, that entry's part at W's share
-  (the same `allocated` shape, `allocated_source` `cost_entry`). An hr item
-  that also has its own item split (section 2) keeps that split: the item
-  split wins, so no cost counts twice.
+- **Persons.** A customer workspace W's Human rows add its share of the
+  month's `hr` lines of every person whose split holds W: each line's
+  amount at W's share, rounded down to the micro, then summed per
+  component like the estate's rows (no report row is a person's, spec 123
+  13.6): source `allocated`, `allocated_source` `cost_entry`, `share_bp`
+  set only when every split person gives W the same share. An hr row
+  whose estate item also has its own item split (section 2) keeps that
+  split and takes no person share, so no cost counts twice.
 - **The estate** keeps the full amounts (a share is an attribution); each
-  `ai_paid` part and each hr row of a split person names its split in
-  `allocation`, as in section 4.
+  `ai_paid` part names the tokens split in `allocation`, as in section 4.
+  An hr row is a component's, so it names no person split.
 
 ### 7.6 Tests
 
-Store (Memory and Postgres, RLS as in section 6); hub: the 403 for a
-developer and an act-as clone, the biz_owner write, the 400s (a sum of
+Store (Memory and Postgres, RLS as in section 6); hub: the 403 for the
+operator workspace's developer and another workspace's admin (the gate is
+`estateReadCaller`, which refuses an act-as clone), the biz_owner write, the 400s (a sum of
 9999, a tokens subject, an unknown person), a tokens split replacing
 `ai_share` with floor rounding (red control: the split not applied, W
 keeps its token share), a person split adding W's Human row, and an item

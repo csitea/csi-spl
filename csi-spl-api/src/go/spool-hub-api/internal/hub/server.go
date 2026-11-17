@@ -559,6 +559,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeHRPayroll(mux)       // SPL-5433 step c, rdb 0284: hr rates, the employer side, book, hr_payroll.go
 	s.routeHRWorker(mux)        // SPL-5433 step d, rdb 0286: worker shares, tax cards, payslips, hr_worker.go
 	s.routeCostAllocations(mux) // SPL-5291, rdb 0275: an estate cost split to workspaces, cost_allocations.go
+	s.routeCostSplits(mux)      // SPL-5768, rdb 0291: the token and person splits, cost_splits.go
 	s.routeUseMinutes(mux)      // SPL-5709, rdb 0289: hours of use per person and workspace, use_minutes.go
 	s.routeFleetDesks(mux)      // spec 158 4.2.2, rdb 0230: PUT/DELETE /v1/operator/fleet-desks/{box}, operator_fleet_desks.go
 	s.routeFleet(mux)           // spec 158 4.2.3-4, rdb 0243: GET /v1/fleet/workspaces, POST /v1/fleet/enrol, fleet_workspaces.go

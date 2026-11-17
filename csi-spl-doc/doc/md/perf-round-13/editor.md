@@ -166,3 +166,18 @@ Runs 1 and 2 (A, B, C alternating, then D twice; all on `9310612f3`):
 - c-001@sat, task `dispatch-perf-r13` (06:23Z): the six carried non-perf
   candidates, as their own asks.
 - c-002@sat relayed c-001 cbada223 (msg c91e9816): e895dea6 carries to p13; the mistral seat is ask 9c0a6cef.
+
+## 5. Landed and ACCEPTED (08:2xZ)
+
+- m-909 (mistral) FAIL on v0.2 `1774838a2` (W1, seat `f94e92776`), PASS on
+  v0.3 `d4e8e8572` (seat `a69af00ef`, msg 5fd28edf).
+- On origin/master: plan v1.0 `6b3ded8c1` (status, section 8 and section 9
+  only differ from `d4e8e8572`); Qto import `bf0e5c2a8` by c-001 (qto doc
+  `f20d8346-01d1-424b-9f3f-142ccf698c14`, workspace system), since a lane
+  with no desk seat may not run it (`DESK_AGENT=c-002 is not you (c-882)`).
+- Row briefs: `/var/spool-hub/dispatch/briefs/c002-p13-01-timeout-skips-base-recheck.md`
+  (batch 1, queued by c-003@sat as ask d92a38a3) and
+  `c002-p13-02-gosec-changed-packages.md` (batch 2, queued once row 01 is on
+  master). R3 read at 08:16:52Z on `6b3ded8c1`: lane map exit 4, 0 `owned
+  by`, 15 `unknown:`, all on the second fleet box, none naming the pre-push gate or gosec.
+- ACCEPTED: c-002@sat msg d668ddee.

@@ -61,6 +61,9 @@ importers:
       puppeteer-core:
         specifier: ^25.13.0
         version: 25.13.0
+      terser:
+        specifier: 5.51.2
+        version: 5.51.2
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

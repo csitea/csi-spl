@@ -30,7 +30,7 @@
 #                                       live run (2026-10-21T21:54Z, sat: 61800 logs,
 #                                       2420 MB, kept_open=0; SPL-2804);
 #                                       BOX_SWEEP_RUNLOG_APPLY=0 keeps it a plan
-#   vartmp     tmp-stale-sweep.sh       TMP_STALE_ANY=1 on /var/tmp (the ROOT disk): any
+#   vartmp     tmp-stale-sweep.sh       TMP_STALE_ANY=1 on /var/tmp and /var/tmp/claude (the ROOT disk): any
 #                                       idle lane leftover, a live lane's name kept;
 #                                       low / crit level only, idle 72 h / 24 h
 #   logs       log-sweep.sh             forced rsyslog rotation when a log is over
@@ -63,6 +63,22 @@
 # A crit sweep that leaves the disk under CRIT sends ONE note to the
 # orchestrator (task disk-sweep-<box>), again only after free went back up.
 #
+# FAST DROP (SPL-5837, 2026-11-17): a lane's ad hoc docker container wrote
+# 468 GB in 90 min; / fell 35 -> 27 -> 18 -> 7 -> 0% free on four ticks, the
+# normal gate skipped the first two, and the low sweep that started at 7%
+# spent 10 min in the sessions step (94 MB) before the disk was full. Nobody
+# knew the writer until the container ended. So, on every tick, before the
+# gate:
+#   - the free % is recorded ($lock.last-free); when it fell by
+#     BOX_SWEEP_DROP_PCT (5) or more since a record younger than
+#     BOX_SWEEP_DROP_WINDOW_MIN (35), the level is at least low, and crit when
+#     one more such drop would take it under CRIT;
+#   - disk-top-writers.sh names the cgroups (docker:<container>, a service,
+#     user.slice) that wrote over 1 GB since the last tick; at low / crit
+#     each is a TOP-WRITER line, and a fast drop sends ONE note to the
+#     orchestrator naming them (again only after a tick without a fast drop);
+#   - at low / crit the sessions step runs last: it is slow and frees little.
+#
 # Installed by do_box_disk_sweep_install_cron as ONE line in the box user's
 # crontab, every 15 minutes with BOX_SWEEP_GATE=1, tagged
 # `# csi-spl:box-disk-sweep`: a normal-level tick runs only when the last
@@ -78,7 +94,9 @@
 #   BOX_SWEEP_RUNLOG_APPLY default 1: the runlogs step gets DRY_RUN; 0 = it only plans (off switch)
 #   BOX_SWEEP_DOCKER_UNTIL default 72h (the session age, AGE_DAYS=3)
 #   BOX_SWEEP_GO_AGE_MIN   default 1440
-#   BOX_SWEEP_VARTMP_ROOT  default /var/tmp
+#   BOX_SWEEP_VARTMP_ROOT  default "/var/tmp /var/tmp/claude": each root that exists
+#                          (2026-11-17: 563 idle lane dirs, 20.7 GB, sat in /var/tmp/claude,
+#                          one level below what the step read; SPL-5837)
 #   BOX_SWEEP_LOW_VARTMP_AGE_H / _CRIT_VARTMP_AGE_H      default 72 / 24
 #   BOX_SWEEP_LOG_MAX      default 256M (log-sweep.sh's LOG_SWEEP_MAX)
 #   BOX_SWEEP_LOW_FREE_PCT / _CRIT_FREE_PCT              default 15 / 7
@@ -89,6 +107,10 @@
 #   BOX_SWEEP_GO_LOCK_WAIT_S default 300 (the go step's GO_CACHE_LOCK_WAIT)
 #   BOX_SWEEP_BUILDER_CAP_PCT default 10 (0 = no cap), the docker step's
 #                          PRUNE_BUILDER_CAP_PCT
+#   BOX_SWEEP_DROP_PCT     default 5 (0 = off): a fall of free % per tick that escalates
+#   BOX_SWEEP_DROP_WINDOW_MIN default 35: how old the last record may be
+#   BOX_SWEEP_PREV_FREE_PCT  the last tick's free % (tests: a planted value)
+#   BOX_SWEEP_WRITERS      the top-writers command (tests), default disk-top-writers.sh
 #   BOX_SWEEP_GATE         1: skip a normal-level tick younger than
 #                          BOX_SWEEP_EVERY_MIN (240); default 0 (always run)
 #   BOX_SWEEP_FREE_PCT     the measured free % (tests: a planted value)
@@ -122,13 +144,14 @@ go_wait="${BOX_SWEEP_GO_LOCK_WAIT_S:-300}"
 cap_pct="${BOX_SWEEP_BUILDER_CAP_PCT:-10}"
 low_pct="${BOX_SWEEP_LOW_FREE_PCT:-15}" crit_pct="${BOX_SWEEP_CRIT_FREE_PCT:-7}"
 gate="${BOX_SWEEP_GATE:-0}" every="${BOX_SWEEP_EVERY_MIN:-240}"
+drop_pct="${BOX_SWEEP_DROP_PCT:-5}" drop_win="${BOX_SWEEP_DROP_WINDOW_MIN:-35}"
 send="${BOX_SWEEP_SEND:-$orc/src/bash/features/spawn-agents/scripts/spool-send.sh}"
 journal_max="${BOX_SWEEP_JOURNAL_MAX:-500M}"
 runner_root="${BOX_SWEEP_RUNNER_ROOT:-/srv/gh-runner}"
 runner_age="${BOX_SWEEP_RUNNER_AGE:-2}"
 runlog_roots="${BOX_SWEEP_RUNLOG_ROOTS:-$HOME/var/log}" runlog_age="${BOX_SWEEP_RUNLOG_AGE_H:-72}"
 runlog_dry=1; [[ "${BOX_SWEEP_RUNLOG_APPLY:-1}" == 1 ]] && runlog_dry="$dry"
-vartmp_root="${BOX_SWEEP_VARTMP_ROOT:-/var/tmp}" vartmp_age=""
+vartmp_root="${BOX_SWEEP_VARTMP_ROOT:-/var/tmp /var/tmp/claude}" vartmp_age=""
 log_max="${BOX_SWEEP_LOG_MAX:-256M}"
 export SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
 
@@ -149,6 +172,12 @@ free_pct() {
   done | sort -n | sed -n 1p
 }
 
+# prev_free - the free % the last tick recorded, if it is under drop_win min old
+prev_free() {
+  if [[ -n "${BOX_SWEEP_PREV_FREE_PCT:-}" ]]; then echo "$BOX_SWEEP_PREV_FREE_PCT"; return; fi
+  [[ -n "$(find "$lock.last-free" -mmin -"$drop_win" 2>/dev/null)" ]] && head -c 8 "$lock.last-free" 2>/dev/null
+}
+
 # note <text> - a spool note to the orchestrator; a failed send is a WARN
 note() {
   [[ "${BOX_SWEEP_NOTE:-1}" == 0 || "$dry" == 1 ]] && { say "PLAN note to orchestrator: $1"; return 0; }
@@ -161,7 +190,7 @@ note() {
 }
 
 [[ "$dry" == 0 || "$dry" == 1 ]] || { say "FAIL DRY_RUN must be 0 or 1, got '$dry'"; exit 2; }
-for v in "$cap_pct" "$low_pct" "$crit_pct" "$every" "$go_age" "${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" "${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}" "$runner_age" \
+for v in "$cap_pct" "$low_pct" "$crit_pct" "$every" "$drop_pct" "$drop_win" "$go_age" "${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" "${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}" "$runner_age" \
     "$go_cap" "$go_wait" "${BOX_SWEEP_LOW_GO_CAP_GB:-3}" "${BOX_SWEEP_CRIT_GO_CAP_GB:-1}" \
     "${BOX_SWEEP_LOW_VARTMP_AGE_H:-72}" "${BOX_SWEEP_CRIT_VARTMP_AGE_H:-24}" \
     "$runlog_age" "${BOX_SWEEP_LOW_RUNLOG_AGE_H:-24}" "${BOX_SWEEP_CRIT_RUNLOG_AGE_H:-6}"; do
@@ -188,6 +217,38 @@ elif (( fpct < low_pct )); then
   level=low until="${BOX_SWEEP_LOW_DOCKER_UNTIL:-12h}" go_age="${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" vartmp_age="${BOX_SWEEP_LOW_VARTMP_AGE_H:-72}"
   go_cap="${BOX_SWEEP_LOW_GO_CAP_GB:-3}" runlog_age="${BOX_SWEEP_LOW_RUNLOG_AGE_H:-24}"
 fi
+# a fast fall escalates the level, whatever the free % (SPL-5837)
+read -r ppct _ <<<"$(prev_free)"
+drop=0 drop_noted="$lock.drop-noted"
+[[ "$ppct" =~ ^[0-9]+$ && "$fmount" != unmeasured ]] && drop=$(( ppct - fpct ))
+[[ "$dry" == 0 && "$fmount" != unmeasured && -z "${BOX_SWEEP_FREE_PCT:-}" ]] && echo "$fpct" >"$lock.last-free" 2>/dev/null
+if (( drop_pct > 0 && drop >= drop_pct )); then
+  if (( fpct - drop < crit_pct )) && [[ "$level" != crit ]]; then
+    level=crit until="${BOX_SWEEP_CRIT_DOCKER_UNTIL:-2h}" go_age="${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}" vartmp_age="${BOX_SWEEP_CRIT_VARTMP_AGE_H:-24}"
+    go_cap="${BOX_SWEEP_CRIT_GO_CAP_GB:-1}" runlog_age="${BOX_SWEEP_CRIT_RUNLOG_AGE_H:-6}"
+  elif [[ "$level" == normal ]]; then
+    level=low until="${BOX_SWEEP_LOW_DOCKER_UNTIL:-12h}" go_age="${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" vartmp_age="${BOX_SWEEP_LOW_VARTMP_AGE_H:-72}"
+    go_cap="${BOX_SWEEP_LOW_GO_CAP_GB:-3}" runlog_age="${BOX_SWEEP_LOW_RUNLOG_AGE_H:-24}"
+  fi
+  say "ESCALATE free fell ${drop}% in one tick (${ppct}% -> ${fpct}%, $fmount): level $level"
+fi
+read -ra wcmd <<<"${BOX_SWEEP_WRITERS:-bash $scripts/disk-top-writers.sh}"
+writers="$("${wcmd[@]}" "$lock.writers" 2>/dev/null)"
+if [[ "$level" != normal && -n "$writers" ]]; then
+  while read -r mb who; do say "TOP-WRITER ${mb} MB since the last tick: $who"; done <<<"$writers"
+fi
+if (( drop_pct > 0 && drop >= drop_pct )); then
+  if [[ ! -e "$drop_noted" ]]; then
+    note "FAST DROP $fmount free fell ${drop}% in one tick (${ppct}% -> ${fpct}%), level $level. Top writers since the last tick (MB): $(tr '\n' ';' <<<"${writers:-none over 1 GB}")" \
+      && [[ "$dry" == 0 ]] && touch "$drop_noted" 2>/dev/null
+  fi
+else
+  rm -f "$drop_noted" 2>/dev/null
+fi
+# the sessions step is slow and frees little: under pressure it runs last
+if [[ "$level" != normal && " $steps " == *" sessions "* ]]; then
+  steps="$(sed -E 's/(^| )sessions( |$)/ /' <<<"$steps") sessions"; steps="${steps# }"
+fi
 stamp="$lock.last-normal" noted="$lock.crit-noted"
 if [[ "$gate" == 1 && "$level" == normal && -f "$stamp" ]] && [[ -n "$(find "$stamp" -mmin -"$every" 2>/dev/null)" ]]; then
   say "SKIP level=normal free=${fpct}% ($fmount): the last normal sweep is under ${every} min old"; exit 0
@@ -210,7 +271,12 @@ for s in $steps; do
     journal)   DRY_RUN="$dry" BOX_SWEEP_JOURNAL_MAX="$journal_max" bash "$scripts/journal-sweep.sh" ;;
     runners)   DRY_RUN="$dry" BOX_SWEEP_RUNNER_ROOT="$runner_root" BOX_SWEEP_RUNNER_AGE="$runner_age" bash "$scripts/runner-sweep.sh" ;;
     runlogs)   DRY_RUN="$runlog_dry" RUN_LOG_SWEEP_ROOTS="$runlog_roots" RUN_LOG_SWEEP_AGE_H="$runlog_age" bash "$scripts/run-log-sweep.sh" ;;
-    vartmp)    DRY_RUN="$dry" TMP_STALE_ROOT="$vartmp_root" TMP_STALE_ANY=1 TMP_STALE_AGE_H="$vartmp_age" bash "$scripts/tmp-stale-sweep.sh" ;;
+    vartmp)    vr=0
+               for r in $vartmp_root; do
+                 [[ -d "$r" ]] || { say "INFO vartmp: no $r"; continue; }
+                 DRY_RUN="$dry" TMP_STALE_ROOT="$r" TMP_STALE_ANY=1 TMP_STALE_AGE_H="$vartmp_age" bash "$scripts/tmp-stale-sweep.sh" || vr=1
+               done
+               (( vr == 0 )) ;;
     logs)      DRY_RUN="$dry" LOG_SWEEP_MAX="$log_max" bash "$scripts/log-sweep.sh" ;;
   esac
   r=$?

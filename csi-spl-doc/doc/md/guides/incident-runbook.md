@@ -227,6 +227,32 @@ cd csi-spl-orc && DRY_RUN=0 ./run -a do_box_disk_sweep
 
 Action file: `csi-spl-orc/src/bash/run/box-disk-sweep.func.sh`
 
+A fast fall escalates the cron sweep (SPL-5837). Every 15-minute tick
+records the free % (`<lock>.last-free`); when it fell by
+`BOX_SWEEP_DROP_PCT` (5) or more since the last tick, the tick runs at
+least the `low` level, ignoring the 4-hour gate, and `crit` when one more
+such fall would cross 7%. Under pressure the slow `sessions` step runs
+last. Each tick also reads the kernel's per-cgroup write counters
+(`csi-spl-orc/src/bash/scripts/disk-top-writers.sh`, cgroup v2 `io.stat`)
+and, at `low` / `crit`, logs the cgroups that wrote over 1 GB since the
+last tick as `TOP-WRITER <MB> MB since the last tick: docker:<name> (<id>)`.
+A fast fall sends ONE note to the orchestrator (task `disk-sweep-<box>`)
+naming them. The sweep never stops a container: the note's receiver asks
+the owning lane, or the owner, to stop it.
+
+```bash
+grep -E 'ESCALATE|TOP-WRITER' /var/csi/csi-spl/box-disk-sweep/box-disk-sweep.log | tail -20
+```
+
+Why: on 2026-11-17 a lane's stress-test container (`docker run ... sleep
+6000`, its temp dir in the container's own layer) wrote 468 GB in 90
+minutes; `/` fell 35 -> 27 -> 18 -> 7% free on three ticks and was full at
+21:36Z, two of those ticks were skipped by the gate, and the `low` sweep
+that started at 7% spent 10 minutes in `sessions` (94 MB). The writer was
+known only when it ended (`journalctl | grep 'written to disk'` on its
+`docker-<id>.scope`). A lane's test container takes `--rm`, the
+`csi-spl.lane=<id>` label and a capped temp dir (`--tmpfs /tmp:size=4g`).
+
 #### 4.3.4 Clean temporary scratch files
 
 ```bash

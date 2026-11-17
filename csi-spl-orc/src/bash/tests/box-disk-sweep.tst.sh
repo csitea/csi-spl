@@ -28,7 +28,7 @@
 #      (CONTROLS: 15 and 7, the boundaries, are not low / crit; the dry run
 #      only plans the note); the gate skips a normal tick younger than 4 h
 #      but never a low one
-#   3d. /var/tmp: the /tmp name shapes never touch a lane leftover (RED
+#   3d. /var/tmp (and each other root that exists, /var/tmp/claude): the /tmp name shapes never touch a lane leftover (RED
 #      CONTROL); TMP_STALE_ANY=1 removes a planted idle 1 MB one and reports
 #      it, keeps a live lane's, a recent one and a dot entry; the vartmp and
 #      logs steps never run at the normal level (CONTROL), run at low (72 h)
@@ -45,6 +45,14 @@
 #      12 h old, on a 100 GB disk at the LOW level is cut to 10 GB (10%);
 #      RED CONTROL: the old rule (BOX_SWEEP_BUILDER_CAP_PCT=0, until=12h
 #      only) leaves all 25 GB
+#   3g. the fast drop (SPL-5837): disk-top-writers.sh on a planted cgroup
+#      tree prints nothing on its first call, then the deepest cgroups that
+#      wrote over 1 GB since, docker scopes by name (RED CONTROL: the parent
+#      slice that grew too is not a writer); the sweep at a planted 35 -> 27%
+#      runs low, not normal, under the gate, names the TOP-WRITER, sends ONE
+#      note and runs the sessions step last; 27 -> 18 -> 12 goes crit;
+#      CONTROLS: a 4% fall, BOX_SWEEP_DROP_PCT=0 and a record older than the
+#      window stay normal with sessions first
 #   4. do_box_disk_sweep_install_cron: the dry run prints the 15-min gated line
 #      and changes nothing; DRY_RUN=0 adds ONE tagged line, every other kept;
 #      a second install is a no-op; remove restores the crontab byte for byte
@@ -336,11 +344,13 @@ grep -q 'SKIP step vartmp: level normal' <<<"$out" && grep -q 'SKIP step logs: l
   && pass "3d. CONTROL: at the normal level vartmp and logs never run (free space drives them)" || fail "3d. normal ($out / $(cat "$L"))"
 printf '#!/bin/sh\necho "log-sweep DRY_RUN=$DRY_RUN MAX=$LOG_SWEEP_MAX" >>%q\n' "$L" >"$F/log-sweep.sh"
 printf '#!/bin/sh\necho "tmp-stale-sweep DRY_RUN=$DRY_RUN ROOT=$TMP_STALE_ROOT ANY=${TMP_STALE_ANY:-} AGE=$TMP_STALE_AGE_H" >>%q\n' "$L" >"$F/tmp-stale-sweep.sh"
+mkdir -p "$T/vt/claude"
 for c in "10 72" "3 24"; do
   read -r f a <<<"$c"; : >"$L"
-  FREE=$f bsw DRY_RUN=0 BOX_SWEEP_STEPS='vartmp logs' BOX_SWEEP_VARTMP_ROOT=/x/vt >/dev/null
-  [ "$(cat "$L")" = "tmp-stale-sweep DRY_RUN=0 ROOT=/x/vt ANY=1 AGE=$a
-log-sweep DRY_RUN=0 MAX=256M" ] && pass "3d. free $f%: vartmp (idle $a h) and logs run" || fail "3d. free $f% ($(cat "$L"))"
+  FREE=$f bsw DRY_RUN=0 BOX_SWEEP_STEPS='vartmp logs' BOX_SWEEP_VARTMP_ROOT="$T/vt $T/no-vt $T/vt/claude" >/dev/null
+  [ "$(cat "$L")" = "tmp-stale-sweep DRY_RUN=0 ROOT=$T/vt ANY=1 AGE=$a
+tmp-stale-sweep DRY_RUN=0 ROOT=$T/vt/claude ANY=1 AGE=$a
+log-sweep DRY_RUN=0 MAX=256M" ] && pass "3d. free $f%: vartmp (idle $a h, each root that exists, /var/tmp/claude style) and logs run" || fail "3d. free $f% ($(cat "$L"))"
 done
 
 # ---- 3e. the logs step: a planted oversize log, the real delta ---------------
@@ -396,6 +406,51 @@ inst DRY_RUN=0 >/dev/null
 printf '%s\n' '11-59/15 * * * * BOX_SWEEP_JOURNAL_MAX=$(id) bash /old/box-disk-sweep.sh # csi-spl:box-disk-sweep' >"$CT"
 inst DRY_RUN=0 >/dev/null
 ! grep -q 'BOX_SWEEP_JOURNAL_MAX' "$CT" && pass "4. CONTROL: a value that is no size is not carried over" || fail "4. bad value carried ($(cat "$CT"))"
+
+# ---- 3g. the fast drop (SPL-5837) ------------------------------------------------
+R="$T/cg" W="$T/writers.state" did=01e76e4ab6e7d87f254ed20df073f74a2e1f18ef62478bbbfba2631adc893ea9
+mkdir -p "$R/system.slice/docker-$did.scope" "$R/system.slice/cron.service" "$R/user.slice"
+cgw() { echo "259:0 rbytes=1 wbytes=$2 rios=1 wios=1" >"$R/$1/io.stat"; }
+cgw . 9000000000; cgw system.slice 5000000000; cgw "system.slice/docker-$did.scope" 1000; cgw system.slice/cron.service 1000; cgw user.slice 1000
+printf '#!/bin/sh\necho /c361-ub\n' >"$T/dk-stub"; chmod +x "$T/dk-stub"
+dtw() { DISK_WRITERS_CGROUP_ROOT="$R" DISK_WRITERS_DOCKER="$T/dk-stub" bash "$PROJ_ROOT/src/bash/scripts/disk-top-writers.sh" "$W" 2>&1; }
+out="$(dtw)"; rc=$?
+[ "$rc" = 0 ] && [ -z "$out" ] && [ "$(wc -l <"$W")" = 3 ] && pass "3g. the first writers call prints nothing and records the 3 deepest cgroups" || fail "3g. first call (rc $rc: $out / $(cat "$W" 2>/dev/null))"
+cgw "system.slice/docker-$did.scope" $((3 * 1073741824 + 1000)); cgw system.slice/cron.service 10000000; cgw system.slice 99000000000
+out="$(dtw)"
+[ "$out" = "3072 docker:c361-ub (01e76e4ab6e7)" ] && pass "3g. the next call names the container that wrote 3 GB, not the 10 MB service nor the parent slice" || fail "3g. writers ($out)"
+out="$(dtw)"
+[ -z "$out" ] && pass "3g. RED CONTROL: no new writes since the last call -> no writer" || fail "3g. no delta ($out)"
+
+printf '#!/bin/sh\necho "468000 docker:c361-ub (01e76e4ab6e7)"\n' >"$T/w-stub"; chmod +x "$T/w-stub"
+# the fake steps: sessions -> spl-session-prune, tmp -> tmp-stale-sweep, docker -> prune-docker-images
+fd() { BOX_SWEEP_WRITERS="$T/w-stub" BOX_SWEEP_STEPS='sessions tmp worktrees docker' bsw DRY_RUN=0 BOX_SWEEP_GATE=1 "$@"; }
+touch "$T/sweep.lock.last-normal"; rm -f "$T/sweep.lock.drop-noted"; : >"$L"; : >"$T/sent"
+out="$(FREE=27 fd BOX_SWEEP_PREV_FREE_PCT=35)"
+grep -q 'ESCALATE free fell 8% in one tick (35% -> 27%' <<<"$out" && grep -q "START .* level=low free=27%" <<<"$out" \
+  && pass "3g. 35 -> 27% free runs the low level under the gate" || fail "3g. escalate low ($out)"
+grep -q 'TOP-WRITER 468000 MB since the last tick: docker:c361-ub (01e76e4ab6e7)' <<<"$out" && pass "3g. the top writer is logged" || fail "3g. top writer ($out)"
+[ "$(grep -c . "$T/sent")" = 1 ] && grep -q -- '--to orchestrator --kind note --task disk-sweep-.* FAST DROP .* fell 8% .*468000 docker:c361-ub' "$T/sent" \
+  && pass "3g. ONE note to the orchestrator names the fall and the writer" || fail "3g. note ($(cat "$T/sent"))"
+[ "$(sed -n 1p "$L" | cut -d' ' -f1)" = tmp-stale-sweep ] && [ "$(tail -n 1 "$L" | cut -d' ' -f1)" = spl-session-prune ] \
+  && pass "3g. under pressure the sessions step runs last" || fail "3g. order ($(cat "$L"))"
+: >"$T/sent"; out="$(FREE=18 fd BOX_SWEEP_PREV_FREE_PCT=27)"
+[ ! -s "$T/sent" ] && grep -q "level=low free=18%" <<<"$out" && pass "3g. ...once: the next fast-drop tick sends no new note" || fail "3g. note repeat ($(cat "$T/sent") / $out)"
+out="$(FREE=12 fd BOX_SWEEP_PREV_FREE_PCT=18)"
+grep -q "START .* level=crit free=12% (planted) docker_until=2h" <<<"$out" && pass "3g. 18 -> 12%: one more such fall is under 7%, so crit" || fail "3g. crit ($out)"
+for c in "31 BOX_SWEEP_DROP_PCT=5 a 4% fall" "27 BOX_SWEEP_DROP_PCT=0 an 8% fall with BOX_SWEEP_DROP_PCT=0"; do
+  read -r f kv why <<<"$c"; : >"$L"; : >"$T/sent"
+  out="$(FREE=$f fd BOX_SWEEP_PREV_FREE_PCT=35 "$kv" BOX_SWEEP_GATE=0)"
+  grep -q "level=normal" <<<"$out" && ! grep -q ESCALATE <<<"$out" && [ ! -s "$T/sent" ] && [ "$(sed -n 1p "$L" | cut -d' ' -f1)" = spl-session-prune ] \
+    && pass "3g. CONTROL: $why stays normal, sessions first, no note" || fail "3g. control $why ($out)"
+done
+echo 50 >"$T/sweep.lock.last-free"; : >"$T/sent"; rm -f "$T/sweep.lock.drop-noted"
+out="$(FREE=40 fd)"
+grep -q 'ESCALATE free fell 10% in one tick (50% -> 40%' <<<"$out" && pass "3g. the last tick's record ($T/sweep.lock.last-free) is read" || fail "3g. record ($out)"
+touch -d '1 hour ago' "$T/sweep.lock.last-free"; out="$(FREE=40 fd BOX_SWEEP_GATE=0)"
+! grep -q ESCALATE <<<"$out" && pass "3g. CONTROL: a record older than 35 min is no tick" || fail "3g. old record ($out)"
+rm -f "$T/sweep.lock.last-free"; out="$(fd BOX_SWEEP_FREE_PCT= BOX_SWEEP_GATE=0)"
+grep -qE '^[0-9]+$' "$T/sweep.lock.last-free" && pass "3g. an unplanted live tick records its free %" || fail "3g. no record ($out)"
 
 echo "box-disk-sweep: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

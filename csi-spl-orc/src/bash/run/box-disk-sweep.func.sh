@@ -35,6 +35,7 @@
 # @param BOX_SWEEP_LOW_VARTMP_AGE_H / BOX_SWEEP_CRIT_VARTMP_AGE_H (optional) - 72 / 24
 # @param BOX_SWEEP_LOG_MAX (optional) - default 256M
 # @param BOX_SWEEP_LOW_FREE_PCT / BOX_SWEEP_CRIT_FREE_PCT (optional) - 15 / 7
+# @param BOX_SWEEP_DROP_PCT (optional) - default 5 (0 = off): a fall of the free % since the last tick (under 35 min) that runs at least the low level, crit when one more such fall crosses CRIT, logs the TOP-WRITER cgroups and sends one note
 # @example ./run -a do_box_disk_sweep
 # @example DRY_RUN=0 ./run -a do_box_disk_sweep
 #------------------------------------------------------------------------------

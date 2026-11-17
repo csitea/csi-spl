@@ -129,13 +129,17 @@ export function newNoteFields(_link, typed) {
 /**
  * SPL-5710: what Enter in the picker's box does: add to the first row when
  * one matches, else make a new note holding the typed text; nothing on an
- * empty box with no rows.
+ * empty box with no rows. SPL-5727: nothing until the list is `ready`: while
+ * it loads the rows are empty or stale (a New note where a note would match),
+ * and with the notes `off` the New note button is disabled.
  *
  * @param {number} rows
  * @param {string} typed
+ * @param {string} state the notes store's state
  * @returns {'row' | 'new' | null}
  */
-export function pickerEnter(rows, typed) {
+export function pickerEnter(rows, typed, state) {
+  if (state !== 'ready') return null
   if (rows > 0) return 'row'
   return String(typed ?? '').trim() ? 'new' : null
 }

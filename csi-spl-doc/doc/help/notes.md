@@ -124,7 +124,9 @@ channel row. It opens a list of your notes, latest changed first, with
   a thing in a workspace you later leave does not stay in your notes (a
   note made this way before keeps its title). Text
   you typed in the box becomes the note's text; press **Enter** in the box
-  when no note matches to do the same.
+  when no note matches to do the same. **Enter** waits until your notes have
+  loaded. If the text cannot be saved, the list stays open with your text in
+  the box and shows **Not saved, retry**; press **Enter** again.
 
 The note is yours (see above): it shows in **Notes** in every workspace you
 belong to, not inside the issue. To write something everyone on an issue

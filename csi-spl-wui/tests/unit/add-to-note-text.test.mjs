@@ -6,6 +6,9 @@
 // SPL-5725 (spec 155 D4): the new note takes no title from the object. A
 // title copied from it outlived the person leaving the object's workspace,
 // while the hub drops the same text from the link's label.
+// SPL-5727: Enter does nothing until the list is ready (rows empty or stale
+// while it loads; New note disabled with the notes off), and a text that did
+// not save is not hidden behind an "Added" toast.
 // Run: node tests/unit/add-to-note-text.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
@@ -33,12 +36,21 @@ describe('add-to-note: New note keeps the typed text (SPL-5710)', () => {
   })
   it('Enter: the first match, else a new note of the text, else nothing', () => {
     assert.equal(typeof atn.pickerEnter, 'function', 'pickerEnter is missing: Enter on unmatched text does nothing')
-    assert.equal(atn.pickerEnter(2, 'groc'), 'row')
-    assert.equal(atn.pickerEnter(0, 'a note for the task'), 'new')
-    assert.equal(atn.pickerEnter(0, '  '), null)
+    assert.equal(atn.pickerEnter(2, 'groc', 'ready'), 'row')
+    assert.equal(atn.pickerEnter(0, 'a note for the task', 'ready'), 'new')
+    assert.equal(atn.pickerEnter(0, '  ', 'ready'), null)
+  })
+  it('Enter acts only on a ready list: not while it loads, failed or off (SPL-5727)', () => {
+    for (const state of ['idle', 'loading', 'failed', 'off']) {
+      assert.equal(atn.pickerEnter(0, 'a note for the task', state), null, `${state}: Enter made a New note`)
+      assert.equal(atn.pickerEnter(2, 'groc', state), null, `${state}: Enter took a stale row`)
+    }
   })
   it('the picker writes those fields on New note and takes Enter from pickerEnter', () => {
     assert.match(picker, /newNoteFields\(link\.value, query\.value\)/, 'pickNew must pass the typed text')
-    assert.match(picker, /pickerEnter\(rows\.value\.length, query\.value\)/, 'Enter must ask pickerEnter')
+    assert.match(picker, /pickerEnter\(rows\.value\.length, query\.value, store\.state\)/, 'Enter must ask pickerEnter, with the list state')
+  })
+  it('a failed text save is not swallowed (SPL-5727)', () => {
+    assert.doesNotMatch(picker, /store\.patch\([^)]*\)\.catch\(/, 'pickNew swallows the PATCH: the toast says Added and the text is lost')
   })
 })

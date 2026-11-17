@@ -5,7 +5,10 @@
      a note holding that one link and, as its text, what was typed in the box
      (SPL-5710), with no title: the object's title stays on the link alone,
      which the hub drops after a leave (D4, SPL-5725); Enter with no matching
-     note does the same.
+     note does the same, and Enter does nothing until the list is
+     loaded. When that text fails to save there is no toast: the picker stays
+     open with the text in the box and "Not saved, retry", and the retry
+     writes the same note (SPL-5727).
      Mounted once by composables/useAddToNote.ts (its own chunk, fetched on
      the first open). UiDialog owns focus, Escape, the phone full screen and
      the Back overlay, as for the move picker. -->
@@ -82,6 +85,8 @@ const busy = ref(false)
 const error = ref('')
 const toast = ref<{ id: string, title: string, seq: number } | null>(null)
 let seq = 0
+/* SPL-5727: the New note whose text did not save; the retry writes it, never a second note */
+let made = ''
 
 const rows = computed(() => pickerNotes(store.notes, query.value))
 watch(() => store.state, (s) => noteNotesState(s), { immediate: true })
@@ -96,6 +101,7 @@ function show(next: NoteLinkIn) {
   query.value = ''
   error.value = ''
   busy.value = false
+  made = ''
   open.value = true
   void store.load()
 }
@@ -126,16 +132,23 @@ async function pickNew() {
   busy.value = true
   error.value = ''
   try {
-    const id = await store.create()
+    const id = made || await store.create()
     if (!id) {
       error.value = 'notes.create_failed'
       return
     }
-    await store.addLink(id, link.value)
+    if (!made) await store.addLink(id, link.value)
     /* SPL-5710: the text typed in the box is the new note's body */
     const fields = newNoteFields(link.value, query.value)
     const patch = Object.fromEntries(Object.entries(fields).filter(([, v]) => v))
-    if (Object.keys(patch).length) await store.patch(id, patch).catch(() => { /* the link is in; title and text stay empty */ })
+    const saved = Object.keys(patch).length ? await store.patch(id, patch).then(() => true, (e: unknown) => e) : true
+    /* SPL-5727: the typed text did not save: no "Added", the text stays in the box */
+    if (saved !== true && patch.body) {
+      made = id
+      error.value = refusal(saved)
+      return
+    }
+    made = ''
     done(id, rowTitle({ title: fields.title, snippet: fields.body } as NoteSummary))
   } catch (e) {
     error.value = refusal(e)
@@ -144,10 +157,10 @@ async function pickNew() {
   }
 }
 
-/* SPL-5710: Enter adds to the first match, else makes a note of the typed text */
+/* SPL-5710: Enter adds to the first match, else makes a note of the typed text; SPL-5727: only once the list is ready */
 function pickFirst() {
   const first = rows.value[0]
-  const what = pickerEnter(rows.value.length, query.value)
+  const what = pickerEnter(rows.value.length, query.value, store.state)
   if (what === 'row' && first) void pick(first.id, rowTitle(first))
   else if (what === 'new') void pickNew()
 }

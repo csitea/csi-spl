@@ -604,7 +604,11 @@ named.
   typed in the picker's box is the body of a "New note" (it was dropped,
   leaving a note with the object's title and no text), and Enter with no
   matching note makes that note; since SPL-5725 that note has no title
-  (D4).
+  (D4). Since SPL-5727 Enter does nothing until
+  the list is loaded (`ready`; not while it loads, failed or with the notes
+  off), and a text that fails to save shows no "Added" toast: the picker
+  stays open with the text in the box and "Not saved, retry", and the retry
+  writes the same note, never a second one.
 - **D4.** Default (owner may change): after the person leaves a
   workspace, links into it stay in the note but lose their label (2.3,
   2.4). Changes B4 only. Since SPL-5725 (owner may change): a "New note"

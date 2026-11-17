@@ -16,6 +16,10 @@
 //   SPL-5710 the open issue's comment box is labelled, under the comments
 //       and above the discussions; text typed in the picker is a New note's
 //       body (Enter with no match). SHOTS_DIR=<dir> saves the dialog PNGs.
+//   SPL-5727 Enter while the list loads or with the notes off makes no note;
+//       a New note whose text fails to save shows "Not saved, retry", no
+//       "Added" toast, keeps the text in the box, and the retry writes that
+//       same note
 //   section 6 / B8: with the notes off (the hub's 404 notes_off, read by the
 //       store as `off`) the items hide
 // The links are read back through the notes store's own get(), the one
@@ -354,6 +358,79 @@ async function typedNote(browser, base) {
   await p.close()
 }
 
+/* SPL-5727: the notes store's create and patch, counted / failed in the page */
+const rig = (p, how) => p.evaluate((how) => {
+  const store = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes')
+  window.__rig ??= { create: store.create, patch: store.patch, creates: 0 }
+  const r = window.__rig
+  store.create = (...a) => { r.creates++; return r.create(...a) }
+  store.patch = how.failPatch ? () => Promise.reject(new Error('network')) : r.patch
+  if (how.state) store.state = how.state
+  return r.creates
+}, how)
+
+/* SPL-5727: a fresh page per case, so one case's red cannot hide another's */
+async function openPicker(browser, base, tag, text) {
+  const p = await openPage(browser, base, 1440, false)
+  await go(p, '/issues')
+  await visible(p, '[data-test=issues-page]')
+  const key = await newIssue(p, 'File the receipt')
+  await go(p, `/issues?issue=${key}`)
+  await visible(p, '[data-test=issues-detail-archive]')
+  await p.evaluate(() => [...document.querySelectorAll('[data-test=issues-detail-note]')].find((e) => e.offsetParent)?.click())
+  check(`${tag}: the picker opens`, await visible(p, '[data-test=note-picker][data-state=ready]'))
+  await p.type('[data-test=note-picker-filter]', text)
+  await visible(p, '[data-test=note-picker-empty]', 5000)
+  return p
+}
+
+async function pickerGuards(browser, base) {
+  const tag = '1440px SPL-5727'
+  const text = 'Receipt filed under travel, zq5727'
+  /* N3: pickNew calls create in the keydown itself, so the count is final once Enter returns */
+  for (const state of ['loading', 'off']) {
+    const p = await openPicker(browser, base, `${tag} ${state}`, text)
+    await rig(p, { state })
+    await p.focus('[data-test=note-picker-filter]')
+    await p.keyboard.press('Enter')
+    const creates = await rig(p, {})
+    check(`${tag}: Enter with the list ${state} makes no note`, creates === 0, { creates })
+    await p.close()
+  }
+  /* N2: the text's PATCH fails */
+  const p = await openPicker(browser, base, `${tag} save`, text)
+  await rig(p, { failPatch: true })
+  await p.focus('[data-test=note-picker-filter]')
+  await p.keyboard.press('Enter')
+  /* whichever comes first: the error (fixed) or the "Added" toast (the bug) */
+  await p.waitForSelector('[data-test=note-picker-error], [data-testid=note-added-text]', { visible: true, timeout: 10000 }).catch(() => null)
+  const err = await p.evaluate(() => document.querySelector('[data-test=note-picker-error]')?.textContent.trim() || '')
+  const after = await p.evaluate(() => ({ toast: document.querySelector('[data-testid=note-added-text]')?.textContent.trim() || '', open: Boolean(document.querySelector('[data-test=note-picker]')), box: document.querySelector('[data-test=note-picker-filter]')?.value || '' }))
+  check(`${tag}: a failed text save says "Not saved, retry"`, err === 'Not saved, retry', err)
+  check(`${tag}: no "Added" toast, the picker stays open with the text`, !after.toast && after.open && after.box === text, after)
+  /* the retry writes the same note: one create in all */
+  if (!after.open) {
+    check(`${tag}: the retry saves the text in the same note`, false, 'the picker closed')
+    await p.close()
+    return
+  }
+  await rig(p, {})
+  await p.focus('[data-test=note-picker-filter]')
+  await p.keyboard.press('Enter')
+  const toast = await p.waitForSelector('[data-testid=note-added-text]', { visible: true, timeout: 10000 }).then((e) => e.evaluate((x) => x.textContent.trim()), () => '')
+  const creates = await rig(p, {})
+  const note = await p.evaluate(async (want) => {
+    const store = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes')
+    for (const n of store.notes) {
+      const got = (await store.get(n.id)).note
+      if (got?.body === want) return { links: got.links.length }
+    }
+    return null
+  }, text)
+  check(`${tag}: the retry saves the text in the same note`, Boolean(toast) && creates === 1 && note?.links === 1, { toast, creates, note })
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -368,6 +445,7 @@ try {
   await channelRow(browser, server.base, 390, true)
   await notesOff(browser, server.base)
   await typedNote(browser, server.base)
+  await pickerGuards(browser, server.base)
 } catch (e) {
   console.error(e)
   code = 1

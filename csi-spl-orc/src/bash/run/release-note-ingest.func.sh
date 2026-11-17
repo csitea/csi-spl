@@ -30,25 +30,41 @@
 # @param RELEASE_NOTE_DEPTH (optional) - how many first-parent commits back, default 500
 # @param RELEASE_NOTE_BATCH (optional) - rows per request, default 100 (hub max 500)
 # @param RELEASE_REMOTE (optional) - the remote holding the tags and notes, default origin
-# @param RELEASE_ISSUE_TENANT (optional) - the workspace whose issues the messages cite (SPL-4789), default cnf env.hub.commit_issue_tenant
+# @description A workspace's own repo (spec 143 releases-projects.md row B-6,
+# @description spec 171 Lane 3 box push): RELEASE_NOTE_REPO_PATH names its
+# @description clone, RELEASE_NOTE_TENANT and RELEASE_NOTE_REPO_SLUG the
+# @description workspace and repo the hub stores the rows under (both
+# @description required for a clone that is not this repo, so a workspace's
+# @description commits never land in the operator workspace). Its versions
+# @description come from its own tags (RELEASE_NOTE_TAG_GLOB): the first tag
+# @description on its trunk that contains the commit, so two repos'
+# @description versions stay apart.
+# @param RELEASE_ISSUE_TENANT (optional) - the workspace whose issues the messages cite (SPL-4789), default RELEASE_NOTE_TENANT, else cnf env.hub.commit_issue_tenant
+# @param RELEASE_NOTE_REPO_PATH (optional) - the clone to read, default APP_PATH (this repo)
+# @param RELEASE_NOTE_TENANT (optional) - the workspace the rows land in; needed when RELEASE_NOTE_REPO_PATH is not APP_PATH
+# @param RELEASE_NOTE_REPO_SLUG (optional) - the registered owner/name of that repo; needed when RELEASE_NOTE_REPO_PATH is not APP_PATH
+# @param RELEASE_NOTE_TAG_GLOB (optional) - the version tags of a workspace clone, default v*
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account
 # @example ENV=dev DRY_RUN=0 ./run -a do_release_note_ingest
 # @example ENV=prd RELEASE_SHA=9f175b2e RELEASE_NOTE_DEPTH=50 ./run -a do_release_note_ingest
+# @example ENV=dev RELEASE_NOTE_REPO_PATH=/abs/clone RELEASE_NOTE_TENANT=<WORKSPACE> RELEASE_NOTE_REPO_SLUG=<ORG>/<REPO> ./run -a do_release_note_ingest
 #------------------------------------------------------------------------------
 do_release_note_ingest() {
   do_require_bin git jq || return 1
   spl_require_cloud_env || return 1
   local tip="${RELEASE_SHA:-HEAD}" depth="${RELEASE_NOTE_DEPTH:-500}" batch="${RELEASE_NOTE_BATCH:-100}"
-  local remote="${RELEASE_REMOTE:-origin}" dry="${DRY_RUN:-1}" g=(git -C "$APP_PATH")
+  local remote="${RELEASE_REMOTE:-origin}" dry="${DRY_RUN:-1}"
+  spl_release_repo_scope || return 1
+  local g=(git -C "$RN_PATH")
   [[ "$depth" =~ ^[1-9][0-9]{0,4}$ ]] || { do_log "FATAL RELEASE_NOTE_DEPTH must be 1..99999, got: '$depth'"; return 1; }
   [[ "$batch" =~ ^[1-9][0-9]{0,2}$ ]] && ((batch <= 500)) || { do_log "FATAL RELEASE_NOTE_BATCH must be 1..500, got: '$batch'"; return 1; }
 
-  "${g[@]}" fetch -q --force "$remote" '+refs/tags/v*:refs/tags/v*' 2>/dev/null ||
+  "${g[@]}" fetch -q --force "$remote" "+refs/tags/$RN_GLOB:refs/tags/$RN_GLOB" 2>/dev/null ||
     do_log "WARN cannot fetch the v-tags from $remote: versions below come from the local tags"
   "${g[@]}" fetch -q --force "$remote" '+refs/notes/release-notes:refs/notes/release-notes' 2>/dev/null || true
   local head
   head="$("${g[@]}" rev-parse -q --verify "$tip^{commit}" 2>/dev/null)" ||
-    { do_log "FATAL RELEASE_SHA is not a commit in $APP_PATH: '$tip'"; return 1; }
+    { do_log "FATAL RELEASE_SHA is not a commit in $RN_PATH: '$tip'"; return 1; }
 
   local d
   d="$(mktemp -d)" || return 1
@@ -61,8 +77,9 @@ do_release_note_ingest() {
   local itn
   itn="$(spl_release_issue_tenant)"
   [[ -n "$itn" ]] || do_log "WARN no cnf env.hub.commit_issue_tenant: the notes carry no issue keys" >&2
-  jq -c -s --argjson b "$batch" --arg t "$itn" '. as $r | range(0; length; $b) | {notes: $r[.:. + $b]}
-    + (if $t == "" then {} else {issue_tenant: $t} end)' "$d/rows.jsonl" >"$d/bodies.jsonl" || return 1
+  jq -c -s --argjson b "$batch" --arg t "$itn" --arg w "$RN_TENANT" --arg s "$RN_SLUG" '. as $r | range(0; length; $b) | {notes: $r[.:. + $b]}
+    + (if $t == "" then {} else {issue_tenant: $t} end)
+    + (if $w == "" then {} else {tenant: $w} end) + (if $s == "" then {} else {repo_slug: $s} end)' "$d/rows.jsonl" >"$d/bodies.jsonl" || return 1
 
   if [[ "$dry" != 0 ]]; then
     cat "$d/bodies.jsonl"
@@ -92,40 +109,82 @@ do_release_note_ingest() {
   do_log "OK $stored of $n release note row(s) stored on $SPL_HUB_URL (from ${head:0:8})"
 }
 
-# spl_release_issue_tenant -> RELEASE_ISSUE_TENANT, else the env's rendered
-# cnf env.hub.commit_issue_tenant, else "" (SPL-4789).
+# spl_release_repo_scope -> sets RN_PATH (the clone), RN_TENANT and RN_SLUG
+# (where the hub stores the rows; "" = the hub's default, this repo's
+# operator workspace and its primary repo), RN_GLOB (the version tags) and
+# RN_FOREIGN (1 for a workspace clone, not this repo). rc 1 + FATAL: a
+# workspace clone without its tenant or slug, or a bad value (row B-6).
+spl_release_repo_scope() {
+  RN_PATH="${RELEASE_NOTE_REPO_PATH:-$APP_PATH}" RN_TENANT="${RELEASE_NOTE_TENANT:-}"
+  RN_SLUG="${RELEASE_NOTE_REPO_SLUG:-}" RN_GLOB="${RELEASE_NOTE_TAG_GLOB:-v*}" RN_FOREIGN=0
+  [[ "$(cd "$RN_PATH" 2>/dev/null && pwd -P)" == "$(cd "$APP_PATH" 2>/dev/null && pwd -P)" ]] || RN_FOREIGN=1
+  if ((RN_FOREIGN)) && [[ -z "$RN_TENANT" || -z "$RN_SLUG" ]]; then
+    do_log "FATAL RELEASE_NOTE_REPO_PATH=$RN_PATH is not this repo: RELEASE_NOTE_TENANT and RELEASE_NOTE_REPO_SLUG must be set (no default: its commits must not land in the operator workspace)"
+    return 1
+  fi
+  [[ -z "$RN_TENANT" || "$RN_TENANT" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]] || { do_log "FATAL RELEASE_NOTE_TENANT is not a workspace id: '$RN_TENANT'"; return 1; }
+  [[ -z "$RN_SLUG" || "$RN_SLUG" =~ ^[a-z0-9._-]+/[a-z0-9._-]+$ ]] || { do_log "FATAL RELEASE_NOTE_REPO_SLUG must be a lowercase owner/name: '$RN_SLUG'"; return 1; }
+  [[ "$RN_GLOB" =~ ^[A-Za-z0-9._*-]{1,40}$ ]] || { do_log "FATAL RELEASE_NOTE_TAG_GLOB must be a plain tag glob: '$RN_GLOB'"; return 1; }
+  git -C "$RN_PATH" rev-parse -q --git-dir >/dev/null 2>&1 || { do_log "FATAL RELEASE_NOTE_REPO_PATH is not a git clone: '$RN_PATH'"; return 1; }
+}
+
+# spl_release_issue_tenant -> RELEASE_ISSUE_TENANT, else RELEASE_NOTE_TENANT,
+# else the env's rendered cnf env.hub.commit_issue_tenant, else "" (SPL-4789).
 spl_release_issue_tenant() {
-  if [[ -n "${RELEASE_ISSUE_TENANT:-}" ]]; then
-    printf '%s\n' "$RELEASE_ISSUE_TENANT"
+  if [[ -n "${RELEASE_ISSUE_TENANT:-${RELEASE_NOTE_TENANT:-}}" ]]; then
+    printf '%s\n' "${RELEASE_ISSUE_TENANT:-$RELEASE_NOTE_TENANT}"
     return 0
   fi
   local f="$APP_PATH/csi-spl-cnf/csi-spl/$ENV.env.json"
   [[ -r "$f" ]] && jq -r '.env.hub.commit_issue_tenant // ""' "$f" 2>/dev/null || true
 }
 
-# spl_release_note_rows <head-sha> <depth> -> one ingest row (JSON) per
-# first-parent commit, newest first. The version map walks newest -> oldest:
-# a tag at a commit contains every older commit on the line, so the running
-# minimum of the tags seen so far is the first version that shipped it. Tags
-# are ordered as release keys (cycle, then X.Y.Z); the row carries the full
-# key (v1.0.1-c2 from cycle 2 on, rdb 0114), so two cycles' X.Y.Z stay two
-# versions in the hub; the hub shows it plain.
-spl_release_note_rows() {
-  local head="$1" depth="$2" g=(git -C "$APP_PATH")
+# spl_release_tag_map -> one "<commit> <version>" line per tagged commit of
+# RN_PATH's tags matching RN_GLOB, the lowest tag of a commit. This repo
+# (RN_FOREIGN 0): v-tags ordered as release keys (cycle, then X.Y.Z), a non
+# key tag ignored. A workspace clone (row B-6): any tag of the glob, kept as
+# written, ordered by sort -V.
+spl_release_tag_map() {
   local -A tagv=()
-  local obj ref v
+  local obj ref v lo
   # an annotated tag's commit is %(*objectname); a lightweight one's is %(objectname)
   while read -r obj ref; do
+    if ((${RN_FOREIGN:-0})); then
+      lo="$(printf '%s\n' "${tagv[$obj]:-$ref}" "$ref" | sort -V)"
+      tagv[$obj]="${lo%%$'\n'*}"
+      continue
+    fi
     v="${ref#v}"
     spl_release_key_valid "$v" || continue
-    if [[ -z "${tagv[$obj]:-}" ]] || spl_release_key_gt "${tagv[$obj]}" "$v"; then tagv[$obj]="$v"; fi
-  done < <("${g[@]}" for-each-ref 'refs/tags/v*' --format='%(objectname) %(*objectname) %(refname:strip=2)' | awk 'NF == 3 {print $2, $3; next} {print $1, $2}')
+    if [[ -z "${tagv[$obj]:-}" ]] || spl_release_key_gt "${tagv[$obj]#v}" "$v"; then tagv[$obj]="v$v"; fi
+  done < <(git -C "${RN_PATH:-$APP_PATH}" for-each-ref "refs/tags/${RN_GLOB:-v*}" --format='%(objectname) %(*objectname) %(refname:strip=2)' |
+    awk 'NF == 3 {print $2, $3; next} {print $1, $2}')
+  for obj in "${!tagv[@]}"; do printf '%s %s\n' "$obj" "${tagv[$obj]}"; done
+}
+
+# spl_release_note_rows <head-sha> <depth> -> one ingest row (JSON) per
+# first-parent commit of RN_PATH (default APP_PATH), newest first. The
+# version map walks newest -> oldest: a tag at a commit contains every older
+# commit on the line. This repo: the running minimum of the release keys
+# seen so far is the first version that shipped it; the row carries the full
+# key (v1.0.1-c2 from cycle 2 on, rdb 0114), so two cycles' X.Y.Z stay two
+# versions in the hub; the hub shows it plain. A workspace clone (row B-6):
+# the nearest tag at or after the commit, its own tags only.
+spl_release_note_rows() {
+  local head="$1" depth="$2" g=(git -C "${RN_PATH:-$APP_PATH}")
+  local -A tagv=()
+  local obj v
+  while read -r obj v; do [[ -n "$obj" ]] && tagv[$obj]="$v"; done < <(spl_release_tag_map)
   local has_notes=0
   "${g[@]}" rev-parse -q --verify refs/notes/release-notes >/dev/null 2>&1 && has_notes=1
   local sha min="" t msg note files area doc
   while read -r sha; do
     t="${tagv[$sha]:-}"
-    if [[ -n "$t" ]] && { [[ -z "$min" ]] || spl_release_key_gt "$min" "$t"; }; then min="$t"; fi
+    if ((${RN_FOREIGN:-0})); then
+      [[ -n "$t" ]] && min="$t"
+    elif [[ -n "$t" ]] && { [[ -z "$min" ]] || spl_release_key_gt "${min#v}" "${t#v}"; }; then
+      min="$t"
+    fi
     msg="$("${g[@]}" log -1 --format=%B "$sha")"
     note=""
     ((has_notes)) && note="$("${g[@]}" notes --ref=release-notes show "$sha" 2>/dev/null)"
@@ -134,7 +193,7 @@ spl_release_note_rows() {
     [[ -n "$files" ]] && ! grep -qv '\.md$' <<<"$files" && doc=true
     area="$(sed -n 's|/.*||p' <<<"$files" | sort -u)"
     [[ "$(grep -c . <<<"$area")" == 1 ]] || area=""
-    jq -cn --arg sha "$sha" --arg version "${min:+v$min}" --arg at "$("${g[@]}" log -1 --format=%cI "$sha")" \
+    jq -cn --arg sha "$sha" --arg version "$min" --arg at "$("${g[@]}" log -1 --format=%cI "$sha")" \
       --arg message "$msg" --arg note "$note" --arg area "$area" --argjson doc "$doc" \
       '{sha: $sha, committed_at: $at, message: $message}
        + (if $version != "" then {version: $version} else {} end)

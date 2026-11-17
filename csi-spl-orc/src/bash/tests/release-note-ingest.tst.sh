@@ -173,5 +173,42 @@ out=$(act ENV=dev); rc=$?
 [[ $rc == 0 && "$(jq -r 'has("issue_tenant")' <<<"$out")" == false ]] && grep -q 'WARN no cnf env.hub.commit_issue_tenant' "$T/err" &&
   pass "no cnf key -> the batch has no issue_tenant, WARN" || fail "no cnf: rc $rc out '$out' err '$(cat "$T/err")'"
 
+# --- 11. two workspace repos, each with its own tags (row B-6, SPL-5801) -------
+# Two clones of one workspace, both tagged v1.0.0 and on dates of their own:
+# each push carries its tenant and repo_slug, and each commit the version of
+# its own repo's tags, never the other's.
+two_repo() {  # <dir> <tag-a> <tag-b> -> "sha-a sha-b sha-c"; a tagged tag-a, b tag-b, c untagged
+  # the messages name the dir: two clones made in one second would else share every sha
+  git init -q -b main "$1"; git -C "$1" config user.email t@example.com; git -C "$1" config user.name "FirstName LastName"
+  local s=() m
+  for m in "feat(shop): one in ${1##*/}" "fix(shop): two in ${1##*/}" "feat(shop): three in ${1##*/}"; do
+    echo "$m" >>"$1/f.txt"; git -C "$1" add f.txt; git -C "$1" commit -qm "$m"; s+=("$(git -C "$1" rev-parse HEAD)")
+  done
+  git -C "$1" tag "$2" "${s[0]}"; git -C "$1" tag "$3" "${s[1]}"
+  echo "${s[*]}"
+}
+read -r A1 A2 A3 < <(two_repo "$T/ws-api" v1.0.0 v1.1.0)
+read -r B1 B2 B3 < <(two_repo "$T/ws-wui" v1.0.0 2026.11.05)
+WS=(ENV=dev RELEASE_NOTE_TENANT=ws-x)
+out_a=$(act "${WS[@]}" RELEASE_NOTE_REPO_PATH="$T/ws-api" RELEASE_NOTE_REPO_SLUG=example-org/ws-api); rc_a=$?
+out_b=$(act "${WS[@]}" RELEASE_NOTE_REPO_PATH="$T/ws-wui" RELEASE_NOTE_REPO_SLUG=example-org/ws-wui RELEASE_NOTE_TAG_GLOB='*'); rc_b=$?
+vers() { jq -r --arg s "$2" '.notes[] | select(.sha == $s) | .version // "none"' <<<"$1"; }
+[[ $rc_a == 0 && $rc_b == 0 && "$(jq -r '"\(.tenant) \(.repo_slug) \(.issue_tenant)"' <<<"$out_a")" == "ws-x example-org/ws-api ws-x" &&
+  "$(jq -r '"\(.tenant) \(.repo_slug)"' <<<"$out_b")" == "ws-x example-org/ws-wui" ]] &&
+  pass "each push names its workspace and repo; the issue workspace defaults to it" || fail "scope: rc $rc_a/$rc_b a '$out_a' b '$out_b' err '$(cat "$T/err")'"
+[[ "$(vers "$out_a" "$A1") $(vers "$out_a" "$A2") $(vers "$out_a" "$A3")" == "v1.0.0 v1.1.0 none" ]] &&
+  pass "repo a: its own v1.0.0, v1.1.0, an untagged commit has no version" || fail "repo a versions: $(vers "$out_a" "$A1") $(vers "$out_a" "$A2") $(vers "$out_a" "$A3")"
+[[ "$(vers "$out_b" "$B1") $(vers "$out_b" "$B2") $(vers "$out_b" "$B3")" == "v1.0.0 2026.11.05 none" ]] &&
+  pass "repo b: its own tags, a non-v tag kept as written, never repo a's" || fail "repo b versions: $(vers "$out_b" "$B1") $(vers "$out_b" "$B2") $(vers "$out_b" "$B3")"
+[[ "$(jq -r '.notes[].sha' <<<"$out_a" | paste -sd' ')" == "$A3 $A2 $A1" ]] && ! grep -qE "$B1|$C1" <<<"$out_a" &&
+  pass "repo a's push carries only repo a's commits" || fail "repo a rows: $(jq -r '.notes[].sha' <<<"$out_a" | paste -sd' ')"
+# a workspace clone needs its tenant and slug: no default lands it in the operator workspace
+for bad in "RELEASE_NOTE_REPO_PATH=$T/ws-api RELEASE_NOTE_REPO_SLUG=example-org/ws-api" "RELEASE_NOTE_REPO_PATH=$T/ws-api RELEASE_NOTE_TENANT=ws-x" \
+  "RELEASE_NOTE_REPO_PATH=$T/ws-api RELEASE_NOTE_TENANT=ws-x RELEASE_NOTE_REPO_SLUG=NoSlash" "RELEASE_NOTE_REPO_PATH=$T/nosuch RELEASE_NOTE_TENANT=ws-x RELEASE_NOTE_REPO_SLUG=a/b"; do
+  # shellcheck disable=SC2086 # the case is a word list on purpose
+  out=$(act ENV=dev $bad); rc=$?
+  [[ $rc == 1 && -z "$out" ]] && pass "$bad -> rc 1" || fail "$bad: rc $rc out '$out'"
+done
+
 echo "release-note-ingest: $fails failure(s)"
 ((fails == 0))

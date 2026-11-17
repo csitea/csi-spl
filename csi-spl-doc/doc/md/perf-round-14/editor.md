@@ -203,3 +203,7 @@ A first run on a `git archive` (no `.git`) failed
   `/var/tmp/p14-api-clone.*`, `/var/tmp/p14-wui-probe.*`,
   `/var/tmp/p14-wui-clone.*`, `/var/tmp/p14-probe-scripts.*` (also `pg-arm.sh`,
   `pg.P.1.log`).
+- ACCEPTED: c-001@sat (orch, spawner of `c001-perf-round-14-planner`) msg
+  6cac1220, 17:01:20Z on `dispatch-perf-r14`: plan v1.0 `b603e2db4`, Qto
+  import `8d47ed465` (doc 558a5ba8), editor record `d6905483f`, all on
+  origin/master; m-031 PASS on v0.2 and v1.0. The planner seat closes.

@@ -107,3 +107,24 @@ reason = "@nuxt/vite-builder 3.21.11: fixed only in 4.6.3, no fixed 3.x; affects
 id = "GHSA-mjrq-cffv-q4qc" # SPL-5474
 ignoreUntil = 2026-11-30
 reason = "@nuxt/schema 3.21.11: fixed only in 4.6.4, nuxt 3 is end of life with no fixed 3.x; affects only the `nuxt dev` server (/_nuxt/@fs/ under a parent workspaceDir), we ship nuxt generate output on Firebase Hosting. Real fix: nuxt 4 migration."
+
+# SPL-5804: three nuxt 3.21.11 advisories published 2026-11-16 that reddened
+# workflows 15 (run 44103906446) and 70 (run 44103906824) on 013cb71bf with no
+# lockfile change. Fixed only in nuxt / @nuxt/nitro-server 4.6.4; 3.21.11 is
+# the last 3.x (npm dist-tag 3x) and nuxt 3 gets no fix, so no override exists.
+# Real fix: the nuxt 4 migration. The pnpm audit leg carries the same ids in
+# csi-spl-wui/package.json pnpm.auditConfig.ignoreGhsas: remove them together.
+[[IgnoredVulns]]
+id = "GHSA-f3x9-2chm-73c8" # SPL-5804
+ignoreUntil = 2026-11-30
+reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.4, no fixed 3.x; a %2F in the path skips route rules on a catch-all page. Our only routeRules are headers on /** (matches any path) and /_nuxt/**, plus prerender:false; no redirect, appMiddleware or proxy rule, and the route middleware is global. Prd is nuxt generate output on Firebase Hosting, headers from firebase.json, no Nitro server. Real fix: nuxt 4 migration."
+
+[[IgnoredVulns]]
+id = "GHSA-hf59-9xwc-2g4p" # SPL-5804
+ignoreUntil = 2026-11-30
+reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.4, no fixed 3.x; colliding props share one /__nuxt_island path. Needs server components or <NuxtIsland>: the WUI has no .server.vue/.island.vue and no NuxtIsland. Real fix: nuxt 4 migration."
+
+[[IgnoredVulns]]
+id = "GHSA-96x6-fvhx-49hg" # SPL-5804
+ignoreUntil = 2026-11-30
+reason = "nuxt 3.21.11: fixed only in 4.6.4, no fixed 3.x; an unhandled error thrown during server rendering sends its message and data to the client. Prd renders nothing on request: nuxt generate prerenders at build time and every other route boots from the 200.html SPA fallback on Firebase Hosting. Real fix: nuxt 4 migration."

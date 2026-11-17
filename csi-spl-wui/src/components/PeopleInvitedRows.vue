@@ -10,7 +10,7 @@
     <div v-for="r in rows" :key="r.id" class="nav-row">
       <span class="nav-item people-invited__row" :data-key="r.id" data-test="people-invited-row" :title="t('people.inactive_hint')">
         <SpoolAvatar :id="r.id" box="box-wui" :size="22" />
-        <span class="label people-invited__label">{{ r.label }}</span>
+        <span class="label people-invited__label" :title="r.label">{{ r.label }}</span>
         <span class="muted people-row__tag" data-test="people-inactive-tag">{{ t('people.inactive') }}</span>
       </span>
     </div>
@@ -37,7 +37,7 @@ onMounted(async () => {
 
 <style scoped>
 .people-invited__row { cursor: default; }
-.people-invited__label { opacity: 0.7; }
+.people-invited__label { opacity: 0.7; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* the sidebar's tag, which its scoped style does not reach here */
 .people-row__tag { margin-inline-start: auto; font-size: 0.6875rem; flex-shrink: 0; }
 </style>

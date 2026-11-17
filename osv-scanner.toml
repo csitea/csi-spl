@@ -128,3 +128,13 @@ reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.4, no fixed 3.x; co
 id = "GHSA-96x6-fvhx-49hg" # SPL-5804
 ignoreUntil = 2026-11-30
 reason = "nuxt 3.21.11: fixed only in 4.6.4, no fixed 3.x; an unhandled error thrown during server rendering sends its message and data to the client. Prd renders nothing on request: nuxt generate prerenders at build time and every other route boots from the 200.html SPA fallback on Firebase Hosting. Real fix: nuxt 4 migration."
+
+# SPL-5816: picomatch 2.3.2 + 4.0.7 (CVSS 8.7), published 2026-11-17, reddened
+# workflow 70 (run 44126816251) on 78d121fe3 with no lockfile change. osv.dev
+# lists last_affected 4.0.7 and no fixed release, so no bump or override exists.
+# pnpm audit (workflow 15) does not list it yet (green, run 44130441215): if it
+# reddens, add the same id to package.json pnpm.auditConfig.ignoreGhsas.
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf" # SPL-5816
+ignoreUntil = 2026-12-17
+reason = "picomatch 2.3.2/4.0.7: no fixed version upstream (last_affected 4.0.7); the ReDoS needs an attacker-chosen glob with repeated extglobs. Not reachable from input we do not control: only build and dev tooling pulls it (vite, rollup plugins, unplugin*, @vercel/nft, vite-plugin-checker, @vue/language-core, tinyglobby/fdir, micromatch/anymatch), matching globs from our own config; not in the generated WUI bundle, prd is static output on Firebase Hosting. Re-check for a fixed release by the expiry."

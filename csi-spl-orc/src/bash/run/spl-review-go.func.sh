@@ -653,12 +653,17 @@ EOF_PY
 # _spl_review_go_owner_go <author brief> <holder>: 0 when the brief's
 # instruction text (_spl_review_go_instr) names no owner-go keyword, or its
 # `Owner-go: <msg id>` names a message from HUM-<n> found in the holder's
-# spool or its desk spools; 1 (the why on stdout) otherwise.
+# spool or its desk spools; 1 (the why on stdout) otherwise. A bare `apply`,
+# `IAM` or `billing` counts only when it is no part of a longer name
+# (SPL-5798): no letter, digit or `_` next to it, and no `-`, `.` or `/` that
+# joins it to one (`apply-gh-runner-cpu-budget`, `IAM_ROLE`, `x/billing`);
+# a sentence's full stop (`then apply.`) still counts.
 _spl_review_go_owner_go() {
-  local kw id text
+  local kw id text b='(^|[^-_./[:alnum:]]|(^|[^_[:alnum:]])[-./])' a='([^-_./[:alnum:]]|$|[-./]([^_[:alnum:]]|$))'
+  local fixed='do-provision|do-tf-apply|PROBE_PRD_GO|DRY_RUN=0|ENV=prd|service account key|/etc/'
   text="$(_spl_review_go_instr "$1")" || text="$(cat "$1")"
-  kw="$(grep -oiE '\bapply\b' <<<"$text")"
-  [[ -n "$kw" ]] || kw="$(grep -oE 'do-provision|do-tf-apply|PROBE_PRD_GO|DRY_RUN=0|ENV=prd|\bIAM\b|\bbilling\b|service account key|/etc/' <<<"$text")"
+  kw="$(grep -oiE "${b}apply${a}" <<<"$text" | grep -oiE 'apply')"
+  [[ -n "$kw" ]] || kw="$(grep -oE "${fixed}|${b}(IAM|billing)${a}" <<<"$text" | grep -oE "${fixed}|IAM|billing")"
   [[ -n "$kw" ]] || return 0
   kw="${kw%%$'\n'*}"
   id="$(sed -n 's/^Owner-go:[[:space:]]*\([0-9a-f-]\{8,36\}\)[[:space:]]*$/\1/p' "$1")"

@@ -111,6 +111,11 @@
 #        measurement) -> GO; controls: the step in a task section, a command
 #        in a plan row quoted verbatim, a section after the quote at the same
 #        level, a deeper `verbatim` heading, a prd step under Context -> rc 4
+#    27. a keyword inside a longer name (SPL-5798): RED CONTROL line 19 of
+#        c-710's brief, `apply-gh-runner-cpu-budget` in a list of tests -> GO;
+#        apply / IAM / billing joined by -, _, . or / -> GO; controls: a
+#        `terraform apply` step, `then apply.`, a bare IAM or billing,
+#        do-tf-apply -> rc 4 (each test 4 keyword alone: section 4)
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -1001,6 +1006,23 @@ Review the diff.'; do
   reset; abrief c-222 "${fx#*|}"
   f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 26000000-0000-4000-8000-000000000002)
   run REVIEW_GO_MSG="$f"; refused "26. RED CONTROL: ENV=prd as an instruction step (${fx%%|*}) still holds" $? 4 "owner-go keyword 'ENV=prd'"
+done
+
+# --- 27. an owner-go keyword inside a longer name (SPL-5798) --------------------------------------
+# line 19 of c-710's r58-07 brief (swept from dispatch/briefs; copied here)
+reset; abrief c-222 $'## Do\n\n- Run the orc tests: `spl-spawn-queue`, `apply-gh-runner-cpu-budget`, `spl-lane-map`.'
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 27000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 )) && [[ $(gos) == 1 ]] && pass "27. RED CONTROL: \`apply-gh-runner-cpu-budget\` in a list of tests is no keyword -> GO" || fail "27. c-710 line rc=$rc out=$(tail -2 "$T/out")"
+reset; abrief c-222 $'## Do\n\nNames only: `apply.sh`, `spl-billing-sa.tst.sh`, `IAM_ROLE`, `x/billing`, `apply_x`, `reapply`.'
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 27000000-0000-4000-8000-000000000002)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 )) && [[ $(gos) == 1 ]] && pass "27. apply, IAM, billing joined by -, _, . or / are names -> GO" || fail "27. joined names rc=$rc out=$(tail -2 "$T/out")"
+for fx in 'apply|run `terraform apply` for step 016' 'apply|terraform plan, then apply.' 'IAM|Rotate the IAM binding.' \
+          'billing|the billing.' 'do-tf-apply|make do-tf-apply'; do
+  reset; abrief c-222 $'## Do\n\n'"${fx#*|}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 27000000-0000-4000-8000-000000000003)
+  run REVIEW_GO_MSG="$f"; refused "27. control: '${fx#*|}' still holds" $? 4 "owner-go keyword '${fx%%|*}'"
 done
 
 echo "spl-review-go: ${fails} failure(s)"

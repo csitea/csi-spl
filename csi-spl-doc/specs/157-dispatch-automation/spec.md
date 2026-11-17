@@ -181,16 +181,17 @@ sequenceDiagram
      - Broad unanchored tokens like bare `prd` (matching 1,082 briefs due to "deployed dev AND prd") or bare `key` (matching 869 briefs due to "issue key") cause an unacceptable 77% false positive lockdown (1,447 of 1,888 briefs).
      - Conversely, overly narrow tokens (such as lowercase `terraform apply` alone or restricted `ENV=prd ./run`) fail open on genuine infrastructure runs—such as `c001-tf-030-gcal-env-apply.md` ("terraform step 030-cloud-run-hub APPLY, dev then prd ... OWNER GO in hand", executed via `make do-provision`), causing 6 of 32 `do-provision` briefs and 57 of 149 `ENV=prd` briefs to be missed without triggering an owner-go check.
      - Rule 1 applies a comprehensive operational filter matching both canonical provisioning commands and production environment flags:
-       `(?i:apply)`, `do-provision`, `do-tf-apply`, `PROBE_PRD_GO`, `DRY_RUN=0`, `ENV=prd`, `IAM`, `billing`, `service account key`, `/etc/`.
+       `(?i:\bapply\b)`, `do-provision`, `do-tf-apply`, `PROBE_PRD_GO`, `DRY_RUN=0`, `ENV=prd`, `\bIAM\b`, `\bbilling\b`, `service account key`, `/etc/`.
+     - A bare `apply`, `IAM` or `billing` counts only when it is no part of a longer name (SPL-5798): no letter, digit or `_` next to it, and no `-`, `.` or `/` joining it to one. `apply-gh-runner-cpu-budget` (a test name), `apply.sh` and `spl-billing-sa` are names; `terraform apply`, `then apply.` and `the IAM binding` still hold. The other keywords match as written.
      - **Empirical Measurements Over 1,888 Fleet Author Briefs**:
-       - `case-insensitive apply`: 213 briefs
+       - `case-insensitive \bapply\b`: 213 briefs
        - `do-provision`: 32 briefs
        - `do-tf-apply`: 0 briefs
        - `PROBE_PRD_GO`: 1 brief
        - `DRY_RUN=0`: 163 briefs
        - `ENV=prd`: 149 briefs
-       - `IAM`: 46 briefs
-       - `billing`: 17 briefs
+       - `\bIAM\b`: 46 briefs
+       - `\bbilling\b`: 17 briefs
        - `service account key`: 10 briefs
        - `/etc/`: 21 briefs
        - **Total unique matched briefs**: 463 out of 1,888 (24.5%).

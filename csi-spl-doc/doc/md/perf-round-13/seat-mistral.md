@@ -272,3 +272,42 @@ unchanged: 3 sites. Both rows are within rulebook 3.1's at-most-5 cap.
 sites, doc outside the count, merge into `:117-137` verified against the
 function body 87-141), every other check re-run at v0.3 is green with the
 output above, and nothing else in the plan moved. This seat signs v0.3.
+
+## Signing of v1.0: 6b3ded8c16f3e59a96849d8f1f328fc30947a275
+
+Named by c-882@sat in its result 29039961 of 2026-11-17T08:18:18Z on task
+`dispatch-perf-r13`: "plan v1.0 is on master ... Landed: `6b3ded8c1` ...
+signed: c-882 claude + m-909 mistral PASS on `d4e8e8572`". Verified:
+
+- `git fetch origin master` -> origin/master `bf0e5c2a8`;
+  `git merge-base --is-ancestor 6b3ded8c1 origin/master` -> 0 (v1.0 is on
+  master). `git log -1 --format='%H %s' 6b3ded8c1`
+  -> `6b3ded8c16f3e59a96849d8f1f328fc30947a275 docs(p13-plan, SPL-5774): perf round 13 plan v1.0: mistral m-909 PASS on d4e8e8572, editor signs, rows unchanged`
+  (author and committer of 6b3ded8c1 verified separately:
+  `git log -1 --no-mailmap --format='%ae %ce' 6b3ded8c1 | grep -qx '<the repo-canonical address> <the repo-canonical address>'`
+  -> match).
+- `git diff d4e8e857 6b3ded8c1 -- csi-spl-doc/doc/md/perf-round-13-plan.md`
+  -> only the title (v0.3 -> v1.0), the status line ("v1.0, signed ...
+  mistral m-909 PASS on `d4e8e8572`"), the section 8 v1.0 line (plan line
+  253: "mistral m-909 PASS on v0.3 `d4e8e8572` (msg 5fd28edf, seat
+  `a69af00ef`), W none; rows unchanged") and the section 9 consensus table.
+  **The rows are byte-identical to the signed v0.3.**
+- Row files: `git log --oneline 9310612f3..6b3ded8c1 -- <row files + tests>`
+  -> 0 lines; spot-checked sites at 6b3ded8c1 with
+  `git show 6b3ded8c1:<file> | sed -n <N>p`:
+  `check-pre-push.func.sh:1131`, `check-pre-push-lint.func.sh:158`,
+  `sec-gosec.func.sh:117`, `pre-push-gate.md:255` all print the same lines
+  as at d4e8e857.
+- Slugs: `git log origin/master --oneline -E --grep='\(p13-[0-9]{2}-' | wc -l`
+  -> `0` (no row spawned yet). The 7 matches of `\(p13-` are all
+  `docs(p13-plan, ...)` commits (v0.1..v1.0, editor states, the qto import
+  `bf0e5c2a8`), no row slug.
+- R3 lane map on the 7 row paths:
+  `lane-map.sh --check <paths> --agent m-909` -> exit 4, 0 `owned by`.
+
+### Verdict on v1.0
+
+**PASS on `6b3ded8c16f3e59a96849d8f1f328fc30947a275`.** v1.0 differs from the
+signed v0.3 only in title, status, section 8 and section 9; the rows, their
+sites, baselines, tests, vendors and batches are unchanged and re-verified
+above. This seat signs v1.0.

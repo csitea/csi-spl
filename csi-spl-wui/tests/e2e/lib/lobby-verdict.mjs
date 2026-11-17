@@ -27,6 +27,14 @@
 // since a channel topic row carries no is_parent. The page shows at most LOBBY_WINDOW cards (channelView's visible),
 // so a longer lobby needs that many. More cards than the hub is no failure: a
 // live frame can land between the page's read and the hub's.
+//
+// The rows are judged as the page holds them: a raw hub element leaves out
+// msg.task_id when it is the topic's (DB payload cut 4) and carries
+// parent_task_id on env, so a raw read gave no task id at all and the hub's
+// card count read 0 on prd (wf30 run 44049741641: hub 2, want 0, cards 1).
+// viewCardTasks normalises each element with the page's normalizeViewMessage.
+import { normalizeViewMessage } from '../../../src/utils/view-api-core.mjs'
+
 export const LOBBY_WINDOW = 50
 
 // lobbyVerdict({ hub: { status, rows, cards? }, cards, error, empty })
@@ -45,6 +53,12 @@ export function lobbyVerdict({ hub = { status: 0, rows: -1 }, cards = 0, error =
 // (no parent_task_id, is_parent != 0); the room's rows share one task_id.
 export function cardTasks(rows = []) {
   return (rows || []).filter((m) => m && m.task_id && !m.parent_task_id && m.is_parent !== 0).map((m) => String(m.task_id))
+}
+
+// viewCardTasks(raw) -> cardTasks over raw hub view elements, each given as
+// { topic, el } (the topic it was read under), normalised as /lobby does.
+export function viewCardTasks(raw = []) {
+  return cardTasks((raw || []).map((r) => normalizeViewMessage(r && r.el, String((r && r.topic) || ''))))
 }
 
 // hubLobbyCount(room, topics) -> { status, rows, cards }

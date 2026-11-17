@@ -44,7 +44,7 @@
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
-import { lobbyVerdict, hubLobbyCount, cardTasks, LOBBY_WINDOW } from './lib/lobby-verdict.mjs'
+import { lobbyVerdict, hubLobbyCount, viewCardTasks, LOBBY_WINDOW } from './lib/lobby-verdict.mjs'
 
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
@@ -361,12 +361,15 @@ async function surfaceRun(p, surface) {
 async function hubLobbyRows(p) {
   if (!res.apiRoot || !LOBBY_TASK) return { status: 0, rows: -1 }
   const [room, topics] = await p.evaluate(async (root, id) => {
-    const get = async (path, key) => {
+    /* raw = each hub element with the topic it was read under: the hub
+       trims msg.task_id when it is the topic's and keeps parent_task_id on
+       env, so the rows are normalised in node as the page does (viewCardTasks) */
+    const get = async (path, key, topic) => {
       const r = await fetch(`${root}${path}`, { credentials: 'include', headers: { accept: 'application/json' } })
       if (!r.ok) return { status: r.status, rows: -1, raw: [] }
       const j = await r.json()
       const list = j[key] || []
-      const raw = list.map((m) => ({ task_id: m.task_id, parent_task_id: m.parent_task_id, is_parent: m.is_parent }))
+      const raw = list.map((el) => ({ topic, el }))
       return { status: r.status, rows: list.length, raw, list }
     }
     /* SPL-5777: a channel topic row carries no is_parent, so each listed
@@ -374,13 +377,13 @@ async function hubLobbyRows(p) {
        listMessages: newest 50, plus the oldest when the topic holds more) */
     const topicRows = async (t) => {
       const path = `/v1/view/topics/${encodeURIComponent(t.task_id)}`
-      const page = await get(`${path}?order=desc&limit=50`, 'messages')
+      const page = await get(`${path}?order=desc&limit=50`, 'messages', t.task_id)
       if (!(Number(t.count) > page.rows)) return page
-      const first = await get(`${path}?limit=1`, 'messages')
+      const first = await get(`${path}?limit=1`, 'messages', t.task_id)
       return { status: first.status === 200 ? page.status : first.status, rows: page.rows, raw: [...page.raw, ...first.raw] }
     }
     const [roomRead, listRead] = await Promise.all([
-      get(`/v1/view/topics/${encodeURIComponent(id)}?order=desc&limit=30`, 'messages'),
+      get(`/v1/view/topics/${encodeURIComponent(id)}?order=desc&limit=30`, 'messages', id),
       get('/v1/view/topics?channel=lobby&limit=50', 'topics'),
     ])
     if (listRead.status !== 200) return [roomRead, listRead]
@@ -389,7 +392,7 @@ async function hubLobbyRows(p) {
     const raw = reads.flatMap((r) => r.raw)
     return [roomRead, bad ? { status: bad.status, rows: -1, raw: [] } : { status: 200, rows: listRead.rows, raw }]
   }, res.apiRoot, LOBBY_TASK)
-  const c = hubLobbyCount({ ...room, tasks: cardTasks(room.raw) }, { ...topics, tasks: cardTasks(topics.raw) })
+  const c = hubLobbyCount({ ...room, tasks: viewCardTasks(room.raw) }, { ...topics, tasks: viewCardTasks(topics.raw) })
   return { ...c, room: room.rows, topics: topics.rows }
 }
 

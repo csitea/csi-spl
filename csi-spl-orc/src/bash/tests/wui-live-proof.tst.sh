@@ -181,6 +181,17 @@ tasks() { # <rows json> -> card task ids
 }
 [[ "$(tasks "[{task_id:'a',is_parent:0},{task_id:'a',is_parent:0},{task_id:'b',is_parent:1},{task_id:'b',is_parent:0}]")" == "b" ]] \
   && pass "a topic of is_parent 0 rows only (prd t1 cd9b0f47) makes no card" || fail "is_parent 0 only topic: $(tasks "[{task_id:'a',is_parent:0},{task_id:'b',is_parent:1}]")"
+# The rows as the hub sends them (view.go viewMsg, DB payload cut 4): msg.task_id
+# is left out when it is the topic's, parent_task_id rides on env. Read raw,
+# they gave no task id and prd read want 0 (wf30 run 44049741641: hub 2, want 0, cards 1).
+vtasks() { # <[{topic, el}] json> -> card task ids, normalised as /lobby does
+  node --input-type=module -e "import { viewCardTasks } from '$VERDICT'; console.log(viewCardTasks($1).join(','))" 2>/dev/null </dev/null
+}
+HUB_ROWS="[{topic:'cf8',el:{cursor:'1',env:{msg:{from:'x',body:'hi'},channel:'lobby'},is_parent:1}},{topic:'cf8',el:{cursor:'2',env:{msg:{from:'y',body:'re'},channel:'lobby'},is_parent:0}},{topic:'cd9',el:{cursor:'3',env:{msg:{from:'z',body:'re'},channel:'lobby'},is_parent:0}},{topic:'rp',el:{cursor:'4',env:{msg:{task_id:'rp',from:'z'},parent_task_id:'cf8'},is_parent:1}}]"
+[[ "$(vtasks "$HUB_ROWS")" == "cf8" ]] \
+  && pass "hub-shaped rows (task_id trimmed, parent_task_id on env): 1 card, the starter's topic" || fail "hub-shaped rows: '$(vtasks "$HUB_ROWS")', want 'cf8'"
+grep -q 'viewCardTasks(room.raw)' <<<"$hub_fn" && grep -q 'viewCardTasks(topics.raw)' <<<"$hub_fn" \
+  && pass "hubLobbyRows counts cards over normalised hub rows" || fail "hubLobbyRows counts cards over raw hub rows (no task_id: want 0)"
 
 # 4. a failing proof fails the step
 act SPL_PROBE_PW="$PW" FAKE_RC=1; rc=$?

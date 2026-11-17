@@ -89,6 +89,8 @@ function channelState() {
   const unread = ref<Record<string, number>>({})
   const loading = ref(false)
   const error = ref<string | null>(null)
+  /** spec 162 F4: the rejection behind `error`, for the notice (one failure, one journal row) */
+  const errorCause = ref<unknown>(null)
   /** SPL-2149: when the open feed is the copy kept on this device (no network), the time it was read; null = from the hub */
   const offlineAt = ref<string | null>(null)
   /**
@@ -124,7 +126,7 @@ function channelState() {
   const newestFirst = computed(() => view.value.rows as FeedMessage[])
   const hasOlder = computed(() => view.value.hasOlder || Boolean(olderCursor.value))
   return {
-    api, i18n, mentionPoke, channels, active, peer, messages, unread, loading, error, offlineAt, liveAt, dmAt, dmSeed,
+    api, i18n, mentionPoke, channels, active, peer, messages, unread, loading, error, errorCause, offlineAt, liveAt, dmAt, dmSeed,
     ordered, feed, search, visible, lastLive, olderCursor, totals, loadingOlder, view, newestFirst, hasOlder,
   }
 }
@@ -272,7 +274,7 @@ function sidebarSteps(s: ChannelState, d: { selectChannel: (name: string) => Pro
 
 /** The Msgs window: search, and Load more over the held rows and older pages. */
 function viewSteps(s: ChannelState, d: Pick<Follow, 'follow'>) {
-  const { api, i18n, messages, totals, error, search, visible, lastLive, olderCursor, loadingOlder, view } = s
+  const { api, i18n, messages, totals, error, errorCause, search, visible, lastLive, olderCursor, loadingOlder, view } = s
   const { follow } = d
   function resetView() {
     search.value = ''
@@ -311,6 +313,7 @@ function viewSteps(s: ChannelState, d: Pick<Follow, 'follow'>) {
         },
         fail: (e: unknown) => {
           error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_older_failed')
+          errorCause.value = e
           olderCursor.value = null
         },
       })
@@ -342,7 +345,7 @@ function withHeld(s: ChannelState, queue: Outbox['queue'], rows: unknown[]) {
 
 /** Opening a channel or DM, its first page, and the catch-up after a reconnect. */
 function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'queue'> & { resetView: () => void }) {
-  const { api, i18n, active, peer, messages, unread, error, totals } = s
+  const { api, i18n, active, peer, messages, unread, error, errorCause, totals } = s
   const { follow, queue, resetView } = d
   async function selectChannel(name: string) {
     if (active.value !== name || peer.value) resetView()
@@ -400,7 +403,10 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
         totals.value = mergeTopicTotals(totals.value, page.totals)
         follow()
       },
-      fail: (e: unknown) => { error.value = e instanceof Error ? e.message : i18n.t('feed.error.catch_up_failed') },
+      fail: (e: unknown) => {
+        error.value = e instanceof Error ? e.message : i18n.t('feed.error.catch_up_failed')
+        errorCause.value = e
+      },
     })
   }
 

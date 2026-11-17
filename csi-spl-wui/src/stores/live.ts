@@ -44,6 +44,8 @@ function liveState(key: FeedKey) {
   return {
     key, api, live, i18n, poke, taskId, messages,
     error: ref<string | null>(null),
+    /** spec 162 F4: the rejection behind `error`, for the notice (one failure, one journal row) */
+    errorCause: ref<unknown>(null),
     /** view-v1 §2: the last read hit the view door (401) — pages show the door prompt. */
     door: ref<{ detail: string } | null>(null),
     sending: ref(false),
@@ -154,7 +156,9 @@ function fail(s: Live, e: unknown, fallback: string) {
     s.door.value = { detail: String(err.detail || '') }
     return
   }
-  if (err.status !== 404) s.error.value = err.message || fallback
+  if (err.status === 404) return
+  s.error.value = err.message || fallback
+  s.errorCause.value = e
 }
 
 /** wui-live-ws §7: after a reconnect, one after=<last cursor> read, deduped by msg_id. */
@@ -364,11 +368,11 @@ async function send(s: Live, body: string, files: File[] = [], opts: SendOpts = 
  */
 function setup(key: FeedKey) {
   const s = liveViews(liveState(key))
-  const { taskId, messages, newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading } = s
+  const { taskId, messages, newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, errorCause, door, sending, loading } = s
   const { search, liveCount, lastLive, loadingOlder, archivedAt, seenAtOpen } = s
   const applyEdited = (row: unknown) => applyEditedRow(s, row)
   return {
-    taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading,
+    taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, errorCause, door, sending, loading,
     search, liveCount, lastLive,
     open: (id: string, opts?: OpenOpts) => open(s, id, opts),
     close: () => close(s),

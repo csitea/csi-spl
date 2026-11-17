@@ -15,6 +15,11 @@
      so the snackbar does not say it a second time. Technical text never
      passes through t().
 
+     Spec 162 (utils/plain-error-ref.mjs): a caller passes the rejection
+     (`error`) too, so a failure the api layer journaled keeps its one row
+     (SPL-5750), and a 403 not_member while the not-member card is up
+     journals nothing (SPL-5744).
+
      On demand (i18n-first-screen.mjs): its strings wait in the second
      catalogue; until that is merged it says the core "Something went wrong"
      and offers no button (te() below), so no first paint shows a raw key.
@@ -47,10 +52,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { extractErrorId, newClientErrorId, noteError } from '@/composables/errorJournal.mjs'
 import { debugPanelVisibleFor } from '~/composables/debugAudience.mjs'
 import { useSessionStore } from '~/stores/session'
 import { plainErrorKind, plainErrorStatus } from '~/utils/plain-error.mjs'
+import { noticeRef } from '~/utils/plain-error-ref.mjs'
 
 const props = withDefaults(defineProps<{
   /** The technical text the store kept ("spool 500 internal", "Failed to fetch"). */
@@ -74,6 +79,8 @@ const emit = defineEmits<{ retry: [] }>()
 
 const { t, te } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
+/* tenant-host-boot.mjs step 3: set while the not-member card is up */
+const notMember = useState<{ tenant: string, home: string, pending?: string }>('tenant-host-not-member', () => ({ tenant: '', home: '', pending: '' }))
 
 const debug = computed(() => session.state === 'in' && debugPanelVisibleFor(session.claims ?? null))
 const status = computed(() => props.status || plainErrorStatus(props.message, props.error))
@@ -83,17 +90,7 @@ const sentence = computed(() => (te('plain_err.retry') ? t(`plain_err.${kind.val
 /* one id per distinct failure, after mount (never during a prerender) */
 const refId = ref('')
 function resolve() {
-  const known = props.errorId || extractErrorId(props.error)
-  if (known || props.compact) {
-    refId.value = known
-    return
-  }
-  if (!props.message && props.error == null) {
-    refId.value = ''
-    return
-  }
-  refId.value = newClientErrorId()
-  noteError({ source: props.source, message: props.message, error: props.error, errorId: refId.value, inline: true })
+  refId.value = noticeRef(props, { notMember: !!notMember.value.tenant })
 }
 onMounted(resolve)
 watch([() => props.message, () => props.error, () => props.errorId], resolve)

@@ -20,7 +20,7 @@ const ref = (value) => ({ value })
 
 function store() {
   return {
-    active: ref(null), peer: ref(null), messages: ref([]), loading: ref(false), error: ref(null),
+    active: ref(null), peer: ref(null), messages: ref([]), loading: ref(false), error: ref(null), errorCause: ref(null),
     totals: ref({}), olderCursor: ref(null), offlineAt: ref(null),
   }
 }

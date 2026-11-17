@@ -81,6 +81,7 @@ async function firstPage(s, d, background) {
   const { mine, where, current } = startRead(s, { opening: !background })
   if (!background) s.loading.value = true
   s.error.value = null
+  s.errorCause.value = null
   try {
     const page = await d.read(where)
     if (!current()) return overtaken(s, mine)
@@ -93,7 +94,11 @@ async function firstPage(s, d, background) {
   } catch (e) {
     /* SPL-2149: no network - the copy of this feed this device read last */
     const kept = current() && await d.showKept(e, where)
-    if (!kept && current()) s.error.value = d.failed(e)
+    if (!kept && current()) {
+      s.error.value = d.failed(e)
+      /* spec 162 F4: the notice quotes the api record's id, not a second row */
+      s.errorCause.value = e
+    }
     if (!current()) return overtaken(s, mine)
   } finally {
     if (!background && current()) s.loading.value = false

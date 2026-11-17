@@ -14,7 +14,7 @@
            the Debug pane on. The v-if sits on a box of its own: on the bare
            lazy component Vue threw insertBefore at 390 (as FirstRunChecklist below) -->
       <div v-if="store.error" class="plain-err-slot">
-        <LazyPlainErrorNotice :message="store.error" retry source="lobby" test-id="lobby-error" @retry="lobbyId && store.open(lobbyId)" />
+        <LazyPlainErrorNotice :message="store.error" :error="store.errorCause" retry source="lobby" test-id="lobby-error" @retry="lobbyId && store.open(lobbyId)" />
       </div>
       <!-- W15 (spec 047): the next 3 steps for whoever may set the tenant up;
            here since `/` (the Topics list) went (t1 e4bfddb1). The v-if sits

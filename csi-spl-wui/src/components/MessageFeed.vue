@@ -13,7 +13,7 @@
   >
     <!-- SPL-1839: one plain sentence + Try again; the technical part only with the Debug pane on (own box: a bare lazy v-if threw insertBefore in #lobby) -->
     <div v-if="channel.error" class="plain-err-slot">
-      <LazyPlainErrorNotice :message="channel.error" retry source="channel" test-id="channel-error" @retry="channel.refresh()" />
+      <LazyPlainErrorNotice :message="channel.error" :error="channel.errorCause" retry source="channel" test-id="channel-error" @retry="channel.refresh()" />
     </div>
     <!-- spec 150 B6 (panel D1): a sort or New covers the loaded pages only; the line says so while an older page exists -->
     <p v-if="windowLine" class="topic-list-window" data-testid="topic-list-window">{{ windowLine }}</p>

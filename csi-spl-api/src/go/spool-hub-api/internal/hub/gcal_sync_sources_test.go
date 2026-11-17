@@ -2,6 +2,9 @@ package hub_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"maps"
 	"net/http"
 	"slices"
 	"testing"
@@ -188,5 +191,128 @@ func TestGcalReadsCalendars(t *testing.T) {
 		if got := hub.GcalReadsCalendars(scopes); got != want {
 			t.Errorf("GcalReadsCalendars(%q) = %v, want %v", scopes, got, want)
 		}
+	}
+}
+
+// gcalTwoHubs is a member of two workspaces who connects both with the same
+// Google account (SPL-5782): two "Spool Hub" calendars on one Google
+// calendar list, next to the primary and the team calendar, one private
+// Spool event in each workspace, synced out.
+type gcalTwoHubs struct {
+	*gcalSources
+	tidB, humB string
+}
+
+func gcalTwoHubsOf(t *testing.T) *gcalTwoHubs {
+	t.Helper()
+	ids := mktIDs(2)
+	se := gcalSyncEnvIn(t, ids)
+	se.gc.ReadCalendars = true
+	gs := &gcalSources{gcalSyncEnv: se, hum: se.member(t)}
+	gs.primary = se.fake.AddCalendar(fakegcal.DefaultEmail, fakegcal.DefaultEmail, true)
+	gs.team = se.fake.AddCalendar(fakegcal.DefaultEmail, "CSITEA", false)
+	gs.add(t, gs.primary, "Standup")
+	gs.add(t, gs.team, "Team review")
+	th := &gcalTwoHubs{gcalSources: gs, tidB: ids[1]}
+	th.humB = seat(t, se.env, th.tidB, rbac.Developer)
+	gcalConnectMember(t, se.gcalTestEnv, th.tidB, th.humB)
+	t.Cleanup(func() {
+		se.st.(store.Gcal).DeleteGcalConnection(context.Background(), th.tidB, th.humB) //nolint:errcheck // gone is fine
+	})
+	ctx, now := context.Background(), se.clock.now()
+	for _, m := range []struct{ tid, hum, title string }{{gs.tid, gs.hum, "Plan A"}, {th.tidB, th.humB, "Plan B"}} {
+		if _, err := se.st.(store.Calendar).CreateCalendarEvent(ctx, m.tid, store.CalendarEvent{Title: m.title, Kind: "other",
+			Audience: store.CalendarPrivate, CreatorType: "human", CreatorID: m.hum,
+			StartsAt: now.Add(24 * time.Hour), EndsAt: now.Add(25 * time.Hour)}, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 4 { // both connections, twice: hub calendars made and filled, then read
+		gs.cycle(t)
+	}
+	a, b := th.conn(t, gs.hum), th.connB(t)
+	if a.CalendarID == "" || b.CalendarID == "" || a.CalendarID == b.CalendarID {
+		t.Fatalf("hub calendars %q and %q, want two", a.CalendarID, b.CalendarID)
+	}
+	if len(gs.fake.Events(a.CalendarID)) != 1 || len(gs.fake.Events(b.CalendarID)) != 1 {
+		t.Fatal("a workspace's event did not reach its hub calendar") // else no copy could come back
+	}
+	return th
+}
+
+func (th *gcalTwoHubs) connB(t *testing.T) store.GcalConnection {
+	t.Helper()
+	c, err := gcalRow(t, th.gcalTestEnv, th.tidB, th.humB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+// titlesB is titles in workspace B.
+func (th *gcalTwoHubs) titlesB(t *testing.T) []string {
+	t.Helper()
+	tid := th.tid
+	th.tid = th.tidB
+	defer func() { th.tid = tid }()
+	return th.titles(t, th.humB)
+}
+
+// SPL-5782: a hub calendar of the member's other workspace is never read in
+// as an existing calendar: each workspace holds its own event and the
+// imports, never the other workspace's event as a private copy.
+func TestGcalSourcesSkipOtherHubCalendars(t *testing.T) {
+	th := gcalTwoHubsOf(t)
+	if got := th.titles(t, th.hum); !slices.Equal(got, []string{"Plan A", "Standup", "Team review"}) {
+		t.Errorf("workspace A: %v, want Plan A, Standup and Team review", got)
+	}
+	if got := th.titlesB(t); !slices.Equal(got, []string{"Plan B", "Standup", "Team review"}) {
+		t.Errorf("workspace B: %v, want Plan B, Standup and Team review", got)
+	}
+	a, b := th.conn(t, th.hum), th.connB(t)
+	for _, c := range []store.GcalConnection{a, b} {
+		if _, ok := c.SourceSync[a.CalendarID]; ok {
+			t.Errorf("connection %s reads hub calendar %s", c.ID, a.CalendarID)
+		}
+		if _, ok := c.SourceSync[b.CalendarID]; ok {
+			t.Errorf("connection %s reads hub calendar %s", c.ID, b.CalendarID)
+		}
+	}
+}
+
+// SPL-5782, the copies a build without the skip already made: a source
+// entry and an import of the other workspace's hub calendar leave on the
+// next cycle (sweepSources).
+func TestGcalSourcesSweepOtherHubCopies(t *testing.T) {
+	th := gcalTwoHubsOf(t)
+	ctx, now := context.Background(), th.clock.now()
+	a, b := th.conn(t, th.hum), th.connB(t)
+	g := th.st.(store.Gcal)
+	_, l, err := g.ClaimGcalMember(ctx, th.tidB, th.humB, now, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := maps.Clone(b.SourceSync)
+	src[a.CalendarID] = ""
+	if err := g.FinishGcalSync(ctx, l, store.GcalSyncDone{SyncToken: b.SyncToken, SourceSync: src, NextDue: now}, now); err != nil {
+		t.Fatal(err)
+	}
+	h := sha256.Sum256([]byte(a.CalendarID))
+	key := "gcal:" + b.ID + ":src." + hex.EncodeToString(h[:6]) + ".legacy1"
+	if _, err := th.st.(store.GcalImport).PutGcalImported(ctx, th.tidB, key, store.CalendarEvent{Title: "Plan A", Kind: "other",
+		Audience: store.CalendarPrivate, CreatorType: "human", CreatorID: th.humB,
+		StartsAt: now.Add(24 * time.Hour), EndsAt: now.Add(25 * time.Hour)}, now); err != nil {
+		t.Fatal(err)
+	}
+	if got := th.titlesB(t); !slices.Contains(got, "Plan A") { // else the check below passes on no copy
+		t.Fatalf("workspace B before the cycle: %v, want the legacy copy Plan A", got)
+	}
+	th.cycle(t)
+	th.cycle(t)
+	if got := th.titlesB(t); !slices.Equal(got, []string{"Plan B", "Standup", "Team review"}) {
+		t.Errorf("workspace B after a cycle: %v, want Plan B, Standup and Team review", got)
+	}
+	if _, ok := th.connB(t).SourceSync[a.CalendarID]; ok {
+		t.Errorf("source_sync still holds hub calendar %s", a.CalendarID)
 	}
 }

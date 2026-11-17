@@ -34,6 +34,9 @@ import (
 //     (recurringEventId) is skipped, as in the In half.
 //   - a calendar the member stops showing (or unsubscribes from, or one of
 //     another Google account after a reconnect) has its imports trashed.
+//   - every "Spool Hub" calendar of the same Google account is skipped, the
+//     member's other workspaces' ones too (SPL-5782); a copy an older build
+//     made leaves with the sweep above.
 //
 // It runs only when the cnf scopes hold a read scope (GcalReadsCalendars):
 // the hub's own calendar needs only calendar.app.created, the calendar list
@@ -143,8 +146,21 @@ func (cy *gcalCycle) sourceFailed(err error) error {
 }
 
 // sourceCalendars lists the ids of the calendars the member shows in Google
-// Calendar, the hub's own one left out.
+// Calendar, every "Spool Hub" calendar of the same Google account left out:
+// this connection's own one and those of the member's other workspaces
+// (SPL-5782), or each workspace's events would come back into the others as
+// private copies. They are matched by the stored calendar_id, never by title.
 func (cy *gcalCycle) sourceCalendars(ctx context.Context) ([]string, error) {
+	hubs := map[string]bool{cy.c.CalendarID: true}
+	if hc, ok := cy.s.o.Store.(store.GcalHubCalendars); ok {
+		own, err := hc.GcalHubCalendars(ctx, cy.c.GoogleEmail)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range own {
+			hubs[id] = true
+		}
+	}
 	var ids []string
 	token := ""
 	for {
@@ -158,7 +174,7 @@ func (cy *gcalCycle) sourceCalendars(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 		for _, c := range page.Items {
-			if c.ID != "" && c.ID != cy.c.CalendarID && c.Selected && !c.Hidden && !c.Deleted {
+			if c.ID != "" && !hubs[c.ID] && c.Selected && !c.Hidden && !c.Deleted {
 				ids = append(ids, c.ID)
 			}
 		}

@@ -66,7 +66,13 @@ type gcalSyncEnv struct {
 // gcalSyncT0, every request to the fake through a hook.
 func gcalSyncEnvOf(t *testing.T) *gcalSyncEnv {
 	t.Helper()
-	ids := mktIDs(1)
+	return gcalSyncEnvIn(t, mktIDs(1))
+}
+
+// gcalSyncEnvIn is gcalSyncEnvOf over the listed workspaces ids; tid is the
+// first.
+func gcalSyncEnvIn(t *testing.T, ids []string) *gcalSyncEnv {
+	t.Helper()
 	e := gcalEnvOf(t, ids, ids...)
 	e.clock.mu.Lock()
 	e.clock.t = gcalSyncT0

@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -302,4 +303,18 @@ func (s *Memory) FinishGcalSync(_ context.Context, l GcalLease, d GcalSyncDone, 
 		c.LastSyncedAt, c.DueAt, c.SyncLeaseUntil, c.UpdatedAt = memTime(now), d.NextDue, nil, now
 		return nil
 	})
+}
+
+// GcalHubCalendars implements GcalHubCalendars on the Memory store.
+func (s *Memory) GcalHubCalendars(_ context.Context, googleEmail string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []string{}
+	for _, c := range s.gcalLocked().conns {
+		if c.CalendarID != "" && strings.EqualFold(c.GoogleEmail, googleEmail) {
+			out = append(out, c.CalendarID)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
 }

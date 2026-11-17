@@ -27,6 +27,7 @@ var operatorCallers = map[string]string{
 	"XMarketingChannels":         "X dispatch sweep (spec 090 X row, SPL-5194, hub goroutine): the active X channels of every workspace, never a token; no route",
 	"LinkedInPageChannels":       "LinkedIn Company Page dispatch sweep (spec 090 T041, SPL-5258, hub goroutine): the active LinkedIn Page channels of every workspace, never a token; no route",
 	"ClaimGcalConnection":        "google calendar sync cycle (spec 149 B2/B6a, SPL-3170, hub goroutine): leases the connection due longest of every workspace, never a token; no route",
+	"GcalHubCalendars":           "google calendar sync cycle (spec 149 2.10, SPL-5782, hub goroutine): the hub calendar ids of one Google account, which spans workspaces, so the read-only half skips them; never a token; no route",
 	"GcalConnectionByWatch":      "google calendar push (spec 149 B2/B7, SPL-3170): the push names a channel id, not a workspace; never a token",
 	"ContactsSyncOf":             "contacts erase-one (spec 154 2.6, seat note N4, SPL-3447): the person's one binding may be in another workspace, invisible from the session's; keyed by the session's own human, never a contact value",
 	"ClaimContactsSync":          "contacts sync cycle (spec 154 v1.2 2.5 B8a, SPL-3460, hub goroutine): leases the binding due longest of every workspace whose Google connection is connected, never a contact value; no route",

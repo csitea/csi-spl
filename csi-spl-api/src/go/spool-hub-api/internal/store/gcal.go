@@ -187,3 +187,21 @@ func gcalTokensOK(tok GcalTokens) bool {
 func gcalMapOK(m GcalEventMap) bool {
 	return calendarIDRe.MatchString(m.EventID) && m.GoogleID != "" && len(m.GoogleID) <= 1024 && len(m.SyncHash) == 64
 }
+
+// GcalHubCalendars answers the "Spool Hub" calendars the hub made for one
+// Google account (spec 149 section 2.10, SPL-5782). A member who connects
+// several workspaces with the same Google account has one hub calendar per
+// workspace on the same Google calendar list; the read-only half
+// (gcal_sync_sources.go) skips all of them, or each workspace's events would
+// come back as private copies in the others.
+type GcalHubCalendars interface {
+	// GcalHubCalendars lists the non-empty calendar_id of every connection
+	// whose google_email is googleEmail (case-insensitive), all workspaces
+	// (operator scope: the account spans workspaces; never a token), sorted.
+	GcalHubCalendars(ctx context.Context, googleEmail string) ([]string, error)
+}
+
+var (
+	_ GcalHubCalendars = (*Memory)(nil)
+	_ GcalHubCalendars = (*Postgres)(nil)
+)

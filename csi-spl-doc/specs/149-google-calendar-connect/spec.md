@@ -346,6 +346,16 @@ The owner answered poll d93654e1 (HUM-10 msg ce137fef) with A and B
   with `remove_imported=1` trashes them too. Code:
   `hub/gcal_sync_sources.go`; tests `hub/gcal_sync_sources_test.go`,
   `store/gcal_test.go` `TestGcalSourceSync`.
+- **B never reads a "Spool Hub" calendar** (SPL-5782): every hub calendar
+  of the same Google account is skipped, matched by the stored
+  `calendar_id` of each connection with that `google_email` in any
+  workspace (`store.GcalHubCalendars`, never the title), so a member who
+  connects several workspaces with one Google account does not get each
+  workspace's events back as private copies in the others; a copy an
+  older build made is trashed by the dropped-calendar sweep on the next
+  cycle. Tests `TestGcalSourcesSkipOtherHubCalendars`,
+  `TestGcalSourcesSweepOtherHubCopies`, `store/gcal_test.go`
+  `TestGcalHubCalendars`.
 - **Scope.** B runs only when cnf `gcal.scopes` holds
   `https://www.googleapis.com/auth/calendar.readonly` (or the full
   `.../auth/calendar`): `hub.GcalReadsCalendars`, wired in

@@ -446,3 +446,45 @@ func TestGcalSourceSync(t *testing.T) {
 		})
 	}
 }
+
+// TestGcalHubCalendars (SPL-5782, spec 149 2.10): the hub calendars of one
+// Google account across workspaces, case-insensitive on the email; another
+// account's calendar and a connection without a calendar yet are not listed.
+func TestGcalHubCalendars(t *testing.T) {
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			a, b := newGcalFix(t, st), newGcalFix(t, st)
+			acct, other := uid("hub-")+"@example.com", uid("hub-")+"@example.com"
+			set := func(f *gcalFix, human, email, cal string) {
+				c := f.connect(t, human, email)
+				if cal == "" {
+					return
+				}
+				l, err := f.claim(t, c.ID, f.now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := f.g.SetGcalCalendar(ctx, l, cal, f.now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			calA, calB, calO := uid("cal-a-"), uid("cal-b-"), uid("cal-o-")
+			set(a, a.m1, acct, calA)
+			set(b, b.m1, strings.ToUpper(acct), calB)
+			set(b, b.m2, other, calO)
+			set(a, a.m2, acct, "")
+			got, err := st.(GcalHubCalendars).GcalHubCalendars(ctx, acct)
+			want := []string{calA, calB}
+			if calB < calA {
+				want = []string{calB, calA}
+			}
+			if err != nil || len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+				t.Fatalf("hub calendars of %s = %v, %v; want %v", acct, got, err, want)
+			}
+			if got, err := st.(GcalHubCalendars).GcalHubCalendars(ctx, other); err != nil || len(got) != 1 || got[0] != calO {
+				t.Fatalf("hub calendars of %s = %v, %v; want [%s] (the control)", other, got, err, calO)
+			}
+		})
+	}
+}

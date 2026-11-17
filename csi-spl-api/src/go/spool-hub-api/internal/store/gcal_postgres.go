@@ -330,3 +330,18 @@ func (s *Postgres) FinishGcalSync(ctx context.Context, l GcalLease, d GcalSyncDo
 		source_sync = coalesce($7::jsonb, source_sync)`,
 		d.SyncToken, d.OutCursor, now, d.NextDue, src)
 }
+
+// GcalHubCalendars implements GcalHubCalendars on the Postgres store (rdb
+// 0217): the operator scope, since the Google account spans workspaces.
+func (s *Postgres) GcalHubCalendars(ctx context.Context, googleEmail string) ([]string, error) {
+	out := []string{}
+	err := s.asOperatorQuery(ctx, `SELECT calendar_id FROM gcal_connections
+		WHERE lower(google_email) = lower($1) AND calendar_id <> '' ORDER BY calendar_id`,
+		[]any{googleEmail}, func(r pgx.Rows) error {
+			var id string
+			err := r.Scan(&id)
+			out = append(out, id)
+			return err
+		})
+	return out, err
+}

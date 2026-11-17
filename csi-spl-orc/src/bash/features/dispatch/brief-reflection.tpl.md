@@ -53,13 +53,20 @@ SPL-5829).
    carries them, so the owner should not have to ask for their status), and
    at most 3 proposed rows.
 3. Each proposed row is refactor or bug, one small task, with its own
-   `Class:`, `Epic: SPL-<n>` and `Spec: <spec folder on origin/master>` lines, and a
-   `Discussion: <topic>` line naming the live topic it came from: the origin
-   topic of the owner message it answers, else the discussion of the issue or
-   lane it fixes. Never `{DISCUSSION}` alone: its lane's issue would link only
-   the backlog topic and its push would fail commit-links. The holder places
-   the row on that line. A row with no such topic is not sent as a spawn
-   request: name it on the page as a question for the holder.
+   `Class:`, `Epic: SPL-<n>` and `Spec: <spec folder on origin/master>` lines,
+   and these two lines right after its heading, both naming the live topic it
+   came from (the origin topic of the owner message it answers, else the
+   discussion of the issue or lane it fixes):
+
+   Topic: <topic uuid>
+   Discussion: <topic uuid>
+
+   The placer files the lane's issue on the brief's first `Topic: <uuid>`
+   (`spl_lane_issue_topic`; it never reads `Discussion:`), and the lane map
+   reads the first `Discussion:` line. Never `{DISCUSSION}` alone: the issue
+   would link only the backlog topic and its push would fail commit-links. A
+   row with no such topic is not sent as a spawn request: name it on the page
+   as a question for the holder.
    Send each to the dispatch holder as a spawn request (kind task); it goes
    through the normal enqueue gates (`do_spl_spawn_enqueue`,
    `SPAWN_CLASS=refactor|bug`), so it runs the same night.

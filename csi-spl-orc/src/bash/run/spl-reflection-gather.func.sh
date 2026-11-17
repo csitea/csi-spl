@@ -138,18 +138,25 @@ spl_reflection_discussion() {
 # its push (SPL-5826). Left out: the backlog topic (cnf and the tenant's
 # default), a version-5 uuid (a relay task's hash, not a discussion) and a
 # topic that is archived or whose archive state could not be read (SPL-5646:
-# never an archived one). One "- <uuid>" line each, else one "(none: ...)".
+# never an archived one). One "- <uuid>" line each, else one "(none: ...)";
+# then one "(not read: ...)" line when an archive read gave no answer or was
+# past the cap (REFLECTION_ORIGIN_MAX, default 20 hub reads a night).
 spl_reflection_origin_topics() {
-  local t def="" n=0 rc skip=0
+  local t def="" n=0 rc arch=0 unread=0 cap="${REFLECTION_ORIGIN_MAX:-20}" reads=0
   declare -F spl_lane_issue_default_topic >/dev/null && def="$(spl_lane_issue_default_topic 2>/dev/null)"
   [[ -n "${LANE_FLEET:-}" ]] || spl_spawn_q_init >/dev/null 2>&1 || true
   while read -r t; do
     [[ "$t" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-46-9a-f][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$ && "$t" != "$2" && "$t" != "$def" ]] || continue
-    rc=0; spl_spawn_topic_archived "$t" >/dev/null 2>&1 || rc=$?
-    ((rc == 1)) || { skip=$((skip + 1)); continue; }
-    echo "- $t"; n=$((n + 1))
+    ((reads < cap)) || { unread=$((unread + 1)); continue; }
+    reads=$((reads + 1)); rc=0; spl_spawn_topic_archived "$t" >/dev/null 2>&1 || rc=$?
+    case "$rc" in
+      1) echo "- $t"; n=$((n + 1)) ;;
+      0) arch=$((arch + 1)) ;;
+      *) unread=$((unread + 1)) ;;
+    esac
   done < <(sed -nE 's/^- msg [^,]+, topic ([^,]+), ([0-9TZ:-]+)$/\2 \1/p' "$1" | sort -r | awk '!seen[$2]++ { print $2 }')
-  ((n)) || echo "(none: no owner message of the night is in a live topic other than the backlog; ${skip} archived or unread)"
+  ((n)) || echo "(none: no owner message of the night is in a live topic other than the backlog; $arch archived)"
+  ((unread == 0)) || echo "(not read: $unread topic(s) whose archive state was not read (no answer, or past the cap of $cap reads): left out)"
 }
 
 # spl_reflection_gate <root> <holder>: the night's date on stdout when this

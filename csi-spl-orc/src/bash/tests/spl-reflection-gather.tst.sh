@@ -68,6 +68,11 @@
 #      (cnf) topic, an archived one, one whose archive state is unread and a
 #      relay hash; it binds each proposed row to a Discussion: line of its
 #      own, never the backlog alone, and the lane to link its origin topics.
+#      An archive state not read is one (not read line, whatever is listed;
+#      REFLECTION_ORIGIN_MAX caps the reads (R7 c-168 W2, N1). The brief's row
+#      lines (Topic: and Discussion:) put on a row brief set its issue topic
+#      (spl_lane_issue_topic) and lane-map discussion; red control: a
+#      Discussion: line alone does not set the issue topic (R7 c-168 W1).
 #      Red control: master's template renders none, so a lane on it links
 #      only the backlog topic and its push fails commit-links (SPL-5826).
 #      A night with no live owner topic is one (none line
@@ -412,9 +417,27 @@ B="$T/briefs/$SLUG.md"
   fail "17. origin topics: rc=$rc '$(origin_of "$B")' $(sed -n '/^## Origin topics$/,/^## Do$/p' "$B" 2>/dev/null) $(tail -3 "$T/out")"
 ! grep -qx "$RELAY" "$T/archived.log" 2>/dev/null && ! grep -qx "$DISC" "$T/archived.log" 2>/dev/null &&
   pass "17. the backlog and a relay hash are not even read for their archive state" || fail "17. archive reads: $(cat "$T/archived.log")"
-grep -q "Never \`$DISC\` alone" "$B" && grep -q '`Discussion: <topic>` line naming the live topic it came from' "$B" &&
-  grep -q 'spool issue link --ref <your key> --discussion <topic>' "$B" &&
-  pass "17. the brief binds each row to a Discussion: line of its own and the lane to link its origin topics" || fail "17. row rule missing"
+grep -qx "(not read: 1 topic(s) whose archive state was not read (no answer, or past the cap of 20 reads): left out)" "$B" &&
+  pass "17. an unread archive state is one (not read line even when topics are listed (R7 c-168 W2)" || fail "17. unread line: $(sed -n '/^## Origin topics$/,/^## Do$/p' "$B" 2>/dev/null)"
+grep -q "Never \`$DISC\` alone" "$B" && grep -q 'spool issue link --ref <your key> --discussion <topic>' "$B" &&
+  pass "17. the brief binds each row to its own topic, never the backlog alone, and the lane to link its origin topics" || fail "17. row rule missing"
+# W1 (R7 c-168): the row lines the brief asks for set the row lane's issue
+# topic (spl_lane_issue_topic, the placer's issue step) and its lane-map
+# discussion (li_discussion_from_brief). row_brief LINES: a holder-placed
+# row brief, its heading, the given lines, then a prose line naming another topic.
+FUNC="$PROJ_ROOT/src/bash/run/spl-reflection-gather.func.sh"
+issue_topic_of() { bash -c "$(sed -n '/^spl_lane_issue_topic()/,/^}/p' "$PROJ_ROOT/src/bash/run/spl-lane-issue.func.sh")"'
+  spl_lane_issue_topic "$1"' _ "$1"; }
+row_brief() { { echo "# Lane brief: bug - a row"; printf '%s\n' "$1"; echo "Class: bug"; echo "Placed from the owner's topic $LIVE_OLD (prose)."; } >"$T/row.md"; }
+rows="$(sed -n '/^   Topic: <topic uuid>$/,/^   Discussion: <topic uuid>$/p' "$B" | sed -E "s/^ +//; s/<topic uuid>/$LIVE_NEW/")"
+row_brief "$rows"
+[[ "$(wc -l <<<"$rows")" == 2 && "$(issue_topic_of "$T/row.md")" == "$LIVE_NEW" && "$(disc_of "$T/row.md")" == "$LIVE_NEW" ]] &&
+  pass "17. a row brief with the brief's two row lines files its issue on the origin topic and maps its lane to it" ||
+  fail "17. row lines: '$rows' issue topic '$(issue_topic_of "$T/row.md")' discussion '$(disc_of "$T/row.md")'"
+row_brief "Discussion: $LIVE_NEW"
+[[ "$(issue_topic_of "$T/row.md")" != "$LIVE_NEW" ]] &&
+  pass "17. red control (8718b4168's ask, a Discussion: line only): the issue step does not take it ('$(issue_topic_of "$T/row.md")')" ||
+  fail "17. red control did not go red: a Discussion: line alone set the issue topic"
 # red control: master's template (no Origin topics section) names no origin
 # topic, so a lane on it links only the backlog
 sed '/^## Origin topics$/,/^## Do$/{/^## Do$/!d}' "$TPL" >"$T/master.tpl.md"
@@ -424,8 +447,16 @@ reset; run "$NIGHT_NOW" DRY_RUN=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived" REF
 # no live owner topic in the night: one (none line, the fallback stays
 printf '%s\t%s\t%s\n' "$M1" "$DISC" 2026-01-15T06:00:00Z "$M1" "$ARCH" 2026-01-15T07:00:00Z >"$T/owner.tsv"
 reset; run "$NIGHT_NOW" DRY_RUN=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived"
-[[ $rc == 0 && -z "$(origin_of "$T/briefs/$SLUG.md")" ]] && grep -qx '(none: no owner message of the night is in a live topic other than the backlog; 1 archived or unread)' "$T/briefs/$SLUG.md" &&
+[[ $rc == 0 && -z "$(origin_of "$T/briefs/$SLUG.md")" ]] && grep -qx '(none: no owner message of the night is in a live topic other than the backlog; 1 archived)' "$T/briefs/$SLUG.md" &&
+  ! grep -q '^(not read: ' <(sed -n '/^## Origin topics$/,/^## Do$/p' "$T/briefs/$SLUG.md") &&
   pass "17. no live owner topic: one (none line, the lane still queued on the fallback" || fail "17. none: rc=$rc $(sed -n '/^## Origin topics$/,/^## Do$/p' "$T/briefs/$SLUG.md" 2>/dev/null)"
+# N1: at most REFLECTION_ORIGIN_MAX archive reads; the rest is counted unread
+cp "$T/owner-origin.tsv" "$T/owner.tsv"
+reset; rm -f "$T/archived.log"; run "$NIGHT_NOW" DRY_RUN=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived" REFLECTION_ORIGIN_MAX=1
+[[ "$(origin_of "$T/briefs/$SLUG.md")" == "$LIVE_NEW " && "$(wc -l <"$T/archived.log")" == 1 ]] &&
+  grep -qx '(not read: 3 topic(s) whose archive state was not read (no answer, or past the cap of 1 reads): left out)' "$T/briefs/$SLUG.md" &&
+  pass "17. REFLECTION_ORIGIN_MAX=1: one archive read, the newest live topic listed, the rest counted not read" ||
+  fail "17. cap: '$(origin_of "$T/briefs/$SLUG.md")' reads $(wc -l <"$T/archived.log" 2>/dev/null) $(grep '^(not read' "$T/briefs/$SLUG.md")"
 cp "$T/owner.keep" "$T/owner.tsv"
 
 # --- 13. the owner SQL on a REAL Postgres: an admin owner listed, a tester not ------

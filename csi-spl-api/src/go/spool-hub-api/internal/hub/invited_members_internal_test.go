@@ -16,12 +16,16 @@ func InviteIDForTest(tenant, email string) string {
 // one shape and never carries the address.
 func TestInviteLabelAndID(t *testing.T) {
 	for in, want := range map[string]string{"open@example.com": "o…@example.com", "ä.b@example.com": "ä…@example.com", "@x": "…", "nodomain": "…"} {
-		if got, masked := inviteLabel(in, false); got != want || !masked {
+		if got, masked := inviteLabel(in, inviteMasked); got != want || !masked {
 			t.Errorf("inviteLabel(%q) = %q %v, want %q masked", in, got, masked, want)
 		}
 	}
-	if got, masked := inviteLabel("open@example.com", true); got != "open@example.com" || masked {
+	if got, masked := inviteLabel("open@example.com", inviteShown); got != "open@example.com" || masked {
 		t.Errorf("shown = %q %v", got, masked)
+	}
+	// spec 154 section 12.6 (SPL-5830): hidden keeps nothing, no domain either.
+	if got, masked := inviteLabel("open@example.com", inviteHidden); got != "" || !masked {
+		t.Errorf("hidden = %q %v, want \"\" masked", got, masked)
 	}
 	k1, k2 := []byte("key-one"), []byte("key-two")
 	id := inviteIDWith(k1, "t1", "Open@Example.com")

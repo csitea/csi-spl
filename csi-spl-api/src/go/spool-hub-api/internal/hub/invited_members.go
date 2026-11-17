@@ -30,14 +30,22 @@ import (
 // person gate of the member card: a cookie session, no Bearer, no act-as).
 // Each row carries an opaque id (inviteID), so the picker and the channel
 // list work where the address is masked: the address shows exactly where a
-// member card shows one, and is masked (j…@example.com) in the demo and in a
-// name-only workspace (MemberCardNameOnlyWorkspaces) to everyone but a
-// members.invite holder (showsInviteAddress). The roster is unchanged.
+// member card shows one, and is masked (j…@example.com) in the demo to
+// everyone but a members.invite holder (inviteViewFor). The roster is
+// unchanged.
+//
+// In a name-only workspace (MemberCardNameOnlyWorkspaces, t1 by default) an
+// invitee carries no address and no domain for anyone, the inviter and an
+// admin included (spec 154 section 12.6, SPL-5830; owner HUM-10, msg
+// 10b28abb: "Dear future spool-hub user"): the label is "" with masked true,
+// and the WUI shows its own words for an invitee with no name. An invite
+// carries no name, so every open invitee there is one; once they sign in they
+// are a member and show by first and last name.
 
 // invitedRow is one inactive member as the caller sees it.
 type invitedRow struct {
 	ID        string `json:"id"`
-	Label     string `json:"label"` // the address, or its masked form
+	Label     string `json:"label"` // the address, its masked form, or "" (name-only)
 	Masked    bool   `json:"masked"`
 	InvitedOn string `json:"invited_on"`
 	ExpiresAt string `json:"expires_at"`
@@ -70,10 +78,10 @@ func (s *Server) handleInvitedMembers(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "invites unavailable")
 		return
 	}
-	show := s.showsInviteAddress(r.Context(), t.ID, hum)
+	view := s.inviteViewFor(r.Context(), t.ID, hum)
 	out := make([]invitedRow, 0, len(ins))
 	for _, in := range ins {
-		label, masked := inviteLabel(in.Email, show)
+		label, masked := inviteLabel(in.Email, view)
 		out = append(out, invitedRow{ID: s.inviteID(t.ID, in.Email), Label: label, Masked: masked,
 			InvitedOn: rfc(in.CreatedAt), ExpiresAt: rfc(in.ExpiresAt)})
 	}
@@ -117,13 +125,28 @@ func (s *Server) inviteEmailByID(ctx context.Context, tenant, id string) string 
 	return ""
 }
 
-// showsInviteAddress: hum may read an invitee's address in tenant, the rule
-// of the member card (no address in the demo or a name-only workspace),
-// except that a members.invite holder reads it anyway (it lists invites).
-func (s *Server) showsInviteAddress(ctx context.Context, tenant, hum string) bool {
-	hidden := (s.o.DemoWorkspace != "" && tenant == s.o.DemoWorkspace) ||
-		slices.Contains(s.o.MemberCardNameOnlyWorkspaces, tenant)
-	return !hidden || (hum != "" && s.allowed(ctx, hum, tenant, rbac.MembersInvite))
+// inviteView is how much of an invitee's address a caller reads.
+type inviteView int
+
+const (
+	inviteShown  inviteView = iota // the whole address
+	inviteMasked                   // j…@example.com
+	inviteHidden                   // nothing: no address, no domain
+)
+
+// inviteViewFor is how hum reads an invitee's address in tenant: hidden in
+// a name-only workspace to everyone, whatever their role (spec 154 section
+// 12.6); masked in the demo except to a members.invite holder (it lists
+// invites); else shown, the rule of the member card.
+func (s *Server) inviteViewFor(ctx context.Context, tenant, hum string) inviteView {
+	if slices.Contains(s.o.MemberCardNameOnlyWorkspaces, tenant) {
+		return inviteHidden
+	}
+	demo := s.o.DemoWorkspace != "" && tenant == s.o.DemoWorkspace
+	if !demo || (hum != "" && s.allowed(ctx, hum, tenant, rbac.MembersInvite)) {
+		return inviteShown
+	}
+	return inviteMasked
 }
 
 // inviteID is the opaque handle of tenant's invite to email: "INV-" and 16
@@ -169,11 +192,15 @@ func isInviteID(v string) bool {
 	return err == nil
 }
 
-// inviteLabel is email as shown, or masked: the first letter of the local
-// part, an ellipsis and the domain (j…@example.com).
-func inviteLabel(email string, show bool) (string, bool) {
-	if show {
+// inviteLabel is email as view shows it: whole, masked (the first letter of
+// the local part, an ellipsis and the domain, j…@example.com), or hidden ("",
+// masked: the caller names the invitee in its own words).
+func inviteLabel(email string, view inviteView) (string, bool) {
+	switch view {
+	case inviteShown:
 		return email, false
+	case inviteHidden:
+		return "", true
 	}
 	at := strings.LastIndex(email, "@")
 	if at <= 0 {
@@ -185,13 +212,13 @@ func inviteLabel(email string, show bool) (string, bool) {
 
 // channelInviteeRows is a channel's pending addresses as hum sees them: the
 // plain list (invited, spec 025 section 11) and the rows with their ids
-// (invitees), both masked by showsInviteAddress.
+// (invitees), both as inviteViewFor shows them ("" in a name-only workspace).
 func (s *Server) channelInviteeRows(ctx context.Context, tenant, hum string, emails []string) ([]string, []channelInviteeRow) {
-	show := s.showsInviteAddress(ctx, tenant, hum)
+	view := s.inviteViewFor(ctx, tenant, hum)
 	labels := make([]string, 0, len(emails))
 	rows := make([]channelInviteeRow, 0, len(emails))
 	for _, e := range emails {
-		label, masked := inviteLabel(e, show)
+		label, masked := inviteLabel(e, view)
 		labels = append(labels, label)
 		rows = append(rows, channelInviteeRow{ID: s.inviteID(tenant, e), Label: label, Masked: masked})
 	}

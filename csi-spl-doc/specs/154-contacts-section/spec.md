@@ -1,5 +1,10 @@
 # 154 Contacts section, synced with Google Contacts
 
+Version v1.6 (2026-11-17, SPL-5830): adds section 12.6, an invitee in a
+name-only workspace (t1) shows no address and no domain to anyone, only
+"Dear future spool-hub user" (owner HUM-10, msg `10b28abb`), as built, and
+cases C50..C52 in 12.3.
+
 Version v1.4 (2026-11-13, SPL-5431): adds section 12, contacts on in every
 workspace and every member's address on the member card, as built (owner
 HUM-10, t1 `30f935b4`, msg `4329fec1`). The text of v1.3 is unchanged
@@ -1685,6 +1690,44 @@ act-as. The labels reuse `contacts.first_name`, `contacts.last_name` and
 and `.invalid`. New text: `.invalid_phone`. All are in 19 locales, with
 agy's review before the land.
 
+### 12.6 An invitee in t1 has no address, for anyone (v1.6, SPL-5830)
+
+Owner HUM-10, t1 `#spool-hub-bugs` (2026-11-17), msg `10b28abb` on poll
+`4e221991`, to "How should an invitee with no name show in the t1
+workspace?": "Dear future spool-hub user". Read with 12.4 ("In the T1
+workspace only the first name and the last name from a contact should be
+visible. Nothing else should be visible."): the dispatch holder's reading
+(msg `f3e0133b`) is that in t1 NOBODY sees an invitee's address or domain,
+not even an admin or the person who invited them.
+
+An invitee is an open workspace invite, the inactive member of spec 025
+section 13 (SPL-5706). An invite carries an address and no name, so in a
+name-only workspace (12.4) every open invitee is one with no name. Once they
+sign in they are a member and show by first and last name (12.5).
+
+**Hub.** In a name-only workspace each response that lists or shows an
+invitee carries `label: ""` and `masked: true`, whatever the caller's role
+(`inviteViewFor`, `internal/hub/invited_members.go`). The invite id
+(`INV-<16 hex>`) stays, so a channel add and its undo still work. This
+covers:
+
+- `GET /v1/view/members/invited`, each row's `label`;
+- `GET /v1/channels/{ch}/members`, the `invitees` rows' `label` and each
+  entry of the plain `invited` list;
+- `POST /v1/channels/{ch}/members` `{invite_id}`, the 201's `email`.
+
+Outside a name-only workspace nothing changes: the address shows, and in
+the demo it is masked (`j…@example.com`) except to a `members.invite`
+holder. Not changed: the admin's Users page (`GET /v1/members`, spec 025
+FR-012). It is a `members.invite` holder's management list, and it revokes
+an invite by its address.
+
+**WUI.** A masked invitee with no label shows as `people.invitee_no_name`
+("Dear future spool-hub user", 19 locales): in the People panel's inactive
+rows, in the channel Properties picker ("Dear future spool-hub user ·
+inactive") and in its invited list. The mock answers the same (no label in
+t1).
+
 ### 12.3 Cases (v1.4)
 
 | case | given | expect | proof |
@@ -1705,5 +1748,8 @@ agy's review before the land.
 | C54 | rdb 0290 on `"  Mary \t Ann  Smith "`, `"Solo"`, a human with `first_name` already set, a blank name; applied twice | first/last split, the set one kept, `display_name` byte-identical, `040 123 4567` refused by `humans_phone_check` | `TestHumanProfileMigration`; red control: a backfill that trims `display_name` turns it red |
 | C55 | the WUI: Settings fields; the card in w2, under act-as and in t1 | the three fields save together, a national phone is refused in the page; Phone row in w2 only | `csi-spl-wui/tests/e2e/display-name.test.mjs`, `people-email.test.mjs`, `tests/unit/display-name.test.mjs` |
 | C45 | cnf `[all]` | 030 carries `SPOOL_HUB_CONTACTS_WORKSPACES="all"` for dev and prd | `csi-spl-iac/src/bash/tests/hub-contacts-030.tst.sh` |
+| C50 | W1 is name-only; an open invite to W1; a developer, an admin and the admin who invited them each list the invitees | one row each, `label` "", `masked` true, an `INV-` id, no `@` and no domain in the body | `TestInvitedMembersHiddenNameOnly`; twin: the same invite in W2 (not name-only) shows the address; red control: `inviteHidden` answering the masked form turns it red |
+| C51 | name-only workspace: a developer adds an invitee to a channel by its id; the developer and an admin read the channel's members | the 201 `email` "", the `invitees` row `label` "" with its id, `invited` [""], no domain; the undo by id works | `TestChannelInviteesHiddenNameOnly`; twin: a workspace that is not name-only shows the address |
+| C52 | the WUI in t1: People, the Properties picker and the invited list | "Dear future spool-hub user", no `@` in any invitee row, no `…@example.com` on the page | `csi-spl-wui/tests/e2e/invited-inactive-member.test.mjs`, `people-email.test.mjs`; twin: the same flow outside t1 shows the address |
 
-<!-- version: 1.5 · updated: 2026-11-16 -->
+<!-- version: 1.6 · updated: 2026-11-17 -->

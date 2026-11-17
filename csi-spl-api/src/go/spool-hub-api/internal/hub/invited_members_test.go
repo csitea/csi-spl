@@ -2,8 +2,8 @@ package hub_test
 
 // Spec 025 section 13 (SPL-5706, owner HUM-10, t1 028ac340): an open
 // workspace invite IS an inactive member. GET /v1/view/members/invited lists
-// it to the workspace's members (masked in a name-only workspace except to a
-// members.invite holder), the channel add takes its invite id, the add grants
+// it to the workspace's members (no address in a name-only workspace, for
+// anyone: spec 154 section 12.6, SPL-5830), the channel add takes its invite id, the add grants
 // nothing before sign-in and everything after, a revoke and an expiry drop it.
 // Memory, and Postgres under SPOOL_TEST_PG_DSN (PRE_PUSH_TIER=full).
 // Fixtures: example.com only.
@@ -76,22 +76,27 @@ func TestInvitedMembersListed(t *testing.T) {
 	}
 }
 
-// I2 (Q2, holder c-002 d35b3c27): in a name-only workspace a member sees the
-// invitee masked (o…@example.com), never the address; an admin
-// (members.invite) sees it whole; the twin is W2, not name-only, where the
-// same invitee shows whole to a member.
-func TestInvitedMembersMaskedNameOnly(t *testing.T) {
+// I2 (spec 154 section 12.6, SPL-5830; owner HUM-10 msg 10b28abb): in a
+// name-only workspace an invitee carries no address and no domain for anyone:
+// a member, an admin (members.invite) and the admin who invited them each read
+// label "" and masked true, the id kept. The twin is W2, not name-only, where
+// the same invitee shows whole to a member.
+func TestInvitedMembersHiddenNameOnly(t *testing.T) {
 	c := newContactsRig(t, onAll, func(o *hub.Options, w1, _ string) { o.MemberCardNameOnlyWorkspaces = []string{w1} })
-	putInvite(t, c.r.e.st, c.w1, "open@example.com", time.Now().Add(time.Hour))
+	inviter, inviterID := c.other(t, "admin")
+	if err := c.r.e.st.(store.Humans).PutInvite(context.Background(), store.Invite{TenantID: c.w1, Email: "open@example.com",
+		Role: store.RoleDefault, InvitedBy: inviterID, OrderedBy: inviterID, ExpiresAt: time.Now().Add(time.Hour)}, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
 	putInvite(t, c.r.e.st, c.w2, "open@example.com", time.Now().Add(time.Hour))
 	q, _ := c.other(t, "developer")
-	code, raw, rows := invitedRows(t, c, q)
-	if code != http.StatusOK || len(rows) != 1 || rows[0]["label"] != "o…@example.com" || rows[0]["masked"] != true || strings.Contains(raw, "open@") {
-		t.Fatalf("developer in name-only W1 = %d %s, want the masked o…@example.com", code, raw)
-	}
 	adm, _ := c.other(t, "admin")
-	if code, raw, rows := invitedRows(t, c, adm); code != http.StatusOK || len(rows) != 1 || rows[0]["label"] != "open@example.com" {
-		t.Errorf("admin in name-only W1 = %d %s, want the address", code, raw)
+	for who, b := range map[string]*http.Client{"member": q, "admin": adm, "inviter": inviter} {
+		code, raw, rows := invitedRows(t, c, b)
+		if code != http.StatusOK || len(rows) != 1 || rows[0]["label"] != "" || rows[0]["masked"] != true ||
+			!strings.HasPrefix(asString(rows[0]["id"]), "INV-") || strings.Contains(raw, "@") || strings.Contains(raw, "example.com") {
+			t.Errorf("%s in name-only W1 = %d %s, want one row, label \"\", masked, no address or domain", who, code, raw)
+		}
 	}
 	if code, raw, rows := invitedRows(t, c, c.b2); code != http.StatusOK || len(rows) != 1 || rows[0]["label"] != "open@example.com" {
 		t.Errorf("twin: P1 in W2 = %d %s, want the address", code, raw)
@@ -202,10 +207,12 @@ func TestChannelAddInactiveMember(t *testing.T) {
 	}
 }
 
-// I4: in a name-only workspace the channel list masks the pending address to
-// a member without members.invite and keeps its id, so the undo still works;
-// the plain invited list is masked the same way. The twin is an admin.
-func TestChannelInviteesMaskedNameOnly(t *testing.T) {
+// I4 (spec 154 section 12.6, SPL-5830): in a name-only workspace the channel
+// list carries no address and no domain for the member who added the
+// invitee nor for an admin; the id stays, so the undo still works; the plain
+// invited list is "" the same way. The twin is a workspace that is not
+// name-only, where the same add shows the address.
+func TestChannelInviteesHiddenNameOnly(t *testing.T) {
 	b := make([]byte, 4)
 	rand.Read(b) //nolint:errcheck
 	tid := "t" + hex.EncodeToString(b)
@@ -225,23 +232,35 @@ func TestChannelInviteesMaskedNameOnly(t *testing.T) {
 	}
 	putInvite(t, e.st, tid, "open@example.com", time.Now().Add(time.Hour))
 	id := hub.InviteIDForTest(tid, "open@example.com")
-	// R7 W1: the 201 answer carries no more than the masked picker showed.
+	// R7 W1: the 201 answer carries no more than the picker showed: nothing.
 	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/quiet/members", dev, map[string]string{"invite_id": id}); code != http.StatusCreated ||
-		out["email"] != "o…@example.com" || out["masked"] != true || out["invite_id"] != id || strings.Contains(fmt.Sprint(out), "open@") {
-		t.Fatalf("add by id: %d %v, want 201 with the masked label only", code, out)
+		out["email"] != "" || out["masked"] != true || out["invite_id"] != id || strings.Contains(fmt.Sprint(out), "example.com") {
+		t.Fatalf("add by id: %d %v, want 201 with an empty label only", code, out)
 	}
-	code, out := call(t, e, tid, http.MethodGet, "/v1/channels/quiet/members", dev, nil)
-	rows := chInvitees(t, e, tid, "quiet", dev)
-	if code != http.StatusOK || len(rows) != 1 || rows[0]["label"] != "o…@example.com" || rows[0]["masked"] != true || rows[0]["id"] != id {
-		t.Fatalf("developer sees %v, want the masked row with id %s", rows, id)
-	}
-	if inv, _ := out["invited"].([]any); len(inv) != 1 || inv[0] != "o…@example.com" {
-		t.Fatalf("developer invited %v, want [o…@example.com]", out["invited"])
-	}
-	if rows := chInvitees(t, e, tid, "quiet", adm); len(rows) != 1 || rows[0]["label"] != "open@example.com" {
-		t.Fatalf("twin: admin sees %v, want the address", rows)
+	for who, as := range map[string]string{"adder": dev, "admin": adm} {
+		code, out := call(t, e, tid, http.MethodGet, "/v1/channels/quiet/members", as, nil)
+		rows := chInvitees(t, e, tid, "quiet", as)
+		if code != http.StatusOK || len(rows) != 1 || rows[0]["label"] != "" || rows[0]["masked"] != true || rows[0]["id"] != id ||
+			strings.Contains(fmt.Sprint(out), "example.com") {
+			t.Fatalf("%s sees %v, want one row, label \"\", id %s, no domain", who, out, id)
+		}
+		if inv, _ := out["invited"].([]any); len(inv) != 1 || inv[0] != "" {
+			t.Fatalf("%s invited %v, want [\"\"]", who, out["invited"])
+		}
 	}
 	if code, out := call(t, e, tid, http.MethodDelete, "/v1/channels/quiet/members/"+id, dev, nil); code != http.StatusNoContent {
 		t.Fatalf("undo by id: %d %v", code, out)
+	}
+	// Twin: a workspace that is not name-only shows the adder the address.
+	other, _ := e.tenant()
+	odev := seat(t, e, other, "developer")
+	if code, out := call(t, e, other, http.MethodPost, "/v1/channels", odev,
+		map[string]string{"channel": "loud", "name": "Loud"}); code != http.StatusCreated {
+		t.Fatalf("create twin: %d %v", code, out)
+	}
+	putInvite(t, e.st, other, "open@example.com", time.Now().Add(time.Hour))
+	if code, out := call(t, e, other, http.MethodPost, "/v1/channels/loud/members", odev,
+		map[string]string{"invite_id": hub.InviteIDForTest(other, "open@example.com")}); code != http.StatusCreated || out["email"] != "open@example.com" {
+		t.Fatalf("twin add: %d %v, want the address", code, out)
 	}
 }

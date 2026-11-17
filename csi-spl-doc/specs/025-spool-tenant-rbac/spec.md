@@ -721,11 +721,14 @@ before the first sign-in.
   (`topics.read`), person session only (403 `person_only` for a Bearer token,
   act-as or a live clone), `Cache-Control: no-store`. The roster is unchanged.
 - **The address** shows exactly where a member card shows one (spec 154
-  section 12.4): in the demo and in a name-only workspace
-  (`SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES`, t1 by default) it is masked,
-  `j…@example.com` (first letter, an ellipsis, the domain), to everyone but a
-  `members.invite` holder. The same mask applies to the channel members
-  answer (`invited`, and the new `invitees: [{id, label, masked}]`).
+  section 12.4): in the demo it is masked, `j…@example.com` (first letter,
+  an ellipsis, the domain), to everyone but a `members.invite` holder. In a
+  name-only workspace (`SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES`, t1 by
+  default) it is hidden from everyone, an admin and the inviter included:
+  `label` "" with `masked` true, and the WUI shows "Dear future spool-hub
+  user" (spec 154 section 12.6, SPL-5830, owner msg `10b28abb`). The same
+  rule applies to the channel members answer (`invited`, and the new
+  `invitees: [{id, label, masked}]`).
 - **id** is `INV-` and 16 hex of HMAC-SHA256(workspace, address) under a
   key derived from `SPOOL_HUB_AUTH_SESSION_KEY` (a random key per process
   without one): stable while the invite lives, the same on every instance,
@@ -754,10 +757,12 @@ before the first sign-in.
 
 - `csi-spl-api/.../internal/hub/invited_members_test.go`: listed to a
   developer, expired not listed, another workspace sees none, Bearer is
-  `person_only` (I1); masked in a name-only workspace, whole to an admin and
-  in a workspace that is not name-only (I2); add by id: no read or write
+  `person_only` (I1); no label in a name-only workspace for a member, an
+  admin and the inviter, whole in a workspace that is not name-only (I2,
+  SPL-5830); add by id: no read or write
   before the sign-in, in the channel after it; bad ids 404; undo by id and
-  revoke leave no row (I3); the channel list masked with its id (I4).
+  revoke leave no row (I3); the channel list with no label but its id, for
+  the adder and an admin (I4, SPL-5830).
   `invited_members_internal_test.go`: the label mask and the id shape. Red
   controls (2026-11-16): no mask -> I2 and I4 red; expired kept -> I1 red.
 - `csi-spl-wui/tests/unit/invited-members-client.test.mjs`.

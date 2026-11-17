@@ -81,7 +81,7 @@ recorded. Alternated S, P4, S, P4, run as the push user:
 - A first arm on a wui-only `git archive` failed 3 files that read
   `csi-spl-orc/` (not in the archive): 564.6 s, discarded.
 
-### 2.3 The api part, full tier (row candidate, probe in flight)
+### 2.3 The api part, full tier (row 02's baseline)
 
 Probe: `SPL_API_TEST_TIER=full bash csi-spl-api/src/bash/tests/run-all-tests.sh`
 on a `--shared` clone at `f9661ccf0`, each line time-stamped (UTC), start
@@ -94,12 +94,44 @@ Postgres up (docker postgres:16-alpine)`). So far:
 | gofmt + go vet | 13:43:29 | 28 |
 | `go test -race ./...` (plain, no DSN) | 13:43:57 | 485 |
 | coverage, hub-init, hygiene greps, smoke, the groups tests, live-stack | 13:52:02 | 191 |
-| hub Postgres gate (`hub-pg.tst.sh`) | 13:55:13 | running |
+| hub Postgres gate (`hub-pg.tst.sh`) | 13:55:13 | 1,830 (to `ALL HUB POSTGRES CHECKS PASSED` 14:25:43) |
+| pg coverage floors + hub GCS gate | 14:25:45 | 8 (to 14:25:53) |
 
-hub-pg so far: store group a 568 s, hub group a 551 s, store group b 316 s,
-hub group b 369 s, store group c 156 s (each "its fresh database" 7..20 s of
-it); the store and hub chains run side by side, each chain's groups one after
-another.
+hub-pg groups: store a 568, b 316, c 156, d 217 s (chain 1,257 s); hub a 551,
+b 369, c 384, d 267 s (chain 1,571 s); each "its fresh database" 7..20 s of
+it. The two chains run side by side, each chain's groups one after another;
+the last group ended 14:22:25, so the package suites took ~1,632 s, the e2e
+after them 198 s.
+
+Every section through the GCS gate printed green (`grep -cE 'not ok|FAIL'`
+-> 0); the run's final `ALL csi-spl-api TESTS PASSED`, `RC` and `END` lines
+are missing: the time-stamping pipe belonged to the old session, which the
+14:26Z rotation stopped. Whole run 13:39:59..14:25:53 = 2,754 s, n=1.
+
+### 2.4 hub-pg with every group at once (row 02's after)
+
+Scratch copy `hub-pg-par.tst.sh` in the same clone (`f9661ccf0`): the
+`store_groups` and `hub_groups` loops start each group in the background and
+wait for all, the `db_lock` flock kept; nothing committed. Run alone,
+`setsid`, `AGENT_ID=c-025 bash csi-spl-api/src/bash/tests/hub-pg-par.tst.sh`,
+start 14:27:46Z load 21.93, end 14:47:35Z load 29.74, `RC 0`, `grep -cE 'not
+ok|FAIL'` -> 0:
+
+| group | seconds (fresh database part) |
+|---|---|
+| store c | 403 (23) |
+| store d | 536 (47) |
+| hub c | 722 (46) |
+| hub d | 733 (61) |
+| hub a | 734 (24) |
+| store b | 886 (35) |
+| hub b | 851 (75) |
+| store a | 922 (12) |
+
+Package suites 14:27:51..14:43:58 = **967 s** (baseline ~1,632 s); the whole
+gate **1,189 s** (baseline 1,830 s); n=1 each, the baseline inside the full
+run, this arm alone. Every group slowed under the contention; store a's 922 s
+is 77% of the 20 min per-group timeout, so the row carries a cap.
 
 A first run on a `git archive` (no `.git`) failed
 `build-warm-mod-cache.tst.sh` case 3 (rc 128), discarded.
@@ -129,14 +161,15 @@ A first run on a `git archive` (no `.git`) failed
   c-003@sat (c8cd065b): placed as **m-031@sat**. m-031 (2f837cc1) waits for
   a sha.
 
-## 5. State at the 14:30Z rotation
+## 5. State
 
 - Plan v0.1 (row 01) and this file pushed to
   `review/c001-perf-round-14-planner`. The api probe (`run2.log` under the
   push user's `/var/tmp/p14-probe-scripts.*`) still runs.
-- Next: read the api probe's end; decide row 02 (the api full tier) or list
-  it as dropped/not-a-row with its numbers; then name the sha to m-031 and the
-  holder.
+- 14:5xZ (session after the 14:26Z rotation): the api probe's end read (2.3),
+  the parallel arm run (2.4), plan v0.2 with row 02, rebased on `770de68f4`,
+  pushed; the sha named to m-031 and the holder.
 - Scratch to remove after the round (push user's): `/var/tmp/p14-api-probe.*`,
   `/var/tmp/p14-api-clone.*`, `/var/tmp/p14-wui-probe.*`,
-  `/var/tmp/p14-wui-clone.*`, `/var/tmp/p14-probe-scripts.*`.
+  `/var/tmp/p14-wui-clone.*`, `/var/tmp/p14-probe-scripts.*` (also `pg-arm.sh`,
+  `pg.P.1.log`).

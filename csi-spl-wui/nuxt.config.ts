@@ -613,6 +613,10 @@ export default defineNuxtConfig({
     // own read started: one more round trip per click (~150-300 ms on 4G).
     // Off = the (empty) payload is inlined in the prerendered document.
     payloadExtraction: false,
+    // No .server/.island component exists. Nuxt 4's default "auto" is truthy,
+    // so it registers the island-link-navigation client plugin anyway, and
+    // that plugin pulls NuxtLink into the entry chunk (SPL-5070).
+    componentIslands: false,
   },
 
   typescript: {
@@ -786,9 +790,24 @@ export default defineNuxtConfig({
     vue: { features: { optionsAPI: false } },
     $client: {
       build: {
-        rollupOptions: {
-          output: { manualChunks: vendorChunk },
+        rolldownOptions: {
+          // Rolldown reports CIRCULAR_DEPENDENCY only with this check on
+          // (default off); without it the guard above never fires.
+          checks: { circularDependency: true },
           onwarn: onwarnFailAppCycles,
+          output: {
+            // Vite 8 (rolldown) splits the first screen into ~36 small shared
+            // chunks that each gzip worse on their own (+23 KB initial JS,
+            // SPL-5070). Keep the two vendor chunks, and put every other
+            // module the entry loads statically into one chunk, like Rollup's
+            // entry chunk under Nuxt 3. Lazy chunks keep automatic splitting.
+            codeSplitting: {
+              groups: [
+                { name: (id: string) => vendorChunk(id) ?? null, priority: 2 },
+                { name: "app-initial", tags: ["$initial"], priority: 1 },
+              ],
+            },
+          },
         },
         sourcemap: process.env.NUXT_CLIENT_SOURCEMAP === "true",
       },

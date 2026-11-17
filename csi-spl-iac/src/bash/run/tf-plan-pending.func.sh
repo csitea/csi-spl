@@ -18,6 +18,8 @@
 #------------------------------------------------------------------------------
 declare -F env_order_cache_put >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/check-dev-leads-prd.func.sh"
+# shellcheck source=../../../lib/bash/funcs/tf-log-mask.func.sh
+declare -F do_tf_log_mask >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/tf-log-mask.func.sh"
 
 # shellcheck disable=SC2154  # tf_run_path, tf_proj: set by do_tf_init
 do_tf_plan_pending() {
@@ -34,8 +36,10 @@ do_tf_plan_pending() {
     backend="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.backend-config.tfvars"
     prc=1
     if terraform -chdir="$tf_run_path" init -input=false -backend-config="$backend" -upgrade >>"$log" 2>&1; then
-      terraform -chdir="$tf_run_path" plan -input=false -detailed-exitcode -lock=false -var-file="$vars" >>"$log" 2>&1
-      prc=$?
+      # SPL-5797: step 002 keys resources on the billing account id; the log gets it masked.
+      terraform -chdir="$tf_run_path" plan -input=false -detailed-exitcode -lock=false -var-file="$vars" 2>&1 |
+        do_tf_log_mask >>"$log"
+      prc=${PIPESTATUS[0]}
     fi
     rm -rf "$tf_run_path"
     exit "$prc"

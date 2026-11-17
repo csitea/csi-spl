@@ -5,19 +5,20 @@
 #          dat/log/tf_apply.<org>-<app>-<env>.<step>.log: every tee wrote the
 #          raw terraform output. A stub terraform prints a billing-shaped id on
 #          stdout and stderr; for each of do_tf_apply, do_tf_apply_target,
-#          do_tf_destroy, do_tf_destroy_target and
-#          do_tf_destroy_local_step_bucket:
+#          do_tf_destroy, do_tf_destroy_target,
+#          do_tf_destroy_local_step_bucket and do_tf_plan_pending (the dev
+#          plan a prd apply runs first, R7 W1):
 #   1. the action's log and its output count 0 full ids, and keep the masked
 #      form with the last 4 chars (XXXXXX-XXXXXX-XX<last 4>)
-#   2. do_tf_apply still returns terraform's exit status (PIPESTATUS[0])
+#   2. do_tf_apply and do_tf_plan_pending still return terraform's exit
+#      status (PIPESTATUS[0]): apply 3, plan 2 = pending
 #   3. CONTROL: the same action with its `do_tf_log_mask |` cut out leaves the
 #      id in the log, so the count is not blind.
 #          TF_MASK_RUN_DIR points the test at another run dir: on the
 #          origin/master tree before SPL-5797 every action case fails.
 #          No terraform, no GCP: terraform, sleep and do_tf_init are stubs.
-#          The bare `terraform init` of the target actions is not piped: under
-#          their `set -e` a pipe would hide a failed init, and init reads no
-#          tfvars, so it prints no billing id.
+#          The bare `terraform init` of the target actions is not piped:
+#          init reads no tfvars, so it prints no billing id.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -36,7 +37,7 @@ RX='[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6}'
 stub terraform 'case " $* " in *" init "*) echo "Terraform has been initialized"; exit 0 ;; esac
 echo "billing_account = \"billingAccounts/$STUB_ID\""
 echo "Error: account $STUB_ID" >&2
-case " $* " in *" apply "*|*" destroy "*) exit "${STUB_TF_RC:-0}" ;; esac; exit 0'
+case " $* " in *" apply "*|*" destroy "*|*" plan "*) exit "${STUB_TF_RC:-0}" ;; esac; exit 0'
 stub sleep 'exit 0'
 
 # run_action <file> <function> <out> [env...] -> rc; the log is $T/proj/dat/log/*
@@ -50,6 +51,7 @@ run_action() {
       do_log() { echo "$*"; }; do_simple_log() { echo "$*"; }
       env_order_gate() { return 0; }; _provision_052_entry_check() { return 0; }
       do_export_json_section_vars() { return 0; }
+      env_order_tree_sha() { echo t0; }; env_order_cache_put() { return 0; }
       do_tf_init() { tf_proj="$STEP"; tf_run_path="$PROJ_PATH/bin/$tf_proj"; mkdir -p "$tf_run_path"; }
       source "$MASK_LIB"
       source "$ACTION_FILE"
@@ -59,7 +61,8 @@ run_action() {
 count() { grep -cE "$RX" "$1" 2>/dev/null || true; }
 
 for pair in tf-apply:do_tf_apply tf-apply-target:do_tf_apply_target tf-destroy:do_tf_destroy \
-  tf-destroy-target:do_tf_destroy_target tf-destroy-local-step-bucket:do_tf_destroy_local_step_bucket; do
+  tf-destroy-target:do_tf_destroy_target tf-destroy-local-step-bucket:do_tf_destroy_local_step_bucket \
+  tf-plan-pending:do_tf_plan_pending; do
   f="$RUN_DIR_SRC/${pair%%:*}.func.sh" fn="${pair##*:}"
   [[ -f "$f" ]] || { fail "$fn: no $f"; continue; }
   run_action "$f" "$fn" "$T/out"
@@ -74,7 +77,7 @@ for pair in tf-apply:do_tf_apply tf-apply-target:do_tf_apply_target tf-destroy:d
     || fail "$fn: no masked id in the log"
 
   # 3. CONTROL: the same action without the mask leaves the id in the log
-  sed 's/do_tf_log_mask | //' "$f" >"$T/nomask.func.sh"
+  sed -e 's/do_tf_log_mask | //' -e 's/^ *do_tf_log_mask >>/cat >>/' "$f" >"$T/nomask.func.sh"
   run_action "$T/nomask.func.sh" "$fn" "$T/out.nomask"
   n_ctl=$(count "$(ls "$T"/proj/dat/log/tf_*.log | sed -n 1p)")
   [[ "$n_ctl" -gt 0 ]] && pass "CONTROL $fn: without the mask the log holds $n_ctl full id line(s)" \
@@ -85,6 +88,10 @@ done
 run_action "$RUN_DIR_SRC/tf-apply.func.sh" do_tf_apply "$T/out.rc" STUB_TF_RC=3; rc=$?
 [[ "$rc" -eq 3 ]] && pass "do_tf_apply returns terraform's status (3) through the mask" \
   || fail "do_tf_apply returned $rc, not terraform's 3"
+run_action "$RUN_DIR_SRC/tf-plan-pending.func.sh" do_tf_plan_pending "$T/out.rc" STUB_TF_RC=2; rc=$?
+[[ "$rc" -eq 2 ]] && grep -q '^TF_PLAN dev s1 pending ' "$T/out.rc" \
+  && pass "do_tf_plan_pending keeps terraform's plan status (2 = pending) through the mask" \
+  || fail "do_tf_plan_pending returned $rc: $(grep '^TF_PLAN' "$T/out.rc")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

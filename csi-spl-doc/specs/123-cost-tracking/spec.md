@@ -804,7 +804,7 @@ to log in each time)".
 - Moving a project's billing, and closing an account, are the owner's go for
   each call. No action here does either.
 - The tf logs mask the ids (SPL-5797): `do_tf_apply` / `do_tf_destroy` and
-  their twins pipe terraform through `do_tf_log_mask` before the tee, so
+  their twins, and `do_tf_plan_pending`, pipe terraform through `do_tf_log_mask`, so
   stdout and `csi-spl-iac/dat/log/tf_*.log` keep only the last 4 chars of an
   id. `gcloud billing accounts get-iam-policy <id>` takes no `--account`
   (it collides with the command's ACCOUNT argument, HTTP 400): use

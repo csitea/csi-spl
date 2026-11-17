@@ -305,13 +305,15 @@ _spl_review_go_lanes_as() {
   return 2
 }
 
-# _spl_review_go_lane_briefs <id> <box> <all|one>: the dispatch/briefs/<slug>.md
+# _spl_review_go_lane_briefs <id> <box> <all|one|own>: the dispatch/briefs/<slug>.md
 # copies of the seat <id>@<box> by its lane map rows, newest row first, one
 # per line: the slug of an <id>-<slug> branch (a rotated seat's branch is
 # <id>-rotate: no brief), then the briefs whose first heading (`#`s and
 # `Brief:` dropped, as the spawn writes the scope; cut to 120 or 500) the
 # row's scope opens. With `one` a scope match counts only when the matches
-# are one brief's content (the author check reads the one it gets). The lane
+# are one brief's content (the author check reads the one it gets). With
+# `own` only the branch slug's brief, and only when every row of <id>@<box>
+# names that one branch (no scope match, no second lane of the id). The lane
 # map unreadable: `lane map unreadable: <reason>` printed, rc 2.
 _spl_review_go_lane_briefs() {
   local f why rc=0
@@ -326,6 +328,16 @@ try:
 except (OSError, ValueError, AttributeError):
     sys.exit(0)
 rows.sort(key=lambda r: str(r.get("updated_at", "")), reverse=True)
+def own(br):
+    slug = br[len(rid) + 1:] if br.startswith(rid + "-") else ""
+    p = os.path.join(bdir, slug + ".md")
+    return p if re.fullmatch(r"[A-Za-z0-9._-]+", slug) and os.path.isfile(p) and os.path.getsize(p) else ""
+if mode == "own":
+    brs = {str(r.get("branch") or "") for r in rows}
+    p = own(brs.pop()) if len(brs) == 1 else ""
+    if p:
+        print(p)
+    sys.exit(0)
 heads = None
 def head(f):
     try:
@@ -338,10 +350,8 @@ def head(f):
     return ""
 out = []
 for r in rows:
-    br = str(r.get("branch") or "")
-    slug = br[len(rid) + 1:] if br.startswith(rid + "-") else ""
-    p = os.path.join(bdir, slug + ".md")
-    if re.fullmatch(r"[A-Za-z0-9._-]+", slug) and os.path.isfile(p) and os.path.getsize(p):
+    p = own(str(r.get("branch") or ""))
+    if p:
         out.append(p)
     sc = str(r.get("scope") or "").strip()
     if len(sc) < 12:
@@ -448,22 +458,29 @@ EOF_PY
 # branch> <sha>: the path of the author's brief on this box: its
 # lifetime copy when the author box is this box or none (another box's seat
 # may share the id, SPL-4427), else the dispatch/briefs/<slug>.md the reviewer
-# brief names on its `Author brief:` line, else the first of the lane map's
-# (_spl_review_go_lane_briefs, a scope match only when it is one brief) tied
-# to the reviewed work (_spl_review_go_tied): a re-tasked or rotated seat's
-# new lane brief is never read for it (R7 c-972 N1). rc 1 when none is here;
-# rc 2, the reason printed, when the lane map is unreadable (SPL-4563).
+# brief names on its `Author brief:` (or `Author's brief:`, SPL-5793) line,
+# else the first of the lane map's (_spl_review_go_lane_briefs, a scope match
+# only when it is one brief) tied to the reviewed work (_spl_review_go_tied),
+# else, for an author on another box, its lane's OWN placement brief: the lane
+# map's rows of <author>@<author box> name one branch, <author>-<slug>, and
+# dispatch/briefs/<slug>.md exists (SPL-5793). A re-tasked or rotated seat's
+# new lane brief is never read for it (R7 c-972 N1): a second lane of the id
+# there, or a rotated branch with no such brief, still needs the tie. rc 1
+# when none is here; rc 2, the reason printed, when the lane map is unreadable
+# (SPL-4563).
 _spl_review_go_abrief() {
   local b="$SPOOL_ROOT/$1/lifetime/brief.md" here p c
   here="$(_spl_review_go_here)"
   [[ ( -z "$3" || "$3" == "$here" ) && -s "$b" ]] && { echo "$b"; return 0; }
-  p="$(sed -nE 's/.*Author brief:[[:space:]]*([^[:space:];,]+\.md).*/\1/p' "$2" 2>/dev/null)"
+  p="$(sed -nE "s/.*Author('s)? brief:[[:space:]]*([^[:space:];,]+\.md).*/\2/p" "$2" 2>/dev/null)"
   p="${p%%$'\n'*}"
   if [[ "$p" == "$SPOOL_ROOT/dispatch/briefs/${p##*/}" && "${p##*/}" =~ ^[A-Za-z0-9._-]+\.md$ && -s "$p" ]]; then echo "$p"; return 0; fi
   c="$(_spl_review_go_lane_briefs "$1" "${3:-$here}" one)" || { [[ $? == 2 ]] && { echo "$c"; return 2; }; }
   while IFS= read -r p; do
     [[ -n "$p" ]] && _spl_review_go_tied "$p" "$4" "$5" && { echo "$p"; return 0; }
   done <<<"$c"
+  [[ -n "$3" && "$3" != "$here" ]] || return 1
+  p="$(_spl_review_go_lane_briefs "$1" "$3" own)" && [[ -n "$p" ]] && { echo "$p"; return 0; }
   return 1
 }
 

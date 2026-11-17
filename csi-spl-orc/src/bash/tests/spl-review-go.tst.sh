@@ -59,6 +59,10 @@
 #        names neither the review branch nor the sha -> rc 7, nor when it
 #        names only the shared task (W1); controls: it names the branch,
 #        the sha -> GO
+#        RED CONTROL (SPL-5793) an author on boxb whose one lane row is
+#        c-222-<slug>: its own dispatch/briefs/<slug>.md, untied -> GO; an
+#        `Author's brief:` line -> GO; controls: two lanes of c-222@boxb, a
+#        rotated branch, the row on boxc -> rc 7
 #    19. the desk pinned under another user than the cron's (SPL-4563, sat:
 #        the agent user runs the cron, the box user holds the t1 pin): RED
 #        CONTROL the lane map read as the pin's user (sudo stub) -> GO; no
@@ -632,6 +636,32 @@ run18 REVIEW_GO_MSG="$f"; go18 "18. control (N1): the rotated author's lane brie
 reset18n1 "Do: another fix in topic $TASK."
 f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000f)
 run18 REVIEW_GO_MSG="$f"; refused "18. RED CONTROL (R7 c-972 W1): the rotated author's new brief names only the shared task holds" $? 7 "author box boxb"
+# the author's OWN placement brief on another box (SPL-5793, b11-01): the lane map's one row of c-222@boxb is
+# branch c-222-<slug>, dispatch/briefs/<slug>.md names neither the review branch nor the sha (d3a83a98's shape)
+# reset18own <rows...>: the reviewer brief says `Author: c-222@boxb (claude)` and no Author brief: line
+reset18own() {
+  reset18; rm -rf "${S:?}/c-222"; dbrief c002-x-grok-reviewer "c-222@boxb (claude)" "Seat brief: R7 review of the c002-x orc fix"
+  printf '# Lane brief: the shared client fold\n\nDo: fold the pairs.\n' >"$S/dispatch/briefs/hand-boxb-c002-fold.md"
+  printf '# Lane brief: a later c-222 task\n\nDo: another fix.\n' >"$S/dispatch/briefs/c222-later.md"
+  lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix" "$@"
+}
+reset18own "c-222@boxb|c-222-hand-boxb-c002-fold|Lane brief: the shared client fold"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000010)
+run18 REVIEW_GO_MSG="$f"; go18 "18. RED CONTROL (SPL-5793): the author on boxb, its own lane's placement brief (untied) -> GO" 18000000-0000-4000-8000-000000000010 $? boxb
+reset18own "c-222@boxb|c-222-c222-later|Lane brief: a later c-222 task" "c-222@boxb|c-222-hand-boxb-c002-fold|Lane brief: the shared client fold"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000011)
+run18 REVIEW_GO_MSG="$f"; refused "18. control (SPL-5793, N1): a re-tasked author (two lanes of c-222@boxb, both untied) holds" $? 7 "author box boxb"
+reset18own "c-222@boxb|c-222-rotate|Lane brief: a later c-222 task"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000012)
+run18 REVIEW_GO_MSG="$f"; refused "18. control (SPL-5793, N1): a rotated author (branch c-222-rotate, its scope brief untied) holds" $? 7 "author box boxb"
+reset18own "c-222@boxc|c-222-hand-boxb-c002-fold|Lane brief: the shared client fold"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000013)
+run18 REVIEW_GO_MSG="$f"; refused "18. control (SPL-5793): the own lane of c-222 on another box (boxc) is not boxb's" $? 7 "author box boxb"
+# d3a83a98's reviewer brief spells the line `Author's brief: <path>` (77 briefs in dispatch/briefs on 2026-11-17)
+reset18own "c-222@boxb|c-222-rotate|Lane brief: a later c-222 task"
+printf "Author's brief: %s.\n" "$S/dispatch/briefs/hand-boxb-c002-fold.md" >>"$S/dispatch/briefs/c002-x-grok-reviewer.md"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000014)
+run18 REVIEW_GO_MSG="$f"; go18 "18. RED CONTROL (SPL-5793): a rotated author named by an Author's brief: line -> GO" 18000000-0000-4000-8000-000000000014 $? boxb
 
 # --- 19. the desk pinned under another user than the cron's (SPL-4563) ----------------------------------
 # spl_lane_init refuses as it does for the cron user on sat; the sudo stub: `test` is true for $PIN_USERS,

@@ -55,6 +55,14 @@
 #      issue's updated_at is its canceled_at (the diss was its last write),
 #      "by HUM-10"; a later write leaves the line without "by" and the
 #      section says why once. Red control: master named no actor
+#  16. section 7 lists the stalled wip issues (SPL-5825, owner msg 8389d2d8):
+#      a wip issue no live lane, no live ask and no master commit of the last
+#      72 h names is listed with its title cut to 80 chars and its last commit
+#      date or "none"; one named by a live lane (issue_key or branch slug), a
+#      queued ask or a commit 1 day old is not; a done ask or a done lane does
+#      not count; SPL-70 is not named by SPL-703. Red control: the same issue
+#      with its live lane taken out of the lane map is listed. A lane map read
+#      LOCAL-ONLY is one "(not read" line and no issue line
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -81,6 +89,8 @@ git init -q --bare "$T/origin.git" && git init -q -b master "$R"
 mkdir -p "$R/csi-spl-doc/specs/166-orchestrator-daily-rhythm"
 echo "# Spec 166" >"$R/csi-spl-doc/specs/166-orchestrator-daily-rhythm/spec.md"
 g add -A && GIT_AUTHOR_DATE=2026-01-13T10:00:00Z GIT_COMMITTER_DATE=2026-01-13T10:00:00Z g commit -q -m "feat: base"
+at 2026-01-10T10:00:00Z 'fix(y, SPL-703): older than 72 h'
+at 2026-01-14T10:00:00Z 'feat(z, SPL-704): one day old'
 at 2026-01-13T12:00:00Z 'Revert "feat(old): before the window"'
 at 2026-01-15T08:00:00Z 'feat(x): a thing'
 at 2026-01-15T09:00:00Z 'Revert "feat(x): a thing"'
@@ -107,6 +117,30 @@ cat >"$T/diss.json" <<'EOF'
 EOF
 DISC=33333333-0000-4000-8000-000000000003
 printf 'env:\n  rhythm:\n    reflection_discussion: %s\n' "$DISC" >"$T/cnf.yaml"
+LONG_TITLE="stalled: $(printf 'x%.0s' {1..100})"
+cat >"$T/wip.json" <<EOF
+{"op": "list", "result": {"issues": [
+ {"key": "SPL-701", "title": "$LONG_TITLE", "status": "wip"},
+ {"key": "SPL-703", "title": "its last commit is 5 days old", "status": "wip"},
+ {"key": "SPL-704", "title": "a commit 1 day old", "status": "wip"},
+ {"key": "SPL-705", "title": "a live lane carries it", "status": "wip"},
+ {"key": "SPL-706", "title": "a live lane's branch slug names it", "status": "wip"},
+ {"key": "SPL-707", "title": "a queued ask names it", "status": "wip"},
+ {"key": "SPL-708", "title": "only a done ask names it", "status": "wip"},
+ {"key": "SPL-709", "title": "only a done lane carries it", "status": "wip"},
+ {"key": "SPL-70", "title": "a shorter key", "status": "wip"}]}}
+EOF
+LANE_705='{"agent_id": "c-9", "agent_box": "box-a", "branch": "c-9-x", "scope": "a lane", "issue_key": "SPL-705", "state": "live"}'
+cat >"$T/lanes.json" <<EOF
+{"hub": "ok", "lanes": [$LANE_705,
+ {"agent_id": "c-8", "agent_box": "box-b", "branch": "c-8-c002-spl706-fix", "scope": "x", "issue_key": "", "state": "live"},
+ {"agent_id": "c-7", "agent_box": "box-a", "branch": "c-7-y", "scope": "y", "issue_key": "SPL-709", "state": "done"}]}
+EOF
+cat >"$T/asks.json" <<'EOF'
+{"hub": "ok", "asks": [
+ {"ask_id": "a1", "state": "queued", "summary": "QUEUE: SPL-707 a follow-up", "topic": "dispatch-x", "placement": "claude:x"},
+ {"ask_id": "a2", "state": "done", "summary": "SPL-708 placed long ago", "topic": "dispatch-y", "placement": "claude:y"}]}
+EOF
 echo "2026-01-15T19:01:00Z OK zombie sweep, night of 2026-01-15 (DRY_RUN=1, cap 500, idle 7 d): 3 candidate(s); would archive 1" >"$T/zombie.log"
 
 # The hub and the readers, replaced (SNIPPET of in_orc): calls land in
@@ -117,6 +151,9 @@ spl_reflection_owner_msgs() { [[ "${OWNER_FAIL:-0}" == 1 ]] && { printf "psql: a
 spl_reflection_ended_read() { [[ "${ENDED_FAIL:-0}" == 2 ]] && { printf "\033[0;31m 💣 [FATAL] no desk for c-002 on box-a\033[0m\n"; return 1; }
   [[ "${ENDED_FAIL:-0}" == 1 ]] && { echo "FATAL desk: cannot read $HOME/.gcp/.csi/key-csi-spl-dev.json: permission denied" >&2; return 1; }; cat "$T/diss.json"; }
 spl_reflection_share_line() { [[ "${SHARE_FAIL:-0}" == 1 ]] && { echo "spool: no queue db under $SPL_STATE_DIR/spawn-q in $HOME" >&2; return 1; }; echo "share of 4 known live lanes: refactor 1 25%; phase night"; }
+spl_reflection_wip_read() { cat "$T/wip.json"; }
+spl_reflection_lanes_read() { cat "${LANES_JSON:-$T/lanes.json}"; }
+spl_reflection_asks_read() { cat "$T/asks.json"; }
 spl_spawn_q_init() { LANE_FLEET=main ASKS_BOX=box-a; }
 spl_asks_hub() { echo "hub $*" >>"$STUB_LOG"; }
 spl_asks_discussion_ok() { :; }
@@ -308,6 +345,34 @@ grep -qxF -- '- SPL-902 ended diss 2026-01-15T13:00:00Z by HUM-10: set by the ow
   fail "15. gathered: $(sed -n '/^## 3/,/^## 4/p' "$GF" 2>/dev/null)"
 got="$(printf '{"result":{"issues":[]}}' | fn spl_reflection_ended 2026-01-14T19:30:00Z 2026-01-15T19:30:00Z)"
 [[ "$got" == "(none)" ]] && pass "15. no diss in the window: (none), no note" || fail "15. empty: $got"
+
+# --- 16. section 7: the stalled wip issues (SPL-5825) ------------------------------
+s7() { sed -n '/^## 7\. Stalled wip issues/,$p' "$GF" 2>/dev/null | grep -v '^#\|^$'; }
+reset; run "$NIGHT_NOW"
+want="- SPL-70: a shorter key (last commit none)
+- SPL-701: ${LONG_TITLE:0:80} (last commit none)
+- SPL-703: its last commit is 5 days old (last commit 2026-01-10)
+- SPL-708: only a done ask names it (last commit none)
+- SPL-709: only a done lane carries it (last commit none)"
+got="$(s7)"
+[[ "$got" == "$want" ]] &&
+  pass "16. section 7 lists the wip issues with no live lane, no live ask and no commit in 72 h, title cut to 80, last commit or none" ||
+  fail "16. stalled: got
+$got
+want
+$want"
+! grep -qE 'SPL-70[4567]' <<<"$got" &&
+  pass "16. a commit 1 day old, a live lane (issue_key, branch slug spl706) and a queued ask keep an issue off the list" || fail "16. kept: $got"
+# red control: the same issue with its live lane taken out of the lane map
+jq -c --argjson l "$LANE_705" '.lanes -= [$l]' "$T/lanes.json" >"$T/lanes-no705.json"
+reset; run "$NIGHT_NOW" LANES_JSON="$T/lanes-no705.json"
+grep -qxF -- '- SPL-705: a live lane carries it (last commit none)' <<<"$(s7)" &&
+  pass "16. red control: SPL-705 with its live lane out of the map is listed" || fail "16. red control: $(s7)"
+echo '{"hub": "unreachable", "lanes": []}' >"$T/lanes-local.json"
+reset; run "$NIGHT_NOW" LANES_JSON="$T/lanes-local.json"
+got="$(s7)"
+[[ "$got" == "(not read: the fleet lane map (do_spl_lane_map; LOCAL-ONLY is not read): hub: unreachable)" ]] &&
+  pass "16. a lane map read LOCAL-ONLY: one (not read line, no issue line" || fail "16. local-only: $got"
 
 # --- 13. the owner SQL on a REAL Postgres: an admin owner listed, a tester not ------
 # (SPL-5460: prd t1's owner holds role admin, not owner; the old role = 'owner'

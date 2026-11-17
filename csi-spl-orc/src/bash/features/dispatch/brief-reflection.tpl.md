@@ -33,8 +33,10 @@ the morning owner digest; never git, the repo is public".
    command list to the dispatch holder instead. Its sections: CI reds,
    reverts, lanes ended without
    landing, owner corrections (msg id each), what each correction asks the
-   fleet to change, the class share and the zombie count, and at most 3
-   proposed rows.
+   fleet to change, the class share and the zombie count, the stalled wip
+   issues (its section 7: each key, its title and its last commit; nobody
+   carries them, so the owner should not have to ask for their status), and
+   at most 3 proposed rows.
 3. Each proposed row is refactor or bug, one small task, with its own
    `Class:`, `Epic: SPL-<n>` and `Spec: <spec folder on origin/master>` lines.
    Send each to the dispatch holder as a spawn request (kind task); it goes
@@ -42,7 +44,8 @@ the morning owner digest; never git, the repo is public".
    `SPAWN_CLASS=refactor|bug`), so it runs the same night.
 4. **Never git**: no commit, no file in the repository, no branch. The owner's
    messages may carry private matter; quote ids, not text, outside the page.
-5. Result: the page's doc id and title, the counts per section, the rows sent.
+5. Result: the page's doc id and title, the counts per section, the stalled
+   wip keys (section 7), the rows sent.
    Nothing to land: end your issue with `LANE_ISSUE_OP=end` and the page id as
    the reason once the result is sent.
 

@@ -16,6 +16,13 @@
 # @description      READ ONLY hub DB read as the env's project service account),
 # @description   5. the class share and the last 24 h share (do_spl_spawn_share),
 # @description   6. the zombie count (the last summary line of row B6's log),
+# @description   7. the wip issues that stalled: named by no live lane (the
+# @description      fleet lane map, do_spl_lane_map: issue_key, origin_issue,
+# @description      scope, topic, branch), no ask in open, acked, queued,
+# @description      placing or needs_owner (do_spl_asks_open: summary, topic,
+# @description      placement) and no origin/master commit subject in the last
+# @description      72 h; one line each: key, title cut to 80 chars, the last
+# @description      commit naming it or "none" (owner msg 8389d2d8),
 # @description into one file under the spool root (REFLECTION_DIR), and queues
 # @description ONE lane (class refactor, kind specs_and_docs) whose brief,
 # @description rendered from features/dispatch/brief-reflection.tpl.md, carries
@@ -58,7 +65,8 @@
 # @example REFLECTION_FORCE=1 DRY_RUN=0 ./run -a do_spl_reflection_gather
 #------------------------------------------------------------------------------
 # Test seams: the readers spl_reflection_ci_report, spl_reflection_owner_msgs,
-# spl_reflection_ended_read, spl_reflection_share_line and the hub's ask put
+# spl_reflection_ended_read, spl_reflection_share_line, spl_reflection_wip_read,
+# spl_reflection_lanes_read, spl_reflection_asks_read and the hub's ask put
 # (spl_asks_hub) are functions a test replaces.
 
 declare -F spl_zombie_night >/dev/null ||
@@ -160,7 +168,97 @@ spl_reflection_gather_md() {
   printf '\n## 6. Zombie sweep (row B6, its last summary)\n\n'
   out="$(grep -h 'OK zombie sweep, night of' "${REFLECTION_ZOMBIE_LOG:-/var/csi/csi-spl/zombie-topics/cron.log}" 2>/dev/null | tail -1)"
   echo "${out:-(no zombie sweep summary in the log)}"
+  printf '\n## 7. Stalled wip issues (no live lane, no live ask, no master commit in 72 h)\n\n'
+  spl_reflection_stalled "$u" "$err"
   [[ "$err" == /dev/null ]] || rm -f "$err"
+}
+
+# spl_reflection_stalled <until epoch> <stderr file>: section 7. A source that
+# cannot be read is one "(not read: ...)" line and the section stops there: a
+# list judged on part of its sources would name live work as stalled.
+spl_reflection_stalled() {
+  local u="$1" err="$2" w out why=""
+  w="$(mktemp -d)" || { echo "(not read: no temp dir)"; return 0; }
+  if ! spl_reflection_wip_read >"$w/issues.json" 2>"$err" ||
+    ! jq -e '((.result // .).issues // null) | type == "array"' "$w/issues.json" >/dev/null 2>&1; then
+    why="the wip issues were not listed: $(spl_reflection_why "$err" "$(tail -c 2000 "$w/issues.json")")"
+  elif ! out="$(spl_reflection_lanes_read 2>"$err")" ||
+    ! jq -e '(.lanes | type == "array") and .hub == "ok"' <<<"$out" >/dev/null 2>&1; then
+    why="the fleet lane map (do_spl_lane_map; LOCAL-ONLY is not read): $(jq -er '"hub: \(.hub)"' <<<"$out" 2>/dev/null || spl_reflection_why "$err" "$out")"
+  elif ! printf '%s\n' "$out" >"$w/lanes.json" || ! out="$(spl_reflection_asks_read 2>"$err")" ||
+    ! jq -e '(.asks | type == "array") and (.hub == "ok" or .hub == "partial")' <<<"$out" >/dev/null 2>&1; then
+    why="the ask book (do_spl_asks_open): $(spl_reflection_why "$err" "$out")"
+  elif ! printf '%s\n' "$out" >"$w/asks.json" || ! spl_reflection_subjects >"$w/subjects.tsv" 2>"$err"; then
+    why="git log ${REFLECTION_REF:-origin/master}: $(spl_reflection_why "$err")"
+  fi
+  if [[ -n "$why" ]]; then echo "(not read: $why)"; else spl_reflection_stalled_judge "$w" "$((u - 72 * 3600))"; fi
+  rm -rf "$w"
+}
+
+# spl_reflection_wip_read: every wip issue (all pages), as spl_desk_issue prints them.
+spl_reflection_wip_read() {
+  do_spl_desk_cnf >/dev/null 2>&1 || { echo "the issue desk (do_spl_desk_cnf) could not be set up" >&2; return 1; }
+  spl_issue_list_fetch --status wip --limit 500
+}
+
+# spl_reflection_lanes_read: the fleet lane map, JSON (read as row B6 reads it).
+spl_reflection_lanes_read() {
+  LANE_FORMAT=json RUN_STDOUT_IS_DATA=1 do_spl_lane_map 2>/dev/null | grep '^{' | tail -1
+}
+
+# spl_reflection_asks_read: the ask book, every state, JSON (read as row B6 reads it).
+spl_reflection_asks_read() {
+  ASKS_ALL=1 ASKS_FORMAT=json RUN_STDOUT_IS_DATA=1 do_spl_asks_open 2>/dev/null | grep '^{' | tail -1
+}
+
+# spl_reflection_subjects: "<committer iso><TAB><subject>" of every commit on
+# REFLECTION_REF, newest first (section 2 fetched it).
+spl_reflection_subjects() {
+  git -c safe.directory='*' -C "${REFLECTION_REPO:-${APP_PATH:-.}}" log "${REFLECTION_REF:-origin/master}" --format='%cI%x09%s'
+}
+
+# spl_reflection_stalled_judge <work dir> <commit cutoff epoch>: one line per
+# wip issue that no live lane, no live ask and no commit subject since the
+# cutoff names, lowest key first. A key is named as a whole token, SPL-12 or
+# spl12 (a slug), never as the start of SPL-123.
+spl_reflection_stalled_judge() {
+  python3 - "$1" "$2" <<'PY'
+import json, re, sys
+from datetime import datetime
+w, cut = sys.argv[1], int(sys.argv[2])
+load = lambda n: json.load(open(f"{w}/{n}.json", encoding="utf-8"))
+iss = load("issues"); iss = iss.get("result", iss) if isinstance(iss, dict) else {}
+issues = [i for i in iss.get("issues") or [] if i.get("status", "wip") == "wip" and i.get("key")]
+lanes = [l for l in load("lanes").get("lanes") or [] if l.get("state", "live") == "live"]
+live = {"open", "acked", "queued", "placing", "needs_owner"}
+asks = [a for a in load("asks").get("asks") or [] if a.get("state") in live]
+subj = []
+for line in open(f"{w}/subjects.tsv", encoding="utf-8", errors="replace"):
+    at, _, s = line.rstrip("\n").partition("\t")
+    try:
+        subj.append((datetime.fromisoformat(at.replace("Z", "+00:00")).timestamp(), at, s))
+    except ValueError:
+        continue
+def rx(key):
+    p, _, n = key.partition("-")
+    return re.compile(r"(?<![A-Za-z0-9])" + re.escape(p) + r"-?" + re.escape(n) + r"(?![0-9])", re.I)
+lane_text = [" ".join(l.get(f) or "" for f in ("issue_key", "origin_issue", "scope", "topic", "branch")) for l in lanes]
+ask_text = [" ".join(a.get(f) or "" for f in ("summary", "topic", "placement")) for a in asks]
+num = lambda k: int(re.sub(r"\D", "", k) or 0)
+n = 0
+for i in sorted(issues, key=lambda i: num(i["key"])):
+    r = rx(i["key"])
+    if any(r.search(t) for t in lane_text) or any(r.search(t) for t in ask_text):
+        continue
+    last = next(((e, at) for e, at, s in subj if r.search(s)), None)
+    if last and last[0] >= cut:
+        continue
+    title = re.sub(r"\s+", " ", i.get("title") or "")[:80]
+    print(f"- {i['key']}: {title} (last commit {last[1][:10] if last else 'none'})")
+    n += 1
+if not n:
+    print("(none)")
+PY
 }
 
 # spl_reflection_why <stderr file> [stdout]: a failed reader's reason, its

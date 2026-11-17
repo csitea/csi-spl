@@ -114,3 +114,57 @@ describe('F6: not a member is a state, not an error', () => {
     assert.match(read('src/plugins/tenant-host.client.ts'), /useState<[^>]*>\('tenant-host-not-member'/)
   })
 })
+
+/**
+ * The props a component template hands its PlainErrorNotice, read from the
+ * real .vue file: each `:prop="store.field"` binding resolved on `store`,
+ * each plain attribute as its string. noticeRef executes them below, so a
+ * case counts the rows the real wiring journals.
+ */
+function noticeProps(rel, store) {
+  const tag = read(rel).match(/<LazyPlainErrorNotice\b([^>]*)\/>/)
+  assert.ok(tag, `${rel} renders a LazyPlainErrorNotice`)
+  const props = {}
+  for (const [, bound, name, value] of tag[1].matchAll(/(:?)([a-z][\w-]*)="([^"]*)"/g)) {
+    if (name.startsWith('test-')) continue
+    props[name] = bound ? value.split('.').slice(1).reduce((o, k) => o?.[k], store) : value
+  }
+  return props
+}
+
+describe('SPL-5778 N1: every notice caller passes the rejection too', () => {
+  beforeEach(() => resetErrorJournal())
+
+  it('one live topic pane transport failure = one journal row', () => {
+    const e = apiDrop()
+    /* stores/live.ts fail(): what useLiveFeed('pane') keeps */
+    const pane = { error: e.message, errorCause: e }
+    const id = noticeRef(noticeProps('src/components/LiveTopicPane.vue', pane), { journal })
+    assert.equal(getErrors().length, 1)
+    assert.equal(id, getErrors()[0].errorId)
+  })
+
+  it('lobby, channel and live pane: one row each', () => {
+    for (const rel of ['src/components/MessageFeed.vue', 'src/pages/lobby.vue', 'src/components/LiveTopicPane.vue']) {
+      resetErrorJournal()
+      const e = apiDrop()
+      noticeRef(noticeProps(rel, { error: e.message, errorCause: e }), { journal })
+      assert.equal(getErrors().length, 1, `${rel}: one row`)
+    }
+  })
+})
+
+describe('SPL-5778 N2: the not-member flag set after the notice mounted', () => {
+  beforeEach(() => resetErrorJournal())
+
+  /* PlainErrorNotice.vue: resolve() on mount, again when a watched prop moves */
+  it('the row is journaled at mount; re-resolving on the flag does not take it back', () => {
+    const e = notMember403()
+    const props = { message: e.message, error: e, source: 'lobby' }
+    const first = noticeRef(props, { notMember: false, journal })
+    assert.equal(getErrors().length, 1, 'mounted before tenant-host-boot.mjs step 3: one row')
+    /* what a watch on the not-member flag would run */
+    assert.equal(noticeRef(props, { notMember: true, journal }), first, 'the stamped id is quoted, not withdrawn')
+    assert.equal(getErrors().length, 1, 'a watch on the flag leaves the row: it is no fix for the race')
+  })
+})

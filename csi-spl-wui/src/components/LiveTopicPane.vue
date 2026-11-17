@@ -39,7 +39,7 @@
       <ViewTokenForm v-if="pane.door" :detail="pane.door.detail" @saved="pane.taskId && pane.open(pane.taskId)" />
       <!-- SPL-1839: one plain sentence + Try again; the technical part only with the Debug pane on (own box: a bare lazy v-if threw insertBefore in #lobby) -->
       <div v-if="pane.error" class="plain-err-slot">
-        <LazyPlainErrorNotice :message="pane.error" retry source="live-pane" test-id="live-pane-error" @retry="pane.taskId && pane.open(pane.taskId)" />
+        <LazyPlainErrorNotice :message="pane.error" :error="pane.errorCause" retry source="live-pane" test-id="live-pane-error" @retry="pane.taskId && pane.open(pane.taskId)" />
       </div>
       <LiveFeed
         clip

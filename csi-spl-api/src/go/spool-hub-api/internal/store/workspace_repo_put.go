@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // The operator's registration of a workspace's repo (spec 143
@@ -95,7 +96,11 @@ func (s *Postgres) PutWorkspaceRepo(ctx context.Context, r WorkspaceRepoPut) (bo
 	}
 	var primary bool
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('workspace_repos:' || $1))`, r.Tenant); err != nil {
+		// The workspace, then the slug: the slug is unique across
+		// workspaces, so two workspaces putting one slug at once queue on
+		// it and the second reads it taken (B-6 review N1).
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('workspace_repos:' || $1)),
+			pg_advisory_xact_lock(hashtext('workspace_repos:slug:' || $2))`, r.Tenant, r.Slug); err != nil {
 			return err
 		}
 		var project, taken, other bool
@@ -129,6 +134,10 @@ func (s *Postgres) PutWorkspaceRepo(ctx context.Context, r WorkspaceRepoPut) (bo
 			r.Tenant, r.Slug, r.Project, r.WebURL, r.TrunkBranch, r.AuthMode, primary, r.NotesPublic)
 		return err
 	})
+	var pe *pgconn.PgError
+	if errors.As(err, &pe) && pe.Code == "23505" && pe.ConstraintName == "workspace_repos_slug_once" {
+		err = ErrRepoTaken // the index is the last word if a writer slips past the lock
+	}
 	return primary, err
 }
 

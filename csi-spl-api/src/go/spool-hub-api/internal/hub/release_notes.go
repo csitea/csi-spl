@@ -49,6 +49,7 @@ import (
 const (
 	releaseIngestBodyMax = 8 << 20 // 500 commits with long messages
 	releaseRedacted      = "[redacted]"
+	releaseBodyScan      = 4 * store.ReleaseBodyMax // the body row keeps for the filter; fitBody cuts it after
 	// ReleaseNoteBansEnv names extra hygiene patterns (RE2, one per line),
 	// the distribution-hygiene sweep's name / box / org bans. They come from
 	// the environment, never from this file: the sweep would refuse the
@@ -175,7 +176,11 @@ func (rn *releaseNotes) issuePrefix(ctx context.Context, tenant string) (string,
 // repos of tenant, the workspace of the repo row the ingest resolved: it binds
 // the operator workspace's repos only (releases-projects.md section 5, the
 // interim rule of row B-6; a per-repo column is a later migration). It reads
-// the row's workspace, never the repo's name.
+// the row's workspace, never the repo's name. On a hub with no operator
+// workspace (none flagged, none in cnf) op is "" and every workspace is
+// optional: no repo is the operator's there. Such a hub refuses an ingest
+// that names no tenant (ingestScope: tenant_required), so the rows always
+// land in a workspace the batch named (B-6 review N3).
 func (rn *releaseNotes) trailersOptional(ctx context.Context, tenant string) (bool, error) {
 	op, err := rn.s.operatorTenant(ctx)
 	return tenant != op, err
@@ -196,6 +201,7 @@ func (rn *releaseNotes) buildRows(in []releaseNoteIn, tenant, prefix string, opt
 		if rn.filter.apply(&n) {
 			res.Redacted++
 		}
+		n.Body = fitBody(n.Body)
 		if why := store.CheckReleaseNote(n); why != "" {
 			res.Rejected = append(res.Rejected, releaseRejected{SHA: wn.SHA, Why: why})
 			continue

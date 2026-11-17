@@ -16683,14 +16683,14 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "description": "Conflict: repo_taken, another workspace has registered that repo slug"
+          },
+          "503": {
+            "description": "repos_off: this hub's store keeps no workspace repos; internal: the write failed"
           }
         },
         "summary": "Register a repo of a workspace's software project (operator)",

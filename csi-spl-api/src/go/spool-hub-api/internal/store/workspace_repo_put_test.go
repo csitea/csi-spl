@@ -105,3 +105,47 @@ func TestReleaseNoteBody(t *testing.T) {
 		})
 	}
 }
+
+// N1 of the B-6 review (c-222): workspaces putting one slug at the same time
+// get one success and ErrRepoTaken for the rest, never the unique index's
+// raw 23505 (a 503 at the route). RED CONTROL: drop the slug lock and the
+// 23505 mapping from PutWorkspaceRepo and a loser reports
+// "workspace_repos_slug_once" instead of ErrRepoTaken.
+func TestPutWorkspaceRepoSlugRace(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			const n, rounds = 6, 10 // a race: one round alone loses it about 2 runs in 3
+			tenants := make([]string, n)
+			for i := range tenants {
+				tenants[i] = newTenant(t, st)
+				if _, err := st.(SoftwareProjects).PutSoftwareProject(ctx, tenants[i], "web-shop", "web-shop", false); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for range rounds {
+				slug, errs, start := b4Repo(), make(chan error, n), make(chan struct{})
+				for _, tn := range tenants {
+					go func() {
+						<-start
+						_, err := st.(WorkspaceRepoWriter).PutWorkspaceRepo(ctx, WorkspaceRepoPut{Tenant: tn, Slug: slug, Project: "web-shop", WebURL: "https://example.com/x"})
+						errs <- err
+					}()
+				}
+				close(start)
+				won := 0
+				for range n {
+					switch err := <-errs; {
+					case err == nil:
+						won++
+					case !errors.Is(err, ErrRepoTaken):
+						t.Errorf("a loser: %v, want ErrRepoTaken", err)
+					}
+				}
+				if won != 1 {
+					t.Fatalf("%d workspaces took %s, want 1", won, slug)
+				}
+			}
+		})
+	}
+}

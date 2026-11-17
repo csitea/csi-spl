@@ -53,7 +53,7 @@ do_release_note_ingest() {
   do_require_bin git jq || return 1
   spl_require_cloud_env || return 1
   local tip="${RELEASE_SHA:-HEAD}" depth="${RELEASE_NOTE_DEPTH:-500}" batch="${RELEASE_NOTE_BATCH:-100}"
-  local remote="${RELEASE_REMOTE:-origin}" dry="${DRY_RUN:-1}"
+  local remote="${RELEASE_REMOTE:-origin}" dry="${DRY_RUN:-1}" RN_PATH RN_TENANT RN_SLUG RN_GLOB RN_FOREIGN
   spl_release_repo_scope || return 1
   local g=(git -C "$RN_PATH")
   [[ "$depth" =~ ^[1-9][0-9]{0,4}$ ]] || { do_log "FATAL RELEASE_NOTE_DEPTH must be 1..99999, got: '$depth'"; return 1; }
@@ -109,7 +109,7 @@ do_release_note_ingest() {
   do_log "OK $stored of $n release note row(s) stored on $SPL_HUB_URL (from ${head:0:8})"
 }
 
-# spl_release_repo_scope -> sets RN_PATH (the clone), RN_TENANT and RN_SLUG
+# spl_release_repo_scope -> sets (in its caller's locals) RN_PATH (the clone), RN_TENANT and RN_SLUG
 # (where the hub stores the rows; "" = the hub's default, this repo's
 # operator workspace and its primary repo), RN_GLOB (the version tags) and
 # RN_FOREIGN (1 for a workspace clone, not this repo). rc 1 + FATAL: a

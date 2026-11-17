@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -82,6 +83,21 @@ func clip(s string, max int) string {
 	return s
 }
 
+// fitBody cuts a filtered body to store.ReleaseBodyMax bytes, back to the
+// last whitespace so no word is cut into a shorter one a ban could match
+// (W1 of the B-6 review: clipping before the filter let "[redacted]" grow a
+// full body past the limit, and the row was dropped).
+func fitBody(s string) string {
+	if len(s) <= store.ReleaseBodyMax {
+		return s
+	}
+	s = clip(s, store.ReleaseBodyMax+1)
+	if i := strings.LastIndexAny(s, " \t\n\r"); i > 0 {
+		s = s[:i]
+	}
+	return strings.TrimRightFunc(clip(s, store.ReleaseBodyMax), unicode.IsSpace)
+}
+
 // row is the store row: parsed, overlaid, clipped and given its state.
 // optional: the trailer rule does not bind the row's repo (trailersOptional),
 // so a commit with no Lay-* / Tech-* trailer at all is state skip and keeps
@@ -113,7 +129,9 @@ func (in releaseNoteIn) row(optional bool) store.ReleaseNote {
 		n.State = releaseState(n, in.DocOnly, strings.EqualFold(pick(note["release-note"], msg["release-note"]), "skip"))
 		if optional && n.State == "missing" && !hasLayTech(msg) && !hasLayTech(note) {
 			_, body, _ := strings.Cut(strings.TrimSpace(in.Message), "\n")
-			n.State, n.Body = "skip", clip(strings.TrimSpace(body), store.ReleaseBodyMax)
+			// clipped to its fit by buildRows after the filter (redaction
+			// can grow it); a bound here keeps the regexes off a huge body.
+			n.State, n.Body = "skip", clip(strings.TrimSpace(body), releaseBodyScan)
 		}
 	}
 	if n.State != "revert" {

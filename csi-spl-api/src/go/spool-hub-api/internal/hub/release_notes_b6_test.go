@@ -207,3 +207,37 @@ func TestReleaseNotesEveryRowFiltered(t *testing.T) {
 		t.Fatalf("the body kept the banned word: %s %q", n.State, n.Body)
 	}
 }
+
+// W1 of the B-6 review (c-222): a trailer-free body over the limit with one
+// ban hit is stored, redacted and cut to the limit, not dropped; the cut
+// falls on whitespace, so a long word is never cut into a banned one.
+// RED CONTROL: drop n.Body = fitBody(n.Body) from buildRows (or clip in row
+// before the filter, as dcc873304 did) and the row is rejected: stored 0.
+func TestReleaseNotesLongBodyWithBanIsKept(t *testing.T) {
+	t.Setenv(hub.ReleaseNoteBansEnv, "\\bbob\\b")
+	e, _, _ := releaseEnv(t)
+	ws, _ := e.tenant()
+	putProject(t, e, ws, "web-shop")
+	repo := repoOf(ws, "api")
+	if code, out := putRepo(t, e, ws, map[string]any{"repo_slug": repo, "project_slug": "web-shop", "repo_web_url": "https://example.com/" + repo}); code != http.StatusOK {
+		t.Fatalf("put repo: %d %v", code, out)
+	}
+	probe, cut := releaseSHA("9"), releaseSHA("a")
+	tail := strings.Repeat("y ", 997) + "yy bobby trailing words" // a cut at 2000 bytes alone ends "bob"
+	code, out := opCall(t, e, ws, http.MethodPost, "/v1/operator/release-notes", "good", map[string]any{"tenant": ws, "repo_slug": repo,
+		"notes": []map[string]any{
+			releaseRow(probe, "v1.0.0", "fix(api): the cart\n\nbob found it. "+strings.Repeat("x", 2500)),
+			releaseRow(cut, "v1.0.0", "fix(api): the list\n\n"+tail),
+		}})
+	if code != http.StatusOK || out["stored"].(float64) != 2 || out["redacted"].(float64) != 1 {
+		t.Fatalf("ingest: %d %v, want both stored, one redacted", code, out)
+	}
+	n := storedNote(t, e, ws, repo, probe)
+	if n.State != "skip" || n.Body != "[redacted] found it." {
+		t.Fatalf("probe body: %s %q", n.State, n.Body)
+	}
+	n = storedNote(t, e, ws, repo, cut)
+	if len(n.Body) > store.ReleaseBodyMax || !strings.HasSuffix(n.Body, " yy") || !strings.HasPrefix(n.Body, "y y") {
+		t.Fatalf("cut body: %d bytes, ends %q", len(n.Body), n.Body[max(0, len(n.Body)-12):])
+	}
+}

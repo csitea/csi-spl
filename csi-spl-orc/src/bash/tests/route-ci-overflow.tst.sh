@@ -13,7 +13,8 @@
 #      waiting -> stays (the hysteresis)
 #   4. switched off (env, hub fleet-load ci_overflow false, cnf): hosted at
 #      once with no runs query; the hub's true beats cnf false
-#   2b. budget (SPL-5734): runs started over 24 h ago cost no jobs call
+#   2b. budget (SPL-5734): runs started over 24 h ago cost no jobs call; the
+#      23 h / 25 h edge in both lists and fractional-second timestamps (SPL-5776)
 #   5. the cron script runs the action with DRY_RUN=0, refuses a worktree;
 #      the installer writes ONE */5 tagged line, keeps the others, removes it
 #   No real gh, crontab or hub: stubs.
@@ -131,6 +132,33 @@ echo "$HOSTED" >"$T/var"; rm -rf "$T/state"
 out="$(route)"; rc=$?; n="$(grep -c '/jobs?' "$T/gh.calls")"
 [[ $rc -eq 0 && "$n" == 1 && "$(grep -c "^gh " "$T/gh.calls")" -le 4 && "$out" == *'a hosted job queued 12 min'* ]] &&
   pass "budget: 15 runs started 6 days ago are skipped, 1 jobs call, <= 4 gh calls a tick" || fail "budget (rc=$rc, jobs calls $n): $out"
+echo "$HOSTED" >"$T/var"; rm -rf "$T/state"
+
+# SPL-5776: the 24 h edge, in both lists; runs_at <status> <id> <started> ...
+runs_at() {
+  local st=$1 r=""; shift
+  while (($#)); do r+="{\"id\":$1,\"created_at\":\"$2\",\"run_started_at\":\"$2\"},"; shift 2; done
+  echo "{\"workflow_runs\":[${r%,}]}" >"$T/fx/runs-$st.json"
+}
+for st in queued in_progress; do
+  clear_fx; runs_at "$st" 41 "$(ago $((23 * 60)))" 42 "$(ago $((25 * 60)))"
+  jobs 41 ubuntu-latest queued $((23 * 60)); jobs 42 ubuntu-latest queued $((25 * 60))
+  out="$(route)"; rc=$?
+  [[ $rc -eq 0 && "$(grep -c '/jobs?' "$T/gh.calls")" == 1 && "$(grep -c 'runs/41/jobs' "$T/gh.calls")" == 1 &&
+    "$out" == *'a hosted job queued 1380 min'* ]] &&
+    pass "24 h edge ($st): a run started 23 h ago is kept, one 25 h ago skipped" || fail "edge $st (rc=$rc): $out / $(cat "$T/gh.calls")"
+done
+# fractional seconds (GitHub may send ...:00.123Z): jq fromdate refuses them
+frac() { ago "$1" | sed 's/Z$/.123Z/'; }
+clear_fx; runs_at queued 61 "$(frac 12)"; jobs 61 ubuntu-latest queued 12
+out="$(route)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'a hosted job queued 12 min'* ]] &&
+  pass "a run started_at with fractional seconds does not fail the tick" || fail "frac run (rc=$rc): $out"
+clear_fx; runs_at queued 62 "$(ago 12)"
+echo "{\"jobs\":[{\"status\":\"queued\",\"labels\":[\"ubuntu-latest\"],\"created_at\":\"$(frac 12)\"}]}" >"$T/fx/jobs-62.json"
+out="$(route)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'a hosted job queued 12 min'* ]] &&
+  pass "a job created_at with fractional seconds does not fail the tick" || fail "frac job (rc=$rc): $out"
 echo "$HOSTED" >"$T/var"; rm -rf "$T/state"
 
 # 3. local -> hosted (hysteresis) ---------------------------------------------------------

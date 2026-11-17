@@ -48,7 +48,7 @@ _rco_hosted_wait() {
   # with 0 jobs (15 since 11-11) cost one jobs call each, every tick.
   for st in queued in_progress; do
     t="$(_rco_gh api "repos/{owner}/{repo}/actions/runs?status=$st&per_page=100" --jq '.workflow_runs[]
-      | select((.run_started_at // .created_at // "") as $s | $s == "" or ($s | fromdate) > (now - 86400)) | .id' 2>/dev/null)" || return 1
+      | select((.run_started_at // .created_at // "") as $s | $s == "" or ($s | sub("\\.[0-9]+Z$";"Z") | fromdate) > (now - 86400)) | .id' 2>/dev/null)" || return 1
     ids+="$t"$'\n'
   done
   while read -r id; do
@@ -56,7 +56,7 @@ _rco_hosted_wait() {
     ((n++ >= max)) && break
     t="$(_rco_gh api "repos/{owner}/{repo}/actions/runs/$id/jobs?per_page=100" --jq '[.jobs[]
       | select(.status == "queued" and ((.labels // []) | index("self-hosted") | not))
-      | (.created_at // .started_at) | fromdate] | min // ""' 2>/dev/null)" || return 1
+      | (.created_at // .started_at) | sub("\\.[0-9]+Z$";"Z") | fromdate] | min // ""' 2>/dev/null)" || return 1
     [[ "$t" =~ ^[0-9]+$ ]] && { [[ -z "$oldest" ]] || ((t < oldest)); } && oldest="$t"
   done <<<"$ids"
   now="$(date +%s)"

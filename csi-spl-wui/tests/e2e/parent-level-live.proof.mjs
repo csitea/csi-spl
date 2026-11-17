@@ -44,7 +44,7 @@
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
-import { lobbyVerdict, hubLobbyCount } from './lib/lobby-verdict.mjs'
+import { lobbyVerdict, hubLobbyCount, cardTasks, LOBBY_WINDOW } from './lib/lobby-verdict.mjs'
 
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
@@ -356,22 +356,26 @@ async function surfaceRun(p, surface) {
 }
 
 /** The hub's own read of the lobby for this member: the room task's rows
-    plus the topics in channel lobby, the two reads /lobby makes (hubLobbyCount). */
+    plus the topics in channel lobby, the two reads /lobby makes (hubLobbyCount),
+    and the cards those rows make (cardTasks, SPL-5777). */
 async function hubLobbyRows(p) {
   if (!res.apiRoot || !LOBBY_TASK) return { status: 0, rows: -1 }
   const [room, topics] = await p.evaluate(async (root, id) => {
     const get = async (path, key) => {
       const r = await fetch(`${root}${path}`, { credentials: 'include', headers: { accept: 'application/json' } })
-      if (!r.ok) return { status: r.status, rows: -1 }
+      if (!r.ok) return { status: r.status, rows: -1, raw: [] }
       const j = await r.json()
-      return { status: r.status, rows: (j[key] || []).length }
+      const list = j[key] || []
+      const raw = list.map((m) => ({ task_id: m.task_id, parent_task_id: m.parent_task_id, is_parent: m.is_parent }))
+      return { status: r.status, rows: list.length, raw }
     }
     return Promise.all([
       get(`/v1/view/topics/${encodeURIComponent(id)}?order=desc&limit=30`, 'messages'),
       get('/v1/view/topics?channel=lobby&limit=50', 'topics'),
     ])
   }, res.apiRoot, LOBBY_TASK)
-  return { ...hubLobbyCount(room, topics), room: room.rows, topics: topics.rows }
+  const c = hubLobbyCount({ ...room, tasks: cardTasks(room.raw) }, { ...topics, tasks: cardTasks(topics.raw) })
+  return { ...c, room: room.rows, topics: topics.rows }
 }
 
 /** The lobby page's empty line and error notice, as booleans. */
@@ -395,6 +399,10 @@ async function lobbyRun(p) {
   let s = await waitFor(p, (x) => x.middle.some((m) => m.task), 15000)
   step(tag('renders on /lobby'), /\/lobby\/?$/.test(new URL(p.url()).pathname), { url: p.url() })
   const hub = await hubLobbyRows(p)
+  /* SPL-5777: the channel topics are admitted after the room task opens, so
+     the first card is not the last: wait for the hub's card count first */
+  const want = Math.min(Math.max(hub.cards, 0), LOBBY_WINDOW)
+  if (want > 1) s = await waitFor(p, (x) => x.middle.filter((m) => m.task).length >= want, 10000)
   const page = await p.evaluate(LOBBY_STATE)
   const card = s.middle.find((m) => m.task)
   const v = lobbyVerdict({ hub, cards: s.middle.filter((m) => m.task).length, ...page })

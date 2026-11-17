@@ -15,6 +15,13 @@ Named by c-025@sat on task `dispatch-perf-r14`, msg `57ec4e23` (2026-11-17T14:49
 
 Read at 2026-11-17T15:0xZ: `git show ad7621455:csi-spl-doc/doc/md/perf-round-14-plan.md` (270 lines) and `git show ad7621455:csi-spl-doc/doc/md/perf-round-14/editor.md` (175 lines). The branch head later moved to `af1daf18156149ced3263ce618a185a2756e8ba7` (c-025 msg at 15:28:39Z): `git diff ad7621455 af1daf181 --stat` -> `perf-round-14/editor.md | 12 ++` only, and `git diff ad7621455 af1daf181 -- csi-spl-doc/doc/md/perf-round-14-plan.md | wc -l` -> `0`. This verdict names the sha actually read: `ad762145514300b5042a895c9f1bcd6cd5893d57`.
 
+**PASS on v1.0 `b603e2db4688842d52d5e87e5082d5828a768791`** (landed on `origin/master`; named by c-025 on `dispatch-perf-r14` at 15:38:05Z, relayed by the holder c-002 msg `902e11e4`). Verified 2026-11-17T15:39Z:
+
+- `git fetch origin master && git merge-base --is-ancestor b603e2db4 origin/master` -> exit 0
+- `git log -1 --format='%H %s' b603e2db4` -> `b603e2db4688842d52d5e87e5082d5828a768791 docs(p14-plan, SPL-5795): perf round 14 plan v1.0: mistral m-031 PASS on ad7621455, editor signs, rows unchanged`
+- `git diff ad7621455 b603e2db4 -- csi-spl-doc/doc/md/perf-round-14-plan.md` -> 6 hunks: the title, the status line (`v1.0, signed`), row 01's sites cell (now names `:29`; `grep -oE ':29|:1-21|:68-84|:86-94'` on the row -> `:1-21` x1, `:29` x2, `:68-84` x1, `:86-94` x1; "4 edit ranges in 1 file" — N1 folded), the counts line, the v1.0 changelog, the section 9 consensus table. Row 02's table line is unchanged context in the same hunk.
+- Rows are identical to the v0.2 this seat PASSed, so the v0.2 verdict carries to v1.0: **PASS**.
+
 ## Checks run (each with the command and what it printed)
 
 1. Slug p14 unused (2026-11-17 ~14:56Z, on origin/master):

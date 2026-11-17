@@ -36,7 +36,14 @@
 # @description failed run and ONE blocker, the issues still move, and the copy is kept
 # @description in <state dir>/inherit.pending and tried again every run until it takes;
 # @description a final refusal (not archived, not live, not its follow-up) is dropped
-# @description from it after its blocker (R7 c-714 W2).
+# @description from it after its blocker (R7 c-714 W2). A `not_found` is retried (the
+# @description hub may not have stored the follow-up yet) on at most
+# @description ARCHIVED_FOLLOWUP_PRIORITY_RUNS later runs, counted in the row's 4th
+# @description column (a 3-column row counts 0): past that bound it is a final refusal,
+# @description one `refused for good` WARN and ONE blocker naming the hub's answer
+# @description (SPL-5818: one copy failed the cron every 5 minutes for 6 days). A
+# @description rollback past SPL-5818 strips column 4 from inherit.pending first: the
+# @description older reader takes it as part of the follow-up's id.
 # @description A deleted issue is not work left (SPL-5244). A move the hub refuses
 # @description `not_found (no such issue)` is final: ONE blocker under the key
 # @description move:<ref> in failed.keys, and later runs skip that issue. A follow-up
@@ -84,6 +91,7 @@
 # @param ARCHIVED_FOLLOWUP_LINK_CMD (optional, tests) - replaces do_spl_issue_link: TENANT_ID, DESK_AGENT, ISSUE_REF, ISSUE_DISCUSSION, MODE in its env
 # @param ARCHIVED_FOLLOWUP_SEND (optional, tests) - the sender script, default spool-send.sh
 # @param ARCHIVED_FOLLOWUP_PRIORITY_CMD (optional, tests) - replaces do_spl_topic_inherit_priority: TENANT_ID, DESK_AGENT, PRIORITY_FROM, PRIORITY_TO in its env
+# @param ARCHIVED_FOLLOWUP_PRIORITY_RUNS (optional) - later runs a pending copy the hub answers not_found is tried on before it is refused for good, default 12 (an hour of the 5-minute cron; 1..9999)
 # @param ARCHIVED_FOLLOWUP_PRIORITY_WAIT (optional, tests) - seconds between tries while the hub has not stored the new discussion, default 3
 # @param SPL_DESK_AS_CMD (optional, tests) - replaces `sudo -n -u`, as in spl_desk_moved_to
 # @example ./run -a do_spl_archived_followup
@@ -106,6 +114,8 @@ do_spl_archived_followup() {
   # No leading zero: bash would read 02640 as octal 1440, psql as decimal 2640.
   [[ "${ARCHIVED_FOLLOWUP_SETTLE_MIN:-10}" =~ ^(0|[1-9][0-9]{0,3})$ ]] && (( ${ARCHIVED_FOLLOWUP_SETTLE_MIN:-10} <= 1440 )) ||
     { do_log "FATAL ARCHIVED_FOLLOWUP_SETTLE_MIN must be 0..1440 minutes, got ${ARCHIVED_FOLLOWUP_SETTLE_MIN:-}"; return 1; }
+  [[ "${ARCHIVED_FOLLOWUP_PRIORITY_RUNS:-12}" =~ ^[1-9][0-9]{0,3}$ ]] ||
+    { do_log "FATAL ARCHIVED_FOLLOWUP_PRIORITY_RUNS must be 1..9999 runs, got ${ARCHIVED_FOLLOWUP_PRIORITY_RUNS:-}"; return 1; }
   LH=""; spl_lease_read || true
   AFU_AGENT="$(spl_lease_holder_id)"
   [[ -n "$AFU_AGENT" && "$AFU_AGENT" != none ]] || { do_log "INFO nobody holds the dispatch lease: nothing followed up"; return 0; }
@@ -224,9 +234,12 @@ spl_afu_why() {
   cut -c1-200 <<<"${why:-${AFU_INHERIT_OUT:-no answer}}" | tail -1
 }
 
-# spl_afu_final_refusal: 0 when the hub's last answer will not change on a retry.
+# spl_afu_final_refusal [TRIES]: 0 when the hub's last answer will not change on a
+# retry. TRIES: the later runs a pending copy got not_found on; past
+# ARCHIVED_FOLLOWUP_PRIORITY_RUNS a not_found is final too.
 spl_afu_final_refusal() {
-  [[ "${AFU_INHERIT_OUT:-}" =~ (source_not_archived|target_not_live|not_followup|bad_issue) ]]
+  [[ "${AFU_INHERIT_OUT:-}" =~ (source_not_archived|target_not_live|not_followup|bad_issue) ]] && return 0
+  [[ -n "${1:-}" && "${AFU_INHERIT_OUT:-}" == *not_found* ]] && (( $1 >= ${ARCHIVED_FOLLOWUP_PRIORITY_RUNS:-12} ))
 }
 
 # spl_afu_inherit_failed TENANT TOPIC NEW DIR: the issues move anyway and the next
@@ -236,36 +249,50 @@ spl_afu_inherit_failed() {
   local why next="the next run tries again"
   why="$(spl_afu_why)"
   if spl_afu_final_refusal; then next="the hub refused it for good, nothing tries again"
-  elif ! grep -qxF "$1"$'\t'"$2"$'\t'"$3" "$4/inherit.pending" 2>/dev/null; then
+  elif ! awk -F'\t' -v k="$1"$'\t'"$2"$'\t'"$3" '$1 FS $2 FS $3 == k { f = 1 } END { exit !f }' "$4/inherit.pending" 2>/dev/null; then
     printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$4/inherit.pending" || do_log "WARN inherit.pending not written: $2 -> $3"
   fi
   spl_afu_blocker "$1" "$2" "$4" "$why" "**BLOCKER** archived discussion /t/$2 ($1): its follow-up /t/$3 did not take its priority: $why. The issues moved there; $next. Action do_spl_archived_followup (SPL-5147)." inherit
 }
 
 # spl_afu_pending DIR DRY: each copy of inherit.pending is tried again; one that
-# takes, or is refused for good, leaves the file.
+# takes, or is refused for good (a not_found past its bound included), leaves the
+# file. Column 4 counts the later runs that got not_found; a 3-column row reads 0.
 spl_afu_pending() {
-  local dir="$1" dry="$2" tenant topic new rc=0
+  local dir="$1" dry="$2" tenant topic new tries rc=0
   [[ -s "$dir/inherit.pending" ]] || return 0
   : >"$dir/inherit.pending.next" || return 1
-  while IFS=$'\t' read -r tenant topic new; do
+  while IFS=$'\t' read -r tenant topic new tries; do
     [[ -n "$new" ]] || continue
+    [[ "${tries:-}" =~ ^[0-9]{1,9}$ ]] || tries=0
     if ((dry)); then
       do_log "WOULD try again: $tenant follow-up $new takes the priority of $topic"
-      printf '%s\t%s\t%s\n' "$tenant" "$topic" "$new" >>"$dir/inherit.pending.next"; continue
+      printf '%s\t%s\t%s\t%s\n' "$tenant" "$topic" "$new" "$tries" >>"$dir/inherit.pending.next"; continue
     fi
     if ! spl_afu_desk_seated "$tenant"; then
       do_log "WARN $tenant follow-up $new: no desk for $AFU_AGENT on $AFU_BOX, its priority copy waits"
     elif spl_afu_inherit "$tenant" "$topic" "$new"; then
       do_log "OK $tenant topic $topic: its follow-up $new took its priority on a later run"; continue
-    elif spl_afu_final_refusal; then
-      do_log "WARN $tenant follow-up $new: refused for good, no more tries"; continue
+    else
+      [[ "$AFU_INHERIT_OUT" == *not_found* ]] && tries=$((tries + 1))
+      if spl_afu_final_refusal; then do_log "WARN $tenant follow-up $new: refused for good, no more tries"; continue
+      elif spl_afu_final_refusal "$tries"; then spl_afu_pending_final "$tenant" "$topic" "$new" "$dir" "$tries"; continue; fi
     fi
     rc=1
-    printf '%s\t%s\t%s\n' "$tenant" "$topic" "$new" >>"$dir/inherit.pending.next"
+    printf '%s\t%s\t%s\t%s\n' "$tenant" "$topic" "$new" "$tries" >>"$dir/inherit.pending.next"
   done <"$dir/inherit.pending"
   mv "$dir/inherit.pending.next" "$dir/inherit.pending" || return 1
   return "$rc"
+}
+
+# spl_afu_pending_final TENANT TOPIC NEW DIR TRIES: a pending copy the hub answered
+# not_found past its bound leaves the file with one WARN and ONE blocker naming the
+# hub's answer. The other final answers keep their WARN only (as before SPL-5818).
+spl_afu_pending_final() {
+  local why
+  why="$(spl_afu_why)"
+  do_log "WARN $1 follow-up $3: refused for good, no more tries: $why"
+  spl_afu_blocker "$1" "$2" "$4" "$why" "**BLOCKER** archived discussion /t/$2 ($1): its follow-up /t/$3 never took its priority: $why, after $5 later run(s) of not_found (bound ARCHIVED_FOLLOWUP_PRIORITY_RUNS=${ARCHIVED_FOLLOWUP_PRIORITY_RUNS:-12}). The hub refused it for good, nothing tries again. Action do_spl_archived_followup (SPL-5818)." inherit-final
 }
 
 # spl_afu_poster_box SEATED -> the one box that acts for a topic. SEATED: the
@@ -449,7 +476,7 @@ spl_afu_chain() {
 spl_afu_blocker() {
   local k="$1"$'\t'"$2" send="${ARCHIVED_FOLLOWUP_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
   [[ -z "${5:-}" ]] || k+=$'\t'"${6:-held}"
-  if [[ "${6:-}" == inherit || "${6:-}" == move:* ]]; then :
+  if [[ "${6:-}" == inherit* || "${6:-}" == move:* ]]; then :
   elif [[ -n "${5:-}" ]]; then do_log "WARN $1 topic $2: held, nothing posted or linked: $4"
   else do_log "WARN $1 topic $2: no follow-up discussion: $4"; fi
   grep -qxF "$k" "$3/failed.keys" 2>/dev/null && return 0

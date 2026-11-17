@@ -61,6 +61,7 @@
 # @param GRACE_MINUTES - optional: minutes of grace for a fresh commit (default 45)
 # @param LAG_HTTP_TIMEOUT - optional: per-probe curl --max-time seconds (default 15)
 # @param LAG_HUB_URL / LAG_WUI_URL - optional: override the cnf-derived probe URL (tests)
+# @param LAG_DEV_HUB_URL - optional (ENV=prd): dev's /version URL whose hold the prd hub also waits for (default from dev's cnf; empty = prd's own hold only)
 # @param LAG_TRUNK - optional: the branch whose pushes date a landing (default master)
 # @param HUB_DEPLOY_COALESCE_MIN - optional: hub rollout hold in minutes (default 120, 0 = off); a younger served build reads pending held=<m> (SPL-5641)
 # @example ENV=dev ./run -a do_check_deploy_lag
@@ -102,9 +103,17 @@ do_check_deploy_lag() {
   mapfile -t wui_paths < <(_spl_wui_input_paths "$APP_PATH")
   (( ${#wui_paths[@]} )) || { do_log "FATAL workflow 30 names no push paths: $APP_PATH/.github/workflows/30_wui-build-deploy.yml"; return 1; }
 
+  # prd waits while dev is held (workflow 20, SPL-5641): the prd hub's hold is
+  # the larger of its own and dev's, read from dev's /version. Unresolvable ->
+  # empty -> prd's own hold only (fails open: never a longer hold).
+  local dev_hub_url=""
+  if [[ "$ENV" == prd && ( "$component" == hub || "$component" == all ) ]]; then
+    dev_hub_url="${LAG_DEV_HUB_URL-$(_spl_lag_dev_hub_url)}"
+  fi
+
   local worst=0 rc
   if [[ "$component" == hub || "$component" == all ]]; then
-    _spl_lag_one hub "${LAG_HUB_URL:-https://$api_fqdn/version}" "$sha" "$grace" "$timeout" "${hub_paths[@]}"
+    LAG_DEV_HOLD_URL="$dev_hub_url" _spl_lag_one hub "${LAG_HUB_URL:-https://$api_fqdn/version}" "$sha" "$grace" "$timeout" "${hub_paths[@]}"
     rc=$?; (( rc > worst )) && worst=$rc
   fi
   if [[ "$component" == wui || "$component" == all ]]; then
@@ -114,6 +123,15 @@ do_check_deploy_lag() {
   # 3 (lagging) is the verdict worth acting on; 1 (cannot tell) must not mask it
   (( worst == 1 )) && return 1
   return "$worst"
+}
+
+# _spl_lag_dev_hub_url -> https://<dev env.dns.api_fqdn>/version, or nothing
+# when dev's cnf cannot be resolved (a subshell: the caller's prd cnf stays)
+_spl_lag_dev_hub_url() {
+  local f
+  f="$(ENV=dev; do_spl_cloud_cnf >/dev/null 2>&1 && yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF" 2>/dev/null)" || return 0
+  [[ -n "$f" && "$f" != null ]] && echo "https://$f/version"
+  return 0
 }
 
 # _spl_wui_input_paths <app path> -> workflow 30's `on.push.paths`, one git
@@ -184,8 +202,16 @@ _spl_lag_one() {
   local held
   if [[ "$comp" == hub ]]; then
     held="$(bash "$PROJ_PATH/src/bash/scripts/hub-deploy-coalesce.sh" hold-version 2>/dev/null <<<"$body")" || held=0
-    if [[ "$held" =~ ^[1-9][0-9]*$ ]]; then
-      echo "$ENV $comp pending served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from held=$((held / 60))m (the 2-hour rollout hold: the served build is younger than ${HUB_DEPLOY_COALESCE_MIN:-120}m; 21 rolls trunk head after it)"
+    [[ "$held" =~ ^[0-9]+$ ]] || held=0
+    # prd waits while dev is held: the same max(own, dev) as workflow 20
+    local devhold=0 held_by=own
+    if [[ "$ENV" == prd && -n "${LAG_DEV_HOLD_URL:-}" ]]; then
+      devhold="$(curl -sS --max-time "$timeout" -H 'Cache-Control: no-cache' "$LAG_DEV_HOLD_URL" 2>/dev/null |
+        bash "$PROJ_PATH/src/bash/scripts/hub-deploy-coalesce.sh" hold-version 2>/dev/null)" || devhold=0
+      [[ "$devhold" =~ ^[0-9]+$ ]] && ((devhold > held)) && { held=$devhold; held_by=dev; }
+    fi
+    if ((held > 0)); then
+      echo "$ENV $comp pending served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from held=$((held / 60))m held_by=$held_by (the 2-hour rollout hold: the served build$([[ $held_by == dev ]] && echo " on dev") is younger than ${HUB_DEPLOY_COALESCE_MIN:-120}m; 21 rolls trunk head after it)"
       return 0
     fi
   fi

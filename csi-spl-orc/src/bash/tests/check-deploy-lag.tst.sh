@@ -109,6 +109,29 @@ grep -qE 'held=(89|90)m' "$T/last" && pass "held: says ~90 min left" || fail "he
 lag_one "CONTROL: the same lag, served build 130 min old -> RED" "$(fixture_built "$C_BASE" held130 130)" "$C_FRESH" 45 3 lagging
 HUB_DEPLOY_COALESCE_MIN=0 lag_one "the same lag, hold off (window 0) -> RED" "$(fixture_built "$C_BASE" held0 30)" "$C_FRESH" 45 3 lagging
 
+# 2c. prd waits while dev is held (workflow 20 :479, R7 W1 on f6d885e15): a prd
+# hub whose own build is past the hold reads pending while DEV's served build
+# is younger than the hold, so 21 does not re-dispatch `all` every tick.
+# lag_prd <label> <prd url> <dev url> <sha> <want rc> <want word>
+lag_prd() {
+  local label="$1" url="$2" dev="$3" sha="$4" want="$5" word="$6" out rc
+  out=$(env APP_PATH="$REPO" PROJ_PATH="$PROJ_ROOT" ENV=prd LAG_DEV_HOLD_URL="$dev" bash -c '
+    do_log() { echo "$*" >&2; }
+    source "$0"
+    _spl_lag_one hub "$1" "$2" 45 15 csi-spl-api/src/go .version
+  ' "$PROJ_ROOT/src/bash/run/check-deploy-lag.func.sh" "$url" "$sha" 2>"$T/err"); rc=$?
+  if [[ $rc -eq $want && "$out" == "prd hub $word "* ]]; then pass "$label ($word, rc $rc)"
+  else fail "$label: rc=$rc want $want, out='$out' err='$(tail -1 "$T/err")'"; fi
+  printf '%s' "$out" >"$T/last"
+}
+lag_prd "prd lagging, dev held (dev built 30 min ago) -> pending" "$(fixture_built "$C_BASE" prd130 130)" "$(fixture_built "$C_FRESH" dev30 30)" "$C_FRESH" 0 pending
+grep -q 'held_by=dev' "$T/last" && pass "prd held by dev: says held_by=dev" || fail "prd held by dev: no held_by=dev in: $(cat "$T/last")"
+lag_prd "CONTROL: prd lagging, dev built 130 min ago -> RED" "$(fixture_built "$C_BASE" prd130b 130)" "$(fixture_built "$C_FRESH" dev130 130)" "$C_FRESH" 3 lagging
+lag_prd "prd lagging, dev /version unreachable -> RED (fails open)" "$(fixture_built "$C_BASE" prd130c 130)" "file://$T/no-such-dev.json" "$C_FRESH" 3 lagging
+lag_prd "prd lagging, no dev URL -> RED (own hold only)" "$(fixture_built "$C_BASE" prd130d 130)" "" "$C_FRESH" 3 lagging
+lag_prd "prd own build 30 min old, dev 130 -> pending held_by=own" "$(fixture_built "$C_BASE" prd30 30)" "$(fixture_built "$C_FRESH" dev130b 130)" "$C_FRESH" 0 pending
+grep -q 'held_by=own' "$T/last" && pass "prd own hold: says held_by=own" || fail "prd own hold: no held_by=own in: $(cat "$T/last")"
+
 # 3. "behind, nothing of MINE changed": served C_BASE, sha C_DOC -> n=0
 lag_one "behind by a docs-only commit -> n=0, not lag" "$(fixture "$C_BASE" b2)" "$C_DOC" 45 0 current
 grep -q 'n=0' "$T/last" && pass "it says n=0" || fail "no n=0 in: $(cat "$T/last")"

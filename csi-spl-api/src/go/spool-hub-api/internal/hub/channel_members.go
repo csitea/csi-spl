@@ -166,7 +166,7 @@ func (s *Server) channelDoor(w http.ResponseWriter, r *http.Request) (store.Tena
 // default:true, so a client can tell "everyone" from "nobody" without a
 // second call. Its agents are real rows, like any channel's.
 func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request) {
-	t, ch, _, ok := s.channelDoor(w, r)
+	t, ch, hum, ok := s.channelDoor(w, r)
 	if !ok {
 		return
 	}
@@ -188,13 +188,17 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 		return
 	}
 	list := s.withAgentState(r.Context(), t.ID, channelAgentList(agents))
+	invited, invitees := s.channelInviteeRows(r.Context(), t.ID, hum, s.channelInvitees(r.Context(), t.ID, ch))
 	out := map[string]any{
 		"channel": ch, "default": store.ChannelPublic(ch), "members": ms,
 		"members_open_invite": row.MembersOpenInvite,
 		"created_by":          row.CreatedBy,
 		"agents":              list,
-		// spec 025 section 11: addresses added before they joined (rdb 0231)
-		"invited": s.channelInvitees(r.Context(), t.ID, ch),
+		// spec 025 section 11: addresses added before they joined (rdb 0231);
+		// section 13: masked where a member card shows no address, and the
+		// rows with their invite ids (the undo works on a masked one too)
+		"invited":  invited,
+		"invitees": invitees,
 	}
 	if !s.channelAgentsOn(r.Context(), t.ID, ch) { // SPL-1684: absent = on, the wire as before
 		out["ai_agents_off"] = true
@@ -327,17 +331,32 @@ func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var body struct {
-		HumanID string `json:"human_id"`
-		Email   string `json:"email"`
+		HumanID  string `json:"human_id"`
+		Email    string `json:"email"`
+		InviteID string `json:"invite_id"` // spec 025 section 13: an inactive member
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxMemberJSONBody))
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&body); err != nil || (body.HumanID == "") == (body.Email == "") {
-		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {human_id} or {email}")
+	if err := dec.Decode(&body); err != nil || oneOf(body.HumanID, body.Email, body.InviteID) != 1 {
+		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {human_id}, {email} or {invite_id}")
 		return
 	}
 	if store.ChannelPublic(ch) {
 		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: every member of the tenant already reads it")
+		return
+	}
+	if body.InviteID != "" {
+		// An inactive member is added by its invite id, so a caller who sees
+		// the address masked can still add it; it never creates an invite.
+		email := ""
+		if isInviteID(body.InviteID) {
+			email = s.inviteEmailByID(r.Context(), t.ID, body.InviteID)
+		}
+		if email == "" {
+			writeErr(w, http.StatusNotFound, "no_open_invite", "no open invite with that id in this workspace")
+			return
+		}
+		s.addChannelInvitee(w, r, t, ch, hum, email)
 		return
 	}
 	if body.Email != "" {
@@ -606,6 +625,12 @@ func (s *Server) handleRemoveChannelMember(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	target := r.PathValue("human_id")
+	if isInviteID(target) { // a pending add by its invite id (spec 025 section 13)
+		if target = s.inviteEmailByID(r.Context(), t.ID, target); target == "" {
+			writeErr(w, http.StatusNotFound, "not_found", "no pending invite with that id in #"+ch)
+			return
+		}
+	}
 	if strings.Contains(target, "@") { // a pending add (spec 025 section 11)
 		s.removeChannelInvitee(w, r, t, ch, hum, target)
 		return

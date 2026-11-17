@@ -1,0 +1,180 @@
+package hub
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"net/http"
+	"slices"
+	"strings"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+)
+
+// Invited members (spec 025 section 13, SPL-5706). Owner HUM-10, t1
+// 028ac340: "Once invited, the members of a workspace must become actual
+// members of the workspace but just be inactive", and an invitee can be added
+// to a channel from its properties.
+//
+// An OPEN workspace invite (unaccepted, unexpired) IS the inactive member: no
+// new row and no HUM-* id. So an invitee reads and posts nothing by
+// construction, sign-in activates it (acceptInviteTx), a revoke removes it
+// and an expired invite is no member any more. The channel add of an invitee
+// is the pending row of section 11 (rdb 0231), the one mechanism.
+//
+// GET /v1/view/members/invited lists them to a member of the workspace (the
+// person gate of the member card: a cookie session, no Bearer, no act-as).
+// Each row carries an opaque id (inviteID), so the picker and the channel
+// list work where the address is masked: the address shows exactly where a
+// member card shows one, and is masked (j…@example.com) in the demo and in a
+// name-only workspace (MemberCardNameOnlyWorkspaces) to everyone but a
+// members.invite holder (showsInviteAddress). The roster is unchanged.
+
+// invitedRow is one inactive member as the caller sees it.
+type invitedRow struct {
+	ID        string `json:"id"`
+	Label     string `json:"label"` // the address, or its masked form
+	Masked    bool   `json:"masked"`
+	InvitedOn string `json:"invited_on"`
+	ExpiresAt string `json:"expires_at"`
+}
+
+// channelInviteeRow is one pending address of a channel's members list.
+type channelInviteeRow struct {
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	Masked bool   `json:"masked"`
+}
+
+func (s *Server) routeInvitedMembers(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/view/members/invited", s.handleInvitedMembers)
+	mux.HandleFunc("OPTIONS /v1/view/members/invited", s.gcalPreflight("GET"))
+}
+
+func (s *Server) handleInvitedMembers(w http.ResponseWriter, r *http.Request) {
+	t, hum, ok := s.personCaller(w, r, "invited_members")
+	if !ok {
+		return
+	}
+	if !s.allowed(r.Context(), hum, t.ID, rbac.TopicsRead) {
+		writeErr(w, http.StatusForbidden, "not_member", "not a member of this workspace")
+		return
+	}
+	ins, err := s.openInvites(r.Context(), t.ID)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("op", "invited_members").Str("tenant", t.ID).Msg("invited members")
+		writeErr(w, http.StatusInternalServerError, "internal", "invites unavailable")
+		return
+	}
+	show := s.showsInviteAddress(r.Context(), t.ID, hum)
+	out := make([]invitedRow, 0, len(ins))
+	for _, in := range ins {
+		label, masked := inviteLabel(in.Email, show)
+		out = append(out, invitedRow{ID: inviteID(t.ID, in.Email), Label: label, Masked: masked,
+			InvitedOn: rfc(in.CreatedAt), ExpiresAt: rfc(in.ExpiresAt)})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"invited": out})
+}
+
+// openInvites is tenant's unaccepted, unexpired invites, oldest first; none
+// on a store without a member directory.
+func (s *Server) openInvites(ctx context.Context, tenant string) ([]store.PendingInvite, error) {
+	d, ok := s.o.Store.(store.MemberDirectory)
+	if !ok {
+		return nil, nil
+	}
+	ins, err := d.ListInvites(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+	now := s.o.Now()
+	open := make([]store.PendingInvite, 0, len(ins))
+	for _, in := range ins {
+		if now.Before(in.ExpiresAt) {
+			open = append(open, in)
+		}
+	}
+	return open, nil
+}
+
+// inviteEmailByID is the address of tenant's open invite whose inviteID is
+// id, or "" when none matches.
+func (s *Server) inviteEmailByID(ctx context.Context, tenant, id string) string {
+	ins, err := s.openInvites(ctx, tenant)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("invite by id")
+		return ""
+	}
+	for _, in := range ins {
+		if inviteID(tenant, in.Email) == id {
+			return in.Email
+		}
+	}
+	return ""
+}
+
+// showsInviteAddress: hum may read an invitee's address in tenant, the rule
+// of the member card (no address in the demo or a name-only workspace),
+// except that a members.invite holder reads it anyway (it lists invites).
+func (s *Server) showsInviteAddress(ctx context.Context, tenant, hum string) bool {
+	hidden := (s.o.DemoWorkspace != "" && tenant == s.o.DemoWorkspace) ||
+		slices.Contains(s.o.MemberCardNameOnlyWorkspaces, tenant)
+	return !hidden || (hum != "" && s.allowed(ctx, hum, tenant, rbac.MembersInvite))
+}
+
+// inviteID is the opaque handle of tenant's invite to email: "INV-" and 16
+// hex of a sha256, stable while the invite lives, never the address itself.
+func inviteID(tenant, email string) string {
+	sum := sha256.Sum256([]byte(tenant + "\x00" + strings.ToLower(email)))
+	return "INV-" + hex.EncodeToString(sum[:8])
+}
+
+// isInviteID reports whether v has inviteID's shape.
+func isInviteID(v string) bool {
+	if len(v) != 20 || !strings.HasPrefix(v, "INV-") {
+		return false
+	}
+	_, err := hex.DecodeString(v[4:])
+	return err == nil
+}
+
+// inviteLabel is email as shown, or masked: the first letter of the local
+// part, an ellipsis and the domain (j…@example.com).
+func inviteLabel(email string, show bool) (string, bool) {
+	if show {
+		return email, false
+	}
+	at := strings.LastIndex(email, "@")
+	if at <= 0 {
+		return "…", true
+	}
+	first := []rune(email[:at])[0]
+	return string(first) + "…" + email[at:], true
+}
+
+// channelInviteeRows is a channel's pending addresses as hum sees them: the
+// plain list (invited, spec 025 section 11) and the rows with their ids
+// (invitees), both masked by showsInviteAddress.
+func (s *Server) channelInviteeRows(ctx context.Context, tenant, hum string, emails []string) ([]string, []channelInviteeRow) {
+	show := s.showsInviteAddress(ctx, tenant, hum)
+	labels := make([]string, 0, len(emails))
+	rows := make([]channelInviteeRow, 0, len(emails))
+	for _, e := range emails {
+		label, masked := inviteLabel(e, show)
+		labels = append(labels, label)
+		rows = append(rows, channelInviteeRow{ID: inviteID(tenant, e), Label: label, Masked: masked})
+	}
+	return labels, rows
+}
+
+// oneOf counts the non-empty values.
+func oneOf(vs ...string) int {
+	n := 0
+	for _, v := range vs {
+		if v != "" {
+			n++
+		}
+	}
+	return n
+}

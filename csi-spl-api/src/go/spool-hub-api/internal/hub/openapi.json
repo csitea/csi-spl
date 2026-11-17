@@ -3238,16 +3238,21 @@
             "application/json": {
               "schema": {
                 "additionalProperties": false,
-                "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4.",
+                "description": "Exactly one of human_id, email or invite_id. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4; email: spec 025 section 11; invite_id: spec 025 section 13.",
                 "properties": {
+                  "email": {
+                    "description": "a member's address (the plain add), or a person who has not joined yet (a pending row on their open invite, made first with members.invite)",
+                    "type": "string"
+                  },
                   "human_id": {
                     "description": "a member of the tenant",
                     "type": "string"
+                  },
+                  "invite_id": {
+                    "description": "an inactive member, by the id GET /v1/view/members/invited answers (INV-<16 hex>): a pending row on that open invite; 404 no_open_invite when none",
+                    "type": "string"
                   }
                 },
-                "required": [
-                  "human_id"
-                ],
                 "type": "object"
               }
             }
@@ -20940,6 +20945,34 @@
           }
         },
         "summary": "Read view me",
+        "tags": [
+          "view"
+        ]
+      }
+    },
+    "/v1/view/members/invited": {
+      "get": {
+        "description": "The workspace's inactive members: every open invite (unaccepted, unexpired) of the session's workspace, for any member of it. label is the address, masked (first letter, an ellipsis and the domain) where a member card shows no address (the demo, a name-only workspace) unless the caller holds members.invite; id (INV-<16 hex>) adds the person to a channel (POST /v1/channels/{channel}/members {invite_id}) and undoes it. Cache-Control: no-store. Human session only: 403 person_only for a Bearer token, under act-as and for a live clone; 403 not_member without topics.read here. Spec 025 section 13.",
+        "operationId": "getInvitedMembers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: {invited: [{id, label, masked, invited_on, expires_at}]}. Contract: csi-spl-doc/specs/025-spool-tenant-rbac/spec.md section 13."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the workspace's inactive (invited) members",
         "tags": [
           "view"
         ]

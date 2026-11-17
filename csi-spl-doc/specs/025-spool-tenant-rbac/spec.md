@@ -694,3 +694,65 @@ Tests: `internal/rbac/rbac_test.go` `TestAccountantRolesCostsWrite`;
 (Postgres).
 
 <!-- version: 1.5.0 · updated: 2026-11-12 · last-edit: 2026-11-12T10:30:00Z -->
+
+## 13. Invited members are inactive members (SPL-5706, 2026-11-16)
+
+Owner HUM-10, t1 #spool-hub-bugs topic 028ac340, 2026-11-13: "Once invited,
+the members of a workspace must become actual members of the workspace but
+just be inactive." and "even being inactive, it should be possible, once an
+invite is sent to them, to add them in the properties of a channel to have
+access to the channel." Design A, GO by the dispatch holder (c-002, msg
+d35b3c27): the open invite IS the inactive member; no new table, no `HUM-*`
+before the first sign-in.
+
+### 13.1 The rule
+
+- **Inactive member** = an OPEN invite of the workspace (unaccepted,
+  unexpired). It holds no `HUM-*`, no session and no membership row, so it
+  reads and posts nothing by construction, and takes no seat.
+- **Activation**: the sign-in that accepts the invite (`acceptInviteTx`)
+  writes the membership and moves its pending channel rows (section 11).
+- **Revoke** removes it (and its pending channel rows, FK cascade).
+- **Expiry**: an expired invite is no member any more: not listed in People
+  or the picker, its pending channel rows inert (section 11); the admin's
+  Users page still lists it as expired, and a re-invite revives it.
+- **Listing**: `GET /v1/view/members/invited` answers `{invited: [{id, label,
+  masked, invited_on, expires_at}]}` to a member of the session's workspace
+  (`topics.read`), person session only (403 `person_only` for a Bearer token,
+  act-as or a live clone), `Cache-Control: no-store`. The roster is unchanged.
+- **The address** shows exactly where a member card shows one (spec 154
+  section 12.4): in the demo and in a name-only workspace
+  (`SPOOL_HUB_MEMBER_CARD_NAME_ONLY_WORKSPACES`, t1 by default) it is masked,
+  `j…@example.com` (first letter, an ellipsis, the domain), to everyone but a
+  `members.invite` holder. The same mask applies to the channel members
+  answer (`invited`, and the new `invitees: [{id, label, masked}]`).
+- **id** is `INV-` and 16 hex of sha256(workspace, address): stable while the
+  invite lives, never the address. `POST /v1/channels/{channel}/members`
+  takes `{"invite_id"}` (exactly one of `human_id`, `email`, `invite_id`): a
+  pending row on that open invite, under the section 11 rule; 404
+  `no_open_invite` when none; it never creates an invite. `DELETE
+  /v1/channels/{channel}/members/{INV-id}` undoes it.
+
+### 13.2 Web UI
+
+- People panel: the inactive members follow the members, each marked
+  `people.inactive` with the hint `people.inactive_hint`; no person page
+  (`PeopleInvitedRows.vue`, a lazy chunk).
+- Channel properties, People: the picker offers each inactive member not yet
+  added, as `channels.properties.invite_inactive`; it is keyed by the address
+  when shown, else by its id.
+- Admin Users page: the group heading `users.invites` reads "Inactive members,
+  invited ({n})".
+- New and changed keys in all 19 locales; agy has the final word on the text.
+
+### 13.3 Tests
+
+- `csi-spl-api/.../internal/hub/invited_members_test.go`: listed to a
+  developer, expired not listed, another workspace sees none, Bearer is
+  `person_only` (I1); masked in a name-only workspace, whole to an admin and
+  in a workspace that is not name-only (I2); add by id: no read or write
+  before the sign-in, in the channel after it; bad ids 404; undo by id and
+  revoke leave no row (I3); the channel list masked with its id (I4).
+  `invited_members_internal_test.go`: the label mask and the id shape. Red
+  controls (2026-11-16): no mask -> I2 and I4 red; expired kept -> I1 red.
+- `csi-spl-wui/tests/unit/invited-members-client.test.mjs`.

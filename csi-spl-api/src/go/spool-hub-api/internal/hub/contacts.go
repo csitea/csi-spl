@@ -601,5 +601,6 @@ func (s *Server) routeContacts(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /v1/me/contacts/{id}", s.handlePatchContact)
 	mux.HandleFunc("DELETE /v1/me/contacts/{id}", s.handleDeleteContact)
 	mux.HandleFunc("OPTIONS /v1/me/contacts/{id}", s.gcalPreflight("GET, PATCH, DELETE"))
-	s.routeMemberCard(mux) // spec 154 section 12: GET /v1/view/members/{id}/card, member_card.go
+	s.routeMemberCard(mux)     // spec 154 section 12: GET /v1/view/members/{id}/card, member_card.go
+	s.routeInvitedMembers(mux) // spec 025 section 13: GET /v1/view/members/invited, invited_members.go
 }

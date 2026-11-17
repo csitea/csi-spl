@@ -254,10 +254,13 @@ budget, or, for a default budget, the default and the variable that raises
 it (for a load-scaled one also the base, the load it read and the cap).
 A part that TIMED OUT (rc 124 or 137) on your tree is never compared by
 signature (SPL-5588): its output stops wherever the budget ran out, so it is
-FAILed as "not proven your break; re-run it, or raise its timeout budget",
-whatever the trunk re-run did. Its verdict reads
-`trunk=<sha>-green|<sha>-red|none timed-out-not-compared`, with no `new=` count.
-Before this, only a green trunk got that verdict; on a red trunk the cut-off
+FAILed as "not proven your break; re-run it, or raise its timeout budget".
+Its verdict reads `trunk=not-checked timed-out-not-compared`, with no `new=`
+count: the part is not re-run on trunk and no base tree is built (p13-01,
+SPL-5779). The verdict never depended on trunk, so that re-check was time
+with no effect: 1,011 s and 2,708 s after the timeout (n=2, 2026-11-16). To
+know whether trunk is red too, run the part on trunk by hand.
+Before SPL-5588, only a green trunk got the timed-out verdict; on a red trunk the cut-off
 run went to the signature compare, and one HEAD (5b647ab99, box sat,
 2026-11-14) read `WARN-pre-existing` once and `new=1` 20 min later (n=2).
 A test's planted control prints no `FAIL` line either: a killed unit run has

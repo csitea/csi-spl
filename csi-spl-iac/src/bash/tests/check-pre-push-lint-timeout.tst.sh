@@ -146,7 +146,7 @@ el=$(( $(date +%s) - t0 ))
 comm="$(tr -d '[:space:]' <"$D/go.comm" 2>/dev/null || true)"
 if [[ "$rc" == 1 && "$(verdict lint-shellcheck)" == FAIL && "$el" -lt 12 && "$comm" == go ]] \
   && grep -q 'TIMED OUT after 2s (PRE_PUSH_PART_TIMEOUT)' "$T/out" \
-  && grep -q 'timed out on your tree and passed on' "$T/out" \
+  && grep -q 'timed out on your tree, so it is not compared with trunk' "$T/out" \
   && gone "$D/part.pid" && gone "$D/go.pid"
 then
   pass "1. a hung lint part TIMED OUT in ${el}s and its go child is dead"

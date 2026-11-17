@@ -7,17 +7,23 @@
 #          verdict depended on where the budget cut the output: c-567's HEAD
 #          5b647ab99 read "WARN pre-existing" at 12:34Z and "TIMED OUT ...
 #          trunk=9d6043eae-red new=1" at 12:54Z (n=2, box sat, 2026-11-14).
-#   a. rc 124, trunk red with another item  -> FAIL, trunk=<sha>-red, no new=,
-#      logged "not proven your break", never "NEW on your tree"
+#   Since p13-01 (SPL-5779) a timed-out part is not re-run on trunk at all:
+#   its verdict was FAIL whatever trunk did, so the re-check changed nothing.
+#   a. rc 124, trunk red with another item  -> FAIL, trunk=not-checked, no
+#      new=, logged "not proven your break", never "NEW on your tree"
 #   b. rc 124, trunk red with the same item -> FAIL (a cut-off run is not
 #      proof the failure is trunk's either), never WARN pre-existing
 #   c. rc 137 (killed), trunk red           -> as a
-#   d. rc 124, trunk green                  -> FAIL, "passed on trunkbase"
-#   e. rc 124, no baseline tree             -> FAIL, trunk=none, never NEW
+#   d. rc 124, trunk green                  -> FAIL, trunk=not-checked
+#   e. rc 124, no baseline tree             -> FAIL, trunk=not-checked, never NEW
+#   h. rc 124, a stub that counts its calls -> called ONCE (the tree run only),
+#      no base worktree built, verdict FAIL trunk=not-checked
+#      timed-out-not-compared (p13-01; before it: 2 calls, tree then trunk)
 #   CONTROL f. rc 1, trunk red, another item -> still FAIL "NEW on your tree"
 #   CONTROL g. rc 1, trunk red, same item    -> still WARN pre-existing
 #   RED CONTROL: on the gate before SPL-5588 (PP_FUNC_FROM=<that file>)
-#   a, b, c and e FAIL; see the commit body.
+#   a, b, c and e FAIL; see the commit body. On the gate before p13-01
+#   (SPL-5779) a, d, e and h FAIL: 2 calls, a base tree, trunk=<state>.
 #   Stub parts: <tree>/flag holds the FAIL lines the part prints and, on the
 #   HEAD tree, the rc it returns; no real suite and no real `timeout` runs.
 #------------------------------------------------------------------------------
@@ -63,7 +69,7 @@ run() {  # <base-flag> <head-flag> [nobase] -> "<failed>|<stat>|<name>" + verdic
     do_log() { echo "LOG $*"; }
     _pp_verdict() { echo "VERDICT $*"; }
     [[ "${3:-}" == nobase ]] && _pp_baseline_tree() { return 1; }
-    _pp_run "stub" _stub "$R" trunkbase stub >"$R.out" 2>/dev/null  # no pipe: _pp_run sets this shell's _PP_ arrays
+    _pp_run "stub" "${STUB:-_stub}" "$R" trunkbase stub >"$R.out" 2>/dev/null  # no pipe: _pp_run sets this shell's _PP_ arrays
     grep -E '^(LOG FATAL|LOG WARN|VERDICT)' "$R.out"
     _pp_baseline_cleanup "$R" >/dev/null 2>&1
     echo "RESULT $_PP_FAILED|${_PP_STAT[0]:-}|${_PP_NAMES[0]:-}" )
@@ -74,11 +80,11 @@ _pp_key() { echo k; }; _pp_paths() { echo x; }
 
 out="$(run TestA 'TestB\nrc=124')"
 has   "a. rc 124 on a red trunk with another item -> FAIL" "RESULT 1|FAIL" "$out"
-has   "a. ... verdict names the red trunk" "trunk=" "$(grep VERDICT <<<"$out")"
+has   "a. ... verdict says trunk was not checked" "trunk=not-checked timed-out-not-compared" "$(grep VERDICT <<<"$out")"
 hasnt "a. ... verdict carries no new= count" "new=" "$(grep VERDICT <<<"$out")"
 has   "a. ... logged as not proven your break" "not proven your break" "$out"
 hasnt "a. ... never 'NEW on your tree'" "NEW on your tree" "$out"
-has   "a. ... the log names the red base" "is red too" "$out"
+has   "a. ... the log says it is not compared with trunk" "not compared with trunk" "$out"
 
 out="$(run TestA 'TestA\nrc=124')"
 has   "b. rc 124 on a red trunk with the same item -> FAIL, not WARN" "RESULT 1|FAIL" "$out"
@@ -91,13 +97,26 @@ has   "c. ... not proven your break" "not proven your break" "$out"
 
 out="$(run good 'TestB\nrc=124')"
 has   "d. rc 124 on a green trunk -> FAIL" "RESULT 1|FAIL" "$out"
-has   "d. ... passed on trunkbase" "passed on trunkbase" "$out"
+has   "d. ... trunk=not-checked" "trunk=not-checked" "$(grep VERDICT <<<"$out")"
 hasnt "d. ... never 'a NEW failure your commits introduce'" "a NEW failure" "$out"
 
 out="$(run TestA 'TestB\nrc=124' nobase)"
 has   "e. rc 124 with no baseline tree -> FAIL" "RESULT 1|FAIL" "$out"
-has   "e. ... trunk=none" "trunk=none" "$out"
+has   "e. ... trunk=not-checked" "trunk=not-checked" "$(grep VERDICT <<<"$out")"
 hasnt "e. ... never 'a NEW failure your commits introduce'" "a NEW failure" "$out"
+
+# h. the part runs once: the tree run only, no base worktree, no trunk run
+CALLS="$ROOT/h.calls" BUILT="$ROOT/h.built"; : >"$CALLS"
+_stub_count() { echo call >>"$CALLS"; _stub "$@"; }
+eval "_pp_baseline_tree_real() $(declare -f _pp_baseline_tree | tail -n +2)"
+out="$(_pp_baseline_tree() { echo built >>"$BUILT"; _pp_baseline_tree_real "$@"; }
+       STUB=_stub_count run TestA 'TestB\nrc=124')"
+calls="$(wc -l <"$CALLS")"
+[[ "$calls" -eq 1 ]] && pass "h. rc 124 -> the part ran once (tree only)" || fail "h. rc 124 -> the part ran once (tree only)" "calls=$calls"
+[[ ! -e "$BUILT" ]] && pass "h. ... no base worktree built" || fail "h. ... no base worktree built" "_pp_baseline_tree ran $(wc -l <"$BUILT") time(s)"
+has   "h. ... FAIL" "RESULT 1|FAIL" "$out"
+has   "h. ... verdict FAIL" "stub FAIL" "$(grep VERDICT <<<"$out")"
+has   "h. ... trunk=not-checked timed-out-not-compared" "trunk=not-checked timed-out-not-compared" "$(grep VERDICT <<<"$out")"
 
 out="$(run TestA 'TestB')"
 has   "f. CONTROL: rc 1 on a red trunk with another item -> FAIL" "RESULT 1|FAIL" "$out"

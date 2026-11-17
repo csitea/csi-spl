@@ -457,10 +457,10 @@ case19() {  # <repo> <api flag> -> rc; the do_log lines in $1.msgs
     gate "$R" MSGS="$R.msgs" )
 }
 R="$ROOT/r19"; case19 "$R" slow; eq "19. api TIMED OUT on HEAD, green on trunk -> still REFUSED" 1 "$?"
-grep -q 'PART api FAIL .*TIMED OUT.*trunk=[0-9a-f]*-green' "$R.log" \
-  && pass "19. ... verdict FAIL, TIMED OUT, trunk green" || fail "19. ... verdict FAIL, TIMED OUT, trunk green" "$(cat "$R.log")"
-grep -q 'FATAL pre-push: FAIL .*TIMED OUT.*it timed out on your tree and passed on trunk' "$R.msgs" \
-  && pass "19. ... logged as a timeout that passed on trunk" || fail "19. ... logged as a timeout that passed on trunk" "$(cat "$R.msgs")"
+grep -q 'PART api FAIL .*TIMED OUT.*trunk=not-checked timed-out-not-compared' "$R.log" \
+  && pass "19. ... verdict FAIL, TIMED OUT, trunk not checked" || fail "19. ... verdict FAIL, TIMED OUT, trunk not checked" "$(cat "$R.log")"
+grep -q 'FATAL pre-push: FAIL .*TIMED OUT.*it timed out on your tree, so it is not compared with trunk' "$R.msgs" \
+  && pass "19. ... logged as a timeout not compared with trunk" || fail "19. ... logged as a timeout not compared with trunk" "$(cat "$R.msgs")"
 grep -q 'a NEW failure your commits introduce' "$R.msgs" \
   && fail "19. ... not blamed on the lane's commits" "$(cat "$R.msgs")" || pass "19. ... not blamed on the lane's commits"
 R="$ROOT/r19c"; case19 "$R" bad; eq "19. CONTROL: a non-timeout break on a green trunk -> REFUSED" 1 "$?"

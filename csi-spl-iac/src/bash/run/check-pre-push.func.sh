@@ -1109,6 +1109,10 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
     do_log "FATAL pre-push: FAIL $label -- rc=127, a command it needs is not installed (see the output above)"
     rm -f "$out"; return 0
   fi
+  if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
+    # TIMED OUT: FAIL whatever trunk does (SPL-5588), so trunk is not re-run (p13-01)
+    rm -f "$out"; _pp_timed_out "$label" "$part" "$el" "$note"; return 0
+  fi
   # Pre-existing on trunk? Re-run the SAME part against the base ref.
   local bwt="" brc=0 bsha bout="" tsig bsig=""
   bsha="$(git -C "$tree" rev-parse --short "$base" 2>/dev/null || echo '?')"
@@ -1117,19 +1121,16 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
     bwt="$_PP_BASE_WT"
     bout="$(mktemp "${TMPDIR:-/tmp}/csi-spl-pre-push-out.XXXXXX")"
     do_log "INFO pre-push: $label failed ($note) -- re-checking it on $base ($bsha) to see if it is your break or trunk's"
-    # a TIMED OUT tree's signature is cut: its base run is not narrowed
-    [[ "$rc" -eq 124 || "$rc" -eq 137 ]] || _PP_BASE_ONLY="$(_pp_sig_suites "$tsig")"
+    # only the tree's failed suites: a timeout never reaches here (p13-01)
+    _PP_BASE_ONLY="$(_pp_sig_suites "$tsig")"
     _pp_capture "$bout" "$fn" "$bwt" || brc=$?
     _PP_BASE_ONLY=""
     bsig="$(_pp_sig "$bout" "$bwt")"
   else
-    do_log "WARN pre-push: could not build a $base baseline for $label -- treating the failure as $([[ "$rc" -eq 124 || "$rc" -eq 137 ]] && echo 'a timeout, not proven your break' || echo NEW)"
+    do_log "WARN pre-push: could not build a $base baseline for $label -- treating the failure as NEW"
   fi
   rm -f "$out" ${bout:+"$bout"}
   el=$((SECONDS - start))
-  if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
-    _pp_timed_out "$label" "$part" "$el" "$note" "$base" "$bsha" "$brc" "$bwt"; return 0
-  fi
   if [[ "$brc" -eq 0 ]]; then
     _pp_record "$label" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
     [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-green $(_pp_sig_names "$tsig")"
@@ -1143,18 +1144,15 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
 # (SPL-3115, SPL-5588): its output was cut wherever the budget ran out, so its
 # signature is not comparable with the base's, and on a red base the verdict
 # read NEW or pre-existing by where the cut fell (one HEAD read both, n=2).
-# Whatever the base did (green, red, or no base tree) the verdict is FAIL
-# with the base's state and no new= / failing= field; the log says re-run it
-# or raise its budget (the note already names the variable that raises it).
-_pp_timed_out() {  # <label> <part> <secs> <note> <base> <bsha> <base-rc> <base-wt>
-  local label="$1" part="$2" el="$3" note="$4" base="$5" bsha="$6" brc="$7" bwt="$8" trunk did
-  if [[ -z "$bwt" ]]; then trunk="none"; did="no $base tree to compare it with"
-  elif [[ "$brc" -eq 0 ]]; then trunk="$bsha-green"; did="passed on $base ($bsha)"
-  else trunk="$bsha-red"; did="$base ($bsha) is red too, and a cut-off run is not comparable with it"
-  fi
+# The verdict is FAIL with no new= / failing= field whatever trunk would do,
+# so trunk is not re-run and no base tree is built (p13-01, SPL-5779: that
+# re-check took 1,011 s and 2,708 s, n=2): trunk=not-checked. The log says
+# re-run it or raise its budget (the note names the variable that raises it).
+_pp_timed_out() {  # <label> <part> <secs> <note>
+  local label="$1" part="$2" el="$3" note="$4"
   _pp_record "$label (TIMED OUT: not proven your break)" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
-  [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$trunk timed-out-not-compared"
-  do_log "FATAL pre-push: FAIL $label ($note) -- it timed out on your tree and $did: box load or a slower test, not proven your break; re-run it, or raise its timeout budget"
+  [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=not-checked timed-out-not-compared"
+  do_log "FATAL pre-push: FAIL $label ($note) -- it timed out on your tree, so it is not compared with trunk: box load or a slower test, not proven your break; re-run it, or raise its timeout budget"
   return 0
 }
 

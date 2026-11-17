@@ -33,6 +33,11 @@
 #     issues, fails the run, sends one blocker and is journalled; a later run with
 #     no row left tries it again until it takes (R7 c-714 W2); a final refusal is
 #     not journalled; a follow-up the hub has not stored yet is retried
+#     14l..n a pending copy the hub answers not_found on every run (SPL-5818, row
+#     b12-03: one copy failed the cron for 6 days) leaves the file past
+#     ARCHIVED_FOLLOWUP_PRIORITY_RUNS later runs (default 12) with one `refused for
+#     good` WARN and one blocker; an old 3-column row counts from 0; a bad knob is
+#     refused
 #  18 the default (ARCHIVED_FOLLOWUP_ISSUES unset, the cron's) carries the declined
 #     rows only: no issue is listed, linked or unlinked, a topic with issues only
 #     posts nothing (SPL-5284: the hub closed them at archive time; R7 c-574 W2)
@@ -49,7 +54,8 @@
 # send no second blocker. Without the alarm 13h2..h4 fail; a * row read like a
 # channel row posts in 13k2 and 13k3; the old held text fails 13f2; without
 # spl_afu_inherit case 14a stays unset; without spl_afu_pending 14f and 14h fail;
-# without the final-refusal check 14j journals the copy.
+# without the final-refusal check 14j journals the copy; without the bound
+# (spl_afu_final_refusal's TRIES) 14l keeps the copy after 13 runs, rc 1 each.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -422,6 +428,38 @@ out="$(run14 DRY_RUN=0)"; rc=$?
 [[ $rc -ne 0 && "$out" == *"did not take its priority: FATAL spool issue inherit-priority as c-002: flag provided but not defined: -from"* &&
    "$(count '^send .*its priority: FATAL spool issue inherit-priority as c-002: flag provided but not defined: -from\. The issues')" == 1 ]] &&
   pass "14k the log and the blocker name the spool error, not ./run's failed-at-line trailer" || fail "14k (rc=$rc): $out // $(cat "$LOG")"
+rm -f "$T/inherit-why"
+
+# 14l: RED CONTROL of row b12-03 (on e9748a03d: 13 runs rc 1, the copy still
+# pending, 0 `refused for good`). The hub answers not_found on every run; the
+# default bound (12 later runs) drops it on run 12, one WARN, one blocker, then rc 0.
+NF="FATAL spool issue inherit-priority as c-002: spool: hub refused: not_found (no such target topic)"
+fresh14; echo "$NF" >"$T/inherit-why"
+printf 't1\t%s\t%s\t0\n' "$PAR" "$NEW" >"$ST14/inherit.pending"
+rcs="" outs=""
+for _ in $(seq 1 13); do
+  out="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" DRY_RUN=0)"; rcs+="$?"; outs+="$out"$'\n'
+done
+[[ "$rcs" == 11111111111"00" && ! -s "$ST14/inherit.pending" && "$(grep -c "did not take its priority" <<<"$outs")" == 12 &&
+   "$(grep -c "refused for good, no more tries: $NF" <<<"$outs")" == 1 &&
+   "$(count "^send .*--kind blocker .*never took its priority: $NF, after 12 later run(s) of not_found")" == 1 && "$(count '^send')" == 1 ]] &&
+  pass "14l a copy the hub answers not_found on every run: tried on 12 later runs, then refused for good, one WARN, one blocker, rc 0 after" ||
+  fail "14l rcs=$rcs: $(grep -c . "$ST14/inherit.pending" 2>/dev/null) pending // $outs // $(cat "$LOG")"
+# 14m: an old 3-column row reads as first seen now: with a bound of 2 it is tried
+# twice (the 4th column counts), CONTROL a not_found inside the bound stays.
+fresh14; echo "$NF" >"$T/inherit-why"
+printf 't1\t%s\t%s\n' "$PAR" "$NEW" >"$ST14/inherit.pending"
+out="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" ARCHIVED_FOLLOWUP_PRIORITY_RUNS=2 DRY_RUN=0)"; rc=$?
+p1="$(cat "$ST14/inherit.pending" 2>/dev/null)"
+out2="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" ARCHIVED_FOLLOWUP_PRIORITY_RUNS=2 DRY_RUN=0)"; rc2=$?
+[[ $rc -ne 0 && "$p1" == "t1"$'\t'"$PAR"$'\t'"$NEW"$'\t'1 && $rc2 -eq 0 && ! -s "$ST14/inherit.pending" && "$out2" == *"refused for good"* && "$(count '^send')" == 1 ]] &&
+  pass "14m an old 3-column row counts from 0: inside the bound it stays (column 4 = 1), past it it leaves" || fail "14m (rc=$rc/$rc2): $p1 // $out // $out2 // $(cat "$LOG")"
+: >"$LOG"; bad=""
+for v in 0 012 10000 x; do
+  out="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" ARCHIVED_FOLLOWUP_PRIORITY_RUNS="$v" DRY_RUN=0)"; rc=$?
+  [[ $rc -ne 0 && "$out" == *"FATAL ARCHIVED_FOLLOWUP_PRIORITY_RUNS must be 1..9999 runs, got $v"* ]] || bad+=" $v(rc=$rc)"
+done
+[[ -z "$bad" && ! -s "$LOG" ]] && pass "14n the bound: 0, 012, 10000, x refused, nothing called" || fail "14n:$bad // $(cat "$LOG")"
 rm -f "$T/inherit-why"
 
 # 15. a move the hub refuses not_found (SPL-5244: the issue is gone): final. ONE

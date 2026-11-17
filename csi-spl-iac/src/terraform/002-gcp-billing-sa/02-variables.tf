@@ -29,6 +29,26 @@ variable "gcp_region" {
   default     = "europe-north1"
 }
 
+variable "export_source_project" {
+  type        = string
+  description = "The project of the billing export dataset: cnf env.cost.gcp.export_source_project (csi-spl-prd), else export_project. The export_source provider runs as its SA."
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.export_source_project))
+    error_message = "export_source_project must be a project id."
+  }
+}
+
+variable "export_source_dataset" {
+  type        = string
+  description = "The billing export dataset spl-billing reads: cnf env.cost.gcp.export_source_dataset (csi_spl_prd), else export_dataset."
+
+  validation {
+    condition     = length(var.export_source_dataset) <= 1024 && can(regex("^[A-Za-z0-9_]+$", var.export_source_dataset))
+    error_message = "export_source_dataset must be a dataset id."
+  }
+}
+
 variable "billing_sa" {
   type        = string
   description = "The billing SA's account id: cnf env.cost.gcp.billing_sa (spl-billing)."

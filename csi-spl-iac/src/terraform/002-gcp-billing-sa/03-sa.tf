@@ -16,8 +16,14 @@
 #     Billing Account Administrator on that account. The ids are never
 #     committed: var.billing_account_ids, from GCP_BILLING_ACCOUNT_IDS
 #     (do_gcp_billing_sa_tf lists them as the csi-spl-all SA).
-#   - NO billing.projectManager and no dataset dataViewer: those stay the
-#     owner's own steps, printed by do_gcp_billing_sa_create.
+#   - roles/bigquery.dataViewer on the billing export dataset only (not the
+#     project), so do_gcp_billing_invoices_fetch can read the amounts
+#     (SPL-5799; owner HUM-10, #laskut f655b326, msgs 92f3fb10 and 303bd484:
+#     "Second provider in terraform step 002, running as the csi-spl-prd
+#     service account"). Made through the export_source provider
+#     (01-providers.tf): the csi-spl-all SA has no role on that dataset.
+#   - NO billing.projectManager: that stays the owner's own step, printed
+#     by do_gcp_billing_sa_create.
 resource "google_service_account" "billing" {
   account_id   = var.billing_sa
   display_name = var.billing_sa
@@ -28,6 +34,15 @@ resource "google_project_iam_member" "billing_job_user" {
   project = var.gcp_project
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.billing.email}"
+}
+
+# Read the billing export tables (gcp_billing_export_v1_*), that dataset only.
+resource "google_bigquery_dataset_iam_member" "billing_export_viewer" {
+  provider   = google.export_source
+  project    = var.export_source_project
+  dataset_id = var.export_source_dataset
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.billing.email}"
 }
 
 locals {

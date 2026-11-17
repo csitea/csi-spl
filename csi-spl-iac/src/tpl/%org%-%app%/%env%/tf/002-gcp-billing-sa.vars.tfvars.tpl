@@ -21,4 +21,9 @@ gcp_project = "{{ cost["gcp"]["export_project"] }}"
 gcp_region  = "{{ gcp["gcp_region"] }}"
 
 billing_sa = "{{ cost["gcp"]["billing_sa"] }}"
+
+# the billing export dataset spl-billing reads (export_source_*, else the
+# export project and dataset); the export_source provider runs as its project's SA
+export_source_project = "{{ cost["gcp"].get("export_source_project") or cost["gcp"]["export_project"] }}"
+export_source_dataset = "{{ cost["gcp"].get("export_source_dataset") or cost["gcp"]["export_dataset"] }}"
 {% endif %}

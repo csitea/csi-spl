@@ -14,3 +14,8 @@ gcp_region  = "europe-north1"
 
 billing_sa = "spl-billing"
 
+# the billing export dataset spl-billing reads (export_source_*, else the
+# export project and dataset); the export_source provider runs as its project's SA
+export_source_project = "csi-spl-prd"
+export_source_dataset = "csi_spl_prd"
+

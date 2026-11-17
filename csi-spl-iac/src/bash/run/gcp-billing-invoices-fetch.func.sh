@@ -112,7 +112,7 @@ _gbf_amounts() {
   res=$(do_gcp_bq_api POST "projects/${BILL_PROJECT}/queries" "${body}"); rc=$?
   rm -f "${body}"
   if [[ ${rc} -ne 0 ]] || ! jq -e '.jobComplete == true' <<<"${res}" >/dev/null 2>&1; then
-    do_log "WARNING amounts NOT read from ${COST_SOURCE_PROJECT}.${COST_SOURCE_DATASET} ($(do_gcp_bq_error "${res}")): the owner grants the billing SA BigQuery Data Viewer there"
+    do_log "WARNING amounts NOT read from ${COST_SOURCE_PROJECT}.${COST_SOURCE_DATASET} ($(do_gcp_bq_error "${res}")): the billing SA needs BigQuery Data Viewer there, granted by terraform step 002-gcp-billing-sa (cd csi-spl-iac && ./run -a do_gcp_billing_sa_tf, the apply on the owner's go)"
     return 0
   fi
   jq -r '.rows[]? | [.f[].v] | @tsv' <<<"${res}" >"${out}/amounts.tsv"

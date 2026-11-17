@@ -783,6 +783,17 @@ to log in each time)".
   committed: `var.billing_account_ids` (no default, refused when empty) comes
   from `GCP_BILLING_ACCOUNT_IDS` at run time (`TF_VAR_billing_account_ids`). Its README:
   `csi-spl-iac/src/terraform/002-gcp-billing-sa/README.md`.
+- The step also grants `roles/bigquery.dataViewer` to the billing SA on the
+  billing export dataset only, `env.cost.gcp.export_source_project` /
+  `export_source_dataset` (csi-spl-prd / csi_spl_prd), so
+  `do_gcp_billing_invoices_fetch` reads the amounts (SPL-5799; owner HUM-10,
+  #laskut f655b326, msgs 92f3fb10 and 303bd484: "Second provider in terraform
+  step 002, running as the csi-spl-prd service account"). The csi-spl-all SA
+  has no role on that dataset (measured 2026-11-17: `testIamPermissions` on
+  csi-spl-prd granted it none of `bigquery.datasets.*`), so the grant goes
+  through a second google provider, alias `export_source`, that runs on that
+  project's own key `~/.gcp/.<org>/key-<export_source_project>.json` (the
+  025 "parent" pattern).
 - `do_gcp_billing_sa_create` creates nothing since then (`DRY_RUN=0` is
   refused), so the step is the one creator. As the csi-spl-all SA it reports
   whether the SA and its jobUser exist, names the step when they do not, and
@@ -790,8 +801,7 @@ to log in each time)".
   - Billing Account Administrator for the csi-spl-all SA on each billing
     account, once (owner msg a508c121): step 002 then makes the viewer and
     user roles;
-  - `roles/billing.projectManager` on a project it is to move;
-  - BigQuery Data Viewer on the billing export dataset.
+  - `roles/billing.projectManager` on a project it is to move.
 - Its key is made by step 002 too (SPL-5457; owner HUM-10, #laskut
   f655b326, msg 8d767855: "change the Terraform code to actually provision
   the key on the file system while provisioning the account"). It is ONE

@@ -21,6 +21,16 @@ Only these, in cnf `env.cost.gcp.export_project` (`csi-spl-all`):
   `var.billing_account_ids` (comma separated, no default, an empty or
   malformed value is refused) comes from `GCP_BILLING_ACCOUNT_IDS`, which
   make passes as `TF_VAR_billing_account_ids` (section 4);
+- `roles/bigquery.dataViewer` for it on the billing export dataset only
+  (`env.cost.gcp.export_source_project` / `export_source_dataset`,
+  csi-spl-prd / csi_spl_prd), so `do_gcp_billing_invoices_fetch` reads the
+  amounts (SPL-5799). Owner HUM-10, #laskut f655b326, msg 303bd484: "Second
+  provider in terraform step 002, running as the csi-spl-prd service
+  account". The csi-spl-all SA has no role on that dataset, so this one
+  resource goes through the provider alias `export_source`
+  (`01-providers.tf`), which runs on that project's own key
+  `~/.gcp/.<org>/key-<export_source_project>.json` (the 025 "parent"
+  pattern). The plan therefore needs that key on the box too;
 - its one key (`google_service_account_key`), written by a
   `local_sensitive_file` to `~/.gcp/.<org>/key-<org>-<app>-billing.json`
   of the user who applies, mode 0600 (SPL-5457). Owner HUM-10, #laskut
@@ -30,7 +40,7 @@ Only these, in cnf `env.cost.gcp.export_project` (`csi-spl-all`):
   as that user's uid, so the file is the applying user's. Other users read
   it as that user (`sudo -u <that user>`), like the env keys beside it.
 
-Both values are read from `all.env.yaml` (`env.cost.gcp`), the one place they
+The values are read from `all.env.yaml` (`env.cost.gcp`), the one place they
 live. The step is rendered from prd only (the 059 pattern): it runs as the
 `csi-spl-all` SA (`steps.002-gcp-billing-sa.tf_key_project`), its state is in
 `csi-spl-all-tfstate` under `terraform/002-gcp-billing-sa`, and a dev plan is
@@ -54,7 +64,6 @@ What it never creates, the owner's steps:
   billing account: the one grant that lets this step make the two roles
   above (owner msg a508c121).
 - **`roles/billing.projectManager`** on a project it is to move.
-- **BigQuery Data Viewer** on the billing export dataset.
 
 `cd csi-spl-iac && ./run -a do_gcp_billing_sa_create` prints each of them as
 an exact command. That action creates nothing: it reports whether the SA and
@@ -80,9 +89,10 @@ its output. By hand, the same:
 
     cd csi-spl-orc && GCP_BILLING_ACCOUNT_IDS=<id>,<id> ENV=prd STEP=002-gcp-billing-sa make do-tf-plan
 
-From nothing: 4 + 2 per account to add (the SA, its jobUser, the key, the
-key file, and viewer + user on each account). Over the SA and key applied
-before SPL-5506: 2 per account to add, nothing changed or destroyed.
+From nothing: 5 + 2 per account to add (the SA, its jobUser, the export
+dataset's dataViewer, the key, the key file, and viewer + user on each
+account). Over the state applied with SPL-5506: 1 to add (the dataViewer),
+nothing changed or destroyed.
 `TF_VERB=provision ./run -a do_gcp_billing_sa_tf` (`make do-provision`) only
 on the owner's go.
 

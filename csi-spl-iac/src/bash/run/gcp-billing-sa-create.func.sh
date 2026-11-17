@@ -19,8 +19,10 @@
 # @description     roles/billing.viewer + roles/billing.user there (SPL-5506,
 # @description     owner msg a508c121: "I grant csi-spl-all Billing Admin
 # @description     once; Terraform does the rest"), via do_gcp_billing_sa_tf;
-# @description   - roles/billing.projectManager on a project it is to move;
-# @description   - roles/bigquery.dataViewer on the billing export dataset.
+# @description   - roles/billing.projectManager on a project it is to move.
+# @description BigQuery Data Viewer on the billing export dataset is no owner
+# @description step: step 002 grants it, as the export project's SA (SPL-5799,
+# @description owner msgs 92f3fb10 and 303bd484).
 # @description Its key is no owner step: step 002 makes it and writes it to
 # @description BILL_KEY (do_gcp_billing_cnf), owner msg 8d767855 (SPL-5457).
 # @description Billing account ids are never committed: the commands carry
@@ -94,6 +96,6 @@ _gbs_owner_steps() {
   do_log "INFO   gcloud billing accounts add-iam-policy-binding <BILLING_ACCOUNT_ID> --member=serviceAccount:${GCP_ACCOUNT} --role=roles/billing.admin --account=<OWNER_LOGIN>"
   do_log "INFO   (once per billing account; the ids: gcloud billing accounts list --account=<OWNER_LOGIN>). Then step ${_GBS_STEP} grants ${BILL_EMAIL} roles/billing.viewer + roles/billing.user on each (owner msg a508c121): cd csi-spl-iac && ./run -a do_gcp_billing_sa_tf"
   do_log "INFO   gcloud projects add-iam-policy-binding <PROJECT_TO_MOVE> --member=${m} --role=roles/billing.projectManager --condition=None --account=<OWNER_LOGIN>"
-  do_log "INFO   console: BigQuery > the billing export dataset > SHARE > ${BILL_EMAIL} as BigQuery Data Viewer"
+  do_log "INFO DATASET: step ${_GBS_STEP} grants ${BILL_EMAIL} BigQuery Data Viewer on the billing export dataset, as that project's SA (owner msg 303bd484)"
   do_log "INFO KEY: terraform step ${_GBS_STEP} makes it and writes ${BILL_KEY} (mode 0600) on the box that applies (owner msg 8d767855); its private key is in that step's state"
 }

@@ -141,12 +141,11 @@ func TestReportingReleasesRefusals(t *testing.T) {
 	}
 }
 
-// The B-4 bridge (releaseReportRepos), which row B-5 replaces: a workspace
-// with no software project answers 200 with no rows, never an error, and a
-// workspace's report reads its default project's repos only. The t1 case
-// (one default project, its primary repo) is TestReportingReleasesDaily and
-// TestReportingReleasesCommits above: their days and commits are the same
-// through the bridge.
+// With no project param (row B-4's bridge, kept by row B-5's
+// releaseReportScope): a workspace with no software project answers 200 with
+// no rows, never an error, and a workspace's report reads its default
+// project's repos only. The t1 case (one default project, its primary repo)
+// is TestReportingReleasesDaily and TestReportingReleasesCommits above.
 func TestReportingReleasesBridgeNoProject(t *testing.T) {
 	e := rbacEnv(t)
 	tid, _ := e.tenant()

@@ -47,10 +47,13 @@ type releaseIssueJSON struct {
 	Discussions []releaseTopicJSON `json:"discussions"`
 }
 
-// releaseNoteLinksJSON is a release note with its issue links.
+// releaseNoteLinksJSON is a release note with its repo (spec 143
+// releases-projects.md section 6.2: a commit's link comes from its own repo)
+// and its issue links.
 type releaseNoteLinksJSON struct {
 	store.ReleaseNote
-	Issues []releaseIssueJSON `json:"issues"`
+	RepoSlug string             `json:"repo_slug"`
+	Issues   []releaseIssueJSON `json:"issues"`
 }
 
 // withReleaseLinks answers notes with their issues and discussions, one
@@ -59,7 +62,7 @@ func (s *Server) withReleaseLinks(r *http.Request, notes []store.ReleaseNote) []
 	out := make([]releaseNoteLinksJSON, len(notes))
 	byTenant := map[string][]int{}
 	for i, n := range notes {
-		out[i] = releaseNoteLinksJSON{ReleaseNote: n, Issues: []releaseIssueJSON{}}
+		out[i] = releaseNoteLinksJSON{ReleaseNote: n, RepoSlug: n.RepoSlug, Issues: []releaseIssueJSON{}}
 		if n.IssueTenant != "" && len(n.IssueKeys) > 0 {
 			byTenant[n.IssueTenant] = append(byTenant[n.IssueTenant], i)
 		}

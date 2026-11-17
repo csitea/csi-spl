@@ -24,10 +24,17 @@ import (
 // the memory store's seam and rdb 0266's operator writes each allow.
 func registerRepo(t *testing.T, e *env, tid, repo string, primary bool) {
 	t.Helper()
+	registerRepoPublic(t, e, tid, repo, primary, false)
+}
+
+// registerRepoPublic is registerRepo with the repo's notes_public flag
+// (spec 143 releases-projects.md 6.3: a visitor reads a public repo only).
+func registerRepoPublic(t *testing.T, e *env, tid, repo string, primary, public bool) {
+	t.Helper()
 	switch s := e.st.(type) {
 	case *store.Memory:
 		s.SeedWorkspaceRepo(tid, repo, primary)
-		s.SeedProjectRepo(tid, "web-shop", "Web shop", true, store.ReleaseProjectRepo{Slug: repo, WebURL: "https://example.com/repo"}, primary)
+		s.SeedProjectRepo(tid, "web-shop", "Web shop", true, store.ReleaseProjectRepo{Slug: repo, WebURL: "https://example.com/repo", NotesPublic: public}, primary)
 	case *store.Postgres:
 		ctx := context.Background()
 		err := pgx.BeginFunc(ctx, s.Pool(), func(tx pgx.Tx) error {
@@ -38,8 +45,8 @@ func registerRepo(t *testing.T, e *env, tid, repo string, primary bool) {
 				VALUES ($1, 'web-shop', 'Web shop', true) ON CONFLICT DO NOTHING`, tid); err != nil {
 				return err
 			}
-			_, err := tx.Exec(ctx, `INSERT INTO workspace_repos (tenant_id, repo_slug, project_slug, repo_web_url, is_primary)
-				VALUES ($1, $2, 'web-shop', 'https://example.com/repo', $3)`, tid, repo, primary)
+			_, err := tx.Exec(ctx, `INSERT INTO workspace_repos (tenant_id, repo_slug, project_slug, repo_web_url, is_primary, notes_public)
+				VALUES ($1, $2, 'web-shop', 'https://example.com/repo', $3, $4)`, tid, repo, primary, public)
 			return err
 		})
 		if err != nil {

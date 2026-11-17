@@ -16424,6 +16424,75 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/workspaces/{id}/projects/{project}": {
+      "put": {
+        "description": "Spec 143 releases-projects.md 4.5: create or rename a software project of workspace id. is_default moves the workspace's default to it; the workspace's first project becomes its default. Operator token only. Answers {workspace, project, name, is_default}.",
+        "operationId": "putOperatorWorkspaceProject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "is_default": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {workspace, project, name, is_default}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Register a software project of a workspace (operator)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/zombie-topics": {
       "get": {
         "operationId": "getOperatorZombieTopics",
@@ -17060,6 +17129,7 @@
     },
     "/v1/release-notes": {
       "get": {
+        "description": "Spec 143 releases-projects.md 6.3: the workspace's primary repo only. A reader with no member session gets an empty list when that repo is not flagged notes_public.",
         "operationId": "getReleaseNotes",
         "parameters": [
           {
@@ -17085,6 +17155,7 @@
     },
     "/v1/release-notes/{ref}": {
       "get": {
+        "description": "Spec 143 releases-projects.md 6.3: one repo's notes, the primary repo by default. A reader with no member session reads only a repo flagged notes_public; any other answers 404, as an unknown repo does.",
         "operationId": "getReleaseNotesByRef",
         "parameters": [
           {
@@ -17097,11 +17168,23 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "a repo slug (owner/name) of the workspace whose note to open; default: the primary repo (spec 143 releases-projects.md 6.3)",
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -17209,10 +17292,29 @@
     },
     "/v1/reporting/releases/commits": {
       "get": {
+        "description": "Spec 143 releases-projects.md 6.2: each commit names its repo_slug, so its link comes from its own repo.",
         "operationId": "getReportingReleasesCommits",
         "parameters": [
           {
             "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "a software project slug of the workspace; default: its default project, never every project (spec 143 releases-projects.md 6.2)",
+            "in": "query",
+            "name": "project",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "one repo slug (owner/name) of that project; default: every repo of it",
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           },
           {
             "description": "RFC3339 time or YYYY-MM-DD day; default 30 days ago",
@@ -17290,6 +17392,16 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "unknown_project / unknown_repo: the workspace has no such project or repo, the same answer whether it does not exist or is another workspace's"
           }
         },
         "summary": "Releases report: one page of commits, newest first (spec 143 2.4.2)",
@@ -17300,10 +17412,29 @@
     },
     "/v1/reporting/releases/daily": {
       "get": {
+        "description": "Spec 143 releases-projects.md 6.2: configured, the project read and its repos, unreleased_commits, and per day the commits counted by kind, area and repo with that day's deploys. A workspace with no project answers configured false and no days.",
         "operationId": "getReportingReleasesDaily",
         "parameters": [
           {
             "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "a software project slug of the workspace; default: its default project, never every project (spec 143 releases-projects.md 6.2)",
+            "in": "query",
+            "name": "project",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "one repo slug (owner/name) of that project; default: every repo of it",
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           },
           {
             "description": "RFC3339 time or YYYY-MM-DD day; default 30 days ago",
@@ -17354,9 +17485,45 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "unknown_project / unknown_repo: the workspace has no such project or repo, the same answer whether it does not exist or is another workspace's"
           }
         },
         "summary": "Releases report: commits and deploys per UTC day (spec 143 2.4.1)",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/v1/reporting/releases/projects": {
+      "get": {
+        "description": "Spec 143 releases-projects.md 6.1: the workspace's software projects that have a repo, default first, then by name; each repo's slug, web_url, commit_path, trunk_branch, sync_status and last_synced_at. {configured: false, default: \"\", projects: []} with none. Members only.",
+        "operationId": "getReportingReleasesProjects",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {configured, default, projects: [{slug, name, is_default, repos: [...]}]}"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Releases report: the workspace's software projects, for the drop box (spec 143 6.1)",
         "tags": [
           "reporting"
         ]

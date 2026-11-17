@@ -20,7 +20,8 @@ import (
 // Spec 065 L4: the operator ingest and the member reads of the release notes.
 
 // releaseEnv is rbacEnv with the operator seam ("good" = the env SA), a tenant
-// and a seated member.
+// with its primary repo flagged notes_public (the t1 csi-spl seed's shape,
+// rdb 0266) and a seated member.
 func releaseEnv(t *testing.T, mut ...func(*hub.Options)) (*env, string, string) {
 	t.Helper()
 	e := rbacEnv(t, append([]func(*hub.Options){func(o *hub.Options) {
@@ -34,7 +35,7 @@ func releaseEnv(t *testing.T, mut ...func(*hub.Options)) (*env, string, string) 
 		}
 	}}, mut...)...)
 	tid, _ := e.tenant()
-	registerRepo(t, e, tid, repoOf(tid, "main"), true)
+	registerRepoPublic(t, e, tid, repoOf(tid, "main"), true, true)
 	salt := make([]byte, 3)
 	if _, err := rand.Read(salt); err != nil {
 		t.Fatal(err)

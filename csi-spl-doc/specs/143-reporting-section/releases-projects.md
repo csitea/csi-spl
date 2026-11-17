@@ -1,6 +1,6 @@
 # Releases: software projects of a workspace, the project drop box (SPL-4963)
 
-Status: **Draft v0.2.4**. Rows B-1 (the schema, SPL-4983), B-2 (store and hub scoped, SPL-5108), B-3 (the contract, SPL-5475) and B-4 (the store per project, SPL-5705) are built; the rest is not. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
+Status: **Draft v0.2.5**. Rows B-1 (the schema, SPL-4983), B-2 (store and hub scoped, SPL-5108), B-3 (the contract, SPL-5475), B-4 (the store per project, SPL-5705) and B-5 (the hub per project, SPL-5772) are built; the rest is not. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
 Amends: [spec.md](spec.md) sections 2 and 6.1, and [spec 171](../171-workspace-own-repo/spec.md) where section 3 says so.
 Topic: `93b73456-c662-4785-85ea-00986338a550` (HUM-10, prd t1).
 
@@ -171,7 +171,7 @@ With no project: `{"configured": false, "default": "", "projects": []}`, and the
 | `repo` | optional, a repo slug of that project. Absent: every repo of the project |
 
 - The hub resolves them to a repo list and passes it as a new `Repos []string` on `ReleaseReportFilter`. The store **refuses an empty list** (`ErrNoRepos`) rather than reading everything, so a bug fails closed.
-- Until B-5, a bridge built with B-4 (`releaseReportRepos`, `hub/reporting_releases.go`) passes the default project's repos, the answer for an absent `project`. A workspace with no project gets `200` with no rows. B-5 replaces the bridge with the two params.
+- Built (B-5): `releaseReportScope` (`hub/reporting_releases.go`) resolves the two params, and an absent `project` reads the default project, as B-4's bridge did. A workspace with no project gets `200` with `configured: false` and no rows; a `repo` alone, with no project, must be a repo of the default project.
 - Bad shape: `400 bad_query`, as today. A project or repo the workspace does not have: `404 unknown_project` / `404 unknown_repo`, the same answer whether it does not exist or belongs to another workspace, so the status reveals nothing.
 - No project configured: `200` with `configured: false` and no days.
 
@@ -211,7 +211,15 @@ Access comes through the workspace (owner, msg `cf6a27b3`, section 9, Q4): a mem
 - **Reader with no login**: sees only repos flagged `notes_public`, and only through the release-note reads of section 6.3. The projects route and both reports refuse them, as the reports do today (`hub/reporting_releases.go:52`). A session of someone who is not a member of this workspace counts as no login.
 - **Cost fields** follow spec 171's Q5. **Registration** is operator scope only (section 9, Q2).
 
-B-5 must change one thing for this to hold: today `releaseReader` reads no session when the page names a workspace, and every visitor gets the member's answer (`hub/release_notes.go:181`). It has to read the session on such a page, or it cannot tell a member from a reader with no login.
+B-5 changed one thing for this to hold: `releaseReader` (`hub/release_notes.go`) now reads the session when the page names a workspace too, so it tells a member of that workspace from a reader with no login. Before B-5 every visitor there got the member's answer.
+
+How B-5 builds 6.3 (SPL-5772):
+
+- The store's three note reads (`ReleaseNote`, `ListReleaseNotes`, `ReleaseNotesOfVersion`) take a repo, `""` for every repo. A version's `seq` counts that repo's rows.
+- The hub picks the repo with `noteRepo`: the `repo` param, else the primary repo, read from `ReleaseProjects` (each repo carries `IsPrimary` and `NotesPublic`, never in the answer). A repo the workspace lacks, or a private one for a reader with no login, answers like an unknown one: an empty list, or `404 not_found` on `{ref}`. A member of a workspace with no primary repo reads every repo, as before B-5; a visitor there reads nothing.
+- The Flow's release lines and its release badge fold the primary repo's rows only (`flowPrimaryRepoSQL`, `store/flow_fold.go`), in the store, so the hub passes nothing. A workspace with no primary repo keeps every row.
+- Each note the hub answers names its `repo_slug`.
+- The operator route of section 4.5, `PUT /v1/operator/workspaces/{id}/projects/{project}` with `{name, is_default}`, takes the operator token, like the ingest, and answers `{workspace, project, name, is_default}` (`hub/operator_projects.go`, store `PutSoftwareProject`). A `false` never moves the default away.
 
 ## 7. WUI
 
@@ -283,4 +291,4 @@ No build row changes, and neither does the path in section 4.5; each answer is t
 - **Answer 6**: B-7's Unreleased card and repo pills are what the answer lists, and no row builds open work.
 - **Answer 4 with msg `cf6a27b3`**: no row builds a per-repo list. B-5's `notes_public` row stands, and section 6.4 names what it must read.
 
-<!-- version: 0.2.4 · updated: 2026-11-16 -->
+<!-- version: 0.2.5 · updated: 2026-11-17 -->

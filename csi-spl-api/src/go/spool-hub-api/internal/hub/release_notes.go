@@ -23,23 +23,27 @@ import (
 //	GET  /v1/release-notes?before=&limit=50
 //	                                   the newest `limit` versions (1..50)
 //	                                   strictly older than before, grouped.
-//	GET  /v1/release-notes/{ref}       one note by sha or 7+ char prefix, or
+//	GET  /v1/release-notes/{ref}?repo= one note by sha or 7+ char prefix, or
 //	                                   one version's notes by its release
-//	                                   key v<X.Y.Z>[-c<N>] (7.2).
+//	                                   key v<X.Y.Z>[-c<N>] (7.2), of repo, a
+//	                                   repo of the workspace (default: the
+//	                                   primary repo).
 //
 // A version is keyed by its release key, the full tag (rdb 0114): after
 // 9.9.9 the mint starts over at 1.0.1 as tag v1.0.1-c2, so the two cycles'
 // v1.0.1 stay two groups. `display` is what a reader sees, the plain v1.0.1.
 //
-// The reads are public (owner, t1 2e46fcb6 msg daf6efcf, SPL-4530: "Release
-// notes are public: the page shows the note without signing in"; it replaced
-// Q11's "every signed-in member"). A request whose page Origin or legacy Host
-// names a known, live workspace reads with no session; one that names none is
-// the session's, as before. The rows are estate-wide: built from the public
-// trunk's commit messages, hygiene-filtered at ingest, they hold no
-// workspace's data, so a visitor of one workspace learns nothing of another;
-// the workspace only binds the read to a host this hub serves. A store
-// without ReleaseNotes answers as off.
+// The reads are public for a public repo (owner, t1 2e46fcb6 msg daf6efcf,
+// SPL-4530: "Release notes are public: the page shows the note without
+// signing in"), narrowed by spec 143 releases-projects.md section 6.3 (row
+// B-5, owner msg 24e35756: "public only for a repo flagged public"). A
+// request whose page Origin or legacy Host names a known, live workspace
+// reads with no session, but only the repos flagged notes_public; a member
+// session of that workspace reads every repo of it (section 6.4). One that
+// names none is the session's, as before. The list and a version read the
+// workspace's primary repo only, so two repos' v1.0.0 never merge into one
+// version; a member of a workspace with no primary repo reads every row, as
+// before row B-5. A store without ReleaseNotes answers as off.
 
 // Release note ingest limits.
 const (
@@ -185,32 +189,66 @@ func (rn *releaseNotes) buildRows(in []releaseNoteIn, tenant, prefix string) ([]
 	return rows, res
 }
 
+// releaseScope is one release note read: the store, the workspace and
+// whether the reader is a member of it (false: a reader with no login, who
+// reads notes_public repos only, section 6.4).
+type releaseScope struct {
+	rs     store.ReleaseNotes
+	tenant string
+	member bool
+}
+
 // releaseReader admits anyone on a known workspace's page (SPL-4530): the
-// page Origin, else the legacy Host, names it, and no session is read. A
-// request that names no workspace needs a member session, as before. A
-// visitor gets the member's answer, every field: nothing in a note is
-// withheld (see the header).
-func (rn *releaseNotes) releaseReader(w http.ResponseWriter, r *http.Request) (store.ReleaseNotes, string, bool) {
+// page Origin, else the legacy Host, names it. The session is read too, so a
+// member of that workspace reads as a member; anyone else, a session of
+// another workspace included, reads as a visitor (noteRepo). A request that
+// names no workspace needs a member session, as before.
+func (rn *releaseNotes) releaseReader(w http.ResponseWriter, r *http.Request) (releaseScope, bool) {
 	s := rn.s
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
+	rs, _ := s.o.Store.(store.ReleaseNotes)
 	if id := s.webCalendarTenant(r); id != "" {
 		if _, ok := s.loadTenant(w, r, id); !ok {
-			return nil, "", false
+			return releaseScope{}, false
 		}
-		rs, _ := s.o.Store.(store.ReleaseNotes)
-		return rs, id, true
+		hum, err := s.memberID(r, id)
+		return releaseScope{rs: rs, tenant: id, member: err == nil && hum != ""}, true
 	}
 	t, hum, ok := s.humanTenant(w, r)
 	if !ok {
-		return nil, "", false
+		return releaseScope{}, false
 	}
 	if hum == "" {
 		writeForbidden(w, rbac.TopicsRead, "release notes need a signed-in member session")
-		return nil, "", false
+		return releaseScope{}, false
 	}
-	rs, _ := s.o.Store.(store.ReleaseNotes)
-	return rs, t.ID, true
+	return releaseScope{rs: rs, tenant: t.ID, member: true}, true
+}
+
+// noteRepo is the repo a read of sc reads (section 6.3): want, a repo of the
+// workspace, or the primary repo for want "". ok false: there is none the
+// reader may read (unknown, another workspace's, or not notes_public for a
+// visitor), and the caller answers empty or 404, the same either way. A
+// workspace with no primary repo: a member reads every repo (repo ""), a
+// visitor nothing.
+func (rn *releaseNotes) noteRepo(ctx context.Context, sc releaseScope, want string) (repo string, ok bool, err error) {
+	var repos []store.ReleaseProjectRepo
+	if rr, has := rn.s.o.Store.(store.ReleaseReports); has {
+		ps, err := rr.ReleaseProjects(ctx, sc.tenant)
+		if err != nil {
+			return "", false, err
+		}
+		for _, p := range ps {
+			repos = append(repos, p.Repos...)
+		}
+	}
+	for _, r := range repos {
+		if (want == "" && r.IsPrimary) || (want != "" && r.Slug == want) {
+			return r.Slug, sc.member || r.NotesPublic, nil
+		}
+	}
+	return "", want == "" && sc.member, nil
 }
 
 // releaseVersion is one version's notes, newest commit first. Version is the
@@ -230,7 +268,7 @@ type releaseListBody struct {
 }
 
 func (rn *releaseNotes) handleList(w http.ResponseWriter, r *http.Request) {
-	rs, tenant, ok := rn.releaseReader(w, r)
+	sc, ok := rn.releaseReader(w, r)
 	if !ok {
 		return
 	}
@@ -244,11 +282,20 @@ func (rn *releaseNotes) handleList(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = n
 	}
-	if rs == nil {
+	if sc.rs == nil {
 		writeJSON(w, http.StatusOK, releaseListBody{Off: true, Versions: []releaseVersion{}})
 		return
 	}
-	rows, err := rs.ListReleaseNotes(r.Context(), tenant, "", q.Get("before"), limit)
+	repo, readable, err := rn.noteRepo(r.Context(), sc, "")
+	if err != nil {
+		writeErrCause(w, http.StatusServiceUnavailable, "internal", "release notes are not available", err)
+		return
+	}
+	if !readable {
+		writeJSON(w, http.StatusOK, releaseListBody{Versions: []releaseVersion{}})
+		return
+	}
+	rows, err := sc.rs.ListReleaseNotes(r.Context(), sc.tenant, repo, q.Get("before"), limit)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_query", err.Error())
 		return
@@ -274,17 +321,36 @@ func groupReleaseNotes(rows []store.ReleaseNote) []releaseVersion {
 }
 
 func (rn *releaseNotes) handleGet(w http.ResponseWriter, r *http.Request) {
-	rs, tenant, ok := rn.releaseReader(w, r)
+	sc, ok := rn.releaseReader(w, r)
 	if !ok {
 		return
 	}
-	if rs == nil {
+	if sc.rs == nil {
 		writeErr(w, http.StatusNotFound, "not_found", "this hub's store keeps no release notes")
 		return
 	}
-	// A stored version wins, so a hex-like tag or 2026.11.05 opens its version.
-	ref := r.PathValue("ref")
-	rows, err := rs.ReleaseNotesOfVersion(r.Context(), tenant, "", ref)
+	ref, want := r.PathValue("ref"), r.URL.Query().Get("repo")
+	if want != "" && !releaseRepoParamRe.MatchString(want) {
+		writeErr(w, http.StatusBadRequest, "bad_query", "repo must be an owner/name slug")
+		return
+	}
+	repo, readable, err := rn.noteRepo(r.Context(), sc, want)
+	if err != nil {
+		writeErrCause(w, http.StatusServiceUnavailable, "internal", "release notes are not available", err)
+		return
+	}
+	if !readable {
+		writeErr(w, http.StatusNotFound, "not_found", "no release notes for "+ref)
+		return
+	}
+	rn.getNote(w, r, sc, repo, ref)
+}
+
+// getNote answers ref of repo: a stored version wins, so a hex-like tag or
+// 2026.11.05 opens its version; else one note by its sha.
+func (rn *releaseNotes) getNote(w http.ResponseWriter, r *http.Request, sc releaseScope, repo, ref string) {
+	rs, tenant := sc.rs, sc.tenant
+	rows, err := rs.ReleaseNotesOfVersion(r.Context(), tenant, repo, ref)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_ref", err.Error())
 		return
@@ -297,7 +363,7 @@ func (rn *releaseNotes) handleGet(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "not_found", "no release notes for "+ref)
 		return
 	}
-	n, err := rs.ReleaseNote(r.Context(), tenant, "", ref)
+	n, err := rs.ReleaseNote(r.Context(), tenant, repo, ref)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", "no release note for that sha")

@@ -211,11 +211,12 @@ found this on the first shape of this step, a symlink to the whole index
 (SPL-4911, c-253); the orchestrator chose the allow-list (decision 79126d4f).
 
 The fix, spool-install step Y20 (`steps/y20-agy-memory.sh`, `--fleet`, homes
-with `~/.gemini`), writes two rules into `~/.gemini/config/rules`:
+with `~/.gemini`), writes two rules into `~/.gemini/config/rules` and a
+snapshot beside them:
 
 - `fleet-memory-0-where.md`: an always_on header that names the allowed files
-  only and tells agy to read no other file of the memory dir and to follow no
-  link out of a listed file to a file not listed;
+  only, points agy at the snapshot for them, and tells agy to read no other file
+  and to follow no link out of a listed file to a file not listed;
 - `AGENTS.md`: a file generated from `MEMORY.md`, the one rules-dir name agy
   loads without frontmatter: only the index lines whose every link is a listed
   file. A re-install regenerates it, so `MEMORY.md` stays the one source. An
@@ -223,6 +224,11 @@ with `~/.gemini`), writes two rules into `~/.gemini/config/rules`:
   is kept and named (`SPOOL_INSTALL_AGY_MEMORY_FORCE=1` replaces it). The step's
   other file then goes too, a whole-index symlink included, so nothing stale
   stays behind it.
+- `~/.gemini/config/fleet-memory/` (SPL-5771): a copy of each listed file,
+  made by the install and hashed again after the copy against its row, plus the
+  step's marker file; the copies are read-only. A copy that no row pins (the
+  file changed during the install) fails the write and keeps the old snapshot. A
+  dir there without the marker is kept and named like a foreign rule.
 
 The list is `agy-allow.list` beside `MEMORY.md`, one row per lesson,
 `<sha256 of the file> <sha256 of its index line> <file>`, `#` starts a comment.
@@ -257,10 +263,13 @@ these files, so the list limits what the step loads and what agy is told to
 read; it does not stop an agy session reading the rest. Closing that is a
 separate question, not settled here.
 
-**The pin is checked at install only.** The generated index stays as written
-until the next install, but the header points agy at the fact files themselves:
-a listed file edited between installs is what agy reads until then. A revoke
-works the same way: a row taken off the list takes effect at the next install.
+**agy reads the reviewed bytes only (SPL-5771).** The pin is checked at install,
+and agy reads the snapshot, never the live memory dir: a listed file edited
+between installs leaves agy's copy as the seat read it, and the next install
+drops that lesson from the index and the snapshot until a seat pins it again.
+Found by SPL-5476: before the snapshot the header pointed agy at the live
+files, so an edited lesson reached agy unchecked until the next install. A
+revoke still takes effect at the next install.
 
 **Not measured yet.** The table above measured `rules/AGENTS.md` as a symlink on
 agy 1.5.1. The generated regular file, which opens with an HTML comment, has no

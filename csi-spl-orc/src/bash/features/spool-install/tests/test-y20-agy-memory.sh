@@ -16,6 +16,12 @@
 #      lesson and names it until it is pinned again; a row without both hashes
 #      is refused; a symlink on the list is refused; a trailing "#" comment keeps
 #      its row
+#   5d. the snapshot (SPL-5771): the header points agy at a copy of the listed
+#      files beside rules/, never at the live memory dir; a lesson edited after
+#      the install leaves agy's copy as it was read, and the next install drops
+#      it; a copy no row pins fails the write and keeps the old snapshot; a
+#      changed copy is rewritten; default deny removes the snapshot; a foreign
+#      dir there is kept and named
 #   6. a hand-written header and a hand-written AGENTS.md are kept and named, and
 #      the step's other file goes (a whole-index symlink too); ..._FORCE=1 replaces
 #      them; a link to another repo's claude MEMORY.md is replaced;
@@ -101,9 +107,9 @@ else notrun "live control: agy does not see the memory" "$why"; fi
 
 # 2. dry run
 out="$(inst "$H" 1 "$R")"
-if [ ! -e "$RULES" ] && [[ "$out" == *"would: write $RULES/fleet-memory-0-where.md"* ]] &&
-  [[ "$out" == *"would: write $RULES/AGENTS.md"* ]]
-then pass "dry run: plans both files, writes nothing"; else fail "dry run: $out"; fi
+if [ ! -e "$RULES" ] && [ ! -e "$H/.gemini/config/fleet-memory" ] && [[ "$out" == *"would: write $RULES/fleet-memory-0-where.md"* ]] &&
+  [[ "$out" == *"would: write $RULES/AGENTS.md"* ]] && [[ "$out" == *"would: write $H/.gemini/config/fleet-memory"* ]]
+then pass "dry run: plans both files and the snapshot, writes nothing"; else fail "dry run: $out"; fi
 
 # 3. install
 out="$(inst "$H" 0 "$R")"; rc=$?
@@ -251,6 +257,40 @@ if grep -q y20-probe-alpha "$LR/AGENTS.md" && ! grep -q y20-probe-alias "$LR/AGE
 then pass "a listed name that is a symlink: refused and named"; else fail "symlink name: $out"; fi
 out="$(bash -c '. "$1"; spool_install_agy_memory_row "$2" alias.md' _ "$STEP" "$LM" 2>&1)"; rc=$?
 if [ "$rc" != 0 ] && ! grep -qE '^[0-9a-f]{64} ' <<<"$out" && [[ "$out" == *"is a symlink"* ]]; then pass "the row helper refuses a symlink"; else fail "row of a symlink rc=$rc: $out"; fi
+
+# 5d. the snapshot: agy reads the bytes a seat pinned, never the live file
+S="$T/homeS"; mk_home "$S"; SM="$S/.claude/projects/$slug/memory"; SR="$S/.gemini/config/rules"
+inst "$S" 0 "$R" >/dev/null
+# agy's view: the dir the header tells it the links resolve to
+view="$(grep -o 'is [^ ]*/x\.md' "$SR/fleet-memory-0-where.md" | sed 's/^is //; s|/x\.md$||')"
+if [ -n "$view" ] && [ "$view" != "$SM" ] && [ ! -e "$view/unlisted-fact.md" ] && cmp -s "$view/probe-fact.md" "$SM/probe-fact.md"
+then pass "the header points agy at a copy of the listed files, not the live memory dir"; else fail "agy's view is '$view': $(ls -A "$view" 2>&1)"; fi
+printf 'edited after its review\n' >>"$SM/probe-fact.md"
+if [ -n "$view" ] && ! grep -q 'edited after its review' "$view/probe-fact.md" 2>/dev/null && [ "$(cat "$view/probe-fact.md" 2>/dev/null)" = "the probe fact" ]
+then pass "a lesson edited after the install: agy's view still holds the reviewed bytes"; else fail "the edit reached agy's view $view"; fi
+out="$(inst "$S" 0 "$R")"
+if [ ! -e "$view/probe-fact.md" ] && [ ! -e "$SR/AGENTS.md" ] && [[ "$out" == *"probe-fact.md changed since"* ]]
+then pass "the next install drops the edited lesson from agy's view"; else fail "edited lesson stays: $out $(ls -A "$view" 2>&1)"; fi
+if [ ! -e "$view" ]; then pass "default deny removes the snapshot"; else fail "snapshot kept: $(ls -A "$view")"; fi
+printf 'the probe fact\n' >"$SM/probe-fact.md"
+inst "$S" 0 "$R" >/dev/null
+if [ "$(cat "$view/probe-fact.md" 2>/dev/null)" = "the probe fact" ]; then pass "the reviewed bytes back: the lesson returns to agy's view"; else fail "restored: $(ls -A "$view" 2>&1)"; fi
+if [ ! -w "$view/probe-fact.md" ] || [ "$(id -u)" = 0 ]; then pass "a snapshot copy is read-only"; else fail "copy writable: $(ls -l "$view/probe-fact.md")"; fi
+chmod u+w "$view/probe-fact.md"; printf 'tampered\n' >"$view/probe-fact.md"
+out="$(inst "$S" 0 "$R")"
+if [[ "$out" != *"already current"* ]] && [ "$(cat "$view/probe-fact.md")" = "the probe fact" ]
+then pass "a changed copy is not current: the install rewrites it"; else fail "tampered copy kept: $out"; fi
+cp -a "$view" "$T/snap.before"
+out="$(bash -c '. "$1"; mkdir -p "$4"; cp "$2/probe-fact.md" "$4/"; printf "changed\n" >"$2/probe-fact.md"; _y20_snap_write "$3" "$2" probe-fact.md; echo "rc=$?"; cp "$4/probe-fact.md" "$2/probe-fact.md"' _ "$STEP" "$SM" "$view" "$T/keep" 2>&1)"
+if [[ "$out" == *"rc=7"* ]] && [[ "$out" == *"changed during the install"* ]] && diff -r "$view" "$T/snap.before" >/dev/null && [ -z "$(ls -d "$view".* 2>/dev/null)" ]
+then pass "a copy no row pins fails the write and keeps the old snapshot"; else fail "race: $out"; fi
+X="$T/homeX"; mk_home "$X"; mkdir -p "$X/.gemini/config/fleet-memory"; echo mine >"$X/.gemini/config/fleet-memory/note.md"
+out="$(inst "$X" 0 "$R")"
+if [ "$(cat "$X/.gemini/config/fleet-memory/note.md")" = mine ] && [[ "$out" == *"fleet-memory is not this step's snapshot: kept"* ]] && [ ! -e "$X/.gemini/config/rules/AGENTS.md" ]
+then pass "a foreign dir where the snapshot goes: kept and named, no index"; else fail "foreign snapshot: $out"; fi
+out="$(SPOOL_INSTALL_AGY_MEMORY_FORCE=1 inst "$X" 0 "$R")"
+if [ ! -e "$X/.gemini/config/fleet-memory/note.md" ] && [ -f "$X/.gemini/config/fleet-memory/probe-fact.md" ] && grep -q y20-probe-alpha "$X/.gemini/config/rules/AGENTS.md"
+then pass "FORCE=1 replaces a foreign snapshot dir"; else fail "force snapshot: $out"; fi
 
 # 6. hand-written files, force, another repo's link, skip, absent inputs
 H2="$T/home2"; mk_home "$H2"; mkdir -p "$H2/.gemini/config/rules"

@@ -1025,11 +1025,17 @@ for fx in 'apply|run `terraform apply` for step 016' 'apply|terraform plan, then
   run REVIEW_GO_MSG="$f"; refused "27. control: '${fx#*|}' still holds" $? 4 "owner-go keyword '${fx%%|*}'"
 done
 # SPL-5820 (bug round 12 row 01): a `/` between two bare words in prose joins no name
-for fx in 'IAM|This is an IAM/billing change.' 'apply|Run plan/apply on prd for step 016.'; do
+for fx in 'IAM|This is an IAM/billing change.' 'apply|Run plan/apply on prd for step 016.' \
+          'apply|Run init/plan/apply on prd for step 016.' 'IAM|This is an IAM/billing/SA change.' \
+          'apply|Run plan/apply/destroy on prd.'; do
   reset; abrief c-222 $'## Do\n\n1. '"${fx#*|}"
   f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 27000000-0000-4000-8000-000000000004)
   run REVIEW_GO_MSG="$f"; refused "27. RED CONTROL: '${fx#*|}' in prose holds" $? 4 "owner-go keyword '${fx%%|*}'"
 done
+reset; abrief c-222 $'## Do\n\nNames in prose: x/apply.sh, /opt/x/billing, IAM/v1.2.'
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 27000000-0000-4000-8000-000000000005)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 )) && [[ $(gos) == 1 ]] && pass "27. a path token in prose (leading /, or a . in its last segment) is a name -> GO" || fail "27. prose path rc=$rc out=$(tail -2 "$T/out")"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

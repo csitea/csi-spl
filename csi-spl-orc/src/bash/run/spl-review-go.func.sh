@@ -654,13 +654,14 @@ EOF_PY
 # space, so `IAM/billing` reads as two words. Kept as written: a backticked
 # span (per line; an unclosed backtick is prose) and a path token, one that
 # (less its leading `(`/quotes and trailing punctuation) starts with `/` or
-# `./`, or holds another `/` or a `.` (`/etc/hosts`, `a/b/c`, `IAM/v1.2`).
+# `./`, or whose last segment holds a `.` (`/etc/hosts`, `IAM/v1.2`);
+# `init/plan/apply` and `x.y/apply` are prose.
 _spl_review_go_prose_slash() {
   python3 -c '
 import re, sys
 def tok(m):
     w = m.group(0); c = w.lstrip("([{\"*").rstrip(".,;:!?)]}\"*")
-    path = c.startswith(("/", "./")) or c.count("/") > 1 or "." in c
+    path = c.startswith(("/", "./")) or "." in c.rsplit("/", 1)[-1]
     return w if path else w.replace("/", " ")
 for l in sys.stdin.read().split("\n"):
     p = l.split("`")

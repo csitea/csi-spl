@@ -650,8 +650,9 @@ watch(() => props.open, async (isOpen) => {
 // spec 025 section 13: the channel's pending rows and the workspace's
 // inactive members, each by its key, with one label map for both.
 function showInvited(invited: string[] | undefined, rows: { id: string, label: string, masked: boolean }[] | undefined, inactive: { id: string, label: string, masked: boolean }[]) {
-  const pending = inviteeKeys(rows)
-  const open = inviteeKeys(inactive)
+  // spec 154 section 12.6: a masked row with no label (t1) is named, never an address
+  const pending = inviteeKeys(rows, t('people.invitee_no_name'))
+  const open = inviteeKeys(inactive, t('people.invitee_no_name'))
   localInvited.value = rows && rows.length ? pending.keys : (Array.isArray(invited) ? invited.map((e) => String(e)) : [])
   inactiveKeys.value = open.keys
   inviteLabels.value = { ...open.labels, ...pending.labels }

@@ -2308,7 +2308,8 @@
     "hours_norm_hint": "This person's own average, e.g. 7:30. Leave it empty to use the workspace's average ({workspace}); 0:00 = no average for this person. A day above it shows a warning; no hours are refused.",
     "hours_norm_no_workspace": "no average",
     "inactive": "inactive",
-    "inactive_hint": "Invited to this workspace; active from the first sign-in."
+    "inactive_hint": "Invited to this workspace; active from the first sign-in.",
+    "invitee_no_name": "Dear future spool-hub user"
   },
   "contacts": {
     "group": "Contacts",

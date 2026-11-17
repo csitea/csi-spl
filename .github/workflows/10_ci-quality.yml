@@ -688,6 +688,13 @@ jobs:
             --pub .output/public \
             --budgets ../csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json
 
+      # SPL-5738 (F9, topic 955ab0bd): a static import cycle between two
+      # built chunks is a TDZ crash in the browser ("Cannot access 'x' before
+      # initialization"). nuxt.config's onwarn fails a MODULE cycle in app
+      # code (568505aa2); a cycle only the chunking makes is read here.
+      - name: No static import cycle between the built chunks
+        run: node src/node/test/chunk-cycles.mjs .output/public/_nuxt
+
 
   # ===========================================================================
   # The WUI browser suite (016 T021): no-x-scroll, console-errors, and the

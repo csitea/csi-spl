@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -154,15 +155,24 @@ func (s *Server) logLeaseHandover(ctx context.Context, reason string, l store.Fl
 	}
 }
 
-// LogHubStarted writes the System log row hub.started, actor hub, message the
-// version /version answers (spec 162 3.3): once per process start, so each
-// deploy roll shows in the log. Best effort, like logLeaseHandover.
+// hubInstance names this process in its hub.started row: 8 hex, new on every
+// start, so a Cloud Run instance that crashes and restarts reads as a new one.
+var hubInstance = uid.Hex(4)
+
+// LogHubStarted writes the System log row hub.started, actor hub, message
+// "<version> rev <revision> instance <id8>" (spec 162 3.3, SPL-5764): the
+// version /version answers, the revision Options.Revision holds (Cloud Run's
+// $K_REVISION, else a per-process id) and hubInstance. Once per process start:
+// the rows of one deploy roll share the rev and differ in the instance, so a
+// start that is not part of a roll (a crash restart) stands out. Best effort,
+// like logLeaseHandover.
 func (s *Server) LogHubStarted(ctx context.Context) {
 	es, ok := s.o.Store.(store.LogEvents)
 	if !ok {
 		return
 	}
-	e := store.LogEvent{Kind: store.LogKindHubStarted, Actor: "hub", Message: s.o.Version,
+	msg := s.o.Version + " rev " + s.o.Revision + " instance " + hubInstance
+	e := store.LogEvent{Kind: store.LogKindHubStarted, Actor: "hub", Message: msg,
 		OriginKind: store.LogOriginComponent, OriginRef: "hub"}
 	if _, err := es.AddSystemEvent(ctx, e, s.o.Now()); err != nil {
 		s.o.Log.Error().Err(err).Msg("hub.started not written")

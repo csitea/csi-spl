@@ -157,21 +157,32 @@ func TestBoxFleetLeaseReason(t *testing.T) {
 	}
 }
 
-// LogHubStarted writes one hub.started row, actor hub, message the version
-// (spec 162 3.3).
+// LogHubStarted writes one hub.started row, actor hub, message
+// "<version> rev <revision> instance <id8>" (spec 162 3.3, SPL-5764): the two
+// rows of one deploy roll share the rev and differ in the instance, so a
+// start that is not part of a roll (a crash restart) stands out.
 func TestLogHubStarted(t *testing.T) {
 	version := "v0.0.0-" + uuidV4()
-	e := newEnv(t, func(o *hub.Options) { o.Version = version })
+	revision := "spool-hub-api-01778-" + uuidV4()[:3]
+	e := newEnv(t, func(o *hub.Options) { o.Version, o.Revision = version, revision })
+	e.srv.LogHubStarted(context.Background())
 	e.srv.LogHubStarted(context.Background())
 	es := e.st.(store.LogEvents)
 	page, err := es.SystemEventsPage(context.Background(), 0, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
+	want := regexp.MustCompile(`^` + regexp.QuoteMeta(version+" rev "+revision) + ` instance ([0-9a-f]{8})$`)
+	var ids []string
 	for _, r := range page {
-		if r.Kind == store.LogKindHubStarted && r.Actor == "hub" && r.Message == version && r.OriginRef == "hub" {
-			return
+		if r.Kind != store.LogKindHubStarted || r.Actor != "hub" || r.OriginRef != "hub" {
+			continue
+		}
+		if m := want.FindStringSubmatch(r.Message); m != nil {
+			ids = append(ids, m[1])
 		}
 	}
-	t.Fatalf("no hub.started row in %+v", page)
+	if len(ids) != 2 || ids[0] != ids[1] {
+		t.Fatalf("want 2 hub.started rows %q, one instance id; got %q in %+v", want, ids, page)
+	}
 }

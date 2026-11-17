@@ -198,9 +198,13 @@ hub never guesses the reason from ages.
   branch -> `failover`; `handback=true` -> `handback`; `ct != ht` ->
   `vendor`; the SPL-2892 far-off-limit write -> `limit`. One helper,
   `spl_fleet_reason`, with a table test.
-- **Hub start.** `hub.started`, actor `hub`, message the version (the same
-  source `/version` reads), written once per process start: each deploy
-  roll shows in the System log.
+- **Hub start.** `hub.started`, actor `hub`, message
+  `<version> rev <revision> instance <id8>` (SPL-5764): the version (the
+  same source `/version` reads), Cloud Run's `$K_REVISION` (else a
+  per-process id) and 8 hex new on every process start. Written once per
+  process start: each deploy roll shows in the System log, its rows share
+  the rev and differ in the instance (Cloud Run starts a second one), and a
+  start whose rev did not change (a crash restart) stands out.
 
 The owner DM on an orchestrator failover (`:2169-2172`) stays as it is.
 

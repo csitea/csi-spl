@@ -89,7 +89,40 @@ csi-spl-api` into a scratch dir, then, alternating, `gosec -fmt=json -quiet
 `./internal/store/...`; seconds, the 1-minute load and the issue count per
 run.
 
-Running at 06:37Z: run 1, arm A (`./...`) still scanning after 15 min 49 s, load 40..62; another `gosec ./...` (a pre-push) ran beside it. Results go in v0.2.
+Run 1 (n=1 per arm, alternating, on `9310612f3`):
+
+| arm | packages | seconds | 1-min load at start | findings |
+|---|---|---|---|---|
+| A | `./...` (today's scan) | 1,307.6 | 24.95 | 4: the four `G101` lines of `.gosec-baseline.txt` |
+| B | `./internal/wire/...` | 5.1 | 37.40 | 1: `G101 internal/wire/wire.go`, the same as A for that package |
+| C | `./internal/store/...` | 347.4 | 36.01 | 0 (rc 0, an EMPTY output file) |
+
+- With `-quiet` and no finding gosec prints nothing; `do_sec_gosec`
+  (`sec-gosec.func.sh:118-122`) FATALs on output that is not JSON, so a
+  narrowed scan of a clean package must not pass `-quiet` (or must read
+  empty as zero findings).
+- `.gosec-baseline.txt` fails a count BELOW its line (r5-05): a narrowed scan
+  compares only the baseline lines of the packages it scanned.
+- What the full tier changes: for each distinct HEAD of a `lint-gosec PASS`
+  line since `1d7bae644` (39), `git diff --name-only <h>~1 <h> -- '*.go'`
+  grouped by package -> `internal/store` 77 files, `internal/hub` 52,
+  `internal/auth` 5, `cmd/spool` 5, others <= 4. So the realistic narrowed
+  set is store + hub: arm D (`./internal/store/... ./internal/hub/...`, no
+  `-quiet`, n=2) runs after run 2.
+
+## 2.4 State at the 07:16Z rotation (written 07:0xZ)
+
+- v0.1 pushed: `review/c001-perf-round-13-planner` = `ab4d89f0f`, sent to
+  c-002@sat (not for signing).
+- Probe still running, detached: `gosec-ab.sh` run 2 (arms A, B, C), then
+  `gosec-d.sh` (arm D, n=2), appending to `gosec-ab.out` in the editor's
+  scratch dir (not readable by a successor; the numbers above are copied).
+- Next: when run 2 and arm D are in, v0.2 adds row 02
+  `p13-02-gosec-changed-packages` (`lint-gosec` on the full tier scans the
+  changed Go packages, the baseline narrowed to them, no `-quiet`) with
+  those numbers, or drops it in section 6 with them; push v0.2, name its sha
+  to c-002@sat for the mistral seat (ask 9c0a6cef). A successor without the
+  scratch dir re-runs the four arms on `9310612f3` (command in 2.3).
 
 ## 3. R3 reads
 

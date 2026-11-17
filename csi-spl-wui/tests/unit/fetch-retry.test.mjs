@@ -60,6 +60,38 @@ describe('a dropped read is retried once, a write never', () => {
     assert.equal(calls.length, 1)
   })
 
+  // SPL-5743 / SPL-5757 (spec 162 F3): POST /v1/view/previews and
+  // POST /v1/view/ids only read (view.go), so a dropped one is retried like a GET.
+  it('POST /v1/view/previews that fails once then answers: one retry', async () => {
+    const { fn, calls } = counting(['fail', { previews: [] }])
+    const c = createSpoolClient({ base: 'http://hub.test', fetchFn: fn, mock: false })
+    assert.deepEqual(await c.previewLinks(['abc']), { previews: [] })
+    assert.equal(calls.length, 2)
+    assert.deepEqual(calls.map((x) => x.method), ['POST', 'POST'])
+  })
+
+  it('POST /v1/view/ids that fails once then answers: one retry', async () => {
+    const { fn, calls } = counting(['fail', { ids: [] }])
+    const c = createSpoolClient({ base: 'http://hub.test', fetchFn: fn, mock: false })
+    assert.deepEqual(await c.lookupIds(['abc']), { ids: [] })
+    assert.equal(calls.length, 2)
+  })
+
+  it('POST /v1/view/ids that fails twice: the error reaches the caller after exactly one retry', async () => {
+    const { fn, calls } = counting(['fail', 'fail'])
+    const c = createSpoolClient({ base: 'http://hub.test', fetchFn: fn, mock: false })
+    await assert.rejects(() => c.lookupIds(['abc']), /Failed to fetch/)
+    assert.equal(calls.length, 2)
+  })
+
+  it('any other POST that fails: no retry', async () => {
+    const { fn, calls } = counting(['fail', { ok: 1 }])
+    const c = createSpoolClient({ base: 'http://hub.test', fetchFn: fn, mock: false })
+    await assert.rejects(() => c.mintJoinToken({ label: 'x' }), /Failed to fetch/)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].method, 'POST')
+  })
+
   it('a healthy GET is fetched once', async () => {
     const { fn, calls } = counting([{ status: 'ok' }])
     const c = createSpoolClient({ base: 'http://hub.test', fetchFn: fn, mock: false })

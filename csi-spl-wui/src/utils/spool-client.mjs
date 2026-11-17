@@ -412,14 +412,18 @@ function stampedFetch(rawFetch) {
    journaled with its method and path (errorJournal redacts both), and an
    idempotent GET gets ONE retry after a short pause: a dropped connection
    on a read never reaches the reader. A write is never retried - it may
-   have landed. An abort is not a failure and is rethrown untouched. */
+   have landed. An abort is not a failure and is rethrown untouched.
+   SPL-5743 / SPL-5757 (spec 162 F3): POST /v1/view/previews and
+   /v1/view/ids only read (hub view.go; a POST for the id list in the body),
+   so a dropped one is retried like a GET. */
+const READ_ONLY_POST = /\/v1\/view\/(?:previews|ids)(?:\?|$)/
 async function fetchOnce(fn, url, init) {
   const method = String((init && init.method) || 'GET').toUpperCase()
   try {
     return await fn(url, init)
   } catch (err) {
     if (isAbortError(err)) throw err
-    if (method === 'GET') {
+    if (method === 'GET' || (method === 'POST' && READ_ONLY_POST.test(url))) {
       await new Promise((r) => setTimeout(r, 400))
       try {
         return await fn(url, init)

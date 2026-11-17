@@ -71,7 +71,7 @@ export function jsonLd(value) {
 /**
  * og + twitter card tags of one page.
  * @param {{ title: string, description: string, url: string, image: string, type?: string }} p
- * @returns {Array<Record<string, string>>}
+ * @returns {Array<{ property: string, content: string } | { name: string, content: string }>}
  */
 export function socialMeta(p) {
   return [
@@ -105,9 +105,11 @@ export function localeAlternates(o) {
  * alternate per locale in `langs` (the locales the page really has) and
  * x-default on the default-locale copy. One language = no alternates.
  * @param {{ siteUrl: string, base: string, canonicalCode: string, langs: string[], defaultLocale: string }} o
+ * @returns {Array<{ rel: 'canonical', href: string } | { rel: 'alternate', hreflang: string, href: string }>}
  */
 export function localeLinks(o) {
   const [canonical, xDefault] = localeAlternates({ ...o, langs: [o.canonicalCode, o.defaultLocale] })
+  /** @type {Array<{ rel: 'canonical', href: string } | { rel: 'alternate', hreflang: string, href: string }>} */
   const out = [{ rel: 'canonical', href: canonical.href }]
   if (o.langs.length > 1) {
     for (const a of localeAlternates(o)) out.push({ rel: 'alternate', hreflang: a.code, href: a.href })
@@ -152,7 +154,7 @@ export function publicPageHead(o) {
   ]
   const script = login
     ? [{
-        type: 'application/ld+json',
+        type: /** @type {'application/ld+json'} */ ('application/ld+json'),
         key: 'ld-site',
         innerHTML: jsonLd([
           { '@context': 'https://schema.org', '@type': 'Organization', '@id': `${site}/#organization`, name: SITE_NAME, url: `${site}/`, logo: `${site}/logo.webp` },

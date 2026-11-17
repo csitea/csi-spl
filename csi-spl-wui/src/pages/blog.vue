@@ -328,7 +328,7 @@ useHead(() => {
   const link = localeLinks({ siteUrl, base, canonicalCode: p?.fallback ? defaultLocale : lang.value, langs: pageLangs.value, defaultLocale })
   const url = link[0].href
   const image = p?.entry.image ? absolute(`/blog/img/${p.entry.image.replace(/\.(webp|jpg)$/, '-og.$1')}`) : absolute(SITE_IMAGE)
-  const meta: Array<Record<string, string>> = [
+  const meta: Array<{ property: string, content: string } | { name: string, content: string }> = [
     /* spec 111 3.1 + 116 T7: the blog is indexable on an indexable build only (the app default is noindex) */
     { name: 'robots', content: indexOn ? 'index, follow' : 'noindex, nofollow' },
     { name: 'description', content: description },
@@ -337,7 +337,7 @@ useHead(() => {
   if (p?.entry.published) meta.push({ property: 'article:published_time', content: p.entry.published })
   const script = p
     ? [{
-        type: 'application/ld+json',
+        type: 'application/ld+json' as const,
         key: 'ld-post',
         innerHTML: jsonLd({
           '@context': 'https://schema.org',

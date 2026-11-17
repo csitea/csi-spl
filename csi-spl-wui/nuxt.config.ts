@@ -107,7 +107,7 @@ function preconnectLinks(bases: string[]) {
     const m = /^(https:\/\/[^/{}]+)/i.exec(b)
     if (m) origins.add(m[1].toLowerCase())
   }
-  return [...origins].map((href) => ({ rel: "preconnect", href, crossorigin: "use-credentials" as const }))
+  return [...origins].map((href) => ({ rel: "preconnect" as const, href, crossorigin: "use-credentials" as const }))
 }
 
 // ── Content-Security-Policy ───────────────────────────────────────────────
@@ -369,7 +369,9 @@ function localeRouteCopiesModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) 
     filename: "types/locale-route-codes.d.ts",
     getContents: () => `declare module "#build/locale-route-codes.mjs" {\n  export const localeCodes: string[]\n  export const defaultLocale: string\n}\n`,
   })
-  nuxt.hook("pages:resolved", (pages) => {
+  // i18n localizes in pages:resolved on nuxt 4 (scanPageMeta "after-resolve"),
+  // a hook it adds in its own modules:done: hook ours there too, so it runs after.
+  nuxt.hook("modules:done", () => void nuxt.hook("pages:resolved", (pages) => {
     const kept = pages.filter((p) => !isLocaleRouteCopy(p, LOCALE_CODES, DEFAULT_LOCALE))
     if (kept.length === pages.length) {
       throw new Error("locale route copies (CLE-77925): i18n made no locale copies; is the module order still i18n first?")
@@ -381,7 +383,7 @@ function localeRouteCopiesModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) 
     }
     pages.length = 0
     pages.push(...kept)
-  })
+  }))
 }
 
 // The app.head scripts a blog document must not run: the signed-out redirect,
@@ -408,12 +410,12 @@ function blogDocumentsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
   // (after localeRouteCopiesModule kept the default-locale records; the
   // router derives the /<lang> copies from it) rather than in the page's
   // definePageMeta, whose meta object ships in the initial JS.
-  nuxt.hook("pages:resolved", (pages) => {
+  nuxt.hook("modules:done", () => void nuxt.hook("pages:resolved", (pages) => {
     const blog = pages.find((p) => p.path === "/blog" && (p.file || "").endsWith("/pages/blog.vue"))
     if (!blog) throw new Error("blog (spec 111 T003): no /blog record for pages/blog.vue")
     blog.path = "/blog/:slug(.*)*"
     for (const code of BLOG_EXTRA_LOCALES) pages.push({ ...blog, name: `blog-${code}`, path: `/${code}/blog/:slug(.*)*` })
-  })
+  }))
   nuxt.hook("nitro:init", (nitro) => {
     nitro.hooks.hook("prerender:generate", (route) => {
       if (!BLOG_ROUTE_RE.test(route.route) || typeof route.contents !== "string" || !(route.fileName || "").endsWith(".html")) return
@@ -520,9 +522,9 @@ const LOCALE_FILES: Record<string, string> = Object.fromEntries(I18N_MODULE_LOCA
 function firstScreenHintsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
   let graph: ReturnType<typeof firstScreenChunkGraph> | null = null
   let pages: NuxtPage[] = []
-  nuxt.hook("pages:resolved", (resolved) => {
+  nuxt.hook("modules:done", () => void nuxt.hook("pages:resolved", (resolved) => {
     pages = resolved.filter((p) => !isLocaleRouteCopy(p, LOCALE_CODES, DEFAULT_LOCALE))
-  })
+  }))
   addVitePlugin({
     name: "spool:first-screen-graph",
     apply: "build",
@@ -592,6 +594,11 @@ export default defineNuxtConfig({
   // workspace (its node_modules joined modulesDir, the build cache went
   // there). tests/unit/workspace-dir.test.mjs builds that case.
   workspaceDir: ".",
+  // nuxt 4 moved two defaults: the public dir to <rootDir>/public (ours is
+  // src/public, nuxt 3's <srcDir>/public; absolute, so both read it) and, with
+  // a custom srcDir, the app dir to srcDir itself, which hid
+  // src/app/router.options.ts (the locale route copies, CLE-77925).
+  dir: { app: "app", public: fileURLToPath(new URL("./src/public", import.meta.url)) },
   compatibilityDate: "2026-09-18",
   devtools: { enabled: isDev },
   ssr: true,

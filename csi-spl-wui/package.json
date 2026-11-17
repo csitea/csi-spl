@@ -24,14 +24,14 @@
   },
   "dependencies": {
     "@headlessui/vue": "^1.7.23",
-    "@nuxtjs/i18n": "10.2.3",
+    "@nuxtjs/i18n": "10.6.0",
     "@pinia/nuxt": "^0.11.3",
     "highlight.js": "~11.12.0",
     "markdown-it": "^15.0.3",
-    "nuxt": "^3.16.0",
+    "nuxt": "^4.6.4",
     "pinia": "^3.0.4",
-    "vue": "^3.5.13",
-    "vue-router": "^4.5.0"
+    "vue": "^3.5.45",
+    "vue-router": "^5.5.1"
   },
   "devDependencies": {
     "@types/markdown-it": "^14",
@@ -53,7 +53,7 @@
       "@simple-git/argv-parser": "^2.0.1",
       "shell-quote": "^1.11.0",
       "source-map-js": "^1.2.2",
-      "vite": "^7.3.7",
+      "vite": "^8.3.5",
       "launch-editor": "^2.14.2",
       "seroval": "~1.6.11",
       "node-forge": "^1.4.3"

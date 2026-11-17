@@ -150,7 +150,7 @@ describe('times written inside a message body (requirements 2 + 5)', () => {
     assert.match(readFileSync(join(SRC, 'components/MarkdownBlock.vue'), 'utf8'), /hasBodyTime\(s\)/)
     const ev = readFileSync(join(SRC, 'pages/monitoring/events/index.vue'), 'utf8')
     assert.match(ev, /<time :datetime="utcOf\(r\) \|\| undefined" :title="utcOf\(r\) \|\| undefined"/)
-    assert.match(readFileSync(join(SRC, 'app.vue'), 'utf8'), /setTimeZoneSource\(\(\) => String\(session\.claims\?\.time_zone \|\| ''\)\)/)
+    assert.match(readFileSync(join(SRC, 'app.vue'), 'utf8'), /setZoneSource\(\(\) => String\(session\.claims\?\.time_zone \|\| ''\)\)/)
   })
 })
 

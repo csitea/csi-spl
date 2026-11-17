@@ -134,7 +134,8 @@ describe('every store path pokes after the store succeeded (K1, K3)', () => {
     assert.match(s, /issueKey: sub\.key/)
   })
   it('the mock tenant tells nobody (only the direct notice, CLE-77852); the strings exist', () => {
-    const s = src('src/composables/useMentionPoke.ts')
+    /* SPL-5780: the poke body is composables/mentionPokeRun.ts, loaded with the first poke */
+    const s = src('src/composables/useMentionPoke.ts') + src('src/composables/mentionPokeRun.ts')
     const mock = (s.match(/if \(api\.mock\) \{[\s\S]*?\n {4}\}/) || [''])[0]
     assert.match(mock, /return none/)
     assert.doesNotMatch(mock, /sendDm|warn\(/)
@@ -193,7 +194,8 @@ describe('spec 067 Q3 + rule 3: no poke DM to a person; an agent poke carries re
     assert.equal(pokeFrame({ to: 'c-002', body: 'b', taskId: 't', refTaskId: 'SPL-985' }).ref_task_id, undefined)
   })
   it('the composable pokes agents only and sends the topic id of a channel post, none of an issue or DM', () => {
-    const s = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/composables/useMentionPoke.ts'), 'utf8')
+    const at = (f) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/composables', f), 'utf8')
+    const s = at('useMentionPoke.ts') + at('mentionPokeRun.ts')
     assert.match(s, /const ids = agentTargets\(pokeTargets\(/)
     assert.match(s, /pokeFrame\(\{ to: id, body, toBox, taskId: newId\(\), msgId: newId\(\), refTaskId \}\)/)
     assert.match(s, /where\.issue \|\| where\.ends \|\| where\.peer \? '' : String\(where\.taskId \|\| ''\)/)

@@ -45,6 +45,10 @@ describe('view pref values', () => {
     assert.match(read('../csi-spl-rdb/src/sql/postgres/spool-hub/0077_human_close_buttons.sql'), /close_buttons IN \('mac','windows'\)/)
     for (const raw of [null, undefined, '', 'linux', 'Windows']) assert.equal(parseCloseButtons(raw), 'mac')
     assert.equal(parseCloseButtons('windows'), 'windows')
+    /* SPL-5780: app.vue reads the claim through the core; it answers the same */
+    const { closeButtonsOf, CLOSE_BUTTON_STYLES } = await import('../../src/utils/view-prefs-core.mjs')
+    assert.equal(CLOSE_BUTTONS, CLOSE_BUTTON_STYLES)
+    for (const raw of [null, undefined, '', 'linux', 'Windows', 'mac', 'windows']) assert.equal(closeButtonsOf(raw), parseCloseButtons(raw))
     /* exactly one of the two placements renders */
     for (const pref of [null, 'mac', 'windows', 'junk']) assert.notEqual(closeButtonShown('start', pref), closeButtonShown('end', pref))
     assert.equal(closeButtonShown('start', null), true)
@@ -60,7 +64,7 @@ describe('view pref values', () => {
       assert.equal(starts, ends, `${file}: one start per end`)
       assert.doesNotMatch(src, /<button[^>]*(?:ui-dialog__close|topic-close|users-pane__close|issues-sheet__x)/, `${file}: a hand-rolled close X`)
     }
-    assert.match(read('src/app.vue'), /'data-close-buttons': parseCloseButtons\(session\.claims\?\.close_buttons\)/)
+    assert.match(read('src/app.vue'), /'data-close-buttons': closeButtonsOf\(session\.claims\?\.close_buttons\)/)
     for (const code of ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
       const s = JSON.parse(read(`i18n/locales/${code}.json`)).settings
       for (const k of ['label', 'mac', 'windows', 'hint']) assert.ok(s.close_buttons?.[k], `${code} close_buttons.${k}`)

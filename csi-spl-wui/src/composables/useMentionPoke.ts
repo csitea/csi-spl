@@ -8,13 +8,9 @@
 // channel is DM-poked anyway, and the author gets a notice saying so.
 // Spec 067 (Q3, rule 3): a PERSON is never poked (the @mention reaches them in
 // Flow), and an agent's poke carries ref_task_id, the channel topic it is about.
-import { noteError } from '@/composables/errorJournal.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { useRosterStore } from '~/stores/roster'
-import { withSessionRetry } from '~/utils/live-follow-core.mjs'
-import { sendWithResend } from '~/utils/send-failure.mjs'
-import type { MentionAccess } from '~/utils/mention-poke.mjs'
 
 /* 089 AC-02 (155 KB gzip): the poke rules load with the first poke, never
    with the entry: a poke only follows a stored text, after first paint. */
@@ -22,10 +18,6 @@ let pokeRules: Promise<typeof import('~/utils/mention-poke.mjs')> | null = null
 export function loadMentionPoke() {
   /* a failed chunk load (a deploy in between) is asked again next time */
   return (pokeRules ||= import('~/utils/mention-poke.mjs').catch((e) => { pokeRules = null; throw e }))
-}
-
-function newId() {
-  return globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : ''
 }
 
 /** CLE-77852: how long the "sent as a direct message" notice stays up. */
@@ -36,6 +28,9 @@ type DirectNote = { id: number, text: string }
 /* one notice per tab, shared by the poking store and the shell's toast */
 const directNote = shallowRef<DirectNote | null>(null)
 let noteSeq = 0
+
+export type PokeOpts = { text: string, before?: string, addressee?: string, where: PokeWhere }
+export type PokeResult = { told: string[], refused: string[], failed: string[] }
 
 /** The shell's MentionDirectToast reads and dismisses the notice. */
 export function useMentionDirectNote() {
@@ -56,24 +51,11 @@ export interface PokeWhere {
   unknown?: boolean
 }
 
-/* spec 067 rule 3: the channel topic a poke is about; none from an issue or a DM */
-function refOf(where: PokeWhere) {
-  return where.issue || where.ends || where.peer ? '' : String(where.taskId || '')
-}
-
-/** K4: who may be told about a text at `where` (null: unknown, tell nobody). */
-async function accessOf(api: ReturnType<typeof useSpoolApi>, where: PokeWhere, selfId: string): Promise<MentionAccess> {
-  if (where.unknown) return null
-  if (where.issue) return { kind: 'open' }
-  if (where.ends) return { kind: 'dm', ends: where.ends }
-  if (where.peer) return { kind: 'dm', ends: [selfId, where.peer] }
-  if (!where.channel) return { kind: 'open' } /* the lobby */
-  try {
-    const { channelAccess } = await loadMentionPoke()
-    return channelAccess(await withSessionRetry(api, () => api.listChannelMembers(String(where.channel))))
-  } catch {
-    return null /* unknown: tell nobody rather than leak */
-  }
+/* SPL-5780: the poke itself (composables/mentionPokeRun.ts) loads with the
+   first poke, like the rules; a failed chunk load is asked again next time */
+let pokeRun: Promise<typeof import('~/composables/mentionPokeRun')> | null = null
+function loadPokeRun() {
+  return (pokeRun ||= import('~/composables/mentionPokeRun').catch((e) => { pokeRun = null; throw e }))
 }
 
 export function useMentionPoke() {
@@ -83,65 +65,24 @@ export function useMentionPoke() {
   /* the global instance: this runs from stores too, outside any setup() */
   const i18n = useNuxtApp().$i18n
 
-  async function sendDm(id: string, body: string, toBox?: string, refTaskId?: string) {
-    const client = live.ensure()
-    if (!client) throw new Error('live socket unavailable')
-    const { pokeFrame } = await loadMentionPoke()
-    const frame = pokeFrame({ to: id, body, toBox, taskId: newId(), msgId: newId(), refTaskId })
-    await sendWithResend(() => client.send(frame))
-  }
-
   function noteDirect(ids: string[]) {
     directNote.value = { id: ++noteSeq, text: i18n.t('mention.sent_direct', { ids: ids.join(', ') }) }
   }
 
-  function warn(key: string, ids: string[]) {
-    noteError({ source: 'mention', name: 'MentionPoke', message: i18n.t(key, { ids: ids.join(', ') }) })
-  }
+  let run: ((opts: PokeOpts) => Promise<PokeResult>) | null = null
 
   /**
    * `text` was just stored at `where`. `before` is the text before an edit
    * (only new mentions poke); `addressee` the agent the send itself went to.
    * Resolves to what happened; never throws.
    */
-  async function poke(opts: { text: string, before?: string, addressee?: string, where: PokeWhere }) {
-    const none = { told: [] as string[], refused: [] as string[], failed: [] as string[] }
-    const self = roster.self ? roster.self.id : ''
-    const rules = await loadMentionPoke().catch(() => null)
-    if (!rules) return none
-    const { agentTargets, cardLink, issueLink, mentionBoxes, pokeBody, pokeTargets, splitPokes } = rules
-    const ids = agentTargets(pokeTargets({ text: opts.text, before: opts.before || '', selfId: self, addressee: opts.addressee || '' }))
-    if (!ids.length) return none
-    const seated = roster.people.map((p) => p.id)
-    /* the mock tenant has nobody to tell, and its feeds are what the e2e reads:
-       it sends nothing and warns nothing, but shows the direct notice (e2e) */
-    if (api.mock) {
-      if (opts.where.channel) {
-        const { direct } = splitPokes(ids, await accessOf(api, opts.where, self), seated)
-        if (direct.length) noteDirect(direct)
-      }
-      return none
+  async function poke(opts: PokeOpts): Promise<PokeResult> {
+    if (!run) {
+      const mod = await loadPokeRun().catch(() => null)
+      if (!mod) return { told: [], refused: [], failed: [] }
+      run = mod.mentionPokeRunner({ api, roster, live, i18n, loadMentionPoke, noteDirect })
     }
-    const { ok, direct, refused } = splitPokes(ids, await accessOf(api, opts.where, self), seated)
-    if (refused.length) warn('mention.not_told', refused)
-    const origin = typeof window !== 'undefined' ? window.location.origin : ''
-    const link = opts.where.issueKey ? issueLink(origin, opts.where.issueKey) : cardLink(origin, opts.where.taskId || '')
-    const body = pokeBody({ author: self, link, text: opts.text })
-    const told: string[] = []
-    const failed: string[] = []
-    const boxes = mentionBoxes(opts.text)
-    for (const id of [...ok, ...direct]) {
-      try {
-        await sendDm(id, body, boxes[id], refOf(opts.where))
-        told.push(id)
-      } catch {
-        failed.push(id)
-      }
-    }
-    if (failed.length) warn('mention.poke_failed', failed)
-    const sentDirect = direct.filter((id) => told.includes(id))
-    if (sentDirect.length) noteDirect(sentDirect)
-    return { told, refused, failed }
+    return run(opts)
   }
 
   return { poke }

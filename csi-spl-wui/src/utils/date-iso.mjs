@@ -10,6 +10,7 @@
  * tenant), else the browser's zone. This is the ONE file that may call
  * Intl.DateTimeFormat (date-iso.test.mjs bans it everywhere else).
  */
+import { pickedTimeZone, setZoneSource } from "./date-iso-core.mjs"
 
 const pad = (n) => String(n).padStart(2, "0")
 
@@ -19,10 +20,8 @@ function asDate(value) {
   return Number.isNaN(d.getTime()) ? null : d
 }
 
-/* The picked zone, read through a getter so a Vue app can hand in a reactive
-   source: a computed that prints a time then re-renders when the zone changes.
-   "" = the browser's zone. Node tests use process.env.TZ for that. */
-let zoneSource = () => ""
+/* The picked zone's source lives in date-iso-core.mjs, the part the first
+   screen needs (app.vue sets it); this file loads with the first date. */
 const fmtCache = new Map()
 
 /** The IANA zone the browser runs in ("" when Intl cannot say). */
@@ -64,18 +63,11 @@ function formatterFor(zone) {
   return f
 }
 
-/**
- * Where the zone comes from. `source` is a function answering an IANA zone or
- * "" (the browser's). An unknown zone falls back to the browser's.
- * @param {() => string} source
- */
-export function setTimeZoneSource(source) {
-  zoneSource = typeof source === "function" ? source : () => ""
-}
+export { setZoneSource as setTimeZoneSource }
 
 /** The zone the helpers print in now: the picked one, else "" (browser). */
 export function viewerTimeZone() {
-  const z = String(zoneSource() || "")
+  const z = pickedTimeZone()
   return z && isKnownTimeZone(z) ? z : ""
 }
 

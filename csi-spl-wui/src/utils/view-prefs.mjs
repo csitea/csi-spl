@@ -27,11 +27,14 @@
 //
 // The hub lists the same values in the same order (auth.ViewPrefs); the unit
 // test tests/unit/view-prefs.test.mjs pins the two lists equal.
+// The close_buttons list lives in view-prefs-core.mjs: app.vue reads only
+// that one, so this file stays out of the initial chunk (SPL-5780).
+import { CLOSE_BUTTON_STYLES } from './view-prefs-core.mjs'
 
 export const MESSAGE_ORDERS = Object.freeze(['newest-first', 'newest-last'])
 export const COMPOSER_POSITIONS = Object.freeze(['top', 'bottom'])
 export const ISSUES_VIEWS = Object.freeze(['list', 'status'])
-export const CLOSE_BUTTONS = Object.freeze(['mac', 'windows'])
+export const CLOSE_BUTTONS = CLOSE_BUTTON_STYLES
 
 /** Each claim's values, default first. */
 export const VIEW_PREFS = Object.freeze({

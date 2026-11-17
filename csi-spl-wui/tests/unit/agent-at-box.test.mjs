@@ -110,7 +110,7 @@ describe('specs/058: the same id on two boxes is two agents (CLE-77932)', () => 
     assert.match(channel, /const toBox = asDm \? peerBox : parsed\.toBox/)
     assert.match(channel, /if \(frame\.to && toBox\) frame\.to_box = toBox/)
     assert.match(src('src/stores/live.ts'), /to_box: to \? parsed\.toBox : undefined/)
-    const poke = src('src/composables/useMentionPoke.ts')
+    const poke = src('src/composables/useMentionPoke.ts') + src('src/composables/mentionPokeRun.ts')
     assert.match(poke, /pokeFrame\(\{ to: id, body, toBox,/)
     assert.match(src('src/utils/mention-poke.mjs'), /to_box: toBox \|\| undefined/)
     assert.match(poke, /await sendDm\(id, body, boxes\[id\], refOf\(opts\.where\)\)/)

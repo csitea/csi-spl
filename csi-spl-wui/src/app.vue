@@ -20,8 +20,8 @@ import { useSessionStore } from '~/stores/session'
 import { hostTenant } from '~/composables/useSpoolApi'
 import { tabTitle, tenantTabName, withUnread } from '~/utils/tab-title.mjs'
 import { useUnread } from '~/composables/useUnread'
-import { parseCloseButtons } from '~/utils/view-prefs.mjs'
-import { setTimeZoneSource } from '~/utils/date-iso.mjs'
+import { closeButtonsOf } from '~/utils/view-prefs-core.mjs'
+import { setZoneSource } from '~/utils/date-iso-core.mjs'
 import { settingsQuerySection } from '~/utils/settings-nav.mjs'
 import { displayVersion } from '~/utils/display-version.mjs'
 
@@ -68,7 +68,7 @@ const session = useSessionStore()
 /* CLE-77908: every printed time follows the person's zone for this workspace
    (Settings -> Appearance), else the browser's. A reactive read, so every
    clock re-renders the moment the zone changes. */
-setTimeZoneSource(() => String(session.claims?.time_zone || ''))
+setZoneSource(() => String(session.claims?.time_zone || ''))
 const apexTenant = String(useRuntimeConfig().public.tenant || '')
 const tabName = computed(() => tenantTabName(session.claims, (import.meta.client && hostTenant()) || apexTenant, apexTenant))
 
@@ -92,7 +92,7 @@ useHead(() => {
       lang: i18nHead.value.htmlAttrs?.lang || locale.value,
       dir: docDir(),
       /* SPL-1133: which corner the close buttons sit in (UiCloseButton) */
-      'data-close-buttons': parseCloseButtons(session.claims?.close_buttons),
+      'data-close-buttons': closeButtonsOf(session.claims?.close_buttons),
     },
     meta: appVersion ? [{ name: 'version', content: displayVersion(appVersion) }] : [],
   }

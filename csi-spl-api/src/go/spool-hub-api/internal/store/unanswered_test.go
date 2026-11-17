@@ -184,6 +184,61 @@ func TestReescalatablePosts(t *testing.T) {
 	}
 }
 
+// The fallback answers only for a SIGNED human post: a browser post with no
+// envelope signature (an empty env_sig) never falls back, is never re-escalated and
+// never counts as unheard. One unsigned post beside one signed control, read
+// through all three queries on every driver (refactor round 34, row 01).
+// Red control: drop the env_sig conjunct from the Postgres predicate (or
+// `m.EnvSig != ""` from humanPostIn) and the unsigned post is returned.
+func TestFallbackQueriesSkipUnsignedHumanPost(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			tid := newTenant(t, s)
+			fb := s.(Fallbacks)
+			t0 := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Hour)
+			signed := humanPost(tid, uuid4(), "devel", "signed, anyone?", t0)
+			unsigned := humanPost(tid, uuid4(), "devel", "unsigned, anyone?", t0.Add(time.Second))
+			unsigned.EnvSig = ""
+			for _, m := range []Message{signed, unsigned} {
+				if _, err := s.InsertMessage(ctx, m); err != nil {
+					t.Fatal(err)
+				}
+			}
+			since, until := t0.Add(-time.Minute), time.Now().UTC()
+			only := func(query string, got []Queued, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("%s: %v", query, err)
+				}
+				ids := map[string]bool{}
+				for _, q := range got {
+					ids[q.MsgID] = true
+				}
+				if ids[unsigned.MsgID] {
+					t.Errorf("%s returned the unsigned human post %s (env_sig '')", query, unsigned.MsgID)
+				}
+				if !ids[signed.MsgID] || len(got) != 1 {
+					t.Errorf("%s: want only the signed post %s, got %d: %v", query, signed.MsgID, len(got), ids)
+				}
+			}
+			got, err := fb.UnheardPosts(ctx, tid, since, until, 20)
+			only("UnheardPosts", got, err)
+			got, err = fb.UnansweredPosts(ctx, tid, since, until, 20)
+			only("UnansweredPosts", got, err)
+			// Both escalated once, at t0+2m: only the signed one is re-escalatable.
+			for _, m := range []Message{signed, unsigned} {
+				rec := FallbackDelivery{TenantID: tid, MsgID: m.MsgID, Channel: "devel", Box: "box-desk", Agent: "CLE-001", DeliveredAt: t0.Add(2 * time.Minute)}
+				if won, err := fb.ClaimFallback(ctx, rec); err != nil || !won {
+					t.Fatalf("claim %s: won=%v err=%v", m.MsgID, won, err)
+				}
+			}
+			got, err = fb.ReescalatablePosts(ctx, tid, since, t0.Add(5*time.Minute), until, 3, 20)
+			only("ReescalatablePosts", got, err)
+		})
+	}
+}
+
 // Spec 150 C406 (row B12): the unanswered posts come by their topic's
 // priority first, then oldest first. A priority 1 post comes before an older
 // post whose topic is never set (3, SPL-4367) or set to 4 or 5; the never

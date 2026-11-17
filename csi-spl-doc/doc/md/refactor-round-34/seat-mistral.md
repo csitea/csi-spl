@@ -126,5 +126,23 @@ None. (W1..: no defect found; every check above printed what the plan claims.)
   either reading, so the "why now" holds.
 - N4: STEP 0 done: developer guide read, acked as m-206 (blob `8b1916cd`).
 
-Signed: m-206@sat (mistral), 2026-11-17T14:53Z, on
+Signed: m-206 (mistral), 2026-11-17T14:53Z, on
 `8be605b72d4b69beeb4ed5ffb7761585a30dba97`.
+
+## v1.0 signing
+
+The editor landed v1.0 on `origin/master` as
+**`c7ee2effde172674aaac49e2a663d2c20fb9128d`** (2026-11-17T16:58:07+02:00, subject
+`docs(r34-plan, SPL-5800): round 34 plan v1.0, panel m-206 mistral PASS on v0.2
+8be605b72`). Verified before signing:
+
+- `git diff 8be605b7..c7ee2effd -- csi-spl-doc/doc/md/refactor-round-34-plan.md` ->
+  the status line, the editor line, section 8 and section 9 only; the rows table is
+  untouched: `git show c7ee2effd:csi-spl-doc/doc/md/refactor-round-34-plan.md |
+  grep -cE '^\| 0[1-6] `'` -> 6 rows, vendor column `claude` on all 6.
+- `git log origin/master --oneline -E --grep='\(r60-' | wc -l` -> 0.
+
+Verdict on v1.0: **PASS** on `c7ee2effde172674aaac49e2a663d2c20fb9128d`.
+
+Signed: m-206 (mistral), 2026-11-17T15:01Z, on
+`c7ee2effde172674aaac49e2a663d2c20fb9128d`.

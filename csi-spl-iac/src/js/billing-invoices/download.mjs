@@ -137,7 +137,8 @@ async function oneAccount(page, id) {
   else await page.getByRole('link', { name: entry.label, exact: true }).first().click();
   const frame = await documentsFrame(page, id, entry.label);
   const rows = frame.locator(ROWS);
-  const picks = selectRows(await rows.allInnerTexts(), today, months);
+  const texts = await rows.allInnerTexts();
+  const picks = selectRows(texts, today, months);
   if (!picks.length) fail(id, `no invoice row dated in the last ${months} months on the "${entry.label}" page (the console changed?)`);
   const dir = path.join(pdfRoot, id);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -150,6 +151,19 @@ async function oneAccount(page, id) {
     await dl.saveAs(file);
     if (!isPdf(file)) { rmSync(file, { force: true }); fail(id, `the file saved for ${p.file} is no PDF (removed)`); }
     console.log(`OK ${maskId(id)} saved ${p.file}`);
+  }
+  await recheckRows(page, rows, texts.length, id, entry.label);
+}
+
+// recheckRows - after the saves, read the row count STABLE_READS more times
+// (a poll apart): a list that grew or shrank since it was read was read
+// half full, so the account fails (R7 c-073 N6). A list that pauses longer
+// than both windows together with no progress bar is still not seen.
+async function recheckRows(page, rows, n, id, label) {
+  for (let i = 0; i < STABLE_READS; i += 1) {
+    await page.waitForTimeout(Math.min(2000, PAGE_WAIT_MS));
+    const now = await rows.count();
+    if (now !== n) fail(id, `the documents list on the "${label}" page changed from ${n} to ${now} rows after it was read (it was still loading); run again`);
   }
 }
 

@@ -370,6 +370,18 @@ if command -v node >/dev/null 2>&1 && [[ "$(command -v node)" != "$T/bin/node" ]
   DLMJS="$T/ctl1/download.mjs" dl "$T/e" overview=overview.html,invoices=invoices.html FAKE_LAZY=2
   [[ "$(grep -c 'would save' "$T/e")" -eq 1 ]] && grep -q '^rc=0$' "$T/e" \
     && pass "download CONTROL: one read of the lazy list saves 1 of 3 and exits 0 (the W1 defect)" || fail "download lazy control: $(cat "$T/e")"
+  # R7 c-073 N6: a list that holds still for the 3 stability reads, then grows, is caught by the recount after the saves
+  for lazy in 3 5; do
+    dl "$T/e" overview=overview.html,invoices=invoices.html FAKE_LAZY=$lazy
+    [[ "$(grep -c '^FATAL XXXXXX-XXXXXX-XX7B8C: ' "$T/e")" -eq 1 ]] && grep -qF 'changed from 2 to 6 rows after it was read' "$T/e" && grep -q '^rc=2$' "$T/e" \
+      && pass "download: a list partial for $lazy reads, then whole -> the recount FATALs, rc 2 (N6)" || fail "download lazy $lazy: $(cat "$T/e")"
+  done
+  # CONTROL: the same list without the recount saves 1 of 3 and exits 0 (the N6 defect)
+  mkdir -p "$T/ctl6" && cp "$(dirname "$DL")/lib.mjs" "$T/ctl6/"
+  sed '/^  await recheckRows(/d' "$DL" >"$T/ctl6/download.mjs"
+  DLMJS="$T/ctl6/download.mjs" dl "$T/e" overview=overview.html,invoices=invoices.html FAKE_LAZY=3
+  [[ "$(grep -c 'would save' "$T/e")" -eq 1 ]] && grep -q '^rc=0$' "$T/e" \
+    && pass "download CONTROL: without the recount a list partial for 3 reads saves 1 of 3, rc 0 (N6)" || fail "download N6 control: $(cat "$T/e")"
   for c in "overview=overview.html,invoices=invoices-loading.html|never stopped loading" \
            "overview=overview.html,invoices=invoices-paged.html|has more pages" \
            "overview=overview-offsite.html,invoices=invoices.html|leads off the console (elsewhere.example.com)"; do

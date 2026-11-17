@@ -872,8 +872,12 @@ under `pdf/<id>/`. Ids are logged masked.
   "Download"), as `pdf/<id>/<date>-<number>.pdf`, the checklist the fetch
   ticks off. The list is read from the payments.google.com iframe when there
   is one, else from the page, and only once no progress bar shows and its
-  row count reads the same three polls in a row: a list that fills in lazily
-  is never read half full (R7 c-073 W1). A link off
+  row count reads the same three polls in a row (R7 c-073 W1). After the
+  saves it counts the rows three more times, a poll apart, and fails the
+  account when the count changed (R7 c-073 N6). That counts polls, not time:
+  a list that shows the same partial count for up to five polls and then
+  grows fails; one that shows it for six or more polls, with no progress
+  bar, is still read half full and exits 0. A link off
   console.cloud.google.com is never followed.
   `BILLING_DRY=1` lists the rows and saves nothing.
 - **playwright-core is pinned to 1.65.0** and installed at run time on the
@@ -882,7 +886,8 @@ under `pdf/<id>/`. Ids are logged masked.
   installed Chrome and downloads no browser.
 - FRAGILE, as the owner accepted: a "URL not found" page (the overview, or
   the page behind the entry), no Invoices or Payment status entry, no
-  documents list, a list that never stops loading or has a next page, no
+  documents list, a list that never stops loading, has a next page or
+  changed its row count after it was read, no
   invoice row in the window (Google changed the page, or the account has
   none), or a download that is not a PDF (a name not ending in `.pdf`, a zip
   among them, or a saved file not starting `%PDF-`, which is removed) fails
@@ -919,8 +924,9 @@ test covers:
   Invoices page each give one masked FATAL line and rc 2. CONTROL: the old
   `/documents` path on the same pages fails (SPL-5810). After R7 c-073: a
   lazily filling list gives all its rows (CONTROL: one read gives 1 of 3,
-  rc 0); a list still loading or with a next page, and a link off the
-  console, fail; the direct, checkbox and menu download paths save real
+  rc 0); a list partial for 3 or 5 reads and then whole fails on the
+  recount (CONTROL: without the recount, 1 of 3, rc 0); a list still
+  loading or with a next page, and a link off the console, fail; the direct, checkbox and menu download paths save real
   `%PDF-` files; a zip or a non-PDF body fails with nothing left; the
   payments iframe beats the page's own table; an entry with no href is
   clicked by name; a Chrome launch error is one line.

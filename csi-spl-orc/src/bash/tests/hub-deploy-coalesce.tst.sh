@@ -6,6 +6,8 @@
 #   2. hold: the seconds left of the window since the newest revision; 0 once
 #      it has passed, never more than one window (clock skew), off at 0 min,
 #      refuses bad input
+#   2b. the 2-hour default and hold-version (a hub /version body's .built_at;
+#      an unreadable one never holds); 2c. workflow 20 wires it, prd on dev's
 #   3. do_hub_revisions_per_day lists the env's cnf service as the pinned
 #      account, read-only (one `gcloud run revisions list`, no update), and
 #      prints the per-day count; a failed list is a FATAL, not an empty count
@@ -35,6 +37,31 @@ check "$(HUB_DEPLOY_COALESCE_MIN=15 bash "$S" hold $((now + 7200)) "$now")" 900 
 check "$(HUB_DEPLOY_COALESCE_MIN=0 bash "$S" hold $((now - 1)) "$now")" 0 "hold: window 0 turns it off"
 bash "$S" hold "" "$now" >/dev/null 2>&1; check "$?" 2 "hold: no last epoch is refused"
 HUB_DEPLOY_COALESCE_MIN=x bash "$S" hold "$now" "$now" >/dev/null 2>&1; check "$?" 2 "hold: a non-numeric window is refused"
+
+# 2b. the owner's 2-hour hold (poll 9f948a6a pick B): the default window, and
+# hold-version reading a hub GET /version body's .built_at
+check "$(env -u HUB_DEPLOY_COALESCE_MIN bash "$S" hold $((now - 1800)) "$now")" 5400 "hold: the default window is 120 min"
+iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
+check "$(printf '{"commit":"abc","built_at":"%s"}' "$(iso $((now - 1800)))" | env -u HUB_DEPLOY_COALESCE_MIN bash "$S" hold-version "$now")" 5400 \
+  "hold-version: a build served for 30 min holds 90 more"
+check "$(printf '{"commit":"abc","built_at":"%s"}' "$(iso $((now - 7800)))" | env -u HUB_DEPLOY_COALESCE_MIN bash "$S" hold-version "$now")" 0 \
+  "hold-version: a build served for 130 min rolls now"
+check "$(printf '{"commit":"abc"}' | bash "$S" hold-version "$now" 2>/dev/null)" 0 "hold-version: no .built_at never holds"
+check "$(printf 'junk' | bash "$S" hold-version "$now" 2>/dev/null)" 0 "hold-version: a junk body never holds"
+check "$(bash "$S" hold-version "$now" </dev/null 2>/dev/null)" 0 "hold-version: no body never holds"
+
+# 2c. workflow 20 wires the hold into its forward guard, prd also waits on dev's
+W="$PROJ_ROOT/../.github/workflows/20_hub-build-deploy.yml"
+if [[ -f "$W" ]]; then
+  grep -q "HUB_DEPLOY_COALESCE_MIN: \${{ vars.HUB_DEPLOY_COALESCE_MIN || '120' }}" "$W" \
+    && pass "workflow 20: the hold window is a repo var, default 120" || fail "workflow 20: no HUB_DEPLOY_COALESCE_MIN default 120"
+  [[ "$(grep -c 'hub-deploy-coalesce.sh hold-version' "$W")" -ge 2 ]] \
+    && pass "workflow 20: the guard reads its env's and (prd) dev's hold" || fail "workflow 20: hold-version not called for both envs"
+  grep -q 'DEV_API_FQDN: \${{ steps.cfg.outputs.dev_api_fqdn }}' "$W" \
+    && pass "workflow 20: the prd leg gets dev's /version host" || fail "workflow 20: no DEV_API_FQDN"
+else
+  echo "SKIP: section 2c, no $W"
+fi
 
 # 3. the action, its cloud helpers stubbed, gcloud a stub on PATH
 mkdir -p "$T/bin"

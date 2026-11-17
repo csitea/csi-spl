@@ -48,7 +48,8 @@
 # @description Prints one verdict line per component, `<env> <component>
 # @description <verdict> ...`, and exits with the WORST of them:
 # @description   0 current  - served, or ahead, or no input of it changed since
-# @description   0 pending  - it did change, but within the grace period
+# @description   0 pending  - it did change, but within the grace period, or (hub)
+# @description                within the 2-hour rollout hold: held=<min left>
 # @description   3 lagging  - it changed, the grace has passed, and it is not live
 # @description   1          - cannot tell (no endpoint, junk body, commit not in
 # @description                this checkout -- a shallow clone, so fetch-depth 0)
@@ -61,6 +62,7 @@
 # @param LAG_HTTP_TIMEOUT - optional: per-probe curl --max-time seconds (default 15)
 # @param LAG_HUB_URL / LAG_WUI_URL - optional: override the cnf-derived probe URL (tests)
 # @param LAG_TRUNK - optional: the branch whose pushes date a landing (default master)
+# @param HUB_DEPLOY_COALESCE_MIN - optional: hub rollout hold in minutes (default 120, 0 = off); a younger served build reads pending held=<m> (SPL-5641)
 # @example ENV=dev ./run -a do_check_deploy_lag
 # @example ENV=prd SHA=$(git rev-parse origin/master) GRACE_MINUTES=60 ./run -a do_check_deploy_lag
 #------------------------------------------------------------------------------
@@ -174,6 +176,18 @@ _spl_lag_one() {
   if [[ "$age_min" -lt "$grace" ]]; then
     echo "$ENV $comp pending served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from (a roll is still within its grace period)"
     return 0
+  fi
+  # The 2-hour hold (SPL-5641, owner pick B on poll 9f948a6a): workflow 20
+  # stands a guarded hub roll down while the served build is younger than
+  # HUB_DEPLOY_COALESCE_MIN (default 120), and 21 dispatches trunk head once it
+  # has passed. Inside that window the lag is planned, not stuck: pending.
+  local held
+  if [[ "$comp" == hub ]]; then
+    held="$(bash "$PROJ_PATH/src/bash/scripts/hub-deploy-coalesce.sh" hold-version 2>/dev/null <<<"$body")" || held=0
+    if [[ "$held" =~ ^[1-9][0-9]*$ ]]; then
+      echo "$ENV $comp pending served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from held=$((held / 60))m (the 2-hour rollout hold: the served build is younger than ${HUB_DEPLOY_COALESCE_MIN:-120}m; 21 rolls trunk head after it)"
+      return 0
+    fi
   fi
   echo "$ENV $comp lagging served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from url=$url"
   return 3

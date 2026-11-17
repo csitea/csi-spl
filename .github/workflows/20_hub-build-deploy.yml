@@ -414,6 +414,10 @@ jobs:
               echo "canary=$(yq -r ".env.hub.cloud_run.canary.enabled // false" "$SPL_CNF")"'
           }
           resolve "$GITHUB_WORKSPACE" | tee "$RUNNER_TEMP/cfg.env" >> "$GITHUB_OUTPUT"
+          # the prd leg also reads dev's hold (SPL-5641): dev equals or leads prd
+          if [[ "$ENV" == prd ]]; then
+            ENV=dev resolve "$GITHUB_WORKSPACE" | sed -n 's/^api_fqdn=/dev_api_fqdn=/p' | tee -a "$RUNNER_TEMP/cfg.env" >> "$GITHUB_OUTPUT"
+          fi
           grep -q '^service_name=.\+' "$RUNNER_TEMP/cfg.env" \
             || { echo "::error::cnf env.hub.service_name is empty for $ENV"; exit 1; }
 
@@ -431,21 +435,34 @@ jobs:
       # A dispatch naming one env is an operator action (including a
       # deliberate rollback, which reuses the commit's own version tag) and is
       # not guarded.
-      - name: Forward-only guard
+      #
+      # The 2-hour hold (SPL-5641, the owner's pick B on poll 9f948a6a, msg
+      # 3197121d): every roll drops every box's socket, so a guarded run that
+      # WOULD roll stands down while the env's served build is younger than
+      # HUB_DEPLOY_COALESCE_MIN (repo var, default 120; 0 = off). It does not
+      # sleep (a 2 h job would hold the runner and the concurrency group):
+      # 21's catch-up waits out the same window and then dispatches trunk head
+      # once, which carries every push of the window. A one-env dispatch is
+      # never held. The prd leg also holds while dev is held (the two legs run
+      # in parallel; dev equals or leads prd). Math:
+      # csi-spl-orc/src/bash/scripts/hub-deploy-coalesce.sh.
+      - name: Forward-only guard + 2-hour hold
         id: guard
         env:
           GUARD_EVENT: ${{ needs.prepare-deploy.outputs.guard_event }}
           API_FQDN: ${{ steps.cfg.outputs.api_fqdn }}
+          DEV_API_FQDN: ${{ steps.cfg.outputs.dev_api_fqdn }}
+          HUB_DEPLOY_COALESCE_MIN: ${{ vars.HUB_DEPLOY_COALESCE_MIN || '120' }}
         run: |
           set -uo pipefail
           ok=true
           if [[ "$GUARD_EVENT" == push ]]; then
             git fetch -q origin master
             tip="$(git rev-parse origin/master)"
-            served=""
+            body=""; served=""
             if [[ -n "$API_FQDN" ]]; then
-              served="$(curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "https://$API_FQDN/version" 2>/dev/null |
-                jq -r 'if type == "object" and (.commit | type) == "string" then .commit else "" end' 2>/dev/null)" || served=""
+              body="$(curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "https://$API_FQDN/version" 2>/dev/null)" || body=""
+              served="$(jq -r 'if type == "object" and (.commit | type) == "string" then .commit else "" end' <<<"$body" 2>/dev/null)" || served=""
             fi
             rc=0
             verdict="$(SHA="$GITHUB_SHA" TIP="$tip" SERVED="$served" bash csi-spl-orc/src/bash/scripts/hub-deploy-guard.sh decide)" || rc=$?
@@ -455,6 +472,20 @@ jobs:
               10) ok=false; echo "::warning::$ENV: $(tail -1 <<<"$verdict")" ;;
               *) echo "::error::forward guard could not decide (rc $rc)"; exit 1 ;;
             esac
+            if [[ "$ok" == true ]]; then
+              hold="$(bash csi-spl-orc/src/bash/scripts/hub-deploy-coalesce.sh hold-version <<<"$body")" || hold=0
+              [[ "$hold" =~ ^[0-9]+$ ]] || hold=0
+              # prd waits while dev is held, so a held dev never trails a rolled prd
+              if [[ "$ENV" == prd && -n "${DEV_API_FQDN:-}" ]]; then
+                devhold="$(curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "https://$DEV_API_FQDN/version" 2>/dev/null |
+                  bash csi-spl-orc/src/bash/scripts/hub-deploy-coalesce.sh hold-version)" || devhold=0
+                [[ "$devhold" =~ ^[0-9]+$ ]] && ((devhold > hold)) && hold=$devhold
+              fi
+              if ((hold > 0)); then
+                ok=false
+                echo "::warning::$ENV: held -- the served build (on prd: or dev's) is younger than ${HUB_DEPLOY_COALESCE_MIN} min; ${hold}s left, then 21's catch-up rolls trunk head (SPL-5641)"
+              fi
+            fi
           fi
           echo "ok=$ok" >> "$GITHUB_OUTPUT"
 

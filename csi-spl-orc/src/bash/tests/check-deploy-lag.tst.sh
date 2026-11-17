@@ -85,7 +85,7 @@ fixture() { printf '{"commit":"%s","built_at":"2026-09-20T00:00:00Z"}' "$1" >"$T
 lag_one() {
   local label="$1" url="$2" sha="$3" grace="$4" want="$5" word="$6"
   local out rc
-  out=$(env APP_PATH="$REPO" ENV=dev bash -c '
+  out=$(env APP_PATH="$REPO" PROJ_PATH="$PROJ_ROOT" ENV=dev bash -c '
     do_log() { echo "$*" >&2; }
     source "$0"
     _spl_lag_one hub "$1" "$2" "$3" 15 csi-spl-api/src/go .version
@@ -100,6 +100,14 @@ lag_one "the env is AHEAD of the commit under test" "$(fixture "$C_FRESH" ahead)
 lag_one "behind, but only docs changed since" "$(fixture "$C_DOC" docs)" "$C_DOC" 45 0 current
 lag_one "CONTROL: a real hub input, older than the grace -> RED" "$(fixture "$C_BASE" lag)" "$C_FRESH" 45 3 lagging
 lag_one "the same lag inside a wide grace period" "$(fixture "$C_BASE" lag)" "$C_FRESH" 1000 0 pending
+
+# 2b. the 2-hour rollout hold (SPL-5641): a hub whose served build is younger
+# than HUB_DEPLOY_COALESCE_MIN is held on purpose -> pending held=<m>, rc 0
+fixture_built() { printf '{"commit":"%s","built_at":"%s"}' "$1" "$(ago "$3")" >"$T/$2.json"; echo "file://$T/$2.json"; }
+lag_one "a lag whose served build is 30 min old is held" "$(fixture_built "$C_BASE" held30 30)" "$C_FRESH" 45 0 pending
+grep -qE 'held=(89|90)m' "$T/last" && pass "held: says ~90 min left" || fail "held: no held=89|90m in: $(cat "$T/last")"
+lag_one "CONTROL: the same lag, served build 130 min old -> RED" "$(fixture_built "$C_BASE" held130 130)" "$C_FRESH" 45 3 lagging
+HUB_DEPLOY_COALESCE_MIN=0 lag_one "the same lag, hold off (window 0) -> RED" "$(fixture_built "$C_BASE" held0 30)" "$C_FRESH" 45 3 lagging
 
 # 3. "behind, nothing of MINE changed": served C_BASE, sha C_DOC -> n=0
 lag_one "behind by a docs-only commit -> n=0, not lag" "$(fixture "$C_BASE" b2)" "$C_DOC" 45 0 current

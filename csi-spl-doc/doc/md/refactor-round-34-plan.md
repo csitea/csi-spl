@@ -5,7 +5,8 @@ Spec: csi-spl-doc/specs/011-spool-project-refactor
 Class: refactor  
 Kind: specs_and_docs  
 Issue: SPL-5800  
-Topic: 3209f8b8-cdf7-42b3-9018-8376989f9461  
+Topic: 810c58ec-ea4b-4e72-bf11-e35c60054de4  
+Discussion: 810c58ec-ea4b-4e72-bf11-e35c60054de4 (t1 #refactoring, "Refactor round 34", opened by the holder c-002@sat 2026-11-17T14:43:57Z, opener df49aaeb)  
 
 Owner HUM-10 directives and fleet rules, by pointer:
 - msg 3d22fcea: rounds run continuously, no owner go
@@ -39,7 +40,7 @@ Rows 04-06 take 10 of the 27 files off the `no-literal-paths` baseline: the
 `/var/<org>/<app>` state-dir defaults and two key-file examples, part of the "round 2"
 its test header names.
 
-**Status: v0.1, draft.** No row lane starts before the panel signs the plan sha.
+**Status: v0.2, draft.** No row lane starts before the panel signs the plan sha.
 
 Editor: **c-041@sat** (claude). Panel seat: requested, section 5.
 
@@ -58,9 +59,13 @@ Queue, lane and vendor readings are live state, so they carry their own time.
   -> 0. The last slug is taken: `--grep='\(r59-[0-9]{2}'` -> 7; the highest round
   slug in any subject,
   `git log origin/master --format=%s | grep -oE '^[a-z]+\(r[0-9]+-' | grep -oE 'r[0-9]+' | sort -t r -k2 -n | tail -1`
-  -> `r59`. No `refactor-round-34*` file under `csi-spl-doc/doc/md`. **Not read:** the
-  same spool grep on the other box; the holder runs it there before the first row
-  is queued.
+  -> `r59`. No `refactor-round-34*` file under `csi-spl-doc/doc/md`. **The other box**
+  (c-001 there, msg da90524b, relayed by the holder c-002@sat in eb599212,
+  2026-11-17T14:4xZ, n=1, not re-run here): `grep -rlE 'r60-[0-9]{2}'` over
+  `/var/spool-hub/dispatch/briefs` and `/var/spool-hub/spawn-remote` -> 0; the asks
+  journal `/var/spool-hub/asks` (8658 files) -> 0; `dispatch/asks.out` -> 0; control
+  `r42-[0-9]{2}` -> 22 brief files and 21 asks, so the grep reads those trees. **`r60`
+  is free on both boxes.**
 - One row = one practice = one lane, at the sites named and nowhere else, with a test
   that shows behaviour kept or, for a test row, a **red control**.
 - **Paths:** `go:` = `csi-spl-api/src/go/spool-hub-api/internal/`, `orc:` =
@@ -253,6 +258,11 @@ packages (section 2).
 
 ## 8. Changes
 
+- v0.2 (c-041@sat): the round's discussion is t1 810c58ec (the holder's 079a3ade; the
+  brief's 3209f8b8 is no hub topic, c-001 42cabe28), SPL-5800 linked to it. Section 1's slug proof gains the other box's reading (c-001 there,
+  da90524b, via the holder's eb599212): `r60` free on both boxes. Rows, sites and
+  batches unchanged; v0.2 differs from v0.1 by the header's Topic and Discussion lines,
+  section 1, the status line and this section only.
 - v0.1: first draft (c-041@sat): 6 rows, slug `r60`, measured on `fd9e5a27a`. Carries
   perf-round-5-retro section 5 items 4 and 5 (rows 01-02, ask 94ae299e), the SPL-5549
   and SPL-5527 ratchets (rows 03-06), and round 33's section 6 re-measured. The earlier

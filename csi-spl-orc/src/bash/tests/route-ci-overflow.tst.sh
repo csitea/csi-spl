@@ -13,6 +13,7 @@
 #      waiting -> stays (the hysteresis)
 #   4. switched off (env, hub fleet-load ci_overflow false, cnf): hosted at
 #      once with no runs query; the hub's true beats cnf false
+#   2b. budget (SPL-5734): runs started over 24 h ago cost no jobs call
 #   5. the cron script runs the action with DRY_RUN=0, refuses a worktree;
 #      the installer writes ONE */5 tagged line, keeps the others, removes it
 #   No real gh, crontab or hub: stubs.
@@ -119,6 +120,18 @@ out="$(route DRY_RUN=0 GH_RUNS_FAIL=1)"; rc=$?
 out="$(route DRY_RUN=0 CI_OVERFLOW_MAX_RUNS=1)"; rc=$?
 [[ $rc -eq 0 && "$(grep -c '/jobs?' "$T/gh.calls")" == 1 ]] &&
   pass "CI_OVERFLOW_MAX_RUNS=1 bounds the jobs queries" || fail "max runs (rc=$rc): $(cat "$T/gh.calls")"
+
+# SPL-5734 budget: ghost runs stuck "queued" since days (0 jobs) cost no jobs
+# call; 15 such + 1 fresh run = 1 jobs call per tick (the old code made 16)
+clear_fx; old="$(ago $((6 * 24 * 60)))"; ids=""
+for i in $(seq 101 115); do ids+="{\"id\":$i,\"created_at\":\"$old\",\"run_started_at\":\"$old\"},"; jobs "$i"; done
+echo "{\"workflow_runs\":[${ids}{\"id\":31,\"created_at\":\"$(ago 12)\",\"run_started_at\":\"$(ago 12)\"}]}" >"$T/fx/runs-queued.json"
+jobs 31 ubuntu-latest queued 12
+echo "$HOSTED" >"$T/var"; rm -rf "$T/state"
+out="$(route)"; rc=$?; n="$(grep -c '/jobs?' "$T/gh.calls")"
+[[ $rc -eq 0 && "$n" == 1 && "$(grep -c "^gh " "$T/gh.calls")" -le 4 && "$out" == *'a hosted job queued 12 min'* ]] &&
+  pass "budget: 15 runs started 6 days ago are skipped, 1 jobs call, <= 4 gh calls a tick" || fail "budget (rc=$rc, jobs calls $n): $out"
+echo "$HOSTED" >"$T/var"; rm -rf "$T/state"
 
 # 3. local -> hosted (hysteresis) ---------------------------------------------------------
 clear_fx; echo "$LOCAL" >"$T/var"; mkdir -p "$T/state"

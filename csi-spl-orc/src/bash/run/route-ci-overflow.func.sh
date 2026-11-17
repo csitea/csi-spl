@@ -6,7 +6,8 @@
 # @description then we should spawn local runners"). Overwhelmed, measured:
 # @description a job of this repo bound for a hosted runner (no "self-hosted"
 # @description label) has been QUEUED enter_queue_min minutes or longer (the
-# @description runs queued or in progress, their jobs, gh api). Then the repo
+# @description runs queued or in progress and started in the last 24 h, their
+# @description jobs, gh api; an older run holds no queued job). Then the repo
 # @description variable SPOOL_CI_RUNNER (wf 10's runs-on, via
 # @description do_gh_set_ci_vars, never a hand `gh variable set`) goes to
 # @description ["self-hosted","spool-ci"]; the runner budget
@@ -42,8 +43,12 @@ _rco_gh() { (cd "$(dirname "${BASH_SOURCE[0]}")" && timeout 30 ${CI_OVERFLOW_GH:
 _rco_hosted_wait() {
   local ids id st now oldest="" t max="${CI_OVERFLOW_MAX_RUNS:-30}" n=0
   ids=""
+  # SPL-5734: a run (re)started more than a day ago is skipped: GitHub cancels
+  # a job queued 24 h, so it holds no queued job. Ghost runs stuck "queued"
+  # with 0 jobs (15 since 11-11) cost one jobs call each, every tick.
   for st in queued in_progress; do
-    t="$(_rco_gh api "repos/{owner}/{repo}/actions/runs?status=$st&per_page=100" --jq '.workflow_runs[].id' 2>/dev/null)" || return 1
+    t="$(_rco_gh api "repos/{owner}/{repo}/actions/runs?status=$st&per_page=100" --jq '.workflow_runs[]
+      | select((.run_started_at // .created_at // "") as $s | $s == "" or ($s | fromdate) > (now - 86400)) | .id' 2>/dev/null)" || return 1
     ids+="$t"$'\n'
   done
   while read -r id; do

@@ -146,6 +146,30 @@ func (s *Memory) ListNotes(_ context.Context, person string) ([]NoteSummary, err
 	return out, nil
 }
 
+// NotesOnIssue is Notes.NotesOnIssue.
+func (s *Memory) NotesOnIssue(_ context.Context, person, ws, key string) ([]NoteOnIssue, error) {
+	if err := checkNoteIssue(person, ws, key); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []NoteOnIssue
+	for _, n := range s.sortedNotes(person) {
+		var hits []NoteLink
+		for _, l := range n.Links {
+			if l.Kind == NoteLinkIssue && l.WorkspaceID == ws && l.Ref == key {
+				hits = append(hits, l)
+			}
+		}
+		if len(hits) > 0 {
+			sortNoteLinks(hits) // the first in link order, as Postgres reads it
+			out = append(out, NoteOnIssue{ID: n.ID, Title: n.Title, ArchivedAt: copyNote(n).ArchivedAt,
+				UpdatedAt: n.UpdatedAt, Link: hits[0]})
+		}
+	}
+	return out, nil
+}
+
 // CreateNote is Notes.CreateNote.
 func (s *Memory) CreateNote(_ context.Context, person string, n Note, now time.Time) (Note, error) {
 	if err := checkPerson(person); err != nil {

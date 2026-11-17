@@ -453,3 +453,63 @@ func TestNotesOwnNoteHasNoProvenance(t *testing.T) {
 		}
 	}
 }
+
+// notesOnIssue is the ids and titles of the notes answer to
+// GET ?workspace=ws&issue=key from browser c (nil = P1's).
+func (n *notesRig) notesOnIssue(t *testing.T, c *http.Client, ws, key string) (int, map[string]any, map[string]string) {
+	t.Helper()
+	code, out, _ := n.do(t, c, http.MethodGet, notesBase+"?workspace="+ws+"&issue="+key, nil, nil)
+	got := map[string]string{}
+	ls, _ := out["notes"].([]any)
+	for _, l := range ls {
+		m, _ := l.(map[string]any)
+		id, _ := m["id"].(string)
+		title, _ := m["title"].(string)
+		got[id] = title
+	}
+	return code, out, got
+}
+
+// Spec 155 2.12 (SPL-5769): the notes that link an issue are the caller's
+// own only. P1 and P2, both seated in W1, each link issue SPL-7 of W1; each
+// reads its own note alone, with the link and no body. No session is 401,
+// an agent token 403, no workspace or no key 400.
+func TestNotesOnIssueOwnOnly(t *testing.T) {
+	n := newNotesRig(t, true)
+	link := func(key string) []map[string]any {
+		return []map[string]any{{"kind": "issue", "workspace_id": n.w1, "ref": key, "label": key}}
+	}
+	mine := n.create(t, map[string]any{"title": "mine", "body": "private body", "links": link("SPL-7")})
+	n.create(t, map[string]any{"title": "other key", "links": link("SPL-8")})
+	p2, _ := n.browserAs(t, n.w1, "admin")
+	code, out, _ := n.do(t, p2, http.MethodPost, notesBase, map[string]any{"title": "theirs", "links": link("SPL-7")}, nil)
+	theirs, _ := out["id"].(string)
+	if code != http.StatusCreated || theirs == "" {
+		t.Fatalf("P2 POST note = %d %v", code, out)
+	}
+	code, out, got := n.notesOnIssue(t, nil, n.w1, "SPL-7")
+	if code != http.StatusOK || len(got) != 1 || got[mine] != "mine" {
+		t.Fatalf("P1 notes on SPL-7 = %d %v, want P1's note alone (P2's %s must not show)", code, out, theirs)
+	}
+	row := out["notes"].([]any)[0].(map[string]any)
+	l, _ := row["link"].(map[string]any)
+	if l["kind"] != "issue" || l["ref"] != "SPL-7" || l["workspace_id"] != n.w1 || row["body"] != nil || row["links"] != nil {
+		t.Errorf("P1 row = %v, want the issue link and no body or other links", row)
+	}
+	if code, out, got := n.notesOnIssue(t, p2, n.w1, "SPL-7"); code != http.StatusOK || len(got) != 1 || got[theirs] != "theirs" {
+		t.Errorf("twin: P2 notes on SPL-7 = %d %v, want P2's note alone", code, out)
+	}
+	anon := &http.Client{Transport: n.r.browser.Transport}
+	if code, out, _ := n.notesOnIssue(t, anon, n.w1, "SPL-7"); code != http.StatusUnauthorized {
+		t.Errorf("no session = %d %v, want 401", code, out)
+	}
+	if code, out, _ := n.do(t, nil, http.MethodGet, notesBase+"?workspace="+n.w1+"&issue=SPL-7", nil,
+		map[string]string{"Authorization": "Bearer box-agent-token"}); code != http.StatusForbidden || realmToken(out) != "person_only" {
+		t.Errorf("agent token = %d %v, want 403 person_only", code, out)
+	}
+	for _, q := range []string{"?issue=SPL-7", "?workspace=" + n.w1 + "&issue="} {
+		if code, out, _ := n.do(t, nil, http.MethodGet, notesBase+q, nil, nil); code != http.StatusBadRequest || realmToken(out) != "bad_note" {
+			t.Errorf("GET %s = %d %v, want 400 bad_note", q, code, out)
+		}
+	}
+}

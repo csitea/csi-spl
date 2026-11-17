@@ -154,6 +154,16 @@ type NoteSummary struct {
 	LinkCount  int
 }
 
+// NoteOnIssue is one note of the person that links an issue (spec 155 2.12):
+// the note's id, title and archive time, and its first link to that issue.
+type NoteOnIssue struct {
+	ID         string
+	Title      string
+	ArchivedAt *time.Time
+	UpdatedAt  time.Time
+	Link       NoteLink
+}
+
 // NotePatch is a PATCH of a note: nil fields are kept. Archived true keeps
 // an earlier archive time; false clears it.
 type NotePatch struct {
@@ -208,6 +218,11 @@ type Notes interface {
 	// notes (OQ-3). ErrRealmBad outside the limits, ErrNotesFull at
 	// NotesPerPerson.
 	CreateNoteOnAsk(ctx context.Context, person string, in NoteOnAsk, now time.Time) (NoteAdded, error)
+	// NotesOnIssue is the person's notes, archived ones too, that carry an
+	// issue link to key in workspace ws, in list order (spec 155 2.12).
+	// Only the person's own notes: the store reads no other person's row.
+	// ErrRealmBad: ws or key empty or too long.
+	NotesOnIssue(ctx context.Context, person, ws, key string) ([]NoteOnIssue, error)
 }
 
 var (
@@ -416,6 +431,20 @@ func checkNoteIDs(person string, ids ...string) error {
 	return nil
 }
 
+// checkNoteIssue is checkPerson plus an issue link's workspace and key.
+func checkNoteIssue(person, ws, key string) error {
+	if err := checkPerson(person); err != nil {
+		return err
+	}
+	if err := checkRealmWorkspace(ws); err != nil {
+		return err
+	}
+	if key == "" {
+		return fmt.Errorf("%w: an issue key is needed", ErrRealmBad)
+	}
+	return checkNoteText("ref", key, NoteRefMax)
+}
+
 // noteSnippet is the first NoteSnippetChars characters of body.
 func noteSnippet(body string) string {
 	n := 0
@@ -595,6 +624,39 @@ func (s *Postgres) ListNotes(ctx context.Context, person string) ([]NoteSummary,
 			out = append(out, m)
 			return err
 		})
+	})
+	return out, err
+}
+
+// NotesOnIssue is Notes.NotesOnIssue: the person scope, and person_id in
+// every WHERE, so no other person's note is read.
+func (s *Postgres) NotesOnIssue(ctx context.Context, person, ws, key string) ([]NoteOnIssue, error) {
+	if err := checkNoteIssue(person, ws, key); err != nil {
+		return nil, err
+	}
+	var out []NoteOnIssue
+	err := s.inPerson(ctx, person, func(tx pgx.Tx) error {
+		return eachRow(ctx, tx, `
+			SELECT n.note_id::text, n.title, n.archived_at, n.updated_at,
+			       l.link_id, l.kind, l.ws, l.ref, l.day, l.label, l.position, l.created_at
+			FROM personal.notes n
+			JOIN LATERAL (
+				SELECT link_id::text AS link_id, kind, COALESCE(workspace_id, '') AS ws, ref,
+				       COALESCE(day::text, '') AS day, label, position, created_at
+				FROM personal.note_links k
+				WHERE k.person_id = n.person_id AND k.note_id = n.note_id
+				  AND k.kind = $2 AND k.workspace_id = $3 AND k.ref = $4
+				ORDER BY k.position, k.created_at LIMIT 1) l ON true
+			WHERE n.person_id = $1
+			ORDER BY n.pinned DESC, n.priority, n.position, n.updated_at DESC`,
+			[]any{person, NoteLinkIssue, ws, key}, func(r pgx.Rows) error {
+				var m NoteOnIssue
+				l := &m.Link
+				err := r.Scan(&m.ID, &m.Title, &m.ArchivedAt, &m.UpdatedAt,
+					&l.ID, &l.Kind, &l.WorkspaceID, &l.Ref, &l.Day, &l.Label, &l.Position, &l.CreatedAt)
+				out = append(out, m)
+				return err
+			})
 	})
 	return out, err
 }

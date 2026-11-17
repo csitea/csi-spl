@@ -8930,8 +8930,28 @@
         ]
       },
       "get": {
-        "description": "Every note of the person, archived ones too: pinned first, then by priority (1 first), then by position. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "description": "Every note of the person, archived ones too: pinned first, then by priority (1 first), then by position. Spec 155 B4. With issue= (and workspace=), only the person's own notes, archived ones too, that carry an issue link to that key in that workspace, in the same order (spec 155 2.12, SPL-5769); another person's note is never listed. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
         "operationId": "listMeRealmNotes",
+        "parameters": [
+          {
+            "description": "the workspace of the issue link; required with issue (a realm route takes no X-Spool-Tenant), 400 bad_note when empty",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "an issue key, e.g. SPL-123: answer only the notes that link it; 400 bad_note when empty",
+            "in": "query",
+            "name": "issue",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -8949,7 +8969,7 @@
                 }
               }
             },
-            "description": "OK: {notes: [{id, title, snippet, pinned, priority, position, archived, archived_at, updated_at, items_done, items_total, link_count}]}. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+            "description": "OK: {notes: [{id, title, snippet, pinned, priority, position, archived, archived_at, updated_at, items_done, items_total, link_count}]}; with issue=: {notes: [{id, title, archived, archived_at, updated_at, link: {id, kind, workspace_id, ref, label, left, position, created_at}}]}, no body or other link. Contract: csi-spl-doc/specs/155-notes-section/spec.md sections 5 and 2.12."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"

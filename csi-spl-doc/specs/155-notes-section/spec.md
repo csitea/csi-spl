@@ -1,6 +1,8 @@
 # 155 Notes section, with quick links to anything
 
-Version v1.5, 2026-11-11, by a-624 (agy): adds section 2.11, an agent adds a
+Version v1.6, 2026-11-17, by c-889 (claude): adds section 2.12, the issue
+dialog lists the person's own notes that link that issue (SPL-5769), with its
+route in section 5. v1.5, 2026-11-11, by a-624 (agy): adds section 2.11, an agent adds a
 note on a person's ask (SPL-5295), folding the owner's poll `03dbcb6b` answers
 in section 3.1, data/wire/switch lines in sections 4-6, cases C33-C40 in
 section 7 and build rows B11-B12 in section 8. v1.4, 2026-11-11, by c-538 (claude): section 2.10, every note's menu
@@ -585,6 +587,39 @@ in `hub/ws.go`; CLI `spool note add`, MCP `spool_note_add`, switch
 order above, all in `x.tenant`, before `CreateNoteOnAsk` opens the person scope;
 what the build settled is in section 8, "B12 Implemented".
 
+### 2.12 The issue dialog lists my notes on it (SPL-5769)
+
+Origin: HUM-24, csitea topic `bc7c22e1` ("a note written for a task does
+not show in the task's file"). A note is the person's alone (2.2), so the
+issue cannot show it to everyone; it shows each person their OWN notes that
+link the issue, and nobody else's.
+
+- **Store**: `Notes.NotesOnIssue(person, ws, key)` (`store/personal_notes.go`,
+  memory twin in `store/personal_notes_memory.go`): the person's notes,
+  archived ones too, that carry a link of kind `issue` with that
+  `workspace_id` and `ref`, in list order (2.9), each with its first such
+  link (position, then created_at). It runs in the person scope like every
+  notes read, and `person_id` is in every `WHERE`. An empty or too long
+  workspace or key is `ErrRealmBad`. No index: the scan is bounded by the
+  primary key's `person_id` prefix and the 2 000-note cap, so no migration.
+- **Route**: `GET /v1/me/realm/notes?workspace=<ws>&issue=<key>` (section
+  5). The workspace is a query value, since a realm route refuses
+  `X-Spool-Tenant`. The answer is `{notes: [{id, title, archived,
+  archived_at, updated_at, link}]}`: no body, checklist or other link. Who:
+  `realmCaller`, as every notes route (a signed-in human alone; 401 without
+  a session, 403 `person_only` for an agent, a box token or an act-as
+  clone). The link follows D4 (2.4).
+- **WUI**: in the open issue, a small **My notes** list under the comment
+  box, one row per note (its title, or "Untitled note"), each opening
+  `/notes?note=<id>`. Archived notes are left out. It shows nothing when
+  the person has no such note or Notes is off (404 `notes_off`). It is its
+  own chunk (`LazyIssueMyNotes`), so the initial JS does not grow.
+- **Tests**: `store/personal_notes_test.go` `TestNotesOnIssue` (memory and
+  Postgres as the runtime role) and `hub/realm_notes_test.go`
+  `TestNotesOnIssueOwnOnly`: P1 and P2, both seated in W1, each link issue
+  SPL-7; each reads its own note alone. Red control: the memory store
+  without the person filter fails both tests.
+
 ## 3. Defaults (owner may change)
 
 The owner asked to start building without a question round. Each default
@@ -736,6 +771,7 @@ is applied with it still answers `notes_off` (the binary default is off).
 | route | does | answer |
 |---|---|---|
 | `GET /v1/me/realm/notes` | the list: id, title, the first 200 characters of the body, pinned, priority, position, archived, updated_at, item counts (done/total), link count | 200 |
+| `GET /v1/me/realm/notes?workspace=<ws>&issue=<key>` | the person's own notes that link that issue (2.12): id, title, archived, archived_at, updated_at, the link | 200, 400 `bad_note` |
 | `POST /v1/me/realm/notes` | a new note; the body may hold title, body, items, links | 201, the note |
 | `GET /v1/me/realm/notes/{id}` | one note with items and links (2.4 for labels) | 200, 404 |
 | `PATCH /v1/me/realm/notes/{id}` | title, body, pinned, priority, archived, position | 200, 404 |

@@ -363,6 +363,7 @@ func TestNotesRefuseBeforeSQL(t *testing.T) {
 			_, calls["ExportNotes"] = st.ExportNotes(context.Background(), p)
 			_, calls["EraseNotes"] = st.EraseNotes(context.Background(), p)
 			_, calls["CreateNoteOnAsk"] = st.CreateNoteOnAsk(context.Background(), p, askOf(), time.Now())
+			_, calls["NotesOnIssue"] = st.NotesOnIssue(context.Background(), p, "ws-1", "SPL-1")
 			for call, err := range calls {
 				if !errors.Is(err, ErrNoPerson) {
 					t.Errorf("%s %s(%q): %v, want ErrNoPerson", name, call, p, err)
@@ -713,4 +714,67 @@ func TestNotesC33AgentAskColumns(t *testing.T) {
 	if l, err := f.st.ListNotes(ctx, p1); err != nil || len(l) != 3 {
 		t.Errorf("ListNotes: %d rows, %v; want 3", len(l), err)
 	}
+}
+
+// issueLink is an issue link to key in ws at position pos.
+func issueLink(ws, key string, pos float64) NoteLink {
+	return NoteLink{Kind: NoteLinkIssue, WorkspaceID: ws, Ref: key, Position: pos}
+}
+
+// TestNotesOnIssue (spec 155 2.12, SPL-5769): the person's notes that link
+// an issue, in list order, archived ones too, each with its first link to
+// it; never a note of another person, another workspace or another key.
+// TWIN: P2's own note on the same issue is P2's answer, and only P2's.
+func TestNotesOnIssue(t *testing.T) {
+	eachNotesDriver(t, func(t *testing.T, f notesFix) {
+		ctx := context.Background()
+		now := time.Now().UTC().Truncate(time.Second)
+		p1, p2 := realmPersons()
+		f.addHuman(t, p1)
+		f.addHuman(t, p2)
+		mk := func(person, title string, links ...NoteLink) Note {
+			n, err := f.st.CreateNote(ctx, person, Note{Title: title, Links: links}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return n
+		}
+		a := mk(p1, "A", NoteLink{Kind: NoteLinkTopic, WorkspaceID: "ws-1", Ref: "topic-1"},
+			issueLink("ws-1", "SPL-1", 3), issueLink("ws-1", "SPL-1", 2))
+		mk(p1, "other workspace", issueLink("ws-2", "SPL-1", 0))
+		mk(p1, "other key", issueLink("ws-1", "SPL-2", 0), issueLink("ws-1", "SPL-10", 1))
+		mk(p1, "no link")
+		if got, err := f.st.NotesOnIssue(ctx, p2, "ws-1", "SPL-1"); err != nil || len(got) != 0 {
+			t.Fatalf("P2 with no note: %d rows, %v; want 0 (P1's notes leaked)", len(got), err)
+		}
+		e := mk(p1, "E archived", issueLink("ws-1", "SPL-1", 0))
+		yes := true
+		if _, err := f.st.PatchNote(ctx, p1, e.ID, NotePatch{Archived: &yes}, []string{"ws-1"}, now); err != nil {
+			t.Fatal(err)
+		}
+		d := mk(p2, "D", issueLink("ws-1", "SPL-1", 0))
+		got, err := f.st.NotesOnIssue(ctx, p1, "ws-1", "SPL-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 2 || got[0].ID != e.ID || got[1].ID != a.ID {
+			t.Fatalf("P1: %+v; want E then A", got)
+		}
+		if got[0].ArchivedAt == nil || got[1].ArchivedAt != nil || got[1].Title != "A" {
+			t.Errorf("P1 rows: archived %v/%v, title %q", got[0].ArchivedAt, got[1].ArchivedAt, got[1].Title)
+		}
+		if l := got[1].Link; l.Kind != NoteLinkIssue || l.WorkspaceID != "ws-1" || l.Ref != "SPL-1" || l.Position != 2 || l.ID == "" {
+			t.Errorf("A's link: %+v; want the issue link at position 2", l)
+		}
+		twin, err := f.st.NotesOnIssue(ctx, p2, "ws-1", "SPL-1")
+		if err != nil || len(twin) != 1 || twin[0].ID != d.ID {
+			t.Errorf("twin: P2: %+v, %v; want D alone", twin, err)
+		}
+		for name, args := range map[string][2]string{"no workspace": {"", "SPL-1"}, "no key": {"ws-1", ""},
+			"long key": {"ws-1", strings.Repeat("K", NoteRefMax+1)}} {
+			if _, err := f.st.NotesOnIssue(ctx, p1, args[0], args[1]); !errors.Is(err, ErrRealmBad) {
+				t.Errorf("%s: %v, want ErrRealmBad", name, err)
+			}
+		}
+	})
 }

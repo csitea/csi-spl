@@ -46,6 +46,7 @@ var personCallers = map[string]string{
 	"DeleteNoteLink": "personal.note_links of the session's own person",
 	"ExportNotes":    "personal.notes, note_items, note_links of the session's own person (155 2.8 export)",
 	"EraseNotes":     "personal.notes of the session's own person (155 2.8 erase)",
+	"NotesOnIssue":   "personal.notes + note_links of kind issue of the session's own person (155 2.12)",
 	// spec 155 v1.5 B11 (2.11): an agent adds a note on a person's ask. Its
 	// person is NOT a session's: it is m.FromID of a box-wui human message
 	// the hub verified as an ask (step 1, workspace reads that close before

@@ -15,6 +15,7 @@ import (
 // belong to (D1).
 //
 //	GET    /v1/me/realm/notes                          the list (summaries)
+//	GET    /v1/me/realm/notes?workspace=&issue=        the notes that link that issue (2.12)
 //	POST   /v1/me/realm/notes                          a new note
 //	DELETE /v1/me/realm/notes                          erase every note
 //	GET    /v1/me/realm/notes/export                   every note whole, as a file
@@ -162,6 +163,17 @@ type noteJSON struct {
 	AskWorkspaceID string `json:"ask_workspace_id,omitempty"`
 }
 
+// noteOnIssueJSON is one note that links an issue (2.12): the note's id and
+// title, and that link; no body, checklist or other link.
+type noteOnIssueJSON struct {
+	ID         string       `json:"id"`
+	Title      string       `json:"title"`
+	Archived   bool         `json:"archived"`
+	ArchivedAt string       `json:"archived_at,omitempty"`
+	UpdatedAt  string       `json:"updated_at"`
+	Link       noteLinkJSON `json:"link"`
+}
+
 type noteSummaryJSON struct {
 	ID         string  `json:"id"`
 	Title      string  `json:"title"`
@@ -254,6 +266,10 @@ func (s *Server) handleListNotes(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if q := r.URL.Query(); q.Has("issue") {
+		s.listNotesOnIssue(w, r, c, q.Get("workspace"), q.Get("issue"))
+		return
+	}
 	ns, err := c.st.ListNotes(r.Context(), c.person)
 	if err != nil {
 		s.notesFail(w, "notes_list", c, "", err)
@@ -262,6 +278,25 @@ func (s *Server) handleListNotes(w http.ResponseWriter, r *http.Request) {
 	out := make([]noteSummaryJSON, 0, len(ns))
 	for _, n := range ns {
 		out = append(out, noteSummaryOut(n))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"notes": out})
+}
+
+// GET /v1/me/realm/notes?workspace=<ws>&issue=<key> (spec 155 2.12): the
+// caller's own notes, archived ones too, that carry an issue link to key in
+// workspace ws, in list order; the issue dialog lists them. The workspace is
+// a query value, since a realm route takes no workspace header. Only the
+// session's person is read: no route reads another person's notes.
+func (s *Server) listNotesOnIssue(w http.ResponseWriter, r *http.Request, c notesMe, ws, key string) {
+	ns, err := c.st.NotesOnIssue(r.Context(), c.person, ws, key)
+	if err != nil {
+		s.notesFail(w, "notes_on_issue", c, "", err)
+		return
+	}
+	out := make([]noteOnIssueJSON, 0, len(ns))
+	for _, n := range ns {
+		out = append(out, noteOnIssueJSON{ID: n.ID, Title: n.Title, Archived: n.ArchivedAt != nil,
+			ArchivedAt: notesArchived(n.ArchivedAt), UpdatedAt: notesTime(n.UpdatedAt), Link: c.linkOut(n.Link)})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"notes": out})
 }

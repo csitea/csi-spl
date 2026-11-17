@@ -1,6 +1,6 @@
 # 091: Public dataset export of the Spool Hub workspace (daily bootstrap seed)
 
-**Feature ID**: `091-public-dataset-export` · **Status**: Consensus (v0.5.2)
+**Feature ID**: `091-public-dataset-export` · **Status**: Consensus (v0.5.3)
 **Created**: 2026-10-05 · **Author**: c-307 (claude) · **Panel**: g-308 (grok), a-287 (agy), c-288 (claude)
 **Topic**: `67b63c88-9de3-40d9-a54e-66aae05e4583` (also `afa6259d…`, `acec3b7f…`)
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only:
@@ -132,6 +132,26 @@ Emails and any other contact data; real names (members become their `HUM-n` id);
 `wui_perf_samples`, `member_activity`); payment and seat tables; fleet tables (`fleet_*`, `boxes`, `box_stats`,
 `roster`, `deliveries`); archived tasks and archived channels (hidden on purpose); message revisions (an earlier version may hold what an edit removed); issues (§11 Q5);
 the channel of the dataset topic (§5.6); and **every row of every other workspace**.
+
+**Personal data, EVER NEVER** (owner HUM-10, csitea eaf71db0, msgs e29398ff and 060e88bf, v0.5.3; SPL-5789): no
+contact, note, calendar entry, payroll, hours, identity, e-mail or credential row of anyone is exported. The gate refuses it by **table name, in
+its own code, whatever any allow-list file says** (`PERSONAL_TABLES` and `PERSONAL_PREFIXES` in
+`csi-spl-orc/src/bash/scripts/public-dataset-gate.py`, gate C3 `personal data, never exported`), so an allow-list
+edit cannot lift it and the allow-list file and its version stay unchanged (§4.5):
+- every table of schema `personal` (rdb 0168: `contacts`, `contact_photos`, `notes`, `note_items`, `note_links`,
+  `settings`, `profile`, `hours_receipts`, `receipt_due`), by name, and **any later one with no edit**: the gate's
+  live catalog read lists every `personal` table as `personal.<t>` and the gate refuses each of those names;
+- every name that starts with `personal.`, `contact`, `calendar`, `gcal`, `note`, `hr_` (people, names, rates, tax
+  cards, payslips), `hours_` (a member's hours and their notes), `human_` (identities, keys, pending e-mails, links,
+  status, events; the exported `humans` table does not match), `password_` or `email_verification`;
+- `contacts_sync`, `calendar_events`, `calendar_guests`, `gcal_connections`, `gcal_event_map`, `tenant_invites`,
+  `agent_join_tokens`.
+
+These are the families the code covers. A copy of personal data under a new, innocent public table name matches no
+name rule; the default deny of an unlisted table, C2 and C4 are the backstop there.
+
+The test (`csi-spl-orc/src/bash/tests/public-dataset-gate.tst.sh` cases 4p and 15) measures the tables of every family
+above from the migrations, so a new migration's table is checked without a test edit.
 
 ### 4.3 Member ids
 
@@ -463,6 +483,7 @@ panel's daily lanes); Q1 consent (a-287 suggests a notice plus an opt-out).
 | version | date | change |
 |---|---|---|
 | v0.1.0 | 2026-10-05 | first draft for the panel (c-307) |
+| v0.5.3 | 2026-11-17 | §4.2 personal data, EVER NEVER: every `personal` schema table (a new one too, from the live catalog), contacts, notes, calendar, hr, hours, human_, password and e-mail-token tables refused by name in the gate's code, whatever the allow-list says; the allow-list file is unchanged, so its version stays 1 (SPL-5789, owner msgs e29398ff, 060e88bf) |
 | v0.5.2 | 2026-11-08 | §5.5 item 3: the customer list, a C4 class fed by the private overlay, fail closed, with its completeness check (SPL-5124, owner msgs 294d0522, bac75a85) |
 | v0.5.1 | 2026-11-03 | §5.1 filter columns: §5.3 could not be written under §5.1, because the login held no `tenant_id` or row-rule flag on `channels` / `messages`. The allow-list gets `filter` lists, granted; only `tenant_id` of them is emitted, §5.5 item 2 (SPL-4704, c-001 ruling 875d406b) |
 | v0.5.0 | 2026-10-27 | owner HUM-10 (t1 e2c0e6b4, msgs c72b919b, c68e6073, poll answer afb3d81d): the export holds the workspaces t1, spool and demo, a cnf list; fence 2 reads a set (rdb 0239); the gate keys rows by (workspace, key); §4.2 unchanged (SPL-3808) |

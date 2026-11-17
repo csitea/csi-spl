@@ -22,6 +22,10 @@
 #        workspaces (SPL-3808): a row per listed workspace, every block names
 #        its workspace, the same channel id in two of them, matched by
 #        (workspace, key)
+#     4p. personal data (spec 4.2, SPL-5789): every personal / contact /
+#        calendar table measured from the migrations is FATAL in the file and
+#        on the allow-list; a NEW table of schema personal (the live catalog's
+#        personal.<t> key) is FATAL with no list edit, red control without it
 #     6. SIZE: beyond the tolerance fails; no previous file or a new
 #        allow-list version skips it; a table in the previous counts and
 #        gone from the file counts as 0 rows
@@ -38,6 +42,8 @@
 #    11. a superuser DSN is refused (a re-read by it is not "RLS alone")
 #    12. two listed workspaces with the SAME channel id: the action re-reads
 #        each one and passes; the cnf listing only one of them fails C1
+#    15. the catalog read names every table of schema personal; a NEW one
+#        on the allow-list fails the action (spec 4.2, SPL-5789)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -286,8 +292,8 @@ while read -r ft fc; do
   fatal "4. filter column $ft.$fc in the file is FATAL" "fcol-$ft-$fc" "FATAL C3 $ft column $fc is not a public column"
 done < <(yq -r '.tables | to_entries[] | .key as $t | (.value.filter // [])[] | select(. != "tenant_id") | $t + " " + .' "$ALLOW_YAML")
 (( nf > 0 )) && pass "4. $nf filter column(s) planted" || fail "4. control is void: the allow-list has no filter column but tenant_id"
-mk never 'line:COPY password_credentials (subject) FROM stdin;' 'line:x' 'line:\.'; gate never
-fatal "4. a COPY into a never-exported table is FATAL" never 'FATAL C3 password_credentials a never-exported table'
+mk never 'line:COPY pins (subject) FROM stdin;' 'line:x' 'line:\.'; gate never
+fatal "4. a COPY into a never-exported table is FATAL" never 'FATAL C3 pins a never-exported table'
 mk setl 'line:SET search_path = plantschema;'; gate setl
 fatal "4. a line that is not a COPY block is FATAL" setl 'FATAL C3 - line 119: not a COPY block'
 python3 -c 'import json, sys; c = json.load(open(sys.argv[1])); c["messages"].append("planted_col"); json.dump(c, open(sys.argv[2], "w"))' \
@@ -303,6 +309,33 @@ fatal "4. a role not forced to member is FATAL" rolec 'FATAL C3 tenant_membershi
 
 mk nomsg 'drop:messages'; gate nomsg
 fatal "4. an allow-list table with no COPY block in the file is FATAL" nomsg 'FATAL C3 messages the file has no COPY block for this allow-list table'
+
+# --- 4p. personal data (spec 4.2, SPL-5789): refused by name, whatever the allow-list says ---
+# the names are MEASURED from the migrations: every table of schema personal and
+# every contact / calendar / gcal / hr / hours / human_ / password / e-mail
+# token / invite table, so a later migration's table is covered
+RDB="$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub"
+mapfile -t PERS < <(grep -hoiE 'create table (if not exists )?[a-z_.]+' "$RDB"/*.sql | awk '{print tolower($NF)}' |
+  sed -nE 's/^personal\.//p; /^(contact|calendar|gcal|hr_|hours_|human_|password_|email_verification|tenant_invites$|agent_join_tokens$)/p' | sort -u)
+(( ${#PERS[@]} >= 45 )) && pass "4p. ${#PERS[@]} personal-data tables measured from the migrations" || fail "4p. control is void: ${#PERS[@]} personal tables measured (${PERS[*]})"
+np=0
+for pt in "${PERS[@]}"; do
+  mk "p-copy-$pt" "line:COPY $pt (x) FROM stdin;" 'line:x' 'line:\.'; gate "p-copy-$pt"
+  grep -q -- "FATAL C3 $pt personal data, never exported (spec 4.2)" "$T/p-copy-$pt.log" && [[ "$(rc_of "p-copy-$pt")" == 1 && ! -e "$T/p-copy-$pt.out.sql" ]] || { np=$((np + 1)); fail "4p. a COPY into $pt: $(cat "$T/p-copy-$pt.log")"; }
+  jq --arg t "$pt" '.tables[$t] = {public: ["x"], withheld: []} | .never -= [$t]' "$T/allow.json" >"$T/allow-p.json"
+  jq --arg t "$pt" '.[$t] = ["x"]' "$T/catalog.json" >"$T/catalog-p.json"
+  mk "p-allow-$pt" "line:COPY $pt (x) FROM stdin;" 'line:x' 'line:\.'; ALLOW="$T/allow-p.json" CATALOG="$T/catalog-p.json" gate "p-allow-$pt"
+  grep -q -- "FATAL C3 $pt personal data, never exported (spec 4.2)" "$T/p-allow-$pt.log" && [[ "$(rc_of "p-allow-$pt")" == 1 ]] || { np=$((np + 1)); fail "4p. $pt on the allow-list: $(cat "$T/p-allow-$pt.log")"; }
+done
+(( np == 0 )) && pass "4p. each of the ${#PERS[@]} personal tables is FATAL C3 in the file, and also when the allow-list lists it"
+# a NEW table in schema personal: no list edit, the live catalog's personal.<t> key refuses it
+jq '.tables.planted_journal = {public: ["x"], withheld: []}' "$T/allow.json" >"$T/allow-j.json"
+jq '.planted_journal = ["x"] | .["personal.planted_journal"] = ["x"]' "$T/catalog.json" >"$T/catalog-j.json"
+mk pnew 'line:COPY planted_journal (x) FROM stdin;' 'line:x' 'line:\.'; ALLOW="$T/allow-j.json" CATALOG="$T/catalog-j.json" gate pnew
+fatal "4p. a NEW table of schema personal (live catalog) is FATAL C3 with no list edit" pnew 'FATAL C3 planted_journal personal data, never exported (spec 4.2)'
+jq 'del(.["personal.planted_journal"])' "$T/catalog-j.json" >"$T/catalog-j0.json"
+cp "$T/pnew.sql" "$T/pnew0.sql"; ALLOW="$T/allow-j.json" CATALOG="$T/catalog-j0.json" gate pnew0
+! grep -q 'personal data' "$T/pnew0.log" && pass "4p. red control: the same table outside schema personal is not refused as personal data" || fail "4p. red control: $(cat "$T/pnew0.log")"
 
 # --- 5. C1, MEMBER, C2 -----------------------------------------------------------------------
 mk ws2 'row:tenants:ws-other\tOther\t2026-09-01 10:00:00+00\tinternal\tdefault\t\\x'"$(printf '00%.0s' {1..32})"; gate ws2
@@ -533,6 +566,22 @@ EOF_CC
 )"
 [[ "$(sort <<<"$cc_out" | paste -sd,)" == 'host|a7.example.net,host|a8.example.net,host|a9.example.net' ]] \
   && pass "14. the check's SQL reads the host before a ? or # that holds an @" || fail "14. cc sql: $cc_out"
+
+# 15. personal data on real Postgres (spec 4.2, SPL-5789): the catalog read names
+# every table of schema personal, and a NEW one on the allow-list fails the action
+pcat="$(printf "\\\\set tables 'tenants'\n%s\n" "$(
+  # shellcheck source=../run/spl-public-dataset-gate.func.sh
+  source "$FUNC"; spl_pd_gate_catalog_sql)" | psql -X -q -At -f - "$EXPORT_DSN" | sed -n '2p')"
+pmig="$(grep -hoiE 'create table (if not exists )?personal\.[a-z_]+' "$RDB"/*.sql | awk '{print tolower($NF)}' | sort -u | paste -sd,)"
+[[ -n "$pmig" && "$(jq -r 'keys[] | select(startswith("personal."))' <<<"$pcat" | sort | paste -sd,)" == "$pmig" ]] \
+  && pass "15. the catalog read as spool_public_export names every personal table ($pmig)" || fail "15. catalog personal keys: $pcat vs $pmig"
+psql -X -q -v ON_ERROR_STOP=1 -c "CREATE TABLE personal.planted_journal (x text)" "$OWNER_DSN" >/dev/null || fail "15. create personal.planted_journal"
+cp "$T/proj/cnf/public-dataset/allow-list.v1.yaml" "$T/allow-v1.keep"
+jq '.tables.planted_journal = {public: ["x"], withheld: []}' "$T/allow-v1.keep" >"$T/proj/cnf/public-dataset/allow-list.v1.yaml"
+cp "$FIX/clean.sql" "$T/d-pers.sql"; act d-pers "$EXPORT_DSN"
+cp "$T/allow-v1.keep" "$T/proj/cnf/public-dataset/allow-list.v1.yaml"
+[[ "$(cat "$T/d-pers.act.rc")" == 1 && ! -e "$T/d-pers.act.sql" ]] && grep -q 'FATAL C3 planted_journal personal data, never exported (spec 4.2)' "$T/d-pers.act.log" \
+  && pass "15. a NEW table of schema personal on the allow-list fails the action with C3" || fail "15. new personal table: $(cat "$T/d-pers.act.log")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s)"; exit 1

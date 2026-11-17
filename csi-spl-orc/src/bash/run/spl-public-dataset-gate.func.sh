@@ -138,7 +138,9 @@ spl_pd_gate_unpack() {
 # spl_pd_gate_catalog <export dsn> <allow json> <out>: the LIVE columns of
 # every allow-list table, read from pg_attribute (readable by any login,
 # unlike information_schema.columns, which hides the columns a role cannot
-# read). Refuses unless the login is spool_public_export with no superuser and
+# read), plus every table of schema `personal` as `personal.<t>` (spec 4.2,
+# SPL-5789: the gate refuses those names, a new one included). Refuses unless
+# the login is spool_public_export with no superuser and
 # no bypassrls: a re-read by any other role would not be "RLS alone".
 spl_pd_gate_catalog() {
   local dsn="$1" tables out
@@ -157,11 +159,12 @@ spl_pd_gate_catalog_sql() {
   cat <<'EOF_SQL'
 SELECT current_user, r.rolsuper, r.rolbypassrls FROM pg_roles r WHERE r.rolname = current_user;
 SELECT coalesce(json_object_agg(t.relname, t.cols), '{}') FROM (
-  SELECT c.relname, json_agg(a.attname::text ORDER BY a.attnum) AS cols
+  SELECT CASE WHEN n.nspname = 'personal' THEN 'personal.' || c.relname ELSE c.relname END AS relname,
+         json_agg(a.attname::text ORDER BY a.attnum) AS cols
     FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace
-   WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND a.attnum > 0 AND NOT a.attisdropped
-     AND c.relname = ANY (string_to_array(:'tables', ','))
-   GROUP BY c.relname) t;
+   WHERE c.relkind IN ('r', 'p') AND a.attnum > 0 AND NOT a.attisdropped
+     AND ((n.nspname = 'public' AND c.relname = ANY (string_to_array(:'tables', ','))) OR n.nspname = 'personal')
+   GROUP BY n.nspname, c.relname) t;
 EOF_SQL
 }
 

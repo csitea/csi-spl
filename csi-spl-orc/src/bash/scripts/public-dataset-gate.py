@@ -59,6 +59,44 @@ KEYS = {
 }
 HUM = re.compile(r"^HUM-[0-9]+$")
 COPY = re.compile(r"^COPY ([a-z_]+) \(([a-z_, ]+)\) FROM stdin;$")
+# Spec 4.2, personal data (owner HUM-10, csitea eaf71db0, msgs e29398ff and
+# 060e88bf; SPL-5789): no contact, note, calendar entry or other personal row is
+# EVER exported, nor any payroll, hours, identity, e-mail or credential row,
+# whatever the allow-list file says. Refused: every table of the
+# `personal` schema (rdb 0168), by name below and by the live catalog's
+# `personal.<t>` keys (a NEW personal table needs no edit here), every name
+# starting with a PERSONAL_PREFIXES entry, and the public-schema tables named.
+PERSONAL_SCHEMA = "personal."
+PERSONAL_PREFIXES = (
+    "personal.",
+    "contact",
+    "calendar",
+    "gcal",
+    "note",
+    "hr_",
+    "hours_",
+    "human_",
+    "password_",
+    "email_verification",
+)
+PERSONAL_TABLES = {
+    "contacts",
+    "contact_photos",
+    "contacts_sync",
+    "notes",
+    "note_items",
+    "note_links",
+    "settings",
+    "profile",
+    "hours_receipts",
+    "receipt_due",
+    "calendar_events",
+    "calendar_guests",
+    "gcal_connections",
+    "gcal_event_map",
+    "tenant_invites",
+    "agent_join_tokens",
+}
 SAFE_KEY = re.compile(r"^[A-Za-z0-9._:-]{1,80}$")
 BODY_COLS = ("body", "msg")
 MSG_KEYS = {"v", "msg_id", "task_id", "ts", "from", "to", "kind", "body", "files"}
@@ -325,7 +363,15 @@ class Gate:
     def c3(self, allow, catalog):
         tables = allow.get("tables") or {}
         never = set(allow.get("never") or [])
+        personal = PERSONAL_TABLES | {
+            k[len(PERSONAL_SCHEMA) :] for k in catalog if k.startswith(PERSONAL_SCHEMA)
+        }
+        for t in sorted(set(self.blocks) | set(tables)):
+            if t in personal or t.startswith(PERSONAL_PREFIXES):
+                self.fail("C3", t, "personal data, never exported (spec 4.2)")
         for t, b in self.blocks.items():
+            if t in personal or t.startswith(PERSONAL_PREFIXES):
+                continue
             if t in never:
                 self.fail("C3", t, "a never-exported table (spec 4.2)")
             elif t not in tables:

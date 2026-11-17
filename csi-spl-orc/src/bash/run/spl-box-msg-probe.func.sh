@@ -46,7 +46,7 @@
 #   the tenant lobby) instead of a fresh one, so a browser following that
 #   topic sees the box send pushed live (013 US7, CLE-3412)
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=prd TENANT_ID=t1 ROOT_KEY_JSON=/var/csi/csi-spl/tenants/prd/t1.<ts>.json DRY_RUN=0 ./run -a do_spl_box_msg_probe
+# @example ENV=prd TENANT_ID=t1 ROOT_KEY_JSON=<root key file> DRY_RUN=0 ./run -a do_spl_box_msg_probe
 #------------------------------------------------------------------------------
 do_spl_box_msg_probe() {
   do_require_bin python3 yq || return 1

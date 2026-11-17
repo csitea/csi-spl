@@ -47,7 +47,7 @@
 # @param WIRE_AGENT (optional) - default WIR-1
 # @param WIRE_N (optional) - sends per leg, default 10
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=dev TENANT_ID=t1 ROOT_KEY_JSON=/var/csi/csi-spl/tenants/dev/t1.<ts>.json DRY_RUN=0 ./run -a do_spl_wire_probe
+# @example ENV=dev TENANT_ID=t1 ROOT_KEY_JSON=<root key file> DRY_RUN=0 ./run -a do_spl_wire_probe
 #------------------------------------------------------------------------------
 do_spl_wire_probe() {
   do_require_bin python3 yq flock || return 1

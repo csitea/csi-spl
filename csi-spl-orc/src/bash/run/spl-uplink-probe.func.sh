@@ -36,8 +36,9 @@
 # @param UPLINK_PROBE_CMD (optional) - probe (default) | report | dns
 # @param UPLINK_DNS_TIMEOUT_S (optional) - dns: the lookup's timeout, 1..99 s, default 5
 # @param UPLINK_PROBE_HOURS (optional) - report: the last N hours, default 24
-# @param UPLINK_PROBE_DIR (optional) - default <BOX_CRONS_STATE_DIR or
-# @param   /var/csi/csi-spl>/uplink-probe
+# @param UPLINK_PROBE_DIR (optional) - default <BOX_CRONS_STATE_DIR, else
+# @param   SPL_VAR_APP_DIR (spl_run_paths)>/uplink-probe; probe and report
+# @param   fail when none is known
 # @param UPLINK_PROBE_BOX (optional) - default the box id (spl_desk_box_default)
 # @param ENV (optional) - dev | prd, the hub to reach; default prd
 # @param UPLINK_HUB_HOST (optional) - the host to resolve and connect to,
@@ -54,7 +55,7 @@
 do_spl_uplink_probe() {
   local cmd="${UPLINK_PROBE_CMD:-probe}" dir box file
   [[ "$cmd" != dns ]] || { spl_uplink_dns_check; return; }
-  dir="${UPLINK_PROBE_DIR:-${BOX_CRONS_STATE_DIR:-/var/csi/csi-spl}/uplink-probe}"
+  spl_uplink_probe_dir dir || return 1
   box="${UPLINK_PROBE_BOX:-$(spl_desk_box_default)}"
   [[ "$box" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { do_log "FATAL the box id '$box' is not a plain name (set UPLINK_PROBE_BOX)"; return 1; }
   file="$dir/$box.tsv"
@@ -63,6 +64,21 @@ do_spl_uplink_probe() {
     report) spl_uplink_report "$file" "${UPLINK_PROBE_HOURS:-24}" "$box" ;;
     *) do_log "FATAL UPLINK_PROBE_CMD must be probe or report, got: '$cmd'"; return 1 ;;
   esac
+}
+
+# spl_uplink_probe_dir <var> - sets var to UPLINK_PROBE_DIR, else
+# <BOX_CRONS_STATE_DIR, else SPL_VAR_APP_DIR>/uplink-probe (spl_run_paths,
+# sourced on the first call so the ./run loader keeps this file lazy; no
+# literal box path); rc 1 with a FATAL line when none is known.
+spl_uplink_probe_dir() {
+  local root="${BOX_CRONS_STATE_DIR:-}"
+  if [[ -n "${UPLINK_PROBE_DIR:-}" ]]; then printf -v "$1" '%s' "$UPLINK_PROBE_DIR"; return 0; fi
+  if [[ -z "$root" ]]; then
+    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_run_paths && root="${SPL_VAR_APP_DIR:-}"
+  fi
+  [[ -n "$root" ]] || { do_log "FATAL cannot derive the uplink probe dir (no tree for spl_run_paths): set UPLINK_PROBE_DIR or BOX_CRONS_STATE_DIR"; return 1; }
+  printf -v "$1" '%s' "$root/uplink-probe"
 }
 
 # spl_uplink_iso <epoch> - prints the epoch as <ISO-UTC> (no fork)

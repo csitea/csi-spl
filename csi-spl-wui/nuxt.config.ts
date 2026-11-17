@@ -283,6 +283,29 @@ const I18N_MODULE_LOCALES = I18N_LOCALES.map(({ file: _file, ...l }, i) => ({
   ...l,
   files: [I18N_CATALOGUE_FILES[i]!.file, { path: "../client-loaders.ts", cache: false }],
 }))
+/**
+ * The client copy of #internal/i18n-options lists i18n/client-loaders.ts once
+ * per locale: 19 loader rows in the entry chunk (+0.4 KB gzip) and one more
+ * chunk request per locale load, for a loader that returns {} (SPL-5070).
+ * The locale stays "dynamic" through the module's build-time defines, so the
+ * client still takes its loaders without the rows; drop them there. The
+ * server copy keeps them. A build that finds none fails: the file the rows
+ * come from changed shape and this needs a look.
+ */
+const CLIENT_LOADER_ROW_RE = /,?\s*\{\s*key:\s*"locale_client_45loaders_46ts_[0-9a-f]+",\s*load:[^\n]*?,\s*cache:\s*false\s*\}/g
+function i18nClientLoaderRowsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
+  if (nuxt.options.dev) return
+  addVitePlugin({
+    name: "spool:i18n-client-loader-rows",
+    enforce: "post",
+    transform(code: string, id: string) {
+      if (!id.split("?")[0]!.endsWith("i18n-options.mjs")) return null
+      const out = code.replace(CLIENT_LOADER_ROW_RE, "")
+      if (out === code) this.error("spool:i18n-client-loader-rows: no client-loaders.ts row in " + id)
+      return { code: out, map: null }
+    },
+  }, { server: false })
+}
 const I18N_SPLIT_CORE = join(dirname(fileURLToPath(import.meta.url)), "i18n/.split/")
 /**
  * Never hint the second catalogues as prefetch: a page needs one of the 19,
@@ -687,7 +710,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css", "@/assets/css/tap-anim.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule, publicSeoModule, asyncErrorComponentModule, directAppImportsModule],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nClientLoaderRowsModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule, publicSeoModule, asyncErrorComponentModule, directAppImportsModule],
 
   hooks: {
     // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches

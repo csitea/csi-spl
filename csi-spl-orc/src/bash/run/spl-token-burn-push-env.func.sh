@@ -4,10 +4,15 @@
 # @description map's: spl_lane_init) once, into <TOKEN_BURN_STATE_DIR>/push.env,
 # @description so the 30 s collector tick does not pay for it. Paths and the
 # @description hub URL only, no key. The cron wrapper refreshes it hourly.
+# @param TOKEN_BURN_STATE_DIR (optional) - default <SPL_VAR_APP_DIR>/token-burn
+# @param   (SPL_VAR_APP_DIR, spl_run_paths)
 # @example ./run -a do_spl_token_burn_push_env
 #------------------------------------------------------------------------------
+declare -F spl_token_burn_state_dir >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-token-burn-collect.func.sh"
+
 do_spl_token_burn_push_env() {
-  local dir="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}"
+  local dir
+  spl_token_burn_state_dir dir || return 1
   declare -F spl_lane_init >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
   spl_lane_init || return 1
   [[ "$LANE_MODE" == hub ]] || { do_log "FATAL the token burn lives on the hub: set LANE_FLEET (or LEASE_FLEET in lease.conf)"; return 1; }

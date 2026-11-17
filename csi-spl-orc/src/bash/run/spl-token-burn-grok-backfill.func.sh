@@ -16,7 +16,8 @@
 # @description <TOKEN_BURN_STATE_DIR>/backfill and pushes nothing. Stdout
 # @description carries counts, never a token total.
 # @param DRY_RUN (optional) - 1 (default) frames only, 0 push them
-# @param TOKEN_BURN_STATE_DIR (optional) - default /var/csi/csi-spl/token-burn (push.env)
+# @param TOKEN_BURN_STATE_DIR (optional) - default <SPL_VAR_APP_DIR>/token-burn
+# @param   (SPL_VAR_APP_DIR, spl_run_paths; push.env)
 # @param TOKEN_BURN_BACKFILL_DAYS (optional) - default 29: the hub keeps 30 days of minutes
 # @param TOKEN_BURN_HOMES (optional) - space-separated homes read as the
 # @param   current user (tests); default the home of each agent user
@@ -30,8 +31,9 @@
 declare -F spl_token_burn_tick >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-token-burn-collect.func.sh"
 
 do_spl_token_burn_grok_backfill() {
-  local dir="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}" now="${TOKEN_BURN_NOW:-$EPOCHSECONDS}" days="${TOKEN_BURN_BACKFILL_DAYS:-29}"
+  local dir now="${TOKEN_BURN_NOW:-$EPOCHSECONDS}" days="${TOKEN_BURN_BACKFILL_DAYS:-29}"
   local out rows buckets f n=0 stats
+  spl_token_burn_state_dir dir || return 1
   [[ "$days" =~ ^[0-9]+$ ]] && (( days >= 1 && days <= 29 )) || { echo "FATAL TOKEN_BURN_BACKFILL_DAYS must be 1..29, got '$days'" >&2; return 2; }
   out="$dir/backfill"
   mkdir -p "$out" || { echo "FATAL cannot create $out" >&2; return 1; }

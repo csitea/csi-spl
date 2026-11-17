@@ -16,7 +16,8 @@
 # @description minute's full totals (the hub replaces on its natural key), and
 # @description stays queued until a push is acked. Stdout carries counts and
 # @description the tick's milliseconds, never a token total.
-# @param TOKEN_BURN_STATE_DIR (optional) - default /var/csi/csi-spl/token-burn
+# @param TOKEN_BURN_STATE_DIR (optional) - default <SPL_VAR_APP_DIR>/token-burn
+# @param   (SPL_VAR_APP_DIR, spl_run_paths); the tick fails when neither is known
 # @param TOKEN_BURN_HOMES (optional) - space-separated homes read as the
 # @param   current user (tests); default the home of each COST_AGENT_USERS
 # @param   user (spl_cost_agent_users), read as that user
@@ -28,6 +29,16 @@
 #------------------------------------------------------------------------------
 
 declare -F spl_cost_tokens_jq_def >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-cost-tokens-read.func.sh"
+declare -F spl_run_paths >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+
+# spl_token_burn_state_dir <var>: sets var to TOKEN_BURN_STATE_DIR, else
+# <SPL_VAR_APP_DIR>/token-burn (spl_run_paths, no literal box path); rc 1
+# when neither is known. printf -v, not $(...): a tick forks little.
+spl_token_burn_state_dir() {
+  [[ -n "${TOKEN_BURN_STATE_DIR:-}" ]] || spl_run_paths ||
+    { echo "FATAL cannot derive the token burn state dir (no tree for spl_run_paths): set TOKEN_BURN_STATE_DIR" >&2; return 1; }
+  printf -v "$1" '%s' "${TOKEN_BURN_STATE_DIR:-${SPL_VAR_APP_DIR}/token-burn}"
+}
 
 # Seconds a bucket and a late row stay in reach (spec 140 1.1 lag is 60 s);
 # the per-id MAX cache keeps 2 h (spec 140 2.4); a transcript is tracked
@@ -44,7 +55,8 @@ TOKEN_BURN_SLICES="${TOKEN_BURN_SLICES:-10}" TOKEN_BURN_ACTIVE_S="${TOKEN_BURN_A
 # grew by a usage row, awk twice, mv, rm): on a loaded box every fork waits
 # for a core.
 do_spl_token_burn_collect() {
-  local dir="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}" t0="${EPOCHREALTIME//[.,]/}" now mode rc stats
+  local dir t0="${EPOCHREALTIME//[.,]/}" now mode rc stats
+  spl_token_burn_state_dir dir || return 1
   now="${TOKEN_BURN_NOW:-$EPOCHSECONDS}"
   [[ -d "$dir/next" ]] || mkdir -p "$dir/next" || { echo "FATAL cannot create $dir" >&2; return 1; }
   exec 9>"$dir/collect.lock"
@@ -528,7 +540,9 @@ spl_token_burn_push() {
 # desk, with the hub settings DIR/push.env holds (do_spl_token_burn_push_env
 # writes it: resolving them costs seconds, a tick has half of one).
 spl_token_burn_spool() {
-  local env_file="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}/push.env" k v
+  local env_file k v
+  spl_token_burn_state_dir env_file || return 1
+  env_file+=/push.env
   local -a e=()
   [[ -s "$env_file" ]] || { echo "no $env_file yet: ./run -a do_spl_token_burn_push_env"; return 3; }
   while IFS='=' read -r k v; do

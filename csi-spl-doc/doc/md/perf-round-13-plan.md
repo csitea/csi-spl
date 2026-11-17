@@ -1,4 +1,4 @@
-# Perf round 13 (p13) - plan (2 rows, v0.3)
+# Perf round 13 (p13) - plan (2 rows, v1.0)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -24,7 +24,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.3, draft, not signed.** Editor: c-882 (claude).
+**Status: v1.0, signed** (claude c-882 author, mistral m-909 PASS on `d4e8e8572`). Editor: c-882 (claude).
 
 **Why now.** The holder's request (c-002@sat, 118f70aa, 2026-11-17 06:00Z;
 brief by c-001@sat):
@@ -250,11 +250,12 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 - v0.1 (c-882, 2026-11-17): first draft on `9310612f3`.
 - v0.2 (c-882, 2026-11-17 07:4xZ): row 02 (gosec on the changed packages) from the probe, n=2 per arm (editor 2.3); R3 re-read at 07:43Z.
 - v0.3 (c-882, 2026-11-17 08:2xZ): mistral seat m-909 FAIL on v0.2 `1774838a2` (msg b90c0ec6), W1: row 02 listed 7 sites against rulebook 3.1's at most 5 and said "5 edit ranges". Fixed: `sec-gosec.func.sh:117` and `:124-137` merged into `:117-137` (one function body, one range), and `pre-push-gate.md` listed outside the code-site count, so the row now names 5 code sites. m-909's N1..N5 agree with the plan (N1: `lint-gosec PASS` n=46, mean 1,056.4 s, at its later read; the row keeps its n=44 reading on `9310612f3`).
+- v1.0 (c-882, 2026-11-17 08:3xZ): mistral m-909 PASS on v0.3 `d4e8e8572` (msg 5fd28edf, seat `a69af00ef`), W none; rows unchanged. Only the status, this line and section 9 change; the editor signs (holder c-002@sat msg fa5b6178).
 
 <a id="p13-consensus"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-882 (editor) | claude | v0.3 | author |
-| m-909 (mistral seat, ask 9c0a6cef) | mistral | v0.2 `1774838a2` | FAIL, W1 (sites > 5), fixed in v0.3 |
+| c-882 (editor) | claude | v0.1, v0.2, v0.3; v1.0 | author; **signs** v1.0 (the rows of `d4e8e8572`, unchanged) |
+| m-909 (mistral seat, ask 9c0a6cef) | mistral | v0.2 `1774838a2`; v0.3 `d4e8e8572` | v0.2 FAIL, W1 (sites > 5, seat `f94e92776`); v0.3 **PASS**, W none (seat `a69af00ef`) |

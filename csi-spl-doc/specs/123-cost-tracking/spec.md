@@ -895,6 +895,45 @@ test covers:
 
 Not covered: the real console page. Only the owner's own run can show it.
 
+### 15.6 `do_spl_hub_cost_invoice_import`: the invoice month totals (SPL-5802)
+
+Owner HUM-10, #laskut f655b326, msg 92f3fb10, answer 2: "A — The 12 invoice
+PDFs: you download them, a new lane imports the month totals". The owner
+puts the PDFs in one dir; the action (csi-spl-orc) imports them:
+
+- `COST_INVOICE_DIR` (required, no default): every `*.pdf` under it, sub
+  dirs too, so the browser action's `pdf/<account id>/` works as is.
+  `pdftotext -layout` reads each, `src/bash/scripts/invoice-pdf-month-totals.py`
+  parses it: the month (the service period line, else the month before the
+  file's `YYYY-MM-DD-` prefix), the billing account (from the text, else the
+  dir name; only its last 4 are ever written), the net before VAT (the
+  `Subtotal` line) and the currency. A field it cannot read is `-` with
+  `unparsed:<field>`, never a guess (`1,234` alone is not read: thousands
+  or decimals cannot be told apart).
+- It writes `COST_INVOICE_TSV` (default `<dir>/month-totals.tsv`, mode 600,
+  refused inside a git work tree). `COST_INVOICE_CMD=totals` stops there,
+  with no cloud call.
+- `import` (the default, `ENV=dev|prd`) reads, as the env's project SA, the
+  hub's cloud cost entries (period and label only) and the gcp days of
+  `cost_lines` (read only, counts only), and prints the table: month,
+  account last 4, net, currency, action. It never double counts: a month
+  with a cloud entry labelled Google Cloud or GCP is `conflict:cost_entry`;
+  a month the billing export holds any day of is
+  `conflict:cost_lines=<n>/<days>` (some days too: an invoice total on top
+  of them would count those days twice); a net of 0 or less, a second
+  invoice of the same month and account, and an unparsed row are skipped.
+  Only `create` rows are written, each through `do_spl_hub_cost_entries
+  COST_CMD=create` (cloud, the net, label `Google Cloud (billing account
+  ending <last4>)`).
+- `DRY_RUN=1` (default) runs each create row through that action's dry
+  create and prints the table's sha256. `DRY_RUN=0` needs
+  `COST_INVOICE_PLAN_SHA` equal to it: only the table the owner OKed is
+  written. The table is the one output with amounts; no billing account id
+  is printed, a PDF only by its base name.
+- Test: `csi-spl-orc/src/bash/tests/spl-hub-cost-invoice-import.tst.sh`
+  (synthetic invoices, the hub and the `cost_lines` read stubbed, one real
+  PDF through `pdftotext` when the box has it).
+
 ## 16. Who enters the costs: the accountant roles (SPL-5359)
 
 Owner HUM-10, csitea #csi-fina topic ba50f507, 2026-11-12 09:02Z: "we must

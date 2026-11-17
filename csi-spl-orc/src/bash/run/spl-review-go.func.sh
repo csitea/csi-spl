@@ -305,22 +305,24 @@ _spl_review_go_lanes_as() {
   return 2
 }
 
-# _spl_review_go_lane_briefs <id> <box> <all|one|own>: the dispatch/briefs/<slug>.md
-# copies of the seat <id>@<box> by its lane map rows, newest row first, one
-# per line: the slug of an <id>-<slug> branch (a rotated seat's branch is
+# _spl_review_go_lane_briefs <id> <box> <all|one|own> [reviewer brief]: the
+# dispatch/briefs/<slug>.md copies of the seat <id>@<box> by its lane map
+# rows, newest row first, one per line: the slug of an <id>-<slug> branch (a rotated seat's branch is
 # <id>-rotate: no brief), then the briefs whose first heading (`#`s and
 # `Brief:` dropped, as the spawn writes the scope; cut to 120 or 500) the
 # row's scope opens. With `one` a scope match counts only when the matches
 # are one brief's content (the author check reads the one it gets). With
 # `own` only the branch slug's brief, and only when every row of <id>@<box>
-# names that one branch (no scope match, no second lane of the id). The lane
+# names that one branch and its issue_key is the reviewer brief's first
+# `Issue: <KEY>` line (no scope match; the hub keeps ONE row per id@box, so a
+# re-tasked seat's row is its new lane's, with that lane's key). The lane
 # map unreadable: `lane map unreadable: <reason>` printed, rc 2.
 _spl_review_go_lane_briefs() {
   local f why rc=0
   f="$(mktemp)" || return 0
   why="$(_spl_review_go_lanes 2>&1 >"$f")" || rc=$?
   (( rc == 0 )) || { rm -f "$f"; (( rc == 2 )) && { echo "lane map unreadable: ${why:-no reason given}"; return 2; }; return 0; }
-  python3 - "$1" "$2" "$3" "$SPOOL_ROOT/dispatch/briefs" "$f" <<'EOF_PY'
+  python3 - "$1" "$2" "$3" "$SPOOL_ROOT/dispatch/briefs" "$f" "${4:-}" <<'EOF_PY'
 import glob, json, os, re, sys
 rid, box, mode, bdir, src = sys.argv[1:6]
 try:
@@ -333,8 +335,19 @@ def own(br):
     p = os.path.join(bdir, slug + ".md")
     return p if re.fullmatch(r"[A-Za-z0-9._-]+", slug) and os.path.isfile(p) and os.path.getsize(p) else ""
 if mode == "own":
+    key = ""
+    try:
+        with open(sys.argv[6], encoding="utf-8", errors="replace") as fh:
+            for l in fh:
+                m = re.match(r"\W*Issue\W*:\W*([A-Z][A-Z0-9]*-[0-9]+)\b", l)
+                if m:
+                    key = m.group(1)
+                    break
+    except (OSError, IndexError):
+        pass
     brs = {str(r.get("branch") or "") for r in rows}
-    p = own(brs.pop()) if len(brs) == 1 else ""
+    keys = {str(r.get("issue_key") or "") for r in rows}
+    p = own(brs.pop()) if key and len(brs) == 1 and keys == {key} else ""
     if p:
         print(p)
     sys.exit(0)
@@ -462,17 +475,20 @@ EOF_PY
 # else the first of the lane map's (_spl_review_go_lane_briefs, a scope match
 # only when it is one brief) tied to the reviewed work (_spl_review_go_tied),
 # else, for an author on another box, its lane's OWN placement brief: the lane
-# map's rows of <author>@<author box> name one branch, <author>-<slug>, and
+# map's rows of <author>@<author box> name one branch, <author>-<slug>, with
+# the issue_key of the reviewer brief's `Issue:` line, and
 # dispatch/briefs/<slug>.md exists (SPL-5793). A re-tasked or rotated seat's
-# new lane brief is never read for it (R7 c-972 N1): a second lane of the id
-# there, or a rotated branch with no such brief, still needs the tie. rc 1
+# new lane brief is never read for it (R7 c-972 N1, R7 c-996 W1): its row of
+# another issue, a reviewer brief with no `Issue:` line, or a rotated branch
+# with no such brief, still needs the tie. The `Author brief:` path may be
+# backticked (R7 c-996 N1). rc 1
 # when none is here; rc 2, the reason printed, when the lane map is unreadable
 # (SPL-4563).
 _spl_review_go_abrief() {
   local b="$SPOOL_ROOT/$1/lifetime/brief.md" here p c
   here="$(_spl_review_go_here)"
   [[ ( -z "$3" || "$3" == "$here" ) && -s "$b" ]] && { echo "$b"; return 0; }
-  p="$(sed -nE "s/.*Author('s)? brief:[[:space:]]*([^[:space:];,]+\.md).*/\2/p" "$2" 2>/dev/null)"
+  p="$(sed -nE "s/.*Author('s)? brief:[[:space:]]*\`?([^[:space:];,\`]+\.md).*/\2/p" "$2" 2>/dev/null)"
   p="${p%%$'\n'*}"
   if [[ "$p" == "$SPOOL_ROOT/dispatch/briefs/${p##*/}" && "${p##*/}" =~ ^[A-Za-z0-9._-]+\.md$ && -s "$p" ]]; then echo "$p"; return 0; fi
   c="$(_spl_review_go_lane_briefs "$1" "${3:-$here}" one)" || { [[ $? == 2 ]] && { echo "$c"; return 2; }; }
@@ -480,7 +496,7 @@ _spl_review_go_abrief() {
     [[ -n "$p" ]] && _spl_review_go_tied "$p" "$4" "$5" && { echo "$p"; return 0; }
   done <<<"$c"
   [[ -n "$3" && "$3" != "$here" ]] || return 1
-  p="$(_spl_review_go_lane_briefs "$1" "$3" own)" && [[ -n "$p" ]] && { echo "$p"; return 0; }
+  p="$(_spl_review_go_lane_briefs "$1" "$3" own "$2")" && [[ -n "$p" ]] && { echo "$p"; return 0; }
   return 1
 }
 
@@ -691,7 +707,7 @@ _spl_review_go_one() {
   abrief="$(_spl_review_go_abrief "$author" "$brief" "$abox" "$branch" "$sha")"; rc=$?
   (( rc == 2 )) && { _spl_review_go_hold "$@" 7 "author $author has no brief on this box $here (author box ${abox:-not named}), and the $abrief: not verified"; return 7; }
   (( rc == 0 )) ||
-    { _spl_review_go_hold "$@" 7 "author $author has no brief on this box $here (author box ${abox:-not named}; not $SPOOL_ROOT/$author/lifetime/brief.md, an Author brief: line in $brief or the lane map): not verified"; return 7; }
+    { _spl_review_go_hold "$@" 7 "author $author has no brief on this box $here (author box ${abox:-not named}; not $SPOOL_ROOT/$author/lifetime/brief.md, an Author brief: or Author's brief: line in $brief or the lane map): not verified"; return 7; }
   why="$(_spl_review_go_owner_go "$abrief" "$holder")" ||
     { _spl_review_go_hold "$@" 4 "task touches owner-go scope: $why"; return 4; }
   why="$(REVIEW_LINE="$line" REVIEW_LINE_REPO="${REVIEW_GO_REPO:-}" do_spl_review_line_check 2>&1)"; rc=$?

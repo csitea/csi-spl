@@ -60,9 +60,11 @@
 #        names only the shared task (W1); controls: it names the branch,
 #        the sha -> GO
 #        RED CONTROL (SPL-5793) an author on boxb whose one lane row is
-#        c-222-<slug>: its own dispatch/briefs/<slug>.md, untied -> GO; an
-#        `Author's brief:` line -> GO; controls: two lanes of c-222@boxb, a
-#        rotated branch, the row on boxc -> rc 7
+#        c-222-<slug> of the reviewer brief's Issue: its own
+#        dispatch/briefs/<slug>.md, untied -> GO; an `Author's brief:` line,
+#        backticked or not -> GO; RED CONTROL (R7 c-996 W1) ONE row of a new
+#        lane of another issue -> rc 7; controls: no issue key, no Issue:
+#        line, a rotated branch, the row on boxc -> rc 7
 #    19. the desk pinned under another user than the cron's (SPL-4563, sat:
 #        the agent user runs the cron, the box user holds the t1 pin): RED
 #        CONTROL the lane map read as the pin's user (sudo stub) -> GO; no
@@ -553,11 +555,11 @@ HUB
 chmod +x "$T/hub.sh"
 # lanes <id@box|branch|scope>...: the lane map's rows
 lanes() {
-  local r rows=() id box br sc
+  local r rows=() id box br sc ik
   for r in "$@"; do
-    IFS='|' read -r id br sc <<<"$r"; box="${id#*@}" id="${id%@*}"
-    rows+=("$(jq -cn --arg i "$id" --arg b "$box" --arg br "$br" --arg s "$sc" \
-      '{agent_id: $i, agent_box: $b, branch: $br, scope: $s, state: "done", updated_at: "2026-10-28T11:00:00Z"}')")
+    IFS='|' read -r id br sc ik <<<"$r"; box="${id#*@}" id="${id%@*}"
+    rows+=("$(jq -cn --arg i "$id" --arg b "$box" --arg br "$br" --arg s "$sc" --arg k "$ik" \
+      '{agent_id: $i, agent_box: $b, branch: $br, scope: $s, issue_key: $k, state: "done", updated_at: "2026-10-28T11:00:00Z"}')")
   done
   printf '{"lanes":[%s]}\n' "$(IFS=,; echo "${rows[*]}")" >"$T/s/lanes.json"
 }
@@ -637,24 +639,35 @@ reset18n1 "Do: another fix in topic $TASK."
 f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000f)
 run18 REVIEW_GO_MSG="$f"; refused "18. RED CONTROL (R7 c-972 W1): the rotated author's new brief names only the shared task holds" $? 7 "author box boxb"
 # the author's OWN placement brief on another box (SPL-5793, b11-01): the lane map's one row of c-222@boxb is
-# branch c-222-<slug>, dispatch/briefs/<slug>.md names neither the review branch nor the sha (d3a83a98's shape)
-# reset18own <rows...>: the reviewer brief says `Author: c-222@boxb (claude)` and no Author brief: line
+# branch c-222-<slug> of the reviewer brief's issue, dispatch/briefs/<slug>.md names neither the review branch
+# nor the sha (d3a83a98's shape). The hub keeps ONE row per id@box (rdb 0102, an upsert), so a re-tasked seat
+# is one row of its new lane and its new issue (R7 c-996 W1).
+# reset18own <rows...>: the reviewer brief says `Author: c-222@boxb (claude)`, `Issue: SPL-9001` and no
+# Author brief: line
 reset18own() {
   reset18; rm -rf "${S:?}/c-222"; dbrief c002-x-grok-reviewer "c-222@boxb (claude)" "Seat brief: R7 review of the c002-x orc fix"
+  printf '\nIssue: SPL-9001\n' >>"$S/dispatch/briefs/c002-x-grok-reviewer.md"
   printf '# Lane brief: the shared client fold\n\nDo: fold the pairs.\n' >"$S/dispatch/briefs/hand-boxb-c002-fold.md"
   printf '# Lane brief: a later c-222 task\n\nDo: another fix.\n' >"$S/dispatch/briefs/c222-later.md"
   lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix" "$@"
 }
-reset18own "c-222@boxb|c-222-hand-boxb-c002-fold|Lane brief: the shared client fold"
+reset18own "c-222@boxb|c-222-hand-boxb-c002-fold|Lane brief: the shared client fold|SPL-9001"
 f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000010)
-run18 REVIEW_GO_MSG="$f"; go18 "18. RED CONTROL (SPL-5793): the author on boxb, its own lane's placement brief (untied) -> GO" 18000000-0000-4000-8000-000000000010 $? boxb
-reset18own "c-222@boxb|c-222-c222-later|Lane brief: a later c-222 task" "c-222@boxb|c-222-hand-boxb-c002-fold|Lane brief: the shared client fold"
+run18 REVIEW_GO_MSG="$f"; go18 "18. RED CONTROL (SPL-5793): the author on boxb, its own lane's placement brief (untied, same issue) -> GO" 18000000-0000-4000-8000-000000000010 $? boxb
+reset18own "c-222@boxb|c-222-c222-later|Lane brief: a later c-222 task|SPL-9002"
 f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000011)
-run18 REVIEW_GO_MSG="$f"; refused "18. control (SPL-5793, N1): a re-tasked author (two lanes of c-222@boxb, both untied) holds" $? 7 "author box boxb"
-reset18own "c-222@boxb|c-222-rotate|Lane brief: a later c-222 task"
+run18 REVIEW_GO_MSG="$f"; refused "18. RED CONTROL (SPL-5793, R7 c-996 W1): a re-tasked author (ONE row of c-222@boxb, a new lane of another issue, untied) holds" $? 7 "author box boxb"
+reset18own "c-222@boxb|c-222-hand-boxb-c002-fold|Lane brief: the shared client fold"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000015)
+run18 REVIEW_GO_MSG="$f"; refused "18. control (SPL-5793, W1): the own lane row with no issue key holds" $? 7 "author box boxb"
+reset18own "c-222@boxb|c-222-hand-boxb-c002-fold|Lane brief: the shared client fold|SPL-9001"
+sed -i '/^Issue: /d' "$S/dispatch/briefs/c002-x-grok-reviewer.md"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000016)
+run18 REVIEW_GO_MSG="$f"; refused "18. control (SPL-5793, W1): a reviewer brief with no Issue: line holds" $? 7 "Author's brief: line in"
+reset18own "c-222@boxb|c-222-rotate|Lane brief: a later c-222 task|SPL-9001"
 f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000012)
 run18 REVIEW_GO_MSG="$f"; refused "18. control (SPL-5793, N1): a rotated author (branch c-222-rotate, its scope brief untied) holds" $? 7 "author box boxb"
-reset18own "c-222@boxc|c-222-hand-boxb-c002-fold|Lane brief: the shared client fold"
+reset18own "c-222@boxc|c-222-hand-boxb-c002-fold|Lane brief: the shared client fold|SPL-9001"
 f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000013)
 run18 REVIEW_GO_MSG="$f"; refused "18. control (SPL-5793): the own lane of c-222 on another box (boxc) is not boxb's" $? 7 "author box boxb"
 # d3a83a98's reviewer brief spells the line `Author's brief: <path>` (77 briefs in dispatch/briefs on 2026-11-17)
@@ -662,6 +675,11 @@ reset18own "c-222@boxb|c-222-rotate|Lane brief: a later c-222 task"
 printf "Author's brief: %s.\n" "$S/dispatch/briefs/hand-boxb-c002-fold.md" >>"$S/dispatch/briefs/c002-x-grok-reviewer.md"
 f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000014)
 run18 REVIEW_GO_MSG="$f"; go18 "18. RED CONTROL (SPL-5793): a rotated author named by an Author's brief: line -> GO" 18000000-0000-4000-8000-000000000014 $? boxb
+# 43 reviewer briefs on one box backtick the path: `` Author's brief: `/var/...` `` (R7 c-996 N1)
+reset18own "c-222@boxb|c-222-rotate|Lane brief: a later c-222 task"
+printf "Author's brief: \`%s\`.\n" "$S/dispatch/briefs/hand-boxb-c002-fold.md" >>"$S/dispatch/briefs/c002-x-grok-reviewer.md"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000017)
+run18 REVIEW_GO_MSG="$f"; go18 "18. RED CONTROL (SPL-5793, R7 c-996 N1): a backticked Author's brief: path -> GO" 18000000-0000-4000-8000-000000000017 $? boxb
 
 # --- 19. the desk pinned under another user than the cron's (SPL-4563) ----------------------------------
 # spl_lane_init refuses as it does for the cron user on sat; the sudo stub: `test` is true for $PIN_USERS,

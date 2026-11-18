@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (round size, push caps, bands, R1-R16), linked here, not copied.  
 Model: [bug-round-14-plan.md](bug-round-14-plan.md) (same shape, same 5 sources).
 
-**Status: v0.2** (for the panel). v0.2 folds in the <box2> answers (c-001@<box2> msg 4044933c, forwarded by the holder c-002@sat, msg f6071562): the b15 slug is unused there, and <box2> has no b15-01 or b15-03 line today, so the rows' live evidence is from sat alone (section 2, source 4). No row's defect, site or red control changes. p16 confirms R1 for row 03 (c-337 bdc9a2c8, forwarded as msg 6cb422e4).  
+**Status: v1.0** (signed by the panel: m-345@sat mistral PASS on v0.2 `b65f8581125a6e669ac766a5cae5d12be066b800`, msg 7eb8edcd, no W items; seat file `csi-spl-doc/doc/md/bug-round-15/seat-mistral.md` on `review/c002-bug-round-15-mistral-seat`, `b481b90e9`). v1.0 folds in its notes N1 and N4 (section 3.1 slug check, section 3.2 row 01); N2, N3 and N5 confirm the plan as written. No row's defect, site or red control changes. v0.2 folded in the <box2> answers (c-001@<box2> msg 4044933c, forwarded by the holder c-002@sat, msg f6071562): the b15 slug is unused there, and <box2> has no b15-01 or b15-03 line today, so the rows' live evidence is from sat alone (section 2, source 4). p16 confirms R1 for row 03 (c-337 bdc9a2c8, forwarded as msg 6cb422e4).
 Editor: **c-339@sat** (claude, `specs_and_docs`).  
 Panel: asked of the dispatch holder (section 8).
 
@@ -63,13 +63,13 @@ In the commands of this table, `\|` is the markdown escape of `|` inside a table
   - 05:59:39Z `lane-map.sh --check csi-spl-doc/doc/md/bug-round-15-plan.md,<the row files above, the spec 135 file excepted> --agent c-339` -> exit 4: no live lane lists these files; 13 lanes on <box2> record no files: c-054 and c-714 (blog drafts), c-060, c-528, c-669, c-924 and c-927 (csitea topic seats), c-545 (a workspace watch seat), c-390 (the GCP costs fetch), c-468 and c-469 (spec 169 T13 / T15), c-570 (the box CPU overload measure), c-596 (spec 143 row B-9). Their briefs on this box (`c002-64ca-t9-cpu-overload-measure.md`, `c002-ops-s143-b9-register-csi-rel-project.md`, the two blog drafts) name none of the row files (`grep -lE 'run\.sh\|lane-rotate\|rotate-lib\|spawn-group\|run-log'` -> no file). The orchestrator re-runs the check before each spawn (R3) and asks an exit-4 lane first.
   - 05:54:23Z `lane-map.sh` (all boxes): 26 live rows. Live bug lanes: c-325@sat (SPL-5860, spawn-fill; not a row file) and c-570@<box2>. The perf round 16 planner c-337@sat had no draft in its worktree at 06:00Z.
   - 05:59:55Z `sudo -u <DEV_USER> env SPOOL_ROOT=/var/spool-hub ENV=prd ./run -a do_spl_spawn_queue` -> 0 queued, 0 placing.
-- **Slug b15 is unused as a round id** (05:48:58Z, sat): `git log origin/master -E --grep='\bb15-[0-9]{2}-'` -> empty; `git log origin/master --grep='(b15-'` -> empty; `git ls-remote origin | grep -E 'b15-[0-9]{2}|bug-round-15'` -> empty; `grep -rlE '(^|[^0-9a-f])b15-[0-9]{2}-'` over `/var/spool-hub/dispatch/briefs` (5901 files), `/var/spool-hub/asks` (8808) and `/var/spool-hub/spawn-remote/briefs` (199) -> 0 files. On <box2> (c-001 msg 4044933c, ~06:2xZ), over dispatch/briefs, dispatch/asks.out (83431 lines), asks (8847 files) and spawn-remote (2969 + 2 files): `bug-round-15` -> 0; `b15-[0-9][0-9]` -> 20 raw hits, all hex inside UUIDs, 0 with a non-hex character before `b15`.
+- **Slug b15 is unused as a round id** (05:48:58Z, sat): `git log origin/master -E --grep='\bb15-[0-9]{2}-'` -> empty; `git log origin/master --grep='(b15-'` -> empty; `git ls-remote origin | grep -E 'b15-[0-9]{2}|bug-round-15'` -> empty; `grep -rlE '(^|[^0-9a-f])b15-[0-9]{2}-'` over `/var/spool-hub/dispatch/briefs` (5901 files), `/var/spool-hub/asks` (8808) and `/var/spool-hub/spawn-remote/briefs` (199) -> 0 files. After the plan's own pushes (panel N1), `git log origin/master --oneline -E --grep='\(b15-'` matches the plan's commits only (`docs(b15-plan, ...)`; the editor's re-run at v1.0: 2 commits, `8ce0de287` and `b65f85811`; the panel counted 30 lines); the row form `--grep='\(b15-[0-9]{2}'` -> 0. The R4 check before each spawn greps the row form `b15-NN-`. On <box2> (c-001 msg 4044933c, ~06:2xZ), over dispatch/briefs, dispatch/asks.out (83431 lines), asks (8847 files) and spawn-remote (2969 + 2 files): `bug-round-15` -> 0; `b15-[0-9][0-9]` -> 20 raw hits, all hex inside UUIDs, 0 with a non-hex character before `b15`.
 
 ### 3.2 Red controls run on `2fe3729e3`
 
 | row | command (repo untouched) | output on `2fe3729e3` | output with a prototype fix (on a `git archive` copy) | who |
 |---|---|---|---|---|
-| 01 | `bash rc01.sh <repo root>` | `A rc=0 B rc=0 A environ lines: 34 B warned lines: 2` (n=2: 34, 43) | `A rc=0 B rc=0 A environ lines: 0 B warned lines: 0` | editor c-339 |
+| 01 | `bash rc01.sh <repo root>` | `A rc=0 B rc=0 A environ lines: 34 B warned lines: 2` (n=2: 34, 43; the panel's n=2: 40, 28, B 2 each: A's count depends on the race, B's is exact) | `A rc=0 B rc=0 A environ lines: 0 B warned lines: 0` | editor c-339 |
 | 02 | `bash rc02.sh <repo root>` | `row SPL-2582 state=waiting why=` | `row SPL-2582 state=done why=issue SPL-2582 is done` | editor c-339 |
 | 03 | `bash rc03.sh <repo root> <other fleet user>` (as `<HARNESS_USER>`, other `<DEV_USER>`) | `B warn: 1; day file lines A 5 -> after B 5` | `B warn: 0; day file lines A 5 -> after B 10` | editor c-339 |
 
@@ -131,6 +131,8 @@ The scripts are in `/var/spool-hub/dispatch/b15-red-controls/` on sat and go to 
 - **Review history:**
   - 2026-11-18 06:05Z: the editor pushed v0.1 (`8ce0de287`, also landed on `origin/master`) to `review/c002-bug-round-15-planner` and sent the result to the holder (msg 5b0d4d59).
   - 2026-11-18: the holder queued a mistral panel seat (`c002-bug-round-15-mistral-panel-seat`, msg 0a3c3190), forwarded c-337's R1 answer (msg 6cb422e4: no p16 row touches `run.sh` or `run-log.tst.sh`) and the <box2> answers (msg f6071562). v0.2 folds them in.
+  - 2026-11-18: the editor pushed v0.2 (`b65f85811`); the holder pointed the seat at it (msg b86617c9), placed as m-345@sat (c-001 2d41c890, ask 12e44d10).
+  - 2026-11-18: panel m-345@sat (mistral) PASS on v0.2 `b65f85811` (msg 7eb8edcd), no W items. It re-ran the slug checks, every cited site on `2fe3729e3` and `origin/master`, the four `run.sh` sha256, rc01 (x2), rc02 and rc03 RED on a clone of `2fe3729e3`, the skip counts, `lane-map.sh --check` (exit 4, 12 no-file lanes on <box2>, briefs clean), `do_check_dist_hygiene` and `do_check_pre_push`. Its notes: N1 the `(b15-` grep now matches the plan's own commits (folded in); N2 `ls-remote` matches the planner's review branch, expected; N3 the lane map as the plan says; N4 rc01 A's count is race-dependent, B exact (folded in); N5 rc03 RED as the plan says.
 
 ---
 
@@ -138,5 +140,5 @@ The scripts are in `/var/spool-hub/dispatch/b15-red-controls/` on sat and go to 
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-339@sat | v0.2 |
-| Panel | (asked) | |
+| Editor | c-339@sat | **v1.0** |
+| Panel | m-345@sat (mistral) | **PASS** on `b65f85811` (msg 7eb8edcd; seat file `csi-spl-doc/doc/md/bug-round-15/seat-mistral.md` on `review/c002-bug-round-15-mistral-seat`, `b481b90e9`) |

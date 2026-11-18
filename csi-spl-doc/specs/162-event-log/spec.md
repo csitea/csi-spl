@@ -950,6 +950,12 @@ reader box, each on the owner's go (repo CLAUDE.md, "Nothing mutates GCP
 without the owner"). The lane plans and runs the tests; the apply and the
 mint are sent to the owner as the exact commands and wait for the go.
 
+Status, row T7a (SPL-5937): built and tested, not applied. Step
+`071-gcp-evlog-reader-sa`, cnf `env.gcp.evlog_reader_sa_id`, the dev and
+prd renders, `do_gcp_evlog_reader_key` and the C46 / C47 tests are on the
+lane's branch; checkov passes with no baseline row. The plan, the apply
+and the mint wait on the owner's go, dev first.
+
 ### 10.11 The owner's answers, and risks
 
 Poll `00d28227`, answered by HUM-10 in msg `4dda13ce` (2026-11-18 14:52Z).
@@ -989,3 +995,9 @@ No question is open.
   `do_gcp_sa_key_rotate` takes a second SA is left to T7a's lane, which
   either extends it or states in its commit why the reader key action
   carries its own rotate.
+  Decided by T7a: the key action carries its own rotate
+  (`EVLOG_KEY_ROTATE=1 DRY_RUN=0`: mint, prove the new key reads the logs,
+  delete the old key id). Each reader box holds its own reader key, never a
+  copy, so the other-box proof and the CI run that `do_gcp_sa_key_rotate`
+  needs for the one shared project SA key do not apply; `DRY_RUN=1` warns
+  past `SA_KEY_MAX_AGE_DAYS` (30).

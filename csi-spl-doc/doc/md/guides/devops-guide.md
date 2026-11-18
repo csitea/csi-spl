@@ -272,6 +272,7 @@ One env and one step at a time, from the checkout the tf-runner mounts. State li
 | 060-gcp-vm-satellite | prd only | the satellite VM; the playbook detail is `SYS.md` |
 | 061-gcp-vm-wine-box | dev only | the wine-box VM |
 | 070-gcp-monitoring | dev, then prd | monitoring |
+| 071-gcp-evlog-reader-sa | dev, then prd | the event-log reader SA, `roles/logging.viewer` only, no key; its key per reader box: `ENV=<env> DRY_RUN=0 ./run -a do_gcp_evlog_reader_key` (csi-spl-iac), on the owner's go |
 | 120-github-general-secrets | dev, then prd | GitHub secrets from the project keys |
 
 <a id="ws-doc-55109a80-2356-47e4-9271-fc9fc19db4e2"></a>

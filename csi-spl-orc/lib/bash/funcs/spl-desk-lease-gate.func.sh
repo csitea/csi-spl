@@ -91,6 +91,72 @@ spl_desk_lease_gate() {
   return 8
 }
 
+# spl_desk_second_seat_gate <state dir> <box> <tenant> <hub> <agent> <task>:
+# SPL-5932, the dedupe the first-reply gate above cannot do. t1 topic
+# 035cb09e, 2026-11-18: one owner post got two contradicting answers 47 s
+# apart (c-002 12:16:08Z, c-003 12:16:55Z); both seats had answered in the
+# topic before, so neither reply was a first one. So a reply is refused
+# (exit 10, nothing sent) when, since the topic's newest human (HUM-*) post,
+# another seat has already posted, unless <agent> holds the dispatch lease
+# right now (<lease dir>/lease, read as rule 1 above) or that human post is
+# a DM to <agent> or names @<agent>. Its own earlier post, a responder's
+# (RSP-*) and a guest's (GST-*) are no other seat's. No lease file, or a
+# lease naming no holder: no gate, as above. A topic this box cannot read:
+# a WARN and the reply goes (the hub is then unlikely to take the send).
+# The tail holds only what this desk box sent or was sent: a seat's answer
+# made from another machine's box is not seen. Under SPOOL_TEST=1 there is no
+# gate unless SPL_DESK_LEASE_GATE_TEST=1, as above.
+spl_desk_second_seat_gate() {
+  local d="$1" box="$2" tenant="$3" hub="$4" agent="$5" task="$6"
+  local dir="${SPOOL_ROOT:-/var/spool-hub}/dispatch" holder="" out hit hmsg seat smsg
+  [[ "${SPOOL_TEST:-}" == 1 && "${SPL_DESK_LEASE_GATE_TEST:-}" != 1 ]] && return 0
+  [[ -s "$dir/lease" ]] || return 0
+  read -r holder _ < "$dir/lease"
+  [[ -z "$holder" || "$holder" == none* ]] && return 0
+  spl_desk_lease_is "$agent" "$holder" "$dir" && return 0
+  if ! out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-tail --task "$task" --json 2>&1)"; then
+    do_log "WARN the second-seat gate cannot read topic $task, not checked (SPL-5932): $(head -c 200 <<<"$out")"
+    return 0
+  fi
+  hit="$(spl_desk_second_seat_verdict "$agent" <<<"$out")" || return 0
+  IFS=$'\t' read -r hmsg seat smsg <<<"$hit"
+  do_log "FATAL nothing was sent: $seat already answered human post $hmsg in topic $task (msg $smsg), and $agent neither holds the dispatch lease ($holder) nor was addressed by that post; two seats answering one post contradict each other (SPL-5932). Send your answer to the holder: spool-send.sh --to $holder"
+  return 10
+}
+
+# spl_desk_second_seat_verdict <agent>, the topic's hub-tail NDJSON on stdin:
+# "<human msg_id>\t<seat>\t<seat msg_id>" when another seat posted after the
+# newest HUM-* post and that post neither is a DM to <agent> nor names
+# @<agent>; exit 1 (nothing printed) otherwise. Order: ts, then tail order.
+spl_desk_second_seat_verdict() {
+  python3 -c '
+import json, re, sys
+agent = sys.argv[1]
+named = re.compile(r"(^|[^A-Za-z0-9_-])@" + re.escape(agent) + r"([^A-Za-z0-9_-]|$)")
+rows = []
+for i, line in enumerate(sys.stdin):
+    try:
+        m = json.loads(line)
+    except ValueError:
+        continue
+    if isinstance(m, dict) and m.get("from"):
+        rows.append((str(m.get("ts", "")), i, m))
+rows.sort(key=lambda r: (r[0], r[1]))
+last = max((k for k, r in enumerate(rows) if str(r[2]["from"]).startswith("HUM-")), default=-1)
+if last < 0:
+    sys.exit(1)
+hum = rows[last][2]
+if str(hum.get("to", "")).split("@")[0] == agent or named.search(str(hum.get("body", ""))):
+    sys.exit(1)
+for _, _, m in rows[last + 1:]:
+    frm = str(m["from"])
+    if frm.startswith(("HUM-", "RSP-", "GST-")) or frm.split("@")[0] == agent:
+        continue
+    print("\t".join([str(hum.get("msg_id", "")), frm, str(m.get("msg_id", ""))]))
+    sys.exit(0)
+sys.exit(1)' "$1"
+}
+
 # _spl_desk_lease_tail: the topic into the caller's tail, ch_known and
 # topic_ch (dynamic scope). --with-channel first; a binary that lacks it is
 # asked with plain --json (ch_known=0). 1 when the topic cannot be read.

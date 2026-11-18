@@ -25,6 +25,12 @@
 #      and orch lease holders refused; a malformed column 6 refuses; not a
 #      first reply, or another channel: the holder still posts; a spool
 #      without --with-channel: the rule is not checked (WARN)
+#  10. SPL-5932 (t1 topic 035cb09e, the 47 s race): another seat answered
+#      the newest human post -> a non-holder's reply refused, exit 10,
+#      nothing sent, the seat named; the dispatch holder still replies (a
+#      standby seat answered first); the seat the post addressed (@id, DM)
+#      replies; its own earlier answer, an RSP-* post or a newer human post
+#      do not refuse; the orch lease holder is refused; no lease file: none
 #   9. SPL-4444 (topic 63674838): this box's tail holds no agent post
 #      but the hub counts one from another box (hub-tail --agent-count) ->
 #      sent, in a sole-seat channel too; a count of 0 -> refused; a count
@@ -44,6 +50,9 @@
 # _spl_desk_lease_first fallback, the old gate) 5 of 7 in section 9 fail:
 # the cross-box reply and the sole-seat follow-up are refused, and the count
 # of 0, the unread count and the old binary refuse without asking the count.
+# Without the second-seat gate call (SPL-5932) 4 of 11 in section 10 fail:
+# the race, the msg named in its FATAL, the longer-id control and the orch
+# holder; the non-holder's reply goes through (rc 0, one send).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -55,7 +64,7 @@ orc_stub 1 gcloud curl docker cloud-sql-proxy spool tmux
 TK=44444444-4444-4444-8444-444444444444
 R="$T/root"
 mkdir -p "$R/dispatch"
-for a in c-002 g-001 c-001 c-423; do mkdir -p "$T/state/dev/desk/t1/box-desk/spool/$a"; done
+for a in c-002 c-003 g-001 c-001 c-423; do mkdir -p "$T/state/dev/desk/t1/box-desk/spool/$a"; done
 echo pub >"$T/state/dev/desk/t1/box-desk/pinned"
 HUMPOST='{"v":1,"msg_id":"h-1","task_id":"'"$TK"'","ts":"2026-10-26T08:00:00Z","from":"HUM-10","to":"ALL-0","kind":"note","body":"the menu is gone","files":[]}'
 python3 - "$T/inbox.json" "$TK" <<'EOF_PY'
@@ -235,13 +244,50 @@ reply g-001 AGENT_COUNT=old
 refused && grep -q 'cannot be read' "$T/o" && pass "a spool without --agent-count refuses (fail closed)" || fail "old binary passed: $(show)"
 reply g-001 AGENT_COUNT=-1
 refused && pass "a malformed count (negative) refuses" || fail "a negative count passed: $(show)"
-reply g-001 AGENT_COUNT=0 TAIL="$HUMPOST"$'\n''{"v":1,"msg_id":"a-3","task_id":"'"$TK"'","ts":"2026-10-26T08:01:00Z","from":"c-002","to":"HUM-10","kind":"note","body":"Taken","files":[]}'
+reply g-001 AGENT_COUNT=0 TAIL="$HUMPOST"$'\n''{"v":1,"msg_id":"a-3","task_id":"'"$TK"'","ts":"2026-10-26T08:01:00Z","from":"g-001","to":"HUM-10","kind":"note","body":"Taken","files":[]}'
 ok_sent && ! grep -q -- '--agent-count' "$T/calls" &&
   pass "a tail that shows an agent post asks the hub no count" || fail "count asked though the tail answered: $(show)"
 printf 't1\tsolo\t%s\tprd\tc-423\tc-423@box-a\n' "$DOC" >"$MAP"
 reply c-002 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$(chtail solo)" AGENT_COUNT=2
 ok_sent && pass "a sole-seat channel: the sole seat answered from another box, the holder's follow-up is not refused" ||
   fail "sole-seat follow-up across boxes refused: $(show)"
+
+# --- 10. a second seat answers a post another seat answered (SPL-5932) -----------------
+# The topic of the 47 s race: both seats had answered in it before, so the
+# first-reply gate above lets either through; then the owner posts h-9 and
+# the holder c-002 answers it 8 s later.
+lease c-002@box-a c-001@box-b
+hp() { echo '{"v":1,"msg_id":"'"$1"'","task_id":"'"$TK"'","ts":"'"$2"'","from":"HUM-10","to":"'"${4:-ALL-0}"'","kind":"note","body":"'"$3"'","files":[]}'; }
+ap() { echo '{"v":1,"msg_id":"'"$1"'","task_id":"'"$TK"'","ts":"'"$2"'","from":"'"$3"'","to":"HUM-10","kind":"note","body":"answer","files":[]}'; }
+OLD="$(hp h-0 2026-11-18T11:00:00Z 'is it built?')"$'\n'"$(ap a-10 2026-11-18T11:01:00Z c-002)"$'\n'"$(ap a-11 2026-11-18T11:02:00Z c-003)"
+RACE="$OLD"$'\n'"$(hp h-9 2026-11-18T12:16:00Z 'go')"$'\n'"$(ap a-12 2026-11-18T12:16:08Z c-002)"
+reply c-003 TAIL="$RACE"
+[[ "$(cat "$T/rc")" == 10 && "$(sent)" == 0 ]] && grep -q 'SPL-5932' "$T/o" && grep -q 'c-002 already answered human post h-9' "$T/o" &&
+  pass "the 47 s race: a non-holder's answer to a post the holder answered is refused (exit 10, nothing sent)" ||
+  fail "second seat not refused: $(show)"
+grep -q 'msg a-12' "$T/o" && pass "the FATAL names the other seat's answer (a-12)" || fail "FATAL lacks the answer id: $(show)"
+STANDBY="$OLD"$'\n'"$(hp h-9 2026-11-18T12:16:00Z 'go')"$'\n'"$(ap a-13 2026-11-18T12:16:08Z c-003)"
+reply c-002 TAIL="$STANDBY"
+ok_sent && pass "a standby seat answered first: the dispatch holder still replies" || fail "holder refused after a standby answer: $(show)"
+reply c-003 TAIL="$OLD"$'\n'"$(hp h-9 2026-11-18T12:16:00Z '@c-003 can it start?')"$'\n'"$(ap a-12 2026-11-18T12:16:08Z c-002)"
+ok_sent && pass "the seat the post names (@c-003) replies after the holder" || fail "@-addressed seat refused: $(show)"
+reply c-003 TAIL="$OLD"$'\n'"$(hp h-9 2026-11-18T12:16:00Z 'can it start?' c-003@box-a)"$'\n'"$(ap a-12 2026-11-18T12:16:08Z c-002)"
+ok_sent && pass "the seat the post is a DM to replies after the holder" || fail "DM-addressed seat refused: $(show)"
+reply c-003 TAIL="$OLD"$'\n'"$(hp h-9 2026-11-18T12:16:00Z '@c-0031 go')"$'\n'"$(ap a-12 2026-11-18T12:16:08Z c-002)"
+[[ "$(cat "$T/rc")" == 10 ]] && pass "CONTROL: a longer id (@c-0031) does not address c-003" || fail "longer id addressed c-003: $(show)"
+reply c-003 TAIL="$OLD"$'\n'"$(hp h-9 2026-11-18T12:16:00Z 'go')"$'\n'"$(ap a-13 2026-11-18T12:16:08Z c-003)"
+ok_sent && pass "its own earlier answer to the post does not refuse a seat" || fail "own follow-up refused: $(show)"
+reply c-003 TAIL="$OLD"$'\n'"$(hp h-9 2026-11-18T12:16:00Z 'go')"$'\n'"$(ap r-9 2026-11-18T12:16:02Z RSP-1)"
+ok_sent && pass "a responder's (RSP-*) post is no other seat's answer" || fail "RSP post refused the seat: $(show)"
+reply c-003 TAIL="$RACE"$'\n'"$(hp h-10 2026-11-18T12:20:00Z 'and the docs?')"
+ok_sent && pass "a newer human post after the other seat's answer opens the topic again" || fail "newer human post still refused: $(show)"
+lease c-002@box-a c-003@box-a
+reply c-003 TAIL="$RACE"
+[[ "$(cat "$T/rc")" == 10 && "$(sent)" == 0 ]] && pass "the orchestrator lease holder is refused too: only the dispatch lease passes" || fail "orch holder passed: $(show)"
+lease ""
+reply c-003 TAIL="$RACE"
+ok_sent && pass "no lease file: no second-seat gate" || fail "no-lease box gated: $(show)"
+lease c-002@box-a c-001@box-b
 
 echo
 if (( fails > 0 )); then echo "FAILED: $fails"; exit 1; fi

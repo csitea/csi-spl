@@ -90,6 +90,12 @@
 # @description seat of it, or the human addressed it (a DM, @<id>); a topic's
 # @description owner answering again is never refused (SPL-3520,
 # @description lib/bash/funcs/spl-desk-lease-gate.func.sh).
+# @description A reply is refused (exit 10, nothing sent) when another seat has
+# @description already posted in the topic since its newest human post and this
+# @description seat neither holds the dispatch lease right now nor was addressed
+# @description by that post (a DM, @<id>): one human post, one seat's answer
+# @description (SPL-5932, spl_desk_second_seat_gate in
+# @description lib/bash/funcs/spl-desk-lease-gate.func.sh).
 # @description A reply is refused (exit 9, nothing sent) when the topic's newest
 # @description human post since the last agent post is addressed to people
 # @description only: its to_id is a HUM-*, or it is a channel post that
@@ -196,6 +202,7 @@ do_spl_desk_reply() {
   local ans_to ans_task ans_msg ans_head ans_ref=""
   _spl_desk_reply_choose || return $?
   spl_desk_lease_gate "$d" "$box" "$tenant" "$hub" "$agent" "$ans_task" || return $?
+  spl_desk_second_seat_gate "$d" "$box" "$tenant" "$hub" "$agent" "$ans_task" || return $?
   spl_desk_human_gate "$d" "$box" "$tenant" "$hub" "$agent" "$ans_task" || return $?
 
   local ids=()

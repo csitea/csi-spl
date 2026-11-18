@@ -41,6 +41,38 @@ without `cr_sole_seat` (before SPL-3542 lands) skips it silently.
 A reply that is not the first is never refused here. That covers the topic's
 owner answering again, and anyone after an agent has already answered.
 
+### 2.1 A second seat on the same human post (SPL-5932)
+
+The table above gates only the first reply in a topic. On 2026-11-18, in t1
+topic 035cb09e, one owner post got two contradicting answers 47 s apart
+(c-002 at 12:16:08Z, c-003 at 12:16:55Z). Both seats had answered in that
+topic before, so neither reply was a first one and neither was gated.
+
+So `do_spl_desk_reply` also refuses a reply (exit 10, nothing sent) when,
+since the topic's newest human (`HUM-*`) post, another seat has already
+posted, unless:
+
+- the seat holds the dispatch lease right now (`<spool root>/dispatch/lease`,
+  read as in the table above), or
+- that human post is a DM to the seat or names it (`@<id>`).
+
+The FATAL names the seat that answered, its message id and the holder to
+send the answer to. The check runs after the first-reply gate and before the
+human-to-human gate (exit 9), and it is independent of the first-reply rules:
+
+- The orchestrator lease holder, a workspace seat, a channel seat and a sole
+  seat pass the first-reply gate, but not this check: one human post gets
+  one seat's answer, and only the holder or the addressed seat adds another.
+- The holder may still reply after a standby seat that was finishing the
+  message in hand.
+- The seat's own earlier answer, a responder's (`RSP-*`) and a guest's
+  (`GST-*`) post are no other seat's answer. A newer human post opens the
+  topic again.
+- No lease file, or a lease that names no holder: no check, as above. A
+  topic the box cannot read: a WARN, and the reply goes.
+- The read is the seat's own desk box (`hub-tail --json`), so another
+  machine's seat's answer is not seen (section 3).
+
 ## 3. Edges
 
 - The topic is read from the seat's own desk box (`spool hub-tail`), and the
@@ -68,12 +100,14 @@ owner answering again, and anyone after an agent has already answered.
 
 - Gate: `csi-spl-orc/lib/bash/funcs/spl-desk-lease-gate.func.sh`
   (`spl_desk_lease_gate`), one call in `do_spl_desk_reply` right after the
-  conversation is chosen.
-- Test: `csi-spl-orc/src/bash/tests/desk-reply-lease-gate.tst.sh`. 34 cases.
+  conversation is chosen; the second-seat check
+  (`spl_desk_second_seat_gate`, section 2.1) is the next call.
+- Test: `csi-spl-orc/src/bash/tests/desk-reply-lease-gate.tst.sh`. 45 cases.
   With the gate call removed, 7 of the first 16 fail. With the sole-seat
   block removed, 6 of the 11 SPL-3542 cases fail. With the old tenant-only
   channel match, 1 of them fails. With the old gate (no hub count), 5 of the
-  7 SPL-4444 cases fail.
+  7 SPL-4444 cases fail. With the second-seat call removed, 4 of the 11
+  SPL-5932 cases fail: the non-holder's answer is sent.
 - The hub count: `onTailCount` in `csi-spl-api/src/go/spool-hub-api/internal/hub/ws.go`
   (an `agent_count` tail frame), the client's `Session.AgentCount`, and the
   `hub-tail --agent-count` flag. Its test is `internal/hub/agent_count_test.go`.

@@ -46,6 +46,7 @@ The shown day and view are kept in the address (`/calendar?d=YYYY-MM-DD`, plus
 Events are **public** by default: everyone who can open the workspace sees
 them. Only the event's owner can make an event **private**.
 
+<a id="ws-doc-bc7ebf91-bb60-4dc2-9614-723fe1e74d21"></a>
 ## Imported from Outlook
 
 A member's Outlook calendar can be copied into their spool-hub calendar

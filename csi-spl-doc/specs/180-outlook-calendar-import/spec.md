@@ -165,4 +165,4 @@ on a valid batch).
 - For B only: register the Task Scheduler entry on the Outlook box.
 - Keep Outlook signed in on the Outlook box during the window.
 
-<!-- version: 0.4.0 · updated: 2026-11-18 · last-edit: 2026-11-18T09:00:00Z -->
+<!-- version: 0.4.1 · updated: 2026-11-18 · last-edit: 2026-11-18T11:00:00Z -->

@@ -290,6 +290,15 @@ opening it.
   `node tests/unit/issue-key-links.test.mjs`, `tests/e2e/commit-links.test.mjs`,
   `go test ./internal/hub -run TestIssueListLastNumber`,
   `go test ./internal/store -run TestIssueLastNumber`.
+- **FR-019** — Implemented (SPL-5889): a human is labelled by their name, never by the id
+  when a name is known. The name is the roster's `display_name` (`GET /v1/view/roster`, the
+  hub's join of first and last name), shown through `HumanName` / `useHumanNames`; the
+  `HUM-<n>` id is the fallback when the member has no name, and stays in the title. An
+  agent keeps its id. The calendar event pop-over and its phone peek show the event's
+  owner and an issue deadline's assignee this way. Owner HUM-10, topic 12ccd587,
+  msg ba033650 ("the label for the human should be written in his first name, last name
+  and not id"). Check: `node --test tests/unit/calendar-owner-name.test.mjs`,
+  `tests/e2e/calendar-owner-name.test.mjs`.
 
 ## 3. Success criteria
 

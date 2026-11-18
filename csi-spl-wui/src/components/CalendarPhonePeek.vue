@@ -59,7 +59,7 @@
         <dt>{{ t('issues.field_status') }}</dt>
         <dd data-test="calpeek-status" :data-status="event.status || ''">{{ event.status ? statusLabel(event.status) : '–' }}</dd>
         <dt>{{ t('issues.field_assignee') }}</dt>
-        <dd data-test="calpeek-assignee">{{ event.assignee || '–' }}</dd>
+        <dd data-test="calpeek-assignee"><HumanName v-if="event.assignee" :id="event.assignee" /><template v-else>–</template></dd>
       </dl>
       <p v-if="event.location" class="calpeek__line" data-test="calpeek-location">
         <UiIcon name="pin" :size="16" /><span>{{ event.location }}</span>
@@ -75,7 +75,8 @@
         <span v-else class="muted">{{ t('calendar_event.issues_empty') }}</span>
       </p>
       <p v-if="!deadline" class="calpeek__line" data-test="calpeek-owner">
-        <span dir="ltr">{{ ownerLabel || t('calendar_event.owner_empty') }}</span>
+        <HumanName v-if="ownerId" :id="ownerId" dir="ltr" />
+        <span v-else dir="ltr">{{ t('calendar_event.owner_empty') }}</span>
       </p>
       <p v-if="event.audience === 'private'" class="calpeek__line">
         <span class="calpeek__badge" data-test="calpeek-private">{{ t('calendar_event.private_badge') }}</span>
@@ -197,7 +198,8 @@ const issueLinks = computed(() => {
     return href ? [{ key: String(key), to: localePath(href) }] : []
   })
 })
-const ownerLabel = computed(() => String(props.event?.owner_id || '').trim())
+/* SPL-5889: the owner as HumanName - "First Last", the HUM id only without a name */
+const ownerId = computed(() => String(props.event?.owner_id || '').trim())
 const issueLink = computed(() => router.resolve(issueTo.value).href)
 function onOpenIssue(e: MouseEvent) {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return

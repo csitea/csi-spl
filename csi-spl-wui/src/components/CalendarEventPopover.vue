@@ -9,7 +9,10 @@
      Copy link (t1 9dec05c3) copies the link that opens this event.
      SPL-2034 (design B, t1 edc177bc): an issue deadline opens it read-only -
      key, title, due time (viewer's zone), status, assignee from the hub's
-     item - with Open issue (navigates) and Copy link; no Edit, no Duplicate. -->
+     item - with Open issue (navigates) and Copy link; no Edit, no Duplicate.
+     SPL-5889 (t1 12ccd587): the owner and the assignee are HumanName, a
+     member by the name they chose (first + last), the HUM id only without
+     one and in the title. -->
 <template>
   <UiDialog :open="open" :title="deadline ? `${event!.id} ${event!.title}` : event?.title || ''" size="sm" @update:open="emit('update:open', $event)">
     <div v-if="event" class="cal-pop" data-test="calendar-event-popover" :data-id="event.id">
@@ -21,7 +24,7 @@
         <dt>{{ t('issues.field_status') }}</dt>
         <dd data-test="calendar-popover-status" :data-status="event.status || ''">{{ event.status ? statusLabel(event.status) : '–' }}</dd>
         <dt>{{ t('issues.field_assignee') }}</dt>
-        <dd data-test="calendar-popover-assignee">{{ event.assignee || '–' }}</dd>
+        <dd data-test="calendar-popover-assignee"><HumanName v-if="event.assignee" :id="event.assignee" /><template v-else>–</template></dd>
       </dl>
       <p v-if="event.location" class="cal-pop__line" data-test="calendar-popover-location">
         <UiIcon name="pin" :size="16" /><span>{{ event.location }}</span>
@@ -38,7 +41,8 @@
         <span v-else class="muted">{{ t('calendar_event.issues_empty') }}</span>
       </p>
       <p v-if="!deadline" data-test="calendar-popover-owner">
-        <span dir="ltr">{{ ownerLabel || t('calendar_event.owner_empty') }}</span>
+        <HumanName v-if="ownerId" :id="ownerId" dir="ltr" />
+        <span v-else dir="ltr">{{ t('calendar_event.owner_empty') }}</span>
       </p>
       <p v-if="synced" class="cal-pop__line" data-test="calendar-popover-synced">
         <NuxtLink v-if="roadmapHref" :to="roadmapHref" data-test="calendar-popover-repo" @click="emit('update:open', false)">{{ t('calendar_event.synced_link') }}</NuxtLink>
@@ -92,7 +96,7 @@ const issueLinks = computed(() => {
     return href ? [{ key: String(key), to: localePath(href) }] : []
   })
 })
-const ownerLabel = computed(() => String(props.event?.owner_id || '').trim())
+const ownerId = computed(() => String(props.event?.owner_id || '').trim())
 /* a real link (a new tab works); a plain click goes through the view, which
    first drops issue= from the calendar's URL so Back returns to the week
    with the pop-over closed */

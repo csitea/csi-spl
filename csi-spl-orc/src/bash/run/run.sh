@@ -717,6 +717,18 @@ _do_log_resolve_file() {
     fi
   fi
   if [[ "${_do_log_off:-}" == "$log_dir" ]]; then log_file=/dev/null; fi
+  _do_log_create_file
+}
+
+# The day's file, made by whichever user runs first, takes the dir's group
+# and stays group-writable, so every member of that group appends to it
+# (b15-03): without it, a second fleet user found it unwritable and logged
+# to the fallback above.
+_do_log_create_file() {
+  [[ "$log_file" != /dev/null && ! -e "$log_file" ]] || return 0
+  { : >>"$log_file"; } 2>/dev/null || return 0
+  chgrp --reference="$log_dir" "$log_file" 2>/dev/null || true
+  chmod g+w "$log_file" 2>/dev/null || true
 }
 
 # _do_log_emit_compact <do_log args>: the full line to the file, `LEVEL msg`

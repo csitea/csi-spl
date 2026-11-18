@@ -18,6 +18,10 @@
 #      own exit 0) does not idle in do_wait_tees (SPL-5192): with
 #      RUN_TEE_WAIT_S=20 a counting `sleep` shim sees at most 100 polls (a
 #      saved copy of the tee fd held it to the cap: ~1,000+ polls)
+#   6. the day's log file takes its dir's group and stays group-writable
+#      (bug round 15 row 03), so a second fleet user in that group appends to
+#      it instead of falling back to TMPDIR; the group is a supplementary one
+#      of the running user when it has one, read with stat
 # Each case runs against the orc, iac and utl run.sh (kept in lockstep), in a
 # throwaway tree with a probe action. A regular FILE in the way blocks a mkdir
 # even for root, so cases 1-2 hold under any user.
@@ -131,6 +135,24 @@ for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
       pass "$m: do_${a}_probe exits $rc with its last line, $n tee poll(s)" ||
       fail "$m: do_${a}_probe: rc=$rc (want $want), $n tee poll(s) (max 100), out: $(tail -c 200 "$T/exit-$m.out")"
   done
+done
+
+# 6. the day's file takes its dir's group and stays group-writable (b15-03):
+#    a supplementary group when the user has one, under umask 0022
+grp=$(id -g)
+for g in $(id -G); do [[ $g != "$(id -g)" ]] && grp=$g && break; done
+for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
+  v="$T/var-grp-$m"
+  mkdir -p "$v/csi/x/csi-x-orc/dat/log/bash" && chgrp "$grp" "$v/csi/x/csi-x-orc/dat/log/bash"
+  (cd "$T/$m/csi-x/csi-x-orc" && umask 0022 && HOME="$T/home" VAR_DIR="$v" TMPDIR="$T/tmp-grp" ORG=csi APP=x \
+    ./run -a do_log_probe </dev/null 2>"$T/grp-$m.err" >/dev/null)
+  rc=$?
+  printf -v day '%(%Y%m%d)T' -1
+  f="$v/csi/x/csi-x-orc/dat/log/bash/csi-x-orc.$day.log"
+  got=$(stat -c '%g %A' "$f" 2>&1)
+  [[ $rc == 0 && "$got" == "$grp -rw-rw-"* ]] && grep -q 'log probe line' "$f" &&
+    pass "$m: the day's log file takes the dir's group $grp, group-writable" ||
+    fail "$m: day file group/mode: rc=$rc, got '$got', want group $grp and g+w"
 done
 
 echo "run-log: $fails failure(s)"

@@ -18,6 +18,7 @@
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
+export IN_ORC_RUN="spl-lane-issue spl-lane-issue-applied"  # perf p15-01: only the run files whose functions it runs (in_orc, test-lib.inc.sh)
 fails=0
 
 S="$T/spool"

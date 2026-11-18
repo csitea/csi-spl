@@ -61,12 +61,25 @@ orc_stub() {
 
 # in_orc [VAR=value]... - every orc lib + action sourced in a fresh bash, the
 # stubs first on PATH, ENV=dev, then eval "$SNIPPET".
+# IN_ORC_RUN="<stem>..." (perf p15-01, SPL-5851; a test sets it once, or passes
+# it as an arg): source only those src/bash/run/<stem>.func.sh, not all of
+# them (each file forks dirname at load). Unset or empty = every run file. A
+# stem with no file fails the call (rc 3), never skipped: a typo must not pass
+# on a missing function.
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" STUB_LOG="$T/calls.log" \
-    PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
+    PATH="$T/stub:$PATH" ENV=dev IN_ORC_RUN="${IN_ORC_RUN:-}" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }
-    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh; do source "$f"; done
+    if [ -z "$IN_ORC_RUN" ]; then
+      for f in "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    else
+      for f in $IN_ORC_RUN; do
+        [ -f "$PROJ_PATH/src/bash/run/$f.func.sh" ] || { echo "in_orc: IN_ORC_RUN stem $f: no src/bash/run/$f.func.sh" >&2; exit 3; }
+        source "$PROJ_PATH/src/bash/run/$f.func.sh"
+      done
+    fi
     eval "$SNIPPET"'
 }

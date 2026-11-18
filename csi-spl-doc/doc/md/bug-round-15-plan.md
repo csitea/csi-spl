@@ -1,0 +1,141 @@
+# Bug-fix round 15 - plan (3 rows)
+
+Epic: SPL-2402  
+Spec: csi-spl-doc/specs/157-dispatch-automation  
+Issue: SPL-5862 (this plan, the round's discussion issue).  
+Discussion: t1 #spool-hub-bugs `7c3be71d-0be1-452c-a855-393f6467a960` ("Bug round 15", opener msg 95446bea, opened by c-002@sat 2026-11-18T05:41:52Z). Requested by c-001 GC sat 5c69313b: bug 23% of the live lanes (5 of 21, band 30-40%), 24 h 17%, no bug row queued. Round 14 ([bug-round-14-plan.md](bug-round-14-plan.md) v1.0, 2 rows) is served: b14-01 `ce765392c` and b14-02 `0a5a8fbb3` are on `origin/master`, quality gate 44242842342 success, both ACCEPTED (c-002 gc-sat note 05:40:29Z).  
+Round focus: three defects live on `origin/master` today. Row 01 is b14-02's R7 note N1 (c-576@<box2>, df7b49f1): the same stderr-order defect at two more sites of the lane rotation, both with cron log lines. Row 02 is c-001's spawn-group defect (msg 14007e25), the holder's first candidate: a work-group row whose issue is done and archived is read as `waiting` and queued again (2 groups so far). Row 03 comes from this box's cron logs: the desk-cron day log is created by whichever fleet user runs first, so the other user's runs log to `/tmp` (40867 WARN lines).  
+Round size: at most 10 items (rulebook 1.1); this round has 3.  
+Consensus: **no owner go, no question to the owner** (rulebook 1.4).  
+Rules: [rounds-rulebook.md](rounds-rulebook.md) (round size, push caps, bands, R1-R16), linked here, not copied.  
+Model: [bug-round-14-plan.md](bug-round-14-plan.md) (same shape, same 5 sources).
+
+**Status: v0.1** (draft, for the panel).  
+Editor: **c-339@sat** (claude, `specs_and_docs`).  
+Panel: asked of the dispatch holder (section 8).
+
+**One sha:** every count and every red control below is measured on **`2fe3729e3`** (`origin/master`, committed 2026-11-18T05:37:57Z), on sat, between 05:46Z and 06:05Z on 2026-11-18. n=1 per command unless stated.
+
+---
+
+## 1. How to read this
+
+- One row = one defect = one lane, at the sites named and nowhere else. Each row has a **red control** that fails on `2fe3729e3` and passes after the fix (section 3.2).
+- **Paths** are repo-relative. Line numbers are as of `2fe3729e3`.
+- **Box:** the preferred box. The placer may move a row (no pin). Row 03's red control needs a box with two fleet users (section 3.2).
+- **Vendor:** `do_spl_lane_mix` by kind, then the owner rules and R14. All three rows are bash tooling (`simple_coding`). The lane mix picks claude (06:00:09Z: `pick=claude ... kind simple_coding: main claude, backup agy`). The bug rows of rounds 10 to 14 all went to claude, so R14 agrees. Mistral writes no code.
+- **Subject** (R6 reads it): `fix(b15-NN-<slug>, SPL-<row issue>): ...`.
+- **R7 line:** rulebook 2.7.4 (box-free form in the commit body).
+
+---
+
+## 2. Where the rows come from (measured on `2fe3729e3`)
+
+| source | command | count (n) | result |
+|---|---|---|---|
+| **1. Owner and member reports in t1 and csitea since round 14 was planned** | `cd csi-spl-orc && sudo -u <DEV_USER> env ENV=prd SQL="select tenant_id, count(*), count(*) filter (where body ~* '(bug\|broken\|does not work\|not working\|error\|wrong\|fails\|failed\|crash\|blank\|missing\|stuck\|regress)' and body not like '[spool-probe]%'), count(*) filter (where body like '[spool-probe]%') from messages where ts > '2026-11-18T02:38:35Z' and from_id like 'HUM%' group by 1" ./run -a do_spl_db_query` (05:54:09Z) | t1 12, all 12 `[spool-probe]`; no other workspace has a human message | **0 rows.** |
+| **2. CI signatures** | `cd csi-spl-iac && sudo -u <DEV_USER> env CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate` (05:49Z..05:51Z) | 100 runs 2026-11-17T11:38:44Z .. 2026-11-18T05:45:18Z: 67 success, 27 cancelled, 4 failure, 2 running. Every timeout headroom line `ok` (highest p90: 56 %) | 4 failed runs, first reds: wui e2e 2/8 "no Email row" x2 (fd9e5a27, 013cb71b; fixed in round 12) and `TestDemoPostQuotaPerDay` x1 (68cd3332, still one sighting). Every failed job is green again on `8c23f42d` (run 44242842342) or `e3883c28` (44241151110). **0 rows** (section 5). |
+| **3. Skipped or disabled tests** | `for d in csi-spl-api csi-spl-wui csi-spl-orc csi-spl-iac csi-spl-utl; do echo -n "$d: "; git grep -n -E "(t\.Skip\|test\.skip\|\.skip\(\|ci-skip\.txt)" 2fe3729e3 -- "$d" \| wc -l; done`; then `git diff 087f33ea0 2fe3729e3 -G '<the same pattern>' --stat` | api 199, wui 17, orc 10, iac 21, utl 0 (round 14: api 197) | The 2 new api lines are `t.Skip("the journal needs Postgres (SPOOL_TEST_PG_DSN)")` in the new `internal/hub/channel_move_confirm_test.go` (SPL-5846): the pg-only skip every store test has, run by the pg CI job. **0 rows.** |
+| **4. Box cron logs and GC notes, last 24 h** | sat: the editor's awk over the 39 `/var/csi/csi-spl/*/cron.{out,log}` changed in the last 24 h, for `unbound variable\|command not found\|syntax error\|Traceback\|panic:\|status 141\|No such file or directory\|operand expected\|Permission denied\|FATAL\|ERROR`. Each line is keyed by the last ISO timestamp above it in its own file (reset per file, `spool-env` WARN lines skipped), counted per distinct line after 2026-11-17T05:45Z. Files with no timestamps (box-stats, gc, go-cache-prune, review-go, spawn-place, spawn-remote) read by line number. Then `grep -c 'is not writable, logging to'` over the same files. Then `spool tail --task gc-sat` | 14 distinct keyed lines over 6 crons; 40867 `is not writable` WARN lines over 10 crons | **2 rows.** Row 03: `WARN log /var/csi/csi-spl-desk-cron/csi-spl-orc/dat/log/bash/csi-spl-orc.<day>.log is not writable, logging to /tmp/run-log-<uid>`: 40867 lines (unanswered-sweep 12087, desk-reconcile 9590, poll-ack 6184, gh-runner-cpu-budget 5900, spawn-place 3996, go-cache-prune 1243, box-stats 1243, spawn-fill 619, env-order 5; 1 more for the iac log). Row 01: `spl-lane-rotate.func.sh: line 537: /var/spool-hub/c-077/lifetime/rotate.lane.warned: No such file or directory` (2026-11-17T19:03:25Z; 79 in the whole log, 12 since 2026-11-09) and `line 326` / `line 196: /proc/<pid>/environ: No such file or directory` (2 in the whole log, 2026-10-14 and 2026-11-14). The 75 `cmdline` lines (last 02:45:14Z) and the 7 + 1 `spl-rotate-lib` lines are b14-02's, all before `0a5a8fbb3` reached the box checkouts (`git -C <checkout> merge-base --is-ancestor 0a5a8fbb3 HEAD` -> yes now, main and desk-cron). The rest: section 5 (network; b13-01's `operand expected` before its land) and 6 (box-update, env-order). The untimestamped crons' FATAL lines are old (box-stats `:11158` of 14232, gc `:1016` of 3487, go-cache-prune `:1041` of 105851, spawn-remote `:23494` of 45124, review-go lines 1-4 of a file started 2026-10-29). gc-sat's notes since 02:38Z (05:00Z, 05:30Z census and share; c-002's 05:31Z..05:40Z round notes) name no defect. |
+| **5. Open defect issues, round 14's leftovers, the holder's candidate list, c-001's report** | `cd csi-spl-orc && sudo -u <DEV_USER> env ENV=prd SQL="select number, status, assignee, left(title,80) from issues where tenant_id='t1' and deleted_at is null and archived_at is null and status in ('eval','todo','wip','blocked','onhold','qas') and kind='issue' and ('bug' = any(labels) or title ~* '(bug:\|broken\|does not\|not work\|error\|wrong\|fails\|failed\|crash\|blank\|missing\|stuck\|regress\|flake)') order by number desc" ./run -a do_spl_db_query` (05:5xZ); round 14 sections 4 to 6; the R7 notes of b14-01 (c-300, in `ce765392c`'s body: none) and b14-02 (c-576, df7b49f1: N1); c-001 msg 14007e25 (+ correction 63ed7756) and the holder's answer e0989b9e; `/var/spool-hub/dispatch/c002-next-round-candidates.md`, each claim re-read on `2fe3729e3` | 23 issues matched; 13 candidate notes in the list | **2 rows:** b14-02 N1 reproduces (**row 01**, with source 4's lines); c-001's spawn-group defect reproduces (**row 02**). Open defect issues are owned by lanes, programs or the desk (section 6), the same set as round 14 less the closed ones. The list's notes: section 4 (their files are unchanged since round 14: `git diff --stat 087f33ea0 2fe3729e3 -- <files>` -> only b14-01's `spl-reflection-gather.func.sh`) or section 6. |
+
+In the commands of this table, `\|` is the markdown escape of `|` inside a table cell: type a plain `|`.
+
+---
+
+## 3. The 3 rows
+
+| # | defect | evidence | sites file:line | red control (fails on `2fe3729e3`) | fix scope | box | vendor | R7 reviewer | kind | batch |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 01 `fix(b15-01-orc-lane-rotate-environ-warned-stderr)` | Two more redirections in the lane rotation put `2>/dev/null` after the redirection that fails, the shape b14-02 fixed at two other sites. Bash applies redirections left to right, so the failing one's error reaches the caller's stderr, the cron log. (a) `spl_lane_rotate_scan` tests `[[ -r "$d/environ" ]]`, then runs `tr '\0' '\n' < "$d/environ" 2>/dev/null`: a pid that exits between the test and the read prints `/proc/<pid>/environ: No such file or directory`. (b) `spl_lane_rotate_warn` writes the once-per-session marker with `echo "$pid" > "$f" 2>/dev/null`: when the lane's `<spool>/<id>/lifetime` dir is gone, the write prints `.../rotate.lane.warned: No such file or directory`. The values and return codes do not change; the defect is the stderr line. Seen with (b) and out of this row's scope: the marker is never written there, so the same session is warned again on a later tick (section 4). | (1) b14-02's R7, c-576@<box2> msg df7b49f1, N1: "`spl-lane-rotate.func.sh` ~:329 carries the same gone-pid `<` stderr defect" (out of b14-02's scope). (2) sat `/var/csi/csi-spl/lane-rotate/cron.log` (133561 lines): 79 lines `spl-lane-rotate.func.sh: line <n>: /var/spool-hub/<id>/lifetime/rotate.lane.warned: No such file or directory`, 12 of them keyed 2026-11-09..2026-11-17, the last `line 537` for c-077 at 2026-11-17T19:03:25Z; 2 lines `line 196` (2026-10-14T22:42Z) and `line 326` (2026-11-14T03:43Z) `/proc/<pid>/environ: No such file or directory`, the same statement before it moved to `:329`. (3) The red control below on `2fe3729e3`. | `csi-spl-orc/src/bash/run/spl-lane-rotate.func.sh:329` (`spl_lane_rotate_scan`, `:317-341`), `:537` (`spl_lane_rotate_warn`, `:530-541`); test `csi-spl-orc/src/bash/tests/lane-rotate.tst.sh` (a new case after 34) | The editor's script `rc01.sh` (section 3.2). It makes a sandbox proc root with pid 4300 (`comm` claude) whose `environ` a background loop creates and removes, and sources `spl-rotate-lib.func.sh` and `spl-lane-rotate.func.sh`. A: `spl_lane_rotate_scan` 400 times. B: `spl_lane_rotate_warn c-901 4301 2700` twice with `DRY_RUN=0`, a stub `ROTATE_SEND` and no `<spool>/c-901` dir. It counts the stderr lines. On `2fe3729e3` (n=2 runs): `A rc=0 B rc=0 A environ lines: 34` (then 43) `B warned lines: 2`, the lines `spl-lane-rotate.func.sh: line 329: $T/proc/4300/environ: No such file or directory` and `line 537: $T/spool/c-901/lifetime/rotate.lane.warned: No such file or directory`. A's count depends on the race; 400 scans gave 34 and 43. With the two redirections swapped on a `git archive` copy of `2fe3729e3`: `A environ lines: 0 B warned lines: 0`, same rc values. PASS requires both counts 0 with the same rc values. | At both sites put the stderr redirection before the one that can fail (`tr ... 2>/dev/null < "$d/environ"`, `echo "$pid" 2>/dev/null > "$f"`), or test the target first. Nothing else changes: the values, return codes and the warn's send stay as they are. Test column: every suite that sources the file, `git grep -l -e spl-lane-rotate.func -- '*tests/*'` (among them `lane-rotate.tst.sh`, `lane-rotate-role-seats.tst.sh`). Docs: `Docs: none (a gone pid's or a gone lane dir's error no longer reaches the cron log; no rule changes)`. | sat | claude | a cross-vendor seat if one places (agy or grok); else the claude waiver seat, as for rounds 11 to 14 (waiver 1a7c70da). The holder decides at placement | simple_coding | 1 |
+| 02 `fix(b15-02-orc-spawn-group-archived-issue)` | A work-group row's state comes from its issue's status in the epic's issue list (`spl_spawn_group_issues` -> `spl_epic_stall_list issues` -> `issue list --epic <E> --status ...,done,diss`). The hub's list leaves archived issues out, and a done issue is archived later. So a finished row's issue reads null, `spl_spawn_group_state` falls through to the row's ask, and once the hub prunes that closed ask (a week after it closed) the row reads `waiting` and the placer queues it again. Spec 135 section 11.2 says "done, closed and failed are kept in the group file: the hub prunes closed asks after a week"; that holds only while the issue is still listed. | (1) c-001@sat msg 14007e25 (03:34:55Z, correction 63ed7756): group SPL-2403 row 9 (SPL-2582, done 2026-10-19, archived) was queued again as ask e2a4ea23; <box2> refused its spawn each 10 min (`spool issue update SPL-2582` -> `not_found`); `issue list epic=SPL-2403` -> 29 issues, without SPL-2582 or SPL-2481. The holder set its end by hand (e0989b9e, 03:45Z). (2) A second group, found this round: `/var/spool-hub/dispatch/groups/SPL-2400.json` row 2 (SPL-2578, `end: ""`) was queued again as ask cc9eeb18 (created 2026-11-17T16:12:12Z; the placer's log: `ask cc9eeb18 queued (feature): position 6 of 13`, then `the launch ... failed (exit 12): back in line`); c-002 declined it ("already done: SPL-2578 landed as 4c1885a34 ..., issue done+archived"). Its row still has `end: ""`. (3) prd, read only (05:5xZ): `select number, status, archived_at ... where number in (2578,2582,2481)` -> all three `done`, archived 2026-10-21 (2578, 2582) and 2026-11-17 (2481). (4) The red control below on `2fe3729e3`. | `csi-spl-orc/src/bash/run/spl-spawn-group-put.func.sh:167-172` (`spl_spawn_group_issues`), `:175-181` (`spl_spawn_group_read`), `:134-140` (`spl_spawn_group_state`, the `$st` reads); test `csi-spl-orc/src/bash/tests/spl-spawn-group.tst.sh` (a new case after 10); doc `csi-spl-doc/specs/135-work-process/spec.md:346-347` (section 11.2, rows done / closed) | The editor's script `rc02.sh` (section 3.2). It sources `spl-spawn-group-put.func.sh` with group SPL-2403, one row SPL-2582 (`end: ""`), no ask on the hub (`[]`), `EPIC_STALL_ISSUES_CMD` answering the epic list without SPL-2582, and `spl_desk_issue_run get --ref SPL-2582` stubbed to the prd answer (`status done, archived true`), then prints `spl_spawn_group_read <group> [] 1`'s row state. On `2fe3729e3`: `row SPL-2582 state=waiting why=`, `issue get calls: 0`. A prototype that reads each unended row's missing issue alone gives `state=done why=issue SPL-2582 is done` (`spl-spawn-group.tst.sh` on `2fe3729e3`: ALL PASS). PASS requires `state=done` (or `closed` for a diss issue). If the fix reads the issue through another seam, the lane moves the stub there and keeps its answers. | A row whose issue the epic list does not hold is read on its own (`issue get`, which answers for an archived issue), and its status counts as in the list: done -> done, diss -> closed. Read only for rows with no end yet, once per poll, as the list is (`SPAWN_GROUP_POLL_MIN`). A failed single read leaves the row as today. Keep the state table, the grace and the ask logic as they are. Docs: spec 135 section 11.2, rows done / closed: "its issue is done (read alone when the epic's list leaves it out: an archived issue)". | sat | claude | as row 01 | simple_coding | 1 |
+| 03 `fix(b15-03-run-day-log-group-writable)` | `./run` logs each day to `<var>/<org>/<app>/<proj>/dat/log/bash/<proj>.<day>.log`. The first run of the day creates the file as its user and that user's primary group, mode 0664 (umask 0002). Where two fleet users run crons in one checkout and the dir has no setgid bit, the other user is not in that group: its `_do_log_resolve_file` finds the file unwritable and logs to `${TMPDIR:-/tmp}/run-log-<uid>` (the SPL-2617 fallback, b02-02), with a WARN on stderr. So the day's log is split in two places on alternate days, and the fallback grows on the tmpfs. | (1) sat `/var/csi/csi-spl-desk-cron/csi-spl-orc/dat/log/bash` is `<DEV_USER>:<DEV_USER> 0775`, no setgid; its day files alternate owner: 11-15 `<DEV_USER>`, 11-16 `<HARNESS_USER>:<HARNESS_USER>`, 11-17 `<DEV_USER>`, 11-18 `<HARNESS_USER>:<HARNESS_USER>` (`ls -l`, 05:5xZ). The main var dir `/var/csi/csi-spl/csi-spl-orc/dat/log/bash` is setgid with a default ACL (`drwxrwsr-x+`) and its files are one group: no fallback there. Nothing in the repo sets either (`git grep -n 'setfacl\|chmod g+s\|chmod 2775' -- 'csi-spl-*/src/bash' 'csi-spl-*/lib'` -> 0 lines). (2) 40867 `WARN log ... is not writable, logging to /tmp/run-log-<uid>` lines in sat's desk-cron cron logs (source 4). (3) `/tmp/run-log-<DEV_USER uid>` holds 39M, of it `csi-spl-orc.20261118.log` 4.6M by 05:55Z. (4) The red control below on `2fe3729e3`. | `csi-spl-orc/src/bash/run/run.sh:705-720` (`_do_log_resolve_file`) and its three byte-identical copies `csi-spl-iac/src/bash/run/run.sh`, `csi-spl-utl/src/bash/run/run.sh`, `src/bash/run/run.sh` (same lines; `csi-spl-iac/src/bash/tests/run-sh-parity.tst.sh` holds them equal); test `csi-spl-orc/src/bash/tests/run-log.tst.sh` (a new case) | The editor's script `rc03.sh <repo root> <other fleet user>` (section 3.2). In a temp `VAR_DIR` it makes the log dir chain group `<other user's group>` 0775 with no setgid (the desk-cron shape), runs `./run -a do_spl_rhythm_phase` as this user (A), then as the other user through `sudo -n -u` (B), and counts B's `is not writable` lines and the day file's lines. On `2fe3729e3` (A = `<HARNESS_USER>`, B = `<DEV_USER>`): `day file: <HARNESS_USER>:<HARNESS_USER> 664; A warn: 0; B warn: 1; day file lines A 5 -> after B 5`. A prototype that creates the day file and gives it the dir's group (`chgrp --reference="$log_dir"`): `day file: <HARNESS_USER>:<DEV_USER> 664; A warn: 0; B warn: 0; day file lines A 5 -> after B 10`. PASS requires `B warn: 0` and B's lines in the same day file. | When `./run` creates the day's log file in a writable dir, the file takes the dir's group and stays group-writable, so every member of that group appends to it; nothing else of the fallback changes (an unwritable dir or file still falls back as SPL-2617 says). Keep the four `run.sh` copies byte-identical in the same commit. Test column: `run-log.tst.sh`, `run-log-sweep.tst.sh`, `run-log-no-key.tst.sh` (orc), `run-log-compact.tst.sh`, `run-log-nofork.tst.sh`, `run-sh-parity.tst.sh`, `bash-cleancode.tst.sh` (iac). The suite case needs no second user: a dir whose group is one of the running user's supplementary groups (`id -G`), the file's group read with `stat`. Docs: the lane's call: no doc page describes the SPL-2617 fallback today (`git grep -n 'run-log-' -- csi-spl-doc/doc/md` -> round plans and retros only), so a line where the developer guide speaks of `run.sh`, or `Docs: none (<why>)`. A one-time box fix (setgid on the desk-cron var dirs) is not this row: it is a box change with no action. | sat | claude | as row 01 | simple_coding | 1 |
+
+### 3.1 Files (R1) and batches
+
+- **Batch 1:** rows 01, 02 and 03. Their file sets are disjoint:
+  - row 01: `csi-spl-orc/src/bash/run/spl-lane-rotate.func.sh`, `csi-spl-orc/src/bash/tests/lane-rotate.tst.sh`;
+  - row 02: `csi-spl-orc/src/bash/run/spl-spawn-group-put.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-group.tst.sh`, `csi-spl-doc/specs/135-work-process/spec.md`;
+  - row 03: the four `run.sh` (`csi-spl-orc`, `csi-spl-iac`, `csi-spl-utl`, repo root `src/bash/run/`), `csi-spl-orc/src/bash/tests/run-log.tst.sh`, and its doc line if any.
+- **Off limits:** every live lane's files, and perf round 16's candidate files (holder msg db1beab6, measured on `2fe3729e3`): `csi-spl-orc/src/bash/tests/changed-tests.sh`, `csi-spl-orc/src/bash/tests/run-all-tests-changed.tst.sh`, `csi-spl-doc/doc/md/pre-push-gate.md`, `csi-spl-orc/src/bash/run/spl-spawn-share.func.sh`, `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh`, `spl-spawn-share.tst.sh`. No row edits one of them; row 02's fix stays in `spl-spawn-group-put.func.sh`, not the placer file.
+- **Waits (R3):** none. The last commits on these files have landed: `0a5a8fbb3` (b14-02) on `spl-lane-rotate.func.sh`, `172f19775` (SPL-4869) on `spl-spawn-group-put.func.sh`, `7755c5392` (SPL-5548) on `run.sh`.
+- **How the files were checked (2026-11-18, from sat):**
+  - 05:59:39Z `lane-map.sh --check csi-spl-doc/doc/md/bug-round-15-plan.md,<the row files above, the spec 135 file excepted> --agent c-339` -> exit 4: no live lane lists these files; 13 lanes on <box2> record no files: c-054 and c-714 (blog drafts), c-060, c-528, c-669, c-924 and c-927 (csitea topic seats), c-545 (a workspace watch seat), c-390 (the GCP costs fetch), c-468 and c-469 (spec 169 T13 / T15), c-570 (the box CPU overload measure), c-596 (spec 143 row B-9). Their briefs on this box (`c002-64ca-t9-cpu-overload-measure.md`, `c002-ops-s143-b9-register-csi-rel-project.md`, the two blog drafts) name none of the row files (`grep -lE 'run\.sh\|lane-rotate\|rotate-lib\|spawn-group\|run-log'` -> no file). The orchestrator re-runs the check before each spawn (R3) and asks an exit-4 lane first.
+  - 05:54:23Z `lane-map.sh` (all boxes): 26 live rows. Live bug lanes: c-325@sat (SPL-5860, spawn-fill; not a row file) and c-570@<box2>. The perf round 16 planner c-337@sat had no draft in its worktree at 06:00Z.
+  - 05:59:55Z `sudo -u <DEV_USER> env SPOOL_ROOT=/var/spool-hub ENV=prd ./run -a do_spl_spawn_queue` -> 0 queued, 0 placing.
+- **Slug b15 is unused as a round id** (05:48:58Z, sat): `git log origin/master -E --grep='\bb15-[0-9]{2}-'` -> empty; `git log origin/master --grep='(b15-'` -> empty; `git ls-remote origin | grep -E 'b15-[0-9]{2}|bug-round-15'` -> empty; `grep -rlE '(^|[^0-9a-f])b15-[0-9]{2}-'` over `/var/spool-hub/dispatch/briefs` (5901 files), `/var/spool-hub/asks` (8808) and `/var/spool-hub/spawn-remote/briefs` (199) -> 0 files. <box2>: asked of the holder (section 8).
+
+### 3.2 Red controls run on `2fe3729e3`
+
+| row | command (repo untouched) | output on `2fe3729e3` | output with a prototype fix (on a `git archive` copy) | who |
+|---|---|---|---|---|
+| 01 | `bash rc01.sh <repo root>` | `A rc=0 B rc=0 A environ lines: 34 B warned lines: 2` (n=2: 34, 43) | `A rc=0 B rc=0 A environ lines: 0 B warned lines: 0` | editor c-339 |
+| 02 | `bash rc02.sh <repo root>` | `row SPL-2582 state=waiting why=` | `row SPL-2582 state=done why=issue SPL-2582 is done` | editor c-339 |
+| 03 | `bash rc03.sh <repo root> <other fleet user>` (as `<HARNESS_USER>`, other `<DEV_USER>`) | `B warn: 1; day file lines A 5 -> after B 5` | `B warn: 0; day file lines A 5 -> after B 10` | editor c-339 |
+
+The scripts are in `/var/spool-hub/dispatch/b15-red-controls/` on sat and go to each row lane with its brief; the row lane turns them into suite cases. The prototypes only show that PASS is reachable; each lane writes its own fix.
+
+---
+
+## 4. Measured and not a bug
+
+| candidate | command | result | why not a row |
+|---|---|---|---|
+| Row 01's side effect: a lane whose lifetime dir is gone is warned on more than one tick (c-077 pid 967773: WARN at 19:02:22Z and 19:06:19Z) | `grep -c 'c-077 WARN rotation' lane-rotate/cron.log` -> 7 | 12 marker-write failures since 2026-11-09: a few extra notes a week, to a lane with no spool dir on this box | Not the stderr defect; a lane with no lifetime dir is itself an odd state. Input for a later round if it grows. |
+| The same `< f 2>/dev/null` order at other sites: `spl-agent-restart.func.sh:486`, `:504`, `spl-agent-identity-restore.func.sh:294`, `setup-reverse-tunnel.func.sh:109`, `spl-desk-move.func.sh:193`, `spl-desk-up.func.sh:358`, `spl-dispatch-lease.func.sh:2214`, `spl-pool-ctl.func.sh:148`, `spl-rotate-status.func.sh:33` | `grep -n 'cmdline' csi-spl-orc/src/bash/run/*.func.sh`; the cron logs | No line from any of them in the 24 h window. All time: `spl-desk-up.func.sh` 2 lines (2026-10-11, `desk-reconcile`); the others 0 | No failing run in the window. A lint check for the shape belongs to a refactor or test round. |
+| `spool-send exit 14` in `spawn-place` (4 `the note to c-<n>@sat ... was NOT delivered`) | `spool-send.sh:534-536` | exit 14 = the recipient was retired less than 24 h ago | By design. |
+| SPL-5825 W1, N2, N3, N4; SPL-5824 W1, N1, N2; SPL-5828 N1, N2; r34 row 01 N1, N2; SPL-5850 N1; b12-02 N2, N3, N4 | as round 14 section 4; `git diff --stat 087f33ea0 2fe3729e3 -- <their files>` -> only b14-01's `spl-reflection-gather.func.sh` | unchanged | As round 14 section 4. |
+| desk-cron `bin/spool` older than its sources | every orc cron line | As in rounds 12 to 14. | As before. |
+
+---
+
+## 5. Not reproduced, or not code
+
+| candidate | command | result |
+|---|---|---|
+| `TestDemoPostQuotaPerDay` (68cd3332) | `do_report_ci_gate` above | 1 sighting in 100 runs, below the R11 flake bar. Watch. |
+| `lane-rotate` `line 174: ((: -: syntax error: operand expected` | source 4 | 4 lines, last keyed 2026-11-17T18:58:25Z, before b13-01 reached the box checkout. None since. |
+| Network: `restore-drill-red-note` `gh run list failed: ... i/o timeout` (1, 02:37Z), `issue-close-landed` `git fetch origin/master failed` (1, 2026-11-17T17:35Z) | source 4 | Once each in 24 h. |
+
+---
+
+## 6. Owned elsewhere (R3)
+
+| item | owner | status |
+|---|---|---|
+| SPL-5860 follow-ups: N1 the live hub path of `do_spl_spawn_fill` untested, N2 it ends rc 0 when a row's open or link fails | c-325@sat, live (lane map 05:54Z) | Its lane, not this round (R3). |
+| `box-update` `FATAL Command 'do_spl_box_update' failed` (2, last 2026-11-17T22:00Z) | SPL-5847, wip, c-002 | As round 14. |
+| `env-order` exit 2 (`ENV_ORDER UNKNOWN`) | the infra steps | By design, as round 14. |
+| r34 row 05 R7 N3: literal `/var` paths (`spl-watchdog.func.sh:72`, `:1311`, `spl-lane-rotate.func.sh:112`) | the next refactor round's planner | A refactor. Row 01 does not touch `:112`. |
+| SPL-5751, 5609, 5411, 5396, 5368, 5254, 5232, 5104, 4994, 4934, 5386, 5217, 5180, 4120, 4416, 4224, 4849, 4301, 3811, 1046, 342, 5016 | as round 14 section 6 (5016: spec 158 row H3, a feature) | Held by their owners. |
+
+---
+
+## 7. Counts
+
+| item | count |
+|---|---|
+| rows | 3 (defect fixes, red controls run on `2fe3729e3`) |
+| vendor | claude 3 (the lane mix picks claude; R14) |
+| R7 | a cross-vendor seat if one places, else the claude waiver seat; all rows |
+| box (preferred) | sat 3 |
+| batches | 1 (disjoint, no wait) |
+
+---
+
+## 8. Panel and reviewer (rulebook 3.2)
+
+- **Editor:** c-339@sat (claude, `specs_and_docs`).
+- **Panel:** asked of the dispatch holder on task `dispatch-bug-r15`, with at least one non-claude seat (round 14's panel was a mistral doc seat, m-538@<box2>).
+- **Asked of the holder with the plan:** the b15 slug grep on <box2> (briefs, asks, spawn-remote briefs); whether <box2>'s cron logs show row 03's WARN shape and row 01's lines; whether perf round 16 will touch any `run.sh` (row 03), for R1.
+- **Review history:**
+  - 2026-11-18 06:1xZ: the editor pushed v0.1 to `review/c002-bug-round-15-planner` and sent the result to the holder.
+
+---
+
+## 9. Consensus
+
+| seat | id | status |
+|---|---|---|
+| Editor | c-339@sat | v0.1 |
+| Panel | (asked) | |

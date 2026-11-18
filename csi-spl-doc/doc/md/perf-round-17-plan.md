@@ -1,4 +1,4 @@
-# Perf round 17 (p17) - plan (2 rows, v0.1)
+# Perf round 17 (p17) - plan (2 rows, v1.0)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -25,7 +25,7 @@ Owner orders that bind this round:
   `csi-spl-wui/` never goes to mistral (developer guide 5.1). **Every row's
   vendor is claude.**
 
-**Status: v0.1, draft for the panel.** Editor: c-705 (claude).
+**Status: v1.0, the rows of v0.1 `933c208d9` unchanged; panel PASS (9).** Editor: c-705 (claude).
 
 **Why now.** The holder's brief (c-002, 2026-11-18 09:0xZ, on
 `cb9902b0f`):
@@ -145,8 +145,17 @@ Read on 2026-11-18, each with its time (editor 3):
   `spl_lane_mix_mistral_ui_off` and `spl_lane_mix_mistral_code_off`
   (`spl-lane-mix.func.sh`): those two keep their arguments and still work
   when called outside a pick (no per-pick read in scope).
-- **Bug round 16** (v1.0): b16-01 not landed; its files are not p17 row
-  files.
+- **Bug round 16** (v1.0): b16-01 not landed at 09:2xZ; it landed since
+  (`b1bf6410d`, panel note N1). Its files are not p17 row files.
+- **The other box** (holder c-002, 09:4xZ, msg c97fdf0a): the worktrees of
+  the 3 `unknown:` lanes (c-197, c-762, c-422), `git diff --name-only
+  origin/master...HEAD` plus `git status --porcelain`, `grep -cE
+  'e2e-shard-weights|e2e-shard-pack|spl-lane-mix'` -> 0, 0, 0.
+- **v1.0 re-read** (09:58:29Z, `origin/master` `b1bf6410d`): `git diff
+  --stat e5f867463 b1bf6410d -- <the 4 row files, run-e2e-tests.mjs,
+  ci-skip.txt>` -> empty, so no baseline moved. The panel seat's lane map
+  read named 17 `unknown:` lanes, 0 owners (N2): exit 4 is not free, and
+  the R3 check before each spawn stands.
 
 <a id="p17-per-row"></a>
 
@@ -243,7 +252,12 @@ Qto (rulebook 4.5): this file is imported once into the `system` workspace with
 signs and the plan lands on `master`, not from the review branch, as in rounds
 8 to 16. From then on the Qto doc is the primary copy.
 
-- v0.1 (c-705, 2026-11-18 09:4xZ): first draft on `e5f867463`.
+- v0.1 (c-705, 2026-11-18 09:3xZ): first draft on `e5f867463`
+  (`933c208d9`, with row 02's whole-test count).
+- v1.0 (c-705, 2026-11-18 10:0xZ): the rows of v0.1 unchanged, after the
+  mistral seat's PASS on `933c208d9` (9); the other box's R3 read and
+  b16-01's landing recorded (3.2). Holder: c-002 (c-003 held the lease
+  09:45Z to 09:49Z, c-003 msgs a3ea3e73, 965fb75f).
 
 <a id="p17-consensus"></a>
 
@@ -251,5 +265,23 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-705 (editor) | claude | v0.1 | author |
-| mistral seat (asked of the holder) | mistral | - | - |
+| c-705 (editor) | claude | v0.1; v1.0 | author; **signs** v1.0 (the rows of `933c208d9`, unchanged) |
+| m-436 (mistral seat, ask d80cb99b) | mistral | v0.1 `933c208d9` | **PASS**, W none, N1..N5 (seat `d6dfaa3e0` on `review/c002-perf-round-17-mistral-seat`, msg 146e50c1); signs the landed v1.0 sha |
+
+The seat's notes, for the row lanes:
+
+- N1: b16-01 landed (`b1bf6410d`) after the editor's reading; R1 holds.
+- N2: its lane map read: exit 4, 0 owners, 17 `unknown:` lanes; the R3
+  check before each spawn stands.
+- N3: row 02's sites are 5 `file:line` entries in `spl-lane-mix.func.sh`,
+  within the bound of rulebook 3.1.
+- N4: in its one-pick probe the `:265` read (`mistral_ui_allowed`) did not
+  run (no UI brief) and `:292` did; the counts are the editor's, 13 / 12.
+  The row's case (a) counts a pick on the test's fixture; the lane says
+  which reads ran.
+- N5: the consensus table held only the editor row in v0.1; seats sign in
+  their own files.
+
+Re-measured by the seat: 13 `yq` per pick (`simple_coding`, `secret`,
+`complex_coding`), 12 (`specs_and_docs`), n=1 each; 106 of 367 CI e2e
+files unweighted, read through the runner's own `--list`.

@@ -272,3 +272,16 @@ The hub job then ends some runs; it is not a row (plan section 6).
 - `ENV=prd ./run -a do_spl_hub_agent_kinds` -> `off [qwen], paused []`.
 - Dispatch lease holder (`LEASE_CMD=show`, 09:26:35Z): `c-002`, on the
   other box.
+
+## 5. State (v1.0, 10:0xZ)
+
+- v0.1 `933c208d9` went to the holder c-002 at 09:36:33Z (msg 707f4053);
+  c-002 queued the mistral seat (msg c97fdf0a) and read R3 on the other box
+  (plan 3.2). c-003 held the lease 09:45Z to 09:49Z and placed the seat
+  m-436 (msg a3ea3e73); `LEASE_CMD=show` 09:47:57Z -> `c-003`, 09:49:46Z ->
+  `c-002`.
+- m-436 PASS on `933c208d9`, W none, N1..N5 (msg 146e50c1, seat
+  `d6dfaa3e0`, fetched: `docs(perf, SPL-5872): perf round 17 seat mistral
+  verdict on 933c208d`).
+- v1.0 = the rows of v0.1 unchanged, landed on `master` by this seat; the
+  seat signs the landed v1.0 sha, then the holder queues p17-01 and p17-02.

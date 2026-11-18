@@ -36,7 +36,8 @@ ids="$(spl_agent_steps_log_ids)"
 [ -n "${ids// /}" ] || exit 0
 
 out="$(cd "$ORC" && AGENT_ID="$ids" timeout 50 ./run -a do_spl_agent_steps_log 2>&1)"; rc=$?
-# one line per minute only when something was written or failed
-grep -vE '^[a-z]-[0-9]{3} OK agent-steps-log: 0 line' <<<"$out" | grep -E 'OK agent-steps-log|FATAL|ERROR' | while IFS= read -r l; do say "$l"; done
+# one line per minute only when something was written or failed; an id with
+# no session logs its one GAP line on the first run of the gap only
+grep -vE '^[a-z]-[0-9]{3} OK agent-steps-log: 0 line' <<<"$out" | grep -E 'OK agent-steps-log|GAP agent-steps-log|FATAL|ERROR' | while IFS= read -r l; do say "$l"; done
 [ "$rc" = 0 ] || { say "WARN do_spl_agent_steps_log rc=$rc"; exit 1; }
 exit 0

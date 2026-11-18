@@ -15,6 +15,9 @@
 # @description minute cron row agent-steps-log runs it for the ids of
 # @description spl_agent_steps_log_ids (box.env AGENT_STEPS_LOG_AGENTS, else
 # @description cnf env.box.agent_steps_log.agents; empty = nothing runs).
+# @description A followed id is followed across its holders: an id with no
+# @description session logs one GAP line, marks the gap (<dir>/.<id>.steps.gap)
+# @description and is quiet, rc 0, until a session of the id appears.
 # @param AGENT_ID (required) - one agent id ([acgmq]-NNN), or several,
 # @param   space separated
 # @param AGENT_STEPS_LOG_SESSION (optional) - the session jsonl, one AGENT_ID
@@ -31,8 +34,9 @@
 
 declare -F spl_cost_agent_users >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-cost-tokens-read.func.sh"
 
-# Exit: 0 every id written, 1 a usage or setup refusal, 3 an id has no
-# session file, 4 a session file is not readable (the last failing id's code).
+# Exit: 0 every id written (an id with no session is a gap, not a failure),
+# 1 a usage or setup refusal, 3 the AGENT_STEPS_LOG_SESSION file is missing,
+# 4 a session file is not readable (the last failing id's code).
 do_spl_agent_steps_log() {
   local orc py dir user ids id rc=0 r
   orc="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -61,10 +65,19 @@ do_spl_agent_steps_log() {
 }
 
 # spl_agent_steps_log_one <user> <py> <dir> <id>: one agent's steps file.
+# No session of <id> (no holder between two agents) is a gap: its first run
+# logs one GAP line and writes <dir>/.<id>.steps.gap; later runs are quiet,
+# rc 0, until a session of <id> appears and clears the marker.
 spl_agent_steps_log_one() {
-  local user="$1" py="$2" dir="$3" id="$4" s
+  local user="$1" py="$2" dir="$3" id="$4" s gap="$3/.$4.steps.gap"
   s="${AGENT_STEPS_LOG_SESSION:-$(spl_agent_steps_log_session "$user" "$id")}"
-  [[ -n "$s" ]] || { echo "FATAL agent-steps-log: $id: no claude session jsonl under $(spl_agent_steps_log_projects "$user")/*-wt*-$id/"; return 3; }
+  if [[ -z "$s" ]]; then
+    [[ -e "$gap" ]] && return 0
+    : >"$gap"
+    echo "$id GAP agent-steps-log: no claude session jsonl under $(spl_agent_steps_log_projects "$user")/*-wt*-$id/; quiet until one appears"
+    return 0
+  fi
+  rm -f "$gap"
   python3 "$py" --session "$s" --read-as "$user" --out "$dir/$id.steps.log" \
     --state "$dir/.$id.steps.state.json" | sed -u "s/^/$id /"
   return "${PIPESTATUS[0]}"

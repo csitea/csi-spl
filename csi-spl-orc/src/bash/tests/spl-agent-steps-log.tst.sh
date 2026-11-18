@@ -11,8 +11,12 @@
 #      result's content never reaches the log; a multi-line private key and
 #      a token across the 200-char cut are redacted BEFORE the cut (RED
 #      controls: the cut-then-redact order leaks both)
-#   4. refusals: no session file (rc 3), an unreadable one (rc 4), a bad or
-#      missing AGENT_ID (rc 1)
+#   4. refusals: a missing AGENT_STEPS_LOG_SESSION file (rc 3), an
+#      unreadable one (rc 4), a bad or missing AGENT_ID (rc 1)
+#   4a. a gap (b12-04): a followed id with no session logs one GAP line and
+#      is quiet, rc 0, after it (RED control: 3 runs gave rc 3 + FATAL each);
+#      a new holder's session is followed from its start, and the next gap
+#      logs one line again
 #   4b. the user split: the jsonl is read as the agent user (sudo -n -u),
 #      the log dir is made, tested and written as the caller, so a dir only
 #      the box user can write works
@@ -21,7 +25,8 @@
 #   6. the id list: box.env AGENT_STEPS_LOG_AGENTS wins over the cnf; the
 #      shipped cnf names none
 #   7. the cron wrapper: refuses a worktree; no id = exit 0, nothing logged;
-#      the manifest row runs it every minute
+#      a gap = exit 0, one GAP line on its first run only; the manifest row
+#      runs it every minute
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -138,9 +143,6 @@ s="$(env SPOOL_TEST=1 AGENT_STEPS_LOG_PROJECTS="$P" bash -c 'source "$1"; spl_ag
   fail "5. session: '$s'"
 
 # --- 4. refusals -----------------------------------------------------------------
-out="$(act AGENT_ID=c-142 AGENT_STEPS_LOG_PROJECTS="$P" AGENT_STEPS_LOG_DIR="$L" 2>&1)"; rc=$?
-[[ "$rc" == 3 && "$out" == *"no claude session jsonl"* && ! -e "$L/c-142.steps.log" ]] &&
-  pass "4. an agent with no session: rc 3, no log" || fail "4. no session (rc $rc: $out)"
 out="$(act AGENT_ID=c-141 AGENT_STEPS_LOG_SESSION="$T/nope.jsonl" AGENT_STEPS_LOG_DIR="$L" 2>&1)"; rc=$?
 [[ "$rc" == 3 && "$out" == *"no session file"* ]] && pass "4. a missing session file: rc 3" || fail "4. missing (rc $rc: $out)"
 if [[ "$(id -u)" != 0 ]]; then
@@ -156,6 +158,38 @@ for id in "" "c-14" "x-141" "c-141;id"; do
   [[ "$rc" == 1 && "$out" == FATAL* ]] || { fail "4. AGENT_ID='$id' (rc $rc: $out)"; continue; }
 done
 pass "4. a missing or malformed AGENT_ID: rc 1"
+
+# --- 4a. a gap: a followed id with no session ----------------------------------
+# the red control of b12-04, as run on e9748a03d: rc=3 fatal=1 on every run
+E="$T/gap-projects"; G="$T/gap-logs"; mkdir -p "$E"
+runs="$(for run in 1 2 3; do
+  out="$(act AGENT_ID=c-142 AGENT_STEPS_LOG_PROJECTS="$E" AGENT_STEPS_LOG_DIR="$G" 2>&1)"; rc=$?
+  echo "run $run rc=$rc fatal=$(grep -c FATAL <<<"$out") lines=$(grep -c . <<<"$out")"
+  [[ "$run" == 1 ]] && first="$out"
+done; printf '%s' "$first" >"$T/gap-first")"
+[[ "$runs" == $'run 1 rc=0 fatal=0 lines=1\nrun 2 rc=0 fatal=0 lines=0\nrun 3 rc=0 fatal=0 lines=0' ]] &&
+  pass "4a. no session: run 1 logs one line, runs 2 and 3 are quiet, rc 0 each" || fail "4a. gap runs:"$'\n'"$runs"
+first="$(cat "$T/gap-first")"
+[[ "$first" == "c-142 GAP agent-steps-log: no claude session jsonl under $E/*-wt*-c-142/"* && -e "$G/.c-142.steps.gap" && ! -e "$G/c-142.steps.log" ]] &&
+  pass "4a. ...the line names the id and its missing session; the gap is marked, no log" ||
+  fail "4a. gap line '$first' marker $(ls -a "$G" | tr '\n' ' ')"
+gaprun() { act AGENT_ID=c-142 AGENT_STEPS_LOG_PROJECTS="$E" AGENT_STEPS_LOG_DIR="$G" 2>&1; }
+mkdir -p "$E/-opt-x-wt-c-142"
+rec user 2026-11-03T11:00:00.000Z '"first holder"' >"$E/-opt-x-wt-c-142/h1.jsonl"
+out="$(gaprun)"; rc=$?
+[[ "$rc" == 0 && "$(cut -d' ' -f2- "$G/c-142.steps.log" | sed 's/  */ /g' | tr '\n' '|')" == "session h1.jsonl|prompt first holder|" && ! -e "$G/.c-142.steps.gap" ]] &&
+  pass "4a. a holder's session is followed from its start; the gap marker goes" ||
+  fail "4a. holder 1 (rc $rc: $out) log: $(cat "$G/c-142.steps.log" 2>/dev/null)"
+rm -rf "$E/-opt-x-wt-c-142"
+o1="$(gaprun)"; r1=$?; o2="$(gaprun)"; r2=$?
+[[ "$r1" == 0 && "$r2" == 0 && "$o1" == "c-142 GAP agent-steps-log:"* && "$(grep -c . <<<"$o1")" == 1 && -z "$o2" ]] &&
+  pass "4a. ...the next gap logs one line again, then is quiet" || fail "4a. gap 2 (rc $r1/$r2: '$o1' / '$o2')"
+mkdir -p "$E/-opt-x-wt-c-142"
+rec user 2026-11-03T12:00:00.000Z '"second holder"' >"$E/-opt-x-wt-c-142/h2.jsonl"
+out="$(gaprun)"; rc=$?
+[[ "$rc" == 0 && "$(tail -n 2 "$G/c-142.steps.log" | cut -d' ' -f2- | sed 's/  */ /g' | tr '\n' '|')" == "session h2.jsonl|prompt second holder|" ]] &&
+  pass "4a. ...and the next holder's session is followed from its start" ||
+  fail "4a. holder 2 (rc $rc: $out) log: $(tail -n 2 "$G/c-142.steps.log")"
 
 # --- 4b. the user split ----------------------------------------------------------
 # a fake sudo records its calls and runs the command as the caller; the
@@ -193,6 +227,15 @@ out="$(bash "$W/src/bash/scripts/agent-steps-log-cron.sh" 2>&1)"; rc=$?
 [[ "$rc" == 2 && "$out" == *"agent worktree"* ]] && pass "7. cron: an agent worktree is refused" || fail "7. worktree (rc $rc: $out)"
 out="$(SPOOL_TEST=1 SPOOL_BOX_ENV="" AGENT_STEPS_LOG_ALLOW_WORKTREE=1 bash "$W/src/bash/scripts/agent-steps-log-cron.sh" 2>&1)"; rc=$?
 [[ "$rc" == 0 && -z "$out" ]] && pass "7. cron: no id = exit 0, nothing logged" || fail "7. no id (rc $rc: '$out')"
+# a ./run that runs the real action: a gap ends the cron rc 0, logged once
+printf '#!/bin/bash\n[[ "$2" == do_spl_agent_steps_log ]] || exit 0\nsource "$(dirname "$0")/src/bash/run/spl-agent-steps-log.func.sh"\ndo_spl_agent_steps_log\n' >"$W/run"
+printf 'AGENT_STEPS_LOG_AGENTS="c-145"\n' >"$T/gap-box.env"
+cron() { SPOOL_TEST=1 SPOOL_BOX_ENV="$T/gap-box.env" AGENT_STEPS_LOG_ALLOW_WORKTREE=1 AGENT_STEPS_LOG_USER="$(id -un)" \
+  AGENT_STEPS_LOG_PROJECTS="$E" AGENT_STEPS_LOG_DIR="$T/gap-cron" bash "$W/src/bash/scripts/agent-steps-log-cron.sh" 2>&1; }
+o1="$(cron)"; r1=$?; o2="$(cron)"; r2=$?
+[[ "$r1" == 0 && "$r2" == 0 && "$(grep -c . <<<"$o1")" == 1 && "$o1" == *" c-145 GAP agent-steps-log: no claude session jsonl"* && -z "$o2" ]] &&
+  pass "7. cron: a followed id with no session = exit 0, one GAP line on the first run only" ||
+  fail "7. gap (rc $r1/$r2: '$o1' / '$o2')"
 grep -qE '^agent-steps-log +\| \* \* \* \* \* +\| src/bash/scripts/agent-steps-log-cron.sh +\| agent-steps-log/cron.log' \
   "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" && [[ -x "$PROJ_ROOT/src/bash/scripts/agent-steps-log-cron.sh" ]] &&
   pass "7. the manifest row agent-steps-log runs the wrapper every minute" || fail "7. no manifest row or wrapper"

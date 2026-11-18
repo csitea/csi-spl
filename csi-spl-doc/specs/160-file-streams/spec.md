@@ -888,8 +888,17 @@ The action (`src/bash/run/spl-agent-steps-log.func.sh`, its parser
   is kept in `<dir>/.<id>.steps.state.json`, so a re-run appends only new
   steps. A half-written last line waits for its newline. A newer session
   starts at its first byte.
-- **Refusals**: no session (exit 3), an unreadable one (exit 4), a bad
-  `AGENT_ID` (exit 1).
+- **A followed id, across its holders** (owner HUM-10, t1 `8b6cf04c`,
+  poll `0f677a46`, answer A: "whichever agent gets that id next is
+  followed"; bug round 12 row 04): an id with no session is a gap between
+  two holders, not a failure. The first run of a gap logs one line,
+  `<id> GAP agent-steps-log: no claude session jsonl under ...`, and marks
+  it with `<dir>/.<id>.steps.gap`; later runs log nothing and exit 0 until
+  a session of the id appears. That session is followed from its first byte
+  (one `session` line) and clears the marker, so the next gap logs one line
+  again.
+- **Refusals**: an `AGENT_STEPS_LOG_SESSION` file that is missing (exit 3),
+  an unreadable session (exit 4), a bad `AGENT_ID` (exit 1).
 
 The cron row `agent-steps-log` (every minute, `cnf/box-crons/box-crons.manifest`)
 runs it for the ids of box.env `AGENT_STEPS_LOG_AGENTS`, else of cnf

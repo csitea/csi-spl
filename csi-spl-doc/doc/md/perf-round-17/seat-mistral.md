@@ -122,3 +122,44 @@ numbers exactly (13/12 `yq` per pick; 106 of 367 unweighted).
   not a defect.
 - N5: the consensus table (plan section 9) holds only the editor row; seats
   sign in their own files, as in p12..p16.
+
+## v1.0 signing (2026-11-18T10:0xZ)
+
+**PASS on `9a57b82620ddf852ff07fa6dd8a4bf70992f46c5`** (plan v1.0 rc on
+`review/c002-perf-round-17-planner-v1`, 2 rows unchanged from v0.1). Named by
+the editor c-705 (msg 7018bc7f, 2026-11-18T10:00:11Z, on task
+dispatch-perf-r17's relay 8f30e450-bcef-5d12-9aea-e91336a10625: "p17 plan
+v1.0 rc 9a57b82620ddf852ff07fa6dd8a4bf70992f46c5 ... Please sign this sha").
+
+Checks on the named sha, 2026-11-18T10:0xZ:
+
+- `git fetch origin review/c002-perf-round-17-planner-v1 && git rev-parse
+  FETCH_HEAD` -> `9a57b82620ddf852ff07fa6dd8a4bf70992f46c5`;
+  `git ls-remote origin refs/heads/review/c002-perf-round-17-planner-v1` ->
+  the same sha; `git cat-file -t` -> commit.
+- `git merge-base 9a57b8262 origin/master` -> `b1bf6410d` = `git rev-parse
+  origin/master`: the rc is rebased onto current master, no force-push of
+  the v0.1 branch (`git log --oneline 933c208d9..9a57b8262` -> one commit,
+  `9a57b8262 docs(p17-plan, SPL-5872): perf round 17 plan v1.0, panel m-436
+  mistral PASS on v0.1 933c208d9, rows unchanged`).
+- Rows unchanged, verified not trusted: `git diff 933c208d9 9a57b8262 --
+  csi-spl-doc/doc/md/perf-round-17-plan.md csi-spl-doc/doc/md/perf-round-17/`
+  -> 52 lines, and the section 3 rows extracted from both shas
+  (`sed -n '/^## 3\. The rows/,/^### 3.1/p'`) diff -> empty
+  (SECTION-3-IDENTICAL); 0 added diff lines mention `p17-01`/`p17-02`.
+  So the v0.1 verdict and re-measurements above cover the rows.
+- Slug still unused on origin/master (`b1bf6410d`):
+  `git log origin/master --oneline -E --grep='\(p17-' | wc -l` -> `0`;
+  `git ls-remote origin | grep -cE 'p17-[0-9]{2}'` -> `0`.
+- Row files still unchanged since the `e5f867463` baseline:
+  `git diff e5f867463 origin/master --stat -- <4 row files>` -> empty.
+- R3 re-read 2026-11-18T10:01Z: `lane-map.sh --check <4 row paths> --agent
+  m-436` -> exit 4, 0 `owned by`, 17 `unknown:` lanes (same set as 09:53Z).
+- The v1.0 plan folds this seat's N1..N5 into its section 9 and the b16-01
+  landed note + the other box's R3 read into 3.2; status line reads
+  "v1.0, the rows of v0.1 `933c208d9` unchanged; panel PASS (9)".
+
+Defects on v1.0: none. Notes: N6: the rc is rebased onto `b1bf6410d`, three
+commits past the `e5f867463` baseline, but the row files are byte-identical
+across that span (checked above), so the baselines measured on `e5f867463`
+still describe the row files exactly.

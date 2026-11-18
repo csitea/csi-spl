@@ -5,6 +5,7 @@ package hub_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -257,4 +258,41 @@ func moveInnerBody(t *testing.T, m store.Message) string {
 		t.Fatalf("inner message of %s: %v", m.MsgID, err)
 	}
 	return inner.Body
+}
+
+// failP1Finish fails P1's step row after OpenChannelMove committed the
+// journal, as a database error or a closed request would.
+type failP1Finish struct{ *store.Postgres }
+
+func (f failP1Finish) FinishChannelMoveStep(ctx context.Context, dst, moveID, channel, step string, d store.ChannelMoveStepDone) error {
+	if step == "P1" {
+		return errors.New("injected failure after OpenChannelMove committed")
+	}
+	return f.Postgres.FinishChannelMoveStep(ctx, dst, moveID, channel, step, d)
+}
+
+// R7 W3: a P1 that fails after its journal row was committed keeps the GO
+// that row names, so the move can go on with it; only the click answers 500.
+// RED CONTROL: withdraw the GO on every P1 error (drop channelMoveGoJournaled)
+// -> the journal names a deleted GO, and this test fails.
+func TestChannelMoveConfirmJournaledGoW3(t *testing.T) {
+	b := confirmable(t, func(o *hub.Options) {
+		if pg, ok := o.Store.(*store.Postgres); ok {
+			o.Store = failP1Finish{pg}
+		}
+	})
+	if code, out := b.confirm(t, b.owner, map[string]any{"dst": b.dst}); code != http.StatusInternalServerError {
+		t.Fatalf("confirm with P1's step row failing: %d %v, want 500", code, out)
+	}
+	ctx := context.Background()
+	j, err := b.e.st.(store.ChannelMoveJournals).ChannelMoveJournal(ctx, b.dst, b.src, b.ch)
+	if err != nil || j == nil || j.Done {
+		t.Fatalf("journal after the failed P1: %+v %v, want an open row", j, err)
+	}
+	if _, err := b.e.st.GetMessageClaim(ctx, b.op, j.GoMsgID); err != nil {
+		t.Errorf("the open journal names GO %s, which is gone: %v", j.GoMsgID, err)
+	}
+	if n := browserMoveRows(t, b, `SELECT count(*) FROM messages WHERE tenant_id = $1`, b.op); n != 2 {
+		t.Errorf("%d posts in the operator workspace, want the GO's 2", n)
+	}
 }

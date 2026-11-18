@@ -104,7 +104,9 @@ func (s *Server) handleChannelMoveConfirm(w http.ResponseWriter, r *http.Request
 	}
 	run := &channelMoveRun{s: s, q: q, op: hum, jr: jr}
 	if _, err := run.step(r.Context(), "P1"); err != nil {
-		s.channelMoveGoWithdraw(r.Context(), g)
+		if !s.channelMoveGoJournaled(r.Context(), jr, q, g) {
+			s.channelMoveGoWithdraw(r.Context(), g)
+		}
 		s.channelMoveFail(w, run, "P1", err)
 		return
 	}
@@ -157,6 +159,20 @@ func (s *Server) channelMoveGoPosts(ctx context.Context, hum string, q channelMo
 		return channelMoveGoPost{}, err
 	}
 	return g, nil
+}
+
+// channelMoveGoJournaled says whether P1 opened the journal with this GO before
+// it failed: OpenChannelMove commits apart from P1's step row, so a refused P1
+// can leave an open journal that names the answer. That GO stays, or the move
+// is stuck: a new confirm is 409 move_open and every step is 403 go_required
+// (R7 W3). A journal that cannot be read keeps the GO too.
+func (s *Server) channelMoveGoJournaled(ctx context.Context, jr store.ChannelMoveJournals, q channelMoveRequest, g channelMoveGoPost) bool {
+	j, err := jr.ChannelMoveJournal(context.WithoutCancel(ctx), q.Dst, q.Src, q.Channel)
+	if err != nil {
+		s.o.Log.Error().Err(err).Msg("browser.channel_move_confirm journal after P1")
+		return true
+	}
+	return j != nil && j.GoMsgID == g.answer
 }
 
 // channelMoveGoWithdraw deletes the GO's posts after a refusal, the answer

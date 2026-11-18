@@ -95,6 +95,10 @@
 #      SPL-5617 (sat 2026-11-14, n=9): the box's login probe ok since that
 #      own verdict opens the gate (restarted); control: probe limited ->
 #      refused. Red control (origin/master): refused with the probe ok
+#      SPL-5926 (one box 2026-11-18, n=1, a-919 restarted by the GC onto
+#      its agy quota): agy's quota banner in the watchdog's pane capture
+#      -> RS-GATE SKIP vendor limit, exit 4; control: no banner ->
+#      restarted. Red control (origin/master): RS-GATE OK, spawned
 #  21. S3 left behind is never a live harness (SPL-4248; g-523 main box
 #      2026-10-29, n=1): the id's first window shows the ended screen, its
 #      live grok runs in a second pane: exit 3 no S3 hit, nothing spawned,
@@ -770,6 +774,29 @@ for v in limited ok; do
       pass "20. SPL-5617: the box's login probe ok since the seat's own limit verdict -> restarted to DONE OK" || fail "20. probe ok rc=$rc $(tail -3 "$T/o")"
   fi
   rm -f "$T/lc/probe"
+done
+# SPL-5926 (one box 2026-11-18 18:00Z, n=1: a-919 on its agy quota, the GC
+# restarted it onto the same banner): agy's "Individual quota reached ...
+# Resets in 150h" in the watchdog's pane capture refuses, read by the placer's
+# own spl_spawn_place_agy_out. Control: the same agy lane, no banner ->
+# restarted. Red control (origin/master 17fd13fd0): RS-GATE OK, spawned
+for v in banner none; do
+  world; rm -f "$T/run.log"; lane a-968 %68 - agy
+  mkdir -p "$D/wd/ctx.1/a-968"
+  if [[ "$v" == banner ]]; then
+    printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 150h.\n' > "$D/wd/ctx.1/a-968/pane"
+  else
+    printf '> working on the brief\n' > "$D/wd/ctx.1/a-968/pane"
+  fi
+  rc="$(go ID=a-968 CAUSE=gc DRY_RUN=0)"
+  if [[ "$v" == banner ]]; then
+    [[ "$rc" == 4 && ! -s "$T/spawn.log" ]] && grep -q 'RS-GATE SKIP vendor limit: agy cannot act (agy is out of quota until .*a-968 banner, Resets in 150h' "$D/rotate.log" 2>/dev/null &&
+      pass "20. SPL-5926: an agy lane on its quota banner (Resets in 150h): RS-GATE SKIP vendor limit, exit 4, nothing spawned" ||
+      fail "20. agy quota rc=$rc $(tail -3 "$T/o") $(grep -a a-968 "$D/rotate.log" 2>/dev/null | cut -d' ' -f3- | tr '\n' ';')"
+  else
+    [[ "$rc" == 0 ]] && grep -q '^spawn agy a-968 ' "$T/spawn.log" && ! grep -q 'RS-GATE SKIP' "$D/rotate.log" &&
+      pass "20. SPL-5926 control: the same agy lane, no quota banner -> restarted" || fail "20. agy no banner rc=$rc $(tail -3 "$T/o")"
+  fi
 done
 
 # --- 22. a restart the box caused is not counted (SPL-4359) -----------------------------------

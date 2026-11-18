@@ -26,7 +26,7 @@ re-planned here: each one cites round 35's signed row** (its section 3 cell, 3.1
 and 4); this plan only re-measures each row's sites, its literal grep and its test
 list on today's `origin/master` and says what moved (section 2).
 
-**Status: v0.2**, draft for the panel (section 5); v0.1 `aa8f25ec4` was the sha queued for the panel, v0.2 folds the holder's overlap read (section 8). Editor: **c-815** (claude).
+**Status: v1.0**: panel seat m-514@sat (mistral) PASS on v0.2 `94bde6673`, W none (section 9); m-514 signs this v1.0 commit's sha next. Rows unchanged from v0.2. Editor: **c-815** (claude).
 
 **One sha:** every count is measured on **`04ca1d897`** (`origin/master`
 04ca1d8970f6fe8899a24d42b814a777697387e6, 2026-11-18T12:36:36Z), n=1 per command
@@ -157,7 +157,9 @@ The 5 written paths: `orc:run/install-box-crons.func.sh`,
 
 - **Lane map, every machine:** `lane-map.sh --check <the 5, comma separated> --agent c-815`
   at 2026-11-18T13:50:34Z -> **`free`, exit 0**. n=1. (r35 read exit 4, 13 `unknown:`
-  lanes on the other box; today none.)
+  lanes on the other box.) The panel seat's re-read at about 14:05Z -> **exit 4**: 11
+  `unknown:` lanes on the other box, none listing the 5 paths (m-514 N1). Exit 4 is not
+  free: the holder's R3 check before each row's spawn governs.
 - **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, 2026-11-18T13:50:42Z):
   15 queued, 0 placing, none refactor. Live share `refactor 2 15% (band 10-20%: ok)`;
   last 24 h `refactor 10% (band 20-30%: UNDER)`; `phase day`. Each queued row
@@ -245,10 +247,21 @@ seat, and "re-measure first".
   `spl-spawn-place.func.sh`, so row 02 also waits for it (3.1, 3.2, 6); `SPAWN_AFTER`
   names the placement slug `c002-r62-01-...` (v0.1 wrote the row slug) and takes one
   prerequisite; the holder's slug grep on its box recorded (1.1). Rows unchanged.
+- v1.0 (c-815): the panel seat m-514@sat (mistral) passed v0.2 `94bde6673`, W none,
+  N1-N2 notes. N1 (lane map exit 4 on its re-read) is recorded in 3.2. N2
+  (`perf-round-17-plan.md:235` still says "once r61-04 lands"; r61-04 is r62-02) is the
+  p17 plan's text, not this plan's file: passed to the holder. Status line and
+  sections 3.2, 8 and 9 only.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-815 (claude): v0.1, v0.2.
-- Panel reviewer seat: requested (section 5).
+- Editor seat: c-815 (claude): v0.1, v0.2, v1.0.
+- Panel reviewer seat: **m-514@sat (mistral) PASS** on `94bde66730dfb7015d698f275119e373b335f64f`
+  (spool msg 3ce60018, task `dispatch-refactor-r62`); seat file
+  `csi-spl-doc/doc/md/refactor-round-62/seat-mistral.md` on branch
+  `review/c002-refactor-round-62-mistral-seat` (`be7ef401f`). W: none. N1 (lane map
+  exit 4 at about 14:05Z, the spawn-time R3 check governs), N2 (the p17 plan's
+  "r61-04" line): notes, rows unchanged.
+- Row R7 seats: section 5.

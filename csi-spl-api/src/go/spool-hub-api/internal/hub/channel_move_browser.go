@@ -18,6 +18,7 @@ import (
 //
 //	GET  /v1/channels/{channel}/workspace-move       the probe and the targets
 //	POST /v1/channels/{channel}/workspace-move/plan  {dst, keep, keep_emails, leave_hours}
+//	POST /v1/channels/{channel}/workspace-move       the confirm (T15, channel_move_confirm.go)
 //
 //   - Who: a member of <SRC> who is the biz owner of the operator workspace,
 //     the test channelMoveGo makes (channelMoveOwner), never operatorActor's
@@ -32,7 +33,7 @@ import (
 //     two P2 checks the plan leaves out, no orchestrator seat in <DST> and a
 //     file total over <DST>'s quota (8.5.4), so the dialog shows them before
 //     the confirm.
-//   - Reads only: no journal row, no P1, no write (the confirm is T15).
+//   - The probe and the plan read only: no journal row, no P1, no write.
 
 const tokenChannelMoveOwner = "channel_move_owner"
 
@@ -67,6 +68,7 @@ type channelMoveBrowserBody struct {
 func (s *Server) routeChannelMoveBrowser(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/channels/{channel}/workspace-move", s.handleChannelMoveProbe)
 	mux.HandleFunc("POST /v1/channels/{channel}/workspace-move/plan", s.handleChannelMoveBrowserPlan)
+	mux.HandleFunc("POST /v1/channels/{channel}/workspace-move", s.handleChannelMoveConfirm)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/workspace-move", s.channelMoveBrowserPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/workspace-move/plan", s.channelMoveBrowserPreflight)
 }
@@ -177,37 +179,48 @@ func (s *Server) handleChannelMoveBrowserPlan(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
+	a, ok := s.channelMoveBrowserBlocked(w, r, q)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
+// channelMoveBrowserBlocked is the plan with every stop the confirm meets, for
+// the plan route and the confirm (T15) alike; it writes the error.
+func (s *Server) channelMoveBrowserBlocked(w http.ResponseWriter, r *http.Request, q channelMoveRequest) (channelMoveBrowserPlan, bool) {
+	var a channelMoveBrowserPlan
 	pl, ok := s.o.Store.(store.ChannelMovePlanner)
 	if !ok {
 		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store cannot plan a channel move")
-		return
+		return a, false
 	}
 	plan, err := pl.PlanChannelMove(r.Context(), channelMovePlanRequest(q))
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+ch+" in this workspace")
-		return
+		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+q.Channel+" in this workspace")
+		return a, false
 	case errors.Is(err, store.ErrMoveRequest):
 		writeErr(w, http.StatusBadRequest, "bad_request", err.Error())
-		return
+		return a, false
 	case err != nil:
 		s.o.Log.Error().Err(err).Msg("browser.channel_move_plan")
 		writeErr(w, http.StatusInternalServerError, "internal", "plan unavailable")
-		return
+		return a, false
 	}
 	refuse, ok := s.channelMoveRefusals(w, r, q, plan)
 	if !ok {
-		return
+		return a, false
 	}
 	p2, err := s.channelMoveP2Stops(r.Context(), q, plan)
 	if err != nil {
 		s.o.Log.Error().Err(err).Msg("browser.channel_move_plan p2")
 		writeErr(w, http.StatusInternalServerError, "internal", "plan unavailable")
-		return
+		return a, false
 	}
-	a := channelMoveBrowserPlan{channelMovePlanAnswer: channelMovePlanOf(plan, refuse)}
+	a = channelMoveBrowserPlan{channelMovePlanAnswer: channelMovePlanOf(plan, refuse)}
 	a.Blocked = append(append([]string{}, refuse...), p2...)
-	writeJSON(w, http.StatusOK, a)
+	return a, true
 }
 
 // channelMoveBrowserRequest reads the body into the operator plan's request.

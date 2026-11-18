@@ -3434,6 +3434,90 @@
         "tags": [
           "channels"
         ]
+      },
+      "post": {
+        "operationId": "postChannelsByChannelWorkspaceMove",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "dst": {
+                    "description": "one of the probe's target slugs",
+                    "type": "string"
+                  },
+                  "keep": {
+                    "description": "HUM ids added to dst (Q5)",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "keep_emails": {
+                    "description": "channel invites that move (5.1b)",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "leave_hours": {
+                    "description": "HUM ids whose hours rows stay (5.1a)",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "dst"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "{move_id, topic}: the owner's GO is written (a poll form naming src/channel and dst, and the person's Answer: GO, in a new topic of the operator workspace's #lobby, from box-wui), channelMoveGo checked it, and P1 ran with this detail, kept for P2; topic is the GO's task (spec 169 8.5.5 items 1 and 2, T15)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "channel_move_owner: not the biz owner of the operator workspace (no session too, only with the view door off; with it on, no session is the 401 view_door); forbidden: no member of this workspace; go_required: the GO written did not pass channelMoveGo"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "move_blocked: the plan's .blocked is not empty, the lines in blocked; move_open: this channel's move is already confirmed, its move_id; move_refused: P1 refused. None of them writes a GO"
+          },
+          "501": {
+            "description": "unsupported: a store with no channel move journal; nothing is written"
+          }
+        },
+        "summary": "Confirm a channel's move into another workspace from the menu entry's dialog: the click is the owner's GO, the hub records it and runs P1; a box runs the rest",
+        "tags": [
+          "channels"
+        ]
       }
     },
     "/v1/channels/{channel}/workspace-move/plan": {

@@ -218,7 +218,9 @@ func (run *channelMoveRun) planNow(ctx context.Context) (store.ChannelMovePlan, 
 	return pl.PlanChannelMove(ctx, channelMovePlanRequest(run.q))
 }
 
-// p1 freezes the set in <DST> (8.3). A stop is P2's to refuse.
+// p1 freezes the set in <DST> (8.3). A stop is P2's to refuse. Its step row
+// keeps the detail it ran with, .inputs (8.5.5 item 2): the pick-up sends that
+// detail to P2 and P4 (T16), and P4 refuses one P2 did not check (8.4).
 func (run *channelMoveRun) p1(ctx context.Context) (map[string]any, error) {
 	plan, err := run.planNow(ctx)
 	if err != nil {
@@ -230,6 +232,9 @@ func (run *channelMoveRun) p1(ctx context.Context) (map[string]any, error) {
 	}
 	id, err := run.jr.OpenChannelMove(ctx, open)
 	if err != nil {
+		return nil, err
+	}
+	if err := run.jr.FinishChannelMoveStep(ctx, run.q.Dst, id, run.q.Channel, "P1", store.ChannelMoveStepDone{Detail: map[string]any{"inputs": run.q.in}}); err != nil {
 		return nil, err
 	}
 	run.j = &store.ChannelMoveJournalRow{MoveID: id}

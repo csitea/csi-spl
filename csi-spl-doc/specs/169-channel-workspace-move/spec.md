@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.31 (2026-11-12). Status: **Draft** (part built: section 8.4's hub
+Version: v0.32 (2026-11-18). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -137,6 +137,10 @@ v0.31 (SPL-5371, R7 c-355 N1-N3): row C29 states the session door's answers
 (no session: 401 `view_door` with the door on, the owner test's 403 only with it
 off), and so do the code comment and both openapi 403 texts. C29 gains a test with
 the door on; C30 a suspended target; C31 the order of `.blocked` (`.refuse` first).
+v0.32 ticks row T15 (SPL-5846): the confirm route of 8.5.3, `POST
+/v1/channels/{channel}/workspace-move`, in `api/hub/channel_move_confirm.go`; 8.5.5
+items 1 and 2 say what it writes and where (the operator workspace's `#lobby`), and
+P1's step now keeps its detail for P2 on both doors.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -654,7 +658,7 @@ finds nothing, and no row of section 10 asked for it before this version. Today 
 only door is the shell action, called as the env's service account.
 
 Built: the probe and the plan of 8.5.3, with 8.5.2's owner test and targets and 8.5.4's
-`.blocked` (T14). Not built yet: the rest of this section. The owner decided Q9, Q10 and Q11 (11.1,
+`.blocked` (T14), and the confirm of 8.5.5 items 1 and 2 (T15). Not built yet: the rest of this section. The owner decided Q9, Q10 and Q11 (11.1,
 msg a271ca2c): A to each, the answers the text below was written for.
 
 #### 8.5.1 Where it sits
@@ -702,7 +706,7 @@ session, in `<SRC>`'s host:
 |---|---|---|
 | `GET /v1/channels/{channel}/workspace-move` | the probe and the targets (T14) | 200 `{allowed: true, targets: [{slug, name}]}`; 403 `channel_move_owner` for anyone else |
 | `POST /v1/channels/{channel}/workspace-move/plan` | `{dst, keep, keep_emails, leave_hours}`: the plan, and the stops P2 adds (T14) | 200 the plan with `.blocked`; never writes |
-| `POST /v1/channels/{channel}/workspace-move` | the confirm: writes the GO, runs P1 (T15) | 200 `{move_id, topic}`; 403; 409 with the stops |
+| `POST /v1/channels/{channel}/workspace-move` | the confirm: writes the GO, runs P1 (T15) | 200 `{move_id, topic}`; 403; 409 `move_blocked` with `.blocked`, 409 `move_open` with the open `move_id`; 501 on a store with no journal |
 | `GET /v1/channel-moves/{move_id}` | where a move stands (T17), read in `<DST>` | 200 the steps and the reason; 404 to anyone who is not the biz owner of the operator workspace |
 
 Each takes `humanTenant`, then the owner test of 8.5.2, then `channelMoveValid`'s
@@ -747,8 +751,17 @@ the click only records the GO and starts the journal, and a box does the rest:
    (Q9 A, decided, 11.1: the confirm click is the GO). The click is the person's own, on
    their own session; no agent and no service account can write this answer, because the
    route needs the session.
+   Built (T15, `api/hub/channel_move_confirm.go`): the form ("Move the channel
+   `<SRC>/<CHANNEL>` to `<DST>`?", a `poll` block with the one option `(GO) Go`) and the
+   answer are two posts of the person, from `box-wui` with the unsigned browser envelope
+   (no agent fan-out), in a new topic of the operator workspace's `#lobby`; that topic is
+   the answer's `topic`. Nothing is written while `.blocked` (8.5.4) is not empty (409
+   `move_blocked`), while this channel already has an open journal in `<DST>` (409
+   `move_open`: one GO per move), or on a store with no journal (501).
 2. The hub runs P1 with the dialog's `detail`, and keeps that detail for P2 (8.4: P4 refuses
-   a detail other than the one P2 checked).
+   a detail other than the one P2 checked). Built (T15): P1's step row holds it as
+   `detail.inputs` (`p1`, `api/hub/channel_move_steps.go`), on the operator route too; T16's
+   pick-up reads it from there.
 3. A box action, `do_spl_channel_move_pickup`, from cron every 5 minutes on the box holding
    the orch lease (T16), reads the open journals through a new operator op, `open`, and runs
    `do_spl_channel_workspace_move` for each with the journal's GO, its detail and
@@ -861,7 +874,7 @@ Each row is one small task; files named are where it lands.
 | T13b | P7's free-text scan and Q4's mentions: T13 measured `proof scan messages.body 1` on one staying post that links a moved topic | built (SPL-5010): `api/channelmove/mentions.go` (`ReadMentions`), `api/hub/channel_move_steps.go` (`p7`), `api/store/rls.go` (`asOperatorSnapshot`), `orc/run/spl-channel-workspace-move.func.sh` (`MENTIONS`, `MENTION` lines); tests `api/channelmove/proof_test.go` (`TestMentionsPostgres`), `api/hub/channel_move_p7_test.go`, `api/store/channel_move_journal_test.go`. Not re-run on dev: a second T13 needs the owner's new GO |
 | T13c | `KEPT_UNTIL` printed `not read: no date for hub logs` (T13), so Q3's last date never printed | built (SPL-5010): cnf `hub.log_bucket`; `_spl_cwm_retention_log_days` sends that bucket's days only after it reads a line of the hub's service back from it (dev read 2026-11-07: two sinks, `_Default` 30 days, the hub's `requests` and `stderr` lines there; prd not read), else `not read: <why>`; case 13 of `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T14 | Hub: the probe and the plan for a member session (8.5.2, 8.5.3, 8.5.4): owner test, the person's targets, the plan with the orchestrator seat and the quota added as `.blocked`. Reads only. Tests C29, C30, C31 | built (SPL-5371): `api/hub/channel_move_browser.go` (`GET /v1/channels/{channel}/workspace-move` answers `{allowed, targets: [{slug, name}]}`, `POST .../workspace-move/plan` `{dst, keep, keep_emails, leave_hours}` answers the operator plan plus `.blocked`: `.refuse` then P2's two checks, `[]` when nothing stops it; a `dst` the person is not in answers 404 `unknown_tenant`, as an unknown one; under a quota a store that cannot count the files, Memory, puts the uncounted total in `.blocked`), registered by `routeChannelMembers`; `openapi.json`; tests `api/hub/channel_move_browser_test.go` (C31's file total on Postgres) |
-| T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33 | `api/hub/channel_move_confirm.go`, `_test.go`, `api/hub/channel_move_steps.go`, `openapi.json` |
+| T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33 | built (SPL-5846): `api/hub/channel_move_confirm.go` (`POST /v1/channels/{channel}/workspace-move`, the door and the body of T14's plan; 409 `move_blocked` / `move_open` and 501 write nothing; the form and the person's `Answer: GO` in a new `#lobby` topic of the operator workspace, then `channelMoveGo`, then P1 with that answer as the journal's GO; answers `{move_id, topic}`), `api/hub/channel_move_browser.go` (`channelMoveBrowserBlocked`, the plan route's `.blocked` shared with the confirm), `api/hub/channel_move_steps.go` (`p1` keeps `detail.inputs`), `openapi.json`; tests `api/hub/channel_move_confirm_test.go` (C32 on Postgres: the GO, the journal, P1's detail, the GO on the operator route and its replay for another dst refused, a second click; a blocked confirm writes nothing. C33: `step`, `mark` and `go_msg_id` in the body, the operator workspace's admin, the service account's token, the member session on the operator route, Memory's 501) |
 | T16 | Shell: `do_spl_channel_move_pickup` and the operator op `open` (8.5.5 item 3); `do_spl_channel_workspace_move` sends the journal's `detail` at P1 and P2. Test C34 | `orc/run/spl-channel-move-pickup.func.sh`, `orc/run/spl-channel-workspace-move.func.sh`, their tests; the op in `api/hub/channel_move.go` |
 | T17 | Hub: the stored refusal and `GET /v1/channel-moves/{move_id}`, the status line in the GO's topic, the `#alerts` line (8.5.6). Test C35's store and hub half | `api/hub/channel_move_status.go`, `_test.go`, `api/store/channel_move_journal*.go` |
 | T18 | WUI: the menu item and its probe (8.5.1, 8.5.2), keys in every locale | `src/utils/sidebar-row-menu.mjs`, `src/components/SidebarRowMenu.vue`, `ChannelSidebar.vue`, `tests/unit/`, `i18n/locales/*` |

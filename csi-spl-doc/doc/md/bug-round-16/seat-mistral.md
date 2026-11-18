@@ -14,6 +14,8 @@ origin/master now `cb9902b0f5f9c3663e5c66b28424f02a3c0c1330`);
 -> empty (the plan file is unchanged since v0.2). Named as the review target
 by the editor c-401@sat on task `dispatch-bug-r16` (msg f7037510,
 2026-11-18T08:51:50Z: "Please review and sign v0.2, not v0.1 `526155e00`").
+v1.0 `108d601c4671a73d6d3029ce39b5b3525d8dd0b6` (named by c-401 on task
+`dispatch-bug-r16`, msg 3407df1f) is signed in the last section below.
 v0.1 `526155e001aa02de345eb4ea67b7dd20cd00a199` is superseded:
 `git diff --stat 526155e00 a070d21a -- csi-spl-doc/doc/md/bug-round-16-plan.md`
 -> `1 file changed, 14 insertions(+), 7 deletions(-)`, the plan file only
@@ -187,6 +189,39 @@ None. No W items.
 
 ## v1.0 signature
 
-Pending: the editor folds this verdict into the plan's v1.0 commit; when
-c-401@sat names a v1.0 sha on task `dispatch-bug-r16`, it is re-checked and
-signed here in a second commit on `review/c002-bug-round-16-mistral-seat`.
+**PASS on `108d601c4671a73d6d3029ce39b5b3525d8dd0b6`** (plan v1.0), signed
+2026-11-18T09:0xZ after the editor c-401@sat named it on task
+`dispatch-bug-r16` (msg 3407df1f, 2026-11-18T09:05:37Z: "bug round 16 plan
+**v1.0** `108d601c4671a73d6d3029ce39b5b3525d8dd0b6` on origin/master ... Ready
+for m-411 to sign v1.0").
+
+Provenance and re-checks, each with the command run and what it printed:
+
+- `git fetch origin master review/c002-bug-round-16-planner` then
+  `git rev-parse origin/master` -> `108d601c4671a73d6d3029ce39b5b3525d8dd0b6`
+  (v1.0 is the trunk tip).
+- `git merge-base --is-ancestor 108d601c4671a73d6d3029ce39b5b3525d8dd0b6 origin/master`
+  -> exit 0 (on trunk).
+- `git ls-remote origin review/c002-bug-round-16-planner` ->
+  `108d601c4671a73d6d3029ce39b5b3525d8dd0b6  refs/heads/review/c002-bug-round-16-planner`
+  (same sha).
+- `git log -1 --format='%H %s' 108d601c` ->
+  `108d601c4671a73d6d3029ce39b5b3525d8dd0b6 docs(b16-plan, SPL-5869): bug round 16 plan v1.0, panel m-411 mistral PASS on v0.2 a070d21a5`;
+  `git show 108d601c --stat` -> 1 file changed, the plan only
+  (`csi-spl-doc/doc/md/bug-round-16-plan.md`, 12 insertions, 2 deletions).
+- `git diff a070d21a 108d601c -- csi-spl-doc/doc/md/bug-round-16-plan.md` ->
+  the status line (v0.2 -> v1.0), two review-history lines and a new
+  section 9 consensus table only; grepping that diff for
+  `spl-spawn-fill|flush.go|rc01|sites` matches only those status/history
+  lines, so **no row, site or red control changed**. Plan at v1.0: 142 lines
+  (`git show 108d601c:.../bug-round-16-plan.md | wc -l`).
+- `git diff --stat 714a4fc82 108d601c -- csi-spl-orc/src/bash/run/spl-spawn-fill.func.sh csi-spl-orc/src/bash/tests/spl-spawn-fill.tst.sh csi-spl-api/src/go/spool-hub-api/internal/hubclient/flush.go csi-spl-api/src/go/spool-hub-api/internal/store/channels_postgres.go`
+  -> empty (row files and the hub sites unchanged from the measurement sha
+  to v1.0); `git merge-base --is-ancestor 714a4fc82 108d601c` -> exit 0.
+- Slug re-check on the new trunk:
+  `git log origin/master -E --grep='\bb16-[0-9]{2}-' | wc -l` -> `0`;
+  `git ls-remote origin | grep -cE 'b16-[0-9]{2}'` -> `0`.
+
+Every check above run for v0.2 still holds: the red control was measured on
+`714a4fc82`, which is an ancestor of v1.0 with the row files byte-identical,
+so its `RESULT: FAIL` stands unchanged.

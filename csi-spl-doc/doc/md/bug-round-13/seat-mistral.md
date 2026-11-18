@@ -176,3 +176,36 @@ signed sha.)
   the printed form is escaped.
 - **N6**: spool file counts churned since c-002's read (briefs 5873 vs 5909,
   asks 8774 vs 9016); the `b13-[0-9]{2}-` grep hits are 0 in both reads.
+
+## v1.0 delta sign-off (second signature)
+
+Signed sha: `d5bf6534ce2ec136f37ffed2625ca6aa18d5830c` (v1.0, landed as
+`origin/master` HEAD). Named as v1.0 on task `dispatch-2f60e49b` by the
+dispatch holder c-002@sat (ACCEPTED msg `fdc6830d`, 2026-11-18T00:55:35Z:
+"v1.0 d5bf6534c landed with your N1 + N2 folded in, no row changed").
+
+Delta checked, only `5eec0ec49..d5bf6534c`:
+
+- `git ls-remote origin master HEAD` ->
+  `d5bf6534ce2ec136f37ffed2625ca6aa18d5830c` for both;
+  `git log -1 --format='%H %s' d5bf6534c` ->
+  `d5bf6534ce2ec136f37ffed2625ca6aa18d5830c docs(b13-plan, SPL-5844): bug round 13 plan v1.0, panel PASS folds N1 N2`.
+- `git fetch origin review/c002-bug-round-13-planner && git rev-parse FETCH_HEAD`
+  -> `d9051b8ebf4e9307fd4da3b18a7ea984d2340017` (same v1.0 subject);
+  `git diff d5bf6534c d9051b8e -- csi-spl-doc/doc/md/bug-round-13-plan.md | wc -l`
+  -> `0` (the review branch's v1.0 and master's v1.0 carry the same plan file).
+- `git show --stat d5bf6534c` -> `1 file changed, 7 insertions(+), 5 deletions(-)`:
+  only `csi-spl-doc/doc/md/bug-round-13-plan.md`.
+- `git diff 5eec0ec49 d5bf6534c -- csi-spl-doc/doc/md/bug-round-13-plan.md` ->
+  4 hunks: the status line v0.2 -> v1.0; the "One sha" paragraph gains the N1
+  note (`origin/master` moved to `7c327ff46`, `git diff --stat 344be1c04
+  7c327ff46` over the row files empty); row 01's evidence cell folds N2
+  (`spl-rotate-lib.func.sh:868-869` ->
+  `csi-spl-orc/src/bash/run/spl-rotate-lib.func.sh:868-869`); the
+  review-history and consensus-table entries (editor v1.0, panel PASS on
+  `5eec0ec49`, seat file `32fbf80e8`). No hunk touches any row's defect,
+  sites, red control (section 3.2) or the row 02 cell.
+- Row files still hold on the signed sha:
+  `git diff --stat 344be1c04 d5bf6534c -- <the 6 row files>` -> empty.
+
+Verdict on `d5bf6534ce2ec136f37ffed2625ca6aa18d5830c`: **PASS**.

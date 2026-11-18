@@ -1,5 +1,7 @@
 # Perf round 17 (p17) - plan (2 rows, v1.0)
 
+> Generated from qto doc `22dae7da-5f24-43c7-b946-349ce4a9782b`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
 Class: refactor  
@@ -55,6 +57,7 @@ plan does not stand in for it and does not guess its content. It reads
 
 <a id="p17-how-to-read"></a>
 
+<a id="ws-doc-9317180b-b2a5-48b3-8170-02bc5776725d"></a>
 ## 1. How to read this
 
 - A row is one logical change made by one lane, with the subject
@@ -72,6 +75,7 @@ plan does not stand in for it and does not guess its content. It reads
 
 <a id="p17-inputs"></a>
 
+<a id="ws-doc-2dcd0e4a-3b90-4725-baa5-c4cfa9ac97d1"></a>
 ## 2. Where the rows come from
 
 Inputs read (brief step 2). Each carried finding was re-checked on
@@ -96,6 +100,7 @@ Inputs read (brief step 2). Each carried finding was re-checked on
 
 <a id="p17-rows"></a>
 
+<a id="ws-doc-680b1116-8872-45ac-98e8-6f9ace9d5f11"></a>
 ## 3. The rows
 
 | # | id | practice | baseline on `e5f867463` (command, number, n) | after | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
@@ -109,6 +114,7 @@ row to mistral).
 
 <a id="p17-batches"></a>
 
+<a id="ws-doc-0d5b56da-4359-463a-adfc-e3cece939f2a"></a>
 ### 3.1 Batches and disjoint files (R1)
 
 - **Batch 1**: rows 01 and 02, in parallel; no file in common.
@@ -120,6 +126,7 @@ row to mistral).
 
 <a id="p17-r3"></a>
 
+<a id="ws-doc-3cf819c5-2ee4-44a9-85f0-ad391895d61b"></a>
 ### 3.2 Off every live lane, every queued row and every open round row (R3)
 
 Read on 2026-11-18, each with its time (editor 3):
@@ -159,6 +166,7 @@ Read on 2026-11-18, each with its time (editor 3):
 
 <a id="p17-per-row"></a>
 
+<a id="ws-doc-04548a04-fbb6-4dc1-911b-2362c6d2ff57"></a>
 ## 4. Per row: what the lane does
 
 - **01**:
@@ -197,6 +205,7 @@ Read on 2026-11-18, each with its time (editor 3):
 
 <a id="p17-panel"></a>
 
+<a id="ws-doc-d2875999-4c3d-4a7a-ae9e-df1bcb0a6701"></a>
 ## 5. Panel and reviewers (R7)
 
 Read on 2026-11-18 09:26:35Z..09:26:38Z (editor 4):
@@ -218,6 +227,7 @@ Read on 2026-11-18 09:26:35Z..09:26:38Z (editor 4):
 
 <a id="p17-left-out"></a>
 
+<a id="ws-doc-9b798ef2-3e0e-4f7e-b4e7-7b339afa2ece"></a>
 ## 6. Left out, measured or not measurable here
 
 | candidate | why not a row | measurement |
@@ -235,6 +245,7 @@ No finding of this seat is non-perf work, so no ask went to the orchestrator.
 
 <a id="p17-counts"></a>
 
+<a id="ws-doc-003c6ab7-eccd-48b1-81f9-11054f1a9cdd"></a>
 ## 7. Counts
 
 - Rows: 2 in v0.1 (rulebook 1.1: at most 10).
@@ -245,6 +256,7 @@ No finding of this seat is non-perf work, so no ask went to the orchestrator.
 
 <a id="p17-changes"></a>
 
+<a id="ws-doc-6cda90cf-2e28-4eda-99e4-c36d1251c404"></a>
 ## 8. Changes
 
 Qto (rulebook 4.5): this file is imported once into the `system` workspace with
@@ -264,6 +276,7 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 
 <a id="p17-consensus"></a>
 
+<a id="ws-doc-3331eed5-16c3-480a-a596-a76715a5aaa9"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |

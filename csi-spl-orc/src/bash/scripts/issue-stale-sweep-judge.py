@@ -5,7 +5,7 @@ argv: WORK CAP IDLE_DAYS SPOOL_ROOT [NOW]. WORK holds issues.json (the wip
 issues), lanes.json (the fleet lane map), asks.json (the ask book) and
 cited.txt (every issue key an origin/master commit message names, one a
 line). Prints, oldest last update first, one TSV line per wip issue:
-  end  KEY  updated_at  title  held   (all 9 conditions held, under CAP)
+  end  KEY  updated_at  title  held   (all 10 conditions held, under CAP)
   keep KEY  c<N>|cap    why           (the first condition that failed)
 A fixed rule, no judgement per item: an issue is ended only when ALL hold:
   c1 created_by is an agent id, not HUM-* (nor empty)
@@ -17,6 +17,8 @@ A fixed rule, no judgement per item: an issue is ended only when ALL hold:
   c7 no origin/master commit message names the key
   c8 no open ask names the key
   c9 last update IDLE_DAYS or more days ago
+  c10 the title does not start "Seat brief:" (a standing seat's brief issue,
+      ended by the closer or LANE_ISSUE_OP=end, never by this sweep; SPL-5940)
 """
 
 import datetime as dt, json, re, sys
@@ -26,6 +28,7 @@ now_arg = sys.argv[5] if len(sys.argv) > 5 else ""
 AGENT = re.compile(r"^([a-z]-[0-9]+|(CLE|GRK|AGY|QWN)-[0-9]+)(@[A-Za-z0-9.-]+)?$")
 LIVE_ASK = {"open", "acked", "queued", "placing", "needs_owner"}
 DISCUSSION = ("next: the first answer in the topic", "\n- Taken by: ")
+SEAT_BRIEF = "Seat brief:"
 
 
 def load(name):
@@ -116,6 +119,8 @@ def why_kept(i):
             return "c8", f"open ask {a.get('ask_id', '?')}"
     if ts(i.get("updated_at")) > now - idle * 86400:
         return "c9", f"updated {i.get('updated_at', '')[:19]}, under {idle} d"
+    if (i.get("title") or "").lstrip().startswith(SEAT_BRIEF):
+        return "c10", "a standing seat's brief (Seat brief:)"
     return None
 
 
@@ -132,5 +137,5 @@ for i in sorted(
         continue
     n += 1
     title = re.sub(r"[\t\r\n]+", " ", i.get("title") or "")[:100]
-    held = f"c1-c9 held: created_by {i.get('created_by')}, assignee {i.get('assignee') or 'none'}, no live lane, open ask or master commit names it"
+    held = f"c1-c10 held: created_by {i.get('created_by')}, assignee {i.get('assignee') or 'none'}, no live lane, open ask or master commit names it"
     print(f"end\t{i['key']}\t{i.get('updated_at', '')}\t{title}\t{held}")

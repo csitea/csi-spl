@@ -337,7 +337,7 @@ Order: B1 first; then B2, B4, B5, B7 in parallel (disjoint files); then B3
   without the owner. `cd csi-spl-orc && ./run -a do_spl_issue_stale_sweep`
   (`csi-spl-orc/src/bash/run/spl-issue-stale-sweep.func.sh`, the verdicts in
   `csi-spl-orc/src/bash/scripts/issue-stale-sweep-judge.py`) ends an issue
-  as `diss`, comment "lane gone, never ended (sweep)", only when all nine
+  as `diss`, comment "lane gone, never ended (sweep)", only when all ten
   hold: created by an agent, not `HUM-*`; kind `issue`; status `wip`; the
   assignee is not `HUM-*`; not a discussion issue (the card
   `LANE_ISSUE_OP=discussion` files); no live lane of the fleet lane map
@@ -346,7 +346,11 @@ Order: B1 first; then B2, B4, B5, B7 in parallel (disjoint files); then B3
   it (after a fetch; a failed fetch stops); no ask in `open`, `acked`,
   `queued`, `placing` or `needs_owner` names it; its last update is
   `STALE_IDLE_DAYS` (the zombie default, cnf `env.rhythm.zombie_idle_days`,
-  7) or more days ago. Oldest first, at most `STALE_MAX` a run (1..50,
+  7) or more days ago; its title does not start `Seat brief:` (SPL-5940: a
+  standing seat's brief issue is ended by the closer or `LANE_ISSUE_OP=end`,
+  never by this sweep; the first dry run on prd would have ended 7 of them,
+  ruled a defect by c-001, msg 3bfe1569; a `Lane brief: ... reviewer seat`
+  issue stays sweepable). Oldest first, at most `STALE_MAX` a run (1..50,
   default 50: the brief's ceiling). A lane
   map read only on this machine, or any list it cannot read, stops it with
   nothing written. `DRY_RUN=1` (the default) prints the would-end list and
@@ -359,8 +363,8 @@ Order: B1 first; then B2, B4, B5, B7 in parallel (disjoint files); then B3
   `csi-spl-orc/src/bash/tests/spl-issue-stale-sweep.tst.sh` (one issue per
   condition; the cap's default and ceiling; the real commit reader on a
   fixture repo reads `origin/master` after a fetch, not `HEAD`; red
-  controls: a judge without the lane or the commit check ends the issue it
-  names).
+  controls: a judge without the lane, the commit or the seat brief check
+  ends the issue it names).
 
 ## 6. Not fixed here (reported)
 

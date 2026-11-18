@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: do_spl_issue_stale_sweep (SPL-5935) ends as diss the wip issues
-# whose lane is gone and was never ended, only when all nine conditions hold.
+# whose lane is gone and was never ended, only when all ten conditions hold.
 #   1. DRY_RUN=0: the one issue meeting all nine is ended (comment, then diss);
 #      each issue failing just ONE condition (c1..c9) is kept, with that reason
 #   2. c6 by a lane's brief on this box (no issue_key in its hub row) keeps it;
@@ -16,6 +16,10 @@
 #   8. the real spl_stale_cited on a fixture repo: it fetches, then names the
 #      keys of origin/master only (not a local HEAD commit); STALE_GIT_FETCH=0
 #      reads the ref as it is; a failed fetch stops
+#   9. c10 (SPL-5940): a "Seat brief:" issue meeting c1-c9 is kept as c10, with
+#      its own count; a "Lane brief: ... reviewer seat" one is still ended; a
+#      live seat row whose issue_key is the key keeps it as c6; red control:
+#      without the c10 check the seat brief is ended
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -85,8 +89,8 @@ judge_in() { mkdir -p "$T/w"; cp "$T/issues.json" "$T/lanes.json" "$T/asks.json"
 # --- 1. one issue per condition ---------------------------------------------------
 reset; fixtures "$ISSUES" "$LANES" "$ASKS" "$CITED"
 sweep DRY_RUN=0; rc=$?
-[[ $rc == 0 && "$(ended)" == SPL-100 ]] && pass "1. DRY_RUN=0 ends only SPL-100 (all nine held)" || fail "1. ended '$(ended)' rc=$rc: $(cat "$T/out")"
-grep -q '^comment --ref SPL-100 --body Ended as diss by do_spl_issue_stale_sweep: lane gone, never ended (sweep)\. c1-c9 held.* | c-002 t1 dev$' "$T/writes" 2>/dev/null &&
+[[ $rc == 0 && "$(ended)" == SPL-100 ]] && pass "1. DRY_RUN=0 ends only SPL-100 (all ten held)" || fail "1. ended '$(ended)' rc=$rc: $(cat "$T/out")"
+grep -q '^comment --ref SPL-100 --body Ended as diss by do_spl_issue_stale_sweep: lane gone, never ended (sweep)\. c1-c10 held.* | c-002 t1 dev$' "$T/writes" 2>/dev/null &&
   [[ "$(head -1 "$T/writes")" == comment* ]] &&
   pass "1. the reason comment goes first, as the dispatch holder in the lease's tenant and env" || fail "1. writes: $(cat "$T/writes" 2>/dev/null)"
 grep -q '^issues --status wip' "$T/reads" && pass "1. it reads the wip issues" || fail "1. reads: $(cat "$T/reads")"
@@ -127,7 +131,7 @@ sweep DRY_RUN=0; rc=$?
 # --- 5. DRY_RUN=1 writes nothing ---------------------------------------------------
 reset; fixtures "$ISSUES" "$LANES" "$ASKS" "$CITED"
 sweep; rc=$?
-[[ $rc == 0 && ! -e "$T/writes" ]] && grep -q 'WOULD END SPL-100 (last update 2026-11-01T00:00:00Z) Lane brief: SPL-100 :: c1-c9 held' "$T/out" &&
+[[ $rc == 0 && ! -e "$T/writes" ]] && grep -q 'WOULD END SPL-100 (last update 2026-11-01T00:00:00Z) Lane brief: SPL-100 :: c1-c10 held' "$T/out" &&
   grep -q 'would end 1; nothing written' "$T/out" && pass "5. DRY_RUN=1 (default): the would-end list, no hub write" || fail "5. rc=$rc: $(cat "$T/out")"
 
 # --- 6. red controls: code variants of the judge -----------------------------------
@@ -167,6 +171,24 @@ cited STALE_GIT_FETCH=0; rc=$?
 g -C "$T/clone" remote set-url origin "$T/no-such.git"
 cited STALE_GIT_FETCH=1; rc=$?
 [[ $rc != 0 ]] && grep -q 'FATAL git fetch origin master failed' "$T/cited.out" && pass "8. a failed fetch stops" || fail "8. failed fetch rc=$rc: $(cat "$T/cited.out")"
+
+# --- 9. c10: a standing seat's brief is never swept (SPL-5940) --------------------
+seat_case() {
+  reset
+  fixtures "[$(iss SPL-120 'title=Seat brief: a standing seat on #development'), $(iss SPL-121 'title=Lane brief: SPL-121 R7 reviewer seat'),
+ $(iss SPL-122 'title=Seat brief: a live seat on the lane map')]" \
+    '[{"agent_id": "c-302", "agent_box": "box-b", "state": "live", "issue_key": "SPL-122", "scope": "Seat brief: a live seat on the lane map", "branch": "c-302-seat", "files": []}]' '[]' ''
+}
+seat_case; judge_in
+kept SPL-120 c10 && pass "9. a Seat brief: issue meeting c1-c9 is kept as c10" || fail "9. seat brief not kept c10: $(cat "$T/verdict")"
+grep -q '^end	SPL-121	' "$T/verdict" && pass "9. a Lane brief: ... reviewer seat issue meeting c1-c9 is still ended (no over-match)" || fail "9. over-match: $(cat "$T/verdict")"
+kept SPL-122 c6 && grep -q 'live lane c-302@box-b' "$T/verdict" && pass "9. a live seat row whose issue_key is the key keeps it as c6" || fail "9. live seat: $(cat "$T/verdict")"
+seat_case; sweep DRY_RUN=0; rc=$?
+[[ $rc == 0 && "$(ended)" == SPL-121 ]] && grep -q 'kept by the first failed condition: .*c10 1' "$T/out" &&
+  pass "9. DRY_RUN=0 ends only SPL-121; the summary counts c10 on its own" || fail "9. sweep rc=$rc ended '$(ended)': $(cat "$T/out")"
+mkdir -p "$T/v10/src/bash/scripts"; sed 's/if (i.get("title") or "").lstrip().startswith(SEAT_BRIEF):/if False:/' "$JUDGE" >"$T/v10/src/bash/scripts/issue-stale-sweep-judge.py"
+seat_case; PROJ_OVERRIDE="$T/v10" sweep DRY_RUN=0
+[[ "$(ended)" == "SPL-120 SPL-121" ]] && pass "9. red control: without the c10 check the Seat brief: SPL-120 is ended, and the test sees it" || fail "9. c10 red: '$(ended)'"
 
 echo "---"
 [[ $fails == 0 ]] && echo "spl-issue-stale-sweep: all passed" || echo "spl-issue-stale-sweep: $fails FAILED"

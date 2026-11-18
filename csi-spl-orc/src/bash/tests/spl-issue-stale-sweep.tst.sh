@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # Purpose: do_spl_issue_stale_sweep (SPL-5935) ends as diss the wip issues
 # whose lane is gone and was never ended, only when all ten conditions hold.
-#   1. DRY_RUN=0: the one issue meeting all nine is ended (comment, then diss);
+#   1. DRY_RUN=0: the one issue meeting all ten is ended (comment, then diss);
 #      each issue failing just ONE condition (c1..c9) is kept, with that reason
 #   2. c6 by a lane's brief on this box (no issue_key in its hub row) keeps it;
 #      a done lane, a closed ask and a key that only shares a prefix do not

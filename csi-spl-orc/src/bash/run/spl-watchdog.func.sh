@@ -69,7 +69,7 @@
 # @param WD_STATE_DIR (optional) - the state dir (lock, debounces, ctx), default <spool root>/dispatch/wd; another one runs beside the live loop
 # @param WD_LOGIN_HEAL_GRACE (optional) - s login-check gets to restore a seat on a login screen, default 900
 # @param WD_LOGIN_RELAPSE (optional) - s after a restore in which the same screen means the restore did not hold, default 3600
-# @param LOGIN_STATE_DIR (optional) - login-check's state dir, default /var/csi/csi-spl/agent-login-check
+# @param LOGIN_STATE_DIR (optional) - login-check's state dir, default spl_claude_login_state_dir (<SPL_VAR_APP_DIR>/agent-login-check)
 # @param WD_PS_CMD / WD_SEND / WD_TAKEOVER_CMD / ROTATE_TMUX (optional) - seams for the tests: ps, spool-send.sh, the restart, tmux
 # @example WD_TICKS=1 ./run -a do_spl_watchdog
 # @example DRY_RUN=0 ./run -a do_spl_watchdog
@@ -1308,11 +1308,14 @@ spl_wd_s2_login() {
 # tick while a pane is stuck) and <state>/restored.<id> (its last restore).
 # Anything unproven calls the human: a real expired login is never hidden.
 spl_wd_login_human() {
-  local id="$1" ev="$2" now="$3" dir="${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}" grace="${WD_LOGIN_HEAL_GRACE:-900}"
+  local id="$1" ev="$2" now="$3" dir grace="${WD_LOGIN_HEAL_GRACE:-900}"
   local h at="" verdict="" f="$WD_DIR/$1.ep.S2.lc_since" since
   h="$(spl_wd_harness "$id")"
   [[ "$h" == claude || "$h" == unknown ]] || { echo "login-check covers claude seats only (this one is $h)"; return 0; }
   grep -qiE "$(_lc_foot_re login)" <<<"$ev" || { echo "login-check does not act on this screen"; return 0; }
+  declare -F spl_claude_login_state_dir >/dev/null ||
+    source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-claude-login.func.sh"
+  dir="$(spl_claude_login_state_dir)" || { echo "the login-check state dir cannot be derived (set LOGIN_STATE_DIR)"; return 0; }
   read -r at verdict _ < "$dir/probe" 2>/dev/null || true
   [[ "$at" =~ ^[0-9]+$ ]] || { echo "login-check has not run on this box"; return 0; }
   (( now - at <= grace )) || { echo "login-check last ran $(( now - at ))s ago"; return 0; }

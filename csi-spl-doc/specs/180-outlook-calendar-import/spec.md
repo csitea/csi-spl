@@ -1,6 +1,6 @@
 # Spec 180: Import an Outlook calendar into a member's spool-hub calendar
 
-Version **0.2.0** (2026-11-17). Authored by lane `c-060` (`claude`).
+Version **0.3.0** (2026-11-18). Authored by lane `c-060` (`claude`).
 Issue: **SPL-5784** (status `wip`, tenant `t1`). Epic: **SPL-2750** (from the
 seat brief; to be confirmed by the dispatcher). Class: `feature`.
 Discussion: csitea topic `40c3f89d-bedb-427d-90fe-78699a2a0f0a`.
@@ -118,6 +118,10 @@ that the box starts sending on its own is **unchecked**.
   the box link (unchecked; if it is missing, it is a change to the box link,
   outside this repo) and a task registered on the box by the owner.
 
+**Answered: A** (owner `2d4322f2`, 2026-11-18, poll `d0758100`): the timer
+runs on the hub side. The same answer gives the go for T6 (take over 15
+rows) and for turning the switch on in dev and prd.
+
 The SPL-1910 hygiene sweep forbids naming the box link anywhere in this
 repo. So under A, the timer and the code that calls the box link are
 name-neutral and read the box link's command and result paths from a
@@ -152,7 +156,7 @@ on a valid batch).
 | T3 | FR-2/3/11 route and its tests (cases 2, 3, 4, 6, 7, 8) | `internal/hub/calendar_operator*.go` |
 | T4 | FR-9 action and its test | `csi-spl-orc/src/bash/run/` |
 | T5 | FR-10 timer, per the owner's answer in section 3 | orc cron (A), or the box link outside this repo (B) |
-| T6 | Adopt the 16 rows of 2026-11-17: set their `source_key` from the `source:` line of their description (a one-time operator action, dry run first), so the first scheduled run updates them and does not duplicate them | orc action `do_spl_calendar_adopt_outlook` (the prd write needs the owner's go, `OWNER_GO`). The one-off wrote `source: <GlobalAppointmentID>@<yyyyMMddTHHmmss>` at the end of a one-line description; the FR-1 script writes the same `source_id`, so the keys match. prd dry run 2026-11-17: 15 candidates (the 16th row is deleted), 15 distinct keys, 0 taken |
+| T6 | Adopt the 16 rows of 2026-11-17: set their `source_key` from the `source:` line of their description (a one-time operator action, dry run first), so the first scheduled run updates them and does not duplicate them | orc action `do_spl_calendar_adopt_outlook` (the prd write needs the owner's go, `OWNER_GO`). The one-off wrote `source: <GlobalAppointmentID>@<yyyyMMddTHHmmss>` at the end of a one-line description; the FR-1 script writes the same `source_id`, so the keys match. prd dry run 2026-11-17: 15 candidates (the 16th row is deleted), 15 distinct keys, 0 taken. The one-off rows are 2 h early: its script converted Outlook's `StartUTC` to UTC again, as if it were local time (a meeting at local `HH:MM` in a UTC+2 zone was written at `HH-4:MM` UTC instead of `HH-2:MM`). FR-1 converts `Start` once, so the first run after adoption moves the 15 rows to their right times (owner `0abcb9ef`) |
 | T7 | Docs: calendar user guide, a line on the import | `csi-spl-doc/doc/md/` |
 
 ## 6. Owner steps (never a lane)
@@ -161,4 +165,4 @@ on a valid batch).
 - For B only: register the Task Scheduler entry on the Outlook box.
 - Keep Outlook signed in on the Outlook box during the window.
 
-<!-- version: 0.2.0 · updated: 2026-11-17 · last-edit: 2026-11-17T22:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-11-18 · last-edit: 2026-11-18T08:00:00Z -->

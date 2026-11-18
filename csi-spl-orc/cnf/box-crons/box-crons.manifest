@@ -56,6 +56,8 @@ weekly-limit-alert | */5 * * * *    | src/bash/scripts/weekly-limit-alert-cron.s
 fleet-stopped-alarm | */5 * * * *   | src/bash/scripts/fleet-stopped-alarm-cron.sh            | fleet-stopped-alarm/cron.log | | desk
 # SPL-4816: a box relay link stuck > 7 min alerts the box topic's seat (owner msg 7e8d02b4)
 box-link-watch      | * * * * *       | src/bash/scripts/box-link-watch-cron.sh                   | box-link-watch/cron.log | | desk
+# spec 180 FR-10 (SPL-5784): the Outlook calendar sync tick; the action keeps the 06:30-20:30 Europe/Helsinki Mon-Fri window
+outlook-import      | 0,30 * * * *    | src/bash/scripts/outlook-import-cron.sh                   | outlook-import/cron.log |
 # spec 166 row B6: the night zombie-topic sweep; acts once a night on the dispatch holder's box
 zombie-topics     | */15 * * * *    | src/bash/scripts/zombie-topics-cron.sh                  | zombie-topics/cron.log | | desk
 # spec 166 row B8: the night's reflection, gathered and queued once a night on the dispatch holder's box

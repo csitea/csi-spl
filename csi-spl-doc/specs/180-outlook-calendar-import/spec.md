@@ -1,6 +1,6 @@
 # Spec 180: Import an Outlook calendar into a member's spool-hub calendar
 
-Version **0.3.0** (2026-11-18). Authored by lane `c-060` (`claude`).
+Version **0.4.0** (2026-11-18). Authored by lane `c-060` (`claude`).
 Issue: **SPL-5784** (status `wip`, tenant `t1`). Epic: **SPL-2750** (from the
 seat brief; to be confirmed by the dispatcher). Class: `feature`.
 Discussion: csitea topic `40c3f89d-bedb-427d-90fe-78699a2a0f0a`.
@@ -93,8 +93,8 @@ Outlook box" below; its Windows user and home are `$WIN_USR` / `$WIN_HOME`.
 | FR-7 | **Out to Google.** `outlook:` rows go out through spec 149 2.5 like any of the owner's events: an exception to 149 2.10 B (owner `1c9f6219`). The `gcal:` skip in `gcal_sync.go` `push` is not widened. Test: an `outlook:` row gets a map row. | Implemented; test `hub/gcal_sync_outlook_test.go` |
 | FR-8 | **Nothing written back** to Outlook or Teams. The export is read-only COM. | Implemented (script) |
 | FR-9 | **Orc action** `do_spl_calendar_import_outlook` (`ENV`, `TENANT_ID`, `EVENT_OWNER`, `IMPORT_FILE`, `DRY_RUN`, default 1): validates the file locally, calls FR-2, logs the four counts, and never logs a title. | Implemented: `spl-calendar-import-outlook.func.sh` (T4) |
-| FR-10 | **Schedule:** every 30 min from `06:30` to `20:30` Europe/Helsinki, Monday to Friday (29 runs a day). Section 3 covers where the timer lives. | Planned |
-| FR-11 | **Kill switch:** cnf `hub.env.SPOOL_HUB_CALENDAR_OUTLOOK_IMPORT_ENABLED` (`all.env.yaml`, `"false"` by default; the hub's env map is where a hub switch lives, see `SPOOL_HUB_NOTES_ENABLED`). When it is off, the route answers 404 and the schedule does nothing. | Implemented for the route (T3); the schedule is T5 |
+| FR-10 | **Schedule:** every 30 min from `06:30` to `20:30` Europe/Helsinki, Monday to Friday (29 runs a day). Section 3 covers where the timer lives. | Implemented (T5): `do_spl_calendar_outlook_tick` (`spl-calendar-outlook-tick.func.sh`) and the box cron row `outlook-import` (`0,30 * * * *`; the action keeps the Helsinki window); test `spl-calendar-outlook-tick.tst.sh` |
+| FR-11 | **Kill switch:** cnf `hub.env.SPOOL_HUB_CALENDAR_OUTLOOK_IMPORT_ENABLED` (`all.env.yaml`, `"false"` by default; the hub's env map is where a hub switch lives, see `SPOOL_HUB_NOTES_ENABLED`). When it is off, the route answers 404 and the schedule does nothing. | Implemented for the route (T3); a tick while it is off gets the 404 and writes nothing (T5). On in cnf since `74c27d664` (owner `2d4322f2`, answer 2); live once step 030 is applied |
 
 ## 3. The schedule and the transfer (owner question)
 
@@ -155,8 +155,8 @@ on a valid batch).
 | T2 | `outlook:` key family and window prune in both stores, tests on Postgres | `internal/store/calendar_sync*.go` |
 | T3 | FR-2/3/11 route and its tests (cases 2, 3, 4, 6, 7, 8) | `internal/hub/calendar_operator*.go` |
 | T4 | FR-9 action and its test | `csi-spl-orc/src/bash/run/` |
-| T5 | FR-10 timer, per the owner's answer in section 3 | orc cron (A), or the box link outside this repo (B) |
-| T6 | Adopt the 16 rows of 2026-11-17: set their `source_key` from the `source:` line of their description (a one-time operator action, dry run first), so the first scheduled run updates them and does not duplicate them | orc action `do_spl_calendar_adopt_outlook` (the prd write needs the owner's go, `OWNER_GO`). The one-off wrote `source: <GlobalAppointmentID>@<yyyyMMddTHHmmss>` at the end of a one-line description; the FR-1 script writes the same `source_id`, so the keys match. prd dry run 2026-11-17: 15 candidates (the 16th row is deleted), 15 distinct keys, 0 taken. The one-off rows are 2 h early: its script converted Outlook's `StartUTC` to UTC again, as if it were local time (a meeting at local `HH:MM` in a UTC+2 zone was written at `HH-4:MM` UTC instead of `HH-2:MM`). FR-1 converts `Start` once, so the first run after adoption moves the 15 rows to their right times (owner `0abcb9ef`) |
+| T5 | FR-10 timer, per the owner's answer in section 3 (A). **Done:** each tick (`do_spl_calendar_outlook_tick`) queues the committed FR-1 script as one remote run through the box link, waits for its result (`OUTLOOK_IMPORT_WAIT_S`, default 600 s), imports the result's stdout with FR-9 and deletes the export. The box link's checkout, action and results dir and the target (env, workspace, owner) come from the box-local `KEY=VALUE` file `$XDG_CONFIG_HOME/csi-spl/outlook-import.env` (no file = no-op). Installed with `BOX_CRONS_ONLY=outlook-import DRY_RUN=0 ./run -a do_install_box_crons`. `OUTLOOK_IMPORT_ANYTIME=1` runs one tick outside the window | orc cron (A): `csi-spl-orc/src/bash/run/`, `scripts/outlook-import-cron.sh`, `cnf/box-crons/box-crons.manifest` |
+| T6 | Adopt the 16 rows of 2026-11-17: set their `source_key` from the `source:` line of their description (a one-time operator action, dry run first), so the first scheduled run updates them and does not duplicate them | orc action `do_spl_calendar_adopt_outlook` (the prd write needs the owner's go, `OWNER_GO`). The one-off wrote `source: <GlobalAppointmentID>@<yyyyMMddTHHmmss>` at the end of a one-line description; the FR-1 script writes the same `source_id`, so the keys match. prd dry run 2026-11-17: 15 candidates (the 16th row is deleted), 15 distinct keys, 0 taken. The one-off rows are 2 h early: its script converted Outlook's `StartUTC` to UTC again, as if it were local time (a meeting at local `HH:MM` in a UTC+2 zone was written at `HH-4:MM` UTC instead of `HH-2:MM`). FR-1 converts `Start` once, so the first run after adoption moves the 15 rows to their right times (owner `0abcb9ef`). **Done 2026-11-18** (owner go `2d4322f2`, answer 1): prd dry run 15 / 15 / 0 / 0, then `ADOPT_EXPECT=15 DRY_RUN=0` adopted 15; a dry run after it finds 0 |
 | T7 | Docs: calendar user guide, a line on the import | `csi-spl-doc/doc/md/` |
 
 ## 6. Owner steps (never a lane)
@@ -165,4 +165,4 @@ on a valid batch).
 - For B only: register the Task Scheduler entry on the Outlook box.
 - Keep Outlook signed in on the Outlook box during the window.
 
-<!-- version: 0.3.0 · updated: 2026-11-18 · last-edit: 2026-11-18T08:00:00Z -->
+<!-- version: 0.4.0 · updated: 2026-11-18 · last-edit: 2026-11-18T09:00:00Z -->

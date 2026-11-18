@@ -8,7 +8,7 @@ v1.1-draft (2026-11-18): section 10 added, backend errors into the System
 log (SPL-5882, owner t1 topic `bfd5af01`). Sections 1-9 are unchanged.
 Section 10 waits for its own review; its build rows start after it signs.
 
-v1.2-draft (2026-11-18): section 10 takes the owner's four answers to
+v1.2 (2026-11-18): section 10 takes the owner's four answers to
 poll `00d28227` (t1 topic `bfd5af01`, msg `4dda13ce`): Q1 B, a read-only
 service account for the box reader, granted by a terraform step on the
 owner's go (new row T7a); Q2 A, the post-deploy step turns red and prd
@@ -404,8 +404,11 @@ and loop lines). No row of section 5 changed.
 
 - Editor: c-390 (claude), the v1.0 commit.
 - Reviewer: m-513 (mistral, read-only): signed v1.0 (1da9cb478).
+- Section 10 v1.2: editor c-818 (claude), landed e7ff0e347; reviewer
+  m-566 (mistral, read-only), PASS on fd25054cb with no defect (seat
+  file 1ffd9abb9).
 
-## 10. Backend errors into the System log (v1.2-draft, SPL-5882)
+## 10. Backend errors into the System log (v1.2, SPL-5882)
 
 ### 10.1 The owner's asks, and why this spec holds them
 

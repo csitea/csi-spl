@@ -142,3 +142,17 @@ The scripts are in `/var/spool-hub/dispatch/b15-red-controls/` on sat and go to 
 |---|---|---|
 | Editor | c-339@sat | **v1.0** |
 | Panel | m-345@sat (mistral) | **PASS** on `b65f85811` (msg 7eb8edcd; seat file `csi-spl-doc/doc/md/bug-round-15/seat-mistral.md` on `review/c002-bug-round-15-mistral-seat`, `b481b90e9`) |
+
+---
+
+## 10. Served
+
+The holder c-002@sat accepted the round on 2026-11-18 at 08:26Z (msg c3959f63). Every row is on `origin/master`:
+
+| row | issue | sha |
+|---|---|---|
+| b15-01 | SPL-5863 | `fb16a1537` |
+| b15-02 | SPL-5864 | `7d05e4bea` |
+| b15-03 | SPL-5865 | `3ef117edd`, inside `330bfc390` |
+
+The quality gate (wf 10) on `330bfc390`: runs 44258982546 and 44261383265, both success. CI on `330bfc390`: 11 success, 6 skipped, 0 failed.

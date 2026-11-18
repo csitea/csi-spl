@@ -31,6 +31,10 @@
 #      list too long"): the list shows the group's rows and the placer feeds
 #      them; a state that cannot be read says "state not read: <why>", not
 #      "not a work group file"
+#  11. an archived issue (SPL-5864; SPL-2403 row 9, SPL-2400 row 2): the epic
+#      list leaves a done issue out once it is archived; the row is read
+#      alone (issue get): done -> done and not fed again, diss -> closed;
+#      a failed get leaves it waiting, as before; an ended row is not read
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -376,6 +380,30 @@ out="$(on big do_spl_spawn_place)"
 out="$(on big 'spl_spawn_group_state() { echo "jq: boom" >&2; return 2; }; do_spl_spawn_group_list')"
 grep -q "WARN SPL-2151.json: state not read: jq: boom" <<<"$out" && ! grep -q "not a work group file" <<<"$out" &&
   pass "a state that cannot be read: the list says 'state not read: <why>', not 'not a work group file'" || fail "state not read: $out"
+
+# 11. an archived issue ---------------------------------------------------------------------------
+# spl_desk_issue_run get answers as the prd hub does for an archived issue
+# (<machine>/get.json); no get.json = the read fails. The epic list holds SPL-2481 only.
+GETSTUB='spl_desk_issue_run() { [[ "$1" == get ]] || return 1; echo "$3" >>"$SPOOL_ROOT/../gets"; cat "$SPOOL_ROOT/../get.json" 2>/dev/null; }; '
+printf 'brief of g-arch\nIssue: SPL-2582\nTopic: 7c0de153-0000-4000-8000-000000002370\n' >"$T/briefs/g-arch.md"
+for m in "arc:done" "arcd:diss" "arcf:"; do
+  rows "feature claude:g-arch SPL-2582"
+  on "${m%%:*}" do_spl_spawn_group_put GROUP_EPIC=SPL-2403 GROUP_WIDTH=1 GROUP_ROWS="$T/rows.txt" >/dev/null
+  issue "${m%%:*}" SPL-2481 SPL-2403 wip
+  [[ -z "${m#*:}" ]] || printf '{"result":{"issue":{"key":"SPL-2582","kind":"issue","status":"%s","archived":true}}}\n' "${m#*:}" >"$T/${m%%:*}/get.json"
+done
+out="$(on arc "${GETSTUB}do_spl_spawn_place")"
+[[ "$(nlaunch arc)" == 0 && "$(jq -r '.rows[0].end' "$T/arc/spool/dispatch/groups/SPL-2403.json")" == "done" && "$(cat "$T/arc/gets")" == SPL-2582 ]] &&
+  pass "an archived done issue (not in the epic list): read alone, the row is done and kept so, 0 launches" || fail "archived done: $(launched arc) | $out"
+on arc "${GETSTUB}do_spl_spawn_place" >/dev/null
+[[ "$(nlaunch arc)" == 0 && "$(grep -c . "$T/arc/gets")" == 1 ]] && pass "an ended row's issue is not read again" ||
+  fail "ended row read again: $(cat "$T/arc/gets")"
+st="$(on arcd "${GETSTUB}do_spl_spawn_group_list" GROUP_FORMAT=json GROUP_EPIC=SPL-2403 | grep -E '^\{"groups"' | tail -1)"
+[[ "$(jq -r '.groups[0].rows[0] | "\(.state) \(.why)"' <<<"$st")" == "closed issue SPL-2582 is diss" ]] &&
+  pass "an archived diss issue: the row is closed" || fail "archived diss: $st"
+st="$(on arcf "${GETSTUB}do_spl_spawn_group_list" GROUP_FORMAT=json GROUP_EPIC=SPL-2403 | grep -E '^\{"groups"' | tail -1)"
+[[ "$(jq -r '.groups[0].rows[0].state' <<<"$st")" == waiting && "$(cat "$T/arcf/gets")" == SPL-2582 ]] &&
+  pass "a failed single read leaves the row as before (waiting)" || fail "failed get: $st"
 
 if [[ $fails -gt 0 ]]; then echo "FAILED: $fails"; exit 1; fi
 echo "ALL PASS"

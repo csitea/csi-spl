@@ -343,8 +343,8 @@ A row's state is read, never kept by hand:
 | waiting | no ask on the hub yet |
 | open, queued, placing | its ask is open, queued or acked (in flight) |
 | running | its ask is done `placed: <ID>@<box>` and that lane is live in the lane map (or was placed under `SPAWN_GROUP_GRACE_MIN`, 15) |
-| done | its issue is done: the lane landed |
-| closed | its issue is diss, or its lane is gone with the issue not done |
+| done | its issue is done (read alone when the epic's list leaves it out: an archived issue, SPL-5864): the lane landed |
+| closed | its issue is diss (read alone as for done), or its lane is gone with the issue not done |
 | failed | its ask was declined or dead |
 
 done, closed and failed are kept in the group file: the hub prunes closed

@@ -164,17 +164,38 @@ spl_spawn_group_lanes() {
 }
 
 # The issues of EPIC as a JSON array, or "null" when they cannot be read.
-spl_spawn_group_issues() {  # EPIC
+# With GROUP, a row with no end whose issue the list leaves out is read alone
+# (spl_spawn_group_issues_read): the hub's list skips archived issues, and a
+# done issue is archived later, so a finished row read "waiting" and was
+# queued again once its old ask was pruned (SPL-5864).
+spl_spawn_group_issues() {  # EPIC [GROUP]
   local out
   spl_spawn_group_need_stall
-  out="$(EPIC_KEY="$1" spl_epic_stall_list issues 2>/dev/null)" &&
-    jq -e -c '.result.issues | if type == "array" then . else error("no issues") end' 2>/dev/null <<<"$out" || printf 'null'
+  out="$(EPIC_KEY="$1" spl_spawn_group_issues_read "${2:-}" 2>/dev/null)" && [[ -n "$out" ]] && printf '%s' "$out" || printf 'null'
+}
+
+# The epic list (EPIC_KEY), then `issue get` (it answers for an archived
+# issue) for each unended GROUP row whose issue is missing, in this one shell
+# so the gets use the list's desk. A failed get leaves that issue out.
+spl_spawn_group_issues_read() {  # GROUP
+  local t list k st
+  t="$(mktemp)" || return 1
+  spl_epic_stall_list issues >"$t" &&
+    list="$(jq -e -c '.result.issues | if type == "array" then . else error("no issues") end' "$t")" || { rm -f "$t"; return 1; }
+  rm -f "$t"
+  while IFS= read -r k; do
+    st="$(spl_desk_issue_run get --ref "$k" 2>/dev/null | tail -n 1 | jq -r '(.result.issue // .result).status // ""' 2>/dev/null)"
+    [[ "$st" =~ ^[a-z_]+$ ]] || continue
+    list="$(jq -c --arg k "$k" --arg s "$st" '. + [{key: $k, status: $s}]' <<<"$list")"
+  done < <([[ -n "$1" ]] && jq -r --slurpfile g <(printf '%s' "$1") '[.[].key] as $in
+    | [$g[0].rows[] | select((.end // "") == "" and (.issue // "") != "") | .issue | select(. as $i | $in | index([$i]) == null)] | unique[]' <<<"$list")
+  printf '%s' "$list"
 }
 
 # The group's full state (issues and lanes read), or the hub-only one.
 spl_spawn_group_read() {  # GROUP ASKS FULL(0|1)
   if [[ "$3" == 1 ]]; then
-    spl_spawn_group_state "$1" "$2" "$(spl_spawn_group_issues "$(jq -r .epic <<<"$1")")" "$(spl_spawn_group_lanes)"
+    spl_spawn_group_state "$1" "$2" "$(spl_spawn_group_issues "$(jq -r .epic <<<"$1")" "$1")" "$(spl_spawn_group_lanes)"
   else
     spl_spawn_group_state "$1" "$2" null null
   fi
@@ -269,7 +290,7 @@ spl_spawn_group_stall() {  # LANES_FILE FROM TO
     g="$(jq -c 'select(.epic and .width and (.rows | type) == "array")' "$f" 2>/dev/null)"
     [[ -n "$g" ]] || continue
     key="$(jq -r .epic <<<"$g")"
-    st="$(SPAWN_GROUP_NOW="$now" spl_spawn_group_state "$g" "$asks" "$(spl_spawn_group_issues "$key")" "$(cat "$1")")" || continue
+    st="$(SPAWN_GROUP_NOW="$now" spl_spawn_group_state "$g" "$asks" "$(spl_spawn_group_issues "$key" "$g")" "$(cat "$1")")" || continue
     if ! jq -e '.counts.waiting > 0 and .inflight < .width' >/dev/null <<<"$st"; then
       [[ "${DRY_RUN:-1}" == 1 ]] || spl_spawn_group_stall_forget "$short" "$key"
       do_log "INFO work group $key: $(jq -r '"\(.inflight) of width \(.width) in flight, \(.counts.waiting) waiting"' <<<"$st")"

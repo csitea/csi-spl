@@ -33,7 +33,7 @@ Verified at 2026-11-18T06:4x-06:5xZ:
    - coverage side: `grep -l 'spec\.md' csi-spl-orc/src/bash/tests/*.tst.sh | wc -l` -> `16`; of those, 15 write or name only fixture paths under their temp dirs (`$T`/`$R`/`$SR`); the one real-path reader is `dev-mode-root-one-liner.tst.sh:25` (`SPEC="$APP_ROOT/csi-spl-doc/specs/148-local-dev-mode/spec.md"`), kept by the after arm. No test gained selections; the two fully dropped tests (`spl-spec-progress.tst.sh`, `wui-deploy-newest.tst.sh`) reference only fixture `tasks.md` / `README.md` paths.
 5. R1 across rounds: bug round 15 plan v1.0 `f529b3091` — `git show f529b3091:csi-spl-doc/doc/md/bug-round-15-plan.md | sed -n '57,60p'` -> rows hold `spl-lane-rotate.func.sh`, `lane-rotate.tst.sh`, `spl-spawn-group-put.func.sh`, `spl-spawn-group.tst.sh`, `csi-spl-doc/specs/135-work-process/spec.md`, the four `run.sh` copies, `run-log.tst.sh`, and the off-limits line names p16's candidate files (`changed-tests.sh`, `run-all-tests-changed.tst.sh`, `pre-push-gate.md`, ...). No p16 row names one of them (p16 row 01 names only `changed-tests.sh`, `run-all-tests-changed.tst.sh`, `pre-push-gate.md`).
 6. R3 lane map on the row's paths + this seat file (2026-11-18T06:5xZ):
-   `lane-map.sh --check csi-spl-orc/src/bash/tests/changed-tests.sh,csi-spl-orc/src/bash/tests/run-all-tests-changed.tst.sh,csi-spl-doc/doc/md/pre-push-gate.md,csi-spl-doc/doc/md/perf-round-16/seat-mistral.md --agent m-638` -> **exit 4**: `0` lines `owned by`; `7` `unknown:` lanes recording no files (c-176, c-197, c-337, c-352, c-358, c-762, m-345, all @sat). Exit 4 is not free; the plan's own 3.2 read records the same exit-4 state and the holder re-runs R3 before each spawn. This seat writes only its seat file, which no lane owns.
+   `lane-map.sh --check csi-spl-orc/src/bash/tests/changed-tests.sh,csi-spl-orc/src/bash/tests/run-all-tests-changed.tst.sh,csi-spl-doc/doc/md/pre-push-gate.md,csi-spl-doc/doc/md/perf-round-16/seat-mistral.md --agent m-638` -> **exit 4**: `0` lines `owned by`; `7` `unknown:` lanes recording no files (c-176, c-197, c-337, c-352, c-358, c-762, m-345, all on the editor's box). Exit 4 is not free; the plan's own 3.2 read records the same exit-4 state and the holder re-runs R3 before each spawn. This seat writes only its seat file, which no lane owns.
 7. `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/m-638`, exit 0.
 
 ## Defects
@@ -69,7 +69,7 @@ Checks re-run on v0.2 (2026-11-18 07:0x-08:2xZ):
    - Whole test `spl-spawn-queue.tst.sh`, n=2 per arm on the clones, 272 PASS / 0 FAIL / rc 0 in all four runs: concurrent pair S 250.3 s wall / 254.9 s CPU, R 244.4 s wall / 245.1 s CPU; sequential pair S 296.0 s wall / 284.5 s CPU, R 238.8 s wall / 248.3 s CPU. **Direction agrees** (wall and CPU both drop in every run); the size on this box (-3.8% to -12.7% CPU) is smaller than the editor's desk box (-20.5%) — per-call exec cost is box/load-bound, which is why the row's test column has the lane re-time on its own sha.
 5. R1 across rounds: parked refactor round 35 v0.1 `27e21eefc` row 04 edits `orc:run/spl-spawn-place.func.sh:206,672` (`git show 27e21eefc:csi-spl-doc/doc/md/refactor-round-35-plan.md | grep -n 'spl-spawn-place'` -> lines 115, 140), so row 02 correctly leaves `spl-spawn-place.func.sh` out and moves the `| tail -1` site to section 6. Bug round 15 v1.0 `f529b3091` rows touch no p16 file (its plan lines 57-60, re-read at v0.2).
 6. R3 lane map on all row paths + this seat file (2026-11-18T07:5xZ):
-   `lane-map.sh --check csi-spl-orc/src/bash/tests/changed-tests.sh,csi-spl-orc/src/bash/tests/run-all-tests-changed.tst.sh,csi-spl-doc/doc/md/pre-push-gate.md,csi-spl-orc/src/bash/run/spl-spawn-share.func.sh,csi-spl-orc/src/bash/tests/spl-spawn-share.tst.sh,csi-spl-doc/doc/md/perf-round-16/seat-mistral.md --agent m-638` -> **exit 4**: `0` lines `owned by`; `6` `unknown:` lanes recording no files (c-176, c-197, c-337, c-352, c-762, m-345, all @sat). Exit 4 is not free; the holder re-runs R3 before each spawn. This seat writes only its seat file.
+   `lane-map.sh --check csi-spl-orc/src/bash/tests/changed-tests.sh,csi-spl-orc/src/bash/tests/run-all-tests-changed.tst.sh,csi-spl-doc/doc/md/pre-push-gate.md,csi-spl-orc/src/bash/run/spl-spawn-share.func.sh,csi-spl-orc/src/bash/tests/spl-spawn-share.tst.sh,csi-spl-doc/doc/md/perf-round-16/seat-mistral.md --agent m-638` -> **exit 4**: `0` lines `owned by`; `6` `unknown:` lanes recording no files (c-176, c-197, c-337, c-352, c-762, m-345, all on the editor's box). Exit 4 is not free; the holder re-runs R3 before each spawn. This seat writes only its seat file.
 7. `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/m-638`, exit 0 (after N5 below).
 
 ## Defects (v0.2)
@@ -81,3 +81,25 @@ None. Both rows satisfy rulebook sections 1-4 as far as a plan review can see; m
 - N5: this file's header first carried this box's qualifier (`m-638@<box>`); the distribution-hygiene Sweep bans the literal box name in `.github/workflows/10_ci-quality.yml`, so the header now reads `m-638` (spool messages keep `@<box>`; commit messages drop it per rulebook 2.7.4).
 - N6: my whole-test gain on this box is smaller than the editor's (-3.8%..-12.7% CPU vs -20.5%) — box/load-bound; the deterministic exec count (162 -> 3 on my fixture, 164 -> 3 on the editor's) and the identical map are the load-independent proofs, and both reproduce.
 - N1-N4 above stand for v0.2 unchanged.
+
+## v1.0 signing (2026-11-18T07:3x-08:3xZ)
+
+**PASS on `330bfc390728334e32114f86079da08d48b250d2`** (plan v1.0, landed on `origin/master`; named by the dispatch holder c-002 on task `dispatch-perf-r16`, msg 4b2129ab, 2026-11-18T07:3xZ).
+
+- `git fetch origin master review/c002-perf-round-16-planner` -> `origin/master` = `330bfc390...`; `git merge-base --is-ancestor 330bfc390728334e32114f86079da08d48b250d2 origin/master` -> yes, v1.0 is on master. `git log --oneline 8b3fa986c..330bfc390` -> the editor rebased the plan onto master: `1f28c66b5` (v0.1), `ab7972761` (v0.2), `330bfc390` (v1.0).
+- `git show --stat 330bfc390` -> doc only: `perf-round-16-plan.md`, `perf-round-16/editor.md`, `perf-round-16/seat-mistral.md` (this seat file folded in, with "all @sat" reworded to "all on the editor's box" for the public repo — the same rewording applied in this commit).
+- Rows unchanged: `diff <(git show 8b3fa986c:csi-spl-doc/doc/md/perf-round-16-plan.md | grep -E '^\| 0[12] ') <(git show 330bfc390:csi-spl-doc/doc/md/perf-round-16-plan.md | grep -E '^\| 0[12] ')` -> empty (ROWS-IDENTICAL). The v0.2..v1.0 plan diff touches only the title/status line and section 9 (the consensus table with this seat's PASS, N1/N6 carried to the row lanes) — no row line.
+- Slug: `git log origin/master --oneline -E --grep='\((p16-' | wc -l` -> `1` (the v0.2 plan commit `ab7972761`, whose body names the row id — as p15's seat noted for its plan commits); actual row commits `git log origin/master --format='%h %s' -E --grep='^perf\(p16-[0-9]{2}-' | wc -l` -> `0`; `git ls-remote origin | grep -cE 'p16-[0-9]{2}'` -> `0`. No row has landed.
+- Sites: `git diff 2fe3729e3 330bfc390 -- csi-spl-orc/src/bash/tests/changed-tests.sh csi-spl-orc/src/bash/tests/run-all-tests-changed.tst.sh csi-spl-doc/doc/md/pre-push-gate.md csi-spl-orc/src/bash/run/spl-spawn-share.func.sh csi-spl-orc/src/bash/tests/spl-spawn-share.tst.sh | wc -l` -> `0` (no drift; the b15 fixes landed after `f529b3091` touch none of the row files).
+- R3: `lane-map.sh --check <the 5 row paths + this seat file> --agent m-638` -> exit 4, `0` owned, `5` unknown (c-176, c-197, c-337, c-762, m-345, all on the editor's box). Not free; the holder re-runs R3 before each spawn.
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> clean, exit 0.
+
+The v0.2 verdict above covers v1.0: the rows are byte-identical between `8b3fa986c` and `330bfc390`, so the seven checks and both re-measurements stand for this sha.
+
+## Defects (v1.0)
+
+None.
+
+## Notes (v1.0)
+
+N1-N6 above stand unchanged.

@@ -150,6 +150,11 @@ spl-lane-issue spl-spawn-share`.
   7aa321bc, under owner ruling e895dea6).
 - R3 and panel re-read at 00:49Z (plan 3.2, 5).
 - m-245 PASS on v0.2.1 `e4c176fb4` (msg 91c1bc58), folded into v1.0.
-- Next: report v1.0 to the holder c-002@sat; wait for ACCEPTED.
+- v1.0 `b06f4ac3b` and the seat files `0fcef8bc8`, `5616e9aee` landed;
+  m-245 PASS on v1.0 (msg b297ff22); ACCEPTED by c-002@sat (msg 00b8493e,
+  01:37Z); row p15-01 placed as c-261@sat (ask 80615e25).
+- Plan imported as qto doc `907ce2f6-d0dd-4eba-8e1d-b0212483b0e5` (11
+  sections, `do_spl_doctree_import_md`, ENV=prd TENANT_ID=t1 QTO_FS=repo);
+  the md is its export.
 - Scratch (push user's): `/var/tmp/p15-orc-clone.AvLl` (clone, logs,
   straces, the probe edit).

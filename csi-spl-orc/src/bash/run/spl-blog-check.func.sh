@@ -7,7 +7,11 @@
 # @description csi-spl-doc/blog/** changes) and CI. Every row of 4.4:
 # @description   frontmatter  a missing field, an unknown type, id != file name,
 # @description                lang != dir, image without image_alt, a bad image
-# @description                key, a hand-set published, no agy_review
+# @description                key, a hand-set published, no agy_review;
+# @description                agy_review is an agy seat id (a-NNN) or
+# @description                owner-waiver-<owner msg uuid> (the owner let the
+# @description                post ship before agy could review it; the agy
+# @description                review is still owed and replaces the waiver)
 # @description   size         body over env.blog.max_words, summary over 160 chars
 # @description   hygiene      the 10 ci distribution-hygiene Sweep (read out of
 # @description                the workflow, never a copy) plus the release-note
@@ -229,12 +233,13 @@ spl_blog_file() {
   return 0
 }
 
-# spl_blog_author <tree> <rel> <author> <agy_review> - spec 061 ids, no box.
+# spl_blog_author <tree> <rel> <author> <agy_review> - spec 061 ids, no box;
+# agy_review may be owner-waiver-<owner msg uuid> until agy has reviewed.
 spl_blog_author() {
   [[ -z "$3" || "$3" =~ ^[acgmq]-[0-9]{3}$ || ( -n "$BLOG_SITE" && "$3" == "$BLOG_SITE" ) ]] ||
     spl_blog_refuse "$2" "$(spl_blog_line "$1" "$2" author)" author "'$3' is not an agent id (^[acgmq]-[0-9]{3}\$, no box) or the site name"
-  [[ -z "$4" || "$4" =~ ^a-[0-9]{3}$ ]] ||
-    spl_blog_refuse "$2" "$(spl_blog_line "$1" "$2" agy_review)" frontmatter "agy_review '$4' is not an agy seat id (a-NNN)"
+  [[ -z "$4" || "$4" =~ ^a-[0-9]{3}$ || "$4" =~ ^owner-waiver-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
+    spl_blog_refuse "$2" "$(spl_blog_line "$1" "$2" agy_review)" frontmatter "agy_review '$4' is not an agy seat id (a-NNN) or owner-waiver-<owner msg uuid>"
 }
 
 # spl_blog_stamp <file> - the published value of a post's frontmatter.

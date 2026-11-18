@@ -18,6 +18,10 @@
 #            image_prompt and its uuid is no hex-token refusal; CONTROLS: a
 #            name is still refused with it, a non-uuid override is refused,
 #            the same uuid in the body is still a hex-token refusal
+#          - agy_review: owner-waiver-<owner msg uuid> passes and its uuid is
+#            no hex-token refusal; CONTROLS: an empty value, an 8-hex
+#            waiver, a non-uuid waiver, an upper-case one, a prefixed one
+#            and a non-agy seat id are refused
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -164,6 +168,14 @@ post en 2026-10-09-hello news 'image_prompt: "a man driving"' 'image_override: y
 post en 2026-10-09-hello news | sed 's/^published: .*/published: 2026-10-01T08:00:00Z/' | put "$N"; refused "a hand-set (back-dated) published" frontmatter "$N"
 post en 2026-10-09-hello news | put "$N"
 post "fi" 2026-10-09-hello news | sed '/^agy_review:/d' | put "$P/fi/2026-10-09-hello.md"; refused "a copy without agy_review" frontmatter "$P/fi/2026-10-09-hello.md"
+WAIVER=owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
+post "fi" 2026-10-09-hello news | sed "s/^agy_review: .*/agy_review: $WAIVER/" | put "$P/fi/2026-10-09-hello.md"
+out=$(run_check BLOG_FILES="$P/fi/2026-10-09-hello.md"); [[ $? -eq 0 ]] && pass "agy_review: owner-waiver-<owner msg uuid> passes, its uuid is no hex token" ||
+  fail "owner waiver: $(grep -E '^(REFUSE|FATAL)' <<<"$out" | sed -n 1,3p)"
+for v in '""' owner-waiver-941fc61c owner-waiver-not-a-uuid "${WAIVER^^}" "x-$WAIVER" c-004; do
+  post "fi" 2026-10-09-hello news | sed "s/^agy_review: .*/agy_review: $v/" | put "$P/fi/2026-10-09-hello.md"
+  refused "agy_review: $v" frontmatter "$P/fi/2026-10-09-hello.md"
+done
 post "fi" 2026-10-09-hello news | sed 's/^published: .*/published: 2026-10-09T20:31:00Z/' | put "$P/fi/2026-10-09-hello.md"; refused "a copy with its own published" frontmatter "$P/fi/2026-10-09-hello.md"
 clean
 post en 2026-10-09-digest digest | put "$D"

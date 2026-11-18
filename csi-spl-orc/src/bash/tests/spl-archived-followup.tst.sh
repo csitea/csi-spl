@@ -489,6 +489,9 @@ s13="$(count '^send')" i13="$(grep -c inherit "$T/inherit.log")" p13="$(cut -f1-
    "$(grep -c "$WARNED" <<<"$outs")" == 0 && "$(grep -c 'it waits in blocker.pending' <<<"$outs")" == 2 ]] &&
   pass "14p a final copy's blocker that is not sent: kept in blocker.pending, sent again next run, no false 'next run tries again'" ||
   fail "14p rcs=$rcs sends=$s13 pending=$p13 // $outs // $(cat "$LOG")"
+bp="$(cat "$ST14/blocker.pending")"; out="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14")"
+[[ "$(cat "$ST14/blocker.pending")" == "$bp" && "$(count '^send')" == "$s13" && "$out" == *"WOULD send again: the blocker of t1 topic $PAR (inherit-final)"* ]] &&
+  pass "14p2 a dry run names the waiting blocker, sends nothing and leaves blocker.pending as it was" || fail "14p2: $out // $(cat "$LOG")"
 rm -f "$T/send-fails"
 out="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" DRY_RUN=0)"; rc=$?
 out2="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" DRY_RUN=0)"; rc2=$?
@@ -508,6 +511,24 @@ out4="$(ROWS="$T/rows14.empty" run ARCHIVED_FOLLOWUP_STATE_DIR="$ST14" DRY_RUN=0
    "$(cat "$ST14/failed.keys")" == "t1"$'\t'"$PAR"$'\t'inherit ]] &&
   pass "14r a first-run final refusal whose blocker is not sent: sent again by later runs until it goes, then one key, one priority try in all" ||
   fail "14r (rc=$rc/$rc2/$rc3/$rc4) sends=$s2 pending=$p2: $out // $out2 // $out3 // $out4 // $(cat "$LOG")"
+# 14s: CONTROL (R7 c-257 W1) a non-final blocker is not kept: the post and the send
+# both fail (one hub outage); its topic is read again, and the next run, the hub
+# back, posts and sends no stale blocker.
+fresh14; touch "$T/post-fails" "$T/send-fails"
+out="$(run14 DRY_RUN=0)"; rc=$?
+rm -f "$T/post-fails" "$T/send-fails"
+out2="$(run14 DRY_RUN=0)"; rc2=$?
+[[ $rc -ne 0 && $rc2 -eq 0 && ! -e "$ST14/blocker.pending" && "$out" == *"not sent; the next run reads the topic again and tries again"* &&
+   "$(count '^send')" == 1 && "$(count '^post ')" == 2 && "$(count "^link SPL-9 $NEW")" == 1 && ! -s "$ST14/failed.keys" ]] &&
+  pass "14s a failed post whose blocker is not sent: nothing kept, the next run posts and sends no stale blocker" || fail "14s (rc=$rc/$rc2): $out // $out2 // $(cat "$LOG")"
+# 14t: a non-final priority copy's blocker is not kept either: the copy waits in
+# inherit.pending and later runs try it; the WARN says the blocker is not sent again.
+fresh14; echo 2 >"$T/prio/$PAR"; echo "internal: priority not inherited" >"$T/inherit-fails"; touch "$T/send-fails"
+out="$(run14 DRY_RUN=0)"; rc=$?
+rm -f "$T/send-fails"
+[[ $rc -ne 0 && ! -e "$ST14/blocker.pending" && "$(cat "$ST14/inherit.pending")" == "t1"$'\t'"$PAR"$'\t'"$NEW" &&
+   "$out" == *"not sent: its copy waits in inherit.pending, the blocker is not sent again"* && "$out" != *"$WARNED"* ]] &&
+  pass "14t a non-final copy whose blocker is not sent: the copy waits in inherit.pending, no blocker.pending row, a true WARN" || fail "14t (rc=$rc): $out // $(cat "$LOG")"
 
 # 15. a move the hub refuses not_found (SPL-5244: the issue is gone): final. ONE
 # blocker and one failed.keys key; the next run skips it, no WARN, no link call.

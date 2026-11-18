@@ -17,7 +17,11 @@
 #   - a row slug: its lane's issue landed by that same rule. The lane's key is
 #     the slug brief's `Issue:` line, else the key the placer read when it
 #     launched the slug (<asks dir>/.place.slugs), else, for a lane of this
-#     box, its lifetime/issue. No key known yet -> held, and the reason says so
+#     box, its lifetime/issue, else the issue_key of its lane row on the hub
+#     (a slug placed on another box: the far launcher's "carries issue" line
+#     never comes back, SPL-5929), written back into .place.slugs. No key
+#     known yet -> held, and the reason says so (a hub that did not answer
+#     too: held, never free)
 # The land time is the committer time of the oldest closing commit; the
 # delay counts from it.
 #
@@ -48,9 +52,10 @@ spl_spawn_after_li() {
 }
 
 # The issue key of AFTER: AFTER itself for a key; for a row slug its lane's
-# key (see the header); nothing when not known yet.
+# key (see the header); nothing when not known yet: rc 2 when the hub's lane
+# map was asked and did not answer, else rc 0.
 spl_spawn_after_key() {  # AFTER
-  local brief f k="" agent
+  local brief f k="" agent rc=0
   spl_spawn_after_is_key "$1" && { printf '%s\n' "$1"; return 0; }
   spl_spawn_after_li
   brief="$(spl_spawn_place_brief "$1")"
@@ -58,10 +63,50 @@ spl_spawn_after_key() {  # AFTER
   f="$(spool_asks_dir)/.place.slugs"
   if [[ -z "$k" && -r "$f" ]]; then
     k="$(awk -F'\t' -v s="$1" '$1 == s && $3 != "" { k = $3 } END { print k }' "$f")"
-    agent="$(awk -F'\t' -v s="$1" '$1 == s { a = $2 } END { sub(/@.*/, "", a); print a }' "$f")"
-    [[ -n "$k" || -z "$agent" ]] || k="$(li_key_of_agent "$SPOOL_ROOT" "$agent" 2>/dev/null)"
+    agent="$(awk -F'\t' -v s="$1" '$1 == s { a = $2 } END { print a }' "$f")"
+    [[ -n "$k" || -z "$agent" ]] || k="$(li_key_of_agent "$SPOOL_ROOT" "${agent%@*}" 2>/dev/null)"
+    if [[ -z "$k" && -n "$agent" ]]; then
+      k="$(spl_spawn_after_hub_key "$1" "$agent")" || rc=$?
+      [[ -z "$k" ]] || spl_spawn_after_slug_key "$1" "$agent" "$k"
+    fi
   fi
   [[ -z "$k" ]] || printf '%s\n' "$k"
+  (( rc != 2 )) || return 2
+  return 0
+}
+
+# The issue key of the hub's lane row of AGENT (<id>@<box>) that ran SLUG:
+# the row's branch is <id>-<SLUG>, or <id>-rotate[-N] for a rotated lane.
+# Read from do_spl_lane_map with LANE_ALL=1 (done rows too; the hub keeps
+# them a week). rc 1: the hub answered, no such key; rc 2: it did not
+# answer. Seam: SPAWN_AFTER_LANES_CMD prints the lane map JSON (tests).
+spl_spawn_after_hub_key() {  # SLUG AGENT
+  local out id="${2%@*}" box="" k
+  [[ "$2" != *@* ]] || box="${2#*@}"
+  if [[ -n "${SPAWN_AFTER_LANES_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    out="$($SPAWN_AFTER_LANES_CMD 2>/dev/null)"
+  else
+    out="$(LANE_FORMAT=json LANE_ALL=1 timeout "${SPAWN_AFTER_LANES_TIMEOUT:-90}" bash "$PROJ_PATH/run" -a do_spl_lane_map 2>/dev/null | grep -E '^\{' | tail -1)"
+  fi
+  jq -e '.hub == "ok" and (.lanes | type == "array")' >/dev/null 2>&1 <<<"$out" || return 2
+  k="$(jq -r --arg i "$id" --arg b "$box" --arg s "$1" '[.lanes[] | select(.agent_id == $i and ($b == "" or .agent_box == $b)
+      and ((.branch // "") == "" or .branch == ($i + "-" + $s) or ((.branch // "") | test("^" + $i + "-rotate(-[0-9]+)?$"))))
+      | .issue_key // "" | select(test("^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]*$"))] | last // ""' <<<"$out")"
+  [[ -n "$k" ]] || return 1
+  printf '%s\n' "$k"
+}
+
+# Writes KEY into column 3 of SLUG's rows placed as AGENT that have none, in
+# place (cat >, so the file keeps its owner and mode): the hub is read once.
+spl_spawn_after_slug_key() {  # SLUG AGENT KEY
+  local f tmp
+  f="$(spool_asks_dir)/.place.slugs"
+  tmp="$(mktemp)" || return 0
+  awk -F'\t' -v OFS='\t' -v s="$1" -v a="$2" -v k="$3" '$1 == s && $2 == a && $3 == "" { $3 = k } { print }' "$f" >"$tmp" &&
+    cat "$tmp" >"$f"
+  rm -f "$tmp"
+  return 0
 }
 
 # The git clone whose origin/master is read, default the checkout this runs from.
@@ -84,9 +129,12 @@ spl_spawn_after_state() {  # BRIEF
   spec="$(spl_spawn_after_of "$1")"
   [[ -n "$spec" ]] || { printf 'free\tno After: line\n'; return 0; }
   after="${spec%%$'\t'*}"; delay="${spec#*$'\t'}"
-  key="$(spl_spawn_after_key "$after")"
+  key="$(spl_spawn_after_key "$after")" || {
+    printf 'held\twaiting on %s: its lane has no issue key known on this box, and the hub lane map did not answer\n' "$after"
+    return 0
+  }
   if [[ -z "$key" ]]; then
-    printf 'held\twaiting on %s: its lane has no issue key known on this box yet (not placed, or placed elsewhere)\n' "$after"
+    printf 'held\twaiting on %s: its lane has no issue key known on this box or on the hub yet (not placed, or placed elsewhere)\n' "$after"
     return 0
   fi
   [[ "$key" == "$after" ]] || after="$after ($key)"

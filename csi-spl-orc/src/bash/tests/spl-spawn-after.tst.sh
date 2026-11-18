@@ -21,6 +21,12 @@
 #      SPL-9004 lands; After=slug-l, a slug the placer launched (its key read
 #      from the launcher's "carries issue" line into .place.slugs) held
 #      until that key lands
+#   6b. SPL-5929: a slug placed on ANOTHER box (its .place.slugs row
+#      `<slug>\t<id>@<box>\t\t<epoch>`: the far launcher's issue line never
+#      comes back): its key is read from the hub's lane row of <id>@<box>
+#      (branch <id>-<slug>) and written back into .place.slugs; held until
+#      it lands, then placed. CONTROL: a hub that does not answer, and a
+#      lane row of a reused id (another branch): held, never free
 #   7. refused at enqueue (FATAL, nothing queued): an unknown key, a diss
 #      key, an unknown slug, the row's own slug, a bad delay, SPAWN_AFTER
 #      with no SPAWN_PLACE, SPAWN_AFTER_DELAY alone
@@ -290,6 +296,41 @@ out="$(tick)"
 land "Some commit" && land "fix(orc): x" && land "chore(x): y"$'\n\n'"Closes: SPL-9006"
 tick >/dev/null
 [[ "$(launched row-after-l)" == 1 ]] && pass "6. a chore commit with a Closes: SPL-9006 trailer lands it: placed" || fail "6. Closes: $(cat "$T/launch.log")"
+
+# 6b. a slug placed on another box (SPL-5929) ------------------------------------------
+# its brief is here (the placer had it), with no Issue: line; the far box's
+# reply carried no "carries issue" line, so its .place.slugs key is empty
+cat >"$T/bin/far-lanes" <<'STUB'
+#!/usr/bin/env bash
+[ "${FAR_HUB:-ok}" = ok ] || { echo '{"hub": "unreachable", "lanes": []}'; exit 0; }
+echo '{"hub": "ok", "lanes": [
+  {"agent_id": "c-908", "agent_box": "box-far", "branch": "c-908-slug-far", "issue_key": "SPL-9201", "state": "done"},
+  {"agent_id": "c-909", "agent_box": "box-far", "branch": "c-909-another-slug", "issue_key": "SPL-9099", "state": "live"}]}'
+STUB
+chmod +x "$T/bin/far-lanes"
+F1=f1f1f1f1-0000-4000-8000-000000009201; F2=f2f2f2f2-0000-4000-8000-000000009202
+printf '# Lane brief: slug-far\n%s\n' "$ES" >"$T/briefs/slug-far.md"
+printf '# Lane brief: slug-reused\n%s\n' "$ES" >"$T/briefs/slug-reused.md"
+printf 'slug-far\tc-908@box-far\t\t%s\nslug-reused\tc-909@box-far\t\t%s\n' "$(date +%s)" "$(date +%s)" >>"$T/spool/asks/.place.slugs"
+put "$F1" row-after-far; put "$F2" row-after-reused
+on do_spl_spawn_enqueue ASK_ID="$F1" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-far SPAWN_AFTER=slug-far >/dev/null 2>&1
+on do_spl_spawn_enqueue ASK_ID="$F2" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-reused SPAWN_AFTER=slug-reused >/dev/null 2>&1
+out="$(tick SPAWN_AFTER_LANES_CMD="$T/bin/far-lanes" FAR_HUB=down)"
+[[ "$(launched row-after-far)" == 0 ]] && grep -q 'ask f1f1f1f1 (row-after-far) is waiting on slug-far: its lane has no issue key known on this box, and the hub lane map did not answer' <<<"$out" &&
+  grep -q $'^slug-far\tc-908@box-far\t\t' "$T/spool/asks/.place.slugs" &&
+  pass "6b. CONTROL the hub lane map does not answer: held with that reason, never free, nothing written" || fail "6b. hub down: $out"
+out="$(tick SPAWN_AFTER_LANES_CMD="$T/bin/far-lanes")"
+if [[ "$(launched row-after-far)" == 0 ]] && grep -q 'ask f1f1f1f1 (row-after-far) is waiting on slug-far (SPL-9201): not landed' <<<"$out" &&
+   grep -q $'^slug-far\tc-908@box-far\tSPL-9201\t[0-9]*$' "$T/spool/asks/.place.slugs"; then
+  pass "6b. a slug placed on box-far, no key in .place.slugs: SPL-9201 read from its hub lane row, written back, held"
+else fail "6b. far: $out | $(cat "$T/spool/asks/.place.slugs")"; fi
+[[ "$(launched row-after-reused)" == 0 ]] && grep -q 'ask f2f2f2f2 (row-after-reused) is waiting on slug-reused: its lane has no issue key known on this box or on the hub yet' <<<"$out" &&
+  pass "6b. CONTROL the hub row of c-909@box-far runs another slug: its key is not taken, held" || fail "6b. reused: $out"
+land "fix(orc, SPL-9201): the far lane lands"
+out="$(tick SPAWN_AFTER_LANES_CMD=false)"
+[[ "$(launched row-after-far)" == 1 ]] && grep -q 'ask f1f1f1f1 (row-after-far): slug-far (SPL-9201) landed' <<<"$out" &&
+  pass "6b. SPL-9201 landed: placed, from the written-back key (the hub not read again)" || fail "6b. landed: $out | $(cat "$T/launch.log")"
+done_ask "$F2" 2>/dev/null
 
 # 7. refused at enqueue -----------------------------------------------------------------
 B=c1c1c1c1-0000-4000-8000-0000000091

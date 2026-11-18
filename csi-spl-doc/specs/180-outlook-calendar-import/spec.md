@@ -1,6 +1,6 @@
 # Spec 180: Import an Outlook calendar into a member's spool-hub calendar
 
-Version **0.4.0** (2026-11-18). Authored by lane `c-060` (`claude`).
+Version **0.4.1** (2026-11-18). Authored by lane `c-060` (`claude`).
 Issue: **SPL-5784** (status `wip`, tenant `t1`). Epic: **SPL-2750** (from the
 seat brief; to be confirmed by the dispatcher). Class: `feature`.
 Discussion: csitea topic `40c3f89d-bedb-427d-90fe-78699a2a0f0a`.

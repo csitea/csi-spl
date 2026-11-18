@@ -21,6 +21,10 @@
 # @description takes the place of r<N> in every pattern, e.g. ROUND=sdlc
 # @description matches review/sdlc-*, wip/*sdlc* and [review/]<id>-sdlc-*
 # @description (bug round 1 retro; SPL-2525).
+# @description A reused id (after 99 comes 01, rounds rulebook 5.3) is read in
+# @description its window W: a head whose tip's commit date is older than W is
+# @description the previous cycle's and prints KEEP <branch> before-window <W>,
+# @description never deleted, even with PRUNE_UNLANDED=1 (rulebook 5.5 F3).
 # @description Run with DRY_RUN=0 only by the round's retro lane, after the
 # @description retro has run C7 over the review branches (round plan R7.4, R8).
 # @description PRUNE_ALL_MERGED=1 (no ROUND; SPL-3609, owner msg 34b232f4: "for
@@ -43,6 +47,13 @@
 # @param PRUNE_REMOTE (optional) - the remote, default origin
 # @param PRUNE_GIT_DIR (optional) - the checkout to run git in, default PROJ_PATH
 # @param PRUNE_UNLANDED (optional) - 1 lists (and deletes) unlanded tips too; default 0
+# @param PRUNE_SINCE (optional) - the window W of a reused id: a date git and
+# @param   date -d read, e.g. the plan's baseline line "Window: W=<date>"
+# @param   (rulebook 5.3); one round only. Unset, W of each numbered round
+# @param   (r05, p12, b01, 7) is derived from the remote's trunk: the commit
+# @param   date of the newest docs(<previous id>-plan subject, the previous
+# @param   id being N-1 as r4 or r04, and 99 before 01; none found, or a named
+# @param   round (sdlc), means no window. none: no window at all
 # @param PRUNE_ALL_MERGED (optional) - 1: every merged head, not a round (no ROUND)
 # @param PRUNE_BATCH (optional) - refs per atomic delete push, default 100
 # @param PRUNE_LANES_CMD (optional) - prints the lane map JSON, default
@@ -54,6 +65,7 @@
 # @example ROUND="7,8" ./run -a do_git_prune_round_branches
 # @example ROUNDS="7 8 9" DRY_RUN=0 ./run -a do_git_prune_round_branches
 # @example ROUND="r01,sdlc,b01" ./run -a do_git_prune_round_branches
+# @example ROUND=05 PRUNE_SINCE=2027-03-01T09:00:00Z ./run -a do_git_prune_round_branches
 # @example PRUNE_ALL_MERGED=1 ./run -a do_git_prune_round_branches
 # @example PRUNE_ALL_MERGED=1 DRY_RUN=0 ./run -a do_git_prune_round_branches
 #------------------------------------------------------------------------------
@@ -88,8 +100,9 @@ prune_round_parse() {
   done
 }
 
-# prune_round_list <git-dir> <remote> <prefix>...: one "<branch>\t<sha>" line
-# per head on the remote that matches any of the rounds, each head once.
+# prune_round_list <git-dir> <remote> <prefix>...: one "<branch>\t<sha>\t<prefix>"
+# line per head on the remote that matches any of the rounds, each head once,
+# with the first round it matched.
 prune_round_list() {
   local g="$1" r="$2" heads sha ref b n
   shift 2
@@ -98,7 +111,7 @@ prune_round_list() {
     [[ -n "$ref" ]] || continue
     b="${ref#refs/heads/}"
     for n in "$@"; do
-      prune_round_match "$n" "$b" && { printf '%s\t%s\n' "$b" "$sha"; break; }
+      prune_round_match "$n" "$b" && { printf '%s\t%s\t%s\n' "$b" "$sha" "$n"; break; }
     done
   done <<<"$heads"
   return 0
@@ -129,15 +142,64 @@ prune_round_unlanded() {
   grep -c '^+' <<<"$out"
 }
 
+# prune_round_prev <prefix>: the spellings of the previous id of a numbered
+# round, space-separated: r62 -> r61, r10 -> r9 r09, r01 -> r99 (rulebook
+# 5.3: after 99 comes 01, two digits from the wrap on). Nothing for a named
+# round (sdlc) or r1.
+prune_round_prev() {
+  local l v
+  [[ "$1" =~ ^([a-z]+)([0-9]+)$ ]] || return 0
+  l="${BASH_REMATCH[1]}" v=$((10#${BASH_REMATCH[2]}))
+  if ((v == 1)); then
+    [[ "${BASH_REMATCH[2]}" == 01 ]] && echo "${l}99"
+  elif ((v <= 10)); then
+    printf '%s%d %s%02d\n' "$l" $((v - 1)) "$l" $((v - 1))
+  else
+    echo "$l$((v - 1))"
+  fi
+  return 0
+}
+
+# prune_round_window <git-dir> <trunk-sha> <prefix>: the round's window W,
+# PRUNE_SINCE when set, else the commit date of the newest docs(<previous
+# id>-plan commit on trunk (rulebook 5.3); nothing when there is none.
+prune_round_window() {
+  local prev
+  [[ -z "${PRUNE_SINCE:-}" ]] || { echo "$PRUNE_SINCE"; return 0; }
+  prev="$(prune_round_prev "$3")"
+  [[ -n "$prev" && -n "$2" ]] || return 0
+  git -C "$1" log "$2" -1 --format=%cI -E --grep="^docs\\((${prev// /|})-plan" 2>/dev/null || true
+}
+
+# prune_round_old <git-dir> <sha> <W>: 0 when the tip's commit date is older
+# than W, or cannot be read (an old cycle's head is kept, never guessed).
+prune_round_old() {
+  local t w
+  t="$(git -C "$1" log -1 --format=%ct "$2" 2>/dev/null)" || return 0
+  w="$(date -d "$3" +%s 2>/dev/null)" || return 0
+  [[ -n "$t" ]] || return 0
+  ((t < w))
+}
+
 # prune_round_date <git-dir> <sha>: the tip's commit date, or ? when the
 # object is not here (the fetch in do_git_prune_round_branches failed).
 prune_round_date() {
   git -C "$1" log -1 --format=%cI "$2" 2>/dev/null || echo '?'
 }
 
+# prune_round_since_ok <round count>: 0 when PRUNE_SINCE is unset, none, or
+# a date for one round; else logs FATAL.
+prune_round_since_ok() {
+  local w="${PRUNE_SINCE:-}"
+  [[ -z "$w" || "$w" == none ]] && return 0
+  date -d "$w" +%s >/dev/null 2>&1 || { do_log "FATAL PRUNE_SINCE must be a date (the plan's Window: W=<date>) or none, got: '$w'"; return 1; }
+  (($1 == 1)) || { do_log "FATAL PRUNE_SINCE is one round's window; give one ROUND, got $1"; return 1; }
+}
+
 do_git_prune_round_branches() {
   local spec="${ROUNDS:-${ROUND:-}}" dry="${DRY_RUN:-1}" r="${PRUNE_REMOTE:-origin}" g="${PRUNE_GIT_DIR:-${PROJ_PATH:-.}}"
-  local list b sha left n trunk u count=0 kept=0 refs=() rounds=() del=() still=""
+  local list b sha left n rd trunk u count=0 kept=0 old=0 refs=() rounds=() del=() still=""
+  local -A win=()
 
   if [[ "${PRUNE_ALL_MERGED:-0}" == 1 ]]; then
     [[ -z "$spec" ]] || { do_log "FATAL PRUNE_ALL_MERGED=1 takes no ROUND or ROUNDS, got: '$spec'"; return 1; }
@@ -149,20 +211,30 @@ do_git_prune_round_branches() {
   mapfile -t rounds <<<"$n"
   n="${rounds[*]}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
+  prune_round_since_ok "${#rounds[@]}" || return 1
 
   list="$(prune_round_list "$g" "$r" "${rounds[@]}")" || { do_log "FATAL cannot list the heads of remote '$r' from $g"; return 1; }
   if [[ -z "$list" ]]; then
     do_log "OK round $n: no $(prune_round_patterns "${rounds[@]}") branch on $r"
     return 0
   fi
-  while IFS=$'\t' read -r b sha; do refs+=("refs/heads/$b"); done <<<"$list"
+  while IFS=$'\t' read -r b sha _; do refs+=("refs/heads/$b"); done <<<"$list"
   trunk="$(prune_round_trunk "$g" "$r")"
   # the tips' and trunk's objects, for dates and git cherry; no local ref is written
   git -C "$g" fetch -q --no-tags --no-write-fetch-head "$r" "${refs[@]}" ${trunk:+"refs/heads/${trunk#*$'\t'}"} 2>/dev/null || true
   trunk="${trunk%%$'\t'*}"
+  [[ "${PRUNE_SINCE:-}" == none ]] || for rd in "${rounds[@]}"; do
+    win[$rd]="$(prune_round_window "$g" "$trunk" "$rd")"
+    [[ -z "${win[$rd]}" ]] || echo "WINDOW $rd W=${win[$rd]}"
+  done
 
   refs=()
-  while IFS=$'\t' read -r b sha; do
+  while IFS=$'\t' read -r b sha rd; do
+    if [[ -n "${win[$rd]:-}" ]] && prune_round_old "$g" "$sha" "${win[$rd]}"; then
+      printf 'KEEP %s before-window %s\n' "$b" "${win[$rd]}"
+      old=$((old + 1))
+      continue
+    fi
     u="$(prune_round_unlanded "$g" "$trunk" "$sha")"
     if [[ "$u" != 0 && "${PRUNE_UNLANDED:-0}" != 1 ]]; then
       printf 'KEEP %s %s unlanded\n' "$b" "$u"
@@ -176,17 +248,17 @@ do_git_prune_round_branches() {
   done <<<"$list"
 
   if [[ "$dry" == 1 ]]; then
-    do_log "OK DRY_RUN round $n: $count branch(es) listed, $kept kept unlanded on $r, nothing deleted (DRY_RUN=0 deletes the listed)"
+    do_log "OK DRY_RUN round $n: $count branch(es) listed, $kept kept unlanded, $old before the window on $r, nothing deleted (DRY_RUN=0 deletes the listed)"
     return 0
   fi
-  ((count)) || { do_log "OK round $n: nothing to delete on $r, $kept kept unlanded"; return 0; }
+  ((count)) || { do_log "OK round $n: nothing to delete on $r, $kept kept unlanded, $old before the window"; return 0; }
 
   git -C "$g" push -q --atomic "$r" --delete "${refs[@]}" || { do_log "FATAL the delete push to $r failed; nothing deleted"; return 1; }
   printf 'DELETED %s\n' "${del[@]}" | tr '\t' ' '
   left="$(prune_round_list "$g" "$r" "${rounds[@]}")" || { do_log "FAIL cannot re-list $r after the delete"; return 1; }
   still="$(cut -f1 <<<"$left" | grep -Fxf <(printf '%s\n' "${del[@]%%$'\t'*}") | paste -sd' ' -)"
   [[ -z "$still" ]] || { do_log "FAIL round $n branches still on $r after the delete: $still"; return 1; }
-  do_log "OK round $n: deleted $count branch(es) on $r, $kept kept unlanded"
+  do_log "OK round $n: deleted $count branch(es) on $r, $kept kept unlanded, $old before the window"
 }
 
 # --- PRUNE_ALL_MERGED=1: every merged head (SPL-3609) ------------------------

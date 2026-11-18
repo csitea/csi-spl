@@ -35,6 +35,13 @@
 #      PRUNE_UNLANDED=1, a bad PRUNE_BATCH refused
 #  12. CONTROLS: without the live-lane check the live lane's branches are
 #      deleted; without the cherry check the unlanded tip is deleted
+#  13. a reused id (rounds rulebook 5.3/5.5 F3): ROUND=05 keeps the previous
+#      cycle's r05 heads (tips older than W = the newest docs(r04-plan
+#      commit) as KEEP before-window, prunes the current ones; the same with
+#      PRUNE_SINCE=W; PRUNE_SINCE=none prunes all four; ROUND=01 reads its
+#      window from docs(r99-plan; a bad PRUNE_SINCE, or one with two rounds,
+#      is refused
+#  14. CONTROL: without the window check the old cycle's heads are deleted
 # The remote is a local bare repo; nothing touches a real origin.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -366,6 +373,75 @@ else
   git --git-dir="$T/ac.git" rev-parse -q --verify refs/heads/wip/unlanded-z >/dev/null \
     && fail "control: without the cherry check the unlanded tip survived" \
     || pass "control: without the cherry check the unlanded tip is deleted"
+fi
+
+# 13. a reused id keeps the previous cycle's heads ---------------------------
+# reuse <name> <id> <previous id>: a remote whose trunk holds, in order, the
+# old cycle's <id> heads (2026-01), the plan commit docs(<previous id>-plan
+# (2026-06-01) and the current <id> heads (2026-07); every tip landed.
+OLD05=(wip/c-1-r05-old c-100-r05-01-old)
+NEW05=(review/r05-01-new c-200-r05-02-new)
+reuse() {
+  local d="$T/$1" id="$2" b i=0
+  git init -q --bare "$d.git"
+  git init -q -b master "$d" && git -C "$d" remote add origin "$d.git"
+  for b in "wip/c-1-$id-old" "c-100-$id-01-old" "PLAN" "review/$id-01-new" "c-200-$id-02-new"; do
+    i=$((i + 1))
+    echo "$i" >"$d/f" && git -C "$d" add f
+    case "$b" in
+      PLAN) GIT_COMMITTER_DATE=2026-06-01T00:00:00Z git -C "$d" commit -qm "docs($3-plan, SPL-1): plan"; continue ;;
+      *-old) GIT_COMMITTER_DATE=2026-01-0${i}T00:00:00Z git -C "$d" commit -qm "c$i" ;;
+      *) GIT_COMMITTER_DATE=2026-07-0${i}T00:00:00Z git -C "$d" commit -qm "c$i" ;;
+    esac
+    git -C "$d" push -q origin "HEAD:refs/heads/$b"
+  done
+  git -C "$d" push -q origin HEAD:refs/heads/master
+}
+reuse ru r05 r04
+out="$(run_prune "$FUNC" "$T/ru" ROUND=05)"; rc=$?
+got="$(grep '^REF ' <<<"$out" | cut -d' ' -f2 | sort | paste -sd' ' -)"
+if [[ $rc -eq 0 && "$got" == "$(printf '%s\n' "${NEW05[@]}" | sort | paste -sd' ' -)" && "$out" == *'WINDOW r05 W=2026-06-01T00:00:00Z'* \
+  && "$out" == *'KEEP wip/c-1-r05-old before-window 2026-06-01T00:00:00Z'* && "$out" == *'KEEP c-100-r05-01-old before-window'* \
+  && "$out" == *'2 branch(es) listed, 0 kept unlanded, 2 before the window'* ]]; then
+  pass "ROUND=05 dry run: W from docs(r04-plan, the 2 old-cycle heads KEEP before-window, the 2 current listed"
+else
+  fail "reused id dry run: rc=$rc got=$got out=$out"
+fi
+out="$(run_prune "$FUNC" "$T/ru" ROUND=05 PRUNE_SINCE=2026-06-01T00:00:00Z PRUNE_UNLANDED=1 DRY_RUN=0)"; rc=$?
+want="$(printf '%s\n' master "${OLD05[@]}" | sort)"
+[[ $rc -eq 0 && "$(heads "$T/ru")" == "$want" && "$(grep -c '^DELETED ' <<<"$out")" == 2 ]] \
+  && pass "ROUND=05 PRUNE_SINCE=W DRY_RUN=0 (PRUNE_UNLANDED=1 too): the 2 current heads gone, the 2 old-cycle heads stay" \
+  || fail "reused id delete: rc=$rc heads=$(heads "$T/ru" | paste -sd' ' -) out=$out"
+reuse rn r05 r04
+out="$(run_prune "$FUNC" "$T/rn" ROUND=05 PRUNE_SINCE=none DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 && "$(heads "$T/rn")" == master && "$out" != *WINDOW* ]] \
+  && pass "PRUNE_SINCE=none: no window, all 4 r05 heads deleted" || fail "PRUNE_SINCE=none: rc=$rc heads=$(heads "$T/rn" | paste -sd' ' -) out=$out"
+reuse rw r01 r99
+out="$(run_prune "$FUNC" "$T/rw" ROUND=01)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'WINDOW r01 W=2026-06-01T00:00:00Z'* && "$(grep -c '^KEEP .* before-window' <<<"$out")" == 2 && "$(grep -c '^REF ' <<<"$out")" == 2 ]] \
+  && pass "ROUND=01 after the wrap: W from docs(r99-plan, 2 KEEP before-window, 2 REF" || fail "wrap 01: rc=$rc out=$out"
+reuse rb r05 r04
+before="$(heads "$T/rb")"
+for args in "ROUND=05 PRUNE_SINCE=yesterday-ish" "ROUND=05,06 PRUNE_SINCE=2026-06-01"; do
+  # shellcheck disable=SC2086 # the args are separate VAR=value words
+  out="$(run_prune "$FUNC" "$T/rb" $args DRY_RUN=0)"; rc=$?
+  [[ $rc -ne 0 && "$(heads "$T/rb")" == "$before" && "$out" == *'FATAL PRUNE_SINCE'* ]] \
+    && pass "refused, nothing deleted: '${args} DRY_RUN=0'" || fail "'${args}': rc=$rc out=$out"
+done
+got="$(bash -c 'source "$1"; for p in r62 r10 r02 r01 r1 p100 sdlc; do printf "%s=%s;" "$p" "$(prune_round_prev "$p")"; done' _ "$FUNC")"
+[[ "$got" == "r62=r61;r10=r9 r09;r02=r1 r01;r01=r99;r1=;p100=p99;sdlc=;" ]] \
+  && pass "prune_round_prev: r62 r61, r10 r9|r09, r01 r99, none for r1 and sdlc" || fail "prune_round_prev: $got"
+
+# 14. CONTROL: no window check ------------------------------------------------
+sed 's|prune_round_old "$g" "$sha" "${win\[$rd\]}"|false|' "$FUNC" >"$T/nowin.func.sh"
+if cmp -s "$FUNC" "$T/nowin.func.sh"; then
+  fail "control: the sed did not drop the window check"
+else
+  reuse rc r05 r04
+  run_prune "$T/nowin.func.sh" "$T/rc" ROUND=05 DRY_RUN=0 >/dev/null
+  git --git-dir="$T/rc.git" rev-parse -q --verify refs/heads/wip/c-1-r05-old >/dev/null \
+    && fail "control: without the window check the old cycle's head survived" \
+    || pass "control: without the window check the old cycle's heads are deleted"
 fi
 
 if (( fails )); then

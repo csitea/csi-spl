@@ -11,8 +11,12 @@
 # @description dns_ok / tcp_ok are 1 or 0, or `-` when the hub host is unknown
 # @description (the cnf could not be read: not a network fault). Samples older
 # @description than 7 days are dropped. It only measures: no network change.
-# @description A down link never fails the probe (exit 0); a config fault does: a dir it cannot derive or a box id that is not a plain name is FATAL, rc 1.
-# @description Its cron (row uplink-probe of cnf/box-crons/box-crons.manifest) logs that FATAL and `WARN do_spl_uplink_probe rc=1` to its cron.log, then exits 0.
+# @description In probe mode a down link never fails the probe: it exits 0.
+# @description A config fault does, FATAL with rc 1: a dir it cannot derive,
+# @description a box id that is not a plain name, or an UPLINK_PROBE_CMD other
+# @description than probe, report or dns. Its cron (row uplink-probe of
+# @description cnf/box-crons/box-crons.manifest) logs that FATAL and `WARN
+# @description do_spl_uplink_probe rc=1` to its cron.log, then exits 0.
 # @description
 # @description UPLINK_PROBE_CMD=report prints the outage windows of the last
 # @description UPLINK_PROBE_HOURS: runs of consecutive samples whose DNS lookup

@@ -1,8 +1,8 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.6 (2026-11-15). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**;
+Version: v1.7 (2026-11-18). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**;
 owner Q1, Q2, Q3, Q4 answered; the morning card (B5) dropped by owner poll
-acef24b9 = A (1.2). Built: B0, B1; B2 in its lane. Issue SPL-4396 · Epic SPL-2396 · Class
+acef24b9 = A (1.2). Built: B0, B1, B2, B3. Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
 
@@ -364,6 +364,14 @@ Each seat signs a version with its own commit on branch
 
 ## 10. Changes
 
+- v1.7: row B3 built by the lane c-701 (SPL-5873): the phone To-do view.
+  The phone header's To-do switch sets `?k=todo`; the view is B2's
+  `CalendarTodoView.vue` with four ranges (3 days added for the To-do kind
+  only, `CAL_PHONE_TODO_VIEWS`); `?k=todo&v=<range>` sets the range for the
+  visit (`calPhoneTodoView`) and a range picked there is written to `?v=`,
+  never to the stored event-view range. The status line and 11.6 say B2
+  and B3 are built. No behaviour of WHAT or HOW changes.
+
 - v1.6: owner poll acef24b9 = A (HUM-10, msg ce993dde, 2026-11-15) folded by
   the B2 lane c-170 (SPL-5595): B5 DROPPED, the Reporter's daily note
   (spec 177) replaces the morning card; 1.2, 5 and 11.4 say so, 11.4 names
@@ -631,8 +639,9 @@ prd.
 | B5 | DROPPED (owner poll acef24b9 = A, 2026-11-15): the Reporter's daily note (spec 177) replaces the morning card | - | - |
 | B6 | DROPPED (owner Q4 = C): email at 08:00 local | - | - |
 
-Order: B1, then B2 and B0 in parallel, then B3. (B0 and B1 are on master,
-`6231710ad` and `82822fc4b`; B5 is dropped, so B0's columns stay unused, 11.4.)
+Order: B1, then B2 and B0 in parallel, then B3. (B0, B1 and B2 are on master,
+`6231710ad`, `82822fc4b` and `6b5667bad`; B3 lands with this v1.7 (SPL-5873);
+B5 is dropped, so B0's columns stay unused, 11.4.)
 Out of these rows: the deadline-input zone edge (WHAT 2) and `isOverdue`
 (WHAT 2) each get their own issue.
 

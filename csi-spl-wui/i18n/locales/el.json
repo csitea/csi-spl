@@ -2870,6 +2870,8 @@
     "view_short_month": "Μ",
     "view_short_week": "Ε",
     "view_short_day": "Η",
+    "view_3day": "3 ημέρες",
+    "view_short_3day": "3",
     "prev_month": "Προηγούμενος μήνας",
     "next_month": "Επόμενος μήνας",
     "month_empty": "Δεν υπάρχουν προγραμματισμένα γεγονότα",
@@ -2878,6 +2880,8 @@
     "next_week": "Επόμενη εβδομάδα",
     "prev_day": "Προηγούμενη ημέρα",
     "next_day": "Επόμενη ημέρα",
+    "prev_3day": "Προηγούμενες 3 ημέρες",
+    "next_3day": "Επόμενες 3 ημέρες",
     "placeholder": "Αυτή η προβολή έρχεται σύντομα."
   },
   "calendar_phone_peek": {

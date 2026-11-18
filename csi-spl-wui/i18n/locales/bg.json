@@ -2870,6 +2870,8 @@
     "view_short_month": "М",
     "view_short_week": "С",
     "view_short_day": "Д",
+    "view_3day": "3 дни",
+    "view_short_3day": "3",
     "prev_month": "Предишен месец",
     "next_month": "Следващ месец",
     "month_empty": "Няма планирани събития",
@@ -2878,6 +2880,8 @@
     "next_week": "Следваща седмица",
     "prev_day": "Предишен ден",
     "next_day": "Следващ ден",
+    "prev_3day": "Предишните 3 дни",
+    "next_3day": "Следващите 3 дни",
     "placeholder": "Този изглед идва скоро."
   },
   "calendar_phone_peek": {

@@ -2870,6 +2870,8 @@
     "view_short_month": "ח",
     "view_short_week": "ש",
     "view_short_day": "י",
+    "view_3day": "3 ימים",
+    "view_short_3day": "3",
     "prev_month": "החודש הקודם",
     "next_month": "החודש הבא",
     "month_empty": "אין אירועים מתוכננים",
@@ -2878,6 +2880,8 @@
     "next_week": "השבוע הבא",
     "prev_day": "היום הקודם",
     "next_day": "היום הבא",
+    "prev_3day": "3 הימים הקודמים",
+    "next_3day": "3 הימים הבאים",
     "placeholder": "התצוגה הזו תגיע בקרוב."
   },
   "calendar_phone_peek": {

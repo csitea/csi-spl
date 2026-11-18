@@ -2870,6 +2870,8 @@
     "view_short_month": "M",
     "view_short_week": "N",
     "view_short_day": "D",
+    "view_3day": "3 dienas",
+    "view_short_3day": "3",
     "prev_month": "Iepriekšējais mēnesis",
     "next_month": "Nākamais mēnesis",
     "month_empty": "Nav plānotu notikumu",
@@ -2878,6 +2880,8 @@
     "next_week": "Nākamā nedēļa",
     "prev_day": "Iepriekšējā diena",
     "next_day": "Nākamā diena",
+    "prev_3day": "Iepriekšējās 3 dienas",
+    "next_3day": "Nākamās 3 dienas",
     "placeholder": "Šis skats drīz būs pieejams."
   },
   "calendar_phone_peek": {

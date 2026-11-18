@@ -8,7 +8,7 @@ import type { useMobileStack } from '~/composables/useMobileStack'
 import { calPhoneRange, calPhoneStep } from '~/utils/calendar-phone-nav.mjs'
 import { calSwipeClaims, calSwipeClassify, calSwipeInEdge, calSwipeLock } from '~/utils/calendar-swipe.mjs'
 
-type View = 'month' | 'week' | 'day'
+type View = 'month' | 'week' | '3day' | 'day'
 type Point = { x: number, y: number, t: number }
 
 type TurnOpts = {

@@ -2870,6 +2870,8 @@
     "view_short_month": "M",
     "view_short_week": "W",
     "view_short_day": "D",
+    "view_3day": "3 dagen",
+    "view_short_3day": "3",
     "prev_month": "Vorige maand",
     "next_month": "Volgende maand",
     "month_empty": "Geen afspraken gepland",
@@ -2878,6 +2880,8 @@
     "next_week": "Volgende week",
     "prev_day": "Vorige dag",
     "next_day": "Volgende dag",
+    "prev_3day": "Vorige 3 dagen",
+    "next_3day": "Volgende 3 dagen",
     "placeholder": "Deze weergave komt binnenkort."
   },
   "calendar_phone_peek": {

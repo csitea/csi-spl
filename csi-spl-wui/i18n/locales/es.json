@@ -2870,6 +2870,8 @@
     "view_short_month": "M",
     "view_short_week": "S",
     "view_short_day": "D",
+    "view_3day": "3 días",
+    "view_short_3day": "3",
     "prev_month": "Mes anterior",
     "next_month": "Mes siguiente",
     "month_empty": "No hay eventos previstos",
@@ -2878,6 +2880,8 @@
     "next_week": "Semana siguiente",
     "prev_day": "Día anterior",
     "next_day": "Día siguiente",
+    "prev_3day": "3 días anteriores",
+    "next_3day": "3 días siguientes",
     "placeholder": "Esta vista llega pronto."
   },
   "calendar_phone_peek": {

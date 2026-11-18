@@ -2870,6 +2870,8 @@
     "view_short_month": "A",
     "view_short_week": "H",
     "view_short_day": "G",
+    "view_3day": "3 gün",
+    "view_short_3day": "3",
     "prev_month": "Önceki ay",
     "next_month": "Sonraki ay",
     "month_empty": "Planlanmış etkinlik yok",
@@ -2878,6 +2880,8 @@
     "next_week": "Sonraki hafta",
     "prev_day": "Önceki gün",
     "next_day": "Sonraki gün",
+    "prev_3day": "Önceki 3 gün",
+    "next_3day": "Sonraki 3 gün",
     "placeholder": "Bu görünüm yakında geliyor."
   },
   "calendar_phone_peek": {

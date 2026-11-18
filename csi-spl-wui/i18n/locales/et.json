@@ -2870,6 +2870,8 @@
     "view_short_month": "K",
     "view_short_week": "N",
     "view_short_day": "P",
+    "view_3day": "3 päeva",
+    "view_short_3day": "3",
     "prev_month": "Eelmine kuu",
     "next_month": "Järgmine kuu",
     "month_empty": "Sündmusi pole plaanitud",
@@ -2878,6 +2880,8 @@
     "next_week": "Järgmine nädal",
     "prev_day": "Eelmine päev",
     "next_day": "Järgmine päev",
+    "prev_3day": "Eelmised 3 päeva",
+    "next_3day": "Järgmised 3 päeva",
     "placeholder": "See vaade tuleb peagi."
   },
   "calendar_phone_peek": {

@@ -11,7 +11,12 @@
      The three views are placeholder slots until T005 (Month), T006 (Week)
      and T007 (Day) replace them; the title picker, search, menu and the +
      sheet open T008..T010's parts (`panel`). Gestures and dates are T002's
-     utils/calendar-swipe.mjs and utils/calendar-phone-nav.mjs. -->
+     utils/calendar-swipe.mjs and utils/calendar-phone-nav.mjs.
+     Spec 170 row B3 (SPL-5873): the header's To-do switch sets ?k=todo, and
+     the view is then CalendarTodoView (B2's, its own chunk) with four
+     ranges, 3 days added for this kind only. `?k=todo&v=<range>` sets the
+     range for the visit (calPhoneTodoView), the stored event-view range
+     untouched; a range picked here goes to ?v=, never to the storage. -->
 <template>
   <section
     class="calphone"
@@ -33,6 +38,17 @@
       >
         <span class="calphone__title-text">{{ title }}</span>
         <UiIcon name="chevron-down" :size="16" />
+      </button>
+      <button
+        type="button"
+        class="calphone__icon"
+        data-test="calphone-kind-todo"
+        :aria-pressed="kind === 'todo' ? 'true' : 'false'"
+        :aria-label="t('calendar_todo.kind')"
+        :title="t('calendar_todo.kind')"
+        @click="toggleKind"
+      >
+        <UiIcon name="kind-task" :size="20" />
       </button>
       <button
         type="button"
@@ -90,8 +106,11 @@
           <!-- T005 / T006 / T007 replace these slots with CalendarPhoneMonth,
                CalendarPhoneWeek and CalendarPhoneDay (each async on first show) -->
           <div class="calphone__scroll">
+            <template v-if="kind === 'todo'">
+              <CalendarTodoView v-if="pg.dir === 0" :focus="pg.day" :today="today" :view="view" />
+            </template>
             <CalendarPhoneWeek
-              v-if="view === 'week'"
+              v-else-if="view === 'week'"
               :day="pg.period"
               :today="today"
               :items="pg.dir === 0 ? items : []"
@@ -128,6 +147,7 @@
         </div>
       </div>
       <button
+        v-if="kind !== 'todo'"
         type="button"
         class="calphone__add"
         data-test="calphone-add"
@@ -233,7 +253,8 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { calDeadline } from '~/utils/calendar-event-form.mjs'
 import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
-import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
+import { CAL_PHONE_TODO_VIEWS, CAL_PHONE_VIEWS, calPhoneRange, calPhoneTitle, calPhoneTodoView } from '~/utils/calendar-phone-nav.mjs'
+import { calTodoKind } from '~/utils/calendar-desktop-view.mjs'
 import { calAddDays } from '~/utils/calendar-year.mjs'
 import { useCalendarHours } from '~/composables/useCalendarHours'
 import { useCalendarPhoneTurn } from '~/composables/useCalendarPhoneTurn'
@@ -241,8 +262,10 @@ import { useCalendarPhoneEvents } from '~/composables/useCalendarPhoneEvents'
 import type { CalPhoneCreate } from './CalendarPhoneDay.vue'
 
 const CalendarPhoneWeek = defineAsyncComponent(() => import('./CalendarPhoneWeek.vue'))
+/* spec 170 B3: the To-do view, B2's chunk, loaded on the first ?k=todo */
+const CalendarTodoView = defineAsyncComponent(() => import('./CalendarTodoView.vue'))
 
-type View = 'month' | 'week' | 'day'
+type View = 'month' | 'week' | '3day' | 'day'
 
 const props = defineProps<{ focus: string, today: string }>()
 const emit = defineEmits<{ move: [iso: string] }>()
@@ -250,6 +273,8 @@ const emit = defineEmits<{ move: [iso: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 const stack = useMobileStack()
+const route = useRoute()
+const router = useRouter()
 
 /* FR-002: Week first, then the view last used in this browser */
 const VIEW_KEY = 'spool-calendar-phone-view'
@@ -259,13 +284,24 @@ function storedView(): View {
     return v === 'month' || v === 'day' ? v : 'week'
   } catch { return 'week' }
 }
-const VIEWS = CAL_PHONE_VIEWS as View[]
 /* SPL-2034: a deadline link (?issue=) opens Day, the stored view untouched */
-const view = ref<View>(useRoute().query.issue ? 'day' : storedView())
+const eventView = ref<View>(route.query.issue ? 'day' : storedView())
+/* spec 170 B3: ?k=todo is the To-do kind; its range is ?v= for this visit,
+   else the stored one (the reminder's ?k=todo&v=day opens Day on any phone) */
+const kind = computed(() => calTodoKind(route.query))
+const view = computed(() => (kind.value === 'todo' ? calPhoneTodoView(route.query.v, eventView.value) as View : eventView.value))
+const VIEWS = computed(() => (kind.value === 'todo' ? CAL_PHONE_TODO_VIEWS : CAL_PHONE_VIEWS) as View[])
 function setView(v: View) {
   if (v === view.value) return
-  view.value = v
+  if (kind.value === 'todo') {
+    void router.replace({ query: { ...route.query, v } })
+    return
+  }
+  eventView.value = v
   try { window.localStorage.setItem(VIEW_KEY, v) } catch { /* storage off: Week next time */ }
+}
+function toggleKind() {
+  void router.replace({ query: { ...route.query, k: kind.value === 'todo' ? undefined : 'todo' } })
 }
 function onSegKey(e: KeyboardEvent) {
   const steps: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }
@@ -274,8 +310,9 @@ function onSegKey(e: KeyboardEvent) {
   e.preventDefault()
   /* rtl: the row runs right to left, so Left is forward */
   const dir = isRtl() && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') ? -step : step
-  const n = VIEWS.length
-  setView(VIEWS[(VIEWS.indexOf(view.value) + dir + n) % n]!)
+  const views = VIEWS.value
+  const n = views.length
+  setView(views[(views.indexOf(view.value) + dir + n) % n]!)
   void nextTick(() => (e.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus())
 }
 
@@ -285,7 +322,7 @@ const shownDay = ref(props.focus)
 watch(() => props.focus, (d) => { shownDay.value = d })
 
 /* ---- events: useCalendarPhoneEvents (the shown range, neighbours prefetched) ---- */
-const { items, state } = useCalendarPhoneEvents({ api, view, shownDay, today: () => props.today })
+const { items, state } = useCalendarPhoneEvents({ api, view, shownDay, today: () => props.today, off: () => kind.value === 'todo' })
 
 const names = computed(() => ({
   months: Array.from({ length: 12 }, (_, i) => t(`calendar.months.m${i + 1}`)),
@@ -418,8 +455,6 @@ function goToday() {
 
 /* 089 T006: /calendar?event=<id> (a reminder's Open) peeks that event once
    the shown range holds it (spec 106 T011, as the desktop's main view) */
-const route = useRoute()
-const router = useRouter()
 const localePath = useLocalePath()
 let askedEvent = ''
 watch([items, state, () => route.query.event], () => {
@@ -650,6 +685,9 @@ const { turning, moving, pages, isRtl, onTouchStart, onTouchMove, onTouchEnd, on
   /* the + button (56 px) and its 16 px never cover the last row (S4-9) */
   padding: 12px 16px 72px;
 }
+.calphone__icon[aria-pressed='true'] { background: var(--color-selected); color: var(--color-heading); }
+/* spec 170 B3: the To-do view takes the phone page's own padding */
+.calphone__scroll :deep(.cal-todo) { max-width: none; padding: 0; }
 .calphone__slot { min-width: 0; }
 .calphone__slot-title {
   margin: 0 0 4px;

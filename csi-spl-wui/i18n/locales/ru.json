@@ -2870,6 +2870,8 @@
     "view_short_month": "М",
     "view_short_week": "Н",
     "view_short_day": "Д",
+    "view_3day": "3 дня",
+    "view_short_3day": "3",
     "prev_month": "Предыдущий месяц",
     "next_month": "Следующий месяц",
     "month_empty": "Нет запланированных событий",
@@ -2878,6 +2880,8 @@
     "next_week": "Следующая неделя",
     "prev_day": "Предыдущий день",
     "next_day": "Следующий день",
+    "prev_3day": "Предыдущие 3 дня",
+    "next_3day": "Следующие 3 дня",
     "placeholder": "Этот вид скоро появится."
   },
   "calendar_phone_peek": {

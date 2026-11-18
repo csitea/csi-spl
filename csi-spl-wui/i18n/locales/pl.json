@@ -2870,6 +2870,8 @@
     "view_short_month": "M",
     "view_short_week": "T",
     "view_short_day": "D",
+    "view_3day": "3 dni",
+    "view_short_3day": "3",
     "prev_month": "Poprzedni miesiąc",
     "next_month": "Następny miesiąc",
     "month_empty": "Brak zaplanowanych wydarzeń",
@@ -2878,6 +2880,8 @@
     "next_week": "Następny tydzień",
     "prev_day": "Poprzedni dzień",
     "next_day": "Następny dzień",
+    "prev_3day": "Poprzednie 3 dni",
+    "next_3day": "Następne 3 dni",
     "placeholder": "Ten widok pojawi się wkrótce."
   },
   "calendar_phone_peek": {

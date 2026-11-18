@@ -2870,6 +2870,8 @@
     "view_short_month": "K",
     "view_short_week": "V",
     "view_short_day": "P",
+    "view_3day": "3 päivää",
+    "view_short_3day": "3",
     "prev_month": "Edellinen kuukausi",
     "next_month": "Seuraava kuukausi",
     "month_empty": "Ei suunniteltuja tapahtumia",
@@ -2878,6 +2880,8 @@
     "next_week": "Seuraava viikko",
     "prev_day": "Edellinen päivä",
     "next_day": "Seuraava päivä",
+    "prev_3day": "Edelliset 3 päivää",
+    "next_3day": "Seuraavat 3 päivää",
     "placeholder": "Tämä näkymä tulee pian."
   },
   "calendar_phone_peek": {

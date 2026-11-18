@@ -15,6 +15,8 @@ import { calAddDays, calDayMs, calIsoDay, calWeekDays, calWeekday, calWeekStart 
 import { isoDateTimeIn } from './date-iso-zone.mjs'
 
 export const CAL_PHONE_VIEWS = ['month', 'week', 'day']
+/** Spec 170 row B3: the To-do kind adds 3 days (11.2); the event views keep their three. */
+export const CAL_PHONE_TODO_VIEWS = ['month', 'week', '3day', 'day']
 /** English fallbacks; the screens pass `calendar.months` / `calendar.weekdays`. */
 const CAL_PHONE_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const CAL_PHONE_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -27,7 +29,8 @@ const pad = (n) => String(n).padStart(2, '0')
  * The day one period after (`dir` 1) or before (-1) `iso` in `view`. A month
  * step keeps the day of the month, clamped to the target month's last day
  * (2026-01-31 -> 2026-02-28). '' when `iso` is not a day or `view` unknown.
- * @param {string} view 'month' | 'week' | 'day'
+ * 3 days (the To-do kind's, spec 170 B3) steps three days.
+ * @param {string} view 'month' | 'week' | '3day' | 'day'
  * @param {string} iso
  * @param {number} dir
  * @returns {string}
@@ -37,6 +40,7 @@ export function calPhoneStep(view, iso, dir) {
   const n = Math.sign(Number(dir) || 0)
   if (Number.isNaN(ms)) return ''
   if (view === 'day') return calAddDays(iso, n)
+  if (view === '3day') return calAddDays(iso, 3 * n)
   if (view === 'week') return calAddDays(iso, 7 * n)
   if (view !== 'month') return ''
   const d = new Date(ms)
@@ -44,6 +48,20 @@ export function calPhoneStep(view, iso, dir) {
   const m = d.getUTCMonth() + n
   const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
   return calIsoDay(Date.UTC(y, m, Math.min(d.getUTCDate(), last)))
+}
+
+/**
+ * Spec 170 row B3 (11.2): the To-do kind's range on a phone. `?k=todo&v=`
+ * sets it for that visit, the way `?issue=` forces Day; without a `v` it is
+ * the range kept in this browser (`stored`). An unknown `v` is no `v`.
+ * @param {unknown} v the route's ?v=
+ * @param {string} stored the event views' range kept in this browser
+ * @returns {string} one of CAL_PHONE_TODO_VIEWS
+ */
+export function calPhoneTodoView(v, stored) {
+  const s = String(v ?? '')
+  if (CAL_PHONE_TODO_VIEWS.includes(s)) return s
+  return CAL_PHONE_TODO_VIEWS.includes(stored) ? stored : 'week'
 }
 
 /**
@@ -65,7 +83,8 @@ export function calPhoneMonthGrid(iso) {
 /**
  * The days a view shows around `iso`, as [from, to) - what T004 fetches and
  * prefetches. Month is its 6x7 grid, so the leading and trailing days of the
- * neighbour months get their dots too. null when not a day or view unknown.
+ * neighbour months get their dots too. 3 days is the day before `iso`, `iso`
+ * and the day after, as the desktop's. null when not a day or view unknown.
  * @param {string} view
  * @param {string} iso
  * @returns {{ from: string, to: string } | null}
@@ -73,6 +92,7 @@ export function calPhoneMonthGrid(iso) {
 export function calPhoneRange(view, iso) {
   if (Number.isNaN(calDayMs(iso))) return null
   if (view === 'day') return { from: iso, to: calAddDays(iso, 1) }
+  if (view === '3day') return { from: calAddDays(iso, -1), to: calAddDays(iso, 2) }
   if (view === 'week') {
     const from = calWeekStart(iso)
     return { from, to: calAddDays(from, 7) }
@@ -144,7 +164,7 @@ export function calPhoneFoldLabel(fold, weekdays = CAL_PHONE_WEEKDAYS) {
 /**
  * The header title (spec 4.1): `October 2026` in Month, `5-11 Oct 2026` in
  * Week (`28 Sep - 4 Oct 2026`, `28 Dec 2026 - 3 Jan 2027` across a month or a
- * year), `Wed 2026-10-07` in Day. Dates keep the app's ISO style. The short
+ * year), `Wed 2026-10-07` in Day, and 3 days as Week (`6-8 Oct 2026`). Dates keep the app's ISO style. The short
  * month is the first three letters of `months` unless `monthsShort` is given.
  * @param {string} view
  * @param {string} iso
@@ -158,11 +178,11 @@ export function calPhoneTitle(view, iso, names = {}) {
   const weekdays = names.weekdays || CAL_PHONE_WEEKDAYS
   if (view === 'month') return `${months[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`
   if (view === 'day') return `${weekdays[calWeekday(iso) - 1]} ${iso}`
-  if (view !== 'week') return ''
+  if (view !== 'week' && view !== '3day') return ''
   const part = (/** @type {string} */ day) => ({ d: Number(day.slice(8)), m: short[Number(day.slice(5, 7)) - 1], y: day.slice(0, 4) })
-  const from = calWeekStart(iso)
+  const from = view === 'week' ? calWeekStart(iso) : calAddDays(iso, -1)
   const a = part(from)
-  const b = part(calAddDays(from, 6))
+  const b = part(calAddDays(from, view === 'week' ? 6 : 2))
   if (a.y !== b.y) return `${a.d} ${a.m} ${a.y} - ${b.d} ${b.m} ${b.y}`
   if (a.m !== b.m) return `${a.d} ${a.m} - ${b.d} ${b.m} ${b.y}`
   return `${a.d}-${b.d} ${b.m} ${b.y}`

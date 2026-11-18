@@ -26,6 +26,14 @@
 // Above 820 px (1440x900) nothing changes. T011: a fresh browser (no
 // localStorage key at all) gets this phone calendar at 390, not 089 T009's.
 //
+// (todo) spec 170 row B3 (SPL-5873), at 390x844, dark and light: the
+//     reminder's link /calendar?k=todo&v=day opens the To-do view on Day on
+//     a phone whose stored range is Week, the stored range untouched; the
+//     To-do kind has four ranges (3 days added), a range picked goes to ?v=
+//     and > keeps k and v; a row links to its issue; the switch off shows
+//     the stored Week again. Control: before B3 the phone ignores ?k and
+//     ?v, so it opens the stored Week grid and every (todo) check FAILs.
+//
 // Controls: before T004 there is no [data-test=calendar-phone], so every
 // check FAILs; in-run, a planted 2000 px scroller must trip the H3 detector,
 // a planted 30 px button the H7 one.
@@ -40,6 +48,7 @@ import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
 import { calPhoneRange, calPhoneStep } from '../../src/utils/calendar-phone-nav.mjs'
+import { calAddDays } from '../../src/utils/calendar-year.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -79,7 +88,7 @@ const ROOT = '[data-test=calendar-phone]'
 const periodOf = (view, day) => calPhoneRange(view, day)?.from || ''
 
 /** a fresh page: the theme and the font level in localStorage first */
-async function open(browser, vp, { theme = 'dark', level = 3, view = '' } = {}) {
+async function open(browser, vp, { theme = 'dark', level = 3, view = '', path = '/calendar', tasks = null } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   await pinClock(p)
@@ -90,13 +99,17 @@ async function open(browser, vp, { theme = 'dark', level = 3, view = '' } = {}) 
       localStorage.setItem('spool-theme', s.theme)
       localStorage.setItem('spool-font-size', String(s.level))
       if (s.view) localStorage.setItem('spool-calendar-phone-view', s.view)
+      if (s.tasks) localStorage.setItem('spool.mock.issues-due', JSON.stringify(s.tasks))
     } catch { /* about:blank */ }
-  }, { theme, level, view })
+  }, { theme, level, view, tasks })
   const spec = { ...vp, hasTouch: true }
   await setPageViewport(p, spec)
-  await p.goto(server.base + '/calendar', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.goto(server.base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await applyViewport(p, spec)
-  if (vp.width <= 820) {
+  if (tasks) {
+    await p.waitForSelector(ROOT, { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
+    await todoReady(p)
+  } else if (vp.width <= 820) {
     await p.waitForSelector(ROOT, { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
     await p.waitForFunction((r) => document.querySelector(r)?.getAttribute('data-state') === 'ready', { timeout: 10000 }, ROOT).catch(() => {})
   } else {
@@ -106,6 +119,21 @@ async function open(browser, vp, { theme = 'dark', level = 3, view = '' } = {}) 
   await p.evaluate(() => document.getElementById('nuxt-devtools-container')?.remove())
   return { p, ctx }
 }
+
+/* spec 170 B3: mock tasks with deadlines (spool.mock.issues-due, as B2's
+   calendar-desk-views); the page runs in UTC on the pinned clock */
+const at = (day, hhmm) => `${day}T${hhmm}:00Z`
+const TASKS = [
+  { title: 'B3 today mine', deadline: at(today, '15:00'), mine: true },
+  { title: 'B3 earlier today mine', deadline: at(today, '09:00'), mine: true, status: 'wip' },
+  { title: 'B3 overdue mine', deadline: at(calAddDays(today, -4), '09:00'), mine: true },
+  { title: 'B3 tomorrow mine', deadline: at(calAddDays(today, 1), '09:00'), mine: true },
+  { title: 'B3 today teammate', deadline: at(today, '12:00') },
+]
+const todoReady = (p) => p.waitForFunction(() => document.querySelector('[data-test=calendar-todo]')?.getAttribute('data-state') === 'ready', { timeout: 10000 }).then(() => true, () => false)
+const todoTitles = (p) => p.$$eval('[data-test=calendar-todo-row] .cal-todo__name', (els) => els.map((e) => e.textContent?.trim())).catch(() => [])
+const query = (p) => p.evaluate(() => Object.fromEntries(new URLSearchParams(location.search)))
+const storedRange = (p) => p.evaluate(() => localStorage.getItem('spool-calendar-phone-view'))
 
 const rootAttr = (p, n) => p.$eval(ROOT, (el, a) => el.getAttribute(a), n).catch(() => '')
 const waitRoot = (p, n, want) => p.waitForFunction((r, a, w) => document.querySelector(r)?.getAttribute(a) === w, { timeout: 5000 }, ROOT, n, want).then(() => true, () => false)
@@ -403,6 +431,58 @@ try {
       await swipe(p, { x: m.x + m.w * 0.3, y: m.y }, { x: m.x + m.w * 0.85, y: m.y })
       ok(`H6 ${w}: reduced motion - the swipe still turns`, (await rootAttr(p, 'data-period')) === before, await rootAttr(p, 'data-period'))
     }
+    await ctx.close()
+  }
+
+  /* ---- (todo) spec 170 B3: the phone To-do view ---- */
+  for (const theme of ['dark', 'light']) {
+    console.log(`-- (todo) 390x844 ${theme}`)
+    const vp = { width: 390, height: 844 }
+    const { p, ctx } = await open(browser, vp, { theme, view: 'week', tasks: TASKS, path: '/calendar?k=todo&v=day' })
+    await shot(p, `todo-day-${theme}`)
+    const g = await p.evaluate((r) => ({
+      view: document.querySelector(r)?.getAttribute('data-view'),
+      todo: document.querySelector('[data-test=calendar-todo]')?.getAttribute('data-state'),
+      pressed: document.querySelector('[data-test=calphone-kind-todo]')?.getAttribute('aria-pressed'),
+      segs: [...document.querySelectorAll('[data-test=calphone-views] [role=radio]')].map((b) => b.getAttribute('data-view')),
+      checked: document.querySelector('[data-test=calphone-views] [aria-checked=true]')?.getAttribute('data-view'),
+      plus: Boolean(document.querySelector('[data-test=calphone-add]')),
+      events: Boolean(document.querySelector('[data-test=calphone-slot-day],[data-test=calphone-week],[data-test=calphone-month]')),
+    }), ROOT)
+    ok(`(todo) ${theme}: the reminder link ?k=todo&v=day opens the To-do view on Day, though the stored range is Week`,
+      g.view === 'day' && g.todo === 'ready' && g.pressed === 'true' && g.checked === 'day' && !g.plus && !g.events, g)
+    ok(`(todo) ${theme}: the To-do kind has four ranges, 3 days added`, JSON.stringify(g.segs) === JSON.stringify(['month', 'week', '3day', 'day']), g.segs)
+    ok(`(todo) ${theme}: Day lists the overdue task on top, then today's, mine only`,
+      JSON.stringify(await todoTitles(p)) === JSON.stringify(['B3 overdue mine', 'B3 earlier today mine', 'B3 today mine']), await todoTitles(p))
+    ok(`(todo) ${theme}: the link left the stored range Week`, (await storedRange(p)) === 'week', await storedRange(p))
+    const row = await p.$eval('[data-test=calendar-todo-row]', (e) => ({ key: e.getAttribute('data-key'), href: e.querySelector('a')?.getAttribute('href') || '' })).catch(() => null)
+    ok(`(todo) ${theme}: a row links to its issue`, Boolean(row?.key && row.href.endsWith(`/issues?issue=${row.key}`)), row)
+    ok(`(todo) ${theme}: no sideways scroll on Day`, flatOk(await sideways(p)), await sideways(p))
+
+    await tapView(p, '3day')
+    await waitRoot(p, 'data-view', '3day')
+    await p.waitForFunction(() => new URLSearchParams(location.search).get('v') === '3day', { timeout: 5000 }).catch(() => {})
+    await todoReady(p)
+    await shot(p, `todo-3day-${theme}`)
+    ok(`(todo) ${theme}: 3 days goes to ?v=3day and lists overdue, today and tomorrow`,
+      (await query(p)).v === '3day' && JSON.stringify(await todoTitles(p)) === JSON.stringify(['B3 overdue mine', 'B3 earlier today mine', 'B3 today mine', 'B3 tomorrow mine']),
+      { q: await query(p), rows: await todoTitles(p) })
+    ok(`(todo) ${theme}: a range picked in the To-do kind leaves the stored range Week`, (await storedRange(p)) === 'week', await storedRange(p))
+    await p.click(`${ROOT} [data-test=calphone-next]`)
+    const moved = await p.waitForFunction((d) => new URLSearchParams(location.search).get('d') === d, { timeout: 8000 }, calAddDays(today, 3)).then(() => true, () => false)
+    await todoReady(p)
+    const q = await query(p)
+    ok(`(todo) ${theme}: > turns three days and keeps k and v`, moved && q.k === 'todo' && q.v === '3day' && (await rootAttr(p, 'data-view')) === '3day', q)
+    ok(`(todo) ${theme}: three days on there is no overdue section and nothing due`,
+      !(await p.$('[data-test=calendar-todo-overdue]')) && Boolean(await p.$('[data-test=calendar-todo-empty]')), await todoTitles(p))
+
+    await p.click(`${ROOT} [data-test=calphone-kind-todo]`)
+    const off = await p.waitForFunction(() => new URLSearchParams(location.search).get('k') === null && !document.querySelector('[data-test=calendar-todo]'), { timeout: 8000 }).then(() => true, () => false)
+    await waitRoot(p, 'data-state', 'ready')
+    ok(`(todo) ${theme}: the switch off shows the stored Week with its three ranges and the +`,
+      off && (await rootAttr(p, 'data-view')) === 'week' && (await rootAttr(p, 'data-state')) === 'ready' && Boolean(await p.$('[data-test=calphone-add]'))
+        && (await p.$$('[data-test=calphone-views] [role=radio]')).length === 3,
+      { off, view: await rootAttr(p, 'data-view'), q: await query(p) })
     await ctx.close()
   }
 

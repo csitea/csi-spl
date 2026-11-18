@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import {
   calDayCompare, calPhoneDayHours, calPhoneEventDays, calPhoneFoldDays, calPhoneFoldLabel, calPhoneHourPreset,
   calPhoneMonthGrid, calPhoneNextFullHour, calPhoneRange, calPhoneSpanOf, calPhoneStep, calPhoneTitle,
-  calPhoneWeekStrip,
+  calPhoneTodoView, calPhoneWeekStrip, CAL_PHONE_TODO_VIEWS, CAL_PHONE_VIEWS,
 } from '../../src/utils/calendar-phone-nav.mjs'
 import { hoursShowsLine } from '../../src/utils/hours-calendar.mjs'
 
@@ -107,6 +107,33 @@ describe('the week strip and folded days', () => {
       ['empty 2026-10-05', 'empty 2026-10-06', 'day 2026-10-07', 'empty 2026-10-08', 'empty 2026-10-09', 'empty 2026-10-10', 'fold Sun'])
     const none = calPhoneFoldDays(days, () => 0, new Set(), (d) => hoursShowsLine(d, new Map()))
     assert.deepEqual(none.map((r) => (r.kind === 'fold' ? `fold ${calPhoneFoldLabel(r)}` : r.kind)), ['empty', 'empty', 'empty', 'empty', 'empty', 'fold Sat-Sun'])
+  })
+})
+
+describe('the To-do kind\'s 3 days and its range from ?v= (spec 170 B3)', () => {
+  it('the To-do kind has four ranges, the event views keep three (control)', () => {
+    assert.deepEqual(CAL_PHONE_TODO_VIEWS, ['month', 'week', '3day', 'day'])
+    assert.deepEqual(CAL_PHONE_VIEWS, ['month', 'week', 'day'])
+  })
+  it('3 days steps three days, reads the day before to the day after, titles as Week', () => {
+    assert.equal(calPhoneStep('3day', '2026-12-31', 1), '2027-01-03')
+    assert.equal(calPhoneStep('3day', '2026-03-02', -1), '2026-02-27')
+    assert.deepEqual(calPhoneRange('3day', '2026-10-07'), { from: '2026-10-06', to: '2026-10-09' })
+    assert.deepEqual(calPhoneRange('3day', '2027-01-01'), { from: '2026-12-31', to: '2027-01-03' })
+    assert.equal(calPhoneTitle('3day', '2026-10-07'), '6-8 Oct 2026')
+    assert.equal(calPhoneTitle('3day', '2026-11-01'), '31 Oct - 2 Nov 2026')
+    assert.equal(calPhoneTitle('3day', '2027-01-01'), '31 Dec 2026 - 2 Jan 2027')
+    assert.equal(calPhoneTitle('3day', 'x'), '')
+    assert.equal(calPhoneRange('3day', 'x'), null)
+  })
+  it('?v= sets the range for the visit; none or junk is the stored range, then Week', () => {
+    assert.equal(calPhoneTodoView('day', 'week'), 'day', 'the reminder link on a phone whose stored range is Week')
+    assert.equal(calPhoneTodoView('3day', 'month'), '3day')
+    assert.equal(calPhoneTodoView(undefined, 'month'), 'month')
+    assert.equal(calPhoneTodoView('', 'day'), 'day')
+    assert.equal(calPhoneTodoView('year', 'day'), 'day')
+    assert.equal(calPhoneTodoView(['day'], 'week'), 'day', 'a repeated key stringifies to its one value')
+    assert.equal(calPhoneTodoView(null, 'nope'), 'week')
   })
 })
 

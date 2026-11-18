@@ -2870,6 +2870,8 @@
     "view_short_month": "M",
     "view_short_week": "V",
     "view_short_day": "D",
+    "view_3day": "3 dagar",
+    "view_short_3day": "3",
     "prev_month": "Föregående månad",
     "next_month": "Nästa månad",
     "month_empty": "Inga planerade händelser",
@@ -2878,6 +2880,8 @@
     "next_week": "Nästa vecka",
     "prev_day": "Föregående dag",
     "next_day": "Nästa dag",
+    "prev_3day": "Föregående 3 dagar",
+    "next_3day": "Nästa 3 dagar",
     "placeholder": "Den här vyn kommer snart."
   },
   "calendar_phone_peek": {

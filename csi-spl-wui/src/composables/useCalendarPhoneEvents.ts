@@ -12,7 +12,7 @@ import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { calPhoneRange, calPhoneStep } from '~/utils/calendar-phone-nav.mjs'
 import { calLoadWindow } from '~/utils/calendar-year.mjs'
 
-type View = 'month' | 'week' | 'day'
+type View = 'month' | 'week' | '3day' | 'day'
 type Api = ReturnType<typeof useSpoolApi>
 
 type EventsOpts = {
@@ -20,6 +20,8 @@ type EventsOpts = {
   view: Ref<View>
   shownDay: Ref<string>
   today: () => string
+  /** spec 170 B3: true while the To-do kind shows, which reads no events */
+  off?: () => boolean
 }
 type FetchCtx = { api: Api, today: () => string, cache: Map<string, CalendarItem[]> }
 
@@ -64,7 +66,7 @@ export function useCalendarPhoneEvents(o: EventsOpts) {
     const timer = setTimeout(() => mine.abort(), DOC_READ_TIMEOUT_MS)
     const day = shownDay.value
     const v = view.value
-    const r = calPhoneRange(v, day)
+    const r = o.off?.() ? null : calPhoneRange(v, day)
     if (!r) return
     state.value = cache.has(`${r.from}/${r.to}`) ? state.value : 'loading'
     try {
@@ -84,7 +86,7 @@ export function useCalendarPhoneEvents(o: EventsOpts) {
       clearTimeout(timer)
     }
   }
-  watch([view, shownDay], () => { void settle() })
+  watch([view, shownDay, () => o.off?.()], () => { void settle() })
 
   function onChanged() {
     cache.clear()

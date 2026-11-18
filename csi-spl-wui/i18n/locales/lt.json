@@ -2870,6 +2870,8 @@
     "view_short_month": "M",
     "view_short_week": "S",
     "view_short_day": "D",
+    "view_3day": "3 dienos",
+    "view_short_3day": "3",
     "prev_month": "Ankstesnis mėnuo",
     "next_month": "Kitas mėnuo",
     "month_empty": "Suplanuotų įvykių nėra",
@@ -2878,6 +2880,8 @@
     "next_week": "Kita savaitė",
     "prev_day": "Ankstesnė diena",
     "next_day": "Kita diena",
+    "prev_3day": "Ankstesnės 3 dienos",
+    "next_3day": "Kitos 3 dienos",
     "placeholder": "Šis rodinys pasirodys netrukus."
   },
   "calendar_phone_peek": {

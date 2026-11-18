@@ -57,7 +57,11 @@ reads and fetches, sends nothing, writes no ledger). Code:
    in that repo. The sender lane's own repo is one of them too (section
    1.3).
 4. No sha, or a sha on no trunk: ONE note to the dispatch lease holder on
-   task `done-claim-check`: lane, msg id, the shas, "not in the repository".
+   task `done-claim-check`: lane, msg id, then what is missing. A result
+   with no sha reads "names no sha (a commit sha is 9-12 or 40 hex digits,
+   8-digit forms are not read)" (SPL-5841: c-369 named its shas in 8 hex,
+   and the old "no sha not in the repository" read as a missing land); a
+   sha on no trunk reads "sha <x> not in the repository".
    Every judged message goes to the ledger
    (`$XDG_STATE_HOME/csi-spl/done-claim-check/seen.tsv`) and is never judged
    again; a failed send stays out of it and is retried on the next run.

@@ -27,6 +27,13 @@
 #      with bug over its band fills nothing; an unreadable phase fills nothing
 #      (every other case runs at a fixed day moment, with no inherited
 #      RHYTHM_CNF); the class pick with no phase takes no class
+#   9. the lane's discussion (SPL-5860): an issue that links only the t1
+#      default (backlog) topic gets a NEW hub topic, opened by one desk note
+#      and linked to the issue, and the brief names it, never the backlog;
+#      an issue with a topic of its own keeps it and opens nothing; a hub
+#      that refuses the link queues nothing, and the next tick reuses the
+#      same topic id (sha256 of the key, v4-shaped); a refused open links
+#      nothing and queues nothing
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -76,6 +83,16 @@ for r in rows:
 print("hub refused: unknown_ask (404)", file=sys.stderr); sys.exit(1)
 STUB
 chmod +x "$T/bin/hub"
+# The desk spool stub (SPAWN_FILL_HUB_CMD): logs each call; HUB_FAIL=link refuses the link.
+cat >"$T/bin/spoolhub" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$SPOOL_HUB_LOG"
+[[ "$1" == issue && "${HUB_FAIL:-}" == link ]] && { echo "hub refused: unknown_discussion (400)" >&2; exit 1; }
+[[ "$1" == send && "${HUB_FAIL:-}" == open ]] && { echo "hub refused: from_not_announced (403)" >&2; exit 1; }
+[[ "$1" == send ]] && echo '{"msg_id":"m-1","delivery":"sent"}'
+exit 0
+STUB
+chmod +x "$T/bin/spoolhub"
 cat >"$T/bin/send" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$SEND_LOG"
@@ -128,12 +145,14 @@ fill() {  # [env...]
     SPAWN_SHARE_LANES_CMD="$T/bin/lanes" SPAWN_SHARE_DISPATCH=c-002@box-desk SPAWN_FILL_PICK_CMD="$T/bin/pick" \
     SPAWN_FILL_ISSUES_CMD="$T/bin/issues" SPAWN_FILL_MIX_CMD="$T/bin/mix" MIX_LOG="$T/mix.log" SPAWN_PLACE_BRIEF_DIR="$T/briefs" \
     SPAWN_FILL_CNF="$T/none.yaml" EPIC_STALL=off LANES="$LANES_OVER" PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" \
-    RHYTHM_NOW="$DAY" RHYTHM_CNF= "$@" bash -c '
+    RHYTHM_NOW="$DAY" RHYTHM_CNF= ENV=prd TENANT_ID=t1 DESK_AGENT=c-002 DESK_BOX=box-desk \
+    SPAWN_FILL_HUB_CMD="$T/bin/spoolhub" SPOOL_HUB_LOG="$T/spoolhub.log" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
-    for f in spl-lane-map spl-asks-open spl-asks-tick spl-spawn-queue spl-spawn-share spl-spawn-enqueue spl-spawn-place spl-spawn-fill; do
+    for f in spl-lane-map spl-asks-open spl-asks-tick spl-spawn-queue spl-spawn-share spl-spawn-enqueue spl-spawn-place spl-lane-issue spl-spawn-fill; do
       source "'"$PROJ_ROOT"'/src/bash/run/$f.func.sh"
     done
+    spl_desk_action_hop_to() { return 1; }  # as under SPOOL_TEST=1: the desk is this one
     do_spl_spawn_fill' 2>&1
 }
 asks() { jq -c '[.[] | select(.state != "done")] | length' "$T/hub/main.json"; }
@@ -195,6 +214,7 @@ grep -qx 'Class: bug' "$T/briefs/fill-spl-1.md" && [[ "$(li_key_from_brief "$T/b
   pass "live: the brief carries Issue: SPL-1 (the spawn links it) and Class: bug (the share reads it)" || fail "brief: $(cat "$T/briefs/fill-spl-1.md")"
 [[ "$(li_discussion_from_brief "$T/briefs/fill-spl-1.md")" == fcf09921-0000-4000-8000-000000001922 ]] &&
   pass "live: the brief names the issue's linked topic (SPL-5325: the enqueue refuses a brief with no discussion)" || fail "brief topic: $(cat "$T/briefs/fill-spl-1.md")"
+[[ ! -s "$T/spoolhub.log" ]] && pass "live: an issue with a topic of its own opens no hub topic" || fail "hub calls: $(cat "$T/spoolhub.log")"
 id2="$(fill SPAWN_FILL=on DRY_RUN=0 | grep -c 'not empty (1 queued')"
 [[ "$id2" == 1 && "$(asks)" == 1 ]] && pass "live: the next tick sees 1 queued and fills nothing" || fail "second tick: $id2 $(asks)"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$id" --by c-001@box-desk --reason "placed: c-300@box-desk" >/dev/null
@@ -242,6 +262,43 @@ got="$(PROJ_PATH="$PROJ_ROOT" bash -c 'source "$PROJ_PATH/src/bash/run/spl-spawn
   for p in day night "" dusk; do printf "%s=[%s] " "${p:-none}" "$(spl_spawn_fill_classes "$1" "$p")"; done' _ "$share")"
 [[ "$got" == "day=[bug feature] night=[bug] none=[] dusk=[] " ]] &&
   pass "phase: the class pick with no or an unknown phase takes no class ($got)" || fail "classes by phase: $got"
+
+# 9. the lane's discussion (SPL-5860) ----------------------------------------------
+BACKLOG=fcf09921-8f21-4518-a117-f8ddb41bfff5 OWN=11111111-2222-4333-8444-555555555555
+{ iss SPL-30 todo 1 '["bug"]' | jq -c --arg b "$BACKLOG" '.discussions = [{task_id: $b}]'
+  iss SPL-31 todo 2 '["bug"]' | jq -c --arg b "$BACKLOG" --arg o "$OWN" '.discussions = [{task_id: $b}, {task_id: $o}]'
+} | jq -s '{result: {issues: .}}' >"$T/issues-9.json"
+printf '#!/usr/bin/env bash\ncat "%s/issues-9.json"\n' "$T" >"$T/bin/issues-9"; chmod +x "$T/bin/issues-9"
+f9() { : >"$T/spoolhub.log"; rm -rf "$T/hub-9" "$T/briefs"; mkdir -p "$T/hub-9" "$T/briefs"
+  fill SPAWN_FILL=on DRY_RUN=0 SPAWN_FILL_ISSUES_CMD="$T/bin/issues-9" HUB_DIR="$T/hub-9" "$@"; }
+out="$(f9)"
+topic="$(li_discussion_from_brief "$T/briefs/fill-spl-30.md" 2>/dev/null)"
+send="$(grep '^send ' "$T/spoolhub.log")"; link="$(grep '^issue link ' "$T/spoolhub.log")"
+if [[ "$topic" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ && "$topic" != "$BACKLOG" ]] &&
+   [[ "$send" == "send --from c-002 --to c-002 --to-box box-desk --task $topic --kind note --body SPAWN FILL SPL-30: "* ]] &&
+   [[ "$link" == "issue link --as c-002 --ref SPL-30 --discussion $topic" ]] && grep -q 'OK 1 row(s) queued' <<<"$out"; then
+  pass "topic: SPL-30 links only the backlog topic -> a new topic ${topic:0:8} (a v4 uuid) opened by one desk note, linked to SPL-30, named by the brief"
+else fail "topic new: brief '$topic' | $(cat "$T/spoolhub.log") | $out"; fi
+grep -q "Topic: $BACKLOG" "$T/briefs/fill-spl-30.md" && fail "the brief names the backlog topic"
+out="$(f9 SPAWN_FILL_ISSUES_CMD="$T/bin/issues-9" HUB_FAIL=link)"
+[[ ! -e "$T/hub-9/main.json" || "$(jq '[.[] | select(.state == "queued")] | length' "$T/hub-9/main.json")" == 0 ]] && [[ ! -e "$T/briefs/fill-spl-30.md" ]] &&
+  grep -q 'WARN SPL-30: the hub did not link topic' <<<"$out" && grep -q 'WARN SPL-30: no discussion of its own for the lane: not queued' <<<"$out" &&
+  pass "topic: a hub that refuses the link queues nothing and writes no brief" || fail "link refused: $out"
+t1="$(grep -oE -- '--task [0-9a-f-]{36}' "$T/spoolhub.log")"
+f9 HUB_FAIL=link >/dev/null; t2="$(grep -oE -- '--task [0-9a-f-]{36}' "$T/spoolhub.log")"
+[[ -n "$t1" && "$t1" == "$t2" && "${t1#--task }" == "$topic" ]] &&
+  pass "topic: a refused link twice -> one topic id (${topic:0:8}, from the key), the retry opens no second topic" || fail "retry topic: '$t1' vs '$t2' vs '$topic'"
+out="$(f9 HUB_FAIL=open)"
+! grep -q '^issue link' "$T/spoolhub.log" && [[ ! -e "$T/briefs/fill-spl-30.md" ]] && grep -q 'WARN SPL-30: the hub did not open topic' <<<"$out" &&
+  grep -q 'OK 0 row(s) queued' <<<"$out" && pass "topic: a refused open links nothing, writes no brief, queues nothing" || fail "open refused: $(cat "$T/spoolhub.log") | $out"
+jq '.result.issues |= map(select(.key == "SPL-31"))' "$T/issues-9.json" >"$T/issues-9b.json"
+printf '#!/usr/bin/env bash\ncat "%s/issues-9b.json"\n' "$T" >"$T/bin/issues-9b"; chmod +x "$T/bin/issues-9b"
+out="$(f9 SPAWN_FILL_ISSUES_CMD="$T/bin/issues-9b")"
+[[ "$(li_discussion_from_brief "$T/briefs/fill-spl-31.md")" == "$OWN" && ! -s "$T/spoolhub.log" ]] && grep -q 'OK 1 row(s) queued' <<<"$out" &&
+  pass "topic: SPL-31 links the backlog first and a topic of its own second -> the brief names its own, no hub call" || fail "topic own: $(cat "$T/briefs/fill-spl-31.md" 2>&1) | $(cat "$T/spoolhub.log") | $out"
+out="$(f9 TENANT_ID=)"
+grep -q 'WARN SPL-30: no ENV / TENANT_ID' <<<"$out" && [[ ! -s "$T/spoolhub.log" && ! -e "$T/briefs/fill-spl-30.md" ]] &&
+  pass "topic: with no tenant the default topic is unknown: nothing is opened or queued" || fail "no tenant: $out"
 
 # 7. the cron installer ------------------------------------------------------------
 SRC="$T/shared"; mkdir -p "$SRC/csi-spl-orc"; printf '#!/bin/sh\n' >"$SRC/csi-spl-orc/run"; chmod +x "$SRC/csi-spl-orc/run"

@@ -29,7 +29,11 @@
 # @description      rule: an issue whose text names a secret or personal data
 # @description      asks the mix with LANE_MIX_SENSITIVE=1 and is skipped unless
 # @description      the pick is claude, grok or mistral
-# @description   6. QUEUE - writes the brief <slug>.md (Issue: + Class: lines)
+# @description   6. QUEUE - the lane's discussion: the first topic the issue
+# @description      links other than the tenant default (t1 backlog topic, which
+# @description      the commit-links gate never counts); with none, a new hub
+# @description      topic opened by a desk note to itself and linked to the
+# @description      issue (SPL-5860). Writes the brief <slug>.md (Issue: + Topic: + Class:)
 # @description      under SPAWN_PLACE_BRIEF_DIR, puts the ask (id derived from
 # @description      the key, so a replay is the same ask) and enqueues it with
 # @description      do_spl_spawn_enqueue, SPAWN_CLASS and SPAWN_PLACE=<vendor>:<slug>
@@ -49,6 +53,7 @@
 # @param SPAWN_PLACE_BRIEF_DIR (optional) - where the briefs go, default <spool root>/dispatch/briefs
 # @param ENV TENANT_ID DESK_AGENT DESK_BOX (optional) - the issue desk, default the lease's (as do_spl_lane_issue)
 # @param SPAWN_FILL_PICK_CMD SPAWN_FILL_ISSUES_CMD SPAWN_FILL_MIX_CMD (optional, tests) - print the box pick / the issue list JSON / the lane mix (gets LANE_MIX_KIND, LANE_MIX_SENSITIVE)
+# @param SPAWN_FILL_HUB_CMD (optional, tests) - gets the spool arguments of the topic note (send ...) and the issue link (issue link ...)
 # @param SPAWN_SHARE_LANES_CMD ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD ASKS_HOLDER (optional) - as do_spl_spawn_place
 # @example ./run -a do_spl_spawn_fill
 # @example SPAWN_FILL=on DRY_RUN=0 ./run -a do_spl_spawn_fill
@@ -298,11 +303,13 @@ spl_spawn_fill_queue() {  # CHOSEN PICK HOLDER SWITCH
   fi
 }
 
-# One issue: the brief, the ask, the enqueue.
+# One issue: its own discussion, the brief, the ask, the enqueue.
 spl_spawn_fill_one() {  # ROW PICK FROM VENDOR SLUG ID
-  local dir="${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}" key class out
+  local dir="${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}" key class out topic row
   key="$(jq -r .key <<<"$1")"; class="$(jq -r .class <<<"$1")"
-  { mkdir -p "$dir" && spl_spawn_fill_brief "$1" "$2" "$3" >"$dir/$5.md" && [[ -s "$dir/$5.md" ]]; } ||
+  topic="$(spl_spawn_fill_topic "$1" "$3")" || { do_log "WARN $key: no discussion of its own for the lane: not queued"; return 1; }
+  row="$(jq -c --arg t "$topic" '.discussions = [{task_id: $t}]' <<<"$1")"
+  { mkdir -p "$dir" && spl_spawn_fill_brief "$row" "$2" "$3" >"$dir/$5.md" && [[ -s "$dir/$5.md" ]]; } ||
     { do_log "WARN $key: the brief $dir/$5.md was not written: not queued"; return 1; }
   out="$(spl_asks_hub put --fleet "$LANE_FLEET" --id "$6" --kind task --role orch --from "$3" \
     --topic "spawn-fill-${key,,}" --summary "SPAWN FILL $key ($class): $(jq -r .title <<<"$1" | cut -c1-140)" 2>&1)" ||
@@ -311,12 +318,66 @@ spl_spawn_fill_one() {  # ROW PICK FROM VENDOR SLUG ID
     do_spl_spawn_enqueue || { do_log "WARN $key: the enqueue failed"; return 1; }
 }
 
+# The lane's discussion (SPL-5860): the first topic the issue links other than
+# the tenant's default one (t1: the backlog topic), which the commit-links gate
+# never counts. With none, a new hub topic (spl_spawn_fill_topic_id): one desk
+# note opens it and the issue links it. Same box or not: a same-box lane's messages never reach the
+# hub, so no relay topic ever exists for it. Prints the topic id.
+spl_spawn_fill_topic() {  # ROW FROM
+  local key def own topic out
+  key="$(jq -r .key <<<"$1")"
+  spl_lane_issue_where "${SPOOL_ROOT:-}" >/dev/null 2>&1 ||
+    { do_log "WARN $key: no ENV / TENANT_ID (nor LEASE_ENV / LEASE_TENANT in lease.conf): the default topic is unknown" >&2; return 1; }
+  def="$(spl_lane_issue_default_topic)"
+  own="$(jq -r --arg d "$def" '[.discussions[]?.task_id // "" | ascii_downcase
+    | select(test("^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")) | select(. != $d)] | first // ""' <<<"$1")"
+  [[ -n "$own" ]] && { printf '%s' "$own"; return 0; }
+  topic="$(spl_spawn_fill_topic_id "$key")"
+  out="$(spl_spawn_fill_hub open "$topic" "SPAWN FILL $key: the discussion of the lane the idle filler queued for it; the issue linked only the default topic $def. The lane reports to $2, its commits cite $key, and $key links this topic (SPL-5860)." 2>&1)" ||
+    { do_log "WARN $key: the hub did not open topic $topic: $(tail -1 <<<"$out" | cut -c1-200)" >&2; return 1; }
+  out="$(spl_spawn_fill_hub link "$topic" "$key" 2>&1)" ||
+    { do_log "WARN $key: the hub did not link topic $topic: $(tail -1 <<<"$out" | cut -c1-200)" >&2; return 1; }
+  do_log "INFO $key linked only the default topic: opened topic $topic and linked it" >&2
+  printf '%s' "$topic"
+}
+
+# The new topic id of KEY: v4-shaped from sha256("spawn-fill-topic:<key>")
+# (cut as the hub's IssueBacklogID), so a tick that retries after a refused
+# link reuses the topic instead of leaving one more behind; version 4, not
+# 5, so it never reads as a relay hash.
+spl_spawn_fill_topic_id() {  # KEY
+  local h
+  h="$(printf 'spawn-fill-topic:%s' "$1" | sha256sum | cut -c1-32)"
+  printf '%s-%s-4%s-8%s-%s' "${h:0:8}" "${h:8:4}" "${h:13:3}" "${h:17:3}" "${h:20:12}"
+}
+
+# spl_spawn_fill_hub open TOPIC BODY | link TOPIC KEY, as the issue desk: a
+# note to itself that opens topic TOPIC, or `spool issue link`. With
+# SPAWN_FILL_HUB_CMD (tests) that command gets the spool arguments instead.
+spl_spawn_fill_hub() {  # OP TOPIC ARG
+  local box d agent
+  local -a a=()
+  if [[ -z "${SPAWN_FILL_HUB_CMD:-}" ]]; then
+    { spl_lane_issue_desk "$SPOOL_ROOT" 0 && spl_desk_issue_once; } >&2 || return 1
+  fi
+  box="${DESK_BOX:-$(spl_desk_box_default)}"; agent="${DESK_AGENT:-}"
+  [[ -n "$agent" ]] || return 1
+  case "$1" in
+    open) a=(send --from "$agent" --to "$agent" --to-box "$box" --task "$2" --kind note --body "$3") ;;
+    link) a=(issue link --as "$agent" --ref "$3" --discussion "$2") ;;
+    *) return 1 ;;
+  esac
+  if [[ -n "${SPAWN_FILL_HUB_CMD:-}" ]]; then "$SPAWN_FILL_HUB_CMD" "${a[@]}"; return; fi
+  d="$(spl_desk_dir "$TENANT_ID" "$box")" || [[ $? -eq 1 ]] || return 1
+  spl_desk_spool "$d" "$box" "$TENANT_ID" "$SPL_HUB_URL" -- "${a[@]}"
+}
+
 # The lane brief of one issue (markdown).
 spl_spawn_fill_brief() {  # ROW PICK FROM
   jq -r --argjson pick "$2" --arg from "$3" '
     "# Lane brief: \(.key) \(.title) (one small task, \(.class), from the idle filler)\n",
     "Issue: \(.key)",
-    # the first topic the issue links: its task is no hub topic, and a brief naming none is refused at the enqueue (SPL-5325)
+    # the topic of the lane (spl_spawn_fill_topic, never the default one): a brief naming none is refused at the enqueue (SPL-5325)
     ([.discussions[]?.task_id // "" | select(test("^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"))] | first | values | "Topic: \(.)"),
     "Class: \(.class)\n",
     "Queued by do_spl_spawn_fill: \($pick.why). The issue is \(.status), priority \(.priority).",

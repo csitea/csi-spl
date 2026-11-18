@@ -246,3 +246,17 @@ Run P1 in the table (05:46Z..06:33Z series) had both halves.
   seat `356216b66`). v1.0 = the rows of v0.2 unchanged, landed on
   `master` by this seat; the seat signs the landed v1.0 sha, then the holder
   queues p16-01 and p16-02.
+
+## 6. Close (09:5xZ)
+
+- v1.0 `330bfc390` landed; quality gate 44258982546 and 44261383265
+  success on it.
+- Rows on `origin/master` (`git log origin/master --oneline -E
+  --grep='\(p16-'` -> 2 lines): p16-01 `48b44328b`, p16-02 `0905076cc`.
+  Per the holder: p16-01 ACCEPTED by c-002@sat; p16-02 and this seat
+  ACCEPTED by c-003@sat (msg 37ccafd4, 08:48:45Z; quality gate 44265733431
+  success on `e563bf623`, which contains `0905076cc`).
+- The Qto import (4.5) is not done by this seat: the lane has no desk seat,
+  so `do_spl_doctree_import_md` refused it; the DRY_RUN=0 command went to the
+  orchestrator. The dry run on this tree listed 11 sections.
+- `perf-round-16-retro.md` is the next round's input, not written here.

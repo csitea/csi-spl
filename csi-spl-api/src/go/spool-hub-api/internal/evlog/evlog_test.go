@@ -127,7 +127,7 @@ func TestNormalize(t *testing.T) {
 			t.Errorf("Normalize is not idempotent on %q: %q", c.want, got)
 		}
 	}
-	long := strings.Repeat("é ", 1000)
+	long := strings.Repeat("é", 1000)
 	if got := []rune(Normalize(long)); len(got) != MaxMessageRunes {
 		t.Errorf("Normalize cut to %d runes, want %d", len(got), MaxMessageRunes)
 	}
@@ -233,4 +233,89 @@ func TestGroupsDroppedSetBounded(t *testing.T) {
 	if len(out) != 2 || out[1].N != 3 || len(g.dropped) != 0 {
 		t.Errorf("Take = %+v, want 1 group + overflow N=3", out)
 	}
+}
+
+// C29 rows from the R7 review of 167fe1dec (spec 162 10.6): a URL's query
+// after its userinfo (W1), a key and value in escaped JSON quotes (W2), a
+// passwd key (N2) and a non-ASCII email (N1). Kept apart from plantedC29,
+// whose 14 rows are the spec's own. Values are built from parts so a secret
+// scanner does not match the source.
+func plantedC29Review() []planted {
+	esc := `decode body "{\"pass` + `word\":\"planted-pw-02\"}" failed`
+	return []planted{
+		{"query after userinfo", "dial https://u:planted-pw-01@db.example.com/cb?code=plantedcode01&state=x failed",
+			[]string{"planted-pw-01", "plantedcode01", "state=x"}},
+		{"escaped json key", esc, []string{"planted-pw-02"}},
+		{"passwd", "login passwd=" + "planted-pw-03 refused", []string{"planted-pw-03"}},
+		{"credential", "load credential: " + "planted-pw-05 failed", []string{"planted-pw-05"}},
+		{"non-ascii email", "mail to jörg@example.com and user@exämple.de bounced", []string{"jörg", "user@exämple.de", "exämple"}},
+	}
+}
+
+// Red control: the userinfo rule moved back above the query rule fails
+// "query after userinfo"; the key rule without \\? fails "escaped json key".
+func TestRedactC29Review(t *testing.T) {
+	for _, p := range plantedC29Review() {
+		out := Redact(p.in)
+		for _, s := range p.gone {
+			if strings.Contains(out, s) {
+				t.Errorf("C29 %s: %q survived Redact: %q", p.rule, s, out)
+			}
+		}
+		if n := Normalize(p.in); containsAny(n, p.gone) {
+			t.Errorf("C29 %s: Normalize leaks: %q", p.rule, n)
+		}
+	}
+}
+
+// idemSeeds are inputs Normalize must be idempotent on; the first is the
+// Postgres error the R7 fuzz found (W3).
+var idemSeeds = []string{
+	`pq: syntax error at or near 'O''Brien' in insert`,
+	`column "a""b" does not exist`,
+	"A://?0",
+	"X0AAAAAAAA",
+	"dial https://u:planted-pw-01@db.example.com/cb?code=plantedcode01&state=x failed",
+	`decode body "{\"k\":\"v\"}" failed`,
+	"row 9999999 and row 10000000",
+	strings.Repeat("ab ", 400) + "tail",
+	strings.Repeat("x", 799) + " y",
+}
+
+// Normalize(Normalize(s)) == Normalize(s), and Groups.Add returns the
+// fingerprint Fingerprint gives for the raw message, whose stored Message
+// hashes to it as well. Red controls: Normalize as one pass fails the
+// X0AAAAAAAA seed; the single-quote rule without its doubled-quote escape fails the
+// exact form of the first seed.
+func TestNormalizeIdempotent(t *testing.T) {
+	for _, in := range idemSeeds {
+		n1 := Normalize(in)
+		if n2 := Normalize(n1); n2 != n1 {
+			t.Errorf("Normalize not idempotent on %q: %q then %q", in, n1, n2)
+		}
+		g := NewGroups(10)
+		fp, _ := g.Add(Sighting{Kind: "error.log", Message: in, Anchor: "a"})
+		if want := Fingerprint("error.log", in, "a"); fp != want {
+			t.Errorf("Add fp %s != Fingerprint %s for %q", fp, want, in)
+		}
+		if gr := g.Take(time.Time{})[0]; Fingerprint(gr.Kind, gr.Message, "a") != gr.Fingerprint {
+			t.Errorf("stored Message %q does not hash to its fingerprint", gr.Message)
+		}
+	}
+	// A doubled quote stays inside its value: one <s>, not two.
+	if n, want := Normalize(idemSeeds[0]), "pq: syntax error at or near <s> in insert"; n != want {
+		t.Errorf("Normalize(%q) = %q, want %q", idemSeeds[0], n, want)
+	}
+}
+
+func FuzzNormalizeIdempotent(f *testing.F) {
+	for _, s := range idemSeeds {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		n1 := Normalize(s)
+		if n2 := Normalize(n1); n2 != n1 {
+			t.Errorf("Normalize(%q) = %q, again %q", s, n1, n2)
+		}
+	})
 }

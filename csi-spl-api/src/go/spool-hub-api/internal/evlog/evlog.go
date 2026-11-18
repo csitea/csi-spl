@@ -47,20 +47,22 @@ type rule struct {
 }
 
 // redactRules are the rules of 10.6, most specific first: a PEM block or a
-// DSN before the URL and key rules that would cut it in parts, the userinfo
-// of a URL before the email rule. The long-run rule (blobRe) runs last, so
+// DSN before the URL and key rules that would cut it in parts, a URL's
+// query before its userinfo (the userinfo placeholder holds `<`, which ends
+// the query rule's URL), the userinfo of a URL before the email rule. A key
+// or its value may sit in escaped quotes (\" of a Go %q of a JSON body). The long-run rule (blobRe) runs last, so
 // the placeholders here (they hold `<` and `>`) end every run they replaced.
 var redactRules = []rule{
 	{regexp.MustCompile(`-----BEGIN [A-Z0-9 ]+-----(?s:.*?)(?:-----END [A-Z0-9 ]+-----|\z)`), "<pem>"},
 	{regexp.MustCompile(`(?i)\bpostgres(?:ql)?://[^\s"'<>]+`), "<dsn>"},
 	{regexp.MustCompile(`(?i)\b(?:host|hostaddr)=\S+(?:\s+(?:port|user|password|dbname|sslmode|connect_timeout|application_name)=\S+)+`), "<dsn>"},
+	{regexp.MustCompile(`(?i)\b([a-z][a-z0-9+.-]*://[^\s?#"'<>]*)\?[^\s#"'<>]+`), "$1?<q>"},
 	{regexp.MustCompile(`//[^\s/?#@"'<>]+@`), "//<redacted>@"},
-	{regexp.MustCompile(`(?i)\b([a-z][a-z0-9+.-]*://[^\s?#"'<>]*)\?[^\s#"'<>]*`), "$1?<q>"},
 	{regexp.MustCompile(`\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`), "<jwt>"},
-	{regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}`), "<email>"},
+	{regexp.MustCompile(`[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}`), "<email>"},
 	{regexp.MustCompile(`(?i)\b(bearer)\s+[^\s"',;<>]+`), "$1 <redacted>"},
 	{regexp.MustCompile(`(?i)\b((?:set-)?cookie\s*:\s*)[^"'\s][^\r\n]*`), "$1<redacted>"},
-	{regexp.MustCompile(`(?i)([A-Za-z0-9_-]*(?:token|key|secret|password|pwd|sig|signature|authorization|cookie|dsn)["']?\s*[:=]\s*)(?:(?:bearer|basic|digest|token)\s+)?(?:"[^"]*"|'[^']*'|[^\s"',;&}<>]+)`), "$1<redacted>"},
+	{regexp.MustCompile(`(?i)([A-Za-z0-9_-]*(?:token|key|secret|password|passwd|pwd|credential|sig|signature|authorization|cookie|dsn)(?:\\?["'])?\s*[:=]\s*)(?:(?:bearer|basic|digest|token)\s+)?(?:\\?"[^"]*?\\?"|\\?'[^']*?\\?'|[^\s"',;&}<>\\]+)`), "$1<redacted>"},
 }
 
 // blobRe is the last rule of 10.6: a run of 24+ token characters. A run
@@ -88,30 +90,51 @@ func Redact(s string) string {
 
 // normalizeRules fold what varies between two sightings of one error, in
 // the order of 10.4.1. A single quote opens a value only after a non-word
-// character, so an apostrophe (can't) is not a quote.
+// character, so an apostrophe (can't) is not a quote; a doubled quote
+// inside a value (SQL's escape of a quote) stays in the value, so
+// Normalize is idempotent: Normalize(Normalize(s)) == Normalize(s).
 var normalizeRules = []rule{
 	{uuidRe, "<uuid>"},
 	{regexp.MustCompile(`\bHUM-[0-9]+\b`), "HUM-<n>"},
 	{regexp.MustCompile(`\b[acgmoqu]-[0-9]{3}\b`), "<agent>"},
 	{regexp.MustCompile(`\b[0-9a-fA-F]{8,}\b`), "<hex>"},
 	{regexp.MustCompile(`[0-9]+`), "<n>"},
-	{regexp.MustCompile(`"(?:[^"\\]|\\.)*"`), "<s>"},
-	{regexp.MustCompile(`(^|[^A-Za-z0-9_])'[^'\n]*'`), "$1<s>"},
+	{regexp.MustCompile(`"(?:[^"\\]|\\.|"")*"`), "<s>"},
+	{regexp.MustCompile(`(^|[^A-Za-z0-9_])'(?:[^'\n]|'')*'`), "$1<s>"},
 	{regexp.MustCompile(`\s+`), " "},
 }
 
 // Normalize redacts s, then replaces each UUID with <uuid>, HUM-<digits>
 // with HUM-<n>, an agent id with <agent>, a run of 8+ hex digits with
 // <hex>, every other number with <n> and each quoted string with <s>;
-// collapses blanks and cuts to MaxMessageRunes runes.
+// collapses blanks and cuts to MaxMessageRunes runes. A placeholder can
+// open a word boundary a rule then matches (X0AAAAAAAA -> X<n>AAAAAAAA ->
+// X<n><hex>), so the pass repeats until the text holds still, at most
+// normalizePasses times: Normalize(Normalize(s)) == Normalize(s), and a
+// group's stored Message hashes to its Fingerprint.
 func Normalize(s string) string {
+	for i := 0; i < normalizePasses; i++ {
+		n := normalizeOnce(s)
+		if n == s {
+			break
+		}
+		s = n
+	}
+	return s
+}
+
+// normalizePasses bounds Normalize's repeat; two or three passes are the
+// most any input of the fuzz seeds needed.
+const normalizePasses = 8
+
+func normalizeOnce(s string) string {
 	s = Redact(s)
 	for _, r := range normalizeRules {
 		s = r.re.ReplaceAllString(s, r.rep)
 	}
 	s = strings.TrimSpace(s)
 	if r := []rune(s); len(r) > MaxMessageRunes {
-		s = string(r[:MaxMessageRunes])
+		s = strings.TrimSpace(string(r[:MaxMessageRunes]))
 	}
 	return s
 }
@@ -187,7 +210,7 @@ func NewGroups(limit int) *Groups {
 // the group is kept (false: past the cap, counted into the overflow).
 func (g *Groups) Add(s Sighting) (string, bool) {
 	msg := Normalize(s.Message)
-	fp := Fingerprint(s.Kind, msg, s.Anchor)
+	fp := Fingerprint(s.Kind, s.Message, s.Anchor)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if gr, ok := g.byFP[fp]; ok {

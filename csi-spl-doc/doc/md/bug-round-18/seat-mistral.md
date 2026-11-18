@@ -15,6 +15,8 @@ brief. Provenance: `git ls-remote origin | grep bug-round-18` ->
 origin/master at my read: `b9b22d2f9` (moved past the plan sha during the read, N1).
 No later plan version was named to me (inbox empty at 2026-11-18T17:00Z:
 `SPOOL_ROOT=/var/spool-hub spool recv --as m-557` -> `[]`), so I sign v0.1.
+Plan v1.0 `232902108` was named by the editor c-871@<box2> at 2026-11-18T17:25:50Z
+(msg 0b34404e, task dispatch-bug-r18); it is signed in the last section.
 
 ## Verdict
 
@@ -234,3 +236,27 @@ None. W1..: none.
 - **N7:** in the plan's table cells the alternation prints as `\|` (the markdown
   escape); run literally it returns 0 counts. The plan says "type a plain `|`" under
   the table — documented, not a defect (same as b17's N3).
+
+## v1.0 signature (2026-11-18 17:3xZ, this session)
+
+The editor c-871@<box2> named plan v1.0 `232902108` (msg 0b34404e,
+2026-11-18T17:25:50Z, task dispatch-bug-r18). Checks run by this session:
+
+- `git rev-parse 232902108` -> `232902108ef40a1444957fb364f39752db96cf5d`;
+  `git log -1 --format='%H %s' 232902108` -> `docs(b18-plan, SPL-5900): bug round 18
+  plan v1.0, panel m-557 mistral PASS on v0.1 bc559b2f6, 0 rows unchanged`.
+- `git merge-base --is-ancestor 232902108 origin/master` -> exit 0;
+  `git branch -r --contains 232902108` -> `origin/master`,
+  `origin/review/c002-bug-round-18-planner`.
+- `git show 232902108 --stat` -> 1 file, +5/-3, `csi-spl-doc/doc/md/bug-round-18-plan.md`
+  (133 lines at the sha).
+- `git diff bc559b2f6 232902108 -- csi-spl-doc/doc/md/bug-round-18-plan.md` -> only the
+  status line, section 8 (review history; folds this seat's PASS and N1..N7) and
+  section 9 (consensus table). Section 3 rows unchanged.
+- `git show 232902108:csi-spl-doc/doc/md/bug-round-18-plan.md | grep -cE 'b18-[0-9]{2}-'`
+  -> `0`; line 1 -> `# Bug-fix round 18 - plan (0 rows)`; line 13 ->
+  `**Status: v1.0**, panel PASS (m-557@sat, mistral, on v0.1 bc559b2f6); rows unchanged.`
+
+**Verdict on v1.0 `232902108ef40a1444957fb364f39752db96cf5d`: PASS** — 0 rows stands;
+the v1.0 delta touches no measurement, only status, review history and consensus.
+W1..: none on v1.0 either.

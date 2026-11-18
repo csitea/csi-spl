@@ -326,7 +326,7 @@ spl_lane_rotate_scan() {
     done
     [[ -n "${kind[$pid]:-}" ]] || continue
     if [[ -r "$d/environ" ]]; then
-      id="$(tr '\0' '\n' < "$d/environ" 2>/dev/null | sed -n 's/^SPOOL_AGENT_ID=//p' | sed -n 1p)"
+      id="$(tr '\0' '\n' 2>/dev/null < "$d/environ" | sed -n 's/^SPOOL_AGENT_ID=//p' | sed -n 1p)"
       [[ -n "$id" ]] && idof[$pid]="$id"
     else hop+=("$pid"); fi
   done
@@ -534,7 +534,7 @@ spl_lane_rotate_warn() {
   at=$(( ROTATE_LANE_MAX_AGE - age )); (( at > 120 )) || at=120
   at="$(date -u -d "@$(( $(date +%s) + at ))" +%H:%MZ)"
   if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_lane_rotate_say "$id" "PLAN warn: rotation at $at"; return 0; fi
-  echo "$pid" > "$f" 2>/dev/null || true
+  echo "$pid" 2>/dev/null > "$f" || true
   SPOOL_ROOT="$SPOOL_ROOT" bash "$ROTATE_SEND" --from "${LEASE_ORCH:-$id}" --to "$id" --kind note --task "lane-rotate-$id" --no-ask \
     --body "rotation at $at UTC: push what is green, write your state (in your worktree and commits; do not reply to this note)" >/dev/null 2>&1 7>&- 8>&- 9>&- || true
   echo "$(date -u +%FT%TZ) $id WARN rotation at $at UTC (pid $pid, $((age / 60)) min)" | tee -a "$ROTATE_LANE_LOG"

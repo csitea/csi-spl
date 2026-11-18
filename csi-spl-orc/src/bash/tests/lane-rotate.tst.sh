@@ -99,6 +99,11 @@
 #      spl_lane_rotate_child_match (rc 0) and spl_rotate_cli (rc 1) print no
 #      "cmdline: No such file" line to stderr. Red control (origin/master
 #      8fcc4ec11): 2 lines, rc 0 and 1.
+#  35. SPL-5863: a pid whose environ goes between the -r test and the read
+#      (spl_lane_rotate_scan) and a lane with no lifetime dir
+#      (spl_lane_rotate_warn, DRY_RUN=0) print no stderr line; rc 0 and 0,
+#      the warn's note is still sent. Red control (origin/master f529b3091):
+#      1 environ line and 1 rotate.lane.warned line, rc 0 and 0.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -873,6 +878,23 @@ out34="$(LEASE_PROC_ROOT="$T/p34/proc" bash -c 'do_log() { :; }
   ROTATE_KIND=grok spl_rotate_cli "$LEASE_PROC_ROOT/4242" node; echo "B rc=$?"' 2>"$T/p34/err")"
 check "34a. a gone pid's cmdline read: 0 stderr lines" '[ "$(n "$T/p34/err" "cmdline: No such file")" = 0 ]'
 check "34b. the return codes stay: child_match 0, rotate_cli 1" '[ "$(tr "\n" " " <<<"$out34")" = "A rc=0 B rc=1 " ]'
+
+# --- 35. a gone environ and a gone lifetime dir print no stderr line (SPL-5863) ---
+# The scan's environ read and the warn's marker write put 2>/dev/null after the
+# redirection that fails (81 lines in one box's lane-rotate cron log). A DEBUG
+# trap removes environ between the [[ -r ]] test and the read, so the gone-pid
+# race happens every run; c-935 has no <spool>/c-935/lifetime dir.
+mkdir -p "$T/p35/proc/4300" "$T/p35/spool"; echo claude >"$T/p35/proc/4300/comm"; : >"$T/p35/proc/4300/environ"
+printf '#!/bin/sh\necho "$@" >>"%s/sent"\n' "$T/p35" >"$T/p35/send.sh"
+out35="$(LEASE_PROC_ROOT="$T/p35/proc" SPOOL_ROOT="$T/p35/spool" bash -c 'do_log() { :; }
+  source "$PROJ_PATH/src/bash/run/spl-rotate-lib.func.sh"; source "$PROJ_PATH/src/bash/run/spl-lane-rotate.func.sh"
+  set -o functrace; trap "[[ \$BASH_COMMAND == id=* ]] && rm -f \"\$LEASE_PROC_ROOT/4300/environ\"" DEBUG
+  spl_lane_rotate_scan >/dev/null; echo "A rc=$?"; trap - DEBUG; set +o functrace
+  export DRY_RUN=0 ROTATE_SEND="$1/send.sh" ROTATE_LANE_MAX_AGE=3600 ROTATE_LANE_LOG="$1/log"
+  spl_lane_rotate_warn c-935 4301 2700 >/dev/null; echo "B rc=$?"' _ "$T/p35" 2>"$T/p35/err")"
+check "35a. the environ was removed after the -r test (the race happened)" '[ ! -e "$T/p35/proc/4300/environ" ]'
+check "35b. a gone environ and a gone lifetime dir: 0 stderr lines" '[ "$(n "$T/p35/err" "environ: No such file")" = 0 ] && [ "$(n "$T/p35/err" "rotate.lane.warned: No such file")" = 0 ]'
+check "35c. the return codes and the warn's note stay: rc 0 and 0, 1 note" '[ "$(tr "\n" " " <<<"$out35")" = "A rc=0 B rc=0 " ] && [ "$(n "$T/p35/sent")" = 1 ]'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

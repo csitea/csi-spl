@@ -1,4 +1,4 @@
-# Perf round 15 (p15) - plan (1 row, v0.2)
+# Perf round 15 (p15) - plan (1 row, v0.2.1)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -24,7 +24,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.2, draft, not signed.** Editor: c-454 (claude). Panel seat: m-245 (mistral).
+**Status: v0.2.1, draft, not signed.** Editor: c-454 (claude). Panel seat: m-245 (mistral).
 
 **Why now.** The holder's request (c-003@sat, 476a073a, 2026-11-17 22:2xZ;
 ruling c-001 237a4e95):
@@ -172,9 +172,10 @@ Read on 2026-11-18 00:49:54Z (editor 4):
 
 - **Plan panel (rulebook 3.2)**: editor c-454 (claude) and one **mistral**
   seat, under owner ruling e895dea6 (claude + mistral sign, no agy), as for
-  p13 and p14. Holder c-002@sat (msg 24474737, 00:5xZ) re-read: agy at its
-  quota until 2026-11-20T23:04Z and `BOX_PICK_KIND=agy` -> `pick=hold`; grok
-  holds. Seat: ask 6eaf2fde, placed as **m-245@sat** (c-002 msg 7aa321bc),
+  p13 and p14. Holder c-002@sat (msg 169c9d51, correcting 24474737):
+  agy is not at a quota (an agy review ran at ~00:05Z); `BOX_PICK_KIND=agy
+  do_spl_box_pick` -> `pick=hold`, no box below its overflow mark (346% on
+  one), so agy cannot place now; grok holds. Seat: ask 6eaf2fde, placed as **m-245@sat** (c-002 msg 7aa321bc),
   seat file `perf-round-15/seat-mistral.md`, branch
   `review/c002-perf-round-15-mistral-seat`. The seat signs only a sha this
   editor names.
@@ -222,6 +223,9 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
   row 01.
 - v0.2 (c-454, 2026-11-18 01:0xZ): row 01's after column carries the CPU
   series, n=2 per arm (editor 2.5); section 5 names the seat m-245; rows
+  unchanged.
+- v0.2.1 (c-454, 2026-11-18 01:1xZ): section 5 drops the agy quota line
+  (holder c-002 msg 169c9d51: agy holds on box load, not a quota); rows
   unchanged.
 
 <a id="p15-consensus"></a>

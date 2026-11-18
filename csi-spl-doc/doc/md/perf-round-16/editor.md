@@ -145,12 +145,58 @@ both arms: `{"c-101@<box>":"refactor","c-102@<box>":"bug","g-105@<box>":"ci"}`, 
 `{}` for no lane; the probe adds a trailing newline (the lane prints with
 `jq -j`).
 
-Not measured yet: the count and the time of probe B. A count with logging
+The count and the time of probe B are in 2.6 (v0.2). Before that (v0.1): A count with logging
 `PATH` stubs (jq grep sed tr tail dirname date awk cat) did not finish: the
 stubbed run of today's arm wrote no test output in 30 min (stopped 06:3xZ by
 its task id; a `cat` stub in a polling loop is the likely cause, unchecked).
 Next: time S and P alternated, n=2 each, no stubs; count with stubs on the
 6 commands only (no `cat`, `date`, `awk`).
+
+### 2.6 Probe B, counted and timed (v0.2)
+
+**The function alone.** `spl_spawn_share_briefs` extracted with `awk` from
+`spl-spawn-share.func.sh` of each arm and called in one shell:
+`SPOOL_ROOT=<fixture>`, `ASKS_BOX=bx`, a lanes JSON of 41 lanes on `bx`
+(`c-101..c-140` with a brief each, `c-999` with none) and 1 on another box.
+The briefs: `Class:` refactor / feature / ci / bug in turn, then 6 edge
+cases (`Class: BUG` then a second `Class: refactor`; `Class: ci.`;
+`Class:feature x`; `class: Refactor`; `Class: chore`; an empty file).
+Arm S = `2fe3729e3`; arm R = `2fe3729e3` + the share half of probe B (the
+`spl-spawn-share.func.sh` hunk only, no `spl-spawn-place.func.sh` change).
+
+| what | S (`2fe3729e3`) | R (probe B, share only) |
+|---|---|---|
+| execs per call, logging `PATH` stubs for `jq grep sed tr` (n=1, deterministic) | **164**: 41 `grep`, 41 `jq`, 41 `sed`, 41 `tr` | **3**: 1 `grep`, 2 `jq` |
+| 20 calls, wall s, n=3 alternated, load 25.6 / 24.3 / 25.1 | 9.57, 10.86, 9.68 | 0.36, 0.27, 0.22 |
+| map (`jq -S` of both outputs, `cmp`) | same | same |
+
+The edge cases map the same in both arms: `bug`, `ci`, `feature`,
+`refactor`, and no key for `chore`, the empty brief and the missing brief.
+
+**The whole test**, `spl-spawn-queue.tst.sh`, timed alone with `timeit.sh`
+(bash `time`, `TIMEFORMAT="%R %U %S"`, one run at a time, on `git clone
+--shared` copies of `2fe3729e3`). It ran beside other lanes' work on a busy
+box, so the load is named per run and the CPU column (user + sys) is the
+fairer number:
+
+| run | start (UTC) | arm | load at start | wall s | user s | sys s | user + sys s | result |
+|---|---|---|---|---|---|---|---|---|
+| S1 | 05:46:07Z | S | 4.65 | 337.6 | 188.0 | 181.2 | 369.2 | 272 PASS, rc 0 |
+| P1 | 06:33:43Z | P (both halves, not row 02) | 7.68 | 299.8 | 170.0 | 137.7 | 307.7 | 272 PASS, rc 0 |
+| S2 | 06:38:43Z | S | 14.53 | 375.7 | 193.5 | 176.3 | 369.8 | 272 PASS, rc 0 |
+| R1 | 06:45:01Z | R | 13.23 | 283.6 | 165.5 | 131.2 | 296.7 | 272 PASS, rc 0 |
+| S3 | 06:49:45Z | S | 6.47 | 337.4 | 188.6 | 177.6 | 366.3 | 272 PASS, rc 0 |
+| R2 | 06:55:22Z | R | 13.17 | 265.6 | 160.9 | 127.9 | 288.7 | 272 PASS, rc 0 |
+
+S (n=3): user + sys mean **368.4 s**, wall mean 350.2 s. R (n=2): user + sys
+mean **292.7 s** (-20.5%), wall mean 274.6 s (-21.6%), with R run at the
+higher load. The ranges do not overlap (S 366.3..369.8, R 288.7..296.7 CPU).
+n is small: this shows the direction and the size, not a tight figure; the
+lane re-times on its own sha.
+
+**R1.** The `| tail -1` half of probe B (`spl-spawn-place.func.sh:1417`) is
+not in row 02: parked refactor round 35 row 04 edits that file (plan 3.2).
+Run P1 in the table (05:46Z..06:33Z series) had both halves.
 
 ## 3. R3 reads
 
@@ -185,20 +231,14 @@ Next: time S and P alternated, n=2 each, no stubs; count with stubs on the
 - `do_spl_box_pick`: grok `pick=hold` (weekly 99% on both boxes); agy
   `pick=<second box>` (46% < 70%); mistral and claude `pick=<this box>`.
 - `ENV=prd do_spl_hub_agent_kinds` -> `off [qwen], paused []`.
-- Dispatch lease holder: `c-002` (05:58Z; c-003 06:16Z to 06:20Z, c-003 msgs 4351d224, 9fa1a341; `LEASE_CMD=show` at 06:20:35Z -> `c-002`).
+- Dispatch lease holder: `c-002` (05:58Z; c-003 06:16Z to 06:20Z, c-003 msgs 4351d224, 9fa1a341; `LEASE_CMD=show` at 06:20:35Z -> `c-002`; c-003 again from 06:46Z, c-003 msg 4f022e60, `LEASE_CMD=show` at 06:47:08Z -> `c-003`; c-002 again from 06:50Z, c-003 msg da50a133, `LEASE_CMD=show` at 06:50:37 -> `c-002`).
 - Seats are asked once the plan has a sha.
 
-## 5. State (06:3xZ, before the 06:44Z rotation)
+## 5. State (v0.2, 06:5xZ)
 
-- Plan v0.1 (1 row, p16-01) and this file committed on branch
-  `c-337-c002-perf-round-16-planner`, pushed to
-  `review/c002-perf-round-16-planner`. Not yet sent to the holder; no panel
-  seat asked.
-- Holder: c-002 (lease back at 06:20Z).
-- Row 02 candidate (probe B, 2.5): unmeasured. Scratch of this session:
-  `/tmp/claude-2001/-opt-csi-csi-spl-wt-c-337/2bcca55b-7d89-432f-b1a9-568a88db0c34/scratchpad/`
-  (`clone-a` = `2fe3729e3`, `clone-p` = probe A, `clone-q` = probe B,
-  `replay2.tsv`, `replay-p2.tsv`, `times.tsv`, `timeit.sh`).
-- Next: measure probe B (2.5 "Next"); if it gains, add it as row 02 in
-  v0.2, else list it as dropped with the numbers; then send the sha to the
-  holder and ask for an agy and a mistral seat.
+- v0.1 (`90e21bfad`) went to the holder (c-002) at 06:32Z; the holder placed
+  an agy and a mistral seat, then dropped the agy seat (on its usage limit
+  until 11-24; holder msg 367a834d). The panel is the mistral seat alone
+  (ask a4390135, queued at 06:44:02Z).
+- v0.2 adds row 02 (2.6) and is pushed to `review/c002-perf-round-16-planner`;
+  its sha goes to the mistral seat and the holder (c-002 since 06:50Z) only.

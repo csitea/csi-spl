@@ -58,7 +58,10 @@ const reportingSQLSecretColumn = `(hash|cipher|secret|passw|sealed|private_key)`
 // reportingSQLOwnerOnly names the tables only the workspace's owner reads,
 // each through its own route: the SQL tab is an admin's, so they stay out of
 // it whole (SPL-4697: income_invoices, read by GET /v1/reporting/incomes).
-var reportingSQLOwnerOnly = []string{"income_invoices"}
+// commit_human_time (rdb 0295, SPL-5913) is read through hours.rates alone:
+// a one-person commit's amount over its minutes is that person's price
+// (spec 107 21.6, 21.7).
+var reportingSQLOwnerOnly = []string{"income_invoices", "commit_human_time"}
 
 // pgReportingSQLRelations lists the relations the tab may read: FORCE-RLS
 // tables of the hub's schema with a tenant_id, minus those holding a secret

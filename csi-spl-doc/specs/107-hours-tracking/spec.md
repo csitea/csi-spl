@@ -1113,7 +1113,7 @@ Enforced by route, as 1.7 is, and in the database:
 
 - `member_hourly_prices` has the 3.2 RLS shape: a second workspace reads and writes 0 rows. v2.8: it also carries the 3.4 `member_scope` guard, because `GET /v1/me/hours/price` is a per-member call; unset, the guard is TRUE, so the biz owner's and the time-accountant's list still read every member.
 - The write is `hours.prices` alone. The read of every person's price is `hours.prices` or `hours.rates`. The one other route that returns a price is `GET /v1/me/hours/price`, the caller's own rows only (21.5 rule 8).
-- The commit ledger is operator-only RLS, as `commit_token_burn` is.
+- The commit ledger has `commit_token_burn`'s RLS in its final form (spec 171 section 3.3.3): a `FOR SELECT` read in the workspace's own scope (`tenant_id` with the NULLIF guard), written in the operator scope only. Who reads it is the route's gate (21.6 table), and the Reporting SQL tab refuses the table whole (`reportingSQLOwnerOnly`, SPL-5913): its amount over its minutes is a price.
 
 ### 21.7 What it never stores (P0)
 
@@ -1143,7 +1143,7 @@ member_hourly_prices (
   PRIMARY KEY (tenant_id, member_id, valid_from)
 )
 
--- operator-only RLS, as commit_token_burn (143 section 8.7); no member column (P0)
+-- commit_token_burn's RLS (171 section 3.3.3): tenant read, operator write; no member column (P0)
 commit_human_time (
   sha           text   FK release_notes, cascade,
   day_bucket    date,

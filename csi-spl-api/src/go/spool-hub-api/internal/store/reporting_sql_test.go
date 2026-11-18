@@ -161,8 +161,9 @@ func TestSQLExecutorRowCap(t *testing.T) {
 
 // TestSQLExecutorRefusesRelations: a table without workspace RLS, a
 // catalogue, a table that keeps a secret, a per-member table, a per-human
-// (rdb 0255) table and an owner-only table (SPL-4697: income_invoices) are
-// refused by the plan check, through a view or a subquery too.
+// (rdb 0255) table and the owner-only tables (SPL-4697: income_invoices;
+// SPL-5913: commit_human_time, and member_hourly_prices by its member guard)
+// are refused by the plan check, through a view or a subquery too.
 func TestSQLExecutorRefusesRelations(t *testing.T) {
 	pg, a, _ := sqlTwoTenants(t)
 	for q, rel := range map[string]string{
@@ -176,6 +177,9 @@ func TestSQLExecutorRefusesRelations(t *testing.T) {
 		`SELECT * FROM rbac_permissions`:                                        "rbac_permissions",
 		`SELECT * FROM netvisor_forecast_items`:                                 "netvisor_forecast_items",
 		`SELECT invoice_no, payer, total FROM income_invoices`:                  "income_invoices",
+		`SELECT minutes, amount_micros, currency FROM commit_human_time`:        "commit_human_time",
+		`SELECT * FROM messages WHERE EXISTS (SELECT 1 FROM commit_human_time)`: "commit_human_time",
+		`SELECT amount_micros, currency FROM member_hourly_prices`:              "member_hourly_prices",
 	} {
 		var ref *ReportingSQLRefusal
 		_, err := runSQL(t, pg, a, q)

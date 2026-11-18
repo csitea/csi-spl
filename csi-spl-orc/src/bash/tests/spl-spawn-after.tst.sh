@@ -26,7 +26,9 @@
 #      comes back): its key is read from the hub's lane row of <id>@<box>
 #      (branch <id>-<slug>) and written back into .place.slugs; held until
 #      it lands, then placed. CONTROL: a hub that does not answer, and a
-#      lane row of a reused id (another branch): held, never free
+#      lane row of a reused id (another branch, or none): held, never free.
+#      The lane map is read once for all held rows of a tick and kept
+#      SPAWN_AFTER_LANES_MIN: the next tick reads it 0 times (R7 c-044 W2)
 #   7. refused at enqueue (FATAL, nothing queued): an unknown key, a diss
 #      key, an unknown slug, the row's own slug, a bad delay, SPAWN_AFTER
 #      with no SPAWN_PLACE, SPAWN_AFTER_DELAY alone
@@ -302,23 +304,29 @@ tick >/dev/null
 # reply carried no "carries issue" line, so its .place.slugs key is empty
 cat >"$T/bin/far-lanes" <<'STUB'
 #!/usr/bin/env bash
+echo x >>"$FAR_LOG"
 [ "${FAR_HUB:-ok}" = ok ] || { echo '{"hub": "unreachable", "lanes": []}'; exit 0; }
 echo '{"hub": "ok", "lanes": [
   {"agent_id": "c-908", "agent_box": "box-far", "branch": "c-908-slug-far", "issue_key": "SPL-9201", "state": "done"},
-  {"agent_id": "c-909", "agent_box": "box-far", "branch": "c-909-another-slug", "issue_key": "SPL-9099", "state": "live"}]}'
+  {"agent_id": "c-909", "agent_box": "box-far", "branch": "c-909-another-slug", "issue_key": "SPL-9099", "state": "live"},
+  {"agent_id": "c-910", "agent_box": "box-far", "branch": "", "issue_key": "SPL-9098", "state": "live"}]}'
 STUB
 chmod +x "$T/bin/far-lanes"
-F1=f1f1f1f1-0000-4000-8000-000000009201; F2=f2f2f2f2-0000-4000-8000-000000009202
+F1=f1f1f1f1-0000-4000-8000-000000009201; F2=f2f2f2f2-0000-4000-8000-000000009202; F3=f3f3f3f3-0000-4000-8000-000000009203
 printf '# Lane brief: slug-far\n%s\n' "$ES" >"$T/briefs/slug-far.md"
 printf '# Lane brief: slug-reused\n%s\n' "$ES" >"$T/briefs/slug-reused.md"
-printf 'slug-far\tc-908@box-far\t\t%s\nslug-reused\tc-909@box-far\t\t%s\n' "$(date +%s)" "$(date +%s)" >>"$T/spool/asks/.place.slugs"
-put "$F1" row-after-far; put "$F2" row-after-reused
+printf '# Lane brief: slug-nobranch\n%s\n' "$ES" >"$T/briefs/slug-nobranch.md"
+printf 'slug-far\tc-908@box-far\t\t%s\nslug-reused\tc-909@box-far\t\t%s\nslug-nobranch\tc-910@box-far\t\t%s\n' "$(date +%s)" "$(date +%s)" "$(date +%s)" >>"$T/spool/asks/.place.slugs"
+put "$F1" row-after-far; put "$F2" row-after-reused; put "$F3" row-after-nobranch
 on do_spl_spawn_enqueue ASK_ID="$F1" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-far SPAWN_AFTER=slug-far >/dev/null 2>&1
 on do_spl_spawn_enqueue ASK_ID="$F2" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-reused SPAWN_AFTER=slug-reused >/dev/null 2>&1
+on do_spl_spawn_enqueue ASK_ID="$F3" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-nobranch SPAWN_AFTER=slug-nobranch >/dev/null 2>&1
+export FAR_LOG="$T/far.log"
 out="$(tick SPAWN_AFTER_LANES_CMD="$T/bin/far-lanes" FAR_HUB=down)"
 [[ "$(launched row-after-far)" == 0 ]] && grep -q 'ask f1f1f1f1 (row-after-far) is waiting on slug-far: its lane has no issue key known on this box, and the hub lane map did not answer' <<<"$out" &&
   grep -q $'^slug-far\tc-908@box-far\t\t' "$T/spool/asks/.place.slugs" &&
   pass "6b. CONTROL the hub lane map does not answer: held with that reason, never free, nothing written" || fail "6b. hub down: $out"
+: >"$FAR_LOG"
 out="$(tick SPAWN_AFTER_LANES_CMD="$T/bin/far-lanes")"
 if [[ "$(launched row-after-far)" == 0 ]] && grep -q 'ask f1f1f1f1 (row-after-far) is waiting on slug-far (SPL-9201): not landed' <<<"$out" &&
    grep -q $'^slug-far\tc-908@box-far\tSPL-9201\t[0-9]*$' "$T/spool/asks/.place.slugs"; then
@@ -326,11 +334,18 @@ if [[ "$(launched row-after-far)" == 0 ]] && grep -q 'ask f1f1f1f1 (row-after-fa
 else fail "6b. far: $out | $(cat "$T/spool/asks/.place.slugs")"; fi
 [[ "$(launched row-after-reused)" == 0 ]] && grep -q 'ask f2f2f2f2 (row-after-reused) is waiting on slug-reused: its lane has no issue key known on this box or on the hub yet' <<<"$out" &&
   pass "6b. CONTROL the hub row of c-909@box-far runs another slug: its key is not taken, held" || fail "6b. reused: $out"
+[[ "$(launched row-after-nobranch)" == 0 ]] && grep -q 'ask f3f3f3f3 (row-after-nobranch) is waiting on slug-nobranch: its lane has no issue key known on this box or on the hub yet' <<<"$out" &&
+  pass "6b. CONTROL the hub row of c-910@box-far has no branch (a reused id's row): its key is not taken, held" || fail "6b. no branch: $out"
+[[ "$(wc -l <"$FAR_LOG")" == 1 ]] && pass "6b. W2: one tick, 2 rows held on a hub miss and 1 found: the lane map read once" ||
+  fail "6b. W2: the lane map read $(wc -l <"$FAR_LOG") times in one tick"
+: >"$FAR_LOG"; tick SPAWN_AFTER_LANES_CMD="$T/bin/far-lanes" >/dev/null
+[[ "$(wc -l <"$FAR_LOG")" == 0 ]] && pass "6b. W2: the next tick, inside SPAWN_AFTER_LANES_MIN: the kept answer, the lane map read 0 times" ||
+  fail "6b. W2: the next tick read the lane map $(wc -l <"$FAR_LOG") times"
 land "fix(orc, SPL-9201): the far lane lands"
 out="$(tick SPAWN_AFTER_LANES_CMD=false)"
 [[ "$(launched row-after-far)" == 1 ]] && grep -q 'ask f1f1f1f1 (row-after-far): slug-far (SPL-9201) landed' <<<"$out" &&
   pass "6b. SPL-9201 landed: placed, from the written-back key (the hub not read again)" || fail "6b. landed: $out | $(cat "$T/launch.log")"
-done_ask "$F2" 2>/dev/null
+done_ask "$F2" 2>/dev/null; done_ask "$F3" 2>/dev/null
 
 # 7. refused at enqueue -----------------------------------------------------------------
 B=c1c1c1c1-0000-4000-8000-0000000091

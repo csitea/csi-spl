@@ -76,25 +76,44 @@ spl_spawn_after_key() {  # AFTER
 }
 
 # The issue key of the hub's lane row of AGENT (<id>@<box>) that ran SLUG:
-# the row's branch is <id>-<SLUG>, or <id>-rotate[-N] for a rotated lane.
-# Read from do_spl_lane_map with LANE_ALL=1 (done rows too; the hub keeps
-# them a week). rc 1: the hub answered, no such key; rc 2: it did not
-# answer. Seam: SPAWN_AFTER_LANES_CMD prints the lane map JSON (tests).
+# the row's branch is <id>-<SLUG>, or <id>-rotate[-N] for a rotated lane; an
+# empty branch never matches (the hub keeps one row per id, so a reused id's
+# row would give another lane's key). A rotate branch names no slug: a reused
+# id that rotated on the same box still matches; a week of done rows makes
+# that rare. rc 1: the hub answered, no such key; rc 2: it did not answer.
 spl_spawn_after_hub_key() {  # SLUG AGENT
   local out id="${2%@*}" box="" k
   [[ "$2" != *@* ]] || box="${2#*@}"
+  out="$(spl_spawn_after_lanes)" || return 2
+  k="$(jq -r --arg i "$id" --arg b "$box" --arg s "$1" '[.lanes[] | select(.agent_id == $i and ($b == "" or .agent_box == $b)
+      and ((.branch // "") == ($i + "-" + $s) or ((.branch // "") | test("^" + $i + "-rotate(-[0-9]+)?$"))))
+      | .issue_key // "" | select(test("^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]*$"))] | last // ""' <<<"$out")"
+  [[ -n "$k" ]] || return 1
+  printf '%s\n' "$k"
+}
+
+# The hub's lane map JSON (do_spl_lane_map, LANE_ALL=1: done rows too; the
+# hub keeps them a week), or rc 1 when the hub did not answer. An answer is
+# kept in <asks dir>/.place.lanes for SPAWN_AFTER_LANES_MIN (default 15)
+# minutes: every held row of a tick and the ticks after it read it once, a
+# miss too (R7 c-044 W2: 2..5 lane-map runs of ~8 s per held row per tick).
+# A hub that did not answer is not kept. Seam: SPAWN_AFTER_LANES_CMD prints
+# the lane map JSON (tests).
+spl_spawn_after_lanes() {
+  local f out
+  f="$(spool_asks_dir)/.place.lanes"
+  if [[ -s "$f" ]] && (( $(date +%s) - $(stat -c %Y "$f" 2>/dev/null || echo 0) < ${SPAWN_AFTER_LANES_MIN:-15} * 60 )); then
+    cat "$f"; return 0
+  fi
   if [[ -n "${SPAWN_AFTER_LANES_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     out="$($SPAWN_AFTER_LANES_CMD 2>/dev/null)"
   else
     out="$(LANE_FORMAT=json LANE_ALL=1 timeout "${SPAWN_AFTER_LANES_TIMEOUT:-90}" bash "$PROJ_PATH/run" -a do_spl_lane_map 2>/dev/null | grep -E '^\{' | tail -1)"
   fi
-  jq -e '.hub == "ok" and (.lanes | type == "array")' >/dev/null 2>&1 <<<"$out" || return 2
-  k="$(jq -r --arg i "$id" --arg b "$box" --arg s "$1" '[.lanes[] | select(.agent_id == $i and ($b == "" or .agent_box == $b)
-      and ((.branch // "") == "" or .branch == ($i + "-" + $s) or ((.branch // "") | test("^" + $i + "-rotate(-[0-9]+)?$"))))
-      | .issue_key // "" | select(test("^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]*$"))] | last // ""' <<<"$out")"
-  [[ -n "$k" ]] || return 1
-  printf '%s\n' "$k"
+  jq -e '.hub == "ok" and (.lanes | type == "array")' >/dev/null 2>&1 <<<"$out" || return 1
+  printf '%s\n' "$out" >"$f.$$" && mv -f "$f.$$" "$f"
+  printf '%s\n' "$out"
 }
 
 # Writes KEY into column 3 of SLUG's rows placed as AGENT that have none, in

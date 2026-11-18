@@ -31,6 +31,10 @@
 #   ~1030 kills in an ubuntu:26.04 container, 0 in 1292 on bash 5.2). A third control
 #   stands in for it: a BASH_ENV wait() in the step that ignores TERM and
 #   writes forever; hygiene-box-users-allow.tst.sh must still end clean.
+#   The plant's race (SPL-5927): the first grep fires the sweep mark while the
+#   step's main shell is still forking its sweeps; a TERM sent before it reaches
+#   its join never calls wait(), so the plant did not run (wf 10 run
+#   44362658751, SETUP). That control now TERMs only once $T/spin.mark exists.
 #------------------------------------------------------------------------------
 # test-timeout: 400
 # pre-push-tier: slow  (24 tree exports; CI workflow 10 runs it)
@@ -47,10 +51,11 @@ grace="${KT_GRACE:-30}"
 real_grep=$(type -P grep) || { echo "FAIL: no grep on PATH"; exit 1; }
 stub grep "case \"\$PWD/\" in \"\$KT_TMP\"/*) : >\"\$KT_MARK\"; sleep 120 ;; esac; exec $real_grep \"\$@\""
 
-# kill_once <test path> <dir>: run it, TERM it in its first sweep; prints the
+# kill_once <test path> <dir> [<plant mark>]: run it, TERM it in its first
+# sweep, and with a plant mark not before that file exists too; prints the
 # verdict (setup: / rc=<n> / leak: / clean)
 kill_once() {
-  local path="$1" tmp="$2/tmp" mark="$2/mark" log="$2/log" tp rc i left
+  local path="$1" tmp="$2/tmp" mark="$2/mark" log="$2/log" plant="${3:-}" tp rc i left
   mkdir -p "$tmp"
   ( cd "$APP_ROOT" && PATH="$T/bin:$PATH" TMPDIR="$tmp" KT_TMP="$tmp" KT_MARK="$mark" BASH_ENV="${KT_BASH_ENV:-${BASH_ENV:-}}" \
       exec timeout -k "$grace" 300 bash "$path" >"$log" 2>&1 ) &
@@ -59,6 +64,13 @@ kill_once() {
   if [[ ! -e "$mark" ]]; then
     kill -TERM "$tp" 2>/dev/null; wait "$tp" 2>/dev/null
     echo "setup: its sweep never started within 120 s: $(tail -1 "$log")"; return
+  fi
+  if [[ -n "$plant" ]]; then
+    for ((i = 0; i < 1200; i++)); do [[ -e "$plant" ]] && break; sleep 0.1; done
+    if [[ ! -e "$plant" ]]; then
+      kill -TERM "$tp" 2>/dev/null; wait "$tp" 2>/dev/null
+      echo "setup: the plant never fired within 120 s of its sweep ($plant): $(tail -1 "$log")"; return
+    fi
   fi
   kill -TERM "$tp"
   wait "$tp"; rc=$?
@@ -93,9 +105,12 @@ else fail "control: a test that ignores TERM should end rc=137, got: $v"; fi
 # wait() that ignores TERM; the KILL after the grace stops the old $(...) read.
 # The wait() leaves $T/spin.mark, so a plant that never fired (the step's $0
 # or its BASH_ENV changed) fails as setup, not as a clean verdict (R7 c-175 N1).
+# The TERM waits for that mark (SPL-5927): the step calls wait() only in its
+# join, after it forked every sweep, which a loaded runner can reach after the
+# first sweep's grep has already fired the sweep mark.
 printf '%s\n' "[[ \"\$0\" == */sweep.sh ]] && wait() { : >'$T/spin.mark'; trap '' TERM; while :; do echo spin; sleep 0.05; done; }" >"$T/spin.env"
-v=$(KT_BASH_ENV="$T/spin.env" kill_once "$TEST_DIR/hygiene-box-users-allow.tst.sh" "$T/spin.ctl")
-if [[ ! -e "$T/spin.mark" ]]; then fail "control: SETUP, the step's planted wait() never ran (verdict: $v)"
+v=$(KT_BASH_ENV="$T/spin.env" kill_once "$TEST_DIR/hygiene-box-users-allow.tst.sh" "$T/spin.ctl" "$T/spin.mark")
+if [[ ! -e "$T/spin.mark" || "$v" == setup:* ]]; then fail "control: SETUP, the step's planted wait() never ran (verdict: $v)"
 elif [[ "$v" == clean ]]; then pass "control: hygiene-box-users-allow.tst.sh ends clean when its step spins in wait and ignores TERM"
 else fail "control: hygiene-box-users-allow.tst.sh should end clean when its step spins in wait, got: $v"; fi
 

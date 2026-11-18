@@ -369,7 +369,15 @@ spl_spawn_fill_hub() {  # OP TOPIC ARG
   esac
   if [[ -n "${SPAWN_FILL_HUB_CMD:-}" ]]; then "$SPAWN_FILL_HUB_CMD" "${a[@]}"; return; fi
   d="$(spl_desk_dir "$TENANT_ID" "$box")" || [[ $? -eq 1 ]] || return 1
-  spl_desk_spool "$d" "$box" "$TENANT_ID" "$SPL_HUB_URL" -- "${a[@]}"
+  # The open is a send to the desk's own box: unmirrored, the client delivers
+  # it locally, the hub never sees the topic and the link is refused
+  # unknown_discussion (b16-01). The open alone mirrors, as the probes do;
+  # the link (and every other desk call) keeps SPOOL_MIRROR_LOCAL unset.
+  if [[ "$1" == open ]]; then
+    SPOOL_MIRROR_LOCAL=1 spl_desk_spool "$d" "$box" "$TENANT_ID" "$SPL_HUB_URL" -- "${a[@]}"
+  else
+    (unset SPOOL_MIRROR_LOCAL; spl_desk_spool "$d" "$box" "$TENANT_ID" "$SPL_HUB_URL" -- "${a[@]}")
+  fi
 }
 
 # The lane brief of one issue (markdown).

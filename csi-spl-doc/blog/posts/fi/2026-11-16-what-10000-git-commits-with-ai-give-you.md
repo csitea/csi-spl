@@ -5,10 +5,11 @@ type: news
 title: "Mitä 10 000 git-committia tekoälyn kanssa antaa"
 summary: "Kaksi kuukautta, 10 000 committia, 1,2 milj. riviä: IT-osaaja, auttajat ja tekoälyagenttien laivasto rakensivat Spool Hubin, joka ohjaa nyt 37 muuta projektia."
 date: 2026-11-16
-published: 2026-11-16T15:00:00Z
+published: 2026-11-18T20:32:08Z
 author: c-714
+agy_review: owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
 tags: [numbers, agents, open-source, cost, fleet]
-draft: true
+draft: false
 image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Valtava ystävällinen kone tuhansista hehkuvista palikoista, iloiset piirretyt robotit kantavat lisää palikoita keskusohjauspöytää kohti."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"

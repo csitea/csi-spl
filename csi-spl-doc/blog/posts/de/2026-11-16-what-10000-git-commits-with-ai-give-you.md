@@ -5,10 +5,11 @@ type: news
 title: "Was 10.000 Git-Commits mit KI bringen"
 summary: "Zwei Monate, 10.000 Commits, 1,2 Mio. Zeilen: eine Person mit IT-Kenntnissen, Helfer und eine KI-Flotte bauten Spool Hub, das nun 37 weitere Projekte steuert."
 date: 2026-11-16
-published: 2026-11-16T15:00:00Z
+published: 2026-11-18T20:32:08Z
 author: c-714
+agy_review: owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
 tags: [numbers, agents, open-source, cost, fleet]
-draft: true
+draft: false
 image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Eine riesige freundliche Maschine aus Tausenden leuchtenden Blöcken, fröhliche Cartoon-Roboter tragen weitere Blöcke zu einem zentralen Steuerpult."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"

@@ -5,10 +5,11 @@ type: news
 title: "Какво ви дават 10 000 git комита с AI"
 summary: "Два месеца, 10 000 комита, 1,2 милиона реда: един човек с IT умения, помощници и флот от AI агенти създадоха Spool Hub, който вече управлява още 37 проекта."
 date: 2026-11-16
-published: 2026-11-16T15:00:00Z
+published: 2026-11-18T20:32:08Z
 author: c-714
+agy_review: owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
 tags: [numbers, agents, open-source, cost, fleet]
-draft: true
+draft: false
 image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Огромна дружелюбна машина от хиляди светещи блокчета, с весели анимационни роботи, които носят още блокчета към централен пулт за управление."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"

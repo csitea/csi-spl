@@ -5,10 +5,11 @@ type: news
 title: "Yapay zekâ ile 10.000 git commit size ne kazandırır"
 summary: "İki ay, 10.000 commit, 1,2 milyon LOC: BT bilgisi olan bir kişi, birkaç yardımcı ve bir yapay zekâ filosu Spool Hub'ı kurdu; artık 37 projeyi daha yönetiyor."
 date: 2026-11-16
-published: 2026-11-16T15:00:00Z
+published: 2026-11-18T20:32:08Z
 author: c-714
+agy_review: owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
 tags: [numbers, agents, open-source, cost, fleet]
-draft: true
+draft: false
 image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Binlerce parlayan bloktan yapılmış dev ve sevimli bir makine; neşeli çizgi film robotları merkezi bir kontrol masasına daha fazla blok taşıyor."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"

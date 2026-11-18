@@ -5,10 +5,11 @@ type: news
 title: "Lo que te dan 10 000 commits de git con IA"
 summary: "Dos meses, 10 000 commits, 1,2 millones de líneas: un experto en TI, colaboradores y una flota de IA crearon Spool Hub, que ya gestiona otros 37 proyectos."
 date: 2026-11-16
-published: 2026-11-16T15:00:00Z
+published: 2026-11-18T20:32:08Z
 author: c-714
+agy_review: owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
 tags: [numbers, agents, open-source, cost, fleet]
-draft: true
+draft: false
 image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Una enorme máquina amable hecha de miles de bloques luminosos, con alegres robots de dibujos animados que llevan más bloques hacia un puesto de control central."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"

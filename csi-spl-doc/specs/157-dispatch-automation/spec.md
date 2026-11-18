@@ -1,7 +1,7 @@
 # Spec 157: Dispatch Automation — Deterministic Execution of Mechanical Dispatch Procedures
 
-**Feature ID**: `157-dispatch-automation` · **Status**: Draft v0.7 · **Epic**: SPL-2398 · **Issue**: SPL-3392  
-**Created**: 2026-10-25 · **Updated**: 2026-11-14 (v0.7: section 4.1, the owner's prio word, SPL-5524; v0.6 2026-10-25: cross-vendor review feedback from `c-220@sat` resolving Z1–Z3) · **Lead**: a-213 · **Placement slug**: `c002-spec-157-dispatch-automation`  
+**Feature ID**: `157-dispatch-automation` · **Status**: Draft v0.8 · **Epic**: SPL-2398 · **Issue**: SPL-3392  
+**Created**: 2026-10-25 · **Updated**: 2026-11-18 (v0.8: section 4.2, the dependent queue row, SPL-5874; v0.7 2026-11-14: section 4.1, the owner's prio word, SPL-5524; v0.6 2026-10-25: cross-vendor review feedback from `c-220@sat` resolving Z1–Z3) · **Lead**: a-213 · **Placement slug**: `c002-spec-157-dispatch-automation`  
 **Related Specs & Docs**:  
 - [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md) (Fleet roles, 3-minute SLA, routing rules, lease failover, owner go gates, and asks ledger)  
 - [spec 060 Role Rotation](../060-role-rotation/spec.md) (Hourly rotation, standby states, handoff files)  
@@ -638,6 +638,20 @@ Origin: csitea weekly item 10 (topic `48d75e5f`, poll `d0c7b716`, ticked by HUM-
 - **Placement**: the placer (`spl_spawn_place_band`) takes a priority 1 head as it is, after a `ci` or flagged head and before a review seat and the class bands, logging `INFO priority 1 head`.
 - **Limits**: two topics at priority 1 share the head in the hub's order (class, then time in line). The word list is a hub env var, not yet a `csi-spl-cnf` key; set and empty turns the feature off (unset = the default words).
 - **Tests**: `TestOwnerPrioWordMovesAskToHead`, `TestOwnerPrioWordRefusals`, `TestOwnerPrioWordOff`, `TestOwnerPrioWordOperatorQueue` (`owner_prio_word_test.go`), `TestLoadHubOwnerPrioWords` (`internal/config`); `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh`. Red controls: without the hook the ask stays at position 2; a substring match moves it on `prioritize`; without the owner check a developer's or an admin's post moves it; origin/master's placer takes the review seat over a priority 1 head; without the operator workspace step the operator owner's post leaves op's ask at 2; without `prioOwnText` the quoted, code span and fence posts move it; without the empty-value check `SPOOL_HUB_OWNER_PRIO_WORDS=""` loads the 3 defaults.
+
+### 4.2 The dependent queue row: an ask held until its prerequisite lands (v0.8, SPL-5874)
+
+Origin: owner HUM-10, csitea topic `dfe850d9`, msg `01e9793b` (2026-11-18): "automate every single thing that can be automated". The miss: spec 170 B3 was to be queued "after B2 lands" in a dispatcher note only; B2 landed on 2026-11-15 (`6b5667bad`) and B3 sat unqueued for 3 days until the owner asked (ask `9d54a51b`). Orchestrator GO: c-001 msg `b8477882`.
+
+- **Input**: `do_spl_spawn_enqueue` takes `SPAWN_AFTER=<issue key | row slug>` and an optional `SPAWN_AFTER_DELAY=<minutes>` (whole minutes 0..1440, default 0; the rounds rulebook R16 allows 30). The row must be placed (`SPAWN_PLACE=<vendor>:<slug>`) with its brief here: the prerequisite is written into that brief as `After: <x>` and `After-Delay: <n>` lines, so it travels with the brief to the box that places it. A hand-written `After:` line in a brief is the same thing.
+- **Refused at enqueue** (one FATAL line, nothing queued, the brief untouched): a key the hub does not know (`not_found`), a key that is `diss` (it will never land), a key the hub could not be asked about and no trunk commit closes, a slug with no brief here that was never placed from this box, the row's own slug, a value that is neither a key nor a slug, a bad delay, `SPAWN_AFTER` with no `SPAWN_PLACE`, `SPAWN_AFTER_DELAY` alone.
+- **Landed** (read on `origin/master` of the placer's checkout, `SPAWN_AFTER_GIT_DIR`, fetched once a tick while such a row waits):
+  - an issue key: a trunk commit closes it by the close rule of [lane-issue-and-docs.md](../../doc/md/lane-issue-and-docs.md) (`li_landed`: a `fix|feat|perf|refactor` subject with the key in its scope, or a `Closes:` trailer). A `docs(...)` commit citing it does not count.
+  - a row slug: its lane's issue landed by that same rule. The lane's key is the slug brief's `Issue:` line, else the key the placer read from the launcher's `<ID> carries issue <KEY>` line when it launched that slug (`<asks dir>/.place.slugs`), else, for a lane on this box, its `lifetime/issue`. No key known yet: held, and the reason says so.
+  - The brief asked for "the lane's done-claim verdict landed" for a slug. That verdict lives in the done-claim ledger of the box that judged it, has no lane column and is pruned after 48 h; the lane's issue landing is the same proof read from git, on any box, for good.
+- **Held**: the placer (`spl_spawn_place_after_hold`, step 2g) leaves the row queued and out of the tick's line, never acked or closed, so no close of another row drops it. `.place.wait` carries `held: waiting on <x>: <why>`; `do_spl_spawn_queue` prints `HELD <ask8> <slug> after <x>` and that WAIT line.
+- **Released**: the land time is the committer time of the oldest closing commit; once it plus the delay has passed, the row joins the line and is placed by the normal rules (bands, room, gap, one at a time), once: the placement closes the ask.
+- **Code**: `csi-spl-orc/src/bash/run/spl-spawn-after.func.sh`, called from `spl-spawn-enqueue.func.sh`, `spl-spawn-place.func.sh` and `spl-spawn-queue.func.sh`. **Test**: `csi-spl-orc/src/bash/tests/spl-spawn-after.tst.sh` (red on origin/master `8de44d393`: rc 1, 20 FAIL lines (19 failed checks + the `FAIL: 19` summary) and 2 PASS; green on the lane's tree: rc 0, 20 PASS lines + `PASS: all`; n=3 each, the R7 by c-434@sat measured the same).
 
 ---
 

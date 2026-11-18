@@ -193,6 +193,13 @@
 # @description      The window ceiling, the gap and every other hold stay. Why:
 # @description      the authors' lanes wait on the review, so a held seat keeps
 # @description      the load up (19 review-seat alarms in 42 h, panel task 5.5)
+# @description   2g. AFTER (spec 157 4.2, SPL-5874) - a queued row whose brief
+# @description      carries `After: <issue key | row slug>` (do_spl_spawn_enqueue's
+# @description      SPAWN_AFTER) HOLDS until that prerequisite has landed on
+# @description      origin/master (fetched once a tick while such a row waits),
+# @description      then its `After-Delay:` minutes: queued, out of the line,
+# @description      never acked or closed, the reason in .place.wait. Then it is
+# @description      placed like any row, once (spl-spawn-after.func.sh)
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
 # @param SPAWN_PLACE_SEAT_ALARM_MIN (optional) - minutes in line after which a held logged review seat alarms, default 30
 # @param SPAWN_PLACE_SEAT_OVERFLOW (optional) - the review seats' overflow mark, % of a box's high, overrides cnf env.box.fleet_load.review_seat_overflow_pct; must be above BOX_PICK_OVERFLOW (200)
@@ -219,12 +226,16 @@
 # @param SPAWN_PLACE_LOAD_CMD (optional, tests) - prints the lane map's JSON ({load: [...]}) the per-box agy state reads the live boxes and their CLIs from, instead of do_spl_lane_map
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD ASKS_HOLDER (optional) - as do_spl_asks_tick
 # @param SPAWN_GROUP_DIR SPAWN_GROUP_POLL_MIN SPAWN_GROUP_GRACE_MIN (optional) - as do_spl_spawn_group_put
+# @param SPAWN_AFTER_GIT_DIR (optional) - the clone whose origin/master a dependent row's prerequisite is read on (spec 157 4.2), default the checkout this action runs from
+# @param SPAWN_AFTER_FETCH (optional) - 0: no git fetch before the dependent rows are judged (the last fetched trunk counts), default 1
 # @example ./run -a do_spl_spawn_place
 # @example SPAWN_PLACE_GAP_MIN=0 ./run -a do_spl_spawn_place
 #------------------------------------------------------------------------------
 
 declare -F spl_spawn_group_feed >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-group-put.func.sh"
+declare -F spl_spawn_place_after_hold >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-after.func.sh"
 
 do_spl_spawn_place() {
   spl_asks_init || return 1
@@ -254,6 +265,7 @@ do_spl_spawn_place() {
   rows="$(spl_spawn_place_pin_hold "$rows")"
   rows="$(spl_spawn_place_agy_box_hold "$rows")"
   rows="$(spl_spawn_place_dark_hold "$rows")"
+  rows="$(spl_spawn_place_after_hold "$rows")"
   rows="$(spl_spawn_place_line "$rows")"
   spl_spawn_place_band_sample
   head="$(jq -c '.[0] // empty' <<<"$rows")"
@@ -1468,7 +1480,7 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
     out="$(SPAWN_BOX="${6:-}" BOX_PICK_REVIEW_SEAT="$seat" BOX_PICK_OVERFLOW="$ovf" SPOOL_AGENT_ID="${holder%@*}" bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-window.sh" \
       "$3" auto "${SPAWN_PLACE_WORKDIR:-$APP_PATH}" "$5" "$4" 2>"$err" 6>&-)" || rc=$?
   fi
-  out="$out"$'\n'"$(tail -3 "$err")"; rm -f "$err"
+  out="$out"$'\n'"$(grep -m1 ' carries issue ' "$err")"$'\n'"$(tail -3 "$err")"; rm -f "$err"
   # the id letters every launcher mints, from their one home (SPL-5470: o- was missing)
   [[ -n "${SPOOL_AGENT_ID_NEW_RX:-}" ]] || source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh"
   agent="$(grep -oE "^${SPOOL_AGENT_ID_NEW_RX}(@[a-z0-9][a-z0-9-]{0,31})?( |\$)" <<<"$out" | tail -1 | tr -d ' ')"
@@ -1478,6 +1490,7 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
     spl_spawn_place_wait "$id" ""
     spl_spawn_place_dark_clear "${6:-}"
     spl_spawn_placed_close "$id" "$holder" "$agent"
+    spl_spawn_after_launched "$4" "$agent" "$out"
     declare -F spl_review_notify_placed >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-review-notify.func.sh"
     spl_review_notify_placed "$holder" "$agent" "$4" "$5"
     return 0

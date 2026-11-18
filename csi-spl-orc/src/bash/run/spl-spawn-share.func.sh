@@ -186,14 +186,19 @@ spl_spawn_share_lanes() {
 }
 
 # {"<ID>@<box>": "<class>"} from the `Class:` line of the briefs on this box.
+# One pass (perf round 16 row 02, SPL-5867): one grep reads every brief (-m1
+# counts per file, -H names it) and one jq builds the map, in place of a
+# grep | sed | tr and a jq per lane. A missing or empty brief gives no key.
 spl_spawn_share_briefs() {  # LANES
-  local id c out='{}'
+  local id
+  local -a briefs=()
   while IFS= read -r id; do
-    [[ -n "$id" ]] || continue
-    c="$(grep -m1 -oiE '^Class: *(ci|refactor|bug|feature)\b' "$SPOOL_ROOT/$id/lifetime/brief.md" 2>/dev/null | sed -E 's/^[Cc]lass: *//' | tr 'A-Z' 'a-z')"
-    [[ -n "$c" ]] && out="$(jq -c --arg k "$id@$ASKS_BOX" --arg v "$c" '. + {($k): $v}' <<<"$out")"
+    [[ -n "$id" ]] && briefs+=("$SPOOL_ROOT/$id/lifetime/brief.md")
   done < <(jq -r --arg b "$ASKS_BOX" '.[] | select(.agent_box == $b) | .agent_id' <<<"$1")
-  printf '%s' "$out"
+  ((${#briefs[@]})) || { printf '{}'; return 0; }
+  { grep -m1 -oiHE '^Class: *(ci|refactor|bug|feature)\b' "${briefs[@]}" 2>/dev/null || :; } |
+    jq -R -s -c -j --arg b "$ASKS_BOX" '[split("\n")[] | capture("/(?<id>[^/]+)/lifetime/brief\\.md:class: *(?<c>[a-z]+)$"; "i")
+      | {key: "\(.id)@\($b)", value: (.c | ascii_downcase)}] | from_entries'
 }
 
 # The local bypass log (it outlives the hub's week of closed rows) as JSON.

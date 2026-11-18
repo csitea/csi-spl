@@ -26,6 +26,12 @@
 #  12. a phase that cannot be read: phase unknown, the day bands, a WARN, and
 #      the report says so (never a plain day)
 #  13. a sample's trim drops lines whose time is not a number
+#  14. spl_spawn_share_briefs reads every brief in one pass (perf round 16 row
+#      02, SPL-5867): 30 lanes on the box (the Class: edge cases, an empty and
+#      a missing brief) and 1 on another box, logging PATH stubs for grep, jq,
+#      sed and tr: (a) one call execs at most 3 of them (red before the fix:
+#      about 4 per lane); (b) CONTROL the map is the expected JSON; (c)
+#      CONTROL no lane on the box -> {}, without a grep
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -137,6 +143,43 @@ printf 'garbage line\nzzz\tx\n' >>"$T/asks/share.24h.tsv"
 shr "$(date -u -d "@$((n + 1200))" +%FT%TZ)" 'spl_spawn_share_sample "$T/s.json"' T="$T"
 check "13 the trim drops the lines whose time is not a number" "3 0" \
   "$(wc -l <"$T/asks/share.24h.tsv") $(grep -cvE '^[0-9]+'$'\t' "$T/asks/share.24h.tsv")"
+
+# 14. the briefs map in one pass ---------------------------------------------------
+B14="$T/b14"; mkdir -p "$B14/spool" "$B14/stub"
+for c in grep jq sed tr; do
+  printf '#!/bin/bash\necho %s >>"%s"\nexec %s "$@"\n' "$c" "$B14/execs.log" "$(command -v "$c")" >"$B14/stub/$c"
+  chmod +x "$B14/stub/$c"
+done
+brief() { mkdir -p "$B14/spool/$1/lifetime"; printf '%b' "$2" >"$B14/spool/$1/lifetime/brief.md"; }
+brief c-500 'Kind: x\nClass: BUG\n'
+brief c-501 'Class: feature\nClass: bug\n'
+brief c-502 'Class: chore\nClass: bug\n'
+brief c-503 'Class: ci.\n'
+brief c-504 'class: Refactor\n'
+brief c-505 'Class: chore\n'
+brief c-506 ''
+mkdir -p "$B14/spool/c-507"
+brief c-508 ' Class: bug\nClass: bugfix\n'
+cls=(refactor bug feature)
+for i in $(seq 509 529); do brief "c-$i" "# brief\nClass: ${cls[i % 3]}\n"; done
+brief c-600 'Class: bug\n'
+lanes14="$(jq -n -c '[range(500; 530) | {agent_id: "c-\(.)", agent_box: "box1"}] + [{agent_id: "c-600", agent_box: "box2"}]')"
+want14="$(jq -n -c -j '{"c-500@box1": "bug", "c-501@box1": "feature", "c-502@box1": "bug", "c-503@box1": "ci", "c-504@box1": "refactor"}
+  + ([range(509; 530) | {key: "c-\(.)@box1", value: (["refactor", "bug", "feature"][. % 3])}] | from_entries)')"
+# b14 LANES: the map of one call, its execs counted in execs.log.
+b14() {
+  : >"$B14/execs.log"
+  SPOOL_ROOT="$B14/spool" ASKS_BOX=box1 STUB="$B14/stub" bash -c '
+    source "$1/src/bash/run/spl-spawn-share.func.sh"
+    PATH="$STUB:$PATH" spl_spawn_share_briefs "$2"' _ "$PROJ_ROOT" "$1"
+}
+got14="$(b14 "$lanes14")"
+n14="$(wc -l <"$B14/execs.log")"
+((n14 <= 3)) && pass "14a one call execs $n14 of grep/jq/sed/tr (at most 3)" ||
+  fail "14a one call execs $n14 of grep/jq/sed/tr, want at most 3: $(sort "$B14/execs.log" | uniq -c | tr -s ' \n' ' ')"
+check "14b CONTROL the map: the Class: edge cases, the other box left out" "$want14" "$got14"
+check "14c CONTROL no lane on the box -> {}" "{}" "$(b14 '[{"agent_id":"c-600","agent_box":"box2"}]')"
+check "14c no lane on the box: no grep" "0" "$(grep -c '^grep$' "$B14/execs.log")"
 
 echo "$fails failure(s)"
 ((fails == 0))

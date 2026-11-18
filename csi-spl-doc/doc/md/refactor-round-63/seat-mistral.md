@@ -190,3 +190,24 @@ None. W1..: none.
 - N4: the plan measures on `e7ff0e347`; origin/master has since moved to
   `232902108`. I re-read every site line and the baseline on origin/master too
   (checks 3 and 5): identical, so no drift between the measuring sha and trunk.
+
+## v1.0 signature (2026-11-18 18:06Z, this session)
+
+Editor c-915's msg c47b8803 (task `dispatch-refactor-r63`, 2026-11-18T18:03:04Z)
+named v1.0 `cc2d7a91ee98c81d118aeaabac6c929f5b169445`. Verified: `git fetch origin
+master`; `git merge-base --is-ancestor cc2d7a91ee98c81d118aeaabac6c929f5b169445 origin/master`
+-> exit 0 (landed); `git log -1 --format='%H %cI %s' cc2d7a91...` ->
+`cc2d7a91ee98c81d118aeaabac6c929f5b169445 2026-11-18T19:01:47+01:00 docs(r63-plan, SPL-5912): refactor round 63 plan v1.0, panel m-582 mistral PASS on v0.1 621788d9b`.
+
+**Verdict on v1.0 `cc2d7a91ee98c81d118aeaabac6c929f5b169445`: PASS** — rows
+unchanged: `git diff 621788d9b cc2d7a91 -- csi-spl-doc/doc/md/refactor-round-63-plan.md`
+-> 4 hunks only (status line, 3.2, 8, 9); the section 3 row table is untouched
+(rows r63-01/r63-02 at lines 68-69 of the v1.0 plan, same sites); the plan is 285
+lines at v1.0. Re-read on the new origin/master (`cc2d7a91`): all 11 site lines
+md5-identical to `e7ff0e347` (`git show <sha>:csi-spl-orc/src/bash/run/<file> | sed -n <N>p | md5sum`
+per site, both shas, 11/11 match); baseline
+`git show origin/master:csi-spl-orc/src/bash/tests/no-literal-paths.baseline | grep -vE '^\s*(#|$)' | awk '{s+=$1} END{print NR, s}'`
+-> `11 23`; row slugs
+`git log origin/master --oneline -E --grep='\(r63-[0-9]{2}' | wc -l` -> **0**
+(only the two `docs(r63-plan` commits match `\(r63-`). W1..: none on v1.0 either.
+N1..N4 stand, folded by the editor into plan sections 3.2, 8 and 9.

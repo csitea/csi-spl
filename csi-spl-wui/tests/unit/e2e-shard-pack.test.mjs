@@ -58,9 +58,9 @@ const list = (shard) => {
   const parsed = parseWeights(readFileSync(WEIGHTS, 'utf8'))
   assert.equal(parsed.size, weights.size)
   assert.ok(parsed.size >= 100, `weights file has ${parsed.size} rows`)
-  assert.equal(medianWeight([...parsed.values()]), 10)
-  assert.equal(weightFor('tests/e2e/not-yet-measured.test.mjs', parsed), 10)
-  assert.equal(weightFor('tests/e2e/mobile-back-stuck.test.mjs', parsed), 29)
+  assert.equal(medianWeight([...parsed.values()]), 11)
+  assert.equal(weightFor('tests/e2e/not-yet-measured.test.mjs', parsed), 11)
+  assert.equal(weightFor('tests/e2e/mobile-back-stuck.test.mjs', parsed), 32)
   assert.equal(medianWeight([]), 1)
   assert.equal(medianWeight([4, 1, 9]), 4)
   assert.equal(medianWeight([1, 2, 3, 4]), 3)
@@ -144,6 +144,26 @@ for (const n of SHARD_COUNTS) {
   assert.equal(new Set(flat).size, all.length)
   const packedSums = sums(packed, weightOf)
   assert.ok(spread(packedSums) <= 0.05, `n=${n} packed spread ${spread(packedSums)} sums ${packedSums}`)
+}
+
+// --- every file CI runs has a measured weight, but a few ------------------
+// The check above is blind to a missing weight: an unweighted file packs at
+// the median, so the pack looks even on paper while CI's shard runs long
+// (p17-01, 2026-11-18: 106 of 367 files unweighted, shard 2/8 ended 5 of 6
+// runs, 1,064..1,238 s against an even 881..911 s). The selection is the
+// runner's own --list, so ci-skip.txt applies. UNWEIGHTED_MAX = 10: a new
+// e2e file may land before its first CI sample, and a handful at the median
+// moves a shard by well under a minute. Over it, refresh the weights: the
+// median per file of the '<file> <secs>' lines of >= 5 green wf 10 runs on
+// master (see the header of e2e-shard-weights.txt).
+const UNWEIGHTED_MAX = 10
+{
+  const unweighted = list().filter((file) => !weights.has(file))
+  assert.ok(
+    unweighted.length <= UNWEIGHTED_MAX,
+    `${unweighted.length} CI e2e file(s) have no weight line (max ${UNWEIGHTED_MAX}); ` +
+      `refresh src/node/test/e2e-shard-weights.txt:\n  ${unweighted.join('\n  ')}`,
+  )
 }
 
 // --- a reader slow to drain still gets the whole list ----------------------

@@ -24,7 +24,7 @@ For each box the hub serves (a dir `<root>/<box>/` with `inbound/` and
 | | condition | read from | clears on |
 |---|---|---|---|
 | a | a queued or sent bundle/command with no receipt | hub log `queued ...` / `sent <name> hub -> ...` | `delivered <name> to`; a command also on its box `START`, its `exec: request <id> -> exit` line or `<results>/<id>/result.json` |
-| b | a box apply or command refused or timed out | `box: deploy:` / `box: exec:` REFUSED or timed out lines; `exec: request <id> -> exit <n>` with REFUSED / timed out in `<results>/<id>/` or exit 124 | a later `box: deploy: APPLIED` (apply) or `-> exit 0` (command) |
+| b | a box apply or command refused or timed out | `box: deploy:` / `box: exec:` REFUSED or timed out lines; `exec: request <id> -> exit <n>` with REFUSED / timed out in `<results>/<id>/` or exit 124; not a request that `expired ...; nothing ran` (the link delivered it and its result: no b, no restart, SPL-5896) | a later `box: deploy: APPLIED` (apply) or `-> exit 0` (command) |
 | c | the box log not advancing, while a, b or d holds or a command runs on the box | the newest `inbound/*/*-log.box.*` and the hub's `received ...-log.box.` lines; quiet for more than 180 s, counted from the later of that and the oldest of a, b, d or a running command | the next box log, or nothing left in flight |
 | d | the link or session down | no `<home>/run -a radiate` process, or the hub log closed the session after its last `radiating session` | the radiate back |
 

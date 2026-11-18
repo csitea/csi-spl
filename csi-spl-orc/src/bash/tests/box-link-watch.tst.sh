@@ -13,6 +13,10 @@
 #   6. the box log silent with nothing in flight -> nothing; the link down (no
 #      radiate) -> alert; several stuck conditions on one box are ONE message
 #   7. a refused apply 8 min ago -> alert; a later APPLIED clears it
+#  7b. SPL-5896: requests that expired in the queue ("expired ...; nothing
+#      ran", on the box: exec: line or in the result's output) 11 min ago, the
+#      link up, a restart action set -> no b, no blocker, no restart plan; a
+#      non-expired box: exec: REFUSED -> still the blocker and the restart plan
 #   8. no live seat row on the topic -> the fallback receiver
 #   9. DRY_RUN (default) prints the plan, sends nothing, writes no state
 #  10. a send that fails is not recorded: the next run sends it
@@ -45,6 +49,8 @@
 #   case 2's silence is the state's doing. Case 22 on the watcher before
 #   SPL-5522: no restart at 11 min. On 03643ed75: 3 restarts in 3 min with
 #   a read-only state dir, rc 0 on the lock, a quiet box log in after: (3 fail).
+#   Case 7b before SPL-5896: a b:exec INFO per expired line, PLAN blocker
+#   LINK STUCK and PLAN restart (2 fail).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -137,6 +143,23 @@ grep -q 'box apply refused or timed out, since .* (8 min). Evidence: `.*REFUSED 
 logl -1 "box: deploy: APPLIED alc branch b 1..2 (1 -> 2) at worktree /x from alc.zip"
 later 2; run >/dev/null
 [ "$(n)" = 2 ] && grep -q CLEARED <<<"$(last)" && pass "7. ...a later APPLIED clears it" || fail "7. clear ($(cat "$T/sent"))"
+
+# 7b. SPL-5896: an expired request is no refusal; a non-expired one still is
+fresh
+for id in 3d1970ae84ae c03a833949d6; do
+  logl 11 "box: exec: REFUSED request $id (gr-cmd-$id.zip): expired 14691s ago; nothing ran; result queued (exit 4)"
+  mkdir -p "$RES/$id"; echo '{"exit":4}' >"$RES/$id/result.json"
+done
+logl 11 "exec: request 0a0b0c0d0e0f -> exit 4"
+mkdir -p "$RES/0a0b0c0d0e0f"; echo 'box: exec: REFUSED request 0a0b0c0d0e0f: expired 399s ago; nothing ran' >"$RES/0a0b0c0d0e0f/stdout.txt"
+out="$(run BOX_LINK_WATCH_RESTART_ACTION=kick-now DRY_RUN=1)"
+! grep -q 'b:exec' <<<"$out" && ! grep -q '^PLAN blocker' <<<"$out" && ! grep -q '^PLAN restart' <<<"$out" \
+  && pass "7b. requests that expired 11 min ago, nothing ran (exec line or result output), restart action set -> no b, no blocker, no restart plan" || fail "7b. expired ($out)"
+logl 11 "box: exec: REFUSED request 5e5e5e5e5e5e (gr-cmd-5e5e5e5e5e5e.zip): the signature does not verify; result queued (exit 4)"
+out="$(run BOX_LINK_WATCH_RESTART_ACTION=kick-now DRY_RUN=1)"
+grep -q 'b:exec:[0-9a-f]*: box command refused or timed out, 11 min' <<<"$out" && grep -q '^PLAN blocker .*LINK STUCK > 7 min' <<<"$out" \
+  && grep -q '^PLAN restart box box: .*box command refused or timed out)$' <<<"$out" && [ "$(grep -c 'b:exec' <<<"$out")" = 1 ] \
+  && pass "7b. ...a non-expired box: exec: REFUSED still alerts and plans the restart (only it is a b)" || fail "7b. refused ($out)"
 
 # 8. no live seat -> the fallback
 fresh; logl 8 "sent b3.zip hub -> box (10 B, sha256 aa) as b-4 in 1 s, waiting for the box's receipt"

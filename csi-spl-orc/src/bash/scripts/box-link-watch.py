@@ -12,7 +12,9 @@ it raises ONE incident when one of these lasts longer than GW_LIMIT_MIN:
   b  a box apply or command refused or timed out (a `box: deploy:` / `box:
      exec:` REFUSED / timed out line, or a command whose result exits non-zero
      with REFUSED / timed out in its output, or exit 124) with no later
-     success of its kind (`box: deploy: APPLIED`, an exec `-> exit 0`)
+     success of its kind (`box: deploy: APPLIED`, an exec `-> exit 0`); a
+     request that `expired ...; nothing ran` is no refusal (the link
+     delivered it and its result), so it is no b and plans no restart
   c  the box log not advancing: no <x>-log.box.* received for more than
      GW_QUIET_S, while a, b or d holds or a command runs on the box (a box
      quiet at night with nothing in flight is no incident); it counts from the
@@ -67,6 +69,9 @@ LINE = re.compile(
 )
 CMD_NAME = re.compile(r"^gr-cmd-(?:\d{8}T\d{6}Z-)?([0-9a-f]{12})\.zip$")
 SECRETISH = re.compile(r"https?://\S+|\b(token|sig|signature|key)=\S+", re.I)
+# A request that expired in the queue before the box took it: the link
+# delivered it and returned its result, so it is no refusal (SPL-5896).
+EXPIRED = re.compile(r"\bexpired\b.*\bnothing ran\b")
 
 
 def env(name, default=""):
@@ -142,8 +147,10 @@ def result_refused(results, cid):
                 text += fh.read()
         except OSError:
             pass
-    m = re.search(r".*(REFUSED|timed out|timeout).*", text)
-    return clean(m.group(0)) if m else ""
+    for line in text.splitlines():
+        if re.search(r"REFUSED|timed out|timeout", line) and not EXPIRED.search(line):
+            return clean(line)
+    return ""
 
 
 def pending_items(rows, results):
@@ -206,7 +213,7 @@ def refusal_kind(text, raw, results):
     if re.search(r"^box: deploy: .*(REFUSED|refused|timed out)", text):
         return "deploy", raw
     if re.search(r"^box: exec: .*(REFUSED|refused|timed out)", text):
-        return "exec", raw
+        return ("", raw) if EXPIRED.search(text) else ("exec", raw)
     m = re.search(r"^exec: request ([0-9a-f]{12}) -> exit ([1-9][0-9]*)", text)
     if m:
         why = result_refused(results, m.group(1)) or (

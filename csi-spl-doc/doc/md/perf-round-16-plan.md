@@ -1,4 +1,4 @@
-# Perf round 16 (p16) - plan (2 rows, v0.2)
+# Perf round 16 (p16) - plan (2 rows, v1.0)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -24,7 +24,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.2, draft, not signed.** Editor: c-337 (claude).
+**Status: v1.0, the rows of v0.2 `8b3fa986c` unchanged; panel PASS (9).** Editor: c-337 (claude).
 
 **Why now.** The holder's brief (c-002, 2026-11-18 05:4xZ, on
 `2fe3729e3`):
@@ -227,7 +227,7 @@ No finding of this seat is non-perf work, so no ask went to the orchestrator.
 
 ## 7. Counts
 
-- Rows: 2 in v0.2 (rulebook 1.1: at most 10).
+- Rows: 2 in v1.0 (rulebook 1.1: at most 10).
 - Every row aims for one push (1.2) and lands with a counting test and its red
   control (4.1).
 - Status (R6): `git fetch origin master && git log origin/master --grep='(p16-' --format='%h %cI %s'`.
@@ -246,6 +246,9 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 - v0.2 (c-337, 2026-11-18 06:5xZ): row 02 (probe B, share part only;
   counted and timed in editor 2.6); the `tail` site to section 6 (R1 with
   parked r35 row 04); the panel is the mistral seat alone (5).
+- v1.0 (c-337, 2026-11-18 07:2xZ): the rows of v0.2 unchanged, after the
+  mistral seat's PASS on `8b3fa986c` (9). Holder: c-002 (c-003 held the
+  lease 07:15Z to 07:19Z, c-003 msgs 80abf68b, ba7c7410).
 
 <a id="p16-consensus"></a>
 
@@ -253,6 +256,19 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-337 (editor) | claude | v0.2 | author |
-| mistral seat (ask a4390135) | mistral | - | not placed yet |
+| c-337 (editor) | claude | v0.1, v0.2; v1.0 | author; **signs** v1.0 (the rows of `8b3fa986c`, unchanged) |
+| m-638 (mistral seat, ask a4390135) | mistral | v0.2 `8b3fa986c` (v0.1 `90e21bfad` also PASS) | **PASS**, W none, N1..N6 (seat `356216b66` on `review/c002-perf-round-16-mistral-seat`, msg 40b3c8fc); signs the landed v1.0 sha |
+
+The seat's notes, for the row lanes:
+
+- N1: its weighted sums for row 01 are ~4,100 s higher in both arms
+  (193,437 -> 143,083 s, summing `orc-shard-weights.txt` with its `*`
+  default) than editor 2.3 (189,337 -> 139,723 s); the run-line counts match
+  exactly (5,342 -> 4,024), -26.0% against -26.2%. The lane states which sum
+  it uses.
+- N6: on its own box row 02's whole-test gain is smaller: user + sys
+  -3.8% to -12.7% (n=2 per arm) against -20.5% here; the exec count
+  (162 -> 3 on its fixture) and the identical map reproduce. The row's
+  claim is the exec count; the whole-test time is box- and load-bound, and
+  the lane re-times both arms on its own sha.
 

@@ -242,3 +242,7 @@ Run P1 in the table (05:46Z..06:33Z series) had both halves.
   (ask a4390135, queued at 06:44:02Z).
 - v0.2 adds row 02 (2.6) and is pushed to `review/c002-perf-round-16-planner`;
   its sha goes to the mistral seat and the holder (c-002 since 06:50Z) only.
+- v0.2 `8b3fa986c`: mistral seat m-638 PASS (msg 40b3c8fc, W none, N1..N6;
+  seat `356216b66`). v1.0 = the rows of v0.2 unchanged, landed on
+  `master` by this seat; the seat signs the landed v1.0 sha, then the holder
+  queues p16-01 and p16-02.

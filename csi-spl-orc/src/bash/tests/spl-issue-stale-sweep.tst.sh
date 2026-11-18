@@ -11,7 +11,11 @@
 #   5. DRY_RUN=1 (the default) prints the would-end list and writes nothing
 #   6. red controls: a judge variant without the c6 check ends the issue a live
 #      lane names; one without the c7 check ends the issue a commit cites
-#   7. a bad STALE_MAX is refused before any read
+#   7. STALE_MAX: 51 is refused before any read (the brief's ceiling is 50);
+#      the default is 50: of 51 eligible issues 50 are ended, 1 kept "cap"
+#   8. the real spl_stale_cited on a fixture repo: it fetches, then names the
+#      keys of origin/master only (not a local HEAD commit); STALE_GIT_FETCH=0
+#      reads the ref as it is; a failed fetch stops
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -136,10 +140,33 @@ red 6 's/if names(text, key):/if False:/'
 red 7 's/if key in cited:/if False:/'
 [[ "$(ended)" == "SPL-100 SPL-107" ]] && pass "6. red control: without the c7 check the cited SPL-107 is ended, and the test sees it" || fail "6. c7 red: '$(ended)'"
 
-# --- 7. a bad STALE_MAX ------------------------------------------------------------
+# --- 7. STALE_MAX: the ceiling and the default ----------------------------------------
 reset; fixtures "[$(iss SPL-1)]" '[]' '[]' ''
-sweep STALE_MAX=501; rc=$?
-[[ $rc != 0 && ! -e "$T/reads" ]] && grep -q 'STALE_MAX must be 1..500' "$T/out" && pass "7. STALE_MAX=501 is refused before any read" || fail "7. rc=$rc: $(cat "$T/out")"
+sweep STALE_MAX=51; rc=$?
+[[ $rc != 0 && ! -e "$T/reads" ]] && grep -q 'STALE_MAX must be 1..50,' "$T/out" && pass "7. STALE_MAX=51 is refused before any read" || fail "7. rc=$rc: $(cat "$T/out")"
+reset; fixtures "[$(for n in $(seq 1 51); do printf '%s,' "$(iss "SPL-$((900 + n))")"; done | sed 's/,$//')]" '[]' '[]' ''
+sweep DRY_RUN=0; rc=$?
+[[ $rc == 0 && "$(grep -c '^update ' "$T/writes")" == 50 ]] && grep -q 'cap 1' "$T/out" && grep -q '(cap 50, idle 7 d): ended 50, failed 0' "$T/out" &&
+  pass "7. the default cap is 50: of 51 eligible, 50 ended, 1 kept by the cap" || fail "7. default cap rc=$rc: $(tail -3 "$T/out")"
+
+# --- 8. the real spl_stale_cited on a fixture repo ------------------------------------
+g() { git -c user.name=t -c user.email=t@example.com -c init.defaultBranch=master "$@"; }
+g init -q --bare "$T/origin.git" && g clone -q "$T/origin.git" "$T/seed" 2>/dev/null &&
+  g -C "$T/seed" commit -q --allow-empty -m "fix(x, SPL-7): landed" && g -C "$T/seed" push -q origin HEAD:master &&
+  g clone -q "$T/origin.git" "$T/clone" && g -C "$T/clone" commit -q --allow-empty -m "fix(x, SPL-8): local only" &&
+  g -C "$T/seed" commit -q --allow-empty -m "fix(x, SPL-9): landed after the clone" && g -C "$T/seed" push -q origin HEAD:master
+cited() {
+  env STALE_GIT_DIR="$T/clone" FUNC="$FUNC" "$@" bash -c 'do_log() { echo "$*"; }; source "$FUNC"; spl_stale_cited' >"$T/cited.out" 2>&1
+}
+cited STALE_GIT_FETCH=1; rc=$?
+[[ $rc == 0 && "$(tr '\n' ' ' <"$T/cited.out")" == "SPL-7 SPL-9 " ]] &&
+  pass "8. after a fetch it names origin/master's SPL-7 and SPL-9, not the local HEAD's SPL-8" || fail "8. fetch rc=$rc: $(cat "$T/cited.out")"
+g -C "$T/clone" update-ref refs/remotes/origin/master "$(git -C "$T/clone" rev-parse 'origin/master~1')"
+cited STALE_GIT_FETCH=0; rc=$?
+[[ $rc == 0 && "$(tr '\n' ' ' <"$T/cited.out")" == "SPL-7 " ]] && pass "8. STALE_GIT_FETCH=0 reads the ref as it is (no SPL-9)" || fail "8. no fetch rc=$rc: $(cat "$T/cited.out")"
+g -C "$T/clone" remote set-url origin "$T/no-such.git"
+cited STALE_GIT_FETCH=1; rc=$?
+[[ $rc != 0 ]] && grep -q 'FATAL git fetch origin master failed' "$T/cited.out" && pass "8. a failed fetch stops" || fail "8. failed fetch rc=$rc: $(cat "$T/cited.out")"
 
 echo "---"
 [[ $fails == 0 ]] && echo "spl-issue-stale-sweep: all passed" || echo "spl-issue-stale-sweep: $fails FAILED"

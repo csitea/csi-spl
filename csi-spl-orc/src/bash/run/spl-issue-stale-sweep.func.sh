@@ -22,13 +22,15 @@
 # @description this machine (LOCAL-ONLY), or any list that cannot be read, stops
 # @description the sweep: nothing written, one FATAL line says why.
 # @description DRY_RUN=1 (default) prints the would-end list (key, last update,
-# @description title, the conditions held) and the kept counts, and writes
-# @description nothing. DRY_RUN=0 comments the reason on each, then sets diss
+# @description title, the conditions held) and the kept counts, and writes no
+# @description issue (the readers keep their own housekeeping: the ask book's
+# @description journal sync, the lane map's hub-down note, a git fetch).
+# @description DRY_RUN=0 comments the reason on each, then sets diss
 # @description (reversible: set wip again). Turning it on is the orchestrator's call.
 # @param ENV (optional) - dev or prd; default the dispatch lease's LEASE_ENV, else prd
 # @param TENANT_ID (optional) - default the lease's LEASE_TENANT
 # @param DESK_AGENT (optional) - the desk agent that reads and writes; default the dispatch lease holder's id
-# @param STALE_MAX (optional) - at most this many ends a run, 1..500, default 50
+# @param STALE_MAX (optional) - at most this many ends a run, 1..50 (the brief's ceiling), default 50
 # @param STALE_IDLE_DAYS (optional) - 1..3650; default cnf env.rhythm.zombie_idle_days, else 7
 # @param STALE_GIT_DIR (optional) - the repo whose origin/master is read, default this checkout
 # @param STALE_GIT_FETCH (optional) - 1 (default) fetches origin master first, a failed fetch stops; 0 reads the ref as it is
@@ -79,8 +81,8 @@ spl_stale_conf() {
     v="$(yq -r '.env.rhythm.zombie_idle_days // ""' "$cnf" 2>/dev/null)"; STALE_IDLE_DAYS="$v"
   fi
   STALE_MAX="${STALE_MAX:-50}" STALE_IDLE_DAYS="${STALE_IDLE_DAYS:-7}"
-  [[ "$STALE_MAX" =~ ^[1-9][0-9]{0,2}$ ]] && ((STALE_MAX <= 500)) ||
-    { do_log "FATAL STALE_MAX must be 1..500, got: '$STALE_MAX'"; return 1; }
+  [[ "$STALE_MAX" =~ ^[1-9][0-9]?$ ]] && ((STALE_MAX <= 50)) ||
+    { do_log "FATAL STALE_MAX must be 1..50, got: '$STALE_MAX'"; return 1; }
   [[ "$STALE_IDLE_DAYS" =~ ^[1-9][0-9]{0,3}$ ]] && ((STALE_IDLE_DAYS <= 3650)) ||
     { do_log "FATAL STALE_IDLE_DAYS must be 1..3650, got: '$STALE_IDLE_DAYS'"; return 1; }
   [[ "${STALE_GIT_FETCH:-1}" =~ ^[01]$ ]] || { do_log "FATAL STALE_GIT_FETCH must be 0 or 1, got: '$STALE_GIT_FETCH'"; return 1; }

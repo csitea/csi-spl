@@ -346,16 +346,21 @@ Order: B1 first; then B2, B4, B5, B7 in parallel (disjoint files); then B3
   it (after a fetch; a failed fetch stops); no ask in `open`, `acked`,
   `queued`, `placing` or `needs_owner` names it; its last update is
   `STALE_IDLE_DAYS` (the zombie default, cnf `env.rhythm.zombie_idle_days`,
-  7) or more days ago. Oldest first, at most `STALE_MAX` (50) a run. A lane
+  7) or more days ago. Oldest first, at most `STALE_MAX` a run (1..50,
+  default 50: the brief's ceiling). A lane
   map read only on this machine, or any list it cannot read, stops it with
   nothing written. `DRY_RUN=1` (the default) prints the would-end list and
-  the kept count per first failed condition. Ending is reversible (set the
+  the kept count per first failed condition, and writes no issue (the
+  readers keep their own housekeeping: the ask book's journal sync, the
+  lane map's hub-down note, a git fetch). Ending is reversible (set the
   status back to `wip`). Not in this row: an issue with a commit that was
   never closed (close lag), and turning it on (`DRY_RUN=0`, a cron): the
   orchestrator's call after the first dry-run report. Test:
   `csi-spl-orc/src/bash/tests/spl-issue-stale-sweep.tst.sh` (one issue per
-  condition; red controls: a judge without the lane or the commit check
-  ends the issue it names).
+  condition; the cap's default and ceiling; the real commit reader on a
+  fixture repo reads `origin/master` after a fetch, not `HEAD`; red
+  controls: a judge without the lane or the commit check ends the issue it
+  names).
 
 ## 6. Not fixed here (reported)
 

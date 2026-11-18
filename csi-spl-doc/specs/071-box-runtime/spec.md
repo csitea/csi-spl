@@ -240,6 +240,12 @@ idempotent. It names no literal host, user, domain or box tag:
 4. `ENV=<env> POOL_CMD=start DRY_RUN=0 ./run -a do_spl_pool_ctl`.
 5. `POOL_CMD=status`. The run exits non-zero when a row the box should run
    (3.1, minus the `missing` rows) is not `running`.
+   A stopped desk row the box does not run is named on one line and does
+   not fail it (`box_deploy_drop_retired`): a desk `do_spl_desk_rebox`
+   moved away (`rebox-seated.txt`, `rebox-retired/`); a stub whose pinned
+   desk lives under another user (`spl_desk_moved_to`, spec 069 8.4: the
+   box-update cron runs as the box user, the desks as `SPOOL_DESK_USER`,
+   SPL-5847); an unpinned stub with no live sidecar, which nothing starts.
 
 `remove` runs `POOL_CMD=stop`, then each installer's remove action
 (`DESK_SERVICE_ACTION=remove`, `*_CRON_ACTION=remove`,

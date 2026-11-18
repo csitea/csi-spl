@@ -21,7 +21,15 @@
 #  13. the update mode (BOX_DEPLOY_MISSING=skip BOX_DEPLOY_POOL=status):
 #      no crontab change and no pool start, even with a line missing
 #  14. a stopped RETIRED desk (rebox-retired/) never fails the status;
-#      control: the same row without the marker does
+#      control: the same row without the marker (a pinned desk) does
+#  15. SPL-5847 (two prd boxes, 2026-11-18): box-update runs as the box user
+#      while the desks moved to SPOOL_DESK_USER (spec 069 8.4). The box
+#      user's root keeps unpinned stubs of them; status read them "stopped"
+#      and failed every run. A stub whose pinned desk lives under another
+#      user (spl_desk_moved_to) never fails it (INFO names that user), nor
+#      does an unpinned stub with no copy anywhere (nothing starts it: WARN).
+#      Rows of both boxes' shapes: t1/sat, t1/box, csi-rel/box-rsp, demo/sat.
+#      CONTROL: the same rows as pinned desks of this user still fail it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -64,7 +72,8 @@ do_spl_pool_ctl() { echo "pool $POOL_CMD DRY_RUN=$DRY_RUN" >>"$STUB_LOG"
     start) [[ "$DRY_RUN" == 1 ]] || touch "$T/pool.up" ;;
     stop) [[ "$DRY_RUN" == 1 ]] || rm -f "$T/pool.up" ;;
     status) local s; s=$([[ -e "$T/pool.up" ]] && echo running || echo stopped)
-      echo "desk:t1/box-desk $s pid 1"; [[ -n "${STUB_RETIRED_ROW:-}" ]] && echo "desk:t1/box-old stopped no live hub-run"; echo "lease $([[ -n "${STUB_LEASE_DOWN:-}" ]] && echo stopped || echo "$s") fleet"
+      echo "desk:t1/box-desk $s pid 1"; [[ -n "${STUB_RETIRED_ROW:-}" ]] && echo "desk:t1/box-old stopped no live hub-run"
+      for r in ${STUB_STOPPED_DESKS:-}; do echo "desk:$r stopped no live hub-run"; done; echo "lease $([[ -n "${STUB_LEASE_DOWN:-}" ]] && echo stopped || echo "$s") fleet"
       echo "pool-serve missing not built yet (spec 070 L3)" ;;
   esac; }
 '
@@ -206,9 +215,27 @@ grep -q '^pool start DRY_RUN=0$' "$T/calls.log" && ! cmp -s "$CT" "$T/live.1" \
 mkdir -p "$T/state/dev/desk/t1/box-old/rebox-retired"
 out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0 STUB_RETIRED_ROW=1)"; rc=$?
 [ "$rc" -eq 0 ] && grep -q 'desk:t1/box-old is retired' <<<"$out" && pass "14. a stopped retired desk does not fail the status" || fail "14. (rc $rc: $out)"
-rm -rf "$T/state/dev/desk/t1/box-old/rebox-retired"
+rm -rf "$T/state/dev/desk/t1/box-old/rebox-retired"; echo PUB >"$T/state/dev/desk/t1/box-old/pinned"
 out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0 STUB_RETIRED_ROW=1)"; rc=$?
 [ "$rc" -ne 0 ] && grep -q 'not running after start: desk:t1/box-old' <<<"$out" \
   && pass "14. control: the same stopped row without the rebox marker fails it" || fail "14. control (rc $rc: $out)"
+
+# 15. desks moved to the desk user: the box user's stubs (SPL-5847)
+DU=t-desk-user ME="$(id -un)"
+RB="$T/home-b/.local/share/csi-spl/cloud/dev"
+mkdir -p "$T/stub"
+printf '#!/bin/sh\n[ "$1" = passwd ] || exit 2\ncase "$2" in\n  %s) echo "%s:x:1:1::%s:/bin/sh" ;;\n  %s) echo "%s:x:2:2::%s:/bin/sh" ;;\n  *) exit 2 ;;\nesac\n' \
+  "$ME" "$ME" "$T/home-a" "$DU" "$DU" "$T/home-b" >"$T/stub/getent"; chmod +x "$T/stub/getent"
+MOVED="t1/sat t1/box csi-rel/box-rsp"
+for d in $MOVED demo/sat; do mkdir -p "$T/state/dev/desk/$d/spool/c-001" "$T/state/dev/desk/$d/keys"; done
+for d in $MOVED; do mkdir -p "$RB/desk/$d"; echo PUB >"$RB/desk/$d/pinned"; done
+out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0 SPOOL_DESK_USER="$DU" STUB_STOPPED_DESKS="$MOVED demo/sat")"; rc=$?
+[ "$rc" -eq 0 ] && grep -q 'OK pool status' <<<"$out" && [ "$(grep -c "lives under $DU's state root" <<<"$out")" = 3 ] \
+  && grep -q 'desk:csi-rel/box-rsp lives under' <<<"$out" && grep -q 'WARN pool status: desk:demo/sat is an unpinned stub' <<<"$out" \
+  && pass "15. stubs of desks moved to the desk user, and an unpinned stub, do not fail the status" || fail "15. (rc $rc: $out)"
+for d in $MOVED demo/sat; do echo PUB >"$T/state/dev/desk/$d/pinned"; done
+out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0 SPOOL_DESK_USER="$DU" STUB_STOPPED_DESKS="$MOVED demo/sat")"; rc=$?
+[ "$rc" -ne 0 ] && grep -q 'not running after start: desk:t1/sat desk:t1/box desk:csi-rel/box-rsp desk:demo/sat' <<<"$out" \
+  && pass "15. control: the same rows as pinned desks of this user fail it" || fail "15. control (rc $rc: $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

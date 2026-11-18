@@ -351,15 +351,24 @@ box_deploy_installer() {
 }
 
 # box_deploy_drop_retired: stdin row names minus the desk:<tenant>/<box> rows
-# whose desk dir do_spl_desk_rebox moved away (rebox-seated.txt or
-# rebox-retired/): a retired desk is stopped on purpose
+# that are stopped on purpose, each named on stderr:
+#   - a desk do_spl_desk_rebox moved away (rebox-seated.txt or rebox-retired/)
+#   - a stub whose pinned desk lives under another user (spl_desk_moved_to,
+#     spec 069 8.4): that user's sidecar serves it (SPL-5847: box-update runs
+#     as the box user, the desks moved to SPOOL_DESK_USER, two prd boxes)
+#   - an unpinned stub with no live sidecar and no pinned copy anywhere:
+#     nothing ever starts an unpinned desk (spl_desk_undelivered_refuse)
 box_deploy_drop_retired() {
-  local r d
+  local r d mv
   while read -r r; do
     [[ -n "$r" ]] || continue
     if [[ "$r" =~ ^desk:([a-z0-9-]+)/([a-z0-9-]+)$ ]]; then
       d="$(spl_desk_dir "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}")" || [[ $? -eq 1 ]] || { echo "$r"; continue; }
       [[ -e "$d/rebox-seated.txt" || -d "$d/rebox-retired" ]] && { echo "INFO pool status: $r is retired (do_spl_desk_rebox), left stopped" >&2; continue; }
+      if mv="$(spl_desk_moved_to "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}")"; then
+        echo "INFO pool status: $r lives under ${mv%%$'\t'*}'s state root (spec 069 8.4): its sidecar serves it, this user's stub left stopped" >&2; continue
+      fi
+      [[ -d "$d" && ! -s "$d/pinned" ]] && { echo "WARN pool status: $r is an unpinned stub at $d (no pinned copy, nothing starts it): not counted" >&2; continue; }
     fi
     echo "$r"
   done

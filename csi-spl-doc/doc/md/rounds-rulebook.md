@@ -23,6 +23,8 @@ Owner HUM-10, t1 #refactoring topic `8ebbed0e-d775-448e-9b50-c42e45b6e126` (2026
 Each round consists of at most **10 logical items**.
 An item is one logical change, corresponding to one row of the plan table. A round must never exceed 10 rows.
 
+The 10 is the hard cap for every kind. Bug-fix and refactoring rounds also keep the smaller cadence cap of 5.1: aim at 2 rows, at most 3.
+
 <a id="ws-doc-91219413-1ce2-45cb-9bba-8b802389630c"></a>
 ### 1.2 Pushes per item: aim for 1, up to 3, never more than 5
 
@@ -47,11 +49,11 @@ Carried over from [SPEC-spool-fleet-roles.md](SPEC-spool-fleet-roles.md) section
 - Rounds run continuously as part of core system operations (owner HUM-10 msg 3d22fcea).
 - No owner go-ahead is needed for a round, its panel, or its row lanes.
 - When round `<N>`'s actions are served (R5), the dispatcher holding the lease requests round `<N+1>`'s planner at once (`c-001` places it).
+  - The round's discussion closes when its rows are served, and the next round of the same kind opens in the same hour, with the next number (5.2, 5.3).
   - Exception, the perf floor (4.4, owner HUM-10 msg 98dedfc4): while the perf share is under 20%, the holder requests the next perf round's planner instead of refactor round `<N+1>`'s; refactor round `<N+1>` waits until the share is back at 20%.
 - The planner drafts the plan, places panel seats across vendors, and once the panel signs the plan sha, row lanes follow without waiting for owner approval.
 - Planner by day, rows by night ([spec 166](../../specs/166-orchestrator-daily-rhythm/spec.md) section 3.1, row B3; owner HUM-10, t1 c0b0d572 msg 421e479a): the round's planner and its panel run by day, its row lanes, reviewer seats and retro at night (20:00 to 07:00 CET/CEST, `do_spl_rhythm_phase`). From `SPAWN_SUPPLY_LEAD_MIN` (120) minutes before the night, while fewer than twice the night's refactor lanes (the night band's 40% floor of the live lanes) are queued, the placer sends the dispatch lease holder one `SPAWN SUPPLY LEAD` blocker naming the night (once per night, in place of that hour's refactor supply blocker); the holder requests the planner's rows at once, so they are queued when the night starts.
 - An individual row action that requires a production mutation, a `terraform apply`, or GCP secret access still requires the owner's explicit go for that specific call (repo [CLAUDE.md](../../../CLAUDE.md)); the round itself does not.
-
 
 <a id="ws-doc-dd1932e6-d7d8-4314-a081-f1216334ca1a"></a>
 ## 2. Standing round rules (R1–R16)
@@ -260,6 +262,7 @@ Enforced by: the holder's check at each boundary (review only). The placer does 
 ### 4.5 Ids and where the plans live
 
 - **Round id** `p<N>`, numbered on from the ad hoc rounds: the first round under this section is `p7` (the newest perf row on `origin/master` is a `p6` one). **Row id** `p<N>-<NN>`, two digits, 01 to 10 (1.1).
+- After `p99` comes `p01`; how a reused id stays unique: 5.3.
 - **Commit subject:** `<type>(p<N>-<NN>-<slug>, SPL-<n>): ...`, usually `perf`. `do_spl_push_master` already treats it as a round row: it refuses a `pN-NN` row with no R7 `review:` line (`csi-spl-orc/src/bash/run/spl-push-master.func.sh`, the `[rbp]` subject match). The review branch is `review/p<N>-<NN>`.
 - **Status (R6):** `git fetch origin master && git log origin/master --grep='(p<N>-' --format='%h %cI %s'`; the slug check before a spawn (R4) greps `p<N>-<NN>-`.
 - **Where the plans live:** a Qto `system` doc exported to `csi-spl-doc/doc/md/perf-round-<N>-plan.md` (imported once with `do_spl_doctree_import_md`, `QTO_FS=repo`, then edited in Qto), its panel's seat files under `csi-spl-doc/doc/md/perf-round-<N>/`, and the retro in `csi-spl-doc/doc/md/perf-round-<N>-retro.md`. Round 5 is the one complete example (plan, seat dir, retro); round 4 left a plan only, round 6 a plan and seat files with no retro. From p7 every round has all three.
@@ -271,3 +274,56 @@ Two parts of this section are kept by the holder by hand; each is a follow-up ro
 
 - **F1, the placer enforces the 20% floor.** The placer reads the perf share of the refactor class and, under 20%, refuses the next refactor round's planner (the open refactor round's rows still place) and names the next perf planner to the holder, as 4.4 says. Files: `csi-spl-orc/src/bash/run/spl-spawn-share.func.sh` (`SPL_SPAWN_BANDS`, the share read), `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` (`spl_spawn_place_band`), `csi-spl-orc/src/bash/run/spl-spawn-queue.func.sh` (the queue's order), their tests `csi-spl-orc/src/bash/tests/spl-spawn-share.tst.sh` and `spl-spawn-place-argmax.tst.sh`, and the SPL-1817 row of the [fleet rules index](fleet-rules-index.md). The class bands stay as they are.
 - **F2, an action opens the round's discussions.** A named action (`do_spl_round_open`, new: `csi-spl-orc/src/bash/run/spl-round-open.func.sh` and its test `csi-spl-orc/src/bash/tests/spl-round-open.tst.sh`) opens the round's topic when its planner is requested and one topic and issue per row when the row is queued (4.3), through `do_spl_desk_post` and `do_spl_lane_issue`.
+
+<a id="ws-doc-597f7c33-8299-4f8f-95ca-587e937cb268"></a>
+## 5. Cadence: small rounds, closed fast, the next number
+
+Bug-fix and refactoring rounds run at the cadence of the perf rounds: few rows, the discussion closed as soon as they are served, the next round opened at once with the next number.
+
+Owner HUM-10, t1, 2026-11-18:
+- 7e9986f3 msg 0306f52d: *"we need to change the rounds for the refactoring t ooccur with the speed and cadence of the refactoring rounds"*
+- 7e9986f3 msg 71df23ee: *"it is more manageable to have fewer issues at once ... and just increase the iteration number ... after 99 follows 01"*
+- 10f8c08e msg a1474f69 (the same text in e1139a1e msg 44445433): *"we need to change the frequency and cadene of the bug discussions and the amount of issues they take at once as the performance work- it is more manageable to have fewer issues in a single discussion and to more quickly be able to close discussions and just increase the round number - write this in the instrcutions for the orchestrator as well ... and after 99 number follows 01"*
+- 7e9986f3 msg 8bd9b89f, poll 73ec6b7a answered **A**: *"Refactor rounds get the small, fast cadence of bug and perf rounds: fewer rows, one number counting up, 99 -> 01"*
+- e1139a1e msg 4e1adcfa: *"Also bugs should be treated always as prio 2"*
+
+<a id="ws-doc-0ecdba94-e634-48f9-8d74-02c0312ea691"></a>
+### 5.1 Rows per round: aim at 2, at most 3
+
+- A bug-fix round and a refactoring round aim at **2** rows and take at most **3**. A 4th candidate is the first row of the next round of that kind, never a 4th row of this one.
+- 1.1's 10 stays the hard cap of every kind. Perf rounds already run at this size and keep 1.1 as their cap.
+- Where 2.7.1, 2.7.5 and R8 say 10 rows, read the round's row count (its signed plan's table).
+- The numbers, measured on `origin/master` dd983b175 (2026-11-18). Plan table rows of perf rounds p7 to p17: 5, 4, 3, 2, 3, 2, 2, 2, 1, 2, 2 (n = 11, median 2, upper quartile 3), from `for n in $(seq 7 17); do grep -cE '^\| *(0[1-9]|10) *\|' csi-spl-doc/doc/md/perf-round-$n-plan.md; done`. Landed rows (distinct `p<N>-<NN>` ids in row subjects) of p7 to p16: 5, 3, 3, 2, 3, 2, 2, 2, 1, 2 (median 2). Over the same week refactor rounds r57 to r61 landed 6, 8, 6, 6, 1 rows and bug rounds b11 to b16 2, 4, 2, 2, 3, 1.
+
+<a id="ws-doc-0c91c71b-eb6d-40e2-b464-e7e9e51a19f9"></a>
+### 5.2 Close the round when its rows are served, open the next in the same hour
+
+- When the round's last row is served (R5, read with R6), the dispatch lease holder closes the round: it posts the R6 command and its output in the round's discussion (R12), sets the round's issue `done` if the closer has not, and archives the topic (`cd csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<holder> TOPIC=<topic uuid> DRY_RUN=0 ./run -a do_spl_topic_archive`).
+- In the same hour it requests the planner of the next round of that kind (1.4, 4.2) and opens that round's discussion. Every round kind has one discussion per round, as 4.3 says for perf rounds.
+- The retro (R8) does not hold a round open. It runs beside the next planner; its last section feeds the first planner of that kind that has not yet been signed. One retro may cover two or more small rounds of one kind (`perf-round-7-8` did).
+- A planner never waits to collect more rows: 1 row is a round.
+
+<a id="ws-doc-6c5c60dd-04cf-4d85-9d62-e4767c8ed6d5"></a>
+### 5.3 One round number per kind, counting up; after 99 comes 01
+
+- **One number per kind.** Bug `b<N>`, refactor `r<N>`, perf `p<N>`: the round's number is the one in its row ids. A refactor round carried two numbers until now (plan "refactor round 35", rows `r61-<NN>`). From the next one, the plan takes the row number: the round after r61 is refactor round 62, `refactor-round-62-plan.md`, rows `r62-<NN>`; plan numbers 36 to 61 are never used. A plan commit's scope is `<id>-plan`, e.g. `docs(r62-plan, SPL-<n>): ...`, as bug and perf plans already are.
+- **Counting up, 99 then 01.** The next round of a kind takes the last number plus 1. After 99 comes 01, never 00 or 100. From that wrap on the number has two digits (`p01`, `r01`, `b01`), so `(p01-` never matches an old `(p1-`.
+- **A reused id is unique within its window.** The window of round `<id>` starts at the NEWEST plan commit of the previous round of its kind, so it never reaches back into an earlier cycle, where the previous id was used too: `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(<previous id>-plan')`. The planner reads `W` once, when its round opens, and writes it in its plan's baseline (`Window: W=<date>`); every later read of the round uses that recorded date, so a later edit of the previous plan does not move it. For r62 only, the previous plan's scope is `refactor-round-35-plan`. An id is free when `git log origin/master --since="$W" --oneline -E --grep='\(<id>-'` prints 0 lines and `git ls-remote origin 'refs/heads/review/<id>-*' 'refs/heads/wip/*<id>*' 'refs/heads/*-<id>-*'` prints nothing: R8 step 2 prunes the old round's review branches, and `do_git_prune_round_branches` matches the `wip/` and `<agent>-<id>-` heads too, so a leftover one would be pruned with the new round's. Every check that reads a round by its id reads it since the plan's recorded `W`: R4's slug check, R6's status, 2.7.5's review count and the slug proof in each planner brief. Before the first wrap the window changes no result.
+- **Files.** When a plan, retro or seat dir name that a reused number would take already exists (`refactor-round-10-plan.md` does today), the new round's names add its open date: `<kind>-round-<NN>-<YYYYMMDD>-plan.md`, `-retro.md` and the seat dir `<kind>-round-<NN>-<YYYYMMDD>/`; the Qto doc title the same.
+- At the pace of the last week (p7 opened 2026-11-13, p17 on 2026-11-18), perf reaches p99 in about six weeks: an estimate, not a date. The branch prune in code does not use the window yet (follow-up F3, 5.5).
+
+<a id="ws-doc-6499c7ca-0a31-465a-b71a-f73bd22bdfbf"></a>
+### 5.4 Bugs are always priority 2
+
+- A bug round's issue, each bug row's issue and every bug ask's issue carry priority **2** (owner msg 4e1adcfa). The discussions and the asks follow in 5.4's last bullet. It replaces the earlier default of priority 1 for bugs (t1 6c9aa54b msg c1a3ab4b), which the hub still applies when a bug issue is created with no priority ([lane issue and docs](lane-issue-and-docs.md), row 1.1b).
+- Until follow-up F4 (5.5) lands, the dispatch lease holder sets it by hand: a bug issue it files names `ISSUE_PRIORITY=2` (`do_spl_issue_create`), and a lane issue filed by the placer is set to 2 after it (`ENV=prd TENANT_ID=t1 DESK_AGENT=<holder> ISSUE_REF=<key> ISSUE_PRIORITY=2 DRY_RUN=0 ./run -a do_spl_issue_update`).
+- A discussion's priority, and with it the queue priority of its ask (an unset discussion counts as 3, fleet rules index SPL-1817 row), has no action to set it today: only the topic's priority control in the web UI, by a person, or the owner's prio word sets it, and an open issue then follows the highest priority set on its discussions (row 1.1b). So until F4 adds an action, a bug ask goes into the queue at 3, not 2; the holder does not work around it.
+- `SPAWN_URGENT=1` is a different thing: it lets an owner-reported prd breakage go over the band (fleet rules index, SPL-1817 row). It does not change the priority.
+
+<a id="ws-doc-d3a9af34-1d7b-459a-8596-29a4bef9b82d"></a>
+### 5.5 Not built yet: cadence follow-up rows
+
+The code still follows the old rules; each part is a follow-up row, not built here:
+
+- **F3, the round-id window in code.** `do_spl_push_master` reads only the pushed range (`_spl_push_master_unreviewed`), so a reused id does not match the old round's commits there; its `review/<id>-<NN>` fetch (`_spl_push_master_review_why`) only needs that branch name to be free on the remote, which 5.3's `ls-remote` proves. The real gap is `prune_round_match` in `csi-spl-orc/src/bash/run/git-prune-round-branches.func.sh`: it also matches `wip/*<id>*` and `<agent>-<id>-*` heads, so a prune of a reused id would take the old cycle's leftover heads of those shapes (landed tips only unless `PRUNE_UNLANDED=1`); `prune_round_parse` (a bare `ROUND=<N>` is `r<N>`; `ROUND=01` is `r01`, as 5.3 needs) is fine. F3 makes the prune of a reused id skip heads older than its window `W` (5.3), with its test `csi-spl-orc/src/bash/tests/git-prune-round-branches.tst.sh`; `csi-spl-orc/src/bash/features/spawn-agents/tests/test-pre-push-review-line.sh` covers the push side as it is. The share count of 4.4 reads 14 days and is not affected. No code check computes the next round number yet.
+- **F4, bugs at priority 2 in code.** `issueClassPriority` in `csi-spl-api/src/go/spool-hub-api/internal/hub/issue_prio_default.go` (`"bug": 1`) and its test `issue_prio_default_test.go`; the comment of `spl_lane_issue_class` in `csi-spl-orc/src/bash/run/spl-lane-issue.func.sh` and its test `spl-lane-issue.tst.sh`; the `ISSUE_PRIORITY` help of `csi-spl-orc/src/bash/run/spl-issue-create.func.sh`; `csi-spl-orc/src/bash/run/spl-security-round-queue.func.sh`, which queues its seats as `SPAWN_CLASS=bug`, so their lane issues take the class default; and row 1.1b of [lane issue and docs](lane-issue-and-docs.md), which changes with the code; and an action that sets a topic's priority (none today: `do_spl_topic_prio_sync` only syncs), so a bug round's and bug row's discussion, and through it the ask's queue priority (`csi-spl-orc/src/bash/run/spl-spawn-place.func.sh`, the `(.priority // 3)` read), can be set to 2.

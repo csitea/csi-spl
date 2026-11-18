@@ -209,7 +209,8 @@ spl_reflection_gather_md() {
 
 # spl_reflection_stalled <until epoch> <stderr file>: section 7. A source that
 # cannot be read is one "(not read: ...)" line and the section stops there: a
-# list judged on part of its sources would name live work as stalled.
+# list judged on part of its sources would name live work as stalled. A judge
+# that fails is one more such line, never an empty section (b14-01).
 spl_reflection_stalled() {
   local u="$1" err="$2" w out why=""
   w="$(mktemp -d)" || { echo "(not read: no temp dir)"; return 0; }
@@ -222,10 +223,16 @@ spl_reflection_stalled() {
   elif ! printf '%s\n' "$out" >"$w/lanes.json" || ! out="$(spl_reflection_asks_read 2>"$err")" ||
     ! jq -e '(.asks | type == "array") and (.hub == "ok" or .hub == "partial")' <<<"$out" >/dev/null 2>&1; then
     why="the ask book (do_spl_asks_open): $(spl_reflection_why "$err" "$out")"
-  elif ! printf '%s\n' "$out" >"$w/asks.json" || ! spl_reflection_subjects >"$w/subjects.tsv" 2>"$err"; then
+  elif ! printf '%s\n' "$out" >"$w/asks.json" || ! spl_reflection_subjects >"$w/messages.z" 2>"$err"; then
     why="git log ${REFLECTION_REF:-origin/master}: $(spl_reflection_why "$err")"
   fi
-  if [[ -n "$why" ]]; then echo "(not read: $why)"; else spl_reflection_stalled_judge "$w" "$((u - 72 * 3600))"; fi
+  if [[ -n "$why" ]]; then
+    echo "(not read: $why)"
+  elif out="$(spl_reflection_stalled_judge "$w" "$((u - 72 * 3600))" 2>"$err")"; then
+    printf '%s\n' "$out"
+  else
+    echo "(not read: the judge failed: $(spl_reflection_why "$err"))"
+  fi
   rm -rf "$w"
 }
 
@@ -245,15 +252,16 @@ spl_reflection_asks_read() {
   ASKS_ALL=1 ASKS_FORMAT=json RUN_STDOUT_IS_DATA=1 do_spl_asks_open 2>/dev/null | grep '^{' | tail -1
 }
 
-# spl_reflection_subjects: "<committer iso><TAB><subject>" of every commit on
-# REFLECTION_REF, newest first (section 2 fetched it).
+# spl_reflection_subjects: "<committer iso><TAB><whole message>" of every
+# commit on REFLECTION_REF, newest first, each record ended by a NUL (git -z),
+# so a body line never splits a record (section 2 fetched the ref).
 spl_reflection_subjects() {
-  git -c safe.directory='*' -C "${REFLECTION_REPO:-${APP_PATH:-.}}" log "${REFLECTION_REF:-origin/master}" --format='%cI%x09%s'
+  git -c safe.directory='*' -C "${REFLECTION_REPO:-${APP_PATH:-.}}" log -z "${REFLECTION_REF:-origin/master}" --format='%cI%x09%B'
 }
 
 # spl_reflection_stalled_judge <work dir> <commit cutoff epoch>: one line per
-# wip issue that no live lane, no live ask and no commit subject since the
-# cutoff names, lowest key first. A key is named as a whole token, SPL-12 or
+# wip issue that no live lane, no live ask and no commit message (subject or
+# body) since the cutoff names, lowest key first. A key is named as a whole token, SPL-12 or
 # spl12 (a slug), never as the start of SPL-123.
 spl_reflection_stalled_judge() {
   python3 - "$1" "$2" <<'PY'
@@ -267,8 +275,8 @@ lanes = [l for l in load("lanes").get("lanes") or [] if l.get("state", "live") =
 live = {"open", "acked", "queued", "placing", "needs_owner"}
 asks = [a for a in load("asks").get("asks") or [] if a.get("state") in live]
 subj = []
-for line in open(f"{w}/subjects.tsv", encoding="utf-8", errors="replace"):
-    at, _, s = line.rstrip("\n").partition("\t")
+for rec in open(f"{w}/messages.z", encoding="utf-8", errors="replace").read().split("\0"):
+    at, _, s = rec.lstrip("\n").partition("\t")
     try:
         subj.append((datetime.fromisoformat(at.replace("Z", "+00:00")).timestamp(), at, s))
     except ValueError:

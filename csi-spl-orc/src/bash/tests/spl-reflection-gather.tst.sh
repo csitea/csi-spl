@@ -63,6 +63,12 @@
 #      not count; SPL-70 is not named by SPL-703. Red control: the same issue
 #      with its live lane taken out of the lane map is listed. A lane map read
 #      LOCAL-ONLY is one "(not read" line and no issue line
+#  16b. section 7 reads the whole commit message (b14-01): a wip key named
+#      only in a commit body (Refs: SPL-7) inside the 72 h is not stalled,
+#      (none); a judge that fails (python3 exits 1) is one "(not read: the
+#      judge failed: ...)" line, never an empty section. Red control: master
+#      read subjects only and ignored the judge's rc: A listed SPL-7 with
+#      "last commit none", B printed nothing
 #  17. the brief lists the night's live origin topics (SPL-5829): the
 #      topics of section 4 newest first, once each, without the backlog
 #      (cnf) topic, an archived one, one whose archive state is unread and a
@@ -386,6 +392,22 @@ reset; run "$NIGHT_NOW" LANES_JSON="$T/lanes-local.json"
 got="$(s7)"
 [[ "$got" == "(not read: the fleet lane map (do_spl_lane_map; LOCAL-ONLY is not read): hub: unreachable)" ]] &&
   pass "16. a lane map read LOCAL-ONLY: one (not read line, no issue line" || fail "16. local-only: $got"
+
+# --- 16b. section 7 reads the commit body; a failed judge says so (b14-01) ---
+git init -q "$T/b14" && git -C "$T/b14" -c user.name='FirstName LastName' -c user.email=dev@example.com \
+  commit -q --allow-empty -m 'docs(orc): a change' -m 'Refs: SPL-7' && git -C "$T/b14" update-ref refs/remotes/origin/master HEAD
+mkdir -p "$T/b14bin" && printf '#!/bin/sh\necho "a judge error" >&2\nexit 1\n' >"$T/b14bin/python3" && chmod +x "$T/b14bin/python3"
+s7b() { REFLECTION_REPO="$T/b14" PATH="$1" bash -c 'do_log() { :; }; source "$0"
+  spl_reflection_wip_read() { echo "{\"issues\":[{\"key\":\"SPL-7\",\"status\":\"wip\",\"title\":\"named in a body only\"}]}"; }
+  spl_reflection_lanes_read() { echo "{\"hub\":\"ok\",\"lanes\":[]}"; }
+  spl_reflection_asks_read() { echo "{\"hub\":\"ok\",\"asks\":[]}"; }
+  spl_reflection_stalled "$(date +%s)" "$1"; echo "rc=$?"' "$FUNC" "$2"; }
+got="$(s7b "$PATH" "$T/b14err")"
+[[ "$got" == "(none)
+rc=0" ]] && pass "16b. a key named only in a commit body inside 72 h: (none), not stalled" || fail "16b. body key: $got"
+got="$(s7b "$T/b14bin:$PATH" "$T/b14err")"
+[[ "$got" == "(not read: the judge failed: a judge error)
+rc=0" ]] && pass "16b. the judge fails: one (not read: the judge failed: <its last stderr line>) line, rc 0" || fail "16b. judge failed: $got"
 
 # --- 17. the brief lists the live origin topics, never the backlog alone (SPL-5829)
 LIVE_OLD=44444444-0000-4000-8000-000000000004

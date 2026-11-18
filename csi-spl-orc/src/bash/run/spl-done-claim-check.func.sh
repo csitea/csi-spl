@@ -950,7 +950,7 @@ spl_done_claim_note() {
   rv="$(spl_done_claim_on_review "$6" "$5")"
   for s in $5; do [[ "$gone" == *" $s "* ]] || grep -q -- "^$s"$'\t' <<<"$rv" || known+=("$s"); done
   gone="$(xargs <<<"$gone")"
-  [[ -n "$5" ]] || what+=("no sha not in the repository")
+  [[ -n "$5" ]] || what+=("names no sha (a commit sha is 9-12 or 40 hex digits, 8-digit forms are not read)")
   [[ ${#known[@]} -gt 0 ]] && w="${known[*]}" && what+=("sha ${w// /, } not in the repository")
   while IFS=$'\t' read -r s w tr; do [[ -n "$s" ]] && what+=("sha $s on review branch $w, not on $tr"); done <<<"$rv"
   [[ -n "$gone" ]] && what+=("sha ${gone// /, } not an object in any repository (a pre-rebase sha?)")

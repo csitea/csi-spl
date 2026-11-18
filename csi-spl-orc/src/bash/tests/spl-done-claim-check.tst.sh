@@ -174,7 +174,7 @@ want="m595=would-alert land=landed short=landed other=landed local=would-alert r
 # 3. real run: one note per alert, to the lease holder as the lease names it
 run DRY_RUN=0; rc=$?
 [ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 11 ] &&
-  grep -q "^SEND c-002@sat done-claim-check done-claim check: m-595 result m595 (.*): no sha not in the repository" "$T/calls.log" &&
+  grep -q "^SEND c-002@sat done-claim-check done-claim check: m-595 result m595 (.*): names no sha (a commit sha is 9-12 or 40 hex digits, 8-digit forms are not read)" "$T/calls.log" &&
   grep -q "^SEND c-002@sat done-claim-check done-claim check: c-543 result local .*: sha $LOCAL not in the repository" "$T/calls.log" &&
   grep -q "^SEND c-002@sat done-claim-check done-claim check: c-571 result nokey .*: sha feedface0124 not an object in any repository (a pre-rebase sha?)$" "$T/calls.log" &&
   grep -q "c-572 result twokey .*: sha feedface0125 not an object in any repository" "$T/calls.log" &&
@@ -1046,9 +1046,25 @@ v="$(for k in doc1 doc2 doc3 doctxt docsha; do printf '%s=%s ' "$k" "$(verdict $
   fail "26. doc store (rc $rc) got '$v': $(cat "$T/o")"
 run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st26"; rc=$?
 [ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 2 ] && ! grep -q 'c-717\|c-718' "$T/calls.log" &&
-  grep -q "c-719 result doctxt .*: no sha not in the repository$" "$T/calls.log" &&
+  grep -q "c-719 result doctxt .*: names no sha (a commit sha is 9-12 or 40 hex digits, 8-digit forms are not read)$" "$T/calls.log" &&
   [ "$(grep -c '	doc	' "$T/st26/seen.tsv")" = 3 ] &&
   pass "26. DRY_RUN=0: no note for the three doc-store results (ledger: doc); the unlabelled no-sha result and the doc id beside an unpushed sha each get their note" ||
   fail "26. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
+# 27. SPL-5841 (c-001 notes ae882c5d + 32ba635a, 11-17, n=1): c-369's result
+# named its landed shas in 8-hex form only, beside 11-digit CI run ids; the
+# note read "no sha not in the repository" and a reader took it for a missing
+# land. Same verdict (8 hex is no sha), new text: "names no sha", with the
+# forms that count; a run id is never reported as a sha.
+SP="$T/spool27"
+mkdir -p "$SP"
+msg c-002/archive c369 c-369 c-002 30 "SPL-9141 landed and deployed: ${LANDED:0:8}, ${REVIEW:0:8}, ${OTHER:0:8}
+CI runs 19412345678 19412345679 green, deploy run 19412345680"
+run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st27"; rc=$?
+[ "$rc" = 0 ] && [ "$(verdict c369)" = alert ] && grep -q '^c369	.*no-sha$' "$T/o" &&
+  grep -q "^SEND c-009 done-claim-check done-claim check: c-369 result c369 (.*): names no sha (a commit sha is 9-12 or 40 hex digits, 8-digit forms are not read)$" "$T/calls.log" &&
+  ! grep -q "1941234567\|not in the repository" "$T/calls.log" &&
+  pass "27. SPL-5841: a result naming its shas in 8 hex beside 11-digit run ids still alerts, and the note says it names no sha (9-12 or 40 hex count, 8 hex is not read), never 'not in the repository' nor a run id as a sha" ||
+  fail "27. no-sha wording (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 exit "$fails"

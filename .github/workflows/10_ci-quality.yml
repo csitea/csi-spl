@@ -436,14 +436,29 @@ jobs:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
           cache: false
 
+      # Perf round 18 row 02: the free-up below cost 58..151 s a job, yet a
+      # hosted runner starts with 88 G free and needs 12.3 G (the guard's
+      # CI_DISK_NEED_GB plus the trimmed cache, 2.3 G unpacked from 410 MB on
+      # run 44365338095). So the guard first only reports: short=true below
+      # CI_DISK_NEED_GB plus the save cap rounded up to whole GB (4000 MB ->
+      # 4 G). The cap is the margin because no saved entry unpacks larger,
+      # and it also covers the downloaded archive the restore unpacks.
+      - name: Disk check, report only (short of the need plus the Go cache?)
+        id: disk-check
+        if: ${{ runner.environment == 'github-hosted' }}
+        env:
+          CI_DISK_REPORT: "1"
+        run: CI_DISK_NEED_GB=$((CI_DISK_NEED_GB + (CI_GO_CACHE_SAVE_MAX_MB + 1023) / 1024)) bash csi-spl-orc/src/bash/scripts/ci-disk-guard.sh
+
       # SPL-4777: on a hosted runner (SPOOL_CI_RUNNER '"ubuntu-latest"' since
       # 2026-10-30) this job died 3x on 2026-11-04 with "No space left on
       # device" while restoring the race cache below (6.2 GB compressed, run
-      # 41794536858). Drop the preinstalled toolchains this job never uses
-      # (.NET, Android, GHC, CodeQL; Go comes from setup-go, Postgres from
-      # /usr/lib/postgresql). Hosted only: the self-hosted box is ours.
+      # 41794536858; today 410 MB compressed, 2.3 G unpacked). Drop the
+      # preinstalled toolchains this job never uses (.NET, Android, GHC,
+      # CodeQL; Go comes from setup-go, Postgres from /usr/lib/postgresql).
+      # Hosted and short only: the self-hosted box is ours.
       - name: Free disk on a hosted runner (toolchains this job does not use)
-        if: ${{ runner.environment == 'github-hosted' }}
+        if: ${{ runner.environment == 'github-hosted' && steps.disk-check.outputs.short == 'true' }}
         run: |
           set -euo pipefail
           df -h / "$RUNNER_TEMP"

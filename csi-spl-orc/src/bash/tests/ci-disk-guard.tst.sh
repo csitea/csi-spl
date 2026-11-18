@@ -7,6 +7,9 @@
 #        <free> < <need> (<path>)" and its ::error:: annotation
 #     3. an unreadable df: exit 1, never a silent pass
 #     4. no CI_DISK_NEED_GB: exit 2 (usage), not a pass
+#    12-14. report mode (CI_DISK_REPORT=1): exit 0 and no ::error::, with
+#        short=false when enough is free, short=true under the need or on an
+#        unreadable df (GITHUB_OUTPUT, for hub-pg's free-up `if:`)
 #   scripts/ci-cache-save-cap.sh (a real dir measured with du):
 #     5. under the cap: save=true, written to GITHUB_OUTPUT too
 #     6. a planted oversize cache: save=false and the ::warning:: line
@@ -65,6 +68,24 @@ guard CI_DISK_NEED_GB=10 FAKE_DF_FAIL=1; rc=$?
 # 4
 env -u CI_DISK_NEED_GB CI_DISK_DF="$T/df" FAKE_AVAIL_KB=1 bash "$G" / >"$T/out" 2>&1; rc=$?
 [[ $rc -eq 2 ]] && pass "4. no CI_DISK_NEED_GB: usage, exit 2" || fail "4. rc=$rc $(cat "$T/out")"
+
+# 12-14: report mode (CI_DISK_REPORT=1, perf round 18 row 02): never fails,
+# never annotates an error, writes short=true|false for the free-up's `if:`
+: >"$T/gho"
+guard CI_DISK_REPORT=1 GITHUB_OUTPUT="$T/gho" CI_DISK_NEED_GB=14 FAKE_AVAIL_KB=$((88 * 1048576)); rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'short=false' "$T/gho" && ! grep -q '^::error::' "$T/out" \
+  && pass "12. report, 88G free, need 14G: exit 0, short=false in GITHUB_OUTPUT" || fail "12. rc=$rc $(cat "$T/out" "$T/gho")"
+
+: >"$T/gho"
+guard CI_DISK_REPORT=1 GITHUB_OUTPUT="$T/gho" CI_DISK_NEED_GB=14 FAKE_AVAIL_KB=$((12 * 1048576)); rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'short=true' "$T/gho" && ! grep -q '^::error::' "$T/out" \
+  && grep -qx 'short - disk free 12.0G < 14G (/)' "$T/out" \
+  && pass "13. report, a fixture df under the need (12G < 14G): exit 0, short=true, no ::error::" || fail "13. rc=$rc $(cat "$T/out" "$T/gho")"
+
+: >"$T/gho"
+guard CI_DISK_REPORT=1 GITHUB_OUTPUT="$T/gho" CI_DISK_NEED_GB=14 FAKE_DF_FAIL=1; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'short=true' "$T/gho" && ! grep -q '^::error::' "$T/out" \
+  && pass "14. report, unreadable df: short=true (free up; the hard guard decides)" || fail "14. rc=$rc $(cat "$T/out" "$T/gho")"
 
 # 5-7: a real directory, measured by du. du -sm rounds up and counts the
 # directory's own block: 3 MiB reads 3 on tmpfs, 4 on ext4 (hosted runners,

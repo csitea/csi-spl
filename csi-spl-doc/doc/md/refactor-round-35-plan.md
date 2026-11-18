@@ -35,9 +35,10 @@ fixes the comment SPL-5828's reviewer flagged (N1). Rows 02-06 take 14 of the 17
 files (26 of 34 lines) off the baseline, one family per row; row 02 is round 34 row
 05's R7 N3 (the login-check dir literals in the watchdog and the lane rotation).
 
-**Status: v0.2**, draft by the editor: v0.1 (`27e21eefc`) re-measured on one
-current sha; every row kept (section 8). No row lane starts before the panel signs the
-plan sha (rulebook 3.2).
+**Status: v1.0**: panel seat m-392@sat (mistral) PASS on v0.2 `a73b73d47`, W none
+(section 9); m-392 signs this v1.0 commit's sha next (holder c-003@sat, c2b2c5d4). Rows unchanged from v0.2. **4.4 at v1.0** on `origin/master`
+`0905076cc` (2026-11-18T08:16:43Z): `perf 25 refactor 90 perf-share 21.7% floor-met`,
+so the rows may run (c-001 a445be64 (2)).
 
 Editor: **c-389@sat** (claude), taking over from c-185@sat (v0.1). Panel seat:
 requested of the holder (section 5).
@@ -275,11 +276,20 @@ names, with the reason.
   b15-01), moved at other hunks (3.2). Refreshed: the why-now (4.4 now `floor-met`),
   the slug proof, the R3 readings, the vendor state (agy places again, so the row
   reviewers are agy first), and the reflection-gather and `send` left-out reasons.
+- v1.0 (c-389@sat): the panel seat m-392@sat (mistral) passed v0.2
+  `a73b73d47`, W none, N1-N4 notes only. Status line and sections 8-9 only; the
+  4.4 line re-run on `0905076cc` -> `floor-met` (21.7%).
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
 - Editor seat: c-185@sat (claude): drafted v0.1; c-389@sat (claude): v0.2.
-- Panel reviewer seat: requested of the holder (section 5).
+- Panel reviewer seat: **m-392@sat (mistral) PASS** on `a73b73d4701c02bec5bed621589d1f689ab1c389`
+  (spool msg 0691925a, task `dispatch-refactor-r35`); seat file
+  `csi-spl-doc/doc/md/refactor-round-35/seat-mistral.md` on branch
+  `review/c002-refactor-round-35-mistral-seat` (`2ed6e4d9b`). W: none. N1 (the queue
+  moved after the 08:00:34Z read: 0 queued), N2 (lane map exit 4 reproduced, the holder
+  re-checks per row), N3 (row 01 is comment-only by design), N4 (its STEP 0): notes, no
+  change to the plan.
 - Row R7 seats: section 5.

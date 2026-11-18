@@ -3502,13 +3502,13 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "channel_move_owner: not the biz owner of the operator workspace (no session too, only with the view door off; with it on, no session is the 401 view_door); forbidden: no member of this workspace; go_required: the GO written did not pass channelMoveGo"
+            "description": "channel_move_owner: not the biz owner of the operator workspace (no session too, only with the view door off; with it on, no session is the 401 view_door); forbidden: no member of this workspace; go_required: the GO written did not pass channelMoveGo, and is deleted"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "move_blocked: the plan's .blocked is not empty, the lines in blocked; move_open: this channel's move is already confirmed, its move_id; move_refused: P1 refused. None of them writes a GO"
+            "description": "move_blocked: the plan's .blocked is not empty, the lines in blocked; move_open: this channel's move is already confirmed (its move_id), or another confirm of it is running; move_refused: P1 refused. None of them leaves a GO: move_blocked and move_open write none, and the GO a move_refused wrote is deleted"
           },
           "501": {
             "description": "unsupported: a store with no channel move journal; nothing is written"

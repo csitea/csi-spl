@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.32 (2026-11-18). Status: **Draft** (part built: section 8.4's hub
+Version: v0.33 (2026-11-18). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -141,6 +141,9 @@ v0.32 ticks row T15 (SPL-5846): the confirm route of 8.5.3, `POST
 /v1/channels/{channel}/workspace-move`, in `api/hub/channel_move_confirm.go`; 8.5.5
 items 1 and 2 say what it writes and where (the operator workspace's `#lobby`), and
 P1's step now keeps its detail for P2 on both doors.
+v0.33 (SPL-5846, R7 c-250 W1, W2): concurrent confirms open one move (the confirm's lock,
+P1's transaction lock), and a refused confirm deletes the GO it wrote (8.5.5 item 1, rows
+C32 and T15).
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -758,6 +761,15 @@ the click only records the GO and starts the journal, and a box does the rest:
    the answer's `topic`. Nothing is written while `.blocked` (8.5.4) is not empty (409
    `move_blocked`), while this channel already has an open journal in `<DST>` (409
    `move_open`: one GO per move), or on a store with no journal (501).
+   One confirm of a channel runs at a time (R7 W1, v0.33): the confirm takes the store's
+   lock of `<DST>`/`<SRC>`/`<CHANNEL>` (`LockChannelMove`, a session advisory lock that never
+   waits) before it reads the journal, and holds it until it answers; a click while another
+   confirm holds it is 409 `move_open` at once, and writes nothing. P1 itself reads the
+   journal and writes its row under a transaction lock of the same channel
+   (`OpenChannelMove`), so two P1s with different GOs, on either door, open one move.
+   A refusal after the posts (403 `go_required`, 409 `move_refused` from P1, 500) deletes
+   the answer, then the form, and drops them from the browsers that showed them (R7 W2): a
+   refused confirm leaves no GO that a later move could use.
 2. The hub runs P1 with the dialog's `detail`, and keeps that detail for P2 (8.4: P4 refuses
    a detail other than the one P2 checked). Built (T15): P1's step row holds it as
    `detail.inputs` (`p1`, `api/hub/channel_move_steps.go`), on the operator route too; T16's
@@ -829,7 +841,7 @@ and no cancel: before P4 a re-run comes with the pick-up, after it there is noth
 | C29 | Who (8.5.2): the probe, the plan and the confirm answer 403 to a member of `<SRC>` who is not the operator workspace's biz owner, an admin included. The session door answers first: no session gets its 401 `view_door` with the view door on (prd, dev), and the owner test's 403 only with the door off; a member who is not in `<SRC>` gets its 403 `forbidden` | answer `Admin` too -> the admin gets a button whose GO the hub refuses |
 | C30 | Targets: the probe lists only the person's own workspaces, never a hidden one they are not in | list every workspace -> a hidden slug in the answer |
 | C31 | Blocked (8.5.4): no orchestrator seat in `<DST>`, and a file total over its quota, are both in `.blocked` before the confirm | plan's stops alone -> the confirm passes and the move stops only at P2 |
-| C32 | The confirm's GO (8.5.5): the form and the answer it writes pass `channelMoveGo` unchanged, the answer's author is the session's person, the journal holds that msg id; a replay with another `dst` is refused | a form that does not name `<DST>` -> 403 `go_required` |
+| C32 | The confirm's GO (8.5.5): the form and the answer it writes pass `channelMoveGo` unchanged, the answer's author is the session's person, the journal holds that msg id; a replay with another `dst` is refused. 24 clicks at once: one 200, 23 409 `move_open`, one journal row, two posts; 16 P1s at once with different GOs: one journal row. A confirm P1 refuses leaves no post | a form that does not name `<DST>` -> 403 `go_required`; no confirm lock -> `move_refused` answers; no P1 lock -> several journal rows; no withdraw -> 4 posts |
 | C33 | The browser has no step: every route of 8.5.3 refuses a body with `step` or `mark`; a service-account token is refused on all of them, and a member session on the operator route | accept `step` -> a browser drives P4 |
 | C34 | Pick-up: an open journal runs once, under the lock, with its GO and detail; a lease it does not hold runs nothing; a done journal is not read; a refusal is stored (8.5.6) and a re-run resumes | drop the lease check -> two boxes pick up one move and the second stops on the lock, read as stuck |
 | C35 | Stuck (8.5.6): each row of the table, from a seeded journal; nothing says "Moved" before `done_at`; P4 done with P7 failed shows the proof names, in Chrome | show "Moved" on P4 done -> a move with traces reads as done |
@@ -874,7 +886,7 @@ Each row is one small task; files named are where it lands.
 | T13b | P7's free-text scan and Q4's mentions: T13 measured `proof scan messages.body 1` on one staying post that links a moved topic | built (SPL-5010): `api/channelmove/mentions.go` (`ReadMentions`), `api/hub/channel_move_steps.go` (`p7`), `api/store/rls.go` (`asOperatorSnapshot`), `orc/run/spl-channel-workspace-move.func.sh` (`MENTIONS`, `MENTION` lines); tests `api/channelmove/proof_test.go` (`TestMentionsPostgres`), `api/hub/channel_move_p7_test.go`, `api/store/channel_move_journal_test.go`. Not re-run on dev: a second T13 needs the owner's new GO |
 | T13c | `KEPT_UNTIL` printed `not read: no date for hub logs` (T13), so Q3's last date never printed | built (SPL-5010): cnf `hub.log_bucket`; `_spl_cwm_retention_log_days` sends that bucket's days only after it reads a line of the hub's service back from it (dev read 2026-11-07: two sinks, `_Default` 30 days, the hub's `requests` and `stderr` lines there; prd not read), else `not read: <why>`; case 13 of `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T14 | Hub: the probe and the plan for a member session (8.5.2, 8.5.3, 8.5.4): owner test, the person's targets, the plan with the orchestrator seat and the quota added as `.blocked`. Reads only. Tests C29, C30, C31 | built (SPL-5371): `api/hub/channel_move_browser.go` (`GET /v1/channels/{channel}/workspace-move` answers `{allowed, targets: [{slug, name}]}`, `POST .../workspace-move/plan` `{dst, keep, keep_emails, leave_hours}` answers the operator plan plus `.blocked`: `.refuse` then P2's two checks, `[]` when nothing stops it; a `dst` the person is not in answers 404 `unknown_tenant`, as an unknown one; under a quota a store that cannot count the files, Memory, puts the uncounted total in `.blocked`), registered by `routeChannelMembers`; `openapi.json`; tests `api/hub/channel_move_browser_test.go` (C31's file total on Postgres) |
-| T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33 | built (SPL-5846): `api/hub/channel_move_confirm.go` (`POST /v1/channels/{channel}/workspace-move`, the door and the body of T14's plan; 409 `move_blocked` / `move_open` and 501 write nothing; the form and the person's `Answer: GO` in a new `#lobby` topic of the operator workspace, then `channelMoveGo`, then P1 with that answer as the journal's GO; answers `{move_id, topic}`), `api/hub/channel_move_browser.go` (`channelMoveBrowserBlocked`, the plan route's `.blocked` shared with the confirm), `api/hub/channel_move_steps.go` (`p1` keeps `detail.inputs`), `openapi.json`; tests `api/hub/channel_move_confirm_test.go` (C32 on Postgres: the GO, the journal, P1's detail, the GO on the operator route and its replay for another dst refused, a second click; a blocked confirm writes nothing. C33: `step`, `mark` and `go_msg_id` in the body, the operator workspace's admin, the service account's token, the member session on the operator route, Memory's 501) |
+| T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33 | built (SPL-5846): `api/hub/channel_move_confirm.go` (`POST /v1/channels/{channel}/workspace-move`, the door and the body of T14's plan; 409 `move_blocked` / `move_open` and 501 write nothing; the form and the person's `Answer: GO` in a new `#lobby` topic of the operator workspace, then `channelMoveGo`, then P1 with that answer as the journal's GO; answers `{move_id, topic}`), `api/hub/channel_move_browser.go` (`channelMoveBrowserBlocked`, the plan route's `.blocked` shared with the confirm), `api/hub/channel_move_steps.go` (`p1` keeps `detail.inputs`), `openapi.json`; tests `api/hub/channel_move_confirm_test.go` (C32 on Postgres: the GO, the journal, P1's detail, the GO on the operator route and its replay for another dst refused, a second click; a blocked confirm writes nothing. C33: `step`, `mark` and `go_msg_id` in the body, the operator workspace's admin, the service account's token, the member session on the operator route, Memory's 501; W1: 24 clicks at once, W2: a P1 refusal deletes its GO), `api/store/channel_move_journal_postgres.go` (`LockChannelMove`; `OpenChannelMove` reads and writes under the channel's transaction lock), `api/store/channel_move_journal_test.go` (16 P1s at once, ten rounds) |
 | T16 | Shell: `do_spl_channel_move_pickup` and the operator op `open` (8.5.5 item 3); `do_spl_channel_workspace_move` sends the journal's `detail` at P1 and P2. Test C34 | `orc/run/spl-channel-move-pickup.func.sh`, `orc/run/spl-channel-workspace-move.func.sh`, their tests; the op in `api/hub/channel_move.go` |
 | T17 | Hub: the stored refusal and `GET /v1/channel-moves/{move_id}`, the status line in the GO's topic, the `#alerts` line (8.5.6). Test C35's store and hub half | `api/hub/channel_move_status.go`, `_test.go`, `api/store/channel_move_journal*.go` |
 | T18 | WUI: the menu item and its probe (8.5.1, 8.5.2), keys in every locale | `src/utils/sidebar-row-menu.mjs`, `src/components/SidebarRowMenu.vue`, `ChannelSidebar.vue`, `tests/unit/`, `i18n/locales/*` |

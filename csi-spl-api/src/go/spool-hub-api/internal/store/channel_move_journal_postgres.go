@@ -66,24 +66,11 @@ func (s *Postgres) OpenChannelMove(ctx context.Context, open ChannelMoveOpen) (s
 	if err != nil {
 		return "", err
 	}
-	j, err := s.ChannelMoveJournal(ctx, open.Dst, open.Src, open.Channel)
-	if err != nil {
-		return "", err
-	}
-	id := open.MoveID
-	switch {
-	case j != nil && j.StepDone("P4"):
-		return "", fmt.Errorf("move %s: P4 is already done: %w", j.MoveID, ErrConflict)
-	case j != nil && !strings.EqualFold(j.GoMsgID, open.GoMsgID):
-		return "", fmt.Errorf("move %s: its journal row has another GO: %w", j.MoveID, ErrConflict)
-	case j != nil && id != "" && id != j.MoveID:
-		return "", fmt.Errorf("move %s is the open one, not %s: %w", j.MoveID, id, ErrConflict)
-	case j != nil:
-		id = j.MoveID
-	case id == "":
-		id = uuid.NewString()
-	}
+	var id string
 	err = s.inTenant(ctx, open.Dst, func(tx pgx.Tx) error {
+		if id, err = channelMoveOpenID(ctx, tx, open); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `INSERT INTO channel_move_journal (tenant_id, move_id, mode, src_tenant_id, src_channel_id, channel_id, frozen, go_msg_id, started_by)
 			VALUES ($1, $2::uuid, 'move', $3, $4, $4, $5::jsonb, $6::uuid, $7)
 			ON CONFLICT (tenant_id, move_id) DO UPDATE SET frozen = EXCLUDED.frozen`,
@@ -95,7 +82,69 @@ func (s *Postgres) OpenChannelMove(ctx context.Context, open ChannelMoveOpen) (s
 			ON CONFLICT (tenant_id, move_id, step) DO UPDATE SET done_at = EXCLUDED.done_at`, open.Dst, id, open.Channel)
 		return err
 	})
-	return id, err
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// channelMoveOpenID is the move id P1 writes. It reads the channel's newest
+// journal under the channel's transaction lock, so two P1s of one channel
+// run one after the other and the second sees the first's row (R7 W1): two
+// GOs never open two moves.
+func channelMoveOpenID(ctx context.Context, tx pgx.Tx, open ChannelMoveOpen) (string, error) {
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 169))`,
+		"channel_move_open|"+open.Dst+"|"+open.Src+"|"+open.Channel); err != nil {
+		return "", err
+	}
+	var moveID, goID string
+	var p4 bool
+	err := tx.QueryRow(ctx, `SELECT j.move_id::text, j.go_msg_id::text, EXISTS (SELECT 1 FROM channel_move_steps st
+			WHERE st.tenant_id = j.tenant_id AND st.move_id = j.move_id AND st.step = 'P4' AND st.done_at IS NOT NULL)
+		FROM channel_move_journal j WHERE j.tenant_id = $1 AND j.src_tenant_id = $2 AND j.src_channel_id = $3
+		ORDER BY j.created_at DESC, j.move_id LIMIT 1`, open.Dst, open.Src, open.Channel).Scan(&moveID, &goID, &p4)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows) && open.MoveID == "":
+		return uuid.NewString(), nil
+	case errors.Is(err, pgx.ErrNoRows):
+		return open.MoveID, nil
+	case err != nil:
+		return "", err
+	case p4:
+		return "", fmt.Errorf("move %s: P4 is already done: %w", moveID, ErrConflict)
+	case !strings.EqualFold(goID, open.GoMsgID):
+		return "", fmt.Errorf("move %s: its journal row has another GO: %w", moveID, ErrConflict)
+	case open.MoveID != "" && open.MoveID != moveID:
+		return "", fmt.Errorf("move %s is the open one, not %s: %w", moveID, open.MoveID, ErrConflict)
+	}
+	return moveID, nil
+}
+
+// LockChannelMove implements ChannelMoveJournals: a session lock on one
+// pooled connection, held until unlock. It never waits, so a refused click
+// holds no connection. Its key is not P1's, so P1 runs inside it.
+func (s *Postgres) LockChannelMove(ctx context.Context, dst, src, channel string) (func(), error) {
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	key := "channel_move_confirm|" + dst + "|" + src + "|" + channel
+	var got bool
+	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(hashtextextended($1, 169))`, key).Scan(&got); err != nil || !got {
+		if err != nil {
+			_ = conn.Hijack().Close(context.Background()) // never pool a connection that may hold the lock
+			return nil, err
+		}
+		conn.Release()
+		return nil, fmt.Errorf("channel %s/%s: another confirm into %s runs: %w", src, channel, dst, ErrConflict)
+	}
+	return func() {
+		if _, err := conn.Exec(context.Background(), `SELECT pg_advisory_unlock(hashtextextended($1, 169))`, key); err != nil {
+			_ = conn.Hijack().Close(context.Background())
+			return
+		}
+		conn.Release()
+	}, nil
 }
 
 // ChannelMoveJournal implements ChannelMoveJournals.

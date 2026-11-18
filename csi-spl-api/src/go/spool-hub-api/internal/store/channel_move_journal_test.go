@@ -5,9 +5,12 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -128,6 +131,32 @@ func TestChannelMoveProofReadIsOneSnapshot(t *testing.T) {
 	}
 }
 
+// R7 W1 (spec 169 T15): P1s of one channel with different GOs, at once, open
+// one journal; every other is ErrConflict. Ten rounds, each on a fresh move,
+// so the race has its chances. The confirm's lock refuses a second holder
+// until the first unlocks. RED CONTROL: drop the transaction lock of
+// channelMoveOpenID -> more than one journal row, and this test fails.
+func TestOpenChannelMoveOneJournalW1(t *testing.T) {
+	for i := range 10 { // a subtest per round: each fixture's pool closes with it
+		t.Run(fmt.Sprint("round", i), func(t *testing.T) { openAtOnce(t, seedMove(t), 16) })
+	}
+	ctx := context.Background()
+	f := seedMove(t)
+	unlock, err := f.pg.LockChannelMove(ctx, f.dst, f.src, f.ch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pg.LockChannelMove(ctx, f.dst, f.src, f.ch); !errors.Is(err, ErrConflict) {
+		t.Errorf("a second confirm lock: %v, want ErrConflict", err)
+	}
+	unlock()
+	again, err := f.pg.LockChannelMove(ctx, f.dst, f.src, f.ch)
+	if err != nil {
+		t.Fatalf("the lock after unlock: %v", err)
+	}
+	again()
+}
+
 // SPL-5075: the flock of a P4 run is per box and the hub holds no step lock, so
 // a second P4, from another box, can pass the gate while the first one
 // commits, then reach StartChannelMoveStep. That start must never clear the
@@ -214,4 +243,42 @@ func waitForLockWait(t *testing.T, pg *Postgres) {
 		}
 	}
 	t.Fatal("the late start never waited on the P4 row")
+}
+
+// openAtOnce runs n P1s of f's channel at once, each with its own GO, and
+// wants one journal row.
+func openAtOnce(t *testing.T, f mvFix, n int) {
+	t.Helper()
+	ctx := context.Background()
+	req := f.req()
+	plan, err := f.pg.PlanChannelMove(ctx, req.ChannelMovePlanRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, errs[i] = f.pg.OpenChannelMove(ctx, ChannelMoveOpen{Dst: f.dst, Src: f.src, Channel: f.ch,
+				GoMsgID: uuid.NewString(), StartedBy: req.StartedBy, Binds: plan.Binds})
+		}()
+	}
+	close(start)
+	wg.Wait()
+	opened := 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			opened++
+		case !errors.Is(err, ErrConflict):
+			t.Errorf("a P1 with another GO: %v, want ErrConflict", err)
+		}
+	}
+	if rows := mvCount(t, f.pg, `SELECT count(*) FROM channel_move_journal WHERE tenant_id = $1`, f.dst); opened != 1 || rows != 1 {
+		t.Errorf("%d P1s at once: %d opened, %d journal rows, want 1 and 1", n, opened, rows)
+	}
 }

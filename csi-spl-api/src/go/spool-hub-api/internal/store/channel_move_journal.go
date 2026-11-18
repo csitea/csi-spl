@@ -81,8 +81,14 @@ var (
 type ChannelMoveJournals interface {
 	// OpenChannelMove is P1: it writes the journal row, or freezes the set again
 	// on the open row of this GO, and answers the move id. Another GO on the open
-	// row, or a P4 already done, is ErrConflict.
+	// row, or a P4 already done, is ErrConflict. Two P1s of one channel run one
+	// after the other.
 	OpenChannelMove(ctx context.Context, open ChannelMoveOpen) (string, error)
+	// LockChannelMove takes src/channel's confirm lock in dst, so one owner's
+	// confirm runs at a time (spec 169 T15, R7 W1 and W2); unlock releases it.
+	// It does not wait: a lock another confirm holds is ErrConflict. P1 does
+	// not take it.
+	LockChannelMove(ctx context.Context, dst, src, channel string) (unlock func(), err error)
 	// ChannelMoveJournal reads the newest journal of src/channel in dst; nil = none.
 	ChannelMoveJournal(ctx context.Context, dst, src, channel string) (*ChannelMoveJournalRow, error)
 	// StartChannelMoveStep marks a step running: done_at goes back to NULL, so a

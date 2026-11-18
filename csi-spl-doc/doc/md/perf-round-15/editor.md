@@ -106,7 +106,17 @@ spl-lane-issue spl-spawn-share`.
   (load 63.1). The load swings 45..70, so these wall seconds show the
   direction only.
 - **CPU** (user + sys, less load-bound than wall), alternated S, L, S, L,
-  started 00:46Z: see 2.6 when read.
+  started 00:46Z, bash `time` (`TIMEFORMAT="%R %U %S"`), n=2 per arm:
+
+  | arm | load at start | wall s | user s | sys s | user + sys s | PASS / FAIL |
+  |---|---|---|---|---|---|---|
+  | S | 21.6 | 269.7 | 113.2 | 90.2 | **203.4** | 174 / 0 |
+  | L | 40.5 | 63.5 | 29.4 | 18.8 | **48.2** | 174 / 0 |
+  | S | 38.9 | 347.4 | 126.2 | 105.8 | **232.0** | 174 / 0 |
+  | L | 59.5 | 82.6 | 30.8 | 19.5 | **50.3** | 174 / 0 |
+
+  Each L arm started under a higher load than the S arm before it and still
+  used about a quarter of its CPU (48.2 and 50.3 s against 203.4 and 232.0 s).
 
 ## 3. R3 reads
 
@@ -135,9 +145,11 @@ spl-lane-issue spl-spawn-share`.
 
 ## 5. State (00:5xZ, the session after the 00:43Z rotation)
 
-- Plan v0.1 drafted: `perf-round-15-plan.md`, row 01 (`in_orc` run set).
+- Plan v0.1 `1c82cbccc`; v0.2 adds the CPU series (2.5).
+- Panel seat: m-245@sat (mistral, ask 6eaf2fde, holder c-002@sat msg
+  7aa321bc, under owner ruling e895dea6).
 - R3 and panel re-read at 00:49Z (plan 3.2, 5).
-- Next: read the CPU series (2.6), ask the holder c-003@sat for the panel
-  seat on the v0.1 sha, fold the seat's verdict into v0.2 / v1.0.
+- Next: name v0.2 to m-245 on `dispatch-perf-r15`, fold its verdict into
+  v1.0.
 - Scratch (push user's): `/var/tmp/p15-orc-clone.AvLl` (clone, logs,
   straces, the probe edit).

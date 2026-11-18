@@ -1,4 +1,4 @@
-# Perf round 15 (p15) - plan (1 row, v0.1)
+# Perf round 15 (p15) - plan (1 row, v0.2)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -24,7 +24,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.1, draft, not signed.** Editor: c-454 (claude).
+**Status: v0.2, draft, not signed.** Editor: c-454 (claude). Panel seat: m-245 (mistral).
 
 **Why now.** The holder's request (c-003@sat, 476a073a, 2026-11-17 22:2xZ;
 ruling c-001 237a4e95):
@@ -95,7 +95,7 @@ Inputs read (brief step 2). Each carried finding was re-checked on
 
 | # | id | practice | baseline on `1961ca57f` (command, number, n) | after | sites (file:line) | test + red control (C2) | box | vendor / kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 | `perf(p15-01-in-orc-run-set)` | `in_orc` sources every `lib/bash/funcs/*.func.sh` and, when the test sets `IN_ORC_RUN="<run file stems>"`, only those `src/bash/run/<stem>.func.sh` files; unset, it sources all as today, so the 266 other `in_orc` tests do not change. `spl-lane-issue.tst.sh` sets it once, to the 8 run files whose functions its code under test calls | editor 2.4, `strace -f -e trace=execve bash spl-lane-issue.tst.sh` on a clone of `1961ca57f` -> **14,379** successful execve, `dirname` **6,396**, n=1, rc 0, 174 PASS. Wall: `time bash spl-lane-issue.tst.sh` -> **142.0 s** (82.9 user, 60.3 sys), load 11.0, n=1 | editor 2.5, the same run with the scratch `in_orc` and `IN_ORC_RUN` = the 8 files -> **8,917** successful execve, `dirname` **1,181**, n=1, rc 0, 174 PASS, 0 FAIL. CPU per arm: editor 2.5 (the alternated series). Suggested: the fast tier runs this test on ~99 of 226 orc commits a week | `orc/src/bash/tests/test-lib.inc.sh:62-72` (`in_orc` and its comment); `orc/src/bash/tests/spl-lane-issue.tst.sh:20` (one `IN_ORC_RUN=...` line after the `source`); a new `orc/src/bash/tests/in-orc-run-set.tst.sh`; `orc/src/bash/tests/orc-shard-weights.txt` (its weight line, if the lane gives one); 4 files | the new **`in-orc-run-set.tst.sh`**: a `dirname` stub that logs each call put first on `PATH` (as `in_orc`'s own stubs are); asserts (a) with `IN_ORC_RUN=spl-lane-issue`, `declare -F do_spl_lane_issue` is set and a function of another run file (e.g. `do_spl_spawn_queue`) is not; (b) unset, both are set; (c) the stub's call count per `in_orc` is smaller with the set than without. Red: today's `test-lib.inc.sh` -> (a) fails, `do_spl_spawn_queue` is defined. Also run and green: **`spl-lane-issue.tst.sh`** (174 PASS, its seconds before and after, n>=2 each, alternated, load at start), `orc-jobs-derivation.tst.sh`, **`bash-cleancode.tst.sh`**, and every orc test that sources `test-lib.inc.sh` and calls `in_orc` once in full (`git grep -l in_orc -- csi-spl-orc/src/bash/tests`), unchanged because it leaves `IN_ORC_RUN` unset | either fleet box | claude / simple_coding | 1 |
+| 01 | `perf(p15-01-in-orc-run-set)` | `in_orc` sources every `lib/bash/funcs/*.func.sh` and, when the test sets `IN_ORC_RUN="<run file stems>"`, only those `src/bash/run/<stem>.func.sh` files; unset, it sources all as today, so the 266 other `in_orc` tests do not change. `spl-lane-issue.tst.sh` sets it once, to the 8 run files whose functions its code under test calls | editor 2.4, `strace -f -e trace=execve bash spl-lane-issue.tst.sh` on a clone of `1961ca57f` -> **14,379** successful execve, `dirname` **6,396**, n=1, rc 0, 174 PASS. Wall: `time bash spl-lane-issue.tst.sh` -> **142.0 s** (82.9 user, 60.3 sys), load 11.0, n=1 | editor 2.5, the same run with the scratch `in_orc` and `IN_ORC_RUN` = the 8 files -> **8,917** successful execve, `dirname` **1,181**, n=1, rc 0, 174 PASS, 0 FAIL. CPU (user + sys), alternated S, L, S, L, n=2 per arm (editor 2.5): today **203.4 and 232.0 s**, with the set **48.2 and 50.3 s**, each L arm under a higher load than the S arm before it; 174 PASS in all four. Suggested: the fast tier runs this test on ~99 of 226 orc commits a week | `orc/src/bash/tests/test-lib.inc.sh:62-72` (`in_orc` and its comment); `orc/src/bash/tests/spl-lane-issue.tst.sh:20` (one `IN_ORC_RUN=...` line after the `source`); a new `orc/src/bash/tests/in-orc-run-set.tst.sh`; `orc/src/bash/tests/orc-shard-weights.txt` (its weight line, if the lane gives one); 4 files | the new **`in-orc-run-set.tst.sh`**: a `dirname` stub that logs each call put first on `PATH` (as `in_orc`'s own stubs are); asserts (a) with `IN_ORC_RUN=spl-lane-issue`, `declare -F do_spl_lane_issue` is set and a function of another run file (e.g. `do_spl_spawn_queue`) is not; (b) unset, both are set; (c) the stub's call count per `in_orc` is smaller with the set than without. Red: today's `test-lib.inc.sh` -> (a) fails, `do_spl_spawn_queue` is defined. Also run and green: **`spl-lane-issue.tst.sh`** (174 PASS, its seconds before and after, n>=2 each, alternated, load at start), `orc-jobs-derivation.tst.sh`, **`bash-cleancode.tst.sh`**, and every orc test that sources `test-lib.inc.sh` and calls `in_orc` once in full (`git grep -l in_orc -- csi-spl-orc/src/bash/tests`), unchanged because it leaves `IN_ORC_RUN` unset | either fleet box | claude / simple_coding | 1 |
 
 Every row is claude: rulebook R14 (an established vendor) and the owner's
 10-17 rule (no mistral coding or testing).
@@ -170,12 +170,14 @@ Read on 2026-11-18 00:49:54Z (editor 4):
 - `ENV=prd ./run -a do_spl_hub_agent_kinds` -> `off [qwen], paused []`.
 - Dispatch lease holder: `c-003@sat`.
 
-- **Plan panel (rulebook 3.2)**: editor c-454 (claude) and one non-claude
-  seat. p14 sat claude + mistral under owner ruling e895dea6 (carried by
-  c-002 31c1b060 while grok holds on both boxes and agy was at its limit).
-  Grok still holds; agy now holds on load, not on a limit. I ask the holder
-  for the seat (one agy or, under e895dea6, one mistral seat) and say which
-  it places in v0.2. The seat signs only a sha this editor names.
+- **Plan panel (rulebook 3.2)**: editor c-454 (claude) and one **mistral**
+  seat, under owner ruling e895dea6 (claude + mistral sign, no agy), as for
+  p13 and p14. Holder c-002@sat (msg 24474737, 00:5xZ) re-read: agy at its
+  quota until 2026-11-20T23:04Z and `BOX_PICK_KIND=agy` -> `pick=hold`; grok
+  holds. Seat: ask 6eaf2fde, placed as **m-245@sat** (c-002 msg 7aa321bc),
+  seat file `perf-round-15/seat-mistral.md`, branch
+  `review/c002-perf-round-15-mistral-seat`. The seat signs only a sha this
+  editor names.
 - **Row reviewers (2.7.2)**: the row's author is claude. Code R7 is the
   holder's pick at placement (grok when it picks; otherwise the waiver seat
   the holder names), never the plan seat. A row never pushes without its R7
@@ -201,7 +203,7 @@ No finding of this seat is non-perf work, so no ask went to the orchestrator.
 
 ## 7. Counts
 
-- Rows: 1 in v0.1 (rulebook 1.1: at most 10).
+- Rows: 1 in v0.2, unchanged from v0.1 (rulebook 1.1: at most 10).
 - Every row aims for one push (1.2) and lands with a counting test and its red
   control (4.1).
 - Status (R6): `git fetch origin master && git log origin/master --grep='(p15-' --format='%h %cI %s'`.
@@ -216,7 +218,11 @@ Qto (rulebook 4.5): this file is imported once into the `system` workspace with
 signs and the plan lands on `master`, not from the review branch, as in rounds
 8 to 14. From then on the Qto doc is the primary copy.
 
-- v0.1 (c-454, 2026-11-18 01:0xZ): first draft on `1961ca57f`, row 01.
+- v0.1 (c-454, 2026-11-18 00:5xZ, `1c82cbccc`): first draft on `1961ca57f`,
+  row 01.
+- v0.2 (c-454, 2026-11-18 01:0xZ): row 01's after column carries the CPU
+  series, n=2 per arm (editor 2.5); section 5 names the seat m-245; rows
+  unchanged.
 
 <a id="p15-consensus"></a>
 
@@ -224,5 +230,5 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-454 (editor) | claude | v0.1 | author |
-| (asked of the holder) | agy or mistral | - | - |
+| c-454 (editor) | claude | v0.1, v0.2 | author |
+| m-245 (mistral seat, ask 6eaf2fde) | mistral | - | - |

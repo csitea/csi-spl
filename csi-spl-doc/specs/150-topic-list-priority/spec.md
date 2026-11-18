@@ -1,6 +1,13 @@
 # 150 Topic-list controls and discussion priority
 
-Version v1.5 (2026-11-12): two-row headers (option A of the mocks, the
+Version v1.6 (2026-11-18): only an owner of the operator workspace orders
+the agents' work. An operator issue linking another workspace's topic
+follows a set there only when its setter owns the operator workspace, as
+the spawn queue does; that workspace's own owner sets its topic and its own
+issues, never the operator's (section 3.4 item 4 "Across workspaces"; the
+owner, t1 e1139a1e msg `41010d28`, poll `74ef368b` answer A, SPL-5933).
+
+v1.5 (2026-11-12): two-row headers (option A of the mocks, the
 owner's pick in poll `ba1b6b6f`, t1 2fafde5c msg `9e4cfb7d`, SPL-5349). The
 topic list header shows the full channel name on row 1 and the filter + sort
 (left) and card-size control (right) on row 2; the open topic shows the full
@@ -381,7 +388,8 @@ holds (panel.md section 1, one row per claim with its command).
      `PUT /v1/topics/{task_id}/priority` (`hub/topic_priority.go`
      `priorityToOperator`). The topic workspace's own owner who does not own
      the operator workspace sets the topic there and never reorders the
-     queue (R7 W1, `prioWordOwners`). Tests:
+     queue (R7 W1, `prioWordOwners`). The operator issues linking the
+     topic follow the same rule (item 4, "Across workspaces"). Tests:
      `TestOwnerPrioWordOperatorQueue`, `TestTopicPriorityOperatorQueue`.
 2. **The unanswered owner posts.** `UnansweredPosts`
    (`store/fallback_postgres.go:111-126`, memory `fallback_memory.go:129`)
@@ -417,6 +425,23 @@ holds (panel.md section 1, one row per claim with its command).
      so the link is accepted). So the operator workspace's issues also read
      the priority set in the other workspaces; every other workspace reads
      its own only.
+   - **Only an owner of the operator workspace orders the agents' work**
+     (v1.6, SPL-5933; owner HUM-10, t1 e1139a1e, msg `41010d28`: "Only t1
+     owners order the agents' work: the issue keeps the t1 owner's
+     priority, like the queue does"). This is the one home of the rule for
+     issues; the queue's is item 1. A set row of another workspace orders
+     an operator issue only when its setter owns the operator workspace
+     (`hub/owner_prio_word.go` `operatorOwner`, the test `prioWordOwners`
+     uses for the queue); the operator workspace's own rows always count
+     (`hub/topic_priority_follow.go` `linkedSetPriorities`). So when the
+     operator's owner sets a csitea topic to 1 and then a csitea owner who
+     does not own the operator workspace sets it to 5, the topic shows 5
+     in csitea, csitea's own issues follow 5, and the operator issue and
+     the queued ask keep 1, by the PUT and by the sweep alike. The other
+     set rows still count as "newer" against an issue's own change (the
+     last change wins, below): they only never move an operator issue.
+     Rows set before this rule are not re-applied. Test:
+     `TestTopicPriorityIssueKeepsOperatorOwner`.
    - **The lane** shows the highest of its issues, so it follows with them;
      nothing is stored on the lane row. A lane with no issue shows none. A
      **queued ask** already reads its discussion's priority at every read
@@ -455,7 +480,8 @@ holds (panel.md section 1, one row per claim with its command).
      - **The newest change wins.** An issue whose own change is as new as
        the set row of every discussion it links, or newer, is never moved
        by them; it sets them instead. Where one topic has a set row in two
-       workspaces the newer row counts. Two issues set one after the other
+       workspaces the newer row counts, among the rows that may order the
+       issue ("Only an owner of the operator workspace", above). Two issues set one after the other
        on one discussion: the second wins, the first follows it. Every change
        is stamped to the microsecond, so a PUT in the same second as an
        issue change is still the newer.

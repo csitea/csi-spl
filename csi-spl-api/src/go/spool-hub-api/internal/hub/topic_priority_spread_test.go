@@ -252,7 +252,8 @@ func TestIssuePrioritySweepSpreadsNewestLast(t *testing.T) {
 }
 
 // C150-F11: an operator topic with a set row in two workspaces: the
-// operator issue on it takes the newer row at the sweep. RED CONTROL
+// operator issue on it takes the newer row at the sweep, when an owner of
+// the operator workspace set it (SPL-5933). RED CONTROL
 // (linkedSetPriorities keeps the older row, R7 c-529 a3): the issue stays
 // at the operator row's 3.
 func TestIssuePriorityNewerWorkspaceRowCounts(t *testing.T) {
@@ -269,7 +270,7 @@ func TestIssuePriorityNewerWorkspaceRowCounts(t *testing.T) {
 		t.Fatalf("before: operator issue prio %d, want 3", got)
 	}
 	r.offset.Store(int64(time.Second)) // the other workspace's row is the newer
-	patchPrio(t, r.e, r.other, r.otherA, kRelay, 1)
+	patchPrio(t, r.e, r.other, opOwnerSeat(t, r), kRelay, 1)
 	if got := topicPrio(t, r.e, r.other, opTalk); got != 1 {
 		t.Fatalf("before: the other workspace's row %d, want 1", got)
 	}

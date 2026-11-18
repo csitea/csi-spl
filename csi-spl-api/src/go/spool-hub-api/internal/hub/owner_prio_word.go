@@ -75,13 +75,21 @@ func prioWordIn(body string, words []string) string {
 func (s *Server) prioWordOwners(ctx context.Context, tenant, member string) (inTenant bool, op string) {
 	inTenant = s.workspaceOwner(ctx, tenant, member)
 	o, err := s.operatorTenant(ctx)
-	if err != nil || o == "" || !(s.workspaceOwner(ctx, o, member) || s.channelMoveOwner(ctx, o, member)) {
+	if err != nil || o == "" || !s.operatorOwner(ctx, o, member) {
 		return inTenant, ""
 	}
 	if o == tenant {
 		return true, ""
 	}
 	return true, o
+}
+
+// operatorOwner: member owns op, the operator workspace (its owner's role,
+// or the business owner's member row). Only such a member orders the
+// agents' work: op's queue (prioWordOwners) and op's issues
+// (linkedSetPriorities, SPL-5933).
+func (s *Server) operatorOwner(ctx context.Context, op, member string) bool {
+	return s.workspaceOwner(ctx, op, member) || s.channelMoveOwner(ctx, op, member)
 }
 
 // ownerPrioWord is wuiAfterStore's step: m was stored from member's browser

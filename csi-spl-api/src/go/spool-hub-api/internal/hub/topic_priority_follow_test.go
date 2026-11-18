@@ -2,6 +2,7 @@ package hub_test
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -82,14 +85,23 @@ func TestTopicPriorityFollowsToIssuesAndLanes(t *testing.T) {
 
 	// C150-F3: the fleet's lane issue sits in the operator workspace and
 	// links the owner's topic in another workspace (csitea 269d405d, t1
-	// SPL-4637): the other workspace's PUT moves it too. RED CONTROL: a run
-	// that reads the operator workspace's own priorities only leaves it at 5.
+	// SPL-4637): a PUT there by an owner of the operator workspace moves it
+	// too; one by that workspace's admin does not (SPL-5933). RED CONTROL: a
+	// run that reads the operator workspace's own priorities only leaves it
+	// at 5.
 	far := uid.New()
 	lobbyTopic(t, r.e, r.other, far, "## Far\n\nrow")
 	relayCopy(t, r.e, r.op, far)
 	kFar := issueWithPrio(t, r.e, r.op, r.admin, "lane issue on a far topic", far, 5)
 	laneAt(t, r, "c-653", r.opBox.id, far, kFar, time.Now().Add(-3*time.Minute))
-	if code, out := putPriority(t, r.e, r.other, far, r.otherA, map[string]any{"priority": 2}); code != http.StatusOK {
+	if code, out := putPriority(t, r.e, r.other, far, r.otherA, map[string]any{"priority": 4}); code != http.StatusOK {
+		t.Fatalf("PUT far priority by its admin: %d %v", code, out)
+	}
+	if got := issuePrio(t, r.e, r.op, r.admin, kFar); got != 5 {
+		t.Errorf("SPL-5933 operator issue after a set by the far workspace's admin: prio %d, want its own 5", got)
+	}
+	owner := opOwnerSeat(t, r)
+	if code, out := putPriority(t, r.e, r.other, far, owner, map[string]any{"priority": 2}); code != http.StatusOK {
 		t.Fatalf("PUT far priority: %d %v", code, out)
 	}
 	if got := issuePrio(t, r.e, r.op, r.admin, kFar); got != 2 {
@@ -108,19 +120,52 @@ func TestTopicPriorityFollowsToIssuesAndLanes(t *testing.T) {
 	}
 }
 
+// opOwnerSeat admits one human as the business owner of the rig's operator
+// workspace and as an admin of its other workspace (the t1 owner, who is a
+// member of csitea too): the setter whose far sets order the operator issues
+// (SPL-5933).
+func opOwnerSeat(t *testing.T, r *fleetTokensRig) string {
+	t.Helper()
+	h := r.e.st.(store.Humans)
+	id := store.Identity{Provider: "google", Subject: "s-" + uid.New(), Email: uid.New()[:10] + "@example.com"}
+	hum := ""
+	for _, w := range []struct{ tid, role string }{{r.op, rbac.BizOwner}, {r.other, rbac.Admin}} {
+		now := time.Now()
+		if err := h.PutInvite(context.Background(), store.Invite{TenantID: w.tid, Email: id.Email, Role: w.role,
+			InvitedBy: store.AdmittedOperator, ExpiresAt: now.Add(time.Hour)}, now); err != nil {
+			t.Fatal(err)
+		}
+		got, err := h.Admit(context.Background(), id, w.tid, store.AdmitPolicy{}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if hum != "" && got != hum {
+			t.Fatalf("one identity admitted as %s and %s", hum, got)
+		}
+		hum = got
+	}
+	return hum
+}
+
 // prioSync runs the agent issue op prio-sync (the 5-min cron's call) from a
 // box of the rig's operator workspace; its answer.
 func prioSync(t *testing.T, r *fleetTokensRig, query string) map[string]any {
 	t.Helper()
+	return prioSyncIn(t, r.e, r.op, query)
+}
+
+// prioSyncIn runs prio-sync from a box of workspace op of e.
+func prioSyncIn(t *testing.T, e *env, op, query string) map[string]any {
+	t.Helper()
 	ctx := context.Background()
-	b := r.e.box(r.op, "box-"+newTenantID(""), "CLE-07")
+	b := e.box(op, "box-"+newTenantID(""), "CLE-07")
 	// SPL-5337: from the operator workspace the sweep walks every live
 	// workspace of the shared test database; in hub group d that is every
 	// one groups a..c made (1579 tenants on 2026-11-11), seconds per call on
 	// a loaded box, past env.box's 5 s reply wait ("no issue reply"). A
 	// test-only bound: the hub and the production client are unchanged.
 	b.c.ReadyTimeout = 60 * time.Second
-	r.e.pin(r.op, b)
+	e.pin(op, b)
 	sa, err := b.c.Dial(ctx, wire.RoleBox)
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +216,7 @@ func TestTopicPrioritySyncOp(t *testing.T) {
 	if _, err := ps.SetTopicPriority(context.Background(), r.op, talk, 2, "HUM-1", time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ps.SetTopicPriority(context.Background(), r.other, far, 1, "HUM-1", time.Now()); err != nil {
+	if _, err := ps.SetTopicPriority(context.Background(), r.other, far, 1, opOwnerSeat(t, r), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	dry := ownChanges(r, prioSync(t, r, ""))
@@ -217,7 +262,7 @@ func TestTopicPriorityPutAgreesWithSync(t *testing.T) {
 		t.Fatalf("link the far topic: %d %v", code, out)
 	}
 	ps := r.e.st.(store.TopicPriorityStore)
-	if _, err := ps.SetTopicPriority(context.Background(), r.other, far, 1, "HUM-1", time.Now()); err != nil {
+	if _, err := ps.SetTopicPriority(context.Background(), r.other, far, 1, opOwnerSeat(t, r), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	prioSync(t, r, "dry_run=0")
@@ -232,5 +277,53 @@ func TestTopicPriorityPutAgreesWithSync(t *testing.T) {
 	}
 	if ch, _ := ownChanges(r, prioSync(t, r, "dry_run=0"))["changes"].([]any); len(ch) != 0 {
 		t.Errorf("C150-F4 sweep after the PUT moves it again: %v", ch)
+	}
+}
+
+// SPL-5933 (owner HUM-10, t1 e1139a1e, msg 41010d28: "Only t1 owners order
+// the agents' work: the issue keeps the t1 owner's priority, like the queue
+// does"): the operator workspace's owner (HUM-7) sets another workspace's
+// topic to 1, then that workspace's own owner (HUM-8, not op's) sets it to
+// 5. The topic shows 5 in its own workspace; op's queue row and op's lane
+// issue linking the topic keep 1, by the PUT and by the sweep.
+// RED CONTROL (parent f1048ab35): the issue takes 5, the newest set of any
+// workspace (linkedSetPriorities).
+func TestTopicPriorityIssueKeepsOperatorOwner(t *testing.T) {
+	op := newTenantID("op")
+	roles := tenantRoles{op: {"HUM-7": rbac.BizOwner}}
+	e := archiveEnv(t, func(o *hub.Options) {
+		o.OperatorTenant = op
+		o.Authorizer = roles
+	})
+	pub, _, _ := ed25519.GenerateKey(nil)
+	if err := e.st.CreateTenant(context.Background(), store.Tenant{ID: op, RootPubKey: pub}); err != nil {
+		t.Fatal(err)
+	}
+	tid, _ := e.tenant()
+	roles[tid] = map[string]string{"HUM-7": rbac.BizOwner, "HUM-8": rbac.BizOwner}
+	task := uuidV4()
+	putCard(t, e, tid, task, "", "HUM-2", hub.WUIBox, 1, time.Now().UTC().Add(-time.Hour))
+	relayCopy(t, e, op, task)
+	k := issueWithPrio(t, e, op, "HUM-7", "lane issue on the far topic", task, 4)
+	for _, set := range []struct {
+		as   string
+		prio int
+	}{{"HUM-7", 1}, {"HUM-8", 5}} {
+		if code, out := putPriority(t, e, tid, task, set.as, map[string]any{"priority": set.prio}); code != http.StatusOK {
+			t.Fatalf("%s: PUT priority %d: %d %v", set.as, set.prio, code, out)
+		}
+	}
+	if got := storedPriority(t, e, tid, task); got != 5 {
+		t.Errorf("the topic's own workspace: priority %d, want the last set 5", got)
+	}
+	if got := storedPriority(t, e, op, task); got != 1 {
+		t.Errorf("op's queue row: priority %d, want the operator owner's 1", got)
+	}
+	if got := issuePrio(t, e, op, "HUM-7", k); got != 1 {
+		t.Errorf("op's lane issue after the PUT: priority %d, want the operator owner's 1", got)
+	}
+	res := prioSyncIn(t, e, op, "dry_run=0")
+	if got := issuePrio(t, e, op, "HUM-7", k); got != 1 {
+		t.Errorf("op's lane issue after the sweep: priority %d, want 1 (%v)", got, res["changes"])
 	}
 }

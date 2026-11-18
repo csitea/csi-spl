@@ -28,7 +28,12 @@ import (
 // the fleet files every lane's issue in the operator workspace, linking the
 // owner's topic in his own workspace (csitea 269d405d's lane issue is t1's
 // SPL-4637). So the operator workspace's issues also read the set
-// priorities of the other workspaces' topics.
+// priorities of the other workspaces' topics, but only a set by an owner of
+// the operator workspace orders them (SPL-5933; owner HUM-10, t1 e1139a1e,
+// msg 41010d28: "Only t1 owners order the agents' work: the issue keeps the
+// t1 owner's priority, like the queue does"). A set by that workspace's own
+// owner who does not own op still sets its topic and its own issues, never
+// op's; the queue reads op's own row the same way (priorityToOperator).
 //
 // Two paths apply it: PUT /v1/topics/{task_id}/priority at once, for the
 // issues linking that topic, and the agent issue op prio-sync, every issue
@@ -78,10 +83,12 @@ type prioRun struct {
 }
 
 // prioView is what one run reads: its issues, their links, the set rows of
-// the linked discussions (the newest per topic) and the issues' own stamps.
+// the linked discussions (the newest per topic), those of them that order
+// the run's issues (order: SPL-5933) and the issues' own stamps.
 type prioView struct {
 	links  map[int][]store.IssueDiscussion
 	set    map[string]store.TopicPriority
+	order  map[string]store.TopicPriority
 	issues []store.Issue
 	own    map[int]time.Time
 }
@@ -116,7 +123,7 @@ func (s *Server) readPrioView(ctx context.Context, run prioRun) (prioView, error
 	if v.links, err = ds.IssueDiscussionLinks(ctx, run.tenant, run.numbers); err != nil {
 		return v, err
 	}
-	if v.set, err = linkedSetPriorities(ctx, ps, run.tenant, run.lookIn, v.links); err != nil {
+	if v.set, v.order, err = s.linkedSetPriorities(ctx, ps, run, v.links); err != nil {
 		return v, err
 	}
 	if v.issues, err = followIssues(ctx, is, run.tenant, run.numbers); err != nil {
@@ -151,7 +158,7 @@ func (s *Server) followDiscussionPriority(ctx context.Context, run prioRun) (pri
 		if issueResolved(i.Status) || v.ownNewer(i.Number) {
 			continue
 		}
-		to, topic := bestSetPriority(v.links[i.Number], v.set)
+		to, topic := bestSetPriority(v.links[i.Number], v.order)
 		if to == 0 {
 			out.Unset++
 			continue
@@ -170,10 +177,13 @@ func (s *Server) followDiscussionPriority(ctx context.Context, run prioRun) (pri
 }
 
 // linkedSetPriorities is the set row of every discussion links names, read
-// in tenant and in each of lookIn (the newest where two answer: the last
-// change wins), the default discussion left out; absent = not set.
-func linkedSetPriorities(ctx context.Context, ps store.TopicPriorityStore, tenant string, lookIn []string, links map[int][]store.IssueDiscussion) (map[string]store.TopicPriority, error) {
-	def := strings.ToLower(store.IssueDiscussionDefault(tenant))
+// in run.tenant and in each of run.lookIn (the newest where two answer: the
+// last change wins), the default discussion left out; absent = not set. set
+// is every row (an issue's own change is weighed against it); order leaves
+// out a row of run.lookIn whose setter does not own run.tenant, the
+// operator workspace, the only one with a lookIn (SPL-5933).
+func (s *Server) linkedSetPriorities(ctx context.Context, ps store.TopicPriorityStore, run prioRun, links map[int][]store.IssueDiscussion) (set, order map[string]store.TopicPriority, err error) {
+	def := strings.ToLower(store.IssueDiscussionDefault(run.tenant))
 	seen := map[string]bool{}
 	tasks := []string{}
 	for _, ls := range links {
@@ -185,22 +195,40 @@ func linkedSetPriorities(ctx context.Context, ps store.TopicPriorityStore, tenan
 			}
 		}
 	}
-	out := map[string]store.TopicPriority{}
+	set, order = map[string]store.TopicPriority{}, map[string]store.TopicPriority{}
 	if len(tasks) == 0 {
-		return out, nil
+		return set, order, nil
 	}
-	for _, t := range append([]string{tenant}, lookIn...) {
+	owner := map[string]bool{}
+	for n, t := range append([]string{run.tenant}, run.lookIn...) {
 		got, err := ps.SetTopicPriorityRows(ctx, t, tasks)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for k, p := range got {
-			if q, ok := out[k]; !ok || p.SetAt.After(q.SetAt) {
-				out[k] = p
+			newestInto(set, k, p)
+			if n == 0 || s.opOwnerCached(ctx, owner, run.tenant, p.SetBy) {
+				newestInto(order, k, p)
 			}
 		}
 	}
-	return out, nil
+	return set, order, nil
+}
+
+// newestInto keeps p as m[k] when m has none or an older one.
+func newestInto(m map[string]store.TopicPriority, k string, p store.TopicPriority) {
+	if q, ok := m[k]; !ok || p.SetAt.After(q.SetAt) {
+		m[k] = p
+	}
+}
+
+// opOwnerCached is operatorOwner(op, by), asked once per setter per run.
+func (s *Server) opOwnerCached(ctx context.Context, seen map[string]bool, op, by string) bool {
+	if v, ok := seen[by]; ok {
+		return v
+	}
+	seen[by] = s.operatorOwner(ctx, op, by)
+	return seen[by]
 }
 
 // bestSetPriority is the highest set priority among ls and the discussion

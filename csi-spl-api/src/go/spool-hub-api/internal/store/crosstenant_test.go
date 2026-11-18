@@ -371,7 +371,17 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}
 	// release_notes, estate_deploys (the contract, spec 143 row B-3): one commit of
 	// that repo and one deploy of it, written by the operator.
-	if err := pg.PutReleaseNotes(ctx, s.tenant, "csitea/repo-"+s.tenant, []ReleaseNote{noteOK(randSHA(), "", now)}, now); err != nil {
+	noteSHA := randSHA()
+	if err := pg.PutReleaseNotes(ctx, s.tenant, "csitea/repo-"+s.tenant, []ReleaseNote{noteOK(noteSHA, "", now)}, now); err != nil {
+		t.Fatal(err)
+	}
+	// commit_human_time (rdb 0295, spec 107 T071): that commit's human
+	// minutes of one day, written by the operator (the hours sweep, T075).
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO commit_human_time (tenant_id, repo_slug, sha, day_bucket, currency, issue_key, minutes, amount_micros)
+			VALUES ($1, $2, $3, $4::date, 'EUR', 'SPL-1', 30, 30000000)`, s.tenant, "csitea/repo-"+s.tenant, noteSHA, now.Format("2006-01-02"))
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := pg.PutEstateDeploy(ctx, EstateDeploy{TenantID: s.tenant, RepoSlug: "csitea/repo-" + s.tenant,
@@ -427,6 +437,12 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	// hours_minutes, hours_entries, hours_periods (rdb 0151, spec 107): one
 	// row of each for the seeded member (hours_rls_test.go).
 	if err := seedHours(ctx, pg, s.tenant, hum, now); err != nil {
+		t.Fatal(err)
+	}
+	// member_hourly_prices (rdb 0295, spec 107 T071): the seeded member's
+	// price, set by the biz owner. No store API yet (T072).
+	if _, err := pg.execTenant(ctx, s.tenant, `INSERT INTO member_hourly_prices (tenant_id, member_id, valid_from, amount_micros, currency, set_by)
+		VALUES ($1, $2, $3::date, 60000000, 'EUR', 'HUM-owner')`, s.tenant, hum, now.Format("2006-01-02")); err != nil {
 		t.Fatal(err)
 	}
 	// hours_days, hours_changes, hours_adjustments, hours_ops (rdb 0215,
@@ -825,10 +841,10 @@ var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": 
 // tenantReadOnlyTables are read in a tenant's scope and written only in the
 // operator scope: their tenant_scope policy is FOR SELECT (rdb 0212
 // tenant_agent_caps, spec 147 P2; rdb 0266 software_projects, workspace_repos;
-// row B-3 release_notes, estate_deploys). A's unscoped UPDATE / DELETE reaches
+// row B-3 release_notes, estate_deploys; rdb 0295 commit_human_time). A's unscoped UPDATE / DELETE reaches
 // NONE of its own rows: stronger than reaching only A's.
 var tenantReadOnlyTables = map[string]bool{"tenant_agent_caps": true, "software_projects": true, "workspace_repos": true,
-	"release_notes": true, "estate_deploys": true}
+	"release_notes": true, "estate_deploys": true, "commit_human_time": true}
 
 // TestCrossTenantEveryTable: with A and B seeded in every tenant table, A's
 // scope sees none of B's rows in any of them, and A's unscoped UPDATE /

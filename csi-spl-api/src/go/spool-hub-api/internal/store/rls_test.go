@@ -84,6 +84,8 @@ var rlsTables = []string{
 	"release_notes", "estate_deploys",
 	// rdb 0289, SPL-5709: hours of use per person and workspace
 	"workspace_use_minutes",
+	// rdb 0295, spec 107 T071 (SPL-5913): hourly prices, a commit's human time
+	"member_hourly_prices", "commit_human_time",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

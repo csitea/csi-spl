@@ -30,6 +30,7 @@ CREATE POLICY estate_deploys_read ON estate_deploys FOR SELECT TO PUBLIC USING (
 ALTER TABLE release_notes ALTER COLUMN tenant_id SET DEFAULT 't1', ALTER COLUMN repo_slug SET DEFAULT 'csitea/csi-spl';
 ALTER TABLE estate_deploys ALTER COLUMN tenant_id SET DEFAULT 't1', ALTER COLUMN repo_slug SET DEFAULT 'csitea/csi-spl';
 DELETE FROM release_notes WHERE sha IN (SELECT sha FROM release_notes GROUP BY sha HAVING count(*) > 1);
+ALTER TABLE commit_human_time DROP CONSTRAINT commit_human_time_note_fk; -- rdb 0295 (spec 107 T071) keys on the pkey
 ALTER TABLE release_notes DROP CONSTRAINT release_notes_pkey, ADD CONSTRAINT release_notes_pkey PRIMARY KEY (sha);
 CREATE UNIQUE INDEX release_notes_tenant_repo_sha ON release_notes (tenant_id, repo_slug, sha)`
 

@@ -34,6 +34,9 @@
 #      that refuses the link queues nothing, and the next tick reuses the
 #      same topic id (sha256 of the key, v4-shaped); a refused open links
 #      nothing and queues nothing
+#  10. the open reaches the hub (b16-01): through the real spl_desk_spool and
+#      a fake spool with the client's same-box rule, the open is mirrored to
+#      the hub, so the link is taken; the link runs with the mirror unset
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -299,6 +302,48 @@ out="$(f9 SPAWN_FILL_ISSUES_CMD="$T/bin/issues-9b")"
 out="$(f9 TENANT_ID=)"
 grep -q 'WARN SPL-30: no ENV / TENANT_ID' <<<"$out" && [[ ! -s "$T/spoolhub.log" && ! -e "$T/briefs/fill-spl-30.md" ]] &&
   pass "topic: with no tenant the default topic is unknown: nothing is opened or queued" || fail "no tenant: $out"
+
+# 10. the open reaches the hub (b16-01) ----------------------------------------
+# Through the REAL spl_desk_spool with a fake spool (SPL_SPOOL) that keeps the
+# client's same-box rule (hubclient/flush.go): a send to its own box stays
+# local unless SPOOL_MIRROR_LOCAL=1; `issue link` is refused unknown_discussion
+# unless a hub send carried the topic. The SPAWN_FILL_HUB_CMD stub of case 9
+# bypasses spl_desk_spool and cannot see its env, which is why 9 stayed green.
+cat >"$T/bin/fakespool" <<'STUB'
+#!/usr/bin/env bash
+op="$1"; shift; tobox="" task="" disc=""
+while (($#)); do case "$1" in --to-box) tobox="$2"; shift ;; --task) task="$2"; shift ;; --discussion) disc="$2"; shift ;; esac; shift; done
+echo "$op mirror=${SPOOL_MIRROR_LOCAL-unset}" >>"$HUB_LOG"
+case "$op" in
+  send) if [[ "$tobox" == "$SPOOL_BOX_ID" && "${SPOOL_MIRROR_LOCAL:-}" != 1 ]]; then echo '{"delivery":"local"}'
+        else echo "$task" >>"$HUB_TOPICS"; echo '{"delivery":"sent"}'; fi ;;
+  issue) grep -qx "$disc" "$HUB_TOPICS" && { echo '{"ok":true}'; exit 0; }
+         echo "spool: hub refused: unknown_discussion (no such discussion: $disc)" >&2; exit 1 ;;
+esac
+STUB
+chmod +x "$T/bin/fakespool"
+hub10() {  # [env...]: open then link SPL-65 as the desk; prints "open=<rc> link=<rc>"
+  : >"$T/hub10.log"; : >"$T/hub10.topics"
+  # shellcheck disable=SC2016 # expanded in the child shell
+  env "$@" SPL_SPOOL="$T/bin/fakespool" SPL_HUB_URL=https://hub.example.com HUB_LOG="$T/hub10.log" HUB_TOPICS="$T/hub10.topics" \
+    TENANT_ID=t1 SPOOL_ROOT="$T/spool" DESK_BOX=box-desk DESK_AGENT=c-002 DESKDIR="$T/desk10" PROJ_PATH="$PROJ_ROOT" bash -c '
+    do_log() { echo "$*" >&2; }
+    source "$PROJ_PATH/src/bash/run/spl-desk-up.func.sh" 2>/dev/null
+    source "$PROJ_PATH/src/bash/run/spl-spawn-fill.func.sh"
+    spl_lane_issue_desk() { return 0; }; spl_desk_issue_once() { return 0; }
+    spl_desk_dir() { printf %s "$DESKDIR"; }
+    t="$(spl_spawn_fill_topic_id SPL-65)"
+    spl_spawn_fill_hub open "$t" "SPAWN FILL SPL-65: test" >/dev/null 2>&1; o=$?
+    spl_spawn_fill_hub link "$t" SPL-65 >/dev/null 2>&1; l=$?
+    echo "open=$o link=$l"'
+}
+out="$(hub10)"
+[[ "$out" == "open=0 link=0" && "$(tr '\n' ' ' <"$T/hub10.log")" == "send mirror=1 issue mirror=unset " ]] &&
+  pass "topic: the desk's open reaches the hub (mirrored), so the link of SPL-65 is taken; the link runs unmirrored" ||
+  fail "open/link via spl_desk_spool: $out | $(cat "$T/hub10.log")"
+out="$(hub10 SPOOL_MIRROR_LOCAL=1)"
+[[ "$out" == "open=0 link=0" && "$(tr '\n' ' ' <"$T/hub10.log")" == "send mirror=1 issue mirror=unset " ]] &&
+  pass "topic: a caller's SPOOL_MIRROR_LOCAL=1 does not reach the link" || fail "inherited mirror: $out | $(cat "$T/hub10.log")"
 
 # 7. the cron installer ------------------------------------------------------------
 SRC="$T/shared"; mkdir -p "$SRC/csi-spl-orc"; printf '#!/bin/sh\n' >"$SRC/csi-spl-orc/run"; chmod +x "$SRC/csi-spl-orc/run"

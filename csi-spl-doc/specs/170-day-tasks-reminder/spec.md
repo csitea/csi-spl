@@ -370,7 +370,10 @@ Each seat signs a version with its own commit on branch
   only, `CAL_PHONE_TODO_VIEWS`); `?k=todo&v=<range>` sets the range for the
   visit (`calPhoneTodoView`) and a range picked there is written to `?v=`,
   never to the stored event-view range. The status line and 11.6 say B2
-  and B3 are built. No behaviour of WHAT or HOW changes.
+  and B3 are built. No behaviour of WHAT or HOW changes. Follow-up
+  SPL-5904: the switch off puts back the `?v=` of before the switch-on
+  (none when the page opened on `?k=todo`), and the phone root reaches its
+  ready state in the To-do kind too.
 
 - v1.6: owner poll acef24b9 = A (HUM-10, msg ce993dde, 2026-11-15) folded by
   the B2 lane c-170 (SPL-5595): B5 DROPPED, the Reporter's daily note

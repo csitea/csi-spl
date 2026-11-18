@@ -16,7 +16,9 @@
      the view is then CalendarTodoView (B2's, its own chunk) with four
      ranges, 3 days added for this kind only. `?k=todo&v=<range>` sets the
      range for the visit (calPhoneTodoView), the stored event-view range
-     untouched; a range picked here goes to ?v=, never to the storage. -->
+     untouched; a range picked here goes to ?v=, never to the storage, and
+     the switch off puts back the ?v= of before the switch-on (none when
+     the page opened on ?k=todo). -->
 <template>
   <section
     class="calphone"
@@ -300,8 +302,17 @@ function setView(v: View) {
   eventView.value = v
   try { window.localStorage.setItem(VIEW_KEY, v) } catch { /* storage off: Week next time */ }
 }
+/* the ?v= before the switch-on: the switch off puts it back, so a range
+   picked in the To-do kind outlives neither the kind nor a widened page */
+let vBefore: string | undefined
 function toggleKind() {
-  void router.replace({ query: { ...route.query, k: kind.value === 'todo' ? undefined : 'todo' } })
+  if (kind.value === 'todo') {
+    void router.replace({ query: { ...route.query, k: undefined, v: vBefore } })
+    vBefore = undefined
+    return
+  }
+  vBefore = route.query.v ? String(route.query.v) : undefined
+  void router.replace({ query: { ...route.query, k: 'todo' } })
 }
 function onSegKey(e: KeyboardEvent) {
   const steps: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }

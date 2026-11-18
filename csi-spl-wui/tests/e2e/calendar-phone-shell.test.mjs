@@ -33,6 +33,11 @@
 //     and > keeps k and v; a row links to its issue; the switch off shows
 //     the stored Week again. Control: before B3 the phone ignores ?k and
 //     ?v, so it opens the stored Week grid and every (todo) check FAILs.
+//     N1/N2 (SPL-5904): opened on ?k=todo the root reaches data-state
+//     ready; the switch off leaves no ?v=, and the next switch-on opens the
+//     stored Week, not the range picked before. Controls: on 2a0bff186 the
+//     root stays "loading" (the "root reaches ready" check FAILs alone) and
+//     the switch off keeps ?v=3day (the two "no stale v" checks FAIL).
 //
 // Controls: before T004 there is no [data-test=calendar-phone], so every
 // check FAILs; in-run, a planted 2000 px scroller must trip the H3 detector,
@@ -451,6 +456,8 @@ try {
     }), ROOT)
     ok(`(todo) ${theme}: the reminder link ?k=todo&v=day opens the To-do view on Day, though the stored range is Week`,
       g.view === 'day' && g.todo === 'ready' && g.pressed === 'true' && g.checked === 'day' && !g.plus && !g.events, g)
+    ok(`(todo) ${theme}: opened on ?k=todo, the root reaches data-state ready`,
+      await waitRoot(p, 'data-state', 'ready'), await rootAttr(p, 'data-state'))
     ok(`(todo) ${theme}: the To-do kind has four ranges, 3 days added`, JSON.stringify(g.segs) === JSON.stringify(['month', 'week', '3day', 'day']), g.segs)
     ok(`(todo) ${theme}: Day lists the overdue task on top, then today's, mine only`,
       JSON.stringify(await todoTitles(p)) === JSON.stringify(['B3 overdue mine', 'B3 earlier today mine', 'B3 today mine']), await todoTitles(p))
@@ -483,6 +490,12 @@ try {
       off && (await rootAttr(p, 'data-view')) === 'week' && (await rootAttr(p, 'data-state')) === 'ready' && Boolean(await p.$('[data-test=calphone-add]'))
         && (await p.$$('[data-test=calphone-views] [role=radio]')).length === 3,
       { off, view: await rootAttr(p, 'data-view'), q: await query(p) })
+    ok(`(todo) ${theme}: the switch off leaves no stale ?v=`, !('v' in (await query(p))), await query(p))
+    await p.click(`${ROOT} [data-test=calphone-kind-todo]`)
+    const on = await p.waitForFunction(() => new URLSearchParams(location.search).get('k') === 'todo', { timeout: 8000 }).then(() => true, () => false)
+    await todoReady(p)
+    ok(`(todo) ${theme}: the next switch-on opens the stored Week, not the range picked before`,
+      on && (await rootAttr(p, 'data-view')) === 'week' && !('v' in (await query(p))), { on, view: await rootAttr(p, 'data-view'), q: await query(p) })
     await ctx.close()
   }
 

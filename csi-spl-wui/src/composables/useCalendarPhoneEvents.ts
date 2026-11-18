@@ -67,7 +67,12 @@ export function useCalendarPhoneEvents(o: EventsOpts) {
     const day = shownDay.value
     const v = view.value
     const r = o.off?.() ? null : calPhoneRange(v, day)
-    if (!r) return
+    if (!r) {
+      /* the To-do kind reads no events: nothing to wait for (spec 170 B3) */
+      clearTimeout(timer)
+      if (o.off?.()) state.value = 'ready'
+      return
+    }
     state.value = cache.has(`${r.from}/${r.to}`) ? state.value : 'loading'
     try {
       const list = await fetchRange(ctx, r, mine.signal)

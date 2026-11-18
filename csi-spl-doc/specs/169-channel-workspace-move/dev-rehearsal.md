@@ -106,18 +106,18 @@ it: the second run's form asked only for the GO.
 
 ## 8. The second run, 2026-11-18 (SPL-5845)
 
-Dev only, after T13b and T13c (SPL-5010) were built. **P7 printed 0 on all 62 proofs, every step
-has its `done_at`, and the move closed.** n=1.
+Dev only, after T13b and T13c (SPL-5010) were built. **P7 printed 0 on all 62 proofs (3 of them a
+known hit, section 8.3), every step has its `done_at`, and the move closed.** n=1.
 
 ### 8.1 The run
 
 | what | value |
 |---|---|
 | purge, re-seed, first `plan` | tree `344be1c04`, dev hub `/version` commit `4fdfe4ed2` (2.1.5), as the lane's notes record them. `REHEARSAL_CMD=purge DRY_RUN=0` removed the 11-07 workspaces (read back: 0 tenants, 0 messages, 0 open host rows), then `DRY_RUN=0` seeded 3650 posts again, with every `messages.msg` non-empty |
-| the move | tree `3a7ae872b` (master, clean worktree), dev hub `/version` commit `b97a764ff`, version 2.2.8, read just before the run |
+| the move | tree `3a7ae872b` (master, clean worktree), dev hub `/version` commit `b97a764ff`, version string 2.2.8 (the git tag on that commit is `v2.2.8-c4`; `v2.2.8` is another commit), read just before the run |
 | from, to | `seed-move-src/rehearsal-move` -> `seed-move-dst` |
 | GO | the owner's own click on dev, as HUM-17 (the dev operator workspace's biz owner): answer `a76d5603-73bd-47b3-9295-4f3dd370868f` at 12:18:23Z, `Answer: GO`, form `9bae380b-ee74-434a-be29-2c3a335dccf5`, topic `68ca7fdb-1aef-49b6-b5d4-ba4f82690633` on dev t1 |
-| move id | `263af961-0e70-4a98-ac3a-9572b390cf8d`, 12:19:41Z to 12:20:26Z, 45 s on the shell's clock, exit 0 |
+| move id | `263af961-0e70-4a98-ac3a-9572b390cf8d`, journal 12:19:48.97Z to 12:20:26.64Z (37.7 s); the shell's clock, which starts earlier, read 12:19:41Z to 12:20:26Z (45 s); exit 0 |
 | n | 1. No repeat run on this GO |
 
 Before it: `plan` exit 0, no `REFUSE` line, `PLAN count messages 3650`, one mention (the staying
@@ -137,11 +137,13 @@ From `channel_move_steps`, read back (`done_at - started_at`):
 | P4 | 4.46 | 3650 messages, 171 topic heads, 1 issue (`MVS-1` -> `MVD-1`), 10 reactions, 10 revisions and 10 deliveries copied to `<DST>` and deleted in `<SRC>`; the 10 deliveries expired (C28) |
 | P5 | 0.00 | no rule row on this box |
 | P6 | 0.17 | 1 blob deleted, 1 shared blob kept |
-| P7 | 8.53 | every proof 0 |
+| P7 | 8.53 | every proof printed 0, 3 of them a known hit (8.3) |
 
 `channel_move_journal`: `mode` `move`, `go_msg_id` `a76d5603`, `done_at` 12:20:26.64Z.
 
-**R3:** P4 at 4.46 s (first run 4.42 s) and P7 at 8.53 s are under the box's 30 s client cap, n=1.
+**R3:** P4 at 4.46 s (first run 4.42 s) and P7 at 8.53 s, server time per call (`done_at - started_at`),
+are under 30 s, n=1. Since SPL-5067 the move calls wait the cnf's `hub.cloud_run.timeout_seconds`, not
+`curl -m 30`; the client's call time was not read.
 `<SRC>` again held 5 messages when P7 ran, so **P7 on a populated `<SRC>` is still not measured**.
 
 ### 8.3 What T13b and T13c changed
@@ -150,6 +152,9 @@ From `channel_move_steps`, read back (`done_at - started_at`):
   `MENTIONS uuid with redirect 1`, post `af1776ef-0ed3-09e0-8bbe-99fc65f499d5`, and
   `proof scan messages.body (known 1 of 1, kept: 5.4) 0`. The seed now writes `messages.msg`, and
   that column's proof finds the same post: `proof scan messages.msg (known 1 of 1, kept: 5.4) 0`.
+- The third known hit is the shared blob: `proof objects M4 files bucket: left in <SRC> (known 1 of
+  1, kept: 5.5) 0`, as on the first run. The stored `proofs` hold the raw count 1 for these three;
+  the shell prints a known hit as 0.
 - **T13c:** the hub logs print their days (`RETENTION hub logs: 30 days (log bucket _Default, read
   back a line of csi-spl-hub-dev)`), so `KEPT_UNTIL` prints a date: `2027-04-17`, from the
   off-project copy of the dumps (150 days).

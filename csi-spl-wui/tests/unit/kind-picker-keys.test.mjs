@@ -53,6 +53,15 @@ describe('kind picker letter keys (SPL-5836)', () => {
     assert.equal(kindKeyHint('nope'), '')
   })
 
+  it('a non-Latin layout picks by the physical key: ev.code KeyT is task, a non-letter code is nothing (R7 W1)', () => {
+    assert.equal(kindForKey({ key: 'т', code: 'KeyT' }, MSG_KINDS), 'task')
+    assert.equal(kindForKey({ key: 'μ', code: 'KeyM' }, MSG_KINDS), 'msg')
+    assert.equal(kindForKey({ key: 'т', code: 'Digit1' }, MSG_KINDS), '')
+    assert.equal(kindForKey({ key: 'т' }, MSG_KINDS), '')
+    assert.equal(kindForKey({ key: 'т', code: 'KeyT', shiftKey: true }, MSG_KINDS), '')
+    assert.equal(kindForKey({ key: 'и', code: 'KeyB' }, MSG_KINDS.filter((k) => k !== 'blocker')), '')
+  })
+
   it('the picker gates the letters and their hint on the Keyboard shortcuts setting', () => {
     assert.match(PICKER, /const keysOn = useMsgShortcutsOn\(\)/)
     assert.match(PICKER, /keysOn\.value \? kindForKey\(e, MSG_KINDS\) : ''/)

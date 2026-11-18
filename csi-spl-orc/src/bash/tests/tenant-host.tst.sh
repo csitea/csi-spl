@@ -50,7 +50,9 @@
 #      only); CONTROL: master's keyless subject is refused there. No TH_ISSUE
 #      on a real run -> FATAL before any cnf edit, make or push (provision,
 #      reconcile, and tenant create before its keys); the dry run names it;
-#      CNF_PUSH=0 commits nothing and needs none
+#      CNF_PUSH=0 commits nothing and needs none. SPL-5895: a key whose prefix
+#      is not cnf env.hub.commit_issue_prefix (what commit-links reads) is
+#      refused the same way, before any change; no prefix in cnf -> FATAL
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -97,6 +99,9 @@ env:
     workspaces: [t1]
 Y
 printf 'env:\n  demo:\n    enabled: false\n    workspace: demo\n  tenant_hosts:\n    notify_channel: spool-hub-devel\n  steps:\n    052-gcs-workspace-docs:\n      workspaces: []\n' >"$FAKE/csi-spl-cnf/csi-spl/all.env.yaml"
+# the issue key prefix commit-links reads (_spl_cl_cnf: the prd json render)
+PRD_JSON="$FAKE/csi-spl-cnf/csi-spl/prd.env.json"
+echo '{"env":{"hub":{"commit_issue_prefix":"SPL"}}}' >"$PRD_JSON"
 # a lease.conf for the ready notice (5c)
 mkdir -p "$T/spool/dispatch"
 printf 'LEASE_MASTER=c-902\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$T/spool/dispatch/lease.conf"
@@ -717,6 +722,29 @@ out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt 2>&1)
 out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc TH_ISSUE= STUB_ROWS=$'row newt pending manual' 2>&1); rc=$?
 [[ $rc == 0 ]] && grep -q 'needs TH_ISSUE=<issue key>' <<<"$out" && cmp -s "$ORIG" "$CNF" &&
   pass "9. reconcile DRY_RUN with an add and no TH_ISSUE says a real run needs it" || fail "9. reconcile dry no key rc=$rc :: $out"
+
+# SPL-5895: the prefix is cnf env.hub.commit_issue_prefix, as commit-links reads it
+reset
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 TH_ISSUE=ABC-1 2>&1); rc=$?
+[[ $rc != 0 && ! -s "$STUB_LOG" && ! -s "$T/mark.log" ]] && cmp -s "$ORIG" "$CNF" && grep -q 'FATAL TH_ISSUE must be the SPL-<n> issue key' <<<"$out" &&
+  pass "9. provision with a wrong-prefix TH_ISSUE (ABC-1): FATAL, no cnf edit, no make, no push" || fail "9. provision ABC-1 rc=$rc make=[$(cat "$STUB_LOG")] marks=[$(cat "$T/mark.log")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 TH_ISSUE=ABC-1 STUB_ROWS=$'row t1 pending manual\nrow newt pending manual' 2>&1); rc=$?
+[[ $rc != 0 && ! -s "$STUB_LOG" && ! -s "$T/mark.log" ]] && cmp -s "$ORIG" "$CNF" && grep -q 'FATAL TH_ISSUE must be the SPL-<n> issue key' <<<"$out" &&
+  pass "9. reconcile with an add and a wrong-prefix TH_ISSUE (ABC-1): FATAL before any change" || fail "9. reconcile ABC-1 rc=$rc make=[$(cat "$STUB_LOG")] marks=[$(cat "$T/mark.log")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc TH_ISSUE=ABC-1 STUB_ROWS=$'row newt pending manual' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q 'needs TH_ISSUE=<issue key> (e.g. SPL-123' <<<"$out" && cmp -s "$ORIG" "$CNF" &&
+  pass "9. reconcile DRY_RUN with a wrong-prefix TH_ISSUE says a real run needs an SPL key" || fail "9. reconcile dry ABC-1 rc=$rc :: $out"
+reset
+SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 TH_ISSUE=ABC-1 COMMIT_LINKS_PREFIX=ABC STUB_ROWS=$'row newt pending manual' STUB_PLAN_019="$P_ADD" STUB_PLAN_025="$P_ADD" >/dev/null 2>&1
+[[ "$(sed -n 's/^PUSH //p' "$T/mark.log")" == "cnf(024, ABC-1): dev tenant hosts +newt (do_spl_tenant_host_reconcile)" ]] &&
+  pass "9. CONTROL: the prefix is read, not fixed: COMMIT_LINKS_PREFIX=ABC lets ABC-1 through" || fail "9. ABC prefix: $(cat "$T/mark.log")"
+reset; mv "$PRD_JSON" "$PRD_JSON.off"
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 TH_ISSUE=SPL-1 2>&1); rc=$?
+mv "$PRD_JSON.off" "$PRD_JSON"
+[[ $rc != 0 && ! -s "$STUB_LOG" && ! -s "$T/mark.log" ]] && cmp -s "$ORIG" "$CNF" && grep -q 'FATAL no issue key prefix for TH_ISSUE' <<<"$out" &&
+  pass "9. no cnf commit_issue_prefix: FATAL before any change" || fail "9. no prefix rc=$rc make=[$(cat "$STUB_LOG")] :: $out"
 
 # tenant create: refused before its keys (the CLI step) when it would chain the host
 tc() { SNIPPET='do_spl_cloud_cnf; _spl_tenant_create_target() { url=https://newt.dev.example.test; }; _spl_tenant_create_cli() { echo CLI >>'"$T"'/mark.log; return 1; }; do_spl_tenant_create' in_orc ENV=dev TENANT_ID=newt DRY_RUN=0 "$@" 2>&1; }

@@ -28,7 +28,7 @@
 #        DRY_RUN=0 CNF_PUSH=1: cnf env.dns.mapped_tenants + the rendered 019 /
 #        025 tfvars are pushed to master FIRST (from a throwaway worktree; a
 #        push that does not land fails the job; its subject cites TH_ISSUE =
-#        cnf env.hub.tenant_host_issue, a standing issue, SPL-5875), then make
+#        cnf env.hub.tenant_host_issue, a standing issue of its own), then make
 #        do-tf-plan (gate: no replace, no destroy but a removed tenant's) +
 #        make do-provision, the cert wait, the probe, tenant_hosts -> ready
 #     3. a pushed cnf change re-deploys the WUI of that env (its CSP lists the

@@ -42,7 +42,8 @@
 # @param TH_ISSUE (optional) - the issue key the cnf commit cites in its subject
 # @param   scope, 'cnf(024, SPL-123): ...' (SPL-5875: the pre-push part
 # @param   commit-links refuses a keyless one); needed with DRY_RUN=0 when a row
-# @param   needs the apply and CNF_PUSH=1, else FATAL before any change.
+# @param   needs the apply and CNF_PUSH=1, else FATAL before any change; its
+# @param   prefix must be cnf env.hub.commit_issue_prefix (SPL-5895).
 # @param   Workflow 40 passes cnf env.hub.tenant_host_issue (a standing issue)
 # @example ENV=dev ./run -a do_spl_tenant_host_reconcile
 # @example ENV=prd DRY_RUN=0 CHECK_ONLY=1 ./run -a do_spl_tenant_host_reconcile
@@ -213,18 +214,38 @@ spl_th_entry_check() {
 # spl_th_issue_ok (SPL-5875): a run that commits the cnf (CNF_PUSH=1) needs
 # TH_ISSUE, the issue key its commit subject cites: the pre-push part
 # commit-links (SPL-4789) and workflow 25 refuse a commit that names none.
-# Called before the cnf edit, so a missing key changes nothing.
+# Called before the cnf edit, so a missing key changes nothing. SPL-5895: the
+# key's prefix is the one commit-links reads (COMMIT_LINKS_PREFIX, else cnf
+# env.hub.commit_issue_prefix), so a wrong prefix stops here, not at the push.
 spl_th_issue_ok() {
   [[ "${CNF_PUSH:-1}" == 1 ]] || return 0
-  [[ "${TH_ISSUE:-}" =~ ^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]{0,8}$ ]] && return 0
-  do_log "FATAL TH_ISSUE must be the issue key the cnf commit cites (e.g. SPL-123), got '${TH_ISSUE:-}': the pre-push part commit-links refuses a commit with none. Nothing was changed"
+  local prefix
+  prefix="$(spl_th_issue_prefix)" ||
+    { do_log "FATAL no issue key prefix for TH_ISSUE: set cnf env.hub.commit_issue_prefix or COMMIT_LINKS_PREFIX (got '$prefix'). Nothing was changed"; return 1; }
+  spl_th_issue_valid "$prefix" && return 0
+  do_log "FATAL TH_ISSUE must be the $prefix-<n> issue key the cnf commit cites (e.g. $prefix-123), got '${TH_ISSUE:-}': the pre-push part commit-links refuses a commit with none. Nothing was changed"
   return 1
+}
+
+# spl_th_issue_prefix -> the issue key prefix commit-links checks against;
+# non-zero when it is not a valid prefix
+spl_th_issue_prefix() {
+  local p="${COMMIT_LINKS_PREFIX:-$(_spl_cl_cnf "$APP_PATH" commit_issue_prefix)}"
+  echo "$p"
+  [[ "$p" =~ ^[A-Z][A-Z0-9]{0,9}$ ]]
+}
+
+# spl_th_issue_valid <prefix>: TH_ISSUE is a <prefix>-<n> key
+spl_th_issue_valid() {
+  [[ "${TH_ISSUE:-}" =~ ^$1-[1-9][0-9]{0,8}$ ]]
 }
 
 # spl_th_issue_dry: the dry run's line when a real run would lack TH_ISSUE
 spl_th_issue_dry() {
-  [[ "${CNF_PUSH:-1}" == 1 && ! "${TH_ISSUE:-}" =~ ^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]{0,8}$ ]] || return 0
-  do_log "WARN DRY_RUN a DRY_RUN=0 run needs TH_ISSUE=<issue key> (e.g. SPL-123): its cnf commit cites it, and without it the run stops before any change"
+  [[ "${CNF_PUSH:-1}" == 1 ]] || return 0
+  local prefix
+  prefix="$(spl_th_issue_prefix)" && spl_th_issue_valid "$prefix" && return 0
+  do_log "WARN DRY_RUN a DRY_RUN=0 run needs TH_ISSUE=<issue key> (e.g. ${prefix:-SPL}-123, the cnf env.hub.commit_issue_prefix): its cnf commit cites it, and without it the run stops before any change"
 }
 
 # spl_th_cnf_publish <area> <text>: spl_th_cnf_push of the subject

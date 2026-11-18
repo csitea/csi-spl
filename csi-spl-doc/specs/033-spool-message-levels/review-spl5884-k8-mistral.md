@@ -200,3 +200,51 @@ cell, or mark it as the author's own extension that needs its own owner answer.
   m-674` -> exit 4 (14 live lanes that record no files, scope unknown); the spec
   dir itself is owned by c-667 (exit 3 on `spec.md`), which this lane does not
   touch. This lane's brief names exactly this one new file.
+
+## 10. Re-review of the W1 fix — sha `0b221a1565ec27af742c80f405e81f5f76932aea`
+
+**Verdict on `0b221a15`: PASS.** W1 is closed; no new defect found.
+
+Verified before the re-review:
+
+- `git ls-remote origin 'review/c002-spl5884-spec-k8-owner-answers'` ->
+  `0b221a1565ec27af742c80f405e81f5f76932aea` (matches the dispatch note)
+- `git rev-parse 0b221a15^` -> `7e6e431830162f480be831c4a939253e8c4bea5e` (parent is the reviewed sha)
+- `git log -1 --no-mailmap --format='%ae %ce' 0b221a15` -> one address twice,
+  the repo CLAUDE.md "Commits:" address (author and committer identical)
+- `git diff --stat 7e6e43183 0b221a15` -> 1 file, +9 -6
+
+`git diff 7e6e43183 0b221a15` reviewed hunk by hunk (line numbers on `0b221a15`):
+
+- E3 row (spec.md:242): `spl-fleet-notice.func.sh:27` and its `@param :18` are out
+  of the site and change columns; only `spl-desk-post.func.sh:62` and
+  `spl-desk-reply.func.sh:529` remain. W1 fix, first option.
+- New K.3 sentence (spec.md:247-249): "E3 does not cover `do_spl_fleet_notice`:
+  Q4 names only `do_spl_desk_post` and `do_spl_desk_reply`, so
+  `spl-fleet-notice.func.sh:27` stays `note|blocker` and widening it would need
+  its own owner answer." Accurate: `git show 648ff3b0a:...spl-fleet-notice.func.sh
+  | sed -n '27p'` -> `[[ "$kind" =~ ^(note\|blocker)$ ]] ...`.
+- Group-3 row (spec.md:293): the site column still lists all three `DESK_KIND`
+  sites (correct — the site exists), and the change cell now reads "desk post and
+  desk reply: 12 each, today's kinds plus the 7 (T024, exception E3, owner Q4 B);
+  fleet notice: unchanged, Q4 does not name it".
+- T024 (f) (spec.md:437): names only `:62` and `:529` with `@param :35`, `:134`;
+  adds "`spl-fleet-notice.func.sh:27` is not changed"; the test now also pins
+  "`do_spl_fleet_notice` still refuses `DESK_KIND=bug`"; red control (6) added for
+  (g) ("leave the FATAL at `spl-desk-reply.func.sh:297` naming only `blocker`:
+  the `desk-reply-human-guard.tst.sh:66` grep for the new wording goes red") —
+  this also closes N3.
+- K.8 Q4 cell (spec.md:458): "K.3 exception E3, desk post and desk reply only
+  (`do_spl_fleet_notice` is not named, so it is unchanged); built in T024 (f)".
+- Version comment 0.3.0 -> 0.3.1.
+
+W1 closed: `git show 0b221a15:...spec.md | grep -n 'fleet-notice\|fleet_notice'`
+-> lines 247, 248, 293, 437, 458 only, and each of them says the fleet notice is
+not covered / unchanged; nothing attributes its widening to msg `67193a13`
+any more. The E3 row (242) no longer mentions it.
+
+No new defect: `git diff --stat 648ff3b0a 0b221a15` -> 1 file, +45 -18, 6 hunks,
+all at or after line 148 while section K starts at spec.md:149 on 648ff3b0a, so
+still only section K of the one file; the K.8 answer quote block is untouched by
+the delta (only the Q4 cell changed); the E1 and E2 rows are untouched, so every
+citation verified in section 3 above still stands on `648ff3b0a`.

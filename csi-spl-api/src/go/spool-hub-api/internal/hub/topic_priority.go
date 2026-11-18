@@ -81,9 +81,29 @@ func (s *Server) handleTopicPriority(w http.ResponseWriter, r *http.Request) {
 	}
 	s.o.Log.Info().Str("tenant", q.t.ID).Str("task", q.task).Str("by", q.from).Int("priority", row.Priority).Msg("topic priority")
 	s.followTopicPriority(r.Context(), q.t.ID, q.task, q.from) // spec 150 3.4 item 4: its issues, then their lanes
+	s.priorityToOperator(r.Context(), ps, q, row.Priority)
 	out := map[string]any{"task_id": q.task, "priority": row.Priority, "set_by": row.SetBy, "set_at": rfc(row.SetAt)}
 	s.fanoutTopic(r.Context(), q.t.ID, q.card, withType(topicPriorityFrame, q.card, out))
 	writeJSON(w, http.StatusOK, out)
+}
+
+// priorityToOperator copies a chooser set into the operator workspace when
+// the caller owns it and the topic is another workspace's (SPL-5905): the
+// fleet's spawn queue lives in op and ranks an ask by op's own row for its
+// discussion (store askListPriorities), so a t1 ask working for a csitea
+// topic the owner set to 1 listed at 3. The rule is ownerPrioWord's
+// (prioWordOwners, R7 W1): a workspace's own owner who does not own op sets
+// the topic there and never reorders op's queue.
+func (s *Server) priorityToOperator(ctx context.Context, ps store.TopicPriorityStore, q topicPriorityReq, prio int) {
+	_, op := s.prioWordOwners(ctx, q.t.ID, q.hum)
+	if op == "" {
+		return
+	}
+	if _, err := ps.SetTopicPriority(ctx, op, q.task, prio, q.from, s.o.Now().UTC()); err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", op).Str("task", q.task).Msg("topic priority: operator copy not stored")
+		return
+	}
+	s.o.Log.Info().Str("tenant", op).Str("from_tenant", q.t.ID).Str("task", q.task).Str("by", q.from).Int("priority", prio).Msg("topic priority: operator copy")
 }
 
 // priorityCaller is who may ask: the member session, billing, then the

@@ -3,6 +3,7 @@ package hub_test
 import (
 	"context"
 	"crypto/ed25519"
+	"net/http"
 	"testing"
 	"time"
 
@@ -215,6 +216,55 @@ func TestOwnerPrioWordOperatorQueue(t *testing.T) {
 				}
 			}
 			if got := opq.waitPosition(t, 1, 500*time.Millisecond); got != c.want {
+				t.Fatalf("%s: op's ask is at %d, want %d", c.as, got, c.want)
+			}
+		})
+	}
+}
+
+// SPL-5905 (prd ask 58a67da0): the priority chooser, PUT
+// /v1/topics/{task_id}/priority, on a topic of another workspace follows the
+// prio word's rule (R7 W1, TestOwnerPrioWordOperatorQueue). The operator
+// workspace's owner (HUM-7, also an owner of the topic's workspace) setting
+// 1 moves op's ask working for the topic to the head; the topic workspace's
+// own owner (HUM-8, not op's) sets the topic there and op's queue keeps its
+// order and its own unset row.
+// RED CONTROL: drop the priorityToOperator call in handleTopicPriority ->
+// the HUM-7 case fails with op's ask at 2 and op's row at 3.
+func TestTopicPriorityOperatorQueue(t *testing.T) {
+	for _, c := range []struct {
+		name, as      string
+		want, wantRow int
+	}{
+		{"the operator workspace's owner", "HUM-7", 1, 1},
+		{"the topic workspace's owner only", "HUM-8", 2, unsetTopicPriority},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			op := newTenantID("op")
+			roles := tenantRoles{op: {"HUM-7": rbac.BizOwner}}
+			e := archiveEnv(t, func(o *hub.Options) {
+				o.OperatorTenant = op
+				o.Authorizer = roles
+			})
+			pub, _, _ := ed25519.GenerateKey(nil)
+			if err := e.st.CreateTenant(context.Background(), store.Tenant{ID: op, RootPubKey: pub}); err != nil {
+				t.Fatal(err)
+			}
+			tid, _ := e.tenant()
+			roles[tid] = map[string]string{"HUM-7": rbac.BizOwner, "HUM-8": rbac.BizOwner}
+			q := prioQueue{e: e, tid: op, task: uuidV4(), askTopic: uuidV4(), askOther: uuidV4()}
+			queuePrioAsks(t, e, op, q)
+			putCard(t, e, tid, q.task, "", "HUM-2", hub.WUIBox, 1, time.Now().UTC().Add(-time.Hour))
+			if code, out := putPriority(t, e, tid, q.task, c.as, map[string]any{"priority": 1}); code != http.StatusOK {
+				t.Fatalf("%s: PUT priority %d %v", c.as, code, out)
+			}
+			if got := storedPriority(t, e, tid, q.task); got != 1 {
+				t.Fatalf("%s: the topic's own priority %d, want 1", c.as, got)
+			}
+			if got := storedPriority(t, e, op, q.task); got != c.wantRow {
+				t.Fatalf("%s: op's row for the topic %d, want %d", c.as, got, c.wantRow)
+			}
+			if got := q.position(t); got != c.want {
 				t.Fatalf("%s: op's ask is at %d, want %d", c.as, got, c.want)
 			}
 		})

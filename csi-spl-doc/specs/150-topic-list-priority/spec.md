@@ -372,6 +372,17 @@ holds (panel.md section 1, one row per claim with its command).
      list carries its `priority`.
    - Every ask nobody gave a priority ranks at 3: after a set 1 or 2, before
      a set 4 or 5. With no priority set, today's order holds for every row.
+   - **A discussion of another workspace** (SPL-5905: a t1 ask working for
+     a csitea topic the owner set to 1 listed at 3). The queue lives in the
+     operator workspace and reads its own `topic_priorities` row for the
+     discussion. A set on another workspace's topic by an owner of the
+     operator workspace is copied there: the prio word
+     (`hub/owner_prio_word.go`, SPL-5524) and the chooser
+     `PUT /v1/topics/{task_id}/priority` (`hub/topic_priority.go`
+     `priorityToOperator`). The topic workspace's own owner who does not own
+     the operator workspace sets the topic there and never reorders the
+     queue (R7 W1, `prioWordOwners`). Tests:
+     `TestOwnerPrioWordOperatorQueue`, `TestTopicPriorityOperatorQueue`.
 2. **The unanswered owner posts.** `UnansweredPosts`
    (`store/fallback_postgres.go:111-126`, memory `fallback_memory.go:129`)
    orders by the priority of the post's topic, then `received_at`. The

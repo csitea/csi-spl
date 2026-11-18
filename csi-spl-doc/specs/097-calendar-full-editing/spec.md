@@ -1,6 +1,6 @@
 # 097 Calendar: full editing, Google Calendar style
 
-Status: **v0.4, 2026-10-06: mobile-first specification added and approved.** The owner
+Status: **v1.0, 2026-11-19: section 11 (event tags, SPL-5883) is a draft for review.** Before it, **v0.4, 2026-10-06: mobile-first specification added and approved.** The owner
 approved the v1 feature list (section 0.1, E1..E3), answered Q1..Q9 "as proposed"
 (section 10, msg `92b3e0d6`), and approved the mobile-first feature list and rule in
 t1 52aee116 (HUM-10 msg `adf16567`, "look good . go"). Mobile-first section 5.1 defines
@@ -859,10 +859,398 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 | Q8 | Quick add: a fixed English grammar, no AI? | Yes, fixed grammar, English first; other languages when the WUI locale needs them. | **DECIDED (as proposed).** msg `92b3e0d6` |
 | Q9 | Event colours: Google's 11 named colours, or free colour codes? | The 11 named colours, mapped to theme variables, so dark mode stays readable. | **DECIDED (as proposed).** msg `92b3e0d6` |
 
-## 11. Version log
+## 11. Event tags with colours (SPL-5883)
+
+Status: **draft for the spec review**, v1.0, 2026-11-19. Issue SPL-5883,
+epic SPL-2403. Discussion: t1 `f5778b9f` (#spool-hub-ui).
+
+### 11.0 The owner's ask and the agreed scope
+
+Owner HUM-10, t1 `f5778b9f`, 2026-11-18:
+
+- msg `3ada46ca`: "basically one should be able to define different tags for
+  the different type of events and each tag should be possible to have
+  besireds the default color theme stripe color ..." (the full post is in
+  the topic).
+- msg `9884e085` (poll `f99b4cb2`): "No there should be a way to define the
+  labels / tags for the ..." (full text in the topic).
+- msg `62e387eb` (poll `2d3164e8`): "B — Several tags: all chips shown, the
+  stripe takes the first tag's colour".
+- msg `7f371baa`: "there should be also a way in each view to show only the
+  events with specific labels or tags".
+
+The agreed scope (dispatcher post `5a9f7682`), which this section builds:
+
+1. each workspace defines its own event tags, each with a colour;
+2. an event carries several tags, all chips shown; the left stripe takes the
+   **first** tag's colour; an untagged event keeps the theme default;
+3. every calendar view (Day, 3 days, Week, Month, To-do) gets a tag filter.
+
+### 11.1 Measured before (tree `386b38058`)
+
+| fact | where |
+|---|---|
+| an event has one fixed `kind`, seven values, widened to nine; no tag or label | `csi-spl-rdb/src/sql/postgres/spool-hub/0125_calendar.sql:24`, `0156_calendar_source_key.sql:31` |
+| an event's own colour is `props.color`, one of 11 palette names | `internal/hub/calendar_props.go:45-53`; WUI `src/utils/calendar-event-form.mjs:49` (`CAL_COLORS`) |
+| each palette name is a theme variable, dark family and light family | `csi-spl-wui/src/assets/css/variables.css:421` (dark, the default) and `:434` (light) |
+| the stripe today is 4 px on a desktop timed block, 3 px on a Month item and on an all-day item, a dot on phone Day, Week and Month | `src/components/CalendarMainView.vue:715`, `:623`; `CalendarDeskMonth.vue:132`; `CalendarPhoneDay.vue:528-535`; `CalendarPhoneWeek.vue:121`; `CalendarPhoneMonth.vue:154` |
+| the stripe colour is `--cal-ev-color` (the event's `color`), else `--color-accent` | `CalendarMainView.vue:529`, `:715` |
+| issue labels: per workspace, `label_id` = slug of the name, free hex colour, create only (no rename, no delete), written by `notes.send` + `topics.manage` | `0047_issues.sql:33-41`; `internal/hub/issues.go:863` (`POST /v1/issue-labels`), `:928-933` (`issueWriter`), `:1188` |
+| issue labels hold a system label, `epic`, with meaning in the hub | `0049_issue_epics.sql:20` |
+| an event with a `source_key` (roadmap sync, Outlook import, Google import) is read-only to a member PATCH and DELETE | `internal/hub/calendar.go:1064`, `:1164` (`synced_read_only`) |
+| the sync upsert rewrites a fixed column list | `internal/store/calendar_sync.go:208-212` |
+| the To-do view lists **issues** (open tasks with a deadline), never events | `src/components/CalendarTodoView.vue:1-13`, `:91` (`listIssues`) |
+| the view state is in the URL: `v` (view), `d` (day), `k=todo`, `event` | `src/pages/calendar.vue:80-116` |
+| the range read also returns issue deadlines (`source: issue`) and official days | `src/types/calendar-shims.d.ts:21-22` |
+| a channel move copies its calendar events; the issue label catalogue is re-created by name in the target | `internal/channelmove/catalogue.go:95`, `:183` |
+| migration head | `ls csi-spl-rdb/src/sql/postgres/spool-hub/ \| tail -1` -> `0295_hours_prices_commit_ledger.sql` |
+| locales | `ls csi-spl-wui/i18n/locales \| wc -l` -> 19 |
+
+### 11.2 Decision: event tags are their own table, not issue labels
+
+Event tags get their own catalogue, `calendar_tags`. Issue labels are not
+reused. Why:
+
+1. **Colour.** Issue labels take any hex colour (`0047:39`). A calendar
+   colour must read in both themes, which is why Q9 chose the 11 named
+   colours, each a light and a dark variable (`variables.css:421`, `:434`).
+   A tag takes the same 11 names, so the stripe and the chips follow the
+   theme with no new colour code.
+2. **Rename and delete.** An issue label's id is the slug of its name and
+   there is no edit or delete route. The owner asks to *define* tags
+   (msg `9884e085`), which means rename, recolour and delete. Adding those
+   to issue labels would change every issue that carries one.
+3. **Meaning.** `epic` is a system label with hub behaviour (`0049:20`). An
+   event tagged `epic`, or an Issues label picker full of `standup` and
+   `travel`, mixes two catalogues the owner keeps apart ("tags for the
+   different type of events").
+4. **Isolation and who may write.** A separate table gets its own RLS and
+   its own permission line (11.5). Issue labels need `topics.manage`, which
+   many calendar writers do not hold.
+
+Cost of the choice: the To-do view lists issues, which carry issue labels,
+not event tags. Its filter therefore filters by **issue labels** (11.8.3),
+and the open question O3 asks the owner to confirm it.
+
+### 11.3 Data model
+
+Migration `rdb/NNNN_calendar_tags.sql`, forward-only and additive. It is not
+written by this spec: the build lane takes the number with
+`cd csi-spl-orc && DRY_RUN=0 ./run -a do_rdb_migration_next` (head on
+`386b38058`: 0295).
+
+```sql
+CREATE TABLE calendar_tags (
+    tenant_id  text        NOT NULL REFERENCES tenants (tenant_id) ON DELETE CASCADE,
+    tag_id     text        NOT NULL CHECK (tag_id ~ '^[0-9a-f]{8}$'),   -- minted by the hub
+    name       text        NOT NULL CHECK (length(name) BETWEEN 1 AND 40),
+    color      text        NOT NULL CHECK (color IN ('tomato', 'flamingo', 'tangerine', 'banana', 'sage',
+                               'basil', 'peacock', 'blueberry', 'lavender', 'grape', 'graphite')),
+    position   integer     NOT NULL DEFAULT 0 CHECK (position >= 0),     -- order in the catalogue
+    created_by text        NOT NULL CHECK (length(created_by) BETWEEN 1 AND 64),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, tag_id)
+);
+CREATE UNIQUE INDEX calendar_tags_name ON calendar_tags (tenant_id, lower(name));
+
+ALTER TABLE calendar_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_tags FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_scope ON calendar_tags
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''))
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''));
+CREATE POLICY operator_scope ON calendar_tags
+    USING (current_setting('app.rls_scope', true) = 'operator')
+    WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
+
+-- the event's tags, IN ORDER: tag_ids[1] is the first tag, the one the stripe shows
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS tag_ids text[] NOT NULL DEFAULT '{}'
+    CHECK (cardinality(tag_ids) <= 10);
+CREATE INDEX IF NOT EXISTS calendar_events_tags ON calendar_events USING gin (tag_ids)
+    WHERE cardinality(tag_ids) > 0;
+```
+
+- **The order is the array's order.** `tag_ids[1]` is the first tag. The
+  hub stores the list as the writer sent it, duplicates removed (first one
+  kept). A join table would need a position column and an aggregate on the
+  range read (up to 2000 occurrences, 4.4); an ordered `text[]` is the form
+  `mentions` (0125) and `issue_keys` (0247) already use.
+- **A column, not `props`.** Tags are filtered in SQL (11.8), so by 3's rule
+  (098's promotion rule) they are a column with an index, not a `props` key.
+- **Integrity.** An array has no foreign key. The hub checks on every write
+  that each id is a tag of the event's workspace (else `400 unknown_tag`),
+  as it does for issue labels (`0047:58`). A tag delete strips the id from
+  every event of the workspace, trashed rows included, in the same
+  transaction (11.5).
+- **Recurrence.** `tag_ids` is a column of the series row; an exception row
+  (4.4) gets the series' list when it is created. A PATCH with
+  `scope=all` changes the exceptions that did not change their own tags,
+  the 4.4 rule for every field.
+- **Limits.** At most 10 tags per event, at most 100 tags per workspace
+  (hub check, `400 too_many_tags`), names unique per workspace ignoring
+  case (`409 tag_exists`).
+- **Workspace isolation.** The same commit seeds `calendar_tags` in
+  `seedTenantAll` (`internal/store/crosstenant_test.go`), or
+  `TestCrossTenantEveryTable` turns trunk red; `TestRLSCoversEveryTenantTable`
+  sees the new policy.
+- Deploy order as 3.1: the migration before the hub that reads it. The
+  column has a constant default, so the add is catalogue-only.
+
+### 11.4 API
+
+All routes keep 4's conventions (JSON, `""` for unset, arrays never `null`,
+the `{"error", "detail"}` refusal, `403 demo_read_only` for a demo visitor).
+
+#### 11.4.1 The tag catalogue
+
+| route | who | body / answer |
+|---|---|---|
+| `GET /v1/calendar/tags` | `topics.read` | `200 {"tags": [{"id", "name", "color", "position", "events"}]}` in `position`, then name order; `events` is how many live events carry it |
+| `POST /v1/calendar/tags` | 11.5 | `{"name", "color"}` -> `201 {"tag": ...}`; the hub mints `id` (8 hex, retried on a clash) and puts it last |
+| `PATCH /v1/calendar/tags/{id}` | 11.5 | any of `{"name", "color", "position"}` -> `200 {"tag": ...}`; moving one renumbers the others |
+| `DELETE /v1/calendar/tags/{id}` | 11.5 | `200 {"tag": ..., "events": <n stripped>}`; strips the id from every event of the workspace |
+
+Refusals: a name of 0 or more than 40 characters, or a colour that is not
+one of the 11 names, is `400 bad_tag`; a second tag with the same name
+(case ignored) is `409 tag_exists`; the 101st tag is `400 too_many_tags`;
+an id of another workspace is `404`. Unknown body fields are refused
+(`DisallowUnknownFields`, as `calendarRequest`, `calendar.go:210`).
+
+#### 11.4.2 Tags on an event
+
+- **Read.** The event object (4.1) gains
+  `tags: [{"id", "name", "color"}]`, in the event's order, `[]` when none.
+  The hub reads the workspace's catalogue once per request (at most 100
+  rows) and fills the objects in Go, so a client needs no second call and
+  an event of another workspace shown in My calendar (spec 119) carries its
+  own workspace's names and colours.
+- **Write on create and PATCH.** `calendarRequest` gains
+  `tags *[]string` (ids). Nil on PATCH keeps the stored list; `[]` clears
+  it. The order sent is the order kept.
+- **Write on a synced event.** `PUT /v1/calendar/events/{id}/tags`
+  `{"tags": ["<id>", ...]}` -> `200 {"event": ...}`. It is the one write a
+  member may make on an event with a `source_key` (Outlook import, Google
+  import, roadmap sync; today all `409 synced_read_only`, `calendar.go:1064`):
+  tags are this workspace's own data and no sync writes them. It honours
+  `If-Match` and `?scope=` as 4.2 and 4.4. On an event without a
+  `source_key` it does the same as a PATCH with only `tags`.
+- **Every sync keeps the tags.** `tag_ids` is never in the upsert's
+  `UPDATE SET` (`calendar_sync.go:208`), in the Outlook import
+  (`store/calendar_import.go`) or in the Google in-half
+  (`hub/gcal_sync_in.go`, `hub/gcal_sync_sources.go`). A soft-delete by a
+  sync and a restore by the same key keep them too.
+- **The private filter is unchanged.** A tag says nothing about who reads
+  the event.
+
+#### 11.4.3 The filter on the reads
+
+`GET /v1/calendar/events`, `GET /v1/calendar/marks` and
+`GET /v1/calendar/search` take `tags=<id>,<id>,...` (at most 20 ids) and
+the pseudo id `none`:
+
+- an event matches when it carries **any** of the ids (`tag_ids && $1`,
+  the GIN index), or, for `none`, carries no tag (`cardinality(tag_ids) = 0`);
+  O2 asks whether the owner wants "any" or "all";
+- an unknown id is ignored (a link that names a deleted tag still opens);
+- with `tags` set, the range read returns no issue deadlines
+  (`source: issue`): an issue carries issue labels, not event tags. Official
+  days stay: they are the day's background, not events;
+- without `tags`, every read answers exactly as today.
+
+#### 11.4.4 Agents
+
+- `spool calendar tags` (list) and `--tags <id|name>,...` on the CLI's
+  create and edit; the MCP tools `calendar_tags_list` and a `tags` argument
+  on the create and update tools (089 T005's surface).
+- The operator routes (4.10) take `tags` as **names**, resolved in the
+  workspace; an unknown name is `400 unknown_tag`, never created by an agent.
+  Actions: `do_spl_calendar_event_add` and `do_spl_calendar_event_update`
+  take `TAGS=<name>,<name>` (order kept); the read-back line prints them.
+- An agent does not create, rename or delete tags (11.5).
+
+### 11.5 The tag manager: who may do what
+
+| act | needs | why |
+|---|---|---|
+| see the catalogue, filter by tag | `topics.read` | as every calendar read |
+| put tags on an event, reorder them | the right to edit that event (089 4.2, Q4) | a tag is a field of the event |
+| tag a synced event (11.4.2) | `notes.send` and read access to the event | the event is otherwise read-only |
+| create a tag | `notes.send` | as issue labels today: whoever writes events may make the tag they need |
+| rename, recolour, reorder a tag | `notes.send` | the change is visible and harmless; nothing is lost |
+| delete a tag | `channels.manage` | it strips the tag from every event of the workspace, which nobody can undo |
+
+Agents: none of the catalogue writes. The catalogue routes are member
+routes, resolved with `humanTenant` as `issueWriter` does
+(`issues.go:922-924`), so an agent token is refused. O1 asks the owner
+whether creating tags should also be admin-only.
+
+**The manager in the WUI.** A "Tags" item in the calendar's ... menu
+(`MENU_ITEMS`, beside Trash and Export) opens `CalendarTags.vue` (lazy
+chunk): one row per tag with a colour swatch, the name (edit in place), the
+count of events, drag handle (desktop) or up / down buttons (phone) for the
+order, and Delete. Delete asks first, naming the count ("Remove the tag
+*Travel* from 12 events?"). A member without `channels.manage` does not see
+Delete. "+ New tag" adds a row with the next unused colour. On a phone it is
+a full-screen sheet (5.1.6's rule), rows and buttons at least 44 px.
+
+### 11.6 The event editor's tag picker
+
+In `CalendarEventDialog.vue`, a "Tags" field below the colour swatches:
+
+- the chosen tags as chips in their order, each with its colour, its name
+  and a remove button (44 px tap target on a phone);
+- "+ Add tag" opens a search list of the catalogue (type to filter, Enter
+  picks); the list ends with "Create tag "<typed text>"" for a member who may
+  create (11.5), which creates it with the next unused colour and adds it;
+- **order**: a picked tag goes last. On desktop the chips reorder by drag;
+  on every screen each chip that is not first has a "Make first" action in
+  its menu, because the first tag sets the stripe. A hint under the field
+  says so: "The first tag colours the event";
+- Duplicate (G11) copies the tags in their order; quick add (4.6) is
+  unchanged in v1 (`#word` stays the kind).
+
+For a synced event the dialog is read-only today; it keeps that and shows
+the Tags field as the one editable field, saved with `PUT .../tags`.
+
+### 11.7 The stripe and the chips in every view
+
+**One stripe rule.** A new token `--cal-stripe-w: 5px` (variables.css)
+replaces the three widths of 11.1, and a new variable `--cal-stripe-color`
+is set per event:
+
+1. the first tag's colour, `var(--cal-color-<tags[0].color>)`;
+2. else the event's own `color` (`--cal-ev-color`);
+3. else the theme default, `--color-accent`.
+
+The block's tint (`color-mix(... 20%, var(--color-bg))`,
+`CalendarMainView.vue:716`) keeps using the event's own colour, else the
+accent, so the text contrast tests of SPL-4060 stay valid. O4 asks whether
+the first tag should also beat an event's own colour (proposed: yes, for
+the stripe only).
+
+**The chips.** A chip is the tag name on
+`color-mix(in srgb, var(--cal-color-<c>) 20%, var(--color-bg))` with a
+6 px dot of the full colour, text `--color-fg`; the same mix the blocks
+already pass at 4.5:1 in both themes. Light and dark come from the palette
+variables, no per-theme code.
+
+| view | stripe | chips |
+|---|---|---|
+| desktop Day, 3 days, Week: timed block | 5 px, first tag | under the title when the block is three lines tall or more; as many as fit, then `+n` |
+| desktop Day, 3 days, Week: all-day row | 5 px inset (was 3 px, `:623`) | as many as fit after the title, then `+n` |
+| desktop Month: day cell item | 5 px (was 3 px, `CalendarDeskMonth.vue:132`) | none (one line per event); the pop-over shows all |
+| event pop-over (desktop), peek and sheet (phone) | 5 px on the header | **all** chips, wrapped |
+| phone Day | the event's dot takes the first tag's colour; the block gets the 5 px stripe | as many as fit on the second line, then `+n` |
+| phone Week and Month (dots and agenda) | dots take the first tag's colour | agenda rows: as many as fit, then `+n` |
+| phone Year | unchanged (day marks only) | none |
+| search results (desktop and phone) | 5 px | all, wrapped |
+| To-do (issues) | unchanged | the issue's labels, as the Issues view shows them |
+
+"All chips shown" (owner `62e387eb`) holds wherever the event is opened;
+on a grid block the space is a few pixels, so `+n` stands for the rest and
+its title lists them. An untagged event looks as today, but with the
+5 px stripe.
+
+### 11.8 The filter in every view
+
+#### 11.8.1 The control
+
+A "Tags" filter button in the calendar header (`CalendarViewTabs.vue`,
+desktop; the phone header, spec 106), so every view of the tab has it and
+switching view keeps it. It opens a list of the catalogue with a check per
+tag, plus "No tag" (untagged events) and "Clear". With a filter on, the
+button shows the count (`Tags · 2`) and a strip of the chosen chips sits
+under the header, each with a remove x, so the filter is never invisible.
+On a phone the list is a bottom sheet with 44 px rows.
+
+#### 11.8.2 Where it lives: the URL
+
+The filter is the query parameter `tags`, beside `v`, `d` and `k`
+(`pages/calendar.vue:89-100`): `?v=month&tags=1a2b3c4d,5e6f7a8b`, and
+`tags=none` for untagged. A reload, Back and a shared link keep it; opening
+Calendar fresh shows everything. It is **not** remembered per user in v1
+(O5 asks). The WUI passes it to the range read, the marks read and search
+(11.4.3), so the year strip and the phone Month dots count only the
+matching events.
+
+#### 11.8.3 Per view
+
+| view | what the filter does |
+|---|---|
+| Day, 3 days, Week, Month (desktop and phone), phone Year marks, search | shows only events carrying any chosen tag (or none, for "No tag"); issue deadlines are hidden while a filter is on; official days stay |
+| To-do (`?k=todo`) | its rows are issues, so the same button lists the workspace's **issue labels** instead, parameter `labels=<label_id>,...`; a task shows when it carries any chosen label. `tags` is kept in the URL but not applied to To-do; switching back to an event view applies it again |
+
+An empty result says so ("No events with these tags in this range") with a
+Clear button.
+
+### 11.9 Imports and syncs (spec 180, spec 149)
+
+- **v1: no tags come in.** The Outlook export has no category field
+  (spec 180 FR-1) and the Google in-half reads no `colorId`. An imported
+  event arrives untagged.
+- **A member may tag an imported event** with `PUT .../tags` (11.4.2), and
+  every later import, sync, soft-delete and restore keeps those tags
+  (11.4.2, "Every sync keeps the tags"). This is what makes tags useful on
+  the owner's imported Outlook meetings.
+- **Out to Google**: tags are not sent in v1. Google has exactly the same 11
+  colour names; O6 asks whether the out half should set the Google event's
+  `colorId` from the first tag.
+- **Later, on the owner's ask**: an Outlook category -> a tag of the same
+  name (created when missing), which needs the export to add `categories`
+  (spec 180 FR-1 is "no body, no attendees" only, so it is allowed).
+- **Channel move** (`channelmove/catalogue.go`): a moved event's tags are
+  re-created by name in the target workspace's catalogue and the ids
+  rewritten, as T5b does for issue labels (`catalogue.go:183`).
+
+### 11.10 UI text
+
+New keys under `calendar_tags.*` (manager, picker, filter, empty and error
+texts, the delete question with its count), in `en.json` and in each of the
+other 18 locales in the same commit (`i18n-parity.test.mjs`). Outside
+English they are drafts; **an agy review is the last step before any of
+them ships** (the language rule). The tag *names* are the workspace's own
+data and are never translated.
+
+### 11.11 Build rows
+
+Smallest and most depended-on first. Each row lands with its test and a red
+control (seen red on the planted defect, then green, both in the commit
+body), its docs, and cites SPL-5883.
+
+| # | row | depends | test | red control |
+|---|---|---|---|---|
+| T1 | migration `NNNN_calendar_tags.sql` (11.3); seed `calendar_tags` in `seedTenantAll` | - | `lint-migration`; `TestCrossTenantEveryTable`, `TestRLSCoversEveryTenantTable` on Postgres (`PRE_PUSH_TIER=full`) | leave the seed out: `TestCrossTenantEveryTable` red |
+| T2 | store: tag catalogue CRUD, `tag_ids` read and write, delete strips every event, both stores | T1 | `store/calendar_tags_test.go` (memory and Postgres): order kept, duplicate dropped, delete strips trashed rows too | delete without the strip: the stripped-count test red |
+| T3 | store: syncs keep tags (`calendar_sync.go`, `calendar_import.go`, `gcal_import.go`) | T2 | a tagged synced row re-synced with a changed title keeps its `tag_ids` | add `tag_ids = EXCLUDED.tag_ids` to the upsert: red |
+| T4 | hub: `/v1/calendar/tags` routes and the 11.5 permissions | T2 | `hub/calendar_tags_test.go`: 201 / 409 / 400 / 404, delete needs `channels.manage`, an agent token refused | drop the `channels.manage` check: the 403 case red |
+| T5 | hub: `tags` on the event (read objects, create, PATCH), `PUT .../tags` on a synced event, `unknown_tag` | T3, T4 | create with two tags reads back in order; a synced event takes `PUT .../tags` but still refuses PATCH | allow PATCH on a synced event: the 409 case red |
+| T6 | hub: `tags=` and `none` on events, marks, search (11.4.3) | T5 | filter matches any; `none`; issue deadlines left out; no `tags` = byte-identical answer to before | turn `&&` into `@>`: the "any" case red |
+| T7 | operator, CLI and MCP: `TAGS=` on `do_spl_calendar_event_add` / `_update`, `spool calendar tags` | T5 | `spl-calendar-event-add.tst.sh`, `spl-calendar-event-update.tst.sh` (names resolved, order kept, unknown name refused before any write) | resolve names without the workspace scope: the cross-workspace case red |
+| T8 | channel move maps tags by name (11.9) | T2 | `channelmove` test: a moved tagged event keeps its tag names in the target | skip the mapping: red |
+| T9 | WUI: tags API client and mock, `CalendarTags.vue` manager (11.5) | T4 | unit `calendar-tags.test.mjs`; e2e create, rename, reorder, delete at 1440, 360, 390 px | show Delete to a member without `channels.manage`: e2e red |
+| T10 | WUI: the editor's tag picker, order, Make first, create from the picker, synced-event save (11.6) | T5, T9 | unit for the order logic; e2e pick two, make the second first, save, reopen | append instead of moving to first: red |
+| T11 | WUI: `--cal-stripe-w` 5 px, `--cal-stripe-color` (11.7 rule), chips in every view of 11.7's table | T10 | e2e in every view, both themes, 1440 / 360 / 390 px: stripe 5 px of the first tag, chips or `+n`, `xScroll <= 1 px`; contrast unit test of each chip mix | set the stripe from the last tag: red |
+| T12 | WUI: the filter button, chip strip, `tags` and `labels` URL params, every view (11.8) | T6, T11 | unit for the URL round trip; e2e per view: filter, reload keeps it, To-do filters by issue labels | drop `tags` from `router.replace`: the reload case red |
+| T13 | i18n: `calendar_tags.*` in 19 locales; **agy review** of the 18 drafts | T9..T12 | `i18n-parity`, `i18n-untranslated`, `i18n-no-raw-text` | a key missing in one locale: parity red |
+| T14 | help: `csi-spl-doc/doc/help/calendar.md` gains Tags (manage, pick, filter), then the help sync | T12 | the help sync's own check | - |
+
+### 11.12 Questions for the owner
+
+| # | question | A | B | proposal |
+|---|---|---|---|---|
+| O1 | Who may create a tag? | any member who writes events | admins only (`channels.manage`) | A (delete stays admin-only) |
+| O2 | Two tags chosen in the filter show events with... | any of them | all of them | A |
+| O3 | The To-do view lists issues. Its filter uses... | the issue labels | no filter in To-do | A |
+| O4 | An event has its own colour and a first tag. The stripe takes... | the first tag's colour | the event's own colour | A |
+| O5 | The chosen filter is kept... | in the link only (reload, Back, a shared link) | also remembered for you across visits | A |
+| O6 | Send the first tag's colour to Google Calendar with the event? | yes | no | A, as a later row after T11 |
+
+
+## 12. Version log
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v1.0 | 2026-11-19 | c-702 | Section 11: event tags with colours per workspace (own `calendar_tags` table, not issue labels, and why), ordered `tag_ids` on the event (the first tag sets the 5 px stripe), the tags API and the one write allowed on a synced event, the tag manager and its permissions, the editor's picker, chips in every view, the filter in every view (`tags` in the URL; To-do filters by issue labels), imports keep tags, build rows T1..T14, owner questions O1..O6. SPL-5883. |
 | v0.9 | 2026-11-16 | c-647 | An agent changes or deletes a private entry an agent made for a member (`ordered_by` in its mentions), never a person's own or another person's (4.10, rule marked owner may change); operator PATCH takes title, description, times and reminders; `do_spl_calendar_event_update`. SPL-5720. |
 | v0.8 | 2026-11-16 | c-628 | `REMINDERS` on `do_spl_calendar_event_add`: an agent's event carries pop-up reminders (4.10). SPL-5718. |
 | v0.7 | 2026-11-14 | c-437 | A private event from an agent through the operator routes: mention checks, the creator-only `?as=` read-back, `AUDIENCE` / `MENTIONS` on `do_spl_calendar_event_add` (4.10). SPL-5498. |
@@ -873,4 +1261,4 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 | v0.2 | 2026-10-06 | c-397 | Owner decisions E1..E3 (section 0.1): v1 list approved; reminders are a typed whole number of minutes / hours / days (up to 5); video-call link and busy / free dropped. Q1..Q9 still open. |
 | v0.1 | 2026-10-06 | c-397 | Gap analysis against Google Calendar (G1..G15); additive DDL (jsonb `props` under the 098 promotion rule, recurrence columns, soft delete, `calendar_guests`); the calls; the WUI surface; ranking and v1 line; Q1..Q9. |
 
-<!-- version: 0.9 · updated: 2026-11-16 -->
+<!-- version: 1.0 · updated: 2026-11-19 -->

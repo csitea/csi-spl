@@ -215,7 +215,7 @@
 # @param SPAWN_PLACE_DARK_RETRY_MIN (optional) - minutes before a box that gave no reply is tried again (SPL-5143), default 30
 # @param SPAWN_PLACE_DARK_ALARM_MIN (optional) - minutes a row waits on a silent box before its one blocker to the holder (SPL-5143), default 120
 # @param SPAWN_PLACE_GAP_FLOOR_MIN (optional) - minutes between two placements at least, when the placed lane shows progress, default 3
-# @param TOKEN_BURN_STATE_DIR (optional) - the token burn collector's state dir, whose buckets.tsv shows a lane's progress on this box, default /var/csi/csi-spl/token-burn
+# @param TOKEN_BURN_STATE_DIR (optional) - the token burn collector's state dir, whose buckets.tsv shows a lane's progress on this box, default <SPL_VAR_APP_DIR>/token-burn (spl_token_burn_state_dir)
 # @param SPAWN_PLACE_ARCHIVED_CMD (optional, tests) - gets a topic id, prints the hub's `lane --archived --topic` answer
 # @param SPAWN_PLACE_BURN_CMD (optional, tests) - prints the hub's fleet-tokens answer ({by_agent: [...]}) instead of GET /v1/operator/fleet-tokens
 # @param SPOOL_AGENT_CEILING (optional) - the agent window ceiling, default 40
@@ -684,9 +684,10 @@ spl_spawn_place_gap_hold() {
 #      minute ends after LAST. agy writes no heartbeat, but the box's token
 #      burn collector meters its brain transcript per lane id
 #      (spl-token-burn-collect.func.sh). On this box: the collector's
-#      <TOKEN_BURN_STATE_DIR>/buckets.tsv; for a lane on another box: the
-#      hub's GET /v1/operator/fleet-tokens by_agent row of <box, ID>
-#      (spl_spawn_place_burn_hub), where every box pushes its buckets.
+#      buckets.tsv in spl_token_burn_state_dir (no dir: no proof); for a
+#      lane on another box: the hub's GET /v1/operator/fleet-tokens
+#      by_agent row of <box, ID> (spl_spawn_place_burn_hub), where every box
+#      pushes its buckets.
 # A pane that is only alive (an unmetered sample) is no progress.
 spl_spawn_place_progress() {  # AGENT LAST
   local id="${1%@*}" box="${ASKS_BOX:-}" ts f
@@ -694,7 +695,12 @@ spl_spawn_place_progress() {  # AGENT LAST
   if [[ "$box" == "${ASKS_BOX:-}" ]]; then
     ts="$(jq -r '.progress_ts // empty' "$SPOOL_ROOT/$id/heartbeat.json" 2>/dev/null)"
     [[ -n "$ts" ]] && (( $(spl_spawn_place_epoch "$ts") >= $2 )) && return 0
-    f="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}/buckets.tsv"
+    declare -F spl_run_paths >/dev/null ||
+      source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    declare -F spl_token_burn_state_dir >/dev/null ||
+      source "$(dirname "${BASH_SOURCE[0]}")/spl-token-burn-collect.func.sh"
+    spl_token_burn_state_dir f 2>/dev/null || return 1
+    f="$f/buckets.tsv"
     [[ -r "$f" ]] || return 1
     awk -F'\t' -v a="$id" -v t="$2" '$1 == a && $4 + 60 > t && $5 + $6 + $7 + $8 > 0 { ok = 1 } END { exit !ok }' "$f"
     return

@@ -7,6 +7,5 @@
 2 csi-spl-orc/src/bash/run/spl-file-erase.func.sh
 1 csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh
 2 csi-spl-orc/src/bash/run/spl-reflection-gather.func.sh
-2 csi-spl-orc/src/bash/run/spl-spawn-place.func.sh
 3 csi-spl-orc/src/bash/run/spl-workspace-docs-purge.func.sh
 3 csi-spl-utl/src/bash/run/fleet-logrotate-install.func.sh

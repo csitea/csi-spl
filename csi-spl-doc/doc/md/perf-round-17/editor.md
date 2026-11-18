@@ -132,7 +132,19 @@ call costs about one call.
 
 ### 2.5 `spl-lane-mix.tst.sh` with a logging `yq` stub
 
-PENDING (started 09:27Z, `PATH=<stub>:$PATH bash spl-lane-mix.tst.sh`).
+`PATH=<stub dir>:$PATH bash spl-lane-mix.tst.sh` on `e5f867463`; the stub
+logs its argv and execs the real `yq`. Timed with bash `time`
+(`TIMEFORMAT="%R %U %S"`), 09:27Z..09:34:26Z, load ~35 at start, 36.3 at
+the end, n=1, beside other lanes' work:
+
+- **387.8 s** wall, 167.5 user, 117.2 sys; rc 0, 128 PASS, 0 FAIL.
+- **4,825** `yq` execs (`wc -l` of the log); 4,818 of them read
+  `agent_split` or `agent_split_by_kind`.
+
+At 31 ms a call (2.4) the `yq` execs are ~150 s of the run (computed, not
+measured as a second arm). The test's own fixture and checks run some of
+them (its cnf transform per setup, the real-cnf checks of section 0); the
+lane counts which are picks.
 
 ### 2.6 wf 10: the last job of the run is WUI e2e shard 2/8
 

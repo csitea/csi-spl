@@ -55,6 +55,8 @@ sees. It is shown in every workspace through My calendar, and it also goes to
 their connected Google Calendar. Its description says "Imported from Outlook".
 These events are read only: change them in Outlook, and the next import
 brings the change. A meeting that is moved or cancelled in Outlook is moved
-or removed here. Nothing is ever written back to Outlook. An operator runs
-the import with `do_spl_calendar_import_outlook`, and it is off until
-`SPOOL_HUB_CALENDAR_OUTLOOK_IMPORT_ENABLED` is switched on.
+or removed here. Nothing is ever written back to Outlook. On a box set up for
+it, the import runs by itself every 30 minutes from 06:30 to 20:30 Finnish
+time (Europe/Helsinki), Monday to Friday (`do_spl_calendar_outlook_tick`);
+an operator can also run it with `do_spl_calendar_import_outlook`. It is off
+until `SPOOL_HUB_CALENDAR_OUTLOOK_IMPORT_ENABLED` is switched on.

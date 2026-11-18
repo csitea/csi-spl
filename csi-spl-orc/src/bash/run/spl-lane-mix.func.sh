@@ -123,9 +123,9 @@ do_spl_lane_mix() {
     do_log "FATAL LANE_MIX_AUTH_FRESH must be whole seconds, got '$LANE_MIX_AUTH_FRESH'"; return 1; }
   _spl_lane_mix_kind "${LANE_MIX_KIND:-}" "$diff" "$sens" || return 1
 
-  declare -gA _LM_TGT=() _LM_EFF=() _LM_CNT=() _LM_PCT=() _LM_AVAIL=() _LM_TRIED=() _LM_FAILS=()
+  declare -gA _LM_TGT=() _LM_EFF=() _LM_CNT=() _LM_PCT=() _LM_AVAIL=() _LM_TRIED=() _LM_FAILS=() _LM_MARKER=()
   _spl_lane_mix_target "$cnf" || return 1
-  _spl_lane_mix_ui "$cnf"
+  _spl_lane_mix_ui
   _spl_lane_mix_instance
   _spl_lane_mix_avail "$root" "$cnf" "$reg"
   _spl_lane_mix_actual "$reg"
@@ -160,18 +160,30 @@ _spl_lane_mix_kind() {
   _LM_KIND=secret
 }
 
+# _spl_lane_mix_cnf <cnf> -> _LM_TOL, _LM_WIN, _LM_TGT, _LM_BACKUP, _LM_UI_OK,
+# _LM_CODE_OK (the two mistral_*_allowed flags) and _LM_MARKER (the auth
+# markers): every cnf value of one pick from ONE yq, one value a line, read
+# again on each pick (perf round 17 row 02: 13 yq at ~31 ms each before)
+_spl_lane_mix_cnf() {
+  local v s=.env.box.agent_split r=".env.box.agent_split_by_kind.$_LM_KIND" q i=0 vals=()
+  q="($s.tolerance // 5), ($s.window // 20)"
+  for v in "${LANE_MIX_VENDORS[@]}"; do q+=", ($r.$v // 0)"; done
+  q+=", ($r.backup // \"\"), $s.mistral_ui_allowed, $s.mistral_coding_allowed"
+  for v in "${LANE_MIX_VENDORS[@]}"; do q+=", ($s.auth_marker.$v // \"\")"; done
+  mapfile -t vals < <(yq -r "$q" "$1")
+  _LM_TOL="${vals[0]:-}" _LM_WIN="${vals[1]:-}"
+  for v in "${LANE_MIX_VENDORS[@]}"; do _LM_TGT[$v]="${vals[2 + i]:-}" i=$((i + 1)); done
+  _LM_BACKUP="${vals[2 + i]:-}" _LM_UI_OK="${vals[3 + i]:-}" _LM_CODE_OK="${vals[4 + i]:-}"
+  for v in "${LANE_MIX_VENDORS[@]}"; do _LM_MARKER[$v]="${vals[5 + i]:-}" i=$((i + 1)); done
+}
+
 # _spl_lane_mix_target <cnf> -> _LM_TGT, _LM_MAIN, _LM_BACKUP, _LM_ROW (where
 # the row came from), _LM_TOL, _LM_WIN: the kind's row from cnf, or from
 # LANE_MIX_SPLIT_KIND (else LANE_MIX_SPLIT), checked by _spl_lane_mix_row_check
 _spl_lane_mix_target() {
-  local cnf="$1" v line="${LANE_MIX_SPLIT_KIND:-${LANE_MIX_SPLIT:-}}"
+  local line="${LANE_MIX_SPLIT_KIND:-${LANE_MIX_SPLIT:-}}"
   local re='^claude=([0-9]+) grok=([0-9]+) agy=([0-9]+) qwen=([0-9]+)( mistral=([0-9]+))?( codex=([0-9]+))?( backup=([a-z]+))?$'
-  _LM_TOL="$(yq -r '.env.box.agent_split.tolerance // 5' "$cnf")"
-  _LM_WIN="$(yq -r '.env.box.agent_split.window // 20' "$cnf")"
-  for v in "${LANE_MIX_VENDORS[@]}"; do
-    _LM_TGT[$v]="$(yq -r ".env.box.agent_split_by_kind.$_LM_KIND.$v // 0" "$cnf")"
-  done
-  _LM_BACKUP="$(yq -r ".env.box.agent_split_by_kind.$_LM_KIND.backup // \"\"" "$cnf")"
+  _spl_lane_mix_cnf "$1"
   _LM_ROW="cnf env.box.agent_split_by_kind.$_LM_KIND"
   if [[ -n "$line" ]]; then
     [[ "$line" =~ $re ]] || {
@@ -226,9 +238,9 @@ _spl_lane_mix_avail() {
     off="$(_spl_lane_mix_inst_off "$v")"
     if [[ -n "$off" ]]; then _LM_AVAIL[$v]="$off"; continue; fi
     [[ "$v" == claude ]] && { _LM_AVAIL[$v]=yes; continue; }
-    _LM_AVAIL[$v]="$(_spl_lane_mix_cli "$v" "$user" "$home" "$2")"
+    _LM_AVAIL[$v]="$(_spl_lane_mix_cli "$v" "$user" "$home")"
     [[ "${_LM_AVAIL[$v]}" == yes ]] || continue
-    auth="$(_spl_lane_mix_auth "$v" "$1" "$3" "$user" "$home" "$2")"
+    auth="$(_spl_lane_mix_auth "$v" "$1" "$3" "$user" "$home")"
     [[ -z "$auth" ]] || { _LM_AVAIL[$v]="$v auth ($auth)"; continue; }
     lim="$(_spl_lane_mix_limit "$v" "$1" "$3")"
     [[ -z "$lim" ]] && continue
@@ -262,15 +274,21 @@ spl_lane_mix_mistral_ui_off() {
   local ui
   ui="$(spl_lane_mix_ui_target "$2" "$3")"
   [[ -n "$ui" ]] || return 0
-  [[ "$(yq -r '.env.box.agent_split.mistral_ui_allowed' "$1" 2>/dev/null)" == true ]] && return 0
-  echo "mistral takes no UI work until do_spl_vendor_ui_retest passes ($ui)"
+  _spl_lane_mix_ui_off_why "$ui" "$(yq -r '.env.box.agent_split.mistral_ui_allowed' "$1" 2>/dev/null)"
 }
 
-# _spl_lane_mix_ui <cnf> -> _LM_UI_WHY, set when the UI rule keeps mistral
-# out, and _LM_CODE_WHY, set when the coding rule does
+# _spl_lane_mix_ui_off_why <ui-why> <mistral_ui_allowed> -> why mistral may
+# not take this UI lane, else nothing
+_spl_lane_mix_ui_off_why() {
+  [[ -n "$1" && "$2" != true ]] || return 0
+  echo "mistral takes no UI work until do_spl_vendor_ui_retest passes ($1)"
+}
+
+# _spl_lane_mix_ui -> _LM_UI_WHY, set when the UI rule keeps mistral out, and
+# _LM_CODE_WHY, set when the coding rule does (the flags of _spl_lane_mix_cnf)
 _spl_lane_mix_ui() {
-  _LM_UI_WHY="$(spl_lane_mix_mistral_ui_off "$1" "${LANE_MIX_BRIEF:-}" "${LANE_MIX_PATHS:-}")"
-  _LM_CODE_WHY="$(spl_lane_mix_mistral_code_off "$1" "$_LM_KIND")"
+  _LM_UI_WHY="$(_spl_lane_mix_ui_off_why "$(spl_lane_mix_ui_target "${LANE_MIX_BRIEF:-}" "${LANE_MIX_PATHS:-}")" "$_LM_UI_OK")"
+  _LM_CODE_WHY="$(_spl_lane_mix_code_off_why "$_LM_KIND" "$_LM_CODE_OK")"
 }
 
 # spl_lane_mix_brief_kind <brief-file> -> the kind word of the brief's first
@@ -286,11 +304,24 @@ spl_lane_mix_brief_kind() {
 # lane of this kind (any kind but specs_and_docs and i18n, aliases read as
 # the picker does, an empty or unknown one included), else nothing
 spl_lane_mix_mistral_code_off() {
-  local k="$2"
+  _spl_lane_mix_mistral_kind "$2" && return 0
+  _spl_lane_mix_code_off_why "$2" "$(yq -r '.env.box.agent_split.mistral_coding_allowed' "$1" 2>/dev/null)"
+}
+
+# _spl_lane_mix_mistral_kind <kind> -> 0 when mistral may take that kind
+# (specs_and_docs and i18n, aliases read as the picker does)
+_spl_lane_mix_mistral_kind() {
+  local k="$1"
   case "$k" in spec|review|code_review) k=specs_and_docs ;; esac
-  [[ " ${LANE_MIX_MISTRAL_KINDS[*]} " == *" $k "* ]] && return 0
-  [[ "$(yq -r '.env.box.agent_split.mistral_coding_allowed' "$1" 2>/dev/null)" == true ]] && return 0
-  echo "mistral writes no code, kind ${k:-unset} ($LANE_MIX_NO_CODE_ORDER)"
+  [[ " ${LANE_MIX_MISTRAL_KINDS[*]} " == *" $k "* ]]
+}
+
+# _spl_lane_mix_code_off_why <kind> <mistral_coding_allowed> -> why mistral
+# may not take a lane of this kind, else nothing
+_spl_lane_mix_code_off_why() {
+  _spl_lane_mix_mistral_kind "$1" && return 0
+  [[ "$2" == true ]] && return 0
+  echo "mistral writes no code, kind ${1:-unset} ($LANE_MIX_NO_CODE_ORDER)"
 }
 
 # _spl_lane_mix_heir <vendor> -> where an out vendor's weight goes: the row's
@@ -562,16 +593,16 @@ _spl_lane_mix_test() {
   else sudo -n -u "$u" test "$@" 2>/dev/null; fi
 }
 
-# _spl_lane_mix_cli <vendor> <user> <home> <cnf> -> "yes", or why it is skipped.
+# _spl_lane_mix_cli <vendor> <user> <home> -> "yes", or why it is skipped.
 # The binary is named after the vendor, except mistral's: vibe (spec 110 2.1).
+# The auth marker is the pick's cnf read (_LM_MARKER).
 _spl_lane_mix_cli() {
-  local v="$1" user="$2" home="$3" var bin marker name="$1"
+  local v="$1" user="$2" home="$3" var bin marker="${_LM_MARKER[$1]:-}" name="$1"
   [[ "$v" == mistral ]] && name=vibe
   var="${v^^}_BIN"
   bin="${!var:-$home/.local/bin/$name}"
   [[ "$bin" == /* ]] || bin="$(command -v "$bin" 2>/dev/null)"
   [[ -n "$bin" ]] && _spl_lane_mix_test "$user" -x "$bin" || { echo "no $v cli"; return; }
-  marker="$(yq -r ".env.box.agent_split.auth_marker.$v // \"\"" "$4")"
   [[ -z "$marker" ]] || _spl_lane_mix_test "$user" -e "$home/$marker" || { echo "$v not signed in"; return; }
   echo yes
 }
@@ -587,17 +618,16 @@ _spl_lane_mix_limit() {
   [[ -z "$hit" ]] || printf '%s\t%s\n' "${hit%%:*}" "${hit#*$'\t'}"
 }
 
-# _spl_lane_mix_auth <vendor> <spool-root> <registry> <user> <home> <cnf> ->
+# _spl_lane_mix_auth <vendor> <spool-root> <registry> <user> <home> ->
 # "<id> S2 kind=auth <age> ago" for the newest dead-key verdict (spec 110 2.5:
 # a lane in agent-state `auth`, the watchdog's S2 kind=auth) on one of that
 # vendor's lanes within LANE_MIX_AUTH_FRESH s, unless its auth marker is newer
 # than the verdict (the owner re-keyed since), else nothing
 _spl_lane_mix_auth() {
-  local hit f marker
+  local hit f marker="${_LM_MARKER[$1]:-}"
   hit="$(_spl_lane_mix_verdict auth "$1" "$2" "$3" "${LANE_MIX_AUTH_FRESH:-604800}")"
   [[ -n "$hit" ]] || return 0
   f="${hit%%$'\t'*}"; f="${f#*:}"
-  marker="$(yq -r ".env.box.agent_split.auth_marker.$1 // \"\"" "$6")"
   [[ -n "$marker" ]] && _spl_lane_mix_test "$4" "$5/$marker" -nt "$f" && return 0
   echo "${hit#*$'\t'}"
 }

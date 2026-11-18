@@ -908,5 +908,36 @@ mix LANE_MIX_CNF="$REAL_CNF" LANE_MIX_KIND=simple_coding LANE_MIX_SENSITIVE=1 LA
   && pass "18. LANE_MIX_SENSITIVE=1 with codex signed in: secret, claude, never codex" || fail "18. sensitive: $(cat "$T/out")"
 rm -rf "$H/.codex"; cli_off codex
 
+# --- 19. one pick reads the cnf with one yq (perf round 17 row 02, SPL-5893) --
+# A logging yq stub first on PATH inside mix(); the fixture's own transform
+# above ran before it. Each yq was ~31 ms; a pick ran 13 (12 for
+# specs_and_docs) before the cnf values were read in one pass.
+mkdir -p "$T/yqlog"
+printf '#!/bin/sh\necho "$*" >>"%s"\nexec %s "$@"\n' "$T/yqlog/calls" "$(command -v yq)" >"$T/yqlog/yq"
+chmod +x "$T/yqlog/yq"
+registry simple_coding 10 2 8
+for k in simple_coding secret complex_coding specs_and_docs; do
+  mix LANE_MIX_KIND=$k LANE_MIX_INSTANCE=0; cp "$T/out" "$T/out.plain"
+  : >"$T/yqlog/calls"
+  mix LANE_MIX_KIND=$k LANE_MIX_INSTANCE=0 PATH="$T/yqlog:$PATH"
+  n="$(wc -l <"$T/yqlog/calls")"
+  (( n <= 1 )) && [[ -n "$(pick)" ]] && pass "19. a $k pick execs yq $n time(s), at most once" \
+    || fail "19. a $k pick execs yq $n times: $(cat "$T/out")"
+  [[ -n "$(grep '^pick=' "$T/out")" && "$(grep '^pick=' "$T/out")" == "$(grep '^pick=' "$T/out.plain")" ]] \
+    && pass "19. control: the $k pick line is byte-identical with and without the stub" \
+    || fail "19. $k pick line: $(grep '^pick=' "$T/out") vs $(grep '^pick=' "$T/out.plain")"
+done
+cp "$CNF" "$T/cnf.edit"
+: >"$T/registry.tsv"
+# the main and the tolerance, not the pick: an earlier section may leave a
+# vendor out
+seen() { grep -oE '^kind=simple_coding .* main=[a-z]+|tolerance=[0-9]+' "$T/out" | sed -E 's/.* main=/main=/' | tr '\n' ' '; }
+mix LANE_MIX_CNF="$T/cnf.edit" LANE_MIX_KIND=simple_coding LANE_MIX_INSTANCE=0 PATH="$T/yqlog:$PATH"; a="$(seen)"
+yq -i '.env.box.agent_split.tolerance = 7 | .env.box.agent_split_by_kind.simple_coding = {"claude": 80, "mistral": 20, "backup": "mistral"}' "$T/cnf.edit"
+mix LANE_MIX_CNF="$T/cnf.edit" LANE_MIX_KIND=simple_coding LANE_MIX_INSTANCE=0 PATH="$T/yqlog:$PATH"
+[[ "$a" == "main=mistral tolerance=5 " && "$(seen)" == "main=claude tolerance=7 " ]] \
+  && pass "19. control: two picks with the cnf edited between them each read their own cnf ($a, then $(seen))" \
+  || fail "19. cnf edit between picks: $a then $(seen)"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

@@ -192,5 +192,43 @@ None. No W items.
 
 ## v1.0 signature
 
-Pending: the editor names v1.0 on task `dispatch-bug-r17`; I sign that sha
-in a second commit on this branch (`review/c002-bug-round-17-mistral-seat`).
+**PASS on `fcd1feaf4af29e196c8a1129a3eb7a452f1fc59b`** (plan v1.0), signed
+2026-11-18T10:5xZ after the editor c-448@sat named it on task
+`dispatch-bug-r17` (msg ad6fde0a, 2026-11-18T10:53:08Z: "v1.0 to sign is
+`fcd1feaf4af29e196c8a1129a3eb7a452f1fc59b` on origin/master. The review branch
+head `8174e6123` is the same commit before the push rebase, with an identical
+plan file.").
+
+Provenance and re-checks, each with the command run and what it printed:
+
+- `git fetch origin master review/c002-bug-round-17-planner` then
+  `git rev-parse origin/master` -> `fcd1feaf4af29e196c8a1129a3eb7a452f1fc59b`
+  (v1.0 is the trunk tip).
+- `git merge-base --is-ancestor fcd1feaf4af29e196c8a1129a3eb7a452f1fc59b origin/master`
+  -> exit 0 (on trunk).
+- `git ls-remote origin review/c002-bug-round-17-planner` ->
+  `8174e6123f929a9c0754a2422d73793d2672306c` (the pre-rebase head);
+  `git diff --stat 8174e6123 fcd1feaf4 -- csi-spl-doc/doc/md/bug-round-17-plan.md`
+  -> empty (identical plan file).
+- `git log -1 --format='%H %s' fcd1feaf4` ->
+  `fcd1feaf4af29e196c8a1129a3eb7a452f1fc59b docs(b17-plan, SPL-5880): bug round 17 plan v1.0, panel m-459 mistral PASS on v0.2 dbc28c004`;
+  `git show fcd1feaf4 --stat` -> 1 file changed, the plan only
+  (`csi-spl-doc/doc/md/bug-round-17-plan.md`, 5 insertions, 4 deletions).
+  Plan at v1.0: 152 lines
+  (`git show fcd1feaf4:csi-spl-doc/doc/md/bug-round-17-plan.md | wc -l`).
+- `git diff dbc28c004 fcd1feaf4 -- csi-spl-doc/doc/md/bug-round-17-plan.md` ->
+  three hunks only: the status line (v0.2 -> v1.0), one review-history line
+  in section 8, and the section 9 consensus table (Editor v1.0, Panel
+  m-459@sat PASS on `dbc28c004`). Grepping that diff for
+  `b17-01|box-link-watch|rc01|refusal_kind|red control|fix scope` matches only
+  those status/history lines, so **no row, site or red control changed**.
+- `git diff --stat dd983b175 fcd1feaf4 -- csi-spl-orc/src/bash/scripts/box-link-watch.py csi-spl-orc/src/bash/tests/box-link-watch.tst.sh csi-spl-doc/specs/016-spool-testability/box-link-7min-watcher.md`
+  -> empty (row files and the spec doc unchanged from the measurement sha to
+  v1.0); `git merge-base --is-ancestor dd983b175 fcd1feaf4` -> exit 0.
+- Slug re-check on the new trunk:
+  `git log origin/master -E --grep='\bb17-[0-9]{2}-' | wc -l` -> `0`;
+  `git ls-remote origin | grep -cE 'b17-[0-9]{2}'` -> `0`.
+
+Every check above run for v0.2 still holds: the red control was measured on
+`dd983b175`, which is an ancestor of v1.0 with the row files byte-identical,
+so its `RESULT: FAIL` stands unchanged.

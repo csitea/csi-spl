@@ -238,13 +238,20 @@ spl_ars_gate() {
 # verdict is read first (spl_ars_own_limit, SPL-3276): the box-wide read lets
 # a newer verdict of any other claude seat say "claude is back", and a 0-byte
 # out.s2 is only "no hit on that screen" (sat 10-24 18:46Z: c-158 restarted
-# onto its own weekly limit).
+# onto its own weekly limit). An agy seat is read by the placer's own
+# spl_spawn_place_agy_out (SPL-5926, one box 2026-11-18 18:00Z: the GC
+# restarted a-919 onto its "Individual quota reached ... Resets in 150h"
+# banner): the watchdog's S2 kind=limit verdict on an a- lane and that banner
+# in its pane capture, one read and one regex for both.
 spl_ars_vendor_gate() {
   local why=""
   case "$PEER_HARNESS" in
     claude) why="$(spl_ars_own_limit "$1")"
       [[ -n "$why" ]] || { why="$(spl_rotate_claude_out)"; spl_ars_box_limit "$why" || why=""; } ;;
     grok) why="$(spl_rotate_grok_out)" ;;
+    agy) declare -F spl_spawn_place_agy_out >/dev/null ||
+        source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-place.func.sh"
+      why="$(spl_spawn_place_agy_out)" ;;
   esac
   [[ -n "$why" ]] || return 0
   spl_peer_rlog "$2" RS-GATE SKIP "vendor limit: $PEER_HARNESS cannot act ($why): not restarted, the role failover's job, no alert"

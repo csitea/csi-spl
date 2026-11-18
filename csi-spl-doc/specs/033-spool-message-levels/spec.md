@@ -204,9 +204,13 @@ that post.
   - **`alert` is filled**: yellow, with a dark glyph. Blocker is the only
     other filled badge, and it is red. A live problem stands out, and the
     two filled badges do not look alike.
-  - The dark colours repeat hues from the dark calendar palette, and the
-    light colours are darker variants
-    (`wui/src/assets/css/variables.css:420-446`).
+  - Six of the seven dark colours are hexes of the dark calendar palette
+    (`wui/src/assets/css/variables.css:420-446`). `decision` (`#2dd4bf`,
+    light `#0f766e`) is a new teal, in neither palette. On light, `feature`,
+    `question` and `docs` reuse calendar hexes (`#3f51b5`, `#8e24aa`,
+    `#616161`) and `alert` reuses `#f6bf26`; `bug` (`#c43e00`) and `idea`
+    (`#c2185b`) are new darker values, picked to clear 3:1 on the light
+    surfaces (T025's contrast test proves it).
   - The tokens go in one `:root` block and one `:root[data-theme^="light"]`
     block, as the row-alt and mode tokens do (`variables.css:391-398`), so
     every light-* theme shares one set.
@@ -248,6 +252,8 @@ the default). No change; T024's tests prove it:**
 | `orc/features/spawn-agents/scripts/kill-your-self-report.sh:193,196` | only `reject` is a send-back |
 | `orc/run/spl-done-claim-check.func.sh:271`, `orc/run/spl-topic-archive-suggest.func.sh:316`, `orc/run/spl-agent-restart.func.sh:767` | only `result` / `blocker` |
 | `orc/run/spl-desk-reply.func.sh:552` | only `blocker` skips the done-claim check (how-to-post rule 22) |
+| `orc/features/spawn-agents/scripts/spool-send.sh:231` | only `task` counts as a recent task |
+| `orc/run/spl-watchdog.func.sh:996`, `orc/run/spl-lane-rotate.func.sh:963`, `orc/run/spl-rotate-lib.func.sh:1844` | only `result` is a result the agent sent |
 
 **Lists the note by name. These must list the 7 next to it, or a new kind
 would be treated differently from a note:**
@@ -256,6 +262,8 @@ would be treated differently from a note:**
 |---|---|---|
 | `orc/features/spawn-agents/lib/spool-notify-take.inc.sh:23` | a person's post auto-taken only for `task\|note\|msg` | add the 7 |
 | `orc/run/spl-review-go.func.sh:202` | review lines read only from `result` / `note` | add the 7 |
+| `orc/run/spl-watchdog.func.sh:1010` (`spl_wd_job_after`) | only a `note` (or the agent's own line) is not a job; any other kind wakes the agent | add the 7 |
+| `orc/features/watchdog/situations/s1.sh:58` (`s1_jobs`) | the same rule for situation S1: an inbox line that is not a `note` is a job | add the 7 |
 
 **Allow-lists of what may be SENT. These widen, or stay closed by choice:**
 
@@ -267,9 +275,19 @@ would be treated differently from a note:**
 | `orc/run/spl-desk-post.func.sh:62`, `spl-desk-reply.func.sh:529`, `spl-fleet-notice.func.sh:27` (`DESK_KIND`) | 5, 5 and 2 kinds | unchanged unless the owner picks Q4 B |
 
 **One list in orc.** T024 adds `SPOOL_KINDS` (13) and `SPOOL_NOTE_KINDS`
-(`note msg` + the 7) to `orc/features/spawn-agents/lib/spool-env.inc.sh`.
-`spool-send.sh`, `spool-notify-take.inc.sh` and `spl-review-go.func.sh` read
-them, and an orc test fails when `SPOOL_KINDS` differs from `msg.KindList`.
+(`note` + the 7: the kinds that route as a note) to
+`orc/features/spawn-agents/lib/spool-env.inc.sh`. `spool-send.sh:414` reads
+`SPOOL_KINDS`. The four group-2 sites read `SPOOL_NOTE_KINDS` and keep the
+kinds they name today: `spool-notify-take.inc.sh` keeps `task` and `msg`, and
+`spl-review-go.func.sh` keeps `result`. The two watchdog sites take
+`SPOOL_NOTE_KINDS` alone, so `msg` stays a job there, as it is today. An orc
+test fails when `SPOOL_KINDS` differs from `msg.KindList`. (The rows of K.3
+come from two sweeps over `csi-spl-orc/src/bash` on `405fe0885`, tests left
+out, every hit read: `git grep -nE "kind.*(blocker|result|reject)"` and
+`git grep -nE '\.kind ?(==|!=)|get\("kind"\)|\$3 ?(==|!=) ?"'`. Hits on an
+issue kind, a vendor kind or a channel/dm turn kind are not message kinds and
+are left out. The two watchdog rows of group 2 and the `:231`, `:996`, `:963`,
+`:1844` rows of group 1 were added after the review of `94e046bbf`, W1.)
 
 ### K.4 Old clients: nothing breaks
 
@@ -394,12 +412,12 @@ on the planted defect, then GREEN (developer guide 2.12.1).
 | row | what | depends on | test | red control |
 |---|---|---|---|---|
 | T020 | Migration `<NNNN>_message_kinds_seven.sql` (K.5) | none | a store test on Postgres (`PRE_PUSH_TIER=full`, the `hub-pg` CI job): insert a message of each of the 13 kinds, and record a kind change to each | the same test before the file applies: the insert of `bug` fails with `messages_kind_check` |
-| T021 | `msg.go:50-56`: `validKinds` and `KindList` get the 7 | T020 in the same push | `api/internal/msg/msg_test.go:61` loops over all 13; a hub test: `PATCH /v1/messages/{id}/kind {"kind":"bug"}` gives 200 and `{"kind":"bogus"}` gives 400 `bad_kind` | drop `bug` from `validKinds`: the loop and the PATCH test go red |
-| T022 | `grammar.go:181-182`: the `is:` enum gets the 7 | T021 | search tests: `is:bug` parses, and matches a `bug` message in the mock store and on Postgres | drop the `bug` enum entry: `is:bug` is refused as an unknown value |
+| T021 | `msg.go:50-56`: `validKinds` and `KindList` get the 7 | T020 in the same push | `api/internal/msg/msg_test.go:61`, which loops over the 6 today, is widened to loop over all 13; a hub test: `PATCH /v1/messages/{id}/kind {"kind":"bug"}` gives 200 and `{"kind":"bogus"}` gives 400 `bad_kind` | drop `bug` from `validKinds`: the loop and the PATCH test go red |
+| T022 | `grammar.go:181-182`: the `is:` enum gets the 7 | T021 | search tests: the `is:` enum holds 14 values (the 13 kinds plus `relay`), `is:bug` parses, and matches a `bug` message in the mock store and on Postgres | drop the `bug` enum entry: `is:bug` is refused as an unknown value |
 | T023 | The old-box gate (K.4.3): `FeatureKinds13` in `wire`, the client hello announces it, `session.acceptsKind` at the 4 `accepts` sites | T021 | a hub test: a box whose hello lacks `kinds13` gets no frame for a `bug` message and the row stays unacked; the same box with the feature gets it; a `note` reaches both | remove the `acceptsKind` check: the no-feature box gets the frame and the test goes red |
 | — | **Hub deploy** (T020-T023), dev then prd, through the normal push (`20_hub-build-deploy.yml`) | | `ENV=<dev\|prd> ./run -a do_check_deploy_lag` | |
-| T024 | The CLI and orc. (a) `do_spl_spool_refresh` on every machine, so every box announces `kinds13`. (b) `SPOOL_KINDS` / `SPOOL_NOTE_KINDS` in `spool-env.inc.sh`. (c) `spool-send.sh:414` and its usage lines, `agent-send.sh:12`, `spool-notify.sh:17` read `SPOOL_KINDS`. (d) `spool-notify-take.inc.sh:23` and `spl-review-go.func.sh:202` read `SPOOL_NOTE_KINDS` | hub deploy on prd; (c) only after (a) is true on every machine | orc tests: `spool-send.sh --kind bug` passes the check and `--kind bogus` exits 2; a person's `idea` post is auto-taken like a note; a review line in a `docs` message is read; `SPOOL_KINDS` equals `msg.KindList`; a `bug` sent to `blocker`-watching code raises no ask (`spool_ask_wanted` gives `''`) | (1) drop `bug` from `SPOOL_KINDS`: the parity test goes red; (2) leave `spool-notify-take.inc.sh:23` at `task\|note\|msg`: the `idea` take test goes red |
-| T025 | The WUI. `msg-kind.mjs` (`MSG_KINDS`, `KIND_ICONS`), `kind-picker-keys.ts` (`KIND_KEYS` F U A Q I D O), `uiIcons.ts` (7 glyphs), `types/spool.ts:1` (`MsgKind`), `main.css` (7 `.kind-<k>` rules, alert filled), `variables.css` (the tokens of K.2), `search.mjs:60`, 19 locales, `i18n-keep-english.json` | hub deploy on prd; the agy language review before it ships | unit: `msg-kind.test.mjs` (13 kinds, each with a glyph), `kind-picker-keys.test.mjs` (13 unique letters, `U` gives `bug`, `O` gives `docs`), a token test like `calendar-phone-tokens.test.mjs` (each `--color-kind-*` is at least 3:1 against `--color-bg-2` in both families), `i18n-parity`, `i18n-untranslated`; e2e: `kind-picker-keys.test.mjs` (open, press `U`, the badge reads bug), `pnpm run typecheck` | give `docs` the letter `D`: the uniqueness test goes red; set `--color-kind-alert` to `#ffffff` on light: the contrast test goes red |
+| T024 | The CLI and orc. (a) `do_spl_spool_refresh` on every machine, so every box announces `kinds13`. (b) `SPOOL_KINDS` / `SPOOL_NOTE_KINDS` in `spool-env.inc.sh`. (c) `spool-send.sh:414` and its usage lines, `agent-send.sh:12`, `spool-notify.sh:17` read `SPOOL_KINDS`. (d) `spool-notify-take.inc.sh:23`, `spl-review-go.func.sh:202`, `spl-watchdog.func.sh:1010` and `watchdog/situations/s1.sh:58` read `SPOOL_NOTE_KINDS` | hub deploy on prd; (c) only after (a) is true on every machine | orc tests: `spool-send.sh --kind bug` passes the check and `--kind bogus` exits 2; a person's `idea` post is auto-taken like a note; a review line in a `docs` message is read; a `bug` from another agent is not a job for `spl_wd_job_after` or `s1_jobs`, while a `msg` still is; `SPOOL_KINDS` equals `msg.KindList`; a `bug` sent to `blocker`-watching code raises no ask (`spool_ask_wanted` gives `''`) | (1) drop `bug` from `SPOOL_KINDS`: the parity test goes red; (2) leave `spool-notify-take.inc.sh:23` at `task\|note\|msg`: the `idea` take test goes red; (3) leave `spl-watchdog.func.sh:1010` at `.kind == "note"`: the watchdog `bug` test goes red |
+| T025 | The WUI. `msg-kind.mjs` (`MSG_KINDS`, `KIND_ICONS`), `kind-picker-keys.ts` (`KIND_KEYS` F U A Q I D O), `uiIcons.ts` (7 glyphs), `src/types/spool.ts:1` (`MsgKind`), `main.css` (7 `.kind-<k>` rules, alert filled), `variables.css` (the tokens of K.2), `search.mjs:60`, 19 locales, `i18n-keep-english.json` | hub deploy on prd; the agy language review before it ships | unit: `msg-kind.test.mjs` (13 kinds, each with a glyph), `kind-picker-keys.test.mjs` (13 unique letters, `U` gives `bug`, `O` gives `docs`), a token test like `calendar-phone-tokens.test.mjs` (each `--color-kind-*` is at least 3:1 against `--color-bg-2` in both families), `i18n-parity`, `i18n-untranslated`; e2e: `kind-picker-keys.test.mjs` (open, press `U`, the badge reads bug), `pnpm run typecheck` | give `docs` the letter `D`: the uniqueness test goes red; set `--color-kind-alert` to `#ffffff` on light: the contrast test goes red |
 | T026 | Help and docs. Each is changed in its own home: `csi-spl-doc/doc/help/how-to-post.md` (Qto doc `0d291303-2b30-4b23-8541-cd2ff5863387`: one line on what each kind means, and that all 7 route as a note) and `csi-spl-doc/doc/help/message-actions-and-formatting.md` (Qto doc `bf244c37-39b0-40c1-9567-b8ec5fd94913`, section 3.5: the kinds table, which today lists 4 of the 6) are edited in Qto, then `cd csi-spl-orc && ./run -a do_spl_doctree_export_md`. The two exports are never edited by hand. `specs/020-spool-message-v2/contracts/message-schema-v2.md:21` (git-native) gets the 13 kinds | T021 for the schema row; T025 for the help (it describes the menu) | the export leaves no diff beyond the change; `./run -a do_check_fleet_rules_drift` | a hand edit of an export: the next export overwrites it, and the diff shows it |
 | T027 | Live proof on dev, then prd | T025 deployed | signed in: open the picker, press `U`; the badge is `bug` after a reload; `is:bug` finds the message; one CLI `spool send --kind idea` from a refreshed box arrives in the recipient's inbox | none (a measurement: the build, the tree and n are in the report) |
 
@@ -413,4 +431,4 @@ on the planted defect, then GREEN (developer guide 2.12.1).
 | Q4 | May desk posts (`do_spl_desk_post`, `do_spl_desk_reply`) use the 7? | no: only the menu and `spool send` set them | yes: widen `DESK_KIND` (`spl-desk-post.func.sh:62`, `spl-desk-reply.func.sh:529`) |
 | Q5 | Picker letters for bug and docs? | `U` (bUg) and `O` (dOcs) | `G` (buG) and `C` (doCs) |
 
-<!-- version: 0.2.0 · updated: 2026-11-18 · last-edit: 2026-11-18T14:51:29Z -->
+<!-- version: 0.2.1 · updated: 2026-11-18 · last-edit: 2026-11-18T15:25:00Z -->

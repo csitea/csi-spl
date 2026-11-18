@@ -745,6 +745,12 @@ export default defineNuxtConfig({
     // @nuxtjs/i18n 10 always sets optimizeTranslationDirective: false and
     // dropped experimental.generatedLocaleFilePathFormat, so neither is set.
     bundle: { runtimeOnly: true, dropMessageCompiler: true },
+    // @nuxtjs/i18n 10.6 defaults this on: the server build then takes each
+    // catalogue as JSON.parse(<raw source>) and expects a message compiler,
+    // which dropMessageCompiler removes, so every prerendered page printed
+    // "Powered by {link}" and "{n} online" (SPL-5070). Off, the build
+    // precompiles the server's catalogues as it does the client's.
+    experimental: { optimizeMessageBundling: false },
   },
 
   runtimeConfig: {

@@ -50,6 +50,15 @@ describe('vue-i18n runtime-only', () => {
     assert.match(loader, /^export default defineI18nLocale\(\(\) => \(\{\}\)\)$/m)
   })
 
+  // SPL-5070: @nuxtjs/i18n 10.6's optimizeMessageBundling (default on) hands
+  // the server raw catalogue JSON to compile at runtime; with no compiler the
+  // prerendered /login showed "Powered by {link}". Off, the server's are
+  // precompiled too (tests/e2e/login-centred.test.mjs is the browser check).
+  it('the server catalogues are precompiled too (optimizeMessageBundling off)', () => {
+    const cfg = readFileSync(join(WUI, 'nuxt.config.ts'), 'utf8')
+    assert.match(cfg, /^\s*experimental: \{ optimizeMessageBundling: false \},$/m)
+  })
+
   it('no source adds a message at runtime (it would need the compiler)', () => {
     const bad = []
     for (const f of files(join(WUI, 'src'))) {

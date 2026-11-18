@@ -175,3 +175,44 @@ None. No W items.
   the same `is not writable` message (the fallback dir under the sandbox TMPDIR
   was not creatable); the counted `is not writable` lines = 1 and the day-file
   lines `A 5 -> after B 5` match the plan's red output shape.
+
+---
+
+## v1.0 signature
+
+**PASS on `f529b3091e126e188c28504d12f081dd18472923`** (plan v1.0), signed
+2026-11-18 after the editor c-339@<box> named it (msg df3b7358) and the
+dispatch holder c-002@<box> asked for the signature (msg b2f2ce59).
+
+Provenance and re-checks, each with the command run and what it printed:
+
+- `git fetch origin review/c002-bug-round-15-planner master && git rev-parse
+  FETCH_HEAD` -> `f529b3091e126e188c28504d12f081dd18472923`;
+  `git ls-remote origin review/c002-bug-round-15-planner` -> the same sha.
+- `git merge-base --is-ancestor
+  f529b3091e126e188c28504d12f081dd18472923 origin/master` -> exit 0 (v1.0 is on
+  `origin/master`).
+- `git diff --stat b65f8581125a6e669ac766a5cae5d12be066b800
+  f529b3091e126e188c28504d12f081dd18472923` -> `1 file changed, 7 insertions(+),
+  5 deletions(-)`, `csi-spl-doc/doc/md/bug-round-15-plan.md` only: the status
+  line, the N1 fold into section 3.1, the N4 fold into section 3.2 row 01, the
+  review history and the consensus table (Panel `m-345@<box>` PASS on
+  `b65f85811`). **No row's defect, site or red control changed**, so every v0.2
+  check above stands; the plan's "One sha" line still names `2fe3729e3`.
+- Slug re-check at v1.0: `git log origin/master --oneline -E --grep='\(b15-[0-9]{2}'
+  | wc -l` -> `0`; `git log origin/master --oneline -E --grep='\(b15-' | wc -l`
+  -> `3` (the plan's own `8ce0de287`, `b65f85811`, `f529b309`, scope
+  `b15-plan`); `git ls-remote origin | grep -cE 'b15-[0-9]{2}'` -> `0`.
+- Site spot-checks at `f529b309`: `git show f529b309:...spl-lane-rotate.func.sh
+  | sed -n '329p;537p'` -> the same two defect lines as at `2fe3729e3`;
+  `git show f529b309:...spl-spawn-group-put.func.sh | sed -n '167p;175p'` ->
+  `spl_spawn_group_issues() {  # EPIC` / `spl_spawn_group_read() {  # GROUP
+  ASKS FULL(0|1)`; `git show f529b309:csi-spl-orc/src/bash/run/run.sh |
+  sha256sum` -> `527b6e27ab6c5519af26059dc44f093feb4751e8186651a99a8c1162380f963a`,
+  the same as at `2fe3729e3`.
+- Red control re-run at v1.0 (measurement sha unchanged, clone of `2fe3729e3`):
+  `bash /var/spool-hub/dispatch/b15-red-controls/rc02.sh /tmp/b15repo` ->
+  `row SPL-2582 state=waiting why=` / `issue get calls: 0` - still RED, as the
+  plan's section 3.2 says.
+
+Defects on v1.0: none (no new W items). Notes N1..N5 stand.

@@ -3885,7 +3885,11 @@
       "links_issue_title": "Otwórz zgłoszenie {key} w {ws}",
       "links_issue_missing": "{key}: brak takiego zgłoszenia w {ws}",
       "links_discussion": "dyskusja",
-      "links_discussion_locked": "dyskusja, tylko dla członków {ws}"
+      "links_discussion_locked": "dyskusja, tylko dla członków {ws}",
+      "project_label": "Projekt",
+      "repo_label": "Repozytorium",
+      "kpi_unreleased": "Niewydane",
+      "unconfigured": "Z tym obszarem roboczym nie połączono jeszcze żadnego repozytorium git."
     },
     "sql": {
       "query_label": "Zapytanie",

@@ -3885,7 +3885,11 @@
       "links_issue_title": "פתח את המשימה {key} ב-{ws}",
       "links_issue_missing": "{key}: אין משימה כזו ב-{ws}",
       "links_discussion": "דיון",
-      "links_discussion_locked": "דיון, לחברי {ws} בלבד"
+      "links_discussion_locked": "דיון, לחברי {ws} בלבד",
+      "project_label": "פרויקט",
+      "repo_label": "מאגר",
+      "kpi_unreleased": "טרם שוחררו",
+      "unconfigured": "עדיין לא חובר מאגר git לסביבת עבודה זו."
     },
     "sql": {
       "query_label": "שאילתה",

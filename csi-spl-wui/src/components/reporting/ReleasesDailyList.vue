@@ -12,7 +12,9 @@
      HUM-10, t1 4d1e60b5, msg b164e955: "too much empty space"): above the phone breakpoint
      a day's commits are cards in a grid that fills the width, the subject
      on its own line; an opened commit spans its day's row. A phone keeps
-     one row per commit. -->
+     one row per commit. B-7 (spec 143 releases-projects.md 7.1, SPL-5853):
+     with showRepo (a project of more than one repo) each commit row and
+     deploy chip also names its repo's short name. -->
 <template>
   <ol class="rd-days" data-test="releases-days">
     <li v-for="g in groups" :key="g.day.date" class="rd-day" :data-date="g.day.date" data-test="releases-day">
@@ -23,11 +25,11 @@
         <template v-if="deployChips(g.day.deploys).length">
           <span
             v-for="c in deployChips(g.day.deploys)"
-            :key="c.env + c.component"
+            :key="c.repo + c.env + c.component"
             class="rd-chip rd-chip--deploy"
             :class="['rd-chip--' + c.env, { 'rd-chip--failed': c.failed }]"
             data-test="releases-day-deploy"
-          >{{ t('reporting.releases.deploy_chip', { env: c.env, component: c.component, version: c.version, time: c.time }) }}</span>
+          ><span v-if="showRepo && c.repo" class="rd-repo" data-test="releases-deploy-repo">{{ repoShort(c.repo) }}</span>{{ t('reporting.releases.deploy_chip', { env: c.env, component: c.component, version: c.version, time: c.time }) }}</span>
         </template>
         <span v-else class="rd-chip rd-chip--none" data-test="releases-day-no-deploys">{{ t('reporting.releases.deploys_none') }}</span>
       </header>
@@ -47,6 +49,7 @@
               :title="t('reporting.releases.open_commit', { sha: n.sha.slice(0, 7) })"
               data-test="releases-commit-sha"
             >{{ n.sha.slice(0, 7) }}</NuxtLink>
+            <span v-if="showRepo && n.repo_slug" class="rd-chip rd-chip--repo" :title="n.repo_slug" data-test="releases-commit-repo">{{ repoShort(n.repo_slug) }}</span>
             <NuxtLink
               v-if="n.version"
               class="rd-chip rd-chip--version"
@@ -91,9 +94,9 @@
 
 <script setup lang="ts">
 import ReleaseIssueLinks from '~/components/reporting/ReleaseIssueLinks.vue'
-import { deployChips, displayVersion, hasTrailers, kindBreakdown, utcTime, type ReleaseCommit, type ReleaseDay } from '~/utils/reporting-releases'
+import { deployChips, displayVersion, hasTrailers, kindBreakdown, repoShort, utcTime, type ReleaseCommit, type ReleaseDay } from '~/utils/reporting-releases'
 
-defineProps<{ groups: { day: ReleaseDay, notes: ReleaseCommit[] }[] }>()
+defineProps<{ groups: { day: ReleaseDay, notes: ReleaseCommit[] }[], showRepo?: boolean }>()
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 
@@ -125,6 +128,8 @@ const areaOf = (a: string) => String(a || '').split(',')[0].trim().toLowerCase()
 .rd-chip--failed { border-color: var(--color-danger); color: var(--color-danger); }
 .rd-chip--none { color: var(--color-muted); }
 .rd-chip--version { text-decoration: none; }
+.rd-chip--repo { font-family: var(--font-mono, ui-monospace, monospace); color: var(--color-muted); }
+.rd-repo { font-family: var(--font-mono, ui-monospace, monospace); margin-right: 4px; }
 .rd-row { padding: 6px 0; border-bottom: 1px solid var(--color-border); }
 .rd-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; }
 .rd-time { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.8125rem; font-variant-numeric: tabular-nums; color: var(--color-muted); white-space: nowrap; }

@@ -3885,7 +3885,11 @@
       "links_issue_title": "Άνοιγμα θέματος {key} στο {ws}",
       "links_issue_missing": "{key}: δεν υπάρχει τέτοιο θέμα στο {ws}",
       "links_discussion": "συζήτηση",
-      "links_discussion_locked": "συζήτηση, μόνο για μέλη του {ws}"
+      "links_discussion_locked": "συζήτηση, μόνο για μέλη του {ws}",
+      "project_label": "Έργο",
+      "repo_label": "Αποθετήριο",
+      "kpi_unreleased": "Χωρίς έκδοση",
+      "unconfigured": "Δεν έχει συνδεθεί ακόμη αποθετήριο git σε αυτόν τον χώρο εργασίας."
     },
     "sql": {
       "query_label": "Ερώτημα",

@@ -3885,7 +3885,11 @@
       "links_issue_title": "Открыть задачу {key} в {ws}",
       "links_issue_missing": "{key}: такой задачи нет в {ws}",
       "links_discussion": "обсуждение",
-      "links_discussion_locked": "обсуждение, только для участников {ws}"
+      "links_discussion_locked": "обсуждение, только для участников {ws}",
+      "project_label": "Проект",
+      "repo_label": "Репозиторий",
+      "kpi_unreleased": "Невыпущенные",
+      "unconfigured": "К этому рабочему пространству ещё не подключён ни один git-репозиторий."
     },
     "sql": {
       "query_label": "Запрос",

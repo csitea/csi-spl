@@ -501,7 +501,7 @@ async function cardRows(p, base, tag, path = '/reporting/releases', wrap = false
       oneLine: [a, b, d].every((r) => r.height <= Math.max(lh, a.height) + 1) && Math.abs(a.bottom - d.bottom) <= 6,
     }
   }))
-  ok(`T6 ${tag}: four cards`, cards.length === 4, cards.map((c) => c.id))
+  ok(`T6 ${tag}: five cards (B-7 adds Unreleased)`, cards.length === 5, cards.map((c) => c.id))
   ok(`T6 ${tag}: the body does not scroll sideways`, bodyWide !== null && bodyWide <= 0, bodyWide)
   for (const c of cards) {
     ok(`T6 ${tag} ${c.id}: "<value>  -  <label>", the dash hidden from screen readers and from a copy`, c.sep === '  -  ' && c.sepHidden && c.sepSelect === 'none', [c.text, c.sepSelect])

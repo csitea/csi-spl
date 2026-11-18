@@ -3885,7 +3885,11 @@
       "links_issue_title": "Отвори задатак {key} у {ws}",
       "links_issue_missing": "{key}: нема таквог задатка у {ws}",
       "links_discussion": "дискусија",
-      "links_discussion_locked": "дискусија, само за чланове {ws}"
+      "links_discussion_locked": "дискусија, само за чланове {ws}",
+      "project_label": "Пројекат",
+      "repo_label": "Репозиторијум",
+      "kpi_unreleased": "Необјављени",
+      "unconfigured": "За овај радни простор још није повезан ниједан git репозиторијум."
     },
     "sql": {
       "query_label": "Упит",

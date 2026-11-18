@@ -7,9 +7,37 @@
      is an update:<field> event; the search waits RELEASE_SEARCH_DEBOUNCE_MS
      after the last key so one word is one read, not one per letter.
      SPL-4900: above the phone breakpoint the four groups flow on one row and wrap as
-     whole groups (2560: one row, 1440: two or three); a phone keeps them stacked. -->
+     whole groups (2560: one row, 1440: two or three); a phone keeps them stacked.
+     B-7 (spec 143 releases-projects.md 7.1, SPL-5853): the project drop box
+     comes first (one project: its name as plain text, no control), and a
+     project with more than one repo adds a row of repo pills with their
+     counts; one pill on filters to that repo, a click on it again shows all. -->
 <template>
   <div class="rf-bar" role="group" :aria-label="t('reporting.releases.filters_label')" data-test="releases-filters">
+    <label v-if="projects && projects.length > 1" class="rf-project">
+      <span class="rf-search-label">{{ t('reporting.releases.project_label') }}</span>
+      <select :value="project" data-test="releases-project" @change="onProject">
+        <option v-for="p in projects" :key="p.slug" :value="p.slug">{{ p.name }}</option>
+      </select>
+    </label>
+    <p v-else-if="current" class="rf-project" data-test="releases-project-name">
+      <span class="rf-search-label">{{ t('reporting.releases.project_label') }}</span>
+      <strong>{{ current.name }}</strong>
+    </p>
+    <div v-if="current && current.repos.length > 1" class="rf-row" role="group" :aria-label="t('reporting.releases.repo_label')" data-test="releases-repos">
+      <button
+        v-for="r in current.repos"
+        :key="r.slug"
+        type="button"
+        class="rf-pill rf-pill--code"
+        :class="{ 'rf-pill--on': repo === r.slug }"
+        :aria-pressed="repo === r.slug ? 'true' : 'false'"
+        :title="r.slug"
+        :data-test="'releases-repo-' + repoShort(r.slug)"
+        :data-count="repoCounts?.[r.slug] || 0"
+        @click="emit('update:repo', repo === r.slug ? '' : r.slug)"
+      >{{ repoShort(r.slug) }}<span v-if="repoCounts" class="rf-n">{{ repoCounts[r.slug] || 0 }}</span></button>
+    </div>
     <div class="rf-row" role="group" :aria-label="t('reporting.releases.range_label')" data-test="releases-range">
       <button
         v-for="r in RELEASE_RANGES"
@@ -63,19 +91,26 @@
 </template>
 
 <script setup lang="ts">
-import { labelCloud, RELEASE_AREAS, RELEASE_KINDS, RELEASE_RANGES, RELEASE_SEARCH_DEBOUNCE_MS, togglePill } from '~/utils/reporting-releases'
+import {
+  labelCloud, RELEASE_AREAS, RELEASE_KINDS, RELEASE_RANGES, RELEASE_SEARCH_DEBOUNCE_MS, repoShort, togglePill, type ReleaseProject,
+} from '~/utils/reporting-releases'
 
 const props = defineProps<{
   range: string, kinds: string[], areas: string[], search: string,
   kindCounts?: Record<string, number> | null, areaCounts?: Record<string, number> | null,
+  projects?: ReleaseProject[] | null, project?: string, repo?: string, repoCounts?: Record<string, number> | null,
 }>()
 const emit = defineEmits<{
+  'update:project': [project: string]
+  'update:repo': [repo: string]
   'update:range': [range: string]
   'update:kinds': [kinds: string[]]
   'update:areas': [areas: string[]]
   'update:search': [search: string]
 }>()
 const { t } = useI18n({ useScope: 'global' })
+const onProject = (ev: Event) => emit('update:project', (ev.target as HTMLSelectElement).value)
+const current = computed(() => props.projects?.find((p) => p.slug === props.project) || null)
 
 /* before the first counts arrive, the pills keep their order at one middle step */
 const plain = (all: readonly string[]) => all.map((id) => ({ id, n: 0, step: 2 }))
@@ -119,7 +154,8 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
 .rf-drift-1 { position: relative; top: -5px; }
 .rf-drift-2 { position: relative; top: 5px; }
 .rf-pill--on, .rf-pill--on:hover { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
-.rf-search { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rf-search, .rf-project { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; }
+.rf-project select { min-width: 0; max-width: 100%; font: inherit; }
 .rf-search-label { font-size: 0.8125rem; color: var(--color-muted); }
 .rf-search input { flex: 1 1 auto; min-width: 0; max-width: 420px; }
 @media (min-width: 821px) {

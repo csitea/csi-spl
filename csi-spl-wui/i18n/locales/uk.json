@@ -3885,7 +3885,11 @@
       "links_issue_title": "Відкрити завдання {key} у {ws}",
       "links_issue_missing": "{key}: такого завдання немає у {ws}",
       "links_discussion": "обговорення",
-      "links_discussion_locked": "обговорення, лише для учасників {ws}"
+      "links_discussion_locked": "обговорення, лише для учасників {ws}",
+      "project_label": "Проєкт",
+      "repo_label": "Репозиторій",
+      "kpi_unreleased": "Невипущені",
+      "unconfigured": "До цього робочого простору ще не під'єднано жодного git-репозиторію."
     },
     "sql": {
       "query_label": "Запит",

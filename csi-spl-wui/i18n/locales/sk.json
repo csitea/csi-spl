@@ -3885,7 +3885,11 @@
       "links_issue_title": "Otvoriť úlohu {key} v {ws}",
       "links_issue_missing": "{key}: taká úloha v {ws} neexistuje",
       "links_discussion": "diskusia",
-      "links_discussion_locked": "diskusia, len pre členov {ws}"
+      "links_discussion_locked": "diskusia, len pre členov {ws}",
+      "project_label": "Projekt",
+      "repo_label": "Repozitár",
+      "kpi_unreleased": "Nevydané",
+      "unconfigured": "K tomuto pracovnému priestoru zatiaľ nie je pripojený žiadny git repozitár."
     },
     "sql": {
       "query_label": "Dopyt",

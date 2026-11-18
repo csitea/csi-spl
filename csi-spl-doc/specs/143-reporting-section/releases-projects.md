@@ -252,6 +252,14 @@ The owner asked for "the releases also the development". v1 adds no new view, on
 
 Open work is left out of v1 (section 9, Q6): nothing links an issue to a project, and guessing one from commit citations would miss every issue not yet cited.
 
+### 7.4 Built (B-7, SPL-5853)
+
+- `utils/reporting-releases.ts`: `releaseProjectsRead` (the projects route, read once), `releasePickOf` (the URL's `project` and `repo` checked against that list; a stale one falls back to the default, and the default project is no param), `releasePickQuery`, `repoShort`; `releaseQuery` sends `project` and `repo`; `releaseSummary` carries `unreleased` (`unreleased_commits`). The mock serves two projects, `spool` (default, one repo, the commits it always served) and `web-shop` (two repos, nine unreleased commits), and answers a stale pick with 404 as the hub does.
+- `pages/reporting/releases.vue`: a pick is `router.push`, a stale one `router.replace`; a 404 the list did not catch falls back the same way, with no error shown. The label cloud's key is project, range, search and repo; the repo pills' counts come from a read without the repo pick. A workspace with no project (`configured: false`) shows `reporting.releases.unconfigured` and no filter bar: that is the only part of spec 171 Lane 4 built here. Dynamic areas (`available_areas`, not served by the hub), per-commit cost and binding `ReleaseNotesDialog.vue` / `commit-links.client.ts` to the project's repo stay a later row.
+- `ReleasesFilterBar.vue` (drop box `releases-project`, or the name as text for one project; pills `releases-repo-<short name>`), `ReportingReleasesSummary.vue` (card `releases-kpi-unreleased`), `ReleasesDailyList.vue` (the repo's short name on rows and deploy chips only for a project with more than one repo).
+- Keys: `reporting.releases.project_label`, `repo_label`, `kpi_unreleased`, `unconfigured`, drafted in all 19 locales, outside the first-screen catalogue; the language review is B-8.
+- Tests: `tests/unit/reporting-releases.test.mjs` (B-7 block), `tests/e2e/releases-project-picker.test.mjs` at 1440 and 390 px (P1..P7). Red control: the cloud key without project and repo fails P7 at both widths (the old project's counts stay).
+
 ## 8. Build rows
 
 One row, one lane, in this order. Rows B-1 to B-3 and B-6 are spec 171's Lanes 1, 2, 2b and 3 **as amended here**, so they replace those lanes rather than run beside them. Spec 171's expand, deploy, contract order is kept: no non-`t1` registration before B-3 is live on dev and prd. Spec 171 Lane 4 (dynamic areas, empty state, workspace commit links) runs with B-7 and goes through the same language review.

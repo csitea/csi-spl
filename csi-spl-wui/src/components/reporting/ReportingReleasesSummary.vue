@@ -4,7 +4,9 @@
      the answer lacks, or no answer at all, is a dash, never NaN or a false 0.
      SPL-4811 (owner HUM-10, t1 c7c44497, msg 60441a88: "one row only - aka
      first the value space space - space space - WHAT it is"): each card is
-     one line, "<value>  -  <label>"; the dash is drawn, not read. -->
+     one line, "<value>  -  <label>"; the dash is drawn, not read.
+     B-7 (spec 143 releases-projects.md 7.3, SPL-5853): "Unreleased", the
+     commits of the window that no tag carries yet. -->
 <template>
   <div class="rr-kpis" role="group" :aria-label="t('reporting.releases.kpis_label')" data-test="releases-kpis">
     <section class="rr-kpi" data-test="releases-kpi-releases">
@@ -16,6 +18,11 @@
       <p class="rr-kpi-value" data-test="releases-kpi-commits-value">{{ count(s.commits) }}</p>
       <span class="rr-kpi-sep" aria-hidden="true">{{ SEP }}</span>
       <h3>{{ t('reporting.releases.kpi_commits') }}</h3>
+    </section>
+    <section class="rr-kpi" data-test="releases-kpi-unreleased">
+      <p class="rr-kpi-value" data-test="releases-kpi-unreleased-value">{{ count(s.unreleased) }}</p>
+      <span class="rr-kpi-sep" aria-hidden="true">{{ SEP }}</span>
+      <h3>{{ t('reporting.releases.kpi_unreleased') }}</h3>
     </section>
     <section class="rr-kpi" data-test="releases-kpi-per-day">
       <p class="rr-kpi-value" data-test="releases-kpi-per-day-value">{{ count(s.perDay) }}</p>
@@ -35,7 +42,7 @@ import { fmtCount, type ReleaseSummary } from '~/utils/reporting-releases'
 
 const props = defineProps<{ summary?: ReleaseSummary | null }>()
 const { t, locale } = useI18n({ useScope: 'global' })
-const EMPTY: ReleaseSummary = { releases: null, commits: null, perDay: null, dev: null, prd: null }
+const EMPTY: ReleaseSummary = { releases: null, commits: null, perDay: null, dev: null, prd: null, unreleased: null }
 const s = computed(() => props.summary || EMPTY)
 const count = (n: number | null) => fmtCount(n, locale.value)
 const SEP = '  -  '

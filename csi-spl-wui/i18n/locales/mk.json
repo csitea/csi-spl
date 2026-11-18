@@ -3885,7 +3885,11 @@
       "links_issue_title": "Отвори ја задачата {key} во {ws}",
       "links_issue_missing": "{key}: нема таква задача во {ws}",
       "links_discussion": "дискусија",
-      "links_discussion_locked": "дискусија, само за членови на {ws}"
+      "links_discussion_locked": "дискусија, само за членови на {ws}",
+      "project_label": "Проект",
+      "repo_label": "Репозиториум",
+      "kpi_unreleased": "Необјавени",
+      "unconfigured": "Сè уште нема git репозиториум поврзан со овој работен простор."
     },
     "sql": {
       "query_label": "Барање",

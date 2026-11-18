@@ -3885,7 +3885,11 @@
       "links_issue_title": "Avaa tiketti {key} työtilassa {ws}",
       "links_issue_missing": "{key}: tällaista tikettiä ei ole työtilassa {ws}",
       "links_discussion": "keskustelu",
-      "links_discussion_locked": "keskustelu, vain työtilan {ws} jäsenille"
+      "links_discussion_locked": "keskustelu, vain työtilan {ws} jäsenille",
+      "project_label": "Projekti",
+      "repo_label": "Repositorio",
+      "kpi_unreleased": "Julkaisemattomat",
+      "unconfigured": "Tähän työtilaan ei ole vielä yhdistetty git-repositoriota."
     },
     "sql": {
       "query_label": "Kysely",

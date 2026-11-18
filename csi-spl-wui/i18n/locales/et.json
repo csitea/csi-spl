@@ -3885,7 +3885,11 @@
       "links_issue_title": "Ava probleem {key} tööruumis {ws}",
       "links_issue_missing": "{key}: sellist probleemi pole tööruumis {ws}",
       "links_discussion": "arutelu",
-      "links_discussion_locked": "arutelu, ainult {ws} liikmetele"
+      "links_discussion_locked": "arutelu, ainult {ws} liikmetele",
+      "project_label": "Projekt",
+      "repo_label": "Hoidla",
+      "kpi_unreleased": "Avaldamata",
+      "unconfigured": "Selle tööruumiga pole veel ühtegi git-hoidlat ühendatud."
     },
     "sql": {
       "query_label": "Päring",

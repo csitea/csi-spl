@@ -3885,7 +3885,11 @@
       "links_issue_title": "Kwestie {key} openen in {ws}",
       "links_issue_missing": "{key}: deze kwestie bestaat niet in {ws}",
       "links_discussion": "discussie",
-      "links_discussion_locked": "discussie, alleen voor leden van {ws}"
+      "links_discussion_locked": "discussie, alleen voor leden van {ws}",
+      "project_label": "Project",
+      "repo_label": "Repository",
+      "kpi_unreleased": "Niet uitgebracht",
+      "unconfigured": "Er is nog geen git-repository aan deze werkruimte gekoppeld."
     },
     "sql": {
       "query_label": "SQL-query",

@@ -3885,7 +3885,11 @@
       "links_issue_title": "Отвори задача {key} в {ws}",
       "links_issue_missing": "{key}: няма такава задача в {ws}",
       "links_discussion": "дискусия",
-      "links_discussion_locked": "дискусия, само за членове на {ws}"
+      "links_discussion_locked": "дискусия, само за членове на {ws}",
+      "project_label": "Проект",
+      "repo_label": "Хранилище",
+      "kpi_unreleased": "Неиздадени",
+      "unconfigured": "Към това работно пространство все още няма свързано git хранилище."
     },
     "sql": {
       "query_label": "Заявка",

@@ -3885,7 +3885,11 @@
       "links_issue_title": "Öppna ärende {key} i {ws}",
       "links_issue_missing": "{key}: inget sådant ärende i {ws}",
       "links_discussion": "diskussion",
-      "links_discussion_locked": "diskussion, endast för medlemmar i {ws}"
+      "links_discussion_locked": "diskussion, endast för medlemmar i {ws}",
+      "project_label": "Projekt",
+      "repo_label": "Repository",
+      "kpi_unreleased": "Ej släppta",
+      "unconfigured": "Inget git-repository är kopplat till den här arbetsytan än."
     },
     "sql": {
       "query_label": "Fråga",

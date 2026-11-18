@@ -3885,7 +3885,11 @@
       "links_issue_title": "Open issue {key} in {ws}",
       "links_issue_missing": "{key}: no such issue in {ws}",
       "links_discussion": "discussion",
-      "links_discussion_locked": "discussion, {ws} members only"
+      "links_discussion_locked": "discussion, {ws} members only",
+      "project_label": "Project",
+      "repo_label": "Repository",
+      "kpi_unreleased": "Unreleased",
+      "unconfigured": "No git repository is connected to this workspace yet."
     },
     "sql": {
       "query_label": "Query",

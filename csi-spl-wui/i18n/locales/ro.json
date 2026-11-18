@@ -3885,7 +3885,11 @@
       "links_issue_title": "Deschide sarcina {key} în {ws}",
       "links_issue_missing": "{key}: nu există această sarcină în {ws}",
       "links_discussion": "discuție",
-      "links_discussion_locked": "discuție, doar pentru membrii {ws}"
+      "links_discussion_locked": "discuție, doar pentru membrii {ws}",
+      "project_label": "Proiect",
+      "repo_label": "Depozit",
+      "kpi_unreleased": "Nelansate",
+      "unconfigured": "Niciun depozit git nu este încă conectat la acest spațiu de lucru."
     },
     "sql": {
       "query_label": "Interogare",

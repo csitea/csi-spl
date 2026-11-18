@@ -145,13 +145,13 @@ describe('reporting-releases helpers', () => {
   })
 
   it('the summary: totals, per day, deploys per env; nothing known is null, never NaN', () => {
-    const daily = { total_commits: 21, total_versions: 4, days: [
+    const daily = { total_commits: 21, total_versions: 4, unreleased_commits: 6, days: [
       { date: '2026-10-21', deploys: [{ env: 'dev' }, { env: 'prd' }, { env: 'dev' }] },
       { date: '2026-10-20', deploys: [] },
     ] }
-    assert.deepEqual(R.releaseSummary(daily, 7), { releases: 4, commits: 21, perDay: 3, dev: 2, prd: 1 })
+    assert.deepEqual(R.releaseSummary(daily, 7), { releases: 4, commits: 21, perDay: 3, dev: 2, prd: 1, unreleased: 6 })
     for (const bad of [undefined, null, {}, { days: 'x' }]) {
-      assert.deepEqual(R.releaseSummary(bad, 7), { releases: null, commits: null, perDay: null, dev: null, prd: null })
+      assert.deepEqual(R.releaseSummary(bad, 7), { releases: null, commits: null, perDay: null, dev: null, prd: null, unreleased: null })
     }
     assert.equal(R.fmtCount(null, 'en'), '—')
     assert.equal(R.fmtCount(Number.NaN, 'en'), '—')
@@ -179,8 +179,8 @@ describe('reporting-releases helpers', () => {
       { env: 'prd', component: 'hub', version: 'v1.7.0', deployed_at: '2026-10-17T14:35:00Z', status: 'failed' },
     ])
     assert.deepEqual(chips, [
-      { env: 'prd', component: 'hub', version: 'v1.7.0', time: '14:35', failed: true },
-      { env: 'dev', component: 'wui', version: 'v1.7.1', time: '14:22', failed: false },
+      { env: 'prd', component: 'hub', version: 'v1.7.0', time: '14:35', failed: true, repo: '' },
+      { env: 'dev', component: 'wui', version: 'v1.7.1', time: '14:22', failed: false, repo: '' },
     ])
     assert.deepEqual(R.deployChips(undefined), [])
   })
@@ -205,6 +205,72 @@ describe('reporting-releases helpers', () => {
     }
     const d = R.mockReleaseReport('/v1/reporting/releases/daily' + R.releaseQuery(w), NOW2)
     assert.ok(d.days.some((x) => x.deploys.length) && d.days.some((x) => !x.deploys.length), 'days with and without deploys')
+  })
+})
+
+/* ---------- B-7 (spec 143 releases-projects.md section 7, SPL-5853): projects ---------- */
+
+describe('B-7 the project and repo picks', () => {
+  const NOW2 = Date.UTC(2026, 9, 21, 15, 0, 0)
+  const w = R.releaseWindow('7d', NOW2)
+  const list = R.mockReleaseReport('/v1/reporting/releases/projects', NOW2)
+
+  it('releaseQuery sends project and repo only when set, the rest unchanged', () => {
+    assert.equal(R.releaseQuery({ ...w }), '?' + new URLSearchParams({ from: w.from, to: w.to }))
+    const q = new URLSearchParams(R.releaseQuery({ ...w, project: 'web-shop', repo: 'example/web-shop-wui', kinds: ['fix'] }).slice(1))
+    assert.equal(q.get('project'), 'web-shop')
+    assert.equal(q.get('repo'), 'example/web-shop-wui')
+    assert.equal(q.get('kind'), 'fix')
+  })
+
+  it('the mock lists two projects, the default first, the second with two repos', () => {
+    assert.equal(list.configured, true)
+    assert.equal(list.default, 'spool')
+    assert.deepEqual(list.projects.map((p) => [p.slug, p.repos.length]), [['spool', 1], ['web-shop', 2]])
+    assert.equal(R.releaseProjectOf(list, '').slug, 'spool')
+    assert.equal(R.releaseProjectOf(list, 'web-shop').slug, 'web-shop')
+    assert.equal(R.releaseProjectOf(list, 'gone'), null)
+  })
+
+  it('a URL pick: the default stays clean, a stale project or repo falls back', () => {
+    assert.deepEqual(R.releasePickOf({}, list), { pick: { project: '', repo: '' }, stale: false })
+    assert.deepEqual(R.releasePickOf({ project: 'spool' }, list), { pick: { project: '', repo: '' }, stale: false })
+    assert.deepEqual(R.releasePickOf({ project: 'web-shop', repo: 'example/web-shop-wui' }, list),
+      { pick: { project: 'web-shop', repo: 'example/web-shop-wui' }, stale: false })
+    assert.deepEqual(R.releasePickOf({ project: 'gone' }, list), { pick: { project: '', repo: '' }, stale: true })
+    assert.deepEqual(R.releasePickOf({ project: 'web-shop', repo: 'csitea/csi-spl' }, list), { pick: { project: 'web-shop', repo: '' }, stale: true })
+    assert.deepEqual(R.releasePickOf({ project: ['a', 'b'] }, list), { pick: { project: '', repo: '' }, stale: false })
+    assert.deepEqual(R.releasePickOf({ project: 'x', repo: 'y' }, null), { pick: { project: 'x', repo: 'y' }, stale: false })
+  })
+
+  it('releasePickQuery keeps other params and drops empty picks', () => {
+    assert.deepEqual(R.releasePickQuery({ tab: '1', project: 'old', repo: 'r' }, { project: '', repo: '' }), { tab: '1' })
+    assert.deepEqual(R.releasePickQuery({}, { project: 'web-shop', repo: 'a/b' }), { project: 'web-shop', repo: 'a/b' })
+    assert.equal(R.repoShort('example/web-shop-api'), 'web-shop-api')
+    assert.equal(R.repoShort('plain'), 'plain')
+  })
+
+  it('the mock reads per project and repo: counts per repo, unreleased, 404 on a stale pick', () => {
+    const read = (path, q) => R.mockReleaseReport(path + R.releaseQuery({ ...w, ...q }), NOW2)
+    const spool = read('/v1/reporting/releases/daily', {})
+    const shop = read('/v1/reporting/releases/daily', { project: 'web-shop' })
+    const wui = read('/v1/reporting/releases/daily', { project: 'web-shop', repo: 'example/web-shop-wui' })
+    assert.equal(spool.unreleased_commits, 0)
+    assert.ok(shop.unreleased_commits > 0)
+    const perRepo = R.labelCounts(shop.days, 'repos')
+    assert.deepEqual(Object.keys(perRepo).sort(), ['example/web-shop-api', 'example/web-shop-wui'])
+    assert.equal(perRepo['example/web-shop-api'] + perRepo['example/web-shop-wui'], shop.total_commits)
+    assert.equal(wui.total_commits, perRepo['example/web-shop-wui'])
+    assert.notDeepEqual(R.labelCounts(spool.days, 'kinds'), R.labelCounts(shop.days, 'kinds'), 'a switch moves the label counts')
+    const c = read('/v1/reporting/releases/commits', { project: 'web-shop', limit: 500 })
+    assert.equal(c.total, shop.total_commits)
+    assert.ok(c.notes.every((n) => n.repo_slug.startsWith('example/web-shop-')))
+    assert.throws(() => read('/v1/reporting/releases/daily', { project: 'gone' }), (e) => e.status === 404)
+    assert.throws(() => read('/v1/reporting/releases/daily', { project: 'web-shop', repo: 'csitea/csi-spl' }), (e) => e.status === 404)
+  })
+
+  it('releaseReportRead rejects a mock 404 instead of throwing', async () => {
+    await assert.rejects(R.releaseReportRead({ mock: true }, '/v1/reporting/releases/daily?project=gone'), (e) => e.status === 404)
   })
 })
 
@@ -239,21 +305,21 @@ describe('spec 143 2.2.1 the label cloud (SPL-3796)', () => {
 })
 
 describe('T022 ReportingReleasesSummary', () => {
-  const values = (root) => ['releases', 'commits', 'per-day', 'deploys'].map((k) => textOf(byTest(root, `releases-kpi-${k}-value`)[0]))
+  const values = (root) => ['releases', 'commits', 'unreleased', 'per-day', 'deploys'].map((k) => textOf(byTest(root, `releases-kpi-${k}-value`)[0]))
 
   it('renders the figures of an answer', async () => {
-    const { root, errors, app } = await mount(summaryC, { summary: { releases: 12, commits: 1234, perDay: 176.3, dev: 5, prd: 3 } })
+    const { root, errors, app } = await mount(summaryC, { summary: { releases: 12, commits: 1234, perDay: 176.3, dev: 5, prd: 3, unreleased: 14 } })
     assert.deepEqual(errors, [])
-    assert.deepEqual(values(root), ['12', '1,234', '176.3', '5 on dev, 3 on prd'])
+    assert.deepEqual(values(root), ['12', '1,234', '14', '176.3', '5 on dev, 3 on prd'])
     app.unmount()
   })
 
   it('CONTROL: no stats object, or missing figures, render a dash, never NaN', async () => {
-    for (const summary of [undefined, null, { releases: null, commits: null, perDay: null, dev: null, prd: null }]) {
+    for (const summary of [undefined, null, { releases: null, commits: null, perDay: null, dev: null, prd: null, unreleased: null }]) {
       const { root, errors, app } = await mount(summaryC, { summary })
       assert.deepEqual(errors, [])
       const v = values(root)
-      assert.deepEqual(v, ['—', '—', '—', '— on dev, — on prd'], JSON.stringify(summary))
+      assert.deepEqual(v, ['—', '—', '—', '—', '— on dev, — on prd'], JSON.stringify(summary))
       assert.ok(!v.join(' ').includes('NaN'))
       app.unmount()
     }
@@ -265,7 +331,7 @@ describe('T022 ReportingReleasesSummary', () => {
 describe('T023 ReleasesFilterBar', () => {
   async function bar(props) {
     const got = []
-    const on = Object.fromEntries(['range', 'kinds', 'areas', 'search'].map((f) => [`onUpdate:${f}`, (v) => got.push([f, v])]))
+    const on = Object.fromEntries(['range', 'kinds', 'areas', 'search', 'project', 'repo'].map((f) => [`onUpdate:${f}`, (v) => got.push([f, v])]))
     const m = await mount(filterC, { range: '7d', kinds: [], areas: [], search: '', ...props, ...on })
     return { ...m, got }
   }
@@ -309,6 +375,36 @@ describe('T023 ReleasesFilterBar', () => {
     fix.props.onClick()
     assert.deepEqual(got.pop(), ['kinds', ['fix']])
     assert.equal(byTest(root, 'releases-area-wui')[0].props['data-count'], 5)
+    app.unmount()
+  })
+
+  it('B-7: the project drop box comes first; one project is plain text; two repos add the repo pills', async () => {
+    const list = R.mockReleaseReport('/v1/reporting/releases/projects', Date.now())
+    const one = await bar({ projects: list.projects.slice(0, 1), project: 'spool' })
+    assert.equal(byTest(one.root, 'releases-project').length, 0, 'one project: no control')
+    assert.equal(textOf(byTest(one.root, 'releases-project-name')[0]), 'ProjectSpool')
+    assert.equal(byTest(one.root, 'releases-repos').length, 0)
+    one.app.unmount()
+    const { root, got, state, app } = await bar({ projects: list.projects, project: 'spool', repoCounts: null })
+    const sel = byTest(root, 'releases-project')[0]
+    assert.equal(sel.props.value, 'spool')
+    const bar0 = byTest(root, 'releases-filters')[0]
+    assert.equal(findAll(bar0, (n) => n.tag === 'select' || n.props?.['data-test'] === 'releases-range')[0].tag, 'select', 'the drop box is first')
+    assert.equal(byTest(root, 'releases-repos').length, 0, 'a one-repo project shows no repo pills')
+    sel.props.onChange({ target: { value: 'web-shop' } })
+    assert.deepEqual(got.pop(), ['project', 'web-shop'])
+    state.project = 'web-shop'
+    state.repoCounts = { 'example/web-shop-api': 7, 'example/web-shop-wui': 3 }
+    await flush()
+    const wui = byTest(root, 'releases-repo-web-shop-wui')[0]
+    assert.equal(textOf(wui), 'web-shop-wui3')
+    assert.equal(wui.props['aria-pressed'], 'false')
+    wui.props.onClick()
+    assert.deepEqual(got.pop(), ['repo', 'example/web-shop-wui'])
+    state.repo = 'example/web-shop-wui'
+    await flush()
+    byTest(root, 'releases-repo-web-shop-wui')[0].props.onClick()
+    assert.deepEqual(got.pop(), ['repo', ''], 'a click on the pill that is on shows every repo again')
     app.unmount()
   })
 

@@ -3885,7 +3885,11 @@
       "links_issue_title": "Atvērt uzdevumu {key} darbvietā {ws}",
       "links_issue_missing": "{key}: šāda uzdevuma darbvietā {ws} nav",
       "links_discussion": "diskusija",
-      "links_discussion_locked": "diskusija, tikai {ws} dalībniekiem"
+      "links_discussion_locked": "diskusija, tikai {ws} dalībniekiem",
+      "project_label": "Projekts",
+      "repo_label": "Repozitorijs",
+      "kpi_unreleased": "Neizlaisti",
+      "unconfigured": "Šai darbvietai vēl nav pievienots neviens git repozitorijs."
     },
     "sql": {
       "query_label": "Vaicājums",

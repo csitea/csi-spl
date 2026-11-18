@@ -3885,7 +3885,11 @@
       "links_issue_title": "Abrir la incidencia {key} en {ws}",
       "links_issue_missing": "{key}: no existe esa incidencia en {ws}",
       "links_discussion": "discusión",
-      "links_discussion_locked": "discusión, solo miembros de {ws}"
+      "links_discussion_locked": "discusión, solo miembros de {ws}",
+      "project_label": "Proyecto",
+      "repo_label": "Repositorio",
+      "kpi_unreleased": "Sin publicar",
+      "unconfigured": "Todavía no hay ningún repositorio git conectado a este espacio de trabajo."
     },
     "sql": {
       "query_label": "Consulta",

@@ -85,6 +85,8 @@ clears it with `do_spl_react`.
 
 The rules for creating and executing bug-fix rounds and refactoring rounds (round size cap of at most 10 items, push caps, continuous execution, and standing rules R1–R16) have their one home in [rounds rulebook](rounds-rulebook.md).
 
+Their cadence (owner HUM-10, t1 2026-11-18) is in its section 5: bug-fix and refactoring rounds take the perf rounds' small size (2 rows, at most 3), the round's discussion closes when its rows are served and the next one opens in the same hour, one round number per kind counts up with 01 after 99, and bugs are always priority 2.
+
 Owner, HUM-10 msg 3d22fcea (2026-10-10): *"refactoring is something which we
 should have embedded in our system core way of operating. We will do
 refactoring constantly, all of the time. You just pick all the best practices

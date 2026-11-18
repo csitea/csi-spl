@@ -1,6 +1,6 @@
 # 107 Hours tracking: suggested, approved, frozen
 
-**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.10** (2026-11-15: FR-41a, a member's own average hours per day on their People card, over the workspace's; owner msg `d26fd5e6`; section 22.4; SPL-5558) · v2.9 (2026-11-13: FR-41, the workspace's average hours per day, a soft norm the biz owner, the product owner and the admin set; owner poll `dcbd4e45`, msg `df038453`; section 22; the hub is built, the WUI lands after its language review, SPL-5440) · v2.8 (2026-11-05: owner Q29 = B, msg `a935328b`: a member reads the prices set for them, read only, in their own settings, through `GET /v1/me/hours/price`; 21.5 rule 8, 21.6, 21.7, 21.8, 21.8.1 and 21.9 follow; every other rule unchanged, the biz owner still the only writer; spec only, nothing built) · v2.7 (2026-11-03: wording of v2.6 after its R7, no rule changed: the Expenses rail id is not on master, FR-20 opens with its exception, who may be listed is named as a reading) · v2.6 (2026-11-02: the biz owner sets each person's hourly price, per workspace, in a tab of Expenses; the member's own price is dropped, owner poll `e47404d1`, msg `a7ec216c`; section 21.5 rewritten, 21.6..21.9 follow; spec only, nothing built) · v2.5 (2026-10-29: owner answers Q26..Q28 = A, A, A folded into section 21, msg `ce14ad70`; spec only, rows T071..T077 Planned) · v2.4 (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
+**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.11** (2026-11-18: owner principle `c791daf2`, minimal effort for the people who fill in hours and for those who collect them, added to P0 as P0.2; section 23, an effort review of what is built and planned, two personas, phone first, with the 2026-12-01 cut; no FR changed; SPL-5886) · v2.10 (2026-11-15: FR-41a, a member's own average hours per day on their People card, over the workspace's; owner msg `d26fd5e6`; section 22.4; SPL-5558) · v2.9 (2026-11-13: FR-41, the workspace's average hours per day, a soft norm the biz owner, the product owner and the admin set; owner poll `dcbd4e45`, msg `df038453`; section 22; the hub is built, the WUI lands after its language review, SPL-5440) · v2.8 (2026-11-05: owner Q29 = B, msg `a935328b`: a member reads the prices set for them, read only, in their own settings, through `GET /v1/me/hours/price`; 21.5 rule 8, 21.6, 21.7, 21.8, 21.8.1 and 21.9 follow; every other rule unchanged, the biz owner still the only writer; spec only, nothing built) · v2.7 (2026-11-03: wording of v2.6 after its R7, no rule changed: the Expenses rail id is not on master, FR-20 opens with its exception, who may be listed is named as a reading) · v2.6 (2026-11-02: the biz owner sets each person's hourly price, per workspace, in a tab of Expenses; the member's own price is dropped, owner poll `e47404d1`, msg `a7ec216c`; section 21.5 rewritten, 21.6..21.9 follow; spec only, nothing built) · v2.5 (2026-10-29: owner answers Q26..Q28 = A, A, A folded into section 21, msg `ce14ad70`; spec only, rows T071..T077 Planned) · v2.4 (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
 **Created**: 2026-10-07 · **Drafter / folder**: c-522 (seat s107-1) · **Topic**: t1 `ef217164-daaa-43bb-8343-f55ddb2f53a8` · lane dispatch `dispatch-ef217164`
 **Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). v2 input: [business-needs.md](business-needs.md) (consensus `2c6c36732`) and its seats [bn-agy](reviews/bn-agy.md) · [bn-mistral](reviews/bn-mistral.md) · [bn-claude](reviews/bn-claude.md) · [bn-claude-2](reviews/bn-claude-2.md). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
 
@@ -26,6 +26,14 @@ Prose says **workspace** (a tenant), **member** (a HUM-* in it) and **biz owner*
 > "I guess I'm getting once again philosophical here, but the aim of the time tracking is not to trace exactly what the people have been doing, but to have some kind of directional guidelines on where the time is spent." (msg `4d6d200c`)
 >
 > "Because the essence of this system is the collaboration and not the time tracking. The time tracking is just a beneficial side effect we can do on that." (msg `4fd07875`)
+
+#### P0.2 Minimal effort (owner, HUM-10, csitea topic `4a2d2cc8`, 2026-11-18, verbatim, v2.11)
+
+> "значи философията на цялото това свойство трябва да бъде следната: минимално усилие от хората които трябва да си попълват часовете и хората които трябва да им ги събират и отчитат" (msg `c791daf2`)
+
+Translation: "so the philosophy of the whole feature must be this: minimal effort for the people who have to fill in their hours and for the people who have to collect and report them."
+
+P0.2 stands beside the first principle and ranks with it. Where a design point costs the member or the collector a step that the system could take (a field it could prefill, a confirmation it could batch, a value it could read from a setting already made), P0.2 decides for the system doing it. Section 23 measures every step against it.
 
 **P0 ranks above R1..R13 and every FR.** Where a requirement or a design point below could be read toward exact tracing (minute precision, per-person detail, raw-signal retention, a per-action audit), P0 decides: the aim is a directional picture of where the time goes, a side effect of the collaboration, not a trace of what a person did. v2.1 adds P0 and changes no FR: the points that pull against it are listed, each with a recommendation, as owner questions in section 20.
 
@@ -911,6 +919,7 @@ Each seat signs the v2.0 sha below on the same lane.
 | 2.8 | 2026-11-05 | c-179 | owner Q29 = B (HUM-10, workspace csitea, topic `36cc7f3b`, poll `221a0f08`, msg `a935328b`): 21.5 rule 8 rewritten (the member reads their own current and dated prices, read only, in `/settings/profile`, route `GET /v1/me/hours/price`, filtered `member_id = caller`, no write route), 21.6 (the member's price cell, the `member_scope` guard on `member_hourly_prices`), 21.7, 21.8 (the route row), 21.8.1, 21.9 (Q29 decided); every other rule unchanged; `tasks.md`: T071, T072 amended, T081 added (SPL-4844) |
 | 2.9 | 2026-11-13 | c-670 | section 22, FR-41 (owner HUM-10, t1 `59a7062f`, msg `b46e7fe3`; poll `dcbd4e45`, answers B, A, B, msg `df038453`): the workspace's average hours per day, key `hours.norm_day_minutes`, permission `hours.norm` (rdb 0279) for biz_owner, product_owner and admin, route `/v1/hours/norm`, the member's day shown against it with a warning above it; hub built, WUI after its language review (SPL-5440) |
 | 2.10 | 2026-11-15 | c-920 | section 22.4, FR-41a (owner HUM-10, t1 `59a7062f`, msg `d26fd5e6`: "settable per person via the persons section"): a member's own average hours per day, kept in the membership settings (rdb 0078, key `hours_norm_day_minutes`, no new migration), set by the same `hours.norm` holders on the member's People card through `/v1/members/{human_id}/hours/norm`; `GET /v1/me/hours` and `GET /v1/hours` answer the effective norm; the calendar's warning line says "your average" (SPL-5558) |
+| 2.11 | 2026-11-18 | c-891 | owner principle P0.2 (HUM-10, csitea `4a2d2cc8`, msg `c791daf2`): minimal effort for those who fill in and those who collect; section 23: the effort review of every member and collector step as built (live on dev and prd) and as planned, phone first (owner `8551b4e6`), the weekly approval and the per-member norm checked as built, the global calendar against per-workspace hours (owner `e9361d7c`) with the scoping proof, the built share of the rows (owner `1d9b6b83`), proposals E1..E9 and the 2026-12-01 cut (owner `b3832665`), owner questions Q30..Q33; no FR changed (SPL-5886) |
 | 2.6 | 2026-11-02 | c-715 | owner R16 (HUM-10, topic `36cc7f3b`, msgs `da9a06a5`, `b2fe53b7`; poll `e47404d1`, answer A, msg `a7ec216c`) replaces R15: 21.5 rewritten (the biz owner writes, per workspace, in a tab of Expenses; the member's price and screen dropped), 21.6, 21.7, 21.8, 21.8.1, 21.9, FR-19 and FR-20 follow; Q29 listed; `tasks.md`: T071, T072, T074, T077 amended, T078..T080 added (SPL-4655) |
 
 ---
@@ -1251,5 +1260,185 @@ What each person sees:
 - **The member** sees their calendar day against their effective norm (22.2), worded "your average".
 
 Build: `store/hours.go` (`HoursMemberNorms`, `SetHoursMemberNorm`, `HoursNormOf`), `auth/settings.go` (the membership field), `hub/hours_norm.go` (the member route), `hub/hours_me.go` and `hub/hours_team.go` (the effective norm), `openapi.json`. WUI: `components/PersonHoursNorm.vue` on `pages/people/[id].vue`, `utils/hours-norm.mjs` (`hoursMemberNormCall`, the mock), `hours_cal.norm_over` reworded and `people.hours_norm*` in all 19 locales. Tests: `store/hours_test.go` `TestHoursMemberNorm` (own wins, `0` wins, cleared falls back, another workspace isolated; memory and Postgres), `hub/hours_norm_test.go` `TestHoursMemberNorm*` (403 for a developer and a tester, the bounds, the effective norm on both reads), `tests/unit/hours-norm-member.test.mjs`, `tests/e2e/person-hours-norm.test.mjs`.
+
+## 23. Addendum v2.11: the effort review (P0.2, SPL-5886)
+
+**Status: review and proposals, spec only.** No FR changes in v2.11. The proposals E1..E9 below become build rows only after the owner answers Q30..Q33 (23.8) and the dispatch holder gives the GO. Lane issue SPL-5886, epic SPL-3036, deadline 2026-12-01.
+
+### 23.0 The owner's words (HUM-10, csitea topic `4a2d2cc8`, 2026-11-18, verbatim)
+
+| msg | text | translation |
+|---|---|---|
+| `95abbdec` | "относно функцията за часовете." | "about the hours feature." |
+| `e3f43854` (to a member) | "Трябва да започнем да си отчитаме часовете чрез spool-hub, защото това е единствения начин да успеем да завършим свойството на системата така че наистина да е полезно и за други потребители" | "We must start reporting our hours through spool-hub, because it is the only way to finish this feature of the system so that it is really useful to other users too." |
+| `c791daf2` | P0.2, section 0 | |
+| `ec6ab527` | "всеки си има предефиниран обем от часове на месец които може да използва , аз трябва да имам поне 8 часа за spool-hub и ти поне 1.5 часа на работен ден , това кой как наистина си ги ползва е отделен въпрос" | "everyone has a predefined volume of hours a month they can use; I must have at least 8 hours for spool-hub and you at least 1.5 hours per working day; how each one really uses them is a separate question" |
+| `b4193b1e` | "т.е. бизнесс собственика ... определя кой по колко часа на ден има алокация . и вески би трябвало да поне седмична основа да си ги одобрява тия часове , т.е. да потвърждава че са наистина работели толкова часове през седмицата или да могат да ги променят" | "i.e. the business owner ... sets who has how many hours per day allocated. And everyone should approve these hours at least weekly, i.e. confirm that they really worked that many hours during the week, or be able to change them" |
+| `ad99cb85` | "8 часа на работен ден , през целия месец само през работните дни" | "8 hours per working day, through the whole month, only on working days" |
+| `e9361d7c` | "това свойство трябва да е интегрирано и чрез календара ... но докато календара е глобален , часовете се отчитат на работно пространство и бизнесс собствениците имамт право да инспектират часовете само въз основа на достъпа им за работното пространство" | "this feature must be integrated through the calendar ... but while the calendar is global, hours are reported per workspace, and business owners may inspect hours only on the basis of their access to the workspace" |
+| `b3832665` | a new member starts at the beginning of December; the feature must work well enough that this member uses it and their hours are reported | deadline 2026-12-01 |
+| `8551b4e6` | "функцита трябва да бъде долкова достъпна за ползване , че и най - необразования строител и/или механик да може да я ползва чрез телефона" | "the feature must be accessible enough that even the least educated builder or mechanic can use it on the phone" |
+| `1d9b6b83` (to a member; context) | "прегледай я тази дискусия , ние имаме сигурно над 50% от свойствата , но още функцията не е такава че да е на комерсиално ниво , а трябва да стане" | "review this discussion; we probably have over 50% of the features, but the function is not yet at a commercial level, and it must become so" |
+
+`ad99cb85` settles `ec6ab527`: the allocation is hours **per working day**, so no new monthly budget FR. FR-41a (22.4, a member's own average hours per day) is the per-person allocation; the month reads as allocation x working days against approved hours (E5).
+
+### 23.1 How it was measured
+
+- **From the code, not clicked.** Every step below is counted from the templates on `origin/master` `bc559b2f6`. Nobody clicked it in a browser for this review. A 412x915 phone falls in the calendar's phone layout (<= 820 px, section 5.4).
+- **What is served.** `cd csi-spl-orc && ENV=dev ./run -a do_check_deploy_lag`, and the same with `ENV=prd`, 2026-11-18: hub `current` (served `04ca1d89`), wui `current` (served `8de1d37b`) in both. So "built" below is live on dev and prd.
+- **prd usage** (`ENV=prd SQL=... ./run -a do_spl_db_query`, read only, one read, workspace csitea, counts only):
+  - members with a personal norm (`tenant_memberships.settings ? 'hours_norm_day_minutes'`): **0 of 4**; workspace norm `hours.norm_day_minutes`: none;
+  - `hours_entries` in the last 30 days: 378 rows, from 2 members;
+  - `hours_periods`: 24 rows, **0** in state `approved`: no biz owner has made the second approval yet.
+
+### 23.2 Built share (owner `1d9b6b83`)
+
+`tasks.md`, counted by checkbox on `bc559b2f6`:
+
+| rows | built | open |
+|---|---|---|
+| v1, T001..T019 | 18 of 19 | T010 (dropped in v1.2) |
+| v2, T020..T070 | 7 of 51 | 44: every v2 store, route and screen row. Built: the tables and pure engines T020..T025, T065 |
+| v2.4, T071..T081 | 1 of 11 | 10: prices, counters, the commit ledger |
+| **build rows** (without T001, the spec, and T010, dropped) | **25 of 79 (32%)** | |
+
+FR-41 and FR-41a are built outside the rows (SPL-5440, SPL-5558). Counted by requirement: FR-01..FR-13, FR-41 and FR-41a serve users today, **15 of 42**. FR-14..FR-40 have tables or engines at most.
+
+So "over 50%" holds for the v1 loop: the member's suggestion, approval and freeze, and the collector's approval and download, work end to end (T018 live proof). It does not hold for the rows. What separates it from a commercial level, worst first:
+
+1. **A member with no in-app activity gets an empty week.** That is the builder of `8551b4e6`. The Standard Day (FR-15) is not built, so every hour is typed.
+2. **No absence** (FR-30): a sick or vacation day cannot be entered.
+3. **The collector cannot see who is short.** The Team tab has no allocation (23.3).
+4. **The second approval is not anyone's routine yet**: 0 approved period rows on prd.
+5. **No reminder.** The nudge (FR-36) is blocked on Web Push (095).
+6. Later for a first customer: offline (FR-35), crews and plan (FR-16, FR-22), prices (21.5).
+
+### 23.3 The three checks the brief asked first
+
+**Weekly member approval and freeze: built and live.**
+- Approve: the banner's **Approve N days** and **Approve week** approve the closed days of the period (`CalendarHoursDay.vue:24-33`, `:199-207`; T013).
+- Freeze: the sweep at period end + grace (default week + 2 days) freezes the period (`hub/hours_sweep.go:10-14`; T007).
+- Open suggestions are **auto-approved at the freeze** (owner v1-Q2 = B, `hub/hours_sweep.go:36-40`). So a member who never taps is still counted, from evidence.
+- The biz owner approves or returns in the Team tab (T015).
+- `b4193b1e` asks everyone to confirm or change their week. Today the sweep confirms for them. Q32 asks whether that stays.
+
+**FR-41a, the per-member daily allocation: built and live, not set.**
+- Built by SPL-5558 (`7a84257c1`, `34c1072c2`). The biz owner (also the product owner and the admin, `hours.norm`) sets it on the member's People card (`pages/people/[id].vue:59`, `PersonHoursNorm.vue`).
+- The member's day line and dialog show the day against it (22.2).
+- Effort: one field per person, typed once.
+- On prd it is set for 0 of 4 members of csitea (23.1). The owner's 8:00 and 1:30 are two People-card entries, no code.
+- **Not built**:
+  - The month view, allocation x working days against approved hours (`ad99cb85`).
+  - Any allocation in the Team tab. The hub's team read already answers `members[].norm_day_minutes` (`hub/hours_team.go:188-190`, `:213`), but the Team tab never reads it: `grep -ci norm` gives `CalendarHoursTeam.vue` 2, both the CSS word `normal`, and `utils/hours-team.mjs` 0.
+
+**Overlap.** FR-14's per-person standard day (Planned, T026, T070) is a second "hours per day per person" next to FR-41a. Two numbers per person double the collector's work for one fact. Q30.
+
+### 23.4 The global calendar and per-workspace hours (owner `e9361d7c`)
+
+**What is true today:**
+- **A calendar entry belongs to one workspace**: `calendar_events.tenant_id NOT NULL`, FORCE RLS ([119 primary workspace](../119-personal-realm/primary-workspace.md) F1, rdb 0125).
+- **The person's primary workspace** (owner `fd55c253`) is spec 119's profile field `primary_workspace_id` (`hub/realm.go:298`). It decides where calendar entries, notes and contacts are stored; hours do not read it.
+- **Hours are per workspace** (FR-37). The Working hours line and dialog read and write `GET` / `PUT /v1/me/hours` with no workspace in the call (`utils/hours-calendar-api.mjs:17-30`). The hub takes the session's active workspace (`hub/resolve.go:60`, `ActiveTenant` at `:80`). The dialog shows no workspace name and offers no choice.
+- **The person's own hours across workspaces** are spec 118's realm read `GET /v1/me/realm/hours` (read only; it refuses a workspace header, `utils/realm-hours-api.mjs` header).
+
+**The rule this review proposes** (E6, Q33 A):
+- Hours are booked to the workspace the calendar is showing, and the dialog names it.
+- In 119's personal calendar, which shows every workspace at once, each workspace with minutes that day gets its own Working hours line.
+- A new entry there defaults to the primary workspace when the person is a member of it, else the workspace with the most suggested minutes that day.
+
+**Proof that a biz owner reads hours only of a workspace they are a member of:**
+1. **Route.** `GET /v1/hours`, `PUT /v1/hours/periods` and `GET /v1/hours/export` all go through `hoursTeamAuth` (`hub/hours_team.go:228`, `:300`; `hub/hours_export.go:294`).
+   - `hoursTeamAuth` (`hub/hours_team.go:36`) calls `humanTenant` (`:38`, `hub/resolve.go:60`).
+   - `humanTenant` takes the session's workspace from `ActiveTenant` (`auth/tenant.go:64`), which admits a workspace only when `members.Member(human, workspace)` holds.
+   - Then `permit(t.ID, hum, hours.read | hours.approve)` (`hours_team.go:46`, `hub/rbac.go:83`) checks the role in that workspace.
+2. **Database.** `hours_minutes`, `hours_entries` and `hours_periods` have FORCE RLS with `tenant_scope` (`0151_hours.sql:78-79`, `:87-88`).
+3. **Tests.**
+   - Run in this review on `bc559b2f6`, memory store, n = 1: `go test ./internal/hub/ -run 'TestHoursExportCrossWorkspace|TestTeamHoursPermissions|TestTeamHoursNoLeak|TestHoursMemberNorm' -count=1` -> `ok`.
+   - `TestHoursExportCrossWorkspace`: workspace 1's biz owner exporting workspace 2 -> 403 (`hub/hours_export_test.go:134`). Its control: the owner's own export holds the line.
+   - `TestRLSHoursScopes` (`store/hours_rls_test.go:92`, Postgres; **not run in this review**): another workspace's scope reads 0 rows. Its red control lifts FORCE and then reads 1 (`:167`).
+4. **Gap.** No test covers one person who is biz owner in workspace A and developer in workspace B, reading B's team (expected 403 from `permit`). E6 adds it.
+
+### 23.5 The effort table
+
+Today's counts are phone taps from the code (23.1), not clicked. "Planned" is what the spec rows would give once built.
+
+**(a) The member who fills in hours**
+
+| # | step | today, built | planned (spec) | proposal | FR / row |
+|---|---|---|---|---|---|
+| M1 | Reach the week | Every working day carries a Working hours line in the phone Day, Week and Month views (`CalendarPhoneDay.vue:17`, `CalendarPhoneWeek.vue:56`, `CalendarPhoneMonth.vue:61`). Taps from the app start to the calendar not counted. | same | E3: a strip "N days to approve · [Approve]" on top of the phone calendar | FR-11 · T083 (new) |
+| M2 | Approve the week, a member with in-app activity | **2 taps**: a day's line, then **Approve N days**. Or **0**: the sweep approves at the freeze (Q2 = B). | FR-36 nudge, 2 taps from the lock screen (T062, blocked by 095) | E3: **1 tap** from the calendar | FR-04, FR-05 · T013, T007 |
+| M3 | Approve today | 2 taps (line, **Approve so far**) | same | | FR-05 |
+| M4 | A week for a member with **no** in-app activity (the builder) | The day is empty (`CalendarHoursDay.vue:74`, `hours_cal.empty`). Per day: line, **+ Add**, pick a target (recent first, else type to search), set 8:00 (type `h:mm`, or 30 x +15 from the 0:30 default, `utils/hours-mine.mjs:19`), Save. That is about 4 taps and one typing per day, **about 20 taps and 5 typings a week**. | FR-15 Standard Day (T026, T042, T051, T059, T070): days prefilled at the standard day, marked "no activity", **2 taps a week**. FR-16 plan (T027, T034, T055). | E1 + E2: prefill at the member's own allocation (FR-41a, already set), **2 taps a week, no typing** | FR-15, FR-41a · T082 (new) |
+| M5 | Change a prefilled number | 3 taps: the minutes, the ±15 stepper (or type), Save | same | E7: + Add defaults to what is left of the day's allocation | FR-05 · T014, T087 (new) |
+| M6 | Time outside the app | +15 on a row (1 tap). The timer is still in the app header (`TopBar.vue:108-114`): start, pick, stop. | Q23 A: the timer in the calendar (decided, not built) | later. A builder needs the clock (FR-24), not a timer | T019, Q23 |
+| M7 | A sick or vacation day | **Not possible**: no absence row | FR-30: Absent, then the type, 2 taps (T030, T037, T052) | first row after the cut; until then a note on an "other" row | FR-30 |
+| M8 | A note per line | 2 taps + typing | same | | T014 |
+| M9 | A returned period | The banner shows the note; fix, then **Resubmit** (1 tap + the fix) | same | | FR-07 |
+| M10 | Reminder | The dot on open lines only. No push, no e-mail. | FR-36 (blocked) | until 095: none new | FR-36 · T062 |
+| M11 | Which workspace | The session's active workspace, not named in the dialog. A member of two workspaces switches first. | FR-37; 119 personal calendar | E6 (23.4) | FR-37 · T086 (new) |
+| M12 | Targets and words on a phone | Phone controls are 44 px (`CalendarHoursLine.vue` compact line; `CalendarHoursDay.vue` icons, Approve week, and the buttons under 820 px). `bg.json` `hours_cal`: 87 keys, 0 left identical to English. The desktop line is 28 px. | U7, T064 agy review | every new string of E2, E3, E5, E6, E7 goes through the agy review before it ships | U7 |
+
+**(b) The person who collects and reports (the biz owner)**
+
+| # | step | today, built | planned (spec) | proposal | FR / row |
+|---|---|---|---|---|---|
+| C1 | Set each person's allocation (`ec6ab527`, `b4193b1e`) | People card, "Average hours per day", type, Save: once per person. prd csitea: 0 of 4 set. | FR-14 person standard day, set again in the Crew tab (T054) | E1: **one number per person**; FR-14 reads FR-41a (Q30 A) | FR-41a, FR-14 |
+| C2 | Period and grace | **0 steps**: the defaults, week + 2 days | same | | T016 |
+| C3 | Freeze | **0 steps**: the sweep | same | | T007 |
+| C4 | See the week, and who is short | Desktop: calendar, then the Team tab of the right panel (2 clicks). Phone: calendar, menu, Hours, Team (3 taps; `CalendarPhone.vue:237`). Totals per member; **no allocation shown** (23.3). | FR-38 Crew tab | E5: per member, approved against allocation x working days of the period, short marked | FR-41a · T085 (new) |
+| C5 | Approve | **Approve all**, 1 tap after C4. prd: 0 approved periods ever. | FR-22 Approve crew | Q32 | FR-07 · T015 |
+| C6 | Return | Return, type the note, Send: 3 taps + typing | same | | FR-07 |
+| C7 | Download | Download tab, period, format, Download: about 3 taps | FR-39 a month file over weekly freezes (T048) | later | FR-09, FR-39 |
+| C8 | Hourly price | **Not possible** (T072, T079 Planned) | the Expenses tab "Hourly cost": per person an amount, a currency, a start day | later | 21.5 |
+
+### 23.6 Proposals
+
+| id | what | why (P0.2) | size | row |
+|---|---|---|---|---|
+| E1 | **One allocation per person.** FR-14's per-person standard day is FR-41a's value, and FR-14's workspace standard day is FR-41's. No second setting. | The collector types one number per person, once | S (spec) | Q30; shrinks T026, T070 |
+| E2 | **Prefill an empty working day at the allocation.** A closed working day (Mon..Fri) with no entry and no suggestion, and an effective allocation above 0, gets one suggested row of the allocation's minutes. Its target is the member's most used target of the last 14 days, else `ws`. It is marked "no activity". Like FR-15, it is **never auto-approved at the freeze**, so no paid day without a tap. **Approve N days** and **Approve week** take it. This is the minimal half of FR-15 and T042: no plan, absence or holiday. Sites: hub `hub/hours_me.go` `suggestHours` (`:202`); WUI the mark on the row and the line. | The builder's week goes from about 20 taps and 5 typings to 2 taps | M | T082 (new); Q31 |
+| E3 | **A one-tap week on the phone.** On top of the phone calendar, a strip "N days to approve · [Approve]" while the open period has open closed days. Same write as the banner (T013). | 2 taps become 1 | S | T083 (new) |
+| E4 | The timer moves into the calendar (owner Q23 A, decided) | It frees the header | S | later |
+| E5 | **Allocation in the Team tab.** Per member, approved minutes against allocation x working days of the period (the month when `hours.period = month`), short ones marked. WUI only: the hub already answers `norm_day_minutes`. | The collector sees who is short without opening each person | S | T085 (new) |
+| E6 | **Name the workspace.** The Working hours dialog and the hours panel show the workspace name. Plus the hub test of 23.4 item 4. The personal-calendar default (23.4) waits for 119's personal calendar. | The member knows where the hours go, with no extra step | S | T086 (new); Q33 |
+| E7 | **+ Add defaults to the rest of the day.** The allocation minus the day's total, else 0:30. | One Save books the rest of the day | S | T087 (new) |
+| E8 | **Live proof of the cut.** A fresh member with no activity, at 412x915, on dev then prd: sees five prefilled days and approves the week in <= 2 taps from the calendar. The biz owner sees the week against the allocation and approves all in <= 3 taps. | It proves the 12-01 promise | S | T088 (new) |
+| E9 | The agy language review of every new string (fleet language rule), the last step of each row above | Plain words in the member's language | S | each row |
+
+### 23.7 Needed by 2026-12-01 (owner `b3832665`)
+
+The smallest set so that a **new, untrained member fills in and approves a week on a phone with minimal effort, and the biz owner sees it**. Queue it in this order:
+
+| order | row | size | what |
+|---|---|---|---|
+| 0 | no code | - | The biz owner sets each member's allocation on the People card (prd csitea: 0 of 4 today) |
+| 1 | T082 | M | E2: prefill an empty working day at the allocation |
+| 2 | T083 | S | E3: the one-tap week strip on the phone |
+| 3 | T085 | S | E5: allocation against approved in the Team tab |
+| 4 | T087 | S | E7: + Add defaults to the rest of the day |
+| 5 | T086 | S | E6: the workspace named, plus the A/B membership test |
+| 6 | T088 | S | E8: the live proof on dev and prd at 412x915 |
+| - | E1 | S (spec) | only if Q30 = A: one line in FR-14 |
+
+**Later, in this order:**
+1. FR-30 absences (T030, T037, T052, L together): the first row after the cut, because a new member will have a sick day.
+2. The FR-36 nudge, once 095 lands.
+3. Q23, the timer in the calendar.
+4. The v2 crew, plan, clock and terminal rows (T026..T070).
+5. Offline (T058).
+6. The payroll file (T048).
+7. Prices and counters (T071..T081).
+
+With the cut built, a member with no in-app activity approves a week in 2 taps (E2), or in 1 from the calendar (E3), with no typing. That is the gap of 23.2 item 1. Items 2 and 5 of 23.2 remain the distance to a commercial level.
+
+### 23.8 Owner questions (A = the recommendation)
+
+| # | question | A | B |
+|---|---|---|---|
+| Q30 | One "hours per day" per person, or two? | One: FR-41a's allocation is also FR-14's standard day (E1) | Two: FR-14 keeps its own per-person standard day |
+| Q31 | A working day with no activity in the app | Prefilled at the person's allocation, marked "no activity", counted only after the person's tap (E2) | Left empty; the person adds the hours |
+| Q32 | Weekly confirmation (`b4193b1e`) | Keep v1-Q2 = B: the sweep approves rows with evidence at the freeze, and a "no activity" row needs the tap | Every week needs the person's own tap; nothing is auto-approved |
+| Q33 | A person in several workspaces: where do the calendar's hours go? | To the workspace the calendar shows, named in the dialog; in the personal calendar, default the primary workspace (E6) | Always to the primary workspace |
 
 <!-- version: 2.0.0 · updated: 2026-10-10 -->

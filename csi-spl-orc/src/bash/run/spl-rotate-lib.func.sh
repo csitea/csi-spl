@@ -820,7 +820,7 @@ spl_rotate_cli() {
   [[ "$k" == claude ]] && { [[ "$2" == claude ]]; return; }
   case "$2" in "Vibe CLI"|vibe) [[ "$k" == mistral ]]; return ;; "$k") return 0 ;;
     node|nodejs|bun|deno|python|python[0-9]*) ;; *) return 1 ;; esac
-  { IFS= read -r -d '' a0; IFS= read -r -d '' a1; } < "$1/cmdline" 2>/dev/null || true
+  { IFS= read -r -d '' a0; IFS= read -r -d '' a1; } 2>/dev/null < "$1/cmdline" || true
   a0="${a0##*/}"; a1="${a1##*/}"
   case "$a0" in node|nodejs|bun|deno|python|python[0-9]*) a0="$a1" ;; esac
   [[ "$a0" == "$k" || ( "$k" == mistral && "$a0" == vibe ) ]]

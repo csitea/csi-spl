@@ -604,7 +604,7 @@ spl_lane_rotate_child_match() {
     for d in ${kids[$p]:-}; do
       # NULs and line breaks to spaces: a multi-line command (a heredoc, a bash -c
       # script) stays one rotate.log line (SPL-2841)
-      cl="$(tr '\0\n\r' '   ' < "$root/$d/cmdline" 2>/dev/null || true)"
+      cl="$(tr '\0\n\r' '   ' 2>/dev/null < "$root/$d/cmdline" || true)"
       # with "all", a match's own subtree is not searched: a bash subshell of a
       # gate carries the gate's command line and a younger start (R7 W1 c-162)
       grep -qE -- "$2" <<<"$cl" && { echo "$d $(cut -c1-120 <<<"$cl")"; [[ "${3:-}" == all ]] || return 0; continue; }

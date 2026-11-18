@@ -95,6 +95,10 @@
 #      scan row (0 "operand expected", agents=1); with a second, live process
 #      of the id, that row is judged; a non-numeric age is one DEFER line.
 #      Red control (origin/master d5bf6534c): operand-expected=1, agents=2.
+#  34. SPL-5857: a pid gone before its cmdline read (a stat, no cmdline):
+#      spl_lane_rotate_child_match (rc 0) and spl_rotate_cli (rc 1) print no
+#      "cmdline: No such file" line to stderr. Red control (origin/master
+#      8fcc4ec11): 2 lines, rc 0 and 1.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -858,6 +862,17 @@ out="$(bash -c 'do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-lane-rotate
   LR_ROLE_ROT="" LR_ROLES=" " LR_INFLIGHT=" " LR_DEFER=0; spl_lane_rotate_consider c-913 claude 2913 - 1 ""' 2>&1)"
 check "33c. a non-numeric age is one DEFER line, no arithmetic" 'grep -q "c-913 DEFER pid 2913 has no age" <<<"$out" && ! grep -q "operand expected" <<<"$out"'
 check "33. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+
+# --- 34. a pid gone before its cmdline read prints no stderr line (SPL-5857) ---
+# Both readers put 2>/dev/null after the < redirection: the < fails first and
+# its error reached the cron log (730 lines on one box since 2026-10-12).
+mkdir -p "$T/p34/proc/4242"; echo '4242 (bash) S 4241 1 1' >"$T/p34/proc/4242/stat"
+out34="$(LEASE_PROC_ROOT="$T/p34/proc" bash -c 'do_log() { :; }
+  source "$PROJ_PATH/src/bash/run/spl-rotate-lib.func.sh"; source "$PROJ_PATH/src/bash/run/spl-lane-rotate.func.sh"
+  spl_lane_rotate_child_match 4241 "pnpm|go test" all >/dev/null; echo "A rc=$?"
+  ROTATE_KIND=grok spl_rotate_cli "$LEASE_PROC_ROOT/4242" node; echo "B rc=$?"' 2>"$T/p34/err")"
+check "34a. a gone pid's cmdline read: 0 stderr lines" '[ "$(n "$T/p34/err" "cmdline: No such file")" = 0 ]'
+check "34b. the return codes stay: child_match 0, rotate_cli 1" '[ "$(tr "\n" " " <<<"$out34")" = "A rc=0 B rc=1 " ]'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

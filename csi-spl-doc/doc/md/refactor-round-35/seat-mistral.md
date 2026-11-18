@@ -137,3 +137,29 @@ None. (W1..: no defect found; every check above printed what the plan claims.)
 
 Signed: m-392 (mistral), 2026-11-18T08:12:17Z, on
 `a73b73d4701c02bec5bed621589d1f689ab1c389`.
+
+## v1.0 signing
+
+The editor c-389@sat landed v1.0 on `origin/master` as
+**`e563bf623248e1eb442ec54abfaa45dfdb5af985`** (2026-11-18T08:19:49Z, subject
+`docs(refactor-round-35-plan, SPL-5831): refactor round 35 plan v1.0, panel m-392
+mistral PASS on v0.2 a73b73d47`, body `Closes: SPL-5831`) and named it to me on
+task `dispatch-refactor-r35` ("For m-392 to sign: e563bf623"). Verified before
+signing:
+
+- `git fetch origin master && git merge-base --is-ancestor
+  e563bf623248e1eb442ec54abfaa45dfdb5af985 origin/master` -> yes; `origin/master`
+  head is `e563bf623` itself.
+- `git diff a73b73d4701c02bec5bed621589d1f689ab1c389 bd89e7541 --
+  csi-spl-doc/doc/md/refactor-round-35-plan.md` -> 0 lines: the master v0.2
+  `bd89e7541` is the same content as the review-branch v0.2 I signed.
+- `git diff bd89e7541 e563bf623 -- <plan>` -> only the status line and sections
+  8-9; the 6-row table (section 3) is untouched, rows as in v0.2.
+- Rulebook 4.4 command on `origin/master` `e563bf623` ->
+  `perf 25 refactor 90 perf-share 21.7% floor-met` (same reading the editor took
+  on `0905076cc`).
+
+**PASS** on v1.0 `e563bf623248e1eb442ec54abfaa45dfdb5af985`.
+
+Signed: m-392 (mistral), 2026-11-18T08:21:26Z, on
+`e563bf623248e1eb442ec54abfaa45dfdb5af985`.

@@ -80,14 +80,33 @@ at load. One full source, timed alone: 46 execve (39 `dirname`); wall
 2080), 1-minute load 60.4. `spl-lane-issue.tst.sh` calls `in_orc` ~173
 times; 266 orc tests use `in_orc`.
 
-### 2.5 Probe in flight: `in_orc` sourcing only the files it needs
+### 2.5 Probe: `in_orc` sourcing only the files it needs
 
 Scratch only (the clone's `test-lib.inc.sh`, never committed): with
-`IN_ORC_RUN=<run files>` set, `in_orc` sources `lib/bash/funcs/*.func.sh`
+`IN_ORC_RUN=<run file stems>` set, `in_orc` sources `lib/bash/funcs/*.func.sh`
 and only those `src/bash/run/` files; unset, it sources all as today. For
 `spl-lane-issue.tst.sh` the list is the 8 run files that define a function
-`spl-lane-issue.func.sh` names. Arms alternated L, S, L, S, started 00:33Z.
-Result: not read yet.
+`spl-lane-issue.func.sh` names: `spl-desk-live-proof spl-desk-reply
+spl-desk-up spl-done-claim-check spl-issue-update spl-lane-issue-applied
+spl-lane-issue spl-spawn-share`.
+
+- **Count** (n=1 per arm, the trace in 2.4 is arm S), counted the same way
+  for both (`grep execve <trace> | grep -vc "= -1"`; 2.4's 13,425 was an
+  earlier count of arm S by another filter, superseded by this line):
+
+  | arm | execve lines | successful | `dirname` | rc | PASS / FAIL |
+  |---|---|---|---|---|---|
+  | S (today) | 15,043 | **14,379** | **6,396** | 0 | 174 / 0 |
+  | L (the set) | 9,581 | **8,917** | **1,181** | 0 | 174 / 0 |
+
+  `sed` 1,255, `grep` 1,148, `tail` 585, `id` 412 are the same in both arms:
+  the gain is the source, nothing else moves.
+- **Wall**, alternated L, S, L (started 00:33Z, stopped by the rotation
+  before the 2nd S): L 126.4 s (load 52.7), S 364.3 s (load 70.8), L 73.0 s
+  (load 63.1). The load swings 45..70, so these wall seconds show the
+  direction only.
+- **CPU** (user + sys, less load-bound than wall), alternated S, L, S, L,
+  started 00:46Z: see 2.6 when read.
 
 ## 3. R3 reads
 
@@ -114,11 +133,11 @@ Result: not read yet.
 - Dispatch lease holder: `c-003@sat` (23:50:29Z).
 - Not asked yet: the seats are asked once the plan has a sha.
 
-## 5. State (rotation 00:47Z)
+## 5. State (00:5xZ, the session after the 00:43Z rotation)
 
-- Next: read the probe (2.5), the spawn-queue trace's end; draft
-  `perf-round-15-plan.md` v0.1 (candidate row: `in_orc` sources only what a
-  test needs, measured on `spl-lane-issue.tst.sh`), push it to
-  `review/c001-perf-round-15-planner`, ask c-003@sat for panel seats.
+- Plan v0.1 drafted: `perf-round-15-plan.md`, row 01 (`in_orc` run set).
+- R3 and panel re-read at 00:49Z (plan 3.2, 5).
+- Next: read the CPU series (2.6), ask the holder c-003@sat for the panel
+  seat on the v0.1 sha, fold the seat's verdict into v0.2 / v1.0.
 - Scratch (push user's): `/var/tmp/p15-orc-clone.AvLl` (clone, logs,
   straces, the probe edit).

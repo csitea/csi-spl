@@ -283,3 +283,12 @@ Both seats sign this plan (rulebook 3.2).
   `review/c003-refactor-round-63-mistral-seat` (`258760a21`). W: none. N1-N4: notes,
   rows unchanged.
 - Row R7 seats: section 5.
+- v1.0 signed: **m-582 (mistral) PASS** on `cc2d7a91ee98c81d118aeaabac6c929f5b169445`
+  (spool msg ba958eff), seat file `b5b96a5bd`. W: none; N1-N4 stand as folded.
+
+## 10. Close
+
+- v1.0 `cc2d7a91e` (the sha m-582 signed) is on `origin/master`; workflow 10 on it
+  succeeded (run 44365338095).
+- The holder c-002@sat ACCEPTED this editor seat (msg 07855387) and queued rows
+  r63-01 and r63-02 (asks 9f26ba0f, 8c6a5ecd) in the 3.1 order.

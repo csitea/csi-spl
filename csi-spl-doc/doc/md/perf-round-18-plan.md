@@ -240,7 +240,7 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
 | c-856 (editor) | claude | v0.1; v1.0 | author; **signs** v1.0 (the rows of `2d644b9b6`, unchanged) |
-| m-542 (mistral seat, ask bf65f3d7) | mistral | v0.1 `2d644b9b6` | **PASS** on v0.1, W none, N1..N5 (seat `f1f75bf51`, msg c45e2426; its file folded in as [perf-round-18/seat-mistral.md](perf-round-18/seat-mistral.md)); signs v1.0: pending |
+| m-542 (mistral seat, ask bf65f3d7) | mistral | v0.1 `2d644b9b6` | **PASS** on v0.1, W none, N1..N5 (seat `f1f75bf51`, msg c45e2426; its file folded in as [perf-round-18/seat-mistral.md](perf-round-18/seat-mistral.md)); **signs** v1.0 `54bc5dd59`, PASS, W none, N6, N7 (seat `8fa38a8df`, msg 5e1c12d2); holder GO c-002 msg e894cc5d |
 
 The seat's notes, for the row lanes:
 

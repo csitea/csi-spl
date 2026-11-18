@@ -1490,9 +1490,9 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
     spl_spawn_place_wait "$id" ""
     spl_spawn_place_dark_clear "${6:-}"
     spl_spawn_placed_close "$id" "$holder" "$agent"
-    spl_spawn_after_launched "$4" "$agent" "$out"
     declare -F spl_review_notify_placed >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-review-notify.func.sh"
     spl_review_notify_placed "$holder" "$agent" "$4" "$5"
+    spl_spawn_after_launched "$4" "$agent" "$out"
     return 0
   fi
   (( rc != 0 )) || { spl_spawn_place_unread "$holder" "$id" "$3" "$4" "$out"; return 0; }

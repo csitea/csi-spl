@@ -30,6 +30,10 @@
 # @description and the links never posts twice; a row declined after that post is
 # @description added to that discussion once (rows.seen). A post that fails is
 # @description named in ONE blocker to the orchestrator, and retried next run.
+# @description A blocker whose send fails is kept in <state dir>/blocker.pending
+# @description (tenant, topic, tag, base64 body), and each run sends it first until
+# @description it goes, then its key joins failed.keys (SPL-5849: a final refusal's
+# @description copy had already left inherit.pending, so its only record was lost).
 # @description The new discussion takes the archived one's stored priority, when it
 # @description has one (SPL-5147: its re-homed queue rows keep their place). The hub
 # @description copies it (do_spl_topic_inherit_priority); a failed copy is a WARN, a
@@ -84,7 +88,7 @@
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param ARCHIVED_FOLLOWUP_SETTLE_MIN (optional) - minutes an archive holds before it is followed up, default 10 (0..1440)
 # @param ARCHIVED_FOLLOWUP_ISSUES (optional) - 0 (default): declined rows only; 1: the issues move too (before SPL-5284)
-# @param ARCHIVED_FOLLOWUP_STATE_DIR (optional) - since, journal.tsv, rows.seen, failed.keys, inherit.pending; default <spool root>/dispatch/archived-followup
+# @param ARCHIVED_FOLLOWUP_STATE_DIR (optional) - since, journal.tsv, rows.seen, failed.keys, inherit.pending, blocker.pending; default <spool root>/dispatch/archived-followup
 # @param ARCHIVED_FOLLOWUP_ROWS_FILE (optional, tests) - read the rows from this file, not the hub DB
 # @param ARCHIVED_FOLLOWUP_POST_CMD (optional, tests) - replaces do_spl_desk_post: TENANT_ID, DESK_AGENT, DESK_CHANNEL, DESK_BODY_FILE in its env, prints its JSON line
 # @param ARCHIVED_FOLLOWUP_REPLY_CMD (optional, tests) - replaces do_spl_desk_reply: TENANT_ID, DESK_AGENT, DESK_TASK, DESK_TO, DESK_BODY_FILE in its env
@@ -260,7 +264,8 @@ spl_afu_inherit_failed() {
 # file. Column 4 counts the later runs that got not_found; a 3-column row reads 0.
 spl_afu_pending() {
   local dir="$1" dry="$2" tenant topic new tries rc=0
-  [[ -s "$dir/inherit.pending" ]] || return 0
+  spl_afu_blocker_pending "$dir" "$dry" || rc=1
+  [[ -s "$dir/inherit.pending" ]] || return "$rc"
   : >"$dir/inherit.pending.next" || return 1
   while IFS=$'\t' read -r tenant topic new tries; do
     [[ -n "$new" ]] || continue
@@ -276,7 +281,7 @@ spl_afu_pending() {
     else
       [[ "$AFU_INHERIT_OUT" == *not_found* ]] && tries=$((tries + 1))
       if spl_afu_final_refusal; then do_log "WARN $tenant follow-up $new: refused for good, no more tries"; continue
-      elif spl_afu_final_refusal "$tries"; then spl_afu_pending_final "$tenant" "$topic" "$new" "$dir" "$tries"; continue; fi
+      elif spl_afu_final_refusal "$tries"; then spl_afu_pending_final "$tenant" "$topic" "$new" "$dir" "$tries" || rc=1; continue; fi
     fi
     rc=1
     printf '%s\t%s\t%s\t%s\n' "$tenant" "$topic" "$new" "$tries" >>"$dir/inherit.pending.next"
@@ -472,20 +477,58 @@ spl_afu_chain() {
 # spl_afu_blocker TENANT TOPIC DIR WHY [BODY [TAG]]: ONE blocker to the orchestrator
 # per topic (failed.keys), so a topic that keeps failing does not repeat every run.
 # A BODY has its own key, TAG (default held: it lists what was left; inherit: a
-# priority copy that failed).
+# priority copy that failed). A send that fails keeps the blocker in blocker.pending
+# (spl_afu_blocker_keep), which each run sends first; it returns 1 (SPL-5849).
 spl_afu_blocker() {
-  local k="$1"$'\t'"$2" send="${ARCHIVED_FOLLOWUP_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
-  [[ -z "${5:-}" ]] || k+=$'\t'"${6:-held}"
-  if [[ "${6:-}" == inherit* || "${6:-}" == move:* ]]; then :
+  local k="$1"$'\t'"$2" tag=- body
+  [[ -z "${5:-}" ]] || { tag="${6:-held}"; k+=$'\t'"$tag"; }
+  if [[ "$tag" == inherit* || "$tag" == move:* ]]; then :
   elif [[ -n "${5:-}" ]]; then do_log "WARN $1 topic $2: held, nothing posted or linked: $4"
   else do_log "WARN $1 topic $2: no follow-up discussion: $4"; fi
   grep -qxF "$k" "$3/failed.keys" 2>/dev/null && return 0
-  if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$(spl_role_seat 1)" --to orchestrator --kind blocker --task archived-followup \
-      --body "${5:-**BLOCKER** archived discussion /t/$2 ($1) left work, and its follow-up discussion could not be posted as $AFU_AGENT: $4. The next run tries again; action do_spl_archived_followup (SPL-4955).}" >/dev/null 2>&1 8>&- 9>&-; then
-    printf '%s\n' "$k" >>"$3/failed.keys"
-  else
-    do_log "WARN the blocker to the orchestrator was not sent; the next run tries again"
-  fi
+  body="${5:-**BLOCKER** archived discussion /t/$2 ($1) left work, and its follow-up discussion could not be posted as $AFU_AGENT: $4. The next run tries again; action do_spl_archived_followup (SPL-4955).}"
+  spl_afu_blocker_send "$3" "$k" "$body" && return 0
+  spl_afu_blocker_keep "$3" "$1" "$2" "$tag" "$body"
+  do_log "WARN the blocker to the orchestrator was not sent: it waits in blocker.pending, and each run sends it first until it goes"
+  return 1
+}
+
+# spl_afu_blocker_send DIR KEY BODY: the blocker to the orchestrator; once it is
+# sent, KEY joins failed.keys. 1 when the send fails.
+spl_afu_blocker_send() {
+  local send="${ARCHIVED_FOLLOWUP_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
+  SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$(spl_role_seat 1)" --to orchestrator --kind blocker --task archived-followup \
+    --body "$3" </dev/null >/dev/null 2>&1 8>&- 9>&- || return 1
+  printf '%s\n' "$2" >>"$1/failed.keys"
+}
+
+# spl_afu_blocker_keep DIR TENANT TOPIC TAG BODY: one row of blocker.pending per
+# key (TAG - for a blocker with no BODY), the body in base64 (it may hold newlines).
+spl_afu_blocker_keep() {
+  awk -F'\t' -v t="$2" -v k="$3" -v g="$4" '$1 == t && $2 == k && $3 == g { f = 1 } END { exit !f }' "$1/blocker.pending" 2>/dev/null && return 0
+  printf '%s\t%s\t%s\t%s\n' "$2" "$3" "$4" "$(printf '%s' "$5" | base64 -w0)" >>"$1/blocker.pending" ||
+    do_log "ALARM blocker.pending not written: the blocker of $2 topic $3 ($4) is lost"
+}
+
+# spl_afu_blocker_pending DIR DRY: each blocker of blocker.pending is sent again; one
+# that goes (or whose key is already in failed.keys) leaves the file. 1 when one
+# still fails. A dry run names them and sends nothing.
+spl_afu_blocker_pending() {
+  local dir="$1" dry="$2" tenant topic tag b64 k rc=0
+  [[ -s "$dir/blocker.pending" ]] || return 0
+  : >"$dir/blocker.pending.next" || return 1
+  while IFS=$'\t' read -r -u 3 tenant topic tag b64; do
+    [[ -n "$b64" ]] || continue
+    k="$tenant"$'\t'"$topic"; [[ "$tag" == - ]] || k+=$'\t'"$tag"
+    grep -qxF "$k" "$dir/failed.keys" 2>/dev/null && continue
+    if ((dry)); then do_log "WOULD send again: the blocker of $tenant topic $topic ($tag)"
+    elif spl_afu_blocker_send "$dir" "$k" "$(base64 -d <<<"$b64")"; then
+      do_log "OK $tenant topic $topic: its blocker ($tag) went to the orchestrator on a later run"; continue
+    else do_log "WARN $tenant topic $topic: its blocker ($tag) was not sent again, it waits in blocker.pending"; rc=1; fi
+    printf '%s\t%s\t%s\t%s\n' "$tenant" "$topic" "$tag" "$b64" >>"$dir/blocker.pending.next"
+  done 3<"$dir/blocker.pending"
+  mv "$dir/blocker.pending.next" "$dir/blocker.pending" || return 1
+  return "$rc"
 }
 
 # spl_afu_work_left ROWS: drops a reviewer seat's issue. Its brief reviews work

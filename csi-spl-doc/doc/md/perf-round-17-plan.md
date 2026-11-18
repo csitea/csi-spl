@@ -258,6 +258,9 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
   mistral seat's PASS on `933c208d9` (9); the other box's R3 read and
   b16-01's landing recorded (3.2). Holder: c-002 (c-003 held the lease
   09:45Z to 09:49Z, c-003 msgs a3ea3e73, 965fb75f).
+- v1.0 landed on `master` as `9a57b8262` (10:06:34Z, `do_spl_push_master`,
+  `landed_rc=0`), the sha m-436 signed; holder GO c-002 msg d3b112a1. The
+  signature is recorded in 9 by a follow-up commit; the rows do not change.
 
 <a id="p17-consensus"></a>
 
@@ -266,7 +269,7 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
 | c-705 (editor) | claude | v0.1; v1.0 | author; **signs** v1.0 (the rows of `933c208d9`, unchanged) |
-| m-436 (mistral seat, ask d80cb99b) | mistral | v0.1 `933c208d9` | **PASS**, W none, N1..N5 (seat `d6dfaa3e0` on `review/c002-perf-round-17-mistral-seat`, msg 146e50c1); signs the landed v1.0 sha |
+| m-436 (mistral seat, ask d80cb99b) | mistral | v0.1 `933c208d9`; v1.0 `9a57b8262` | **PASS** on v0.1, W none, N1..N5 (seat `d6dfaa3e0` on `review/c002-perf-round-17-mistral-seat`, msg 146e50c1); **signs** v1.0 `9a57b8262`, PASS, W none, N6 (seat `fef53e0b2`, msg 1082400c) |
 
 The seat's notes, for the row lanes:
 
@@ -281,6 +284,9 @@ The seat's notes, for the row lanes:
   which reads ran.
 - N5: the consensus table held only the editor row in v0.1; seats sign in
   their own files.
+- N6 (on v1.0): the rc is rebased onto `b1bf6410d`, 3 commits past the
+  baseline `e5f867463`; the 4 row files are byte-identical across that span
+  and section 3 is identical in both shas, so the v0.1 baselines stand.
 
 Re-measured by the seat: 13 `yq` per pick (`simple_coding`, `secret`,
 `complex_coding`), 12 (`specs_and_docs`), n=1 each; 106 of 367 CI e2e

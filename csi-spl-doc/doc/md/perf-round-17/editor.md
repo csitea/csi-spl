@@ -285,3 +285,6 @@ The hub job then ends some runs; it is not a row (plan section 6).
   verdict on 933c208d`).
 - v1.0 = the rows of v0.1 unchanged, landed on `master` by this seat; the
   seat signs the landed v1.0 sha, then the holder queues p17-01 and p17-02.
+- 10:06:34Z: v1.0 `9a57b8262` landed on `master` (`landed_rc=0`); m-436
+  signed that sha (msg 1082400c, seat `fef53e0b2`, N6). Next: the Qto import
+  (rulebook 4.5), then the holder queues p17-01 and p17-02.

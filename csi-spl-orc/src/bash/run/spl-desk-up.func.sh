@@ -63,7 +63,7 @@
 # @param DESK_WUI_URL (optional) - the WUI origin for the printed DM URL,
 # @param   default https://<env.dns.fqdn> (ENV=self: the hub URL, the compose stack's one origin)
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ROOT_KEY_JSON=/var/csi/csi-spl/tenants/dev/t1.<ts>.json DRY_RUN=0 ./run -a do_spl_desk_up
+# @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ROOT_KEY_JSON=<root key file> DRY_RUN=0 ./run -a do_spl_desk_up
 #------------------------------------------------------------------------------
 do_spl_desk_up() {
   do_require_bin python3 yq flock || return 1

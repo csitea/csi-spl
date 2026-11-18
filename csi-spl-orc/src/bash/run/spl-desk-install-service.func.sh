@@ -324,9 +324,9 @@ spl_desk_cron_boot_env() {
 
 # spl_cron_boot_gate <log file> <needed path> <tag>: the shell every @reboot
 # line runs BEFORE its command. Drill 8 on sat, 2026-10-09: cron ran the five
-# @reboot jobs at 18:38:48Z while /opt, /var/csi and /var/spool-hub (nofail
+# @reboot jobs at 18:38:48Z while /opt, <var>/<org> and /var/spool-hub (nofail
 # binds of /mnt/data, not ordered before cron) mounted 1..6 s later. Every
-# `>> /var/csi/...` redirect failed ("Directory nonexistent"), so no job ran,
+# `>> <var>/<org>/...` redirect failed ("Directory nonexistent"), so no job ran,
 # and cron mailed the error to no MTA: not one line anywhere. The gate waits
 # (bounded, BOOT_CRON_WAIT seconds, default 300) for the needed path and the
 # log's dir, writes a ` BOOT start ` line to the log (to syslog when the log

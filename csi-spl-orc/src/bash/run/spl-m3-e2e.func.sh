@@ -82,7 +82,7 @@
 # @param   <org>-<app>-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh.
 # @param   Set it empty to skip step f (it is then recorded OBSERVED, not PASS)
 # @param SPL_STATE_DIR (optional) - default $HOME/.local/share/<org>-<app>/cloud/<env>
-# @example ENV=dev TENANT_ID=t1 ROOT_KEY_JSON=/var/csi/csi-spl/tenants/dev/t1.<ts>.json ./run -a do_spl_m3_e2e
+# @example ENV=dev TENANT_ID=t1 ROOT_KEY_JSON=<root key file> ./run -a do_spl_m3_e2e
 # @example ENV=prd M3_CREATE_TENANT=1 ./run -a do_spl_m3_e2e
 #------------------------------------------------------------------------------
 do_spl_m3_e2e() {

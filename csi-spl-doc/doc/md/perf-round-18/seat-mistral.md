@@ -2,7 +2,7 @@
 
 Seat: m-542, placement `mistral:c002-perf-round-18-mistral-panel-seat`.
 Brief: `/var/spool-hub/dispatch/briefs/c002-perf-round-18-mistral-panel-seat.md` (Issue SPL-5903, Epic SPL-2402, Spec `csi-spl-doc/specs/027-spool-performance`, class refactor, kind specs_and_docs, topic `5535ab88-d12b-4203-a24d-b82600a872a5`).
-Review target: branch `review/c002-perf-round-18-planner`. Per the brief this seat signs ONLY a sha the editor c-856 names as a plan version: v0.1 `2d644b9b697d6e5a71898740f1f2119697c17b53` (named in the brief). Read in full at that sha: `csi-spl-doc/doc/md/perf-round-18-plan.md` (236 lines) and `csi-spl-doc/doc/md/perf-round-18/editor.md` (186 lines). `git diff --stat origin/master...2d644b9b697d6e5a71898740f1f2119697c17b53` -> 2 files, +422; `git ls-remote origin` -> the branch head is exactly `2d644b9b6...`; `git merge-base --is-ancestor 2d644b9b6 origin/master` -> not on master (expected, review branch); `origin/master` head at my read: `04772cfe582999ab0d09a874b8897041e80b6b1d`.
+Review target: branch `review/c002-perf-round-18-planner`. Per the brief this seat signs ONLY a sha the editor c-856 names as a plan version: v0.1 `2d644b9b697d6e5a71898740f1f2119697c17b53` (named in the brief) and v1.0 `54bc5dd59631b70598b5c5578a2faf2db1f8349b` (named by c-856, msg aaef91ab, on `review/c002-perf-round-18-planner-v1`; signed in the v1.0 section below). Read in full at that sha: `csi-spl-doc/doc/md/perf-round-18-plan.md` (236 lines) and `csi-spl-doc/doc/md/perf-round-18/editor.md` (186 lines). `git diff --stat origin/master...2d644b9b697d6e5a71898740f1f2119697c17b53` -> 2 files, +422; `git ls-remote origin` -> the branch head is exactly `2d644b9b6...`; `git merge-base --is-ancestor 2d644b9b6 origin/master` -> not on master (expected, review branch); `origin/master` head at my read: `04772cfe582999ab0d09a874b8897041e80b6b1d`.
 
 ## Verdict
 
@@ -17,7 +17,7 @@ Review target: branch `review/c002-perf-round-18-planner`. Per the brief this se
    - plan cites `wf10:263-347` (row 01, hub-suite), `wf10:378-389` (row 02, free-up + guard), `wf10:392-481` (hub-pg cache pattern); editor cites `10_ci-quality.yml:263-347`, `:399-481`, `:378-384`.
    - `sed -n '263p'` -> `  hub-suite:`; `sed -n '347p'` -> the job's last line (348 blank, `sed -n '349p'` -> `  hub-pg:`), so 263-347 is exactly the hub-suite job.
    - `sed -n '378p'` -> `      - name: Free disk on a hosted runner (toolchains this job does not use)`; `sed -n '384p'` -> its last `df -h` line; `sed -n '389p'` -> `      - name: Disk guard (CI_DISK_NEED_GB free, else "disk full before tests")` — so 378-389 is the free-up plus the guard, as the plan says.
-   - `sed -n '392p'` -> `# A hosted VM starts with an empty GOCACHE, so the gate spent ~350 s`; `sed -n '399p'` -> `      - name: Restore the Go build cache (race + cover builds of the hub)`; `sed -n '412p'` -> `key: go-race-pg-v2-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('csi-spl-api/src/go/spool-hub-api/go.sum') }}-${{ hashFiles('csi-spl-api/src/go/**/*.go') }}`; `sed -n '481p'` -> the save step's `key: ${{ steps.gocache-restore.outputs.cache-primary-key }}` — so 392-481 / 399-481 is the hub-pg cache block with key prefix `go-race-pg-v2-`, as the plan says.
+   - `sed -n '392p'` -> `# A hosted VM starts with an empty GOCACHE, so the gate spent ~350 s`; `sed -n '399p'` -> `      - name: Go build cache path`; `sed -n '407p'` -> `      - name: Restore the Go build cache (race + cover builds of the hub)`; `sed -n '412p'` -> `key: go-race-pg-v2-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('csi-spl-api/src/go/spool-hub-api/go.sum') }}-${{ hashFiles('csi-spl-api/src/go/**/*.go') }}`; `sed -n '476p'` -> `      - name: Save the Go build cache (exact miss only, never from a pull request)`; `sed -n '481p'` -> the save step's `key: ${{ steps.gocache-restore.outputs.cache-primary-key }}` — so 392-481 / 399-481 is the hub-pg cache block (path step, restore, mark/trim/cap, save) with key prefix `go-race-pg-v2-`, as the plan says.
    - `grep -n 'actions/cache' <wf10>` -> lines 409, 1087, 1353, 1528, 1557; none inside 263-347, confirming the plan's "hub-suite has no Go build cache step".
    - The plan's side claim: `git show origin/master:csi-spl-doc/doc/md/pre-push-gate.md | grep -c 'go-race-pg'` -> `0`, and the same on `897e67e13` -> `0`. `git show origin/master:csi-spl-api/src/bash/tests/build-warm-mod-cache.tst.sh | sed -n '40p'` -> `export GOMODCACHE="$T/mod" GOCACHE="$T/build"` (throwaway GOCACHE, as the plan says).
    - No cited line drifted.
@@ -49,3 +49,30 @@ None. Both rows carry practice, baseline (command, number, n), after, sites, a t
 - N3: check 3 re-read n=2 of the plan's 8 runs; range membership is verified, the n=8 means (1,040 s hub-suite, 724 s hub-pg) were not recomputed.
 - N4: `git ls-remote origin | grep -E 'p18-[0-9]{2}|perf-round-18'` at my read shows only the planner's branch; this seat's branch `review/c002-perf-round-18-mistral-seat` appears once this file is pushed (expected per the brief).
 - N5: the editor's stability claims verified: `git log --oneline 17f9cc2d2..897e67e13 -- .github/workflows/10_ci-quality.yml csi-spl-api/src/bash/tests/run-all-tests.sh csi-spl-api/src/bash/tests/cli-cross-build.tst.sh csi-spl-api/src/bash/tests/build-stripped.tst.sh csi-spl-orc/src/bash/scripts/ci-disk-guard.sh | wc -l` -> `0`; `git log origin/master --oneline -E --grep='\(p17-'` shows `b97a764ff` (p17-01) and `a58cc3434` (p17-02) landed; `git merge-base --is-ancestor 897e67e13 origin/master` -> yes.
+
+<a id="p18-seat-v1"></a>
+
+## v1.0 signature (2026-11-18 15:4x-15:5xZ)
+
+Editor c-856 named v1.0 `54bc5dd59631b70598b5c5578a2faf2db1f8349b` on `review/c002-perf-round-18-planner-v1` (msg aaef91ab, task dispatch-perf-r18): 2 commits on origin/master `8de1d37b1` (v0.1 `d1e401d55`, v1.0 `54bc5dd59`). Verified: `git ls-remote origin | grep perf-round-18` -> `f1f75bf5... review/c002-perf-round-18-mistral-seat`, `2d644b9b6... review/c002-perf-round-18-planner`, `54bc5dd5... review/c002-perf-round-18-planner-v1`; `git log --oneline origin/master..origin/review/c002-perf-round-18-planner-v1` -> the 2 plan commits; `git diff --stat d1e401d55..54bc5dd59` -> only the 3 plan files, +88/-5.
+
+**PASS on `54bc5dd59631b70598b5c5578a2faf2db1f8349b`** (plan v1.0; the rows of v0.1 `2d644b9b6` are unchanged).
+
+Checks re-run on origin/master `8de1d37b14baa7003f72e783038d0002f66d8776`:
+
+1. `git log origin/master --oneline -E --grep='\(p18-' | wc -l` -> `0`; ls-remote grep -> only the 3 expected review branches above.
+2. `git show origin/master:.github/workflows/10_ci-quality.yml` -> 1974 lines; `diff` against the export read at `04772cfe5` -> IDENTICAL. Cited lines: 263 `  hub-suite:`, 347 the job's last line (349 `  hub-pg:`), 378 the free-up step name, 389 the disk guard step name, 392 the empty-GOCACHE comment, 399 `Go build cache path`, 407 `Restore the Go build cache (race + cover builds of the hub)`, 412 `key: go-race-pg-v2-...`, 476 the save step name, 481 the save key. `grep -n 'actions/cache'` -> 409, 478, 1087, 1353, 1528, 1557; none inside 263-347. Row files unchanged since the baseline: `git log --oneline 897e67e13..8de1d37b1 -- .github/workflows/10_ci-quality.yml csi-spl-api/src/bash/tests/ csi-spl-orc/src/bash/scripts/ci-disk-guard.sh | wc -l` -> `0`.
+3. `gh run view 44293871166 --json headSha,conclusion` -> `17f9cc2d2... success`; `--json jobs` -> hub-suite `1192s`, hub-pg `691s`. `gh run view 44324913160` -> `a58cc3434... success`; hub-suite `879s`, hub-pg `791s`. Same as the v0.1 read; inside the plan's ranges.
+4. Rows unchanged: `git diff 2d644b9b6 54bc5dd59 -- csi-spl-doc/doc/md/perf-round-18-plan.md` changes no section-3 table row (the only changed `|` rows are the section-9 consensus rows); both rows still `claude / simple_coding`, batches 1 and 2, R7 never a plan seat. On the new master: `ci-build-once.tst.sh` EXISTS; `ci-hub-suite-gocache.tst.sh` and `ci-hub-pg-disk.tst.sh` MISSING (correctly the rows' new files).
+5. The rulebook 4.4 floor pipeline on a fresh fetch -> `perf 27 refactor 93 perf-share 22.5% floor-met` (unchanged).
+6. `lane-map.sh --check .github/workflows/10_ci-quality.yml --agent m-542` -> exit 4: `WARN no live lane lists .github/workflows/10_ci-quality.yml, but 17 live lane(s) record no files` (c-054, c-060, c-390, c-714, c-812, c-815, c-818, c-829, c-835, c-845, c-849, c-856, c-859, c-866, c-871, c-924, c-927; box qualifiers dropped per the hygiene sweep). No lane owns the file; exit 4 is not free.
+7. `git show origin/master:csi-spl-doc/doc/md/refactor-round-62-plan.md | grep -c '10_ci-quality'` -> `0`; newest bug plan on master is still `bug-round-17-plan.md` (`git ls-tree ... | grep -E 'bug-round-[0-9]+-plan' | sort -V | tail -1`), its grep -c -> `0`.
+8. `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/m-542`, exit 0 (re-run after this edit as well).
+
+Defects (v1.0): none.
+
+Notes (v1.0):
+
+- N6: correction to the v0.1 check 2 above: on origin/master, wf10:399 is `- name: Go build cache path`; the restore step's name is at 407, its key at 412, the save step at 476 with its key at 481. The editor's `:399-481` range covers the whole hub-pg cache block either way; no drift.
+- N7: master moved `04772cfe5` -> `8de1d37b1` between the v0.1 and v1.0 reads; wf10 and the row files are byte-identical across it (diff IDENTICAL, log 0 lines), so no baseline moved; the 4.4 floor line is unchanged.
+- N1..N5 stand as written above.

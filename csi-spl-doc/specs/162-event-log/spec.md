@@ -4,6 +4,10 @@ Version v1.0 (2026-10-28): the panel's pass folded (section 8). The
 panel's second seat is a mistral reviewer, read-only (owner 10-27); it
 signs section 9 in its own commit.
 
+v1.1-draft (2026-11-18): section 10 added, backend errors into the System
+log (SPL-5882, owner t1 topic `bfd5af01`). Sections 1-9 are unchanged.
+Section 10 waits for its own review; its build rows start after it signs.
+
 Source: owner HUM-10, t1 topic `cfaa3dce`. Issue SPL-4024 (this spec),
 epic SPL-2403. The Monitoring tab row it lives in is spec 153. Each build
 row in section 5 gets its own issue when it is placed. The build rows
@@ -392,3 +396,467 @@ and loop lines). No row of section 5 changed.
 
 - Editor: c-390 (claude), the v1.0 commit.
 - Reviewer: m-513 (mistral, read-only): signed v1.0 (1da9cb478).
+
+## 10. Backend errors into the System log (v1.1-draft, SPL-5882)
+
+### 10.1 The owner's asks, and why this spec holds them
+
+Owner HUM-10, t1 topic `bfd5af01` (#spool-hub-ops), 2026-11-18:
+
+| msg | text |
+|---|---|
+| `0b7c9534` | "we need a mechanism how-to trap errors from the backend, collect and report them. Now the events are trapping errors from the wui mostly : https://spool-hub.ai/monitoring/events , we need a system how-to get them from the STDERR of the container or from the CloudRun and put them into the same EventLog" |
+| `58c65b39` | "so that the bug fix lanes could be used to scan those entries ,create issues and start work on them ..." |
+| `f6b251db` | "the goal will be to have as errorless and bugless e2e implmentation as posible" |
+| `d0e0085f` | "we should be much more like google and much less like microsoft in this regard" |
+| `e05d9c00` | "for the hub owns panics / cloud run crashes - the component must be running on the sat box , but should bedone so that it could be running in the [main] box as well" (the second box name replaced: distribution hygiene) |
+| `6ddfaa91` | "I guess it could be cron scheduled and run every hour or something ..." |
+
+The dispatcher's plan in the topic, msg `a6609004` (c-002, 10:35Z): a new
+section of spec 162; the hub writes its own 5xx and panics as system events;
+a reader takes what the hub cannot see from Cloud Logging; one row per
+fingerprint with a count; the bug round planner reads new groups as one more
+source. This section follows that plan. It differs in one place: the plan
+says the reader "needs a terraform step (a log sink and its permission)".
+It needs neither by default (10.4.3): the reader queries the bucket the
+hub's lines already reach, with the per-env service account that already
+holds the read. A terraform grant is the owner's option B of Q1 (10.10).
+
+Why a section of 162 and not a new spec: the rows go into 162's
+`system_events` table (3.1), they are read and deleted through 162's routes
+(3.2) and shown on 162's page (3.5, the System scope). The new parts are a
+producer, a reader and three columns; none of them is a new log.
+
+Every `file:line` below was read on origin/master `04ca1d897`
+(2026-11-18). Nothing was measured on dev or prd for this draft: today's
+5xx rate, panic rate and the exact Cloud Run log strings are unread
+(10.11, R5 and R6). Paths use the aliases at the top of this spec.
+
+### 10.2 What exists on master
+
+- **The 5xx and panic path.** `hub/server.go:888-911` (`middleware`):
+  every request runs under a `recover()`; a panic before any header is
+  answered 500 `internal` through `writeErrCause`. A status >= 500 or a
+  panic calls `logServerError` (`:917-935`): one ERROR line with
+  `request_id`, `method`, `route` (the mux pattern, `r.Pattern`), `path`,
+  `status`, and the cause `writeErr` noted (`token`, `detail`, `site` =
+  the handler's file:line, `err`), message `http 5xx` or `handler panic`.
+  The cause is put on the `statusWriter` (`:871-879`) by `noteCause`
+  (`:834`), from `writeErr` (`:815`) and `writeErrCause` (`:824`). No body,
+  query string or header is logged (Constitution VII, the comment at
+  `:913-916`).
+- **The loop panics.** `hub/supervise.go:39-64`: each background loop
+  (`cmd/spool/hub.go:144-149`, `:156-159`, `:355`) runs under
+  `runOnce`'s `recover()` (`:68-76`); a panic writes one ERROR line
+  `hub loop panicked; restarting` (`LoopPanicMsg`, `:25`) with the loop
+  name, panic value and stack (`:52-53`), and the loop restarts.
+- **Other ERROR lines.** `s.o.Log.Error()` is called at 493 sites in
+  `hub/*.go` outside the tests (`grep -n "Log.Error()" internal/hub/*.go |
+  grep -v _test | wc -l` -> 493).
+- **Where the lines go.** `internal/logging/logging.go:31-42`: JSON to
+  stderr when deployed; `severityWriter` (`:48-79`) puts Cloud Logging's
+  `severity` on each line (SPL-4473), so an ERROR line is
+  `severity=ERROR` in Cloud Logging. cnf `hub.log_bucket: _Default`
+  (`csi-spl-cnf/csi-spl/all.env.yaml:401`); spec 169 T13c read the hub's
+  `requests` and `stderr` lines in that bucket on dev (30 days kept,
+  2026-11-07; prd not read).
+- **None of it is a row.** Of the System log's kinds
+  (`store/log_events.go:32-54`) the hub writes `hub.started`
+  (`hub/box_lease.go:169-180`, called at `cmd/spool/hub.go:142`) and
+  `lease.*` (`logLeaseHandover`, `hub/box_lease.go:144`). No error kind.
+  A crash, an out-of-memory kill, a failed start and a Cloud Run answer
+  that never reached the hub are only in Cloud Logging, and nothing reads
+  them back.
+- **The System log has no page yet.** The routes are live
+  (`hub/log_events.go:49-53`, row B3), the WUI scope switch is row B8,
+  not built (`git grep -n "operator/events" origin/master --
+  csi-spl-wui/src` -> 0 lines).
+- **Box frames.** A box talks to the hub in frames; `hub/ws.go:183`
+  dispatches `wire.TLease` to `onLease` (`hub/box_lease.go:49-67`), which
+  pairs the reply by `msg_id` and reads the tenant from the session, never
+  from the frame. The new reader frame (10.4.4) has that shape.
+- **The read permission.** The reader's identity is the per-env project
+  service account (repo CLAUDE.md, "Service accounts only"). gcp-003 gives
+  it `roles/owner` on its project
+  (`csi-spl-iac/src/bash/run/gcp-003-configure-proj-sa-permissions.func.sh:34`),
+  which holds `logging.logEntries.list`. The hub's runtime SA
+  (`csi-spl-iac/src/terraform/030-cloud-run-hub/03-runtime-sa.tf`) has no
+  logging read, and needs none: the hub never reads its own logs.
+
+### 10.3 Error classes and their two sources
+
+| kind | class | source | written by |
+|---|---|---|---|
+| `error.http_server` | the hub answered a 5xx (a handler's `writeErr` / `writeErrCause` with status >= 500) | (a) in-process | `logServerError` |
+| `error.panic` | a request handler panicked; the middleware recovered it | (a) | `logServerError` (`rec != nil`) |
+| `error.loop_panic` | a supervised loop panicked and restarted | (a) | `supervise` |
+| `error.log` | any other ERROR-level line of the hub | (a) | a zerolog hook (10.4.2) |
+| `error.go_fatal` | an unrecovered panic or `fatal error:` (a goroutine outside any `recover()`): the process died | (b) out-of-process | the box reader |
+| `error.cloudrun_oom` | Cloud Run killed the container over its memory limit | (b) | the box reader |
+| `error.cloudrun_crash` | the container exited or was killed on a signal (not a scale-down) | (b) | the box reader |
+| `error.cloudrun_start` | a revision failed its startup probe or never became ready | (b) | the box reader |
+| `error.cloudrun_request` | Cloud Run answered 5xx for a request the hub never logged (no instance, timeout, overload) | (b) | the box reader |
+| `error.cloudlog_other` | any other line at `severity>=ERROR` of the hub's service that no rule above takes | (b) | the box reader |
+| `evlog.overflow` | more groups in one flush or one read than the cap (10.4.5); the row counts the groups dropped | (a), (b) | either |
+
+Every kind matches rdb 0240's `kind` CHECK (`^[a-z]+(\.[a-z_]+)+$`; a
+digit is not allowed, hence `error.http_server`, not `http_5xx`) and is one
+const in `store/log_events.go` (`LogEventKinds`, pinned by
+`TestLogEventKinds`). Level: `error` for every `error.*` kind, `warn` for
+`evlog.overflow`. Actor: `hub` for (a); `cloud-logging` for (b).
+
+Source (a) is what the hub sees itself: it writes those rows at the moment
+they happen. Source (b) is what dies with the process or never reaches it:
+only Cloud Logging has it, and the box reader takes it from there.
+
+### 10.4 The design
+
+#### 10.4.1 One pure package for both sources
+
+New `api/internal/evlog/` (pure Go, no store, no HTTP), used by the hub and
+by the `spool` CLI, so the box and the hub group and redact in one way:
+
+- `Redact(s string) string`: the redaction rule of 10.6.
+- `Normalize(s string) string`: after `Redact`, replaces each UUID with
+  `<uuid>`, `HUM-<digits>` with `HUM-<n>`, `<agent letter>-<3 digits>` with
+  `<agent>`, each run of 8+ hex digits with `<hex>`, each other number with
+  `<n>`, each double- or single-quoted string with `<s>`; collapses blanks;
+  cuts to 800 runes (rdb 0240's `message` cap).
+- `TopFrame(stack string) string`: the first function of this module
+  (`github.com/csitea/csi-spl/`) in a Go stack, without file or line, so a
+  release that moves lines does not split one error into two groups.
+- `Fingerprint(kind, msg, anchor string) string`: the first 16 hex of
+  sha256(`kind` NUL `Normalize(msg)` NUL `anchor`). The anchor is the mux
+  pattern for `error.http_server` (plus the `token`), `TopFrame` for a
+  panic, the loop name for `error.loop_panic`, the calling function for
+  `error.log`, and the class's fixed name for the Cloud Run kinds.
+- `Classify(entry) (Group, bool)`: one Cloud Logging entry (the JSON of
+  `gcloud logging read --format=json`) to a group, by the rules of 10.4.4;
+  `false` = not an error, or written by the hub itself.
+- `Group{Kind, Level, Message, Fingerprint, FirstAt, LastAt, N}` and
+  `Groups`, a bounded map that adds a sighting (`N++`, `LastAt`) or opens a
+  group, with the cap of 10.4.5.
+
+#### 10.4.2 Source (a): the hub writes its own errors
+
+- **5xx and handler panics.** In `logServerError` (`hub/server.go:917`),
+  after the ERROR line: one sighting into the server's `Groups`. 5xx:
+  kind `error.http_server`, message
+  `<status> <token> at <site>: <err>` (the `err` text through `Normalize`),
+  anchor `<route> <token>`. Panic: kind `error.panic`, message
+  `panic: <value>` (`Normalize`), anchor `TopFrame` of
+  `debug.Stack()` taken in the middleware's deferred func (`:897`), before
+  the stack unwinds further.
+- **Loop panics.** `supervise` (`hub/supervise.go:52`) has the panic value
+  and stack: one sighting, kind `error.loop_panic`, anchor the loop name.
+  How `supervise` reaches the server's `Groups` (a parameter of
+  `Supervise`, or a field the server sets) is the build lane's choice; C31
+  holds the behaviour.
+- **Every other ERROR line.** A zerolog hook on the hub's logger
+  (`Logger.Hook`, added where `cmd/spool/hub.go` builds `log`) takes every
+  line at level >= error whose message is not one of the messages written
+  above (`http 5xx`, `handler panic`, `LoopPanicMsg`, `EvlogUnwrittenMsg`):
+  kind `error.log`, message the line's message (a hook sees the message,
+  not the fields), anchor the calling function (`runtime.Caller` at the
+  depth the test pins, C32).
+- **The write is batched.** A sighting is an in-memory add under a mutex,
+  never a database call on the request path. A supervised loop,
+  `evlog-flush`, writes every group touched since the last flush every 30 s
+  (cnf `hub.evlog.flush_s`, default 30) and at shutdown: one upsert per
+  group (10.5), `N` = the sightings since the last flush. A storm of 10 000
+  identical 5xx in 30 s is one upsert.
+- **When the write fails** (the database is down, which is when 5xx storm):
+  one ERROR line per group, message `EvlogUnwrittenMsg` =
+  `event log write failed`, fields `fp`, `kind`, `n`, `first_at`,
+  `last_at`, `message`. The groups are then dropped from memory. The box
+  reader takes those lines (10.4.4 rule 1), so the counts reach the table
+  an hour later instead of being lost. The hook skips this message, so it
+  never loops.
+- **Trace on the lines.** The middleware adds Cloud Logging's
+  `logging.googleapis.com/trace` field (from the `X-Cloud-Trace-Context`
+  header and the project id) to its `http` access line (`:906-907`) and to
+  `logServerError`'s line. The reader uses it to tell a Cloud Run 5xx from
+  the hub's own (rule 4).
+- **Lost on a crash.** Sightings not yet flushed die with the process: up to
+  30 s of counts. The crash itself is still a row, from source (b).
+
+#### 10.4.3 Source (b): the box reader, an hourly cron
+
+Per `e05d9c00` and `6ddfaa91`: a box component, not a Cloud Run job.
+
+- **The action.** `cd csi-spl-orc && ENV=<dev|prd> ./run -a
+  do_spl_evlog_read` (new `orc/run/spl-evlog-read.func.sh`). `ENV`
+  required; `DRY_RUN` default 1 (prints the groups it would send, sends
+  nothing); `EVLOG_MAX_WINDOW_H` default 24.
+- **The cron.** One row of `csi-spl-orc/cnf/box-crons/box-crons.manifest`,
+  `evlog-read`, installed by `do_install_box_crons` like every box cron
+  (each run under its own lock, `cron-no-stack.sh`: a slow run never
+  stacks). It runs on the boxes the cnf names,
+  `env.box.evlog_reader.boxes` (today the satellite box, per `e05d9c00`),
+  every `env.box.evlog_reader.interval_min` minutes (60, per `6ddfaa91`),
+  for each env in `env.box.evlog_reader.envs` (`[dev, prd]`). Nothing in
+  the action names a box, user, host or path: the box name comes from the
+  cnf and `hostname -s`, the paths from `spl_run_paths`. Listing a second
+  box in the cnf is the whole move to it (C40).
+- **The identity.** The per-env project service account, from its key
+  `$HOME/.gcp/.csi/key-csi-spl-<env>.json` (its `client_email`), activated
+  in a throwaway `CLOUDSDK_CONFIG`, `--account` on the call, through the
+  existing helper `do_gcp_pin_account` (`csi-spl-orc/lib/bash/funcs/gcp-account-pin.func.sh:251`, the path `do_spl_db_query`
+  takes). No owner account, no write to the shared gcloud config. Its
+  `roles/owner` (gcp-003) already holds `logging.logEntries.list`, so
+  option A of Q1 needs no grant and no terraform. A box without the key
+  exits 3 with one line naming the missing key and sends nothing.
+- **The read.** `gcloud logging read` on project `csi-spl-<env>`, JSON,
+  ascending, filter:
+  `resource.type="cloud_run_revision" AND
+  resource.labels.service_name="<cnf hub.service_name>" AND
+  timestamp>="<from>" AND timestamp<"<to>" AND (severity>=ERROR OR
+  log_id("run.googleapis.com/varlog/system") OR httpRequest.status>=500)`.
+  No sink: the lines are in the `_Default` bucket (cnf `hub.log_bucket`).
+- **The window.** From the hub's cursor (10.4.4) to now minus 2 min (Cloud
+  Logging's ingest lag), at most `EVLOG_MAX_WINDOW_H` hours; a first run
+  starts one hour back. A box that was off for a day catches up in
+  24-hour steps, one per run.
+
+#### 10.4.4 The write to the hub: one frame, a cursor, no double write
+
+- **CLI.** `spool evlog cursor --env <env>` prints the hub's cursor
+  (`read_until`, `gen`); `spool evlog put --from <ts> --to <ts> --gen <n>`
+  reads the gcloud JSON on stdin, runs `evlog.Classify` on each entry,
+  groups with `evlog.Groups`, and sends one frame. Raw lines never leave the
+  box: only grouped, redacted, normalized rows do.
+- **Frame.** New `wire.TEvlog` (`"evlog"`), `evlog_op` `cursor` or `put`,
+  `msg_id` paired like the lease frame, the groups (at most 500) and the
+  window. The hub takes it only from a box session of the operator
+  workspace (`x.tenant` = `operatorTenant`), else 403
+  `operator.workspaces`; the strict frame parser accepts the new fields
+  once the row is served.
+- **No double write, two boxes.** The hub keeps one cursor per env
+  (`system_events_cursor`, 10.5). A `put` is a compare-and-set: in one
+  transaction the hub checks `gen` = the stored gen and `from` = the stored
+  `read_until`, moves the cursor to `to` with `gen + 1`, and upserts the
+  groups. A stale gen answers 409 `cursor_moved` and writes nothing; the
+  losing box prints one `SKIP` line and exits 0. Two boxes reading the same
+  hour therefore count it once, and a box that takes over continues where
+  the other stopped. No lease is needed, and the fingerprint upsert alone
+  would not be enough (it would add both boxes' counts).
+- **Classify rules**, in order (the exact Cloud Run strings are read on
+  dev by row T7 before the rules are fixed, R5):
+  1. a JSON line of the hub with message `event log write failed`: the
+     group it names (its `fp`, `kind`, `n`, ...), as the hub would have
+     written it;
+  2. any other JSON line of the hub (it carries `service: spool`) at
+     ERROR: skipped, the hub wrote it itself (10.4.2);
+  3. a `varlog/system` line: memory limit exceeded -> `error.cloudrun_oom`;
+     container exit or terminated on a signal, not a scale-down ->
+     `error.cloudrun_crash`; startup probe failed or revision not ready ->
+     `error.cloudrun_start`;
+  4. a request-log entry with `httpRequest.status >= 500` whose `trace` has
+     no hub `http` access line in the window -> `error.cloudrun_request`,
+     anchor the status; one with a hub line is the hub's own 5xx, skipped;
+  5. a non-JSON stderr line starting `panic:`, `fatal error:` or a
+     `goroutine N [` block -> `error.go_fatal`, anchor `TopFrame` of the
+     lines that follow it in the same second (Cloud Logging may split one
+     dump into many entries: R5);
+  6. anything else at `severity>=ERROR` -> `error.cloudlog_other`.
+
+#### 10.4.5 Caps
+
+- In-process: at most 1000 open groups between two flushes; a new
+  fingerprint past that is counted, not kept, and the flush writes one
+  `evlog.overflow` row, message `<n> error groups not kept (cap 1000)`.
+- Reader: at most 500 groups per frame; past that, the same overflow row.
+- A group's row is one row for life (10.5), so the table grows with the
+  number of distinct errors, not with their rate.
+
+### 10.5 Grouping: one row per fingerprint (table change)
+
+One forward-only migration, `rdb/<next>_system_events_error_groups.sql`
+(named here, not written; the number is taken with `do_rdb_migration_next`
+at build time):
+
+- `system_events` gains `fingerprint text NOT NULL DEFAULT ''` (CHECK
+  `^([0-9a-f]{16})?$`), `first_at timestamptz` (NULL for a non-error row),
+  `n integer NOT NULL DEFAULT 1` (CHECK `n >= 1`), `issue_key text NOT NULL
+  DEFAULT ''` (CHECK `^([A-Z][A-Z0-9]*-[0-9]+)?$`) and `issue_n integer NOT
+  NULL DEFAULT 0` (the count when the issue was filed). Existing rows keep
+  `fingerprint = ''` and are not grouped.
+- `CREATE UNIQUE INDEX ux_system_events_fingerprint ON system_events
+  (fingerprint) WHERE fingerprint <> ''`.
+- New `system_events_cursor (env text PRIMARY KEY CHECK (env IN ('dev',
+  'prd')), read_until timestamptz NOT NULL, gen bigint NOT NULL DEFAULT 0,
+  by_actor text NOT NULL DEFAULT '')`: hub-wide, outside RLS, like
+  `system_events`. The hub of an env writes its own env's row only.
+
+The upsert (`store.UpsertSystemErrorGroup`, memory and Postgres):
+`INSERT ... ON CONFLICT (fingerprint) WHERE fingerprint <> '' DO UPDATE SET
+id = DEFAULT, at = GREATEST(system_events.at, EXCLUDED.at), first_at =
+LEAST(system_events.first_at, EXCLUDED.first_at), n = system_events.n +
+EXCLUDED.n, message = EXCLUDED.message`, then the existing trim
+(`pgSystemEventTrim`). `id = DEFAULT` gives a repeating group a new id, so
+the newest-first page (ordered by id, `hub/log_events.go:182-203`) shows it
+on top by its last sighting, and the keep-by-id trim never drops a group
+that is still firing. Whether PostgreSQL 16 takes `SET id = DEFAULT` on a
+`GENERATED ALWAYS` identity in `ON CONFLICT DO UPDATE` is checked by C34 on
+Postgres before anything else in T2; if it refuses, the fallback is a
+delete and re-insert in the same transaction, carrying `first_at`, `n` and
+the issue columns. Links and the bug lane key on `fingerprint`, never on
+`id`.
+
+A group the trim drops (silent for longer than 10 000 newer rows) and that
+fires again opens a new row with `n = 1`: a regression is new again, and
+the bug lane finds its old issue by the fingerprint line in the issue
+(10.7).
+
+### 10.6 What a row shows, and what never reaches one
+
+- **On Monitoring > Events, System scope** (row B8, then T5): when (the
+  last sighting, `at`), kind, level, message, origin, and for an error
+  group: count `n`, first seen `first_at`, the fingerprint (8 hex shown,
+  16 on hover) and the issue as a link (`/issues/<KEY>`) when
+  `issue_key` is set. `origin_kind = component`, `origin_ref` = the route
+  pattern for `error.http_server`, the loop name for `error.loop_panic`,
+  `cloud-run/<revision>` for the Cloud Run kinds. Admins of the operator
+  workspace only (3.2); Delete selected works as on every log.
+- **Redaction**, applied by `evlog.Redact` before `Normalize`, on every
+  text that reaches a row (message, origin_ref) and on the `put` frame
+  before it leaves the box:
+  - an email address -> `<email>`;
+  - `Bearer <x>`, and the value after `token`, `key`, `secret`,
+    `password`, `pwd`, `sig`, `signature`, `authorization`, `cookie`,
+    `dsn` (`=`, `:` or a JSON key) -> `<redacted>`;
+  - a JWT (`eyJ...` with two dots) -> `<jwt>`; a PEM block -> `<pem>`;
+  - a URL's query string -> `?<q>`; userinfo in a URL (`//u:p@`) ->
+    `//<redacted>@`;
+  - a postgres DSN -> `<dsn>`;
+  - any run of 24 or more characters of `[A-Za-z0-9+/_=-]` -> `<blob>`.
+- **Never read**: the request body, any header but `X-Cloud-Trace-Context`,
+  the query string, the URL path (the mux pattern stands for it), a message
+  body. These are not redacted, they are never taken.
+- **Personal data**: a person shows only as `HUM-<n>`, an agent as
+  `<agent>` (10.4.1). Backend errors go to the System log only, never to a
+  person's Mine log (Q4).
+- **The test** (C29, C30): a table of 14 planted strings, one per rule
+  plus a mixed line, through `Redact`; each must be gone from the output.
+  A hub case: a handler that panics with a value holding a planted bearer
+  token, an email and a DSN; the stored row holds none of the three. Red
+  control: `Redact` as the identity function; the table case and the hub
+  case fail, naming the leaked string.
+
+### 10.7 The bug-lane hook
+
+- **The read.** New `cd csi-spl-orc && ENV=<env> ./run -a
+  do_spl_evlog_groups` (new `orc/run/spl-evlog-groups.func.sh`): through
+  `GET /v1/operator/events?kind=error.` (a kind-prefix filter, new in T4),
+  it prints one line per group that is **new** (`issue_key = ''`) or
+  **growing** (`n > 2 * issue_n` and `n - issue_n >= 10`, or its issue is
+  done and it fired after the issue closed), with fingerprint, kind, n,
+  first and last seen, message. Read only.
+- **One more source.** The bug round plan's section 2 gets a sixth source
+  row, `6. Backend error groups (spec 162 section 10)`, its command
+  `ENV=prd ./run -a do_spl_evlog_groups` and `ENV=dev ...`, read on the
+  plan's sha like the other five. The rounds rulebook (3.1) names it.
+- **One issue per group.** The planner (or the row lane) files one issue
+  per new group: class `bug`, priority 2 (rulebook, bugs at priority 2),
+  title `<kind>: <message, 80 runes>`, and a body line
+  `evlog-fp: <fingerprint>`. Before it files, it searches the open and done
+  issues for that line; a hit is reused (reopened when done), never a
+  second issue. Dedup is by fingerprint, so a trimmed and re-opened group
+  (10.5) finds its old issue.
+- **The link, both ways.** New `POST /v1/operator/events/link`, body
+  `{"fingerprint": "<16 hex>", "issue_key": "SPL-n"}`, operator admins only:
+  sets `issue_key` and `issue_n = n` on the group. The issue holds the
+  fingerprint line; the row holds the key. A new action wraps it,
+  `do_spl_evlog_link` (FP, ISSUE_KEY, DRY_RUN).
+- **Done.** A fix lands, the issue closes (the closer, as for every
+  issue). If the group fires again after the close, the next read lists it
+  as growing, and the planner reopens the issue.
+
+### 10.8 The owner's goal as targets
+
+`f6b251db` "as errorless and bugless ... as posible", `d0e0085f` "much more
+like google": every error is counted, owned and driven down, and a new
+one is caught on dev before prd. Proposed, each read by a command:
+
+| target | reads | how |
+|---|---|---|
+| M1 open groups falls every week; 0 prd groups older than 7 days without an issue | groups with `last_at` in 7 days and no done issue, per env | `ENV=<env> ./run -a do_spl_evlog_groups`, its summary line `open=<n> unissued_7d=<n>`; the weekly fleet report quotes both |
+| M2 time to issue: p50 <= 24 h, max <= 72 h | issue created minus `first_at`, per group linked in 7 days | the same action, `EVLOG_REPORT=tti` |
+| M3 no new error group on dev after a deploy | groups with `first_at` after the dev deploy's time, level error | a step in `20_hub-build-deploy.yml` after the dev roll: wait 10 min, read `do_spl_evlog_groups` for dev with `EVLOG_SINCE=<deploy time>`; any line -> the step is red. Q2 decides if it holds the prd deploy |
+| M4 0 crashes and 0 out-of-memory kills a week, per env | groups of kind `error.cloudrun_crash`, `error.cloudrun_oom`, `error.go_fatal` | the same action, `EVLOG_KIND=error.cloudrun_` |
+
+M3 depends on the reader having run: the step runs
+`do_spl_evlog_read` for dev itself (not a write race: the cursor CAS of
+10.4.4 makes it safe beside the cron).
+
+### 10.9 Cases
+
+| case | expect | test |
+|---|---|---|
+| C28 | `Fingerprint` is equal for two 5xx that differ only in a UUID, a number and a quoted value; different for another route or another token | new `api/internal/evlog/evlog_test.go` |
+| C29 | each of the 14 planted secrets and personal strings (10.6) is gone after `Redact`; red: `Redact` as identity fails, naming the string | same |
+| C30 | a handler panic whose value holds a bearer token, an email and a DSN stores a row with none of them | `hub/evlog_test.go` (new), memory store |
+| C31 | a handler 5xx, a handler panic and a loop panic each add one sighting of their kind; 100 identical 5xx then one flush write one row with `n = 100`; red: a flush that inserts per sighting writes 100 rows | same |
+| C32 | an `Error()` line from a hub function adds one `error.log` sighting anchored on that function; an `http 5xx` line and an `event log write failed` line add none (no double, no loop) | same |
+| C33 | a flush with the store failing writes one `event log write failed` line per group with its `fp` and `n`, and the action that caused the error still answers as before | same |
+| C34 | on Postgres: the upsert of an existing fingerprint keeps one row, adds `n`, keeps `first_at`, moves `at`, and gives the row a new `id` higher than every other | `store/log_events_test.go` (new cases, memory and Postgres) |
+| C35 | `put` with a stale `gen` answers 409 `cursor_moved` and changes no row and not the cursor; red: a `put` without the gen check, run twice for one window, doubles `n` | `store/` and `hub/evlog_frame_test.go` (new) |
+| C36 | an `evlog` frame from a box of a workspace that is not the operator workspace answers 403 and writes nothing | `hub/evlog_frame_test.go` |
+| C37 | `Classify` on recorded dev entries (fixtures read in T7, redacted): one of each rule 1-6 maps to its kind; a hub ERROR line (rule 2) and a request 5xx with a hub trace (rule 4) are skipped | `api/internal/evlog/classify_test.go` |
+| C38 | `spool evlog put` sends no field that holds a raw log line: the frame of a fixture with a planted token carries `<redacted>` | `api/cmd/spool/cli_verbs_test.go` |
+| C39 | `do_spl_evlog_read` with `DRY_RUN=1` and a stub gcloud prints the groups and sends no frame; with no key exits 3 naming it; its gcloud call carries `--account` | new `orc/tests/spl-evlog-read.tst.sh`; `gcloud-account-pinned.tst.sh` passes |
+| C40 | two runs of the reader for one window, as two box names with one stub hub, write the groups once; the second prints `SKIP cursor_moved` and exits 0 | same |
+| C41 | `do_spl_evlog_groups` lists a group with no issue as new, one with `n` past the growth rule as growing, one linked and quiet not at all; `do_spl_evlog_link` sets `issue_key` and `issue_n` | new `orc/tests/spl-evlog-groups.tst.sh`; `hub/log_events_test.go` (the link route) |
+| C42 | the System scope shows `n`, first seen and the issue link of a group row; a non-error row shows none of them | the B8 e2e, new cases |
+
+### 10.10 Build rows
+
+Smallest first; the in-process half needs no infra and comes first. Each
+row: its cases with the red control seen RED then GREEN in the commit body
+(rulebook C2), `PRE_PUSH_TIER=full` where it touches the store.
+
+| row | what | area | files (only these) | after | cases |
+|---|---|---|---|---|---|
+| T1 | the pure package: redact, normalize, top frame, fingerprint, groups (no classify yet) | api | new `api/internal/evlog/evlog.go`, `evlog_test.go` | - | C28, C29 (red C29) |
+| T2 | the migration, the upsert, the cursor CAS, the link | rdb, api | new `rdb/<next>_system_events_error_groups.sql`; `store/log_events.go` (the new methods, the error kinds of 10.3), `log_events_memory.go`, `log_events_postgres.go`, `log_events_test.go` | T1 | C34, C35 store half (red C35); `PRE_PUSH_TIER=full` |
+| T3 | source (a): the sightings, the hook, the flush loop, the unwritten line, the trace field | api | `hub/server.go` (`middleware`, `logServerError` only); `hub/supervise.go`; new `hub/evlog.go` + `evlog_test.go`; `cmd/spool/hub.go` (the hook and the `evlog-flush` loop); cnf `hub.evlog.flush_s` + the tpl-gen render | T2 on master | C30-C33 (red C31) |
+| T4 | the routes: group fields on `GET /v1/operator/events`, `?kind=` prefix filter, `POST /v1/operator/events/link` | api | `hub/log_events.go`, `log_events_test.go`; `hub/openapi.json` | T2 on master | C41 hub half |
+| T5 | the page: group columns on the System scope | wui | `wui/pages/monitoring/events/index.vue`; `wui/utils/event-sheet.mjs`; locale keys (new only, agy review last); the C42 e2e | T4 served, B8 on master | C42 |
+| T6 | the frame and the CLI: `evlog cursor`, `evlog put`, classify | api | `api/internal/wire/wire.go` (`TEvlog` and its fields); `hub/ws.go` (one case line); new `hub/evlog_frame.go` + `_test.go`; new `api/internal/evlog/classify.go` + `classify_test.go` (fixtures from T7's dry read); new `api/cmd/spool/evlog.go`, `cli_verbs_test.go` | T2, T3 on master | C35 hub half, C36-C38 (red C36) |
+| T7 | the box reader: the action, the cron row, the cnf; first a read-only dry run on dev that records the Cloud Run strings and the fixtures | orc, cnf | new `orc/run/spl-evlog-read.func.sh`, `orc/tests/spl-evlog-read.tst.sh`; `csi-spl-orc/cnf/box-crons/box-crons.manifest` (one row); cnf `env.box.evlog_reader` in `all.env.yaml` | T6 served on dev and prd AND the `spool` binary on the reader's boxes carries `evlog` (the R2 rule) | C39, C40 (red C40) |
+| T8 | the bug lane: the read and link actions, source 6, the rulebook line | orc, doc | new `orc/run/spl-evlog-groups.func.sh`, `spl-evlog-link.func.sh`, `orc/tests/spl-evlog-groups.tst.sh`; `csi-spl-doc/doc/md/rounds-rulebook.md` (3.1, one line) | T4 served | C41 (red: a growth rule without the `issue_n` check lists every linked group) |
+| T9 | M3: the post-deploy step | ci | `.github/workflows/20_hub-build-deploy.yml` (one step) | T7 live on dev, Q2 answered | a planted dev error group turns the step red on a throwaway branch (rulebook: a red control never on master) |
+
+Order: T1, T2, then T3 and T4 at once (`hub/server.go` + `supervise.go`
++ `cmd/spool/hub.go` vs `hub/log_events.go`: disjoint), then T6, T8 and T5
+(T5 waits for B8), then T7, then T9. T2, T3 and T6 all touch the store's
+or the hub's start path: one after the other.
+
+No row runs terraform, writes IAM or changes GCP under option A of Q1.
+Option B adds one row before T7: a terraform grant, planned in the
+tf-runner and applied only on the owner's go.
+
+### 10.11 Open questions for the owner, and risks
+
+| Q | question | A | B |
+|---|---|---|---|
+| Q1 | who reads Cloud Logging | **A (proposed):** the per-env project service account the box already uses for everything (its `roles/owner` holds the read): no terraform, no new key | a read-only service account (`roles/logging.viewer`) granted by a terraform step on your go, plus one more key per env on the reader's box |
+| Q2 | a new error group on dev after a deploy (M3) | **A (proposed first):** the step turns red and says so; prd still deploys | the red step holds the prd deploy until the group has an issue |
+| Q3 | which groups get an issue | **A (proposed):** every error group | only groups seen 3 times or more, or seen on prd |
+| Q4 | where backend errors show | **A (proposed):** the System log only (operator admins) | also in the Mine log of the person whose request failed (a person id on the row) |
+
+- R4 Up to 30 s of sightings die with a crashed process (10.4.2). The
+  crash row says it happened; the count of the errors just before it is
+  short.
+- R5 The Cloud Run strings of rules 3 and 5 (out of memory, exit, probe,
+  panic dumps split over entries) are from Cloud Run's documented
+  behaviour, not read on this tree. T7 reads them on dev first (read-only)
+  and records the fixtures C37 uses; a rule that matches nothing on dev is
+  dropped from the first build, not guessed.
+- R6 Today's 5xx and panic rates on dev and prd are unmeasured. T3's lane
+  reads one day of `severity>=ERROR` counts per env (read-only) before it
+  lands, as R1 did for B2: an observation, not a gate.
+- R7 Rule 4 needs Cloud Run's request log `trace` and the hub's own trace
+  field to match. If they do not on dev (T7), rule 4 counts every request
+  5xx with status 502, 503 or 504 that has no hub line within 1 s, and says
+  so in the spec.

@@ -11,6 +11,9 @@ Plan reviewed: `csi-spl-doc/doc/md/refactor-round-62-plan.md` v0.2 at sha
 `94bde6673... refs/heads/review/c002-refactor-round-62-planner`); v0.1
 `aa8f25ec4` is its ancestor (`git merge-base --is-ancestor aa8f25ec4
 94bde6673` rc 0), plan file 254 lines at v0.2, 244 at v0.1. Editor: c-815.  
+Also signed (second commit on this branch): plan **v1.0** at sha
+**9ee7c85f6c2594abbe6f66f10369e6898d4167b3**, named by the editor c-815 on
+task `dispatch-refactor-r62` (msg 2026-11-18T14:15:40Z) - see the last section.  
 Task: `dispatch-refactor-r62`.
 
 All reads 2026-11-18 ~14:00-14:08Z, n=1 per command unless stated, in the lane
@@ -174,3 +177,48 @@ None.
   defect in the plan: its read carried its time and n=1.
 - N2: `perf-round-17-plan.md:235` still says "once r61-04 lands"; r61-04 is
   this round's r62-02. Cosmetic, in the p17 plan, not in this plan.
+
+## v1.0 signature (2026-11-18 ~14:2xZ)
+
+The editor c-815 named plan **v1.0
+9ee7c85f6c2594abbe6f66f10369e6898d4167b3** on task `dispatch-refactor-r62`
+(msg 2026-11-18T14:15:40Z) and asked this seat to sign that sha.
+
+**Verdict: PASS on 9ee7c85f6c2594abbe6f66f10369e6898d4167b3.**
+
+Verified before signing, each with its command:
+
+- `git ls-remote origin refs/heads/review/c002-refactor-round-62-planner` ->
+  `9ee7c85f6c2594abbe6f66f10369e6898d4167b3` (the branch head, as named)
+- `git merge-base --is-ancestor 94bde6673 9ee7c85f` -> rc 0: v1.0 is a
+  fast-forward of the v0.2 this seat passed
+- `git diff --stat 94bde6673 9ee7c85f -- csi-spl-doc/doc/md/refactor-round-62-plan.md`
+  -> one file, +17 -4; the full diff touches only the status line, section 3.2
+  (N1 folded in: lane map exit 4 at ~14:05Z, spawn-time R3 governs), section 8
+  (v1.0 changelog) and section 9 (consensus citing this seat's PASS on
+  `94bde6673`, msg 3ce60018, seat file `be7ef401f`). Rows unchanged; plan file
+  267 lines at v1.0 (`git show 9ee7c85f:...plan.md | wc -l`)
+- commit: `git log -1 --format='%H %an %s' 9ee7c85f` ->
+  `9ee7c85f... <repo commit author> docs(r62-plan, SPL-5885): refactor round 62
+  plan v1.0, panel m-514 mistral PASS on v0.2 94bde6673` (author name redacted:
+  the hygiene sweep bans personal names in docs)
+
+Re-run of the checks that read live state, on the new `origin/master`
+`e1c6f870e678f5875a0ca665b65c7fb3eccbc1ea` (moved since the v0.2 review; the
+plan's counts stay measured on `04ca1d897`):
+
+- `git log origin/master --oneline -E --grep='\((r62-' | wc -l` -> **0**
+- `git diff --stat 04ca1d897 origin/master -- <the 5 row paths>` -> empty
+  (rc 0): none of the five row paths changed since the plan's measurement sha
+- literal grep per row file on origin/master -> the same 9 sites:
+  36,51 / 11,163,204 / 28,62 / 213,684
+- baseline on origin/master -> **`14 30`**, row entries 2/3/2/2 unchanged
+- section-2 test command on origin/master -> r62-01 **11** files, r62-02 **15**
+  files (unchanged)
+- `lane-map.sh --check <the 5 paths> --agent m-514` -> **exit 4**: no live lane
+  lists the 5 paths, 12 `unknown:` lanes on the other box (c-054, c-060, c-390,
+  c-714, c-810, c-813, c-815, c-817, c-818, c-824, c-924, c-927) - matches the
+  exit-4 read the v1.0 plan now records in 3.2; the spawn-time R3 check governs
+
+Defects on v1.0: none. Notes: N1, N2 as above (both folded into the plan's
+3.2 / passed to the holder by the editor).

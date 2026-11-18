@@ -93,8 +93,12 @@ if [[ "$(nsend)" == 1 && "$(hourly)" == 1 && "$(lead 2026-01-15)" == 0 ]]; then
   pass "2 noon, the same queue: only today's hourly refactor blocker"
 else fail "2 noon: $(seen)"; fi
 if git -C "$PROJ_ROOT" cat-file -e origin/master:csi-spl-orc/src/bash/run/spl-spawn-place.func.sh 2>/dev/null; then
-  git -C "$PROJ_ROOT" show origin/master:csi-spl-orc/src/bash/run/spl-spawn-place.func.sh >"$T/master.func.sh"
-  PLACE_FUNC="$T/master.func.sh" tick 2026-01-15T12:00Z
+  # with the siblings it sources from its own dir (spl-spawn-after since SPL-5897)
+  mkdir -p "$T/master"
+  for f in spl-spawn-place spl-spawn-after; do
+    git -C "$PROJ_ROOT" show "origin/master:csi-spl-orc/src/bash/run/$f.func.sh" >"$T/master/$f.func.sh" 2>/dev/null
+  done
+  PLACE_FUNC="$T/master/spl-spawn-place.func.sh" tick 2026-01-15T12:00Z
   # the kind is not the bytes compared: a master before SPL-4869 sent it as a blocker
   sed -i 's/ blocker spawn-share / note spawn-share /' "$T/send.log"
   cmp -s "$T/send.log" "$T/noon.mine" && pass "2 noon: the same bytes as origin/master's placer sends" ||

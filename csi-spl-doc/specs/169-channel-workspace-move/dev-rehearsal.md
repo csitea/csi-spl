@@ -1,7 +1,8 @@
 # Spec 169 T13: the dev rehearsal of a channel move
 
-Run once on 2026-11-07, dev only, SPL-4999. **The rows moved; T13 is not passed: P7
-failed one proof (section 3).** The first prd move still waits for it.
+Run twice, dev only. The first run (2026-11-07, SPL-4999) moved the rows and failed one P7
+proof (section 3). **The second run (2026-11-18, SPL-5845, after T13b and T13c) passed: P7
+printed 0 on every proof (section 8).** n=1 each.
 
 ## 1. The run
 
@@ -100,4 +101,71 @@ workspace. The issue is `MVD-1` in `<DST>`.
 ## 7. To clean up
 
 `ENV=dev REHEARSAL_CMD=purge DRY_RUN=0 ./run -a do_spl_channel_move_rehearsal_seed` removes both
-workspaces. Not run: the owner's form names them, and T13 runs again after T13b, on the owner's new GO.
+workspaces. Run once on 2026-11-18, before the second run's re-seed (section 8.1). Not run after
+it: the second run's form asked only for the GO.
+
+## 8. The second run, 2026-11-18 (SPL-5845)
+
+Dev only, after T13b and T13c (SPL-5010) were built. **P7 printed 0 on all 62 proofs, every step
+has its `done_at`, and the move closed.** n=1.
+
+### 8.1 The run
+
+| what | value |
+|---|---|
+| purge, re-seed, first `plan` | tree `344be1c04`, dev hub `/version` commit `4fdfe4ed2` (2.1.5), as the lane's notes record them. `REHEARSAL_CMD=purge DRY_RUN=0` removed the 11-07 workspaces (read back: 0 tenants, 0 messages, 0 open host rows), then `DRY_RUN=0` seeded 3650 posts again, with every `messages.msg` non-empty |
+| the move | tree `3a7ae872b` (master, clean worktree), dev hub `/version` commit `b97a764ff`, version 2.2.8, read just before the run |
+| from, to | `seed-move-src/rehearsal-move` -> `seed-move-dst` |
+| GO | the owner's own click on dev, as HUM-17 (the dev operator workspace's biz owner): answer `a76d5603-73bd-47b3-9295-4f3dd370868f` at 12:18:23Z, `Answer: GO`, form `9bae380b-ee74-434a-be29-2c3a335dccf5`, topic `68ca7fdb-1aef-49b6-b5d4-ba4f82690633` on dev t1 |
+| move id | `263af961-0e70-4a98-ac3a-9572b390cf8d`, 12:19:41Z to 12:20:26Z, 45 s on the shell's clock, exit 0 |
+| n | 1. No repeat run on this GO |
+
+Before it: `plan` exit 0, no `REFUSE` line, `PLAN count messages 3650`, one mention (the staying
+`see /t/` post). `MOVE_CMD=run DRY_RUN=0` with no `MOVE_GO_MSG`: exit 3 (C15). The random-uuid GO
+(403 `go_required`) was not tried again.
+
+### 8.2 The steps
+
+From `channel_move_steps`, read back (`done_at - started_at`):
+
+| step | seconds | what |
+|---|---|---|
+| P1 | 0.09 | |
+| P2 | 1.19 | |
+| P2b | 0.00 | no seat, so no probe |
+| P3 | 0.37 | 2 blobs copied |
+| P4 | 4.46 | 3650 messages, 171 topic heads, 1 issue (`MVS-1` -> `MVD-1`), 10 reactions, 10 revisions and 10 deliveries copied to `<DST>` and deleted in `<SRC>`; the 10 deliveries expired (C28) |
+| P5 | 0.00 | no rule row on this box |
+| P6 | 0.17 | 1 blob deleted, 1 shared blob kept |
+| P7 | 8.53 | every proof 0 |
+
+`channel_move_journal`: `mode` `move`, `go_msg_id` `a76d5603`, `done_at` 12:20:26.64Z.
+
+**R3:** P4 at 4.46 s (first run 4.42 s) and P7 at 8.53 s are under the box's 30 s client cap, n=1.
+`<SRC>` again held 5 messages when P7 ran, so **P7 on a populated `<SRC>` is still not measured**.
+
+### 8.3 What T13b and T13c changed
+
+- **T13b:** the staying post that failed the first run is now listed, not a hit:
+  `MENTIONS uuid with redirect 1`, post `af1776ef-0ed3-09e0-8bbe-99fc65f499d5`, and
+  `proof scan messages.body (known 1 of 1, kept: 5.4) 0`. The seed now writes `messages.msg`, and
+  that column's proof finds the same post: `proof scan messages.msg (known 1 of 1, kept: 5.4) 0`.
+- **T13c:** the hub logs print their days (`RETENTION hub logs: 30 days (log bucket _Default, read
+  back a line of csi-spl-hub-dev)`), so `KEPT_UNTIL` prints a date: `2027-04-17`, from the
+  off-project copy of the dumps (150 days).
+
+### 8.4 The counts after
+
+Read with `do_spl_db_query` on dev after the move:
+
+| | messages | in the channel | channel row | issues |
+|---|---|---|---|---|
+| `<SRC>` after | 5 | 0 | 0 | 0 |
+| `<DST>` after | 3651 | 3650 | 1 | 1 |
+
+### 8.5 Still not shown
+
+From section 5: the old link over HTTP, a real `<DST>` desk, the other parts of the set, and P7 on
+a populated `<SRC>`. The purge's DELETE has now run once on dev, on the 11-07 workspaces (read
+back 0); the workspaces of this run are kept (section 7).
+

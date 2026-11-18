@@ -438,10 +438,18 @@ holds (panel.md section 1, one row per claim with its command).
      does not own the operator workspace sets it to 5, the topic shows 5
      in csitea, csitea's own issues follow 5, and the operator issue and
      the queued ask keep 1, by the PUT and by the sweep alike. The other
-     set rows still count as "newer" against an issue's own change (the
-     last change wins, below): they only never move an operator issue.
-     Rows set before this rule are not re-applied. Test:
-     `TestTopicPriorityIssueKeepsOperatorOwner`.
+     set rows still count as "newer" against an issue's own change for
+     the spread (the last change wins, below), never for the follow: an
+     operator issue weighs its own change only against the rows that may
+     order it (`ownNewerThan`), so a rejected set never reopens an older
+     operator owner's row over the issue's newer own change (R7 W1). A
+     set by an agent in another workspace (inherit-priority, the spread of
+     an agent's change) has no operator owner as its setter either, so it
+     orders no operator issue: intended, only t1 owners order the agents'
+     work. At create, an operator issue reads its own workspace's rows only
+     (`hub/issue_prio_default.go`), which agrees. Rows set before this rule
+     are not re-applied. Tests: `TestTopicPriorityIssueKeepsOperatorOwner`,
+     `TestTopicPriorityRejectedSetKeepsOwnChange`.
    - **The lane** shows the highest of its issues, so it follows with them;
      nothing is stored on the lane row. A lane with no issue shows none. A
      **queued ask** already reads its discussion's priority at every read

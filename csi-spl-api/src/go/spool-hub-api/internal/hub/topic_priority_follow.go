@@ -97,12 +97,19 @@ type prioView struct {
 // discussions or newer, so they never move it (a tie goes to the issue: its
 // spread writes the topics at its own time).
 func (v prioView) ownNewer(n int) bool {
+	return v.ownNewerThan(n, v.set)
+}
+
+// ownNewerThan is ownNewer against rows only: the follow weighs v.order, so
+// a row that may not order the issue never reopens an older one over its
+// own change (SPL-5933, R7 W1).
+func (v prioView) ownNewerThan(n int, rows map[string]store.TopicPriority) bool {
 	at, ok := v.own[n]
 	if !ok {
 		return false
 	}
 	for _, l := range v.links[n] {
-		if p, set := v.set[strings.ToLower(l.TaskID)]; set && l.OriginTenant == "" && p.SetAt.After(at) {
+		if p, set := rows[strings.ToLower(l.TaskID)]; set && l.OriginTenant == "" && p.SetAt.After(at) {
 			return false
 		}
 	}
@@ -155,7 +162,7 @@ func (s *Server) followDiscussionPriority(ctx context.Context, run prioRun) (pri
 		}
 	}
 	for _, i := range v.issues {
-		if issueResolved(i.Status) || v.ownNewer(i.Number) {
+		if issueResolved(i.Status) || v.ownNewerThan(i.Number, v.order) {
 			continue
 		}
 		to, topic := bestSetPriority(v.links[i.Number], v.order)

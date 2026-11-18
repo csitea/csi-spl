@@ -327,3 +327,47 @@ func TestTopicPriorityIssueKeepsOperatorOwner(t *testing.T) {
 		t.Errorf("op's lane issue after the sweep: priority %d, want 1 (%v)", got, res["changes"])
 	}
 }
+
+// SPL-5933, R7 W1: the operator owner (HUM-7) sets a far topic to 1, then
+// changes op's lane issue to 3 by hand, then the far owner (HUM-8, not op's)
+// sets the topic to 5. The rejected set is newer than the issue's own
+// change, but it may not order the issue, so it must not reopen HUM-7's
+// older 1 either: the issue keeps 3, by the PUT and by every sweep.
+// RED CONTROL (5eaedc9f0, the follow weighing every row as newer): the
+// issue goes 3 -> 1 at HUM-8's PUT.
+func TestTopicPriorityRejectedSetKeepsOwnChange(t *testing.T) {
+	op := newTenantID("op")
+	roles := tenantRoles{op: {"HUM-7": rbac.BizOwner}}
+	e := archiveEnv(t, func(o *hub.Options) {
+		o.OperatorTenant = op
+		o.Authorizer = roles
+	})
+	pub, _, _ := ed25519.GenerateKey(nil)
+	if err := e.st.CreateTenant(context.Background(), store.Tenant{ID: op, RootPubKey: pub}); err != nil {
+		t.Fatal(err)
+	}
+	tid, _ := e.tenant()
+	roles[tid] = map[string]string{"HUM-7": rbac.BizOwner, "HUM-8": rbac.BizOwner}
+	task := uuidV4()
+	putCard(t, e, tid, task, "", "HUM-2", hub.WUIBox, 1, time.Now().UTC().Add(-time.Hour))
+	relayCopy(t, e, op, task)
+	k := issueWithPrio(t, e, op, "HUM-7", "lane issue on the far topic", task, 4)
+	if code, out := putPriority(t, e, tid, task, "HUM-7", map[string]any{"priority": 1}); code != http.StatusOK {
+		t.Fatalf("HUM-7: PUT priority 1: %d %v", code, out)
+	}
+	time.Sleep(5 * time.Millisecond)
+	patchPrio(t, e, op, "HUM-7", k, 3)
+	time.Sleep(5 * time.Millisecond)
+	if code, out := putPriority(t, e, tid, task, "HUM-8", map[string]any{"priority": 5}); code != http.StatusOK {
+		t.Fatalf("HUM-8: PUT priority 5: %d %v", code, out)
+	}
+	if got := issuePrio(t, e, op, "HUM-7", k); got != 3 {
+		t.Errorf("op's lane issue after the far owner's PUT: priority %d, want its own change 3", got)
+	}
+	for n := range 3 {
+		res := prioSyncIn(t, e, op, "dry_run=0")
+		if got := issuePrio(t, e, op, "HUM-7", k); got != 3 {
+			t.Errorf("op's lane issue after sweep %d: priority %d, want 3 (changes %v, spread %v)", n, got, res["changes"], res["spread"])
+		}
+	}
+}

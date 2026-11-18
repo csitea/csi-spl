@@ -1,6 +1,6 @@
 # Feature Specification: Message Levels — the Opening Card and the Thread Line
 
-**Feature ID**: `033-spool-message-levels` · **Milestone**: M3 · **Status**: Implemented (the live proof in CI skips until the secrets `SPL_PROBE_PW_<ENV>` are set, `tasks.md` T015)
+**Feature ID**: `033-spool-message-levels` · **Milestone**: M3 · **Status**: Implemented (the live proof in CI skips until the secrets `SPL_PROBE_PW_<ENV>` are set, `tasks.md` T015); section "Message kinds: seven more" (SPL-5884) Planned
 **Created**: 2026-09-25 · **Lane**: MESSAGE-LEVELS (hub + DB + browser)
 **Authority**: this file for the rule; `tasks.md` for what is built and where.
 
@@ -146,4 +146,271 @@ The owner, 2026-09-25 18:48:43Z, PRD #spool-hub-devel topic `db0f9d71`, verbatim
   match FR-ML-020..FR-ML-023, a grip drag grows a card, the thread pane stays unclipped,
   and the mode survives a reload (`tasks.md` T019).
 
-<!-- version: 0.1.5 · updated: 2026-09-25 · last-edit: 2026-09-25T20:49:54Z -->
+## Message kinds: seven more (SPL-5884)
+
+**Status**: Planned (spec only; no code, no migration file yet) · **Issue**: SPL-5884 ·
+**Epic**: SPL-2403 · **Discussion**: t1 #spool-hub-ui topic `f4165bc3`.
+
+Spec 033 holds this section because the issue names it. The kind itself is
+spec 020's field (`contracts/message-schema-v2.md` line 21), and T026 below
+updates that row. The code sites below are cited as `file:line` on
+origin/master `405fe0885`. Paths are relative to these roots: `api/` =
+`csi-spl-api/src/go/spool-hub-api/`, `wui/` = `csi-spl-wui/`, `orc/` =
+`csi-spl-orc/src/bash/`, `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`.
+
+### K.1 The owner's request, verbatim (HUM-10, 2026-11-18)
+
+> we need to add this in this menu also the options for feature , bug , alert , etc.
+> suggest proper type of kinds for the msg cards
+
+(msg `3ca36ae0`, a screenshot of the kind menu: message, note, task, blocker,
+result, reject.) The dispatcher's poll `c7ef50a3` offered A, a separate type
+field, or B, new kinds in the same menu. The owner answered (msg `890eadfb`):
+
+> Answer 1: B — New kinds in the same menu  Answer 2: F,B,AL,Q,I,D,DOC — feature;
+> bug; alert; question; idea; decision; docs
+
+The dispatcher's post `ddc6f29a` named what B touches: the hub's allowed
+kinds, the WUI menu and search, the spool CLI and the agents, and the help.
+It also set the routing rule: the 7 new kinds route as a note. This section
+follows that. It adds one thing the post does not name, the old-box
+delivery gate (K.4.3). Not checked: the full text of `ddc6f29a`. This seat
+could not read the topic (`spool tail --url` from the desk box answered "no
+messages visible"), so the scope above comes from the brief's summary of
+that post.
+
+### K.2 The seven kinds
+
+| kind | means | icon (lucide name, added to `wui/src/utils/uiIcons.ts`) | colour token | dark theme | light themes (`data-theme^="light"`) | picker key | search |
+|---|---|---|---|---|---|---|---|
+| `feature` | a capability asked for | `puzzle` | `--color-kind-feature` | `#8c9eff` | `#3f51b5` | `F` | `is:feature` |
+| `bug` | something broken | `bug` | `--color-kind-bug` | `#ff8a5c` | `#c43e00` | `U` (b**U**g; B is blocker) | `is:bug` |
+| `alert` | a live problem now | `siren` | `--color-kind-alert` (fill) and `--color-kind-alert-fg` (glyph) | fill `#ffd54f`, glyph `#1b1b1b` | fill `#f6bf26`, glyph `#1b1b1b` | `A` | `is:alert` |
+| `question` | needs an answer | `circle-help` | `--color-kind-question` | `#c770e0` | `#8e24aa` | `Q` | `is:question` |
+| `idea` | for later | `lightbulb` | `--color-kind-idea` | `#f2a29c` | `#c2185b` | `I` | `is:idea` |
+| `decision` | a recorded decision | `scale` | `--color-kind-decision` | `#2dd4bf` | `#0f766e` | `D` | `is:decision` |
+| `docs` | documentation | `file-text` | `--color-kind-docs` | `#a0a0a0` | `#616161` | `O` (d**O**cs; D is decision) | `is:docs` |
+
+- **Keys.** The picker keeps M N T B R J (`wui/src/utils/kind-picker-keys.ts:13`).
+  The new letters are F U A Q I D O, so all 13 are unique. The keys work only
+  while the picker is open (`wui/src/components/KindPicker.vue:107`), so they
+  cannot clash with the message menu's keys.
+- **Order.** The picker lists the old six first, then the owner's order:
+  `MSG_KINDS = ['msg','note','task','blocker','result','reject','feature','bug','alert','question','idea','decision','docs']`
+  (`wui/src/utils/msg-kind.mjs:9`).
+- **Look.** The six old kinds keep their colours (`wui/src/assets/css/main.css:566-573`).
+  A new kind is a bare glyph in its colour, with no frame. That is the rule
+  of `main.css:573`, which keeps a frame only on the blocker.
+  - **`alert` is filled**: yellow, with a dark glyph. Blocker is the only
+    other filled badge, and it is red. A live problem stands out, and the
+    two filled badges do not look alike.
+  - The dark colours repeat hues from the dark calendar palette, and the
+    light colours are darker variants
+    (`wui/src/assets/css/variables.css:420-446`).
+  - The tokens go in one `:root` block and one `:root[data-theme^="light"]`
+    block, as the row-alt and mode tokens do (`variables.css:391-398`), so
+    every light-* theme shares one set.
+- **Search.** The `is:` enum gets the seven values
+  (`api/internal/search/grammar.go:181-182`). The match is generic, so a new
+  value needs nothing more: `api/internal/search/match.go:104`
+  (`m.Kind == t.Enum`) and `api/internal/store/search_postgres.go:241`
+  (`m.kind = $n`). The WUI suggestion list is `wui/src/utils/search.mjs:60`.
+  `is:docs` and `type:doc` (a doc section) are different operators, and the
+  parser keeps them apart. `is:feature` matches messages only; issues keep
+  their own kind field (`rdb/0053_issue_kinds.sql`).
+
+### K.3 Routing: all seven behave as a note
+
+A new kind changes the badge and the search. It changes no agent rule:
+
+- it raises no ask;
+- it closes no lane;
+- it escalates no blocker;
+- it moves no Flow line.
+
+Every site that branches on a kind falls into one of three groups.
+
+**Already note-like (the branch tests named kinds, and a new kind falls to
+the default). No change; T024's tests prove it:**
+
+| site | what it does with a kind |
+|---|---|
+| `api/internal/store/fleet_ask.go:342` | an ask is only `blocker`, `task` or `escalation` |
+| `api/internal/store/flow.go:204` | only `blocker` makes a Flow line `blocked` |
+| `api/internal/store/blocker_issue.go:281,338,383,432`, `api/internal/hub/blocker_issue.go:76,431` | only `blocker` files or keeps a blocker issue |
+| `api/internal/hub/blocker_issue.go:427` | `kindBeforeBlocker` restores the kind a blocker had before. It goes through `msg.ValidKind`, so after T021 a `bug` set to blocker and back is a `bug` again |
+| `api/internal/hub/human_post_guard.go:75,86` | only `blocker` lets an agent DM a person cold (`dm_not_blocker`); a `question` is refused like a note (open question Q2) |
+| `api/internal/action/action.go:148` | `--accept` needs `result` |
+| `api/internal/hub/dispatch.go:138`, `api/internal/hubclient/hubclient.go:1069` | a browser command to an agent is only `task` or `note`. The menu sets a kind AFTER the send (`PATCH /v1/messages/{id}/kind`, `api/internal/hub/message_kind.go:58`), so the browser never signs a new kind |
+| `orc/features/spawn-agents/lib/spool-asks.inc.sh:65`, `orc/features/spawn-agents/scripts/spool-send.sh:590` | only `blocker` / `task` raise an ask |
+| `orc/run/spl-orch-inbox.func.sh:48,54,86` | only `blocker` / `task` are open items; the rest are grouped as FYI and age out |
+| `orc/run/spl-agent-handoff.func.sh:266` | only `blocker` / `msg` are open questions at a handoff (a `question` is not; open question Q3) |
+| `orc/features/spawn-agents/scripts/kill-your-self-report.sh:193,196` | only `reject` is a send-back |
+| `orc/run/spl-done-claim-check.func.sh:271`, `orc/run/spl-topic-archive-suggest.func.sh:316`, `orc/run/spl-agent-restart.func.sh:767` | only `result` / `blocker` |
+| `orc/run/spl-desk-reply.func.sh:552` | only `blocker` skips the done-claim check (how-to-post rule 22) |
+
+**Lists the note by name. These must list the 7 next to it, or a new kind
+would be treated differently from a note:**
+
+| site | today | change (T024) |
+|---|---|---|
+| `orc/features/spawn-agents/lib/spool-notify-take.inc.sh:23` | a person's post auto-taken only for `task\|note\|msg` | add the 7 |
+| `orc/run/spl-review-go.func.sh:202` | review lines read only from `result` / `note` | add the 7 |
+
+**Allow-lists of what may be SENT. These widen, or stay closed by choice:**
+
+| site | today | change |
+|---|---|---|
+| `api/internal/msg/msg.go:50-56` (`validKinds`, `KindList`) | 6 kinds | 13 (T021). `msg.Validate` (`:199`), `Sealed.Validate` (`:385`), the PATCH (`message_kind.go:58`) and `spool send --kind` (`api/cmd/spool/main.go:498`) all read it |
+| `rdb/0058_message_kinds.sql:12`, `rdb/0060_message_kind_changes.sql:36` | two CHECKs, 6 kinds | widened by the new migration (T020) |
+| `orc/features/spawn-agents/scripts/spool-send.sh:414` (and usage `:12`, `:66`), `agent-send.sh:12`, `spool-notify.sh:17` | 6 kinds | 13 (T024), read from one list (below) |
+| `orc/run/spl-desk-post.func.sh:62`, `spl-desk-reply.func.sh:529`, `spl-fleet-notice.func.sh:27` (`DESK_KIND`) | 5, 5 and 2 kinds | unchanged unless the owner picks Q4 B |
+
+**One list in orc.** T024 adds `SPOOL_KINDS` (13) and `SPOOL_NOTE_KINDS`
+(`note msg` + the 7) to `orc/features/spawn-agents/lib/spool-env.inc.sh`.
+`spool-send.sh`, `spool-notify-take.inc.sh` and `spl-review-go.func.sh` read
+them, and an orc test fails when `SPOOL_KINDS` differs from `msg.KindList`.
+
+### K.4 Old clients: nothing breaks
+
+#### K.4.1 An old WUI meets a new kind
+
+The badge shows the kind's word, with no glyph and no colour:
+
+- the label falls back to the word when the locale has no key
+  (`wui/src/components/KindGlyph.vue:29`, `KindBadge.vue:81`);
+- `kindIcon` returns `''` for an unknown kind (`msg-kind.mjs:21-23`).
+
+The old picker lists its six kinds with none checked. Choosing one still
+works, because the hub validates each change. Shift+K still opens the menu.
+The old search suggestions lack `is:bug`, but the hub accepts the typed
+query. Not run: this is read from the code, not tested in a browser.
+
+#### K.4.2 An old hub meets a new kind
+
+A new CLI sends `--kind bug` to a hub without T021. The hub's
+`env.Inner()` calls `msg.Validate`, which refuses the envelope with
+`bad_json` (`api/internal/hub/ws.go:657-659`), and no row is written.
+
+Not traced in this lane: whether the sending box then moves the envelope to
+`rejected/` (`api/internal/hubclient/flush.go:340`) or keeps it pending. That is why the hub ships first (K.6) and the orc
+allow-list widens last.
+
+#### K.4.3 An old box meets a new kind
+
+This is the one real hazard. An old box gets a recv frame whose inner kind
+is new. It goes like this:
+
+1. `Session.open` calls `Envelope.Inner`, which calls `msg.Validate`
+   (`api/internal/hubclient/hubclient.go:1063`, `api/internal/wire/wire.go:1056`).
+   The validation fails, and the frame is logged as `recv frame refused`.
+2. `commit` cannot parse the inner message either
+   (`api/internal/hubclient/commit.go:36`), so it sends no commit.
+3. The frame stays unacked, and the hub sends it again on every pass, which
+   also never lands.
+
+The fix is the same gate the hub already uses for inner versions. `session.accepts(v)`
+(`api/internal/hub/ws.go:82`) keeps a v:2 frame queued for a box whose hello
+lacks v:2. T023 adds:
+
+- a hello feature `wire.FeatureKinds13 = "kinds13"`, next to
+  `FeatureCommit` / `FeatureLiveAck` (`api/internal/wire/wire.go:115-135`).
+  The new client announces it.
+- `session.acceptsKind(k)`: true for the old six, and true for any kind when
+  the box announced `kinds13`.
+- At every site that calls `x.accepts` (`api/internal/hub/commit.go:65`,
+  `backfill.go:209`, `fallback.go:88`, `message_move_notice.go:97`), a frame
+  whose inner kind the box cannot read is skipped. It stays queued, the same
+  as a v:2 frame for a v:1 box. It is delivered once the box runs the new
+  binary (`do_spl_spool_refresh`). Nothing is dropped.
+
+A kind set in the WUI never reaches a box as a new kind. The change is hub
+metadata, and the signed envelope keeps its first kind
+(`rdb/0060_message_kind_changes.sql:5-11`). Only a CLI send of a new kind
+needs the gate.
+
+### K.5 The hub migration
+
+The new migration is forward-only. It takes the number that
+`cd csi-spl-orc && DRY_RUN=0 ./run -a do_rdb_migration_next` claims at
+build time; the head on `405fe0885` is `0294`. Its name is
+`<NNNN>_message_kinds_seven.sql`. The file is not written in this lane. It
+does the following:
+
+- `ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_kind_check`, then
+  `ADD CONSTRAINT messages_kind_check CHECK (kind IN (<the 13>))`. This
+  repeats the `0058` pattern.
+- The same for `message_kind_changes_kind_to_check` on
+  `message_kind_changes.kind_to` (`0060:34-36`). `kind_from` has no CHECK
+  and stays that way: it holds whatever the message had.
+- No data change. Existing rows keep their kind. The file applies before the
+  image that writes a new kind, as `0060` did.
+
+### K.6 i18n
+
+There is one key per kind, `feed.kind.<kind>`, beside the six at
+`wui/i18n/locales/en.json:694-701`, in all 19 locale files
+(`i18n-parity.test.mjs`).
+
+- The values below are claude's drafts.
+- **agy has the final word.** An agy language review (`/agy-spawn`,
+  `LANE_MIX_KIND=i18n`) is the last step before T025 ships, as the fleet
+  language rule requires. The WUI does not deploy before it.
+
+| locale | feature | bug | alert | question | idea | decision | docs |
+|---|---|---|---|---|---|---|---|
+| en | feature | bug | alert | question | idea | decision | docs |
+| bg | функция | грешка | тревога | въпрос | идея | решение | документация |
+| el | λειτουργία | σφάλμα | ειδοποίηση | ερώτηση | ιδέα | απόφαση | τεκμηρίωση |
+| es | funcionalidad | error | alerta | pregunta | idea | decisión | documentación |
+| et | funktsioon | viga | häire | küsimus | idee | otsus | dokumentatsioon |
+| fi | ominaisuus | vika | hälytys | kysymys | idea | päätös | dokumentaatio |
+| he | תכונה | באג | התראה | שאלה | רעיון | החלטה | תיעוד |
+| lt | funkcija | klaida | perspėjimas | klausimas | idėja | sprendimas | dokumentacija |
+| lv | funkcija | kļūda | trauksme | jautājums | ideja | lēmums | dokumentācija |
+| mk | функција | грешка | тревога | прашање | идеја | одлука | документација |
+| nl | functie | fout | alarm | vraag | idee | besluit | documentatie |
+| pl | funkcja | błąd | alarm | pytanie | pomysł | decyzja | dokumentacja |
+| ro | funcționalitate | eroare | alertă | întrebare | idee | decizie | documentație |
+| ru | функция | ошибка | тревога | вопрос | идея | решение | документация |
+| sk | funkcia | chyba | upozornenie | otázka | nápad | rozhodnutie | dokumentácia |
+| sr | функција | грешка | узбуна | питање | идеја | одлука | документација |
+| sv | funktion | bugg | larm | fråga | idé | beslut | dokumentation |
+| tr | özellik | hata | uyarı | soru | fikir | karar | belgeler |
+| uk | функція | помилка | тривога | питання | ідея | рішення | документація |
+
+`idea` is the correct word in es and fi, and it is identical to English, so
+`i18n-untranslated.test.mjs` would count it. T025 adds `feed.kind.idea` for
+es and fi to `wui/i18n/i18n-keep-english.json`, with that reason. The
+baseline is never raised.
+
+### K.7 Build rows
+
+The rows are in dependency order: the hub first (one deploy), then the CLI
+on every machine, then the WUI, then the help. Each row lands on master with
+its test. Each new gate shows its red control in the commit body: seen RED
+on the planted defect, then GREEN (developer guide 2.12.1).
+
+| row | what | depends on | test | red control |
+|---|---|---|---|---|
+| T020 | Migration `<NNNN>_message_kinds_seven.sql` (K.5) | none | a store test on Postgres (`PRE_PUSH_TIER=full`, the `hub-pg` CI job): insert a message of each of the 13 kinds, and record a kind change to each | the same test before the file applies: the insert of `bug` fails with `messages_kind_check` |
+| T021 | `msg.go:50-56`: `validKinds` and `KindList` get the 7 | T020 in the same push | `api/internal/msg/msg_test.go:61` loops over all 13; a hub test: `PATCH /v1/messages/{id}/kind {"kind":"bug"}` gives 200 and `{"kind":"bogus"}` gives 400 `bad_kind` | drop `bug` from `validKinds`: the loop and the PATCH test go red |
+| T022 | `grammar.go:181-182`: the `is:` enum gets the 7 | T021 | search tests: `is:bug` parses, and matches a `bug` message in the mock store and on Postgres | drop the `bug` enum entry: `is:bug` is refused as an unknown value |
+| T023 | The old-box gate (K.4.3): `FeatureKinds13` in `wire`, the client hello announces it, `session.acceptsKind` at the 4 `accepts` sites | T021 | a hub test: a box whose hello lacks `kinds13` gets no frame for a `bug` message and the row stays unacked; the same box with the feature gets it; a `note` reaches both | remove the `acceptsKind` check: the no-feature box gets the frame and the test goes red |
+| — | **Hub deploy** (T020-T023), dev then prd, through the normal push (`20_hub-build-deploy.yml`) | | `ENV=<dev\|prd> ./run -a do_check_deploy_lag` | |
+| T024 | The CLI and orc. (a) `do_spl_spool_refresh` on every machine, so every box announces `kinds13`. (b) `SPOOL_KINDS` / `SPOOL_NOTE_KINDS` in `spool-env.inc.sh`. (c) `spool-send.sh:414` and its usage lines, `agent-send.sh:12`, `spool-notify.sh:17` read `SPOOL_KINDS`. (d) `spool-notify-take.inc.sh:23` and `spl-review-go.func.sh:202` read `SPOOL_NOTE_KINDS` | hub deploy on prd; (c) only after (a) is true on every machine | orc tests: `spool-send.sh --kind bug` passes the check and `--kind bogus` exits 2; a person's `idea` post is auto-taken like a note; a review line in a `docs` message is read; `SPOOL_KINDS` equals `msg.KindList`; a `bug` sent to `blocker`-watching code raises no ask (`spool_ask_wanted` gives `''`) | (1) drop `bug` from `SPOOL_KINDS`: the parity test goes red; (2) leave `spool-notify-take.inc.sh:23` at `task\|note\|msg`: the `idea` take test goes red |
+| T025 | The WUI. `msg-kind.mjs` (`MSG_KINDS`, `KIND_ICONS`), `kind-picker-keys.ts` (`KIND_KEYS` F U A Q I D O), `uiIcons.ts` (7 glyphs), `types/spool.ts:1` (`MsgKind`), `main.css` (7 `.kind-<k>` rules, alert filled), `variables.css` (the tokens of K.2), `search.mjs:60`, 19 locales, `i18n-keep-english.json` | hub deploy on prd; the agy language review before it ships | unit: `msg-kind.test.mjs` (13 kinds, each with a glyph), `kind-picker-keys.test.mjs` (13 unique letters, `U` gives `bug`, `O` gives `docs`), a token test like `calendar-phone-tokens.test.mjs` (each `--color-kind-*` is at least 3:1 against `--color-bg-2` in both families), `i18n-parity`, `i18n-untranslated`; e2e: `kind-picker-keys.test.mjs` (open, press `U`, the badge reads bug), `pnpm run typecheck` | give `docs` the letter `D`: the uniqueness test goes red; set `--color-kind-alert` to `#ffffff` on light: the contrast test goes red |
+| T026 | Help and docs. Each is changed in its own home: `csi-spl-doc/doc/help/how-to-post.md` (Qto doc `0d291303-2b30-4b23-8541-cd2ff5863387`: one line on what each kind means, and that all 7 route as a note) and `csi-spl-doc/doc/help/message-actions-and-formatting.md` (Qto doc `bf244c37-39b0-40c1-9567-b8ec5fd94913`, section 3.5: the kinds table, which today lists 4 of the 6) are edited in Qto, then `cd csi-spl-orc && ./run -a do_spl_doctree_export_md`. The two exports are never edited by hand. `specs/020-spool-message-v2/contracts/message-schema-v2.md:21` (git-native) gets the 13 kinds | T021 for the schema row; T025 for the help (it describes the menu) | the export leaves no diff beyond the change; `./run -a do_check_fleet_rules_drift` | a hand edit of an export: the next export overwrites it, and the diff shows it |
+| T027 | Live proof on dev, then prd | T025 deployed | signed in: open the picker, press `U`; the badge is `bug` after a reload; `is:bug` finds the message; one CLI `spool send --kind idea` from a refreshed box arrives in the recipient's inbox | none (a measurement: the build, the tree and n are in the report) |
+
+### K.8 Open questions for the owner
+
+| # | question | A (this spec's default) | B |
+|---|---|---|---|
+| Q1 | Does `alert` page anyone? | a note: a yellow badge only, no ask, no page | it also raises a fleet ask, the way a blocker does (`fleet_ask.go:342` gains `alert`) |
+| Q2 | May an agent DM a person cold with a `question`? | no: refused like a note (`dm_not_blocker`, `human_post_guard.go:75`) | yes: `question` is exempt, as `blocker` is |
+| Q3 | Is an unanswered `question` an open item at a lane handoff? | no: a note (`spl-agent-handoff.func.sh:266` lists only `blocker` / `msg`) | yes: add `question` there |
+| Q4 | May desk posts (`do_spl_desk_post`, `do_spl_desk_reply`) use the 7? | no: only the menu and `spool send` set them | yes: widen `DESK_KIND` (`spl-desk-post.func.sh:62`, `spl-desk-reply.func.sh:529`) |
+| Q5 | Picker letters for bug and docs? | `U` (bUg) and `O` (dOcs) | `G` (buG) and `C` (doCs) |
+
+<!-- version: 0.2.0 · updated: 2026-11-18 · last-edit: 2026-11-18T14:51:29Z -->

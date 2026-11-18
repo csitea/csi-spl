@@ -27,7 +27,8 @@
 # @param BOX_SSH_<BOX> (optional) - its ssh destination (<BOX>: upper case, - as _), default the satellite alias
 # @param SATELLITE_ALIAS (optional) - default satellite (do_satellite_ssh_config)
 # @param REVERSE_TUNNEL_PORT (optional) - the port on the other box's 127.0.0.1, default 2222
-# @param REVERSE_TUNNEL_STATE_DIR (optional) - default /var/csi/csi-spl/reverse-tunnel
+# @param REVERSE_TUNNEL_STATE_DIR (optional) - default SPL_VAR_APP_DIR/reverse-tunnel
+# @param   (spl_run_paths); refused when neither is known
 # @param REVERSE_TUNNEL_START_WAIT (optional) - seconds a new tunnel must stay up, default 5
 # @param REVERSE_TUNNEL_STUCK_EVERY (optional) - minutes between two reports of a stuck tunnel, default 15
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -37,11 +38,16 @@
 #------------------------------------------------------------------------------
 do_setup_reverse_tunnel() {
   local cmd="${REVERSE_TUNNEL_CMD:-start}" box="${TO_BOX:-sat}" port="${REVERSE_TUNNEL_PORT:-2222}"
-  local dir="${REVERSE_TUNNEL_STATE_DIR:-/var/csi/csi-spl/reverse-tunnel}" dry=1 k s dest
+  local dir="${REVERSE_TUNNEL_STATE_DIR:-}" dry=1 k s dest
   case "$cmd" in start|reconcile|stop|status) ;; *) do_log "FATAL REVERSE_TUNNEL_CMD must be start, reconcile, stop or status, got: '$cmd'"; return 1 ;; esac
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TO_BOX must be a box id (e.g. sat), got: '$box'"; return 1; }
   if ! [[ "$port" =~ ^[0-9]{4,5}$ ]] || (( port < 1024 || port > 65535 )); then
     do_log "FATAL REVERSE_TUNNEL_PORT must be 1024..65535, got: '$port'"; return 1
+  fi
+  if [[ -z "$dir" ]]; then
+    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_run_paths && dir="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/reverse-tunnel}"
+    [[ -n "$dir" ]] || { do_log "FATAL cannot derive the reverse tunnel state dir (no tree for spl_run_paths): set REVERSE_TUNNEL_STATE_DIR"; return 1; }
   fi
   if [[ "$cmd" != status ]]; then
     if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi

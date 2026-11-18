@@ -5,7 +5,7 @@
 # @description docker group), on weekday PRUNE_CRON_DOW at PRUNE_CRON_HOUR:
 # @description PRUNE_CRON_MINUTE, running prune-docker-images.sh with
 # @description DRY_RUN=PRUNE_CRON_DRY_RUN and appending to
-# @description /var/csi/csi-spl/docker-prune/cron.out. Tagged
+# @description <SPL_VAR_APP_DIR>/docker-prune/cron.out. Tagged
 # @description `# csi-spl:docker-prune`, matched only as the whole END of a
 # @description line, so no other job is touched; idempotent (the line is
 # @description replaced in place). From a linked worktree the install is
@@ -16,6 +16,8 @@
 # @param PRUNE_CRON_HOUR (optional) - 0..23, default 4
 # @param PRUNE_CRON_MINUTE (optional) - 0..59, default 23
 # @param PRUNE_CRON_DRY_RUN (optional) - the line's DRY_RUN: 0 (default) or 1
+# @param PRUNE_CRON_LOG_DIR (optional) - the cron.out dir, default
+# @param   SPL_VAR_APP_DIR/docker-prune (spl_run_paths); refused when neither is known
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_prune_docker_images_install_cron
 # @example DRY_RUN=0 ./run -a do_prune_docker_images_install_cron
@@ -24,7 +26,7 @@
 do_prune_docker_images_install_cron() {
   local dry="${DRY_RUN:-1}" act="${PRUNE_CRON_ACTION:-install}" live="${PRUNE_CRON_DRY_RUN:-0}"
   local dow="${PRUNE_CRON_DOW:-0}" hour="${PRUNE_CRON_HOUR:-4}" min="${PRUNE_CRON_MINUTE:-23}"
-  local ct="${PRUNE_CRONTAB:-crontab}" logdir="${PRUNE_CRON_LOG_DIR:-/var/csi/csi-spl/docker-prune}"
+  local ct="${PRUNE_CRONTAB:-crontab}" logdir="${PRUNE_CRON_LOG_DIR:-}"
   local tag="csi-spl:docker-prune" script want gd cd
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$live" == 0 || "$live" == 1 ]] || { do_log "FATAL PRUNE_CRON_DRY_RUN must be 0 or 1, got: '$live'"; return 1; }
@@ -32,6 +34,11 @@ do_prune_docker_images_install_cron() {
   [[ "$dow" =~ ^[0-7]$ ]] || { do_log "FATAL PRUNE_CRON_DOW must be 0..7, got: '$dow'"; return 1; }
   [[ "$hour" =~ ^[0-9]+$ ]] && (( hour <= 23 )) || { do_log "FATAL PRUNE_CRON_HOUR must be 0..23, got: '$hour'"; return 1; }
   [[ "$min" =~ ^[0-9]+$ ]] && (( min <= 59 )) || { do_log "FATAL PRUNE_CRON_MINUTE must be 0..59, got: '$min'"; return 1; }
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_run_paths && logdir="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/docker-prune}"
+    [[ -n "$logdir" ]] || { do_log "FATAL cannot derive the docker prune log dir (no tree for spl_run_paths): set PRUNE_CRON_LOG_DIR"; return 1; }
+  fi
   script="$PROJ_PATH/src/bash/scripts/prune-docker-images.sh"
   gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
   cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"

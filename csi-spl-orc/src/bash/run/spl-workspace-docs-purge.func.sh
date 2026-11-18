@@ -33,7 +33,8 @@
 # @param ENV (required) - dev or prd
 # @param TENANT_ID (required) - exactly ONE workspace slug ("all" or a list is refused)
 # @param DRY_RUN (optional) - 1 (default): export only, nothing deleted
-# @param PURGE_EXPORT_DIR (optional) - default /var/csi/csi-spl/workspace-docs-purge/<env>/<tenant>/<utc ts>
+# @param PURGE_EXPORT_DIR (optional) - default SPL_VAR_APP_DIR/workspace-docs-purge/<env>/<tenant>/<utc ts>
+# @param   (spl_run_paths); refused when neither is known
 # @example ENV=dev TENANT_ID=t1 ./run -a do_spl_workspace_docs_purge
 # @example ENV=prd TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_workspace_docs_purge
 #------------------------------------------------------------------------------
@@ -45,7 +46,12 @@ do_spl_workspace_docs_purge() {
   spl_require_tenant_slug "$tenant" || return 1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   do_spl_cloud_cnf || return 1
-  dir="${PURGE_EXPORT_DIR:-/var/csi/csi-spl/workspace-docs-purge/$ENV/$tenant/$(date -u +%Y%m%dT%H%M%SZ)}"
+  dir="${PURGE_EXPORT_DIR:-}"
+  if [[ -z "$dir" ]]; then
+    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_run_paths && dir="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/workspace-docs-purge/$ENV/$tenant/$(date -u +%Y%m%dT%H%M%SZ)}"
+    [[ -n "$dir" ]] || { do_log "FATAL cannot derive the purge export dir (no tree for spl_run_paths): set PURGE_EXPORT_DIR"; return 1; }
+  fi
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   do_log "INFO workspace docs purge: env=$ENV tenant=$tenant dry_run=$dry export=$dir as $GCP_ACCOUNT"
@@ -132,7 +138,7 @@ json.dump({"tenant": tenant, "env": env, "docs": got[0], "items": got[1], "rev_l
           open(os.path.join(d, "manifest.json"), "w"), indent=1)
 PY
   # The export is the documents' content: owner-only, whatever the umask or
-  # the default ACL of the parent (/var/csi carries one) would give.
+  # the default ACL of the parent (<var>/<org> carries one) would give.
   chmod 700 "$dir" && chmod 600 "$dir"/*
 }
 

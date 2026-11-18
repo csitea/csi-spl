@@ -33,7 +33,8 @@
 # @param   tagged lines only; it never puts an engine line back)
 # @param BOX_CRONS_ONLY (optional) - space/comma-separated row names; default
 # @param   every row (and any stale `csi-spl:box-cron:` line is dropped)
-# @param BOX_CRONS_STATE_DIR (optional) - the logs' root, default /var/csi/csi-spl
+# @param BOX_CRONS_STATE_DIR (optional) - the logs' root, default SPL_VAR_APP_DIR
+# @param   (<var>/<org>/<app>, spl_run_paths); refused when neither is known
 # @param BOX_CRONS_MANIFEST (optional) - default cnf/box-crons/box-crons.manifest
 # @param BOX_CRONS_DESK_USER (optional) - the desk user, default spl_desk_user
 # @param BOX_CRONS_DESK_CRONTAB (optional) - default `sudo -n crontab -u <desk user>`
@@ -48,12 +49,17 @@
 #------------------------------------------------------------------------------
 do_install_box_crons() {
   local dry="${DRY_RUN:-1}" act="${BOX_CRONS_ACTION:-install}" only="${BOX_CRONS_ONLY:-}"
-  local state="${BOX_CRONS_STATE_DIR:-/var/csi/csi-spl}" ct="${BOX_CRONS_CRONTAB:-crontab}"
+  local state="${BOX_CRONS_STATE_DIR:-}" ct="${BOX_CRONS_CRONTAB:-crontab}"
   local man="${BOX_CRONS_MANIFEST:-$PROJ_PATH/cnf/box-crons/box-crons.manifest}"
   local -a names=() scheds=() scripts=() logs=() repls=() ases=() sel=() bsel=() dsel=()
   local i missing="" gd cd du dct
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   case "$act" in install|remove) ;; *) do_log "FATAL BOX_CRONS_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
+  if [[ -z "$state" ]]; then
+    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_run_paths && state="${SPL_VAR_APP_DIR:-}"
+    [[ -n "$state" ]] || { do_log "FATAL cannot derive the box crons' state root (no tree for spl_run_paths): set BOX_CRONS_STATE_DIR"; return 1; }
+  fi
   box_crons_read_manifest "$man" || return 1
   box_crons_select "$only" || return 1
   gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"

@@ -24,8 +24,9 @@
 # @param EXTERNAL_API_ENDPOINTS (optional) - "name=host:port ...", instead of the cnf
 # @param EXTERNAL_API_TIMEOUT (optional) - seconds per step, default cnf timeout_s, else 5
 # @param EXTERNAL_API_CNF (optional) - default ../<org-app>-cnf/<org-app>/all.env.yaml
-# @param EXTERNAL_API_DIR (optional) - default <UPLINK_PROBE_DIR or
-# @param   BOX_CRONS_STATE_DIR or /var/csi/csi-spl>/uplink-probe
+# @param EXTERNAL_API_DIR (optional) - default the uplink probe's dir
+# @param   (spl_uplink_probe_dir: UPLINK_PROBE_DIR, else <BOX_CRONS_STATE_DIR
+# @param   or SPL_VAR_APP_DIR>/uplink-probe); refused when none is known
 # @param EXTERNAL_API_BOX (optional) - default UPLINK_PROBE_BOX, else the configured box name (spl_box_name)
 # @param EXTERNAL_API_NOW (optional) - epoch seconds for "now" (tests)
 # @param EXTERNAL_API_GETENT_CMD / EXTERNAL_API_TCP_CMD / EXTERNAL_API_TLS_CMD
@@ -59,7 +60,11 @@ do_net_external_api_check() {
   for ep in "${list[@]}"; do
     [[ "$ep" =~ ^[a-z0-9-]+=[A-Za-z0-9.-]+:[0-9]{1,5}$ ]] || { do_log "FATAL endpoint '$ep' is not name=host:port"; return 1; }
   done
-  dir="${EXTERNAL_API_DIR:-${UPLINK_PROBE_DIR:-${BOX_CRONS_STATE_DIR:-/var/csi/csi-spl}/uplink-probe}}"
+  dir="${EXTERNAL_API_DIR:-}"
+  if [[ -z "$dir" ]]; then
+    declare -F spl_uplink_probe_dir >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/src/bash/run/spl-uplink-probe.func.sh"
+    spl_uplink_probe_dir dir || return 1
+  fi
   box="${EXTERNAL_API_BOX:-${UPLINK_PROBE_BOX:-$(spl_box_name)}}"
   [[ "$box" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { do_log "FATAL the box id '$box' is not a plain name (set EXTERNAL_API_BOX)"; return 1; }
   file="$dir/$box.external-api.tsv"

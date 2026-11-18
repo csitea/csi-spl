@@ -8,7 +8,7 @@
 # @description What goes in (BOX_STATE_SOURCES overrides the list):
 # @description   - the agent user's ~/.claude/projects (transcripts + memory)
 # @description   - the spool root ($SPOOL_ROOT, default /var/spool-hub)
-# @description   - the csi-spl state dirs: /var/csi/csi-spl (less graft/, a
+# @description   - the csi-spl state dirs: <SPL_VAR_APP_DIR> (less graft/, a
 # @description     rebuilt index, and backups/, the DB dumps that have their
 # @description     own buckets 045/046) and $HOME/.local/state/csi-spl
 # @description What never goes in: ~/.gcp, ~/.ssh, key files, tokens, .env
@@ -29,6 +29,8 @@
 # @param BOX (optional) - the box name; default SPOOL_BOX_TAG, BOX_TAG,
 # @param   SPOOL_BOX_TAG in $SPOOL_ROOT/box.env, else hostname -s
 # @param BOX_STATE_SOURCES (optional) - space-separated dirs to pack
+# @param BOX_CRONS_STATE_DIR (optional) - the state root packed, default SPL_VAR_APP_DIR
+# @param   (<var>/<org>/<app>, spl_run_paths); refused when neither is known
 # @param BOX_STATE_SKIP (optional) - space-separated absolute paths left out
 # @param BOX_STATE_HOMES (optional) - home dirs (globs allowed) for the 0600 rule;
 # @param   default the getent passwd homes of this user, the agent user and root
@@ -156,11 +158,23 @@ spl_box_state_homes() {
 # line: BOX_STATE_SOURCES (no user), else the defaults
 spl_box_state_sources() {
   if [[ -n "${BOX_STATE_SOURCES:-}" ]]; then tr ' ' '\n' <<<"$BOX_STATE_SOURCES" | sed '/^$/d; s/$/\t/'; return 0; fi
-  local agent home
+  local agent home root
   agent="$(spl_box_state_agent)"
   [[ -n "$agent" ]] && home="$(getent passwd "$agent" | cut -d: -f6)"
   [[ -n "${home:-}" ]] && printf '%s\t%s\n' "$home/.claude/projects" "$agent"
-  printf '%s\t\n' "${SPOOL_ROOT:-/var/spool-hub}" "${BOX_CRONS_STATE_DIR:-/var/csi/csi-spl}" "$HOME/.local/state/csi-spl"
+  root="$(spl_box_state_root)" || return 1
+  printf '%s\t\n' "${SPOOL_ROOT:-/var/spool-hub}" "$root" "$HOME/.local/state/csi-spl"
+}
+
+# spl_box_state_root -> BOX_CRONS_STATE_DIR, else SPL_VAR_APP_DIR
+# (spl_run_paths, sourced on first use: no literal box path); rc 1 with a
+# FATAL line when neither is known
+spl_box_state_root() {
+  if [[ -n "${BOX_CRONS_STATE_DIR:-}" ]]; then printf '%s' "$BOX_CRONS_STATE_DIR"; return 0; fi
+  declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+  spl_run_paths && [[ -n "${SPL_VAR_APP_DIR:-}" ]] && { printf '%s' "$SPL_VAR_APP_DIR"; return 0; }
+  do_log "FATAL cannot derive the box state root (no tree for spl_run_paths): set BOX_CRONS_STATE_DIR" >&2
+  return 1
 }
 
 # spl_box_state_hidden <path> -> 0 when <path> may exist but this user cannot
@@ -198,10 +212,15 @@ spl_box_state_reader() {
 # source, each read as its owner; the DROP lines are counted, not printed
 # one by one (a name can say more than it should)
 spl_box_state_pack() {
-  local arch="$1" work="$2" pack src hint owner me i=0 n drops skip rrc unreadable=0
+  local arch="$1" work="$2" pack src hint owner me i=0 n drops skip root rrc unreadable=0
   pack="$PROJ_PATH/src/bash/scripts/box-state-pack.sh"
   me="$(id -un)"
-  skip="${BOX_STATE_SKIP-${BOX_CRONS_STATE_DIR:-/var/csi/csi-spl}/graft ${BOX_CRONS_STATE_DIR:-/var/csi/csi-spl}/backups}"
+  # the state root is proven here: a failed spl_box_state_sources in the
+  # < <(...) below would only read as fewer sources
+  if [[ -z "${BOX_STATE_SOURCES:-}" || -z "${BOX_STATE_SKIP+x}" ]]; then
+    root="$(spl_box_state_root)" || return 1
+  fi
+  skip="${BOX_STATE_SKIP-$root/graft $root/backups}"
   local -a skips=()
   read -r -a skips <<<"$skip"
   : >"$work/all.tar"

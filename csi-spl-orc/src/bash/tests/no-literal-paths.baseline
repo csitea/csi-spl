@@ -1,8 +1,6 @@
 # no-literal-paths.tst.sh ratchet (SPL-5527): "<lines> <file>", lines with /opt/<org> or /var/<org>. It only shrinks.
-2 csi-spl-orc/src/bash/run/install-box-crons.func.sh
 2 csi-spl-orc/src/bash/run/prune-docker-images-install-cron.func.sh
 2 csi-spl-orc/src/bash/run/setup-reverse-tunnel.func.sh
-3 csi-spl-orc/src/bash/run/spl-box-state-backup.func.sh
 3 csi-spl-orc/src/bash/run/spl-cmd-guard-mode.func.sh
 2 csi-spl-orc/src/bash/run/spl-desk-install-service.func.sh
 1 csi-spl-orc/src/bash/run/spl-desk-up.func.sh
@@ -11,5 +9,4 @@
 2 csi-spl-orc/src/bash/run/spl-reflection-gather.func.sh
 2 csi-spl-orc/src/bash/run/spl-spawn-place.func.sh
 3 csi-spl-orc/src/bash/run/spl-workspace-docs-purge.func.sh
-2 csi-spl-utl/src/bash/run/external-api-health.func.sh
 3 csi-spl-utl/src/bash/run/fleet-logrotate-install.func.sh

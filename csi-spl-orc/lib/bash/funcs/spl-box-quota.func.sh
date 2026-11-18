@@ -162,7 +162,7 @@ spl_box_quota_turn_scan() {
 # the epoch SINCE (SPL-4702: the login was swapped at 08:56Z, sat kept its
 # 07:57Z 100 % until the reset four days later). Either the login probe of
 # do_spl_agent_login_check ("<epoch> ok ...", LANE_QUOTA_PROBE_FILE, default
-# <LOGIN_STATE_DIR>/probe) said ok after SINCE, or a real answer in the agent
+# <spl_claude_login_state_dir>/probe) said ok after SINCE, or a real answer in the agent
 # user's transcripts is newer than SINCE. A probe that says limited, or no
 # answer since, lifts nothing: a real limit holds until its reset.
 spl_box_quota_lifted() {
@@ -174,11 +174,15 @@ spl_box_quota_lifted() {
 }
 
 # spl_box_quota_probe_at VERDICT: the epoch of the login probe's last answer
-# when it said VERDICT, else nothing.
+# when it said VERDICT, else nothing (also when no login-check dir is known).
 spl_box_quota_probe_at() {
-  local pf at verdict
-  pf="${LANE_QUOTA_PROBE_FILE:-${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}/probe}"
-  [[ -z "${LANE_QUOTA_CMD:-}${LANE_PANES_CMD:-}" || -n "${LANE_QUOTA_PROBE_FILE:-}" ]] || return 0
+  local pf="${LANE_QUOTA_PROBE_FILE:-}" at verdict
+  [[ -z "${LANE_QUOTA_CMD:-}${LANE_PANES_CMD:-}" || -n "$pf" ]] || return 0
+  if [[ -z "$pf" ]]; then
+    declare -F spl_claude_login_state_dir >/dev/null ||
+      source "$(dirname "${BASH_SOURCE[0]}")/spl-claude-login.func.sh"
+    pf="$(spl_claude_login_state_dir)/probe" || return 0
+  fi
   read -r at verdict _ 2>/dev/null <"$pf" || return 0
   [[ "$at" =~ ^[0-9]+$ && "$verdict" == "$1" ]] && echo "$at"
   return 0

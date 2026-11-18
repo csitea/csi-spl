@@ -109,7 +109,12 @@ spl_lane_rotate_conf() {
   ROTATE_LANE_DIR="$LEASE_DIR/lane-rotate"
   mkdir -p "$ROTATE_LANE_DIR" 2>/dev/null || { do_log "FATAL cannot create $ROTATE_LANE_DIR"; return 1; }
   ROTATE_LANE_LOG="$ROTATE_LANE_DIR/lane-rotate.log"
-  ROTATE_LANE_LOGIN_CACHE="${ROTATE_LANE_LOGIN_CACHE:-/var/csi/csi-spl/agent-login-check/probe}"
+  if [[ -z "${ROTATE_LANE_LOGIN_CACHE:-}" ]]; then
+    declare -F spl_claude_login_state_dir >/dev/null ||
+      source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-claude-login.func.sh"
+    # no dir known: no cache, the probe command answers (spl_lane_rotate_login_ok)
+    ROTATE_LANE_LOGIN_CACHE="$(spl_claude_login_state_dir)/probe" || ROTATE_LANE_LOGIN_CACHE=""
+  fi
   return 0
 }
 

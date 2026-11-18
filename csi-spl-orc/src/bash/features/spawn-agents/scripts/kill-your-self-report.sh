@@ -12,8 +12,11 @@
 #        kill-your-self-report.sh --gate [WORKDIR]
 #
 # --result prints ONLY the final report body, at most RESULT_MAX (800) chars:
-# the one-line outcome, the numbers, the sha(s) (default: HEAD) and the path to
-# the full detail. --detail copies a file (or stdin) to
+# the one-line outcome, the numbers, the sha(s) and the path to the full
+# detail. With no --sha it names the lane's own commits, origin/<trunk>..HEAD
+# oldest first, else "none": a role seat on someone else's trunk commit named
+# that commit as its own (c-002's d751a5070, SPL-5928). A lane whose commit
+# already landed (HEAD == origin/<trunk>) reads "none" too; it passes --sha. --detail copies a file (or stdin) to
 # ${REPORT_DIR:-$SPOOL_ROOT/reports}/<id>.md; --detail-path names a doc
 # instead. Text cut to fit the cap is kept whole in that file. The report
 # file is never left empty (m-897 sent a 0-byte one, 2026-10-10): a --detail
@@ -233,7 +236,11 @@ fi
 if [ "$MODE" = result ]; then
   [ -n "$OUTCOME" ] || { echo "kill-your-self-report: --result needs --outcome" >&2; exit 2; }
   max="${RESULT_MAX:-800}"
-  [ "${#SHAS[@]}" -gt 0 ] || SHAS=("$(git -C "$WORKDIR" rev-parse --short HEAD 2>/dev/null || echo none)")
+  if [ "${#SHAS[@]}" -eq 0 ]; then
+    trunk="$(git -C "$WORKDIR" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/master)"
+    mapfile -t SHAS < <(git -C "$WORKDIR" rev-list --reverse --abbrev-commit "$trunk..HEAD" 2>/dev/null)
+    [ "${#SHAS[@]}" -gt 0 ] || SHAS=(none)
+  fi
   out="${DETAIL_PATH:-${REPORT_DIR:-$SPOOL_ROOT/reports}/${ID:-unknown}.md}"
   if [ -z "$DETAIL_PATH" ]; then
     # Read first, write after: a failed read never truncates the report.

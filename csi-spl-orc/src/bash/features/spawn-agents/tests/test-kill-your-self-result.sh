@@ -3,19 +3,28 @@
 #   --result body is <= 800 chars (outcome, numbers, sha, detail path); a long
 #   detail goes to the report file, and text cut to fit is kept whole there.
 #   The report file is never empty (m-897's was 0 bytes, c-894 finding 3).
+#   With no --sha it names only the lane's own commits (origin/<trunk>..HEAD),
+#   never a trunk HEAD the seat did not make (c-002's d751a5070, SPL-5928).
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
 R="$T_SCRIPTS/kill-your-self-report.sh"
 export REPORT_DIR="$T_TMP/reports" SPOOL_AGENT_ID=c-007
 W="$T_TMP/wt" && git init -q "$W" && git -C "$W" -c user.name=FirstName\ LastName -c user.email=dev@example.com commit -q --allow-empty -m init
-head_="$(git -C "$W" rev-parse --short HEAD)"
 
 out="$(bash "$R" --result --outcome "landed the fix" --numbers "n=3, 1563 -> 412 B" "$W")"; rc=$?
 eq "exits 0" 0 "$rc"
-eq "short body: outcome, numbers, sha (HEAD by default), detail path" \
-  "landed the fix"$'\n'"numbers: n=3, 1563 -> 412 B"$'\n'"sha: $head_"$'\n'"detail: $REPORT_DIR/c-007.md" "$out"
+eq "short body: outcome, numbers, sha (none: no origin trunk to read), detail path" \
+  "landed the fix"$'\n'"numbers: n=3, 1563 -> 412 B"$'\n'"sha: none"$'\n'"detail: $REPORT_DIR/c-007.md" "$out"
 hasnt "no discovery text in result mode" "discovery" "$out"
+
+# A role seat sits on someone else's trunk commit: no --sha must not name it.
+C="$T_TMP/seat" && git clone -q "$W" "$C" 2>/dev/null
+has "a worktree on the trunk commit, no --sha: sha none" "sha: none" "$(bash "$R" --result --outcome ok "$C")"
+git -C "$C" -c user.name=FirstName\ LastName -c user.email=dev@example.com commit -q --allow-empty -m one
+git -C "$C" -c user.name=FirstName\ LastName -c user.email=dev@example.com commit -q --allow-empty -m two
+own="$(git -C "$C" rev-list --reverse --abbrev-commit origin/HEAD..HEAD | tr '\n' ' ')"
+has "the lane's own commits are named, oldest first" "sha: ${own% }" "$(bash "$R" --result --outcome ok "$C")"
 
 big="$(printf 'line %s of the long detail\n' $(seq 200))"
 out="$(printf '%s\n' "$big" | bash "$R" --result --outcome ok --sha a1 --sha b2 --detail - "$W")"

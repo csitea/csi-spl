@@ -16,23 +16,18 @@ Owner HUM-10 directives and fleet rules, by pointer:
 - Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, pushes aim 1 up
   to 3 never more than 5, R1-R16).
 
-**Why now (fresh, measured here).** The holder's brief (c-002@sat, after c-001@sat
-SPAWN SHARE 6432b47a) names the trigger: refactor under its band. Re-read here, n=1 each:
-- `cd csi-spl-orc && ./run -a do_spl_spawn_queue` (2026-11-17T22:09:35Z) -> live lanes
-  `refactor 5 20% (band 40-60%: UNDER)`, `last 24 h (132 sample(s)): refactor 10% (band
-  20-30%: UNDER)`, `9 queued, 0 placing`, no refactor row queued, `phase night`.
-- Round 34 is served on trunk: `git log f62d610cb --oneline -E --grep='\(r60-[0-9]{2}'`
+**Why now (fresh, measured here).** c-001@sat unheld round 35 in a445be64
+(2026-11-18 07:5xZ, holder c-002@sat), after parking it in 237a4e95 (rulebook 1.4 +
+4.4). Re-read here, n=1 each:
+- **The perf floor (rulebook 4.4) is met:** the command of 4.4 on `f284b4148`
+  (2026-11-18T08:01:15Z) -> `perf 24 refactor 90 perf-share 21.1% floor-met`
+  (v0.1 read `perf 22 refactor 102 perf-share 17.7% under-20` on `f62d610cb`).
+- Round 34 is served on trunk: `git log f284b4148 --oneline -E --grep='\(r60-[0-9]{2}'`
   -> 7 lines, rows 01-06 all landed (row 01 twice: test + refactor; row 06 =
   `4fdfe4ed2`, SPL-5828). **No round 34 row is open.**
-- **The perf floor (rulebook 4.4) is not met:** the command of 4.4 on `f62d610cb` ->
-  `perf 22 refactor 102 perf-share 17.7% under-20`. Perf round 14 is served (its plan
-  has 2 rows; `p14-01` `70eef695e` and `p14-02` `f62d610cb` landed), and no
-  `perf-round-15*` file under `csi-spl-doc/doc/md` and no `p15-` brief on sat
-  (22:10Z). **Under rulebook 1.4's exception the next slot is perf round 15's
-  planner, and refactor round 35 waits for `floor-met`.** This plan is drafted as the
-  brief asks; whether its rows run now, beside p15 (as c-001's a257107a ruled for
-  round 34 beside p14), or after it is the holder's call, asked in the report.
-  Nothing in the rows depends on it.
+- `cd csi-spl-orc && ./run -a do_spl_spawn_queue` (2026-11-18T08:00:34Z) -> `1 queued,
+  0 placing`, none refactor; live lanes `refactor 4 17% (band 10-20%: ok)`, `last 24 h
+  (133 sample(s)): refactor 11% (band 20-30%: UNDER)`, `phase day`.
 
 Round 35 focus: **the rest of the SPL-5527 `no-literal-paths` baseline that round 34
 left (its section 6), with the reviewers' leftovers that are refactor-shaped.** Row 01
@@ -40,40 +35,45 @@ fixes the comment SPL-5828's reviewer flagged (N1). Rows 02-06 take 14 of the 17
 files (26 of 34 lines) off the baseline, one family per row; row 02 is round 34 row
 05's R7 N3 (the login-check dir literals in the watchdog and the lane rotation).
 
-**Status: v0.1**, draft by the editor. No row lane starts before the panel signs the
+**Status: v0.2**, draft by the editor: v0.1 (`27e21eefc`) re-measured on one
+current sha; every row kept (section 8). No row lane starts before the panel signs the
 plan sha (rulebook 3.2).
 
-Editor: **c-185@sat** (claude). Panel seat: requested of the holder (section 5).
+Editor: **c-389@sat** (claude), taking over from c-185@sat (v0.1). Panel seat:
+requested of the holder (section 5).
 
-**One sha:** every count is measured on **`f62d610cb`** (`origin/master`
-f62d610cbbdbab46e7b73f9dfcf2b2c4fb2c7c92, 2026-11-17T21:59:04Z), n=1 per command
-unless stated. Reads are in this lane's worktree at that sha, clean. Queue, lane and
+**One sha:** every count is measured on **`f284b4148`** (`origin/master`
+f284b414807a3052852becca845f350b037b064d, 2026-11-18T07:57:30Z), n=1 per command
+unless stated. Reads are on that sha with `git show` / `git grep`, never the working
+tree. Queue, lane and
 vendor readings are live state, so they carry their own time.
 
 ## 1. How to read this
 
-- **Slug prefix `r61`.** On `f62d610cb` at 2026-11-17T22:06:30Z, on sat:
-  `git log f62d610cb --oneline -E --grep='\(r61-[0-9]{2}'` -> 0;
-  `git log f62d610cb --oneline --grep='r61-'` -> 0;
+- **Slug prefix `r61`.** On `f284b4148` at 2026-11-18T08:00:17Z, on sat:
+  `git log f284b4148 --oneline -E --grep='\(r61-[0-9]{2}'` -> 0;
+  `git log f284b4148 --oneline --grep='r61-'` -> 0;
   `git ls-remote origin 'refs/heads/*r61*' | wc -l` -> 0;
   `grep -rlE 'r61-[0-9]{2}' /var/spool-hub/dispatch/briefs /var/spool-hub/spawn-remote | wc -l`
-  -> 0. Control: the same four for `r60` -> 7, 8, 3, 15, so the reads see a used
-  slug. The highest round slug in any subject,
-  `git log f62d610cb --format=%s | grep -oE '^[a-z]+\(r[0-9]+-' | grep -oE 'r[0-9]+' | sort -t r -k2 -n | tail -1`
-  -> `r60`. **The c-296 CI-refactor seat's rounds:** its briefs `c296-r35-*` ..
-  `c296-r40-*` name slugs `(r35-0N` .. `(r40-0N`
-  (`grep -hoE '\([a-z]+[0-9]+-[0-9]{2}-[a-z0-9-]*'` over them -> 18 slugs, r35-01 ..
-  r40-03), all below `r61`; each but `r39-02` has a landed commit
-  (`git log f62d610cb --grep='(r3N-0'`), so they share the one `rNN` ladder and none
-  reaches `r61`. No `refactor-round-35*` file under `csi-spl-doc/doc/md`;
-  `git ls-remote origin 'refs/heads/review/*round-35*'` -> 0. **The other box is not
-  read by this lane**; the holder (or c-001 there) runs the `grep -rlE 'r61-[0-9]{2}'`
-  over its briefs, spawn-remote and asks before the first spawn (R4).
+  -> 0. Control: the same four for `r60` -> 7, 8, 0, 18 (round 34's branches are
+  pruned since v0.1's 3), so the reads see a used slug. The highest round slug in any
+  subject,
+  `git log f284b4148 --format=%s | grep -oE '^[a-z]+\(r[0-9]+-' | grep -oE 'r[0-9]+' | sort -t r -k2 -n | tail -1`
+  -> `r60`. **The c-296 CI-refactor seat's rounds:** its briefs `c296-r15-*` ..
+  `c296-r40-*` (`ls /var/spool-hub/dispatch/briefs | grep '^c296-r'`, no `c296-r41`
+  or later) name slugs `(r16-01` .. `(r40-03`
+  (`grep -hoE '\([a-z]+[0-9]+-[0-9]{2}-'` over them, sorted: highest `(r40-03-`), all
+  below `r61`, so they share the one `rNN` ladder and none reaches `r61`. No other
+  `refactor-round-35*` file under `csi-spl-doc/doc/md`;
+  `git ls-remote origin 'refs/heads/review/*round-35*'` -> 1, this plan's own
+  `review/c002-refactor-round-35-planner`. **The other box is not read by this lane**;
+  the holder (or c-001 there) runs the `grep -rlE 'r61-[0-9]{2}'` over its briefs and
+  spawn-remote before the first spawn (R4).
 - One row = one practice = one lane, at the sites named and nowhere else, with a test
   that shows behaviour kept or, for the ratchet, its **red control**.
 - **Paths:** `orc:` = `csi-spl-orc/src/bash/`, `orclib:` = `csi-spl-orc/lib/bash/funcs/`,
   `utl:` = `csi-spl-utl/src/bash/`, `iac:` = `csi-spl-iac/src/bash/`. Lines as of
-  `f62d610cb`; a function's site is its first line (R15).
+  `f284b4148`; a function's site is its first line (R15).
 - **Box:** `either` for every row (no pin). **Vendor:** claude for every row. **R7
   reviewer:** section 5.
 - **Subject** (R6 reads it): `<type>(r61-NN-<slug>, SPL-<row issue>): ...`.
@@ -100,17 +100,17 @@ vendor readings are live state, so they carry their own time.
 - **What was and was not run:** the commands in sections 2 and 3, n=1. **No red
   control has been planted by this lane, and no case has been written.**
 
-## 2. Where the rows come from (measured on `f62d610cb`)
+## 2. Where the rows come from (measured on `f284b4148`)
 
 The literal grep, per file: `grep -nE '/(opt|var)/csi($|[^A-Za-z0-9_-])' <file>`.
 
 **Taken:**
 
-| source | input | command on `f62d610cb` | n | row |
+| source | input | command on `f284b4148` | n | row |
 |---|---|---|---|---|
 | SPL-5828 R7 N1 (c-158@sat 8a6d7af3, `c002-next-round-candidates.md`) | a description that says what the code no longer does | `grep -n 'exits 0 even with the link down' orc:run/spl-uplink-probe.func.sh`; `sed -n 55,60p` of the same | **1** sentence, `:14-15`: "The probe exits 0 even with the link down: it never fails its cron"; since `4fdfe4ed2`, `:58` `spl_uplink_probe_dir dir \|\| return 1` and `:60` (a box id that is not a plain name) return 1 | row 01 |
 | round 34 row 05 R7 N3 (c-331, fe8259a8; c-002 GO c25589f5) | the login-check dir literal outside round 34's files | the literal grep | `orclib:spl-box-quota.func.sh:180`, `orc:run/spl-lane-rotate.func.sh:112`, `orc:run/spl-watchdog.func.sh:72,1311`: **4 lines, 3 files**. The notes named the watchdog and rotation lines; `spl-box-quota` is the same literal, found by the grep. `lane-rotate:112` reads `ROTATE_LANE_LOGIN_CACHE` only, not `LOGIN_STATE_DIR` | row 02 |
-| round 34 section 6 (the other 17 files, "input for round 35") | the `no-literal-paths` baseline | `git show f62d610cb:csi-spl-orc/src/bash/tests/no-literal-paths.baseline \| grep -vE '^\s*(#\|$)' \| awk '{s+=$1} END{print NR, s}'` | **17 files, 34 lines** (round 34 said 17 / 34) | rows 02-06 |
+| round 34 section 6 (the other 17 files, "input for round 35") | the `no-literal-paths` baseline | `git show f284b4148:csi-spl-orc/src/bash/tests/no-literal-paths.baseline \| grep -vE '^\s*(#\|$)' \| awk '{s+=$1} END{print NR, s}'` | **17 files, 34 lines** (round 34 said 17 / 34) | rows 02-06 |
 | the same | the `BOX_CRONS_STATE_DIR` root default | the literal grep | `orc:run/install-box-crons.func.sh:36,51`, `orc:run/spl-box-state-backup.func.sh:11,163,204`, `utl:run/external-api-health.func.sh:28,62`: **7 lines, 3 files** | row 03 |
 | the same | the token-burn dir in the placer | the literal grep | `orc:run/spl-spawn-place.func.sh:206,672`: **2 lines** (the `@param`, and the progress read `f="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}/buckets.tsv"`) | row 04 |
 | the same | per-feature state and log dirs | the literal grep | `orc:run/spl-workspace-docs-purge.func.sh:36,48,135`, `orc:run/prune-docker-images-install-cron.func.sh:8,27`, `orc:run/setup-reverse-tunnel.func.sh:30,40`: **7 lines, 3 files** (`:135` is a comment, "/var/csi carries one") | row 05 |
@@ -118,9 +118,9 @@ The literal grep, per file: `grep -nE '/(opt|var)/csi($|[^A-Za-z0-9_-])' <file>`
 
 **Left out:**
 
-| source | input | command on `f62d610cb` | n | disposition |
+| source | input | command on `f284b4148` | n | disposition |
 |---|---|---|---|---|
-| round 34 section 6 | `orc:run/spl-reflection-gather.func.sh:59,203` (`REFLECTION_ZOMBIE_LOG` default) | the literal grep | 2 lines | **Left out**: SPL-5825's R7 follow-ups (W1-W2, N1-N4, below) are open on this file and c-161 landed reflection work today (`9d358eee6`, SPL-5829). A later round, after those |
+| round 34 section 6 | `orc:run/spl-reflection-gather.func.sh:59,203` (`REFLECTION_ZOMBIE_LOG` default) | the literal grep | 2 lines | **Left out**: the file moved again since v0.1 (`git diff --stat f62d610cb f284b4148 -- <it>` -> 28 lines, SPL-5829 `9d358eee6` / `8718b4168`) and SPL-5825's R7 follow-ups (W1-W2, N1-N4, below) name it. A later round, after those |
 | round 34 section 6 | `orc:run/spl-cmd-guard-mode.func.sh:20,36,37` (`/var/csi/rust`, `/mnt/data/var/csi/rust`), `utl:run/fleet-logrotate-install.func.sh:7,24,70` (`/var/csi`) | the literal grep | 6 lines, 2 files | **Left out**: they need the org var dir `<var>/<org>`, which `spl_run_paths` does not export (it exports `SPL_VAR_APP_DIR` = `<var>/<org>/<app>`); a new export in a lib every action sources is its own row, first |
 | round 34 section 6 | `orc:run/spl-file-erase.func.sh:31,120` (`/var/csi`, `/opt` in the protected-root list) | the literal grep | 2 lines | **Left out**: a safety deny list; a failed derivation would shrink it. Needs the export above and a refusal on no tree |
 | r34 row 01 R7 c-321 (17f86543) N1, N2 | the `no_fallback` probe and `m.from_id LIKE 'HUM-%'` uncovered on Postgres | not re-measured | none | **Left out**: test gaps, bug/test round input |
@@ -128,7 +128,7 @@ The literal grep, per file: `grep -nE '/(opt|var)/csi($|[^A-Za-z0-9_-])' <file>`
 | SPL-5824 R7 c-381 (c92541f6) W1, N1, N2 | env vars the desk hop drops | not re-measured | none | **Left out**: bugs, bug round input |
 | SPL-5825 R7 c-386 (a6d810ef) W1-W2, N1-N4 | reflection gather matching, rc, cap | not re-measured | none | **Left out**: bugs, bug round input |
 | SPL-5828 R7 N2 | a clone outside `<base>/<org>/<app>` derives its own dir | none | none | **Dropped**: by design of `spl_run_paths` (the note's own words) |
-| round 34 section 6 | `send` `WIDE`; the 3 Go `wideFuncs` pairs (`cleancode_test.go:41-48`, still 6 entries on `f62d610cb`); `[missing]` header files; `internal/blob`; `afterPaid`/`fakePay`/`claim`; shellcheck SC2034/SC2154 | `wideFuncs` read; the rest not re-measured | 6 entries | **Left out**, as round 34 section 6; `send` also stays off `csi-spl-wui/` while c-137 (Nuxt 4) writes there |
+| round 34 section 6 | `send` `WIDE`; the 3 Go `wideFuncs` pairs (`cleancode_test.go:41-48`, still 6 entries on `f284b4148`); `[missing]` header files; `internal/blob`; `afterPaid`/`fakePay`/`claim`; shellcheck SC2034/SC2154 | `wideFuncs` read; the rest not re-measured | 6 entries | **Left out**, as round 34 section 6; `send` is a `csi-spl-wui/` file: a WUI row is its own round |
 
 ## 3. The 6 rows
 
@@ -155,47 +155,48 @@ The literal grep, per file: `grep -nE '/(opt|var)/csi($|[^A-Za-z0-9_-])' <file>`
 
 ### 3.2 Off every live lane, every queued row and every unlanded row (R3)
 
-- **Unlanded round rows** (on `f62d610cb`): round 34 has every row on trunk (the "why
-  now"); `--grep='\(r61-'` -> 0; perf round 14 is served.
-- **The written paths: 16 distinct**: row 01 1, row 02 3, row 03 3, row 04 1, row 05
+- **Unlanded round rows** (on `f284b4148`): round 34 has every row on trunk (the "why
+  now"); `--grep='\(r61-'` -> 0. Bug rounds 13-15 landed every row
+  (`git log f284b4148 --oneline -E --grep='\(b1[345]-[0-9]{2}'`); b13-01, b14-02 and
+  b15-01 changed `spl-lane-rotate.func.sh` (row 02's file) since v0.1, at other hunks
+  (`git diff f62d610cb f284b4148 -- <it> | grep '^@@'` -> 6 hunks, lines 171-604); its
+  `:112` literal is unchanged, so row 02 stays. Perf round 16: `p16-01` landed
+  (`48b44328b`), `p16-02` (c-381@sat, `spl-spawn-share.func.sh` and its test, plan
+  row 02) is live: its brief says `spl-spawn-place.func.sh` is NOT its file ("parked
+  refactor round 35 row 04 owns it"), and its worktree diff holds no row path.
+- **The written paths: 15 distinct** (v0.1 said 16; the sum is 15): row 01 1, row 02 3, row 03 3, row 04 1, row 05
   3, row 06 3, and `no-literal-paths.baseline` (rows 02-06, serialised in 3.1). Each
-  present on `f62d610cb`.
-- **Lane map from sat: NOT proven free.** `lane-map.sh --check <the 16 paths and
-  spl-reflection-gather.func.sh, comma separated> --agent c-185` -> **exit 4** at
-  2026-11-17T22:07:57Z: 0 paths owned; 13 `unknown:` lanes, all on the other box, with no files
-  recorded: 8 `rotate` lanes (`c-060`, `c-390`, `c-528`, `c-545`, `c-570`, `c-669`,
-  `c-924`, `c-927`), two blog drafts (`c-054`, `c-714`), `c-352`
-  (`c002-bug-desk-hop-live-repo`), `c-361` (`c003-hygiene-kill-test-recurs-after-grace`),
-  `c-366` (`c002-spl5784-outlook-calendar-import`). Exit code read via `PIPESTATUS`,
-  n=1. **Exit 4 is not free, and this plan did not clear it**; their briefs are on
-  the other box and were not read here. The holder re-runs the check before each row's spawn
-  (R3).
-- **Live lanes on sat** (tmux at 22:08Z: c-044, c-064, c-094, c-102, c-137, c-161,
-  c-176, c-187, c-197, c-762): each one's `git diff --name-only origin/master...HEAD`
-  plus `git status --porcelain` -> no row path. c-044 (spec 143 B-6) and c-176 write
-  Go hub files; c-137 (Nuxt 4) `csi-spl-wui/` and `orc:scripts/perf-budget.py`;
-  c-187's brief names `utl:run/docker-test-container-prune.func.sh`, not row 05's orc
-  `prune-docker-images-install-cron.func.sh`; c-161 and the rotate lanes hold only a
-  state file.
-- **Worktrees on this box** (264 in `git worktree list`, 22:08:09Z), matched by
-  basename: hits only in review or red scratch (`g-015-spl5549-r4`, `g-228-spl5604-*`,
-  `g-265-rev-5617*`, `g-357-spl5646*`, `g-418-rev-*`, `g-612-rev-*`, `g-962-r4620`,
-  `c760-review`, `c-065-rev-4744`) whose ids have no tmux window here, and
-  `c-161-rev` (`install-box-crons.tst.sh`, on an old SPL-4813 branch; a test, not a
-  row path).
-- **Spawn queue (2026-11-17T22:09:35Z):** 9 queued, 0 placing, none refactor. All 8
-  distinct briefs are on this box; grepped for every written basename -> **0 hits**
-  each (22:09:55Z). The briefs of the last 2 days that name a row file
-  (`spl-watchdog`, `spl-lane-rotate`, `spl-spawn-place`: p11-02, p12-01, SPL-5671,
-  SPL-5686, SPL-5713, SPL-5728, SPL-5670) each have their landing commit on
-  `origin/master` (`git log --grep` per key).
+  present on `f284b4148`, each literal at the line named in section 3
+  (the literal grep per file); since `f62d610cb` only `spl-lane-rotate.func.sh` of
+  them changed (`git diff --stat f62d610cb f284b4148 -- <the 15>`).
+- **Lane map from sat: NOT proven free.** `lane-map.sh --check <the 15 row paths, comma
+  separated> --agent c-389` -> **exit 4** at 2026-11-18T08:00:27Z: 0 paths owned;
+  13 `unknown:` lanes, all on the other box, with no files recorded: 11 `rotate`
+  lanes (`c-060`, `c-390`, `c-468`, `c-528`, `c-545`, `c-570`, `c-596`, `c-643`,
+  `c-669`, `c-924`, `c-927`) and two blog drafts (`c-054`, `c-714`). n=1. **Exit 4 is
+  not free, and this plan did not clear it**; their briefs are on the other box and
+  were not read here. The holder re-runs the check before each row's spawn (R3).
+- **Live lanes on sat** (tmux at 08:00:45Z: c-102, c-176, c-197, c-337, c-339, c-371,
+  c-379, c-381, c-384, c-762, m-345, besides the desks c-001..c-003): each one's
+  `git diff --name-only origin/master...HEAD` plus `git status --porcelain`, matched
+  against the row basenames -> **0 hits** each. Seven are `rotate` lanes; c-176 is
+  `t1-invitee-label`; c-379 / c-384 are p16-01 (landed) and its reviewer; m-345 the
+  bug round 15 panel seat.
+- **Spawn queue (2026-11-18T08:00:34Z):** 1 queued, 0 placing, none refactor
+  (`hand-<box2>-c002-spl5784-outlook-go-live`, a feature lane); its brief grepped for every written
+  basename -> **0 hits**. The briefs under `/var/spool-hub/dispatch/briefs` changed
+  since 2026-11-17T22:00Z that name a row basename (08:00:56Z): the b13-01, b14-01,
+  b14-02, b15-01..03 rows and reviewers, the r60-06 reviewer, SPL-5829, SPL-5860, the
+  round 13-15 and p16 panel seats: each has its landing commit on `f284b4148`
+  (`git log --grep` per key or slug); `c002-p16-02-*` names `spl-spawn-place` only to
+  keep off it (above).
 
 ### 3.3 Tests per row, measured (R2, C4)
 
 Each row lists every test that names a file's bare basename or its `do_*` function
-(round 32's section 3.3 command, `NAMES` the row's basenames, on `f62d610cb`):
+(round 32's section 3.3 command, `NAMES` the row's basenames, on `f284b4148`):
 
-`pat=$(for n in $NAMES; do printf '%s' "|\b$n(\.func\.sh)?([^a-z0-9_-]|\$)|\bdo_${n//-/_}\b"; done); git grep -lE "${pat#|}" f62d610cb -- 'csi-spl-orc/**/tests/*' 'csi-spl-iac/**/tests/*' 'csi-spl-utl/**/tests/*' | grep -v baseline`
+`pat=$(for n in $NAMES; do printf '%s' "|\b$n(\.func\.sh)?([^a-z0-9_-]|\$)|\bdo_${n//-/_}\b"; done); git grep -lE "${pat#|}" f284b4148 -- 'csi-spl-orc/**/tests/*' 'csi-spl-iac/**/tests/*' 'csi-spl-utl/**/tests/*' | grep -v baseline`
 
 n=1 each, files (of them not `.sh`/`.py`): row 01 -> 3 (1: `orc-shard-weights.txt`);
 row 02 -> **34** (0; mostly `wd-*` and `lane-rotate*`, plus
@@ -217,18 +218,20 @@ names, with the reason.
 
 ## 5. Panel and reviewers (R7)
 
-- Editor: c-185@sat (claude). Both seats sign the plan sha (rulebook 3.2).
-- **Vendor state** (2026-11-17T22:10:38Z, n=1 each, `BOX_PICK_KIND=<k> ./run -a do_spl_box_pick`):
-  grok `pick=hold` (weekly 99% >= 95%); agy `pick=nokind` (no box with room has an
-  agy CLI); mistral `pick=sat`; claude `pick=sat`.
+- Editor: c-389@sat (claude; v0.1 by c-185@sat). Both seats sign the plan sha (rulebook 3.2).
+- **Vendor state** (2026-11-18T08:01:19Z, n=1 each, `BOX_PICK_KIND=<k> ./run -a do_spl_box_pick`):
+  grok `pick=hold` (weekly 99% >= 95% on both boxes); agy `pick=` the other box (47% <
+  70%; v0.1 read `nokind`); mistral `pick=sat`; claude `pick=sat`.
 - **Panel seat: requested of the holder c-002@sat** (task `dispatch-refactor-r35`):
   one **mistral** doc seat, as round 34's m-206; mistral is allowed docs and reviews
   (owner 10-17, t1 b61851fb msg 91bf8278). If the holder rules it out, an agy seat
   when a box can take it; else the plan waits. The panel seat reviews this plan only.
-- **Row reviewers (code R7):** grok holds, so a fresh **claude** seat per row under
+- **Row reviewers (code R7):** cross-vendor first (2.7.2): an **agy** seat per row on
+  the other box while its pick names a box (it did at 08:01:19Z, v0.1 could not).
+  When agy cannot be placed, grok holds, so a fresh **claude** seat per row under
   waiver 1a7c70da as re-ruled by c-001 on 2026-11-16 (5fb1bdab; it lapses on the first
-  grok pick), as in round 34. Not a mistral code R7. The holder re-reads the grok pick
-  before each row's reviewer is queued. The reviewer is a fresh session, never the
+  grok pick), as in round 34. Which of the two is the holder's call per row. Not a mistral code R7. The holder re-reads the grok pick
+  before each row's reviewer is queued. A claude reviewer is a fresh session, never the
   author; its line says same-vendor under the waiver in `read:`; 2.7.5 still fails an
   equal pair and the retro names it.
 - A row with no reviewer for 15 minutes reports a blocker (2.7.3).
@@ -252,7 +255,7 @@ names, with the reason.
 | kind | simple_coding 6 |
 | batches | batch 1: rows 01-02; batches 2-5: rows 03, 04, 05, 06 (the baseline) |
 | `no-literal-paths` baseline | 17 files / 34 lines -> 3 / 8 (rows 02-06) |
-| measured on | `f62d610cb`, n=1 per command unless stated |
+| measured on | `f284b4148`, n=1 per command unless stated (v0.1: `f62d610cb`) |
 
 ## 8. Changes
 
@@ -262,11 +265,21 @@ names, with the reason.
   SPL-5828 N1); its bug and test items are left for a bug round. After v1.0 lands,
   the plan is imported as a Qto `system` doc (`do_spl_doctree_import_md`,
   `QTO_FS=repo`, TENANT_ID=t1), as round 33 was (`e49e68a8c`, SPL-5449).
+- v0.2 (c-389@sat, after c-001@sat unheld the round in a445be64): rebuilt on
+  `27e21eefc`, every count re-measured on `f284b4148`. **No row dropped, none
+  changed**: every literal is at the line v0.1 named (the literal grep per file), the
+  baseline still reads 17 files / 34 lines, the three helpers sit at the lines named
+  (`spl-claude-login.func.sh:23`, `spl-token-burn-collect.func.sh:37`,
+  `spl-uplink-probe.func.sh:73`), and the test counts of 3.3 are unchanged (3, 34, 11,
+  14, 4, 60). The only row file that moved, `spl-lane-rotate.func.sh` (b13-01, b14-02,
+  b15-01), moved at other hunks (3.2). Refreshed: the why-now (4.4 now `floor-met`),
+  the slug proof, the R3 readings, the vendor state (agy places again, so the row
+  reviewers are agy first), and the reflection-gather and `send` left-out reasons.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-185@sat (claude): drafted v0.1.
+- Editor seat: c-185@sat (claude): drafted v0.1; c-389@sat (claude): v0.2.
 - Panel reviewer seat: requested of the holder (section 5).
 - Row R7 seats: section 5.

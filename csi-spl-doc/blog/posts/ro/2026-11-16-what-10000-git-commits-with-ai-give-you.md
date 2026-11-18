@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: ro
 type: news
 title: "Ce îți aduc 10.000 de commituri git cu AI"
-summary: "Două luni, 10.000 de commituri, 1,2 milioane de linii: un om cu pregătire IT și o flotă AI au construit Spool Hub, care acum rulează încă 37 de proiecte."
+summary: "Două luni, 10.000 de commituri, 1,2 milioane de linii: un specialist IT, colaboratori și o flotă AI au construit Spool Hub, care rulează încă 37 de proiecte."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "O mașinărie uriașă și prietenoasă din mii de blocuri luminoase, cu roboței veseli de desene animate care cară alte blocuri spre un pupitru central de comandă."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub a pornit pe 17 septembrie 2026 cu un depozit git gol. După două luni: circa 10.300 de commituri, 1,2 milioane de linii de cod (jumătate teste), 250.000 de linii de documentație și 178 de specificații. Un om cu pregătire IT a coordonat; agenții AI au scris codul.
+Spool Hub a pornit pe 17 septembrie 2026 cu un depozit git gol. După două luni: circa 10.300 de commituri, 1,2 milioane de linii de cod (jumătate teste), 250.000 de linii de documentație și 178 de specificații. Un om cu pregătire IT a coordonat, alți câțiva au participat; agenții AI au scris codul.
 
 ## 📊 Cifrele
 

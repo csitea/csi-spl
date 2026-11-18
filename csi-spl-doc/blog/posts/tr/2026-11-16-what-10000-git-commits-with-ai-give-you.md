@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: tr
 type: news
 title: "Yapay zekâ ile 10.000 git commit size ne kazandırır"
-summary: "İki ay, 10.000 commit, 1,2 milyon LOC: BT bilgisi olan bir kişi ve bir yapay zekâ filosu Spool Hub'ı kurdu; artık 37 projeyi daha yönetiyor."
+summary: "İki ay, 10.000 commit, 1,2 milyon LOC: BT bilgisi olan bir kişi, birkaç yardımcı ve bir yapay zekâ filosu Spool Hub'ı kurdu; artık 37 projeyi daha yönetiyor."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Binlerce parlayan bloktan yapılmış dev ve sevimli bir makine; neşeli çizgi film robotları merkezi bir kontrol masasına daha fazla blok taşıyor."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub, 17 Eylül 2026'da boş bir git deposuyla başladı. İki ay sonra yaklaşık 10.300 commit, 1,2 milyon LOC kod (yarısı test), 250.000 LOC dokümantasyon ve 178 spesifikasyona ulaştı. BT bilgisi olan bir kişi yönlendirdi; kodu yapay zekâ ajanları yazdı.
+Spool Hub, 17 Eylül 2026'da boş bir git deposuyla başladı. İki ay sonra yaklaşık 10.300 commit, 1,2 milyon LOC kod (yarısı test), 250.000 LOC dokümantasyon ve 178 spesifikasyona ulaştı. BT bilgisi olan bir kişi yönlendirdi, birkaç kişi daha katkı verdi; kodu yapay zekâ ajanları yazdı.
 
 ## 📊 Rakamlar
 

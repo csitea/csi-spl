@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: lt
 type: news
 title: "Ką jums duoda 10 000 git commit'ų su DI"
-summary: "Du mėnesiai, 10 000 commit'ų, 1,2 milijono eilučių: vienas IT išmanantis žmogus ir DI agentų flotilė sukūrė Spool Hub, valdantį dar 37 projektus."
+summary: "Du mėnesiai, 10 000 commit'ų, 1,2 milijono eilučių: vienas IT išmanantis žmogus, pagalbininkai ir DI agentų flotilė sukūrė Spool Hub, valdantį dar 37 projektus."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Milžiniška draugiška mašina iš tūkstančių šviečiančių blokelių, o linksmi animaciniai robotai neša dar daugiau blokelių link centrinio valdymo pulto."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub pradėtas 2026 m. rugsėjo 17 d. nuo vienos tuščios git saugyklos. Po dviejų mėnesių jame yra apie 10 300 commit'ų, 1,2 milijono kodo eilučių (pusė jų – testai), 250 000 dokumentacijos eilučių ir 178 specifikacijos. Vienas IT išmanantis žmogus vairavo; kodą rašė DI agentai.
+Spool Hub pradėtas 2026 m. rugsėjo 17 d. nuo vienos tuščios git saugyklos. Po dviejų mėnesių jame yra apie 10 300 commit'ų, 1,2 milijono kodo eilučių (pusė jų – testai), 250 000 dokumentacijos eilučių ir 178 specifikacijos. Vienas IT išmanantis žmogus vairavo, dar keli prisidėjo; kodą rašė DI agentai.
 
 ## 📊 Skaičiai
 

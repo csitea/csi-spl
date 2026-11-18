@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: de
 type: news
 title: "Was 10.000 Git-Commits mit KI bringen"
-summary: "Zwei Monate, 10.000 Commits, 1,2 Millionen Zeilen: eine Person mit IT-Kenntnissen und eine KI-Flotte bauten Spool Hub, das nun 37 weitere Projekte steuert."
+summary: "Zwei Monate, 10.000 Commits, 1,2 Mio. Zeilen: eine Person mit IT-Kenntnissen, Helfer und eine KI-Flotte bauten Spool Hub, das nun 37 weitere Projekte steuert."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Eine riesige freundliche Maschine aus Tausenden leuchtenden Blöcken, fröhliche Cartoon-Roboter tragen weitere Blöcke zu einem zentralen Steuerpult."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub begann am 17. September 2026 mit einem leeren Git-Repository. Zwei Monate später hat es rund 10.300 Commits, 1,2 Millionen Zeilen Code (die Hälfte davon Tests), 250.000 Zeilen Dokumentation und 178 Spezifikationen. Eine Person mit IT-Kenntnissen hat gesteuert; KI-Agenten haben den Code geschrieben.
+Spool Hub begann am 17. September 2026 mit einem leeren Git-Repository. Zwei Monate später hat es rund 10.300 Commits, 1,2 Millionen Zeilen Code (die Hälfte davon Tests), 250.000 Zeilen Dokumentation und 178 Spezifikationen. Eine Person mit IT-Kenntnissen hat gesteuert, einige weitere haben mitgewirkt; KI-Agenten haben den Code geschrieben.
 
 ## 📊 Die Zahlen
 

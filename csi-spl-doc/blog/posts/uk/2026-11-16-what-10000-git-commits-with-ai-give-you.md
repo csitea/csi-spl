@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: uk
 type: news
 title: "Що дають 10 000 git-комітів з AI"
-summary: "Два місяці, 10 000 комітів, 1,2 мільйона рядків: одна людина з IT-навичками та флот AI-агентів створили Spool Hub, який тепер веде ще 37 проєктів."
+summary: "Два місяці, 10 000 комітів, 1,2 мільйона рядків: одна людина з IT-навичками, помічники і флот AI-агентів створили Spool Hub, який тепер веде ще 37 проєктів."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Величезна доброзичлива машина з тисяч сяйливих блоків, веселі мультяшні роботи несуть нові блоки до центрального пульта керування."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub стартував 17 вересня 2026 року з одного порожнього git-репозиторію. Через два місяці в ньому близько 10 300 комітів, 1,2 мільйона рядків коду (половина з них — тести), 250 000 рядків документації та 178 специфікацій. Одна людина з IT-навичками скеровувала роботу; код писали AI-агенти.
+Spool Hub стартував 17 вересня 2026 року з одного порожнього git-репозиторію. Через два місяці в ньому близько 10 300 комітів, 1,2 мільйона рядків коду (половина з них — тести), 250 000 рядків документації та 178 специфікацій. Одна людина з IT-навичками скеровувала роботу, ще кілька людей долучилися; код писали AI-агенти.
 
 ## 📊 Цифри
 

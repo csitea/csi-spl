@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: sk
 type: news
 title: "Čo vám dá 10 000 git commitov s AI"
-summary: "Dva mesiace, 10 000 commitov, 1,2 milióna riadkov: jeden človek so znalosťou IT a flotila AI postavili Spool Hub, ktorý dnes riadi ďalších 37 projektov."
+summary: "Dva mesiace, 10 000 commitov, 1,2 milióna riadkov: jeden človek so znalosťou IT, pomocníci a flotila AI postavili Spool Hub, ktorý riadi ďalších 37 projektov."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Obrovský priateľský stroj z tisícok žiariacich kociek, veselé kreslené roboty nosia ďalšie kocky k centrálnemu riadiacemu pultu."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub vznikol 17. septembra 2026 z jedného prázdneho git repozitára. O dva mesiace neskôr má asi 10 300 commitov, 1,2 milióna riadkov kódu (polovica z nich sú testy), 250 000 riadkov dokumentácie a 178 špecifikácií. Jeden človek so znalosťou IT udával smer; kód písali agenti AI.
+Spool Hub vznikol 17. septembra 2026 z jedného prázdneho git repozitára. O dva mesiace neskôr má asi 10 300 commitov, 1,2 milióna riadkov kódu (polovica z nich sú testy), 250 000 riadkov dokumentácie a 178 špecifikácií. Jeden človek so znalosťou IT udával smer, niekoľko ďalších sa zapojilo; kód písali agenti AI.
 
 ## 📊 Čísla
 

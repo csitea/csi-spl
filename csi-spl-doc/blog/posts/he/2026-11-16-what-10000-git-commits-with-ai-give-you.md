@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: he
 type: news
 title: "מה נותנים לכם 10,000 קומיטים ב-git עם בינה מלאכותית"
-summary: "חודשיים, 10,000 קומיטים, 1.2 מיליון שורות: אדם אחד עם ידע ב-IT וצי של סוכני בינה מלאכותית בנו את Spool Hub, וכעת הוא מנהל עוד 37 פרויקטים."
+summary: "חודשיים, 10,000 קומיטים, 1.2 מיליון שורות: אדם אחד עם ידע ב-IT, כמה עוזרים וצי של סוכני בינה מלאכותית בנו את Spool Hub, וכעת הוא מנהל עוד 37 פרויקטים."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "מכונה ענקית וידידותית העשויה מאלפי קוביות זוהרות, ורובוטים מצוירים ועליזים נושאים עוד קוביות אל עמדת בקרה מרכזית."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub התחיל ב-17 בספטמבר 2026 עם מאגר git ריק אחד. חודשיים אחר כך יש בו כ-10,300 קומיטים, 1.2 מיליון שורות קוד (מחציתן בדיקות), 250,000 שורות תיעוד ו-178 מפרטים. אדם אחד עם ידע ב-IT הכווין; סוכני בינה מלאכותית כתבו את הקוד.
+Spool Hub התחיל ב-17 בספטמבר 2026 עם מאגר git ריק אחד. חודשיים אחר כך יש בו כ-10,300 קומיטים, 1.2 מיליון שורות קוד (מחציתן בדיקות), 250,000 שורות תיעוד ו-178 מפרטים. אדם אחד עם ידע ב-IT הכווין, וכמה אחרים השתתפו; סוכני בינה מלאכותית כתבו את הקוד.
 
 ## 📊 המספרים
 

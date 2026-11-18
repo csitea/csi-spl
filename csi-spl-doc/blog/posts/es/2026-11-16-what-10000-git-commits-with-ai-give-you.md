@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: es
 type: news
 title: "Lo que te dan 10 000 commits de git con IA"
-summary: "Dos meses, 10 000 commits, 1,2 millones de líneas: una persona con conocimientos de TI y una flota de IA crearon Spool Hub, que ya gestiona otros 37 proyectos."
+summary: "Dos meses, 10 000 commits, 1,2 millones de líneas: un experto en TI, colaboradores y una flota de IA crearon Spool Hub, que ya gestiona otros 37 proyectos."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Una enorme máquina amable hecha de miles de bloques luminosos, con alegres robots de dibujos animados que llevan más bloques hacia un puesto de control central."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub nació el 17 de septiembre de 2026 con un repositorio git vacío. Dos meses después: unos 10 300 commits, 1,2 millones de líneas de código (la mitad, pruebas), 250 000 líneas de documentación y 178 especificaciones. Una persona con conocimientos de TI dirigió; agentes de IA escribieron el código.
+Spool Hub nació el 17 de septiembre de 2026 con un repositorio git vacío. Dos meses después: unos 10 300 commits, 1,2 millones de líneas de código (la mitad, pruebas), 250 000 líneas de documentación y 178 especificaciones. Una persona experta en TI dirigió, otras participaron; agentes de IA escribieron el código.
 
 ## 📊 Las cifras
 

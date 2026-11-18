@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: lv
 type: news
 title: "Ko jums dod 10 000 git komitu ar MI"
-summary: "Divi mēneši, 10 000 komitu, 1,2 miljoni rindu: viens cilvēks ar IT prasmēm un MI aģentu flote uzbūvēja Spool Hub, kas tagad vada vēl 37 projektus."
+summary: "Divi mēneši, 10 000 komitu, 1,2 miljoni rindu: viens cilvēks ar IT prasmēm, daži palīgi un MI aģentu flote uzbūvēja Spool Hub, kas tagad vada vēl 37 projektus."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Milzīga draudzīga mašīna no tūkstošiem mirdzošu bloku, kur jautri multfilmu roboti nes vēl blokus uz centrālo vadības pulti."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub sākās 2026. gada 17. septembrī ar vienu tukšu git repozitoriju. Pēc diviem mēnešiem tajā ir aptuveni 10 300 komitu, 1,2 miljoni koda rindu (puse no tām – testi), 250 000 dokumentācijas rindu un 178 specifikācijas. Viens cilvēks ar IT prasmēm vadīja; kodu rakstīja MI aģenti.
+Spool Hub sākās 2026. gada 17. septembrī ar vienu tukšu git repozitoriju. Pēc diviem mēnešiem tajā ir aptuveni 10 300 komitu, 1,2 miljoni koda rindu (puse no tām – testi), 250 000 dokumentācijas rindu un 178 specifikācijas. Viens cilvēks ar IT prasmēm vadīja, vēl vairāki piedalījās; kodu rakstīja MI aģenti.
 
 ## 📊 Skaitļi
 

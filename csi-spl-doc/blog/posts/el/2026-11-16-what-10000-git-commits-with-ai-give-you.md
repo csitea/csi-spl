@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: el
 type: news
 title: "Τι σας δίνουν 10.000 git commits με τεχνητή νοημοσύνη"
-summary: "Δύο μήνες, 10.000 commits, 1,2 εκατ. γραμμές: ένας άνθρωπος με γνώσεις πληροφορικής και ένας στόλος ΤΝ έφτιαξαν το Spool Hub, που τρέχει ήδη 37 ακόμη έργα."
+summary: "Δύο μήνες, 10.000 commits, 1,2 εκατ. γραμμές: ένας άνθρωπος με γνώσεις IT, λίγοι βοηθοί και ένας στόλος ΤΝ έφτιαξαν το Spool Hub, που τρέχει ήδη 37 ακόμη έργα."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Μια τεράστια φιλική μηχανή από χιλιάδες φωτεινά τουβλάκια, με χαρούμενα ρομπότ κινουμένων σχεδίων που μεταφέρουν κι άλλα τουβλάκια προς ένα κεντρικό γραφείο ελέγχου."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub ξεκίνησε στις 17 Σεπτεμβρίου 2026 με ένα άδειο αποθετήριο git. Δύο μήνες αργότερα: περίπου 10.300 commits, 1,2 εκατομμύρια γραμμές κώδικα (οι μισές είναι tests), 250.000 γραμμές τεκμηρίωσης και 178 προδιαγραφές. Ένας άνθρωπος με γνώσεις πληροφορικής καθοδηγούσε· πράκτορες ΤΝ έγραψαν τον κώδικα.
+Spool Hub ξεκίνησε στις 17 Σεπτεμβρίου 2026 με ένα άδειο αποθετήριο git. Δύο μήνες αργότερα: περίπου 10.300 commits, 1,2 εκατομμύρια γραμμές κώδικα (οι μισές είναι tests), 250.000 γραμμές τεκμηρίωσης και 178 προδιαγραφές. Ένας άνθρωπος με γνώσεις πληροφορικής καθοδηγούσε, αρκετοί άλλοι συμμετείχαν· πράκτορες ΤΝ έγραψαν τον κώδικα.
 
 ## 📊 Τα νούμερα
 

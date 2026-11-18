@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: mk
 type: news
 title: "Што ви даваат 10.000 git комити со AI"
-summary: "Два месеци, 10.000 комити, 1,2 милиони линии: еден човек со IT вештини и флота AI агенти го изградија Spool Hub, кој сега води уште 37 проекти."
+summary: "Два месеци, 10.000 комити, 1,2 милиони линии: еден човек со IT вештини, помошници и флота AI агенти го изградија Spool Hub, кој сега води уште 37 проекти."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Огромна пријателска машина од илјадници светлечки блокчиња, со весели цртани роботи што носат уште блокчиња кон централен контролен пулт."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub започна на 17 септември 2026 година со едно празно git складиште. Два месеци подоцна има околу 10.300 комити, 1,2 милиони линии код (половината тестови), 250.000 линии документација и 178 спецификации. Еден човек со IT вештини ја насочуваше работата; AI агенти го пишуваа кодот.
+Spool Hub започна на 17 септември 2026 година со едно празно git складиште. Два месеци подоцна има околу 10.300 комити, 1,2 милиони линии код (половината тестови), 250.000 линии документација и 178 спецификации. Еден човек со IT вештини насочуваше, уште неколкумина учествуваа; AI агенти го пишуваа кодот.
 
 ## 📊 Бројките
 

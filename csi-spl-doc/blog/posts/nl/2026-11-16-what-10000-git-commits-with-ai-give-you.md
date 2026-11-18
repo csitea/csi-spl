@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: nl
 type: news
 title: "Wat 10.000 git-commits met AI u opleveren"
-summary: "Twee maanden, 10.000 commits, 1,2 miljoen regels: één persoon met IT-kennis en een AI-vloot bouwden Spool Hub, dat nu nog 37 projecten aanstuurt."
+summary: "Twee maanden, 10.000 commits, 1,2 miljoen regels: één persoon met IT-kennis, helpers en een AI-vloot bouwden Spool Hub, dat nu nog 37 projecten aanstuurt."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Een enorme vriendelijke machine van duizenden gloeiende blokken, met vrolijke cartoonrobots die meer blokken naar een centrale bedieningstafel dragen."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub begon op 17 september 2026 met één lege git-repository. Twee maanden later telt het ongeveer 10.300 commits, 1,2 miljoen regels code (de helft daarvan tests), 250.000 regels documentatie en 178 specificaties. Eén persoon met IT-kennis stuurde; AI-agents schreven de code.
+Spool Hub begon op 17 september 2026 met één lege git-repository. Twee maanden later telt het ongeveer 10.300 commits, 1,2 miljoen regels code (de helft daarvan tests), 250.000 regels documentatie en 178 specificaties. Eén persoon met IT-kennis stuurde, enkele anderen werkten mee; AI-agents schreven de code.
 
 ## 📊 De cijfers
 

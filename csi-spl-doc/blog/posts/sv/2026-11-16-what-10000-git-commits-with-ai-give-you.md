@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: sv
 type: news
 title: "Vad 10 000 git-commits med AI ger dig"
-summary: "Två månader, 10 000 commits, 1,2 miljoner rader: en person med IT-kunskap och en AI-flotta byggde Spool Hub, som nu driver 37 projekt till."
+summary: "Två månader, 10 000 commits, 1,2 miljoner rader: en person med IT-kunskap, några medhjälpare och en AI-flotta byggde Spool Hub, som nu driver 37 projekt till."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "En enorm vänlig maskin byggd av tusentals glödande block, med glada tecknade robotar som bär fler block mot ett centralt kontrollbord."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub startade den 17 september 2026 med ett tomt git-repository. Två månader senare har det cirka 10 300 commits, 1,2 miljoner rader kod (hälften av dem tester), 250 000 rader dokumentation och 178 specifikationer. En person med IT-kunskap styrde; AI-agenter skrev koden.
+Spool Hub startade den 17 september 2026 med ett tomt git-repository. Två månader senare har det cirka 10 300 commits, 1,2 miljoner rader kod (hälften av dem tester), 250 000 rader dokumentation och 178 specifikationer. En person med IT-kunskap styrde, flera andra deltog; AI-agenter skrev koden.
 
 ## 📊 Siffrorna
 

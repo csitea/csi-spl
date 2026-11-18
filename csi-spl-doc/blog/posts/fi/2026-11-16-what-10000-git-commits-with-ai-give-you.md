@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: fi
 type: news
 title: "Mitä 10 000 git-committia tekoälyn kanssa antaa"
-summary: "Kaksi kuukautta, 10 000 committia, 1,2 miljoonaa riviä: yksi IT-osaaja ja tekoälyagenttien laivasto rakensivat Spool Hubin, joka ohjaa nyt 37 muuta projektia."
+summary: "Kaksi kuukautta, 10 000 committia, 1,2 milj. riviä: IT-osaaja, auttajat ja tekoälyagenttien laivasto rakensivat Spool Hubin, joka ohjaa nyt 37 muuta projektia."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -13,7 +13,7 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Valtava ystävällinen kone tuhansista hehkuvista palikoista, iloiset piirretyt robotit kantavat lisää palikoita keskusohjauspöytää kohti."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub alkoi 17. syyskuuta 2026 yhdestä tyhjästä git-repositoriosta. Kaksi kuukautta myöhemmin siinä on noin 10 300 committia, 1,2 miljoonaa riviä koodia (puolet niistä testejä), 250 000 riviä dokumentaatiota ja 178 määrittelyä. Yksi IT-taitoinen ihminen ohjasi; tekoälyagentit kirjoittivat koodin.
+Spool Hub alkoi 17. syyskuuta 2026 yhdestä tyhjästä git-repositoriosta. Kaksi kuukautta myöhemmin siinä on noin 10 300 committia, 1,2 miljoonaa riviä koodia (puolet niistä testejä), 250 000 riviä dokumentaatiota ja 178 määrittelyä. Yksi IT-taitoinen ihminen ohjasi, useat muut osallistuivat; tekoälyagentit kirjoittivat koodin.
 
 ## 📊 Luvut
 

@@ -237,7 +237,9 @@ func TestGroupsDroppedSetBounded(t *testing.T) {
 
 // C29 rows from the R7 review of 167fe1dec (spec 162 10.6): a URL's query
 // after its userinfo (W1), a key and value in escaped JSON quotes (W2), a
-// passwd key (N2) and a non-ASCII email (N1). Kept apart from plantedC29,
+// passwd key (N2), a non-ASCII email (N1), and from the delta review a
+// backslash inside an unquoted value (W4) and an escaped quote inside a
+// quoted one (N8). Kept apart from plantedC29,
 // whose 14 rows are the spec's own. Values are built from parts so a secret
 // scanner does not match the source.
 func plantedC29Review() []planted {
@@ -248,12 +250,15 @@ func plantedC29Review() []planted {
 		{"escaped json key", esc, []string{"planted-pw-02"}},
 		{"passwd", "login passwd=" + "planted-pw-03 refused", []string{"planted-pw-03"}},
 		{"credential", "load credential: " + "planted-pw-05 failed", []string{"planted-pw-05"}},
+		{"backslash value", "GET failed token=" + `ab\cdplanted-pw-06 and password=hunter\2planted-pw-07 retry`, []string{"cdplanted-pw-06", "planted-pw-07"}},
+		{"escaped quote in value", "GET failed token=" + `"ab\"planted-pw-08" retry`, []string{"planted-pw-08"}},
 		{"non-ascii email", "mail to jörg@example.com and user@exämple.de bounced", []string{"jörg", "user@exämple.de", "exämple"}},
 	}
 }
 
 // Red control: the userinfo rule moved back above the query rule fails
-// "query after userinfo"; the key rule without \\? fails "escaped json key".
+// "query after userinfo"; the key rule without \\? fails "escaped json key";
+// an unquoted value class without the backslash fails "backslash value".
 func TestRedactC29Review(t *testing.T) {
 	for _, p := range plantedC29Review() {
 		out := Redact(p.in)

@@ -50,7 +50,9 @@ type rule struct {
 // DSN before the URL and key rules that would cut it in parts, a URL's
 // query before its userinfo (the userinfo placeholder holds `<`, which ends
 // the query rule's URL), the userinfo of a URL before the email rule. A key
-// or its value may sit in escaped quotes (\" of a Go %q of a JSON body). The long-run rule (blobRe) runs last, so
+// or its value may sit in escaped quotes (\" of a Go %q of a JSON body);
+// a quoted value keeps its own escaped quotes, and an unquoted value its
+// backslashes, so a secret with either is redacted whole. The long-run rule (blobRe) runs last, so
 // the placeholders here (they hold `<` and `>`) end every run they replaced.
 var redactRules = []rule{
 	{regexp.MustCompile(`-----BEGIN [A-Z0-9 ]+-----(?s:.*?)(?:-----END [A-Z0-9 ]+-----|\z)`), "<pem>"},
@@ -62,7 +64,7 @@ var redactRules = []rule{
 	{regexp.MustCompile(`[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}`), "<email>"},
 	{regexp.MustCompile(`(?i)\b(bearer)\s+[^\s"',;<>]+`), "$1 <redacted>"},
 	{regexp.MustCompile(`(?i)\b((?:set-)?cookie\s*:\s*)[^"'\s][^\r\n]*`), "$1<redacted>"},
-	{regexp.MustCompile(`(?i)([A-Za-z0-9_-]*(?:token|key|secret|password|passwd|pwd|credential|sig|signature|authorization|cookie|dsn)(?:\\?["'])?\s*[:=]\s*)(?:(?:bearer|basic|digest|token)\s+)?(?:\\?"[^"]*?\\?"|\\?'[^']*?\\?'|[^\s"',;&}<>\\]+)`), "$1<redacted>"},
+	{regexp.MustCompile(`(?i)([A-Za-z0-9_-]*(?:token|key|secret|password|passwd|pwd|credential|sig|signature|authorization|cookie|dsn)(?:\\?["'])?\s*[:=]\s*)(?:(?:bearer|basic|digest|token)\s+)?(?:\\"(?:[^"\\]|\\[^"])*?\\"|\\'(?:[^'\\]|\\[^'])*?\\'|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?:[^\s"',;&}<>\\]|\\[^"'\s])+)`), "$1<redacted>"},
 }
 
 // blobRe is the last rule of 10.6: a run of 24+ token characters. A run

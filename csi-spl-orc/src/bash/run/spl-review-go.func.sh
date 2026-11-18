@@ -50,7 +50,8 @@
 # @description       billing, service account key, /etc/; spec 7.1.2) in
 # @description       its instruction text (not in a Why / What happened /
 # @description       Symptom / Evidence / Background / Context / History /
-# @description       Trace / Observed / Measured section, a `>` quote, a
+# @description       Trace / Observed / Measured section, a Never / Don't /
+# @description       Do not / Out of scope section, SPL-5915, a `>` quote, a
 # @description       fenced block or a negated `does not apply`, SPL-5670;
 # @description       not a `cmd` -> result measurement in a section whose
 # @description       heading says `verbatim`, SPL-5696),
@@ -597,8 +598,11 @@ _spl_review_go_unplaced() {
 # owner-go scan reads (SPL-5670): without the sections whose heading opens
 # with Why, What happened, Symptom(s), Evidence, Background, History, Trace,
 # Observed or Measured (their subheadings too: they say what went wrong, not
-# what to run; not Context: a brief's Context can hold a step to run),
-# without fenced blocks and `>` quote lines, and without a negated `apply`
+# what to run; not Context: a brief's Context can hold a step to run), without
+# the sections whose heading opens with Never, Don't, Do not or Out of scope
+# (SPL-5915: they forbid an action, `## Never` + "no terraform"; their
+# subheadings too, up to the next heading at their level or higher), without
+# fenced blocks and `>` quote lines, and without a negated `apply`
 # (`does not apply`, `never apply`). Backticked spans stay: a command the lane
 # is told to run is written in backticks. A section whose heading names
 # `verbatim` (any case) quotes another document (SPL-5696): in it, and only
@@ -614,6 +618,7 @@ _spl_review_go_instr() {
   python3 - "$1" <<'EOF_PY'
 import re, sys
 NARR = re.compile(r"(?i)^(why|what happened|symptoms?|evidence|background|history|trace|observed|measured)\b")
+NEVER = re.compile(r"(?i)^(never|don['\u2019]t|do not|out of scope)\b")
 try:
     lines = open(sys.argv[1], encoding="utf-8", errors="replace").read().split("\n")
 except OSError:
@@ -640,7 +645,8 @@ for l in lines:
         if re.search(r"(?i)verbatim", h.group(2)):
             verb, lead, skip = len(h.group(1)), True, 0
             continue
-        skip = len(h.group(1)) if NARR.match(h.group(2).strip()) else 0
+        t = h.group(2).strip()
+        skip = len(h.group(1)) if NARR.match(t) or NEVER.match(t) else 0
     elif fence or skip or re.match(r"\s*>", l):
         continue
     out.append(l)

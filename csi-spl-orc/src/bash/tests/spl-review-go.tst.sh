@@ -116,6 +116,10 @@
 #        apply / IAM / billing joined by -, _, . or / -> GO; controls: a
 #        `terraform apply` step, `then apply.`, a bare IAM or billing,
 #        do-tf-apply -> rc 4 (each test 4 keyword alone: section 4)
+#    28. a prohibition section (SPL-5915): RED CONTROLS a keyword only under
+#        a Never / Don't / Do not / Out of scope heading (and its
+#        subheadings) -> GO; controls: the keyword in a Steps section, a
+#        Steps section after the Never section -> rc 4
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -1036,6 +1040,44 @@ reset; abrief c-222 $'## Do\n\nNames in prose: x/apply.sh, /opt/x/billing, IAM/v
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 27000000-0000-4000-8000-000000000005)
 run REVIEW_GO_MSG="$f"; rc=$?
 (( rc == 0 )) && [[ $(gos) == 1 ]] && pass "27. a path token in prose (leading /, or a . in its last segment) is a name -> GO" || fail "27. prose path rc=$rc out=$(tail -2 "$T/out")"
+
+# --- 28. an owner-go keyword in a prohibition section (SPL-5915) ----------------------------------------
+# the SPL-5882 author brief held as rc 4 (hold 77391fda): its one keyword sits under `## Never`
+# shellcheck disable=SC2016 # the backticks are markdown
+for fx in 'Never|## Never
+No terraform, no gcloud IAM write.' \
+          'Never, subheading|## Never
+### Infra
+No terraform, no gcloud IAM write.' \
+          "Don't|## Don't
+Run \`ENV=prd terraform apply\`." \
+          'Do not|## Do not touch
+ENV=prd DRY_RUN=0 stays the owner'"'"'s.' \
+          'Out of scope|## Out of scope
+- the billing export.'; do
+  reset; abrief c-222 $'## Do\n\nFix the parser.\n\n'"${fx#*|}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 28000000-0000-4000-8000-000000000001)
+  run REVIEW_GO_MSG="$f"; rc=$?
+  (( rc == 0 && $(gos) == 1 )) && pass "28. RED CONTROL: a keyword only in a ${fx%%|*} section passes [4] -> GO" ||
+    fail "28. ${fx%%|*} rc=$rc out=$(tail -2 "$T/out")"
+done
+for fx in 'a Steps section|## Steps
+Run ENV=prd terraform apply|apply' \
+          'Steps after Never|## Never
+No terraform.
+
+## Steps
+ENV=prd DRY_RUN=0 ./run -a do_x|ENV=prd' \
+          'a higher heading after Never|## Never
+No terraform.
+
+# Steps
+ENV=prd DRY_RUN=0 ./run -a do_x|ENV=prd'; do
+  reset; IFS='|' read -r name text kw <<<"${fx//$'\n'/$'\037'}"
+  abrief c-222 "${text//$'\037'/$'\n'}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 28000000-0000-4000-8000-000000000002)
+  run REVIEW_GO_MSG="$f"; refused "28. control: an instruction step ($name) still holds" $? 4 "owner-go keyword '$kw'"
+done
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

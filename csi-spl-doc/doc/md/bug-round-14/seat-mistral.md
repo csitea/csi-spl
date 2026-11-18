@@ -198,3 +198,67 @@ signed sha.)
 - **N6**: the plan's section-2 commands print `\|` (markdown table escaping,
   as its own note under the table says); run with a plain `|` the counts
   reproduce (check 5).
+
+---
+
+## v1.0 signature (second commit on this branch)
+
+The editor landed plan **v1.0** on `review/c002-bug-round-14-planner`:
+`git fetch origin review/c002-bug-round-14-planner && git rev-parse FETCH_HEAD`
+-> `7ae6a440b1b424c12afb636e5a4b498c05d93efd`;
+`git ls-remote origin review/c002-bug-round-14-planner` -> the same sha;
+commit subject `docs(b14-plan, SPL-5855): bug round 14 plan v1.0, panel PASS
+folds N1 N3`. v1.0 is also on origin/master as `8fcc4ec11` with identical plan
+content: `git diff 7ae6a440 8fcc4ec11 -- csi-spl-doc/doc/md/bug-round-14-plan.md`
+-> 0 lines.
+
+### Verdict on v1.0: PASS — signed sha `7ae6a440b1b424c12afb636e5a4b498c05d93efd`
+
+`git diff --stat 8a9dc6392 7ae6a440` -> `1 file changed, 7 insertions(+), 5
+deletions(-)`, the plan file only. The 4 hunks: the Status line (v0.2 -> v1.0),
+source-2's row (folds N3), row 02's red-control cell (folds N1), and the
+review-history / signature table. **No row's defect, site or red control
+changes** — the full diff was re-read hunk by hunk.
+
+Re-checks run for the changed lines (each with the command and what it printed):
+
+- N1 fold: `git show 087f33ea0:csi-spl-orc/src/bash/run/spl-rotate-lib.func.sh
+  | sed -n '813p;823p'` -> `spl_rotate_cli() {` then
+  `{ IFS= read -r -d '' a0; IFS= read -r -d '' a1; } < "$1/cmdline" 2>/dev/null || true`;
+  identical on origin/master. `git show
+  087f33ea0:csi-spl-orc/src/bash/run/spl-lane-rotate.func.sh | sed -n '607p'`
+  -> the `cl="$(tr '\0\n\r' '   ' < "$root/$d/cmdline" 2>/dev/null || true)"`
+  line; identical on origin/master.
+- rc02 re-run (the editor's script verbatim as forwarded by c-002@sat msg
+  77354b31, saved to a scratch file and read first; clone HEAD verified
+  `087f33ea0de0e6266ab4f4151a7d847d5da7afb6`): `bash rc02.sh
+  /tmp/b14-clone-087f` -> `A rc=0 B rc=1 stderr cmdline lines: 2`, stderr names
+  `spl-lane-rotate.func.sh: line 607: $T/proc/4242/cmdline: No such file or directory`
+  and `spl-rotate-lib.func.sh: line 813: $T/proc/4242/cmdline: No such file or directory`.
+  The v1.0 parenthetical ("bash names the lib's error by the first line of
+  `spl_rotate_cli`, `:813`, while the statement is at `:823`") is exact. Still
+  RED on `087f33ea0`.
+- N3 fold: `cd csi-spl-iac && CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a
+  do_report_ci_gate` -> 69 success / 26 cancelled / 4 failure / 1 running (the
+  100-run window moved again); the failed jobs are the same (68cd3332
+  TestDemoPostQuotaPerDay, 013cb71b wui e2e x2, fd9e5a27); last green now
+  `44225551658 3b0ea604` and `44226819206 288fc6bd`. The window moving is
+  exactly N3; the source-2 "0 rows" verdict stands.
+- Slug re-check: `git log origin/master --oneline -E --grep='\bb14-[0-9]{2}-'
+  | wc -l` -> `0`; `--grep='\(b14-'` -> `3`, all the plan's own version commits
+  now on master (`13c08fb1f`, `3bf7e7dd2`, `8fcc4ec11`, scope `b14-plan`);
+  `git ls-remote origin | grep -E 'b14-[0-9]{2}'` -> only this round's own row
+  lane `review/c-289-b14-01-orc-reflection-stalled-body-keys`. Still no
+  collision with another round's slug.
+- lane-map re-check on the seat file: `bash
+  /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh
+  --check csi-spl-doc/doc/md/bug-round-14/seat-mistral.md --agent m-538` ->
+  exit 4, 8 unknown no-file lanes (c-176, c-197, c-250, c-261, c-266, c-289,
+  c-291, c-762, all @sat), no owning lane.
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO
+  distribution-hygiene: clean over the tracked tree of
+  /opt/csi/csi-spl-wt/m-538`, exit 0.
+
+Defects on v1.0: none (no new W items). Notes N1..N6 stand. **N7**: the
+`\(b14-` grep on origin/master now returns 3 because the plan's own
+v0.1/v0.2/v1.0 commits landed on master — expected, not a slug collision.

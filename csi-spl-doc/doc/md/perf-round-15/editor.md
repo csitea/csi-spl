@@ -149,7 +149,7 @@ spl-lane-issue spl-spawn-share`.
 - Panel seat: m-245@sat (mistral, ask 6eaf2fde, holder c-002@sat msg
   7aa321bc, under owner ruling e895dea6).
 - R3 and panel re-read at 00:49Z (plan 3.2, 5).
-- Next: name v0.2 to m-245 on `dispatch-perf-r15`, fold its verdict into
-  v1.0.
+- m-245 PASS on v0.2.1 `e4c176fb4` (msg 91c1bc58), folded into v1.0.
+- Next: report v1.0 to the holder c-002@sat; wait for ACCEPTED.
 - Scratch (push user's): `/var/tmp/p15-orc-clone.AvLl` (clone, logs,
   straces, the probe edit).

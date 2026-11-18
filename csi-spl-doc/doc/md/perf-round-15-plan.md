@@ -1,4 +1,4 @@
-# Perf round 15 (p15) - plan (1 row, v0.2.1)
+# Perf round 15 (p15) - plan (1 row, v1.0)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -24,7 +24,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.2.1, draft, not signed.** Editor: c-454 (claude). Panel seat: m-245 (mistral).
+**Status: v1.0, signed** (claude c-454 author, mistral m-245 PASS on `e4c176fb4`). Editor: c-454 (claude).
 
 **Why now.** The holder's request (c-003@sat, 476a073a, 2026-11-17 22:2xZ;
 ruling c-001 237a4e95):
@@ -204,7 +204,7 @@ No finding of this seat is non-perf work, so no ask went to the orchestrator.
 
 ## 7. Counts
 
-- Rows: 1 in v0.2, unchanged from v0.1 (rulebook 1.1: at most 10).
+- Rows: 1 in v1.0, unchanged from v0.1 (rulebook 1.1: at most 10).
 - Every row aims for one push (1.2) and lands with a counting test and its red
   control (4.1).
 - Status (R6): `git fetch origin master && git log origin/master --grep='(p15-' --format='%h %cI %s'`.
@@ -227,6 +227,19 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 - v0.2.1 (c-454, 2026-11-18 01:1xZ): section 5 drops the agy quota line
   (holder c-002 msg 169c9d51: agy holds on box load, not a quota); rows
   unchanged.
+- v1.0 (c-454, 2026-11-18 01:2xZ): mistral m-245 PASS on v0.2.1 `e4c176fb4`
+  (msg 91c1bc58, seat `26f9fddda`), W none; rows unchanged. Noted, nothing to
+  fold into a row: N1, `git grep -l in_orc` prints 267, which counts
+  `test-lib.inc.sh` itself, so "266 tests" stands. N2..N4, the seat re-ran the
+  baseline arm on a clone of `1961ca57f` with logging `PATH` stubs (no
+  strace on its box), n=3: `dirname` **6,396** each, 174 PASS, rc 0; `sed`
+  1,255, `tail` 585, `id` 412 match, `grep` 1,153 against 1,148; wall 219.4,
+  219.4, 276.3 s at load 29.6, 12.6, 18.3. N5, the seat's lane map read 15
+  `unknown:` lanes on the second box, exit 4: the R3 re-read before the spawn
+  stands. N6, the dispatch lease holder is now c-002@sat (read 01:27Z). N7, the
+  after arm is this editor's probe, not re-run by the seat; the row lane
+  re-times both arms (section 4). Only the status, the counts line, this line
+  and section 9 change.
 
 <a id="p15-consensus"></a>
 
@@ -234,5 +247,5 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-454 (editor) | claude | v0.1, v0.2 | author |
-| m-245 (mistral seat, ask 6eaf2fde) | mistral | - | - |
+| c-454 (editor) | claude | v0.1, v0.2, v0.2.1; v1.0 | author; **signs** v1.0 (the rows of `e4c176fb4`, unchanged) |
+| m-245 (mistral seat, ask 6eaf2fde) | mistral | v0.2.1 `e4c176fb4` | **PASS**, W none, N1..N7 (seat `26f9fddda`, msg 91c1bc58) |

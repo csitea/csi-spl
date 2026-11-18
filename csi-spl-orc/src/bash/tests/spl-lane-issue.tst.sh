@@ -523,7 +523,7 @@ run AGENT_ID=c-125 BRIEF="$T/brief.md" DRY_RUN=0
 
 # SPL-4725: the brief's Class: bug / refactor / alert labels the issue (the
 # label made first), so the hub's prio default (hub/issue_prio_default.go)
-# gives it 1 / 2 / 1 when no linked discussion has a prio set. ci and feature
+# gives it 2 / 2 / 1 when no linked discussion has a prio set. ci and feature
 # add no label. Red control: drop bug from spl_lane_issue_class's list.
 for cls in bug Refactor alert; do
   lc="$(printf '%s' "$cls" | tr '[:upper:]' '[:lower:]')"

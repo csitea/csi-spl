@@ -10,14 +10,15 @@ import (
 // A new issue's priority when its create names none (SPL-4725, spec 039).
 // Owner HUM-10, t1 3aac280f msg b364e9d5: "the issues should inherit the prio
 // attributes of their parent discussions"; t1 6c9aa54b msgs c1a3ab4b ("All of
-// the bugs should get prio 1 by default") and 9e0911ed (alerts, prio 1); t1
-// 3aac280f msg 1ee85284 ("All of the refactoring issues should be always of
-// prio 2 by default"). The one rule, in this order:
+// the bugs should get prio 1 by default", replaced by t1 e1139a1e msg
+// 4e1adcfa: bugs are always prio 2, SPL-5930) and 9e0911ed (alerts, prio 1);
+// t1 3aac280f msg 1ee85284 ("All of the refactoring issues should be always
+// of prio 2 by default"). The one rule, in this order:
 //  1. a priority the create names wins (the WUI always names one);
 //  2. else the highest (lowest number) priority SET on a linked discussion:
 //     a stored topic_priorities row, a set 3 too; an unset topic, which reads
 //     3 everywhere else (spec 150 v1.1), does not count;
-//  3. else the class, read from the issue's labels: bug or alert 1,
+//  3. else the class, read from the issue's labels: alert 1, bug and
 //     refactor 2 (the placer labels a lane issue from its brief's Class:);
 //  4. else store.IssuePriorityDefault (5), as before.
 // It applies at create. After it, an open issue follows the priority SET on
@@ -25,7 +26,7 @@ import (
 // issue with no set discussion keeps its own.
 
 // issueClassPriority is step 3: label id -> default priority.
-var issueClassPriority = map[string]int{"bug": 1, "alert": 1, "refactor": 2}
+var issueClassPriority = map[string]int{"bug": 2, "alert": 1, "refactor": 2}
 
 // defaultIssuePriority answers steps 2..3 for a create that named no
 // priority; 0 = none applies, the store's default stands.

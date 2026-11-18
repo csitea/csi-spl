@@ -12,9 +12,10 @@ import (
 )
 
 // SPL-4725: a create that names no priority inherits the highest priority SET
-// on its linked discussions, else its class label's (bug and alert 1,
-// refactor 2), else 5; a named priority always wins (issue_prio_default.go).
-// Red control: set issueClassPriority["bug"] to 5 and C1 fails.
+// on its linked discussions, else its class label's (alert 1, bug and
+// refactor 2; bugs 2 since SPL-5930, owner msg 4e1adcfa), else 5; a named
+// priority always wins (issue_prio_default.go).
+// Red control: set issueClassPriority["bug"] back to 1 and C1 bug fails.
 func TestIssuePriorityDefault(t *testing.T) {
 	e := rbacEnv(t)
 	tid, _ := e.tenant()
@@ -45,10 +46,11 @@ func TestIssuePriorityDefault(t *testing.T) {
 		prio   any
 		want   float64
 	}{
-		{"C1 bug, unset discussion", []string{"bug"}, []string{unset}, nil, 1},
+		{"C1 bug, unset discussion", []string{"bug"}, []string{unset}, nil, 2},
 		{"C1 refactor", []string{"refactor"}, []string{unset}, nil, 2},
 		{"C1 alert", []string{"alert"}, []string{unset}, nil, 1},
-		{"C1 bug + refactor: the highest", []string{"refactor", "bug"}, []string{unset}, nil, 1},
+		{"C1 bug + refactor: both 2", []string{"refactor", "bug"}, []string{unset}, nil, 2},
+		{"C1 bug + alert: the highest", []string{"bug", "alert"}, []string{unset}, nil, 1},
 		{"C1 feature: today's default", []string{"feature"}, []string{unset}, nil, 5},
 		{"C1 no class", nil, []string{unset}, nil, 5},
 		{"C2 a set discussion beats the class", []string{"bug"}, []string{set4}, nil, 4},

@@ -380,8 +380,9 @@ print(r.get("key", "") + "\t" + (ds[0] if ds else ""))' 2>/dev/null)" || rc=$?
 }
 
 # spl_lane_issue_class BRIEF -> the brief's `Class:` when it is one the hub's
-# prio default knows (bug and alert prio 1, refactor 2; owner HUM-10, t1
-# 6c9aa54b msg c1a3ab4b, t1 3aac280f msg 1ee85284), lower case; nothing for
+# prio default knows (alert prio 1, bug and refactor 2; owner HUM-10, t1
+# 6c9aa54b msg c1a3ab4b, t1 e1139a1e msg 4e1adcfa, t1 3aac280f msg 1ee85284),
+# lower case; nothing for
 # ci, feature, none or no brief. Text after the class word is allowed
 # ("Class: bug. Kind: ...", the \b of spl_spawn_share_briefs). The label
 # carries it to the hub (SPL-4725).

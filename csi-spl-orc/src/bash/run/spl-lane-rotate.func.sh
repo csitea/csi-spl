@@ -171,6 +171,7 @@ spl_lane_rotate_consider() {
     (( LR_SLOTS > 0 )) || { spl_lane_rotate_say "$id" "DEFER resume: cap $ROTATE_LANE_CAP"; return 0; }
     spl_lane_rotate_start "$id" "$kind" "$pid" 0 "resume a rotation left mid-way"; return 0
   fi
+  [[ "$age" =~ ^[0-9]+$ && "$n" =~ ^[0-9]+$ ]] || { spl_lane_rotate_say "$id" "DEFER pid $pid has no age (age='$age' n='$n')"; return 0; }
   (( age >= ROTATE_LANE_WARN_AGE )) || return 0
   (( n == 1 )) || { spl_lane_rotate_say "$id" "DEFER duplicate: $n live processes carry $id"; return 0; }
   # its vendor on its limit: a new session would only show the limit banner
@@ -310,9 +311,11 @@ spl_lane_rotate_say() {
 }
 
 # spl_lane_rotate_scan: "<id> <kind> <pid> <age-s> <pane|->" for every agent
-# CLI process on this box whose environment carries SPOOL_AGENT_ID.
+# CLI process on this box whose environment carries SPOOL_AGENT_ID. A pid that
+# exits mid-scan has no age (spl_rotate_age prints nothing): it gets no row, as
+# an empty field would shift the row's later fields into age (SPL-5848).
 spl_lane_rotate_scan() {
-  local root="${LEASE_PROC_ROOT:-/proc}" d pid comm k id
+  local root="${LEASE_PROC_ROOT:-/proc}" d pid comm k id age
   local -A kind=() idof=()
   local -a hop=()
   for d in "$root"/[0-9]*; do
@@ -332,7 +335,9 @@ spl_lane_rotate_scan() {
   fi
   for pid in "${!idof[@]}"; do
     spl_is_agent_id "${idof[$pid]}" || continue
-    echo "${idof[$pid]} ${kind[$pid]} $pid $(spl_rotate_age "$pid") $(spl_rotate_pane_of_pid "$pid" | grep . || echo -)"
+    age="$(spl_rotate_age "$pid")"
+    [[ -n "$age" ]] || continue
+    echo "${idof[$pid]} ${kind[$pid]} $pid $age $(spl_rotate_pane_of_pid "$pid" | grep . || echo -)"
   done
   return 0
 }

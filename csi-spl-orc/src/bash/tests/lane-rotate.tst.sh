@@ -91,6 +91,10 @@
 #      gate (DEFER gate) nor a busy test child (DEFER not quiet); control:
 #      the child gone, rotated. Red control (origin/master bba41d0f0): 32a
 #      and 32b FAIL, ERRTRAP on the xargs awk of the scan.
+#  33. SPL-5848: a pid gone between the /proc walk and its age read has no
+#      scan row (0 "operand expected", agents=1); with a second, live process
+#      of the id, that row is judged; a non-numeric age is one DEFER line.
+#      Red control (origin/master d5bf6534c): operand-expected=1, agents=2.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -836,6 +840,24 @@ rm -rf "$T/proc/4322"
 PATH="$T/pin:$PATH" tick
 check "32c. control: the child gone, the vanished pid still there: rotated" 'grep -q "lane-c-322 DONE OK" "$D/rotate.log"'
 check "32. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+
+# --- 33. a pid gone between the /proc walk and its age read has no row (SPL-5848) ---
+# The scan printed "<id> <kind> <pid>  -" for it: read shifted the pane into
+# age and the consider's (( age >= ... )) printed "operand expected" to the
+# cron log (180 lines on one box since 2026-10-12). Red control (origin/master
+# d5bf6534c): 33a operand-expected=1, agents=2; 33b DEFER duplicate.
+reset; lane c-911 10; lane c-913 70; rm -f "$T/proc/2913/stat"
+DRY=1 tick
+check "33a. a gone pid: 0 operand expected, agents=1" '[ "$(n "$T/tick.out" "operand expected")" = 0 ] && grep -q "agents=1 " "$T/tick.out"'
+reset; lane c-913 70; rm -f "$T/proc/2913/stat"
+"$T/bin/proc" 4913 4200 c-913 claude 1 "claude --resume x"
+printf '%%9913\t4913\t$0\tc-913@box\n' >>"$T/tmux/panes"
+DRY=1 tick
+check "33b. a second, live process of the id: its row is judged" 'grep -q "c-913 PLAN rotate claude pid 4913" "$T/tick.out" && ! grep -q "DEFER duplicate" "$T/tick.out"'
+out="$(bash -c 'do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-lane-rotate.func.sh"
+  LR_ROLE_ROT="" LR_ROLES=" " LR_INFLIGHT=" " LR_DEFER=0; spl_lane_rotate_consider c-913 claude 2913 - 1 ""' 2>&1)"
+check "33c. a non-numeric age is one DEFER line, no arithmetic" 'grep -q "c-913 DEFER pid 2913 has no age" <<<"$out" && ! grep -q "operand expected" <<<"$out"'
+check "33. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

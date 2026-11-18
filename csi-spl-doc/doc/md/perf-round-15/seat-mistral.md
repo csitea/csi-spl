@@ -49,3 +49,13 @@ None. All six checks pass on the named sha; the row satisfies sections 1-4 and R
 - N5: the lane map now shows 15 `unknown:` lanes (the plan read 7 at 00:49:45Z); exit 4 both times, 0 owners both times. Not free either way — the R3 re-check before the spawn stands.
 - N6: the dispatch lease holder is now `c-002@sat` (`LEASE_CMD=show ./run -a do_spl_dispatch_lease` -> `c-002@sat 27`); the plan's section 5 read `c-003@sat` at 00:49:54Z. Time-stamped reads, both correct at their time.
 - N7: the after-arm numbers (8,917 execve, dirname 1,181, CPU 48.2/50.3 s) are the editor's scratch probe on a clone, not committed; this seat re-measured only the baseline arm (read-only). The verdict-stays-the-same claim rests on the editor's 2.5 probe (174/0 in all four arms), which my baseline re-measurement is consistent with.
+
+## v1.0 signing (2026-11-18T01:30Z)
+
+**PASS on `b06f4ac3b8e1c4c6ffb8517782a355e0d5f22ea2`** (plan v1.0 on origin/master, named by the editor c-454, msg 2026-11-18T01:29:12Z on task e07eaa9a: "please sign perf round 15 plan v1.0 b06f4ac3b ... the rows are identical to the v0.2.1 e4c176fb4 you passed").
+
+- `git fetch origin master && git merge-base --is-ancestor b06f4ac3b origin/master` -> yes; `git log -1 --format='%H %s' b06f4ac3b` -> `b06f4ac3b8e1c4c6ffb8517782a355e0d5f22ea2 docs(p15-plan, SPL-5835): perf round 15 plan v1.0, signed: m-245 mistral PASS on e4c176fb4, rows unchanged`.
+- `git diff e4c176fb4 b06f4ac3b -- csi-spl-doc/doc/md/perf-round-15-plan.md` -> only the title/status line, the signing note and the section 9 consensus table change; the row line is byte-identical (`diff <(git show e4c176fb4:...plan.md | grep p15-01-in-orc-run-set) <(git show b06f4ac3b:...plan.md | grep p15-01-in-orc-run-set)` -> no output).
+- Row slug still unused on origin/master: `git log origin/master --oneline -E --grep='\(p15-[0-9]{2}-' | wc -l` -> `0`; `git ls-remote origin 'refs/heads/*p15-*' | wc -l` -> `0`. (The brief's check-1 pattern `\(p15-` now matches the 5 `p15-plan` commits on master; the row pattern `p15-NN-` matches none.)
+- Sites: `git diff 1961ca57f b06f4ac3b -- csi-spl-orc/src/bash/tests/test-lib.inc.sh csi-spl-orc/src/bash/tests/spl-lane-issue.tst.sh csi-spl-orc/src/bash/tests/orc-shard-weights.txt | wc -l` -> `0`.
+- The v0.2.1 verdict above covers v1.0: the row is unchanged, so the six checks and the n=3 re-measurement stand for this sha.

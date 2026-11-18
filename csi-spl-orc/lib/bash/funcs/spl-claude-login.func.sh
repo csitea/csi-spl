@@ -20,10 +20,34 @@ declare -F spl_run_paths >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/sp
 
 # The login-check state dir: LOGIN_STATE_DIR, else SPL_VAR_APP_DIR's
 # agent-login-check (spl_run_paths); rc 1 and nothing when neither is known.
+# Run from a watchdog code snapshot (<wd>/code/<sha>/, which holds .sha) it is
+# the box's live dir, derived from the checkout the snapshot came from
+# (DESK_CRON_SRC, else <wd>/starter.src), never one under the snapshot: the
+# live probe is never there, so the SPL-5617 heal could not fire and every
+# new sha failed its self-check on the missing probe (SPL-5919, 2026-11-18).
 spl_claude_login_state_dir() {
   [[ -n "${LOGIN_STATE_DIR:-}" ]] && { echo "$LOGIN_STATE_DIR"; return 0; }
+  local src
+  src="$(_spl_claude_login_snapshot_src)"
+  if [[ -n "$src" ]]; then
+    (unset SPL_VAR_APP_DIR; APP_PATH="$src" spl_run_paths 2>/dev/null && echo "$SPL_VAR_APP_DIR/agent-login-check") && return 0
+  fi
   spl_run_paths 2>/dev/null || return 1
   echo "$SPL_VAR_APP_DIR/agent-login-check"
+}
+
+# _spl_claude_login_snapshot_src: the checkout a watchdog code snapshot came
+# from, when this tree is one (its main checkout holds a 40-hex .sha, as
+# spl_rotate_seed_feat reads it); empty otherwise. The SPL_VAR_APP_DIR of the
+# process is not used there: an earlier spl_run_paths keyed it by the snapshot.
+_spl_claude_login_snapshot_src() {
+  local main s src=""
+  main="$(spl_main_checkout 2>/dev/null)" || return 0
+  s="$(cat "$main/.sha" 2>/dev/null || true)"
+  [[ "$s" =~ ^[0-9a-f]{40}$ ]] || return 0
+  src="${DESK_CRON_SRC:-$(cat "${main%/code/*}/starter.src" 2>/dev/null || true)}"
+  [[ -n "$src" && -d "$src" ]] && echo "$src"
+  return 0
 }
 
 # The login-mode line (epoch first) while fresh, else nothing.

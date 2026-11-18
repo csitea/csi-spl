@@ -247,7 +247,7 @@ _lc_state_dir() {
 # seats). 1 otherwise: no probe, an older or stale one, any other verdict.
 spl_lc_login_ok_after() {
   local t="$1" now="$2" at="" verdict=""
-  read -r at verdict _ < "$(_lc_state_dir)/probe" 2>/dev/null || return 1
+  read -r at verdict _ 2>/dev/null <"$(_lc_state_dir)/probe" || return 1
   [[ "$at" =~ ^[0-9]+$ && "$t" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ && "$verdict" == ok ]] || return 1
   (( at > t && at <= now && now - at <= ${WD_LOGIN_HEAL_GRACE:-900} ))
 }
@@ -505,7 +505,7 @@ _lc_alert_body() {
 _lc_alert_to() {
   [[ -n "${LOGIN_ALERT_TO:-}" ]] && { echo "$LOGIN_ALERT_TO"; return 0; }
   local h=""
-  read -r h _ <"$SPOOL_ROOT/dispatch/lease" 2>/dev/null || true
+  read -r h _ 2>/dev/null <"$SPOOL_ROOT/dispatch/lease" || true
   [[ "$h" =~ ^${SPOOL_AGENT_ID_RX}(@[a-z0-9][a-z0-9-]*)?$ ]] || { echo orchestrator; return 0; }
   [[ "${h#*@}" == "$LC_TAG" ]] && h="${h%@*}"
   echo "$h"

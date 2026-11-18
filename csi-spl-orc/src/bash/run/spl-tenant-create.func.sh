@@ -27,6 +27,10 @@
 # @description goes to stderr, so stdout stays the one JSON line. Exit 3 =
 # @description created, host not ready (a failed push included).
 # @param TENANT_HOST (optional) - 1 (default): chain the host; 0: skip it
+# @param TH_ISSUE (optional) - the issue key the chained host's cnf commit cites
+# @param   (do_spl_tenant_host_provision, SPL-5875); needed with DRY_RUN=0 when
+# @param   the host is chained and CNF_PUSH=1: without it the create is refused
+# @param   before any key or INSERT
 # @param CNF_PUSH (optional) - 1 (default): push the cnf change before the apply
 # @param   (run from the main checkout, the tree the tf-runner mounts); 0: leave
 # @param   it uncommitted (warned loudly)
@@ -39,7 +43,7 @@
 # @param TENANT_PIN_WUI (optional) - 1 (default): pin box-wui; 0: skip it
 # @example TENANT_ID=acme ./run -a do_spl_tenant_create --json
 # @example ENV=lde DRY_RUN=0 TENANT_ID=acme ./run -a do_spl_tenant_create --json
-# @example ENV=dev DRY_RUN=0 TENANT_ID=t1 ./run -a do_spl_tenant_create
+# @example ENV=dev DRY_RUN=0 TENANT_ID=t1 TH_ISSUE=SPL-123 ./run -a do_spl_tenant_create
 #------------------------------------------------------------------------------
 do_spl_tenant_create() {
   do_require_bin yq || return 1
@@ -52,6 +56,7 @@ do_spl_tenant_create() {
   [[ "$env" == lde ]] || do_log "INFO specs/026: $tenant needs no host or DNS - members sign in with ?tenant=$tenant, boxes use the API host with SPOOL_TENANT=$tenant"
 
   [[ "$dry" == 1 ]] && { _spl_tenant_create_dry "$tenant" "$url"; return 0; }
+  _spl_tenant_create_issue "$env" || return 1
 
   local cli="${SPOOL_BIN:-}"
   _spl_tenant_create_cli || return 1
@@ -96,6 +101,17 @@ _spl_tenant_create_args() {
     return 1
   }
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $dry"; return 2; }
+}
+
+# _spl_tenant_create_issue <env> (SPL-5875): a create that will chain the host
+# (spl_tenant_create_host) needs TH_ISSUE for its cnf commit; checked here,
+# before any key or INSERT, never after the tenant exists.
+_spl_tenant_create_issue() {
+  [[ "$1" != lde && "${TENANT_HOST:-1}" == 1 ]] || return 0
+  local cnf
+  cnf="$(ENV="$1" spl_th_cnf_file)" || return 1
+  [[ "$(yq -r '.env.steps."019-firebase-static-site".wui_tenant_hosts // false' "$cnf")" == true ]] || return 0
+  spl_th_issue_ok
 }
 
 # _spl_tenant_create_dry <tenant> <url>: the DRY_RUN=1 answer - the URL and

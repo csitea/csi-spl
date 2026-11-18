@@ -79,7 +79,8 @@ fi
 
 # --- 5. DRY_RUN=0 cloud, no DSN, no account (env or SA key): refused before any key
 # SPOOL_BIN is a stub so no build runs; the refusal must come before keygen.
-out=$(SNIPPET='do_spl_tenant_create' in_orc ENV=dev TENANT_ID=acme DRY_RUN=0 GCP_ACCOUNT= HOME="$T/nosa_home" SPOOL_HUB_DB_DSN= \
+# TH_ISSUE: the host's cnf commit key (SPL-5875), refused earlier without it
+out=$(SNIPPET='do_spl_tenant_create' in_orc ENV=dev TENANT_ID=acme DRY_RUN=0 TH_ISSUE=SPL-1 GCP_ACCOUNT= HOME="$T/nosa_home" SPOOL_HUB_DB_DSN= \
   SPOOL_BIN=/bin/true SPL_STATE_DIR="$T/cloud0" 2>&1); rc=$?
 if [[ $rc -ne 0 ]] && grep -q 'no project SA key' <<<"$out" && ! grep -qiE 'root_private_key|sql proxy up' <<<"$out"; then
   pass "DRY_RUN=0 dev without DSN or GCP_ACCOUNT refused before keygen/proxy (rc=$rc)"

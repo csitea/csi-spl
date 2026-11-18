@@ -38,12 +38,16 @@
 # @param MARK_DB (optional) - 1 (default): write tenant_hosts. 0: skip the DB
 # @param CNF_PUSH (optional) - 1 (default): push the cnf change to the trunk.
 # @param   0: leave it uncommitted in the tree (warned loudly)
+# @param TH_ISSUE (optional) - the issue key the cnf commit cites in its subject
+# @param   scope, 'cnf(orc, SPL-123): ...' (SPL-5875: the pre-push part
+# @param   commit-links refuses a keyless one); needed with DRY_RUN=0 and
+# @param   CNF_PUSH=1 (not MARK_ONLY, not the apex), else FATAL before any change
 # @param TH_NOTIFY (optional) - 1 (default): announce a host that turns ready
 # @param CERT_TIMEOUT_SECONDS (optional) - cert wait, default 3600
 # @param PROBE_TIMEOUT_SECONDS (optional) - probe retry window, default 1200
 # @param PROBE_POLL_SECONDS (optional) - default 30
 # @example ENV=dev TENANT_ID=acme ./run -a do_spl_tenant_host_provision
-# @example ENV=dev TENANT_ID=acme DRY_RUN=0 ./run -a do_spl_tenant_host_provision
+# @example ENV=dev TENANT_ID=acme DRY_RUN=0 TH_ISSUE=SPL-123 ./run -a do_spl_tenant_host_provision
 #------------------------------------------------------------------------------
 do_spl_tenant_host_provision() {
   local tenant="${TENANT_ID:-}"
@@ -81,6 +85,7 @@ do_spl_tenant_host_provision() {
     else
       do_log "INFO DRY_RUN would add $tenant to steps.052-gcs-workspace-docs.workspaces in $cnf (its Docs bucket)"
     fi
+    spl_th_issue_dry
     if [[ "${CNF_PUSH:-1}" == 1 ]]; then
       do_log "INFO DRY_RUN would render $SPL_TH_STEPS, then PUSH that cnf to origin/${CNF_GIT_BRANCH:-master} from a throwaway worktree before any apply (a push that does not land fails the run)"
     else
@@ -98,10 +103,11 @@ do_spl_tenant_host_provision() {
     spl_th_finish "$tenant"
     return
   fi
+  spl_th_issue_ok || return 1
   spl_th_lock || return 1
   spl_th_tenant_set "$cnf" add "$tenant" || return 1
   spl_th_render || { spl_th_mark_one "$tenant" failed "render failed"; return 1; }
-  spl_th_cnf_publish "cnf(orc): $ENV tenant host +$tenant (do_spl_tenant_host_provision)" ||
+  spl_th_cnf_publish orc "$ENV tenant host +$tenant (do_spl_tenant_host_provision)" ||
     { spl_th_mark_one "$tenant" failed "cnf push to the trunk failed"; return 1; }
   spl_th_apply "" || { spl_th_mark_one "$tenant" failed "plan / apply refused or failed"; return 1; }
   spl_th_finish "$tenant"

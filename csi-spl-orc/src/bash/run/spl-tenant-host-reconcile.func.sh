@@ -39,9 +39,14 @@
 # @param CNF_PUSH (optional) - 1 (default): push the cnf change to the trunk
 # @param   (spl_th_cnf_push). 0: leave it uncommitted in the tree, loudly
 # @param CNF_GIT_BRANCH (optional) - trunk branch, default master
+# @param TH_ISSUE (optional) - the issue key the cnf commit cites in its subject
+# @param   scope, 'cnf(024, SPL-123): ...' (SPL-5875: the pre-push part
+# @param   commit-links refuses a keyless one); needed with DRY_RUN=0 when a row
+# @param   needs the apply and CNF_PUSH=1, else FATAL before any change.
+# @param   Workflow 40 passes cnf env.hub.tenant_host_issue (a standing issue)
 # @example ENV=dev ./run -a do_spl_tenant_host_reconcile
 # @example ENV=prd DRY_RUN=0 CHECK_ONLY=1 ./run -a do_spl_tenant_host_reconcile
-# @example ENV=dev DRY_RUN=0 ./run -a do_spl_tenant_host_reconcile
+# @example ENV=dev DRY_RUN=0 TH_ISSUE=SPL-123 ./run -a do_spl_tenant_host_reconcile
 #------------------------------------------------------------------------------
 do_spl_tenant_host_reconcile() {
   do_require_bin yq psql flock || return 1
@@ -93,9 +98,11 @@ do_spl_tenant_host_reconcile() {
   fi
   do_log "INFO $ENV reconcile: check [${chk[*]}] add [${add[*]}] remove [${del[*]}]${CHECK_ONLY:+ CHECK_ONLY=$CHECK_ONLY}"
   if (( dry )); then
+    (( apply )) && spl_th_issue_dry
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to apply."
     return 0
   fi
+  (( apply )) && { spl_th_issue_ok || return 1; }
 
   local fails=0
   for t in "${chk[@]}"; do spl_th_finish "$t" || fails=$((fails + 1)); done
@@ -137,7 +144,7 @@ spl_th_reconcile_apply() {
   for t in "${add[@]}"; do spl_th_cnf_has "$cnf" "$t" || spl_th_tenant_set "$cnf" add "$t" || return 1; done
   for t in "${del[@]}"; do spl_th_tenant_set "$cnf" del "$t" || return 1; done
   spl_th_render || return 1
-  spl_th_cnf_publish "cnf(024): $ENV tenant hosts${add[*]:+ +${add[*]}}${del[*]:+ -${del[*]}} (do_spl_tenant_host_reconcile)" || {
+  spl_th_cnf_publish 024 "$ENV tenant hosts${add[*]:+ +${add[*]}}${del[*]:+ -${del[*]}} (do_spl_tenant_host_reconcile)" || {
     spl_th_mark_failed "cnf push to the trunk failed"
     return 1
   }
@@ -203,11 +210,29 @@ spl_th_entry_check() {
   return 1
 }
 
-# spl_th_cnf_publish <message>: spl_th_cnf_push, or with CNF_PUSH=0 a loud
-# warning that the trunk does not declare the hosts the apply is about to make.
+# spl_th_issue_ok (SPL-5875): a run that commits the cnf (CNF_PUSH=1) needs
+# TH_ISSUE, the issue key its commit subject cites: the pre-push part
+# commit-links (SPL-4789) and workflow 25 refuse a commit that names none.
+# Called before the cnf edit, so a missing key changes nothing.
+spl_th_issue_ok() {
+  [[ "${CNF_PUSH:-1}" == 1 ]] || return 0
+  [[ "${TH_ISSUE:-}" =~ ^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]{0,8}$ ]] && return 0
+  do_log "FATAL TH_ISSUE must be the issue key the cnf commit cites (e.g. SPL-123), got '${TH_ISSUE:-}': the pre-push part commit-links refuses a commit with none. Nothing was changed"
+  return 1
+}
+
+# spl_th_issue_dry: the dry run's line when a real run would lack TH_ISSUE
+spl_th_issue_dry() {
+  [[ "${CNF_PUSH:-1}" == 1 && ! "${TH_ISSUE:-}" =~ ^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]{0,8}$ ]] || return 0
+  do_log "WARN DRY_RUN a DRY_RUN=0 run needs TH_ISSUE=<issue key> (e.g. SPL-123): its cnf commit cites it, and without it the run stops before any change"
+}
+
+# spl_th_cnf_publish <area> <text>: spl_th_cnf_push of the subject
+# 'cnf(<area>, $TH_ISSUE): <text>', or with CNF_PUSH=0 a loud warning that the
+# trunk does not declare the hosts the apply is about to make.
 spl_th_cnf_publish() {
   local m
-  m="$(spl_th_mask "$1")" || return 1
+  m="$(spl_th_mask "cnf($1, ${TH_ISSUE:-}): $2")" || return 1
   [[ "${CNF_PUSH:-1}" == 1 ]] && { spl_th_cnf_push "$m"; return; }
   do_log "WARN CNF_PUSH=0: the cnf edit stays UNCOMMITTED in $APP_PATH and the trunk does not declare it; the next render from trunk drops it"
 }

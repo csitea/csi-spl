@@ -147,6 +147,15 @@ identity that the trunk's own cnf history carries: no literal in the tree, no
 AI trailer. Whether it landed is read from `merge-base`, never from the push
 output.
 
+Its subject cites an issue key (SPL-5875): `cnf(orc, <TH_ISSUE>): ...` from
+the provision, `cnf(024, <TH_ISSUE>): ...` from the reconcile, because the
+pre-push part commit-links (SPL-4789) and workflow 25 refuse a commit that
+names none. A run that would commit (`DRY_RUN=0`, `CNF_PUSH=1`; for the
+reconcile, only when a row needs the apply) stops with a FATAL before any cnf
+edit when `TH_ISSUE` is unset or not a key; the dry run says it is needed.
+`do_spl_tenant_create` passes it through and refuses before the tenant's keys
+when it will chain the host. A `cnf(...)` subject never closes the issue.
+
 ### 3.3 Trigger (owner option 2): `40_tenant-host-reconcile.yml`
 
 Every 10 min, plus `workflow_dispatch` (environment, dry_run). Per env, dev
@@ -158,7 +167,8 @@ cancelled:
    delegation record in the prd apex zone. No new credential.
 2. `do_spl_tenant_host_reconcile` read-only → `open=<n>`. Zero ends the job.
 3. Otherwise: tpl-gen at the pin, `make do-setup-app-inf`, then the reconcile
-   with `DRY_RUN=0 CNF_PUSH=1`.
+   with `DRY_RUN=0 CNF_PUSH=1` and `TH_ISSUE` = cnf `env.hub.tenant_host_issue`,
+   a standing issue for these automatic commits (SPL-5877).
 4. A pushed cnf change dispatches `30_wui-build-deploy.yml` for that env,
    because the WUI CSP lists the tenant hosts from `env.json`, and a
    GITHUB_TOKEN push starts no workflow.

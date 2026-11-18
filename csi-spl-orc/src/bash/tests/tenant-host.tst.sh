@@ -45,6 +45,12 @@
 #   7. deprovision refuses while the tenant row exists; the proxy's log line
 #      on stdout never reads as "still exists" (SPL-1811)
 #   8. do_spl_tenant_create chains the host only when cnf wui_tenant_hosts is on
+#   9. SPL-5875: the cnf commit subject both actions build cites TH_ISSUE and
+#      passes the REAL commit-links check (do_spl_commit_links_check, form
+#      only); CONTROL: master's keyless subject is refused there. No TH_ISSUE
+#      on a real run -> FATAL before any cnf edit, make or push (provision,
+#      reconcile, and tenant create before its keys); the dry run names it;
+#      CNF_PUSH=0 commits nothing and needs none
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -129,7 +135,7 @@ export STUB_LOG="$T/make.log" STUB_CNF="$CNF" STUB_TFV="$FAKE/csi-spl-cnf/csi-sp
 
 # run SNIPPET with every orc function loaded and the cloud / DB edges stubbed
 in_orc() {
-  env PATH="$T/bin:$PATH" PROJ_PATH="$FAKE/csi-spl-orc" APP_PATH="$FAKE" ENV=dev SPOOL_ROOT="$T/spool" SPL_TH_NOTIFY_FN=stub_notify GITHUB_ACTIONS= SPOOL_DESK_BOX=sat "$@" bash -c '
+  env PATH="$T/bin:$PATH" PROJ_PATH="$FAKE/csi-spl-orc" APP_PATH="$FAKE" ENV=dev SPOOL_ROOT="$T/spool" SPL_TH_NOTIFY_FN=stub_notify GITHUB_ACTIONS= SPOOL_DESK_BOX=sat TH_ISSUE=SPL-1 "$@" bash -c '
     set -uo pipefail
     # REAL_LOG=1: run.sh'"'"'s own do_log (2d: a stub hid what a real line prints)
     if [[ "${REAL_LOG:-0}" == 1 ]]; then eval "$(sed -n "/^do_log() {/,/^}/p; /^_do_log_[a-z_]*() {/,/^}/p" '"$PROJ_ROOT"'/src/bash/run/run.sh)"
@@ -316,7 +322,7 @@ out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 STU
 want=$'do-generate-config-for-step 052\ndo-generate-config-for-step 019\ndo-generate-config-for-step 025\ndo-tf-plan 052\ndo-tf-plan 019\ndo-provision 019\ndo-tf-plan 025\ndo-provision 025'
 [[ $rc == 0 && "$(cat "$STUB_LOG")" == "$want" ]] && pass "provision: render 052+019+025, then plan (+provision on a change) each, in order" ||
   fail "provision rc=$rc make calls: $(cat "$STUB_LOG") :: $out"
-[[ "$(cat "$T/mark.log")" == $'PUSH cnf(orc): dev tenant host +newt (do_spl_tenant_host_provision)\nCERT newt.dev.example.test\nPROBE newt.dev.example.test\nMARK newt ready\nNOTIFY prd t1 c-902 #spool-hub-devel dev: workspace **newt** is live at https://newt.dev.example.test (certificate + WUI probe ok). Owner: HUM-3, cc HUM-10' ]] &&
+[[ "$(cat "$T/mark.log")" == $'PUSH cnf(orc, SPL-1): dev tenant host +newt (do_spl_tenant_host_provision)\nCERT newt.dev.example.test\nPROBE newt.dev.example.test\nMARK newt ready\nNOTIFY prd t1 c-902 #spool-hub-devel dev: workspace **newt** is live at https://newt.dev.example.test (certificate + WUI probe ok). Owner: HUM-3, cc HUM-10' ]] &&
   pass "provision: cnf pushed BEFORE the apply, then cert wait -> probe -> ready -> one notice" || fail "provision tail: $(cat "$T/mark.log")"
 grep -q '"t1.dev.example.test"' "$STUB_TFV" && grep -q '"newt.dev.example.test"' "$STUB_TFV" &&
   pass "rendered 019 keeps t1 next to the new tenant" || fail "rendered tfvars: $(cat "$STUB_TFV")"
@@ -657,6 +663,74 @@ reset; sed -i 's/^      wui_tenant_hosts: .*/      wui_tenant_hosts: false/' "$C
 reset; sed -i 's/^      wui_tenant_hosts: .*/      wui_tenant_hosts: true/' "$CNF"; cp "$CNF" "$T/on.yaml"
 [[ $(chain TENANT_HOST=0) == 0 ]] && ! grep -q PROVISION "$T/mark.log" && cmp -s "$T/on.yaml" "$CNF" &&
   pass "CONTROL: TENANT_HOST=0 -> no host, cnf untouched" || fail "chain TENANT_HOST=0: $(cat "$T/mark.log")"
+
+# --- 9. SPL-5875: the cnf commit cites an issue key ---------------------------
+# links <subject>: rc of the real commit-links check (form only, no hub) on a
+# one-commit range carrying <subject>, in a throwaway repo
+CL="$T/cl"; git init -q "$CL"; git -C "$CL" -c user.name=t -c user.email=t@example.test commit -q --allow-empty -m base
+links() {
+  git -C "$CL" -c user.name=t -c user.email=t@example.test commit -q --allow-empty -m "$1"
+  SNIPPET='do_spl_commit_links_check' in_orc COMMIT_LINKS_REPO="$CL" COMMIT_LINKS_RANGE=HEAD~1..HEAD COMMIT_LINKS_HUB=none COMMIT_LINKS_TENANT=t1 COMMIT_LINKS_PREFIX=SPL >"$T/cl.out" 2>&1
+}
+reset
+SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 TH_ISSUE=SPL-5875 STUB_PLAN_019="$P_ADD" STUB_PLAN_025="$P_ADD" >/dev/null 2>&1
+sub_p="$(sed -n 's/^PUSH //p' "$T/mark.log")"
+reset
+SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 TH_ISSUE=SPL-5877 STUB_ROWS=$'row newt pending manual' STUB_PLAN_019="$P_ADD" STUB_PLAN_025="$P_ADD" >/dev/null 2>&1
+sub_r="$(sed -n 's/^PUSH //p' "$T/mark.log")"
+[[ "$sub_p" == "cnf(orc, SPL-5875): dev tenant host +newt (do_spl_tenant_host_provision)" &&
+   "$sub_r" == "cnf(024, SPL-5877): dev tenant hosts +newt (do_spl_tenant_host_reconcile)" ]] &&
+  pass "9. both actions put TH_ISSUE in the cnf commit's subject scope" || fail "9. subjects: [$sub_p] [$sub_r]"
+for sub in "$sub_p" "$sub_r"; do
+  links "$sub"; rc=$?
+  [[ -n "$sub" && $rc == 0 ]] && grep -q 'COMMIT_LINKS_CHECK hub=none .* ok=1 fail=0' "$T/cl.out" &&
+    pass "9. commit-links passes '$sub'" || fail "9. commit-links rc=$rc on '$sub': $(cat "$T/cl.out")"
+done
+links "cnf(orc): dev tenant host +newt (do_spl_tenant_host_provision)"; rc=$?
+[[ $rc == 3 ]] && grep -q 'names no SPL-<n> issue key' "$T/cl.out" &&
+  pass "9. CONTROL: master's keyless subject is refused by commit-links (rc 3)" || fail "9. keyless subject rc=$rc: $(cat "$T/cl.out")"
+
+reset
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 TH_ISSUE= 2>&1); rc=$?
+[[ $rc != 0 && ! -s "$STUB_LOG" && ! -s "$T/mark.log" ]] && cmp -s "$ORIG" "$CNF" && grep -q 'FATAL TH_ISSUE must be' <<<"$out" &&
+  pass "9. provision without TH_ISSUE: FATAL, no cnf edit, no make, no push, nothing marked" || fail "9. provision no key rc=$rc make=[$(cat "$STUB_LOG")] marks=[$(cat "$T/mark.log")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 TH_ISSUE='SPL-1; x' 2>&1); rc=$?
+[[ $rc != 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && pass "9. CONTROL: a TH_ISSUE that is not a key is refused the same way" || fail "9. bad key rc=$rc :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 TH_ISSUE= STUB_ROWS=$'row t1 pending manual\nrow newt pending manual' 2>&1); rc=$?
+[[ $rc != 0 && ! -s "$STUB_LOG" && ! -s "$T/mark.log" ]] && cmp -s "$ORIG" "$CNF" && grep -q 'FATAL TH_ISSUE must be' <<<"$out" &&
+  pass "9. reconcile with an add and no TH_ISSUE: FATAL before any check, cnf edit, make or push" || fail "9. reconcile no key rc=$rc make=[$(cat "$STUB_LOG")] marks=[$(cat "$T/mark.log")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 TH_ISSUE= STUB_ROWS=$'row t1 pending manual' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q 'MARK t1 ready' "$T/mark.log" &&
+  pass "9. CONTROL: a check-only reconcile commits nothing and needs no TH_ISSUE" || fail "9. check-only no key rc=$rc :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 TH_ISSUE= CNF_PUSH=0 STUB_PLAN_019="$P_ADD" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
+[[ $rc == 0 ]] && ! grep -q PUSH "$T/mark.log" && pass "9. CONTROL: CNF_PUSH=0 commits nothing and needs no TH_ISSUE" || fail "9. CNF_PUSH=0 rc=$rc :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt TH_ISSUE= 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q 'needs TH_ISSUE=<issue key>' <<<"$out" && cmp -s "$ORIG" "$CNF" &&
+  pass "9. provision DRY_RUN without TH_ISSUE says a real run needs it" || fail "9. dry no key rc=$rc :: $out"
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt 2>&1)
+! grep -q 'needs TH_ISSUE' <<<"$out" && pass "9. CONTROL: with TH_ISSUE the dry run asks for nothing" || fail "9. dry with key :: $out"
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc TH_ISSUE= STUB_ROWS=$'row newt pending manual' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q 'needs TH_ISSUE=<issue key>' <<<"$out" && cmp -s "$ORIG" "$CNF" &&
+  pass "9. reconcile DRY_RUN with an add and no TH_ISSUE says a real run needs it" || fail "9. reconcile dry no key rc=$rc :: $out"
+
+# tenant create: refused before its keys (the CLI step) when it would chain the host
+tc() { SNIPPET='do_spl_cloud_cnf; _spl_tenant_create_target() { url=https://newt.dev.example.test; }; _spl_tenant_create_cli() { echo CLI >>'"$T"'/mark.log; return 1; }; do_spl_tenant_create' in_orc ENV=dev TENANT_ID=newt DRY_RUN=0 "$@" 2>&1; }
+reset; sed -i 's/^      wui_tenant_hosts: .*/      wui_tenant_hosts: true/' "$CNF"
+out=$(tc TH_ISSUE=); rc=$?
+[[ $rc != 0 && ! -s "$T/mark.log" ]] && grep -q 'FATAL TH_ISSUE must be' <<<"$out" &&
+  pass "9. tenant create that chains the host, no TH_ISSUE: refused before its keys" || fail "9. create no key rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+reset; sed -i 's/^      wui_tenant_hosts: .*/      wui_tenant_hosts: true/' "$CNF"
+tc TH_ISSUE=SPL-1 >/dev/null; grep -qx CLI "$T/mark.log" && pass "9. CONTROL: with TH_ISSUE the create goes on to its keys" || fail "9. create with key: $(cat "$T/mark.log")"
+reset; sed -i 's/^      wui_tenant_hosts: .*/      wui_tenant_hosts: true/' "$CNF"
+tc TH_ISSUE= TENANT_HOST=0 >/dev/null; grep -qx CLI "$T/mark.log" && pass "9. CONTROL: TENANT_HOST=0 chains no host and needs no TH_ISSUE" || fail "9. create TENANT_HOST=0: $(cat "$T/mark.log")"
+reset; sed -i 's/^      wui_tenant_hosts: .*/      wui_tenant_hosts: false/' "$CNF"
+tc TH_ISSUE= >/dev/null; grep -qx CLI "$T/mark.log" && pass "9. CONTROL: wui_tenant_hosts off chains no host and needs no TH_ISSUE" || fail "9. create hosts off: $(cat "$T/mark.log")"
+reset
 
 [[ $fails == 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

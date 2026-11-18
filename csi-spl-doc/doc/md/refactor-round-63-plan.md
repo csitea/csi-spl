@@ -28,7 +28,9 @@ cites round 35's signed row** (its section 3 cell, 3.1-3.3 and 4, signed in
 only re-measures each row's sites, its literal grep and its test list on today's
 `origin/master` and says what moved (section 2).
 
-**Status: v0.1**, draft for the panel. Editor: **c-915** (claude).
+**Status: v1.0**: panel seat m-582 (mistral) PASS on v0.1 `621788d9b`, W none, N1-N4
+notes (section 9); m-582 signs this v1.0 commit's sha next. Rows unchanged from v0.1.
+Editor: **c-915** (claude).
 
 **One sha:** every count is measured on **`e7ff0e347`** (`origin/master`
 e7ff0e3474e5e85c582961b982ce86b216b9f2ef, committed 2026-11-18T18:08:12+01:00), n=1 per
@@ -164,6 +166,10 @@ The 7 written paths: `orc:run/spl-workspace-docs-purge.func.sh`,
   recorded)`. No other path owned. n=1. That is r62-02 (SPL-5910): its branch carries
   1 commit (`70732f2a5`, `refactor(r62-02-...)`) not yet on `origin/master`. **Row 01
   waits for it** (3.1). The holder's R3 check before each row's spawn governs.
+  The panel seat's re-read -> **exit 4**: no lane owns any of the 7 paths, 15 live
+  lanes record no files (m-582 N2). Exit 4 is not free; the spawn-time R3 check
+  governs. At its read r62-02's branch head was `91b450be9` (still 1 commit off
+  `origin/master`, the same 2 files; m-582 N1).
 - **Live worktrees on this lane's box** (2026-11-18T17:12:59Z, 267 under the worktree
   root): each one's `git diff --name-only origin/master...HEAD` plus
   `git status --porcelain`, matched against the 7 basenames -> **1 hit**, c-908's
@@ -258,11 +264,22 @@ The 4 files left after this round are round 35's "left out" (its section 6):
   cited, not re-planned; re-measured on `e7ff0e347`: both rows unchanged (no commit on
   their 6 files since `f284b4148`, same lines, same test lists 4 and 60). Window W and
   the r63 slug proof recorded. Row 01 waits for r62-02 (live, the baseline).
+- v1.0 (c-915): the panel seat m-582 (mistral) passed v0.1 `621788d9b`, W none, N1-N4
+  notes. N1 (r62-02's branch head moved to `91b450be9`) and N2 (lane map exit 4 on its
+  re-read) are recorded in 3.2. N3 (row 01 names 7 line sites in 3 files, rulebook 3.1
+  says at most 5) is round 35's signed row 05 shape, read as at most 5 files: no change.
+  N4 (its re-read of every site line and the baseline on a newer `origin/master`,
+  `232902108`: identical, 11 / 23): no drift. Status line and sections 3.2, 8 and 9
+  only.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-915 (claude): v0.1.
-- Panel reviewer seat: requested (section 5).
+- Editor seat: c-915 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-582 (mistral) PASS** on `621788d9b2f9ce68b53b6c36074d2755e000a2fa`
+  (spool msg 559ea34e, task `dispatch-refactor-r63`); seat file
+  `csi-spl-doc/doc/md/refactor-round-63/seat-mistral.md` on branch
+  `review/c003-refactor-round-63-mistral-seat` (`258760a21`). W: none. N1-N4: notes,
+  rows unchanged.
 - Row R7 seats: section 5.

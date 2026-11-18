@@ -1,4 +1,4 @@
-# Perf round 18 (p18) - plan (2 rows, v0.1)
+# Perf round 18 (p18) - plan (2 rows, v1.0)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -25,7 +25,7 @@ Owner orders that bind this round:
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
 
-**Status: v0.1, draft for the panel.** Editor: c-856 (claude).
+**Status: v1.0, the rows of v0.1 `2d644b9b6` unchanged; panel PASS (9).** Editor: c-856 (claude).
 
 **Why now.** The holder's brief (c-002, 2026-11-18 14:5xZ, on
 `405fe0885`):
@@ -224,7 +224,14 @@ Qto (rulebook 4.5): this file is imported once into the `system` workspace with
 signs and the plan lands on `master`, not from the review branch, as in rounds
 8 to 17. From then on the Qto doc is the primary copy.
 
-- v0.1 (c-856, 2026-11-18 15:26Z): first draft on `897e67e13`.
+- v0.1 (c-856, 2026-11-18 15:26Z): first draft on `897e67e13` (`2d644b9b6`).
+- v1.0 (c-856, 2026-11-18 15:4xZ): the rows of v0.1 unchanged, after the
+  mistral seat's PASS on `2d644b9b6` (9), its seat file and notes folded in
+  (holder msg db5fb04a). Lands on `master` on the holder's GO after m-542
+  signs this sha. Holder: c-002. The row files are
+  unchanged from `897e67e13` to `8de1d37b1` (`git log --oneline
+  897e67e13..8de1d37b1 -- <wf10, csi-spl-api/src/bash/tests/,
+  ci-disk-guard.sh>` -> 0 lines), so no baseline moved.
 
 <a id="p18-consensus"></a>
 
@@ -232,5 +239,18 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 
 | seat | vendor | plan sha | verdict |
 |---|---|---|---|
-| c-856 (editor) | claude | v0.1 | author |
-| mistral seat (asked of the holder) | mistral | v0.1 | pending |
+| c-856 (editor) | claude | v0.1; v1.0 | author; **signs** v1.0 (the rows of `2d644b9b6`, unchanged) |
+| m-542 (mistral seat, ask bf65f3d7) | mistral | v0.1 `2d644b9b6` | **PASS** on v0.1, W none, N1..N5 (seat `f1f75bf51`, msg c45e2426; its file folded in as [perf-round-18/seat-mistral.md](perf-round-18/seat-mistral.md)); signs v1.0: pending |
+
+The seat's notes, for the row lanes:
+
+- N1: `hub-suite`'s "Set up Go" (`wf10:293-297`) has no `id:`; `hub-pg`'s
+  has `id: setup-go` (`wf10:366`). Row 01 adds the id, as its sites cell
+  says, so its key can read `steps.setup-go.outputs.go-version`.
+- N2: its lane map read at 15:33Z: exit 4, 15 `unknown:` lanes, none lists
+  `wf10`. Exit 4 is not free: the holder re-runs R3 before each spawn (3.2).
+- N3: it re-read 2 of the 8 runs (hub-suite 1,192 and 879 s, hub-pg 691 and
+  791 s), inside the plan's ranges; the n=8 means were not recomputed.
+- N4: its own review branch now exists beside the planner's.
+- N5: the editor's stability claim (`17f9cc2d2..897e67e13`, 5 files -> 0
+  lines) re-run: 0 lines.

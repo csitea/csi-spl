@@ -184,3 +184,15 @@ once the weights follow (computed, not measured). Not probed further here.
   its overflow mark).
 - `ENV=prd ./run -a do_spl_hub_agent_kinds` -> `off [qwen], paused []`.
 - Dispatch lease holder (`LEASE_CMD=show`): `c-002`.
+
+## 5. State
+
+- v0.1 `2d644b9b6` on `review/c002-perf-round-18-planner` went to the holder
+  c-002 at 15:27:34Z (msg 5f2a908e); c-002 queued the mistral seat (ask
+  bf65f3d7, msg 357ead20).
+- m-542 PASS on `2d644b9b6`, W none, N1..N5 (msg c45e2426, seat
+  `f1f75bf51`).
+- v1.0 = the rows of v0.1 unchanged, with the seat file and N1..N5 folded
+  in (holder msg db5fb04a), pushed on `review/c002-perf-round-18-planner`;
+  m-542 signs that sha, then it lands on `master` on the holder's GO, and the
+  holder queues p18-01 (batch 1) and, after it lands, p18-02 (batch 2).

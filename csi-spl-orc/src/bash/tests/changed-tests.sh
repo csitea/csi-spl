@@ -9,9 +9,14 @@
 # A changed file selects every test that names it: its basename, its stem
 # (basename without .func.sh / .inc.sh / .sh, at least 5 characters) or a
 # shell function it defines now or defined at the base (so a renamed or
-# deleted action still selects its old test). Only function names with a _
-# or - count: a one-word name such as start or flush reads as prose in every
-# test. A changed *.tst.sh selects itself. The functions a TEST file
+# deleted action still selects its old test). A .md file whose basename
+# another tracked .md file also carries (spec.md, README.md, tasks.md) keys
+# by its path only, never its basename: the repo path and each trailing part
+# down to <parent dir>/<name> (a test reads a skill asset as
+# .claude/skills/exit-clean/SKILL.md). A test that writes a fixture of that
+# name does not read this doc (1,318 of 5,343 selections in a week of orc
+# commits, p16-01). Only function names with a _ or - count: a one-word name
+# such as start or flush reads as prose in every test. A changed *.tst.sh selects itself. The functions a TEST file
 # defines (*.tst.sh, test-*.sh, *.proof.sh, anything under fixtures/) are
 # stubs, not the real thing: they never key a selection (an iac test that
 # stubs do_log once selected all 198 orc tests). Its basename and stem
@@ -67,11 +72,20 @@ fi
 # defs: the shell function names defined in stdin, one per line
 defs() { sed -nE 's/^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_:.-]*)[[:space:]]*\(\).*$/\2/p'; }
 dispatcher_fns=" $(defs 2>/dev/null <"$top/${orc}src/bash/run/run.sh" | tr '\n' ' ') "
+# shared_md: the .md basenames more than one tracked file carries, read once
+declare -A shared_md=()
+while IFS= read -r b; do shared_md[$b]=1; done < <(
+  git -C "$top" ls-files -- '*.md' | awk -F/ '{ n[$NF]++ } END { for (b in n) if (n[b] > 1) print b }')
 
 # keys <repo path>: the names a test would use for this file, one per line
 keys() {
   local f="$1" b stem
   b=$(basename "$f")
+  if [[ "$b" == *.md && -n "${shared_md[$b]:-}" ]]; then
+    echo "$f"; local p="$f"
+    while [[ "$p" == */*/* ]]; do p="${p#*/}"; echo "$p"; done
+    return 0
+  fi
   (( ${#b} >= 5 )) && echo "$b"
   stem="${b%.func.sh}"; stem="${stem%.inc.sh}"; stem="${stem%.sh}"
   [[ "$stem" != "$b" ]] && (( ${#stem} >= 5 )) && echo "$stem"

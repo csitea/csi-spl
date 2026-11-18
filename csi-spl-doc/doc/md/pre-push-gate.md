@@ -74,8 +74,12 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   file or a function it defines, plus the always-run list
   (`run-all-tests.sh --changed`; the map is
   `csi-spl-orc/src/bash/tests/changed-tests.sh`, the list its
-  `ORC_TEST_ALWAYS`). When the map answers `full` (a touched orc file that no
-  test names), the whole suite is left to CI workflow 10 or
+  `ORC_TEST_ALWAYS`). A doc name that several tracked `.md` files share
+  (`spec.md`, `README.md`, `tasks.md`) keys by its path, never its basename:
+  its repo path and each trailing part down to `<parent dir>/<name>`, so a
+  test that writes a fixture `spec.md` is not selected by every spec edit
+  (p16-01: 5,343 -> 4,026 selections over a week of orc commits). When the
+  map answers `full` (a touched orc file that no test names), the whole suite is left to CI workflow 10 or
   `PRE_PUSH_TIER=full`, and the fast tier still runs the always-run list and
   prints it (`the fast tier still runs the always-run list: ...`); an empty
   list prints that no orc test runs (SPL-5607). Before it, a `full` plan ran

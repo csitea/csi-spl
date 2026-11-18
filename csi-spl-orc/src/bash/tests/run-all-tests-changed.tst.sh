@@ -32,6 +32,13 @@
 #      of 035dc1501 forced `full`, so no orc test ran before its push);
 #      CONTROL: a feature file outside tests/ that no test names still falls
 #      back to every file
+#  13. a doc name tracked .md files share (spec.md) keys by its path, never
+#      its basename: a change to b/spec.md selects neither specfix.tst.sh (it
+#      writes a fixture spec.md) nor areader.tst.sh (it reads a/spec.md);
+#      CONTROL: a change to a/spec.md selects areader.tst.sh; CONTROL: a
+#      change to c/d/spec.md selects dreader.tst.sh, which names only its
+#      trailing d/spec.md; CONTROL: a unique doc name (only-one.md) still
+#      selects onefix.tst.sh by its name
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -144,6 +151,28 @@ printf 'demo_thing_fn2() { :; }\n' >>"$F/lib/demo-thing.inc.sh"; g add -A; g com
 plan12c=$( (cd "$R" && ORC_TEST_BASE=HEAD~1 bash "$D/changed-tests.sh") )
 [ "$plan12c" = "$(printf 'full\tno test names csi-spl-orc/src/bash/features/demo/lib/demo-thing.inc.sh')" ] \
   && pass "12 CONTROL a feature file outside tests/ no test names still falls back to every file" || fail "12 control" "$plan12c"
+g reset -q --hard master; g clean -qfd
+# 13
+mkdir -p "$R/a" "$R/b" "$R/c/d"; printf 'a\n' >"$R/a/spec.md"; printf 'b\n' >"$R/b/spec.md"; printf 'd\n' >"$R/c/d/spec.md"
+printf 'o\n' >"$R/only-one.md"
+printf '#!/usr/bin/env bash\nprintf x >"$T/spec.md"\n' >"$D/specfix.tst.sh"
+printf '#!/usr/bin/env bash\ncat "$ROOT/a/spec.md"\n' >"$D/areader.tst.sh"
+printf '#!/usr/bin/env bash\ncat "$FIX/d/spec.md"\n' >"$D/dreader.tst.sh"
+printf '#!/usr/bin/env bash\nprintf x >"$T/only-one.md"\n' >"$D/onefix.tst.sh"
+g add -A; g commit -qm 'two spec.md, a unique doc, their tests'
+plan13() { printf 'z\n' >>"$R/$1"; g add -A; g commit -qm "$1"; (cd "$R" && ORC_TEST_BASE=HEAD~1 ORC_TEST_ALWAYS='' bash "$D/changed-tests.sh"); }
+p13=$(plan13 b/spec.md)
+[ "$p13" = "$(printf 'ignore\tb/spec.md\tdoc')" ] \
+  && pass "13 a shared doc name keys by its path: b/spec.md selects no test" || fail "13 shared doc name" "$p13"
+p13=$(plan13 a/spec.md)
+[ "$p13" = "$(printf 'run\tareader.tst.sh\tnames a/spec.md')" ] \
+  && pass "13 CONTROL a/spec.md selects areader.tst.sh, its path reader" || fail "13 control path" "$p13"
+p13=$(plan13 c/d/spec.md)
+[ "$p13" = "$(printf 'run\tdreader.tst.sh\tnames c/d/spec.md')" ] \
+  && pass "13 CONTROL c/d/spec.md selects dreader.tst.sh by its trailing d/spec.md" || fail "13 control trailing path" "$p13"
+p13=$(plan13 only-one.md)
+[ "$p13" = "$(printf 'run\tonefix.tst.sh\tnames only-one.md')" ] \
+  && pass "13 CONTROL a unique doc name selects onefix.tst.sh" || fail "13 control unique" "$p13"
 g reset -q --hard master; g clean -qfd
 # 8
 printf 'do_foo() { echo foo4; }\n' >"$O/lib/bash/funcs/foo.func.sh"

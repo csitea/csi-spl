@@ -8,6 +8,14 @@ v1.1-draft (2026-11-18): section 10 added, backend errors into the System
 log (SPL-5882, owner t1 topic `bfd5af01`). Sections 1-9 are unchanged.
 Section 10 waits for its own review; its build rows start after it signs.
 
+v1.2-draft (2026-11-18): section 10 takes the owner's four answers to
+poll `00d28227` (t1 topic `bfd5af01`, msg `4dda13ce`): Q1 B, a read-only
+service account for the box reader, granted by a terraform step on the
+owner's go (new row T7a); Q2 A, the post-deploy step turns red and prd
+still deploys; Q3 A, every error group gets an issue; Q4 B, a backend
+error of a signed-in person's request also lands in that person's Mine
+log, and the group row carries the person id. Sections 1-9 are unchanged.
+
 Source: owner HUM-10, t1 topic `cfaa3dce`. Issue SPL-4024 (this spec),
 epic SPL-2403. The Monitoring tab row it lives in is spec 153. Each build
 row in section 5 gets its own issue when it is placed. The build rows
@@ -397,7 +405,7 @@ and loop lines). No row of section 5 changed.
 - Editor: c-390 (claude), the v1.0 commit.
 - Reviewer: m-513 (mistral, read-only): signed v1.0 (1da9cb478).
 
-## 10. Backend errors into the System log (v1.1-draft, SPL-5882)
+## 10. Backend errors into the System log (v1.2-draft, SPL-5882)
 
 ### 10.1 The owner's asks, and why this spec holds them
 
@@ -411,6 +419,7 @@ Owner HUM-10, t1 topic `bfd5af01` (#spool-hub-ops), 2026-11-18:
 | `d0e0085f` | "we should be much more like google and much less like microsoft in this regard" |
 | `e05d9c00` | "for the hub owns panics / cloud run crashes - the component must be running on the sat box , but should bedone so that it could be running in the [main] box as well" (the second box name replaced: distribution hygiene) |
 | `6ddfaa91` | "I guess it could be cron scheduled and run every hour or something ..." |
+| `4dda13ce` | the answers to poll `00d28227` (14:52Z): "Answer 1: B — A new read-only service account, granted by a terraform step on your go, plus one more key per env / Answer 2: A — The step turns red and says so; prd still deploys / Answer 3: A — Every error group / Answer 4: B — Also in the Mine log of the person whose request failed" |
 
 The dispatcher's plan in the topic, msg `a6609004` (c-002, 10:35Z): a new
 section of spec 162; the hub writes its own 5xx and panics as system events;
@@ -418,17 +427,21 @@ a reader takes what the hub cannot see from Cloud Logging; one row per
 fingerprint with a count; the bug round planner reads new groups as one more
 source. This section follows that plan. It differs in one place: the plan
 says the reader "needs a terraform step (a log sink and its permission)".
-It needs neither by default (10.4.3): the reader queries the bucket the
-hub's lines already reach, with the per-env service account that already
-holds the read. A terraform grant is the owner's option B of Q1 (10.10).
+It needs no sink (10.4.3): the reader queries the bucket the hub's lines
+already reach. It does need its permission: the owner chose Q1 B, a new
+read-only service account granted by a terraform step on the owner's go
+(row T7a, 10.10), not the per-env project service account v1.1 proposed.
 
 Why a section of 162 and not a new spec: the rows go into 162's
 `system_events` table (3.1), they are read and deleted through 162's routes
-(3.2) and shown on 162's page (3.5, the System scope). The new parts are a
-producer, a reader and three columns; none of them is a new log.
+(3.2) and shown on 162's page (3.5, the System scope); a person's copy goes
+into 162's Mine log (`human_events`, Q4 B). The new parts are a producer, a
+reader, a service account and new columns; none of them is a new log.
 
 Every `file:line` below was read on origin/master `04ca1d897`
-(2026-11-18). Nothing was measured on dev or prd for this draft: today's
+(2026-11-18); for v1.2 the ones in `hub/server.go`, `hub/events.go`,
+`store/human_events.go`, `auth/handler.go` and `gcp-account-pin.func.sh`
+were read again on `bc559b2f6`. Nothing was measured on dev or prd for this draft: today's
 5xx rate, panic rate and the exact Cloud Run log strings are unread
 (10.11, R5 and R6). Paths use the aliases at the top of this spec.
 
@@ -475,13 +488,37 @@ Every `file:line` below was read on origin/master `04ca1d897`
   dispatches `wire.TLease` to `onLease` (`hub/box_lease.go:49-67`), which
   pairs the reply by `msg_id` and reads the tenant from the session, never
   from the frame. The new reader frame (10.4.4) has that shape.
-- **The read permission.** The reader's identity is the per-env project
-  service account (repo CLAUDE.md, "Service accounts only"). gcp-003 gives
-  it `roles/owner` on its project
-  (`csi-spl-iac/src/bash/run/gcp-003-configure-proj-sa-permissions.func.sh:34`),
-  which holds `logging.logEntries.list`. The hub's runtime SA
+- **The read permission.** The per-env project service account has
+  `roles/owner` on its project (gcp-003,
+  `csi-spl-iac/src/bash/run/gcp-003-configure-proj-sa-permissions.func.sh:34`),
+  which holds `logging.logEntries.list`; the owner chose not to use it for
+  the reader (Q1 B): a reader that runs hourly on a box holds a key that can
+  only read logs. No such service account exists today: no terraform step
+  numbered `071` or named for logs reading (`git ls-tree --name-only
+  origin/master csi-spl-iac/src/terraform/` lists `070-gcp-monitoring`,
+  then `120-github-general-secrets`). The hub's runtime SA
   (`csi-spl-iac/src/terraform/030-cloud-run-hub/03-runtime-sa.tf`) has no
   logging read, and needs none: the hub never reads its own logs.
+- **The key helpers.** `do_gcp_sa_key_file` honours `GCP_SA_KEY_FILE`
+  (`csi-spl-orc/lib/bash/funcs/gcp-account-pin.func.sh:106-111`), and
+  `do_gcp_pin_account` (`:251`) activates that key's `client_email` in a
+  throwaway `CLOUDSDK_CONFIG`. `do_gcp_sa_key_rotate`
+  (`csi-spl-iac/src/bash/run/gcp-sa-key-rotate.func.sh`) mints, proves and
+  retires the per-env project SA key, out of band of terraform, written
+  only to `$HOME/.gcp/.<org>/` (mode 600).
+- **The Mine log.** `human_events` (`rdb/0045_human_events.sql`): one row
+  per error a person saw, `human_id` NOT NULL, `kind` `error`, `source`
+  <= 80, `origin` <= 120, `code` <= 120, `message` <= 800; newest 500 per
+  person (`store/human_events.go:18`). Rows come only from the WUI today
+  (`POST /api/v1/auth/events`); the WUI's journal already records a failed
+  API call it made as `source: 'api'` with its status
+  (`wui/composables/errorJournal.mjs:340-391`), without the hub's cause.
+  The hub writes no row there itself.
+- **Who made the request.** `auth.Handler.SessionFromRequest`
+  (`auth/handler.go:1614-1631`) opens the signed session cookie, then asks
+  `revoked.dead`, which may read the store. `eventsHuman`
+  (`hub/events.go:93-100`) reads the person that way. The middleware
+  (`hub/server.go:888-911`) reads no session.
 
 ### 10.3 Error classes and their two sources
 
@@ -579,6 +616,37 @@ by the `spool` CLI, so the box and the hub group and redact in one way:
   the hub's own (rule 4).
 - **Lost on a crash.** Sightings not yet flushed die with the process: up to
   30 s of counts. The crash itself is still a row, from source (b).
+- **The person (Q4 B).** On a 5xx or a handler panic, `logServerError`
+  takes the person from the request's session cookie through a new
+  `auth.Handler.HumanFromCookie(r) string`: the signature and expiry check
+  of `SessionFromRequest` without the revocation read, so the error path
+  never reads the store (a 5xx storm is often a database storm). A request
+  with no cookie, a bad one, or a session with no `HUM-*` (a box, a public
+  route, the CLI with a box token) has no person. A revoked session's
+  person still made the request, so it is still named. Only the request
+  kinds have a person (`error.http_server`, `error.panic`); a loop panic,
+  an `error.log` line and every source (b) kind have none: Cloud Logging
+  lines carry no person, and the reader never reads a header (10.6).
+- **The person's group row.** The sighting carries the person; the
+  group keeps the last one (`human_id`, 10.5) and the flush writes it.
+- **The Mine copy (Q4 B).** The flush also writes, per (person,
+  fingerprint) touched since the last flush, one row into that person's
+  Mine log through `AddHumanEvents` (`store/human_events.go`): `source`
+  `hub`, `method`, `route` (the mux pattern), `status`, `code` = the
+  token (or `panic`), `message` = the group's message (already through
+  `Redact` and `Normalize`), plus ` (x<n>)` when the person hit it more
+  than once in that flush, `origin` = `evlog:<fingerprint>`, `error_id`
+  empty, `occurred_at` = the person's first sighting in that flush. A
+  person who hits one broken route 100 times in 30 s gets one Mine row,
+  not 100. Cap: at most 1000 (person, fingerprint) pairs between two
+  flushes, past that counted into the same `evlog.overflow` row; at most
+  20 Mine rows per person per flush, the rest folded into the 20th as
+  ` (+<k> more)`. The Mine log keeps its 500-row trim. A failed Mine
+  write is one ERROR line `EvlogUnwrittenMsg` with `human_id` dropped (the
+  reader's rule 1 rebuilds the group, not the Mine row: a Mine row lost in
+  a database outage stays lost, R8). The WUI's own `source: 'api'` row for
+  the same request stays: the WUI row says what the page saw, the hub row
+  says why (R8).
 
 #### 10.4.3 Source (b): the box reader, an hourly cron
 
@@ -598,14 +666,23 @@ Per `e05d9c00` and `6ddfaa91`: a box component, not a Cloud Run job.
   the action names a box, user, host or path: the box name comes from the
   cnf and `hostname -s`, the paths from `spl_run_paths`. Listing a second
   box in the cnf is the whole move to it (C40).
-- **The identity.** The per-env project service account, from its key
-  `$HOME/.gcp/.csi/key-csi-spl-<env>.json` (its `client_email`), activated
-  in a throwaway `CLOUDSDK_CONFIG`, `--account` on the call, through the
-  existing helper `do_gcp_pin_account` (`csi-spl-orc/lib/bash/funcs/gcp-account-pin.func.sh:251`, the path `do_spl_db_query`
-  takes). No owner account, no write to the shared gcloud config. Its
-  `roles/owner` (gcp-003) already holds `logging.logEntries.list`, so
-  option A of Q1 needs no grant and no terraform. A box without the key
-  exits 3 with one line naming the missing key and sends nothing.
+- **The identity (Q1 B).** The env's read-only reader service account,
+  `<cnf env.gcp.evlog_reader_sa_id>@csi-spl-<env>.iam.gserviceaccount.com`
+  (cnf `env.gcp.evlog_reader_sa_id: spl-evlog-reader` in `all.env.yaml`),
+  made by terraform step `071-gcp-evlog-reader-sa` (row T7a) with one role
+  on its project, `roles/logging.viewer`, and nothing else. Its key is
+  `$HOME/.gcp/.csi/key-csi-spl-<env>-evlog-reader.json` (mode 600),
+  minted out of band by `do_gcp_evlog_reader_key` (row T7a; terraform
+  never makes a key, repo CLAUDE.md), one per env on each reader box. The
+  action sets `GCP_SA_KEY_FILE` to it and calls the existing
+  `do_gcp_pin_account` (`csi-spl-orc/lib/bash/funcs/gcp-account-pin.func.sh:251`):
+  its `client_email` in a throwaway `CLOUDSDK_CONFIG`, `--account` on the
+  call. No owner account, no write to the shared gcloud config, and **no
+  fallback to the per-env project service account**: a box without the
+  reader key exits 3 with one line naming the missing key and sends
+  nothing (C39, C45). The key reads Cloud Logging and nothing else, so a
+  stolen reader key reads logs (already redacted of what the hub never
+  logs, 10.6) and cannot change the project.
 - **The read.** `gcloud logging read` on project `csi-spl-<env>`, JSON,
   ascending, filter:
   `resource.type="cloud_run_revision" AND
@@ -679,8 +756,11 @@ at build time):
   `^([0-9a-f]{16})?$`), `first_at timestamptz` (NULL for a non-error row),
   `n integer NOT NULL DEFAULT 1` (CHECK `n >= 1`), `issue_key text NOT NULL
   DEFAULT ''` (CHECK `^([A-Z][A-Z0-9]*-[0-9]+)?$`) and `issue_n integer NOT
-  NULL DEFAULT 0` (the count when the issue was filed). Existing rows keep
-  `fingerprint = ''` and are not grouped.
+  NULL DEFAULT 0` (the count when the issue was filed), and `human_id text
+  NOT NULL DEFAULT ''` (CHECK `^(HUM-[0-9]+)?$`; Q4 B): the person of the
+  group's last sighting that had one, `''` for none. No foreign key to
+  `humans`: a group outlives a deleted person, and the trim keeps the table
+  small. Existing rows keep `fingerprint = ''` and are not grouped.
 - `CREATE UNIQUE INDEX ux_system_events_fingerprint ON system_events
   (fingerprint) WHERE fingerprint <> ''`.
 - New `system_events_cursor (env text PRIMARY KEY CHECK (env IN ('dev',
@@ -692,7 +772,9 @@ The upsert (`store.UpsertSystemErrorGroup`, memory and Postgres):
 `INSERT ... ON CONFLICT (fingerprint) WHERE fingerprint <> '' DO UPDATE SET
 id = DEFAULT, at = GREATEST(system_events.at, EXCLUDED.at), first_at =
 LEAST(system_events.first_at, EXCLUDED.first_at), n = system_events.n +
-EXCLUDED.n, message = EXCLUDED.message`, then the existing trim
+EXCLUDED.n, message = EXCLUDED.message, human_id = CASE WHEN
+EXCLUDED.human_id <> '' THEN EXCLUDED.human_id ELSE system_events.human_id
+END` (a sighting with no person keeps the last named one), then the existing trim
 (`pgSystemEventTrim`). `id = DEFAULT` gives a repeating group a new id, so
 the newest-first page (ordered by id, `hub/log_events.go:182-203`) shows it
 on top by its last sighting, and the keep-by-id trim never drops a group
@@ -713,8 +795,8 @@ the bug lane finds its old issue by the fingerprint line in the issue
 - **On Monitoring > Events, System scope** (row B8, then T5): when (the
   last sighting, `at`), kind, level, message, origin, and for an error
   group: count `n`, first seen `first_at`, the fingerprint (8 hex shown,
-  16 on hover) and the issue as a link (`/issues/<KEY>`) when
-  `issue_key` is set. `origin_kind = component`, `origin_ref` = the route
+  16 on hover), the person (`human_id`, as `HUM-<n>`, empty for none) and
+  the issue as a link (`/issues/<KEY>`) when `issue_key` is set. `origin_kind = component`, `origin_ref` = the route
   pattern for `error.http_server`, the loop name for `error.loop_panic`,
   `cloud-run/<revision>` for the Cloud Run kinds. Admins of the operator
   workspace only (3.2); Delete selected works as on every log.
@@ -730,12 +812,22 @@ the bug lane finds its old issue by the fingerprint line in the issue
     `//<redacted>@`;
   - a postgres DSN -> `<dsn>`;
   - any run of 24 or more characters of `[A-Za-z0-9+/_=-]` -> `<blob>`.
-- **Never read**: the request body, any header but `X-Cloud-Trace-Context`,
+- **Never read**: the request body, any header but `X-Cloud-Trace-Context`
+  and the session cookie (read only for the person's `HUM-*` id, 10.4.2,
+  never stored or logged),
   the query string, the URL path (the mux pattern stands for it), a message
   body. These are not redacted, they are never taken.
-- **Personal data**: a person shows only as `HUM-<n>`, an agent as
-  `<agent>` (10.4.1). Backend errors go to the System log only, never to a
-  person's Mine log (Q4).
+- **On the person's Mine log** (Q4 B): the hub's row of 10.4.2 shows in
+  the Mine scope like any Mine row (when, source `hub`, status, code,
+  route, message), and the person sees and deletes it as their own (3.2).
+  It never shows another person, the fingerprint's issue or the System
+  row: a person sees that their request failed and the hub's reason in
+  one redacted line, nothing of the operator's log.
+- **Personal data**: in a message a person shows only as `HUM-<n>`, an
+  agent as `<agent>` (10.4.1). The person id of Q4 B is a column
+  (`human_id`), never text in the message; it is a `HUM-*` id, never a
+  name or an email, and it reaches only operator admins (System) and that
+  person (Mine).
 - **The test** (C29, C30): a table of 14 planted strings, one per rule
   plus a mixed line, through `Redact`; each must be gone from the output.
   A hub case: a handler that panics with a value holding a planted bearer
@@ -782,12 +874,22 @@ one is caught on dev before prd. Proposed, each read by a command:
 |---|---|---|
 | M1 open groups falls every week; 0 prd groups older than 7 days without an issue | groups with `last_at` in 7 days and no done issue, per env | `ENV=<env> ./run -a do_spl_evlog_groups`, its summary line `open=<n> unissued_7d=<n>`; the weekly fleet report quotes both |
 | M2 time to issue: p50 <= 24 h, max <= 72 h | issue created minus `first_at`, per group linked in 7 days | the same action, `EVLOG_REPORT=tti` |
-| M3 no new error group on dev after a deploy | groups with `first_at` after the dev deploy's time, level error | a step in `20_hub-build-deploy.yml` after the dev roll: wait 10 min, read `do_spl_evlog_groups` for dev with `EVLOG_SINCE=<deploy time>`; any line -> the step is red. Q2 decides if it holds the prd deploy |
+| M3 no new error group on dev after a deploy | groups with `first_at` after the dev deploy's time, level error | a step in `20_hub-build-deploy.yml` after the dev roll: wait 10 min, read `do_spl_evlog_groups` for dev with `EVLOG_SINCE=<deploy time>`; any line -> the step is red and its summary names each group. It never holds prd (Q2 A): its own job, which no prd job `needs` |
 | M4 0 crashes and 0 out-of-memory kills a week, per env | groups of kind `error.cloudrun_crash`, `error.cloudrun_oom`, `error.go_fatal` | the same action, `EVLOG_KIND=error.cloudrun_` |
 
 M3 depends on the reader having run: the step runs
 `do_spl_evlog_read` for dev itself (not a write race: the cursor CAS of
-10.4.4 makes it safe beside the cron).
+10.4.4 makes it safe beside the cron), with the dev reader key, never the
+project SA key (Q1 B). The key reaches CI as the repo secret
+`GCP_KEY_CSI_SPL_DEV_EVLOG_READER`, put by `do_gh_secret_put_gcp_key`
+(`csi-spl-iac/src/bash/run/gh-secret-put-gcp-key.func.sh`). Today that
+action accepts only the project SA's key (its step 1: the key's
+`client_email` must be `<project>@<project>.iam...`) and derives the name
+`GCP_KEY_<PROJECT>`; row T9 adds `GCP_SA_KEY_KIND=evlog-reader`, which
+expects the reader SA's email instead and appends `_EVLOG_READER` to the
+name. Nothing else of that action changes.
+
+Q3 A: every error group gets an issue (10.7), whatever its count or env.
 
 ### 10.9 Cases
 
@@ -807,7 +909,12 @@ M3 depends on the reader having run: the step runs
 | C39 | `do_spl_evlog_read` with `DRY_RUN=1` and a stub gcloud prints the groups and sends no frame; with no key exits 3 naming it; its gcloud call carries `--account` | new `orc/tests/spl-evlog-read.tst.sh`; `gcloud-account-pinned.tst.sh` passes |
 | C40 | two runs of the reader for one window, as two box names with one stub hub, write the groups once; the second prints `SKIP cursor_moved` and exits 0 | same |
 | C41 | `do_spl_evlog_groups` lists a group with no issue as new, one with `n` past the growth rule as growing, one linked and quiet not at all; `do_spl_evlog_link` sets `issue_key` and `issue_n` | new `orc/tests/spl-evlog-groups.tst.sh`; `hub/log_events_test.go` (the link route) |
-| C42 | the System scope shows `n`, first seen and the issue link of a group row; a non-error row shows none of them | the B8 e2e, new cases |
+| C42 | the System scope shows `n`, first seen, the person and the issue link of a group row; a non-error row shows none of them | the B8 e2e, new cases |
+| C43 | Q4 B: a 5xx on a request with a signed-in person's cookie, then one flush, writes one `source = hub` row in that person's Mine log (route, status, token, `origin = evlog:<fp>`) and sets `human_id` on the group; 100 identical 5xx of that person in one flush write one Mine row ending ` (x100)`; a 5xx with no cookie, a box request and a loop panic write no Mine row and leave `human_id` as it was; red: a flush that writes one Mine row per sighting writes 100 | `hub/evlog_test.go`, memory store |
+| C44 | Q4 B: the person is read without the store: with a store whose every call fails, a 5xx with a valid cookie still names the person on the sighting; a forged or expired cookie names none | `auth/handler_test.go` (`HumanFromCookie`), `hub/evlog_test.go` |
+| C45 | Q1 B: `do_spl_evlog_read` calls gcloud with `--account` = the reader SA's email from the reader key; with only the project SA key on the box it exits 3 naming the reader key and never calls gcloud; red: a reader that falls back to `do_gcp_sa_key_file`'s default key calls gcloud as the project SA | `orc/tests/spl-evlog-read.tst.sh` |
+| C46 | Q1 B: step `071-gcp-evlog-reader-sa` declares one `google_service_account` and one `google_project_iam_member` with role `roles/logging.viewer`, and no `google_service_account_key` and no other role; `checkov` passes with no new baseline row | new `csi-spl-iac/src/bash/tests/tf-071-evlog-reader-sa.tst.sh`; `do_check_pre_push_lint` |
+| C47 | Q1 B: `do_gcp_evlog_reader_key` with `DRY_RUN=1` mints nothing and prints the key path and the SA; with `DRY_RUN=0` and a stub gcloud writes the key only to `$HOME/.gcp/.<org>/key-csi-spl-<env>-evlog-reader.json`, mode 600, never to stdout or a log; every gcloud call carries `--account` | new `csi-spl-iac/src/bash/tests/gcp-evlog-reader-key.tst.sh`; `gcloud-account-pinned.tst.sh` passes |
 
 ### 10.10 Build rows
 
@@ -819,31 +926,38 @@ row: its cases with the red control seen RED then GREEN in the commit body
 |---|---|---|---|---|---|
 | T1 | the pure package: redact, normalize, top frame, fingerprint, groups (no classify yet) | api | new `api/internal/evlog/evlog.go`, `evlog_test.go` | - | C28, C29 (red C29) |
 | T2 | the migration, the upsert, the cursor CAS, the link | rdb, api | new `rdb/<next>_system_events_error_groups.sql`; `store/log_events.go` (the new methods, the error kinds of 10.3), `log_events_memory.go`, `log_events_postgres.go`, `log_events_test.go` | T1 | C34, C35 store half (red C35); `PRE_PUSH_TIER=full` |
-| T3 | source (a): the sightings, the hook, the flush loop, the unwritten line, the trace field | api | `hub/server.go` (`middleware`, `logServerError` only); `hub/supervise.go`; new `hub/evlog.go` + `evlog_test.go`; `cmd/spool/hub.go` (the hook and the `evlog-flush` loop); cnf `hub.evlog.flush_s` + the tpl-gen render | T2 on master | C30-C33 (red C31) |
+| T3 | source (a): the sightings, the person, the Mine copy, the hook, the flush loop, the unwritten line, the trace field | api | `hub/server.go` (`middleware`, `logServerError` only); `hub/supervise.go`; new `hub/evlog.go` + `evlog_test.go`; `auth/handler.go` (`HumanFromCookie` only) + `handler_test.go`; `cmd/spool/hub.go` (the hook and the `evlog-flush` loop); cnf `hub.evlog.flush_s` + the tpl-gen render | T2 on master | C30-C33, C43, C44 (red C31, red C43) |
 | T4 | the routes: group fields on `GET /v1/operator/events`, `?kind=` prefix filter, `POST /v1/operator/events/link` | api | `hub/log_events.go`, `log_events_test.go`; `hub/openapi.json` | T2 on master | C41 hub half |
 | T5 | the page: group columns on the System scope | wui | `wui/pages/monitoring/events/index.vue`; `wui/utils/event-sheet.mjs`; locale keys (new only, agy review last); the C42 e2e | T4 served, B8 on master | C42 |
 | T6 | the frame and the CLI: `evlog cursor`, `evlog put`, classify | api | `api/internal/wire/wire.go` (`TEvlog` and its fields); `hub/ws.go` (one case line); new `hub/evlog_frame.go` + `_test.go`; new `api/internal/evlog/classify.go` + `classify_test.go` (fixtures from T7's dry read); new `api/cmd/spool/evlog.go`, `cli_verbs_test.go` | T2, T3 on master | C35 hub half, C36-C38 (red C36) |
-| T7 | the box reader: the action, the cron row, the cnf; first a read-only dry run on dev that records the Cloud Run strings and the fixtures | orc, cnf | new `orc/run/spl-evlog-read.func.sh`, `orc/tests/spl-evlog-read.tst.sh`; `csi-spl-orc/cnf/box-crons/box-crons.manifest` (one row); cnf `env.box.evlog_reader` in `all.env.yaml` | T6 served on dev and prd AND the `spool` binary on the reader's boxes carries `evlog` (the R2 rule) | C39, C40 (red C40) |
+| T7a | Q1 B: the reader service account and its key. Terraform step `071-gcp-evlog-reader-sa` (one SA, `roles/logging.viewer` on its own project, no key); the key action `do_gcp_evlog_reader_key` (`ENV`, `DRY_RUN` default 1, run as the env's project SA through `do_gcp_pin_account`); cnf `env.gcp.evlog_reader_sa_id`. Plan in the tf-runner (`ENV=<env> STEP=071-gcp-evlog-reader-sa make do-tf-plan`); **apply only on the owner's go, dev first, then prd** (dev leads prd); the key minted on each reader box only on the owner's go too (a key is a GCP change) | iac, cnf | new `csi-spl-iac/src/terraform/071-gcp-evlog-reader-sa/` (`01-providers.tf`, `02-variables.tf`, `03-sa.tf`, `04-outputs.tf`, the step's tfvars template); new `csi-spl-iac/src/bash/run/gcp-evlog-reader-key.func.sh`; new `csi-spl-iac/src/bash/tests/tf-071-evlog-reader-sa.tst.sh`, `gcp-evlog-reader-key.tst.sh`; cnf `all.env.yaml` (one key) + the rendered tfvars | - (in parallel with T1-T6) | C46, C47 (red C46: a planted `google_service_account_key` resource fails it) |
+| T7 | the box reader: the action, the cron row, the cnf; first a read-only dry run on dev that records the Cloud Run strings and the fixtures | orc, cnf | new `orc/run/spl-evlog-read.func.sh`, `orc/tests/spl-evlog-read.tst.sh`; `csi-spl-orc/cnf/box-crons/box-crons.manifest` (one row); cnf `env.box.evlog_reader` in `all.env.yaml` | T6 served on dev and prd AND the `spool` binary on the reader's boxes carries `evlog` (the R2 rule) AND T7a applied on dev and prd with the reader key on each reader box | C39, C40, C45 (red C40, red C45) |
 | T8 | the bug lane: the read and link actions, source 6, the rulebook line | orc, doc | new `orc/run/spl-evlog-groups.func.sh`, `spl-evlog-link.func.sh`, `orc/tests/spl-evlog-groups.tst.sh`; `csi-spl-doc/doc/md/rounds-rulebook.md` (3.1, one line) | T4 served | C41 (red: a growth rule without the `issue_n` check lists every linked group) |
-| T9 | M3: the post-deploy step | ci | `.github/workflows/20_hub-build-deploy.yml` (one step) | T7 live on dev, Q2 answered | a planted dev error group turns the step red on a throwaway branch (rulebook: a red control never on master) |
+| T9 | M3: the post-deploy job (Q2 A: red, never holds prd); the reader key's CI secret | ci, iac | `.github/workflows/20_hub-build-deploy.yml` (one job, no prd job `needs` it); `csi-spl-iac/src/bash/run/gh-secret-put-gcp-key.func.sh` (`GCP_SA_KEY_KIND=evlog-reader` only) and its test | T7 live on dev | a planted dev error group turns the job red on a throwaway branch while the prd deploy job still runs (rulebook: a red control never on master) |
 
 Order: T1, T2, then T3 and T4 at once (`hub/server.go` + `supervise.go`
-+ `cmd/spool/hub.go` vs `hub/log_events.go`: disjoint), then T6, T8 and T5
-(T5 waits for B8), then T7, then T9. T2, T3 and T6 all touch the store's
-or the hub's start path: one after the other.
++ `auth/handler.go` + `cmd/spool/hub.go` vs `hub/log_events.go`:
+disjoint), then T6, T8 and T5 (T5 waits for B8), then T7, then T9. T2, T3
+and T6 all touch the store's or the hub's start path: one after the other.
+T7a shares no file with T1-T6 and runs beside them; it must be applied
+before T7 starts.
 
-No row runs terraform, writes IAM or changes GCP under option A of Q1.
-Option B adds one row before T7: a terraform grant, planned in the
-tf-runner and applied only on the owner's go.
+Only T7a changes GCP: one service account, one role, one key per env and
+reader box, each on the owner's go (repo CLAUDE.md, "Nothing mutates GCP
+without the owner"). The lane plans and runs the tests; the apply and the
+mint are sent to the owner as the exact commands and wait for the go.
 
-### 10.11 Open questions for the owner, and risks
+### 10.11 The owner's answers, and risks
 
-| Q | question | A | B |
+Poll `00d28227`, answered by HUM-10 in msg `4dda13ce` (2026-11-18 14:52Z).
+No question is open.
+
+| Q | question | answer | where in this section |
 |---|---|---|---|
-| Q1 | who reads Cloud Logging | **A (proposed):** the per-env project service account the box already uses for everything (its `roles/owner` holds the read): no terraform, no new key | a read-only service account (`roles/logging.viewer`) granted by a terraform step on your go, plus one more key per env on the reader's box |
-| Q2 | a new error group on dev after a deploy (M3) | **A (proposed first):** the step turns red and says so; prd still deploys | the red step holds the prd deploy until the group has an issue |
-| Q3 | which groups get an issue | **A (proposed):** every error group | only groups seen 3 times or more, or seen on prd |
-| Q4 | where backend errors show | **A (proposed):** the System log only (operator admins) | also in the Mine log of the person whose request failed (a person id on the row) |
+| Q1 | who reads Cloud Logging | **B:** a new read-only service account (`roles/logging.viewer`), granted by a terraform step on the owner's go, plus one more key per env on the reader's box | 10.4.3 the identity; row T7a; C45-C47 |
+| Q2 | a new error group on dev after a deploy (M3) | **A:** the step turns red and says so; prd still deploys | 10.8 M3; row T9 |
+| Q3 | which groups get an issue | **A:** every error group | 10.7, 10.8 |
+| Q4 | where backend errors show | **B:** also in the Mine log of the person whose request failed, a person id on the row | 10.4.2 the person and the Mine copy; 10.5 `human_id`; 10.6; C43, C44 |
 
 - R4 Up to 30 s of sightings die with a crashed process (10.4.2). The
   crash row says it happened; the count of the errors just before it is
@@ -860,3 +974,15 @@ tf-runner and applied only on the owner's go.
   field to match. If they do not on dev (T7), rule 4 counts every request
   5xx with status 502, 503 or 504 that has no hub line within 1 s, and says
   so in the spec.
+- R8 (Q4 B) A person can see two Mine rows for one failed request: the
+  WUI's (`source: 'api'`, what the page saw) and the hub's (`source: hub`,
+  why). They are kept apart on purpose; joining them needs a request id in
+  the WUI's journal, which it does not record today, and is out of this
+  section. A Mine row the flush could not write (database down) is lost;
+  the group's count is not (rule 1).
+- R9 (Q1 B) The reader key is a second long-lived key per env per reader
+  box. It is rotated with the per-env SA key's cadence
+  (`SA_KEY_MAX_AGE_DAYS`, `gcp-sa-key-rotate.func.sh`); how
+  `do_gcp_sa_key_rotate` takes a second SA is left to T7a's lane, which
+  either extends it or states in its commit why the reader key action
+  carries its own rotate.

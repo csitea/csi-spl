@@ -55,6 +55,12 @@ const (
 	// CHECK on rbac_role_permissions pins it there. Nothing reads it until
 	// the accounting view (FR-19).
 	HoursRates = "hours.rates"
+	// HoursPrices is the permission to set and read each person's hourly
+	// price in the workspace (specs/107 21.5 rule 1, rdb 0294): biz_owner
+	// only, pinned there by a CHECK on rbac_role_permissions and on
+	// tenant_role_grants, so the role editor cannot hand it on. It computes
+	// no money: that stays hours.rates.
+	HoursPrices = "hours.prices"
 	// HoursNorm is the permission to set the workspace's average hours per
 	// day, the soft norm a member's registered day is shown against
 	// (specs/107 FR-41, rdb 0279, SPL-5440; owner HUM-10 t1 59a7062f msg
@@ -204,6 +210,7 @@ var Permissions = []PermissionDoc{
 	{HoursRead, "see every member's approved hours and period states; download them"},
 	{HoursApprove, "approve or return a member's frozen hours period"},
 	{HoursRates, "see rates and labour cost; compute approved hours x rate"},
+	{HoursPrices, "set and read each person's hourly price"},
 	{HoursNorm, "set the workspace's average hours per day"},
 	{CostsRead, "see the cost lines and coverage of the workspace (the estate in the operator workspace)"},
 	{CostsWrite, "enter and delete the hand-entered cost entries (cloud, hr); the operator workspace's only today"},
@@ -257,13 +264,15 @@ var Permissions = []PermissionDoc{
 // costs.write to biz_owner and admin, internal_accountant with topics.read,
 // costs.read and costs.write, external_accountant with the two costs ids
 // only (specs/123 16, SPL-5359). rdb 0279 adds hours.norm to biz_owner,
-// product_owner and admin (specs/107 FR-41, SPL-5440).
+// product_owner and admin (specs/107 FR-41, SPL-5440). rdb 0294 adds
+// hours.prices to biz_owner alone, pinned there by a CHECK (specs/107 21.5
+// rule 1, SPL-5871).
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite,
 		HoursRead, HoursApprove,
 		ChannelsAIAgents, MessagesKind, IssuesBlocker, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
-		RoadmapPublish, MarketingPublish, EmbedsManage, PermsEdit, EmbedsVisitors, VendorKeysManage, CostsWrite, HoursNorm)...)},
+		RoadmapPublish, MarketingPublish, EmbedsManage, PermsEdit, EmbedsVisitors, VendorKeysManage, CostsWrite, HoursNorm, HoursPrices)...)},
 	{ID: ProductOwner, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite,
 		ResultsAccept, ShipApprove, HoursNorm)...)},
 	{ID: Admin, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,

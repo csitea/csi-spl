@@ -243,3 +243,39 @@ func TestHoursRatesPinnedToTimeAccountant(t *testing.T) {
 		t.Errorf("CONTROL: a workspace grants its own role hours.read: %v", err)
 	}
 }
+
+// TestHoursPricesPinnedToBizOwner (spec 107 21.5 rule 1, T078, rdb 0294):
+// the seed gives hours.prices to biz_owner alone; a grant of it to admin is
+// refused (23514) in rbac_role_permissions and in tenant_role_grants, so
+// neither the operator nor a workspace's role editor hands it on. CONTROL:
+// the same tenant_role_grants row for biz_owner is admitted.
+func TestHoursPricesPinnedToBizOwner(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	var holders []string
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT array_agg(role_id ORDER BY role_id) FROM rbac_role_permissions
+			WHERE permission_id = 'hours.prices'`).Scan(&holders)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(holders, ",") != "biz_owner" {
+		t.Fatalf("hours.prices is held by %v, want biz_owner only", holders)
+	}
+	err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO rbac_role_permissions (role_id, permission_id) VALUES ('admin', 'hours.prices')`)
+		return err
+	})
+	if pgCode(err) != "23514" {
+		t.Errorf("the operator granted admin hours.prices: %v, want 23514", err)
+	}
+	tn := newTenant(t, pg)
+	grant := `INSERT INTO tenant_role_grants (tenant_id, role_id, permission_id, granted, set_by)
+		VALUES ($1, $2, 'hours.prices', true, 'HUM-1')`
+	if _, err := pg.execTenant(ctx, tn, grant, tn, "admin"); pgCode(err) != "23514" {
+		t.Errorf("a workspace granted admin hours.prices: %v, want 23514", err)
+	}
+	if _, err := pg.execTenant(ctx, tn, grant, tn, "biz_owner"); err != nil {
+		t.Errorf("CONTROL: a workspace's biz_owner row for hours.prices: %v", err)
+	}
+}

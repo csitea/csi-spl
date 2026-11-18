@@ -277,6 +277,40 @@ func TestTimeAccountantHoursRates(t *testing.T) {
 	}
 }
 
+// specs/107 21.5 rule 1 (T078, rdb 0294): biz_owner holds hours.prices and
+// no other role does; biz_owner still lacks hours.rates and time_accountant
+// still holds exactly hours.read and hours.rates. CONTROL: a planted grant
+// of hours.prices to admin fails it.
+func TestHoursPricesBizOwnerOnly(t *testing.T) {
+	roles := DefaultRoles()
+	for _, r := range roles {
+		held := false
+		for _, q := range r.Perms {
+			held = held || q == HoursPrices
+		}
+		if held != (r.ID == BizOwner) {
+			t.Errorf("%s hours.prices = %v, want %v (biz_owner only)", r.ID, held, r.ID == BizOwner)
+		}
+	}
+	if !reflect.DeepEqual(roles[TimeAccountant].Perms, []string{HoursRates, HoursRead}) {
+		t.Errorf("time_accountant holds %v, want exactly hours.rates + hours.read", roles[TimeAccountant].Perms)
+	}
+	documented := false
+	for _, p := range Permissions {
+		documented = documented || p.ID == HoursPrices
+	}
+	if !documented {
+		t.Error("hours.prices is not in the Permissions catalogue")
+	}
+	owner, err := Fixed(BizOwner).Access(context.Background(), "HUM-1", "t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !owner.Can(HoursPrices) || owner.Can(HoursRates) {
+		t.Errorf("biz_owner seat grants %v, want hours.prices without hours.rates", owner.List())
+	}
+}
+
 // FR-004: role table cached for TTL, membership never; errors deny.
 func TestAuthorizerCacheAndFailClosed(t *testing.T) {
 	now := time.Unix(1000, 0)

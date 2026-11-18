@@ -24,11 +24,12 @@ func lrCheckRoles(t *testing.T, roles lrRolesFunc) {
 // List reads back only what is granted, sorted whatever the map order.
 func TestAccessListGrantedSorted(t *testing.T) {
 	a := Access{Perms: map[string]bool{
-		"tasks.write": true,
-		"agents.join": false,
-		"admin.read":  true,
-		"hours.rates": false,
-		"docs.read":   true,
+		"tasks.write":  true,
+		"agents.join":  false,
+		"admin.read":   true,
+		"hours.rates":  false,
+		"hours.prices": false,
+		"docs.read":    true,
 	}}
 	want := []string{"admin.read", "docs.read", "tasks.write"}
 	if got := a.List(); !reflect.DeepEqual(got, want) {

@@ -26,7 +26,7 @@ re-planned here: each one cites round 35's signed row** (its section 3 cell, 3.1
 and 4); this plan only re-measures each row's sites, its literal grep and its test
 list on today's `origin/master` and says what moved (section 2).
 
-**Status: v0.1**, draft for the panel (section 5). Editor: **c-815** (claude).
+**Status: v0.2**, draft for the panel (section 5); v0.1 `aa8f25ec4` was the sha queued for the panel, v0.2 folds the holder's overlap read (section 8). Editor: **c-815** (claude).
 
 **One sha:** every count is measured on **`04ca1d897`** (`origin/master`
 04ca1d8970f6fe8899a24d42b814a777697387e6, 2026-11-18T12:36:36Z), n=1 per command
@@ -47,9 +47,9 @@ vendor readings are live state and carry their own time.
     -> **nothing**; `git ls-remote origin 'refs/heads/*r62*' 'refs/heads/*round-62*'`
     -> nothing.
   - `grep -rlE 'r62-[0-9]{2}' /var/spool-hub/dispatch/briefs /var/spool-hub/spawn-remote`
-    on this lane's box -> 1 file, this planner's own brief. **The other box's briefs
-    were not read by this lane**; the holder runs the same grep there before the first
-    spawn (R4).
+    on this lane's box -> 1 file, this planner's own brief. On the holder's box the
+    holder ran it over `dispatch/briefs` (c-002, msg e32b6d60) -> only
+    `c002-refactor-round-62-planner.md`; `spawn-remote` does not exist there.
   - Control: the same log read for `r61` -> 3 lines (`954b10ad5`, `dfe7fd9a1`,
     `61bdcbd1c`), so the read sees a used id.
 - **No `refactor-round-62*` file** exists under `csi-spl-doc/doc/md` on `04ca1d897`, so
@@ -137,9 +137,15 @@ section 2 on the `origin/master` it starts from and says in its result if they m
   `spl_uplink_probe_dir` and the baseline) are landed (section 1.2).
 - **Batch 2: row 02, after row 01 lands**: both edit `no-literal-paths.baseline` (R1);
   placed within 30 minutes of row 01's landing (R16). The queue can hold it as a
-  dependent row: `SPAWN_AFTER=r62-01-orc-box-crons-state-root`
-  (`orc:run/spl-spawn-after.func.sh`, spec 157 4.2, SPL-5874), with
-  `SPAWN_AFTER_DELAY` at most 30.
+  dependent row: `SPAWN_AFTER=c002-r62-01-orc-box-crons-state-root`, the placement
+  slug, whose brief `<slug>.md` the placer reads (`orc:run/spl-spawn-after.func.sh`,
+  spec 157 4.2, SPL-5874), with `SPAWN_AFTER_DELAY` at most 30.
+- **Row 02 also waits for bug ask `1801656f`** (`c002-spl5874-held-row-end-and-alarm`,
+  section 3.2): both edit `orc:run/spl-spawn-place.func.sh` (R1). The dependent row
+  takes ONE prerequisite (`spl_spawn_after_of` reads one `After:` line, `| tail -1`),
+  so the holder queues row 02 with `SPAWN_AFTER` on row 01 only once that bug row's
+  issue has landed (or, if row 01 lands first, with `SPAWN_AFTER=<the bug row's issue
+  key>`). Row 01 does not touch that file and does not wait.
 - The two rows share no file but the baseline. Neither edits a migration,
   `csi-spl-cnf/`, a workflow, terraform or a file under `csi-spl-wui/`.
 
@@ -157,12 +163,12 @@ The 5 written paths: `orc:run/install-box-crons.func.sh`,
   last 24 h `refactor 10% (band 20-30%: UNDER)`; `phase day`. Each queued row
   (`SPAWN_QUEUE_FORMAT=json`, the `queue` array) grepped for the 5 basenames and
   `token-burn` -> 0 hits; but a queued row carries a summary only, its brief is on the
-  box that wrote it. **One queued row may touch row 02's file**: ask `1801656f`,
-  `c002-spl5874-held-row-end-and-alarm` (bug row, SPL-5874 follow-up), whose parent
-  SPL-5874 edited `spl-spawn-place.func.sh` (`510c1f5a7`, `0d2e3d37c`). Its brief is
-  not on this lane's box and was **not read**. The holder reads it before row 02 is
-  placed; if it names `spl-spawn-place.func.sh`, one of the two waits for the other
-  (R1), the holder's call.
+  box that wrote it. **One queued row touches row 02's file**: ask `1801656f`,
+  `c002-spl5874-held-row-end-and-alarm` (bug row, SPL-5874 follow-up). Its brief is on
+  the holder's box; the holder read it (c-002, msg e32b6d60): line 17, item N1, edits
+  `orc:run/spl-spawn-place.func.sh` (it names `spl_spawn_place_seat_alarm`, no line);
+  its scope is two func files, their tests and spec 157. **Row 02 waits for it** (3.1).
+  Not read by this lane; the holder's reading, n=1.
 - **Briefs on this lane's box** changed since W (`find /var/spool-hub/dispatch/briefs
   /var/spool-hub/spawn-remote/briefs -newermt 2026-11-18T08:17:09Z`) that name a row
   basename, 2026-11-18T13:51:05Z: 4. This planner's own; the p17 planner (SPL-5872)
@@ -210,7 +216,7 @@ and review branch move as below; the rest of each brief carries the plan row ver
 | row | placement slug | subject | review branch | batch / after |
 |---|---|---|---|---|
 | r62-01 | `c002-r62-01-orc-box-crons-state-root` | `refactor(r62-01-orc-box-crons-state-root, SPL-<row issue>): ...` | `review/r62-01` | 1 |
-| r62-02 | `c002-r62-02-orc-spawn-place-token-burn-dir` | `refactor(r62-02-orc-spawn-place-token-burn-dir, SPL-<row issue>): ...` | `review/r62-02` | 2, `SPAWN_AFTER=r62-01-orc-box-crons-state-root` |
+| r62-02 | `c002-r62-02-orc-spawn-place-token-burn-dir` | `refactor(r62-02-orc-spawn-place-token-burn-dir, SPL-<row issue>): ...` | `review/r62-02` | 2, `SPAWN_AFTER=c002-r62-01-orc-box-crons-state-root`, queued once bug ask `1801656f` has landed (3.1) |
 
 Each brief also carries `Spec: csi-spl-doc/specs/011-spool-project-refactor`,
 `Epic: SPL-2402`, a `Topic:` of its own row discussion if the holder opens one
@@ -235,10 +241,14 @@ seat, and "re-measure first".
   moved (206 -> 213, 672 -> 684) and its test list grew by `spl-spawn-after.tst.sh`.
   Window W and the r62 slug proof recorded; the brief's round 35 shas resolved by
   subject after the 2026-11-18 rewrite (R15).
+- v0.2 (c-815), from the holder c-002 (msg e32b6d60): bug ask `1801656f` edits
+  `spl-spawn-place.func.sh`, so row 02 also waits for it (3.1, 3.2, 6); `SPAWN_AFTER`
+  names the placement slug `c002-r62-01-...` (v0.1 wrote the row slug) and takes one
+  prerequisite; the holder's slug grep on its box recorded (1.1). Rows unchanged.
 
 ## 9. Consensus
 
 Both seats sign this plan (rulebook 3.2).
 
-- Editor seat: c-815 (claude): v0.1.
+- Editor seat: c-815 (claude): v0.1, v0.2.
 - Panel reviewer seat: requested (section 5).

@@ -132,7 +132,12 @@ bi() {
 export -f in_orc
 export PROJ_ROOT APP_ROOT T
 ( while :; do ps -eo args= 2>/dev/null; sleep 0.05; done >>"$T/ps.log" ) & PS_PID=$!
-no_leak() { ! grep -qF "$1" "$T/o" "$T/calls.log" "$T/ps.log"; }
+# SPL-5934: the sampler sees every process, this test's own check too, so the
+# canary reaches grep on a pipe (-f), never on its argv: a "grep -qF <key> ...
+# ps.log" sampled into ps.log while grep was still reading it failed case 4.
+# The action's argv and env stay in the sample (CONTROL 5 argv/env).
+no_leak() { ! grep -qFf <(printf '%s\n' "$@") "$T/o" "$T/calls.log" "$T/ps.log"; }
+leaked_in() { grep -lFf <(printf '%s\n' "$@") "$T/o" "$T/calls.log" "$T/ps.log" | xargs -n1 basename | paste -sd' '; }
 webp() { local m; m="$(head -c 12 "$1" | tr -c 'A-Z' '.')"; [[ "${m:0:4}" == RIFF && "${m:8:4}" == WEBP ]]; }
 
 # --- 1. stubbed vendor -> two webp files and the frontmatter --------------------------------------
@@ -193,7 +198,7 @@ SNIPPET="spl_bimg_name_ok $ID $ID.webp && spl_bimg_name_ok $ID $ID-og.webp" bi &
 # --- 4. leak check -----------------------------------------------------------------------------------
 post; bi
 no_leak "$KEY" && pass "4: the canary key is in no output, stub argv/env or ps sample" ||
-  fail "4: the canary key leaked: $(grep -lF "$KEY" "$T/o" "$T/calls.log" "$T/ps.log" | xargs -n1 basename | paste -sd' ')"
+  fail "4: the canary key leaked: $(leaked_in "$KEY")"
 
 # --- 5. CONTROLS: a planted echo is caught ------------------------------------------------------------
 # plant <statement> <label>: the action with <statement> injected at the top of spl_bimg_call ($2 = the crs)
@@ -224,7 +229,7 @@ jq -e '.contents[0].role == "user" and (.contents[0].parts[0].text | startswith(
   "$T/vbody.json" >/dev/null && pass "6: the Vertex body carries role user, the fixed rule and 16:9" || fail "6: vbody: $(cat "$T/vbody.json")"
 no_leak "$SAKEY_CANARY" && no_leak "$TOKEN" && no_leak "$KEY" &&
   pass "6: the SA key, the token and the AI Studio key are in no output, stub argv/env or ps sample" ||
-  fail "6: leak: $(grep -lF -e "$SAKEY_CANARY" -e "$TOKEN" -e "$KEY" "$T/o" "$T/calls.log" "$T/ps.log" | xargs -n1 basename | paste -sd' ')"
+  fail "6: leak: $(leaked_in "$SAKEY_CANARY" "$TOKEN" "$KEY")"
 post; : >"$T/calls.log"; bi NANO_BANANA_CRS="$T/none/crs" BLOG_IMAGE_VERTEX_KEY="$VX_KEY"
 [[ $? -eq 0 ]] && grep -qx "image: $ID.webp" "$f" && ! grep -q generativelanguage "$T/calls.log" && grep -q "$vx_url" "$T/calls.log" &&
   grep -q 'INFO AI Studio has no key, using Vertex' "$T/o" && pass "6: no crs goes to Vertex straight away" || fail "6: no crs -> Vertex: $(tail -n2 "$T/o")"

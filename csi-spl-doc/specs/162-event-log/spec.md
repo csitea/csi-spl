@@ -950,11 +950,12 @@ reader box, each on the owner's go (repo CLAUDE.md, "Nothing mutates GCP
 without the owner"). The lane plans and runs the tests; the apply and the
 mint are sent to the owner as the exact commands and wait for the go.
 
-Status, row T7a (SPL-5937): built and tested, not applied. Step
+Status, row T7a (SPL-5937): landed on master in `386b38058` (step
 `071-gcp-evlog-reader-sa`, cnf `env.gcp.evlog_reader_sa_id`, the dev and
-prd renders, `do_gcp_evlog_reader_key` and the C46 / C47 tests are on the
-lane's branch; checkov passes with no baseline row. The plan, the apply
-and the mint wait on the owner's go, dev first.
+prd renders, `do_gcp_evlog_reader_key`, the C46 / C47 tests; checkov
+passes with no baseline row); the rotation proves the new key before the
+swap (R7 notes N1-N3). Not applied: the apply and the mint wait on the
+owner's go, dev first.
 
 ### 10.11 The owner's answers, and risks
 

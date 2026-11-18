@@ -14,8 +14,10 @@
 # @description            $HOME/.gcp/.<org>/key-<project>-evlog-reader.json,
 # @description            mode 600; refused while that file exists.
 # @description   EVLOG_KEY_ROTATE=1 with DRY_RUN=0: the rotation (R9). A new
-# @description            key replaces the file, is proven to read the
-# @description            project's logs, then the old key id is deleted. Each
+# @description            key is proven to read the project's logs from its
+# @description            temp file, only then replaces the file, then the
+# @description            old key id is deleted. A failed proof deletes the
+# @description            new key id and leaves the key file as it was. Each
 # @description            reader box holds its OWN key, never a copy, so this
 # @description            needs neither the other-box proof nor the CI run of
 # @description            do_gcp_sa_key_rotate, which rotates the one project
@@ -69,9 +71,10 @@ gcp_evlog_reader_key_dry() {
 }
 
 # gcp_evlog_reader_key_run <sa> <key> <rotate> - as the project SA, in a
-# throwaway gcloud config: mint, and on a rotation prove and retire the old key
+# throwaway gcloud config: mint; on a rotation prove the new key BEFORE it
+# replaces the key file, then retire the old key id
 gcp_evlog_reader_key_run() {
-  local sa="$1" key="$2" rot="$3" _spl_sdk_saved _spl_sdk_dir old="" tmp
+  local sa="$1" key="$2" rot="$3" _spl_sdk_saved _spl_sdk_dir old="" tmp new
   do_require_bin jq || return 1
   spl_gcp_temp_sdk_config || return 1
   trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
@@ -80,7 +83,7 @@ gcp_evlog_reader_key_run() {
   if [[ "$rot" == 1 ]]; then
     old="$(jq -r '.private_key_id // ""' "$key" 2>/dev/null)"
     [[ -n "$old" ]] || { do_log "FATAL the key file $key has no private_key_id: not rotating it"; return 1; }
-    [[ ! -e "$key.prev" ]] || { do_log "FATAL $key.prev exists: an earlier rotation did not finish; check it, then remove it by hand"; return 1; }
+    gcp_evlog_reader_key_prev_refuse "$sa" "$key" || return 1
   fi
   ( umask 077; mkdir -p "$(dirname "$key")" ) || { do_log "FATAL cannot make $(dirname "$key")"; return 1; }
   tmp="$(dirname "$key")/.$(basename "$key").new.$$"
@@ -90,28 +93,61 @@ gcp_evlog_reader_key_run() {
   chmod 600 "$tmp"
   [[ "$(do_gcp_sa_key_email "$tmp")" == "$sa" ]] ||
     { rm -f "$tmp"; do_log "FATAL the new key is not a key of $sa: discarded (its id stays in GCP: delete it by hand)"; return 1; }
+  new="$(jq -r '.private_key_id // ""' "$tmp")"
   if [[ -n "$old" ]]; then
-    mv "$key" "$key.prev" || { rm -f "$tmp"; do_log "FATAL cannot keep $key as $key.prev"; return 1; }
+    gcp_evlog_reader_key_prove "$sa" "$key" "$tmp" "$new" || return 1
+    mv "$key" "$key.prev" || { gcp_evlog_reader_key_drop "$sa" "$key" "$tmp" "$new" "cannot keep $key as $key.prev"; return 1; }
   fi
-  mv "$tmp" "$key" || { do_log "FATAL could not move the new key into $key; it is at $tmp"; return 1; }
-  do_log "OK new key $(jq -r '.private_key_id' "$key") of $sa written to $key (mode 600)"
+  mv "$tmp" "$key" || { do_log "FATAL could not move the new key $new into $key; it is at $tmp"; return 1; }
+  do_log "OK new key $new of $sa written to $key (mode 600)"
   [[ -n "$old" ]] || return 0
   gcp_evlog_reader_key_retire "$sa" "$key" "$old"
 }
 
-# gcp_evlog_reader_key_retire <sa> <key> <old key id> - the new key reads the
-# project's logs, then the old key id is deleted (as the project SA) and
-# <key>.prev removed. A failed proof keeps the old key: nothing deleted.
-gcp_evlog_reader_key_retire() {
-  local sa="$1" key="$2" old="$3"
-  [[ "$(do_gcp_activate_sa_key "$key")" == "$sa" ]] ||
-    { do_log "FATAL the new key does not activate: the old key $old is kept ($key.prev)"; return 1; }
+# gcp_evlog_reader_key_prev_refuse <sa> <key> - refuses while <key>.prev is
+# there: an earlier rotation stopped after the swap; its old key id may
+# still be live in GCP
+gcp_evlog_reader_key_prev_refuse() {
+  local sa="$1" key="$2" pid
+  [[ -e "$key.prev" ]] || return 0
+  pid="$(jq -r '.private_key_id // "<unreadable>"' "$key.prev" 2>/dev/null)"
+  do_log "FATAL $key.prev exists: an earlier rotation did not finish. It holds key $pid of $sa, which stays live in GCP until deleted: delete it as the $ENV project SA (gcloud iam service-accounts keys delete $pid --iam-account=$sa --project=$PROJ_ID --account=<the $ENV project SA>), then remove $key.prev"
+  return 1
+}
+
+# gcp_evlog_reader_key_prove <sa> <key> <tmp> <new id> - the new key, still in
+# its temp file, activates and reads the project's logs as the reader SA. A
+# failure drops it: the key file keeps the old key, untouched.
+gcp_evlog_reader_key_prove() {
+  local sa="$1" key="$2" tmp="$3" new="$4"
+  [[ "$(do_gcp_activate_sa_key "$tmp")" == "$sa" ]] ||
+    { gcp_evlog_reader_key_drop "$sa" "$key" "$tmp" "$new" "the new key does not activate"; return 1; }
   gcloud logging read 'severity>=ERROR' --project="$PROJ_ID" --limit=1 --freshness=1h --format='value(timestamp)' \
     --account="$sa" --quiet </dev/null >/dev/null 2>&1 ||
-    { do_log "FATAL the new key cannot read the logs of $PROJ_ID: the old key $old is kept ($key.prev)"; return 1; }
+    { gcp_evlog_reader_key_drop "$sa" "$key" "$tmp" "$new" "the new key cannot read the logs of $PROJ_ID"; return 1; }
+}
+
+# gcp_evlog_reader_key_drop <sa> <key> <tmp> <new id> <why> - an unproven new
+# key: its temp file removed, its id deleted in GCP (as the project SA); the
+# key file is not touched
+gcp_evlog_reader_key_drop() {
+  local sa="$1" key="$2" tmp="$3" new="$4" why="$5"
+  rm -f "$tmp"
+  if gcloud iam service-accounts keys delete "$new" --iam-account="$sa" --project="$PROJ_ID" \
+      --account="$GCP_ACCOUNT" --quiet </dev/null >/dev/null 2>&1; then
+    do_log "FATAL $why: the new key $new is deleted in GCP; $key still holds the old key, unchanged"
+  else
+    do_log "FATAL $why, and gcloud could not delete the new key $new of $sa: it stays live in GCP until deleted by hand; $key still holds the old key, unchanged"
+  fi
+}
+
+# gcp_evlog_reader_key_retire <sa> <key> <old key id> - after the swap: the
+# old key id is deleted (as the project SA) and <key>.prev removed
+gcp_evlog_reader_key_retire() {
+  local sa="$1" key="$2" old="$3"
   gcloud iam service-accounts keys delete "$old" --iam-account="$sa" --project="$PROJ_ID" \
     --account="$GCP_ACCOUNT" --quiet </dev/null >/dev/null 2>&1 ||
-    { do_log "FATAL the new key works, but gcloud could not delete the old key $old of $sa: delete it by hand, then remove $key.prev"; return 1; }
+    { do_log "FATAL the new, proven key is in $key, but gcloud could not delete the old key $old of $sa: it stays live in GCP until deleted (gcloud iam service-accounts keys delete $old --iam-account=$sa --project=$PROJ_ID --account=<the $ENV project SA>), then remove $key.prev"; return 1; }
   rm -f "$key.prev"
-  do_log "OK rotated: the new key reads the logs of $PROJ_ID; the old key $old is deleted and $key.prev removed"
+  do_log "OK rotated: the new key read the logs of $PROJ_ID before the swap; the old key $old is deleted and $key.prev removed"
 }

@@ -3,7 +3,7 @@ id: 2026-11-16-what-10000-git-commits-with-ai-give-you
 lang: ro
 type: news
 title: "Ce îți aduc 10.000 de commituri git cu AI"
-summary: "Două luni, 10.000 de commituri, 1,2 milioane de linii: un specialist IT, colaboratori și o flotă AI au construit Spool Hub, care rulează încă 37 de proiecte."
+summary: "Două luni, 10.000 de commituri, 1,2 milioane de linii: un specialist IT, colaboratori și o flotă AI au construit Spool Hub, care conduce încă 37 de proiecte."
 date: 2026-11-16
 published: 2026-11-16T15:00:00Z
 author: c-714
@@ -38,7 +38,7 @@ Spool Hub a pornit pe 17 septembrie 2026 cu un depozit git gol. După două luni
 
 ## 💶 Să știi cât costă de fapt software-ul
 
-Spool Hub urmărește cele trei costuri ale software-ului. Cloud: pe proiect, serviciu și zi. AI: tokeni live pe furnizor și agent, alături de abonamente. Oameni: ore de lucru aprobate și costuri salariale introduse de contabili, blocate lunar.
+Spool Hub urmărește cele trei tipuri de costuri ale software-ului. Cloud: pe proiect, serviciu și zi. AI: tokeni live pe furnizor și agent, alături de abonamente. Oameni: ore de lucru aprobate și costuri salariale introduse de contabili, blocate lunar.
 
 Nu suntem încă acolo: unii clienți AI nu sunt contorizați complet, raportul de costuri umane e în lucru, iar mașinile din afara cloudului lipsesc. Dar aproape vedem tot ce ne costă dezvoltarea de software.
 

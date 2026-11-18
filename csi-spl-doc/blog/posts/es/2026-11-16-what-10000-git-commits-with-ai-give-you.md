@@ -26,7 +26,7 @@ Spool Hub nació el 17 de septiembre de 2026 con un repositorio git vacío. Dos 
 
 **Conversar.** Espacios, canales, temas, mensajes directos y búsqueda, en móvil y escritorio, en 19 idiomas. Personas y agentes comparten hilos.
 
-🗂️ **Planificar.** Incidencias, épicas, hoja de ruta y objetivos; calendario con sincronización de Google Calendar y horario laboral; notas, contactos, documentos y ayuda.
+🗂️ **Planificar.** Incidencias, épicas, hoja de ruta y objetivos; calendario con sincronización con Google Calendar y horario laboral; notas, contactos, documentos y ayuda.
 
 **Construir.** Agentes de cinco proveedores de IA. Cada tarea tiene su carril; un agente de otro proveedor revisa especificaciones y código. Tus agentes se conectan mediante una CLI y un servidor MCP.
 
@@ -38,7 +38,7 @@ Spool Hub nació el 17 de septiembre de 2026 con un repositorio git vacío. Dos 
 
 ## 💶 Saber cuánto cuesta de verdad el software
 
-Spool Hub controla los tres costes del software. Nube: por proyecto, servicio y día. IA: tokens en vivo por proveedor y agente, junto a las suscripciones. Personas: horas aprobadas y costes salariales de los contables, cerrados cada mes.
+Spool Hub controla los tres costes del software. Nube: por proyecto, servicio y día. IA: tokens en vivo por proveedor y agente, junto a las suscripciones. Personas: horas aprobadas y nóminas registradas por los contables, cerrados cada mes.
 
 Aún no está completo: algunos clientes de IA no se cuentan del todo, el informe de costes humanos sigue en desarrollo y faltan las máquinas fuera de la nube. Pero casi vemos todo lo que nos cuesta desarrollar software.
 

@@ -24,7 +24,7 @@ Spool Hub powstał 17 września 2026 r. z jednego pustego repozytorium git. Dwa 
 
 ## Co otrzymujesz
 
-**Rozmowy.** Przestrzenie robocze, kanały, tematy, wiadomości bezpośrednie i wyszukiwanie, na telefonie i komputerze, w 19 językach. Ludzie i agenci dzielą te same wątki.
+**Rozmowy.** Przestrzenie robocze, kanały, tematy, wiadomości bezpośrednie i wyszukiwanie, na telefonie i komputerze, w 19 językach. Ludzie i agenci korzystają z tych samych wątków.
 
 🗂️ **Planowanie.** Zgłoszenia, epiki, roadmapa i cele; kalendarz z synchronizacją Google Calendar i godzinami pracy; notatki, kontakty, dokumenty i centrum pomocy.
 
@@ -40,11 +40,11 @@ Spool Hub powstał 17 września 2026 r. z jednego pustego repozytorium git. Dwa 
 
 Spool Hub śledzi trzy rodzaje kosztów oprogramowania. Chmura: każdy projekt, z dokładnością do usługi i dnia. AI: tokeny na żywo według dostawcy i agenta, obok subskrypcji. Ludzie: zatwierdzone godziny pracy oraz koszty wynagrodzeń wprowadzane przez księgowych, zamykane co miesiąc.
 
-Jeszcze nie jesteśmy u celu: część klientów AI nie jest w pełni liczona, raport kosztów pracy ludzi wciąż powstaje, a brakuje maszyn spoza chmury. Ale jesteśmy blisko tego, by widzieć wszystko, co rozwój oprogramowania kosztuje naszą firmę.
+Jeszcze nie jesteśmy u celu: część klientów AI nie jest w pełni liczona, raport kosztów pracy ludzi wciąż powstaje, a maszyn spoza chmury jeszcze brakuje. Ale jesteśmy blisko tego, by widzieć wszystko, co rozwój oprogramowania kosztuje naszą firmę.
 
 ## 🧭 Co to oznacza dla ciebie
 
-Projekty stojące za tymi liczbami są prawdziwe: sklep internetowy, organizator obozów letnich, hurtownia danych, platformy sklepowe i strona internetowa naszej firmy. Spool Hub jest open source. Wystarczy jedna osoba znająca IT, by go uruchomić, a możesz zacząć zarządzać swoimi projektami programistycznymi z flotą AI i rozwijać z nią swój biznes.
+Projekty stojące za tymi liczbami są prawdziwe: sklep internetowy, organizator obozów letnich, hurtownia danych, platformy sklepowe i strona internetowa naszej firmy. Spool Hub jest open source. Wystarczy jedna osoba znająca IT, by go uruchomić, a możesz zacząć zarządzać swoimi projektami programistycznymi za pomocą floty AI i rozwijać z nią swój biznes.
 
 ---
 

@@ -36,9 +36,9 @@ Spool Hub sai alguse 17. septembril 2026 ühest tühjast git-repositooriumist. K
 
 🔐 **Äri juhtimine.** Sisselogimisviisid, rollid, operaatorikonsool, demotööruum, maksmine, blogi ja majutamine teie enda pilves või masinates.
 
-## 💶 Teada, mida tarkvara tegelikult maksab
+## 💶 Teada, kui palju tarkvara tegelikult maksab
 
-Spool Hub jälgib tarkvara kolme kulu. Pilv: iga projekt kuni teenuse ja päevani. AI: tokenid reaalajas tarnija ja agendi kaupa, tellimuste kõrval. Inimesed: kinnitatud töötunnid ja raamatupidajate sisestatud palgakulud, igakuiselt lukustatud.
+Spool Hub jälgib tarkvara kolme kululiiki. Pilv: iga projekt kuni teenuse ja päevani. AI: tokenid reaalajas tarnija ja agendi kaupa, tellimuste kõrval. Inimesed: kinnitatud töötunnid ja raamatupidajate sisestatud palgakulud, igakuiselt lukustatud.
 
 Päris kohal me veel pole: mõnda AI-klienti ei loeta veel täielikult, inimkulude aruanne on alles valmimas ja pilvest väljaspool olevad masinad puuduvad. Kuid oleme lähedal sellele, et näha kõike, mida tarkvaraarendus meie ettevõttele maksab.
 

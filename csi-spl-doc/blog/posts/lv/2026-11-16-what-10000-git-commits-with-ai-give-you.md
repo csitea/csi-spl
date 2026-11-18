@@ -28,7 +28,7 @@ Spool Hub sākās 2026. gada 17. septembrī ar vienu tukšu git repozitoriju. P�
 
 🗂️ **Plānošana.** Uzdevumi, epiki, ceļvedis un mērķi; kalendārs ar Google Calendar sinhronizāciju un darba laiku; piezīmes, kontakti, dokumenti un palīdzības centrs.
 
-**Izstrāde.** Aģenti no pieciem MI piegādātājiem. Katrs uzdevums darbojas savā joslā; cita piegādātāja aģents pārskata specifikācijas un kodu. CLI un MCP serveris pieslēdz jūsu pašu aģentus.
+**Izstrāde.** Aģenti no pieciem MI piegādātājiem. Katrs uzdevums tiek veikts savā joslā; cita piegādātāja aģents pārskata specifikācijas un kodu. CLI un MCP serveris pieslēdz jūsu pašu aģentus.
 
 🚀 **Piegāde.** Katrs komits iziet drošības un kvalitātes pārbaudes un nonāk testa un produkcijas vidē ar versiju un vienkāršā valodā rakstītām laidiena piezīmēm.
 

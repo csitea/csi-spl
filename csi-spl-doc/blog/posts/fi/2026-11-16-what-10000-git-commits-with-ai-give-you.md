@@ -19,7 +19,7 @@ Spool Hub alkoi 17. syyskuuta 2026 yhdestä tyhjästä git-repositoriosta. Kaksi
 
 - **Muut projektit:** pääkehityskoneellamme on 37 muuta ohjelmistoprojektia, yhteensä 2,4 miljoonaa riviä koodia. Spool Hub on niiden kaikkien työpöytä; 22 niistä sai näiden kahden kuukauden aikana laivaston committeja.
 - **Agenttiaika:** noin 25 700 agenttituntia viimeisen viiden viikon aikana.
-- **Tokenit:** yli 100 miljardia viimeisen 30 päivän aikana, neljältä tekoälyasiakkaalta (Claude, Antigravity, Grok, Mistral); 97 % on edullisia välimuistilukuja.
+- **Tokenit:** yli 100 miljardia viimeisen 30 päivän aikana, neljältä tekoälyasiakasohjelmalta (Claude, Antigravity, Grok, Mistral); 97 % on edullisia välimuistilukuja.
 - **Hinta:** noin 1 300 $ tilausmaksuja näiltä 30 päivältä: **1,3 senttiä miljoonaa tokenia kohden**. Listahinnoin: noin 31 000 $.
 
 ## Mitä saat
@@ -34,13 +34,13 @@ Spool Hub alkoi 17. syyskuuta 2026 yhdestä tyhjästä git-repositoriosta. Kaksi
 
 **Valvo.** Agenttien, koneiden, kaistojen, tokenien ja tapahtumien reaaliaikainen seuranta.
 
-🔐 **Pyöritä liiketoimintaa.** Kirjautumistavat, roolit, operaattorikonsoli, demotyötila, maksaminen, blogi ja oma ylläpito omassa pilvessäsi tai omilla koneillasi.
+🔐 **Pyöritä liiketoimintaa.** Kirjautumistavat, roolit, operaattorikonsoli, demotyötila, maksutoiminto, blogi ja oma ylläpito omassa pilvessäsi tai omilla koneillasi.
 
 ## 💶 Tiedä, mitä ohjelmistot todella maksavat
 
-Spool Hub seuraa ohjelmistojen kolmea kustannusta. Pilvi: jokainen projekti palvelun ja päivän tarkkuudella. Tekoäly: tokenit reaaliajassa toimittajittain ja agenteittain, tilausten rinnalla. Ihmiset: hyväksytyt työtunnit ja kirjanpitäjien syöttämät palkkakulut, lukittuina kuukausittain.
+Spool Hub seuraa ohjelmistojen kolmea kustannuslajia. Pilvi: jokainen projekti palvelun ja päivän tarkkuudella. Tekoäly: tokenit reaaliajassa toimittajittain ja agenteittain, tilausten rinnalla. Ihmiset: hyväksytyt työtunnit ja kirjanpitäjien syöttämät palkkakulut, lukittuina kuukausittain.
 
-Emme ole aivan perillä: osaa tekoälyasiakkaista ei vielä lasketa täysin, henkilöstökulujen raportti on vielä rakenteilla ja pilven ulkopuoliset koneet puuttuvat. Olemme kuitenkin lähellä sitä, että näemme kaiken, mitä ohjelmistokehitys yhtiöllemme maksaa.
+Emme ole aivan perillä: osaa tekoälyasiakasohjelmista ei vielä lasketa täysin, henkilöstökulujen raportti on vielä rakenteilla ja pilven ulkopuoliset koneet puuttuvat. Olemme kuitenkin lähellä sitä, että näemme kaiken, mitä ohjelmistokehitys yhtiöllemme maksaa.
 
 ## 🧭 Mitä tämä tarkoittaa sinulle
 

@@ -18,7 +18,7 @@ Spool Hub begon op 17 september 2026 met één lege git-repository. Twee maanden
 ## 📊 De cijfers
 
 - **Andere projecten:** onze belangrijkste ontwikkelmachine bevat nog 37 softwareprojecten, samen 2,4 miljoen regels code. Spool Hub is voor al die projecten de centrale werkplek; 22 ervan kregen in deze twee maanden commits van de vloot.
-- **Agenttijd:** ongeveer 25.700 agenturen in de afgelopen vijf weken.
+- **Agenttijd:** ongeveer 25.700 agent-uren in de afgelopen vijf weken.
 - **Tokens:** meer dan 100 miljard in de afgelopen 30 dagen, van vier AI-clients (Claude, Antigravity, Grok, Mistral); 97% daarvan zijn goedkope cache-reads.
 - **Prijs:** ongeveer $ 1.300 aan abonnementen voor die 30 dagen: **1,3 cent per miljoen tokens**. Tegen catalogusprijs: ongeveer $ 31.000.
 
@@ -28,7 +28,7 @@ Spool Hub begon op 17 september 2026 met één lege git-repository. Twee maanden
 
 🗂️ **Plannen.** Issues, epics, roadmap en doelen; een agenda met synchronisatie met Google Calendar en werktijden; notities, contacten, documenten en een helpcentrum.
 
-**Bouwen.** Agents van vijf AI-leveranciers. Elke taak draait in een eigen lane; een agent van een andere leverancier beoordeelt de specificaties en de code. Een CLI en een MCP-server koppelen uw eigen agents.
+**Bouwen.** Agents van vijf AI-leveranciers. Elke taak draait in een eigen lane; een agent van een andere leverancier beoordeelt de specificaties en de code. Via een CLI en een MCP-server sluit u uw eigen agents aan.
 
 🚀 **Uitrollen.** Elke commit passeert beveiligings- en kwaliteitscontroles en bereikt test en productie, met een versienummer en release notes in begrijpelijke taal.
 
@@ -38,9 +38,9 @@ Spool Hub begon op 17 september 2026 met één lege git-repository. Twee maanden
 
 ## 💶 Weten wat software echt kost
 
-Spool Hub volgt de drie kosten van software. Cloud: elk project, tot op de dienst en de dag. AI: live tokens per leverancier en agent, naast de abonnementen. Mensen: goedgekeurde werkuren en loonkosten die boekhouders invoeren, maandelijks vergrendeld.
+Spool Hub volgt de drie kostensoorten van software. Cloud: elk project, tot op de dienst en de dag. AI: live tokens per leverancier en agent, naast de abonnementen. Mensen: goedgekeurde werkuren en loonkosten die boekhouders invoeren, maandelijks vergrendeld.
 
-We zijn er nog niet helemaal: sommige AI-clients worden nog niet volledig geteld, het rapport over personeelskosten wordt nog gebouwd en machines buiten de cloud ontbreken. Maar we zijn dicht bij het zicht op alles wat softwareontwikkeling ons bedrijf kost.
+We zijn er nog niet helemaal: sommige AI-clients worden nog niet volledig geteld, het rapport over personeelskosten wordt nog gebouwd en machines buiten de cloud ontbreken. Maar we kunnen al bijna alles zien wat softwareontwikkeling ons bedrijf kost.
 
 ## 🧭 Wat dit voor u betekent
 

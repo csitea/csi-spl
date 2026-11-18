@@ -44,7 +44,7 @@ Vi är inte riktigt framme: vissa AI-klienter räknas inte fullt ut, rapporten o
 
 ## 🧭 Vad det betyder för dig
 
-Projekten bakom siffrorna är verkliga: en webbutik, en arrangör av sommarläger, ett datalager, butiksplattformar och vår företagswebbplats. Spool Hub är öppen källkod. Ge det en person som kan IT för att komma igång, så kan du styra dina mjukvaruprojekt med en AI-flotta och växa ditt företag med den.
+Projekten bakom siffrorna är verkliga: en webbutik, en arrangör av sommarläger, ett datalager, butiksplattformar och vår företagswebbplats. Spool Hub är öppen källkod. Ge det en person som kan IT för att komma igång, så kan du styra dina mjukvaruprojekt med en AI-flotta och låta ditt företag växa med den.
 
 ---
 

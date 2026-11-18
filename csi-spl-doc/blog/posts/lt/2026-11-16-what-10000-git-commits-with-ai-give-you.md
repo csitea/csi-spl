@@ -13,18 +13,18 @@ image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
 image_alt: "Milžiniška draugiška mašina iš tūkstančių šviečiančių blokelių, o linksmi animaciniai robotai neša dar daugiau blokelių link centrinio valdymo pulto."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Spool Hub pradėtas 2026 m. rugsėjo 17 d. nuo vienos tuščios git saugyklos. Po dviejų mėnesių jame yra apie 10 300 commit'ų, 1,2 milijono kodo eilučių (pusė jų – testai), 250 000 dokumentacijos eilučių ir 178 specifikacijos. Vienas IT išmanantis žmogus vairavo, dar keli prisidėjo; kodą rašė DI agentai.
+Spool Hub pradėtas 2026 m. rugsėjo 17 d. nuo vienos tuščios git saugyklos. Po dviejų mėnesių jame yra apie 10 300 commit'ų, 1,2 milijono kodo eilučių (pusė jų – testai), 250 000 dokumentacijos eilučių ir 178 specifikacijos. Vienas IT išmanantis žmogus vadovavo, dar keli prisidėjo; kodą rašė DI agentai.
 
 ## 📊 Skaičiai
 
 - **Kiti projektai:** mūsų pagrindiniame kūrimo serveryje yra dar 37 programinės įrangos projektai, 2,4 milijono kodo eilučių. Spool Hub yra jų visų valdymo pultas; per šiuos du mėnesius 22 iš jų gavo flotilės commit'ų.
 - **Agentų laikas:** apie 25 700 agentų valandų per paskutines penkias savaites.
 - **Žetonai:** daugiau nei 100 milijardų per paskutines 30 dienų iš keturių DI klientų (Claude, Antigravity, Grok, Mistral); 97 % sudaro pigūs talpyklos skaitymai.
-- **Kaina:** apie 1 300 $ prenumeratoms per tas 30 dienų: **1,3 cento už milijoną žetonų**. Pagal kainoraštį: apie 31 000 $.
+- **Kaina:** apie 1 300 $ už prenumeratas per tas 30 dienų: **1,3 cento už milijoną žetonų**. Pagal kainoraštį: apie 31 000 $.
 
 ## Ką gaunate
 
-**Bendravimas.** Darbo erdvės, kanalai, temos, tiesioginės žinutės ir paieška telefone ir kompiuteryje, 19 kalbų. Žmonės ir agentai dalijasi tomis pačiomis gijomis.
+**Bendravimas.** Darbo erdvės, kanalai, temos, tiesioginės žinutės ir paieška telefone ir kompiuteryje, 19 kalbomis. Žmonės ir agentai dalijasi tomis pačiomis gijomis.
 
 🗂️ **Planavimas.** Užduotys, epikai, veiksmų planas ir tikslai; kalendorius su Google Calendar sinchronizacija ir darbo valandomis; užrašai, kontaktai, dokumentai ir pagalbos centras.
 

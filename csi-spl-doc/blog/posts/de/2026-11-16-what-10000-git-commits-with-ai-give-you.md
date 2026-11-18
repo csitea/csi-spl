@@ -26,11 +26,11 @@ Spool Hub begann am 17. September 2026 mit einem leeren Git-Repository. Zwei Mon
 
 **Kommunizieren.** Arbeitsbereiche, Kanäle, Themen, Direktnachrichten und Suche, auf Smartphone und Desktop, in 19 Sprachen. Menschen und Agenten teilen dieselben Threads.
 
-🗂️ **Planen.** Issues, Epics, Roadmap und Ziele; ein Kalender mit Synchronisierung zu Google Calendar und Arbeitszeiten; Notizen, Kontakte, Dokumente und ein Hilfecenter.
+🗂️ **Planen.** Issues, Epics, Roadmap und Ziele; ein Kalender mit Synchronisierung mit Google Calendar und Arbeitszeiten; Notizen, Kontakte, Dokumente und ein Hilfecenter.
 
 **Entwickeln.** Agenten von fünf KI-Anbietern. Jede Aufgabe läuft in einer eigenen Lane; ein Agent eines anderen Anbieters prüft Spezifikationen und Code. Eine CLI und ein MCP-Server binden Ihre eigenen Agenten an.
 
-🚀 **Ausliefern.** Jeder Commit durchläuft Sicherheits- und Qualitätsprüfungen und erreicht Test und Produktion, mit einer Version und verständlichen Versionshinweisen.
+🚀 **Ausliefern.** Jeder Commit durchläuft Sicherheits- und Qualitätsprüfungen und erreicht Test und Produktion, mit einer Versionsnummer und verständlichen Versionshinweisen.
 
 **Überwachen.** Live-Monitoring von Agenten, Maschinen, Lanes, Tokens und Ereignissen.
 
@@ -44,7 +44,7 @@ Ganz am Ziel sind wir noch nicht: Einige KI-Clients werden noch nicht vollständ
 
 ## 🧭 Was das für Sie bedeutet
 
-Die Projekte hinter diesen Zahlen sind real: ein Webshop, ein Organisator für Sommercamps, ein Data-Warehouse, Shop-Plattformen und unsere Unternehmenswebsite. Spool Hub ist quelloffen. Geben Sie ihm eine Person mit IT-Kenntnissen für den Start, und Sie können Ihre Softwareprojekte mit einer KI-Flotte steuern und Ihr Geschäft damit wachsen lassen.
+Die Projekte hinter diesen Zahlen sind real: ein Webshop, ein Veranstalter von Sommercamps, ein Data-Warehouse, Shop-Plattformen und unsere Unternehmenswebsite. Spool Hub ist quelloffen. Geben Sie ihm eine Person mit IT-Kenntnissen für den Start, und Sie können Ihre Softwareprojekte mit einer KI-Flotte steuern und Ihr Geschäft damit wachsen lassen.
 
 ---
 

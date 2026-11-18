@@ -19,7 +19,7 @@ Status vocabulary follows `../README.md` §2.3: `[x]` Implemented (cited) · `[~
 - [ ] T006 Planned (deferred by owner 2026-09-19) — Unify message streaming in `stores/feed.ts`: maintain reverse-ordered message array, catch-up cursor pagination, and optimistic send insertion. FR-R08.
 - [ ] T007 Planned (deferred by owner 2026-09-19) — Streamline thread state in `stores/thread.ts`: manage active `parent_task_id`, replies list, and verbosity selector state (`minimal`, `normal`, `verbose`). FR-R08.
 - [ ] T008 Planned (deferred by owner 2026-09-19) — Harmonize `stores/roster.ts` and `stores/session.ts`: manage user directory, agent robot avatar styling, presence polling, and signed session lifecycle. FR-R08, FR-R09.
-- [ ] T009 Planned — Verify Phase 1 regression gate: `node --test csi-spl-wui/tests/unit/*.test.mjs` -> all pass (1141/1141 at `28442ef6`, n=1, before any Phase 1 change). FR-R15.
+- [x] T009 Implemented (verified SPL-435, 2026-11-18) — Verify Phase 1 regression gate: `node --test csi-spl-wui/tests/unit/*.test.mjs` -> all pass: 7309/7309, 0 fail, 527 files, exit 0 at `a8a08f7ef`, n=2, Node v20.20.2, after `pnpm install --frozen-lockfile` (without it, a fresh worktree fails 154 tests on missing `vue`/`typescript`/`markdown-it`). Earlier: 1141/1141 at `28442ef6`, n=1. No Phase 1 change has landed (T001–T008 still deferred), so this is the baseline a Phase 1 change must keep. FR-R15.
 
 ---
 

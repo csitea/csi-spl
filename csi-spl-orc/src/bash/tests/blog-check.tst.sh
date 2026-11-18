@@ -129,6 +129,11 @@ post en 2026-10-09-hello news | sed 's/^summary: .*/summary: "'"$(printf 'x%.0s'
 { post en 2026-10-09-hello news; echo "Call +358 40 123 4567."; } | put "$N";           refused "a phone number" public-safe "$N"
 { post en 2026-10-09-hello news; echo "It runs on hub.csi-spl-all.internal."; } | put "$N"; refused "an internal host" public-safe "$N"
 { post en 2026-10-09-hello news; echo "It ran on ${BOX}."; } | put "$N";                refused "a box name" public-safe "$N"
+# a box name inside a longer word whose next letter is not ASCII (dotless i + r, e acute) is not the box
+{ post en 2026-10-09-hello news; printf 'Kod %s\xc4\xb1r ve %s\xc3\xa9 ok.\n' "$BOX" "$BOX"; } | put "$N"
+out=$(run_check BLOG_FILES="$N"); [[ $? -eq 0 ]] && pass "a box name followed by a non-ASCII letter passes (unicode word boundary)" ||
+  fail "box name + non-ASCII letter refused: $(grep -E '^(REFUSE|FATAL)' <<<"$out" | sed -n 1,3p)"
+{ post en 2026-10-09-hello news; printf 'It ran on \xc2\xab%s\xc2\xbb.\n' "$BOX"; } | put "$N"; refused "a box name between non-ASCII quotes" public-safe "$N"
 { post en 2026-10-09-hello news; echo "c-601@${BOX^} did it."; } | put "$N";           refused "an agent id at a box" public-safe "$N"
 { post en 2026-10-09-hello news; hp=/home; echo "See ${hp}/someone/x."; } | put "$N";             refused "a /home/ path" public-safe "$N"
 { post en 2026-10-09-hello news; echo "Owner msg 3e9fa1c7 asked for it."; } | put "$N"; refused "an unresolvable 8-hex token" "hex tokens" "$N"

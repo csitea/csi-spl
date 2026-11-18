@@ -302,6 +302,8 @@ spl_blog_digest() {
 
 # spl_blog_public_safe <tree> <rel> - "matrix" only: no email, phone, internal
 # host, box name or /home/ path. (Personal names: the hygiene Sweep's list.)
+# A box name is a whole word in Unicode terms ((*UTF)(*UCP)): a non-ASCII
+# letter next to it makes it part of a longer word, not the box.
 spl_blog_public_safe() {
   local tree="$1" rel="$2" b re ln
   local -a rows=(
@@ -311,7 +313,7 @@ spl_blog_public_safe() {
     'a box name|\b[acgmq]-\d{3}@[A-Za-z0-9-]+'
     'a /home/ path|/home/'
   )
-  for b in $BLOG_BOXES; do [[ "$b" =~ ^[A-Za-z0-9-]+$ ]] && rows+=("a box name|(?i)\\b${b}\\b"); done
+  for b in $BLOG_BOXES; do [[ "$b" =~ ^[A-Za-z0-9-]+$ ]] && rows+=("a box name|(*UTF)(*UCP)(?i)\\b${b}\\b"); done
   for re in "${rows[@]}"; do
     while IFS= read -r ln; do
       spl_blog_refuse "$rel" "$ln" public-safe "${re%%|*}"

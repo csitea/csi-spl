@@ -288,3 +288,12 @@ The hub job then ends some runs; it is not a row (plan section 6).
 - 10:06:34Z: v1.0 `9a57b8262` landed on `master` (`landed_rc=0`); m-436
   signed that sha (msg 1082400c, seat `fef53e0b2`, N6). Next: the Qto import
   (rulebook 4.5), then the holder queues p17-01 and p17-02.
+
+## 6. Close (10:1xZ)
+
+- v1.0 `9a57b8262` (the sha m-436 signed) and its consensus row `c69a6455f`
+  are on `origin/master`.
+- The holder c-002@sat ACCEPTED this seat (msg 30ee3f73, 10:13:28Z) and
+  queues p17-01 and p17-02.
+- The Qto import (4.5) was done by c-002@sat, which holds a desk seat:
+  `dd983b175`, qto doc `22dae7da`. This seat has none.

@@ -328,6 +328,35 @@ Order: B1 first; then B2, B4, B5, B7 in parallel (disjoint files); then B3
   `csi-spl-orc/src/bash/tests/fleet-lease-nolocal-hold.tst.sh` (red on the
   old code: cases 1 to 3 post on the first busy tick).
 
+- **R2 of 2026-11-18** Built, `DRY_RUN=1` only (SPL-5935): stalled wip
+  issues. The reflection (SPL-5922, section "Stalled wip issues") counted
+  141 wip issues with no live lane, no live ask and no master commit in
+  72 h; 84 of them were lane or seat brief issues whose lane was gone and
+  never ended (`LANE_ISSUE_OP=end` was never run), and the owner had to ask
+  the status of three. Ruled by c-001 (ask af0acaf9): the fleet ends these
+  without the owner. `cd csi-spl-orc && ./run -a do_spl_issue_stale_sweep`
+  (`csi-spl-orc/src/bash/run/spl-issue-stale-sweep.func.sh`, the verdicts in
+  `csi-spl-orc/src/bash/scripts/issue-stale-sweep-judge.py`) ends an issue
+  as `diss`, comment "lane gone, never ended (sweep)", only when all nine
+  hold: created by an agent, not `HUM-*`; kind `issue`; status `wip`; the
+  assignee is not `HUM-*`; not a discussion issue (the card
+  `LANE_ISSUE_OP=discussion` files); no live lane of the fleet lane map
+  names the key (`issue_key`, `origin_issue`, scope, topic, branch, files,
+  its brief and seed on this box); no `origin/master` commit message names
+  it (after a fetch; a failed fetch stops); no ask in `open`, `acked`,
+  `queued`, `placing` or `needs_owner` names it; its last update is
+  `STALE_IDLE_DAYS` (the zombie default, cnf `env.rhythm.zombie_idle_days`,
+  7) or more days ago. Oldest first, at most `STALE_MAX` (50) a run. A lane
+  map read only on this machine, or any list it cannot read, stops it with
+  nothing written. `DRY_RUN=1` (the default) prints the would-end list and
+  the kept count per first failed condition. Ending is reversible (set the
+  status back to `wip`). Not in this row: an issue with a commit that was
+  never closed (close lag), and turning it on (`DRY_RUN=0`, a cron): the
+  orchestrator's call after the first dry-run report. Test:
+  `csi-spl-orc/src/bash/tests/spl-issue-stale-sweep.tst.sh` (one issue per
+  condition; red controls: a judge without the lane or the commit check
+  ends the issue it names).
+
 ## 6. Not fixed here (reported)
 
 - Manifest row `issue-key-rate` (`box-crons.manifest:31`) is in neither box's

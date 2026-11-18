@@ -32,6 +32,12 @@
 # @description it (SPL-4955). Re-raise the request on a live task. A read that
 # @description fails, or a binary or hub too old for it, queues as before with
 # @description one WARN line.
+# @description SPAWN_AFTER (spec 157 4.2, SPL-5874) makes a dependent row: it
+# @description is written into the row's brief as `After: <x>` (+ `After-Delay:`)
+# @description and the placer holds the row until <x> has landed on origin/master
+# @description (spl-spawn-after.func.sh). An unknown key or slug, a diss key, the
+# @description row's own slug or a row with no brief here is refused (one FATAL
+# @description line, nothing queued); a hand-written After: line is checked the same.
 # @param SPAWN_CLASS (required) - ci (a CI-red fix on trunk), refactor, bug or feature; no default, never guessed
 # @param SPAWN_URGENT (optional) - 1: a bug placed even over its band (owner-reported prd breakage; the dispatcher's call)
 # @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share. The owner's review-seat GO (SPL_SPAWN_REVIEW_SEAT_GO) also takes a review seat of class refactor or bug (SPL-3349), queued as a feature + bypass, the hub's one flag ahead of the bands (SPL-5638); unset on a review seat (a SPAWN_PLACE slug ending in -reviewer, no SPAWN_URGENT) it IS that GO (SPL-3762)
@@ -39,10 +45,13 @@
 # @param SPAWN_PLACE (optional) - <vendor>:<slug>: the placer launches it itself, `spawn-window.sh <vendor> auto <workdir> <brief> <slug>`, with the brief file <slug>.md under SPAWN_PLACE_BRIEF_DIR on the orch box. Unset: the placer hands it to the orchestrator when it is next
 # @param SPAWN_KIND (optional) - the lane's task kind (spec 115); unset reads the "Kind:" of the brief <slug>.md. A mistral placement of any kind but specs_and_docs or i18n is refused (owner HUM-10, t1 b61851fb, msg 91bf8278: mistral does docs and reviews only) while cnf env.box.agent_split.mistral_coding_allowed is not true
 # @param ASK_DISCUSSION (optional) - the owner topic the ask works for, a lowercase UUID (spec 150 row B10b): the queue ranks by its priority. The hub fills it while the ask has none, never overwrites; unset, the hub's resolve of a topic dispatch-<topic8> stands
+# @param SPAWN_AFTER (optional) - an issue key (SPL-123) or a row slug the row waits on: placed only once it has landed on origin/master (an issue key: a commit closing it by the close rule; a slug: its lane's issue so); needs SPAWN_PLACE and its brief here
+# @param SPAWN_AFTER_DELAY (optional) - whole minutes after that landing before the row is placed, default 0 (none); the rounds rulebook R16 allows 30
 # @param ASK_BY (optional) - the acting agent, <ID>@<box>; default this machine's orchestrator
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=refactor ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=bug SPAWN_PLACE=claude:hub-pg-split ./run -a do_spl_spawn_enqueue
+# @example ASK_ID=9d54a51b SPAWN_CLASS=feature SPAWN_PLACE=claude:c002-spec170-b3 SPAWN_AFTER=SPL-5001 SPAWN_AFTER_DELAY=30 ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=bug ASK_DISCUSSION=59f725e4-08ca-4e6e-8490-1902a708eba3 ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=feature SPAWN_BYPASS=8cb6cc7d-7628-4ac3-be00-86e427bb3487 ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=de5714db SPAWN_CLASS=bug SPAWN_BYPASS=994f2257-8ad1-4010-88c8-4f0a16230937 SPAWN_PLACE=agy:c002-ar1-05-agy-r7-reviewer ./run -a do_spl_spawn_enqueue
@@ -60,7 +69,7 @@ do_spl_spawn_enqueue() {
   (( rc == 0 )) || return "$rc"
   pos="$(jq -r '.position // 0' <<<"$row")"
   len="$(jq -r '.queue_len // 0' <<<"$row")"
-  if ! spl_spawn_q_reply "$row" "$by" "queued, position $pos of $len, placed when the box has room (ask ${id:0:8}; the queue: \`./run -a do_spl_spawn_queue\`)"; then
+  if ! spl_spawn_q_reply "$row" "$by" "queued, position $pos of $len, placed when the box has room${SPAWN_AFTER:+ and $SPAWN_AFTER has landed on origin/master} (ask ${id:0:8}; the queue: \`./run -a do_spl_spawn_queue\`)"; then
     do_log "WARN ask ${id:0:8} is queued but its sender was not told"
   fi
 }
@@ -102,6 +111,8 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
   spl_spawn_enqueue_mistral_ok "$place" >&2 || return 1
   [[ "$class" =~ ^(ci|refactor|bug|feature)$ ]] ||
     { do_log "FATAL SPAWN_CLASS must be ci, refactor, bug or feature (got '$class'; no default: classify the request)" >&2; return 1; }
+  declare -F spl_spawn_after_enqueue >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-after.func.sh"
+  [[ -n "$place" ]] || spl_spawn_after_enqueue "$id" "" "" || return 1
   [[ "$5" == 1 ]] && flag=urgent
   if [[ -z "$bymsg" && "$5" != 1 ]] && spl_spawn_q_review_seat_go "$place" "$SPL_SPAWN_REVIEW_SEAT_GO"; then
     bymsg="$SPL_SPAWN_REVIEW_SEAT_GO"  # SPL-3762: the standing GO, as SPAWN_BYPASS=<GO> would record it
@@ -130,6 +141,7 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
     [[ "$closed" != *$'\t'auto-closed ]] || { spl_spawn_q_enqueue_reopen "$brief" "${place#*:}" "${closed%$'\t'auto-closed}"; closed=""; }
     [[ -z "$closed" ]] || { do_log "FATAL ask not queued: $closed" >&2; return 1; }
     [[ -z "$brief" ]] || spl_spawn_q_enqueue_links "$id" "$brief" || return 1
+    spl_spawn_after_enqueue "$id" "$place" "$brief" || return 1  # spec 157 4.2: the dependent row
   fi
   row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$bymsg")" || rc=$?
   (( rc == 0 )) || return "$rc"

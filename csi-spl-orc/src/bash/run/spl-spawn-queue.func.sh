@@ -26,6 +26,8 @@
 # @description spl_spawn_topic_archived): the placer would decline it at the
 # @description head, so re-raise it on a live task now; reads that fail mark
 # @description nothing and say so in one WARN line.
+# @description A queued row whose brief waits on a prerequisite (spec 157 4.2,
+# @description SPAWN_AFTER) gets one HELD line naming it (spl_spawn_q_afters).
 # @description The order is the hub's (priority, then class, then time in
 # @description line: spec 150 3.4, poll Q5 A); the placer
 # @description may take a lower row to keep the bands (do_spl_spawn_place).
@@ -58,6 +60,8 @@ do_spl_spawn_queue() {
              (.age_s | dur), (.wait_s | dur), (.placement // "" | if . == "" then "-" else . end),
              (.topic | cut(12)), (.summary | cut(70)) ] | @tsv)' <<<"$rows" | column -t -s $'\t' -c 1000
   spl_spawn_q_waits "$rows"
+  declare -F spl_spawn_q_afters >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-after.func.sh"
+  spl_spawn_q_afters "$rows"
   [[ "${SPAWN_QUEUE_ARCHIVED:-1}" == 0 ]] || spl_spawn_q_archived "$rows"
   do_log "INFO $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued, $(jq '[.[] | select(.state == "acked")] | length' <<<"$rows") placing (fleet $LANE_FLEET)"
   if [[ "${SPAWN_QUEUE_SHARE:-1}" != 0 ]]; then

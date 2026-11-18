@@ -24,6 +24,9 @@
 #    10. bad args are refused; a codex (o-) reviewer is not (SPL-5576)
 #    11. the placer's hook: a -reviewer seat tells its authors, a coding lane
 #        sends nothing; the hook line sits in spl_spawn_place_launch
+#    12. RED CONTROL (SPL-5914) an earlier `review/old` named above
+#        "Branch `review/new`, head ..." -> the note names review/new; a
+#        "`review/new`, head" line wins over an earlier mention too
 #   REVIEW_NOTIFY_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -193,6 +196,23 @@ run RUN_SNIPPET="spl_review_notify_placed c-001@boxa g-500@boxa c002-none-review
 hook="$(awk '/^spl_spawn_place_launch\(\)/,/^}/' "$PROJ_ROOT/src/bash/run/spl-spawn-place.func.sh" | grep -A2 'spl_spawn_placed_close "\$id" "\$holder" "\$agent"')"
 grep -q 'spl_review_notify_placed "\$holder" "\$agent" "\$4" "\$5"' <<<"$hook" && pass "11. spl_spawn_place_launch runs the hook after a placed seat" ||
   fail "11. no hook after spl_spawn_placed_close in spl_spawn_place_launch"
+
+# 12. RED CONTROL: the review target, not the first review/ ref (SPL-5914)
+reset; b="$(brief c002-tgt-reviewer "Author: c-168
+Earlier review: FAIL on \`review/old\` (msg 1).
+
+Branch \`review/new\`, head \`0123456789abcdef0123456789abcdef01234567\`.")"
+run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=g-500; rc=$?
+(( rc == 0 )) && grep -qF 'started on `review/new`' "$T/s/sends.log" &&
+  pass "12. RED CONTROL review/old above 'Branch \`review/new\`, head': the note names review/new" ||
+  fail "12. target branch rc=$rc: $(cat "$T/out" "$T/s/sends.log")"
+reset; b="$(brief c002-tgt2-reviewer "Author: c-168
+The old branch \`review/old\` is superseded.
+csi-spl \`origin/review/new\`, head \`0123456789abcdef0123456789abcdef01234567\`.")"
+run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=g-500; rc=$?
+(( rc == 0 )) && grep -qF 'started on `review/new`' "$T/s/sends.log" &&
+  pass "12. '\`origin/review/new\`, head' wins over an earlier review/old" ||
+  fail "12. head form rc=$rc: $(cat "$T/out" "$T/s/sends.log")"
 
 echo "spl-spawn-review-notify: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

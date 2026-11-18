@@ -24,7 +24,9 @@
 # @description      that box does not know: this box's registry cannot judge it.
 # @description   3. sends each author a note on the brief's first "task
 # @description      dispatch-<...>" (else review-<reviewer id>), naming the
-# @description      reviewer, the review branch and the brief.
+# @description      reviewer, the review branch and the brief. The branch is
+# @description      the one on a line starting "Branch `review/...`", else the
+# @description      first "`review/...`, head", else the first review/ ref.
 # @description A brief with no author id: a WARN line in
 # @description $SPOOL_ROOT/dispatch/queue.log, a note to the dispatcher, 0
 # @description notes to anyone else, exit 1. A failed send exits 1 too (the
@@ -61,8 +63,7 @@ do_spl_spawn_review_notify() {
     { do_log "FATAL cannot write $d/automation.log"; return 1; }
   task="$(grep -m1 -oiE 'task[[:space:]`]+dispatch-[a-z0-9][a-z0-9-]*[a-z0-9]' "$brief")" || true
   task="${task%%$'\n'*}"; task="${task##*[[:space:]\`]}"; task="${task:-review-${rev%@*}}"
-  branch="$(grep -m1 -oE '\breview/[A-Za-z0-9._/-]*[A-Za-z0-9]' "$brief")" || true
-  branch="${branch%%$'\n'*}"; branch="${branch:-(no review/ branch named)}"
+  branch="$(spl_review_notify_branch "$brief")"; branch="${branch:-(no review/ branch named)}"
   authors="$(spl_review_notify_authors "$brief" "${rev%@*}")"
   if [[ -z "$authors" ]]; then
     spl_review_notify_none "$d" "$brief" "$rev" "$from" "$task" "$dry"
@@ -87,6 +88,17 @@ spl_review_notify_placed() {  # HOLDER AGENT SLUG BRIEF
   spl_spawn_place_review_seat "$4" "$(spl_lane_mix_brief_kind "$4")" || [[ "$3" == *-review ]] || return 0
   ( DRY_RUN=0 REVIEW_NOTIFY_BRIEF="$4" REVIEW_NOTIFY_REVIEWER="$2" REVIEW_NOTIFY_FROM="${1%@*}" do_spl_spawn_review_notify ) ||
     do_log "WARN review seat $2: its authors were not all told (brief $(basename "$4"))"
+  return 0
+}
+
+# The review target of BRIEF: the ref on a line starting "Branch `review/...`",
+# else the first "`review/...`, head", else the first review/ ref anywhere
+# (SPL-5914: an earlier verdict's branch named above the target was sent).
+spl_review_notify_branch() {  # BRIEF
+  local r='review/[A-Za-z0-9._/-]*[A-Za-z0-9]' hit
+  hit="$({ grep -m1 -oE '^[[:space:]>*-]*Branch:?[[:space:]]+`?(origin/)?'"$r" "$1" ||
+    grep -m1 -oE '`(origin/)?'"$r"'`,?[[:space:]]+head' "$1" || grep -m1 -oE '\b'"$r" "$1"; } 2>/dev/null)" || true
+  [[ "${hit%%$'\n'*}" =~ ($r) ]] && echo "${BASH_REMATCH[1]}"
   return 0
 }
 

@@ -269,6 +269,11 @@ jobs:
     # suites before it, so a hung Postgres test fails with its dump, not a kill
     # (runs 37623893526, 37635707328: 19 min with go's default 10m).
     timeout-minutes: 35
+    # The Go build cache save cap of this job only (ci-cache-save-cap.sh):
+    # its 4 cross targets, go vet and -race -coverprofile builds were 6.4 G
+    # unpacked (wf10 run 44348184288), over the 4000 MB of hub-pg's cap.
+    env:
+      CI_GO_HUB_SUITE_CACHE_SAVE_MAX_MB: "7000"
     # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
     # in the run ends this one, so a red gate frees its slot.
     permissions:
@@ -380,11 +385,11 @@ jobs:
           du -sh "$GOCACHE_DIR"
           df -h / "$RUNNER_TEMP"
 
-      - name: Cap the Go build cache save (CI_GO_CACHE_SAVE_MAX_MB)
+      - name: Cap the Go build cache save (CI_GO_HUB_SUITE_CACHE_SAVE_MAX_MB)
         id: gocache-cap
         if: ${{ !cancelled() && steps.gocache.outputs.dir != '' && steps.gocache-restore.outputs.cache-hit != 'true' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' }}
         env:
-          CI_CACHE_SAVE_MAX_MB: ${{ env.CI_GO_CACHE_SAVE_MAX_MB }}
+          CI_CACHE_SAVE_MAX_MB: ${{ env.CI_GO_HUB_SUITE_CACHE_SAVE_MAX_MB }}
           GOCACHE_DIR: ${{ steps.gocache.outputs.dir }}
         run: bash csi-spl-orc/src/bash/scripts/ci-cache-save-cap.sh "$GOCACHE_DIR"
 

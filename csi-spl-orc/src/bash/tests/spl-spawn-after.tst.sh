@@ -24,6 +24,16 @@
 #   7. refused at enqueue (FATAL, nothing queued): an unknown key, a diss
 #      key, an unknown slug, the row's own slug, a bad delay, SPAWN_AFTER
 #      with no SPAWN_PLACE, SPAWN_AFTER_DELAY alone
+#   8. N1 (SPL-5897): a logged review seat its After: line holds, 40 min in
+#      line, two ticks: no review-seat alarm (an intended hold)
+#   9. N2: the only queued bug row is held by After:, bug under its floor:
+#      the supply blocker fires (a held row is no supply)
+#  10. W1: a prerequisite that ends diss after the enqueue, and an After:
+#      line with an unknown key hand-copied into a queued brief: ONE
+#      blocker each to the dispatch holder with the close command, not
+#      repeated; CONTROL while it is wip: none
+#  11. W1: a row held past SPAWN_AFTER_ALARM_MIN: ONE held-age blocker;
+#      CONTROL under the limit and with SPAWN_AFTER_ALARM_MIN=0: none
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -307,6 +317,68 @@ put "$B"99 row-h; printf 'After: SPL-4243\n' >>"$T/briefs/row-h.md"
 out="$(on do_spl_spawn_enqueue ASK_ID="$B"99 SPAWN_CLASS=feature SPAWN_PLACE=claude:row-h 2>&1)"; rc=$?
 (( rc != 0 )) && [[ "$(state "$B"99)" == open ]] && grep -q 'SPL-4243 is no live issue on the hub' <<<"$out" &&
   pass "7. a hand-written After: line with an unknown key is refused the same way" || fail "7. hand line: rc $rc | $out"
+
+# 8..11. SPL-5897: a held row ends or alarms; an intended hold does not ------------
+back() {  # ASK MINUTES: the row was queued MINUTES ago
+  jq --arg i "$1" --argjson t "$(( $(date +%s) - $2 * 60 ))" 'map(if .ask_id == $i then .q = $t else . end)' "$T/hub/main.json" >"$T/h.json" &&
+    mv "$T/h.json" "$T/hub/main.json"
+}
+sent() { grep -c "$1" "$T/send.log" 2>/dev/null; }
+A8=a8a8a8a8-0000-4000-8000-000000009008; A9=a9a9a9a9-0000-4000-8000-000000009009
+A10=aaaaaaaa-0000-4000-8000-000000009010; A11=abababab-0000-4000-8000-000000009011
+A12=acacacac-0000-4000-8000-000000009012
+export HUB_ISSUES="$HUB_ISSUES SPL-9008=wip SPL-9009=wip SPL-9011=wip SPL-9012=wip"
+SEAT_GO="$(sed -n 's/^SPL_SPAWN_REVIEW_SEAT_GO=//p' "$PROJ_ROOT/src/bash/run/spl-spawn-enqueue.func.sh")"
+put "$A8" r8-reviewer
+on do_spl_spawn_enqueue ASK_ID="$A8" SPAWN_CLASS=bug SPAWN_PLACE=claude:r8-reviewer SPAWN_AFTER=SPL-9008 >/dev/null 2>&1
+printf '2026-01-15T12:00Z\t%s\t%s\tc-001@box-desk\n' "$A8" "$SEAT_GO" >>"$T/spool/asks/bypass.tsv"
+back "$A8" 40
+out="$(tick)"; out2="$(tick)"
+if [[ "$(state "$A8")" == queued && "$(sent 'review seat(s) held')" == 0 ]] && grep -q 'ask a8a8a8a8 (r8-reviewer) is waiting on SPL-9008' <<<"$out2"; then
+  pass "8. N1: a logged review seat held by its After: line, 40 min in line, two ticks: no review-seat alarm"
+else fail "8. N1: $(state "$A8") | $(cat "$T/send.log") | $out2"; fi
+
+SHARE='{"known": 10, "unknown": 0, "lanes": [], "bypasses": [], "h24": {"by": {"refactor": {"lo": 20, "hi": 30}, "bug": {"lo": 20, "hi": 30}}},
+  "by": {"refactor": {"n": 5, "pct": 50, "lo": 10, "hi": 60}, "bug": {"n": 0, "pct": 0, "lo": 15, "hi": 20}, "feature": {"n": 5, "pct": 50, "lo": 0, "hi": 100}}}'
+put "$A12" row-bug
+on do_spl_spawn_enqueue ASK_ID="$A12" SPAWN_CLASS=bug SPAWN_PLACE=claude:row-bug SPAWN_AFTER=SPL-9012 >/dev/null 2>&1
+[[ "$(jq -r '"\(.state) \(.class)"' <<<"$(hubrow "$A12")")" == "queued bug" ]] || fail "9. row-bug not queued as bug: $(hubrow "$A12")"
+rm -f "$T/spool/asks"/.share.*.last
+# shellcheck disable=SC2016 # runs in the child shell
+out="$(on 'spl_asks_init; spl_spawn_share() { printf "%s" "$SHARE"; }; spl_spawn_place_supply c-001@box-desk "$(spl_spawn_q_rows)"' SHARE="$SHARE" 2>&1)"
+grep -q 'spawn-share \*\*SPAWN SHARE: bug share 0% < 20% (0 of 10 live lanes with a class) and no bug row is queued' "$T/send.log" &&
+  pass "9. N2: the only queued bug row is held by After:, bug 0% under its 20% floor: the supply blocker fires" ||
+  fail "9. N2: $out | $(cat "$T/send.log")"
+
+put "$A9" row-dies
+on do_spl_spawn_enqueue ASK_ID="$A9" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-dies SPAWN_AFTER=SPL-9009 >/dev/null 2>&1
+tick SPAWN_AFTER_CHECK_MIN=0 >/dev/null
+[[ "$(sent 'dependent row(s) held')" == 0 ]] && pass "10. CONTROL SPL-9009 wip: no dependent-row alarm" || fail "10. control: $(cat "$T/send.log")"
+put "$A10" row-hand
+on do_spl_spawn_enqueue ASK_ID="$A10" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-hand >/dev/null 2>&1
+printf 'After: SPL-4244\n' >>"$T/briefs/row-hand.md"
+out="$(tick SPAWN_AFTER_CHECK_MIN=0 HUB_ISSUES="${HUB_ISSUES/SPL-9009=wip/SPL-9009=diss}")"
+if [[ "$(sent 'dependent row(s) held')" == 1 && "$(launched row-hand)" == 0 && "$(state "$A9")" == queued ]] &&
+   grep -q "c-001 c-002[@a-z-]* blocker spawn-queue \*\*SPAWN QUEUE: 2 dependent row(s) held on their After: line need you\*\*.*ask a9a9a9a9 (row-dies), [0-9]* min in line: SPL-9009 is diss on the hub: it will never land. End it: \`ASK_ID=a9a9a9a9 ASK_STATE=declined" "$T/send.log" &&
+   grep -q "ask aaaaaaaa (row-hand), [0-9]* min in line: SPL-4244 is no live issue on the hub (unknown key)" "$T/send.log"; then
+  pass "10. W1: SPL-9009 diss after the enqueue, a hand-copied After: SPL-4244: ONE blocker to the dispatch holder naming both, with the close command"
+else fail "10. W1: $out | $(cat "$T/send.log")"; fi
+tick SPAWN_AFTER_CHECK_MIN=0 HUB_ISSUES="${HUB_ISSUES/SPL-9009=wip/SPL-9009=diss}" >/dev/null
+[[ "$(sent 'dependent row(s) held')" == 1 ]] && pass "10. W1: the next tick, still diss: not repeated" || fail "10. repeat: $(cat "$T/send.log")"
+done_ask "$A9"; done_ask "$A10"; done_ask "$A12"
+
+put "$A11" row-long
+on do_spl_spawn_enqueue ASK_ID="$A11" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-long SPAWN_AFTER=SPL-9011 >/dev/null 2>&1
+back "$A11" 1000
+tick >/dev/null
+[[ "$(sent 'ask abababab (row-long)')" == 0 ]] && pass "11. CONTROL held 1000 min, under the 1440 min default: no held-age alarm" || fail "11. control: $(cat "$T/send.log")"
+back "$A11" 1500
+tick SPAWN_AFTER_ALARM_MIN=0 >/dev/null
+[[ "$(sent 'ask abababab (row-long)')" == 0 ]] && pass "11. CONTROL SPAWN_AFTER_ALARM_MIN=0: no held-age alarm" || fail "11. off: $(cat "$T/send.log")"
+tick >/dev/null; tick >/dev/null
+[[ "$(sent 'ask abababab (row-long)')" == 1 ]] && grep -q "ask abababab (row-long), 1500 min in line, waiting on SPL-9011: not landed on origin/master" "$T/send.log" &&
+  grep -q 'The held-age limit is 1440 min' "$T/send.log" &&
+  pass "11. W1: held 1500 min past the 1440 min limit: ONE held-age blocker, not repeated" || fail "11. age: $(cat "$T/send.log")"
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

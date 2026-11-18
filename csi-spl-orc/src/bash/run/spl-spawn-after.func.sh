@@ -22,8 +22,10 @@
 # delay counts from it.
 #
 # Callers: do_spl_spawn_enqueue (spl_spawn_after_enqueue: checks and writes
-# the lines), do_spl_spawn_place (spl_spawn_place_after_hold) and
-# do_spl_spawn_queue (spl_spawn_q_afters).
+# the lines), do_spl_spawn_place (spl_spawn_place_after_hold, the alarm
+# spl_spawn_after_alarm, spl_spawn_after_held for the review-seat alarm and
+# spl_spawn_after_unheld for the supply check) and do_spl_spawn_queue
+# (spl_spawn_q_afters).
 #------------------------------------------------------------------------------
 
 # 0 = ARG is an issue key (SPL-123), resp. a row slug (the SPAWN_PLACE slug form).
@@ -133,6 +135,91 @@ spl_spawn_place_after_hold() {  # MARKED ROWS
   done < <(jq -r '.[] | select(.state == "queued" and ._l) | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
   spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "^held: waiting on "
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
+}
+
+# 0 = the row PLACEMENT (<vendor>:<slug>) is held by its brief's After: line
+# right now: an intended hold, judged on the last fetched trunk.
+spl_spawn_after_held() {  # PLACEMENT
+  local brief
+  brief="$(spl_spawn_place_brief "${1#*:}")"
+  [[ -n "$(spl_spawn_after_of "$brief")" ]] || return 1
+  [[ "$(spl_spawn_after_state "$brief")" == held$'\t'* ]]
+}
+
+# ROWS without the queued rows their After: line holds: a held row is no
+# supply of its class (R7 c-434 N2 of SPL-5874), so the supply blocker still
+# fires while the only row of a class waits on a prerequisite.
+spl_spawn_after_unheld() {  # ROWS
+  local id place held=()
+  while IFS=$'\t' read -r id place; do
+    spl_spawn_after_held "$place" && held+=("$id")
+  done < <(jq -r '.[] | select(.state == "queued" and (.placement // "") != "") | "\(.ask_id)\t\(.placement)"' <<<"$1")
+  jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
+}
+
+# The held-age limit in minutes: SPAWN_AFTER_ALARM_MIN, else cnf
+# env.box.spawn_after.alarm_min, else 1440; 0 = no held-age alarm.
+spl_spawn_after_alarm_min() {
+  local v="${SPAWN_AFTER_ALARM_MIN-}" cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
+  [[ -n "$v" || ! -r "$cnf" ]] || v="$(yq -r '.env.box.spawn_after.alarm_min // ""' "$cnf" 2>/dev/null)"
+  [[ "$v" =~ ^[0-9]+$ ]] || v=1440
+  printf '%s' "$v"
+}
+
+# Why the prerequisite AFTER will never land, or nothing: a key that is diss
+# or unknown on the hub, a slug (or its lane's key) known nowhere, a value
+# that is neither (a hand-copied After: line skips the enqueue check). A hub
+# that did not answer is no verdict: nothing.
+spl_spawn_after_dead() {  # AFTER
+  local key why
+  key="$(spl_spawn_after_key "$1")"
+  why="$(spl_spawn_after_check "${key:-$1}" 0 "")"
+  [[ "$why" == *"could not be checked"* ]] || printf '%s' "${why#SPAWN_AFTER }"
+}
+
+# W1 (R7 c-434 of SPL-5874): a held row ends or alarms, never waits forever
+# unseen. Each tick, for every queued row the placer can launch whose brief
+# carries After: (MARKED_ROWS, after spl_spawn_place_mark):
+#   dead - its prerequisite will never land (spl_spawn_after_dead; the hub is
+#          read at most once per SPAWN_AFTER_CHECK_MIN, default 15)
+#   age  - still held SPAWN_AFTER_ALARM_MIN or more in line (wait_s: since
+#          enqueued_at)
+# ONE blocker per ask and kind to the dispatch lease holder (none: HOLDER)
+# with the close command; <asks dir>/.place.after-alarm keeps "<ask>\t<kind>",
+# pruned to the rows in the queue. Not delivered: retried next tick.
+spl_spawn_after_alarm() {  # HOLDER MARKED_ROWS
+  local d f now check=0 lim id slug wait brief after why lines="" fired=() to
+  d="$(spool_asks_dir)"; f="$d/.place.after-alarm"; now="$(date +%s)"
+  [[ -e "$f" ]] || : >"$f"
+  awk -F'\t' 'NR == FNR { k[$1]; next } $1 in k' <(jq -r '.[].ask_id' <<<"$2") "$f" >"$f.$$" && mv -f "$f.$$" "$f"
+  (( now - $(stat -c %Y "$f.check" 2>/dev/null || echo 0) >= ${SPAWN_AFTER_CHECK_MIN:-15} * 60 )) && check=1
+  lim=$(( $(spl_spawn_after_alarm_min) * 60 ))
+  while IFS=$'\t' read -r id slug wait; do
+    brief="$(spl_spawn_place_brief "$slug")"
+    after="$(spl_spawn_after_of "$brief")"; after="${after%%$'\t'*}"
+    [[ -n "$after" ]] || continue
+    if (( check )) && ! grep -qx "$id"$'\t'dead "$f"; then
+      why="$(spl_spawn_after_dead "$after")"
+      if [[ -n "$why" ]]; then
+        lines+=$'\n'"- ask ${id:0:8} ($slug), $(( wait / 60 )) min in line: $why. End it: \`ASK_ID=${id:0:8} ASK_STATE=declined ASK_REASON='After: $after will never land' ./run -a do_spl_ask_close\`, or fix its After: line"
+        fired+=("$id"$'\t'dead); continue
+      fi
+    fi
+    (( lim > 0 && wait >= lim )) && ! grep -qx "$id"$'\t'age "$f" || continue
+    why="$(spl_spawn_after_state "$brief")"
+    [[ "$why" == held$'\t'* ]] || continue
+    lines+=$'\n'"- ask ${id:0:8} ($slug), $(( wait / 60 )) min in line, ${why#held$'\t'}"
+    fired+=("$id"$'\t'age)
+  done < <(jq -r '.[] | select(.state == "queued" and ._l) | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))\t\(.wait_s // 0 | floor)"' <<<"$2")
+  if (( ${#fired[@]} > 0 )); then
+    to="$(spl_spawn_place_dispatch)"
+    spl_spawn_q_send "$1" "${to:-$1}" blocker spawn-queue "**SPAWN QUEUE: ${#fired[@]} dependent row(s) held on their After: line need you** (spec 157 4.2).$lines"$'\n\n'"The held-age limit is $(( lim / 60 )) min (SPAWN_AFTER_ALARM_MIN, cnf env.box.spawn_after.alarm_min). The queue: \`./run -a do_spl_spawn_queue\`." ||
+      { do_log "WARN the dependent-row alarm was not delivered: retried next tick"; return 0; }
+    printf '%s\n' "${fired[@]}" >>"$f"
+    do_log "ALERT dependent row(s) held:$(tr '\n' ' ' <<<"$lines")"
+  fi
+  (( check )) && touch "$f.check"
+  return 0
 }
 
 # The placer launched SLUG as AGENT: one line in <asks dir>/.place.slugs,

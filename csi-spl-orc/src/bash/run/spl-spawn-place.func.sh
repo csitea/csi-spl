@@ -199,7 +199,12 @@
 # @description      origin/master (fetched once a tick while such a row waits),
 # @description      then its `After-Delay:` minutes: queued, out of the line,
 # @description      never acked or closed, the reason in .place.wait. Then it is
-# @description      placed like any row, once (spl-spawn-after.func.sh)
+# @description      placed like any row, once (spl-spawn-after.func.sh).
+# @description      A held row never waits unseen (SPL-5897): a prerequisite
+# @description      that will never land (diss, unknown, a bad hand-copied
+# @description      After: line) or a hold SPAWN_AFTER_ALARM_MIN old gives the
+# @description      dispatch lease holder ONE blocker per ask (spl_spawn_after_alarm);
+# @description      such a row is no review-seat alarm and no supply of its class
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
 # @param SPAWN_PLACE_SEAT_ALARM_MIN (optional) - minutes in line after which a held logged review seat alarms, default 30
 # @param SPAWN_PLACE_SEAT_OVERFLOW (optional) - the review seats' overflow mark, % of a box's high, overrides cnf env.box.fleet_load.review_seat_overflow_pct; must be above BOX_PICK_OVERFLOW (200)
@@ -228,6 +233,8 @@
 # @param SPAWN_GROUP_DIR SPAWN_GROUP_POLL_MIN SPAWN_GROUP_GRACE_MIN (optional) - as do_spl_spawn_group_put
 # @param SPAWN_AFTER_GIT_DIR (optional) - the clone whose origin/master a dependent row's prerequisite is read on (spec 157 4.2), default the checkout this action runs from
 # @param SPAWN_AFTER_FETCH (optional) - 0: no git fetch before the dependent rows are judged (the last fetched trunk counts), default 1
+# @param SPAWN_AFTER_ALARM_MIN (optional) - minutes in line after which a row still held by its After: line alarms once, overrides cnf env.box.spawn_after.alarm_min, default 1440; 0 = never
+# @param SPAWN_AFTER_CHECK_MIN (optional) - minutes between two hub reads of the held rows' prerequisites (diss or unknown -> one alarm), default 15
 # @example ./run -a do_spl_spawn_place
 # @example SPAWN_PLACE_GAP_MIN=0 ./run -a do_spl_spawn_place
 #------------------------------------------------------------------------------
@@ -255,6 +262,7 @@ do_spl_spawn_place() {
   spl_spawn_place_supply "$holder" "$rows"
   rows="$(spl_spawn_place_mark "$rows")"
   spl_spawn_place_seat_alarm "$holder" "$rows"
+  spl_spawn_after_alarm "$holder" "$rows"
   spl_spawn_place_dark_alarm "$holder" "$rows"
   if jq -e 'any(.[]; .state == "acked" and ._l and (._h | not))' >/dev/null <<<"$rows"; then
     do_log "INFO placing $(jq -r '[.[] | select(.state == "acked") | .ask_id[0:8]] | join(" ")' <<<"$rows"): one at a time, $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued"
@@ -338,11 +346,12 @@ spl_spawn_place_line() {  # MARKED ROWS
 # 0. The supply blocker: refactor or bug under the owner's 24 h band floor
 # (SPL_SPAWN_BANDS, the share's .h24; not the phase band), nothing of it
 # queued -> ONE blocker to the dispatch lease holder per class per
-# SPAWN_SHARE_SUPPLY_MIN. In the supply lead the refactor blocker is the
+# SPAWN_SHARE_SUPPLY_MIN. A row its After: line holds is not queued supply
+# (spl_spawn_after_unheld, R7 c-434 N2 of SPL-5874). In the supply lead the refactor blocker is the
 # lead's (spl_spawn_place_supply_lead). Leaves the share it read in
 # SPAWN_PLACE_SHARE.
 spl_spawn_place_supply() {  # HOLDER ROWS
-  local d c due=() gap=$(( ${SPAWN_SHARE_SUPPLY_MIN:-60} * 60 )) now share to line night
+  local d c due=() gap=$(( ${SPAWN_SHARE_SUPPLY_MIN:-60} * 60 )) now share to line night rows
   d="$(spool_asks_dir)"; now="$(date +%s)"
   for c in refactor bug; do
     (( now - $(stat -c %Y "$d/.share.$c.last" 2>/dev/null || echo 0) >= gap )) && due+=("$c")
@@ -351,11 +360,12 @@ spl_spawn_place_supply() {  # HOLDER ROWS
   share="$(spl_spawn_share)" || { do_log "WARN the live share could not be read: no supply check this tick"; return 0; }
   SPAWN_PLACE_SHARE="$share"
   (( $(jq '.known' <<<"$share") > 0 )) || return 0
+  rows="$(spl_spawn_after_unheld "$2")"
   for c in "${due[@]}"; do
     if [[ "$c" == refactor ]] && night="$(spl_spawn_place_supply_lead "$d")"; then
       spl_spawn_place_supply_lead_send "$1" "$2" "$share" "$night" && continue
     fi
-    line="$(jq -r --arg c "$c" --slurpfile rows <(printf '%s' "$2") '
+    line="$(jq -r --arg c "$c" --slurpfile rows <(printf '%s' "$rows") '
       def cls: (.class // "") | if . == "" or . == "ci" then "bug" else . end;
       .by[$c] as $b | (.h24.by[$c].lo // $b.lo) as $lo
       | select($b.pct < $lo and ([$rows[0][] | select(.state == "queued" and cls == $c)] | length) == 0)
@@ -557,7 +567,9 @@ spl_spawn_place_hold_class() {  # WHY
 # The hold is its .place.wait line (a launcher HOLD, a pin, agy out, a brief on
 # another box), else the room check without its gap: the gap is a pace, no hold.
 # Time in line alone is no alarm: 209 of 412 logged seats since 10-31 took 30 min
-# or more from log to close (journal updated_at, an upper bound). At most one
+# or more from log to close (journal updated_at, an upper bound). Nor is a seat
+# its After: line holds (spl_spawn_after_held): that hold is intended, e.g. a
+# review row waiting on its GO (R7 c-434 N1 of SPL-5874). At most one
 # alarm per SPAWN_PLACE_SEAT_ALARM_GAP_MIN; a seat due meanwhile goes in the next.
 # Neither channel took it: retried next tick. Never stops the tick.
 spl_spawn_place_seat_alarm() {  # HOLDER MARKED_ROWS
@@ -567,6 +579,7 @@ spl_spawn_place_seat_alarm() {  # HOLDER MARKED_ROWS
   [[ -e "$f" ]] || : >"$f"
   grep -xF -f <(jq -r '.[].ask_id' <<<"$2") "$f" 2>/dev/null | sort -u >"$f.$$"; mv -f "$f.$$" "$f"
   while IFS=$'	' read -r id place min; do
+    spl_spawn_after_held "$place" && continue
     why="$(awk -F'	' -v i="$id" '$1 == i { print $3; exit }' "$d/.place.wait" 2>/dev/null)"
     if [[ -z "$why" ]]; then
       [[ -n "$room" ]] || room="$(SPAWN_PLACE_GAP_MIN=0 spl_spawn_place_no_room)" || room="-"

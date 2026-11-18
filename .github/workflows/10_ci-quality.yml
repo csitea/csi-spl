@@ -291,10 +291,41 @@ jobs:
         run: bash csi-spl-orc/src/bash/scripts/ci-disk-guard.sh
 
       - name: Set up Go (version from go.mod)
+        id: setup-go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
           cache: false
+
+      # Perf round 18 row 01: this job built cold, ~49..76 s per cross target
+      # of the spool binary plus a cold go vet and -race -coverprofile test
+      # build. hub-pg's pattern (restore, mark, trim, cap, save), with its own
+      # key prefix: this job builds 4 cross targets, go vet and a -race
+      # -coverprofile test, not hub-pg's set, so a shared entry would trim
+      # each other's builds.
+      - name: Go build cache path
+        id: gocache
+        run: echo "dir=$(go env GOCACHE)" >>"$GITHUB_OUTPUT"
+
+      - name: Restore the Go build cache (cross, vet and race + cover builds of the hub)
+        id: gocache-restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ steps.gocache.outputs.dir }}
+          key: go-hub-suite-v1-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('csi-spl-api/src/go/spool-hub-api/go.sum') }}-${{ hashFiles('csi-spl-api/src/go/**/*.go') }}
+          restore-keys: |
+            go-hub-suite-v1-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('csi-spl-api/src/go/spool-hub-api/go.sum') }}-
+            go-hub-suite-v1-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-
+
+      # 61 min before the restore: see hub-pg's mark step.
+      - name: Mark the restore time (for the cache trim)
+        env:
+          GOCACHE_DIR: ${{ steps.gocache.outputs.dir }}
+        run: |
+          set -euo pipefail
+          touch -d '61 minutes ago' "$RUNNER_TEMP/gocache.mark"
+          du -sh "$GOCACHE_DIR" 2>/dev/null || true
+          df -h / "$RUNNER_TEMP"
 
       # run-all-tests.sh and build.sh are offline by design (GOPROXY=off), so
       # the module cache has to be filled before they run.
@@ -332,6 +363,37 @@ jobs:
           set -euo pipefail
           bash csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
             bash csi-spl-api/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/hub-suite.log"
+
+      # The trim, the cap and the save as in hub-pg (SPL-4777, SPL-4790): the
+      # entry holds this run's builds only, is not saved over
+      # CI_GO_CACHE_SAVE_MAX_MB, and is written only on an exact miss, never
+      # from a pull request. Trim hosted only: a self-hosted GOCACHE is shared.
+      - name: Trim the Go build cache to the entries this run used
+        if: ${{ !cancelled() && runner.environment == 'github-hosted' && steps.gocache-restore.outputs.cache-hit != 'true' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' }}
+        env:
+          GOCACHE_DIR: ${{ steps.gocache.outputs.dir }}
+        run: |
+          set -euo pipefail
+          [ -f "$RUNNER_TEMP/gocache.mark" ] || { echo "no restore mark: nothing trimmed"; exit 0; }
+          du -sh "$GOCACHE_DIR"
+          find "$GOCACHE_DIR" -mindepth 2 -type f ! -newer "$RUNNER_TEMP/gocache.mark" -delete
+          du -sh "$GOCACHE_DIR"
+          df -h / "$RUNNER_TEMP"
+
+      - name: Cap the Go build cache save (CI_GO_CACHE_SAVE_MAX_MB)
+        id: gocache-cap
+        if: ${{ !cancelled() && steps.gocache.outputs.dir != '' && steps.gocache-restore.outputs.cache-hit != 'true' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' }}
+        env:
+          CI_CACHE_SAVE_MAX_MB: ${{ env.CI_GO_CACHE_SAVE_MAX_MB }}
+          GOCACHE_DIR: ${{ steps.gocache.outputs.dir }}
+        run: bash csi-spl-orc/src/bash/scripts/ci-cache-save-cap.sh "$GOCACHE_DIR"
+
+      - name: Save the Go build cache (exact miss only, never from a pull request)
+        if: ${{ !cancelled() && steps.gocache-cap.outputs.save == 'true' && steps.gocache-restore.outputs.cache-hit != 'true' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ steps.gocache.outputs.dir }}
+          key: ${{ steps.gocache-restore.outputs.cache-primary-key }}
 
       - name: The Postgres and GCS gates really ran (a skip is a failure in CI)
         run: |

@@ -65,6 +65,13 @@
 # @description refused (FATAL, nothing sent) without a `checked:` line saying
 # @description how it was checked; a blocker and a question are exempt
 # @description (_spl_desk_reply_checked_how; how-to-post.md rule 22, SPL-5518).
+# @description A body with a commit sha on the same line as "on master" or
+# @description "landed" is refused (FATAL, nothing sent) unless, after a fetch,
+# @description that sha is an ancestor of origin/master of DESK_SHA_REPO; an
+# @description unknown sha and a failed fetch refuse too, "not on master" and
+# @description "not landed" are no claim, and a **Live** post is left to rule
+# @description 16's proof (_spl_desk_reply_sha_on_master; how-to-post.md rule
+# @description 22, SPL-5994).
 # @description A body that says released / deployed with a commit sha but no
 # @description /releases/ link for it gets a WARN per sha (spec 065 7.3, L9):
 # @description ask the lane to add the line do_release_note_link prints. A
@@ -150,6 +157,9 @@
 # @param   (each sent with `send --put-file`, so it keeps its own name and
 # @param   extension, e.g. shot.png; SPL-1776). A path with no known
 # @param   extension is refused (how-to-post.md rule 13)
+# @param DESK_SHA_REPO (optional) - the git checkout whose origin/master a sha
+# @param   claimed "on master" / "landed" is checked against, default the
+# @param   checkout of this ./run (a post about another repo names that repo's)
 # @param DESK_ACK (optional) - 1 = archive the answered message, default 0
 # @param DESK_HUMAN_TO_HUMAN_OK (optional) - the msg id (or its first 8
 # @param   characters) of a post one human addressed to another, to answer it
@@ -185,6 +195,7 @@ do_spl_desk_reply() {
   spl_desk_planned_ask "$body" || return 1
   spl_desk_running_ask "$body" || return 1
   _spl_desk_reply_checked_how "$body" "$kind" || return 1
+  _spl_desk_reply_sha_on_master "$body" || return 1
 
   local hub d
   hub="$SPL_HUB_URL"
@@ -579,6 +590,48 @@ sys.exit(1)' "$words" "$body")" || rc=$?
   else
     do_log "FATAL nothing was sent: the done-claim check failed (rc $rc, SPL-5518)" >&2
   fi
+  return 1
+}
+
+# _spl_desk_reply_sha_on_master <body>: SPL-5994 (how-to-post.md rule 22;
+# t1 7e9986f3 msg 42189c54 told the owner "done, b33f2a306 on master", the
+# pre-rebase sha: the landed one was dc3f39027). A sha (7..40 lowercase hex
+# with a digit and a letter, topic UUIDs cut out first) on a line that says
+# "on master" or "landed" must be an ancestor of origin/master after a fetch;
+# else one FATAL on stderr and 1, nothing sent. An unknown sha and a failed
+# fetch refuse too. "not on master", "not landed" (also "not yet", "never")
+# are no claim, and a sha in such a clause (cut at ; . ! ? and ", ") is not
+# checked: "X is not on master, the landed one is Y" checks Y only. No claim
+# line: no fetch. A **Live** post is left to spl_desk_live_proof (rule 16),
+# which proves its shas on trunk already, a LIVE_REPO customer repo's too.
+_spl_desk_reply_sha_on_master() {
+  local body="$1" repo="${DESK_SHA_REPO:-$PROJ_PATH}" sha shas bad=()
+  spl_desk_live_opens "$body" && return 0
+  shas="$(python3 -c '
+import re, sys
+claim = re.compile(r"\b(on\s+(origin/)?master|landed)\b", re.I)
+neg = re.compile(r"\b(not|never)(\s+yet)?\s+(on\s+(origin/)?master|landed)\b", re.I)
+seen = []
+for line in sys.argv[1].splitlines():
+    line = re.sub(r"[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", "", line)
+    if not claim.search(neg.sub("", line)):
+        continue
+    for c in re.split(r"[;.!?]|,\s", line):
+        if neg.search(c):
+            continue
+        for s in re.findall(r"\b[0-9a-f]{7,40}\b", c):
+            if re.search(r"[0-9]", s) and re.search(r"[a-f]", s) and s not in seen:
+                seen.append(s)
+print(" ".join(seen))' "$body")" || { do_log "FATAL nothing was sent: the on-master sha check failed (SPL-5994)" >&2; return 1; }
+  [[ -n "$shas" ]] || return 0
+  timeout 60 git -C "$repo" fetch --quiet origin master >/dev/null 2>&1 ||
+    { do_log "FATAL nothing was sent: the post says sha $shas is on master / landed, but 'git fetch origin master' failed in $repo, so it cannot be checked (how-to-post.md rule 22, SPL-5994)" >&2; return 1; }
+  for sha in $shas; do
+    git -C "$repo" rev-parse --verify --quiet "$sha^{commit}" >/dev/null 2>&1 &&
+      git -C "$repo" merge-base --is-ancestor "$sha" origin/master 2>/dev/null || bad+=("$sha")
+  done
+  (( ${#bad[@]} == 0 )) && return 0
+  do_log "FATAL nothing was sent: the post says ${bad[*]} is on master / landed, but it is not an ancestor of origin/master in $repo (unknown, or a pre-rebase sha); name the landed sha ('git log origin/master --grep <issue key>'), say 'not on master', or set DESK_SHA_REPO to the repo it is in (how-to-post.md rule 22, SPL-5994)" >&2
   return 1
 }
 

@@ -277,6 +277,20 @@ comments and issue descriptions.
      `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh`, tested by
      `csi-spl-orc/src/bash/tests/desk-reply-checked-how.tst.sh`). A word is
      added to the list, not to the code.
+   - A sha said to be on master is on master (SPL-5994: t1 7e9986f3 msg
+     42189c54 told the owner "done, `b33f2a306` on master", the pre-rebase
+     sha; the landed one was `dc3f39027`). A commit sha (7..40 hex with a
+     digit and a letter, topic uuids aside) on the same line as `on master`
+     or `landed` must be an ancestor of `origin/master` after a fetch; name
+     the landed sha (`git log origin/master --grep <issue key>`), never the
+     sha of your branch before the rebase. `not on master` and `not landed`
+     (also `not yet`, `never`) are no claim, and a sha in that clause is not
+     checked. `do_spl_desk_reply` refuses the post otherwise (FATAL on
+     stderr, nothing sent), and also an unknown sha and a failed fetch
+     (`_spl_desk_reply_sha_on_master`, tested by
+     `csi-spl-orc/src/bash/tests/desk-reply-sha-on-master.tst.sh`). A sha of
+     another repo is checked there: `DESK_SHA_REPO=<its checkout>`. A
+     **Live** post is left to rule 16, whose proof covers its shas.
 
    ```text
    **Fixed:** the footer shows the version again (SPL-n).

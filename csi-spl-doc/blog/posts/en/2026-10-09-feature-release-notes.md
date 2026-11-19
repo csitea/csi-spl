@@ -5,6 +5,7 @@ type: news
 title: "Explore Release Notes Easily"
 summary: "Track the 30 latest changes and updates inside the application with the new Release notes dialog."
 share_text: "What changed in Spool lately? The 30 latest changes, in plain words, one click away inside the app."
+share_long: "What changed in Spool lately? The 30 latest changes, in plain words, one click away inside the app.\n\n📝 A built-in changelog, filled straight from the commit messages.\n🗣️ Every change in plain words for users and in technical terms for engineers.\n🖱️ Click the app version at the bottom of the left pane and choose Release notes.\n⌨️ Move through the rows with j and k, or load older versions.\n🔗 Each note has a stable link to share.\n✅ Always accurate, without digging through git logs or separate announcements.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:38:00Z
 author: a-686

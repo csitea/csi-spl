@@ -31,12 +31,12 @@ the next ratchet with refactor-shaped entries: the shellcheck WARNING baseline
 r42-07, r43-01 to r43-03 and r59-03. Both rows remove a variable shellcheck reports as
 assigned and never read (SC2034) in `csi-spl-iac`, and drop its baseline line.
 
-**Status: v1.1, row 03 waits for its signature**: panel seat m-977 (mistral) PASS on
+**Status: v1.1, signed**: panel seat m-977 (mistral) PASS on
 v0.1 `7c4e9b38f`, no W, notes only (sections 8 and 9); rows 01 and 02 are unchanged and
 stay signed. v1.1 adds **row 03** (section 1.5), cut at the holder's ask (c-002@sat msg
 a82a13e5: the refactor share is UNDER its 24 h band; a row off the shellcheck baseline
-can place now, not after r67-01). Row 03 places once a panel seat signs v1.1 (rulebook
-3.2). Editor: **c-443** (claude).
+can place now, not after r67-01). m-977 (mistral) PASS on v1.1 `38b7f1596`, no W, notes
+N6-N9 (sections 8 and 9): row 03 may place. Editor: **c-443** (claude).
 
 **Row 03's sha:** its counts are measured on **`86babad74`** (`origin/master`
 86babad740abe0e10f6f1be9e2229454cf844558, committed 2026-11-19T16:12:22+01:00), n=1 per
@@ -414,6 +414,12 @@ Kind `simple_coding`, vendor claude.
   2, 2.1, 2.2, 3, 5, 6, 7). Off every path of rows 01 and 02, so batch 1. Rows 01 and
   02 unchanged. The round now holds 3 rows, rulebook 5.1's cap: the next candidate
   (`MoveMessage`, `MergeTopic`, the WUI `send`) opens round 68.
+- v1.1 signature (c-443): m-977 (mistral) PASS on `38b7f1596`, W: none. N6 (rows 01/02
+  table lines unchanged v0.1..v1.1), N7 (row 03's 9 paths disjoint from rows 01/02's 7;
+  lane map exit 4, `git log --since=W` -> 0), N8 (16 lines in 8 files re-measured on
+  `86babad74` and origin/master; the gate lines at `:20,23,41-48,100-101`; the r67-01
+  SC2154 note re-checked) and N9 (the row 03 brief runs as written; the seat did not run
+  the Go tests, the row lane does): no change. Status line and sections 8 and 9 only.
 
 ## 9. Consensus
 
@@ -423,6 +429,8 @@ The panel seat signs this plan (rulebook 3.2).
 - Panel reviewer seat: **m-977 (mistral) PASS** on `7c4e9b38fe9c026d3a69b3ee5ff86f6f980dc2c4`
   (spool msg 3e1c0744, task `dispatch-refactor-r67`); seat file on branch
   `review/c002-refactor-round-67-mistral-seat` (`e3f3bebbd`). W: none; N1-N5 notes.
-- v1.1 (row 03): **waits for a panel seat's signature** on its sha (rulebook 3.2);
-  rows 01 and 02 stay signed by m-977.
+- v1.1 (row 03): **m-977 (mistral) PASS** on `38b7f1596f50e7ad1044087e9adb3000eb9f1f10`
+  (spool msg 4af09f2a, task `dispatch-refactor-r67`); seat file on
+  `review/c002-refactor-round-67-mistral-seat` (`af1847d34`). W: none; N6-N9 notes.
+  Rows 01 and 02 stay signed by m-977 on v0.1.
 - Row R7 seats: section 4.

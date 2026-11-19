@@ -927,7 +927,7 @@ row: its cases with the red control seen RED then GREEN in the commit body
 
 | row | what | area | files (only these) | after | cases |
 |---|---|---|---|---|---|
-| T1 | the pure package: redact, normalize, top frame, fingerprint, groups (no classify yet) | api | new `api/internal/evlog/evlog.go`, `evlog_test.go` | - | C28, C29 (red C29) |
+| T1 | the pure package: redact, normalize, top frame, fingerprint, groups (no classify yet) | api | new `api/internal/evlog/evlog.go`, `evlog_test.go` | - | C28, C29 (red C29); landed `864cfdd5b`, `1a50c3c2a`, `05a9f6024` (SPL-5936) |
 | T2 | the migration, the upsert, the cursor CAS, the link | rdb, api | new `rdb/<next>_system_events_error_groups.sql`; `store/log_events.go` (the new methods, the error kinds of 10.3), `log_events_memory.go`, `log_events_postgres.go`, `log_events_test.go` | T1 | C34, C35 store half (red C35); `PRE_PUSH_TIER=full` |
 | T3 | source (a): the sightings, the person, the Mine copy, the hook, the flush loop, the unwritten line, the trace field | api | `hub/server.go` (`middleware`, `logServerError` only); `hub/supervise.go`; new `hub/evlog.go` + `evlog_test.go`; `auth/handler.go` (`HumanFromCookie` only) + `handler_test.go`; `cmd/spool/hub.go` (the hook and the `evlog-flush` loop); cnf `hub.evlog.flush_s` + the tpl-gen render | T2 on master | C30-C33, C43, C44 (red C31, red C43) |
 | T4 | the routes: group fields on `GET /v1/operator/events`, `?kind=` prefix filter, `POST /v1/operator/events/link` | api | `hub/log_events.go`, `log_events_test.go`; `hub/openapi.json` | T2 on master | C41 hub half |

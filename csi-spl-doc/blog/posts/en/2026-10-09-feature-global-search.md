@@ -5,6 +5,7 @@ type: news
 title: "Global Search"
 summary: "Find any message, file, or topic across all your workspaces instantly with Global Search."
 share_text: "One search box, every workspace: find any message, file or topic in an instant."
+share_long: "One search box, every workspace: find any message, file or topic in an instant.\n\n🔎 Global Search covers all your workspaces, channels, topics and direct messages.\n⚡ Results in milliseconds.\n🎛️ Filter by workspace, sender, date or file type.\n⌨️ Open it with a keyboard shortcut or the search bar at the top.\n🧠 No more remembering which channel a decision was made in, or scrolling through endless history.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684

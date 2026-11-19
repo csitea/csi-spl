@@ -146,11 +146,11 @@ _gcp_backup_sql() {
   local re='^postgres(ql)?://([^@/]+)@/([^?]+)[?]host=/cloudsql/(.+)$'
   [[ "$dsn" =~ $re ]] || { do_log "ERROR the DSN secret is not postgres://<user>:<pw>@/<db>?host=/cloudsql/<conn>"; return 1; }
   local login="${BASH_REMATCH[2]}" db="${BASH_REMATCH[3]}" conn="${BASH_REMATCH[4]}"
-  local port="${SPL_PROXY_PORT:-55497}" con="$ORG-$APP-$ENV-bk-proxy-$$" i
+  local port="${SPL_PROXY_PORT:-55497}" con="$ORG-$APP-$ENV-bk-proxy-$$"
   CSQL_PROXY_TOKEN="$(gcloud auth print-access-token --account="$sa" 2>/dev/null)" \
     docker run -d --rm --name "$con" --network host -e CSQL_PROXY_TOKEN "$proxy_image" \
     --address 127.0.0.1 --port "$port" "$conn" >/dev/null || { do_log "ERROR cannot start $proxy_image"; return 1; }
-  for i in $(seq 60); do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.5; done
+  for _ in $(seq 60); do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.5; done
   local rc=0
   # the login travels in PG* env vars only, never in an argv that `ps` shows
   local PGHOST=127.0.0.1 PGPORT="$port" PGDATABASE="$db" PGSSLMODE=disable PGUSER PGPASSWORD

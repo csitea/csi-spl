@@ -118,7 +118,7 @@ _satellite_versions_script() {
 # The replica checks of do_satellite_verify (it shares ok / ko / fails and
 # SATELLITE_SSH with the caller).
 _satellite_verify_replica() {
-  local script here there name hv sv d
+  local script here there name hv sv
   script=$(_satellite_versions_script)
   here=$(bash -c "$script" 2>/dev/null)
   there=$("${SATELLITE_AS_AGENT[@]}" <<<"$script" 2>/dev/null)

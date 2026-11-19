@@ -7,7 +7,7 @@
 do_tf_init() {
 
   tf_proj=${STEP:?}
-  tgt_app=${APP:?}
+  : "${APP:?}"
 
   do_require_var ORG "${ORG:-}"
   do_require_var APP "${APP:-}"

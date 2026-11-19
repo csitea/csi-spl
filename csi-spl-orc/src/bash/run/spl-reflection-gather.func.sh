@@ -56,7 +56,7 @@
 # @param REFLECTION_DIR (optional) - the gathered files, default <spool root>/dispatch/reflection
 # @param REFLECTION_REPO (optional) - the git checkout whose origin/master is read; default APP_PATH
 # @param REFLECTION_REF (optional) - default origin/master (fetched first, unless REFLECTION_FETCH=0)
-# @param REFLECTION_ZOMBIE_LOG (optional) - default /var/csi/csi-spl/zombie-topics/cron.log
+# @param REFLECTION_ZOMBIE_LOG (optional) - default <SPL_VAR_APP_DIR>/zombie-topics/cron.log (spl_run_paths, as the cron that writes it)
 # @param REFLECTION_TPL (optional) - the brief template, default features/dispatch/brief-reflection.tpl.md
 # @param REFLECTION_CNF (optional) - the cnf holding env.rhythm.reflection_discussion, default <checkout>/<org>-<app>-cnf/<org>-<app>/all.env.yaml
 # @param REFLECTION_MIX_CMD (optional, tests) - prints the lane mix (gets LANE_MIX_KIND, LANE_MIX_SENSITIVE)
@@ -200,11 +200,25 @@ spl_reflection_gather_md() {
   printf '\n## 5. Class share\n\n'
   if out="$(spl_reflection_share_line 2>"$err")" && [[ -n "$out" ]]; then echo "$out"; else echo "(not read: do_spl_spawn_share failed: $(spl_reflection_why "$err" "$out"))"; fi
   printf '\n## 6. Zombie sweep (row B6, its last summary)\n\n'
-  out="$(grep -h 'OK zombie sweep, night of' "${REFLECTION_ZOMBIE_LOG:-/var/csi/csi-spl/zombie-topics/cron.log}" 2>/dev/null | tail -1)"
-  echo "${out:-(no zombie sweep summary in the log)}"
+  spl_reflection_zombie
   printf '\n## 7. Stalled wip issues (no live lane, no live ask, no master commit in 72 h)\n\n'
   spl_reflection_stalled "$u" "$err"
   [[ "$err" == /dev/null ]] || rm -f "$err"
+}
+
+# spl_reflection_zombie: section 6, the last summary line of the zombie
+# sweep's log, REFLECTION_ZOMBIE_LOG else <SPL_VAR_APP_DIR>/zombie-topics/cron.log,
+# the root the box crons write it under (install-box-crons, BOX_CRONS_STATE_DIR).
+# No override and no dir derived: one "(not read: ...)" line.
+spl_reflection_zombie() {
+  local log="${REFLECTION_ZOMBIE_LOG:-}" out
+  if [[ -z "$log" ]]; then
+    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    log="$( { spl_run_paths || :; } 2>/dev/null; printf '%s' "${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/zombie-topics/cron.log}")"
+  fi
+  [[ -n "$log" ]] || { echo "(not read: no zombie sweep log: REFLECTION_ZOMBIE_LOG unset and no SPL_VAR_APP_DIR derived)"; return 0; }
+  out="$(grep -h 'OK zombie sweep, night of' "$log" 2>/dev/null | tail -1)"
+  echo "${out:-(no zombie sweep summary in the log)}"
 }
 
 # spl_reflection_stalled <until epoch> <stderr file>: section 7. A source that

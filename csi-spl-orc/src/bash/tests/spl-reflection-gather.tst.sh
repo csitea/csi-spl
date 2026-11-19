@@ -82,6 +82,13 @@
 #      Red control: master's template renders none, so a lane on it links
 #      only the backlog topic and its push fails commit-links (SPL-5826).
 #      A night with no live owner topic is one (none line
+#  18. section 6 reads the zombie sweep log under SPL_VAR_APP_DIR, as the
+#      cron that writes it (r65-01): REFLECTION_ZOMBIE_LOG unset and
+#      SPL_VAR_APP_DIR=$T/v gives the summary in $T/v/zombie-topics/cron.log;
+#      a tree at <b>/csi/csi-spl gives <b>/../var/csi/csi-spl/...; the
+#      override wins over both; no override and no tree (SPL_RUN_PATHS_TOP=)
+#      is one "(not read: ...)" line naming REFLECTION_ZOMBIE_LOG. Red
+#      control: master read a literal box path, so $T/v was never read
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -480,6 +487,25 @@ reset; rm -f "$T/archived.log"; run "$NIGHT_NOW" DRY_RUN=0 SPAWN_PLACE_ARCHIVED_
   pass "17. REFLECTION_ORIGIN_MAX=1: one archive read, the newest live topic listed, the rest counted not read" ||
   fail "17. cap: '$(origin_of "$T/briefs/$SLUG.md")' reads $(wc -l <"$T/archived.log" 2>/dev/null) $(grep '^(not read' "$T/briefs/$SLUG.md")"
 cp "$T/owner.keep" "$T/owner.tsv"
+
+# --- 18. section 6: the zombie log under SPL_VAR_APP_DIR (r65-01) -------------------
+mkdir -p "$T/v/zombie-topics" "$T/b/csi/csi-spl/.git" "$T/var/csi/csi-spl/zombie-topics"
+echo "2026-01-15T19:02:00Z OK zombie sweep, night of 2026-01-15 (v): 1 candidate(s)" >"$T/v/zombie-topics/cron.log"
+echo "2026-01-15T19:03:00Z OK zombie sweep, night of 2026-01-15 (tree): 2 candidate(s)" >"$T/var/csi/csi-spl/zombie-topics/cron.log"
+s6() { env -u REFLECTION_ZOMBIE_LOG -u APP_PATH -u PROJ_PATH -u SPL_VAR_APP_DIR -u SPL_RUN_PATHS_TOP "$@" \
+  bash -c 'do_log() { :; }; source "$0"; spl_reflection_zombie' "$FUNC" 2>&1; }
+got="$(s6 SPL_VAR_APP_DIR="$T/v")"
+[[ "$got" == *"night of 2026-01-15 (v): 1 candidate(s)" ]] &&
+  pass "18. REFLECTION_ZOMBIE_LOG unset: section 6 reads \$SPL_VAR_APP_DIR/zombie-topics/cron.log" || fail "18. SPL_VAR_APP_DIR: $got"
+got="$(s6 SPL_RUN_PATHS_TOP="$T/b/csi/csi-spl")"
+[[ "$got" == *"night of 2026-01-15 (tree): 2 candidate(s)" ]] &&
+  pass "18. derived from the tree: <base>/../var/<org>/<app>/zombie-topics/cron.log" || fail "18. tree: $got"
+got="$(s6 SPL_VAR_APP_DIR="$T/v" REFLECTION_ZOMBIE_LOG="$T/zombie.log")"
+[[ "$got" == *"night of 2026-01-15 (DRY_RUN=1, cap 500, idle 7 d)"* ]] &&
+  pass "18. REFLECTION_ZOMBIE_LOG set: the override wins" || fail "18. override: $got"
+got="$(s6 SPL_RUN_PATHS_TOP=)"
+[[ "$got" == "(not read: no zombie sweep log: REFLECTION_ZOMBIE_LOG unset and no SPL_VAR_APP_DIR derived)" ]] &&
+  pass "18. no override and no tree: one (not read line naming REFLECTION_ZOMBIE_LOG" || fail "18. no dir: $got"
 
 # --- 13. the owner SQL on a REAL Postgres: an admin owner listed, a tester not ------
 # (SPL-5460: prd t1's owner holds role admin, not owner; the old role = 'owner'

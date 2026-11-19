@@ -3,5 +3,4 @@
 2 csi-spl-orc/src/bash/features/graft/scripts/graft-index-dir.sh
 3 csi-spl-orc/src/bash/run/spl-cmd-guard-mode.func.sh
 2 csi-spl-orc/src/bash/run/spl-file-erase.func.sh
-2 csi-spl-orc/src/bash/run/spl-reflection-gather.func.sh
 3 csi-spl-utl/src/bash/run/fleet-logrotate-install.func.sh

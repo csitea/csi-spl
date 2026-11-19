@@ -861,8 +861,9 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 
 ## 11. Event tags with colours (SPL-5883)
 
-Status: **draft for the spec review**, v1.0, 2026-11-19. Issue SPL-5883,
-epic SPL-2403. Discussion: t1 `f5778b9f` (#spool-hub-ui).
+Status: **decided, for the spec review**, v1.1, 2026-11-19: the owner
+answered O1, O2, O3, O5 and O6 (msg `cde26d3f`, poll `c15f11e0`; 11.12).
+Issue SPL-5883, epic SPL-2403. Discussion: t1 `f5778b9f` (#spool-hub-ui).
 
 ### 11.0 The owner's ask and the agreed scope
 
@@ -929,8 +930,8 @@ reused. Why:
    many calendar writers do not hold.
 
 Cost of the choice: the To-do view lists issues, which carry issue labels,
-not event tags. Its filter therefore filters by **issue labels** (11.8.3),
-and the open question O3 asks the owner to confirm it.
+not event tags. Its filter therefore filters by **issue labels** (11.8.3);
+the owner confirmed it (O3 = A, msg `cde26d3f`).
 
 ### 11.3 Data model
 
@@ -1048,10 +1049,19 @@ an id of another workspace is `404`. Unknown body fields are refused
 `GET /v1/calendar/search` take `tags=<id>,<id>,...` (at most 20 ids) and
 the pseudo id `none`:
 
-- an event matches when it carries **any** of the ids (`tag_ids && $1`,
-  the GIN index), or, for `none`, carries no tag (`cardinality(tag_ids) = 0`);
-  O2 asks whether the owner wants "any" or "all";
-- an unknown id is ignored (a link that names a deleted tag still opens);
+- **all, not any** (O2 = B, owner msg `cde26d3f`): an event matches when it
+  carries **every** chosen id, `tag_ids @> $1` (array contains; the GIN
+  index of 11.3 serves `@>` as it serves `&&`). Two tags chosen narrow the
+  calendar, they never widen it;
+- `none` matches an event with no tag (`cardinality(tag_ids) = 0`) and is
+  **only valid alone**: `tags=none,<id>` is `400 bad_tags_filter`. Why: under
+  "all", "no tag and tag X" can match nothing, so allowing it would only ever
+  show an empty calendar. The WUI never sends it: "No tag" and the tags are
+  exclusive in the control (11.8.1);
+- an unknown id is ignored (a link that names a deleted tag still opens). It
+  is dropped from `$1` before the query, so it does not empty the answer; a
+  list of unknown ids only is no filter, and the read answers as without
+  `tags`;
 - with `tags` set, the range read returns no issue deadlines
   (`source: issue`): an issue carries issue labels, not event tags. Official
   days stay: they are the day's background, not events;
@@ -1081,8 +1091,11 @@ the pseudo id `none`:
 
 Agents: none of the catalogue writes. The catalogue routes are member
 routes, resolved with `humanTenant` as `issueWriter` does
-(`issues.go:922-924`), so an agent token is refused. O1 asks the owner
-whether creating tags should also be admin-only.
+(`issues.go:922-924`), so an agent token is refused.
+
+**Decided** (O1 = A, owner msg `cde26d3f`): any member who writes events
+(`notes.send`) creates, renames, recolours and reorders a tag; deleting a
+tag stays admin-only (`channels.manage`). The table above is the rule.
 
 **The manager in the WUI.** A "Tags" item in the calendar's ... menu
 (`MENU_ITEMS`, beside Trash and Export) opens `CalendarTags.vue` (lazy
@@ -1159,27 +1172,84 @@ its title lists them. An untagged event looks as today, but with the
 A "Tags" filter button in the calendar header (`CalendarViewTabs.vue`,
 desktop; the phone header, spec 106), so every view of the tab has it and
 switching view keeps it. It opens a list of the catalogue with a check per
-tag, plus "No tag" (untagged events) and "Clear". With a filter on, the
+tag, plus "No tag" (untagged events) and "Clear". "No tag" is exclusive:
+ticking it unticks every tag, and ticking a tag unticks "No tag" (11.4.3,
+`none` only alone). The list's header says the rule: "Events with all the
+chosen tags". With a filter on, the
 button shows the count (`Tags · 2`) and a strip of the chosen chips sits
 under the header, each with a remove x, so the filter is never invisible.
 On a phone the list is a bottom sheet with 44 px rows.
 
-#### 11.8.2 Where it lives: the URL
+#### 11.8.2 Where it lives: the URL, and remembered for you
 
-The filter is the query parameter `tags`, beside `v`, `d` and `k`
-(`pages/calendar.vue:89-100`): `?v=month&tags=1a2b3c4d,5e6f7a8b`, and
-`tags=none` for untagged. A reload, Back and a shared link keep it; opening
-Calendar fresh shows everything. It is **not** remembered per user in v1
-(O5 asks). The WUI passes it to the range read, the marks read and search
-(11.4.3), so the year strip and the phone Month dots count only the
-matching events.
+**The URL.** The filter is the query parameter `tags`, beside `v`, `d` and
+`k` (`pages/calendar.vue:89-100`): `?v=month&tags=1a2b3c4d,5e6f7a8b`, and
+`tags=none` for untagged. A reload, Back and a shared link keep it. The WUI
+passes it to the range read, the marks read and search (11.4.3), so the
+year strip and the phone Month dots count only the matching events.
+
+**Remembered across visits** (O5 = B, owner msg `cde26d3f`). The last filter
+a member chose is kept for that member and applied when they open Calendar
+again, on any device.
+
+Measured first, tree `86572482f`: what already keeps a member's view choices.
+
+| command | printed | reading |
+|---|---|---|
+| `grep -n 'preferences"' csi-spl-api/.../internal/auth/handler.go` | `:294 mux.HandleFunc("PUT "+RoutePrefix+"preferences", h.putPreferences)` | one write route for every member preference (`RoutePrefix` = `/api/v1/auth/`, `handler.go:26`) |
+| `sed -n 1112,1138p auth/handler.go` | `preferencesReq`: 25 keys, `issues_sort`, `pane_sizes`, `time_zone`, `await_anims`, ... | the body grows by one key per preference |
+| `sed -n 1431p auth/handler.go` | "issues_sort, pane_sizes, time_zone, keyboard_shortcuts, hours_reading, await_anims and second_currency have no humans column: they live ONLY here" | a per-workspace-only key needs no new column |
+| `sed -n 16,31p csi-spl-rdb/.../0078_membership_settings.sql` | `tenant_memberships.settings jsonb`, "a channel id ... only means something inside its tenant" | the per-workspace store, one JSON object per member and workspace |
+| `grep -n 'type MembershipSettings' auth/settings.go` | `:67` | the decoded keys; `store/membership_settings.go:85` (Postgres) and `:125` (memory) write a patch |
+| `grep -n 'function mirror' csi-spl-wui/src/stores/session.ts` | `:141` | the WUI reads the keys as session claims and mirrors a save (`setIssuesSort`, `:186`) |
+| `sed -n 9,13p csi-spl-wui/src/composables/useIssueListUrl.ts` | "A URL with `view=` is a complete link ... the reader's stored choices do not apply. A URL without it ... takes the stored choices, and the address is then completed with them." | the precedent for link versus remembered |
+| `grep -rn localStorage csi-spl-wui/src --include=*.vue --include=*.ts --include=*.mjs \| wc -l` | `184` | browser storage is used for per-browser conveniences: the calendar's hours panel (`pages/calendar.vue:124`), the phone view (`CalendarPhone.vue:285`), the Issues folds (`useIssueFilters.ts:142`, "a per-browser convenience (localStorage), not a hub setting") |
+| `grep -n 'calendar' auth/settings.go` | nothing | no calendar preference is kept today |
+
+The decision, from that measurement:
+
+- **Where.** A new key `calendar_filter` in the member's per-workspace
+  settings (`tenant_memberships.settings`, rdb 0078), written by the
+  existing `PUT /api/v1/auth/preferences` and read back as the session
+  claim `calendar_filter`. **No new table and no migration**: the column
+  admits any known key (0078's CHECK only pins a JSON object), and the hub
+  admits a new key by its parse (row T16). Not `localStorage`: the owner's
+  "remembered for you across visits" means the member, not the browser,
+  and a phone and a desktop must agree.
+- **Per workspace, not global.** A tag id only means something inside its
+  workspace (11.3), as a channel id does (0078's own reason). Like
+  `time_zone`, the key has no humans-row global; outside a workspace it is
+  not stored (`handler.go:1448-1454`).
+- **Shape.** `{"tags": ["<id>", ...] | ["none"], "labels": ["<label_id>", ...]}`,
+  at most 20 of each, ids as 11.4.3 and the issue labels' `label_id`;
+  `null` forgets it. A malformed value is `400 unsupported_calendar_filter`.
+  `labels` is the To-do filter (11.8.3), remembered by the same rule, so one
+  meaning holds for the whole Calendar tab.
+- **When it is saved.** Only a change made with the control (tick, untick,
+  the strip's x, Clear) saves it, debounced to one PUT per second. Opening
+  a link never saves: a shared link does not overwrite the reader's own
+  filter.
+- **The link wins.** A URL that carries `tags` (or `labels` in To-do)
+  applies exactly that and ignores the remembered filter, so a shared link
+  shows the reader what the sender saw. A URL without it takes the
+  remembered filter, and the address is completed with it
+  (`router.replace`), the Issues list's rule (`useIssueListUrl.ts:9-13`).
+  The chip strip (11.8.1) shows it, so a remembered filter is never
+  invisible.
+- **Clear** empties the filter, removes `tags` / `labels` from the URL and
+  saves `calendar_filter: null`: the next visit shows everything.
+- **A deleted tag.** The tag delete (11.4.1) does not touch any member's
+  settings (it would write every member's row). Instead the read ignores an
+  unknown id (11.4.3), and the WUI drops ids that are not in the catalogue
+  when it applies the remembered filter, then saves the pruned list once.
+  When nothing is left, the filter is off, never an empty calendar.
 
 #### 11.8.3 Per view
 
 | view | what the filter does |
 |---|---|
-| Day, 3 days, Week, Month (desktop and phone), phone Year marks, search | shows only events carrying any chosen tag (or none, for "No tag"); issue deadlines are hidden while a filter is on; official days stay |
-| To-do (`?k=todo`) | its rows are issues, so the same button lists the workspace's **issue labels** instead, parameter `labels=<label_id>,...`; a task shows when it carries any chosen label. `tags` is kept in the URL but not applied to To-do; switching back to an event view applies it again |
+| Day, 3 days, Week, Month (desktop and phone), phone Year marks, search | shows only events carrying **every** chosen tag (or no tag, for "No tag", alone); issue deadlines are hidden while a filter is on; official days stay |
+| To-do (`?k=todo`) | **decided** (O3 = A, owner msg `cde26d3f`): its rows are issues, so the same button lists the workspace's **issue labels** instead, parameter `labels=<label_id>,...`; a task shows when it carries **every** chosen label, the same "all" rule as the tags (O2), so the filter has one meaning in every view. The hub's issue list matches `label=a,b` as **any** today (`hub/issues.go:605`, `:681` `allowsAny`), so To-do asks with `label_match=all` (row T17); the Issues view keeps "any". `tags` is kept in the URL but not applied to To-do; switching back to an event view applies it again |
 
 An empty result says so ("No events with these tags in this range") with a
 Clear button.
@@ -1193,9 +1263,11 @@ Clear button.
   every later import, sync, soft-delete and restore keeps those tags
   (11.4.2, "Every sync keeps the tags"). This is what makes tags useful on
   the owner's imported Outlook meetings.
-- **Out to Google**: tags are not sent in v1. Google has exactly the same 11
-  colour names; O6 asks whether the out half should set the Google event's
-  `colorId` from the first tag.
+- **Out to Google**: tags are not sent in v1. **Later** (O6 = A, owner msg
+  `cde26d3f`, row T15 after T11): the out half sets the Google event's
+  `colorId` from the first tag's colour. Google has the same 11 colour
+  names, so it is a fixed name -> id map. Today no colour goes out:
+  `grep -rn colorId csi-spl-api/src/go/spool-hub-api/internal` -> nothing.
 - **Later, on the owner's ask**: an Outlook category -> a tag of the same
   name (created when missing), which needs the export to add `categories`
   (spec 180 FR-1 is "no body, no attendees" only, so it is allowed).
@@ -1225,31 +1297,40 @@ body), its docs, and cites SPL-5883.
 | T3 | store: syncs keep tags (`calendar_sync.go`, `calendar_import.go`, `gcal_import.go`) | T2 | a tagged synced row re-synced with a changed title keeps its `tag_ids` | add `tag_ids = EXCLUDED.tag_ids` to the upsert: red |
 | T4 | hub: `/v1/calendar/tags` routes and the 11.5 permissions | T2 | `hub/calendar_tags_test.go`: 201 / 409 / 400 / 404, delete needs `channels.manage`, an agent token refused | drop the `channels.manage` check: the 403 case red |
 | T5 | hub: `tags` on the event (read objects, create, PATCH), `PUT .../tags` on a synced event, `unknown_tag` | T3, T4 | create with two tags reads back in order; a synced event takes `PUT .../tags` but still refuses PATCH | allow PATCH on a synced event: the 409 case red |
-| T6 | hub: `tags=` and `none` on events, marks, search (11.4.3) | T5 | filter matches any; `none`; issue deadlines left out; no `tags` = byte-identical answer to before | turn `&&` into `@>`: the "any" case red |
+| T6 | hub: `tags=` and `none` on events, marks, search (11.4.3): **all** (`tag_ids @> $1`), `none` alone, unknown ids dropped | T5 | filter of two tags returns only events carrying both (an event with one of them is left out); `none` alone; `none,<id>` -> `400 bad_tags_filter`; unknown ids only = the unfiltered answer; issue deadlines left out; no `tags` = byte-identical answer to before | turn `@>` into `&&`: the "all" case (event with one of two tags left out) red |
 | T7 | operator, CLI and MCP: `TAGS=` on `do_spl_calendar_event_add` / `_update`, `spool calendar tags` | T5 | `spl-calendar-event-add.tst.sh`, `spl-calendar-event-update.tst.sh` (names resolved, order kept, unknown name refused before any write) | resolve names without the workspace scope: the cross-workspace case red |
 | T8 | channel move maps tags by name (11.9) | T2 | `channelmove` test: a moved tagged event keeps its tag names in the target | skip the mapping: red |
 | T9 | WUI: tags API client and mock, `CalendarTags.vue` manager (11.5) | T4 | unit `calendar-tags.test.mjs`; e2e create, rename, reorder, delete at 1440, 360, 390 px | show Delete to a member without `channels.manage`: e2e red |
 | T10 | WUI: the editor's tag picker, order, Make first, create from the picker, synced-event save (11.6) | T5, T9 | unit for the order logic; e2e pick two, make the second first, save, reopen | append instead of moving to first: red |
 | T11 | WUI: `--cal-stripe-w` 5 px, `--cal-stripe-color` (11.7 rule), chips in every view of 11.7's table | T10 | e2e in every view, both themes, 1440 / 360 / 390 px: stripe 5 px of the first tag, chips or `+n`, `xScroll <= 1 px`; contrast unit test of each chip mix | set the stripe from the last tag: red |
-| T12 | WUI: the filter button, chip strip, `tags` and `labels` URL params, every view (11.8) | T6, T11 | unit for the URL round trip; e2e per view: filter, reload keeps it, To-do filters by issue labels | drop `tags` from `router.replace`: the reload case red |
+| T12 | WUI: the filter button ("No tag" exclusive), chip strip, `tags` and `labels` URL params, every view (11.8); the remembered filter (11.8.2): applied when the URL has none, the link wins, saved only on a control change, Clear forgets, unknown ids pruned; To-do asks `label_match=all` | T6, T11, T16, T17 | unit for the URL round trip and the precedence (link > remembered > none); e2e per view: filter, reload keeps it, a fresh visit without `tags` gets the remembered filter, a link with `tags` shows the link's, Clear then a fresh visit shows everything, To-do filters by every chosen issue label | drop `tags` from `router.replace`: the reload case red; apply the remembered filter over a link's `tags`: the link case red |
 | T13 | i18n: `calendar_tags.*` in 19 locales; **agy review** of the 18 drafts | T9..T12 | `i18n-parity`, `i18n-untranslated`, `i18n-no-raw-text` | a key missing in one locale: parity red |
-| T14 | help: `csi-spl-doc/doc/help/calendar.md` gains Tags (manage, pick, filter), then the help sync (`csi-spl-wui/src/node/help/sync-help.mjs`) | T12 | new unit `csi-spl-wui/tests/unit/help-calendar-tags.test.mjs`: the synced help page has a Tags heading naming the manager, the picker, the filter and the `tags=` link | delete the Tags heading from `calendar.md`: the test red |
+| T14 | help: `csi-spl-doc/doc/help/calendar.md` gains Tags (manage, pick, filter, "all chosen tags", remembered for you, the link wins), then the help sync (`csi-spl-wui/src/node/help/sync-help.mjs`) | T12 | new unit `csi-spl-wui/tests/unit/help-calendar-tags.test.mjs`: the synced help page has a Tags heading naming the manager, the picker, the filter and the `tags=` link | delete the Tags heading from `calendar.md`: the test red |
+| T15 | **later** (O6): Google out sync sets `colorId` from the first tag's colour (spec 149 2.5, `hub/gcal_map.go:49` `GcalEventOf`); the colour joins the sync hash (`gcal_map.go:27`) only when set, so an untagged event hashes as before and no event is rewritten for nothing; an untagged event sends no `colorId`; spec 180's Outlook path is unchanged | T11 | `hub/gcal_map_test.go`: each of the 11 names maps to its Google id (the map pinned in the test, checked once against Google's `colors.get` by the builder); a tagged event carries the first tag's id; retagging changes the hash; an untagged event's hash equals the pre-T15 value | take the last tag instead of the first: red; leave the colour out of the hash: the retag case red |
+| T16 | hub: the `calendar_filter` preference (11.8.2): `preferencesReq` key, parse (shape, at most 20 + 20, `none` alone), stored only in `tenant_memberships.settings` (no humans column, as `time_zone`), `null` forgets, the session claim; WUI session store `setCalendarFilter` mirror | - | `auth/preferences_test.go`: PUT then GET `/session` returns it in that workspace and not in another; `null` clears; a bad shape is `400 unsupported_calendar_filter`; no active workspace = not stored | write it to the humans row instead of the membership: the other-workspace case red |
+| T17 | hub: `label_match=all` on `GET /v1/view/issues` (default `any`, today's answer unchanged; `issues.go:681`) | - | `hub/issues_*_test.go`: `label=a,b&label_match=all` returns only issues with both; without it, issues with either (unchanged) | use `allowsAny` for `all`: red |
 
-### 11.12 Questions for the owner
+### 11.12 Owner answers: all decided
 
-| # | question | A | B | proposal |
-|---|---|---|---|---|
-| O1 | Who may create a tag? | any member who writes events | admins only (`channels.manage`) | A (delete stays admin-only) |
-| O2 | Two tags chosen in the filter show events with... | any of them | all of them | A |
-| O3 | The To-do view lists issues. Its filter uses... | the issue labels | no filter in To-do | A |
-| O5 | The chosen filter is kept... | in the link only (reload, Back, a shared link) | also remembered for you across visits | A |
-| O6 | Send the first tag's colour to Google Calendar with the event? | yes | no | A, as a later row after T11 |
+Owner HUM-10, t1 `f5778b9f`, msg `cde26d3f-0bce-427d-8241-62553e073d83`
+(poll `c15f11e0`), 2026-11-19: "Answer 1: A ... Answer 2: B ... Answer 3:
+A ... Answer 4: B ... Answer 5: A". The poll's five questions are this
+table's rows in order.
+
+| # | question | A | B | proposal | decision | where |
+|---|---|---|---|---|---|---|
+| O1 | Who may create a tag? | any member who writes events | admins only (`channels.manage`) | A (delete stays admin-only) | **A, as proposed**: any member who writes events; delete stays admin-only | 11.5 |
+| O2 | Two tags chosen in the filter show events with... | any of them | all of them | A | **B, all of them** (not the proposal): `tag_ids @> $1`; `none` only alone | 11.4.3, 11.8.1, 11.8.3, T6 |
+| O3 | The To-do view lists issues. Its filter uses... | the issue labels | no filter in To-do | A | **A, as proposed**: the issue labels, also "all" (`label_match=all`) | 11.2, 11.8.3, T12, T17 |
+| O5 | The chosen filter is kept... | in the link only (reload, Back, a shared link) | also remembered for you across visits | A | **B, also remembered** (not the proposal): per member and workspace in `tenant_memberships.settings`; the link wins | 11.8.2, T12, T16 |
+| O6 | Send the first tag's colour to Google Calendar with the event? | yes | no | A, as a later row after T11 | **A, as proposed**: later, row T15 | 11.9, T15 |
 
 
 ## 12. Version log
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v1.1 | 2026-11-19 | c-836 | Section 11: the owner's answers (msg `cde26d3f`, poll `c15f11e0`) written in. O1 A: any member who writes events creates tags, delete stays admin-only (11.5). O2 B: the filter matches events with ALL chosen tags (`@>`), `none` only alone, unknown ids dropped (11.4.3, 11.8); T6's test and red control flipped. O3 A: To-do filters by issue labels, also "all" (`label_match=all`, new T17). O5 B: the filter is also remembered per member and workspace in `tenant_memberships.settings` (rdb 0078, no new table), the link wins, Clear forgets, deleted tags pruned (11.8.2, measured on `86572482f`; new T16, T12 grows). O6 A: later row T15, the first tag's colour as Google `colorId`. 11.12 is now "Owner answers". SPL-5883. |
 | v1.0 | 2026-11-19 | c-702 | Section 11: event tags with colours per workspace (own `calendar_tags` table, not issue labels, and why), ordered `tag_ids` on the event (the first tag sets the 5 px stripe), the tags API and the one write allowed on a synced event, the tag manager and its permissions, the editor's picker, chips in every view, the filter in every view (`tags` in the URL; To-do filters by issue labels), imports keep tags, build rows T1..T14, owner questions O1, O2, O3, O5, O6 (O4 dropped: DECIDED by the owner, msg `62e387eb`, 11.7). Review fixes W1..W5 of m-707. SPL-5883. |
 | v0.9 | 2026-11-16 | c-647 | An agent changes or deletes a private entry an agent made for a member (`ordered_by` in its mentions), never a person's own or another person's (4.10, rule marked owner may change); operator PATCH takes title, description, times and reminders; `do_spl_calendar_event_update`. SPL-5720. |
 | v0.8 | 2026-11-16 | c-628 | `REMINDERS` on `do_spl_calendar_event_add`: an agent's event carries pop-up reminders (4.10). SPL-5718. |
@@ -1261,4 +1342,4 @@ body), its docs, and cites SPL-5883.
 | v0.2 | 2026-10-06 | c-397 | Owner decisions E1..E3 (section 0.1): v1 list approved; reminders are a typed whole number of minutes / hours / days (up to 5); video-call link and busy / free dropped. Q1..Q9 still open. |
 | v0.1 | 2026-10-06 | c-397 | Gap analysis against Google Calendar (G1..G15); additive DDL (jsonb `props` under the 098 promotion rule, recurrence columns, soft delete, `calendar_guests`); the calls; the WUI surface; ranking and v1 line; Q1..Q9. |
 
-<!-- version: 1.0 · updated: 2026-11-19 -->
+<!-- version: 1.1 · updated: 2026-11-19 -->

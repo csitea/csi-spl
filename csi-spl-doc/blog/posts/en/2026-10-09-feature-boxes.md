@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Boxes: Complete Fleet Visibility"
 summary: "Monitor the hardware, resources, and running agents across your entire Spool fleet."
+share_text: "Which machine runs which AI agent, and how busy is it? Boxes shows your whole fleet on one screen."
 date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685

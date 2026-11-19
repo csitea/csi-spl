@@ -189,14 +189,20 @@ try {
   await p.$eval(rowSel(spl3), (el) => el.focus())
   await shiftKey(p, 'O')
   const opened = await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: 3000 }).then(Boolean, () => false)
-  /* red once in 63 CI jobs (wf 10, 0b2aa499a, first run and retry), never
-     locally: on a red, say where the key went and what was still open */
+  /* SPL-5987: the modal shows first and the router writes ?issue= after it
+     (useIssueOpen.ts, pendingPush: a tick, longer on a loaded runner). Read
+     at once, CI found the modal open and the URL not yet written (wf 10
+     runs 44394043708, 44490281353, 44569585278, first run and retry): wait
+     for the URL, then assert both */
+  await p.waitForFunction((k) => location.search.includes(`issue=${k}`), { timeout: 3000 }, spl3).catch(() => {})
+  /* on a red, say where the key went, what was open and what the URL held */
   const oState = await p.evaluate(() => ({
     search: location.search,
     focus: document.activeElement?.closest?.('[data-test=issues-row]')?.getAttribute('data-key') || document.activeElement?.tagName || '',
     open: [...document.querySelectorAll('.kind-picker, .point-menu, [data-test=issues-menu], [data-test=issues-ctxmenu], [role=dialog]')].map((e) => e.getAttribute('data-test') || e.className),
   }))
-  ok('4j Shift+O opens the issue', opened && oState.search.includes(`issue=${spl3}`), opened ? undefined : oState)
+  const oPass = opened && oState.search.includes(`issue=${spl3}`)
+  ok('4j Shift+O opens the issue', oPass, oPass ? undefined : { opened, ...oState })
   await p.keyboard.press('Escape')
   await p.waitForFunction(() => !document.querySelector('[data-test=issues-detail]'), { timeout: 3000 }).catch(() => {})
   if (process.env.SHOT_DIR) {

@@ -31,7 +31,7 @@ into `csi-spl-orc/`: test files that capture a value with `$(...)`, or read a fi
 only for its side effect, and never read the variable. Both rows are test code only, no
 action, no lib.
 
-**Status: v0.1, draft**, for the panel (rulebook 3.2). Editor: **c-526** (claude). No row
+**Status: v0.2, draft**, for the panel (rulebook 3.2). Editor: **c-526** (claude). No row
 lane starts before the panel signs the plan sha.
 
 **One sha:** every count is measured on **`23864a224`** (`origin/master`
@@ -273,7 +273,10 @@ the parent too is named, not fixed), `bash csi-spl-iac/src/bash/tests/sec-shellc
 | iac SC2034 (4 lines) | r67 section 7: read by a sourcing caller or a test (3), a dead guard, a bug row (1) | r67 1.3 |
 | SC2154 (20), SC2120 (7), SC1090 (5), SC2088 (4), SC2046 (3), SC2319 (2), SC2164 (2), SC2155 (2) | the baseline's header names these kinds deliberate; not re-measured one by one here | the baseline's header |
 | `spl-file-erase` (`no-literal-paths.baseline`, 1 line) | a protected-root deny list, a behaviour change (r66, r67 section 7) | 1.2 |
-| the candidates file's items | on the other box, not read by this lane; its bug-shaped items are not refactor rows (the brief); the holder checks it for a refactor-shaped one | the brief |
+| candidates file (a): `orc:scripts/reverse-tunnel-cron.sh:23` literal state dir (r63-01 R7 W1) | **served** in code: `:23-26` on `23864a224` derive it (`REVERSE_TUNNEL_STATE_DIR`, else `spl_run_paths` -> `$SPL_VAR_APP_DIR/reverse-tunnel`, else FATAL). Left: the guide's prose, `csi-spl-doc/doc/md/guides/installation-and-configuration-guide.md:594` still prints `/var/csi/csi-spl/reverse-tunnel`: a docs follow-up, not a refactor row (as r65, r67) | `git show 23864a224:<file> \| sed -n 18,28p` |
+| candidates file (b): literal `/var` at `orc:run/spl-watchdog.func.sh:72,1311` (`LOGIN_STATE_DIR`) and `orc:run/spl-lane-rotate.func.sh:112` | **served**: `:72` is the `@param` text, the default is `spl_claude_login_state_dir`; `:1318` and `spl-lane-rotate.func.sh:116` call that function (`git grep -n LOGIN_STATE_DIR 23864a224 -- <2 files>`, `git grep -nE '/var/' ...` -> no `/var/` line in `spl-lane-rotate.func.sh`) | holder's note msg 5c30249d |
+| the same kind, still live: a computed `/var/<org>/<org>-<app>/agent-boot-restore` default in `orc:run/spl-watchdog.func.sh:539` (`spl_wd_boot_retired`) and `orc:run/spl-agent-boot-restore-install-cron.func.sh:57` (`logdir`) | `/var/${oa%%-*}/$oa` is a box path built from the app name, so `no-literal-paths.tst.sh` (literal `/(opt\|var)/<org>`) does not see it. A refactor only if `$SPL_VAR_APP_DIR/agent-boot-restore` is the same path on every box (the two must move together: the watchdog reads the marker the cron writes); not measured here: input for round 69 | `git grep -nE 'agent-boot-restore' 23864a224 -- 'csi-spl-orc/src/bash/run/*.sh'` |
+| the candidates file's other items | bug-shaped items are not refactor rows (the brief); the holder named (a) and (b) as its refactor-shaped ones | holder msg 5c30249d |
 | spec 011 T001-T008, T018-T021, T023, T026-T028, T031, T034 | owner-deferred (2026-09-19), an open owner decision, behaviour (T028's assertions), terraform layout (T026) or docs (T031); the spec folder unchanged since W | 1.2 |
 
 ## 8. Changes
@@ -281,10 +284,16 @@ the parent too is named, not fixed), `bash csi-spl-iac/src/bash/tests/sec-shellc
 - v0.1 (c-526): first draft. A fresh round: 2 rows found on `23864a224`, SC2034 sites in
   orc test files whose variable no line reads. Window W and the r68 slug proof recorded.
 
+- v0.2 (c-526, the holder's note c-002@sat msg 5c30249d): section 7 only. The candidates
+  file's refactor-shaped items (a) and (b) re-measured on `23864a224`: both served in code;
+  the guide's `:594` prose and a computed `/var/<org>/<org>-<app>` default (watchdog
+  `:539` + boot-restore install-cron `:57`) recorded as round 69 input beside the
+  `wideFuncs` pairs. Rows 01 and 02 unchanged.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-526 (claude): v0.1.
+- Editor seat: c-526 (claude): v0.1, v0.2.
 - Panel reviewer seat: requested of the dispatch lease holder (section 4).
 - Row R7 seats: section 4.

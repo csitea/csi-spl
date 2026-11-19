@@ -45,6 +45,9 @@
 #  10. no boot.q/<id> under set -u: the attempt prints new and the pass starts
 #      the agent; control: the old locals (no values) die on b: unbound
 #      variable and give an empty state
+#  11. BOOT_CRON_LOG_DIR unset: the install-cron's @reboot line and the
+#      watchdog's retired marker both take <SPL_VAR_APP_DIR>/agent-boot-restore
+#      (spl_run_paths), not a dir rebuilt from the app name
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -379,6 +382,22 @@ box "$BT"; wd_u $(( BT + 60 )); wd_u $(( BT + 300 )); settle 2
 box "$BT"; wd_u $(( BT + 60 )); WD_EXTRA="$M10" wd_u $(( BT + 300 )); settle 2
 grep -q 'b: unbound variable' "$T/out" && pass "red: the old locals print b: unbound variable in the pass" || fail "control pass output: $(head -3 "$T/out")"
 [[ "$(ids)" == "c-101 c-102" ]] && pass "(the empty state of the old code still starts c-101 and c-102: same path as new)" || fail "control pass started: '$(ids)'"
+
+# ---- 11. the boot restore dir from spl_run_paths ----------------------------
+echo "=== 11. BOOT_CRON_LOG_DIR unset: writer and reader take <SPL_VAR_APP_DIR>/agent-boot-restore"
+out="$(env -u BOOT_CRON_LOG_DIR PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$SRC" BOOT_CRON_RESULT="$T/boot.result" \
+    SPL_VAR_APP_DIR="$T/var" PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" DRY_RUN=1 bash -c '
+  do_log() { echo "$*"; }
+  do_require_bin() { return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-agent-boot-restore-install-cron.func.sh"
+  do_spl_agent_boot_restore_install_cron' 2>&1)"
+grep -qF ">> $T/var/agent-boot-restore/cron.out" <<<"$out" && pass "install-cron dry run: the @reboot line writes $T/var/agent-boot-restore/cron.out" || fail "install-cron line: $(grep -m1 '@reboot' <<<"$out")"
+out="$(env -u BOOT_CRON_LOG_DIR SPL_VAR_APP_DIR="$T/var" PROJ_PATH="$PROJ_ROOT" bash -c '
+  do_log() { echo "$*"; }
+  source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"
+  spl_wd_boot_retired' 2>&1)"
+[[ "$out" == "$T/var/agent-boot-restore/retired" ]] && pass "spl_wd_boot_retired: $T/var/agent-boot-restore/retired" || fail "spl_wd_boot_retired: '$out'"
 
 echo
 if (( fails == 0 )); then echo "wd-reboot: all passed"; else echo "wd-reboot: $fails failed"; fi

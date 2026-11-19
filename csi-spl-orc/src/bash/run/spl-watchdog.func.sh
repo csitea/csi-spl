@@ -532,11 +532,16 @@ spl_wd_boot_result() {
 }
 
 # The boot restore's retired marker: <BOOT_CRON_LOG_DIR>/retired, by default
-# /var/<org>/<org>-<app>/agent-boot-restore/retired (as the install-cron action).
+# <SPL_VAR_APP_DIR>/agent-boot-restore/retired (spl_run_paths, as the
+# install-cron action). No dir derived: prints nothing (no marker to read).
 spl_wd_boot_retired() {
-  local oa="${SPL_ORG_APP:-$(basename "${PROJ_PATH:-x-orc}")}"
-  oa="${oa%-orc}"
-  echo "${BOOT_CRON_LOG_DIR:-/var/${oa%%-*}/$oa/agent-boot-restore}/retired"
+  local d="${BOOT_CRON_LOG_DIR:-}"
+  if [[ -z "$d" ]]; then
+    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_run_paths && d="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/agent-boot-restore}"
+    [[ -n "$d" ]] || return 0
+  fi
+  echo "$d/retired"
 }
 
 # Seats first (their order), then the lanes.

@@ -28,7 +28,7 @@
 # @description Dry run unless DRY_RUN=0.
 # @param BOOT_CRON_ACTION (optional) - install (default) | remove | check | retire
 # @param BOOT_CRON_FORCE (optional) - 1: install even after a retire
-# @param BOOT_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/agent-boot-restore
+# @param BOOT_CRON_LOG_DIR (optional) - default <SPL_VAR_APP_DIR>/agent-boot-restore (spl_run_paths)
 # @param BOOT_CRON_RESULT (optional) - the drill's boot result, default <SPOOL_ROOT>/dispatch/wd/boot.result
 # @param DESK_CRON_SRC / DESK_CRON_SELF_UPDATE / DESK_CRON_TRUNK (optional) - as do_spl_desk_install_service
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -54,7 +54,12 @@ do_spl_agent_boot_restore_install_cron() {
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   script="$src/$SPL_ORG_APP-orc/src/bash/scripts/agent-boot-restore-cron.sh"
-  logdir="${BOOT_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/agent-boot-restore}"
+  logdir="${BOOT_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_run_paths && logdir="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/agent-boot-restore}"
+    [[ -n "$logdir" ]] || { do_log "FATAL cannot derive the boot restore dir (no tree for spl_run_paths): set BOOT_CRON_LOG_DIR"; return 1; }
+  fi
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"

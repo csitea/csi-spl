@@ -30,8 +30,8 @@ dir `<var>/<org>` could not derive it, because `spl_run_paths` exports
 `SPL_VAR_APP_DIR` = `<var>/<org>/<app>` only. Round 35 (section 6) named the export
 "its own row, first". Row 01 is that export; row 02 moves its two users onto it.
 
-**Status: v1.0**: panel seat m-391 (mistral) PASS on v0.1 `3bfe87d48`, no W, N1-N5
-notes (section 8). Rows unchanged from v0.1. Editor: **c-379** (claude).
+**Status: v1.0, signed**: panel seat m-391 (mistral) PASS on v0.1 `3bfe87d48` and on
+v1.0 `3d48fd2c4`, no W, notes only (sections 8 and 9). Rows unchanged from v0.1. Editor: **c-379** (claude).
 
 **One sha:** every count is measured on **`e178584df`** (`origin/master`
 e178584dfc5cdeeb8697ef3292242f06058a384b, committed 2026-11-19T13:44:33+02:00), n=1 per
@@ -323,5 +323,8 @@ The panel seat signs this plan (rulebook 3.2).
 - Panel reviewer seat: **m-391 (mistral) PASS** on `3bfe87d48ce7f256ba9c036674b7ef3586b791c2`
   (spool msg 500404e5, task `dispatch-refactor-r66`); seat file on branch
   `review/c002-refactor-round-66-mistral-seat` (`de0023e4a`). W: none; N1-N5 notes.
-- v1.0: to be signed by m-391.
+- v1.0 signed: **m-391 (mistral) PASS** on `3d48fd2c4727b7049ba3debb7e41395c86e28803`
+  (spool msg 8e6d7312), seat file `1c7bae9ca`. W: none; N1 (origin/master `ea431c511`:
+  slug free, the 7 row paths unchanged since `e178584df`, baseline 3 files / 8 lines),
+  N2 (lane map exit 4, 2 unknown lanes), N3-N5 (the fold and the sha checked): no change.
 - Row R7 seats: section 4.

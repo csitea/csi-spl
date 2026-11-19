@@ -146,7 +146,11 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   - the `hygiene` part, over `PRE_PUSH_BASE..HEAD`. The tree-pass record keys
     on those messages, so a reword re-runs the gate.
   - the hook itself, uncached, over exactly what each pushed ref adds:
-    `<remote sha>..<local sha>`, and for a new ref the commits not on
+    `<remote sha>..<local sha>` less the commits already on
+    `refs/remotes/<remote>/master` (b21-02: a lane that rebased its wip
+    branch onto newer master commits does not re-sweep those landed
+    messages, which it cannot reword; a push to master, or a repo with no
+    such ref, sweeps the whole range), and for a new ref the commits not on
     `<remote>/master`. It runs before the poisoned-config guard, the wip
     skip and the override, so neither `SPL_PREPUSH_OVERRIDE=1` nor a
     wip-only push skips it. The tree that runs it is the first of the hook's

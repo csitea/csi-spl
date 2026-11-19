@@ -188,9 +188,12 @@ _pp_gate() {  # <PRE_PUSH_ONLY> <PRE_PUSH_SKIP_PASSED>
 # so SPL_PREPUSH_OVERRIDE=1 (even on a poisoned shared config, R7 g-252 W1:
 # the sweep reads each message by sha, a wrong tree is no reason to skip it)
 # and a wip-only push do not skip it. Only the
-# commits each ref adds: <remote sha>..<local sha>; a new ref, the commits not
-# on <remote>/master (origin/master when the remote is a URL); a delete
-# nothing. The sweep is do_check_commit_msg_hygiene of the pushing tree (the
+# commits each ref adds: <remote sha>..<local sha>, less the commits already on
+# refs/remotes/<remote>/master (listed as <sha>^!; b21-02: a lane whose old wip
+# tip predates master commits it rebased onto would else sweep those landed,
+# unrewordable messages); with no such ref, or for a push to master, the range
+# as it is. A new ref, the commits not on <remote>/master (origin/master when
+# the remote is a URL); a delete nothing. The sweep is do_check_commit_msg_hygiene of the pushing tree (the
 # file sweep's own patterns); a hit names the sha, the line and the pattern
 # label, never the text. The tree that runs it is the FIRST of: the hook's cwd
 # (git starts it at the pushing worktree's top), show-toplevel, the main
@@ -209,10 +212,14 @@ done
 if [ -n "$_pp_mtop" ]; then
   _pp_mrem="${1:-origin}"; case "$_pp_mrem" in */*|*:*) _pp_mrem=origin ;; esac
   _pp_mr=""
-  while read -r _pp_lref _pp_lsha _ _pp_rsha; do
+  while read -r _pp_lref _pp_lsha _pp_rref _pp_rsha; do
     [ -n "${_pp_lref:-}" ] && ! _pp_zero "${_pp_lsha:-0}" || continue
     if ! _pp_zero "${_pp_rsha:-0}" && git cat-file -e "$_pp_rsha^{commit}" 2>/dev/null; then
-      _pp_mr+="$_pp_rsha..$_pp_lsha "
+      if [ "${_pp_rref:-}" != "refs/heads/master" ] && git rev-parse -q --verify "refs/remotes/$_pp_mrem/master^{commit}" >/dev/null 2>&1; then
+        _pp_mr+="$(git rev-list "$_pp_rsha..$_pp_lsha" --not "refs/remotes/$_pp_mrem/master" 2>/dev/null | sed 's/$/^!/' | tr '\n' ' ')"
+      else
+        _pp_mr+="$_pp_rsha..$_pp_lsha "
+      fi
     elif git rev-parse -q --verify "refs/remotes/$_pp_mrem/master^{commit}" >/dev/null 2>&1; then
       _pp_mr+="refs/remotes/$_pp_mrem/master..$_pp_lsha "
     else

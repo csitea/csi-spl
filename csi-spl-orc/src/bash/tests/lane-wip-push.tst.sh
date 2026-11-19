@@ -28,6 +28,8 @@
 #  11. SPL-5613: a banned literal in a wip commit MESSAGE -> the hook refuses
 #      the push (sha named), ONE blocker each to the lane and the
 #      orchestrator with sha:line + pattern, never the literal; not resent
+#  12. b21-02: a wip push over landed master commits does not re-sweep their
+#      messages; a push to master and a repo with no <remote>/master still do
 #   9. DRY_RUN=1 plans and pushes nothing; a noreply author is refused; a
 #      clean tree pushes HEAD itself, no wip commit (runs before 7, in this
 #      order: under a broken dry run G would read red too)
@@ -245,6 +247,32 @@ out="$(run ID=c-901 WIP_SEND="$T/send11" WIP_FROM=c-001)"; rc=$?
 n="$(grep -c -- '--kind blocker' "$T/sends.log" 2>/dev/null)"
 [ "$rc" -eq 1 ] && [ "$n" = 2 ] && pass "11. the next refused run sends no second blocker for the same hits" \
   || fail "11. repeat run (rc $rc, sends $n)"
+
+# 12. b21-02: a lane that rebased onto master commits landed AFTER its old wip
+#     tip does not re-sweep THEIR messages (on master already, the lane cannot
+#     reword them): a landed master commit with a banned literal between the
+#     old wip tip and the new one -> the wip push passes. Controls: with no
+#     refs/remotes/origin/master, and for a push to master, the whole
+#     <remote sha>..<local sha> range is swept, as before (refused).
+#     Red before the fix: the wip push was refused, naming the master commit.
+hook12() { (cd "$L" && printf '%s\n' "$@" | SPL_PREPUSH_LOG_DIR="$T/pplog" bash "$HOOK" origin "$B" 2>&1); }
+om12="$(git -C "$L" rev-parse refs/remotes/origin/master)"
+m12="$(git -C "$L" "${G[@]}" commit-tree "$om12^{tree}" -p "$om12" -m "landed12" -m "body: run it as $banned on the box")"
+l12="$(git -C "$L" "${G[@]}" commit-tree "$m12^{tree}" -p "$m12" -m "lane12: a clean lane commit")"
+git -C "$L" update-ref refs/remotes/origin/master "$m12"
+rm -f "$T/gate.calls"
+out="$(hook12 "refs/heads/c-901-s1-t1 $l12 refs/heads/wip/c-901-s1-t1 $om12")"; rc=$?
+[ "$rc" -eq 0 ] && ! grep -q "$m12.msg" <<<"$out" && [ ! -e "$T/gate.calls" ] \
+  && pass "12. a wip push over a landed master commit with a banned message: not re-swept, passes (b21-02)" \
+  || fail "12. landed master message swept on the wip push (rc $rc: $out)"
+out="$(hook12 "refs/heads/c-901-s1-t1 $l12 refs/heads/master $om12")"; rc=$?
+[ "$rc" -eq 1 ] && grep -q "$m12.msg:3" <<<"$out" \
+  && pass "12. control: a push to master sweeps its whole range, refused" || fail "12. push to master (rc $rc: $out)"
+git -C "$L" update-ref -d refs/remotes/origin/master
+out="$(hook12 "refs/heads/c-901-s1-t1 $l12 refs/heads/wip/c-901-s1-t1 $om12")"; rc=$?
+[ "$rc" -eq 1 ] && grep -q "$m12.msg:3" <<<"$out" \
+  && pass "12. control: with no refs/remotes/origin/master the range is swept as before, refused" || fail "12. no remote master (rc $rc: $out)"
+git -C "$L" update-ref refs/remotes/origin/master "$om12"
 
 echo "lane-wip-push: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

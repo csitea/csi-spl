@@ -5,7 +5,7 @@ type: news
 title: "The New Phone Calendar for Everyone"
 summary: "Manage events and issue deadlines efficiently across a three-year span with the new two-column Calendar sheet."
 share_text: "Events and issue deadlines across three years, in one sheet that fits desktop and phone alike. Meet the new Calendar."
-share_long: "Events and issue deadlines across three years, in one sheet that fits desktop and phone alike. Meet the new Calendar.\n\n📅 Last year, this year and next year: events and issue deadlines in one place.\n🖱️ On desktop, scroll the months, click a date or use the arrow keys; the week view starts on Monday.\n📱 On a phone, the year strip becomes a dropdown and you swipe to change the week.\n🔗 The address follows the selected week, so you can share a link to it.\n🔒 Public and private events are handled alike.\n\nRead the full post:"
+share_long: "Events and issue deadlines across three years, in one sheet that fits desktop and phone alike. Meet the new Calendar.\n\n📅 Last year, this year and next year: events and issue deadlines in one place.\n🖱️ On desktop, scroll the months, click a date or use the arrow keys; the week view starts on Monday.\n📱 On a phone, the year strip becomes a dropdown and you swipe to change the week.\n🔗 The address follows the selected week, so you can share a link to it.\n🔒 Public and private events both have their place in it.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:38:00Z
 author: a-686

@@ -15,7 +15,10 @@ brief. Provenance: `git ls-remote origin | grep bug-round-20` ->
 base `6b5656493` is on origin/master (`git merge-base --is-ancestor 6b5656493
 origin/master` -> exit 0). origin/master at my read: `8c6ea8825` (moved past the
 plan's `93a625324` during the read, N1; no drift on the row's files, check 6).
-No later plan version was named to me, so I sign v0.1 `bfce48e35`.
+No later plan version was named to me at the v0.1 read, so v0.1 `bfce48e35` is
+signed above. Plan v1.0 `70764ad05` was named by the editor c-291 at
+2026-11-19T10:11:04Z (msg 9902bd3e, task dispatch-bug-r20); it is signed in the
+last section.
 
 ## Verdict
 
@@ -208,3 +211,46 @@ None. W1..: none.
 - **N5:** in the plan's table cells the alternation prints as `\|` (the markdown
   escape); typed literally with `\|` under `git grep -E` it returns 0 counts — run
   with a plain `|` as the plan's own note under the table says (same as b18's N7).
+
+## v1.0 signature (2026-11-19 10:1xZ, this session)
+
+The editor c-291 named plan v1.0 `70764ad056963d86b92c605b5656a46f4c2e17b5`
+(msg 9902bd3e, 2026-11-19T10:11:04Z, task dispatch-bug-r20). Checks run by this
+session:
+
+- `git ls-remote origin 'refs/heads/review/c002-bug-round-20-planner'` ->
+  `70764ad056963d86b92c605b5656a46f4c2e17b5`;
+  `git log -1 --format='%H %s' 70764ad0` -> `docs(b20-plan, SPL-5951): bug round 20
+  plan v1.0, panel m-305 mistral PASS on bfce48e35, notes N1-N5 answered, row 01
+  unchanged in code scope`;
+  `git merge-base --is-ancestor bfce48e35 70764ad0` -> exit 0 (fast-forward on v0.1);
+  `git merge-base --is-ancestor 70764ad0 origin/master` -> exit 1 (NOT on master);
+  `git diff --stat bfce48e35 70764ad0` -> 1 file, +16 -8,
+  `csi-spl-doc/doc/md/bug-round-20-plan.md`.
+- `git diff bfce48e35 70764ad0 -- <plan>` -> only the status line, row 01's
+  fix-scope cell (the other-box path out of scope, exit 11), section 7 (round 21
+  inputs), section 8 (notes N1-N5 answered) and section 9 (consensus). Row 01's
+  defect, evidence, sites and red-control cells are unchanged; the title is still
+  `# Bug-fix round 20 - plan (1 row)` and the counts table still `rows | 1`
+  (`grep -cE 'b20-01'` 5 -> 6, the +1 being prose in the new section 8 text, not a
+  row).
+- **N2 re-checked as the editor asked:** `git show
+  origin/master:csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-fleet-relay.sh
+  | sed -n '222,232p'` -> the relay runs the binary at `:222-223` and on failure
+  (`:224-231`) exits 3 for a roster miss (`cannot resolve to_box` /
+  `ambiguous_to_box` / `unknown_agent`) and **1** for everything else. So
+  `spool-send.sh:521` exits `10 + 1 = 11`, not 14, for a retired author on another
+  box: my v0.1 N2 (exit 14 covers the relayed path) was **wrong**, the v1.0 answer
+  is verified, and row 01's code scope (exit 14 only, the observed same-box case)
+  is unchanged by it. The relayed retired-author send is recorded as a round 21
+  input with no red control yet.
+- Slug: `git log origin/master --since="$W" --oneline -E --grep='\(b20-' | wc -l`
+  -> `0` still (v1.0 lives on the review branch only).
+- Red control unchanged: `rc01.sh` RED on `6b5656493` as run this session
+  (`FAIL: 1`, exit 1; GREEN with the prototype, suite 0 failures); the v1.0 commit
+  is docs-only and `git diff --stat 6b5656493 origin/master -- <the 6 row files>`
+  -> empty, so every v0.1 measurement holds on v1.0.
+
+**Verdict on v1.0 `70764ad056963d86b92c605b5656a46f4c2e17b5`: PASS** — the v1.0
+delta touches no measurement, only status, the verified N2 answer, round-21
+inputs and consensus. W1..: none on v1.0 either.

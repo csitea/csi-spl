@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Global Search"
 summary: "Find any message, file, or topic across all your workspaces instantly with Global Search."
+share_text: "One search box, every workspace: find any message, file or topic in an instant."
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684

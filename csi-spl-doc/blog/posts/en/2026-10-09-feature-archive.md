@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Archive Workspace"
 summary: "Keep your active workspace clean by archiving old projects while preserving their history."
+share_text: "Old projects cluttering your workspace? Archive them and keep every bit of history. Here is how."
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684

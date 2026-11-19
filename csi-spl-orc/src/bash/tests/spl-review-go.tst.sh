@@ -17,7 +17,10 @@
 #     7. the author brief is not on this box -> rc 7
 #     8. a docs-only line (no test in ran:), a test not in the log -> rc 8
 #     9. GREEN a valid PASS -> rc 0, GO <sha> to the author on the row's
-#        task from the holder, the PASS line in automation.log
+#        task from the holder, the PASS line in automation.log; a failed send
+#        (rc 1) logs nothing and is retried. RED CONTROL (b20-01) the sender's
+#        exit 14 (author retired on this machine): 3 cron ticks -> one GO try,
+#        one hold note, one `action=refused rc=9` line, no retry
 #    10. the cron scan: the holder's spool, once per message, only from the
 #        reviewer the line names, only within REVIEW_GO_MAX_AGE
 #    11. the lease held elsewhere, stale, none -> nothing; never written
@@ -304,6 +307,19 @@ reset
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 09000000-0000-4000-8000-00000000000a)
 run REVIEW_GO_MSG="$f" SEND_RC=1; rc=$?
 (( rc == 9 )) && [[ ! -s "$LOG" ]] && pass "9. a failed GO send logs nothing (the next run tries again)" || fail "9. send fail rc=$rc log=$(cat "$LOG")"
+reset
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" b2000000-0000-4000-8000-000000000001)
+for _ in 1 2 3; do run SEND_RC=14; done
+n=$(gos)
+if [[ $n == 1 && $(holds) == 1 && $(count "$LOG") == 1 ]] &&
+  grep -qE "review-go b2000000-0000-4000-8000-000000000001 action=refused rc=9 .*why=author c-222@boxa is retired on this machine" "$LOG"; then
+  pass "9. b20-01: a retired author (send rc 14) gets one GO try, held once (one note, one refused line), no retry"
+else fail "9. b20-01: retired author -> $n GO send(s) in 3 ticks, $(holds) hold note(s); automation.log: $(count "$LOG") line(s): $(cat "$LOG" 2>/dev/null)"; fi
+reset
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" b2000000-0000-4000-8000-000000000002)
+for _ in 1 2; do run SEND_RC=1; done
+[[ $(gos) == 2 && $(holds) == 0 && ! -s "$LOG" ]] && pass "9. b20-01 control: a transient send failure (rc 1) is retried, nothing logged" ||
+  fail "9. b20-01 control: rc 1 -> $(gos) sends, $(holds) hold note(s), log $(count "$LOG")"
 
 # --- 10. the cron scan -----------------------------------------------------------------------------
 reset

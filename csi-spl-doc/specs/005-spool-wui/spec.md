@@ -327,10 +327,15 @@ opening it.
      `components/MessagePrint.vue`) renders the rows under `<body>`, never shown on
      screen; while `html` carries `msg-printing` the `@media print` sheet hides every
      other child of `<body>`. Pictures come through the same verified download and
-     page cache as the card's preview. The print waits for every picture to load or
-     fail (a failed one prints its name, never blocks; at most 15 s) and for a markdown
-     body to render (at most 5 s), then calls `window.print()`; `afterprint` removes the
-     render and gives the page its title back. Nothing of it is in the initial JS.
+     page cache as the card's preview. The print waits for every picture to download
+     and load or fail (a failed one prints its name, never blocks; at most 15 s for each
+     download and again for the loads) and for a markdown body to render (at most 5 s),
+     then calls `window.print()`; `afterprint` removes the render and gives the page its
+     title back. A second export started while one still waits replaces it: one render,
+     one print. The A4 page and its margins are a named `@page` used only by the
+     render, so a later print of the WUI keeps the browser's own page. The topic
+     button and its reserved slot are as tall as the header row's other controls, so
+     the header does not grow when the button mounts. Nothing of it is in the initial JS.
   Check: `node --test tests/unit/msg-print.test.mjs`, `tests/e2e/msg-export-pdf.test.mjs`.
 
 ## 3. Success criteria

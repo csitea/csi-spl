@@ -9,6 +9,8 @@
 //   - rowsInShownOrder returning every row: "only the cards shown" fails
 //   - a static `import ... from '~/utils/msg-print-run'` in MessageCard.vue:
 //     "the print code loads on the click only" fails
+//   - printImageSrcs awaiting `load(f)` with no timer (R7 W3): "a download
+//     that never settles prints the picture's name" stays pending: not ok, exit 1
 // Run: node --test tests/unit/msg-print.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
@@ -20,7 +22,7 @@ import { importTs } from './lib/load-ts.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
-const { PRINT_SLUG_MAX, printFileKey, printFileName, printSlug, rowsInShownOrder } = await importTs('src/utils/msg-print.ts')
+const { PRINT_SLUG_MAX, printFileKey, printFileName, printImageSrcs, printSlug, rowsInShownOrder } = await importTs('src/utils/msg-print.ts')
 
 describe('Export to PDF: the file name', () => {
   it('slugs the topic title: lower case, one dash per gap, no dash at the ends', () => {
@@ -105,6 +107,32 @@ describe('Export to PDF: the topic entry', () => {
   })
 })
 
+describe('Export to PDF: the pictures, each download bounded (FR-020 item 5)', () => {
+  const files = [{ file_id: 'ok', name: 'a.png' }, { file_id: 'hung', name: 'b.png' }, { file_id: 'bad', name: 'c.png' }, { file_id: 'none', name: 'd.png' }]
+  const load = (f) => (f.file_id === 'ok' ? Promise.resolve('data:image/png;base64,AA')
+    : f.file_id === 'hung' ? new Promise(() => {})
+      : f.file_id === 'bad' ? Promise.reject(new Error('403')) : Promise.resolve(''))
+  it('a download that never settles prints the picture\'s name: the map comes back on time without it', { timeout: 2000 }, async () => {
+    const t0 = Date.now()
+    const srcs = await printImageSrcs(files, load, 100)
+    assert.deepEqual(srcs, { ok: 'data:image/png;base64,AA' }, 'only the picture that loaded; the hung, failed and empty ones print their names')
+    assert.ok(Date.now() - t0 < 1000, `settled in ${Date.now() - t0} ms`)
+  })
+  it('a load that throws at once is a missing picture, not a failed export', async () => {
+    assert.deepEqual(await printImageSrcs([{ file_id: 'x' }], () => { throw new Error('sync') }, 100), {})
+  })
+  it('the print run fetches its pictures through printImageSrcs with the 15 s bound', () => {
+    const run = src('src/utils/msg-print-run.ts')
+    assert.match(run, /const IMG_WAIT_MS = 15000/)
+    assert.match(run, /return printImageSrcs\(files, \(f\) => imageSrc\(f, api\), IMG_WAIT_MS\)/)
+  })
+  it('a newer export supersedes one still waiting: one print block, one print (R7 N2)', () => {
+    const run = src('src/utils/msg-print-run.ts')
+    assert.match(run, /const run = \+\+latest/)
+    assert.equal((run.match(/if \(run !== latest\)/g) || []).length, 2, 'checked after the downloads and after the render settles')
+  })
+})
+
 describe('Export to PDF: weight and print', () => {
   const walk = (dir) => readdirSync(join(WUI, dir), { withFileTypes: true }).flatMap((d) =>
     d.isDirectory() ? walk(`${dir}/${d.name}`) : /\.(vue|ts|mjs)$/.test(d.name) ? [`${dir}/${d.name}`] : [])
@@ -118,6 +146,8 @@ describe('Export to PDF: weight and print', () => {
   it('while printing only the print block shows; on screen it never does', () => {
     const print = src('src/components/MessagePrint.vue')
     assert.match(print, /\.msg-print-host \{ display: none; \}/)
+    assert.match(print, /@page msg-print \{/, 'a named page (R7 N1)')
+    assert.doesNotMatch(print, /@page \{/, 'no unnamed @page: a later print of the WUI keeps the browser\'s own page')
     assert.match(print, /@media print \{[\s\S]*html\.msg-printing body > \*:not\(\.msg-print-host\) \{ display: none !important; \}/)
   })
   it('the print waits for every picture (a broken one keeps its alt text) and names the document', () => {

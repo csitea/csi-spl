@@ -830,7 +830,8 @@ html.pane-dragging * {
 /* the priority bar gives way (its cells narrow) before the row wraps */
 .topic-head__row2 > .prio-slot { min-width: 0; }
 /* SPL-5888: Export topic to PDF, last on the row; its slot holds the lazy
-   button's box (TopicExportPdf.vue: 20 px, 32 px on a phone) */
+   button's box (TopicExportPdf.vue: 20x18 px like the row's other
+   controls, 32 px on a phone) */
 .topic-head__row2 > .pdf-slot {
   display: inline-flex;
   flex-shrink: 0;

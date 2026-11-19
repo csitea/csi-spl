@@ -58,9 +58,10 @@ const filesOf = (m: SpoolMessage) => (Array.isArray(m.files) ? m.files : []) as 
 <style>
 .msg-print-host { display: none; }
 @media print {
-  @page { margin: 1.6cm; size: A4; }
+  /* a named page: an export's A4 and margins never reach another print of the WUI */
+  @page msg-print { margin: 1.6cm; size: A4; }
   html.msg-printing body > *:not(.msg-print-host) { display: none !important; }
-  html.msg-printing .msg-print-host { display: block; }
+  html.msg-printing .msg-print-host { display: block; page: msg-print; }
   /* the page is white in either theme; the theme's heading colour never reaches the print */
   /* the page margin takes the canvas colour of color-scheme, which the dark theme sets on :root[data-theme] */
   html.msg-printing { color-scheme: light !important; }

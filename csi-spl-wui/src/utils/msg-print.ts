@@ -72,3 +72,25 @@ export function printFileKey(f: unknown): string {
   const r = (f && typeof f === 'object' ? f : {}) as { file_id?: unknown, sha256?: unknown, path?: unknown, name?: unknown }
   return String(r.file_id || r.sha256 || r.path || r.name || '')
 }
+
+/**
+ * The print's picture map: each file's source, fetched by `load`, each fetch
+ * bounded by `ms` (spec 005 FR-020 item 5). A fetch that fails, returns ''
+ * or does not settle in time is left out, so that picture prints its name;
+ * one hung download never holds the export.
+ *
+ * @param files the cards' file refs
+ * @param load fetches one file's source ('' when it cannot be shown)
+ * @param ms the bound per file
+ */
+export async function printImageSrcs<F>(files: F[], load: (f: F) => Promise<string>, ms: number): Promise<Record<string, string>> {
+  const one = (f: F): Promise<string> => new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(''), ms)
+    Promise.resolve().then(() => load(f)).then(
+      (v) => { clearTimeout(timer); resolve(typeof v === 'string' ? v : '') },
+      () => { clearTimeout(timer); resolve('') },
+    )
+  })
+  const pairs = await Promise.all(files.map(async (f) => [printFileKey(f), await one(f)] as const))
+  return Object.fromEntries(pairs.filter(([k, v]) => k && v))
+}

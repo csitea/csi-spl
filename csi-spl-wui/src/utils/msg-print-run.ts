@@ -9,7 +9,7 @@
  */
 import { h, nextTick, render, type AppContext } from 'vue'
 import MessagePrint from '~/components/MessagePrint.vue'
-import { printFileKey as fileKey, printFileName } from '~/utils/msg-print'
+import { printFileName, printImageSrcs } from '~/utils/msg-print'
 import { isPreviewableImage, previewImageMime, sharedPreview } from '~/utils/file-preview'
 import { isDownloadable } from '~/utils/view-api.mjs'
 import { sha256Hex } from '~/utils/spool-client.mjs'
@@ -33,6 +33,8 @@ export interface PrintJob {
 
 let host: HTMLElement | null = null
 let restoreTitle = ''
+/* the newest export: an older one still waiting gives way, so there is one print block and one print */
+let latest = 0
 
 /* the same verified download (and page-wide cache) as FileAttachment.vue's preview */
 async function imageSrc(f: FileRef, api: PrintApi): Promise<string> {
@@ -51,10 +53,10 @@ async function imageSrc(f: FileRef, api: PrintApi): Promise<string> {
   }
 }
 
-async function imageSrcs(rows: SpoolMessage[], api: PrintApi): Promise<Record<string, string>> {
+/* each download bounded: a hung /v1/files call prints the picture's name, never stalls the export */
+function imageSrcs(rows: SpoolMessage[], api: PrintApi): Promise<Record<string, string>> {
   const files = rows.flatMap((m) => (Array.isArray(m.files) ? m.files : []) as FileRef[])
-  const pairs = await Promise.all(files.map(async (f) => [fileKey(f), await imageSrc(f, api)] as const))
-  return Object.fromEntries(pairs.filter(([k, v]) => k && v))
+  return printImageSrcs(files, (f) => imageSrc(f, api), IMG_WAIT_MS)
 }
 
 function bounded(p: Promise<unknown>, ms: number): Promise<unknown> {
@@ -92,10 +94,15 @@ function clearPrint() {
   restoreTitle = ''
 }
 
-/** render `job.rows` print-only, wait for pictures and markdown, then the browser's print */
-export async function printMessages(job: PrintJob): Promise<HTMLElement> {
-  clearPrint()
+/**
+ * render `job.rows` print-only, wait for pictures and markdown, then the
+ * browser's print; null when a newer export started meanwhile (that one prints)
+ */
+export async function printMessages(job: PrintJob): Promise<HTMLElement | null> {
+  const run = ++latest
   const srcs = await imageSrcs(job.rows, job.api)
+  if (run !== latest) return null
+  clearPrint()
   const el = document.createElement('div')
   el.className = 'msg-print-host'
   el.setAttribute('data-test', 'msg-print-host')
@@ -107,6 +114,12 @@ export async function printMessages(job: PrintJob): Promise<HTMLElement> {
   await nextTick()
   await markdownSettled(el)
   await imagesSettled(el)
+  if (run !== latest) {
+    /* a newer export took over; drop this block unless it already did */
+    if (host === el) clearPrint()
+    else { render(null, el); el.remove() }
+    return null
+  }
   restoreTitle = document.title
   document.title = printFileName(job.title, job.msgId)
   document.documentElement.classList.add('msg-printing')

@@ -55,7 +55,7 @@ async function onExport() {
 
 <style scoped>
 /* the row's other controls are 18 px tall on desktop: the button does not grow the row */
-.topic-export-pdf { flex-shrink: 0; min-width: 20px; min-height: 20px; width: 20px; height: 20px; }
+.topic-export-pdf { flex-shrink: 0; min-width: 20px; min-height: 18px; width: 20px; height: 18px; }
 @media (max-width: 820px) {
   .topic-export-pdf { min-width: 32px; min-height: 32px; width: 32px; height: 32px; }
 }

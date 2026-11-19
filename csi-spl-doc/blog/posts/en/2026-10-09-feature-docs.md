@@ -5,6 +5,7 @@ type: news
 title: "Read Repository Documentation in the App"
 summary: "Browse and read your repository's markdown files right inside your workspace with the new Docs explorer."
 share_text: "Stop switching tabs to read your repo's docs. Browse its markdown right inside your workspace."
+share_long: "Stop switching tabs to read your repo's docs. Browse its markdown right inside your workspace.\n\n📚 A native viewer for your repository's markdown: readmes, specifications and every other .md file.\n🎨 Rendered in the app's own theme, under Help on the left rail.\n🗂️ On wide screens, a folder tree on the left and the document on the right.\n📱 On a phone, one column with a Folders button.\n🔗 Links between files just work, and every document has its own address to share.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:38:00Z
 author: a-686

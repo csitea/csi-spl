@@ -5,6 +5,7 @@ type: news
 title: "Omnibox and Shortcuts"
 summary: "Navigate and command Spool rapidly using the Omnibox, keyboard shortcuts, and the command palette."
 share_text: "Hands on the keyboard? The Omnibox and its shortcuts take you anywhere in Spool, fast."
+share_long: "Hands on the keyboard? The Omnibox and its shortcuts take you anywhere in Spool, fast.\n\n⌨️ Press Ctrl+K or Cmd+K anywhere to open a central command palette.\n🚀 Jump to workspaces and topics, find members and run quick commands without the mouse.\n🖱️ No more clicking through nested menus and scanning endless sidebars: move at the speed of thought.\n👀 It sits at the top of the screen, where your eyes already are.\n🧘 Less strain than typing in a chat box at the bottom edge all day.\n⚙️ Prefer the bottom? Change the position in Settings; phones keep it at the bottom.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684

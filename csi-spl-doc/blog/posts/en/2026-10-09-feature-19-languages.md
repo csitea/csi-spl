@@ -5,6 +5,7 @@ type: news
 title: "19 Languages"
 summary: "The Spool web interface now supports 19 languages right out of the box, offering a truly international experience."
 share_text: "Your team speaks more than one language? Spool now speaks 19 of them, right out of the box. Here is how to switch."
+share_long: "Your team speaks more than one language? Spool now speaks 19 of them, right out of the box.\n\n🌍 The whole interface is localized: English, Spanish, Finnish, Hebrew and 15 more.\n↔️ Right-to-left languages are supported where they apply.\n⚙️ Switch in seconds: avatar, User Settings, Language, pick from a searchable list, Save.\n🔄 The interface re-renders at once, and your choice follows you to every device you sign in on.\n🤝 Teammates across the globe work in the language they know best, and onboarding gets easier.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-687

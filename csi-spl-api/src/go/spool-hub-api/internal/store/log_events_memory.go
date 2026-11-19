@@ -14,6 +14,7 @@ type memLogEvents struct {
 	seq       int64
 	workspace map[string][]LogEvent // tenant -> rows, oldest first
 	system    []LogEvent
+	cursors   map[string]EvlogCursor // env -> the reader cursor (rdb 0298)
 }
 
 // logEventsLocked is the state, made on first use; s.mu is held.
@@ -114,7 +115,7 @@ func (s *Memory) AddSystemEvent(_ context.Context, e LogEvent, now time.Time) (L
 	if err != nil {
 		return LogEvent{}, err
 	}
-	e.Tenant = ""
+	e = plainSystemEvent(e)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m := s.logEventsLocked()
@@ -142,8 +143,107 @@ func (s *Memory) DeleteSystemEvents(_ context.Context, ids []int64, actor string
 	m := s.logEventsLocked()
 	rows, n := logEventsDrop(m.system, ids)
 	if n > 0 {
-		rows, _ = m.add(rows, logDeletedEvent(n, actor), now, SystemEventsKeep)
+		rows, _ = m.add(rows, plainSystemEvent(logDeletedEvent(n, actor)), now, SystemEventsKeep)
 	}
 	m.system = rows
 	return n, nil
+}
+
+// upsertGroup is UpsertSystemErrorGroup on the system slice (no trim): the
+// rdb 0298 ON CONFLICT rule, the known row taken out and appended again
+// under a new id; m is held.
+func (m *memLogEvents) upsertGroup(e LogEvent) LogEvent {
+	i := slices.IndexFunc(m.system, func(r LogEvent) bool { return r.Fingerprint == e.Fingerprint })
+	if i >= 0 {
+		old := m.system[i]
+		m.system = slices.Delete(m.system, i, i+1)
+		if old.At.After(e.At) {
+			e.At = old.At
+		}
+		if old.FirstAt.Before(e.FirstAt) {
+			e.FirstAt = old.FirstAt
+		}
+		e.Kind, e.Level, e.Actor, e.OriginKind, e.OriginRef = old.Kind, old.Level, old.Actor, old.OriginKind, old.OriginRef
+		e.N += old.N
+		e.IssueKey, e.IssueN = old.IssueKey, old.IssueN
+		if e.HumanID == "" {
+			e.HumanID = old.HumanID
+		}
+	}
+	m.seq++
+	e.ID = m.seq
+	m.system = append(m.system, e)
+	return e
+}
+
+// trimSystem keeps the newest SystemEventsKeep system rows; m is held.
+func (m *memLogEvents) trimSystem() {
+	if len(m.system) > SystemEventsKeep {
+		m.system = slices.Clone(m.system[len(m.system)-SystemEventsKeep:])
+	}
+}
+
+// UpsertSystemErrorGroup is LogEvents.UpsertSystemErrorGroup.
+func (s *Memory) UpsertSystemErrorGroup(_ context.Context, e LogEvent) (LogEvent, error) {
+	e, err := normErrorGroup(e)
+	if err != nil {
+		return LogEvent{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.logEventsLocked()
+	e = m.upsertGroup(e)
+	m.trimSystem()
+	return e, nil
+}
+
+// SystemEventsCursor is LogEvents.SystemEventsCursor.
+func (s *Memory) SystemEventsCursor(_ context.Context, env string) (EvlogCursor, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if c, ok := s.logEventsLocked().cursors[env]; ok {
+		return c, nil
+	}
+	return EvlogCursor{Env: env}, nil
+}
+
+// PutSystemErrorGroups is LogEvents.PutSystemErrorGroups.
+func (s *Memory) PutSystemErrorGroups(_ context.Context, p EvlogPut) (EvlogCursor, error) {
+	groups, err := checkEvlogPut(p)
+	if err != nil {
+		return EvlogCursor{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.logEventsLocked()
+	cur, ok := m.cursors[p.Env]
+	if (!ok && p.Gen != 0) || (ok && (cur.Gen != p.Gen || !cur.ReadUntil.Equal(p.From))) {
+		return EvlogCursor{}, ErrEvlogCursorMoved
+	}
+	cur = EvlogCursor{Env: p.Env, ReadUntil: p.To.UTC().Truncate(time.Microsecond), Gen: cur.Gen + 1, ByActor: p.Actor}
+	if m.cursors == nil {
+		m.cursors = map[string]EvlogCursor{}
+	}
+	m.cursors[p.Env] = cur
+	for _, g := range groups {
+		m.upsertGroup(g)
+	}
+	m.trimSystem()
+	return cur, nil
+}
+
+// LinkSystemErrorGroup is LogEvents.LinkSystemErrorGroup.
+func (s *Memory) LinkSystemErrorGroup(_ context.Context, fingerprint, issueKey string) (LogEvent, error) {
+	if err := checkEvlogLink(fingerprint, issueKey); err != nil {
+		return LogEvent{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.logEventsLocked()
+	i := slices.IndexFunc(m.system, func(r LogEvent) bool { return r.Fingerprint == fingerprint })
+	if i < 0 {
+		return LogEvent{}, ErrNotFound
+	}
+	m.system[i].IssueKey, m.system[i].IssueN = issueKey, m.system[i].N
+	return m.system[i], nil
 }

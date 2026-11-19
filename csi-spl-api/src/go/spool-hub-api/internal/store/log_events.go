@@ -51,6 +51,20 @@ const (
 	LogKindJoinMinted          = "box.join_token_minted"
 	LogKindJoinRevoked         = "box.join_token_revoked"
 	LogKindPinRevoked          = "box.pin_revoked"
+	// System log, backend errors (spec 162 10.3): each is an error group,
+	// one row for life (UpsertSystemErrorGroup). Source (a), the hub itself:
+	LogKindErrHTTPServer = "error.http_server"
+	LogKindErrPanic      = "error.panic"
+	LogKindErrLoopPanic  = "error.loop_panic"
+	LogKindErrLog        = "error.log"
+	// Source (b), the box reader from Cloud Logging:
+	LogKindErrGoFatal       = "error.go_fatal"
+	LogKindErrCloudRunOOM   = "error.cloudrun_oom"
+	LogKindErrCloudRunCrash = "error.cloudrun_crash"
+	LogKindErrCloudRunStart = "error.cloudrun_start"
+	LogKindErrCloudRunReq   = "error.cloudrun_request"
+	LogKindErrCloudLogOther = "error.cloudlog_other"
+	LogKindEvlogOverflow    = "evlog.overflow"
 )
 
 // LogEventKinds is every kind above, in that order.
@@ -60,6 +74,9 @@ var LogEventKinds = []string{
 	LogKindLeaseHandback, LogKindLeaseVendor, LogKindLeaseLimit, LogKindHubStarted,
 	LogKindMemberInvited, LogKindMemberInviteRevoked, LogKindMemberRoleChanged, LogKindMemberRemoved,
 	LogKindChannelDeleted, LogKindJoinMinted, LogKindJoinRevoked, LogKindPinRevoked,
+	LogKindErrHTTPServer, LogKindErrPanic, LogKindErrLoopPanic, LogKindErrLog,
+	LogKindErrGoFatal, LogKindErrCloudRunOOM, LogKindErrCloudRunCrash, LogKindErrCloudRunStart,
+	LogKindErrCloudRunReq, LogKindErrCloudLogOther, LogKindEvlogOverflow,
 }
 
 // The levels (rdb 0240's level CHECK).
@@ -78,6 +95,12 @@ const (
 )
 
 // LogEvent is one row of either log. Tenant is "" for a system row.
+//
+// The fields after OriginRef are the System log's error group (rdb 0298,
+// spec 162 10.5) and are zero on a Workspace row. A plain System row has
+// Fingerprint "", a zero FirstAt and N 1; an error group has its
+// fingerprint, its first sighting in FirstAt and its last in At, and N
+// counts the sightings.
 type LogEvent struct {
 	ID         int64
 	Tenant     string
@@ -88,7 +111,38 @@ type LogEvent struct {
 	Message    string
 	OriginKind string
 	OriginRef  string
+
+	Fingerprint string    // 16 hex of evlog.Fingerprint; "" = not a group
+	FirstAt     time.Time // the group's first sighting
+	N           int       // the sightings counted
+	IssueKey    string    // the issue filed for the group, "" = none (10.7)
+	IssueN      int       // N when the issue was linked
+	HumanID     string    // the person of the last sighting that had one (Q4 B)
 }
+
+// EvlogCursor is how far the box reader of one env has read Cloud Logging
+// (rdb 0298 system_events_cursor, spec 162 10.4.4). No row reads as a zero
+// ReadUntil and Gen 0.
+type EvlogCursor struct {
+	Env       string // "dev" or "prd"
+	ReadUntil time.Time
+	Gen       int64
+	ByActor   string // the box that moved it last
+}
+
+// EvlogPut is one put of the box reader: the error groups of the window
+// [From, To) of Env, read at cursor generation Gen, by Actor.
+type EvlogPut struct {
+	Env      string
+	Gen      int64
+	From, To time.Time
+	Actor    string
+	Groups   []LogEvent // error groups, as UpsertSystemErrorGroup takes them
+}
+
+// EvlogPutMaxGroups is the most groups one put carries (evlog.CapReader,
+// spec 162 10.4.5).
+const EvlogPutMaxGroups = 500
 
 // LogEvents is the store side of the two logs. Memory and Postgres implement it.
 type LogEvents interface {
@@ -108,6 +162,27 @@ type LogEvents interface {
 	AddSystemEvent(ctx context.Context, e LogEvent, now time.Time) (LogEvent, error)
 	SystemEventsPage(ctx context.Context, before int64, limit int) ([]LogEvent, error)
 	DeleteSystemEvents(ctx context.Context, ids []int64, actor string, now time.Time) (int, error)
+
+	// UpsertSystemErrorGroup stores the error group e (spec 162 10.5): a
+	// new fingerprint opens a row; a known one keeps its one row, adds e.N
+	// to its count, keeps the earlier FirstAt, moves At to the later
+	// sighting, takes e.Message, takes e.HumanID unless it is "", keeps
+	// its issue, and gets a new id higher than every other, so the
+	// newest-first page shows it on top and the keep-by-id trim keeps it.
+	// The log is then trimmed as on AddSystemEvent. It answers the row.
+	UpsertSystemErrorGroup(ctx context.Context, e LogEvent) (LogEvent, error)
+	// SystemEventsCursor answers env's reader cursor.
+	SystemEventsCursor(ctx context.Context, env string) (EvlogCursor, error)
+	// PutSystemErrorGroups is the reader's compare-and-set (10.4.4): in one
+	// transaction it checks p.Gen against the stored gen and p.From against
+	// the stored read_until (no row: p.Gen must be 0), moves the cursor to
+	// p.To with gen + 1, and upserts p.Groups. A stale cursor answers
+	// ErrEvlogCursorMoved and changes nothing. It answers the new cursor.
+	PutSystemErrorGroups(ctx context.Context, p EvlogPut) (EvlogCursor, error)
+	// LinkSystemErrorGroup sets the issue of the group fingerprint and
+	// records its count then (issue_n = n, 10.7); the id stays. An unknown
+	// fingerprint is ErrNotFound.
+	LinkSystemErrorGroup(ctx context.Context, fingerprint, issueKey string) (LogEvent, error)
 }
 
 // logKindRe is rdb 0240's kind CHECK.
@@ -143,6 +218,80 @@ func normLogEvent(e LogEvent) (LogEvent, error) {
 		}
 	}
 	return e, nil
+}
+
+// ErrEvlogCursorMoved: a reader's put named a gen or a from that is not
+// the stored cursor's; another box read that window first (10.4.4).
+var ErrEvlogCursorMoved = errors.New("log events: the reader cursor moved")
+
+// rdb 0298's checks on the group columns.
+var (
+	groupFPRe    = regexp.MustCompile(`^[0-9a-f]{16}$`)
+	issueKeyRe   = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[0-9]+$`)
+	groupHumanRe = regexp.MustCompile(`^(HUM-[0-9]+)?$`)
+)
+
+// plainSystemEvent is e as a plain System row: no group fields, N 1.
+func plainSystemEvent(e LogEvent) LogEvent {
+	e.Tenant, e.Fingerprint, e.FirstAt, e.N = "", "", time.Time{}, 1
+	e.IssueKey, e.IssueN, e.HumanID = "", 0, ""
+	return e
+}
+
+// normErrorGroup is normLogEvent plus rdb 0298's group checks: a
+// fingerprint, both sightings with FirstAt <= At, N >= 1, a HUM-* or no
+// person. The issue fields are the link's, never the upsert's: cleared.
+func normErrorGroup(e LogEvent) (LogEvent, error) {
+	e, err := normLogEvent(e)
+	if err != nil {
+		return e, err
+	}
+	e.Tenant, e.IssueKey, e.IssueN = "", "", 0
+	e.At, e.FirstAt = e.At.UTC().Truncate(time.Microsecond), e.FirstAt.UTC().Truncate(time.Microsecond)
+	switch {
+	case !groupFPRe.MatchString(e.Fingerprint):
+		return e, errors.New("error group: fingerprint must be 16 lowercase hex")
+	case e.At.IsZero() || e.FirstAt.IsZero() || e.FirstAt.After(e.At):
+		return e, errors.New("error group: first_at and at are both set, first_at not after at")
+	case e.N < 1:
+		return e, errors.New("error group: n must be at least 1")
+	case !groupHumanRe.MatchString(e.HumanID) || len(e.HumanID) > 32:
+		return e, errors.New("error group: human_id must be HUM-<n> or empty")
+	}
+	return e, nil
+}
+
+// checkEvlogPut applies the put's own rules before any group: a known env,
+// a window that moves forward, at most EvlogPutMaxGroups groups, each one
+// valid. It answers the groups normalised.
+func checkEvlogPut(p EvlogPut) ([]LogEvent, error) {
+	switch {
+	case p.Env != "dev" && p.Env != "prd":
+		return nil, errors.New("evlog put: env must be dev or prd")
+	case p.Gen < 0 || p.To.IsZero() || !p.To.After(p.From):
+		return nil, errors.New("evlog put: gen must be >= 0 and to after from")
+	case len(p.Groups) > EvlogPutMaxGroups:
+		return nil, fmt.Errorf("evlog put: at most %d groups", EvlogPutMaxGroups)
+	case utf8.RuneCountInString(p.Actor) > 64:
+		return nil, errors.New("evlog put: actor longer than 64")
+	}
+	out := make([]LogEvent, 0, len(p.Groups))
+	for _, g := range p.Groups {
+		g, err := normErrorGroup(g)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}
+
+// checkEvlogLink is the link's rule: a fingerprint and an issue key.
+func checkEvlogLink(fingerprint, issueKey string) error {
+	if !groupFPRe.MatchString(fingerprint) || !issueKeyRe.MatchString(issueKey) || len(issueKey) > 40 {
+		return errors.New("error group link: a 16-hex fingerprint and an issue key like SPL-1")
+	}
+	return nil
 }
 
 // checkLogEventIDs is the delete's id-count rule.

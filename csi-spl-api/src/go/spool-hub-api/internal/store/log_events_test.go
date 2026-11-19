@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/evlog"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -24,7 +25,10 @@ func TestLogEventKinds(t *testing.T) {
 		"lease.claim", "lease.rotation", "lease.seat_move", "lease.failover", "lease.handback", "lease.vendor", "lease.limit",
 		"hub.started",
 		"member.invited", "member.invite_revoked", "member.role_changed", "member.removed",
-		"channel.deleted", "box.join_token_minted", "box.join_token_revoked", "box.pin_revoked"}
+		"channel.deleted", "box.join_token_minted", "box.join_token_revoked", "box.pin_revoked",
+		"error.http_server", "error.panic", "error.loop_panic", "error.log",
+		"error.go_fatal", "error.cloudrun_oom", "error.cloudrun_crash", "error.cloudrun_start",
+		"error.cloudrun_request", "error.cloudlog_other", "evlog.overflow"}
 	if !slices.Equal(LogEventKinds, want) {
 		t.Fatalf("LogEventKinds = %q, want %q", LogEventKinds, want)
 	}
@@ -328,5 +332,183 @@ func TestRLSWorkspaceEventsNullifControl(t *testing.T) {
 		if strings.HasPrefix(g, "workspace_events") {
 			t.Errorf("C11: rdb 0240's own policy is reported: %s", g)
 		}
+	}
+}
+
+// errGroup is an error group of kind error.http_server, first seen at
+// first, last at last. Its anchor holds name, so no other run of the test
+// shares its fingerprint (the Postgres test database is kept; Normalize
+// folds an id in the message, so the message cannot tell runs apart).
+func errGroup(name string, n int, first, last time.Time, human string) LogEvent {
+	const msg = "500 internal at hub/x.go: boom"
+	return LogEvent{Kind: LogKindErrHTTPServer, Level: LogLevelError, Actor: "hub", Message: msg,
+		OriginKind: LogOriginComponent, OriginRef: "GET /v1/x",
+		Fingerprint: evlog.Fingerprint(LogKindErrHTTPServer, msg, "GET /v1/x internal "+name),
+		FirstAt:     first, At: last, N: n, HumanID: human}
+}
+
+// systemRowsOf answers the system rows of fingerprint fp, newest first, and
+// the newest row of the log.
+func systemRowsOf(t *testing.T, es LogEvents, fp string) ([]LogEvent, LogEvent) {
+	t.Helper()
+	all, err := es.SystemEventsPage(context.Background(), 0, SystemEventsKeep+10)
+	if err != nil || len(all) == 0 {
+		t.Fatalf("system page: %d rows, %v", len(all), err)
+	}
+	var out []LogEvent
+	for _, e := range all {
+		if e.Fingerprint == fp {
+			out = append(out, e)
+		}
+	}
+	return out, all[0]
+}
+
+// groupN is the n of the one row of a group, -1 when there is not one row.
+func groupN(rows []LogEvent) int {
+	if len(rows) != 1 {
+		return -1
+	}
+	return rows[0].N
+}
+
+// TestErrorGroupUpsert (spec 162 C34, row T2, memory and Postgres): the
+// upsert of a known fingerprint keeps one row, adds n, keeps the earlier
+// first_at, moves at to the later sighting, takes the new message, keeps the
+// last named person, and gives the row a new id higher than every other. A
+// plain row stays plain; a bad group is refused as rdb 0298 would; the link
+// sets issue_key and issue_n = n without moving the id, and a later
+// sighting keeps the issue.
+func TestErrorGroupUpsert(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			es := s.(LogEvents)
+			t0 := time.Now().UTC().Truncate(time.Microsecond)
+			g := errGroup(uid("c34-"), 3, t0, t0.Add(time.Minute), "HUM-5")
+			plain, err := es.AddSystemEvent(ctx, LogEvent{Kind: LogKindHubStarted, Actor: "hub", Fingerprint: g.Fingerprint, N: 9}, t0)
+			if err != nil || plain.Fingerprint != "" || plain.N != 1 || !plain.FirstAt.IsZero() {
+				t.Fatalf("a plain row took group fields: %+v %v", plain, err)
+			}
+			for _, bad := range []LogEvent{{Kind: "error.x"}, func() LogEvent { b := g; b.Fingerprint = "XYZ"; return b }(),
+				func() LogEvent { b := g; b.N = 0; return b }(), func() LogEvent { b := g; b.FirstAt = b.At.Add(time.Second); return b }(),
+				func() LogEvent { b := g; b.HumanID = "bob"; return b }(), func() LogEvent { b := g; b.Level = "fatal"; return b }()} {
+				if _, err := es.UpsertSystemErrorGroup(ctx, bad); err == nil {
+					t.Fatalf("bad group accepted: %+v", bad)
+				}
+			}
+			first, err := es.UpsertSystemErrorGroup(ctx, g)
+			if err != nil || first.N != 3 || !first.FirstAt.Equal(t0) || first.HumanID != "HUM-5" || first.IssueKey != "" {
+				t.Fatalf("open: %+v %v", first, err)
+			}
+			if _, err := es.AddSystemEvent(ctx, LogEvent{Kind: LogKindHubStarted, Actor: "hub", Message: "newer"}, t0); err != nil {
+				t.Fatal(err)
+			}
+			again := g
+			again.N, again.FirstAt, again.At, again.HumanID = 2, t0.Add(30*time.Second), t0.Add(2*time.Minute), ""
+			again.Message += " (again)"
+			up, err := es.UpsertSystemErrorGroup(ctx, again)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows, newest := systemRowsOf(t, es, g.Fingerprint)
+			if len(rows) != 1 || rows[0] != up || newest != up {
+				t.Fatalf("C34: %d rows of the group (want 1), newest %+v, upserted %+v", len(rows), newest, up)
+			}
+			if up.N != 5 || !up.FirstAt.Equal(t0) || !up.At.Equal(again.At) || up.Message != again.Message ||
+				up.HumanID != "HUM-5" || up.ID <= first.ID || up.Kind != g.Kind || up.OriginRef != g.OriginRef {
+				t.Fatalf("C34 upsert: %+v (first %+v)", up, first)
+			}
+			linked, err := es.LinkSystemErrorGroup(ctx, g.Fingerprint, "SPL-42")
+			if err != nil || linked.IssueKey != "SPL-42" || linked.IssueN != 5 || linked.ID != up.ID {
+				t.Fatalf("link: %+v %v", linked, err)
+			}
+			late := g
+			late.N, late.At, late.HumanID = 1, t0.Add(time.Minute), "HUM-7"
+			got, err := es.UpsertSystemErrorGroup(ctx, late)
+			if err != nil || got.N != 6 || !got.At.Equal(again.At) || got.HumanID != "HUM-7" || got.IssueKey != "SPL-42" || got.IssueN != 5 {
+				t.Fatalf("after link: %+v %v", got, err)
+			}
+			if _, err := es.LinkSystemErrorGroup(ctx, "0123456789abcdef", "SPL-1"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("link of an unknown group: %v", err)
+			}
+			for _, bad := range [][2]string{{g.Fingerprint, ""}, {g.Fingerprint, "spl-1"}, {"", "SPL-1"}} {
+				if _, err := es.LinkSystemErrorGroup(ctx, bad[0], bad[1]); err == nil || errors.Is(err, ErrNotFound) {
+					t.Fatalf("bad link %q accepted: %v", bad, err)
+				}
+			}
+		})
+	}
+}
+
+// TestEvlogCursorCAS (spec 162 C35, the store half, memory and Postgres):
+// a put moves the cursor from the gen and read_until it was read at and
+// upserts its groups; a put with a stale gen (the second box of one
+// window), a wrong from, or gen 0 once a row exists answers
+// ErrEvlogCursorMoved and changes neither the cursor nor a row; two puts of
+// one window at once count it once. RED control: a put without the
+// compare (the gen and read_until checks taken out), run twice for one
+// window, doubles n (8, not 4).
+func TestEvlogCursorCAS(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			es := s.(LogEvents)
+			c0, err := es.SystemEventsCursor(ctx, "dev")
+			if err != nil || c0.Env != "dev" {
+				t.Fatalf("cursor: %+v %v", c0, err)
+			}
+			from := c0.ReadUntil
+			to := time.Now().UTC().Truncate(time.Microsecond)
+			if !to.After(from) {
+				to = from.Add(time.Hour)
+			}
+			g := errGroup(uid("c35-"), 4, to.Add(-time.Minute), to.Add(-time.Second), "")
+			g.Kind, g.Actor, g.OriginRef = LogKindErrCloudRunOOM, "cloud-logging", "cloud-run/hub-00042"
+			put := EvlogPut{Env: "dev", Gen: c0.Gen, From: from, To: to, Actor: "c-001@box-a", Groups: []LogEvent{g}}
+			c1, err := es.PutSystemErrorGroups(ctx, put)
+			if err != nil || c1.Gen != c0.Gen+1 || !c1.ReadUntil.Equal(to) || c1.ByActor != "c-001@box-a" {
+				t.Fatalf("put: %+v %v", c1, err)
+			}
+			second := put
+			second.Actor = "c-002@box-b"
+			wrongFrom := EvlogPut{Env: "dev", Gen: c1.Gen, From: from, To: to.Add(time.Hour), Groups: []LogEvent{g}}
+			genZero := EvlogPut{Env: "dev", Gen: 0, From: to, To: to.Add(time.Hour), Groups: []LogEvent{g}}
+			for i, stale := range []EvlogPut{second, wrongFrom, genZero} {
+				if _, err := es.PutSystemErrorGroups(ctx, stale); !errors.Is(err, ErrEvlogCursorMoved) {
+					t.Errorf("C35 stale put %d: %v (want ErrEvlogCursorMoved)", i, err)
+				}
+			}
+			if c, _ := es.SystemEventsCursor(ctx, "dev"); c != c1 {
+				t.Errorf("C35: a stale put moved the cursor: %+v, want %+v", c, c1)
+			}
+			if rows, _ := systemRowsOf(t, es, g.Fingerprint); len(rows) != 1 || rows[0].N != 4 {
+				t.Fatalf("C35: after stale puts of one window the group has %d rows, n %d (want 1 row, n 4)", len(rows), groupN(rows))
+			}
+			for _, bad := range []EvlogPut{{Env: "stg", Gen: c1.Gen, From: to, To: to.Add(time.Hour)},
+				{Env: "dev", Gen: c1.Gen, From: to, To: to}, {Env: "dev", Gen: -1, From: to, To: to.Add(time.Hour)},
+				{Env: "dev", Gen: c1.Gen, From: to, To: to.Add(time.Hour), Groups: make([]LogEvent, EvlogPutMaxGroups+1)},
+				{Env: "dev", Gen: c1.Gen, From: to, To: to.Add(time.Hour), Groups: []LogEvent{{Kind: "error.x"}}}} {
+				if _, err := es.PutSystemErrorGroups(ctx, bad); err == nil || errors.Is(err, ErrEvlogCursorMoved) {
+					t.Fatalf("bad put accepted: env %q gen %d groups %d: %v", bad.Env, bad.Gen, len(bad.Groups), err)
+				}
+			}
+			// Two boxes put the next window at once: one wins, one is told.
+			next := EvlogPut{Env: "dev", Gen: c1.Gen, From: to, To: to.Add(time.Hour), Groups: []LogEvent{g}}
+			errs := make(chan error, 2)
+			for range 2 {
+				go func() { _, err := es.PutSystemErrorGroups(ctx, next); errs <- err }()
+			}
+			e1, e2 := <-errs, <-errs
+			if (e1 == nil) == (e2 == nil) || (!errors.Is(e1, ErrEvlogCursorMoved) && !errors.Is(e2, ErrEvlogCursorMoved)) {
+				t.Fatalf("C35 race: %v, %v (want one nil and one ErrEvlogCursorMoved)", e1, e2)
+			}
+			if rows, _ := systemRowsOf(t, es, g.Fingerprint); len(rows) != 1 || rows[0].N != 8 {
+				t.Fatalf("C35 race: the window counted twice or not at all: %d rows, n %d (want 1 row, n 8)", len(rows), groupN(rows))
+			}
+			if c, _ := es.SystemEventsCursor(ctx, "prd"); c.Env != "prd" {
+				t.Fatalf("prd cursor: %+v", c)
+			}
+		})
 	}
 }

@@ -181,6 +181,7 @@ var notChannelTables = concat(
 	notChannel("a member's Google link; watch_channel_id is a calendar push channel, not a spool channel",
 		"gcal_connections", "contacts_sync"),
 	notChannel("the workspace's label catalogue; T5b creates each missing label_id of a moved issue in <DST>", "issue_labels"),
+	notChannel("the workspace's event tag catalogue; T8 (spec 097 11.9) maps a moved event's tags by name in <DST>", "calendar_tags"),
 	notChannel("marketing_*.channel_id is a social-media channel (rdb 0187), not a spool channel",
 		"marketing_channel_tokens", "marketing_channels", "marketing_metric_definitions",
 		"marketing_metric_samples", "marketing_post_events", "marketing_posts"),

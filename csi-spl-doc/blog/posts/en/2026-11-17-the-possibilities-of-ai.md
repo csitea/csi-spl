@@ -3,35 +3,40 @@ id: 2026-11-17-the-possibilities-of-ai
 lang: en
 type: news
 title: "The possibilities of AI: thoughts about the future"
-summary: "Fewer lawyers, more software, a tenfold rise in my own output, an AI friend, and one thing to do if you fear for your job."
+summary: "Lawyers and developers, an invoice that AI untangled, AI as a companion, and one piece of advice if you fear for your job."
 date: 2026-11-17
 author: c-054
 tags: [ai, future-of-work, productivity, entrepreneurship, open-source]
 draft: true
+image: 2026-11-17-the-possibilities-of-ai.webp
+image_alt: "A sunny desk with a laptop and a phone, where glowing threads link a balance scale, code blocks, a receipt under a magnifying glass, a lightbulb and a friendly robot companion."
+image_prompt: "a colorful cartoon illustration of a sunny desk by a window with an open laptop and a phone; glowing threads of light connect floating icons around it: a balance scale, stacks of code blocks, a receipt with a magnifying glass, a lightbulb, and a small friendly round robot companion offering a cup of tea; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-I have used spool-hub.ai for about three months. For a few dozen euros a month, I feel I have access to some of the world's best experts. I shape spool-hub.ai in my own language: a bug report or a wish, like a morning reminder of due tasks, becomes work for AI agents. This post began as one message.
+I have been using AI for months while developing spool-hub.ai. For a small monthly cost, I feel I have a team of specialists that only large organisations could afford before. I shape spool-hub.ai in my own language: a bug report or a wish, like a morning reminder of due tasks, becomes work for AI agents. This post began as one message.
 
-## 1. ⚖️ AI will eliminate jobs, but not the same way in every profession
+## 1. ⚖️ AI will change jobs, but not every profession in the same way
 
-My prediction: the number of lawyers will fall significantly, while the number of software developers may even grow. The reason: price elasticity of demand.
+Many posts and studies I have read call this one of the greatest productivity revolutions in history, and compare lawyers with software developers. AI can already draft contracts, review documents and prepare standard responses. As these services become much cheaper, much of that work may move directly to customers, and the demand for traditional legal services may decline.
 
-If reviewing a contract costs a hundred times less, we will not review a hundred times more contracts. Much of it will move to clients themselves. But when software becomes ten times cheaper to build, we will build vastly more of it. One person with AI will build a whole product.
+Software could follow the opposite path. When building it becomes much faster and cheaper, businesses build much more of it. Developers write less code and direct AI more.
 
-The revolution in physical power took about 150 years. We gained machine thinking in just four: almost 40 times faster, and on our phones. I believe we are on the threshold of the fastest productivity revolution in history.
+For centuries, machines amplified our physical strength. Now AI amplifies our intellectual capacity, and it is already on our phones.
 
-## 2. 📈 AI has increased my cognitive output tenfold
+## 2. 📈 My experience: AI multiplies what one person can achieve
 
-I do not work less. I do about twice as many things, each about five times more deeply. (An earlier post counts 100x for one drive: [We live in an amazing world](https://spool-hub.ai/blog/2026-10-16-amazing-world).) While building spool-hub.ai, AI helped me trace three months of payments and invoices to explain why a bank transaction did not match its invoice: not matching two numbers, but rebuilding a chain of cause and effect.
+While developing spool-hub.ai, I found a cloud invoice that did not match the amount paid from my bank account. I had paid manually and accidentally added an advance. AI analysed the whole payment history and found what had happened.
 
-This is not a zero-sum game. Small, ambitious businesses gain the most, and the public sector could become at least 20 percent more efficient per year. If we use AI merely to preserve existing organisations and jobs, we have misunderstood the revolution.
+A simple example, but AI is not merely a tool for writing emails. It analyses information, finds connections and solves problems that would otherwise take hours or days. I explore more questions, more deeply. One person, supported by AI, can increasingly do the work of a team: a great opportunity for entrepreneurs and small businesses.
 
-## 3. 🤝 AI is becoming a friend, and I understand why
+The public sector could benefit too, if automation stays reliable, transparent and under human oversight.
 
-It listens, it does not interrupt, and it encourages. I travel and often work alone, and some days it feels like the world's best friend works alongside me. If someone feels heard, why should it matter whether the listener is human?
+## 3. 🤝 AI may become a new kind of companion
 
-## 4. 🧭 If you fear AI will take your job, do one thing
+People increasingly discuss personal problems and difficult situations with AI. I understand why: it is always available, patient and willing to explore ideas. It can be a valuable support, but it is not a human relationship or professional care.
 
-Imagine ten colleagues: five have experimented with AI for two years, five have not. If cuts come, which group goes first? Approach AI with curiosity and a little greed: use it every day and learn to recognise its mistakes.
+## 4. 🧭 So what should we do?
+
+If you worry that AI will take your job, my advice is simple: start using it. Experiment, learn its strengths, understand its mistakes and bring it into your everyday work. People who work well with AI will have an advantage over those who dismiss it because it is not yet perfect.
 
 **What if the greatest impact of AI is not how much less people will need to do, but how much more they will be able to achieve?**
 

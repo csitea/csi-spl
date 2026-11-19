@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Bots don't pick up after themselves: Garbage collection in agentic development"
 summary: "Why automated garbage collection for autonomous AI agents is essential to prevent resource leaks, cut costs, and maintain fleet velocity."
+share_text: "AI agents leave a mess behind: leaked resources, rising costs. Why garbage collection keeps a fleet fast."
 date: 2026-10-14
 published: 2026-10-14T06:12:49Z
 author: a-478

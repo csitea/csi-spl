@@ -7,7 +7,8 @@
   - `git merge-base --is-ancestor cb56a8993 8575f2eeece57ed33b5c72ccde310010dda93fae` → exit 0.
   - `git diff --numstat cb56a8993 8575f2eeece57ed33b5c72ccde310010dda93fae` printed `98 24 csi-spl-doc/specs/107-hours-tracking/spec.md` and `17 5 csi-spl-doc/specs/107-hours-tracking/tasks.md` — matches the author's "+98 -24, +17 -5, 2 files".
 - **Verdict: FAIL** on `8575f2eee` (one defect, W1). Every other check below passes.
-- Re-review on the author's fix head `57c2a8f709e62f79a517ec1ca41c17cf19482bab`: **PASS** — see "Re-review on 57c2a8f70" at the end of this file.
+- Re-review on the author's fix head `57c2a8f709e62f79a517ec1ca41c17cf19482bab`: **PASS** — see "Re-review on 57c2a8f70" below.
+- Delta review on `96eeb4584c4f911bded8bef4096ac9528caa9c22` (Q34 = A fold on top of 57c2a8f70): **PASS** — see "Delta review on 96eeb4584" at the end of this file.
 
 ## Check 1 — owner answers Q30..Q33 folded
 
@@ -121,3 +122,25 @@ New note:
 ## Re-review verdict
 
 **PASS** on `57c2a8f709e62f79a517ec1ca41c17cf19482bab` — W1, N1, N2, N3 fixed, the fix adds nothing else, N5 recorded.
+
+## Delta review on 96eeb4584c4f911bded8bef4096ac9528caa9c22 (2026-11-19, Q34 = A fold)
+
+- `git log 8575f2eee..96eeb4584` shows exactly two fast-forward commits: `57c2a8f70` (the W1/N1/N2/N3 fixes, reviewed PASS above) and `96eeb4584` ("folds owner Q34 = A, a returned period shows suggestions again", parent `57c2a8f70`).
+- `git diff --numstat 8575f2eee 96eeb4584` → `14 12 spec.md`, `3 3 tasks.md`; the Q34 commit alone (`57c2a8f70..96eeb4584`) → `11 9 spec.md`, `1 1 tasks.md`, 10 spec hunks + 1 tasks hunk, all of them Q34 — the delta adds nothing else, so every earlier check carries over.
+- Owner answer as quoted by the dispatch holder: HUM-10 `ffa470cd` answered poll `e815cf44` with "A — Yes: show the suggestions again, counted only after the tap". The 23.8 question row (spec.md:1491) quotes option A with exactly those words.
+- The wider reading — a returned period computes suggestions as an open one does, each counted only after the tap — is the same in every place the holder named, each read with `git show 96eeb4584:<file> | sed -n <N>p`:
+  - 2.2 item 2, spec.md:173 — "a returned period shows suggestions again, as an open one does, each counted only after the tap"
+  - 4.3 Return, spec.md:310 — "with suggestions again, 2.2, counted only after the tap"
+  - FR-04, spec.md:471 — "none for frozen days (v2.12, Q34 = A: a returned period shows them again, counted only after the tap, 23.9)"
+  - 23.9 "What it means for the person", spec.md:1518 — the open question is replaced by the answer: "a returned period shows suggestions again … the meetings and T082's prefill, each counted only after the tap … FR-04, 2.2 and 4.3 say so; T082 builds it"
+  - 23.7.1 T082 brief, spec.md:1444 — "nor a frozen day" (the returned-day exclusion is gone) and "Q34 = A: a returned period gets suggestions again, the prefill included"; the test adds "the same Monday in a returned period -> the same row, counted 0 until approved (red on the base tree)"
+  - tasks.md T082, tasks.md:324 — "Q34 A: also in a returned period"
+  - plus the status line (spec.md:3), the version-log 2.12 row (:923), and the 23.8 answered table (:1493, :1501)
+- Old wording: `grep -n 'frozen or returned\|no suggestions'` at `96eeb4584` hits only spec.md:540, the historical v1 panel table the author explicitly left unchanged — correct.
+- Code sites for T082's Q34 change, true on `cb56a8993` (`git show cb56a8993:… | sed -n <N>p`): `api/hub/hours_me.go:189-196` — comment at :189 "No suggestion for a frozen day nor in a returned period (spec 2.2)", `if !open || p.returned() {` at :195, `return p, nil` at :196; and :577 "// entry already held (a returned period has no suggestions), else 0".
+- Hygiene: the delta's added lines carry no domain/URL/`/home/`/IP literals; `do_check_dist_hygiene` clean rc 0.
+- Observation: the branch head has since moved to `03f8ee98` ("strikes the last three `hours.standard_day_minutes` mentions (Q30 = A)"), which addresses N5 above. This verdict is on `96eeb4584` as instructed.
+
+## Delta-review verdict
+
+**PASS** on `96eeb4584c4f911bded8bef4096ac9528caa9c22` — Q34 = A folded consistently in 2.2, 4.3, FR-04, 23.9, 23.7.1 and tasks.md T082, matching the answer's words; the delta adds nothing beyond the reviewed fixes and the Q34 fold; code sites true on `cb56a8993`; hygiene clean.

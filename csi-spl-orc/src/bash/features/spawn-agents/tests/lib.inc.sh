@@ -100,8 +100,8 @@ t_accepted() {  # ID
 # is a sha256 of the api module's files (bin/ left out), so an uncommitted
 # edit builds anew. A test never writes the checkout (developer guide
 # 2.12.2): a user who may read the tree but not write it runs these tests
-# too (b24-02, SPL-6002). The newest 5 cached builds are kept, older ones
-# go after a day.
+# too (b24-02, SPL-6002). A hit touches its dir, so the prune ranks by last
+# use: the newest 5 are kept, older ones go after a day unused.
 t_spool_bin() {
   local mod="$T_REPO/csi-spl-api/src/go/spool-hub-api" b key dir
   b="$mod/bin/spool"
@@ -113,11 +113,13 @@ t_spool_bin() {
       mkdir -p "$dir" || return 1
       # Built under a per-process name, then renamed: two tests building at
       # once never run a half-written binary.
-      if ! bash "$T_REPO/csi-spl-api/src/bash/build.sh" "$b.$$" >/dev/null; then
-        rm -f "$b.$$"; return 1
+      if ! bash "$T_REPO/csi-spl-api/src/bash/build.sh" "$b.$BASHPID" >/dev/null; then
+        rm -f "$b.$BASHPID"; return 1
       fi
-      mv -f "$b.$$" "$b" || return 1
+      mv -f "$b.$BASHPID" "$b" || return 1
       t_spool_bin_prune "${dir%/*}"
+    else
+      touch "$dir" 2>/dev/null || true
     fi
   fi
   export SPOOL_BIN="$b"

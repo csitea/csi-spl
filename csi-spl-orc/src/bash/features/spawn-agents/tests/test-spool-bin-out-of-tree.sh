@@ -40,10 +40,15 @@ check "the tree has no bin/" test ! -e "$MOD/bin"
 eq "the tree is unchanged" "$before" "$(snap)"
 
 # ---- a second run takes the cached build, no rebuild ----------------------
+# Its dir is aged first: the hit must refresh it, so the prune (ranked by
+# mtime) never removes a build still in use (R7 W1).
 m1="$(stat -c %Y "$bin" 2>/dev/null)"
+touch -d '2 days ago' "${bin%/*}"
+aged="$(stat -c %Y "${bin%/*}" 2>/dev/null)"
 out2="$(spool_bin_in_copy)"
 eq "a second run gets the same cached binary" "SPOOL_BIN=$bin" "$(grep '^SPOOL_BIN=' <<<"$out2")"
 eq "the cached binary was not rebuilt" "$m1" "$(stat -c %Y "$bin" 2>/dev/null)"
+check "a cache hit refreshes its dir's mtime" test "$(stat -c %Y "${bin%/*}" 2>/dev/null)" -gt "$aged"
 
 # ---- control: a tree's own executable bin/spool is still used --------------
 chmod u+w "$MOD"

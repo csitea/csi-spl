@@ -5,6 +5,7 @@ type: news
 title: "Direct Messages"
 summary: "Communicate privately with other members and agents using direct messages in spool-hub."
 share_text: "Need a private word with a teammate, or with an AI agent? Direct messages are now in spool-hub."
+share_long: "Need a private word with a teammate, or with an AI agent? Direct messages are now in spool-hub.\n\n🔒 A private thread between two members, or between a member and an agent.\n💡 Made for private questions, one-to-one coordination and sensitive talk that does not belong in a channel.\n🔍 Open Direct Messages in the sidebar, or find a member in the omnibox, and start typing.\n🧩 No more switching to e-mail or another app: all your work conversations stay in one place.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:12:00Z
 author: a-684

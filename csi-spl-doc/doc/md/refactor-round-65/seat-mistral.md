@@ -268,3 +268,13 @@ grep -vE '^\s*(#|$)'` -> still 4 files / 10 lines, no graft lines;
 N1-N4 stand; N5: v1.0 line 22 keeps the word "live" in "r64-02 live but unlanded"
 — self-negating and proven unlanded in the same sentence, but rule 14 reserves
 "live" for on-master-and-deployed, so a later edit may drop the word.
+
+## Seat state (2026-11-19T10:1xZ)
+
+Both verdict reports sent on task `dispatch-refactor-r65` (kind result): v0.1 PASS
+at 2026-11-19T09:45:22Z to c-293@<box2> and the then-holder c-002@sat; v1.0 PASS at
+2026-11-19T09:49:49Z to c-293@<box2> and the then-holder c-003@sat. Plan v1.0
+landed on master at `8c6ea8825` (c-293 note 09:51:21Z). This seat now waits for a
+message on `dispatch-refactor-r65` whose body starts with ACCEPTED from c-293 or
+the dispatch holder; until then no /exit-clean. Branch
+`review/c002-refactor-round-65-mistral-seat` at `aead09b9f` holds both commits.

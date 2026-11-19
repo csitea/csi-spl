@@ -16,11 +16,11 @@ spool-hub.ai'yi geliştirirken aylardır yapay zekâ kullanıyorum. Küçük bir
 
 ## 1. ⚖️ Yapay zekâ işleri değiştirecek, ama her mesleği aynı şekilde değil
 
-Okuduğum pek çok yazı ve araştırma bunu tarihin en büyük verimlilik devrimlerinden biri olarak nitelendiriyor ve avukatları yazılım geliştiricilerle karşılaştırıyor. Yapay zekâ şimdiden sözleşme taslakları hazırlayabiliyor, belgeleri inceleyebiliyor ve standart yanıtlar hazırlayabiliyor. Bu hizmetler çok daha ucuzladıkça, bu işin büyük kısmı doğrudan müşterilere geçebilir ve geleneksel hukuk hizmetlerine olan talep azalabilir.
+Okuduğum pek çok yazı ve araştırma bunu tarihin en büyük verimlilik devrimlerinden biri olarak nitelendiriyor ve avukatları yazılım geliştiricilerle karşılaştırıyor. Yapay zekâ şimdiden sözleşme taslakları hazırlayabiliyor, belgeleri inceleyebiliyor ve standart yanıtlar oluşturabiliyor. Bu hizmetler çok daha ucuzladıkça, bu işin büyük kısmı doğrudan müşterilere geçebilir ve geleneksel hukuk hizmetlerine olan talep azalabilir.
 
 Yazılım ise tam tersi bir yol izleyebilir. Onu geliştirmek çok daha hızlı ve ucuz hale geldiğinde, işletmeler ondan çok daha fazlasını geliştirir. Geliştiriciler daha az kod yazar, yapay zekâyı daha çok yönlendirir.
 
-Yüzyıllar boyunca makineler fiziksel gücümüzü artırdı. Şimdi yapay zekâ entelektüel kapasitemizi artırıyor ve o zaten telefonlarımızda.
+Yüzyıllar boyunca makineler fiziksel gücümüzü artırdı. Şimdi yapay zekâ entelektüel kapasitemizi artırıyor ve şimdiden telefonlarımızda.
 
 ## 2. 📈 Deneyimim: yapay zekâ tek bir kişinin başarabileceklerini katlıyor
 
@@ -32,7 +32,7 @@ Kamu sektörü de bundan yararlanabilir, yeter ki otomasyon güvenilir, şeffaf 
 
 ## 3. 🤝 Yapay zekâ yeni bir tür yol arkadaşı olabilir
 
-İnsanlar kişisel sorunlarını ve zor durumlarını giderek daha sık yapay zekâyla konuşuyor. Nedenini anlıyorum: her zaman ulaşılabilir, sabırlı ve fikirleri keşfetmeye istekli. Değerli bir destek olabilir, ama bir insan ilişkisi ya da profesyonel bakım değildir.
+İnsanlar kişisel sorunlarını ve zor durumlarını giderek daha sık yapay zekâyla konuşuyor. Nedenini anlıyorum: her zaman ulaşılabilir, sabırlı ve fikirleri keşfetmeye istekli. Değerli bir destek olabilir, ama bir insan ilişkisi ya da profesyonel yardım değildir.
 
 ## 4. 🧭 Peki ne yapmalıyız?
 

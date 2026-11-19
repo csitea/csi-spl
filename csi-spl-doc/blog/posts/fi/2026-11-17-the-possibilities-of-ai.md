@@ -26,7 +26,7 @@ Vuosisatojen ajan koneet vahvistivat fyysistä voimaamme. Nyt tekoäly vahvistaa
 
 Kehittäessäni spool-hub.ai:ta huomasin pilvipalvelun laskun, joka ei vastannut pankkitililtäni maksettua summaa. Olin maksanut käsin ja lisännyt vahingossa ennakkomaksun. Tekoäly analysoi koko maksuhistorian ja selvitti, mitä oli tapahtunut.
 
-Yksinkertainen esimerkki, mutta tekoäly ei ole pelkkä työkalu sähköpostien kirjoittamiseen. Se analysoi tietoa, löytää yhteyksiä ja ratkaisee ongelmia, joihin muuten kuluisi tunteja tai päiviä. Tutkin useampia kysymyksiä ja syvemmin. Yksi ihminen pystyy tekoälyn tukemana yhä useammin tekemään kokonaisen tiimin työn: suuri mahdollisuus yrittäjille ja pienyrityksille.
+Yksinkertainen esimerkki, mutta tekoäly ei ole pelkkä työkalu sähköpostien kirjoittamiseen. Se analysoi tietoa, löytää yhteyksiä ja ratkaisee ongelmia, joihin muuten kuluisi tunteja tai päiviä. Tutkin useampia kysymyksiä ja syvällisemmin. Yksi ihminen pystyy tekoälyn tukemana yhä useammin tekemään kokonaisen tiimin työn: suuri mahdollisuus yrittäjille ja pienyrityksille.
 
 Myös julkinen sektori voisi hyötyä, kunhan automaatio pysyy luotettavana, läpinäkyvänä ja ihmisen valvonnassa.
 

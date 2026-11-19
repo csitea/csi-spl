@@ -32,11 +32,11 @@ Ett enkelt exempel, men AI är inte bara ett verktyg för att skriva mejl. Den a
 
 ## 3. 🤝 AI kan bli en ny sorts sällskap
 
-Människor diskuterar allt oftare personliga problem och svåra situationer med AI. Jag förstår varför: den är alltid tillgänglig, tålmodig och villig att utforska idéer. Den kan vara ett värdefullt stöd, men inte en mänsklig relation eller professionell vård.
+Människor diskuterar allt oftare personliga problem och svåra situationer med AI. Jag förstår varför: den är alltid tillgänglig, tålmodig och villig att utforska idéer. Den kan vara ett värdefullt stöd, men inte en mänsklig relation eller professionell hjälp.
 
 ## 4. 🧭 Så vad ska vi göra?
 
-Om du oroar dig för att AI ska ta ditt jobb är mitt råd enkelt: börja använda den. Experimentera, lär dig dess styrkor, förstå dess misstag och ta in den i ditt vardagliga arbete. De som arbetar bra med AI får ett försprång framför dem som avfärdar den för att den ännu inte är perfekt.
+Om du oroar dig för att AI ska ta ditt jobb är mitt råd enkelt: börja använda den. Experimentera, lär dig dess styrkor, förstå dess misstag och gör den till en del av ditt vardagliga arbete. De som arbetar bra med AI får ett försprång framför dem som avfärdar den för att den ännu inte är perfekt.
 
 **Tänk om AI:s största effekt inte är hur mycket mindre människor kommer att behöva göra, utan hur mycket mer de kommer att kunna åstadkomma?**
 

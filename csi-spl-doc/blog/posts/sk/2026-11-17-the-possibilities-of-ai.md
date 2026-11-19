@@ -12,7 +12,7 @@ image: 2026-11-17-the-possibilities-of-ai.webp
 image_alt: "Slnečný pracovný stôl s notebookom a telefónom, kde žiariace vlákna spájajú váhy, bloky kódu, účtenku pod lupou, žiarovku a priateľského robotického spoločníka."
 image_prompt: "a colorful cartoon illustration of a sunny desk by a window with an open laptop and a phone; glowing threads of light connect floating icons around it: a balance scale, stacks of code blocks, a receipt with a magnifying glass, a lightbulb, and a small friendly round robot companion offering a cup of tea; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-AI používam už mesiace pri vývoji spool-hub.ai. Za malý mesačný poplatok mám pocit, že mám tím špecialistov, aký si predtým mohli dovoliť len veľké organizácie. Vo vlastnom jazyku formujem spool-hub.ai: hlásenie chyby alebo želanie, napríklad ranná pripomienka úloh, ktorým sa blíži termín, sa stane prácou pre AI agentov. Tento príspevok začal ako jedna správa.
+AI používam už mesiace pri vývoji spool-hub.ai. Za malý mesačný poplatok mám pocit, že mám tím špecialistov, aký si predtým mohli dovoliť len veľké organizácie. Vo vlastnom jazyku formujem spool-hub.ai: hlásenie chyby alebo želanie, napríklad ranná pripomienka úloh, ktorým sa blíži termín, sa stáva prácou pre AI agentov. Tento príspevok vznikol z jednej správy.
 
 ## 1. ⚖️ AI zmení pracovné miesta, ale nie každú profesiu rovnako
 
@@ -24,7 +24,7 @@ Po stáročia stroje zosilňovali našu fyzickú silu. Teraz AI zosilňuje naše
 
 ## 2. 📈 Moja skúsenosť: AI znásobuje to, čo dokáže jeden človek
 
-Pri vývoji spool-hub.ai som našla faktúru za cloud, ktorá nesedela so sumou zaplatenou z môjho bankového účtu. Platila som ručne a omylom som pridala zálohu. AI zanalyzovala celú históriu platieb a zistila, čo sa stalo.
+Pri vývoji spool-hub.ai som našla faktúru za cloud, ktorá nezodpovedala sume zaplatenej z môjho bankového účtu. Platila som ručne a omylom som pridala zálohu. AI zanalyzovala celú históriu platieb a zistila, čo sa stalo.
 
 Jednoduchý príklad, ale AI nie je len nástroj na písanie e-mailov. Analyzuje informácie, nachádza súvislosti a rieši problémy, ktoré by inak trvali hodiny alebo dni. Skúmam viac otázok a hlbšie. Jeden človek s podporou AI dokáže čoraz častejšie urobiť prácu celého tímu: to je veľká príležitosť pre podnikateľov a malé firmy.
 

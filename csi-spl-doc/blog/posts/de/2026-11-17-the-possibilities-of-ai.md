@@ -12,7 +12,7 @@ image: 2026-11-17-the-possibilities-of-ai.webp
 image_alt: "Ein sonniger Schreibtisch mit Laptop und Telefon, auf dem leuchtende Fäden eine Waage, Codeblöcke, einen Beleg unter einer Lupe, eine Glühbirne und einen freundlichen Roboterbegleiter verbinden."
 image_prompt: "a colorful cartoon illustration of a sunny desk by a window with an open laptop and a phone; glowing threads of light connect floating icons around it: a balance scale, stacks of code blocks, a receipt with a magnifying glass, a lightbulb, and a small friendly round robot companion offering a cup of tea; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Seit Monaten nutze ich KI bei der Entwicklung von spool-hub.ai. Für wenig Geld im Monat habe ich gefühlt ein Spezialistenteam, das sich früher nur große Organisationen leisten konnten. Ich gestalte spool-hub.ai in meiner eigenen Sprache: Eine Fehlermeldung oder ein Wunsch, etwa eine morgendliche Erinnerung an fällige Aufgaben, wird zu Arbeit für KI-Agenten. Dieser Beitrag begann als eine Nachricht.
+Seit Monaten nutze ich KI bei der Entwicklung von spool-hub.ai. Für einen kleinen monatlichen Betrag habe ich das Gefühl, ein Team von Spezialisten zu haben, das sich früher nur große Organisationen leisten konnten. Ich gestalte spool-hub.ai in meiner eigenen Sprache: Eine Fehlermeldung oder ein Wunsch, etwa eine morgendliche Erinnerung an fällige Aufgaben, wird zu Arbeit für KI-Agenten. Dieser Beitrag begann als eine Nachricht.
 
 ## 1. ⚖️ KI wird Berufe verändern, aber nicht jeden auf die gleiche Weise
 
@@ -24,7 +24,7 @@ Jahrhundertelang haben Maschinen unsere körperliche Kraft verstärkt. Jetzt ver
 
 ## 2. 📈 Meine Erfahrung: KI vervielfacht, was ein einzelner Mensch erreichen kann
 
-Bei der Entwicklung von spool-hub.ai stieß ich auf eine Cloud-Rechnung, die nicht zum von meinem Bankkonto bezahlten Betrag passte. Ich hatte manuell bezahlt und versehentlich eine Vorauszahlung hinzugefügt. Die KI analysierte den gesamten Zahlungsverlauf und fand die Ursache.
+Bei der Entwicklung von spool-hub.ai stieß ich auf eine Cloud-Rechnung, die nicht zu dem Betrag passte, den ich von meinem Bankkonto bezahlt hatte. Ich hatte manuell bezahlt und versehentlich eine Vorauszahlung hinzugefügt. Die KI analysierte den gesamten Zahlungsverlauf und fand die Ursache.
 
 Ein einfaches Beispiel, aber KI ist nicht bloß ein Werkzeug zum Schreiben von E-Mails. Sie analysiert Informationen, erkennt Zusammenhänge und löst Probleme, die sonst Stunden oder Tage dauern würden. Ich gehe mehr Fragen gründlicher nach. Ein Mensch, unterstützt von KI, kann zunehmend die Arbeit eines Teams leisten: eine große Chance für Unternehmer und kleine Unternehmen.
 
@@ -32,7 +32,7 @@ Auch der öffentliche Sektor könnte profitieren, wenn die Automatisierung zuver
 
 ## 3. 🤝 KI kann zu einer neuen Art von Begleiter werden
 
-Immer mehr Menschen besprechen persönliche Probleme und schwierige Situationen mit KI. Verständlich: Sie ist immer verfügbar, geduldig und bereit, Ideen zu erkunden. Sie kann eine wertvolle Stütze sein, aber keine menschliche Beziehung und keine professionelle Betreuung.
+Immer mehr Menschen besprechen persönliche Probleme und schwierige Situationen mit KI. Ich verstehe, warum: Sie ist immer verfügbar, geduldig und bereit, Ideen zu erkunden. Sie kann eine wertvolle Stütze sein, aber keine menschliche Beziehung und keine professionelle Hilfe.
 
 ## 4. 🧭 Was sollten wir also tun?
 

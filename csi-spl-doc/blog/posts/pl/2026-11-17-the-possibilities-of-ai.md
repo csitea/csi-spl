@@ -16,7 +16,7 @@ Od miesięcy korzystam z AI, rozwijając spool-hub.ai. Za niewielką miesięczn�
 
 ## 1. ⚖️ AI zmieni pracę, ale nie każdy zawód w ten sam sposób
 
-Wiele wpisów i badań, które przeczytałam, nazywa to jedną z największych rewolucji produktywności w historii i porównuje prawników z programistami. AI już teraz potrafi przygotowywać projekty umów, przeglądać dokumenty i przygotowywać standardowe odpowiedzi. Gdy te usługi staną się znacznie tańsze, duża część tej pracy może przejść bezpośrednio do klientów, a popyt na tradycyjne usługi prawne może spaść.
+Wiele wpisów i badań, które przeczytałam, nazywa to jedną z największych rewolucji produktywności w historii i porównuje prawników z programistami. AI już teraz potrafi sporządzać projekty umów, przeglądać dokumenty i przygotowywać standardowe odpowiedzi. Gdy te usługi staną się znacznie tańsze, duża część tej pracy może przejść bezpośrednio do klientów, a popyt na tradycyjne usługi prawne może spaść.
 
 Oprogramowanie może pójść odwrotną drogą. Kiedy jego tworzenie staje się dużo szybsze i tańsze, firmy tworzą go znacznie więcej. Programiści piszą mniej kodu, a więcej kierują AI.
 

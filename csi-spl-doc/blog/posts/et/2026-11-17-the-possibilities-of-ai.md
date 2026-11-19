@@ -12,7 +12,7 @@ image: 2026-11-17-the-possibilities-of-ai.webp
 image_alt: "Päikesepaisteline kirjutuslaud sülearvuti ja telefoniga, kus helendavad niidid ühendavad kaalu, koodiplokke, luubi all olevat tšekki, lambipirni ja sõbralikku robotkaaslast."
 image_prompt: "a colorful cartoon illustration of a sunny desk by a window with an open laptop and a phone; glowing threads of light connect floating icons around it: a balance scale, stacks of code blocks, a receipt with a magnifying glass, a lightbulb, and a small friendly round robot companion offering a cup of tea; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
-Olen juba kuid kasutanud tehisintellekti (AI) spool-hub.ai arendamisel. Väikese kuutasu eest tundub mulle, et mul on spetsialistide meeskond, mida varem said endale lubada ainult suured organisatsioonid. Kujundan spool-hub.ai-d oma emakeeles: veateade või soov, näiteks hommikune meeldetuletus tähtajaliste ülesannete kohta, muutub tööks AI-agentidele. See postitus sai alguse ühest sõnumist.
+Olen juba kuid kasutanud tehisintellekti (AI) spool-hub.ai arendamisel. Väikese kuutasu eest tundub mulle, et mul on spetsialistide meeskond, mida varem said endale lubada ainult suured organisatsioonid. Kujundan spool-hub.ai-d oma keeles: veateade või soov, näiteks hommikune meeldetuletus tähtajaliste ülesannete kohta, muutub tööks AI-agentidele. See postitus sai alguse ühest sõnumist.
 
 ## 1. ⚖️ AI muudab töökohti, kuid mitte kõiki elukutseid ühtemoodi
 

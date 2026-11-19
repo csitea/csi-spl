@@ -3,6 +3,9 @@ package auth_test
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // fakePrefs keeps preferred_locale per HUM-*, resolving identities through
@@ -1076,4 +1080,135 @@ func TestPreferencesContactLinks(t *testing.T) {
 	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["email_client"] != nil || got.body["phone_app"] != nil {
 		t.Fatalf("session after clear: %s", got.raw)
 	}
+}
+
+// Spec 097 section 11.8.2, row T16: the remembered Calendar filter is kept per
+// member AND workspace (tenant_memberships.settings, rdb 0078), never on the
+// humans row. PUT then GET session returns it in that workspace and not in
+// another; null clears it; a bad shape is 400 unsupported_calendar_filter; a
+// session with no active workspace stores nothing. On memory and, with
+// SPOOL_TEST_PG_DSN, Postgres. RED CONTROL: write it for the human instead of
+// the membership and the other-workspace case fails.
+func TestPreferencesCalendarFilter(t *testing.T) {
+	for name, st := range fenceStores(t) {
+		t.Run(name, func(t *testing.T) { calendarFilterCase(t, st) })
+	}
+}
+
+func calendarFilterCase(t *testing.T, st fenceStore) {
+	ctx, now := context.Background(), time.Now()
+	id := func() string {
+		b := make([]byte, 4)
+		rand.Read(b) //nolint:errcheck
+		return hex.EncodeToString(b)
+	}
+	wsA, wsB, wsC := "t"+id(), "t"+id(), "t"+id()
+	for _, tid := range []string{wsA, wsB, wsC} {
+		pub, _, _ := ed25519.GenerateKey(nil)
+		if err := st.CreateTenant(ctx, store.Tenant{ID: tid, RootPubKey: pub}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hooks := store.AuthHooks{H: st, Policy: store.AdmitPolicy{BootstrapOwner: true}}
+	h := calendarFilterHandler(t, hooks)
+	who := auth.Identity{Provider: "google", Subject: "cal-" + id()}
+	who.Email = who.Subject + "@example.com"
+	cookie := func(tenant string) *http.Cookie {
+		t.Helper()
+		hum, err := hooks.Register(ctx, who, tenant)
+		if err != nil {
+			t.Fatalf("register %q: %v", tenant, err)
+		}
+		return auth.MintSessionCookie(h, auth.Session{V: 1, Provider: who.Provider, Subject: who.Subject,
+			Email: who.Email, HumanID: hum, Tenant: tenant, IssuedAt: now.Unix(), Exp: now.Add(time.Hour).Unix()})
+	}
+	filter := func(ck *http.Cookie) string {
+		t.Helper()
+		code, body := fenceCall(h, ck, http.MethodGet, "/api/v1/auth/session", "")
+		var out map[string]json.RawMessage
+		if code != http.StatusOK || json.Unmarshal([]byte(body), &out) != nil {
+			t.Fatalf("session: %d %s", code, body)
+		}
+		if v, ok := out["calendar_filter"]; ok {
+			return string(v)
+		}
+		t.Fatalf("session has no calendar_filter claim: %s", body)
+		return ""
+	}
+	put := func(ck *http.Cookie, body string) (int, string) {
+		return fenceCall(h, ck, http.MethodPut, "/api/v1/auth/preferences", body)
+	}
+
+	// No active workspace (no membership yet): answered, but not stored.
+	noWS := cookie("")
+	if code, body := put(noWS, `{"calendar_filter":{"tags":["1a2b3c4d"]}}`); code != http.StatusOK || strings.Contains(body, "calendar_filter") {
+		t.Fatalf("no workspace: %d %s, want 200 and no calendar_filter echoed", code, body)
+	}
+	ckA, ckB, ckC := cookie(wsA), cookie(wsB), cookie(wsC)
+	if got := filter(ckC); got != "null" {
+		t.Fatalf("a filter put with no active workspace was stored: %s", got)
+	}
+
+	const want = `{"tags":["1a2b3c4d","5e6f7a8b"],"labels":["bug"]}`
+	if code, body := put(ckA, `{"calendar_filter":`+want+`}`); code != http.StatusOK || !strings.Contains(body, want) {
+		t.Fatalf("put in A: %d %s", code, body)
+	}
+	if got := filter(ckA); got != want {
+		t.Fatalf("session in A: %s, want %s", got, want)
+	}
+	if got := filter(ckB); got != "null" {
+		t.Fatalf("the filter of A leaked into workspace B: %s", got)
+	}
+	// "none" alone, a missing list is empty.
+	if code, body := put(ckB, `{"calendar_filter":{"tags":["none"]}}`); code != http.StatusOK {
+		t.Fatalf("put none in B: %d %s", code, body)
+	}
+	if got := filter(ckB); got != `{"tags":["none"],"labels":[]}` {
+		t.Fatalf("session in B: %s", got)
+	}
+	if got := filter(ckA); got != want {
+		t.Fatalf("B's put moved A: %s", got)
+	}
+
+	for _, bad := range []string{`[]`, `"x"`, `{"tags":["none","1a2b3c4d"]}`, `{"tags":["1A2B3C4D"]}`,
+		`{"tags":["1a2b3c4d","1a2b3c4d"]}`, `{"labels":["Bug"]}`, `{"labels":[""]}`, `{"tag":["1a2b3c4d"]}`,
+		`{"tags":"1a2b3c4d"}`, `{"tags":[` + strings.Repeat(`"1a2b3c4d",`, 20) + `"00000000"]}`} {
+		code, body := put(ckA, `{"calendar_filter":`+bad+`}`)
+		if code != http.StatusBadRequest || !strings.Contains(body, `"unsupported_calendar_filter"`) {
+			t.Errorf("%.60s: %d %s, want 400 unsupported_calendar_filter", bad, code, body)
+		}
+	}
+	if got := filter(ckA); got != want {
+		t.Fatalf("a refused put changed A: %s", got)
+	}
+
+	// null forgets it, in A only.
+	if code, body := put(ckA, `{"calendar_filter":null}`); code != http.StatusOK || !strings.Contains(body, `"calendar_filter":null`) {
+		t.Fatalf("clear in A: %d %s", code, body)
+	}
+	if got := filter(ckA); got != "null" {
+		t.Fatalf("session in A after null: %s", got)
+	}
+	if got := filter(ckB); got != `{"tags":["none"],"labels":[]}` {
+		t.Fatalf("A's clear moved B: %s", got)
+	}
+}
+
+// calendarFilterHandler is a native-enabled hub over the real store hooks.
+func calendarFilterHandler(t *testing.T, hooks store.AuthHooks) *auth.Handler {
+	t.Helper()
+	cfg, err := auth.LoadFrom("lde", map[string]string{"SPOOL_HUB_AUTH_SESSION_KEY": strings.Repeat("k", 32),
+		"SPOOL_HUB_AUTH_APP_URL": "http://app.example.test", "SPOOL_HUB_AUTH_COOKIE_SECURE": "false"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := auth.New(cfg, zerolog.Nop(), auth.Options{Registrar: hooks, Membership: hooks, Preferences: hooks})
+	nc, err := auth.LoadNativeFrom("lde", map[string]string{"SPOOL_HUB_AUTH_NATIVE_ENABLED": "true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.EnableNative(nc, auth.NativeDeps{Store: auth.NewMemoryCredStore()}); err != nil {
+		t.Fatal(err)
+	}
+	return h
 }

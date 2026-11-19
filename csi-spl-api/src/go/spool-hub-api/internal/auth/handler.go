@@ -582,6 +582,9 @@ type sessionResp struct {
 	// SecondCurrency is the costs' second currency (SPL-2108), per tenant,
 	// EUR when never picked.
 	SecondCurrency string `json:"second_currency,omitempty"`
+	// CalendarFilter is the remembered Calendar filter (spec 097 section
+	// 11.8.2), per tenant, null when never chosen (no filter).
+	CalendarFilter *CalendarFilter `json:"calendar_filter"`
 	// DiagnosticsEnabled is the human's own "Debug pane" setting,
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
@@ -657,6 +660,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		out.HoursReading = h.hoursReading(ctx, s)
 		out.AwaitAnims = h.awaitAnims(ctx, s)
 		out.SecondCurrency = h.secondCurrency(ctx, s)
+		out.CalendarFilter = h.calendarFilter(ctx, s)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
@@ -1132,6 +1136,7 @@ type preferencesReq struct {
 	HoursReading       json.RawMessage `json:"hours_reading"`
 	AwaitAnims         json.RawMessage `json:"await_anims"`
 	SecondCurrency     json.RawMessage `json:"second_currency"`
+	CalendarFilter     json.RawMessage `json:"calendar_filter"`
 	FirstName          json.RawMessage `json:"first_name"` // SPL-5707, profile.go
 	LastName           json.RawMessage `json:"last_name"`
 	Phone              json.RawMessage `json:"phone"`
@@ -1217,6 +1222,8 @@ type prefsIn struct {
 	hasReading, hasCur                                  bool
 	anims                                               []string // await_anims, nil = null (SPL-2113)
 	hasAnims                                            bool
+	calFilter                                           *CalendarFilter // calendar_filter, nil = null (spec 097 section 11.8.2)
+	hasCalFilter                                        bool
 	prof                                                profileIn // first_name, last_name, phone (profile.go)
 }
 
@@ -1254,11 +1261,14 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 	if p.cur, p.hasCur, code, detail = parseSecondCurrency(req.SecondCurrency); code != "" {
 		return p, code, detail
 	}
+	if p.calFilter, p.hasCalFilter, code, detail = parseCalendarFilter(req.CalendarFilter); code != "" {
+		return p, code, detail
+	}
 	if p.prof, code, detail = parseProfile(req); code != "" {
 		return p, code, detail
 	}
-	if !p.prof.any() && !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes && !p.hasTZ && !p.hasKbd && !p.hasReading && !p.hasAnims && !p.hasCur {
-		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), link_previews (on, off or null), email_client (gmail, system, outlook-web, outlook, thunderbird or null), phone_app (whatsapp, tel, viber, telegram, signal, teams or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null), pane_sizes (divider -> fraction or null), time_zone (an IANA zone or null), keyboard_shortcuts (true, false or null), hours_reading (true, false or null), await_anims (animation ids or null), second_currency (an ISO 4217 code or null), first_name + last_name or phone (+<country code><number> or null) is required"
+	if !p.prof.any() && !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes && !p.hasTZ && !p.hasKbd && !p.hasReading && !p.hasAnims && !p.hasCur && !p.hasCalFilter {
+		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), link_previews (on, off or null), email_client (gmail, system, outlook-web, outlook, thunderbird or null), phone_app (whatsapp, tel, viber, telegram, signal, teams or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null), pane_sizes (divider -> fraction or null), time_zone (an IANA zone or null), keyboard_shortcuts (true, false or null), hours_reading (true, false or null), await_anims (animation ids or null), second_currency (an ISO 4217 code or null), calendar_filter ({tags, labels} or null), first_name + last_name or phone (+<country code><number> or null) is required"
 	}
 	code, detail = p.parseScalars(req)
 	return p, code, detail
@@ -1428,7 +1438,7 @@ func (h *Handler) storePreferences(w http.ResponseWriter, r *http.Request, hum s
 	// tenant's membership override, so a change in one tenant never moves the
 	// others (spec 023 addendum). The humans-row writes above stay the global
 	// fallback for a tenant with no override yet and for the sign-in page.
-	// issues_sort, pane_sizes, time_zone, keyboard_shortcuts, hours_reading, await_anims and second_currency have no humans column: they live ONLY here.
+	// issues_sort, pane_sizes, time_zone, keyboard_shortcuts, hours_reading, await_anims, second_currency and calendar_filter have no humans column: they live ONLY here.
 	if !h.storeMembershipPrefs(w, r, hum, p, out) {
 		return nil, false
 	}
@@ -1449,8 +1459,8 @@ func (h *Handler) storeMembershipPrefs(w http.ResponseWriter, r *http.Request, h
 	if err != nil || tenant == "" {
 		// No active tenant: the per-tenant-only settings cannot be kept. The WUI
 		// only sends them inside a tenant, so this is the sign-in edge.
-		if p.hasSort || p.hasPanes || p.hasTZ || p.hasKbd || p.hasReading || p.hasAnims || p.hasCur {
-			h.log.Warn().Str("human_id", hum).Msg("auth.preferences issues_sort/pane_sizes/time_zone/keyboard_shortcuts/hours_reading/await_anims/second_currency with no active tenant, not stored")
+		if p.hasSort || p.hasPanes || p.hasTZ || p.hasKbd || p.hasReading || p.hasAnims || p.hasCur || p.hasCalFilter {
+			h.log.Warn().Str("human_id", hum).Msg("auth.preferences issues_sort/pane_sizes/time_zone/keyboard_shortcuts/hours_reading/await_anims/second_currency/calendar_filter with no active tenant, not stored")
 		}
 		return true
 	}
@@ -1484,6 +1494,9 @@ func (h *Handler) storeMembershipPrefs(w http.ResponseWriter, r *http.Request, h
 	}
 	if p.hasCur {
 		out["second_currency"] = nullable(p.cur)
+	}
+	if p.hasCalFilter {
+		out["calendar_filter"] = nilCalendarFilter(p.calFilter)
 	}
 	return true
 }
@@ -1534,6 +1547,9 @@ func (p prefsIn) membershipPatch() map[string]any {
 	}
 	if p.hasCur {
 		patch["second_currency"] = nullable(p.cur)
+	}
+	if p.hasCalFilter {
+		patch["calendar_filter"] = nilCalendarFilter(p.calFilter)
 	}
 	return patch
 }

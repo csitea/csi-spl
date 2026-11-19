@@ -46,6 +46,9 @@ type HumanSettings struct {
 	// SecondCurrency is the costs' second currency (SPL-2108), "" when never
 	// picked (EUR). Per tenant only (rdb 0078).
 	SecondCurrency string
+	// CalendarFilter is the remembered Calendar filter (spec 097 section
+	// 11.8.2), nil when never chosen. Per tenant only (rdb 0078).
+	CalendarFilter *CalendarFilter
 }
 
 // IssuesSort is a person's default sort of the Issues list (CLE-35099): the
@@ -96,6 +99,9 @@ type MembershipSettings struct {
 	HoursNormDayMinutes *int `json:"hours_norm_day_minutes,omitempty"`
 	// AwaitAnims: the ticked "Thinking animation" ids (SPL-2113), nil = the WUI's default.
 	AwaitAnims []string `json:"await_anims,omitempty"`
+	// CalendarFilter: the remembered Calendar filter (spec 097 section
+	// 11.8.2), nil = no filter.
+	CalendarFilter *CalendarFilter `json:"calendar_filter,omitempty"`
 }
 
 // Overlay returns b with every set field of the per-tenant override o applied
@@ -166,6 +172,9 @@ func (b HumanSettings) Overlay(o MembershipSettings) HumanSettings {
 	}
 	if o.SecondCurrency != nil {
 		b.SecondCurrency = *o.SecondCurrency
+	}
+	if o.CalendarFilter != nil {
+		b.CalendarFilter = o.CalendarFilter
 	}
 	return b
 }

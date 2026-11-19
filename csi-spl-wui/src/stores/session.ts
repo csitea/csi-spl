@@ -64,6 +64,14 @@ export interface SessionClaims {
   await_anims?: string[] | null
   /** SPL-2108 The costs' second currency (ISO 4217), per workspace; the hub answers EUR when never picked. */
   second_currency?: string | null
+  /** Spec 097 11.8.2 The remembered Calendar filter, per workspace: tag ids or ['none'] alone, To-do issue label ids; null = no filter. */
+  calendar_filter?: CalendarFilter | null
+}
+
+/** Spec 097 11.8.2: the hub's auth.CalendarFilter, at most 20 of each list. */
+export interface CalendarFilter {
+  tags: string[]
+  labels: string[]
 }
 
 type SessionAuth = ReturnType<typeof useAuthClient>
@@ -210,6 +218,14 @@ function claimMirrors(claims: Ref<SessionClaims | null>) {
   return { setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, setTimeZone, setKeyboardShortcuts, setHoursReading }
 }
 
+/* Spec 097 11.8.2 (row T16): mirror the remembered Calendar filter after its save, without another probe; null forgets it. */
+function calendarFilterMirror(claims: Ref<SessionClaims | null>) {
+  function setCalendarFilter(filter: CalendarFilter | null) {
+    if (claims.value) claims.value = { ...claims.value, calendar_filter: filter }
+  }
+  return { setCalendarFilter }
+}
+
 /* Sign out by hand, or stop acting as someone. */
 function signOutActions(state: Ref<SessionState>, claims: Ref<SessionClaims | null>, auth: SessionAuth) {
   async function logout() {
@@ -265,5 +281,5 @@ export const useSessionStore = defineStore('session', () => {
   const label = computed(() => claims.value?.hum || claims.value?.name || claims.value?.email || '')
 
   watchSignedOutHint(state)
-  return { state, claims, label, ...probeActions(state, claims, auth), ...claimMirrors(claims), ...signOutActions(state, claims, auth) }
+  return { state, claims, label, ...probeActions(state, claims, auth), ...claimMirrors(claims), ...calendarFilterMirror(claims), ...signOutActions(state, claims, auth) }
 })

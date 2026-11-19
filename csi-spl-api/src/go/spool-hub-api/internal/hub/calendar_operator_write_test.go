@@ -72,7 +72,7 @@ func TestOperatorCalendarPin(t *testing.T) {
 		code       int
 		errCode    string
 	}{
-		{"another field", ta, map[string]any{"tenant": ta, "agent_id": "c-840", "audience": "private", "props": map[string]any{"pinned": true}}, http.StatusBadRequest, "bad_json"},
+		{"another field", ta, map[string]any{"tenant": ta, "agent_id": "c-840", "mentions": []any{"HUM-10"}, "props": map[string]any{"pinned": true}}, http.StatusBadRequest, "bad_json"},
 		{"another props key", ta, body(map[string]any{"pinned": true, "color": "sage"}), http.StatusBadRequest, "bad_event"},
 		{"no pinned", ta, body(map[string]any{"color": "sage"}), http.StatusBadRequest, "bad_event"},
 		{"not a bool", ta, body(map[string]any{"pinned": "yes"}), http.StatusBadRequest, "bad_event"},

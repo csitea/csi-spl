@@ -642,10 +642,12 @@ func visibleTo(evs []store.CalendarEvent, demo bool) []store.CalendarEvent {
 	})
 }
 
-// deadlinesIn is the workspace's issue deadlines inside rg (read only here).
-// done and diss drop out immediately (SPL-37). ListIssues already omits
-// archived rows, so this does not filter archived_at again.
-func (s *Server) deadlinesIn(ctx context.Context, tenant string, rg store.CalendarRange) ([]store.Issue, error) {
+// deadlinesIn is the issue deadlines inside rg that viewer reads (read only
+// here). done and diss drop out immediately (SPL-37). ListIssues already
+// omits archived rows, so this does not filter archived_at again. An issue
+// deadline shows only to its assignee and its creator (SPL-5963, owner msg
+// eac307d4); a viewer with no member session reads none.
+func (s *Server) deadlinesIn(ctx context.Context, tenant, viewer string, rg store.CalendarRange) ([]store.Issue, error) {
 	is, ok := s.o.Store.(store.Issues)
 	if !ok {
 		return nil, nil
@@ -656,7 +658,8 @@ func (s *Server) deadlinesIn(ctx context.Context, tenant string, rg store.Calend
 	}
 	return slices.DeleteFunc(all, func(i store.Issue) bool {
 		return store.IssueClosed(i.Status) || i.Deadline == nil ||
-			i.Deadline.Before(rg.Start) || !i.Deadline.Before(rg.End)
+			i.Deadline.Before(rg.Start) || !i.Deadline.Before(rg.End) ||
+			viewer == "" || (i.Assignee != viewer && i.CreatedBy != viewer)
 	}), nil
 }
 
@@ -737,7 +740,7 @@ func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request, t 
 		s.calendarFail(w, t.ID, "list", err)
 		return
 	}
-	dls, err := s.deadlinesIn(r.Context(), t.ID, rg)
+	dls, err := s.deadlinesIn(r.Context(), t.ID, viewer, rg)
 	if err != nil {
 		s.calendarFail(w, t.ID, "deadlines", err)
 		return
@@ -828,7 +831,7 @@ func (s *Server) handleCalendarMarks(w http.ResponseWriter, r *http.Request, t s
 		s.calendarFail(w, t.ID, "marks", err)
 		return
 	}
-	dls, err := s.deadlinesIn(r.Context(), t.ID, rg)
+	dls, err := s.deadlinesIn(r.Context(), t.ID, viewer, rg)
 	if err != nil {
 		s.calendarFail(w, t.ID, "deadlines", err)
 		return

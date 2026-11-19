@@ -30,9 +30,14 @@ import (
 //   - PATCH (do_spl_calendar_event_pin, do_spl_calendar_event_update) sets
 //     title, description, starts_at, ends_at, all_day, reminders and
 //     props.pinned, through the member PATCH's checks (calendarRequest.patch).
-//     Audience, mentions, guests, owner, links, kind and recurrence stay the
+//     Mentions, guests, owner, links, kind and recurrence stay the
 //     members': another field is 400 bad_json, another props key 400
 //     bad_event, an empty change 400 bad_event.
+//   - Audience (SPL-5963, owner msg eac307d4): only "private", only on an
+//     agent's entry whose owner is ordered_by (a member); a shared entry's
+//     mentions become {ordered_by}, so it is private to that person
+//     (operatorNarrowPrivate, do_spl_calendar_event_update AUDIENCE=private).
+//     Any other value or target is 400 bad_event; nothing widens an audience.
 //   - DELETE is the member delete (spec 4.8, a soft delete): the event goes
 //     to the trash of ordered_by when that human is a member, so they can
 //     Undo it in the WUI, else of the agent (do_spl_calendar_event_delete).
@@ -53,12 +58,35 @@ type operatorCalendarPatchRequest struct {
 	AllDay      *bool          `json:"all_day"`
 	Reminders   *[]any         `json:"reminders"`
 	Props       map[string]any `json:"props"`
+	Audience    *string        `json:"audience"`
 }
 
 // calendarRequest is the member PATCH body the operator body stands for.
 func (q operatorCalendarPatchRequest) calendarRequest() calendarRequest {
 	return calendarRequest{Title: q.Title, Description: q.Description, StartsAt: q.StartsAt, EndsAt: q.EndsAt,
 		AllDay: q.AllDay, Reminders: q.Reminders, Props: q.Props}
+}
+
+// operatorNarrowPrivate (SPL-5963) is the one audience change an operator
+// makes: an agent's entry made for o.person (its owner) becomes private to
+// that person. A shared entry's mentions become {person}; an entry already
+// private keeps its mentions (the person is among them, or it was 404).
+func operatorNarrowPrivate(p *store.CalendarPatch, o opCalWrite, audience string) *issueErr {
+	switch {
+	case strings.TrimSpace(audience) != store.CalendarPrivate:
+		return badCalendar("an operator PATCH sets audience to private only")
+	case o.person == "" || o.cur.OwnerID != o.person:
+		return badCalendar("audience private needs ordered_by, the member the entry was made for (its owner)")
+	case o.cur.CreatorType != "agent":
+		return badCalendar("an operator makes only an agent's entry private")
+	}
+	a := store.CalendarPrivate
+	p.Audience = &a
+	if o.cur.Audience != store.CalendarPrivate {
+		ms := []string{o.person}
+		p.Mentions = &ms
+	}
+	return nil
 }
 
 // operatorReachesPrivate (SPL-5720): a private event is the operator's only
@@ -160,7 +188,7 @@ func (s *Server) handleOperatorCalendarPin(w http.ResponseWriter, r *http.Reques
 	dec.UseNumber() // a reminder's amount, as on the member PATCH
 	if err := dec.Decode(&q); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_json",
-			"body must be {tenant, agent_id, ordered_by?, title?, description?, starts_at?, ends_at?, all_day?, reminders?, props?: {pinned}}")
+			"body must be {tenant, agent_id, ordered_by?, title?, description?, starts_at?, ends_at?, all_day?, reminders?, props?: {pinned}, audience?: private}")
 		return
 	}
 	if _, set := q.Props[calPropPinned]; q.Props != nil && (!set || len(q.Props) != 1) {
@@ -172,6 +200,9 @@ func (s *Server) handleOperatorCalendarPin(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	p, ie := q.calendarRequest().patch(o.cur)
+	if ie == nil && q.Audience != nil {
+		ie = operatorNarrowPrivate(&p, o, *q.Audience)
+	}
 	if ie == nil && calendarPatchEmpty(p) {
 		ie = badCalendar("nothing to change")
 	}

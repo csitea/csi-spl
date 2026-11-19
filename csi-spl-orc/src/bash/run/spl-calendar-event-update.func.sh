@@ -22,7 +22,10 @@
 # @param STARTS_AT, ENDS_AT (optional) - move it to a timed slot, both RFC 3339 UTC (2026-10-12T09:00:00Z)
 # @param REMINDERS (optional) - as do_spl_calendar_event_add takes them (15m,1h,1d);
 # @param   set and empty clears them; unset leaves them
+# @param AUDIENCE (optional) - private only (SPL-5963, owner msg eac307d4): makes an agent's entry
+# @param   made for ORDERED_BY (its owner, who must then be set) private to that person; nothing widens one
 # @param DRY_RUN (optional) - 1 (default) or 0
+# @example ENV=prd TENANT_ID=<tenant> EVENT_ID=<uuid> AGENT_ID=c-042 ORDERED_BY=HUM-10 AUDIENCE=private ./run -a do_spl_calendar_event_update
 # @example ENV=prd TENANT_ID=<tenant> EVENT_ID=<uuid> AGENT_ID=c-042 ORDERED_BY=HUM-10 REMINDERS=15m ./run -a do_spl_calendar_event_update
 # @example ENV=dev TENANT_ID=<tenant> EVENT_ID=<uuid> AGENT_ID=c-042 ORDERED_BY=HUM-10 TITLE='Call' DAY=2026-11-20 DRY_RUN=0 ./run -a do_spl_calendar_event_update
 #------------------------------------------------------------------------------
@@ -101,6 +104,8 @@ _spl_calendar_update_body() {
   [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
   [[ "$id" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || { do_log "FATAL EVENT_ID must be an event id (uuid), got: '$id'"; return 1; }
   [[ ! -v TITLE || -n "${TITLE// /}" ]] || { do_log "FATAL TITLE is set but empty: unset it to keep the title"; return 1; }
+  [[ -z "${AUDIENCE:-}" || ( "$AUDIENCE" == private && -n "$ordby" ) ]] \
+    || { do_log "FATAL AUDIENCE takes only private, with ORDERED_BY the member the entry was made for, got: '${AUDIENCE:-}'"; return 1; }
   times="$(_spl_calendar_update_times)" || { printf '%s\n' "$times"; return 1; }
   if [[ -v REMINDERS ]]; then
     rems="$(_spl_calendar_reminders)" || { printf '%s\n' "$rems"; return 1; }
@@ -108,14 +113,15 @@ _spl_calendar_update_body() {
   fi
   body="$(jq -cn --arg tenant "$tenant" --arg agent "$agent" --arg ordby "$ordby" --argjson times "$times" \
     --arg title "${TITLE:-}" --arg ht "${TITLE+1}" --arg desc "${DESCRIPTION:-}" --arg hd "${DESCRIPTION+1}" \
-    --argjson rems "${rems:-null}" '
+    --argjson rems "${rems:-null}" --arg aud "${AUDIENCE:-}" '
       {tenant: $tenant, agent_id: $agent}
       + (if $ordby != "" then {ordered_by: $ordby} else {} end)
       + (if $ht == "1" then {title: $title} else {} end)
       + (if $hd == "1" then {description: $desc} else {} end)
       + $times
-      + (if $rems == null then {} else {reminders: $rems} end)')" \
+      + (if $rems == null then {} else {reminders: $rems} end)
+      + (if $aud != "" then {audience: $aud} else {} end)')" \
     || { do_log "FATAL could not build the request body"; return 1; }
   [[ "$(jq 'del(.tenant, .agent_id, .ordered_by) | length' <<<"$body")" -gt 0 ]] \
-    || { do_log "FATAL nothing to change: set TITLE, DESCRIPTION, DAY, STARTS_AT and ENDS_AT, or REMINDERS"; return 1; }
+    || { do_log "FATAL nothing to change: set TITLE, DESCRIPTION, DAY, STARTS_AT and ENDS_AT, REMINDERS, or AUDIENCE"; return 1; }
 }

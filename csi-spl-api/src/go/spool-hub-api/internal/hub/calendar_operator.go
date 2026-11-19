@@ -35,10 +35,14 @@ import (
 //     lands in or points into another.
 //   - The event body is the member create's (calendarRequest, spec 6.1.2)
 //     less guests: an agent invites nobody.
-//   - Audience (SPL-5498): the member create's, workspace by default. Every
-//     mention is a HUM-* member of the workspace. A private event names at
-//     least one, and ordered_by is one of them, so the human who ordered it
-//     reads it. The read-back takes ?as=<agent id>: an agent reads back the
+//   - Audience (SPL-5498): the member create's. Every mention is a HUM-*
+//     member of the workspace. A private event names at least one, and
+//     ordered_by is one of them, so the human who ordered it reads it.
+//   - Default audience (SPL-5963, owner msg eac307d4): an entry made for one
+//     person (its owner a HUM-* member: owner_id, else ordered_by) with no
+//     audience in the body is private to that person, who is added to the
+//     mentions (operatorPersonalDefault). With no person it is workspace,
+//     and an explicit audience is kept. The read-back takes ?as=<agent id>: an agent reads back the
 //     private event it created, and no other. The operator never reads a
 //     private event as a human (as=HUM-n is 404 on one).
 
@@ -116,8 +120,11 @@ func (s *Server) handleOperatorCalendarCreate(w http.ResponseWriter, r *http.Req
 	}
 	e.CreatorType = "agent"
 	if !s.operatorCalendarAudienceOK(w, r, t.ID, orderedBy, e) ||
-		!s.operatorOwnerDefault(w, r, t.ID, orderedBy, e.CreatorID, q.OwnerID, &e) ||
-		!s.bindEventLinks(w, r, t.ID, e.CreatorID, &e) {
+		!s.operatorOwnerDefault(w, r, t.ID, orderedBy, e.CreatorID, q.OwnerID, &e) {
+		return
+	}
+	operatorPersonalDefault(q.Audience, &e)
+	if !s.bindEventLinks(w, r, t.ID, e.CreatorID, &e) {
 		return
 	}
 	out, err := c.CreateCalendarEvent(r.Context(), t.ID, e, s.o.Now())
@@ -201,6 +208,20 @@ func (s *Server) operatorOwnerDefault(w http.ResponseWriter, r *http.Request, te
 		e.OwnerID = orderedBy
 	}
 	return true
+}
+
+// operatorPersonalDefault (SPL-5963, owner msg eac307d4: "An entry an agent
+// writes for one person is private to that person by default"): with no
+// audience in the body and a HUM-* owner, the event is private and the owner
+// is among its mentions. bindEventLinks then checks the owner is a member.
+func operatorPersonalDefault(audience *string, e *store.CalendarEvent) {
+	if (audience != nil && strings.TrimSpace(*audience) != "") || !humanIDRe.MatchString(e.OwnerID) {
+		return
+	}
+	e.Audience = store.CalendarPrivate
+	if !slices.Contains(e.Mentions, e.OwnerID) {
+		e.Mentions = append(slices.Clone(e.Mentions), e.OwnerID)
+	}
 }
 
 // operatorCalendarAudienceOK (SPL-5498): every mention is a HUM-* member of

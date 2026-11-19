@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "19 Languages"
 summary: "The Spool web interface now supports 19 languages right out of the box, offering a truly international experience."
+share_text: "Your team speaks more than one language? Spool now speaks 19 of them, right out of the box. See which ones."
 date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-687

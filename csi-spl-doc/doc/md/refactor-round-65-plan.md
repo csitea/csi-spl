@@ -19,13 +19,16 @@ Owner HUM-10 directives and fleet rules, by pointer:
   rulebook wins over this plan.
 
 **What this round is.** Round 64 ([refactor-round-64-plan.md](refactor-round-64-plan.md))
-has r64-01 landed (`87d56eaae`) and r64-02 live (the `no-literal-paths` gate widened to
-non-test `*.sh`; graft's 2 scripts enter its baseline). So r65 carries no signed row: a
+has r64-01 landed (`87d56eaae`) and r64-02 live but unlanded: the `no-literal-paths` gate
+widened to non-test `*.sh`, with graft's 2 scripts entering its baseline, exists only on
+its review branch (`git log origin/master --oneline -E --grep='\(r64-'` -> r64-01 and
+the 3 plan commits; master's gate scans `*.func.sh` and the cnf only). So r65 carries no signed row: a
 fresh round. Both rows serve the same practice as r62 to r64, **no literal box path**
 (developer guide 2.3.1): the two places whose default state path is still a literal
 while the code that writes that state derives it, or every other state dir does.
 
-**Status: v0.1**, draft for the panel. Editor: **c-293** (claude).
+**Status: v1.0**: panel seat m-302 (mistral) PASS on v0.1 `061cfedc5`, W1 folded (r64-02
+unlanded, section 8), N1-N4 notes. Rows unchanged from v0.1. Editor: **c-293** (claude).
 
 **One sha:** every count is measured on **`93a625324`** (`origin/master`
 93a625324be56d6d5dced9cb4acbb1aa7eb16daf, committed 2026-11-19T10:08:17+01:00), n=1 per
@@ -232,10 +235,12 @@ The 6 written paths: `orc:run/spl-reflection-gather.func.sh`,
 - Editor: c-293 (claude). The panel seat signs the plan sha (rulebook 3.2).
 - **Vendor state** (2026-11-19T09:14:42Z, n=1 each, `BOX_PICK_KIND=<k> ./run -a do_spl_box_pick`,
   read on this lane's box): grok `pick=hold` (weekly 99% >= 95% on both boxes); agy,
-  mistral and claude pick this box (60% < 70%).
+  mistral and claude pick this box (60% < 70%). The pick does not read agy's quota: the
+  holder reports agy out (no agy CLI on the other box, this box's agy at its quota until
+  2026-11-24), so the panel seat went to mistral.
 - **Panel seat: requested of the dispatch lease holder** (task `dispatch-refactor-r65`):
-  one **agy** doc seat, the main vendor for spec and plan reviews; mistral as its
-  backup, as r62 to r64 had. The seat reviews this plan only.
+  one **agy** doc seat, the main vendor for spec and plan reviews, mistral as its
+  backup; placed: **m-302 (mistral)**, as r62 to r64 had. The seat reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2): agy if its pick still holds
   when the row is queued, else the holder's call (a fresh claude seat under the claude
   waiver, as r63 and r64). Not a mistral code R7. The holder re-reads the agy and grok
@@ -302,11 +307,21 @@ Gates: `bash csi-spl-orc/src/bash/features/graft/tests/run-all.sh`,
   reflection gather's zombie log default; row 02 graft's var root (r64's section 7
   first candidate). Window W and the r65 slug proof recorded. Both rows wait for r64-02
   (the baseline).
+- v1.0 (c-293): the panel seat m-302 (mistral) passed v0.1 `061cfedc5`. W1: "r64-02 live"
+  now says it is unlanded, its widened gate and graft's baseline lines only on its review
+  branch; rows unaffected (2.1 already serialises both behind it). N1 (`origin/master`
+  was still `93a625324`, no drift on the row files), N2 (lane map exit 4, the same 4
+  lanes), N3 (live readings not re-run by the seat) and N4 (the baseline count chain
+  re-verified): no change. Section 4 records that agy was out (holder's read).
+  Status line and sections 1 intro, 4, 8 and 9 only.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-293 (claude): v0.1.
-- Panel reviewer seat: requested (section 4).
+- Editor seat: c-293 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-302 (mistral) PASS** on `061cfedc55e6a291e0954538f7565c8ffba3eac4`
+  (spool msg 3d7569ca, task `dispatch-refactor-r65`); seat file on branch
+  `review/c002-refactor-round-65-mistral-seat` (`b57e11318`). W1 folded; N1-N4 notes.
+- v1.0 signature: requested of m-302.
 - Row R7 seats: section 4.

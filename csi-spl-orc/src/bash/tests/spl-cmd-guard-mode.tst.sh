@@ -15,6 +15,8 @@
 #   6. with no SPL_CMD_GUARD_BIN the build runs cargo (a stub on PATH) with
 #      the crate dir as its cwd, so rust-toolchain.toml and .cargo/config.toml
 #      apply, and plans the musl binary it printed (SPL-5487)
+#   7. with no SPL_RUST_HOME the rust home is <SPL_VAR_ORG_DIR>/rust
+#      (spl_run_paths), and with no tree at all the build is refused, rc 1
 #------------------------------------------------------------------------------
 set -uo pipefail
 ORC="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -110,6 +112,20 @@ if [ "$rc" = 0 ] && [ "$(cat "$T/cargo.cwd" 2>/dev/null)" = "$ORC/src/rust/spl-c
   [[ "$out" == *"PLAN $G1/spl-cmd-guard <- $musl (spl-cmd-guard v1)"* ]]; then
   pass "the build runs cargo with the crate dir as cwd and plans the musl binary"
 else fail "build cwd: rc=$rc cwd=$(cat "$T/cargo.cwd" 2>/dev/null) args=$(cat "$T/cargo.args" 2>/dev/null) $out"; fi
+
+# 7. the rust home derives from SPL_VAR_ORG_DIR; no tree -> refused
+rm -f "$T/cargo.args"
+out="$( (unset SPL_RUST_HOME; PATH="$T/stubbin:$PATH" SPL_VAR_ORG_DIR="$T/v" SCG_TEST_CWD="$T/cargo.cwd" \
+  SCG_TEST_ARGS="$T/cargo.args" SCG_TEST_GOOD="$T/good1" SPL_CMD_GUARD_IMPL=shadow mode) )"; rc=$?
+rh="$T/v/rust"; mountpoint -q /mnt/data 2>/dev/null && rh="/mnt/data$T/v/rust"
+musl="$rh/target/spl-cmd-guard/x86_64-unknown-linux-musl/release/spl-cmd-guard"
+if [ "$rc" = 0 ] && [[ "$out" == *"PLAN $G1/spl-cmd-guard <- $musl (spl-cmd-guard v1)"* ]]; then
+  pass "no SPL_RUST_HOME: the build uses <SPL_VAR_ORG_DIR>/rust"
+else fail "derived rust home: rc=$rc $out"; fi
+out="$( (unset SPL_RUST_HOME APP_PATH SPL_VAR_ORG_DIR; PATH="$T/stubbin:$PATH" SPL_RUN_PATHS_TOP='' PROJ_PATH='' \
+  SPL_CMD_GUARD_IMPL=shadow mode) 2>&1)"; rc=$?
+[ "$rc" = 1 ] && [[ "$out" == *"FATAL cannot derive the rust home"* ]] &&
+  pass "no tree and no SPL_RUST_HOME: the build is refused, rc 1" || fail "no tree: rc=$rc $out"
 
 echo "spl-cmd-guard-mode: $((n - fails))/$n passed"
 [ "$fails" = 0 ]

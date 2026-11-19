@@ -1,4 +1,2 @@
 # no-literal-paths.tst.sh ratchet (SPL-5527): "<lines> <file>", lines with /opt/<org> or /var/<org>. It only shrinks.
-3 csi-spl-orc/src/bash/run/spl-cmd-guard-mode.func.sh
 2 csi-spl-orc/src/bash/run/spl-file-erase.func.sh
-3 csi-spl-utl/src/bash/run/fleet-logrotate-install.func.sh

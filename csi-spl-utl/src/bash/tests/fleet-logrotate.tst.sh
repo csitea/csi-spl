@@ -17,6 +17,8 @@
 #   9. An unknown user fails fast and writes nothing
 #  10. DRY_RUN=0 without root and without a test root is refused
 #  11. ./run -a do_fleet_logrotate_install runs through the harness
+#  12. With no FLEET_LOGROTATE_VAR_DIR the var root is SPL_VAR_ORG_DIR
+#      (spl_run_paths); with no tree at all the run is refused, rc 1
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -154,6 +156,14 @@ out=$(cd "$UTL_ROOT" && FLEET_LOGROTATE_ROOT="$T" FLEET_LOGROTATE_VAR_DIR="$VAR"
   FLEET_LOGROTATE_OWNER_USER="$ME" FLEET_LOGROTATE_AGENT_USER="$ME" ./run -a do_fleet_logrotate_install 2>&1); rc=$?
 [[ $rc -eq 0 ]] && grep -q "PLAN $LR:" <<<"$out" && pass "11. ./run -a do_fleet_logrotate_install (dry run) succeeds" \
   || fail "11. harness (rc=$rc): $out"
+
+# 12. derived var root; no tree -> refused
+out=$(run_it FLEET_LOGROTATE_VAR_DIR= SPL_VAR_ORG_DIR="$T/v" 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qF "$T/v/csi-spl/desk-reconcile/cron-prd.out $T/v/csi-spl/box-disk-sweep/box-disk-sweep.log {" <<<"$out" \
+  && pass "12. no FLEET_LOGROTATE_VAR_DIR: the logs are under SPL_VAR_ORG_DIR" || fail "12. derived var dir (rc=$rc): $out"
+out=$(run_it FLEET_LOGROTATE_VAR_DIR= SPL_RUN_PATHS_TOP= APP_PATH= PROJ_PATH= SPL_VAR_ORG_DIR= 2>&1); rc=$?
+[[ $rc -eq 1 ]] && grep -q "ERROR cannot derive the var dir" <<<"$out" \
+  && pass "12. no tree and no FLEET_LOGROTATE_VAR_DIR: refused, rc 1" || fail "12. no tree (rc=$rc): $out"
 
 echo "fleet-logrotate: $fails failure(s)"
 [[ "$fails" -eq 0 ]]

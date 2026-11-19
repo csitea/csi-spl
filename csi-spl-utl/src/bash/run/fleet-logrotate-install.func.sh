@@ -4,7 +4,7 @@
 # @description SPL-2233). Writes two root-owned files: /etc/logrotate.d/csi-spl
 # @description rotates the agent user's .cache/csi-spl/tmp-scratch-sweep.log and
 # @description the owner's desk-reconcile/cron-prd.out and
-# @description box-disk-sweep/box-disk-sweep.log under /var/csi/csi-spl once they
+# @description box-disk-sweep/box-disk-sweep.log under <SPL_VAR_ORG_DIR>/csi-spl once they
 # @description pass 50M (copytruncate: the cron `>>` writers keep their fd; 7
 # @description compressed copies; `su` to the user that owns each dir, which
 # @description logrotate needs for a dir a non-root user controls), and
@@ -21,7 +21,7 @@
 # @param FLEET_LOGROTATE_OWNER_USER (optional) - default cnf box_owner_user, else $USER
 # @param FLEET_LOGROTATE_AGENT_USER (optional) - default cnf box_agent_user, else $USER
 # @param FLEET_LOGROTATE_AGENT_HOME (optional) - default the agent user's passwd home
-# @param FLEET_LOGROTATE_VAR_DIR (optional) - default /var/csi
+# @param FLEET_LOGROTATE_VAR_DIR (optional) - default <SPL_VAR_ORG_DIR> (<var>/<org>, spl_run_paths); refused when neither is known
 # @param FLEET_LOGROTATE_MAXSIZE (optional) - default 50M
 # @param FLEET_LOGROTATE_MAX_AGE_D (optional) - dated log age in days, default 14
 # @param FLEET_LOGROTATE_BIN (optional) - default logrotate on PATH, else /usr/sbin/logrotate
@@ -58,7 +58,8 @@ _fleet_logrotate_cnf() {
 }
 
 # _fleet_logrotate_resolve: set FL_OWNER/FL_OWNER_GRP/FL_AGENT/FL_AGENT_GRP/
-# FL_AGENT_HOME/FL_VAR/FL_MAX/FL_AGE, failing fast on an unknown user.
+# FL_AGENT_HOME/FL_VAR/FL_MAX/FL_AGE, failing fast on an unknown user or an
+# underivable var dir.
 _fleet_logrotate_resolve() {
   FL_OWNER="${FLEET_LOGROTATE_OWNER_USER:-$(_fleet_logrotate_cnf box_owner_user)}"
   FL_AGENT="${FLEET_LOGROTATE_AGENT_USER:-$(_fleet_logrotate_cnf box_agent_user)}"
@@ -67,7 +68,12 @@ _fleet_logrotate_resolve() {
   FL_AGENT_GRP=$(id -gn "$FL_AGENT" 2>/dev/null) || { do_log "ERROR no OS user $FL_AGENT (agent) on this box"; return 1; }
   FL_AGENT_HOME="${FLEET_LOGROTATE_AGENT_HOME:-$(getent passwd "$FL_AGENT" | cut -d: -f6)}"
   [[ -n "$FL_AGENT_HOME" ]] || { do_log "ERROR no home for $FL_AGENT"; return 1; }
-  FL_VAR="${FLEET_LOGROTATE_VAR_DIR:-/var/csi}"
+  FL_VAR="${FLEET_LOGROTATE_VAR_DIR:-}"
+  if [[ -z "$FL_VAR" ]]; then
+    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../../csi-spl-orc/lib/bash/funcs/spl-run-paths.func.sh"
+    spl_run_paths && FL_VAR="${SPL_VAR_ORG_DIR:-}"
+    [[ -n "$FL_VAR" ]] || { do_log "ERROR cannot derive the var dir (no tree for spl_run_paths): set FLEET_LOGROTATE_VAR_DIR"; return 1; }
+  fi
   FL_MAX="${FLEET_LOGROTATE_MAXSIZE:-50M}"
   FL_AGE="${FLEET_LOGROTATE_MAX_AGE_D:-14}"
 }

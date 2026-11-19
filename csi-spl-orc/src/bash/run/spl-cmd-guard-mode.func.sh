@@ -17,7 +17,8 @@
 # @param DRY_RUN (optional) - 1 prints the plan (default), 0 writes
 # @param SPL_CMD_GUARD_BIN (optional) - a built spl-cmd-guard; default: build it
 # @param SPL_RUST_HOME (optional) - rustup, cargo and target dirs; default
-# @param SPL_RUST_HOME /mnt/data/var/csi/rust when /mnt/data is mounted, else /var/csi/rust
+# @param SPL_RUST_HOME /mnt/data<SPL_VAR_ORG_DIR>/rust when /mnt/data is mounted, else
+# @param SPL_RUST_HOME <SPL_VAR_ORG_DIR>/rust (<var>/<org>, spl_run_paths); refused when neither is known
 # @param SPOOL_AGENT_USER (optional) - default from $SPOOL_ROOT/box.env
 # @param SPOOL_BOX_USER (optional) - default the owner of $SPOOL_ROOT
 # @param SPL_CMD_GUARD_HOMES (optional, tests) - space-separated homes, run as THIS user
@@ -33,8 +34,10 @@
 _scg_build() {
   local rh="${SPL_RUST_HOME:-}" crate="$PROJ_PATH/src/rust/spl-cmd-guard"
   if [[ -z "$rh" ]]; then
-    rh=/var/csi/rust
-    mountpoint -q /mnt/data 2>/dev/null && rh=/mnt/data/var/csi/rust
+    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_run_paths && rh="${SPL_VAR_ORG_DIR:+$SPL_VAR_ORG_DIR/rust}"
+    [[ -n "$rh" ]] || { do_log "FATAL cannot derive the rust home (no tree for spl_run_paths): set SPL_RUST_HOME" >&2; return 1; }
+    mountpoint -q /mnt/data 2>/dev/null && rh="/mnt/data$rh"
   fi
   command -v cargo >/dev/null 2>&1 || { do_log "FATAL no cargo: install rustup with do_box_pkg_install"; return 1; }
   ( cd "$crate" || exit 1

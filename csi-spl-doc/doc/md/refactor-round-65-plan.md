@@ -323,5 +323,8 @@ The panel seat signs this plan (rulebook 3.2).
 - Panel reviewer seat: **m-302 (mistral) PASS** on `061cfedc55e6a291e0954538f7565c8ffba3eac4`
   (spool msg 3d7569ca, task `dispatch-refactor-r65`); seat file on branch
   `review/c002-refactor-round-65-mistral-seat` (`b57e11318`). W1 folded; N1-N4 notes.
-- v1.0 signature: requested of m-302.
+- v1.0 signed: **m-302 (mistral) PASS** on `85dbbf08860793fe0421cc3591ba365d37488279`
+  (spool msg 5d86afaa), seat file `aead09b9f`. W: none; N5 (the word "live" in "r64-02
+  live but unlanded", section intro) a note, no change; N1-N4 re-verified on
+  `origin/master` `a4bb7c4e`, no change.
 - Row R7 seats: section 4.

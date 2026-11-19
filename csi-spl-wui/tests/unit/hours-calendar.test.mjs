@@ -8,7 +8,8 @@ import {
   hoursIsWorkday, hoursLineState, hoursNextPeriodDay, hoursShowsLine, hoursSortRows, hoursTarget,
 } from '../../src/utils/hours-calendar.mjs'
 import { loadHoursRange } from '../../src/utils/hours-calendar-api.mjs'
-import { HOURS_MOCK_TOPIC, mockMyHours } from '../../src/utils/hours-calendar-mock.mjs'
+import { HOURS_MOCK_TOPIC, mockHoursReset, mockHoursSetEmpty, mockMyHours, mockPutMyHours } from '../../src/utils/hours-calendar-mock.mjs'
+import { HOURS_MOCK_SELF, mockSetMemberHoursNorm } from '../../src/utils/hours-norm.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -100,6 +101,29 @@ ok('mock: Monday total 3:05', hoursHhmm(mi.get('2026-10-05').total) === '3:05', 
 ok('mock: days after today and weekends are empty', mi.get('2026-10-09').total === 0 && mi.get('2026-10-10').rows.length === 0)
 const range = await loadHoursRange({ mock: true, base: '' }, '2026-10-05', '2026-10-18', '2026-10-08')
 ok('mock range: two weeks = two answers', range.length === 2 && range[1].period.start === '2026-10-12')
+
+// T082 (spec 107 E2, owner Q31 = A): an empty closed working day holds one
+// row at the member's allocation, marked no_activity, as the hub answers it
+{
+  mockHoursReset()
+  mockHoursSetEmpty(['2026-10-06', '2026-10-07'])
+  const none = hoursIndex([mockMyHours('2026-10-06', '2026-10-07')])
+  ok('prefill: no allocation, the empty day stays empty', none.get('2026-10-06').rows.length === 0)
+  mockSetMemberHoursNorm(HOURS_MOCK_SELF, 480)
+  const pi = hoursIndex([mockMyHours('2026-10-06', '2026-10-07')])
+  const row = pi.get('2026-10-06').rows[0]
+  ok('prefill: one no_activity row of the allocation', pi.get('2026-10-06').rows.length === 1 && row.no_activity === true &&
+    row.state === 'suggested' && row.minutes === 480 && pi.get('2026-10-06').open === 1, JSON.stringify(pi.get('2026-10-06')))
+  ok('prefill: today and a weekend get none', pi.get('2026-10-07').rows.length === 0 && pi.get('2026-10-10').rows.length === 0)
+  ok('prefill: a day with activity gets none', !pi.get('2026-10-05').rows.some((r) => r.no_activity))
+  ok('prefill: the line is open', hoursLineState(pi.get('2026-10-06')) === 'open')
+  const after = hoursIndex([mockPutMyHours({ entries: [{ day: '2026-10-06', target: row.target, minutes: 480, state: 'approved' }] }, '2026-10-07')])
+  const ap = after.get('2026-10-06')
+  ok('prefill: approved, it counts and loses the mark', ap.rows.length === 1 && ap.rows[0].state === 'approved' &&
+    !ap.rows[0].no_activity && ap.rows[0].suggested_minutes === 480 && ap.approved === 480 && ap.open === 0, JSON.stringify(ap))
+  mockHoursReset()
+  mockSetMemberHoursNorm(HOURS_MOCK_SELF, null)
+}
 
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)

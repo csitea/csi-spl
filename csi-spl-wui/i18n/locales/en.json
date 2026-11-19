@@ -3216,6 +3216,8 @@
     "why": "Why",
     "why_blocks": "Counted from your activity at:",
     "why_added": "Added by you, not measured in the app.",
+    "no_activity": "No activity",
+    "why_no_activity": "Prefilled at your average hours per day: no activity in the app. It counts only after you approve it.",
     "why_suggested": "Suggested: {t}",
     "note_add": "Add note",
     "note_edit": "Edit note",

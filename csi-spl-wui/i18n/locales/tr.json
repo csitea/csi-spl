@@ -3216,6 +3216,8 @@
     "why": "Neden",
     "why_blocks": "Etkinliğinden şu saatlerde sayıldı:",
     "why_added": "Senin eklediğin, uygulamada ölçülmedi.",
+    "no_activity": "Etkinlik yok",
+    "why_no_activity": "Günlük ortalama saatlerinle önceden dolduruldu: uygulamada etkinlik yok. Yalnızca onayladıktan sonra sayılır.",
     "why_suggested": "Önerilen: {t}",
     "note_add": "Not ekle",
     "note_edit": "Notu düzenle",

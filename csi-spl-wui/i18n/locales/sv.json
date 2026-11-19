@@ -3216,6 +3216,8 @@
     "why": "Varför",
     "why_blocks": "Räknat från din aktivitet kl.:",
     "why_added": "Tillagt av dig, inte mätt i appen.",
+    "no_activity": "Ingen aktivitet",
+    "why_no_activity": "Förifyllt med dina genomsnittliga timmar per dag: ingen aktivitet i appen. Räknas först när du godkänner det.",
     "why_suggested": "Föreslaget: {t}",
     "note_add": "Lägg till anteckning",
     "note_edit": "Redigera anteckning",

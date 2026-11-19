@@ -12,7 +12,8 @@ import { hoursRefusalKey } from '~/utils/hours-mine.mjs'
 /** the window event a write of hours sends, so every calendar view re-reads */
 export const HOURS_CHANGED_EVENT = 'spool:hours-changed'
 
-export type HoursRow = { target: string, state: string, minutes: number, suggested_minutes?: number, delta?: number, note?: string, blocks?: { start: string, end: string }[] }
+/** `no_activity`: the prefill of an empty working day at the member's allocation (spec 107 E2, T082); counted once approved */
+export type HoursRow = { target: string, state: string, minutes: number, suggested_minutes?: number, delta?: number, note?: string, no_activity?: boolean, blocks?: { start: string, end: string }[] }
 /** a pay period of GET /v1/me/hours: its state and its first and last day */
 export type HoursPeriod = { state?: string, start?: string, end?: string, [k: string]: unknown }
 /** `norm`: the member's average minutes per day (spec 107 FR-41), their own (SPL-5558) else the workspace's; 0 = none */

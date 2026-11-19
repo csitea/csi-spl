@@ -3216,6 +3216,8 @@
     "why": "Miks",
     "why_blocks": "Arvestatud sinu tegevusest ajal:",
     "why_added": "Lisatud sinu poolt, rakenduses mõõtmata.",
+    "no_activity": "Tegevust pole",
+    "why_no_activity": "Eeltäidetud sinu keskmiste päevatundidega: rakenduses tegevust pole. Arvestatakse alles pärast sinu kinnitust.",
     "why_suggested": "Soovitatud: {t}",
     "note_add": "Lisa märkus",
     "note_edit": "Muuda märkust",

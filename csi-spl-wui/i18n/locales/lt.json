@@ -3216,6 +3216,8 @@
     "why": "Kodėl",
     "why_blocks": "Suskaičiuota pagal jūsų veiklą:",
     "why_added": "Pridėta jūsų, neišmatuota programoje.",
+    "no_activity": "Nėra veiklos",
+    "why_no_activity": "Iš anksto užpildyta jūsų vidutinėmis dienos valandomis: programėlėje veiklos nėra. Įskaitoma tik jums patvirtinus.",
     "why_suggested": "Pasiūlyta: {t}",
     "note_add": "Pridėti pastabą",
     "note_edit": "Redaguoti pastabą",

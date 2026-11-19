@@ -3216,6 +3216,8 @@
     "why": "Dlaczego",
     "why_blocks": "Policzone z Twojej aktywności w godzinach:",
     "why_added": "Dodane przez Ciebie, niezmierzone w aplikacji.",
+    "no_activity": "Brak aktywności",
+    "why_no_activity": "Wypełnione z góry Twoją średnią liczbą godzin dziennie: brak aktywności w aplikacji. Liczy się dopiero po Twoim zatwierdzeniu.",
     "why_suggested": "Sugerowane: {t}",
     "note_add": "Dodaj notatkę",
     "note_edit": "Edytuj notatkę",

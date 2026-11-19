@@ -3216,6 +3216,8 @@
     "why": "Miksi",
     "why_blocks": "Laskettu toiminnastasi aikoina:",
     "why_added": "Itse lisätty, ei mitattu sovelluksessa.",
+    "no_activity": "Ei toimintaa",
+    "why_no_activity": "Esitäytetty keskimääräisillä päivätunneillasi: sovelluksessa ei toimintaa. Lasketaan vasta, kun hyväksyt sen.",
     "why_suggested": "Ehdotettu: {t}",
     "note_add": "Lisää huomautus",
     "note_edit": "Muokkaa huomautusta",

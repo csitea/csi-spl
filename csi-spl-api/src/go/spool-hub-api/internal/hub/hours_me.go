@@ -157,6 +157,7 @@ type hoursPeriod struct {
 	row        *store.HoursPeriod
 	frozen     map[string]bool
 	suggest    map[string]map[string]hours.Row // day -> target -> row
+	prefill    map[string]hours.Row            // day -> the no-activity row (E2)
 	entries    []store.HoursEntry
 }
 
@@ -195,7 +196,86 @@ func (s *Server) loadHoursPeriod(ctx context.Context, c hoursMe, loc *time.Locat
 	if !open || p.returned() {
 		return p, nil
 	}
-	return p, s.suggestHours(ctx, c, p)
+	if err := s.suggestHours(ctx, c, p); err != nil {
+		return nil, err
+	}
+	return p, s.prefillHours(ctx, c, p)
+}
+
+// hoursPrefillTarget is the prefill's target when the member booked nothing
+// in the last hoursPrefillLookback days.
+const (
+	hoursPrefillTarget   = "ws"
+	hoursPrefillLookback = 14
+)
+
+// prefillHours fills p.prefill (spec 107 E2, T082; owner Q31 = A): a closed
+// working day (Mon..Fri), not frozen, with no entry and no suggestion, gets
+// one row of the member's effective allocation (FR-41a, else FR-41) on their
+// most used target of the last 14 days, else ws, marked no activity. It is
+// kept apart from p.suggest, which the freeze sweep approves and the timer
+// adds to: the prefill counts only after the member's tap (Q32 = B).
+func (s *Server) prefillHours(ctx context.Context, c hoursMe, p *hoursPeriod) error {
+	decided := map[string]bool{}
+	for _, e := range p.entries {
+		decided[e.Day] = true
+	}
+	var empty []string
+	for _, d := range p.days() {
+		if d < p.today && !p.frozen[d] && !decided[d] && len(p.suggest[d]) == 0 && hoursWorkday(d) {
+			empty = append(empty, d)
+		}
+	}
+	if len(empty) == 0 {
+		return nil
+	}
+	c, err := c.withMemberNorm(ctx)
+	if err != nil || c.set.NormDayMinutes <= 0 {
+		return err
+	}
+	target, err := hoursUsualTarget(ctx, c, p.today)
+	if err != nil {
+		return err
+	}
+	p.prefill = map[string]hours.Row{}
+	for _, d := range empty {
+		p.prefill[d] = hours.Row{Target: target, Minutes: min(c.set.NormDayMinutes, store.HoursDayCap)}
+	}
+	return nil
+}
+
+// hoursWorkday is Monday..Friday of a YYYY-MM-DD civil date.
+func hoursWorkday(day string) bool {
+	d, err := time.Parse(hoursDayLayout, day)
+	return err == nil && d.Weekday() != time.Saturday && d.Weekday() != time.Sunday
+}
+
+// hoursUsualTarget is the member's target with the most approved minutes in
+// the hoursPrefillLookback days before today (ties: the first by name), else
+// hoursPrefillTarget.
+func hoursUsualTarget(ctx context.Context, c hoursMe, today string) (string, error) {
+	t, err := time.Parse(hoursDayLayout, today)
+	if err != nil {
+		return "", err
+	}
+	es, err := c.st.HoursEntries(ctx, c.tenant.ID, c.hum,
+		t.AddDate(0, 0, -hoursPrefillLookback).Format(hoursDayLayout), t.AddDate(0, 0, -1).Format(hoursDayLayout))
+	if err != nil {
+		return "", err
+	}
+	used := map[string]int{}
+	for _, e := range es {
+		if e.State == store.HoursApproved {
+			used[e.Target] += e.Minutes
+		}
+	}
+	best, most := hoursPrefillTarget, 0
+	for tg, n := range used {
+		if n > most || (n == most && n > 0 && tg < best) {
+			best, most = tg, n
+		}
+	}
+	return best, nil
 }
 
 // suggestHours fills p.suggest from the member's minutes and meetings (spec 2.1).
@@ -287,6 +367,7 @@ type hoursSpanJSON struct {
 
 // hoursRowJSON is one (day, target) row: an open suggestion (state
 // "suggested") or an entry, with its delta when the suggestion grew since.
+// NoActivity marks the prefill of an empty working day (E2, T082).
 type hoursRowJSON struct {
 	Target           string          `json:"target"`
 	State            string          `json:"state"`
@@ -294,6 +375,7 @@ type hoursRowJSON struct {
 	SuggestedMinutes int             `json:"suggested_minutes"`
 	Delta            int             `json:"delta,omitempty"`
 	Note             string          `json:"note,omitempty"`
+	NoActivity       bool            `json:"no_activity,omitempty"`
 	Blocks           []hoursSpanJSON `json:"blocks"`
 }
 
@@ -370,6 +452,12 @@ func (p *hoursPeriod) dayJSON(d string, es []store.HoursEntry) hoursDayJSON {
 		day.Rows = append(day.Rows, hoursRowJSON{Target: t, State: hoursSuggested, Minutes: s.Minutes,
 			SuggestedMinutes: s.Minutes, Blocks: spansJSON(s.Blocks)})
 		day.SuggestedMinutes += s.Minutes
+		day.Open++
+	}
+	if r, ok := p.prefill[d]; ok {
+		day.Rows = append(day.Rows, hoursRowJSON{Target: r.Target, State: hoursSuggested, Minutes: r.Minutes,
+			SuggestedMinutes: r.Minutes, NoActivity: true, Blocks: []hoursSpanJSON{}})
+		day.SuggestedMinutes += r.Minutes
 		day.Open++
 	}
 	sort.SliceStable(day.Rows, func(i, j int) bool {
@@ -573,9 +661,7 @@ func (b *hoursBatch) period(ctx context.Context, day string) (*hoursPeriod, stri
 }
 
 // entries turns the body's rows into store entries. SuggestedMinutes is the
-// hub's own number, never the caller's: the current suggestion, else what the
-// entry already held (a returned period has no suggestions), else 0 (an
-// added row). An approved row keeps its times (spec 107 3.4): the open
+// hub's own number, never the caller's (suggestedMinutes). An approved row keeps its times (spec 107 3.4): the open
 // suggestion's blocks as activity spans, plus the row's own spans (the
 // timer's interval).
 func (b *hoursBatch) entries(ctx context.Context, in []hoursEntryBody) ([]store.HoursEntry, string, error) {
@@ -585,25 +671,37 @@ func (b *hoursBatch) entries(ctx context.Context, in []hoursEntryBody) ([]store.
 		if bad != "" || err != nil {
 			return nil, bad, err
 		}
-		se := store.HoursEntry{Day: e.Day, Target: e.Target, Minutes: e.Minutes, State: e.State, Note: e.Note}
-		if s, ok := p.suggest[e.Day][e.Target]; ok {
-			se.SuggestedMinutes = s.Minutes
-			if e.State == store.HoursApproved {
+		se := store.HoursEntry{Day: e.Day, Target: e.Target, Minutes: e.Minutes, State: e.State, Note: e.Note,
+			SuggestedMinutes: p.suggestedMinutes(e.Day, e.Target)}
+		if e.State == store.HoursApproved {
+			if s, ok := p.suggest[e.Day][e.Target]; ok {
 				se.Spans = hoursActivitySpans(s.Blocks)
 			}
-		} else {
-			for _, old := range p.entries {
-				if old.Day == e.Day && old.Target == e.Target {
-					se.SuggestedMinutes = old.SuggestedMinutes
-				}
-			}
-		}
-		if e.State == store.HoursApproved {
 			se.Spans = append(se.Spans, e.spans...)
 		}
 		out = append(out, se)
 	}
 	return out, "", nil
+}
+
+// suggestedMinutes is the hub's suggestion for (day, target): the open
+// suggestion, else the no-activity prefill (E2, T082; it has no times), else
+// what the entry already held (a returned period has no suggestions), else 0
+// (an added row).
+func (p *hoursPeriod) suggestedMinutes(day, target string) int {
+	if s, ok := p.suggest[day][target]; ok {
+		return s.Minutes
+	}
+	if r, ok := p.prefill[day]; ok && r.Target == target {
+		return r.Minutes
+	}
+	n := 0
+	for _, old := range p.entries {
+		if old.Day == day && old.Target == target {
+			n = old.SuggestedMinutes
+		}
+	}
+	return n
 }
 
 // hoursActivitySpans is a suggestion's blocks as activity spans, on whole

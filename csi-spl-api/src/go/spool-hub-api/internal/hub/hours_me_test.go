@@ -355,3 +355,133 @@ func TestMyHoursMeetings(t *testing.T) {
 		t.Fatalf("b after yes: %v", r)
 	}
 }
+
+// ---- spec 107 E2, T082: prefill an empty working day ------------------------
+
+// Owner Q31 = A: a closed working day with no entry and no suggestion, for a
+// member with an allocation (FR-41a), shows one suggested row of the
+// allocation, marked no_activity; it counts only once approved, and the
+// freeze sweep never approves it (Q32 = B).
+//
+// The clock is Monday 2026-10-12 12:00 UTC (a week with grace 2): the week of
+// Mon 10-05 is closed and still open, its Saturday and Sunday empty.
+
+var prefillNow = time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
+
+const prefillWeek = "2026-10-05"
+
+func prefillEnv(t *testing.T) (*env, string) {
+	t.Helper()
+	e := rbacEnv(t, func(o *hub.Options) { o.Now = func() time.Time { return prefillNow } })
+	tid, _ := e.tenant()
+	return e, tid
+}
+
+// setOwnNorm sets member's FR-41a allocation as a product owner.
+func setOwnNorm(t *testing.T, e *env, tid, member string, minutes int) {
+	t.Helper()
+	po := seat(t, e, tid, rbac.ProductOwner)
+	if code, out := call(t, e, tid, http.MethodPut, memberNormPath(member), po, map[string]any{"norm_day_minutes": minutes}); code != http.StatusOK {
+		t.Fatalf("PUT norm %d: %d %v", minutes, code, out)
+	}
+}
+
+// prefilled fails unless day d holds exactly one open no_activity row of
+// minutes on target.
+func prefilled(t *testing.T, out map[string]any, d, target string, minutes int) {
+	t.Helper()
+	r := hoursRow(t, out, d, target)
+	if hoursRowCount(t, out, d) != 1 || r == nil || r["state"] != "suggested" || r["minutes"] != float64(minutes) ||
+		r["suggested_minutes"] != float64(minutes) || r["no_activity"] != true {
+		t.Fatalf("%s: %v", d, hoursDay(t, out, d))
+	}
+	if day := hoursDay(t, out, d); day["open"] != float64(1) || day["approved_minutes"] != float64(0) {
+		t.Fatalf("%s day: %v", d, day)
+	}
+}
+
+func TestMyHoursPrefillEmptyWorkingDay(t *testing.T) {
+	e, tid := prefillEnv(t)
+	a := seat(t, e, tid, rbac.Developer)
+	// Control: no allocation, no row.
+	if got := myHours(t, e, tid, a, prefillWeek); hoursRowCount(t, got, "2026-10-05") != 0 {
+		t.Fatalf("no allocation: %v", hoursDay(t, got, "2026-10-05"))
+	}
+	setOwnNorm(t, e, tid, a, 0)
+	if got := myHours(t, e, tid, a, prefillWeek); hoursRowCount(t, got, "2026-10-05") != 0 {
+		t.Fatalf("allocation 0: %v", hoursDay(t, got, "2026-10-05"))
+	}
+	setOwnNorm(t, e, tid, a, 480)
+	// Activity on Thursday: its suggestion, no prefill there.
+	call(t, e, tid, http.MethodPut, "/v1/me/hours/minutes", a, tabMinutes(time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC), 20, "t:task-a"))
+	got := myHours(t, e, tid, a, prefillWeek)
+	for _, d := range []string{"2026-10-05", "2026-10-06", "2026-10-07", "2026-10-09"} {
+		prefilled(t, got, d, "ws", 480)
+	}
+	if r := hoursRow(t, got, "2026-10-08", "t:task-a"); hoursRowCount(t, got, "2026-10-08") != 1 || r == nil || r["no_activity"] != nil {
+		t.Fatalf("activity day: %v", hoursDay(t, got, "2026-10-08"))
+	}
+	for _, d := range []string{"2026-10-10", "2026-10-11"} {
+		if hoursRowCount(t, got, d) != 0 {
+			t.Fatalf("weekend %s: %v", d, hoursDay(t, got, d))
+		}
+	}
+	// Today is not closed.
+	if today := myHours(t, e, tid, a, "2026-10-12"); hoursRowCount(t, today, "2026-10-12") != 0 {
+		t.Fatalf("today: %v", hoursDay(t, today, "2026-10-12"))
+	}
+}
+
+// The target is the member's most used target of the last 14 days; Approve
+// takes the row, Reject decides the day.
+func TestMyHoursPrefillTargetAndApprove(t *testing.T) {
+	e, tid := prefillEnv(t)
+	a := seat(t, e, tid, rbac.Developer)
+	setOwnNorm(t, e, tid, a, 420)
+	code, out := putEntries(t, e, tid, a, map[string]any{"entries": []any{
+		entry("2026-10-06", "t:task-b", 300, "approved"),
+		entry("2026-10-07", "ch:general", 200, "approved"),
+		entry("2026-10-08", "ch:general", 200, "approved"),
+	}})
+	if code != http.StatusOK {
+		t.Fatalf("add: %d %v", code, out)
+	}
+	prefilled(t, out, "2026-10-05", "ch:general", 420)
+	if hoursRowCount(t, out, "2026-10-06") != 1 {
+		t.Fatalf("a day with an entry gets no prefill: %v", hoursDay(t, out, "2026-10-06"))
+	}
+	code, out = putEntries(t, e, tid, a, map[string]any{"entries": []any{entry("2026-10-05", "ch:general", 420, "approved")}})
+	r := hoursRow(t, out, "2026-10-05", "ch:general")
+	if code != http.StatusOK || r["state"] != "approved" || r["suggested_minutes"] != float64(420) || r["no_activity"] != nil {
+		t.Fatalf("approve: %d %v", code, r)
+	}
+	if d := hoursDay(t, out, "2026-10-05"); d["approved_minutes"] != float64(420) || d["open"] != float64(0) {
+		t.Fatalf("approved day: %v", d)
+	}
+	code, out = putEntries(t, e, tid, a, map[string]any{"entries": []any{entry("2026-10-09", "ch:general", 0, "rejected")}})
+	if code != http.StatusOK || hoursRowCount(t, out, "2026-10-09") != 1 || hoursRow(t, out, "2026-10-09", "ch:general")["state"] != "rejected" {
+		t.Fatalf("reject: %d %v", code, hoursDay(t, out, "2026-10-09"))
+	}
+}
+
+// Q32 = B: the freeze sweep never approves the prefill; a member with only an
+// allocation freezes at 0. The clock is hoursNow: the week of 09-28 is due.
+func TestHoursSweepSkipsPrefill(t *testing.T) {
+	ctx := context.Background()
+	e, tid := hoursEnv(t)
+	a := seat(t, e, tid, rbac.Developer)
+	setOwnNorm(t, e, tid, a, 480)
+	if _, err := e.srv.SweepHours(ctx, tid); err != nil {
+		t.Fatal(err)
+	}
+	h := hoursStore(e)
+	if es, err := h.HoursEntries(ctx, tid, a, hoursPrevWeek, "2026-10-04"); err != nil || len(es) != 0 {
+		t.Fatalf("entries = %v %v, want none", es, err)
+	}
+	rows, err := h.HoursPeriods(ctx, tid, a, hoursPrevWeek, hoursPrevWeek)
+	if err != nil || len(rows) != 1 || rows[0].Minutes != 0 || rows[0].State != store.HoursFrozen {
+		t.Fatalf("period = %v %v, want frozen at 0", rows, err)
+	}
+	// The open week still shows Monday and Tuesday prefilled.
+	prefilled(t, myHours(t, e, tid, a, hoursThisWeek), "2026-10-05", "ws", 480)
+}

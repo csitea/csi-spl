@@ -3216,6 +3216,8 @@
     "why": "De ce",
     "why_blocks": "Calculat din activitatea ta la:",
     "why_added": "Adăugat de tine, nemăsurat în aplicație.",
+    "no_activity": "Nicio activitate",
+    "why_no_activity": "Precompletat cu media ta de ore pe zi: nicio activitate în aplicație. Se ia în calcul doar după ce îl aprobi.",
     "why_suggested": "Sugerat: {t}",
     "note_add": "Adaugă o notă",
     "note_edit": "Editează nota",

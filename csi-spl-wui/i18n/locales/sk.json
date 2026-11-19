@@ -3216,6 +3216,8 @@
     "why": "Prečo",
     "why_blocks": "Započítané z vašej aktivity o:",
     "why_added": "Pridané vami, nemerané v aplikácii.",
+    "no_activity": "Žiadna aktivita",
+    "why_no_activity": "Vopred vyplnené vaším priemerom hodín za deň: v aplikácii žiadna aktivita. Započíta sa až po vašom schválení.",
     "why_suggested": "Navrhnuté: {t}",
     "note_add": "Pridať poznámku",
     "note_edit": "Upraviť poznámku",

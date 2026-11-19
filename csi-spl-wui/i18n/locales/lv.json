@@ -3216,6 +3216,8 @@
     "why": "Kāpēc",
     "why_blocks": "Aprēķināts no jūsu aktivitātes:",
     "why_added": "Pievienojāt jūs, lietotnē nav mērīts.",
+    "no_activity": "Nav aktivitātes",
+    "why_no_activity": "Iepriekš aizpildīts ar jūsu vidējām stundām dienā: lietotnē nav aktivitātes. Tiek ieskaitīts tikai pēc jūsu apstiprinājuma.",
     "why_suggested": "Ieteikts: {t}",
     "note_add": "Pievienot piezīmi",
     "note_edit": "Labot piezīmi",

@@ -13,8 +13,13 @@
  * minutes a day, 409 period_frozen on a frozen or Final period. A period's
  * state (returned with a note, frozen, approved) is set in
  * HOURS_MOCK_PERIODS by an e2e; Resubmit moves returned to frozen.
+ *
+ * T082 (spec 107 E2): an e2e may empty weekdays (mockHoursSetEmpty, kept in
+ * HOURS_MOCK_EMPTY); a closed, open one with nothing on it then holds the
+ * hub's prefill at the member's allocation, marked no_activity. The mock
+ * books it to `ws` (the hub picks the most used target of 14 days).
  */
-import { hoursAddDays } from './hours-calendar.mjs'
+import { hoursAddDays, hoursIsWorkday } from './hours-calendar.mjs'
 import { HOURS_MOCK_SELF, mockMemberHoursNorm } from './hours-norm.mjs'
 
 export const HOURS_MOCK_TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
@@ -23,6 +28,10 @@ export const HOURS_MOCK_TOPIC_2 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const HOURS_MOCK_ENTRIES = 'spool.mock.hours-entries'
 /** period states by start day: { "<YYYY-MM-DD>": { state, note } } */
 const HOURS_MOCK_PERIODS = 'spool.mock.hours-periods'
+/** days with no fixture (T082): { "<YYYY-MM-DD>": true } */
+const HOURS_MOCK_EMPTY = 'spool.mock.hours-empty'
+/** the prefill's target in the mock */
+const PREFILL_TARGET = 'ws'
 
 const CAP = 1440
 
@@ -43,7 +52,11 @@ function writeJSON(key, v) {
 /** forget every write (unit tests) */
 export function mockHoursReset() {
   memory.clear()
-  try { if (typeof localStorage !== 'undefined') { localStorage.removeItem(HOURS_MOCK_ENTRIES); localStorage.removeItem(HOURS_MOCK_PERIODS) } } catch { /* none */ }
+  try { if (typeof localStorage !== 'undefined') { for (const k of [HOURS_MOCK_ENTRIES, HOURS_MOCK_PERIODS, HOURS_MOCK_EMPTY]) localStorage.removeItem(k) } } catch { /* none */ }
+}
+/** empty these days of their fixture: no activity on them (T082; e2e, unit) */
+export function mockHoursSetEmpty(days) {
+  writeJSON(HOURS_MOCK_EMPTY, Object.fromEntries((days || []).map((d) => [d, true])))
 }
 /** set a period's state, e.g. returned with a note (e2e, unit) */
 export function mockHoursSetPeriod(start, state, note = '') {
@@ -88,7 +101,13 @@ function fixtureOf(day, wd) {
 /** the fixture of `date` for a member whose today is `today` */
 function fixtureFor(date, today) {
   const wd = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7 + 1
-  return wd <= 5 && date <= today ? fixtureOf(date, wd) : []
+  return wd <= 5 && date <= today && !readJSON(HOURS_MOCK_EMPTY)[date] ? fixtureOf(date, wd) : []
+}
+
+/** the member's allocation when `date` gets the prefill (hub prefillHours), else 0 */
+function prefillOf(date, today, rowsSoFar, locked) {
+  if (locked || rowsSoFar > 0 || date >= today || !hoursIsWorkday(date)) return 0
+  return Math.min(CAP, Math.max(0, Number(mockMemberHoursNorm(HOURS_MOCK_SELF).effective_norm_day_minutes) || 0))
 }
 
 /** the rows of one day as the hub answers them (hours_me.go dayJSON) */
@@ -115,6 +134,8 @@ function rowsFor(date, today, stored, locked) {
     if (w.note) row.note = w.note
     out.push(row)
   }
+  const pre = prefillOf(date, today, out.length, locked)
+  if (pre > 0) out.push({ target: PREFILL_TARGET, state: 'suggested', minutes: pre, suggested_minutes: pre, no_activity: true, blocks: [] })
   return out.sort((a, b) => b.minutes - a.minutes || (a.target < b.target ? -1 : 1))
 }
 
@@ -180,7 +201,8 @@ export function mockPutMyHours(body, today) {
     }
     const f = fixtureFor(e.day, today).find((x) => x.target === e.target)
     const old = next[`${e.day}|${e.target}`]
-    const suggested = f ? f.sug : old && !old.removed ? old.suggested_minutes : 0
+    const pre = e.target === PREFILL_TARGET && !(old && !old.removed) ? prefillOf(e.day, today, fixtureFor(e.day, today).length, false) : 0
+    const suggested = f ? f.sug : old && !old.removed ? old.suggested_minutes : pre
     next[`${e.day}|${e.target}`] = { state: e.state, minutes: e.minutes, suggested_minutes: suggested, note: String(e.note || '').trim() }
   }
   for (const k of remove) next[`${k.day}|${k.target}`] = { removed: true }

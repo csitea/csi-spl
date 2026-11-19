@@ -3216,6 +3216,8 @@
     "why": "Waarom",
     "why_blocks": "Geteld uit je activiteit om:",
     "why_added": "Door jou toegevoegd, niet gemeten in de app.",
+    "no_activity": "Geen activiteit",
+    "why_no_activity": "Vooraf ingevuld met je gemiddelde uren per dag: geen activiteit in de app. Telt pas mee nadat je het goedkeurt.",
     "why_suggested": "Voorgesteld: {t}",
     "note_add": "Notitie toevoegen",
     "note_edit": "Notitie bewerken",

@@ -18,7 +18,10 @@
      every line takes a note (<= 500) saved as the entry's note.
      FR-41 (SPL-5440, spec 22.2): with a workspace average hours per day,
      the total reads "of h:mm average per day", and a day above it shows a
-     warning line; the entry is kept, nothing is refused. -->
+     warning line; the entry is kept, nothing is refused.
+     T082 (spec 107 E2, owner Q31 = A): a row prefilled at the member's
+     allocation on a day with no activity is marked "No activity"; it counts
+     once approved, like any suggestion. -->
 <template>
   <div class="hours-day" data-test="hours-day" :data-day="day" :data-state="state" :data-period="periodState" :data-editable="editable ? 'true' : 'false'">
     <div v-if="banner" class="hours-day__banner" data-test="hours-day-banner" :data-open="banner.openDays.length">
@@ -84,11 +87,13 @@
         :data-row-state="r.state"
         :data-minutes="r.minutes"
         :data-delta="r.delta || 0"
+        :data-no-activity="r.no_activity ? 'true' : undefined"
       >
         <div class="hours-day__line">
           <span class="hours-day__what">
             <NuxtLink v-if="r.view.href" class="hours-day__link" data-test="hours-day-link" :to="localePath(r.view.href)" @click="emit('navigate')">{{ r.name }}</NuxtLink>
             <span v-else class="hours-day__name">{{ r.name }}</span>
+            <small v-if="r.no_activity" class="hours-day__tag" data-test="hours-row-no-activity">{{ t('hours_cal.no_activity') }}</small>
             <small v-if="r.blocks" class="muted hours-day__blocks" dir="ltr">{{ r.blocks }}</small>
             <small v-if="r.note" class="hours-day__rownote" data-test="hours-day-note">{{ r.note }}</small>
           </span>
@@ -143,7 +148,7 @@
               <li v-for="b in r.blockList" :key="b" dir="ltr">{{ b }}</li>
             </ul>
           </template>
-          <p v-else>{{ t('hours_cal.why_added') }}</p>
+          <p v-else>{{ t(r.no_activity ? 'hours_cal.why_no_activity' : 'hours_cal.why_added') }}</p>
           <p v-if="r.state === 'approved' && r.suggested_minutes !== r.minutes" class="muted">{{ t('hours_cal.why_suggested', { t: hoursHhmm(r.suggested_minutes || 0) }) }}</p>
         </div>
         <div v-if="editing === r.target" class="hours-day__stepper" data-test="hours-stepper">

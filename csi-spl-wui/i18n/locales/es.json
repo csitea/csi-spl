@@ -3216,6 +3216,8 @@
     "why": "Por qué",
     "why_blocks": "Contado a partir de tu actividad a las:",
     "why_added": "Añadido por ti, no medido en la aplicación.",
+    "no_activity": "Sin actividad",
+    "why_no_activity": "Rellenado con tu promedio de horas al día: sin actividad en la aplicación. Solo cuenta cuando lo apruebes.",
     "why_suggested": "Sugerido: {t}",
     "note_add": "Añadir nota",
     "note_edit": "Editar nota",

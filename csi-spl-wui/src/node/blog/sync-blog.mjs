@@ -93,7 +93,7 @@ export function blogLocales(dir = BLOG_LOCALES, cnf = blogCnf()) {
   return [...uiLocales(dir), ...blogExtraLocales(cnf, dir)].sort()
 }
 
-const KEYS = new Set(['id', 'lang', 'type', 'title', 'summary', 'share_text', 'date', 'published', 'author', 'agy_review',
+const KEYS = new Set(['id', 'lang', 'type', 'title', 'summary', 'share_text', 'share_long', 'date', 'published', 'author', 'agy_review',
   'tags', 'image', 'image_alt', 'image_prompt', 'image_override', 'gallery', 'gallery_alt', 'draft', 'event_start', 'event_end'])
 const LISTS = new Set(['tags', 'gallery', 'gallery_alt'])
 /* a gallery holds at most this many body pictures, <id>-g1 .. <id>-g<GALLERY_MAX> */
@@ -101,6 +101,16 @@ export const GALLERY_MAX = 6
 const REQUIRED = ['id', 'lang', 'type', 'title', 'summary', 'date', 'author']
 /* the share row's teaser (spec 090 T043): 200 + a space + X's 23-char link fits X's 280 */
 export const SHARE_TEXT_MAX = 200
+/*
+ * The long share text (spec 090 section 23): about half the post, a hook,
+ * the key points each on its own line led by an emoji, a call to read the
+ * post; the share row adds the link. LinkedIn takes 3000 chars; 1500 keeps
+ * the encoded LinkedIn share URL near 3 KB (blog-share.test.mjs measures it).
+ */
+export const SHARE_LONG_MIN = 300
+export const SHARE_LONG_MAX = 1500
+/* a share_long line that starts with an emoji (a key point) */
+const EMOJI_LINE_RE = /^\p{Extended_Pictographic}/u
 const TYPES = new Set(['digest', 'news', 'event'])
 const ID_RE = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -174,6 +184,7 @@ export function validateMeta(meta, { id, lang, locales }) {
   if (typeof meta.date === 'string' && !(DATE_RE.test(meta.date) && !Number.isNaN(Date.parse(meta.date)))) bad.push(`date ${meta.date} is not yyyy-mm-dd`)
   if (typeof meta.summary === 'string' && meta.summary.length > 160) bad.push('summary over 160 chars')
   if (typeof meta.share_text === 'string' && Array.from(meta.share_text).length > SHARE_TEXT_MAX) bad.push(`share_text over ${SHARE_TEXT_MAX} chars`)
+  if (typeof meta.share_long === 'string') bad.push(...shareLongBad(meta.share_long))
   if (typeof meta.author === 'string' && !AGENT_RE.test(meta.author)) bad.push(`author ${meta.author} is not an id`)
   if (meta.draft !== undefined && typeof meta.draft !== 'boolean') bad.push('draft is not true/false')
   if (meta.tags !== undefined && !(Array.isArray(meta.tags) && meta.tags.every((t) => /^[a-z0-9-]+$/.test(t)))) bad.push('tags is not a [a, b] list of lowercase words')
@@ -186,6 +197,17 @@ export function validateMeta(meta, { id, lang, locales }) {
     if (typeof meta[k] === 'string' && !ISO_RE.test(meta[k])) bad.push(`${k} is not ISO 8601 UTC (Z)`)
   }
   if (meta.type === 'event' && !meta.event_start) bad.push('event without event_start')
+  return bad
+}
+
+/* What is wrong with a share_long text ([] = valid). */
+export function shareLongBad(text) {
+  const bad = []
+  const n = Array.from(text).length
+  if (n > SHARE_LONG_MAX) bad.push(`share_long over ${SHARE_LONG_MAX} chars`)
+  if (n < SHARE_LONG_MIN) bad.push(`share_long under ${SHARE_LONG_MIN} chars`)
+  if (/https?:\/\/|www\./i.test(text)) bad.push('share_long holds a link (the share row adds the post link)')
+  if (text.split('\n').filter((l) => EMOJI_LINE_RE.test(l.trim())).length < 2) bad.push('share_long has fewer than 2 key-point lines led by an emoji')
   return bad
 }
 
@@ -357,7 +379,7 @@ export function applyCap(posts, cnf = BLOG_DEFAULTS) {
   return { keep, dropped }
 }
 
-const ENTRY_KEYS = ['id', 'type', 'title', 'summary', 'share_text', 'date', 'published', 'author', 'tags', 'image', 'image_alt', 'event_start', 'event_end']
+const ENTRY_KEYS = ['id', 'type', 'title', 'summary', 'share_text', 'share_long', 'date', 'published', 'author', 'tags', 'image', 'image_alt', 'event_start', 'event_end']
 
 /**
  * Every file the copy must hold (name -> content), what is refused

@@ -1,12 +1,15 @@
-// The blog share row: each network's URL is the post URL plus its teaser
-// (share_text, else summary, else title), both percent-encoded (spec 090
-// T043). Substack has no share URL; the copy targets copy teaser + link.
+// The blog share row: each network's URL is the post URL plus its text,
+// both percent-encoded (spec 090 T043, section 23). X, Reddit and Viber take
+// the teaser (share_text, else summary, else title); the others the long
+// text (share_long, else the teaser). Substack has no share URL; the copy
+// targets copy the long text + link.
 //
 // Run: node tests/unit/blog-share.test.mjs
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { BLOG_SHARE_COPY_TARGETS, BLOG_SHARE_ORDER, SUBSTACK_NOTES, blogShareHref, blogShareId, shareCopyText, shareTeaser } from '../../src/utils/blog-share.mjs'
+import { BLOG_SHARE_COPY_TARGETS, BLOG_SHARE_LONG_TARGETS, BLOG_SHARE_ORDER, SUBSTACK_NOTES, blogShareHref, blogShareId, shareCopyText, shareLongText, shareTeaser } from '../../src/utils/blog-share.mjs'
+import { parseFrontmatter } from '../../src/node/blog/sync-blog.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -35,7 +38,7 @@ ok('the copied text is the teaser, a blank line, the link', shareCopyText(post) 
 ok('the copied text is the link alone when there is no teaser', shareCopyText({ url, title: '' }) === url)
 
 const cases = {
-  linkedin: `https://www.linkedin.com/feed/?shareActive=true&text=${enc(`${teaser} ${url}`)}`,
+  linkedin: `https://www.linkedin.com/feed/?shareActive=true&text=${enc(`${teaser}\n\n${url}`)}`,
   x: `https://x.com/intent/post?url=${enc(url)}&text=${enc(teaser)}`,
   telegram: `https://t.me/share/url?url=${enc(url)}&text=${enc(teaser)}`,
   reddit: `https://www.reddit.com/submit?url=${enc(url)}&title=${enc(teaser)}`,
@@ -52,6 +55,52 @@ for (const [net, href] of Object.entries(cases)) {
 ok('CONTROL linkedin no longer uses share-offsite (it drops every text param)', !blogShareHref('linkedin', post).includes('share-offsite'))
 ok('x falls back to the summary when there is no share_text',
   blogShareHref('x', { url, title, summary: 'The summary.' }) === `https://x.com/intent/post?url=${enc(url)}&text=${enc('The summary.')}`)
+
+/* the long text (spec 090 section 23): share_long, else the teaser */
+const long = 'One hook line & more.\n\n🚀 First point.\n✅ Second point.\n\nRead the full post:'
+const lpost = { ...post, shareLong: long }
+const rfc = (s) => enc(s).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+ok('the long text is share_long when the post has one', shareLongText(lpost) === long)
+ok('the long text falls back to share_text', shareLongText({ ...post, shareLong: '  ' }) === teaser)
+ok('the long text falls back to the summary, then the title',
+  shareLongText({ url, title, summary: 'The summary.' }) === 'The summary.' && shareLongText({ url, title }) === title)
+ok('the teaser stays share_text when the post has a long text', shareTeaser(lpost) === teaser)
+ok('the copied text is the long text, a blank line, the link', shareCopyText(lpost) === `${long}\n\n${url}`)
+ok('the long targets are LinkedIn, Facebook, Instagram, Substack, WhatsApp, Telegram, e-mail',
+  JSON.stringify(BLOG_SHARE_LONG_TARGETS) === JSON.stringify(['linkedin', 'facebook', 'instagram', 'substack', 'whatsapp', 'telegram', 'email']))
+ok('every copy target shares the long text', BLOG_SHARE_COPY_TARGETS.every((id) => BLOG_SHARE_LONG_TARGETS.includes(id)))
+const longCases = {
+  linkedin: `https://www.linkedin.com/feed/?shareActive=true&text=${enc(`${long}\n\n${url}`)}`,
+  whatsapp: `https://wa.me/?text=${rfc(`${long} ${url}`)}`,
+  telegram: `https://t.me/share/url?url=${enc(url)}&text=${enc(long)}`,
+  email: `mailto:?subject=${enc(title)}&body=${enc(`${long}\n\n${url}`)}`,
+  x: `https://x.com/intent/post?url=${enc(url)}&text=${enc(teaser)}`,
+  reddit: `https://www.reddit.com/submit?url=${enc(url)}&title=${enc(teaser)}`,
+}
+for (const [net, href] of Object.entries(longCases)) {
+  const got = blogShareHref(net, lpost)
+  ok(`${net} on a post with share_long shares the ${BLOG_SHARE_LONG_TARGETS.includes(net) ? 'long text' : 'teaser'}`, got === href, got)
+}
+ok('viber keeps the teaser (its 200-char limit would cut the long text)',
+  decodeURIComponent(blogShareHref('viber', lpost).replace('viber://forward?text=', '')) === `${teaser} ${url}`)
+ok('CONTROL x never carries the long text', !blogShareHref('x', lpost).includes(enc('🚀')))
+
+/*
+ * The LinkedIn share URL of every published en post stays a safe length
+ * (spec 090 section 23.4): well under the 8 KB request line many servers
+ * and proxies cap. The post URL here is the longest form, a locale prefix
+ * on a long host.
+ */
+const LINKEDIN_HREF_MAX = 4000
+const POSTS_EN = join(WUI, '../csi-spl-doc/blog/posts/en')
+const sizes = readdirSync(POSTS_EN).filter((f) => f.endsWith('.md')).map((f) => {
+  const { meta } = parseFrontmatter(readFileSync(join(POSTS_EN, f), 'utf8'))
+  if (meta.draft === true) return null
+  const p = { url: `https://www.example-host-of-some-length.com/xx/blog/${meta.id}`, title: meta.title, summary: meta.summary, shareText: meta.share_text, shareLong: meta.share_long }
+  return { id: meta.id, len: blogShareHref('linkedin', p).length }
+}).filter(Boolean)
+const worst = sizes.reduce((m, x) => (x.len > m.len ? x : m), { id: '', len: 0 })
+ok(`every published en post's LinkedIn URL is at most ${LINKEDIN_HREF_MAX} chars`, sizes.length > 0 && worst.len <= LINKEDIN_HREF_MAX, JSON.stringify(worst))
 
 // Facebook, WhatsApp, Viber and Instagram: tests/unit/marketing-share-links.test.mjs (spec 090 T037).
 ok('facebook shares the post URL only (no deprecated quote=)', blogShareHref('facebook', post) === `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`)
@@ -89,7 +138,9 @@ ok('BlogShareRow.vue buttons draw no label text', !shareRowVue.includes('>{{ sha
 ok('BlogShareRow.vue icon row wraps by flex and names no stray width', true)
 ok('BlogShareRow.vue gives every control its stable id', shareRowVue.includes(':id="c.domId"') && shareRowVue.includes("blogShareId('native', testIdSuffix)"))
 ok('BlogShareRow.vue names each click in data-share-action', (shareRowVue.match(/:data-share-action="c\.action"/g) || []).length === 2)
-ok('the page passes the summary and share_text to both rows', (blogVue.match(/:share-summary="shareSummary" :share-text="shareText"/g) || []).length === 2)
+ok('the page passes the summary, share_text and share_long to both rows', (blogVue.match(/:share-summary="shareSummary" :share-text="shareText" :share-long="shareLong"/g) || []).length === 2)
+ok('the page reads share_long from the index entry', blogVue.includes("entry.share_long || ''"))
+ok('BlogShareRow.vue hands share_long to the share helpers', shareRowVue.includes('shareLong: props.shareLong'))
 ok('BlogShareRow.vue the paste hint is a translated status line', shareRowVue.includes("t('blog.share_text_copied')") && shareRowVue.includes('role="status"'))
 ok('BlogShareRow.vue a check marks a successful copy', shareRowVue.includes('is-copied') && shareRowVue.includes('M20 6 9 17l-5-5'))
 

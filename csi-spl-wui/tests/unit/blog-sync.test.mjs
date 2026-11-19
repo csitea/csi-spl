@@ -20,7 +20,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SHARE_TEXT_MAX, applyCap, blogCnf, blogDrift, blogExtraLocales, blogFiles, blogLocales, hostile, parseFrontmatter, validateMeta, writeBlog } from '../../src/node/blog/sync-blog.mjs'
+import { SHARE_LONG_MAX, SHARE_LONG_MIN, SHARE_TEXT_MAX, applyCap, blogCnf, blogDrift, blogExtraLocales, blogFiles, blogLocales, hostile, parseFrontmatter, validateMeta, writeBlog } from '../../src/node/blog/sync-blog.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -87,6 +87,18 @@ try {
     validateMeta({ ...fm.meta, share_text: 'ä'.repeat(SHARE_TEXT_MAX) }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).length === 0)
   ok('CONTROL a share_text over SHARE_TEXT_MAX is refused',
     validateMeta({ ...fm.meta, share_text: 'x'.repeat(SHARE_TEXT_MAX + 1) }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).includes(`share_text over ${SHARE_TEXT_MAX} chars`))
+  /* the long share text (spec 090 section 23): SHARE_LONG_MIN..SHARE_LONG_MAX, no link, 2+ emoji lines */
+  {
+    const v = (share_long) => validateMeta({ ...fm.meta, share_long }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES })
+    const good = (n) => { const head = 'A hook.\n\n🚀 One point.\n✅ Two points.\n\nRead the full post:'; return head + ' ' + 'x'.repeat(n - Array.from(head).length - 1) }
+    ok('share_long is a known key and parses its \\n lines', parseFrontmatter(post('2026-10-05-a').replace('draft: false', 'share_long: "Hook.\\n\\n🚀 One."\ndraft: false')).meta.share_long === 'Hook.\n\n🚀 One.')
+    ok('a share_long of SHARE_LONG_MAX passes', SHARE_LONG_MAX === 1500 && Array.from(good(SHARE_LONG_MAX)).length === SHARE_LONG_MAX && v(good(SHARE_LONG_MAX)).length === 0, v(good(SHARE_LONG_MAX)).join('; '))
+    ok('a share_long of SHARE_LONG_MIN passes', SHARE_LONG_MIN === 300 && v(good(SHARE_LONG_MIN)).length === 0, v(good(SHARE_LONG_MIN)).join('; '))
+    ok('CONTROL a share_long over SHARE_LONG_MAX is refused', v(good(SHARE_LONG_MAX + 1)).includes(`share_long over ${SHARE_LONG_MAX} chars`))
+    ok('CONTROL a share_long under SHARE_LONG_MIN is refused', v(good(SHARE_LONG_MIN - 1)).includes(`share_long under ${SHARE_LONG_MIN} chars`))
+    ok('CONTROL a share_long with a link is refused', v(good(400).replace('A hook.', 'See https://example.com/x')).some((b) => /holds a link/.test(b)))
+    ok('CONTROL a share_long without emoji-led lines is refused', v(good(400).replace('🚀', '-').replace('✅', '-')).some((b) => /emoji/.test(b)))
+  }
   ok('CONTROL image without image_alt is refused',
     validateMeta({ ...fm.meta, image: '2026-10-05-a.webp' }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).includes('image without image_alt'))
   ok('an <id>.jpg image passes (its -og.jpg is the og:image a link preview can read)',

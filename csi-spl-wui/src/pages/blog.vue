@@ -66,7 +66,7 @@
         </nav>
         <header class="bpost__head">
           <h1 class="bpost__title" data-test="blog-post-title">{{ post.entry.title }}</h1>
-          <BlogShareRow test-id-suffix="top" :share-title="shareTitle" :share-page-url="sharePageUrl" :share-summary="shareSummary" :share-text="shareText" />
+          <BlogShareRow test-id-suffix="top" :share-title="shareTitle" :share-page-url="sharePageUrl" :share-summary="shareSummary" :share-text="shareText" :share-long="shareLong" />
           <p class="bpost__meta" data-test="blog-post-meta">
             <time :datetime="post.entry.published || post.entry.date">{{ post.entry.date }}</time>
             <span class="bpost__type" :data-type="post.entry.type">{{ typeLabel(post.entry.type) }}</span>
@@ -93,7 +93,7 @@
             <img :src="`/blog/img/${g.image}`" :alt="g.alt" loading="lazy" decoding="async" data-test="blog-post-gallery-img">
           </figure>
         </div>
-        <BlogShareRow test-id-suffix="end" :share-title="shareTitle" :share-page-url="sharePageUrl" :share-summary="shareSummary" :share-text="shareText" />
+        <BlogShareRow test-id-suffix="end" :share-title="shareTitle" :share-page-url="sharePageUrl" :share-summary="shareSummary" :share-text="shareText" :share-long="shareLong" />
         <nav class="bpost__pager" :aria-label="t('blog.more_posts')">
           <NuxtLink v-if="post.newer" :to="blogPath(`/blog/${post.newer.id}`)" rel="prev" data-test="blog-post-newer">&larr; {{ post.newer.title }}</NuxtLink>
           <NuxtLink :to="blogPath('/blog')" class="bpost__all" data-test="blog-post-back">{{ t('blog.all_posts') }}</NuxtLink>
@@ -164,6 +164,8 @@ interface BlogEntry {
   summary: string
   /* the share row's teaser (spec 090 T043); the row falls back to summary */
   share_text?: string
+  /* the long share text: hook, emoji-led points, call to read (spec 090 section 23) */
+  share_long?: string
   date: string
   published?: string
   author: string
@@ -278,6 +280,7 @@ const sharePageUrl = computed(() => {
 const shareTitle = computed(() => post.value?.entry.title || '')
 const shareSummary = computed(() => post.value?.entry.summary || '')
 const shareText = computed(() => post.value?.entry.share_text || '')
+const shareLong = computed(() => post.value?.entry.share_long || '')
 const indexOn = seoIndexOn(pub.seoIndex)
 
 /* the page's path in no locale, and the locales it really has: a post only

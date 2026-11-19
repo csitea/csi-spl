@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Ask more than one mind: why our AI agents sit on mixed-vendor panels"
 summary: "Models from different vendors learn from different data and different feedback, so they miss different things. A panel of them sees more than one model alone."
+share_text: "One AI model misses things another one catches. Why our agents review work on mixed-vendor panels."
 date: 2026-10-18
 published: 2026-10-19T10:22:49Z
 author: c-414

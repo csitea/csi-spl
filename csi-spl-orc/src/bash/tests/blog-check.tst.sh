@@ -56,6 +56,7 @@ post() {  # <lang> <id> <type> [<extra frontmatter line>...] -> a valid post on 
   local lang="$1" id="$2" type="$3"; shift 3
   printf -- '---\nid: %s\nlang: %s\ntype: %s\ntitle: "A title"\nsummary: "One sentence."\ndate: %s\npublished: %s\nauthor: m-004\nagy_review: a-004\ntags: [fleet]\nimage: %s.webp\nimage_alt: "A test image"\n' \
     "$id" "$lang" "$type" "${id:0:10}" "$NOW_ISO" "$id"
+  printf '%s\n' 'share_text: "A short teaser."' 'share_long: "A hook.\n\n🚀 One point.\n✅ Two points.\n\nRead the full post:"'
   local l; for l in "$@"; do printf '%s\n' "$l"; done
   printf -- 'draft: false\n---\nThe fleet shipped %s, tagged v1.2.3.\n' "$SHA"
 }
@@ -224,6 +225,20 @@ out=$(run_check BLOG_FILES="$N"); rc=$?
 post en 2026-10-09-hello news 'image: 2026-10-09-hello.webp' 'image_alt: "A test image"' | put "$N"
 out=$(run_check BLOG_FILES="$N"); rc=$?
 [[ $rc -eq 0 ]] && pass "a non-draft post with image passes" || fail "non-draft with image: rc=$rc $out"
+
+# ---- 6b. both share texts on a published en post (spec 090 23.4) ------------
+post en 2026-10-09-hello news | sed '/^share_text:/d' | put "$N"
+refused "a published en post without share_text" frontmatter "$N"
+post en 2026-10-09-hello news | sed '/^share_long:/d' | put "$N"
+refused "a published en post without share_long" frontmatter "$N"
+post en 2026-10-09-hello news | sed -e '/^share_/d' -e 's/^draft: false$/draft: true/' | put "$N"
+out=$(run_check BLOG_FILES="$N"); rc=$?
+[[ $rc -eq 0 ]] && pass "a draft en post without share texts passes" || fail "draft no share texts: rc=$rc $out"
+post "fi" 2026-10-09-hello news | sed '/^share_/d' | put "$P/fi/2026-10-09-hello.md"
+out=$(run_check BLOG_FILES="$P/fi/2026-10-09-hello.md"); rc=$?
+[[ $rc -eq 0 ]] && pass "a fi copy without share texts passes (it falls back)" || fail "fi no share texts: rc=$rc $out"
+rm -f "$R/$P/fi/2026-10-09-hello.md"
+post en 2026-10-09-hello news 'image: 2026-10-09-hello.webp' 'image_alt: "A test image"' | put "$N"
 
 # ---- 7. an edit keeps its published ----------------------------------------
 git -C "$R" update-ref refs/remotes/origin/master HEAD

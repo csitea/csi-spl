@@ -3,9 +3,11 @@
 //
 //   Copy link is first and copies the post URL.
 //   The other controls are plain links: target=_blank rel=noopener.
-//   Each share URL carries the post link and its teaser (share_text, else
-//   summary, else title). LinkedIn, Facebook, Instagram and Substack also
-//   copy "<teaser>\n\n<link>" and show the paste hint (spec 090 T043).
+//   Each share URL carries the post link and one of its two texts: X,
+//   Reddit and Viber the teaser (share_text, else summary, else title), the
+//   others the long text (share_long, else the teaser; spec 090 23.4).
+//   LinkedIn, Facebook, Instagram and Substack also copy
+//   "<long>\n\n<link>" and show the paste hint (spec 090 T043).
 //   Every control has its stable id blog-share-<target>-<top|end>.
 //
 // Run:
@@ -16,7 +18,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
-import { BLOG_SHARE_COPY_TARGETS, BLOG_SHARE_ORDER, shareTeaser } from '../../src/utils/blog-share.mjs'
+import { BLOG_SHARE_COPY_TARGETS, BLOG_SHARE_ORDER, shareLongText, shareTeaser } from '../../src/utils/blog-share.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 /* Shots only when the caller asks. CI cannot create a path under the spool. */
@@ -55,6 +57,8 @@ try {
   if (!posts.length) throw new Error('no posts')
   const teaser = shareTeaser({ title: posts[0].title, summary: posts[0].summary, shareText: posts[0].share_text })
   ok('the newest en post carries a share_text teaser', Boolean(posts[0].share_text) && teaser === posts[0].share_text, posts[0].id)
+  const long = shareLongText({ title: posts[0].title, summary: posts[0].summary, shareText: posts[0].share_text, shareLong: posts[0].share_long })
+  ok('the newest en post carries a long share_long text', Boolean(posts[0].share_long) && long === posts[0].share_long && long.length > teaser.length, posts[0].id)
 
   const ctx0 = await browser.createBrowserContext()
   const list = await ctx0.newPage()
@@ -167,7 +171,7 @@ try {
     const pageUrl = copied[0] || ''
     const encUrl = encodeURIComponent(pageUrl)
     const encTeaser = encodeURIComponent(teaser)
-    const pasted = `${teaser}\n\n${pageUrl}`
+    const pasted = `${long}\n\n${pageUrl}`
     for (const a of links) {
       if (a.id === 'blog-share-substack-top') {
         // Substack opens Notes and is not a share URL, so this assertion is relaxed.
@@ -180,13 +184,19 @@ try {
         ok(`${label}: Instagram opens instagram.com`, a.href === 'https://www.instagram.com/', a.href)
       } else if (a.id === 'blog-share-linkedin-top') {
         // the feed composer takes text; share-offsite drops it (spec 090 T043)
-        ok(`${label}: LinkedIn opens the composer with the teaser and the link`, a.href === `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(`${teaser} ${pageUrl}`)}`, a.href)
-      } else if (a.id === 'blog-share-whatsapp-top' || a.id === 'blog-share-viber-top') {
-        // RFC 3986 encoding of "<teaser> <link>" (T037's twin)
+        ok(`${label}: LinkedIn opens the composer with the long text and the link`, a.href === `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(pasted)}`, a.href)
+      } else if (a.id === 'blog-share-whatsapp-top') {
+        // RFC 3986 encoding of "<long> <link>" (T037's twin)
         const text = decodeURIComponent(a.href.replace(/^[^=]*=/, ''))
-        ok(`${label}: ${a.id} pre-fills the teaser and the link`, text === `${teaser} ${pageUrl}` || (a.id === 'blog-share-viber-top' && text.endsWith(pageUrl) && Array.from(text).length <= 200), a.href)
+        ok(`${label}: WhatsApp pre-fills the long text and the link`, text === `${long} ${pageUrl}`, a.href)
+      } else if (a.id === 'blog-share-viber-top') {
+        // Viber's 200-char limit: the teaser, never the long text
+        const text = decodeURIComponent(a.href.replace(/^[^=]*=/, ''))
+        ok(`${label}: Viber pre-fills the teaser and the link`, text === `${teaser} ${pageUrl}` || (text.endsWith(pageUrl) && Array.from(text).length <= 200), a.href)
+      } else if (a.id === 'blog-share-telegram-top') {
+        ok(`${label}: Telegram pre-fills the long text and the link`, a.href === `https://t.me/share/url?url=${encUrl}&text=${encodeURIComponent(long)}`, a.href)
       } else if (a.id === 'blog-share-email-top') {
-        ok(`${label}: e-mail pre-fills the title and the teaser with the link`, a.href === `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(pasted)}`, a.href)
+        ok(`${label}: e-mail pre-fills the title and the long text with the link`, a.href === `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(pasted)}`, a.href)
       } else {
         ok(`${label}: ${a.id} is built from the post URL and the teaser`, a.href.includes(encUrl) && a.href.includes(encTeaser), a.href)
       }
@@ -197,7 +207,7 @@ try {
     ok(`${label}: no paste hint before a copy target is clicked`, (await p.$('[data-test=blog-share-hint-top]')) === null)
     await p.click('[data-test=blog-share-substack-top]')
     const after = await p.evaluate(() => window.__copied)
-    ok(`${label}: Substack copies the teaser and the link`, after.length === 2 && after[1] === pasted, after)
+    ok(`${label}: Substack copies the long text and the link`, after.length === 2 && after[1] === pasted, after)
     const hint = await p.waitForSelector('#blog-share-hint-top', { visible: true, timeout: 5000 }).catch(() => null)
     const hintText = hint ? await hint.evaluate((el) => el.textContent.trim()) : ''
     ok(`${label}: a copy target shows the paste hint`, hintText === 'Text copied: paste it into the post.', hintText)
@@ -207,7 +217,7 @@ try {
       }, `#blog-share-${id}-top`)
       await p.click(`#blog-share-${id}-top`)
       const got = await p.evaluate(() => window.__copied)
-      ok(`${label}: ${id} copies the teaser and the link`, got.length === n && got[n - 1] === pasted, got)
+      ok(`${label}: ${id} copies the long text and the link`, got.length === n && got[n - 1] === pasted, got)
     }
     await p.evaluate(() => {
       document.querySelector('#blog-share-x-top')?.addEventListener('click', (e) => e.preventDefault(), true)

@@ -5,7 +5,9 @@
 # @description pushed post stays in its history. Run by do_spl_blog_post,
 # @description do_spl_blog_translate, the pre-push gate (part "blog", when
 # @description csi-spl-doc/blog/** changes) and CI. Every row of 4.4:
-# @description   frontmatter  a missing field, an unknown type, id != file name,
+# @description   frontmatter  a missing field (a published en post also needs
+# @description                share_text and share_long, spec 090 23.4),
+# @description                an unknown type, id != file name,
 # @description                lang != dir, image without image_alt, a bad image
 # @description                key, a hand-set published, no agy_review;
 # @description                agy_review is an agy seat id (a-NNN) or
@@ -220,6 +222,11 @@ spl_blog_file() {
     [[ "$v" =~ ^${id}(-og)?\.(webp|jpg)$ ]] || spl_blog_refuse "$rel" "$(spl_blog_line "$tree" "$rel" image)" frontmatter "image must be $id.webp, $id-og.webp, $id.jpg or $id-og.jpg"
   elif [[ "$(_bf draft)" != "true" ]]; then
     spl_blog_refuse "$rel" "$(spl_blog_line "$tree" "$rel" image)" frontmatter "image required, owner msg fede16a9"
+  fi
+  if [[ "$lang" == en && "$(_bf draft)" != "true" ]]; then
+    for k in share_text share_long; do
+      [[ -n "$(_bf "$k")" ]] || spl_blog_refuse "$rel" 1 frontmatter "missing field '$k': a published en post carries share_text and share_long (spec 090 23.4)"
+    done
   fi
   spl_blog_author "$tree" "$rel" "$(_bf author)" "$(_bf agy_review)"
   spl_blog_published "$tree" "$rel" "$ref" "$(_bf published)"

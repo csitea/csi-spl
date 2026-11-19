@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "The possibilities of AI: thoughts about the future"
 summary: "Lawyers and developers, an invoice that AI untangled, AI as a companion, and one piece of advice if you fear for your job."
+share_text: "Will AI take your job? Lawyers, developers, an invoice AI untangled, and one piece of advice for the worried."
 date: 2026-11-17
 published: 2026-11-19T11:03:14Z
 author: c-054

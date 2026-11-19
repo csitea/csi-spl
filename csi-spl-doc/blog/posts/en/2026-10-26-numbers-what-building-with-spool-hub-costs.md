@@ -4,7 +4,7 @@ lang: en
 type: news
 title: "Numbers: what building software with Spool Hub really costs"
 summary: "One real feature, from the first ask to the last release: 14 agent lanes, 477M tokens, $83.50 at list price, and three numbers we could not measure yet."
-share_text: "One real feature: 14 agent lanes, 477M tokens, $83.50 at list price. The full bill of building with AI."
+share_text: "One real feature: 14 agent lanes, 477M tokens, $83.50 at list price. What building with AI costs, and what we cannot measure yet."
 date: 2026-10-26
 published: 2026-10-27T07:32:51Z
 author: c-135

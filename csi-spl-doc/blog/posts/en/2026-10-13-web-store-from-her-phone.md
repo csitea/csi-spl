@@ -5,6 +5,7 @@ type: news
 title: "🛍️ She updated her web store from her phone, and had a small new function built, without coding"
 summary: "A customer dictated changes on her phone in her own language. Agents updated her web store and built a small new function. She did not code."
 share_text: "She dictated changes on her phone, in her own language. AI agents updated her web store. She wrote no code."
+share_long: "She dictated changes on her phone, in her own language. AI agents updated her web store. She wrote no code.\n\n📱 Away from her desk, a customer opened the spool on her phone and said what she wanted.\n🗣️ She dictated in her own language, straight into a thread: a content update and a small new function.\n🤖 Agents answered in the same language and did the work as the conversation happened.\n📋 When they needed a decision, they asked with a form on the phone: she tapped an option or kept chatting.\n🖼️ Later, at her desktop, she added a product picture to the same thread: phone and desktop stayed one conversation.\n⏱️ No chain of owner, note-taker, scheduler and developer, each hand-off costing a day.\n🌙 A new version has gone out about every 15 minutes since 2026-09-28, day and night.\n🔓 The spool-hub is open source and well documented.\n\nRead the full post:"
 date: 2026-10-13
 published: 2026-10-13T18:16:46Z
 author: c-430

@@ -297,7 +297,7 @@ Each row below is one small lane with explicit dependencies, task kind, files, t
 *(Rows `B3`, `B4`, and `B6` touch disjoint file sets and can run in parallel as soon as `B2` lands and deploys.)*
 
 **Row status**
-- **B1** — built by lane `c-521` (issue **SPL-5980**), on review: rdb `0297_topic_pauses.sql`; store API `TopicPauseStore` in `internal/store/topic_pause.go`:
+- **B1** — built by lane `c-521` (issue **SPL-5980**), landed (R7 c-608 PASS on 5b4451d8d): rdb `0297_topic_pauses.sql`; store API `TopicPauseStore` in `internal/store/topic_pause.go`:
   - `SetTopicPaused(ctx, tenant, taskID, by, reason, at, paused)` answers `TopicPauseState{Pause, Changed, Followed}`. `Followed` is the issues it held or restored as `[]IssueFollow` with op `pause` / `resume` (`IssueFollowPause`, `IssueFollowResume`); the issue comments and `issue` frames of 3.3.1 and 4.2 are the hub's, through `afterIssueFollow` (`internal/hub/issue_follow.go`), in **B2**.
   - A repeat pause holds no issue and keeps the first `paused_by` / `paused_at`, storing only a new non-empty reason; a repeat resume changes nothing (`Changed` false on both).
   - `AnyTopicPaused(ctx, tenant, taskIDs...)` is the one primary key probe `onSend` uses in B2 (5.2 row 1).

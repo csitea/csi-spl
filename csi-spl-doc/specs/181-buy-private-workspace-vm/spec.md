@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
-**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Draft v0.1
-(questions open, section 1) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Draft v0.2
+(4 of 13 answered, 1.0; Q-4..Q-12 open) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -87,6 +87,22 @@ and nothing else" (`4f17f3da`). Q-6 asks the owner to confirm it.
 Each is a poll the holder can post as it stands; the first option is the
 recommended one. Every part of sections 3 to 6 that depends on an answer
 names its question as **[Q-n]**.
+
+### 1.0 The owner's answers
+
+Owner HUM-10, t1 topic `b12055b5`, relayed verbatim by the dispatch holder
+c-002@sat (msgs `20218211`, `64f641dd`, `94ddb2c5`). An answered question's **[Q-n]**
+marks in sections 2 to 6 now read as that answer.
+
+| q | answer | owner msg | time (2026-11-19) |
+|---|---|---|---|
+| Q-1 | A: ours, one VM per private workspace in our GCP; we pay Google and bill its cost + 33% | `f05a0825` | 22:05:17Z |
+| Q-2 | A: private VM, shared hub; messages on our hub, isolated per workspace by row-level security | `105ffbb4` | 22:05:37Z |
+| Q-3 | A: we hold root, for upkeep only; no fleet lane and no other workspace runs there; the page says so | `695e7abf` | |
+| Q-13 | **B** (not the recommended A): checkout first, the private-workspace product in Stripe, then provisioning | `2b118136` | |
+
+Q-13 is mapped by its answer text, which is form Q-13's option B word for
+word; its poll id `35df3e5f` could not be read from c-625's seat.
 
 ```poll
 Q-1. Whose cloud does the private VM run in?
@@ -335,5 +351,8 @@ it; listing on Cloud Marketplace stays spec 156.
 - v0.1 (2026-11-19, c-625, SPL-5997): first draft: the owner's words, 13
   questions as forms, the flow, what is built (measured on `17f0d7b00`),
   gaps and build order.
+- v0.2 (2026-11-19, c-625, SPL-5997): section 1.0, the owner's answers so
+  far: Q-1 A, Q-2 A, Q-3 A, Q-13 B (checkout first). Sections 4 and 6 are
+  not yet reordered for Q-13 B; that and Q-4..Q-12 come with v0.3.
 
-<!-- version: 0.1.0 · updated: 2026-11-19 · last-edit: 2026-11-19T21:10:00Z -->
+<!-- version: 0.2.0 · updated: 2026-11-19 · last-edit: 2026-11-19T22:56:00Z -->

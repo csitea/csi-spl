@@ -212,8 +212,8 @@ lang: <lang>
 type: digest | news | event
 title: "..."
 summary: "one sentence, <= 160 chars (og:description)"
-share_text: "1-2 sentences, <= 200 chars: the short teaser for X, Reddit, Viber"
-share_long: "Hook line.\n\n🚀 Key point.\n✅ Key point.\n💡 Key point.\n\nRead the full post:"  # 300-1500 chars, spec 090 §23.4
+share_text: "1-2 sentences, <= 200 chars: the short teaser for X, Reddit, Viber"  # required on a published en post
+share_long: "Hook line.\n\n🚀 Key point.\n✅ Key point.\n💡 Key point.\n\nRead the full post:"  # required on a published en post, 300-1500 chars
 date: <yyyy-mm-dd>
 published: <ISO-8601 UTC, Z>  # set by do_spl_blog_post, never by hand
 author: <agent-id>            # e.g. m-004; never a person, never a box name
@@ -229,6 +229,25 @@ draft: false
 ---
 <body, <= 450 words>
 ```
+
+**Every new post carries its two share texts** (owner csitea `23fc5fee`,
+msg `e20de4b6`: "each next time a new blog post is created the ai will know
+to create the appropriate teaser as well"). Whoever writes a post writes,
+in the same front matter, both texts the share row uses (spec 090 §23):
+
+- `share_text`: the short teaser, 1-2 sentences, at most 200 characters,
+  that makes people click (X fits it with its link).
+- `share_long`: about half the post's body, 300-1500 characters, one
+  double-quoted line with `\n` for each line break. A hook line; then the
+  post's key points, each on its own line and led by one fitting emoji
+  (🚀 ✅ 💡 📊 ...); then a closing line such as `Read the full post:`. No
+  link (the row adds it last), no claim the post does not make, plain
+  English.
+
+A published `en` post without either is refused twice: by
+`do_spl_blog_check` (4.4, before the push) and by `sync-blog.mjs` (the
+build). A translation may leave both out: it falls back to its own
+`summary`, then its title.
 
 The gallery (SPL-3787) holds pictures shown in the post page after the
 body, such as cleared customer photos. The markdown body itself still
@@ -458,7 +477,7 @@ changes, and by CI:
 
 | check | refuses |
 |---|---|
-| frontmatter | a missing field, an unknown `type`, an `id` that does not match the file name, a `lang` that does not match the dir, `image` without `image_alt`, a non-draft post without `image` (owner msg fede16a9), a hand-set `published`, a copy without `agy_review`, an `agy_review` that is neither an agy seat id (`a-NNN`) nor `owner-waiver-<owner msg uuid>` (full lowercase uuid; the waiver lets a copy ship, the agy review of 3.7 is still owed and replaces it) |
+| frontmatter | a missing field (a published `en` post also needs `share_text` and `share_long`, 3.4), an unknown `type`, an `id` that does not match the file name, a `lang` that does not match the dir, `image` without `image_alt`, a non-draft post without `image` (owner msg fede16a9), a hand-set `published`, a copy without `agy_review`, an `agy_review` that is neither an agy seat id (`a-NNN`) nor `owner-waiver-<owner msg uuid>` (full lowercase uuid; the waiver lets a copy ship, the agy review of 3.7 is still owed and replaces it) |
 | size | a body over 450 words; a summary over 160 chars |
 | hygiene | anything `do_check_dist_hygiene` refuses, plus the release-note ban list. The list is a secret (Secret Manager slot): read through the per-env SA, **fail closed** when unreadable or empty, and a refusal names the file and line, never the pattern (s111-3 change 8) |
 | public-safe, "matrix" only | a personal name (the hygiene name list), an email address, a phone number, an internal host, a box name, a `/home/` path; an `image_prompt` that asks for a real or named person |
@@ -528,6 +547,8 @@ The agent never looks for its own sources.
   one line.
 - **Sources.** Every claim names its tag or short sha (090's source-backed
   rule), and the post check (4.4) refuses a token that is not on master.
+- **The share texts.** `share_text` and `share_long`, written as 3.4
+  says, from the post just written.
 - **The picture.** One `image_prompt`: "funny or cool", about the day's
   main theme, with no people, no logos or brands, and no text in the
   picture. And one `image_alt` of at most 125 chars that describes it.
@@ -743,4 +764,4 @@ Links: [075](../075-docs-section/spec.md), [090](../090-marketing-automation/spe
 [092](../092-box-power-loss/), [107](../107-hours-tracking/spec.md), [109](../109-desktop-ui-refactor/spec.md),
 [110](../110-mistral-vendor/spec.md).
 
-<!-- version: 1.0.1 · updated: 2026-11-19 · last-edit: 2026-11-19T16:00:00Z -->
+<!-- version: 1.0.1 · updated: 2026-11-19 · last-edit: 2026-11-19T17:00:00Z -->

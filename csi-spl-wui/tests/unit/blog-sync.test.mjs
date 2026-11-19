@@ -35,8 +35,13 @@ const CNF = { tz: 'Europe/Helsinki', cap_per_day: 7, digest_reserved: 1, digest_
 const scratch = []
 const tmp = (p) => { const d = mkdtempSync(join(tmpdir(), p)); scratch.push(d); return d }
 
-function post(id, { lang = 'en', type = 'news', draft = false, published = '', tags = 'release, fleet', body = 'A plain body with a [link](https://example.com/x).' } = {}) {
+/* the key points of the fixture's share_long: over SHARE_LONG_MIN in all */
+const SHARE_LONG_FIXTURE = ['🚀 One point that the post makes, in a short line.', '✅ A second point, also from the post, also short.',
+  '💡 A third point that sums up why the post matters.', '📊 A number the post gives, in plain words.', '🔗 Who it is for, and what they get from it.'].join('\\n')
+/* an en copy carries both share texts (required, spec 090 23.4); a translation none: it falls back */
+function post(id, { lang = 'en', share = lang === 'en', type = 'news', draft = false, published = '', tags = 'release, fleet', body = 'A plain body with a [link](https://example.com/x).' } = {}) {
   return ['---', `id: ${id}`, `lang: ${lang}`, `type: ${type}`, `title: "Post ${id}"`, 'summary: "One sentence."',
+    ...(share ? ['share_text: "A short teaser."', `share_long: "A hook line that makes people want to read on.\\n\\n${SHARE_LONG_FIXTURE}\\n\\nRead the full post:"`] : []),
     `date: ${id.slice(0, 10)}`, ...(published ? [`published: ${published}`] : []), 'author: m-004', 'agy_review: a-004',
     `tags: [${tags}]`, `draft: ${draft}`, '---', body, ''].join('\n')
 }
@@ -82,7 +87,7 @@ try {
     parseFrontmatter(post('2026-10-05-a').replace('draft: false', 'image_override: a2752059-0e93-4a78-b933-b47830f437c7\ndraft: false')).meta.image_override === 'a2752059-0e93-4a78-b933-b47830f437c7')
   ok('a valid copy passes validation', validateMeta(fm.meta, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).length === 0)
   /* the share row's teaser (spec 090 T043): optional, at most SHARE_TEXT_MAX code points */
-  ok('share_text is a known key and parses', parseFrontmatter(post('2026-10-05-a').replace('draft: false', 'share_text: "Read this, then share it."\ndraft: false')).meta.share_text === 'Read this, then share it.')
+  ok('share_text is a known key and parses', parseFrontmatter(post('2026-10-05-a').replace(/^share_text: .*$/m, 'share_text: "Read this, then share it."')).meta.share_text === 'Read this, then share it.')
   ok('a share_text of SHARE_TEXT_MAX passes', SHARE_TEXT_MAX === 200 &&
     validateMeta({ ...fm.meta, share_text: 'ä'.repeat(SHARE_TEXT_MAX) }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).length === 0)
   ok('CONTROL a share_text over SHARE_TEXT_MAX is refused',
@@ -91,13 +96,27 @@ try {
   {
     const v = (share_long) => validateMeta({ ...fm.meta, share_long }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES })
     const good = (n) => { const head = 'A hook.\n\n🚀 One point.\n✅ Two points.\n\nRead the full post:'; return head + ' ' + 'x'.repeat(n - Array.from(head).length - 1) }
-    ok('share_long is a known key and parses its \\n lines', parseFrontmatter(post('2026-10-05-a').replace('draft: false', 'share_long: "Hook.\\n\\n🚀 One."\ndraft: false')).meta.share_long === 'Hook.\n\n🚀 One.')
+    ok('share_long is a known key and parses its \\n lines', parseFrontmatter(post('2026-10-05-a').replace(/^share_long: .*$/m, 'share_long: "Hook.\\n\\n🚀 One."')).meta.share_long === 'Hook.\n\n🚀 One.')
     ok('a share_long of SHARE_LONG_MAX passes', SHARE_LONG_MAX === 1500 && Array.from(good(SHARE_LONG_MAX)).length === SHARE_LONG_MAX && v(good(SHARE_LONG_MAX)).length === 0, v(good(SHARE_LONG_MAX)).join('; '))
     ok('a share_long of SHARE_LONG_MIN passes', SHARE_LONG_MIN === 300 && v(good(SHARE_LONG_MIN)).length === 0, v(good(SHARE_LONG_MIN)).join('; '))
     ok('CONTROL a share_long over SHARE_LONG_MAX is refused', v(good(SHARE_LONG_MAX + 1)).includes(`share_long over ${SHARE_LONG_MAX} chars`))
     ok('CONTROL a share_long under SHARE_LONG_MIN is refused', v(good(SHARE_LONG_MIN - 1)).includes(`share_long under ${SHARE_LONG_MIN} chars`))
     ok('CONTROL a share_long with a link is refused', v(good(400).replace('A hook.', 'See https://example.com/x')).some((b) => /holds a link/.test(b)))
     ok('CONTROL a share_long without emoji-led lines is refused', v(good(400).replace('🚀', '-').replace('✅', '-')).some((b) => /emoji/.test(b)))
+  }
+  /* every published en post carries both share texts (spec 090 23.4, owner csitea e20de4b6) */
+  {
+    const v = (meta, lang = 'en') => validateMeta({ ...meta, lang }, { id: '2026-10-05-a', lang, locales: LOCALES })
+    const without = (k) => { const m = { ...fm.meta }; delete m[k]; return m }
+    ok('the fixture post carries both share texts and passes', Boolean(fm.meta.share_text && fm.meta.share_long) && v(fm.meta).length === 0, v(fm.meta).join('; '))
+    ok('CONTROL a published en post without share_text is refused', v(without('share_text')).some((b) => /^missing share_text \(a published en post/.test(b)), v(without('share_text')).join('; '))
+    ok('CONTROL a published en post without share_long is refused', v(without('share_long')).some((b) => /^missing share_long \(a published en post/.test(b)), v(without('share_long')).join('; '))
+    ok('a draft en post without share texts passes', v({ ...without('share_text'), share_long: undefined, draft: true }).length === 0)
+    ok('a fi copy without share texts passes (it falls back)', v({ ...without('share_text'), share_long: undefined }, 'fi').length === 0)
+    const real = blogFiles()
+    ok('every post in the repo passes the sync (each published en post has share_text and share_long)', real.errors.length === 0, real.errors.join('; '))
+    const realEn = JSON.parse(real.files.get('index.json')).locales.en || []
+    ok('index.json carries share_long for every en entry', realEn.length > 0 && realEn.every((e) => typeof e.share_long === 'string' && e.share_long.length > e.share_text.length), String(realEn.length))
   }
   ok('CONTROL image without image_alt is refused',
     validateMeta({ ...fm.meta, image: '2026-10-05-a.webp' }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).includes('image without image_alt'))
@@ -190,7 +209,8 @@ try {
     const html = readFileSync(join(out, 'en/2026-10-06-new.html'), 'utf8')
     ok('the fragment is markdownToHtml: an external link gets rel nofollow', /<a href="https:\/\/example\.com\/x"[^>]* target="_blank" rel="[^"]*noopener[^"]*nofollow/.test(html), html)
     ok('index entries carry the list fields', ['id', 'type', 'title', 'summary', 'date', 'author', 'tags'].every((k) => k in idx.en[0]) && !('agy_review' in idx.en[0]))
-    ok('an entry carries share_text only when its copy has one', !('share_text' in idx.en[0]))
+    ok('an entry carries share_text and share_long only when its copy has them', 'share_text' in idx.en[0] && 'share_long' in idx.en[0] &&
+      !('share_text' in idx.fi[0]) && !('share_long' in idx.fi[0]), JSON.stringify([idx.en[0], idx.fi[0]]))
     r.commit({ 'en/2026-10-06-new.md': post('2026-10-06-new', { draft: true }) }, at('2026-10-06', '08:00'))
     const d = r.sync()
     ok('a draft: true post is skipped (no entry, no fragment)', !enIds(d).includes('2026-10-06-new') && !d.files.has('en/2026-10-06-new.html'))

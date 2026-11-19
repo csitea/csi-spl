@@ -860,6 +860,7 @@ Owner HUM-10 (csitea `23fc5fee`, 2026-11-19): the teaser "is a bit poor - should
   - no link: the row adds the post link last. No claim the post does not make; plain English.
 - **Length**: about half the post's body, `SHARE_LONG_MIN` 300 to `SHARE_LONG_MAX` 1500 characters (code points). LinkedIn takes 3000 in a post; 1500 keeps the encoded LinkedIn share URL near 3 KB (measured per post in `blog-share.test.mjs`, which refuses one over `LINKEDIN_HREF_MAX`).
 - `sync-blog.mjs` (`shareLongBad`) refuses a `share_long` over 1500 or under 300 characters, one that holds a link, and one with fewer than 2 lines led by an emoji. It copies the key into `index.json` beside `share_text`.
+- **Every published `en` post carries both** `share_text` and `share_long` (msg `e20de4b6`). The rule for whoever writes a post lives in spec 111 §3.4 (the front matter template) and §5.3 (the digest agent). Two gates refuse a published `en` post without either: `do_spl_blog_check` (spec 111 §4.4, the pre-push `blog` part and CI) and `sync-blog.mjs` (`SHARE_REQUIRED_EN`, the build). A draft and a translation may leave them out.
 - **Who takes which text** (`BLOG_SHARE_LONG_TARGETS`, `csi-spl-wui/src/utils/blog-share.mjs`):
 
   | text | targets | fallback when absent |
@@ -870,4 +871,4 @@ Owner HUM-10 (csitea `23fc5fee`, 2026-11-19): the teaser "is a bit poor - should
 - Facebook's sharer still takes only the URL (§23.2): the click copies `<long>\n\n<link>` and shows the paste hint.
 - Other locales: a copy without its own `share_long` falls back to its own `share_text`, `summary`, then title; a locale with no copy of the post shares the `en` texts.
 
-<!-- version: 0.8.0 · updated: 2026-11-19 · last-edit: 2026-11-19T16:00:00Z -->
+<!-- version: 0.8.0 · updated: 2026-11-19 · last-edit: 2026-11-19T17:00:00Z -->

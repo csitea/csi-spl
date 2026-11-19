@@ -383,9 +383,10 @@ Added 2026-10-26 (v0.2.2 tasks, SPL-3553) for customer draft handover (`spec.md`
   - **Tests**: `tests/unit/blog-share.test.mjs` (the hrefs, the fallbacks, the copy targets, the ids), `tests/unit/blog-sync.test.mjs` (the key and its 200 limit), `tests/e2e/blog-share.test.mjs` (the ids on the page, the pre-filled hrefs, the copy and the hint).
   - **Red Control**: a `share_text` of 201 characters fails `blog-sync.test.mjs`; LinkedIn back on share-offsite fails `blog-share.test.mjs`.
   - **Not here**: the automation that clicks the ids (a later lane).
-- [ ] T044 **Blog share row: the long share text** (`wui`, `doc`; SPL-5968, owner csitea `23fc5fee` msgs `4fcff8d6`, `e20de4b6`). Spec §23.4.
+- [x] T044 **Blog share row: the long share text** (`wui`, `doc`; SPL-5968, owner csitea `23fc5fee` msgs `4fcff8d6`, `e20de4b6`). Spec §23.4.
   - **Build**: front matter `share_long` (300-1500 characters: a hook, emoji-led key points, a call to read; no link) beside `share_text`; `sync-blog.mjs` checks it (`shareLongBad`) and writes it to `index.json`; `blog-share.mjs` `shareLongText` (`share_long` -> `share_text` -> `summary` -> title) for LinkedIn, Facebook, Instagram, Substack, WhatsApp, Telegram and e-mail (`BLOG_SHARE_LONG_TARGETS`); X, Reddit and Viber keep the teaser. `BlogShareRow.vue` takes `shareLong`.
   - **Tests**: `tests/unit/blog-share.test.mjs` (the long and short targets, the fallback order), `tests/unit/blog-sync.test.mjs` (the key, its limits, the link and emoji checks), `tests/e2e/blog-share.test.mjs` (the LinkedIn href and the copied text on a post with `share_long`).
-  - **Red Control**: a `share_long` of 1501 or 299 characters, one with a link and one without emoji lines each fail `blog-sync.test.mjs`; X carrying the long text fails `blog-share.test.mjs`.
+  - **Every next post**: `share_text` and `share_long` are required on a published `en` post, in `sync-blog.mjs` (`SHARE_REQUIRED_EN`) and in `do_spl_blog_check` (`csi-spl-orc/src/bash/run/spl-blog-check.func.sh`); the authoring rule is spec 111 §3.4 and §5.3. All 31 published `en` posts carry `share_long` (one commit per post, the blog commit-shape row).
+  - **Red Control**: a `share_long` of 1501 or 299 characters, one with a link and one without emoji lines each fail `blog-sync.test.mjs`; X carrying the long text fails `blog-share.test.mjs`; a published `en` post without `share_text` or `share_long` fails `blog-sync.test.mjs` and `csi-spl-orc/src/bash/tests/blog-check.tst.sh`.
 
-<!-- version: 0.2.4 · updated: 2026-11-19 · last-edit: 2026-11-19T16:00:00Z -->
+<!-- version: 0.2.4 · updated: 2026-11-19 · last-edit: 2026-11-19T17:00:00Z -->

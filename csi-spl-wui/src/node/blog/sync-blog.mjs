@@ -107,6 +107,7 @@ export const SHARE_TEXT_MAX = 200
  * post; the share row adds the link. LinkedIn takes 3000 chars; 1500 keeps
  * the encoded LinkedIn share URL near 3 KB (blog-share.test.mjs measures it).
  */
+export const SHARE_REQUIRED_EN = ['share_text', 'share_long']
 export const SHARE_LONG_MIN = 300
 export const SHARE_LONG_MAX = 1500
 /* a share_long line that starts with an emoji (a key point) */
@@ -173,6 +174,10 @@ export function parseFrontmatter(text) {
 export function validateMeta(meta, { id, lang, locales }) {
   const bad = []
   for (const k of REQUIRED) if (meta[k] === undefined || meta[k] === '') bad.push(`missing ${k}`)
+  /* every published en post carries both share texts (spec 090 23.4, owner csitea e20de4b6) */
+  if (lang === 'en' && meta.draft !== true) {
+    for (const k of SHARE_REQUIRED_EN) if (meta[k] === undefined || meta[k] === '') bad.push(`missing ${k} (a published en post carries share_text and share_long, spec 090 23.4)`)
+  }
   for (const k of KEYS) {
     if (!LISTS.has(k) && k !== 'draft' && meta[k] !== undefined && typeof meta[k] !== 'string') bad.push(`${k} is not a string`)
   }

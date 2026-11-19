@@ -20,8 +20,11 @@
 // Red controls (each seen RED on a bundle with the planted defect):
 //   - useCardExportPdf printing every channel row (rows: channel.messages):
 //     "card: exactly that card" and "card: nothing of the neighbour" FAIL
-//   - TopicExportPdf printing props.rows() without rowsInShownOrder:
-//     "topic: exactly the cards shown, in order" FAILs
+//   - TopicExportPdf printing every channel row (rows: channel.messages):
+//     "topic: exactly the cards shown, in order" and "topic: the reply and
+//     the picture print, the neighbour does not" FAIL
+//   (dropping rowsInShownOrder alone stays green here: this pane's rows are
+//   already in shown order; tests/unit/msg-print.test.mjs holds its control)
 //
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/msg-export-pdf.test.mjs

@@ -16,7 +16,10 @@
 #      the crate dir as its cwd, so rust-toolchain.toml and .cargo/config.toml
 #      apply, and plans the musl binary it printed (SPL-5487)
 #   7. with no SPL_RUST_HOME the rust home is <SPL_VAR_ORG_DIR>/rust
-#      (spl_run_paths), and with no tree at all the build is refused, rc 1
+#      (spl_run_paths), /mnt/data<SPL_VAR_ORG_DIR>/rust when /mnt/data is
+#      mounted, and with no tree at all the build is refused, rc 1
+# mountpoint is a stub (SCG_TEST_MNT=1: /mnt/data is mounted, else nothing
+# is), so the cases do not depend on the box's own mounts (SPL-5988).
 #------------------------------------------------------------------------------
 set -uo pipefail
 ORC="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -30,6 +33,7 @@ export PROJ_PATH="$ORC"
 # shellcheck source=../run/spl-cmd-guard-mode.func.sh
 . "$ORC/src/bash/run/spl-cmd-guard-mode.func.sh"
 unset SPL_CMD_GUARD_IMPL SPL_CMD_GUARD_BIN DRY_RUN
+mountpoint() { [[ "${SCG_TEST_MNT:-0}" = 1 && "${!#}" = /mnt/data ]]; }
 
 mkhome() {  # NAME: a home with the y13 install in it
   local d="$T/$1/.local/share/spool-agent/force-push-guard"
@@ -101,6 +105,7 @@ cat >"$T/stubbin/cargo" <<'STUB'
 #!/usr/bin/env bash
 pwd >"$SCG_TEST_CWD"
 printf '%s\n' "$*" >"$SCG_TEST_ARGS"
+[ -n "${SCG_TEST_TGT:-}" ] && { printf '%s\n' "$CARGO_TARGET_DIR" >"$SCG_TEST_TGT"; exit 0; }
 d="$CARGO_TARGET_DIR/x86_64-unknown-linux-musl/release"
 mkdir -p "$d" && cp "$SCG_TEST_GOOD" "$d/spl-cmd-guard"
 STUB
@@ -117,11 +122,15 @@ else fail "build cwd: rc=$rc cwd=$(cat "$T/cargo.cwd" 2>/dev/null) args=$(cat "$
 rm -f "$T/cargo.args"
 out="$( (unset SPL_RUST_HOME; PATH="$T/stubbin:$PATH" SPL_VAR_ORG_DIR="$T/v" SCG_TEST_CWD="$T/cargo.cwd" \
   SCG_TEST_ARGS="$T/cargo.args" SCG_TEST_GOOD="$T/good1" SPL_CMD_GUARD_IMPL=shadow mode) )"; rc=$?
-rh="$T/v/rust"; mountpoint -q /mnt/data 2>/dev/null && rh="/mnt/data$T/v/rust"
-musl="$rh/target/spl-cmd-guard/x86_64-unknown-linux-musl/release/spl-cmd-guard"
+musl="$T/v/rust/target/spl-cmd-guard/x86_64-unknown-linux-musl/release/spl-cmd-guard"
 if [ "$rc" = 0 ] && [[ "$out" == *"PLAN $G1/spl-cmd-guard <- $musl (spl-cmd-guard v1)"* ]]; then
   pass "no SPL_RUST_HOME: the build uses <SPL_VAR_ORG_DIR>/rust"
 else fail "derived rust home: rc=$rc $out"; fi
+out="$( (unset SPL_RUST_HOME; PATH="$T/stubbin:$PATH" SPL_VAR_ORG_DIR="$T/v" SCG_TEST_MNT=1 SCG_TEST_CWD="$T/cargo.cwd" \
+  SCG_TEST_ARGS="$T/cargo.args" SCG_TEST_TGT="$T/cargo.tgt" SPL_CMD_GUARD_IMPL=shadow mode) )"
+[ "$(cat "$T/cargo.tgt" 2>/dev/null)" = "/mnt/data$T/v/rust/target/spl-cmd-guard" ] &&
+  pass "no SPL_RUST_HOME, /mnt/data mounted: the build uses /mnt/data<SPL_VAR_ORG_DIR>/rust" ||
+  fail "derived rust home on /mnt/data: target=$(cat "$T/cargo.tgt" 2>/dev/null) $out"
 out="$( (unset SPL_RUST_HOME APP_PATH SPL_VAR_ORG_DIR; PATH="$T/stubbin:$PATH" SPL_RUN_PATHS_TOP='' PROJ_PATH='' \
   SPL_CMD_GUARD_IMPL=shadow mode) 2>&1)"; rc=$?
 [ "$rc" = 1 ] && [[ "$out" == *"FATAL cannot derive the rust home"* ]] &&

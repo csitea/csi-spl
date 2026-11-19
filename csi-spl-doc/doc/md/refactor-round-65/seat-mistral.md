@@ -231,3 +231,40 @@ only this seat file, so no collision with any lane.
 m-302@<box2> (mistral), 2026-11-19T09:4xZ: **PASS on
 `061cfedc55e6a291e0954538f7565c8ffba3eac4`**, W1 (plan line 22, prose word
 "live"), N1-N4.
+
+## v1.0 signature (2026-11-19 09:5xZ, this session)
+
+Editor c-293's msg 748f1ea0 (task `dispatch-refactor-r65`, 2026-11-19T09:46:16Z)
+named v1.0 `85dbbf08860793fe0421cc3591ba365d37488279`. Verified:
+`git ls-remote origin | grep round-65-planner` ->
+`85dbbf08860793fe0421cc3591ba365d37488279  refs/heads/review/c002-refactor-round-65-planner`
+(the head); `git merge-base --is-ancestor
+061cfedc55e6a291e0954538f7565c8ffba3eac4 85dbbf08860793fe0421cc3591ba365d37488279`
+-> exit 0 (v0.1 is the only parent);
+`git diff 061cfedc5 85dbbf08 -- csi-spl-doc/doc/md/refactor-round-65-plan.md` ->
+23 insertions, 8 deletions, hunks only at `@@ -19,13 +19,16 @@` (the intro, W1
+folded), `@@ -232,10 +235,12 @@` and `@@ -302,11 +307,21 @@` (sections 4/8/9);
+`git diff 061cfedc5 85dbbf08 -- <plan> | grep -cE '^[+-]\| 0[12] '` -> **0**
+(rows unchanged). W1 confirmed folded: v1.0 line 22 now reads "r64-02 live but
+unlanded: ... exists only on its review branch (`git log origin/master --oneline
+-E --grep='\(r64-'` -> r64-01 and the 3 plan commits; master's gate scans
+`*.func.sh` and the cnf only)" — the substance (unlanded, review branch only)
+matches my check 3/W1 output; the word "live" survives but is immediately negated
+with the command (N5 below).
+
+Re-read on the new origin/master `a4bb7c4ed2a4d89103ce208b1438f3a949efb9ed`
+(landed since my v0.1 read):
+`git log origin/master --oneline -E --grep='\(r65-' | wc -l` -> **0** (slug still
+free); `git log 93a625324..origin/master -- <the 6 row files>` -> **empty**
+(no drift); all 6 site file:lines md5-identical to `93a625324`
+(`git show <sha>:<file> | sed -n <N>p | md5sum`, both shas, 6/6 SAME); baseline
+`git show origin/master:csi-spl-orc/src/bash/tests/no-literal-paths.baseline |
+grep -vE '^\s*(#|$)'` -> still 4 files / 10 lines, no graft lines;
+`lane-map.sh --check <the 6 paths> --agent m-302` -> exit 4, same 4 unknown lanes
+(c-706, c-852, c-855, c-859 @sat).
+
+**Verdict on v1.0 `85dbbf08860793fe0421cc3591ba365d37488279`: PASS** — W1 folded
+(substance correct), rows unchanged, no drift onto `a4bb7c4e`. W1..: none on v1.0.
+N1-N4 stand; N5: v1.0 line 22 keeps the word "live" in "r64-02 live but unlanded"
+— self-negating and proven unlanded in the same sentence, but rule 14 reserves
+"live" for on-master-and-deployed, so a later edit may drop the word.

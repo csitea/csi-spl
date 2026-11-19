@@ -8,7 +8,8 @@
   - `git diff --numstat cb56a8993 8575f2eeece57ed33b5c72ccde310010dda93fae` printed `98 24 csi-spl-doc/specs/107-hours-tracking/spec.md` and `17 5 csi-spl-doc/specs/107-hours-tracking/tasks.md` — matches the author's "+98 -24, +17 -5, 2 files".
 - **Verdict: FAIL** on `8575f2eee` (one defect, W1). Every other check below passes.
 - Re-review on the author's fix head `57c2a8f709e62f79a517ec1ca41c17cf19482bab`: **PASS** — see "Re-review on 57c2a8f70" below.
-- Delta review on `96eeb4584c4f911bded8bef4096ac9528caa9c22` (Q34 = A fold on top of 57c2a8f70): **PASS** — see "Delta review on 96eeb4584" at the end of this file.
+- Delta review on `96eeb4584c4f911bded8bef4096ac9528caa9c22` (Q34 = A fold on top of 57c2a8f70): **PASS** — see "Delta review on 96eeb4584" below.
+- Final review on `03f8ee98389db6bf31b43cd75cde21567aa0cd70` (Q34 fold + N5 cleanup, delta 57c2a8f70..03f8ee98): **PASS** — see "Final review on 03f8ee98" at the end of this file.
 
 ## Check 1 — owner answers Q30..Q33 folded
 
@@ -144,3 +145,25 @@ New note:
 ## Delta-review verdict
 
 **PASS** on `96eeb4584c4f911bded8bef4096ac9528caa9c22` — Q34 = A folded consistently in 2.2, 4.3, FR-04, 23.9, 23.7.1 and tasks.md T082, matching the answer's words; the delta adds nothing beyond the reviewed fixes and the Q34 fold; code sites true on `cb56a8993`; hygiene clean.
+
+## Final review on 03f8ee98389db6bf31b43cd75cde21567aa0cd70 (2026-11-19, Q34 fold + N5 cleanup)
+
+- `git ls-remote origin review/c002-spl5886-spec107-v212` printed `03f8ee98389db6bf31b43cd75cde21567aa0cd70` — the final head the holder named (msg `abe77f64`).
+- `git log --oneline 57c2a8f70..03f8ee98` shows exactly two commits, both fast-forward on `57c2a8f70`: `96eeb4584` (Q34 = A fold, reviewed PASS above) and `03f8ee983` ("strikes the last three `hours.standard_day_minutes` mentions (Q30 = A)", author report `64b0b069`).
+- `git diff --numstat 57c2a8f70 03f8ee98` → `12 10 csi-spl-doc/specs/107-hours-tracking/spec.md`, `2 2 csi-spl-doc/specs/107-hours-tracking/tasks.md` (2 files, +14/-12), matching the holder's quote. `git diff --name-only` lists only those two files.
+- The cleanup commit alone (`git diff 96eeb4584..03f8ee98`) is `1 1 spec.md`, `1 1 tasks.md` with exactly two hunks, `@@ -719,7 +719,7 @@` (spec.md:722) and `@@ -128,7 +128,7 @@` (tasks.md:131). The remaining 11/9 + 1/1 of the delta is the Q34 commit already reviewed PASS on `96eeb4584`. The delta `57c2a8f70..03f8ee98` adds nothing else.
+- Q34 = A reads the same at `03f8ee98` as at `96eeb4584` in every place the holder named, each read with `git show 03f8ee98:<file> | sed -n <N>p`:
+  - 2.2 item 2, spec.md:173 — "**a returned period shows suggestions again**, as an open one does, each counted only after the tap"
+  - 4.3 Return, spec.md:310 — "Q34 = A: with suggestions again, 2.2, counted only after the tap"
+  - FR-04, spec.md:471 — "a returned period shows them again, counted only after the tap, 23.9"
+  - 23.7.1 T082 brief, spec.md:1444 — "**Q34 = A (msg `ffa470cd`): a returned period gets suggestions again, the prefill included**: drop the `p.returned()` skip in `loadHoursPeriod` (`api/hub/hours_me.go:189-196`, the check at `:195`) and fix the write path's comment that a returned period has none (`:577`)"
+  - 23.9 "What it means for the person", spec.md:1518 — "**a returned period shows suggestions again** (owner Q34 = A, msg `ffa470cd`, poll `e815cf44`): the meetings and T082's prefill, each counted only after the tap"
+  - tasks.md T082, tasks.md:324 — "Q34 A: also in a returned period"
+  - 23.8 question row, spec.md:1491, quotes option A verbatim: "Yes: show the suggestions again, counted only after the tap" — the exact words of HUM-10 msg `ffa470cd` answering poll `e815cf44`.
+- Code sites for T082's Q34 change, true on the base `cb56a8993` (`git show cb56a8993:csi-spl-api/src/go/spool-hub-api/internal/hub/hours_me.go | sed -n <N>p`; the spec cites the file as `api/hub/hours_me.go`): :189 comment "No suggestion for a frozen day nor in a returned period (spec 2.2).", :195 `if !open || p.returned() {`, :196 `return p, nil`, :577 "// entry already held (a returned period has no suggestions), else 0".
+- N5 cleanup verified: `git grep -o 'hours.standard_day_minutes' 03f8ee98 -- csi-spl-doc/specs/107-hours-tracking/` → 4 occurrences, the same 4 as at `57c2a8f70`. At `03f8ee98` three are struck: spec.md:722 "~~`hours.standard_day_minutes`~~ (v2.12, Q30 = A: dropped, FR-41's key)"; tasks.md:131 register list "~~`hours.standard_day_minutes` (480, 0..1440)~~ (v2.12, Q30 = A: dropped)"; tasks.md:131 red test "~~a tenant settings write of `hours.standard_day_minutes = 450` is refused as an unknown key on `3724f6dc2` …~~ (v2.12, Q30 = A: dropped; the red uses another key of this row, refused as unknown on the base tree, then accepted in range and refused out of range)". The fourth, the drop note itself at tasks.md:131 ("drop `hours.standard_day_minutes` and the person's standard-day override with its weekday pattern from this row"), stays unstruck on purpose — it is the Q30 = A instruction, not a stale mention.
+- Hygiene: `git diff 57c2a8f70 03f8ee98 | grep '^+' | grep -nE 'https?://|/home/|[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'` → no hits; `do_check_dist_hygiene` clean rc 0.
+
+## Final-review verdict
+
+**PASS** on `03f8ee98389db6bf31b43cd75cde21567aa0cd70` — the delta `57c2a8f70..03f8ee98` is exactly the Q34 = A fold (already PASS on `96eeb4584`) plus the N5 cleanup striking the three stale `hours.standard_day_minutes` mentions; Q34 = A reads the same in 2.2, 4.3, FR-04, 23.9, 23.7.1 (T082) and tasks.md T082, matching the owner answer's words; the T082 code sites are true on `cb56a8993`; hygiene clean; nothing else changed.

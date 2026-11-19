@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Why we use different kinds of AI agents"
 summary: "How the spool fleet dynamically balances tasks across vendors per workspace and box to optimize limits, costs, and performance."
+share_text: "Rate limits, costs, speed: how we balance AI agents from several vendors across workspaces and machines."
 date: 2026-10-11
 published: 2026-10-11T12:35:00Z
 author: a-176

@@ -87,8 +87,13 @@ func TestOperatorCalendarReplacesAgentPrivate(t *testing.T) {
 			t.Fatalf("%s reads %d entries, want %d: %v", who, len(evs), n, got)
 		}
 	}
-	if code, got := patch(mine, map[string]any{"ordered_by": boss, "audience": "workspace"}); code != http.StatusBadRequest || got["error"] != "bad_json" {
-		t.Fatalf("PATCH audience: %d %v, want 400 bad_json", code, got)
+	// Nothing widens an audience (SPL-5963: the operator only narrows to
+	// private); mentions stay the members'.
+	if code, got := patch(mine, map[string]any{"ordered_by": boss, "audience": "workspace"}); code != http.StatusBadRequest || got["error"] != "bad_event" {
+		t.Fatalf("PATCH audience workspace: %d %v, want 400 bad_event", code, got)
+	}
+	if code, got := patch(mine, map[string]any{"ordered_by": boss, "mentions": []any{boss, her}}); code != http.StatusBadRequest || got["error"] != "bad_json" {
+		t.Fatalf("PATCH mentions: %d %v, want 400 bad_json", code, got)
 	}
 
 	// The change: title and a 15-minute reminder, still private, still the agent's.

@@ -9,6 +9,9 @@
 #      the target; the read-back names ordered_by and must hold them
 #   4. TITLE + DAY: title and the whole day; empty REMINDERS / DESCRIPTION clear
 #   5. a 404, a read-back that does not hold, or a read-back 404 fails the run
+#   6. SPL-5963: AUDIENCE=private with ORDERED_BY sends audience private and
+#      the read-back must hold it; any other value, or no ORDERED_BY, fails
+#      fast with no call
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -103,5 +106,19 @@ run "${SET[@]}" TITLE=New DRY_RUN=0 STUB_RB="{\"event\":{\"id\":\"$A\",\"title\"
 run "${SET[@]}" REMINDERS=15m DRY_RUN=0 STUB_RB_CODE=404; rc=$?
 [[ $rc -ne 0 ]] && grep -q "was changed but its read-back answered http 404" "$T/o" \
   && pass "5. a read-back 404 fails" || fail "5. rb 404: rc=$rc $(cat "$T/o")"
+
+# --- 6. AUDIENCE=private (SPL-5963) -------------------------------------------------
+run "${SET[@]}" AUDIENCE=private DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -qxF "hub PATCH $P {\"tenant\":\"wa\",\"agent_id\":\"c-841\",\"ordered_by\":\"HUM-10\",\"audience\":\"private\"}" "$T/calls" \
+  && grep -qxF "hub GET $P?tenant=wa&ordered_by=HUM-10 " "$T/calls" && grep -q "changed (audience)" "$T/o" \
+  && pass "6. AUDIENCE=private: PATCH of the audience only, read back with ordered_by" || fail "6. private: rc=$rc $(cat "$T/calls" "$T/o")"
+for bad in "AUDIENCE=workspace" "AUDIENCE=Private" "AUDIENCE=private ORDERED_BY="; do
+  # shellcheck disable=SC2086 # a case may set two vars
+  run "${SET[@]}" DRY_RUN=0 $bad; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q "FATAL AUDIENCE takes only private" "$T/o" && pass "6. $bad fails fast, no call" || fail "6. $bad: rc=$rc $(cat "$T/calls" "$T/o")"
+done
+run "${SET[@]}" AUDIENCE=private DRY_RUN=0 STUB_RB="{\"event\":{\"id\":\"$A\",\"audience\":\"workspace\",\"starts_at\":\"2026-11-20T00:00:00Z\"}}"; rc=$?
+[[ $rc -ne 0 ]] && grep -q "read back with audience not as sent" "$T/o" \
+  && pass "6. a read-back still shared fails" || fail "6. audience mismatch: rc=$rc $(cat "$T/o")"
 
 (( fails == 0 )) && echo "ALL PASS: spl-calendar-event-update" || { echo "FAILED: $fails"; exit 1; }

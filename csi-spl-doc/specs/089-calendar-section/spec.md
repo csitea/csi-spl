@@ -126,7 +126,7 @@ Per owner guidance (`e3d63084`), the calendar coordinates any time-related event
 - **Audience**: One of `public` (the default), `internal` or `private`. Section 4.2 has the rules.
 - **Mentions**: Zero or more people or agents named with `@` (`mentions`). A mention adds a viewer to a private event and makes the event show on that person's or agent's own list. It is not an invitation and has no RSVP.
 - **Reminder**: Optional alert time (`remind_at`). When it comes, a plain pop-up shows in the app. Section 4.3 has the rules.
-- **Issue Deadlines**: `issues.deadline` values (`0047_issues.sql`) appear directly on the calendar grid. Editing the deadline block updates the underlying issue.
+- **Issue Deadlines**: `issues.deadline` values (`0047_issues.sql`) appear directly on the calendar grid. Editing the deadline block updates the underlying issue. **An issue deadline shows only to the issue's assignee and its creator** (owner HUM-10, msg eac307d4, SPL-5963): the range read and the year marks leave out every other issue's deadline, and a request with no member session reads none. The issue itself stays readable in Issues as before, and the To-do view keeps its "Mine" / everyone switch (spec 170 B2).
 - **Release Version Tags**: A release milestone scheduled in the calendar displays its associated `v<X.Y.Z>` tag as a badge once deployed. (No automatic row creation per git tag).
 - **Official Days**: Official public holidays and statutory non-working days are displayed from a shared reference table based on the workspace's configured region. The region is empty by default, so a new workspace shows no tints.
 
@@ -141,6 +141,7 @@ Per owner guidance (`e3d63084`), the calendar coordinates any time-related event
 - A create request without `audience` stores `public`. The database default is `public` as well, so no path makes an event private by accident.
 - **Only the owner may set `private`, and only explicitly.** The hub refuses, with `403`, any create or update that sets `audience = 'private'` when the caller is not the event's owner (for a create, the caller is the owner). An admin role does not change this. Moving an event out of `private` is the owner's action too.
 - Anyone who may edit the event may move it between `public` and `internal`.
+- **An entry an agent writes for one person is private to that person by default** (owner HUM-10, msg eac307d4, SPL-5963: "An entry an agent writes for one person is private to that person by default"). When an agent's create (the operator route, spec 097 section 4.10) names no `audience` and its owner is a member (`owner_id`, else `ordered_by`), the hub stores `private` and puts the owner in `mentions`. An agent's entry with no person stays shared (`workspace`), and an explicit `audience` is kept, so a shared entry is shared on purpose. The operator may also narrow an agent's shared entry made for a person to private for that person; nothing widens one.
 - The WUI shows the audience control to everyone who can edit, and shows the `private` choice only to the owner. The hub check is the rule; the hidden choice is only convenience.
 
 ### 4.3 Reminders: a technical pop-up, Google Calendar style (D4)

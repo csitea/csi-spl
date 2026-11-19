@@ -13,7 +13,8 @@
 #      on the apex for t1, its day from the event's start
 #   6. SPL-5498: AUDIENCE and MENTIONS go into the body; private needs
 #      MENTIONS with ORDERED_BY among them (else fail fast); a private event
-#      is read back as its creator (?as=AGENT_ID), any other event without it
+#      is read back as its creator (?as=AGENT_ID), and so is every other
+#      event (SPL-5963: with no AUDIENCE the hub may make it private)
 #   7. SPL-5718: REMINDERS (15m,1h,1d) become the hub's typed reminders
 #      ({amount, unit, method popup}); unset or empty omits the field; a bad
 #      value fails fast with FATAL and no call; the read-back prints them
@@ -82,7 +83,7 @@ run "${SET[@]}" ISSUE_KEYS=; rc=$?
 # --- 3. the write and its read-back --------------------------------------------
 run "${SET[@]}" DRY_RUN=0 STUB_BODY="$EV"; rc=$?
 [[ $rc -eq 0 ]] && [[ "$(sed -n 1p "$T/calls")" == pin ]] && grep -qxF "hub POST /v1/operator/calendar/events $WANT" "$T/calls" \
-  && grep -qxF "hub GET /v1/operator/calendar/events/0a1b2c3d?tenant=wa " "$T/calls" \
+  && grep -qxF "hub GET /v1/operator/calendar/events/0a1b2c3d?tenant=wa&as=c-840 " "$T/calls" \
   && grep -q '"creator_type":"agent","creator_id":"c-840"' "$T/o" && grep -q "OK event 0a1b2c3d in wa (dev), read back through the hub, creator agent c-840" "$T/o" \
   && pass "3. DRY_RUN=0 POSTs as the SA, reads the event back, creator the agent" || fail "3. write: rc=$rc $(cat "$T/calls" "$T/o")"
 

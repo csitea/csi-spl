@@ -27,7 +27,9 @@
 # @param   empty sends an empty list; unset omits the field
 # @param EVENT_OWNER (optional) - the responsible member (HUM-n) or agent id;
 # @param   empty or unset leaves the hub default (ORDERED_BY when that human is a member, else the agent)
-# @param AUDIENCE (optional) - workspace (the hub default when unset), internal or private (SPL-5498)
+# @param AUDIENCE (optional) - workspace, internal or private (SPL-5498). Unset: the hub makes an entry
+# @param   for one person (EVENT_OWNER, else ORDERED_BY, a member) private to that person, else
+# @param   workspace (SPL-5963, owner msg eac307d4); AUDIENCE=workspace shares it on purpose
 # @param MENTIONS (optional) - comma-separated HUM-* members of TENANT_ID who see the event; AUDIENCE=private
 # @param   needs it, with ORDERED_BY among them. A private event is read back as AGENT_ID (?as=), its creator
 # @param REMINDERS (optional) - comma-separated alerts before the start, amount + unit m, h or d, e.g. 15m,1h,1d
@@ -63,9 +65,7 @@ do_spl_calendar_event_add() {
   esac
   id="$(jq -r '.event.id // ""' <<<"$SPL_HUB_OP_BODY")"
   [[ "$id" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL the hub answered 201 with no event id: $SPL_HUB_OP_BODY"; return 1; }
-  local as=""
-  [[ "${AUDIENCE:-}" != private ]] || as="&as=$AGENT_ID"
-  spl_hub_operator_call GET "/v1/operator/calendar/events/$id?tenant=$TENANT_ID$as" || return 1
+  spl_hub_operator_call GET "/v1/operator/calendar/events/$id?tenant=$TENANT_ID&as=$AGENT_ID" || return 1
   [[ "$SPL_HUB_OP_STATUS" == 200 && "$(jq -r '.event.id // ""' <<<"$SPL_HUB_OP_BODY")" == "$id" ]] \
     || { do_log "FATAL event $id was written but its read-back answered http $SPL_HUB_OP_STATUS: $SPL_HUB_OP_BODY"; return 1; }
   local link

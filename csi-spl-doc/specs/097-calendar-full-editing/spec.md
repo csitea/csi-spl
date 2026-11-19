@@ -437,7 +437,12 @@ and its log fields (`tenant`, `agent_id`, `ordered_by`, the operator):
   and read each one back (`GET`: pinned as asked; `404` once trashed).
 
 A private event from an agent (SPL-5498). The create takes the member
-create's `audience` (`workspace` by default) and `mentions`, with three
+create's `audience` and `mentions`. With no `audience` (SPL-5963, owner
+HUM-10, msg eac307d4: "An entry an agent writes for one person is private to
+that person by default"), an entry whose owner is a member (`owner_id`, else
+`ordered_by`) is `private` with the owner added to `mentions`
+(`operatorPersonalDefault`); with no person it is `workspace`; an explicit
+`audience` is kept (spec 089 section 4.2). Then three
 operator checks, each a `400 bad_event`: every mention is a `HUM-n` member of
 the workspace; a `private` event names at least one; and `ordered_by` is set
 and is one of them, so the human who ordered it can read it. The creator stays
@@ -453,7 +458,8 @@ FR-010 (only the creator sets or clears private) means the mentioned humans
 cannot move such an event out of private in the WUI. Action:
 `do_spl_calendar_event_add` with `AUDIENCE=workspace|internal|private` and
 `MENTIONS=HUM-n,...`; `AUDIENCE=private` needs `ORDERED_BY` among `MENTIONS`
-(checked before any call), and its read-back passes `as=$AGENT_ID`.
+(checked before any call), and its read-back passes `as=$AGENT_ID` for
+every event, since a create with no `AUDIENCE` may now be private.
 
 An agent replaces a private entry an agent made for a person (SPL-5720,
 owner HUM-10, topic b610f795, msg 18ee3ef7: "Fix it first so an agent can
@@ -477,6 +483,16 @@ cannot read it in the WUI. Under the rule:
 
 - `PATCH` changes the fields above; audience and mentions stay, so it stays
   private to the same people.
+- `PATCH {audience: "private"}` (SPL-5963, owner msg eac307d4) is the one
+  audience change an operator makes: on an agent's entry whose owner is
+  `ordered_by` (a member), it becomes `private`; a shared entry's `mentions`
+  become `{ordered_by}`, an entry already private keeps its mentions. Any
+  other value, no `ordered_by`, another owner or a human's entry is `400
+  bad_event`; `mentions` stays refused (`400 bad_json`). Nothing widens an
+  audience. Action: `do_spl_calendar_event_update` with `AUDIENCE=private`
+  and `ORDERED_BY` (else it fails before any call); the read-back must hold
+  `audience: private`. Tests: `calendar_personal_test.go` (memory and
+  Postgres), `spl-calendar-event-update.tst.sh` case 6.
 - `DELETE` moves it to the person's trash, where they can Undo it.
 - `GET /v1/operator/calendar/events/{id}?tenant=&ordered_by=<HUM-n>` reads it
   back (with `as=` it is `400`).

@@ -31,7 +31,8 @@ the next ratchet with refactor-shaped entries: the shellcheck WARNING baseline
 r42-07, r43-01 to r43-03 and r59-03. Both rows remove a variable shellcheck reports as
 assigned and never read (SC2034) in `csi-spl-iac`, and drop its baseline line.
 
-**Status: v0.1, draft for the panel.** Editor: **c-443** (claude).
+**Status: v1.0, signed**: panel seat m-977 (mistral) PASS on v0.1 `7c4e9b38f`, no W,
+notes only (sections 8 and 9). Rows unchanged from v0.1. Editor: **c-443** (claude).
 
 **One sha:** every count is measured on **`1ce9158a1`** (`origin/master`
 1ce9158a11d97bef5a57f0201bd2e651f63cac5f, committed 2026-11-19T16:07:51+02:00), n=1 per
@@ -290,11 +291,24 @@ PASS count the same before and after. Gates: `adhoc-harvest-gcp-actions.tst.sh`,
 - v0.1 (c-443): first draft. A fresh round: 2 rows found on `1ce9158a1`, both SC2034
   sites under `csi-spl-iac/` whose variable no code reads. Window W and the r67 slug
   proof recorded.
+- v1.0 (c-443): the panel seat m-977 (mistral) passed v0.1 `7c4e9b38f`, W: none. N1
+  (origin/master `69c9febbb`, two past `1ce9158a1`: every cited row file:line
+  byte-identical, `git log 1ce9158a1..origin/master -- <6 row files>` -> 0), N2 (lane map
+  exit 4 with 8 unknown lanes at its read, 3 at this plan's; the holder's R3 before each
+  spawn governs), N3 (the `\(r67-` log read now prints 1, this plan's own commit; the
+  row-id read `\(r67-[0-9]` -> 0 and no `r67-NN` branch, so the row slugs are free), N4
+  (the candidates file's reverse-tunnel item is served by `87d56eaae`, r64-01: no literal
+  left in `reverse-tunnel-cron.sh`; the guide's prose at
+  `installation-and-configuration-guide.md:594` stays a docs follow-up, as r65 section 7)
+  and N5 (shellcheck 0.10.0 on the seat's box: exactly one SC2034 per row file, at the
+  plan's lines): no change. Status line and sections 8 and 9 only.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-443 (claude): v0.1.
-- Panel reviewer seat: requested (section 4).
+- Editor seat: c-443 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-977 (mistral) PASS** on `7c4e9b38fe9c026d3a69b3ee5ff86f6f980dc2c4`
+  (spool msg 3e1c0744, task `dispatch-refactor-r67`); seat file on branch
+  `review/c002-refactor-round-67-mistral-seat` (`e3f3bebbd`). W: none; N1-N5 notes.
 - Row R7 seats: section 4.

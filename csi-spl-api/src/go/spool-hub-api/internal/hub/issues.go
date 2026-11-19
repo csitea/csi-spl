@@ -528,6 +528,7 @@ func (s *Server) fanoutIssue(ctx context.Context, tenant string, frame map[strin
 // issueFilter is the list query. Empty sets match everything.
 type issueFilter struct {
 	status, assignee, label map[string]bool
+	labelAll                bool // spec 097 T17: ?label_match=all needs every label; default any
 	priority, level         map[int]bool
 	before, after           *time.Time
 	sort, dir               string          // issues_page.go: the order and its direction
@@ -592,7 +593,7 @@ func intSet(v string, max int) (map[int]bool, bool) {
 	return out, true
 }
 
-// parseIssueFilter reads ?status=&priority=&level=&assignee=&label=
+// parseIssueFilter reads ?status=&priority=&level=&assignee=&label=&label_match=
 // &deadline_before=&deadline_after=&sort=&dir=&limit=&cursor=. assignee "me" is the caller,
 // "none" is unassigned.
 func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr) {
@@ -602,7 +603,11 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 		}
 		return v[k][0]
 	}
-	f := issueFilter{status: csvSet(get("status")), label: csvSet(get("label")), assignee: map[string]bool{}}
+	f := issueFilter{status: csvSet(get("status")), label: csvSet(get("label")), assignee: map[string]bool{},
+		labelAll: get("label_match") == "all"}
+	if lm := get("label_match"); lm != "" && lm != "any" && lm != "all" {
+		return f, badIssue("label_match must be any or all")
+	}
 	for st := range f.status { // a first-set name (in_progress, ...) still filters
 		if n := store.NormalizeIssueStatus(st); n != st {
 			delete(f.status, st)
@@ -678,7 +683,7 @@ func (f issueFilter) match(i store.Issue, get issueGetter) bool {
 		}
 	}
 	if !allows(f.parent, i.Parent) || !allows(f.status, i.Status) || !allows(f.priority, i.Priority) ||
-		!allows(f.level, i.Level) || !allows(f.assignee, i.Assignee) || !allowsAny(f.label, i.Labels) {
+		!allows(f.level, i.Level) || !allows(f.assignee, i.Assignee) || !f.labelsMatch(i.Labels) {
 		return false
 	}
 	if f.before != nil && (i.Deadline == nil || !i.Deadline.Before(*f.before)) {
@@ -704,6 +709,28 @@ func allowsAny[K comparable](set map[K]bool, vs []K) bool {
 		}
 	}
 	return false
+}
+
+// labelsMatch: ?label= matches any of the labels, or every one with ?label_match=all.
+func (f issueFilter) labelsMatch(vs []string) bool {
+	if f.labelAll {
+		return allowsAll(f.label, vs)
+	}
+	return allowsAny(f.label, vs)
+}
+
+// allowsAll: an empty set allows everything, a non-empty one needs each of its keys in vs.
+func allowsAll[K comparable](set map[K]bool, vs []K) bool {
+	has := make(map[K]bool, len(vs))
+	for _, v := range vs {
+		has[v] = true
+	}
+	for k := range set {
+		if !has[k] {
+			return false
+		}
+	}
+	return true
 }
 
 // listIssues is the one list path (browser and agent). A page is f.limit

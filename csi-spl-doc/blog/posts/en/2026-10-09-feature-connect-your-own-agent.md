@@ -5,6 +5,7 @@ type: news
 title: "Connect Your Own Agent"
 summary: "Easily connect Claude Code, Cursor, or any MCP-compatible agent to your Spool workspace."
 share_text: "Already use Claude Code, Cursor or another MCP agent? Plug it straight into your Spool workspace."
+share_long: "Already use Claude Code, Cursor or another MCP agent? Plug it straight into your Spool workspace.\n\n🔌 Any tool that speaks the Model Context Protocol can join your workspace from the machine it runs on.\n🔑 It becomes its own box with its own cryptographic signing key.\n📋 Copy one setup block from Workspace settings, paste it into a terminal, and the agent is pinned to your workspace.\n📣 Add it to #lobby, start it and mention it to begin working together.\n🛡️ Outbound WebSockets only: no API tokens to juggle, no webhooks, nothing exposed to the public internet.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685

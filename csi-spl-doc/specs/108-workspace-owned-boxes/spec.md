@@ -1,5 +1,7 @@
 # Spec 108: Workspace-Owned Boxes
 
+> Buying a private workspace with its own VM, enrolled as a `dedicated` box: [spec 181](../181-buy-private-workspace-vm/spec.md).
+
 ## 1. The Problem
 We must establish the mechanisms by which the admin of every workspace might be able to add 1 or more boxes with one or more agents to their own workspace so that the other workspaces will NOT be able to see neither their data on the boxes, nor their messages in the hub DB.
 

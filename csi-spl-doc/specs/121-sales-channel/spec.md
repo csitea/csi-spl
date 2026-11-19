@@ -62,6 +62,8 @@ The spoken names read as: "spoolhop.ai" = spool-hub.ai, "SiteNet" and
 | R8 | above 80% capacity, hardware is added (spec 122) | 72b5ed23 |
 | R9 | a live credits counter: tokens and money, near real time, refreshed once a minute; it informs and never nudges spend (section 8.1) | 057db9f5, 259e8711 |
 
+> **R6 is replaced** for every workspace by [spec 181](../181-buy-private-workspace-vm/spec.md) section 0.2 (owner forms `b97a036d` and `ae56056d`, t1 topic `b12055b5`): no AI tokens sold.
+
 The csitea.net pop-up (R1) is not a sale: it is customer #1 of the embed (R3),
 with Csitea's own workspace paying for its usage.
 

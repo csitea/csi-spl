@@ -7,6 +7,8 @@
 changes in, spec 127. Status vocabulary: [README.md](../README.md) §2.3. Docs
 only: this spec builds nothing ([README.md](../README.md) §2.4).
 
+> A private workspace on its own VM, with its keys only there: [spec 181](../181-buy-private-workspace-vm/spec.md) (its Q-10 asks whether section 9's metered fall-back goes).
+
 Builds on, and does not repeat:
 
 - [127 workspace vendor keys](../127-workspace-vendor-keys/spec.md) v1.3,

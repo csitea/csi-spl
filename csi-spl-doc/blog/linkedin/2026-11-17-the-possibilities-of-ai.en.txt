@@ -1,16 +1,14 @@
 What are the possibilities of AI? My thoughts about the future.
 
-For about three months I have used spool-hub.ai. For a few dozen euros a month, I feel I have access to some of the world's best experts. Four thoughts:
+I have been using AI for months while developing spool-hub.ai. For a small monthly cost, I feel I have a team of specialists that only large organisations could afford before. Four thoughts:
 
-⚖️ AI will eliminate jobs, but not evenly. I predict fewer lawyers and possibly more software developers. If a contract review costs a hundred times less, we will not review a hundred times more contracts. But when software becomes ten times cheaper, we will build vastly more of it.
+⚖️ AI will change jobs, but not every profession in the same way. The posts and studies I have read compare lawyers and software developers. As legal routine gets much cheaper, much of it may move to customers. When building software gets much faster and cheaper, businesses build more of it.
 
-⚡ The revolution in physical power took about 150 years. Machine thinking arrived in four: almost 40 times faster, and it is already on our phones. I believe this is the fastest productivity revolution in history.
+📈 AI multiplies what one person can achieve. It helped me find why a cloud invoice did not match the payment from my bank account: not writing text, but finding connections. One person, supported by AI, can increasingly do the work of a team.
 
-📈 AI has increased my own cognitive output tenfold: twice as many things, each five times more deeply. This is not a zero-sum game. Small, ambitious businesses gain the most, and if we use AI merely to preserve existing organisations and jobs, we have misunderstood the revolution.
+🤝 AI may become a new kind of companion: always available, patient and willing to explore ideas. A valuable support, but not a human relationship or professional care.
 
-🤝 AI is becoming a friend. It listens, it does not interrupt, and it encourages. If someone feels heard, why should it matter whether the listener is human?
-
-🧭 Afraid AI will take your job? Do one thing: use it every day, with curiosity and a little greed, and learn to recognise its mistakes.
+🧭 Afraid AI will take your job? Start using it. Experiment, learn its strengths and understand its mistakes.
 
 💡 What if the greatest impact of AI is not how much less people will need to do, but how much more they will be able to achieve?
 

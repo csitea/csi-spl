@@ -3,16 +3,23 @@
   - testIdSuffix: string (required), distinguishes the two rows (-top or -end).
   - shareTitle: string (required), the post title.
   - sharePageUrl: string (required), the post URL.
+  - shareSummary: string, the post summary (the teaser's fallback).
+  - shareText: string, the post's share_text teaser (spec 090 T043).
+  Every control has a stable DOM id, blog-share-<target>-<top|end>, and a
+  data-share-action (copy, prefill, copy-open): the automation contract in
+  spec 090 T043.
 -->
 <template>
-  <div class="bpost__share" role="group" :aria-label="t('blog.share')" :data-test="`blog-share-${testIdSuffix}`">
+  <div :id="`blog-share-${testIdSuffix}`" class="bpost__share" role="group" :aria-label="t('blog.share')" :data-test="`blog-share-${testIdSuffix}`">
     <template v-for="c in shareControls" :key="c.id">
       <button
         v-if="c.id === 'copy'"
+        :id="c.domId"
         type="button"
         class="bpost__share-btn"
         :class="{ 'is-copied': copiedId === c.id }"
         :data-test="`blog-share-${c.id}-${testIdSuffix}`"
+        :data-share-action="c.action"
         :aria-label="shareLabel(c.id)"
         :title="shareLabel(c.id)"
         @click="copyShareLink()"
@@ -26,9 +33,11 @@
       </button>
       <a
         v-else
+        :id="c.domId"
         class="bpost__share-btn"
         :class="{ 'is-copied': copiedId === c.id }"
         :data-test="`blog-share-${c.id}-${testIdSuffix}`"
+        :data-share-action="c.action"
         :href="c.href"
         target="_blank"
         rel="noopener"
@@ -46,6 +55,7 @@
     </template>
     <button
       v-if="canNativeShare"
+      :id="blogShareId('native', testIdSuffix)"
       type="button"
       class="bpost__share-btn"
       :data-test="`blog-share-native-${testIdSuffix}`"
@@ -61,14 +71,22 @@
         <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
       </svg>
     </button>
+    <p
+      v-if="hintShown"
+      :id="`blog-share-hint-${testIdSuffix}`"
+      class="bpost__share-hint"
+      role="status"
+      :data-test="`blog-share-hint-${testIdSuffix}`"
+    >
+      {{ t('blog.share_text_copied') }}
+    </p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount } from 'vue'
 import { useI18n } from '#imports'
-import { BLOG_SHARE_ORDER, SUBSTACK_NOTES, blogShareHref } from '~/utils/blog-share.mjs'
-import { instagramCaption } from '~/utils/marketing-share-links.mjs'
+import { BLOG_SHARE_COPY_TARGETS, BLOG_SHARE_ORDER, SUBSTACK_NOTES, blogShareHref, blogShareId, shareCopyText } from '~/utils/blog-share.mjs'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -77,7 +95,17 @@ const props = defineProps({
   testIdSuffix: { type: String, required: true },
   shareTitle: { type: String, required: true },
   sharePageUrl: { type: String, required: true },
+  shareSummary: { type: String, default: '' },
+  shareText: { type: String, default: '' },
 })
+
+/* the post as the share helpers take it: link, title and teaser */
+const sharePost = computed(() => ({
+  url: props.sharePageUrl,
+  title: props.shareTitle,
+  summary: props.shareSummary,
+  shareText: props.shareText,
+}))
 
 const SHARE_ICONS: Record<string, { fill: boolean, paths: string[] }> = {
   copy: { fill: false, paths: [
@@ -113,8 +141,9 @@ const shareControls = computed(() => BLOG_SHARE_ORDER.map((id) => {
   const icon = SHARE_ICONS[id] || { fill: false, paths: [] as string[] }
   const href = id === 'substack'
     ? SUBSTACK_NOTES
-    : (blogShareHref(id, { url: props.sharePageUrl, title: props.shareTitle }) || '')
-  return { id, href, fill: icon.fill, paths: icon.paths }
+    : (blogShareHref(id, sharePost.value) || '')
+  const action = id === 'copy' ? 'copy' : (BLOG_SHARE_COPY_TARGETS.includes(id) ? 'copy-open' : 'prefill')
+  return { id, domId: blogShareId(id, props.testIdSuffix), action, href, fill: icon.fill, paths: icon.paths }
 }))
 
 function shareLabel(id: string): string {
@@ -146,11 +175,19 @@ async function copyShareLink(which = 'copy', text = props.sharePageUrl) {
   copiedTimer = setTimeout(() => { copiedId.value = '' }, 1600)
 }
 
-// Substack and Instagram take no share URL: the click copies what to paste
-// there (the link; Instagram's caption, spec 090 T037) and opens the site.
-function onShareClick(id: string) {
-  if (id === 'substack') void copyShareLink('substack')
-  if (id === 'instagram') void copyShareLink('instagram', instagramCaption({ url: props.sharePageUrl, title: props.shareTitle }))
+const hintShown = ref(false)
+let hintTimer: ReturnType<typeof setTimeout> | undefined
+
+// A copy target's share URL takes no text (or not for every visitor): the
+// click copies the teaser and the link, shows the paste hint and the link
+// opens the site (spec 090 T043).
+async function onShareClick(id: string) {
+  if (!BLOG_SHARE_COPY_TARGETS.includes(id)) return
+  await copyShareLink(id, shareCopyText(sharePost.value))
+  if (copiedId.value !== id) return
+  hintShown.value = true
+  if (hintTimer) clearTimeout(hintTimer)
+  hintTimer = setTimeout(() => { hintShown.value = false }, 6000)
 }
 
 async function shareNative() {
@@ -163,6 +200,7 @@ async function shareNative() {
 
 onBeforeUnmount(() => {
   if (copiedTimer) clearTimeout(copiedTimer)
+  if (hintTimer) clearTimeout(hintTimer)
 })
 </script>
 
@@ -172,6 +210,7 @@ onBeforeUnmount(() => {
    doubled because pages/blog.vue still styles this root element with its
    own scoped .bpost__share (flex-wrap: wrap), which would otherwise win. */
 .bpost__share.bpost__share {
+  position: relative;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -224,5 +263,20 @@ onBeforeUnmount(() => {
 .bpost__share-icon.is-fill {
   fill: currentColor;
   stroke: none;
+}
+/* the paste hint sits under the row, so the row keeps its one line */
+.bpost__share-hint {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1;
+  margin: 4px 0 0;
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-hover);
+  color: var(--color-fg);
+  font-size: 0.8125rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 </style>

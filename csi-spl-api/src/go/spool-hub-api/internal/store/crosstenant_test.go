@@ -406,6 +406,21 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.SetTopicPriority(ctx, s.tenant, s.taskID, 2, hum, now); err != nil {
 		t.Fatal(err)
 	}
+	// topic_pauses, topic_pause_issues (rdb 0297, spec 179 row B1): a paused
+	// topic and an issue it holds. Raw rows under inTenant: the census needs
+	// the rows, not the issue's status change.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		pausedTask := uuid4()
+		if _, err := tx.Exec(ctx, `INSERT INTO topic_pauses (tenant_id, task_id, paused_by, paused_at)
+			VALUES ($1, $2::uuid, $3, $4)`, s.tenant, pausedTask, hum, now); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO topic_pause_issues (tenant_id, number, task_id, prev_status, paused_at, paused_by)
+			VALUES ($1, $2, $3::uuid, 'todo', $4, $5)`, s.tenant, iss.Number, pausedTask, now, hum)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	// dm_agents (rdb 0228, spec 151 T001): one agent the seeded member added
 	// to their DM with another person.
 	dmPair, err := NewDMPair(DMEnd{hum, "box-wui"}, DMEnd{"HUM-dm-peer", "box-wui"})

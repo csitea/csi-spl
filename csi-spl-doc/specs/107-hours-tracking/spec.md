@@ -1,6 +1,6 @@
 # 107 Hours tracking: suggested, approved, frozen
 
-**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.11** (2026-11-18: owner principle `c791daf2`, minimal effort for the people who fill in hours and for those who collect them, added to P0 as P0.2; section 23, an effort review of what is built and planned, two personas, phone first, with the 2026-12-01 cut; no FR changed; SPL-5886) · v2.10 (2026-11-15: FR-41a, a member's own average hours per day on their People card, over the workspace's; owner msg `d26fd5e6`; section 22.4; SPL-5558) · v2.9 (2026-11-13: FR-41, the workspace's average hours per day, a soft norm the biz owner, the product owner and the admin set; owner poll `dcbd4e45`, msg `df038453`; section 22; the hub is built, the WUI lands after its language review, SPL-5440) · v2.8 (2026-11-05: owner Q29 = B, msg `a935328b`: a member reads the prices set for them, read only, in their own settings, through `GET /v1/me/hours/price`; 21.5 rule 8, 21.6, 21.7, 21.8, 21.8.1 and 21.9 follow; every other rule unchanged, the biz owner still the only writer; spec only, nothing built) · v2.7 (2026-11-03: wording of v2.6 after its R7, no rule changed: the Expenses rail id is not on master, FR-20 opens with its exception, who may be listed is named as a reading) · v2.6 (2026-11-02: the biz owner sets each person's hourly price, per workspace, in a tab of Expenses; the member's own price is dropped, owner poll `e47404d1`, msg `a7ec216c`; section 21.5 rewritten, 21.6..21.9 follow; spec only, nothing built) · v2.5 (2026-10-29: owner answers Q26..Q28 = A, A, A folded into section 21, msg `ce14ad70`; spec only, rows T071..T077 Planned) · v2.4 (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
+**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.12** (2026-11-19: owner answers Q30..Q33 = A, A, B, A, msg `2cbfb662`: one allocation per person, FR-14 reads FR-41a; an empty working day prefilled at the allocation; nothing auto-approved at the freeze, every week needs the person's own tap, which reverses v1-Q2 = B; hours go to the workspace the calendar shows; section 23.9, new row T089, the 12-01 row briefs in 23.7; spec only, nothing built; SPL-5886) · v2.11 (2026-11-18: owner principle `c791daf2`, minimal effort for the people who fill in hours and for those who collect them, added to P0 as P0.2; section 23, an effort review of what is built and planned, two personas, phone first, with the 2026-12-01 cut; no FR changed; SPL-5886) · v2.10 (2026-11-15: FR-41a, a member's own average hours per day on their People card, over the workspace's; owner msg `d26fd5e6`; section 22.4; SPL-5558) · v2.9 (2026-11-13: FR-41, the workspace's average hours per day, a soft norm the biz owner, the product owner and the admin set; owner poll `dcbd4e45`, msg `df038453`; section 22; the hub is built, the WUI lands after its language review, SPL-5440) · v2.8 (2026-11-05: owner Q29 = B, msg `a935328b`: a member reads the prices set for them, read only, in their own settings, through `GET /v1/me/hours/price`; 21.5 rule 8, 21.6, 21.7, 21.8, 21.8.1 and 21.9 follow; every other rule unchanged, the biz owner still the only writer; spec only, nothing built) · v2.7 (2026-11-03: wording of v2.6 after its R7, no rule changed: the Expenses rail id is not on master, FR-20 opens with its exception, who may be listed is named as a reading) · v2.6 (2026-11-02: the biz owner sets each person's hourly price, per workspace, in a tab of Expenses; the member's own price is dropped, owner poll `e47404d1`, msg `a7ec216c`; section 21.5 rewritten, 21.6..21.9 follow; spec only, nothing built) · v2.5 (2026-10-29: owner answers Q26..Q28 = A, A, A folded into section 21, msg `ce14ad70`; spec only, rows T071..T077 Planned) · v2.4 (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
 **Created**: 2026-10-07 · **Drafter / folder**: c-522 (seat s107-1) · **Topic**: t1 `ef217164-daaa-43bb-8343-f55ddb2f53a8` · lane dispatch `dispatch-ef217164`
 **Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). v2 input: [business-needs.md](business-needs.md) (consensus `2c6c36732`) and its seats [bn-agy](reviews/bn-agy.md) · [bn-mistral](reviews/bn-mistral.md) · [bn-claude](reviews/bn-claude.md) · [bn-claude-2](reviews/bn-claude-2.md). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
 
@@ -300,7 +300,7 @@ Set by a holder of `tenant.settings` (biz owner, admin) through the existing ten
 
 - **The freeze is exact, whether or not the sweep has run** (S3-10). The write path treats a day as frozen when an `hours_periods` row covers it in state `frozen` or `approved`, **or** when no row covers it and its period's end + grace, in `hours.tz`, has passed. A late or failed sweep cannot leak a write into a closed period.
 - **The sweep persists it.** At `period end + grace`, the hub's existing sweep writes an `hours_periods` row `frozen` for **every current human member at sweep time, plus any member with an `hours_entries` or `hours_minutes` row in the period** (a member removed mid-period who logged time). A member with nothing gets a row with 0 minutes: the biz owner signs off a zero, never a missing row. Agents never get a row. Then it prunes the period's `hours_minutes`.
-- **Unapproved suggestions at the freeze** count **zero** and disappear (owner Q2: A zero, B auto-approved; under B the sweep writes those entries **before** it prunes).
+- **Unapproved suggestions at the freeze** count **zero** and disappear: the sweep approves nothing (owner Q32 = B, v2.12, msg `2cbfb662`, section 23.9). This reverses v1-Q2 = B, under which the sweep wrote them as approved entries before the prune. The biz owner's Team tab marks each working day of a frozen period with no approved entry **not confirmed** (T085), and **Return** (4.3) gives the period back to the person.
 - **Changing `hours.period`** takes effect from the first day after the member's latest `hours_periods.period_end` (or after the workspace's last frozen period, for a member with no row). A switch week -> month never pulls passed days into a new period.
 - **Reminder** (v1.2): each working day's "Working hours" line shows the day's total and marks a day with open suggestions or deltas; the dialog's **banner** says "2 days not approved · freezes Wed 00:00 · [Approve 2 days]". No rail badge and no pop-up in v1 (5.1).
 - The calendar's `kind = 'freeze'` (a deploy freeze, rdb 0125) is a different thing; the hours freeze never writes a calendar event.
@@ -470,8 +470,8 @@ An issue's discussion is a topic on `issues.task_id` (`internal/store/issues.go`
 | FR-03 | Precedence meeting > post > tab; meeting union; small targets fold to "other" (1.3, 1.4) | Planned |
 | FR-04 | Suggestions on read from one table + calendar; none for frozen or returned days; deltas with one-tap accept (2) | Planned |
 | FR-05 | Worker: Approve day / week on closed days, Approve so far, edit, reject, add (4.1, 5.3) | Planned |
-| FR-06 | `hours_periods`: freeze exact on write, sweep rows for every member, period change from the next unfrozen day (4.2) | Planned |
-| FR-07 | Return / Return all / Resubmit; biz owner Approve / Approve all (4.3, 4.4) | Planned |
+| FR-06 | `hours_periods`: freeze exact on write, sweep rows for every member, period change from the next unfrozen day (4.2); v2.12, Q32 = B: the sweep approves nothing (23.9, T089) | Planned |
+| FR-07 | Return / Return all / Resubmit; biz owner Approve / Approve all (4.3, 4.4); v2.12, Q32 = B: the Team tab marks a frozen period's working day with no approved entry **not confirmed**, so the biz owner sees it before Approve or Return (23.9, T085) | Planned |
 | FR-08 | Raw minutes only through `/v1/me/hours*`; pruned at freeze / 45 days (1.7) | Planned |
 | FR-09 | `hours.read`, `hours.approve`; Team view; CSV and one-sheet XLSX, periods only (6) | Planned |
 | FR-10 | Three tables FORCE RLS; cross-tenant and no-leak test (3.2, 6.1) | Planned |
@@ -607,7 +607,7 @@ The panel's v1.0 consensus ("rail item + one page is the smallest UI", 12.1) is 
 
 Source: [business-needs.md](business-needs.md) section 6 (consensus at `2c6c36732`, four seats in `reviews/bn-*.md`, owner answers BN-Q1 = A, BN-Q2 = A, BN-Q3 = A). v2.0 folds the v2 panel (section 18).
 
-**Two sets of owner questions** (v2-claude-2): **BN-Q1..BN-Q3** are the business-needs questions (business-needs section 5); **v1-Q1..v1-Q7** are this spec's v1 questions (section 13). The owner answered v1-Q2 = **B** (msg `54eda621`: "accept the suggestions from the panel , except - q2 b and q7 b"): an open suggestion is approved by the sweep at the freeze. Section 6.6 lists what v1.2 lacks; every requirement below fills one of those gaps and cites its BN or U id. The section 6.6 to requirement map is section 17.
+**Two sets of owner questions** (v2-claude-2): **BN-Q1..BN-Q3** are the business-needs questions (business-needs section 5); **v1-Q1..v1-Q7** are this spec's v1 questions (section 13). The owner answered v1-Q2 = **B** (msg `54eda621`: "accept the suggestions from the panel , except - q2 b and q7 b"): an open suggestion is approved by the sweep at the freeze. **v2.12: owner Q32 = B (msg `2cbfb662`, 23.9) reverses it: nothing is auto-approved.** Section 6.6 lists what v1.2 lacks; every requirement below fills one of those gaps and cites its BN or U id. The section 6.6 to requirement map is section 17.
 
 **What stays.** Sections 1..13 still hold, unless a v2 requirement names the v1 rule it changes. v1's activity engine (sections 1, 2) remains the prefill for a member with in-app activity. v2 adds a second prefill source for the site worker (Persona 1), who has almost no in-app activity: the shift plan and the standard day (business-needs 6.2).
 
@@ -638,8 +638,8 @@ O5 is corrected by O6: visibility is per **role**, not per person. Roles combine
 
 | id | requirement | cites |
 |---|---|---|
-| **FR-14** | **Standard day, per organisation and per person.** A workspace (= the organisation) has a standard day in minutes: a new registered 098 key `hours.standard_day_minutes` (int, default `480` = 8 h, range `0..1440`; e.g. `450` = 7.5 h), set by a holder of `tenant.settings`. A person may have an **override** (e.g. `240` for a half-day contract), set by their foreman from the crew screen (FR-38) or by a holder of workspace-wide `hours.approve`; the override may be a **weekday pattern** (seven values, e.g. 4 x 480 Monday..Thursday and `0` on Friday), and a weekday at `0` is not a working day for that person (FR-15, FR-29, 5.1 read it). A person's value of `0` on every day means no standard day: the Standard Day (FR-15) is off for them. **Resolution: the person's value wins, else the organisation's.** A person's override carries the date it takes effect; the organisation's value is a 098 scalar and applies from its change forward. A change never rewrites an approved or frozen day: the day record (FR-32) keeps the standard day in force, written at approval. The prefill (FR-17), an absence day (FR-30), the Standard Day (FR-15) and every full-day check (FR-26 break rule, the "full day" mark) use **the person's resolved standard day**. It is hours per day, never an hourly rate (business-needs 6.1). | BN-14, O1, O2, O3 |
-| **FR-15** | **The Standard Day (BN-Q3 = A).** A per-member switch "Standard Day", on by default (the workspace may turn the default off with `hours.standard_day_default`, bool, default `true`); the member, their foreman or the office can turn it off for that person, and each change is logged (FR-33). On, a closed working day that has no absence and no plan row is suggested at the person's standard day: the day's tracked activity (sections 1, 2) is **scaled proportionally** across its targets to reach the standard day (largest remainder to whole minutes); with no activity, one row of the standard day goes to the member's default target (the last planned job, else `ws`) and is marked **no activity**. A day whose activity already exceeds the standard day keeps its real minutes (the excess is visible, it feeds FR-28 overtime), it is never cut. **The sweep auto-approves (v1-Q2 = B) only rows with evidence**: activity, a plan row, a clock time or a foreman row. A **no activity** row stays open with the open mark on its Working hours line and counts zero at the freeze unless the worker or the foreman approves it: no paid day without evidence or a tap. Rule 2 pass: the IT person has activity, so their day is split and approved with zero typing. | BN-Q3 = A, BN-1, BN-2 |
+| **FR-14** | **Standard day, per organisation and per person.** A workspace (= the organisation) has a standard day in minutes: a new registered 098 key `hours.standard_day_minutes` (int, default `480` = 8 h, range `0..1440`; e.g. `450` = 7.5 h), set by a holder of `tenant.settings`. A person may have an **override** (e.g. `240` for a half-day contract), set by their foreman from the crew screen (FR-38) or by a holder of workspace-wide `hours.approve`; the override may be a **weekday pattern** (seven values, e.g. 4 x 480 Monday..Thursday and `0` on Friday), and a weekday at `0` is not a working day for that person (FR-15, FR-29, 5.1 read it). A person's value of `0` on every day means no standard day: the Standard Day (FR-15) is off for them. **Resolution: the person's value wins, else the organisation's.** A person's override carries the date it takes effect; the organisation's value is a 098 scalar and applies from its change forward. A change never rewrites an approved or frozen day: the day record (FR-32) keeps the standard day in force, written at approval. The prefill (FR-17), an absence day (FR-30), the Standard Day (FR-15) and every full-day check (FR-26 break rule, the "full day" mark) use **the person's resolved standard day**. It is hours per day, never an hourly rate (business-needs 6.1). **v2.12, owner Q30 = A (msg `2cbfb662`, E1): one value per person.** The person's standard day is FR-41a's average hours per day (membership setting `hours_norm_day_minutes`, set on the People card), the organisation's is FR-41's (`hours.norm_day_minutes`). No `hours.standard_day_minutes` key and no second per-person setting in the Crew tab. A weekday pattern or an effective date, when built, extends that one value. | BN-14, O1, O2, O3 |
+| **FR-15** | **The Standard Day (BN-Q3 = A).** A per-member switch "Standard Day", on by default (the workspace may turn the default off with `hours.standard_day_default`, bool, default `true`); the member, their foreman or the office can turn it off for that person, and each change is logged (FR-33). On, a closed working day that has no absence and no plan row is suggested at the person's standard day: the day's tracked activity (sections 1, 2) is **scaled proportionally** across its targets to reach the standard day (largest remainder to whole minutes); with no activity, one row of the standard day goes to the member's default target (the last planned job, else `ws`) and is marked **no activity**. A day whose activity already exceeds the standard day keeps its real minutes (the excess is visible, it feeds FR-28 overtime), it is never cut. **The sweep auto-approves nothing** (v2.12, owner Q32 = B, msg `2cbfb662`, 23.9; it reverses v1-Q2 = B and v2.0's evidence-only rule): every row, with activity, a plan row, a clock time, a foreman row or none, counts only after the worker's or the foreman's tap, and an open row counts zero at the freeze. A **no activity** row keeps the open mark on its Working hours line. Rule 2 pass: the IT person's day is split with zero typing and the week approved with one tap (**Approve week**). | BN-Q3 = A, BN-1, BN-2 |
 | **FR-16** | **The shift plan.** Per (member, day) the plan holds the job (FR-18) and the shift's start and end time; a day may hold up to two rows (two jobs, U3, section 15). A shift that ends after midnight (22:00..06:00) splits at the member's local midnight, as 1.6. Editable by the member's foreman (FR-22) and the office (workspace-wide `hours.approve`), in the plan screen (FR-38). **Repeated from last week by default**: a day with no plan row reads the member's most recent plan row for the same weekday **before that day**, within the last 28 days, at read time (no copy job), skipping a row whose job is `closed` (FR-18) and a row written while the member was in another crew; the foreman's "Copy last week" writes the rows when the week must be fixed. A row the foreman wrote is **explicit**, a read-time repeat is **inherited** (FR-29 tells them apart). It is the planned work, not a calendar event: no `calendar_events` row (as 5.1). | BN-8 |
 | **FR-17** | **The prefill chain**, per (member, day). **An entry always beats the chain** (2.3: an approved, edited or rejected row replaces its suggestion). For the rest, first match wins: (1) an absence or holiday row (FR-29, FR-30) for its minutes; a **part-day** absence or holiday takes its minutes and the next step fills the rest of the day; an **explicit** plan row (FR-16) on a holiday beats the holiday; (2) a foreman-entered row (FR-23); (3) the plan (FR-16): the shift's net minutes (start..end minus the break, FR-26) to the planned job; (4) the Standard Day (FR-15); (5) a day with **only a clock in and out** (FR-24): end - start - break to the default target; (6) v1 activity suggestions only (sections 1, 2), when the Standard Day is off. Clock exceptions (FR-24) change the start or end of whatever (2)..(4) produced, and the day's minutes become end - start - break (FR-26). Like v1 (2.1), plan and Standard Day suggestions are computed on read; nothing is stored until approved. Rule 1 pass: the week opens prefilled, the worker confirms. | BN-1, BN-8, BN-14, BN-Q3 = A |
 
@@ -726,7 +726,7 @@ Not the tasks: the tasks round sizes them. New tables, each in the 3.2 shape (te
 ### 14.14 v2 acceptance (the live proof task, as section 9's)
 
 - **Rule 1**: a seeded site worker with a plan for Monday..Friday and no in-app activity opens the nudge on a 390 px phone and approves the week, Friday included after its planned end, in <= 3 taps; the same approval made offline syncs on reconnect, and a foreman edit made meanwhile is shown, not overwritten.
-- **Rule 2**: a seeded office member with activity sees each closed day split across their topics at their standard day, and the sweep approves it with zero typing; a no-activity day stays open and counts zero.
+- **Rule 2**: a seeded office member with activity sees each closed day split across their topics at their standard day with zero typing, and approves the week with one tap (v2.12, Q32 = B: the sweep approves nothing); a day nobody tapped counts zero.
 - **Crew scope**: a foreman sees and approves only their crew, never their own period; a disputed period goes to a workspace-wide holder.
 - **No leak**: rates and labour cost reach only `hours.rates` holders; `sick` reaches neither the foreman nor the external seat; a second workspace reads nothing.
 - **Budget**: the Crew, Setup and terminal screens are lazy chunks; `perf-budget.py` stays under 155 KB (027).
@@ -920,6 +920,7 @@ Each seat signs the v2.0 sha below on the same lane.
 | 2.9 | 2026-11-13 | c-670 | section 22, FR-41 (owner HUM-10, t1 `59a7062f`, msg `b46e7fe3`; poll `dcbd4e45`, answers B, A, B, msg `df038453`): the workspace's average hours per day, key `hours.norm_day_minutes`, permission `hours.norm` (rdb 0279) for biz_owner, product_owner and admin, route `/v1/hours/norm`, the member's day shown against it with a warning above it; hub built, WUI after its language review (SPL-5440) |
 | 2.10 | 2026-11-15 | c-920 | section 22.4, FR-41a (owner HUM-10, t1 `59a7062f`, msg `d26fd5e6`: "settable per person via the persons section"): a member's own average hours per day, kept in the membership settings (rdb 0078, key `hours_norm_day_minutes`, no new migration), set by the same `hours.norm` holders on the member's People card through `/v1/members/{human_id}/hours/norm`; `GET /v1/me/hours` and `GET /v1/hours` answer the effective norm; the calendar's warning line says "your average" (SPL-5558) |
 | 2.11 | 2026-11-18 | c-891 | owner principle P0.2 (HUM-10, csitea `4a2d2cc8`, msg `c791daf2`): minimal effort for those who fill in and those who collect; section 23: the effort review of every member and collector step as built (live on dev and prd) and as planned, phone first (owner `8551b4e6`), the weekly approval and the per-member norm checked as built, the global calendar against per-workspace hours (owner `e9361d7c`) with the scoping proof, the built share of the rows (owner `1d9b6b83`), proposals E1..E9 and the 2026-12-01 cut (owner `b3832665`), owner questions Q30..Q33; no FR changed (SPL-5886) |
+| 2.12 | 2026-11-19 | c-410 | owner answers Q30..Q33 = A, A, B, A (HUM-10, csitea `4a2d2cc8`, poll `8535cf7e`, msg `2cbfb662`): FR-14 reads FR-41a and FR-41 (Q30 A); E2 confirmed (Q31 A); **Q32 = B, not the recommendation**: the sweep approves nothing, v1-Q2 = B reversed in 4.2, the section 14 intro, FR-06, FR-07, FR-15, 14.14 Rule 2, 21.3, 23.3, 23.5; section 23.9 and new row T089; Q33 A (E6, T086); 23.7 rows ordered with T089 after T082 and a row brief each (files, test, size, shared files); `tasks.md` T007, T044, T066 and the cut rows; SPL-5886 |
 | 2.6 | 2026-11-02 | c-715 | owner R16 (HUM-10, topic `36cc7f3b`, msgs `da9a06a5`, `b2fe53b7`; poll `e47404d1`, answer A, msg `a7ec216c`) replaces R15: 21.5 rewritten (the biz owner writes, per workspace, in a tab of Expenses; the member's price and screen dropped), 21.6, 21.7, 21.8, 21.8.1, 21.9, FR-19 and FR-20 follow; Q29 listed; `tasks.md`: T071, T072, T074, T077 amended, T078..T080 added (SPL-4655) |
 
 ---
@@ -1045,7 +1046,7 @@ Three choices keep this directional:
 The counter adds no record that the member has not approved:
 
 1. Activity on a discussion becomes a **suggested row** for that topic in the member's day, exactly as today (sections 1, 2).
-2. The member approves, edits or rejects it in the Working hours dialog (4.1, 5.2). Only then does it count. A suggestion approved by the sweep at the freeze counts too (v1-Q2 = B, T044: rows with evidence only).
+2. The member approves, edits or rejects it in the Working hours dialog (4.1, 5.2). Only then does it count. v2.12 (owner Q32 = B, 23.9): the sweep approves nothing, so a suggestion nobody tapped never counts.
 3. **An open suggestion never reaches a counter**, the member's own included. In the member's own view, the discussion shows "0:45 to approve" as a link to that day's dialog, never as counted time.
 4. A rejected row counts 0. An adjustment (FR-40) adds its signed minutes to its target's counter.
 5. A frozen or final period is never rewritten by a counter: the counter only reads.
@@ -1263,7 +1264,7 @@ Build: `store/hours.go` (`HoursMemberNorms`, `SetHoursMemberNorm`, `HoursNormOf`
 
 ## 23. Addendum v2.11: the effort review (P0.2, SPL-5886)
 
-**Status: review and proposals, spec only.** No FR changes in v2.11. The proposals E1..E9 below become build rows only after the owner answers Q30..Q33 (23.8) and the dispatch holder gives the GO. Lane issue SPL-5886, epic SPL-3036, deadline 2026-12-01.
+**Status: review and proposals, spec only.** No FR changes in v2.11. The proposals E1..E9 below become build rows only after the owner answers Q30..Q33 (23.8) and the dispatch holder gives the GO. **v2.12: the owner answered (23.8, msg `2cbfb662`); the rows are T082, T089, T083, T085, T087, T086, T088 (23.7), each waiting for the holder's GO.** Lane issue SPL-5886, epic SPL-3036, deadline 2026-12-01.
 
 ### 23.0 The owner's words (HUM-10, csitea topic `4a2d2cc8`, 2026-11-18, verbatim)
 
@@ -1318,9 +1319,9 @@ So "over 50%" holds for the v1 loop: the member's suggestion, approval and freez
 **Weekly member approval and freeze: built and live.**
 - Approve: the banner's **Approve N days** and **Approve week** approve the closed days of the period (`CalendarHoursDay.vue:24-33`, `:199-207`; T013).
 - Freeze: the sweep at period end + grace (default week + 2 days) freezes the period (`hub/hours_sweep.go:10-14`; T007).
-- Open suggestions are **auto-approved at the freeze** (owner v1-Q2 = B, `hub/hours_sweep.go:36-40`). So a member who never taps is still counted, from evidence.
+- Open suggestions are **auto-approved at the freeze** (owner v1-Q2 = B, `hub/hours_sweep.go:36-40`). So a member who never taps is still counted, from evidence. v2.12: owner Q32 = B ends this (23.9, T089).
 - The biz owner approves or returns in the Team tab (T015).
-- `b4193b1e` asks everyone to confirm or change their week. Today the sweep confirms for them. Q32 asks whether that stays.
+- `b4193b1e` asks everyone to confirm or change their week. Today the sweep confirms for them. Q32 asked whether that stays: B, it does not (23.9).
 
 **FR-41a, the per-member daily allocation: built and live, not set.**
 - Built by SPL-5558 (`7a84257c1`, `34c1072c2`). The biz owner (also the product owner and the admin, `hours.norm`) sets it on the member's People card (`pages/people/[id].vue:59`, `PersonHoursNorm.vue`).
@@ -1367,7 +1368,7 @@ Today's counts are phone taps from the code (23.1), not clicked. "Planned" is wh
 | # | step | today, built | planned (spec) | proposal | FR / row |
 |---|---|---|---|---|---|
 | M1 | Reach the week | Every working day carries a Working hours line in the phone Day, Week and Month views (`CalendarPhoneDay.vue:17`, `CalendarPhoneWeek.vue:56`, `CalendarPhoneMonth.vue:61`). Taps from the app start to the calendar not counted. | same | E3: a strip "N days to approve · [Approve]" on top of the phone calendar | FR-11 · T083 (new) |
-| M2 | Approve the week, a member with in-app activity | **2 taps**: a day's line, then **Approve N days**. Or **0**: the sweep approves at the freeze (Q2 = B). | FR-36 nudge, 2 taps from the lock screen (T062, blocked by 095) | E3: **1 tap** from the calendar | FR-04, FR-05 · T013, T007 |
+| M2 | Approve the week, a member with in-app activity | **2 taps**: a day's line, then **Approve N days**. Or **0**: the sweep approves at the freeze (Q2 = B; Q32 = B ends it, T089). | FR-36 nudge, 2 taps from the lock screen (T062, blocked by 095) | E3: **1 tap** from the calendar | FR-04, FR-05 · T013, T007 |
 | M3 | Approve today | 2 taps (line, **Approve so far**) | same | | FR-05 |
 | M4 | A week for a member with **no** in-app activity (the builder) | The day is empty (`CalendarHoursDay.vue:74`, `hours_cal.empty`). Per day: line, **+ Add**, pick a target (recent first, else type to search), set 8:00 (type `h:mm`, or 30 x +15 from the 0:30 default, `utils/hours-mine.mjs:19`), Save. That is about 4 taps and one typing per day, **about 20 taps and 5 typings a week**. | FR-15 Standard Day (T026, T042, T051, T059, T070): days prefilled at the standard day, marked "no activity", **2 taps a week**. FR-16 plan (T027, T034, T055). | E1 + E2: prefill at the member's own allocation (FR-41a, already set), **2 taps a week, no typing** | FR-15, FR-41a · T082 (new) |
 | M5 | Change a prefilled number | 3 taps: the minutes, the ±15 stepper (or type), Save | same | E7: + Add defaults to what is left of the day's allocation | FR-05 · T014, T087 (new) |
@@ -1387,7 +1388,7 @@ Today's counts are phone taps from the code (23.1), not clicked. "Planned" is wh
 | C2 | Period and grace | **0 steps**: the defaults, week + 2 days | same | | T016 |
 | C3 | Freeze | **0 steps**: the sweep | same | | T007 |
 | C4 | See the week, and who is short | Desktop: calendar, then the Team tab of the right panel (2 clicks). Phone: calendar, menu, Hours, Team (3 taps; `CalendarPhone.vue:237`). Totals per member; **no allocation shown** (23.3). | FR-38 Crew tab | E5: per member, approved against allocation x working days of the period, short marked | FR-41a · T085 (new) |
-| C5 | Approve | **Approve all**, 1 tap after C4. prd: 0 approved periods ever. | FR-22 Approve crew | Q32 | FR-07 · T015 |
+| C5 | Approve | **Approve all**, 1 tap after C4. prd: 0 approved periods ever. | FR-22 Approve crew | Q32 = B: a frozen day nobody confirmed shows **not confirmed** (T085, 23.9) | FR-07 · T015 |
 | C6 | Return | Return, type the note, Send: 3 taps + typing | same | | FR-07 |
 | C7 | Download | Download tab, period, format, Download: about 3 taps | FR-39 a month file over weekly freezes (T048) | later | FR-09, FR-39 |
 | C8 | Hourly price | **Not possible** (T072, T079 Planned) | the Expenses tab "Hourly cost": per person an amount, a currency, a start day | later | 21.5 |
@@ -1408,18 +1409,65 @@ Today's counts are phone taps from the code (23.1), not clicked. "Planned" is wh
 
 ### 23.7 Needed by 2026-12-01 (owner `b3832665`)
 
-The smallest set so that a **new, untrained member fills in and approves a week on a phone with minimal effort, and the biz owner sees it**. Queue it in this order:
+The smallest set so that a **new, untrained member fills in and approves a week on a phone with minimal effort, and the biz owner sees it**. Queue it in this order (v2.12: T089 added right after T082, owner Q32 = B):
 
 | order | row | size | what |
 |---|---|---|---|
-| 0 | no code | - | The biz owner sets each member's allocation on the People card (prd csitea: 0 of 4 today) |
-| 1 | T082 | M | E2: prefill an empty working day at the allocation |
-| 2 | T083 | S | E3: the one-tap week strip on the phone |
-| 3 | T085 | S | E5: allocation against approved in the Team tab |
-| 4 | T087 | S | E7: + Add defaults to the rest of the day |
-| 5 | T086 | S | E6: the workspace named, plus the A/B membership test |
-| 6 | T088 | S | E8: the live proof on dev and prd at 412x915 |
-| - | E1 | S (spec) | only if Q30 = A: one line in FR-14 |
+| 0 | no code | - | The biz owner sets each member's allocation on the People card (prd csitea: 0 of 4 on 2026-11-18) |
+| 1 | T082 | M | E2: prefill an empty working day at the allocation (Q31 = A) |
+| 2 | T089 | S | Q32 = B: the freeze sweep approves nothing (23.9) |
+| 3 | T083 | S | E3: the one-tap week strip on the phone |
+| 4 | T085 | S | E5: allocation against approved in the Team tab, and Q32 = B's **not confirmed** days |
+| 5 | T087 | S | E7: + Add defaults to the rest of the day |
+| 6 | T086 | S | E6: the workspace named, plus the A/B membership test (Q33 = A) |
+| 7 | T088 | S | E8: the live proof on dev and prd at 412x915 |
+| - | E1 | S (spec) | done in v2.12: FR-14 reads FR-41a (Q30 = A) |
+
+#### 23.7.1 Row briefs
+
+Paths are repo-relative; `api/` is `csi-spl-api/src/go/spool-hub-api/internal/`, `wui/` is `csi-spl-wui/`. Line numbers are on `origin/master` `cb56a8993`. A row edits only the files it lists. Every WUI row that adds a string adds it to all 19 files of `wui/i18n/locales/` and ends with the agy language review (E9).
+
+**Who shares files**, so the holder can run rows in parallel or in order:
+
+| row | api | wui | shares a file with |
+|---|---|---|---|
+| T082 | `hub/hours_me.go`, `hub/hours_me_test.go` | `src/composables/useCalendarHours.ts`, `src/components/CalendarHoursDay.vue`, `src/components/CalendarHoursLine.vue`, locales | T087, T086 (`CalendarHoursDay.vue`); locales |
+| T089 | `hub/hours_sweep.go`, `hub/hours_sweep_test.go`, `store/hours_sweep.go` (comments) | none | none in the cut (later T044) |
+| T083 | none | new `src/components/CalendarHoursWeekStrip.vue`, `src/components/CalendarPhone.vue`, new `tests/e2e/hours-week-strip.test.mjs`, locales | locales only |
+| T085 | none | `src/utils/hours-team.mjs`, `src/components/CalendarHoursTeam.vue`, `tests/unit/hours-team.test.mjs`, locales | locales only |
+| T087 | none | `src/utils/hours-mine.mjs`, `src/components/CalendarHoursDay.vue`, `tests/unit/hours-mine.test.mjs` | T082, T086 (`CalendarHoursDay.vue`) |
+| T086 | `hub/hours_team_test.go` | `src/components/CalendarHoursDay.vue`, `src/components/CalendarHoursPanel.vue`, an e2e case, locales | T082, T087 (`CalendarHoursDay.vue`); locales |
+| T088 | none | new `tests/e2e/hours-107-cut-live.proof.mjs` | none; runs last |
+
+So: **T082, T089, T083 and T085 run in parallel**; T087 after T082; T086 after T087; T088 last. **T089 lands before T082, or T082 holds its push until T089 is on master**: until then the sweep's `hoursOpenSuggestions` (`api/hub/hours_sweep.go:40`) calls `suggestHours` and would approve T082's prefill at the freeze, a paid day without a tap. The locale files are shared by four rows but each adds its own keys: a rebase, not a conflict of meaning.
+
+**T082** (M) E2, Q31 = A. Prefill an empty closed working day (Mon..Fri) at the member's effective allocation (FR-41a, else FR-41; `withMemberNorm`, `api/hub/hours_me.go:80`): one suggested row of those minutes to the member's most used target of the last 14 days, else `ws`, flagged `no_activity`. Not on a day with an entry or a suggestion, nor a frozen or returned day (FR-04), nor with an allocation of 0.
+- Files: `api/hub/hours_me.go` (`suggestHours` `:202`, `dayJSON` `:346`), `api/hub/hours_me_test.go`; `wui/src/composables/useCalendarHours.ts` (`HoursRow` `:15`, the flag), `wui/src/components/CalendarHoursDay.vue` (the row's mark), `wui/src/components/CalendarHoursLine.vue` (the line's mark), locales.
+- Test: a hub test, allocation 480 and an empty closed Monday -> one 480-minute `no_activity` row. Red control: on the base tree that test fails (no row); in the same test, allocation 0, a weekend day and a day with an entry get no prefill. WUI: the mark shown (unit or e2e).
+
+**T089** (S) Q32 = B, 23.9. The sweep approves nothing.
+- Files: `api/hub/hours_sweep.go` (`:33` passes `nil` for `open`; `hoursOpenSuggestions` `:36-93` deleted; the comment `:11-14`), `api/hub/hours_sweep_test.go` (`TestHoursSweepAutoApprovesOpenSuggestions` `:17` becomes a test that the member's 21 tab minutes give no entry and a 0-minute period row, the minutes still pruned), `api/store/hours_sweep.go` comments only (`:16-18`, `:52-55`: Q2 = B -> Q32 = B). The store's `open` parameter stays: nil is its tested count-zero path (`api/store/hours_sweep_test.go:15-16`); T044 may remove it.
+- Test and red control: the rewritten hub test fails on the base tree, where the sweep writes the approved 21-minute row (`hours_sweep_test.go:38`).
+
+**T083** (S) E3. A strip "N days to approve · [Approve]" on top of the phone calendar while the open period has open closed days; one tap writes what the banner's **Approve N days** writes (T013).
+- Files: new `wui/src/components/CalendarHoursWeekStrip.vue`; `wui/src/components/CalendarPhone.vue` (one mount, next to the hours inject `:393-396`); new `wui/tests/e2e/hours-week-strip.test.mjs`; locales. It calls `useHoursWrite` (`useCalendarHours.ts:78`) and `hoursApproveEntries` (`wui/src/utils/hours-mine.mjs:89`) without editing them.
+- Test: mocked e2e at 412x915: three open closed days -> the strip reads 3, one tap sends those entries (the `PUT` body checked). Red control: no open day -> no strip.
+
+**T085** (S) E5 and Q32 = B's mark. Per member in the Team tab: approved minutes against the allocation x the period's Mon..Fri days, short ones marked; in a `frozen` period, each Mon..Fri day with no approved entry counted as **not confirmed**, only when no kind or target filter is on (a filter hides entries). WUI only: the hub answers `members[].norm_day_minutes` (`api/hub/hours_team.go:213`) and every approved entry per day (`:111`).
+- Files: `wui/src/utils/hours-team.mjs` (`hoursTeamGrid` `:54`), `wui/src/components/CalendarHoursTeam.vue`, `wui/tests/unit/hours-team.test.mjs`, locales.
+- Test: unit, 480 a day and 3 approved days of 5 in a frozen week -> short 16:00 and 2 days not confirmed; allocation 0 -> neither; an open period -> no "not confirmed". Red control: the new cases fail on the base tree (no such fields).
+
+**T087** (S) E7. + Add defaults to the allocation minus the day's total, else 0:30.
+- Files: `wui/src/utils/hours-mine.mjs` (`HOURS_ADD_DEFAULT` `:19` used through a new function), `wui/src/components/CalendarHoursDay.vue` (`:371-378`), `wui/tests/unit/hours-mine.test.mjs`. No new string.
+- Test: unit, allocation 480 and a 5:00 day -> 3:00; a full day or no allocation -> 0:30. Red control: the new cases fail on the base tree.
+
+**T086** (S) E6, Q33 = A. The Working hours dialog and the hours panel name the workspace the hours go to (the active workspace; the row finds where the WUI already holds its name, not traced here). The personal-calendar default to the primary workspace waits for spec 119's personal calendar.
+- Files: `wui/src/components/CalendarHoursDay.vue`, `wui/src/components/CalendarHoursPanel.vue`, an e2e case, locales; `api/hub/hours_team_test.go` (23.4 item 4: biz owner in A, developer in B, `GET /v1/hours` with B active -> 403).
+- Test: the e2e shows the name, red on the base tree (absent). The hub test is a guard that passes on the base tree; its red control grants `hours.read` to the developer role in B inside the test and sees 200.
+
+**T088** (S) E8. The live proof, dev then prd, at 412x915: a fresh member with no activity sees five prefilled days and approves the week in <= 2 taps from the calendar; the biz owner sees the week against the allocation and approves all in <= 3 taps. Under Q32 = B it also reads a past frozen period with an untapped day as **not confirmed**, where one exists; else it says that part is not proven.
+- Files: new `wui/tests/e2e/hours-107-cut-live.proof.mjs` only.
+- Test: the proof itself, n = 1 per env, with the served version and `do_check_deploy_lag`.
 
 **Later, in this order:**
 1. FR-30 absences (T030, T037, T052, L together): the first row after the cut, because a new member will have a sick day.
@@ -1430,7 +1478,7 @@ The smallest set so that a **new, untrained member fills in and approves a week 
 6. The payroll file (T048).
 7. Prices and counters (T071..T081).
 
-With the cut built, a member with no in-app activity approves a week in 2 taps (E2), or in 1 from the calendar (E3), with no typing. That is the gap of 23.2 item 1. Items 2 and 5 of 23.2 remain the distance to a commercial level.
+With the cut built, a member with no in-app activity approves a week in 2 taps (E2), or in 1 from the calendar (E3), with no typing. That is the gap of 23.2 item 1. Under Q32 = B a week nobody taps counts zero, and the biz owner sees it as not confirmed. Items 2 and 5 of 23.2 remain the distance to a commercial level.
 
 ### 23.8 Owner questions (A = the recommendation)
 
@@ -1440,5 +1488,31 @@ With the cut built, a member with no in-app activity approves a week in 2 taps (
 | Q31 | A working day with no activity in the app | Prefilled at the person's allocation, marked "no activity", counted only after the person's tap (E2) | Left empty; the person adds the hours |
 | Q32 | Weekly confirmation (`b4193b1e`) | Keep v1-Q2 = B: the sweep approves rows with evidence at the freeze, and a "no activity" row needs the tap | Every week needs the person's own tap; nothing is auto-approved |
 | Q33 | A person in several workspaces: where do the calendar's hours go? | To the workspace the calendar shows, named in the dialog; in the personal calendar, default the primary workspace (E6) | Always to the primary workspace |
+
+**Answered** (HUM-10, csitea `4a2d2cc8`, msg `2cbfb662`, 2026-11-19, poll `8535cf7e`):
+
+| # | answer | what it changes |
+|---|---|---|
+| Q30 | A | FR-14 reads FR-41a and FR-41 (E1): one allocation per person; T026 and T070 lose their own standard-day setting |
+| Q31 | A | E2 is built: T082 |
+| Q32 | **B**, not the recommendation | v1-Q2 = B reversed: nothing is auto-approved. 4.2, FR-06, FR-07, FR-15, 14.14 Rule 2, 21.3 and 23.9; new row T089; T044's evidence rule dropped (`tasks.md`) |
+| Q33 | A | E6: T086; the personal-calendar default waits for spec 119's personal calendar |
+
+### 23.9 Q32 = B: the freeze approves nothing (v2.12)
+
+**The rule.** At the freeze the sweep writes each member's period row from their approved entries only. An open suggestion, with evidence or not, counts zero and is not written. Nothing is auto-approved; every week needs the person's own tap (owner `b4193b1e`, answer `2cbfb662`).
+
+**Where the code auto-approves today** (`origin/master` `cb56a8993`):
+- `api/hub/hours_sweep.go:33` passes `s.hoursOpenSuggestions` to the store's sweep.
+- `hoursOpenSuggestions` (`:36-93`) recomputes the member's suggestions (`suggestHours`) and returns each undecided (day, target) as an entry in state `approved` (`:88-89`).
+- `api/store/hours_sweep.go:257-264` calls it and writes those entries with the frozen period row, before the prune.
+
+**The reading chosen, and why: the least-effort one.**
+- The store already has the count-zero path: with a nil `open` it writes no entry (`api/store/hours_sweep.go:230`), and its test covers it (`api/store/hours_sweep_test.go:15-16`). So T089 changes one argument in the hub and deletes one function.
+- "Unapproved rows left visible" is read as **the gap is visible**, not as stored rows. An unapproved suggestion has no row to keep: `hours_entries.state` allows only `approved` and `rejected` (`0151_hours.sql:52`), and the raw minutes are pruned at the freeze (4.2).
+- What the biz owner sees: each Mon..Fri day of a frozen period with no approved entry is marked **not confirmed** in the Team tab. The WUI computes it from the Team read, which already returns every approved entry per day (`api/hub/hours_team.go:111`). That is T085's files, so it rides T085.
+- Not chosen: keeping the open suggestions as stored `open` rows, so a returned week is confirmed in one tap. It needs a migration of that CHECK and a change to every reader of `hours_entries` that sums by state: size M or more. It is after the cut, if the owner wants it.
+
+**What it means for the person.** A week not tapped before the freeze counts zero. The way back is the biz owner's **Return** (4.3). A returned day shows no suggestions (FR-04) and its tab minutes are gone, so the person types those hours again. Whether T082's prefill should also appear on a returned day (FR-04 forbids it today) is a question for the holder or the owner; v2.12 does not change FR-04. Prevention: T083's strip now, the FR-36 nudge later.
 
 <!-- version: 2.0.0 · updated: 2026-10-10 -->

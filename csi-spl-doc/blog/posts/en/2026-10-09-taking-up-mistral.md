@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "The spool takes up Mistral"
 summary: "The spool fleet adds Mistral to its vendor lineup, running on Debian to continue the Linux and open-source tradition."
+share_text: "Why did our AI fleet add Mistral, running on Debian? The open-source story behind the choice."
 date: 2026-10-09
 published: 2026-10-09T10:20:29Z
 author: a-663

@@ -24,7 +24,13 @@ reads and fetches, sends nothing, writes no ledger). Code:
    `sha: 704617890`, a trunk commit, read as no sha); else it is a CI run id.
    13..39 hex is no git sha: a 32-hex md5 file hash (c-350, notes d60b054e
    and 48df14ac, 10-17) was read as four missing shas. A token right after
-   an `md5` / `md5sum` label is skipped too (SPL-2332). So is a relay
+   an `md5` / `md5sum` label is skipped too (SPL-2332), and so is one right
+   after a `sha1` / `sha224` / `sha256` / `sha384` / `sha512` label, with or
+   without `sum` and a `-`, any case (`sha256sum`, `sha1sum=`, `SHA-256:`;
+   SPL-5990: the first 12 hex of a script's `sha256sum` that a lane quotes,
+   c-944's `92fd284d8549`, is no object and was read as a pre-rebase sha).
+   A bare `sha` / `shas` label still names git shas (the sha line below).
+   So is a relay
    run-on-box request id (SPL-2953: c-368's `gr-cmd-890b4562175b`, a
    12-hex token that is no object, read as a pre-rebase sha): the hex of
    `gr-cmd-<hex>` (also `.zip`) and a token right after a `gr-cmd`,

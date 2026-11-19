@@ -29,7 +29,7 @@ The round takes two of the inputs r68 named for round 69 (its section 7): the la
 SC2034 test-code set in `spawn-agents/tests` that r68-02 left, and the `MergeTopic` pair
 of the Go `wideFuncs` list, which waited for r67-03 to land.
 
-**Status: v0.1, draft**, for the panel (rulebook 3.2). Editor: **c-606** (claude).
+**Status: v0.2, draft**, for the panel (rulebook 3.2). Editor: **c-606** (claude).
 
 **One sha:** every count is measured on **`79b22fa06`** (`origin/master`
 79b22fa0669b452578735ed4c64159fce8b80f22, committed 2026-11-19T21:08:58+01:00), n=1 per
@@ -299,7 +299,7 @@ Kind `simple_coding`, vendor claude. Spawn only after c-521 (SPL-5980) has lande
 | SC2154, SC2120, SC1090, SC2088, SC2046, SC2319, SC2164, SC2155 | the baseline's header names these kinds deliberate | the baseline's header |
 | WUI `WIDE` `src/stores/channel.ts send` (6 params) | 63 positional caller lines in 35 files (r67's read), a WUI row with its e2e gate: input for a later round | r68 1.2 |
 | `spl-file-erase` (`no-literal-paths.baseline`, 1 line) | a protected-root deny list, a behaviour change (r66 to r68) | 1.2 |
-| computed `/var/<org>/<org>-<app>/agent-boot-restore` default: `orc:run/spl-agent-boot-restore-install-cron.func.sh:57` (`logdir`), `orc:run/spl-watchdog.func.sh:535-539` | r68 section 7's input; a refactor only if `$SPL_VAR_APP_DIR/agent-boot-restore` is the same path on every box, and the cron writer and the watchdog reader move together. Not measured to that standard here: input for round 70 | `git grep -nE 'agent-boot-restore' 79b22fa06 -- 'csi-spl-orc/src/bash/run/*.sh'` |
+| computed `/var/<org>/<org>-<app>/agent-boot-restore` default: `orc:run/spl-agent-boot-restore-install-cron.func.sh:57` (`logdir`, the writer), `orc:run/spl-watchdog.func.sh:535-539` (`spl_wd_boot_retired`, the reader) | **not a refactor: a behaviour change** (r68 section 7's input, served by this measurement; the holder's note de244afc). Both build the dir from the app name (`SPL_ORG_APP`, the basename of `PROJ_PATH` minus `-orc`), so every checkout of the app reads the same `/var/<org>/<org>-<app>/agent-boot-restore`. `$SPL_VAR_APP_DIR` is built from the checkout's own name instead: `spl_run_paths` (`csi-spl-orc/lib/bash/funcs/spl-run-paths.func.sh:66-71`) sets it to `<var>/<org>/<main checkout basename>`, and `spl_main_checkout` returns the clone itself when its `.git` is a directory. The desk-cron checkout (`<org dir>/<app>-desk-cron`, the one `spl_desk_cron_src` installs the boot cron from) is its own clone (`test -d <desk-cron>/.git` -> true, 2026-11-19T20:3xZ), so there the swap gives `/var/<org>/<app>-desk-cron/agent-boot-restore`, not the dir the installed `@reboot` line writes `cron.out` to today (`ls /var/<org>/<app>/agent-boot-restore` -> `cron.out`). The reader and the writer would part, and a `retired` marker already on a box would no longer be seen. A row for it is a bug or feature row (pick one dir, move the live markers), not a refactor row | `git show 79b22fa06:<the 3 files>`; `sed -n 63,76p` of `spl-run-paths.func.sh` |
 | spec 011 T001-T008, T018-T021, T023, T026-T028, T031, T034 | owner-deferred (2026-09-19), an open owner decision, behaviour (T028's assertions), terraform layout (T026) or docs (T031); the spec folder unchanged since W | 1.2 |
 
 ## 8. Changes
@@ -308,11 +308,17 @@ Kind `simple_coding`, vendor claude. Spawn only after c-521 (SPL-5980) has lande
   SC2034 test-code set in `spawn-agents/tests` and the `MergeTopic` `wideFuncs` pair.
   Window W and the r69 slug proof recorded. Row 02 held by R3 on c-521's
   `topic_head_harness_test.go`.
+- v0.2 (c-606, the holder's note c-002 msg de244afc): section 7 only. The
+  agent-boot-restore default r68 named for round 69 measured: `$SPL_VAR_APP_DIR` takes the
+  checkout's name, the literal takes the app's, and the desk-cron checkout is its own
+  clone, so the swap moves the dir: a behaviour change, not a refactor row. The
+  candidates file's newest entries are bug-shaped (the holder's read). Rows 01 and 02
+  unchanged.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-606 (claude): v0.1.
+- Editor seat: c-606 (claude): v0.1, v0.2.
 - Panel reviewer seat: requested of the holder (section 4).
 - Row R7 seats: section 4.

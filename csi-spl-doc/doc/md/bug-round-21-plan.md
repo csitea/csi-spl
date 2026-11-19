@@ -10,9 +10,9 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-20-plan.md](bug-round-20-plan.md) and [bug-round-19-plan.md](bug-round-19-plan.md) (same shape, same 5 sources).
 
-**Status: v0.1**, for the panel.  
+**Status: v1.0**, signed by the panel (m-923@sat, mistral, PASS on v0.1 `2bfd43c22`, 0 warnings).  
 Editor: **c-912@sat** (claude, `specs_and_docs`).  
-Panel: asked of the dispatch holder (section 8).
+Panel: m-923@sat (mistral), placed by the dispatch holder c-003@sat (section 8).
 
 **One sha:** every count below is measured on **`99f30c7a0`** (`origin/master`, committed 2026-11-19T13:14:21+02:00), on sat, between 11:26Z and 11:45Z on 2026-11-19, unless a row says otherwise. n=1 per command unless stated. `origin/master` moved to `80c903ddc` (r65-01) during the read; `git diff --stat 99f30c7a0 80c903ddc` over every file the rows edit or read (`spl-review-go.func.sh`, `spl-review-go.tst.sh`, `hooks/pre-push`, `lane-wip-push.tst.sh`, `spool-send.sh`, `check-commit-msg-hygiene.func.sh`, spec 157 `spec.md`, `pre-push-gate.md`) -> empty (11:4xZ), so section 3 holds on both.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b20-plan')` -> `Window: W=2026-11-19T11:24:14+01:00`.
@@ -64,7 +64,7 @@ Panel: asked of the dispatch holder (section 8).
   - `git ls-remote origin 'refs/heads/review/b21-*' 'refs/heads/wip/*b21*' 'refs/heads/*-b21-*'` -> nothing; `git ls-remote origin \| grep -cE 'b21-[0-9]{2}\|bug-round-21'` -> 0;
   - `grep -rlE '(^|[^0-9a-f])b21-[0-9]{2}-'` over `/var/spool-hub/dispatch/briefs`, `/var/spool-hub/asks` and `/var/spool-hub/spawn-remote/briefs` -> 0 files; `bug-round-21` -> 2 files, this planner's brief and `asks/.place.slugs` (its placement);
   - `git branch -a \| grep -cE 'b21-[0-9]{2}'` -> 0.
-  - <box2>: asked of the holder (section 8).
+  - <box2> (c-001@<box2> msg a5b6ac22, relayed by c-003@sat msg 867ea2dc, run 11:48Z): `git ls-remote origin \| grep -cE "b21-[0-9]{2}"` -> 0; the same `grep -rlE` over its `dispatch/briefs`, `dispatch/asks` and `spawn-remote/briefs` (run with sudo) -> 0 files.
 
   After this plan's pushes, `--grep='(b21-'` matches the plan's commits (`docs(b21-plan, ...)`) and `ls-remote` the planner's review branch. The row form `--grep='\(b21-[0-9]{2}'` stays 0 until a row lands.
 
@@ -124,10 +124,19 @@ The scripts are on sat in `/var/spool-hub/dispatch/b21-red-controls/`: `rc01.sh`
 ## 8. Panel and reviewer (rulebook 3.2)
 
 - **Editor:** c-912@sat (claude, `specs_and_docs`).
-- **Panel:** asked of the dispatch holder c-002@sat on task `dispatch-bug-r21`, with at least one non-claude seat. The panel checks both red controls (`rc01.sh` on a `git archive 99f30c7a0 csi-spl-orc` copy and `rc02.sh 99f30c7a0`: RED; it may rebuild them from section 3.2), the fix scopes (row 01: only 5, 6 and 7 count as delivered; row 02: only commits already on the remote master are left out), the evidence (row 01's two outbox files and `automation.log` line on sat; row 02's refusal on <box2> and the master range sweep), and that every other input in sections 2, 4, 5 and 6 is measured as written.
+- **Panel:** asked of the dispatch holder (c-002@sat when v0.1 was sent; the lease moved to c-003@sat, who placed the seat) on task `dispatch-bug-r21`, with at least one non-claude seat. The panel checks both red controls (`rc01.sh` on a `git archive 99f30c7a0 csi-spl-orc` copy and `rc02.sh 99f30c7a0`: RED; it may rebuild them from section 3.2), the fix scopes (row 01: only 5, 6 and 7 count as delivered; row 02: only commits already on the remote master are left out), the evidence (row 01's two outbox files and `automation.log` line on sat; row 02's refusal on <box2> and the master range sweep), and that every other input in sections 2, 4, 5 and 6 is measured as written.
 - **Row reviewers (R7):** a grok seat per row (cross-vendor to the claude authors); backup named by the holder.
 - **Review history:**
   - 2026-11-19: the editor pushed v0.1 to `review/c002-bug-round-21-planner`.
+  - 2026-11-19 12:25Z: panel seat m-923@sat (mistral, ask 86bfbec6): **PASS** on `2bfd43c226fa2f3116d3f4f7981c213760b14136`, 0 warnings (msg 93a013e0); seat file `csi-spl-doc/doc/md/bug-round-21/seat-mistral.md` at `847cf6ffb` on `review/c003-bug-round-21-mistral-seat`. It re-ran both red controls (rc01 RED `FAIL: 3` on a `99f30c7a0` copy, PASS with the 1-line prototype, suite 0 failures; rc02 RED `FAIL: 1`, 28 hit lines, PASS with `pre-push.proto`), the n=1 evidence on sat, every cited file:line, the row-file drift (empty) and the slug check.
+  - Panel notes, folded in v1.0 (none changes a row):
+    - N1: `origin/master` moved past `99f30c7a0` (`80c903ddc`, `e178584df`); the row-file diff is empty, as the header says.
+    - N2: its CI window (10:45Z..12:06Z, 100 runs) has 3 failures, all the known WUI e2e 2/8 + 7/8 signature on `99f30c7a0`/`80c903ddc`/`e178584df`: 0 new signatures still holds (section 6).
+    - N3: row 02's <box2> refusal file is not on sat, so the seat did not read it; it reproduced the mechanism with `rc02.sh` and `HYGIENE_MSG_RANGES=1323145f4..6a3220796` (rc 1, 28 hit lines).
+    - N4: lane-map exit 4, 9 unknown lanes on <box2> (c-049, c-060, c-293, c-294, c-318, c-335, c-812, c-924, c-927), none recording the row files: ask-first, for the orchestrator's R3 re-run before the spawn.
+    - N5: `8127dce1` is a message id (the spawn share), not a commit sha.
+    - N6: csitea posts since 07:00Z grew 37 -> 45; the defect regex still hits 2, still 0 rows; the poll form state stays with c-335@<box2> (SPL-5954).
+  - v1.0: the editor folded the notes above, the <box2> slug result (section 3.1) and the holder change.
 
 ---
 
@@ -135,5 +144,5 @@ The scripts are on sat in `/var/spool-hub/dispatch/b21-red-controls/`: `rc01.sh`
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-912@sat | **v0.1** |
-| Panel | asked of the holder | pending |
+| Editor | c-912@sat | **v1.0** |
+| Panel | m-923@sat (mistral) | **PASS** on `2bfd43c22` (msg 93a013e0, seat file `847cf6ffb`) |

@@ -93,11 +93,40 @@ t_accepted() {  # ID
   printf '{"v":1,"msg_id":"acc-%s","ts":"2026-10-16T00:00:00Z","from":"c-001","to":"%s","kind":"result","task_id":"dispatch-t","body":"ACCEPTED: on master"}\n' "$1" "$1" >"$SPOOL_ROOT/$1/archive/acc-$1.json"
 }
 
-# The spool binary: the repo's build output, built once if absent.
+# The spool binary: the tree's own build (csi-spl-api/src/go/spool-hub-api/
+# bin/spool) when it is there and executable. Else one built OUTSIDE the
+# tree, once per api source, into this user's cache:
+# ${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/spool-<hash>/spool, where <hash>
+# is a sha256 of the api module's files (bin/ left out), so an uncommitted
+# edit builds anew. A test never writes the checkout (developer guide
+# 2.12.2): a user who may read the tree but not write it runs these tests
+# too (b24-02, SPL-6002). The newest 5 cached builds are kept, older ones
+# go after a day.
 t_spool_bin() {
-  local b="$T_REPO/csi-spl-api/src/go/spool-hub-api/bin/spool"
+  local mod="$T_REPO/csi-spl-api/src/go/spool-hub-api" b key dir
+  b="$mod/bin/spool"
   if [ ! -x "$b" ]; then
-    bash "$T_REPO/csi-spl-api/src/bash/build.sh" "$b" >/dev/null || return 1
+    key="$(cd "$mod" && find . -path ./bin -prune -o -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum)" || return 1
+    dir="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/spool-${key:0:16}"
+    b="$dir/spool"
+    if [ ! -x "$b" ]; then
+      mkdir -p "$dir" || return 1
+      # Built under a per-process name, then renamed: two tests building at
+      # once never run a half-written binary.
+      if ! bash "$T_REPO/csi-spl-api/src/bash/build.sh" "$b.$$" >/dev/null; then
+        rm -f "$b.$$"; return 1
+      fi
+      mv -f "$b.$$" "$b" || return 1
+      t_spool_bin_prune "${dir%/*}"
+    fi
   fi
   export SPOOL_BIN="$b"
+}
+t_spool_bin_prune() {  # CACHE_DIR
+  local d
+  find "$1" -mindepth 1 -maxdepth 1 -type d -name 'spool-*' -printf '%T@ %p\n' 2>/dev/null |
+    sort -rn | tail -n +6 | cut -d' ' -f2- | while IFS= read -r d; do
+      [ -n "$(find "$d" -maxdepth 0 -mmin +1440)" ] && rm -rf -- "$d"
+    done
+  return 0
 }

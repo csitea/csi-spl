@@ -51,12 +51,20 @@
 # @description the reviewer -> `FATAL log <path> belongs to agent <found>, not
 # @description reviewer <id>`, exit 1. No rule matches (another repo's worktree,
 # @description a seat outside a worktree): only the commands are checked.
+# @description A ran: that names no test (`ran: none` included) is
+# @description `MISSING ran: names no test`, exit 3, unless the line's sha
+# @description is a docs-only commit in REVIEW_LINE_REPO (bug round 22 row 01,
+# @description rulebook 2.7.4): its change set, merge-base(origin/master,
+# @description sha)..sha, or the commit's own once it is on master, touches
+# @description only `*.md` and `csi-spl-doc/` paths -> `DOCS-ONLY <sha>`, and
+# @description the log is still read (its owner checked, `OK 0 of 0`).
 # @description Prints `MISSING <name>` per test not run (exit 3), else
 # @description `OK <n> of <n>`, the names counted at its end. Exit 2: the log is on another box (named),
 # @description with the exact command to run there. REVIEW_LINE_SYNTAX=1 then
 # @description checks here what needs no log: the section 1 format, a 40-hex
 # @description sha, reviewer = log: owner, the vendor is the id's and any
-# @description registry.tsv row of it, ran: names a test (`SYNTAX OK`, exit 0;
+# @description registry.tsv row of it, ran: names a test or the sha is
+# @description docs-only (`SYNTAX OK`, exit 0;
 # @description `SYNTAX FAIL <why>`, exit 1); the run itself stays unchecked.
 # @description The reviewer part (a `<[acgmoqu]-NNN>@<box>` id = the log: owner,
 # @description the vendor of the id and of its registry row) is checked on
@@ -99,10 +107,14 @@ do_spl_review_line_check() {
   [[ "$ran" != "$line" ]] || { echo "FATAL the line has no ' ran: '"; return 1; }
   ran="${ran%% | read: *}" ran="${ran%% | log: *}"
   names="$(_spl_review_line_names "$ran")"
-  [[ -n "$names" ]] || { echo "MISSING ran: names no test (*.tst.sh, test-*.sh, *.test.mjs, *_test.go, go test, pnpm run): '$ran'"; return 3; }
   local e2e=0
-  _spl_review_line_e2e "$line" "$names"
-  case $? in 0) ;; 1) e2e=3 ;; *) return 1 ;; esac
+  if [[ -n "$names" ]]; then
+    _spl_review_line_e2e "$line" "$names"
+    case $? in 0) ;; 1) e2e=3 ;; *) return 1 ;; esac
+  else
+    _spl_review_line_docs_only "$line" ||
+      { echo "MISSING ran: names no test (*.tst.sh, test-*.sh, *.test.mjs, *_test.go, go test, pnpm run): '$ran'"; return 3; }
+  fi
   path="$(_spl_review_line_vibe_session "$path")"
   if [[ ! -r "$path" ]]; then
     owner="$(_spl_review_line_owner "$path")"
@@ -144,13 +156,12 @@ _spl_review_line_e2e() {
 # csi-spl-wui/src and tests/e2e into a temp dir); rc 1 with a FATAL line when
 # the sha is no commit in the repo or the map file is missing.
 _spl_review_line_e2e_files() {
-  local repo="${REVIEW_LINE_REPO:-$(git -C "${BASH_SOURCE[0]%/*}" rev-parse --show-toplevel 2>/dev/null)}"
-  local map="${BASH_SOURCE[0]%/*}/../../../../csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh"
+  local repo map="${BASH_SOURCE[0]%/*}/../../../../csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh"
   local sha="$1" base changed tmp
+  repo="$(_spl_review_line_repo)"
   git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null ||
     { echo "FATAL $sha is no commit in ${repo:-this checkout}: a line whose sha does not resolve is void (fetch it, or set REVIEW_LINE_REPO)"; return 1; }
-  base="$(git -C "$repo" merge-base origin/master "$sha" 2>/dev/null)"
-  [[ -n "$base" && "$base" != "$(git -C "$repo" rev-parse "$sha^{commit}")" ]] || base="$sha^"
+  base="$(_spl_review_line_base "$repo" "$sha")"
   changed="$(git -C "$repo" diff --name-only "$base" "$sha" -- csi-spl-wui 2>/dev/null)"
   [[ -n "$changed" ]] || return 0
   [[ -r "$map" ]] || { echo "FATAL the e2e map $map is missing"; return 1; }
@@ -159,6 +170,43 @@ _spl_review_line_e2e_files() {
   # shellcheck source=/dev/null
   ( source "$map" && _ppe_select "$tmp" "$changed" ) | grep -v '^CUT ' | cut -d' ' -f1 | sed 's#.*/##'
   rm -rf "$tmp"
+}
+
+# _spl_review_line_repo - the repo the line's sha is read in:
+# REVIEW_LINE_REPO, else this checkout.
+_spl_review_line_repo() {
+  printf '%s' "${REVIEW_LINE_REPO:-$(git -C "${BASH_SOURCE[0]%/*}" rev-parse --show-toplevel 2>/dev/null)}"
+}
+
+# _spl_review_line_base <repo> <sha> - where the sha's change set starts:
+# merge-base(origin/master, sha) for a review branch, `<sha>^` once the sha
+# is on master (or there is no origin/master).
+_spl_review_line_base() {
+  local base
+  base="$(git -C "$1" merge-base origin/master "$2" 2>/dev/null)"
+  [[ -n "$base" && "$base" != "$(git -C "$1" rev-parse "$2^{commit}")" ]] || base="$2^"
+  printf '%s' "$base"
+}
+
+# _spl_review_line_docs_only <line> - rc 0 with a `DOCS-ONLY <sha>` line when
+# the line's sha is a commit whose change set (_spl_review_line_base..sha; a
+# root commit against the empty tree) is not empty and touches only `*.md` and
+# `csi-spl-doc/` paths (bug round 22 row 01: rulebook 2.7.4 asks `ran: none`
+# there); rc 1 otherwise, a sha that is no commit included.
+_spl_review_line_docs_only() {
+  local repo sha base changed
+  [[ "$1" =~ \ (PASS|FAIL)\ ([0-9a-f]{7,40})\  ]] || return 1
+  sha="${BASH_REMATCH[2]}" repo="$(_spl_review_line_repo)"
+  git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null || return 1
+  base="$(_spl_review_line_base "$repo" "$sha")"
+  if [[ "$base" == "$sha^" ]]; then
+    changed="$(git -C "$repo" diff-tree --root -r --no-commit-id --name-only "$sha" 2>/dev/null)"
+  else
+    changed="$(git -C "$repo" diff --name-only "$base" "$sha" 2>/dev/null)"
+  fi
+  [[ -n "$changed" ]] || return 1
+  awk '!/\.md$/ && !/^csi-spl-doc\// {f = 1} END {exit f}' <<<"$changed" || return 1
+  echo "DOCS-ONLY ${sha:0:12} touches only docs (*.md, csi-spl-doc/): ran: needs no test"
 }
 
 # _spl_review_line_id_box <id> <this box> <log path> - this box when its
@@ -248,7 +296,7 @@ _spl_review_line_env() {
 # _spl_review_line_syntax <line> - the plan section 1 format (or its box-free
 # commit-message form, SPL-5634), header id[@box] = log: id[@box], the vendor
 # is the id's (spl_kind_of_agent_id) and any registry row of the id here, ran:
-# names a test.
+# names a test (or the sha is docs-only, _spl_review_line_docs_only).
 _spl_review_line_syntax() {
   _spl_review_line_env
   local rx='^review: ('"${SPOOL_AGENT_ID_NEW_RX%%-*}"'-[0-9]{3,})(@[A-Za-z0-9._-]+)? ([a-z]+) (PASS|FAIL) [0-9a-f]{40} ran: .+ \| read: .+ \| log: ([^[:space:]@:]+)(@[^[:space:]:]+)?:(/|~/)[^[:space:]]+$'
@@ -257,8 +305,10 @@ _spl_review_line_syntax() {
   _spl_review_line_reviewer "$1" || return 1
   local names out
   names="$(_spl_review_line_names "${1#* ran: }")"
-  [[ -n "$names" ]] ||
-    { echo "SYNTAX FAIL ran: names no test (*.tst.sh, test-*.sh, *.test.mjs, *_test.go, go test, pnpm run)"; return 1; }
+  if [[ -z "$names" ]]; then
+    _spl_review_line_docs_only "$1" && return 0
+    echo "SYNTAX FAIL ran: names no test (*.tst.sh, test-*.sh, *.test.mjs, *_test.go, go test, pnpm run)"; return 1
+  fi
   out="$(_spl_review_line_e2e "$1" "$names")"
   case $? in
     0) ;;

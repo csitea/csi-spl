@@ -10,7 +10,8 @@
 #      the command in a JSON-encoded arguments string, grok arguments;
 #      go test <pkg> and pnpm run <script> are names too
 #   4. a name is matched whole: `xgit-prune-...` is not `git-prune-...`
-#   5. refusals: no line, no log:, a ran: naming no test, an unreadable log
+#   5. refusals: no line, no log:, a ran: naming no test (on a commit that
+#      touches code), an unreadable log
 #   6. a vibe store compacted after the line was written (journal file gone,
 #      the run only in chunks/*.json, whole-file JSON): the session dir and the
 #      gone journal file both read the store -> OK; control: chunks holding the
@@ -22,7 +23,8 @@
 #   8. a log on another box with REVIEW_LINE_SYNTAX=1 (refactor round 12 row
 #      02): the line's format and reviewer are checked here, rc 0 + the peer
 #      query; malformed (short sha, ids differ, vendor not the id's, a
-#      registry row of another vendor, ran: naming no test, no read:) -> rc 1;
+#      registry row of another vendor, ran: naming no test on a code commit,
+#      no read:) -> rc 1;
 #      without the flag still exit 2, now with the query to run on that box
 #   9. a log not readable as this user (bug round 5 row 01): read through
 #      `sudo -n -u <owner>`, the owner from the passwd home the path is under
@@ -72,6 +74,16 @@
 #      SYNTAX OK with REVIEW_LINE_SYNTAX=1, never FATAL not readable; a
 #      header and log: in different forms -> SYNTAX FAIL; a log whose only
 #      command is the check of the box-free line -> MISSING (its text is cut)
+#  17. a docs-only sha needs no test (bug round 22 row 01, rulebook 2.7.4 asks
+#      `ran: none` there). Red control (exit 3 / SYNTAX FAIL before the fix):
+#      `ran: none` and a ran: of commands only, on the docs-only fixture
+#      commit (a.md) -> DOCS-ONLY, OK 0 of 0, exit 0; the same from box-b
+#      with REVIEW_LINE_SYNTAX=1 -> SYNTAX OK. Controls: the code commit
+#      (y.sh) -> MISSING, exit 3, and SYNTAX FAIL; a review branch whose head
+#      is docs but whose range from origin/master holds code -> MISSING; a
+#      branch of docs commits only (*.md, csi-spl-doc/) -> OK; the same head
+#      once on master is its own commit -> OK; the log is still the
+#      reviewer's own (another agent's -> FATAL)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -86,6 +98,11 @@ SHA="$(git -C "$R0" rev-parse HEAD)"
 # derived from this checkout, SPL-5527, which differs on a CI runner)
 chk() { SNIPPET='do_spl_review_line_check' in_orc SPOOL_WT_ROOT=/opt/csi/csi-spl-wt REVIEW_LINE_BOX=box-a SPOOL_ROOT="$T" REVIEW_LINE_REPO="$R0" "$@" 2>&1; }
 line() { echo "review: m-159@box-a mistral PASS $SHA ran: $1 | read: 9 PASS | log: m-159@${3:-box-a}:$2"; }
+# a commit touching code (bug round 22 row 01): only there is a ran: naming no
+# test refused; $SHA (a.md) is docs-only and accepts it
+echo 'echo y' >"$R0/y.sh"; git -C "$R0" add y.sh && git -C "$R0" -c user.name=t -c user.email=t@example.com commit -qm y
+CSHA="$(git -C "$R0" rev-parse HEAD)"
+cline() { local l; l="$(line "$@")"; echo "${l/ PASS $SHA / PASS $CSHA }"; }
 TST=csi-spl-orc/src/bash/tests/git-prune-round-branches.tst.sh
 
 # 1. red control ---------------------------------------------------------------
@@ -135,8 +152,8 @@ out="$(chk REVIEW_LINE=)"; rc=$?
 [[ $rc -eq 1 && "$out" == *FATAL* ]] && pass "5. no REVIEW_LINE -> exit 1" || fail "5. empty (rc $rc: $out)"
 out="$(chk REVIEW_LINE="review: m-159@box-a mistral PASS $SHA ran: bash $TST | read: ok")"; rc=$?
 [[ $rc -eq 1 && "$out" == *"log:"* ]] && pass "5. no log: -> exit 1" || fail "5. no log (rc $rc: $out)"
-out="$(chk REVIEW_LINE="$(line "git diff --stat" "$J")")"; rc=$?
-[[ $rc -eq 3 && "$out" == *"names no test"* ]] && pass "5. a ran: naming no test -> exit 3" || fail "5. no test (rc $rc: $out)"
+out="$(chk REVIEW_LINE="$(cline "git diff --stat" "$J")")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"names no test"* ]] && pass "5. a ran: naming no test, on a code commit -> exit 3" || fail "5. no test (rc $rc: $out)"
 out="$(chk REVIEW_LINE="$(line "bash $TST" "$T/none.jsonl")")"; rc=$?
 [[ $rc -eq 1 && "$out" == *"not readable"* ]] && pass "5. a missing log -> exit 1" || fail "5. missing log (rc $rc: $out)"
 
@@ -206,7 +223,7 @@ for l in "review: m-159@box-b mistral PASS ${SHA:0:9} $R | log: m-159@box-b:/r/j
          "review: m-159@box-b claude PASS $SHA $R | log: m-159@box-b:/r/j.jsonl" \
          "review: a-218@box-b grok PASS $SHA $R | log: a-218@box-b:/r/j.jsonl" \
          "review: c-777@box-b claude PASS $SHA $R | log: c-777@box-b:/r/j.jsonl" \
-         "review: m-159@box-b mistral PASS $SHA ran: git diff --stat | read: ok | log: m-159@box-b:/r/j.jsonl" \
+         "review: m-159@box-b mistral PASS $CSHA ran: git diff --stat | read: ok | log: m-159@box-b:/r/j.jsonl" \
          "review: m-159@box-b mistral PASS $SHA ran: bash $TST | log: m-159@box-b:/r/j.jsonl"; do
   out="$(syn "$l")"; rc=$?
   [[ $rc -eq 1 && "$out" == "SYNTAX FAIL"* ]] || { bad=1; echo "  rc $rc: $out <- $l"; }
@@ -373,7 +390,7 @@ printf '%s\n' '{"input":{"command":"bash xtest-y.sh"}}' >"$J14"
 out="$(chk REVIEW_LINE="$(line "bash test-y.sh" "$J14")")"; rc=$?
 [[ $rc -eq 3 && "$out" == *"MISSING test-y.sh"* ]] && pass "14. xtest-y.sh in the log is not test-y.sh" || fail "14. whole name (rc $rc: $out)"
 for r in "bash latest-x.sh" "bash test-dir/x.sh" "source tests/test-lib.inc.sh"; do
-  out="$(chk REVIEW_LINE="$(line "$r" "$J14")")"; rc=$?
+  out="$(chk REVIEW_LINE="$(cline "$r" "$J14")")"; rc=$?
   [[ $rc -eq 3 && "$out" == *"names no test"* ]] && pass "14. '$r' names no test" || fail "14. '$r' (rc $rc: $out)"
 done
 out="$(syn "review: m-159@box-b mistral PASS $SHA ran: bash $S14 | read: 9 PASS | log: m-159@box-b:/r/j.jsonl")"; rc=$?
@@ -477,6 +494,44 @@ printf '%s\n' '{"input":{"command":"REVIEW_LINE='"'$L16'"' ./run -a do_spl_revie
 out="$(chk HOME="$H16" REVIEW_LINE="$L16")"; rc=$?
 [[ $rc -eq 3 && "$out" == *"MISSING git-prune-round-branches.tst.sh"* ]] \
   && pass "16. red: a log whose only command is the check of the box-free line -> MISSING" || fail "16. own check (rc $rc: $out)"
+
+# 17. a docs-only sha needs no test (bug round 22 row 01) -----------------------
+J17="$T/j17.jsonl"
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"git diff --stat HEAD^ HEAD"}}]}}' >"$J17"
+l17() { echo "review: m-159@${3:-box-a} mistral PASS $1 ran: $2 | read: 9 PASS | log: m-159@${3:-box-a}:${4:-$J17}"; }
+out="$(chk REVIEW_LINE="$(l17 "$SHA" none)")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"DOCS-ONLY ${SHA:0:12}"* && "$out" == *"OK 0 of 0"* ]] \
+  && pass "17. RED CONTROL: ran: none on the docs-only commit (a.md) -> DOCS-ONLY, OK 0 of 0, exit 0 (was MISSING, exit 3)" || fail "17. docs-only none (rc $rc: $out)"
+out="$(chk REVIEW_LINE="$(l17 "$SHA" "git diff --stat HEAD^ HEAD")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"DOCS-ONLY"* ]] && pass "17. RED CONTROL: a docs-only commit, ran: names commands but no test -> exit 0" || fail "17. docs-only commands (rc $rc: $out)"
+out="$(chk REVIEW_LINE_SYNTAX=1 REVIEW_LINE="$(l17 "$SHA" none box-b)")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SYNTAX OK"* ]] && pass "17. RED CONTROL: the same from box-b, REVIEW_LINE_SYNTAX=1 -> SYNTAX OK (was SYNTAX FAIL)" || fail "17. docs-only syntax (rc $rc: $out)"
+out="$(chk REVIEW_LINE="$(l17 "$CSHA" none)")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"names no test"* && "$out" != *DOCS-ONLY* ]] && pass "17. control: ran: none on the code commit (y.sh) -> MISSING, exit 3" || fail "17. code commit (rc $rc: $out)"
+out="$(chk REVIEW_LINE_SYNTAX=1 REVIEW_LINE="$(l17 "$CSHA" none box-b)")"; rc=$?
+[[ $rc -eq 1 && "$out" == "SYNTAX FAIL ran: names no test"* ]] && pass "17. control: the code commit from box-b, REVIEW_LINE_SYNTAX=1 -> SYNTAX FAIL" || fail "17. code syntax (rc $rc: $out)"
+R17="$T/repo17"; mkdir -p "$R17/csi-spl-doc/specs"
+g17() { git -C "$R17" -c user.name=t -c user.email=t@example.com "$@" >/dev/null 2>&1; }
+g17 init -q; echo 'echo c' >"$R17/c.sh"; g17 add c.sh; g17 commit -qm base
+B17="$(git -C "$R17" rev-parse HEAD)"; g17 update-ref refs/remotes/origin/master "$B17"
+g17 checkout -q -b mixed; echo 'echo k' >"$R17/k.sh"; g17 add k.sh; g17 commit -qm code
+echo a >"$R17/README.md"; g17 add README.md; g17 commit -qm doc
+M17="$(git -C "$R17" rev-parse HEAD)"
+g17 checkout -q -b docs "$B17"; echo s >"$R17/csi-spl-doc/specs/s.txt"; g17 add csi-spl-doc; g17 commit -qm spec
+echo b >"$R17/NOTES.md"; g17 add NOTES.md; g17 commit -qm notes
+D17="$(git -C "$R17" rev-parse HEAD)"
+out="$(chk REVIEW_LINE_REPO="$R17" REVIEW_LINE="$(l17 "$M17" none)")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"names no test"* ]] \
+  && pass "17. control: a review branch whose head is docs but whose range from origin/master holds k.sh -> MISSING, exit 3" || fail "17. mixed branch (rc $rc: $out)"
+out="$(chk REVIEW_LINE_REPO="$R17" REVIEW_LINE="$(l17 "$D17" none)")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"DOCS-ONLY ${D17:0:12}"* ]] && pass "17. a branch of docs commits only (csi-spl-doc/, *.md) -> exit 0" || fail "17. docs branch (rc $rc: $out)"
+g17 update-ref refs/remotes/origin/master "$M17"
+out="$(chk REVIEW_LINE_REPO="$R17" REVIEW_LINE="$(l17 "$M17" none)")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"DOCS-ONLY ${M17:0:12}"* ]] && pass "17. the same docs head once on master is its own commit (README.md) -> exit 0" || fail "17. on master (rc $rc: $out)"
+J17C="$T/-opt-csi-csi-spl-wt-m-901/j.jsonl"; mkdir -p "${J17C%/*}"; cp "$J17" "$J17C"
+out="$(chk REVIEW_LINE="$(l17 "$SHA" none box-a "$J17C")")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"belongs to agent m-901, not reviewer m-159"* ]] \
+  && pass "17. control: a docs-only line whose log is another agent's session -> FATAL, exit 1" || fail "17. log owner (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

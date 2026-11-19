@@ -8,7 +8,8 @@ For each box the hub serves (a dir under GW_ROOT with inbound/ and outbound/)
 it raises ONE incident when one of these lasts longer than GW_LIMIT_MIN:
   a  a queued or sent bundle/command with no receipt (`delivered <name>`); a
      command also clears on its box START, its exit line or
-     results/<id>/result.json
+     results/<id>/result.json; a bundle queued in outbound/launch/ with no
+     `sent <name>` line and no file left there was withdrawn: no a (b19-01)
   b  a box apply or command refused or timed out (a `box: deploy:` / `box:
      exec:` REFUSED / timed out line, or a command whose result exits non-zero
      with REFUSED / timed out in its output, or exit 124) with no later
@@ -153,14 +154,20 @@ def result_refused(results, cid):
     return ""
 
 
-def pending_items(rows, results):
-    """Condition a: key -> (since, what, evidence) of what is unreceipted."""
-    items, done = {}, set()
+def pending_items(rows, results, launch=None):
+    """Condition a: key -> (since, what, evidence) of what is unreceipted.
+    LAUNCH is the box's outbound/launch/ dir: a bundle queued there with no
+    `sent` line and no file left there was withdrawn, never sent: no a. A
+    `sent` line keeps it pending (the upload may run after the file left)."""
+    items, done, sent = {}, set(), set()
     for t, text, raw in rows:
+        s = re.search(r"^sent (\S+) hub -> \S+ .*waiting for", text)
+        if s:
+            sent.add(s.group(1))
         m = (
             re.search(r"run-on-box: queued (gr-cmd-\S+\.zip)", text)
             or re.search(r"queued \S+/outbound/launch/(\S+\.zip)", text)
-            or re.search(r"^sent (\S+) hub -> \S+ .*waiting for", text)
+            or s
         )
         if m:
             if m.group(1) not in items:
@@ -182,10 +189,14 @@ def pending_items(rows, results):
             cm and ("cmd:" + cm.group(1) in done or has_result(results, cm.group(1)))
         ):
             continue
+        unsent = not cm and name not in sent
+        if unsent and launch and not os.path.exists(os.path.join(launch, name)):
+            continue
+        how = "queued, not sent" if unsent else "sent, no receipt"
         what = (
             ("command %s sent, no receipt and no result" % cm.group(1))
             if cm
-            else ("bundle %s sent, no receipt" % name)
+            else ("bundle %s %s" % (name, how))
         )
         out["a:" + name] = (t, what, ev)
     return out
@@ -292,7 +303,7 @@ def conditions(box, now, inc=None):
     if inc:
         since = min(since, int(inc["since"]) - 60)
     rows = hub_lines(env("GW_LOG_DIR"), root, box, since)
-    cur = pending_items(rows, results)
+    cur = pending_items(rows, results, os.path.join(root, box, "outbound", "launch"))
     cur.update(refusals(rows, results))
     cur.update(running(rows, results))
     seen, ev = box_log_seen(root, box, rows)

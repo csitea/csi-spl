@@ -17,6 +17,12 @@
 #      ran", on the box: exec: line or in the result's output) 11 min ago, the
 #      link up, a restart action set -> no b, no blocker, no restart plan; a
 #      non-expired box: exec: REFUSED -> still the blocker and the restart plan
+#  7c. b19-01: a pack queued in outbound/launch/, no `sent` line, its file gone
+#      (withdrawn), a later pack sent and delivered -> no message, none 3 h
+#      later; the same pack still in launch/ -> pending, "queued, not sent"
+#  7d. b19-01 (panel N4): a pack queued and sent, its file gone, no receipt ->
+#      ONE blocker; 6 h later its `sent` line is older than GW_WINDOW_H, but
+#      the open incident's read reaches back to it -> still pending, no CLEARED
 #   8. no live seat row on the topic -> the fallback receiver
 #   9. DRY_RUN (default) prints the plan, sends nothing, writes no state
 #  10. a send that fails is not recorded: the next run sends it
@@ -51,6 +57,8 @@
 #   a read-only state dir, rc 0 on the lock, a quiet box log in after: (3 fail).
 #   Case 7b before SPL-5896: a b:exec INFO per expired line, PLAN blocker
 #   LINK STUCK and PLAN restart (2 fail).
+#   Case 7c before b19-01 (rc01.sh on 0268cbab8 and 87d56eaae): one blocker
+#   "bundle w.v1.zip sent, no receipt", still open 3 h later (2 fail).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -160,6 +168,34 @@ out="$(run BOX_LINK_WATCH_RESTART_ACTION=kick-now DRY_RUN=1)"
 grep -q 'b:exec:[0-9a-f]*: box command refused or timed out, 11 min' <<<"$out" && grep -q '^PLAN blocker .*LINK STUCK > 7 min' <<<"$out" \
   && grep -q '^PLAN restart box box: .*box command refused or timed out)$' <<<"$out" && [ "$(grep -c 'b:exec' <<<"$out")" = 1 ] \
   && pass "7b. ...a non-expired box: exec: REFUSED still alerts and plans the restart (only it is a b)" || fail "7b. refused ($out)"
+
+# 7c. b19-01: a withdrawn, never-sent pack is no incident
+fresh
+logl 30 "queued $R/box/outbound/launch/w.v1.zip (48271732 B, sha256 aa): a full git pack"
+logl 6 "sent p2.zip hub -> box (10 B, sha256 bb) as b-9 in 1 s, waiting for the box's receipt"
+logl 5 "delivered p2.zip to box1: marked sent; relay blob deleted"
+out="$(run)"
+[ "$(n)" = 0 ] && ! grep -q 'w.v1.zip' <<<"$out" && pass "7c. a pack queued 30 min ago, never sent, its file gone from launch/ -> no condition a, no message" \
+  || fail "7c. withdrawn ($(n): $(cat "$T/sent"); $out)"
+later 180; out="$(run)"
+[ "$(n)" = 0 ] && ! grep -q 'incident open' <<<"$out" && pass "7c. ...3 h later still no message and no open incident" || fail "7c. 3 h ($(n): $out)"
+fresh; logl 8 "queued $R/box/outbound/launch/w.v2.zip (10 B, sha256 aa): a full git pack"
+touch "$R/box/outbound/launch/w.v2.zip"
+run >/dev/null
+[ "$(n)" = 1 ] && grep -q 'bundle w.v2.zip queued, not sent, since .* (8 min)' "$T/sent" \
+  && pass "7c. ...the same pack still in launch/ 8 min, never sent -> ONE blocker \"queued, not sent\"" || fail "7c. in launch ($(n): $(cat "$T/sent"))"
+
+# 7d. b19-01 panel N4: a sent pack whose file is gone stays pending while its
+# incident is open, even once its sent line is older than the window
+fresh
+logl 10 "queued $R/box/outbound/launch/s.v1.zip (10 B, sha256 aa): a full git pack"
+logl 9 "sent s.v1.zip hub -> box (10 B, sha256 aa) as b-5 in 1 s, waiting for the box's receipt"
+run >/dev/null
+[ "$(n)" = 1 ] && grep -q 'bundle s.v1.zip sent, no receipt, since .* (10 min)' "$T/sent" \
+  && pass "7d. a pack queued and sent, its file gone, no receipt -> ONE blocker (sent, no receipt)" || fail "7d. ($(n): $(cat "$T/sent"))"
+later 361; out="$(run)"
+[ "$(n)" = 1 ] && grep -q 'a:s.v1.zip: bundle s.v1.zip sent, no receipt, 371 min' <<<"$out" && ! grep -q CLEARED "$T/sent" \
+  && pass "7d. ...6 h later its sent line is older than GW_WINDOW_H, the open incident keeps it pending (no CLEARED)" || fail "7d. 6 h ($(n): $(cat "$T/sent"); $out)"
 
 # 8. no live seat -> the fallback
 fresh; logl 8 "sent b3.zip hub -> box (10 B, sha256 aa) as b-4 in 1 s, waiting for the box's receipt"

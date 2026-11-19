@@ -5,7 +5,7 @@ type: news
 title: "Archive Workspace"
 summary: "Keep your active workspace clean by archiving old projects while preserving their history."
 share_text: "Old projects cluttering your workspace? Archive them and keep every bit of history. Here is how."
-share_long: "Old projects cluttering your workspace? Archive them and keep every bit of history.\n\n🗄️ Freeze an inactive workspace, channel or topic with one click.\n🧹 It leaves the sidebar for every member, so the daily view stays focused on active work.\n🔍 Everything archived stays fully searchable and easy to open again.\n⚖️ No more choosing between deleting old data and living with a bloated navigation pane.\n\nRead the full post:"
+share_long: "Old projects cluttering your workspace? Archive them and keep every bit of history.\n\n🗄️ Freeze an inactive workspace, channel or topic from its settings menu.\n🧹 It leaves the sidebar for every member, so the daily view stays focused on active work.\n🔍 Everything archived stays fully searchable and easy to reach again.\n⚖️ No more choosing between deleting old data and living with a bloated navigation pane.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684

@@ -378,5 +378,10 @@ Added 2026-10-26 (v0.2.2 tasks, SPL-3553) for customer draft handover (`spec.md`
   - **Red Control**: `PROVE_RED=forbidden` and `PROVE_RED=configured` turn the e2e red; without rdb 0277 the store test fails `marketing_channels_platform_check`.
   - **Needs from the owner**: LinkedIn's approval of the Community Management API request, then the go for the secret versions and the 030 apply (linkedin-company-page.md section 10).
 - [ ] T042 **Phase 4, Viber Channels 1-Way Post API**: high-volume broadcast channel support via Channel Auth Token.
+- [x] T043 **Blog share row: teaser pre-fill and stable ids** (`wui`, `doc`; SPL-5960, owner csitea `23fc5fee`). Spec §23.
+  - **Build**: front matter `share_text` (<= 200 characters) on every published `en` post; `sync-blog.mjs` accepts and checks it and writes it to `index.json`; `blog-share.mjs` pre-fills the teaser (`share_text`, else `summary`, else title) and the link on X, WhatsApp, Viber, Telegram, Reddit and e-mail, and LinkedIn's feed composer; LinkedIn, Facebook, Instagram and Substack also copy `<teaser>\n\n<link>` and show the hint `blog.share_text_copied` (19 locales). Every control of `BlogShareRow.vue` gets the stable id `blog-share-<target>-<top|end>` and a `data-share-action` (§23.3).
+  - **Tests**: `tests/unit/blog-share.test.mjs` (the hrefs, the fallbacks, the copy targets, the ids), `tests/unit/blog-sync.test.mjs` (the key and its 200 limit), `tests/e2e/blog-share.test.mjs` (the ids on the page, the pre-filled hrefs, the copy and the hint).
+  - **Red Control**: a `share_text` of 201 characters fails `blog-sync.test.mjs`; LinkedIn back on share-offsite fails `blog-share.test.mjs`.
+  - **Not here**: the automation that clicks the ids (a later lane).
 
-<!-- version: 0.2.2 · updated: 2026-10-26 · last-edit: 2026-10-26T12:50:00Z -->
+<!-- version: 0.2.3 · updated: 2026-11-19 · last-edit: 2026-11-19T13:30:00Z -->

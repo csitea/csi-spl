@@ -187,9 +187,12 @@ One file shape, with a `type` field:
   drawn text. The row is one line at 390px and may wrap only below 360px.
   Copy link is a button and copies the post's canonical URL; a check mark
   shows that the copy happened. The others are plain links (`target=_blank`,
-  `rel=noopener`), each built from that URL and the title. No third-party
-  script. Substack has no share URL: that control copies the link and opens
-  Substack Notes. Where the browser offers the Web Share API, that control
+  `rel=noopener`), each built from that URL and the post's teaser
+  (`share_text`, else the summary, else the title). No third-party script.
+  Where a site takes no text in its share URL (Facebook, Instagram,
+  Substack; LinkedIn too, as a backup), the click also copies the teaser and
+  the link and shows a "paste it" hint. Each control has a stable id
+  `blog-share-<target>-<top|end>`: spec 090 §23 (T043). Where the browser offers the Web Share API, that control
   is last and does not replace the row.
 
 ### 3.4 Source: markdown in the repo (D4)

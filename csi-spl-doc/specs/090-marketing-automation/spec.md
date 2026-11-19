@@ -405,6 +405,7 @@ Following Round 1 review, author `a-273` and reviewers `g-276`, `c-277`, and `c-
 | v0.5.2 | 2026-10-26 | a-292 | Resolved review findings R1-R3: introduced explicit status 'awaiting_approval' in migration 0229 to guarantee approval hold is never claimed by background worker, aligned SQL query documentation with full live store query (FOR UPDATE SKIP LOCKED with UPDATE...RETURNING), and clarified Phase 3 source_type scope ('blog'). |
 | v0.6.0 | 2026-11-10 | c-507 | §22, the workspace's own posts (SPL-5240; owner t1 `19ef7d51`, poll `c1d8be01` Q1 A, Q2 A): rdb 0274 `marketing_drafts`, the draft routes, the author's publish on LinkedIn, Facebook, Instagram and X with no approval step, the Posts section of Workspace settings. |
 | v0.6.1 | 2026-11-11 | c-507 | §22 item 6: cnf `marketing.workspaces: all` on dev and prd (SPL-5240, Q1 A order); live after the terraform 030 apply (owner's go). |
+| v0.7.0 | 2026-11-19 | c-926 | §23, the blog share row's teaser (`share_text`) pre-fill, the copy-then-open targets and the stable control ids for a later automation (T043, SPL-5960; owner csitea `23fc5fee`). |
 
 ---
 
@@ -803,4 +804,48 @@ Poll `c1d8be01` (2026-11-10 07:37Z): **Q1 A** "Only its own posts: build the per
 5. **WUI**: Workspace settings -> **Posts** (`/tenant-settings/posts`, nav gated on `tenant.settings`): write, edit and delete a draft, pick the connected channels and publish; each draft shows where it went. Help: `doc/help/marketing.md` section 6.
 6. **Then every workspace** (Q1 A order, after the editor landed as `17431a180..7133aff20`): cnf `marketing.workspaces` is `all` on dev and prd (was `[t1, ws-hidden-05]` on dev, `[ws-hidden-05, ws-hidden-16]` on prd), rendered into the 030 tfvars as `SPOOL_HUB_MARKETING_WORKSPACES="all"`. The hub reads it only after a terraform step 030 apply, which needs the owner's go; until then the old lists stay in force. The demo workspace stays refused (§15 item 3), and every workspace's own switch `tenants.marketing_enabled` still starts off until its admin turns it on (§15 item 2): nothing posts by itself.
 
-<!-- version: 0.6.1 · updated: 2026-11-11 · last-edit: 2026-11-11T05:40:00Z -->
+## 23. Blog Share Row: Teaser Pre-Fill and Automation IDs (T043)
+
+Owner HUM-10 (csitea `23fc5fee`, msgs `26768616`, `9470127c`, `82a1160e`, `8d5c5103`, 2026-11-19): a reader opens a post from a spool message, clicks one share button and finds the post already written: a short teaser that makes people click, plus the link. Then they press Post on the target site.
+
+### 23.1 The teaser
+
+- Each post copy may carry `share_text` in its front matter: 1-2 sentences, at most 200 characters (code points), so that X still fits it with a space and its 23-character link (280). `sync-blog.mjs` accepts the key, refuses a longer one, and copies it into `index.json` beside `summary`.
+- The row's teaser is `share_text`, else the copy's `summary`, else its title (`shareTeaser`, `csi-spl-wui/src/utils/blog-share.mjs`).
+- On 2026-11-19 every published `en` post has a `share_text`; the other locales use their own `summary` until a translated `share_text` is added. A locale with no copy of a post shows the `en` copy, so it shares the `en` teaser.
+
+### 23.2 What each control does
+
+`data-share-action` on every control names its click: `copy` copies the link; `prefill` opens the target with the teaser and the link in its share URL; `copy-open` copies `<teaser>\n\n<link>`, shows the hint `blog.share_text_copied` ("Text copied: paste it into the post.") under the row for 6 s, and opens the target.
+
+| target | URL opened | action | text in the URL |
+|---|---|---|---|
+| copy | none | `copy` | the link only |
+| linkedin | `https://www.linkedin.com/feed/?shareActive=true&text=<teaser> <link>` | `copy-open` | yes, the text stays in the sign-in redirect; the composer was not measured signed in, so the click also copies |
+| facebook | `https://www.facebook.com/sharer/sharer.php?u=<link>` | `copy-open` | no: the sharer takes only `u` (T037; `quote=` is deprecated) |
+| instagram | `https://www.instagram.com/` | `copy-open` | no share URL exists |
+| x | `https://x.com/intent/post?url=<link>&text=<teaser>` | `prefill` | yes |
+| whatsapp | `https://wa.me/?text=<teaser> <link>` | `prefill` | yes |
+| viber | `viber://forward?text=<teaser> <link>`, at most 200 characters (T037 `viberText`) | `prefill` | yes |
+| telegram | `https://t.me/share/url?url=<link>&text=<teaser>` | `prefill` | yes |
+| reddit | `https://www.reddit.com/submit?url=<link>&title=<teaser>` | `prefill` | yes, as the title |
+| substack | `https://substack.com/notes` | `copy-open` | no share URL exists |
+| email | `mailto:?subject=<title>&body=<teaser>\n\n<link>` | `prefill` | yes |
+
+Measured 2026-11-19 in headless Chrome, signed out, n=1 each: LinkedIn share-offsite drops every parameter but `url` in its sign-in redirect, and the feed URL keeps `text`; the Telegram and WhatsApp pages show the text; X keeps `text` in its sign-in redirect; Facebook and Reddit show only a sign-in or blocked page. A signed-in check of LinkedIn and Facebook is not done yet.
+
+### 23.3 Stable IDs: the automation contract
+
+Every control has a DOM `id` that stays the same across releases, unique on the page. A later lane drives them (agents on the owner's box click them after a post is published, in the owner's own signed-in browser). That automation is not built here.
+
+| element | id | `data-test` |
+|---|---|---|
+| the row, under the title | `blog-share-top` | `blog-share-top` |
+| the row, after the post | `blog-share-end` | `blog-share-end` |
+| a control | `blog-share-<target>-<top or end>`, `<target>` one of `copy`, `linkedin`, `facebook`, `instagram`, `x`, `whatsapp`, `viber`, `telegram`, `reddit`, `substack`, `email` | the same |
+| Web Share (only where the browser has it) | `blog-share-native-<top or end>` | the same |
+| the paste hint (only while shown) | `blog-share-hint-<top or end>` | the same |
+
+A `prefill` control is an `<a target="_blank">`: one click opens the target with the text in place. A `copy-open` control copies first and then opens the target: paste, then post. Renaming an id breaks the contract: change this table in the same commit.
+
+<!-- version: 0.7.0 · updated: 2026-11-19 · last-edit: 2026-11-19T13:30:00Z -->

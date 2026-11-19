@@ -1,0 +1,6 @@
+Lay-What: Two box maintenance tools now work out their storage folder from where the project is installed, instead of a fixed folder written in the code.
+Lay-How: They ask the shared path helper for the organisation's storage folder and stop with a clear message when it cannot be found.
+Lay-Why: A fixed folder breaks on any machine laid out differently; on this machine the folder found is the same as before.
+Tech-What: orc spl-cmd-guard-mode _scg_build (rust home) and utl fleet-logrotate-install _fleet_logrotate_resolve (var root) derive from SPL_VAR_ORG_DIR; no-literal-paths baseline drops their 2 lines.
+Tech-How: spl_run_paths, then <SPL_VAR_ORG_DIR>/rust (/mnt/data prefix when mounted) and FL_VAR=SPL_VAR_ORG_DIR; env overrides SPL_RUST_HOME / FLEET_LOGROTATE_VAR_DIR still win; no tree -> rc 1.
+Tech-Why: Both held the literal org var dir because spl_run_paths exported only <var>/<org>/<app> until r66-01 added SPL_VAR_ORG_DIR.

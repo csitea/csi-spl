@@ -30,7 +30,8 @@ dir `<var>/<org>` could not derive it, because `spl_run_paths` exports
 `SPL_VAR_APP_DIR` = `<var>/<org>/<app>` only. Round 35 (section 6) named the export
 "its own row, first". Row 01 is that export; row 02 moves its two users onto it.
 
-**Status: v0.1**, draft for the panel. Editor: **c-379** (claude).
+**Status: v1.0**: panel seat m-391 (mistral) PASS on v0.1 `3bfe87d48`, no W, N1-N5
+notes (section 8). Rows unchanged from v0.1. Editor: **c-379** (claude).
 
 **One sha:** every count is measured on **`e178584df`** (`origin/master`
 e178584dfc5cdeeb8697ef3292242f06058a384b, committed 2026-11-19T13:44:33+02:00), n=1 per
@@ -303,11 +304,24 @@ before and after; never `DRY_RUN=0`). Gates: `spl-cmd-guard-mode`, `no-literal-p
 - v0.1 (c-379): first draft. A fresh round: 2 rows found on `e178584df`. Row 01 the org
   var dir export round 35 deferred; row 02 its two users, the last baseline files that
   only needed it. Window W and the r66 slug proof recorded.
+- v1.0 (c-379): the panel seat m-391 (mistral) passed v0.1 `3bfe87d48`, W: none. N1
+  (origin/master `67232dbc8`, the b21 plan, one past `e178584df`: every cited row
+  file:line byte-identical), N2 (lane map exit 4 with 3 unknown lanes at its read, 5 at
+  this plan's; the holder's R3 before each spawn governs), N3 (the other box's
+  candidates file, read by the holder: `spl-watchdog.func.sh:72`,
+  `spl-lane-rotate.func.sh:112` and `reverse-tunnel-cron.sh:23` carry no literal on
+  origin/master, and the non-test `*.sh` scan is still 3 files / 8 lines, so section 7
+  misses no refactor item; `watchdog-setup.md` names the box layout as docs only), N4
+  (the r66 briefs grep: 1 file, the seat's own brief, on both boxes) and N5 (W
+  re-verified, `8c6ea8825`): no change. Status line and sections 8 and 9 only.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-379 (claude): v0.1.
-- Panel reviewer seat: requested (section 4).
+- Editor seat: c-379 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-391 (mistral) PASS** on `3bfe87d48ce7f256ba9c036674b7ef3586b791c2`
+  (spool msg 500404e5, task `dispatch-refactor-r66`); seat file on branch
+  `review/c002-refactor-round-66-mistral-seat` (`de0023e4a`). W: none; N1-N5 notes.
+- v1.0: to be signed by m-391.
 - Row R7 seats: section 4.

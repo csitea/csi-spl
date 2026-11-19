@@ -484,7 +484,7 @@ spool_notice_record() {  # ID HEAD BODY
 # window, 1 nothing would take it. Never types, never touches the prompt.
 spool_poke_show() {  # TO KIND FROM TASK MSGID BODY
   local to="$1" kind="$2" from="$3" task="$4" msgid="$5" body="$6"
-  local pane alt tty head text plain notice log shown="" esc=$'\033' blue="" dim="" off=""
+  local pane alt tty head plain notice log shown="" esc=$'\033' blue="" dim="" off=""
   [ "${SPOOL_SHOW:-1}" = 1 ] || return 0
   pane="$(spool_pane_of "$to")"
   if [ -z "$pane" ]; then

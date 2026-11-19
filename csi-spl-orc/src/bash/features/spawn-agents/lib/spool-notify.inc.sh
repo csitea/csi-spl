@@ -743,10 +743,10 @@ spool_notify_mark_trigger() {  # TO FROM TASK MSGID LINE
 # Wait until PANE shows the start of TEXT. Capped at about 0.3s.
 # Always returns 0: Enter still happens if the TUI is slow to paint.
 spool_notify_wait_composer() {  # PANE TEXT
-  local pane="$1" text="$2" needle i shown
+  local pane="$1" text="$2" needle shown
   needle="${text:0:24}"
   [ -n "$needle" ] || return 0
-  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
     shown="$("${SPOOL_TM[@]}" capture-pane -p -t "$pane" 2>/dev/null || true)"
     printf '%s' "$shown" | grep -qF -- "$needle" && return 0
     sleep 0.02

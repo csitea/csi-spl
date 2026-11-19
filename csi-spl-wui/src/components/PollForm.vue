@@ -85,10 +85,11 @@ import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useLive } from '~/composables/useLive'
 import { useHumanNames } from '~/composables/useHumanNames'
+import { usePollTopic } from '~/composables/usePollTopic'
 import { dmPeerOf, shownPerson } from '~/utils/channel-feed.mjs'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui'
 import { POLL_HOST, POLL_ROWS } from '~/utils/poll-fence.mjs'
-import { answerBody, answerMode, chatBody, chatPicks, lockSeconds, locksWhenComplete, pollAnswers } from '~/utils/poll.mjs'
+import { answerBody, answerMode, chatBody, formState, lockSeconds, locksWhenComplete, pollAnswers } from '~/utils/poll.mjs'
 import { scrollerOf } from '~/utils/scroll-anchor.mjs'
 import type { PollShape } from '~/components/PollBody.vue'
 import type { SpoolMessage } from '~/types/spool'
@@ -128,10 +129,14 @@ const roster = useRosterStore()
 const live = useLive()
 const me = computed(() => String(access.me?.humanId || live.identity.value || roster.me?.id || ''))
 
+/* SPL-5954: the form's whole topic from the hub, not only the window the feed holds */
+const topicRows = usePollTopic(() => (msgId.value ? String(msg.value?.task_id || '') : ''))
+/* the reader's own answers as sent, until a store holds their row */
+const sentRows = ref<SpoolMessage[]>([])
 const rows = computed(() => {
   const seen = new Set<string>()
   const out: SpoolMessage[] = []
-  for (const r of [...(paneRows?.() || []), ...(channel.messages as SpoolMessage[]), ...(pane.messages as SpoolMessage[])]) {
+  for (const r of [...(paneRows?.() || []), ...(channel.messages as SpoolMessage[]), ...(pane.messages as SpoolMessage[]), ...topicRows.value, ...sentRows.value]) {
     const id = String(r?.msg_id || '')
     if (id && seen.has(id)) continue
     seen.add(id)
@@ -141,19 +146,23 @@ const rows = computed(() => {
 })
 const answers = computed(() => (msgId.value ? pollAnswers(rows.value, msgId.value) : []) as Array<{ from: string, picks: Record<number, string[]>, ts: string }>)
 
-/* the reader's picks: their newest posted answer until they click */
+/* SPL-5954 (owner HUM-10, csitea 51150550): ONE state per form, the same
+   for every reader: per question the newest answer or chat of anyone. The
+   form shows it until the reader clicks; their own draft holds until it is
+   posted, then the shared state takes over again (their answer is in it) */
+const shared = computed(() => (msgId.value ? formState(props.form, rows.value, msgId.value) : { picks: [], chats: [] }) as { picks: string[][], chats: string[] })
 const picks = ref<string[][]>(props.form.questions.map(() => []))
 const dirty = ref(false)
-watch(answers, (list) => {
+watch([() => shared.value.picks, dirty], ([list]) => {
   if (dirty.value) return
-  const mine = list.find((a) => a.from === me.value)
-  if (mine) picks.value = props.form.questions.map((_, i) => (mine.picks[i + 1] || []).slice())
+  picks.value = props.form.questions.map((_, i) => (list[i] || []).slice())
 }, { immediate: true })
 
-/* SPL-1851 (owner t1 d64c762a): the reader's chat reply newer than their
-   answer shows "Chat about this" picked on its question; a click on an
-   option after it hides that chat (its ts) until a newer chat comes */
-const chats = computed(() => (msgId.value && me.value ? chatPicks(props.form, rows.value, msgId.value, me.value) : []) as string[])
+/* SPL-1851 (owner t1 d64c762a): a chat reply newer than the answer shows
+   "Chat about this" picked on its question (SPL-5954: anyone's, as the
+   answer is); a click on an option after it hides that chat (its ts) until
+   a newer chat comes */
+const chats = computed(() => shared.value.chats)
 const chatSeen = ref<Record<number, string>>({})
 function chatChecked(qi: number) {
   const ts = chats.value[qi] || ''
@@ -171,8 +180,10 @@ async function post(qi = -1) {
   state.value = ''
   const release = holdPlace(qi)
   try {
-    await channel.send(text, String(m.task_id), [], m.channel ? String(m.channel) : undefined, 0, m.channel ? undefined : (dmPeerOf(m, me.value) || undefined))
+    const row = await channel.send(text, String(m.task_id), [], m.channel ? String(m.channel) : undefined, 0, m.channel ? undefined : (dmPeerOf(m, me.value) || undefined)) as Partial<SpoolMessage> | undefined
     state.value = 'sent'
+    sentRows.value = [...sentRows.value, { msg_id: String(row?.msg_id || ''), from: me.value, ts: String(row?.ts || ''), body: text } as SpoolMessage]
+    if (!pending.value) dirty.value = false
   } catch {
     state.value = 'failed'
   } finally {

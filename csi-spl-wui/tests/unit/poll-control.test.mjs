@@ -8,7 +8,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
-  answerBody, answerMode, chatBody, chatPicks, lockSeconds, locksWhenComplete, mayHavePoll, parseAnswer, parsePoll, pollAnswers, pollProblems, splitPolls,
+  answerBody, answerMode, chatBody, chatPicks, formState, lockSeconds, locksWhenComplete, mayHavePoll, parseAnswer, parsePoll, pollAnswers, pollProblems, splitPolls,
 } from '../../src/utils/poll.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -157,6 +157,54 @@ describe('pollAnswers: the newest answer per sender wins', () => {
       { from: 'HUM-10', picks: { 1: ['B'] }, ts: '2026-10-13T08:02:00Z' },
       { from: 'HUM-4', picks: { 1: ['B'] }, ts: '2026-10-13T08:01:00Z' },
     ])
+  })
+})
+
+// SPL-5954 (owner HUM-10, csitea 51150550, msgs 834974be d110f8f8 3c0c6b4a):
+// a form's answered state is the SAME for every reader, live and after a
+// reload. Measured on b2ac50a07 before the fix (Go, radio, checkbox forms,
+// n=3 per case): (a) reader B saw nothing of reader A's answer 3/3, (b) a
+// plain reply with no marker left the form unanswered 3/3 (a product
+// question, not decided here), (c) the reader's own chat outside the loaded
+// window of 30 lines was lost 3/3.
+describe('SPL-5954 formState: one shared state per form', () => {
+  const go = parsePoll('Approve the draft?\n(GO) Approve')
+  const radio = parsePoll(RADIO)
+  const check = parsePoll('Which envs?\n[A] dev\n[B] prd')
+  const two = parsePoll('First?\n(A) a\n(B) b\nSecond?\n(A) c\n(B) d')
+  const row = (from, ts, body) => ({ msg_id: `${from}-${ts}`, from, ts, body })
+  it('(a) reader A\'s answer is every reader\'s state: Go, radio and checkbox', () => {
+    assert.deepEqual(formState(go, [row('HUM-1', 't1', answerBody(go, [['GO']], MID))], MID).picks, [['GO']])
+    assert.deepEqual(formState(radio, [row('HUM-1', 't1', answerBody(radio, [['B']], MID))], MID).picks, [['B']])
+    assert.deepEqual(formState(check, [row('HUM-1', 't1', answerBody(check, [['A', 'B']], MID))], MID).picks, [['A', 'B']])
+  })
+  it('(a) the newest answer of ANY reader wins, so two readers never show two answers', () => {
+    const rows = [row('HUM-1', 't1', answerBody(radio, [['A']], MID)), row('HUM-2', 't2', answerBody(radio, [['B']], MID))]
+    assert.deepEqual(formState(radio, rows, MID).picks, [['B']])
+    assert.deepEqual(formState(radio, rows.slice().reverse(), MID).picks, [['B']])
+  })
+  it('(a) an answer that leaves a question out keeps the other reader\'s pick there', () => {
+    const rows = [row('HUM-1', 't1', answerBody(two, [['A'], ['B']], MID)), row('HUM-2', 't2', answerBody(two, [['B'], []], MID))]
+    assert.deepEqual(formState(two, rows, MID).picks, [['B'], ['B']])
+  })
+  it('(c) a chat of anyone, newer than the answer, is the question\'s state; a newer answer ends it', () => {
+    const chat = row('HUM-1', 't2', `${chatBody(two, MID, 1)}my words`)
+    const ans = row('HUM-2', 't1', answerBody(two, [['A'], ['A']], MID))
+    assert.deepEqual(formState(two, [ans, chat], MID), { picks: [['A'], ['A']], chats: ['', 't2'] })
+    assert.deepEqual(formState(two, [ans, chat, row('HUM-2', 't3', answerBody(two, [['A'], ['B']], MID))], MID).chats, ['', ''])
+    assert.deepEqual(formState(two, [ans, { from: 'HUM-1', body: chatBody(two, MID, 0) }], MID).chats, ['~', ''])
+  })
+  it('(b) control: a plain reply with no marker and another form\'s answer change nothing', () => {
+    const rows = [row('HUM-2', 't1', 'approved for publishing'), row('HUM-2', 't2', answerBody(go, [['GO']], 'bbbbbbbb-0000'))]
+    assert.deepEqual(formState(go, rows, MID), { picks: [[]], chats: [''] })
+  })
+  it('(c) the form reads its whole topic from the hub, not only the loaded window', () => {
+    const src = readFileSync(join(WUI, 'src/components/PollForm.vue'), 'utf8')
+    assert.match(src, /usePollTopic\(/)
+    assert.match(src, /formState\(props\.form, rows\.value, msgId\.value\)/)
+    assert.doesNotMatch(src, /a\.from === me\.value/, 'the form state is no longer the reader\'s own answer only')
+    const use = readFileSync(join(WUI, 'src/composables/usePollTopic.ts'), 'utf8')
+    assert.match(use, /api\.getTopic\(task, \{ limit: PAGE, after \}\)/)
   })
 })
 

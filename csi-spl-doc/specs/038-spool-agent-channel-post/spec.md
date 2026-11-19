@@ -273,6 +273,27 @@ delivers again; a non-owner member is refused. Each gate removed turns it red.
   form under the 1-3 key rule (keys `NONE`/`LATER`, `DROP`, `K180`), all 11
   are forms under 1-8. Proof: `internal/pollform/pollform_test.go`,
   `internal/hub/poll_not_a_form_test.go` (memory and Postgres).
+- **FR-048** A poll form has ONE answered state, the same for every reader,
+  live and after a reload, a logout and a login (SPL-5954, owner HUM-10
+  2026-11-19, csitea 51150550 msgs 834974be, 394b2fd7, d110f8f8, 3c0c6b4a):
+  per question, the newest marker reply of ANY sender wins (an answer for
+  the questions its marker names, a "Chat about this" for the question it
+  quotes), so a second reader sees the first reader's answer and never posts
+  a conflicting one unaware. The state is not stored apart: the answers are
+  the marker replies the hub already stores in the form's topic, and the
+  form reads that whole topic (`GET /v1/view/topics/{task_id}`, oldest
+  first, pages of 200) instead of only the window its feed holds (the
+  channel feed keeps 30 lines across its topics, the topic pane its newest
+  page). Replies that arrive while it is open come live through the channel
+  and topic stores. Code: `formState` (`csi-spl-wui/src/utils/poll.mjs`),
+  `usePollTopic` (`csi-spl-wui/src/composables/usePollTopic.ts`),
+  `PollForm.vue`. Measured on b2ac50a07 before the fix (Go, radio, checkbox
+  forms, n=3 per case): a second reader saw nothing of the first reader's
+  answer 3/3; the reader's own chat older than the loaded window was lost
+  3/3. Open, for the owner: a plain reply with no marker (the HUM-24 case in
+  msg 834974be) is not an answer today. Proof:
+  `csi-spl-wui/tests/unit/poll-control.test.mjs` (SPL-5954 cases),
+  `csi-spl-wui/tests/e2e/poll-state-shared.test.mjs`.
 
 ## Security note
 

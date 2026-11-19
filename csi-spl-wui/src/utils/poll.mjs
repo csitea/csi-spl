@@ -284,6 +284,37 @@ export function chatPicks(poll, rows, msgId, from) {
 }
 
 /**
+ * SPL-5954 (owner HUM-10, csitea 51150550): the form's ONE state, the same
+ * for every reader: per question, the newest marker reply of ANY sender that
+ * speaks to it wins. An answer speaks to the questions its marker names (a
+ * radio form's answer leaves an unpicked question out, so it does not clear
+ * someone else's pick there); a chat speaks to the question it quotes.
+ * -> { picks: one key array per question (the newest answer's keys),
+ *      chats: per question the newest chat's ts when it is newer than that
+ *      answer, '' otherwise }. A row with no ts yet is the newest.
+ */
+export function formState(poll, rows, msgId) {
+  const picks = poll.questions.map(() => [])
+  const answered = poll.questions.map(() => '')
+  const chats = poll.questions.map(() => '')
+  for (const r of rows || []) {
+    const a = parseAnswer(r && r.body)
+    if (!a || a.msgId !== String(msgId)) continue
+    const ts = String(r.ts || '~')
+    if (a.chat) {
+      const i = Math.max(0, poll.questions.findIndex((q) => q.text && q.text === a.quote))
+      if (ts >= chats[i]) chats[i] = ts
+      continue
+    }
+    poll.questions.forEach((_, i) => {
+      const keys = a.picks[i + 1]
+      if (keys && ts >= answered[i]) [answered[i], picks[i]] = [ts, keys.slice()]
+    })
+  }
+  return { picks, chats: chats.map((ts, i) => (ts && ts > answered[i] ? ts : '')) }
+}
+
+/**
  * SPL-5517: how a form sends its answer. 'click': a radio form of one
  * question posts on the click. 'lock': a checkbox form, or a radio form of
  * several questions, keeps the picks as a draft and posts ONE answer when it

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -93,6 +94,25 @@ func flowDoorSQL(e, m, pub string) string {
 			AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = ` + e + `.tenant_id AND dc.channel_id = ` + m + `.channel AND dc.archived_at IS NOT NULL) END`
 }
 
+// flowHideSQL leaves out a message m one of whose ends is a box in hide, a
+// bound text[] (FlowQuery.Hidden, the boxes a box owner lock hides from the
+// reader). hide "" is no cut: the statement stays the unlocked one.
+func flowHideSQL(m, hide string) string {
+	if hide == "" {
+		return ""
+	}
+	return ` AND NOT (ARRAY[` + m + `.from_box::text, ` + m + `.to_box::text] && ` + hide + `)`
+}
+
+// flowHideParam binds hidden as the next parameter after args: its SQL for
+// flowHideSQL, "" (and args unchanged) when nothing is hidden.
+func flowHideParam(hidden []string, args []any) (string, []any) {
+	if len(hidden) == 0 {
+		return "", args
+	}
+	return "$" + strconv.Itoa(len(args)+1) + "::text[]", append(args, hidden)
+}
+
 // flowCoveredSQL: a mark covers event e of message m (contract section 3):
 // f:<msg_id>, or the thread / channel / DM-peer mark at or past the line.
 // Each is a read_marks primary-key probe. An archived topic's line is read
@@ -152,12 +172,18 @@ func flowHeadlessSQL(e, m, now, lobby string) string {
 // view does, not only the lines that concern the member. The Flow badge
 // counts stay the member's events (spec 062, "only what concerns me").
 func flowCountsSQL(tenant, member, now, pub, lobby string) string {
+	return flowCountsHideSQL(tenant, member, now, pub, lobby, "")
+}
+
+// flowCountsHideSQL is flowCountsSQL less the lines flowHideSQL(hide) cuts,
+// from the counts and the keys alike.
+func flowCountsHideSQL(tenant, member, now, pub, lobby, hide string) string {
 	return `SELECT q.cm, q.cr, q.cd, q.cc, q.cdm, q.um, q.ur, q.ud, q.uc, q.udm, q.rel,
 			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, sum(x.n)::int AS n FROM (
 				SELECT j.key, j.value::int AS n FROM jsonb_each_text(q.keys) j
-				UNION ALL SELECT x.key, 1 FROM (` + flowChannelKeysSQL(tenant, member, now, pub, lobby) + `) l
+				UNION ALL SELECT x.key, 1 FROM (` + flowChannelKeysSQL(tenant, member, now, pub, lobby, hide) + `) l
 					CROSS JOIN LATERAL (VALUES (l.place_key), (l.topic_key)) x(key)) x GROUP BY x.key) k)
-		FROM (` + flowEventCountsSQL(tenant, member, now, pub, lobby) + `) q(cm, cr, cd, cc, cdm, um, ur, ud, uc, udm, rel, keys)`
+		FROM (` + flowEventCountsHideSQL(tenant, member, now, pub, lobby, hide) + `) q(cm, cr, cd, cc, cdm, um, ur, ud, uc, udm, rel, keys)`
 }
 
 // flowChannelKeysSQL is the unread channel lines of a human member that have
@@ -178,7 +204,7 @@ func flowCountsSQL(tenant, member, now, pub, lobby string) string {
 // archived, headless; the door again) probe those few, not a hash of the
 // tenant's messages. The t: test is flowCoveredSQL's own arm, so the result
 // is the same. The issues and tasks boards are not channels (ChannelHidden).
-func flowChannelKeysSQL(tenant, member, now, pub, lobby string) string {
+func flowChannelKeysSQL(tenant, member, now, pub, lobby, hide string) string {
 	cols := `x.msg_id, x.channel, x.task_id, x.parent_task_id, x.from_id, x.from_box, x.to_id, x.to_box, x.typed_by, x.received_at`
 	shown := ` NOT IN ('` + ChannelIssues + `', '` + ChannelTasks + `')`
 	human := member + `::text ~ '^(HUM|GST)-[0-9]+$'`
@@ -204,7 +230,7 @@ func flowChannelKeysSQL(tenant, member, now, pub, lobby string) string {
 					AND r.mark_key = 't:' || lx.task_id::text AND (lx.received_at, lx.msg_id::text) <= (r.at, r.msg_id)) IS NULL
 			OFFSET 0) lc
 		CROSS JOIN LATERAL (SELECT ` + tenant + ` AS tenant_id, ` + member + `::text AS member_id, lc.msg_id) le
-		WHERE true` + flowDoorSQL("le", "lc", pub) + ` AND NOT ` + flowCoveredSQL("le", "lc", now, lobby)
+		WHERE true` + flowDoorSQL("le", "lc", pub) + flowHideSQL("lc", hide) + ` AND NOT ` + flowCoveredSQL("le", "lc", now, lobby)
 }
 
 // flowEventCountsSQL is flowCountsSQL over the member's flow events only:
@@ -228,6 +254,11 @@ func flowChannelKeysSQL(tenant, member, now, pub, lobby string) string {
 // message by one primary-key probe (LATERAL ... LIMIT 1) instead of a hash of
 // every message in the tenant. Same rows, same counts.
 func flowEventCountsSQL(tenant, member, now, pub, lobby string) string {
+	return flowEventCountsHideSQL(tenant, member, now, pub, lobby, "")
+}
+
+// flowEventCountsHideSQL is flowEventCountsSQL less the events flowHideSQL(hide) cuts.
+func flowEventCountsHideSQL(tenant, member, now, pub, lobby, hide string) string {
 	return `WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = ` + tenant + ` AND x.member_id = ` + member + `
 			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = ` + tenant + ` AND x.member_id = ` + member + ` AND x.place_key > fp.k)
 			FROM fp WHERE fp.k IS NOT NULL),
@@ -250,7 +281,7 @@ func flowEventCountsSQL(tenant, member, now, pub, lobby string) string {
 				WHERE s.tenant_id = ` + tenant + ` AND s.member_id = ` + member + ` AND s.mark_key = 'f:seen'), '-infinity'::timestamptz) AS unseen
 			FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_box, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm
 			WHERE fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
-		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm", now, lobby) + `)
+		flowDoorSQL("fe", "fm", pub) + flowHideSQL("fm", hide) + ` AND NOT ` + flowCoveredSQL("fe", "fm", now, lobby) + `)
 		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke', 'blocked', 'ready')),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'dm'),
@@ -340,9 +371,10 @@ func flowKindsFilter(kind string) []string {
 
 func (s *Postgres) FlowRead(ctx context.Context, q FlowQuery) (FlowPage, error) {
 	var p FlowPage
+	hide, args := flowHideParam(q.Hidden, []any{q.Tenant, q.Member, q.Now, PublicChannels, q.Lobby})
 	reads := []tenantRead{{
-		sql:  flowCountsSQL("$1", "$2", "$3", "$4::text[]", "$5::text"),
-		args: []any{q.Tenant, q.Member, q.Now, PublicChannels, q.Lobby},
+		sql:  flowCountsHideSQL("$1", "$2", "$3", "$4::text[]", "$5::text", hide),
+		args: args,
 		each: func(r pgx.Rows) (err error) { p.Counts, p.Unread, p.Keys, err = scanFlowCounts(r); return err },
 	}}
 	if q.Limit > 0 {
@@ -351,14 +383,15 @@ func (s *Postgres) FlowRead(ctx context.Context, q FlowQuery) (FlowPage, error) 
 			before, beforeID = q.BeforeAt, q.BeforeID
 		}
 		limit := min(q.Limit, FlowMaxPage)
+		hide, args := flowHideParam(q.Hidden, []any{q.Tenant, q.Member, q.Now, PublicChannels, limit + 1, before, beforeID, flowKindsFilter(q.Kind), q.Lobby})
 		reads = append(reads, tenantRead{
 			sql: `SELECT ` + flowEventCols("e", "m", "$3", "$9::text") + `
 				FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
-				WHERE e.tenant_id = $1 AND e.member_id = $2 AND e.expires_at > $3 AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `
+				WHERE e.tenant_id = $1 AND e.member_id = $2 AND e.expires_at > $3 AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + flowHideSQL("m", hide) + `
 				  AND ($6::timestamptz IS NULL OR (e.at, e.msg_id) < ($6::timestamptz, $7::uuid))
 				  AND ($8::text[] IS NULL OR e.kind = ANY($8::text[]))
 				ORDER BY e.at DESC, e.msg_id DESC LIMIT $5`,
-			args: []any{q.Tenant, q.Member, q.Now, PublicChannels, limit + 1, before, beforeID, flowKindsFilter(q.Kind), q.Lobby},
+			args: args,
 			each: func(r pgx.Rows) error {
 				ev, err := scanFlowEvent(r)
 				if err != nil {

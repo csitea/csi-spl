@@ -66,6 +66,11 @@ Signed-in member session only (403 `forbidden` otherwise, as `/v1/me/reads`).
   Only keys > 0; `{}` when nothing is unread. Additive: an older hub omits it.
 - `kind` filters `events` only; `counts`, `unread` and `keys` are always the whole flow.
 - Expired events (the message's `expires_at`) are never listed or counted.
+- A box owner lock cuts the reader's own Flow (spec 130 section 3.1): a
+  line whose message's `from_box` or `to_box` is a box locked to someone
+  other than the reader is never listed (in `events` or, with `fold=day`,
+  `lines`) nor counted in `counts`, `unread` or `keys`. The `flow` frame
+  (section 4) is cut the same way.
 
 ### 2.1 Event (the thin entry, no `env`)
 

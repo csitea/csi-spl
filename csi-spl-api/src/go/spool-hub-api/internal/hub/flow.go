@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -110,7 +111,9 @@ func flowQueryOf(v url.Values) (store.FlowQuery, bool) {
 
 // handleViewFlow is GET /v1/view/flow: the member's page and counts in one
 // store round trip; ?member= reads another member's (flow_member.go). The
-// moderation and the box lock stay the viewer's (hum).
+// moderation and the box lock stay the viewer's (hum): the store leaves a
+// line of a box locked to someone else out of the events, the folded lines,
+// the counts, unread and keys (q.Hidden; spec 130 section 3.1).
 func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(store.WithMemo(r.Context()))
 	s.allowOrigin(w, r)
@@ -136,7 +139,12 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_query", "limit 1..50; kind mention|reply|dm|blocked|ready (release with fold=day); before a cursor")
 		return
 	}
-	q.Tenant, q.Member, q.Now, q.Lobby = t.ID, target, s.o.Now(), s.o.LobbyTaskID
+	lv, err := s.lockViewFor(r.Context(), t.ID, hum)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "flow unavailable")
+		return
+	}
+	q.Tenant, q.Member, q.Now, q.Lobby, q.Hidden = t.ID, target, s.o.Now(), s.o.LobbyTaskID, flowHiddenBoxes(lv.locks, hum)
 	if r.URL.Query().Get("fold") == "day" && q.Limit > 0 {
 		s.writeFlowFold(w, r, q, hum)
 		return
@@ -148,11 +156,6 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mod, err := s.moderation(r.Context(), t.ID, hum)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal", "flow unavailable")
-		return
-	}
-	lv, err := s.lockViewFor(r.Context(), t.ID, hum)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "flow unavailable")
 		return
@@ -177,6 +180,19 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 	// No Cache-Control of its own: etagViews tags it `private, no-cache`, so
 	// a repeat read of an unchanged flow is a 304 with no body (perf r4 G11).
 	writeJSON(w, http.StatusOK, body)
+}
+
+// flowHiddenBoxes is the boxes of locks (tenantLocks, or a lockView's) that
+// member does not own: FlowQuery.Hidden. nil when none.
+func flowHiddenBoxes(locks map[string]*store.BoxLock, member string) []string {
+	var out []string
+	for b, l := range locks {
+		if !l.IsOwner(member) {
+			out = append(out, b)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // wireFlowKeys is store.FlowKeys on the wire, {} when none: the WUI renders
@@ -224,7 +240,9 @@ func containsID(xs []string, x string) bool {
 // fanoutFlow pushes the event a stored line gave each member with a socket
 // here, with their fresh counts: one store round trip, and none when no
 // other member of the tenant has a socket on this process (the author never
-// gets an event). Called from fanoutWUI on every process.
+// gets an event). A member a box owner lock hides a box from gets their
+// counts re-read cut by it (flowCutCounts). Called from fanoutWUI on every
+// process.
 func (s *Server) fanoutFlow(ctx context.Context, row store.Message) {
 	fe, ok := s.flowStore()
 	if !ok {
@@ -251,10 +269,34 @@ func (s *Server) fanoutFlow(ctx context.Context, row store.Message) {
 			s.o.Log.Warn().Err(err).Str("tenant", row.TenantID).Str("msg_id", row.MsgID).Msg("flow fan-out")
 			return
 		}
+		locks, err := s.tenantLocks(ctx, row.TenantID)
+		if err != nil {
+			return // fail closed: no counts that may hold a locked box's lines
+		}
 		for member, p := range pushes {
+			if !s.flowCutCounts(ctx, fe, row.TenantID, member, locks, &p) {
+				continue
+			}
 			writeFlowFrame(ctx, socks[member], flowFrame(p.Counts, p.Unread, p.Keys, &p.Event))
 		}
 	}()
+}
+
+// flowCutCounts replaces p's counts with member's counts cut by the boxes
+// locks hide from them: FlowFanout's counts are not cut per box. false when
+// that read fails (send nothing).
+func (s *Server) flowCutCounts(ctx context.Context, fe store.FlowEvents, tenant, member string, locks map[string]*store.BoxLock, p *store.FlowPush) bool {
+	hidden := flowHiddenBoxes(locks, member)
+	if len(hidden) == 0 {
+		return true
+	}
+	c, err := fe.FlowRead(ctx, store.FlowQuery{Tenant: tenant, Member: member, Now: s.o.Now(), Lobby: s.o.LobbyTaskID, Hidden: hidden})
+	if err != nil {
+		s.o.Log.Warn().Err(err).Str("tenant", tenant).Msg("flow fan-out counts")
+		return false
+	}
+	p.Counts, p.Unread, p.Keys = c.Counts, c.Unread, c.Keys
+	return true
 }
 
 // flowMarkWake reads the WUI-wake key of "member's marks moved" (store
@@ -277,7 +319,8 @@ func (s *Server) pushFlowCountsAll(ctx context.Context, tenant string) {
 	}()
 }
 
-// pushFlowCounts sends member's sockets here a counts-only flow frame.
+// pushFlowCounts sends member's sockets here a counts-only flow frame, cut
+// by the boxes a box owner lock hides from member.
 func (s *Server) pushFlowCounts(ctx context.Context, tenant, member string) {
 	fe, ok := s.flowStore()
 	if !ok {
@@ -287,7 +330,11 @@ func (s *Server) pushFlowCounts(ctx context.Context, tenant, member string) {
 	if len(socks) == 0 {
 		return
 	}
-	p, err := fe.FlowRead(ctx, store.FlowQuery{Tenant: tenant, Member: member, Now: s.o.Now(), Lobby: s.o.LobbyTaskID})
+	lv, err := s.lockViewFor(ctx, tenant, member)
+	if err != nil {
+		return // fail closed, as the read
+	}
+	p, err := fe.FlowRead(ctx, store.FlowQuery{Tenant: tenant, Member: member, Now: s.o.Now(), Lobby: s.o.LobbyTaskID, Hidden: flowHiddenBoxes(lv.locks, member)})
 	if err != nil {
 		s.o.Log.Warn().Err(err).Str("tenant", tenant).Msg("flow counts push")
 		return

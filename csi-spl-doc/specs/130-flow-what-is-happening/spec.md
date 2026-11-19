@@ -179,6 +179,16 @@ chose C. Who can read what:
   so they would name the locked box's topics (R7 c-244, W1; hub test
   `TestFlowMemberRefusedWhileABoxIsLocked`). An agent on a box hidden
   from the reader is `not_member`.
+- **The reader's own Flow is cut by the lock** (bug round 24 row 01,
+  SPL-4895 N1): a line whose message's `from_box` or `to_box` is a box
+  locked to someone else is left out of the events, the folded lines,
+  `counts`, `unread` and `keys` of the unfolded, `counts_only` and
+  `fold=day` reads, and of the pushed `flow` frames (the new line's
+  fan-out and the counts-only frame of a mark write). The store does the
+  cut (`FlowQuery.Hidden`, the boxes from the reader's lock view), in the
+  Memory and the Postgres driver alike (hub tests
+  `TestFlowOwnReadCutByLock`, `TestFlowOwnFramesCutByLock`; store test
+  `TestFlowReadCutByHiddenBoxes`).
 - **Opening a line** of another's Flow opens its place as the reader: a
   direct message or a private channel the reader is not in still answers
   as it does today (no extra access is granted beyond the Flow line).

@@ -230,8 +230,8 @@ func finishFold(q FlowQuery, window []flowFoldEvent, releases func(from, to time
 
 func (s *Memory) FlowFoldRead(_ context.Context, q FlowQuery) (FlowFold, error) {
 	s.mu.Lock()
-	all := s.flowListLocked(q.Tenant, q.Member, q.Now, q.Lobby)
-	counts, unread, keys := s.flowCountsLocked(q.Tenant, q.Member, all, q.Now, q.Lobby)
+	all := s.flowListLocked(q.Tenant, q.Member, q.Now, q.Lobby, q.Hidden)
+	counts, unread, keys := s.flowCountsLocked(q.Tenant, q.Member, all, q.Now, q.Lobby, q.Hidden)
 	var window []flowFoldEvent
 	for _, ev := range all {
 		if q.Kind == FlowRelease || len(window) > FlowFoldWindow {
@@ -319,7 +319,11 @@ func (s *Memory) flowReleases(tenant string, from, to time.Time) []flowRelease {
 // page cost 2.1 s cold. When the door drops some of ev, fill takes the next
 // events past ev in the old join shape, so a page never comes back short; its
 // guard is an initplan, so a page with no door miss never runs it.
-func flowFoldSQL() string {
+func flowFoldSQL() string { return flowFoldHideSQL("") }
+
+// flowFoldHideSQL is flowFoldSQL less the events flowHideSQL(hide) cuts,
+// before the window is cut, so a page of hidden lines is filled as a door miss is.
+func flowFoldHideSQL(hide string) string {
 	evWhere := `e.tenant_id = $1 AND e.member_id = $2 AND e.expires_at > $3
 			  AND ($6::timestamptz IS NULL OR (e.at, e.msg_id) < ($6::timestamptz, $7::uuid))
 			  AND ($8::text[] IS NULL OR e.kind = ANY($8::text[]))`
@@ -327,10 +331,10 @@ func flowFoldSQL() string {
 			WHERE ` + evWhere + `
 			ORDER BY e.at DESC, e.msg_id DESC LIMIT $5),
 		hit AS (SELECT e.tenant_id, e.member_id, e.msg_id, e.kind, e.at FROM ev e WHERE EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
-			AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `)),
+			AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + flowHideSQL("m", hide) + `)),
 		fill AS (SELECT e.tenant_id, e.member_id, e.msg_id, e.kind, e.at
 			FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
-			WHERE ` + evWhere + ` AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `
+			WHERE ` + evWhere + ` AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + flowHideSQL("m", hide) + `
 			  AND (SELECT count(*) FROM hit) < (SELECT count(*) FROM ev) AND (SELECT count(*) FROM ev) = $5
 			  AND (e.at, e.msg_id) < (SELECT x.at, x.msg_id FROM ev x ORDER BY x.at, x.msg_id LIMIT 1)
 			ORDER BY e.at DESC, e.msg_id DESC LIMIT $5),
@@ -374,15 +378,17 @@ func (s *Postgres) FlowFoldRead(ctx context.Context, q FlowQuery) (FlowFold, err
 	if q.BeforeID != "" {
 		before, beforeID = q.BeforeAt, q.BeforeID
 	}
+	hide, args := flowHideParam(q.Hidden, []any{q.Tenant, q.Member, q.Now, PublicChannels, q.Lobby})
 	reads := []tenantRead{{
-		sql:  flowCountsSQL("$1", "$2", "$3", "$4::text[]", "$5::text"),
-		args: []any{q.Tenant, q.Member, q.Now, PublicChannels, q.Lobby},
+		sql:  flowCountsHideSQL("$1", "$2", "$3", "$4::text[]", "$5::text", hide),
+		args: args,
 		each: func(r pgx.Rows) (err error) { counts, unread, keys, err = scanFlowCounts(r); return err },
 	}}
 	if q.Kind != FlowRelease {
+		hide, args := flowHideParam(q.Hidden, []any{q.Tenant, q.Member, q.Now, PublicChannels, FlowFoldWindow + 1, before, beforeID, flowKindsFilter(q.Kind), q.Lobby})
 		reads = append(reads, tenantRead{
-			sql:  flowFoldSQL(),
-			args: []any{q.Tenant, q.Member, q.Now, PublicChannels, FlowFoldWindow + 1, before, beforeID, flowKindsFilter(q.Kind), q.Lobby},
+			sql:  flowFoldHideSQL(hide),
+			args: args,
 			each: func(r pgx.Rows) error {
 				var e flowFoldEvent
 				ev, err := scanFlowEvent(r, &e.evAt, &e.title, &e.issue)

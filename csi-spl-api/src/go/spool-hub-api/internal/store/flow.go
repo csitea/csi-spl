@@ -104,6 +104,10 @@ type FlowQuery struct {
 	Kind           string // "" = all; FlowMention includes pokes
 	Now            time.Time
 	Lobby          string // the lobby's task id ("" = none): an archived topic's lines are read (archivedHideSQL)
+	// Hidden is the boxes a box owner lock hides from the reader (spec 130
+	// section 3.1): a line whose message's from_box or to_box is one is left
+	// out of the events, the folded lines, the counts, unread and keys.
+	Hidden []string
 }
 
 // FlowPage is a page of events, newest first, and the member's counts:
@@ -430,14 +434,21 @@ func (s *Memory) flowHeadlessLocked(tenant string, m *Message, now time.Time, lo
 	return true
 }
 
-// flowListLocked is every listed event of member, newest first.
-func (s *Memory) flowListLocked(tenant, member string, now time.Time, lobby string) []FlowEvent {
+// flowHidden: a message with these ends is hidden by a box owner lock
+// (FlowQuery.Hidden), as flowHideSQL.
+func flowHidden(hidden []string, fromBox, toBox string) bool {
+	return len(hidden) > 0 && (slices.Contains(hidden, fromBox) || slices.Contains(hidden, toBox))
+}
+
+// flowListLocked is every listed event of member, newest first, less the
+// ones hidden from the reader.
+func (s *Memory) flowListLocked(tenant, member string, now time.Time, lobby string, hidden []string) []FlowEvent {
 	var out []FlowEvent
 	for k, e := range s.flowEvents {
 		if k[0] != tenant || k[1] != member {
 			continue
 		}
-		if ev, ok := s.flowEventLocked(k, e, now, lobby); ok {
+		if ev, ok := s.flowEventLocked(k, e, now, lobby); ok && !flowHidden(hidden, ev.FromBox, ev.ToBox) {
 			out = append(out, ev)
 		}
 	}
@@ -447,7 +458,7 @@ func (s *Memory) flowListLocked(tenant, member string, now time.Time, lobby stri
 
 // flowCountsLocked is flowCountsSQL: the counts of the member's listed
 // events, their keys, and flowChannelKeysLocked's lines in the keys only.
-func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent, now time.Time, lobby string) (counts, unread FlowCounts, keys map[string]int) {
+func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent, now time.Time, lobby string, hidden []string) (counts, unread FlowCounts, keys map[string]int) {
 	seen, hasSeen := s.readMarks[[3]string{tenant, member, FlowSeenKey}]
 	keys = map[string]int{}
 	for _, ev := range all {
@@ -463,19 +474,20 @@ func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent, now ti
 	if hasSeen {
 		counts.Release = s.flowReleaseDaysAfter(tenant, seen.At)
 	}
-	s.flowChannelKeysLocked(tenant, member, keys, now, lobby)
+	s.flowChannelKeysLocked(tenant, member, keys, now, lobby, hidden)
 	return counts, unread, keys
 }
 
 // flowChannelKeysLocked adds to keys the unread channel lines of a human
 // member that have no flow event of theirs, as flowChannelKeysSQL (SPL-2837):
 // a channel row and its cards count every line the channel view counts.
-func (s *Memory) flowChannelKeysLocked(tenant, member string, keys map[string]int, now time.Time, lobby string) {
+func (s *Memory) flowChannelKeysLocked(tenant, member string, keys map[string]int, now time.Time, lobby string, hidden []string) {
 	if !IsFlowMember(member) {
 		return
 	}
 	for k, m := range s.messages {
-		if k[0] != tenant || m.Channel == "" || ChannelHidden(m.Channel) || !now.Before(m.ExpiresAt) || m.FromID == member || m.TypedBy == member {
+		if k[0] != tenant || m.Channel == "" || ChannelHidden(m.Channel) || !now.Before(m.ExpiresAt) || m.FromID == member || m.TypedBy == member ||
+			flowHidden(hidden, m.FromBox, m.ToBox) {
 			continue
 		}
 		if _, ok := s.flowEvents[[3]string{tenant, member, m.MsgID}]; ok {
@@ -512,9 +524,9 @@ func flowKindMatch(filter, kind string) bool {
 func (s *Memory) FlowRead(_ context.Context, q FlowQuery) (FlowPage, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all := s.flowListLocked(q.Tenant, q.Member, q.Now, q.Lobby)
+	all := s.flowListLocked(q.Tenant, q.Member, q.Now, q.Lobby, q.Hidden)
 	var p FlowPage
-	p.Counts, p.Unread, p.Keys = s.flowCountsLocked(q.Tenant, q.Member, all, q.Now, q.Lobby)
+	p.Counts, p.Unread, p.Keys = s.flowCountsLocked(q.Tenant, q.Member, all, q.Now, q.Lobby, q.Hidden)
 	for _, ev := range all {
 		if q.Limit == 0 {
 			break
@@ -545,7 +557,7 @@ func (s *Memory) FlowFanout(_ context.Context, tenant, msgID string, members []s
 		if !ok {
 			continue
 		}
-		c, u, keys := s.flowCountsLocked(tenant, member, s.flowListLocked(tenant, member, now, lobby), now, lobby)
+		c, u, keys := s.flowCountsLocked(tenant, member, s.flowListLocked(tenant, member, now, lobby, nil), now, lobby, nil)
 		out[member] = FlowPush{Event: ev, Counts: c, Unread: u, Keys: keys}
 	}
 	return out, nil

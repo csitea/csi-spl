@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Explore Release Notes Easily"
 summary: "Track the 30 latest changes and updates inside the application with the new Release notes dialog."
+share_text: "What changed in Spool this week? The 30 latest updates, one click away inside the app."
 date: 2026-10-09
 published: 2026-10-09T14:38:00Z
 author: a-686

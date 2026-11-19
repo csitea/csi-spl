@@ -861,7 +861,7 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 
 ## 11. Event tags with colours (SPL-5883)
 
-Status: **decided, for the spec review**, v1.1, 2026-11-19: the owner
+Status: **decided, for the spec review**, v1.2, 2026-11-19: the owner
 answered O1, O2, O3, O5 and O6 (msg `cde26d3f`, poll `c15f11e0`; 11.12).
 Issue SPL-5883, epic SPL-2403. Discussion: t1 `f5778b9f` (#spool-hub-ui).
 
@@ -967,8 +967,6 @@ CREATE POLICY operator_scope ON calendar_tags
 -- the event's tags, IN ORDER: tag_ids[1] is the first tag, the one the stripe shows
 ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS tag_ids text[] NOT NULL DEFAULT '{}'
     CHECK (cardinality(tag_ids) <= 10);
-CREATE INDEX IF NOT EXISTS calendar_events_tags ON calendar_events USING gin (tag_ids)
-    WHERE cardinality(tag_ids) > 0;
 ```
 
 - **The order is the array's order.** `tag_ids[1]` is the first tag. The
@@ -977,7 +975,14 @@ CREATE INDEX IF NOT EXISTS calendar_events_tags ON calendar_events USING gin (ta
   range read (up to 2000 occurrences, 4.4); an ordered `text[]` is the form
   `mentions` (0125) and `issue_keys` (0247) already use.
 - **A column, not `props`.** Tags are filtered in SQL (11.8), so by 3's rule
-  (098's promotion rule) they are a column with an index, not a `props` key.
+  (098's promotion rule) they are a column, not a `props` key.
+- **No `tag_ids` index in T1** (v1.2, R7 finding W1 of c-318, decision (a)
+  of c-001 msg `7f1d9e7b`). A GIN on `tag_ids` cannot serve `tag_ids @> $1`:
+  `calendar_events` forces RLS and `arraycontains` is not LEAKPROOF, so the
+  planner keeps `@>` in the heap Filter, never in the Index Cond (the rdb
+  0081 lesson). Row T6 adds any index together with the access path that can
+  use it (e.g. a SECURITY DEFINER door, as 0143), in its own migration, with
+  an EXPLAIN under FORCE RLS as its proof.
 - **Integrity.** An array has no foreign key. The hub checks on every write
   that each id is a tag of the event's workspace (else `400 unknown_tag`),
   as it does for issue labels (`0047:59`). A tag delete strips the id from
@@ -1050,8 +1055,9 @@ an id of another workspace is `404`. Unknown body fields are refused
 the pseudo id `none`:
 
 - **all, not any** (O2 = B, owner msg `cde26d3f`): an event matches when it
-  carries **every** chosen id, `tag_ids @> $1` (array contains; the GIN
-  index of 11.3 serves `@>` as it serves `&&`). Two tags chosen narrow the
+  carries **every** chosen id, `tag_ids @> $1` (array contains; T1 has
+  no index for it, and T6 brings one only with an access path that uses it,
+  11.3). Two tags chosen narrow the
   calendar, they never widen it;
 - `none` matches an event with no tag (`cardinality(tag_ids) = 0`) and is
   **only valid alone**: `tags=none,<id>` is `400 bad_tags_filter`. Why: under
@@ -1330,6 +1336,7 @@ table's rows in order.
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v1.2 | 2026-11-19 | c-852 | Section 11.3: no `tag_ids` index in T1 (R7 finding W1 of c-318 on T1: under FORCE RLS a non-LEAKPROOF `@>` never reaches a GIN's Index Cond; decision (a) of c-001, msg `7f1d9e7b`); T6 adds any index with the access path that can use it, in its own migration, proved by an EXPLAIN under FORCE RLS. 11.4.3 points to it. SPL-5945. |
 | v1.1 | 2026-11-19 | c-836 | Section 11: the owner's answers (msg `cde26d3f`, poll `c15f11e0`) written in. O1 A: any member who writes events creates tags, delete stays admin-only (11.5). O2 B: the filter matches events with ALL chosen tags (`@>`), `none` only alone, unknown ids dropped (11.4.3, 11.8); T6's test and red control flipped. O3 A: To-do filters by issue labels, also "all" (`label_match=all`, new T17). O5 B: the filter is also remembered per member and workspace in `tenant_memberships.settings` (rdb 0078, no new table), the link wins, Clear forgets, deleted tags pruned (11.8.2, measured on `86572482f`; new T16, T12 grows). O6 A: later row T15, the first tag's colour as Google `colorId`. 11.12 is now "Owner answers". SPL-5883. |
 | v1.0 | 2026-11-19 | c-702 | Section 11: event tags with colours per workspace (own `calendar_tags` table, not issue labels, and why), ordered `tag_ids` on the event (the first tag sets the 5 px stripe), the tags API and the one write allowed on a synced event, the tag manager and its permissions, the editor's picker, chips in every view, the filter in every view (`tags` in the URL; To-do filters by issue labels), imports keep tags, build rows T1..T14, owner questions O1, O2, O3, O5, O6 (O4 dropped: DECIDED by the owner, msg `62e387eb`, 11.7). Review fixes W1..W5 of m-707. SPL-5883. |
 | v0.9 | 2026-11-16 | c-647 | An agent changes or deletes a private entry an agent made for a member (`ordered_by` in its mentions), never a person's own or another person's (4.10, rule marked owner may change); operator PATCH takes title, description, times and reminders; `do_spl_calendar_event_update`. SPL-5720. |

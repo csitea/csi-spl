@@ -13,6 +13,9 @@
 --                            An array has no foreign key: the hub checks every
 --                            id against the workspace's catalogue on write,
 --                            and a tag delete strips it from every event.
+--                            No index on it here (spec 11.3 v1.2): under
+--                            FORCE RLS a GIN cannot serve @>; row T6 brings
+--                            an index only with an access path that uses it.
 --
 -- RLS: tenant_scope and operator_scope, the pattern of every tenant table.
 -- The 0125 policies on calendar_events cover the new column.
@@ -50,5 +53,3 @@ CREATE POLICY operator_scope ON calendar_tags
 
 ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS tag_ids text[] NOT NULL DEFAULT '{}'
     CHECK (cardinality(tag_ids) <= 10);
-CREATE INDEX IF NOT EXISTS calendar_events_tags ON calendar_events USING gin (tag_ids)
-    WHERE cardinality(tag_ids) > 0;

@@ -6,7 +6,8 @@
   - `git merge-base --is-ancestor cb56a8993 origin/master` → exit 0 (the base is on origin/master; origin/master has since moved to `f80db0b81`, `cb56a8993` remains an ancestor of it).
   - `git merge-base --is-ancestor cb56a8993 8575f2eeece57ed33b5c72ccde310010dda93fae` → exit 0.
   - `git diff --numstat cb56a8993 8575f2eeece57ed33b5c72ccde310010dda93fae` printed `98 24 csi-spl-doc/specs/107-hours-tracking/spec.md` and `17 5 csi-spl-doc/specs/107-hours-tracking/tasks.md` — matches the author's "+98 -24, +17 -5, 2 files".
-- **Verdict: FAIL** (one defect, W1). Every other check below passes.
+- **Verdict: FAIL** on `8575f2eee` (one defect, W1). Every other check below passes.
+- Re-review on the author's fix head `57c2a8f709e62f79a517ec1ca41c17cf19482bab`: **PASS** — see "Re-review on 57c2a8f70" at the end of this file.
 
 ## Check 1 — owner answers Q30..Q33 folded
 
@@ -99,3 +100,24 @@ Yes, it is a real owner decision, answerable A or B without reading the spec: un
 ## Verdict
 
 **FAIL** on `8575f2eeece57ed33b5c72ccde310010dda93fae` — W1. Everything else checked passes: Q32 = B reads B in every place the author lists, the code cites are true on `cb56a8993`, the cut rows carry files/test/red control with T089 required before T082, tasks.md T007/T044/T066 and the v2.12 cut list match the spec, and distribution hygiene is clean.
+
+## Re-review on 57c2a8f709e62f79a517ec1ca41c17cf19482bab (2026-11-19, after the author's fix)
+
+- `git ls-remote origin review/c002-spl5886-spec107-v212` printed `57c2a8f709e62f79a517ec1ca41c17cf19482bab`; `git log -1 --format='%H %P'` printed parent `8575f2eeece57ed33b5c72ccde310010dda93fae` — a fast-forward, no force.
+- `git diff --numstat 8575f2eee 57c2a8f70` printed `3 3 spec.md`, `2 2 tasks.md` (2 files, +5/-5), matching the holder's quote and the author's report `59aa106d`. The whole fix diff (53 lines) contains only the four fixes below — nothing else changed, so every check 1..6 result on `8575f2eee` carries over unchanged.
+
+Re-checks, each cite read with `git show 57c2a8f70:<file> | sed -n <N>p`:
+
+- **W1 — fixed.** tasks.md:131 (T026) opens with "**v2.12, owner Q30 = A (spec FR-14, 23.8): drop `hours.standard_day_minutes` and the person's standard-day override with its weekday pattern from this row; the standard day is FR-41's `hours.norm_day_minutes` and FR-41a's `hours_norm_day_minutes`, already built. The other keys and the overtime override stay; the row is re-sized when it is next queued.**"; tasks.md:143 (T070) strikes "~~standard day or weekday pattern~~" with "v2.12 Q30 = A: dropped, the person's value is FR-41a's, set on the People card". Both rows now say they lose the standard-day setting, as spec 23.8:1496 claims.
+- **N1 — fixed.** spec.md:722 (section 14.13) strikes "~~`hours_standard_days` (member overrides with their effective date, FR-14)~~ (v2.12, Q30 = A: dropped, the person's value is FR-41a's membership setting)".
+- **N3 — fixed.** spec.md:641 (FR-14) is rewritten to read one way: "**Standard day, per organisation and per person: one value each** (v2.12, owner Q30 = A …)"; the organisation's value is FR-41's `hours.norm_day_minutes`, the person's is FR-41a's `hours_norm_day_minutes`, "There is no other standard-day key and no second per-person setting (no Crew-tab override)"; the old 098-key mechanism text is gone from the row.
+- **N2 — fixed.** spec.md:1470 (T088 brief) now ends "Red control: run it once against a tree without T082 (or a member with allocation 0): the five-prefilled-days step must fail."
+- **Nothing else added**: the `8575f2eee`→`57c2a8f70` diff touches only spec.md:641, spec.md:722, spec.md:1470, tasks.md:131, tasks.md:143.
+
+New note:
+
+- N5 — `git show 57c2a8f70:…spec.md | grep -n -o '.\{80\}hours\.standard_day_minutes.\{80\}'` hits spec.md:722 in the **unstruck** "New registered keys:" list on the same line as the struck table, and the same grep on tasks.md hits tasks.md:131 three times (the bold drop note, the register list "`hours.standard_day_minutes` (480, 0..1440)", and the red test "After: 450 accepted"). So the author's reports `59aa106d`/`60108cc9` ("grep hits only the struck lines") are not accurate: the key name survives unstruck in the 14.13 sketch key list and in T026's not-yet-resized body. Non-normative (14.13 is a "sketch, for the tasks round"; FR-14 is the authority and T026's note says the row is re-sized when queued), so a note, not a defect.
+
+## Re-review verdict
+
+**PASS** on `57c2a8f709e62f79a517ec1ca41c17cf19482bab` — W1, N1, N2, N3 fixed, the fix adds nothing else, N5 recorded.

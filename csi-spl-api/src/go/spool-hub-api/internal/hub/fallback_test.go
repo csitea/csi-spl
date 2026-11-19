@@ -367,7 +367,7 @@ func TestEscalateMovedPostDeliversTheTopicItLivesIn(t *testing.T) {
 	target := "4a31aa83-81f2-4864-9801-d6775c6fa920"
 	threadFrame(t, ws, m1, task, "staffed", 1, "this belongs in the other topic")
 	eventually(t, "GRK-36 got it the ordinary way", func() bool { return strings.Join(inboxIDs(t, b, "GRK-36"), ",") == m1 })
-	if _, err := e.st.(store.TopicMerge).MergeTopic(ctx, tid, m1, task, target, "staffed", human, time.Now()); err != nil {
+	if _, err := e.st.(store.TopicMerge).MergeTopic(ctx, tid, store.MergeTopicReq{SrcMsgID: m1, SrcTask: task, TargetTask: target, ToChannel: "staffed", By: human, At: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	posts, err := e.st.(store.Fallbacks).UnansweredPosts(ctx, tid, time.Now().Add(-time.Hour), time.Now().Add(time.Hour), 20)

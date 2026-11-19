@@ -320,13 +320,13 @@ func headCases() []headCase {
 			return ""
 		}},
 		{id: "E10", what: "merge topic B into A", apply: func(f *headFix) {
-			_, err := f.pg.MergeTopic(ctx, f.tn, f.msg["b0"], f.task["B"], f.task["A"], ChannelLobby, "HUM-1", f.t0)
+			_, err := f.pg.MergeTopic(ctx, f.tn, MergeTopicReq{SrcMsgID: f.msg["b0"], SrcTask: f.task["B"], TargetTask: f.task["A"], ToChannel: ChannelLobby, By: "HUM-1", At: f.t0})
 			f.must("merge", err)
 		}, expect: func(f *headFix, r map[string]TopicRow) string {
 			return firstOf(countIs(f, r, "A", 5), absent(f, r, "B"))
 		}},
 		{id: "E11", what: "merge then unmerge", apply: func(f *headFix) {
-			res, err := f.pg.MergeTopic(ctx, f.tn, f.msg["b0"], f.task["B"], f.task["A"], ChannelLobby, "HUM-1", f.t0)
+			res, err := f.pg.MergeTopic(ctx, f.tn, MergeTopicReq{SrcMsgID: f.msg["b0"], SrcTask: f.task["B"], TargetTask: f.task["A"], ToChannel: ChannelLobby, By: "HUM-1", At: f.t0})
 			f.must("merge", err)
 			f.must("unmerge", f.pg.UnmergeTopic(ctx, f.tn, f.msg["b0"], res.MsgIDs))
 		}, expect: func(f *headFix, r map[string]TopicRow) string {
@@ -564,7 +564,7 @@ func headCasesT001b() []headCase {
 			f.must("unarchive channel", errOf(f.pg.UnarchiveChannel(ctx, f.tn, "crew", "HUM-1")))
 		}, expect: func(f *headFix, r map[string]TopicRow) string { return countIs(f, r, "B", 2) }},
 		{id: "E38", what: "a topic that has a child is merged", apply: func(f *headFix) {
-			_, err := f.pg.MergeTopic(ctx, f.tn, f.msg["a0"], f.task["A"], f.task["B"], "crew", "HUM-1", f.t0)
+			_, err := f.pg.MergeTopic(ctx, f.tn, MergeTopicReq{SrcMsgID: f.msg["a0"], SrcTask: f.task["A"], TargetTask: f.task["B"], ToChannel: "crew", By: "HUM-1", At: f.t0})
 			f.must("merge", err)
 			f.parent = f.task["B"] // parent= now names the child's new parent
 		}, expect: func(f *headFix, r map[string]TopicRow) string {

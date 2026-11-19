@@ -332,7 +332,7 @@ func TestCrossTenantTopicHeads(t *testing.T) {
 	_, _ = pg.SetArchived(ctx, f2.tn, f1.msg["a0"], "HUM-1", t0, true)
 	_ = pg.DeleteMessage(ctx, f2.tn, f1.msg["a1"])
 	_, _ = pg.DeleteTopic(ctx, f2.tn, f1.msg["b0"], f1.task["B"], "HUM-1", time.Now())
-	_, _ = pg.MergeTopic(ctx, f2.tn, f1.task["A"], f1.task["A"], f1.task["D"], ChannelLobby, "HUM-1", t0)
+	_, _ = pg.MergeTopic(ctx, f2.tn, MergeTopicReq{SrcMsgID: f1.task["A"], SrcTask: f1.task["A"], TargetTask: f1.task["D"], ToChannel: ChannelLobby, By: "HUM-1", At: t0})
 	if after := headRevs(f1); fmt.Sprint(after) != fmt.Sprint(before) {
 		t.Fatalf("writes under %s moved %s's heads:\n before %v\n after  %v", f2.tn, f1.tn, before, after)
 	}

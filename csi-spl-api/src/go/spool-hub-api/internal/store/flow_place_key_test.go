@@ -147,7 +147,7 @@ func TestFlowPlaceKey0137(t *testing.T) {
 	}
 
 	// Merge T (the card and its remaining reply) into U in feedback.
-	if _, err := pg.MergeTopic(ctx, tid, c.MsgID, T, U, "feedback", "HUM-1", base.Add(40*time.Second)); err != nil {
+	if _, err := pg.MergeTopic(ctx, tid, MergeTopicReq{SrcMsgID: c.MsgID, SrcTask: T, TargetTask: U, ToChannel: "feedback", By: "HUM-1", At: base.Add(40 * time.Second)}); err != nil {
 		t.Fatal(err)
 	}
 	check("merge")

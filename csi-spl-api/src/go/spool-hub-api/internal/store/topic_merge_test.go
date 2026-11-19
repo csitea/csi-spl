@@ -66,15 +66,15 @@ func TestMergeTopic(t *testing.T) {
 			du := put(U, "", "ops", 0, 6)         // and a reply in it
 
 			// Merge a topic into itself or into a task inside it is refused.
-			if _, err := s.MergeTopic(ctx, tid, c.MsgID, T, r1.MsgID, "ops", "HUM-1", at(20)); !errors.Is(err, ErrMergeCycle) {
+			if _, err := s.MergeTopic(ctx, tid, MergeTopicReq{SrcMsgID: c.MsgID, SrcTask: T, TargetTask: r1.MsgID, ToChannel: "ops", By: "HUM-1", At: at(20)}); !errors.Is(err, ErrMergeCycle) {
 				t.Fatalf("merge into its own thread: %v", err)
 			}
-			if _, err := s.MergeTopic(ctx, tid, uuid4(), T, U, "ops", "HUM-1", at(20)); !errors.Is(err, ErrNotFound) {
+			if _, err := s.MergeTopic(ctx, tid, MergeTopicReq{SrcMsgID: uuid4(), SrcTask: T, TargetTask: U, ToChannel: "ops", By: "HUM-1", At: at(20)}); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("unknown source card: %v", err)
 			}
 
 			// Merge T into U.
-			res, err := s.MergeTopic(ctx, tid, c.MsgID, T, U, "ops", "HUM-1", at(20))
+			res, err := s.MergeTopic(ctx, tid, MergeTopicReq{SrcMsgID: c.MsgID, SrcTask: T, TargetTask: U, ToChannel: "ops", By: "HUM-1", At: at(20)})
 			if err != nil || len(res.MsgIDs) != 5 || res.MsgIDs[0] != c.MsgID || !res.At.Equal(c.ReceivedAt) {
 				t.Fatalf("merge: %+v %v", res, err)
 			}
@@ -155,7 +155,7 @@ func TestMergeTopic(t *testing.T) {
 			}
 
 			// Another tenant sees nothing.
-			if _, err := s.MergeTopic(ctx, newTenant(t, s), c.MsgID, T, U, "ops", "HUM-1", at(50)); !errors.Is(err, ErrNotFound) {
+			if _, err := s.MergeTopic(ctx, newTenant(t, s), MergeTopicReq{SrcMsgID: c.MsgID, SrcTask: T, TargetTask: U, ToChannel: "ops", By: "HUM-1", At: at(50)}); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("another tenant's card: %v", err)
 			}
 		})

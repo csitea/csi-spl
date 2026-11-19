@@ -396,7 +396,7 @@ func (r *headRand) opMerge() error {
 		return errors.New("same topic")
 	}
 	ctx := context.Background()
-	res, err := r.f.pg.MergeTopic(ctx, r.f.tn, r.f.task[src], r.f.task[src], r.f.task[dst], ch, "HUM-1", r.f.t0)
+	res, err := r.f.pg.MergeTopic(ctx, r.f.tn, MergeTopicReq{SrcMsgID: r.f.task[src], SrcTask: r.f.task[src], TargetTask: r.f.task[dst], ToChannel: ch, By: "HUM-1", At: r.f.t0})
 	if err != nil || !undo {
 		return err
 	}

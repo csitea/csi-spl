@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -27,18 +26,18 @@ const mergeMark = `UPDATE messages SET
 		channel = $3, moved_at = $4, moved_by = $5
 	WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[])`
 
-func (s *Postgres) MergeTopic(ctx context.Context, tenant, srcMsgID, srcTask, targetTask, toChannel, by string, at time.Time) (MergeResult, error) {
-	if !canonUUIDRe.MatchString(srcMsgID) || !canonUUIDRe.MatchString(srcTask) || !canonUUIDRe.MatchString(targetTask) {
+func (s *Postgres) MergeTopic(ctx context.Context, tenant string, r MergeTopicReq) (MergeResult, error) {
+	if !canonUUIDRe.MatchString(r.SrcMsgID) || !canonUUIDRe.MatchString(r.SrcTask) || !canonUUIDRe.MatchString(r.TargetTask) {
 		return MergeResult{}, ErrNotFound
 	}
 	var res MergeResult
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		set, err := topicTx(ctx, tx, tenant, srcMsgID, srcTask) // locks the source card FOR UPDATE
+		set, err := topicTx(ctx, tx, tenant, r.SrcMsgID, r.SrcTask) // locks the source card FOR UPDATE
 		if err != nil {
 			return err
 		}
 		for _, tk := range set.TaskIDs {
-			if tk == targetTask {
+			if tk == r.TargetTask {
 				return ErrMergeCycle
 			}
 		}
@@ -53,16 +52,16 @@ func (s *Postgres) MergeTopic(ctx context.Context, tenant, srcMsgID, srcTask, ta
 				moved_from_task   = COALESCE(moved_from_task, task_id)
 			WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[])
 			  AND (task_id = $3::uuid OR parent_task_id = $3::uuid)`,
-			tenant, set.MsgIDs, srcTask)
+			tenant, set.MsgIDs, r.SrcTask)
 		b.Queue(`UPDATE messages SET task_id = $4::uuid, parent_task_id = NULL, is_parent = 0
 			WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[]) AND task_id = $3::uuid`,
-			tenant, set.MsgIDs, srcTask, targetTask)
+			tenant, set.MsgIDs, r.SrcTask, r.TargetTask)
 		b.Queue(`UPDATE messages SET parent_task_id = $4::uuid
 			WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[]) AND task_id <> $3::uuid AND parent_task_id = $3::uuid`,
-			tenant, set.MsgIDs, srcTask, targetTask)
-		b.Queue(mergeMark, tenant, set.MsgIDs, toChannel, at, by)
+			tenant, set.MsgIDs, r.SrcTask, r.TargetTask)
+		b.Queue(mergeMark, tenant, set.MsgIDs, r.ToChannel, r.At, r.By)
 		b.Queue(clearHome, tenant, set.MsgIDs)
-		b.Queue(`SELECT received_at FROM messages WHERE tenant_id = $1 AND msg_id = $2`, tenant, srcMsgID)
+		b.Queue(`SELECT received_at FROM messages WHERE tenant_id = $1 AND msg_id = $2`, tenant, r.SrcMsgID)
 		br := tx.SendBatch(ctx, b)
 		defer br.Close()
 		for i := 1; i < b.Len(); i++ {

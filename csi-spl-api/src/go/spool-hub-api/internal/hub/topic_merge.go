@@ -105,7 +105,7 @@ func (s *Server) mergeTopic(w http.ResponseWriter, r *http.Request, mr moveRow, 
 		return
 	}
 	at := now.UTC().Truncate(time.Second)
-	res, err := s.o.Store.MergeTopic(r.Context(), c.t.ID, c.m.MsgID, c.m.TaskID, task, card.Channel, c.from, at)
+	res, err := s.o.Store.MergeTopic(r.Context(), c.t.ID, store.MergeTopicReq{SrcMsgID: c.m.MsgID, SrcTask: c.m.TaskID, TargetTask: task, ToChannel: card.Channel, By: c.from, At: at})
 	if errors.Is(err, store.ErrMergeCycle) {
 		writeRefusal(w, "cycle")
 		return

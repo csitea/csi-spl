@@ -132,7 +132,7 @@ func TestWriteBatchRoundTrips(t *testing.T) {
 			put(uuid4(), S, 1, 2)
 			put(T, "", 1, 3)
 			return func() error {
-				_, err := pg.MergeTopic(ctx, tid, c.MsgID, S, T, "devel", "HUM-1", now)
+				_, err := pg.MergeTopic(ctx, tid, MergeTopicReq{SrcMsgID: c.MsgID, SrcTask: S, TargetTask: T, ToChannel: "devel", By: "HUM-1", At: now})
 				return err
 			}
 		}},

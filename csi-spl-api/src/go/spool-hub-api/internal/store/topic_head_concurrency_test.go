@@ -187,7 +187,7 @@ func TestTopicHeadRaceInsertVsMerge(t *testing.T) {
 			_, err := insertAll(pg, lines)
 			return err
 		}, func() (err error) {
-			res, err = pg.MergeTopic(ctx, f.tn, f.task["A"], f.task["A"], f.task["B"], ChannelLobby, "HUM-1", f.t0)
+			res, err = pg.MergeTopic(ctx, f.tn, MergeTopicReq{SrcMsgID: f.task["A"], SrcTask: f.task["A"], TargetTask: f.task["B"], ToChannel: ChannelLobby, By: "HUM-1", At: f.t0})
 			return err
 		})
 		if e1 != nil || e2 != nil {
@@ -220,7 +220,7 @@ func TestTopicHeadRaceCrossMerge(t *testing.T) {
 		}
 		merge := func(src, dst string) func() error {
 			return func() error {
-				_, err := pg.MergeTopic(ctx, f.tn, f.task[src], f.task[src], f.task[dst], ChannelLobby, "HUM-1", f.t0)
+				_, err := pg.MergeTopic(ctx, f.tn, MergeTopicReq{SrcMsgID: f.task[src], SrcTask: f.task[src], TargetTask: f.task[dst], ToChannel: ChannelLobby, By: "HUM-1", At: f.t0})
 				return err
 			}
 		}

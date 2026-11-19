@@ -555,7 +555,7 @@ func TestTopicHeadRaceMirroredVsMerge(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			_, errs[1] = pg.MergeTopic(ctx, f.tn, f.msg[strings.ToLower(src)+"0"], f.task[src], f.task[dst], ChannelLobby, "HUM-1", f.t0)
+			_, errs[1] = pg.MergeTopic(ctx, f.tn, MergeTopicReq{SrcMsgID: f.msg[strings.ToLower(src)+"0"], SrcTask: f.task[src], TargetTask: f.task[dst], ToChannel: ChannelLobby, By: "HUM-1", At: f.t0})
 		}()
 		close(start)
 		wg.Wait()

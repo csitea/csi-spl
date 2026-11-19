@@ -33,13 +33,21 @@ type MergeResult struct {
 	At      time.Time // the source opener's received_at (unchanged by the merge)
 }
 
+// MergeTopicReq is one MergeTopic call: fold SrcMsgID's whole topic (its own
+// task SrcTask) into TargetTask, re-channel every moved row to ToChannel and
+// stamp the move columns with By and At.
+type MergeTopicReq struct {
+	SrcMsgID, SrcTask, TargetTask, ToChannel, By string
+	At                                           time.Time
+}
+
 // TopicMerge is the merge half of the store contract (714c7028).
 type TopicMerge interface {
-	// MergeTopic folds srcMsgID's whole topic (its own task srcTask) into
-	// targetTask in ONE transaction, re-channelling every moved row to
-	// toChannel and stamping the move columns. ErrNotFound when the source
-	// card is gone, ErrMergeCycle when targetTask is inside the source topic.
-	MergeTopic(ctx context.Context, tenantID, srcMsgID, srcTask, targetTask, toChannel, by string, at time.Time) (MergeResult, error)
+	// MergeTopic folds r.SrcMsgID's whole topic (its own task r.SrcTask) into
+	// r.TargetTask in ONE transaction, re-channelling every moved row to
+	// r.ToChannel and stamping the move columns. ErrNotFound when the source
+	// card is gone, ErrMergeCycle when r.TargetTask is inside the source topic.
+	MergeTopic(ctx context.Context, tenantID string, r MergeTopicReq) (MergeResult, error)
 	// UnmergeTopic reverses a merge: it takes msgIDs (the set MergeTopic
 	// returned) back home from the move columns, clears the marks and re-seats
 	// srcMsgID as its topic's card (is_parent 1). A best-effort undo: a row
@@ -52,18 +60,18 @@ type TopicMerge interface {
 
 // ---- Memory driver -----------------------------------------------------------
 
-func (s *Memory) MergeTopic(_ context.Context, tenant, srcMsgID, srcTask, targetTask, toChannel, by string, at time.Time) (MergeResult, error) {
+func (s *Memory) MergeTopic(_ context.Context, tenant string, r MergeTopicReq) (MergeResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.messages[[2]string{tenant, srcMsgID}]; !ok {
+	if _, ok := s.messages[[2]string{tenant, r.SrcMsgID}]; !ok {
 		return MergeResult{}, ErrNotFound
 	}
-	set, err := s.topicLocked(tenant, srcMsgID, srcTask)
+	set, err := s.topicLocked(tenant, r.SrcMsgID, r.SrcTask)
 	if err != nil {
 		return MergeResult{}, err
 	}
 	for _, tk := range set.TaskIDs {
-		if tk == targetTask {
+		if tk == r.TargetTask {
 			return MergeResult{}, ErrMergeCycle
 		}
 	}
@@ -77,17 +85,17 @@ func (s *Memory) MergeTopic(_ context.Context, tenant, srcMsgID, srcTask, target
 	for _, id := range set.MsgIDs {
 		m := s.messages[[2]string{tenant, id}]
 		switch {
-		case m.TaskID == srcTask: // a top-level row of the source topic
+		case m.TaskID == r.SrcTask: // a top-level row of the source topic
 			recordHome(m)
-			m.TaskID, m.ParentTaskID, m.IsParent = targetTask, "", 0
-		case m.ParentTaskID == srcTask: // a sub-thread / sub-task hung off the source task
+			m.TaskID, m.ParentTaskID, m.IsParent = r.TargetTask, "", 0
+		case m.ParentTaskID == r.SrcTask: // a sub-thread / sub-task hung off the source task
 			recordHome(m)
-			m.ParentTaskID = targetTask
+			m.ParentTaskID = r.TargetTask
 		}
-		markRow(m, toChannel, by, at, false)
+		markRow(m, r.ToChannel, r.By, r.At, false)
 	}
 	s.anyMoved = true
-	opener := s.messages[[2]string{tenant, srcMsgID}]
+	opener := s.messages[[2]string{tenant, r.SrcMsgID}]
 	return MergeResult{MsgIDs: set.MsgIDs, TaskIDs: set.TaskIDs, At: opener.ReceivedAt}, nil
 }
 

@@ -776,7 +776,8 @@
         "calendar": "Add to calendar",
         "failed": "The AI action did not go through. Try again."
       },
-      "add_to_note": "Add to note"
+      "add_to_note": "Add to note",
+      "export_pdf": "Export to PDF"
     },
     "emoji": {
       "add": "Add emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Topic",
     "open": "Open",
+    "export_pdf": "Export topic to PDF",
     "empty": "Empty topic.",
     "reply_placeholder": "Reply — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to filter",
     "reply_placeholder_enter": "Reply — Enter sends · Shift+Enter adds a line · /search to filter",

@@ -30,6 +30,7 @@
       <div class="topic-head__row2" data-test="topic-head-row2">
         <div v-if="topic.parentTaskId" class="prio-slot"><LazyTopicPriorityChooser :task-id="topic.parentTaskId" /></div>
         <span class="clip-slot"><LazyCardClipControl pane="thread" /></span>
+        <span class="pdf-slot"><LazyTopicExportPdf :title="titleText || t('topic.title')" :rows="exportRows" /></span>
       </div>
     </header>
     <!-- Topic c6994436: newest last puts the new-topic cards under the feed,
@@ -125,6 +126,8 @@ const paneRows = computed(() => {
 const messages = computed(() => newestFirst(paneRows.value.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[])
 /* SPL-1637: a ```poll form in this topic reads its answers from these replies */
 provide(POLL_ROWS, () => paneRows.value)
+/* SPL-5888: Export topic to PDF prints the cards shown, matched among these */
+const exportRows = () => [oldestRow.value, topic.rootMsg, ...messages.value]
 /* HUM-10: the topic's latest message offers Archive topic, a search or not */
 const latestId = computed(() => latestMessageId(paneRows.value))
 /* The open topic's own title, selected at the top of this pane. */

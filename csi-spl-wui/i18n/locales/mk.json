@@ -776,7 +776,8 @@
         "calendar": "Додај во календар",
         "failed": "AI дејството не успеа. Обидете се повторно."
       },
-      "add_to_note": "Додај во белешка"
+      "add_to_note": "Додај во белешка",
+      "export_pdf": "Извези во PDF"
     },
     "emoji": {
       "add": "Додај емоџи",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Тема",
     "open": "Отвори",
+    "export_pdf": "Извези ја темата во PDF",
     "empty": "Празна тема.",
     "reply_placeholder": "Одговор — Enter за нов ред · Ctrl+Enter или Cmd+Enter за испраќање · /search за филтрирање",
     "reply_placeholder_enter": "Одговор — Enter испраќа · Shift+Enter додава ред · /search за филтрирање",

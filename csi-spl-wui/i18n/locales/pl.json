@@ -776,7 +776,8 @@
         "calendar": "Dodaj do kalendarza",
         "failed": "Akcja AI nie powiodła się. Spróbuj ponownie."
       },
-      "add_to_note": "Dodaj do notatki"
+      "add_to_note": "Dodaj do notatki",
+      "export_pdf": "Eksportuj do PDF"
     },
     "emoji": {
       "add": "Dodaj emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Temat",
     "open": "Otwórz",
+    "export_pdf": "Eksportuj temat do PDF",
     "empty": "Pusty temat.",
     "reply_placeholder": "Odpowiedz — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search, aby filtrować",
     "reply_placeholder_enter": "Odpowiedz — Enter wysyła · Shift+Enter dodaje wiersz · /search, aby filtrować",

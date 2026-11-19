@@ -2,7 +2,7 @@
  * MessageCard's menu items that go somewhere (r13-01): Open, Reply, Open
  * parent section, Kind, and the two copies.
  */
-import { computed, nextTick, type Ref } from 'vue'
+import { computed, getCurrentInstance, nextTick, type Ref } from 'vue'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import { dmPeerOf } from '~/utils/channel-feed.mjs'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
@@ -10,6 +10,8 @@ import { threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useTopicStore } from '~/stores/topic'
+import { cardTitle } from '~/utils/card-clip.mjs'
 import type { CardMenu } from '~/composables/useCardReactions'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -107,4 +109,27 @@ export function useCardMenuActions(props: MenuProps, viewerId: Ref<string>, rowE
     void nextTick(() => rowEl.value?.querySelector<HTMLElement>('[data-testid="kind-badge-btn"]')?.click())
   }
   return { ...useCardParent(props, viewerId, menu), ...useCardCopy(props), onMenuOpen, onMenuReply, onMenuKind }
+}
+
+/*
+ * SPL-5888 (owner HUM-10, t1 703f2ce5 msg 922da756; spec 005 FR-020): Export
+ * to PDF, this card alone with its pictures. The render and the print load on
+ * the click (utils/msg-print-run.ts), never with the card. The file is named
+ * after the topic: a reply in the open topic takes the topic's root card's
+ * title, any other card (a topic card is its topic) its own.
+ */
+export function useCardExportPdf(props: MenuProps, title: Ref<string>) {
+  const appContext = getCurrentInstance()?.appContext ?? null
+  const api = useSpoolApi()
+  const topic = useTopicStore()
+  function topicTitle() {
+    const root = topic.rootMsg
+    const task = String(props.msg.task_id || '')
+    if (root && task && String(root.task_id || '') === task) return cardTitle(String(root.body || '')) || title.value
+    return title.value
+  }
+  return async function onExportPdf() {
+    const { printMessages } = await import('~/utils/msg-print-run')
+    await printMessages({ rows: [props.msg], title: topicTitle(), msgId: String(props.msg.msg_id || ''), appContext, api })
+  }
 }

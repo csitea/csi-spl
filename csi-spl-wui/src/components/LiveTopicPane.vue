@@ -30,6 +30,7 @@
       <div class="topic-head__row2" data-test="topic-head-row2">
         <div v-if="pane.taskId" class="prio-slot"><LazyTopicPriorityChooser :task-id="pane.taskId" /></div>
         <span class="clip-slot"><LazyCardClipControl pane="thread" /></span>
+        <span class="pdf-slot"><LazyTopicExportPdf :title="titleText || t('topic.title')" :rows="exportRows" /></span>
       </div>
     </header>
     <!-- Topic c6994436: newest last puts the new-topic cards under the feed,
@@ -141,6 +142,8 @@ const unreadBoundary = computed(() => notes.boundary[topicKey(pane.taskId || '')
 
 /* The open topic's own title, selected at the top of this pane. */
 const titleText = computed(() => plainText(topicTitleFromRows(pane.messages, messageRooted.value ? topic.rootMsg : null)))
+/* SPL-5888: Export topic to PDF prints the cards shown, matched among these */
+const exportRows = () => messages.value
 const heading = computed(() => (titleText.value ? t('topic.list_title', { text: titleText.value }) : t('topic.title')))
 
 /*

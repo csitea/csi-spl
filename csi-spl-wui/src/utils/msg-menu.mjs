@@ -70,8 +70,14 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * it (t1 7a6be5a3, phone-card-menu.test.mjs). It opens the note picker (AddToNotePicker.vue); a
  * topic card adds its topic, any other line the message. Shift + N runs it.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
- * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes', labelKey: string, disabled?: boolean, hintKey?: string }[]}
+ * SPL-5888 (owner HUM-10, t1 703f2ce5 msg 922da756; spec 005 FR-020): `pdf`
+ * adds Export to PDF on desktop, right after Copy link (Hide from flow, Add to
+ * note) and before Edit: the card alone, with its pictures, to the browser's
+ * print. The phone sheet does not list it (its rows are measured to fit,
+ * t1 7a6be5a3).
+ *
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, pdf?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
+ * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'export-pdf' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes' | 'file-text', labelKey: string, disabled?: boolean, hintKey?: string }[]}
  */
 /** HUM-10 (topic c15b557e): the parent item's words per place */
 const PARENT_LABEL = { dm: 'feed.msg_menu.open_in_dm', channel: 'feed.msg_menu.open_in_channels' }
@@ -100,6 +106,7 @@ export function msgMenuItems(opts = {}) {
   if (o.hide) items.push({ id: 'hide-flow', icon: 'eye-off', labelKey: 'feed.msg_menu.hide_flow' })
   const note = () => { if (o.note) items.push({ id: 'add-to-note', icon: 'notes', labelKey: 'feed.msg_menu.add_to_note' }) }
   if (!touch) note()
+  if (!touch && o.pdf) items.push({ id: 'export-pdf', icon: 'file-text', labelKey: 'feed.msg_menu.export_pdf' })
   gated(editable, edit, locks.edit)
   // CLE-77819: Archive and Delete are gated apart - a member the card is
   // addressed to may archive but not delete. `topic` stays the both-shorthand.

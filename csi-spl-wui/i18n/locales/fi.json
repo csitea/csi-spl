@@ -776,7 +776,8 @@
         "calendar": "Lisää kalenteriin",
         "failed": "AI-toiminto ei onnistunut. Yritä uudelleen."
       },
-      "add_to_note": "Lisää muistiinpanoon"
+      "add_to_note": "Lisää muistiinpanoon",
+      "export_pdf": "Vie PDF-tiedostoksi"
     },
     "emoji": {
       "add": "Lisää emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Aihe",
     "open": "Avaa",
+    "export_pdf": "Vie aihe PDF-tiedostoksi",
     "empty": "Tyhjä aihe.",
     "reply_placeholder": "Vastaa — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",
     "reply_placeholder_enter": "Vastaa — Enter lähettää · Shift+Enter lisää rivin · /search suodattaa",

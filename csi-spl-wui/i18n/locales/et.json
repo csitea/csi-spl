@@ -776,7 +776,8 @@
         "calendar": "Lisa kalendrisse",
         "failed": "AI toiming ei õnnestunud. Proovi uuesti."
       },
-      "add_to_note": "Lisa märkmesse"
+      "add_to_note": "Lisa märkmesse",
+      "export_pdf": "Ekspordi PDF-ina"
     },
     "emoji": {
       "add": "Lisa emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Teema",
     "open": "Ava",
+    "export_pdf": "Ekspordi teema PDF-ina",
     "empty": "Tühi teema.",
     "reply_placeholder": "Vastus — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search filtreerib",
     "reply_placeholder_enter": "Vastus — Enter saadab · Shift+Enter lisab rea · /search filtreerib",

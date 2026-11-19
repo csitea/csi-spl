@@ -776,7 +776,8 @@
         "calendar": "Añadir al calendario",
         "failed": "La acción de IA no se completó. Inténtalo de nuevo."
       },
-      "add_to_note": "Añadir a una nota"
+      "add_to_note": "Añadir a una nota",
+      "export_pdf": "Exportar a PDF"
     },
     "emoji": {
       "add": "Añadir emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Tema",
     "open": "Abrir",
+    "export_pdf": "Exportar tema a PDF",
     "empty": "Tema vacío.",
     "reply_placeholder": "Responder — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para filtrar",
     "reply_placeholder_enter": "Responder — Enter envía · Shift+Enter añade una línea · /search para filtrar",

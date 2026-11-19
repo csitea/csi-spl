@@ -776,7 +776,8 @@
         "calendar": "Добавить в календарь",
         "failed": "Действие ИИ не выполнено. Попробуйте ещё раз."
       },
-      "add_to_note": "Добавить в заметку"
+      "add_to_note": "Добавить в заметку",
+      "export_pdf": "Экспорт в PDF"
     },
     "emoji": {
       "add": "Добавить эмодзи",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Тема",
     "open": "Открыть",
+    "export_pdf": "Экспорт темы в PDF",
     "empty": "Пустая тема.",
     "reply_placeholder": "Ответ — Enter для новой строки · Ctrl+Enter или Cmd+Enter для отправки · /search для фильтра",
     "reply_placeholder_enter": "Ответ — Enter отправляет · Shift+Enter добавляет строку · /search для фильтра",

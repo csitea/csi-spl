@@ -423,6 +423,7 @@
       :make-issue="canMakeIssue"
       :to-task="canMakeTask"
       :hide="menuHide"
+      pdf
       :locks="menuLocks"
       :ai-msg="msg"
       :ai-fail="onAiFail"
@@ -448,6 +449,7 @@
       @make-task="onMakeTask"
       @make-issue="onMakeIssue"
       @hide-flow="onMenuHide"
+      @export-pdf="onExportPdf"
     />
     <!-- SPL-1024: Move to channel… / Move to topic…, mounted when picked -->
     <LazyMovePickerDialog
@@ -514,7 +516,7 @@ import { playTapAnim } from '~/composables/useTapAnim'
 import { useCardEdit } from '~/composables/useCardEdit'
 import { useCardHeight, useCardTitle } from '~/composables/useCardHeight'
 import { useCardMakeTask, useCardMessageActions, useCardTopicActions } from '~/composables/useCardTopicActions'
-import { useCardMenuActions } from '~/composables/useCardMenuActions'
+import { useCardExportPdf, useCardMenuActions } from '~/composables/useCardMenuActions'
 import { useCardNotes } from '~/composables/useCardNotes'
 import { useCardLongPress, useCardSwipe, useCardSwipeFlags } from '~/composables/useCardSwipe'
 import { useCardMove, useCardMoveFlags } from '~/composables/useCardMove'
@@ -744,6 +746,8 @@ function onMsgDeleteConfirm() {
 }
 const { onMakeTask } = useCardMakeTask(props, menu, msgEdit, aiError)
 const { showParent, parentKind, onMenuParent, copyMessageLink, copyBody, onMenuOpen, onMenuReply, onMenuKind } = useCardMenuActions(props, viewerId, rowEl, menu, openReplies)
+/* SPL-5888: Export to PDF, this card alone (its code loads on the click) */
+const onExportPdf = useCardExportPdf(props, title)
 
 const { movedFrom, movedText, dmRef, dmRefText, dmRefTip, pointerText, pointerTip } = useCardNotes(props)
 

@@ -776,7 +776,8 @@
         "calendar": "Pridať do kalendára",
         "failed": "Akcia AI sa nepodarila. Skúste to znova."
       },
-      "add_to_note": "Pridať do poznámky"
+      "add_to_note": "Pridať do poznámky",
+      "export_pdf": "Exportovať do PDF"
     },
     "emoji": {
       "add": "Pridať emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Téma",
     "open": "Otvoriť",
+    "export_pdf": "Exportovať tému do PDF",
     "empty": "Prázdna téma.",
     "reply_placeholder": "Odpoveď — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search na filtrovanie",
     "reply_placeholder_enter": "Odpoveď — Enter odošle · Shift+Enter pridá riadok · /search na filtrovanie",

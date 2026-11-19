@@ -776,7 +776,8 @@
         "calendar": "Προσθήκη στο ημερολόγιο",
         "failed": "Η ενέργεια AI δεν ολοκληρώθηκε. Δοκιμάστε ξανά."
       },
-      "add_to_note": "Προσθήκη σε σημείωση"
+      "add_to_note": "Προσθήκη σε σημείωση",
+      "export_pdf": "Εξαγωγή σε PDF"
     },
     "emoji": {
       "add": "Προσθήκη emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Θέμα",
     "open": "Άνοιγμα",
+    "export_pdf": "Εξαγωγή θέματος σε PDF",
     "empty": "Κενό θέμα.",
     "reply_placeholder": "Απάντηση — Enter για νέα γραμμή · Ctrl+Enter ή Cmd+Enter για αποστολή · /search για φιλτράρισμα",
     "reply_placeholder_enter": "Απάντηση — Το Enter στέλνει · το Shift+Enter προσθέτει γραμμή · /search για φιλτράρισμα",

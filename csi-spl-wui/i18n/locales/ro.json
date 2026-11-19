@@ -776,7 +776,8 @@
         "calendar": "Adaugă în calendar",
         "failed": "Acțiunea AI nu a reușit. Încercați din nou."
       },
-      "add_to_note": "Adaugă la notiță"
+      "add_to_note": "Adaugă la notiță",
+      "export_pdf": "Exportă în PDF"
     },
     "emoji": {
       "add": "Adaugă emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Temă",
     "open": "Deschide",
+    "export_pdf": "Exportă tema în PDF",
     "empty": "Temă goală.",
     "reply_placeholder": "Răspuns — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru filtrare",
     "reply_placeholder_enter": "Răspuns — Enter trimite · Shift+Enter adaugă un rând · /search pentru filtrare",

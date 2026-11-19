@@ -776,7 +776,8 @@
         "calendar": "Toevoegen aan agenda",
         "failed": "De AI-actie is niet gelukt. Probeer het opnieuw."
       },
-      "add_to_note": "Aan notitie toevoegen"
+      "add_to_note": "Aan notitie toevoegen",
+      "export_pdf": "Exporteren naar PDF"
     },
     "emoji": {
       "add": "Emoji toevoegen",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Onderwerp",
     "open": "Openen",
+    "export_pdf": "Onderwerp exporteren naar PDF",
     "empty": "Leeg onderwerp.",
     "reply_placeholder": "Reageren — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",
     "reply_placeholder_enter": "Reageren — Enter verstuurt · Shift+Enter voegt een regel toe · /search om te filteren",

@@ -776,7 +776,8 @@
         "calendar": "הוסף ליומן",
         "failed": "פעולת ה-AI לא הושלמה. נסו שוב."
       },
-      "add_to_note": "הוספה לפתק"
+      "add_to_note": "הוספה לפתק",
+      "export_pdf": "ייצוא ל-PDF"
     },
     "emoji": {
       "add": "הוסף אימוג'י",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "נושא",
     "open": "פתיחה",
+    "export_pdf": "ייצוא הנושא ל-PDF",
     "empty": "נושא ריק.",
     "reply_placeholder": "תגובה — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · /search לסינון",
     "reply_placeholder_enter": "תגובה — Enter שולח · Shift+Enter מוסיף שורה · /search לסינון",

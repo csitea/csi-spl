@@ -776,7 +776,8 @@
         "calendar": "Lägg till i kalendern",
         "failed": "AI-åtgärden gick inte igenom. Försök igen."
       },
-      "add_to_note": "Lägg till i anteckning"
+      "add_to_note": "Lägg till i anteckning",
+      "export_pdf": "Exportera till PDF"
     },
     "emoji": {
       "add": "Lägg till emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Ämne",
     "open": "Öppna",
+    "export_pdf": "Exportera ämnet till PDF",
     "empty": "Tomt ämne.",
     "reply_placeholder": "Svara — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka · /search för att filtrera",
     "reply_placeholder_enter": "Svara — Enter skickar · Shift+Enter lägger till en rad · /search för att filtrera",

@@ -66,6 +66,8 @@ const props = defineProps<{
   toTask?: boolean
   /** HUM-10 (t1 7d9faaad): a topic-view reply a left swipe may hide */
   hide?: boolean
+  /** SPL-5888 (spec 005 FR-020): offer Export to PDF (desktop menu only) */
+  pdf?: boolean
   /** CLE-77891: a topic card's entries the viewer may not use, shown disabled with the reason */
   locks?: Partial<TopicMenuLocks>
   /** t1 b6c742f0: the message, for the AI actions group (a person's message only);
@@ -98,6 +100,7 @@ const emit = defineEmits<{
   'make-task': []
   'make-issue': []
   'hide-flow': []
+  'export-pdf': []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -145,6 +148,7 @@ const topicItems = computed(() => msgMenuItems({
   toTask: props.toTask,
   hide: props.hide,
   note: note.offered.value,
+  pdf: props.pdf,
   locks: props.locks,
 }))
 function withKeys<T extends { id: string }>(list: T[]): (T & { keyHint?: string })[] {
@@ -172,6 +176,7 @@ function choose(id: string) {
   else if (id === 'make-task') emit('make-task')
   else if (id === 'make-issue') emit('make-issue')
   else if (id === 'hide-flow') emit('hide-flow')
+  else if (id === 'export-pdf') emit('export-pdf')
   /* a topic card (its menu carries the topic locks) adds its topic, any other line the message */
   else if (id === 'add-to-note') note.open(msgNoteLink(props.aiMsg as SpoolMessage, { topic: Boolean(props.locks), workspace: note.workspace() }))
   else if (ai.more(id)) { /* the sheet now shows the seven actions */ }

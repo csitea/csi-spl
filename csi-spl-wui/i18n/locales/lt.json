@@ -776,7 +776,8 @@
         "calendar": "Pridėti į kalendorių",
         "failed": "DI veiksmas nepavyko. Bandykite dar kartą."
       },
-      "add_to_note": "Pridėti prie užrašo"
+      "add_to_note": "Pridėti prie užrašo",
+      "export_pdf": "Eksportuoti į PDF"
     },
     "emoji": {
       "add": "Pridėti emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Tema",
     "open": "Atidaryti",
+    "export_pdf": "Eksportuoti temą į PDF",
     "empty": "Tuščia tema.",
     "reply_placeholder": "Atsakymas — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti · /search filtruoti",
     "reply_placeholder_enter": "Atsakymas — Enter siunčia · Shift+Enter prideda eilutę · /search filtruoti",

@@ -776,7 +776,8 @@
         "calendar": "Pievienot kalendāram",
         "failed": "MI darbība neizdevās. Mēģiniet vēlreiz."
       },
-      "add_to_note": "Pievienot piezīmei"
+      "add_to_note": "Pievienot piezīmei",
+      "export_pdf": "Eksportēt uz PDF"
     },
     "emoji": {
       "add": "Pievienot emoji",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Tēma",
     "open": "Atvērt",
+    "export_pdf": "Eksportēt tēmu uz PDF",
     "empty": "Tukša tēma.",
     "reply_placeholder": "Atbilde — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter, lai sūtītu · /search filtrēšanai",
     "reply_placeholder_enter": "Atbilde — Enter nosūta · Shift+Enter pievieno rindu · /search filtrēšanai",

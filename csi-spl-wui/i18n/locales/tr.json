@@ -776,7 +776,8 @@
         "calendar": "Takvime ekle",
         "failed": "Yapay zekâ işlemi tamamlanamadı. Yeniden deneyin."
       },
-      "add_to_note": "Nota ekle"
+      "add_to_note": "Nota ekle",
+      "export_pdf": "PDF olarak dışa aktar"
     },
     "emoji": {
       "add": "Emoji ekle",
@@ -1003,6 +1004,7 @@
   "topic": {
     "title": "Konu",
     "open": "Aç",
+    "export_pdf": "Konuyu PDF olarak dışa aktar",
     "empty": "Boş konu.",
     "reply_placeholder": "Yanıt — yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter · filtrelemek için /search",
     "reply_placeholder_enter": "Yanıt — Enter gönderir · Shift+Enter satır ekler · filtrelemek için /search",

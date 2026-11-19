@@ -1,0 +1,17 @@
+¿Cuáles son las posibilidades de la IA? Mis reflexiones sobre el futuro.
+
+Llevo meses usando la IA mientras desarrollo spool-hub.ai. Por un pequeño coste mensual, siento que tengo un equipo de especialistas que antes solo podían permitirse las grandes organizaciones. Cuatro reflexiones:
+
+⚖️ La IA cambiará los empleos, pero no todas las profesiones de la misma manera. Las publicaciones y estudios que he leído comparan a abogados y desarrolladores de software. A medida que la rutina jurídica se abarate mucho, gran parte de ella puede pasar a los clientes. Cuando crear software se vuelve mucho más rápido y barato, las empresas crean más.
+
+📈 La IA multiplica lo que una persona puede lograr. Me ayudó a descubrir por qué una factura de la nube no coincidía con el pago desde mi cuenta bancaria: no escribir textos, sino encontrar conexiones. Una persona, apoyada por la IA, puede hacer cada vez más el trabajo de un equipo.
+
+🤝 La IA puede convertirse en un nuevo tipo de compañera: siempre disponible, paciente y dispuesta a explorar ideas. Un apoyo valioso, pero no una relación humana ni atención profesional.
+
+🧭 ¿Temes que la IA te quite el trabajo? Empieza a usarla. Experimenta, aprende sus puntos fuertes y entiende sus errores.
+
+💡 ¿Y si el mayor impacto de la IA no fuera cuánto menos tendrá que hacer la gente, sino cuánto más podrá lograr?
+
+Lee la entrada completa: https://spool-hub.ai/es/blog/2026-11-17-the-possibilities-of-ai
+
+#AI #FutureOfWork #Productivity #Entrepreneurship #OpenSource

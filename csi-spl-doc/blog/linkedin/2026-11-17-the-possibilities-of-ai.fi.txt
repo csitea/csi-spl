@@ -1,0 +1,17 @@
+Mitkä ovat tekoälyn mahdollisuudet? Ajatuksiani tulevaisuudesta.
+
+Olen käyttänyt tekoälyä kuukausia kehittäessäni spool-hub.ai:ta. Pientä kuukausimaksua vastaan minusta tuntuu, että minulla on asiantuntijatiimi, johon aiemmin oli varaa vain suurilla organisaatioilla. Neljä ajatusta:
+
+⚖️ Tekoäly muuttaa työtä, mutta ei kaikkia ammatteja samalla tavalla. Lukemani kirjoitukset ja tutkimukset vertaavat juristeja ja ohjelmistokehittäjiä. Kun juridinen rutiinityö halpenee huomattavasti, suuri osa siitä voi siirtyä asiakkaille. Kun ohjelmistojen rakentaminen nopeutuu ja halpenee huomattavasti, yritykset rakentavat niitä enemmän.
+
+📈 Tekoäly moninkertaistaa sen, mihin yksi ihminen pystyy. Se auttoi minua selvittämään, miksi pilvipalvelun lasku ei vastannut pankkitililtäni lähtenyttä maksua: ei tekstin kirjoittamista, vaan yhteyksien löytämistä. Yksi ihminen pystyy tekoälyn tukemana yhä useammin tekemään kokonaisen tiimin työn.
+
+🤝 Tekoälystä voi tulla uudenlainen seuralainen: aina saatavilla, kärsivällinen ja valmis pohtimaan ajatuksia. Arvokas tuki, mutta ei ihmissuhde eikä ammattilaisen apu.
+
+🧭 Pelkäätkö, että tekoäly vie työpaikkasi? Ala käyttää sitä. Kokeile, opi sen vahvuudet ja ymmärrä sen virheet.
+
+💡 Entä jos tekoälyn suurin vaikutus ei olekaan se, kuinka paljon vähemmän ihmisten tarvitsee tehdä, vaan se, kuinka paljon enemmän he pystyvät saavuttamaan?
+
+Lue koko kirjoitus: https://spool-hub.ai/fi/blog/2026-11-17-the-possibilities-of-ai
+
+#AI #FutureOfWork #Productivity #Entrepreneurship #OpenSource

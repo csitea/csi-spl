@@ -1,0 +1,17 @@
+What are the possibilities of AI? My thoughts about the future.
+
+I have been using AI for months while developing spool-hub.ai. For a small monthly cost, I feel I have a team of specialists that only large organisations could afford before. Four thoughts:
+
+⚖️ AI will change jobs, but not every profession in the same way. The posts and studies I have read compare lawyers and software developers. As legal routine gets much cheaper, much of it may move to customers. When building software gets much faster and cheaper, businesses build more of it.
+
+📈 AI multiplies what one person can achieve. It helped me find why a cloud invoice did not match the payment from my bank account: not writing text, but finding connections. One person, supported by AI, can increasingly do the work of a team.
+
+🤝 AI may become a new kind of companion: always available, patient and willing to explore ideas. A valuable support, but not a human relationship or professional care.
+
+🧭 Afraid AI will take your job? Start using it. Experiment, learn its strengths and understand its mistakes.
+
+💡 What if the greatest impact of AI is not how much less people will need to do, but how much more they will be able to achieve?
+
+Read the full post: https://spool-hub.ai/blog/2026-11-17-the-possibilities-of-ai
+
+#AI #FutureOfWork #Productivity #Entrepreneurship #OpenSource

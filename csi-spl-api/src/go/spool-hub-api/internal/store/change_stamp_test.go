@@ -23,6 +23,7 @@ var stampTables = []string{
 	"box_operators", "channel_humans", "channel_subscriptions", "channels", "deliveries", "issues",
 	"member_clones", "message_kind_changes", "message_moderation", "message_reactions", "message_revisions", "messages",
 	"rbac_roles", "read_marks", "tenant_member_roles", "tenant_memberships", "topic_priorities",
+	"topic_pauses", // rdb 0297, spec 179 B1
 }
 
 // stampGlobalTables have no tenant_id: a write moves every tenant's stamp.
@@ -199,6 +200,17 @@ func TestChangeStampWriters(t *testing.T) {
 			}},
 		{name: "topic priority", do: func(s seeded) error { // rdb 0214, spec 150 C303
 			_, err := pg.SetTopicPriority(ctx, s.tenant, s.taskID, 2, s.humanID, at())
+			return err
+		}},
+		{name: "topic pause", do: func(s seeded) error { // rdb 0297, spec 179 B1
+			_, err := pg.SetTopicPaused(ctx, s.tenant, s.taskID, s.humanID, "", at(), true)
+			return err
+		}},
+		{name: "topic resume", do: func(s seeded) error {
+			_, err := pg.SetTopicPaused(ctx, s.tenant, s.taskID, s.humanID, "", at(), false)
+			return err
+		}, prep: func(s *seeded) error {
+			_, err := pg.SetTopicPaused(ctx, s.tenant, s.taskID, s.humanID, "", at(), true)
 			return err
 		}},
 		{name: "read marks", do: func(s seeded) error {

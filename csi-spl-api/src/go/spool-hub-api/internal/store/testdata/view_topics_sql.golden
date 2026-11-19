@@ -14,8 +14,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $4
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -51,8 +52,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $6
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -88,8 +90,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $4
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -125,8 +128,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $6
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -162,8 +166,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $5
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -199,8 +204,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $6
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -236,8 +242,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $5
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -289,8 +296,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $7
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -342,8 +350,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $4
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -379,8 +388,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $4
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -416,8 +426,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $5
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -453,8 +464,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $4
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -484,8 +496,9 @@ WITH w (task_id, received_at) AS (
 			) l
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -537,8 +550,9 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			WHERE w.n < $20
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 3),
+			COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = $1 AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)

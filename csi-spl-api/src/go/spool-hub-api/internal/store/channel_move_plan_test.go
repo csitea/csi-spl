@@ -675,3 +675,30 @@ func TestPlanChannelMoveRefuseTable(t *testing.T) {
 		t.Fatalf("an embed visitor must refuse the move, got %+v", p.Shared)
 	}
 }
+
+// TestPlanChannelMoveRefusePausedTopic: spec 179 B1. A paused topic of the
+// channel, and the issue its pause holds onhold, refuse the move through the
+// catalogue's refuse class; after Resume the same plan names neither.
+func TestPlanChannelMoveRefusePausedTopic(t *testing.T) {
+	pg := rlsStore(t)
+	f := seedMovePlan(t, pg)
+	ctx, now := context.Background(), time.Now().UTC()
+	if _, err := pg.SetTopicPaused(ctx, f.src, f.tA, "HUM-1", "hold", now, true); err != nil {
+		t.Fatal(err)
+	}
+	p := planOf(t, pg, f.req())
+	for _, tbl := range []string{"topic_pauses", "topic_pause_issues"} {
+		if !hasShared(p, "table", tbl) {
+			t.Fatalf("a paused topic must refuse the move naming %s, got %+v", tbl, p.Shared)
+		}
+	}
+	if _, err := pg.SetTopicPaused(ctx, f.src, f.tA, "HUM-1", "", now.Add(time.Second), false); err != nil {
+		t.Fatal(err)
+	}
+	p = planOf(t, pg, f.req())
+	for _, tbl := range []string{"topic_pauses", "topic_pause_issues"} {
+		if hasShared(p, "table", tbl) {
+			t.Fatalf("a resumed topic must not refuse the move, got %+v", p.Shared)
+		}
+	}
+}

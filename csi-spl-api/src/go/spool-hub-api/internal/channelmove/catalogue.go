@@ -151,6 +151,14 @@ var recomputedTables = []Entry{
 var refuseTables = []Entry{
 	{Table: "embed_visitors", Class: Refuse, Set: `channel_id = @channel`,
 		Reason: "5.1b: embed_customers.embed_id is hub-wide and in the iframe URL, so <DST> cannot hold the parent; plan refuses (Q6), a copy does not carry it"},
+	// spec 179 row B1 (rdb 0297): a paused topic holds its issues onhold
+	// until Resume restores them, so the move waits for the resume. Neither
+	// table has a channel column: @tasks is the moved channel's task set.
+	// Moving the pause with the channel (Moved) is a spec 169 follow-up.
+	{Table: "topic_pauses", Class: Refuse, Set: `task_id = ANY(@tasks)`,
+		Reason: "spec 179 B1: plan refuses while a topic in the channel is paused; resume it first"},
+	{Table: "topic_pause_issues", Class: Refuse, Set: `task_id = ANY(@tasks) OR number = ANY(@numbers)`,
+		Reason: "spec 179 B1: plan refuses while a pause holds an issue of the channel onhold; resume it first (Resume restores it by number, F6 renumbers it)"},
 }
 
 var notChannelTables = concat(

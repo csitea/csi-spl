@@ -210,11 +210,14 @@ func humanPostIn(m *Message, since, until time.Time) bool {
 		!m.ReceivedAt.Before(since) && m.ReceivedAt.Before(until)
 }
 
-// wantsFallback: m is not a DM to a person and its channel has not opted out.
-// The caller holds s.mu.
+// wantsFallback: m is not a DM to a person, its channel has not opted out
+// and its topic is not paused (spec 179 5.2 row 8). The caller holds s.mu.
 func (s *Memory) wantsFallback(tenant string, m *Message) bool {
 	if m.Channel == "" && (strings.HasPrefix(m.ToID, "HUM-") || strings.HasPrefix(m.ToID, "GST-") || m.ToID == "ALL-0") {
 		return false // a DM to a person
+	}
+	if s.topicPauseLocked(tenant, m.TaskID).Paused() {
+		return false
 	}
 	return m.Channel == "" || !s.fb.off[[2]string{tenant, m.Channel}]
 }

@@ -296,6 +296,16 @@ Each row below is one small lane with explicit dependencies, task kind, files, t
 
 *(Rows `B3`, `B4`, and `B6` touch disjoint file sets and can run in parallel as soon as `B2` lands and deploys.)*
 
+**Row status**
+- **B1** — built by lane `c-521` (issue **SPL-5980**), on review: rdb `0297_topic_pauses.sql`; store API `TopicPauseStore` in `internal/store/topic_pause.go`:
+  - `SetTopicPaused(ctx, tenant, taskID, by, reason, at, paused)` answers `TopicPauseState{Pause, Changed, Followed}`. `Followed` is the issues it held or restored as `[]IssueFollow` with op `pause` / `resume` (`IssueFollowPause`, `IssueFollowResume`); the issue comments and `issue` frames of 3.3.1 and 4.2 are the hub's, through `afterIssueFollow` (`internal/hub/issue_follow.go`), in **B2**.
+  - A repeat pause holds no issue and keeps the first `paused_by` / `paused_at`, storing only a new non-empty reason; a repeat resume changes nothing (`Changed` false on both).
+  - `AnyTopicPaused(ctx, tenant, taskIDs...)` is the one primary key probe `onSend` uses in B2 (5.2 row 1).
+  - `TopicRow.Pause` and `TopicAccess.Pause` carry the row (6.1): Postgres in the list's and the door's own statement, Memory under the same lock. The list statement's pins move with it, as for the topic priority (`898bd5082`): `testdata/view_topics_sql.golden`, the heads oracle in `topic_head_harness_test.go` and the orc copy `csi-spl-orc/src/bash/run/spl-db-hot-measure.stmt.sql`, each regenerated.
+  - The three fallback queries skip a paused topic through their shared `fallbackHumanPostSQL` conjunct (5.2 row 8).
+  - `crosstenant_test.go` `seedTenantAll` seeds both tables (dispatch holder decision, msg `4d406e69`).
+  - A channel move or copy (spec 169) refuses while a topic of the channel is paused or a pause holds one of its issues: both tables are `Refuse` in `internal/channelmove/catalogue.go`, set `task_id = ANY(@tasks)` (and `number = ANY(@numbers)` for the held issues); resume first. `TestPlanChannelMoveRefusePausedTopic` (store, Postgres) shows the plan refusing, then passing after the resume (dispatch holder decision (A), msg `7c224426`). Moving the pause with the channel (`Moved`) is a spec 169 follow-up, not this row.
+
 **Docs per row** (`csi-spl-doc/doc/md/lane-issue-and-docs.md`): B1..B6 change behaviour but the reference pages land in B7, so each of B1..B6 also updates this spec (its row's status line in this section, and any section its build changed from the text above). A row whose build matches this spec exactly changes no doc and carries `Docs: none (spec 179 section <n> already describes it; reference pages land in B7)` in its commit body. B7 is the doc row and needs neither.
 
 **Commit rules for every row and for this spec's own landing commit**: the subject cites the row's issue in its scope (`feat(<area>, SPL-<n>): ...`; this spec: `docs(doc, SPL-5702): ...`), the body carries `Refs: SPL-2398` (the epic), and `Closes: SPL-<n>` is in the last paragraph. No `Co-Authored-By:`, `Generated with` or session-link trailer.
@@ -314,4 +324,4 @@ The dispatcher asked the v0.2.0 questions as one poll in `t1` topic `a4b718a6`; 
 
 No question is open.
 
-<!-- version: 0.3.0 · updated: 2026-11-19 · last-edit: 2026-11-19T12:00:00Z -->
+<!-- version: 0.3.0 · updated: 2026-11-19 · last-edit: 2026-11-19T18:00:00Z -->

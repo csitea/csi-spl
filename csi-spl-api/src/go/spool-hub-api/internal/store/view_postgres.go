@@ -146,10 +146,12 @@ func (s *Postgres) ViewTopics(ctx context.Context, tenant string, q TopicQuery) 
 func scanTopicRows(out *[]TopicRow) func(pgx.Rows) error {
 	return func(rows pgx.Rows) error {
 		var r TopicRow
+		var pausedAt *time.Time
 		if err := rows.Scan(&r.TaskID, &r.Channel, &r.Parent, &r.FirstAt, &r.LastAt, &r.Count,
-			&r.Kinds, &r.Parties, &r.FirstMsg, &r.Priority); err != nil {
+			&r.Kinds, &r.Parties, &r.FirstMsg, &r.Priority, &r.Pause.PausedBy, &pausedAt, &r.Pause.Reason); err != nil {
 			return err
 		}
+		r.Pause = topicPauseOf(r.TaskID, r.Pause, pausedAt)
 		*out = append(*out, r)
 		return nil
 	}
@@ -378,14 +380,16 @@ func (b *topicsSQL) listed(walk string) string {
 }
 
 // summary is each walked topic's row: count, kinds, parties, its first
-// message and its priority, newest topic first. The priority is one primary
+// message, its priority and its pause, newest topic first. The priority is one primary
 // key probe of topic_priorities per row (spec 150 3.3, TopicPriorityDefault when unset), in the
-// list's own statement, so it costs no round trip of its own.
+// list's own statement, so it costs no round trip of its own; so is the
+// pause, a LEFT JOIN of topic_pauses (spec 179 6.1, rdb 0297).
 func (b *topicsSQL) summary(aggDoor string) string {
 	return `
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = ` + b.tn + ` AND tp.task_id = w.task_id), ` + topicPriorityDefaultSQL + `)
-		FROM w CROSS JOIN LATERAL (
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = ` + b.tn + ` AND tp.task_id = w.task_id), ` + topicPriorityDefaultSQL + `),
+			` + topicPauseColsSQL + `
+		FROM w LEFT JOIN topic_pauses tpz ON tpz.tenant_id = ` + b.tn + ` AND tpz.task_id = w.task_id CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
@@ -400,6 +404,20 @@ func (b *topicsSQL) summary(aggDoor string) string {
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC`
+}
+
+// topicPauseColsSQL are the pause columns of a LEFT JOIN of topic_pauses as
+// tpz, read by topicPauseOf: "" and NULL when the topic is not paused.
+const topicPauseColsSQL = `COALESCE(tpz.paused_by, ''), tpz.paused_at, COALESCE(tpz.reason, '')`
+
+// topicPauseOf is the scanned pause columns as task's TopicPause: zero
+// when the LEFT JOIN found no row (pausedAt NULL).
+func topicPauseOf(task string, p TopicPause, pausedAt *time.Time) TopicPause {
+	if pausedAt == nil {
+		return TopicPause{}
+	}
+	p.TaskID, p.PausedAt = task, pausedAt.UTC()
+	return p
 }
 
 // topicPriorityDefaultSQL is TopicPriorityDefault as a SQL literal.

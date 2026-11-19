@@ -78,12 +78,15 @@ func (s *Postgres) ClaimFallback(ctx context.Context, d FallbackDelivery) (bool,
 const (
 	// fallbackHumanPostSQL: a signed browser post by a person, into a channel
 	// or to an agent (a DM to a person or a guest, or ALL-0, never falls
-	// back), in a channel that did not opt out (rdb 0068).
+	// back), in a channel that did not opt out (rdb 0068), in a topic that
+	// is not paused (rdb 0297, spec 179 5.2 row 8: one primary key probe).
 	fallbackHumanPostSQL = `
 		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
 		  AND (m.channel IS NOT NULL OR (m.to_id NOT LIKE 'HUM-%' AND m.to_id NOT LIKE 'GST-%' AND m.to_id <> 'ALL-0'))
 		  AND NOT EXISTS (SELECT 1 FROM channels c
-		                  WHERE c.tenant_id = m.tenant_id AND c.channel_id = m.channel AND c.no_fallback)`
+		                  WHERE c.tenant_id = m.tenant_id AND c.channel_id = m.channel AND c.no_fallback)
+		  AND NOT EXISTS (SELECT 1 FROM topic_pauses tp
+		                  WHERE tp.tenant_id = m.tenant_id AND tp.task_id = m.task_id)`
 	// fallbackNoAgentReplySQL: no later message in the same topic from a
 	// non-human sender (an agent posts through its desk).
 	fallbackNoAgentReplySQL = `

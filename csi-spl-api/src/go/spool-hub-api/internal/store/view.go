@@ -78,6 +78,9 @@ type TopicRow struct {
 	Parties  []string // "<agent>@<box>" for every from and to, unsorted, may repeat (Postgres: distinct)
 	FirstMsg []byte   // inner v:1 JSON of the first message (Postgres: only its subject's source as {"body"})
 	Priority int      // 1..5 from topic_priorities, TopicPriorityDefault when unset (spec 150 3.3)
+	// Pause is the topic's topic_pauses row (spec 179 6.1, rdb 0297), read
+	// in the list's own statement; zero (Paused() false) when not paused.
+	Pause TopicPause
 }
 
 // TopicMsgQuery pages GET /v1/view/topics/{task_id}: oldest first, strictly
@@ -254,6 +257,7 @@ func (s *Memory) ViewTopics(_ context.Context, tenant string, q TopicQuery) ([]T
 			continue
 		}
 		r.Priority = s.topicPriorityLocked(tenant, id)
+		r.Pause = s.topicPauseLocked(tenant, id)
 		out = append(out, *r)
 	}
 	sort.Slice(out, func(i, j int) bool { return newer(out[i].LastAt, out[i].TaskID, out[j].LastAt, out[j].TaskID) })

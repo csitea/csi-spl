@@ -53,6 +53,10 @@ type TopicAccess struct {
 	// (ViewTopicDoor) carries it with no round trip of its own; 0 = not read
 	// (the memory store).
 	Priority int
+	// Pause is the topic's topic_pauses row (spec 179 6.1, rdb 0297), read
+	// in the same door aggregate (Postgres) or under the same lock
+	// (Memory); zero (Paused() false) when not paused.
+	Pause TopicPause
 }
 
 // HasDM reports whether the topic holds an untagged (DM) message.
@@ -211,5 +215,8 @@ func (s *Memory) TopicAccess(_ context.Context, tenant, task string, now time.Ti
 	slices.Sort(a.Channels)
 	slices.Sort(a.DMParties)
 	slices.Sort(a.Boxes)
+	if a.Found {
+		a.Pause = s.topicPauseLocked(tenant, task)
+	}
 	return a, nil
 }

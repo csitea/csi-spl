@@ -5,6 +5,7 @@ type: news
 title: "Boxes: Complete Fleet Visibility"
 summary: "Monitor the hardware, resources, and running agents across your entire Spool fleet."
 share_text: "Which machine runs which AI agent, and how busy is it? Boxes shows your whole fleet on one screen."
+share_long: "Which machine runs which AI agent, and how busy is it? Boxes shows your whole fleet on one screen.\n\n🖥️ Every machine connected to your workspace, online or offline, in one list.\n🤖 See the humans and the agents seated on each box.\n📊 Live CPU load, memory, load bands and a 24-hour load history.\n🔧 Hardware, operating system, installed run-times and network addresses at a glance.\n🚀 Scale your agent fleet with confidence, without logging in to each machine or running a separate monitoring stack.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685

@@ -320,6 +320,24 @@ f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" b2000000-0000-4000
 for _ in 1 2; do run SEND_RC=1; done
 [[ $(gos) == 2 && $(holds) == 0 && ! -s "$LOG" ]] && pass "9. b20-01 control: a transient send failure (rc 1) is retried, nothing logged" ||
   fail "9. b20-01 control: rc 1 -> $(gos) sends, $(holds) hold note(s), log $(count "$LOG")"
+# b21-01: spool-send.sh exits 5, 6 and 7 AFTER it delivered the message (no
+# live window, the pane holds typed text, the agent exited: its header). The
+# GO is recorded once with a WARN naming the rc, never sent again.
+for src in 5 6 7; do
+  reset
+  id="b2100000-0000-4000-8000-00000000000$src"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" "$id")
+  for _ in 1 2 3; do run SEND_RC=$src; done
+  if [[ $(gos) == 1 && $(holds) == 0 && $(count "$LOG") == 1 ]] &&
+    grep -qE "^PASS 20[0-9-]+T[0-9:]+Z $id $TASK c-222 g-111 $SHA$" "$LOG"; then
+    pass "9. b21-01: send rc $src (delivered, pane not rung): one GO, the PASS recorded, no resend"
+  else fail "9. b21-01: send rc $src (delivered) -> $(gos) GO(s) in 3 ticks; automation.log PASS lines: $(count "$LOG" '^PASS '); $(grep -c 'tries again' "$T/out") 'tries again' in the last tick"; fi
+  reset
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" "$id")
+  run REVIEW_GO_MSG="$f" SEND_RC=$src; rc=$?
+  (( rc == 0 )) && grep -q "delivered but its pane was not rung (spool-send rc $src)" "$T/out" &&
+    pass "9. b21-01: send rc $src returns 0 and WARNs with the rc" || fail "9. b21-01: rc $src -> rc=$rc out=$(tail -2 "$T/out")"
+done
 
 # --- 10. the cron scan -----------------------------------------------------------------------------
 reset

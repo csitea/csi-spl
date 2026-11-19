@@ -89,9 +89,11 @@
 # @description Rule 2 reads). Any refusal sends the holder one note on task
 # @description review-go (no GO, no REJECT: the judgement stays the
 # @description dispatcher's) and logs `<ts> review-go <msg_id> action=refused
-# @description rc=<n> ...`. A message seen once is never checked again; a
-# @description failed GO send is not logged, so the next run tries again,
-# @description except to an author retired on this machine (spool-send exit
+# @description rc=<n> ...`. A message seen once is never checked again. A
+# @description send that exits 5, 6 or 7 delivered the GO (its pane was not
+# @description rung): recorded as sent with a WARN naming the rc, never sent
+# @description again. Any other failed GO send is not logged, so the next run
+# @description tries again, except to an author retired on this machine (spool-send exit
 # @description 14, its quarantine): that send can never succeed, so it is held
 # @description once (one note, `action=refused rc=9`) and not tried again.
 # @description Nothing happens (rc 0) when the dispatch lease (LEASE_CMD=show
@@ -817,8 +819,11 @@ _spl_review_go_elsewhere() {
 # (the brief row's task), then the PASS record with the message's own task_id
 # (Rule 2 re-checks it against the message). [where]: the sha was not the
 # row's branch tip on origin (_spl_review_go_elsewhere), said in the GO and
-# the log line. A failed send logs nothing (the next run tries again) and
-# returns 9; exit 14 (the author retired on this machine, in its quarantine:
+# the log line. Sender exits 5, 6 and 7 follow a delivery (no live window, the
+# pane holds typed text, the agent exited: its pane was not rung): the GO is
+# recorded as sent with a WARN naming the rc, never sent again (b21-01). Any
+# other failed send logs nothing (the next run tries again) and returns 9;
+# exit 14 (the author retired on this machine, in its quarantine:
 # never deliverable) is held once instead, so the next run skips it (b20-01:
 # 52 GO tries in an hour to one retired author). A relayed send to another
 # box exits 11 for a retired author and a hub error alike: still retried.
@@ -835,7 +840,11 @@ _spl_review_go_send() {
     _spl_review_go_hold "$1" "$2" "$3" "" "$8" "$9" 9 "author $to is retired on this machine (spool-send rc 14, its quarantine): the GO was not delivered"
     return 9
   fi
-  (( src == 0 )) || { do_log "WARN msg $2: GO to $to failed (rc $src); the next run tries again"; return 9; }
+  case "$src" in
+    5 | 6 | 7) do_log "WARN msg $2: GO to $to delivered but its pane was not rung (spool-send rc $src): recorded as sent, not sent again" ;;
+    0) ;;
+    *) do_log "WARN msg $2: GO to $to failed (rc $src); the next run tries again"; return 9 ;;
+  esac
   printf 'PASS %s %s %s %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$2" "$3" "$4" "$6" "$7" >>"$8"
   do_log "OK msg $2: GO ${7:0:12} sent to $to (review PASS by $6)${11:+; the sha ${11}}"
 }

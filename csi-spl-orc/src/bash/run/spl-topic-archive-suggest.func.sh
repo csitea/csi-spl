@@ -8,7 +8,10 @@
 # @description   1. the topic's LAST post is an agent's result (no person
 # @description      wrote after it): kind result, or a body that opens with
 # @description      **Done**, **Live**, **Answered**, **Answer** or a
-# @description      `## Result` heading,
+# @description      `## Result` heading, or a `**Status card**` note
+# @description      (topic-status-card.sh) whose every table row is in
+# @description      state done or diss (a wip, todo, placed, ... row: no
+# @description      result; SPL-5993),
 # @description   2. no open ask names it (do_spl_asks_open: open, acked,
 # @description      queued, placing or needs_owner; its full uuid or its first
 # @description      8 hex digits as a whole token, as the zombie sweep),
@@ -312,8 +315,20 @@ def young(m):
         return True
 people = ("HUM-", "RSP-", "GST-")
 RESULT = re.compile(r"\s*(\*\*(Done|Live|Answered|Answer)\b|#{1,3}\s+Result\b)")
+CARD = re.compile(r"\s*\*\*Status card\*\*")
+def card_done(body):
+    # a Status card (topic-status-card.sh) whose every row is done or diss;
+    # a "+N older ..." row stands for closed rows; no row is no result.
+    states = []
+    for row in body.split("\n"):
+        c = [x.strip() for x in row.strip().strip("|").split("|")]
+        if not row.strip().startswith("|") or len(c) < 3 or c[0] in ("issue", "") or set(c[0]) <= set("-: ") or c[0].startswith("+"):
+            continue
+        states.append(c[2])
+    return bool(states) and all(s in ("done", "diss") for s in states)
 def result(m):
-    return m.get("kind") == "result" or bool(RESULT.match(str(m.get("body", ""))))
+    b = str(m.get("body", ""))
+    return m.get("kind") == "result" or bool(RESULT.match(b)) or (bool(CARD.match(b)) and card_done(b))
 n = 0
 for line in open(f"{w}/pick.tsv"):
     f = line.rstrip("\n").split("\t")

@@ -200,7 +200,13 @@ topic when all three hold:
 
 1. **the topic's last post is an agent's result**, nobody wrote after it:
    kind `result`, or a body that opens with `**Done**`, `**Live**`,
-   `**Answered**`, `**Answer**` or a `## Result` heading. A person's
+   `**Answered**`, `**Answer**` or a `## Result` heading. A
+   `**Status card**` note (`topic-status-card.sh`) is a result too when
+   every row of its table is in state `done` or `diss` (a `+N older ...`
+   row counts as closed); one row in any other state (`wip`, `todo`,
+   `placed`, ...) is no result (SPL-5993: on 2026-11-19 three finished
+   topics whose last post was such a card, `ef66c1d4`, `d31931d7`,
+   `f758f973`, were archived only when the owner asked). A person's
    follow-up after the result keeps the topic (R7 W1);
 2. **no open ask names the topic**: no ask in state open, acked, queued,
    placing or needs_owner whose `topic` or `summary` carries its uuid or its

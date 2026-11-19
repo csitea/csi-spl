@@ -28,6 +28,9 @@
 #      duplicate_to_human); a failed poll still stamps the day, rc 1
 #  12. R7 W3: a held run lock does nothing; a live run needs this box to be
 #      ARCHIVE_SUGGEST_BOX; an archive poll as the last post is polled already
+#  13. the box tail misses another box's last post: kept; red control
+#  14. SPL-5993: a **Status card** last post with every row done or diss is
+#      a result, one with a wip row is not; red control (the old code)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -288,6 +291,24 @@ tail_of "$A" result "all done"
 suggest DRY_RUN=0; rc=$?
 [[ $rc == 0 && ! -e "$T/posted" ]] && grep -q "keep.$A.the hub list names no last post" "$T/out" &&
   pass "13. a hub list without last_msg_id (an older hub) polls nothing" || fail "13. no last id: rc=$rc $(cat "$T/out")"
+
+# --- 14. SPL-5993: a Status card as the last post ----------------------------------------
+# topic-status-card.sh posts `**Status card**` + a table (issue, what, state,
+# ...): every row done or diss is a result; one wip row is not.
+CARD_HEAD='**Status card**: edited in place as the work moves, no need to ask.\\n\\n| issue | what | state | lane | queue | landed | dev | prd |\\n|---|---|---|---|---|---|---|---|'
+reset; asks '[]'
+cands "$(topic "$A" "$OLD"), $(topic "$B" "$OLD")"
+tail_of "$A" note "$CARD_HEAD\\n| SPL-1 | fix x | done | c-1@box-a | - | \`abc\` | yes | yes |\\n| SPL-2 | drop y | diss | - | - | - | - | - |\\n| +3 | older done/diss issues not shown | | | | | | |\\n\\n_as of 2026-11-12T10:00Z_"
+tail_of "$B" note "$CARD_HEAD\\n| SPL-3 | fix z | done | - | - | - | - | - |\\n| SPL-4 | add w | wip | c-2@box-a | - | - | - | - |"
+suggest DRY_RUN=0; rc=$?
+[[ $rc == 0 && "$(posted)" == "$A" ]] && grep -q "keep.$B.last agent post is no result" "$T/out" &&
+  pass "14. a Status card with every row done or diss is a result ($A polled); one wip row is not ($B kept)" || fail "14. card: rc=$rc '$(posted)' $(cat "$T/out")"
+reset; asks '[]'
+cands "$(topic "$A" "$OLD")"
+tail_of "$A" note "$CARD_HEAD\\n| SPL-1 | fix x | done | - | - | - | - | - |"
+suggest DRY_RUN=0 -- "$(variant spl_archive_suggest_judge 's/ or (bool(CARD.match(b)) and card_done(b))//')"
+[[ ! -e "$T/posted" ]] && grep -q "keep.$A.last agent post is no result" "$T/out" &&
+  pass "14. red control: without the card rule (the old code) the all-done card topic is not polled" || fail "14. card red: '$(posted)' $(cat "$T/out")"
 
 # --- 8. the cron script -----------------------------------------------------------------
 CRON="$PROJ_ROOT/src/bash/scripts/topic-archive-suggest-cron.sh"

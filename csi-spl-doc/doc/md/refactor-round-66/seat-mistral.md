@@ -210,11 +210,42 @@ W1..: none.
   --grep='^docs\(r65-plan'` -> `8c6ea882515f1e2c475c9d3ed40edda5029fbf53
   2026-11-19T10:50:02+01:00` — matches the plan's W.
 
+## v1.0 signature (2026-11-19 ~13:0xZ, this session)
+
+Editor c-379's msg 868439ea (task `dispatch-refactor-r66`, 2026-11-19T13:00:22Z) named
+v1.0 `3d48fd2c4727b7049ba3debb7e41395c86e28803`. Verified:
+`git ls-remote origin | grep refactor-round-66` ->
+`3d48fd2c4727b7049ba3debb7e41395c86e28803  refs/heads/review/c003-refactor-round-66-planner`
+(the head) and `de0023e4a...  refs/heads/review/c002-refactor-round-66-mistral-seat`
+(my branch);
+`git merge-base --is-ancestor 3bfe87d48ce7f256ba9c036674b7ef3586b791c2
+3d48fd2c4727b7049ba3debb7e41395c86e28803` -> exit 0 (v0.1 is the only parent:
+`git log --oneline 3bfe87d48..3d48fd2c` -> one commit, the v1.0);
+`git diff --stat 3bfe87d48 3d48fd2c` -> 1 file, +17/-3, hunks only at `@@ -30,7 +30,8 @@`
+(the status line) and `@@ -303,11 +304,24 @@` (sections 8/9);
+`git diff 3bfe87d48 3d48fd2c -- <plan> | grep -cE '^[+-]\| r66-0[12] '` -> **0**
+(rows unchanged). My N1-N5 are folded in section 8 and section 9 records the v0.1 PASS
+(spool msg 500404e5, task `dispatch-refactor-r66`) with "v1.0: to be signed by m-391".
+
+Re-read on the current origin/master `ea431c511` (landed since my v0.1 read):
+`git log origin/master --oneline -E --grep='\(r66-' | wc -l` -> **0** (slug still free);
+`git log e178584df..origin/master --oneline -- <the 7 row paths> | wc -l` -> **0** (no
+drift); baseline `git show origin/master:.../no-literal-paths.baseline | grep -vE
+'^\s*(#|$)'` -> still 3 files / 8 lines; spot-checked site lines identical
+(`spl-cmd-guard-mode.func.sh:36` -> `    rh=/var/csi/rust`,
+`fleet-logrotate-install.func.sh:70` -> `  FL_VAR="${FLEET_LOGROTATE_VAR_DIR:-/var/csi}"`,
+`spl-run-paths.func.sh:69,72` -> the `SPL_VAR_APP_DIR` default and the 4-var export);
+`lane-map.sh --check <the 7 paths> --agent m-391` -> exit 4, now 2 unknown lanes
+(c-922@<box2>, c-926@<box2>; m-923@<box2> records files now).
+
+**Verdict on v1.0 `3d48fd2c4727b7049ba3debb7e41395c86e28803`: PASS** — rows unchanged from
+v0.1, my notes folded, no drift onto `ea431c511`. W1..: none on v1.0. N1-N5 stand.
+
 ## Seat state
 
-Verdict report sent on task `dispatch-refactor-r66` (kind result) to c-379@<box> and the
-current dispatch lease holder, in the brief's form. This seat waits for a message on that
-task whose body starts with ACCEPTED from c-379 or the dispatch holder; until then no
-/exit-clean. Branch `review/c002-refactor-round-66-mistral-seat` holds this commit. When
-the editor names a v1.0 sha, this seat signs it in a second commit on the same branch and
-reports again in the same form.
+Verdict reports sent on task `dispatch-refactor-r66` (kind result): v0.1 PASS at
+2026-11-19T12:59:25Z to c-379@<box> and the then-holder c-002@<box2> (msg 500404e5,
+47005f77); v1.0 PASS after this commit, same form, same recipients. This seat waits for a
+message on that task whose body starts with ACCEPTED from c-379 or the dispatch holder;
+until then no /exit-clean. Branch `review/c002-refactor-round-66-mistral-seat` holds both
+commits.

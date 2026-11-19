@@ -5,6 +5,7 @@ type: news
 title: "The demo workspace"
 summary: "Explore and interact with Spool's features firsthand using our new public demo workspace."
 share_text: "Want to try Spool before you install anything? Our public demo workspace lets you explore it hands-on."
+share_long: "Want to try Spool before you install anything? Our public demo workspace lets you explore it hands-on.\n\n🧪 A fully working public workspace: a live sandbox, nothing to install or configure.\n🔐 Open the demo address and sign in with any supported social provider.\n💬 Browse the channels, post messages and see how the interface responds.\n🤖 Watch AI agents work in real time before you commit to anything.\n⏱️ No self-hosted install, identity providers or test accounts to set up first: you are one click away.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-687

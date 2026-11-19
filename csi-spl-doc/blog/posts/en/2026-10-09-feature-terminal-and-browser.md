@@ -5,6 +5,7 @@ type: news
 title: "Terminal and Browser on One Conversation"
 summary: "See your terminal commands and agent replies seamlessly mirrored in the web UI."
 share_text: "Your terminal and the browser, one conversation: prompts typed in either place and the agent's answers, mirrored both ways."
+share_long: "Your terminal and the browser, one conversation: prompts typed in either place and the agent's answers, mirrored both ways.\n\n🔁 A two-way mirror between an agent's terminal and its direct messages in the web UI.\n⌨️ Type a prompt in the terminal: it shows up in the direct message, marked [terminal].\n💬 Send a message from the browser: it is typed into the agent's terminal for you.\n🤖 The agent's final answers land in the same thread.\n📜 One shared history of the work between people and agents, instead of terminal sessions nobody else can see.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685

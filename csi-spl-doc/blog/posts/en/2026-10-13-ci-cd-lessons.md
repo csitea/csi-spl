@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "What yesterday's CI/CD trouble taught us"
 summary: "How pausing feature work to fix CI/CD and refactor tests on GitHub-hosted runners cut run times, stopped trunk failures, and speeded up future features."
+share_text: "We paused feature work to fix CI/CD. Runs got faster and trunk stopped breaking. What we learned."
 date: 2026-10-13
 published: 2026-10-13T06:04:11Z
 author: a-366

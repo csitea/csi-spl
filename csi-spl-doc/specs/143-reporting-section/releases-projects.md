@@ -1,6 +1,6 @@
 # Releases: software projects of a workspace, the project drop box (SPL-4963)
 
-Status: **Draft v0.2.7**. Rows B-1 (the schema, SPL-4983), B-2 (store and hub scoped, SPL-5108), B-3 (the contract, SPL-5475), B-4 (the store per project, SPL-5705), B-5 (the hub per project, SPL-5772) and B-6 (registration and the box push per repo, SPL-5801) are built, and B-6b's first half (the hub's GitHub sync and its 5-minute loop, SPL-5808, section 5); the webhook and "Sync now" are not, nor the rest. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
+Status: **Draft v0.2.8**. Rows B-1 (the schema, SPL-4983), B-2 (store and hub scoped, SPL-5108), B-3 (the contract, SPL-5475), B-4 (the store per project, SPL-5705), B-5 (the hub per project, SPL-5772) and B-6 (registration and the box push per repo, SPL-5801) are built, and B-6b's first half (the hub's GitHub sync and its 5-minute loop, SPL-5808, section 5); the webhook and "Sync now" are not, nor the rest. The owner answered every question (section 9), nothing stays open. Epic SPL-2389.
 Amends: [spec.md](spec.md) sections 2 and 6.1, and [spec 171](../171-workspace-own-repo/spec.md) where section 3 says so.
 Topic: `93b73456-c662-4785-85ea-00986338a550` (HUM-10, prd t1).
 
@@ -142,6 +142,7 @@ Spec 171 §3.4 stands (sync, webhook, box push, credentials). This file only add
   - It writes `last_synced_sha`, `last_synced_at`, `sync_status` (`ok` or `error`) and `sync_error` back on the row. A repo is synced only as the workspace that registered it: any other slug is refused before a GitHub call.
   - `pat_kms` has no sealed-token store yet (`workspace_repos` has no token column and `workspace_vendor_keys.kind` names no `github`): such a row is written back `error`, `pat_kms: no sealed token store yet`. Building that store is a later rdb row.
   - Off unless `SPOOL_HUB_REPO_SYNC_ENABLED=true`. It reads through the Docs edit App (`SPOOL_HUB_DOCS_EDIT_GITHUB_APP_ID`, `SPOOL_HUB_DOCS_EDIT_INSTALLATION_ID`, the key in `SPOOL_GITHUB_APP_KEY`); `SPOOL_HUB_REPO_SYNC_GITHUB_API` overrides the API base, else `SPOOL_HUB_DOCS_EDIT_GITHUB_API`. With no App key it reads `public` rows only.
+  - **Do not set `SPOOL_HUB_REPO_SYNC_ENABLED` anywhere before the second half lands** (R7 ruling, c-002 msg 5ea3f5ad). The second half also fixes three gaps the review found, each with a red control: the tag list stops at 10 pages (1000 tags); a gone cursor or more than 2000 new commits is skipped silently with `sync_status` `ok`; and no test pins the switch off by default.
   - Tests: `internal/hub/repo_sync_test.go` (two repos on a fake GitHub, `internal/github/githubtest/repos.go`) and `internal/github/repo_sync_test.go`.
   - Not built yet: the webhook and "Sync now" (B-6b, second half), the WUI button (a WUI row), and the live steps (the App granted read on each repo, the switch on in cnf).
 - **Tags as versions**: as csi-spl does it, a commit's version is the first tag on trunk that contains it, within that repo only. `released_at` comes from the GitHub Release's publish time when one exists, else the time the sync first saw the tag. An untagged commit has `version` NULL and counts as unreleased.
@@ -313,4 +314,4 @@ No build row changes, and neither does the path in section 4.5; each answer is t
 - **Answer 6**: B-7's Unreleased card and repo pills are what the answer lists, and no row builds open work.
 - **Answer 4 with msg `cf6a27b3`**: no row builds a per-repo list. B-5's `notes_public` row stands, and section 6.4 names what it must read.
 
-<!-- version: 0.2.7 · updated: 2026-11-19 -->
+<!-- version: 0.2.8 · updated: 2026-11-19 -->

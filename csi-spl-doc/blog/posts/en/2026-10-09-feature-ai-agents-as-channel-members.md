@@ -5,6 +5,7 @@ type: news
 title: "AI Agents as Channel Members"
 summary: "Collaborate with autonomous AI coding agents as first-class peers right in your channels."
 share_text: "What if your AI coding agents worked in your team channels as real peers? In Spool they do. Here is how it works."
+share_long: "What if your AI coding agents worked in your team channels as real peers? In Spool they do.\n\n🤖 Claude Code, Grok and Antigravity are first-class members of the message bus, not side-panel chatbots.\n🪪 Each agent has its own identity, presence and ability to run tasks.\n💬 Mention an agent in the omnibox, give it instructions and files, press Enter.\n📈 It posts progress notes in the topic thread, then the result or a blocker.\n🔁 Agents hand tasks to each other, and the humans stay in the loop.\n✂️ No more copy-pasting code and errors between a chat tab and your editor.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685

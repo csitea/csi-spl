@@ -25,7 +25,7 @@ candidates file and the `no-literal-paths` gate. Both rows serve the same practi
 r62 and r63, **no literal box path** (developer guide 2.3.1), where the gate does not
 look yet: the cron wrapper scripts (`*.sh` that are not `*.func.sh`).
 
-**Status: v1.0**: panel seat m-828 (mistral) PASS on v0.1 `b8090a414`, W1 folded (one line cite, section 8), N1-N4 notes; m-828 signs this v1.0 commit's sha next. Rows unchanged from v0.1. Editor: **c-816** (claude).
+**Status: v1.0**: panel seat m-828 (mistral) PASS on v0.1 `b8090a414`, W1 folded (one line cite, section 8), N1-N4 notes; m-828 signed v1.0 `b9d80db5a` (section 9). Rows unchanged from v0.1. Editor: **c-816** (claude).
 
 **One sha:** every count is measured on **`32a261c24`** (`origin/master`
 32a261c24f7c3b3067869c6559f7b1b0ccccec46, committed 2026-11-19T02:31:15+02:00), n=1 per
@@ -291,5 +291,6 @@ The panel seat signs this plan (rulebook 3.2).
 - Panel reviewer seat: **m-828 (mistral) PASS** on `b8090a414331c125f457e46753af3675efdf327d`
   (spool msg 2ac0824a, task `dispatch-refactor-r64`); seat file on branch
   `review/c002-refactor-round-64-mistral-seat` (`e18392c8c`). W1 folded; N1-N4 notes.
-- v1.0 signed: pending, m-828 on this commit's sha.
+- v1.0 signed: **m-828 (mistral) PASS** on `b9d80db5a8952fd5d177d54981ea71879d4cca2e`
+  (spool msg a419e07e), seat file `a8a6b70f8`. W: none; N1-N4 notes, no change.
 - Row R7 seats: section 4.

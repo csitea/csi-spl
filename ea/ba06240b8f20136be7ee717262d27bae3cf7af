@@ -1,0 +1,6 @@
+Lay-What: In the month calendar, each event is now a small raised card, and on the phone week view today is marked by a border and a bold number, not by colour alone.
+Lay-How: Events in the desktop month grid got the same soft shadow as the day squares, and the phone week strip marks today with a thicker border and heavier digits.
+Lay-Why: A reviewer found that month events still looked flat and that today on the phone week could only be told apart by colour, which some people cannot see.
+Tech-What: CalendarDeskMonth event chips get box-shadow var(--cal-card-shadow); CalendarPhoneWeek today has a 2 px accent border and an 800-weight number; the phone sheet press is a flat colour; the motion ratchet test is stricter.
+Tech-How: Scoped CSS now reads the card tokens; calendar-calm-cards.test.mjs counts vendor-prefixed, upper-case and inline :style transition and animation rules.
+Tech-Why: R7 review findings W1 and W2 on the first raised-card commit: the month chip skipped the card tokens and phone-week today relied on colour only (WCAG 1.4.1).

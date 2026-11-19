@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import {
   answerBody, answerMode, chatBody, chatPicks, formState, lockSeconds, locksWhenComplete, mayHavePoll, parseAnswer, parsePoll, pollAnswers, pollProblems, splitPolls,
 } from '../../src/utils/poll.mjs'
+import { clearPollTopics, heldTopic } from '../../src/utils/poll-topic.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const RADIO = 'Which deploy path?\n(A) Deploy now\n(B) Wait for CI'
@@ -205,6 +206,33 @@ describe('SPL-5954 formState: one shared state per form', () => {
     assert.doesNotMatch(src, /a\.from === me\.value/, 'the form state is no longer the reader\'s own answer only')
     const use = readFileSync(join(WUI, 'src/composables/usePollTopic.ts'), 'utf8')
     assert.match(use, /api\.getTopic\(task, \{ limit: PAGE, after \}\)/)
+  })
+})
+
+// SPL-5954 R7 W2 (c-350): the topic rows a form reads are the signed-in
+// member's; sign-out drops them, so the next member in the same tab never
+// renders them on a form (no reload between the two: logout navigates).
+describe('SPL-5954 W2: sign-out drops the poll forms\' topic rows', () => {
+  const settle = () => new Promise((r) => setTimeout(r, 0))
+  it('member A fills the cache, logout, member B in the same tab gets no A rows', async () => {
+    const task = 'w2-topic-0001'
+    const a = heldTopic(task, async () => [{ msg_id: 'm-a', from: 'HUM-1', body: 'A only' }])
+    await settle()
+    assert.deepEqual(a.rows.value.map((r) => r.msg_id), ['m-a'])
+    clearPollTopics()
+    let read = 0
+    const b = heldTopic(task, async () => { read++; return [] })
+    assert.deepEqual(b.rows.value, [], 'member B starts with no rows of member A')
+    await settle()
+    assert.equal(read, 1, 'member B reads the topic again as itself')
+    assert.deepEqual(b.rows.value, [])
+  })
+  it('logout() clears it, as it clears drafts and cursors', () => {
+    const src = readFileSync(join(WUI, 'src/stores/session.ts'), 'utf8')
+    const out = src.slice(src.indexOf('async function logout()'), src.indexOf('async function stopActingAs()'))
+    assert.match(out, /clearPollTopics\(\)/)
+    const use = readFileSync(join(WUI, 'src/composables/usePollTopic.ts'), 'utf8')
+    assert.match(use, /heldTopic\(task, /, 'the composable keeps its rows in the cache sign-out clears')
   })
 })
 

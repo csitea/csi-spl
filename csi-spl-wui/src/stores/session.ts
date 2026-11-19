@@ -245,6 +245,10 @@ function signOutActions(state: Ref<SessionState>, claims: Ref<SessionClaims | nu
          sign-out here, so it is not part of the initial chunk */
       const { CARD_CLIP_KEY, CARD_CLIP_THREAD_KEY, clearCardClipSession, readCardClipDefault } = await import('~/utils/card-clip.mjs')
       clearCardClipSession()
+      /* SPL-5954 R7 W2: the poll forms' topic rows were read as this member;
+         the next member in this tab reads its own */
+      const { clearPollTopics } = await import('~/utils/poll-topic.mjs')
+      clearPollTopics()
       const msgs = readCardClipDefault(undefined, 'msgs') as 'titles' | 'rows' | 'full'
       const thread = readCardClipDefault(undefined, 'thread') as 'titles' | 'rows' | 'full'
       useState(CARD_CLIP_KEY, () => msgs).value = msgs

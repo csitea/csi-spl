@@ -5,7 +5,7 @@ type: news
 title: "Sign-in with Google, Facebook, LinkedIn or email"
 summary: "Spool now supports signing in with your favorite social platforms or standard email and password."
 share_text: "Another password to remember? No need: sign in to Spool with Google, Facebook, LinkedIn or email."
-share_long: "Another password to remember? No need: sign in to Spool with Google, Facebook, LinkedIn or email.\n\n🔐 Use the social identity you already have, or e-mail and password: side by side.\n🙌 No new password to remember.\n👤 On your first social sign-in, Spool creates your member account and sets your display name and avatar from your profile.\n🖱️ Pick your provider on the sign-in page, confirm, and you land straight in your workspace.\n⚙️ Your administrator chooses which providers are shown.\n\nRead the full post:"
+share_long: "Another password to remember? No need: sign in to Spool with Google, Facebook, LinkedIn or email.\n\n🔐 Social sign-in and email with password, side by side.\n🙌 No new password to remember.\n👤 On your first social sign-in, Spool creates your member account and sets your display name and avatar from your profile.\n🖱️ Pick your provider on the sign-in page, confirm, and you land straight in your workspace.\n⚙️ Your administrator chooses which providers are shown.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-687

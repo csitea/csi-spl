@@ -12,6 +12,7 @@
 # @description   spl_main_checkout  <base>/<org>/<app>, the shared clone
 # @description   SPL_ORG_DIR        <base>/<org>, the org's repos
 # @description   SPL_VAR_APP_DIR    <var>/<org>/<app>, state and logs
+# @description   SPL_VAR_ORG_DIR    <var>/<org>, the org's state
 # @description   SPL_WT_ROOT        <main checkout>-wt, the lane worktrees
 # @description   SPL_DESK_DIR       <main checkout>-desk-cron
 # @description <var> is run.sh's rule: <base>/../var. A cnf value carries the
@@ -59,17 +60,19 @@ spl_main_checkout() {
   printf '%s\n' "$d"
 }
 
-# spl_run_paths: export SPL_ORG_DIR, SPL_VAR_APP_DIR, SPL_WT_ROOT and
-# SPL_DESK_DIR (one already set is kept). rc 1 when no tree is known.
+# spl_run_paths: export SPL_ORG_DIR, SPL_VAR_APP_DIR, SPL_VAR_ORG_DIR
+# (<var>/<org>, org state), SPL_WT_ROOT and SPL_DESK_DIR (one already set
+# is kept). rc 1 when no tree is known.
 spl_run_paths() {
   local main org base
   main="$(spl_main_checkout)" || return 1
   org="${main%/*}"; base="${org%/*}"
   : "${SPL_ORG_DIR:=$org}"
   : "${SPL_VAR_APP_DIR:=${base%/*}/var/${org##*/}/${main##*/}}"
+  : "${SPL_VAR_ORG_DIR:=${base%/*}/var/${org##*/}}"
   : "${SPL_WT_ROOT:=${main}-wt}"
   : "${SPL_DESK_DIR:=${main}-desk-cron}"
-  export SPL_ORG_DIR SPL_VAR_APP_DIR SPL_WT_ROOT SPL_DESK_DIR
+  export SPL_ORG_DIR SPL_VAR_APP_DIR SPL_VAR_ORG_DIR SPL_WT_ROOT SPL_DESK_DIR
 }
 
 # spl_cnf_path_expand < lines -> the lines with each ${SPL_ORG_DIR} and

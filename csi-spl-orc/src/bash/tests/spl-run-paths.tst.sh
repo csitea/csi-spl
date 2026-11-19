@@ -6,7 +6,8 @@
 #   1. a fixture <base>/opt/acme/acme-app main checkout and its worktree
 #      <base>/opt/acme/acme-app-wt/c-901 derive the SAME paths:
 #      SPL_ORG_DIR <base>/opt/acme, SPL_VAR_APP_DIR <base>/var/acme/acme-app,
-#      SPL_WT_ROOT <main>-wt, SPL_DESK_DIR <main>-desk-cron; an env value wins.
+#      SPL_WT_ROOT <main>-wt, SPL_DESK_DIR <main>-desk-cron, SPL_VAR_ORG_DIR
+#      <base>/var/acme (exported); an env value wins.
 #      Red control: run.sh's own ORG_PATH rule (dirname of APP_PATH) on the
 #      worktree reads <base>/opt/acme/acme-app-wt, which is why the helper exists.
 #   2. spl_cnf_path_expand replaces only the two tokens, never another $.
@@ -23,16 +24,21 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 LIB="$PROJ_ROOT/lib/bash/funcs/spl-run-paths.func.sh"
-unset SPL_ORG_DIR SPL_VAR_APP_DIR SPL_WT_ROOT SPL_DESK_DIR
+unset SPL_ORG_DIR SPL_VAR_APP_DIR SPL_WT_ROOT SPL_DESK_DIR SPL_VAR_ORG_DIR
 B="$T/b"; M="$B/opt/acme/acme-app"; mkdir -p "$M"
 git -C "$M" init -q && git -C "$M" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m a
 git -C "$M" worktree add -q "$B/opt/acme/acme-app-wt/c-901" -b c-901 2>/dev/null
 W="$B/opt/acme/acme-app-wt/c-901"
-paths() { env -u SPL_ORG_DIR -u SPL_VAR_APP_DIR -u SPL_WT_ROOT -u SPL_DESK_DIR APP_PATH="$1" "${@:2}" bash -c 'source "$0"; spl_run_paths && echo "$SPL_ORG_DIR|$SPL_VAR_APP_DIR|$SPL_WT_ROOT|$SPL_DESK_DIR"' "$LIB"; }
+paths() { env -u SPL_ORG_DIR -u SPL_VAR_APP_DIR -u SPL_WT_ROOT -u SPL_DESK_DIR -u SPL_VAR_ORG_DIR APP_PATH="$1" "${@:2}" bash -c 'source "$0"; spl_run_paths && echo "$SPL_ORG_DIR|$SPL_VAR_APP_DIR|$SPL_WT_ROOT|$SPL_DESK_DIR"' "$LIB"; }
+# the org var dir as a child process sees it: exported, not only set
+var_org() { env -u SPL_ORG_DIR -u SPL_VAR_APP_DIR -u SPL_WT_ROOT -u SPL_DESK_DIR -u SPL_VAR_ORG_DIR APP_PATH="$1" "${@:2}" bash -c 'source "$0"; spl_run_paths && printenv SPL_VAR_ORG_DIR' "$LIB"; }
 want="$B/opt/acme|$B/var/acme/acme-app|$M-wt|$M-desk-cron"
 [[ "$(paths "$M")" == "$want" ]] && pass "1. main checkout derives $want" || fail "1. main: $(paths "$M")"
 [[ "$(paths "$W")" == "$want" ]] && pass "1. its worktree derives the same paths" || fail "1. worktree: $(paths "$W")"
 [[ "$(dirname "$W")" != "$B/opt/acme" ]] && pass "1. red control: run.sh's ORG_PATH rule on the worktree reads $(dirname "$W"), not the org dir" || fail "1. red control"
+[[ "$(var_org "$M")" == "$B/var/acme" ]] && pass "1. main checkout exports SPL_VAR_ORG_DIR $B/var/acme" || fail "1. var org dir, main: '$(var_org "$M")'"
+[[ "$(var_org "$W")" == "$B/var/acme" ]] && pass "1. its worktree exports the same SPL_VAR_ORG_DIR" || fail "1. var org dir, worktree: '$(var_org "$W")'"
+[[ "$(var_org "$W" SPL_VAR_ORG_DIR=/x/var-org)" == "/x/var-org" ]] && pass "1. an env SPL_VAR_ORG_DIR wins" || fail "1. var org dir override: '$(var_org "$W" SPL_VAR_ORG_DIR=/x/var-org)'"
 [[ "$(paths "$W" SPL_WT_ROOT=/x/wt)" == "$B/opt/acme|$B/var/acme/acme-app|/x/wt|$M-desk-cron" ]] && pass "1. an env SPL_WT_ROOT wins" || fail "1. env override: $(paths "$W" SPL_WT_ROOT=/x/wt)"
 out="$(env -u APP_PATH -u PROJ_PATH bash -c 'source "$0"; SPL_RUN_PATHS_TOP=; spl_run_paths; echo rc=$?' "$LIB")"
 [[ "$out" == "rc=1" ]] && pass "1. no APP_PATH, no PROJ_PATH, no file dir: rc 1" || fail "1. no tree: $out"

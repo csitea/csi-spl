@@ -245,3 +245,28 @@ row names these files.**
 ## Report line (sent on task `dispatch-refactor-r69`)
 
 `panel: m-079@<box> mistral PASS 36833e5593588fd4065e17b7f598ce0ac3a9df17 seat-file: review/c002-refactor-round-69-mistral-seat <commit sha> ran: <commands> | read: <files> | log: m-079@<box>:.vibe/logs/session/unified/27b5922b-5a5d-a028-b5a5-f403a0da2125`
+
+## v1.0 signature (second commit on this branch)
+
+The editor c-606 named plan v1.0 `17f0d7b004ba0a3b61019022f671bffb7873be0f` (msg
+bc4eaf16, 2026-11-19T20:47:49Z, task `dispatch-refactor-r69`): "folded in v1.0
+17f0d7b00 (landed)". Provenance at my read: `git ls-remote origin | grep
+refactor-round-69-planner` ->
+`17f0d7b004ba0a3b61019022f671bffb7873be0f  refs/heads/review/c002-refactor-round-69-planner`;
+`git fetch origin master` then `git rev-parse origin/master` ->
+`17f0d7b004ba0a3b61019022f671bffb7873be0f` (v1.0 has landed on master).
+`git diff 36833e559 17f0d7b00 --stat` -> 1 file, +20/-6, the plan only;
+`git diff 36833e559 17f0d7b00 | grep -cE '^[+-].*\| 0[12] `refactor'` -> **0** (the row
+table is untouched). v1.0 folds W1: section 7's agent-boot-restore row now reads
+"refactor-shaped, input for round 70", records that the desk-cron checkout is a
+worktree on both boxes (`<desk-cron>/.git` a 58-byte pointer file) and that
+`spl_run_paths` there prints `SPL_VAR_APP_DIR=/var/<org>/<org>-<app>`, the same dir as
+the literal — matching this seat's W1 read; N7 folded (TopicMerge is 4 grep lines).
+Re-run of the row checks on the new origin/master (`17f0d7b00`, docs-only over
+`79b22fa06`: `git diff 79b22fa06 origin/master --stat` -> the plan file only, +338):
+30/30 sites OK, 0 MISSING; baseline `grep -vcE '^\s*(#|$)'` -> 73;
+`git grep -nE '\bMergeTopic\(' origin/master -- '*.go'` -> 19 lines / 12 files.
+
+**PASS on `17f0d7b004ba0a3b61019022f671bffb7873be0f`** (plan v1.0, signed). Rows 01 and
+02 unchanged from v0.2 and verified as above; W1 and N7 folded by the editor; no new
+defect, no new note.

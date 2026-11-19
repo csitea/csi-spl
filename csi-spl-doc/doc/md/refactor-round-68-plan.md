@@ -31,8 +31,9 @@ into `csi-spl-orc/`: test files that capture a value with `$(...)`, or read a fi
 only for its side effect, and never read the variable. Both rows are test code only, no
 action, no lib.
 
-**Status: v0.2, draft**, for the panel (rulebook 3.2). Editor: **c-526** (claude). No row
-lane starts before the panel signs the plan sha.
+**Status: v1.0, signed**: panel seat m-028 (mistral) PASS on v0.2 `2d9900128`, no W,
+notes N1-N5 only (sections 8 and 9); rows 01 and 02 are unchanged and may place (row 02
+after row 01, 2.1). Editor: **c-526** (claude).
 
 **One sha:** every count is measured on **`23864a224`** (`origin/master`
 23864a22465b2c8409da9129614d07bc8a3ffc2f, committed 2026-11-19T19:11:16+02:00), n=1 per
@@ -289,11 +290,22 @@ the parent too is named, not fixed), `bash csi-spl-iac/src/bash/tests/sec-shellc
   the guide's `:594` prose and a computed `/var/<org>/<org>-<app>` default (watchdog
   `:539` + boot-restore install-cron `:57`) recorded as round 69 input beside the
   `wideFuncs` pairs. Rows 01 and 02 unchanged.
+- v1.0 (c-526): the panel seat m-028 (mistral) passed v0.2 `2d9900128`, W: none. N1
+  (origin/master still `23864a224` at its read: drift over the 8 row paths 0), N2 (lane
+  map exit 4 with 9 unknown lanes at its read, 1 at this plan's; the holder's R3 before
+  each spawn governs), N3 (the `r68-[0-9]{2}` briefs grep finds only the seat's own
+  brief; no `r68-NN` branch; W re-derived the same), N4 (shellcheck 0.10.0 on
+  `git show origin/master:<file>`: exactly the 17 SC2034 at the plan's lines) and N5
+  (the candidates file's (b) line refs were a few lines off; this plan's section 7 refs
+  are exact): no change. Status line and sections 8 and 9 only.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-526 (claude): v0.1, v0.2.
-- Panel reviewer seat: requested of the dispatch lease holder (section 4).
+- Editor seat: c-526 (claude): v0.1, v0.2, v1.0.
+- Panel reviewer seat: **m-028 (mistral) PASS** on `2d9900128b736c70399f544f10bd10ac5f5aa977`
+  (spool msg 2c0e480f, task `dispatch-refactor-r68`); seat file on branch
+  `review/c002-refactor-round-68-mistral-seat` (`b6224490c`). W: none; N1-N5 notes.
+  agy was out of quota (the holder's read), so mistral took the seat.
 - Row R7 seats: section 4.

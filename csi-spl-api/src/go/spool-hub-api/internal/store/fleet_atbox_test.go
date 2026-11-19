@@ -64,10 +64,10 @@ func TestAgentAtBoxCollision(t *testing.T) {
 			}
 
 			// leases: holders c-004@box-desk and c-004@sat side by side
-			if _, err := st.CASFleetLease(ctx, tid, "main", "orch", "c-004@box-desk", "box-desk", 0, t0); err != nil {
+			if _, err := st.CASFleetLease(ctx, tid, FleetLeaseCASReq{Fleet: "main", Role: "orch", Holder: "c-004@box-desk", Box: "box-desk", IfGen: 0, Now: t0}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := st.CASFleetLease(ctx, tid, "main", "dispatch", "c-004@sat", "sat", 0, t0); err != nil {
+			if _, err := st.CASFleetLease(ctx, tid, FleetLeaseCASReq{Fleet: "main", Role: "dispatch", Holder: "c-004@sat", Box: "sat", IfGen: 0, Now: t0}); err != nil {
 				t.Fatal(err)
 			}
 			o, _ := st.GetFleetLease(ctx, tid, "main", "orch", t0)

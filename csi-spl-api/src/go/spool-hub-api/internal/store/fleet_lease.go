@@ -27,6 +27,15 @@ type FleetLease struct {
 	PrevAge    time.Duration
 }
 
+// FleetLeaseCASReq is one CASFleetLease write: Holder (by Box) takes
+// (Fleet, Role) only while the row's gen is still IfGen (0 = no row yet),
+// stamped Now. A lost race answers ErrConflict with the CURRENT row.
+type FleetLeaseCASReq struct {
+	Fleet, Role, Holder, Box string
+	IfGen                    int64
+	Now                      time.Time
+}
+
 // The shapes 0094/0095's CHECKs accept, so a refusal is a 400, not a 500.
 var (
 	FleetNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
@@ -40,12 +49,12 @@ func ValidFleetHolder(s string) bool { return agentid.IsAtBox(s) }
 type FleetLeases interface {
 	// GetFleetLease reads (fleet, role); no row is Gen 0, Holder "".
 	GetFleetLease(ctx context.Context, tenantID, fleet, role string, now time.Time) (FleetLease, error)
-	// CASFleetLease writes holder (by box) only while the row's gen is still
-	// ifGen (0 = no row yet), stamps renewed_at = now and bumps gen. A lost
-	// race is ErrConflict with the CURRENT row, so the caller decides again
-	// without a second read. A won write also answers the row it replaced
-	// (PrevHolder, PrevAge).
-	CASFleetLease(ctx context.Context, tenantID, fleet, role, holder, box string, ifGen int64, now time.Time) (FleetLease, error)
+	// CASFleetLease writes r.Holder (by r.Box) only while the row's gen is
+	// still r.IfGen (0 = no row yet), stamps renewed_at = r.Now and bumps gen.
+	// A lost race is ErrConflict with the CURRENT row, so the caller decides
+	// again without a second read. A won write also answers the row it
+	// replaced (PrevHolder, PrevAge).
+	CASFleetLease(ctx context.Context, tenantID string, r FleetLeaseCASReq) (FleetLease, error)
 	// FleetLeases reads every lease row of the tenant, all fleets and roles
 	// (spec 059 S5: a channel post for a role goes to its holder's box).
 	FleetLeases(ctx context.Context, tenantID string, now time.Time) ([]FleetLease, error)
@@ -83,21 +92,21 @@ func (s *Memory) FleetLeases(_ context.Context, tenant string, now time.Time) ([
 	return out, nil
 }
 
-func (s *Memory) CASFleetLease(_ context.Context, tenant, fleet, role, holder, box string, ifGen int64, now time.Time) (FleetLease, error) {
+func (s *Memory) CASFleetLease(_ context.Context, tenant string, r FleetLeaseCASReq) (FleetLease, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	k := [3]string{tenant, fleet, role}
+	k := [3]string{tenant, r.Fleet, r.Role}
 	cur := s.leases[k]
-	if cur.gen != ifGen {
-		return s.fleetLeaseLocked(tenant, fleet, role, now), ErrConflict
+	if cur.gen != r.IfGen {
+		return s.fleetLeaseLocked(tenant, r.Fleet, r.Role, r.Now), ErrConflict
 	}
 	if s.leases == nil {
 		s.leases = map[[3]string]memLease{}
 	}
-	s.leases[k] = memLease{holder: holder, box: box, gen: ifGen + 1, at: now}
-	l := s.fleetLeaseLocked(tenant, fleet, role, now)
+	s.leases[k] = memLease{holder: r.Holder, box: r.Box, gen: r.IfGen + 1, at: r.Now}
+	l := s.fleetLeaseLocked(tenant, r.Fleet, r.Role, r.Now)
 	if cur.gen > 0 {
-		l.PrevHolder, l.PrevAge = cur.holder, now.Sub(cur.at)
+		l.PrevHolder, l.PrevAge = cur.holder, r.Now.Sub(cur.at)
 	}
 	return l, nil
 }

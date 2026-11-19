@@ -36,15 +36,13 @@ var longFuncs = map[string]bool{}
 // (SPL-3689); each may take at most maxParamsListed. The list may only
 // shrink: split a function's parameters into the struct they belong to and
 // delete its line. A NEW function over maxParams fails the gate. The
-// Memory / Postgres pairs (MoveMessage, MergeTopic, CASFleetLease)
+// Memory / Postgres pairs (MoveMessage, MergeTopic)
 // implement one interface and leave the list together.
 var wideFuncs = map[string]bool{
-	"internal/store/fleet_lease.go (*Memory).CASFleetLease":            true,
-	"internal/store/fleet_lease_postgres.go (*Postgres).CASFleetLease": true,
-	"internal/store/message_move.go (*Memory).MoveMessage":             true,
-	"internal/store/message_move_postgres.go (*Postgres).MoveMessage":  true,
-	"internal/store/topic_merge.go (*Memory).MergeTopic":               true,
-	"internal/store/topic_merge_postgres.go (*Postgres).MergeTopic":    true,
+	"internal/store/message_move.go (*Memory).MoveMessage":            true,
+	"internal/store/message_move_postgres.go (*Postgres).MoveMessage": true,
+	"internal/store/topic_merge.go (*Memory).MergeTopic":              true,
+	"internal/store/topic_merge_postgres.go (*Postgres).MergeTopic":   true,
 }
 
 // folded are helpers that exist ONCE; the pattern may appear only in the

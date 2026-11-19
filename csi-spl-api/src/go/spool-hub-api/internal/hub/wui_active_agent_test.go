@@ -126,7 +126,7 @@ func TestWUISendToRoleIDGoesToLeaseHolder(t *testing.T) {
 	if f := replyFrame(t, w, "6a000000-0000-4000-8000-000000000001", thread, "@c-001 who holds it"); f["error"] != "ambiguous_to_box" {
 		t.Fatalf("no lease: %v", f)
 	}
-	if _, err := e.st.CASFleetLease(ctx, tid, "main", "orch", "c-001@box-b", "box-b", 0, time.Now()); err != nil {
+	if _, err := e.st.CASFleetLease(ctx, tid, store.FleetLeaseCASReq{Fleet: "main", Role: "orch", Holder: "c-001@box-b", Box: "box-b", IfGen: 0, Now: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	ack := replyFrame(t, w, "6a000000-0000-4000-8000-000000000002", thread, "@c-001 take this")

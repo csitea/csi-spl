@@ -86,7 +86,7 @@ func TestChannelPostRoleGroup(t *testing.T) {
 	gen := int64(0)
 	lease := func(holder, box string, at time.Time) {
 		t.Helper()
-		l, err := e.st.CASFleetLease(ctx, tid, "fleet-a", "dispatch", holder, box, gen, at)
+		l, err := e.st.CASFleetLease(ctx, tid, store.FleetLeaseCASReq{Fleet: "fleet-a", Role: "dispatch", Holder: holder, Box: box, IfGen: gen, Now: at})
 		if err != nil {
 			t.Fatalf("lease %s: %v", holder, err)
 		}
@@ -226,7 +226,7 @@ func TestChannelPostRoleGroupIgnoresMutex(t *testing.T) {
 	}
 	hold := func(role string) {
 		t.Helper()
-		if _, err := e.st.CASFleetLease(ctx, tid, "fleet-a", role, "c-002@sat", "sat", 0, time.Now()); err != nil {
+		if _, err := e.st.CASFleetLease(ctx, tid, store.FleetLeaseCASReq{Fleet: "fleet-a", Role: role, Holder: "c-002@sat", Box: "sat", IfGen: 0, Now: time.Now()}); err != nil {
 			t.Fatalf("%s row: %v", role, err)
 		}
 	}

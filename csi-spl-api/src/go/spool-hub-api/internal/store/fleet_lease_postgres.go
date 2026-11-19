@@ -61,34 +61,34 @@ func readFleetLease(ctx context.Context, tx pgx.Tx, tenant, fleet, role string, 
 	return l, nil
 }
 
-func (s *Postgres) CASFleetLease(ctx context.Context, tenant, fleet, role, holder, box string, ifGen int64, now time.Time) (FleetLease, error) {
+func (s *Postgres) CASFleetLease(ctx context.Context, tenant string, r FleetLeaseCASReq) (FleetLease, error) {
 	var l, prev FleetLease
 	won := false
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var err error
-		if ifGen > 0 {
+		if r.IfGen > 0 {
 			// the row this write replaces, locked so it cannot move before
 			// the UPDATE below compares its gen (spec 162 3.3)
-			if prev, err = lockFleetLease(ctx, tx, tenant, fleet, role, now); err != nil {
+			if prev, err = lockFleetLease(ctx, tx, tenant, r.Fleet, r.Role, r.Now); err != nil {
 				return err
 			}
 		}
 		var q string
-		args := []any{tenant, fleet, role, holder, box, now}
-		if ifGen == 0 {
+		args := []any{tenant, r.Fleet, r.Role, r.Holder, r.Box, r.Now}
+		if r.IfGen == 0 {
 			q = `INSERT INTO fleet_leases (tenant_id, fleet, role, holder, box, gen, renewed_at)
 				VALUES ($1, $2, $3, $4, $5, 1, $6) ON CONFLICT DO NOTHING`
 		} else {
 			q = `UPDATE fleet_leases SET holder = $4, box = $5, gen = gen + 1, renewed_at = $6
 				WHERE tenant_id = $1 AND fleet = $2 AND role = $3 AND gen = $7`
-			args = append(args, ifGen)
+			args = append(args, r.IfGen)
 		}
 		tag, err := tx.Exec(ctx, q, args...)
 		if err != nil {
 			return err
 		}
 		won = tag.RowsAffected() == 1
-		l, err = readFleetLease(ctx, tx, tenant, fleet, role, now)
+		l, err = readFleetLease(ctx, tx, tenant, r.Fleet, r.Role, r.Now)
 		return err
 	})
 	if err != nil {

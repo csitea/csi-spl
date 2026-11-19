@@ -95,7 +95,7 @@ func (s *Server) boxLease(ctx context.Context, x *session, f wire.Frame) (leaseA
 		if !wire.ValidLeaseReason(f.LeaseReason) {
 			return leaseAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "lease_reason must be one of " + strings.Join(wire.LeaseReasons, ", ")}
 		}
-		l, err = s.o.Store.CASFleetLease(ctx, x.tenant, f.Fleet, f.LeaseRole, f.Holder, x.box, f.IfGen, now)
+		l, err = s.o.Store.CASFleetLease(ctx, x.tenant, store.FleetLeaseCASReq{Fleet: f.Fleet, Role: f.LeaseRole, Holder: f.Holder, Box: x.box, IfGen: f.IfGen, Now: now})
 		won = err == nil
 		if errors.Is(err, store.ErrConflict) {
 			err = nil

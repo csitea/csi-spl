@@ -27,17 +27,17 @@ func TestFleetLeaseCAS(t *testing.T) {
 				t.Fatalf("no row: %+v %v", l, err)
 			}
 			// first write: if_gen 0
-			l, err = st.CASFleetLease(ctx, tid, "main", "dispatch", "CLE-002@pc", "box-desk", 0, t0)
+			l, err = st.CASFleetLease(ctx, tid, FleetLeaseCASReq{Fleet: "main", Role: "dispatch", Holder: "CLE-002@pc", Box: "box-desk", IfGen: 0, Now: t0})
 			if err != nil || l.Gen != 1 || l.Holder != "CLE-002@pc" || l.Box != "box-desk" || l.PrevHolder != "" || l.PrevAge != 0 {
 				t.Fatalf("first write: %+v %v", l, err)
 			}
 			// a second first-write loses and gets the current row back
-			l, err = st.CASFleetLease(ctx, tid, "main", "dispatch", "CLE-102@sat", "box-sat", 0, t0)
+			l, err = st.CASFleetLease(ctx, tid, FleetLeaseCASReq{Fleet: "main", Role: "dispatch", Holder: "CLE-102@sat", Box: "box-sat", IfGen: 0, Now: t0})
 			if !errors.Is(err, ErrConflict) || l.Gen != 1 || l.Holder != "CLE-002@pc" {
 				t.Fatalf("second first-write: %+v %v", l, err)
 			}
 			// renew on the gen read
-			l, err = st.CASFleetLease(ctx, tid, "main", "dispatch", "CLE-002@pc", "box-desk", 1, t0.Add(60*time.Second))
+			l, err = st.CASFleetLease(ctx, tid, FleetLeaseCASReq{Fleet: "main", Role: "dispatch", Holder: "CLE-002@pc", Box: "box-desk", IfGen: 1, Now: t0.Add(60 * time.Second)})
 			if err != nil || l.Gen != 2 || l.PrevHolder != "CLE-002@pc" || l.PrevAge != 60*time.Second {
 				t.Fatalf("renew: %+v %v", l, err)
 			}
@@ -47,11 +47,11 @@ func TestFleetLeaseCAS(t *testing.T) {
 				t.Fatalf("age: %+v %v", l, err)
 			}
 			// a stale gen loses
-			if l, err = st.CASFleetLease(ctx, tid, "main", "dispatch", "CLE-102@sat", "box-sat", 1, t0.Add(300*time.Second)); !errors.Is(err, ErrConflict) || l.PrevHolder != "" {
+			if l, err = st.CASFleetLease(ctx, tid, FleetLeaseCASReq{Fleet: "main", Role: "dispatch", Holder: "CLE-102@sat", Box: "box-sat", IfGen: 1, Now: t0.Add(300 * time.Second)}); !errors.Is(err, ErrConflict) || l.PrevHolder != "" {
 				t.Fatalf("stale gen: %+v %v", l, err)
 			}
 			// takeover on the current gen
-			l, err = st.CASFleetLease(ctx, tid, "main", "dispatch", "CLE-102@sat", "box-sat", 2, t0.Add(300*time.Second))
+			l, err = st.CASFleetLease(ctx, tid, FleetLeaseCASReq{Fleet: "main", Role: "dispatch", Holder: "CLE-102@sat", Box: "box-sat", IfGen: 2, Now: t0.Add(300 * time.Second)})
 			if err != nil || l.Gen != 3 || l.Holder != "CLE-102@sat" || l.Box != "box-sat" || l.Age != 0 ||
 				l.PrevHolder != "CLE-002@pc" || l.PrevAge != 240*time.Second {
 				t.Fatalf("takeover: %+v %v", l, err)
@@ -71,7 +71,7 @@ func TestFleetLeaseCAS(t *testing.T) {
 				wg.Add(1)
 				go func(h string) {
 					defer wg.Done()
-					if _, err := st.CASFleetLease(ctx, tid, "main", "orch", h, "b", 0, t0); err == nil {
+					if _, err := st.CASFleetLease(ctx, tid, FleetLeaseCASReq{Fleet: "main", Role: "orch", Holder: h, Box: "b", IfGen: 0, Now: t0}); err == nil {
 						wins <- h
 					} else if !errors.Is(err, ErrConflict) {
 						t.Errorf("race %s: %v", h, err)

@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Terminal and Browser on One Conversation"
 summary: "See your terminal commands and agent replies seamlessly mirrored in the web UI."
+share_text: "Your terminal and the browser, one conversation: every command and agent reply mirrored live."
 date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685

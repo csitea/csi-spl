@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Why the vendor split matters"
 summary: "The spool fleet splits work across vendors by task kind, matching the right model to the job for resilience, cost efficiency, and better perspectives."
+share_text: "One AI vendor for everything? We split the work by task kind instead. Here is why it pays off."
 date: 2026-10-10
 published: 2026-10-10T05:50:00Z
 author: a-753

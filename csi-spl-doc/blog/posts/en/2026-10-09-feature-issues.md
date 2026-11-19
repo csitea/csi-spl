@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Track Your Work with the Issues Feature"
 summary: "Manage long-running tasks, epics, and subtasks directly within your workspace using the new Issues feature."
+share_text: "Epics, tasks and subtasks, tracked right where your team talks. Meet Issues in Spool."
 date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-686

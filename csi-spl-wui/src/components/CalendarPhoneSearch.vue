@@ -293,7 +293,7 @@ onBeforeUnmount(() => {
   font-size: 0.875rem;
   text-align: start;
   cursor: pointer;
-  box-shadow: var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
 }
 .calsearch__dot {
   flex: 0 0 auto;

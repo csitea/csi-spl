@@ -370,7 +370,7 @@ async function undo() {
   background: var(--color-bg-2, var(--color-surface));
   color: var(--color-fg);
   border-top: 1px solid var(--color-border-strong, var(--color-border));
-  box-shadow: var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
 }
 .calpeek__head {
   display: flex;
@@ -479,7 +479,7 @@ async function undo() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
   cursor: pointer;
 }
 .calpeek__btn--wide { flex: 0 0 auto; width: 100%; }
@@ -493,7 +493,7 @@ async function undo() {
 .calpeek__facts dd { margin: 0; overflow-wrap: anywhere; }
 .calpeek__btn--quiet { box-shadow: none; background: transparent; }
 .calpeek__btn--danger { color: var(--color-danger, var(--color-fg)); }
-.calpeek__btn:active { transform: translateY(1px); box-shadow: var(--bevel-shade); }
+.calpeek__btn:active { background: var(--color-selected); }
 .calpeek__btn:disabled { opacity: .6; cursor: default; }
 .calpeek button:focus-visible,
 .calpeek a:focus-visible {
@@ -502,7 +502,4 @@ async function undo() {
 }
 :root[data-font-size="4"] .calpeek__btn,
 :root[data-font-size="5"] .calpeek__btn { max-height: none; }
-@media (prefers-reduced-motion: reduce) {
-  .calpeek__btn:active { transform: none; }
-}
 </style>

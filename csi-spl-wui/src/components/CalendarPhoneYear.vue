@@ -200,7 +200,7 @@ onBeforeUnmount(() => {
   font-size: 0.875rem;
   overflow-wrap: anywhere;
   cursor: pointer;
-  box-shadow: var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
 }
 .calyear__month--today { border-color: var(--color-accent); font-weight: 700; }
 .calyear__month--on {
@@ -208,15 +208,12 @@ onBeforeUnmount(() => {
   color: var(--color-heading);
   font-weight: 600;
   border-color: var(--color-border-strong);
-  box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
 }
-.calyear__month:active { transform: translateY(1px); box-shadow: var(--bevel-shade); }
+.calyear__month:active { background: var(--color-selected); }
 [dir="rtl"] .calyear__glyph { transform: scaleX(-1); }
 .calyear button:focus-visible {
   outline: var(--focus-ring-w) solid var(--focus-ring);
   outline-offset: var(--focus-offset);
-}
-@media (prefers-reduced-motion: reduce) {
-  .calyear__month:active { transform: none; }
 }
 </style>

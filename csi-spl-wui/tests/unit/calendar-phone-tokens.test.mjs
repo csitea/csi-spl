@@ -7,7 +7,8 @@
 //    var(--bevel-*), ...) or none / 0.
 // 2. The bevel tokens --bevel-shine / --bevel-shade exist for the dark
 //    family and for the light family (9.4 #6), as inset shadows only (no
-//    ring, the owner's focus rule), and the raised controls use them.
+//    ring, the owner's focus rule); since SPL-5908 the raised controls use
+//    the one card shadow instead (tests/unit/calendar-calm-cards.test.mjs).
 // 3. Dot contrast in all 8 themes (the default, dark and the six light-*):
 //    each of the 11 event colours reaches 3:1 against --color-bg and
 //    --color-surface by itself, or through its --cal-dot-ring edge.
@@ -121,12 +122,14 @@ describe('bevel tokens (9.4 #6)', () => {
       assert.match(token(th, '--bevel-shade'), /^inset\s+0\s+-[1-9]/, `${th} shade offset is upward (bottom edge)`)
     }
   })
-  it('the raised controls of CalendarPhone.vue carry --focus-3d plus the bevel', () => {
+  /* SPL-5908 (owner HUM-10, t1 b6d13fc5): one shadow level - the raised
+     controls carry the calendar's one card shadow, no stacked bevel */
+  it('the raised controls of CalendarPhone.vue carry the one card shadow', () => {
     const css = styleOf(readFileSync(join(COMPONENTS, 'CalendarPhone.vue'), 'utf8'))
     for (const sel of ['.calphone__add', '.calphone__seg-btn--on', '.calphone__today']) {
       const rule = css.match(new RegExp(`${sel.replace('.', '\\.')}\\s*\\{([^}]*)\\}`))
       assert.ok(rule, `${sel} rule`)
-      assert.match(rule[1], /box-shadow:\s*var\(--focus-3d\),\s*var\(--bevel-shine\),\s*var\(--bevel-shade\)/, sel)
+      assert.match(rule[1], /box-shadow:\s*var\(--cal-card-shadow\)\s*;/, sel)
     }
   })
 })

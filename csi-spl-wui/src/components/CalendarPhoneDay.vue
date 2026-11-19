@@ -395,11 +395,11 @@ onBeforeUnmount(() => {
   min-height: var(--tap);
   padding: 0 10px;
   box-sizing: border-box;
-  border: 1px solid var(--color-border);
+  border: var(--cal-card-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-fg);
-  box-shadow: var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
   font: inherit;
   font-size: 0.875rem;
   text-align: start;
@@ -424,7 +424,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-md);
   background: var(--color-selected);
   color: var(--color-heading);
-  box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
   font: inherit;
   font-size: 0.875rem;
   font-weight: 600;
@@ -490,11 +490,11 @@ onBeforeUnmount(() => {
   padding: 3px 6px 3px 18px;
   box-sizing: border-box;
   overflow: hidden;
-  border: 1px solid var(--color-border-strong);
+  border: var(--cal-card-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-fg);
-  box-shadow: var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
   font: inherit;
   font-size: 0.8125rem;
   line-height: 1.25;
@@ -509,7 +509,7 @@ onBeforeUnmount(() => {
 .calday__ev--lifted {
   z-index: 4;
   border-color: var(--color-accent);
-  box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
 }
 .calday__ev--saving { opacity: 0.7; }
 .calday__ev-time {
@@ -546,7 +546,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   background: var(--color-bg-2);
-  box-shadow: var(--focus-3d);
+  box-shadow: var(--cal-card-shadow);
 }
 
 .calday__notice {

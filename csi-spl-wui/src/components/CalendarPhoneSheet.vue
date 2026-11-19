@@ -607,16 +607,11 @@ useMobileStack().overlay(() => props.open, () => emit('update:open', false))
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--color-surface);
   color: var(--color-fg);
-  box-shadow: var(--focus-3d), var(--bevel-shine);
+  box-shadow: var(--cal-card-shadow);
   overscroll-behavior-y: contain;
-  animation: calsheet-up 200ms ease-out;
 }
+/* SPL-5908: the sheet appears in place, no slide-up animation */
 .calsheet--full { height: calc(100% - env(safe-area-inset-top, 0px)); }
-.calsheet--drag { animation: none; }
-@keyframes calsheet-up {
-  from { transform: translateY(40%); opacity: 0.4; }
-  to { transform: none; opacity: 1; }
-}
 
 /* ---- the sticky header: grab bar, Cancel | heading | Save ---- */
 .calsheet__head {
@@ -676,13 +671,10 @@ useMobileStack().overlay(() => props.open, () => emit('update:open', false))
   background: var(--color-accent);
   color: var(--color-on-accent);
   font-weight: 600;
-  box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
 }
 .calsheet__btn:disabled { opacity: 0.55; cursor: default; }
-.calsheet__btn:not(:disabled):active {
-  transform: translateY(1px);
-  box-shadow: var(--bevel-shade);
-}
+.calsheet__btn:not(:disabled):active { opacity: 0.8; }
 
 /* ---- the body: vertical scroll only ---- */
 .calsheet__body {
@@ -740,7 +732,7 @@ useMobileStack().overlay(() => props.open, () => emit('update:open', false))
   color: var(--color-fg);
   font-size: 1rem;
   font-variant-numeric: tabular-nums;
-  box-shadow: var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
   cursor: pointer;
 }
 .calsheet__chip-text { white-space: nowrap; }
@@ -791,7 +783,7 @@ useMobileStack().overlay(() => props.open, () => emit('update:open', false))
   height: 20px;
   border-radius: var(--radius-pill);
   background: var(--color-fg);
-  box-shadow: var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
 }
 .calsheet__switch input:checked {
   border-color: var(--color-accent);
@@ -891,9 +883,4 @@ useMobileStack().overlay(() => props.open, () => emit('update:open', false))
   outline-offset: var(--focus-offset);
 }
 
-/* S4-7: no sheet slide under reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .calsheet { animation: none; }
-  .calsheet__btn:not(:disabled):active { transform: none; }
-}
 </style>

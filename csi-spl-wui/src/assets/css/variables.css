@@ -469,6 +469,20 @@
   --tab-lift: 0 -2px 6px rgba(12, 40, 80, 0.2);
 }
 
+/* SPL-5908 (owner HUM-10, t1 b6d13fc5, poll Q1 = A, Q3 = A): the calendar's
+   one raised card - a day cell, an event, a raised control - in every view,
+   phone included: one soft shadow and a light border, like paper on a desk.
+   One shadow level, no inset bevel, no glow. Asserted by
+   tests/unit/calendar-calm-cards.test.mjs. */
+:root {
+  --cal-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --cal-card-border: 1px solid rgba(255, 255, 255, 0.1);
+}
+:root[data-theme^="light"] {
+  --cal-card-shadow: 0 1px 3px rgba(12, 40, 80, 0.16);
+  --cal-card-border: 1px solid rgba(12, 40, 80, 0.14);
+}
+
 /* SPL-2120 (owner HUM-10, t1 28559e83 msgs 1c268bf0 + 68dd229e): every list
    alternates a lighter and a darker row - the message feed, the events log,
    the issues list and the Flow. --color-row-alt is a translucent veil, so

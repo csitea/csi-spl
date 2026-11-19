@@ -98,7 +98,7 @@ defineExpose({ set(list: Reminder[]) { items.value = list.slice() } })
   border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-fg);
-  box-shadow: var(--focus-3d);
+  box-shadow: var(--cal-card-shadow);
 }
 .cal-remind__label {
   font-size: 0.75rem;

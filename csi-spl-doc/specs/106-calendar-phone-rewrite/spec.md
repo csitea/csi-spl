@@ -200,15 +200,18 @@ Default on open: **Week**, then whatever view the person last used (remembered i
 
 Only the WUI's own tokens (`src/assets/css/variables.css`), so all palettes and the light theme follow:
 
+SPL-5908 (owner HUM-10, t1 b6d13fc5: "more basic and more 3D", "too many small effects in the ui"; poll Q1 = A, Q3 = A): one raised card per day cell and per event, one shadow level, no hover or press animation, no transition, no tint on every chip, today in the one accent. `tests/unit/calendar-calm-cards.test.mjs` holds it as a ratchet over every `Calendar*.vue` and `pages/calendar.vue` (0 transition / animation / `@keyframes` rules, no stacked `box-shadow`, no bevel token, at most 4 `color-mix` tints: the two scrims and the year strip's holiday and week days). The page turn below stays: it is the period change (H6).
+
 | element | treatment |
 |---|---|
-| raised controls (add button, the selected segment, Today, event cards in Month agenda and Week) | `box-shadow: var(--focus-3d)` plus top-light / bottom-dark inset bevel tokenised as `var(--bevel-shine)` / `var(--bevel-shade)` in `variables.css` in dark and light themes (9.4 #6); pressed = 1 px down, `var(--color-selected)`, inset shadow |
-| sheets | top corners `var(--radius-lg)`, `var(--focus-3d)` above the page, grab bar, `overscroll-behavior-y: contain` |
+| raised controls (add button, the selected segment, Today, event cards in Month agenda and Week) | SPL-5908: the one card look, `box-shadow: var(--cal-card-shadow)` and `border: var(--cal-card-border)` (both in `variables.css`, light and dark); pressed = a flat `var(--color-selected)` (the + darkens to `var(--color-accent-pressed)`), no 1 px drop. Was: `var(--focus-3d)` plus the inset bevel `var(--bevel-shine)` / `var(--bevel-shade)` (9.4 #6) |
+| day cells and events (SPL-5908, all views, desktop too) | each day cell and each event is a raised card: `var(--cal-card-shadow)` and `var(--cal-card-border)`; an event's colour is its start bar or dot, never a tint of the block. The phone month keeps its gapless 44 px cells (FR-003) and draws the card 2 px inside each cell |
+| sheets | top corners `var(--radius-lg)`, `var(--cal-card-shadow)` above the page, grab bar, `overscroll-behavior-y: contain`; it appears in place, no slide-up (SPL-5908) |
 | today | its cell / chip raised and outlined in `var(--color-accent)` and a bold number (never colour alone, WCAG 1.4.1); the now line `var(--color-accent)` with `var(--color-glow)` |
 | focus | the one ring: `var(--focus-ring-w) solid var(--focus-ring)`, offset `var(--focus-offset)`, never wider than 3 px; visible outside `--focus-3d` drop shadow |
 | radius | `var(--radius)`, `--radius-md`, `--radius-lg`, `--radius-pill` only |
 | page turn | 1:1 flat interactive translation (`translateX`) during finger drag; 3D slide on release snap (`perspective: 1200px`, `rotateY <= 8deg`, `scale(0.98)`, 220 ms, ease-out); restored to `transform: none` at rest (S2-5, 9.4 #7) |
-| reduced motion | under `prefers-reduced-motion: reduce`: no `rotateY` or scale, no sheet slide, no smooth scroll to now line (`scroll-behavior: auto`), no glow pulse; 1:1 translation swipe still works as direct manipulation input (S4-7, 9.4 #2/#7) |
+| reduced motion | under `prefers-reduced-motion: reduce`: no `rotateY` or scale, no sheet slide (since SPL-5908 there is none in any mode), no smooth scroll to now line (`scroll-behavior: auto`), no glow pulse; 1:1 translation swipe still works as direct manipulation input (S4-7, 9.4 #2/#7) |
 | type | `rem` only, from the sizes the calendar already uses (0.75 .. 1 rem); everything follows the five font-size levels |
 | sizes (H7 split, 9.4 #10, S4-1, S4-4) | **Controls** (header, bottom bar, sheets, peek, picker): >= `var(--tap)` (44 px) and <= 48 px tall at font level 3; the add button 56x56 px; no text button wider than half screen. At font level >= 4, controls grow only by the rem of their text. **Content targets** (month cells, week chips, agenda rows): >= 44x44, no upper bound. **Timed event blocks < 44 px**: exempt from 44 px height bound (minimum 26 px height for <30m at 48 px/hr), stay >= 44 px wide, capped at 3 overlap columns. Scrollers have 72 px bottom padding so the `+` FAB never covers content. |
 | contrast (S4-8) | event dots and colours maintain >= 3:1 contrast against surface background across all 8 themes (WCAG 1.4.11) |

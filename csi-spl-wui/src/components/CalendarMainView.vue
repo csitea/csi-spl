@@ -602,8 +602,10 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 .cal-week {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  border: 1px solid var(--color-border);
+  border: var(--cal-card-border);
   border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  box-shadow: var(--cal-card-shadow);
   min-height: 320px;
 }
 .cal-week__day { min-width: 0; padding: 4px 6px; border-inline-start: 1px solid var(--color-border); }
@@ -617,12 +619,13 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 .cal-week__item {
   display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline;
   padding: 2px 4px; font-size: 0.75rem;
+  border: var(--cal-card-border);
   background: var(--color-surface); border-radius: var(--radius-sm);
+  box-shadow: var(--cal-card-shadow);
   overflow-wrap: anywhere;
 }
-.cal-week__item[data-color]:not(.cal-ev) { box-shadow: inset 3px 0 0 var(--cal-ev-color); }
+.cal-week__item[data-color]:not(.cal-ev) { border-inline-start: 3px solid var(--cal-ev-color); }
 .cal-week__item--edit { cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.cal-week__item--edit:hover { background: var(--color-bg-2); }
 .cal-week__item--edit:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .cal-week__item--synced { cursor: pointer; }
 .cal-week__item--synced:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
@@ -642,20 +645,13 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   background: var(--color-accent);
   color: var(--color-on-accent);
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  transition: box-shadow 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+  box-shadow: var(--cal-card-shadow);
 }
-.cal-main__new:hover {
-  background: var(--color-accent-pressed);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.22);
-}
-.cal-main__new:active { transform: scale(0.96); }
-@media (prefers-reduced-motion: reduce) {
-  .cal-main__new { transition: none; }
-  .cal-main__new:active { transform: none; }
-}
+/* SPL-5908: pressed is a flat colour, no grow, no scale, no transition */
+.cal-main__new:active { background: var(--color-accent-pressed); }
 .cal-week__time { color: var(--color-muted); }
-.cal-week__badge { font-size: 0.6875rem; padding: 0 4px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+/* SPL-5908: the release / private label is plain muted text, no boxed badge */
+.cal-week__badge { font-size: 0.6875rem; color: var(--color-muted); }
 
 /* 097 T013: the time grid - a gutter of hours, then each day: its head and
    all-day items on one row (as tall as the tallest), its 24 hours below */
@@ -700,25 +696,25 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   font-size: 0.6875rem;
   color: var(--color-muted);
 }
-/* SPL-4060 (msg 57bcb720 "kind of unvisible"): a block was the surface
-   colour on the page colour with a muted time; it is tinted in its own
-   colour now, its text in the foreground (>= 4.5:1 in both themes), a ring
-   of the page colour keeps side by side blocks apart; the title comes
-   first and ends in an ellipsis when narrow, and a block too short for two
-   lines puts the time beside it */
+/* SPL-4060 (msg 57bcb720 "kind of unvisible"), SPL-5908: a block is a
+   raised card - the surface colour, the card border and shadow - and its
+   colour is the start bar only (no tint); its text is the foreground
+   (>= 4.5:1 in both themes) and the border keeps side by side blocks
+   apart; the title comes first and ends in an ellipsis when narrow, and a
+   block too short for two lines puts the time beside it */
 .cal-ev {
   position: absolute;
   z-index: 1;
   display: block;
   padding: 0;
   overflow: visible;
+  border: var(--cal-card-border);
   border-inline-start: 4px solid var(--cal-ev-color, var(--color-accent));
-  background: color-mix(in srgb, var(--cal-ev-color, var(--color-accent)) 20%, var(--color-bg));
+  background: var(--color-surface);
   color: var(--color-fg);
-  box-shadow: 0 0 0 1px var(--color-bg);
+  box-shadow: var(--cal-card-shadow);
   box-sizing: border-box;
 }
-.cal-ev.cal-week__item--edit:hover { background: color-mix(in srgb, var(--cal-ev-color, var(--color-accent)) 32%, var(--color-bg)); }
 .cal-ev__body {
   display: flex; flex-wrap: wrap; gap: 0 4px; align-items: baseline;
   height: 100%;
@@ -747,7 +743,6 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 .cal-week__item--lifted {
   z-index: 4;
   outline: 2px solid var(--color-accent);
-  box-shadow: 0 6px 16px rgb(0 0 0 / 25%);
   background: var(--color-surface-hover);
 }
 .cal-week__item--left.cal-week__item--edit { opacity: 0.45; box-shadow: none; }
@@ -756,7 +751,6 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   z-index: 4;
   pointer-events: none;
   outline: 2px solid var(--color-accent);
-  box-shadow: 0 6px 16px rgb(0 0 0 / 25%);
   background: var(--color-surface-hover);
 }
 .cal-grid__ghost {

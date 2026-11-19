@@ -725,7 +725,7 @@ const { turning, moving, pages, isRtl, onTouchStart, onTouchMove, onTouchEnd, on
   margin-bottom: 6px;
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  box-shadow: var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
   font-size: 0.875rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -747,14 +747,10 @@ const { turning, moving, pages, isRtl, onTouchStart, onTouchMove, onTouchEnd, on
   border-radius: var(--radius-pill);
   background: var(--color-accent);
   color: var(--color-on-accent);
-  box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
   cursor: pointer;
 }
-.calphone__add:active {
-  transform: translateY(1px);
-  background: var(--color-accent-pressed);
-  box-shadow: var(--bevel-shade);
-}
+.calphone__add:active { background: var(--color-accent-pressed); }
 
 /* ---- bottom bar: one row, <= 48 px at level 3 ---- */
 .calphone__bar {
@@ -787,12 +783,8 @@ const { turning, moving, pages, isRtl, onTouchStart, onTouchMove, onTouchEnd, on
   white-space: nowrap;
   cursor: pointer;
 }
-.calphone__today { box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade); }
-.calphone__btn:active {
-  transform: translateY(1px);
-  background: var(--color-selected);
-  box-shadow: var(--bevel-shade);
-}
+.calphone__today { box-shadow: var(--cal-card-shadow); }
+.calphone__btn:active { background: var(--color-selected); }
 .calphone__seg {
   display: inline-flex;
   flex: 1 1 auto;
@@ -806,7 +798,7 @@ const { turning, moving, pages, isRtl, onTouchStart, onTouchMove, onTouchEnd, on
   color: var(--color-heading);
   font-weight: 600;
   border-color: var(--color-border-strong);
-  box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
 }
 .calphone__step { padding: 0; }
 [dir="rtl"] .calphone__glyph { transform: scaleX(-1); }
@@ -840,7 +832,5 @@ const { turning, moving, pages, isRtl, onTouchStart, onTouchMove, onTouchEnd, on
 /* S4-7: no tilt, no scale, no smooth scroll; the swipe still swaps pages */
 @media (prefers-reduced-motion: reduce) {
   .calphone__scroll { scroll-behavior: auto; }
-  .calphone__add:active,
-  .calphone__btn:active { transform: none; }
 }
 </style>

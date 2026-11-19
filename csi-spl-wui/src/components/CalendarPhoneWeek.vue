@@ -234,9 +234,10 @@ watch(() => [props.state, props.day] as const, async ([state]) => {
   min-width: 0;
   min-height: var(--tap);
   padding: 4px 0 8px;
-  border: 1px solid transparent;
+  border: var(--cal-card-border);
   border-radius: var(--radius);
-  background: transparent;
+  background: var(--color-surface);
+  box-shadow: var(--cal-card-shadow);
   color: var(--color-fg);
   font: inherit;
   line-height: 1.15;
@@ -263,11 +264,8 @@ watch(() => [props.state, props.day] as const, async ([state]) => {
   background: var(--color-accent);
   box-shadow: var(--cal-dot-ring);
 }
-.calweek__chip--today {
-  border-color: var(--color-accent);
-  background: var(--color-selected);
-  box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade);
-}
+/* today: the one accent - its border and its number */
+.calweek__chip--today { border-color: var(--color-accent); }
 .calweek__chip--today .calweek__chip-d { color: var(--color-accent); }
 
 /* ---- the list ---- */
@@ -348,21 +346,17 @@ watch(() => [props.state, props.day] as const, async ([state]) => {
   margin-bottom: 6px;
   padding: 6px 12px;
   box-sizing: border-box;
-  border: 0;
+  border: var(--cal-card-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
   color: var(--color-fg);
   font: inherit;
   font-size: 0.875rem;
   text-align: start;
   cursor: pointer;
 }
-.calweek__ev:active {
-  transform: translateY(1px);
-  background: var(--color-selected);
-  box-shadow: var(--bevel-shade);
-}
+.calweek__ev:active { background: var(--color-selected); }
 .calweek__dot {
   flex: 0 0 auto;
   width: 10px;
@@ -394,8 +388,5 @@ watch(() => [props.state, props.day] as const, async ([state]) => {
 .calweek button:focus-visible {
   outline: var(--focus-ring-w) solid var(--focus-ring);
   outline-offset: var(--focus-offset);
-}
-@media (prefers-reduced-motion: reduce) {
-  .calweek__ev:active { transform: none; }
 }
 </style>

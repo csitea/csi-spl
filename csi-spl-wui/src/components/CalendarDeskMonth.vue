@@ -76,23 +76,23 @@ const rows = computed(() => {
 </script>
 
 <style scoped>
+/* SPL-5908: each day is its own raised card on the page, 6 px apart */
 .cal-month {
   display: grid;
   grid-template-rows: auto repeat(6, minmax(0, 1fr));
+  gap: 6px;
   flex: 1 1 auto;
   min-height: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  padding: 0 2px 4px;
   overflow: auto;
 }
-.cal-month__row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-height: 5.5rem; }
+.cal-month__row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; min-height: 5.5rem; }
 .cal-month__row--head { min-height: 0; }
 .cal-month__wd {
   padding: 4px 6px;
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-muted);
-  border-bottom: 1px solid var(--color-border);
 }
 .cal-month__cell {
   display: flex;
@@ -100,12 +100,14 @@ const rows = computed(() => {
   gap: 2px;
   min-width: 0;
   padding: 2px 4px 4px;
-  border-top: 1px solid var(--color-border);
-  border-inline-start: 1px solid var(--color-border);
+  border: var(--cal-card-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: var(--cal-card-shadow);
   cursor: pointer;
 }
-.cal-month__cell:first-child { border-inline-start: 0; }
-.cal-month__cell--out { background: var(--color-bg-2); }
+/* the other months' days: flat, a step back (meaning kept, no shadow) */
+.cal-month__cell--out { background: var(--color-bg-2); box-shadow: none; }
 .cal-month__cell--out .cal-month__num { color: var(--color-muted); }
 .cal-month__num {
   align-self: flex-start;
@@ -120,7 +122,6 @@ const rows = computed(() => {
   font-size: 0.8125rem;
   cursor: pointer;
 }
-.cal-month__num:hover { background: var(--color-surface-hover); }
 .cal-month__num:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .cal-month__cell--today .cal-month__num { background: var(--color-accent); color: var(--color-on-accent); font-weight: 700; }
 .cal-month__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -128,10 +129,10 @@ const rows = computed(() => {
   display: flex;
   gap: 4px;
   width: 100%;
-  border: 0;
+  border: var(--cal-card-border);
   border-inline-start: 3px solid var(--cal-ev-color, var(--color-accent));
-  /* the week block's tint (CalendarMainView .cal-ev): >= 4.5:1 for the text */
-  background: color-mix(in srgb, var(--cal-ev-color, var(--color-accent)) 20%, var(--color-bg));
+  /* SPL-5908: no colour tint; the start bar carries the event colour */
+  background: var(--color-bg);
   color: var(--color-fg);
   font: inherit;
   font-size: 0.75rem;
@@ -153,5 +154,4 @@ const rows = computed(() => {
   font-weight: 600;
   cursor: pointer;
 }
-.cal-month__more:hover { text-decoration: underline; }
 </style>

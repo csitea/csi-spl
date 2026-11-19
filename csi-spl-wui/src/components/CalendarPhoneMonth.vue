@@ -245,7 +245,25 @@ function onKey(e: KeyboardEvent) {
   cursor: pointer;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
+  isolation: isolate;
 }
+/* SPL-5908: each day is a raised card. The cells stay gapless 44 px tap
+   targets (FR-003), so the card is drawn 2 px inside the cell, under its
+   number and dots. Today draws the card on the cell itself (below). */
+.calmonth__cell::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  border: var(--cal-card-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--cal-card-shadow);
+}
+.calmonth__cell--out::before { background: var(--color-bg-2); box-shadow: none; }
+.calmonth__cell--on::before { background: var(--color-selected); }
+.calmonth__cell--today::before { content: none; }
 .calmonth__cell--out { color: var(--color-muted); }
 /* the other months' days: --color-muted alone is an AA text colour, nearly
    as dark as this month's on light; 0.7 on top keeps >= 3:1 on --color-bg
@@ -257,7 +275,8 @@ function onKey(e: KeyboardEvent) {
 /* today: raised, outlined in the accent, a bold number (1.4.1) */
 .calmonth__cell--today {
   background: var(--color-surface);
-  box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade);
+  border: var(--cal-card-border);
+  box-shadow: var(--cal-card-shadow);
   outline: var(--focus-ring-w) solid var(--color-accent);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
@@ -320,21 +339,17 @@ function onKey(e: KeyboardEvent) {
   margin-bottom: 6px;
   padding: 6px 12px;
   box-sizing: border-box;
-  border: 1px solid var(--color-border);
+  border: var(--cal-card-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade);
+  box-shadow: var(--cal-card-shadow);
   color: var(--color-fg);
   font: inherit;
   font-size: 0.875rem;
   text-align: start;
   cursor: pointer;
 }
-.calmonth__card:active {
-  transform: translateY(1px);
-  background: var(--color-selected);
-  box-shadow: var(--bevel-shade);
-}
+.calmonth__card:active { background: var(--color-selected); }
 .calmonth__card-dot { width: 8px; height: 8px; }
 .calmonth__card-time {
   color: var(--color-muted);
@@ -382,7 +397,4 @@ function onKey(e: KeyboardEvent) {
   outline-offset: var(--focus-offset);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .calmonth__card:active { transform: none; }
-}
 </style>

@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-23-plan.md](bug-round-23-plan.md) (same shape, same 5 sources).
 
-**Status: v1.1** (the holder's answers to v0.1 `8c767953d` and v1.0 `e1ad57824` folded, section 8), for the panel to sign.  
+**Status: v1.1, signed** by the panel (m-636@`<box2>`, mistral, PASS on `f25630876`, 0 warnings; this commit records the signature and the panel's notes, no row changed).  
 Editor: **c-629@`<box2>`** (claude, `specs_and_docs`).  
 Panel: m-636@`<box2>` (mistral, ask 3f35daf4, slug `c002-bug-round-24-mistral-panel-seat`), placed by c-001 (msg d48afbba) for the dispatch holder c-002@sat (section 8).
 
@@ -224,7 +224,15 @@ out="$(cd / && sudo -u "$u" timeout 600 bash "$T/csi-spl-orc/src/bash/tests/watc
 - **Review history:**
   - 2026-11-19 21:21Z: the editor pushed v0.1 (`8c767953d`) to `review/c002-bug-round-24-planner` and asked the holder for a panel (msg 029e9bd9).
   - 21:2xZ: the holder answered (msg c6e214c3): the mistral panel seat queued, the R7 vendor changed from grok (off) to mistral, the three questions answered. v1.0 (`e1ad57824`) folded them; no row changed.
-  - 21:3xZ: the holder (msg 7ae6099f): R7 for both rows is the claude waiver seat, not mistral (ruling b71016ad); the panel seat is m-636@`<box2>`. v1.1 folds it; no row's fix or red control changed.
+  - 21:3xZ: the holder (msg 7ae6099f): R7 for both rows is the claude waiver seat, not mistral (ruling b71016ad); the panel seat is m-636@`<box2>`. v1.1 (`f25630876`) folds it; no row's fix or red control changed.
+  - 2026-11-19: panel seat m-636@`<box2>` (mistral, placed by c-001 d48afbba): **PASS** on `f2563087664e9fa7f4b3b3e55aa62e709f56553c`, 0 warnings (msg 6c05761d); seat file on `review/c002-bug-round-24-mistral-seat` at `db5164163`. It re-ran the slug check (0), all 29 cited sites on `17f0d7b00` and `origin/master` (29 OK), rc01 on a `17f0d7b00` copy (exit 1, 10 FAIL lines, 0 CONTROL), rc02 as the agent user (exit 1, `0 passed, 1 failed`) and as the push user (exit 0, `81 passed`), the red-control sha256 prefixes and printed sources (match), `lane-map.sh --check` on the row paths, r69-01's files, sections 4 and 5, and `do_check_dist_hygiene` (clean).
+  - Panel notes (none changes a row):
+    - N1: `lane-map.sh --check` on the row paths exits 4 for the same three no-file sat lanes as at 21:04:56Z; the orchestrator re-runs R3 before the spawn.
+    - N2: `origin/master` moved to `99c0fd73b` during the read; the row files are unchanged (`git diff --stat` empty).
+    - N3: v0.1 named grok for R7 (off, cnf `grok: 0`); v1.1 names the claude waiver seat for both rows, never mistral.
+    - N4: `rc02.sh`'s `head -4` cuts its own summary line on the control run; the seat re-ran the control directly: `81 passed, 0 failed`, exit 0.
+    - N5: the seat file names the two OS users by role only, as the plan does.
+    - N6: the seat used the files in `/var/spool-hub/dispatch/b24-red-controls/`; their sha256 prefixes match section 3.2 and the printed sources diff clean.
 
 ---
 
@@ -232,5 +240,5 @@ out="$(cd / && sudo -u "$u" timeout 600 bash "$T/csi-spl-orc/src/bash/tests/watc
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-629@`<box2>` | **v1.1** |
-| Panel | m-636@`<box2>` (mistral) | pending: signs the v1.1 sha |
+| Editor | c-629@`<box2>` | **v1.1, signed** |
+| Panel | m-636@`<box2>` (mistral) | **PASS** on `f25630876` (msg 6c05761d, seat file `db5164163`) |

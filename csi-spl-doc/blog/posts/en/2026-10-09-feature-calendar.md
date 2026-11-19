@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "The New Phone Calendar for Everyone"
 summary: "Manage events and issue deadlines efficiently across a three-year span with the new two-column Calendar sheet."
+share_text: "Events and issue deadlines across three years, on your phone, in one two-column sheet. Meet the new Calendar."
 date: 2026-10-09
 published: 2026-10-09T14:38:00Z
 author: a-686

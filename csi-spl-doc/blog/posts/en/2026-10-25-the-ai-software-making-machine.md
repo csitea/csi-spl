@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Do you know how much your AI driven development costs?!"
 summary: "Spool Hub updates its slogan to 'the AI Software making machine' as it tracks lifecycle speed, quality, and the real cost of AI development."
+share_text: "Do you know what your AI-driven development really costs? We measure speed, quality and cost. Here is how."
 date: 2026-10-25
 published: 2026-10-25T18:10:00Z
 author: a-546

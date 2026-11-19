@@ -198,7 +198,7 @@ has   "the unsent text is still there" 'half typed text' "$screen"
 
 # Clear the prompt: the daemon must deliver within seconds.
 printf '\r\n\xe2\x9d\xaf \r' >"$tty92"
-for i in $(seq 1 40); do
+for _ in $(seq 1 40); do
   [ -z "$(ls -1 "$q92"/*.poke 2>/dev/null)" ] && break
   sleep 0.5
 done
@@ -210,7 +210,7 @@ has "…as the poke line"                   "SPOOL CLE-92: note from CLE-90" "$s
 # A drained daemon ends rather than spinning, and frees its lock.
 # An empty pid file would make "/proc/$pid" read "/proc", which always exists.
 daemon_gone() { local pid; pid="$(cat "$q92/retry.pid" 2>/dev/null)"; [ -z "$pid" ] || [ ! -e "/proc/$pid" ]; }
-for i in $(seq 1 40); do daemon_gone && break; sleep 0.5; done
+for _ in $(seq 1 40); do daemon_gone && break; sleep 0.5; done
 check "the drained daemon exited" daemon_gone
 
 # A STALE entry is dropped, never offered. A prompt that stays busy for half an
@@ -245,13 +245,13 @@ q97="$(spool_poke_queue_dir CLE-97)"
 e97="$(spool_poke_queue_add CLE-97 "a poke for a seat with no window")"
 SPOOL_POKE_RETRY_EVERY=0.2 SPOOL_POKE_RETRY_SECS=30 bash "$T_SCRIPTS/spool-poke-retry.sh" --to CLE-97 >"$T_TMP/retry97.log" 2>&1 &
 r97=$!
-for i in $(seq 1 20); do [ -s "$q97/retry.pid" ] && break; sleep 0.2; done
+for _ in $(seq 1 20); do [ -s "$q97/retry.pid" ] && break; sleep 0.2; done
 echo "do_spl_desk_move test" >"$qm"
 sleep 0.5; touch -d '2 hours ago' "$e97"; sleep 1
 check "a quiesced desk: the daemon drops no entry" test -e "$e97"
 check "…and does not exit" test -e "/proc/$r97"
 rm -f "$qm"
-for i in $(seq 1 25); do [ -e "/proc/$r97" ] || break; sleep 0.2; done
+for _ in $(seq 1 25); do [ -e "/proc/$r97" ] || break; sleep 0.2; done
 check "the marker gone, the stale entry is dropped" test ! -e "$e97"
 check "…and the drained daemon exits" test ! -e "/proc/$r97"
 kill "$r97" 2>/dev/null; wait "$r97" 2>/dev/null
@@ -266,7 +266,7 @@ rm -f "$qm"
 # Stated as the owner experiences them, against a throwaway agent pane. The
 # real orchestrator pane is not touched by any of this.
 rm -f "$q"/*.poke
-A_PANE="$(t_window CLE-94 'sleep 600')"
+t_window CLE-94 'sleep 600' >/dev/null
 aq="$(spool_poke_queue_dir CLE-94)"
 alog="$aq/notices.log"
 

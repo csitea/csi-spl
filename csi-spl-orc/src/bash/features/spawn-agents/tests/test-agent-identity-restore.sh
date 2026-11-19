@@ -92,7 +92,7 @@ record CLE-88 s-88 "$W/gone"   true  2026-10-01T02:00:00Z            # worktree 
 record CLE-89 s-89 "$W/CLE-89" true  2026-10-01T02:00:00Z            # its session is running already
 record CLE-90 s-90 "$W/CLE-90" true  2026-10-01T02:00:00Z            # no transcript
 # A live CLI already holding s-89: argv "claude -c ... x --resume s-89".
-RUNNER="$(t_window 'other' "bash -c 'exec -a claude bash -c \"sleep 600; :\" x --resume s-89'")"
+t_window 'other' "bash -c 'exec -a claude bash -c \"sleep 600; :\" x --resume s-89'" >/dev/null
 sleep 0.5
 act() {
   env PROJ_PATH="$T_REPO/csi-spl-orc" "$@" bash -c '

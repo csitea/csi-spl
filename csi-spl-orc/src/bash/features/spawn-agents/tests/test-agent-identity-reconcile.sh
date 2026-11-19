@@ -51,8 +51,8 @@ nb() { names | sed -E 's/((CLE|GRK|AGY|QWN)-[0-9]+) [>?!]( |\||$)/\1\3/g'; }
 pname() { tm display -p -t "$1" '#{window_name}' | sed -E 's/((CLE|GRK|AGY|QWN)-[0-9]+) [>?!]( |$)/\1\3/'; }
 # Windows whose name carries an id other than the one in their process's env.
 drift() {
-  local pane pid wname nid aid
-  while IFS='|' read -r pane pid wname; do
+  local pid wname nid aid
+  while IFS='|' read -r _ pid wname; do
     nid="$(printf '%s' "$wname" | grep -oE '(CLE|GRK|AGY|QWN)-[0-9]+' | sed -n 1p)"
     [ -n "$nid" ] || continue
     aid="$(for c in "$pid" $(pgrep -P "$pid"); do tr '\0' '\n' < "/proc/$c/environ" 2>/dev/null | sed -n 's/^SPOOL_AGENT_ID=//p'; done | sed -n 1p)"
@@ -72,7 +72,6 @@ out="$(reconcile --apply)"
 eq "0. the first reconcile names every agent from its session" "CLE-20 lane 20|CLE-30 lane 30|CLE-40 lane 40|CLE-50 lane 50|home|notes|" "$(names)"
 
 # --- 1. a spawn never renames another window ------------------------------------
-before="$(names)"
 win "CLE-10" "$(agent_cmd CLE-10 'CLE-10 brand new')" >/dev/null
 sleep 1.5
 AGENT_TOP_AFTER_SNAPSHOT=":" bash "$T_SCRIPTS/agent-top.sh" --badges >/dev/null 2>&1

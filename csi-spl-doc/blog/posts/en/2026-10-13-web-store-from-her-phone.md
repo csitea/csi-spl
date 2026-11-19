@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "🛍️ She updated her web store from her phone, and had a small new function built, without coding"
 summary: "A customer dictated changes on her phone in her own language. Agents updated her web store and built a small new function. She did not code."
+share_text: "She dictated changes on her phone, in her own language. AI agents updated her web store. She wrote no code."
 date: 2026-10-13
 published: 2026-10-13T18:16:46Z
 author: c-430

@@ -225,11 +225,118 @@ W1..: none.
 - N5: shellcheck 0.10.0 was present on this box, so check 3's scan ran (not NOT RUN)
   on origin/master extracts; one SC2034 per row file at the plan's lines.
 
+## v1.1 signature (2026-11-19 ~16:4xZ, this session)
+
+Named by the dispatch holder c-002@<box> on task `31b4d745-098a-57d5-9b2e-cab6a0e43c81`
+(msg 77608a05, citing planner c-443@<box> msg 4e8121f5): plan v1.1
+`38b7f1596f50e7ad1044087e9adb3000eb9f1f10`, origin/master HEAD at my read.
+Provenance: `git merge-base --is-ancestor 38b7f1596 origin/master` -> exit 0;
+`git log -1 --format='%H %s' 38b7f1596` -> `38b7f1596f50e7ad1044087e9adb3000eb9f1f10
+docs(r67-plan, SPL-5969): refactor round 67 plan v1.1 adds row r67-03, ...`;
+status line at the sha: "**Status: v1.1, row 03 waits for its signature** ... rows 01
+and 02 are unchanged and stay signed". Reviewed ONLY what changed since the v1.0
+that folded my v0.1 PASS: `git diff ca05e75b3 38b7f1596 --
+csi-spl-doc/doc/md/refactor-round-67-plan.md` -> 240 lines, the plan file only.
+
+**Verdict on v1.1 `38b7f1596f50e7ad1044087e9adb3000eb9f1f10`: PASS** — W1..: none on
+v1.1. N6-N9 below.
+
+### What changed since v0.1 (the diff, checked)
+
+- Rows 01/02 table lines unchanged:
+  `git diff 7c4e9b38f 38b7f1596 -- csi-spl-doc/doc/md/refactor-round-67-plan.md | grep -cE '^[+-]\| r67-0[12] '`
+  -> **0**.
+- `86babad74` (v1.0 note): r67-01's `tf-state-push.func.sh:27` removal also turns that
+  file's SC2154 baseline line `|1` into `|2`. Verified with shellcheck 0.10.0 on
+  `ca05e75b3`'s file: before deleting `:27` -> `27:3 SC2034 vars_path` +
+  `35:20 SC2154 tf_run_path`; after `sed '27d'` -> `27:66 SC2154 tf_proj` +
+  `34:20 SC2154 tf_run_path`. Baseline today carries both
+  `SC2034|csi-spl-iac/src/bash/run/tf-state-push.func.sh|1` and
+  `SC2154|csi-spl-iac/src/bash/run/tf-state-push.func.sh|1`. So row 01 drops the
+  SC2034 line and raises the SC2154 line to `|2`; the 86 -> 82 line count of section 6
+  still holds (a count edit on an existing line, not a new line).
+- `38b7f1596` (v1.1): adds row r67-03 (sections 1.2, 1.5, 2, 2.1, 2.2, 3, 5, 6, 7, 8,
+  9), measured on `86babad74`.
+
+### r67-03 checks (the holder's three)
+
+1. **Disjoint from r67-01/02:** the 9 row-03 paths (all under
+   `csi-spl-api/src/go/spool-hub-api/`) vs the 7 row-01/02 paths —
+   `comm -12 <(9 paths sorted) <(7 paths sorted) | wc -l` -> **0**; all 9 exist on
+   origin/master (`git cat-file -e origin/master:<path>` -> OK x9). Batch 1 holds rows
+   01 and 03 with no shared path (R1 ok).
+2. **Site count:** `git grep -nE '\bCASFleetLease\(' 86babad74 -- '*.go'` -> **16
+   lines**, `git grep -lE '\bCASFleetLease\(' 86babad74 -- '*.go' | wc -l` -> **8
+   files** — as the plan says; re-measured on origin/master (`38b7f1596`) -> 16 / 8,
+   nothing moved. Breakdown: interface `fleet_lease.go:48`, impls `fleet_lease.go:86`
+   (Memory) and `fleet_lease_postgres.go:64` (Postgres), caller `box_lease.go:98`,
+   tests `fleet_lease_test.go` x6, `fleet_atbox_test.go` x2, `crosstenant_test.go:115`,
+   `role_group_test.go` x2, `wui_active_agent_test.go:129`.
+   `git grep -nE 'func \([^)]*\) CASFleetLease\(' 86babad74 -- '*.go'` -> exactly the 2
+   implementations, no third type.
+3. **Section 5 brief runnable:** `command -v go` -> `/usr/local/go/bin/go`;
+   `csi-spl-api/src/bash/tests/run-all-tests.sh` exists;
+   `PRE_PUSH_TIER` is a documented param of `do_check_pre_push` (`fast|full`,
+   `check-pre-push.func.sh:76` and `:1437-1439`), so
+   `cd csi-spl-iac && PRE_PUSH_TIER=full ./run -a do_check_pre_push` runs (the store
+   tier, deploy gate (b)). The `go test -count=1 ./internal/store/ ./internal/hub/
+   ./internal/cleancode/` gate is runnable as written; I did not run the Go tests
+   myself (docs/review only) — the row lane runs them.
+
+### Gate claims (1.5) verified on `86babad74`
+
+`cleancode_test.go`: `maxParams = 7` at `:20`, `maxParamsListed = 8` at `:23`,
+`wideFuncs` at `:41-48` with 6 entries, the CASFleetLease pair at `:42-43`, and the
+stale-key `t.Logf("wideFuncs: %q no longer takes more than %d parameters - delete its
+line", ...)` at `:100-101` — a listed function dropping under 7 only logs, never fails.
+The interface at `fleet_lease.go:48` takes 8 parameters with `ctx`. Row 03's change
+(one `FleetLeaseCASReq`, 3 params) drops the pair under 7 and removes its 2 lines;
+section 6's count 6 -> 4 holds.
+
+### R3 on the 9 row-03 paths
+
+`lane-map.sh --check <9 paths> --agent m-977` -> **exit 4**: no live lane lists them;
+11 lanes record no files (all on the other box: c-049, c-060, c-414, c-439, c-443,
+c-452, c-459, c-470 (the live r67-01 row lane, iac scope), c-812, c-924, c-927) —
+ask first, not free; the holder's R3 re-check before the spawn governs.
+`git log origin/master --since="$W" -- <9 paths> | wc -l` -> **0**; newest change of
+each matches the plan's 2.2 list (`6e799033c`, `b45e54ddc`, `5d4d08910`, `9bae5ff35`,
+`673045866`, `ffa109b34`, `f8677d1e5`).
+
+### Row shape
+
+Row 03: practice the Go clean-code gate (`wideFuncs` ratchet only shrinks), a red
+control (3 outputs: struct in + gate lines kept -> the 2 `no longer takes more than 7`
+LOGs; lines dropped -> no such log; one implementation back at 8 parameters with the
+lines dropped -> the gate FAILS `takes 8 parameters (> 7)`), a test list (1.5), vendor
+**claude**, kind **simple_coding**, batch 1 beside row 01 — no mistral coding or
+testing row; R7 reviewers unchanged (cross-vendor first, never mistral). 3 rows is
+rulebook 5.1's cap (at most 3).
+
+## Defects on v1.1
+
+W1..: none.
+
+## Notes on v1.1
+
+- N6: `38b7f1596` is origin/master HEAD at my read; the diff base `ca05e75b3` is the
+  v1.0 that folded my v0.1 PASS (its section 9 records it, spool msg 3e1c0744, seat
+  `e3f3bebbd`).
+- N7: lane-map exit 4 now lists 11 unknown lanes (8 at my v0.1 read) — live state
+  moved; c-470@<box2> is the live r67-01 row lane, its scope is the iac paths,
+  disjoint from row 03's api paths.
+- N8: the SC2154 change in `tf-state-push.func.sh` is a count edit on an existing
+  baseline line, not a new line, so section 6's 86 -> 82 still holds; verified with
+  shellcheck 0.10.0 before/after deleting `:27` (above).
+- N9: go is present on this box, so the section-5 gates are runnable as written; the
+  Go tests themselves are the row lane's to run, not this seat's.
+
 ## Seat state
 
-Verdict report sent on task `dispatch-refactor-r67` (kind result) to c-443@<box>
-and the current dispatch lease holder, in the brief's form. This seat waits for a
-message on that task whose body starts with ACCEPTED from c-443 or the dispatch
-holder; until then no /exit-clean. Branch
-`review/c002-refactor-round-67-mistral-seat` holds this commit; a v1.0 sha named
-by the editor gets a second commit on the same branch and a second report.
+Verdict reports sent on task `dispatch-refactor-r67` (kind result): v0.1 PASS at
+2026-11-19T15:04Z to c-443@<box> and the then-holder c-002@<box> (msg 3e1c0744,
+c0e3a9b7); v1.1 PASS after this commit, same form, to c-002@<box> on the relay task
+and c-443@<box> on `dispatch-refactor-r67`. This seat waits for a message on that
+task whose body starts with ACCEPTED from c-443 or the dispatch holder; until then
+no /exit-clean. Branch `review/c002-refactor-round-67-mistral-seat` holds both
+commits.

@@ -29,7 +29,9 @@ The round takes two of the inputs r68 named for round 69 (its section 7): the la
 SC2034 test-code set in `spawn-agents/tests` that r68-02 left, and the `MergeTopic` pair
 of the Go `wideFuncs` list, which waited for r67-03 to land.
 
-**Status: v0.2, draft**, for the panel (rulebook 3.2). Editor: **c-606** (claude).
+**Status: v1.0, signed**: panel seat m-079 (mistral) PASS on v0.2 `36833e559`, W1 folded
+(section 7's agent-boot-restore row corrected; section 8), notes N1-N7; rows 01 and 02 are
+unchanged and may place (row 02 after c-521 lands, 2.2). Editor: **c-606** (claude).
 
 **One sha:** every count is measured on **`79b22fa06`** (`origin/master`
 79b22fa0669b452578735ed4c64159fce8b80f22, committed 2026-11-19T21:08:58+01:00), n=1 per
@@ -114,8 +116,8 @@ their own fixture baseline (r68 1.4). The column: the three files and
 - **Contract:** the `TopicMerge` interface, `api:internal/store/topic_merge.go:42`
   `MergeTopic(ctx, tenantID, srcMsgID, srcTask, targetTask, toChannel, by string, at time.Time) (MergeResult, error)`:
   8 parameters (`maxParams` 7). `TopicMerge` is embedded in the store contract
-  (`api:internal/store/store.go:336`); `git grep -nE '\bTopicMerge\b'` -> 3 lines, no other
-  implementer.
+  (`api:internal/store/store.go:336`); `git grep -nE '\bTopicMerge\b'` -> 4 lines (the interface, its doc comment, the
+  embed, the `fallback_test.go` assertion), no other implementer.
 - **Implementations:** `(*Memory).MergeTopic` `api:internal/store/topic_merge.go:55`,
   `(*Postgres).MergeTopic` `api:internal/store/topic_merge_postgres.go:30`.
 - **Production caller:** `api:internal/hub/topic_merge.go:108`.
@@ -299,7 +301,7 @@ Kind `simple_coding`, vendor claude. Spawn only after c-521 (SPL-5980) has lande
 | SC2154, SC2120, SC1090, SC2088, SC2046, SC2319, SC2164, SC2155 | the baseline's header names these kinds deliberate | the baseline's header |
 | WUI `WIDE` `src/stores/channel.ts send` (6 params) | 63 positional caller lines in 35 files (r67's read), a WUI row with its e2e gate: input for a later round | r68 1.2 |
 | `spl-file-erase` (`no-literal-paths.baseline`, 1 line) | a protected-root deny list, a behaviour change (r66 to r68) | 1.2 |
-| computed `/var/<org>/<org>-<app>/agent-boot-restore` default: `orc:run/spl-agent-boot-restore-install-cron.func.sh:57` (`logdir`, the writer), `orc:run/spl-watchdog.func.sh:535-539` (`spl_wd_boot_retired`, the reader) | **not a refactor: a behaviour change** (r68 section 7's input, served by this measurement; the holder's note de244afc). Both build the dir from the app name (`SPL_ORG_APP`, the basename of `PROJ_PATH` minus `-orc`), so every checkout of the app reads the same `/var/<org>/<org>-<app>/agent-boot-restore`. `$SPL_VAR_APP_DIR` is built from the checkout's own name instead: `spl_run_paths` (`csi-spl-orc/lib/bash/funcs/spl-run-paths.func.sh:66-71`) sets it to `<var>/<org>/<main checkout basename>`, and `spl_main_checkout` returns the clone itself when its `.git` is a directory. The desk-cron checkout (`<org dir>/<app>-desk-cron`, the one `spl_desk_cron_src` installs the boot cron from) is its own clone (`test -d <desk-cron>/.git` -> true, 2026-11-19T20:3xZ), so there the swap gives `/var/<org>/<app>-desk-cron/agent-boot-restore`, not the dir the installed `@reboot` line writes `cron.out` to today (`ls /var/<org>/<app>/agent-boot-restore` -> `cron.out`). The reader and the writer would part, and a `retired` marker already on a box would no longer be seen. A row for it is a bug or feature row (pick one dir, move the live markers), not a refactor row | `git show 79b22fa06:<the 3 files>`; `sed -n 63,76p` of `spl-run-paths.func.sh` |
+| computed `/var/<org>/<org>-<app>/agent-boot-restore` default: `orc:run/spl-agent-boot-restore-install-cron.func.sh:57` (`logdir`, the writer), `orc:run/spl-watchdog.func.sh:535-539` (`spl_wd_boot_retired`, the reader) | **refactor-shaped, input for round 70** (r68 section 7's input; the holder's note de244afc; corrected in v1.0 after the panel's W1). Both build the dir from the app name (`SPL_ORG_APP`); `$SPL_VAR_APP_DIR` (`csi-spl-orc/lib/bash/funcs/spl-run-paths.func.sh:66-71`) is `<base>/../var/<org>/<main checkout basename>`, and `spl_main_checkout` resolves a worktree to its main clone. The desk-cron checkout is a worktree on both boxes (`<desk-cron>/.git` is a 58-byte pointer file: the seat's read on its box, this lane's `ls -la` on this one, 2026-11-19T20:5xZ), and `spl_run_paths` run there under `env -i` prints `SPL_VAR_APP_DIR=/var/<org>/<org>-<app>`: **the same dir as the literal**, on both boxes. v0.2 said the desk-cron checkout is its own clone; that was a misread of a `test -d` that printed nothing. The swap moves the dir only on a layout off the canonical one (a standalone clone under another name, a base other than `<root>/opt`), where the literal is the wrong dir already. A row moves the writer and the reader in ONE commit (the watchdog reads the marker the cron writes) and proves both paths equal on the box. Not taken here: a 3rd row after the panel signed 2 (rulebook 5.1); the first refactor candidate of round 70 beside the `MoveMessage` pair | `git show 79b22fa06:<the 3 files>`; `ls -la <desk-cron>/.git`; `env -i ... bash -c 'source spl-run-paths.func.sh; PROJ_PATH=<desk-cron>/csi-spl-orc spl_run_paths; echo $SPL_VAR_APP_DIR'` |
 | spec 011 T001-T008, T018-T021, T023, T026-T028, T031, T034 | owner-deferred (2026-09-19), an open owner decision, behaviour (T028's assertions), terraform layout (T026) or docs (T031); the spec folder unchanged since W | 1.2 |
 
 ## 8. Changes
@@ -314,11 +316,23 @@ Kind `simple_coding`, vendor claude. Spawn only after c-521 (SPL-5980) has lande
   clone, so the swap moves the dir: a behaviour change, not a refactor row. The
   candidates file's newest entries are bug-shaped (the holder's read). Rows 01 and 02
   unchanged.
+- v1.0 (c-606): the panel seat m-079 (mistral) passed v0.2 `36833e559`. **W1 folded:**
+  v0.2's section 7 said the desk-cron checkout is its own clone; it is a worktree on both
+  boxes, and `$SPL_VAR_APP_DIR` there equals the literal dir. The agent-boot-restore
+  default is refactor-shaped after all: input for round 70, not a bug row. N7 folded:
+  `TopicMerge` is 4 grep lines, not 3 (1.4). N1 (origin/master still `79b22fa06`), N2 (the
+  seat signed `36833e559`), N3 (lane map exit 4 on every row path at its read; the R3
+  hold on r69-02 stands), N4 (red controls read in the gate code, not run), N5 (the
+  candidates file's literal-path items served), N6 (the looser `MergeTopic` grep counts
+  comments): no change. Rows 01 and 02 unchanged.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-606 (claude): v0.1, v0.2.
-- Panel reviewer seat: requested of the holder (section 4).
+- Editor seat: c-606 (claude): v0.1, v0.2, v1.0.
+- Panel reviewer seat: **m-079 (mistral) PASS** on `36833e5593588fd4065e17b7f598ce0ac3a9df17`
+  (spool msg d025c4b4, task `dispatch-refactor-r69`); seat file on branch
+  `review/c002-refactor-round-69-mistral-seat` (`e9b405ee2`). W1 (folded), N1-N7.
+  agy was out of quota or absent (the holder's read), so mistral took the seat.
 - Row R7 seats: section 4.

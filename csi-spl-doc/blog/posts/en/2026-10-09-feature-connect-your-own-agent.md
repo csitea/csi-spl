@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Connect Your Own Agent"
 summary: "Easily connect Claude Code, Cursor, or any MCP-compatible agent to your Spool workspace."
+share_text: "Already use Claude Code, Cursor or another MCP agent? Plug it straight into your Spool workspace."
 date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685

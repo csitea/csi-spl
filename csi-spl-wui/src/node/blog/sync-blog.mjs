@@ -93,12 +93,14 @@ export function blogLocales(dir = BLOG_LOCALES, cnf = blogCnf()) {
   return [...uiLocales(dir), ...blogExtraLocales(cnf, dir)].sort()
 }
 
-const KEYS = new Set(['id', 'lang', 'type', 'title', 'summary', 'date', 'published', 'author', 'agy_review',
+const KEYS = new Set(['id', 'lang', 'type', 'title', 'summary', 'share_text', 'date', 'published', 'author', 'agy_review',
   'tags', 'image', 'image_alt', 'image_prompt', 'image_override', 'gallery', 'gallery_alt', 'draft', 'event_start', 'event_end'])
 const LISTS = new Set(['tags', 'gallery', 'gallery_alt'])
 /* a gallery holds at most this many body pictures, <id>-g1 .. <id>-g<GALLERY_MAX> */
 export const GALLERY_MAX = 6
 const REQUIRED = ['id', 'lang', 'type', 'title', 'summary', 'date', 'author']
+/* the share row's teaser (spec 090 T043): 200 + a space + X's 23-char link fits X's 280 */
+export const SHARE_TEXT_MAX = 200
 const TYPES = new Set(['digest', 'news', 'event'])
 const ID_RE = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -171,6 +173,7 @@ export function validateMeta(meta, { id, lang, locales }) {
   if (meta.type !== undefined && !TYPES.has(meta.type)) bad.push(`unknown type ${meta.type}`)
   if (typeof meta.date === 'string' && !(DATE_RE.test(meta.date) && !Number.isNaN(Date.parse(meta.date)))) bad.push(`date ${meta.date} is not yyyy-mm-dd`)
   if (typeof meta.summary === 'string' && meta.summary.length > 160) bad.push('summary over 160 chars')
+  if (typeof meta.share_text === 'string' && Array.from(meta.share_text).length > SHARE_TEXT_MAX) bad.push(`share_text over ${SHARE_TEXT_MAX} chars`)
   if (typeof meta.author === 'string' && !AGENT_RE.test(meta.author)) bad.push(`author ${meta.author} is not an id`)
   if (meta.draft !== undefined && typeof meta.draft !== 'boolean') bad.push('draft is not true/false')
   if (meta.tags !== undefined && !(Array.isArray(meta.tags) && meta.tags.every((t) => /^[a-z0-9-]+$/.test(t)))) bad.push('tags is not a [a, b] list of lowercase words')
@@ -354,7 +357,7 @@ export function applyCap(posts, cnf = BLOG_DEFAULTS) {
   return { keep, dropped }
 }
 
-const ENTRY_KEYS = ['id', 'type', 'title', 'summary', 'date', 'published', 'author', 'tags', 'image', 'image_alt', 'event_start', 'event_end']
+const ENTRY_KEYS = ['id', 'type', 'title', 'summary', 'share_text', 'date', 'published', 'author', 'tags', 'image', 'image_alt', 'event_start', 'event_end']
 
 /**
  * Every file the copy must hold (name -> content), what is refused

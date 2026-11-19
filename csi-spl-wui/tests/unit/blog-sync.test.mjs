@@ -20,7 +20,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { applyCap, blogCnf, blogDrift, blogExtraLocales, blogFiles, blogLocales, hostile, parseFrontmatter, validateMeta, writeBlog } from '../../src/node/blog/sync-blog.mjs'
+import { SHARE_TEXT_MAX, applyCap, blogCnf, blogDrift, blogExtraLocales, blogFiles, blogLocales, hostile, parseFrontmatter, validateMeta, writeBlog } from '../../src/node/blog/sync-blog.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -81,6 +81,12 @@ try {
   ok('image_override (the owner msg id of a people picture, spec 111 5.4) is a known key',
     parseFrontmatter(post('2026-10-05-a').replace('draft: false', 'image_override: a2752059-0e93-4a78-b933-b47830f437c7\ndraft: false')).meta.image_override === 'a2752059-0e93-4a78-b933-b47830f437c7')
   ok('a valid copy passes validation', validateMeta(fm.meta, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).length === 0)
+  /* the share row's teaser (spec 090 T043): optional, at most SHARE_TEXT_MAX code points */
+  ok('share_text is a known key and parses', parseFrontmatter(post('2026-10-05-a').replace('draft: false', 'share_text: "Read this, then share it."\ndraft: false')).meta.share_text === 'Read this, then share it.')
+  ok('a share_text of SHARE_TEXT_MAX passes', SHARE_TEXT_MAX === 200 &&
+    validateMeta({ ...fm.meta, share_text: 'ä'.repeat(SHARE_TEXT_MAX) }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).length === 0)
+  ok('CONTROL a share_text over SHARE_TEXT_MAX is refused',
+    validateMeta({ ...fm.meta, share_text: 'x'.repeat(SHARE_TEXT_MAX + 1) }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).includes(`share_text over ${SHARE_TEXT_MAX} chars`))
   ok('CONTROL image without image_alt is refused',
     validateMeta({ ...fm.meta, image: '2026-10-05-a.webp' }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).includes('image without image_alt'))
   ok('an <id>.jpg image passes (its -og.jpg is the og:image a link preview can read)',
@@ -172,6 +178,7 @@ try {
     const html = readFileSync(join(out, 'en/2026-10-06-new.html'), 'utf8')
     ok('the fragment is markdownToHtml: an external link gets rel nofollow', /<a href="https:\/\/example\.com\/x"[^>]* target="_blank" rel="[^"]*noopener[^"]*nofollow/.test(html), html)
     ok('index entries carry the list fields', ['id', 'type', 'title', 'summary', 'date', 'author', 'tags'].every((k) => k in idx.en[0]) && !('agy_review' in idx.en[0]))
+    ok('an entry carries share_text only when its copy has one', !('share_text' in idx.en[0]))
     r.commit({ 'en/2026-10-06-new.md': post('2026-10-06-new', { draft: true }) }, at('2026-10-06', '08:00'))
     const d = r.sync()
     ok('a draft: true post is skipped (no entry, no fragment)', !enIds(d).includes('2026-10-06-new') && !d.files.has('en/2026-10-06-new.html'))

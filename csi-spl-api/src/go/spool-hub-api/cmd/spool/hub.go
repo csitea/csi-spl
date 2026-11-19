@@ -126,6 +126,7 @@ func cmdServe() int {
 		defer opts.Docs.Close()
 	}
 	opts.RepoEdit = repoEdit(ctx, hc, log, st, opts.Docs) // spec 075 repo-edit T08; nil = off
+	opts.RepoSync = repoSync(hc, log)                     // spec 143 releases-projects.md B-6b; nil = off
 	if opts.WorkspaceDocs, err = workspaceDocs(cf, hc); err != nil {
 		return fail(err)
 	}
@@ -146,8 +147,15 @@ func cmdServe() int {
 	go hub.Supervise(ctx, log, "wake", srv.RunWake)                                                     // spec 059 S1 + S3
 	go hub.Supervise(ctx, log, "blocker-issues", func(ctx context.Context) { srv.RunBlockerIssues(ctx, BlockerInterval) })
 	superviseMarketing(ctx, log, srv)
-	go hub.Supervise(ctx, log, "deploy-reconcile", srv.RunDeployReconcile) // spec 143 T027, SPL-2788
+	superviseReleases(ctx, log, srv)
 	return serveUntilDone(ctx, hc, log, srv)
+}
+
+// superviseReleases starts the spec 143 release loops, each supervised
+// (SPL-2128); each returns at once while it is off.
+func superviseReleases(ctx context.Context, log zerolog.Logger, srv *hub.Server) {
+	go hub.Supervise(ctx, log, "deploy-reconcile", srv.RunDeployReconcile) // spec 143 T027, SPL-2788
+	go hub.Supervise(ctx, log, "repo-sync", srv.RunRepoSync)               // releases-projects.md B-6b, SPL-5808
 }
 
 // superviseMarketing starts the spec 090 loops, each supervised (SPL-2128);

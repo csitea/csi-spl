@@ -336,6 +336,12 @@ type Hub struct {
 	DocsEditInstallationID   string        `env:"SPOOL_HUB_DOCS_EDIT_INSTALLATION_ID"`
 	// DocsEditGitHubRepo is "<owner>/<repo>", the one repository edits land in.
 	DocsEditGitHubRepo string `env:"SPOOL_HUB_DOCS_EDIT_GITHUB_REPO"`
+	// RepoSyncEnabled switches on the hub's own GitHub sync of workspace
+	// repos (spec 143 releases-projects.md row B-6b, SPL-5808). It reads
+	// through the Docs edit App (app id, installation, SPOOL_GITHUB_APP_KEY);
+	// RepoSyncGitHubAPI "" uses DocsEditGitHubAPI. Off by default.
+	RepoSyncEnabled   bool   `env:"SPOOL_HUB_REPO_SYNC_ENABLED" envDefault:"false"`
+	RepoSyncGitHubAPI string `env:"SPOOL_HUB_REPO_SYNC_GITHUB_API"`
 	// TenantHostPattern is "{tenant}.<fqdn>"; the tenant comes from the Host.
 	TenantHostPattern string        `env:"SPOOL_HUB_TENANT_HOST_PATTERN"`
 	AllowTextOnly     bool          `env:"SPOOL_HUB_ALLOW_TEXT_ONLY_WHEN_FILE_MISSING" envDefault:"false"`

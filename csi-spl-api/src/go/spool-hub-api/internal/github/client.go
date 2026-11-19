@@ -155,7 +155,9 @@ func (c *Client) do(ctx context.Context, op, method, path, auth string, in, out 
 	if err != nil {
 		return fmt.Errorf("github %s: %w", op, err)
 	}
-	req.Header.Set("Authorization", auth)
+	if auth != "" { // "": a public repo read (repo_sync.go)
+		req.Header.Set("Authorization", auth)
+	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	if in != nil {

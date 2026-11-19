@@ -51,7 +51,10 @@ type Options struct {
 	// RepoEdit switches on editing the Repo Docs (spec 075 repo-edit, T08,
 	// repo_docs_edit.go): cnf env.docs.repo_edit. nil = off, every edit
 	// route 404s; it also needs Docs and a store with the edit queue.
-	RepoEdit          *RepoEdit
+	RepoEdit *RepoEdit
+	// RepoSync switches on the hub's own GitHub sync of workspace repos
+	// (spec 143 releases-projects.md row B-6b, repo_sync.go). nil = off.
+	RepoSync          *RepoSync
 	Log               zerolog.Logger
 	TenantHostPattern string // "{tenant}.<fqdn>"
 	// WUIApexTenant is the workspace served at the bare <fqdn>; "" = none.

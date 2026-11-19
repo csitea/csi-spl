@@ -406,6 +406,7 @@ Following Round 1 review, author `a-273` and reviewers `g-276`, `c-277`, and `c-
 | v0.6.0 | 2026-11-10 | c-507 | §22, the workspace's own posts (SPL-5240; owner t1 `19ef7d51`, poll `c1d8be01` Q1 A, Q2 A): rdb 0274 `marketing_drafts`, the draft routes, the author's publish on LinkedIn, Facebook, Instagram and X with no approval step, the Posts section of Workspace settings. |
 | v0.6.1 | 2026-11-11 | c-507 | §22 item 6: cnf `marketing.workspaces: all` on dev and prd (SPL-5240, Q1 A order); live after the terraform 030 apply (owner's go). |
 | v0.7.0 | 2026-11-19 | c-926 | §23, the blog share row's teaser (`share_text`) pre-fill, the copy-then-open targets and the stable control ids for a later automation (T043, SPL-5960; owner csitea `23fc5fee`). |
+| v0.8.0 | 2026-11-19 | c-433 | §23.4, the long share text `share_long` (about half the post, emoji-led key points) for LinkedIn, Facebook, Instagram, Substack, WhatsApp, Telegram and e-mail; X, Reddit and Viber keep the short teaser (T044, SPL-5968; owner csitea `23fc5fee` msgs `4fcff8d6`, `e20de4b6`). |
 
 ---
 
@@ -816,21 +817,21 @@ Owner HUM-10 (csitea `23fc5fee`, msgs `26768616`, `9470127c`, `82a1160e`, `8d5c5
 
 ### 23.2 What each control does
 
-`data-share-action` on every control names its click: `copy` copies the link; `prefill` opens the target with the teaser and the link in its share URL; `copy-open` copies `<teaser>\n\n<link>`, shows the hint `blog.share_text_copied` ("Text copied: paste it into the post.") under the row for 6 s, and opens the target.
+`data-share-action` on every control names its click: `copy` copies the link; `prefill` opens the target with its text (§23.4: `<long>` or `<teaser>`) and the link in its share URL; `copy-open` copies `<long>\n\n<link>`, shows the hint `blog.share_text_copied` ("Text copied: paste it into the post.") under the row for 6 s, and opens the target.
 
 | target | URL opened | action | text in the URL |
 |---|---|---|---|
 | copy | none | `copy` | the link only |
-| linkedin | `https://www.linkedin.com/feed/?shareActive=true&text=<teaser> <link>` | `copy-open` | yes, the text stays in the sign-in redirect; the composer was not measured signed in, so the click also copies |
+| linkedin | `https://www.linkedin.com/feed/?shareActive=true&text=<long>\n\n<link>` | `copy-open` | yes, the text stays in the sign-in redirect; the composer was not measured signed in, so the click also copies |
 | facebook | `https://www.facebook.com/sharer/sharer.php?u=<link>` | `copy-open` | no: the sharer takes only `u` (T037; `quote=` is deprecated) |
 | instagram | `https://www.instagram.com/` | `copy-open` | no share URL exists |
 | x | `https://x.com/intent/post?url=<link>&text=<teaser>` | `prefill` | yes |
-| whatsapp | `https://wa.me/?text=<teaser> <link>` | `prefill` | yes |
+| whatsapp | `https://wa.me/?text=<long> <link>` | `prefill` | yes |
 | viber | `viber://forward?text=<teaser> <link>`, at most 200 characters (T037 `viberText`) | `prefill` | yes |
-| telegram | `https://t.me/share/url?url=<link>&text=<teaser>` | `prefill` | yes |
+| telegram | `https://t.me/share/url?url=<link>&text=<long>` | `prefill` | yes |
 | reddit | `https://www.reddit.com/submit?url=<link>&title=<teaser>` | `prefill` | yes, as the title |
 | substack | `https://substack.com/notes` | `copy-open` | no share URL exists |
-| email | `mailto:?subject=<title>&body=<teaser>\n\n<link>` | `prefill` | yes |
+| email | `mailto:?subject=<title>&body=<long>\n\n<link>` | `prefill` | yes |
 
 Measured 2026-11-19 in headless Chrome, signed out, n=1 each: LinkedIn share-offsite drops every parameter but `url` in its sign-in redirect, and the feed URL keeps `text`; the Telegram and WhatsApp pages show the text; X keeps `text` in its sign-in redirect; Facebook and Reddit show only a sign-in or blocked page. A signed-in check of LinkedIn and Facebook is not done yet.
 
@@ -848,4 +849,25 @@ Every control has a DOM `id` that stays the same across releases, unique on the 
 
 A `prefill` control is an `<a target="_blank">`: one click opens the target with the text in place. A `copy-open` control copies first and then opens the target: paste, then post. Renaming an id breaks the contract: change this table in the same commit.
 
-<!-- version: 0.7.0 · updated: 2026-11-19 · last-edit: 2026-11-19T13:30:00Z -->
+### 23.4 The long share text (T044)
+
+Owner HUM-10 (csitea `23fc5fee`, 2026-11-19): the teaser "is a bit poor - should be some 1/2 of the original text with some icons etc." (msg `4fcff8d6`), and "each next time a new blog post is created the ai will know to create the appropriate teaser as well" (msg `e20de4b6`).
+
+- **Two texts per post copy**, both in the front matter. `share_text` (§23.1) stays the short teaser. `share_long` is the long one, written as one double-quoted line with `\n` for each line break:
+  - a hook line;
+  - the post's key points, each on its own line and led by one fitting emoji (for example 🚀 ✅ 💡 📊);
+  - a closing call to read the full post, e.g. `Read the full post:`;
+  - no link: the row adds the post link last. No claim the post does not make; plain English.
+- **Length**: about half the post's body, `SHARE_LONG_MIN` 300 to `SHARE_LONG_MAX` 1500 characters (code points). LinkedIn takes 3000 in a post; 1500 keeps the encoded LinkedIn share URL near 3 KB (measured per post in `blog-share.test.mjs`, which refuses one over `LINKEDIN_HREF_MAX`).
+- `sync-blog.mjs` (`shareLongBad`) refuses a `share_long` over 1500 or under 300 characters, one that holds a link, and one with fewer than 2 lines led by an emoji. It copies the key into `index.json` beside `share_text`.
+- **Who takes which text** (`BLOG_SHARE_LONG_TARGETS`, `csi-spl-wui/src/utils/blog-share.mjs`):
+
+  | text | targets | fallback when absent |
+  |---|---|---|
+  | `<long>` = `shareLongText` | LinkedIn (URL prefill and copy), Facebook, Instagram, Substack (copy + hint), WhatsApp, Telegram, the e-mail body | `share_long` -> `share_text` -> `summary` -> title |
+  | `<teaser>` = `shareTeaser` | X (280 with the link), Reddit (a title), Viber (`VIBER_MAX_TEXT` 200 would cut the long text) | `share_text` -> `summary` -> title |
+
+- Facebook's sharer still takes only the URL (§23.2): the click copies `<long>\n\n<link>` and shows the paste hint.
+- Other locales: a copy without its own `share_long` falls back to its own `share_text`, `summary`, then title; a locale with no copy of the post shares the `en` texts.
+
+<!-- version: 0.8.0 · updated: 2026-11-19 · last-edit: 2026-11-19T16:00:00Z -->

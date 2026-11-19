@@ -5,6 +5,7 @@
   - sharePageUrl: string (required), the post URL.
   - shareSummary: string, the post summary (the teaser's fallback).
   - shareText: string, the post's share_text teaser (spec 090 T043).
+  - shareLong: string, the post's share_long text (spec 090 section 23).
   Every control has a stable DOM id, blog-share-<target>-<top|end>, and a
   data-share-action (copy, prefill, copy-open): the automation contract in
   spec 090 T043.
@@ -97,14 +98,16 @@ const props = defineProps({
   sharePageUrl: { type: String, required: true },
   shareSummary: { type: String, default: '' },
   shareText: { type: String, default: '' },
+  shareLong: { type: String, default: '' },
 })
 
-/* the post as the share helpers take it: link, title and teaser */
+/* the post as the share helpers take it: link, title, teaser and long text */
 const sharePost = computed(() => ({
   url: props.sharePageUrl,
   title: props.shareTitle,
   summary: props.shareSummary,
   shareText: props.shareText,
+  shareLong: props.shareLong,
 }))
 
 const SHARE_ICONS: Record<string, { fill: boolean, paths: string[] }> = {
@@ -179,7 +182,7 @@ const hintShown = ref(false)
 let hintTimer: ReturnType<typeof setTimeout> | undefined
 
 // A copy target's share URL takes no text (or not for every visitor): the
-// click copies the teaser and the link, shows the paste hint and the link
+// click copies the long text and the link, shows the paste hint and the link
 // opens the site (spec 090 T043).
 async function onShareClick(id: string) {
   if (!BLOG_SHARE_COPY_TARGETS.includes(id)) return

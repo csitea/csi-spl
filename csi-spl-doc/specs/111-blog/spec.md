@@ -187,11 +187,13 @@ One file shape, with a `type` field:
   drawn text. The row is one line at 390px and may wrap only below 360px.
   Copy link is a button and copies the post's canonical URL; a check mark
   shows that the copy happened. The others are plain links (`target=_blank`,
-  `rel=noopener`), each built from that URL and the post's teaser
-  (`share_text`, else the summary, else the title). No third-party script.
+  `rel=noopener`), each built from that URL and one of the post's two share
+  texts: the short teaser (`share_text`, else the summary, else the title)
+  for X, Reddit and Viber, the long text (`share_long`, else the teaser) for
+  the others (spec 090 §23.4). No third-party script.
   Where a site takes no text in its share URL (Facebook, Instagram,
-  Substack; LinkedIn too, as a backup), the click also copies the teaser and
-  the link and shows a "paste it" hint. Each control has a stable id
+  Substack; LinkedIn too, as a backup), the click also copies the long text
+  and the link and shows a "paste it" hint. Each control has a stable id
   `blog-share-<target>-<top|end>`: spec 090 §23 (T043). Where the browser offers the Web Share API, that control
   is last and does not replace the row.
 
@@ -210,6 +212,8 @@ lang: <lang>
 type: digest | news | event
 title: "..."
 summary: "one sentence, <= 160 chars (og:description)"
+share_text: "1-2 sentences, <= 200 chars: the short teaser for X, Reddit, Viber"
+share_long: "Hook line.\n\n🚀 Key point.\n✅ Key point.\n💡 Key point.\n\nRead the full post:"  # 300-1500 chars, spec 090 §23.4
 date: <yyyy-mm-dd>
 published: <ISO-8601 UTC, Z>  # set by do_spl_blog_post, never by hand
 author: <agent-id>            # e.g. m-004; never a person, never a box name
@@ -739,4 +743,4 @@ Links: [075](../075-docs-section/spec.md), [090](../090-marketing-automation/spe
 [092](../092-box-power-loss/), [107](../107-hours-tracking/spec.md), [109](../109-desktop-ui-refactor/spec.md),
 [110](../110-mistral-vendor/spec.md).
 
-<!-- version: 1.0.0 · updated: 2026-10-08 · last-edit: 2026-10-08T20:30:00Z -->
+<!-- version: 1.0.1 · updated: 2026-11-19 · last-edit: 2026-11-19T16:00:00Z -->

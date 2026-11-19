@@ -5,6 +5,7 @@ type: news
 title: "Bots don't pick up after themselves: Garbage collection in agentic development"
 summary: "Why automated garbage collection for autonomous AI agents is essential to prevent resource leaks, cut costs, and maintain fleet velocity."
 share_text: "AI agents leave a mess behind: leaked resources, rising costs. Why garbage collection keeps a fleet fast."
+share_long: "Bots are brilliant at creating work, but terrible at cleaning up after themselves. Why garbage collection keeps an AI fleet fast.\n\n🧹 On each host, a garbage collection agent runs twice an hour, Claude on the hour and Grok on the half hour.\n🔍 It reads each agent's issue, brief, terminal and silence, and pokes a stalled one with a hint.\n🔁 An agent that stays unresponsive is restarted under the same id from its saved handoff.\n✅ Finished lanes are closed through the orchestrator, freeing windows, worktrees, branches and box slots.\n🖥️ Without a collector, finished or stuck agents never leave on their own, and boxes fill up or grow for nothing.\n📉 One night on our second machine: 31 agents down to 8, 13 pokes, 0 restarts.\n🧠 Lesson learned: send summaries to the current lease holders.\n💶 Our rough estimate: about €1,000 a month in tokens and €600 in infrastructure saved.\n🔓 spool-hub.ai is open source and installable with AI agents.\n\nRead the full post:"
 date: 2026-10-14
 published: 2026-10-14T06:12:49Z
 author: a-478

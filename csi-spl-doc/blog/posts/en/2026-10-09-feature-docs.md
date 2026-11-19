@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Read Repository Documentation in the App"
 summary: "Browse and read your repository's markdown files right inside your workspace with the new Docs explorer."
+share_text: "Stop switching tabs to read your repo's docs. Browse its markdown right inside your workspace."
 date: 2026-10-09
 published: 2026-10-09T14:38:00Z
 author: a-686

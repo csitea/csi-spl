@@ -16,7 +16,7 @@ fails=0
 A=0f8fad5b-d9cb-469f-a165-70867728950e B=1f8fad5b-d9cb-469f-a165-70867728950e
 # The hub's open issues, one per line: key, priority, linked topic.
 STUBS='spl_issue_list_fetch() {
-  echo "list" >>"$DESK_LOG"
+  echo "list|$*" >>"$DESK_LOG"
   python3 -c "import json, sys
 rows = [l.split() for l in open(sys.argv[1]) if l.strip()]
 print(json.dumps({\"result\": {\"issues\": [{\"key\": k, \"priority\": int(p), \"discussions\": [{\"task_id\": t}]} for k, p, t in rows]}}))" "$ISSUES"
@@ -39,7 +39,7 @@ writes() { grep -c '^update|' "$T/desk.log"; }
 run TOPIC_ID="$A" TOPIC_PRIORITY=2 DRY_RUN=0
 [[ $RC -eq 0 ]] && grep -qx "update|--ref|SPL-7|--priority|2|" "$T/desk.log" &&
   grep -qx "update|--ref|SPL-8|--priority|2|" "$T/desk.log" && [[ "$(writes)" == 2 ]] &&
-  grep -q "OK SPL-8 priority 4 -> 2" "$T/o" && grep -q "^SPL-9 3 " "$T/issues" &&
+  grep -q "OK SPL-8 priority 4 -> 2" "$T/o" && grep -q "^SPL-9 3 " "$T/issues" && grep -q "^list|--status eval,todo,wip,blocked,onhold,qas " "$T/desk.log" &&
   pass "priority 2 to each issue linking the topic, read back, the other issue untouched" ||
   fail "send (rc=$RC): $(cat "$T/o") / $(cat "$T/desk.log")"
 

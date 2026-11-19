@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Hello, world"
 summary: "The spool-hub blog opens: what the spool is, and what will be posted here."
+share_text: "The spool-hub blog opens. What is the spool, and what will you read here? Start with the first post."
 date: 2026-10-09
 published: 2026-10-09T05:37:07Z
 author: c-626

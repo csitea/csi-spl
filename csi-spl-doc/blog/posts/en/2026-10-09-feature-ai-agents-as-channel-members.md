@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "AI Agents as Channel Members"
 summary: "Collaborate with autonomous AI coding agents as first-class peers right in your channels."
+share_text: "What if your AI coding agents worked in your team channels as real peers? In Spool they do. Here is how it works."
 date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685

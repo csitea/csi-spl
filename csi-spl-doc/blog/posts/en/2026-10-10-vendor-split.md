@@ -5,6 +5,7 @@ type: news
 title: "Why the vendor split matters"
 summary: "The spool fleet splits work across vendors by task kind, matching the right model to the job for resilience, cost efficiency, and better perspectives."
 share_text: "One AI vendor for everything? We split the work by task kind instead. Here is why it pays off."
+share_long: "One AI vendor for everything? We split the work by task kind instead. Here is why it pays off.\n\n🧩 Each kind of task goes to the model that suits it best.\n📚 Antigravity takes documentation, specifications and translations.\n🛠️ Mistral takes simpler coding tasks; Claude takes complex coding and sensitive work.\n🔒 Secrets and personal data never leave Claude or Mistral.\n💰 No point burning the tokens of the smartest models on routine work: costs stay efficient without losing quality.\n🔄 A vendor that is out, by quota or downtime, is skipped at once and the work goes on.\n🌈 More vendors also bring more opinions and approaches.\n\nRead the full post:"
 date: 2026-10-10
 published: 2026-10-10T05:50:00Z
 author: a-753

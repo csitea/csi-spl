@@ -5,6 +5,7 @@ type: news
 title: "We live in an amazing world, and we don't know it."
 summary: "On my drive to work, a talk with my car became a week of queued work for a fleet of AI agents. I did not type a line of code."
 share_text: "A chat with my car on the way to work became several days of work for AI agents. I typed no code. The story."
+share_long: "A chat with my car on the way to work became several days of work for AI agents. I typed no code. The story.\n\n🚗 Driving to work, I asked my car's assistant, Grok, why it seemed to burn three times more tokens than Claude.\n🔍 Grok pulled in my repo, suggested a ton of improvements and wrote an analysis of almost every part of the project.\n📧 It e-mailed all of it to me, in several e-mails.\n🎙️ I fed those e-mails back to my system by voice, on my phone, with Wispr Flow.\n🤖 My system, spool-hub, pipelined them for AI agents to run over the next several days.\n📱 I pressed a button once or twice, hands free over Bluetooth, and typed no code.\n🤯 So much is already possible today, and most of us never notice it.\n\nRead the full post:"
 date: 2026-10-16
 published: 2026-10-16T10:24:09Z
 author: c-276

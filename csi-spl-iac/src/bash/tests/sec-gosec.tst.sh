@@ -35,8 +35,6 @@ mkdir -p "$ROOT/csi-spl-api/src/go/spool-hub-api"
 printf 'module example.com/hub\n\ngo 1.25.0\n' >"$ROOT/csi-spl-api/src/go/spool-hub-api/go.mod"
 printf '# header\nG101|internal/auth/idp.go|1\n' >"$ROOT/.gosec-baseline.txt"
 
-F="$ROOT/csi-spl-api/src/go/spool-hub-api"   # path fragment for "spool-hub-api/"
-
 # A stub go in the fallback dir, so the cases below never depend on the box's go.
 GOFB="$T/gofb"
 mkdir -p "$GOFB" "$T/gopath/bin"

@@ -22,7 +22,6 @@
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
-RUN="$PROJ_ROOT/src/bash/run"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 fails=0
 command -v yq >/dev/null || { echo "SKIP: no yq"; exit 0; }

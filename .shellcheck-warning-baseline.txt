@@ -38,13 +38,11 @@ SC2154|csi-spl-iac/src/bash/run/tf-state-remove.func.sh|2
 SC2154|csi-spl-iac/src/bash/run/tf-state-show.func.sh|1
 SC2154|csi-spl-iac/src/bash/run/tf-taint-target.func.sh|1
 SC2154|csi-spl-iac/src/bash/run/tf-untaint-target.func.sh|1
-SC2034|csi-spl-iac/src/bash/tests/adhoc-harvest-gcp-actions.tst.sh|1
 SC2034|csi-spl-iac/src/bash/tests/check-pre-push.tst.sh|1
 SC2034|csi-spl-iac/src/bash/tests/check-weekly-full-scan.tst.sh|1
 SC2088|csi-spl-iac/src/bash/tests/gcp-list-secrets.tst.sh|1
 SC2088|csi-spl-iac/src/bash/tests/readme-bootstrap.tst.sh|1
 SC2034|csi-spl-iac/src/bash/tests/satellite-actions.tst.sh|1
-SC2034|csi-spl-iac/src/bash/tests/sec-gosec.tst.sh|1
 SC2154|csi-spl-iac/src/bash/tests/sec-headers.tst.sh|2
 SC2034|csi-spl-iac/src/bash/tests/workflow-tool-checksums.tst.sh|1
 SC2120|csi-spl-orc/lib/bash/funcs/gcp-account-pin.func.sh|1

@@ -5,6 +5,7 @@ type: news
 title: "Workspaces, Channels and Topics"
 summary: "Organize your team's communication efficiently with workspaces, channels, and topics in Spool."
 share_text: "Too many chats, no structure? Workspaces, channels and topics keep your team's talk where it belongs."
+share_long: "Too many chats, no structure? Workspaces, channels and topics keep your team's talk where it belongs.\n\n🏢 A workspace for your team.\n📂 Channels inside it for projects or departments.\n🧵 Topics inside a channel for each specific discussion.\n🔔 Talk stays on topic, information is easy to find, and notifications reach only those who need them.\n🧭 Browse the whole structure from the sidebar, instead of losing decisions in the scroll of a few huge channels.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684

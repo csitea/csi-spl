@@ -20,6 +20,9 @@
 # @description       cell abbreviates the reviewed sha, or whose task cell is
 # @description       the message's task; no such row: it names one author in
 # @description       prose (`Author <id>@<box>`) and the sha or the task.
+# @description       A brief with a line-start `Author: <id>` line names its
+# @description       author(s) on those lines only; the prose elsewhere in it
+# @description       is context ("the T082 lane (author c-414)", b23-01).
 # @description       The reviewer is <id>@<box> of the message's from (a bare
 # @description       from is this box: LEASE_MACHINE, else the desk box). On
 # @description       this box its brief is $SPOOL_ROOT/<reviewer>/lifetime/
@@ -528,8 +531,10 @@ _spl_review_go_tied() {
 # c-805@<box> (claude)`, `Branch `review/<slug>``, else a bare review/... or
 # wip/... branch, else a backticked `origin/<branch>`; one leading origin/ is
 # stripped, SPL-5612), only when the brief names
-# one author and holds an abbreviation of <sha> or <task>. Nothing printed,
-# rc 1, when neither matches. With a 4th argument, for a brief where neither
+# one author and holds an abbreviation of <sha> or <task>. A brief with a
+# line-start `Author: <id>` line names its authors on those lines only, here
+# and with the 4th argument; the prose elsewhere is context (b23-01).
+# Nothing printed, rc 1, when neither matches. With a 4th argument, for a brief where neither
 # matched: its one author and where the sha and task are missing from
 # (_spl_review_go_unplaced); never a row, so it cannot place a reviewer.
 # Fields are tab-separated and may be empty (author box, branch): a reader
@@ -567,6 +572,8 @@ for r in sorted(rows, key=lambda r: not hit(r)):
         sys.exit(0)
 text = "\n".join(lines)
 named = re.findall(r"(?i)\bauthor:?[ \t]+([acgmq]-[0-9]{3,})(?:@([A-Za-z0-9._-]+))?", text)
+lined = re.findall(r"(?im)^[ \t]*author:[ \t]+([acgmq]-[0-9]{3,})(?:@([A-Za-z0-9._-]+))?", text)
+named = lined or named
 said = task in text or any(sha.startswith(h) for h in re.findall(r"\b[0-9a-f]{7,40}\b", text))
 if why:
     table = (re.match(r"[acgmq]-[0-9]{3,}", col(r, "author")) for r in rows)

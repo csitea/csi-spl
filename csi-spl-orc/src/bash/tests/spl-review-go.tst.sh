@@ -33,7 +33,9 @@
 #        retired identity record>.md, the author in prose (one author, the
 #        sha or task named), the author brief from its Author brief: line
 #        (dispatch/briefs only) -> GO; RED CONTROLS two authors, no sha/task
-#        -> rc 3, an Author brief: elsewhere -> rc 7
+#        -> rc 3, an Author brief: elsewhere -> rc 7; RED CONTROL (b23-01) a
+#        line-start Author: line wins over another lane's author in the prose
+#        -> GO, and the rc 3 reason reads it too; two Author: lines -> rc 3
 #    15. RED CONTROL a PASS header whose read: says FAIL (g-161's `grok PASS
 #        ... read: JUDGMENT FAIL W1`, msg 95d5ed90) -> rc 1, no GO; control: a
 #        red control's FAIL count in read: -> GO (SPL-4251)
@@ -469,6 +471,21 @@ run REVIEW_GO_MSG="$f"; (( $? == 0 && $(gos) == 1 )) && pass "14. the newest ret
 reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude), with author c-333@boxa. Branch \`review/c002-x\` at \`$SHA\`."
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000003)
 run REVIEW_GO_MSG="$f"; refused "14. RED CONTROL: a prose brief naming two authors" $? 3 "unplaced reviewer or author not assigned in $S/dispatch/briefs/c002-x-grok-reviewer.md"
+# b23-01: a line-start `Author:` line names the author; another lane's author in the prose is context
+# lined <sha in the brief>: the Author: line, then prose naming two other authors
+lined() { printf 'Review only.\nAuthor: c-222@boxa (claude)\nAuthor brief: %s\nBranch `review/c002-x` at `%s`. The T082 lane (author c-414@boxa) touched the same file; never the author c-333.' "$S/dispatch/briefs/c002-x.md" "$1"; }
+reset14; pbrief c002-x-grok-reviewer "$(lined "$SHA")"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000008)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 )) && grep -qxF "SEND --from c-002 --to c-222@boxa --kind task --task $TASK --body GO $SHA" "$T/s/sent.log" &&
+  pass "14. b23-01 RED CONTROL: an Author: c-222 line wins over the prose 'author c-414' and 'author c-333' -> GO c-222" ||
+  fail "14. b23-01 rc=$rc sent=$(cat "$T/s/sent.log" 2>/dev/null) out=$(tail -3 "$T/out")"
+reset14; pbrief c002-x-grok-reviewer "$(lined 0123456789abcdef)"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000009)
+run REVIEW_GO_MSG="$f"; refused "14. b23-01: the hold reason reads the Author: line too (no sha, no task)" $? 3 "are not in $S/dispatch/briefs/c002-x-grok-reviewer.md; its author is c-222"
+reset14; pbrief c002-x-grok-reviewer "$(printf '\nAuthor: c-222@boxa\nAuthor: c-333@boxa\nBranch `review/c002-x` at `%s`.' "$SHA")"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000010)
+run REVIEW_GO_MSG="$f"; refused "14. b23-01 control: two Author: lines with two ids stay not one author" $? 3 "unplaced reviewer or author not assigned in $S/dispatch/briefs/c002-x-grok-reviewer.md"
 reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude). Branch \`review/c002-x\` at \`0123456789abcdef\`, task 0f0f0f0f."
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000004)
 run REVIEW_GO_MSG="$f"; refused "14. RED CONTROL: a prose brief naming neither the sha nor the task (an id reused for another seat)" $? 3 "are not in $S/dispatch/briefs/c002-x-grok-reviewer.md; its author is c-222"

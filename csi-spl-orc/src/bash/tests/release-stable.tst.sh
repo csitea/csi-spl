@@ -43,10 +43,10 @@ act() {  # env... -> stdout (notes + log lines, as under ./run); stderr to act.e
 }
 rtag() { git --git-dir="$T/remote.git" rev-parse -q --verify "refs/tags/$1^{commit}"; }
 
-c1=$(commit "feat(hub): old feature one")
+commit "feat(hub): old feature one" >/dev/null
 c2=$(commit "fix(wui): old fix two")
-c3=$(commit "feat(rdb): 0100 a new table" csi-spl-rdb/src/sql/postgres/spool-hub/0100_new_table.sql)
-c4=$(commit "perf(hub): faster send")
+commit "feat(rdb): 0100 a new table" csi-spl-rdb/src/sql/postgres/spool-hub/0100_new_table.sql >/dev/null
+commit "perf(hub): faster send" >/dev/null
 c5=$(commit "docs: a readme line")
 git -C "$T/w" push -q origin HEAD:master
 vtag 1.0.0 "$c2"; vtag 1.0.1 "$c5"
@@ -75,7 +75,7 @@ out=$(act STABLE_DATE=2026-10-05 DRY_RUN=0); rc=$?
 ((rc == 0)) && grep -q 'already names' <<<"$out" && pass "same day, same commit: nothing cut, exit 0" || fail "re-run same day: rc $rc"
 
 # --- 4. no new v-tag ---------------------------------------------------------------
-c6=$(commit "feat(hub): new feature six")
+commit "feat(hub): new feature six" >/dev/null
 act STABLE_DATE=2026-10-12 DRY_RUN=0 >/dev/null; rc=$?
 ((rc == 0)) && [[ -z "$(rtag stable-2026-10-12)" ]] && pass "no new build since the last stable: nothing cut" \
   || fail "no new v-tag: rc $rc, tag '$(rtag stable-2026-10-12)'"

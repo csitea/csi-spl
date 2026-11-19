@@ -501,7 +501,7 @@ fi
 # An empty ref must not shift the columns. Tab would collapse it; the
 # action separates fields with a unit separator for that reason.
 line=$(python3 -c 'import base64; t=base64.b64encode(b"Hello [001]").decode(); print("\x1f".join(["create","001/T001","","SPL-1","","done","task","/tmp/d.md","task",t]))')
-IFS=$'\x1f' read -r action item ref pkey pitem status labels desc kind title_b64 <<<"$line"
+IFS=$'\x1f' read -r action _ ref pkey pitem status _ _ kind title_b64 <<<"$line"
 title=$(printf '%s\n' "$title_b64" | base64 -d)
 if [[ "$action" == create && -z "$ref" && "$pkey" == SPL-1 && -z "$pitem" && "$status" == 'done' && "$kind" == task && "$title" == "Hello [001]" ]]; then
   pass "empty fields survive the row read"

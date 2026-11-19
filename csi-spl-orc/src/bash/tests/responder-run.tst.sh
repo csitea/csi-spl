@@ -117,7 +117,7 @@ cat >"$T/inbox.json" <<'JSON'
 JSON
 D="$T/state/dev/desk/t1/box-rsp"
 rm -f "$D/seen-topics"; : >"$T/reply.log"
-for i in 1 2 3 4; do
+for _ in 1 2 3 4; do
   SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 RESP_SEEN_REPLY=1 in_resp >"$T/o" 2>&1
 done
 if [ "$(grep -c '^reply ' "$T/reply.log")" = "1" ] && grep -q "DESK_TO=HUM-10 DESK_TASK=t-ddd" "$T/reply.log"; then

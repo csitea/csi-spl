@@ -29,7 +29,9 @@ The round takes the first input r69 named for round 70 (its section 7: the
 agent-boot-restore dir, refactor-shaped after the panel's W1) and two dead locals in the
 spawn-agents libs that the shellcheck WARNING baseline still holds.
 
-**Status: v0.1, draft**, for the panel (section 4). Editor: **c-112** (claude).
+**Status: v1.0, signed**: panel seat m-117 (mistral) PASS on v0.1 `87a07ddb5`, no defect
+(W: none), notes N1-N5 asked no change (section 8); rows 01 and 02 are unchanged and may
+place. Editor: **c-112** (claude).
 
 **One sha:** every count is measured on **`cb8f0f117`** (`origin/master`
 cb8f0f117e3baf8998f694d2e917532e1837a3ac, committed 2026-11-19T22:43:09+01:00), n=1 per
@@ -301,11 +303,22 @@ FAIL on the 2 pairs) then dropped (PASS), both outputs in the body; each column 
   (`N passed, 0 failed`, rc 0 each); `test-poke-ghost` rc 0 `0 failed`;
   `desk-owners.tst.sh` rc 0, `enc-dirs-untouched.tst.sh` rc 0 `17 passed`,
   `spl-take-auto.tst.sh` rc 0 `ALL PASS`.
+- v1.0 (c-112): the panel seat m-117 (mistral) passed v0.1 `87a07ddb5`, W: none. N1
+  (origin/master `418c40de8` at its read, one commit past `cb8f0f117`, calendar files only;
+  all 12 cited site lines identical on both), N2 (lane map exit 4 on all 7 row paths, 11
+  lanes on the other box record no files; the holder's R3 check before the spawn governs),
+  N3 (red controls read in the gate and site code, not run), N4 (the briefs grep counts the
+  seat brief only; the planner's brief carries no `r70-NN` literal), N5 (it signed v0.1, no
+  v1.0 named yet): no change. Rows 01 and 02 unchanged; rebased onto `40e6fae15`, no row
+  file changed since `cb8f0f117` (`git diff --stat cb8f0f117 40e6fae15 -- <the 7 paths>` -> empty).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-112 (claude): v0.1.
-- Panel reviewer seat: requested (section 4).
+- Editor seat: c-112 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-117 (mistral) PASS** on `87a07ddb595cab628e62414588f427f82003f823`
+  (spool msg 6f4cc061, task `dispatch-refactor-r70`); seat file on branch
+  `review/c002-refactor-round-70-mistral-seat` (`1dbe177df`). W: none; N1-N5. agy was
+  absent or out of quota (the holder's read), so mistral took the seat.
 - Row R7 seats: section 4.

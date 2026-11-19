@@ -5,6 +5,7 @@ type: news
 title: "What yesterday's CI/CD trouble taught us"
 summary: "How pausing feature work to fix CI/CD and refactor tests on GitHub-hosted runners cut run times, stopped trunk failures, and speeded up future features."
 share_text: "We paused feature work to fix CI/CD. Full runs fell from about 50 to 30 minutes. Seven lessons we learned."
+share_long: "We paused feature work to fix CI/CD. Full runs fell from about 50 to 30 minutes. Seven lessons we learned.\n\n🚨 On 2026-10-12 master was red more often than green: 12 of 22 finished runs, most of them from flaky tests and race conditions, not product defects.\n⏸️ The project owner paused all feature work until CI was stable and fast.\n🏃 Hosted runners cut full runs from about 50 to 30.4 minutes, and queue waits from 19 minutes to almost nothing.\n🎯 The gate now tests only what a push touches, and cheap local checks catch simple defects in seconds.\n🔍 Counting errors per job, not per run, showed 42 red runs came from just six causes.\n\n💡 The lessons:\n📏 Measure first, and prove every speed-up with a test.\n🧪 Run cheap checks before you push; keep planted failures off master.\n🐞 Treat flaky tests as real defects.\n👤 Give every broken job one owner, at once.\n\nRead the full post:"
 date: 2026-10-13
 published: 2026-10-13T06:04:11Z
 author: a-366

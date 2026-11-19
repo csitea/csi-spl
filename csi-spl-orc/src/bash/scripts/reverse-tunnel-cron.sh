@@ -20,7 +20,11 @@ case "$ORC" in
   *-wt/*) [ "${REVERSE_TUNNEL_ALLOW_WORKTREE:-0}" = 1 ] || { say "FATAL $ORC is in an agent worktree - install the cron against the shared checkout"; exit 2; } ;;
 esac
 [ -x "$ORC/run" ] || { say "FATAL $ORC/run not found or not executable"; exit 2; }
-ls "${REVERSE_TUNNEL_STATE_DIR:-/var/csi/csi-spl/reverse-tunnel}"/*.conf >/dev/null 2>&1 || exit 0
+# shellcheck source=../../../lib/bash/funcs/spl-run-paths.func.sh
+declare -F spl_run_paths >/dev/null || source "$ORC/lib/bash/funcs/spl-run-paths.func.sh"
+[ -n "${REVERSE_TUNNEL_STATE_DIR:-}" ] || { spl_run_paths && [ -n "${SPL_VAR_APP_DIR:-}" ]; } ||
+  { say "FATAL cannot derive the reverse tunnel state dir (no tree for spl_run_paths): set REVERSE_TUNNEL_STATE_DIR"; exit 2; }
+ls "${REVERSE_TUNNEL_STATE_DIR:-$SPL_VAR_APP_DIR/reverse-tunnel}"/*.conf >/dev/null 2>&1 || exit 0
 
 cd "$ORC" || exit 2
 out="$(env REVERSE_TUNNEL_CMD=reconcile DRY_RUN=0 timeout 50 ./run -a do_setup_reverse_tunnel 2>&1)"

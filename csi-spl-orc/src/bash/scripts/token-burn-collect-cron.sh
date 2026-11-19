@@ -33,15 +33,17 @@ ionice -c 2 -n 7 -p $$ >/dev/null 2>&1 || true
 # and the buckets stay queued. TOKEN_BURN_PUSH=0 queues only.
 TOKEN_BURN_PUSH="${TOKEN_BURN_PUSH:-1}"
 export TOKEN_BURN_PUSH
-dir="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}"
-if [ "$TOKEN_BURN_PUSH" = 1 ] && { [ ! -s "$dir/push.env" ] || [ $(( $(date +%s) - $(stat -c %Y "$dir/push.env") )) -ge 3600 ]; }; then
-  out="$(timeout 120 ./run -a do_spl_token_burn_push_env 2>&1)" || say "WARN do_spl_token_burn_push_env: $(tail -1 <<<"$out")"
-fi
-
 # shellcheck source=../run/spl-cost-tokens-read.func.sh
 source "$ORC/src/bash/run/spl-cost-tokens-read.func.sh"
 # shellcheck source=../run/spl-token-burn-collect.func.sh
 source "$ORC/src/bash/run/spl-token-burn-collect.func.sh"
+dir=""
+spl_token_burn_state_dir dir 2>/dev/null ||
+  { say "FATAL cannot derive the token burn state dir (no tree for spl_run_paths): set TOKEN_BURN_STATE_DIR"; exit 2; }
+if [ "$TOKEN_BURN_PUSH" = 1 ] && { [ ! -s "$dir/push.env" ] || [ $(( $(date +%s) - $(stat -c %Y "$dir/push.env") )) -ge 3600 ]; }; then
+  out="$(timeout 120 ./run -a do_spl_token_burn_push_env 2>&1)" || say "WARN do_spl_token_burn_push_env: $(tail -1 <<<"$out")"
+fi
+
 i=0
 while [ "$i" -lt "${TOKEN_BURN_TICKS:-2}" ]; do
   [ "$i" -gt 0 ] && sleep "${TOKEN_BURN_TICK_S:-30}"

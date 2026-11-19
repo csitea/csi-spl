@@ -21,7 +21,11 @@ esac
 [ -x "$ORC/run" ] || { say "FATAL $ORC/run not found or not executable"; exit 2; }
 
 # One tick at a time: a slow tick never overlaps the next minute's.
-state="${PUSH_ORPHAN_STATE_DIR:-/var/csi/csi-spl/push-orphan-check}"
+# shellcheck source=../../../lib/bash/funcs/spl-run-paths.func.sh
+declare -F spl_run_paths >/dev/null || source "$ORC/lib/bash/funcs/spl-run-paths.func.sh"
+[ -n "${PUSH_ORPHAN_STATE_DIR:-}" ] || { spl_run_paths && [ -n "${SPL_VAR_APP_DIR:-}" ]; } ||
+  { say "FATAL cannot derive the push orphan state dir (no tree for spl_run_paths): set PUSH_ORPHAN_STATE_DIR"; exit 2; }
+state="${PUSH_ORPHAN_STATE_DIR:-$SPL_VAR_APP_DIR/push-orphan-check}"
 mkdir -p "$state" 2>/dev/null; lock="$state/tick.lock"
 exec 9>>"$lock" || { say "FATAL cannot open $lock"; exit 2; }
 flock -n 9 || { say "OK another push-orphan-check tick holds $lock"; exit 0; }

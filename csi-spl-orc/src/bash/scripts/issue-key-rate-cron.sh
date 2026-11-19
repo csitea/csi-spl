@@ -20,7 +20,11 @@ case "$ORC" in
 esac
 [ -x "$ORC/run" ] || { say "FATAL $ORC/run not found or not executable"; exit 2; }
 
-hist="${KEY_RATE_HISTORY:-${BOX_CRONS_STATE_DIR:-/var/csi/csi-spl}/issue-key-rate/history.tsv}"
+# shellcheck source=../../../lib/bash/funcs/spl-run-paths.func.sh
+declare -F spl_run_paths >/dev/null || source "$ORC/lib/bash/funcs/spl-run-paths.func.sh"
+[ -n "${KEY_RATE_HISTORY:-}${BOX_CRONS_STATE_DIR:-}" ] || { spl_run_paths && [ -n "${SPL_VAR_APP_DIR:-}" ]; } ||
+  { say "FATAL cannot derive the state dir (no tree for spl_run_paths): set BOX_CRONS_STATE_DIR"; exit 2; }
+hist="${KEY_RATE_HISTORY:-${BOX_CRONS_STATE_DIR:-$SPL_VAR_APP_DIR}/issue-key-rate/history.tsv}"
 timeout 120 git -C "$ORC/.." fetch -q origin master 2>/dev/null || say "WARN fetch failed: measuring the last fetched origin/master"
 cd "$ORC" || exit 2
 out="$(env KEY_RATE_HISTORY="$hist" timeout 300 nice -n 10 ./run -a do_spl_issue_key_rate 2>&1)"

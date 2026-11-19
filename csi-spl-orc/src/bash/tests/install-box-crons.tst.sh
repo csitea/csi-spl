@@ -27,6 +27,11 @@
 #      pinned under the running user keeps its rows there while the rsp row
 #      moves (sat 2026-11-01 15:00Z); desk:any and a row with no pin stay
 #      where they are; a re-run on that state is a no-op, in any row order
+#  10. r64-01: the cron wrappers issue-key-rate, push-orphan-check,
+#      reverse-tunnel and token-burn derive their state dir (spl_run_paths, no
+#      literal box path): with no tree and no override each logs one FATAL
+#      line and exits 2; from a tree the reverse-tunnel gate reads
+#      <var>/<org>/<app>/reverse-tunnel (no conf there: rc 0, silent)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -268,6 +273,21 @@ out="$(dinst DRY_RUN=0 BOX_CRONS_DESK_USER="$DU")"; rc=$?
   && [ "$(grep -c 'nothing to change' <<<"$out")" = 2 ] \
   && pass "9. no pin under either user: every desk row stays where it is" || fail "9. no pin (rc $rc: $out)"
 unset BOX_CRONS_SUDO BOX_CRONS_DESK_ROOTS
+
+# 10. the cron wrappers' state dir is derived; no tree -> one FATAL line, rc 2
+cron_env() { env -u APP_PATH -u PROJ_PATH -u SPL_VAR_APP_DIR -u KEY_RATE_HISTORY -u BOX_CRONS_STATE_DIR \
+  -u PUSH_ORPHAN_STATE_DIR -u REVERSE_TUNNEL_STATE_DIR -u TOKEN_BURN_STATE_DIR KEY_RATE_ALLOW_WORKTREE=1 \
+  PUSH_ORPHAN_ALLOW_WORKTREE=1 REVERSE_TUNNEL_ALLOW_WORKTREE=1 TOKEN_BURN_ALLOW_WORKTREE=1 "$@"; }
+for row in issue-key-rate:BOX_CRONS_STATE_DIR push-orphan-check:PUSH_ORPHAN_STATE_DIR \
+  reverse-tunnel:REVERSE_TUNNEL_STATE_DIR token-burn-collect:TOKEN_BURN_STATE_DIR; do
+  out="$(cron_env SPL_RUN_PATHS_TOP= bash "$PROJ_ROOT/src/bash/scripts/${row%%:*}-cron.sh" 2>&1)"; rc=$?
+  [ "$rc" -eq 2 ] && [ "$(wc -l <<<"$out")" = 1 ] && grep -qE "FATAL cannot derive .*: set ${row#*:}$" <<<"$out" \
+    && pass "10. ${row%%:*}-cron.sh with no tree and no override: one FATAL line, rc 2" || fail "10. ${row%%:*} no tree (rc $rc: $out)"
+done
+mkdir -p "$T/b/o/a"
+out="$(cron_env SPL_RUN_PATHS_TOP="$T/b/o/a" bash -x "$PROJ_ROOT/src/bash/scripts/reverse-tunnel-cron.sh" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && grep -qF "ls '$T/var/o/a/reverse-tunnel/*.conf'" <<<"$out" && ! grep -q FATAL <<<"$out" \
+  && pass "10. reverse-tunnel-cron.sh from a tree reads <var>/<org>/<app>/reverse-tunnel" || fail "10. reverse-tunnel derive (rc $rc: $out)"
 
 echo "install-box-crons: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

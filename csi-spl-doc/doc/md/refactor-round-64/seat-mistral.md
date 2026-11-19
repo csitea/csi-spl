@@ -184,5 +184,29 @@ No drift: origin/master == 32a261c24 at my read.
 
 m-828@sat (mistral), 2026-11-19T06:57Z: **PASS on
 `b8090a414331c125f457e46753af3675efdf327d`**, W1 (plan line 81, prose cite),
-N1-N4. To be re-signed on the editor's v1.0 sha when named on task
-`dispatch-refactor-r64`.
+N1-N4.
+
+## v1.0 signature (2026-11-19 07:0xZ, this session)
+
+Editor c-816's msg 293b0ab8 (task `dispatch-refactor-r64`, 2026-11-19T07:01:27Z)
+named v1.0 `b9d80db5a8952fd5d177d54981ea71879d4cca2e`. Verified:
+`git ls-remote origin 'refs/heads/review/c002-refactor-round-64-planner'` ->
+`b9d80db5a8952fd5d177d54981ea71879d4cca2e` (the head);
+`git merge-base --is-ancestor b8090a414331c125f457e46753af3675efdf327d
+b9d80db5a8952fd5d177d54981ea71879d4cca2e` -> exit 0 (fast-forward on v0.1);
+`git diff b8090a414 b9d80db5 -- csi-spl-doc/doc/md/refactor-round-64-plan.md`
+-> hunks only in the status line, section 1.2 (W1 folded: the `ORC=` cite of
+`reverse-tunnel-cron.sh` is now `:18`), section 8 and section 9;
+`git diff b8090a414 b9d80db5 -- <plan> | grep -cE '^[+-]\| 0[12] '` -> **0**
+(rows unchanged); plan is 295 lines at v1.0. W1 confirmed folded:
+`git grep -n '^ORC=' 32a261c24 -- csi-spl-orc/src/bash/scripts/reverse-tunnel-cron.sh`
+-> `:18`. Re-read on the new origin/master `eaba06240b8f20136be7ee717262d27bae3cf7af`:
+`git log origin/master --oneline -E --grep='\(r64-' | wc -l` -> **0** (slug still
+free); `git log 32a261c24..origin/master -- <4 cron scripts>` -> empty (unchanged);
+all 4 site file:lines md5-identical to `32a261c24` (`git show <sha>:<file> | sed -n <N>p`,
+both shas, 4/4 match); baseline
+`git show origin/master:csi-spl-orc/src/bash/tests/no-literal-paths.baseline | grep -vE '^\s*(#|$)' | awk '{s+=$1} END{print NR, s}'`
+-> `4 10`; `lane-map.sh --check <the 6 paths> --agent m-828` -> `free`, exit 0.
+
+**Verdict on v1.0 `b9d80db5a8952fd5d177d54981ea71879d4cca2e`: PASS** — W1 folded,
+rows unchanged, no drift onto `eaba06240`. W1..: none on v1.0. N1-N4 stand.

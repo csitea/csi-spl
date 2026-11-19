@@ -16,13 +16,16 @@ is NOT on master and its base is current trunk); `git diff --stat origin/master.
 at that sha). Measured-on sha `99f30c7a0c38e24f3b6a0f20c3944486b86bd00f`:
 `git cat-file -t` -> commit, `git log -1 --format=%cI` -> `2026-11-19T13:14:21+02:00`,
 `git merge-base --is-ancestor 99f30c7a0 origin/master` -> exit 0 (on trunk).
-No later plan version was named to me (inbox empty at 2026-11-19T12:10Z:
-`SPOOL_ROOT=/var/spool-hub spool recv --as m-923` -> `[]`), so I sign v0.1.
+At 2026-11-19T12:10Z no later plan version was named to me (inbox `[]`), so the
+first sign-off below is v0.1. At 2026-11-19T12:25Z the editor c-912@sat named
+plan v1.0 `67232dbc8b2f2e6c8681f531f5971cad6f98eeac` (msg 3edea98b, task
+`dispatch-bug-r21`); it is verified and signed in the last section.
 
 ## Verdict
 
-**PASS on `2bfd43c226fa2f3116d3f4f7981c213760b14136`** (plan v0.1, 2 rows). Both
-rows' defects are real as described on `99f30c7a0`, both red controls are
+**PASS on `2bfd43c226fa2f3116d3f4f7981c213760b14136`** (plan v0.1, 2 rows) and
+**PASS on `67232dbc8b2f2e6c8681f531f5971cad6f98eeac`** (plan v1.0, same 2 rows).
+Both rows' defects are real as described on `99f30c7a0`, both red controls are
 falsifiable exactly as the plan claims (RED on `99f30c7a0`, GREEN only with the
 prototype fix, controls green in both), the n=1 evidence re-reads from sat, every
 cited file:line and sha exists as cited, and every dropped candidate is really
@@ -252,7 +255,31 @@ None. W1..: no defect found in the plan at `2bfd43c2`.
 
 ## Sign-off
 
-Signed sha: `2bfd43c226fa2f3116d3f4f7981c213760b14136` (plan v0.1), verdict **PASS**.
-Seat file: branch `review/c003-bug-round-21-mistral-seat`. No v1.0 was named to me
-at sign time (inbox `[]` at 2026-11-19T12:10Z); if the editor names one, I sign it
-in a second commit on the same branch.
+- v0.1: signed sha `2bfd43c226fa2f3116d3f4f7981c213760b14136`, verdict **PASS**
+  (commit `847cf6ffb` on `review/c003-bug-round-21-mistral-seat`, reported as msg
+  93a013e0 on task `dispatch-bug-r21`).
+- v1.0: signed sha `67232dbc8b2f2e6c8681f531f5971cad6f98eeac`, verdict **PASS**
+  (this commit). Named by the editor c-912@sat, msg 3edea98b-83bd-4fe7-a183-d5d46f85dd34,
+  task `dispatch-bug-r21`, 2026-11-19T12:25Z. Verified at 2026-11-19T12:3xZ:
+  - `git ls-remote origin | grep c002-bug-round-21` ->
+    `67232dbc8b2f2e6c8681f531f5971cad6f98eeac  refs/heads/review/c002-bug-round-21-planner`;
+  - `git log --oneline 2bfd43c22..origin/review/c002-bug-round-21-planner` -> one
+    commit, `67232dbc8 docs(b21-plan, SPL-5957): bug round 21 plan v1.0, panel
+    m-923 mistral PASS on 2bfd43c22 ...`;
+  - `git merge-base origin/review/c002-bug-round-21-planner origin/master` ->
+    `e178584dfc5cdeeb8697ef3292242f06058a384b` = `git rev-parse origin/master`
+    (base = current trunk, plan NOT on master);
+  - `git diff --stat 2bfd43c22 67232dbc8` -> 1 file, +15/-6,
+    `csi-spl-doc/doc/md/bug-round-21-plan.md` only;
+  - `git diff 2bfd43c22 67232dbc8 -- <plan file>` -> 3 hunks: the header status
+    (v0.1 -> v1.0, panel PASS recorded), section 8 (review history: my PASS msg
+    93a013e0, seat file `847cf6ffb`, N1..N6 folded, the <box2> slug result
+    0/0 from c-001@<box2> msg a5b6ac22, the holder change c-002 -> c-003), and the
+    section 9 table (Panel: m-923@sat **PASS** on `2bfd43c22`). No hunk in
+    section 3's row table or 3.1's files/batches except the slug bullet's <box2>
+    line (now filled with 0/0); `diff` of section 3 (rows) between the two shas
+    -> only that one line; `diff` of section 3.2 (red controls) -> identical;
+    `grep -c 'b21-0'` on the plan at both shas -> 5 and 5.
+  - All checks above were run on `99f30c7a0` (still an ancestor of origin/master)
+    and on the plan base `e178584df` (still origin/master), neither of which v1.0
+    changes, so every check holds unchanged on v1.0.

@@ -38,6 +38,11 @@ a82a13e5: the refactor share is UNDER its 24 h band; a row off the shellcheck ba
 can place now, not after r67-01). m-977 (mistral) PASS on v1.1 `38b7f1596`, no W, notes
 N6-N9 (sections 8 and 9): row 03 may place. Editor: **c-443** (claude).
 
+**Round closed** (c-443, the holder's ask, c-002@sat msg 6fa42186): all 3 rows landed
+and done. r67-01 `1d0c30d99` (SPL-5972), r67-02 `c4c841171` (SPL-5974), r67-03
+`c2f5828b8` (SPL-5975, live on dev and prd in `a6f5a723d`, ACCEPTED to c-484). Read
+`git merge-base --is-ancestor <sha> origin/master` -> rc 0 for all 3, at `45731884d`.
+
 **Row 03's sha:** its counts are measured on **`86babad74`** (`origin/master`
 86babad740abe0e10f6f1be9e2229454cf844558, committed 2026-11-19T16:12:22+01:00), n=1 per
 command; rows 01 and 02 keep `1ce9158a1`.
@@ -420,6 +425,9 @@ Kind `simple_coding`, vendor claude.
   `86babad74` and origin/master; the gate lines at `:20,23,41-48,100-101`; the r67-01
   SC2154 note re-checked) and N9 (the row 03 brief runs as written; the seat did not run
   the Go tests, the row lane does): no change. Status line and sections 8 and 9 only.
+- Round closed (c-443, holder c-002@sat msg 6fa42186), no version bump: the 3 rows
+  landed, r67-01 `1d0c30d99`, r67-02 `c4c841171`, r67-03 `c2f5828b8` (served on dev and
+  prd in `a6f5a723d`, per the holder). Status line and sections 8 and 9 only.
 
 ## 9. Consensus
 
@@ -434,3 +442,5 @@ The panel seat signs this plan (rulebook 3.2).
   `review/c002-refactor-round-67-mistral-seat` (`af1847d34`). W: none; N6-N9 notes.
   Rows 01 and 02 stay signed by m-977 on v0.1.
 - Row R7 seats: section 4.
+- Closed: the holder (c-002@sat) recorded all 3 rows done (msg 6fa42186); this plan's
+  issue SPL-5969 closes with this commit.

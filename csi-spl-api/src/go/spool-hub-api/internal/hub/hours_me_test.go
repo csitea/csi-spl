@@ -77,6 +77,16 @@ func hoursRow(t *testing.T, out map[string]any, d, target string) map[string]any
 	return nil
 }
 
+// onlyRow is the one row of day d; it fails when the day holds another count.
+func onlyRow(t *testing.T, out map[string]any, d string) map[string]any {
+	t.Helper()
+	rows, _ := hoursDay(t, out, d)["rows"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("%s: %d rows, want 1: %v", d, len(rows), rows)
+	}
+	return rows[0].(map[string]any)
+}
+
 func hoursRowCount(t *testing.T, out map[string]any, d string) int {
 	t.Helper()
 	rows, _ := hoursDay(t, out, d)["rows"].([]any)
@@ -272,7 +282,8 @@ func TestMyHoursApproveEditRejectAddDelta(t *testing.T) {
 	}
 }
 
-// A returned period: no suggestions, editable, Resubmit -> frozen.
+// A returned period: suggestions again (v2.12, owner Q34 = A, msg
+// ffa470cd), editable, Resubmit -> frozen.
 func TestMyHoursReturnedResubmit(t *testing.T) {
 	e, tid := hoursEnv(t)
 	a := seat(t, e, tid, rbac.Developer)
@@ -299,8 +310,8 @@ func TestMyHoursReturnedResubmit(t *testing.T) {
 	if per["state"] != "returned" || per["note"] != "Tuesday is missing" || hoursDay(t, got, "2026-09-29")["frozen"] != false {
 		t.Fatalf("returned period: %v", got)
 	}
-	if n := hoursRowCount(t, got, "2026-09-29"); n != 0 {
-		t.Fatalf("a returned period shows %d suggested rows", n)
+	if r := onlyRow(t, got, "2026-09-29"); r["state"] != "suggested" || r["no_activity"] != nil {
+		t.Fatalf("a returned period shows its suggestion again: %v", hoursDay(t, got, "2026-09-29"))
 	}
 	code, out := putEntries(t, e, tid, a, map[string]any{"entries": []any{entry("2026-09-29", "t:old", 90, "approved")}, "resubmit": "2026-09-29"})
 	if code != http.StatusOK {
@@ -484,4 +495,56 @@ func TestHoursSweepSkipsPrefill(t *testing.T) {
 	}
 	// The open week still shows Monday and Tuesday prefilled.
 	prefilled(t, myHours(t, e, tid, a, hoursThisWeek), "2026-10-05", "ws", 480)
+}
+
+// Owner Q34 = A (poll e815cf44, HUM-10 msg ffa470cd): a returned period
+// shows suggestions again, the prefill included, each counted only after the
+// tap (spec 2.2). Resubmit counts approved rows only.
+func TestMyHoursPrefillReturnedDay(t *testing.T) {
+	ctx := context.Background()
+	e, tid := hoursEnv(t) // Wed 10-07: the week of Mon 09-28 is due
+	a := seat(t, e, tid, rbac.Developer)
+	hs := hoursStore(e)
+	if err := hs.UpsertHoursMinutes(ctx, tid, a, []store.HoursMinute{
+		{At: time.Date(2026, 9, 30, 9, 0, 0, 0, time.UTC), Target: "t:old", Src: store.HoursSrcPost, TZ: "UTC"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := hs.CreateHoursPeriod(ctx, tid, store.HoursPeriod{Member: a, Start: hoursPrevWeek, End: "2026-10-04",
+		State: store.HoursFrozen, DecidedBy: "sweep", DecidedAt: hoursNow}); err != nil {
+		t.Fatal(err)
+	}
+	setOwnNorm(t, e, tid, a, 480)
+	// Frozen: nothing to tap.
+	if n := hoursRowCount(t, myHours(t, e, tid, a, hoursPrevWeek), "2026-09-28"); n != 0 {
+		t.Fatalf("a frozen day shows %d rows", n)
+	}
+	if _, err := hs.SetHoursPeriodState(ctx, tid, a, hoursPrevWeek, store.HoursPeriodChange{State: store.HoursReturned,
+		Note: "fill the week", By: "HUM-owner", At: hoursNow}); err != nil {
+		t.Fatal(err)
+	}
+	got := myHours(t, e, tid, a, hoursPrevWeek)
+	for _, d := range []string{"2026-09-28", "2026-09-29", "2026-10-02"} {
+		prefilled(t, got, d, "ws", 480)
+	}
+	// Wednesday had activity: its suggestion again, no prefill; the weekend
+	// gets none.
+	if r := onlyRow(t, got, "2026-09-30"); r["state"] != "suggested" || r["no_activity"] != nil {
+		t.Fatalf("returned activity day: %v", hoursDay(t, got, "2026-09-30"))
+	}
+	if hoursRowCount(t, got, "2026-10-03") != 0 {
+		t.Fatalf("returned weekend: %v", hoursDay(t, got, "2026-10-03"))
+	}
+	code, out := putEntries(t, e, tid, a, map[string]any{"entries": []any{entry("2026-09-29", "ws", 480, "approved")}, "resubmit": "2026-09-29"})
+	if code != http.StatusOK {
+		t.Fatalf("approve + resubmit: %d %v", code, out)
+	}
+	if per := out["period"].(map[string]any); per["state"] != "frozen" || per["minutes"] != float64(480) {
+		t.Fatalf("after resubmit, only the tapped day counts: %v", per)
+	}
+	if r := hoursRow(t, out, "2026-09-29", "ws"); r == nil || r["state"] != "approved" || r["suggested_minutes"] != float64(480) {
+		t.Fatalf("approved prefill: %v", r)
+	}
+	if n := hoursRowCount(t, out, "2026-09-28"); n != 0 {
+		t.Fatalf("frozen again, Monday shows %d rows", n)
+	}
 }

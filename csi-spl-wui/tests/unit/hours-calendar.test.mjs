@@ -8,7 +8,7 @@ import {
   hoursIsWorkday, hoursLineState, hoursNextPeriodDay, hoursShowsLine, hoursSortRows, hoursTarget,
 } from '../../src/utils/hours-calendar.mjs'
 import { loadHoursRange } from '../../src/utils/hours-calendar-api.mjs'
-import { HOURS_MOCK_TOPIC, mockHoursReset, mockHoursSetEmpty, mockMyHours, mockPutMyHours } from '../../src/utils/hours-calendar-mock.mjs'
+import { HOURS_MOCK_TOPIC, mockHoursReset, mockHoursSetEmpty, mockHoursSetPeriod, mockMyHours, mockPutMyHours } from '../../src/utils/hours-calendar-mock.mjs'
 import { HOURS_MOCK_SELF, mockSetMemberHoursNorm } from '../../src/utils/hours-norm.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
@@ -121,6 +121,16 @@ ok('mock range: two weeks = two answers', range.length === 2 && range[1].period.
   const ap = after.get('2026-10-06')
   ok('prefill: approved, it counts and loses the mark', ap.rows.length === 1 && ap.rows[0].state === 'approved' &&
     !ap.rows[0].no_activity && ap.rows[0].suggested_minutes === 480 && ap.approved === 480 && ap.open === 0, JSON.stringify(ap))
+  // owner poll e815cf44 = A: a returned period shows the prefill again; a frozen one does not
+  mockHoursReset()
+  mockSetMemberHoursNorm(HOURS_MOCK_SELF, 480)
+  mockHoursSetEmpty(['2026-10-06'])
+  mockHoursSetPeriod('2026-10-05', 'returned', 'fill the week')
+  const ret = hoursIndex([mockMyHours('2026-10-06', '2026-10-07')]).get('2026-10-06')
+  ok('prefill: a returned day shows it again', ret.rows.length === 1 && ret.rows[0].no_activity === true && ret.rows[0].minutes === 480, JSON.stringify(ret))
+  mockHoursSetPeriod('2026-10-05', 'frozen')
+  const fro = hoursIndex([mockMyHours('2026-10-06', '2026-10-07')]).get('2026-10-06')
+  ok('prefill: a frozen day shows none', fro.rows.length === 0, JSON.stringify(fro))
   mockHoursReset()
   mockSetMemberHoursNorm(HOURS_MOCK_SELF, null)
 }

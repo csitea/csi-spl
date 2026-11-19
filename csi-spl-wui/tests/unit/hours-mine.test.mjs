@@ -108,7 +108,8 @@ try { mockPutMyHours({ entries: [hoursAddEntry('2026-10-10', 'ch:general', 10)] 
 ok('mock: a day after today is refused', futErr?.status === 400)
 mockHoursSetPeriod(mon, 'returned', 'Tuesday is short')
 const ret = mockMyHours(mon, TODAY)
-ok('mock: a returned period shows its note and no suggestions', ret.period.state === 'returned' && ret.period.note === 'Tuesday is short' && ret.days.every((d) => d.rows.every((r) => r.state !== 'suggested')))
+/* spec 107 v2.12, owner Q34 = A: a returned period shows its suggestions again, counted only after the tap */
+ok('mock: a returned period shows its note and its suggestions again', ret.period.state === 'returned' && ret.period.note === 'Tuesday is short' && ret.days.some((d) => d.rows.some((r) => r.state === 'suggested')))
 const resub = mockPutMyHours({ resubmit: mon }, TODAY)
 ok('mock: Resubmit moves the period to frozen, its days locked', resub.period.state === 'frozen' && resub.days.every((d) => d.frozen))
 let frozenErr = null

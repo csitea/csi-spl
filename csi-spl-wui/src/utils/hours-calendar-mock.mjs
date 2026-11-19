@@ -153,7 +153,8 @@ export function mockMyHours(day, today) {
   const days = []
   for (let i = 0; i < 7; i++) {
     const date = hoursAddDays(start, i)
-    const rows = rowsFor(date, today, stored, locked || pstate.state === 'returned')
+    /* a returned period shows its suggestions again, the prefill included (spec 107 v2.12, Q34 = A) */
+    const rows = rowsFor(date, today, stored, locked)
     days.push({
       date,
       today: date === today,

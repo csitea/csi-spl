@@ -321,7 +321,7 @@ The FR map for this addendum: R14 T071, T073, T074, T075 · R16 (replaces R15) T
 
 **Status: Planned, not built.** Owner answers Q30..Q33 = A, A, B, A (HUM-10, csitea `4a2d2cc8`, msg `2cbfb662`), lane issue SPL-5886, epic SPL-3036, deadline 2026-12-01. Each row's brief (files, test and red control, size, shared files) is in spec 23.7.1; this list only tracks them. Each row waits for the dispatch holder's GO.
 
-- [ ] T082 **prefill an empty working day at the allocation** (E2, Q31 A; Q34 A: also in a returned period). M. Lands with or after T089.
+- [x] T082 **prefill an empty working day at the allocation** (E2, Q31 A; Q34 A: also in a returned period). M. Lands with or after T089.
 - [ ] T089 **the freeze sweep approves nothing** (Q32 B, spec 23.9). S. Parallel with T082, T083, T085.
 - [ ] T083 **the one-tap week strip on the phone** (E3). S.
 - [ ] T085 **allocation against approved in the Team tab, and the not-confirmed days** (E5, Q32 B). S.

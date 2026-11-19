@@ -10,6 +10,8 @@
 //   3  Approve day: the row is approved, its mark and the line's mark gone
 //   4  CONTROL: allocation 0: the empty Monday has no row and no mark
 //   5  412x915 phone: the compact line carries the mark as data-no-activity
+//   6  owner poll e815cf44 = A: a returned week shows the prefill again on
+//      the empty Monday; frozen (CONTROL), it does not
 //
 // Plant the defect and watch steps 1..3 go red (the days keep their fixture):
 //   PROVE_RED=no-empty node tests/e2e/hours-prefill.test.mjs
@@ -57,8 +59,8 @@ const lastMon = calAddDays(calWeekStart(E2E_TODAY), -7)
 const lastTue = calAddDays(lastMon, 1)
 const lastWed = calAddDays(lastMon, 2)
 
-/** a fresh signed-in page on last week, with `norm` minutes a day and Monday and Tuesday empty */
-async function open(browser, vp, norm) {
+/** a fresh signed-in page on last week, with `norm` minutes a day, Monday and Tuesday empty, the week in `state` */
+async function open(browser, vp, norm, state = '') {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   const errors = []
@@ -68,11 +70,12 @@ async function open(browser, vp, norm) {
       localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', name: 'Admin', email: 'admin@example.com', t: 'mock' }))
       if (!sessionStorage.getItem('prefill-seeded')) {
         localStorage.setItem('spool.mock.hours-norm', String(s.norm))
+        if (s.state) localStorage.setItem('spool.mock.hours-periods', JSON.stringify({ [s.mon]: { state: s.state, note: 'fill the week' } }))
         if (s.empty.length) localStorage.setItem('spool.mock.hours-empty', JSON.stringify(Object.fromEntries(s.empty.map((d) => [d, true]))))
         sessionStorage.setItem('prefill-seeded', '1')
       }
     } catch { /* about:blank */ }
-  }, { norm, empty: RED === 'no-empty' ? [] : [lastMon, lastTue] })
+  }, { norm, state, mon: lastMon, empty: RED === 'no-empty' ? [] : [lastMon, lastTue] })
   await pinClock(p)
   await setPageViewport(p, vp)
   await p.goto(`${server.base}/calendar?d=${lastMon}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
@@ -146,6 +149,17 @@ try {
   const wide = await ph.p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   ok('5 412x915: the marked lines are there, no sideways scroll', phMarks.includes(lastMon) && wide <= 1, { phMarks, wide })
   await ph.ctx.close()
+
+  /* ---- 6 a returned week, and a frozen one (CONTROL) ---- */
+  const r = await open(browser, { width: 1440, height: 900 }, 480, 'returned')
+  const rMon = await line(r.p, lastMon)
+  const rRows = await dialogOf(r.p, lastMon)
+  await r.ctx.close()
+  const f = await open(browser, { width: 1440, height: 900 }, 480, 'frozen')
+  const fMon = await line(f.p, lastMon)
+  await f.ctx.close()
+  ok('6 a returned week shows the prefill again; a frozen one does not',
+    rMon?.mark && rRows.length === 1 && rRows[0].mark && rRows[0].state === 'suggested' && fMon && !fMon.mark, { rMon, rRows, fMon })
 } finally {
   await browser.close()
   await server.stop()

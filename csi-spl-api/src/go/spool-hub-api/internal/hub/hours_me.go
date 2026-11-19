@@ -187,13 +187,15 @@ func (s *Server) loadHoursPeriod(ctx context.Context, c hoursMe, loc *time.Locat
 	if p.entries, err = c.st.HoursEntries(ctx, c.tenant.ID, c.hum, days[0], days[len(days)-1]); err != nil {
 		return nil, err
 	}
-	// No suggestion for a frozen day nor in a returned period (spec 2.2).
+	// No suggestion for a frozen day (spec 2.2). A returned period shows
+	// them again, the prefill included, each counted only after the tap
+	// (v2.12, owner Q34 = A, msg ffa470cd).
 	open := false
 	for _, d := range days {
 		open = open || !p.frozen[d]
 	}
 	p.suggest = map[string]map[string]hours.Row{}
-	if !open || p.returned() {
+	if !open {
 		return p, nil
 	}
 	if err := s.suggestHours(ctx, c, p); err != nil {
@@ -210,7 +212,8 @@ const (
 )
 
 // prefillHours fills p.prefill (spec 107 E2, T082; owner Q31 = A): a closed
-// working day (Mon..Fri), not frozen, with no entry and no suggestion, gets
+// working day (Mon..Fri), not frozen (a returned period's days are not; Q34
+// = A), with no entry and no suggestion, gets
 // one row of the member's effective allocation (FR-41a, else FR-41) on their
 // most used target of the last 14 days, else ws, marked no activity. It is
 // kept apart from p.suggest, which the freeze sweep approves and the timer
@@ -686,8 +689,8 @@ func (b *hoursBatch) entries(ctx context.Context, in []hoursEntryBody) ([]store.
 
 // suggestedMinutes is the hub's suggestion for (day, target): the open
 // suggestion, else the no-activity prefill (E2, T082; it has no times), else
-// what the entry already held (a returned period has no suggestions), else 0
-// (an added row).
+// what the entry already held (a suggestion gone since, e.g. its minutes
+// pruned at the freeze), else 0 (an added row).
 func (p *hoursPeriod) suggestedMinutes(day, target string) int {
 	if s, ok := p.suggest[day][target]; ok {
 		return s.Minutes

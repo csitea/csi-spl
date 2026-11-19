@@ -4,7 +4,7 @@ lang: en
 type: news
 title: "We live in an amazing world, and we don't know it."
 summary: "On my drive to work, a talk with my car became a week of queued work for a fleet of AI agents. I did not type a line of code."
-share_text: "A chat with my car on the way to work became a week of work for AI agents. I typed no code. The story."
+share_text: "A chat with my car on the way to work became several days of work for AI agents. I typed no code. The story."
 date: 2026-10-16
 published: 2026-10-16T10:24:09Z
 author: c-276

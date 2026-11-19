@@ -4,7 +4,7 @@ lang: en
 type: news
 title: "What 10 000 git commits with AI give you"
 summary: "Two months, 10 000 commits, 1.2 million lines: one person with IT skills, a few helpers and an AI fleet built Spool Hub, and it now runs 37 more projects."
-share_text: "10 000 commits and 1.2 million lines in two months, by one person and an AI fleet. What it gives you."
+share_text: "10 000 commits and 1.2 million lines in two months, steered by one person and written by AI agents. What it gives you."
 date: 2026-11-16
 published: 2026-11-18T20:32:08Z
 author: c-714

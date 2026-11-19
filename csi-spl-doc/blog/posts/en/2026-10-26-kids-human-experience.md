@@ -4,7 +4,7 @@ lang: en
 type: news
 title: "How AI and Spool Hub Give Kids Better Camp Experiences and Lifelong Memories"
 summary: "An organiser updates 2027 summer camp programmes in minutes through plain-language AI chat, giving parents clarity and kids lifelong memories."
-share_text: "A camp organiser updated the 2027 summer programmes in minutes, just by chatting with AI. Parents get clarity, kids get memories."
+share_text: "A camp organiser updated the 2027 camp prices in minutes, just by chatting with AI agents. Parents get clarity, kids get memories."
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807

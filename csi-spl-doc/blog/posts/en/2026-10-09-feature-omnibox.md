@@ -4,7 +4,7 @@ lang: en
 type: news
 title: "Omnibox and Shortcuts"
 summary: "Navigate and command Spool rapidly using the Omnibox, keyboard shortcuts, and the command palette."
-share_text: "Hands on the keyboard? The Omnibox, shortcuts and the command palette take you anywhere in Spool, fast."
+share_text: "Hands on the keyboard? The Omnibox and its shortcuts take you anywhere in Spool, fast."
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684

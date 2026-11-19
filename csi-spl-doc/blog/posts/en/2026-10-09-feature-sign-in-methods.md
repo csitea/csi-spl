@@ -4,7 +4,7 @@ lang: en
 type: news
 title: "Sign-in with Google, Facebook, LinkedIn or email"
 summary: "Spool now supports signing in with your favorite social platforms or standard email and password."
-share_text: "One more password to remember? Not needed: sign in to Spool with Google, Facebook, LinkedIn or email."
+share_text: "Another password to remember? No need: sign in to Spool with Google, Facebook, LinkedIn or email."
 date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-687

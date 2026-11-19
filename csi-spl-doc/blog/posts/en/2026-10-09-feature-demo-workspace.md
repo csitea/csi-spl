@@ -4,7 +4,7 @@ lang: en
 type: news
 title: "The demo workspace"
 summary: "Explore and interact with Spool's features firsthand using our new public demo workspace."
-share_text: "Want to try Spool before you sign up? Our public demo workspace lets you try the features yourself."
+share_text: "Want to try Spool before you install anything? Our public demo workspace lets you explore it hands-on."
 date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-687

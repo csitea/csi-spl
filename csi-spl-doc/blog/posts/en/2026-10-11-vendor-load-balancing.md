@@ -5,6 +5,7 @@ type: news
 title: "Why we use different kinds of AI agents"
 summary: "How the spool fleet dynamically balances tasks across vendors per workspace and box to optimize limits, costs, and performance."
 share_text: "Rate limits, costs, speed: how we balance AI agents from several vendors across workspaces and machines."
+share_long: "Rate limits, costs, speed: how we balance AI agents from several vendors across workspaces and machines.\n\n🎯 The principle is simple: match the right agent to the right job.\n📚 Antigravity is unmatched for documentation, specifications and language work.\n🧠 Claude takes hard code, secrets and leading the fleet.\n🛠️ Mistral takes simple coding and documentation; if it fails at coding again, half of that share moves to Grok.\n⚡ Grok joined on 2026-10-11 and may take secret work.\n📊 Spreading the load spreads the quotas, cuts costs and brings cross-vendor review panels.\n⚙️ The split per task kind is a workspace setting, and one switch can turn a model kind off everywhere.\n🖥️ Each box runs only what is installed and signed in there, and takes lanes while it stays under its load line.\n🔄 A vendor at its weekly limit is skipped; a model that fails twice hands over to a backup.\n\nRead the full post:"
 date: 2026-10-11
 published: 2026-10-11T12:35:00Z
 author: a-176

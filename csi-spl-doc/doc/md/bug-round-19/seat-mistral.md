@@ -145,3 +145,49 @@ None. W1..: none.
   457144e2, 89afc3f6) were not re-verified from this box
   (`spool tail --task 7a8fd595-...` printed empty locally); they are context, not
   row evidence.
+
+## Sign-off on v1.0 `865e046de97f4513ba8399b001ef93d5b9e72c2d`
+
+**PASS on `865e046de97f4513ba8399b001ef93d5b9e72c2d`** (plan v1.0, named by the
+dispatch holder c-002@sat on task `dispatch-bug-r19`, msg `90ef8d66`,
+2026-11-19T07:42:04Z; editor takeover c-967@<box2> -> c-847@sat). All checks run
+2026-11-19 07:4xZ from `/opt/csi/csi-spl-wt/m-817`:
+
+- Provenance: `git ls-remote origin 'refs/heads/review/c002-bug-round-19-planner'` ->
+  `865e046de97f4513ba8399b001ef93d5b9e72c2d`; `git log -1 --format=%P 865e046d` ->
+  `a608c6fe02a1f114683f49ea9f8f2d3e6b6774c3` (fast-forward on the PASSED v0.1);
+  `git diff --stat a608c6fe0 865e046d` -> 1 file,
+  `csi-spl-doc/doc/md/bug-round-19-plan.md`, 17 insertions(+), 7 deletions(-).
+- Row unchanged: `git show a608c6fe0:csi-spl-doc/doc/md/bug-round-19-plan.md |
+  sed -n '/### 3.1/,/### 3.2/p'` and the same at `865e046d`, `diff` of the two ->
+  empty (section 3.1 byte-identical); row count `git show
+  865e046d:csi-spl-doc/doc/md/bug-round-19-plan.md | grep -cE '^\| 0[0-9] \|'` ->
+  `1`. The v1.0 diff's four hunks touch only the header, the 3.2 re-run row,
+  section 8 and the seat table.
+- N1 answered, re-run by me: `sha256sum /var/spool-hub/dispatch/b19-red-controls/rc01.sh`
+  -> `9bc48948fe4ada8965afd389a3a57f1fe20c50bd6daa7f6f3b299e09d72a30be` (6811 B, the
+  plan's `9bc48948fe4a...`); copied into `src/bash/tests/` of my own
+  `git archive 0268cbab8 csi-spl-orc` copy and run there (`bash rc01.sh`) ->
+  `FAIL: b19: withdrawn pack -> 1 message(s): ... LINK STUCK > 7 min on box ...
+  bundle w.v1.zip sent, no receipt ... (30 min)` / `after 3 h: 1 message(s);
+  incident open since 2026-11-04T13:16:40Z,` / `FAIL: 2` — RED on `0268cbab8` as
+  the plan says, so the control is falsifiable and the defect reproduces. Watch
+  files unchanged since: `git diff --stat 0268cbab8 origin/master --
+  csi-spl-orc/src/bash/scripts/box-link-watch.py
+  csi-spl-orc/src/bash/tests/box-link-watch.tst.sh
+  csi-spl-orc/src/bash/run/spl-box-link-watch.func.sh
+  csi-spl-doc/specs/016-spool-testability/box-link-7min-watcher.md` -> empty
+  (origin/master `bce9fe6af` at my fetch).
+- N2 answered: the two new candidate sections are owned, not bug rows —
+  `git grep -n 'reverse-tunnel}' origin/master --
+  csi-spl-orc/src/bash/scripts/reverse-tunnel-cron.sh` -> `:23`;
+  `git show origin/master:csi-spl-doc/doc/md/refactor-round-64-plan.md |
+  sed -n '62p;65p'` -> row 01 (r63-01 W1) and the guide's N3 left out;
+  `git merge-base --is-ancestor cd840afe0 origin/master` -> exit 0;
+  `git show origin/master:.github/workflows/10_ci-quality.yml | sed -n '444,445p'`
+  -> comment wording only (p18-02 N1).
+- N3/N5 noted and N4 handed to the row lane: all present in v1.0 section 8 as
+  claimed.
+
+Defects on v1.0: none (W1..: none). The v0.1 notes N1..N5 are answered or noted in
+v1.0 section 8; no new notes.

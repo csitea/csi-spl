@@ -1,4 +1,6 @@
 # no-literal-paths.tst.sh ratchet (SPL-5527): "<lines> <file>", lines with /opt/<org> or /var/<org>. It only shrinks.
+1 csi-spl-orc/src/bash/features/graft/scripts/graft-cron.sh
+2 csi-spl-orc/src/bash/features/graft/scripts/graft-index-dir.sh
 3 csi-spl-orc/src/bash/run/spl-cmd-guard-mode.func.sh
 2 csi-spl-orc/src/bash/run/spl-file-erase.func.sh
 2 csi-spl-orc/src/bash/run/spl-reflection-gather.func.sh

@@ -5,7 +5,9 @@
 # should be no paths in the configuration files"). Paths come from run.sh at
 # start and from spl_run_paths (csi-spl-orc/lib/bash/funcs/spl-run-paths.func.sh);
 # a cnf value carries ${SPL_ORG_DIR} / ${SPL_VAR_APP_DIR} instead.
-#   Scanned: every git-tracked csi-spl-cnf/**/*.{yaml,yml,json} and **/*.func.sh.
+#   Scanned: every git-tracked csi-spl-cnf/**/*.{yaml,yml,json}, **/*.func.sh
+#   and every other **/*.sh outside a tests/ dir (cron wrappers, scripts;
+#   SPL-5948, r64-02); test fixtures stay out.
 #   Banned: /opt/<org> and /var/<org> (<org> = the prefix of the app name of
 #   the <app>-orc dir, csi), comment lines included (a comment is copied).
 #   Ratchet: no-literal-paths.baseline holds "<lines> <file>" for today's
@@ -13,9 +15,10 @@
 #   with fewer lines than it says FAILs too (lower the number: the list only
 #   shrinks). Round 2 removes the rest (/var/spool-hub, the spool root, is an
 #   owner decision and not scanned).
-#   Red controls on a fixture git tree: a new file with a literal, a listed
-#   file that grew, a stale (too high) entry each FAIL; the ${SPL_*} token
-#   form and /opt/<other> paths pass.
+#   Red controls on a fixture git tree: a new file with a literal, a new
+#   scripts/*.sh with one, a listed file that grew, a stale (too high) entry
+#   each FAIL; the ${SPL_*} token form, /opt/<other> paths and a literal in a
+#   tests/ dir pass.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -31,9 +34,11 @@ nlp_org() {
 }
 
 # nlp_counts <root> <org> -> "<lines> <file>" per tracked file with a literal
+# (the cnf, every *.func.sh, and every *.sh outside a tests/ dir)
 nlp_counts() {
   local root="$1" org="$2"
-  git -C "$root" ls-files -z -- 'csi-spl-cnf/*.yaml' 'csi-spl-cnf/*.yml' 'csi-spl-cnf/*.json' '*.func.sh' |
+  { git -C "$root" ls-files -z -- 'csi-spl-cnf/*.yaml' 'csi-spl-cnf/*.yml' 'csi-spl-cnf/*.json' '*.func.sh'
+    git -C "$root" ls-files -z -- '*.sh' ':!:*/tests/*' ':!:tests/*'; } | sort -zu |
     (cd "$root" && xargs -0 -r grep -cE "/(opt|var)/${org}(\$|[^A-Za-z0-9_-])" 2>/dev/null) |
     awk -F: '$NF > 0 { n = $NF; sub(/:[0-9]+$/, ""); print n " " $0 }' | sort -k2
 }
@@ -75,6 +80,15 @@ out="$(nlp_check "$F" "$T/base")"
 printf 'a() { :; }\n' >"$F/acme-app-orc/src/bash/run/old.func.sh"; git -C "$F" add -A
 out="$(nlp_check "$F" "$T/base")"
 [[ $? -ne 0 && "$out" == *"STALE baseline: acme-app-orc/src/bash/run/old.func.sh has none"* ]] && pass "red control: a stale baseline entry FAILs (the list only shrinks)" || fail "red control stale: $out"
+rm -f "$F/acme-app-orc/src/bash/run/new.func.sh"
+printf 'a() { echo /opt/acme/acme-app; }\n# /var/acme/acme-app/log\n' >"$F/acme-app-orc/src/bash/run/old.func.sh"; git -C "$F" add -A
+mkdir -p "$F/acme-app-orc/src/bash/scripts" "$F/acme-app-orc/src/bash/tests"
+printf 'cd /opt/acme/acme-app/x\n' >"$F/acme-app-orc/src/bash/scripts/x.sh"; git -C "$F" add -A
+out="$(nlp_check "$F" "$T/base")"
+[[ $? -ne 0 && "$out" == *"NEW literal path: acme-app-orc/src/bash/scripts/x.sh"* ]] && pass "red control: a new script (*.sh, not *.func.sh) with /opt/<org>/ FAILs" || fail "red control script: $out"
+git -C "$F" rm -q -f acme-app-orc/src/bash/scripts/x.sh
+printf 'd=/var/acme/acme-app/fx\n' >"$F/acme-app-orc/src/bash/tests/x.tst.sh"; git -C "$F" add -A
+out="$(nlp_check "$F" "$T/base")" && pass "fixture: a literal under a tests/ dir passes (fixtures stay out)" || fail "fixture tests dir: $out"
 
 # --- the tree ----------------------------------------------------------------
 [[ -s "$BASELINE" ]] || fail "no baseline $BASELINE"

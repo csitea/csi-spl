@@ -56,8 +56,12 @@
 # @description is a docs-only commit in REVIEW_LINE_REPO (bug round 22 row 01,
 # @description rulebook 2.7.4): its change set, merge-base(origin/master,
 # @description sha)..sha, or the commit's own once it is on master, touches
-# @description only `*.md` and `csi-spl-doc/` paths -> `DOCS-ONLY <sha>`, and
-# @description the log is still read (its owner checked, `OK 0 of 0`).
+# @description only `*.md` and `csi-spl-doc/` paths, both sides of a rename
+# @description -> `DOCS-ONLY <sha>`, and the log is still read (its owner
+# @description checked, `OK 0 of 0`). Once landed (or with no origin/master)
+# @description the change set is the commit's own: a docs head on top of
+# @description code passes then, so the check before the land is the one
+# @description that refuses that branch.
 # @description Prints `MISSING <name>` per test not run (exit 3), else
 # @description `OK <n> of <n>`, the names counted at its end. Exit 2: the log is on another box (named),
 # @description with the exact command to run there. REVIEW_LINE_SYNTAX=1 then
@@ -191,8 +195,9 @@ _spl_review_line_base() {
 # _spl_review_line_docs_only <line> - rc 0 with a `DOCS-ONLY <sha>` line when
 # the line's sha is a commit whose change set (_spl_review_line_base..sha; a
 # root commit against the empty tree) is not empty and touches only `*.md` and
-# `csi-spl-doc/` paths (bug round 22 row 01: rulebook 2.7.4 asks `ran: none`
-# there); rc 1 otherwise, a sha that is no commit included.
+# `csi-spl-doc/` paths, both sides of a rename (bug round 22 row 01: rulebook
+# 2.7.4 asks `ran: none` there); rc 1 otherwise, a sha that is no commit
+# included.
 _spl_review_line_docs_only() {
   local repo sha base changed
   [[ "$1" =~ \ (PASS|FAIL)\ ([0-9a-f]{7,40})\  ]] || return 1
@@ -200,9 +205,9 @@ _spl_review_line_docs_only() {
   git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null || return 1
   base="$(_spl_review_line_base "$repo" "$sha")"
   if [[ "$base" == "$sha^" ]]; then
-    changed="$(git -C "$repo" diff-tree --root -r --no-commit-id --name-only "$sha" 2>/dev/null)"
+    changed="$(git -C "$repo" diff-tree --no-renames --root -r --no-commit-id --name-only "$sha" 2>/dev/null)"
   else
-    changed="$(git -C "$repo" diff --name-only "$base" "$sha" 2>/dev/null)"
+    changed="$(git -C "$repo" diff --no-renames --name-only "$base" "$sha" 2>/dev/null)"
   fi
   [[ -n "$changed" ]] || return 1
   awk '!/\.md$/ && !/^csi-spl-doc\// {f = 1} END {exit f}' <<<"$changed" || return 1

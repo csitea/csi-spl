@@ -83,7 +83,9 @@
 #      is docs but whose range from origin/master holds code -> MISSING; a
 #      branch of docs commits only (*.md, csi-spl-doc/) -> OK; the same head
 #      once on master is its own commit -> OK; the log is still the
-#      reviewer's own (another agent's -> FATAL)
+#      reviewer's own (another agent's -> FATAL); a rename of code into
+#      csi-spl-doc/ or to *.md (c-492 R7 W1: git diff lists only the new
+#      path) -> MISSING
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -532,6 +534,13 @@ J17C="$T/-opt-csi-csi-spl-wt-m-901/j.jsonl"; mkdir -p "${J17C%/*}"; cp "$J17" "$
 out="$(chk REVIEW_LINE="$(l17 "$SHA" none box-a "$J17C")")"; rc=$?
 [[ $rc -eq 1 && "$out" == *"belongs to agent m-901, not reviewer m-159"* ]] \
   && pass "17. control: a docs-only line whose log is another agent's session -> FATAL, exit 1" || fail "17. log owner (rc $rc: $out)"
+for mv in "csi-spl-doc/c.sh" "c.md"; do
+  g17 checkout -q -b "mv-${mv//\//-}" "$B17"; mkdir -p "$(dirname "$R17/$mv")"; g17 mv c.sh "$mv"; g17 commit -qm mv
+  V17="$(git -C "$R17" rev-parse HEAD)"
+  out="$(chk REVIEW_LINE_REPO="$R17" REVIEW_LINE="$(l17 "$V17" none)")"; rc=$?
+  [[ "$V17" != "$B17" && $rc -eq 3 && "$out" == *"names no test"* && "$out" != *DOCS-ONLY* ]] \
+    && pass "17. RED CONTROL (c-492 W1): git mv c.sh $mv on a review branch -> MISSING, exit 3" || fail "17. rename to $mv (rc $rc: $out)"
+done
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

@@ -5,6 +5,7 @@ type: news
 title: "Monitor Your Session with the Events Log"
 summary: "View a personal activity and diagnostics log of notable events and errors recorded during your session."
 share_text: "Something went wrong in your session? The Events log keeps the record, with the error ID to quote for support."
+share_long: "Something went wrong in your session? The Events log keeps the record, with the error ID to quote for support.\n\n🕘 A personal activity and diagnostics log, in the left rail, for your signed-in session.\n📋 A clear table: time, error ID, source, status and message for each event.\n🆘 Need help? Quote the error ID from the log.\n🧹 Clear your log with one button.\n🔍 No more vague error messages or digging through browser developer tools.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-686

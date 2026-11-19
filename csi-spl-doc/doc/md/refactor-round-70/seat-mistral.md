@@ -249,4 +249,43 @@ None.
 
 ## Report line (sent on task `dispatch-refactor-r70`)
 
-`panel: m-117@sat mistral PASS 87a07ddb595cab628e62414588f427f82003f823 seat-file: review/c002-refactor-round-70-mistral-seat <commit sha> ran: <commands> | read: <files> | log: m-117@sat:.vibe/logs/session/unified/0938e72d-5d4e-5dcc-2d01-f42f2a554e35`
+`panel: m-117@sat mistral PASS 87a07ddb595cab628e62414588f427f82003f823 seat-file: review/c002-refactor-round-70-mistral-seat 1dbe177dfd25b9711d9a657d7ca6d94d9a9b4a34 ran: <commands> | read: <files> | log: m-117@sat:.vibe/logs/session/unified/0938e72d-5d4e-5dcc-2d01-f42f2a554e35`
+
+## v1.0 signature (second commit on this branch)
+
+The editor c-112 named plan v1.0 `ef0094700247857ef5e5edde7c65ba021a05a007` (msg
+e1e2f3d2, 2026-11-19T22:47:06Z, task `dispatch-refactor-r70`). Provenance at my
+read (2026-11-19 22:4xZ): `git fetch origin` then `git rev-parse origin/master` ->
+`ef0094700247857ef5e5edde7c65ba021a05a007`;
+`git merge-base --is-ancestor ef0094700 origin/master` -> rc 0 (on master);
+`git log --oneline -2 origin/master` ->
+`ef0094700 docs(r70-plan, SPL-6003): refactor round 70 plan v1.0, signed by m-117 mistral PASS on 87a07ddb5`
+over `d3cbdc595 docs(r70-plan, SPL-6003): ... v0.1 ...` (v0.1 rebased onto
+`40e6fae15`). `git diff d3cbdc595 ef0094700 -- csi-spl-doc/doc/md/refactor-round-70-plan.md`
+-> the status line, section 8's v1.0 entry and section 9 only;
+`git diff d3cbdc595 ef0094700 | grep -cE '^[+-].*\| 0[12] `refactor'` -> **0** (the
+row table is untouched). `git diff cb8f0f117 origin/master --stat -- <the 7 row
+paths>` -> empty (no row file changed since the plan's base).
+
+Re-run of the row checks on the new origin/master (`ef0094700`):
+- 12/12 cited site lines OK (`git show origin/master:<f> | sed -n <N>p`).
+- Baseline `git show origin/master:.shellcheck-warning-baseline.txt | grep -vcE '^\s*(#|$)'`
+  -> 70; the 2 row SC2034 lines still present.
+- `shellcheck -S warning -f gcc` on the two row-02 files exported from
+  origin/master -> SC2034 at `spool-notify.inc.sh:749` (`i appears unused`) and
+  `spool-poke-queue.inc.sh:487` (`text appears unused`).
+- Dir builders: `git grep -n 'agent-boot-restore' origin/master -- csi-spl-orc | grep -E 'agent-boot-restore[/}]'`
+  -> still only `spl-agent-boot-restore-install-cron.func.sh:57` and
+  `spl-watchdog.func.sh:535,539` (plus test-local `$L` refs).
+- Equality: `env -i PATH=/usr/bin:/bin bash -c 'source .../spl-run-paths.func.sh; PROJ_PATH=/opt/csi/csi-spl-desk-cron/csi-spl-orc spl_run_paths; echo "$SPL_VAR_APP_DIR/agent-boot-restore"'`
+  -> `/var/csi/csi-spl/agent-boot-restore` = the literal with `oa=csi-spl`.
+- Dead vars: `grep -cE '\$\{?i\b'` on spool-notify.inc.sh -> 0;
+  `grep -cE '\$\{?text\b'` on spool-poke-queue.inc.sh -> 0.
+- `lane-map.sh --check <the 7 row paths> --agent m-117` -> exit 4 again (the same 11
+  no-file lanes on the other box).
+- Candidates file unchanged: 9542 bytes, 48 lines, mtime Nov 19 22:49.
+
+**PASS on `ef0094700247857ef5e5edde7c65ba021a05a007`** (plan v1.0, signed). Rows 01
+and 02 are unchanged from v0.1 and re-verified as above; the v1.0 fold records this
+seat's PASS on `87a07ddb5` with W: none and N1-N5 no change; no new defect, no new
+note.

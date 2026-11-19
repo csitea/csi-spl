@@ -5,6 +5,7 @@ type: news
 title: "Do you know how much your AI driven development costs?!"
 summary: "Spool Hub updates its slogan to 'the AI Software making machine' as it tracks lifecycle speed, quality, and the real cost of AI development."
 share_text: "Do you know what your AI-driven development really costs? We measure speed, quality and cost. Here is how."
+share_long: "Do you know how much your AI-driven development costs?! Spool Hub's new slogan: the AI Software making machine.\n\n🏭 Spool Hub is an automated software factory: a fleet of AI agents plans, builds, tests, reviews and ships around the clock.\n💬 Conversations become issues, epics and git specs, reviewed by multi-vendor panels.\n🛠️ Autonomous agent lanes build and test changes in isolated worktrees.\n🔍 Models from different families review the work before it merges, and commits deploy straight to production.\n📱 Steer the work and review it from your phone.\n📊 Monitoring covers agents, boxes, events, tokens, costs and lanes.\n💰 With human time tracking on the way: Total Cost = Tokens + Infrastructure + Human Time × Hourly Rate.\n🆓 And Spool Hub itself costs nothing: it is open source, and a good agent deploys it to your Google Cloud in a couple of hours.\n\nRead the full post:"
 date: 2026-10-25
 published: 2026-10-25T18:10:00Z
 author: a-546

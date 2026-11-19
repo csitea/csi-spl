@@ -344,6 +344,15 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// calendar_tags (rdb 0296, spec 097 11.3 row T1, SPL-5883): one tag of
+	// the workspace's catalogue. No store API yet (T2), so a row under inTenant.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO calendar_tags (tenant_id, tag_id, name, color, created_by)
+			VALUES ($1, '0000000a', $2, 'sage', $3)`, s.tenant, "tag "+s.marker, hum)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	// operator_audit (rdb 0115, spec 074): one operator action on this workspace.
 	if err := pg.AppendOperatorAudit(ctx, OperatorAudit{At: now, TenantID: s.tenant, ActorTenant: "op-seed",
 		ActorHum: hum, Action: AuditCreate}); err != nil {

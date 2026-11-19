@@ -432,11 +432,12 @@ try {
     ? await page.$$eval('[data-testid=msg-menu] [role=menuitem]', (els) => els.map((el) => el.getAttribute('data-testid')))
     : []
   /* a thread line also goes back to its parent section */
-  ok('right-click opens a menu with open, open parent section, copy link, hide from flow, add to note, edit, archive and delete',
+  ok('right-click opens a menu with open, open parent section, copy link, hide from flow, add to note, export to PDF, edit, archive and delete',
     /* t1 b6c742f0: a person's reply then lists the AI actions group, last.
        HUM-10 (t1 bb0091f1): a pane's reply also offers Archive topic - and
-       keeps its own Delete. */
-    replyReady && menuIds.filter((id) => !String(id).startsWith('msg-menu-ai-')).join(',') === 'msg-menu-open,msg-menu-parent,msg-menu-copy,msg-menu-hide-flow,msg-menu-add-to-note,msg-menu-edit,msg-menu-archive,msg-menu-delete'
+       keeps its own Delete. SPL-5888 (t1 703f2ce5 msg 922da756): Export to
+       PDF on every card, after Add to note, before Edit (spec 005 FR-020). */
+    replyReady && menuIds.filter((id) => !String(id).startsWith('msg-menu-ai-')).join(',') === 'msg-menu-open,msg-menu-parent,msg-menu-copy,msg-menu-hide-flow,msg-menu-add-to-note,msg-menu-export-pdf,msg-menu-edit,msg-menu-archive,msg-menu-delete'
       && menuIds.slice(-7).every((id) => String(id).startsWith('msg-menu-ai-')),
     { menuIds, replyReady })
   await page.click('[data-testid=msg-menu-edit]')

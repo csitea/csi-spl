@@ -307,7 +307,8 @@ opening it.
   1. **Two entries.** The card's right-click menu has "Export to PDF", after Copy link
      (and Add to note), before Edit, on every card of the desktop menu. The phone's
      long-press sheet does not list it: its rows are measured to fit the screen
-     (t1 7a6be5a3). The topic header (row 2, after the replies' height control) has
+     (t1 7a6be5a3). The topic header (row 1, after the title; SPL-5959: on row 2 it
+     narrowed the phone's priority bar, SPL-5349 option A) has
      "Export topic to PDF", in both topic panes. Both are reached by keyboard: the
      arrow keys in the menu, Tab to the header button, then Enter.
   2. **What goes in.** Card: the author, the time sent, the kind, the body rendered as

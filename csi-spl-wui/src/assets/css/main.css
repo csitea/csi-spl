@@ -829,17 +829,18 @@ html.pane-dragging * {
 }
 /* the priority bar gives way (its cells narrow) before the row wraps */
 .topic-head__row2 > .prio-slot { min-width: 0; }
-/* SPL-5888: Export topic to PDF, last on the row; its slot holds the lazy
-   button's box (TopicExportPdf.vue: 20x18 px like the row's other
-   controls, 32 px on a phone) */
-.topic-head__row2 > .pdf-slot {
+/* SPL-5888: Export topic to PDF, on row 1 after the title (SPL-5959: on
+   row 2 its 32 px narrowed the phone's priority bar from 177 to 144 px);
+   its slot holds the lazy button's box (TopicExportPdf.vue: 20x18 px,
+   32 px on a phone) */
+.topic header > .pdf-slot {
   display: inline-flex;
   flex-shrink: 0;
   min-width: 20px;
   min-height: 18px;
 }
 @media (max-width: 820px) {
-  .topic-head__row2 > .pdf-slot { min-width: 32px; min-height: 32px; }
+  .topic header > .pdf-slot { min-width: 32px; min-height: 32px; }
 }
 @media (max-width: 359px) {
   .topic-head__row2 > .clip-slot { min-width: calc(3 * 29px + 4px); }

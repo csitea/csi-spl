@@ -22,6 +22,9 @@
       <UiCloseButton side="start" class="icon-btn topic-close" data-test="topic-pane-close" @click="topic.close()" />
       <strong class="topic-heading__title" :class="{ 'is-archived': archivedAt }" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading"><span v-if="titleText" class="topic-heading__label">{{ t('topic.list_title', { text: '' }) }}</span><span class="topic-heading__text">{{ titleText || t('topic.title') }}</span></strong>
       <ArchivedBadge v-if="archivedAt" :at="archivedAt" :show-when="true" :task-id="topic.parentTaskId || ''" @unarchived="archivedAt = ''" />
+      <!-- SPL-5888: Export topic to PDF on row 1, after the title: row 2 stays
+           SPL-5349's option A (bar left, height control right; SPL-5959) -->
+      <span class="pdf-slot"><LazyTopicExportPdf :title="titleText || t('topic.title')" :rows="exportRows" /></span>
       <UiCloseButton side="end" class="icon-btn topic-close" data-test="topic-pane-close" @click="topic.close()" />
       <!-- SPL-5349 (owner HUM-10, t1 2fafde5c, option A): row 2 under the full
            title - the topic's priority left (spec 150 B7), the replies' height
@@ -30,7 +33,6 @@
       <div class="topic-head__row2" data-test="topic-head-row2">
         <div v-if="topic.parentTaskId" class="prio-slot"><LazyTopicPriorityChooser :task-id="topic.parentTaskId" /></div>
         <span class="clip-slot"><LazyCardClipControl pane="thread" /></span>
-        <span class="pdf-slot"><LazyTopicExportPdf :title="titleText || t('topic.title')" :rows="exportRows" /></span>
       </div>
     </header>
     <!-- Topic c6994436: newest last puts the new-topic cards under the feed,

@@ -1,6 +1,6 @@
 <!-- SPL-5888 (owner HUM-10, t1 703f2ce5 msg 922da756; spec 005 FR-020):
-     "Export topic to PDF", the topic header's button (row 2, beside the
-     replies' height control). It prints the topic's title and every card
+     "Export topic to PDF", the topic header's button (row 1, after the
+     title; SPL-5959). It prints the topic's title and every card
      the pane shows, in the order shown, through utils/msg-print-run.ts,
      which loads on the click. Lazy in both topic panes, so the first
      screen does not carry it. -->

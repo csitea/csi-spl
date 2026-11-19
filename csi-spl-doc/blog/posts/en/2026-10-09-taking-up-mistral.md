@@ -5,6 +5,7 @@ type: news
 title: "The spool takes up Mistral"
 summary: "The spool fleet adds Mistral to its vendor lineup, running on Debian to continue the Linux and open-source tradition."
 share_text: "Why did our AI fleet add Mistral, a European model, on Debian machines? The sovereignty and open-source story behind the choice."
+share_long: "Why did our AI fleet add Mistral, a European model, on Debian machines? The sovereignty and open-source story behind the choice.\n\n🇪🇺 Mistral, a vendor from France, now works beside the US models: a step toward European sovereignty in AI.\n🐧 The machines run Debian, continuing the Linux tradition of liberty in software.\n🔓 The spool itself is fully open source: code, specifications, tests and agent tooling.\n👀 Anyone can see how the agents work, review their changes and run the same infrastructure.\n🌱 Agentic development that stays transparent and rooted in free software.\n\nRead the full post:"
 date: 2026-10-09
 published: 2026-10-09T10:20:29Z
 author: a-663

@@ -66,7 +66,8 @@ ok('blog row whatsapp = marketingShareLinks', blogShareHref('whatsapp', post) ==
 ok('blog row viber = marketingShareLinks', blogShareHref('viber', post) === l.viber)
 ok('blog row instagram opens Instagram', blogShareHref('instagram', post) === INSTAGRAM_OPEN)
 const row = readFileSync(join(WUI, 'src/components/BlogShareRow.vue'), 'utf8')
-ok('BlogShareRow copies the Instagram caption', row.includes('instagramCaption'))
+// spec 090 T043: the row copies its teaser + link for Instagram (and the other copy targets)
+ok('BlogShareRow copies the teaser and the link for Instagram', row.includes('shareCopyText(sharePost.value)') && row.includes('BLOG_SHARE_COPY_TARGETS'))
 
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs marketing-share-links.test.mjs', suite.ok, suite.why)

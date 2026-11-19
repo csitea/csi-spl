@@ -42,7 +42,7 @@ export function viberText(title, link) {
  * @param {{ url: string, title: string, summary?: string }} post
  * @returns {string}
  */
-export function instagramCaption(post) {
+function instagramCaption(post) {
   const parts = [String(post.title || '').trim()]
   const summary = String(post.summary || '').trim()
   if (summary) parts.push(summary)

@@ -3,7 +3,10 @@
 //
 //   Copy link is first and copies the post URL.
 //   The other controls are plain links: target=_blank rel=noopener.
-//   Substack opens Notes and also copies the link. It is not a share URL.
+//   Each share URL carries the post link and its teaser (share_text, else
+//   summary, else title). LinkedIn, Facebook, Instagram and Substack also
+//   copy "<teaser>\n\n<link>" and show the paste hint (spec 090 T043).
+//   Every control has its stable id blog-share-<target>-<top|end>.
 //
 // Run:
 //   pnpm run test:e2e blog-share
@@ -13,7 +16,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
-import { BLOG_SHARE_ORDER, SUBSTACK_NOTES } from '../../src/utils/blog-share.mjs'
+import { BLOG_SHARE_COPY_TARGETS, BLOG_SHARE_ORDER, shareTeaser } from '../../src/utils/blog-share.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 /* Shots only when the caller asks. CI cannot create a path under the spool. */
@@ -50,6 +53,8 @@ try {
   const posts = index?.locales?.en || []
   ok('the bundle carries a blog post', posts.length > 0, posts.length)
   if (!posts.length) throw new Error('no posts')
+  const teaser = shareTeaser({ title: posts[0].title, summary: posts[0].summary, shareText: posts[0].share_text })
+  ok('the newest en post carries a share_text teaser', Boolean(posts[0].share_text) && teaser === posts[0].share_text, posts[0].id)
 
   const ctx0 = await browser.createBrowserContext()
   const list = await ctx0.newPage()
@@ -124,6 +129,13 @@ try {
     
     const endIds = await p.$$eval('[data-test=blog-share-end] [data-test]', (els) => els.map((el) => el.getAttribute('data-test')))
     const endNamed = endIds.filter((id) => id !== 'blog-share-native-end')
+    const contract = await p.$$eval('[data-test=blog-share-top] [data-test], [data-test=blog-share-end] [data-test]', (els) => els.map((el) => ({
+      id: el.id, test: el.getAttribute('data-test'), action: el.getAttribute('data-share-action'),
+    })))
+    ok(`${label}: every control's id is its data-test`, contract.length > 0 && contract.every((c) => c.id === c.test), contract.filter((c) => c.id !== c.test))
+    ok(`${label}: the ids are unique on the page`, new Set(contract.map((c) => c.id)).size === contract.length)
+    const wantAction = (id) => (id === 'copy' ? 'copy' : BLOG_SHARE_COPY_TARGETS.includes(id) ? 'copy-open' : 'prefill')
+    ok(`${label}: each control names its click in data-share-action`, BLOG_SHARE_ORDER.every((id) => contract.find((c) => c.id === `blog-share-${id}-top`)?.action === wantAction(id)), contract)
     ok(`${label}: end row has the same controls as the top row`, JSON.stringify(endNamed) === JSON.stringify(BLOG_SHARE_ORDER.map((id) => `blog-share-${id}-end`)), endNamed)
     
 
@@ -154,7 +166,8 @@ try {
     ok(`${label}: Copy link shows a check`, true)
     const pageUrl = copied[0] || ''
     const encUrl = encodeURIComponent(pageUrl)
-    const encTitle = encodeURIComponent(title)
+    const encTeaser = encodeURIComponent(teaser)
+    const pasted = `${teaser}\n\n${pageUrl}`
     for (const a of links) {
       if (a.id === 'blog-share-substack-top') {
         // Substack opens Notes and is not a share URL, so this assertion is relaxed.
@@ -165,22 +178,42 @@ try {
       } else if (a.id === 'blog-share-instagram-top') {
         // Instagram has no web share intent: it opens the site (spec 090 T037).
         ok(`${label}: Instagram opens instagram.com`, a.href === 'https://www.instagram.com/', a.href)
+      } else if (a.id === 'blog-share-linkedin-top') {
+        // the feed composer takes text; share-offsite drops it (spec 090 T043)
+        ok(`${label}: LinkedIn opens the composer with the teaser and the link`, a.href === `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(`${teaser} ${pageUrl}`)}`, a.href)
+      } else if (a.id === 'blog-share-whatsapp-top' || a.id === 'blog-share-viber-top') {
+        // RFC 3986 encoding of "<teaser> <link>" (T037's twin)
+        const text = decodeURIComponent(a.href.replace(/^[^=]*=/, ''))
+        ok(`${label}: ${a.id} pre-fills the teaser and the link`, text === `${teaser} ${pageUrl}` || (a.id === 'blog-share-viber-top' && text.endsWith(pageUrl) && Array.from(text).length <= 200), a.href)
+      } else if (a.id === 'blog-share-email-top') {
+        ok(`${label}: e-mail pre-fills the title and the teaser with the link`, a.href === `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(pasted)}`, a.href)
       } else {
-        ok(`${label}: ${a.id} is built from the post URL and the title`, a.href.includes(encUrl) && a.href.includes(encTitle), a.href)
+        ok(`${label}: ${a.id} is built from the post URL and the teaser`, a.href.includes(encUrl) && a.href.includes(encTeaser), a.href)
       }
     }
     await p.evaluate(() => {
       document.querySelector('[data-test=blog-share-substack-top]')?.addEventListener('click', (e) => e.preventDefault(), true)
     })
+    ok(`${label}: no paste hint before a copy target is clicked`, (await p.$('[data-test=blog-share-hint-top]')) === null)
     await p.click('[data-test=blog-share-substack-top]')
     const after = await p.evaluate(() => window.__copied)
-    ok(`${label}: Substack copies the same link`, after.length === 2 && after[1] === pageUrl, after)
+    ok(`${label}: Substack copies the teaser and the link`, after.length === 2 && after[1] === pasted, after)
+    const hint = await p.waitForSelector('#blog-share-hint-top', { visible: true, timeout: 5000 }).catch(() => null)
+    const hintText = hint ? await hint.evaluate((el) => el.textContent.trim()) : ''
+    ok(`${label}: a copy target shows the paste hint`, hintText === 'Text copied: paste it into the post.', hintText)
+    for (const [n, id] of [[3, 'instagram'], [4, 'linkedin'], [5, 'facebook']]) {
+      await p.evaluate((sel) => {
+        document.querySelector(sel)?.addEventListener('click', (e) => e.preventDefault(), true)
+      }, `#blog-share-${id}-top`)
+      await p.click(`#blog-share-${id}-top`)
+      const got = await p.evaluate(() => window.__copied)
+      ok(`${label}: ${id} copies the teaser and the link`, got.length === n && got[n - 1] === pasted, got)
+    }
     await p.evaluate(() => {
-      document.querySelector('[data-test=blog-share-instagram-top]')?.addEventListener('click', (e) => e.preventDefault(), true)
+      document.querySelector('#blog-share-x-top')?.addEventListener('click', (e) => e.preventDefault(), true)
     })
-    await p.click('[data-test=blog-share-instagram-top]')
-    const caption = await p.evaluate(() => window.__copied)
-    ok(`${label}: Instagram copies a caption with the title and the link`, caption.length === 3 && caption[2].includes(title) && caption[2].includes(pageUrl), caption)
+    await p.click('#blog-share-x-top')
+    ok(`${label}: a prefill target (X) copies nothing`, (await p.evaluate(() => window.__copied)).length === 5)
 
     const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     ok(`${label}: no sideways scroll`, wide <= 1, wide)

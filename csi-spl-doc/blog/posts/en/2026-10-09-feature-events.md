@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Monitor Your Session with the Events Log"
 summary: "View a personal activity and diagnostics log of notable events and errors recorded during your session."
+share_text: "Something went wrong in your session and you want to know what? The Events log keeps the record."
 date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-686

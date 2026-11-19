@@ -5,6 +5,7 @@ type: news
 title: "How AI and Spool Hub Give Kids Better Camp Experiences and Lifelong Memories"
 summary: "An organiser updates 2027 summer camp programmes in minutes through plain-language AI chat, giving parents clarity and kids lifelong memories."
 share_text: "A camp organiser updated the 2027 camp prices in minutes, just by chatting with AI agents. Parents get clarity, kids get memories."
+share_long: "A camp organiser updated the 2027 camp prices in minutes, just by chatting with AI agents. Parents get clarity, kids get memories.\n\n🏖️ For teenagers, a summer language camp in Valencia means confidence, new friends and lifelong memories.\n🤝 Parents need trust: clear dates, current prices and guidance in their own language.\n💬 This morning the organiser shared the 2027 price sheet in chat, and agents built the price tables on a test site.\n📈 A +10% price adjustment was ready in 4 minutes, with screenshots.\n🚀 From approval to live on the production site: 3 minutes.\n✍️ A wording fix on the live site: 10 minutes.\n✅ Every reply came in natural Bulgarian, checked by a language-review agent.\n🌐 All 28 language versions of the site are now being brought into line with the Bulgarian master.\n🧡 No developer, no ticket queue: the organiser's time goes to the kids.\n📚 Mentoring young people, working with accredited schools in Valencia and designing safe programmes come first again.\n\nRead the full post:"
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807

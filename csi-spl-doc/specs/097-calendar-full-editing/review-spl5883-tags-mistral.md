@@ -96,7 +96,7 @@ instead of deciding silently — correct.
   (line 982 + 11.4.1 DELETE route + 11.5 `channels.manage`) — consistent across
   11.3, 11.4.1 and 11.5. 100-tags-per-workspace cap consistent (11.3 line 984,
   11.4.1 line 1010).
-- 098 promotion rule exists: `git grep -n 'promot' 386b38058 -- csi-spl-doc/specs/098-tenant-settings-jsonb/spec.md`
+- 098 promotion rule exists: `git grep -n 'promotion' 386b38058 -- csi-spl-doc/specs/098-tenant-settings-jsonb/spec.md`
   -> `spec.md:101` (promotion trigger). "up to 2000 occurrences, 4.4": spec 097 at
   386b38058 line 316 -> "A response holds at most 2000". Exception rows: lines
   103/119/307. `seedTenantAll`/`TestCrossTenantEveryTable`:
@@ -196,3 +196,42 @@ v1.0 row added, version comment). Only spec 097 is touched (N3).
   by the schema: the array has no FK, the hub checks ids on every write (line 982).
 - **N5** — spec line 982 cites `0047:58`; that line is the comment "the hub keeps
   them known and unique" above `labels text[]` at 0047:59 — acceptable.
+
+## Delta re-review: `e2b85d649e9a75647491fb1ae6992343f0d31f9e`
+
+- New head of `review/c002-spl5883-calendar-event-tags-spec`:
+  `git ls-remote origin review/c002-spl5883-calendar-event-tags-spec` ->
+  `e2b85d649e9a75647491fb1ae6992343f0d31f9e`; `git log -1 --format='%H %P' FETCH_HEAD`
+  -> parent `421d63630cdb14e9c5f75e4dd67caa738709e252` (one fast-forward commit);
+  `git log -1 --no-mailmap --format='%ae %ce'` -> the repo CLAUDE.md "Commits:" address
+  for both author and committer,
+  `git log -1 --format='%b' | grep -ci 'co-authored\|generated\|session'` -> 0.
+- `git diff --stat 421d63630 e2b85d649` -> `1 file changed, 11 insertions(+), 11 deletions(-)`,
+  spec.md only.
+- Every changed line (full delta read with
+  `git diff 421d63630 e2b85d649 -- csi-spl-doc/specs/097-calendar-full-editing/spec.md`)
+  is one of the flagged fixes:
+  - **W1 fixed**: `0047:39` -> `0047:38` (spec line 914; the colour CHECK is 0047:38,
+    verified above).
+  - **W2 fixed**: "5.1.6's rule" -> "the rule of 5.1, item 6, Event details"
+    (spec line 1094). Verified: `### 5.1 Mobile first` at spec 097 line 525, its items
+    `#### 1.`..`#### 10.` at lines 547..738, `#### 6. Event details (G7..G9)` at 657 with
+    the full-screen sheet rule at 659 (`git show 386b38058:...spec.md | grep -n '^### \|^#### '`).
+  - **W3 fixed**: "(089 4.2, Q4)" -> "(section 10, Q4)" (spec line 1076; Q4 is spec 097
+    section 10 line 855, DECIDED msg `92b3e0d6`).
+  - **W4 fixed**: the O4 row is gone from 11.12; 11.7 now records the stripe rule
+    **DECIDED** by owner msg `62e387eb` (verified in topic t1 `f5778b9f`: "Answer: B —
+    Several tags: all chips shown, the stripe takes the first tag's colour"); the open
+    questions are O1, O2, O3, O5, O6.
+  - **W5 fixed**: T14 (line 1235) now names the help sync
+    `csi-spl-wui/src/node/help/sync-help.mjs` (exists on 386b38058:
+    `git ls-tree 386b38058 csi-spl-wui/src/node/help/` -> `sync-help.mjs`), the test
+    `csi-spl-wui/tests/unit/help-calendar-tags.test.mjs`, and the red control "delete the
+    Tags heading from `calendar.md`: the test red".
+  - **N1 folded**: `calendar.go:210` -> `calendar.go:555-560` (`decodeCalendarRequest`
+    applies `DisallowUnknownFields` there, verified). **N5 folded**: `0047:58` ->
+    `0047:59` (`labels text[]` is 0047:59, verified).
+  - The version log v1.0 row is updated to match (O4 dropped, review fixes W1..W5 noted).
+- Nothing else changed: the 11 changed lines are exactly the ones above plus the version
+  log row.
+- **Verdict on the delta: PASS, no W left.**

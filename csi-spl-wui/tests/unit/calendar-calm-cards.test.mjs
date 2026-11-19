@@ -43,13 +43,22 @@ function styleOf(sfc) {
 }
 const STYLES = Object.fromEntries(FILES.map((f) => [f.slice(WUI.length + 1), styleOf(readFileSync(f, 'utf8'))]))
 
-/** every motion rule: a transition / animation declaration that is not `none`, and each @keyframes */
+/** the inline style="..." / :style="..." attributes outside the <style> blocks, one rule each
+    (the motion ratchet reads them too: an inline transition is still a transition) */
+function inlineOf(sfc) {
+  const rest = sfc.replace(/<style[\s\S]*?<\/style>/g, '')
+  return [...rest.matchAll(/(?:^|\s):?style\s*=\s*(?:"([^"]*)"|'([^']*)')/g)].map((m) => `{ ${m[1] ?? m[2]} }`).join('\n')
+}
+const INLINE = Object.fromEntries(FILES.map((f) => [f.slice(WUI.length + 1), inlineOf(readFileSync(f, 'utf8'))]))
+
+/** every motion rule: a transition / animation declaration that is not `none`, and each @keyframes;
+    any case, any vendor prefix (-webkit-transition, @-webkit-keyframes, TRANSITION) */
 function motion(css) {
   const out = []
-  for (const m of css.matchAll(/(?:^|[;{\s])((?:transition|animation)(?:-[a-z]+)?\s*:\s*([^;}]*))/g)) {
-    if (m[2].trim() !== 'none') out.push(m[1].trim())
+  for (const m of css.matchAll(/(?:^|[;{\s,'"])((?:-[a-z]+-)?(?:transition|animation)(?:-[a-z]+)?['"]?\s*:\s*([^;},]*))/gi)) {
+    if (m[2].trim().replace(/^['"]|['"]$/g, '').toLowerCase() !== 'none') out.push(m[1].trim())
   }
-  for (const m of css.matchAll(/@keyframes\s+[\w-]+/g)) out.push(m[0])
+  for (const m of css.matchAll(/@(?:-[a-z]+-)?keyframes\s+[\w-]+/gi)) out.push(m[0])
   return out
 }
 
@@ -71,7 +80,7 @@ describe('ratchets: Calendar*.vue and pages/calendar.vue stay calm', () => {
     assert.ok(Object.values(STYLES).filter((s) => s.length).length >= 15)
   })
   it(`transition / animation / @keyframes rules <= ${MAX_MOTION}`, () => {
-    const all = Object.entries(STYLES).flatMap(([f, css]) => motion(css).map((r) => `${f}: ${r}`))
+    const all = Object.entries(STYLES).flatMap(([f, css]) => [...motion(css), ...motion(INLINE[f])].map((r) => `${f}: ${r}`))
     assert.ok(all.length <= MAX_MOTION, `${all.length} > ${MAX_MOTION}:\n${all.join('\n')}`)
   })
   it('no box-shadow stacks more than one layer (one shadow level)', () => {
@@ -93,6 +102,17 @@ describe('ratchets: Calendar*.vue and pages/calendar.vue stay calm', () => {
     assert.equal(motion(css + '\n.x{animation:spin 1s}').length, before + 1)
     assert.equal(motion(css + '\n@keyframes spin { to { opacity: 0 } }').length, before + 1)
     assert.equal(motion('.a { transition: none; animation: none; }').length, 0)
+  })
+  it('control: prefixed, uppercase and inline motion is counted (R7 N1)', () => {
+    assert.equal(motion('.a { -webkit-transition: opacity 0.2s; }').length, 1)
+    assert.equal(motion('.a{-moz-animation:spin 1s}').length, 1)
+    assert.equal(motion('@-webkit-keyframes spin { to { opacity: 0 } }').length, 1)
+    assert.equal(motion('.a { TRANSITION: opacity 0.2s; }').length, 1)
+    assert.equal(motion('.a { Animation-Duration: 1s; }').length, 1)
+    assert.equal(motion(inlineOf('<template><div style="color: red; transition: opacity 0.2s"/></template>')).length, 1)
+    assert.equal(motion(inlineOf(`<template><div :style="{ transition: 'opacity 0.2s' }"/></template>`)).length, 1)
+    assert.equal(motion(inlineOf(`<template><div :style="{ 'transition': 'none' }"/></template>`)).length, 0)
+    assert.equal(motion(inlineOf('<template><div style="transform: translateX(4px)"/></template>')).length, 0)
   })
   it('control: the ratchet fails on one added transition', () => {
     const planted = { ...STYLES, 'src/components/CalendarDeskMonth.vue': STYLES['src/components/CalendarDeskMonth.vue'] + '\n.cal-month__cell:hover { transition: background 0.1s; }' }
@@ -152,6 +172,7 @@ function rule(css, sel) {
 }
 const CARDS = [
   ['src/components/CalendarDeskMonth.vue', '.cal-month__cell'],
+  ['src/components/CalendarDeskMonth.vue', '.cal-month__list .cal-week__item'],
   ['src/components/CalendarMainView.vue', '.cal-week__item'],
   ['src/components/CalendarMainView.vue', '.cal-week'],
   ['src/components/CalendarPhoneMonth.vue', '.calmonth__cell::before'],
@@ -183,11 +204,30 @@ describe('day cells and events are raised cards', () => {
     assert.match(rule(STYLES['src/components/CalendarDeskMonth.vue'], '.cal-month__cell--today .cal-month__num'), /background:\s*var\(--color-accent\)/)
     assert.match(rule(STYLES['src/components/CalendarMainView.vue'], '.cal-week__day--today .cal-week__head'), /color:\s*var\(--color-accent\)/)
     assert.match(rule(STYLES['src/components/CalendarPhoneMonth.vue'], '.calmonth__cell--today'), /outline:[^;]*var\(--color-accent\)/)
-    assert.match(rule(STYLES['src/components/CalendarPhoneWeek.vue'], '.calweek__chip--today'), /border-color:\s*var\(--color-accent\)/)
+  })
+  it('phone week today: never by colour alone - a 2 px accent border and a bold number (spec 106 S4-8)', () => {
+    const css = STYLES['src/components/CalendarPhoneWeek.vue']
+    assert.match(rule(css, '.calweek__chip--today'), /border:\s*2px solid var\(--color-accent\)/)
+    const num = rule(css, '.calweek__chip--today .calweek__chip-d')
+    assert.match(num, /color:\s*var\(--color-accent\)/)
+    const w = Number((num.match(/font-weight:\s*(\d+)/) || [])[1])
+    const base = Number((rule(css, '.calweek__chip-d').match(/font-weight:\s*(\d+)/) || [])[1] || 400)
+    assert.ok(w >= 700 && w > base, `today ${w} vs other days ${base}`)
+  })
+  it('control: the colour-only today chip of a36d4dc40 fails', () => {
+    const old = '.calweek__chip-d { font-size: 1rem; font-weight: 600; } .calweek__chip--today { border-color: var(--color-accent); } .calweek__chip--today .calweek__chip-d { color: var(--color-accent); }'
+    assert.doesNotMatch(rule(old, '.calweek__chip--today'), /border:\s*2px solid var\(--color-accent\)/)
+    assert.doesNotMatch(rule(old, '.calweek__chip--today .calweek__chip-d'), /font-weight/)
   })
   it('control: a rule without the tokens fails the match', () => {
     const body = rule('.calweek__ev { box-shadow: var(--focus-3d); border: 0; }', '.calweek__ev')
     assert.doesNotMatch(body, /box-shadow:\s*var\(--cal-card-shadow\)/)
     assert.equal(rule('.other { border: 0 }', '.calweek__ev'), '')
+  })
+  it('control: the month chip of a36d4dc40 (a border, no shadow) fails its CARDS row (R7 W1)', () => {
+    const old = '.cal-month__list .cal-week__item { border: var(--cal-card-border); border-inline-start: 3px solid var(--cal-ev-color, var(--color-accent)); }'
+    const body = rule(old, '.cal-month__list .cal-week__item')
+    assert.ok(body)
+    assert.doesNotMatch(body, /box-shadow:\s*var\(--cal-card-shadow\)/)
   })
 })

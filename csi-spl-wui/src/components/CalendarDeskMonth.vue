@@ -131,6 +131,7 @@ const rows = computed(() => {
   width: 100%;
   border: var(--cal-card-border);
   border-inline-start: 3px solid var(--cal-ev-color, var(--color-accent));
+  box-shadow: var(--cal-card-shadow);
   /* SPL-5908: no colour tint; the start bar carries the event colour */
   background: var(--color-bg);
   color: var(--color-fg);

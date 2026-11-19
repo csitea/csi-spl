@@ -674,7 +674,8 @@ useMobileStack().overlay(() => props.open, () => emit('update:open', false))
   box-shadow: var(--cal-card-shadow);
 }
 .calsheet__btn:disabled { opacity: 0.55; cursor: default; }
-.calsheet__btn:not(:disabled):active { opacity: 0.8; }
+.calsheet__btn:not(:disabled):active { background: var(--color-selected); }
+.calsheet__save:not(:disabled):active { border-color: var(--color-accent-pressed); background: var(--color-accent-pressed); }
 
 /* ---- the body: vertical scroll only ---- */
 .calsheet__body {

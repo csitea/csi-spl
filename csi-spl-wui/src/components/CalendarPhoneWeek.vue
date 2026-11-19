@@ -264,9 +264,10 @@ watch(() => [props.state, props.day] as const, async ([state]) => {
   background: var(--color-accent);
   box-shadow: var(--cal-dot-ring);
 }
-/* today: the one accent - its border and its number */
-.calweek__chip--today { border-color: var(--color-accent); }
-.calweek__chip--today .calweek__chip-d { color: var(--color-accent); }
+/* today: the one accent, never by colour alone (spec 106 S4-8, WCAG 1.4.1):
+   a 2 px accent border and a bold number */
+.calweek__chip--today { border: 2px solid var(--color-accent); }
+.calweek__chip--today .calweek__chip-d { color: var(--color-accent); font-weight: 800; }
 
 /* ---- the list ---- */
 .calweek__note {

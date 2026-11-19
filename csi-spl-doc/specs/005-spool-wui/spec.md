@@ -299,6 +299,39 @@ opening it.
   msg ba033650 ("the label for the human should be written in his first name, last name
   and not id"). Check: `node --test tests/unit/calendar-owner-name.test.mjs`,
   `tests/e2e/calendar-owner-name.test.mjs`.
+- **FR-020** — Implemented (SPL-5888): Export to PDF, of one message card or of a
+  whole topic. Owner HUM-10, t1 topic 703f2ce5, msg 922da756 ("add the export to pdf
+  entry in the right click menu of each msg card, which will export only the msg card
+  content into pdf (including the pics in it) add also the export to pdf for a whole
+  topic").
+  1. **Two entries.** The card's right-click menu has "Export to PDF", after Copy link
+     (and Add to note), before Edit, on every card of the desktop menu. The phone's
+     long-press sheet does not list it: its rows are measured to fit the screen
+     (t1 7a6be5a3). The topic header (row 2, after the replies' height control) has
+     "Export topic to PDF", in both topic panes. Both are reached by keyboard: the
+     arrow keys in the menu, Tab to the header button, then Enter.
+  2. **What goes in.** Card: the author, the time sent, the kind, the body rendered as
+     on the card (MessageBody, markdown included) and each picture attached to it at
+     the page's full width; any other file is listed by name. Topic: the topic's title,
+     then every card the pane shows, in the order shown, each laid out as one card.
+     A card prints whole, whatever the card clip mode or the search hides of its body.
+  3. **What stays out.** Menus, buttons, the reactions bar, the composer, side panels,
+     every other card.
+  4. **File name.** The browser's Save as PDF offers the document title:
+     `<topic-title>-<msg8>.pdf` for a card, `<topic-title>.pdf` for a topic. The title
+     is slugged: letters and digits of any script, lower case, one dash per gap, at
+     most 60 characters; empty gives `topic`. A reply in the open topic takes the
+     topic's title, any other card (a topic card is its topic) its own.
+  5. **Method.** The browser's own print to PDF on a print-only render, no PDF library
+     (c-001 7cb2cd3e). On the click a lazy chunk (`utils/msg-print-run.ts`,
+     `components/MessagePrint.vue`) renders the rows under `<body>`, never shown on
+     screen; while `html` carries `msg-printing` the `@media print` sheet hides every
+     other child of `<body>`. Pictures come through the same verified download and
+     page cache as the card's preview. The print waits for every picture to load or
+     fail (a failed one prints its name, never blocks; at most 15 s) and for a markdown
+     body to render (at most 5 s), then calls `window.print()`; `afterprint` removes the
+     render and gives the page its title back. Nothing of it is in the initial JS.
+  Check: `node --test tests/unit/msg-print.test.mjs`, `tests/e2e/msg-export-pdf.test.mjs`.
 
 ## 3. Success criteria
 
@@ -372,4 +405,4 @@ Named here, not specified.
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.13.1 · updated: 2026-11-17 · last-edit: 2026-11-17T04:40:00Z -->
+<!-- version: 1.14.0 · updated: 2026-11-19 · last-edit: 2026-11-19T00:01:25Z -->

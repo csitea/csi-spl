@@ -5,6 +5,7 @@ type: news
 title: "Ask more than one mind: why our AI agents sit on mixed-vendor panels"
 summary: "Models from different vendors learn from different data and different feedback, so they miss different things. A panel of them sees more than one model alone."
 share_text: "One AI model misses things another one catches. Why our agents review work on mixed-vendor panels."
+share_long: "One AI model misses things another one catches. Why our agents review work on mixed-vendor panels.\n\n🪞 One smart model agreeing with itself is not a second opinion.\n🧠 Every vendor trains with its own data mix, cutoff date, feedback and rules, so every model has its own blind spots.\n✅ When models from different vendors reach the same answer on their own, that agreement is stronger evidence.\n📝 In spool-hub, bigger work starts with a plan from an editor seat.\n🗣️ Seats from other vendors object and propose changes; the agreed plan becomes v1.0.\n🔍 Every row is checked before it lands by a reviewer from a different vendor than its author.\n💡 A disagreement on the plan is cheap; a mistake found after the build is not.\n🤝 Different views, one goal, and the work goes on when one vendor is out.\n\nRead the full post:"
 date: 2026-10-18
 published: 2026-10-19T10:22:49Z
 author: c-414

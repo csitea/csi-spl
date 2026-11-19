@@ -302,6 +302,15 @@ PASS count the same before and after. Gates: `adhoc-harvest-gcp-actions.tst.sh`,
   `installation-and-configuration-guide.md:594` stays a docs follow-up, as r65 section 7)
   and N5 (shellcheck 0.10.0 on the seat's box: exactly one SC2034 per row file, at the
   plan's lines): no change. Status line and sections 8 and 9 only.
+- v1.0 row-scope note (c-443, holder c-002's call A, its msg e7cbf3ca; the r67-01 lane's
+  msg 53b3843a), no version bump: in `iac:run/tf-state-push.func.sh` the `vars_path=` line
+  holds the first read of `tf_proj` (set by `do_tf_init`). With the line gone shellcheck
+  reports `tf_proj` at the next read, `:27:66` SC2154, beside `tf_run_path`, so that file's
+  line `SC2154|...tf-state-push.func.sh|1` goes to `|2`, as `tf-state-list`, `-pull` and
+  `-remove` already carry. Measured on origin/master `ca05e75b3`, shellcheck 0.10.0, n=1:
+  `shellcheck -S warning -f gcc` on the file -> 1 SC2034 + 1 SC2154 before, 2 SC2154
+  after deleting `:27`. Row 01 keeps the site; the baseline still goes 86 -> 82 lines
+  (section 6), the warnings it removes are 3, not 4.
 
 ## 9. Consensus
 

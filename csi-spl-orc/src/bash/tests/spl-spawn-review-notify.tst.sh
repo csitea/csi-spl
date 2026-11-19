@@ -17,7 +17,10 @@
 #        the holder, on the brief's dispatch task, naming the reviewer and
 #        the review branch; one automation.log line each
 #     5. role seats, the reviewer itself and a repeated id are not told
-#     6. the Author line / phrase forms; a local author goes out as its bare id
+#     6. the Author line / phrase forms; a local author goes out as its bare id;
+#        RED CONTROL (b22-02) a brief with a line-start `Author: <id>` line
+#        reads only those lines: an id after "author" in its "never" list is
+#        not told
 #     7. the dry run plans, sends nothing, logs nothing
 #     8. the dispatcher defaults to the dispatch lease holder
 #     9. a failed send is logged send-failed and exits 1; the others are sent
@@ -147,6 +150,19 @@ reset; b="$(brief c002-unk-reviewer "Author: c-999")"
 run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=g-500; rc=$?
 (( rc == 0 )) && [[ "$(sends)" == 0 ]] && grep -q 'SKIP: author c-999 unknown on boxa' "$T/out" &&
   pass "6. a local author this box does not know is skipped" || fail "6. unknown rc=$rc: $(cat "$T/out")"
+# b22-02 RED CONTROL: with a line-start `Author:` line, the phrase in a "never"
+# list is context; a brief with no such line keeps the phrase (above)
+reset; mkdir -p "$T/s/c-947" "$T/s/c-944"
+b="$(brief c002-b21-02-claude-waiver-reviewer "# Lane brief: R7 reviewer for SPL-5964 (b21-02), claude, review only
+Author: c-947@boxa
+Author brief: /x/briefs/c002-b21-02-orc-pre-push-msg-sweep-skips-master.md
+Read only the tree. Never the author c-947, never the round's panel seat m-923, planner c-912, or row 01's author c-944 / reviewer c-409.
+Branch \`review/c-947-b21-02-x\`, head \`3f9b35db004b771da44285115faabc2bd46d7fbd\`.
+Report on task dispatch-bug-r21.")"
+run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=c-500@boxa; rc=$?
+(( rc == 0 )) && sent_to c-947 && ! sent_to c-944 && [[ "$(sends)" == 1 ]] &&
+  pass "6. b22-02 RED CONTROL 'Author: c-947@boxa' line: c-947 told; c-944, named only in the 'never' list, is not (1 note)" ||
+  fail "6. b22-02 rc=$rc: c-944, named only in the 'never' list, is told: $(sends) note(s): $(grep -o -- '--to [^ ]*' "$T/s/sends.log" | paste -sd' ')"
 
 # 7. the dry run
 reset; b="$(brief c002-good-reviewer "$GOOD")"

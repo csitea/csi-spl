@@ -12,6 +12,10 @@
 # @description      `(author c-418, vendor claude)`, any case. The spec's
 # @description      `^Author:` form alone matched 0 of 352 reviewer briefs on
 # @description      2026-10-28; the phrase form matched 130, the cell form 12.
+# @description      A brief with a line-start `Author: <id>` line names its
+# @description      authors on those lines only: the phrase elsewhere in it is
+# @description      context (b22-02: "never ... row 01's author c-944" was
+# @description      told). The cell form is read either way.
 # @description      Role seats (spl_is_role_seat) and the reviewer itself are
 # @description      left out; an id named twice is notified once.
 # @description   2. routes each author to the box its cell names (`@sat`),
@@ -104,13 +108,16 @@ spl_review_notify_branch() {  # BRIEF
 
 # The author lanes of BRIEF, one "<id>\t<box or empty>" line each, first seen
 # first: an id alone in a table cell (decorated `| a-213@sat (agy) |`) or after
-# "author" (`Author: c-372@boxa`, `(author c-418, ...)`). Role seats and SELF
-# (the reviewer's bare id) are left out.
+# "author" (`Author: c-372@boxa`, `(author c-418, ...)`). A brief with a
+# line-start `Author: <id>` line is read on those lines only, not the phrase
+# (b22-02). Role seats and SELF (the reviewer's bare id) are left out.
 spl_review_notify_authors() {  # BRIEF SELF
   # the id letters from their one home, SPOOL_AGENT_ID_NEW_RX (SPL-5470: o- was missing)
   local l="${SPOOL_AGENT_ID_NEW_RX%%-*}"
   local cell='\|[[:space:]]*'"$l"'-[0-9]{3,}(@[A-Za-z0-9._-]+)?([[:space:]]*\([^)]+\))?[[:space:]]*\|'
   local phrase='(^|[^A-Za-z])[Aa][Uu][Tt][Hh][Oo][Rr]:?[[:space:]]+'"$l"'-[0-9]{3,}(@[A-Za-z0-9._-]+)?'
+  local line='^[[:space:]]*[Aa][Uu][Tt][Hh][Oo][Rr]:[[:space:]]+'"$l"'-[0-9]{3,}(@[A-Za-z0-9._-]+)?'
+  grep -qE "$line" "$1" 2>/dev/null && phrase="$line"
   local hit id box seen=" "
   while read -r hit; do
     [[ "$hit" =~ ($l-[0-9]{3,})(@([A-Za-z0-9._-]*[A-Za-z0-9]))? ]] || continue

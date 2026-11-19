@@ -13,10 +13,11 @@ import (
 //     member with an entry or a minute in the period (a member removed
 //     mid-period who logged time). A member with nothing gets a 0 row: the biz
 //     owner signs off a zero, never a missing row. Agents never get a row;
-//   - open suggestions are auto-approved (owner Q2 = B, HUM-10 2026-10-08):
-//     the caller's HoursOpenSuggestions answers them, and they are written as
-//     approved entries of every (day, target) that has none, first;
-//   - the row's minutes are the member's approved entries, those included;
+//   - nothing is auto-approved (owner Q32 = B, spec 107 v2.12 section 23.9,
+//     which reverses Q2 = B): the hub passes a nil HoursOpenSuggestions, so an
+//     open suggestion counts zero. A non-nil one would be written as approved
+//     entries of every (day, target) that has none, first (kept for T044);
+//   - the row's minutes are the member's approved entries;
 //   - in the same transaction, the period's raw minutes are pruned.
 //
 // Then every minute older than HoursMinuteRetention is pruned, in any workspace.
@@ -50,9 +51,9 @@ type HoursSweepResult struct {
 }
 
 // HoursOpenSuggestions answers a member's open suggestions of the days
-// start..end (YYYY-MM-DD) as approved entries, at the freeze (owner Q2 = B).
-// The suggestion engine needs the calendar and the member's zone, which the
-// hub holds; nil writes none (an unapproved suggestion counts zero, Q2 = A).
+// start..end (YYYY-MM-DD) as entries to write at the freeze. nil writes none:
+// an unapproved suggestion counts zero, which is what the hub passes (owner
+// Q32 = B, spec 107 section 23.9).
 type HoursOpenSuggestions func(ctx context.Context, tenant, member, start, end string) ([]HoursEntry, error)
 
 // HoursSweeper is implemented by Memory and Postgres.

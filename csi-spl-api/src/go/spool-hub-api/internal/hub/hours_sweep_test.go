@@ -9,12 +9,14 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// Spec 107 T007, owner Q2 = B: at the freeze the hub's sweep turns the open
-// suggestions into approved entries (the same suggestions GET /v1/me/hours
-// shows), then the period row holds them and the raw minutes are pruned. A
-// member with nothing gets a 0 row. The clock is hoursNow (hours_me_test.go):
-// the week of Mon 09-28 is due.
-func TestHoursSweepAutoApprovesOpenSuggestions(t *testing.T) {
+// Spec 107 T007 and T089, owner Q32 = B (v2.12, msg 2cbfb662, section 23.9):
+// at the freeze the sweep approves nothing. A member's open (untapped)
+// suggestion, here 21 tab minutes, writes no entry; the frozen period row
+// counts only approved entries, so it is 0, and the raw minutes are still
+// pruned. A member with nothing gets a 0 row. The clock is hoursNow
+// (hours_me_test.go): the week of Mon 09-28 is due. RED CONTROL (master
+// before T089): the sweep wrote the 21 minutes as an approved entry.
+func TestHoursSweepApprovesNothing(t *testing.T) {
 	ctx := context.Background()
 	e, tid := hoursEnv(t)
 	a := seat(t, e, tid, rbac.Developer)
@@ -35,18 +37,14 @@ func TestHoursSweepAutoApprovesOpenSuggestions(t *testing.T) {
 		t.Fatalf("sweep = %+v %v, want the 21 minutes pruned", r, err)
 	}
 	es, err := h.HoursEntries(ctx, tid, a, hoursPrevWeek, "2026-10-04")
-	if err != nil || len(es) != 1 {
-		t.Fatalf("a's entries = %v %v, want the one auto-approved row", es, err)
-	}
-	if x := es[0]; x.Day != "2026-09-29" || x.Target != "t:task-a" || x.State != store.HoursApproved ||
-		x.Minutes != 21 || x.SuggestedMinutes != 21 || x.UpdatedBy != store.HoursSweepBy {
-		t.Fatalf("auto-approved entry = %+v", x)
+	if err != nil || len(es) != 0 {
+		t.Fatalf("a's entries = %+v %v, want none: the freeze approves nothing (Q32 = B)", es, err)
 	}
 	rows, err := h.HoursPeriods(ctx, tid, "", hoursPrevWeek, hoursPrevWeek)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]int{a: 21, idle: 0}
+	want := map[string]int{a: 0, idle: 0}
 	got := map[string]int{}
 	for _, p := range rows {
 		if p.State != store.HoursFrozen || p.End != "2026-10-04" {
@@ -63,12 +61,12 @@ func TestHoursSweepAutoApprovesOpenSuggestions(t *testing.T) {
 	if err != nil || len(left) != 0 {
 		t.Fatalf("minutes left = %v %v", left, err)
 	}
-	// The member's page shows the row approved and the period frozen.
+	// The member's page shows the period frozen at 0 and no approved row.
 	got2 := myHours(t, e, tid, a, hoursPrevWeek)
-	if row := hoursRow(t, got2, "2026-09-29", "t:task-a"); row == nil || row["state"] != store.HoursApproved {
-		t.Fatalf("page row: %v", row)
+	if row := hoursRow(t, got2, "2026-09-29", "t:task-a"); row != nil && row["state"] == store.HoursApproved {
+		t.Fatalf("page row approved without a tap: %v", row)
 	}
-	if per := got2["period"].(map[string]any); per["state"] != store.HoursFrozen || per["minutes"] != float64(21) {
+	if per := got2["period"].(map[string]any); per["state"] != store.HoursFrozen || per["minutes"] != float64(0) {
 		t.Fatalf("page period: %v", per)
 	}
 }

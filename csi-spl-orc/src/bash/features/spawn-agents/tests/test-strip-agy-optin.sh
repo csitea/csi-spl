@@ -44,12 +44,12 @@ SPOOL_POKE=0 spool_poke_show AGY-73 note HUM-1 T-4 M-4 'opted out' >/dev/null
 eq "@spool_strip 0 wins even for an AGY id" 0 "$(strips AGY-73)"
 
 # ── an UNMARKED AGY-* id (spawned before the mark) is a TUI ────────────────
-P4="$(t_window AGY-74 'sleep 600')"
+t_window AGY-74 'sleep 600' >/dev/null
 out="$(SPOOL_POKE=0 spool_poke_show AGY-74 note HUM-1 T-5 M-5 'to an old agy')"
 eq "an unmarked AGY pane gets the strip" 1 "$(strips AGY-74)"
 hasnt "…and no tty write over its UI"    "pane tty" "$out"
 # spool_notice_record (the send path) takes the same gate
-P5="$(t_window AGY-75 'sleep 600')"
+t_window AGY-75 'sleep 600' >/dev/null
 spool_notice_record AGY-75 "$(spool_notice_head_out CLE-1 note '' '')" 'agy sent this'
 eq "the SEND path splits it for an AGY sender too" 1 "$(strips AGY-75)"
 

@@ -37,7 +37,7 @@ P2="$(t_window 'tbx: GRK-08 ask'     "bash -c \"$(fake grok GRK-08 'Do you want 
 P3="$(t_window 'tbx: QWN-09 quiet'   "bash -c \"$(fake qwen QWN-09 'ready')\"")"
 P4="$(t_window 'tbx: CLE-10 gone'    'sleep 600')"
 P5="$(t_window 'tbx: CLE-00 orc'     'sleep 600')"
-P6="$(t_window 'tbx: AGY-11 legacy'  "bash -c \"$(fake agy AGY-11 'ready')\"")"
+t_window 'tbx: AGY-11 legacy'  "bash -c \"$(fake agy AGY-11 'ready')\"" >/dev/null
 t_window 'notes' 'sleep 600' >/dev/null
 sleep 0.5
 mkdir -p "$SPOOL_ROOT/CLE-01/inbox" "$T_TMP/legacy/AGY-11/outbox"

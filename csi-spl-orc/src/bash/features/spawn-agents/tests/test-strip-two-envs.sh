@@ -104,7 +104,7 @@ hasnt "CONTROL a single-log strip carries no tag" "[dev]" "$one"
 has   "CONTROL …and still paints the records"     "dev third newest" "$one"
 
 # ── adoption: the SECOND env's first delivery switches the SAME strip ───────
-P91="$(t_window CLE-91 'sleep 600')"
+t_window CLE-91 'sleep 600' >/dev/null
 export SPOOL_ROOT="$T_TMP/cloud/dev/spool"
 SPOOL_SHOW_PANE=1 SPOOL_POKE=0 spool_poke_show CLE-91 note HUM-1 T-1 M-1 'hello from dev' >/dev/null
 strip_up() { tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{@spool_notices}' | grep -x "$1" >/dev/null; }

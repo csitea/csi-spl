@@ -19,14 +19,14 @@ fake() {  # KIND ID SCREEN
 }
 agent() { t_window "$1" "bash -c \"$(fake "$2" "$3" "$4")\""; }
 t_tmux
-P1="$(agent 'CLE-07 x' claude CLE-07 '❯ 1. Yes  Do you want to proceed?')"
+agent 'CLE-07 x' claude CLE-07 '❯ 1. Yes  Do you want to proceed?' >/dev/null
 P2="$(agent 'CLE-08 x' claude CLE-08 '❯ half a sentence')"
 P3="$(agent 'CLE-09 x' claude CLE-09 '❯ ')"
-P4="$(agent 'GRK-10 x' grok GRK-10 'esc to interrupt')"
-P5="$(agent 'CLE-00 orc' claude CLE-00 '❯ ')"
-P6="$(agent 'CLE-90 me' claude CLE-90 '❯ ')"
+agent 'GRK-10 x' grok GRK-10 'esc to interrupt' >/dev/null
+agent 'CLE-00 orc' claude CLE-00 '❯ ' >/dev/null
+agent 'CLE-90 me' claude CLE-90 '❯ ' >/dev/null
 P7="$(agent 'AGY-11 x' agy AGY-11 'ready')"
-P8="$(t_window 'CLE-12 plain' 'sleep 600')"
+t_window 'CLE-12 plain' 'sleep 600' >/dev/null
 printf 'CLE-09\tclaude\t%%1\t/x\t20260101T000000Z\n' >"$SPOOL_ROOT/registry.tsv"
 for id in CLE-07 CLE-08 CLE-09 GRK-10 CLE-00 CLE-90 CLE-12; do
   mkdir -p "$SPOOL_ROOT/$id/inbox"; echo '{}' >"$SPOOL_ROOT/$id/inbox/a.json"; echo '{}' >"$SPOOL_ROOT/$id/inbox/b.json"

@@ -25,7 +25,7 @@ candidates file and the `no-literal-paths` gate. Both rows serve the same practi
 r62 and r63, **no literal box path** (developer guide 2.3.1), where the gate does not
 look yet: the cron wrapper scripts (`*.sh` that are not `*.func.sh`).
 
-**Status: v0.1**, draft for the panel. Editor: **c-816** (claude).
+**Status: v1.0**: panel seat m-828 (mistral) PASS on v0.1 `b8090a414`, W1 folded (one line cite, section 8), N1-N4 notes; m-828 signs this v1.0 commit's sha next. Rows unchanged from v0.1. Editor: **c-816** (claude).
 
 **One sha:** every count is measured on **`32a261c24`** (`origin/master`
 32a261c24f7c3b3067869c6559f7b1b0ccccec46, committed 2026-11-19T02:31:15+02:00), n=1 per
@@ -78,7 +78,7 @@ The literal grep: `git grep -nE '/(opt|var)/csi($|[^A-Za-z0-9_-])' 32a261c24 -- 
 - `orc:scripts/token-burn-collect-cron.sh:36`
   `dir="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}"`
 
-Each script already computes `ORC` from its own path (`:17`, `:17`, `:17`, `:22`) and
+Each script already computes `ORC` from its own path (`:17`, `:17`, `:18`, `:22`) and
 `token-burn-collect-cron.sh` already sources `spl-token-burn-collect.func.sh`, whose
 `spl_token_burn_state_dir` derives the same dir (`:34-40`). The reverse-tunnel action
 derives its dir as `${SPL_VAR_APP_DIR}/reverse-tunnel` (`orc:run/setup-reverse-tunnel.func.sh`,
@@ -277,11 +277,19 @@ with every `PRE_PUSH_*` unset. Kind `tests`, vendor claude.
   the `no-literal-paths` gate widened to non-test `*.sh`. Window W and the r64 slug
   proof recorded. Candidates already served (watchdog / lane-rotate login dir,
   uplink-probe comment) dropped with their reads.
+- v1.0 (c-816): the panel seat m-828 (mistral) passed v0.1 `b8090a414`. W1: the `ORC=` cite of
+  `reverse-tunnel-cron.sh` is `:18`, not `:17` (`git grep -n '^ORC=' 32a261c24 -- <file>` -> 18);
+  fixed in 1.2. N1 (r63-01 R7 W1 re-verified on the tree), N2 (`origin/master` was still
+  `32a261c24` at its read), N3 (lane map free, exit 0) and N4 (W and the 5 commits since
+  W re-read): no change. Status line and sections 1.2, 8 and 9 only.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-816 (claude): v0.1.
-- Panel reviewer seat: requested of the dispatch lease holder (section 4).
+- Editor seat: c-816 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-828 (mistral) PASS** on `b8090a414331c125f457e46753af3675efdf327d`
+  (spool msg 2ac0824a, task `dispatch-refactor-r64`); seat file on branch
+  `review/c002-refactor-round-64-mistral-seat` (`e18392c8c`). W1 folded; N1-N4 notes.
+- v1.0 signed: pending, m-828 on this commit's sha.
 - Row R7 seats: section 4.

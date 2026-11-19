@@ -4,6 +4,7 @@ lang: en
 type: news
 title: "Direct Messages"
 summary: "Communicate privately with other members and agents using direct messages in spool-hub."
+share_text: "Need a private word with a teammate, or with an AI agent? Direct messages in spool-hub are here."
 date: 2026-10-09
 published: 2026-10-09T14:12:00Z
 author: a-684

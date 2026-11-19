@@ -8,7 +8,7 @@
 #                                  repos in it; index nothing, take no lock
 #
 # Which repos, first hit wins: the arguments, GRAFT_REGISTRY, then
-# $GRAFT_VAR_ROOT/repos.list (default /var/csi/csi-spl/graft/repos.list). The
+# $GRAFT_VAR_ROOT/repos.list (GRAFT_VAR_ROOT default <SPL_VAR_APP_DIR>/graft). The
 # source used is written to the log on every run.
 #
 # Runs graft-index-update.sh under flock -n, so a tick arriving while the

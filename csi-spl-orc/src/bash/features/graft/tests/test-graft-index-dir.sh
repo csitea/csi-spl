@@ -24,7 +24,9 @@ SLUG="${T#/}/src/my-repo"; SLUG="${SLUG//\//__}"
 
 is "$(cd "$T/src/my-repo" && GRAFT_INDEX_ROOT="$T/idx" bash "$D")" "$T/idx/$SLUG" "GRAFT_INDEX_ROOT + the slug of the git top level"
 is "$(env -u GRAFT_INDEX_ROOT GRAFT_VAR_ROOT="$T/var" bash "$D" "$T/src/my-repo")" "$T/var/index/$SLUG" "GRAFT_VAR_ROOT/index + the slug, for an explicit repo"
-is "$(env -u GRAFT_INDEX_ROOT -u GRAFT_VAR_ROOT bash "$D" "$T/src/my-repo")" "/var/csi/csi-spl/graft/index/$SLUG" "default: the box-wide csi-spl state dir, not a home"
+is "$(env -u GRAFT_INDEX_ROOT -u GRAFT_VAR_ROOT SPL_VAR_APP_DIR="$T/v" bash "$D" "$T/src/my-repo")" "$T/v/graft/index/$SLUG" "default: <SPL_VAR_APP_DIR>/graft, the box-wide state dir, not a home"
+out="$(env -u GRAFT_INDEX_ROOT -u GRAFT_VAR_ROOT -u SPL_VAR_APP_DIR -u APP_PATH -u PROJ_PATH SPL_RUN_PATHS_TOP= bash "$D" "$T/src/my-repo")"; rc=$?
+is "$rc:$out" "1:" "no tree to derive SPL_VAR_APP_DIR from and no override: rc 1, nothing printed"
 ( cd "$T/plain" && GRAFT_INDEX_ROOT="$T/idx" bash "$D" >/dev/null 2>&1 ); is "$?" 1 "outside a git repo: rc 1"
 case "$SLUG" in */*) bad "the slug holds no /" ;; *) ok "the slug holds no /" ;; esac
 

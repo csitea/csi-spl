@@ -17,15 +17,28 @@
 # further / written as "__" (a repo at /a/b-c/d becomes a__b-c__d). The slug is
 # derived, so two repos never share one, and the box names no repo anywhere.
 #
-# GRAFT_VAR_ROOT (default /var/csi/csi-spl/graft) is the box-wide graft state:
+# GRAFT_VAR_ROOT (default <SPL_VAR_APP_DIR>/graft) is the box-wide graft state:
 # the index, the repo list, the cron log and lock. It is box-wide, not per
 # home, because one OS user builds the index and every agent user reads it.
+# SPL_VAR_APP_DIR comes from spl_run_paths, started from this script's own
+# checkout (a worktree resolves to its main checkout); it is derived in a
+# subshell, so sourcing this file exports nothing. Neither set nor derivable:
+# graft_var_root prints nothing and graft_index_dir returns 1.
 
-graft_var_root() { printf '%s' "${GRAFT_VAR_ROOT:-/var/csi/csi-spl/graft}"; }
+# shellcheck source=../../../../../lib/bash/funcs/spl-run-paths.func.sh
+declare -F spl_run_paths >/dev/null \
+  || source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd -P)/lib/bash/funcs/spl-run-paths.func.sh"
+
+graft_var_root() {
+  if [ -n "${GRAFT_VAR_ROOT:-}" ]; then printf '%s' "$GRAFT_VAR_ROOT"; return 0; fi
+  ( spl_run_paths 2>/dev/null && [ -n "${SPL_VAR_APP_DIR:-}" ] && printf '%s/graft' "$SPL_VAR_APP_DIR" ) || true
+}
 
 graft_index_root() {
   if [ -n "${GRAFT_INDEX_ROOT:-}" ]; then printf '%s' "$GRAFT_INDEX_ROOT"; return 0; fi
-  printf '%s/index' "$(graft_var_root)"
+  local v; v="$(graft_var_root)"
+  [ -n "$v" ] && printf '%s/index' "$v"
+  return 0
 }
 
 graft_index_dir() {  # [REPO]

@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-19-plan.md](bug-round-19-plan.md) and [bug-round-18-plan.md](bug-round-18-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0**, panel PASS (m-305@<box2>, mistral, on v0.1 `bfce48e35`, no W items); rows unchanged. The panel's notes N1 to N5 are answered in section 8; N2 is answered against the note (the relayed path exits 11, not 14), which narrows nothing in row 01's code and records the other-box case as a round 21 input.  
+**Status: v1.0**, panel PASS (m-305@<box2>, mistral, on v0.1 `bfce48e35` and on v1.0 `70764ad05`, no W items); rows unchanged. The panel's notes N1 to N5 are answered in section 8; N2 is answered against the note (the relayed path exits 11, not 14), which narrows nothing in row 01's code and records the other-box case as a round 21 input.  
 Editor: **c-291@<box2>** (claude, `specs_and_docs`).  
 Panel: m-305@<box2> (mistral), placed by the dispatch holder (section 8).
 
@@ -148,6 +148,7 @@ The prototype (about 3 lines in `_spl_review_go_send`: on rc 14, call `_spl_revi
     - **N3** (the sat evidence is the holder's read, not re-readable from <box2>): noted. It is the same in v0.1 (section 3, evidence column); the red control, not the log count, is what the row is judged on. The live proof (R5) is read on sat after the landing.
     - **N4** (the one `b20-01-` hit in the brief dirs is the seat's own brief): noted, as the seat says; the slug check of section 3.1 was made before the seat existed.
     - **N5** (`\|` in the table commands): already said in section 1; no change.
+  - 2026-11-19 10:17:23Z: panel m-305@<box2> (mistral) **PASS** on v1.0 `70764ad05` (msg 6e9f1d67), W1..: none. It checked the fast-forward on `bfce48e35` (1 file, +16 -8), that row 01's defect, evidence, sites and red-control cells are unchanged, re-read `spool-fleet-relay.sh:222-232` and agreed v0.1 N2 was wrong (the relayed path exits 11), re-ran `rc01.sh` on `6b5656493` (RED, `FAIL: 1`; GREEN with the prototype, suite 0 failures), the b20 row slug (0 on origin/master), `do_check_dist_hygiene` (clean) and `do_check_pre_push` (all parts PASSED). Seat file: `review/c002-bug-round-20-mistral-seat`, `663a434a4`.
 
 ---
 
@@ -156,4 +157,4 @@ The prototype (about 3 lines in `_spl_review_go_send`: on rc 14, call `_spl_revi
 | seat | id | status |
 |---|---|---|
 | Editor | c-291@<box2> | **v1.0** |
-| Panel | m-305@<box2> (mistral) | **PASS** on v0.1 `bfce48e35` (10:08:59Z, msg 03875889; seat file `csi-spl-doc/doc/md/bug-round-20/seat-mistral.md` on `review/c002-bug-round-20-mistral-seat`, `2063c9761`); v1.0 pending |
+| Panel | m-305@<box2> (mistral) | **PASS** on v0.1 `bfce48e35` (10:08:59Z, msg 03875889; seat file `csi-spl-doc/doc/md/bug-round-20/seat-mistral.md` on `review/c002-bug-round-20-mistral-seat`, `2063c9761`) and on v1.0 `70764ad05` (msg 6e9f1d67; seat file `663a434a4`) |

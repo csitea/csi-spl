@@ -911,7 +911,7 @@ The agreed scope (dispatcher post `5a9f7682`), which this section builds:
 Event tags get their own catalogue, `calendar_tags`. Issue labels are not
 reused. Why:
 
-1. **Colour.** Issue labels take any hex colour (`0047:39`). A calendar
+1. **Colour.** Issue labels take any hex colour (`0047:38`). A calendar
    colour must read in both themes, which is why Q9 chose the 11 named
    colours, each a light and a dark variable (`variables.css:421`, `:434`).
    A tag takes the same 11 names, so the stripe and the chips follow the
@@ -979,7 +979,7 @@ CREATE INDEX IF NOT EXISTS calendar_events_tags ON calendar_events USING gin (ta
   (098's promotion rule) they are a column with an index, not a `props` key.
 - **Integrity.** An array has no foreign key. The hub checks on every write
   that each id is a tag of the event's workspace (else `400 unknown_tag`),
-  as it does for issue labels (`0047:58`). A tag delete strips the id from
+  as it does for issue labels (`0047:59`). A tag delete strips the id from
   every event of the workspace, trashed rows included, in the same
   transaction (11.5).
 - **Recurrence.** `tag_ids` is a column of the series row; an exception row
@@ -1014,7 +1014,7 @@ Refusals: a name of 0 or more than 40 characters, or a colour that is not
 one of the 11 names, is `400 bad_tag`; a second tag with the same name
 (case ignored) is `409 tag_exists`; the 101st tag is `400 too_many_tags`;
 an id of another workspace is `404`. Unknown body fields are refused
-(`DisallowUnknownFields`, as `calendarRequest`, `calendar.go:210`).
+(`DisallowUnknownFields`, as the event body, `calendar.go:555-560`).
 
 #### 11.4.2 Tags on an event
 
@@ -1073,7 +1073,7 @@ the pseudo id `none`:
 | act | needs | why |
 |---|---|---|
 | see the catalogue, filter by tag | `topics.read` | as every calendar read |
-| put tags on an event, reorder them | the right to edit that event (089 4.2, Q4) | a tag is a field of the event |
+| put tags on an event, reorder them | the right to edit that event (section 10, Q4) | a tag is a field of the event |
 | tag a synced event (11.4.2) | `notes.send` and read access to the event | the event is otherwise read-only |
 | create a tag | `notes.send` | as issue labels today: whoever writes events may make the tag they need |
 | rename, recolour, reorder a tag | `notes.send` | the change is visible and harmless; nothing is lost |
@@ -1091,7 +1091,7 @@ count of events, drag handle (desktop) or up / down buttons (phone) for the
 order, and Delete. Delete asks first, naming the count ("Remove the tag
 *Travel* from 12 events?"). A member without `channels.manage` does not see
 Delete. "+ New tag" adds a row with the next unused colour. On a phone it is
-a full-screen sheet (5.1.6's rule), rows and buttons at least 44 px.
+a full-screen sheet (the rule of 5.1, item 6, Event details), rows and buttons at least 44 px.
 
 ### 11.6 The event editor's tag picker
 
@@ -1124,9 +1124,10 @@ is set per event:
 
 The block's tint (`color-mix(... 20%, var(--color-bg))`,
 `CalendarMainView.vue:716`) keeps using the event's own colour, else the
-accent, so the text contrast tests of SPL-4060 stay valid. O4 asks whether
-the first tag should also beat an event's own colour (proposed: yes, for
-the stripe only).
+accent, so the text contrast tests of SPL-4060 stay valid. That the first
+tag beats the event's own colour for the stripe is **DECIDED** by the
+owner (msg `62e387eb`: "the stripe takes the first tag's colour"); it is
+not asked again (it was O4, dropped from 11.12).
 
 **The chips.** A chip is the tag name on
 `color-mix(in srgb, var(--cal-color-<c>) 20%, var(--color-bg))` with a
@@ -1232,7 +1233,7 @@ body), its docs, and cites SPL-5883.
 | T11 | WUI: `--cal-stripe-w` 5 px, `--cal-stripe-color` (11.7 rule), chips in every view of 11.7's table | T10 | e2e in every view, both themes, 1440 / 360 / 390 px: stripe 5 px of the first tag, chips or `+n`, `xScroll <= 1 px`; contrast unit test of each chip mix | set the stripe from the last tag: red |
 | T12 | WUI: the filter button, chip strip, `tags` and `labels` URL params, every view (11.8) | T6, T11 | unit for the URL round trip; e2e per view: filter, reload keeps it, To-do filters by issue labels | drop `tags` from `router.replace`: the reload case red |
 | T13 | i18n: `calendar_tags.*` in 19 locales; **agy review** of the 18 drafts | T9..T12 | `i18n-parity`, `i18n-untranslated`, `i18n-no-raw-text` | a key missing in one locale: parity red |
-| T14 | help: `csi-spl-doc/doc/help/calendar.md` gains Tags (manage, pick, filter), then the help sync | T12 | the help sync's own check | - |
+| T14 | help: `csi-spl-doc/doc/help/calendar.md` gains Tags (manage, pick, filter), then the help sync (`csi-spl-wui/src/node/help/sync-help.mjs`) | T12 | new unit `csi-spl-wui/tests/unit/help-calendar-tags.test.mjs`: the synced help page has a Tags heading naming the manager, the picker, the filter and the `tags=` link | delete the Tags heading from `calendar.md`: the test red |
 
 ### 11.12 Questions for the owner
 
@@ -1241,7 +1242,6 @@ body), its docs, and cites SPL-5883.
 | O1 | Who may create a tag? | any member who writes events | admins only (`channels.manage`) | A (delete stays admin-only) |
 | O2 | Two tags chosen in the filter show events with... | any of them | all of them | A |
 | O3 | The To-do view lists issues. Its filter uses... | the issue labels | no filter in To-do | A |
-| O4 | An event has its own colour and a first tag. The stripe takes... | the first tag's colour | the event's own colour | A |
 | O5 | The chosen filter is kept... | in the link only (reload, Back, a shared link) | also remembered for you across visits | A |
 | O6 | Send the first tag's colour to Google Calendar with the event? | yes | no | A, as a later row after T11 |
 
@@ -1250,7 +1250,7 @@ body), its docs, and cites SPL-5883.
 
 | Version | Date | Author | Description |
 |---|---|---|---|
-| v1.0 | 2026-11-19 | c-702 | Section 11: event tags with colours per workspace (own `calendar_tags` table, not issue labels, and why), ordered `tag_ids` on the event (the first tag sets the 5 px stripe), the tags API and the one write allowed on a synced event, the tag manager and its permissions, the editor's picker, chips in every view, the filter in every view (`tags` in the URL; To-do filters by issue labels), imports keep tags, build rows T1..T14, owner questions O1..O6. SPL-5883. |
+| v1.0 | 2026-11-19 | c-702 | Section 11: event tags with colours per workspace (own `calendar_tags` table, not issue labels, and why), ordered `tag_ids` on the event (the first tag sets the 5 px stripe), the tags API and the one write allowed on a synced event, the tag manager and its permissions, the editor's picker, chips in every view, the filter in every view (`tags` in the URL; To-do filters by issue labels), imports keep tags, build rows T1..T14, owner questions O1, O2, O3, O5, O6 (O4 dropped: DECIDED by the owner, msg `62e387eb`, 11.7). Review fixes W1..W5 of m-707. SPL-5883. |
 | v0.9 | 2026-11-16 | c-647 | An agent changes or deletes a private entry an agent made for a member (`ordered_by` in its mentions), never a person's own or another person's (4.10, rule marked owner may change); operator PATCH takes title, description, times and reminders; `do_spl_calendar_event_update`. SPL-5720. |
 | v0.8 | 2026-11-16 | c-628 | `REMINDERS` on `do_spl_calendar_event_add`: an agent's event carries pop-up reminders (4.10). SPL-5718. |
 | v0.7 | 2026-11-14 | c-437 | A private event from an agent through the operator routes: mention checks, the creator-only `?as=` read-back, `AUDIENCE` / `MENTIONS` on `do_spl_calendar_event_add` (4.10). SPL-5498. |

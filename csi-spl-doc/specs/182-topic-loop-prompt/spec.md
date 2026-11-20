@@ -1,6 +1,6 @@
 # Spec 182: Topic Loop Prompt (Discussion Loops)
 
-Status: **Draft v0.6** (2026-11-20). Lane `c-301` (`claude`, backup for
+Status: **Draft v0.7** (2026-11-20). Lane `c-301` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `bc0353485`; v0.2 folds the
 owner's answers to form `2c1c3f5d` (msg `a198ae53`) and the two requirements
 in msgs `eae9e64f` and `19acb8f9`; v0.2 `d17f582cb`; v0.3 folds Q9 (msg
@@ -15,7 +15,9 @@ three points of the L2 lane (c-970, msg `9dc69b0c`): the time-fire seed,
 who deletes the loops on archive, and the author's two ids (8.2); v0.5
 `b106c0e76`; v0.6 folds the owner's answers to Q10 and Q11 (msg
 `46e61a8c`, poll `7ce8419c`): a loop's own agent answer never re-fires it,
-and `before_human_reply` is dropped, eleven triggers stay (8.3).
+and `before_human_reply` is dropped, eleven triggers stay (8.3); v0.6
+`081f0f506`; v0.7 adds the three hidden-row places and the two count
+CHECKs the L1 review found (c-382, msg `13956ae7`; 8.4).
 Epic: **SPL-2398**. Issue: **SPL-6022**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f08c0c58-9228-4e2a-af00-dbbdbd328083` (`t1`).
 Builds on: [179 pause the agents of a discussion](../179-pause-agents-of-a-discussion/spec.md)
@@ -530,8 +532,8 @@ CREATE TABLE IF NOT EXISTS topic_loops (
     set_at        timestamptz NOT NULL,
     state         text        NOT NULL DEFAULT 'on' CHECK (state IN ('on','paused')),
     hour_start    timestamptz,
-    fires_in_hour integer     NOT NULL DEFAULT 0,
-    fires_total   integer     NOT NULL DEFAULT 0,
+    fires_in_hour integer     NOT NULL DEFAULT 0 CHECK (fires_in_hour >= 0),
+    fires_total   integer     NOT NULL DEFAULT 0 CHECK (fires_total >= 0),
     last_fired_at timestamptz,
     awaiting      text        NOT NULL DEFAULT '' CHECK (length(awaiting) <= 64),
     awaiting_until timestamptz,
@@ -586,6 +588,9 @@ messages leaves such a row out, the way they already treat a note to self
 | fallback responder | `internal/store/fallback_postgres.go:79-83` `fallbackHumanPostSQL` | `AND m.loop_id IS NULL`: a loop prompt is never "a human post nobody heard" |
 | unanswered sweep | `csi-spl-orc/src/bash/run/spl-unanswered-sweep.func.sh` (its rows read, near the `note_to_self` column at `:519`) | a loop row is never a human post waiting for an answer, and never an anchor |
 | auto-take | `csi-spl-orc/src/bash/run/spl-take-auto.func.sh:52` | skips a loop row |
+| channel counts and unread (v0.7) | `internal/store/channels_postgres.go:391` `countsRead` (its `FROM messages`, `:405`, and the newest-message `LATERAL`, `:408`), called by `ViewChannelStats` (`:325`); Memory `channels_memory.go:398` | `AND loop_id IS NULL` in both reads: a loop prompt counts in no channel total, poster count, unread, or "newest message" |
+| view changes (v0.7) | `internal/store/view_changes_postgres.go:27` `viewChangesSQL` (the `new` branch, `:31`); Memory `view_changes.go:82` `ViewChanges` | the `new` branch skips a loop row (`AND loop_id IS NULL`), so a browser's change poll never names it |
+| topic PDF export (v0.7, spec 183) | `internal/store/topic_export.go:76` Postgres `TopicExportRows` (its `FROM messages`, `:83`), Memory `:28`; route `internal/hub/topic_export.go:34` | `AND loop_id IS NULL`: the exported PDF holds the agent's answer, never the loop prompt |
 
 The row is still stored, so the agent's reply threads to a real message,
 the store keeps it as the record of each fire.
@@ -601,7 +606,7 @@ the store keeps it as the record of each fire.
 | store | `TopicPauseStore` layout (`internal/store/topic_pause.go`), `0297` | `topic_loops` + `messages.loop_id` migration, `TopicLoopStore` (Postgres + Memory), RLS registration |
 | trigger hooks | `wuiAfterStore` (`wui.go:647`), `onSend` after store (`ws.go:702-716`), `handleSetMessageKind` (`message_kind.go:65,123`), `updateIssue` (`issues.go:419,449`) with `IssueDiscussionLinks` (`issue_discussions.go:94`), the 60 s ticker pattern (`gcal_sync.go:79-98`) | `topicLoopFire`, its calls, `topicLoopKeyword`, the idle arm and clear, `runTopicLoopTimer` |
 | send | `topicAgents` (`topic_reply.go:52`), `dispatchEnvelope` (`dispatch.go:228`), `commitRowTyped` (`ws.go:1037`) | the body, the UUIDv5 id, `loop_id` on the row |
-| hidden prompt | the `note_to_self` precedent (rdb `0278`) | the six places of 5.2 |
+| hidden prompt | the `note_to_self` precedent (rdb `0278`) | the nine places of 5.2 (v0.7) |
 | box and desk | `recv` -> inbox + poke (`hubclient.go:612,988`) | nothing |
 | pause, archive | `AnyTopicPaused` (`store/topic_pause.go:74`), `messages.archived_at` | the two checks in `topicLoopFire`; delete on archive |
 
@@ -609,7 +614,7 @@ the store keeps it as the record of each fire.
 
 | row | depends on | kind | scope | tests and red control |
 |---|---|---|---|---|
-| **L1 rdb + store** | — | `complex_coding` | `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_topic_loops.sql` (`topic_loops` with the v0.4 columns of 5.1, `messages.loop_id`, the topic-head functions); `internal/store/{topic_loop.go,topic_loop_postgres.go,topic_loop_memory.go,topic_loop_test.go}`; `view_postgres.go`, `view_topics_batch.go`, `fallback_postgres.go`, `fallback_memory.go`; `rls_test.go`; `internal/channelmove/catalogue.go` | `PRE_PUSH_TIER=full`: Postgres + Memory parity; each of the eleven keys is accepted and an unknown one refused, `before_human_reply` included (v0.6); each field CHECK (keyword, idle, daily) refuses a stray or missing value; `ClaimDueTopicLoops` claims each of the three due columns, reports it in `Due` and its pre-move time in `DueAt` (v0.5), moves `daily_due_at` across a DST change in `Europe/Helsinki` by one local day; `ArmTopicLoopIdle` / `ClearTopicLoopIdle` touch only that task's idle loops; the cap `UPDATE` never passes 12 under two concurrent fires and rolls over after an hour; a `loop_id` row is in no view, no topic head and no fallback read; RLS covers the table. Red control: drop `AND m.loop_id IS NULL` from the topic view statement, and the hidden-row test fails. |
+| **L1 rdb + store** | — | `complex_coding` | `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_topic_loops.sql` (`topic_loops` with the v0.4 columns of 5.1, `messages.loop_id`, the topic-head functions); `internal/store/{topic_loop.go,topic_loop_postgres.go,topic_loop_memory.go,topic_loop_test.go}`; `view_postgres.go`, `view_topics_batch.go`, `fallback_postgres.go`, `fallback_memory.go`; v0.7: `channels_postgres.go`, `channels_memory.go`, `view_changes_postgres.go`, `view_changes.go`, `topic_export.go`; `rls_test.go`; `internal/channelmove/catalogue.go` | `PRE_PUSH_TIER=full`: Postgres + Memory parity; each of the eleven keys is accepted and an unknown one refused, `before_human_reply` included (v0.6); each field CHECK (keyword, idle, daily) refuses a stray or missing value; `ClaimDueTopicLoops` claims each of the three due columns, reports it in `Due` and its pre-move time in `DueAt` (v0.5), moves `daily_due_at` across a DST change in `Europe/Helsinki` by one local day; `ArmTopicLoopIdle` / `ClearTopicLoopIdle` touch only that task's idle loops; the cap `UPDATE` never passes 12 under two concurrent fires and rolls over after an hour; a `loop_id` row is in no view, no topic head and no fallback read, and (v0.7) in no channel count or unread, no view change and no topic export row; a negative `fires_in_hour` or `fires_total` is refused; RLS covers the table. Red control: drop `AND m.loop_id IS NULL` from the topic view statement, and the hidden-row test fails. |
 | **L2 hub** | L1 | `complex_coding` | `internal/hub/{topic_loop.go,topic_loop_fire.go,topic_loop_test.go,topic_loop_fire_test.go}`; the hooks in `wui.go` (before and after the store) and `ws.go`; the `fanoutWUI` skip; the time ticker `runTopicLoopTimer`; v0.5: the `DeleteTopicLoops` calls in `topic_archive.go` (4.5) | Each of the eleven boxes fires on its event; v0.6: the target agent's first reply within 30 min of a fire does not fire that loop (any post trigger: agent reply, keyword, file, blocker) but fires another loop of the topic, and its next reply, or a reply after 30 min, fires it again; the keyword match at word edges (and not inside a word); a file post fires `post_has_file`, a plain one does not; a blocker fires from an agent-to-agent send, a browser post and a kind change, and the kind change back does not; an idle loop fires once after n minutes with no agent reply, never after an agent reply, and re-arms on a later human post; a daily loop fires once a day at its local time; an issue status change fires the loops of each linked topic once, a priority-only change does not; `before_agent_reply`'s prompt reaches the box before the post; a time loop fires once per due tick across two hub instances and never catches up a burst; a post matching two boxes fires once; a replay does not; a loop prompt message does not; HUB-0 and pause notices do not; paused loops, paused and archived topics do not; the 13th fire in an hour does not; v0.5: a loop with `every_n_minutes` and `daily_at` whose daily fire follows an interval fire sends both (two msg_ids); archiving or deleting the topic leaves no loop, unarchiving brings none back; a member whose session id is not a v:1 id sets a loop that fires, from the derived `HUM-<n>`; the policy table (`everyone`, `admins`, `starter`); no browser frame for a loop row; `TestRoundTripsPerRequest` shows no extra round trip on a tenant with no loop. Red control: remove the cap check, and the agent-reply self-fire test passes 12. |
 | **L2b orc** | L1 | `simple_coding` | `spl-unanswered-sweep.func.sh`, `unanswered-sweep-classify.py`, `spl-take-auto.func.sh` and their tests | a loop row is never listed, re-sent or escalated, and never taken. Red control: drop the skip, and the sweep test lists the loop prompt as unanswered. |
 | **L3 wui** | L2 | `simple_coding`, then `i18n` (agy has the last word on the locales) | `msg-menu.mjs`, `topic-menu.mjs`, `MessageMenu.vue`, `MessageCard.vue`, `TopicLoopsDialog.vue`, `spool-client*.mjs`, `i18n/locales/*.json` | `pnpm run typecheck`, `test:unit` (i18n parity, untranslated and raw-text gates, cleancode, a `topic-loops` unit test of the menu lock, the form's at-least-one-trigger rule, and each of the four fields required exactly with its box: n, keyword, idle n, time and zone). Red control: a raw string in the dialog, and `i18n-no-raw-text` fails. |
@@ -1022,4 +1027,17 @@ trigger to its rows.
   -> nothing), so L1 edits its own migration in place; no second migration.
 - Unchanged: every other key, column, store call, route, frame and row.
 
-<!-- version: 0.6 · updated: 2026-11-20 · last-edit: 2026-11-20T15:05:00Z -->
+### 8.4 Changes from v0.6 (the L1 review, c-382, msg `13956ae7`)
+
+- **5.2, three more hidden-row places** (measured on `origin/master`
+  `e2883a6be`): `countsRead` of `ViewChannelStats`, `viewChangesSQL`, and
+  the topic PDF export of spec 183 (`TopicExportRows`), each with its
+  Memory twin. All three are store reads, so row L1 owns them (its scope
+  and tests in section 7). Section 5.2 now has nine places.
+- **5.1, two CHECKs:** `fires_in_hour >= 0` and `fires_total >= 0`. L1's
+  `0299_topic_loops.sql` already has both
+  (`origin/review/c002-s182-l1-rdb-store-topic-loops` `029d81007`, lines
+  76 and 77); the spec now matches it.
+- Unchanged: every name, route, column and row of v0.6.
+
+<!-- version: 0.7 · updated: 2026-11-20 · last-edit: 2026-11-20T15:25:00Z -->

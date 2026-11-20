@@ -144,7 +144,8 @@
 # @param   https://<tenant>.<base host> when the cnf turns tenant hosts on and
 # @param   maps the tenant (SPL-1693: a csitea reply on prd is
 # @param   https://csitea.<fqdn>/m/<msg_id>, never the apex)
-# @param DESK_KIND (optional) - note (default) | result | reject | blocker | msg
+# @param DESK_KIND (optional) - note (default) | result | reject | blocker | msg, or a kind that
+# @param   routes as a note: feature | bug | alert | question | idea | decision | docs (spec 033 K.3 E3)
 # @param   (blocker = the agent cannot proceed without the human's input; SPL-952)
 # @param DESK_TO (optional) - answer THIS human id instead of the newest sender
 # @param DESK_TASK (optional) - answer in THIS topic instead of the newest one.
@@ -544,7 +545,9 @@ _spl_desk_reply_check_args() {
   local body="$1" kind="$2" to="$3" task="$4" f; shift 4
   local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' pfx_re='^[0-9a-f]{8}$'
   [[ -n "$body" ]] || { do_log "FATAL DESK_BODY must carry the answer text"; return 1; }
-  [[ "$kind" =~ ^(note|result|reject|blocker|msg)$ ]] || { do_log "FATAL DESK_KIND must be note, result, reject, blocker or msg, got: '$kind'"; return 1; }
+  # spec 033 K.3 E3 (owner Q4 B): today's kinds plus the ones that route as a note
+  { [[ -n "${SPOOL_NOTE_KINDS:-}" ]] && declare -F spool_kind_in >/dev/null; } || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spool_kind_in "result|reject|blocker|msg|$SPOOL_NOTE_KINDS" "$kind" || { do_log "FATAL DESK_KIND must be result, reject, blocker, msg or ${SPOOL_NOTE_KINDS//|/, }, got: '$kind'"; return 1; }
   [[ -z "$to" || "$to" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL DESK_TO must be a human id (HUM-...), got: '$to'"; return 1; }
   [[ -z "$task" || "$task" =~ $uuid_re || "$task" =~ $pfx_re ]] || { do_log "FATAL DESK_TASK must be a lowercase task UUID or an 8-hex topic prefix, got: '$task'"; return 1; }
   for f in "$@"; do

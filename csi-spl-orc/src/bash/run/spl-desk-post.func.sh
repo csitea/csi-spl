@@ -32,7 +32,8 @@
 # @param   the same rule as do_spl_desk_reply (missing, and exists but not
 # @param   readable by this run user, are different FATALS)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
-# @param DESK_KIND (optional) - note (default) | task | result | blocker | msg
+# @param DESK_KIND (optional) - note (default) | task | result | blocker | msg, or a kind that
+# @param   routes as a note: feature | bug | alert | question | idea | decision | docs (spec 033 K.3 E3)
 # @param DESK_FILES (optional) - space-separated paths to attach (each blobbed under its own name;
 # @param   a path with no known extension is refused, how-to-post.md rule 13)
 # @param DESK_TYPED_BY (optional) - HUM-<n>: the human this post speaks for, the
@@ -59,7 +60,7 @@ do_spl_desk_post() {
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   [[ "$channel" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL DESK_CHANNEL must be a channel id (e.g. spool-hub-devel), got: '${DESK_CHANNEL:-}'"; return 1; }
   [[ -n "$body" ]] || { do_log "FATAL DESK_BODY must carry the post text"; return 1; }
-  [[ "$kind" =~ ^(note|task|result|blocker|msg)$ ]] || { do_log "FATAL DESK_KIND must be note, task, result, blocker or msg, got: '$kind'"; return 1; }
+  _spl_desk_post_kind_ok "$kind" || return 1
   [[ -z "$typed_by" || "$typed_by" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL DESK_TYPED_BY must be a HUM-<n> id, got: '$typed_by'"; return 1; }
   local f files=()
   read -r -a files <<<"${DESK_FILES:-}"
@@ -116,4 +117,11 @@ if typed_by:
 print(json.dumps(out, sort_keys=True))
 EOF_PY
   do_log "OK $agent posted a new topic into #$channel ($kind); every other member reads it"
+}
+
+# _spl_desk_post_kind_ok KIND: 0 for today's kinds plus the ones that route as
+# a note (SPOOL_NOTE_KINDS, spec 033 K.3 E3, owner Q4 B), else the FATAL.
+_spl_desk_post_kind_ok() {
+  { [[ -n "${SPOOL_NOTE_KINDS:-}" ]] && declare -F spool_kind_in >/dev/null; } || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spool_kind_in "task|result|blocker|msg|$SPOOL_NOTE_KINDS" "$1" || { do_log "FATAL DESK_KIND must be task, result, blocker, msg or ${SPOOL_NOTE_KINDS//|/, }, got: '$1'"; return 1; }
 }

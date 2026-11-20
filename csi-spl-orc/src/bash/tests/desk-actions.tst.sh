@@ -281,8 +281,9 @@ else
     fail "do_spl_desk_probe refuses a bad DESK_CHANNEL without saying why: $(cat "$T/o")"
 fi
 
-# SPL-952: blocker and msg pass the kind check (the dry run then stops later).
-for good in blocker msg; do
+# SPL-952: blocker and msg pass the kind check (the dry run then stops later);
+# spec 033 K.3 E3 (owner Q4 B): so does a kind that routes as a note.
+for good in blocker msg bug question docs; do
   SNIPPET=do_spl_desk_reply in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hi' DESK_KIND=$good >"$T/o" 2>&1 || true
   grep -q 'DESK_KIND must' "$T/o" && fail "do_spl_desk_reply refuses DESK_KIND=$good: $(cat "$T/o")" ||
     pass "do_spl_desk_reply accepts DESK_KIND=$good"
@@ -290,6 +291,10 @@ for good in blocker msg; do
   grep -q 'DESK_KIND must' "$T/o" && fail "do_spl_desk_post refuses DESK_KIND=$good: $(cat "$T/o")" ||
     pass "do_spl_desk_post accepts DESK_KIND=$good"
 done
+# spec 033 K.3 E3 names the desk post and reply only: the fleet notice keeps note|blocker.
+SNIPPET=do_spl_fleet_notice in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hi' DESK_KIND=bug >"$T/o" 2>&1 || true
+grep -q "FATAL DESK_KIND must be note or blocker, got: 'bug'" "$T/o" && pass "do_spl_fleet_notice still refuses DESK_KIND=bug" ||
+  fail "do_spl_fleet_notice DESK_KIND=bug: $(cat "$T/o")"
 
 # SPL-952: a sidecar whose spool binary was rebuilt under it is stale.
 # The fakes are copies of bash, not of sleep: on ubuntu-26.04 sleep is a
@@ -579,7 +584,7 @@ else
 fi
 
 # --- 8. the post leg (specs/038) ----------------------------------------------------
-for bad in "DESK_CHANNEL=" "DESK_CHANNEL=no spaces" "DESK_CHANNEL=x;rm" "DESK_KIND=reject" "DESK_BODY=" \
+for bad in "DESK_CHANNEL=" "DESK_CHANNEL=no spaces" "DESK_CHANNEL=x;rm" "DESK_KIND=reject" "DESK_KIND=bogus" "DESK_BODY=" \
            "DESK_FILES=$T/no-such-file" "DESK_TYPED_BY=CLE-01" "DESK_TYPED_BY=HUM-1;x"; do
   if SNIPPET=do_spl_desk_post in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hi' DESK_CHANNEL=ops DRY_RUN=0 "$bad" \
        >"$T/o" 2>&1; then

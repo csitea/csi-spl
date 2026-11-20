@@ -231,6 +231,7 @@ const filters = ref<Record<string, string>>(emptyEventFilters())
 const phoneBar = ref<{ close: () => void } | null>(null)
 const sheetColumns = computed(() => EVENT_COLUMNS.map((c) => ({
   col: c.col,
+  cls: 'events-col-' + c.col,
   label: t(c.key),
   kind: c.kind as 'text' | 'choice',
   choices: c.kind === 'choice' ? choicesFor(c.col).map((v) => ({ value: v, label: v })) : undefined,
@@ -480,6 +481,11 @@ watch(() => route.hash, () => revealEvent())
   color: var(--color-muted);
 }
 .events-table tbody tr.events-row--network td { color: var(--color-muted); }
+/* SPL-6065 (owner HUM-10, t1 6faa2976): the Request column takes twice the
+   eighth it had, the other seven share the rest, so a long request wraps to
+   a few lines instead of a dozen and the rows come out about the same height.
+   The fixed layout sizes columns from the head row; a phone hides it. */
+.events-table :deep(th.events-col-request) { width: 25%; }
 /* spec 162 B7: the box column, before When */
 .events-table :deep(.events-check-h),
 .events-table td.events-check { width: 2.25rem; }

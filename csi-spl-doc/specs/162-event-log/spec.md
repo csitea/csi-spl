@@ -249,6 +249,11 @@ test each; this spec adds none beyond this set.
 - **Columns** (E1, E6, E7). Mine: when, id, source, status, request
   (`METHOD path`), code (code, then name on a second line), message,
   origin. Workspace and System: when, kind, level, actor, message, origin.
+  On a desktop the Mine request column takes a quarter of the table, twice
+  the share of each other column, so a long request wraps to a few lines and
+  the rows come out about the same height (SPL-6065, owner t1 6faa2976 msg
+  9865c91f; `tests/e2e/events-request-column-width.test.mjs`). A phone's
+  card rows are unchanged.
 - **When** shows `YYYY-MM-DD HH:MM:SS±HH:MM` in the viewer's zone (a new
   `isoDateTimeOffset` in `wui/utils/date-iso.mjs`): ISO 8601 with seconds
   and the offset, so it sorts as text for one viewer and is never

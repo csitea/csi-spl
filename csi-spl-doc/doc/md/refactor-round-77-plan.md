@@ -32,7 +32,9 @@ once after r76 landed (r76 section 7). **Row 01** is that gate, a ratchet over e
 spelling. **Row 02** moves the 2 `features/box-sessions` scripts (r76 section 7's other
 round-77 candidate) and lowers row 01's baseline by their 2 lines.
 
-**Status: v0.1**, draft for the panel. Editor: **c-481** (claude).
+**Status: v1.0**: panel seat m-484 (mistral) PASS on v0.1 `8badbf473`, one W finding
+(W1, row 02's scratch layout, fixed) and N1-N4 recorded (section 8); no row changes
+scope. Editor: **c-481** (claude).
 
 **One sha:** every count is measured on **`7df5cecfc`** (`origin/master`
 7df5cecfc47f063e4c37818ea4b78bc5328382d7, committed 2026-11-20T20:04:17+02:00), n=1 per
@@ -200,7 +202,7 @@ check the cron lines and tags. None runs the real scripts or reads `:41`.
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `test(r77-01-orc-no-literal-paths-spelled-var-dirs)` | a gate with a red control (developer guide 2.12.1); canonical paths, no box path in an action (2.3.1) | r73 to r76 moved 9 hand-spelled var dirs by hand, and nothing stops a 10th: the literal-path gate sees only `/opt/<org>`, `/var/<org>` | **`orc:tests/no-literal-paths.tst.sh`** (`nlp_counts` `:38-44`, `nlp_check` `:47-58`, the fixture `:60-91`, the tree check `:93-99`)<br>`orc:tests/no-literal-paths-spelled.baseline` (new) | 1 gate, 21 lines in 19 files | **Gate:** a second ratchet in the same suite, same scope (`nlp_counts`' file list) and same rules (NEW / MORE / STALE), over 1.3's pattern, with its own baseline `no-literal-paths-spelled.baseline` (`<lines> <file>`, 1.3's 19 entries, a header line saying it only shrinks). Make the counter take its pattern (or a second counter), so the existing literal check and its baseline are unchanged. **Red controls** on the fixture tree, each FAIL: a new `run/*.func.sh` with `/var/${oa%%-*}/$oa/x`; a new `scripts/*.sh` with `/opt/$org/$app`; a new `features/*/scripts/*.sh` with one; a listed file that grew; a stale (too high) entry. **Pass** on the fixture: `$SPL_VAR_APP_DIR/x`, `${base%/*}/var/${org##*/}` (the helper's form), `/var/log/x`, `/opt/tf/bin`, the spelled form under a `tests/` dir. **Tree:** `pass` with 19 files left; the existing literal check still passes with its 1 file. Seen RED then GREEN, outputs in the body (C2). Pass lines 1.5's 8 plus the new ones. Tests: `no-literal-paths.tst.sh`, `bash-cleancode.tst.sh` (`SPOOL_TEST=1`), `cd csi-spl-iac && ./run -a do_check_pre_push`; R9: once under `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset, before the first push. | either | claude | tests | 1 |
-| 02 `refactor(r77-02-orc-box-sessions-var-app-subdir)` | canonical paths (2.3.1); folded helpers exist once (2.2.4) | the 2 box-sessions cron scripts spell their state dir by hand; the run lib's helper derives the same dir (1.4, 3 of 3) | `orc:features/box-sessions/scripts/save-sessions.sh:40-41`<br>`orc:features/box-sessions/scripts/sessions-boot.sh:40-41`<br>`orc:tests/no-literal-paths-spelled.baseline` (drop the 2 lines)<br>(+ one new case in `orc:features/box-sessions/tests/test-box-sessions.sh`) | 2 sites | Each site takes 1.4's shape. **Gate:** row 01's ratchet, baseline 19 -> **17** files (21 -> 19 lines); the 2 entries dropped in this commit, else its STALE check fails. **New case:** `BOX_SESSIONS_DIR` unset (`env -u`), `SPL_VAR_APP_DIR=$T/var`: a `save-sessions.sh --stdout` against the suite's own tmux socket writes `$T/var/box-sessions/state.tsv`, and a `sessions-boot.sh --foreground` reads it from there (its marker or `boot.log` under `$T/var/box-sessions`); nothing else is created. **Red control:** that case FAILs on the parent, run ONLY on a scratch copy (`git archive` of the parent laid out as `$T/opt/acme/acme-app/acme-app-orc/...`), whose hand form names `/var/acme/acme-app/box-sessions`, a dir that does not exist (1.4: never run the parent's scripts from a live tree with the override unset); output in the body. **Behaviour:** on this box, the derived dir printed by both forms is equal for the 3 trees of 1.4, re-run on the lane's start sha, in the body. Suite pass lines 1.5's 44 plus the new ones. Tests: `test-box-sessions.sh`, `no-literal-paths.tst.sh`, `orc:tests/install-box-crons.tst.sh`, `orc:tests/boot-cron-gate.tst.sh`, `bash-cleancode.tst.sh` (`SPOOL_TEST=1`), `cd csi-spl-iac && ./run -a do_check_pre_push_lint` (shellcheck follows the new `source=`), `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 2 (after 01) |
+| 02 `refactor(r77-02-orc-box-sessions-var-app-subdir)` | canonical paths (2.3.1); folded helpers exist once (2.2.4) | the 2 box-sessions cron scripts spell their state dir by hand; the run lib's helper derives the same dir (1.4, 3 of 3) | `orc:features/box-sessions/scripts/save-sessions.sh:40-41`<br>`orc:features/box-sessions/scripts/sessions-boot.sh:40-41`<br>`orc:tests/no-literal-paths-spelled.baseline` (drop the 2 lines)<br>(+ one new case in `orc:features/box-sessions/tests/test-box-sessions.sh`) | 2 sites | Each site takes 1.4's shape. **Gate:** row 01's ratchet, baseline 19 -> **17** files (21 -> 19 lines); the 2 entries dropped in this commit, else its STALE check fails. **New case:** `BOX_SESSIONS_DIR` unset (`env -u`), `SPL_VAR_APP_DIR=$T/var`: a `save-sessions.sh --stdout` against the suite's own tmux socket writes `$T/var/box-sessions/state.tsv`, and a `sessions-boot.sh --foreground` reads it from there (its marker or `boot.log` under `$T/var/box-sessions`); nothing else is created. **Red control:** that case FAILs on the parent, run ONLY on a scratch copy of the parent's **`csi-spl-orc` subtree**, renamed so its own dir is `acme-app-orc`: `mkdir -p $T/opt/acme/acme-app/acme-app-orc && git archive <parent> csi-spl-orc | tar -x --strip-components=1 -C $T/opt/acme/acme-app/acme-app-orc` (panel W1: a whole-repo archive keeps the dir name `csi-spl-orc`, so the hand form names the LIVE `/var/<org>/<org>-<app>/box-sessions`). Its hand form then names `/var/acme/acme-app/box-sessions`; check `[[ ! -e /var/acme ]]` first, and the run fails `cannot create /var/acme/acme-app/box-sessions`, rc 1 (1.4: never run the parent's scripts from a live tree with the override unset); output in the body. **Behaviour:** on this box, the derived dir printed by both forms is equal for the 3 trees of 1.4, re-run on the lane's start sha, in the body. Suite pass lines 1.5's 44 plus the new ones. Tests: `test-box-sessions.sh`, `no-literal-paths.tst.sh`, `orc:tests/install-box-crons.tst.sh`, `orc:tests/boot-cron-gate.tst.sh`, `bash-cleancode.tst.sh` (`SPOOL_TEST=1`), `cd csi-spl-iac && ./run -a do_check_pre_push_lint` (shellcheck follows the new `source=`), `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 2 (after 01) |
 
 **Re-measure first:** each row lane re-runs 1.3's count (pattern and scope), the line reads
 and 1.4's same-dir proof on the `origin/master` it starts from, and says in its result if
@@ -251,7 +253,10 @@ Row paths: `orc:tests/no-literal-paths.tst.sh`, `orc:tests/no-literal-paths.base
   (`c002-s-multicast-prompt-spec.md`, `c002-s123-p02-*`, `c002-s123-p04-*`,
   `c002-s182-l1-*`, `-l2b-*`, `-l3-*`, plus every `s033`, `s186`, `bug-round-29`, SPL-6073
   and commit-links brief), 18:14:08Z: `grep -lE 'no-literal-paths|box-sessions|save-sessions|sessions-boot|spelled'`
-  -> **0 files**; with the 17 other 1.3 basenames added -> 0 files.
+  -> **0 files**; with the 17 other 1.3 basenames added -> 0 files. The panel seat's
+  read from the same box at about 18:3xZ (N1): exit 4 with **16** no-file lanes, 4 more
+  (c-229, c-231, c-256, a-045), whose briefs are not on this box. The holder re-checks
+  them before placing r77-01.
 - **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, 2026-11-20T18:14:18Z):
   **40 queued, 0 placing**: spec 184 (agent model), spec 033 T022-T027, spec 123 P05, P07
   and its cost-labels L2-L7, a WUI Qto doc lane. Every brief on this box changed in the
@@ -327,8 +332,9 @@ says. Kind `tests`, vendor claude.
 `orc:tests/no-literal-paths.tst.sh`, NOT the cron installer (`do_install_box_crons`) or
 its cnf, NOT the stub-writing tests (`boot-cron-gate.tst.sh`, `peer-restart.tst.sh`). Do:
 plan section 2 row 02 verbatim, 1.4's shape; the red control ONLY on a scratch copy of
-the parent (never the parent's scripts from a live tree with `BOX_SESSIONS_DIR` unset:
-they write the box's live state dir); the 3-tree same-dir proof; the suite's counts in
+the parent's `csi-spl-orc` subtree extracted as `acme-app-orc` (the row's command; never
+a whole-repo archive, and never the parent's scripts from a live tree with
+`BOX_SESSIONS_DIR` unset: they write the box's live state dir); the 3-tree same-dir proof; the suite's counts in
 the body. Gates: `test-box-sessions.sh`, `no-literal-paths.tst.sh`,
 `install-box-crons.tst.sh`, `boot-cron-gate.tst.sh`, `bash-cleancode.tst.sh`
 (`SPOOL_TEST=1`), `cd csi-spl-iac && ./run -a do_check_pre_push_lint`,
@@ -373,11 +379,34 @@ the body. Gates: `test-box-sessions.sh`, `no-literal-paths.tst.sh`,
   `spl_var_app_subdir` (same dir on this box's 3 tree kinds, 3 of 3) and lowers row 01's
   baseline. Serialised on the baseline file (batch 1, then 2). Window W and the r77 slug
   proof recorded.
+- v1.0 (c-481): the panel seat m-484 (mistral) PASS on v0.1
+  `8badbf4730a90e9abf2a4eeb118020aba17c3ea5` (spool msg 277ad0e7, task
+  `dispatch-refactor-r77`; seat file `c05c76d17` on
+  `review/c002-refactor-round-77-mistral-seat`). Its findings:
+  - W1: row 02's red control named the scratch layout as "`git archive` of the parent
+    laid out as `$T/opt/acme/acme-app/acme-app-orc/...`". Read as a whole-repo archive,
+    the orc dir keeps the name `csi-spl-orc`, so the parent's hand form names the live
+    state dir. Fixed: the row names the `csi-spl-orc` subtree archive extracted as
+    `acme-app-orc` (the seat verified it: rc 1, `cannot create /var/acme/acme-app/box-sessions`,
+    `/var/acme` absent), a `[[ ! -e /var/acme ]]` check first, and the brief repeats it.
+  - N1: the lane map listed 16 no-file lanes at the seat's read, 4 more than 2.2's 12;
+    recorded in 2.2, the holder re-checks them before placing r77-01.
+  - N2: the seat's first red-control run, on the whole-repo reading, wrote the live
+    `box-sessions/state.tsv` once (18:32:40Z, as the agent OS user); the box's cron
+    rewrote it within a minute and the seat removed its one archive snapshot; one line
+    is left in `save.log`. The seat reports the live state intact. The cause is W1.
+  - N3: `origin/master` moved 3 commits past `7df5cecfc`; none touches a row file. The
+    row lanes re-measure on their start sha.
+  - N4: 1.5's counts, 1.3's count (21 in 19) and the perf floor reproduce.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-481 (claude): v0.1.
-- Panel reviewer seat: requested (section 4).
+- Editor seat: c-481 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-484 (mistral) PASS** on
+  `8badbf4730a90e9abf2a4eeb118020aba17c3ea5` (spool msg 277ad0e7; seat file `c05c76d17`
+  on `review/c002-refactor-round-77-mistral-seat`), W1 fixed, N1-N4 recorded. agy was
+  unavailable (out until about 11-24), so mistral took the seat. Its review-line check:
+  for the holder to confirm (rc 0) before this plan lands.
 - Row R7 seats: section 4.

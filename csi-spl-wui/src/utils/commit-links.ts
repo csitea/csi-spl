@@ -12,7 +12,8 @@
  * a bare url are left as written, the id-link rules. An inline code span
  * whose whole content is a hash links too (HUM-10 t1 0f2ed820 msg 8847e183:
  * agents write shas as `368450c92`), shown as code; an 8-hex span that is a
- * known topic or message id (isId) stays an id, never a commit.
+ * known topic or message id (isId) stays an id, never a commit, and so does a
+ * hex right after a word that names an id (topic, msg, task, ask: ID_WORD_RE).
  *
  * Loaded lazily (plugins/commit-links.client.ts) and reached through
  * utils/commit-link-hook.mjs, so the initial chunk does not grow. Pure: node
@@ -34,8 +35,10 @@ const HASH_RE = /(?<![0-9A-Za-z_\-/.#@])[0-9a-fA-F]{7,40}(?![0-9A-Za-z_\-/@]|\.[
 const HAS_RUN = /[0-9a-fA-F]{7}/
 const MD_LANG = /^(?:md|markdown)$/i
 /* HUM-10 t1 67e2039a (SPL-1164 "in topic bea3a4e6"): a hex the text names as
-   a topic, discussion or message is an id, never a commit */
-const ID_WORD_RE = /\b(?:topics?|discussions?|threads?|msgs?|messages?|replies|reply|task(?:_id)?|msg_id)\s*(?:id\s*)?[:#=]?\s*$/i
+   a topic, discussion or message is an id, never a commit. SPL-6073 (t1
+   15c359fd msg cf05b3ef): an ask too ("- ask 0afbe165, 30 min in line",
+   ask_id, ASK_ID=), the 8-hex ask-book id the SPAWN QUEUE alert prints */
+const ID_WORD_RE = /\b(?:topics?|discussions?|threads?|msgs?|messages?|replies|reply|task(?:_id)?|msg_id|asks?|ask_id)\s*(?:id\s*)?[:#=]?\s*$/i
 
 /* closed fences, inline code, markdown links, and bare urls (id-links.mjs) */
 const PROTECT_RE = /```[\s\S]*?```|`{1,2}[^`\n]+`{1,2}|\[[^\]\n]+\]\([^)\n]+\)|https?:\/\/[^\s<>)\]]+|www\.[^\s<>)\]]+/gi

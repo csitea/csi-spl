@@ -168,3 +168,25 @@ Backfill of the older commits: once the hub with rdb 0261 is on prd, one
 `ENV=prd DRY_RUN=0 ./run -a do_release_note_backfill` (csi-spl-orc) re-sends
 every commit with its keys. It is a prd write, run by the dispatch holder.
 Until then a deploy's own ingest refills the newest 500.
+
+## 6. Which hex in a post links to a commit (WUI)
+
+A post's text links a commit to `<repo_web_url><repo_commit_path><sha>`
+(cnf `env.wui.repo_*`): a 7..40 hex token with at least one digit and one
+letter, standing on its own, or an inline code span that is only such a
+token. Code: `csi-spl-wui/src/utils/commit-links.ts`.
+
+An id has the same shape, so it never links as a commit when:
+
+- the id linker owns it (a known topic or message id), or
+- the word right before it names an id: `topic`, `discussion`, `thread`,
+  `msg`, `message`, `reply`, `task` / `task_id`, `msg_id`, and `ask` /
+  `asks` / `ask_id` (SPL-6073: the SPAWN QUEUE alert's "- ask 0afbe165, 30
+  min in line" opened a forge 404, t1 15c359fd msg cf05b3ef), optionally
+  followed by `id` and `:`, `#` or `=`, so `ASK_ID=0afbe165` and
+  `ask id: 0afbe165` stay text too.
+
+Only the hex right after the word counts: in "asks 0afbe165, 1f5e074b" the
+second one is unnamed and still links. A sha after `commit`, `landed`, `fix`
+or `sha` links as before. Tests: `csi-spl-wui/tests/unit/commit-links.test.mjs`,
+`csi-spl-wui/tests/e2e/commit-links.test.mjs`.

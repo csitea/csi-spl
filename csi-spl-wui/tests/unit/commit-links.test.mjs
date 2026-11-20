@@ -72,6 +72,15 @@ ok('markdown: the SPL-1164 sentence stays text', linkifyCommitMarkdown('in topic
 ok('a code span named as a topic is not a commit', links(linkifyCommitBlocks([{ type: 'para', parts: [{ type: 'text', text: 'in topic ' }, { type: 'inline', text: 'bea3a4e6' }] }], P)[0].parts).length === 0)
 ok('control: a code span after "commit" links', links(linkifyCommitBlocks([{ type: 'para', parts: [{ type: 'text', text: 'commit ' }, { type: 'inline', text: 'bea3a4e6' }] }], P)[0].parts).length === 1)
 
+/* SPL-6073 (t1 15c359fd msg cf05b3ef): c-001's SPAWN QUEUE alert says
+   "- ask 0afbe165, 30 min in line"; the WUI linked the ask id as a commit and
+   the click opened a 404. A hex the text names as an ask is an id too. */
+ok('SPL-6073: "ask 0afbe165" (the alert line) is not a commit link', t('- ask 0afbe165, 30 min in line, held by: CPU overflow').length === 0)
+ok('ask / asks / ask_id / ASK_ID= / ask id: <hex> are ids', t('asks 0afbe165, ask_id 0afbe165, ASK_ID=0afbe165, ask id: 0afbe165, Ask #0afbe165').length === 0)
+ok('a code span named as an ask is not a commit', links(linkifyCommitBlocks([{ type: 'para', parts: [{ type: 'text', text: 'ask ' }, { type: 'inline', text: '0afbe165' }] }], P)[0].parts).length === 0)
+ok('control: a word that only ends like ask still links (task is its own rule)', t('flask 0afbe165').join() === '0afbe165')
+ok('control: a sha after "landed" / "fix" / "sha" in the same alert still links', t('ask 0afbe165 landed in 785470e9c, fix 785470e9d, sha 785470e9e').join() === '785470e9c,785470e9d,785470e9e')
+
 /* the seam: nothing registered (a unit test, the cnf unset, chunk not loaded) = the old tree */
 setCommitLinkProvider(null)
 ok('hook: no provider is null', activeCommitLinker() === null)

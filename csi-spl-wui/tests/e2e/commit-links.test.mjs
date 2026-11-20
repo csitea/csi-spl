@@ -9,6 +9,9 @@
 // /issues?issue=<KEY> in this tab; another prefix and a key in a fence stay text.
 // SPL-4788 (topic d60646d9 msg 9030e104): a key of this prefix past the
 // workspace's last issue number (the mock tenant has SPL-1 only) stays text.
+// SPL-6073 (t1 15c359fd msg cf05b3ef): the SPAWN QUEUE alert line "- ask
+// 0afbe165, 30 min in line" linked its ask id as a commit (a 404 on the
+// forge); a hex named as an ask stays text, a sha after "landed" still links.
 //
 // Run: node tests/e2e/commit-links.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset; export the
@@ -26,7 +29,9 @@ const FENCED = 'c90606373'
 const KEY = 'SPL-1'
 const CODED_KEY = 'SPL-1'
 const PAST = 'SPL-4778'
-const BODY = `landed in ${HASH} on master for ${KEY}\nnot a commit ${UUID} or 20261004, not ours OTHER-12, not here ${PAST}\ncode \`${CODED}\` and \`${CODED_KEY}\`\n\`\`\`\nSPL-14 ${FENCED}\n\`\`\``
+const ASK = '0afbe165'
+const ASK_LINE = `- ask ${ASK}, 30 min in line, held by: CPU overflow`
+const BODY = `landed in ${HASH} on master for ${KEY}\nnot a commit ${UUID} or 20261004, not ours OTHER-12, not here ${PAST}\ncode \`${CODED}\` and \`${CODED_KEY}\`\n${ASK_LINE}\n\`\`\`\nSPL-14 ${FENCED}\n\`\`\``
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -119,6 +124,7 @@ try {
   ok('an issue key links to /issues?issue=<KEY> in this tab', keyLink && /\/issues\?issue=SPL-1$/.test(keyLink.href) && !keyLink.target, s.links)
   ok('an issue key alone in inline code links too', codedKeyLink && /\/issues\?issue=SPL-1$/.test(codedKeyLink.href), s.links)
   ok('another prefix stays text', !s.links.some((a) => a.text === 'OTHER-12'), s.links)
+  ok('an ask id in the SPAWN QUEUE alert line stays text (SPL-6073)', !s.links.some((a) => a.text === ASK || a.href.endsWith(ASK)), s.links)
   ok('a key past the last issue number stays text (SPL-4788)', !s.links.some((a) => a.text === PAST), s.links)
   if (keyLink) {
     await p.click(`article.msg[data-msg-id="${carrier.msg_id}"] a.msg-link[href$="issue=${KEY}"]`)

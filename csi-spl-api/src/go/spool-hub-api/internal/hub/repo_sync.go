@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path"
 	"sort"
@@ -57,6 +58,18 @@ const repoSyncPATError = "pat_kms: no sealed token store yet"
 // ErrRepoSyncRefused: the repo is not one the workspace registered for the
 // hub to sync (another workspace's slug, none, or ingest_only).
 var ErrRepoSyncRefused = errors.New("repo sync: that repo is not registered for this workspace's sync")
+
+// ErrRepoSyncBusy: another sync (this instance or another) holds the repo.
+var ErrRepoSyncBusy = errors.New("repo sync: another sync holds the repo")
+
+// ErrRepoSyncOff: the sync is not switched on (Options.RepoSync nil).
+var ErrRepoSyncOff = errors.New("repo sync is off")
+
+// errRepoSyncGap: the row's cursor is not among the newest repoSyncBackfill
+// trunk commits (history rewritten, or a gap too large). The sync stores
+// what it read and moves the cursor, but the row says error, never ok
+// (R7 N1 of SPL-5808, SPL-6006).
+var errRepoSyncGap = errors.New("repo sync: cursor not found")
 
 // RepoSyncReader is the slice of github.RepoReader the sync reads.
 type RepoSyncReader interface {
@@ -151,7 +164,7 @@ func (s *Server) RepoSyncOnce(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		res, err := s.SyncRepo(ctx, t.Tenant, t.Slug)
+		res, err := s.syncLocked(ctx, st, t)
 		if err != nil {
 			s.o.Log.Warn().Str("repo", t.Slug).Str("err", err.Error()).Msg("repo sync")
 			continue
@@ -169,23 +182,35 @@ func (s *Server) RepoSyncOnce(ctx context.Context) error {
 func (s *Server) SyncRepo(ctx context.Context, tenant, slug string) (RepoSyncResult, error) {
 	st, on := s.repoSyncStores()
 	if !on {
-		return RepoSyncResult{}, errors.New("repo sync is off")
+		return RepoSyncResult{}, ErrRepoSyncOff
 	}
 	t, err := s.repoSyncTarget(ctx, st, tenant, slug)
 	if err != nil {
 		return RepoSyncResult{}, err
 	}
-	release, held, err := st.rs.TryRepoSyncLock(ctx, slug)
-	if err != nil || !held {
-		return RepoSyncResult{}, errors.Join(errors.New("repo sync: another sync holds "+slug), err)
+	return s.syncLocked(ctx, st, t)
+}
+
+// syncLocked syncs t under its lock and writes the state back. A gap
+// (errRepoSyncGap) keeps the new cursor; any other error keeps the old one.
+func (s *Server) syncLocked(ctx context.Context, st repoSyncStores, t store.RepoSyncTarget) (RepoSyncResult, error) {
+	release, held, err := st.rs.TryRepoSyncLock(ctx, t.Slug)
+	if err != nil {
+		return RepoSyncResult{}, err
+	}
+	if !held {
+		return RepoSyncResult{}, fmt.Errorf("%w: %s", ErrRepoSyncBusy, t.Slug)
 	}
 	defer release()
 	res, err := s.syncRepo(ctx, st, t)
 	state := store.RepoSyncState{SHA: res.Cursor, At: s.o.Now(), Status: "ok"}
 	if err != nil {
-		state.SHA, state.Status, state.Error = "", "error", err.Error()
+		state.Status, state.Error = "error", err.Error()
+		if !errors.Is(err, errRepoSyncGap) {
+			state.SHA = ""
+		}
 	}
-	if perr := st.rs.PutRepoSyncState(ctx, tenant, slug, state); perr != nil {
+	if perr := st.rs.PutRepoSyncState(ctx, t.Tenant, t.Slug, state); perr != nil {
 		return res, errors.Join(err, perr)
 	}
 	return res, err
@@ -229,7 +254,7 @@ func (s *Server) syncRepo(ctx context.Context, st repoSyncStores, t store.RepoSy
 	if err != nil {
 		return RepoSyncResult{}, err
 	}
-	commits, _, err := rd.CommitsSince(ctx, t.TrunkBranch, t.LastSyncedSHA, repoSyncBackfill)
+	commits, found, err := rd.CommitsSince(ctx, t.TrunkBranch, t.LastSyncedSHA, repoSyncBackfill)
 	if err != nil {
 		return RepoSyncResult{}, err
 	}
@@ -245,8 +270,15 @@ func (s *Server) syncRepo(ctx context.Context, st repoSyncStores, t store.RepoSy
 		res.Cursor = commits[0].SHA
 	}
 	res.Versioned, err = s.versionLate(ctx, st, t, commits, tags)
+	if err == nil && t.LastSyncedSHA != "" && !found {
+		err = fmt.Errorf("%w: %s is not in the newest %d commits of %s (history rewritten, or a gap too large); older commits are not synced",
+			errRepoSyncGap, shortSHA(t.LastSyncedSHA), repoSyncBackfill, t.TrunkBranch)
+	}
 	return res, err
 }
+
+// shortSHA is the first 12 characters of sha.
+func shortSHA(sha string) string { return sha[:min(len(sha), 12)] }
 
 // repoVersionTags is sha -> version: the tags matching glob and the tags
 // of published Releases. A sha with several takes the lowest name; a tag

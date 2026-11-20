@@ -183,52 +183,66 @@ func (r *RepoReader) CommitTopFolder(ctx context.Context, sha string) (string, e
 	return best, nil
 }
 
-// tagPages caps the tag and release lists, 100 per page.
-const tagPages = 10
+// tagPages caps the tag and release lists, 100 per page: 5000 of each. A
+// repo with more is an error (ErrTooManyTags), never a silent cut: a cut
+// list leaves the commits of the missing tags unversioned (R7 W1 of
+// SPL-5808, SPL-6006).
+const tagPages = 50
+
+// ErrTooManyTags: the repo has more tags or releases than tagPages pages.
+var ErrTooManyTags = errors.New("repo sync: more than 5000 tags or releases; the list is not read")
+
+// listPages reads what, 100 per page, until a short page; one page past
+// tagPages that still has items is ErrTooManyTags.
+func listPages[T any](ctx context.Context, r *RepoReader, what, path string) ([]T, error) {
+	var out []T
+	for page := 1; ; page++ {
+		var got []T
+		q := url.Values{"per_page": {strconv.Itoa(commitsPage)}, "page": {strconv.Itoa(page)}}
+		if err := r.get(ctx, what, path+"?"+q.Encode(), &got); err != nil {
+			return nil, err
+		}
+		if page > tagPages && len(got) > 0 {
+			return nil, ErrTooManyTags
+		}
+		out = append(out, got...)
+		if len(got) < commitsPage {
+			return out, nil
+		}
+	}
+}
 
 // Tags lists the repo's tags, at most tagPages pages.
 func (r *RepoReader) Tags(ctx context.Context) ([]RepoTag, error) {
-	var out []RepoTag
-	for page := 1; page <= tagPages; page++ {
-		var got []struct {
-			Name   string `json:"name"`
-			Commit struct {
-				SHA string `json:"sha"`
-			} `json:"commit"`
-		}
-		q := url.Values{"per_page": {strconv.Itoa(commitsPage)}, "page": {strconv.Itoa(page)}}
-		if err := r.get(ctx, "repo-tags", "/tags?"+q.Encode(), &got); err != nil {
-			return nil, err
-		}
-		for _, g := range got {
-			out = append(out, RepoTag{Name: g.Name, SHA: g.Commit.SHA})
-		}
-		if len(got) < commitsPage {
-			break
-		}
+	got, err := listPages[struct {
+		Name   string `json:"name"`
+		Commit struct {
+			SHA string `json:"sha"`
+		} `json:"commit"`
+	}](ctx, r, "repo-tags", "/tags")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RepoTag, 0, len(got))
+	for _, g := range got {
+		out = append(out, RepoTag{Name: g.Name, SHA: g.Commit.SHA})
 	}
 	return out, nil
 }
 
 // Releases lists the repo's releases, at most tagPages pages.
 func (r *RepoReader) Releases(ctx context.Context) ([]RepoRelease, error) {
-	var out []RepoRelease
-	for page := 1; page <= tagPages; page++ {
-		var got []struct {
-			TagName     string    `json:"tag_name"`
-			Draft       bool      `json:"draft"`
-			PublishedAt time.Time `json:"published_at"`
-		}
-		q := url.Values{"per_page": {strconv.Itoa(commitsPage)}, "page": {strconv.Itoa(page)}}
-		if err := r.get(ctx, "repo-releases", "/releases?"+q.Encode(), &got); err != nil {
-			return nil, err
-		}
-		for _, g := range got {
-			out = append(out, RepoRelease{TagName: g.TagName, Draft: g.Draft, PublishedAt: g.PublishedAt})
-		}
-		if len(got) < commitsPage {
-			break
-		}
+	got, err := listPages[struct {
+		TagName     string    `json:"tag_name"`
+		Draft       bool      `json:"draft"`
+		PublishedAt time.Time `json:"published_at"`
+	}](ctx, r, "repo-releases", "/releases")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RepoRelease, 0, len(got))
+	for _, g := range got {
+		out = append(out, RepoRelease{TagName: g.TagName, Draft: g.Draft, PublishedAt: g.PublishedAt})
 	}
 	return out, nil
 }

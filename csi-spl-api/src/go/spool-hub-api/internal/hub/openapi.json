@@ -18084,6 +18084,93 @@
         ]
       }
     },
+    "/v1/repos/{owner}/{name}/sync": {
+      "post": {
+        "description": "Spec 143 releases-projects.md row B-6b part 2 (SPL-6006): a workspace admin, signed in as themself, runs the hub's own GitHub sync of one repo the workspace registered, at once (the same sync as the 5-minute loop: commits since last_synced_sha, tags and releases as versions, every row through the ingest's checks). The slug is lowercased. 403 for anyone but the admin; 404 not_registered for a repo this workspace has not registered for the sync, before any GitHub call; 409 sync_busy while another sync holds the repo; 503 repo_sync_off while the hub's sync is off (SPOOL_HUB_REPO_SYNC_ENABLED). A GitHub failure, or a cursor no longer on trunk, answers 200 with sync_status error and its sync_error, as written back on the repo row.",
+        "operationId": "postRepoSyncNow",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "owner",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "redacted": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "integer"
+                    },
+                    "repo_slug": {
+                      "type": "string"
+                    },
+                    "stored": {
+                      "type": "integer"
+                    },
+                    "sync_error": {
+                      "type": "string"
+                    },
+                    "sync_status": {
+                      "enum": [
+                        "ok",
+                        "error"
+                      ],
+                      "type": "string"
+                    },
+                    "versioned": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "not_registered: this workspace has not registered that repo for the sync"
+          },
+          "409": {
+            "description": "sync_busy: another sync of that repo is running"
+          },
+          "503": {
+            "description": "repo_sync_off: this hub does not sync repos"
+          }
+        },
+        "summary": "Sync one of the workspace's repos from GitHub now (\"Sync now\")",
+        "tags": [
+          "release-notes"
+        ]
+      }
+    },
     "/v1/takeover-ladder": {
       "get": {
         "operationId": "getTakeoverLadder",
@@ -22349,6 +22436,90 @@
         "summary": "Read view topics children",
         "tags": [
           "view"
+        ]
+      }
+    },
+    "/v1/webhooks/github": {
+      "post": {
+        "description": "Spec 143 releases-projects.md row B-6b part 2, spec 171 section 3.4.1 (SPL-6006). Mounted only while the hub's sync is on and SPOOL_HUB_REPO_SYNC_WEBHOOK_SECRET is set; otherwise 404. Not tenant-scoped: X-Hub-Signature-256 (sha256= HMAC-SHA256 of the body under the webhook secret, compared in constant time) is the only credential, 401 bad_signature else. A body over 1 MiB is 413 too_large with no sync (the 5-minute loop catches up). X-GitHub-Event ping and any event but push and release answer 204. A push to a registered row's trunk branch, or a release, starts in the background one sync per workspace that registered repository.full_name, at most one in flight per (workspace, repo); a trigger whose repo is already syncing is dropped. Answers 202 {started} at once.",
+        "operationId": "postGitHubWebhook",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Hub-Signature-256",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-GitHub-Event",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "ref": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "properties": {
+                      "full_name": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "started": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Accepted: {started}, the syncs started"
+          },
+          "204": {
+            "description": "ping, or an event the sync does not use"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "bad_signature: X-Hub-Signature-256 does not match"
+          },
+          "413": {
+            "description": "too_large: the body is over 1 MiB"
+          },
+          "503": {
+            "description": "unavailable: the synced repos were not read"
+          }
+        },
+        "security": [],
+        "summary": "GitHub App webhook: sync a pushed or released repo",
+        "tags": [
+          "release-notes"
         ]
       }
     },

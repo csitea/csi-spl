@@ -10,6 +10,13 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 )
 
+// repoSyncOptions sets the hub's repo sync and, for its webhook route
+// (SPL-6006), the webhook secret: "" = no webhook route.
+func repoSyncOptions(opts *hub.Options, hc *config.Hub, log zerolog.Logger) {
+	opts.RepoSync = repoSync(hc, log)
+	opts.RepoSyncWebhookSecret = hc.RepoSyncWebhookSecret
+}
+
 // repoSync wires the hub's own GitHub sync of workspace repos (spec 143
 // releases-projects.md row B-6b, SPL-5808): nil (off) unless
 // SPOOL_HUB_REPO_SYNC_ENABLED. It reads through the fleet GitHub App, the

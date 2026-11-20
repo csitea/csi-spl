@@ -85,3 +85,28 @@ func TestRepoReaderTagsReleasesAndNoKey(t *testing.T) {
 		t.Fatalf("releases: %+v %v", rels, err)
 	}
 }
+
+// R7 W1 of SPL-5808 (SPL-6006): the tag list reads past 1000 tags, and a
+// repo with more than 5000 is an error, never a silent cut. RED CONTROL:
+// tagPages = 10 (part 1's cap) reads 1000 of the 1001 and fails here.
+func TestRepoReaderTagsPastAThousand(t *testing.T) {
+	fake := githubtest.NewRepos(t)
+	fake.Put("org/many", &githubtest.FakeRepo{Public: true, Commits: fixtureCommits(1)})
+	fake.Put("org/toomany", &githubtest.FakeRepo{Public: true, Commits: fixtureCommits(1)})
+	for i := range 1001 {
+		fake.Tag("org/many", fmt.Sprintf("t%05d", i), fmt.Sprintf("%040x", 1))
+	}
+	for i := range 5001 {
+		fake.Tag("org/toomany", fmt.Sprintf("t%05d", i), fmt.Sprintf("%040x", 1))
+	}
+	app, _ := github.NewRepoApp(github.RepoAppConfig{API: fake.URL})
+	ctx := context.Background()
+	rd, _ := app.Reader("org", "many", "")
+	if tags, err := rd.Tags(ctx); err != nil || len(tags) != 1001 || tags[1000].Name != "t01000" {
+		t.Fatalf("1001 tags: read %d, %v; want all 1001", len(tags), err)
+	}
+	rd, _ = app.Reader("org", "toomany", "")
+	if tags, err := rd.Tags(ctx); !errors.Is(err, github.ErrTooManyTags) {
+		t.Fatalf("5001 tags: read %d, %v; want ErrTooManyTags", len(tags), err)
+	}
+}

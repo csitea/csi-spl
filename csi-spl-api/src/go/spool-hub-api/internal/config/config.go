@@ -342,6 +342,10 @@ type Hub struct {
 	// RepoSyncGitHubAPI "" uses DocsEditGitHubAPI. Off by default.
 	RepoSyncEnabled   bool   `env:"SPOOL_HUB_REPO_SYNC_ENABLED" envDefault:"false"`
 	RepoSyncGitHubAPI string `env:"SPOOL_HUB_REPO_SYNC_GITHUB_API"`
+	// RepoSyncWebhookSecret is the GitHub webhook secret of POST
+	// /v1/webhooks/github (SPL-6006): "" = the route is not mounted. A
+	// secret, from Secret Manager; set only on the owner's go.
+	RepoSyncWebhookSecret string `env:"SPOOL_HUB_REPO_SYNC_WEBHOOK_SECRET"`
 	// TenantHostPattern is "{tenant}.<fqdn>"; the tenant comes from the Host.
 	TenantHostPattern string        `env:"SPOOL_HUB_TENANT_HOST_PATTERN"`
 	AllowTextOnly     bool          `env:"SPOOL_HUB_ALLOW_TEXT_ONLY_WHEN_FILE_MISSING" envDefault:"false"`

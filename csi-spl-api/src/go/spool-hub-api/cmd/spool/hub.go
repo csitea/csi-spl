@@ -126,7 +126,7 @@ func cmdServe() int {
 		defer opts.Docs.Close()
 	}
 	opts.RepoEdit = repoEdit(ctx, hc, log, st, opts.Docs) // spec 075 repo-edit T08; nil = off
-	opts.RepoSync = repoSync(hc, log)                     // spec 143 releases-projects.md B-6b; nil = off
+	repoSyncOptions(&opts, hc, log)                       // spec 143 releases-projects.md B-6b; nil = off
 	if opts.WorkspaceDocs, err = workspaceDocs(cf, hc); err != nil {
 		return fail(err)
 	}

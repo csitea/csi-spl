@@ -54,9 +54,12 @@ type Options struct {
 	RepoEdit *RepoEdit
 	// RepoSync switches on the hub's own GitHub sync of workspace repos
 	// (spec 143 releases-projects.md row B-6b, repo_sync.go). nil = off.
-	RepoSync          *RepoSync
-	Log               zerolog.Logger
-	TenantHostPattern string // "{tenant}.<fqdn>"
+	RepoSync *RepoSync
+	// RepoSyncWebhookSecret mounts POST /v1/webhooks/github when RepoSync
+	// is on too (SPL-6006, repo_sync_routes.go); "" = not mounted.
+	RepoSyncWebhookSecret string
+	Log                   zerolog.Logger
+	TenantHostPattern     string // "{tenant}.<fqdn>"
 	// WUIApexTenant is the workspace served at the bare <fqdn>; "" = none.
 	WUIApexTenant string
 	HelloSkew     time.Duration
@@ -333,6 +336,7 @@ type Server struct {
 	wui          map[*wuiConn]struct{} // browser live sockets (wui.go)
 	fanned       fannedSet             // wui_wake.go (spec 059 S3), its own lock
 	wuiWaking    atomic.Bool           // the WUI wake worker runs: it pushes the flow mark frames (flow.go)
+	repoHooks    sync.Map              // repo_sync_routes.go: the webhook syncs in flight, per (tenant, slug) (SPL-6006 C1)
 	humans       humanIDs
 	online       map[[2]string]int // (tenant, HUM-*) → open browser sockets (presence)
 	closing      bool
@@ -594,6 +598,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	// SPL-4697: /v1/reporting/incomes (owner) + PUT /v1/operator/incomes, reporting_incomes.go
 	s.routeReportingIncomes(mux)
 	s.routeChannelBoxPins(mux) // spec 164 B2: /v1/channels/{channel}/box-pins + the operator PUT, channel_box_pins.go
+	s.routeRepoSync(mux)       // spec 143 B-6b part 2: "Sync now" + the GitHub webhook, repo_sync_routes.go
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

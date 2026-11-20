@@ -197,6 +197,9 @@ var demoOutOfReach = map[string]bool{
 	"POST /v1/embed/{embed_id}/relink/redeem": true,
 	// specs/121 T205: the customer's signed JWT, never a session
 	"POST /v1/embed/{embed_id}/signin": true,
+	// SPL-6006: GitHub's webhook, its HMAC signature only, never a session;
+	// not mounted while the repo sync is off
+	"POST /v1/webhooks/github": true,
 }
 
 // marketingRoute(mux, "...") registers a spec 090 route behind its gate.

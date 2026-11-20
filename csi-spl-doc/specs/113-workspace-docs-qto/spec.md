@@ -429,6 +429,14 @@ unless `DRY_RUN=0`). Tests: `go test -run TestDocTreeFolderDelete ./cmd/spool/`,
   project", never by its names, paths or hosts.
 - CSP strict; i18n per the repo language rule (agy reviews multilingual
   text last); dark and light themes.
+- The docs page shows the tree and the doc only (SPL-6064, owner HUM-10,
+  t1 18140959 msg 96212906: "I shoud see only the doc"): a forward
+  navigation to `/workspace/docs`, `/docs` or `/docs/*` closes the right
+  pane (a channel topic, the live pane, the operator console) on desktop as
+  on a phone
+  (`routeLeavesTopic` in `csi-spl-wui/src/utils/topic-pane.mjs`; e2e
+  `csi-spl-wui/tests/e2e/docs-closes-pane.test.mjs`). Back returns to the
+  channel.
 
 ## 9. Tests
 

@@ -10,9 +10,9 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-24-plan.md](bug-round-24-plan.md) (same shape, same 5 sources).
 
-**Status: v0.1, draft** for the panel.  
+**Status: v1.0**, for the panel's signature (folds the holder's answer to v0.1; no row changed).  
 Editor: **c-184@sat** (claude, `specs_and_docs`).  
-Panel: asked of the dispatch holder c-002@sat (section 8).
+Panel: one mistral seat, queued by the dispatch holder c-002@sat (ask 00cb4825, section 8).
 
 **One sha:** every count below is measured on **`82f0e0b0f`** (`origin/master`, committed 2026-11-20T03:18:42+01:00), on sat, between 02:25Z and 02:40Z on 2026-11-20, unless a row says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b24-plan')` -> `Window: W=2026-11-19T22:43:09+01:00` (commit `cb8f0f117`).
@@ -138,11 +138,12 @@ echo "rc01 sha=$sha tag=$tag rc=$rc"
 ## 8. Panel and reviewer (rulebook 3.2)
 
 - **Editor:** c-184@sat (claude, `specs_and_docs`).
-- **Panel:** asked of the holder c-002@sat with v0.1 (a cross-vendor seat; sat has no agy and grok is held, below). The panel checks the red control (rebuild `rc01.sh` from section 3.2; it needs bash, git and tmux only), the fix scope (the needles name the ALERT line; the action and `hasnt` are unchanged; the lane proves the fixed needles still fail on a copy that flags a shell), and that every other input in sections 2, 4 and 5 is measured as written.
-- **Asked of the holder with v0.1:** `<box2>`'s half of the slug check (section 3.1); a panel seat.
+- **Panel:** one mistral seat on sat (ask 00cb4825, slug `c002-bug-round-25-mistral-panel-seat`), queued by the holder c-002@sat (msg 9f30fbdb); grok is held and sat has no agy cli, so one non-claude seat. The panel checks the red control (rebuild `rc01.sh` from section 3.2; it needs bash, git and tmux only), the fix scope (the needles name the ALERT line; the action and `hasnt` are unchanged; the lane proves the fixed needles still fail on a copy that flags a shell), and that every other input in sections 2, 4 and 5 is measured as written.
+- **Asked of the holder with v0.1, answered** (msg 9f30fbdb): the panel seat (above); `<box2>`'s half of the slug check is asked of the orchestrator there, its outputs to follow (section 3.1; a non-zero count there holds the row's spawn, not the plan).
 - **Row reviewer (R7):** claude waiver seat (1a7c70da), fresh session, tree only. `cd csi-spl-orc && sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub BOX_PICK_KIND=grok ./run -a do_spl_box_pick` (02:32:41Z) -> `pick=hold reason=waiting: grok weekly >= 95% on sat, `<box2>` [sat 99% ...; `<box2>` 99% ...]`. Mistral reviews plans, not row code (c-001 ruling b71016ad), sat has no agy: the holder names this same-vendor review a waiver.
 - **Review history:**
-  - 2026-11-20 02:4xZ: the editor pushed v0.1 to `review/c002-bug-round-25-planner` and asked the holder for a panel.
+  - 2026-11-20 02:37Z: the editor pushed v0.1 (`fd658a9db`) to `review/c002-bug-round-25-planner` and asked the holder for a panel (msg 7dcca26d).
+  - 02:4xZ: the holder answered (msg 9f30fbdb): the mistral panel seat queued (ask 00cb4825), `<box2>`'s slug check asked there. v1.0 folds it; no row changed.
 
 ---
 
@@ -150,5 +151,5 @@ echo "rc01 sha=$sha tag=$tag rc=$rc"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-184@sat | **v0.1, draft** |
-| Panel | (asked of the holder) | pending |
+| Editor | c-184@sat | **v1.0** |
+| Panel | mistral seat, ask 00cb4825 (queued) | pending |

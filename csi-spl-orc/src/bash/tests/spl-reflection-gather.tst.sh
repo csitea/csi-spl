@@ -506,6 +506,11 @@ got="$(s6 SPL_VAR_APP_DIR="$T/v" REFLECTION_ZOMBIE_LOG="$T/zombie.log")"
 got="$(s6 SPL_RUN_PATHS_TOP=)"
 [[ "$got" == "(not read: no zombie sweep log: REFLECTION_ZOMBIE_LOG unset and no SPL_VAR_APP_DIR derived)" ]] &&
   pass "18. no override and no tree: one (not read line naming REFLECTION_ZOMBIE_LOG" || fail "18. no dir: $got"
+# r72-02: the derive runs in a $( ): no SPL_* export of spl_run_paths reaches the gather's shell
+got="$(env -u REFLECTION_ZOMBIE_LOG -u APP_PATH -u PROJ_PATH -u SPL_VAR_APP_DIR -u SPL_WT_ROOT SPL_RUN_PATHS_TOP="$T/b/csi/csi-spl" \
+  bash -c 'do_log() { :; }; source "$0"; spl_reflection_zombie >/dev/null; printf "%s" "${SPL_WT_ROOT-unset}"' "$FUNC" 2>&1)"
+[[ "$got" == unset ]] &&
+  pass "18. derived from the tree, SPL_WT_ROOT unset before: still unset in the caller after" || fail "18. no-leak: SPL_WT_ROOT=$got"
 
 # --- 13. the owner SQL on a REAL Postgres: an admin owner listed, a tester not ------
 # (SPL-5460: prd t1's owner holds role admin, not owner; the old role = 'owner'

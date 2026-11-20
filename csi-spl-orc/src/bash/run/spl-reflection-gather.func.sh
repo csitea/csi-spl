@@ -213,8 +213,8 @@ spl_reflection_gather_md() {
 spl_reflection_zombie() {
   local log="${REFLECTION_ZOMBIE_LOG:-}" out
   if [[ -z "$log" ]]; then
-    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
-    log="$( { spl_run_paths || :; } 2>/dev/null; printf '%s' "${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/zombie-topics/cron.log}")"
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    log="$(spl_var_app_subdir log zombie-topics/cron.log 2>/dev/null && printf '%s' "$log")"
   fi
   [[ -n "$log" ]] || { echo "(not read: no zombie sweep log: REFLECTION_ZOMBIE_LOG unset and no SPL_VAR_APP_DIR derived)"; return 0; }
   out="$(grep -h 'OK zombie sweep, night of' "$log" 2>/dev/null | tail -1)"

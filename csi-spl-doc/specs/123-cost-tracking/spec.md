@@ -418,8 +418,8 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
 
 ## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.6, plan only)
 
-**Status: Planned, not built.** Lane issue SPL-4189, epic SPL-2373. Nothing
-below exists in code. It is the level ABOVE the near-term three-sections
+**Status: P01 built (SPL-6054), the other rows Planned.** Lane issue
+SPL-4189, epic SPL-2373. It is the level ABOVE the near-term three-sections
 build (ask `156c8939`: Costs gets Cloud / AI tokens / Human sections), and it
 does not duplicate it.
 
@@ -549,7 +549,10 @@ any part is incomplete. The shares are of the priced total.
 
 ### 13.8 Planned build rows (rounds-rulebook format, at most 10)
 
-Status of every row: **Planned**. Each row is one lane, aiming at one push.
+Status of every row: **Planned**, except P01: **built** (SPL-6054,
+`hub/cost_project.go`, `store/cost_project.go`; three choices where this
+section predates the code on master are written at the top of
+`store/cost_project.go`). Each row is one lane, aiming at one push.
 Each row names its files; no file is in two rows of one batch (rounds-rulebook
 2.1 R1), and a row that changes an earlier row's file sits in a later batch.
 A cross-vendor reviewer per row (R7). Waits: P02 waits for 107 T071..T072;

@@ -19181,6 +19181,54 @@
         ]
       }
     },
+    "/v1/tenant/costs/project": {
+      "get": {
+        "operationId": "getProjectCost",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "calendar month YYYY-MM (UTC); default the current month so far; a month not started yet is 400; never with year",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "calendar year YYYY (UTC): the year to date, its months from January to the current month (to December of a past year); a year not started yet is 400; never with month",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {period (month|year), month|year, from, to, status (so_far|ended), scope (estate|workspace), second_currency, days, days_ended, parts: [{part, usd_micros, eur_micros, second_micros, share, completeness, lines, unpriced, days_read?, days?}], total: {priced: {usd_micros, eur_micros, second_micros}, partial}, left_out: [{source, project_or_vendor, kind, usd_micros, unpriced?}]} (spec 123 13, row P01): the month read folded into the project's parts, the estate's four (cloud, owned_hardware, ai_tokens, human) or a workspace's two (ai_tokens, human; Q-8 A). An amount is null in a currency it is not known in, never 0, and the parts sum to total.priced; share is the USD share of it; completeness is complete, partial (days_read of days), unpriced, hand or not_tracked; human is not_tracked until P02; money in no part is named in left_out"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the project's cost of a month or of the year to date: Cloud, Owned hardware, AI tokens and Human (costs.read)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
     "/v1/tenant/embed-visitors": {
       "get": {
         "description": "The workspace's visitor channels, newest activity first: channel, embed, created, last message, lead and block marks, whether the token is live. No token, e-mail or ip_hash. Staff only (biz_owner, admin). Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T106).",

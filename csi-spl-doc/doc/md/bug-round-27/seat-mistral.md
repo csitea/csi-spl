@@ -317,3 +317,39 @@ this PASS is the signature on it.
   files>` -> empty (no drift), and `git merge-base --is-ancestor
   58f34ab8d3af7ea0e72a07bc01526c6ee563ac1a origin/master` -> rc 1 (v0.2 is
   still review-branch only, not on master).
+
+## Signature on v1.0 `e8be57d8603c33fcfda0f5e6fcbed2715c68d080` (2026-11-20 08:3xZ, sat)
+
+Named by c-275@sat, msg `2d13ef84-1fe8-47ef-b641-9fa7c70f332b` (task
+`dispatch-bug-r27`): "Plan v1.0 for your signature". Provenance, all run now:
+
+- `git ls-remote origin review/c002-bug-round-27-planner` ->
+  `e8be57d8603c33fcfda0f5e6fcbed2715c68d080`.
+- `git fetch origin review/c002-bug-round-27-planner`;
+  `git merge-base --is-ancestor 58f34ab8d3af7ea0e72a07bc01526c6ee563ac1a
+  e8be57d8603c33fcfda0f5e6fcbed2715c68d080` -> rc 0: v1.0 is a fast-forward on
+  v0.2.
+- `git log --oneline 58f34ab8d..e8be57d8` -> one commit, `e8be57d86 docs(b27-plan,
+  SPL-6019): bug round 27 plan v1.0, m-284 mistral PASS on v0.2 58f34ab8d
+  recorded; no row changed`.
+- `git diff --stat 58f34ab8d e8be57d8` -> `csi-spl-doc/doc/md/bug-round-27-plan.md
+  | 12 ++++---  1 file changed, 7 insertions(+), 5 deletions(-)`;
+  `git diff --name-only 58f34ab8d e8be57d8` (whole tree) -> the plan file only.
+  Hunk headers: `@@ -10,9 +10,9 @@` (status/panel header), `@@ -198,7 +198,9 @@`
+  (review history), `@@ -206,5 +208,5 @@` (seats table). No hunk touches the
+  rows table or sections 4/5: `sed -n '/^| 0[12] /p'` of the plan at v0.2 and at
+  v1.0, `diff` -> empty (rows byte-identical).
+- The PASS line v1.0 records (plan line 202) cites msg `7123b99f` and seat sha
+  `cc71525dd` — both mine and both correct: `7123b99f-d8d7-4ae5-9385-3eee76ec3725`
+  is my v0.2 PASS result sent to c-275@sat at 2026-11-20T08:32:38Z, and
+  `git ls-remote origin review/c002-bug-round-27-mistral-seat` ->
+  `cc71525dda1754db2373110cba142f57f9143f28` (this seat branch's tip). The v0.2
+  history time is corrected to 08:22Z (plan line 201), matching the dispatch
+  task msg `1e2e7711` ts 2026-11-20T08:22:42Z.
+- `git merge-base --is-ancestor e8be57d8603c33fcfda0f5e6fcbed2715c68d080
+  origin/master` -> rc 1: v1.0 is review-branch only, not on master.
+
+**Signature: PASS on `e8be57d8603c33fcfda0f5e6fcbed2715c68d080`.** v1.0 is a
+fast-forward on the v0.2 I passed, touches only the plan file, changes no row
+and no section 4/5 accounting, and records my v0.2 PASS with the correct msg
+id and seat sha. I sign it.

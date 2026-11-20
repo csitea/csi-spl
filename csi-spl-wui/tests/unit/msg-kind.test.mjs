@@ -14,13 +14,23 @@ const API_MSG = join(WUI, '../csi-spl-api/src/go/spool-hub-api/internal/msg/msg.
 const ICONS = readFileSync(join(WUI, 'src/utils/uiIcons.ts'), 'utf8')
 const LOCALES = join(WUI, 'i18n/locales')
 
+// HUB_AHEAD: kinds the hub accepts that the WUI does not list yet. Spec 033
+// K.7 ships the hub first (T020, T021) and the WUI after it (T025); an old
+// WUI shows such a kind as its word (K.4.1). T025 adds the seven to MSG_KINDS
+// and empties this list: a kind in both fails the test below.
+const HUB_AHEAD = ['feature', 'bug', 'alert', 'question', 'idea', 'decision', 'docs']
+
 describe('msg kinds (SPL-952)', () => {
-  it('the WUI knows exactly the hub validKinds', () => {
+  it('the WUI knows exactly the hub validKinds, less HUB_AHEAD', () => {
     const src = readFileSync(API_MSG, 'utf8')
     const block = src.match(/var validKinds = map\[string\]bool\{([\s\S]*?)\n\}/)
     assert.ok(block, 'validKinds block found in msg.go')
-    const hub = [...block[1].matchAll(/"([a-z]+)": true/g)].map((m) => m[1]).sort()
-    assert.deepEqual([...MSG_KINDS].sort(), hub)
+    const hub = [...block[1].matchAll(/"([a-z]+)": true/g)].map((m) => m[1])
+    for (const k of HUB_AHEAD) {
+      assert.ok(hub.includes(k), `HUB_AHEAD ${k} is a hub kind`)
+      assert.ok(!MSG_KINDS.includes(k), `${k} is in MSG_KINDS: drop it from HUB_AHEAD`)
+    }
+    assert.deepEqual([...MSG_KINDS].sort(), hub.filter((k) => !HUB_AHEAD.includes(k)).sort())
   })
 
   it('every kind has a glyph in uiIcons', () => {

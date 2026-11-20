@@ -1,6 +1,6 @@
 # Spec 188: Channel rules dialog
 
-Status: **Draft v0.6** (2026-11-20). Lane `c-489` (`claude`, backup for
+Status: **Draft v0.7** (2026-11-20). Lane `c-489` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). Nothing below is built.
 Epic: **SPL-2403**. Issue: **SPL-6084**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:b1fe7670-8e80-4e67-b4d0-2a5484328981` (`t1`), task
@@ -27,7 +27,8 @@ History: v0.1 `582b96e85`. v0.2 `ed56ab310` folds the review of v0.1
 (W1-W6, N1-N8). v0.3 `6174758a1` folds the review of v0.2 (W7, W8,
 N9-N11). v0.4 `af8b34d7b` folds the review of v0.3 (W9, N12). v0.5
 `bd6a8f40c` folds the owner's answers Q1-Q8 and the review notes N13, N14.
-v0.6 folds the review of v0.5 (W10, N15-N17). The fold maps are section 9.
+v0.6 `b4a0cfb2a` folds the review of v0.5 (W10, N15-N17). v0.7 folds the
+review of v0.6 (W11, N18). The fold maps are section 9.
 
 ## 0. The owner's ask (verbatim)
 
@@ -364,35 +365,60 @@ line can name its channel. It resolves the rules of the topic it works on:
   the revision from that same answer; a file already there for that
   revision is reused, not rewritten. It also writes the topic's pointer
   `$SPOOL_ROOT/<agent>/channel-rules/topics/<topic_id>`, one line: the
-  cache file's path and its revision.
+  cache file's path, its revision and the session that wrote it (W11).
+  The session is the `session` field of `$SPOOL_ROOT/<agent>/heartbeat.json`,
+  which the agent hook writes from the harness's `session_id`
+  (`sa/scripts/spool-agent-hook.sh:623`).
+- **File modes (N18).** `do_spl_take` and `do_spl_desk_reply` do not
+  always run as the same OS user (the take through `sudo -u` as the
+  harness user, the reply as the agent user on some boxes), and one agent
+  dir already holds files of both, group `spool-agents`. So
+  `channel-rules/` and `topics/` are made mode `2770` (setgid, group
+  `spool-agents`), and every cache file and pointer is written `0660`, as
+  the other spool files; a write goes to a temp file in the same dir and is
+  renamed, so a reader never sees half a line.
 - `do_spl_take` prints `CHANNEL RULES: read <file> (rev <n>) before you
   answer` as its last line.
 - A take is the dispatcher's start of work on a topic, as a seed is a
   seat's, so the take-time read is the dispatcher's form of "the next
   rotation or restart" (Q4 B). v0.4's reply-time WARN on a moved revision
   is dropped with the change note.
-- **The reply re-prints the take's line (W10).** A rotation hands the new
-  session its open takes without a new take (`orc/run/spl-rotate-lib.func.sh:1080`,
-  "Open takes: yours now, answer each in its topic"), so the take's line
-  never reaches that session. `do_spl_desk_reply`
-  (`orc/run/spl-desk-reply.func.sh:172`) therefore prints the same
-  `CHANNEL RULES: read <file> (rev <n>)` line before it posts, from the
-  topic's pointer, with **no hub read**: the rules stay those of the take,
-  as Q4 B wants. The session reads the file before it answers, so the line
-  comes out of a dry run (`DRY_RUN=1`, the default) too.
-- **Lease handover to another dispatcher id.** The new holder's
-  `$SPOOL_ROOT/<agent>/` has no pointer for a topic it did not take. Its
-  first `do_spl_desk_reply` on that topic finds no pointer and calls
-  `cr_topic_rules` once, a hub read like the take's: it is that agent's
-  start of work on the topic, so Q4 B holds. Every later reply uses the
-  pointer.
-- Tests (R6): (a) take, then a rotation (a new session, same id, the hub
-  bumped to rev 2), then a reply -> the reply prints the rev 1 line and
-  the stub hub logs no call; (b) a reply by a second dispatcher id with no
-  pointer -> one hub call, the line printed, the pointer written; a second
-  reply -> no hub call. Red controls: a reply without the re-print prints
-  no line in (a): red; a reply that fetches every time logs a hub call in
-  (a): red.
+- **The reply prints the rules line, read once per session (W10, W11).**
+  A rotation hands the new session its open takes without a new take
+  (`orc/run/spl-rotate-lib.func.sh:1080`, "Open takes: yours now, answer
+  each in its topic"), so the take's line never reaches that session.
+  `do_spl_desk_reply` (`orc/run/spl-desk-reply.func.sh:172`) therefore
+  prints `CHANNEL RULES: read <file> (rev <n>)` before it posts, from the
+  topic's pointer:
+  - the pointer's session is the current session: the line is re-printed
+    with **no hub read**;
+  - the pointer is missing (a lease handover to another dispatcher id, whose
+    `$SPOOL_ROOT/<agent>/` holds no pointer for a topic it did not take), or
+    was written by an **earlier session** (a rotation or a restart), or the
+    current session cannot be read (no `heartbeat.json`, no `session`):
+    `cr_topic_rules` is called once, a hub read like the take's, and the
+    pointer is rewritten with the current session; the line names the new
+    file.
+  So a take, a rotation, a restart and a handover each read the rules once
+  and nothing reads them in between: Q4 B's "at the next rotation or
+  restart" for a dispatcher, as 3.6 is for a seat. The session reads the
+  file before it answers, so the line comes out of a dry run
+  (`DRY_RUN=1`, the default) too.
+- Tests (R6), all on a stub hub that logs its calls:
+  - (a) take at rev 1 (session S1), the hub bumped to rev 2, a rotation
+    (session S2, same id), a reply -> the reply prints the **rev 2** line
+    and the hub logs exactly **1** call; a second reply in S2 -> rev 2 and
+    **0** calls.
+  - (b) a reply by a second dispatcher id with no pointer -> 1 hub call, the
+    line printed, the pointer written with its session; a second reply in
+    that session -> 0 calls.
+  - (c) the pointer and the cache file written by the take as one OS user,
+    the reply run as the other, both in group `spool-agents` -> the reply
+    reads the pointer and prints the line (N18).
+  - Red controls: a reply with no session check prints rev 1 after the
+    rotation in (a): red; a reply that fetches every time logs 2 calls in
+    (a): red; a reply without the line prints none in (a): red; a pointer
+    written `0600` makes (c) hit EACCES and print no line: red.
 - No rules for the channel (rev 0): nothing printed, nothing cached.
 - A DM topic: nothing.
 
@@ -492,7 +518,7 @@ win over the default where they differ. Both sit under 3.4's order.
 | R4 | orc: hub-first export, new seed line, map disagreement, adopt, next-seed only **[Q3, Q4, Q7]** | `sa/lib/channel-rules.inc.sh`, `sa/scripts/spawn-core.inc.sh`, `orc/run/spl-lane-restart.func.sh`, `orc/run/spl-channel-rule.func.sh` (check, and `adopt` for C7), `sa/tests/test-seed-channel-rules.sh` | 7.1 C2, C4 (stub hub) | the C4 cases each green; the seed line word for word (3.4); 3.6's next-seed case | 3.4's red control; C4's; 3.6's |
 | R4b | dropped in v0.5 (Q4 B: no sync action, no note) | - | - | - | - |
 | R5 | e2e: right-click -> edit -> save -> reload **[Q5]** | `csi-spl-wui/tests/e2e/channel-rules.spec.ts` | R3 (mock), then R2 deployed for the dev run | Chrome run green on the mock bundle | Save not wired: the reload shows the old text, red |
-| R6 | dispatchers and lanes **[Q3 A, Q4 B]** | `sa/lib/channel-rules.inc.sh` (`cr_topic_rules`, the topic pointer), `orc/run/spl-take.func.sh`, `orc/run/spl-desk-reply.func.sh` (the re-print, W10), `orc/run/spl-spawn-enqueue.func.sh`, their tests | R4 (the same lib: after R4 lands) | take on a channel topic prints the rules line; a second take at the same revision rewrites no cache file; 3.5's tests (a) and (b); a lane placed from a channel topic carries the `Channel:` line | take without the call: the case is red; 3.5's two red controls |
+| R6 | dispatchers and lanes **[Q3 A, Q4 B]** | `sa/lib/channel-rules.inc.sh` (`cr_topic_rules`, the topic pointer), `orc/run/spl-take.func.sh`, `orc/run/spl-desk-reply.func.sh` (the per-session read, W10, W11), `orc/run/spl-spawn-enqueue.func.sh`, their tests | R4 (the same lib: after R4 lands) | take on a channel topic prints the rules line; a second take at the same revision rewrites no cache file; 3.5's tests (a), (b) and (c); a lane placed from a channel topic carries the `Channel:` line | take without the call: the case is red; 3.5's four red controls |
 | R7 | docs, and the drift gate reads the new page (W7) | a `csi-spl-doc/doc/md/channel-rules.md` page, the `channel-rules.inc.sh` header, this spec's status; `orc/run/check-fleet-rules-drift.func.sh` (`_FRD_AGENT_DOCS` `:250` gets the page, so fact 8 repo-refs checks its paths and actions) and a case in `orc/tests/check-fleet-rules-drift.tst.sh` | R2-R6 | `do_check_fleet_rules_drift` green with the page read | a fixture page naming `do_spl_channel_rulez` (not on the tree) gives `FAIL repo-refs`: red; the same fixture with `_FRD_AGENT_DOCS` at today's value stays green, which shows the gate change is what catches it |
 | R8 | i18n review (language rule) | the locale files of R3 | R3's commit, before it lands | agy has reviewed every non-English value; `i18n-untranslated` does not rise | a key missing in one locale fails `i18n-parity` |
 | R9 | spec 169 move carries the rules | the move plan store (`api/store/channel_move_plan_postgres.go`) and its test | R1 | a moved channel's rules read the same in the target workspace | the plan without the table: the case is red |
@@ -584,8 +610,9 @@ form of section 1 waits for that PASS. v0.3 `6174758a1`'s review asked for
 W9 and N12; v0.4 folds those (section 9.3). v0.4 landed after its PASS
 and the form went to the owner. v0.5 folds the owner's answers (1.1) and
 the v0.4 review's notes N13, N14 (section 9.4). The delta review of v0.5
-asked for W10 and N15-N17; v0.6 folds those (section 9.5) and goes to a
-delta review.
+asked for W10 and N15-N17; v0.6 folds those (section 9.5). The delta
+review of v0.6 asked for W11 and N18; v0.7 folds those (section 9.6) and
+goes to a delta review.
 
 ## 9. Fold maps
 
@@ -642,3 +669,10 @@ delta review.
 | N15 | the 2.5 grep returns a test hit; the channel copy also writes ACL rows | folded: the command and its 1-line result cited, `channel_copy_apply_postgres.go:517` added |
 | N16 | no FK to `channels`: the delete cleanup is code, on two paths | folded: section 4 and R2 name `channels_postgres.go:123` and `embed_visitor_messages.go:125`, a no-row / no-node test and its red control |
 | N17 | the 1.1 table dropped "Yes:" while saying "verbatim" | folded: each answer quoted word for word |
+
+### 9.6 The v0.6 review
+
+| id | finding | v0.7 |
+|---|---|---|
+| W11 | test (a) pinned the take's revision across a rotation, against Q4 B | folded: the pointer records the session (`heartbeat.json` `session`, `spool-agent-hook.sh:623`); a pointer of an earlier session, or no readable session, is treated like a missing one: one hub read, the pointer rewritten; test (a) flipped (rev 2, 1 call, then 0); red controls: no session check, fetch every time |
+| N18 | the take and the reply may run as different OS users | folded: `channel-rules/` and `topics/` `2770`, files `0660`, group `spool-agents`, written by rename; R6 test (c) and its `0600` red control |

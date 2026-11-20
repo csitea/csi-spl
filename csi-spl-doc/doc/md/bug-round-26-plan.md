@@ -10,9 +10,9 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-25-plan.md](bug-round-25-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0** for the panel: v0.1 (`b74379bcd`) with the holder's three answers folded in (section 8); no row changed.  
+**Status: v1.0** for the panel: v0.1 (`b74379bcd`) with the holder's three answers folded in, and the panel named as one same-vendor seat (section 8); no row changed.  
 Editor: **c-789@`<box2>`** (claude, `specs_and_docs`).  
-Panel: a mistral seat, queued by the holder c-002@sat (ask ff933b29, slug `hand-<box2>-c002-bug-round-26-mistral-panel-seat`, pinned to `<box2>`: rc01 needs the wui deps and Chrome; section 8).
+Panel: **same-vendor panel, waiver 1a7c70da**: one claude seat (ask ff933b29, slug `hand-<box2>-c002-b26-claude-waiver-panel-seat`), ruled by c-001 (msg 41f53f3c) for this seat only, queued by the holder c-002@sat (section 8).
 
 **One sha:** every count below is measured on **`2f49bfad2`** (`origin/master`, committed 2026-11-20T04:39:06+01:00), on `<box2>`, between 03:57Z and 04:25Z on 2026-11-20, unless a row says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b25-plan')` -> `Window: W=2026-11-20T04:52:19+02:00` (commit `64b5499b0`, 02:52:19Z).
@@ -151,12 +151,13 @@ echo "rc01 sha=${full:0:9} mode=$mode test-rc=$rc switcher-skipped=$skipped"
 ## 8. Panel and reviewer (rulebook 3.2)
 
 - **Editor:** c-789@`<box2>` (claude, `specs_and_docs`).
-- **Panel:** one non-claude seat, mistral (as rounds 21 to 25; grok is held, below): ask ff933b29, slug `hand-<box2>-c002-bug-round-26-mistral-panel-seat`, pinned to `<box2>`, queued by the holder c-002@sat (msg 06fc7780). The panel checks the red control (rebuild `rc01.sh` from section 3.2), the CI evidence (the e2e and generate job logs named in row 01), the fix scope (test file only; the post comes from the build and a missing one fails; Enter without ArrowDown), and that every other input in sections 2, 4 and 5 is measured as written.
+- **Panel: same-vendor panel, waiver 1a7c70da.** One claude seat: ask ff933b29, re-queued by the holder c-002@sat as `claude:hand-<box2>-c002-b26-claude-waiver-panel-seat` (msg 5235ba90), placed by c-001. c-001 ruled it (msg 41f53f3c), for this seat only: no other vendor can take it today. grok is on hold (99% weekly on sat and `<box2>`), agy is missing on sat and at quota on `<box2>` until 2026-11-24, and mistral is barred on a WUI row (cnf `mistral_ui_allowed` false, developer guide 5.1). The holder's first ask, a mistral seat, was held by the placer for that last reason (msg 275c981b). The seat checks the red control (rebuild `rc01.sh` from section 3.2), the CI evidence (the e2e and generate job logs named in row 01) and the fix scope (test file only; the post comes from the build and a missing one fails; Enter without ArrowDown). It also checks that every other input in sections 2, 4 and 5 is measured as written.
 - **Asked of the holder with v0.1 (msg d168abd9), answered** (msg 06fc7780): the panel seat (above); sat's half of the slug check: 1 (this planner's brief) and 0 (section 3.1); sat's done-claim log since W: 0 `job` alerts in 19 runs (sections 2 and 4). The holder confirms `do_spl_review_line_check` rc 0 on the panel's line before the plan lands.
 - **Row reviewer (R7):** claude waiver seat (1a7c70da), fresh session, tree only. `cd csi-spl-orc && sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub BOX_PICK_KIND=grok ./run -a do_spl_box_pick` (03:58:48Z) -> `pick=hold reason=waiting: grok weekly >= 95% on sat, <box2> [sat 99% ...; <box2> 99% ...]`. A WUI row never goes to mistral; the holder names this same-vendor review a waiver.
 - **Review history:**
   - 2026-11-20 04:2xZ: the editor pushed v0.1 (`b74379bcd`) to `review/c002-bug-round-26-planner` and asked the holder for a panel (msg d168abd9).
-  - 04:3xZ: the holder answered (msg 06fc7780): the mistral panel seat queued (ask ff933b29); sat's slug half 1 and 0; sat's done-claim log 0 `job` alerts. v1.0 folds all three; no row changed.
+  - 04:3xZ: the holder answered (msg 06fc7780): a mistral panel seat queued (ask ff933b29); sat's slug half 1 and 0; sat's done-claim log 0 `job` alerts. v1.0 (`634c55bdf`) folds all three; no row changed.
+  - The placer held the mistral seat: a WUI row (msg 275c981b). c-001 ruled one same-vendor claude panel seat under waiver 1a7c70da (msg 41f53f3c), and the holder re-queued ask ff933b29 as that seat (msg 5235ba90). This commit names that seat in sections 0, 8 and 9; no row changed.
 
 ---
 
@@ -165,4 +166,4 @@ echo "rc01 sha=${full:0:9} mode=$mode test-rc=$rc switcher-skipped=$skipped"
 | seat | id | status |
 |---|---|---|
 | Editor | c-789@`<box2>` | v1.0 |
-| Panel | mistral seat, ask ff933b29 (`<box2>`) | pending |
+| Panel | claude seat, ask ff933b29: same-vendor panel, waiver 1a7c70da | pending |

@@ -32,8 +32,9 @@ that still build the app's var dir by hand** instead of r71-01's helper
 function (73 lines) would pass the 75-line cap: the row first moves the function's
 `check` branch into a named helper, then moves the site.
 
-**Status: v0.1**, the planner's draft; the panel has not read it. Editor: **c-410**
-(claude).
+**Status: v1.0**: panel seat m-148 (mistral) PASS on v0.1 `41552fddd`, one W finding
+(W1, a regex spelling in 1.3, fixed) and N1-N4 recorded (section 8); none changes a row.
+Rows 01 and 02 are as drafted. Editor: **c-410** (claude).
 
 **One sha:** every count is measured on **`4168d752b`** (`origin/master`
 4168d752b1421bbb2fe3ec7a8afcccba5a74c53e, committed 2026-11-20T16:19:07+02:00), n=1 per
@@ -99,6 +100,15 @@ does not see a dir spelled from a variable.
 | `'/(var\|opt)/\$\{?SPL_ORG_APP'` (r75's gate) | **3** | `spl-desk-install-service:120`, `spl-dispatch-rotate-install-cron:74` (row 02), `spl-unanswered-sweep-install-cron:57` |
 | `'/(var\|opt)/\$\{?(org_app\|ORG_APP\|app)\b'` | **5** | `spl-box-update-install-cron:34`, `spl-cost-rollup-install-cron:42` (row 01), `spl-spool-refresh:55`, `spl-wd-ensure:194`, `orc:scripts/desk-reconcile-cron.sh:189` |
 | `'/(var\|opt)/\$\{?(ORG\|org)\b'` | **3** | the tenant dirs (`spl-desk-rebox:111`, `spl-invite-e2e:118`, `spl-m3-e2e:159`) |
+
+In the table, `\|` is markdown's escape for a pipe inside a cell; the shell regex has a
+plain `|` (panel W1). The three commands to paste, each -> 3, 5, 3 on `4168d752b`:
+
+```text
+git grep -nE '/(var|opt)/\$\{?SPL_ORG_APP' 4168d752b -- csi-spl-orc/src/bash ':!*/tests/*' | grep -vE ':[0-9]+:\s*#' | wc -l
+git grep -nE '/(var|opt)/\$\{?(org_app|ORG_APP|app)\b' 4168d752b -- csi-spl-orc/src/bash ':!*/tests/*' | grep -vE ':[0-9]+:\s*#' | wc -l
+git grep -nE '/(var|opt)/\$\{?(ORG|org)\b' 4168d752b -- csi-spl-orc/src/bash ':!*/tests/*' | grep -vE ':[0-9]+:\s*#' | wc -l
+```
 
 The row sites (function and its length from `awk` over `^name() {` to the first `^}`):
 
@@ -357,11 +367,38 @@ Kind `simple_coding`, vendor claude.
   first by 3 new FAIL-path cases) so the function stays under the 75-line cap. Both in
   batch 1; the dirs proven equal on this box's 3 tree kinds (9 of 9). Window W and the
   r76 slug proof recorded.
+- v1.0 (c-410): the panel seat m-148 (mistral) PASS on v0.1
+  `41552fddd3683281595393a3e104c0d0df7e24a2` (spool msg 459bbeee, its copy to the editor 949a8222; task
+  `9b013f0a-95da-5561-a3dc-6faf1f731f14`; seat file `0683873287f8` on
+  `review/c002-refactor-round-76-mistral-seat`). `do_spl_review_line_check` on its line:
+  rc 0 on the seat's box as the seat reports it (its run pasted in its message; the
+  holder has the full check re-run there before the GO); `REVIEW_LINE_SYNTAX=1`
+  on the editor's box: `SYNTAX OK`, rc 0. Its first send carried the seat file inside the
+  line and failed the syntax check (rc 1); the re-sent line keeps it on a line of its own.
+  Its findings:
+  - W1: 1.3's gate command named `'<rx>'` while the table cells spell the regex with
+    markdown's `\|`; pasted into a shell that form matches a literal pipe and prints 0.
+    Fixed: the three commands follow the table as literal lines (each re-run on
+    `4168d752b` -> 3, 5, 3). The counts and the row targets do not change.
+  - N1: the counts agree on `4168d752b`, its child `4c4e97f75` and a later
+    `origin/master`; the sites and gates did not move.
+  - N2: lane map exit 4 on all 6 row paths from the seat's box too (no owner; the
+    no-file lanes' briefs name no row file).
+  - N3: the seat's own branch appears on origin only after its push. Nothing to change.
+  - N4: the gate's blind spots are the ones section 7 names (the 2 `bs_org_app` lines in
+    `features/`), plus one user-name path pattern in an `orc:` check, not a var
+    dir. The seat could not read the candidates file (it lives on the editor's box): its
+    check 8 is NOT RUN there; it read 1.2's served items on `origin/master` instead.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-410 (claude): v0.1.
-- Panel reviewer seat: pending (section 4).
+- Editor seat: c-410 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-148 (mistral) PASS** on
+  `41552fddd3683281595393a3e104c0d0df7e24a2` (spool msg 459bbeee; review-line check rc 0
+  on the seat's box as the seat reports it, `SYNTAX OK` on the editor's; seat file
+  `0683873287f8` on
+  `review/c002-refactor-round-76-mistral-seat`), W1 fixed, N1-N4 recorded. agy was
+  unavailable (no agy cli on the editor's box), so mistral took the seat.
 - Row R7 seats: section 4.

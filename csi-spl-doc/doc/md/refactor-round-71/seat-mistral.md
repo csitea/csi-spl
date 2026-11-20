@@ -293,4 +293,46 @@ it); rows 01 and 02 are unchanged from v0.1 and re-verified; no new defect, no n
 
 ## v1.0 report line (sent on task `dispatch-refactor-r71`)
 
-`panel: m-163@sat mistral PASS 45758af3162b2d3859bb1c7ea9fcefdeb8745930 seat-file: review/c002-refactor-round-71-mistral-seat <this commit's sha> ran: <commands> | read: <files> | log: m-163@sat:.vibe/logs/session/unified/b2963654-8846-764f-a8f4-c880b640ab5a`
+`panel: m-163@sat mistral PASS 45758af3162b2d3859bb1c7ea9fcefdeb8745930 seat-file: review/c002-refactor-round-71-mistral-seat a588eabac9faf6e0a9e408f411527d7c43aa447c ran: <commands> | read: <files> | log: m-163@sat:.vibe/logs/session/unified/b2963654-8846-764f-a8f4-c880b640ab5a`
+
+## Landed-sha signature (third commit on this branch)
+
+The dispatch holder c-002 (msg 39138072, task `dispatch-refactor-r71`, 2026-11-20T01:27:11Z)
+reported that c-156 landed plan v1.0 on `origin/master` as
+`2e738b4e9b2be8ef02e31a4eb3bb6a278f36110b` (c-156 msg eda6ee87). Provenance at my read
+(2026-11-20T01:2xZ): `git fetch origin master` then `git rev-parse origin/master` ->
+`2e738b4e9b2be8ef02e31a4eb3bb6a278f36110b` (the landed commit is the tip);
+`git merge-base --is-ancestor 2e738b4e9 origin/master` -> rc 0 (on master);
+`git log -1 --no-mailmap --format='%ae %ce' 2e738b4e9` -> the repo CLAUDE.md "Commits:"
+address in both fields (author and committer), and
+`git log -1 --format=%s 2e738b4e9` ->
+`docs(r71-plan, SPL-6007): refactor round 71 plan v1.0, signed by m-163 mistral PASS on 45758af31`;
+`git log --oneline 5ed225ff7..origin/master` -> the 3 plan commits (v0.1 `f4f7d96a7`,
+v1.0 `5a1929efd`, landed `2e738b4e9`), doc-only.
+
+**Signed v1.0 vs landed:** `git diff 45758af31 2e738b4e9 -- csi-spl-doc/doc/md/refactor-round-71-plan.md`
+-> 19 lines, hunks at the status line (`@@ -30,10 +30,10`: "v1.0, signed", recording my
+PASS on `45758af31`), section 8 (`@@ -332,6 +332,10`: my PASS entry) and section 9
+(`@@ -341,6 +345,9`: consensus records FAIL on v0.1 + PASS on v1.0);
+`git diff 45758af31 2e738b4e9 -- <plan> | grep -cE '^[+-].*(r71-01|r71-02)'` -> **0**
+(rows 01 and 02 unchanged, as the landing commit says).
+
+Re-run of the row checks on the landed `origin/master` (`2e738b4e9`):
+- `git diff --stat 6fedc5bbb 2e738b4e9 --` the lib, the 5 actions, `spl-run-paths.tst.sh`
+  -> **empty** (no row file moved since the plan's base); spot lines identical
+  (`spl-workspace-docs-purge.func.sh:52`, `spl-watchdog.func.sh:541-542` read on
+  `2e738b4e9`).
+- Anchored gate on `2e738b4e9`:
+  `git grep -nE 'spl_run_paths && .*SPL_VAR_APP_DIR:\+\$SPL_VAR_APP_DIR/' 2e738b4e9 -- csi-spl-orc/src/bash/run | wc -l`
+  -> **5** (5 -> 2 -> 0 after the rows, as v1.0 claims).
+- `lane-map.sh --check <the 7 row paths> --agent m-163` -> **exit 4** again (10 unknown
+  no-file lanes; no live lane lists a row path).
+
+**PASS on `2e738b4e9b2be8ef02e31a4eb3bb6a278f36110b`** (plan v1.0, landed on origin/master).
+The landed commit differs from the signed `45758af31` only in the status line and
+sections 8-9 recording this seat's PASS; rows 01 and 02 are as signed, W1 fixed, no new
+defect, no new note.
+
+## Landed report line (sent on task `dispatch-refactor-r71`)
+
+`panel: m-163@sat mistral PASS 2e738b4e9b2be8ef02e31a4eb3bb6a278f36110b seat-file: review/c002-refactor-round-71-mistral-seat <this commit's sha> ran: <commands> | read: <files> | log: m-163@sat:.vibe/logs/session/unified/b2963654-8846-764f-a8f4-c880b640ab5a`

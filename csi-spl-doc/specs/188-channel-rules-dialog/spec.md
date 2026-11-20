@@ -1,6 +1,6 @@
 # Spec 188: Channel rules dialog
 
-Status: **Draft v0.5** (2026-11-20). Lane `c-489` (`claude`, backup for
+Status: **Draft v0.6** (2026-11-20). Lane `c-489` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). Nothing below is built.
 Epic: **SPL-2403**. Issue: **SPL-6084**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:b1fe7670-8e80-4e67-b4d0-2a5484328981` (`t1`), task
@@ -26,8 +26,8 @@ Paths below: `api/` = `csi-spl-api/src/go/spool-hub-api/internal/`,
 History: v0.1 `582b96e85`. v0.2 `ed56ab310` folds the review of v0.1
 (W1-W6, N1-N8). v0.3 `6174758a1` folds the review of v0.2 (W7, W8,
 N9-N11). v0.4 `af8b34d7b` folds the review of v0.3 (W9, N12). v0.5
-folds the owner's answers Q1-Q8 and the review notes N13, N14. The fold
-maps are section 9.
+`bd6a8f40c` folds the owner's answers Q1-Q8 and the review notes N13, N14.
+v0.6 folds the review of v0.5 (W10, N15-N17). The fold maps are section 9.
 
 ## 0. The owner's ask (verbatim)
 
@@ -119,18 +119,18 @@ Why each recommendation:
 
 HUM-10, t1 topic b1fe7670, msg 4aad69c7-5fcd-4f9a-8a47-2cc0e682ff27
 (2026-11-20T20:48:34Z), poll 4e631f7e, relayed verbatim by the dispatch
-holder:
+holder. The answer column quotes the picked option word for word:
 
 | q | answer | the spec follows it in |
 |---|---|---|
-| Q1 | **A** the existing qto rules doc per channel, linked from the hub and edited from the dialog | 3.3, section 4, C2, C7 |
-| Q2 | **A** the channel owner and workspace admins | C2 rule 4, C1 |
-| Q3 | **A** every agent that posts or works in the channel, dispatchers included | 3, 3.5, R6 |
-| Q4 | **B** at the next rotation or restart only (not the recommended A) | 3.6, C3 and C6 retired, R4b dropped |
-| Q5 | **A** a markdown textarea with a preview tab, and a link to the full doc editor | C1, R3 |
-| Q6 | **A** workspace rules, then the channel's rules on top | section 5, C2 rule 5 |
-| Q7 | **A** add only: the fleet rules and the brief's scope always win | 3.4, the seed line |
-| Q8 | **A** its members, and the agent boxes of the workspace | 3.3, C2 rule 3 |
+| Q1 | **A** "The existing qto rules doc per channel, linked from the hub and edited from the dialog" | 3.3, section 4, C2, C7 |
+| Q2 | **A** "The channel owner and workspace admins" | C2 rule 4, C1 |
+| Q3 | **A** "Every agent that posts or works in the channel, dispatchers included" | 3, 3.5, R6 |
+| Q4 | **B** "At the next rotation or restart only" (not the recommended A) | 3.6, C3 and C6 retired, R4b dropped |
+| Q5 | **A** "A markdown textarea with a preview tab, and a link to the full doc editor" | C1, R3 |
+| Q6 | **A** "Yes: workspace rules, then the channel's rules on top" | section 5, C2 rule 5 |
+| Q7 | **A** "Add only: they add constraints; the fleet rules and the brief's scope always win" | 3.4, the seed line |
+| Q8 | **A** "Its members, and the agent boxes of the workspace (the hub cannot tell one agent of a box from another)" | 3.3, C2 rule 3 |
 
 Every option the owner did not pick is removed below; Q4 B is the one
 answer that changes the design (section 3.6).
@@ -220,10 +220,13 @@ answer that changes the design (section 3.6).
   token (`wsdoc_tree.go:63-66`). No node has a per-channel ACL.
 - rdb `0192_workspace_doc_acl.sql` adds per-node grants (`workspace_doc_acl`,
   subjects `user:`, `agent:`, `role:`, `workspace:*`) and
-  `workspace_doc_acl_effect` (`:58-70`), but no hub route calls that function
-  (`grep -rn workspace_doc_acl_effect csi-spl-api/src/go --include=*.go` ->
-  none on `2500f49fc`); only the spec 169 move copies the rows. It is inert,
-  and it has no channel subject, so 3.3 does not build on it.
+  `workspace_doc_acl_effect` (`:58-70`), but no hub route calls that function:
+  `git grep -n workspace_doc_acl_effect a8d2ea7d5 -- '*.go'` -> 1 line, a
+  test (`store/system_tenant_test.go:243`), none outside `_test.go`. Only
+  the spec 169 move (`store/channel_move_docs_postgres.go`) and the channel
+  copy (`store/channel_copy_apply_postgres.go:517`) write its rows. It is
+  inert for access, and it has no channel subject, so 3.3 does not build
+  on it.
 - 0192 also adds `UNIQUE (tenant_id, id)` on `workspace_doc_node` (`:25-26`),
   the key section 4's foreign key uses (N14).
 - WUI: `wui/components/workspace-docs/WorkspaceDocView.vue` (the editor) and
@@ -355,18 +358,41 @@ A dispatcher is one long-lived seat that serves every channel, so no brief
 line can name its channel. It resolves the rules of the topic it works on:
 
 - `do_spl_take` (`orc/run/spl-take.func.sh:80`) calls a new
-  `cr_topic_rules TENANT CHANNEL_ID` (in `sa/lib/channel-rules.inc.sh`).
+  `cr_topic_rules TENANT CHANNEL_ID TOPIC_ID` (in `sa/lib/channel-rules.inc.sh`).
 - `cr_topic_rules` reads C2 (box token) and writes the rules to a cache file
   `$SPOOL_ROOT/<agent>/channel-rules/<tenant8>-<channel_id>-r<rev>.md`,
   the revision from that same answer; a file already there for that
-  revision is reused, not rewritten.
+  revision is reused, not rewritten. It also writes the topic's pointer
+  `$SPOOL_ROOT/<agent>/channel-rules/topics/<topic_id>`, one line: the
+  cache file's path and its revision.
 - `do_spl_take` prints `CHANNEL RULES: read <file> (rev <n>) before you
   answer` as its last line.
-- `do_spl_desk_reply` reads nothing new: the dispatcher answers under the
-  rules it read at the take (Q4 B). A take is the dispatcher's start of work
-  on a topic, as a seed is a seat's, so the take-time read is the
-  dispatcher's form of "the next rotation or restart". v0.4's reply-time
-  WARN on a moved revision is dropped with the change note.
+- A take is the dispatcher's start of work on a topic, as a seed is a
+  seat's, so the take-time read is the dispatcher's form of "the next
+  rotation or restart" (Q4 B). v0.4's reply-time WARN on a moved revision
+  is dropped with the change note.
+- **The reply re-prints the take's line (W10).** A rotation hands the new
+  session its open takes without a new take (`orc/run/spl-rotate-lib.func.sh:1080`,
+  "Open takes: yours now, answer each in its topic"), so the take's line
+  never reaches that session. `do_spl_desk_reply`
+  (`orc/run/spl-desk-reply.func.sh:172`) therefore prints the same
+  `CHANNEL RULES: read <file> (rev <n>)` line before it posts, from the
+  topic's pointer, with **no hub read**: the rules stay those of the take,
+  as Q4 B wants. The session reads the file before it answers, so the line
+  comes out of a dry run (`DRY_RUN=1`, the default) too.
+- **Lease handover to another dispatcher id.** The new holder's
+  `$SPOOL_ROOT/<agent>/` has no pointer for a topic it did not take. Its
+  first `do_spl_desk_reply` on that topic finds no pointer and calls
+  `cr_topic_rules` once, a hub read like the take's: it is that agent's
+  start of work on the topic, so Q4 B holds. Every later reply uses the
+  pointer.
+- Tests (R6): (a) take, then a rotation (a new session, same id, the hub
+  bumped to rev 2), then a reply -> the reply prints the rev 1 line and
+  the stub hub logs no call; (b) a reply by a second dispatcher id with no
+  pointer -> one hub call, the line printed, the pointer written; a second
+  reply -> no hub call. Red controls: a reply without the re-print prints
+  no line in (a): red; a reply that fetches every time logs a hub call in
+  (a): red.
 - No rules for the channel (rev 0): nothing printed, nothing cached.
 - A DM topic: nothing.
 
@@ -437,7 +463,9 @@ CREATE TABLE channel_rules (
   cannot be deleted while a channel names it, by any path, the 3.3 guard
   or not. A delete that should remove the rules removes the row first, in
   the same transaction: the channel delete (R2) deletes the row, then the
-  node. `ON DELETE CASCADE` is not used, since it would let a path the
+  node. `channel_rules` has no FK to `channels` (`*` is no channel), so this
+  is code, on both channel delete paths of the hub:
+  `store/channels_postgres.go:123` and `store/embed_visitor_messages.go:125`. `ON DELETE CASCADE` is not used, since it would let a path the
   guard misses wipe a channel's rules silently (rev back to 0, C4 rule 4
   then falls back to the map). A tenant delete cascades into both tables
   in one statement; `NO ACTION` is checked at the statement's end, when
@@ -458,13 +486,13 @@ win over the default where they differ. Both sit under 3.4's order.
 | row | part | files | depends on | done test | red control |
 |---|---|---|---|---|---|
 | R1 | rdb: `channel_rules` as section 4 (UNIQUE, composite FK), RLS **[Q1, Q6]** | `rdb/<next>_channel_rules.sql` (number from `do_rdb_migration_next`) | none (answered) | `TestRLSCoversEveryTenantTable` green; `PRE_PUSH_TIER=full`; a tenant delete removes both rows and nodes | the table without its policy fails `TestRLSCoversEveryTenantTable`; a second row naming the same doc is refused by the UNIQUE; deleting a named node is refused by the FK; a row naming another tenant's node is refused |
-| R2 | hub: C2 and C7; the channel delete removes the row, then the node **[Q1, Q2, Q6, Q8]** | `api/hub/channel_rules.go`, `api/store/channel_rules.go`, their tests | R1 for the Postgres test; the mock store lets it start on 7.1 | editor 200, non-editor 403, stale revision 409, unknown channel 404, non-member 404, other tenant 404, box token reads 200 and writes 403; C7 on Postgres adopts a doc and the node's `kind` is still `doc` | a `PUT` without the editor check passes the non-editor case: red; an adopt written to `UPDATE workspace_doc_node SET kind` is refused by `workspace_doc_node_fixed` (0165 `:94-106`), so the adopt case is red |
+| R2 | hub: C2 and C7; both channel delete paths remove the row, then the node **[Q1, Q2, Q6, Q8]** | `api/hub/channel_rules.go`, `api/store/channel_rules.go`, the two delete paths `api/store/channels_postgres.go` (`:123`) and `api/store/embed_visitor_messages.go` (`:125`), their tests | R1 for the Postgres test; the mock store lets it start on 7.1 | editor 200, non-editor 403, stale revision 409, unknown channel 404, non-member 404, other tenant 404, box token reads 200 and writes 403; C7 on Postgres adopts a doc and the node's `kind` is still `doc`; each delete path leaves no `channel_rules` row and no rules node | a `PUT` without the editor check passes the non-editor case: red; a delete path without the cleanup: a channel re-made with the same id reads the old rules, red; an adopt written to `UPDATE workspace_doc_node SET kind` is refused by `workspace_doc_node_fixed` (0165 `:94-106`), so the adopt case is red |
 | R2b | hub: the doc-tree guard of 3.3 **[Q1 A, Q8]** | `api/hub/wsdoc_tree.go`, `wsdoc_nodes.go`, `wsdoc_lock.go`, `wsdoc_media.go`; the store's list and search: `api/store/workspace_doc_nodes.go` (`DocNodes` `:268`), `api/store/wsdoc_hub.go` (`DocList` `:70`, `DocSearch` `:102`), `api/store/search_docs_postgres.go` (`searchDocsSQL` `:95`, the global search); their tests | R1 | a `docs.read` member who is not a channel member: the node is not in list, doc search or the global search, and a direct read is 404; a `docs.write` holder's direct write is 404 | the list without the `NOT IN channel_rules` filter shows the node: red |
 | R3 | WUI: menu item + dialog **[Q2, Q5]** | `wui/utils/sidebar-row-menu.mjs`, `wui/components/ChannelRulesDialog.vue` (async), `ChannelSidebar.vue`, `useSidebarChannelAdmin.ts`, the new keys in `csi-spl-wui/i18n/locales/*.json`, unit tests | 7.1 C1-C2 only (mock api) | unit: the item on a channel row, not on a DM row; save sends `base_revision`; `i18n-parity` and `i18n-no-raw-text` green | the item shown on a DM row fails the unit test |
 | R4 | orc: hub-first export, new seed line, map disagreement, adopt, next-seed only **[Q3, Q4, Q7]** | `sa/lib/channel-rules.inc.sh`, `sa/scripts/spawn-core.inc.sh`, `orc/run/spl-lane-restart.func.sh`, `orc/run/spl-channel-rule.func.sh` (check, and `adopt` for C7), `sa/tests/test-seed-channel-rules.sh` | 7.1 C2, C4 (stub hub) | the C4 cases each green; the seed line word for word (3.4); 3.6's next-seed case | 3.4's red control; C4's; 3.6's |
 | R4b | dropped in v0.5 (Q4 B: no sync action, no note) | - | - | - | - |
 | R5 | e2e: right-click -> edit -> save -> reload **[Q5]** | `csi-spl-wui/tests/e2e/channel-rules.spec.ts` | R3 (mock), then R2 deployed for the dev run | Chrome run green on the mock bundle | Save not wired: the reload shows the old text, red |
-| R6 | dispatchers and lanes **[Q3 A, Q4 B]** | `sa/lib/channel-rules.inc.sh` (`cr_topic_rules`), `orc/run/spl-take.func.sh`, `orc/run/spl-spawn-enqueue.func.sh`, their tests | R4 (the same lib: after R4 lands) | take on a channel topic prints the rules line; a second take at the same revision rewrites no cache file; a lane placed from a channel topic carries the `Channel:` line | take without the call: the case is red |
+| R6 | dispatchers and lanes **[Q3 A, Q4 B]** | `sa/lib/channel-rules.inc.sh` (`cr_topic_rules`, the topic pointer), `orc/run/spl-take.func.sh`, `orc/run/spl-desk-reply.func.sh` (the re-print, W10), `orc/run/spl-spawn-enqueue.func.sh`, their tests | R4 (the same lib: after R4 lands) | take on a channel topic prints the rules line; a second take at the same revision rewrites no cache file; 3.5's tests (a) and (b); a lane placed from a channel topic carries the `Channel:` line | take without the call: the case is red; 3.5's two red controls |
 | R7 | docs, and the drift gate reads the new page (W7) | a `csi-spl-doc/doc/md/channel-rules.md` page, the `channel-rules.inc.sh` header, this spec's status; `orc/run/check-fleet-rules-drift.func.sh` (`_FRD_AGENT_DOCS` `:250` gets the page, so fact 8 repo-refs checks its paths and actions) and a case in `orc/tests/check-fleet-rules-drift.tst.sh` | R2-R6 | `do_check_fleet_rules_drift` green with the page read | a fixture page naming `do_spl_channel_rulez` (not on the tree) gives `FAIL repo-refs`: red; the same fixture with `_FRD_AGENT_DOCS` at today's value stays green, which shows the gate change is what catches it |
 | R8 | i18n review (language rule) | the locale files of R3 | R3's commit, before it lands | agy has reviewed every non-English value; `i18n-untranslated` does not rise | a key missing in one locale fails `i18n-parity` |
 | R9 | spec 169 move carries the rules | the move plan store (`api/store/channel_move_plan_postgres.go`) and its test | R1 | a moved channel's rules read the same in the target workspace | the plan without the table: the case is red |
@@ -555,8 +583,9 @@ N9-N11. v0.3 folded those (section 9.2). v0.4 goes back to review; the owner
 form of section 1 waits for that PASS. v0.3 `6174758a1`'s review asked for
 W9 and N12; v0.4 folds those (section 9.3). v0.4 landed after its PASS
 and the form went to the owner. v0.5 folds the owner's answers (1.1) and
-the v0.4 review's notes N13, N14 (section 9.4), and goes to a delta
-review.
+the v0.4 review's notes N13, N14 (section 9.4). The delta review of v0.5
+asked for W10 and N15-N17; v0.6 folds those (section 9.5) and goes to a
+delta review.
 
 ## 9. Fold maps
 
@@ -604,3 +633,12 @@ review.
 | Q4 B | next rotation or restart only, not the recommended A | folded: 3.6 rewritten (no note, no sync, a next-seed test), the seed line names no note, 3.5 reads at take only, C3 and C6 retired, R4b dropped, 7.2 |
 | N13 | `UNIQUE (tenant_id, doc_id)` missing in the CREATE TABLE block | folded: `channel_rules_one_doc` in the block |
 | N14 | `doc_id` has no FK to `workspace_doc_node` | folded: composite `channel_rules_doc_fk` on 0192's `UNIQUE (tenant_id, id)`, `NO ACTION` with the reason; R1 and R2 tests |
+
+### 9.5 The v0.5 review
+
+| id | finding | v0.6 |
+|---|---|---|
+| W10 | a rotated dispatcher inherits open takes (`spl-rotate-lib.func.sh:1080`) without a take, and v0.5 dropped the reply's read, so it never sees the rules; same for a lease handover | folded: `do_spl_desk_reply` re-prints the take's line from a per-topic pointer, no hub read (3.5); a new dispatcher id with no pointer reads once at its first reply; R6 names `spl-desk-reply.func.sh`, tests (a) and (b), two red controls |
+| N15 | the 2.5 grep returns a test hit; the channel copy also writes ACL rows | folded: the command and its 1-line result cited, `channel_copy_apply_postgres.go:517` added |
+| N16 | no FK to `channels`: the delete cleanup is code, on two paths | folded: section 4 and R2 name `channels_postgres.go:123` and `embed_visitor_messages.go:125`, a no-row / no-node test and its red control |
+| N17 | the 1.1 table dropped "Yes:" while saying "verbatim" | folded: each answer quoted word for word |

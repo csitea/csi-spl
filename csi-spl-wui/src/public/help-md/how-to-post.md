@@ -62,8 +62,12 @@ comments and issue descriptions.
    question again, cite that link (or `msg:<uuid>`, rule 11), never "see above".
    A click opens exactly that message, scrolled into view and highlighted,
    on a phone and on a desktop, even inside the same topic.
-10. **Every question or choice put to the owner is a `poll` form**
-   (section 7), by default (owner HUM-10, 2026-10-14, t1 topic 0bb05176,
+10. **Every question or choice put to any user is a `poll` form**
+   (section 7), by default. Any agent on any spool-hub box asks every user
+   (the owner, a member, a customer, in any workspace) so; the rule's home is
+   the fleet fragment `22-ui-forms-for-user-input.md` of the global CLAUDE.md
+   (owner HUM-10, 2026-11-20, t1 topic f4165bc3,
+   msg:db4d2d0d-9e68-4620-b3c0-1d233eeeb02a). First asked for the owner (owner HUM-10, 2026-10-14, t1 topic 0bb05176,
    msg:03d0ef42-e8c0-4e4f-b12d-a03f9bbd9bf7): "Would you please provide me
    with forms for these choices? List all of the choices you were suggesting
    to me and provide them in forms. Make that the default mode. Every time

@@ -1,6 +1,6 @@
 # Spec 187: Scheduled Tasks and Activities
 
-Status: **Draft v0.1** (2026-11-20). Lane `c-150` (`claude`, backup for
+Status: **Draft v0.2** (2026-11-20). Lane `c-150` (`claude`, backup for
 `specs_and_docs`: agy held by the placer). Nothing below is built.
 Epic: **SPL-2398**. Issue: **SPL-6067**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:91992830-ca2f-4711-b04e-e4c333d7294d` (`t1`), task
@@ -11,11 +11,11 @@ section 7 (token budgets and the usage ledger), [098 tenant settings
 jsonb](../098-tenant-settings-jsonb/spec.md) (registered workspace settings)
 and the search grammar ([search-v1](../003-spool-message-bus/contracts/search-v1.md)).
 
-Number: the highest spec on `origin/master` `4c4e97f75` is
+Number: the highest spec on `origin/master` `d6b810775` is
 `186-multicast-prompt` (`git ls-tree --name-only origin/master csi-spl-doc/specs/ | tail -2`),
-and no live worktree holds a `187-` spec folder (`ls -d` of
-`csi-spl-doc/specs/187*` in every `git worktree list` path -> none), so
-this is 187.
+and no live worktree other than this lane's own (`c-150`) holds a `187-`
+spec folder (`ls -d` of `csi-spl-doc/specs/187*` in every `git worktree list`
+path -> only `c-150`), so this is 187.
 
 Paths below: `api/` = `csi-spl-api/src/go/spool-hub-api/internal/`,
 `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`, `wui/` =
@@ -77,16 +77,16 @@ Not re-specified here; this spec reuses or stays clear of each.
 
 | what | where | relation to this spec |
 |---|---|---|
-| **Topic loops** (spec 182): a saved prompt on ONE topic, fired by 12 triggers (agent and human replies, every n minutes, daily at, idle, keyword, file, blocker, issue status), cap 12 per hour, sent hidden to the topic's agent | `../182-topic-loop-prompt/spec.md` sections 1.2, 4, 5; rows L1-L7 in build; no loop store on master yet (`git ls-tree -r --name-only origin/master csi-spl-api/src/go/spool-hub-api/internal/store/ \| grep -i loop` -> none) | **A different object, a shared pattern.** A loop lives on one topic and answers in it. A scheduled task lives on the workspace (or the instance), its scope is a filter over many objects, it may run a fixed action without any agent, and it reports in its own channel (D5). Reused: 182's ticker and claim (one `UPDATE ... RETURNING` per tick, no catch-up burst, a UUIDv5 of the cause as the id) and its time-zone rule. Whether loops later fold into tasks: **Q1**. |
+| **Topic loops** (spec 182): a saved prompt on ONE topic, fired by 11 triggers (after and before an agent reply, after a human reply, every hour, every n minutes, daily at, no reply after a human post, keyword, file, blocker, issue status; 182 spec 1.2), cap 12 per hour, sent hidden to the topic's agent | `../182-topic-loop-prompt/spec.md` sections 1.2, 4, 5; rows L1-L7 in build; no loop store on master yet (`git ls-tree -r --name-only origin/master csi-spl-api/src/go/spool-hub-api/internal/store/ \| grep -i loop` -> none) | **A different object, a shared pattern.** A loop lives on one topic and answers in it. A scheduled task lives on the workspace (or the instance), its scope is a filter over many objects, it may run a fixed action without any agent, and it reports in its own channel (D5). Reused: 182's ticker and claim (one `UPDATE ... RETURNING` per tick, no catch-up burst, a UUIDv5 of the cause as the id) and its time-zone rule. Whether loops later fold into tasks: **Q1**. |
 | **Day's tasks** (spec 170): a To-do view in the Calendar of issues by deadline; the morning card dropped (poll `acef24b9`) | `../170-day-tasks-reminder/spec.md` 1.2, 11.4 | **Reused by a template**: "nudge stale issues" (7.2) reads the same issues and links the To-do view `/calendar?k=todo&v=day`. Nothing in 170 changes. |
 | **Activity issues** (spec 174): `issues.kind = activity`, the standing duty of a fleet role seat, synced from `csi-spl-orc/cnf/role-activities/activities.tsv` | `../174-activity-issues/spec.md` 3.1, 3.2 | **The same word, a different thing.** 174's activity is the *definition* of a role seat's duty and has no runs. This spec's "activities" are the runs of a scheduled task. A 187 run is never written as an `issues` row of kind `activity`. |
 | **Reporter role** (spec 177): a cron-spawned agent with a checklist, writing reports and daily per-member task notes | `../177-reporter-role/spec.md` section 0 | **A fleet job on a box.** Template "weekly status report" (7.4) is the workspace-level, person-configured form of a report; the Reporter stays as it is. |
-| **Calendar** (specs 089, 097, 119 section 15): events with a time zone, reminders, the Google sync on its own 60 s ticker | `api/store/calendar.go:156` (`TimeZone`, "" is UTC); `api/hub/gcal_sync.go:44` (`gcalSyncEvery = 60 * time.Second`), `:80` (its ticker), started at `api/hub/server.go:710` | **Reused**: the 60 s ticker pattern and the IANA-zone rule. A task is not a calendar event and is not shown in the Calendar (section 11). |
-| **The hub's own timers** | `RunSweeper` (`api/hub/server.go:699`): retention, file, demo and backfill tickers and the chores of each sweep; also `presence.go:41`, `blocker_issue.go:94`, `repo_sync.go:138`, `operator_deploys.go:316`, the `marketing_*` dispatchers, `relay.go:82` | Each is fixed system upkeep that no person configures. The task runner is ONE new ticker beside them (row S3); none of them moves into it. |
+| **Calendar** (specs 089, 097, 119 section 15): events with a time zone, reminders, the Google sync on its own 60 s ticker | `api/store/calendar.go:156` (`TimeZone`, "" is UTC); `api/hub/gcal_sync.go:44` (`gcalSyncEvery = 60 * time.Second`), `:80` (its ticker), started at `api/hub/server.go:711` | **Reused**: the 60 s ticker pattern and the IANA-zone rule. A task is not a calendar event and is not shown in the Calendar (section 11). |
+| **The hub's own timers** | `RunSweeper` (`api/hub/server.go:700`): retention, file, demo and backfill tickers and the chores of each sweep; also `presence.go:41`, `blocker_issue.go:94`, `repo_sync.go:138`, `operator_deploys.go:316`, the `marketing_*` dispatchers, `relay.go:82` | Each is fixed system upkeep that no person configures. The task runner is ONE new ticker beside them (row S3); none of them moves into it. |
 | **The fleet's box crons** | 29 actions `csi-spl-orc/src/bash/run/*install-cron*.func.sh` (`ls ... \| wc -l` -> 29): disk sweep, env order, dispatch and orch rotate, spawn place / fill / remote, unanswered sweep, review go, topic archive suggest, cost rollup, ... | **Fleet upkeep on agent boxes, out of scope.** They run on a box as the box user and know the box; a scheduled task runs in the hub for a workspace and knows only spool-hub objects. None is migrated (section 11). `do_spl_topic_archive_suggest` (`spl-topic-archive-suggest.func.sh`) is the nearest neighbour of template 7.3; the template is per workspace and person-configured, the cron stays. |
 | **Token budgets** (spec 121 section 7): per-workspace and per-channel `tokens_per_day` / `tokens_per_month`, checked before every agent turn, `429 token_quota`, one 80 % notice | `api/store/token_budget.go` (`BudgetLimitMonth`), `api/hub/token_budget.go` (`tokenBudget`), the ledger `rdb/0171_usage_events.sql`, `meterTurn` `api/hub/usage_events.go:43` | **Reused for the D7 token cap**: an agent run is an agent turn, metered by the same ledger. The task cap is its own limit, read from the same ledger (5.3). |
 | **Workspace settings registry** (spec 098) | `RegisterTenantSetting` `api/store/tenant_kv.go:84`; `TenantSettingDef` `:57` (Default, Min, Max, OneOf) | **Reused** for the workspace-level settings (5.2). |
-| **Operator routes**: hub calls authorised by a Google ID token whose verified email is in `OperatorEmails` | `api/hub/operator.go:37` (`operatorEnabled`), `:42` (`operatorAuth`) | **Reused** as the instance level's API door (5.1). A person who is instance admin in the web UI: **Q2**. |
+| **Operator routes**: hub calls authorised by a Google ID token whose verified email is in `OperatorEmails` | `api/hub/operator.go:37` (`operatorEnabled`), `:43` (`operatorAuth`) | **Reused** as the instance level's API door (5.1). A person who is instance admin in the web UI: **Q2**. |
 | **Default channels** `#lobby`, `#alerts`, `#feedback`, `#public`: seeded by a tenant trigger; every member reads them without a membership row; the hub posts in them as `HUB-0` | `rdb/0173_default_channel_public.sql` (`spool_seed_default_channels`); `DefaultChannels` and `PublicChannels` `api/store/channels.go:44,49`; `PostPublicNotices` `api/hub/public_notice.go:27` (signed `box-wui`) | **Reused**: the D5 channel is a fifth default channel, seeded the same way (6.1). The retired `#tasks` id (`ChannelTasks = "tasks"`, `channels.go:40`, "can never be created again") is NOT reused: the new id is `scheduled-tasks`. |
 | **Search grammar**: one Gmail-style query language with in-memory matchers | `api/search/grammar.go` (Version 1.6); `MatchMsg` `api/search/match.go:87`, `MatchTopic` `:162`, `MatchEntity` `:191`; operators `type: from: to: box: in: is: has: topic: before: after: on: title: name: ext: larger: smaller: status: prio: assignee: label:` | **Reused as the scope's condition language** (4.1): the Outlook-rule half. One grammar, no second parser. |
 | **Object actions** behind routes today | `POST /v1/messages/{msg_id}/move`, `PUT` / `DELETE /v1/messages/{msg_id}/archive`, `PATCH /v1/messages/{msg_id}/kind`, `PUT /v1/topics/{task_id}/priority`, `POST /v1/issues/{ref}/archive`, `PUT /v1/channels/{channel}/archive`; topic archive `handleArchiveTopic` (`api/hub/topic_archive.go`); issue writes `createIssue` / `updateIssue` (`api/hub/issues.go:353,419`) | **Reused**: each fixed action calls the store path its route calls, under the owner's rights (4.3, 4.5). |
@@ -116,7 +116,7 @@ Nothing named "scheduled task" exists:
   used and the message it posted in the channel. A run is an **activity** in
   the UI's words.
 - **Owner** of a task: the member who created it, or who last edited it
-  (spec 182 4.5); `HUB-0` for an instance task.
+  (as a loop's author in spec 182 4.5: "the editor becomes its author"); `HUB-0` for an instance task.
 
 ## 4. The task
 
@@ -383,7 +383,7 @@ version 1.7; `after:` and `before:` stay as they are.
 ### 8.1 Tables
 
 One forward-only migration, numbered by `do_rdb_migration_next` at build
-time (head on `origin/master`: `0298`).
+time (head on `origin/master` `d6b810775`: `0300`; the number moves, the action picks it).
 
 ```sql
 CREATE TABLE IF NOT EXISTS scheduled_tasks (
@@ -462,7 +462,7 @@ CREATE TABLE IF NOT EXISTS hub_settings (
 ### 8.2 The runner
 
 `runScheduledTasks`, one 60 s ticker started beside `runGcalSync`
-(`api/hub/server.go:710`):
+(`api/hub/server.go:711`):
 
 1. **Claim** due schedule tasks with one `UPDATE scheduled_tasks SET
    next_due_at = <next> ... WHERE state = 'on' AND next_due_at <= now() ...
@@ -762,3 +762,7 @@ Q11. Should a schedule also take a cron expression (for example every 30 minutes
 ## 13. Changes
 
 - v0.1 (2026-11-20): first draft; D1-D8 from poll `38083eff`; Q1-Q11 open.
+- v0.2 (2026-11-20): review m-181 (msg `7f5dce3f`) folded: W1 spec 182 has 11
+  triggers, not 12; W2 `server.go` and `operator.go` lines re-read on
+  `origin/master` `d6b810775`; N1 the owner rule quotes 182 4.5; N2 rdb head
+  `0300`; N3 the number check names this lane's own worktree. Q1-Q11 unchanged.

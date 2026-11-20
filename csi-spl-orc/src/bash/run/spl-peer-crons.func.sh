@@ -134,7 +134,11 @@ spl_peer_cron_build() {
   sched="$(spl_peer_cron_sched "$name")" || { do_log "FATAL no peer cron named '$name'"; return 1; }
   SPL_PEER_CRON_TAG="$SPL_ORG_APP:peer-$name"
   SPL_PEER_CRON_SCRIPT="$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc/src/bash/scripts/peer-$name-cron.sh"
-  SPL_PEER_CRON_LOGDIR="${PEER_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/peer}"
+  SPL_PEER_CRON_LOGDIR="${PEER_CRON_LOG_DIR:-}"
+  if [[ -z "$SPL_PEER_CRON_LOGDIR" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir SPL_PEER_CRON_LOGDIR peer || { do_log "FATAL cannot derive the peer cron log dir (no tree for spl_run_paths): set PEER_CRON_LOG_DIR"; return 1; }
+  fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 && "$name" != ensure ]] &&
     pre="$(spl_desk_cron_update_pre "$SPL_DESK_CRON_SRC" "$trunk")"
   ns="$(spl_cron_no_stack_pre "$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc" "$SPL_PEER_CRON_LOGDIR/$name.lock")" || return 1

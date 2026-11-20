@@ -269,6 +269,12 @@ grep -F -q "+$want" <<<"$out" && has_want=1 || has_want=0
   pass "6. dry run: the every-minute line and 8.1, nothing written" ||
   fail "6. dry rc=$rc has_want=$has_want out=$out"
 
+# 6b. no override: the log dir derives from SPL_VAR_APP_DIR (r75-02)
+out="$(WD_CRON_LOG_DIR="" SPL_VAR_APP_DIR="$T/var" DRY_RUN=1 run_act do_spl_wd_ensure_install_cron)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"cron-no-stack.sh $T/var/wd/ensure.lock "* && "$out" == *">> $T/var/wd/ensure.out 2>&1 # csi-spl:wd-ensure"* && ! -e "$T/var" ]] &&
+  pass "6b. no override: the lock and the .out sit under \$SPL_VAR_APP_DIR/wd, a dry run creates nothing" ||
+  fail "6b. derived log dir rc=$rc out=$out"
+
 out="$(WD_CRON_ACTION=check run_act do_spl_wd_ensure_install_cron)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"NOT installed"* ]] &&
   pass "6. check before install: FAIL, exit 1" ||

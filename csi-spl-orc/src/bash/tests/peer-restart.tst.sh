@@ -385,6 +385,11 @@ crons CRON_REMOVE=1 DRY_RUN=0 "$T/bin/act" do_spl_peer_distill_install_cron > /d
 (( ok )) && pass "8. the three _install_cron actions: dry run writes nothing, install twice = one exact line each, check passes, CRON_REMOVE=1 takes only its own line" ||
   fail "8. installers"
 
+# --- 8b. no override: the log dir derives from SPL_VAR_APP_DIR (r75-02) ----------
+crons PEER_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1 "$T/bin/act" do_spl_peer_restart_install_cron > "$T/o" 2>&1; rc=$?
+[[ $rc == 0 ]] && grep -qF "cron-no-stack.sh $T/var/peer/restart.lock " "$T/o" && grep -qF ">> $T/var/peer/restart.out 2>&1 # csi-spl:peer-restart" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "8b. no override: the lock and the .out sit under \$SPL_VAR_APP_DIR/peer, a dry run creates nothing" || fail "8b. derived log dir rc=$rc: $(cat "$T/o")"
+
 # --- 9. acceptance 8.1 -------------------------------------------------------------------------
 # shellcheck disable=SC2034 # SPL_ORG_APP is read by spl_peer_cron_8_1
 c81() { ( do_log() { :; }; source "$PROJ_ROOT/src/bash/run/spl-peer-crons.func.sh"; SPL_ORG_APP=csi-spl; spl_peer_cron_8_1 "$1" ); }

@@ -73,7 +73,11 @@ spl_wd_cron_prep() {
   fi
   spl_desk_cron_src || return 1
   SPL_WD_CRON_SCRIPT="$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc/run"
-  SPL_WD_CRON_LOGDIR="${WD_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/wd}"
+  SPL_WD_CRON_LOGDIR="${WD_CRON_LOG_DIR:-}"
+  if [[ -z "$SPL_WD_CRON_LOGDIR" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir SPL_WD_CRON_LOGDIR wd || { do_log "FATAL cannot derive the watchdog cron log dir (no tree for spl_run_paths): set WD_CRON_LOG_DIR"; return 1; }
+  fi
   # each line runs behind its own no-stack lock (SPL-4495)
   local ns_ensure ns_start
   ns_ensure="$(spl_cron_no_stack_pre "$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc" "$SPL_WD_CRON_LOGDIR/ensure.lock")" || return 1

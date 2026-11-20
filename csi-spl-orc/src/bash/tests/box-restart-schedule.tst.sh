@@ -206,6 +206,10 @@ inst() { run do_spl_box_restart_install_cron DESK_CRON_SRC="$SRC" DESK_CRON_SELF
 out="$(inst BOX_RESTART_SLOT=0)"
 cmp -s "$T/crontab" <(printf '17 * * * * keep-me # mine\n') && grep -q 'PLAN\|crontab diff' <<<"$out" && grep -q "+\*/5 .* --at '0 04:00 Europe/Helsinki'" <<<"$out" \
   && pass "6. the dry run prints the diff and writes nothing" || fail "6. dry ($out)"
+# 6b. no override: the log dir derives from SPL_VAR_APP_DIR (r75-02)
+out="$(inst BOX_RESTART_SLOT=0 BOX_RESTART_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1)"; rc=$?
+[ "$rc" = 0 ] && grep -qF "cron-no-stack.sh $T/var/box-restart/box-restart.lock " <<<"$out" && grep -qF ">> $T/var/box-restart/box-restart.out 2>&1 # csi-spl:box-restart" <<<"$out" && [ ! -e "$T/var" ] \
+  && pass "6b. no override: the lock and the .out sit under \$SPL_VAR_APP_DIR/box-restart, a dry run creates nothing" || fail "6b. derived log dir (rc $rc: $out)"
 inst BOX_RESTART_SLOT=0 DRY_RUN=0 >/dev/null; c1="$(cat "$T/crontab")"; inst BOX_RESTART_SLOT=0 DRY_RUN=0 >/dev/null
 [ "$c1" = "$(cat "$T/crontab")" ] && [ "$(grep -c '# csi-spl:box-restart$' "$T/crontab")" = 1 ] && grep -q 'keep-me # mine' "$T/crontab" \
   && pass "6. installed twice = one tagged line, the same crontab, the other line kept" || fail "6. idempotent ($(cat "$T/crontab"))"

@@ -922,6 +922,10 @@ before="$(md5sum <"$T/crontab")"
 cron >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(md5sum <"$T/crontab")" == "$before" ]] && grep -q '^    +5 \* \* \* \* .*orch-rotate-cron.sh >> .*/cron.out 2>&1 # csi-spl:orch-rotate$' "$T/o" &&
   pass "10. dry run: the diff, nothing written" || fail "10. dry: rc=$rc $(cat "$T/o")"
+# --- 10b. no override: the log dir derives from SPL_VAR_APP_DIR (r75-02) ----------
+cron ROTATE_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1 >"$T/o" 2>&1; rc=$?
+(( rc == 0 )) && grep -qF "orch-rotate-cron.sh >> $T/var/orch-rotate/cron.out 2>&1 # csi-spl:orch-rotate" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "10b. no override: cron.out sits under \$SPL_VAR_APP_DIR/orch-rotate, a dry run creates nothing" || fail "10b. derived log dir rc=$rc $(cat "$T/o")"
 cron ROTATE_CRON_ACTION=check >"$T/o" 2>&1 && fail "10. check passed with no line" || pass "10. check fails while not installed"
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 want="5 * * * * $SRC/csi-spl-orc/src/bash/scripts/orch-rotate-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:orch-rotate"

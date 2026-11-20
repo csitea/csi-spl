@@ -47,3 +47,19 @@ All commands below ran in the lane worktree `/opt/csi/csi-spl-wt/m-148` as the p
 ## v0.1 signature (2026-11-20)
 
 **PASS on `41552fddd3683281595393a3e104c0d0df7e24a2`** (plan v0.1, head of `review/c002-refactor-round-76-planner`, parent `4c4e97f750b097b4882431fd623462a218da0783` on origin/master), with W1 above. A v1.0 sha named by c-410 will be signed here in a second commit on this branch.
+
+<a id="r76-seat-v10"></a>
+
+## v1.0 signature (2026-11-20)
+
+**PASS on `50c0a70302d5f3992db0be128d9cf6e811dd1f19`** (plan v1.0, on origin/master; named as "v1.0 landed 50c0a7030" on task `9b013f0a-95da-5561-a3dc-6faf1f731f14` / topic `dispatch-refactor-r76`; its planner-branch twin `156bc484d0de4cd011a3fb0506ab4c922ae126bb` carries a byte-identical plan file: `git diff 156bc484d 50c0a7030 -- csi-spl-doc/doc/md/refactor-round-76-plan.md | wc -l` -> 0).
+
+Re-checked on v1.0 in this session, each command run here in `/opt/csi/csi-spl-wt/m-148`:
+
+- `git merge-base --is-ancestor 50c0a70302d5f3992db0be128d9cf6e811dd1f19 origin/master` -> rc 0 (v1.0 is on origin/master); `git log -1 --format='%H %s' 50c0a7030...` -> `50c0a70302d5f3992db0be128d9cf6e811dd1f19 docs(r76-plan, SPL-6061): refactor round 76 plan v1.0, panel seat m-148 PASS on v0.1 41552fddd, W1 fixed (the gate commands as literal lines), N1-N4 recorded`.
+- **W1 closed:** plan lines 105-111 at `50c0a7030` (`git show 50c0a7030:csi-spl-doc/doc/md/refactor-round-76-plan.md | sed -n '103,112p'`) now carry the three gate commands as literal lines with a plain `|`. Run exactly as written on `4168d752b` they print 3, 5, 3: `git grep -nE '/(var|opt)/\$\{?SPL_ORG_APP' 4168d752b -- csi-spl-orc/src/bash ':!*/tests/*' | grep -vE ':[0-9]+:\s*#' | wc -l` -> 3; the `(org_app|ORG_APP|app)` rx -> 5; the `(ORG|org)` rx -> 3.
+- **Rows unchanged:** `git diff 41552fddd 50c0a7030 -- csi-spl-doc/doc/md/refactor-round-76-plan.md | grep -cE '^[+-]'` -> 47 changed lines; the same diff grepped for `r76-0|row 0|batch` -> no output, so no row line moved. The diff is the status line, the W1 literal commands, the section 8 panel record and the editor/panel seat lines only.
+- **Sites still on origin/master:** `git show origin/master:csi-spl-orc/src/bash/run/spl-box-update-install-cron.func.sh | sed -n 34p`, `.../spl-cost-rollup-install-cron.func.sh | sed -n 42p`, `.../spl-dispatch-rotate-install-cron.func.sh | sed -n 74p` -> the three hand-spelled `/var/${...%%-*}/$.../...` logdir lines, unchanged.
+- `git ls-remote origin | grep -E 'r76-[0-9]{2}|refactor-round-76'` -> exactly the two expected branches: `156bc484d... refs/heads/review/c002-refactor-round-76-planner` and `068387328... refs/heads/review/c002-refactor-round-76-mistral-seat` (this seat's).
+
+No new defects on v1.0; W1 is closed by the literal gate commands and N1-N4 change no row. Verdict stands: **PASS**.

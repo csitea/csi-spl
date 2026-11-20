@@ -51,6 +51,11 @@
 #  21. SPL-5695: box.env SPOOL_LOGIN2_PEER -> the peer sync runs in the tick,
 #      both directions, under the tick's own lock; the pool enabled -> the
 #      login mode runs and writes its line; neither without its setting
+#  22. SPL-6100: the cached probe (LOGIN_PROBE_EVERY) is reused only for the
+#      credential it was probed with: an expired probe, then a new credential
+#      -> re-probed (ok), not the cached expired; the same credential inside
+#      LOGIN_PROBE_EVERY -> cached as before; an old probe file with no
+#      credential key -> one re-probe, then cached
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -134,7 +139,7 @@ tick() {
     LOGIN_KILL_CMD="$T/bin/kill" LOGIN_RESTORE_CMD="$T/bin/restore" LOGIN_SEND="$T/bin/send" \
     LOGIN_CRED_CMD="env LOGIN_CRED_FILE=$T/here/cred.json LOGIN_SUDO= bash $CRED" LOGIN_PROBE_CMD="$PROBE_HERE" \
     LOGIN_PEER_CMD="$T/bin/peer" LOGIN_GONE_CMD="$T/bin/gone" LOGIN_PANECMD_CMD="$T/bin/panecmd" LOGIN_AGENT_HOME="$T/home" \
-    LOGIN_PROBE_EVERY=0 LOGIN_EXPIRY_WARN_MIN="${WARN_MIN:-0}" LOGIN_NOW="${NOW:-}" DRY_RUN="${DRY:-0}" 2>&1
+    LOGIN_PROBE_EVERY="${EVERY:-0}" LOGIN_EXPIRY_WARN_MIN="${WARN_MIN:-0}" LOGIN_NOW="${NOW:-}" DRY_RUN="${DRY:-0}" 2>&1
 }
 acts() { grep -vcE '^(probe|peer [^ ]+ (stat|probe))$' "$T/calls"; }
 leaks() { grep -rlE 'rt-[A-Z]+-secret|at-[A-Z]+' "$@" 2>/dev/null | grep -v '/cred.json' | grep -vc 'bak-login'; }
@@ -408,6 +413,32 @@ out="$(NOPEERS=1 LOGIN2_CRED_CMD="$T/bin/l2here" LOGIN2_PEER_CMD="$T/bin/l2peer"
   pass "21. SPOOL_LOGIN2_PEER: the peer sync runs in the tick, both directions" || fail "21. sync ($out)"
 [[ "$out" != *"holds"*"skipped"* ]] && pass "21. the tick's own lock does not skip its sync" || fail "21. skipped under its own lock ($out)"
 [[ "$out" == *"login-mode: own -> own"* && -s "$T/state/login-mode" ]] && pass "21. the pool enabled: the login mode runs and writes its line" || fail "21. mode ($out)"
+
+# 22. SPL-6100 (sat 2026-11-20: probe expired at 19:59:06Z, a new credential
+# at 19:59:11Z, probe=expired and an alert for the next 5 min): the cached
+# verdict is keyed on the credential's sha12
+probes() { grep -c '^probe$' "$T/calls"; }
+reset; cred "$T/here/cred.json" DEAD 2000
+out="$(NOPEERS=1 EVERY=300 tick)"
+grep -q 'probe=expired ' <<<"$out" && [ "$(probes)" = 1 ] && pass "22. setup: a dead credential probes expired" || fail "22. setup ($out)"
+out="$(NOPEERS=1 EVERY=300 tick)"
+grep -q 'probe=expired ' <<<"$out" && [ "$(probes)" = 1 ] \
+  && pass "22. the same credential inside LOGIN_PROBE_EVERY: the cached verdict, no probe" || fail "22. same cred ($out; probes $(probes))"
+! grep -qE 'rt-[A-Z]+-secret|at-[A-Z]+' "$T/state/probe" && pass "22. the probe file holds no credential content" || fail "22. probe file leaks"
+cred "$T/here/cred.json" GOOD 3000
+out="$(NOPEERS=1 EVERY=300 tick)"
+grep -q 'probe=ok ' <<<"$out" && [ "$(probes)" = 2 ] \
+  && pass "22. a new credential after an expired probe: re-probed (ok), not the cached expired" || fail "22. new cred ($out; probes $(probes))"
+out="$(NOPEERS=1 EVERY=300 tick)"
+grep -q 'probe=ok ' <<<"$out" && [ "$(probes)" = 2 ] \
+  && pass "22. ...and that new verdict is cached for its credential" || fail "22. new cred cached ($out; probes $(probes))"
+reset; mkdir -p "$T/state"; echo "$(date +%s) Failed to authenticate: OAuth session expired" >"$T/state/probe"
+out="$(NOPEERS=1 EVERY=300 tick)"
+grep -q 'probe=ok ' <<<"$out" && [ "$(probes)" = 1 ] \
+  && pass "22. an old probe file with no credential key: one re-probe" || fail "22. old line ($out; probes $(probes))"
+out="$(NOPEERS=1 EVERY=300 tick)"
+grep -q 'probe=ok ' <<<"$out" && [ "$(probes)" = 1 ] \
+  && pass "22. ...then cached" || fail "22. old line, then cached ($out; probes $(probes))"
 
 echo "spl-agent-login-check: $fails failed"
 exit $(( fails > 0 ))

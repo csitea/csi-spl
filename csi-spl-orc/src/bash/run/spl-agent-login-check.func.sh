@@ -54,7 +54,7 @@
 # @description A healthy box: 0 actions, one summary line. One tick at a time
 # @description (flock). Dry run unless DRY_RUN=0: plans, probes, no change.
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @param LOGIN_PROBE_EVERY (optional) - s between probes on a healthy box, default 300 (0 = every tick)
+# @param LOGIN_PROBE_EVERY (optional) - s between probes on a healthy box, default 300 (0 = every tick); a changed credential re-probes at once
 # @param LOGIN_STOP_WAIT (optional) - s a stopped claude gets before KILL, default 15
 # @param LOGIN_COOLDOWN_MIN (optional) - minutes a just restored or started seat is left alone; default cnf env.box.login_check.cooldown_min (10)
 # @param LOGIN_STATE_DIR (optional) - default <SPL_VAR_APP_DIR>/agent-login-check
@@ -216,18 +216,26 @@ _lc_turn() {
   spl_lease_last_turn "$1" || true
 }
 
-# This box's probe verdict line, fresh when EVERY s passed or a pane is stuck,
-# else the cached one (<state>/probe: "<epoch> <verdict line>").
+# This box's probe verdict line, fresh when EVERY s passed, a pane is stuck
+# or the credential is not the one the cached verdict was probed with, else
+# the cached one. <state>/probe: "<epoch> <verdict line>", then "cred <sha12>"
+# (the stat prefix cred.log writes, never content). SPL-6100, sat 2026-11-20:
+# an expired probe at 19:59:06Z was reused for 5 min after a new credential
+# landed at 19:59:11Z, and alerted. An old file with no cred line re-probes.
 _lc_probe() {
-  local every="$1" stuck="$2" now at line
+  local every="$1" stuck="$2" now at line key had="" k
   now="$(date +%s)"
+  key="$($LC_CRED stat 2>/dev/null | sed -n 1p | cut -d' ' -f1)"
+  [[ "$key" =~ ^[0-9a-f]{12}$ ]] || key=none
   if [[ -z "$stuck" && "$every" -gt 0 && -r "$LC_STATE/probe" ]]; then
-    read -r at line <"$LC_STATE/probe"
-    if [[ "$at" =~ ^[0-9]+$ ]] && (( now - at < every )) && [[ -n "$line" ]]; then echo "$line"; return 0; fi
+    { read -r at line; read -r k had; } <"$LC_STATE/probe"
+    if [[ "$at" =~ ^[0-9]+$ && -n "$line" && "$k" == cred && "$had" == "$key" ]] && (( now - at < every )); then
+      echo "$line"; return 0
+    fi
   fi
   line="$($LC_CRED probe 2>/dev/null | sed -n 1p)"
   [[ -n "$line" ]] || line="unknown no probe output"
-  printf '%s %s\n' "$now" "$line" >"$LC_STATE/probe" 2>/dev/null || true
+  printf '%s %s\ncred %s\n' "$now" "$line" "$key" >"$LC_STATE/probe" 2>/dev/null || true
   echo "$line"
 }
 

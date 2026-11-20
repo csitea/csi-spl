@@ -236,6 +236,30 @@ func TestTopicExportRefusals(t *testing.T) {
 	}
 }
 
+// The browser's upload token is no principal on the export (WUIBox): it gets
+// the door before any topic is looked up.
+func TestTopicExportRefusesBrowserToken(t *testing.T) {
+	r := &stubRender{render: func(context.Context, []byte) ([]byte, error) { return []byte(stubPDFHead), nil }}
+	g := topicExportRig{r: r}
+	g.e = newEnv(t, func(o *hub.Options) {
+		o.ViewDoor = hub.ViewDoorOff
+		o.LobbyTaskID = lobby
+		o.ViewCORSOrigins = []string{wuiOrigin}
+		o.TopicPDF = r
+	})
+	g.tid, _ = g.e.tenant()
+	browser := dialWUI(t, g.e, g.tid, "HUM-2").w.UploadToken
+	if a := g.export(t, browser, uuidV4(), ""); a.status != 401 || a.token != "door" {
+		t.Fatalf("the browser's token: %d %q, want 401 door", a.status, a.token)
+	}
+	// CONTROL: a box token on the same hub passes the door to the topic lookup.
+	b := g.e.box(g.tid, "box-b", "CLE-08")
+	g.e.pin(g.tid, b)
+	if a := g.export(t, g.e.uploadToken(g.tid, b), uuidV4(), ""); a.status != 404 || a.token != "not_found" {
+		t.Fatalf("a box token: %d %q, want 404 not_found", a.status, a.token)
+	}
+}
+
 func TestTopicExportRendererFailures(t *testing.T) {
 	g := topicExportEnv(t, true)
 	b := g.tokens["box-b"]

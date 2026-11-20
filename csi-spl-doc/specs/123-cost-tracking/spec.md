@@ -1,6 +1,6 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.6 + 16.6 v0.1 (2026-11-20: 16.6, every new or edited cost label translated into all 19 languages on save, design only, for review; SPL-6057) · v1.6 (2026-10-30: the owner's Q-8 A and Q-9 A folded into section 13, msg 4316d471: the project's cost is a fifth Costs page, first and the default; a customer workspace gets its own project cost, its AI share + its own people, no cloud part; SPL-4368) · v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+**Status:** v1.6 + 16.6 v0.2 (2026-11-20: the spec review's notes N1-N3 folded: L4 asserts agy sees the mask token, the machine write keys an hr component apart with its own guard, the PATCH's reach follows owner question 5; SPL-6057) · 16.6 v0.1 (2026-11-20: 16.6, every new or edited cost label translated into all 19 languages on save, design only, for review; SPL-6057) · v1.6 (2026-10-30: the owner's Q-8 A and Q-9 A folded into section 13, msg 4316d471: the project's cost is a fifth Costs page, first and the default; a customer workspace gets its own project cost, its AI share + its own people, no cloud part; SPL-4368) · v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
 s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
 all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
@@ -1342,7 +1342,7 @@ hand-entered line's one free-text label, in whatever language it was typed.
   `tests/e2e/reporting-costs-labels.test.mjs` (`personsLanguage`: Persons
   in `/bg/` reads the bg label, the keys unchanged).
 
-### 16.6 Every new or edited cost label in all 19 languages on save (SPL-6057, v0.1, design only)
+### 16.6 Every new or edited cost label in all 19 languages on save (SPL-6057, v0.2, design only)
 
 Owner HUM-10, csitea 720fa031: "Every label MUST be in the curretly selected
 lanaguage in the language settings of the user !!!" (msg 43a43e76), and the
@@ -1441,7 +1441,9 @@ The writes:
   `source_text = <current master text>`; a locale sent unchanged keeps its
   row as it is (a machine row the person did not touch stays `machine`); a
   locale left out is deleted, and the next run makes it again as `machine`
-  (the WUI says so, row L6).
+  (the WUI says so, row L6). The PATCH writes the one entry it names (owner
+  question 5 `e`); with `t` it writes the same rows on every entry whose
+  master text equals that entry's, in the same transaction (row L2).
 - **The run (a new route, row L3).** `PUT /v1/operator/cost-labels/machine
   {text, source_text, labels: {locale: text}}`, the operator service account
   only (`operatorWriteCaller`'s Bearer path). For every entry whose label is
@@ -1449,7 +1451,11 @@ The writes:
   locale) DO UPDATE ... WHERE cost_entry_labels.origin = 'machine'`: a hand
   row is skipped in SQL, so a person who corrects a row between the run's
   read and its write still wins. It refuses (409 `stale_source`) when
-  `source_text` is no longer the entry's master text.
+  `source_text` is no longer the entry's master text. An hr component is
+  written by the same route under a separate key, `{component, source_text,
+  labels}` (exactly one of `text` and `component`), so a component and a cost
+  entry that share a text are never mixed up; its upsert carries the same
+  guard, `WHERE hr_cost_component_labels.origin = 'machine'`.
 - **Stale hand rows** (the master text changed after a person corrected the
   row) are kept and listed in the GET as `stale_locales`; the Expenses card
   marks them for the accountant to re-check. No run touches them.
@@ -1504,7 +1510,7 @@ Each row is its own lane, files disjoint, in the order of its dependency.
 | L1 | the two columns on both label tables, every existing row `hand` | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_cost_labels_origin.sql` (number from `do_rdb_migration_next`) | - | `store/cost_labels_test.go` on Postgres: an existing row reads `hand`, a new master row has `source_text` NULL; `PRE_PUSH_TIER=full` | an INSERT with `origin = 'x'` fails the CHECK |
 | L2 | the store: the PATCH writes per row (16.6.4), the copy on the POST (16.6.2 point 1), the missing query, the guarded machine write, both drivers | `internal/store/cost_labels.go`, `cost_labels_postgres.go`, `cost_entries_postgres.go`, `cost_entries.go`, their tests | L1 | both drivers: a machine write over a hand row leaves it; a PATCH that sends a machine row unchanged keeps it `machine`; a POST of a known text lands with its 19 rows | the machine write without its `WHERE origin = 'machine'` turns the hand-row test red |
 | L3 | the hub: `GET /v1/operator/cost-labels/missing` (texts and hr components, `{text, missing}` only), `PUT /v1/operator/cost-labels/machine`, `label_origins` and `stale_locales` on the entries' GET | `internal/hub/cost_labels.go`, a new `internal/hub/cost_labels_machine.go`, `hub/cost_labels_test.go` | L2 | the operator SA reads and writes; an accountant member reads 403 on both new routes; 409 `stale_source` | the missing answer carrying an amount field fails its test |
-| L4 | the action `do_spl_cost_labels_translate` (16.6.3-16.6.6), first commit the agy schema measurement (n = 20) | `csi-spl-orc/src/bash/run/spl-cost-labels-translate.func.sh`, its prompt assets, `csi-spl-orc/src/bash/tests/spl-cost-labels-translate.tst.sh` (hub, claude and agy stubbed) | L3 | stubs: a missing text gets its 18 rows; agy's correction is the one written; the log has no label | agy stub answers `refuse` -> zero writes; claude stub answers 101 characters -> that text refused, the others written |
+| L4 | the action `do_spl_cost_labels_translate` (16.6.3-16.6.6), first commit the agy schema measurement (n = 20) | `csi-spl-orc/src/bash/run/spl-cost-labels-translate.func.sh`, its prompt assets, `csi-spl-orc/src/bash/tests/spl-cost-labels-translate.tst.sh` (hub, claude and agy stubbed) | L3 | stubs: a missing text gets its 18 rows; agy's correction is the one written; the log has no label | the agy stub's input holds the mask token (`[NAME_1]`) and not the planted person or workspace name; agy stub answers `refuse` -> zero writes; claude stub answers 101 characters -> that text refused, the others written |
 | L5 | the cron line, like section 4.5's (`flock`, tag, install / remove / check, refused from a worktree) | `csi-spl-orc/src/bash/run/spl-cost-labels-translate-install-cron.func.sh` and its test | L4 | install twice = one line; check names the schedule | a second install that adds a line fails the test |
 | L6 | the WUI: Expenses shows per row "machine translated" or "corrected by hand", the languages still waiting, the stale ones; removing a row says it will be made again | `csi-spl-wui/src/components/expenses/CostEntryLabels.vue`, `src/utils/cost-entries.mjs`, `i18n/locales/*.json` (19, agy reviewed), `tests/unit/cost-entries.test.mjs`, the e2e `tests/e2e/reporting-costs-labels.test.mjs` | L3 | e2e on the generated bundle: a machine row shows its mark, a hand edit flips it | a locale file missing the new key fails `i18n-parity` |
 | L7 | the docs: this section's v1.0 and 16.5's write rule | `csi-spl-doc/specs/123-cost-tracking/spec.md` | L2..L6 | - | - |

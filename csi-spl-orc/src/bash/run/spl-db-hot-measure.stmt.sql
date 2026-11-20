@@ -281,32 +281,32 @@ SELECT q.cm, q.cr, q.cd, q.cc, q.cdm, q.um, q.ur, q.ud, q.uc, q.udm, q.rel,
 			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, count(*) AS n
 				FROM fc f2 CROSS JOIN LATERAL (VALUES (f2.place_key), (f2.topic_key)) x(key) GROUP BY x.key) k)
 		FROM fc) q(cm, cr, cd, cc, cdm, um, ur, ud, uc, udm, rel, keys)
--- @@stmt ch_counts sha256=281950a58d20ba4abcf87248ea217f26c5ec18e1d69e9fbb1e1cf6af33536437 scope=tenant exec=:'t',now(),:'r'
+-- @@stmt ch_counts sha256=ddaafb1bc01f275e0004dbd24b092fd0a31f5fca31858cf5e7fb2174f5046259 scope=tenant exec=:'t',now(),:'r'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH c AS (
 			SELECT channel, count(*)::int AS n, max(received_at) AS last_at, count(DISTINCT from_id)::int AS posters,
 				count(*) FILTER (WHERE $3::text IS NULL OR from_id IS DISTINCT FROM $3)::int AS others
-			FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2
+			FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2 AND loop_id IS NULL
 			GROUP BY channel)
 		SELECT c.channel, c.n, c.last_at, l.msg_id, c.posters, c.others FROM c
 		CROSS JOIN LATERAL (SELECT x.msg_id::text AS msg_id FROM messages x
-			WHERE x.tenant_id = $1 AND x.channel = c.channel AND x.expires_at > $2 AND x.received_at = c.last_at
+			WHERE x.tenant_id = $1 AND x.channel = c.channel AND x.expires_at > $2 AND x.received_at = c.last_at AND x.loop_id IS NULL
 			ORDER BY x.msg_id::text DESC LIMIT 1) l
--- @@stmt ch_marked sha256=a97c1ff9ead4e6e7608d811dea94f0fd244cf0664f99fe2b605e9457d1653b22 scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby'
+-- @@stmt ch_marked sha256=229994187e115375dd9eefeb8fbaf283e601e16bbb67cd0a2ded79cb2b83d5ed scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $5::text[]) AS u(ch, at, id)),
 		sm AS (SELECT substr(mark_key, 4) AS ch, at, msg_id AS id FROM read_marks
 			WHERE $6::text IS NOT NULL AND tenant_id = $1 AND member_id = $6 AND mark_key LIKE 'ch:%'),
 		mk AS (SELECT DISTINCT ON (ch) ch, at, id FROM (SELECT ch, at, id FROM pm UNION ALL SELECT ch, at, id FROM sm) x ORDER BY ch, at DESC, id DESC)
 		SELECT mk.ch, c.n FROM mk CROSS JOIN LATERAL (SELECT count(*)::int AS n FROM messages m
-			WHERE m.tenant_id = $1 AND m.channel = mk.ch AND m.expires_at > $2
+			WHERE m.tenant_id = $1 AND m.channel = mk.ch AND m.expires_at > $2 AND m.loop_id IS NULL
 			AND m.received_at >= mk.at AND (m.received_at, m.msg_id::text) > (mk.at, mk.id)
 			AND ($6::text IS NULL OR (m.from_id IS DISTINCT FROM $6 AND m.typed_by IS DISTINCT FROM $6)) AND ($6::text IS NULL OR NOT EXISTS (SELECT 1 FROM read_marks tm WHERE tm.tenant_id = $1 AND tm.member_id = $6
 		AND tm.mark_key = 't:' || m.task_id::text AND (m.received_at, m.msg_id::text) <= (tm.at, tm.msg_id))) AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
 		AND (z.msg_id = m.msg_id OR z.msg_id = m.task_id
 			OR (z.task_id = m.task_id AND m.task_id::text <> $7)
 			OR (z.task_id = m.parent_task_id AND m.parent_task_id::text <> $7)))) c
--- @@stmt ch_thread sha256=e500b1a2ff5313c7f456e7cf1fc25c34fde1c8464986ef9c805fb6c7debd72a0 scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby'
+-- @@stmt ch_thread sha256=9e7744b49d41c31e2a1d07cd1ca1f24f2fea86bb9306685a710a59db2b8294e7 scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $5::text[]) AS u(ch, at, id)),
 		sm AS (SELECT substr(mark_key, 4) AS ch, at, msg_id AS id FROM read_marks
@@ -320,14 +320,14 @@ WITH pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $
 		CROSS JOIN LATERAL (SELECT x.msg_id, x.channel, x.received_at, x.task_id, x.parent_task_id FROM messages x
 			WHERE x.tenant_id = $1 AND x.task_id = k.task
 			AND x.received_at >= tm.at AND (x.received_at, x.msg_id::text) > (tm.at, tm.msg_id)
-			AND x.channel IS NOT NULL AND x.expires_at > $2 AND x.from_id IS DISTINCT FROM $6 AND x.typed_by IS DISTINCT FROM $6 OFFSET 0) m
+			AND x.channel IS NOT NULL AND x.expires_at > $2 AND x.loop_id IS NULL AND x.from_id IS DISTINCT FROM $6 AND x.typed_by IS DISTINCT FROM $6 OFFSET 0) m
 		JOIN mk ON mk.ch = m.channel AND (m.received_at, m.msg_id::text) <= (mk.at, mk.id)
 		WHERE $6::text IS NOT NULL AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
 		AND (z.msg_id = m.msg_id OR z.msg_id = m.task_id
 			OR (z.task_id = m.task_id AND m.task_id::text <> $7)
 			OR (z.task_id = m.parent_task_id AND m.parent_task_id::text <> $7)))
 		GROUP BY m.channel
--- @@stmt ch_hidden sha256=789f59de2630a1737ed1cae7f90086b4b47d1670bc15196224bc9e235c914180 scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby','{issues,tasks}'
+-- @@stmt ch_hidden sha256=b51a43436a34e95d153969b27f80d08bed1d3997729cfa77b6605b229b624a9d scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby','{issues,tasks}'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH RECURSIVE pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $5::text[]) AS u(ch, at, id)),
 		sm AS (SELECT substr(mark_key, 4) AS ch, at, msg_id AS id FROM read_marks
@@ -344,10 +344,10 @@ WITH RECURSIVE pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timest
 						OR (z.task_id = u.parent_task_id AND u.parent_task_id::text <> $7)))) LIMIT 1) LIMIT 1),
 		z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL AND EXISTS (SELECT 1 FROM um)),
 		h AS (
-			SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id AND m.channel IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)
-			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.msg_id AND m.channel IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)
-			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.task_id AND z.task_id::text <> $7 AND m.channel IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)
-			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.parent_task_id = z.task_id AND z.task_id::text <> $7 AND m.channel IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel))
+			SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id AND m.channel IS NOT NULL AND m.loop_id IS NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)
+			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.msg_id AND m.channel IS NOT NULL AND m.loop_id IS NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)
+			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.task_id AND z.task_id::text <> $7 AND m.channel IS NOT NULL AND m.loop_id IS NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)
+			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.parent_task_id = z.task_id AND z.task_id::text <> $7 AND m.channel IS NOT NULL AND m.loop_id IS NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel))
 		SELECT h.channel, count(*)::int FROM h
 		WHERE h.expires_at > $2 AND ($6::text IS NULL OR h.from_id IS DISTINCT FROM $6)
 		GROUP BY h.channel

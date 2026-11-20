@@ -20,6 +20,12 @@
 #      id-less row covers only a post older than it; an unread or answered
 #      topic keeps one line per (topic, taker)
 #   9. spl_take_post_parse: the newest human post no agent has answered
+#  10. held channels (SPL-6068, take-line-by-code.md 3.2): a topic in a channel
+#      the box map holds from automatic posts (column 7 no-auto-post, its own
+#      row or the workspace's * row) gets NO take line, immediate, deferred or
+#      the deferred run; TAKE-HELD names the channel and the map; TAKE_NOTIFY
+#      notes still go out; a map that cannot tell holds too. Controls that still
+#      post: a channel with no holding row, another workspace's * row, a DM
 #   control: with the ledger check removed (a planted copy), the second take
 #      posts again -> the idempotency assertion would turn red
 #   control: with the post key dropped (a planted copy), case 8 stays silent
@@ -176,6 +182,62 @@ NOTE="$(row c-002 c-001 m5 2026-11-07T21:00:30Z 'a relay')"
 [[ -z "$(printf '%s\n' "$H1" "$TK" "$AN" | parse)" ]] && pass "9. an agent's answer ends it: nothing printed" || fail "9. answered: $(printf '%s\n' "$H1" "$TK" "$AN" | parse)"
 [[ "$(printf '%s\n' "$H1" "$TK" "$AN" "$H2" "$NOTE" | parse)" == "TAKE-POST m4 "* ]] && pass "9. the follow-up post is the key; an agent-to-agent note answers nothing" || fail "9. follow-up: $(printf '%s\n' "$H1" "$AN" "$H2" "$NOTE" | parse)"
 [[ "$(printf '%s\n' "$H2" "$AN" | parse)" == "TAKE-POST m4 "* ]] && pass "9. rows sort by ts, not by line" || fail "9. order: $(printf '%s\n' "$H2" "$AN" | parse)"
+
+# 10. held channels. The topic read names its channels (TAKE-CHANNELS).
+M="$S/channel-rules.tsv"
+printf 'csitea\tquiet\t-\t-\t-\t-\tno-auto-post\nwsb\t*\t-\t-\t-\t-\tno-auto-post\nheldws\t*\t-\t-\t-\t-\tno-auto-post\n' >"$M"
+printf '#!/usr/bin/env bash\necho "$*" >>"$SPAWN_LOG"\n' >"$T/spawn.sh"; chmod +x "$T/spawn.sh"
+SPW="$T/spawns.log"; : >"$SPW"
+th() { take DRY_RUN=0 TAKE_POST_CMD="$T/post.sh" POST_FILE="$P" TAKE_DEFER_RUN="$T/spawn.sh" TAKE_DEFER_SLEEP=true SPAWN_LOG="$SPW" "$@" >"$T/o" 2>&1; }
+now=$(date +%s)
+E1=00000000-0000-4000-8000-0000000000e1
+printf 'TAKE-CHANNELS quiet\nTAKE-POST p-e1 %s\n' "$((now - 10))" >"$P"
+b="$(n "$REPLY_LOG")" nb="$(n "$SEND_LOG")"
+th DESK_TASK="$E1" ACK_DEFER_S=0 TAKE_NOTIFY=c-009; rc=$?
+[[ $rc == 0 && "$(n "$REPLY_LOG")" == "$b" ]] && pass "10. immediate: a no-auto-post channel gets no take line, exit 0" ||
+  fail "10. immediate: rc=$rc, $(( $(n "$REPLY_LOG") - b )) lines: $(cat "$T/o")"
+grep -q "^TAKE-HELD $E1 by c-002@box-a: no-auto-post channel #quiet: the box map holds it from automatic posts.*$M" "$T/o" &&
+  pass "10. TAKE-HELD names the channel and the map" || fail "10. no TAKE-HELD line: $(cat "$T/o")"
+[[ "$(n "$SEND_LOG")" == $((nb + 1)) ]] && grep -q -- "--to c-009 --kind note --task $E1" "$SEND_LOG" &&
+  pass "10. the TAKE_NOTIFY note still goes out" || fail "10. notes: $(( $(n "$SEND_LOG") - nb ))"
+grep -q "$E1" "$S/dispatch/take.log" 2>/dev/null && fail "10. a held take was recorded" || pass "10. nothing recorded as taken"
+E2=00000000-0000-4000-8000-0000000000e2
+th DESK_TASK="$E2" ACK_DEFER_S=300
+[[ "$(n "$REPLY_LOG")" == "$b" && "$(n "$SPW")" == 0 ]] && grep -q "^TAKE-HELD $E2" "$T/o" && ! grep -q TAKE-DEFERRED "$T/o" &&
+  pass "10. deferred: no take line and no deferred run is started" || fail "10. deferred: spawns $(n "$SPW"): $(cat "$T/o")"
+th DESK_TASK="$E2" TAKE_DEFER_DUE="$((now - 1))" TAKE_DEFER_POST=p-e1
+[[ "$(n "$REPLY_LOG")" == "$b" ]] && grep -q "^TAKE-HELD $E2" "$T/o" && pass "10. the deferred run posts nothing in a held channel" ||
+  fail "10. deferred run: $(cat "$T/o")"
+printf 'TAKE-CHANNELS general quiet\nTAKE-POST p-e3 %s\n' "$((now - 10))" >"$P"
+th DESK_TASK=00000000-0000-4000-8000-0000000000e3 ACK_DEFER_S=0
+[[ "$(n "$REPLY_LOG")" == "$b" ]] && grep -q "#quiet" "$T/o" && pass "10. any channel the topic touches counts" || fail "10. two channels: $(cat "$T/o")"
+printf 'TAKE-CHANNELS general\nTAKE-POST p-e4 %s\n' "$((now - 10))" >"$P"
+th DESK_TASK=00000000-0000-4000-8000-0000000000e4 ACK_DEFER_S=0 TENANT_ID=heldws
+[[ "$(n "$REPLY_LOG")" == "$b" ]] && grep -q "^TAKE-HELD .*#general" "$T/o" && pass "10. the workspace's * row holds every channel" ||
+  fail "10. * row: $(cat "$T/o")"
+mv "$M" "$M.off"
+th DESK_TASK=00000000-0000-4000-8000-0000000000e5 ACK_DEFER_S=0
+[[ "$(n "$REPLY_LOG")" == "$b" ]] && grep -q "^TAKE-HELD .*cannot tell whether the box map holds #general (the map is missing)" "$T/o" &&
+  pass "10. no box map: cannot tell, no take line" || fail "10. no map: $(cat "$T/o")"
+mv "$M.off" "$M"
+th DESK_TASK=00000000-0000-4000-8000-0000000000e6 ACK_DEFER_S=0
+[[ "$(n "$REPLY_LOG")" == $((b + 1)) ]] && grep -q "^TAKEN " "$T/o" && pass "10. control: a channel with no holding row posts" ||
+  fail "10. free channel: $(cat "$T/o")"
+printf 'TAKE-CHANNELS general\nTAKE-POST p-e7 %s\n' "$((now - 10))" >"$P"
+th DESK_TASK=00000000-0000-4000-8000-0000000000e7 ACK_DEFER_S=0 TENANT_ID=wsc
+[[ "$(n "$REPLY_LOG")" == $((b + 2)) ]] && pass "10. control: another workspace's * row does not hold this one" ||
+  fail "10. other * row: $(cat "$T/o")"
+printf 'TAKE-CHANNELS\nTAKE-POST p-e8 %s\n' "$((now - 10))" >"$P"
+th DESK_TASK=00000000-0000-4000-8000-0000000000e8 ACK_DEFER_S=0
+[[ "$(n "$REPLY_LOG")" == $((b + 3)) ]] && pass "10. control: a DM (no channel) posts" || fail "10. DM: $(cat "$T/o")"
+# the parser names the channels when every row carries one ("" = a DM)
+crow() { jq -cn --arg c "$1" --arg f "$2" --arg i "$3" '{channel:$c,from:$f,to:"ALL-0",msg_id:$i,ts:"2026-11-20T14:45:00Z",body:"q"}'; }
+[[ "$(crow '#QUIET' HUM-10 m1 | parse | sed -n 1p)" == "TAKE-CHANNELS quiet" ]] && pass "10. parser: the channel, without # and lower-case" ||
+  fail "10. parser: $(crow '#QUIET' HUM-10 m1 | parse)"
+[[ "$( { crow '' HUM-10 m1; crow ops c-001 m2; } | parse | sed -n 1p)" == "TAKE-CHANNELS ops" ]] && pass "10. parser: every channel, a DM row adds none" ||
+  fail "10. parser two rows: $( { crow '' HUM-10 m1; crow ops c-001 m2; } | parse)"
+[[ "$(printf '%s\n' "$H1" | parse)" != *TAKE-CHANNELS* ]] && pass "10. parser: rows with no channel field name none" ||
+  fail "10. parser, no channel field: $(printf '%s\n' "$H1" | parse)"
 
 # control: without the post key the new post of case 8 takes no line
 sed 's/ "\$post" "\$post_at"//' "$PROJ_ROOT/src/bash/run/spl-take.func.sh" >"$T/nokey.func.sh"

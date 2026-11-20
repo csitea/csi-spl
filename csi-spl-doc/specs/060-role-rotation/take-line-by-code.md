@@ -112,6 +112,12 @@ it next to the sole seat, for every channel the topic touches, and first: the
 sole seat of a held channel takes nothing either. It fails closed as the
 follow-up does: a map that is missing or cannot be read, or a bad column 7,
 posts nothing; the skip line says which. A DM is no channel and is not held.
+`do_spl_take`, the take a seat runs itself, now reads the map too (SPL-6068,
+one helper `spl_take_held` in `spl-take.func.sh`): a held channel, or a map
+that cannot tell, gets no take line, now or deferred, and prints `TAKE-HELD`
+with the channel and the map; the `TAKE_NOTIFY` notes still go out. The
+channels come from `do_spl_take_post` (`hub-tail --with-channel`); a topic
+that cannot be read is taken as before.
 
 ## 4. Proof
 

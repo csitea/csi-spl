@@ -5,6 +5,9 @@
 # @description "TAKE-ACKED <msg id> <epoch>" instead when an ack line (a take
 # @description line or a poll "**In progress**: noted", any seat, any box)
 # @description already follows that post (SPL-5514: one ack per post).
+# @description First "TAKE-CHANNELS [<channel>...]": every channel the topic
+# @description touches, without # and lower-case, none for a DM (hub-tail
+# @description --with-channel), for do_spl_take's no-auto-post check (SPL-6068).
 # @description With DESK_TAKE_AFTER=<msg id> the same, for that post only: a
 # @description later human post does not replace it (the deferred take run).
 # @description Read only, through the desk (hub-tail), as the desk's user: a
@@ -29,7 +32,7 @@ do_spl_take_post() {
   fi
   d="$(spl_desk_dir "$tenant" "$box")" || return 1
   spl_host_spool || return 1
-  out="$(spl_desk_spool "$d" "$box" "$tenant" "$SPL_HUB_URL" -- hub-tail --task "$task" --json 2>/dev/null)" || return 1
+  out="$(spl_desk_spool "$d" "$box" "$tenant" "$SPL_HUB_URL" -- hub-tail --task "$task" --with-channel 2>/dev/null)" || return 1
   spl_take_post_parse <<<"$out"
 }
 
@@ -39,7 +42,10 @@ do_spl_take_post() {
 # is not an ack line (SPL-1718: a take is not the answer, the same test as
 # _spl_sweep_take_sql; SPL-5514: nor is a poll "noted" line); an
 # agent-to-agent relay answers nobody. An ack line after the post marks it
-# TAKE-ACKED. Sorted as spl_desk_human_verdict: hub-tail is not.
+# TAKE-ACKED. Sorted as spl_desk_human_verdict: hub-tail is not. First, when
+# every row carries its envelope "channel" (--with-channel), the line
+# "TAKE-CHANNELS [<channel>...]"; a name with a blank keeps one, as "?", so the
+# take reads it as "cannot tell".
 spl_take_post_parse() {
   DESK_TAKE_AFTER="${DESK_TAKE_AFTER:-}" python3 -c '
 import calendar, json, os, re, sys, time
@@ -55,6 +61,9 @@ for i, line in enumerate(sys.stdin):
     if isinstance(m, dict) and str(m.get("from", "")):
         rows.append((str(m.get("ts", "")), i, m))
 rows.sort(key=lambda r: (r[0], r[1]))
+if rows and all("channel" in m for _, _, m in rows):
+    chans = {re.sub(r"\s+", "?", str(m["channel"] or "").lstrip("#").lower()) for _, _, m in rows}
+    print(" ".join(["TAKE-CHANNELS"] + sorted(c for c in chans if c)))
 post, acked = None, False
 for _, _, m in rows:
     frm = str(m["from"])

@@ -51,6 +51,14 @@
 # @description too (TAKEN-ALREADY): the take ledger is per box, the topic is
 # @description not. Two boxes that read the topic in the same few seconds,
 # @description before either line shows in hub-tail, can still both post.
+# @description A topic in a channel the box map holds from automatic posts
+# @description (channel-rules.tsv column 7 no-auto-post, its row or the
+# @description workspace's * row; take-line-by-code.md 3.2, SPL-6068) gets no
+# @description take line, now or deferred: TAKE-HELD names the channel and the
+# @description map, exit 0, the TAKE_NOTIFY notes still go out. A map that
+# @description cannot tell (missing, unreadable, a bad column 7) holds too. The
+# @description channels come from the topic read (do_spl_take_post's
+# @description TAKE-CHANNELS line); a topic that cannot be read is taken as before.
 # @param ENV (required) - dev, prd or self (passed on to do_spl_desk_reply)
 # @param TENANT_ID (required) - the workspace of the topic
 # @param DESK_AGENT (required) - the taker's agent id (its desk)
@@ -93,7 +101,10 @@ do_spl_take() {
   local by="$agent@$box" body mark="" post="" post_at=""
   body="Taken by $by: $plan. I post the result here."
   spl_take_defer_wait
-  IFS=$'\t' read -r mark post post_at < <(spl_take_post "$task" "${TAKE_DEFER_POST:-}") || true
+  local got chans
+  got="$(spl_take_post "$task" "${TAKE_DEFER_POST:-}")"
+  IFS=$'\t' read -r mark post post_at < <(sed '/^TAKE-CHANNELS/d' <<<"$got") || true
+  chans="$(sed -n 's/^TAKE-CHANNELS\( \|$\)/ /p' <<<"$got" | tail -n 1)"
   if [[ -n "${TAKE_DEFER_POST:-}" && "$post" != "$TAKE_DEFER_POST" ]]; then
     echo "TAKE-QUIET $task: post $TAKE_DEFER_POST was answered in time, no take line"; return 0
   fi
@@ -103,6 +114,8 @@ do_spl_take() {
   if spl_take_seen "$f" "$task" "$by" "$post" "$post_at"; then
     echo "TAKEN-ALREADY $task by $by: no second take line"; return 0
   fi
+  # shellcheck disable=SC2086 # the channel names, split on purpose
+  [[ -n "$chans" ]] && spl_take_held_stop "$task" "$by" "$to" "$plan" $chans && return 0
   local due
   if due="$(spl_take_defer_due "$post" "$post_at")"; then
     spl_take_defer "$task" "$by" "$plan" "$box" "$post" "$due" "$to"; return
@@ -137,6 +150,44 @@ spl_take_seen() {
     $2 == t && p != "" && $5 == p { f = 1 }
     $2 == t && $3 == b && (p == "" || ($5 == "" && $1 + 0 >= at + 0)) { f = 1 }
     END { exit !f }' "$1"
+}
+
+# Print why <tenant>'s <channel>... is held from automatic posts and exit 0:
+# a channel the box map holds (column 7 no-auto-post, its row or the
+# workspace's * row), or one it cannot tell about (no map, an unreadable map,
+# a bad column 7, a name that is not a channel's). Exit 1 = none is held, or
+# no channel at all (a DM). The one no-auto-post check of a take line
+# (take-line-by-code.md 3.2, SPL-5212 / SPL-6068); the caller loads
+# channel-rules.inc.sh.
+spl_take_held() {
+  local tenant="$1" ch rc fault; shift
+  for ch in "$@"; do
+    [[ "$ch" =~ ^${CR_CHANNEL_RX}$ ]] || { echo "cannot tell whether the box map holds #$ch (not a channel name)"; return 0; }
+    rc=0; cr_no_auto_post "$tenant" "$ch" 2>/dev/null || rc=$?
+    (( rc == 0 )) && { echo "no-auto-post channel #$ch: the box map holds it from automatic posts"; return 0; }
+    (( rc == 1 )) || { fault="$(cr_map_fault)"; echo "cannot tell whether the box map holds #$ch${fault:+ (the map is $fault)}"; return 0; }
+  done
+  return 1
+}
+
+# When a channel of the topic is held (spl_take_held): print TAKE-HELD with
+# why and the map, send the TAKE_NOTIFY notes, exit 0; no take line, no
+# deferred run, nothing in the ledger. Exit 1 = not held, take it.
+spl_take_held_stop() {
+  local task="$1" by="$2" to="$3" plan="$4" why; shift 4
+  if declare -F cr_no_auto_post >/dev/null ||
+    source "$PROJ_PATH/src/bash/features/spawn-agents/lib/channel-rules.inc.sh"; then
+    why="$(spl_take_held "$TENANT_ID" "$@")" || return 1
+  else
+    why="the channel rules lib cannot be read"
+  fi
+  echo "TAKE-HELD $task by $by: $why; no take line (box map $(cr_map 2>/dev/null || echo unknown))"
+  if [[ "${DRY_RUN:-1}" != 0 ]]; then
+    [[ -n "${TAKE_NOTIFY:-}" ]] && do_log "INFO DRY_RUN would tell ${TAKE_NOTIFY} by spool note"
+  else
+    spl_take_notify "$task" "$by" "$to" "$plan"
+  fi
+  return 0
 }
 
 # The deferred run (TAKE_DEFER_DUE set): sleep until the due epoch.
@@ -208,7 +259,8 @@ spl_take_defer() {
 
 # Print "<TAKE-POST|TAKE-ACKED>\t<msg id>\t<epoch>" of the post to take in
 # <topic> ([post]: that post only, the deferred run); nothing when the topic
-# cannot be read or nothing in it is unanswered. Under SPOOL_TEST=1 only
+# cannot be read or nothing in it is unanswered. Then the read's
+# "TAKE-CHANNELS [<channel>...]" line, when it names the topic's channels. Under SPOOL_TEST=1 only
 # a test's own TAKE_POST_CMD reads, never a hub. Its output is searched for the
 # marked line: ./run prints log lines to stdout around it.
 spl_take_post() {
@@ -221,6 +273,7 @@ spl_take_post() {
   out="$(DESK_TASK="$1" DESK_TAKE_AFTER="${2:-}" timeout "${TAKE_POST_TIMEOUT:-20}" $cmd 2>/dev/null)" ||
     { do_log "WARN could not read topic $1: one take line per (topic, taker) this time" >&2; return 0; }
   sed -n 's/^\(TAKE-POST\|TAKE-ACKED\) \([A-Za-z0-9-]*\) \([0-9]*\)$/\1\t\2\t\3/p' <<<"$out" | tail -n 1
+  sed -n '/^TAKE-CHANNELS\( \|$\)/p' <<<"$out" | tail -n 1
 }
 
 # The take line, through do_spl_desk_reply (DESK_TO + full DESK_TASK: post

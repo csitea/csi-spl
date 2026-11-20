@@ -41,7 +41,8 @@ import (
 //
 // A loop prompt message is never a trigger, nor is a hub note (HUB-0, which
 // also posts the pause notices of spec 179). Q10 A: the agent's answer to a
-// loop's prompt never fires that loop.
+// loop's prompt never fires that loop. N4 B: nor does it fire the
+// after_agent_reply box of any other loop of the topic.
 
 // topicLoopCapDefault is the fires per loop per hour (answer 4 B).
 const topicLoopCapDefault = 12
@@ -91,6 +92,9 @@ type loopEvent struct {
 	// routed: the browser post also went to an agent, so a loop with
 	// before_agent_reply already fired for it (one fire per post).
 	routed bool
+	// answer: the post is the awaited answer to a loop of the topic, so
+	// after_agent_reply fits no loop (N4 B).
+	answer bool
 	arm    bool   // a human post: arm no_reply_after_human
 	clear  bool   // an agent reply: clear no_reply_after_human
 	cause  string // the id seed after "topic-loop:<loop>:" when post is nil
@@ -126,7 +130,7 @@ func (ev loopEvent) postMatches(l store.TopicLoop, has func(string) bool) bool {
 	}
 	switch {
 	case ev.human && has(store.LoopAfterHumanReply),
-		ev.reply && has(store.LoopAfterAgentReply),
+		ev.reply && !ev.answer && has(store.LoopAfterAgentReply),
 		has(store.LoopPostHasFile) && len(m.Files) > 0,
 		has(store.LoopPostHasKeyword) && topicLoopKeyword(l.Keyword, m.Body):
 		return true
@@ -304,9 +308,17 @@ func (s *Server) topicLoopFireIf(ctx context.Context, tenant, task string, ev lo
 		return
 	}
 	s.loopIdleTimer(ctx, ls, tenant, task, ev, loops)
-	var hit []store.TopicLoop
+	var rest []store.TopicLoop
 	for _, l := range loops {
-		if !s.loopAwaited(ctx, ls, l, ev) && ev.matches(l) { // 4.4 step 2: any next post of the target clears the wait
+		if s.loopAwaited(ctx, ls, l, ev) { // 4.4 step 2: any next post of the target clears the wait
+			ev.answer = true
+		} else {
+			rest = append(rest, l)
+		}
+	}
+	var hit []store.TopicLoop
+	for _, l := range rest {
+		if ev.matches(l) {
 			hit = append(hit, l)
 		}
 	}
@@ -342,7 +354,8 @@ func (s *Server) loopIdleTimer(ctx context.Context, ls store.TopicLoopStore, ten
 
 // loopAwaited is Q10 A: ev is the awaited answer to l's last fire (the
 // target agent's next post, whatever box it matches, so it runs before the
-// match), so it clears the wait and does not fire l.
+// match), so it clears the wait and does not fire l; topicLoopFireIf then
+// drops after_agent_reply for every loop of the topic (N4 B).
 func (s *Server) loopAwaited(ctx context.Context, ls store.TopicLoopStore, l store.TopicLoop, ev loopEvent) bool {
 	if ev.kind != loopEventPost || l.Awaiting == "" || l.Awaiting != ev.post.From {
 		return false

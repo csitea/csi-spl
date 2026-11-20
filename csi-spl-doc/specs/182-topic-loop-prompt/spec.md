@@ -1,6 +1,6 @@
 # Spec 182: Topic Loop Prompt (Discussion Loops)
 
-Status: **Draft v0.7** (2026-11-20). Lane `c-301` (`claude`, backup for
+Status: **Draft v0.8** (2026-11-20). Lane `c-301` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `bc0353485`; v0.2 folds the
 owner's answers to form `2c1c3f5d` (msg `a198ae53`) and the two requirements
 in msgs `eae9e64f` and `19acb8f9`; v0.2 `d17f582cb`; v0.3 folds Q9 (msg
@@ -17,7 +17,10 @@ who deletes the loops on archive, and the author's two ids (8.2); v0.5
 `46e61a8c`, poll `7ce8419c`): a loop's own agent answer never re-fires it,
 and `before_human_reply` is dropped, eleven triggers stay (8.3); v0.6
 `081f0f506`; v0.7 adds the three hidden-row places and the two count
-CHECKs the L1 review found (c-382, msg `13956ae7`; 8.4).
+CHECKs the L1 review found (c-382, msg `13956ae7`; 8.4); v0.7
+`55058f7c1`; v0.8 folds the owner's N4 B (msg `f854f268`, poll
+`be4ebf76`): an agent's answer to any loop prompt fires the "after each
+agent reply" box of no loop of the topic (1.6, 8.5).
 Epic: **SPL-2398**. Issue: **SPL-6022**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f08c0c58-9228-4e2a-af00-dbbdbd328083` (`t1`).
 Builds on: [179 pause the agents of a discussion](../179-pause-agents-of-a-discussion/spec.md)
@@ -72,6 +75,7 @@ spec applies them:
 | Extra triggers | **all six**: KW, ATT, BLK, IDL, ISS, DLY (msg `a1d73b19`, poll `39cc8497`) | 1.2 rows 6 to 11, 4.2 steps 8 to 12 |
 | Q10 | **A** — the agent's answer to a loop prompt never fires the loop that sent it (msg `46e61a8c`, poll `7ce8419c`) | 4.2 step 7, 4.4, `awaiting` in 5.1 |
 | Q11 | **C** — drop "before each human reply": keep five of the six triggers of msg `d44af000` (msg `46e61a8c`, poll `7ce8419c`) | 1.2, 4.2 step 4, 5.1 CHECK, 7.1 |
+| N4 | **B** — an agent's answer to any loop prompt never fires an "after each agent reply" loop (msg `f854f268`, poll `be4ebf76`, v0.8) | 1.6, 4.2 step 7, 4.4, 4.6 |
 
 ### 1.1 Answer 2 and msg eae9e64f, reconciled
 
@@ -139,8 +143,8 @@ C — Drop it: keep five triggers". No question is open.
 
 - **Q10 A.** The hub knows the answer as the target agent's next agent
   reply in the topic within 30 minutes of the fire (`awaiting`,
-  `awaiting_until` in 5.1; 4.4). That reply fires every other loop of the
-  topic as usual, but not this one. It covers every post trigger, not only
+  `awaiting_until` in 5.1; 4.4). That reply does not fire this loop; since
+  v0.8 (N4 B, 1.6) it fires no other loop's `after_agent_reply` box either. It covers every post trigger, not only
   `after_agent_reply`: the answer can also contain the keyword, carry a file
   (the worked example's PDF, if it is posted) or be a blocker, and none of
   them fires the loop that sent the prompt. The cap of 12 per hour (answer
@@ -192,6 +196,28 @@ Which extra triggers should the loop dialog offer? Pick any.
 | `IDL` | `no_reply_after_human` | a due time per loop on the time ticker (4.2 step 5), armed by a human post, cleared by an agent reply |
 | `ISS` | `issue_status_changed` | a hook in the hub's one issue write (`updateIssue`, `internal/hub/issues.go:419`, store call `:449`) and the link read `IssueDiscussionLinks` (`internal/store/issue_discussions.go:94`); the prompt quotes the issue, not a post |
 | `DLY` | `daily_at` | a time and a time zone per loop on the time ticker. The workspace has no time zone today (`git grep -il time_zone origin/master -- csi-spl-api/src/go/spool-hub-api/internal/store/` lists only the calendar files), so the loop keeps its own IANA zone, the calendar event's rule (`TimeZone`, `internal/store/calendar.go:156`; "" is UTC) |
+
+### 1.6 N4, answered (v0.8)
+
+HUM-10 (t1 f08c0c58, msg `f854f268`, 2026-11-20T20:49:15Z, verbatim):
+"Poll: be4ebf76-eb6f-47d4-9874-66577093d977 Answer: B — An agent's answer
+to any loop prompt never fires an "after each agent reply" loop".
+
+The question (c-002, 19:52:44Z): two `after_agent_reply` loops of one topic
+fire each other, the answer to loop 1's prompt fires loop 2 and back, up to
+24 prompts an hour; Q10 A stops a loop firing only on the answer to its own
+prompt. N4 B extends that to every loop of the topic. As built (row L2,
+SPL-6105):
+
+- A post is an awaited answer when it is the answer to ANY loop of the
+  topic: that loop's `awaiting` is the post's sender and the post is before
+  its `awaiting_until` (4.4). It clears that loop's wait, as in Q10 A.
+- Such a post matches the `after_agent_reply` box of no loop of the topic.
+- Only that box is dropped: another loop whose other checked boxes
+  (keyword, file, blocker) match the answer still fires on them. The loop
+  whose prompt was answered does not fire at all (Q10 A).
+- A real agent reply (the answer to no prompt) and a human post still fire
+  every loop.
 
 ## 2. Terms
 
@@ -333,6 +359,9 @@ time fire, the issue change for an issue fire). The hooks:
    - the post is not a loop prompt message;
    - the post is not the awaited answer to this loop's last fire (Q10 A,
      4.4);
+   - `after_agent_reply` matches only a post that is the awaited answer to
+     no loop of the topic (N4 B, 1.6, v0.8); the loop's other boxes still
+     match it;
    - the topic is not archived (`messages.archived_at`) and not paused (the
      store's `AnyTopicPaused`,
      `csi-spl-api/src/go/spool-hub-api/internal/store/topic_pause.go:74`,
@@ -427,7 +456,9 @@ time fire, the issue change for an issue fire). The hooks:
 2. That answer is an agent reply. The fire sets `awaiting = <agent>` and
    `awaiting_until = fire + 30 min` (`SetTopicLoopAwaiting`, 7.1.1); the
    agent's next agent reply in the topic before then clears both and does
-   not fire this loop (Q10 A, 1.4). It fires every other loop as usual.
+   not fire this loop (Q10 A, 1.4). It fires no loop's `after_agent_reply`
+   box either (N4 B, 1.6, v0.8); another loop's other boxes still fire on
+   it.
    After `awaiting_until`, or once that reply has cleared it, the agent's
    replies fire this loop again like any other.
 
@@ -465,7 +496,7 @@ each reply to me by an agent".
 | export | The agent makes a PDF of the whole topic | **missing**, (a) below, row L6 |
 | mail | The agent mails the PDF to HUM-10 | **missing**, (b) below, row L7 |
 | answer | The agent replies "PDF sent" in the topic (Q9 A) | built |
-| stop | That reply does not fire this loop again (Q10 A); it fires the topic's other loops as usual | rows L1-L2, (c) below |
+| stop | That reply does not fire this loop again (Q10 A), nor any other loop's "after each agent reply" box (N4 B, v0.8) | rows L1-L2, (c) below |
 
 Measured on `origin/master` `412a44ab0`:
 
@@ -615,7 +646,7 @@ the store keeps it as the record of each fire.
 | row | depends on | kind | scope | tests and red control |
 |---|---|---|---|---|
 | **L1 rdb + store** | — | `complex_coding` | `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_topic_loops.sql` (`topic_loops` with the v0.4 columns of 5.1, `messages.loop_id`, the topic-head functions); `internal/store/{topic_loop.go,topic_loop_postgres.go,topic_loop_memory.go,topic_loop_test.go}`; `view_postgres.go`, `view_topics_batch.go`, `fallback_postgres.go`, `fallback_memory.go`; v0.7: `channels_postgres.go`, `channels_memory.go`, `view_changes_postgres.go`, `view_changes.go`, `topic_export.go`; `rls_test.go`; `internal/channelmove/catalogue.go` | `PRE_PUSH_TIER=full`: Postgres + Memory parity; each of the eleven keys is accepted and an unknown one refused, `before_human_reply` included (v0.6); each field CHECK (keyword, idle, daily) refuses a stray or missing value; `ClaimDueTopicLoops` claims each of the three due columns, reports it in `Due` and its pre-move time in `DueAt` (v0.5), moves `daily_due_at` across a DST change in `Europe/Helsinki` by one local day; `ArmTopicLoopIdle` / `ClearTopicLoopIdle` touch only that task's idle loops; the cap `UPDATE` never passes 12 under two concurrent fires and rolls over after an hour; a `loop_id` row is in no view, no topic head and no fallback read, and (v0.7) in no channel count or unread, no view change and no topic export row; a negative `fires_in_hour` or `fires_total` is refused; RLS covers the table. Red control: drop `AND m.loop_id IS NULL` from the topic view statement, and the hidden-row test fails. |
-| **L2 hub** | L1 | `complex_coding` | `internal/hub/{topic_loop.go,topic_loop_fire.go,topic_loop_test.go,topic_loop_fire_test.go}`; the hooks in `wui.go` (before and after the store) and `ws.go`; the `fanoutWUI` skip; the time ticker `runTopicLoopTimer`; v0.5: the `DeleteTopicLoops` calls in `topic_archive.go` (4.5) | Each of the eleven boxes fires on its event; v0.6: the target agent's first reply within 30 min of a fire does not fire that loop (any post trigger: agent reply, keyword, file, blocker) but fires another loop of the topic, and its next reply, or a reply after 30 min, fires it again; the keyword match at word edges (and not inside a word); a file post fires `post_has_file`, a plain one does not; a blocker fires from an agent-to-agent send, a browser post and a kind change, and the kind change back does not; an idle loop fires once after n minutes with no agent reply, never after an agent reply, and re-arms on a later human post; a daily loop fires once a day at its local time; an issue status change fires the loops of each linked topic once, a priority-only change does not; `before_agent_reply`'s prompt reaches the box before the post; a time loop fires once per due tick across two hub instances and never catches up a burst; a post matching two boxes fires once; a replay does not; a loop prompt message does not; HUB-0 and pause notices do not; paused loops, paused and archived topics do not; the 13th fire in an hour does not; v0.5: a loop with `every_n_minutes` and `daily_at` whose daily fire follows an interval fire sends both (two msg_ids); archiving or deleting the topic leaves no loop, unarchiving brings none back; a member whose session id is not a v:1 id sets a loop that fires, from the derived `HUM-<n>`; the policy table (`everyone`, `admins`, `starter`); no browser frame for a loop row; `TestRoundTripsPerRequest` shows no extra round trip on a tenant with no loop. Red control: remove the cap check, and the agent-reply self-fire test passes 12. |
+| **L2 hub** | L1 | `complex_coding` | `internal/hub/{topic_loop.go,topic_loop_fire.go,topic_loop_test.go,topic_loop_fire_test.go}`; the hooks in `wui.go` (before and after the store) and `ws.go`; the `fanoutWUI` skip; the time ticker `runTopicLoopTimer`; v0.5: the `DeleteTopicLoops` calls in `topic_archive.go` (4.5) | Each of the eleven boxes fires on its event; v0.6: the target agent's first reply within 30 min of a fire does not fire that loop (any post trigger: agent reply, keyword, file, blocker); v0.8 (N4 B): nor another loop's `after_agent_reply` box, while another loop's keyword box still fires on it, and its next reply, or a reply after 30 min, fires it again; the keyword match at word edges (and not inside a word); a file post fires `post_has_file`, a plain one does not; a blocker fires from an agent-to-agent send, a browser post and a kind change, and the kind change back does not; an idle loop fires once after n minutes with no agent reply, never after an agent reply, and re-arms on a later human post; a daily loop fires once a day at its local time; an issue status change fires the loops of each linked topic once, a priority-only change does not; `before_agent_reply`'s prompt reaches the box before the post; a time loop fires once per due tick across two hub instances and never catches up a burst; a post matching two boxes fires once; a replay does not; a loop prompt message does not; HUB-0 and pause notices do not; paused loops, paused and archived topics do not; the 13th fire in an hour does not; v0.5: a loop with `every_n_minutes` and `daily_at` whose daily fire follows an interval fire sends both (two msg_ids); archiving or deleting the topic leaves no loop, unarchiving brings none back; a member whose session id is not a v:1 id sets a loop that fires, from the derived `HUM-<n>`; the policy table (`everyone`, `admins`, `starter`); no browser frame for a loop row; `TestRoundTripsPerRequest` shows no extra round trip on a tenant with no loop. Red control: remove the cap check, and the agent-reply self-fire test passes 12. |
 | **L2b orc** | L1 | `simple_coding` | `spl-unanswered-sweep.func.sh`, `unanswered-sweep-classify.py`, `spl-take-auto.func.sh` and their tests | a loop row is never listed, re-sent or escalated, and never taken. Red control: drop the skip, and the sweep test lists the loop prompt as unanswered. |
 | **L3 wui** | L2 | `simple_coding`, then `i18n` (agy has the last word on the locales) | `msg-menu.mjs`, `topic-menu.mjs`, `MessageMenu.vue`, `MessageCard.vue`, `TopicLoopsDialog.vue`, `spool-client*.mjs`, `i18n/locales/*.json` | `pnpm run typecheck`, `test:unit` (i18n parity, untranslated and raw-text gates, cleancode, a `topic-loops` unit test of the menu lock, the form's at-least-one-trigger rule, and each of the four fields required exactly with its box: n, keyword, idle n, time and zone). Red control: a raw string in the dialog, and `i18n-no-raw-text` fails. |
 | **L4 e2e** | L3 | `tests` | `csi-spl-wui/tests/e2e/topic-loops.test.mjs` | `BASE_URL=<bundle> pnpm run test:e2e` on the mock: add a loop from the menu, edit it, pause it, delete it; a human post shows no loop prompt card in the topic. Red control: skip the emit, and the dialog never opens. |
@@ -1040,4 +1071,13 @@ trigger to its rows.
   76 and 77); the spec now matches it.
 - Unchanged: every name, route, column and row of v0.6.
 
-<!-- version: 0.7 · updated: 2026-11-20 · last-edit: 2026-11-20T15:25:00Z -->
+### 8.5 Changes from v0.7 (the owner's N4 B, msg `f854f268`)
+
+- **1, 1.6, 4.2 step 7, 4.4 step 2, 4.6, row L2:** the awaited answer to
+  any loop of the topic matches no loop's `after_agent_reply` box. Row L2
+  builds it in `topicLoopFireIf` (`internal/hub/topic_loop_fire.go`): every
+  loop's wait is checked first, then the match runs with the answer flag.
+- Unchanged: every name, route, column, key and store contract of v0.7. No
+  migration.
+
+<!-- version: 0.8 · updated: 2026-11-20 · last-edit: 2026-11-20T23:30:00Z -->

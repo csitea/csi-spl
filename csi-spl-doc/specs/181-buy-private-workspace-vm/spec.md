@@ -91,18 +91,36 @@ names its question as **[Q-n]**.
 ### 1.0 The owner's answers
 
 Owner HUM-10, t1 topic `b12055b5`, relayed verbatim by the dispatch holder
-c-002@sat (msgs `20218211`, `64f641dd`, `94ddb2c5`). An answered question's **[Q-n]**
+c-002@sat (msgs `20218211`, `64f641dd`, `94ddb2c5`, `b585876f`, `fc5c25e8`, `502db57e`). An answered question's **[Q-n]**
 marks in sections 2 to 6 now read as that answer.
 
-| q | answer | owner msg | time (2026-11-19) |
+| q | answer | owner msg | when (UTC) |
 |---|---|---|---|
-| Q-1 | A: ours, one VM per private workspace in our GCP; we pay Google and bill its cost + 33% | `f05a0825` | 22:05:17Z |
-| Q-2 | A: private VM, shared hub; messages on our hub, isolated per workspace by row-level security | `105ffbb4` | 22:05:37Z |
-| Q-3 | A: we hold root, for upkeep only; no fleet lane and no other workspace runs there; the page says so | `695e7abf` | |
-| Q-13 | **B** (not the recommended A): checkout first, the private-workspace product in Stripe, then provisioning | `2b118136` | |
+| Q-1 | A: ours, one VM per private workspace in our GCP; we pay Google and bill its cost + 33% | `f05a0825` | 2026-11-19 22:05:17Z |
+| Q-2 | A: private VM, shared hub; messages on our hub, isolated per workspace by row-level security | `105ffbb4` | 2026-11-19 22:05:37Z |
+| Q-3 | A: we hold root, for upkeep only; no fleet lane and no other workspace runs there; the page says so | `695e7abf` | 2026-11-19 |
+| Q-13 | **B** (not the recommended A): checkout first, the private-workspace product in Stripe, then provisioning | `2b118136` | 2026-11-19 |
+| Q-5 | none of A, B, C: **both** subscription sign-in and API keys; the sign-in is driven from the web UI only, and we relay the buyer's inputs to the CLI's terminal login on their VM | `fd1af997` | 2026-11-20 |
+| Q-10 | A, as a binding rule: no metered fall-back, **we never resell tokens**; customers buy their own tokens, we sell the GCP infrastructure and the spool-hub interface | `504cb94f` | 2026-11-20 |
+| Q-14 | A: build the relay now; switch it on per vendor after that vendor's written OK (O1, O2, O3); the relay hands the login inputs straight to the VM and stores them nowhere on the hub; API keys work meanwhile | `375f9b8e` | 2026-11-20 |
 
 Q-13 is mapped by its answer text, which is form Q-13's option B word for
 word; its poll id `35df3e5f` could not be read from c-625's seat.
+
+Q-5 and Q-10 were answered in chat on form `976aad13`. Q-5's web-UI relay
+met spec 159 4.3's switch (claude's sign-in off until Anthropic answers in
+writing, O1); Q-14 (below, poll `3190dcc9`) keeps that gate per vendor.
+Q-10 removes 159 section 9 (the metered fall-back on our API keys) and
+confirms 121 R6's replacement (no AI tokens sold). It does not decide Q-11:
+127 7.1's 50% is charged on own cost, the fixed slice and hosts, its token
+term is already 0, so 33% against 50% on infrastructure stays open.
+
+```poll
+Q-14. When does the web-UI sign-in relay go live, given spec 159 kept claude's sign-in off until Anthropic confirms in writing (O1)?
+(A) Build the relay now; switch it on per vendor after that vendor's written OK (O1 Anthropic, O2 xAI, O3 Mistral); the relay hands the login inputs straight to the VM and stores them nowhere on the hub; API keys work meanwhile (Recommended: keeps spec 159's gate)
+(B) Build it and switch it on now for every vendor with a terminal login, without waiting for written answers
+(C) Build it now; switch it on for claude only, once Anthropic answers; the other vendors stay on API keys
+```
 
 ```poll
 Q-1. Whose cloud does the private VM run in?
@@ -354,5 +372,10 @@ it; listing on Cloud Marketplace stays spec 156.
 - v0.2 (2026-11-19, c-625, SPL-5997): section 1.0, the owner's answers so
   far: Q-1 A, Q-2 A, Q-3 A, Q-13 B (checkout first). Sections 4 and 6 are
   not yet reordered for Q-13 B; that and Q-4..Q-12 come with v0.3.
+- v0.2.1 (2026-11-20, c-625, SPL-5997): 1.0 adds Q-5 (both sign-in and
+  API keys, sign-in relayed from the web UI), Q-10 A (no fall-back, we
+  never resell tokens) and the new form Q-14, answered A (relay built now,
+  on per vendor after its written OK). Q-11 stays open: 127 7.1's margin is
+  on infrastructure, not tokens.
 
-<!-- version: 0.2.0 · updated: 2026-11-19 · last-edit: 2026-11-19T22:56:00Z -->
+<!-- version: 0.2.1 · updated: 2026-11-20 · last-edit: 2026-11-20T15:13:42Z -->

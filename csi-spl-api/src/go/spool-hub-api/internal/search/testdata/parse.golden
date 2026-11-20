@@ -83,7 +83,7 @@ error: bad query at 0 ("in:#"): in: must be a channel (#name), dm, file-streams 
 ## is:revoked
 {"Raw":"is:revoked","Root":{"Kind":0,"Kids":null,"Term":{"Op":"is","Value":"revoked","Phrase":false,"Prefix":false,"Pos":0,"Raw":"is:revoked","Enum":"revoked","ID":"","Box":"","Channel":"","DM":false,"FileStreams":false,"Contacts":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["robot","box"],"Explicit":false,"Warnings":null,"Positive":null,"Relay":false}
 ## is:nope
-error: bad query at 0 ("is:nope"): is: must be one of blocker, msg, note, offline, online, reject, relay, result, revoked, root, task
+error: bad query at 0 ("is:nope"): is: must be one of alert, blocker, bug, decision, docs, feature, idea, msg, note, offline, online, question, reject, relay, result, revoked, root, task
 ## has:file
 {"Raw":"has:file","Root":{"Kind":0,"Kids":null,"Term":{"Op":"has","Value":"file","Phrase":false,"Prefix":false,"Pos":0,"Raw":"has:file","Enum":"file","ID":"","Box":"","Channel":"","DM":false,"FileStreams":false,"Contacts":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message"],"Explicit":false,"Warnings":null,"Positive":null,"Relay":false}
 ## has:attachment

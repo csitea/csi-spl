@@ -32,7 +32,9 @@ takes 5 installers whose dir is the action's own `local logdir`; row 02 takes 4 
 dir is a global `SPL_*_CRON_LOGDIR` (3) or whose installer the box deploy calls (1). The
 other 3 stay out with a measured reason each (section 7).
 
-**Status: v0.1**, draft for the panel. Editor: **c-341** (claude).
+**Status: v1.0**: panel seat m-350 (mistral) PASS on v0.1 `9a25c9817`, no W finding;
+N1-N5 recorded (section 8), N2 corrects one grep in 1.3, none changes a row. Rows 01
+and 02 are as drafted. Editor: **c-341** (claude).
 
 **One sha:** every count is measured on **`47a30b7a6`** (`origin/master`
 47a30b7a693311464d4f504552f996789778dc8f, committed 2026-11-20T11:34:58+01:00), n=1 per
@@ -144,8 +146,11 @@ fi
 Each site becomes that block with its own variable, sub and override name: net **+4
 or +5 lines** (r74-01: `git show --stat 1f5404315` -> each code file `6 +++++-`). For
 row 02's three global sites the variable is the global `SPL_*_CRON_LOGDIR` (no function
-in those files declares it `local`: `grep -nE 'local .*SPL_(BRX|PEER|WD)_CRON_LOGDIR'`
--> 0), so `printf -v` writes the global the other functions read; the locals of the
+in those files declares it `local`: `git grep -nE 'local +SPL_(BRX|PEER|WD)_CRON_LOGDIR'`
+-> rc 1, no match; the looser `'local .*SPL_...'` gets 2 lines,
+`spl-wd-ensure-install-cron.func.sh:91,100`, that only read the global inside
+`local cmd=` / `local gate`), so `printf -v` writes the global the other functions
+read; the locals of the
 helper chain are `main org base` and `d g` (`lib:spl-run-paths.func.sh:67`, `:43`), none
 a target name. `SPL_ORG_APP` stays: every site still reads it for its `tag`, its `run` /
 `script` path or its `spl_cron_no_stack_pre` tree.
@@ -356,6 +361,7 @@ Kind `simple_coding`, vendor claude.
 | the 5 `/var/${org_app\|ORG_APP\|app}/...` lines and the 3 tenant-dir sites | r74 section 7's reasons hold (a fourth spelling, an operator NOTE text, a cron wrapper; the tenant root-key store is secret-class) | 1.2 |
 | `iac:run/` and `csi-spl-utl/src/bash/run/` hand-spelled lines | `spl_run_paths` lives in the orc lib: a choice for its own row (or a shared lib first); `gcp-backup-env` is secret-class (r73) | r73 1.3 |
 | a gate for the shape (extend `no-literal-paths.tst.sh` with a baseline) | its pattern must cover all spellings; after this round the orc count is 11; a gate row then ratchets the rest (r74 section 7, its panel's N3) | 1.3 |
+| `features/box-sessions/scripts/save-sessions.sh:41`, `sessions-boot.sh:41` (`/var/${bs_org_app%%-*}/$bs_org_app/box-sessions`) | outside `run/`, so outside this round's scope and 1.3's gate (panel N1); the later gate row must cover `features/` too | panel N1 |
 | SC2034 baseline, iac test SC2034, `workflow-tool-checksums.tst.sh:33` `naked`, the p18-02 N1 workflow comment | r71 to r74 section 7's reasons hold; the baseline is unchanged (68 lines) | 1.2 |
 | `spl-file-erase` (`no-literal-paths.baseline`, 1 line) | a protected-root deny list, a behaviour change (r66 to r74) | 1.2 |
 | bash `LONG` `do_provision_firebase_dns` 169 and `[long-example]`; `action-header-tags-baseline.txt` `[missing]` | r67 to r74 section 7's reasons hold | r73 1.2 |
@@ -371,11 +377,34 @@ Kind `simple_coding`, vendor claude.
   tree kinds; the 3 left out each with a measured reason (the 75-line cap, a live spec
   182 lane, 21 test callers and a source-count floor). Window W and the r75 slug proof
   recorded.
+- v1.0 (c-341): the panel seat m-350 (mistral) PASS on v0.1
+  `9a25c9817d2fcc463d7090aec2f35c28be222c34` (spool msg 4935d706; task
+  `dispatch-refactor-r75`; seat file `1f303779a` on
+  `review/c002-refactor-round-75-mistral-seat`). `do_spl_review_line_check` on its line,
+  run by the editor on this box: rc 0. No W finding. Its notes:
+  - N1: the gate (1.3's `SPL_ORG_APP` grep over `run/`) misses 2 hand-spelled lines
+    outside `run/`: `features/box-sessions/scripts/save-sessions.sh:41` and
+    `sessions-boot.sh:41` (`/var/${bs_org_app%%-*}/$bs_org_app/box-sessions`). The
+    round's scope (`run/`) holds; added to section 7 for a later gate row.
+  - N2: 1.3's `grep -nE 'local .*SPL_(BRX|PEER|WD)_CRON_LOGDIR'` -> 0 was loose: on
+    `9f8b74f55` it gets 2 lines (`spl-wd-ensure-install-cron.func.sh:91,100`) that read
+    the global inside `local cmd=` / `local gate`; the strict
+    `'local +SPL_(BRX|PEER|WD)_CRON_LOGDIR'` -> rc 1. Fixed in 1.3; the claim holds.
+  - N3: lane map exit 4 (12 no-file lanes on the other box), not free; their briefs
+    name none of the 18 row paths (2.2 says the same). The holder re-runs R3 per spawn.
+  - N4: the seat's own branch appears on origin only after its push. Nothing to change.
+  - N5: bug round 27 names two row suites but is closed, both rows landed (`656ab3389`,
+    `21abdb87e`). 2.2 says the same.
+  The rows, their sites and their gate (12 -> 7 -> 3) do not change.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-341 (claude): v0.1.
-- Panel reviewer seat: pending (section 4).
+- Editor seat: c-341 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-350 (mistral) PASS** on
+  `9a25c9817d2fcc463d7090aec2f35c28be222c34` (spool msg 4935d706; review-line check rc 0;
+  seat file `1f303779a` on `review/c002-refactor-round-75-mistral-seat`), no W finding,
+  N1-N5 recorded. agy was unavailable (quota; no agy cli on this box), so mistral took
+  the seat. Its signature on v1.0: pending.
 - Row R7 seats: section 4.

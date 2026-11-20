@@ -31,7 +31,8 @@
 #      still frees the disk; a held image gone after the prune is a FAIL
 #   3. the install: the dry run prints the line and changes nothing; DRY_RUN=0
 #      adds ONE tagged weekly line, every other line kept; a second install
-#      is a no-op; remove restores the crontab byte for byte
+#      is a no-op; remove restores the crontab byte for byte; with no tree
+#      and no PRUNE_CRON_LOG_DIR the install FATALs, rc 1
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -285,6 +286,14 @@ out="$(inst DRY_RUN=0)"
 grep -q 'OK cron: nothing to change' <<<"$out" && pass "3. a second install is a no-op" || fail "3. second install ($out)"
 inst DRY_RUN=0 PRUNE_CRON_ACTION=remove >/dev/null
 cmp -s "$CT" "$T/crontab.orig" && pass "3. remove restores the crontab byte for byte" || fail "3. remove ($(cat "$CT"))"
+
+# 3. no tree for spl_run_paths, no PRUNE_CRON_LOG_DIR (r71-02): rc 1, its own FATAL line
+out="$(env -u PRUNE_CRON_LOG_DIR -u APP_PATH -u PROJ_PATH -u SPL_VAR_APP_DIR SPL_RUN_PATHS_TOP= ORC="$PROJ_ROOT" PRUNE_CRONTAB="$T/fake-crontab" bash -c '
+  do_log() { echo "$*"; }
+  source "$ORC/src/bash/run/prune-docker-images-install-cron.func.sh"
+  do_prune_docker_images_install_cron; echo "rc=$?"' 2>&1)"
+grep -qx 'FATAL cannot derive the docker prune log dir (no tree for spl_run_paths): set PRUNE_CRON_LOG_DIR' <<<"$out" && grep -qx 'rc=1' <<<"$out" &&
+  cmp -s "$CT" "$T/crontab.orig" && pass "3. no tree, no log dir: rc 1, its own FATAL line, crontab unchanged" || fail "3. no tree ($out)"
 
 echo "prune-docker-images: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

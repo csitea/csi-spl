@@ -11,6 +11,7 @@
 #      4. an export file that does not parse blocks the delete
 #      5. DRY_RUN=0: one DELETE per exported doc (4 docs -> 4), each its id
 #      6. live counts differ from the export: refused, nothing committed
+#      7. no tree for spl_run_paths, no PURGE_EXPORT_DIR: rc 1, its FATAL line
 #   B. against a REAL throwaway Postgres with every rdb migration, run by the
 #      RUNTIME login (FORCE RLS binds, its grants suffice): tenants t1 (2 docs)
 #      and t2 (1 doc)
@@ -127,6 +128,17 @@ out=$(PG_LIVE_DIFF=1 run 0); rc=$?
   pass "A.6 live counts differ from the export: refused" || fail "A.6 rc=$rc $out"
 unset -f spl_pg_env
 spl_wsdoc_purge_export() { _exp_real "$@"; }
+
+# A.7 no tree for spl_run_paths, no PURGE_EXPORT_DIR (r71-02) ------------------
+out="$(env -u PURGE_EXPORT_DIR -u APP_PATH -u PROJ_PATH -u SPL_VAR_APP_DIR SPL_RUN_PATHS_TOP= ORC="$PROJ_ROOT" TENANT_ID=t1 ENV=dev STUB_LOG="$T/calls.log" PATH="$T/stub:$PATH" bash -c '
+  do_log() { echo "$*"; }
+  do_require_bin() { return 0; }
+  source "$ORC/lib/bash/funcs/spl-cloud-cnf.func.sh"
+  do_spl_cloud_cnf() { return 0; }
+  source "$ORC/src/bash/run/spl-workspace-docs-purge.func.sh"
+  do_spl_workspace_docs_purge; echo "rc=$?"' 2>&1)"
+grep -qx 'FATAL cannot derive the purge export dir (no tree for spl_run_paths): set PURGE_EXPORT_DIR' <<<"$out" && grep -qx 'rc=1' <<<"$out" &&
+  pass "A.7 no tree, no export dir: rc 1, its own FATAL line" || fail "A.7 no tree: $out"
 
 # B ---------------------------------------------------------------------------
 PG_IMAGE="${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}"

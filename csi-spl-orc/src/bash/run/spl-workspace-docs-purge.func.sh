@@ -48,9 +48,8 @@ do_spl_workspace_docs_purge() {
   do_spl_cloud_cnf || return 1
   dir="${PURGE_EXPORT_DIR:-}"
   if [[ -z "$dir" ]]; then
-    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
-    spl_run_paths && dir="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/workspace-docs-purge/$ENV/$tenant/$(date -u +%Y%m%dT%H%M%SZ)}"
-    [[ -n "$dir" ]] || { do_log "FATAL cannot derive the purge export dir (no tree for spl_run_paths): set PURGE_EXPORT_DIR"; return 1; }
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir dir "workspace-docs-purge/$ENV/$tenant/$(date -u +%Y%m%dT%H%M%SZ)" || { do_log "FATAL cannot derive the purge export dir (no tree for spl_run_paths): set PURGE_EXPORT_DIR"; return 1; }
   fi
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1

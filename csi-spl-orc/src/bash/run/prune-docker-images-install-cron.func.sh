@@ -35,9 +35,8 @@ do_prune_docker_images_install_cron() {
   [[ "$hour" =~ ^[0-9]+$ ]] && (( hour <= 23 )) || { do_log "FATAL PRUNE_CRON_HOUR must be 0..23, got: '$hour'"; return 1; }
   [[ "$min" =~ ^[0-9]+$ ]] && (( min <= 59 )) || { do_log "FATAL PRUNE_CRON_MINUTE must be 0..59, got: '$min'"; return 1; }
   if [[ -z "$logdir" ]]; then
-    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
-    spl_run_paths && logdir="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/docker-prune}"
-    [[ -n "$logdir" ]] || { do_log "FATAL cannot derive the docker prune log dir (no tree for spl_run_paths): set PRUNE_CRON_LOG_DIR"; return 1; }
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir docker-prune || { do_log "FATAL cannot derive the docker prune log dir (no tree for spl_run_paths): set PRUNE_CRON_LOG_DIR"; return 1; }
   fi
   script="$PROJ_PATH/src/bash/scripts/prune-docker-images.sh"
   gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"

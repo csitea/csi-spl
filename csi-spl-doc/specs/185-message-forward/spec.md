@@ -1,10 +1,12 @@
 # Spec 185: Forward a Message Card
 
-Status: **Draft v0.2** (2026-11-20). Lane `c-052` (`claude`, backup for
+Status: **Draft v0.3** (2026-11-20). Lane `c-052` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box, agy at quota on the other).
-v0.1 `16f538b4c`; v0.2 folds the owner's answers to form `1d2011df`
-(msg `61389b91`, relayed by the dispatch holder, msg `0eff0fee`). What the
-answers removed: section 9.
+v0.1 `16f538b4c`; v0.2 `67870b9d1` folds the owner's answers to form
+`1d2011df` (msg `61389b91`, relayed by the dispatch holder, msg `0eff0fee`).
+What the answers removed: section 9. v0.3 folds the spec review's W1-W3 and
+N1 (a-071, agy PASS on v0.2, msg `b71a97ff`; holder msg `17cfbb3e`):
+section 9.1.
 Epic: **SPL-2403**. Issue: **SPL-6035**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:82dc7a90-c7a1-41f0-bc16-80674c3fab40` (`t1` #spool-hub-ui).
 Builds on: [005 spool WUI](../005-spool-wui/spec.md) (the card menu, FR-020's
@@ -213,13 +215,16 @@ it (`Parse` disallows unknown keys). So the one marker a forward needs,
    `wuiMayPost` (member of the target channel, `notes.send`), billing and
    quota, `unreadableFile` (passes: the forwarder reads the files through
    the source).
-8. **Store.** `commitRow` with `fwd_of` set (7.1.2) in the same insert. The
+8. **Store.** `commitRow` with `fwd_of` set to the source's ROOT (7.1.2)
+   in the same insert. The
    stored card is a plain copy (Q1): the WUI shows it like any card of the
    forwarder; nothing on the view row or the frame says it is a forward.
 9. **Fan-out (Q6).** The ack to the forwarder; `fanoutWUI` to every browser
    on the target; the reply routes as any reply in that topic (3.4 step 3):
    to the topic's agent, the DM's other person, or the channel's agent
    members. A toast in the forwarder's WUI: "Forwarded to <topic>".
+   The after-store notes that read the body are skipped for a forward
+   (7.1.3): its text is someone else's words, not the forwarder's.
 
 ## 5. Reused, and the gaps
 
@@ -249,9 +254,9 @@ landed its en keys; F6 after F3.
 | row | what | files | depends on | done test | red control |
 |---|---|---|---|---|---|
 | F1 | rdb: `fwd_of` and its index | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_messages_fwd_of.sql` (0299 at v0.2; re-check the head) | none | applies twice on a throwaway postgres; `\d messages` lists `fwd_of uuid` nullable and the partial index | a migration test asserting `fwd_of` fails before the file exists |
-| F2 | hub: forward send and store | `internal/hub/wui.go` (`wuiIn.ForwardOf`, a `wuiForward` step before `wuiRecipient`), new `internal/hub/wui_forward.go` + `wui_forward_test.go`, `internal/store` (postgres + memory write of `fwd_of`), `openapi.json` if the frame schema lists the send fields | 7.1.1-7.1.3 (F1's file for the postgres test) | Go tests on postgres: a forward of a readable card into an existing topic stores the source's body + files and `fwd_of`; each refusal of 7.1.1; an @agent in the forwarded body dispatches to no one; a reply in a topic with an agent reaches that agent | the same forward by a member outside the source's channel must answer `forward_not_found`, and one with an unknown `task_id` `forward_no_topic`; each test fails when its check is removed |
+| F2 | hub: forward send and store | `internal/hub/wui.go` (`wuiIn.ForwardOf`, a `wuiForward` step before `wuiRecipient`; the after-store skips of 7.1.3), new `internal/hub/wui_forward.go` + `wui_forward_test.go`, `internal/store` (postgres + memory write of `fwd_of`), `openapi.json` if the frame schema lists the send fields | 7.1.1-7.1.3 (F1's file for the postgres test) | Go tests on postgres: a forward of a readable card into an existing topic stores the source's body + files and `fwd_of`; a forward of a forward stores the root's msg_id (7.1.2); each refusal of 7.1.1 (`to` / `to_box` included); an @agent in the forwarded body dispatches to no one and writes no mention note; a reply in a topic with an agent reaches that agent | the same forward by a member outside the source's channel must answer `forward_not_found`, and one with an unknown `task_id` `forward_no_topic`; each test fails when its check is removed |
 | F3 | WUI: menu entry, picker, send | `utils/msg-menu.mjs`, `MessageMenu.vue`, `MessageCard.vue`, new `ForwardPickerDialog.vue` (or a `forward` mode of `MovePickerDialog.vue`), `utils/spool-client.mjs` + `spool-client-mock.mjs` (`forward_of`), `i18n/locales/*.json` (en + machine drafts) | 7.1.1, 7.1.4, 7.1.5 | `msg-menu.test.mjs`: Forward on every desktop card, absent from the touch list; a unit test of the picker rows (channel topics, DM topics, no source topic) and of the widening rule; `pnpm run typecheck`; i18n gates | drop the entry from `msgMenuItems`: the menu test fails; list it on touch: the touch assertion fails |
-| F4 | hub: the X follows forwards (Q2) | `internal/hub/attachment_remove.go`, a store lookup by `fwd_of`, its test | F1, F2 | the source author's X removes the file from the source and from every forward of it (the forward rows re-signed as an edit is), and the blob goes when nothing else carries it | a forward of a DIFFERENT card carrying the same file keeps it |
+| F4 | hub: the X follows forwards (Q2) | `internal/hub/attachment_remove.go`, a one-hop store lookup `WHERE fwd_of = <the X'd card's msg_id>`, its test | F1, F2 | the source author's X removes the file from the source and from every forward of it, chains included (M1 -> M2 -> M3: both M2 and M3 lose it, as both store `fwd_of = M1`); each forward row is changed as an edit is and its viewers get the edit frame (`fanoutEdited`); the HTTP 200 lists only the rows the caller may read (7.1.6); the blob goes when nothing else carries it | a forward of a DIFFERENT card carrying the same file keeps it; a forward in a DM the author is not an end of is changed but absent from the 200 body |
 | F5 | i18n: agy's final review | the 18 non-en locale files, the keys of 7.1.4 | F3 landed | agy review per the language rule; gates green | the untranslated-count gate (`i18n-untranslated.test.mjs`) |
 | F6 | e2e | new `csi-spl-wui/tests/e2e/msg-forward.test.mjs` | F3 | on the generated bundle, mock-served: forward a reply into a topic of another channel, the card appears there as a plain card; a DM source asks to confirm | the e2e fails when the menu entry is absent |
 | F7 | docs | `csi-spl-doc/specs/005-spool-wui/spec.md` (FR-021), `csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` (section 4: `forward_of` and its refusals), the user help for the card menu | 7.1 | the contract names every field and refusal of 7.1.1 | a doc test or link check that covers the file fails on a removed field |
@@ -276,6 +281,11 @@ landed its en keys; F6 after F3.
   person (`wui.go:789-796`).
 - `body` and `files` are absent. With `forward_of` set, a non-empty `body`
   or `files`, or `is_parent: 1`, is refused `bad_json` 400.
+- `to` and `to_box` are absent too, and refused `bad_json` 400 when sent
+  with `forward_of`: `wuiRecipient` passes `to` to `dispatchAgent`
+  (`wui.go:887-893`), which dispatches to any agent `to` names whatever the
+  body says (`dispatch.go:51-57`). The reply's `to` comes only from the
+  target topic's routing (7.1.3).
 - `forward_of` must be a UUID (`bad_json` 400 otherwise).
 - A resend of the same `msg_id` re-acks (the existing duplicate rule, `wui.go:697-716`).
 - Refusals added: `forward_not_found` 404 (source missing, unreadable,
@@ -288,10 +298,12 @@ landed its en keys; F6 after F3.
 
 | column | type | value |
 |---|---|---|
-| `fwd_of` | uuid NULL, no default | the source's msg_id; NULL on every row that is not a forward. No FK: the source may expire or be deleted |
+| `fwd_of` | uuid NULL, no default | the ROOT card's msg_id: `source.fwd_of` when the source is itself a forward, else `source.msg_id`. NULL on every row that is not a forward. No FK: the root may expire or be deleted, and a forward of a forward still stores the root's id |
 
 Plus `CREATE INDEX IF NOT EXISTS messages_fwd_of ON messages (tenant_id, fwd_of) WHERE fwd_of IS NOT NULL`
-(F4 finds a card's forwards). Catalog-only, as 0112 and 0250; RLS unchanged
+(F4 finds every forward of a card, a chain included, in one hop: storing
+the root, not walking `fwd_of`, is chosen so that the X needs no recursive
+query and a deleted middle card does not cut the chain). Catalog-only, as 0112 and 0250; RLS unchanged
 (messages already ENABLE + FORCE it). Deploy order: before the hub of F2.
 
 #### 7.1.3 The stored message
@@ -301,6 +313,15 @@ target topic resolves (3.4 step 3; never an agent named in the body),
 `kind` = `note`, `body` and `files` = the source's at forward time. The
 envelope is what `wuiEnvelope` builds for any browser reply. `fwd_of` is on
 neither the view row nor the `message` frame (Q1: nothing shows it).
+
+After the store (`wuiAfterStore`, `wui.go:647-654`), a forward runs the
+agent fallback as any reply, and **skips the three steps that read the
+body as the sender's own words**: `noteMentionNonMembers` (SPL-2419,
+`:651`), `noteMentionAgentsHumansOnly` (SPL-2423, `:652`) and
+`ownerPrioWord` (SPL-5524, `:653`, `owner_prio_word.go`). A forwarded text
+that @mentions someone or carries an owner's priority word writes no note
+and sets no priority (Q6: "an @mention in the forwarded text does not
+dispatch work").
 
 #### 7.1.4 The WUI menu entry and keys
 
@@ -323,6 +344,21 @@ source's own channel included, the lobby and `issues` left out), read as
 `spool-client.mjs:603`). The source's own topic is left out. A pick that
 widens the audience (4 step 3) asks first; then it sends the frame of
 7.1.1; on a refusal the dialog stays open and shows the reason.
+
+#### 7.1.6 The attachment X on a forwarded file (row F4)
+
+`DELETE /v1/attachments/{file_id}` keeps its answer
+(`attachment_remove.go:101-104`: `file_id`, `removed`, `messages`, `kept`,
+`blob_deleted`), with one rule for forwards:
+
+- The rows it changes are the caller's own changeable rows, as today, plus
+  every forward (`fwd_of` = one of those rows' msg_id) that carries the file.
+- Each changed forward gets the edit frame to ITS viewers (`fanoutEdited`),
+  whether or not the caller may read it.
+- `removed` and `messages` list only rows the caller may read
+  (`canReadMessage`); a forward the caller cannot read is changed but named
+  nowhere in the answer, and `kept` does not count it. The log line
+  (`:99-100`) may name every msg_id: it is not the caller's answer.
 
 ## 8. Not in this spec
 
@@ -352,3 +388,20 @@ the v0.1 recommendations HDR, ANY and YES; Q2, Q4, Q5, Q6 match v0.1.
 - **Q1-Q7 settled:** the refusals that existed only for other answers
   (`forward_not_allowed`, `forward_dm`) are gone.
 - Rows renumbered: F1-F7 (v0.1 F1-F8 minus the header row).
+
+### 9.1 Changes from v0.2
+
+The spec review's findings (a-071, agy PASS on `67870b9d1`, msg `b71a97ff`;
+the holder's order, msg `17cfbb3e`), each checked on `origin/master`
+`62daca7aa`:
+
+- **W1 chained forwards:** `fwd_of` stores the ROOT (`source.fwd_of` else
+  `source.msg_id`), chosen over a transitive walk: F4 stays one hop and a
+  deleted middle card does not cut the chain (7.1.2, F2, F4).
+- **W2 the X's answer:** a forward the caller cannot read is changed and
+  fanned out to its own viewers but absent from the HTTP 200 (new 7.1.6, F4).
+- **W3 `to` / `to_box`:** refused `bad_json` 400 with `forward_of`, since
+  `dispatchAgent` dispatches on an agent `to` alone (`dispatch.go:51-57`)
+  (7.1.1, F2).
+- **N1 after-store notes:** skipped for a forward, and `ownerPrioWord`
+  (`wui.go:653`), which also reads the body, with them (7.1.3, 4 step 9, F2).

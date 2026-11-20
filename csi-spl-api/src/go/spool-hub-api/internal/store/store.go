@@ -188,6 +188,8 @@ type Message struct {
 	// self"): a person's post whose only @mention is its author. The hub sets
 	// it at the browser send; no agent delivery is built for it.
 	NoteToSelf bool
+	// LoopID: SHIM of spec 182 7.1.1 until row L1 lands; never pushed.
+	LoopID string
 }
 
 // parentBit keeps is_parent inside the column check (0 or 1).

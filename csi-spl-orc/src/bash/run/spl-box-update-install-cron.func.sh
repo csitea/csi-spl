@@ -31,7 +31,11 @@ do_spl_box_update_install_cron() {
   [[ "$sched" =~ ^[0-9*,/-]+( [0-9*,/-]+){4}$ ]] || { do_log "FATAL BOX_UPDATE_CRON_SCHEDULE must be five cron fields, got: '$sched'"; return 1; }
   org_app="$(basename "$PROJ_PATH")"; org_app="${org_app%-orc}"
   tag="$org_app:box-update"
-  logdir="${BOX_UPDATE_CRON_LOG_DIR:-/var/${org_app%%-*}/$org_app/box-update}"
+  logdir="${BOX_UPDATE_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir box-update || { do_log "FATAL cannot derive the box update cron log dir (no tree for spl_run_paths): set BOX_UPDATE_CRON_LOG_DIR"; return 1; }
+  fi
 
   if [[ "$act" == check ]]; then
     want="$($ct -l 2>/dev/null | box_update_cron_tagged "$tag")"

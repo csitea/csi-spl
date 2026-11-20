@@ -9,6 +9,7 @@
 #   4. check: passes when installed, fails when not
 #   5. remove: the tagged line goes, the others stay
 #   6. a missing ENV, and a linked worktree, are refused (nothing written)
+#   7. no override: the log dir is spl_var_app_subdir's $SPL_VAR_APP_DIR/box-update
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -72,5 +73,10 @@ out="$(wt "$T/wt/csi-spl-orc")"; rc=$?
 [ "$rc" -ne 0 ] && grep -q 'is a linked worktree' <<<"$out" && cmp -s "$CT" "$T/ct.2" && pass "6. a linked worktree is refused, nothing written" || fail "6. worktree ($rc: $out)"
 out="$(wt "$T/main/csi-spl-orc")"; rc=$?
 [ "$rc" -eq 0 ] && [ "$(tagged)" = 1 ] && grep -q "cd $T/main/csi-spl-orc && " "$CT" && pass "6. control: the main checkout installs" || fail "6. control ($rc: $out)"
+
+# 7. no override: the log dir derives from SPL_VAR_APP_DIR (r76-01)
+out="$(cron BOX_UPDATE_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var")"; rc=$?
+[ "$rc" -eq 0 ] && grep -qF "flock -n $T/var/box-update/box-update.lock " <<<"$out" && grep -qF ">> $T/var/box-update/cron.out 2>&1" <<<"$out" && [ ! -e "$T/var" ] \
+  && pass "7. no BOX_UPDATE_CRON_LOG_DIR: the lock and cron.out under \$SPL_VAR_APP_DIR/box-update, a dry run creates nothing" || fail "7. default log dir ($rc: $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

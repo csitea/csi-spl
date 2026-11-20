@@ -12,6 +12,7 @@
 #   6. no ENV, a bad cnf time, and a linked worktree are refused
 #   7. COST_SOURCES lands in the line (a box without the billing export runs
 #      only its box sources); a bad list is refused, nothing written
+#   8. no override: the log dir is spl_var_app_subdir's $SPL_VAR_APP_DIR/cost-rollup
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -100,6 +101,11 @@ cp "$CT" "$T/ct.3"
 out="$(cron DRY_RUN=0 COST_SOURCES='gcp;rm -rf x')"; rc=$?
 [ "$rc" -ne 0 ] && grep -q 'FATAL COST_SOURCES must be' <<<"$out" && cmp -s "$CT" "$T/ct.3" \
   && pass "7. a bad COST_SOURCES is refused, nothing written" || fail "7. bad ($rc: $out)"
+
+# 8. no override: the log dir derives from SPL_VAR_APP_DIR (r76-01)
+out="$(cron COST_ROLLUP_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var")"; rc=$?
+[ "$rc" -eq 0 ] && grep -qF "flock -n $T/var/cost-rollup/cost-rollup-dev.lock " <<<"$out" && grep -qF ">> $T/var/cost-rollup/cron-dev.out 2>&1" <<<"$out" && [ ! -e "$T/var" ] \
+  && pass "8. no COST_ROLLUP_CRON_LOG_DIR: the lock and cron-dev.out under \$SPL_VAR_APP_DIR/cost-rollup, a dry run creates nothing" || fail "8. default log dir ($rc: $out)"
 
 echo "spl-cost-rollup-install-cron: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

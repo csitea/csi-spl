@@ -39,7 +39,11 @@ do_spl_cost_rollup_install_cron() {
   spl_require_cloud_env || return 1
   org_app="$(basename "$PROJ_PATH")"; org_app="${org_app%-orc}"
   tag="$org_app:cost-rollup$([[ "$ENV" == prd ]] || printf -- '-%s' "$ENV")"
-  logdir="${COST_ROLLUP_CRON_LOG_DIR:-/var/${org_app%%-*}/$org_app/cost-rollup}"
+  logdir="${COST_ROLLUP_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir cost-rollup || { do_log "FATAL cannot derive the cost rollup cron log dir (no tree for spl_run_paths): set COST_ROLLUP_CRON_LOG_DIR"; return 1; }
+  fi
 
   if [[ "$act" == check ]]; then
     want="$($ct -l 2>/dev/null | box_update_cron_tagged "$tag")"

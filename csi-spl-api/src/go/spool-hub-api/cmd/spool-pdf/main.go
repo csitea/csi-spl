@@ -4,7 +4,8 @@
 // self-contained HTML the hub builds (internal/topicpdf) into a PDF with
 // headless Chromium. One route, POST /render: text/html of at most 40 MiB
 // in, application/pdf out; 413 over the cap, 429 while a render runs (one at
-// a time per instance), 500 with Chrome's last 20 lines when a render fails.
+// a time per instance), 504 when a render passes its own cap, 500 with
+// Chrome's last 20 lines when a render fails any other way.
 // No other route, no health route (spec 183 1.2 R1: nothing keeps it warm).
 // It listens on $PORT (Cloud Run's, default 8080); only the hub's service
 // account may call it (Cloud Run IAM, terraform step 031-cloud-run-pdf).
@@ -35,6 +36,12 @@ import (
 const MaxHTMLBytes = 40 << 20
 
 const defaultRenderTimeout = 115 * time.Second
+
+// errRenderCap is the cause a render's context ends with when it passes the
+// renderer's own cap (SPOOL_PDF_RENDER_TIMEOUT). Only that cause answers 504
+// (spec 183 7.1.6), so the hub's topicpdf reads it as ErrTimeout; the
+// caller's own context ending (a client gone) is not the cap.
+var errRenderCap = errors.New("render passed its cap")
 
 func main() {
 	if err := run(); err != nil {
@@ -108,6 +115,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pdf, err := s.render(r.Context(), html)
+	if errors.Is(err, errRenderCap) {
+		http.Error(w, err.Error(), http.StatusGatewayTimeout)
+		return
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -129,7 +140,7 @@ func (s *server) render(ctx context.Context, html []byte) ([]byte, error) {
 	if err := os.WriteFile(page, html, 0o600); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, s.timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, s.timeout, errRenderCap)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, s.chrome, chromeArgs(dir, page, out)...) //nolint:gosec // G204: the binary is the operator's env, the args are fixed
 	cmd.Dir = dir
@@ -144,12 +155,16 @@ func (s *server) render(ctx context.Context, html []byte) ([]byte, error) {
 	if runErr == nil && readErr == nil && len(pdf) > 0 {
 		return pdf, nil
 	}
-	if ctx.Err() != nil {
-		runErr = fmt.Errorf("render passed %s: %w", s.timeout, ctx.Err())
-	} else if runErr == nil {
+	tail := lastLines(trail.String(), 20)
+	switch cause := context.Cause(ctx); {
+	case errors.Is(cause, errRenderCap):
+		return nil, fmt.Errorf("render passed %s: %w\n%s", s.timeout, errRenderCap, tail)
+	case cause != nil:
+		runErr = fmt.Errorf("render stopped: %w", cause)
+	case runErr == nil:
 		runErr = errors.New("chrome wrote no PDF")
 	}
-	return nil, fmt.Errorf("%v\n%s", runErr, lastLines(trail.String(), 20))
+	return nil, fmt.Errorf("%v\n%s", runErr, tail)
 }
 
 // chromeArgs are spec 183 7.1.6's flags (v0.4): no header or footer (no

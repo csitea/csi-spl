@@ -102,6 +102,8 @@ for a in "$@"; do case "$a" in --print-to-pdf=*) printf '%%PDF-stub' > "${a#--pr
 	}
 }
 
+// A render past the renderer's own cap answers 504 (spec 183 7.1.6), which
+// the hub's topicpdf reads as ErrTimeout -> 504 render_timeout.
 func TestRenderTimeoutKillsChrome(t *testing.T) {
 	s, err := newServer(fakeChrome(t, "sleep 30 & wait"), "200ms") // the sleep plays a hung browser (a fixture)
 	if err != nil {
@@ -109,7 +111,7 @@ func TestRenderTimeoutKillsChrome(t *testing.T) {
 	}
 	start := time.Now()
 	w := post(t, s, "POST", "/render", []byte("<p>x</p>"))
-	if w.Code != 500 || !strings.Contains(w.Body.String(), "render passed 200ms") {
+	if w.Code != http.StatusGatewayTimeout || !strings.Contains(w.Body.String(), "render passed 200ms") {
 		t.Fatalf("= %d %s", w.Code, w.Body.String())
 	}
 	if d := time.Since(start); d > 10*time.Second {
@@ -117,6 +119,53 @@ func TestRenderTimeoutKillsChrome(t *testing.T) {
 	}
 	if _, err := newServer("", "soon"); err == nil {
 		t.Fatalf("a bad SPOOL_PDF_RENDER_TIMEOUT was accepted")
+	}
+}
+
+// The caller's own context ending (a client gone) is not the renderer's cap:
+// it stays a 500, never the 504 that tells the hub the render timed out.
+func TestClientCancelIsNotTheCap(t *testing.T) {
+	up := filepath.Join(t.TempDir(), "up")
+	s, _ := newServer(fakeChrome(t, "touch "+up+"; sleep 30 & wait"), "") // a hung browser (a fixture), the default 115s cap
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { // cancel once the browser runs: the event, not a nap
+		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+			if _, err := os.Stat(up); err == nil {
+				break
+			}
+		}
+		cancel()
+	}()
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, httptest.NewRequest("POST", "/render", bytes.NewReader([]byte("<p>x</p>"))).WithContext(ctx))
+	if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), "render stopped: context canceled") {
+		t.Fatalf("client cancel = %d %s, want 500 render stopped", w.Code, w.Body.String())
+	}
+}
+
+// The hub's topicpdf reads the renderer's answers through HTTPRenderer and
+// Status: past the cap -> 504 render_timeout, a fast failure -> 503
+// render_unavailable (the renderer's 500), a good render -> the PDF.
+func TestHubReadsCapAsRenderTimeout(t *testing.T) {
+	for _, c := range []struct {
+		name, script, timeout string
+		code                  int
+		token                 string
+	}{
+		{"past the cap", "sleep 30 & wait", "200ms", 504, "render_timeout"},
+		{"fails fast", "exit 3", "", 503, "render_unavailable"},
+		{"good", `for a in "$@"; do case "$a" in --print-to-pdf=*) printf '%%PDF-stub' > "${a#--print-to-pdf=}";; esac; done`, "", 200, ""},
+	} {
+		s, _ := newServer(fakeChrome(t, c.script), c.timeout)
+		srv := httptest.NewServer(s)
+		pdf, err := topicpdf.HTTPRenderer{URL: srv.URL, Client: srv.Client()}.Render(context.Background(), []byte("<p>x</p>"))
+		srv.Close()
+		if code, token := topicpdf.Status(err); code != c.code || token != c.token {
+			t.Errorf("%s: Status = %d %q (%v), want %d %q", c.name, code, token, err, c.code, c.token)
+		}
+		if c.code == 200 && string(pdf) != "%PDF-stub" {
+			t.Errorf("%s: pdf = %q", c.name, pdf)
+		}
 	}
 }
 

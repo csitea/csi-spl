@@ -23,6 +23,9 @@
 # @description              or the author's linked account), with no real
 # @description              unanswered human post before it; one that has
 # @description              one is listed from that post
+# @description   loop     - a loop prompt message (spec 182 5.2,
+# @description              messages.loop_id): not read at all; the topic
+# @description              is classified by its line before it
 # @description   terminal - a line a human typed in an agent's terminal and
 # @description              the agent mirrored (typed_by set, specs/036): the
 # @description              agent read it where it was typed
@@ -386,6 +389,11 @@ SQL
 # cstate is thread: the classifier then keeps a later human post to ALL-0
 # open. A human-to-human DM, and a null-channel ALL-0 with no agent (the
 # classifier's 'nobody'), stay dm.
+# Spec 182 5.2 / 7.1.3: a loop prompt message (messages.loop_id set, stored
+# by a discussion loop's fire) is read by neither pick (k0 here, k1 in the
+# delta) nor the anchor (LATERAL f): it is never a topic's last line, never
+# a human post waiting for an answer, so it is never listed, re-sent or
+# escalated. The topic is classified by its last line before the loop's.
 # Perf edition 20261004 E17: DISTINCT ON over m.* sorted every 7-day row at
 # full width (bodies, envelopes) and spilled 8 MB to disk each run; prd
 # EXPLAIN ANALYZE 110..448 ms -> 71..78 ms, dev 55..59 -> 11..13 ms (n=3 each,
@@ -411,6 +419,7 @@ WITH k0 AS MATERIALIZED (
   SELECT DISTINCT ON (m.tenant_id, m.task_id) m.tenant_id, m.msg_id
     FROM messages m
    WHERE m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
+     AND m.loop_id IS NULL
    ORDER BY m.tenant_id DESC, m.task_id DESC, m.received_at DESC, m.msg_id DESC),
 SQL
   cat <<SQL
@@ -481,6 +490,7 @@ k1 AS MATERIALIZED (
     SELECT m.msg_id FROM messages m
      WHERE m.tenant_id = mv.tenant_id AND m.task_id = mv.task_id
        AND m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
+       AND m.loop_id IS NULL
      ORDER BY m.received_at DESC, m.msg_id DESC LIMIT 1) x ON true),
 SQL
   cat <<SQL
@@ -558,6 +568,7 @@ SQL
        AND h.tenant_id = l.tenant_id AND h.task_id = l.task_id
        AND h.expires_at > now() AND h.received_at > now() - make_interval(days => :days)
        AND h.typed_by IS NULL AND (h.from_id LIKE 'HUM-%' OR h.from_id LIKE 'GST-%') AND NOT h.note_to_self
+       AND h.loop_id IS NULL
        AND NOT EXISTS (SELECT 1 FROM messages r
                         WHERE r.tenant_id = h.tenant_id AND r.task_id = h.task_id
                           AND (r.typed_by IS NOT NULL

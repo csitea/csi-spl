@@ -25,6 +25,12 @@
 #  10. spec 042 (rdb 0278): a note to self (note_to_self) last is 'self' and
 #      never the anchor: alone it has none and is not listed; after a still
 #      unanswered real ask it is anchored on that ask, which is listed
+#  11. spec 182 (5.2, 7.1.3): a loop prompt message (messages.loop_id set) is
+#      never a topic's last line nor its anchor: after an agent answer the
+#      topic stays 'agent', a lone loop prompt has no row, a human post after
+#      one is anchored on itself; the classifier lists none of the loop
+#      prompts. CONTROL: a planted copy without the loop_id filters lists
+#      the loop prompt as unanswered
 #   7. M3: columns 14/15 are the OLDEST human post after the last agent reply
 #      (a burst after a reply: its first post; no reply: the topic's first;
 #      agent last: empty), and the classifier ages the burst from it
@@ -62,6 +68,9 @@ OWNER_DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
 RT_DSN="postgres://spool_rt:rt@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
 "$BIN" migrate --db "$OWNER_DSN" --sql-dir "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" >/dev/null || { fail "migrate"; exit 1; }
 psql_owner() { PGPASSWORD=spool psql -X -q -v ON_ERROR_STOP=1 -At "$OWNER_DSN" "$@"; }
+# Spec 182 7.1.3: messages.loop_id is the L1 migration's; until it is on the
+# tree the test adds the same column (a no-op once the migration has it).
+psql_owner -c "ALTER TABLE messages ADD COLUMN IF NOT EXISTS loop_id uuid" >/dev/null || { fail "loop_id column"; exit 1; }
 psql_owner -c "CREATE ROLE spool_rt LOGIN NOCREATEDB NOCREATEROLE PASSWORD 'rt'" >/dev/null
 psql_owner -v runtime_role=spool_rt -f "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql" >/dev/null || { fail "grants"; exit 1; }
 
@@ -261,6 +270,48 @@ env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool10" ENV=prd SWEEP_ROWS_FILE="$T/r
 ! grep -q '^| open | .*40000000-0000-4000-8000-000000000005 |' "$T/o10" &&
   grep -q '^| open | t1 | #dev | 40000000-0000-4000-8000-000000000006 | .* | 40m | HUM-2 | (asked before a note to self) |' "$T/o10" &&
   pass "10. the classifier skips the lone note to self and lists the ask before the other (aged 40m)" || fail "10. classify: $(grep '4000000[0-9-]*00000000000[56]' "$T/o10")"
+
+# --- 11. spec 182: a loop prompt message is never an ask ---------------------
+m9 7 71 HUM-2 box-desk 40 "deploy status?"; m9 7 72 c-002 HUM-2 30 "deployed"; m9 7 73 HUM-2 c-002 20 "summarise the topic"
+m9 8 81 HUM-2 c-002 20 "summarise the topic"
+m9 9 91 c-002 HUM-2 40 "deployed"; m9 9 92 HUM-2 c-002 30 "summarise the topic"; m9 9 93 HUM-2 box-desk 20 "and dev?"
+psql_owner -c "UPDATE messages SET loop_id = '60000000-0000-4000-8000-000000000001' WHERE tenant_id = 't1'
+  AND msg_id IN ('50000000-0000-4000-8000-000000000073', '50000000-0000-4000-8000-000000000081',
+                 '50000000-0000-4000-8000-000000000092')" >/dev/null || fail "11. flag"
+# sweep11 <func file> <rows out> <report out>: the read, then the classifier
+sweep11() {
+  env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" OUT="$2" FUNC="$1" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+    source "$FUNC"
+    _spl_sweep_rows_read "$OUT"' >"$3.r" 2>&1 || fail "11. read ($1): $(cat "$3.r")"
+  local now11=$(( $(psql_owner -c "SELECT floor(extract(epoch FROM now()))::bigint") + 30 ))
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool11-$RANDOM" ENV=prd SWEEP_ROWS_FILE="$2" SWEEP_TO=CLE-002 SWEEP_MIN_AGE=3 SWEEP_TAKE_GRACE=10 SWEEP_NOW="$now11" HOME="$T/home" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
+    do_spl_unanswered_sweep' >"$3" 2>&1
+}
+sweep11 "$PROJ_ROOT/src/bash/run/spl-unanswered-sweep.func.sh" "$T/rows11" "$T/o11"
+c11() { awk -F'\t' -v t="40000000-0000-4000-8000-00000000000$1" -v c="$2" '$4 == t { print $c }' "$T/rows11"; }
+[[ "$(c11 7 9) $(c11 7 5) [$(c11 7 15)]" == "agent 50000000-0000-4000-8000-000000000072 []" ]] &&
+  pass "11. a loop prompt after an agent answer: the answer is the last line, no anchor" || fail "11. after answer: '$(c11 7 9)' '$(c11 7 5)' '$(c11 7 15)'"
+[[ -z "$(c11 8 4)" ]] && pass "11. a topic holding only a loop prompt has no row" || fail "11. lone loop prompt: $(c11 8 9) $(c11 8 5)"
+[[ "$(c11 9 9) $(c11 9 15)" == "human 50000000-0000-4000-8000-000000000093" ]] &&
+  pass "11. a human post after a loop prompt is anchored on itself, not on the loop prompt" || fail "11. anchor: '$(c11 9 9)' '$(c11 9 15)'"
+! grep -q '^| open | .*40000000-0000-4000-8000-00000000000[78] |' "$T/o11" &&
+  grep -q '^| open | t1 | #dev | 40000000-0000-4000-8000-000000000009 | .* | 20m | HUM-2 | and dev? |' "$T/o11" &&
+  pass "11. the classifier lists no loop prompt; the human post after one is listed, aged 20m" || fail "11. classify: $(grep '4000000[0-9-]*00000000000[789]' "$T/o11")"
+# CONTROL: the same sweep without its loop_id filters (a planted copy beside
+# links to the real features/ and scripts/ dirs it resolves) lists the loop prompts.
+mkdir -p "$T/p11/run"; ln -s "$PROJ_ROOT/src/bash/features" "$T/p11/features"; ln -s "$PROJ_ROOT/src/bash/scripts" "$T/p11/scripts"
+grep -v 'loop_id IS NULL' "$PROJ_ROOT/src/bash/run/spl-unanswered-sweep.func.sh" >"$T/p11/run/spl-unanswered-sweep.func.sh"
+sweep11 "$T/p11/run/spl-unanswered-sweep.func.sh" "$T/rows11p" "$T/o11p"
+grep -q '^| open | t1 | dm c-002 | 40000000-0000-4000-8000-000000000007 | .* | HUM-2 | summarise the topic |\|^| open | t1 | #dev | 40000000-0000-4000-8000-000000000007 | .* | HUM-2 | summarise the topic |' "$T/o11p" &&
+  pass "11. CONTROL: without the filters the loop prompt is listed as unanswered (the checks above would be red)" ||
+  fail "11. CONTROL: the planted copy did not list the loop prompt: $(grep 40000000-0000-4000-8000-000000000007 "$T/o11p")"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

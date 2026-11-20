@@ -23,6 +23,9 @@
 # @description   - the workspace is a test one (spl_test_workspace)
 # @description   - the post names another agent (@<id>): that one takes it
 # @description   - the hub tail cannot be read: fail closed, the model takes it
+# @description   - the post is a loop prompt message (its hub tail row carries
+# @description     loop_id, spec 182 5.2 / 7.1.3): a discussion loop sent it,
+# @description     no human waits on it
 # @description   - the topic is in a channel with a sole seat that is not this
 # @description     seat (column 6 of the box map channel-rules.tsv, read by
 # @description     cr_sole_seat; SPL-3542), or the hub tail does not say which
@@ -90,6 +93,7 @@ spl_take_auto_skip() {
   spl_test_workspace "$tenant" && { echo "test workspace $tenant"; return 0; }
   owner="$(spl_take_auto_named "${by%@*}" "${TAKE_AUTO_BODY:-}")" && { echo "the post names $owner"; return 0; }
   tail="$(spl_take_auto_tail "$task" "$desk")" || { echo "the hub tail could not be read: the seat takes it"; return 0; }
+  why="$(spl_take_auto_loop "$tail")" && { echo "$why"; return 0; }
   why="$(spl_take_auto_sole "$by" "$tenant" "$tail")" && { echo "$why"; return 0; }
   owner="$(spl_take_auto_owner "$tail")"
   [[ -n "$owner" ]] && { echo "owned: $owner replied in the topic"; return 0; }
@@ -124,6 +128,19 @@ spl_take_auto_sole() {
     (( rc == 0 )) && [[ "$seat" != "$by" ]] && { echo "sole-seat channel #$ch: only $seat posts there"; return 0; }
   done
   return 1
+}
+
+# Print why the post is not a human's ask and exit 0 when its row in <tail>
+# (TAKE_AUTO_MSGID, else the poster's last row) carries loop_id: a loop
+# prompt message (spec 182 5.2 / 7.1.3; the hub omits the key when NULL).
+# Exit 1 = a human post.
+spl_take_auto_loop() {
+  local loop
+  loop="$(jq -r -s --arg id "${TAKE_AUTO_MSGID:-}" --arg from "${TAKE_AUTO_FROM:-}" \
+    '[.[] | select(if $id != "" then .msg_id == $id else .from == $from end)] | last
+     | (.loop_id // "") | tostring' <<<"$1" 2>/dev/null)"
+  [[ -n "$loop" ]] || return 1
+  echo "a loop prompt message (loop $loop): no human waits on it"
 }
 
 # Print the first @<agent id> the body names that is not <to>; exit 1 = none.

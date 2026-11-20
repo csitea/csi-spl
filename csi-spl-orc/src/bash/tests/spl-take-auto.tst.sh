@@ -30,11 +30,16 @@
 #      a missing map or a malformed column 7 posts nothing (fail closed).
 #      Sections 1-7 run on a map with no rows: a box with a map that holds
 #      nothing.
+#  10. spec 182 (5.2, 7.1.3): a loop prompt message (its hub tail row carries
+#      loop_id, synthetic here: the column is L1's) is never taken, found by
+#      TAKE_AUTO_MSGID or as the poster's last row; a human post after a loop
+#      prompt, and a row with no loop_id key, still take
 #   control: with the owner check removed (a planted copy), an owned topic is
 #      taken again -> assertion 3 would turn red; with the sole-seat check
 #      removed, the sole-seat post is taken -> section 8 would turn red;
 #      with the no-auto-post check removed, a held post is taken -> section 9
-#      would turn red
+#      would turn red; with the loop check removed, a loop prompt is taken
+#      -> section 10 would turn red
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -245,6 +250,31 @@ out="$(auto)"; has "9. a malformed column 7: no post" "cannot tell whether the b
 rm -f "$S/channel-rules.tsv"; fresh; row HUM-10 ALL-0 'q' ops >"$TAIL_FILE"
 out="$(auto)"; has "9. no box map: no post (the map alone names a held channel)" "cannot tell whether the box map holds #ops (the map is missing)" "$out"
 eq "9. none of the fail-closed cases posted" 0 "$(n "$REPLY_LOG")"
+
+# ---- 10. a loop prompt message is never taken (spec 182) ------------------------
+printf '# no rows\n' >"$S/channel-rules.tsv"
+LOOP=00000000-0000-4000-8000-0000000000e1
+# loop_row FROM TO BODY MSG_ID: a loop prompt line in #ops, carrying loop_id
+loop_row() { row "$1" "$2" "$3" ops "$4" | sed "s/^{/{\"loop_id\":\"$LOOP\",/"; }
+fresh; loop_row HUM-10 c-002 'summarise the topic' ml-1 >"$TAIL_FILE"
+out="$(auto TAKE_AUTO_MSGID=ml-1)"
+has "10. a loop prompt (by its msg id): skipped, why" "a loop prompt message (loop $LOOP)" "$out"
+has "10. one log line says why" "skip a loop prompt message" "$(cat "$S/dispatch/take-auto.log")"
+fresh; { row HUM-10 ALL-0 'q' ops mh-1; loop_row HUM-10 c-002 'summarise the topic' ml-2; } >"$TAIL_FILE"
+out="$(auto)"; has "10. a loop prompt (the poster's last row, no msg id): skipped" "a loop prompt message" "$out"
+eq "10. no take line for a loop prompt" 0 "$(n "$REPLY_LOG")"
+fresh; { loop_row HUM-10 c-002 'summarise the topic' ml-3; row HUM-10 ALL-0 'q' ops mh-2; } >"$TAIL_FILE"
+out="$(auto TAKE_AUTO_MSGID=mh-2)"; has "10. control: a human post after a loop prompt still takes" "TAKEN $TOPIC by c-002@box-a" "$out"
+eq "10. control: it posted its take line" 1 "$(n "$REPLY_LOG")"
+fresh; row HUM-10 ALL-0 'q' ops mh-3 >"$TAIL_FILE"
+out="$(auto TAKE_AUTO_MSGID=mh-3)"; has "10. control: a row with no loop_id key still takes" "TAKEN $TOPIC" "$out"
+eq "10. control: it posted its take line too" 1 "$(n "$REPLY_LOG")"
+
+# ---- control: no loop check -> a loop prompt is taken ----------------------------
+sed 's/^  why="\$(spl_take_auto_loop .*$/  :/' "$PROJ_ROOT/src/bash/run/spl-take-auto.func.sh" >"$T/planted-loop.func.sh"
+fresh; loop_row HUM-10 c-002 'summarise the topic' ml-4 >"$TAIL_FILE"
+auto TAKE_AUTO_FUNC="$T/planted-loop.func.sh" TAKE_AUTO_MSGID=ml-4 >/dev/null
+eq "control: the planted copy takes a loop prompt (section 10 would be red)" 1 "$(n "$REPLY_LOG")"
 
 # ---- control: no no-auto-post check -> a held post is taken ---------------------
 printf 't1\theld\t-\t-\t-\t-\tno-auto-post\n' >"$S/channel-rules.tsv"

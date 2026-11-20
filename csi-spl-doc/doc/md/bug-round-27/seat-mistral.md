@@ -310,3 +310,10 @@ the row claims), the rows table is byte-identical to v0.1, the diff touches
 only the plan file, and v0.2 is a fast-forward of v0.1. Per the brief the
 final signature waits for the editor's v1.0 sha; if c-275 names v0.2 as final,
 this PASS is the signature on it.
+
+- **N7:** origin/master moved again during the re-check (`1c18a5be` ->
+  `af8ca0ba7`, `docs(r73-plan, SPL-6017): ... rows 01-02 landed 0509f0b7b
+  1c18a5be8`); `git diff --name-only 0509f0b7b origin/master -- <the 7 row
+  files>` -> empty (no drift), and `git merge-base --is-ancestor
+  58f34ab8d3af7ea0e72a07bc01526c6ee563ac1a origin/master` -> rc 1 (v0.2 is
+  still review-branch only, not on master).

@@ -20,6 +20,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+import { newDocDialog } from './lib/ws-docs-head.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const STEP = 15000
@@ -65,10 +66,9 @@ const at = (p, tree, name, frac = 0.5) => p.evaluate((sel, name, frac) => {
 /** the row a drop would land on now, and where: "Name:before" */
 const dropShown = (p, tree) => p.$eval(`${tree} [data-drop]`, (el) => `${el.textContent.trim()}:${el.getAttribute('data-drop')}`).catch(() => '')
 
-/** a new document through the page's + and its modal */
+/** a new document through its modal: the + or, a document open, the tree's / menu (SPL-6083) */
 async function newDoc(p, title) {
-  await p.click('[data-test=ws-docs-new]')
-  await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+  await newDocDialog(p)
   await p.type('[data-test=ws-docs-new-title]', title)
   await p.click('[data-test=ws-docs-create]')
   return p.waitForFunction((t) => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === t, { timeout: STEP }, title).then(() => true, () => false)

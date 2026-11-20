@@ -28,6 +28,7 @@
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
+import { newDocDialog, openDocId, pickDoc, setDocView } from './lib/ws-docs-head.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
@@ -67,10 +68,9 @@ function outline(p, v) {
   }), v)
 }
 
-/** the + opens the new-document modal; title and meta description typed, Create */
+/** the new-document modal (the +, or the tree's / menu with a document open, SPL-6083); title and meta description typed, Create */
 async function newDoc(p, title, desc) {
-  await p.click('[data-test=ws-docs-new]')
-  await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+  await newDocDialog(p)
   await p.type('[data-test=ws-docs-new-title]', title)
   if (desc) await p.type('[data-test=ws-docs-new-desc]', desc)
   await p.click('[data-test=ws-docs-create]')
@@ -169,9 +169,9 @@ async function del(p, v, title) {
   await yes.click()
 }
 
+/* SPL-6083: Outline / Grid are entries of the header's file menu */
 async function view(p, v) {
-  await p.click(`[data-test=ws-docs-view-${v}]`)
-  await p.waitForSelector(`[data-test=ws-${v}-view]`, { visible: true, timeout: STEP })
+  await setDocView(p, v)
 }
 
 const server = await startServer()
@@ -180,29 +180,28 @@ try {
   const p = await browser.newPage()
   await p.setViewport({ width: 1280, height: 800 })
   await p.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await p.waitForSelector('[data-test=ws-docs-new]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=ws-doc-file-btn]', { visible: true, timeout: NAV_TIMEOUT })
   await p.waitForFunction(() => typeof window.__wsDocTreeCall === 'function', { timeout: STEP })
 
-  /* the + is the issues page's round + (owner t1 889e15d9): 2.5rem, round, accent; no inline title box */
-  const plus = await p.evaluate(() => {
-    const el = document.querySelector('[data-test=ws-docs-new]')
-    const b = el.getBoundingClientRect()
-    const cs = getComputedStyle(el)
-    return { w: Math.round(b.width), h: Math.round(b.height), want: Math.round(2.5 * parseFloat(getComputedStyle(document.documentElement).fontSize)),
-      round: cs.borderRadius === '50%', accent: cs.backgroundColor !== 'rgba(0, 0, 0, 0)', inline: Boolean(document.querySelector('.wsdocs-body [data-test=ws-docs-new-title]')) }
+  /* SPL-6083 (owner t1 60bf4e56, msgs ce88082a, 55440858): a document open,
+     the header has no picker, no Documents label, no + and no Outline / Grid
+     pills; the page has no inline title box */
+  const head = await p.evaluate(() => {
+    const seen = (sel) => [...document.querySelectorAll(sel)].some((el) => el.getBoundingClientRect().width > 1)
+    return { pick: seen('[data-test=ws-docs-select]'), plus: seen('[data-test=ws-docs-new]'), heading: seen('[data-test=ws-docs-heading]'),
+      pills: seen('[data-test^=ws-docs-view-]'), inline: Boolean(document.querySelector('.wsdocs-body [data-test=ws-docs-new-title]')) }
   })
-  ok('the + is the issues page\'s round 2.5rem accent button and the page has no inline title box',
-    plus.w === plus.want && plus.h === plus.want && plus.round && plus.accent && !plus.inline, plus)
+  ok('a document open: no picker, no Documents label, no +, no view pills, no inline title box', Object.values(head).every((v) => !v), head)
 
-  /* the modal: title required, Esc closes with nothing created */
+  /* the modal (the tree's / menu): title required, Esc closes with nothing created */
   const before = (await hubDocs(p)).length
-  await p.click('[data-test=ws-docs-new]')
+  await newDocDialog(p)
   await p.waitForSelector('[data-testid=ui-dialog] [data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
   await p.type('[data-test=ws-docs-new-desc]', 'no title yet')
   const noTitle = await p.$eval('[data-test=ws-docs-create]', (b) => b.disabled)
   await p.type('[data-test=ws-docs-new-title]', 'x')
   const withTitle = await p.$eval('[data-test=ws-docs-create]', (b) => b.disabled)
-  ok('the + opens the modal; Create is disabled until a title is typed', noTitle === true && withTitle === false, { noTitle, withTitle })
+  ok('the tree\'s New document opens the modal; Create is disabled until a title is typed', noTitle === true && withTitle === false, { noTitle, withTitle })
   await p.keyboard.press('Escape')
   await p.waitForFunction(() => !document.querySelector('[data-test=ws-docs-new-form]'), { timeout: STEP }).catch(() => null)
   const afterEsc = { open: Boolean(await p.$('[data-test=ws-docs-new-form]')), n: (await hubDocs(p)).length }
@@ -505,16 +504,15 @@ try {
   ok('a link in a text is clickable under it (Qto lnkMayBe)', JSON.stringify(links) === JSON.stringify(['https://example.com/qto']), links)
 
   /* the CONTROL: another writer renames Alpha behind the page; only a real re-read shows it */
-  const docOf = await p.$eval('[data-test=ws-docs-select]', (e) => e.value)
+  const docOf = await openDocId(p)
   const alpha = await p.$eval(titleSel('1'), (e) => e.dataset.id)
   const sub = await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}/subtree`), docOf)
   const alphaRev = sub.items.find((x) => x.id === alpha).rev
   await p.evaluate((d, id, rev) => window.__wsDocTreeCall('PATCH', `/${d}/items/${id}`, { field: 'title', value: 'Alpha (other writer)', rev }), docOf, alpha, alphaRev)
   const beforeReload = await outline(p, 'doc')
-  const otherDoc = await p.$$eval('[data-test=ws-docs-select] option', (o, d) => o.map((x) => x.value).find((v) => v !== d), docOf)
-  await p.select('[data-test=ws-docs-select]', otherDoc)
-  await p.waitForFunction((d) => new URL(location.href).searchParams.get('doc') === d, { timeout: STEP }, otherDoc).catch(() => null)
-  await p.select('[data-test=ws-docs-select]', docOf)
+  const otherDoc = (await hubDocs(p)).map((d) => d.id).find((v) => v !== docOf)
+  await pickDoc(p, otherDoc).catch(() => null)
+  await pickDoc(p, docOf).catch(() => null)
   const wantReloaded = ['1 Alpha (other writer)', ...wantCrud.slice(1)]
   got = await outlineIs(p, 'doc', wantReloaded)
   const texts = [await bodyText(p, titleSel('1')), await bodyText(p, titleSel('3'))]
@@ -686,14 +684,14 @@ try {
   }
   const docTitles = async () => ({
     h: await p.$eval('[data-test=ws-doc-doctitle]', (e) => e.textContent.trim()),
-    sel: await p.$eval('[data-test=ws-docs-select]', (e) => e.selectedOptions[0]?.textContent?.trim()),
+    sel: await p.$eval(`#qto-file-tree [data-key="d:${docOf}"]`, (e) => e.textContent.trim()),
     hub: (await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}`), docOf)).title,
   })
   await renameTo('Renamed doc')
-  await p.waitForFunction(() => document.querySelector('[data-test=ws-docs-select]').selectedOptions[0]?.textContent?.trim() === 'Renamed doc', { timeout: STEP }).catch(() => null)
+  await p.waitForFunction((d) => document.querySelector(`#qto-file-tree [data-key="d:${d}"]`)?.textContent?.trim() === 'Renamed doc', { timeout: STEP }, docOf).catch(() => null)
   const named = await docTitles()
   await renameTo('')
-  await p.waitForFunction(() => document.querySelector('[data-test=ws-docs-select]').selectedOptions[0]?.textContent?.trim() === 'Untitled document', { timeout: STEP }).catch(() => null)
+  await p.waitForFunction((d) => document.querySelector(`#qto-file-tree [data-key="d:${d}"]`)?.textContent?.trim() === 'Untitled document', { timeout: STEP }, docOf).catch(() => null)
   const cleared = await docTitles()
   ok('rename the document in place; clearing the title brings "Untitled document" back (read from the hub)',
     named.h === 'Renamed doc' && named.sel === 'Renamed doc' && named.hub === 'Renamed doc'
@@ -701,7 +699,7 @@ try {
   /* back to a title of its own: the Create check below waits for "Untitled document"
      on the NEW document, which this one must not already show */
   await renameTo('E2E outline')
-  await p.waitForFunction(() => document.querySelector('[data-test=ws-docs-select]').selectedOptions[0]?.textContent?.trim() === 'E2E outline', { timeout: STEP }).catch(() => null)
+  await p.waitForFunction((d) => document.querySelector(`#qto-file-tree [data-key="d:${d}"]`)?.textContent?.trim() === 'E2E outline', { timeout: STEP }, docOf).catch(() => null)
 
   /* a code block: the menu adds it to the section, edited in place, kept on the item */
   const attrsOf = async (id) => (await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}/subtree`), docOf)).items.find((x) => x.id === id).attrs
@@ -971,7 +969,7 @@ try {
      textarea blurs as the picker opens) and a 44 px tap, tap it, choose a png:
      the picture is inline with "Figure 1" and an editable 44 px caption; a second one in the next
      section is Figure 2 (one sequence); the caption is edited by touch. */
-  const mDoc = await m.$eval('[data-test=ws-docs-select]', (e) => e.value)
+  const mDoc = await openDocId(m)
   const mText = (n) => `${titleSel(n)} [data-test=ws-doc-text]`
   const mCaps = (id) => m.evaluate(async (d, id) => {
     const b = (await window.__wsDocTreeCall('GET', `/${d}/subtree`)).items.find((x) => x.id === id)?.body || ''

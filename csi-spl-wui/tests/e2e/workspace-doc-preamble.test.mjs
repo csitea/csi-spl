@@ -12,6 +12,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+import { newDocDialog, setDocView } from './lib/ws-docs-head.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const STEP = 10000
@@ -61,11 +62,10 @@ const browser = await launch()
 try {
   const p = await browser.newPage()
   await p.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await p.waitForSelector('[data-test=ws-docs-new]', { visible: true, timeout: NAV_TIMEOUT })
-  await p.waitForFunction(() => typeof window.__wsDocTreeCall === 'function', { timeout: STEP })
+  await p.waitForFunction(() => typeof window.__wsDocTreeCall === 'function', { timeout: NAV_TIMEOUT })
 
-  await p.click('[data-test=ws-docs-new]')
-  await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+  /* the + (a phone's list) or the tree's / menu, New document (SPL-6083) */
+  await newDocDialog(p, { timeout: NAV_TIMEOUT })
   await p.type('[data-test=ws-docs-new-title]', 'E2E preamble')
   await p.click('[data-test=ws-docs-create]')
   await p.waitForSelector('[data-test=ws-doc-row]', { visible: true, timeout: STEP })
@@ -78,9 +78,8 @@ try {
   /* the root's body as the md import writes it, then the view mounted again */
   const rootRev = (await hub(p, 'GET', `/${doc.id}/subtree?item=${root}`)).items[0].rev
   await hub(p, 'PATCH', `/${doc.id}/items/${root}`, { field: 'body', value: 'For whoever holds the **seat**.', rev: rootRev })
-  await p.click('[data-test=ws-docs-view-grid]')
-  await p.waitForSelector('[data-test=ws-grid-view]', { visible: true, timeout: STEP })
-  await p.click('[data-test=ws-docs-view-doc]')
+  await setDocView(p, 'grid')
+  await setDocView(p, 'doc')
   await p.waitForFunction((sel) => document.querySelector(`${sel} [data-test=ws-doc-para] strong`), { timeout: STEP }, PRE).catch(() => null)
   const read = await preamble(p)
   ok('the root body reads as rendered markdown before section 1', read.before && !read.heading && read.text === 'For whoever holds the seat.' && read.strong === 'seat', read)

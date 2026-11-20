@@ -58,6 +58,7 @@ import { pathToFileURL } from 'node:url'
 import { MOCK_SIGNED_OUT_KEY } from '../../src/utils/act-as-mock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+import { newDocDialog } from './lib/ws-docs-head.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const STEP = 15000
@@ -243,8 +244,7 @@ async function docMenu(p, browser) {
   ok('Rename: the open document shows it', await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Handbook Guide', { timeout: STEP }).then(() => true, () => false))
 
   /* Edit: from another open document, it opens this one */
-  await p.click('[data-test=ws-docs-new]')
-  await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+  await newDocDialog(p)
   await p.type('[data-test=ws-docs-new-title]', 'Notes')
   await p.click('[data-test=ws-docs-create]')
   await p.waitForFunction(() => document.querySelector('[data-test=qto-file-tree] [aria-selected=true]')?.textContent.trim() === 'Notes', { timeout: STEP }).catch(() => {})
@@ -304,9 +304,13 @@ async function newFolder(p, name, { row = '/', touch = false } = {}) {
 }
 
 /** a new document through the page's + and its modal */
-async function newDoc(p, title) {
-  await p.click('[data-test=ws-docs-new]')
-  await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+/* a document open, the header has no + (SPL-6083): a folder row's New document, else the + or the / menu */
+async function newDoc(p, title, row = '') {
+  if (row) {
+    await rowMenu(p, row)
+    await p.click(`[data-testid=qto-folder-menu-new_doc]`)
+    await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+  } else await newDocDialog(p)
   await p.type('[data-test=ws-docs-new-title]', title)
   await p.click('[data-test=ws-docs-create]')
   return p.waitForFunction((t) => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === t, { timeout: STEP }, title).then(() => true, () => false)
@@ -333,7 +337,7 @@ async function desktopFolders(p) {
   await onPage(p)
   await p.waitForSelector('[data-test=qto-file-tree] [data-test=file-tree-row]', { visible: true, timeout: STEP }).catch(() => null)
   ok('1440: no + at the top of the explorer (msg 9663760c)', !(await p.$('#qto-file-tree button')), await p.$$eval('#qto-file-tree button', (els) => els.map((el) => el.getAttribute('aria-label'))))
-  ok('1440: the page keeps its + New document (msg b06f13ad)', await shown(p, '[data-test=ws-docs-new]'))
+  ok('1440: a document open, the header has no + (SPL-6083, msg ce88082a): the tree\'s menus make one', !(await shown(p, '[data-test=ws-docs-new]')))
   const top = await rowKeys(p)
   ok('1440: a / row tops the tree, open, the top level one level under it', top[0] === '1 /' && top.slice(1).filter((r) => !r.endsWith(' Repository')).every((r) => !r.startsWith('1 '))
     && await p.$eval('#qto-file-tree [data-key="/"]', (el) => el.getAttribute('aria-expanded')).catch(() => null) === 'true', top)
@@ -361,7 +365,7 @@ async function desktopFolders(p) {
   const folderId = await plans.evaluate((el) => el?.getAttribute('data-key')?.slice(2) || '')
   await plans.click()
   ok('1440: a click picks the folder', await p.$eval('#qto-file-tree [aria-selected=true]', (el) => el.textContent.trim()).catch(() => '') === 'Plans')
-  ok('1440: + New document makes a document', await newDoc(p, 'Roadmap'))
+  ok('1440: the folder\'s New document makes a document', await newDoc(p, 'Roadmap', 'Plans'))
   ok('1440: ... inside the picked folder, one level under it', await p.waitForFunction(() => {
     const rows = [...document.querySelectorAll('#qto-file-tree [data-test=file-tree-row]')].map((el) => `${el.getAttribute('aria-level')} ${el.textContent.trim()}`)
     const i = rows.indexOf('2 Plans')

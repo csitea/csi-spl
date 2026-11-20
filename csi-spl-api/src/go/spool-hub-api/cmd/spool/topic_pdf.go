@@ -27,7 +27,7 @@ func cmdTopicPDF(cfg *config.Config, args []string) int {
 		return 1
 	}
 	if *task == "" || fs.NArg() > 0 {
-		fmt.Fprintln(os.Stderr, "spool: topic-pdf --task <uuid|WUI link> [--out <path>] [--typed-by HUM-<n>] [--timeout 120s]")
+		fmt.Fprintln(os.Stderr, "spool: topic-pdf --task <uuid|WUI link> [--out <path>] [--typed-by HUM-<n>] [--timeout 120s] [--desks <dir> [--desk-box <box>]]")
 		return 1
 	}
 	if *timeout <= 0 {

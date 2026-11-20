@@ -107,7 +107,7 @@
 //	hub-tail --task <uuid> [--follow] [--json] [--with-channel]   --with-channel: --json plus the envelope "channel"
 //	hub-rsp --task <uuid>      {"task_id","rsp"}: RSP-* messages in the topic, any box
 //	hub-get-file --file-id <sha256>   download one file from the hub (read door proof)
-//	topic-pdf --task <uuid|link> [--out <path>] [--typed-by HUM-<n>] [--timeout 120s]   the topic as a PDF file the hub rendered (spec 183)
+//	topic-pdf --task <uuid|link> [--out <path>] [--typed-by HUM-<n>] [--timeout 120s] [--desks <dir> [--desk-box <box>]]   the topic as a PDF file the hub rendered (spec 183)
 //	version
 //
 // Local mode (no hub) is unsigned: send/recv need no key and no pin; keygen and
@@ -211,7 +211,7 @@ a box and its hub ($SPOOL_HUB_URL):
   hub-tail            print a topic from the hub (--follow keeps printing)
   hub-rsp             how many RSP-* messages a topic holds on the hub, any box
   hub-get-file        fetch a file by id from the hub into the local blob store
-  topic-pdf           a topic this box's operator reads, as a PDF file on this machine (--task <uuid|link> [--out] [--typed-by HUM-<n>])
+  topic-pdf           a topic this box's operator reads, as a PDF file on this machine (--task <uuid|link> [--out] [--typed-by HUM-<n>] [--desks [--desk-box]])
 
 running a hub:
   serve               run the hub (configured by SPOOL_HUB_* env vars)

@@ -18,7 +18,7 @@ printf '#!/bin/bash\n{ printf "%%s|" "$@"; echo; echo "agent=${SPOOL_AGENT_ID:-}
 chmod +x "$T/spool"
 run() {
   rm -f "$T/argv"
-  SNIPPET='do_spl_topic_pdf' IN_ORC_RUN=spl-topic-pdf in_orc SPOOL_TEST=1 SPOOL_DESK_BOX=box-t \
+  SNIPPET='do_spl_topic_pdf' IN_ORC_RUN=spl-topic-pdf in_orc SPOOL_TEST=1 SPOOL_AGENT_ID= SPOOL_DESK_BOX=box-t \
     TOPIC_PDF_SPOOL_CMD="$T/spool" TOPIC_PDF_DESKS="$T/desk" AGENT_ID=c-007 "$@" >"$T/o" 2>&1
   RC=$?
 }

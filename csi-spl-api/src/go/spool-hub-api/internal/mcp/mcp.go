@@ -393,7 +393,13 @@ func (t tools) reply(ctx context.Context, _ *sdk.CallToolRequest, in ReplyIn) (*
 }
 
 func (t tools) topicPDF(ctx context.Context, _ *sdk.CallToolRequest, in TopicPDFIn) (*sdk.CallToolResult, action.TopicPDFResult, error) {
-	out, err := action.TopicPDF(ctx, t.desks(), action.TopicPDFArgs{Task: in.Task, Out: in.Out, TypedBy: in.TypedBy, Agent: t.o.Seat})
+	// 7.1.4: the export dir is named by the seat, else the box id (never the
+	// server process's SPOOL_AGENT_ID).
+	agent := t.o.Seat
+	if agent == "" && t.cfg != nil {
+		agent = t.cfg.BoxID
+	}
+	out, err := action.TopicPDF(ctx, t.desks(), action.TopicPDFArgs{Task: in.Task, Out: in.Out, TypedBy: in.TypedBy, Agent: agent})
 	if err != nil {
 		return nil, out, fmt.Errorf("spool: %w (exit %d)", err, action.TopicPDFExitCode(err))
 	}

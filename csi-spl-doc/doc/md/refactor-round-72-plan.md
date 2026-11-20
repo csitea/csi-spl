@@ -31,7 +31,9 @@ Both rows come from r71 section 7: row 01 takes the `MoveMessage` pair (the last
 derive line (the last hand-written `SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/` line outside
 `csi-spl-doc`).
 
-**Status: v0.1, draft**, not signed. Editor: **c-778** (claude).
+**Status: v1.0, signed**: panel seat m-206 (mistral) PASS on v0.1 `1d212b56f`, no
+defect; N1-N4 asked no change (section 8). Rows 01 and 02 are as drafted and may place.
+Editor: **c-778** (claude).
 
 **One sha:** every count is measured on **`99548495c`** (`origin/master`
 99548495c935e38e08e5eed9e97150f100d6e36a, committed 2026-11-20T05:01:31+02:00), n=1 per
@@ -355,11 +357,30 @@ with `SPOOL_TEST=1`. Gates: `orc:tests/spl-reflection-gather.tst.sh`,
   read); the reflection gather's derive line re-read with what an empty value does
   downstream, and the subshell kept so no export leaks. Window W and the r72 slug proof
   recorded.
+- v1.0 (c-778): the panel seat m-206 (mistral) PASS on v0.1
+  `1d212b56fde9b13de133a08297bf385a71dd01bf` (spool msg 68c6b861, task
+  `dispatch-refactor-r72`; seat file `a5f1eb140` on `review/c002-refactor-round-72-mistral-seat`),
+  no defect (W: none). Its notes, none asking a change:
+  - N1: origin/master moved `6bac8a7fa` -> `2a7befc02` (b25-01) during its read; every
+    row site identical on both, no row file in the diff. Re-read by the editor:
+    `git diff --name-only 99548495c 2a7befc02` holds no row path (the 2 commits are
+    SPL-6006, api repo sync, and b25-01, `sa:tests/test-agent-boot-restore.sh`).
+  - N2: lane map exit 4 on the row paths (9 lanes with no files recorded, ask first);
+    the review branches of b25-01, s143-b6b, s143-b6b2 and c-181 touch no row file.
+  - N3: row 02's red control is a mutation control on the change; case 18's 4 branches
+    are present and green on `99548495c` (it read the test, did not re-run the suite;
+    1.4 records this lane's run: 61 pass lines, rc 0).
+  - N4: the candidates file's refactor-shaped items are all served on origin/master.
+  This commit records the signature only; rows 01 and 02 are as signed.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-778 (claude): v0.1.
-- Panel reviewer seat: requested (section 4), not yet signed.
+- Editor seat: c-778 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-206 (mistral) PASS** on
+  `1d212b56fde9b13de133a08297bf385a71dd01bf` (spool msg 68c6b861, task
+  `dispatch-refactor-r72`; seat file `a5f1eb140` on
+  `review/c002-refactor-round-72-mistral-seat`), no defect, N1-N4 no change. agy was
+  unavailable (the holder's read), so mistral took the seat.
 - Row R7 seats: section 4.

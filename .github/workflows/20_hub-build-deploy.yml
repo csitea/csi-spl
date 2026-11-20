@@ -55,6 +55,7 @@ on:
       - 'csi-spl-api/src/docker/hub.Dockerfile'          # THE hub image (specs/072 A21)
       - 'csi-spl-api/src/docker/hub.Dockerfile.dockerignore'
       - 'csi-spl-api/src/docker/hub-entrypoint.sh'
+      - 'csi-spl-api/src/docker/pdf.Dockerfile'          # the PDF renderer only (pdf-image job, spec 183 P4); not a hub input
       - 'csi-spl-rdb/src/sql/postgres/spool-hub/**'      # hub DDL bundled in the image
       - 'csi-spl-rdb/src/sql/postgres/spool-hub-roles/**'
       - '.version'                                       # baked into the binary (the floor)
@@ -848,6 +849,102 @@ jobs:
             echo "| **Service rolled** | ${ROLLED:-n/a} |"
             echo "| **Git SHA** | \`$GITHUB_SHA\` |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # pdf-image: the topic PDF renderer's image (spec 183 row P4, 7.1.6)
+  # ---------------------------------------------------------------------------
+  # Built and pushed only when the renderer's inputs changed: the image tag is
+  # a hash of them (src-<12 hex>, do_build_push_pdf_image), so the action asks
+  # the registry for this commit's tag first and stops when it is there. That
+  # is the whole "when cmd/spool-pdf, internal/topicpdf or pdf.Dockerfile
+  # change" rule, and a re-run, the other env or a hub-only commit costs one
+  # describe call. PDF_INPUTS is the action's own list (spl_pdf_inputs),
+  # held equal by build-push-pdf-image.tst.sh.
+  #
+  # Independent of the hub's guard and roll: a renderer change never rolls
+  # the hub, and a hub stand-down never skips a renderer image. Nothing here
+  # rolls the renderer either: step 031 runs cnf pdf.image.tag, so a new
+  # renderer goes live with a cnf bump + an apply of 031 (the owner's go).
+  # Before row P2 lands there is no pdf.Dockerfile and the job only notes it.
+  pdf-image:
+    name: PDF renderer image to ${{ matrix.environment }}
+    needs: [test, prepare-deploy]
+    if: ${{ !cancelled() && needs.test.result == 'success' && needs.prepare-deploy.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: pdf-image-${{ matrix.environment }}-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write   # google-github-actions/auth via WIF
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.prepare-deploy.outputs.envs) }}
+    environment:
+      name: ${{ matrix.environment }}
+    env:
+      ENV: ${{ matrix.environment }}
+      HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
+      WIF_SA: ${{ vars[format('GCP_DEPLOY_SA_EMAIL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+      PDF_INPUTS: >-
+        csi-spl-api/src/go/spool-hub-api/cmd/spool-pdf
+        csi-spl-api/src/go/spool-hub-api/internal/topicpdf
+        csi-spl-api/src/go/spool-hub-api/go.mod
+        csi-spl-api/src/go/spool-hub-api/go.sum
+        csi-spl-api/src/docker/pdf.Dockerfile
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Is there a renderer to build?
+        id: has
+        run: |
+          set -euo pipefail
+          if [[ -f csi-spl-api/src/docker/pdf.Dockerfile ]]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::no csi-spl-api/src/docker/pdf.Dockerfile yet (spec 183 row P2): no renderer image to build"
+          fi
+
+      - name: Resolve the push identity
+        if: steps.has.outputs.build == 'true'
+        run: |
+          set -euo pipefail
+          p="csi-spl-$ENV"
+          if [[ "$HAS_KEY" == true ]]; then sa="$p@$p.iam.gserviceaccount.com"; how=key
+          else sa="$WIF_SA"; how=WIF; fi
+          [[ -n "$sa" ]] || { echo "::error::no push identity for $ENV"; exit 1; }
+          echo "DEPLOY_SA=$sa" >> "$GITHUB_ENV"
+          echo "$ENV pushes as $sa (auth = $how)"
+
+      - name: Authenticate to Google Cloud (project key)
+        if: steps.has.outputs.build == 'true' && env.HAS_KEY == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+
+      - name: Authenticate to Google Cloud (WIF alternative)
+        if: steps.has.outputs.build == 'true' && env.HAS_KEY != 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+          service_account: ${{ env.DEPLOY_SA }}
+
+      - name: Set up Cloud SDK
+        if: steps.has.outputs.build == 'true'
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Build + push the renderer image when its inputs changed (do_build_push_pdf_image)
+        if: steps.has.outputs.build == 'true'
+        run: |
+          set -euo pipefail
+          echo "renderer inputs: $PDF_INPUTS"
+          DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_build_push_pdf_image | tee "$RUNNER_TEMP/pdf.log"
+          grep -E '^(OK|INFO) ' "$RUNNER_TEMP/pdf.log" | tail -2 | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
   # verify: post-deploy HTTPS smoke of the acceptance endpoints (22, reusable)

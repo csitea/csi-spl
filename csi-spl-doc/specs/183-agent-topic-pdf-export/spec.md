@@ -181,6 +181,37 @@ CLI verb (P3). v0.1's row P6 (`--attach`) is dropped (Q2 = F).
 | **P5 e2e** | P1, P2, P3 | `tests` | `csi-spl-api/src/bash/tests/topic-pdf-e2e.tst.sh` | On a local hub (memory store, the renderer from P2 run locally): post 3 rows and a picture, run `spool topic-pdf`, `pdftotext` holds the 3 bodies; a box whose operator may not read gets exit 3. Red control: turn the access check off, and the exit-3 case fails. |
 | **P7 docs** | P3 | `specs_and_docs` | `csi-spl-doc/doc/md/spool-cli-reference.md`, this spec's row status, 182 row L6's status | `do_check_dist_hygiene`, `do_check_fleet_rules_drift`. |
 
+### 6.1 Row P4 status (lane `c-339`, SPL-6045)
+
+Built, not applied. The step, the image action and the hub's env line are
+on the branch of this row; nothing in GCP changed.
+
+- Step `031-cloud-run-pdf`: service and runtime SA `<org>-<app>-<env>-pdf`
+  (the SA holds no role), `roles/run.invoker` for the hub's runtime SA only,
+  `min_instance_count = 0` as a literal (not cnf), `cpu_idle = true`,
+  `startup_cpu_boost = false`, concurrency 1, max 2, 120 s, 1 cpu, 1Gi.
+- cnf: `pdf.image.{name,tag}`, `pdf.cloud_run.*`, `hub.pdf.{url,timeout}`
+  in `all.env.yaml`. `pdf.image.tag` is `""` until the first push, and 031
+  refuses to plan with it; `hub.pdf.url` is `""` until 031's apply, and 030
+  then passes no `SPOOL_PDF_URL`.
+- Image: `do_build_push_pdf_image` (csi-spl-orc) tags it `src-<12 hex>`, a
+  hash of the committed inputs (`cmd/spool-pdf`, `internal/topicpdf`,
+  `go.mod`, `go.sum`, `pdf.Dockerfile`), and pushes only a tag the registry
+  lacks. Workflow 20's job `pdf-image` runs it on every run and never rolls
+  a service: step 031 runs cnf `pdf.image.tag`, so a new renderer is a cnf
+  tag bump plus an apply of 031 with the owner's go.
+- Check of 1.2: `csi-spl-iac/src/bash/tests/renderer-scale-to-zero-031.tst.sh`;
+  its red controls (`min_instance_count = 1`, `cpu_idle = false`,
+  `startup_cpu_boost = true`, an `allUsers` invoker, a keep-warm scheduler
+  job) each fail it.
+- Open: cnf `hub.pdf.timeout` reaches the hub under no env name yet (7.1
+  names none); 030 passes `SPOOL_PDF_URL` only.
+
+After the apply (dev, then prd; c-001, with the owner's go): the
+`minScale` describe, the idle instance count after 20 minutes, an export
+after 20 idle minutes, the `403` without a token, and the measured cold
+start and render time, written here.
+
 ### 7.1 Contracts for parallel rows (binding)
 
 A row that needs to change one asks the dispatch holder first; the change

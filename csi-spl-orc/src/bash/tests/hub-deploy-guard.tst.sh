@@ -59,8 +59,10 @@ C0=$(c csi-spl-api/src/go/main.go)
 
 # --- 1. paths == 20's push allow-list ----------------------------------------
 want="$(g paths | sort)"
+# pdf.Dockerfile triggers 20 for its pdf-image job only (spec 183 P4): the
+# renderer image, never a hub roll, so it is no hub input of the guard.
 got="$(yq -r '.on.push.paths[]' "$WF" | sed -E '/^!/{s|^!|:(exclude,glob)|;b};s|/\*\*$||' |
-  grep -vE '^(csi-spl-cnf/csi-spl/(all|dev|prd)\.env\.yaml|\.github/workflows/2[02]_[a-z-]+\.yml)$' | sort)"
+  grep -vE '^(csi-spl-cnf/csi-spl/(all|dev|prd)\.env\.yaml|\.github/workflows/2[02]_[a-z-]+\.yml|csi-spl-api/src/docker/pdf\.Dockerfile)$' | sort)"
 [[ -n "$want" && "$want" == "$got" ]] && pass "1. paths == 20's push allow-list ($(wc -l <<<"$want") image inputs)" ||
   fail "1. paths and 20's allow-list differ: guard=[$want] wf=[$got]"
 extra="$(yq -r '.on.push.paths[]' "$WF" | grep -cE '^csi-spl-(iac|orc|cnf)/\*\*$')"

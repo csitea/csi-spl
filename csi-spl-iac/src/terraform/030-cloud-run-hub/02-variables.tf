@@ -124,6 +124,17 @@ variable "environment_variables" {
   default     = {}
 }
 
+variable "pdf_url" {
+  type        = string
+  description = "The topic PDF renderer's URL (cnf hub.pdf.url = step 031's service_uri, spec 183 7.1.6), passed to the hub as SPOOL_PDF_URL. \"\" (before 031 is applied) passes no SPOOL_PDF_URL."
+  default     = ""
+
+  validation {
+    condition     = var.pdf_url == "" || can(regex("^https://[^/]+$", var.pdf_url))
+    error_message = "pdf_url must be \"\" or https://<host> with no path (031's service_uri)."
+  }
+}
+
 variable "secret_environment_variables" {
   type        = map(string)
   description = "env var -> Secret Manager secret id (cnf hub.secret_env); injected at its secret_versions pin."

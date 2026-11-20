@@ -28,6 +28,11 @@ locals {
   }
   cloud_sql_connection_name = "${var.gcp_project}:${var.gcp_region}:${var.cloud_sql_instance_name}"
 
+  # spec 183 7.1.6: the topic PDF renderer (step 031) the hub posts to with
+  # its own ID token, from cnf hub.pdf.url; none while it is "" (the hub then
+  # answers an export 503 render_unavailable).
+  hub_env = merge(var.environment_variables, var.pdf_url == "" ? {} : { SPOOL_PDF_URL = var.pdf_url })
+
   # SPL-4298: every template input terraform owns (the image is the 20
   # pipeline's), this file included so a changed constant counts too. It rides
   # the template as a label; a mismatch with the live label means "changed".
@@ -43,6 +48,7 @@ locals {
     cpu            = var.cpu
     memory         = var.memory
     env            = var.environment_variables
+    pdf_url        = var.pdf_url
     secret_env     = var.secret_environment_variables
     secret_version = var.secret_versions
     pepper_secret  = var.vendor_keys_pepper_secret_id
@@ -71,7 +77,7 @@ module "revision" {
   live_revision      = try(local.live.revision, null) == null ? "" : local.live.revision
   live_template_hash = try(local.live.labels["tf-template"], null) == null ? "" : local.live.labels["tf-template"]
   live_env           = local.live_env
-  want_env           = var.environment_variables
+  want_env           = local.hub_env
 }
 
 resource "google_cloud_run_v2_service" "hub" {
@@ -165,7 +171,7 @@ resource "google_cloud_run_v2_service" "hub" {
       }
 
       dynamic "env" {
-        for_each = var.environment_variables
+        for_each = local.hub_env
         content {
           name  = env.key
           value = env.value

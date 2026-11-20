@@ -128,6 +128,9 @@ func (s *Server) handleSetMessageKind(w http.ResponseWriter, r *http.Request) {
 		if c.From == blockerKind && c.To != blockerKind { // blocker_issue.go: clearing the mark resolves its issues
 			s.resolveBlockerIssues(r.Context(), t.ID, m, from)
 		}
+		if c.To == blockerKind && c.From != blockerKind { // spec 182 4.2 step 10, topic_loop_fire.go
+			s.topicLoopKindBlocker(r.Context(), t.ID, m)
+		}
 	}
 	writeJSON(w, http.StatusOK, editedPayload(m, m.Env, m.EditedAt, m.EditedBy, m.Revision))
 }

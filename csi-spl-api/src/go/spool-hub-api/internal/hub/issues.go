@@ -446,6 +446,7 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 	if ie != nil {
 		return store.Issue{}, ie
 	}
+	loopBefore := s.topicLoopIssueBefore(ctx, tenant, number, p.Status != nil) // spec 182 4.2 step 12
 	out, err := is.UpdateIssue(ctx, tenant, number, p, actor, s.o.Now())
 	if ie := storeIssueErr(err); ie != nil {
 		if ie.status == http.StatusInternalServerError {
@@ -467,6 +468,7 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 	if p.Priority != nil {
 		s.spreadIssuePriority(ctx, tenant, number, actor) // topic_priority_spread.go: its discussions, their issues, the lanes
 	}
+	s.topicLoopIssue(ctx, tenant, actor, out, loopBefore) // spec 182 4.2 step 12, topic_loop_fire.go
 	return out, nil
 }
 

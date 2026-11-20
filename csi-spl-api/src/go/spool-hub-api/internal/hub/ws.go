@@ -715,6 +715,9 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 	// specs/121 T302 (usage_events.go): meter the turn this post closes; never fails the send.
 	s.meterTurn(ctx, x.tenant, env.Channel, m.From, id, f)
 	x.write(ctx, wire.Frame{Type: wire.TSent, MsgID: id, TaskID: m.TaskID, TS: m.TS, ToBox: env.ToBox, Delivery: r.delivery}) //nolint:errcheck
+	if r.inserted {                                                                                                           // spec 182 4.2 steps 2 and 4, after the sent frame (topic_loop_fire.go)
+		s.topicLoopAgent(ctx, x.tenant, env, m)
+	}
 }
 
 // frameRefusal is an error frame's token, status and detail.
@@ -1064,6 +1067,7 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel, ParentTaskID: env.ParentTaskID,
 		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent, TypedBy: typedBy,
 		NoteToSelf: noteToSelfOf(ctx), // spec 042, set by wuiSend only
+		LoopID:     loopIDOf(ctx),     // spec 182 5.2, set by a loop's fire only
 	}
 	inserted, sentInOne, err := s.insertRowRef(ctx, &row) // spec 067 L4, dm_ref.go
 	if err != nil {

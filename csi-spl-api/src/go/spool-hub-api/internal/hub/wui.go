@@ -617,7 +617,8 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		s.wuiRefuse(ctx, c, f, &frameRefusal{tok, status, detail})
 		return
 	}
-	ref := s.wuiDMRef(ctx, c, f.RefTaskID) // spec 067 3.3, dm_ref.go
+	s.topicLoopBeforeAgent(ctx, c.tenant, rt, m) // spec 182 4.2 step 3: after the last refusal, before the store
+	ref := s.wuiDMRef(ctx, c, f.RefTaskID)       // spec 067 3.3, dm_ref.go
 	s.shareMembersMemo(ctx, ref)
 	ctx = withNoteToSelf(ref, rt.noteToSelf)
 	r, err := s.commitRow(ctx, c.tenant, env, m, isParent)
@@ -651,6 +652,7 @@ func (s *Server) wuiAfterStore(ctx context.Context, c *wuiConn, rt wuiRouted, en
 	s.noteMentionNonMembers(ctx, c.tenant, rt.channel, c.member, m) // SPL-2419
 	s.noteMentionAgentsHumansOnly(ctx, c.tenant, rt.channel, m)     // SPL-2423
 	s.ownerPrioWord(ctx, c.tenant, c.member, m, rt.noteToSelf)      // SPL-5524
+	s.topicLoopHuman(ctx, c.tenant, rt, m)                          // spec 182 4.2 step 1, topic_loop_fire.go
 }
 
 // wuiRefuse logs one line for a browser send the hub did not store and
@@ -1022,6 +1024,9 @@ func (s *Server) admit(ctx context.Context, tenant, member string, m *msg.Messag
 // fanoutWUI pushes one stored message row to every browser subscribed to its task,
 // its stored channel, one of its DM ends, or the whole tenant (once per socket).
 func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
+	if row.LoopID != "" { // spec 182 5.2: a loop prompt is shown to nobody
+		return
+	}
 	tenant, taskID, channel := row.TenantID, row.TaskID, row.Channel
 	p := parties{row.FromID, row.FromBox, row.ToID, row.ToBox}
 	receivedAt, env, isParent, typedBy := row.ReceivedAt, row.Env, row.IsParent, row.TypedBy

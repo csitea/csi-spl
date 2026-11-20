@@ -1110,6 +1110,120 @@
         },
         "type": "object"
       },
+      "TopicLoop": {
+        "description": "One discussion loop. Contract: csi-spl-doc/specs/182-topic-loop-prompt/spec.md §7.1.2.",
+        "properties": {
+          "daily_at": {
+            "description": "hh:mm, present exactly with daily_at",
+            "type": "string"
+          },
+          "daily_due_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "daily_tz": {
+            "description": "IANA zone, present exactly with daily_at",
+            "type": "string"
+          },
+          "fires_in_hour": {
+            "type": "integer"
+          },
+          "held_until": {
+            "description": "hour_start + 1h while the loop is at the cap of 12 fires an hour",
+            "format": "date-time",
+            "type": "string"
+          },
+          "idle": {
+            "description": "why an on loop would not fire",
+            "enum": [
+              "",
+              "author_left",
+              "author_no_right"
+            ],
+            "type": "string"
+          },
+          "idle_min": {
+            "description": "present exactly with no_reply_after_human",
+            "maximum": 1440,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "interval_min": {
+            "description": "present exactly with every_n_minutes",
+            "maximum": 1440,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "keyword": {
+            "description": "present exactly with post_has_keyword",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "loop_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "next_due_at": {
+            "description": "present while every_hour or every_n_minutes is on",
+            "format": "date-time",
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "set_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "set_by": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "on",
+              "paused"
+            ],
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "triggers": {
+            "items": {
+              "enum": [
+                "after_agent_reply",
+                "before_agent_reply",
+                "after_human_reply",
+                "before_human_reply",
+                "every_hour",
+                "every_n_minutes",
+                "post_has_keyword",
+                "post_has_file",
+                "blocker_posted",
+                "no_reply_after_human",
+                "issue_status_changed",
+                "daily_at"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "loop_id",
+          "task_id",
+          "prompt",
+          "triggers",
+          "state",
+          "set_by",
+          "set_at",
+          "fires_in_hour",
+          "idle"
+        ],
+        "type": "object"
+      },
       "TopicSummary": {
         "description": "One topic (thread) of a list. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.3.",
         "properties": {
@@ -19664,6 +19778,374 @@
           }
         },
         "summary": "Export a topic as a PDF",
+        "tags": [
+          "topics"
+        ]
+      }
+    },
+    "/v1/topics/{task_id}/loops": {
+      "get": {
+        "operationId": "getTopicsByTaskIdLoops",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "loops": {
+                      "items": {
+                        "$ref": "#/components/schemas/TopicLoop"
+                      },
+                      "type": "array"
+                    },
+                    "may_edit": {
+                      "type": "boolean"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "task_id",
+                    "may_edit",
+                    "loops"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "501": {
+            "description": "Not implemented: the hub's store keeps no discussion loops"
+          }
+        },
+        "summary": "List a discussion's loops: the read door (404); may_edit is the caller's \"Who can archive topics\" right",
+        "tags": [
+          "topics"
+        ]
+      },
+      "post": {
+        "operationId": "postTopicsByTaskIdLoops",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "A new loop; each field only with its trigger, daily_tz defaults to UTC. Contract: csi-spl-doc/specs/182-topic-loop-prompt/spec.md §7.1.2.",
+                "properties": {
+                  "daily_at": {
+                    "description": "hh:mm, present exactly with daily_at",
+                    "type": "string"
+                  },
+                  "daily_tz": {
+                    "description": "IANA zone, present exactly with daily_at",
+                    "type": "string"
+                  },
+                  "idle_min": {
+                    "description": "present exactly with no_reply_after_human",
+                    "maximum": 1440,
+                    "minimum": 5,
+                    "type": "integer"
+                  },
+                  "interval_min": {
+                    "description": "present exactly with every_n_minutes",
+                    "maximum": 1440,
+                    "minimum": 5,
+                    "type": "integer"
+                  },
+                  "keyword": {
+                    "description": "present exactly with post_has_keyword",
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "maxLength": 4000,
+                    "type": "string"
+                  },
+                  "triggers": {
+                    "items": {
+                      "enum": [
+                        "after_agent_reply",
+                        "before_agent_reply",
+                        "after_human_reply",
+                        "before_human_reply",
+                        "every_hour",
+                        "every_n_minutes",
+                        "post_has_keyword",
+                        "post_has_file",
+                        "blocker_posted",
+                        "no_reply_after_human",
+                        "issue_status_changed",
+                        "daily_at"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicLoop"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: topic_archived"
+          },
+          "501": {
+            "description": "Not implemented: the hub's store keeps no discussion loops"
+          }
+        },
+        "summary": "Add a loop to a discussion: the read door (404), then \"Who can archive topics\" (403 not_allowed); every open view gets the frame topic_loops",
+        "tags": [
+          "topics"
+        ]
+      }
+    },
+    "/v1/topics/{task_id}/loops/{loop_id}": {
+      "delete": {
+        "operationId": "deleteTopicsByTaskIdLoopsByLoopId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "loop_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "loop_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "loop_id",
+                    "deleted"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "501": {
+            "description": "Not implemented: the hub's store keeps no discussion loops"
+          }
+        },
+        "summary": "Delete a loop; idempotent (deleted false when it was gone)",
+        "tags": [
+          "topics"
+        ]
+      },
+      "put": {
+        "operationId": "putTopicsByTaskIdLoopsByLoopId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "loop_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Any of the fields; absent ones are kept. Contract: csi-spl-doc/specs/182-topic-loop-prompt/spec.md §7.1.2.",
+                "properties": {
+                  "daily_at": {
+                    "description": "hh:mm, present exactly with daily_at",
+                    "type": "string"
+                  },
+                  "daily_tz": {
+                    "description": "IANA zone, present exactly with daily_at",
+                    "type": "string"
+                  },
+                  "idle_min": {
+                    "description": "present exactly with no_reply_after_human",
+                    "maximum": 1440,
+                    "minimum": 5,
+                    "type": "integer"
+                  },
+                  "interval_min": {
+                    "description": "present exactly with every_n_minutes",
+                    "maximum": 1440,
+                    "minimum": 5,
+                    "type": "integer"
+                  },
+                  "keyword": {
+                    "description": "present exactly with post_has_keyword",
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "maxLength": 4000,
+                    "type": "string"
+                  },
+                  "state": {
+                    "enum": [
+                      "on",
+                      "paused"
+                    ],
+                    "type": "string"
+                  },
+                  "triggers": {
+                    "items": {
+                      "enum": [
+                        "after_agent_reply",
+                        "before_agent_reply",
+                        "after_human_reply",
+                        "before_human_reply",
+                        "every_hour",
+                        "every_n_minutes",
+                        "post_has_keyword",
+                        "post_has_file",
+                        "blocker_posted",
+                        "no_reply_after_human",
+                        "issue_status_changed",
+                        "daily_at"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicLoop"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: topic_archived"
+          },
+          "501": {
+            "description": "Not implemented: the hub's store keeps no discussion loops"
+          }
+        },
+        "summary": "Edit, pause or resume a loop; the editor becomes its author; a new prompt or new triggers reset the hour count",
         "tags": [
           "topics"
         ]

@@ -64,6 +64,7 @@ func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/messages/{msg_id}/move", s.handleViewMove) // specs/045
 	s.routeSearch(mux)                                                      // search-v1.md
 	s.routeTopicPriority(mux)                                               // spec 150 B3, topic_priority.go
+	s.routeTopicLoops(mux)                                                  // spec 182 L2, topic_loop.go
 	s.routeAgentAliases(mux)                                                // spec 061
 	mux.HandleFunc("GET /v1/me/reads", s.handleReadMarks)                   // CLE-77930, rdb 0098
 	mux.HandleFunc("PUT /v1/me/reads", s.handleReadMarks)

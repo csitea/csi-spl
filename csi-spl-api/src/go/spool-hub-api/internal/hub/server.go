@@ -112,6 +112,13 @@ type Options struct {
 	// OwnerPrioWords (SPL-5524, owner_prio_word.go): a workspace owner's
 	// browser post holding one of them sets its topic to priority 1. nil = off.
 	OwnerPrioWords []string
+	// TopicLoopCap (spec 182 5.1, topic_loop_fire.go): the fires per
+	// discussion loop per hour (SPOOL_HUB_TOPIC_LOOP_CAP). 0 = 12.
+	TopicLoopCap int
+	// TopicLoopSelfFire (spec 182 Q10): true = Q10 B, the agent's answer to a
+	// loop's prompt fires that loop again (only the cap stops it); false =
+	// Q10 A, the recommended answer (SPOOL_HUB_TOPIC_LOOP_SELF_FIRE).
+	TopicLoopSelfFire bool
 	// UnansweredGrace (SPL-1225): a signed human post that no agent replied to
 	// in its topic within this grace is escalated to the tenant's responder by
 	// the relay sweep, whatever the (stale) roster says about who is online.
@@ -698,9 +705,10 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	defer dt.Stop()
 	bt := time.NewTicker(backfillEvery)
 	defer bt.Stop()
-	s.PostPublicNotices(ctx) // rdb 0173: the #public notice of every existing tenant
-	s.PostIssueBacklogs(ctx) // rdb 0194: the "Issue backlog" topic the backfill linked
-	go s.runGcalSync(ctx)    // spec 149 B6a: the Google Calendar sync, its own ticker
+	s.PostPublicNotices(ctx)    // rdb 0173: the #public notice of every existing tenant
+	s.PostIssueBacklogs(ctx)    // rdb 0194: the "Issue backlog" topic the backfill linked
+	go s.runGcalSync(ctx)       // spec 149 B6a: the Google Calendar sync, its own ticker
+	go s.runTopicLoopTimer(ctx) // spec 182 4.2 step 5: the time loops, its own ticker
 	for {
 		select {
 		case <-ctx.Done():

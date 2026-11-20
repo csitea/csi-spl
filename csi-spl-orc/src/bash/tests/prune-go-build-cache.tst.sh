@@ -688,6 +688,17 @@ out="$(run_prune "$S10" 1 "PATH=$T/stub:$PATH FAKE_FULL=$T/full GO_CACHE_MAX_AGE
   pass "10. DRY_RUN on a critical disk plans the 61-min cut and deletes nothing" ||
   fail "10. crit dry (rc=$rc): $out"
 
+# 11. no GO_CACHE_LOCK_FILE: the lock is $SPL_VAR_APP_DIR/go-cache-prune/prune.lock.
+# A stub flock that exits 1 without locking: no real lock is ever held.
+mkdir -p "$T/noflock"; printf '#!/bin/sh\nexit 1\n' >"$T/noflock/flock"; chmod +x "$T/noflock/flock"
+out="$(env -u GO_CACHE_LOCK_FILE PATH="$T/noflock:$PATH" PROJ_PATH="$PROJ_ROOT" SPL_VAR_APP_DIR="$T/var" GO_CACHE_LOCK=1 GO_CACHE_LOCK_WAIT=0 bash -c '
+  do_log() { printf "%s\n" "$*"; }
+  source "$PROJ_PATH/src/bash/run/prune-go-build-cache.func.sh"
+  go_cache_lock_or_stop; echo "rc=$?"' 2>&1)"
+[[ "$out" == *'rc=2'* && -f "$T/var/go-cache-prune/prune.lock" ]] &&
+  pass "11. no GO_CACHE_LOCK_FILE: the lock is \$SPL_VAR_APP_DIR/go-cache-prune/prune.lock" ||
+  fail "11. default lock ($out; $(ls -R "$T/var" 2>&1))"
+
 echo
 if [ "$fails" -eq 0 ]; then echo "prune-go-build-cache: all passed"; exit 0; fi
 echo "prune-go-build-cache: $fails FAILED"; exit 1

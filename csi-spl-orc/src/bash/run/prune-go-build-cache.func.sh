@@ -238,16 +238,12 @@ go_cache_targets() {
 # go_cache_lock_or_stop: 0 proceed (lock held, or no lock in use), 2 another
 # prune holds the lock (after GO_CACHE_LOCK_WAIT seconds) and this run must stop.
 go_cache_lock_or_stop() {
-  local lock app org
+  local lock="${GO_CACHE_LOCK_FILE:-}"
   [[ "${GO_CACHE_LOCK:-1}" == 1 ]] || return 0
   command -v flock >/dev/null 2>&1 || return 0
-  if [[ -n "${GO_CACHE_LOCK_FILE:-}" ]]; then
-    lock="$GO_CACHE_LOCK_FILE"
-  else
-    app="$(basename "${PROJ_PATH:-csi-spl-orc}")"
-    app="${app%-orc}"
-    org="${app%%-*}"
-    lock="/var/${org}/${app}/go-cache-prune/prune.lock"
+  if [[ -z "$lock" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir lock go-cache-prune/prune.lock || return 0
   fi
   mkdir -p "$(dirname "$lock")" 2>/dev/null || true
   exec 9>>"$lock" || return 0

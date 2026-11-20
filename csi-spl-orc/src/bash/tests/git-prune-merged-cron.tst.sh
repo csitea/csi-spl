@@ -68,6 +68,9 @@ out="$(inst DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'nothing to change'* ]] && pass "5. a second install is a no-op" || fail "5. second install rc=$rc out=$out"
 out="$(inst DRY_RUN=0 GIT_PRUNE_CRON_ACTION=remove)"; rc=$?
 [[ $rc -eq 0 ]] && cmp -s "$CT" "$T/crontab.orig" && pass "5. remove restores the crontab byte for byte" || fail "5. remove rc=$rc ct=$(cat "$CT")"
+out="$(inst GIT_PRUNE_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var")"
+grep -q "^  +47 \* \* \* \* bash .*/git-prune-merged-cron.sh >> $T/var/git-prune-merged/cron.out 2>&1 # csi-spl:git-prune-merged$" <<<"$out" \
+  && pass "5. no GIT_PRUNE_CRON_LOG_DIR: the dir is \$SPL_VAR_APP_DIR/git-prune-merged" || fail "5. default log dir out=$out"
 for args in DRY_RUN=2 GIT_PRUNE_CRON_ACTION=add GIT_PRUNE_CRON_MINUTE=60 GIT_PRUNE_CRON_MINUTE=x; do
   out="$(inst DRY_RUN=0 "$args")"; rc=$?
   [[ $rc -ne 0 && "$out" == *FATAL* ]] && cmp -s "$CT" "$T/crontab.orig" && pass "5. refused, nothing written: $args" || fail "5. $args rc=$rc out=$out"

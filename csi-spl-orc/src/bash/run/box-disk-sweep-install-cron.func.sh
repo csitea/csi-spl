@@ -27,9 +27,11 @@
 do_box_disk_sweep_install_cron() {
   local dry="${DRY_RUN:-1}" act="${BOX_SWEEP_CRON_ACTION:-install}" min="${BOX_SWEEP_CRON_MINUTE:-41}"
   local live="${BOX_SWEEP_CRON_DRY_RUN:-0}" rla="${BOX_SWEEP_CRON_RUNLOG_APPLY:-1}" ct="${BOX_SWEEP_CRONTAB:-crontab}"
-  local app org logdir tag="csi-spl:box-disk-sweep" script want gd cd jm="" l
-  app="$(basename "$PROJ_PATH")"; app="${app%-orc}"; org="${app%%-*}"
-  logdir="${BOX_SWEEP_CRON_LOG_DIR:-/var/${org}/${app}/box-disk-sweep}"
+  local logdir="${BOX_SWEEP_CRON_LOG_DIR:-}" tag="csi-spl:box-disk-sweep" script want gd cd jm="" l
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir box-disk-sweep || { do_log "FATAL cannot derive the box disk sweep log dir (no tree for spl_run_paths): set BOX_SWEEP_CRON_LOG_DIR"; return 1; }
+  fi
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$live" == 0 || "$live" == 1 ]] || { do_log "FATAL BOX_SWEEP_CRON_DRY_RUN must be 0 or 1, got: '$live'"; return 1; }
   [[ "$rla" == 0 || "$rla" == 1 ]] || { do_log "FATAL BOX_SWEEP_CRON_RUNLOG_APPLY must be 0 or 1, got: '$rla'"; return 1; }

@@ -20,9 +20,12 @@
 #------------------------------------------------------------------------------
 do_git_prune_merged_install_cron() {
   local dry="${DRY_RUN:-1}" act="${GIT_PRUNE_CRON_ACTION:-install}" min="${GIT_PRUNE_CRON_MINUTE:-47}"
-  local ct="${GIT_PRUNE_CRONTAB:-crontab}" app org logdir tag script want gd cd
-  app="$(basename "$PROJ_PATH")"; app="${app%-orc}"; org="${app%%-*}"
-  logdir="${GIT_PRUNE_CRON_LOG_DIR:-/var/$org/$app/git-prune-merged}" tag="$app:git-prune-merged"
+  local ct="${GIT_PRUNE_CRONTAB:-crontab}" app logdir="${GIT_PRUNE_CRON_LOG_DIR:-}" tag script want gd cd
+  app="$(basename "$PROJ_PATH")"; app="${app%-orc}"; tag="$app:git-prune-merged"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir git-prune-merged || { do_log "FATAL cannot derive the merged-branch prune log dir (no tree for spl_run_paths): set GIT_PRUNE_CRON_LOG_DIR"; return 1; }
+  fi
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   case "$act" in install|remove) ;; *) do_log "FATAL GIT_PRUNE_CRON_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
   [[ "$min" =~ ^[0-9]+$ ]] && (( min <= 59 )) || { do_log "FATAL GIT_PRUNE_CRON_MINUTE must be 0..59, got: '$min'"; return 1; }

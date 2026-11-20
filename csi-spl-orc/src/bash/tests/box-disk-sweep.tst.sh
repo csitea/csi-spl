@@ -383,6 +383,9 @@ out="$(inst)"
 grep -q '^  +11-59/15 \* \* \* \* DRY_RUN=0 BOX_SWEEP_RUNLOG_APPLY=1 BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK='"$T"'/log/box-disk-sweep.lock bash .*/box-disk-sweep.sh >> '"$T"'/log/box-disk-sweep.log 2>&1 # csi-spl:box-disk-sweep$' <<<"$out" \
   && pass "4. the dry run prints the 15-min gated line" || fail "4. dry-run diff ($out)"
 cmp -s "$CT" "$T/crontab.orig" && pass "4. ...and changes nothing" || fail "4. the dry run wrote the crontab"
+out="$(inst BOX_SWEEP_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var")"
+grep -q '^  +.* BOX_SWEEP_LOCK='"$T"'/var/box-disk-sweep/box-disk-sweep.lock bash .*/box-disk-sweep.sh >> '"$T"'/var/box-disk-sweep/box-disk-sweep.log 2>&1 # csi-spl:box-disk-sweep$' <<<"$out" \
+  && pass "4. no BOX_SWEEP_CRON_LOG_DIR: the dir is \$SPL_VAR_APP_DIR/box-disk-sweep" || fail "4. default log dir ($out)"
 inst DRY_RUN=0 >/dev/null
 [ "$(grep -c ' # csi-spl:box-disk-sweep$' "$CT")" = 1 ] && [ -d "$T/log" ] && pass "4. DRY_RUN=0 adds one tagged line and the log dir" || fail "4. tagged lines: $(cat "$CT")"
 cmp -s <(grep -v ' # csi-spl:box-disk-sweep$' "$CT") "$T/crontab.orig" && pass "4. ...every other line kept (the -other tag too)" || fail "4. other lines changed"

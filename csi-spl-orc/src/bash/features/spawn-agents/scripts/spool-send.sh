@@ -9,8 +9,8 @@
 #   writes <ts>--<from>--<slug>.md with     `spool send` writes ONE v:1 JSON
 #   YAML frontmatter into the peer inbox    object into $SPOOL_ROOT/<to>/inbox/
 #                                           and a copy in <from>/outbox/
-#   free markdown body                      `body` string; kind task|result|
-#                                           note|reject; task_id topics it
+#   free markdown body                      `body` string; kind one of
+#                                           SPOOL_KINDS; task_id topics it
 #   tmux poke = doorbell                    the line CARRIES the message
 #                                           (specs/028, contracts/poke-line.md)
 #                                           and the sender's own notice STRIP
@@ -63,7 +63,7 @@
 # with a WARN that the Flow shows no `ready` for it.
 #
 # Usage:
-#   spool-send.sh --from <ID> --to <ID|ID@box|orchestrator|peers> --kind task|result|note|reject|blocker|msg
+#   spool-send.sh --from <ID> --to <ID|ID@box|orchestrator|peers> --kind <SPOOL_KINDS>
 #                 [--task <uuid>] (--body <text> | --body-file <path>)
 #                 [--file-ref <path>]... [--file-id <id>]... [--no-poke]
 #                 [--ask <kind> | --no-ask] [--ask-deadline <ts>]
@@ -128,7 +128,7 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 spool_env_resolve
 
 usage() {
-  sed -n '/^# Usage:/,/^# stdout:/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '/^# Usage:/,/^# stdout:/p' "${BASH_SOURCE[0]}" | sed "s/^# \{0,1\}//; s/<SPOOL_KINDS>/${SPOOL_KINDS}/" >&2
   exit 2
 }
 
@@ -411,7 +411,7 @@ esac
 
 if [ "$POKE_ONLY" -eq 0 ]; then
   [ -n "$FROM" ] || { echo "ERROR: --from is required" >&2; usage; }
-  case "$KIND" in task|result|note|reject|blocker|msg) ;; *) echo "ERROR: --kind must be task|result|note|reject|blocker|msg, got: '${KIND}'" >&2; exit 2 ;; esac
+  spool_kind_in "$SPOOL_KINDS" "$KIND" || { echo "ERROR: --kind must be ${SPOOL_KINDS}, got: '${KIND}'" >&2; exit 2; }
   [ "$BODY_SET" -eq 1 ] || { echo "ERROR: --body or --body-file is required" >&2; exit 2; }
   # SPL-3953: `--body "$(cat <never-written file>)"` expanded to '' and 6
   # results from 2 review seats arrived empty (2026-10-27). Every kind.

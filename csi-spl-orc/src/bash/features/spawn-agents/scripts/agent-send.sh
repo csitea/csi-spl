@@ -9,7 +9,7 @@
 # Usage:
 #   agent-send.sh [--from <ID>] <ID> <message text...>
 #   agent-send.sh [--from <ID>] <ID> --file <path>
-#     [--subject <slug> (accepted, ignored)] [--kind task|result|note|reject|blocker|msg]
+#     [--subject <slug> (accepted, ignored)] [--kind <SPOOL_KINDS>]
 #     [--no-poke] [--via auto|spool]
 #   Options may come before or after <ID>.
 #
@@ -38,7 +38,7 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-fleet.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
-usage() { sed -n '/^# Usage:/,/^# Routing/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '/^# Usage:/,/^# Routing/p' "${BASH_SOURCE[0]}" | sed "\$d; s/^# \{0,1\}//; s/<SPOOL_KINDS>/${SPOOL_KINDS}/" >&2; exit 2; }
 
 FROM="${SPOOL_AGENT_ID:-${MCP_BOT_AGENT_ID:-}}" TO="" FILE="" KIND=note POKE=1 VIA=auto
 TEXT=()

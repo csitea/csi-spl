@@ -219,3 +219,45 @@ From the plan's section 2 table (line 202-203) and section 4:
 ## Signature
 
 `review: m-484@sat mistral PASS 8badbf4730a90e9abf2a4eeb118020aba17c3ea5 seat-file: review/c002-refactor-round-77-mistral-seat <sha> ran: <commands above> | read: <files above> | log: m-484@sat:~/.vibe/logs/session/unified/6ae162f0-7f7c-8f1f-8503-3ce4ad5ad0b0`
+
+## v1.0 signature (delta check, holder msg 88bd09f0 on task dispatch-refactor-r77)
+
+- **v1.0 sha:** `1a835fa8cc4bf6bb500a8cf7ae5b2cbc00bd03cb` on
+  `review/c002-refactor-round-77-planner-v1`. **Verdict: PASS** on that sha.
+- Checks, each command run by me at 2026-11-20T18:5xZ, n=1:
+  - `git ls-remote origin refs/heads/review/c002-refactor-round-77-planner-v1` ->
+    `1a835fa8cc4bf6bb500a8cf7ae5b2cbc00bd03cb` (matches the holder's read).
+  - `git range-diff 8badbf473^..8badbf473 eebacdfdf^..eebacdfdf` ->
+    `1: 8badbf473 = 1: eebacdfdf` — the v0.1 patch is identical after the rebase onto
+    `cc13eac0b`; `git diff 8badbf473 eebacdfdf -- csi-spl-doc/doc/md/refactor-round-77-plan.md`
+    -> 0 lines (plan file identical in the rebased parent).
+  - `git diff --stat 1a835fa8c^..1a835fa8c` -> plan file only,
+    `36 insertions(+), 7 deletions(-)` (matches the holder's +36 -7).
+  - Full delta read (`git diff 1a835fa8c^..1a835fa8c -- <plan file>`, 85 lines):
+    - **W1 fixed as meant.** Row 02's red-control cell now reads: run ONLY on a scratch
+      copy of the parent's **`csi-spl-orc` subtree**, renamed so its own dir is
+      `acme-app-orc`: `mkdir -p $T/opt/acme/acme-app/acme-app-orc && git archive <parent>
+      csi-spl-orc | tar -x --strip-components=1 -C $T/opt/acme/acme-app/acme-app-orc`,
+      with the note that a whole-repo archive keeps the dir name `csi-spl-orc` so the hand
+      form names the LIVE `/var/<org>/<org>-<app>/box-sessions`, the `[[ ! -e /var/acme ]]`
+      check first, and the expected failure `cannot create /var/acme/acme-app/box-sessions`,
+      rc 1 — exactly what this seat verified on the scratch in check 3. The r77-02 brief
+      (section 5) repeats it: "the parent's `csi-spl-orc` subtree extracted as
+      `acme-app-orc` (the row's command; never a whole-repo archive, ...)".
+    - **N1 recorded in 2.2** (the seat's read: exit 4 with 16 no-file lanes, 4 more than
+      2.2's 12 — c-229, c-231, c-256, a-045 — whose briefs are not on this box; the holder
+      re-checks them before placing r77-01) and **N1-N4 recorded in section 8**'s v1.0
+      entry, including N2 (the seat's one live-state write on the whole-repo reading,
+      restored by the cron, artifact removed).
+    - **No row changed scope:** in the section 2 table the delta touches only row 02's
+      red-control cell; row 01's line is unchanged context, and all sites, n, vendor
+      (claude), kind and batch columns are identical between v0.1 and v1.0.
+  - `REVIEW_LINE='review: m-484@sat mistral PASS 1a835fa8cc4bf6bb500a8cf7ae5b2cbc00bd03cb ran: <the git commands above> | read: <plan at 1a835fa8c, full delta> | log: m-484@sat:~/.vibe/logs/session/unified/6ae162f0-7f7c-8f1f-8503-3ce4ad5ad0b0' ./run -a do_spl_review_line_check`
+    -> `DOCS-ONLY 1a835fa8cc4b touches only docs (*.md, csi-spl-doc/): ran: needs no test`,
+    `OK ... (1350 commands read)`, rc **0**.
+  - The live-path red control was NOT re-run, per the holder's instruction; the delta
+    check is read-only git.
+- v1.0 review line (spool form, absolute log path):
+  `review: m-484@sat mistral PASS 1a835fa8cc4bf6bb500a8cf7ae5b2cbc00bd03cb ran: git ls-remote origin refs/heads/review/c002-refactor-round-77-planner-v1 ; git range-diff 8badbf4730a90e9abf2a4eeb118020aba17c3ea5^..8badbf4730a90e9abf2a4eeb118020aba17c3ea5 eebacdfdf^..eebacdfdf ; git diff 8badbf4730a90e9abf2a4eeb118020aba17c3ea5 eebacdfdf -- csi-spl-doc/doc/md/refactor-round-77-plan.md ; git diff --stat 1a835fa8cc4bf6bb500a8cf7ae5b2cbc00bd03cb^..1a835fa8cc4bf6bb500a8cf7ae5b2cbc00bd03cb ; git diff 1a835fa8cc4bf6bb500a8cf7ae5b2cbc00bd03cb^..1a835fa8cc4bf6bb500a8cf7ae5b2cbc00bd03cb -- csi-spl-doc/doc/md/refactor-round-77-plan.md | read: csi-spl-doc/doc/md/refactor-round-77-plan.md at 1a835fa8c, full delta vs eebacdfdf | log: m-484@sat:~/.vibe/logs/session/unified/6ae162f0-7f7c-8f1f-8503-3ce4ad5ad0b0`
+  (checked rc 0 by `do_spl_review_line_check`; in this file the log path is the `~/` form
+  the hygiene sweep requires).

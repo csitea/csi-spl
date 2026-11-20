@@ -16,6 +16,9 @@
 //         render holds the topic title and exactly the cards the pane shows,
 //         in that order (A's picture included, B absent); the document is
 //         named after the topic
+//   long  (SPL-6023) a topic of 41 cards, several A4 pages: page.pdf holds
+//         more than one page and the link of every reply, the last printed
+//         one included; the single-card PDF is one page
 //
 // Red controls (each seen RED on a bundle with the planted defect):
 //   - useCardExportPdf printing every channel row (rows: channel.messages):
@@ -23,15 +26,19 @@
 //   - TopicExportPdf printing every channel row (rows: channel.messages):
 //     "topic: exactly the cards shown, in order" and "topic: the reply and
 //     the picture print, the neighbour does not" FAIL
+//   - MessagePrint.vue's print styles without the html/body reset (the
+//     screen's overflow: hidden + height: 100dvh): "long topic: the PDF has
+//     more than one page", "the last printed card is in the PDF" and
+//     "every card is in the PDF" FAIL
 //   (dropping rowsInShownOrder alone stays green here: this pane's rows are
 //   already in shown order; tests/unit/msg-print.test.mjs holds its control)
 //
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/msg-export-pdf.test.mjs
-//   SHOTS_DIR=<dir> ... also writes card.pdf and topic.pdf
+//   SHOTS_DIR=<dir> ... also writes card.pdf, topic.pdf and topic-long.pdf
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
@@ -114,7 +121,9 @@ const printed = (p) => p.evaluate(() => {
 
 /* page.pdf prints with print media, as Save as PDF does (it also fires afterprint) */
 async function savePdf(p, name) {
-  if (SHOTS) await p.pdf({ path: `${SHOTS}/${name}.pdf`, format: 'A4', printBackground: true })
+  const buf = Buffer.from(await p.pdf({ format: 'A4', printBackground: true }))
+  if (SHOTS) writeFileSync(`${SHOTS}/${name}.pdf`, buf)
+  return buf
 }
 
 /* card: the right-click menu, reached by keyboard */
@@ -142,9 +151,10 @@ async function cardCase(p, ids, tag) {
   ok('card: nothing of the neighbour (nor of its own reply)', got && !got.text.includes('PDF-B') && !got.text.includes('PDF-A-REPLY'))
   ok('card: its picture, loaded', got?.imgs.length === 1 && got.imgs[0].loaded && got.imgs[0].alt === 'pdf-pic.png', got?.imgs)
   ok('card: the file is <topic>-<msg8>', got?.docTitle === `pdf-a-${tag}-the-card-to-export-${ids.a.msg_id.replace(/-/g, '').slice(0, 8)}`, got?.docTitle)
-  await savePdf(p, 'card')
+  const pdf = await savePdf(p, 'card')
   await p.evaluate(() => window.dispatchEvent(new Event('afterprint')))
   ok('card: after the print the render is gone', await until(p, () => !document.querySelector('[data-test=msg-print-host]') && !document.documentElement.classList.contains('msg-printing')))
+  return pdf
 }
 
 /* topic: the header's button prints the pane, as shown */
@@ -168,6 +178,58 @@ async function topicCase(p, ids, tag) {
   ok('topic: the reply and the picture print, the neighbour does not', got && got.text.includes(`PDF-A-REPLY ${tag}`) && got.imgs.length === 1 && got.imgs[0].loaded && !got.text.includes('PDF-B'), got && { imgs: got.imgs })
   ok('topic: the file is named after the topic', Boolean(got?.docTitle) && !/-[0-9a-f]{8}$/.test(got.docTitle) && got.docTitle.startsWith('pdf-a-'), got?.docTitle)
   await savePdf(p, 'topic')
+  await p.evaluate(() => window.dispatchEvent(new Event('afterprint')))
+  await until(p, () => !document.querySelector('[data-test=msg-print-host]'))
+}
+
+/* SPL-6023: a topic longer than one A4 page prints every page. The screen
+   styles keep html/body at the viewport's height with overflow hidden; in
+   print they clipped the export to page 1. */
+const LONG_CARDS = 40
+const LONG_LINE = 'a line of text long enough to wrap across the width of an A4 page in the print render, '
+
+/* pages of a PDF; Chrome's PDF writes one /Type /Page object per page */
+const pdfPages = (buf) => (buf.toString('latin1').match(/\/Type\s*\/Page(?![s\w])/g) || []).length
+/* a link's target, written as a /URI annotation only where the link is painted */
+const pdfHasUri = (buf, uri) => buf.toString('latin1').includes(`(${uri})`)
+
+const longUri = (tag, i) => `https://example.com/pdf-long-${tag}-${i}`
+
+/* every card (the root is 0) carries its own link, so the PDF shows which cards it painted */
+const seedLong = (p, tag) => p.evaluate(async ({ CH, tag, n, line }) => {
+  const app = document.querySelector('#__nuxt').__vue_app__
+  const ch = app.config.globalProperties.$pinia._s.get('channel')
+  const root = await ch.send(`PDF-LONG ${tag} a topic longer than one page https://example.com/pdf-long-${tag}-0`, undefined, [], CH, 1)
+  const ids = { [root.msg_id]: 0 }
+  for (let i = 1; i <= n; i++) {
+    const r = await ch.send(`PDF-LONG-${i} ${tag} ${line.repeat(3)} https://example.com/pdf-long-${tag}-${i}`, root.task_id, [], CH, 0)
+    ids[r.msg_id] = i
+  }
+  return { task_id: root.task_id, ids }
+}, { CH, tag, n: LONG_CARDS, line: LONG_LINE })
+
+/* long topic: page.pdf (print media, as Save as PDF) holds several pages and the last card */
+async function longTopicCase(p, tag, cardPdf) {
+  ok('card: the single-card PDF is one page', pdfPages(cardPdf) === 1, pdfPages(cardPdf))
+  const long = await seedLong(p, tag)
+  const cards = Object.keys(long.ids)
+  await p.evaluate((task) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('topic').openTopic(task), long.task_id)
+  const shown = await until(p, (ids) => ids.every((id) => document.querySelector(`[data-test=topic-root] article.msg[data-msg-id="${id}"]`)), cards, 20000)
+  ok('long topic: the pane shows every card', shown)
+  await p.evaluate(() => { window.__printCalls = 0 })
+  await p.click('[data-test=topic-export-pdf]')
+  await until(p, () => Boolean(document.querySelector('[data-test=msg-print-host][data-ready=true]')), undefined, 20000)
+  const got = await printed(p)
+  const lastI = long.ids[got?.ids.at(-1)]
+  ok('long topic: every card is in the print render', got?.ids.length === LONG_CARDS + 1 && cards.every((id) => got.ids.includes(id)) && lastI !== undefined, got && { n: got.ids.length, lastI })
+  const buf = Buffer.from(await p.pdf({ format: 'A4', printBackground: true }))
+  if (SHOTS) writeFileSync(`${SHOTS}/topic-long.pdf`, buf)
+  const pages = pdfPages(buf)
+  const missing = Object.values(long.ids).filter((i) => !pdfHasUri(buf, longUri(tag, i)))
+  ok('long topic: the PDF has more than one page', pages > 1, pages)
+  ok('long topic: the last printed card is in the PDF (its link is painted)', lastI !== undefined && pdfHasUri(buf, longUri(tag, lastI)), { pages, lastI })
+  ok('long topic: every card is in the PDF', missing.length === 0, { missing: missing.length })
+  await p.evaluate(() => window.dispatchEvent(new Event('afterprint')))
 }
 
 const srv = await startServer()
@@ -188,8 +250,9 @@ try {
   await sleep(600)
   const tag = Math.random().toString(36).slice(2, 8)
   const ids = await seed(p, tag)
-  await cardCase(p, ids, tag)
+  const cardPdf = await cardCase(p, ids, tag)
   await topicCase(p, ids, tag)
+  await longTopicCase(p, tag, cardPdf)
   ok('no page error', errors.length === 0, errors)
 } catch (e) {
   console.error(e)

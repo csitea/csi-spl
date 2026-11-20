@@ -66,6 +66,15 @@ const filesOf = (m: SpoolMessage) => (Array.isArray(m.files) ? m.files : []) as 
   /* the page margin takes the canvas colour of color-scheme, which the dark theme sets on :root[data-theme] */
   html.msg-printing { color-scheme: light !important; }
   html.msg-printing, html.msg-printing body { background: white !important; }
+  /* SPL-6023: the screen keeps html and body at the viewport's height with
+     overflow hidden (assets/css/base.css; UiDialog's inline overflow on html
+     while a dialog is open), which clipped a long export to page 1. The
+     print block's only ancestors are html and body, so these let it run on. */
+  html.msg-printing, html.msg-printing body {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
   .msg-print { color: black; background: white; font: 11pt/1.45 sans-serif; }
   .msg-print__title { color: inherit; font-size: 18pt; margin: 0 0 12pt; }
   .msg-print__card { padding: 8pt 0; border-bottom: 1px solid currentColor; }

@@ -337,7 +337,14 @@ opening it.
      render, so a later print of the WUI keeps the browser's own page. The topic
      button and its reserved slot are as tall as the header row's other controls, so
      the header does not grow when the button mounts. Nothing of it is in the initial JS.
-  Check: `node --test tests/unit/msg-print.test.mjs`, `tests/e2e/msg-export-pdf.test.mjs`.
+  6. **Every page.** A topic longer than one page prints on as many A4 pages as it
+     needs (SPL-6023: it printed page 1 only). The screen holds `html` and `body` at
+     the viewport's height with `overflow: hidden` (`assets/css/base.css`, and
+     UiDialog's inline overflow on `html` while a dialog is open); while `html`
+     carries `msg-printing` the print sheet sets both to `overflow: visible`,
+     `height: auto`, `max-height: none`. The screen layout does not change.
+  Check: `node --test tests/unit/msg-print.test.mjs`, `tests/e2e/msg-export-pdf.test.mjs`
+  (its long case: 41 cards print on more than one page, each card's link in the PDF).
 
 ## 3. Success criteria
 

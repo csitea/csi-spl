@@ -1,6 +1,6 @@
 # Spec 186: Multicast Prompt
 
-Status: **Draft v0.1** (2026-11-20). Lane `c-098` (`claude`, backup for
+Status: **Draft v0.2** (2026-11-20; v0.2 folds the spec review's W1-W6 and N1). Lane `c-098` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). Placement `c002-s-multicast-prompt-spec`.
 Epic: **SPL-2403**. Issue: **SPL-6058**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:032d8010-f150-4125-b1c2-70e503b1a450` (`t1`).
@@ -54,7 +54,7 @@ marked **[Qn]**; the build rows name the answers they wait for.
 | multicast | one composer send into several target topics |
 | target | a topic the author picked; in a channel or a DM [Q8] |
 | copy | the post the hub stores in one target |
-| multicast id | `mc_id`, a client-minted UUID shared by every copy of one multicast [Q3 LNK] |
+| multicast id | `mc_id`, a client-minted UUID shared by every copy of one multicast; on the frame under either Q3 answer, stored only under [Q3 LNK] (7.1.1) |
 | author | the signed-in member who sends; the `from` of every copy |
 
 ## 3. What exists today (measured)
@@ -171,9 +171,11 @@ carries. Limits: body 64 KiB, 16 files (`internal/msg/msg.go:42-43`).
    into that topic: the same body, files and kind `note`.
 4. **Hub, per frame.** The whole chain of 3.2, unchanged, plus three
    multicast checks (7.1.1): the target topic exists and the author may read
-   it (`multicast_no_topic`) [Q2 EX], the copy count of that `mc_id` is
-   under the cap (`multicast_too_many`) [Q6], and the `mc_id` belongs to
-   this author (`bad_json`). Store with `mc_id` [Q3 LNK].
+   it (`multicast_no_topic`) [Q2 EX]; [Q3 LNK] the copy count of that
+   `mc_id` is under the cap (`multicast_too_many`) [Q6] and the `mc_id`
+   belongs to this author (`bad_json`), then the copy is stored with
+   `mc_id`. [Q3 IND] only the first check runs on the hub; the cap is the
+   WUI's (7.1.1).
 5. **Fan-out, per copy.** As any post of the author in that topic [Q5]:
    NRM: `topicReplyAgent`, the channel's agents via `routeChannel`, a
    leading @mention dispatch, a paused topic's agents get nothing (spec
@@ -204,7 +206,7 @@ answer. The hub change stays three checks and a column.
 | gap | what is missing | row | depends |
 |---|---|---|---|
 | G1 | the column that links the copies | M1 | Q3 LNK |
-| G2 | `mc_id` on the frame, the existing-topic check, the cap, the store write | M2 | Q2, Q3, Q6 |
+| G2 | `mc_id` on the frame, the existing-topic check; [Q3 LNK] the cap, the author check, the store write | M2 | Q2, Q3, Q6 |
 | G3 | the copy's agent rule when not NRM | M2 | Q5 MEN / NON |
 | G4 | the composer button, the multi-select picker, the N sends, the result list with Retry | M3 | Q1, Q7, Q8, Q9, Q11 |
 | G5 | the pre-check frame | M4 | Q9 ALL |
@@ -218,19 +220,21 @@ answer. The hub change stays three checks and a column.
 Every row codes against section 7.1, not against another row's branch: the
 WUI rows run on the mock client, the hub rows on the store interface. M1,
 M2, M3 and M9 can start together once the form is answered; M5 after M1
-and M2; M7 after M3; M8 after M3 has landed its en keys.
+and M2; M4 after M2 and M3, and M6 after M3 (each edits a file M3 creates:
+`useMulticastSend.ts`, `MulticastPickerDialog.vue`); M7 after M3; M8 after
+M3 has landed its en keys.
 
 | row | what | files | depends on | done test | red control |
 |---|---|---|---|---|---|
 | M1 | rdb: `mc_id` and its index [Q3 LNK] | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_messages_mc_id.sql` (head 0298 at v0.1; spec 185's F1 plans 0299: re-check) | Q3 | applies twice on a throwaway postgres; `\d messages` lists `mc_id uuid` nullable and the partial index | a migration test asserting `mc_id` fails before the file exists |
-| M2 | hub: the multicast checks and store | `internal/hub/wui.go` (`wuiIn.McID`, one `wuiMulticast` step after `wuiIDs`), new `internal/hub/wui_multicast.go` + `wui_multicast_test.go`, `internal/store` (postgres + memory: write `mc_id`, `CountMulticast(tenant, mc_id)`, `MulticastAuthor`) | 7.1.1, 7.1.3; M1's file for the postgres test | Go tests on postgres: N frames with one `mc_id` into N readable topics of different channels store N rows with that `mc_id`; each copy routes as 3.2 step 4 [Q5]; an @agent copy into a humans-only channel is a plain post; the (max+1)th copy answers `multicast_too_many`; a resend of a stored copy re-acks | an unknown `task_id` with `mc_id` must answer `multicast_no_topic` (without the check it opens a topic); a second author reusing the `mc_id` must answer `bad_json`; each test fails when its check is removed |
-| M3 | WUI: button, picker, N sends, results | `components/MessageComposer.vue` (the button), new `components/MulticastPickerDialog.vue`, new `composables/useMulticastSend.ts`, `stores/channel.ts` (`sendMulticast`, one `sendLive` per target), `utils/spool-client.mjs` + `spool-client-mock.mjs` (`mc_id`), `i18n/locales/*.json` (en + machine drafts) | 7.1.1, 7.1.4, 7.1.6; Q1, Q7, Q8, Q9, Q11 | a unit test of the picker rows (channel topics grouped, DM topics [Q8], lobby and `issues` absent, the cap [Q6]); a unit test of `useMulticastSend` on the mock: files uploaded once, N frames with one `mc_id` and N `msg_id`s, a refused target listed with its token and retried with the same `msg_id`; `pnpm run typecheck`; i18n gates | make the mock refuse one target: the result list must show it and the composer must keep the text; drop the cap: the cap test fails |
-| M4 | hub + WUI: the pre-check [Q9 ALL only] | `internal/hub/wui_multicast.go` (`multicast_check` frame), its test; `useMulticastSend.ts` | 7.1.2; M2 | a check of N targets answers one line per target and stores nothing | a target in an archived topic must come back refused |
+| M2 | hub: the multicast checks and store | `internal/hub/wui.go` (`wuiIn.McID`, one `wuiMulticast` step after `wuiIDs`), new `internal/hub/wui_multicast.go` + `wui_multicast_test.go`, `internal/store` (postgres + memory: write `mc_id`, `CountMulticast(tenant, mc_id)`, `MulticastAuthor`) | 7.1.1, 7.1.3; M1's file for the postgres test | Go tests on postgres: N frames with one `mc_id` into N readable topics of different channels store N rows with that `mc_id`; each copy routes as 3.2 step 4 [Q5]; an @agent copy into a humans-only channel is a plain post; the (max+1)th copy answers `multicast_too_many`; a resend of a stored copy re-acks, also when that copy is the max-th one (W1: the resend of a stored `msg_id` is exempt from the cap, as from `wuiArchivedRefusal` and `messageQuota`); per copy, with the monthly quota set to the stored count + 2, a multicast of 4 stores 2 copies and the other 2 answer the quota token 429, and an unpaid tenant answers 402 on every copy; of 3 targets where the middle one is an existing topic of a members-only channel the author is not in, or a DM of two other members, the first and third are stored and the middle one answers `multicast_no_topic` 404, the same token and detail as an unknown `task_id`, and its error frame names only its own `msg_id` | an unknown `task_id` with `mc_id` must answer `multicast_no_topic` (without the check it opens a topic); a second author reusing the `mc_id` must answer `bad_json`; remove the stored-`msg_id` exemption: the max-th resend must answer `multicast_too_many` and the test fails; count copies outside `admit`: the quota test fails; answer `forbidden` for an unreadable topic: the members-only test fails (it must not say the topic exists); each test fails when its check is removed |
+| M3 | WUI: button, picker, N sends, results | `components/MessageComposer.vue` (the button), new `components/MulticastPickerDialog.vue`, new `composables/useMulticastSend.ts`, `stores/channel.ts` (`sendMulticast`, one `sendLive` per target), `utils/spool-client.mjs` + `spool-client-mock.mjs` (`mc_id`), `i18n/locales/*.json` (en + machine drafts) | 7.1.1, 7.1.4, 7.1.6; Q1, Q7, Q8, Q9, Q11 | a unit test of the picker rows (channel topics grouped, DM topics [Q8], lobby and `issues` absent, the cap [Q6]); a unit test of `useMulticastSend` on the mock: files uploaded once, N frames with one `mc_id` and N `msg_id`s, a refused target listed with its token and retried with the same `msg_id`; the mock socket drops after 2 of 5 frames are acked: the 2 show sent, the 3 others show "waiting for network" (`sendLive` returns `waitForNetwork` there, `channel.ts:681,686`, it does not throw), the composer keeps the text until all 5 are acked, and on reconnect the 3 go again under their own `msg_id`s and turn sent; `pnpm run typecheck`; i18n gates | make the mock refuse one target: the result list must show it and the composer must keep the text; drop the cap: the cap test fails; clear the composer on the first ack: the socket-drop test fails; mint a new `msg_id` on the reconnect resend: the test sees 7 frames stored, not 5, and fails |
+| M4 | hub + WUI: the pre-check [Q9 ALL only] | `internal/hub/wui_multicast.go` (`multicast_check` frame), its test; `useMulticastSend.ts` | 7.1.2; M2, M3 | a check of N targets answers one line per target and stores nothing | a target in an archived topic must come back refused |
 | M5 | hub + WUI: the gathered view [Q4 GTH only] | new `internal/hub/view_multicast.go` (`GET /v1/view/multicast/{mc_id}`), its test, `openapi.json`; new `pages/m/[mc_id].vue` | 7.1.5; M1, M2 | the view lists every copy the reader may read, with its topic and reply count, newest reply first | a copy in a members-only channel the reader left must be absent |
-| M6 | rdb + hub + WUI: saved groups [Q1 GRP / BTH only] | `<next>_multicast_groups.sql` (tenant, member, name, task_ids, RLS), `internal/hub/multicast_groups.go`, the picker's group list | 7.1.7 | a member's group lists only topics they may still read when opened | another member's group must read 404 |
+| M6 | rdb + hub + WUI: saved groups [Q1 GRP / BTH only] | `<next>_multicast_groups.sql` (tenant, member, name, task_ids, RLS), `internal/hub/multicast_groups.go`, the picker's group list (`MulticastPickerDialog.vue`) | 7.1.7; M3 | a member's group lists only topics they may still read when opened | another member's group must read 404 |
 | M7 | e2e | new `csi-spl-wui/tests/e2e/multicast-prompt.test.mjs` | M3 | on the generated bundle, mock-served: pick three topics in two channels, send once, the card appears in all three; one refused target shows its reason and Retry | the e2e fails when the button is absent |
 | M8 | i18n: agy's final review | the 18 non-en locale files, the keys of 7.1.4 | M3 landed | agy review per the language rule; gates green | the untranslated-count gate (`i18n-untranslated.test.mjs`) |
-| M9 | docs | `csi-spl-doc/specs/005-spool-wui/spec.md` (an FR for the multicast send: FR-022 if 185 has taken FR-021; re-check), `csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` (section 4: `mc_id` and its refusals), the user help for the composer | 7.1 | the contract names every field and refusal of 7.1.1 | a doc test or link check that covers the file fails on a removed field |
+| M9 | docs | `csi-spl-doc/specs/005-spool-wui/spec.md` (an FR for the multicast send: FR-022 if 185 has taken FR-021; re-check), `csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` (section 4: `mc_id` and its refusals), the user help for the composer | 7.1 | the contract names every field and refusal of 7.1.1: `grep -c -e mc_id -e multicast_no_topic -e multicast_too_many -e multicast_max csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` -> at least 4 (it is 0 on `origin/master` today) | none automatic: no test on `origin/master` parses the fields of `wui-live-ws.md` (`git grep -n wui-live-ws origin/master -- '*test*'` names comments only); the reviewer re-runs the grep with one of the four names removed from the file and must see the count drop. M9 adds no new test |
 
 ## 7. Contracts
 
@@ -255,20 +259,38 @@ topic, plus one field:
   a leading @mention in the body dispatches in every copy, as it would in
   each single post.
 - `mc_id` must be a UUID (`bad_json` 400). A frame without `mc_id` is an
-  ordinary send, unchanged.
+  ordinary send, unchanged. `mc_id` is on the frame under both Q3 answers:
+  it is what tells the hub a frame is a multicast copy.
 - [Q2 EX] With `mc_id`, `is_parent` must be 0 and the `task_id` must hold a
   topic the author may read (`canReadTopic`), else `multicast_no_topic`
   404. [Q2 NEW] `is_parent: 1` with a `channel` also passes: it opens a new
   topic there, as a new post does today.
-- An `mc_id` already stored with another `from` is refused `bad_json` 400.
-- [Q6] The copy that would make the stored copies of this `mc_id` exceed
-  the cap is refused `multicast_too_many` 400. The cap is hub cnf
-  (`hub.multicast.max_targets`), the WUI reads it from the `welcome` frame
-  (`multicast_max`).
+- [Q2 EX] An existing topic the author may not read (a members-only
+  channel they are not in, another pair's DM) answers the same
+  `multicast_no_topic` 404, with the same detail, as an unknown one: the
+  refusal never says the topic exists (the 404 rule of 3.3). Its error frame
+  names its own `msg_id` only; the other copies are untouched.
+- [Q3 LNK] An `mc_id` already stored with another `from` is refused
+  `bad_json` 400.
+- [Q3 LNK] [Q6] The copy that would make the stored copies of this `mc_id`
+  exceed the cap is refused `multicast_too_many` 400. The resend of a
+  `msg_id` already stored is exempt (it adds nothing, and its ack may be all
+  the WUI is missing), as in `wuiArchivedRefusal`
+  (`topic_archived_input.go:45-61`) and `messageQuota` (`ws.go:914-938`):
+  look the `msg_id` up first, count only for a new one.
+- [Q3 IND] Nothing is stored that links the copies, so the hub can neither
+  count them nor check the author: the `mc_id` only turns on the
+  existing-topic check above and is dropped after it. The cap [Q6] is then
+  the WUI's alone (the picker refuses the (max+1)th tick, 7.1.6); a client
+  that ignores it sends N ordinary posts, each still bound by the quota.
+- The cap is hub cnf (`hub.multicast.max_targets`) under both Q3 answers;
+  the WUI reads it from the `welcome` frame (`multicast_max`).
 - Every existing refusal of `wuiSend` applies to each copy unchanged
   (`topic_archived`, `unknown_channel`, `forbidden`, `402 unpaid`, `429
-  quota`: each copy counts as one message, `missing_file`, the token budget,
-  the demo checks). The ack is the existing ack.
+  quota`: each copy counts as one message in `admit`, so a multicast that
+  crosses the quota stores the copies before the line and refuses the rest,
+  `missing_file`, the token budget, the demo checks). The ack is the
+  existing ack.
 
 #### 7.1.2 The pre-check frame [Q9 ALL only]
 
@@ -316,7 +338,12 @@ Rows, one list, filtered by one query, grouped by channel:
 `{kind: 'topic', id: task_id, channel, title}` for the topics of
 `moveChannelTargets(channels, '')` read as `MovePickerDialog.load` reads
 them; [Q8 ALL] `{kind: 'dm', id: task_id, peer, title}` from
-`listTopics({ dm: true })`. Archived topics are not listed. The open topic is
+`listTopics({ dm: true })`. [Q8 CHN] no `dm` rows. [Q8 PUB] no `dm` rows,
+and the channels are `moveChannelTargets(channels, '').filter(isPublicChannel)`
+(`csi-spl-wui/src/utils/spool-client.mjs:295`, the WUI twin of the hub's
+`store.ChannelPublic`, `internal/store/channel_humans.go:24`); the hub
+refuses a copy into a members-only channel or a DM under CHN / PUB with
+`multicast_no_topic`, whatever the picker sent. Archived topics are not listed. The open topic is
 preselected. A tick past the cap is refused with `composer.multicast_max`.
 
 #### 7.1.7 Saved groups [Q1 GRP / BTH only]

@@ -283,9 +283,12 @@ async function langMenu() {
 async function blogSwitcher() {
   console.log('-- the app language switcher on the blog (SPL-3871)')
   const index = await fetch(server.base + '/blog-md/index.json').then((r) => r.json(), () => ({}))
-  const id = '2026-10-26-kids-human-experience'
-  const has = (code) => code === 'en' || (index.locales?.[code] || []).some((e) => e.id === id)
-  if (!has('en') || !(index.locales?.en || []).some((e) => e.id === id)) { console.log(`  (no ${id} in this build: the switcher steps did not run)`); return }
+  /* the build's newest en post that has a bg copy; none fails, never skips */
+  const inLocale = (code, id) => (index.locales?.[code] || []).some((e) => e.id === id)
+  const id = (index.locales?.en || []).find((e) => inLocale('bg', e.id))?.id
+  ok('the build has an en post with a bg copy for the switcher steps', Boolean(id), id)
+  if (!id) return
+  const has = (code) => code === 'en' || inLocale(code, id)
   const want = Object.keys(index.locales || {}).filter(has)
   for (const [label, size, pick] of [['desktop', { width: 1280, height: 800 }, 'keys'], ['phone', { width: 390, height: 844 }, 'tap']]) {
     const { ctx, p } = await anonymousPage(browser, size)
@@ -316,12 +319,18 @@ async function blogSwitcher() {
     ok(`${label}: each choice opens /<code>/blog/${id} (en unprefixed)`, opts.every((o) => o.href === (o.code === 'en' ? `/blog/${id}` : `/${o.code}/blog/${id}`)))
     if (has('de')) ok(`${label}: the blog-only de is listed with its flag`, opts.find((o) => o.code === 'de')?.flag === '🇩🇪', opts.find((o) => o.code === 'de'))
     if (pick === 'keys') {
-      /* search + keyboard, as in the app: type, Enter picks the one match */
+      /* search + keyboard, as in the app: type, ArrowDown onto the one match,
+         Enter picks it. Once the filter settles no option is active, so Enter
+         alone only closes the list; Headless UI moves the active option in an
+         animation frame, so Enter waits until bg is the active one. */
       await p.focus('.blog-bar [data-test=lang-switcher-input]')
       await p.keyboard.type('bulg')
       const left = await p.$$eval('.blog-bar [data-test^=lang-item-]', (els) => els.map((el) => el.dataset.test.slice(10)))
       ok(`${label}: typing "bulg" leaves only bg`, left.join() === 'bg', left)
-      await Promise.all([p.waitForNavigation({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }).catch(() => null), p.keyboard.press('ArrowDown').then(() => p.keyboard.press('Enter'))])
+      await p.keyboard.press('ArrowDown')
+      const active = await p.waitForSelector('.blog-bar [data-test=lang-item-bg].lang-switcher__option--active', { timeout: 5000 }).catch(() => null)
+      ok(`${label}: ArrowDown makes the one match bg the active option`, Boolean(active))
+      await Promise.all([p.waitForNavigation({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }).catch(() => null), p.keyboard.press('Enter')])
     } else {
       const bg = await p.$('.blog-bar [data-test=lang-item-bg]')
       await Promise.all([p.waitForNavigation({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }).catch(() => null), bg?.click()])

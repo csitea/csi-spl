@@ -236,3 +236,44 @@ lists in section 7.
   plan's "before" (check 5).
 - N6: r66-01/r66-02 (`b576da5e5`, `ffd7d6a72`) and r71-01 (`82f0e0b0f`) are all ancestors
   of the measured `5c7f42f70` — the plan measured after them.
+
+## v1.0 signing (second review)
+
+Review target: plan v1.0 `767aa329cb1c4ffccea96d5ab370b2c7146aafd2`, named by the editor
+c-247@sat as a plan version on task `dispatch-refactor-r73` (msg 7ee1aaa4,
+2026-11-20T06:39:20Z: "r73 plan v1.0 LANDED: 767aa329c... on origin/master"). Provenance
+at my read (2026-11-20T07:0xZ): `git fetch origin master`;
+`git merge-base --is-ancestor 767aa329cb1c4ffccea96d5ab370b2c7146aafd2 origin/master` ->
+rc 0 (origin/master then `657cf4c6562b3aa2daebcd25be7c9ece7d6cca18`);
+`git log -1 --format='%H %s' 767aa329c` -> `docs(r73-plan, SPL-6017): refactor round 73
+plan v1.0, signed by m-256 mistral PASS on 76fb311e9; W1 folded: the 8 are 8 of 35
+hand-spelled var-dir lines, the future gate covers all 3 spellings; no row changed`;
+`git diff 76fb311e9 767aa329c --stat` -> 1 file, +40/-4.
+
+**Verdict: PASS** on `767aa329cb1c4ffccea96d5ab370b2c7146aafd2`. W1 is folded; no new
+defect. Checks re-run on the v1.0 sha:
+
+- W1 fold verified: 1.3's new "The wider shape" paragraph measures all three spellings
+  on `5c7f42f70` (`'/(var|opt)/\$\{?(ORG|org)\b'` -> 8, `'/(var|opt)/\$\{?SPL_ORG_APP'` ->
+  22, `'/(var|opt)/\$\{?(org_app|ORG_APP|app)\b'` -> 5, together **35**) and says "This
+  round takes 5 of the 35; the gate above stays the rows' gate (8 -> 5 -> 3)"; section 7
+  gains the other 27 as next-round inputs (line 307) and the future gate's pattern covers
+  all three spellings with the corrected count 30 = 35 - 5 (line 308). My probes in
+  check 3 above measured the same 8 / 22 / 5 / 35 on `5c7f42f70`.
+- Rows unchanged on `767aa329c`: all 5 row sites re-checked with
+  `git show 767aa329c:<file> | sed -n <N>p` (`:32`, `:25`, `:250`, `:42`, `:35` — the same
+  hand-spelled lines); the gate on `767aa329c` reads **8**; the row table still reads
+  vendor `claude`, kind `simple_coding`, batches `1` and `2 (after 01)`.
+- Drift: `git diff --name-only 767aa329c origin/master -- <the 8 row files>` -> empty.
+- Slug: `git log origin/master --oneline -E --grep='\(r73-'` -> 2 lines, both plan
+  commits (`76fb311e9` v0.1, `767aa329c` v1.0); no row commit on master yet.
+- Lane map re-run (2026-11-20T07:0xZ): exit **3** — `c-263@sat`
+  (`c-263-c002-r73-01-orc-var-app-subdir-cron-dirs`, the r73-01 row lane placed after the
+  signing) owns the 3 row-01 code files and the 3 test files (changed in its worktree);
+  the 2 row-02 scripts are unowned (r73-02 held on `SPAWN_AFTER`). Expected post-signing
+  state, recorded for the retro.
+
+- N7 (cosmetic): section 8's change-log note says "1.3 and the intro now say 5 of 35";
+  the intro still says "8 lines ... as `/var/$org/$app/...`" (accurate for that
+  spelling) and 1.3 says "this round takes 5 of the 35" — the measurement (35 across
+  three spellings) is correct; only the change-log sentence is garbled.

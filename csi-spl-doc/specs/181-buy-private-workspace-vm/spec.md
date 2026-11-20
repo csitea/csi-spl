@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
-**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Draft v0.2
-(4 of 13 answered, 1.0; Q-4..Q-12 open) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.3
+(every question answered, Q-1..Q-14, section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -78,20 +78,23 @@ not corrected by the owner since:
 | the VM | its cloud cost (compute + traffic, from the billing export) + 33% |
 | the persons | $9 per month per seat |
 
-**Note.** The `$9 per month per seat` line is in the dispatcher's
-recording, not in the owner's own words, which say "cloud costs + 33% ...
-and nothing else" (`4f17f3da`). Q-6 asks the owner to confirm it.
+**Note.** The `$9 per month per seat` line was the dispatcher's recording,
+not the owner's own words ("cloud costs + 33% ... and nothing else",
+`4f17f3da`). The owner then confirmed it: 9 per month per human member,
+agents are not seats (Q-6 A), in EUR (Q-7 A), and the VM line is the VM
+only, compute, disk and traffic (Q-8 A).
 
 ## 1. Questions for the owner (forms)
 
-Each is a poll the holder can post as it stands; the first option is the
-recommended one. Every part of sections 3 to 6 that depends on an answer
-names its question as **[Q-n]**.
+Each was posted as a poll; the first option is the recommended one. Every
+question is answered (1.0). From v0.3 sections 2 to 7 are written as the
+answers say; a **[Q-n]** there names the answer it comes from.
 
 ### 1.0 The owner's answers
 
 Owner HUM-10, t1 topic `b12055b5`, relayed verbatim by the dispatch holder
-c-002@sat (msgs `20218211`, `64f641dd`, `94ddb2c5`, `b585876f`, `fc5c25e8`, `502db57e`). An answered question's **[Q-n]**
+c-002@sat (msgs `20218211`, `64f641dd`, `94ddb2c5`, `b585876f`, `fc5c25e8`,
+`502db57e`, `884a85d8`). An answered question's **[Q-n]**
 marks in sections 2 to 6 now read as that answer.
 
 | q | answer | owner msg | when (UTC) |
@@ -102,6 +105,13 @@ marks in sections 2 to 6 now read as that answer.
 | Q-13 | **B** (not the recommended A): checkout first, the private-workspace product in Stripe, then provisioning | `2b118136` | 2026-11-19 |
 | Q-5 | none of A, B, C: **both** subscription sign-in and API keys; the sign-in is driven from the web UI only, and we relay the buyer's inputs to the CLI's terminal login on their VM | `fd1af997` | 2026-11-20 |
 | Q-10 | A, as a binding rule: no metered fall-back, **we never resell tokens**; customers buy their own tokens, we sell the GCP infrastructure and the spool-hub interface | `504cb94f` | 2026-11-20 |
+| Q-4 | A: claude and qwen on the customer's API key; agy after 127's B0c gate; grok and mistral off until the vendors answer (159 4.2, O2, O3) | `9beaf299` | 2026-11-20 |
+| Q-6 | A: 9 per month per human member; agents are not seats | `9beaf299` | 2026-11-20 |
+| Q-7 | A: EUR, the checkout's currency today | `9beaf299` | 2026-11-20 |
+| Q-8 | A: the VM only, compute, disk and traffic, read from the billing export by the VM's label; the shared hub is paid by the seats | `9beaf299` | 2026-11-20 |
+| Q-9 | A: prepaid balance by card (121 R7, kept): the VM's daily cost + 33% is drawn down; at zero the agents stop, the workspace stays readable | `9beaf299` | 2026-11-20 |
+| Q-11 | A: one rate, 33%, for every workspace; it replaces 127's byok 50% | `9beaf299` | 2026-11-20 |
+| Q-12 | **C** (not the recommended A): the VM is deleted at once; only the hub data stays 30 days | `9beaf299` | 2026-11-20 |
 | Q-14 | A: build the relay now; switch it on per vendor after that vendor's written OK (O1, O2, O3); the relay hands the login inputs straight to the VM and stores them nowhere on the hub; API keys work meanwhile | `375f9b8e` | 2026-11-20 |
 
 Q-13 is mapped by its answer text, which is form Q-13's option B word for
@@ -111,9 +121,12 @@ Q-5 and Q-10 were answered in chat on form `976aad13`. Q-5's web-UI relay
 met spec 159 4.3's switch (claude's sign-in off until Anthropic answers in
 writing, O1); Q-14 (below, poll `3190dcc9`) keeps that gate per vendor.
 Q-10 removes 159 section 9 (the metered fall-back on our API keys) and
-confirms 121 R6's replacement (no AI tokens sold). It does not decide Q-11:
-127 7.1's 50% is charged on own cost, the fixed slice and hosts, its token
-term is already 0, so 33% against 50% on infrastructure stays open.
+confirms 121 R6's replacement (no AI tokens sold). It did not decide Q-11
+(127 7.1's 50% is charged on infrastructure; its token term is already 0);
+the owner answered Q-11 separately, A. Q-4, Q-6..Q-9, Q-11 and Q-12 are
+answers 1, 3..6, 8 and 9 of form `976aad13` (answer n = Q-(n+3)), mapped
+by the relay; Q-12 is mapped by its text, form Q-12's option C word for
+word.
 
 ```poll
 Q-14. When does the web-UI sign-in relay go live, given spec 159 kept claude's sign-in off until Anthropic confirms in writing (O1)?
@@ -210,18 +223,30 @@ Q-13. What is built first?
 
 ## 2. Where this changes other specs
 
+The edits are row B10 of section 6, made by each spec's editor; this spec
+states what they are.
+
 - **121 R6** (price = tokens x 1.20 + own cost + fixed slice, + 29%) is
-  replaced for every workspace by 0.2 (form `b97a036d`). 121 R7 (card
-  top-up, stop at zero) is not touched; Q-9 asks whether the VM cost uses
-  it. 121's `metered` plan and its token buffer have no price left to
-  apply to (P5); their removal is a row of 6, not done here.
-- **127 K4 / 7.1** (byok, +50%): Q-11.
-- **159 9** (metered fall-back on our API keys): Q-10.
-- **159 5.1** (keys on our fleet boxes as per-workspace OS users, owner
-  Q-1 B) stays for shared workspaces. A private workspace's keys run only
-  on its own VM [Q-2, Q-3].
-- **byo-gcp**: becomes Q-1 B / C. Its "later" status stands until Q-1 is
-  answered.
+  replaced for every workspace by 0.2 (form `b97a036d`). 121's `metered`
+  plan and its x 1.20 token buffer go: we never resell tokens [Q-10 A].
+  **121 R7** (card top-up, stop at zero) is kept and carries the VM cost
+  [Q-9 A].
+- **127 K4 / 7.1** (byok, +50%): the margin becomes 33%, one rate for
+  every workspace [Q-11 A]. The rest of 127 7.1's formula stands.
+- **159 9** (metered fall-back on our API keys) goes: a key that runs out
+  makes the task wait until the customer replaces it [Q-10 A]. 159's L24
+  and T5's fall-back part go with it.
+- **159 4.3** (the claude self sign-in, off until O1): the sign-in is
+  driven from the web UI and relayed to the CLI's terminal login on the
+  buyer's VM [Q-5]; the relay is built now and switched on per vendor
+  after that vendor's written OK (O1 Anthropic, O2 xAI, O3 Mistral); it
+  stores the login inputs nowhere on the hub [Q-14 A]. 159's rule that the
+  hub, the WUI and the desk never see the token stands.
+- **159 5.1** (keys on our fleet boxes as per-workspace OS users) stays
+  for shared workspaces. A private workspace's keys run only on its own VM
+  [Q-2 A, Q-3 A].
+- **byo-gcp** keeps its "later" status: the private VM runs in our GCP
+  [Q-1 A].
 
 ## 3. Today, measured
 
@@ -257,112 +282,128 @@ Not measured: what prd serves, and which switches are on there.
 ### 4.1 Buy
 
 1. A signed-in person opens "Private workspace" on the checkout. They pick
-   the workspace name, the number of seats [Q-6] and the VM size (one
-   standard size in the first slice, as 122 S3) [Q-13].
-2. The page shows the price of 0.2: seats x 9 [Q-6, Q-7] and the VM's
-   estimated monthly cost + 33% [Q-8], and the agents they can pick [Q-4].
-   It shows no token price (P5).
-3. Payment [Q-9]. A: a first top-up by card, through today's
-   payment-intent rail; B: a card on file and a charge in arrears, which the
-   rail cannot do today (3: no recurring charge).
+   the workspace name and the number of seats, one per human member
+   (agents are not seats) [Q-6 A]. The VM is one standard size in the
+   first slice (as 122 S3).
+2. The page shows the price of 0.2: seats x 9 EUR per month [Q-6 A, Q-7 A]
+   and the VM's estimated monthly cost (compute, disk, traffic) + 33%
+   [Q-8 A], and the agents they can pick (4.3) [Q-4 A]. It shows no token
+   price (P5, Q-10 A). The page says we hold root on the VM for upkeep
+   only and run nothing else there [Q-3 A].
+3. Payment: a first top-up by card through today's payment-intent rail;
+   the balance is drawn down by the VM's daily cost + 33% [Q-9 A].
 4. The paid webhook makes the tenant and its owner (006, built), sets the
    seat caps (009, built), turns `box_join_enabled` on for it, and writes a
    **provisioning order** (new, gap G3).
 
+The checkout is built first, then provisioning [Q-13 B]; section 6 is in
+that order.
+
 ### 4.2 Provision
 
-- **[Q-1 A]** One VM in our GCP per order: a terraform step with one entry
-  per private VM (122 4 point 2's shape, labelled `workspace=<tenant>` so the
-  billing export can price it), applied in the tf-runner. In the first slice
-  the apply is the owner's go per order (repo CLAUDE.md); automatic only
-  after a later owner decision (122 3.1).
-- **[Q-1 B]** byo-gcp's grant checklist; the same step in the customer's
-  project.
-- **[Q-2 B]** the VM also runs a hub and a database: the marketplace VM
-  package is the nearest start. 4.3 to 4.5 then talk to that hub, not ours.
+- One VM in our GCP per order [Q-1 A]: a terraform step with one entry
+  per private VM (122 4 point 2's shape, labelled `workspace=<tenant>` so
+  the billing export can price it), applied in the tf-runner. In the first
+  slice the apply is the owner's go per order (repo CLAUDE.md); automatic
+  only after a later owner decision (122 3.1).
+- The hub stays our shared hub, isolated per workspace by row-level
+  security (108 3.3) [Q-2 A]; no private hub.
 - The VM gets the customer box role set of 122 4 point 4: no estate key, no
-  GitHub token, no AI login of ours.
+  GitHub token, no AI login of ours. We hold root for upkeep only; no fleet
+  lane and no other workspace runs there [Q-3 A].
 - `do_spl_box_workspace_setup` makes `<W>`'s OS user and spool root; the box
   joins with a join token bound to `<W>` and `<vm>` (073; an operator mint
   path, 122 4 point 5, not built). The pin is `dedicated` (108 3.8).
 - The 127 5.3 desk start checks run on the VM; on a VM no fleet lane uses,
-  the one exception 159 5.2 made for fleet boxes is not needed [Q-3].
+  the one exception 159 5.2 made for fleet boxes is not needed.
 
 ### 4.3 Pick the agents
 
-- The biz owner or an admin opens Agent keys (built) and adds a key per
-  kind [Q-4, Q-5]. The hub leases each key only to `<W>`'s dedicated pin
-  on `<vm>` (127 H2, built).
-- Claude subscription: the self sign-in (159 4.3) runs on `<vm>` as
-  `<W>`'s OS user, behind its switch [Q-5].
+- The kinds at launch [Q-4 A]: claude and qwen on the customer's API key;
+  agy after 127's B0c gate; grok and mistral off until their vendors answer
+  (159 4.2, O2, O3).
+- API keys: the biz owner or an admin adds a key per kind on Agent keys
+  (built). The hub leases each key only to `<W>`'s dedicated pin on `<vm>`
+  (127 H2, built) [Q-5].
+- Subscriptions: the buyer signs in from the web UI only; we relay their
+  inputs to the CLI's terminal login on `<vm>`, run as `<W>`'s OS user
+  [Q-5]. The relay hands the inputs straight to the VM and stores them
+  nowhere on the hub; it is on per vendor only after that vendor's written
+  OK (O1, O2, O3), and API keys work meanwhile [Q-14 A] (gap G11).
 - The workspace's agent split (`internal/hub/agent_split.go`) weights a
-  vendor with no key at 0 (127 7.3, 127's owner answer Q-1 A).
+  vendor with no key or sign-in at 0 (127 7.3, 127's owner answer Q-1 A).
 
 ### 4.4 Use
 
-- Seats on `<vm>` start through `spool key-exec`; messages go through the
-  hub [Q-2]. Every turn writes `usage_events` with `key_source =
+- Seats on `<vm>` start through `spool key-exec`; messages go through our
+  shared hub [Q-2 A]. Every turn writes `usage_events` with `key_source =
   'workspace'`, never charged (127 7.2).
 - No fleet lane of ours runs on `<vm>`, and no seat on `<vm>` runs on our
   AI logins (P3, P5). A brief with `Workspace: <W>` for a private workspace
   places only on `<vm>` (159 5.3, with `<vm>` as W's only key host).
-- A key that runs out: the task waits [Q-10].
-- The VM's daily cost + 33% is drawn from the balance [Q-8, Q-9]; at zero
-  the agents stop and the workspace stays readable (121 R7).
+- A key that runs out: the task waits until the customer replaces it; there
+  is no fall-back on our keys, ever [Q-10 A].
+- The VM's daily cost + 33% is drawn from the balance [Q-8 A, Q-9 A]; at
+  zero the agents stop and the workspace stays readable (121 R7).
 
 ### 4.5 Cancel
 
-- [Q-12] The agents stop at once: leases end (127 5.2), the pin is revoked
+- The agents stop at once: leases end (127 5.2), the pin is revoked
   (108 3.7, T012 not built).
-- The VM is stopped, its disk kept, and deleted by a named action [Q-12];
-  the delete is a GCP mutation, so it waits for the owner's go in the
-  first slice.
+- The VM and its disk are deleted at once [Q-12 C], by a named action; the
+  delete is a GCP mutation, so in the first slice it runs on the owner's go
+  for that VM.
+- The workspace's hub data stays 30 days, then is deleted [Q-12 C].
 - Keys: the workspace's keys are removed with the workspace; the vendor
   side is the customer's.
 
 ## 5. Gaps
 
-| # | gap | blocks | depends on |
+| # | gap | blocks | from |
 |---|---|---|---|
-| G1 | a terraform step with one VM per private workspace, labelled by workspace | 4.2 | Q-1, Q-13 |
-| G2 | the customer box role set (no estate keys) and an operator join-token mint path | 4.2 | Q-3 |
-| G3 | a provisioning order written by the paid webhook, and a named action that takes it to a plan | 4.1, 4.2 | Q-13 |
-| G4 | a price plan: seat cents, VM cost + 33%; the `price_plans` table of 121 is not built | 4.1 | Q-6..Q-9, Q-11 |
-| G5 | the VM's cost per day from the billing export, by its label | 4.4 | Q-8 |
-| G6 | draw-down of the balance by the VM cost (or a charge in arrears) | 4.4 | Q-9 |
-| G7 | the checkout page for the private workspace, its texts in every locale, agy last | 4.1 | Q-4, Q-6, Q-7 |
-| G8 | revoke (108 T012) and a cancel action that stops, keeps and later deletes the VM | 4.5 | Q-12 |
-| G9 | removal of 121's token pricing (`metered`, the x 1.20 buffer) and 159's metered fall-back | 2 | Q-10, Q-11 |
-| G10 | a private hub per workspace | 4.2 | Q-2 B only |
+| G1 | a terraform step with one VM per private workspace, labelled by workspace | 4.2 | Q-1 A |
+| G2 | the customer box role set (no estate keys) and an operator join-token mint path | 4.2 | Q-3 A |
+| G3 | a provisioning order written by the paid webhook, and a named action that takes it to a plan | 4.1, 4.2 | Q-13 B |
+| G4 | a price plan: seat cents per human member in EUR, VM cost + 33%; the `price_plans` table of 121 is not built | 4.1 | Q-6..Q-9, Q-11 A |
+| G5 | the VM's cost per day (compute, disk, traffic) from the billing export, by its label | 4.4 | Q-8 A |
+| G6 | draw-down of the prepaid balance by the VM cost + 33% | 4.4 | Q-9 A |
+| G7 | the checkout page for the private workspace, its texts in every locale, agy last | 4.1 | Q-4 A, Q-6 A, Q-7 A |
+| G8 | revoke (108 T012), a cancel action that deletes the VM at once, and the 30-day delete of the hub data | 4.5 | Q-12 C |
+| G9 | removal of 121's token pricing (`metered`, the x 1.20 buffer) and 159's metered fall-back; 127's byok margin to 33% | 2 | Q-10 A, Q-11 A |
+| G11 | the web-UI sign-in relay to the CLI's terminal login on the VM, one switch per vendor, nothing stored on the hub | 4.3 | Q-5, Q-14 A |
+
+G10 (a private hub per workspace) is gone: Q-2 A keeps the shared hub.
 
 ## 6. Build order (rows a later lane can take)
 
-Each row is one small lane with its red control. Order as recommended by
-Q-13 A; a different answer reorders it.
+Each row is one small lane with its red control. Checkout first, then
+provisioning [Q-13 B]. v0.3 renumbered the rows; v0.2's number is in
+brackets.
 
 | # | lane | task | red control | waits on |
 |---|---|---|---|---|
-| B1 | iac (claude) | step for per-workspace VMs: `for_each` over a cnf map `<tenant> -> machine type`, labels `workspace`, `box`; plan only | an entry without a `workspace` label -> the step's check refuses the plan | Q-1, Q-3 |
-| B2 | iac (claude) | customer box role set: no estate key, no AI login of ours; `do_spl_box_workspace_setup` and the 127 5.3 checks run | the role set given an estate key file -> its test fails | Q-3 |
-| B3 | hub (claude) | operator-only join-token mint bound to `<tenant>` and `<vm>`, named in `TestOperatorScopeCallers`, audited | a token for `<vm>` redeemed by another box -> refused | B1 |
-| B4 | orc (claude) | a named provisioning action (dry run): order -> cnf entry -> tfvars -> plan printed; apply only with `DRY_RUN=0` and the owner's go | `DRY_RUN` unset -> nothing applied | B1..B3 |
-| B5 | iac/orc (claude) | per-VM cost per day from the billing export by label (spec 123's reader) | a fixture row with another workspace's label -> not counted | Q-8 |
-| B6 | rdb + hub (claude) | the private-workspace price: seat cents, VM cost + 33%, the draw-down or charge | a plan with a token line -> refused (P5) | Q-6..Q-9, Q-11 |
-| B7 | hub (claude) | paid webhook: tenant, seats, `box_join_enabled` on, the provisioning order | webhook replayed -> one order, not two | B6 |
-| B8 | wui (claude) | the private-workspace checkout and its price lines; locale texts, agy review last | the page shows a token price -> e2e fails | B6, Q-4 |
-| B9 | hub + orc (claude) | cancel: leases end, pin revoked (108 T012), VM stop, delayed delete (owner's go) | a cancelled workspace's seat asks a lease -> 403 | Q-12 |
-| B10 | doc (agy) | 121, 127 and 159 edited by their editors for G9, as the answers say | `grep -c 'x 1.20' csi-spl-doc/specs/121-sales-channel/spec.md` -> found only in history lines | Q-10, Q-11 |
+| B1 [B6] | rdb + hub (claude) | the private-workspace price: seat cents per human member in EUR, VM cost + 33%, drawn from the prepaid balance | a plan with a token line -> refused (P5) | - |
+| B2 [B7] | hub (claude) | paid webhook: tenant, seats, `box_join_enabled` on, the provisioning order | webhook replayed -> one order, not two | B1 |
+| B3 [B8] | wui (claude) | the private-workspace checkout and its price lines; locale texts, agy review last | the page shows a token price -> e2e fails | B1 |
+| B4 [B5] | iac/orc (claude) | per-VM cost per day (compute, disk, traffic) from the billing export by label (spec 123's reader) | a fixture row with another workspace's label -> not counted | - |
+| B5 [B1] | iac (claude) | step for per-workspace VMs: `for_each` over a cnf map `<tenant> -> machine type`, labels `workspace`, `box`; plan only | an entry without a `workspace` label -> the step's check refuses the plan | - |
+| B6 [B2] | iac (claude) | customer box role set: no estate key, no AI login of ours; `do_spl_box_workspace_setup` and the 127 5.3 checks run | the role set given an estate key file -> its test fails | - |
+| B7 [B3] | hub (claude) | operator-only join-token mint bound to `<tenant>` and `<vm>`, named in `TestOperatorScopeCallers`, audited | a token for `<vm>` redeemed by another box -> refused | B5 |
+| B8 [B4] | orc (claude) | a named provisioning action (dry run): order -> cnf entry -> tfvars -> plan printed; apply only with `DRY_RUN=0` and the owner's go | `DRY_RUN` unset -> nothing applied | B2, B5..B7 |
+| B9 [B9] | hub + orc (claude) | cancel: leases end, pin revoked (108 T012), the VM deleted at once (owner's go), the hub data deleted after 30 days | a cancelled workspace's seat asks a lease -> 403 | B8 |
+| B10 [B10] | doc (agy) | 121, 127 and 159 edited by their editors as section 2 says | `grep -c 'x 1.20' csi-spl-doc/specs/121-sales-channel/spec.md` -> found only in history lines | - |
+| B11 (new) | hub + wui + orc (claude) | the web-UI sign-in relay to the CLI's terminal login on `<vm>`, one switch per vendor, default off | a relayed input found in a hub table or log -> its test fails; the switch off -> the relay refuses | B8 |
 
-Not in this spec: a private hub (Q-2 B) is its own spec if the owner picks
-it; listing on Cloud Marketplace stays spec 156.
+Not in this spec: a private hub (Q-2 B, not chosen); listing on Cloud
+Marketplace stays spec 156.
 
 ## 7. Owner actions
 
-- The answers to section 1.
 - A go per VM apply and per VM delete in the first slice (repo CLAUDE.md:
   nothing mutates GCP without the owner).
-- 159's O1 (Anthropic), O2 (xAI) and O3 (Mistral) still decide which
-  subscriptions and kinds can be offered [Q-4, Q-5].
+- 159's O1 (Anthropic), O2 (xAI) and O3 (Mistral): each vendor's written
+  answer switches its sign-in relay on, and decides whether grok and
+  mistral are offered [Q-4 A, Q-14 A].
 
 ## 8. Version log
 
@@ -377,5 +418,11 @@ it; listing on Cloud Marketplace stays spec 156.
   never resell tokens) and the new form Q-14, answered A (relay built now,
   on per vendor after its written OK). Q-11 stays open: 127 7.1's margin is
   on infrastructure, not tokens.
+- v0.3 (2026-11-20, c-625, SPL-5997): status Decided, every question
+  answered. 1.0 adds Q-4 A, Q-6 A, Q-7 A, Q-8 A, Q-9 A, Q-11 A and Q-12 C
+  (VM deleted at once, hub data 30 days). Sections 2 and 4 to 7 rewritten
+  as the answers say; section 6 reordered checkout first (Q-13 B) and
+  renumbered; new gap G11 and row B11 (the web-UI sign-in relay, Q-5,
+  Q-14 A); G10 dropped (Q-2 A).
 
-<!-- version: 0.2.1 · updated: 2026-11-20 · last-edit: 2026-11-20T15:13:42Z -->
+<!-- version: 0.3.0 · updated: 2026-11-20 · last-edit: 2026-11-20T15:16:19Z -->

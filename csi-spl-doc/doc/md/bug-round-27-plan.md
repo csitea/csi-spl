@@ -10,7 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-26-plan.md](bug-round-26-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0, the panel passed v0.2 `58f34ab8d` (section 8); for the panel's signature on this sha.**  
+**Status: v1.0, the panel passed v0.2 `58f34ab8d` (section 8); signed on v1.0 (section 9).**  
+
+**Round closed** (c-275, the editor; dispatch holder c-002 msg 4003f543): both rows landed. b27-01 `656ab3389` (SPL-6027, R7 c-321 PASS, msg c38e2fe1), b27-02 `21abdb87e` (SPL-6028, R7 c-325 PASS, msg 5f6e2dfc). Read at 10:3xZ: `git merge-base --is-ancestor <sha> origin/master` -> rc 0 for both, at `49a53c160`. Each R7 PASS was on the lane's review sha (`9d9fc8e71`, `f1ed08d34`); `git patch-id` of the reviewed and the landed commit match for both rows (`6b4309442`, `a77969572`). CI: wf 10 (quality gate) on `49a53c160`, which covers both rows, `pending` at 10:33Z; wf 15, 25, 26 and 64 `success`; wf 20 and 30 `in_progress`. The panel seat m-284 also PASSed v1.0 `e8be57d86` (msg 829f14dd), landed as `9bd36fa53`.
+
 Editor: **c-275@sat** (claude, `specs_and_docs`).  
 Panel: m-284@sat (mistral): FAIL on v0.1 (W1), PASS on v0.2 `58f34ab8d` (section 8).
 
@@ -201,6 +204,8 @@ echo "rc02 sha=${full:0:9} panel-seats-swapped=$bad"
   - 2026-11-20 08:22Z: v0.2 (`58f34ab8d`) folds W1: section 5 accounts for line 35 (served by b26-01 `c540aca24`) and for N6's line 34 (a) and (b) (closed in rounds 20 to 22, fixed by `1ce9158a1`); source 5 counts 4 + 9 inputs, the other 11 in sections 4 and 5. Both boxes' slug halves and done-claim counts folded. No row changed.
   - 2026-11-20 08:2xZ: m-284@sat **PASS** on `58f34ab8d` (msg 7123b99f; seat file on `review/c002-bug-round-27-mistral-seat` `cc71525dd`): W1 and N6 closed, each evidence command re-run; N7: `origin/master` moved to `af8ca0ba7`, `git diff --name-only 0509f0b7b origin/master -- <the 7 row files>` empty. `REVIEW_LINE='<that line>' ./run -a do_spl_review_line_check` on sat -> rc 0 (`OK 1 of 1 named in ran: are commands in` its log).
   - 2026-11-20 08:3xZ: v1.0, one commit on `58f34ab8d` (a fast-forward of the review branch; a rebased push would rewrite it, refused by the force-push guard), records the PASS. It rebases on `origin/master` when it lands; this file is the only one it touches. No row changed.
+  - 2026-11-20 08:37Z: m-284@sat **PASS** on v1.0 `e8be57d86` (msg 829f14dd, to the holder bb294875; seat file `e57b4958e` on `review/c002-bug-round-27-mistral-seat`), no defect. v1.0 landed as `9bd36fa53` (same patch-id).
+  - 2026-11-20 10:3xZ: round closed, no version bump: the 2 rows landed, b27-01 `656ab3389` (SPL-6027), b27-02 `21abdb87e` (SPL-6028). Status line and sections 8 and 9 only; section 9's "signature on v1.0 pending" was stale.
 
 ---
 
@@ -209,4 +214,4 @@ echo "rc02 sha=${full:0:9} panel-seats-swapped=$bad"
 | seat | id | status |
 |---|---|---|
 | Editor | c-275@sat | v1.0 |
-| Panel | m-284@sat (mistral) | FAIL on v0.1 `282437e3a` (W1); **PASS** on v0.2 `58f34ab8d`; signature on v1.0 pending |
+| Panel | m-284@sat (mistral) | FAIL on v0.1 `282437e3a` (W1); **PASS** on v0.2 `58f34ab8d`; **PASS** on v1.0 `e8be57d86` (msg 829f14dd) |

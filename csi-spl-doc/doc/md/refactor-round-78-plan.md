@@ -30,7 +30,8 @@ baseline by its line. **Row 02** makes `do_tf_log_open` return a code instead of
 the caller's shell on a missing argument (developer guide 2.4.3), a b12-02 R7 finding
 from the holder's candidates list.
 
-**Status: v0.1**, draft for the panel. Editor: **c-391** (claude).
+**Status: v1.0**: panel seat m-555 (mistral) PASS on v0.1 `a5f35558a`, no W finding,
+N1-N3 recorded (section 8); no row changes scope. Editor: **c-391** (claude).
 
 **One sha:** every count is measured on **`4c5633d84`** (`origin/master`
 4c5633d8492832fa20e695afae69808ce4b25966, committed 2026-11-21T00:03:48+01:00), n=1 per
@@ -84,7 +85,7 @@ The holder's candidates, item by item (its numbering):
 |---|---|---|---|
 | 1 | literal `/var` in `spl-watchdog.func.sh` and `spl-lane-rotate.func.sh` | `git grep -nE '/var/'` on both files, comment lines out -> **0**: served | nothing taken |
 | 2 N3 | `${1:?}` in the tf log helper exits the shell | `iac:lib/bash/funcs/tf-log-mask.func.sh:25` `local f="${1:?do_tf_log_open: the log file}"` (the item named `tf-log-mask.func.sh` under `run/`; the file is in `lib/`) | **row 02** |
-| 2 N2 | `terraform init` without `-input=false` | 13 `init` calls in `iac:src/bash/run/tf-*.func.sh` lack it (`tf-plan-pending:38` and `setup-tf-mirror:59` carry it); a prompt that waits today would fail instead: a behaviour change, and 13 sites > 5 | left out (section 7) |
+| 2 N2 | `terraform init` without `-input=false` | 13 `terraform ... init` commands (continued lines joined; comments and log text not counted) in `iac:src/bash/run/tf-*.func.sh` lack it (`tf-plan-pending:38` and `setup-tf-mirror:59` carry it); a prompt that waits today would fail instead: a behaviour change, and 13 sites > 5 | left out (section 7) |
 | 2 N1 | a duplicate case in `tf-apply-no-input.tst.sh:83` | `:79-86` on this sha: one `check` per action plus a `(log was 0664)` variant and the two `DRY_RUN=1` cases; no duplicate found | nothing taken |
 | 3 | env forwarding of the desk hop (SPL-5824) | not re-measured: a forwarded-list change alters what the hop passes, so its W1 is a bug row | left out (section 7) |
 | 4 N1 | `spl-uplink-probe.func.sh:14-15` wording | `:14-15` now say "In probe mode a down link never fails the probe: it exits 0. A config fault does, FATAL with rc 1": served | nothing taken |
@@ -172,7 +173,8 @@ a set log path and handle a failure: `iac:src/bash/run/tf-apply.func.sh:22`,
 then `local f="$1"`. Every call with a path behaves as today; only the empty-argument
 path changes, from a shell exit to rc 1, which each caller turns into its own
 `return 1`. The other `local x="${1:?...}"` lines (15 in 8 iac lib / run files, 10 in 4
-orc ones, `git grep -cE '^\s*local [a-z_]+="\$\{1:\?'`) are not this row (section 7).
+orc lib / run ones, 13 in 6 over the whole orc tree, `git grep -cE '^\s*local [a-z_]+="\$\{1:\?'`)
+are not this row (section 7).
 
 **The tests** naming the file or its functions: `iac:src/bash/tests/tf-apply-no-input.tst.sh`
 (its section 3b calls `do_tf_log_open`), `tf-log-mask-billing-id.tst.sh`,
@@ -330,13 +332,14 @@ GREEN in the body. Gates: `tf-apply-no-input.tst.sh`, `tf-log-mask-billing-id.ts
 | `orc:scripts/desk-reconcile-cron.sh:189` (the `--print` reader of the same dir) | a cron wrapper in `scripts/` that needs the scripts-side source (r77-02's shape); moving it with row 01 drops `n_sd` to 4 and fails `satellite-ansible.tst.sh` (iac). A row of its own after row 01, with that test's floor or pattern in it | 1.3 |
 | `10_ci-quality.yml:444-445` comment (candidates item 6) | wording only, a workflow file; **first candidate for r79** | 1.2 |
 | `terraform init` without `-input=false` (candidates item 2 N2) | 13 sites; a prompt that waits today would fail: a behaviour change, a bug or hardening row, measured on the tf-runner path first | 1.2 |
-| the other `local x="${1:?...}"` lines (15 in 8 iac files, 10 in 4 orc files) | the same practice as row 02; their callers differ, so a row of its own after row 02 shows the shape | 1.4 |
+| the other `local x="${1:?...}"` lines (15 in 8 iac lib / run files; 10 in 4 orc lib / run files, 13 in 6 over the whole orc tree) | the same practice as row 02; their callers differ, so a row of its own after row 02 shows the shape | 1.4 |
 | r77-01 N1, `check-ysg-box-deps.func.sh` | the name is the frozen engine's (spec 069 `ysg-box-out`); a rename changes the action name `do_check_ysg_box_deps`, 5 `YSG_BOX_DEPS_*` params and 9 files: an operator-facing rename, its own row with spec 069's owner | 1.2 |
 | r77-02 N1, `SPL_*` exported into the box-sessions scripts' children | `spl_run_paths` exports them by design (`lib:spl-run-paths.func.sh:75`); a test that pins it is a test row of its own; a change of it is a bug row | 1.2 |
 | `spl-unanswered-sweep-install-cron.func.sh:57` | spec 182 lanes are live on the unanswered sweep and loops; re-check the lane map next round | 1.2 |
 | the desk hop's env forwarding (candidates item 3, SPL-5824 W1, N1, N2) | the forwarded list changes what reaches the hop: a bug row | 1.2 |
 | the install guide's reverse-tunnel literal (candidates item 5 N3) | `installation-and-configuration-guide.md:594`; the guide is a Qto export: an ask to the holder | 1.2 |
 | spec 182 L2 `!inserted` branch untested (candidates item 8) | spec 182 N4 is live on hub `topic_loop*` | 1.2 |
+| `spl-spool-refresh.func.sh:55` (an operator NOTE text), `spl-wd-ensure.func.sh:194` (a log reader that needs its own same-dir proof) | r76 and r77 section 7's reasons hold; still in the spelled baseline (`:10`, `:12`) (panel N2) | 1.2 |
 | the iac / utl spelled lines; a gate over files outside the existing scope | r77 section 7's reasons hold | r77 1.3 |
 | the 3 tenant-dir sites, `gcp-backup-env.func.sh` | secret-class work (the data rule), r73 to r77 | r77 1.3 |
 | spec 011 T001-T008, T018-T021, T023, T026-T028, T031, T034 | owner-deferred (2026-09-19), an open owner decision, behaviour, terraform layout or docs; the spec folder unchanged since W | 1.2 |
@@ -347,11 +350,31 @@ GREEN in the body. Gates: `tf-apply-no-input.tst.sh`, `tf-log-mask-billing-id.ts
   log dir onto `spl_var_app_subdir` (same dir on this box's 3 tree kinds, 3 of 3) and
   lowers r77-01's baseline; row 02 makes `do_tf_log_open` return instead of exit. Batch 1
   both. Window W and the r78 slug proof recorded.
+- v1.0 (c-391): the panel seat m-555 (mistral) PASS on v0.1
+  `a5f35558a1cf3b477e27f46bdae91ec1eb8c241d` (spool msg 15a6b00b to the editor, b542f83f
+  to the holder, task `dispatch-refactor-r78`; seat file `023ddb766` on
+  `review/c002-refactor-round-78-mistral-seat`, folded into this landing), no W finding.
+  Its notes:
+  - N1: row 02's empty-argument path today exits the shell (the seat saw exit 127 and
+    `line 25: 1: do_tf_log_open: the log file`); after the row it returns 1 with
+    `do_tf_log_open: the log file`. No caller reaches it (1.4 says so); developer guide
+    2.4.3 asks for it. No change.
+  - N2: r77 section 7's `spl-spool-refresh.func.sh:55` and `spl-wd-ensure.func.sh:194`
+    were neither served nor named here: added to section 7 (re-read on `4c5633d84`, both
+    still there, baseline `:10`, `:12`).
+  - N3: counts made explicit: the `${1:?}` count is orc lib / run (whole orc tree: 13
+    in 6 files); the 13 `init` calls are commands, not grep lines (21 lines with
+    comments). Section 7 and 1.2 only; no row changes.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-391 (claude): v0.1.
-- Panel reviewer seat: pending (the queued mistral seat).
+- Editor seat: c-391 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-555 (mistral) PASS** on
+  `a5f35558a1cf3b477e27f46bdae91ec1eb8c241d` (spool msg 15a6b00b / b542f83f; seat file
+  `023ddb766` on `review/c002-refactor-round-78-mistral-seat`, in
+  `csi-spl-doc/doc/md/refactor-round-78/seat-mistral.md`), N1-N3 recorded. agy was
+  unavailable (out until about 11-24), so mistral took the seat. The holder c-002's
+  review-line check on that line: rc 0 (DOCS-ONLY), and its go (msg ffe5deec).
 - Row R7 seats: section 4.

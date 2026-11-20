@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-25-plan.md](bug-round-25-plan.md) (same shape, same 5 sources).
 
-**Status: v1.1, signed** by the panel (c-811@`<box2>`, claude, same-vendor panel, waiver 1a7c70da, PASS on `fb96fa9cf`, 1 warning, 4 notes). This commit records the signature and folds in W1: the full-mode rate in 3.2 and the lane's n in the fix scope. No row changed.  
+**Status: v1.2, served**: row 01 landed `c540aca24` (SPL-6016) with a fix-scope deviation that the holder agreed to. Section 10 records the close-out. Signed v1.1 by the panel (c-811@`<box2>`, claude, same-vendor panel, waiver 1a7c70da, PASS on `fb96fa9cf`, 1 warning, 4 notes). No row changed, and the plan was not re-signed (holder, msg 543780da).  
 Editor: **c-789@`<box2>`** (claude, `specs_and_docs`).  
 Panel: **same-vendor panel, waiver 1a7c70da**: one claude seat (ask ff933b29, slug `hand-<box2>-c002-b26-claude-waiver-panel-seat`), ruled by c-001 (msg 41f53f3c) for this seat only, queued by the holder c-002@sat (section 8).
 
@@ -125,7 +125,7 @@ echo "rc01 sha=${full:0:9} mode=$mode test-rc=$rc switcher-skipped=$skipped"
 | candidate | command | result |
 |---|---|---|
 | **SPL-5850 N1: an AltGr letter may pick a kind** (`csi-spl-wui/src/utils/kind-picker-keys.ts:45-50`, `:58`) | `git log --oneline 82f0e0b0f..2f49bfad2 -- <file>` -> 0; owner posts naming it: `select count(*) from messages where from_id like 'HUM%' and body ~* 'alt ?gr'` -> 0 (03:59:40Z); `grep -rni altgr csi-spl-doc --include=*.md` -> round plans only | **No rule it breaks, no owner word.** Unchanged; carried on round 25's condition. |
-| **ArrowDown on the one match, then Enter, picks nothing** (the blog switcher; row 01's probe) | the probe of row 01 (n=3 per sequence): type then Enter, 6 of 6 pick; type, ArrowDown, Enter, 1 of 6 | **A product question, no rule.** The active option is moved by Headless UI's Combobox (`LanguageSwitcher.vue`), not by this repo's code; no spec line or owner word says ArrowDown must keep a single match. Enter alone picks, as the test's own comment says. Next round's input if a rule or the owner says it must pick. |
+| **ArrowDown on the one match, then Enter, picks nothing** (the blog switcher; row 01's probe) | the probe of row 01 (n=3 per sequence): type then Enter, 6 of 6 pick; type, ArrowDown, Enter, 1 of 6 | **A product question, no rule.** The active option is moved by Headless UI's Combobox (`LanguageSwitcher.vue`), not by this repo's code; no spec line or owner word says ArrowDown must keep a single match. Enter alone picks, as the test's own comment says. Next round's input if a rule or the owner says it must pick. **Superseded at landing** (section 10): on the row lane's bundle, Enter alone picked 1 of 6 and ArrowDown, then a wait for the active option, then Enter picked 6 of 6. |
 | **Rows A and B of the reflection** (Qto 71e1dbd3, SPL-5992) | as round 24 section 5 | **Not bugs: detectors** (the brief). |
 | **`fallback_postgres.go:83-86` probes uncovered** (r34-01 R7 c-321 N1/N2) | as round 24 section 5 | **A test-coverage gap, not a bug row** (the brief). |
 
@@ -146,7 +146,7 @@ echo "rc01 sha=${full:0:9} mode=$mode test-rc=$rc switcher-skipped=$skipped"
 |---|---|
 | rows | 1 |
 | inputs re-measured | 5 sources; 5 named inputs (round 25's section 7 and 5 inputs) plus 1 found (ArrowDown on one match); 0 human posts since W; 100 CI runs; 11 generate job logs and the e2e shard logs of 4 scheduled runs; 2 cron logs (13 + 19 runs); 1 red control in 2 modes; 3 + 3 alone-runs of `blog.test.mjs`; 3 probe runs |
-| first inputs for round 27 | the done-claim `job` label if it alerts alone; the AltGr picker and ArrowDown on one match, each if a rule or the owner says how it must pick; `test-agent-name-shape.sh:89` if seen red |
+| first inputs for round 27 | the done-claim `job` label if it alerts alone; the AltGr picker if a rule or the owner says how it must pick; the desktop blog switcher, where typing the one match and then pressing Enter does not pick it (section 10), if a rule or the owner says Enter must pick; `test-agent-name-shape.sh:89` if seen red |
 
 ---
 
@@ -176,3 +176,16 @@ echo "rc01 sha=${full:0:9} mode=$mode test-rc=$rc switcher-skipped=$skipped"
 |---|---|---|
 | Editor | c-789@`<box2>` | **v1.1, signed** |
 | Panel | c-811@`<box2>` (claude), same-vendor panel, waiver 1a7c70da | **PASS** on `fb96fa9cf` (msg 87a769fe, seat file `9782e4694`) |
+| Row 01 R7 | c-864@`<box2>` (claude), waiver 1a7c70da | **PASS** on `745cedb1b`, deviation accepted (msg 96f68fe0); `do_spl_review_line_check` rc 0 (c-001, msg 823357b0) |
+
+---
+
+## 10. Close-out (v1.2)
+
+- **Row 01 landed** as `c540aca24` (`test(b26-01-wui-blog-switcher-e2e-runs-in-ci, SPL-6016)`, committed 2026-11-20T07:52:00+01:00). It changes 1 file, `csi-spl-wui/tests/e2e/blog.test.mjs`, +14 -5 (`git show --stat c540aca24`). The holder c-002@sat gave the GO (msg on task `dispatch-bug-r26`, 06:45:33Z). The commit's last paragraph is `Closes: SPL-6015`. It does not close SPL-6016: a `test(...)` subject never closes an issue (R7 N2), so the round's closer ends SPL-6016, as for b25-01.
+- **Fix scope (1) as signed:** `blogSwitcher` takes the newest `en` post that has a `bg` copy from `/blog-md/index.json`, and FAILS when the build has none.
+- **Fix scope (2) changed** (holder c-002, msg 543780da; lane c-822, msg fea109cc). The signed scope was "type `bulg`, then Enter (no ArrowDown)". The landed pick is: type `bulg`, ArrowDown, wait until `lang-item-bg` carries `lang-switcher__option--active` (a new check), then Enter. The lane's probe ran on a full-history mock bundle of `9cf7ab1c1` (`@headlessui/vue` 1.7.23), using a fresh browser context each time, n=6 per sequence. Enter alone picked bg 1 of 6. A wait for bg to be active, then Enter, picked 0 of 6. ArrowDown then Enter picked 6 of 6. ArrowDown, the wait, then Enter picked 6 of 6. The lane's reading of combobox.js: bg is active briefly after the filter runs, then no option is active once the old options unregister. Enter with no active option only closes the list. The probe numbers are quoted from the `c540aca24` body; this seat did not re-run them.
+- **Panel W1 (R7 c-864, msg 96f68fe0) corrects sections 3 and 5.** Row 01's probe ("type then Enter picks bg 6 of 6; type, ArrowDown, Enter picks it 1 of 6") and section 5 ("Enter alone picks") do not hold on the landed bundles. c-864 ran the plan's Enter-only pick (`6772c41ff`, throwaway) through `rc01.sh` in full mode, n=3: red 3 of 3, on the run and the retry each time. It ran the landed pick (`745cedb1b`): full mode n=3 and shallow n=1, all exit 0, no retry used. The plan's probe ran on a bundle of `2f49bfad2` (post `2026-10-26-kids-human-experience`), and the lane's on `9cf7ab1c1` (post `2026-11-17-the-possibilities-of-ai`). The cause of the difference was not measured. The rows and the red control stay as signed.
+- **R7:** c-864@`<box2>`, claude, waiver 1a7c70da: PASS on `745cedb1b`, the same tree as `c540aca24` rebased. Its red controls were the hard-coded id put back (`b946e9c58`, shallow mode red: a failure, not a skip) and the plain Enter (`6772c41ff`, full mode red 3 of 3). Unit tests `blog-lang-switcher.test.mjs` and `public-seo.test.mjs` passed (rc 0).
+- **Reviewer seats** (rulebook 2.8 step 3): c-811 (panel) and c-864 (R7) are this round's seats. The editor closes them after the holder closes the round.
+- **No deploy is needed for the fix** (a test only, `Release-Note: skip`). wf 30 still runs on every push.

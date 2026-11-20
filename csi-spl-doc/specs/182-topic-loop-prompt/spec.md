@@ -597,7 +597,30 @@ type TopicLoopStore interface {
 ```
 
 `store.Message` gains `LoopID string` (`""` = NULL), written by
-`InsertMessage` and `InsertMessageSent` to `messages.loop_id`.
+`InsertMessage` and `InsertMessageSent` to `messages.loop_id`, and read back
+by `FanoutRow` (`internal/store/wui_wake.go:32` Memory, `:42` Postgres, whose
+`SELECT` gains `loop_id`). Without it a second hub instance that fans out on
+a wake (`WakeWUI`, spec 059 S3) would push the loop prompt to browsers, past
+the `fanoutWUI` skip.
+
+Points the L2 lane asked to pin (c-970, msg `a74cc799`), as decided:
+
+1. `Message.LoopID` through `FanoutRow`: confirmed, above.
+2. The "has loops" bit: `TenantHasTopicLoops` (in the interface). The hub
+   caches it per tenant, sets it on its own writes, and re-reads it after a
+   30 s TTL, so another instance's first loop is seen within 30 s.
+3. `TopicLoops` (one index probe) and the CRUD of the routes of 4.1:
+   confirmed. The cap is one call that counts and checks:
+   `CountTopicLoopFire(ctx, tenant, loopID, at, cap) (TopicLoop, bool, error)`;
+   it answers the row too, because L2 needs `FiresInHour` and `Awaiting`
+   after the count. Not `FireTopicLoop`.
+4. `TopicLoopStore` is an optional interface: the hub reads it as
+   `s.o.Store.(store.TopicLoopStore)`, like `store.ChannelAIAgents`
+   (`internal/hub/channel_ai_agents.go:38`). A store without it: the
+   routes answer `501 not_implemented` and nothing fires. L2 builds and
+   tests against a `_test` double before L1 lands.
+5. The time ticker is a hub goroutine, `runTopicLoopTimer` (4.2 step 5),
+   and **row L2 owns it**; L1 owns `ClaimDueTopicLoops` only. No orc cron.
 
 The fired message's id (4.3 step 3) is
 `uid.FromSeed("topic-loop:" + loopID + ":" + triggerMsgID)`
@@ -672,6 +695,9 @@ v0.3:
   1.3 closed, the Q9 B line of 4.3 step 2 removed.
 - New 7.1, the binding contracts for the rows that run in parallel: the Go
   store interface, the HTTP and WS shapes, the `messages.loop_id` column.
+- 7.1.1 pins the five points the L2 lane asked (c-970, msg `a74cc799`):
+  `LoopID` through `FanoutRow`, the cached "has loops" bit with a 30 s TTL,
+  `CountTopicLoopFire`, the optional interface, and the ticker in row L2.
 - The six triggers of msg `d44af000` replace v0.2's three (1.2, 4.1, 4.2,
   5.1, 7.1); time triggers run on a hub ticker; "only another human's post"
   is dropped.

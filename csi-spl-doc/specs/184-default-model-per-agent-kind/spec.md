@@ -1,7 +1,10 @@
 # Spec 184: Default Model per Agent Kind
 
-Status: **Draft v0.1** (2026-11-20). Lane `c-358` (`claude`, the backup for
+Status: **Draft v0.2** (2026-11-20). Lane `c-358` (`claude`, the backup for
 `specs_and_docs`: no agy CLI on this box, agy at quota on the other).
+v0.1 `3c8f2f7fd`; v0.2 folds the owner's answers to the form (poll
+`ccb3a406`, HUM-10 msg `0d33aa83`): Q1 `bo`, Q2 `bo`, Q3 `liv`, Q4 `rot`,
+Q5 `fb`. Every change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6036**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:815215f5-2d1b-47df-b465-b4ea0ee5d991` (`t1`).
 Builds on: [115 vendor split by task kind](../115-vendor-split-by-task-kind/spec.md)
@@ -22,13 +25,37 @@ may reach a vendor). Nothing here is built.
 
 What it asks: a setting that picks, per agent kind, the model a new agent
 starts with, chosen from the models that kind's CLI offers. Today every
-agent starts on its CLI's own default (section 3.1). What "agent kind" means
-and where the setting lives are the owner's to decide (section 1).
+agent starts on its CLI's own default (section 3.1).
 
-## 1. Open questions (one form)
+## 1. Decided (owner HUM-10, t1 `815215f5`, msg `0d33aa83`, poll `ccb3a406`)
 
-Each question has 2 to 4 options; the recommendation is first. Every part of
-sections 4 to 7 that depends on an answer names it.
+The owner's answers, verbatim:
+
+> Answer 1: A — Both: a model per vendor, plus an optional override per task kind (specs, tests, coding...)
+> Answer 2: A — In the config, plus a per-workspace override on the WUI Split page
+> Answer 3: B — Read live from each CLI (only grok has a list command today)
+> Answer 4: A — New starts, rotations and restarts all take the new model
+> Answer 5: A — Restart once on the CLI's own default and log a warning
+
+| Q | answer | what it decides here |
+|---|---|---|
+| Q1 | **`bo`**: a model per vendor, plus an optional override per vendor per task kind | 7.1.1 `default` and `by_kind`; 7.1.2 steps 3 and 4 |
+| Q2 | **`bo`**: cnf default, plus a per-workspace override on the WUI Split page | rows H1 and W1 are in; 7.1.2 step 2; 7.1.5 |
+| Q3 | **`liv`**: the list is read live from each CLI | no catalogue in cnf; row A1 is the live read (7.1.6); the launcher checks the model against it (4 step 3); the validator checks syntax only (C1) |
+| Q4 | **`rot`**: new starts, rotations and restarts take the setting in force | row L3 re-resolves at every restore; `lifetime/model.txt` is a record, not an input (7.1.4) |
+| Q5 | **`fb`**: restart once on the CLI's default, log a WARN | row L4; 4 step 6 |
+
+One point the answers leave open, decided here and open to the review:
+**N1**. The hub cannot run a CLI, yet the WUI picker (row W1) needs a list.
+The box reads the list live (7.1.6) and reports each reading to the hub,
+which keeps only the latest per box and vendor, with its time and the CLI
+version. The WUI offers that reading as choices and also takes a typed
+model (syntax-checked). The reading is a display, never a gate: the gate is
+the live read at spawn (4 step 3).
+
+### 1.1 The form as asked (v0.1, kept as the record)
+
+Each question had 2 to 4 options; the recommendation was first.
 
 **Q1. What is an "agent kind" here?**
 
@@ -170,29 +197,39 @@ box.
 ## 4. The flow end to end
 
 1. **Setting.** cnf `env.box.agent_model` (7.1.1) holds the vendor default
-   and the per-kind cells (Q1). With Q2 `bo` or `wui` the hub holds a
-   workspace override (7.1.5), shown and set on the WUI Split page (row W1).
+   and the per-kind cells (Q1 `bo`). The hub holds a workspace override
+   (7.1.5), shown and set on the WUI Split page (row W1, Q2 `bo`).
 2. **Resolve.** `spawn-window.sh` already knows the task kind (3.1); it
    exports it as `SPAWN_TASK_KIND`. `spawn_main` calls
    `spool_agent_model <vendor> <task kind>` (7.1.2): the caller's
-   `SPAWN_MODEL` wins, then the workspace override (Q2), then the cnf cell,
+   `SPAWN_MODEL` wins, then the workspace override, then the cnf cell,
    then the cnf vendor default, else empty.
-3. **Words.** `spool_model_args <vendor> <model>` (7.1.3) returns what to
-   add: a flag for claude and grok (codex after M0); an env assignment for
-   mistral, added to `SPAWN_EXEC_PREFIX`. Empty model: nothing, and the
-   launch line stays byte-identical to today.
-4. **Launch.** `spawn-core.inc.sh:839` appends the flag after the perm and
-   extra flags; the resume stub `:818` appends it too (Q4). The resolved
-   model goes to `<spool root>/<id>/lifetime/model.txt` (7.1.4).
-5. **Restore and rotation.** `restore-core.inc.sh:140` adds
-   `spool_model_args`: under Q4 `rot` it re-resolves from the setting in
-   force (task kind from `lifetime/category.json`); under Q4 `new` it reads
-   `lifetime/model.txt`.
-6. **Refused model.** The start check (`lib/start-check.inc.sh`,
+3. **Live check (Q3 `liv`).** For a non-empty model the launcher runs
+   `spool_agent_models <vendor>` (7.1.6), the CLI's list read at that
+   moment. A model the list does not hold is treated as refused (step 6)
+   before the start, with the same WARN. A vendor whose list cannot be
+   read (exit 4: no list source, or the read failed) skips the check and
+   lets the CLI itself decide (step 6). Each reading is reported to the hub
+   for the WUI picker (N1).
+4. **Words and launch.** `spool_model_args <vendor> <model>` (7.1.3)
+   returns what to add: a flag for claude and grok (codex after M0); an env
+   assignment for mistral, added to `SPAWN_EXEC_PREFIX`. Empty model:
+   nothing, and the launch line stays byte-identical to today.
+   `spawn-core.inc.sh:839` appends it after the perm and extra flags. The
+   resolved model is recorded in `<spool root>/<id>/lifetime/model.txt`
+   (7.1.4).
+5. **Restore and rotation (Q4 `rot`).** The resume stub (`:818`) and
+   `restore-core.inc.sh:140` re-resolve with `spool_agent_model` from the
+   setting in force (task kind from `lifetime/category.json`), run the live
+   check of step 3, and add `spool_model_args`. A changed setting is so
+   taken at the next rotation or restart; a running session is never
+   interrupted.
+6. **Refused model (Q5 `fb`).** The start check (`lib/start-check.inc.sh`,
    `spool_start_check` rc 5 = the pane's process ended first) sees the CLI
-   quit. Q5 `fb`: relaunch once without the model and log
-   `WARN model <m> refused by <vendor>`. Q5 `ref`: exit non-zero; the placer
-   counts a failed try.
+   quit. The launcher relaunches once without the model (the CLI's own
+   default) and logs `WARN model <m> refused by <vendor>, started on the
+   CLI default` in the spawn log and the lane journal; `lifetime/model.txt`
+   then reads `cli-default`. A second failure is an ordinary failed start.
 7. **Visible.** The plan line `adapter` gains `model=<m|cli-default>`; the
    identity record reads `--model`, `-m` and `VIBE_ACTIVE_MODEL` (row I1);
    the WUI Agents page may show the identity's model (row W1, optional).
@@ -217,53 +254,55 @@ Gaps:
 - **G6** A model with no `model_prices` row is unpriced (spec 121): the
   validator warns; the price row is a separate lane.
 - **G7** The list depends on the CLI version (spec 142, and the controlled
-  update `do_spl_cli_update` of spec 102 9.1): the catalogue records the
-  version it was read from, and a CLI update re-runs the refresh.
+  update `do_spl_cli_update` of spec 102 9.1). With the live read (Q3) a
+  CLI update changes the list at the next read; each reading reported to
+  the hub carries the CLI version it came from.
+- **G8** claude has no list command (3.2): its live list is the aliases its
+  installed `--help` names (`fable`, `opus`, `sonnet` on 2.1.323). A full
+  model name is not listable, so the live check passes any syntax-valid
+  full claude name and leaves it to the CLI (step 6).
 
 ## 6. Build order (rows a later lane can take in parallel)
 
 Every row works against the contracts of 7.1, so all rows except L2..L4 and
-W1 can start at once. Each row lands with its test and its red control
+W1 can start at once (L1, A1, C1, H1, I1, M0 in parallel). Each row lands with its test and its red control
 (developer guide 2.12.1).
 
 | row | what | files | depends on | done test | red control |
 |---|---|---|---|---|---|
 | M0 | measure agy, qwen, codex: model setting and list command from `--help` on a box that has each CLI; fill 3.2 and 7.1.3 | this spec | none | the three rows of 3.2 cite a CLI version and a help line | n/a (doc) |
-| C1 | cnf `env.box.agent_model` (7.1.1), shipped empty; conf-validator model; tpl-gen render | `csi-spl-cnf/csi-spl/all.env.yaml`, `csi-spl-cnf/src/python/conf-validator/EnvModels/agent_model.py` (new) and its test, `csi-spl-cnf/csi-spl/{dev,prd}.env.json` | none | validator test: a model outside the vendor's catalogue is refused, a cell for an unknown task kind is refused, an UNVERIFIED vendor with a non-empty model is refused; `do_tpl_gen` then `git diff --exit-code` clean | a test copy with `claude: nosuchmodel` passes the validator -> the test fails |
+| C1 | cnf `env.box.agent_model` (7.1.1), shipped empty; conf-validator model; tpl-gen render | `csi-spl-cnf/csi-spl/all.env.yaml`, `csi-spl-cnf/src/python/conf-validator/EnvModels/agent_model.py` (new) and its test, `csi-spl-cnf/csi-spl/{dev,prd}.env.json` | none | validator test: a model failing the syntax of 7.1.2 is refused, a cell for an unknown task kind or vendor is refused, an UNVERIFIED vendor with a non-empty model is refused; `do_tpl_gen` then `git diff --exit-code` clean | a test copy with `claude: "a b"` passes the validator -> the test fails |
 | L1 | `spool_agent_model`, `spool_model_args` (7.1.2, 7.1.3) | `lib/spool-env.inc.sh`, `tests/test-spool-agent-model.sh` (new) | contract 7.1.1 (fixture cnf) | the resolution order of 7.1.2, case by case; empty in, nothing out; a model with a quote is refused | swap steps 3 and 4 -> a case fails |
 | L2 | launch: `SPAWN_TASK_KIND` export, the words at `:839` and `:818`, the mistral env in `SPAWN_EXEC_PREFIX`, chain `_ch_flags`, plan line `model=`, `lifetime/model.txt` | `scripts/spawn-window.sh`, `scripts/spawn-core.inc.sh`, `scripts/spawn-mistral.sh`, `scripts/spawn-chain-core.inc.sh`; tests `tests/test-spawn-dry-run.sh`, `tests/test-spawn-window-dry-run.sh`, `tests/test-spawn-chain.sh` | L1 | with the empty cnf every existing dry-run launch line is byte-identical; with `default.claude: sonnet` the launch and the resume stub each carry `--model 'sonnet'` once | drop the words from `:818` -> the resume-stub case fails |
-| L3 | restore adds the model (Q4 `rot` or `new`) | `scripts/restore-core.inc.sh`, `scripts/restore-mistral.sh`, `tests/test-agent-identity-restore*.sh` | L1; Q4 | a restore of a seat spawned with a model carries it (Q4 `new`) or the current setting (Q4 `rot`) | restore without the call -> the case fails |
-| L4 | refused model (Q5) | `lib/start-check.inc.sh` caller in `scripts/spawn-window.sh`, its test | L2; Q5 | a stub CLI that exits on `--model x` is relaunched once without it and the WARN is logged (Q5 `fb`), or the spawn exits non-zero (`ref`) | a stub that does not exit -> no relaunch, and the test asserts none |
-| A1 | `do_spl_agent_models_refresh`: reads each CLI's list with no paid call and no vendor call (grok's cache file, vibe's `[[models]]`, claude's `--model` help aliases plus the anthropic `model_prices` names, M0's answer for the rest), prints the catalogue diff; `DRY_RUN=1` by default; `DRY_RUN=0` rewrites `agent_model.catalogue` | `csi-spl-orc/src/bash/run/spl-agent-models-refresh.func.sh` (new), `csi-spl-orc/src/bash/tests/spl-agent-models-refresh.tst.sh` (new) | contract 7.1.1; Q3 `cnf` | fixture homes give the expected catalogue and CLI versions | a model added to the fixture cache file is missing from the output -> the test fails |
+| L3 | restore and rotation re-resolve the model from the setting in force, with the live check (Q4 `rot`) | `scripts/restore-core.inc.sh`, `scripts/restore-mistral.sh`, `tests/test-agent-identity-restore*.sh` | L1, A1 | a seat spawned with `sonnet`, the cnf then set to `opus`: its restore line carries `--model 'opus'`; with the setting emptied it carries none | a restore that reads `lifetime/model.txt` instead -> the case fails |
+| L4 | refused model (Q5 `fb`): relaunch once on the CLI default, WARN in the spawn log and the lane journal, `model.txt` = `cli-default` | `lib/start-check.inc.sh` caller in `scripts/spawn-window.sh`, its test | L2 | a stub CLI that exits on `--model x` is relaunched once without it, the WARN is logged once, a second exit is a failed start (no third launch); a model missing from the live list starts without it at once, same WARN | a stub that does not exit -> no relaunch and no WARN, and the test asserts both |
+| A1 | `spool_agent_models VENDOR` (7.1.6), the live read: grok `grok models` (M0 first confirms it makes no paid call; until then the CLI's own cache file), vibe's `[[models]]` names and aliases, claude's `--model` help aliases (G8), M0's answer for agy, qwen, codex; a reading is reported to the hub (7.1.5 `agent_model_reading`); `do_spl_agent_models_list` prints it by hand | `lib/spool-env.inc.sh` (or a new `lib/agent-models.inc.sh`), `csi-spl-orc/src/bash/run/spl-agent-models-list.func.sh` (new), `csi-spl-orc/src/bash/tests/spl-agent-models-list.tst.sh` (new) | contract 7.1.6 | stub CLIs and fixture homes give the expected list per vendor; a vendor with no source exits 4; the read never writes the cnf | a model added to the stub's output is missing from the list -> the test fails |
 | I1 | the identity map reads `-m` and `VIBE_ACTIVE_MODEL` | `scripts/agent-identity.py`, `tests/test-agent-identity.sh` | none | `grok -m grok-4.6` and a vibe pid with the env both record their model | revert the `-m` read -> the grok case fails |
-| H1 | hub: `tenant_agent_model` (7.1.5), store, the tenant settings field, `do_spl_agent_model_show` | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_tenant_agent_model.sql`, `csi-spl-api/src/go/spool-hub-api/internal/store/agent_model.go`, the hub handler and its test, `csi-spl-orc/src/bash/run/spl-agent-model-show.func.sh` | Q2 `bo` or `wui`; contract 7.1.5 | on PostgreSQL (`PRE_PUSH_TIER=full`): a workspace reads only its rows (RLS); an unknown vendor or kind is refused | drop the RLS policy in a test copy -> the cross-workspace read case fails |
-| W1 | WUI: a model column on the Split page per vendor and kind, the catalogue as the choices, empty = "CLI default"; optionally the model in Agents | `csi-spl-wui/src/components/AgentSplitKinds.vue` (or a new `AgentModels.vue`), `csi-spl-wui/src/utils/tenant-settings.mjs`, a unit test, every locale (agy review last) | H1; Q2 `bo` or `wui` | unit test, and e2e on the generated bundle | saving a value outside the catalogue -> the test fails |
+| H1 | hub: `tenant_agent_model` and `agent_model_reading` (7.1.5), store, the tenant settings field, the reading route, `do_spl_agent_model_show` | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_tenant_agent_model.sql`, `csi-spl-api/src/go/spool-hub-api/internal/store/agent_model.go`, the hub handlers and their tests, `csi-spl-orc/src/bash/run/spl-agent-model-show.func.sh` | contract 7.1.5 | on PostgreSQL (`PRE_PUSH_TIER=full`): a workspace reads only its rows (RLS); an unknown vendor or kind, or a model failing the syntax, is refused; a newer reading replaces the older | drop the RLS policy in a test copy -> the cross-workspace read case fails |
+| W1 | WUI: a model column on the Split page per vendor and kind; choices = the latest box reading (N1) with its time and CLI version, plus a typed model (syntax-checked); empty = "CLI default"; optionally the model in Agents | `csi-spl-wui/src/components/AgentSplitKinds.vue` (or a new `AgentModels.vue`), `csi-spl-wui/src/utils/tenant-settings.mjs`, a unit test, every locale (agy review last) | H1 | unit test, and e2e on the generated bundle | saving a model with a space -> the test fails |
 | D1 | docs: how to set and refresh (operations guide), pointers from specs 115 and 110, this spec's status | `csi-spl-doc/` | the rows it documents | `do_check_fleet_rules_drift` green | n/a (doc) |
 
 ## 7. Contracts
 
 ### 7.1 Binding contracts for parallel rows
 
-#### 7.1.1 cnf keys (row C1; Q1, Q3)
+#### 7.1.1 cnf keys (row C1; Q1 `bo`)
 
 ```yaml
 env:
   box:
     agent_model:
-      # vendor -> model; "" = the CLI's own default (nothing added). Q1 ven/bo.
+      # vendor -> model; "" = the CLI's own default (nothing added).
       default: { claude: "", agy: "", grok: "", mistral: "", qwen: "", codex: "" }
-      # task kind -> vendor -> model; a cell beats default. Q1 bo/tk.
+      # task kind -> vendor -> model; a cell beats default.
       # Keys are the agent_split_by_kind kinds; absent = no override.
       by_kind: {}
-      # Q3 cnf: vendor -> {cli: <version read>, read_at: <ISO-8601 UTC>, models: [ids/aliases]}
-      catalogue: {}
 ```
 
-Every non-empty model must be in `catalogue.<vendor>.models` (validator,
-row C1). A vendor whose row in 7.1.3 is UNVERIFIED may hold only `""`. The
-block ships empty: no seat changes until someone sets a value. Under Q3
-`liv` the `catalogue` key is not added and the validator checks the model
-syntax only.
+No catalogue (Q3 `liv`): the validator checks the syntax of 7.1.2, the
+kind and vendor names, and that a vendor whose row in 7.1.3 is UNVERIFIED
+holds only `""`. Whether the CLI offers the model is checked live at spawn
+(7.1.6). The block ships empty: no seat changes until someone sets a value.
 
 #### 7.1.2 Resolver (row L1)
 
@@ -272,10 +311,9 @@ exit 2 for an unknown vendor. First non-empty wins:
 
 1. env `SPAWN_MODEL` (a caller's own pick; the placer never sets it);
 2. the workspace override for (vendor, kind), then (vendor, `*`), from
-   `SPAWN_MODEL_MAP` (the line of `do_spl_agent_model_show`, H1; only Q2
-   `bo` or `wui`);
-3. cnf `by_kind.<kind>.<vendor>` (Q1 `bo` or `tk`);
-4. cnf `default.<vendor>` (Q1 `bo` or `ven`);
+   `SPAWN_MODEL_MAP` (the line of `do_spl_agent_model_show`, H1; Q2 `bo`);
+3. cnf `by_kind.<kind>.<vendor>` (Q1 `bo`);
+4. cnf `default.<vendor>` (Q1 `bo`);
 5. empty.
 
 A model must match `^[A-Za-z0-9._:/-]{1,80}$`; anything else is refused
@@ -300,19 +338,59 @@ empty model:
 
 #### 7.1.4 Lifetime record (row L2)
 
-`<spool root>/<id>/lifetime/model.txt`: one line, the resolved model or
-`cli-default`. Written at spawn; read by the restore under Q4 `new`.
+`<spool root>/<id>/lifetime/model.txt`: one line, the model the CLI was
+started with, or `cli-default` (none set, or Q5 fallback). Written at every
+start, restore included. A record for the identity and the logs; never an
+input: a restore re-resolves (Q4 `rot`).
 
-#### 7.1.5 Hub table and show line (row H1; only with Q2 `bo` or `wui`)
+#### 7.1.5 Hub tables, routes and show line (row H1; Q2 `bo`)
 
-`tenant_agent_model(tenant_id, vendor, kind, model, updated_by, updated_at)`,
-primary key `(tenant_id, vendor, kind)`; `kind` is one of the split kinds or
-`*` (the vendor default); `vendor` is the split table's CHECK list; RLS as
-in 0163. `do_spl_agent_model_show` (`ENV`, `TENANT_ID`) prints one line,
-`SPAWN_MODEL_MAP=<vendor>:<kind>=<model>,...`, the form the resolver reads.
+- `tenant_agent_model(tenant_id, vendor, kind, model, updated_by, updated_at)`,
+  primary key `(tenant_id, vendor, kind)`; `kind` is one of the split
+  kinds or `*` (the vendor default); `vendor` is the split table's CHECK
+  list; RLS as in 0163. Set through the tenant settings PATCH (field
+  `agent_models`), read through its GET.
+- `agent_model_reading(tenant_id, box, vendor, cli_version, models, read_at)`,
+  primary key `(tenant_id, box, vendor)`, `models` a text array; RLS as in
+  0163. A box posts each live reading (7.1.6); a newer `read_at` replaces
+  the row, an older one is ignored. Display only (N1).
+- `do_spl_agent_model_show` (`ENV`, `TENANT_ID`) prints one line,
+  `SPAWN_MODEL_MAP=<vendor>:<kind>=<model>,...`, the form the resolver reads.
+
+#### 7.1.6 Live list (row A1; Q3 `liv`)
+
+`spool_agent_models VENDOR` prints the models the installed CLI offers,
+one per line, read at call time; exit 0 with a list, exit 4 when the vendor
+has no list source or the read failed (the caller then skips the check),
+exit 2 for an unknown vendor. Never a paid call; never writes the cnf.
+Sources: grok `grok models` (M0 confirms it is a free list call; until then
+the CLI's own `<agent home>/.grok/models_cache.json`), mistral the
+`[[models]]` `name` and `alias` of `<agent home>/.vibe/config.toml`, claude
+the aliases its `--help` names for `--model` (a full claude name passes on
+syntax alone, G8), agy, qwen and codex per M0. It also prints the CLI
+version on stderr as `cli=<version>`, which the hub report carries.
 
 ## 8. Not in this spec
 
 A price row for a new model (spec 121, a separate lane); reasoning effort
 (grok-token-burn 6/6 measured that it acts on under 1% of grok's tokens);
 switching the model of a running session; any paid model call.
+
+## 9. Changes from v0.1
+
+Folds the owner's answers (HUM-10, t1 `815215f5`, msg `0d33aa83`, poll
+`ccb3a406`): Q1 `bo`, Q2 `bo`, Q3 `liv`, Q4 `rot`, Q5 `fb`.
+
+- Section 1: the decided table with the answers verbatim; N1 (the WUI
+  picker under a live list); the v0.1 form kept as 1.1.
+- Section 4: step 3 is the live check; step 5 re-resolves at every restore
+  and rotation; step 6 is the fallback only.
+- Section 5: G7 reworded for the live list; G8 (claude has no list
+  command) added.
+- Section 6: C1 checks syntax only; L3 re-resolves (Q4 `rot`); L4 is the
+  fallback (Q5 `fb`); A1 is the live read, not a cnf refresh; H1 adds the
+  reading table; W1 offers the latest reading plus a typed model; H1 and W1
+  no longer depend on an open question.
+- Section 7.1: 7.1.1 drops `catalogue`; 7.1.2 and 7.1.5 drop the
+  conditions; 7.1.4 is a record, not an input; 7.1.5 adds
+  `agent_model_reading`; 7.1.6 (the live list) is new.

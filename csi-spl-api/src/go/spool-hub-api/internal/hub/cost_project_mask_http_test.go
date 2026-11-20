@@ -18,7 +18,8 @@ import (
 // costs.read), so none is 200 with human_mask none here;
 // costProjectHumanMask's unit test covers it.
 // CONTROL: the operator admin's Human part, which the developer is denied,
-// keeps its words (not_tracked), so not_shown is the mask, not the fold.
+// keeps its words (complete: P02 reads the hours, none booked), so not_shown
+// is the mask, not the fold.
 func TestCostProjectHumanMaskHTTP(t *testing.T) {
 	e, op, other, who, whoOther, _ := costReadEnv(t)
 	// the accountants are not in rbac.RoleIDs, so costReadEnv seats none
@@ -44,13 +45,13 @@ func TestCostProjectHumanMaskHTTP(t *testing.T) {
 			t.Errorf("%s: %d mask %v human %v, want 200, mask %s, no money", c.name, code, body["human_mask"], h, c.mask)
 			continue
 		}
-		if want := map[string]string{"money": "not_tracked", "whole": "not_shown"}[c.mask]; h["completeness"] != want {
+		if want := map[string]string{"money": "complete", "whole": "not_shown"}[c.mask]; h["completeness"] != want {
 			t.Errorf("%s: human completeness %v, want %s", c.name, h["completeness"], want)
 		}
 	}
 	_, body := call(t, e, op, http.MethodGet, path, who[rbac.Admin], nil)
-	if _, by := projectParts(t, body); by["human"]["completeness"] != "not_tracked" {
-		t.Errorf("CONTROL: operator admin human %v, want not_tracked (the fold's word)", by["human"])
+	if _, by := projectParts(t, body); by["human"]["completeness"] != "complete" {
+		t.Errorf("CONTROL: operator admin human %v, want complete (the fold's word)", by["human"])
 	}
 	// CONTROL: the internal accountant still reads the estate, so its whole
 	// mask is the Human rule, not a lost estate scope.

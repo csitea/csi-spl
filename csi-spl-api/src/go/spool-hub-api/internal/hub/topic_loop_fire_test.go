@@ -575,25 +575,13 @@ func TestTopicLoopAfterAgentReplyFires(t *testing.T) {
 	r.wantPrompts(t, "agent-to-agent", 1)
 }
 
-// Q11 A: before_human_reply is an agent reply addressed to the loop's author.
-func TestTopicLoopBeforeHumanReplyIsAReplyToTheAuthor(t *testing.T) {
-	r := newLoopRig(t)
-	r.addLoop(t, loopBody(store.LoopBeforeHumanReply))
-	r.agentSay(t, r.task, "HUM-2", "a reply to someone else")
-	r.agentSay(t, r.task, "ALL-0", "a reply to the topic")
-	r.barrier(t)
-	r.wantPrompts(t, "replies not to the author", 0)
-	r.agentSay(t, r.task, "HUM-1", "your PDF question: yes")
-	r.barrier(t)
-	r.wantPrompts(t, "a reply to the author", 1)
-}
-
 // A post that matches two checked boxes fires once, and counts once.
 func TestTopicLoopTwoBoxesFireOnce(t *testing.T) {
 	r := newLoopRig(t)
-	agentSide := r.addLoop(t, loopBody(store.LoopAfterAgentReply, store.LoopBeforeHumanReply))
+	agentSide := r.addLoop(t, map[string]any{"prompt": "mail it", "keyword": "PDF",
+		"triggers": []string{store.LoopAfterAgentReply, store.LoopPostHasKeyword}})
 	humanSide := r.addLoop(t, loopBody(store.LoopBeforeAgentReply, store.LoopAfterHumanReply))
-	r.agentSay(t, r.task, "HUM-1", "an answer to the author")
+	r.agentSay(t, r.task, "HUM-1", "the PDF is ready")
 	r.barrier(t)
 	r.wantPrompts(t, "agent reply matching two boxes", 1)
 	w := dialMember(t, r.e, r.tid, "Owner", "HUM-1")
@@ -659,16 +647,34 @@ func TestTopicLoopAwaitedAnswerDoesNotRefire(t *testing.T) {
 	r.wantPrompts(t, "the reply after the answer", 2)
 }
 
-// Q10 B (TopicLoopSelfFire) leaves only the cap: 15 agent replies fire the
-// loop 12 times, and the 13th fire in the hour does not happen (answer 4 B).
+// Q10 A holds only the loop that fired: the awaited answer still fires
+// the topic's other loops (4.2 step 7, 4.4).
+func TestTopicLoopAwaitedAnswerFiresOtherLoops(t *testing.T) {
+	r := newLoopRig(t)
+	first := r.addLoop(t, loopBody(store.LoopAfterAgentReply))
+	r.agentSay(t, r.task, "ALL-0", "a real reply")
+	r.barrier(t)
+	r.wantPrompts(t, "the first loop's fire", 1)
+	second := r.addLoop(t, loopBody(store.LoopAfterAgentReply))
+	r.agentSay(t, r.task, "ALL-0", "PDF sent")
+	r.barrier(t)
+	r.wantPrompts(t, "the answer fires the other loop", 2)
+	if a, b := r.d.get(first).FiresTotal, r.d.get(second).FiresTotal; a != 1 || b != 1 {
+		t.Fatalf("fires: first %d, second %d, want 1 and 1", a, b)
+	}
+}
+
+// The cap (answer 4 B): 30 agent replies are 15 fires and 15 awaited
+// answers (Q10 A); the loop fires 12 times and the 13th fire in the hour
+// does not happen.
 func TestTopicLoopCapHoldsThe13thFire(t *testing.T) {
-	r := newLoopRig(t, func(o *hub.Options) { o.TopicLoopSelfFire = true })
+	r := newLoopRig(t)
 	loop := r.addLoop(t, loopBody(store.LoopAfterAgentReply))
-	for i := 0; i < 15; i++ {
+	for i := 0; i < 30; i++ {
 		r.agentSay(t, r.task, "ALL-0", "reply")
 	}
 	r.barrier(t)
-	r.wantPrompts(t, "15 self-firing replies", 12)
+	r.wantPrompts(t, "30 agent replies", 12)
 	if l := r.d.get(loop); l.FiresInHour != 12 {
 		t.Fatalf("fires in hour %d", l.FiresInHour)
 	}

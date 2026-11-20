@@ -9,12 +9,11 @@ import (
 	"time"
 )
 
-// The twelve trigger names and the limits of spec 182 section 7.1.1.
+// The eleven trigger names (v0.6 Q11 C) and the limits of spec 182 section 7.1.1.
 const (
 	LoopAfterAgentReply    = "after_agent_reply"
 	LoopBeforeAgentReply   = "before_agent_reply"
 	LoopAfterHumanReply    = "after_human_reply"
-	LoopBeforeHumanReply   = "before_human_reply"
 	LoopEveryHour          = "every_hour"
 	LoopEveryNMinutes      = "every_n_minutes"
 	LoopPostHasKeyword     = "post_has_keyword"
@@ -33,12 +32,12 @@ const (
 
 // TopicLoopTriggers lists every known trigger name.
 var TopicLoopTriggers = []string{LoopAfterAgentReply, LoopBeforeAgentReply,
-	LoopAfterHumanReply, LoopBeforeHumanReply, LoopEveryHour, LoopEveryNMinutes,
+	LoopAfterHumanReply, LoopEveryHour, LoopEveryNMinutes,
 	LoopPostHasKeyword, LoopPostHasFile, LoopBlockerPosted, LoopNoReplyAfterHuman,
 	LoopIssueStatusChanged, LoopDailyAt}
 
 // ErrBadTopicLoop rejects a loop that breaks the 7.1.1 limits.
-var ErrBadTopicLoop = errors.New("store: a topic loop needs a prompt (1..4000 characters), 1..6 known triggers, an interval of 5..1440 minutes exactly with every_n_minutes, state on|paused and who (1..64)")
+var ErrBadTopicLoop = errors.New("store: a topic loop needs a prompt (1..4000 characters), 1..11 known triggers, an interval of 5..1440 minutes exactly with every_n_minutes, a keyword of 1..200 characters exactly with post_has_keyword, an idle n of 5..1440 minutes exactly with no_reply_after_human, a time and a known zone exactly with daily_at, state on|paused and who (1..64)")
 
 // TopicLoop is one loop row of a topic.
 type TopicLoop struct {

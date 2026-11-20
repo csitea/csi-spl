@@ -387,9 +387,6 @@ type Hub struct {
 	OwnerPrioWords []string `env:"SPOOL_HUB_OWNER_PRIO_WORDS" envSeparator:"," envDefault:"prio,priority one,urgent"`
 	// Spec 182 5.1: the fires per discussion loop per hour (answer 4 B).
 	TopicLoopCap int `env:"SPOOL_HUB_TOPIC_LOOP_CAP" envDefault:"12"`
-	// Spec 182 Q10: true = the agent's answer to a loop's prompt fires that
-	// loop again (Q10 B); false = it does not (Q10 A, recommended).
-	TopicLoopSelfFire bool `env:"SPOOL_HUB_TOPIC_LOOP_SELF_FIRE" envDefault:"false"`
 	// SPL-1225: the relay also escalates a signed human post that no agent
 	// replied to in its topic within this grace to the tenant's responder,
 	// regardless of what the (stale, dir-derived) box-desk roster says about

@@ -533,15 +533,20 @@ any part is incomplete. The shares are of the priced total.
   levels the reader got:
   - `none`: a holder of `hours.rates` reads the Human part as folded.
   - `money`: a holder of `hours.read` (a customer workspace's biz_owner,
-    107 21.6) or the estate reader (`readsCostEstate`: the operator
-    workspace's admin, product owner and accountants), without
-    `hours.rates`. The Human part keeps its hours, counts and words; its
-    amounts and share are `null`.
+    107 21.6) or the operator workspace's admin or product owner (the
+    estate read, never an act-as clone), without `hours.rates`. The Human
+    part keeps its hours, counts and words; its amounts and share are
+    `null`. The operator's internal and external accountant read the
+    estate's other parts and get `whole` for Human (owner HUM-10, t1
+    e2c0e6b4 msg 9af86e15, form 129aa0a2 answer C: "Also the product
+    owner, not the accountants"); the external accountant is still 403 at
+    the door (section 16 follow-up 2), so it reads no Human part at all.
   - `whole`: every other `costs.read` reader (developer, tester,
-    biz_customer, a customer workspace's admin and the other member roles:
-    "nothing of others", 107 Q26 A). The Human part is its name and
-    `completeness: not_shown` only, every other field zero or `null`, and
-    `total.partial` is read over the other parts and `left_out` only.
+    biz_customer, a customer workspace's admin, the operator's accountants
+    and the other member roles: "nothing of others", 107 Q26 A). The
+    Human part is its name and `completeness: not_shown` only, every other
+    field zero or `null`, and `total.partial` is read over the other parts
+    and `left_out` only.
 
   Masked either way, `total.priced` and every other share are re-read
   without the Human money. **Field rule for P02 and later rows**: a Human

@@ -239,6 +239,75 @@ spl_box_quota_claude_json() {
   )
 }
 
+# spl_box_quota_cred_account FILE HOST [ATKEY ACCOUNT_KEY]: the login of the
+# claude credential FILE as "<access-token key> <account key>" ("a" or "k"
+# and the first 12 hex of a sha256), or nothing when FILE has no access token.
+# The account is the one the OAuth profile endpoint of HOST names for that
+# token (account.uuid, the same id ~/.claude.json records at login): one call
+# per access token, since ATKEY / ACCOUNT_KEY (the last answer) are reused
+# while the token is the same. A failed call prints "<access-token key> -":
+# no account until the next renewal, which is today's behaviour. The token is
+# sent on stdin (curl -H @-), never on a command line, and never leaves this
+# function. Seam (tests): LANE_QUOTA_CLAUDE_PROFILE_CMD, run with the token on
+# stdin, prints the profile JSON in place of the call.
+spl_box_quota_cred_account() {
+  local t ak u
+  t="$(jq -er '.claudeAiOauth.accessToken | strings | select(length > 0)' "$1" 2>/dev/null)" || return 0
+  ak="a$(printf '%s' "$t" | sha256sum | cut -c1-12)"
+  [[ "$ak" == "${3:-}" && -n "${4:-}" ]] && { echo "$ak $4"; return 0; }
+  if [[ -n "${LANE_QUOTA_CLAUDE_PROFILE_CMD:-}" ]]; then
+    u="$(printf '%s' "$t" | "$LANE_QUOTA_CLAUDE_PROFILE_CMD" 2>/dev/null | jq -er '.account.uuid | strings | select(length > 0)' 2>/dev/null)"
+  elif [[ -n "$2" ]]; then
+    u="$(printf 'Authorization: Bearer %s\nanthropic-beta: oauth-2025-04-20\n' "$t" |
+      curl -sf -m 5 -H @- "https://$2/api/oauth/profile" 2>/dev/null | jq -er '.account.uuid | strings | select(length > 0)' 2>/dev/null)"
+  fi
+  if [[ -n "${u:-}" ]]; then echo "$ak k$(printf '%s' "$u" | sha256sum | cut -c1-12)"; else echo "$ak -"; fi
+}
+
+# spl_box_quota_profile_host: the host of the OAuth profile endpoint,
+# LANE_QUOTA_CLAUDE_PROFILE_HOST, else cnf env.box.external_api_check's
+# "anthropic" endpoint; no default (none = no account key, today's behaviour).
+spl_box_quota_profile_host() {
+  local h="${LANE_QUOTA_CLAUDE_PROFILE_HOST:-}"
+  [[ -z "$h" && -r "${SPL_CNF:-}" ]] && command -v yq >/dev/null &&
+    h="$(yq '[.env.box.external_api_check.endpoints[] | select(.name == "anthropic") | .host][0] // ""' "$SPL_CNF" 2>/dev/null)"
+  [[ "$h" =~ ^[A-Za-z0-9.-]+$ ]] && echo "$h"
+  return 0
+}
+
+# spl_box_quota_claude_key: the account key of the agent user's claude login
+# now (spl_box_quota_cred_account of ~/.claude/.credentials.json, read as that
+# user; b29-01), or nothing. ~/.claude.json's oauthAccount does not say it: a
+# credential copied in from another login leaves it at the old label. Neither
+# does the credential: its file, access token and refresh token all change at
+# every renewal of one login (refresh token measured, see the commit). The last
+# answer is kept in <kept file>.account, so the endpoint is asked once per
+# access token. Seam (tests): LANE_QUOTA_CLAUDE_CRED reads that file as this
+# user; a test that fakes the panes (LANE_PANES_CMD) or the reading
+# (LANE_QUOTA_CMD) without it reads nothing.
+spl_box_quota_claude_key() {
+  local f c="" ak="" acct="" host out
+  f="$(spl_box_quota_keep_file)"
+  [[ -n "$f" ]] && c="$f.account" && read -r ak acct _ 2>/dev/null <"$c"
+  if [[ -n "${LANE_QUOTA_CLAUDE_CRED:-}" ]]; then
+    out="$(spl_box_quota_cred_account "$LANE_QUOTA_CLAUDE_CRED" "$(spl_box_quota_profile_host)" "$ak" "$acct")"
+  else
+    [[ -z "${LANE_PANES_CMD:-}${LANE_QUOTA_CMD:-}" ]] || return 0
+    host="$(spl_box_quota_profile_host)"
+    declare -F spool_agent_exec >/dev/null ||
+      source "$(dirname "${BASH_SOURCE[0]}")/../../../src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+    out="$(
+      [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
+      SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
+      spool_agent_exec "$(declare -f spl_box_quota_cred_account); spl_box_quota_cred_account \"\$HOME/.claude/.credentials.json\" $(printf '%q ' "$host" "$ak" "$acct")" </dev/null 2>/dev/null
+    )"
+  fi
+  [[ "$out" =~ ^a[0-9a-f]{12}\ (k[0-9a-f]{12}|-)$ ]] || return 0
+  [[ -n "$c" && "$out" != "$ak $acct" ]] && { printf '%s\n' "$out" >"$c.$$" && mv -f "$c.$$" "$c"; } 2>/dev/null
+  [[ "${out#* }" == - ]] || echo "${out#* }"
+  return 0
+}
+
 # spl_box_quota_grok_read [NOW]: grok's weekly usage from its own log
 # (SPL-5432). grok shows its weekly % only in a footer or on its limit screen,
 # so a box with no grok pane read "grok weekly unknown". The grok CLI fetches
@@ -311,7 +380,7 @@ spl_box_quota_keep_file() {
   echo "${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/weekly-quota-reading.tsv"
 }
 
-# spl_box_quota_outdated PCT SEEN LOGIN ACCOUNT JSON NOW: exit 0 when a kept
+# spl_box_quota_outdated PCT SEEN LOGIN ACCOUNT JSON NOW [KEPT_KEY KEY]: exit 0 when a kept
 # claude row (PCT, read at SEEN, under LOGIN) no longer says anything about
 # ACCOUNT, the login now (SPL-4932: the owner raised the limit and swapped the
 # login, sat held new lanes for hours on a kept 97 until it was removed by
@@ -325,11 +394,18 @@ spl_box_quota_keep_file() {
 #   - the same login fetched LESS after the row was read and the row is under
 #     100: usage only climbs inside a week, so the limit moved. An old cache
 #     (fetched before SEEN) never gets here, and neither does a kept 100, which
-#     is the CLI's own limit banner: spl_box_quota_lifted answers for that one.
-# An unknown ACCOUNT (no ~/.claude.json, no login) lifts nothing.
+#     is the CLI's own limit banner: spl_box_quota_lifted answers for that one;
+#   - (b29-01) KEPT_KEY, the login key the row was kept under, differs from
+#     KEY, the credential's now (spl_box_quota_claude_key): a credential copied
+#     in from another login, any %, whatever ACCOUNT says. A renewal of the
+#     same login keeps the key; an unreadable credential (no KEY) and a row
+#     kept before b29-01 (no KEPT_KEY) say nothing here.
+# An unknown ACCOUNT (no ~/.claude.json, no login) lifts nothing else.
 spl_box_quota_outdated() {
   local pct="$1" seen="$2" login="$3" acct="$4" json="$5" now="$6" tag="" at="" cur
-  [[ -n "$pct" && -n "$acct" ]] || return 1
+  [[ -n "$pct" ]] || return 1
+  [[ -n "${7:-}" && -n "${8:-}" && "$7" != "$8" ]] && return 0
+  [[ -n "$acct" ]] || return 1
   [[ -n "$login" && "$login" != "$acct" ]] && return 0
   read -r tag at < <(jq -r '.cachedUsageUtilization | [(.accountUuid // "-"), ((.fetchedAtMs // 0) / 1000 | floor)] | @tsv' <<<"$json" 2>/dev/null) || true
   [[ "$at" =~ ^[0-9]+$ ]] && (( at > seen )) || return 1
@@ -343,16 +419,21 @@ spl_box_quota_outdated() {
 # result as READING's form. Best effort: a file that cannot be written leaves
 # the answer of this call right and the next call starts from the old file.
 spl_box_quota_keep() {
-  local f rows old now tmp lifted="" pct="" rst="" seen="" login="" json="" acct="" reading="$1" at top
+  local f rows old now tmp lifted="" pct="" rst="" seen="" login="" json="" acct="" reading="$1" at top kkey="" key=""
   f="$(spl_box_quota_keep_file)"
   [[ -n "$f" ]] || { spl_box_quota_top "$1"; return 0; }
   now="$(date +%s)"
-  read -r pct rst seen login < <(awk -F'\t' '$1 == "claude" && $2 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ { print $2, $3 + 0, $4, $5; exit }' "$f" 2>/dev/null) || true
+  # "-" holds an empty login or key: read splits on runs of blanks
+  read -r pct rst seen login kkey < <(awk -F'\t' '$1 == "claude" && $2 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ {
+    print $2, $3 + 0, $4, ($5 != "" ? $5 : "-"), ($10 != "" ? $10 : "-"); exit }' "$f" 2>/dev/null) || true
+  [[ "$login" == - ]] && login=""
+  [[ "$kkey" == - ]] && kkey=""
   if [[ -n "$pct" || "$1" == *claude:* ]]; then
     json="$(spl_box_quota_claude_json)"
     acct="$(jq -r '.oauthAccount.accountUuid // empty' <<<"$json" 2>/dev/null)"
+    key="$(spl_box_quota_claude_key)"
   fi
-  if spl_box_quota_outdated "$pct" "$seen" "$login" "$acct" "$json" "$now"; then lifted=claude
+  if spl_box_quota_outdated "$pct" "$seen" "$login" "$acct" "$json" "$now" "$kkey" "$key"; then lifted=claude
   elif [[ -n "$pct" ]] && (( pct >= 100 )) && spl_box_quota_lifted "$seen"; then lifted=claude
   elif [[ -n "$pct" ]] && (( pct >= $(spl_box_quota_max "${SPL_CNF:-}" claude) && rst > now )); then
     # a hold shows on no screen once a seat stops; the probe saying limited is
@@ -366,7 +447,7 @@ spl_box_quota_keep() {
   fi
   reading="$(spl_box_quota_drop_stale "$reading" "$acct" "$json" "$now")"
   old="$(cat "$f" 2>/dev/null)"
-  rows="$(spl_box_quota_merge "$reading" "$now" "${LANE_QUOTA_KEEP_S:-86400}" "$lifted" "$acct" "$(spl_box_quota_lapse_s)" <<<"$old" | sort)"
+  rows="$(spl_box_quota_merge "$reading" "$now" "${LANE_QUOTA_KEEP_S:-86400}" "$lifted" "$acct" "$(spl_box_quota_lapse_s)" "$key" <<<"$old" | sort)"
   spl_box_quota_note_lapsed "$f" "$old" "$rows" "$now" "$lifted"
   tmp="$f.tmp.$$"
   if mkdir -p "$(dirname "$f")" 2>/dev/null && { [[ -z "$rows" ]] || printf '%s\n' "$rows"; } 2>/dev/null >"$tmp"; then
@@ -376,10 +457,12 @@ spl_box_quota_keep() {
   awk -F'\t' '{ printf "%s%s:%s%s", (NR > 1 ? "," : ""), $1, $2, ($3 != "" ? "@" $3 : "") } END { print "" }' <<<"$rows"
 }
 
-# spl_box_quota_merge READING NOW KEEP_S [LIFTED [ACCOUNT [LAPSE_S]]]: the kept rows on stdin (kind
+# spl_box_quota_merge READING NOW KEEP_S [LIFTED [ACCOUNT [LAPSE_S [KEY]]]]: the kept rows on stdin (kind
 # TAB pct TAB reset epoch or empty TAB read at, a claude row then TAB the login it was
 # read under: ACCOUNT, or its old one when ACCOUNT is unknown; then TAB source, and the
-# newest lower reading seen since: TAB pct TAB read at TAB source), the new rows on stdout. A reset that
+# newest lower reading seen since: TAB pct TAB read at TAB source; a claude row
+# then TAB the login key it was kept under, KEY, or its old one when KEY is
+# unknown: b29-01), the new rows on stdout. A reset that
 # passed drops its row, and so does LAPSE_S with no re-read (SPL-4965); a row with no reset (grok names none) lasts KEEP_S,
 # since nothing says when its week ends and a box held on it would never be
 # measured again. A new reading replaces a kept one, except inside one reset
@@ -393,14 +476,14 @@ spl_box_quota_keep() {
 # already past its reset or LAPSE_S is no reading at all: the next one of its
 # kind is then the reading, so an old limit entry cannot take a fresh fetch with it.
 spl_box_quota_merge() {
-  awk -F'\t' -v OFS='\t' -v live="$1" -v now="$2" -v keep="$3" -v lifted="${4:-}" -v acct="${5:-}" -v lapse="${6:-36000}" '
+  awk -F'\t' -v OFS='\t' -v live="$1" -v now="$2" -v keep="$3" -v lifted="${4:-}" -v acct="${5:-}" -v lapse="${6:-36000}" -v ckey="${7:-}" '
     function gone(k) {
       if (at[k] == "") return now - seen[k] >= keep
       return at[k] <= now || (lapse > 0 && now - seen[k] >= lapse)
     }
     function lower(k, p, t, s) { if (t > seen[k] && t > lowt[k] + 0) { lowp[k] = p; lowt[k] = t; lows[k] = s } }
     NF >= 4 && $1 ~ /^[a-z]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]*$/ && $4 ~ /^[0-9]+$/ {
-      pct[$1] = $2; at[$1] = $3; seen[$1] = $4; login[$1] = $5; src[$1] = $6; lowp[$1] = $7; lowt[$1] = $8; lows[$1] = $9
+      pct[$1] = $2; at[$1] = $3; seen[$1] = $4; login[$1] = $5; src[$1] = $6; lowp[$1] = $7; lowt[$1] = $8; lows[$1] = $9; key[$1] = $10
     }
     END {
       for (k in pct) if (gone(k) || index("," lifted ",", "," k ",")) { delete pct[k]; delete lowp[k]; delete lowt[k]; delete lows[k]; delete src[k] }
@@ -424,8 +507,9 @@ spl_box_quota_merge() {
         pct[k] = p; at[k] = a; seen[k] = t; src[k] = s
       }
       if (acct != "") login["claude"] = acct
+      if (ckey != "") key["claude"] = ckey
       for (k in pct) if (!gone(k)) {
-        r = k OFS pct[k] OFS at[k] OFS seen[k] OFS login[k] OFS src[k] OFS lowp[k] OFS lowt[k] OFS lows[k]
+        r = k OFS pct[k] OFS at[k] OFS seen[k] OFS login[k] OFS src[k] OFS lowp[k] OFS lowt[k] OFS lows[k] OFS key[k]
         sub(/\t+$/, "", r)
         print r
       }

@@ -202,6 +202,8 @@ var notChannelTables = concat(
 	notChannel("Netvisor finance data of the workspace's owner human (spec 125 B4), names no channel",
 		"netvisor_card_cost_lines", "netvisor_forecast_items", "netvisor_settings", "netvisor_snapshots"),
 	notChannel("the workspace's invoiced income, keyed by invoice number (rdb 0259)", "income_invoices"),
+	notChannel("the workspace's price plan and its lines (rdb 0302, spec 181 B1), names no channel",
+		"price_plan_lines", "price_plans"),
 )
 
 // notChannel returns NotChannel entries that share one reason.

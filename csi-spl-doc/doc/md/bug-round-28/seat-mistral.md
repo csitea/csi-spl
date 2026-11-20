@@ -243,3 +243,87 @@ Provenance, all run now:
 fast-forward on the v0.1 I passed, touches only the plan file, changes no row and no
 section 4/5 accounting, and records my v0.1 PASS with the correct msg id and seat sha.
 I sign it.
+
+## R7 review of row b28-02 (SPL-6059) on `d9cd8c6fb0e0c5b1edfe35fbfec96cf01126a4d5` (2026-11-20 14:2xZ, `<box2>`)
+
+Assigned by plan v1.0 `ed59ce77b` section 8 ("Row 02: the b28 mistral panel seat
+(cross-vendor to a claude author, read-only doc review)"; rulebook 2.7.1/2.7.2: panel
+seats outlive the signing and act as primary R7 reviewer, cross-vendor; 2.7.6: a review
+seat's scope is strictly its seat file). Dispatched by c-002@sat (dispatch lease
+c-002@sat), msg `9d495317-096b-46d2-b567-122816295236`, task
+`84dc98b2-0d74-5f93-8d89-3b956f93e6be`, 14:05:57Z. Read-only: no code written, no file
+touched but this one. Author lane c-127@`<box2>` (claude per the plan), so the pair
+mistral-reviewer / claude-author is cross-vendor (2.7.5).
+
+Target provenance, all run now from `/opt/csi/csi-spl-wt/m-021`:
+
+- `git ls-remote origin refs/heads/review/b28-02` ->
+  `d9cd8c6fb0e0c5b1edfe35fbfec96cf01126a4d5` (the branch tip = the reviewed sha, C7).
+- `git log -1 --format='%H %s' d9cd8c6f` -> `d9cd8c6fb0e0c5b1edfe35fbfec96cf01126a4d5
+  fix(b28-02-doc-spec157-review-go-on-master, SPL-6059): spec 157 names the review
+  GO's "on origin/master" case` — the row subject the plan's table
+  names for row 02.
+- `git log -1 --format='%H %s' d9cd8c6f^` -> `68249a2d97fdb8096971f0d411e8d350c1c7c4ab
+  refactor(r75-01-orc-var-app-subdir-own-logdir-crons, SPL-6051): ...`;
+  `git merge-base --is-ancestor 68249a2d9 origin/master` -> rc 0 (parent on origin/master).
+
+Checks (each with the command run and what it printed):
+
+1. **The bullet matches `_spl_review_go_elsewhere` in the code's order.**
+   `git show d9cd8c6f:csi-spl-doc/specs/157-dispatch-automation/spec.md | sed -n '258p'`
+   -> the `- **The reviewed sha off the row's branch** (SPL-5670; ...)` bullet, whose
+   case (a) now reads: "`git ls-remote origin` answers, origin has no such branch, and
+   the sha is a commit of this box's repository, and, in the code's order: the sha is on
+   origin's master (an ancestor of the master tip that `ls-remote` names, else of this
+   box's `refs/remotes/origin/master`; nothing is fetched), and the GO says \"on
+   origin/master\" (it landed; b27-01, SPL-6027); else it is reachable from the local
+   branch of that name or from the HEAD of a worktree on that branch or named for the
+   author, and the GO says \"found locally only\" (the author must still push it to
+   land)". The code, identical on both shas (`git diff 68249a2d9 d9cd8c6f --name-only`
+   -> only `csi-spl-doc/specs/157-dispatch-automation/spec.md`), orders
+   `_spl_review_go_elsewhere` (`spl-review-go.func.sh:803`) as: `:810` (c) related
+   origin branch -> `echo "is the tip of origin ref $ref ..."`; `:812` box-commit gate
+   `git cat-file -e "$2^{commit}"`; `:813` `mtip` from the ls-remote master tip;
+   `:816` `echo "is on origin/master (it landed; the row's branch '$1' is no longer on
+   origin)"; return 0` (verified: `git show 68249a2d9:...spl-review-go.func.sh |
+   sed -n '816p'` prints exactly that line, and the same on `d9cd8c6f`); `:819` local
+   branch -> "found locally only"; `:829` worktree HEAD -> "found locally only".
+   The bullet lists master before the local branch/worktree, exactly the code's order,
+   and quotes the `:816` echo's "on origin/master (it landed" with b27-01 / SPL-6027
+   (`656ab3389`). MATCH.
+2. **rc02 RED on the parent, GREEN on the row sha.** The control files are sat-only
+   (`ls /var/spool-hub/dispatch/b28-red-controls/` -> No such file or directory on
+   `<box2>`), so I rebuilt rc02.sh from the code block the plan prints in section 3.2:
+   `sha256sum /tmp/rc02.sh` -> `1161749de2a63a9d0fa3f545f2b400fa88f5f97c9d1c009cca61cbf0c46fabbd`
+   (839 B; first 12 hex `1161749de2a6`, exactly the plan's claim). Run from this
+   checkout, n=3 each:
+   - `bash /tmp/rc02.sh 68249a2d9` -> exit 1, last line
+     `rc02 sha=68249a2d9 bullet-line=258 code-on-master=1 bullet-names-origin-master=0`
+     (3 of 3 runs identical) — RED for the plan's reason (the code has the
+     on-origin/master case, the bullet does not name origin/master), not for an
+     environment reason; the script reads two files with `git show` and touches no
+     live state.
+   - `bash /tmp/rc02.sh d9cd8c6fb0e0c5b1edfe35fbfec96cf01126a4d5` -> exit 0, last line
+     `rc02 sha=d9cd8c6fb bullet-line=258 code-on-master=1 bullet-names-origin-master=1`
+     (3 of 3 runs identical) — GREEN.
+3. **No other line of spec 157 changed.** `git diff --stat 68249a2d9 d9cd8c6f` ->
+   `csi-spl-doc/specs/157-dispatch-automation/spec.md | 2 +-`, `1 file changed,
+   1 insertion(+), 1 deletion(-)`; `git diff 68249a2d9 d9cd8c6f | grep '^@@'` ->
+   `@@ -255,7 +255,7 @@` — one hunk, the `:258` bullet only; `git diff --name-only
+   68249a2d9 d9cd8c6f` -> `csi-spl-doc/specs/157-dispatch-automation/spec.md` only.
+   The plan's off-limits `spl-review-go.func.sh` is untouched (C1).
+4. **Distribution hygiene.** `cd csi-spl-iac && ./run -a do_check_dist_hygiene` ->
+   `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/m-021`,
+   exit 0 (C6).
+
+Scope note: `lane-map.sh --check csi-spl-doc/doc/md/bug-round-28/seat-mistral.md --agent
+m-021` -> exit 4, naming 6 unknown-scope sat lanes (c-338, c-339, c-341, c-378, c-380,
+c-382), none named for b28; my brief names this exact file as this seat's only file
+(rulebook 2.7.6), so the append stays in scope.
+
+**R7 verdict: PASS on `d9cd8c6fb0e0c5b1edfe35fbfec96cf01126a4d5`.** W: none.
+N1: rc02 was rebuilt from the plan's printed block because the control files live on
+sat only; its sha256 and size match the plan's section 3.2 claims exactly, and it is
+RED on `68249a2d9` / GREEN on `d9cd8c6f` for the plan's stated reason. N2: the row's
+test column is `rc02.sh` + `do_check_dist_hygiene` (plan section 3.1); both ran here,
+both as listed. N3: lane-map exit 4 on the seat file, see the scope note above.

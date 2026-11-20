@@ -583,6 +583,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedUsage(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
+	// price_plans, price_plan_lines (rdb 0302, spec 181 B1): the private-VM
+	// plan through the store API (price_plans_test.go).
+	if err := seedPricePlan(ctx, pg, s.tenant); err != nil {
+		t.Fatal(err)
+	}
 	// workspace_vendor_keys, _boxes, _audit (rdb 0174, spec 127 D1): one fake
 	// key, one approved box, one audit row. No store API yet (H1, H2), so raw
 	// rows under inTenant (vendor_keys_rls_test.go).

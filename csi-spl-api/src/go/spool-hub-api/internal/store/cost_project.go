@@ -16,8 +16,9 @@ import (
 //
 // Three choices where spec 123 v1.6 predates the code on master (dispatch
 // holder, msg de6fff9a, for the spec's next version):
-//  1. Human is not_tracked (null, outside the total) until P02, although the
-//     month read already lists the hr cost entries (SPL-4840) under Human.
+//  1. Human is the approved minutes x the price in force per day (P02,
+//     cost_project_human.go), not the hr cost entries (SPL-4840) the month
+//     read lists under Human; not_tracked while the store has no such read.
 //  2. Estate Cloud is source gcp plus the hand-entered cost entries of kind
 //     cloud (SPL-4383). A customer workspace's allocated share of an estate
 //     item (SPL-5291) is no part of its two (Q-8 A): it is named in LeftOut.
@@ -70,6 +71,10 @@ type CostProjectPart struct {
 	Unpriced     int      `json:"unpriced"`
 	DaysRead     *int     `json:"days_read,omitempty"`
 	Days         *int     `json:"days,omitempty"`
+	// Human only (P02): every approved minute, and those of members with
+	// no price on their day (13.5: the minutes show, the money leaves them out).
+	Minutes         *int64 `json:"minutes,omitempty"`
+	UnpricedMinutes *int64 `json:"unpriced_minutes,omitempty"`
 }
 
 // CostProjectTotal is the sum of the parts' known amounts ("Total,
@@ -100,10 +105,13 @@ type CostProject struct {
 // Parts and Coverage as the month answer holds them (5.2), DaysEnded the
 // ended days of every month summed. Estate is the operator admin's estate
 // read (four parts); else the workspace's two. AIRead says an AI source was
-// read at all (the operator workspace's other members read none).
+// read at all (the operator workspace's other members read none). HumanRead
+// says the store read the Human days (P02), Human holds them.
 type CostProjectInput struct {
 	Estate    bool
 	AIRead    bool
+	HumanRead bool
+	Human     []CostProjectHumanDay
 	Parts     []CostPart
 	Coverage  []CostSourceDays
 	DaysEnded int
@@ -195,8 +203,11 @@ func CostProjectParts(in CostProjectInput) CostProject {
 // costProjectPart is part n from its sum and the period's coverage. A part
 // with no line is a known 0 (nothing to pay), unless it has no source.
 func costProjectPart(n string, s *costProjectSum, in CostProjectInput) CostProjectPart {
+	if n == CostProjectHuman && in.HumanRead {
+		return costProjectHumanPart(in.Human)
+	}
 	if n == CostProjectHuman || (n == CostProjectAI && !in.AIRead && s.lines == 0) {
-		// Human until P02 (spec 107 T071..T077); no AI source read at all
+		// Human on a store with no human read; no AI source read at all
 		return CostProjectPart{Part: n, Completeness: CostProjectNotTracked}
 	}
 	empty := s.lines == 0

@@ -68,10 +68,10 @@ type view struct {
 }
 
 type card struct {
-	MsgID, Author, ISO, Time, Kind string
-	Body                           template.HTML
-	Pictures                       []picture
-	Files                          []string
+	MsgID, Author, Via, ISO, Time, Kind string
+	Body                                template.HTML
+	Pictures                            []picture
+	Files                               []string
 }
 
 type picture struct {
@@ -97,7 +97,8 @@ func HTML(rows []store.EditableMessage, title string, blob func(fileID string) (
 	v := view{Title: title, Link: o.link}
 	budget, pictures := PicturesMaxBytes, 0
 	for _, r := range rows {
-		c := card{MsgID: r.MsgID, Author: r.FromID, ISO: r.TS.UTC().Format(time.RFC3339),
+		author, via := cardAuthor(r)
+		c := card{MsgID: r.MsgID, Author: author, Via: via, ISO: r.TS.UTC().Format(time.RFC3339),
 			Time: r.TS.UTC().Format("2006-01-02 15:04 UTC"), Kind: r.Kind, Body: Markdown(r.Body)}
 		for _, a := range attachments(r.Msg) {
 			src := pictureSrc(a, blob, budget)
@@ -116,6 +117,19 @@ func HTML(rows []store.EditableMessage, title string, blob func(fileID string) (
 		return nil, 0, err
 	}
 	return buf.Bytes(), pictures, nil
+}
+
+// humanID is a member id, as typed-by.mjs's HUMAN_ID.
+var humanID = regexp.MustCompile(`^HUM-[0-9]+$`)
+
+// cardAuthor is who a card shows, as the WUI's typedByAuthor (typed-by.mjs,
+// spec 183 7.1.3): a line a member typed at an agent's terminal shows that
+// member, via the agent; every other row shows its sender, via "".
+func cardAuthor(r store.EditableMessage) (author, via string) {
+	if humanID.MatchString(r.TypedBy) && r.TypedBy != r.FromID {
+		return r.TypedBy, r.FromID
+	}
+	return r.FromID, ""
 }
 
 // attachments are the files of a stored inner message; none when it does not

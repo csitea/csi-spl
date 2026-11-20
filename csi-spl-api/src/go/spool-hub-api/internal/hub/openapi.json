@@ -19555,6 +19555,72 @@
         ]
       }
     },
+    "/v1/topics/{task_id}/export.pdf": {
+      "get": {
+        "operationId": "getTopicsByTaskIdExportPdf",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The member (HUM-n) bound as an operator of the calling box whose read the PDF holds; without it, the box's one bound operator. Contract: csi-spl-doc/specs/183-agent-topic-pdf-export/spec.md §7.1.1.",
+            "in": "query",
+            "name": "typed_by",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "description": "Every row of the topic the operator may read, oldest first. Contract: csi-spl-doc/specs/183-agent-topic-pdf-export/spec.md §7.1.1.",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK: the PDF (Content-Disposition attachment, X-Spool-Rows, X-Spool-Pictures)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "too_large: the PDF is over the file limit. Contract: csi-spl-doc/specs/183-agent-topic-pdf-export/spec.md §7.1.1."
+          },
+          "503": {
+            "description": "render_unavailable: the renderer is not configured, down or busy. Contract: csi-spl-doc/specs/183-agent-topic-pdf-export/spec.md §7.1.1."
+          },
+          "504": {
+            "description": "render_timeout: the render ran past hub.pdf.timeout. Contract: csi-spl-doc/specs/183-agent-topic-pdf-export/spec.md §7.1.1."
+          }
+        },
+        "summary": "Export a topic as a PDF",
+        "tags": [
+          "topics"
+        ]
+      }
+    },
     "/v1/topics/{task_id}/priority": {
       "put": {
         "operationId": "putTopicsByTaskIdPriority",

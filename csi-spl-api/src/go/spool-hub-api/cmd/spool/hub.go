@@ -42,6 +42,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/topicpdf"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 	"google.golang.org/api/idtoken"
 )
@@ -397,6 +398,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 			LiveVisitorsMax: hc.EmbedLiveVisitorsMax, ChallengeAfterHits: hc.EmbedChallengeAfterHits,
 			BanAfterHits: hc.EmbedBanAfterHits, HitsWindow: hc.EmbedHitsWindow, BanFor: hc.EmbedBanFor},
 		PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout, WSMaxLife: hc.WSMaxLife,
+		TopicPDF:      topicpdf.HTTPRenderer{URL: hc.PDFURL, Timeout: hc.PDFTimeout}, // spec 183 7.1.5, 7.1.6
 		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion, MarketingWorkspaces: hc.MarketingWorkspaces,
 		NotesEnabled:                 hc.NotesEnabled,                 // spec 155 section 6
 		NotesAgentAddEnabled:         hc.NotesAgentAddEnabled,         // spec 155 2.11 (OQ-5)

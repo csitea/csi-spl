@@ -655,6 +655,13 @@ type Hub struct {
 	// max_instances slot for at most this long, not the 3600 s request
 	// timeout. 0 = no cap.
 	WSMaxLife time.Duration `env:"SPOOL_HUB_WS_MAX_LIFE" envDefault:"5m"`
+	// PDFURL is the topic PDF renderer service (spec 183 7.1.6, cnf
+	// hub.pdf.url); "" = GET /v1/topics/{task_id}/export.pdf answers 503.
+	PDFURL string `env:"SPOOL_PDF_URL"`
+	// PDFTimeout is the hub's wait for one render, cold start included (cnf
+	// hub.pdf.timeout): above the renderer's SPOOL_PDF_RENDER_TIMEOUT (115 s),
+	// under the hub's request timeout. Must be positive.
+	PDFTimeout time.Duration `env:"SPOOL_PDF_TIMEOUT" envDefault:"120s"`
 	// MsgVersion is the schema version the hub WRITES for the messages it
 	// composes itself (WUI posts, dispatch, CI-logs notes), specs/020
 	// contracts/migration.md §5: 1 until every reader is deployed.
@@ -821,6 +828,9 @@ func (h *Hub) checkLimits() error {
 	}
 	if h.EdgeWindow <= 0 || h.HelloTimeout <= 0 || h.WSPingTimeout <= 0 {
 		return errors.New("SPOOL_HUB_EDGE_WINDOW, SPOOL_HUB_HELLO_TIMEOUT and SPOOL_HUB_WS_PING_TIMEOUT must be positive")
+	}
+	if h.PDFTimeout <= 0 {
+		return errors.New("SPOOL_PDF_TIMEOUT must be positive (spec 183 7.1.6, e.g. 120s)")
 	}
 	if h.JoinTokenTTL < JoinTokenTTLMin || h.JoinTokenTTL > JoinTokenTTLMax {
 		return fmt.Errorf("SPOOL_HUB_JOIN_TOKEN_TTL %s must be %s..%s", h.JoinTokenTTL, JoinTokenTTLMin, JoinTokenTTLMax)

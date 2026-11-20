@@ -57,6 +57,10 @@ type EditableMessage struct {
 	// EditedAt / EditedBy describe the LATEST edit; zero / "" = never edited.
 	EditedAt time.Time
 	EditedBy string
+	// TypedBy is messages.typed_by (rdb 0040), as ViewMsg.TypedBy: the member
+	// who typed the line at an agent's terminal, "" = the agent wrote it. The
+	// topic export read (TopicExportRows) fills it; the edit read leaves it "".
+	TypedBy string
 	// Revision is the highest revision in the register; 0 = never edited.
 	Revision   int
 	Deliveries []ViewDelivery

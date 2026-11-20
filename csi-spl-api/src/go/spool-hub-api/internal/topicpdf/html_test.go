@@ -161,3 +161,30 @@ func TestHTMLEmptyTitleHeadsTopic(t *testing.T) {
 		t.Fatalf("err=%v page:\n%s", err, page)
 	}
 }
+
+// A line a member typed at an agent's terminal shows the member and "via
+// terminal <agent>" (typed-by.mjs typedByAuthor); a typed_by that is the
+// sender itself, or not a HUM id, keeps the sender.
+func TestHTMLCardAuthorTypedBy(t *testing.T) {
+	at := time.Date(2026, 11, 20, 8, 0, 0, 0, time.UTC)
+	typed, self, plain, odd := row(t, "m1", "typed", at), row(t, "m2", "self", at), row(t, "m3", "plain", at), row(t, "m4", "odd", at)
+	typed.TypedBy = "HUM-12"
+	self.FromID, self.TypedBy = "HUM-12", "HUM-12"
+	odd.TypedBy = "c-009"
+	page, _, err := HTML([]store.EditableMessage{typed, self, plain, odd}, "t", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`<strong>HUM-12</strong> <span class="msg-print__via">via terminal c-004</span>`,
+		`<strong>HUM-12</strong> <time`,
+		`<strong>c-004</strong> <time`,
+	} {
+		if !bytes.Contains(page, []byte(want)) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+	if n := bytes.Count(page, []byte("via terminal")); n != 1 {
+		t.Fatalf("%d via badges, want 1 (only the typed row)", n)
+	}
+}

@@ -12,6 +12,7 @@
   .msg-print__card:last-child { border-bottom: 0; }
   .msg-print__head { display: flex; flex-wrap: wrap; gap: 8pt; margin: 0 0 4pt; font-size: 9.5pt; }
   .msg-print__kind { text-transform: uppercase; letter-spacing: 0.04em; }
+  .msg-print__via { color: #555; }
   .msg-body { overflow-wrap: anywhere; }
   .msg-body p { margin: 0 0 6pt; }
   .msg-body pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 9pt/1.35 "DejaVu Sans Mono", monospace; background: #f3f3f3; padding: 4pt 6pt; margin: 4pt 0; }
@@ -31,7 +32,7 @@
 <h1 class="msg-print__title">{{.Title}}</h1>
 {{- range .Cards}}
 <section class="msg-print__card" data-msg-id="{{.MsgID}}">
-<p class="msg-print__head"><strong>{{.Author}}</strong> <time datetime="{{.ISO}}">{{.Time}}</time> <span class="msg-print__kind">{{.Kind}}</span></p>
+<p class="msg-print__head"><strong>{{.Author}}</strong>{{if .Via}} <span class="msg-print__via">via terminal {{.Via}}</span>{{end}} <time datetime="{{.ISO}}">{{.Time}}</time> <span class="msg-print__kind">{{.Kind}}</span></p>
 <div class="msg-body">{{.Body}}</div>
 {{- range .Pictures}}
 <figure class="msg-print__fig"><img src="{{.Src}}" alt="{{.Name}}"><figcaption>{{.Name}}</figcaption></figure>

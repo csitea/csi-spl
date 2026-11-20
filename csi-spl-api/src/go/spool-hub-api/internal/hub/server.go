@@ -34,6 +34,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub/embedassets"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/topicpdf"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/vendorkey"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -315,6 +316,11 @@ type Options struct {
 	// FileStreamLimits are spec 160 3.7's hub caps (file_streams.go); a zero
 	// field is its default (store.FileStreamLimits.Norm).
 	FileStreamLimits store.FileStreamLimits
+	// TopicPDF is spec 183 7.1.5's renderer (topic_export.go): a
+	// topicpdf.HTTPRenderer on SPOOL_PDF_URL, whose Timeout is cnf
+	// hub.pdf.timeout. nil = GET /v1/topics/{task_id}/export.pdf answers 503
+	// render_unavailable.
+	TopicPDF topicpdf.Renderer
 }
 
 // Server is one hub process.
@@ -599,6 +605,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeReportingIncomes(mux)
 	s.routeChannelBoxPins(mux) // spec 164 B2: /v1/channels/{channel}/box-pins + the operator PUT, channel_box_pins.go
 	s.routeRepoSync(mux)       // spec 143 B-6b part 2: "Sync now" + the GitHub webhook, repo_sync_routes.go
+	s.routeTopicExport(mux)    // spec 183 7.1.1: GET /v1/topics/{task_id}/export.pdf, topic_export.go
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

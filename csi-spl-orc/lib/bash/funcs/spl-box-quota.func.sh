@@ -239,37 +239,73 @@ spl_box_quota_claude_json() {
   )
 }
 
-# spl_box_quota_cred_key FILE: the login key of the claude credential FILE,
-# "k" and the first 12 hex of the sha256 of its claudeAiOauth.refreshToken, or
-# nothing when FILE or the token cannot be read. The token never leaves this
-# function, only the key.
-spl_box_quota_cred_key() {
-  local t
-  t="$(jq -er '.claudeAiOauth.refreshToken | strings | select(length > 0)' "$1" 2>/dev/null)" || return 0
-  printf 'k%s\n' "$(printf '%s' "$t" | sha256sum | cut -c1-12)"
+# spl_box_quota_cred_account FILE HOST [ATKEY ACCOUNT_KEY]: the login of the
+# claude credential FILE as "<access-token key> <account key>" ("a" or "k"
+# and the first 12 hex of a sha256), or nothing when FILE has no access token.
+# The account is the one the OAuth profile endpoint of HOST names for that
+# token (account.uuid, the same id ~/.claude.json records at login): one call
+# per access token, since ATKEY / ACCOUNT_KEY (the last answer) are reused
+# while the token is the same. A failed call prints "<access-token key> -":
+# no account until the next renewal, which is today's behaviour. The token is
+# sent on stdin (curl -H @-), never on a command line, and never leaves this
+# function. Seam (tests): LANE_QUOTA_CLAUDE_PROFILE_CMD, run with the token on
+# stdin, prints the profile JSON in place of the call.
+spl_box_quota_cred_account() {
+  local t ak u
+  t="$(jq -er '.claudeAiOauth.accessToken | strings | select(length > 0)' "$1" 2>/dev/null)" || return 0
+  ak="a$(printf '%s' "$t" | sha256sum | cut -c1-12)"
+  [[ "$ak" == "${3:-}" && -n "${4:-}" ]] && { echo "$ak $4"; return 0; }
+  if [[ -n "${LANE_QUOTA_CLAUDE_PROFILE_CMD:-}" ]]; then
+    u="$(printf '%s' "$t" | "$LANE_QUOTA_CLAUDE_PROFILE_CMD" 2>/dev/null | jq -er '.account.uuid | strings | select(length > 0)' 2>/dev/null)"
+  elif [[ -n "$2" ]]; then
+    u="$(printf 'Authorization: Bearer %s\nanthropic-beta: oauth-2025-04-20\n' "$t" |
+      curl -sf -m 5 -H @- "https://$2/api/oauth/profile" 2>/dev/null | jq -er '.account.uuid | strings | select(length > 0)' 2>/dev/null)"
+  fi
+  if [[ -n "${u:-}" ]]; then echo "$ak k$(printf '%s' "$u" | sha256sum | cut -c1-12)"; else echo "$ak -"; fi
 }
 
-# spl_box_quota_claude_key: spl_box_quota_cred_key of the agent user's
-# ~/.claude/.credentials.json, read as that user (b29-01): which login the box
-# uses now. ~/.claude.json's oauthAccount does not say it: a credential copied
-# in from another login leaves it at the old label. The refresh token stays
-# the same across a renewal of one login (measured, see the commit), so the
-# key does too, while the credential file itself is rewritten at every
-# renewal. Seam (tests): LANE_QUOTA_CLAUDE_CRED reads that file as this user;
-# a test that fakes the panes (LANE_PANES_CMD) or the reading (LANE_QUOTA_CMD)
-# without it reads nothing.
+# spl_box_quota_profile_host: the host of the OAuth profile endpoint,
+# LANE_QUOTA_CLAUDE_PROFILE_HOST, else cnf env.box.external_api_check's
+# "anthropic" endpoint; no default (none = no account key, today's behaviour).
+spl_box_quota_profile_host() {
+  local h="${LANE_QUOTA_CLAUDE_PROFILE_HOST:-}"
+  [[ -z "$h" && -r "${SPL_CNF:-}" ]] && command -v yq >/dev/null &&
+    h="$(yq '.env.box.external_api_check.endpoints[] | select(.name == "anthropic") | .host // ""' "$SPL_CNF" 2>/dev/null | head -n 1)"
+  [[ "$h" =~ ^[A-Za-z0-9.-]+$ ]] && echo "$h"
+  return 0
+}
+
+# spl_box_quota_claude_key: the account key of the agent user's claude login
+# now (spl_box_quota_cred_account of ~/.claude/.credentials.json, read as that
+# user; b29-01), or nothing. ~/.claude.json's oauthAccount does not say it: a
+# credential copied in from another login leaves it at the old label. Neither
+# does the credential: its file, access token and refresh token all change at
+# every renewal of one login (refresh token measured, see the commit). The last
+# answer is kept in <kept file>.account, so the endpoint is asked once per
+# access token. Seam (tests): LANE_QUOTA_CLAUDE_CRED reads that file as this
+# user; a test that fakes the panes (LANE_PANES_CMD) or the reading
+# (LANE_QUOTA_CMD) without it reads nothing.
 spl_box_quota_claude_key() {
+  local f c="" ak="" acct="" host out
+  f="$(spl_box_quota_keep_file)"
+  [[ -n "$f" ]] && c="$f.account" && read -r ak acct _ 2>/dev/null <"$c"
   if [[ -n "${LANE_QUOTA_CLAUDE_CRED:-}" ]]; then
-    spl_box_quota_cred_key "$LANE_QUOTA_CLAUDE_CRED"; return 0
+    out="$(spl_box_quota_cred_account "$LANE_QUOTA_CLAUDE_CRED" "$(spl_box_quota_profile_host)" "$ak" "$acct")"
+  else
+    [[ -z "${LANE_PANES_CMD:-}${LANE_QUOTA_CMD:-}" ]] || return 0
+    host="$(spl_box_quota_profile_host)"
+    declare -F spool_agent_exec >/dev/null ||
+      source "$(dirname "${BASH_SOURCE[0]}")/../../../src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+    out="$(
+      [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
+      SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
+      spool_agent_exec "$(declare -f spl_box_quota_cred_account); spl_box_quota_cred_account \"\$HOME/.claude/.credentials.json\" $(printf '%q ' "$host" "$ak" "$acct")" </dev/null 2>/dev/null
+    )"
   fi
-  [[ -z "${LANE_PANES_CMD:-}${LANE_QUOTA_CMD:-}" ]] || return 0
-  declare -F spool_agent_exec >/dev/null ||
-    source "$(dirname "${BASH_SOURCE[0]}")/../../../src/bash/features/spawn-agents/lib/spool-env.inc.sh"
-  (
-    [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
-    SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
-    spool_agent_exec "$(declare -f spl_box_quota_cred_key); spl_box_quota_cred_key \"\$HOME/.claude/.credentials.json\"" </dev/null 2>/dev/null
-  )
+  [[ "$out" =~ ^a[0-9a-f]{12}\ (k[0-9a-f]{12}|-)$ ]] || return 0
+  [[ -n "$c" && "$out" != "$ak $acct" ]] && { printf '%s\n' "$out" >"$c.$$" && mv -f "$c.$$" "$c"; } 2>/dev/null
+  [[ "${out#* }" == - ]] || echo "${out#* }"
+  return 0
 }
 
 # spl_box_quota_grok_read [NOW]: grok's weekly usage from its own log

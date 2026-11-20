@@ -737,17 +737,23 @@ rm -f "$KEPT" "$CJ"
 #     11:55Z, another box's credential copied in at 12:04Z, ~/.claude.json's
 #     oauthAccount still the old label, so 16m's login check never fired and
 #     the box held claude lanes on the old login's 98 until the 10 h lapse.
-#     The row records the login key (the refresh token's hash prefix); the
-#     credential file itself changes at every renewal, the key does not.
+#     The row records the login's account key: the account the OAuth profile
+#     endpoint names for the access token (faked by LANE_QUOTA_CLAUDE_PROFILE_CMD,
+#     the token on stdin). The credential file, its access and its refresh token
+#     all change at every renewal; the account does not.
 NOW=$(date +%s); CJ="$T/cj-cred.json"; A=one-login
 cj "$A" "$A" $(( NOW - 86400 )) 40
 # cred FILE ACCESS REFRESH: a fixture credential
 cred() { printf '{"claudeAiOauth":{"accessToken":"%s","refreshToken":"%s","expiresAt":%s}}\n' "$2" "$3" "$(( (NOW + 3600) * 1000 ))" >"$T/$1"; }
 cred cred-a.json fixture-access-1 fixture-refresh-a
 cred cred-b.json fixture-access-9 fixture-refresh-b
-cred cred-a2.json fixture-access-2 fixture-refresh-a
-cq() { known LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/$1" BOX_QUOTA_RESET=0 LANE_QUOTA_CMD="echo ${2:-}"; }
-kept98() { rm -f "$KEPT"; cq cred-a.json "claude:98@$FUT" >/dev/null; }
+cred cred-a2.json fixture-access-2 fixture-refresh-a2
+# the profile endpoint: access-9 is login b, every other token login a; a
+# fixture-fail token answers nothing; each call is counted
+printf '#!/bin/bash\necho call >>"%s/profile-calls"\nt="$(cat)"\ncase "$t" in fixture-access-9) u=uuid-b ;; fixture-fail*) exit 7 ;; *) u=uuid-a ;; esac\necho "{\\"account\\":{\\"uuid\\":\\"$u\\"}}"\n' "$T" >"$T/profile"
+chmod +x "$T/profile"
+cq() { known LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/$1" LANE_QUOTA_CLAUDE_PROFILE_CMD="$T/profile" BOX_QUOTA_RESET=0 LANE_QUOTA_CMD="echo ${2:-}"; }
+kept98() { rm -f "$KEPT" "$KEPT.account"; cq cred-a.json "claude:98@$FUT" >/dev/null; }
 kept98; KA="$(cut -f10 "$KEPT")"
 [[ "$KA" =~ ^k[0-9a-f]{12}$ ]] && ! grep -q 'fixture-' "$KEPT" &&
   pass "16o. a new claude row records its login key, never the token" || fail "16o. stamp: $(cat "$KEPT")"
@@ -757,22 +763,31 @@ kept98; KA="$(cut -f10 "$KEPT")"
 kept98; [[ "$(cq cred-b.json "claude:6@$FUT")" == "claude:6@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" =~ ^k && "$(cut -f10 "$KEPT")" != "$KA" ]] &&
   pass "16o. RED CONTROL (FAILs on 49694bbc5) the copied login's own 6 % stands alone, the row names its key" || fail "16o. new: $(cat "$KEPT")"
 kept98; [[ "$(cq cred-a2.json)" == "claude:98@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" == "$KA" ]] &&
-  pass "16o. CONTROL a renewal (same refresh token, new access token and expiry) keeps the 98 and the key" || fail "16o. renewal: $(cat "$KEPT")"
+  pass "16o. CONTROL a renewal (new access and refresh token, same account) keeps the 98 and the key" || fail "16o. renewal: $(cat "$KEPT")"
+kept98; : >"$T/profile-calls"; cq cred-a.json >/dev/null; cq cred-a.json >/dev/null
+[[ "$(grep -c . "$T/profile-calls")" == 0 ]] && pass "16o. the endpoint is asked once per access token: two more reads, 0 calls" || fail "16o. calls: $(grep -c . "$T/profile-calls")"
+cred cred-fail.json fixture-fail-1 fixture-refresh-x
+kept98; : >"$T/profile-calls"; [[ "$(cq cred-fail.json)" == "claude:98@$FUT" && "$(cut -f10 "$KEPT")" == "$KA" ]] && cq cred-fail.json >/dev/null &&
+  [[ "$(grep -c . "$T/profile-calls")" == 1 ]] &&
+  pass "16o. CONTROL the endpoint fails: holds, the row keeps its key, no retry until the token changes" || fail "16o. fail: $(cat "$KEPT") calls $(grep -c . "$T/profile-calls")"
+cred cred-nohost.json fixture-access-9 fixture-refresh-b
+kept98; [[ "$(known LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/cred-nohost.json" SPL_CNF=/nonexistent BOX_QUOTA_RESET=0 LANE_QUOTA_CMD=echo)" == "claude:98@$FUT" ]] &&
+  pass "16o. CONTROL no profile host (no cnf, no LANE_QUOTA_CLAUDE_PROFILE_HOST): no call, today's behaviour" || fail "16o. nohost: $(cat "$KEPT")"
 kept98; [[ "$(cq no-such-cred.json)" == "claude:98@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" == "$KA" ]] &&
   pass "16o. CONTROL an unreadable credential lifts nothing, the row keeps its key" || fail "16o. none: $(cat "$KEPT")"
-printf '{"claudeAiOauth":{"accessToken":"x"}}\n' >"$T/cred-norefresh.json"
-kept98; [[ "$(cq cred-norefresh.json)" == "claude:98@$FUT" ]] && pass "16o. CONTROL a credential with no refresh token is unreadable: holds" || fail "16o. no refresh: $(cat "$KEPT")"
+printf '{"claudeAiOauth":{"refreshToken":"x"}}\n' >"$T/cred-noaccess.json"
+kept98; [[ "$(cq cred-noaccess.json)" == "claude:98@$FUT" ]] && pass "16o. CONTROL a credential with no access token is unreadable: holds" || fail "16o. no access: $(cat "$KEPT")"
 printf 'claude\t98\t%s\t%s\t%s\tbanner\n' "$FUT" $(( NOW - 7200 )) "$A" >"$KEPT"
 [[ "$(cq cred-b.json)" == "claude:98@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" =~ ^k[0-9a-f]{12}$ && "$(cut -f6 "$KEPT")" == banner ]] &&
   pass "16o. CONTROL a row kept before b29-01 (no key) keeps today's behaviour, and now names the key" || fail "16o. legacy: $(cat "$KEPT")"
 kept98; out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_STATE="$KEPT" BOX_PICK_KIND=claude \
-  BOX_QUOTA_WEEKLY_MAX_PCT=90 LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/cred-b.json")"
+  BOX_QUOTA_WEEKLY_MAX_PCT=90 LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/cred-b.json" LANE_QUOTA_CLAUDE_PROFILE_CMD="$T/profile")"
 [[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
   pass "16o. RED CONTROL (FAILs on 49694bbc5) the pick: box-a placed again (unknown), not held on the old login's 98" || fail "16o. pick: $out"
 rm -f "$KEPT"; LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CMD="echo grok:91" LANE_QUOTA_CLAUDE_CRED="$T/cred-a.json" bash -c \
   'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_known' >/dev/null
 [[ "$(awk -F'\t' '{ print NF }' "$KEPT")" == 4 ]] && pass "16o. CONTROL a grok row carries no key" || fail "16o. grok: $(cat "$KEPT")"
-rm -f "$KEPT" "$CJ" "$T"/cred-*.json
+rm -f "$KEPT" "$KEPT.account" "$CJ" "$T"/cred-*.json "$T/profile" "$T/profile-calls"
 
 # 16n. a kept reading lapses unless re-read, and says where it came from
 #     (SPL-4965). 2026-11-06: a kept 97 % held the placer for 2 h 15 while the

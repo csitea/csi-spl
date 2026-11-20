@@ -16,6 +16,11 @@
 #      the agent-post probe (messages g) runs only for the null-channel rows
 #      whose last message is not itself an agent post
 #   5. CONTROL: the old statement fails check 4 (one archived probe per row)
+# Spec 182 row L2b:
+#   6. the k0 pick's index messages_task_received carries loop_id and
+#      is_private_scope in its INCLUDE (rdb 0301), so "loop_id IS NULL"
+#      stays index-only under RLS; the plan itself is pinned by the hub's
+#      TestTopicLoopSweepPickIndexOnly
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -47,9 +52,9 @@ OWNER_DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
 RT_DSN="postgres://spool_rt:rt@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
 "$BIN" migrate --db "$OWNER_DSN" --sql-dir "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" >/dev/null || { fail "migrate"; exit 1; }
 psql_owner() { PGPASSWORD=spool psql -X -q -v ON_ERROR_STOP=1 -At "$OWNER_DSN" "$@"; }
-# Spec 182 7.1.3: messages.loop_id is the L1 migration's; until it is on the
-# tree the test adds the same column (a no-op once the migration has it).
-psql_owner -c "ALTER TABLE messages ADD COLUMN IF NOT EXISTS loop_id uuid" >/dev/null || { fail "loop_id column"; exit 1; }
+# Spec 182 7.1.3: messages.loop_id is the L1 migration's (rdb 0301)
+[[ "$(psql_owner -c "SELECT count(*) FROM information_schema.columns WHERE table_name = 'messages' AND column_name = 'loop_id'")" == 1 ]] ||
+  { fail "the migrations carry no messages.loop_id"; exit 1; }
 psql_owner -c "CREATE ROLE spool_rt LOGIN NOCREATEDB NOCREATEROLE PASSWORD 'rt'" >/dev/null
 psql_owner -v runtime_role=spool_rt -f "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql" >/dev/null || { fail "grants"; exit 1; }
 
@@ -224,6 +229,10 @@ read -r oa og <<<"$(probe_loops "$T/old.sql")"
 [[ "$oa" =~ ^[0-9]+$ ]] && (( oa > 1 )) &&
   pass "5. CONTROL: the old statement probes archived $oa times and fails check 4" ||
   fail "5. CONTROL: old archived loops=$oa agent-post loops=$og - check 4 cannot tell old from new"
+
+idx="$(psql_owner -c "SELECT indexdef FROM pg_indexes WHERE indexname = 'messages_task_received'")"
+[[ "$idx" == *"INCLUDE ("*"loop_id"*"is_private_scope"* ]] &&
+  pass "6. messages_task_received INCLUDEs loop_id and is_private_scope" || fail "6. index: ${idx:-none}"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

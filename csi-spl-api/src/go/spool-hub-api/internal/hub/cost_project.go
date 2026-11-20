@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -24,7 +25,13 @@ import (
 // known, never 0), its share of total.priced and its completeness in words
 // (13.5); the parts sum to total.priced. Human is not_tracked until P02.
 // Money in no part (a customer workspace's allocated share) is named in
-// left_out. The human money mask is P03's.
+// left_out.
+//
+// The human money mask (row P03, 13.6; spec 107 Q27 A, msg ce14ad70): a
+// reader without hours.rates gets the Human part with its hours and words
+// but no money (its amounts and share null), a total.priced over the other
+// parts only and their shares of that total, flagged human_masked: a total
+// that held the human money would reveal it by subtraction.
 
 type costProjectBody struct {
 	Period   string                     `json:"period"` // month | year
@@ -40,6 +47,9 @@ type costProjectBody struct {
 	Parts    []store.CostProjectPart    `json:"parts"`
 	Total    store.CostProjectTotal     `json:"total"`
 	LeftOut  []store.CostProjectLeftOut `json:"left_out"`
+	// HumanMasked: the reader lacks hours.rates, so the Human part carries
+	// no money and total.priced holds none of it (13.6).
+	HumanMasked bool `json:"human_masked"`
 }
 
 func (s *Server) routeCostProject(mux *http.ServeMux) {
@@ -115,7 +125,10 @@ func (s *Server) handleCostProject(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "project cost unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, costProjectAnswer(q.Get("year"), wins, estate, cur, store.CostProjectParts(in)))
+	cp, masked := costProjectHumanMask(store.CostProjectParts(in), a.Can(rbac.HoursRates))
+	b := costProjectAnswer(q.Get("year"), wins, estate, cur, cp)
+	b.HumanMasked = masked
+	writeJSON(w, http.StatusOK, b)
 }
 
 // costProjectAsk is who reads the project's cost, in which currency.
@@ -176,4 +189,54 @@ func costProjectAnswer(year string, wins []costMonthWindow, estate bool, cur str
 		b.Ended += w.Ended
 	}
 	return b
+}
+
+// costProjectMaskOn is the mask's switch; a package var so the red control
+// can drop it (TestCostProjectHumanMask).
+var costProjectMaskOn = true
+
+// costProjectHumanMask takes the human money out of cp for a reader without
+// hours.rates (13.6): the Human part's amounts and share become null, its
+// known amounts leave total.priced, and every other share is re-read over
+// the smaller total. true = masked. The Human part's hours, completeness and
+// counts stay. A reader holding hours.rates gets cp unchanged.
+func costProjectHumanMask(cp store.CostProject, rates bool) (store.CostProject, bool) {
+	if rates || !costProjectMaskOn {
+		return cp, false
+	}
+	parts := make([]store.CostProjectPart, len(cp.Parts))
+	copy(parts, cp.Parts)
+	t := cp.Total.Priced
+	tot := [3]*int64{costProjectCopy(t.USDMicros), costProjectCopy(t.EURMicros), costProjectCopy(t.SecondMicros)}
+	for i := range parts {
+		p := &parts[i]
+		if p.Part != store.CostProjectHuman {
+			continue
+		}
+		for j, v := range []*int64{p.USDMicros, p.EURMicros, p.SecondMicros} {
+			if v != nil && tot[j] != nil {
+				*tot[j] -= *v
+			}
+		}
+		p.CostProjectMoney, p.Share = store.CostProjectMoney{}, nil
+	}
+	cp.Parts = parts
+	cp.Total.Priced = store.CostProjectMoney{USDMicros: tot[0], EURMicros: tot[1], SecondMicros: tot[2]}
+	for i := range cp.Parts {
+		p := &cp.Parts[i]
+		p.Share = nil
+		if p.USDMicros != nil && tot[0] != nil && *tot[0] > 0 {
+			sh := math.Round(float64(*p.USDMicros)*1000/float64(*tot[0])) / 10 // store.costProjectTotal's rounding
+			p.Share = &sh
+		}
+	}
+	return cp, true
+}
+
+func costProjectCopy(v *int64) *int64 {
+	if v == nil {
+		return nil
+	}
+	c := *v
+	return &c
 }

@@ -418,7 +418,7 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
 
 ## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.6, plan only)
 
-**Status: P01 built (SPL-6054), the other rows Planned.** Lane issue
+**Status: P01 built (SPL-6054), P03 built (SPL-6078), the other rows Planned.** Lane issue
 SPL-4189, epic SPL-2373. It is the level ABOVE the near-term three-sections
 build (ask `156c8939`: Costs gets Cloud / AI tokens / Human sections), and it
 does not duplicate it.
@@ -528,7 +528,13 @@ any part is incomplete. The shares are of the priced total.
   107 Q27 A (msg `ce14ad70`, 107 21.6), so it is not asked again. For that
   viewer the total and the shares cover Cloud + owned hardware + AI tokens
   only, labelled so: a total that included the human money would reveal it
-  by subtraction.
+  by subtraction. Built (P03, `hub/cost_project.go`
+  `costProjectHumanMask`): the Human part keeps its counts and words, its
+  amounts and share are `null`, `total.priced` and every other share are
+  re-read without it, and the answer carries `human_masked: true`. The
+  mask applies to any reader without `hours.rates`, a customer
+  workspace's included. The mask leaves `total.partial` as P01's fold set
+  it.
 - **Never per person**: the Human part is one sum per day; no row names a
   member (107 21.7). Each member sees only their own time (107 Q26 A).
 
@@ -552,7 +558,9 @@ any part is incomplete. The shares are of the priced total.
 Status of every row: **Planned**, except P01: **built** (SPL-6054,
 `hub/cost_project.go`, `store/cost_project.go`; three choices where this
 section predates the code on master are written at the top of
-`store/cost_project.go`). Each row is one lane, aiming at one push.
+`store/cost_project.go`), and P03: **built** (SPL-6078, the mask in
+`hub/cost_project.go`, `TestCostProjectHumanMask` in
+`hub/cost_project_mask_test.go`; 13.6). Each row is one lane, aiming at one push.
 Each row names its files; no file is in two rows of one batch (rounds-rulebook
 2.1 R1), and a row that changes an earlier row's file sits in a later batch.
 A cross-vendor reviewer per row (R7). Waits: P02 waits for 107 T071..T072;

@@ -360,6 +360,12 @@ if (( rc == 0 )) && [[ $(gos) == 1 && $(holds) == 0 ]] && grep -q "^PASS .* 1000
 else fail "10. rc=$rc gos=$(gos) log=$(cat "$LOG") out=$(tail -3 "$T/out")"; fi
 run; [[ $(gos) == 1 && $(count "$LOG") == 1 ]] && pass "10. the next tick sends nothing again" || fail "10. retick gos=$(gos)"
 run REVIEW_GO_MAX_AGE=180; [[ $(gos) == 2 ]] && pass "10. control: a wider window reads the older message" || fail "10. window gos=$(gos)"
+# spec 033 K.3 (T024): a kind that routes as a note (SPOOL_NOTE_KINDS) is read like a note
+reset
+msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 10000005-0000-4000-8000-000000000005 docs >/dev/null
+run; rc=$?
+(( rc == 0 )) && [[ $(gos) == 1 ]] && grep -q "^PASS .* 10000005-0000-4000-8000-000000000005 " "$LOG" &&
+  pass "10. a review line in a docs message is read: one GO" || fail "10. docs rc=$rc gos=$(gos) log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"
 reset
 msg 20261028T115900Z g-111@boxa "$(line g-111 grok FAIL)" 10000005-0000-4000-8000-000000000005 >/dev/null
 run; run; [[ $(holds) == 1 && $(gos) == 0 ]] && pass "10. a refusal is told to the holder once, not every tick" || fail "10. holds=$(holds)"

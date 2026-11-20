@@ -38,6 +38,12 @@ msg() { printf '{"v":1,"msg_id":"%s","task_id":"%s","ts":"%s","from":"%s","to":"
 msg m1 topic-a 2026-10-07T08:01:00Z "$ID" c-002 blocker 'need the deploy go' >"$D/outbox/20261007T080100Z--m1.json"
 msg m2 topic-b 2026-10-07T08:02:00Z "$ID" c-003 msg 'which env first?' >"$D/outbox/20261007T080200Z--m2.json"
 msg m3 topic-b 2026-10-07T08:03:00Z c-003 "$ID" msg 'dev first' >"$D/archive/20261007T080300Z--m3.json"
+# spec 033 K.3 E2 (owner Q3 B): an unanswered question is open like a blocker;
+# an answered one is not, and an idea routes as a note
+msg m4 topic-c 2026-10-07T08:04:00Z "$ID" c-004 question 'which schema wins?' >"$D/outbox/20261007T080400Z--m4.json"
+msg m5 topic-d 2026-10-07T08:05:00Z "$ID" c-005 question 'is dev green?' >"$D/outbox/20261007T080500Z--m5.json"
+msg m6 topic-d 2026-10-07T08:06:00Z c-005 "$ID" result 'dev is green' >"$D/archive/20261007T080600Z--m6.json"
+msg m7 topic-e 2026-10-07T08:07:00Z "$ID" c-006 idea 'cache the tail later' >"$D/outbox/20261007T080700Z--m7.json"
 export HANDOFF_CAPTURE_CMD="printf '%s\n' 'running tests' 'export PGPASSWORD=hunter2xyz' 'token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123' 'ok 12 passed'"
 
 g() { git -C "$W" -c user.name=t -c user.email=t@example.com "$@" >/dev/null 2>&1; }
@@ -99,6 +105,8 @@ sect "$H" "5. next step" | grep -x 'rerun the suite' >/dev/null && pass "next st
 sect "$H" "6. open questions" >"$T/oq"
 grep -q 'blocker to c-002, task topic-a' "$T/oq" && ! grep -q 'topic-b' "$T/oq" \
   && pass "open questions: the unanswered blocker, not the answered msg" || fail "open questions ($(cat "$T/oq"))"
+grep -q 'question to c-004, task topic-c: which schema wins?' "$T/oq" && ! grep -q 'topic-d' "$T/oq" && ! grep -q 'topic-e' "$T/oq" \
+  && pass "open questions: the unanswered question (E2), not the answered one, not an idea" || fail "open questions E2 ($(cat "$T/oq"))"
 sect "$H" "7. owned topics" >"$T/ot"
 grep -q '^- topic-a ' "$T/ot" && grep -q '^- topic-b ' "$T/ot" && grep -q 'held job job-77' "$T/ot" \
   && pass "owned topics: outbox task ids + held job" || fail "owned topics ($(cat "$T/ot"))"

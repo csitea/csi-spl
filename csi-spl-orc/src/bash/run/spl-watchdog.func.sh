@@ -1006,12 +1006,13 @@ spl_wd_idle_wait() {
 }
 
 # spl_wd_job_after ID FILE: 0 when ID's inbox or archive holds a job newer
-# than FILE: not a note and not its own (S1's rule; one that does not parse
-# counts as a job).
+# than FILE: not a note (or a kind that routes as one, SPOOL_NOTE_KINDS, spec
+# 033 K.3) and not its own (S1's rule; one that does not parse counts as a job).
 spl_wd_job_after() {
   local f
+  { [[ -n "${SPOOL_NOTE_KINDS:-}" ]] && declare -F spool_kind_in >/dev/null; } || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
   while IFS= read -r -d '' f; do
-    [[ "$(jq -r --arg me "$1" '.kind == "note" or ((.from // "") | sub("@.*"; "")) == $me' "$f" 2>/dev/null)" == true ]] || return 0
+    [[ "$(jq -r --arg me "$1" --arg nk "$SPOOL_NOTE_KINDS" '(.kind as $k | $nk | split("|") | any(. == $k)) or ((.from // "") | sub("@.*"; "")) == $me' "$f" 2>/dev/null)" == true ]] || return 0
   done < <(find "$SPOOL_ROOT/$1/inbox" "$SPOOL_ROOT/$1/archive" -maxdepth 1 -type f -name '*.json' -newer "$2" -print0 2>/dev/null)
   return 1
 }

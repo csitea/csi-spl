@@ -312,7 +312,7 @@ _spl_desk_reply_refusal() {
   local ops=""
   [[ -r "${SPL_CNF:-}" ]] && ops="$(yq -r '.env.fleet_notices.channel // ""' "$SPL_CNF" 2>/dev/null)"
   if [[ "$1" == *dm_not_blocker* ]]; then
-    do_log "FATAL nothing was sent: a DM to $ans_to must be a blocker (DESK_KIND=blocker) or answer a DM $ans_to started or wrote in (how-to-post.md rule 18, owner t1 4b49e47d). Post it in the channel topic it belongs to (DESK_TASK=<that topic>), or as a new topic: do_spl_desk_post DESK_CHANNEL=<channel>${ops:+; a fleet notice: do_spl_fleet_notice (#$ops)}"
+    do_log "FATAL nothing was sent: a DM to $ans_to must be a blocker or a question (DESK_KIND=blocker or DESK_KIND=question, spec 033 K.3 E1) or answer a DM $ans_to started or wrote in (how-to-post.md rule 18, owner t1 4b49e47d). Post it in the channel topic it belongs to (DESK_TASK=<that topic>), or as a new topic: do_spl_desk_post DESK_CHANNEL=<channel>${ops:+; a fleet notice: do_spl_fleet_notice (#$ops)}"
     return 6
   elif [[ "$1" == *duplicate_to_human* ]]; then
     do_log "FATAL nothing was sent: $ans_to already got this text from an agent in the last 24 h (how-to-post.md rule 18, owner t1 4b49e47d msg 85a20ac7). Say something new, or nothing"

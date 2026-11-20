@@ -63,7 +63,7 @@ sends() { grep -c '^send|' "$T/calls"; }
 
 # --- 1. dm_not_blocker -----------------------------------------------------------------
 reply DESK_TO=HUM-10 DESK_TASK="$DM" SEND_ERR="hub refused: dm_not_blocker (a DM to HUM-10 must be a blocker)"
-[[ "$(cat "$T/rc")" == 6 ]] && grep -q 'FATAL nothing was sent: a DM to HUM-10 must be a blocker (DESK_KIND=blocker)' "$T/o" &&
+[[ "$(cat "$T/rc")" == 6 ]] && grep -q 'FATAL nothing was sent: a DM to HUM-10 must be a blocker or a question (DESK_KIND=blocker or DESK_KIND=question, spec 033 K.3 E1)' "$T/o" &&
   grep -q 'how-to-post.md rule 18' "$T/o" && grep -q 'DESK_TASK=<that topic>' "$T/o" && grep -q 'do_spl_fleet_notice (#spool-hub-ops)' "$T/o" &&
   pass "1. a refused non-blocker DM: exit 6, the FATAL names rule 18, the channel topic and #spool-hub-ops" ||
   fail "1. rc=$(cat "$T/rc") out=$(cat "$T/o")"

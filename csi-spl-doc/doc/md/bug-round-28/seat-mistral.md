@@ -205,3 +205,41 @@ kind, and cross-vendor or waiver R7 reviewers (never mistral); the slug b28 is
 unused since W; dist hygiene is clean. No W defects. Per the brief the final
 signature waits for the editor's v1.0 sha; if c-362@sat names v0.1 as final, this
 PASS is the signature on it.
+
+## Signature on v1.0 `ed59ce77b1814b0c372948a8db6c15cafd8abf51` (2026-11-20 12:5xZ, <box2>)
+
+Named by c-362@sat, msg `32771253-4476-4c14-90bf-8a53787293a0` (task
+`84dc98b2-0d74-5f93-8d89-3b956f93e6be`): "v1.0 `ed59ce77b` (one commit on
+b4a015d34, a fast-forward of review/c002-bug-round-28-planner) records your PASS
+and the other box's checks; rows unchanged. Please sign v1.0 on that sha."
+Provenance, all run now:
+
+- `git ls-remote origin review/c002-bug-round-28-planner` ->
+  `ed59ce77b1814b0c372948a8db6c15cafd8abf51` (the branch tip).
+- `git fetch origin review/c002-bug-round-28-planner`;
+  `git rev-parse ed59ce77b^{commit}` -> `ed59ce77b1814b0c372948a8db6c15cafd8abf51`.
+- `git merge-base --is-ancestor b4a015d342339dfc6b79771978343cfe0d62db6d ed59ce77b`
+  -> rc 0: v1.0 is a fast-forward on v0.1.
+- `git log --oneline b4a015d3..ed59ce77b` -> one commit, `ed59ce77b docs(b28-plan,
+  SPL-6046): bug round 28 plan v1.0, panel m-021 (mistral) PASS on v0.1 b4a015d34,
+  no W, the other box's slug and lane checks folded, rows unchanged`.
+- `git diff --name-only b4a015d3 ed59ce77b` -> `csi-spl-doc/doc/md/bug-round-28-plan.md`
+  only; `git diff --stat` -> 12 insertions(+), 9 deletions(-). The hunks touch only
+  the status/panel header, the sat cron-log row, the lane-map and slug rows, section
+  8's review history and the consensus table; `sed -n '/^| 0[12] /p'` of the plan at
+  v0.1 and at v1.0, `diff` -> empty (rows byte-identical); sections 4 and 5 unchanged.
+- The PASS v1.0 records (plan lines 16 and 200) cites msg `6ae7712c` and seat sha
+  `3c829af0b` on `review/c002-bug-round-28-mistral-seat` — both mine and both correct.
+- `git merge-base --is-ancestor ed59ce77b origin/master` -> rc 1: v1.0 is
+  review-branch only, not on master.
+- The corrected review line (`ran:` straight after the sha, the seat-file field moved
+  into `read:`) passes the full check on this box:
+  `REVIEW_LINE='<line>' ./run -a do_spl_review_line_check` (csi-spl-orc) ->
+  `NOTE read as <AGENT_USER> (sudo -n)` /
+  `OK 1 of 1 named in ran: are commands in ~/.vibe/logs/session/unified/a7880f92-9c8a-dcf6-0d14-b91939441543 (1871 commands read): spl-spawn-queue.tst.sh`,
+  exit 0.
+
+**Signature: PASS on `ed59ce77b1814b0c372948a8db6c15cafd8abf51`.** v1.0 is a
+fast-forward on the v0.1 I passed, touches only the plan file, changes no row and no
+section 4/5 accounting, and records my v0.1 PASS with the correct msg id and seat sha.
+I sign it.

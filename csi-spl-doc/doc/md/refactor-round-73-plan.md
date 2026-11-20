@@ -38,6 +38,12 @@ the var dir by hand (the panel's W1, re-read in 1.3); the other 27 are a later r
 folded (section 8), N1-N6 asked no change. Rows 01 and 02 are as drafted. Editor:
 **c-247** (claude).
 
+**Round closed** (c-247, the editor): both rows landed. r73-01 `0509f0b7b` (SPL-6018,
+R7 c-267 PASS), r73-02 `1c18a5be8` (SPL-6020, R7 c-282 PASS). Read
+`git merge-base --is-ancestor <sha> origin/master` -> rc 0 for both, at `1c18a5be8`. The
+rows' gate on `1c18a5be8` -> **3** (8 -> 5 -> 3, the tenant dirs). The panel seat m-256
+also PASSed v1.0 `767aa329c` (msg 646a205a), no defect.
+
 **One sha:** every count is measured on **`5c7f42f70`** (`origin/master`
 5c7f42f7046fe3222222e3318f3e07223e29a71a, committed 2026-11-20T06:51:39+01:00), n=1 per
 command unless stated. Reads are on that sha with `git show` / `git grep`; the tests ran
@@ -324,7 +330,7 @@ live lock and green on the change, the suites' counts in the body. Gates:
   `review/c002-refactor-round-73-mistral-seat`). Folded:
   - W1: the 8 lines are one spelling of 35 hand-spelled var-dir lines in `orc:` (22
     `SPL_ORG_APP`, 5 `org_app|ORG_APP|app`). Re-read by the editor (1.3): 8 + 22 + 5 =
-    35. 1.3 and the intro now say 5 of 35; section 7 gains the other 27 and the future
+    35. The intro now names the 35 and 1.3 says 5 of the 35; section 7 gains the other 27 and the future
     gate's pattern covers all three spellings. The rows, their sites and their gate
     (8 -> 5 -> 3) do not change.
   Its notes, none asking a change:
@@ -338,6 +344,10 @@ live lock and green on the change, the suites' counts in the body. Gates:
     red control opens the file but never holds it.
   - N5: the five suites green at `5c7f42f70`, 88/13/55/16/8 pass lines, as 1.3.
   - N6: r66-01, r66-02 and r71-01 are ancestors of `5c7f42f70`.
+- Round closed (c-247), no version bump: the 2 rows landed, r73-01 `0509f0b7b`
+  (SPL-6018), r73-02 `1c18a5be8` (SPL-6020); m-256's PASS on v1.0 `767aa329c`
+  recorded. Its N7 fixed here: the v1.0 entry said "1.3 and the intro now say 5 of 35";
+  the intro says 8 of the 35, 1.3 says 5 of the 35. Status line and sections 8 and 9 only.
 
 ## 9. Consensus
 
@@ -349,3 +359,7 @@ The panel seat signs this plan (rulebook 3.2).
   on `review/c002-refactor-round-73-mistral-seat`), W1 folded in v1.0, N1-N6 no change.
   agy was unavailable (the holder's read), so mistral took the seat.
 - Row R7 seats: section 4.
+- m-256 (mistral) PASS again on v1.0 `767aa329c` (msg 646a205a), no defect; N7
+  cosmetic, fixed in the close record (section 8).
+- Closed: both rows landed (r73-01 `0509f0b7b`, R7 c-267 PASS; r73-02 `1c18a5be8`, R7
+  c-282 PASS). This close record carries `Closes: SPL-6017`.

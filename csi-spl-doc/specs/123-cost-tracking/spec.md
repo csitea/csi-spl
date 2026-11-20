@@ -1317,6 +1317,22 @@ hand-entered line's one free-text label, in whatever language it was typed.
   and a row per other language to add, edit or remove
   (`components/expenses/CostEntryLabels.vue`). Its strings are in every
   locale and reviewed by agy before they ship (the language rule).
+- **Filling the existing labels (SPL-6053).** The owner's poll f0c06053,
+  answer A (csitea 720fa031, msg fb2ae7ee): "fill all 19 languages for every
+  existing label now". `cd csi-spl-orc && ENV=<env> LABELS_MAP=<file>
+  ./run -a do_spl_cost_labels_fill` reads a mapping file kept out of git
+  (estate data: refused inside a git tree or readable by other users) that
+  carries each entry text and hr component in all 19 locales, and writes
+  them in one transaction. DRY_RUN=1 (the default) prints only counts per
+  table and locale and rolls back. The master text stays the key, so the
+  action renames `cost_entries.label` to the master-locale (`en`) text and
+  writes the master row with it in the same transaction. It refuses when a
+  `cost_allocations` row keys on a text it would rename. The source
+  language's row keeps the text as typed. It writes through the store, not
+  the PATCH, which refuses the master row; components have no route. A
+  second run changes nothing. Test:
+  `csi-spl-orc/src/bash/tests/spl-cost-labels-fill-pg.tst.sh`. New or
+  edited labels are translated on save by a separate lane.
 - **Tests.** `store/cost_labels_test.go` (both drivers),
   `hub/cost_labels_test.go`, `tests/unit/cost-entries.test.mjs`,
   `tests/unit/costs-labels.test.mjs`, the e2e

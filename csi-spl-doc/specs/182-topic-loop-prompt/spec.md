@@ -1,6 +1,6 @@
 # Spec 182: Topic Loop Prompt (Discussion Loops)
 
-Status: **Draft v0.4** (2026-11-20). Lane `c-301` (`claude`, backup for
+Status: **Draft v0.5** (2026-11-20). Lane `c-301` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `bc0353485`; v0.2 folds the
 owner's answers to form `2c1c3f5d` (msg `a198ae53`) and the two requirements
 in msgs `eae9e64f` and `19acb8f9`; v0.2 `d17f582cb`; v0.3 folds Q9 (msg
@@ -10,7 +10,9 @@ adds the binding contracts of 7.1 (section 8); v0.3 `d01889cfd`; v0.4 takes
 all six extra triggers (msg `a1d73b19`, poll `39cc8497`) into the decided
 set: twelve triggers (1.2), their hooks (4.2), store and contracts (5.1,
 7.1), the rows that own each (7.2), and the one list of contract changes
-for the lanes building on v0.3 (8.1).
+for the lanes building on v0.3 (8.1); v0.4 `91e92e63c`; v0.5 answers the
+three points of the L2 lane (c-970, msg `9dc69b0c`): the time-fire seed,
+who deletes the loops on archive, and the author's two ids (8.2).
 Epic: **SPL-2398**. Issue: **SPL-6022**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f08c0c58-9228-4e2a-af00-dbbdbd328083` (`t1`).
 Builds on: [179 pause the agents of a discussion](../179-pause-agents-of-a-discussion/spec.md)
@@ -332,7 +334,8 @@ time fire, the issue change for an issue fire). The hooks:
      `csi-spl-api/src/go/spool-hub-api/internal/store/topic_pause.go:74`,
      landed with spec 179 B1);
    - the loop's author is still a member and the archive policy still lets
-     them edit loops (answer 5 A);
+     them edit loops (answer 5 A), both read with the author's member id
+     (`SetBy`, 7.1.1);
    - the loop's cap is not reached: under 12 fires in its current hour
      (answer 4 B).
 8. **`post_has_keyword`**: in the two post hooks (steps 1 and 2), on an
@@ -431,7 +434,13 @@ time fire, the issue change for an issue fire). The hooks:
 - **By the cap** (answer 4 B): after 12 fires in the loop's hour, it holds;
   it fires again when the hour rolls over. The dialog shows "held until
   hh:mm". No note is written (answer 7 C).
-- **By the topic**: archiving the topic deletes its loops. A topic pause
+- **By the topic**: archiving the topic deletes its loops; so does
+  deleting the topic (v0.5). **Row L2 owns it** (v0.5): `handleArchiveTopic`
+  (`internal/hub/topic_archive.go:197`) calls `DeleteTopicLoops` (L1, 7.1.1)
+  after `SetArchived` (`:205`) succeeds with archive on, and
+  `handleDeleteTopic` (`:245`) after `DeleteTopic` (`:251`). A failed delete
+  is logged and the archive still answers: an archived topic's loops fire
+  nothing anyway (4.2 step 7). Unarchiving restores none. A topic pause
   (spec 179) keeps them and fires nothing; resume needs no step.
 - **By the author leaving** the workspace, or losing the archive right: the
   loop fires nothing (4.2 step 7); the dialog says why, and anyone allowed
@@ -599,8 +608,8 @@ the store keeps it as the record of each fire.
 
 | row | depends on | kind | scope | tests and red control |
 |---|---|---|---|---|
-| **L1 rdb + store** | — | `complex_coding` | `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_topic_loops.sql` (`topic_loops` with the v0.4 columns of 5.1, `messages.loop_id`, the topic-head functions); `internal/store/{topic_loop.go,topic_loop_postgres.go,topic_loop_memory.go,topic_loop_test.go}`; `view_postgres.go`, `view_topics_batch.go`, `fallback_postgres.go`, `fallback_memory.go`; `rls_test.go`; `internal/channelmove/catalogue.go` | `PRE_PUSH_TIER=full`: Postgres + Memory parity; each of the twelve keys is accepted and an unknown one refused; each field CHECK (keyword, idle, daily) refuses a stray or missing value; `ClaimDueTopicLoops` claims each of the three due columns, reports it in `Due`, moves `daily_due_at` across a DST change in `Europe/Helsinki` by one local day; `ArmTopicLoopIdle` / `ClearTopicLoopIdle` touch only that task's idle loops; the cap `UPDATE` never passes 12 under two concurrent fires and rolls over after an hour; a `loop_id` row is in no view, no topic head and no fallback read; RLS covers the table. Red control: drop `AND m.loop_id IS NULL` from the topic view statement, and the hidden-row test fails. |
-| **L2 hub** | L1 (Q10, Q11: recommended answer behind one switch) | `complex_coding` | `internal/hub/{topic_loop.go,topic_loop_fire.go,topic_loop_test.go,topic_loop_fire_test.go}`; the hooks in `wui.go` (before and after the store) and `ws.go`; the `fanoutWUI` skip; the time ticker `runTopicLoopTimer` | Each of the twelve boxes fires on its event; the keyword match at word edges (and not inside a word); a file post fires `post_has_file`, a plain one does not; a blocker fires from an agent-to-agent send, a browser post and a kind change, and the kind change back does not; an idle loop fires once after n minutes with no agent reply, never after an agent reply, and re-arms on a later human post; a daily loop fires once a day at its local time; an issue status change fires the loops of each linked topic once, a priority-only change does not; `before_agent_reply`'s prompt reaches the box before the post; a time loop fires once per due tick across two hub instances and never catches up a burst; a post matching two boxes fires once; a replay does not; a loop prompt message does not; HUB-0 and pause notices do not; paused loops, paused and archived topics do not; the 13th fire in an hour does not; the policy table (`everyone`, `admins`, `starter`); no browser frame for a loop row; `TestRoundTripsPerRequest` shows no extra round trip on a tenant with no loop. Red control: remove the cap check, and the agent-reply self-fire test passes 12. |
+| **L1 rdb + store** | — | `complex_coding` | `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_topic_loops.sql` (`topic_loops` with the v0.4 columns of 5.1, `messages.loop_id`, the topic-head functions); `internal/store/{topic_loop.go,topic_loop_postgres.go,topic_loop_memory.go,topic_loop_test.go}`; `view_postgres.go`, `view_topics_batch.go`, `fallback_postgres.go`, `fallback_memory.go`; `rls_test.go`; `internal/channelmove/catalogue.go` | `PRE_PUSH_TIER=full`: Postgres + Memory parity; each of the twelve keys is accepted and an unknown one refused; each field CHECK (keyword, idle, daily) refuses a stray or missing value; `ClaimDueTopicLoops` claims each of the three due columns, reports it in `Due` and its pre-move time in `DueAt` (v0.5), moves `daily_due_at` across a DST change in `Europe/Helsinki` by one local day; `ArmTopicLoopIdle` / `ClearTopicLoopIdle` touch only that task's idle loops; the cap `UPDATE` never passes 12 under two concurrent fires and rolls over after an hour; a `loop_id` row is in no view, no topic head and no fallback read; RLS covers the table. Red control: drop `AND m.loop_id IS NULL` from the topic view statement, and the hidden-row test fails. |
+| **L2 hub** | L1 (Q10, Q11: recommended answer behind one switch) | `complex_coding` | `internal/hub/{topic_loop.go,topic_loop_fire.go,topic_loop_test.go,topic_loop_fire_test.go}`; the hooks in `wui.go` (before and after the store) and `ws.go`; the `fanoutWUI` skip; the time ticker `runTopicLoopTimer`; v0.5: the `DeleteTopicLoops` calls in `topic_archive.go` (4.5) | Each of the twelve boxes fires on its event; the keyword match at word edges (and not inside a word); a file post fires `post_has_file`, a plain one does not; a blocker fires from an agent-to-agent send, a browser post and a kind change, and the kind change back does not; an idle loop fires once after n minutes with no agent reply, never after an agent reply, and re-arms on a later human post; a daily loop fires once a day at its local time; an issue status change fires the loops of each linked topic once, a priority-only change does not; `before_agent_reply`'s prompt reaches the box before the post; a time loop fires once per due tick across two hub instances and never catches up a burst; a post matching two boxes fires once; a replay does not; a loop prompt message does not; HUB-0 and pause notices do not; paused loops, paused and archived topics do not; the 13th fire in an hour does not; v0.5: a loop with `every_n_minutes` and `daily_at` whose daily fire follows an interval fire sends both (two msg_ids); archiving or deleting the topic leaves no loop, unarchiving brings none back; a member whose session id is not a v:1 id sets a loop that fires, from the derived `HUM-<n>`; the policy table (`everyone`, `admins`, `starter`); no browser frame for a loop row; `TestRoundTripsPerRequest` shows no extra round trip on a tenant with no loop. Red control: remove the cap check, and the agent-reply self-fire test passes 12. |
 | **L2b orc** | L1 | `simple_coding` | `spl-unanswered-sweep.func.sh`, `unanswered-sweep-classify.py`, `spl-take-auto.func.sh` and their tests | a loop row is never listed, re-sent or escalated, and never taken. Red control: drop the skip, and the sweep test lists the loop prompt as unanswered. |
 | **L3 wui** | L2 | `simple_coding`, then `i18n` (agy has the last word on the locales) | `msg-menu.mjs`, `topic-menu.mjs`, `MessageMenu.vue`, `MessageCard.vue`, `TopicLoopsDialog.vue`, `spool-client*.mjs`, `i18n/locales/*.json` | `pnpm run typecheck`, `test:unit` (i18n parity, untranslated and raw-text gates, cleancode, a `topic-loops` unit test of the menu lock, the form's at-least-one-trigger rule, and each of the four fields required exactly with its box: n, keyword, idle n, time and zone). Red control: a raw string in the dialog, and `i18n-no-raw-text` fails. |
 | **L4 e2e** | L3 | `tests` | `csi-spl-wui/tests/e2e/topic-loops.test.mjs` | `BASE_URL=<bundle> pnpm run test:e2e` on the mock: add a loop from the menu, edit it, pause it, delete it; a human post shows no loop prompt card in the topic. Red control: skip the emit, and the dialog never opens. |
@@ -665,7 +674,7 @@ type TopicLoop struct {
 	TaskID      string    // uuid, lower case
 	Prompt      string
 	Triggers    []string  // distinct, sorted
-	SetBy       string    // HUM-n
+	SetBy       string    // the author's member id (v0.5): see "The author's two ids" below
 	SetAt       time.Time
 	State       string    // TopicLoopOn | TopicLoopPaused
 	HourStart   time.Time // zero: never fired
@@ -685,6 +694,7 @@ type TopicLoop struct {
 	DailyTZ    string    // IANA zone; "" is read and written as "UTC"
 	DailyDueAt time.Time // zero: no daily_at, or paused
 	Due        []string  // set only by ClaimDueTopicLoops: the time keys that came due this claim
+	DueAt      time.Time // v0.5, set only by ClaimDueTopicLoops: the earliest of NextDueAt, DailyDueAt that came due, as it was BEFORE the move; zero when only the idle key came due
 }
 
 // TopicLoopEdit: nil / empty fields are kept. A changed Prompt or Triggers
@@ -727,7 +737,8 @@ type TopicLoopStore interface {
 	// by the interval, DailyDueAt to the next DailyAt in DailyTZ, and sets
 	// IdleDueAt to zero; each row as claimed carries Due (v0.4: was only
 	// NextDueAt), e.g. ["every_n_minutes", "no_reply_after_human"], and
-	// IdlePost as it was before the clear.
+	// IdlePost as it was before the clear, and DueAt (v0.5) as it was
+	// before the move.
 	ClaimDueTopicLoops(ctx context.Context, at time.Time, limit int) ([]TopicLoop, error)
 	// ArmTopicLoopIdle (v0.4, 4.2 step 11): on every state-on loop of taskID
 	// with no_reply_after_human, IdleDueAt = at + IdleMin and IdlePost =
@@ -777,8 +788,37 @@ folded list wants it. A fire with no trigger post (v0.4) seeds on its cause:
 | fire | seed after `"topic-loop:" + loopID + ":"` |
 |---|---|
 | a post trigger, `before_agent_reply`, `no_reply_after_human` | the trigger post's `msg_id` (for idle: `IdlePost`) |
-| `every_hour`, `every_n_minutes`, `daily_at` | `"due:" + <the due time claimed, RFC 3339 UTC>` |
+| `every_hour`, `every_n_minutes`, `daily_at` | `"due:" + DueAt` (RFC 3339 UTC; v0.5: the pre-move value the claim returns, never a post-move column) |
 | `issue_status_changed` | `"issue:" + <number> + ":" + <new status> + ":" + <write time, RFC 3339 UTC>` |
+
+Why the pre-move value (v0.5, c-970 point 1): the post-move columns are
+not one per fire. A loop with `every_n_minutes` (60) and `daily_at` (09:00):
+the 08:30 interval fire moves `next_due_at` to 09:30 and seeds on the
+earliest post-move value, 09:30; the 09:00 daily fire leaves `next_due_at`
+at 09:30, moves `daily_due_at` to tomorrow and seeds on 09:30 again. Same
+msg_id, so the daily fire is a no-op insert and is lost. A pre-move value
+is claimed once per column (the claim moves it past `at`), and two columns
+due at the same time come due in the same claim and fire once (4.2 step 5).
+Postgres `RETURNING` sees the new row, so L1 returns the old value from the
+claim's locked `SELECT ... FOR UPDATE SKIP LOCKED` sub-query, joined in the
+`UPDATE ... FROM`; Memory copies it before the move.
+
+**The author's two ids** (v0.5, c-970 point 3). A browser request carries
+two: the member id `hum` (`memberID`, `internal/hub/resolve.go:117`), which
+`access` (`rbac.go:45`) and `mayArchiveByPolicy` read, and the v:1 `from`
+(`editorID`, `edit.go:241`), which is `hum` when `msg.ValidID(hum)` and else
+a `HUM-<n>` minted per hub process (`edit.go:246-249`, `humans.session`,
+`wui.go:167`). On a Postgres hub a member id is `HUM-<n>` (rdb 0006
+`humans.human_id` default `'HUM-' || nextval('humans_seq')`), so the two
+are equal there; they differ for a session id that is not a v:1 id (spec
+014 OQ-014-3, e.g. `HUM-google-sub-1@t1`, `wui.go:168`).
+So `SetBy` stores `hum` (route: `q.hum`, not `q.from`), and every policy and
+membership check of 4.2 step 7 and 4.5 reads it. Where a v:1 id is needed
+(the fired message's `from`, the mark line, the `before_human_reply` match
+on an agent reply's `to`, and the loop JSON's `set_by`) the hub derives it
+from `SetBy` by the same rule as `editorID`. A minted id is per process, as
+it is for every post that member makes today: nothing new. `By` of
+`TopicLoopEdit` is the editor's `hum` too.
 
 The keyword match is the hub's, not the store's:
 `topicLoopKeyword(keyword, body string) bool` in
@@ -936,4 +976,23 @@ v0.4 also: 1.5 records the answer; Q10's note covers the new post triggers
 (1.4); 4.3 step 4 names the target of each new trigger; 7.2 maps each
 trigger to its rows.
 
-<!-- version: 0.4 · updated: 2026-11-20 · last-edit: 2026-11-20T10:30:00Z -->
+### 8.2 Changes from v0.4 (c-970's three points, msg `9dc69b0c`)
+
+- **Point 1, corrected: the time-fire seed.** It is `"due:" + DueAt`, the
+  pre-move due time; new field `TopicLoop.DueAt`, filled only by
+  `ClaimDueTopicLoops` (L1). The post-move value loses a daily fire that
+  follows an interval fire (7.1.1). L2 seeds on `DueAt` and drops
+  `loopDueClaimed`'s post-move scan; its fallback to the claim's minute
+  stays for a zero `DueAt`. The seed string format is unchanged.
+- **Point 2, owned: archive deletes loops.** Row L2: the two calls in
+  `topic_archive.go` (4.5); L1 already has `DeleteTopicLoops`. Topic delete
+  added (v0.5).
+- **Point 3, corrected: `SetBy` is the member id** (`hum`), not the v:1
+  `from`; the v:1 id is derived at fire time by `editorID`'s rule (7.1.1,
+  "The author's two ids"). Equal on a Postgres hub today, so this fixes the
+  other session sources, not a live defect. No column or JSON field
+  changes: `set_by` stays 1..64 characters (a longer member id is refused
+  with `400 bad_loop`), and the JSON shows the derived v:1 id.
+- Unchanged: every other name, route and column of v0.4.
+
+<!-- version: 0.5 · updated: 2026-11-20 · last-edit: 2026-11-20T10:55:00Z -->

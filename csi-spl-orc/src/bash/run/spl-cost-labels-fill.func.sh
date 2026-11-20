@@ -21,9 +21,12 @@
 # @description                             (CheckCostEntryLabels)
 # @description   cost_entry_labels         every locale's row, master included
 # @description   hr_cost_component_labels  every locale's row
-# @description Refused before any write: a master_locale other than
-# @description cost_label_settings', a renamed text a cost_allocations row keys
-# @description on (source cost_entry), a component the table lacks; and by the
+# @description Refused before any write: no cost_label_settings row (e.g. no
+# @description operator scope), a master_locale other than its, a rename whose
+# @description old OR new text a cost_allocations row keys on (source
+# @description cost_entry), an entry this action did not rename (its master row
+# @description is not stamped do_spl_cost_labels_fill) already carrying a new
+# @description text (two items would merge), a component the table lacks; and by the
 # @description file check: a locale missing, a text outside 1..100 characters,
 # @description two keys sharing one master text. DRY_RUN=1 (default) runs it all
 # @description in a transaction that is rolled back and prints the plan. The
@@ -139,11 +142,19 @@ CREATE TEMP TABLE cl_want_c ON COMMIT DROP AS
   SELECT c.key AS component, l.key AS locale, l.value AS label
     FROM cl_doc, jsonb_each(d -> 'components') c, jsonb_each_text(c.value) l;
 SELECT CASE
+  WHEN NOT EXISTS (SELECT 1 FROM cost_label_settings)
+    THEN 'cost_label_settings reads no row (no operator scope, or no master locale set)'
   WHEN (SELECT master_locale FROM cost_label_settings) IS DISTINCT FROM (SELECT d ->> 'master_locale' FROM cl_doc)
     THEN 'the mapping''s master_locale is not cost_label_settings.master_locale'
   WHEN EXISTS (SELECT 1 FROM cost_allocations a JOIN cl_t t ON a.source = 'cost_entry' AND a.project_or_vendor = t.cur
                WHERE t.cur <> t.master_text)
     THEN 'a renamed entry text is a cost_allocations key (source cost_entry)'
+  WHEN EXISTS (SELECT 1 FROM cost_allocations a JOIN cl_t t ON a.source = 'cost_entry' AND a.project_or_vendor = t.master_text
+               WHERE t.cur <> t.master_text)
+    THEN 'a renamed entry''s new text is already a cost_allocations key (source cost_entry)'
+  WHEN EXISTS (SELECT 1 FROM cl_t t JOIN cost_entry_labels l ON l.entry_id = t.id AND l.locale = (SELECT d ->> 'master_locale' FROM cl_doc)
+               WHERE t.cur = t.master_text AND t.src <> t.master_text AND l.updated_by <> 'do_spl_cost_labels_fill')
+    THEN 'an entry already carries a renamed text and this action did not rename it (two items would merge)'
   WHEN EXISTS (SELECT 1 FROM cl_want_c w LEFT JOIN hr_cost_components c USING (component) WHERE c.component IS NULL)
     THEN 'a mapped component is not in hr_cost_components'
   ELSE '' END AS refusal \gset

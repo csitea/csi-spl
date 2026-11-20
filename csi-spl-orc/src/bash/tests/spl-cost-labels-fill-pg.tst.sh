@@ -12,11 +12,13 @@
 #      fi row reads the fi text, an unmapped entry is untouched
 #   4. a second run plans 0 and changes nothing (idempotent)
 #   5. refused, nothing written: a cost_allocations row keyed on a text to be
-#      renamed; a mapping whose master_locale is not the table's
-#   CONTROLS: a copy of the action without the allocation guard commits the
-#   rename case 5 refuses; without its operator scope cost_label_settings
-#   reads empty and the run is refused (RLS binds; the scope line is what
-#   lets it see the rows).
+#      renamed; a rename INTO a text an allocation keys on; a rename into the
+#      text another entry (not renamed by this action) already carries; a
+#      mapping whose master_locale is not the table's
+#   CONTROLS (mutated copies of the action): without each of the three
+#   rename guards its case commits; with the rename UPDATE removed the master
+#   row check trips (rc != 0, nothing written); without the operator scope
+#   cost_label_settings reads no row and the run is refused (RLS binds).
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -154,16 +156,53 @@ mkmap "$T/maps/fi.json" "d['master_locale'] = 'fi'"
 RMAP="$T/maps/fi.json" DRY=0 run "$ACTION" _spl_cost_labels_fill_run; rc=$?
 [[ $rc -ne 0 ]] && grep -q "REFUSED the mapping's master_locale" "$T/out" && [[ "$(snap)" == "$before" ]] &&
   pass "5 a master_locale other than the table's is refused" || fail "5 master rc=$rc: $(cat "$T/out")"
+psql_owner -c "SET app.rls_scope = 'operator'" -c "INSERT INTO cost_entries (id, type, label, amount, currency, period, created_by) VALUES
+  ('00000000-0000-4000-8000-000000000006', 'hr', 'Into alloc src', 5, 'EUR', '2026-01-01', 'seed'),
+  ('00000000-0000-4000-8000-000000000007', 'hr', 'Into unmapped src', 5, 'EUR', '2026-01-01', 'seed'),
+  ('00000000-0000-4000-8000-000000000008', 'hr', 'Master check src', 5, 'EUR', '2026-01-01', 'seed');
+  INSERT INTO cost_entry_labels (entry_id, locale, label, updated_by) SELECT id, 'en', label, 'seed' FROM cost_entries
+    WHERE id IN ('00000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000008');
+  INSERT INTO cost_allocations (source, project_or_vendor, kind, workspace_id, share_bp, created_by) VALUES ('cost_entry', 'Into alloc target', 'hr', 'w1', 10000, 'seed')" >/dev/null
+mkmap "$T/maps/into-alloc.json" "d['entries']['Into alloc src'] = all19(lambda l: 'Into alloc target')"
+mkmap "$T/maps/into-unmapped.json" "d['entries']['Into unmapped src'] = all19(lambda l: 'Unmapped fixture')"
+mkmap "$T/maps/master-check.json" "d['entries']['Master check src'] = all19(lambda l: 'Master check new')"
+before="$(snap)"
+RMAP="$T/maps/into-alloc.json" DRY=0 run "$ACTION" _spl_cost_labels_fill_run; rc=$?
+[[ $rc -ne 0 ]] && grep -q "REFUSED a renamed entry's new text is already a cost_allocations key" "$T/out" && [[ "$(snap)" == "$before" ]] &&
+  pass "5 a rename INTO a text an allocation keys on is refused, nothing written" || fail "5 into-alloc rc=$rc: $(cat "$T/out")"
+RMAP="$T/maps/into-unmapped.json" DRY=0 run "$ACTION" _spl_cost_labels_fill_run; rc=$?
+[[ $rc -ne 0 ]] && grep -q "REFUSED an entry already carries a renamed text and this action did not rename it" "$T/out" && [[ "$(snap)" == "$before" ]] &&
+  pass "5 a rename into the text another entry already carries is refused, nothing written" || fail "5 into-unmapped rc=$rc: $(cat "$T/out")"
 
 # CONTROLS -------------------------------------------------------------------
-sed "/WHEN EXISTS (SELECT 1 FROM cost_allocations/,+2d" "$ACTION" >"$T/no-guard.sh"
+# mutate <out> <needle>: the action without the WHEN line holding needle and
+# its 2 following lines (the guard's condition and its THEN)
+mutate() { awk -v n="$2" 'index($0, n) { skip = 3 } skip > 0 { skip--; next } { print }' "$ACTION" >"$1"; }
+mutate "$T/no-guard.sh" "a.project_or_vendor = t.cur"
 RMAP="$T/maps/alloc.json" DRY=0 run "$T/no-guard.sh" _spl_cost_labels_fill_run; rc=$?
 [[ $rc -eq 0 && "$(q "SELECT count(*) FROM cost_entries WHERE label = 'Allocated fixture renamed'")" == 1 ]] &&
   pass "CONTROL without the allocation guard the rename commits (the guard is what refuses)" || fail "CONTROL guard rc=$rc: $(cat "$T/out")"
+mutate "$T/no-into-alloc.sh" "a.project_or_vendor = t.master_text"
+RMAP="$T/maps/into-alloc.json" DRY=0 run "$T/no-into-alloc.sh" _spl_cost_labels_fill_run; rc=$?
+[[ $rc -eq 0 && "$(q "SELECT count(*) FROM cost_entries WHERE label = 'Into alloc target'")" == 1 ]] &&
+  pass "CONTROL without the new-text allocation guard the rename into an allocation key commits" || fail "CONTROL into-alloc rc=$rc: $(cat "$T/out")"
+mutate "$T/no-into-unmapped.sh" "FROM cl_t t JOIN cost_entry_labels l ON l.entry_id = t.id"
+RMAP="$T/maps/into-unmapped.json" DRY=0 run "$T/no-into-unmapped.sh" _spl_cost_labels_fill_run; rc=$?
+[[ $rc -eq 0 && "$(q "SELECT count(*) FROM cost_entries WHERE label = 'Unmapped fixture'")" == 2 ]] &&
+  pass "CONTROL without the foreign-entry guard the rename merges two items into one text" || fail "CONTROL into-unmapped rc=$rc: $(cat "$T/out")"
+sed "/^UPDATE cost_entries ce SET label = t.master_text/d" "$ACTION" >"$T/no-rename.sh"
+before="$(snap)"
+RMAP="$T/maps/master-check.json" DRY=0 run "$T/no-rename.sh" _spl_cost_labels_fill_run; rc=$?
+[[ $rc -ne 0 ]] && grep -q "CHECK master rows unequal to cost_entries.label= 1" "$T/out" && [[ "$(snap)" == "$before" &&
+   "$(q "SELECT count(*) FROM cost_entries WHERE label = 'Master check src'")" == 1 ]] &&
+  pass "CONTROL with the rename UPDATE removed the master row check trips, rc != 0, nothing written" || fail "CONTROL master check rc=$rc: $(cat "$T/out")"
+RMAP="$T/maps/master-check.json" DRY=0 run "$ACTION" _spl_cost_labels_fill_run; rc=$?
+[[ $rc -eq 0 ]] && grep -q "CHECK master rows unequal to cost_entries.label= 0" "$T/out" &&
+  pass "the same mapping through the real action commits with the check at 0" || fail "master check real rc=$rc: $(cat "$T/out")"
 sed "/SET LOCAL app.rls_scope = 'operator';/d" "$ACTION" >"$T/no-scope.sh"
 DRY=1 run "$T/no-scope.sh" _spl_cost_labels_fill_run
-grep -q "REFUSED the mapping's master_locale" "$T/out" && ! grep -q "^PLAN" "$T/out" &&
-  pass "CONTROL without the operator scope cost_label_settings reads empty and the run is refused (RLS binds)" ||
+grep -q "REFUSED cost_label_settings reads no row" "$T/out" && ! grep -q "^PLAN" "$T/out" &&
+  pass "CONTROL without the operator scope cost_label_settings reads no row and the run is refused (RLS binds)" ||
   fail "CONTROL scope: $(cat "$T/out")"
 
 echo "fails=$fails"

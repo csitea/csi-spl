@@ -206,7 +206,7 @@ func (s *Memory) ViewTopics(_ context.Context, tenant string, q TopicQuery) ([]T
 	match := map[string]bool{}
 	seen := map[string]bool{}
 	for _, m := range s.liveLocked(tenant, q.Now) { // oldest first
-		if q.Channel != "" && m.Channel != q.Channel {
+		if m.LoopID != "" || (q.Channel != "" && m.Channel != q.Channel) { // spec 182 5.2: no line of any topic
 			continue
 		}
 		if q.DM && m.Channel != "" {
@@ -287,7 +287,7 @@ func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([
 		}
 	}
 	for _, m := range ms {
-		if m.TaskID != q.TaskID || (q.HideArchived && !m.ArchivedAt.IsZero()) {
+		if m.TaskID != q.TaskID || m.LoopID != "" || (q.HideArchived && !m.ArchivedAt.IsZero()) {
 			continue
 		}
 		if !q.AfterAt.IsZero() && !newer(m.ReceivedAt, m.MsgID, q.AfterAt, q.AfterID) {
@@ -332,7 +332,7 @@ func (s *Memory) ViewChannels(_ context.Context, tenant string, now time.Time) (
 	defer s.mu.Unlock()
 	byCh := map[string]*ChannelRow{}
 	for _, m := range s.liveLocked(tenant, now) {
-		if m.Channel == "" {
+		if m.Channel == "" || m.LoopID != "" { // spec 182 5.2
 			continue
 		}
 		r := byCh[m.Channel]

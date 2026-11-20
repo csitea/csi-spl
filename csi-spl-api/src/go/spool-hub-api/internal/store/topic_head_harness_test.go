@@ -40,7 +40,7 @@ const refTopicsSQL = `WITH d AS (
 				OR (m.channel IS NULL AND (m.from_id = $12::text OR m.to_id = $12::text))) AS door
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND ($3::text = '' OR m.channel = $3::text)
-				AND (NOT $4::bool OR m.channel IS NULL)
+				AND (NOT $4::bool OR m.channel IS NULL) AND m.loop_id IS NULL
 		), t AS (
 			SELECT task_id, max(received_at) AS last_at,
 				(array_agg(parent_task_id::text ORDER BY received_at, msg_id::text))[1] AS first_parent

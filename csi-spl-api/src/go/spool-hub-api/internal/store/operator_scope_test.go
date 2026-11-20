@@ -18,6 +18,7 @@ import (
 // it is added here with its reason, i.e. until someone has reviewed it.
 var operatorCallers = map[string]string{
 	"Sweep":                      "retention sweeper (hub goroutine), global by design; no route",
+	"ClaimDueTopicLoops":         "discussion loop time ticker (spec 182 4.2 step 5, row L1; the goroutine is row L2's runTopicLoopTimer): claims the due loops of every workspace; no route",
 	"ApplyChannelMove":           "channel workspace move P4 (spec 169 T5, SPL-4595): one transaction writes <DST> and deletes from <SRC>; owner-only operator endpoint (T7)",
 	"ChannelMoveProofRead":       "channel workspace move P7 (spec 169 T7, SPL-4598): the proofs read <SRC> and the hub-wide tables, READ ONLY, in one snapshot; owner-only operator endpoint, behind the GO",
 	"ApplyChannelCopy":           "channel workspace copy (spec 169 T11, SPL-4595): one transaction reads <SRC> and writes <DST>, <SRC> untouched; owner-only operator endpoint (T7)",

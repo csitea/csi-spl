@@ -421,6 +421,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// topic_loops (rdb 0299, spec 182 row L1): one loop on the seeded topic.
+	if _, err := pg.AddTopicLoop(ctx, s.tenant, TopicLoop{TaskID: s.taskID, Prompt: "p", Triggers: []string{LoopAfterAgentReply},
+		SetBy: hum, SetAt: now}); err != nil {
+		t.Fatal(err)
+	}
 	// dm_agents (rdb 0228, spec 151 T001): one agent the seeded member added
 	// to their DM with another person.
 	dmPair, err := NewDMPair(DMEnd{hum, "box-wui"}, DMEnd{"HUM-dm-peer", "box-wui"})

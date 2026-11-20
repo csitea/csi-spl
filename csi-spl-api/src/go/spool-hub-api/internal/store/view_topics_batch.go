@@ -92,12 +92,13 @@ func (s *Postgres) ViewTopicsMessages(ctx context.Context, tenant string, q Topi
 }
 
 // topicsDoor is the per-message read door (rdb 0028, the same predicate as
-// ViewTopic) and the lobby's archived rows (specs/041) as SQL over m, with
-// its arguments appended after args ($1..$4).
+// ViewTopic), the lobby's archived rows (specs/041) and the loop prompt
+// messages (rdb 0299, spec 182 5.2: shown to nobody) as SQL over m, with its
+// arguments appended after args ($1..$4).
 func topicsDoor(q TopicsMsgQuery, args []any) (string, []any) {
-	door := "true"
+	door := "m.loop_id IS NULL"
 	if q.Reader != "" {
-		door = `((m.channel IS NULL AND (m.from_id = $5 OR m.to_id = $5))
+		door += ` AND ((m.channel IS NULL AND (m.from_id = $5 OR m.to_id = $5))
 			OR m.channel = ANY($6::text[]) OR m.channel = ANY($7::text[]))`
 		args = append(args, q.Reader, PublicChannels, q.ReaderChannels)
 	}

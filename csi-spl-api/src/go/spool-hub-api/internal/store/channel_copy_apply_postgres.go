@@ -72,6 +72,7 @@ var cpCarried = map[string]bool{
 	"spec_sync_map": false,
 	"usage_events":  false, "token_budgets": false, "workspace_events": false, "operator_audit": false,
 	"demo_post_audit": false, "sql_query_audit": false,
+	"topic_loops": false, // spec 182: a snapshot does not start firing a topic's loops
 }
 
 func cpCheckRequest(req ChannelCopyRequest) error {

@@ -24,7 +24,8 @@ type WUIWaker interface {
 	// not listened for. fn must not block.
 	ListenWakes(ctx context.Context, box func(tenant, box string), wui func(tenant, msgID string)) error
 	// FanoutRow reads what the browser fan-out of a stored message needs:
-	// ids, parties, channel, received_at, env, is_parent, typed_by.
+	// ids, parties, channel, received_at, env, is_parent, typed_by and
+	// loop_id (spec 182 7.1.1: a loop prompt message is never fanned out).
 	// ErrNotFound when absent.
 	FanoutRow(ctx context.Context, tenant, msgID string) (Message, error)
 }
@@ -41,17 +42,17 @@ func (s *Memory) FanoutRow(_ context.Context, tenant, msgID string) (Message, er
 
 func (s *Postgres) FanoutRow(ctx context.Context, tenant, msgID string) (Message, error) {
 	m := Message{TenantID: tenant, MsgID: msgID}
-	var channel, typedBy sql.NullString
+	var channel, typedBy, loopID sql.NullString
 	err := s.queryRowTenant(ctx, tenant, `SELECT task_id::text, channel, from_box, from_id, to_box, to_id,
-			received_at, env, is_parent, typed_by
+			received_at, env, is_parent, typed_by, loop_id::text
 		FROM messages WHERE tenant_id = $1 AND msg_id = $2`, []any{tenant, msgID},
-		&m.TaskID, &channel, &m.FromBox, &m.FromID, &m.ToBox, &m.ToID, &m.ReceivedAt, &m.Env, &m.IsParent, &typedBy)
+		&m.TaskID, &channel, &m.FromBox, &m.FromID, &m.ToBox, &m.ToID, &m.ReceivedAt, &m.Env, &m.IsParent, &typedBy, &loopID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Message{}, ErrNotFound
 	}
 	if err != nil {
 		return Message{}, err
 	}
-	m.Channel, m.TypedBy = channel.String, typedBy.String
+	m.Channel, m.TypedBy, m.LoopID = channel.String, typedBy.String, loopID.String
 	return m, nil
 }

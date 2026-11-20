@@ -432,8 +432,8 @@ func (s *Postgres) Roster(ctx context.Context, tenant string) (map[string][]stri
 const insertMessageSQL = `WITH ins AS (
 		INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts,
 			from_box, from_id, to_box, to_id, kind, body, files, msg, env_sig, env, received_at, expires_at, parent_task_id, is_parent, typed_by,
-			ref_task_id, mirror_of, note_to_self)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::uuid, $22::uuid, $23)
+			ref_task_id, mirror_of, note_to_self, loop_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::uuid, $22::uuid, $23, $24::uuid)
 		ON CONFLICT (tenant_id, msg_id) DO NOTHING
 		RETURNING 1),
 	old AS (SELECT env FROM messages WHERE tenant_id = $1 AND msg_id = $2),
@@ -449,17 +449,17 @@ const sentDeliveryClaim = `
 var (
 	// Both forms carry the flow write (spec 062, flowInsertCTE): its four
 	// parameters follow the insert's.
-	insertMessageOnly = fmt.Sprintf(insertMessageSQL, flowInsertCTE(24))
+	insertMessageOnly = fmt.Sprintf(insertMessageSQL, flowInsertCTE(25))
 	// insertMessageSent adds the (msg_id, to_box) delivery row, sent and
-	// acked at received_at, $24 its expiry, for a new message or a resend of
+	// acked at received_at, $25 its expiry, for a new message or a resend of
 	// the identical envelope ($15) - never for a conflicting one.
-	insertMessageSent = fmt.Sprintf(insertMessageSQL, insertMessageSentDel+flowInsertCTE(25))
+	insertMessageSent = fmt.Sprintf(insertMessageSQL, insertMessageSentDel+flowInsertCTE(26))
 )
 
 // insertMessageSentDel is insertMessageSent's delivery CTE.
 const insertMessageSentDel = `,
 	del AS (INSERT INTO deliveries (tenant_id, msg_id, to_box, state, received_at, expires_at, sent_at, acked_at)
-		SELECT $1, $2, $8, 'sent', $16, $24::timestamptz, $16, $16
+		SELECT $1, $2, $8, 'sent', $16, $25::timestamptz, $16, $16
 		WHERE EXISTS (SELECT 1 FROM ins) OR (SELECT env FROM old) = $15` + sentDeliveryClaim + `)`
 
 // insertSentDelivery is that delivery leg alone, for the resend that raced
@@ -513,7 +513,7 @@ func (s *Postgres) insertMessage(ctx context.Context, m Message, sentExpires tim
 // insertMessageArgs is insertMessage's statement and parameters: the plain
 // insert, or with sentExpires set the insert plus its sent delivery row.
 func insertMessageArgs(m Message, sentExpires time.Time) (string, []any) {
-	var channel, parent, typedBy, refTask, mirrorOf any
+	var channel, parent, typedBy, refTask, mirrorOf, loopID any
 	if m.Channel != "" {
 		channel = m.Channel
 	}
@@ -529,9 +529,12 @@ func insertMessageArgs(m Message, sentExpires time.Time) (string, []any) {
 	if m.MirrorOf != "" {
 		mirrorOf = m.MirrorOf
 	}
+	if m.LoopID != "" { // spec 182, rdb 0299
+		loopID = m.LoopID
+	}
 	args := []any{m.TenantID, m.MsgID, m.TaskID, channel, m.TS, m.FromBox, m.FromID, m.ToBox, m.ToID,
 		m.Kind, m.Body, string(m.Files), string(m.Msg), m.EnvSig, m.Env, m.ReceivedAt, m.ExpiresAt, parent, parentBit(m.IsParent), typedBy,
-		refTask, mirrorOf, m.NoteToSelf}
+		refTask, mirrorOf, m.NoteToSelf, loopID}
 	sql := insertMessageOnly
 	if !sentExpires.IsZero() {
 		sql, args = insertMessageSent, append(args, sentExpires)

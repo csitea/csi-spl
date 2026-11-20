@@ -88,6 +88,8 @@ var rlsTables = []string{
 	"member_hourly_prices", "commit_human_time",
 	// rdb 0297, spec 179 B1 (SPL-5980): a paused topic, the issues it holds
 	"topic_pauses", "topic_pause_issues",
+	// rdb 0299, spec 182 L1: a discussion's loops
+	"topic_loops",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

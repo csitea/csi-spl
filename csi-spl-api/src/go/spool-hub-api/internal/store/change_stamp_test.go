@@ -24,6 +24,7 @@ var stampTables = []string{
 	"member_clones", "message_kind_changes", "message_moderation", "message_reactions", "message_revisions", "messages",
 	"rbac_roles", "read_marks", "tenant_member_roles", "tenant_memberships", "topic_priorities",
 	"topic_pauses", // rdb 0297, spec 179 B1
+	"topic_loops",  // rdb 0299, spec 182 L1
 }
 
 // stampGlobalTables have no tenant_id: a write moves every tenant's stamp.

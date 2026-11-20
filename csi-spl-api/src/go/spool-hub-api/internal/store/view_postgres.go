@@ -243,8 +243,9 @@ type topicsSQL struct {
 }
 
 // msgs is the message filters on alias a (each call binds the channel anew).
+// A loop prompt message (rdb 0299, spec 182 5.2) is no line of any topic.
 func (b *topicsSQL) msgs(a string) string {
-	w := a + ".tenant_id = " + b.tn + " AND " + a + ".expires_at > " + b.now
+	w := a + ".tenant_id = " + b.tn + " AND " + a + ".expires_at > " + b.now + " AND " + a + ".loop_id IS NULL"
 	if b.q.Channel != "" {
 		w += " AND " + a + ".channel = " + b.c.arg(b.q.Channel)
 	}
@@ -475,6 +476,7 @@ func newTopicPage(tenant string, q TopicMsgQuery) *topicPage {
 	if q.Desc {
 		order = "ORDER BY received_at DESC, msg_id::text DESC"
 	}
+	// A loop prompt message (rdb 0299, spec 182 5.2) is shown to nobody.
 	// The per-message read door (rdb 0028). In the statement, not after it,
 	// so LIMIT counts only messages this reader may see and a page is never
 	// short because the rest of it was filtered away afterwards.
@@ -498,6 +500,7 @@ func newTopicPage(tenant string, q TopicMsgQuery) *topicPage {
 			WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3
 				AND ($4::timestamptz IS NULL OR (received_at, msg_id::text) > ($4::timestamptz, $5::text))
 				AND ($7::timestamptz IS NULL OR (received_at, msg_id::text) < ($7::timestamptz, $8::text))
+				AND loop_id IS NULL
 				AND ` + door + archived + `
 			` + order + `
 			LIMIT $6`, args: append([]any{tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID}, doorArgs...),
@@ -585,7 +588,7 @@ func scanViewMsg(rows pgx.Rows, lead ...any) (ViewMsg, error) {
 func (s *Postgres) ViewChannels(ctx context.Context, tenant string, now time.Time) ([]ChannelRow, error) {
 	out := []ChannelRow{}
 	err := s.queryTenant(ctx, tenant, `SELECT channel, count(*)::int, max(received_at) FROM messages
-		WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2
+		WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2 AND loop_id IS NULL
 		GROUP BY channel ORDER BY channel`, []any{tenant, now}, func(rows pgx.Rows) error {
 		var r ChannelRow
 		if err := rows.Scan(&r.Channel, &r.Count, &r.LastAt); err != nil {

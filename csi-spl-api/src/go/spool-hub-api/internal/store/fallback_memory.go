@@ -204,9 +204,10 @@ func (s *Memory) ReescalatablePosts(_ context.Context, tenant string, since, esc
 }
 
 // humanPostIn: m is a signed post a human typed in the WUI, received in
-// [since, until) - the only lines the fallback ever answers for.
+// [since, until) - the only lines the fallback ever answers for. A loop
+// prompt message (spec 182 5.2) is none.
 func humanPostIn(m *Message, since, until time.Time) bool {
-	return m.FromBox == "box-wui" && strings.HasPrefix(m.FromID, "HUM-") && m.EnvSig != "" &&
+	return m.FromBox == "box-wui" && strings.HasPrefix(m.FromID, "HUM-") && m.EnvSig != "" && m.LoopID == "" &&
 		!m.ReceivedAt.Before(since) && m.ReceivedAt.Before(until)
 }
 

@@ -275,5 +275,10 @@ cron DRY_RUN=0 ACCEPT_CRON_ACTION=remove
 cron ACCEPT_CRON_ACTION=bogus; rc=$?
 (( rc == 1 )) && grep -q 'FATAL ACCEPT_CRON_ACTION' "$T/o" && pass "11. a bad action is refused" || fail "11. bad action rc=$rc"
 
+# --- 11b. no override: the log dir derives from SPL_VAR_APP_DIR (r74-01) ----------
+cron ACCEPT_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1; rc=$?
+(( rc == 0 )) && grep -qF "flock -n $T/var/accepted-close/accepted-close.cron.lock " "$T/o" && grep -qF ">> $T/var/accepted-close/cron.out 2>&1" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "11b. no override: the lock and cron.out sit under \$SPL_VAR_APP_DIR/accepted-close, a dry run creates nothing" || fail "11b. derived log dir rc=$rc $(cat "$T/o")"
+
 echo "spl-accepted-close: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

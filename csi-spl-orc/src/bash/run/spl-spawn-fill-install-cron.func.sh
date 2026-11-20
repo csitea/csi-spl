@@ -37,7 +37,11 @@ do_spl_spawn_fill_install_cron() {
   DESK_CRON_SELF_UPDATE=0 spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   run="$src/$SPL_ORG_APP-orc/run"
-  logdir="${SPAWN_FILL_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/spawn-fill}"
+  logdir="${SPAWN_FILL_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir spawn-fill || { do_log "FATAL cannot derive the spawn fill cron log dir (no tree for spl_run_paths): set SPAWN_FILL_CRON_LOG_DIR"; return 1; }
+  fi
   # shellcheck disable=SC2016 # $HOME is for the cron shell, not this one
   line="$(printf '*/%s * * * * cd %s && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin DRY_RUN=0 flock -n %s/spawn-fill.lock ./run -a do_spl_spawn_fill >> %s/cron.out 2>&1 # %s' "$min" "${run%/run}" "$logdir" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"

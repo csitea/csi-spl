@@ -35,7 +35,11 @@ do_spl_topic_archive_suggest_install_cron() {
   DESK_CRON_SELF_UPDATE=0 spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   script="$src/$SPL_ORG_APP-orc/src/bash/scripts/topic-archive-suggest-cron.sh"
-  logdir="${ARCHIVE_SUGGEST_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/topic-archive-suggest}"
+  logdir="${ARCHIVE_SUGGEST_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir topic-archive-suggest || { do_log "FATAL cannot derive the topic archive suggest cron log dir (no tree for spl_run_paths): set ARCHIVE_SUGGEST_CRON_LOG_DIR"; return 1; }
+  fi
   line="$(printf '17 * * * * flock -n %s/topic-archive-suggest.cron.lock /bin/bash %s >> %s/cron.log 2>&1 # %s' "$logdir" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
   if [[ "$act" == check ]]; then

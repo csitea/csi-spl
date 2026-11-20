@@ -41,7 +41,11 @@ do_spl_security_round_install_cron() {
   DESK_CRON_SELF_UPDATE=0 spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   run="$src/$SPL_ORG_APP-orc/run"
-  logdir="${SECURITY_ROUND_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/security-round}"
+  logdir="${SECURITY_ROUND_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir security-round || { do_log "FATAL cannot derive the security round cron log dir (no tree for spl_run_paths): set SECURITY_ROUND_CRON_LOG_DIR"; return 1; }
+  fi
   # shellcheck disable=SC2016 # $HOME and $(date) are for the cron shell; \% is cron's escape for %
   line="$(printf '30 * * * * [ "$(date -u +\\%%u)" = 5 ] && cd %s && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin && [ "$(./run -a do_spl_rhythm_phase 2>/dev/null)" = night ] && DRY_RUN=0 flock -n %s/security-round.lock ./run -a do_spl_security_round_queue >> %s/cron.out 2>&1 # %s' "${run%/run}" "$logdir" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"

@@ -248,6 +248,11 @@ cron DRY_RUN=0 SECURITY_ROUND_CRON_ACTION=remove >/dev/null 2>&1
 ! grep -q 'security-round' "$T/crontab" && grep -q 'spawn-place' "$T/crontab" && pass "cron: remove takes only its line" || fail "cron remove: $(cat "$T/crontab")"
 cron SECURITY_ROUND_CRON_ACTION=nuke >/dev/null 2>&1 && fail "cron: a bad action was taken" || pass "cron: a bad action is refused"
 
+# --- 6b. no override: the log dir derives from SPL_VAR_APP_DIR (r74-01) ----------
+cron SECURITY_ROUND_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1 >"$T/o" 2>&1; rc=$?
+(( rc == 0 )) && grep -qF "flock -n $T/var/security-round/security-round.lock " "$T/o" && grep -qF ">> $T/var/security-round/cron.out 2>&1" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "6b. no override: the lock and cron.out sit under \$SPL_VAR_APP_DIR/security-round, a dry run creates nothing" || fail "6b. derived log dir rc=$rc $(cat "$T/o")"
+
 # 7. the installed line at a fake clock ------------------------------------------
 # The date shim answers for FAKE_NOW (`date -d now` and a bare `date`) up to
 # the line's own PATH=; the fake ./run runs the REAL do_spl_rhythm_phase at

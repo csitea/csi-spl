@@ -361,6 +361,11 @@ cron DRY_RUN=0 ARCHIVE_SUGGEST_CRON_ACTION=remove
 ! grep -q '# csi-spl:topic-archive-suggest$' "$T/crontab" && grep -q 'desk-reconcile$' "$T/crontab" &&
   pass "9. remove takes only its line" || fail "9. remove: $(cat "$T/crontab")"
 
+# --- 9b. no override: the log dir derives from SPL_VAR_APP_DIR (r74-01) ----------
+cron ARCHIVE_SUGGEST_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1; rc=$?
+(( rc == 0 )) && grep -qF "flock -n $T/var/topic-archive-suggest/topic-archive-suggest.cron.lock " "$T/o" && grep -qF ">> $T/var/topic-archive-suggest/cron.log 2>&1" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "9b. no override: the lock and cron.log sit under \$SPL_VAR_APP_DIR/topic-archive-suggest, a dry run creates nothing" || fail "9b. derived log dir rc=$rc $(cat "$T/o")"
+
 echo "---"
 [[ $fails == 0 ]] && echo "spl-topic-archive-suggest: all passed" || echo "spl-topic-archive-suggest: $fails FAILED"
 exit $((fails > 0))

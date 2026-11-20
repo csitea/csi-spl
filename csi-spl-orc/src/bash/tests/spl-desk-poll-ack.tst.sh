@@ -320,5 +320,10 @@ cron DRY_RUN=0 POLL_ACK_CRON_ACTION=remove
 cron POLL_ACK_CRON_ACTION=bogus; rc=$?
 (( rc == 1 )) && grep -q 'FATAL POLL_ACK_CRON_ACTION' "$T/o" && pass "12. a bad action is refused" || fail "12. bad action rc=$rc"
 
+# --- 12b. no override: the log dir derives from SPL_VAR_APP_DIR (r74-01) ----------
+cron POLL_ACK_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1; rc=$?
+(( rc == 0 )) && grep -qF "flock -n $T/var/poll-ack/poll-ack.cron.lock " "$T/o" && grep -qF ">> $T/var/poll-ack/cron.out 2>&1" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "12b. no override: the lock and cron.out sit under \$SPL_VAR_APP_DIR/poll-ack, a dry run creates nothing" || fail "12b. derived log dir rc=$rc $(cat "$T/o")"
+
 echo "spl-desk-poll-ack: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

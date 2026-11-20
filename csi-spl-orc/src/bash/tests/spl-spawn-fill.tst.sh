@@ -378,6 +378,10 @@ cron SPAWN_FILL_CRON_ACTION=check >"$T/o" 2>&1 && grep -q 'OK the idle filler is
 cron DRY_RUN=0 SPAWN_FILL_CRON_ACTION=remove >/dev/null 2>&1
 ! grep -q 'spawn-fill' "$T/crontab" && grep -q 'spawn-place' "$T/crontab" && pass "cron: remove takes only its line" || fail "cron remove: $(cat "$T/crontab")"
 cron SPAWN_FILL_CRON_MIN=60 >/dev/null 2>&1 && fail "cron: a 60 min gap was taken" || pass "cron: SPAWN_FILL_CRON_MIN past 59 is refused"
+# --- 7b. no override: the log dir derives from SPL_VAR_APP_DIR (r74-01) ----------
+cron SPAWN_FILL_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1 >"$T/o" 2>&1; rc=$?
+(( rc == 0 )) && grep -qF "flock -n $T/var/spawn-fill/spawn-fill.lock " "$T/o" && grep -qF ">> $T/var/spawn-fill/cron.out 2>&1" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "7b. no override: the lock and cron.out sit under \$SPL_VAR_APP_DIR/spawn-fill, a dry run creates nothing" || fail "7b. derived log dir rc=$rc $(cat "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

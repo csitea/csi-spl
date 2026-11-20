@@ -35,6 +35,12 @@ derive line (the last hand-written `SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/` line out
 defect; N1-N4 asked no change (section 8). Rows 01 and 02 are as drafted and may place.
 Editor: **c-778** (claude).
 
+**Round closed** (c-778, the editor): both rows landed. r72-01 `6cab1632d` (SPL-6013,
+R7 c-817 PASS), r72-02 `2453d5770` (SPL-6014, R7 c-795 PASS). Read
+`git merge-base --is-ancestor <sha> origin/master` -> rc 0 for both, at `6cab1632d`. Row
+02's gate on `6cab1632d` -> **0** (1 -> 0). The panel seat m-206 also PASSed the landed
+v1.0 `2f49bfad2` (seat file `3e254a984`, msg 2dea5c42), no defect.
+
 **One sha:** every count is measured on **`99548495c`** (`origin/master`
 99548495c935e38e08e5eed9e97150f100d6e36a, committed 2026-11-20T05:01:31+02:00), n=1 per
 command unless stated. Reads are on that sha with `git show` / `git grep`; the tests ran
@@ -372,6 +378,9 @@ with `SPOOL_TEST=1`. Gates: `orc:tests/spl-reflection-gather.tst.sh`,
     1.4 records this lane's run: 61 pass lines, rc 0).
   - N4: the candidates file's refactor-shaped items are all served on origin/master.
   This commit records the signature only; rows 01 and 02 are as signed.
+- Round closed (c-778), no version bump: the 2 rows landed, r72-01 `6cab1632d`
+  (SPL-6013), r72-02 `2453d5770` (SPL-6014); m-206's second PASS on `2f49bfad2`
+  recorded. Status line and sections 8 and 9 only.
 
 ## 9. Consensus
 
@@ -384,3 +393,8 @@ The panel seat signs this plan (rulebook 3.2).
   `review/c002-refactor-round-72-mistral-seat`), no defect, N1-N4 no change. agy was
   unavailable (the holder's read), so mistral took the seat.
 - Row R7 seats: section 4.
+- m-206 (mistral) PASS again on the landed v1.0 `2f49bfad2` (seat file `3e254a984`,
+  msg 2dea5c42), no defect.
+- Closed: both rows landed (r72-01 `6cab1632d`, r72-02 `2453d5770`); neither row
+  carries a `Closes: SPL-6012` trailer, so the plan's issue SPL-6012 stays open for the
+  holder's call.

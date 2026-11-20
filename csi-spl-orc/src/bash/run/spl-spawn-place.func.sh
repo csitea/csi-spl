@@ -105,9 +105,10 @@
 # @description         agy when the brief's "Kind:" is specs_and_docs or i18n
 # @description         (a review stays cross-vendor to a claude author, SPL-2942).
 # @description         A review seat (slug ending -reviewer, or Kind: review)
-# @description         stays mistral (SPL-3954, owner msg 594d77e1: mistral may
-# @description         review UI work read-only); on a mistral author it is
-# @description         refused, handed back to the holder (SPL-3776)
+# @description         or a panel seat (slug ending -panel-seat, read-only,
+# @description         SPL-6028) stays mistral (SPL-3954, owner msg 594d77e1:
+# @description         mistral may review UI work read-only); on a mistral
+# @description         author it is refused, handed back to the holder (SPL-3776)
 # @description      AGY OUT (SPL-3018): while agy is out on every box (this
 # @description         box: agy's banner in the watchdog's pane capture, or an
 # @description         S2 kind=limit verdict on an a- lane), a row swapped to agy
@@ -1006,14 +1007,16 @@ spl_spawn_place_reopen() {  # BRIEF SLUG WHY [COMMENT]
 # secret brief read as coding put a claude reviewer on a claude author), the
 # UI rule since SPL-3954 (owner HUM-10, t1 1be0e370, msg 594d77e1: "Mistral
 # may review them, read-only (it writes no code; your UI-work rule still
-# holds for building)"). A mistral review seat on a mistral author
-# (spl_spawn_place_authors) prints "refuse\t<why>".
+# holds for building)"). A panel seat (slug ending -panel-seat, SPL-6028)
+# is read-only too, its scope its seat file, though its brief says Kind:
+# specs_and_docs, so it is spared the same way. A mistral review or panel seat
+# on a mistral author (spl_spawn_place_authors) prints "refuse\t<why>".
 spl_spawn_place_swap() {  # VENDOR BRIEF
   local why kind to=claude dr au cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
   [[ "$1" == mistral ]] || { printf '%s\t\n' "$1"; return 0; }
   declare -F spl_lane_mix_mistral_ui_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
   kind="$(spl_lane_mix_brief_kind "$2")"
-  if spl_spawn_place_review_seat "$2" "$kind"; then
+  if spl_spawn_place_review_seat "$2" "$kind" || [[ "$(basename "$2" .md)" == *-panel-seat ]]; then
     au="$(spl_spawn_place_authors "$2" | awk -F'\t' '$1 == "mistral" { printf "%s%s", (n++ ? ", " : ""), $2 }')"
     [[ -z "$au" ]] || { printf 'refuse\ta review seat on mistral would review its author'"'"'s vendor (mistral: %s), so it is not placed (SPL-3776)\n' "$au"; return 0; }
     printf '%s\t\n' "$1"; return 0

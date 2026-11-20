@@ -1110,6 +1110,9 @@ done
 # mistral -reviewer seat whose brief names csi-spl-wui/ stays mistral; a
 # mistral review seat on a mistral author is refused. The ui-code and
 # ui-hover rows of 13 are the control: a mistral build row on WUI still swaps.
+# SPL-6028: a panel seat (slug ending -panel-seat, Kind: specs_and_docs) is
+# read-only too: a mistral one whose brief quotes a csi-spl-wui/src/ path
+# stays mistral (it swapped to agy before); on a mistral author it is refused.
 R1=c3c3c3c3-0000-4000-8000-000000000001; R2=c4c4c4c4-0000-4000-8000-000000000002
 R3=c5c5c5c5-0000-4000-8000-000000000003; R4=c6c6c6c6-0000-4000-8000-000000000004
 printf 'Kind: secret\nThe cross-vendor R7 reviewer of c-709@box-desk, review only.\n%s\n' "$ES" >"$T/briefs/sec-x-reviewer.md"
@@ -1118,7 +1121,10 @@ R5=c7c7c7c7-0000-4000-8000-000000000005
 printf 'Kind: secret\nAuthor: m-709@box-desk\nR7 review of m-709@box-desk; files csi-spl-wui/src/utils/key.mjs; asks go to c-001.\n%s\n' "$ES" >"$T/briefs/sec-ui-reviewer.md"
 printf 'Kind: secret\nAuthor: g-709@box-desk\nR7 review of g-709 (prior seat c-711); files csi-spl-wui/src/utils/key.mjs\n%s\n' "$ES" >"$T/briefs/sec-grok-reviewer.md"
 printf 'Kind: specs_and_docs\nAuthor: c-715@box-desk\nR7 review of c-715; files csi-spl-wui/src/pages/docs.vue\n%s\n' "$ES" >"$T/briefs/ui-docs-reviewer.md"
-for r in "$R1 sec-x-reviewer m-511 mistral" "$R2 sec-code c-512 claude" "$R4 sec-grok-reviewer m-514 mistral" "$R5 ui-docs-reviewer m-515 mistral"; do
+R6=c8c8c8c8-0000-4000-8000-000000000006; R7=c9c9c9c9-0000-4000-8000-000000000007
+printf 'Kind: specs_and_docs\nAuthor: c-717@box-desk\nRead-only panel seat on the plan of c-717. Live lanes to stay off: r99-01 edits csi-spl-wui/src/components/Foo.vue\n%s\n' "$ES" >"$T/briefs/r99-plan-panel-seat.md"
+printf 'Kind: specs_and_docs\nAuthor: m-718@box-desk\nRead-only panel seat on the plan of m-718; it names csi-spl-wui/src/pages/docs.vue\n%s\n' "$ES" >"$T/briefs/r98-plan-panel-seat.md"
+for r in "$R1 sec-x-reviewer m-511 mistral" "$R2 sec-code c-512 claude" "$R4 sec-grok-reviewer m-514 mistral" "$R5 ui-docs-reviewer m-515 mistral" "$R6 r99-plan-panel-seat m-516 mistral"; do
   read -r rid rslug rlid rto <<<"$r"
   put "$rid" c-002@box-desk "dispatch-spl3776-$rslug" "SPAWN REQUEST $rslug"
   on pc do_spl_spawn_enqueue ASK_ID="$rid" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE="mistral:$rslug" >/dev/null 2>&1
@@ -1139,6 +1145,15 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=c-513 2>&1)"
   pass "SPL-3776: a mistral review seat on a mistral author is handed back, nothing launched" ||
   fail "SPL-3776 refusal: $out | launch: $(cat "$T/launch.log") | $(sends) | $(hubrow "$R3")"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$R3" --by c-001@box-desk --reason "placed: g-513@box-desk" >/dev/null
+put "$R7" c-002@box-desk dispatch-spl6028-r98-plan-panel-seat "SPAWN REQUEST r98-plan-panel-seat"
+on pc do_spl_spawn_enqueue ASK_ID="$R7" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE=mistral:r98-plan-panel-seat >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=m-519 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$R7")")" == acked && ! -s "$T/launch.log" && ! -e "$T/pc/spool/asks/.place.last" ]] &&
+  grep -q "place ask ${R7:0:8} now.*review seat on mistral would review its author's vendor (mistral: m-718)" "$T/send.log" &&
+  pass "SPL-6028: a mistral panel seat on a mistral author is handed back, nothing launched" ||
+  fail "SPL-6028 refusal: $out | launch: $(cat "$T/launch.log") | $(sends) | $(hubrow "$R7")"
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$R7" --by c-001@box-desk --reason "placed: c-519@box-desk" >/dev/null
 
 # 13b. SPL-3018: the agy swap target out of quota. Its record on this box is
 # agy's banner in the watchdog's pane capture (ctx*/a-*/pane, reset = the

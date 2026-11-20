@@ -1,12 +1,16 @@
 # Spec 182: Topic Loop Prompt (Discussion Loops)
 
-Status: **Draft v0.3** (2026-11-20). Lane `c-301` (`claude`, backup for
+Status: **Draft v0.4** (2026-11-20). Lane `c-301` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `bc0353485`; v0.2 folds the
 owner's answers to form `2c1c3f5d` (msg `a198ae53`) and the two requirements
 in msgs `eae9e64f` and `19acb8f9`; v0.2 `d17f582cb`; v0.3 folds Q9 (msg
 `e05bec70`, poll `7e28ed23`), the six triggers (msg `d44af000`), the worked
 example (msg `92050cbc`) and the suggested triggers (msg `ad30fe25`), and
-adds the binding contracts of 7.1 (section 8).
+adds the binding contracts of 7.1 (section 8); v0.3 `d01889cfd`; v0.4 takes
+all six extra triggers (msg `a1d73b19`, poll `39cc8497`) into the decided
+set: twelve triggers (1.2), their hooks (4.2), store and contracts (5.1,
+7.1), the rows that own each (7.2), and the one list of contract changes
+for the lanes building on v0.3 (8.1).
 Epic: **SPL-2398**. Issue: **SPL-6022**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f08c0c58-9228-4e2a-af00-dbbdbd328083` (`t1`).
 Builds on: [179 pause the agents of a discussion](../179-pause-agents-of-a-discussion/spec.md)
@@ -58,6 +62,7 @@ spec applies them:
 | Q7 | **C** — only the menu entry; nothing on the topic or the messages | 4.1; no badge, no notes |
 | Q8 | **A** — the loop's author, marked as sent by the loop | 4.3 step 2; the mark is `messages.loop_id` |
 | Q9 | **A** — yes, the agent's answer is an ordinary reply in the topic (msg `e05bec70`, poll `7e28ed23`) | 4.3 step 2, 4.4 step 1 |
+| Extra triggers | **all six**: KW, ATT, BLK, IDL, ISS, DLY (msg `a1d73b19`, poll `39cc8497`) | 1.2 rows 7 to 12, 4.2 steps 8 to 12 |
 
 ### 1.1 Answer 2 and msg eae9e64f, reconciled
 
@@ -76,7 +81,7 @@ topic's task id that the agent receives, but the topic never shows it:
 The agent's **answer** is shown, as an ordinary reply in the topic (Q9 A,
 1.3).
 
-### 1.2 The six triggers (msg d44af000)
+### 1.2 The twelve triggers (msgs d44af000 and a1d73b19)
 
 HUM-10 (msg `d44af000`, verbatim): "so it must have the check boxes , of
 "after reach reply by an agent , before each rely of an each , after each
@@ -92,10 +97,20 @@ three:
 | `before_human_reply` | before each human reply | **[Q11]**; proposed: an agent reply addressed to the loop's author is stored (the moment before the author replies) | 4.2 step 4 |
 | `every_hour` | each hour | 60 minutes after the last time fire | 4.2 step 5 |
 | `every_n_minutes` | each n minutes | n minutes after the last time fire; n is 5..1440 | 4.2 step 5 |
+| `post_has_keyword` | a post that contains a word or phrase you type (KW) | an agent reply or a human post whose body contains the loop's `keyword`: case-free, whole words | 4.2 step 8 |
+| `post_has_file` | a post with a file attached (ATT) | an agent reply or a human post stored with at least one file | 4.2 step 9 |
+| `blocker_posted` | a blocker posted in the topic (BLK) | a row of kind `blocker` stored on the topic's task id, from anyone to anyone (agent-to-agent too), or a post's kind set to `blocker` | 4.2 step 10 |
+| `no_reply_after_human` | no reply for n minutes after a human post (IDL) | n minutes (`idle_min`, 5..1440) after a human post with no agent reply since; a later human post restarts the count | 4.2 step 11 |
+| `issue_status_changed` | an issue linked to the topic changes status (ISS) | an issue linked to the topic (`issue_discussions`) is written with a new status | 4.2 step 12 |
+| `daily_at` | every day at a set time (DLY) | once a day at `daily_at` (hh:mm) in the loop's own time zone `daily_tz` | 4.2 step 5 |
+
+The first six are from msg `d44af000`; the last six are the owner's answer
+to the extra-triggers form (1.5).
 
 The cap stays 12 fires per loop per hour (answer 4 B), so n is at least 5:
 12 fires an hour is the most `every_n_minutes` can fire. A post that matches
-two checked boxes fires once.
+two checked boxes fires once. The cap counts every fire of a loop, whatever
+trigger caused it.
 
 v0.2's "only another human's post" is not in the owner's list and is
 dropped.
@@ -135,12 +150,22 @@ Q11. What does "before each human reply" mean?
   `grep -rln '"typing"' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go`
   -> nothing; it needs a WUI-to-hub frame and its own row.
 
-### 1.5 Suggested extra triggers (msg ad30fe25)
+Q10 A covers every post trigger, not only `after_agent_reply`: the agent's
+answer to a loop prompt can also contain the keyword, carry a file (the
+worked example's PDF, if it is posted) or be a blocker. Under A none of them
+fires the loop that sent the prompt; under B each fires it again up to the
+cap.
+
+### 1.5 Extra triggers, answered (msgs ad30fe25, a1d73b19)
 
 HUM-10 (msg `ad30fe25`): "suggest also different type of triggers which
 might be worth doing and setting in the modal dialog box during the
-configuration setting of the loop". Each is a suggestion for the owner to
-take or drop; none is in the build rows until taken.
+configuration setting of the loop". The form below went out as poll
+`39cc8497`; HUM-10 took all six (msg `a1d73b19`, verbatim): "Answer:
+KW,ATT,BLK,IDL,ISS,DLY — A post that contains a word or phrase you type; A
+post with a file attached; A blocker posted in the topic; No reply for n
+minutes after a human post; An issue linked to the topic changes status;
+Every day at a set time". They are rows 7 to 12 of 1.2. The form, as sent:
 
 ```poll
 Which extra triggers should the loop dialog offer? Pick any.
@@ -152,14 +177,14 @@ Which extra triggers should the loop dialog offer? Pick any.
 [DLY] Every day at a set time
 ```
 
-| key | what it costs |
-|---|---|
-| `KW` | a text field and one case-free whole-word match per stored post, in the hub; no new event |
-| `ATT` | none beyond the trigger check: the stored post already carries its files |
-| `BLK` | none beyond the trigger check: `kind = blocker` on the stored post |
-| `IDL` | a timer per loop on the time-trigger tick (4.2 step 5), reset by every reply |
-| `ISS` | a hook in the hub's issue status write and the `issue_discussions` join; the prompt quotes the issue, not a post |
-| `DLY` | a time and the workspace's time zone on the time-trigger tick |
+| key | trigger (1.2) | what it costs, measured on `d01889cfd` |
+|---|---|---|
+| `KW` | `post_has_keyword` | a text field and one case-free whole-word match per stored post, in the hub; no new event |
+| `ATT` | `post_has_file` | none beyond the trigger check: the stored row carries its files (`store.Message.Files`, `internal/store/store.go:138`, v:1 `files[]` JSON) |
+| `BLK` | `blocker_posted` | the check on every stored box send of the topic (not only agent replies), and one hook where a post's kind is set (`handleSetMessageKind`, `internal/hub/message_kind.go:65`; the change branch `if c.Seq > 0`, `:123`) |
+| `IDL` | `no_reply_after_human` | a due time per loop on the time ticker (4.2 step 5), armed by a human post, cleared by an agent reply |
+| `ISS` | `issue_status_changed` | a hook in the hub's one issue write (`updateIssue`, `internal/hub/issues.go:419`, store call `:449`) and the link read `IssueDiscussionLinks` (`internal/store/issue_discussions.go:94`); the prompt quotes the issue, not a post |
+| `DLY` | `daily_at` | a time and a time zone per loop on the time ticker. The workspace has no time zone today (`git grep -il time_zone origin/master -- csi-spl-api/src/go/spool-hub-api/internal/store/` lists only the calendar files), so the loop keeps its own IANA zone, the calendar event's rule (`TimeZone`, `internal/store/calendar.go:156`; "" is UTC) |
 
 ## 2. Terms
 
@@ -175,8 +200,11 @@ Which extra triggers should the loop dialog offer? Pick any.
   draws.
 - **Human post**: a post a signed-in member stores from the browser
   (`from_box = box-wui`, `from_id = HUM-*`), not a note to self.
-- **Time fire**: a fire of `every_hour` or `every_n_minutes`, with no
-  trigger post.
+- **Time fire**: a fire of `every_hour`, `every_n_minutes`, `daily_at` or
+  `no_reply_after_human`, from the time ticker. The first three have no
+  trigger post; `no_reply_after_human` quotes the human post that armed it.
+- **Issue fire**: a fire of `issue_status_changed`; it quotes the issue
+  change, not a post.
 - **Loop prompt message**: the message a fire stores and delivers; its
   `messages.loop_id` names the loop (section 5.2).
 - Never a trigger: a hub note (`HUB-0`, `PublicNoticeFrom`,
@@ -221,9 +249,13 @@ Paths under `internal/` are in `csi-spl-api/src/go/spool-hub-api/`.
    - per row: **Edit**, **Pause** / **Resume**, **Delete**;
    - **Add loop**.
    Add and Edit open the same form: the prompt (a textarea, at most 4000
-   characters) and the six checkboxes of 1.2 (answer 3 B), with a number
-   field for n (5..1440) next to "each n minutes". At least one must be
-   checked. Under "after each agent reply" the form says what Q10 decides
+   characters) and the twelve checkboxes of 1.2 (answer 3 B), with a number
+   field for n (5..1440) next to "each n minutes", a text field (1..200
+   characters) next to "a post that contains", a number field for n
+   (5..1440) next to "no reply for n minutes", and a time (hh:mm) plus a
+   time zone (default: the browser's zone) next to "every day at". Each
+   field is required exactly when its box is checked. At least one box must
+   be checked. Under "after each agent reply" the form says what Q10 decides
    (whether the agent's own answers fire the loop again).
 3. The routes, with the shape of `PUT /v1/topics/{task_id}/priority`
    (`internal/hub/topic_priority.go:38`, handler `:52`, auth
@@ -248,8 +280,8 @@ carry nothing new, so their statements and round trips do not change.
 ### 4.2 Trigger
 
 Every fire is decided by `topicLoopFire(ctx, tenant, task, event)`, where
-`event` is one of the six trigger keys of 1.2 plus the post (none for a time
-fire). The hooks:
+`event` is one of the twelve trigger keys of 1.2 plus the post (none for a
+time fire, the issue change for an issue fire). The hooks:
 
 1. **`after_human_reply`**: in `wuiAfterStore` (`wui.go:647`), after
    `ownerPrioWord`. `wuiAfterStore` runs only for an inserted row
@@ -269,15 +301,20 @@ fire). The hooks:
 4. **`before_human_reply`** **[Q11]**: under Q11 A, the hook of step 2 when
    the agent reply's `to` is the loop's author. Under B, a new WUI frame
    (row L3b, not in v0.3). Under C, the box is not offered.
-5. **`every_hour`, `every_n_minutes`**: a hub ticker,
-   `runTopicLoopTimer`, every 60 s, the pattern of the calendar sync
-   (`runGcalSync`, `internal/hub/gcal_sync.go:79-98`, `gcalSyncEvery` 60 s,
-   `:44`). Each tick claims due loops with one `UPDATE ... WHERE next_due_at
-   <= now() ... RETURNING` (`ClaimDueTopicLoops`, 7.1.1), which also moves
-   `next_due_at` on, so two hub instances never fire the same tick. A tick
-   missed while no instance ran fires once at the next tick: no catch-up
-   burst. A time fire's prompt quotes the topic's latest post, or says "no
-   new post since the last fire".
+5. **`every_hour`, `every_n_minutes`, `daily_at`, `no_reply_after_human`**:
+   a hub ticker, `runTopicLoopTimer`, every 60 s, the pattern of the
+   calendar sync (`runGcalSync`, `internal/hub/gcal_sync.go:79-98`,
+   `gcalSyncEvery` 60 s, `:44`). Row L2 owns it. Each tick claims due loops
+   with one `UPDATE ... WHERE least(next_due_at, idle_due_at, daily_due_at)
+   <= now() ... RETURNING` (`ClaimDueTopicLoops`, 7.1.1), which moves each
+   due column on in the same statement (`next_due_at` by the interval,
+   `daily_due_at` to the next day's `daily_at` in `daily_tz`, `idle_due_at`
+   to NULL) and says which keys came due (`TopicLoop.Due`), so two hub
+   instances never fire the same tick. A tick missed while no instance ran
+   fires once at the next tick: no catch-up burst. Two keys due in one tick
+   fire once. A time fire's prompt quotes the topic's latest post, or says
+   "no new post since the last fire"; an idle fire quotes the human post
+   that armed it (`idle_post`).
 6. `topicLoopFire` reads the topic's `on` loops with one index probe
    (`(tenant_id, task_id)`). To keep a tenant with no loops at zero extra
    probes, a per-tenant "has loops" bit is kept in memory and refreshed on
@@ -298,6 +335,49 @@ fire). The hooks:
      them edit loops (answer 5 A);
    - the loop's cap is not reached: under 12 fires in its current hour
      (answer 4 B).
+8. **`post_has_keyword`**: in the two post hooks (steps 1 and 2), on an
+   agent reply or a human post whose body contains the loop's `keyword`,
+   case-free, at word edges (a phrase matches as a whole; "PDF" matches
+   "pdf," but not "pdfs"). The match is one pure function in the hub,
+   `topicLoopKeyword(keyword, body string) bool`, on the body as stored
+   (markdown, not rendered), over the loops already read in step 6: no
+   extra store probe.
+9. **`post_has_file`**: in the same two hooks, on an agent reply or a human
+   post whose `Files` (`store.go:138`) holds at least one file.
+10. **`blocker_posted`**: three places, any sender, any recipient:
+    - `onSend` (`ws.go:702-716`), for every inserted row with
+      `kind = blocker` on the topic's task id, also agent-to-agent (unlike
+      step 2, which takes agent replies only);
+    - `wuiAfterStore` (`wui.go:647`) for a browser post stored as a
+      blocker;
+    - `handleSetMessageKind` (`message_kind.go:123`, inside `if c.Seq > 0`),
+      when `c.To == blockerKind` and `c.From != blockerKind`: a post marked
+      a blocker afterwards. The quoted post is that message.
+    The blocker-issue sweep (`RunBlockerIssues`, `blocker_issue.go:90`) is
+    not a hook: it reads blockers after the fact, and would fire late and
+    twice.
+11. **`no_reply_after_human`**: armed in step 1's hook: every human post
+    sets, on the topic's loops with this trigger, `idle_due_at = post +
+    idle_min` and `idle_post = <its msg_id>` (`ArmTopicLoopIdle`); a later
+    human post re-arms from its own time. Cleared in step 2's hook: any
+    agent reply in the topic sets `idle_due_at = NULL`
+    (`ClearTopicLoopIdle`). Fired by the ticker (step 5), once per arming.
+    A loop prompt message neither arms nor clears it.
+12. **`issue_status_changed`**: in `updateIssue` (`issues.go:419`), after
+    `UpdateIssue` (`:449`) and its fan-out, when `p.Status != nil` and the
+    status differs from the one before the write (the hub reads it with
+    `GetIssue`, `internal/store/issues.go:391`, only when the workspace has
+    loops, step 6). The issue's topics come from `IssueDiscussionLinks`
+    (`issue_discussions.go:94`); each topic's loops with this trigger fire
+    once. Every status change through the hub passes here: the browser's
+    issue route, the agent's (`issues_agent.go`) and the blocker paths
+    (`blocker_issue.go`, `blocker_issue_hold.go`) all call `updateIssue`
+    (`git grep -c "s.updateIssue(" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/hub/` -> 4 files: 1, 2, 1, 1 calls).
+    Not covered: the issues an epic's close cascade closes inside the store
+    (`internal/store/issues.go:195-200`: "that cascade closes its issues
+    inside the store, not through UpdateIssue"); only the epic named in the
+    write fires. The prompt quotes `SPL-<n> <title>: <before> -> <after>,
+    by <actor>`.
 
 ### 4.3 Send
 
@@ -323,8 +403,14 @@ fire). The hooks:
    answers in the topic as with any human's task (Q9 A).
 3. Its `msg_id` is a UUIDv5 of `(loop_id, trigger msg_id)`. A second try for
    the same trigger is then a no-op insert, the rule `postHubNote` uses for
-   its id (`internal/hub/blocker_issue.go:481`).
-4. The box gets it as any `@agent` post (section 3, step 7): inbox plus pane
+   its id (`internal/hub/blocker_issue.go:481`). A fire with no trigger post
+   seeds on its cause instead (7.1.1): a time fire on the due time, an issue
+   fire on the issue, its new status and the time of the write.
+4. Target of the new triggers: a post trigger (`post_has_keyword`,
+   `post_has_file`, `blocker_posted`) follows step 1 (an agent's post goes
+   to that agent, a human's to the topic's agent); `no_reply_after_human`,
+   `daily_at` and `issue_status_changed` go to the topic's agent.
+5. The box gets it as any `@agent` post (section 3, step 7): inbox plus pane
    poke. The desk needs no change.
 
 ### 4.4 Reply
@@ -419,9 +505,16 @@ CREATE TABLE IF NOT EXISTS topic_loops (
     loop_id       uuid        NOT NULL,
     task_id       uuid        NOT NULL,
     prompt        text        NOT NULL CHECK (prompt <> '' AND length(prompt) <= 4000),
-    triggers      text[]      NOT NULL CHECK (triggers <@ ARRAY['after_agent_reply','before_agent_reply','after_human_reply','before_human_reply','every_hour','every_n_minutes'] AND cardinality(triggers) >= 1),
+    triggers      text[]      NOT NULL CHECK (triggers <@ ARRAY['after_agent_reply','before_agent_reply','after_human_reply','before_human_reply','every_hour','every_n_minutes','post_has_keyword','post_has_file','blocker_posted','no_reply_after_human','issue_status_changed','daily_at'] AND cardinality(triggers) >= 1),
     interval_min  integer     CHECK (interval_min BETWEEN 5 AND 1440),
     next_due_at   timestamptz,
+    keyword       text        CHECK (keyword <> '' AND length(keyword) <= 200),
+    idle_min      integer     CHECK (idle_min BETWEEN 5 AND 1440),
+    idle_due_at   timestamptz,
+    idle_post     uuid,
+    daily_at      time,
+    daily_tz      text        NOT NULL DEFAULT 'UTC' CHECK (daily_tz <> '' AND length(daily_tz) <= 64),
+    daily_due_at  timestamptz,
     set_by        text        NOT NULL CHECK (set_by <> '' AND length(set_by) <= 64),
     set_at        timestamptz NOT NULL,
     state         text        NOT NULL DEFAULT 'on' CHECK (state IN ('on','paused')),
@@ -432,16 +525,31 @@ CREATE TABLE IF NOT EXISTS topic_loops (
     awaiting      text        NOT NULL DEFAULT '' CHECK (length(awaiting) <= 64),
     awaiting_until timestamptz,
     PRIMARY KEY (tenant_id, loop_id),
-    CHECK ((interval_min IS NOT NULL) = ('every_n_minutes' = ANY (triggers)))
+    CHECK ((interval_min IS NOT NULL) = ('every_n_minutes' = ANY (triggers))),
+    CHECK ((keyword IS NOT NULL) = ('post_has_keyword' = ANY (triggers))),
+    CHECK ((idle_min IS NOT NULL) = ('no_reply_after_human' = ANY (triggers))),
+    CHECK ((daily_at IS NOT NULL) = ('daily_at' = ANY (triggers)))
 );
 CREATE INDEX IF NOT EXISTS topic_loops_task ON topic_loops (tenant_id, task_id);
-CREATE INDEX IF NOT EXISTS topic_loops_due ON topic_loops (next_due_at) WHERE next_due_at IS NOT NULL AND state = 'on';
+CREATE INDEX IF NOT EXISTS topic_loops_due ON topic_loops (least(next_due_at, idle_due_at, daily_due_at)) WHERE state = 'on';
 ```
 
 - `interval_min` is set exactly when `every_n_minutes` is checked.
-  `next_due_at` is set when a time trigger is checked (`set_at` + the
-  shorter of 60 min and `interval_min`), moved on by every time fire, and
-  NULL otherwise or while paused.
+  `next_due_at` is set when `every_hour` or `every_n_minutes` is checked
+  (`set_at` + the shorter of 60 min and `interval_min`), moved on by every
+  time fire, and NULL otherwise or while paused.
+- `keyword`, `idle_min` and `daily_at` are set exactly when their trigger
+  is checked. `daily_tz` is an IANA zone name; the hub checks it with
+  `time.LoadLocation` before the write (a CHECK cannot), and Postgres reads
+  it in `AT TIME ZONE`. `daily_due_at` is the next `daily_at` in `daily_tz`
+  after the write or the last fire; NULL otherwise or while paused.
+- `idle_due_at` and `idle_post` are written only by the hooks of 4.2 step
+  11 and the ticker; NULL while paused. Resume, and an edit of the triggers
+  or the times, recompute `next_due_at` and `daily_due_at` and clear
+  `idle_due_at`.
+- `least()` skips NULLs in Postgres, so `topic_loops_due` is one index for
+  the three due times; a loop with none of them is a NULL key the ticker's
+  `<= now()` never reads.
 - `awaiting` and `awaiting_until` serve Q10 A (4.4); under B or C they stay
   empty. They exist either way, so L1 does not wait for Q10.
 - The fire counts in the same statement that checks the cap
@@ -480,7 +588,7 @@ the store keeps it as the record of each fire.
 | dialog | dialog patterns of `TopicDeleteDialog.vue`, `TopicExportPdf.vue` | `TopicLoopsDialog.vue` (list + form), keys in the 19 locale files (`csi-spl-wui/i18n/locales/`) |
 | routes | the `PUT /v1/topics/{task_id}/priority` shape (`topic_priority.go:38,52,176`) | `GET`/`POST /v1/topics/{task_id}/loops`, `PUT`/`DELETE .../loops/{loop_id}`, the `topic_loops` frame |
 | store | `TopicPauseStore` layout (`internal/store/topic_pause.go`), `0297` | `topic_loops` + `messages.loop_id` migration, `TopicLoopStore` (Postgres + Memory), RLS registration |
-| trigger hooks | `wuiAfterStore` (`wui.go:647`), `onSend` after store (`ws.go:702-716`) | `topicLoopFire` and its two calls |
+| trigger hooks | `wuiAfterStore` (`wui.go:647`), `onSend` after store (`ws.go:702-716`), `handleSetMessageKind` (`message_kind.go:65,123`), `updateIssue` (`issues.go:419,449`) with `IssueDiscussionLinks` (`issue_discussions.go:94`), the 60 s ticker pattern (`gcal_sync.go:79-98`) | `topicLoopFire`, its calls, `topicLoopKeyword`, the idle arm and clear, `runTopicLoopTimer` |
 | send | `topicAgents` (`topic_reply.go:52`), `dispatchEnvelope` (`dispatch.go:228`), `commitRowTyped` (`ws.go:1037`) | the body, the UUIDv5 id, `loop_id` on the row |
 | hidden prompt | the `note_to_self` precedent (rdb `0278`) | the six places of 5.2 |
 | box and desk | `recv` -> inbox + poke (`hubclient.go:612,988`) | nothing |
@@ -490,10 +598,10 @@ the store keeps it as the record of each fire.
 
 | row | depends on | kind | scope | tests and red control |
 |---|---|---|---|---|
-| **L1 rdb + store** | — | `complex_coding` | `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_topic_loops.sql` (`topic_loops`, `messages.loop_id`, the topic-head functions); `internal/store/{topic_loop.go,topic_loop_postgres.go,topic_loop_memory.go,topic_loop_test.go}`; `view_postgres.go`, `view_topics_batch.go`, `fallback_postgres.go`, `fallback_memory.go`; `rls_test.go`; `internal/channelmove/catalogue.go` | `PRE_PUSH_TIER=full`: Postgres + Memory parity; the cap `UPDATE` never passes 12 under two concurrent fires and rolls over after an hour; a `loop_id` row is in no view, no topic head and no fallback read; RLS covers the table. Red control: drop `AND m.loop_id IS NULL` from the topic view statement, and the hidden-row test fails. |
-| **L2 hub** | L1 (Q10, Q11: recommended answer behind one switch) | `complex_coding` | `internal/hub/{topic_loop.go,topic_loop_fire.go,topic_loop_test.go,topic_loop_fire_test.go}`; the hooks in `wui.go` (before and after the store) and `ws.go`; the `fanoutWUI` skip; the time ticker `runTopicLoopTimer` | Each of the six boxes fires on its event; `before_agent_reply`'s prompt reaches the box before the post; a time loop fires once per due tick across two hub instances and never catches up a burst; a post matching two boxes fires once; a replay does not; a loop prompt message does not; HUB-0 and pause notices do not; paused loops, paused and archived topics do not; the 13th fire in an hour does not; the policy table (`everyone`, `admins`, `starter`); no browser frame for a loop row; `TestRoundTripsPerRequest` shows no extra round trip on a tenant with no loop. Red control: remove the cap check, and the agent-reply self-fire test passes 12. |
+| **L1 rdb + store** | — | `complex_coding` | `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_topic_loops.sql` (`topic_loops` with the v0.4 columns of 5.1, `messages.loop_id`, the topic-head functions); `internal/store/{topic_loop.go,topic_loop_postgres.go,topic_loop_memory.go,topic_loop_test.go}`; `view_postgres.go`, `view_topics_batch.go`, `fallback_postgres.go`, `fallback_memory.go`; `rls_test.go`; `internal/channelmove/catalogue.go` | `PRE_PUSH_TIER=full`: Postgres + Memory parity; each of the twelve keys is accepted and an unknown one refused; each field CHECK (keyword, idle, daily) refuses a stray or missing value; `ClaimDueTopicLoops` claims each of the three due columns, reports it in `Due`, moves `daily_due_at` across a DST change in `Europe/Helsinki` by one local day; `ArmTopicLoopIdle` / `ClearTopicLoopIdle` touch only that task's idle loops; the cap `UPDATE` never passes 12 under two concurrent fires and rolls over after an hour; a `loop_id` row is in no view, no topic head and no fallback read; RLS covers the table. Red control: drop `AND m.loop_id IS NULL` from the topic view statement, and the hidden-row test fails. |
+| **L2 hub** | L1 (Q10, Q11: recommended answer behind one switch) | `complex_coding` | `internal/hub/{topic_loop.go,topic_loop_fire.go,topic_loop_test.go,topic_loop_fire_test.go}`; the hooks in `wui.go` (before and after the store) and `ws.go`; the `fanoutWUI` skip; the time ticker `runTopicLoopTimer` | Each of the twelve boxes fires on its event; the keyword match at word edges (and not inside a word); a file post fires `post_has_file`, a plain one does not; a blocker fires from an agent-to-agent send, a browser post and a kind change, and the kind change back does not; an idle loop fires once after n minutes with no agent reply, never after an agent reply, and re-arms on a later human post; a daily loop fires once a day at its local time; an issue status change fires the loops of each linked topic once, a priority-only change does not; `before_agent_reply`'s prompt reaches the box before the post; a time loop fires once per due tick across two hub instances and never catches up a burst; a post matching two boxes fires once; a replay does not; a loop prompt message does not; HUB-0 and pause notices do not; paused loops, paused and archived topics do not; the 13th fire in an hour does not; the policy table (`everyone`, `admins`, `starter`); no browser frame for a loop row; `TestRoundTripsPerRequest` shows no extra round trip on a tenant with no loop. Red control: remove the cap check, and the agent-reply self-fire test passes 12. |
 | **L2b orc** | L1 | `simple_coding` | `spl-unanswered-sweep.func.sh`, `unanswered-sweep-classify.py`, `spl-take-auto.func.sh` and their tests | a loop row is never listed, re-sent or escalated, and never taken. Red control: drop the skip, and the sweep test lists the loop prompt as unanswered. |
-| **L3 wui** | L2 | `simple_coding`, then `i18n` (agy has the last word on the locales) | `msg-menu.mjs`, `topic-menu.mjs`, `MessageMenu.vue`, `MessageCard.vue`, `TopicLoopsDialog.vue`, `spool-client*.mjs`, `i18n/locales/*.json` | `pnpm run typecheck`, `test:unit` (i18n parity, untranslated and raw-text gates, cleancode, a `topic-loops` unit test of the menu lock and the form's at-least-one-trigger rule). Red control: a raw string in the dialog, and `i18n-no-raw-text` fails. |
+| **L3 wui** | L2 | `simple_coding`, then `i18n` (agy has the last word on the locales) | `msg-menu.mjs`, `topic-menu.mjs`, `MessageMenu.vue`, `MessageCard.vue`, `TopicLoopsDialog.vue`, `spool-client*.mjs`, `i18n/locales/*.json` | `pnpm run typecheck`, `test:unit` (i18n parity, untranslated and raw-text gates, cleancode, a `topic-loops` unit test of the menu lock, the form's at-least-one-trigger rule, and each of the four fields required exactly with its box: n, keyword, idle n, time and zone). Red control: a raw string in the dialog, and `i18n-no-raw-text` fails. |
 | **L4 e2e** | L3 | `tests` | `csi-spl-wui/tests/e2e/topic-loops.test.mjs` | `BASE_URL=<bundle> pnpm run test:e2e` on the mock: add a loop from the menu, edit it, pause it, delete it; a human post shows no loop prompt card in the topic. Red control: skip the emit, and the dialog never opens. |
 | **L6 orc: topic PDF** | — | `simple_coding` | `csi-spl-orc/src/bash/run/spl-topic-pdf.func.sh` (`do_spl_topic_pdf`: `TOPIC_ID`, `ENV`, `OUT`), a script that renders the topic (its rows from `spool hub-tail --task <uuid> --with-channel`, its pictures from the files API) to HTML and prints it with headless Chrome; a `do_box_pkg_install` record for the Chrome it needs; its test | a fixture topic of 3 posts and 1 picture makes a PDF with 3 posts (`pdftotext` count) and the picture; a missing Chrome fails fast with the install command. Red control: drop the picture fetch, and the picture check fails. |
 | **L7 api: mail a file to a loop's author** | L1, L2 | `secret` (it handles people's addresses; claude or grok, data rule) | `internal/mail/mail.go` (`Message.Attachments`, a MIME multipart body), a box route `mail_file` and the `spool mail-file --task <uuid> --cause <loop prompt msg_id> --file <path> [--subject ...]` verb (`cmd/spool/main.go`); the hub resolves the address of the loop's author, never the agent | the hub mails only when `--cause` is a loop prompt message of that task whose loop's author is the person mailed (else `403 not_allowed`); at most 12 mails per loop per hour; the address is in no log and no answer; the attachment arrives (`mail.Recorder`). Red control: drop the author check, and a test mailing another member passes. |
@@ -524,17 +632,31 @@ const (
 	LoopBeforeHumanReply      = "before_human_reply"
 	LoopEveryHour             = "every_hour"
 	LoopEveryNMinutes         = "every_n_minutes"
-	TopicLoopIntervalMin      = 5    // minutes
+	LoopPostHasKeyword        = "post_has_keyword"     // v0.4
+	LoopPostHasFile           = "post_has_file"        // v0.4
+	LoopBlockerPosted         = "blocker_posted"       // v0.4
+	LoopNoReplyAfterHuman     = "no_reply_after_human" // v0.4
+	LoopIssueStatusChanged    = "issue_status_changed" // v0.4
+	LoopDailyAt               = "daily_at"             // v0.4
+	TopicLoopIntervalMin      = 5    // minutes; also the idle n's bounds
 	TopicLoopIntervalMax      = 1440 // minutes
+	TopicLoopKeywordMax       = 200  // characters, rdb CHECK (v0.4)
 	TopicLoopOn               = "on"
 	TopicLoopPaused           = "paused"
 	TopicLoopPromptMax        = 4000 // characters, rdb CHECK
 )
 
+// TopicLoopTriggers: the twelve keys in the order of 1.2 (v0.4).
+var TopicLoopTriggers = []string{LoopAfterAgentReply, LoopBeforeAgentReply,
+	LoopAfterHumanReply, LoopBeforeHumanReply, LoopEveryHour, LoopEveryNMinutes,
+	LoopPostHasKeyword, LoopPostHasFile, LoopBlockerPosted, LoopNoReplyAfterHuman,
+	LoopIssueStatusChanged, LoopDailyAt}
+
 // ErrBadTopicLoop: an empty or too long prompt, no trigger, an unknown
-// trigger or state, a missing or stray interval, or a set_by not 1..64
+// trigger or state, a missing or stray interval, keyword, idle n or daily
+// time, a daily zone time.LoadLocation refuses, or a set_by not 1..64
 // characters. Before any write.
-var ErrBadTopicLoop = errors.New("store: a topic loop needs a prompt (1..4000 characters), 1..6 known triggers, an interval of 5..1440 minutes exactly with every_n_minutes, state on|paused and who (1..64)")
+var ErrBadTopicLoop = errors.New("store: a topic loop needs a prompt (1..4000 characters), 1..12 known triggers, an interval of 5..1440 minutes exactly with every_n_minutes, a keyword of 1..200 characters exactly with post_has_keyword, an idle n of 5..1440 minutes exactly with no_reply_after_human, a time and a known zone exactly with daily_at, state on|paused and who (1..64)")
 
 type TopicLoop struct {
 	TenantID    string
@@ -553,6 +675,15 @@ type TopicLoop struct {
 	NextDueAt   time.Time // zero: no time trigger, or paused
 	Awaiting    string    // Q10 A: the agent whose next reply does not fire this loop
 	AwaitUntil  time.Time
+	// v0.4
+	Keyword    string    // "" unless post_has_keyword
+	IdleMin    int       // 0 unless no_reply_after_human
+	IdleDueAt  time.Time // zero: not armed, or paused
+	IdlePost   string    // msg_id of the human post that armed it; "" when not armed
+	DailyAt    string    // "hh:mm", "" unless daily_at
+	DailyTZ    string    // IANA zone; "" is read and written as "UTC"
+	DailyDueAt time.Time // zero: no daily_at, or paused
+	Due        []string  // set only by ClaimDueTopicLoops: the time keys that came due this claim
 }
 
 // TopicLoopEdit: nil / empty fields are kept. A changed Prompt or Triggers
@@ -562,6 +693,10 @@ type TopicLoopEdit struct {
 	Triggers []string // nil: keep
 	Interval *int     // nil: keep
 	State    *string
+	Keyword  *string  // v0.4; nil: keep
+	IdleMin  *int     // v0.4; nil: keep
+	DailyAt  *string  // v0.4; nil: keep
+	DailyTZ  *string  // v0.4; nil: keep
 	By       string
 	At       time.Time
 }
@@ -586,9 +721,20 @@ type TopicLoopStore interface {
 	// HourStart <= at - 1h); false when paused, capped or gone.
 	CountTopicLoopFire(ctx context.Context, tenant, loopID string, at time.Time, cap int) (TopicLoop, bool, error)
 	// ClaimDueTopicLoops is the time ticker's one UPDATE (4.2 step 5): up to
-	// limit on loops whose NextDueAt <= at, every workspace, NextDueAt moved
-	// on in the same statement; the rows as claimed.
+	// limit on state-on loops where any of NextDueAt, IdleDueAt, DailyDueAt
+	// is <= at, every workspace. In the same statement it moves NextDueAt on
+	// by the interval, DailyDueAt to the next DailyAt in DailyTZ, and sets
+	// IdleDueAt to zero; each row as claimed carries Due (v0.4: was only
+	// NextDueAt), e.g. ["every_n_minutes", "no_reply_after_human"], and
+	// IdlePost as it was before the clear.
 	ClaimDueTopicLoops(ctx context.Context, at time.Time, limit int) ([]TopicLoop, error)
+	// ArmTopicLoopIdle (v0.4, 4.2 step 11): on every state-on loop of taskID
+	// with no_reply_after_human, IdleDueAt = at + IdleMin and IdlePost =
+	// postID. The count of loops armed.
+	ArmTopicLoopIdle(ctx context.Context, tenant, taskID, postID string, at time.Time) (int, error)
+	// ClearTopicLoopIdle (v0.4): IdleDueAt and IdlePost cleared on every
+	// loop of taskID. The count cleared.
+	ClearTopicLoopIdle(ctx context.Context, tenant, taskID string) (int, error)
 	// SetTopicLoopAwaiting writes Awaiting / AwaitUntil (Q10 A); "" clears.
 	SetTopicLoopAwaiting(ctx context.Context, tenant, loopID, agent string, until time.Time) error
 	// TenantHasTopicLoops refreshes the hub's in-memory bit (4.2 step 6).
@@ -625,7 +771,19 @@ Points the L2 lane asked to pin (c-970, msg `a74cc799`), as decided:
 The fired message's id (4.3 step 3) is
 `uid.FromSeed("topic-loop:" + loopID + ":" + triggerMsgID)`
 (`internal/uid/uid.go:21`), so the UUID is minted where `cleancode_test.go`'s
-folded list wants it.
+folded list wants it. A fire with no trigger post (v0.4) seeds on its cause:
+
+| fire | seed after `"topic-loop:" + loopID + ":"` |
+|---|---|
+| a post trigger, `before_agent_reply`, `no_reply_after_human` | the trigger post's `msg_id` (for idle: `IdlePost`) |
+| `every_hour`, `every_n_minutes`, `daily_at` | `"due:" + <the due time claimed, RFC 3339 UTC>` |
+| `issue_status_changed` | `"issue:" + <number> + ":" + <new status> + ":" + <write time, RFC 3339 UTC>` |
+
+The keyword match is the hub's, not the store's:
+`topicLoopKeyword(keyword, body string) bool` in
+`internal/hub/topic_loop_fire.go` (row L2). The issue hook reads links with
+the existing `IssueDiscussionLinks` (`issue_discussions.go:94`); no new
+store call.
 
 #### 7.1.2 HTTP and WS (L2 serves them, L3 calls them)
 
@@ -638,11 +796,19 @@ The loop JSON, every route's answer:
   "next_due_at": "2026-11-20T10:00:00Z",
   "state": "on", "set_by": "HUM-10", "set_at": "2026-11-20T09:30:00Z",
   "fires_in_hour": 3, "held_until": "2026-11-20T10:12:00Z",
-  "idle": ""
+  "idle": "",
+  "keyword": "pdf", "idle_min": 15,
+  "daily_at": "08:00", "daily_tz": "Europe/Helsinki",
+  "daily_due_at": "2026-11-21T06:00:00Z"
 }
 ```
 
-- `triggers`: any of the six keys of 1.2. `interval_min`: present exactly
+v0.4 keys: `keyword` present exactly with `post_has_keyword`; `idle_min`
+exactly with `no_reply_after_human`; `daily_at`, `daily_tz` and
+`daily_due_at` exactly with `daily_at`. The idle due time is not sent: it
+changes on every post, and the dialog does not show it.
+
+- `triggers`: any of the twelve keys of 1.2. `interval_min`: present exactly
   when `every_n_minutes` is in `triggers`. `next_due_at`: present when a
   time trigger is on.
 - `held_until`: `hour_start + 1h` when `fires_in_hour >= cap`, else omitted.
@@ -652,8 +818,8 @@ The loop JSON, every route's answer:
 | route | body | answer | refusals |
 |---|---|---|---|
 | `GET /v1/topics/{task_id}/loops` | — | `200 {"task_id": "<uuid>", "may_edit": true, "loops": [<loop>...]}` | `404 not_found` (the topic's read door) |
-| `POST /v1/topics/{task_id}/loops` | `{"prompt": "...", "triggers": [...], "interval_min": n}` (`interval_min` only with `every_n_minutes`) | `201 <loop>` | `400 bad_loop`, `403 not_allowed`, `403 demo_read_only`, `404 not_found`, `409 topic_archived` |
-| `PUT /v1/topics/{task_id}/loops/{loop_id}` | any of `{"prompt", "triggers", "interval_min", "state"}` | `200 <loop>` | as POST, and `404 not_found` for no such loop |
+| `POST /v1/topics/{task_id}/loops` | `{"prompt": "...", "triggers": [...], "interval_min": n, "keyword": "...", "idle_min": n, "daily_at": "hh:mm", "daily_tz": "<IANA>"}` (each field only with its trigger; `daily_tz` defaults to `UTC`) | `201 <loop>` | `400 bad_loop`, `403 not_allowed`, `403 demo_read_only`, `404 not_found`, `409 topic_archived` |
+| `PUT /v1/topics/{task_id}/loops/{loop_id}` | any of `{"prompt", "triggers", "interval_min", "keyword", "idle_min", "daily_at", "daily_tz", "state"}` | `200 <loop>` | as POST, and `404 not_found` for no such loop |
 | `DELETE /v1/topics/{task_id}/loops/{loop_id}` | — | `200 {"loop_id": "<uuid>", "deleted": true}` (`false` when it was gone) | `403 not_allowed`, `404 not_found` (topic) |
 | `OPTIONS` on both paths | — | the CORS preflight, as `topicPreflight` (`topic_priority.go:39`) | — |
 
@@ -674,6 +840,22 @@ re-checks every write. After each write the hub sends the topic's readers
 - JSON readers: the hub's task read behind `spool hub-tail --task`
   (`spl-take-auto.func.sh:152`) carries `"loop_id": "<uuid>"` on such a row,
   and omits the key when NULL. L2b's auto-take skips a row that has it.
+
+### 7.2 Which row owns each trigger (v0.4)
+
+| trigger | L1 (rdb + store) | L2 (hub) | L3 (wui) |
+|---|---|---|---|
+| `after_agent_reply`, `after_human_reply`, `before_agent_reply`, `before_human_reply` | the key in the CHECK | the hooks of 4.2 steps 1 to 4 | the box |
+| `every_hour`, `every_n_minutes` | `next_due_at`, `ClaimDueTopicLoops` | the ticker `runTopicLoopTimer` | the box, n |
+| `post_has_keyword` | `keyword` + CHECK | `topicLoopKeyword` in the post hooks (step 8) | the box, the text field |
+| `post_has_file` | the key | the `Files` check in the post hooks (step 9) | the box |
+| `blocker_posted` | the key | the three hooks of step 10 (`onSend`, `wuiAfterStore`, `handleSetMessageKind`) | the box |
+| `no_reply_after_human` | `idle_min`, `idle_due_at`, `idle_post`, `ArmTopicLoopIdle`, `ClearTopicLoopIdle`, the claim | arm and clear in the post hooks, fire from the ticker (step 11) | the box, n |
+| `issue_status_changed` | the key | the hook in `updateIssue` (step 12) | the box |
+| `daily_at` | `daily_at`, `daily_tz`, `daily_due_at`, the claim | fire from the ticker | the box, the time, the zone |
+
+L2 owns the ticker goroutine; L1 owns only the claim. L2b reads no new
+column: v0.4 adds nothing to `messages`.
 
 ## 8. Changes from v0.1
 
@@ -708,4 +890,49 @@ v0.3:
   no agent-made topic PDF (row L6), no way to mail a file (row L7), and the
   self-fire it would cause (Q10).
 
-<!-- version: 0.3 · updated: 2026-11-20 · last-edit: 2026-11-20T10:00:00Z -->
+### 8.1 Changes from v0.3 (for the lanes building on `d01889cfd`)
+
+Every contract change of v0.4, in one list. Nothing of v0.3 is renamed or
+removed; every v0.3 name keeps its meaning except the two marked
+**changed**.
+
+- **Trigger enum** (1.2, 5.1 CHECK, 7.1.1 constants): six new keys,
+  `post_has_keyword`, `post_has_file`, `blocker_posted`,
+  `no_reply_after_human`, `issue_status_changed`, `daily_at`; new
+  constants `LoopPostHasKeyword` .. `LoopDailyAt`, `TopicLoopKeywordMax`,
+  and the slice `TopicLoopTriggers`.
+- **`topic_loops` columns** (5.1, L1): `keyword`, `idle_min`,
+  `idle_due_at`, `idle_post`, `daily_at`, `daily_tz` (default `UTC`),
+  `daily_due_at`; three new field CHECKs.
+- **changed: index `topic_loops_due`** is now on
+  `least(next_due_at, idle_due_at, daily_due_at)` where `state = 'on'`
+  (was `next_due_at` only).
+- **`TopicLoop`** (7.1.1): new fields `Keyword`, `IdleMin`, `IdleDueAt`,
+  `IdlePost`, `DailyAt`, `DailyTZ`, `DailyDueAt`, `Due`.
+- **`TopicLoopEdit`**: new fields `Keyword`, `IdleMin`, `DailyAt`,
+  `DailyTZ`.
+- **`ErrBadTopicLoop`**: same name, wider text and checks (12 keys, the
+  three new fields, the zone).
+- **changed: `ClaimDueTopicLoops`**: same signature; it now claims on any of
+  the three due columns, moves each on, and fills `Due` and `IdlePost`.
+- **New store calls**: `ArmTopicLoopIdle`, `ClearTopicLoopIdle` (L1 builds,
+  L2 calls).
+- **Fired message id**: the v0.3 seed for a trigger post is unchanged; new
+  seeds for time and issue fires (7.1.1 table).
+- **HTTP / WS** (7.1.2): the loop JSON gains `keyword`, `idle_min`,
+  `daily_at`, `daily_tz`, `daily_due_at`; POST and PUT accept the first
+  four; `400 bad_loop` covers them.
+- **New hub hooks** (L2): `handleSetMessageKind` (`message_kind.go:123`)
+  and `updateIssue` (`issues.go:449`), beside the v0.3 `wuiAfterStore` and
+  `onSend`; `onSend`'s hook now also runs for an agent-to-agent blocker.
+- **WUI form** (L3): six more boxes, a keyword field, an idle n, a time and
+  a zone.
+- Unchanged: `messages.loop_id`, `FanoutRow`, the 30 s "has loops" bit,
+  `CountTopicLoopFire`, the optional interface, the routes' paths, the
+  `topic_loops` frame, rows L2b, L4, L6, L7.
+
+v0.4 also: 1.5 records the answer; Q10's note covers the new post triggers
+(1.4); 4.3 step 4 names the target of each new trigger; 7.2 maps each
+trigger to its rows.
+
+<!-- version: 0.4 · updated: 2026-11-20 · last-edit: 2026-11-20T10:30:00Z -->

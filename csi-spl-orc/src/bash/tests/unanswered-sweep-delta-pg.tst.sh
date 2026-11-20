@@ -17,6 +17,10 @@
 #      ENV -> full
 #   5. the read's DB time is floored, never past the read (a rounded
 #      time skips a change made just after a read in the upper half second)
+#   7. spec 182 (5.2, 7.1.3): a moved topic whose last line is a loop prompt
+#      (messages.loop_id set, after the agent reply that fired it) reads its
+#      agent reply as the last line in the delta (k1). CONTROL: a planted
+#      copy without k1's loop_id filter reads the loop prompt as 'human'
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -90,7 +94,7 @@ sweep() {
     set -uo pipefail
     do_log() { echo "$*" >&2; }
     source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
-    source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
+    source "${SW_FUNC:-$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh}"
     spl_via_proxy() { SPL_PROXY_DSN="$RT_DSN" "$@"; }
     "$@"' _ "$@"
 }
@@ -237,6 +241,37 @@ elif [[ "$loops6" =~ :([2-9]|[1-9][0-9]+)( |$) ]]; then
 else
   pass "6. message_revisions is scanned once ($loops6) over $nm messages"
 fi
+
+# 7. spec 182: a loop prompt is never a moved topic's last line in the delta.
+# A t1 topic whose last line is a human's gets the agent reply, then the loop
+# prompt it fired (after_agent_reply): the reply moves the topic head
+# whatever the head rules for a loop row are.
+loop_topic="$(awk -F'\t' '$1 == "t1" && $9 == "human" && $10 == "open" && $11 == "live" { print $4; exit }' "$T/f1")"
+[[ -n "$loop_topic" ]] || fail "7. fixture: no open live human-last topic in t1"
+sleep 1.1
+since7="$(psql_owner -c "SELECT floor(extract(epoch FROM now()))::bigint")"
+sleep 1.1
+ins t1 "$loop_topic" "'dev'" c-005 "the agent reply"
+reply7="$(psql_owner -c "SELECT msg_id FROM messages WHERE tenant_id = 't1' AND task_id = '$loop_topic' AND body = 'the agent reply'")"
+ins t1 "$loop_topic" "'dev'" HUM-2 "summarise the topic"
+psql_owner -c "UPDATE messages SET loop_id = '60000000-0000-4000-8000-000000000001'
+  WHERE tenant_id = 't1' AND task_id = '$loop_topic' AND body = 'summarise the topic'" >/dev/null || fail "7. flag"
+sleep 1.1
+c7() { awk -F'\t' -v t="$loop_topic" -v c="$2" '$4 == t { print $c }' "$1"; }
+# shellcheck disable=SC2046 # two words: the arrays
+sweep _spl_sweep_rows_read "" "$T/now7" "$since7" "$T/d7" $(sweep spl_sweep_keep "$T/f1") 2>"$T/e7" || fail "7. read: $(cat "$T/e7")"
+[[ "$(c7 "$T/d7" 9) $(c7 "$T/d7" 5)" == "agent $reply7" ]] &&
+  pass "7. the delta reads the agent reply as the moved topic's last line, not the loop prompt" ||
+  fail "7. delta row: '$(c7 "$T/d7" 9)' '$(c7 "$T/d7" 5)' (want agent $reply7)"
+mkdir -p "$T/p7/run"; ln -s "$PROJ_ROOT/src/bash/features" "$T/p7/features"; ln -s "$PROJ_ROOT/src/bash/scripts" "$T/p7/scripts"
+awk '/^k1 AS MATERIALIZED/ { k1 = 1 } k1 && /loop_id IS NULL/ { k1 = 0; next } { print }' \
+  "$PROJ_ROOT/src/bash/run/spl-unanswered-sweep.func.sh" >"$T/p7/run/spl-unanswered-sweep.func.sh"
+# shellcheck disable=SC2046 # two words: the arrays
+SW_FUNC="$T/p7/run/spl-unanswered-sweep.func.sh" sweep _spl_sweep_rows_read "" "$T/now7p" "$since7" "$T/d7p" $(sweep spl_sweep_keep "$T/f1") 2>"$T/e7p" ||
+  fail "7. planted read: $(cat "$T/e7p")"
+[[ "$(grep -c 'loop_id IS NULL' "$T/p7/run/spl-unanswered-sweep.func.sh")" == 2 && "$(c7 "$T/d7p" 9)" == human ]] &&
+  pass "7. CONTROL: without k1's filter the loop prompt is the last line, read as 'human' (check 7 would be red)" ||
+  fail "7. CONTROL: the planted copy read '$(c7 "$T/d7p" 9)' $(grep -c 'loop_id IS NULL' "$T/p7/run/spl-unanswered-sweep.func.sh") filters left"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

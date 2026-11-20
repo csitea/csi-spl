@@ -23,9 +23,12 @@
 # @description   - the workspace is a test one (spl_test_workspace)
 # @description   - the post names another agent (@<id>): that one takes it
 # @description   - the hub tail cannot be read: fail closed, the model takes it
-# @description   - the post is a loop prompt message (its hub tail row carries
-# @description     loop_id, spec 182 5.2 / 7.1.3): a discussion loop sent it,
-# @description     no human waits on it
+# @description   - the post is a loop prompt message (its hub tail row, found
+# @description     by TAKE_AUTO_MSGID, carries loop_id; spec 182 5.2 / 7.1.3):
+# @description     a discussion loop sent it, no human waits on it. With no
+# @description     TAKE_AUTO_MSGID it takes: a loop that the poster's own post
+# @description     fired is stored as the poster, so "the poster's last row"
+# @description     could be the loop prompt and skip a real post
 # @description   - the topic is in a channel with a sole seat that is not this
 # @description     seat (column 6 of the box map channel-rules.tsv, read by
 # @description     cr_sole_seat; SPL-3542), or the hub tail does not say which
@@ -131,14 +134,14 @@ spl_take_auto_sole() {
 }
 
 # Print why the post is not a human's ask and exit 0 when its row in <tail>
-# (TAKE_AUTO_MSGID, else the poster's last row) carries loop_id: a loop
-# prompt message (spec 182 5.2 / 7.1.3; the hub omits the key when NULL).
-# Exit 1 = a human post.
+# (TAKE_AUTO_MSGID) carries loop_id: a loop prompt message (spec 182 5.2 /
+# 7.1.3; the hub omits the key when NULL). Exit 1 = a human post, and with no
+# TAKE_AUTO_MSGID (fail open: the notifier always passes it).
 spl_take_auto_loop() {
   local loop
-  loop="$(jq -r -s --arg id "${TAKE_AUTO_MSGID:-}" --arg from "${TAKE_AUTO_FROM:-}" \
-    '[.[] | select(if $id != "" then .msg_id == $id else .from == $from end)] | last
-     | (.loop_id // "") | tostring' <<<"$1" 2>/dev/null)"
+  [[ -n "${TAKE_AUTO_MSGID:-}" ]] || return 1
+  loop="$(jq -r -s --arg id "$TAKE_AUTO_MSGID" \
+    '[.[] | select(.msg_id == $id)] | last | (.loop_id // "") | tostring' <<<"$1" 2>/dev/null)"
   [[ -n "$loop" ]] || return 1
   echo "a loop prompt message (loop $loop): no human waits on it"
 }

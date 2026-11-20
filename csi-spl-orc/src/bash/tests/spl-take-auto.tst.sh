@@ -32,8 +32,8 @@
 #      nothing.
 #  10. spec 182 (5.2, 7.1.3): a loop prompt message (its hub tail row carries
 #      loop_id, synthetic here: the column is L1's) is never taken, found by
-#      TAKE_AUTO_MSGID or as the poster's last row; a human post after a loop
-#      prompt, and a row with no loop_id key, still take
+#      TAKE_AUTO_MSGID; a human post after a loop prompt, a row with no
+#      loop_id key, and a post with no TAKE_AUTO_MSGID (fail open) still take
 #   control: with the owner check removed (a planted copy), an owned topic is
 #      taken again -> assertion 3 would turn red; with the sole-seat check
 #      removed, the sole-seat post is taken -> section 8 would turn red;
@@ -260,9 +260,10 @@ fresh; loop_row HUM-10 c-002 'summarise the topic' ml-1 >"$TAIL_FILE"
 out="$(auto TAKE_AUTO_MSGID=ml-1)"
 has "10. a loop prompt (by its msg id): skipped, why" "a loop prompt message (loop $LOOP)" "$out"
 has "10. one log line says why" "skip a loop prompt message" "$(cat "$S/dispatch/take-auto.log")"
-fresh; { row HUM-10 ALL-0 'q' ops mh-1; loop_row HUM-10 c-002 'summarise the topic' ml-2; } >"$TAIL_FILE"
-out="$(auto)"; has "10. a loop prompt (the poster's last row, no msg id): skipped" "a loop prompt message" "$out"
 eq "10. no take line for a loop prompt" 0 "$(n "$REPLY_LOG")"
+fresh; { row HUM-10 ALL-0 'q' ops mh-1; loop_row HUM-10 c-002 'summarise the topic' ml-2; } >"$TAIL_FILE"
+out="$(auto)"; has "10. no msg id, the poster's last row a loop prompt: fail open, take" "TAKEN $TOPIC by c-002@box-a" "$out"
+eq "10. fail open: it posted its take line" 1 "$(n "$REPLY_LOG")"
 fresh; { loop_row HUM-10 c-002 'summarise the topic' ml-3; row HUM-10 ALL-0 'q' ops mh-2; } >"$TAIL_FILE"
 out="$(auto TAKE_AUTO_MSGID=mh-2)"; has "10. control: a human post after a loop prompt still takes" "TAKEN $TOPIC by c-002@box-a" "$out"
 eq "10. control: it posted its take line" 1 "$(n "$REPLY_LOG")"

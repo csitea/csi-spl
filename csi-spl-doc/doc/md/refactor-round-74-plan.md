@@ -37,6 +37,13 @@ takes 5 installers whose cron line runs `./run` or a script with no stack guard,
 N1-N3 recorded (section 8), none asks a change. Rows 01 and 02 are as drafted. Editor:
 **c-290** (claude).
 
+**Round closed** (c-290, the editor): both rows landed. r74-01 `1f5404315` (SPL-6024,
+R7 c-951 PASS), r74-02 `412a44ab0` (SPL-6026, R7 c-957 PASS). Read
+`git merge-base --is-ancestor <sha> origin/master` -> rc 0 for both, at `91d43daf4`. The
+rows' gate (1.3's `SPL_ORG_APP` grep) on `91d43daf4` -> **12** (22 -> 17 -> 12); the
+other two spellings unchanged, 3 and 5. The panel seat m-295 also PASSed v1.0
+`1d866c25a` (msg 20f14993), no defect.
+
 **One sha:** every count is measured on **`af8ca0ba7`** (`origin/master`
 af8ca0ba723c03b70383d94830cdb8e6a3dd6f35, committed 2026-11-20T10:05:33+02:00), n=1 per
 command unless stated. Reads are on that sha with `git show` / `git grep`; the tests ran
@@ -359,6 +366,10 @@ the 5 suites, `no-literal-paths.tst.sh`, `bash-cleancode.tst.sh` (`SPOOL_TEST=1`
     (5 `org_app|ORG_APP|app`, 3 tenant dirs) are counted apart in 1.3. The later gate
     row must cover every spelling (section 7 says so).
   The rows, their sites and their gate (22 -> 17 -> 12) do not change.
+- Round closed (c-290), no version bump: the 2 rows landed, r74-01 `1f5404315`
+  (SPL-6024), r74-02 `412a44ab0` (SPL-6026); m-295's PASS on v1.0 `1d866c25a` recorded.
+  Its N4 fixed here: section 9 said "Its signature on v1.0: pending". Status line and
+  sections 8 and 9 only.
 
 ## 9. Consensus
 
@@ -369,5 +380,11 @@ The panel seat signs this plan (rulebook 3.2).
   `3036c5754cf341955bd2c9a713e0ad33d4ab31ad` (spool msg d9774c47; review-line check rc 0,
   DOCS-ONLY; seat file `e7ef6c95b` on `review/c003-refactor-round-74-mistral-seat`), no
   W finding, N1-N3 recorded. agy was unavailable (the holder's read), so mistral took
-  the seat. Its signature on v1.0: pending.
+  the seat.
+- m-295 (mistral) PASS again on v1.0 `1d866c25a51523016b7a1341e50ed82cbd638f3a`
+  (msg 20f14993; review-line check rc 0, DOCS-ONLY; seat file `a2fc8594d` on
+  `review/c003-refactor-round-74-mistral-seat`), no defect; N4 cosmetic, fixed in the
+  close record (section 8).
 - Row R7 seats: section 4.
+- Closed: both rows landed (r74-01 `1f5404315`, R7 c-951 PASS; r74-02 `412a44ab0`, R7
+  c-957 PASS). This close record carries `Closes: SPL-6021`.

@@ -656,9 +656,11 @@ func TestTopicLoopAwaitedAnswerDoesNotRefire(t *testing.T) {
 	r.wantPrompts(t, "the reply after the answer", 2)
 }
 
-// Q10 A holds only the loop that fired: the awaited answer still fires
-// the topic's other loops (4.2 step 7, 4.4).
-func TestTopicLoopAwaitedAnswerFiresOtherLoops(t *testing.T) {
+// N4 B (owner msg f854f268): the awaited answer to loop X's prompt fires
+// the after_agent_reply box of no loop, so two such loops do not fire each
+// other. RED CONTROL: on the parent (Q10 A per loop only) the answer to the
+// first loop fires the second: 2 prompts, want 1.
+func TestTopicLoopAwaitedAnswerFiresNoAfterAgentReply(t *testing.T) {
 	r := newLoopRig(t)
 	first := r.addLoop(t, loopBody(store.LoopAfterAgentReply))
 	r.agentSay(t, r.task, "ALL-0", "a real reply")
@@ -667,7 +669,35 @@ func TestTopicLoopAwaitedAnswerFiresOtherLoops(t *testing.T) {
 	second := r.addLoop(t, loopBody(store.LoopAfterAgentReply))
 	r.agentSay(t, r.task, "ALL-0", "PDF sent")
 	r.barrier(t)
-	r.wantPrompts(t, "the answer fires the other loop", 2)
+	r.wantPrompts(t, "the answer to the first loop", 1)
+	if a, b := r.d.get(first).FiresTotal, r.d.get(second).FiresTotal; a != 1 || b != 0 {
+		t.Fatalf("fires: first %d, second %d, want 1 and 0", a, b)
+	}
+	if l := r.d.get(first); l.Awaiting != "" {
+		t.Fatalf("the answer did not clear the wait: %+v", l.Awaiting)
+	}
+	// A real agent reply, the answer to no prompt, still fires both loops.
+	r.agentSay(t, r.task, "ALL-0", "another real reply")
+	r.barrier(t)
+	r.wantPrompts(t, "a real reply after the answer", 3)
+	if a, b := r.d.get(first).FiresTotal, r.d.get(second).FiresTotal; a != 2 || b != 1 {
+		t.Fatalf("fires: first %d, second %d, want 2 and 1", a, b)
+	}
+}
+
+// N4 B drops only after_agent_reply: another loop whose keyword box matches
+// the awaited answer still fires on it.
+func TestTopicLoopAwaitedAnswerFiresOtherBoxes(t *testing.T) {
+	r := newLoopRig(t)
+	first := r.addLoop(t, loopBody(store.LoopAfterAgentReply))
+	r.agentSay(t, r.task, "ALL-0", "a real reply")
+	r.barrier(t)
+	r.wantPrompts(t, "the first loop's fire", 1)
+	second := r.addLoop(t, map[string]any{"prompt": "mail it", "keyword": "PDF",
+		"triggers": []string{store.LoopAfterAgentReply, store.LoopPostHasKeyword}})
+	r.agentSay(t, r.task, "ALL-0", "PDF sent")
+	r.barrier(t)
+	r.wantPrompts(t, "the answer matching a keyword box", 2)
 	if a, b := r.d.get(first).FiresTotal, r.d.get(second).FiresTotal; a != 1 || b != 1 {
 		t.Fatalf("fires: first %d, second %d, want 1 and 1", a, b)
 	}

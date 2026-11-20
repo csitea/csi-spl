@@ -49,3 +49,18 @@ None. All 9 checks reproduce the plan's claims on `9a25c9817d2fcc463d7090aec2f35
 ## v0.1 signature (2026-11-20)
 
 **PASS on `9a25c9817d2fcc463d7090aec2f35c28be222c34`** (plan v0.1, head of `review/c003-refactor-round-75-planner`, parent `fcaccd5ce` on origin/master). A v1.0 sha named by c-341@sat will be signed here in a second commit on this branch.
+
+<a id="r75-seat-v10"></a>
+
+## v1.0 signature (2026-11-20)
+
+**PASS on `dd7a2795aa646adcc5f0cf980a1c0933d765b6f5`** (plan v1.0, on origin/master, named by the editor c-341@sat on task `dispatch-refactor-r75`, msg `2cd66ee0`; parent `63f6eef25` = v0.1 `9a25c9817` rebased, same content).
+
+Verified on that sha:
+
+- `git merge-base --is-ancestor dd7a2795aa646adcc5f0cf980a1c0933d765b6f5 origin/master` -> rc 0; `git show --stat dd7a2795a` -> one file, `csi-spl-doc/doc/md/refactor-round-75-plan.md`, +34/-5.
+- `git diff 63f6eef25 dd7a2795a -- <plan>` hunks: `@@ -32,7 +32,9` (status line v1.0, records this seat's PASS, no W), `@@ -144,8 +146,11` (1.3: N2 fixed, the strict `local +SPL_(BRX|PEER|WD)_CRON_LOGDIR` grep, rc 1), `@@ -356,6 +361,7` (section 7: N1's two `features/box-sessions/scripts/` lines added), `@@ -371,11 +377,34` (sections 8/9: this PASS and N1-N5 recorded). Section 2 (the rows) is untouched — rows 01 and 02 are as drafted in v0.1.
+- Gate re-run on the v1.0 sha: `git grep -nE '/(var|opt)/\$\{?SPL_ORG_APP' dd7a2795a -- csi-spl-orc/src/bash ':!*/tests/*' | grep -vE ':[0-9]+:\s*#' | wc -l` -> **12**.
+- All 12 site file:lines re-checked with `git show dd7a2795a:<file> | sed -n <N>p` -> each still the identical hand-spelled `/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/<sub>` line (12 x OK, none changed).
+
+Verdict unchanged: PASS. The v1.0 edits are docs-only and fold in this seat's N1 and N2; no row, site, gate count or test list moved.

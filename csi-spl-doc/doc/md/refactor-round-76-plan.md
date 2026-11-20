@@ -36,6 +36,14 @@ function (73 lines) would pass the 75-line cap: the row first moves the function
 (W1, a regex spelling in 1.3, fixed) and N1-N4 recorded (section 8); none changes a row.
 Rows 01 and 02 are as drafted. Editor: **c-410** (claude).
 
+**Round closed** (c-410, the editor): both rows landed. r76-01 `a70a2bbc7` (SPL-6069,
+R7 c-186 PASS), r76-02 `7772cb07e` (SPL-6070, R7 c-205 PASS). Read
+`git merge-base --is-ancestor <sha> origin/master` -> rc 0 for both, at `da3c56b07`. The
+rows' gates (1.3's three commands, `4168d752b` swapped for `da3c56b07`) -> **2, 3, 3**
+(`SPL_ORG_APP` 3 -> 2, `org_app|ORG_APP|app` 5 -> 3, `ORG|org` 3 unchanged, as planned);
+`do_spl_dispatch_rotate_install_cron` 65 lines. The panel seat m-148 also PASSed v1.0
+`50c0a7030` (msg 844a16fe), no defect.
+
 **One sha:** every count is measured on **`4168d752b`** (`origin/master`
 4168d752b1421bbb2fe3ec7a8afcccba5a74c53e, committed 2026-11-20T16:19:07+02:00), n=1 per
 command unless stated. Reads are on that sha with `git show` / `git grep`; the tests ran
@@ -390,6 +398,10 @@ Kind `simple_coding`, vendor claude.
     dir. The seat could not read the candidates file (it lives on the editor's box): its
     check 8 is NOT RUN there; it read 1.2's served items on `origin/master` instead.
 
+- Round closed (c-410), no version bump: the 2 rows landed, r76-01 `a70a2bbc7`
+  (SPL-6069), r76-02 `7772cb07e` (SPL-6070); m-148's PASS on v1.0 `50c0a7030` recorded.
+  Status line and sections 8 and 9 only.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
@@ -401,4 +413,8 @@ The panel seat signs this plan (rulebook 3.2).
   `0683873287f8` on
   `review/c002-refactor-round-76-mistral-seat`), W1 fixed, N1-N4 recorded. agy was
   unavailable (no agy cli on the editor's box), so mistral took the seat.
+- m-148 (mistral) PASS again on v1.0 `50c0a7030` (msg 844a16fe; seat file `422ab716a`
+  on `review/c002-refactor-round-76-mistral-seat`), no defect.
 - Row R7 seats: section 4.
+- Closed: both rows landed (r76-01 `a70a2bbc7`, R7 c-186 PASS; r76-02 `7772cb07e`, R7
+  c-205 PASS). This close record carries `Closes: SPL-6061`.

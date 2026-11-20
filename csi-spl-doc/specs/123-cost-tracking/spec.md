@@ -745,6 +745,12 @@ page and e2e file in the same batch (R1).
   masks. R7 (FAIL, W1 W2) folded: a minute is priced only when its period
   is frozen or final (107 21.4 step 6), proposed and disputed rows count as
   pending; P02 lands after P03, so the money is never served unmasked.
+  R7 r3 (FAIL, W3 N2) folded on P03 r2: a returned period's approved
+  minutes count as pending too, and the Human part's `hr` lines never enter
+  `left_out` (they travel in the month read's human list, guarded and
+  tested); with P02 the fold's word for a workspace that booked nothing is
+  `complete`, so P03's HTTP test reads `complete` where it read
+  `not_tracked`.
 
 ## 14. The operator's product owner reads the estate (SPL-5181)
 

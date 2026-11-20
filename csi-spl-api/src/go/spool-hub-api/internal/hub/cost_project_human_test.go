@@ -58,8 +58,9 @@ func costHumanSeedOp(t *testing.T, e *env, op string, stub *costReadStub) {
 }
 
 // TestCostProjectHumanServed: the operator admin's answer carries the Human
-// part's 120 minutes (a frozen period, none pending); the other workspace,
-// which booked nothing, reads 0 minutes. Only the minutes are asserted: the
+// part's 120 minutes (a frozen period, none pending); the other workspace's
+// biz_owner (hours.read, the money mask), whose workspace booked nothing,
+// reads 0 minutes. Only the minutes are asserted: the
 // admin holds no hours.rates, so after P03's mask its Human money is null
 // (13.6); the money itself is TestCostProjectHumanSum's. RED on the parent
 // (no human read in the hub): Human is not_tracked, with no minutes.
@@ -71,9 +72,9 @@ func TestCostProjectHumanServed(t *testing.T) {
 	if h := by["human"]; code != http.StatusOK || h["completeness"] == "not_tracked" || h["minutes"] != float64(120) || h["pending_minutes"] != float64(0) {
 		t.Fatalf("operator admin human %v (%d): want 120 min, 0 pending", h, code)
 	}
-	code, body = call(t, e, other, http.MethodGet, "/v1/tenant/costs/project?month=2011-03", whoOther[rbac.Admin], nil)
+	code, body = call(t, e, other, http.MethodGet, "/v1/tenant/costs/project?month=2011-03", whoOther[rbac.BizOwner], nil)
 	_, by = projectParts(t, body)
-	if h := by["human"]; code != http.StatusOK || h["minutes"] != float64(0) || h["completeness"] == "not_tracked" {
-		t.Errorf("other admin human %v (%d): want 0 min, none of the operator's minutes", h, code)
+	if h := by["human"]; code != http.StatusOK || h["minutes"] != float64(0) || h["completeness"] != "complete" {
+		t.Errorf("other biz_owner human %v (%d): want 0 min, none of the operator's minutes", h, code)
 	}
 }

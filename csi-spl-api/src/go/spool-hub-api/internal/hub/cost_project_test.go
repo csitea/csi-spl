@@ -46,8 +46,8 @@ func TestCostProjectRead(t *testing.T) {
 	if by["cloud"]["usd_micros"] != float64(6_000_000) || projectTotalUSD(body) != float64(6_000_000) || by["cloud"]["share"] != float64(100) {
 		t.Errorf("cloud %v total %v: want 6.00 USD, 100 %%", by["cloud"], body["total"])
 	}
-	if h := by["human"]; h["usd_micros"] != float64(0) || h["completeness"] != "complete" || !body["total"].(map[string]any)["partial"].(bool) {
-		t.Errorf("human %v total %v: want a complete 0, the total partial", h, body["total"])
+	if h := by["human"]; h["usd_micros"] != nil || h["minutes"] != float64(0) || h["completeness"] != "complete" || !body["total"].(map[string]any)["partial"].(bool) || body["human_mask"] != "money" {
+		t.Errorf("human %v total %v mask %v: want 0 complete minutes, the money masked (estate reader, no hours.rates: level money), the total partial", h, body["total"], body["human_mask"])
 	}
 	if by["owned_hardware"]["usd_micros"] != float64(0) || by["owned_hardware"]["completeness"] != "hand" {
 		t.Errorf("owned hardware %v: want 0 until P08, entered by hand", by["owned_hardware"])

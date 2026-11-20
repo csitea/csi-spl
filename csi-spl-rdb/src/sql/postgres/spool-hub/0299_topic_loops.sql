@@ -5,7 +5,7 @@
 -- Owner HUM-10 (t1 #spool-hub-devel, topic f08c0c58, msgs a0c4e227,
 -- b20e28e9): a saved prompt on a discussion that runs on an agent reply or a
 -- human post; msg eae9e64f: "the loop replies must not be shown as separate
--- promts, they should just run in the background".
+-- prompts, they should just run in the background".
 --
 --   topic_loops       one row per loop (answer 6 B: several per topic): its
 --                     prompt, its checked triggers (the twelve of spec 182
@@ -39,7 +39,8 @@
 --
 -- Live-data safety: one new, empty table; messages gains a NULL column with
 -- no default, a catalog-only change (no rewrite of the hub's largest table,
--- every existing row reads NULL). Two functions are replaced in place with
+-- every existing row reads NULL); messages_task_received is rebuilt (the
+-- last block says how). Two functions are replaced in place with
 -- the same signatures; no stored head changes, since no row has a loop_id
 -- yet. RLS: the messages policies cover the new column; topic_loops gets
 -- its own below. Runtime grants: the default privileges of
@@ -176,5 +177,38 @@ BEGIN
         PERFORM set_config('app.topic_head_last', '', true);
     END IF;
     RETURN NULL;
+END
+$$;
+
+-- messages_task_received (rdb 0022, covering since 0083) gains loop_id and
+-- is_private_scope in its INCLUDE: the unanswered sweep's k0 pick (spec 182
+-- row L2b) and the topic walks filter "loop_id IS NULL", and without the
+-- column every such probe reads the heap (R7 of L2b, msg 652b433f: k0 fell
+-- from an Index Only Scan, 1 168 buffers, to a Seq Scan, 10 031 buffers,
+-- plus a sort spilling 420 temp pages; with the column 892 buffers, no temp;
+-- n=3 on 59 559 rows, as a role that skips RLS). messages is FORCE row level
+-- security (0014) and its policies read is_private_scope (0219), so under
+-- RLS, as the sweep runs (app.rls_scope operator), loop_id alone still reads
+-- the heap; with both columns the pick is an Index Only Scan
+-- (TestTopicLoopSweepPickIndexOnly).
+-- Built under a new name, then the old one dropped and the new one renamed,
+-- all in this file's transaction: plain CREATE INDEX (as 0143, 0156; the
+-- runner applies a file in one transaction, so no CONCURRENTLY) holds a
+-- SHARE lock on messages for the build (writes wait, reads go on), the drop
+-- and the rename an ACCESS EXCLUSIVE lock for a catalogue change only; the
+-- lock_timeout above refuses the file rather than queue behind a long
+-- reader. Skipped when the index already carries both, so a second apply
+-- builds nothing.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = current_schema()
+            AND indexname = 'messages_task_received' AND indexdef LIKE '%parent_task_id, loop_id, is_private_scope)') THEN
+        DROP INDEX IF EXISTS messages_task_received_loop;
+        CREATE INDEX messages_task_received_loop
+            ON messages (tenant_id, task_id, received_at, msg_id)
+            INCLUDE (expires_at, channel, from_id, from_box, to_id, to_box, kind, parent_task_id, loop_id, is_private_scope);
+        DROP INDEX IF EXISTS messages_task_received;
+        ALTER INDEX messages_task_received_loop RENAME TO messages_task_received;
+    END IF;
 END
 $$;

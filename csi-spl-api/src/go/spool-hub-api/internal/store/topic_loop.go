@@ -104,6 +104,7 @@ type TopicLoop struct {
 	DailyTZ    string    // IANA zone; "" is read and written as "UTC"
 	DailyDueAt time.Time // zero: no daily_at, or paused
 	Due        []string  // set only by ClaimDueTopicLoops: the time keys that came due this claim
+	DueAt      time.Time // v0.5, set only by ClaimDueTopicLoops: the earliest of NextDueAt, DailyDueAt that came due, as it was BEFORE the move; zero when only the idle key came due
 }
 
 // Has reports a checked trigger.
@@ -462,7 +463,13 @@ func topicLoopClaim(l TopicLoop, at time.Time) (TopicLoop, bool) {
 	if l.State != TopicLoopOn || !(due(l.NextDueAt) || due(l.IdleDueAt) || due(l.DailyDueAt)) {
 		return l, false
 	}
-	l.Due = nil
+	l.Due, l.DueAt = nil, time.Time{}
+	if due(l.NextDueAt) {
+		l.DueAt = l.NextDueAt
+	}
+	if due(l.DailyDueAt) && (l.DueAt.IsZero() || l.DailyDueAt.Before(l.DueAt)) {
+		l.DueAt = l.DailyDueAt
+	}
 	if due(l.NextDueAt) {
 		l.Due = append(l.Due, topicLoopPeriodKeys(l)...)
 		l.NextDueAt = topicLoopDue(l, at)

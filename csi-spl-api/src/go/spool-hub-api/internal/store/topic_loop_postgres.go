@@ -225,7 +225,9 @@ const topicLoopPeriodSQL = `LEAST(CASE WHEN 'every_hour' = ANY (t.triggers) THEN
 // claims others or none. In the same statement each due time moves from
 // $1: next_due_at by the period, daily_due_at to the next daily_at, the
 // idle count to NULL. due keeps the old values, so the two lead columns are
-// the keys that came due (topicLoopClaim's order) and the old idle_post.
+// the keys that came due (topicLoopClaim's order), the old idle_post and
+// DueAt (v0.5: the earliest pre-move next_due_at or daily_due_at that came
+// due; least() skips the NULL of one that did not).
 var topicLoopClaimSQL = `WITH due AS (
 		SELECT tenant_id, loop_id, next_due_at, idle_due_at, idle_post, daily_due_at FROM topic_loops
 		WHERE state = 'on' AND least(next_due_at, idle_due_at, daily_due_at) <= $1
@@ -243,7 +245,9 @@ var topicLoopClaimSQL = `WITH due AS (
 				THEN 'every_n_minutes' END,
 			CASE WHEN due.idle_due_at <= $1 THEN 'no_reply_after_human' END,
 			CASE WHEN due.daily_due_at <= $1 THEN 'daily_at' END], NULL),
-		coalesce(due.idle_post::text, ''), ` + topicLoopColsT
+		coalesce(due.idle_post::text, ''),
+		least(CASE WHEN due.next_due_at <= $1 THEN due.next_due_at END, CASE WHEN due.daily_due_at <= $1 THEN due.daily_due_at END),
+		` + topicLoopColsT
 
 // topicLoopColsT is topicLoopCols on alias t (due has tenant_id and
 // loop_id too).
@@ -267,8 +271,9 @@ func (s *Postgres) ClaimDueTopicLoops(ctx context.Context, at time.Time, limit i
 		return scanRows(rows, func(rows pgx.Rows) error {
 			var due []string
 			var post string
-			l, err := scanTopicLoop(rows, &due, &post)
-			l.Due, l.IdlePost = due, post
+			var dueAt *time.Time
+			l, err := scanTopicLoop(rows, &due, &post, &dueAt)
+			l.Due, l.IdlePost, l.DueAt = due, post, utcOrZero(dueAt)
 			out = append(out, l)
 			return err
 		})

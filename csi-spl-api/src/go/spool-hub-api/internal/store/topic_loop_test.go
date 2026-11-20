@@ -333,6 +333,9 @@ func TestTopicLoopClaimDue(t *testing.T) {
 			}
 			tick := f.t0.Add(3 * time.Hour) // a long gap: one fire, not a burst
 			got := mine(tick)
+			if !got[fast.LoopID].DueAt.Equal(f.t0.Add(5*time.Minute)) || !got[hourly.LoopID].DueAt.Equal(f.t0.Add(time.Hour)) {
+				t.Fatalf("DueAt: %v %v, want the pre-move due times", got[fast.LoopID].DueAt, got[hourly.LoopID].DueAt)
+			}
 			if len(got) != 2 || !got[fast.LoopID].NextDueAt.Equal(tick.Add(5*time.Minute)) ||
 				!got[hourly.LoopID].NextDueAt.Equal(tick.Add(time.Hour)) || got[hourly.LoopID].TenantID != g.tn {
 				t.Fatalf("claim at the tick: %+v, want fast and hourly moved on from the tick", got)
@@ -384,8 +387,29 @@ func TestTopicLoopDaily(t *testing.T) {
 				}
 			}
 			if !slices.Equal(c.Due, []string{LoopEveryHour, LoopDailyAt}) || !c.DailyDueAt.Equal(tick.Add(24*time.Hour)) ||
-				!c.NextDueAt.Equal(tick.Add(time.Hour)) {
+				!c.NextDueAt.Equal(tick.Add(time.Hour)) || !c.DueAt.Equal(tick) {
 				t.Fatalf("claim: %+v, want Due [every_hour daily_at], daily +1 day, next +1h", c)
+			}
+			// DST: Helsinki moves to UTC+3 on 2026-03-29; the claim at
+			// Saturday's 09:30 (07:30Z) moves to Sunday's 09:30 (06:30Z).
+			dst, err := f.ls.AddTopicLoop(f.ctx, f.tn, TopicLoop{TaskID: f.task, Prompt: "dst", Triggers: []string{LoopDailyAt},
+				DailyAt: "09:30", DailyTZ: "Europe/Helsinki", SetBy: "HUM-1", SetAt: time.Date(2026, 3, 28, 5, 0, 0, 0, time.UTC)})
+			sat := time.Date(2026, 3, 28, 7, 30, 0, 0, time.UTC)
+			if err != nil || !dst.DailyDueAt.Equal(sat) {
+				t.Fatalf("dst add: %+v %v, want daily due %v", dst, err, sat)
+			}
+			got, err = f.ls.ClaimDueTopicLoops(f.ctx, sat, 1000)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var d TopicLoop
+			for _, l := range got {
+				if l.LoopID == dst.LoopID {
+					d = l
+				}
+			}
+			if sun := time.Date(2026, 3, 29, 6, 30, 0, 0, time.UTC); !d.DailyDueAt.Equal(sun) || !d.DueAt.Equal(sat) {
+				t.Fatalf("dst claim: daily due %v, DueAt %v; want %v and %v", d.DailyDueAt, d.DueAt, sun, sat)
 			}
 			e, err := f.ls.EditTopicLoop(f.ctx, f.tn, f.task, utc.LoopID, TopicLoopEdit{Triggers: []string{LoopEveryHour}, By: "HUM-1", At: tick})
 			if err != nil || e.DailyAt != "" || !e.DailyDueAt.IsZero() {
@@ -436,7 +460,7 @@ func TestTopicLoopIdle(t *testing.T) {
 				t.Fatalf("claimed before the idle time: %+v", l)
 			}
 			l, ok := claim(f.t0.Add(10 * time.Minute))
-			if !ok || l.LoopID != idle.LoopID || !slices.Equal(l.Due, []string{LoopNoReplyAfterHuman}) || l.IdlePost != post || !l.IdleDueAt.IsZero() {
+			if !ok || l.LoopID != idle.LoopID || !slices.Equal(l.Due, []string{LoopNoReplyAfterHuman}) || l.IdlePost != post || !l.IdleDueAt.IsZero() || !l.DueAt.IsZero() {
 				t.Fatalf("idle claim: %+v %v, want Due [no_reply_after_human] with the post", l, ok)
 			}
 			ls, _ := f.ls.TopicLoops(f.ctx, f.tn, f.task)
@@ -575,5 +599,51 @@ func assertLoopRowHidden(t *testing.T, f *loopFix, post, loop Message, now time.
 	}
 	if last != post.MsgID {
 		t.Fatalf("topic head last_msg_id %s, want the post %s (a loop row moves no head)", last, post.MsgID)
+	}
+}
+
+// TestTopicLoopSweepPickIndexOnly: the unanswered sweep's k0 pick (L2b,
+// spl-unanswered-sweep.func.sh) skips loop rows, so messages_task_received
+// carries loop_id and, for the RLS policies' read, is_private_scope (rdb
+// 0299): under the operator scope, with every other scan and the sort off,
+// the pick is an Index Only Scan, not an Index Scan that reads the heap.
+func TestTopicLoopSweepPickIndexOnly(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	var def string
+	if err := pg.pool.QueryRow(ctx, `SELECT indexdef FROM pg_indexes
+		WHERE schemaname = current_schema() AND indexname = 'messages_task_received'`).Scan(&def); err != nil {
+		t.Fatal(err)
+	}
+	want := "(tenant_id, task_id, received_at, msg_id) INCLUDE (expires_at, channel, from_id, from_box, to_id, to_box, kind, parent_task_id, loop_id, is_private_scope)"
+	if !strings.HasSuffix(def, want) {
+		t.Fatalf("messages_task_received: %s, want it to end %s", def, want)
+	}
+	var plan []string
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SET LOCAL enable_seqscan = off; SET LOCAL enable_bitmapscan = off; SET LOCAL enable_indexscan = off; SET LOCAL enable_sort = off`); err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, `EXPLAIN SELECT DISTINCT ON (m.tenant_id, m.task_id) m.tenant_id, m.msg_id
+			FROM messages m
+			WHERE m.expires_at > now() AND m.received_at > now() - make_interval(days => 7) AND m.loop_id IS NULL
+			ORDER BY m.tenant_id DESC, m.task_id DESC, m.received_at DESC, m.msg_id DESC`)
+		if err != nil {
+			return err
+		}
+		return scanRows(rows, func(rows pgx.Rows) error {
+			var line string
+			err := rows.Scan(&line)
+			plan = append(plan, line)
+			return err
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	only := slices.ContainsFunc(plan, func(l string) bool {
+		return strings.Contains(l, "Index Only Scan") && strings.Contains(l, "using messages_task_received ")
+	})
+	if !only {
+		t.Fatalf("k0 pick plan:\n%s\nwant an Index Only Scan of messages_task_received", strings.Join(plan, "\n"))
 	}
 }

@@ -233,7 +233,7 @@ func (s *Memory) ClaimDueTopicLoops(_ context.Context, at time.Time, limit int) 
 		if l.IdleDueAt.IsZero() && !old.IdleDueAt.IsZero() {
 			stored.IdlePost = ""
 		}
-		stored.Due = nil
+		stored.Due, stored.DueAt = nil, time.Time{}
 		tl[[2]string{l.TenantID, l.LoopID}] = stored
 		due[i] = topicLoopCopy(l)
 	}

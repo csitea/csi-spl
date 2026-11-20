@@ -97,3 +97,28 @@ in a second commit and report again.
   `INFO distribution-hygiene: clean over the tracked tree of
   /opt/csi/csi-spl-wt/m-551`, rc 0.
 - Checks 2-7: still NOT RUN — they need the plan's base sha and row files.
+
+## Pre-rotation state (2026-11-20T23:40Z, rotation due 23:54Z)
+
+- c-001 note `4a0aaaea` (task `lane-rotate-m-551`, 23:40:10Z): "rotation at
+  23:54Z UTC: push what is green, write your state" — this commit is that
+  state. Worktree clean, HEAD == origin `review/c002-bug-round-30-mistral-seat`
+  (`git ls-remote` -> `052c67ea6...` == `git rev-parse HEAD`).
+- Inbox: `spool recv --as m-551` -> `[]` after acking the rotation note; task
+  `dispatch-bug-r30` tail unchanged, no plan sha; planner ask `bb395b6d`
+  still QUEUE at 17/39 (`do_spl_spawn_queue` at 23:40Z); no
+  `review/c002-bug-round-30-planner` ref on origin. Verdict stays PENDING.
+- Check 1 re-run at 23:40Z, `W=2026-11-20T21:05:53+02:00`:
+  `git log origin/master --since="$W" --oneline -E --grep='\(b30-' | wc -l` ->
+  `2` (still only this seat's incident pair `b86bcc246` + `5f1e27bc7`);
+  `git ls-remote origin | grep -E 'b30-[0-9]{2}|bug-round-30'` -> only
+  `refs/heads/review/c002-bug-round-30-mistral-seat`; origin/master head moved
+  to `2b7bb502a` (r78 plan, another lane).
+- Check 8 re-run at 23:40Z: `cd csi-spl-iac && ./run -a do_check_dist_hygiene`
+  -> `INFO distribution-hygiene: clean ...`, rc 0.
+- Cross-lane note answered this hour: c-003's CI-red note on task
+  `dispatch-ci-red` (run 44832401773, sha 5f1e27bc7) — replied msg `91eab7a7`:
+  not this lane's red; `git diff dccbb739 5f1e27bc7 --stat` empty (identical
+  trees), same tree green at run 44831523492, failure is `Node is detached from
+  document` at `csi-spl-wui/tests/e2e/lib/ws-docs-head.mjs:39` (Puppeteer
+  flake); lane-map exit 4, no owner, reported not fixed.

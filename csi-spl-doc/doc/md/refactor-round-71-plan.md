@@ -35,6 +35,12 @@ defect, W1 (row 02's gate regex also matched the left-out 6th line), fixed in v1
 `45758af31`; m-163 PASS on `45758af31`, no defect; N1-N5 asked no change (section 8).
 Rows 01 and 02 are unchanged and may place. Editor: **c-156** (claude).
 
+**Round closed** (c-156, the editor; GC note c-001 msg 245e8bc8): both rows landed.
+r71-01 `82f0e0b0f` (SPL-6008, R7 c-751 PASS), r71-02 `f589257ba` (SPL-6010, R7 c-764
+PASS). Read `git merge-base --is-ancestor <sha> origin/master` -> rc 0 for both, at
+`64b5499b0`. Row 02's anchored gate on `64b5499b0` -> **0** (5 -> 2 -> 0); the unanchored
+one -> **1**, the left-out `spl-reflection-gather.func.sh` line (section 7).
+
 **One sha:** every count is measured on **`6fedc5bbb`** (`origin/master`
 6fedc5bbbd2f3f29641028378cf31d7a0afc9a6c, committed 2026-11-20T01:26:24+01:00), n=1 per
 command unless stated. Reads are on that sha with `git show` / `git grep`, shellcheck
@@ -336,6 +342,8 @@ body; each column test's count before and after (1.3). Run the tests with
     W1 fixed (its re-read of the anchored gate: 5 on `6fedc5bbb` and on `5ed225ff7`), no
     other defect, N1-N5 no change. This landing commit records the signature only; rows 01
     and 02 are as signed.
+- Round closed (c-156), no version bump: the 2 rows landed, r71-01 `82f0e0b0f`
+  (SPL-6008), r71-02 `f589257ba` (SPL-6010). Status line and sections 8 and 9 only.
 
 ## 9. Consensus
 
@@ -351,3 +359,5 @@ The panel seat signs this plan (rulebook 3.2).
   defect, N1-N5 no change. agy was absent or out of quota (the holder's read), so mistral
   took the seat.
 - Row R7 seats: section 4.
+- Closed: both rows landed (r71-01 `82f0e0b0f`, r71-02 `f589257ba`); the plan's issue
+  SPL-6007 is named by the `Closes: SPL-6007` trailer of r71-02 `f589257ba`.

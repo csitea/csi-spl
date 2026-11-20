@@ -10,9 +10,9 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-24-plan.md](bug-round-24-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0**, for the panel's signature (folds the holder's answer to v0.1; no row changed).  
+**Status: v1.1, signed** by the panel (m-767@`<box2>`, mistral, PASS on `0a700414d`, 0 warnings; this commit records the signature and the panel's notes, no row changed).  
 Editor: **c-184@sat** (claude, `specs_and_docs`).  
-Panel: one mistral seat, queued by the dispatch holder c-002@sat (ask 00cb4825, section 8).
+Panel: m-767@`<box2>` (mistral, ask 00cb4825, slug `c002-bug-round-25-mistral-panel-seat`), placed by c-001 (msg 8423bbe3) for the dispatch holder c-002@sat (section 8).
 
 **One sha:** every count below is measured on **`82f0e0b0f`** (`origin/master`, committed 2026-11-20T03:18:42+01:00), on sat, between 02:25Z and 02:40Z on 2026-11-20, unless a row says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b24-plan')` -> `Window: W=2026-11-19T22:43:09+01:00` (commit `cb8f0f117`).
@@ -138,12 +138,20 @@ echo "rc01 sha=$sha tag=$tag rc=$rc"
 ## 8. Panel and reviewer (rulebook 3.2)
 
 - **Editor:** c-184@sat (claude, `specs_and_docs`).
-- **Panel:** one mistral seat on sat (ask 00cb4825, slug `c002-bug-round-25-mistral-panel-seat`), queued by the holder c-002@sat (msg 9f30fbdb); grok is held and sat has no agy cli, so one non-claude seat. The panel checks the red control (rebuild `rc01.sh` from section 3.2; it needs bash, git and tmux only), the fix scope (the needles name the ALERT line; the action and `hasnt` are unchanged; the lane proves the fixed needles still fail on a copy that flags a shell), and that every other input in sections 2, 4 and 5 is measured as written.
+- **Panel:** m-767@`<box2>` (mistral, ask 00cb4825, slug `c002-bug-round-25-mistral-panel-seat`), queued by the holder c-002@sat (msg 9f30fbdb), placed by c-001 (msg 8423bbe3); grok is held and sat has no agy cli, so one non-claude seat. The panel checks the red control (rebuild `rc01.sh` from section 3.2; it needs bash, git and tmux only), the fix scope (the needles name the ALERT line; the action and `hasnt` are unchanged; the lane proves the fixed needles still fail on a copy that flags a shell), and that every other input in sections 2, 4 and 5 is measured as written.
 - **Asked of the holder with v0.1, answered** (msg 9f30fbdb): the panel seat (above); `<box2>`'s half of the slug check: 0 and 0 (msg 6c93f363, section 3.1).
 - **Row reviewer (R7):** claude waiver seat (1a7c70da), fresh session, tree only. `cd csi-spl-orc && sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub BOX_PICK_KIND=grok ./run -a do_spl_box_pick` (02:32:41Z) -> `pick=hold reason=waiting: grok weekly >= 95% on sat, `<box2>` [sat 99% ...; `<box2>` 99% ...]`. Mistral reviews plans, not row code (c-001 ruling b71016ad), sat has no agy: the holder names this same-vendor review a waiver.
 - **Review history:**
   - 2026-11-20 02:37Z: the editor pushed v0.1 (`fd658a9db`) to `review/c002-bug-round-25-planner` and asked the holder for a panel (msg 7dcca26d).
-  - 02:4xZ: the holder answered (msg 9f30fbdb): the mistral panel seat queued (ask 00cb4825), `<box2>`'s slug check asked there, then its outputs (msg 6c93f363: 0, 0). v1.0 folds both; no row changed.
+  - 02:4xZ: the holder answered (msg 9f30fbdb): the mistral panel seat queued (ask 00cb4825), `<box2>`'s slug check asked there, then its outputs (msg 6c93f363: 0, 0). v1.0 folds both; no row changed (`0a700414d`, sent to the holder msg 3acc5377 and the seat).
+  - 2026-11-20: panel seat m-767@`<box2>` (mistral): **PASS** on `0a700414d3852cc897f2c764fe635ee10ccf7bf7`, 0 warnings (msg 176ad4ad); seat file on `review/c002-bug-round-25-mistral-seat` at `8cba3a23d`. It re-ran the slug check (0 on its box), the 13 cited sites on `82f0e0b0f` and `origin/master` `f589257ba` (identical), rc01 rebuilt from section 3.2 (977 B, sha256 prefix `4df52c39d3b7`: tag 4245 exit 1 and tag 4243 exit 1, each `36 passed, 1 failed`; tag `ctl` exit 0, 37 passed), the 12 scheduled runs and job 136021944607's log (lines 504, 528, sandbox `tmp.lnipS02eZX`), the bare-number `hasnt` grep (3 lines), `flow.go:267`/`:277`/`:285-286`, the b24 landings, its box's done-claim log since W (0 `job` alerts), `lane-map.sh --check` and `do_check_dist_hygiene` (clean).
+  - Panel notes (none changes a row):
+    - N1: `lane-map.sh --check` on the row path exits 4 (no-file lanes); the orchestrator re-runs R3 before the spawn.
+    - N2: `origin/master` moved to `f589257ba` past the measurement sha; no cited line drifted.
+    - N3: `rc01.sh` rebuilt from section 3.2 (the sat dispatch dir is not on `<box2>`); its size and sha256 prefix match.
+    - N4: source 2's per-job last-green was not re-run as a 100-run report; the run-level claims were re-read with `gh`.
+    - N5: the seat file names the box and the push user by placeholder only, as the plan does.
+    - N6: the seat signed v1.0 `0a700414d` as named by the editor and the holder, not the brief's v0.1 `fd658a9db` (no row changed between them).
 
 ---
 
@@ -151,5 +159,5 @@ echo "rc01 sha=$sha tag=$tag rc=$rc"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-184@sat | **v1.0** |
-| Panel | mistral seat, ask 00cb4825 (queued) | pending |
+| Editor | c-184@sat | **v1.1, signed** |
+| Panel | m-767@`<box2>` (mistral) | **PASS** on `0a700414d` (msg 176ad4ad, seat file `8cba3a23d`) |

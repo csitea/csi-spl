@@ -10,7 +10,9 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-27-plan.md](bug-round-27-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0, the panel passed v0.1 `b4a015d34` with no W (section 8); signature on v1.0 pending.**
+**Status: v1.0, the panel passed v0.1 `b4a015d34` with no W (section 8); signed on v1.0 (section 9).**
+
+**Round closed** (c-362, the editor; dispatch holder c-002 msg 8d1269a2): both rows landed. b28-01 `2547249ec` (SPL-6071, R7 c-217@`<box2>` claude waiver seat PASS, msg 2373a3b2), b28-02 `4c4e97f75` (SPL-6059, R7 m-021@`<box2>` mistral PASS, msg 73fac0ef). Read at 18:0xZ: `git merge-base --is-ancestor <sha> origin/master` -> rc 0 for both, at `2547249ec`. Each R7 PASS was on the lane's review sha (`1f0f72b4f`, `d9cd8c6fb`); `git patch-id` of the reviewed and the landed commit match for both rows (`51ca357d6`, `779da38fa`). CI: on `4c4e97f75` wf 10, 15, 21, 25, 26, 32, 40 and 64 `success`; on `2547249ec` wf 15, 25, 26, 64 and 67 `success`, wf 10 (quality gate) `pending` at 18:0xZ. The panel seat m-021 also PASSed v1.0 `ed59ce77b` (msg b7885075), landed as `d980d28eb`; the editor closed the seat (rulebook 2.8 step 3, msg 524392bf).
 
 Editor: **c-362@sat** (claude, `specs_and_docs`).  
 Panel: m-021@`<box2>` (mistral, the b28 panel seat): PASS on v0.1 `b4a015d34` (msg 6ae7712c), no W.
@@ -185,7 +187,7 @@ echo "rc02 sha=${full:0:9} bullet-line=${spec%%:*} code-on-master=$code bullet-n
 |---|---|
 | rows | 2 |
 | inputs re-measured | 5 sources; 6 round 27 inputs, 7 holder candidates, 1 land report note; 22 human posts since W (6 probes, 0 bug words); 100 CI runs and one failed job log; 1 cron log (16 runs); 2 red controls (n=3 each); 3 suites re-run as the agent OS user |
-| first inputs for round 29 | the done-claim `job` label if it alerts alone; the AltGr picker if a rule or the owner says how it must pick; the desktop blog switcher's Enter on its one match if a rule or the owner says Enter must pick; `test-agent-name-shape.sh:89` if seen red; the orc/iac suites as the agent OS user if seen red, with user and tree; `gcp-billing-invoices.tst.sh` `download iframe` at its 3rd sighting; `unanswered-sweep.tst.sh` section 12 if L2b closes without it |
+| first inputs for round 29 | the done-claim `job` label if it alerts alone; the AltGr picker if a rule or the owner says how it must pick; the desktop blog switcher's Enter on its one match if a rule or the owner says Enter must pick; `test-agent-name-shape.sh:89` if seen red; the orc/iac suites as the agent OS user if seen red, with user and tree; `gcp-billing-invoices.tst.sh` `download iframe` at its 3rd sighting; `unanswered-sweep.tst.sh` section 12 if L2b closes without it; the swap's panel-seat regex (`spl-spawn-place.func.sh:1023` on `2547249ec`) does not name a third slug form, `-panel-seat-<digit>` (b28-01 R7 c-217 N1, n=1: three `<box2>` briefs of 2026-10-15, `Kind: specs_and_docs`, each quoting one `csi-spl-wui/` path, would still swap off mistral; not a regression) |
 
 ---
 
@@ -199,6 +201,8 @@ echo "rc02 sha=${full:0:9} bullet-line=${spec%%:*} code-on-master=$code bullet-n
   - 2026-11-20 12:01Z: the editor pushed v0.1 (`b4a015d34`) to `review/c002-bug-round-28-planner` and asked the holder for the panel (msg 065d09fe).
   - 2026-11-20 12:33Z: m-021@`<box2>` **PASS** on `b4a015d34` (msg 6ae7712c; seat file on `review/c002-bug-round-28-mistral-seat` `3c829af0b`), W: none. N1: `origin/master` moved to `f17b02d3b`, the row and site files unchanged; N2: rc01 and rc02 rebuilt from section 3.2 match its sha256 and size, both RED on `d2f3f3b90`; N3: its own lane map check exit 4 names 6 sat lanes it cannot read (read here at 11:54:08Z); N4: the candidates file is sat only, its tree-checkable dispositions re-verified; N5: `<box2>` briefs are UUID-named, 0 b28 hits; N6: grok pick still hold, row 01's R7 stays the claude waiver seat.
   - 2026-11-20 12:4xZ: v1.0, one commit on `b4a015d34` (a fast-forward of the review branch), records the PASS and the `<box2>` half. This file is the only one it touches. No row changed.
+  - 2026-11-20 12:5xZ: m-021@`<box2>` **PASS** on v1.0 `ed59ce77b` (msg b7885075), W: none. v1.0 landed as `d980d28eb` (holder GO 7e78ac93).
+  - 2026-11-20 18:0xZ: round closed, no version bump: the 2 rows landed, b28-01 `2547249ec` (SPL-6071), b28-02 `4c4e97f75` (SPL-6059). Status line and sections 7, 8 and 9 only; section 9's "v1.0 pending" was stale.
 
 ---
 
@@ -207,4 +211,4 @@ echo "rc02 sha=${full:0:9} bullet-line=${spec%%:*} code-on-master=$code bullet-n
 | seat | id | status |
 |---|---|---|
 | Editor | c-362@sat | v1.0 |
-| Panel | m-021@`<box2>` (mistral) | **PASS** on v0.1 `b4a015d34` (msg 6ae7712c), no W; v1.0 pending |
+| Panel | m-021@`<box2>` (mistral) | **PASS** on v0.1 `b4a015d34` (msg 6ae7712c), no W; **PASS** on v1.0 `ed59ce77b` (msg b7885075) |

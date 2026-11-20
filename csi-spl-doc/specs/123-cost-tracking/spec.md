@@ -988,6 +988,10 @@ puts the PDFs in one dir; the action (csi-spl-orc) imports them:
 - Test: `csi-spl-orc/src/bash/tests/spl-hub-cost-invoice-import.tst.sh`
   (synthetic invoices, the hub and the `cost_lines` read stubbed, one real
   PDF through `pdftotext` when the box has it).
+- How the hub READS an invoice entry beside the export lines of the same
+  month (a field, not the label; the export days plus the invoice minus
+  the export): spec 143 [costs-workspace-views.md](../143-reporting-section/costs-workspace-views.md)
+  section 4 (SPL-6086, v0.1 draft).
 
 ## 16. Who enters the costs: the accountant roles (SPL-5359)
 

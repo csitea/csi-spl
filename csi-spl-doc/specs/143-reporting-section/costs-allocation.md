@@ -314,4 +314,8 @@ split winning over it.
 
 The web UI screen for the splits is a later lane.
 
+A workspace with view rules ([costs-workspace-views.md](costs-workspace-views.md),
+SPL-6086, v0.1 draft) reads by its rules, and sections 2 and 7 are not
+applied to it (that page, 3.6).
+
 <!-- version: 0.5.0 · updated: 2026-11-17 -->

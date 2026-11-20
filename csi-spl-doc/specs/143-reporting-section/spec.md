@@ -1125,4 +1125,10 @@ assigned to one workspace or split across workspaces by percentage, and
 each workspace's share on its Costs page (owner HUM-10, t1 `41a74806`, poll
 `0c5e94b4` answer C, part B): [costs-allocation.md](costs-allocation.md).
 
+A workspace's view rules (a share of the estate's costs that may overlap
+another workspace's, e.g. csitea all, spool-hub a part), their legend on the
+Costs pages and the Google Cloud invoice read beside the billing export
+(owner HUM-10, csitea `bc9956bf`, SPL-6086, v0.1 draft):
+[costs-workspace-views.md](costs-workspace-views.md).
+
 <!-- version: 0.4.1 · updated: 2026-11-07 · last-edit: 2026-11-07T06:00:00Z -->

@@ -1,6 +1,6 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.6 (2026-10-30: the owner's Q-8 A and Q-9 A folded into section 13, msg 4316d471: the project's cost is a fifth Costs page, first and the default; a customer workspace gets its own project cost, its AI share + its own people, no cloud part; SPL-4368) · v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+**Status:** v1.6 + 16.6 v0.1 (2026-11-20: 16.6, every new or edited cost label translated into all 19 languages on save, design only, for review; SPL-6057) · v1.6 (2026-10-30: the owner's Q-8 A and Q-9 A folded into section 13, msg 4316d471: the project's cost is a fifth Costs page, first and the default; a customer workspace gets its own project cost, its AI share + its own people, no cloud part; SPL-4368) · v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
 s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
 all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
@@ -1341,6 +1341,204 @@ hand-entered line's one free-text label, in whatever language it was typed.
   `tests/unit/costs-labels.test.mjs`, the e2e
   `tests/e2e/reporting-costs-labels.test.mjs` (`personsLanguage`: Persons
   in `/bg/` reads the bg label, the keys unchanged).
+
+### 16.6 Every new or edited cost label in all 19 languages on save (SPL-6057, v0.1, design only)
+
+Owner HUM-10, csitea 720fa031: "Every label MUST be in the curretly selected
+lanaguage in the language settings of the user !!!" (msg 43a43e76), and the
+answer to poll f0c06053 (msg fb2ae7ee): "A — Both: fill all 19 languages for
+every existing label now, and a second lane translates every new or edited
+label into all 19 on save". This section is the second half. The first half,
+the labels already in the tables, is the data lane
+`c002-cost-labels-fill-19-locales`; it writes rows, not this design.
+
+#### 16.6.1 What is on master (read 2026-11-20 on `adcd75dbb`)
+
+- A new entry gets one label row only, its master locale's: the POST's
+  transaction runs `pgCostLabelMasterInsert`
+  (`store/cost_entries_postgres.go:63`; Memory `store/cost_entries.go:167`).
+- No route edits an entry's master text: `cost_entries.go:62-65` registers
+  GET, POST, DELETE and `PATCH .../{id}/labels` only, and the PATCH refuses a
+  master text other than the entry's own (`CheckCostEntryLabels`). The text
+  is the item's key (16.5). So "edited" today means a person deletes an entry
+  and types it again with a new text, which is a new entry.
+- An hr component's labels come only from migrations (rdb 0280's seed, rdb
+  0285's `en` copy); `SetMemHRComponentLabel` says "rdb 0285's rows have no
+  route yet".
+- The PATCH replaces every locale but the master's: `DELETE ... WHERE
+  entry_id = $1 AND locale <> master`, then one INSERT per locale
+  (`SetCostEntryLabels`). A row carries no mark of who or what wrote it
+  beyond `updated_by`.
+- Readers key labels by TEXT, not by entry: `costLabelsInSQL` is `DISTINCT
+  ON (e.label) ... ORDER BY e.label, e.period, e.created_at`, so where two
+  entries share a text (a monthly line typed again), Persons and Cloud show
+  the OLDEST entry's labels. A translation stored only on the newer entry is
+  not shown there.
+
+#### 16.6.2 The trigger
+
+The unit of work is a **master text**, not an entry: every entry with the
+same text reads the same labels (16.6.1, last point), so a text is
+translated once.
+
+1. **On the POST (sync, in the hub, no vendor).** In the same transaction as
+   the master row, the hub copies the other locales' rows from the newest
+   entry with the same text that has them, keeping each row's origin
+   (16.6.4). A recurring line is then in all 19 languages the moment it is
+   saved, at no cost.
+2. **Everything else is async.** A text with fewer than 19 rows on any of its
+   entries is *missing*; that is a query, not a queue table, so a failed run,
+   the fill lane's leftovers and a text no run has seen yet are all picked up
+   by the next run. The same holds for an hr component with fewer than 19
+   rows (a migration that adds a component may carry its `en` label only).
+3. **A master text that changes** (a future edit route, or a migration that
+   rewrites an hr component's `en`) makes every machine row made from the
+   old text *stale* (16.6.4: `source_text` differs); stale rows count as
+   missing and are re-made. A hand row is never re-made, only shown stale.
+4. **Until the rows exist the reader sees today's fallback** (16.5): its
+   locale's label, else the master locale's, else the entry's own text. No
+   new state is shown to a reader; the Expenses card says which languages
+   are still waiting (row L6).
+
+#### 16.6.3 Who translates
+
+| | (a) an agent lane per save, through the spool | (b) a machine translation API called by the hub | (c) a batch action on a schedule (recommended) |
+|---|---|---|---|
+| what runs | a placed lane (worktree, issue, seat) per saved label, agy last | the hub calls e.g. Google Cloud Translation inside the POST | `do_spl_cost_labels_translate` (csi-spl-orc) every 15 min on the desk box: reads the missing texts, one claude `--print` drafts all of them, one agy `--print` reviews a masked copy, the action writes |
+| cost | one seat start per label, minutes of a lane, plus an issue each (the lane rule) | about USD 20 per million characters (the vendor's list price, unchecked today); a 30-character label in 18 languages is about 540 characters | one claude and one agy call per run that finds work, none when nothing is missing; a run's prompt is the missing texts only |
+| latency | minutes to hours (placement, the 40-seat ceiling) | under a second, the POST waits | up to the interval plus the two calls (minutes) |
+| language rule (agy last) | holds | broken: no agy review, the text ships as the API wrote it | holds: agy reviews before anything is written (16.6.5) |
+| data rule | claude or grok drafts; agy may see only a masked copy (spec 115 "2b") | a new vendor sees every label unmasked, and the hub needs the API enabled and a key: a GCP change, the owner's go | the label text only leaves the box, to claude unmasked and to agy masked (16.6.5) |
+| failure | a dead lane is a lost label until someone looks | a vendor error fails or delays the save | nothing written, the text stays missing, the next run retries (16.6.6) |
+
+**Recommendation: (c).** It keeps both fleet rules (claude drafts the
+estate's data, agy has the last word on language) without a lane per label,
+needs no GCP change, and its failure mode is the reader's fallback, which is
+today's behaviour. (b) is the fastest and cheapest per label, but it is the
+only option that ships text agy never read and adds a vendor and a key; it
+is in the owner form as an option, not the recommendation.
+
+The headless calls exist on the box: `claude --help` lists `-p, --print`;
+`agy --help` lists `--print` and `--json-schema` (run 2026-11-20 on this
+box). Whether agy's print mode keeps to a schema reliably on 19 short
+strings is not measured; row L4's first commit measures it (n = 20 texts)
+before the action relies on it.
+
+#### 16.6.4 Hand edits are never overwritten
+
+Two columns on both label tables (new migration, row L1):
+
+- `origin text NOT NULL CHECK (origin IN ('hand','machine'))`: who wrote the
+  row. Every row already in the tables becomes `hand` (nothing existing is
+  ever overwritten by a run; the fill lane's rows included, owner question 4).
+- `source_text text`: the master text the row was made from (NULL on the
+  master row itself).
+
+The writes:
+
+- **A person (the PATCH).** It stops replacing the whole set: a locale whose
+  text differs from the stored row is written `origin = 'hand'`,
+  `source_text = <current master text>`; a locale sent unchanged keeps its
+  row as it is (a machine row the person did not touch stays `machine`); a
+  locale left out is deleted, and the next run makes it again as `machine`
+  (the WUI says so, row L6).
+- **The run (a new route, row L3).** `PUT /v1/operator/cost-labels/machine
+  {text, source_text, labels: {locale: text}}`, the operator service account
+  only (`operatorWriteCaller`'s Bearer path). For every entry whose label is
+  `text` it writes each locale with `INSERT ... ON CONFLICT (entry_id,
+  locale) DO UPDATE ... WHERE cost_entry_labels.origin = 'machine'`: a hand
+  row is skipped in SQL, so a person who corrects a row between the run's
+  read and its write still wins. It refuses (409 `stale_source`) when
+  `source_text` is no longer the entry's master text.
+- **Stale hand rows** (the master text changed after a person corrected the
+  row) are kept and listed in the GET as `stale_locales`; the Expenses card
+  marks them for the accountant to re-check. No run touches them.
+
+The GET `/v1/operator/cost-entries` keeps `labels {locale: text}` and adds
+`label_origins {locale: hand|machine}` and `stale_locales [locale]`; nothing
+existing changes shape.
+
+#### 16.6.5 What leaves the box, and to whom
+
+- Only the label TEXT: never the amount, currency, period, note, person,
+  account or entry id (the hub's GET of the missing texts, row L3, answers
+  `{text, missing: [locale]}` and nothing else).
+- claude (data-rule class, may see secrets) gets the texts unmasked and
+  drafts every missing locale.
+- agy gets a masked copy only: `do_spl_i18n_mask` (spec 115 T9) with its term
+  list built in the run from the hub's hr people's names and the workspace
+  names, written mode 0600 under the run's own temp dir and removed at exit,
+  never logged. An hr line's label is free text and may name a person; the
+  mask is why agy may review it. agy answers per locale `ok` or a corrected
+  text; the action unmasks (`do_spl_i18n_unmask`) and writes.
+- A text agy did not review is never written (the language rule: it waits,
+  the reader sees the master text). Owner question 2 asks whether a
+  claude draft may show until agy has reviewed it.
+- The run's log carries counts only: texts read, locales written, refused,
+  per reason; never a label (as section 15's actions log no amount).
+
+#### 16.6.6 Failure handling
+
+- One run at a time per env (`flock`); dev and prd are separate runs with
+  their own env SA (`do_gcp_pin_account`, never the owner account).
+- Before any write, each draft is checked: exactly the missing locales,
+  1..100 characters (rdb 0285's CHECK), not equal to the master text unless
+  the text is on `csi-spl-wui/i18n/i18n-keep-english.json`'s values (brand names such as
+  `Claude` stay as they are), no mask token left after the unmask. A failed
+  check drops that text from the run; the others are written.
+- A claude or agy call that fails, times out (`--print-timeout`) or answers
+  off schema writes nothing for the run; the texts stay missing.
+- The run keeps a per-text failure count in its state dir; after 3 runs in a
+  row fail the same text, one `spool-send.sh --to orchestrator` note (counts,
+  the text's sha256 prefix, never the text), then no other note for that
+  text until it succeeds. A vendor at its weekly limit is one note per day,
+  not one per run.
+- A 409 `stale_source` drops the text from the run; the next run re-reads it.
+
+#### 16.6.7 Rows to build
+
+Each row is its own lane, files disjoint, in the order of its dependency.
+
+| row | what | files | after | done test | red control |
+|---|---|---|---|---|---|
+| L1 | the two columns on both label tables, every existing row `hand` | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_cost_labels_origin.sql` (number from `do_rdb_migration_next`) | - | `store/cost_labels_test.go` on Postgres: an existing row reads `hand`, a new master row has `source_text` NULL; `PRE_PUSH_TIER=full` | an INSERT with `origin = 'x'` fails the CHECK |
+| L2 | the store: the PATCH writes per row (16.6.4), the copy on the POST (16.6.2 point 1), the missing query, the guarded machine write, both drivers | `internal/store/cost_labels.go`, `cost_labels_postgres.go`, `cost_entries_postgres.go`, `cost_entries.go`, their tests | L1 | both drivers: a machine write over a hand row leaves it; a PATCH that sends a machine row unchanged keeps it `machine`; a POST of a known text lands with its 19 rows | the machine write without its `WHERE origin = 'machine'` turns the hand-row test red |
+| L3 | the hub: `GET /v1/operator/cost-labels/missing` (texts and hr components, `{text, missing}` only), `PUT /v1/operator/cost-labels/machine`, `label_origins` and `stale_locales` on the entries' GET | `internal/hub/cost_labels.go`, a new `internal/hub/cost_labels_machine.go`, `hub/cost_labels_test.go` | L2 | the operator SA reads and writes; an accountant member reads 403 on both new routes; 409 `stale_source` | the missing answer carrying an amount field fails its test |
+| L4 | the action `do_spl_cost_labels_translate` (16.6.3-16.6.6), first commit the agy schema measurement (n = 20) | `csi-spl-orc/src/bash/run/spl-cost-labels-translate.func.sh`, its prompt assets, `csi-spl-orc/src/bash/tests/spl-cost-labels-translate.tst.sh` (hub, claude and agy stubbed) | L3 | stubs: a missing text gets its 18 rows; agy's correction is the one written; the log has no label | agy stub answers `refuse` -> zero writes; claude stub answers 101 characters -> that text refused, the others written |
+| L5 | the cron line, like section 4.5's (`flock`, tag, install / remove / check, refused from a worktree) | `csi-spl-orc/src/bash/run/spl-cost-labels-translate-install-cron.func.sh` and its test | L4 | install twice = one line; check names the schedule | a second install that adds a line fails the test |
+| L6 | the WUI: Expenses shows per row "machine translated" or "corrected by hand", the languages still waiting, the stale ones; removing a row says it will be made again | `csi-spl-wui/src/components/expenses/CostEntryLabels.vue`, `src/utils/cost-entries.mjs`, `i18n/locales/*.json` (19, agy reviewed), `tests/unit/cost-entries.test.mjs`, the e2e `tests/e2e/reporting-costs-labels.test.mjs` | L3 | e2e on the generated bundle: a machine row shows its mark, a hand edit flips it | a locale file missing the new key fails `i18n-parity` |
+| L7 | the docs: this section's v1.0 and 16.5's write rule | `csi-spl-doc/specs/123-cost-tracking/spec.md` | L2..L6 | - | - |
+
+The prd cron install (L5) and the first prd run (L4, `DRY_RUN=0`) each wait
+for the owner's go; dev runs first (dev leads prd).
+
+#### 16.6.8 Open questions for the owner (one form)
+
+The first option of each is the recommended one.
+
+1. **Who translates a new label?**
+   - `c` — a batch every few minutes: claude drafts, agy reviews a masked copy (16.6.3 c)
+   - `a` — one agent lane per saved label
+   - `b` — a machine translation API in the hub: instant, no agy review, a new vendor and a GCP change
+2. **Until agy has reviewed a translation, a reader sees:**
+   - `m` — the master text, nothing unreviewed is shown
+   - `d` — claude's draft at once, agy corrects it later
+3. **How often does the batch run?**
+   - `15` — every 15 minutes
+   - `60` — every hour
+   - `1d` — once a night
+4. **The labels written before this ships (the fill lane's included) count as:**
+   - `h` — hand: a run never replaces them
+   - `mc` — machine: a later run may re-make them
+5. **A person's correction of one entry's label applies to:**
+   - `t` — every entry with the same text (Persons and Cloud show one label per text, 16.6.1)
+   - `e` — that one entry only, as today
+
+#### 16.6.9 Gates for this section
+
+`cd csi-spl-iac && ./run -a do_check_dist_hygiene` and `./run -a
+do_check_pre_push` on the commit that carries it; each build row adds its
+own tests as listed in 16.6.7.
 
 ## 17. The biz owner and the internal accountant open Expenses (SPL-5420)
 

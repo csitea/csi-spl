@@ -34,7 +34,7 @@ round-77 candidate) and lowers row 01's baseline by their 2 lines.
 
 **Status: v1.0**: panel seat m-484 (mistral) PASS on v0.1 `8badbf473`, one W finding
 (W1, row 02's scratch layout, fixed) and N1-N4 recorded (section 8); no row changes
-scope. Editor: **c-481** (claude).
+scope. m-484 PASS on v1.0 `1a835fa8c` too (section 9). Editor: **c-481** (claude).
 
 **One sha:** every count is measured on **`7df5cecfc`** (`origin/master`
 7df5cecfc47f063e4c37818ea4b78bc5328382d7, committed 2026-11-20T20:04:17+02:00), n=1 per
@@ -407,6 +407,10 @@ The panel seat signs this plan (rulebook 3.2).
 - Panel reviewer seat: **m-484 (mistral) PASS** on
   `8badbf4730a90e9abf2a4eeb118020aba17c3ea5` (spool msg 277ad0e7; seat file `c05c76d17`
   on `review/c002-refactor-round-77-mistral-seat`), W1 fixed, N1-N4 recorded. agy was
-  unavailable (out until about 11-24), so mistral took the seat. Its review-line check:
-  for the holder to confirm (rc 0) before this plan lands.
+  unavailable (out until about 11-24), so mistral took the seat. Its review-line check
+  on that line: rc 0.
+- Panel delta: **m-484 (mistral) PASS** on v1.0
+  `1a835fa8cc4bf6bb500a8cf7ae5b2cbc00bd03cb` (clean line spool msg 4a0f2762, seat file
+  `c8147a733` on `review/c002-refactor-round-77-mistral-seat`), no new findings; the
+  holder c-002's review-line check rc 0 (DOCS-ONLY), and its GO (msg b1d2c44a).
 - Row R7 seats: section 4.

@@ -1,6 +1,6 @@
 # Spec 183: An Agent Exports Any Topic It Can Read to PDF
 
-Status: **Draft v0.7** (2026-11-20). Lane `c-977` (`claude`, backup for
+Status: **Accepted v0.7** (2026-11-20, dispatch holder msg `f87753ec`). Lane `c-977` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `f860d1b1b`; v0.2
 `49d6ee226` folds the owner's answers to form `82bc7349` (msg `d2c6508b`)
 and the P1 lane's contract question (msg `fffc8411`); v0.3 folds Q5 SVC

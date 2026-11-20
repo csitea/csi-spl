@@ -216,3 +216,42 @@ Plan cross-counts re-run: `git rev-list --count d2f3f3b90..cbbc11996` -> `60`
 - **N8:** the prd message count for the SPL-6073 check moves with the rolling
   window (plan: 14627 at 18:1xZ; mine: 14610 at 18:5xZ); the dispositions rest on
   `tasks_hex 2, ask_hex 0`, which match.
+
+---
+
+## Re-review: plan v0.2 `adfa2dbd8e6338c9df7404319fdf236550cd8765`
+
+**Verdict: PASS on `adfa2dbd8e6338c9df7404319fdf236550cd8765`** (named by the holder,
+msg 059fc336, 19:0xZ; `git log f62668ddc..adfa2dbd8 -1 --format=%H` ->
+`adfa2dbd8e6338c9df7404319fdf236550cd8765`, one commit on my v0.1 `f62668ddc`,
+plan file only, +20 -17). The delta was judged as asked: W1's fold, the counts,
+and that no row changed.
+
+- **W1 folded.** `git diff f62668ddc adfa2dbd8 -- csi-spl-doc/doc/md/bug-round-29-plan.md`
+  has hunks at lines 13, 16, 27, 40, 49-50, 60, 63, 191, 218, 230, 237-243,
+  249-252 only. Row 02's R7 cell (line 50) now reads "claude waiver seat
+  (1a7c70da), fresh session, tree only, unless `do_spl_box_pick` picks grok when
+  the row is queued. No mistral backup (a coding row; panel W1): if the seat is
+  absent 15 min, a replacement claude waiver seat (rulebook 2.7.3, R10) ..." —
+  the mistral backup is gone, the replacement is a claude waiver seat, and
+  section 8's R7 line names the claude waiver seat for both rows. Check 5 now
+  passes: no mistral coding/testing row, R7 reviewer never mistral.
+- **Counts corrected.** Line 27 now reads `git rev-list --count d2f3f3b90..cbbc11996`
+  -> 60 commits; `git rev-list --count --since="$W" cbbc11996` -> 4`. Re-run by me
+  at 19:0xZ: `git rev-list --count d2f3f3b90..cbbc11996` -> `60`;
+  `git rev-list --count cbbc11996 --since='2026-11-20T18:04:17Z'` -> `4`. Match
+  (my N1/N2).
+- **No row changed.** The only row-line changes are row 02's R7 cell (W1) and
+  row 01's evidence cell (the holder's `<box2>` answers folded: same credential
+  file, kept row `claude 6` there, different week resets). No hunk touches
+  section 3.2 (red controls, lines 67-190), and the defect / sites / red control /
+  fix scope / box / vendor / kind / batch cells of both rows are byte-identical
+  (`diff <(sed -n '49,50p' v0.1 | tr '|' '\n') <(sed -n '49,50p' v0.2 | tr '|' '\n')`
+  shows only the evidence and R7 cells). Base sha unchanged (`cbbc11996`, line 18).
+- **Slug still free.** `git log origin/master --since="$W" --oneline -E --grep='\(b29-'`
+  -> 0 at 19:0xZ (origin/master `cc13eac0b`); the plan's commits live on the
+  review branch only.
+
+All other checks stand as on v0.1 (base `cbbc11996`, red controls unchanged and
+RED as run, row files undrifted on `cc13eac0b`). No new W; N1/N2 are resolved by
+the fold.

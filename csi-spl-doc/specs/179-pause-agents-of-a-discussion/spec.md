@@ -324,4 +324,6 @@ The dispatcher asked the v0.2.0 questions as one poll in `t1` topic `a4b718a6`; 
 
 No question is open.
 
+Related: a saved prompt that runs on each reply in a discussion is [spec 182 topic loop prompt](../182-topic-loop-prompt/spec.md).
+
 <!-- version: 0.3.0 · updated: 2026-11-19 · last-edit: 2026-11-19T18:00:00Z -->

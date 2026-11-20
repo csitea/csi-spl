@@ -25,7 +25,9 @@
 # @description              one is listed from that post
 # @description   loop     - a loop prompt message (spec 182 5.2,
 # @description              messages.loop_id): not read at all; the topic
-# @description              is classified by its line before it
+# @description              is classified by its line before it; on a hub
+# @description              without the column (before rdb 0301) the read
+# @description              has no such filter (there is no loop prompt)
 # @description   terminal - a line a human typed in an agent's terminal and
 # @description              the agent mirrored (typed_by set, specs/036): the
 # @description              agent read it where it was typed
@@ -368,6 +370,11 @@ spl_sweep_merge() {
 _spl_sweep_rows_read() {
   local none='{}'
   local out="$1" nowf="${2:-}" since="${3:-}" delta_out="${4:-}" tns="${5:-$none}" tks="${6:-$none}"
+  local _SPL_SWEEP_LOOP=1 has
+  has="$(PGOPTIONS='-c default_transaction_read_only=on' spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
+    -c "SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema()
+          AND table_name = 'messages' AND column_name = 'loop_id'")" || return 1
+  [[ "$has" == 1 ]] || { _SPL_SWEEP_LOOP=0; do_log "INFO messages.loop_id is not on this hub yet (rdb 0301): the read has no loop prompt filter"; }
   PGOPTIONS='-c default_transaction_read_only=on' spl_pg_env "$SPL_PROXY_DSN" \
     psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 -v days="${SWEEP_DAYS:-7}" -v since="${since:-0}" \
     -v tns="$tns" -v tks="$tks" >/dev/null <<SQL
@@ -414,12 +421,12 @@ SQL
 # line as before (the narrow scan stays narrow), k drops the topics whose last
 # line is private (_spl_sweep_private_sql): one pkey lookup per topic.
 _spl_sweep_rows_sql() {
-  cat <<'SQL'
+  cat <<SQL
 WITH k0 AS MATERIALIZED (
   SELECT DISTINCT ON (m.tenant_id, m.task_id) m.tenant_id, m.msg_id
     FROM messages m
    WHERE m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
-     AND m.loop_id IS NULL
+     $(_spl_sweep_loop_sql m)
    ORDER BY m.tenant_id DESC, m.task_id DESC, m.received_at DESC, m.msg_id DESC),
 SQL
   cat <<SQL
@@ -457,7 +464,7 @@ SQL
 # 48 822 probes, 101 744 of 101 919 buffers, an idle delta 127 ms against 73 ms
 # for the full read; it timed out first when the DB's storage slowed.
 _spl_sweep_delta_sql() {
-  cat <<'SQL'
+  cat <<SQL
 WITH mv AS MATERIALIZED (
   SELECT h.tenant_id, h.task_id FROM topic_heads h
    WHERE h.changed_at > to_timestamp(:since)
@@ -490,7 +497,7 @@ k1 AS MATERIALIZED (
     SELECT m.msg_id FROM messages m
      WHERE m.tenant_id = mv.tenant_id AND m.task_id = mv.task_id
        AND m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
-       AND m.loop_id IS NULL
+       $(_spl_sweep_loop_sql m)
      ORDER BY m.received_at DESC, m.msg_id DESC LIMIT 1) x ON true),
 SQL
   cat <<SQL
@@ -507,6 +514,15 @@ SELECT k.tenant_id, NULL, NULL, k.task_id, NULL, NULL, NULL, NULL, NULL, NULL, N
   FROM k WHERE k.msg_id IS NULL
  ORDER BY 1, 6
 SQL
+}
+
+# _spl_sweep_loop_sql <alias>: the loop prompt filter (spec 182 5.2) on that
+# message, or nothing when _SPL_SWEEP_LOOP is 0: _spl_sweep_rows_read sets it
+# from the hub's schema, so the same read is right on a hub before rdb 0301
+# (no messages.loop_id, no loop prompts either) and after it.
+_spl_sweep_loop_sql() {
+  [[ "${_SPL_SWEEP_LOOP:-1}" == 1 ]] && printf 'AND %s.loop_id IS NULL' "$1"
+  return 0
 }
 
 # _spl_sweep_private_sql <alias>: true when that message, a topic's last
@@ -568,7 +584,7 @@ SQL
        AND h.tenant_id = l.tenant_id AND h.task_id = l.task_id
        AND h.expires_at > now() AND h.received_at > now() - make_interval(days => :days)
        AND h.typed_by IS NULL AND (h.from_id LIKE 'HUM-%' OR h.from_id LIKE 'GST-%') AND NOT h.note_to_self
-       AND h.loop_id IS NULL
+       $(_spl_sweep_loop_sql h)
        AND NOT EXISTS (SELECT 1 FROM messages r
                         WHERE r.tenant_id = h.tenant_id AND r.task_id = h.task_id
                           AND (r.typed_by IS NOT NULL

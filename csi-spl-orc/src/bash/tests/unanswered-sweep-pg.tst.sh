@@ -31,6 +31,10 @@
 #      one is anchored on itself; the classifier lists none of the loop
 #      prompts. CONTROL: a planted copy without the loop_id filters lists
 #      the loop prompt as unanswered
+#  12. the loop_id guard: with messages.loop_id the read filters (11); with
+#      the column dropped (a hub before rdb 0301) the same read runs, says so
+#      once and lists the former loop prompt as a plain post. CONTROL: the
+#      read with its schema probe skipped fails on the missing column
 #   7. M3: columns 14/15 are the OLDEST human post after the last agent reply
 #      (a burst after a reply: its first post; no reply: the topic's first;
 #      agent last: empty), and the classifier ages the burst from it
@@ -312,6 +316,28 @@ sweep11 "$T/p11/run/spl-unanswered-sweep.func.sh" "$T/rows11p" "$T/o11p"
 grep -q '^| open | t1 | dm c-002 | 40000000-0000-4000-8000-000000000007 | .* | HUM-2 | summarise the topic |\|^| open | t1 | #dev | 40000000-0000-4000-8000-000000000007 | .* | HUM-2 | summarise the topic |' "$T/o11p" &&
   pass "11. CONTROL: without the filters the loop prompt is listed as unanswered (the checks above would be red)" ||
   fail "11. CONTROL: the planted copy did not list the loop prompt: $(grep 40000000-0000-4000-8000-000000000007 "$T/o11p")"
+
+# --- 12. the loop_id guard: a hub before rdb 0301 -----------------------------
+[[ "$(grep -c 'loop_id is not on this hub' "$T/o11.r")" == 0 ]] &&
+  pass "12. with the column the read keeps its filter and says nothing" || fail "12. with column: $(cat "$T/o11.r")"
+psql_owner -c "ALTER TABLE messages DROP COLUMN loop_id CASCADE" >/dev/null || fail "12. drop column"
+sweep11 "$PROJ_ROOT/src/bash/run/spl-unanswered-sweep.func.sh" "$T/rows12" "$T/o12"
+[[ "$(grep -c 'loop_id is not on this hub' "$T/o12.r")" == 1 ]] && ! grep -q 'does not exist' "$T/o12.r" &&
+  [[ "$(awk -F'\t' '$4 == "40000000-0000-4000-8000-000000000008" { print $5 }' "$T/rows12")" == 50000000-0000-4000-8000-000000000081 ]] &&
+  pass "12. without the column the read runs unfiltered, said once: the former loop prompt is a plain row" ||
+  fail "12. no column: $(cat "$T/o12.r") / $(grep 40000000-0000-4000-8000-000000000008 "$T/rows12")"
+# CONTROL: the read with its schema probe skipped (the filter always on) fails here
+mkdir -p "$T/p12/run"; ln -s "$PROJ_ROOT/src/bash/features" "$T/p12/features"; ln -s "$PROJ_ROOT/src/bash/scripts" "$T/p12/scripts"
+sed '/loop_id is not on this hub/d' "$PROJ_ROOT/src/bash/run/spl-unanswered-sweep.func.sh" >"$T/p12/run/spl-unanswered-sweep.func.sh"
+env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" OUT="$T/rows12p" FUNC="$T/p12/run/spl-unanswered-sweep.func.sh" bash -c '
+  set -uo pipefail
+  do_log() { echo "$*"; }
+  source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+  source "$FUNC"
+  _spl_sweep_rows_read "$OUT"' >"$T/o12p.r" 2>&1
+grep -q 'loop_id does not exist' "$T/o12p.r" &&
+  pass "12. CONTROL: unguarded, the read fails on the missing column (the check above would be red)" ||
+  fail "12. CONTROL: the unguarded copy did not fail: $(cat "$T/o12p.r")"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

@@ -264,14 +264,14 @@ sweep _spl_sweep_rows_read "" "$T/now7" "$since7" "$T/d7" $(sweep spl_sweep_keep
   pass "7. the delta reads the agent reply as the moved topic's last line, not the loop prompt" ||
   fail "7. delta row: '$(c7 "$T/d7" 9)' '$(c7 "$T/d7" 5)' (want agent $reply7)"
 mkdir -p "$T/p7/run"; ln -s "$PROJ_ROOT/src/bash/features" "$T/p7/features"; ln -s "$PROJ_ROOT/src/bash/scripts" "$T/p7/scripts"
-awk '/^k1 AS MATERIALIZED/ { k1 = 1 } k1 && /loop_id IS NULL/ { k1 = 0; next } { print }' \
+awk '/^k1 AS MATERIALIZED/ { k1 = 1 } k1 && /_spl_sweep_loop_sql m/ { k1 = 0; next } { print }' \
   "$PROJ_ROOT/src/bash/run/spl-unanswered-sweep.func.sh" >"$T/p7/run/spl-unanswered-sweep.func.sh"
 # shellcheck disable=SC2046 # two words: the arrays
 SW_FUNC="$T/p7/run/spl-unanswered-sweep.func.sh" sweep _spl_sweep_rows_read "" "$T/now7p" "$since7" "$T/d7p" $(sweep spl_sweep_keep "$T/f1") 2>"$T/e7p" ||
   fail "7. planted read: $(cat "$T/e7p")"
-[[ "$(grep -c 'loop_id IS NULL' "$T/p7/run/spl-unanswered-sweep.func.sh")" == 2 && "$(c7 "$T/d7p" 9)" == human ]] &&
+[[ "$(grep -c '$(_spl_sweep_loop_sql [mh])' "$T/p7/run/spl-unanswered-sweep.func.sh")" == 2 && "$(c7 "$T/d7p" 9)" == human ]] &&
   pass "7. CONTROL: without k1's filter the loop prompt is the last line, read as 'human' (check 7 would be red)" ||
-  fail "7. CONTROL: the planted copy read '$(c7 "$T/d7p" 9)' $(grep -c 'loop_id IS NULL' "$T/p7/run/spl-unanswered-sweep.func.sh") filters left"
+  fail "7. CONTROL: the planted copy read '$(c7 "$T/d7p" 9)' $(grep -c '$(_spl_sweep_loop_sql [mh])' "$T/p7/run/spl-unanswered-sweep.func.sh") filters left"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

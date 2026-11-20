@@ -469,7 +469,10 @@ const stripByReader = (now: number) => stripTouch === 'swipe' || (stripTouch ===
 function onStripScroll(e: Event) {
   if (!sectionStrip.value) return
   const el = e.target instanceof Element ? e.target : document.scrollingElement
-  if (!el || el.closest('.spool-shell > .sidebar')) return
+  /* SPL-6106 (owner HUM-10 t1 b08c3fa8, "as soon as I scroll, the dropdown
+     list disappears"): a modal's own list (the top bar's tenant sheet) is
+     not a pane; hiding the bars there hid the sheet with its header */
+  if (!el || el.closest('.spool-shell > .sidebar, [aria-modal="true"]')) return
   const y = el.scrollTop
   const next = stripScroll(stripAnchor.get(el) ?? y, y, stripHidden.value)
   stripAnchor.set(el, next.anchor)

@@ -725,6 +725,10 @@ func assertLoopRowNoStatNoChange(t *testing.T, f *loopFix, post Message, now tim
 // carries loop_id and, for the RLS policies' read, is_private_scope (rdb
 // 0301): under the operator scope, with every other scan and the sort off,
 // the pick is an Index Only Scan, not an Index Scan that reads the heap.
+// VACUUM first, as prd's autovacuum does: with no visibility map the
+// planner prices the Index Only Scan as heap reads, and the 10 schedule run
+// on cc13eac0b picked a disabled messages_expires scan plus an incremental
+// sort over it (also off here).
 func TestTopicLoopSweepPickIndexOnly(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
@@ -737,9 +741,12 @@ func TestTopicLoopSweepPickIndexOnly(t *testing.T) {
 	if !strings.HasSuffix(def, want) {
 		t.Fatalf("messages_task_received: %s, want it to end %s", def, want)
 	}
+	if _, err := pg.pool.Exec(ctx, `VACUUM ANALYZE messages`); err != nil {
+		t.Fatal(err)
+	}
 	var plan []string
 	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SET LOCAL enable_seqscan = off; SET LOCAL enable_bitmapscan = off; SET LOCAL enable_indexscan = off; SET LOCAL enable_sort = off`); err != nil {
+		if _, err := tx.Exec(ctx, `SET LOCAL enable_seqscan = off; SET LOCAL enable_bitmapscan = off; SET LOCAL enable_indexscan = off; SET LOCAL enable_sort = off; SET LOCAL enable_incremental_sort = off`); err != nil {
 			return err
 		}
 		rows, err := tx.Query(ctx, `EXPLAIN SELECT DISTINCT ON (m.tenant_id, m.task_id) m.tenant_id, m.msg_id

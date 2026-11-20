@@ -66,6 +66,25 @@ func TestHumanPostGuardDMRule(t *testing.T) {
 	// ... but not to another person in that DM
 	_, err = guardSend(e, blk.TaskID, "HUM-2", "note", "fyi")
 	wantToken(t, "other person in a blocker DM", err, hub.TokenDMNotBlocker)
+
+	// 3. spec 033 K.3 exception E1 (owner Q2 B): a question DM the person did
+	// not start passes, as a blocker does, and may be followed up there ...
+	q, err := guardSend(e, uuid4(), "HUM-1", "question", "Should the export keep the archived topics?")
+	if err != nil {
+		t.Fatalf("question DM: %v", err)
+	}
+	if _, err := guardSend(e, q.TaskID, "HUM-1", "note", "the draft keeps them for now"); err != nil {
+		t.Fatalf("follow-up in the question DM: %v", err)
+	}
+	// ... but not to another person in that DM
+	_, err = guardSend(e, q.TaskID, "HUM-2", "note", "fyi, the export question")
+	wantToken(t, "other person in a question DM", err, hub.TokenDMNotBlocker)
+
+	// 4. every other new kind is refused like the note, alert included (Q1 A)
+	_, err = guardSend(e, uuid4(), "HUM-1", "alert", "the dev hub answers 502")
+	wantToken(t, "alert DM", err, hub.TokenDMNotBlocker)
+	_, err = guardSend(e, uuid4(), "HUM-1", "idea", "a weekly digest of the closed topics")
+	wantToken(t, "idea DM", err, hub.TokenDMNotBlocker)
 }
 
 func TestHumanPostGuardPersonStartedDM(t *testing.T) {

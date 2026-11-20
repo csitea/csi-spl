@@ -187,6 +187,38 @@ func TestSetMessageKindRefusals(t *testing.T) {
 	}
 }
 
+// SPL-5884 (spec 033 T021): each of the seven kinds that route as a note may
+// be set, `bug` reads back from the store and the register, and an unknown
+// kind is still a 400 bad_kind that changes nothing. The control: drop `bug`
+// from msg.validKinds and the first PATCH answers 400.
+func TestSetMessageKindSeven(t *testing.T) {
+	e := kindEnv(t)
+	tid, _ := e.tenant()
+	author := dialMember(t, e, tid, "HUM-1", "HUM-1")
+	id, _ := postNote(t, author, "the export drops the last row")["msg_id"].(string)
+	code, out := patchKind(t, e, tid, id, "HUM-1", map[string]string{"kind": "bug"})
+	if code != http.StatusOK || out["kind"] != "bug" {
+		t.Fatalf("set kind bug: %d %v (want 200 bug)", code, out)
+	}
+	if got := storedKind(t, e, tid, id); got != "bug" {
+		t.Fatalf("stored kind %q, want bug", got)
+	}
+	if cs := kindChanges(t, e, tid, id); len(cs) != 1 || cs[0].From != "note" || cs[0].To != "bug" {
+		t.Fatalf("register: %+v", cs)
+	}
+	if code, out := patchKind(t, e, tid, id, "HUM-1", map[string]string{"kind": "bogus"}); code != http.StatusBadRequest || out["error"] != "bad_kind" {
+		t.Fatalf("set kind bogus: %d %v (want 400 bad_kind)", code, out)
+	}
+	if got := storedKind(t, e, tid, id); got != "bug" {
+		t.Fatalf("the refusal changed the kind: %q", got)
+	}
+	for _, k := range []string{"feature", "alert", "question", "idea", "decision", "docs"} {
+		if code, out := patchKind(t, e, tid, id, "HUM-1", map[string]string{"kind": k}); code != http.StatusOK || out["kind"] != k {
+			t.Fatalf("set kind %s: %d %v", k, code, out)
+		}
+	}
+}
+
 // An agent's box-signed lobby post: the hub cannot re-sign it, yet an admin
 // may set its kind (a DM stays a 404 to anyone outside it: the read door), because the kind is hub metadata and the envelope is untouched.
 func TestSetMessageKindBoxSigned(t *testing.T) {

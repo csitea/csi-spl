@@ -1,6 +1,6 @@
 # Feature Specification: Message Levels — the Opening Card and the Thread Line
 
-**Feature ID**: `033-spool-message-levels` · **Milestone**: M3 · **Status**: Implemented (the live proof in CI skips until the secrets `SPL_PROBE_PW_<ENV>` are set, `tasks.md` T015); section "Message kinds: seven more" (SPL-5884) Planned
+**Feature ID**: `033-spool-message-levels` · **Milestone**: M3 · **Status**: Implemented (the live proof in CI skips until the secrets `SPL_PROBE_PW_<ENV>` are set, `tasks.md` T015); section "Message kinds: seven more" (SPL-5884) Partial (T020, T021 built; T022-T027 Planned)
 **Created**: 2026-09-25 · **Lane**: MESSAGE-LEVELS (hub + DB + browser)
 **Authority**: this file for the rule; `tasks.md` for what is built and where.
 
@@ -148,7 +148,7 @@ The owner, 2026-09-25 18:48:43Z, PRD #spool-hub-devel topic `db0f9d71`, verbatim
 
 ## Message kinds: seven more (SPL-5884)
 
-**Status**: Planned (spec only; no code, no migration file yet); the owner answered K.8 (Q1-Q5) · **Issue**: SPL-5884 ·
+**Status**: Partial: T020 (`rdb/0300_message_kinds_seven.sql`, test `api/internal/store/message_kinds_seven_test.go`) and T021 (`msg.validKinds` holds the 13; exception E1 in `api/internal/hub/human_post_guard.go` `dmOpensKind`) are built, SPL-6055; T022-T027 Planned. The owner answered K.8 (Q1-Q5) · **Issue**: SPL-5884 ·
 **Epic**: SPL-2403 · **Discussion**: t1 #spool-hub-ui topic `f4165bc3`.
 
 Spec 033 holds this section because the issue names it. The kind itself is
@@ -370,8 +370,8 @@ needs the gate.
 The new migration is forward-only. It takes the number that
 `cd csi-spl-orc && DRY_RUN=0 ./run -a do_rdb_migration_next` claims at
 build time; the head on `405fe0885` is `0294`. Its name is
-`<NNNN>_message_kinds_seven.sql`. The file is not written in this lane. It
-does the following:
+`<NNNN>_message_kinds_seven.sql`. Built as `0300_message_kinds_seven.sql`
+(T020, SPL-6055). It does the following:
 
 - `ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_kind_check`, then
   `ADD CONSTRAINT messages_kind_check CHECK (kind IN (<the 13>))`. This
@@ -458,4 +458,4 @@ All five are answered: owner HUM-10, t1 topic `f4165bc3`, msg
 | Q4 | May desk posts (`do_spl_desk_post`, `do_spl_desk_reply`) use the 7? | no: only the menu and `spool send` set them | yes: widen `DESK_KIND` (`spl-desk-post.func.sh:62`, `spl-desk-reply.func.sh:529`) | **B** | K.3 exception E3, desk post and desk reply only (`do_spl_fleet_notice` is not named, so it is unchanged); built in T024 (f) |
 | Q5 | Picker letters for bug and docs? | `U` (bUg) and `O` (dOcs) | `G` (buG) and `C` (doCs) | **A** | the default: no change; K.2 and T025 already use `U` and `O` |
 
-<!-- version: 0.3.1 · updated: 2026-11-18 · last-edit: 2026-11-18T22:53:00Z -->
+<!-- version: 0.3.2 · updated: 2026-11-20 · last-edit: 2026-11-20T12:51:15Z -->

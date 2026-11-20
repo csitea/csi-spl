@@ -16,16 +16,18 @@ import (
 // rule's one home is csi-spl-doc/doc/help/how-to-post.md rule 18.
 //
 //  1. dm_not_blocker: a DM (the topic has no channel) from an agent to a
-//     person is refused unless it is a blocker, it answers a DM that person
-//     started (the topic's first message is theirs) or posted in (any
-//     message of the topic is theirs, SPL-3420: a busy or dead starter must
-//     not leave the person unanswered), it follows up a blocker
-//     DM to that person (the topic's first message is one), or it is a DM
-//     about a channel topic the agent may read (spec 067 ref_task_id: the
-//     #lobby welcome answer, the desk's dm-fallback). Owner HUM-10, t1
-//     4b49e47d msg 6c089b4a: "an agent must NOT sent a direct msg to the
+//     person is refused unless it is a blocker or a question, it answers a
+//     DM that person started (the topic's first message is theirs) or posted
+//     in (any message of the topic is theirs, SPL-3420: a busy or dead
+//     starter must not leave the person unanswered), it follows up a blocker
+//     or question DM to that person (the topic's first message is one), or
+//     it is a DM about a channel topic the agent may read (spec 067
+//     ref_task_id: the #lobby welcome answer, the desk's dm-fallback). Owner
+//     HUM-10, t1 4b49e47d msg 6c089b4a: "an agent must NOT sent a direct msg to the
 //     origination of a msg on a channel topic UNLESS this msg is about
-//     blocked task".
+//     blocked task". The question is the owner's later word (spec 033
+//     K.3 exception E1, t1 f4165bc3 msg 67193a13, Q2 B: "a question is let
+//     through, as a blocker is"); every other kind is refused like a note.
 //  2. duplicate_to_human: a post to a person, DM or channel topic, whose
 //     normalized body equals one any agent sent that person in the last
 //     HumanDupWindow is refused (msgs 8b351386, 85a20ac7). A resend of the
@@ -70,9 +72,14 @@ func (s *Server) humanPostRefusal(ctx context.Context, x *session, env *wire.Env
 	return nil
 }
 
+// dmOpensKind reports whether a DM of kind k may go to a person unasked,
+// and so open a DM the agent may follow up: a blocker, or a question (spec
+// 033 K.3 exception E1).
+func dmOpensKind(k string) bool { return k == "blocker" || k == "question" }
+
 // dmRuleRefusal is check 1: nil for a channel post or an allowed DM.
 func (s *Server) dmRuleRefusal(ctx context.Context, g store.HumanPostGuard, tenant string, env *wire.Envelope, m *msg.Message) *frameRefusal {
-	if m.Kind == "blocker" || s.storedChannel(ctx, tenant, env, m) != "" {
+	if dmOpensKind(m.Kind) || s.storedChannel(ctx, tenant, env, m) != "" {
 		return nil
 	}
 	if r, _ := ctx.Value(dmRefKey{}).(dmRef); r.task != "" {
@@ -83,7 +90,7 @@ func (s *Server) dmRuleRefusal(ctx context.Context, g store.HumanPostGuard, tena
 		s.o.Log.Error().Err(err).Str("task_id", m.TaskID).Msg("human post guard: opener read")
 		return &frameRefusal{"internal", http.StatusInternalServerError, "topic lookup failed"}
 	}
-	if o.FromID == m.To || (o.Kind == "blocker" && o.ToID == m.To) {
+	if o.FromID == m.To || (dmOpensKind(o.Kind) && o.ToID == m.To) {
 		return nil
 	}
 	posted, err := g.HumanPostedIn(ctx, tenant, m.TaskID, m.To)
@@ -94,6 +101,6 @@ func (s *Server) dmRuleRefusal(ctx context.Context, g store.HumanPostGuard, tena
 	if posted {
 		return nil
 	}
-	return &frameRefusal{TokenDMNotBlocker, http.StatusForbidden, "a DM to " + m.To + " must be a blocker (kind blocker) or answer a DM " + m.To +
+	return &frameRefusal{TokenDMNotBlocker, http.StatusForbidden, "a DM to " + m.To + " must be a blocker or a question (kind blocker or question) or answer a DM " + m.To +
 		" started or wrote in: nothing was sent; post it in the channel topic it belongs to (how-to-post.md rule 18)"}
 }

@@ -57,8 +57,15 @@ func TestValidate(t *testing.T) {
 	if err := bad.Validate(); err == nil {
 		t.Fatal("bad kind accepted")
 	}
-	// SPL-952: the old four and the two new kinds all validate.
-	for _, k := range []string{"task", "result", "note", "reject", "blocker", "msg"} {
+	// SPL-952: the old four and the two new kinds all validate; SPL-5884
+	// (spec 033 T021): so do the seven that route as a note, and KindList
+	// names each of the 13.
+	kinds := []string{"task", "result", "note", "reject", "blocker", "msg",
+		"feature", "bug", "alert", "question", "idea", "decision", "docs"}
+	if got := strings.Join(kinds, "|"); got != KindList {
+		t.Fatalf("KindList %q, want %q", KindList, got)
+	}
+	for _, k := range kinds {
 		ok := sample()
 		ok.Kind = k
 		if err := ok.Validate(); err != nil {

@@ -10,8 +10,9 @@ import (
 // 8b351386, 85a20ac7; rdb 0211). Two deterministic rules the hub applies to
 // an agent's post to a person (internal/hub/human_post_guard.go):
 //
-//   - a DM to a person is a blocker, or answers a DM that person started or
-//     posted in (SPL-3420); everything else belongs in the channel topic;
+//   - a DM to a person is a blocker or a question (spec 033 K.3 E1), or
+//     answers a DM that person started or posted in (SPL-3420); everything
+//     else belongs in the channel topic;
 //   - the same person never gets the same text twice in a day: a post whose
 //     normalized body equals one an agent already sent that person in the
 //     last 24 h, in a DM or a channel topic, is refused.

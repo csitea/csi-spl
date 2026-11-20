@@ -47,13 +47,17 @@ const (
 // Kind enumerates the allowed message kinds. blocker and msg arrived with
 // SPL-952: a blocker is a sender that cannot proceed without input, msg a
 // plain message. A reader that predates them still validates the old four.
+// The seven after msg (SPL-5884, spec 033 section K.2, owner msg 890eadfb)
+// route as a note; rdb 0300 widens the CHECKs to them.
 var validKinds = map[string]bool{
 	"task": true, "result": true, "note": true, "reject": true,
 	"blocker": true, "msg": true,
+	"feature": true, "bug": true, "alert": true, "question": true,
+	"idea": true, "decision": true, "docs": true,
 }
 
 // KindList is validKinds for help text and error messages.
-const KindList = "task|result|note|reject|blocker|msg"
+const KindList = "task|result|note|reject|blocker|msg|feature|bug|alert|question|idea|decision|docs"
 
 // ValidKind reports whether k is a kind the hub accepts.
 func ValidKind(k string) bool { return validKinds[k] }

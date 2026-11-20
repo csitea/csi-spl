@@ -1,0 +1,20 @@
+# no-literal-paths.tst.sh spelled ratchet (SPL-6092): "<lines> <file>", lines with a var dir spelled from a variable (/var/${X%%-*}/$X/, /opt/$org/$app). It only shrinks.
+1 csi-spl-iac/src/bash/run/gcp-backup-env.func.sh
+1 csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh
+1 csi-spl-iac/src/bash/run/install-weekly-full-scan-cron.func.sh
+1 csi-spl-orc/src/bash/features/box-sessions/scripts/save-sessions.sh
+1 csi-spl-orc/src/bash/features/box-sessions/scripts/sessions-boot.sh
+1 csi-spl-orc/src/bash/run/check-ysg-box-deps.func.sh
+1 csi-spl-orc/src/bash/run/spl-desk-install-service.func.sh
+1 csi-spl-orc/src/bash/run/spl-desk-rebox.func.sh
+1 csi-spl-orc/src/bash/run/spl-invite-e2e.func.sh
+1 csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh
+1 csi-spl-orc/src/bash/run/spl-spool-refresh.func.sh
+1 csi-spl-orc/src/bash/run/spl-unanswered-sweep-install-cron.func.sh
+1 csi-spl-orc/src/bash/run/spl-wd-ensure.func.sh
+1 csi-spl-orc/src/bash/scripts/desk-reconcile-cron.sh
+2 csi-spl-utl/src/bash/run/box-disk-guard-install.func.sh
+2 csi-spl-utl/src/bash/run/box-proc-sample.func.sh
+1 csi-spl-utl/src/bash/scripts/box-disk-inventory.sh
+1 csi-spl-utl/src/bash/scripts/disk-crossing-sizes.sh
+1 csi-spl-utl/src/bash/scripts/disk-growers.sh

@@ -1,12 +1,13 @@
 # Spec 183: An Agent Exports Any Topic It Can Read to PDF
 
-Status: **Draft v0.3** (2026-11-20). Lane `c-977` (`claude`, backup for
+Status: **Draft v0.4** (2026-11-20). Lane `c-977` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `f860d1b1b`; v0.2
 `49d6ee226` folds the owner's answers to form `82bc7349` (msg `d2c6508b`)
 and the P1 lane's contract question (msg `fffc8411`); v0.3 folds Q5 SVC
 (form `ed3299a7`, msg `58733d06`) and the scale-to-zero order (msg
-`ac761f15`): the renderer service of 7.1.6 and row P4. Every contract
-change is in section 9.
+`ac761f15`): the renderer service of 7.1.6 and row P4; v0.4 folds the P2
+lane's three gaps (msg `b8cb9d99`, approved by the dispatch holder, msg
+`f718687c`). Every contract change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6031**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f798e9aa-6548-44fa-aa8b-7425133bff2f` (`t1`).
 Builds on: [182 topic loop prompt](../182-topic-loop-prompt/spec.md) (its
@@ -227,11 +228,15 @@ is cited.
 #### 7.1.3 What the PDF holds (Q4 W), and its title
 
 - The title, then each row as the WUI prints a card: author, time,
-  rendered markdown; pictures inline; other attachments as their name and
-  a link to the topic in the WUI; no loop prompt row.
+  rendered markdown; pictures inline; other attachments as their name,
+  plus a link to the topic in the WUI when the hub passes
+  `topicpdf.WithTopicLink(url)` (7.1.5), else the name only; no loop
+  prompt row.
 - Title, `topicpdf.Title(rows)`: the Go port of `topicTitleFromRows`
   without a pinned root (`view-api.mjs:32-50`): the oldest row's body,
-  whitespace collapsed, 100 characters then `...`; `topic` when empty.
+  whitespace collapsed, 100 characters then `...`; `""` when no row has
+  text, as the JS (`view-api.test.mjs:81`). The PDF's heading prints
+  `topic` for an empty title, and `Slug("")` is `topic` (7.1.4).
 
 #### 7.1.4 File naming
 
@@ -249,8 +254,13 @@ is cited.
 
 - `package topicpdf`:
   `type Renderer interface { Render(ctx context.Context, html []byte) ([]byte, error) }`;
-  `func HTML(rows []store.EditableMessage, title string, blob func(fileID string) ([]byte, error)) ([]byte, int, error)`
-  (the HTML and its picture count).
+  `func HTML(rows []store.EditableMessage, title string, blob func(fileID string) ([]byte, error), opts ...Option) ([]byte, int, error)`
+  (the HTML and its picture count); `type Option func(*htmlOpts)`;
+  `func WithTopicLink(url string) Option` sets the WUI link printed after
+  each non-picture attachment (7.1.3). P1 passes it built from the
+  hub's WUI origin (`AppURL`, `internal/auth/config.go:58`) and the task
+  id, and passes none when `AppURL` is empty; without it an attachment
+  prints its name only.
 - `topicpdf.HTTPRenderer{URL string}` posts the HTML to
   `POST <URL>/render` (7.1.6) through `idtoken.NewClient(ctx, URL)`
   (`google.golang.org/api`, already in `go.mod:29`), the hub's own
@@ -271,8 +281,10 @@ is cited.
   instance); `500` with Chrome's last 20 lines on a failed render. No
   other route, no health route the hub calls (1.2 R1).
 - Each render runs `chromium-browser --headless=new --no-sandbox
-  --disable-gpu --disable-dev-shm-usage --print-to-pdf=<tmp> <tmp html>`
-  in a fresh temp dir, removed after the answer. The HTML holds no remote
+  --disable-gpu --disable-dev-shm-usage --no-pdf-header-footer
+  --user-data-dir=<tmp>/profile --print-to-pdf=<tmp>/out.pdf <tmp>/in.html`
+  in a fresh temp dir `<tmp>`, removed after the answer: no date, URL or
+  page header from Chrome, and no profile shared between renders. The HTML holds no remote
   resource: every picture is already a `data:` URL (7.1.3).
 - Cloud Run, terraform step `031-cloud-run-pdf`, cnf `pdf.cloud_run`:
   service `<org>-<app>-<env>-pdf`; `cpu: "1"`, `memory: 1Gi`,
@@ -317,3 +329,11 @@ and the WUI's own export (005 FR-020, SPL-6023).
 | — | 7.1.6: the renderer's program, image, HTTP contract, Cloud Run settings, step `031-cloud-run-pdf`, cnf `pdf.cloud_run`, `hub.pdf.{url,timeout}` | P4's design |
 | `hub.pdf.timeout` default 60 s | 120 s | R2: a cold start is accepted |
 | row P4: SVC or IMG | P4 = step 031, the image action and its workflow step, the hub's env line, the check of 1.2 | Q5 SVC |
+
+### 9.2 Changes from v0.3
+
+| v0.3 | v0.4 | why |
+|---|---|---|
+| 7.1.3: other attachments carry a WUI link; 7.1.5: `HTML(rows, title, blob)` has no link input | `HTML(..., opts ...Option)`, `WithTopicLink(url)`; without it the name only | P2, msg `b8cb9d99` (a) |
+| 7.1.3: `Title` of no text = `topic` | `Title` = `""` as `topicTitleFromRows([])`; the heading and `Slug` print `topic` | P2, msg `b8cb9d99` (b): the port must pass `view-api.test.mjs:81` |
+| 7.1.6: Chrome flags without header control or own profile | adds `--no-pdf-header-footer` and a per-render `--user-data-dir` | P2, msg `b8cb9d99` (c) |

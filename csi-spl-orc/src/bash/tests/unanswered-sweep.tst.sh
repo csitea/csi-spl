@@ -102,9 +102,11 @@ ROWS="$T/rows.tsv"
   r csitea "" "" 00000000-0000-4000-8000-0000000000e6 10000000-0000-4000-8000-0000000000e6 $H HUM-3 ALL-0 human open dm - "humans only, no agent in the topic"
 } >"$ROWS"
 
+# ACK_DEFER_S=0: the clocks below assume no take/ack deferral; unpinned, an
+# APP_PATH in the caller's env (the pre-push gate) reads cnf desk_ack_defer_s
 sweep() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" ENV=prd SWEEP_ROWS_FILE="$ROWS" SWEEP_SEND="$T/send.sh" \
-    SEND_LOG="$T/sent" SWEEP_NOW="$NOW" HOME="$T/home" "$@" bash -c '
+    SEND_LOG="$T/sent" SWEEP_NOW="$NOW" HOME="$T/home" ACK_DEFER_S=0 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"

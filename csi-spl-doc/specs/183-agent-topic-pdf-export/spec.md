@@ -1,13 +1,15 @@
 # Spec 183: An Agent Exports Any Topic It Can Read to PDF
 
-Status: **Draft v0.4** (2026-11-20). Lane `c-977` (`claude`, backup for
+Status: **Draft v0.5** (2026-11-20). Lane `c-977` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `f860d1b1b`; v0.2
 `49d6ee226` folds the owner's answers to form `82bc7349` (msg `d2c6508b`)
 and the P1 lane's contract question (msg `fffc8411`); v0.3 folds Q5 SVC
 (form `ed3299a7`, msg `58733d06`) and the scale-to-zero order (msg
 `ac761f15`): the renderer service of 7.1.6 and row P4; v0.4 folds the P2
 lane's three gaps (msg `b8cb9d99`, approved by the dispatch holder, msg
-`f718687c`). Every contract change is in section 9.
+`f718687c`); v0.5 folds P2's additions to 7.1.5 (R7 c-347 W1, msg
+`145e456d`), a hung render's answer and the card author (holder msg
+`3d1b6071`). Every contract change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6031**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f798e9aa-6548-44fa-aa8b-7425133bff2f` (`t1`).
 Builds on: [182 topic loop prompt](../182-topic-loop-prompt/spec.md) (its
@@ -204,8 +206,11 @@ is cited.
   topic the operator may not read, no operator: one answer for all);
   `400 operator_ambiguous`; `403 typed_by_not_bound`;
   `413 too_large` (a PDF over `msg.MaxFileBytes`, `msg.go:44`);
-  `503 render_unavailable` (renderer down or busy); `504 render_timeout`
-  (past cnf `hub.pdf.timeout`, default 120 s, 1.2 R2).
+  `503 render_unavailable` (renderer down, busy or Chrome failed);
+  `504 render_timeout` (past cnf `hub.pdf.timeout`, default 120 s, 1.2 R2,
+  or a render past the renderer's own cap, 7.1.6: a hung Chrome gives
+  `504`, never `503`). The status and token come from
+  `topicpdf.Status(err)` (7.1.5).
 - Client: `func (s *hubclient.Session) TopicPDF(ctx context.Context,
   taskID, typedBy string, w io.Writer) (TopicPDFInfo, error)`;
   `TopicPDFInfo{Name string; Rows, Pictures int}`.
@@ -232,6 +237,14 @@ is cited.
   plus a link to the topic in the WUI when the hub passes
   `topicpdf.WithTopicLink(url)` (7.1.5), else the name only; no loop
   prompt row.
+- Card author, as the WUI's `typedByAuthor` (`typed-by.mjs`): when the
+  row's `TypedBy` is a `HUM-<n>` other than `FromID`, the card shows that
+  person and `via terminal <FromID>`; else `FromID`. P1 adds `TypedBy
+  string` (`messages.typed_by`, rdb 0040, as `store.ViewMsg.TypedBy`,
+  `store/view.go:125`) to `store.EditableMessage`
+  (`store/message_edit.go:37`) and fills it in both stores' read; P1 also
+  makes P2's card use it (P2 landed without the field). Until then the
+  card shows `FromID`.
 - Title, `topicpdf.Title(rows)`: the Go port of `topicTitleFromRows`
   without a pinned root (`view-api.mjs:32-50`): the oldest row's body,
   whitespace collapsed, 100 characters then `...`; `""` when no row has
@@ -266,9 +279,21 @@ is cited.
   (`google.golang.org/api`, already in `go.mod:29`), the hub's own
   identity as the ID token. `URL` is the env `SPOOL_PDF_URL`; empty (lde,
   tests without a renderer) answers `503 render_unavailable`.
-- Errors: `topicpdf.ErrBusy` (the renderer's `429`, or Cloud Run's `429`
-  / `503` when no instance can start) -> `503`; `context.DeadlineExceeded`
-  past `hub.pdf.timeout` -> `504`.
+- `HTTPRenderer{URL string; Timeout time.Duration; Client *http.Client}`
+  (`render.go:63-70` on P2's `c55e6a5b5`): `Timeout` 0 =
+  `DefaultTimeout` (120 s), a sooner deadline on the context is kept;
+  `Client` nil = `idtoken.NewClient` (tests pass their own).
+- Errors (`render.go:30-43`): `ErrUnavailable` (no URL, unreachable, or the
+  renderer's `500`); `ErrBusy` wraps it (the renderer's `429`, or Cloud
+  Run's `429` / `503` when no instance can start); `ErrTimeout` (past
+  `Timeout`, or the renderer's `504`; also matched by
+  `context.DeadlineExceeded`); `ErrTooLarge` (a PDF over
+  `msg.MaxFileBytes`, or the renderer's `413`).
+- `func Status(err error) (int, string)` (`render.go:47`) is the hub's
+  answer of 7.1.1: `ErrTimeout` -> `504 render_timeout`, `ErrTooLarge` ->
+  `413 too_large`, any other error (`ErrUnavailable`, `ErrBusy`) -> `503
+  render_unavailable`, nil -> `200 ""`. P1 answers with it and maps no
+  error itself.
 
 #### 7.1.6 The renderer service (P2 builds the server, P4 deploys it)
 
@@ -278,7 +303,13 @@ is cited.
 - HTTP on `$PORT` (Cloud Run's): `POST /render`, body `text/html` up to
   40 MiB (32 MiB of pictures as base64), answers `200 application/pdf`;
   `413` over the cap; `429` while a render runs (one at a time per
-  instance); `500` with Chrome's last 20 lines on a failed render. No
+  instance); `504` when the render passes its own cap
+  (`SPOOL_PDF_RENDER_TIMEOUT`, default 115 s, under Cloud Run's 120 s), the
+  browser's process group killed; `500` with Chrome's last 20 lines on any
+  other failed render. P2 at `c55e6a5b5` answers `500` for the cap too
+  (`cmd/spool-pdf/main.go:37,112`), which the hub turns into `503`: P2
+  follows up with the `504`, its test a render stub that sleeps past the
+  cap. No
   other route, no health route the hub calls (1.2 R1).
 - Each render runs `chromium-browser --headless=new --no-sandbox
   --disable-gpu --disable-dev-shm-usage --no-pdf-header-footer
@@ -337,3 +368,11 @@ and the WUI's own export (005 FR-020, SPL-6023).
 | 7.1.3: other attachments carry a WUI link; 7.1.5: `HTML(rows, title, blob)` has no link input | `HTML(..., opts ...Option)`, `WithTopicLink(url)`; without it the name only | P2, msg `b8cb9d99` (a) |
 | 7.1.3: `Title` of no text = `topic` | `Title` = `""` as `topicTitleFromRows([])`; the heading and `Slug` print `topic` | P2, msg `b8cb9d99` (b): the port must pass `view-api.test.mjs:81` |
 | 7.1.6: Chrome flags without header control or own profile | adds `--no-pdf-header-footer` and a per-render `--user-data-dir` | P2, msg `b8cb9d99` (c) |
+
+### 9.3 Changes from v0.4
+
+| v0.4 | v0.5 | why |
+|---|---|---|
+| 7.1.5: `HTTPRenderer{URL}`, `ErrBusy` | `HTTPRenderer{URL, Timeout, Client}`, `ErrUnavailable`, `ErrBusy`, `ErrTimeout`, `ErrTooLarge`, `Status(err)`; P1 answers with `Status` | P2 `c55e6a5b5`, R7 c-347 W1 (msg `145e456d`): the contract lands before the code |
+| 7.1.6: a failed render answers `500` | a render past the renderer's cap answers `504`, so a hung Chrome is `504 render_timeout` at the hub, never `503` | R7 N2 (msg `3d1b6071`): `500` read as `503` hid a timeout |
+| 7.1.3: card author unstated | `typedByAuthor`'s rule; P1 adds `EditableMessage.TypedBy` and wires it into the card | c-334's note (msg `3d1b6071`): `EditableMessage` has no `TypedBy` |

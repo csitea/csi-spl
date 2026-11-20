@@ -30,7 +30,10 @@ block, the `$SPL_VAR_APP_DIR/<sub>` default of an orc action's state dir, writte
 hand in **5** copies on `6fedc5bbb` (the brief named 3; the read below found 2 more).
 Row 01 folds it into one helper and moves the 3 named copies; row 02 moves the other 2.
 
-**Status: v0.1, draft**, for the panel (section 4). Editor: **c-156** (claude).
+**Status: v1.0**: panel seat m-163 (mistral) FAIL on v0.1 `8e3f74f35` with one defect, W1
+(row 02's gate regex also matched the left-out 6th line), fixed here; N1-N5 asked no
+change (section 8). Rows 01 and 02 unchanged; they place once the seat signs this
+version's sha. Editor: **c-156** (claude).
 
 **One sha:** every count is measured on **`6fedc5bbb`** (`origin/master`
 6fedc5bbbd2f3f29641028378cf31d7a0afc9a6c, committed 2026-11-20T01:26:24+01:00), n=1 per
@@ -177,7 +180,7 @@ Paths: `orc:` = `csi-spl-orc/src/bash/`, `lib:` = `csi-spl-orc/lib/bash/funcs/`.
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `refactor(r71-01-orc-var-app-subdir-helper)` | folded helpers exist once (developer guide 2.2.4); canonical paths (2.3.1) | the same derive block (1.3) is written out by hand in 5 actions; the 3 copies N2 named go to one helper, and the watchdog's silent copy keeps its silence | `lib:spl-run-paths.func.sh:76` (new `spl_var_app_subdir`)<br>`orc:run/spl-agent-boot-restore-install-cron.func.sh:59-61`<br>`orc:run/spl-watchdog.func.sh:540-542`<br>`orc:run/setup-reverse-tunnel.func.sh:48-50`<br>`orc:tests/spl-run-paths.tst.sh` (new cases) | 1 helper, 3 copies, 3 lines out | the change of 1.3 for copies 1 to 3. **Red control:** new `spl-run-paths.tst.sh` cases: (a) `spl_var_app_subdir v x` with `APP_PATH` set -> rc 0, `v` = `<derived var dir>/x`, `SPL_WT_ROOT` set in the same shell; (b) no tree (`env -u APP_PATH -u PROJ_PATH -u SPL_VAR_APP_DIR SPL_RUN_PATHS_TOP=`) -> rc 1, `v` keeps its old value; (c) a bad name (`'a b'`) -> rc 1. On `6fedc5bbb` (no function) the cases FAIL; with the change PASS. **Behaviour, the no-dir branch** (new cases, GREEN before and after): `do_spl_agent_boot_restore_install_cron` and `do_setup_reverse_tunnel` with no tree and no override -> rc 1 and their own FATAL line, unchanged; `spl_wd_boot_retired` with no tree -> rc 0, empty output. Run them on the parent too, both outputs in the body. Each column test's count the same before and after (1.3), plus the new cases. Tests: 1.3's row 01 column, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
-| 02 `refactor(r71-02-orc-var-app-subdir-callers)` | as row 01 | the 2 copies left after row 01 take the helper | `orc:run/prune-docker-images-install-cron.func.sh:38-40`<br>`orc:run/spl-workspace-docs-purge.func.sh:51-53` | 2 copies, 2 lines out | the change of 1.3 for copies 4 and 5. **Gate:** `git grep -nE 'SPL_VAR_APP_DIR:\+\$SPL_VAR_APP_DIR/' -- csi-spl-orc/src/bash/run` -> 0 after row 02 (5 on `6fedc5bbb`, 2 after row 01). **Behaviour:** new no-dir cases in `prune-docker-images.tst.sh` and `spl-workspace-docs-purge.tst.sh` (no tree, no override -> rc 1 and the action's own FATAL line), GREEN on the parent and on the change, both outputs in the body; each column test's count the same before and after (1.3), plus the new cases. Tests: 1.3's row 02 column, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 2 (after 01) |
+| 02 `refactor(r71-02-orc-var-app-subdir-callers)` | as row 01 | the 2 copies left after row 01 take the helper | `orc:run/prune-docker-images-install-cron.func.sh:38-40`<br>`orc:run/spl-workspace-docs-purge.func.sh:51-53` | 2 copies, 2 lines out | the change of 1.3 for copies 4 and 5. **Gate:** `git grep -nE 'spl_run_paths && .*SPL_VAR_APP_DIR:\+\$SPL_VAR_APP_DIR/' -- csi-spl-orc/src/bash/run` -> 0 after row 02 (5 on `6fedc5bbb`, 2 after row 01). The regex is anchored on `spl_run_paths && `: the bare `SPL_VAR_APP_DIR:\+\$SPL_VAR_APP_DIR/` also matches `spl-reflection-gather.func.sh:217` (6 on `6fedc5bbb`), which section 7 leaves out (panel W1). **Behaviour:** new no-dir cases in `prune-docker-images.tst.sh` and `spl-workspace-docs-purge.tst.sh` (no tree, no override -> rc 1 and the action's own FATAL line), GREEN on the parent and on the change, both outputs in the body; each column test's count the same before and after (1.3), plus the new cases. Tests: 1.3's row 02 column, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 2 (after 01) |
 
 **Re-measure first:** each row lane re-runs the `git grep` reads of 1.2 and 1.3 on the
 `origin/master` it starts from, and says in its result if the sites moved.
@@ -290,7 +293,7 @@ body; each column test's count before and after (1.3). Run the tests with
 | vendor | claude 2 |
 | kind | simple_coding 2 |
 | batches | batch 1: row 01; batch 2: row 02 |
-| hand-written `SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/<sub>` derive blocks in `orc:run/` | 5 today -> 2 after r71-01 -> 0 after r71-02 |
+| hand-written `spl_run_paths && <var>="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/<sub>}"` derive blocks in `orc:run/` (row 02's anchored gate) | 5 today -> 2 after r71-01 -> 0 after r71-02; the unanchored `SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/` reads 6 -> 3 -> 1 (`spl-reflection-gather.func.sh:217` stays, section 7) |
 | lines out | 5 (one per copy), plus the helper's 8 in |
 | measured on | `6fedc5bbb`; n=1 per command unless stated |
 
@@ -313,11 +316,31 @@ body; each column test's count before and after (1.3). Run the tests with
   copies of the derive block, not 3; row 01 adds the helper and moves the 3 named
   copies (the watchdog keeps its silent `return 0`), row 02 the other 2. Window W and the
   r71 slug proof recorded.
+- v1.0 (c-156): the panel seat m-163 (mistral) FAIL on v0.1 `8e3f74f35` (seat file
+  `110066e62` on `review/c002-refactor-round-71-mistral-seat`), one defect:
+  - W1: row 02's gate `git grep -nE 'SPL_VAR_APP_DIR:\+\$SPL_VAR_APP_DIR/' -- csi-spl-orc/src/bash/run`
+    counts 6 on `6fedc5bbb`, not 5: it also matches `spl-reflection-gather.func.sh:217`,
+    which section 7 leaves out, so it could never reach 0. Re-read by the editor: 6.
+    Fixed: the gate is anchored on `spl_run_paths && ` (re-read: 5 on `6fedc5bbb`), in
+    row 02's cell and in section 6's counts row, which now also gives the unanchored
+    6 -> 3 -> 1.
+  - N1 (origin/master moved to `5ed225ff7` during its read, every cited site identical),
+    N2 (lane map exit 4 on all 7 row paths, 11 lanes record no files), N3 (its helper
+    probes ran in a scratch dir), N4 (the briefs grep counts its own brief only), N5 (it
+    signed v0.1, no v1.0 named yet): no change.
+  - Re-read by the editor on `5ed225ff7` (n=1): `git diff --stat 6fedc5bbb 5ed225ff7 --`
+    the lib, the 5 actions and the 5 row test files -> empty; the 4 commits in between
+    are spec 162 T2 (api, rdb, doc) and b24-02 (`sa:tests/lib.inc.sh`). Rows 01 and 02
+    unchanged.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-156 (claude): v0.1.
-- Panel reviewer seat: requested (section 4).
+- Editor seat: c-156 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-163 (mistral)**, FAIL on v0.1
+  `8e3f74f3543e03a584a72e4fda89cbea428e8a35` (spool msg 64581f82, task
+  `dispatch-refactor-r71`; seat file on `review/c002-refactor-round-71-mistral-seat`
+  `110066e62`), W1 fixed in v1.0; its verdict on the v1.0 sha follows in its seat file.
+  agy was absent or out of quota (the holder's read), so mistral took the seat.
 - Row R7 seats: section 4.

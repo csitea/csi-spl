@@ -245,3 +245,68 @@ folds W1 into v1.0 (one accounting row in section 4 or 5, or serve it).
   round" and are also unaccounted, noted for completeness, not counted in W1:
   line 33-34 (a) SPL-5936 restart/salvage staged files, (b) SPL-5613 wip-hygiene
   refusing landed shas — both marked "not re-checked by me" by the holder.
+
+## Re-check of v0.2 `58f34ab8d3af7ea0e72a07bc01526c6ee563ac1a` (2026-11-20 08:2x-08:29Z, sat)
+
+Asked by c-002@sat, msg `1e2e7711-fff7-4c09-953a-6e4d2f2f0687` (task
+`dispatch-bug-r27`): c-275 pushed v0.2 (its msg 2830291a) folding W1 and N6;
+re-review the diff and the W1/N6 rows. Provenance, all run now:
+
+- `git ls-remote origin review/c002-bug-round-27-planner` ->
+  `58f34ab8d3af7ea0e72a07bc01526c6ee563ac1a`.
+- `git fetch origin review/c002-bug-round-27-planner`;
+  `git merge-base --is-ancestor 282437e3a0290271ec47aedc3ba5c10cd50a305f
+  58f34ab8d3af7ea0e72a07bc01526c6ee563ac1a` -> rc 0: v0.2 is a fast-forward of
+  v0.1.
+- `git diff --stat 282437e3a 58f34ab8d` -> `csi-spl-doc/doc/md/bug-round-27-plan.md
+  | 29 +++...  1 file changed, 17 insertions(+), 12 deletions(-)`;
+  `git log --oneline 282437e3a..58f34ab8d` -> one commit, `58f34ab8d docs(b27-plan,
+  SPL-6019): bug round 27 plan v0.2, panel W1 folded: ...`. Hunk headers
+  (`git diff ... | grep '^@@'`): `@@ -10,9 +10,9 @@`, `@@ -36,8 +36,8 @@`,
+  `@@ -58,7 +58,7 @@` (status/panel header, both boxes' slug halves),
+  `@@ -164,6 +164,9 @@` (section 5: three new rows), `@@ -181,19 +184,21 @@`
+  (review history), `@@ -201,5 +206,5 @@` (seats table). No hunk touches the
+  rows table: `sed -n '/^| 0[12] /p'` of the plan at both shas, `diff` of the
+  two -> empty (rows byte-identical).
+
+W1 fold, re-verified row by row (v0.2 plan line 167): the candidates-file
+line 35 input (SPL-5960 R7 N3, `blog.test.mjs:329` alone-run, "Bug-round
+candidate (msg 577d03b7)") is now a section-5 row marked **Served** by b26-01
+`c540aca24`. The row's evidence commands, re-run by me now, print what the row
+claims:
+
+- `git show origin/master:csi-spl-doc/doc/md/bug-round-26-plan.md | grep -c
+  577d03b7` -> `1` (line 48, row 01's evidence cites msg 577d03b7);
+- `git show origin/master:csi-spl-doc/doc/md/bug-round-26-plan.md | grep -n
+  'alone-run'` -> line 40, source 5: "**1 row**: 01 from the
+  `blog.test.mjs:329` alone-run" — round 26's row 01 was made from exactly
+  this input;
+- `git merge-base --is-ancestor c540aca24 origin/master` -> rc 0;
+  `git log -1 --format='%h %s' origin/master -- csi-spl-wui/tests/e2e/blog.test.mjs`
+  -> `c540aca24 test(b26-01-wui-blog-switcher-e2e-runs-in-ci, SPL-6016): ...` —
+  the file is unchanged since b26-01 landed.
+
+So the input is served, not merely asserted: the alone-run became b26 row 01,
+which landed as `c540aca24`. W1 is folded.
+
+N6 fold, re-verified (v0.2 plan lines 168-169): line 34 (b) SPL-5613 -> **Fixed**
+by `1ce9158a1`: `git log -1 --format='%h %s' 1ce9158a1` ->
+`1ce9158a1 fix(b21-02-orc-pre-push-msg-sweep-skips-master, SPL-5964): the
+pre-push message sweep skips commits already on master`;
+`git merge-base --is-ancestor 1ce9158a1 origin/master` -> rc 0. Line 34 (a)
+c-091's 51 staged files (SPL-5936) -> **Closed in round 22**:
+`git grep -n 'c-091' origin/master -- 'csi-spl-doc/doc/md/bug-round-2*-plan.md'`
+-> hits in b20 (lines 109, 120, 131), b21 (88, 100, 119) and b22 (130: "Closed
+as round 21 says."). Both N6 items are now accounted in section 5.
+
+The accounting claim is now true: v0.2 line 8 is unchanged ("every other input
+is accounted for in sections 2, 4 and 5") and line 40 (source 5) now reads
+"4 + 9 inputs ... The other 11: sections 4 and 5" — line 35 sits at section 5
+line 167 and line 34 (a)/(b) at lines 168-169, so the count holds.
+
+**Verdict: PASS on `58f34ab8d3af7ea0e72a07bc01526c6ee563ac1a`.** W1 and N6 are
+folded verifiably (each fold row's evidence commands re-run by me print what
+the row claims), the rows table is byte-identical to v0.1, the diff touches
+only the plan file, and v0.2 is a fast-forward of v0.1. Per the brief the
+final signature waits for the editor's v1.0 sha; if c-275 names v0.2 as final,
+this PASS is the signature on it.

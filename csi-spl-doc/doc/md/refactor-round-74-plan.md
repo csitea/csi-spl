@@ -33,7 +33,9 @@ way, 5 per row, chosen so that no row file is on a live or queued lane (2.2). Ro
 takes 5 installers whose cron line runs `./run` or a script with no stack guard, row 02
 5 whose cron line runs a script. The other 12 stay out (section 7).
 
-**Status: v0.1, draft**, for the panel (section 4). Editor: **c-290** (claude).
+**Status: v1.0**: panel seat m-295 (mistral) PASS on v0.1 `3036c5754`, no W finding;
+N1-N3 recorded (section 8), none asks a change. Rows 01 and 02 are as drafted. Editor:
+**c-290** (claude).
 
 **One sha:** every count is measured on **`af8ca0ba7`** (`origin/master`
 af8ca0ba723c03b70383d94830cdb8e6a3dd6f35, committed 2026-11-20T10:05:33+02:00), n=1 per
@@ -216,7 +218,9 @@ row carries `Docs: none (<why>)`.
   `orc:run/spl-review-go.func.sh`, `orc:tests/spl-review-go.tst.sh`,
   `orc:run/spl-spawn-place.func.sh`, `orc:tests/spl-spawn-queue.tst.sh`,
   `orc:run/spl-spawn-review-notify.func.sh`, `orc:run/run.sh` (read) and
-  `orc-shard-weights.txt`. So `spl-review-go-install-cron.func.sh` (its suite is
+  `orc-shard-weights.txt`; its row 01 also *runs* `orc:tests/spl-accepted-close.tst.sh`
+  (b27 plan `:55`, it reads the same PASS record form) but does not edit it (the panel's
+  N2). So `spl-review-go-install-cron.func.sh` (its suite is
   `spl-review-go.tst.sh`) and `spl-spawn-place-install-cron.func.sh` (its suite is
   `spl-spawn-queue.tst.sh`) are left out of this round (section 7). No r74 row file is
   in b27's list.
@@ -340,11 +344,30 @@ the 5 suites, `no-literal-paths.tst.sh`, `bash-cleancode.tst.sh` (`SPOOL_TEST=1`
   `orc:run/` cron installers, 5 per row, both in batch 1; proven to derive the same dir
   on this box's 3 tree kinds; the two sites whose suites are bug round 27's row files
   left out. Window W and the r74 slug proof recorded.
+- v1.0 (c-290): the panel seat m-295 (mistral) PASS on v0.1
+  `3036c5754cf341955bd2c9a713e0ad33d4ab31ad` (spool msg d9774c47 here, 28a199d5 at the
+  holder; task `dispatch-refactor-r74`; seat file `e7ef6c95b` on
+  `review/c003-refactor-round-74-mistral-seat`). `do_spl_review_line_check` on its line,
+  run by the editor on this box: rc 0, `DOCS-ONLY 3036c5754cf3`. No W finding. Its
+  notes, none asking a change:
+  - N1: lane map exit 4 (not 3) on the 20 row paths: the 6 no-file rotate lanes on the
+    other box are ask-first, not free; no live lane owns a row path (2.2 says the same).
+  - N2: bug round 27's row 01 runs `spl-accepted-close.tst.sh` (b27 plan `:55`) but
+    edits only `spl-review-go.func.sh` and its test: no file collision with r74-01.
+    Recorded in 2.2. A row 01 lane re-checks b27's files before it pushes (R3).
+  - N3: the gate counts the `SPL_ORG_APP` spelling only; the other 8 hand-spelled lines
+    (5 `org_app|ORG_APP|app`, 3 tenant dirs) are counted apart in 1.3. The later gate
+    row must cover every spelling (section 7 says so).
+  The rows, their sites and their gate (22 -> 17 -> 12) do not change.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-290 (claude): v0.1.
-- Panel reviewer seat: requested (section 4).
+- Editor seat: c-290 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-295 (mistral) PASS** on
+  `3036c5754cf341955bd2c9a713e0ad33d4ab31ad` (spool msg d9774c47; review-line check rc 0,
+  DOCS-ONLY; seat file `e7ef6c95b` on `review/c003-refactor-round-74-mistral-seat`), no
+  W finding, N1-N3 recorded. agy was unavailable (the holder's read), so mistral took
+  the seat. Its signature on v1.0: pending.
 - Row R7 seats: section 4.

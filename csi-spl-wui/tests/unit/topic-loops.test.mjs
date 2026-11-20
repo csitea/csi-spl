@@ -61,8 +61,8 @@ describe('the Discussion loops… entry and its lock (answer 5 A)', () => {
 describe('the loop form (4.1 step 2)', () => {
   const ok = { prompt: 'Export this discussion as a PDF.', triggers: ['after_agent_reply'], interval: 30 }
 
-  it('the twelve triggers of section 1.2 (v0.4), in order', () => {
-    assert.deepEqual([...LOOP_TRIGGERS], ['after_agent_reply', 'before_agent_reply', 'after_human_reply', 'before_human_reply', 'every_hour', 'every_n_minutes',
+  it('the eleven triggers of section 1.2 (v0.6, Q11 C), in order', () => {
+    assert.deepEqual([...LOOP_TRIGGERS], ['after_agent_reply', 'before_agent_reply', 'after_human_reply', 'every_hour', 'every_n_minutes',
       'post_has_keyword', 'post_has_file', 'blocker_posted', 'no_reply_after_human', 'issue_status_changed', 'daily_at'])
   })
 

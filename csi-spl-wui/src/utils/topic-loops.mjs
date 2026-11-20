@@ -1,8 +1,9 @@
 // csi-spl-wui/src/utils/topic-loops.mjs
 //
 // Spec 182 row L3 (SPL-6034): the pure half of a topic's Discussion loops
-// (HUM-10, t1 f08c0c58, msg 19acb8f9): the twelve trigger keys of section 1.2
-// (v0.4; msgs d44af000 and a1d73b19),
+// (HUM-10, t1 f08c0c58, msg 19acb8f9): the eleven trigger keys of section 1.2
+// (v0.4; msgs d44af000 and a1d73b19; owner Q11 C, msg 46e61a8c, drops
+// "before each human reply"),
 // the form's rules (section 4.1 step 2), the request body and the row state
 // of the loop JSON (section 7.1.2). TopicLoopsDialog.vue draws them; the
 // mock (spool-client-mock.mjs) checks a write with the same rules the hub
@@ -16,7 +17,6 @@ export const LOOP_TRIGGERS = Object.freeze([
   'after_agent_reply',
   'before_agent_reply',
   'after_human_reply',
-  'before_human_reply',
   'every_hour',
   'every_n_minutes',
   'post_has_keyword',

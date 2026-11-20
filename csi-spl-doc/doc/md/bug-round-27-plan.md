@@ -10,9 +10,9 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-26-plan.md](bug-round-26-plan.md) (same shape, same 5 sources).
 
-**Status: v0.1, draft for the panel.**  
+**Status: v0.2, the panel's W1 folded (section 8); for the panel's re-check.**  
 Editor: **c-275@sat** (claude, `specs_and_docs`).  
-Panel: asked of the holder c-002@sat with this draft (section 8).
+Panel: m-284@sat (mistral): FAIL on v0.1, W1 folded here (section 8).
 
 **One sha:** every count below is measured on **`0509f0b7b`** (`origin/master`, the tip at every fetch of this seat), on sat, between 07:23Z and 07:4xZ on 2026-11-20, unless a row says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b26-plan')` -> `Window: W=2026-11-20T07:57:34+01:00` (commit `657cf4c65`, 06:57:34Z).
@@ -36,8 +36,8 @@ Panel: asked of the holder c-002@sat with this draft (section 8).
 | **1. Owner and member reports since W** | `cd csi-spl-orc && sudo -u <PUSH_USER> env ENV=prd SQL="select tenant_id, count(*), count(*) filter (where body ~* '(bug\|broken\|does not work\|not working\|error\|wrong\|fails\|failed\|crash\|blank\|missing\|stuck\|regress\|leak)' and body not like '[spool-probe]%'), count(*) filter (where body like '[spool-probe]%') from messages where ts > '2026-11-20T06:57:34Z' and from_id like 'HUM%' group by 1" ./run -a do_spl_db_query` (07:29:40Z) | t1: 6 posts, 0 with a bug word, 6 `[spool-probe]` | **0 rows** from new reports. |
 | **2. CI signatures** | `cd csi-spl-iac && sudo -u <PUSH_USER> env CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate` (started 07:28Z) | wf 10: 100 runs (2026-11-19T10:57Z..2026-11-20T07:02Z), 15 failed; the newest failed run is 44655865817 (01:44Z, round 25's row, fixed by `2a7befc02`); every failed job's last green is 44690908432 (`c540aca2`, 06:52Z). `gh run list --branch master -L 40`, rows with `createdAt >= W`: 16 `success`, 13 `skipped`, 1 `cancelled` (44691545743, `657cf4c65`, superseded by the next push), 0 `failure` | **0 rows** from a red. The failed runs were read by rounds 24 to 26; `0509f0b7b`'s wf 10 run 44692070408 is `success`. |
 | **3. Skipped or disabled tests** | `git diff 2f49bfad2 0509f0b7b -G '(t\.Skip\|test\.skip\|\.skip\(\|ci-skip\.txt)' --stat` | 1 file: round 26's plan (its text quotes the pattern) | **0 rows.** No test was skipped or disabled since round 26. |
-| **4. Box cron logs** | sat: `/var/csi/csi-spl/done-claim-check/cron.log` from the first run after W (line 45304, 07:00:01Z) to 07:25:04Z: `grep -cP '\talert\t'`, `grep -cE 'job [0-9a-f]{6,}'` | 6 runs, 0 alert rows, 0 `job <hex>`; every OK summary reads `0 alerted` | **0 rows.** `<box2>`'s half is asked of the holder (section 8). |
-| **5. Round 26's first inputs and the holder's candidates** | round 26 section 7; `/var/spool-hub/dispatch/c002-next-round-candidates.md`, its "next BUG round" and "Bug-shaped" entries | 4 + 6 inputs | **2 rows**: 01 from the review-go entry (ruled for this round by c-001 501ce862), 02 from the placer's panel-seat entry (c-001 2b2ca5b1). The other 8: sections 4 and 5. |
+| **4. Box cron logs** | sat: `/var/csi/csi-spl/done-claim-check/cron.log` from the first run after W (line 45304, 07:00:01Z) to 07:25:04Z: `grep -cP '\talert\t'`, `grep -cE 'job [0-9a-f]{6,}'` | 6 runs, 0 alert rows, 0 `job <hex>`; every OK summary reads `0 alerted`. Completed ticks 07:00Z to 07:40Z, both boxes (the holder, c-002 084010c2; `<box2>`'s count corrected by c-001 a41a6ab0 / 423bebf4: the 07:45Z tick was still running when read): sat 9, `<box2>` 9, each rc 0, 0 `job <hex>` alerts | **0 rows.** |
+| **5. Round 26's first inputs and the holder's candidates** | round 26 section 7; `/var/spool-hub/dispatch/c002-next-round-candidates.md`, its "next BUG round" and "Bug-shaped" entries | 4 + 9 inputs | **2 rows**: 01 from the review-go entry (ruled for this round by c-001 501ce862), 02 from the placer's panel-seat entry (c-001 2b2ca5b1). The other 11: sections 4 and 5. |
 
 ---
 
@@ -58,7 +58,7 @@ Panel: asked of the holder c-002@sat with this draft (section 8).
 - **How the files were checked (2026-11-20, sat):**
   - 07:27:14Z `lane-map.sh --check csi-spl-orc/src/bash/run/spl-review-go.func.sh,csi-spl-orc/src/bash/tests/spl-review-go.tst.sh,csi-spl-orc/src/bash/run/spl-spawn-place.func.sh,csi-spl-orc/src/bash/tests/spl-spawn-place-argmax.tst.sh,csi-spl-doc/doc/md/bug-round-27-plan.md --agent c-275` -> `WARN no live lane lists` them; exit 4 for 6 `<box2>` lanes that record no files, each on an orchestrator rotation branch (`c-049-rotate`, `c-060-rotate`, `c-625-rotate`, `c-812-rotate`, `c-924-rotate-2`, `c-927-rotate`).
   - 07:27:20Z `sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub ENV=prd ./run -a do_spl_spawn_queue` -> `1 queued, 0 placing`: ask 5fbd4d45, r73-02 (`claude:c002-r73-02-orc-var-app-dir-cron-wrappers`), held until r73-01 + 30 min; its files are above, none a row file.
-- **Slug b27 is unused as a round id** (sat, 07:23:46Z, on `0509f0b7b`): `git log origin/master --since="$W" --oneline -E --grep='\(b27-'` -> 0; `git ls-remote origin 'refs/heads/review/b27-*' 'refs/heads/wip/*b27*' 'refs/heads/*-b27-*'` -> nothing; `ls /var/spool-hub/dispatch/briefs \| grep -E 'b27-[0-9]{2}\|bug-round-27'` -> 1, this planner's own brief (`c002-bug-round-27-planner.md`); `git worktree list \| grep -E 'b27-[0-9]{2}\|bug-round-27'` -> 1, this planner's own (`c-275-c002-bug-round-27-planner`), 0 row worktrees. `<box2>`'s half is asked of the holder (section 8).
+- **Slug b27 is unused as a round id** (sat, 07:23:46Z, on `0509f0b7b`): `git log origin/master --since="$W" --oneline -E --grep='\(b27-'` -> 0; `git ls-remote origin 'refs/heads/review/b27-*' 'refs/heads/wip/*b27*' 'refs/heads/*-b27-*'` -> nothing; `ls /var/spool-hub/dispatch/briefs \| grep -E 'b27-[0-9]{2}\|bug-round-27'` -> 1, this planner's own brief (`c002-bug-round-27-planner.md`); `git worktree list \| grep -E 'b27-[0-9]{2}\|bug-round-27'` -> 1, this planner's own (`c-275-c002-bug-round-27-planner`), 0 row worktrees. Both boxes' halves, answered: section 8 (b27 is free on both).
 
   After this plan's pushes, `--grep='(b27-'` matches the plan's commits (`docs(b27-plan, ...)`) and `ls-remote` the planner's review branch. The row form `--grep='\(b27-[0-9]{2}'` stays 0 until a row lands.
 
@@ -164,6 +164,9 @@ echo "rc02 sha=${full:0:9} panel-seats-swapped=$bad"
 | **review-go retries a GO forever to a retired author** (c-001 0f130e27) | `git log --format='%h %s' origin/master -- csi-spl-orc/src/bash/run/spl-review-go.func.sh` | **Fixed**: `2f634fbd4` `fix(b20-01-orc-review-go-retired-author-no-retry, SPL-5953)` (spool-send rc 14 is held once, `:846-850`). |
 | **Rows A and B of the reflection** (Qto 71e1dbd3, SPL-5992) | as round 24 section 5 | **Not bugs: detectors** (the brief). |
 | **`fallback_postgres.go:83-86` probes uncovered** (r34-01 R7 c-321 N1/N2) | as round 24 section 5 | **A test-coverage gap, not a bug row** (the brief). |
+| **SPL-5960 R7 N3: `blog.test.mjs:329` "picking bg lands on /bg/blog/..." fails alone on `67232dbc8`** (candidates file line 35, "Bug-round candidate (msg 577d03b7)"; panel W1) | `git show origin/master:csi-spl-doc/doc/md/bug-round-26-plan.md \| grep -c 577d03b7` -> 1 (row 01's evidence: "the check round 25 carried: c-395's R7 line (msg 577d03b7)"); `git merge-base --is-ancestor c540aca24 origin/master` -> rc 0; `git log -1 --format=%h origin/master -- csi-spl-wui/tests/e2e/blog.test.mjs` -> `c540aca24` | **Served**: round 26's row 01 was made from this alone-run (round 26 section 2, source 5: "01 from the `blog.test.mjs:329` alone-run"), landed `c540aca24` (SPL-6016); the file is unchanged since. Its one open part, Enter on the one match, is section 4's product question. |
+| **SPL-5613 wip message sweep refused c-390 on 10 shas already on `origin/master`** (candidates file line 34 (b), c-001 b641a2ed) | `git log -1 --format='%h %s' 1ce9158a1`; `git merge-base --is-ancestor 1ce9158a1 origin/master` -> rc 0 | **Fixed**: round 20 section 5 (b) measured it; `1ce9158a1` `fix(b21-02-orc-pre-push-msg-sweep-skips-master, SPL-5964)`. |
+| **c-091@`<box2>`'s read-only worktree with 51 staged files of SPL-5936** (candidates file line 34 (a), c-001 b90519e0) | `git grep -n 'c-091' origin/master -- csi-spl-doc/doc/md/bug-round-2*-plan.md` | **Closed in round 22**: round 20 section 5 (a) measured it and reported it to the orchestrator, round 21 carried it as a watch item, round 22 section 4 closed it ("Closed as round 21 says"). Not re-measured (a `<box2>` worktree). Line 34 (c) is the retired-author entry above. |
 
 ---
 
@@ -181,19 +184,21 @@ echo "rc02 sha=${full:0:9} panel-seats-swapped=$bad"
 | item | count |
 |---|---|
 | rows | 2 |
-| inputs re-measured | 5 sources; 4 round 26 inputs and 6 holder candidates, plus round 26's own row; 6 human posts since W (all probes); 100 CI runs; 1 cron log (6 runs); 2 red controls; 2 suites re-run as the agent OS user; 1 read-only replay of `_spl_review_go_elsewhere`; the review-go suite 4 times (1 stubbed, 3 through rc01) |
-| first inputs for round 28 | the done-claim `job` label if it alerts alone; the AltGr picker if a rule or the owner says how it must pick; the desktop blog switcher's Enter on its one match if a rule or the owner says Enter must pick; `test-agent-name-shape.sh:89` if seen red; the orc/iac suites as the agent OS user if seen red, with user and tree |
+| inputs re-measured | 5 sources; 4 round 26 inputs and 9 holder candidates, plus round 26's own row; 6 human posts since W (all probes); 100 CI runs; 1 cron log (6 runs); 2 red controls; 2 suites re-run as the agent OS user; 1 read-only replay of `_spl_review_go_elsewhere`; the review-go suite 4 times (1 stubbed, 3 through rc01) |
+| first inputs for round 28 | the done-claim `job` label if it alerts alone; the AltGr picker if a rule or the owner says how it must pick; the desktop blog switcher's Enter on its one match if a rule or the owner says Enter must pick; `test-agent-name-shape.sh:89` if seen red; the orc/iac suites as the agent OS user if seen red, with user and tree; a doc input: rulebook 5.3's slug regex `b27-[0-9]{2}` also matches UUID-named briefs (`<box2>`: 3 hits, all inside UUIDs, 0 real) |
 
 ---
 
 ## 8. Panel and reviewer (rulebook 3.2)
 
 - **Editor:** c-275@sat (claude, `specs_and_docs`).
-- **Panel:** asked of the holder c-002@sat with v0.1. Both rows are orc bash, no WUI file, so a mistral seat may sit (developer guide 5.1; the coding rule bars mistral from coding, not from a read-only panel). Row 02's own defect will hold a mistral panel seat whose brief quotes a `csi-spl-wui/<letter>` path, and this plan quotes some in sections 4 and 5: the seat's brief should not copy them.
-- **Asked of the holder with v0.1:** the panel seat(s); `<box2>`'s half of the slug check (briefs and worktrees matching `b27-[0-9]{2}\|bug-round-27`); `<box2>`'s done-claim log since W (`job <hex>` alerts). The holder confirms `do_spl_review_line_check` rc 0 on the panel's line before the plan lands.
+- **Panel:** m-284@sat (mistral, read-only seat, ask 2fba6016); seat file `csi-spl-doc/doc/md/bug-round-27/seat-mistral.md` on `review/c002-bug-round-27-mistral-seat` `b5909cf9a`. Both rows are orc bash, no WUI file, so a mistral seat may sit (developer guide 5.1; the coding rule bars mistral from coding, not from a read-only panel). Row 02's own defect will hold a mistral panel seat whose brief quotes a `csi-spl-wui/<letter>` path, and this plan quotes some in sections 4 and 5: the seat's brief should not copy them.
+- **Asked of the holder with v0.1, answered:** the slug check (briefs and worktrees matching `b27-[0-9]{2}\|bug-round-27`): sat (c-002 084010c2) briefs 2 (this plan's and the panel seat's), worktrees 1 (this seat's); `<box2>` (c-001 7c31777b via c-002 cf22541b) 3 brief hits, all inside UUID-named briefs (`bb27-78`, `8b27-33`, `ab27-13`), real 0, worktrees 0: **b27 is free on both boxes.** The done-claim counts: section 2, source 4. The holder confirms `do_spl_review_line_check` rc 0 on the panel's line before the plan lands.
 - **Row reviewer (R7):** claude waiver seat (1a7c70da), fresh session, tree only. `cd csi-spl-orc && sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub BOX_PICK_KIND=grok ./run -a do_spl_box_pick` (07:30:14Z) -> `pick=hold reason=waiting: grok weekly >= 95% on sat, <box2> [sat 99% billing read 0m ago; <box2> 99% billing read 1h0m ago]: queue the lane, spawn nothing`.
 - **Review history:**
-  - 2026-11-20 07:4xZ: the editor pushed v0.1 to `review/c002-bug-round-27-planner` and asked the holder for a panel.
+  - 2026-11-20 07:4xZ: the editor pushed v0.1 (`282437e3a`) to `review/c002-bug-round-27-planner` and asked the holder for a panel.
+  - 2026-11-20 08:1xZ: m-284@sat **FAIL** on `282437e3a` (msg bfe2279a): W1, candidates file line 35 (SPL-5960 R7 N3, `blog.test.mjs:329` alone-run) is in no section, so line 8's "every other input is accounted for" is false. Everything else verified (checks 1-9, N1-N6 in the seat file). Holder send-back da9cd4d3.
+  - 2026-11-20 08:3xZ: v0.2 folds W1: section 5 accounts for line 35 (served by b26-01 `c540aca24`) and for N6's line 34 (a) and (b) (closed in rounds 20 to 22, fixed by `1ce9158a1`); source 5 counts 4 + 9 inputs, the other 11 in sections 4 and 5. Both boxes' slug halves and done-claim counts folded. No row changed.
 
 ---
 
@@ -201,5 +206,5 @@ echo "rc02 sha=${full:0:9} panel-seats-swapped=$bad"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-275@sat | v0.1, draft |
-| Panel | asked of the holder | pending |
+| Editor | c-275@sat | v0.2 |
+| Panel | m-284@sat (mistral) | FAIL on v0.1 (W1); W1 folded in v0.2, re-check pending |

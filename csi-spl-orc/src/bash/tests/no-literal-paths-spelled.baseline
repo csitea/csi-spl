@@ -2,8 +2,6 @@
 1 csi-spl-iac/src/bash/run/gcp-backup-env.func.sh
 1 csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh
 1 csi-spl-iac/src/bash/run/install-weekly-full-scan-cron.func.sh
-1 csi-spl-orc/src/bash/features/box-sessions/scripts/save-sessions.sh
-1 csi-spl-orc/src/bash/features/box-sessions/scripts/sessions-boot.sh
 1 csi-spl-orc/src/bash/run/check-ysg-box-deps.func.sh
 1 csi-spl-orc/src/bash/run/spl-desk-install-service.func.sh
 1 csi-spl-orc/src/bash/run/spl-desk-rebox.func.sh

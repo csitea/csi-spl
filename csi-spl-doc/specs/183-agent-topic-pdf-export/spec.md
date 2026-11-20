@@ -200,7 +200,9 @@ on the branch of this row; nothing in GCP changed.
 - Image: `do_build_push_pdf_image` (csi-spl-orc) tags it `src-<12 hex>`, a
   hash of the committed inputs (`cmd/spool-pdf`, `internal/topicpdf`,
   `go.mod`, `go.sum`, `pdf.Dockerfile`), and pushes only a tag the registry
-  lacks. Workflow 20's job `pdf-image` runs it on every run and never rolls
+  lacks; a registry read that fails with anything but `NOT_FOUND` stops it
+  before any build. Workflow 20's job `pdf-image` (its GCP project from cnf,
+  `do_spl_cloud_cnf`, as the deploy job) runs it on every run and never rolls
   a service: step 031 runs cnf `pdf.image.tag`, so a new renderer is a cnf
   tag bump plus an apply of 031 with the owner's go.
 - Check of 1.2: `csi-spl-iac/src/bash/tests/renderer-scale-to-zero-031.tst.sh`;

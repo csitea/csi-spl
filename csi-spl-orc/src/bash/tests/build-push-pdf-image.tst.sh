@@ -12,7 +12,8 @@
 #      no login and no push; the ref equals what 031's tfvars render once cnf
 #      pdf.image.tag is that tag;
 #   3. DRY_RUN=0 with the tag already in the registry (stub gcloud answers the
-#      describe) stops before any build: nothing to build;
+#      describe) stops before any build: nothing to build; a describe that
+#      fails with anything but NOT_FOUND (permission) is refused, no build;
 #   4. no pdf.Dockerfile (row P2 not landed) is refused, before any build.
 #   5. workflow 20's pdf job runs this action and watches the same inputs.
 # Fixture: a throwaway git repo with the real cnf and iac lib, synthetic
@@ -59,7 +60,13 @@ STUB
 cat >"$T/stub/gcloud" <<'STUB'
 #!/bin/sh
 echo "gcloud $*" >>"$STUB_LOG"
-case "$*" in "artifacts docker images describe"*) [ "${GCLOUD_HAS_IMAGE:-0}" = 1 ] && { echo sha256:x; exit 0; }; exit 1;; esac
+case "$*" in "artifacts docker images describe"*)
+  case "${GCLOUD_HAS_IMAGE:-0}" in
+    1) echo sha256:x; exit 0 ;;
+    denied) echo "ERROR: (gcloud.artifacts.docker.images.describe) PERMISSION_DENIED: denied" >&2; exit 1 ;;
+    *) echo "ERROR: (gcloud.artifacts.docker.images.describe) NOT_FOUND: image not found" >&2; exit 1 ;;
+  esac;;
+esac
 exit 1
 STUB
 chmod +x "$T/stub/"*
@@ -117,6 +124,10 @@ out="$(run_action 'do_build_push_pdf_image' DRY_RUN=0 GCP_ACCOUNT=ci@example.iam
   && pass "3. an image already in the registry is not rebuilt" || fail "3. rc=$rc build='$(cat "$T/build.log")': $(tail -2 <<<"$out" | tr '\n' ' ')"
 grep -q 'artifacts docker images describe .*spool-pdf:src-.* --account=ci@example.iam.gserviceaccount.com' "$T/calls.log" \
   && pass "3. the registry check pins --account" || fail "3. the registry check: $(tr '\n' ';' <"$T/calls.log")"
+: >"$T/calls.log"; : >"$T/build.log"
+out="$(run_action 'do_build_push_pdf_image' DRY_RUN=0 GCP_ACCOUNT=ci@example.iam.gserviceaccount.com GCLOUD_HAS_IMAGE=denied 2>&1)"; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'cannot read .* from the registry' <<<"$out" && [[ ! -s "$T/build.log" ]] \
+  && pass "3. a describe denied (not NOT_FOUND) is refused before any build" || fail "3. denied describe: rc=$rc build='$(cat "$T/build.log")': $(tail -2 <<<"$out" | tr '\n' ' ')"
 
 # --- 4. no pdf.Dockerfile -----------------------------------------------------------
 gitf rm -q csi-spl-api/src/docker/pdf.Dockerfile && gitf commit -qm nodf
@@ -134,6 +145,14 @@ grep -q "csi-spl-api/src/docker/pdf.Dockerfile" <(yq -r '.on.push.paths[]' "$WF"
 want_in="$(run_action 'SPL_ORG_APP=csi-spl spl_pdf_inputs' 2>/dev/null | sort | paste -sd' ')"
 got_in="$(yq -r '.jobs["pdf-image"].env.PDF_INPUTS // ""' "$WF" | tr ' ' '\n' | sed '/^$/d' | sort | paste -sd' ')"
 [[ -n "$got_in" && "$got_in" == "$want_in" ]] && pass "5. wf 20's PDF_INPUTS = the action's inputs" || fail "5. wf PDF_INPUTS [$got_in] != action [$want_in]"
+
+# the push identity's project comes from cnf, never a literal (R7 c-056 W2)
+literal_project() { grep -E 'csi-spl-\$\{?ENV' <<<"$1" || grep -q 'do_spl_cloud_cnf' <<<"$1" || echo "no do_spl_cloud_cnf"; }
+ident="$(yq -r '.jobs["pdf-image"].steps[] | select(.name == "Resolve the push identity") | .run // ""' "$WF")"
+[[ -n "$ident" && -z "$(literal_project "$ident")" ]] && pass "5. wf 20 pdf-image reads its GCP project from cnf (do_spl_cloud_cnf)" \
+  || fail "5. wf 20 pdf-image push identity: $(literal_project "$ident" | sed -n 1p)"
+[[ -n "$(literal_project 'p="csi-spl-$ENV"')" ]] && pass "5. CONTROL a literal p=\"csi-spl-\$ENV\" is refused" \
+  || fail "5. CONTROL a literal project id passed"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

@@ -914,7 +914,14 @@ jobs:
         if: steps.has.outputs.build == 'true'
         run: |
           set -euo pipefail
-          p="csi-spl-$ENV"
+          # the project id from cnf (do_spl_cloud_cnf), as the deploy job's cfg step
+          p="$(APP_PATH="$GITHUB_WORKSPACE" PROJ_PATH="$GITHUB_WORKSPACE/csi-spl-orc" SPL_STATE_DIR="$(mktemp -d)" bash -c '
+            set -euo pipefail
+            do_log() { echo "$*" >&2; }
+            source "$APP_PATH/csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh"
+            do_spl_cloud_cnf
+            echo "$SPL_PROJECT"')"
+          [[ -n "$p" ]] || { echo "::error::cnf gives no GCP project for $ENV"; exit 1; }
           if [[ "$HAS_KEY" == true ]]; then sa="$p@$p.iam.gserviceaccount.com"; how=key
           else sa="$WIF_SA"; how=WIF; fi
           [[ -n "$sa" ]] || { echo "::error::no push identity for $ENV"; exit 1; }

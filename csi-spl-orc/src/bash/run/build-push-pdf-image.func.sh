@@ -49,10 +49,18 @@ do_build_push_pdf_image() {
     do_log "WARN the renderer's inputs are dirty: this image is not exactly $tag"
   fi
 
-  if (( ! dry )) && gcloud artifacts docker images describe "$ref" --account="$GCP_ACCOUNT" --project="$SPL_PROJECT" \
-       --format='value(image_summary.digest)' >/dev/null 2>&1; then
-    do_log "OK $ref is already in the registry: the renderer's inputs did not change, nothing to build"
-    return 0
+  # only NOT_FOUND means "build it"; any other describe error (permission,
+  # network) is a stop, as wf 20's hub image check (R7 c-056 N1)
+  local out
+  if (( ! dry )); then
+    if out="$(gcloud artifacts docker images describe "$ref" --account="$GCP_ACCOUNT" --project="$SPL_PROJECT" \
+         --format='value(image_summary.digest)' 2>&1)"; then
+      do_log "OK $ref is already in the registry: the renderer's inputs did not change, nothing to build"
+      return 0
+    elif ! grep -qiE 'not.?found|NOT_FOUND' <<<"$out"; then
+      do_log "FATAL cannot read $ref from the registry (is 028 applied, does $GCP_ACCOUNT hold artifactregistry.reader?): $(tail -1 <<<"$out")"
+      return 1
+    fi
   fi
 
   docker build -q --platform linux/amd64 \

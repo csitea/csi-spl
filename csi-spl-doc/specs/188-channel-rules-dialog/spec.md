@@ -1,6 +1,6 @@
 # Spec 188: Channel rules dialog
 
-Status: **Draft v0.3** (2026-11-20). Lane `c-489` (`claude`, backup for
+Status: **Draft v0.4** (2026-11-20). Lane `c-489` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). Nothing below is built.
 Epic: **SPL-2403**. Issue: **SPL-6084**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:b1fe7670-8e80-4e67-b4d0-2a5484328981` (`t1`), task
@@ -24,7 +24,8 @@ Paths below: `api/` = `csi-spl-api/src/go/spool-hub-api/internal/`,
 `csi-spl-rdb/src/sql/postgres/spool-hub/`.
 
 History: v0.1 `582b96e85`. v0.2 `ed56ab310` folds the review of v0.1
-(W1-W6, N1-N8). v0.3 folds the review of v0.2 (W7, W8, N9-N11). The fold
+(W1-W6, N1-N8). v0.3 `6174758a1` folds the review of v0.2 (W7, W8,
+N9-N11). v0.4 folds the review of v0.3 (W9, N12). The fold
 maps are section 9.
 
 ## 0. The owner's ask (verbatim)
@@ -242,12 +243,20 @@ Why each recommendation:
 
 ### 3.3 Access: the rules node is guarded (W1) **[Q1 A, Q8]**
 
-- The hub makes a channel's rules doc on its first save as a doc-tree node
-  with `kind = 'channel_rules'` and the channel's key (section 4). It is
-  created only by C2's `PUT`, never by `POST /v1/workspace/doctree`.
+- The hub makes a channel's rules doc on its first save as an ordinary
+  doc-tree node, `kind = 'doc'`, and writes its id to `channel_rules.doc_id`
+  (section 4). It is created only by C2's `PUT`, never by
+  `POST /v1/workspace/doctree`.
+- **A node is guarded when its id is a `channel_rules.doc_id`** of its
+  tenant: a membership, never a node kind (W9). `kind` is the tree's
+  structure type and stays as rdb `0165_workspace_doc_node.sql` fixes it:
+  the CHECK `kind IN ('root', 'folder', 'doc')` (`:45`) and the trigger
+  `workspace_doc_node_fixed`, which refuses any change of `kind` or
+  `tenant_id` (`:94-106`). This spec changes neither, and no node is ever
+  re-kinded.
 - Every `/v1/workspace/doctree` route (list, nodes, search, head, children,
-  subtree, export, every write, media, lock) leaves a `channel_rules` node
-  out of a listing or search, and answers **404** to a direct read or write
+  subtree, export, every write, media, lock) leaves a guarded node (its id
+  `NOT IN` the tenant's `channel_rules.doc_id`) out of a listing or search, and answers **404** to a direct read or write
   of one, whatever `docs.read` / `docs.write` the caller holds. The one door
   to such a node is C2 (and C6 for its revision).
 - C2 reads the node only for a member of the channel, or an agent box of
@@ -380,7 +389,10 @@ CREATE TABLE channel_rules (
 - RLS by `tenant_id` (developer guide 2.6.4).
 - `revision` is the one counter C2's `base_revision` checks and C3 / C6
   carry; the doc tree's own revision log stays internal (N6).
-- A doc-tree node kind `channel_rules` (3.3), added with the same migration.
+- No new node kind and no column on `workspace_doc_node`: a guarded node is
+  one whose id is a `channel_rules.doc_id` (3.3). `UNIQUE (tenant_id,
+  doc_id)` on `channel_rules` keeps one doc to one channel. The 0165 CHECK
+  (`:45`) and trigger (`:94-106`) stay as they are.
 - A channel moved or copied to another workspace (spec 169) takes its
   `channel_rules` row and its node with it (row R9); a renamed channel keeps
   them, the key being `channel_id`.
@@ -400,9 +412,9 @@ the channel's rules only.
 
 | row | part | files | depends on | done test | red control |
 |---|---|---|---|---|---|
-| R1 | rdb: `channel_rules`, RLS, node kind **[Q1, Q6]** | `rdb/<next>_channel_rules.sql` (number from `do_rdb_migration_next`) | the answers | `TestRLSCoversEveryTenantTable` green; `PRE_PUSH_TIER=full` | the table without its policy fails `TestRLSCoversEveryTenantTable` |
-| R2 | hub: C2, C6 and C7 **[Q1, Q2, Q6, Q8]** | `api/hub/channel_rules.go`, `api/store/channel_rules.go`, their tests | R1 for the Postgres test; the mock store lets it start on 7.1 | editor 200, non-editor 403, stale revision 409, unknown channel 404, non-member 404, other tenant 404, box token reads 200 and writes 403 | a `PUT` without the editor check passes the non-editor case: red |
-| R2b | hub: the doc-tree guard of 3.3 **[Q1 A, Q8]** | `api/hub/wsdoc_tree.go`, `wsdoc_nodes.go`, `wsdoc_lock.go`, `wsdoc_media.go`; the store's list and search: `api/store/workspace_doc_nodes.go` (`DocNodes` `:268`), `api/store/wsdoc_hub.go` (`DocList` `:70`, `DocSearch` `:102`), `api/store/search_docs_postgres.go` (`searchDocsSQL` `:95`, the global search); their tests | R1 | a `docs.read` member who is not a channel member: the node is not in list, doc search or the global search, and a direct read is 404; a `docs.write` holder's direct write is 404 | the list without the kind filter shows the node: red |
+| R1 | rdb: `channel_rules`, RLS, `UNIQUE (tenant_id, doc_id)` **[Q1, Q6]** | `rdb/<next>_channel_rules.sql` (number from `do_rdb_migration_next`) | the answers | `TestRLSCoversEveryTenantTable` green; `PRE_PUSH_TIER=full` | the table without its policy fails `TestRLSCoversEveryTenantTable`; a second row naming the same doc is refused by the UNIQUE |
+| R2 | hub: C2, C6 and C7 **[Q1, Q2, Q6, Q8]** | `api/hub/channel_rules.go`, `api/store/channel_rules.go`, their tests | R1 for the Postgres test; the mock store lets it start on 7.1 | editor 200, non-editor 403, stale revision 409, unknown channel 404, non-member 404, other tenant 404, box token reads 200 and writes 403; C7 on Postgres adopts a doc and the node's `kind` is still `doc` | a `PUT` without the editor check passes the non-editor case: red; an adopt written to `UPDATE workspace_doc_node SET kind` is refused by `workspace_doc_node_fixed` (0165 `:94-106`), so the adopt case is red |
+| R2b | hub: the doc-tree guard of 3.3 **[Q1 A, Q8]** | `api/hub/wsdoc_tree.go`, `wsdoc_nodes.go`, `wsdoc_lock.go`, `wsdoc_media.go`; the store's list and search: `api/store/workspace_doc_nodes.go` (`DocNodes` `:268`), `api/store/wsdoc_hub.go` (`DocList` `:70`, `DocSearch` `:102`), `api/store/search_docs_postgres.go` (`searchDocsSQL` `:95`, the global search); their tests | R1 | a `docs.read` member who is not a channel member: the node is not in list, doc search or the global search, and a direct read is 404; a `docs.write` holder's direct write is 404 | the list without the `NOT IN channel_rules` filter shows the node: red |
 | R3 | WUI: menu item + dialog **[Q2, Q5]** | `wui/utils/sidebar-row-menu.mjs`, `wui/components/ChannelRulesDialog.vue` (async), `ChannelSidebar.vue`, `useSidebarChannelAdmin.ts`, the new keys in `csi-spl-wui/i18n/locales/*.json`, unit tests | 7.1 C1-C2 only (mock api) | unit: the item on a channel row, not on a DM row; save sends `base_revision`; `i18n-parity` and `i18n-no-raw-text` green | the item shown on a DM row fails the unit test |
 | R4 | orc: hub-first export, new seed line, map disagreement, adopt **[Q3, Q7]** | `sa/lib/channel-rules.inc.sh`, `sa/scripts/spawn-core.inc.sh`, `orc/run/spl-lane-restart.func.sh`, `orc/run/spl-channel-rule.func.sh` (check, and `adopt` for C7), `sa/tests/test-seed-channel-rules.sh` | 7.1 C2, C4, C6 (stub hub) | the C4 cases each green; the seed line word for word (3.4) | 3.4's red control; C4's |
 | R4b | orc: `do_spl_channel_rules_sync` **[Q4]** | `orc/run/spl-channel-rules-sync.func.sh`, its cron line, `orc/tests/channel-rules-sync.tst.sh` | C3, C6 (stub hub) | 3.6's two-box test | 3.6's red control |
@@ -475,9 +487,10 @@ it is marked with.
   "<id>", "revision": <n>}]}`, every channel of the tenant with rev > 0,
   `*` included. No markdown in it.
 - **C7 adopt a map's doc (N11).** `POST /v1/channels/{channel}/rules/adopt`
-  `{"doc_id": "<uuid>"}`, `tenant.settings` only: re-kinds that doc-tree
-  node to `channel_rules` (3.3 then guards it), writes the `channel_rules`
-  row with `revision 1`, and answers 200 `{"revision": 1}`. 409 when the
+  `{"doc_id": "<uuid>"}`, `tenant.settings` only: writes the
+  `channel_rules` row naming that doc with `revision 1` (3.3 then guards it)
+  and changes no doc-tree node; 200 `{"revision": 1}`. Only a node of
+  `kind = 'doc'` is adopted (400 for a root or folder). 409 when the
   channel already has rules or the doc is another channel's; 404 for a doc
   not in the tenant. Box side: `CHANNEL_RULE_CMD=adopt` of
   `do_spl_channel_rule` (a dry run unless `DRY_RUN=0`) calls it for one map
@@ -495,8 +508,10 @@ the hub narrow C2's agent read to the agents of one channel.
 
 v0.1 `582b96e85` went to the dispatch holder; its review asked for W1-W6
 and N1-N8. v0.2 `ed56ab310` folded them; its review asked for W7, W8 and
-N9-N11. v0.3 folds those (section 9.2) and goes back to review; the owner
-form of section 1 waits for that PASS. v0.3 folds the owner's answers.
+N9-N11. v0.3 folded those (section 9.2). v0.4 goes back to review; the owner
+form of section 1 waits for that PASS. v0.3 `6174758a1`'s review asked for
+W9 and N12; v0.4 folds those (section 9.3). The owner's answers go into
+v0.5.
 
 ## 9. Fold maps
 
@@ -528,3 +543,10 @@ form of section 1 waits for that PASS. v0.3 folds the owner's answers.
 | N9 | `tenant_id uuid` vs `text` | folded: `text` with an FK to `tenants`, no FK on `channel_id` |
 | N10 | R2b named no store file | folded: `workspace_doc_nodes.go:268`, `wsdoc_hub.go:70`, `:102`, `search_docs_postgres.go:95` |
 | N11 | the map's existing docs stay unguarded | folded: C7 adopt (hub route + `CHANNEL_RULE_CMD=adopt`), C4 rule 4 names it, 3.3 says R2b migrates nothing |
+
+### 9.3 The v0.3 review
+
+| id | finding | v0.4 |
+|---|---|---|
+| W9 | a `channel_rules` node kind breaks rdb 0165 (CHECK `:45`, trigger `workspace_doc_node_fixed` `:94-106`); C7's re-kind is refused | folded: the node stays `kind = 'doc'`; guarded = its id is a `channel_rules.doc_id` (3.3, section 4, `UNIQUE (tenant_id, doc_id)`); C7 writes the row only; R1 keeps 0165 as it is; C7's red control |
+| N12 | section 8 said v0.3 takes the owner's answers | folded: v0.5 |

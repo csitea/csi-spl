@@ -657,10 +657,21 @@ func assertLoopRowNoStatNoChange(t *testing.T, f *loopFix, post Message, now tim
 		if err != nil {
 			t.Fatal(err)
 		}
+		// ops must be listed: a read that drops the channel row (the newest
+		// line a loop row the probe skips) would pass a check that only
+		// looks at the rows it finds.
+		found := false
 		for _, st := range stats {
-			if st.ChannelID == "ops" && (st.Count != 1 || st.Unread != 1 || st.LastMsgID != post.MsgID) {
+			if st.ChannelID != "ops" {
+				continue
+			}
+			found = true
+			if st.Count != 1 || st.Unread != 1 || st.LastMsgID != post.MsgID {
 				t.Fatalf("channel stat, %s: count %d unread %d last %s, want 1 1 %s (the post)", what, st.Count, st.Unread, st.LastMsgID, post.MsgID)
 			}
+		}
+		if !found {
+			t.Fatalf("channel stat, %s: no ops row in %d stats, want ops with the post", what, len(stats))
 		}
 	}
 	cs, err := f.s.(ViewChanger).ViewChanges(f.ctx, f.tn, ChangeQuery{Since: post.ReceivedAt.Add(-time.Minute), Now: now, Max: 50})

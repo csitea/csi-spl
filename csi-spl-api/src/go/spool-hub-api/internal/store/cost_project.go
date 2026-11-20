@@ -71,10 +71,12 @@ type CostProjectPart struct {
 	Unpriced     int      `json:"unpriced"`
 	DaysRead     *int     `json:"days_read,omitempty"`
 	Days         *int     `json:"days,omitempty"`
-	// Human only (P02): every approved minute, and those of members with
-	// no price on their day (13.5: the minutes show, the money leaves them out).
+	// Human only (P02): every minute not rejected, those with no money (no
+	// price on their day, or pending), and those pending approval (13.5: the
+	// minutes show, the money leaves them out).
 	Minutes         *int64 `json:"minutes,omitempty"`
 	UnpricedMinutes *int64 `json:"unpriced_minutes,omitempty"`
+	PendingMinutes  *int64 `json:"pending_minutes,omitempty"`
 }
 
 // CostProjectTotal is the sum of the parts' known amounts ("Total,

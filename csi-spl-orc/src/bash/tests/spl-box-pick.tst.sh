@@ -732,6 +732,48 @@ rm -f "$KEPT"; here "grok:91" >/dev/null
 [[ "$(awk -F'\t' '{ print NF }' "$KEPT")" == 4 ]] && pass "16m. CONTROL a grok row carries no login" || fail "16m. grok: $(cat "$KEPT")"
 rm -f "$KEPT" "$CJ"
 
+# 16o. (b29-01) a credential copied in from another login lifts a kept claude
+#     reading; a renewal of the same login does not. sat 2026-11-20: kept 98 at
+#     11:55Z, another box's credential copied in at 12:04Z, ~/.claude.json's
+#     oauthAccount still the old label, so 16m's login check never fired and
+#     the box held claude lanes on the old login's 98 until the 10 h lapse.
+#     The row records the login key (the refresh token's hash prefix); the
+#     credential file itself changes at every renewal, the key does not.
+NOW=$(date +%s); CJ="$T/cj-cred.json"; A=one-login
+cj "$A" "$A" $(( NOW - 86400 )) 40
+# cred FILE ACCESS REFRESH: a fixture credential
+cred() { printf '{"claudeAiOauth":{"accessToken":"%s","refreshToken":"%s","expiresAt":%s}}\n' "$2" "$3" "$(( (NOW + 3600) * 1000 ))" >"$T/$1"; }
+cred cred-a.json fixture-access-1 fixture-refresh-a
+cred cred-b.json fixture-access-9 fixture-refresh-b
+cred cred-a2.json fixture-access-2 fixture-refresh-a
+cq() { known LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/$1" BOX_QUOTA_RESET=0 LANE_QUOTA_CMD="echo ${2:-}"; }
+kept98() { rm -f "$KEPT"; cq cred-a.json "claude:98@$FUT" >/dev/null; }
+kept98; KA="$(cut -f10 "$KEPT")"
+[[ "$KA" =~ ^k[0-9a-f]{12}$ ]] && ! grep -q 'fixture-' "$KEPT" &&
+  pass "16o. a new claude row records its login key, never the token" || fail "16o. stamp: $(cat "$KEPT")"
+[[ -z "$(cq cred-b.json)" ]] && ! grep -q '^claude' "$KEPT" &&
+  pass "16o. RED CONTROL (FAILs on 49694bbc5) another login's credential copied in, oauthAccount unchanged -> unknown, row dropped" ||
+  fail "16o. copy: $(kept98; cq cred-b.json)"
+kept98; [[ "$(cq cred-b.json "claude:6@$FUT")" == "claude:6@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" =~ ^k && "$(cut -f10 "$KEPT")" != "$KA" ]] &&
+  pass "16o. RED CONTROL (FAILs on 49694bbc5) the copied login's own 6 % stands alone, the row names its key" || fail "16o. new: $(cat "$KEPT")"
+kept98; [[ "$(cq cred-a2.json)" == "claude:98@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" == "$KA" ]] &&
+  pass "16o. CONTROL a renewal (same refresh token, new access token and expiry) keeps the 98 and the key" || fail "16o. renewal: $(cat "$KEPT")"
+kept98; [[ "$(cq no-such-cred.json)" == "claude:98@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" == "$KA" ]] &&
+  pass "16o. CONTROL an unreadable credential lifts nothing, the row keeps its key" || fail "16o. none: $(cat "$KEPT")"
+printf '{"claudeAiOauth":{"accessToken":"x"}}\n' >"$T/cred-norefresh.json"
+kept98; [[ "$(cq cred-norefresh.json)" == "claude:98@$FUT" ]] && pass "16o. CONTROL a credential with no refresh token is unreadable: holds" || fail "16o. no refresh: $(cat "$KEPT")"
+printf 'claude\t98\t%s\t%s\t%s\tbanner\n' "$FUT" $(( NOW - 7200 )) "$A" >"$KEPT"
+[[ "$(cq cred-b.json)" == "claude:98@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" =~ ^k[0-9a-f]{12}$ && "$(cut -f6 "$KEPT")" == banner ]] &&
+  pass "16o. CONTROL a row kept before b29-01 (no key) keeps today's behaviour, and now names the key" || fail "16o. legacy: $(cat "$KEPT")"
+kept98; out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_STATE="$KEPT" BOX_PICK_KIND=claude \
+  BOX_QUOTA_WEEKLY_MAX_PCT=90 LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/cred-b.json")"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
+  pass "16o. RED CONTROL (FAILs on 49694bbc5) the pick: box-a placed again (unknown), not held on the old login's 98" || fail "16o. pick: $out"
+rm -f "$KEPT"; LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CMD="echo grok:91" LANE_QUOTA_CLAUDE_CRED="$T/cred-a.json" bash -c \
+  'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_known' >/dev/null
+[[ "$(awk -F'\t' '{ print NF }' "$KEPT")" == 4 ]] && pass "16o. CONTROL a grok row carries no key" || fail "16o. grok: $(cat "$KEPT")"
+rm -f "$KEPT" "$CJ" "$T"/cred-*.json
+
 # 16n. a kept reading lapses unless re-read, and says where it came from
 #     (SPL-4965). 2026-11-06: a kept 97 % held the placer for 2 h 15 while the
 #     alert read 0 %. SPL-4608 kept the reading because lanes were placed past

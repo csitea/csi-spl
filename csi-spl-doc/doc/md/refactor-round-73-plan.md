@@ -31,8 +31,12 @@ They carry no literal `csi`, so `no-literal-paths.tst.sh` (which greps
 `/(opt|var)/<org>` with the org's real name) does not see them. They are r71's
 derive-block family in a third shape. Row 01 takes the 3 in `run/` actions, row 02 the
 2 in `scripts/` cron wrappers. The other 3 (tenant key dirs) stay out (section 7).
+These 8 are one spelling of a wider shape: **35 lines** of `csi-spl-orc/src/bash` build
+the var dir by hand (the panel's W1, re-read in 1.3); the other 27 are a later round's.
 
-**Status: v0.1, draft**, for the panel (section 4). Editor: **c-247** (claude).
+**Status: v1.0, signed**: panel seat m-256 (mistral) PASS on v0.1 `76fb311e9`, W1
+folded (section 8), N1-N6 asked no change. Rows 01 and 02 are as drafted. Editor:
+**c-247** (claude).
 
 **One sha:** every count is measured on **`5c7f42f70`** (`origin/master`
 5c7f42f7046fe3222222e3318f3e07223e29a71a, committed 2026-11-20T06:51:39+01:00), n=1 per
@@ -166,6 +170,14 @@ pass; `bash-cleancode.tst.sh` rc 0, `all bash-cleancode.tst.sh assertions`. (Pas
 **Gate** (both rows): `git grep -nE '/(var|opt)/\$\{?(ORG|org)\b' -- csi-spl-orc/src/bash ':!*/tests/*' | grep -vE ':[0-9]+:\s*#' | wc -l`
 -> **8** on `5c7f42f70`, **5** after row 01, **3** after both (the tenant dirs).
 
+**The wider shape** (the panel's W1; re-read by the editor on `5c7f42f70`, n=1, each
+pattern with the same `-- csi-spl-orc/src/bash ':!*/tests/*'` and comment filter):
+`'/(var|opt)/\$\{?(ORG|org)\b'` -> 8 (the gate above); `'/(var|opt)/\$\{?SPL_ORG_APP'`
+-> **22** (`/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/<sub>`, mostly the `*-install-cron`
+actions); `'/(var|opt)/\$\{?(org_app|ORG_APP|app)\b'` -> **5**; the three together ->
+**35** lines, one per file in the 27 new files. This round takes 5 of the 35; the gate
+above stays the rows' gate (8 -> 5 -> 3), and the other 27 are section 7's.
+
 ## 2. The 2 rows
 
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
@@ -292,7 +304,8 @@ live lock and green on the change, the suites' counts in the body. Gates:
 | WUI `WIDE` `src/stores/channel.ts send` (6 params) | 66 caller lines in 37 files, 57 of them in 30 e2e files (an upper bound, 1.2). Most e2e calls sit in `page.evaluate` bodies that `pnpm run typecheck` does not see, so a missed caller would silently pass its arguments into the wrong slot; the row would rewrite every caller, add a positional-call gate, and run every e2e file the pre-push map selects for those 30. Too big for one row of a 2-row round: a candidate for a round of its own (one row), with its caller list read line by line first | 1.2 |
 | the 3 tenant-dir sites (`orc:run/spl-desk-rebox.func.sh:111`, `spl-invite-e2e.func.sh:118`, `spl-m3-e2e.func.sh:159`) | they name the tenant root-key store: secret-class work (the data rule), and two of them drive e2e runs against the hosted hub; a row of their own, placed on a secret-class vendor | 1.3 |
 | `iac:run/` (3: `gcp-backup-env.func.sh:55`, `gcp-s3-download-all.func.sh:24`, `install-weekly-full-scan-cron.func.sh:48`) and `csi-spl-utl/src/bash/run/` (4: `box-disk-guard-install.func.sh:114,116`, `box-proc-sample.func.sh:303,334`) | the same hand-spelled shape, but `spl_run_paths` lives in the orc lib: an iac or utl action would source another module's lib, a choice for its own row (or a shared lib first); `gcp-backup-env` is also secret-class (env backups) | 1.3 |
-| a gate for the shape (extend `no-literal-paths.tst.sh` to `/(var\|opt)/$org` with a baseline) | once the rows land the orc count is 3 and the repo count 12; a gate row then ratchets the rest. Kept out so this round stays at 2 rows | 1.3 |
+| the other 27 hand-spelled lines in `orc:` (22 `/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/<sub>`, 5 `/var/${org_app\|ORG_APP\|app}/...`; the panel's W1) | the same refactor as rows 01-02 at 27 sites, mostly `*-install-cron` actions: inputs for the next refactor rounds, 2-3 rows of about 5 sites each, each site re-checked for equivalence as 1.3 did | 1.3 |
+| a gate for the shape (extend `no-literal-paths.tst.sh` with a baseline) | its pattern must cover all three spellings, `/(var\|opt)/\$\{?(ORG\|org\|SPL_ORG_APP\|org_app\|ORG_APP\|app)\b` (`/(var\|opt)/$org` alone misses 27 of 35); once the rows land the orc count is 30 (35 - 5); a gate row then ratchets the rest. Kept out so this round stays at 2 rows | 1.3 |
 | SC2034 baseline, iac test SC2034, `workflow-tool-checksums.tst.sh:33` `naked`, the p18-02 N1 workflow comment | r71 and r72 section 7's reasons hold; the baseline is unchanged since r71 | 1.2 |
 | `spl-file-erase` (`no-literal-paths.baseline`, 1 line) | a protected-root deny list, a behaviour change (r66 to r72) | 1.2 |
 | bash `LONG` `do_provision_firebase_dns` 169 and `[long-example]` | pinned byte-identical to its upstream port (`iac:tests/wui-hosting-019-031.tst.sh`): it belongs upstream first (r67) | 1.2 |
@@ -305,11 +318,34 @@ live lock and green on the change, the suites' counts in the body. Gates:
   give no row; one new measurement, the hand-spelled `/var/$org/$app` dir (8 lines in
   `csi-spl-orc/src/bash`), gives 2 rows on 5 sites, proven to derive the same dir on
   this box's 3 tree kinds. Window W and the r73 slug proof recorded.
+- v1.0 (c-247): the panel seat m-256 (mistral) PASS on v0.1
+  `76fb311e91dd9a72f67a1e3220cc6123b98e69c2` (spool msg 00451a0d here, c28af011 at the holder; `do_spl_review_line_check` rc 0 on the seat's box, DOCS-ONLY, the holder's run, msg a76e9957; task
+  `dispatch-refactor-r73`; seat file `16d53eaf0` on
+  `review/c002-refactor-round-73-mistral-seat`). Folded:
+  - W1: the 8 lines are one spelling of 35 hand-spelled var-dir lines in `orc:` (22
+    `SPL_ORG_APP`, 5 `org_app|ORG_APP|app`). Re-read by the editor (1.3): 8 + 22 + 5 =
+    35. 1.3 and the intro now say 5 of 35; section 7 gains the other 27 and the future
+    gate's pattern covers all three spellings. The rows, their sites and their gate
+    (8 -> 5 -> 3) do not change.
+  Its notes, none asking a change:
+  - N1: lane map exit 4 on the 8 row paths; the no-file lanes' review branches
+    (b26-01 `745cedb1b`, c-181's `60b6931e`) touch no row file.
+  - N2: the candidates file grew after the editor's read (9542 -> 10395 B); its one
+    new item (a placer gap on `*-panel-seat` briefs) is bug-shaped.
+  - N3: the equivalence re-read 3 of 3 trees equal on the seat's box; a preset
+    `SPL_VAR_APP_DIR` wins, as `spl_run_paths` documents.
+  - N4: the live prune lock exists and was free; with the stub `flock` the parent's
+    red control opens the file but never holds it.
+  - N5: the five suites green at `5c7f42f70`, 88/13/55/16/8 pass lines, as 1.3.
+  - N6: r66-01, r66-02 and r71-01 are ancestors of `5c7f42f70`.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-247 (claude): v0.1.
-- Panel reviewer seat: requested (section 4).
+- Editor seat: c-247 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-256 (mistral) PASS** on
+  `76fb311e91dd9a72f67a1e3220cc6123b98e69c2` (spool msg 00451a0d here, c28af011 at the holder; review-line check rc 0, msg a76e9957; seat file `16d53eaf0`
+  on `review/c002-refactor-round-73-mistral-seat`), W1 folded in v1.0, N1-N6 no change.
+  agy was unavailable (the holder's read), so mistral took the seat.
 - Row R7 seats: section 4.

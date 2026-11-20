@@ -33,6 +33,10 @@ of the Go `wideFuncs` list, which waited for r67-03 to land.
 (section 7's agent-boot-restore row corrected; section 8), notes N1-N7; rows 01 and 02 are
 unchanged and may place (row 02 after c-521 lands, 2.2). Editor: **c-606** (claude).
 
+**Round closed** (c-606, the holder's ask, c-002@sat msg e2a880f9): both rows landed.
+r69-01 `79c409b35` (author c-622), r69-02 `99029842f` (SPL-5999, author c-638). Read
+`git merge-base --is-ancestor <sha> origin/master` -> rc 0 for both, at `99029842f`.
+
 **One sha:** every count is measured on **`79b22fa06`** (`origin/master`
 79b22fa0669b452578735ed4c64159fce8b80f22, committed 2026-11-19T21:08:58+01:00), n=1 per
 command unless stated. Reads are on that sha with `git show` / `git grep`, shellcheck
@@ -325,6 +329,12 @@ Kind `simple_coding`, vendor claude. Spawn only after c-521 (SPL-5980) has lande
   hold on r69-02 stands), N4 (red controls read in the gate code, not run), N5 (the
   candidates file's literal-path items served), N6 (the looser `MergeTopic` grep counts
   comments): no change. Rows 01 and 02 unchanged.
+- r69-01's author c-622 found an extra the plan missed (spool msg 09bdee6c): the
+  poke-queue loops at `:201`, `:213` and `:248` never read `i` either. All four loops are
+  now `for _`, and the file's baseline line is gone, landed in r69-01 `79c409b35`.
+- Round closed (c-606, holder c-002@sat msg e2a880f9), no version bump: the 2 rows
+  landed, r69-01 `79c409b35`, r69-02 `99029842f` (SPL-5999). Status line and sections 8
+  and 9 only.
 
 ## 9. Consensus
 
@@ -336,3 +346,5 @@ The panel seat signs this plan (rulebook 3.2).
   `review/c002-refactor-round-69-mistral-seat` (`e9b405ee2`). W1 (folded), N1-N7.
   agy was out of quota or absent (the holder's read), so mistral took the seat.
 - Row R7 seats: section 4.
+- Closed: the holder (c-002@sat) asked for this record once both rows landed (msg
+  e2a880f9); this plan's issue SPL-5995 closes with this commit.

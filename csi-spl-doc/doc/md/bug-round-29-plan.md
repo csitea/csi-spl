@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-28-plan.md](bug-round-28-plan.md) (same shape, same 5 sources).
 
-**Status: v0.2, the panel's v0.1 FAIL (W1, a mistral backup R7 on a coding row) folded, with the other box's answers (section 8); for the panel's re-review.**
+**Status: v1.0, the panel passed v0.2 `adfa2dbd8` with no W (section 8); for the holder's GO and the land.**
 
 Editor: **c-482@sat** (claude, `specs_and_docs`).  
-Panel: m-486@sat (mistral, the b29 panel seat, placed by c-001 4a516288): FAIL on v0.1 `f62668ddc` (msg 1c3a239e, relayed by the holder as 35b983e1), W1 only (section 8).
+Panel: m-486@sat (mistral, the b29 panel seat, placed by c-001 4a516288): FAIL on v0.1 `f62668ddc` (msg 1c3a239e, relayed by the holder as 35b983e1), W1 only; **PASS** on v0.2 `adfa2dbd8` (msg b466eaaa, relayed by the holder as 6574d3f0; line check on sat rc 0, DOCS-ONLY, holder GO a77f61d3), no W (section 8).
 
 **One sha:** every count below is measured on **`cbbc11996`** (`origin/master` at this seat's fetch of 18:20Z), on sat, between 18:15Z and 18:24Z on 2026-11-20, unless a row says otherwise. n=1 per command unless stated. The worktree sat on `7df5cecfc`, 3 commits behind; `git diff --name-only 7df5cecfc cbbc11996 -- <the row and site files of section 3>` -> empty, so the line numbers read there hold on `cbbc11996`.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b28-plan')` -> `Window: W=2026-11-20T20:04:17+02:00` (commit `7df5cecfc`, 18:04:17Z, the b28 close record). The brief quotes `W=2026-11-20T15:00:03+02:00`, read at 18:0xZ before the close record landed: that is the commit date of `dc4b3fe71` / `d980d28eb` (b28 v0.1 / v1.0). Rulebook 5.3 takes the newest plan commit, so this plan records `7df5cecfc`'s. Before the first wrap both give the same result (0 `(b29-` commits either way). The sources of section 2 read from round 28's own measurement time (11:47Z to 11:56Z) instead of W, so nothing between the two rounds is left unread.
@@ -242,6 +242,8 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
   - 2026-11-20 18:28Z: the editor pushed v0.1 (`f62668ddc`) to `review/c002-bug-round-29-planner` and reported to the holder (msg 86ad33d3).
   - 2026-11-20 18:57Z: m-486@sat **FAIL** on `f62668ddc` (msg 1c3a239e; seat file on `review/c002-bug-round-29-mistral-seat` `e09196f98`). W1: row 02 named the mistral panel seat as backup R7 of a `simple_coding` row; the rule is never mistral, as main or backup, on a coding kind. N1, N2: section 1's counts (60, and 4 since W with its own commit). N3: `origin/master` moved to `cc13eac0b`, row files unchanged, cited lines byte-identical. N4: rc01 / rc02 sha256 and sizes match, both RED (n=1 each). N5: the candidates file's 08:3xZ (a) / (b) were closed in rounds 22 and 27. N6 to N8: lane map, queue, row 01 symptom, prod counts re-measured, the same verdicts.
   - 2026-11-20 19:0xZ: v0.2, one commit on `f62668ddc` (a fast-forward of the review branch): W1 folded (row 02's backup dropped, section 8), N1 and N2 corrected, the `<box2>` answers folded, two candidates the holder sent since v0.1 ruled next round (sections 4, 6, 7). This file is the only one it touches. No row's sites, red control or fix scope changed.
+  - 2026-11-20 19:2xZ: m-486@sat **PASS** on v0.2 `adfa2dbd8e6338c9df7404319fdf236550cd8765` (msg b466eaaa; seat file `a5b67e40b`), the delta the holder asked for (msg 059fc336): W1 folded, the counts 60 and 4 re-run, no row cell changed but row 02's R7 cell and row 01's evidence cell, section 3.2 untouched, slug still free (0 `(b29-` commits at `cc13eac0b`). No new W.
+  - 2026-11-20 19:2xZ: v1.0, one commit on `adfa2dbd8` (a fast-forward of the review branch): the status line, the panel line and sections 8 and 9 record the PASS. This file is the only one it touches. No row changed.
 
 ---
 
@@ -249,5 +251,5 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-482@sat | v0.2 |
-| Panel | m-486@sat (mistral) | **FAIL** on v0.1 `f62668ddc` (msg 1c3a239e), W1 only; v0.2 pending |
+| Editor | c-482@sat | v1.0 |
+| Panel | m-486@sat (mistral) | **FAIL** on v0.1 `f62668ddc` (msg 1c3a239e), W1 only; **PASS** on v0.2 `adfa2dbd8` (msg b466eaaa, relayed by the holder as 6574d3f0; line check on sat rc 0, DOCS-ONLY, holder GO a77f61d3), no W |

@@ -90,7 +90,7 @@ var movedTables = []Entry{
 	{Table: "topic_head_parts", Class: Moved, Set: `task_id = ANY(@tasks) OR channel = @channel`,
 		Refs: `last_msg_id = ANY(@msgs)`, Reason: "M6; Refs: recomputed like topic_heads"},
 	{Table: "topic_priorities", Class: Moved, Set: `task_id = ANY(@tasks)`, Reason: "M6"},
-	{Table: "topic_loops", Class: Moved, Set: `task_id = ANY(@tasks)`, Reason: "M6; spec 182 5.1 (rdb 0299): a topic's loops go with it"},
+	{Table: "topic_loops", Class: Moved, Set: `task_id = ANY(@tasks)`, Reason: "M6; spec 182 5.1 (rdb 0301): a topic's loops go with it"},
 	{Table: "flow_watches", Class: Moved, Set: `task_id = ANY(@tasks)`, Reason: "M6"},
 	{Table: "flow_events", Class: Moved, Set: `task_id = ANY(@tasks) OR msg_id = ANY(@msgs)`, Reason: "M6"},
 	{Table: "calendar_events", Class: Moved, Set: `event_id = ANY(@events)`, Reason: "M6 events whose topic_id is an M2 task"},

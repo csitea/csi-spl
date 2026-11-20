@@ -1,4 +1,4 @@
--- 0299_topic_loops.sql - discussion loops (spec 182 v0.4 sections 5.1, 5.2
+-- 0301_topic_loops.sql - discussion loops (spec 182 v0.4 sections 5.1, 5.2
 -- and 7.1, build row L1). Forward-only, idempotent (a second apply changes
 -- nothing).
 --

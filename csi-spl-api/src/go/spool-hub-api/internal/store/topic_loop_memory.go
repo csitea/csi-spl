@@ -10,7 +10,7 @@ import (
 	uuid "github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 )
 
-// Memory side of topic_loop.go (rdb 0299, spec 182 row L1). The rows live
+// Memory side of topic_loop.go (rdb 0301, spec 182 row L1). The rows live
 // beside the Memory value, as memTopicPauses does, under s.mu. Each rule is
 // the shared one of topic_loop.go (newTopicLoop, applyTopicLoopEdit,
 // topicLoopFire, topicLoopClaim), so the two stores cannot drift.

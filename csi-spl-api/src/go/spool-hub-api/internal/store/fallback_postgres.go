@@ -80,7 +80,7 @@ const (
 	// or to an agent (a DM to a person or a guest, or ALL-0, never falls
 	// back), in a channel that did not opt out (rdb 0068), in a topic that
 	// is not paused (rdb 0297, spec 179 5.2 row 8: one primary key probe).
-	// A loop prompt message (rdb 0299, spec 182 5.2) is never a human post
+	// A loop prompt message (rdb 0301, spec 182 5.2) is never a human post
 	// nobody heard.
 	fallbackHumanPostSQL = `
 		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> '' AND m.loop_id IS NULL

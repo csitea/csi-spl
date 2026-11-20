@@ -243,7 +243,7 @@ type topicsSQL struct {
 }
 
 // msgs is the message filters on alias a (each call binds the channel anew).
-// A loop prompt message (rdb 0299, spec 182 5.2) is no line of any topic.
+// A loop prompt message (rdb 0301, spec 182 5.2) is no line of any topic.
 func (b *topicsSQL) msgs(a string) string {
 	w := a + ".tenant_id = " + b.tn + " AND " + a + ".expires_at > " + b.now + " AND " + a + ".loop_id IS NULL"
 	if b.q.Channel != "" {
@@ -476,7 +476,7 @@ func newTopicPage(tenant string, q TopicMsgQuery) *topicPage {
 	if q.Desc {
 		order = "ORDER BY received_at DESC, msg_id::text DESC"
 	}
-	// A loop prompt message (rdb 0299, spec 182 5.2) is shown to nobody.
+	// A loop prompt message (rdb 0301, spec 182 5.2) is shown to nobody.
 	// The per-message read door (rdb 0028). In the statement, not after it,
 	// so LIMIT counts only messages this reader may see and a page is never
 	// short because the rest of it was filtered away afterwards.

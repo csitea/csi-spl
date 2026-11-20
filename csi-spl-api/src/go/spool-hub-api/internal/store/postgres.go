@@ -529,7 +529,7 @@ func insertMessageArgs(m Message, sentExpires time.Time) (string, []any) {
 	if m.MirrorOf != "" {
 		mirrorOf = m.MirrorOf
 	}
-	if m.LoopID != "" { // spec 182, rdb 0299
+	if m.LoopID != "" { // spec 182, rdb 0301
 		loopID = m.LoopID
 	}
 	args := []any{m.TenantID, m.MsgID, m.TaskID, channel, m.TS, m.FromBox, m.FromID, m.ToBox, m.ToID,

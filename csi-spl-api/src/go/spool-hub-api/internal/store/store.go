@@ -188,7 +188,7 @@ type Message struct {
 	// self"): a person's post whose only @mention is its author. The hub sets
 	// it at the browser send; no agent delivery is built for it.
 	NoteToSelf bool
-	// LoopID is messages.loop_id (rdb 0299, spec 182 5.2): the loop a loop
+	// LoopID is messages.loop_id (rdb 0301, spec 182 5.2): the loop a loop
 	// prompt message was fired by, "" = NULL = any other row. Such a row is
 	// delivered to its agent and kept, but no view, topic head or fallback
 	// read shows it, to any viewer.

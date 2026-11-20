@@ -11,8 +11,8 @@ import (
 	uuid "github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 )
 
-// Postgres side of topic_loop.go (rdb 0299, spec 182 row L1). Every read and
-// write runs in the workspace's own scope (rdb 0299's tenant_scope policy),
+// Postgres side of topic_loop.go (rdb 0301, spec 182 row L1). Every read and
+// write runs in the workspace's own scope (rdb 0301's tenant_scope policy),
 // except ClaimDueTopicLoops, the ticker's claim over every workspace; the
 // change_stamp trigger moves the tenant's stamp on each write.
 

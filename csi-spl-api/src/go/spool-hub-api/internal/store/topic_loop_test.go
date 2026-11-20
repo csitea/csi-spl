@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Spec 182 v0.4 row L1 (rdb 0299): discussion loops. Every test runs on
+// Spec 182 v0.4 row L1 (rdb 0301): discussion loops. Every test runs on
 // Memory and, with SPOOL_TEST_PG_DSN, on Postgres with the same assertions:
 // the two stores answer alike (parity).
 
@@ -723,7 +723,7 @@ func assertLoopRowNoStatNoChange(t *testing.T, f *loopFix, post Message, now tim
 // TestTopicLoopSweepPickIndexOnly: the unanswered sweep's k0 pick (L2b,
 // spl-unanswered-sweep.func.sh) skips loop rows, so messages_task_received
 // carries loop_id and, for the RLS policies' read, is_private_scope (rdb
-// 0299): under the operator scope, with every other scan and the sort off,
+// 0301): under the operator scope, with every other scan and the sort off,
 // the pick is an Index Only Scan, not an Index Scan that reads the heap.
 func TestTopicLoopSweepPickIndexOnly(t *testing.T) {
 	pg := rlsStore(t)

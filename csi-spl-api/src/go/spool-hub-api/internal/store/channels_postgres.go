@@ -386,7 +386,7 @@ func (cs *channelStats) channelsRead() tenantRead {
 }
 
 // countsRead is each channel's live message count, newest message and
-// posters (a loop prompt message, rdb 0299 spec 182 5.2, is none of them, nor
+// posters (a loop prompt message, rdb 0301 spec 182 5.2, is none of them, nor
 // is it unread in the reads below); unread starts at the count less the reader's own lines (OwnLine:
 // from_id, on the same covering index).
 func (cs *channelStats) countsRead(now time.Time, reader string) tenantRead {

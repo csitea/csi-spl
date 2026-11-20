@@ -10,7 +10,7 @@ import (
 )
 
 // Discussion loops (spec 182 v0.4 sections 4, 5 and 7.1.1, row L1, rdb
-// 0299). The owner (HUM-10, t1 f08c0c58, msg b20e28e9): "setup a txt prompt
+// 0301). The owner (HUM-10, t1 f08c0c58, msg b20e28e9): "setup a txt prompt
 // for discussion, which will execute on either agent reply or human prompt
 // or another human prompt"; the eleven triggers, msgs d44af000 and
 // a1d73b19, less before_human_reply (Q11 C, msg 46e61a8c).
@@ -208,7 +208,7 @@ var (
 //     over 64 characters is ErrBadTopicLoop.
 
 // topicLoopField is a field that is set exactly when its trigger is
-// checked (rdb 0299's pairing CHECKs).
+// checked (rdb 0301's pairing CHECKs).
 type topicLoopField struct {
 	trigger string
 	set     func(l TopicLoop) bool
@@ -310,7 +310,7 @@ func topicLoopNextDaily(l TopicLoop, from time.Time) time.Time {
 }
 
 // checkTopicLoopTask validates the tenant and task id; it answers the id as
-// rdb 0299 stores it (lower case).
+// rdb 0301 stores it (lower case).
 func checkTopicLoopTask(tenant, taskID string) (string, error) {
 	if err := checkTenant(tenant); err != nil {
 		return "", err
@@ -321,7 +321,7 @@ func checkTopicLoopTask(tenant, taskID string) (string, error) {
 	return strings.ToLower(taskID), nil
 }
 
-// normTopicLoop is l as rdb 0299 stores it (prompt and keyword trimmed,
+// normTopicLoop is l as rdb 0301 stores it (prompt and keyword trimmed,
 // triggers distinct and sorted, ids lower case, the zone UTC when ""), or
 // ErrBadTopicLoop.
 func normTopicLoop(l TopicLoop) (TopicLoop, error) {

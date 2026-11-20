@@ -13,7 +13,7 @@ import (
 // the store only reads.
 type TopicExports interface {
 	// TopicExportRows is every live (not expired) message of taskID, oldest
-	// first by (ts, msg_id), less a loop prompt message (rdb 0299, spec 182
+	// first by (ts, msg_id), less a loop prompt message (rdb 0301, spec 182
 	// 5.2: shown to nobody, so in no export), with no reader filter: the fields the read door
 	// decides on and the render prints. Deliveries and the revision number
 	// are not read.

@@ -421,7 +421,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	// topic_loops (rdb 0299, spec 182 row L1): one loop on the seeded topic.
+	// topic_loops (rdb 0301, spec 182 row L1): one loop on the seeded topic.
 	if _, err := pg.AddTopicLoop(ctx, s.tenant, TopicLoop{TaskID: s.taskID, Prompt: "p", Triggers: []string{LoopAfterAgentReply},
 		SetBy: hum, SetAt: now}); err != nil {
 		t.Fatal(err)

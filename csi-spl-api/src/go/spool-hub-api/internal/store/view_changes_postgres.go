@@ -24,7 +24,7 @@ import (
 //     primary key's tenant prefix), a small table: no set_at index.
 //
 // The join keeps rows inside retention and reads where each row is now; a
-// loop prompt message (rdb 0299, spec 182 5.2) is no change of any topic.
+// loop prompt message (rdb 0301, spec 182 5.2) is no change of any topic.
 const viewChangesSQL = `SELECT c.kind, m.msg_id::text, m.task_id::text, COALESCE(m.channel, ''), m.from_id, m.to_id,
 		CASE WHEN m.moved_at IS NULL THEN '' ELSE COALESCE(m.moved_from_channel, '') END,
 		COALESCE(m.moved_from_task::text, '')

@@ -69,3 +69,31 @@ in a second commit and report again.
   as already upstream; the seat file was restored from that commit and is
   re-committed on `review/c002-bug-round-30-mistral-seat`, pushed with
   `PUSH_BRANCH=review/c002-bug-round-30-mistral-seat`.
+
+## Rotation 20261120T2253Z state (2026-11-20T22:57Z)
+
+- Ack run first: `cd /opt/csi/csi-spl/csi-spl-orc && sudo -u <PUSH_USER> env
+  SPOOL_ROOT=/var/spool-hub ROTATE_CMD=ack ROTATE_ID=20261120T2253Z-lane-m-551
+  ID=m-551 ./run -a do_spl_lane_rotate` -> `ACK OK sent by pid 2712702`.
+  STEP 0 re-confirmed: `do_dev_guide_ack` -> `OK m-551 already confirmed
+  developer-guide.md blob 8b1916cdc`.
+- Branch state: `git ls-remote origin
+  refs/heads/review/c002-bug-round-30-mistral-seat` -> `661d76589...` == local
+  HEAD; worktree clean, nothing unpushed.
+- Inbox: `spool recv --as m-551` -> only this rotation's own ACK; no plan sha.
+  Task `dispatch-bug-r30` tail: planner ask `bb395b6d`
+  (`claude:c002-bug-round-30-planner`) still QUEUE at 18/40, 1h old
+  (`do_spl_spawn_queue` at 22:57Z); no `review/c002-bug-round-30-planner` ref on
+  origin. Verdict stays PENDING.
+- Check 1 re-run at 22:57Z, `W=2026-11-20T21:05:53+02:00` (same as 22:44Z):
+  `git log origin/master --since="$W" --oneline -E --grep='\(b30-' | wc -l` ->
+  `2`, and both are this seat's own incident pair on master (`b86bcc246` +
+  revert `5f1e27bc7`, see above); no `b30-<NN>` row slug exists.
+  `git ls-remote origin | grep -E 'b30-[0-9]{2}|bug-round-30'` -> only
+  `refs/heads/review/c002-bug-round-30-mistral-seat` (this seat's; expected).
+  `ls /var/spool-hub/dispatch/briefs | grep -E 'b30-[0-9]{2}|bug-round-30'` ->
+  the planner's and this seat's briefs (expected).
+- Check 8 re-run at 22:57Z: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` ->
+  `INFO distribution-hygiene: clean over the tracked tree of
+  /opt/csi/csi-spl-wt/m-551`, rc 0.
+- Checks 2-7: still NOT RUN — they need the plan's base sha and row files.

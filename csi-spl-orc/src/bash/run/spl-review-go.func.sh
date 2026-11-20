@@ -68,10 +68,11 @@
 # @description   [5] the row's branch on origin (git ls-remote, read only) is
 # @description       still the reviewed sha; else (SPL-5670) the sha is the
 # @description       tip of another origin ref (a re-push under a new name),
-# @description       or the branch is not on origin and the sha is on this
-# @description       box's local branch of that name or in the HEAD of a
-# @description       worktree on it or named for the author ("found locally
-# @description       only"); the GO and its log line say which
+# @description       or the branch is not on origin and the sha is on
+# @description       origin's master ("on origin/master": it landed, b27-01),
+# @description       else on this box's local branch of that name or in the
+# @description       HEAD of a worktree on it or named for the author ("found
+# @description       locally only"); the GO and its log line say which
 # @description  [10] no other review seat waits: every other dispatch/briefs/
 # @description       <slug>.md naming the same one author and the reviewed
 # @description       sha (an agy strings seat beside the grok R7, SPL-4251;
@@ -89,7 +90,10 @@
 # @description task_id is the review message's, the author the brief row's)
 # @description `PASS <ts> <msg_id> <task_id> <author_id> <reviewer_id> <sha>`
 # @description is appended to $SPOOL_ROOT/dispatch/automation.log (the record
-# @description Rule 2 reads). Any refusal sends the holder one note on task
+# @description Rule 2 reads). The msg_id is kept in a name do_log never
+# @description writes (do_log sets the global msg, which a local msg of the
+# @description caller would take by bash's dynamic scope: the record then held
+# @description a log line and the GO went out every minute, b27-01). Any refusal sends the holder one note on task
 # @description review-go (no GO, no REJECT: the judgement stays the
 # @description dispatcher's) and logs `<ts> review-go <msg_id> action=refused
 # @description rc=<n> ...`. A message seen once is never checked again. A
@@ -118,7 +122,7 @@
 #------------------------------------------------------------------------------
 do_spl_review_go() {
   do_require_bin python3 || return 1
-  local max="${REVIEW_GO_MAX_AGE:-60}" dry="${DRY_RUN:-1}" holder log rows n=0 msg task from line rc
+  local max="${REVIEW_GO_MAX_AGE:-60}" dry="${DRY_RUN:-1}" holder log rows n=0 mid task from line rc
   [[ "$max" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL REVIEW_GO_MAX_AGE must be minutes (a positive integer), got: '$max'"; return 1; }
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   # The cron line exports no SPOOL_ROOT: spl_lease_init's default, set before
@@ -136,15 +140,15 @@ do_spl_review_go() {
   if [[ -n "${REVIEW_GO_MSG:-}" ]]; then
     rows="$(_spl_review_go_scan "$max" "$REVIEW_GO_MSG")" || return 1
     [[ -n "$rows" ]] || { do_log "FATAL $REVIEW_GO_MSG holds no review line from its reviewer"; return 1; }
-    IFS=$'\t' read -r msg task from line <<<"$rows"
-    _spl_review_go_seen "$msg" "$log" && { do_log "INFO msg $msg is in $log already: not checked again"; return 0; }
-    _spl_review_go_one "$holder" "$msg" "$task" "$line" "$log" "$dry" "$from"; return
+    IFS=$'\t' read -r mid task from line <<<"$rows"
+    _spl_review_go_seen "$mid" "$log" && { do_log "INFO msg $mid is in $log already: not checked again"; return 0; }
+    _spl_review_go_one "$holder" "$mid" "$task" "$line" "$log" "$dry" "$from"; return
   fi
   rows="$(_spl_review_go_scan "$max" "$SPOOL_ROOT/$holder")" || { do_log "WARN could not read $SPOOL_ROOT/$holder"; return 1; }
-  while IFS=$'\t' read -r msg task from line; do
-    [[ -n "$msg" ]] || continue
-    _spl_review_go_seen "$msg" "$log" && continue
-    rc=0; _spl_review_go_one "$holder" "$msg" "$task" "$line" "$log" "$dry" "$from" || rc=$?
+  while IFS=$'\t' read -r mid task from line; do
+    [[ -n "$mid" ]] || continue
+    _spl_review_go_seen "$mid" "$log" && continue
+    rc=0; _spl_review_go_one "$holder" "$mid" "$task" "$line" "$log" "$dry" "$from" || rc=$?
     (( rc == 0 )) && n=$((n + 1))
   done <<<"$rows"
   do_log "OK review GO: holder $holder, $n GO(s) sent$([[ "$dry" == 1 ]] && echo ' (DRY_RUN: planned, nothing sent)')"
@@ -730,9 +734,10 @@ EOF_PY
 # _spl_review_go_one <holder> <msg> <task> <line> <log> <dry> <from>: every
 # check of one review message (<from>: its sender, <id> or <id>@<box>); GO and
 # the PASS record on success, else the hold note and the refusal line.
-# Returns the check's exit code (see the header).
+# Returns the check's exit code (see the header). The msg id is `mid`, never
+# `msg`: do_log writes the global msg, which a local msg here would take (b27-01).
 _spl_review_go_one() {
-  local holder="$1" msg="$2" task="$3" line="$4" log="$5" dry="$6" from="${7:-}" rx why rc here mbox
+  local holder="$1" mid="$2" task="$3" line="$4" log="$5" dry="$6" from="${7:-}" rx why rc here mbox
   local rid rbox rven verdict sha author abox branch rtask brief abrief where=""
   set -- "${@:1:6}"
   here="$(_spl_review_go_here)" mbox="${from##*@}"
@@ -762,11 +767,11 @@ _spl_review_go_one() {
   if [[ "$why" != "$sha" ]]; then
     where="$(_spl_review_go_elsewhere "$branch" "$sha" "$author" "$why")" ||
       { _spl_review_go_hold "$@" 5 "branch '${branch:-none}' on origin is ${why:-missing}, not the reviewed ${sha:0:12}: re-review${where:+ ($where)}"; return 5; }
-    do_log "INFO msg $msg: the reviewed ${sha:0:12} $where" >&2
+    do_log "INFO msg $mid: the reviewed ${sha:0:12} $where" >&2
   fi
   why="$(_spl_review_go_siblings "$rid" "$brief" "$author" "$sha" "$log" "$holder")"
   [[ -z "$why" ]] || { _spl_review_go_wait "$@" "$author" "$rid" "$sha" "$(_spl_review_go_slug "$rid" "$brief")" "$why"; return 10; }
-  _spl_review_go_send "$holder" "$msg" "$task" "$author" "$abox" "$rid" "$sha" "$log" "$dry" "${rtask:-$task}" "$where"
+  _spl_review_go_send "$holder" "$mid" "$task" "$author" "$abox" "$rid" "$sha" "$log" "$dry" "${rtask:-$task}" "$where"
 }
 
 # _spl_review_go_tip <branch>: the sha origin's branch points at (read only:
@@ -787,14 +792,16 @@ _spl_review_go_repo() { echo "${REVIEW_GO_REPO:-$(git -C "${BASH_SOURCE[0]%/*}" 
 # re-pushed the fix under a new name: a branch named <branch> plus any suffix
 # after a - . _ or /, or <author>-*, the full sha; no suffix guessed, never a
 # tag or another lane's branch), or (a) origin answers and has no such branch,
-# and the sha is a commit of this box's repo reachable from the local branch
-# of that name or from the HEAD of a worktree on that branch or named for the
-# author (local only: the author must still push it). Else rc 1, the why on
+# and the sha is on origin's master (it landed: the tip ls-remote names, else
+# this box's refs/remotes/origin/master, nothing fetched; b27-01), else a
+# commit of this box's repo reachable from the local branch of that name or
+# from the HEAD of a worktree on that branch or named for the author (local
+# only: the author must still push it). Else rc 1, the why on
 # stdout when origin did not answer: a failed ls-remote, a branch on origin
 # that points elsewhere, a sha on no related ref, or a row that names no branch
 # still holds rc 5.
 _spl_review_go_elsewhere() {
-  local repo refs ref wt="" head="" wbr=""
+  local repo refs ref wt="" head="" wbr="" mtip
   [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
   repo="$(_spl_review_go_repo)"
   refs="$(git -C "$repo" ls-remote origin 2>/dev/null)" || { echo "git ls-remote origin failed: origin not read"; return 1; }
@@ -803,6 +810,11 @@ _spl_review_go_elsewhere() {
   [[ -n "$ref" ]] && { echo "is the tip of origin ref $ref (not of the row's branch '$1')"; return 0; }
   [[ -z "$4" ]] && ! awk -v b="refs/heads/$1" '$2 == b {f = 1} END {exit !f}' <<<"$refs" &&
     git -C "$repo" cat-file -e "$2^{commit}" 2>/dev/null || return 1
+  mtip="$(awk '$2 == "refs/heads/master" {print $1; exit}' <<<"$refs")"
+  for ref in ${mtip:+"$mtip"} refs/remotes/origin/master; do
+    git -C "$repo" merge-base --is-ancestor "$2" "$ref" 2>/dev/null || continue
+    echo "is on origin/master (it landed; the row's branch '$1' is no longer on origin)"; return 0
+  done
   if git -C "$repo" merge-base --is-ancestor "$2" "refs/heads/$1" 2>/dev/null; then
     echo "is on this box's local branch '$1' only, not on origin: found locally only, the author must still push it"; return 0
   fi
@@ -877,16 +889,16 @@ _spl_review_go_wait() {
 # _spl_review_go_hold <holder> <msg> <task> <line> <log> <dry> <rc> <why>:
 # the refusal, logged once and told to the holder; no GO, no REJECT.
 _spl_review_go_hold() {
-  local holder="$1" msg="$2" task="$3" log="$5" dry="$6" rc="$7" why="$8" erc=0
+  local holder="$1" mid="$2" task="$3" log="$5" dry="$6" rc="$7" why="$8" erc=0
   local who="${REVIEW_GO_FROM:-${LEASE_ORCH:-$(spl_role_seat 1)}}" send="${REVIEW_GO_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
   if [[ "$dry" == 1 ]]; then
-    echo "PLAN HOLD msg $msg (rc $rc): $why"
+    echo "PLAN HOLD msg $mid (rc $rc): $why"
     return 0
   fi
   SPOOL_ROOT="$SPOOL_ROOT" bash "$send" --from "$who" --to "$holder" --kind note --task review-go \
-    --body "REVIEW-GO HOLD (spec 157 rule 1, rc $rc): review msg $msg on task $task: $why. No GO sent; the next step is yours." \
+    --body "REVIEW-GO HOLD (spec 157 rule 1, rc $rc): review msg $mid on task $task: $why. No GO sent; the next step is yours." \
     >/dev/null 2>&1 7>&- 8>&- 9>&- || erc=$?
   printf '%s review-go %s action=refused rc=%s task=%s holder=%s note_rc=%s why=%s\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg" "$rc" "$task" "$holder" "$erc" "$why" >>"$log"
-  do_log "INFO msg $msg: REFUSED (rc $rc) $why"
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$mid" "$rc" "$task" "$holder" "$erc" "$why" >>"$log"
+  do_log "INFO msg $mid: REFUSED (rc $rc) $why"
 }

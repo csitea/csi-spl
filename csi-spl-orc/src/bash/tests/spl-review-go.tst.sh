@@ -99,7 +99,13 @@
 #        that ref; controls: a box commit on no branch or worktree, a
 #        local-only sha while the branch is on origin, a sha on no origin ref,
 #        only on a tag, another lane's branch or <branch>y, a failed ls-remote
-#        -> rc 5; a sha nowhere -> rc 8
+#        -> rc 5; a sha nowhere -> rc 8. Every GO here leaves a PASS record
+#        that holds the bare msg id: the stub do_log writes the globals the
+#        real one does (msg, action, type_of_msg, rest_of_msg), so a msg id
+#        kept in one of them is caught (b27-01: GO re-sent every minute).
+#        (b) RED CONTROL (b27-01) the branch not on origin, the sha on
+#        origin's master -> GO saying 'on origin/master', never 'found
+#        locally only'; the next cron tick sends nothing
 #    24. owner-go keywords in quoted text (SPL-5670): RED CONTROLS a keyword
 #        only in a What happened / Why section (and its subheadings), a `>`
 #        quote, a fenced block, a negated `does not apply` -> GO; controls: a
@@ -198,7 +204,8 @@ run() {
     REVIEW_GO_NOW="$NOW" REVIEW_GO_SEND="$T/send.sh" SEND_LOG="$T/s/sent.log" REVIEW_GO_REPO="$T/repo" \
     REVIEW_LINE_BOX=boxa DRY_RUN=0 "$@" bash -c '
     set -uo pipefail
-    do_log() { echo "$*"; }
+    # the real do_log (run.sh) writes these globals; a caller local of the same name takes the write (b27-01)
+    do_log() { read -r type_of_msg action rest_of_msg <<<"$*"; msg=" [$type_of_msg] $*"; echo "$*"; }
     do_require_bin() { return 0; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
     source "$0" || { echo "FATAL cannot source $0"; exit 97; }
@@ -919,6 +926,22 @@ for ref in refs/tags/hold-me refs/heads/other-lane refs/heads/review/c002-xy; do
   refused "23c. RED CONTROL: the sha only on the unrelated $ref -> rc 5" $rc 5 "branch 'review/c002-x' on origin is $SHA, not the reviewed ${RSHA:0:12}"
   "${G[@]}" -C "$T/repo" push -q origin ":$ref"
 done
+# (b) b27-01: the sha landed on origin's master, the row's branch deleted there; a local branch and an author
+# worktree still hold it (the live case: c-247's worktree) -> 'on origin/master', and one GO only
+OMASTER=$("${G[@]}" -C "$T/repo" ls-remote origin refs/heads/master | awk '{print $1}')
+BSHA=$(c23 c-222-landed "landed on master"); "${G[@]}" -C "$T/repo" push -q origin "$BSHA:refs/heads/master"
+"${G[@]}" -C "$T/repo" worktree add -q --detach "$T/wt/c-222" "$BSHA" 2>/dev/null
+run23 "23b" review/c002-landed "$BSHA" 23000000-0000-4000-8000-0000000000b1
+go23 "23b. RED CONTROL: the row's branch is not on origin, the sha is on origin's master -> GO, 'on origin/master'" \
+  "$BSHA" 23000000-0000-4000-8000-0000000000b1 "on origin/master (it landed"
+if grep -q 'found locally only' "$T/s/sent.log" "$LOG" "$T/out"; then
+  fail "23b. a landed sha is called 'found locally only': $(grep -h 'found locally only' "$T/s/sent.log" "$T/out")"
+else pass "23b. a landed sha is never called 'found locally only'"; fi
+run
+if [[ $(gos) == 1 && $(count "$LOG" '^PASS ') == 1 ]]; then pass "23b. RED CONTROL: the next cron tick sends nothing again"
+else fail "23b. retick gos=$(gos) log=$(cat "$LOG") out=$(tail -3 "$T/out")"; fi
+"${G[@]}" -C "$T/repo" worktree remove --force "$T/wt/c-222"
+"${G[@]}" -C "$T/repo" push -q -f origin "$OMASTER:refs/heads/master"; "${G[@]}" -C "$T/repo" update-ref -d refs/heads/c-222-landed
 # W3 (g-416): origin unreadable while the row's branch there points elsewhere: no local-only GO
 XSHA=$(c23 review/c002-w3 "local tip of the row's branch"); "${G[@]}" -C "$T/repo" push -q origin "$SHA:refs/heads/review/c002-w3"
 OURL=$("${G[@]}" -C "$T/repo" remote get-url origin)

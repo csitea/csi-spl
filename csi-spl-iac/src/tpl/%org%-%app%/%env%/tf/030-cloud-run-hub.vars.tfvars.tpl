@@ -26,6 +26,7 @@ cloud_sql_instance_name      = {{ steps["040-cloud-sql-postgres"]["instance_name
 files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | tojson }}
 {#- spec 183 7.1.6: the topic PDF renderer (step 031); "" until its apply #}
 pdf_url                      = {{ (hub["pdf"]["url"] if (hub["pdf"] is defined and hub["pdf"]["url"]) else "") | tojson }}
+pdf_timeout                  = {{ (hub["pdf"]["timeout"] if (hub["pdf"] is defined and hub["pdf"]["timeout"]) else "120s") | tojson }}
 {#- spec 010 T020: auth.social.env, auth.native.env and mail.env join hub.env
     (plain values). Secrets are injected only when used, since Cloud Run refuses
     a revision whose secret has no version: the session key when an IdP is

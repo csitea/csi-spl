@@ -29,9 +29,10 @@ locals {
   cloud_sql_connection_name = "${var.gcp_project}:${var.gcp_region}:${var.cloud_sql_instance_name}"
 
   # spec 183 7.1.6: the topic PDF renderer (step 031) the hub posts to with
-  # its own ID token, from cnf hub.pdf.url; none while it is "" (the hub then
+  # its own ID token, from cnf hub.pdf.url, and the hub's wait for one render
+  # from cnf hub.pdf.timeout; neither while the url is "" (the hub then
   # answers an export 503 render_unavailable).
-  hub_env = merge(var.environment_variables, var.pdf_url == "" ? {} : { SPOOL_PDF_URL = var.pdf_url })
+  hub_env = merge(var.environment_variables, var.pdf_url == "" ? {} : { SPOOL_PDF_URL = var.pdf_url, SPOOL_PDF_TIMEOUT = var.pdf_timeout })
 
   # SPL-4298: every template input terraform owns (the image is the 20
   # pipeline's), this file included so a changed constant counts too. It rides
@@ -49,6 +50,7 @@ locals {
     memory         = var.memory
     env            = var.environment_variables
     pdf_url        = var.pdf_url
+    pdf_timeout    = var.pdf_timeout
     secret_env     = var.secret_environment_variables
     secret_version = var.secret_versions
     pepper_secret  = var.vendor_keys_pepper_secret_id

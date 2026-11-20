@@ -135,6 +135,22 @@ variable "pdf_url" {
   }
 }
 
+variable "pdf_timeout" {
+  type        = string
+  description = "The hub's wait for one render, a cold start included (cnf hub.pdf.timeout, spec 183 7.1.6), passed to the hub as SPOOL_PDF_TIMEOUT alongside SPOOL_PDF_URL. A Go duration of minutes and/or seconds (120s, 2m, 2m30s), above the renderer's 115 s cap and below the hub's 600 s request timeout."
+  default     = "120s"
+
+  validation {
+    condition = var.pdf_timeout != "" && can(regex("^([0-9]+m)?([0-9]+s)?$", var.pdf_timeout)) && try(
+      60 * try(tonumber(trimsuffix(regex("^([0-9]+m)?([0-9]+s)?$", var.pdf_timeout)[0], "m")), 0)
+      + try(tonumber(trimsuffix(regex("^([0-9]+m)?([0-9]+s)?$", var.pdf_timeout)[1], "s")), 0) > 115
+      && 60 * try(tonumber(trimsuffix(regex("^([0-9]+m)?([0-9]+s)?$", var.pdf_timeout)[0], "m")), 0)
+      + try(tonumber(trimsuffix(regex("^([0-9]+m)?([0-9]+s)?$", var.pdf_timeout)[1], "s")), 0) < 600,
+    false)
+    error_message = "pdf_timeout must be a Go duration of minutes and/or seconds above 115s and below 600s (e.g. \"120s\", \"2m\")."
+  }
+}
+
 variable "secret_environment_variables" {
   type        = map(string)
   description = "env var -> Secret Manager secret id (cnf hub.secret_env); injected at its secret_versions pin."

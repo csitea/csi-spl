@@ -193,7 +193,10 @@ on the branch of this row; nothing in GCP changed.
 - cnf: `pdf.image.{name,tag}`, `pdf.cloud_run.*`, `hub.pdf.{url,timeout}`
   in `all.env.yaml`. `pdf.image.tag` is `""` until the first push, and 031
   refuses to plan with it; `hub.pdf.url` is `""` until 031's apply, and 030
-  then passes no `SPOOL_PDF_URL`.
+  then passes no `SPOOL_PDF_URL` and no `SPOOL_PDF_TIMEOUT`.
+- Hub env (v0.6 7.1.6): with the url set, 030 passes `SPOOL_PDF_URL` and
+  `SPOOL_PDF_TIMEOUT` (cnf `hub.pdf.timeout`, `120s`; its variable refuses a
+  value that is not minutes and/or seconds above 115 s and below 600 s).
 - Image: `do_build_push_pdf_image` (csi-spl-orc) tags it `src-<12 hex>`, a
   hash of the committed inputs (`cmd/spool-pdf`, `internal/topicpdf`,
   `go.mod`, `go.sum`, `pdf.Dockerfile`), and pushes only a tag the registry
@@ -203,9 +206,8 @@ on the branch of this row; nothing in GCP changed.
 - Check of 1.2: `csi-spl-iac/src/bash/tests/renderer-scale-to-zero-031.tst.sh`;
   its red controls (`min_instance_count = 1`, `cpu_idle = false`,
   `startup_cpu_boost = true`, an `allUsers` invoker, a keep-warm scheduler
-  job) each fail it.
-- Open: cnf `hub.pdf.timeout` reaches the hub under no env name yet (7.1
-  names none); 030 passes `SPOOL_PDF_URL` only.
+  job, a 030 that drops `SPOOL_PDF_TIMEOUT` or leaves `pdf_timeout` out of
+  its template hash) each fail it.
 
 After the apply (dev, then prd; c-001, with the owner's go): the
 `minScale` describe, the idle instance count after 20 minutes, an export

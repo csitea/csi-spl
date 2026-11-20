@@ -15,11 +15,14 @@
 #               hub's runtime SA, no allUsers / allAuthenticatedUsers;
 #            4. the rendered dev and prd tfvars carry the 7.1.6 sizing
 #               (concurrency 1, max 2, timeout 120, 1 cpu, 1Gi), and 030
-#               passes SPOOL_PDF_URL only from cnf hub.pdf.url.
+#               passes SPOOL_PDF_URL from cnf hub.pdf.url and, with it,
+#               SPOOL_PDF_TIMEOUT from cnf hub.pdf.timeout (spec 183 v0.6
+#               7.1.6); neither while the url is "".
 #          RED CONTROLS, each on a copy of the step: min_instance_count = 1,
 #          cpu_idle = false, startup_cpu_boost = true, a planted scheduler job
-#          that pings the renderer, a planted allUsers invoker: every one
-#          must fail the check that guards it.
+#          that pings the renderer, a planted allUsers invoker, a 030 that
+#          drops SPOOL_PDF_TIMEOUT or leaves pdf_timeout out of its template
+#          hash: every one must fail the check that guards it.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -93,6 +96,18 @@ verdict() { # <label> <reasons>
   [[ -z "$2" ]] && pass "$1" || fail "$1: $(tr '\n' ';' <<<"$2")"
 }
 
+# hub_env_gaps <030 service .tf>: why 030 does not pass the renderer's url and
+# timeout to the hub as 7.1.6 says, one a line ("" = it does)
+hub_env_gaps() {
+  local f="$1"
+  grep -qF 'hub_env = merge(var.environment_variables, var.pdf_url == "" ? {} : { SPOOL_PDF_URL = var.pdf_url, SPOOL_PDF_TIMEOUT = var.pdf_timeout })' "$f" ||
+    echo "030 does not merge SPOOL_PDF_URL and SPOOL_PDF_TIMEOUT from var.pdf_url and var.pdf_timeout"
+  grep -qE '^[[:space:]]*for_each = local.hub_env$' "$f" || echo "030's container env does not read local.hub_env"
+  grep -qE '^[[:space:]]*want_env += local.hub_env$' "$f" || echo "030's revision check does not read local.hub_env"
+  grep -qE '^[[:space:]]*pdf_url += var.pdf_url$' "$f" || echo "030's template hash misses var.pdf_url"
+  grep -qE '^[[:space:]]*pdf_timeout += var.pdf_timeout$' "$f" || echo "030's template hash misses var.pdf_timeout"
+}
+
 # --- 1..3 on the real step -----------------------------------------------------
 verdict "1. $STEP scales to zero: min 0 (literal), cpu_idle true, no startup boost" "$(r1_scale "$TFD/$STEP")"
 verdict "2. no scheduler job or uptime check in src/terraform keeps the renderer warm" "$(warmers "$TFD" "$CNF")"
@@ -112,15 +127,15 @@ for env in dev prd; do
   [[ "$url" == null ]] && url=""
   grep -qx "pdf_url                      = \"$url\"" "$CNF/$env/tf/030-cloud-run-hub.vars.tfvars" &&
     pass "4. $env 030 tfvars pdf_url = cnf hub.pdf.url ('$url')" || fail "4. $env 030 tfvars pdf_url is not cnf hub.pdf.url ('$url')"
+  tmo="$(yq -r '.env.hub.pdf.timeout // ""' "$CNF/$env.env.yaml")"
+  [[ -n "$tmo" && "$tmo" != null ]] || tmo="$(yq -r '.env.hub.pdf.timeout // ""' "$CNF/all.env.yaml")"
+  [[ -n "$tmo" && "$tmo" != null ]] || tmo="120s"
+  grep -qx "pdf_timeout                  = \"$tmo\"" "$CNF/$env/tf/030-cloud-run-hub.vars.tfvars" &&
+    pass "4. $env 030 tfvars pdf_timeout = cnf hub.pdf.timeout ('$tmo')" || fail "4. $env 030 tfvars pdf_timeout is not cnf hub.pdf.timeout ('$tmo')"
 done
-grep -qF 'hub_env = merge(var.environment_variables, var.pdf_url == "" ? {} : { SPOOL_PDF_URL = var.pdf_url })' \
-  "$TFD/030-cloud-run-hub/04-cloud-run-service.tf" && pass "4. 030 adds SPOOL_PDF_URL only when pdf_url is set" ||
-  fail "4. 030 does not merge SPOOL_PDF_URL from var.pdf_url"
 f030="$TFD/030-cloud-run-hub/04-cloud-run-service.tf"
-grep -qE '^[[:space:]]*for_each = local.hub_env$' "$f030" && grep -qE '^[[:space:]]*want_env += local.hub_env$' "$f030" &&
-  grep -qE '^[[:space:]]*pdf_url += var.pdf_url$' "$f030" &&
-  pass "4. 030's env and revision check read local.hub_env; the template hash covers var.pdf_url" ||
-  fail "4. 030 does not use local.hub_env for the env and want_env, or its template hash misses var.pdf_url"
+verdict "4. 030 passes SPOOL_PDF_URL and SPOOL_PDF_TIMEOUT only when pdf_url is set, via local.hub_env, both in its template hash" \
+  "$(hub_env_gaps "$f030")"
 
 # --- RED CONTROLS: each planted break is caught ----------------------------------
 plant() { # <name> <sed expr> -> a copy of the step with the expr applied
@@ -149,5 +164,14 @@ TF
 sed -i 's/pdf_host/hub_host/; s|/render|/healthz|' "$T/tf/099-warm/01-job.tf"
 [[ -z "$(warmers "$T/tf" "$T/no-cnf")" ]] && pass "CONTROL a scheduler job on another service is not the renderer's" ||
   fail "CONTROL a job on another service was taken for a renderer warmer"
+
+cp "$f030" "$T/030-no-timeout.tf"
+sed -i -E 's/, SPOOL_PDF_TIMEOUT = var\.pdf_timeout//' "$T/030-no-timeout.tf"
+[[ -n "$(hub_env_gaps "$T/030-no-timeout.tf")" ]] && pass "CONTROL a 030 that passes no SPOOL_PDF_TIMEOUT is refused" ||
+  fail "CONTROL a 030 without SPOOL_PDF_TIMEOUT passed"
+cp "$f030" "$T/030-no-hash.tf"
+sed -i -E '/^[[:space:]]*pdf_timeout += var\.pdf_timeout$/d' "$T/030-no-hash.tf"
+[[ -n "$(hub_env_gaps "$T/030-no-hash.tf")" ]] && pass "CONTROL a 030 whose template hash misses pdf_timeout is refused" ||
+  fail "CONTROL a 030 whose template hash misses pdf_timeout passed"
 
 [[ $fails -eq 0 ]] && echo "PASS: all $(basename "$0") assertions" || { echo "FAIL: $fails"; exit 1; }

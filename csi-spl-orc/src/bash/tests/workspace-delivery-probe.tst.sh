@@ -199,6 +199,9 @@ before="$(md5sum <"$T/crontab")"
 cron >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(md5sum <"$T/crontab")" == "$before" ]] && grep -q '^    +4-59/10 \* \* \* \* ENV=dev .*workspace-delivery-probe-cron.sh >> .*/cron-dev.out 2>&1 # csi-spl:delivery-probe-dev$' "$T/o" &&
   pass "8. dry run: the diff, nothing written" || fail "8. dry: rc=$rc $(cat "$T/o")"
+cron PROBE_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1 >"$T/o" 2>&1; rc=$?
+(( rc == 0 )) && grep -qF "cron-no-stack.sh $T/var/delivery-probe/cron-dev.lock " "$T/o" && grep -qF ">> $T/var/delivery-probe/cron-dev.out 2>&1" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "8b. no override: the lock and cron-dev.out sit under \$SPL_VAR_APP_DIR/delivery-probe, a dry run creates nothing" || fail "8b. derived log dir rc=$rc $(cat "$T/o")"
 cron PROBE_CRON_ACTION=check >/dev/null 2>&1 && fail "8. check passed with no line" || pass "8. check fails while not installed"
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 want="4-59/10 * * * * ENV=dev $SRC/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron-dev.lock $SRC/csi-spl-orc/src/bash/scripts/workspace-delivery-probe-cron.sh >> $T/log/cron-dev.out 2>&1 # csi-spl:delivery-probe-dev"

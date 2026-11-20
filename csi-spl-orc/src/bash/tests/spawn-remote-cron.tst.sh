@@ -42,6 +42,9 @@ before="$(md5sum <"$T/crontab")"
 cron >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(md5sum <"$T/crontab")" == "$before" ]] && grep -q '^    +\* \* \* \* \* .*spawn-remote.sh --serve >> .*/cron.out 2>&1 # csi-spl:spawn-remote$' "$T/o" &&
   pass "1. dry run: the diff, nothing written" || fail "1. dry: rc=$rc $(cat "$T/o")"
+cron SPAWN_REMOTE_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1 >"$T/o" 2>&1; rc=$?
+(( rc == 0 )) && grep -qF "cron-no-stack.sh $T/var/spawn-remote/cron.lock " "$T/o" && grep -qF ">> $T/var/spawn-remote/cron.out 2>&1" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "1b. no override: the lock and cron.out sit under \$SPL_VAR_APP_DIR/spawn-remote, a dry run creates nothing" || fail "1b. derived log dir rc=$rc $(cat "$T/o")"
 cron SPAWN_REMOTE_CRON_ACTION=check >"$T/o" 2>&1 && fail "2. check passed with no line" || pass "2. check fails while not installed"
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 want="* * * * * $SRC/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.lock $S/spawn-remote.sh --serve >> $T/log/cron.out 2>&1 # csi-spl:spawn-remote"

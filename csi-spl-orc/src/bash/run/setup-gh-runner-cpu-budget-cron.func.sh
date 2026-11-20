@@ -55,7 +55,11 @@ do_setup_gh_runner_cpu_budget_cron() {
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   script="$src/$SPL_ORG_APP-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh"
-  logdir="${CPU_BUDGET_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/gh-runner-cpu-budget}"
+  logdir="${CPU_BUDGET_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir gh-runner-cpu-budget || { do_log "FATAL cannot derive the runner CPU budget cron log dir (no tree for spl_run_paths): set CPU_BUDGET_CRON_LOG_DIR"; return 1; }
+  fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/cron.lock")" || return 1

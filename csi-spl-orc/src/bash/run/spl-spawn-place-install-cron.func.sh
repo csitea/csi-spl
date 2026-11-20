@@ -35,7 +35,11 @@ do_spl_spawn_place_install_cron() {
   DESK_CRON_SELF_UPDATE=0 spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   run="$src/$SPL_ORG_APP-orc/run"
-  logdir="${SPAWN_PLACE_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/spawn-place}"
+  logdir="${SPAWN_PLACE_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir spawn-place || { do_log "FATAL cannot derive the spawn placer cron log dir (no tree for spl_run_paths): set SPAWN_PLACE_CRON_LOG_DIR"; return 1; }
+  fi
   # cron's own PATH (/usr/bin:/bin) has no yq: every tick read no cnf (c-001@sat, 10-12)
   # shellcheck disable=SC2016 # $HOME is for the cron shell, not this one
   line="$(printf '* * * * * cd %s && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin flock -n %s/spawn-place.lock ./run -a do_spl_spawn_place >> %s/cron.out 2>&1 # %s' "${run%/run}" "$logdir" "$logdir" "$tag")"

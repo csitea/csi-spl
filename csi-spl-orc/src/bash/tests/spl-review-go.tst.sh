@@ -430,6 +430,10 @@ before="$(md5sum <"$T/crontab")"
 cron; rc=$?
 [[ $rc -eq 0 && "$(md5sum <"$T/crontab")" == "$before" ]] && grep -q 'do_spl_review_go >> .*/cron.out 2>&1 # csi-spl:review-go$' "$T/o" &&
   pass "13. dry run: the diff, nothing written" || fail "13. dry rc=$rc $(cat "$T/o")"
+# --- 13a. no override: the log dir derives from SPL_VAR_APP_DIR (r75-01) ----------
+cron REVIEW_GO_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1; rc=$?
+(( rc == 0 )) && grep -qF "flock -n $T/var/review-go/review-go.cron.lock " "$T/o" && grep -qF ">> $T/var/review-go/cron.out 2>&1" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "13a. no override: the lock and cron.out sit under \$SPL_VAR_APP_DIR/review-go, a dry run creates nothing" || fail "13a. derived log dir rc=$rc $(cat "$T/o")"
 cron REVIEW_GO_CRON_ACTION=check && fail "13. check passed with no line" || pass "13. check fails while not installed"
 cron DRY_RUN=0; rc=$?
 # shellcheck disable=SC2016 # $HOME stays literal in the line

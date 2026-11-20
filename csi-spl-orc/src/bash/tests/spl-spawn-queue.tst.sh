@@ -2004,6 +2004,10 @@ cron() {
     source "$PROJ_PATH/src/bash/run/spl-spawn-place-install-cron.func.sh"
     do_spl_spawn_place_install_cron'
 }
+# no override: the log dir derives from SPL_VAR_APP_DIR (r75-01)
+cron SPAWN_PLACE_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1 >"$T/o" 2>&1; rc=$?
+(( rc == 0 )) && grep -qF "flock -n $T/var/spawn-place/spawn-place.lock " "$T/o" && grep -qF ">> $T/var/spawn-place/cron.out 2>&1" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "cron: no override: the lock and cron.out sit under \$SPL_VAR_APP_DIR/spawn-place, a dry run creates nothing" || fail "cron derived log dir rc=$rc $(cat "$T/o")"
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 line="$(grep '# csi-spl:spawn-place$' "$T/crontab")"
 # shellcheck disable=SC2016 # $HOME stays literal in the cron line

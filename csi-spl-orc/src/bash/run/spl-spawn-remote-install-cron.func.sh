@@ -45,7 +45,11 @@ do_spl_spawn_remote_install_cron() {
   DESK_CRON_SELF_UPDATE="${DESK_CRON_SELF_UPDATE:-0}" spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   script="$src/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spawn-remote.sh"
-  logdir="${SPAWN_REMOTE_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/spawn-remote}"
+  logdir="${SPAWN_REMOTE_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir spawn-remote || { do_log "FATAL cannot derive the spawn receiver cron log dir (no tree for spl_run_paths): set SPAWN_REMOTE_CRON_LOG_DIR"; return 1; }
+  fi
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"

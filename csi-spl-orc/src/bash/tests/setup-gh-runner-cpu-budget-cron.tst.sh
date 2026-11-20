@@ -58,6 +58,10 @@ check_default() {
 out="$(setup "$FUNC")"; rc=$?
 [[ $rc -eq 0 && "$out" == *"+$(want 500)"* ]] &&
   pass "dry run: the rendered line carries CPU_BUDGET_GATE_FLOOR_PCT=500" || fail "dry default (rc=$rc): $out"
+# 1b. no override: the log dir derives from SPL_VAR_APP_DIR (r75-01)
+out="$(setup "$FUNC" CPU_BUDGET_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"cron-no-stack.sh $T/var/gh-runner-cpu-budget/cron.lock "* && "$out" == *">> $T/var/gh-runner-cpu-budget/cron.out 2>&1"* && ! -e "$T/var" ]] &&
+  pass "no override: the lock and cron.out sit under \$SPL_VAR_APP_DIR/gh-runner-cpu-budget, a dry run creates nothing" || fail "derived log dir (rc=$rc): $out"
 check_default "$FUNC" && pass "install: the tagged line carries the 500 floor" || fail "install default: $(cat "$T/crontab")"
 
 # 2. re-run keeps one line, same floor

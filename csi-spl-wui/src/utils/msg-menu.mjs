@@ -73,8 +73,10 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * SPL-5888 (owner HUM-10, t1 703f2ce5 msg 922da756; spec 005 FR-020): `pdf`
  * adds Export to PDF on desktop, right after Copy link (Hide from flow, Add to
  * note) and before Edit: the card alone, with its pictures, to the browser's
- * print. The phone sheet does not list it (its rows are measured to fit,
- * t1 7a6be5a3).
+ * print. SPL-6110 (owner HUM-10, t1 703f2ce5 msg 4460aad7: "On mobile, at
+ * least, doesn't work"): the phone sheet lists it too, right after Add to note
+ * (Archive keeps its place, t1 7a6be5a3; phone-card-menu.test.mjs proves the
+ * sheet still fits whole).
  *
  * Spec 182 row L3 (HUM-10, t1 f08c0c58 msg 19acb8f9): `loops` adds
  * Discussion loops… on a topic card, desktop only (the phone sheet's rows are
@@ -113,7 +115,8 @@ export function msgMenuItems(opts = {}) {
   if (o.hide) items.push({ id: 'hide-flow', icon: 'eye-off', labelKey: 'feed.msg_menu.hide_flow' })
   const note = () => { if (o.note) items.push({ id: 'add-to-note', icon: 'notes', labelKey: 'feed.msg_menu.add_to_note' }) }
   if (!touch) note()
-  if (!touch && o.pdf) items.push({ id: 'export-pdf', icon: 'file-text', labelKey: 'feed.msg_menu.export_pdf' })
+  const pdf = { id: 'export-pdf', icon: 'file-text', labelKey: 'feed.msg_menu.export_pdf' }
+  if (!touch && o.pdf) items.push(pdf)
   gated(editable, edit, locks.edit)
   // CLE-77819: Archive and Delete are gated apart - a member the card is
   // addressed to may archive but not delete. `topic` stays the both-shorthand.
@@ -123,6 +126,7 @@ export function msgMenuItems(opts = {}) {
   if (touch) {
     archive()
     note()
+    if (o.pdf) items.push(pdf)
   }
   if (touch && o.kind) items.push({ id: 'kind', icon: 'tag', labelKey: 'feed.msg_menu.kind' })
   if (o.toTask) items.push({ id: 'make-task', icon: 'tag', labelKey: 'feed.msg_menu.make_task' })

@@ -80,9 +80,15 @@ describe('Export to PDF: the card menu entry', () => {
     assert.ok(ids.includes('export-pdf'), ids.join())
     assert.deepEqual(ids.slice(-2), ['archive', 'delete-topic'])
   })
-  it('not without `pdf`, and not on the phone sheet (its rows are measured to fit)', () => {
+  it('not without `pdf`, on desktop or the phone sheet', () => {
     assert.ok(!msgMenuItems({}).some((i) => i.id === 'export-pdf'))
-    assert.ok(!msgMenuItems({ pdf: true, touch: true }).some((i) => i.id === 'export-pdf'))
+    assert.ok(!msgMenuItems({ touch: true }).some((i) => i.id === 'export-pdf'))
+  })
+  it('SPL-6110: the phone sheet (`touch`) lists it right after Add to note; Archive keeps its place', () => {
+    const ids = msgMenuItems({ pdf: true, touch: true, note: true, editable: true, topic: true }).map((i) => i.id)
+    assert.deepEqual(ids.slice(0, 9), ['reply', 'react', 'open', 'copy-text', 'copy', 'edit', 'archive', 'add-to-note', 'export-pdf'], ids.join())
+    assert.equal(ids.at(-1), 'delete-topic')
+    assert.deepEqual(msgMenuItems({ pdf: true, touch: true }).find((i) => i.id === 'export-pdf'), { id: 'export-pdf', icon: 'file-text', labelKey: 'feed.msg_menu.export_pdf' })
   })
   it('MessageMenu passes `pdf` through and emits export-pdf; the card asks for it and handles it', () => {
     const menu = src('src/components/MessageMenu.vue')

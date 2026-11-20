@@ -1,6 +1,6 @@
 # Spec 187 tasks: Scheduled Tasks and Activities
 
-Spec: [spec.md](spec.md) v0.1. The rows, their files, done tests and red
+Spec: [spec.md](spec.md) v0.2. The rows, their files, done tests and red
 controls are in spec section 9; their binding contracts in 9.1. This list
 only orders them and tracks their state. Epic SPL-2398; spec issue SPL-6067.
 

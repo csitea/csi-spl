@@ -130,6 +130,16 @@ SPOOL_AGENT_ID_RX="(${SPOOL_AGENT_ID_NEW_RX}|CLE-[0-9]+|GRK-[0-9]+|AGY-[0-9]+|QW
 SPOOL_PARTICIPANT_RX="(${SPOOL_AGENT_ID_NEW_RX}|[A-Z]{2,4}-[0-9]+)"
 SPOOL_ID_RE="^${SPOOL_PARTICIPANT_RX}\$"
 
+# The message kinds (spec 033 section K.3, SPL-5884): SPOOL_KINDS is every
+# kind a send may carry, a copy of the Go msg.KindList (tests/test-spool-kinds.sh
+# fails when the two differ); SPOOL_NOTE_KINDS is note plus the seven that
+# route as a note. Both are |-joined and exported, so a child script (a
+# watchdog situation) reads them without sourcing this file.
+export SPOOL_KINDS='task|result|note|reject|blocker|msg|feature|bug|alert|question|idea|decision|docs'
+export SPOOL_NOTE_KINDS='note|feature|bug|alert|question|idea|decision|docs'
+# spool_kind_in LIST KIND: 0 when KIND is one of the |-joined LIST.
+spool_kind_in() { [[ -n "${2:-}" && "|$1|" == *"|$2|"* ]]; }
+
 # The clock the legacy cutoff reads (FR-004), as ISO-8601 UTC. SPOOL_NOW pins
 # it (tests set it, so CI never turns red at the cutoff on its own); it takes
 # 2026-10-02T12:00:00Z or epoch seconds. Fork-free.

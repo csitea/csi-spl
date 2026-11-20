@@ -312,6 +312,21 @@ echo "$((T0 - 30)) j.json reject c-001" > "$C/inbox"
 hit "S1 result-wait control: a send-back waits in its inbox, the plan hits" s1 m-900
 rm -f "$C/result_wait" "$C/inbox"
 hit "S1 result-wait red control: no result out, the plan hits" s1 m-900
+# spec 033 K.3 (T024): a kind that routes as a note (SPOOL_NOTE_KINDS, exported
+# by spool-env.inc.sh) is no job, a msg still is; spl_wd_job_after loads the list
+NK="$(bash -c '. "$1/src/bash/features/spawn-agents/lib/spool-env.inc.sh" >/dev/null 2>&1; printf %s "$SPOOL_NOTE_KINDS"' _ "$PROJ_ROOT")"
+ctx s1k; hb idle 600; echo "$((T0 - 300)) b.json bug c-002" > "$C/inbox"
+out="$(SPOOL_NOTE_KINDS="$NK" run_s s1)"
+[[ -z "$out" ]] && pass "S1 a bug from another agent waiting 300 s is not a job (SPOOL_NOTE_KINDS)" || fail "S1 bug: $out"
+echo "$((T0 - 300)) b.json msg c-002" > "$C/inbox"
+out="$(SPOOL_NOTE_KINDS="$NK" run_s s1)"
+[[ "$out" == "HIT S1 "* ]] && pass "S1 control: the same message as a msg is a job" || fail "S1 msg: $out"
+J="$T/jobafter"; mkdir -p "$J/c-990/inbox" "$J/c-990/archive"; echo '{}' > "$J/r.json"; touch -d '-60 sec' "$J/r.json"
+ja() { env -u SPOOL_NOTE_KINDS SPOOL_ROOT="$J" PROJ_PATH="$PROJ_ROOT" bash -c 'do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"; spl_wd_job_after c-990 "$1"' _ "$J/r.json"; }
+echo '{"v":1,"kind":"bug","from":"c-002","to":"c-990","body":"x"}' > "$J/c-990/inbox/b.json"
+ja && fail "spl_wd_job_after: a bug from another agent read as a job" || pass "spl_wd_job_after: a bug from another agent is not a job"
+echo '{"v":1,"kind":"msg","from":"c-002","to":"c-990","body":"x"}' > "$J/c-990/inbox/m.json"
+ja && pass "spl_wd_job_after control: a msg after it is a job" || fail "spl_wd_job_after: a msg read as no job"
 
 # S3: a bare shell in the agent's window
 ctx s3; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"

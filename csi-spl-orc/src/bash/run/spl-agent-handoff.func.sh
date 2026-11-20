@@ -263,7 +263,7 @@ for m in msgs("inbox") + msgs("archive"):
     heard[k] = max(heard.get(k, ""), str(m.get("ts") or ""))
 openq = []
 for m in reversed(sent):
-    if m.get("kind") in ("blocker", "msg") and heard.get((m.get("task_id"), m.get("to")), "") <= str(m.get("ts") or ""):
+    if m.get("kind") in ("blocker", "question", "msg") and heard.get((m.get("task_id"), m.get("to")), "") <= str(m.get("ts") or ""):
         body = m.get("body") if isinstance(m.get("body"), str) else json.dumps(m.get("body"))
         first = (body or "").strip().splitlines()[:1]
         openq.append("- %s %s to %s, task %s: %s" % (m.get("ts"), m.get("kind"), m.get("to"),

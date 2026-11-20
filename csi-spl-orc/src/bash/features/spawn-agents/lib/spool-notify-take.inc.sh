@@ -20,7 +20,7 @@ spool_notify_take_auto() {  # TO FROM KIND TASK MSGID BODY
   [ -n "${SPOOL_FLEET_ROOT:-}" ] && [ -n "${SPOOL_BOX_ID:-}" ] || return 0
   [[ "$from" =~ ^HUM-[0-9]+$ ]] || return 0
   [[ "${task,,}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || return 0
-  case "$kind" in task|note|msg) ;; *) return 0 ;; esac
+  [[ -n "$kind" && "|task|msg|${SPOOL_NOTE_KINDS:-note}|" == *"|$kind|"* ]] || return 0
   spool_notify_is_probe "$body" && return 0
   spool_notify_dispatch_dir_var d
   [ -e "$d/take-auto.off" ] && return 0

@@ -30,10 +30,13 @@ import (
 // The human mask (row P03, 13.6; spec 107 21.6, Q26 A and Q27 A, msg
 // ce14ad70), human_mask in the answer:
 //   - none:  a holder of hours.rates reads the Human part as folded.
-//   - money: a holder of hours.read, or the estate reader (readsCostEstate:
-//     the operator admin, product owner, accountants), without hours.rates,
-//     reads the Human hours, counts and words but no money: its amounts and
-//     share null.
+//   - money: a holder of hours.read, or the operator workspace's admin or
+//     product owner (readsOperatorEstate's roles, never an act-as clone),
+//     without hours.rates, reads the Human hours, counts and words but no
+//     money: its amounts and share null. The operator's accountants read the
+//     estate's other parts but the Human part whole (owner HUM-10, t1
+//     e2c0e6b4 msg 9af86e15, form 129aa0a2 C: "Also the product owner, not
+//     the accountants").
 //   - whole: every other costs.read reader ("nothing of others", Q26 A)
 //     reads the Human part as its name and "not_shown" only; every other
 //     field is zero or null, so a field P02 adds is hidden too.
@@ -137,7 +140,7 @@ func (s *Server) handleCostProject(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "project cost unavailable")
 		return
 	}
-	sight := costProjectSight{rates: a.Can(rbac.HoursRates), hours: a.Can(rbac.HoursRead) || estate}
+	sight := costProjectSight{rates: a.Can(rbac.HoursRates), hours: a.Can(rbac.HoursRead) || (estate && operatorReadRole(op, t.ID, a))}
 	cp, mask := costProjectHumanMask(store.CostProjectParts(in), sight)
 	b := costProjectAnswer(q.Get("year"), wins, estate, cur, cp)
 	b.HumanMask = mask
@@ -213,7 +216,8 @@ const (
 )
 
 // costProjectSight is what a reader may see of the Human part: rates =
-// hours.rates (the money), hours = hours.read or the estate read (the hours).
+// hours.rates (the money), hours = hours.read or the estate read by the
+// operator admin or product owner, not its accountants (the hours).
 type costProjectSight struct {
 	rates, hours bool
 }

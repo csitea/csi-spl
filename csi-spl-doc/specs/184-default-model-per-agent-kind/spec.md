@@ -1,10 +1,11 @@
 # Spec 184: Default Model per Agent Kind
 
-Status: **Draft v0.2** (2026-11-20). Lane `c-358` (`claude`, the backup for
+Status: **Draft v0.3** (2026-11-20). Lane `c-358` (`claude`, the backup for
 `specs_and_docs`: no agy CLI on this box, agy at quota on the other).
 v0.1 `3c8f2f7fd`; v0.2 folds the owner's answers to the form (poll
 `ccb3a406`, HUM-10 msg `0d33aa83`): Q1 `bo`, Q2 `bo`, Q3 `liv`, Q4 `rot`,
-Q5 `fb`. Every change is in section 9.
+Q5 `fb`; v0.3 folds the R7 review notes N1 and N2 (a-069, agy PASS on
+`9ff267a3b`). Every change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6036**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:815215f5-2d1b-47df-b465-b4ea0ee5d991` (`t1`).
 Builds on: [115 vendor split by task kind](../115-vendor-split-by-task-kind/spec.md)
@@ -276,9 +277,9 @@ W1 can start at once (L1, A1, C1, H1, I1, M0 in parallel). Each row lands with i
 | L2 | launch: `SPAWN_TASK_KIND` export, the words at `:839` and `:818`, the mistral env in `SPAWN_EXEC_PREFIX`, chain `_ch_flags`, plan line `model=`, `lifetime/model.txt` | `scripts/spawn-window.sh`, `scripts/spawn-core.inc.sh`, `scripts/spawn-mistral.sh`, `scripts/spawn-chain-core.inc.sh`; tests `tests/test-spawn-dry-run.sh`, `tests/test-spawn-window-dry-run.sh`, `tests/test-spawn-chain.sh` | L1 | with the empty cnf every existing dry-run launch line is byte-identical; with `default.claude: sonnet` the launch and the resume stub each carry `--model 'sonnet'` once | drop the words from `:818` -> the resume-stub case fails |
 | L3 | restore and rotation re-resolve the model from the setting in force, with the live check (Q4 `rot`) | `scripts/restore-core.inc.sh`, `scripts/restore-mistral.sh`, `tests/test-agent-identity-restore*.sh` | L1, A1 | a seat spawned with `sonnet`, the cnf then set to `opus`: its restore line carries `--model 'opus'`; with the setting emptied it carries none | a restore that reads `lifetime/model.txt` instead -> the case fails |
 | L4 | refused model (Q5 `fb`): relaunch once on the CLI default, WARN in the spawn log and the lane journal, `model.txt` = `cli-default` | `lib/start-check.inc.sh` caller in `scripts/spawn-window.sh`, its test | L2 | a stub CLI that exits on `--model x` is relaunched once without it, the WARN is logged once, a second exit is a failed start (no third launch); a model missing from the live list starts without it at once, same WARN | a stub that does not exit -> no relaunch and no WARN, and the test asserts both |
-| A1 | `spool_agent_models VENDOR` (7.1.6), the live read: grok `grok models` (M0 first confirms it makes no paid call; until then the CLI's own cache file), vibe's `[[models]]` names and aliases, claude's `--model` help aliases (G8), M0's answer for agy, qwen, codex; a reading is reported to the hub (7.1.5 `agent_model_reading`); `do_spl_agent_models_list` prints it by hand | `lib/spool-env.inc.sh` (or a new `lib/agent-models.inc.sh`), `csi-spl-orc/src/bash/run/spl-agent-models-list.func.sh` (new), `csi-spl-orc/src/bash/tests/spl-agent-models-list.tst.sh` (new) | contract 7.1.6 | stub CLIs and fixture homes give the expected list per vendor; a vendor with no source exits 4; the read never writes the cnf | a model added to the stub's output is missing from the list -> the test fails |
+| A1 | `spool_agent_models VENDOR` (7.1.6), the live read: grok `grok models` (M0 first confirms it makes no paid call; until then the CLI's own cache file), vibe's `[[models]]` names and aliases, claude's `--model` help aliases (G8), M0's answer for agy, qwen, codex; a reading is reported to the hub (`PUT /v1/boxes/{box}/agent-models/{vendor}`, 7.1.5); `do_spl_agent_models_list` prints it by hand | `lib/agent-models.inc.sh` (new; L1 owns `lib/spool-env.inc.sh`, so A1 never edits it), `csi-spl-orc/src/bash/run/spl-agent-models-list.func.sh` (new), `csi-spl-orc/src/bash/tests/spl-agent-models-list.tst.sh` (new) | contract 7.1.6 | stub CLIs and fixture homes give the expected list per vendor; a vendor with no source exits 4; the read never writes the cnf | a model added to the stub's output is missing from the list -> the test fails |
 | I1 | the identity map reads `-m` and `VIBE_ACTIVE_MODEL` | `scripts/agent-identity.py`, `tests/test-agent-identity.sh` | none | `grok -m grok-4.6` and a vibe pid with the env both record their model | revert the `-m` read -> the grok case fails |
-| H1 | hub: `tenant_agent_model` and `agent_model_reading` (7.1.5), store, the tenant settings field, the reading route, `do_spl_agent_model_show` | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_tenant_agent_model.sql`, `csi-spl-api/src/go/spool-hub-api/internal/store/agent_model.go`, the hub handlers and their tests, `csi-spl-orc/src/bash/run/spl-agent-model-show.func.sh` | contract 7.1.5 | on PostgreSQL (`PRE_PUSH_TIER=full`): a workspace reads only its rows (RLS); an unknown vendor or kind, or a model failing the syntax, is refused; a newer reading replaces the older | drop the RLS policy in a test copy -> the cross-workspace read case fails |
+| H1 | hub: `tenant_agent_model` and `agent_model_reading` (7.1.5), store, the tenant settings field, the reading routes `PUT /v1/boxes/{box}/agent-models/{vendor}` and `GET /v1/tenant/agent-model-readings`, `do_spl_agent_model_show` | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_tenant_agent_model.sql`, `csi-spl-api/src/go/spool-hub-api/internal/store/agent_model.go`, the hub handlers and their tests, `csi-spl-orc/src/bash/run/spl-agent-model-show.func.sh` | contract 7.1.5 | on PostgreSQL (`PRE_PUSH_TIER=full`): a workspace reads only its rows (RLS); an unknown vendor or kind, or a model failing the syntax, is refused; a newer reading replaces the older | drop the RLS policy in a test copy -> the cross-workspace read case fails |
 | W1 | WUI: a model column on the Split page per vendor and kind; choices = the latest box reading (N1) with its time and CLI version, plus a typed model (syntax-checked); empty = "CLI default"; optionally the model in Agents | `csi-spl-wui/src/components/AgentSplitKinds.vue` (or a new `AgentModels.vue`), `csi-spl-wui/src/utils/tenant-settings.mjs`, a unit test, every locale (agy review last) | H1 | unit test, and e2e on the generated bundle | saving a model with a space -> the test fails |
 | D1 | docs: how to set and refresh (operations guide), pointers from specs 115 and 110, this spec's status | `csi-spl-doc/` | the rows it documents | `do_check_fleet_rules_drift` green | n/a (doc) |
 
@@ -352,8 +353,13 @@ input: a restore re-resolves (Q4 `rot`).
   `agent_models`), read through its GET.
 - `agent_model_reading(tenant_id, box, vendor, cli_version, models, read_at)`,
   primary key `(tenant_id, box, vendor)`, `models` a text array; RLS as in
-  0163. A box posts each live reading (7.1.6); a newer `read_at` replaces
-  the row, an older one is ignored. Display only (N1).
+  0163. A box reports each live reading (7.1.6) with
+  `PUT /v1/boxes/{box}/agent-models/{vendor}`, body
+  `{"cli_version", "models": [...], "read_at"}`, under the box's own
+  tenant; a newer `read_at` replaces the row, an older one is ignored
+  (answer 200 either way). The WUI reads them with
+  `GET /v1/tenant/agent-model-readings` -> `{"readings": [{"box",
+  "vendor", "cli_version", "models", "read_at"}]}`. Display only (N1).
 - `do_spl_agent_model_show` (`ENV`, `TENANT_ID`) prints one line,
   `SPAWN_MODEL_MAP=<vendor>:<kind>=<model>,...`, the form the resolver reads.
 
@@ -394,3 +400,13 @@ Folds the owner's answers (HUM-10, t1 `815215f5`, msg `0d33aa83`, poll
 - Section 7.1: 7.1.1 drops `catalogue`; 7.1.2 and 7.1.5 drop the
   conditions; 7.1.4 is a record, not an input; 7.1.5 adds
   `agent_model_reading`; 7.1.6 (the live list) is new.
+
+### 9.1 Changes from v0.2
+
+Folds the R7 review notes (a-069, agy PASS on `9ff267a3b`), spec text only:
+
+- N1: row A1 owns a new `lib/agent-models.inc.sh`; `lib/spool-env.inc.sh`
+  stays row L1's, so the two parallel rows touch no common file.
+- N2: the reading routes are named in row H1, row A1 and 7.1.5:
+  `PUT /v1/boxes/{box}/agent-models/{vendor}` (a box reports a reading) and
+  `GET /v1/tenant/agent-model-readings` (the WUI reads them).

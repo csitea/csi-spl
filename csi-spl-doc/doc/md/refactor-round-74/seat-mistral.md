@@ -244,3 +244,49 @@ None.
   it and are counted separately in 1.3 (30 total, verified). Consistent as
   written; the section-7 gate row for a later round must cover all spellings
   (the plan already says so).
+
+## v1.0 signing (second review)
+
+Review target: plan v1.0 `1d866c25a51523016b7a1341e50ed82cbd638f3a`, named by the
+dispatch holder c-002@sat on task `dispatch-refactor-r74` (msg 4ccec708,
+2026-11-20T08:37:12Z: "SIGN ... c-290 pushed r74 plan v1.0 1d866c25a ... on
+review/c002-refactor-round-74-planner"). Provenance at my read (2026-11-20T08:4xZ):
+`git fetch origin master` + the planner branch;
+`git ls-remote origin | grep -E 'refactor-round-74'` ->
+`1d866c25a... refs/heads/review/c002-refactor-round-74-planner` (plus my seat branch
+`e7ef6c95b... review/c003-refactor-round-74-mistral-seat`);
+`git log -1 --format='%H parent=%P %s' 1d866c25a` -> parent
+`3036c5754cf341955bd2c9a713e0ad33d4ab31ad` (my PASSed v0.1);
+`git merge-base --is-ancestor 3036c5754 1d866c25a` -> rc 0 (fast-forward on the
+signed v0.1); `git diff --stat 3036c5754 1d866c25a` -> 1 file,
+`csi-spl-doc/doc/md/refactor-round-74-plan.md` +27 -4;
+`git rev-parse origin/master` -> `af8ca0ba7...` (unchanged).
+
+**Verdict: PASS** on `1d866c25a51523016b7a1341e50ed82cbd638f3a`. The v0.1 -> v1.0
+diff folds exactly my report and nothing else: status line -> v1.0 with my PASS;
+2.2 gains the N2 run-only note (b27 plan `:55` runs `spl-accepted-close.tst.sh`,
+does not edit it); section 8 records the PASS, the seat file `e7ef6c95b` and N1-N3;
+section 9 consensus records my PASS on v0.1. No W finding was mine to fold; none
+appears.
+
+Checks re-run on the v1.0 sha:
+
+- Rows unchanged: `git show 1d866c25a:csi-spl-doc/doc/md/refactor-round-74-plan.md`
+  still carries rows r74-01 / r74-02 with the same 10 sites file:line, gate
+  22 -> 17 -> 12, vendor `claude`, kind `simple_coding`, batch 1 (section 2 table
+  and section 5 briefs re-read on the sha).
+- Slug: `git log origin/master --oneline -E --grep='\(r74-' | wc -l` -> 0 (no row
+  commit on master yet).
+- Gate: `git grep -nE '/(var|opt)/\$\{?SPL_ORG_APP' af8ca0ba7 -- csi-spl-orc/src/bash ':!*/tests/*' | grep -vE ':[0-9]+:\s*#' | wc -l`
+  -> **22** (origin/master still `af8ca0ba7`).
+- Drift: `git diff --name-only 1d866c25a origin/master -- <the 10 row files>` ->
+  empty.
+- Lane map re-run (2026-11-20T08:4xZ):
+  `lane-map.sh --check <the 20 row paths> --agent m-295` -> exit **4**, no live
+  lane owns a row path; `unknown:` c-049, c-060, c-625, c-812, c-924, c-927,
+  c-939 (all `rotate` on the other box, no files recorded — ask-first, not free;
+  box qualifiers dropped, hygiene-banned in the tree). One more no-file lane
+  (c-939) than at the v0.1 read; still no owner.
+
+- N4 (cosmetic): section 9 says "Its signature on v1.0: pending" — this section
+  is that signature.

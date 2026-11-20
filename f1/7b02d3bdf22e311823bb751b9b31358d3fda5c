@@ -1,0 +1,6 @@
+Lay-What: When turning a conversation into a PDF takes too long, the app now says it ran out of time instead of saying the printer is unavailable.
+Lay-How: The printing service now reports a stopped slow job as "took too long", and keeps "failed" for real failures.
+Lay-Why: A stuck print looked like a broken service, which sent people looking for the wrong problem.
+Tech-What: cmd/spool-pdf answers 504 when a render passes SPOOL_PDF_RENDER_TIMEOUT; other render failures and a client cancel stay 500.
+Tech-How: render uses context.WithTimeoutCause(errRenderCap); ServeHTTP maps errors.Is(err, errRenderCap) to 504, so topicpdf.Status gives 504 render_timeout.
+Tech-Why: Every render error was 500, which HTTPRenderer reads as ErrUnavailable, so a hung Chrome showed as 503 render_unavailable (spec 183 v0.5 7.1.6).

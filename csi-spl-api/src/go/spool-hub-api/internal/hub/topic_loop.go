@@ -114,7 +114,7 @@ func (s *Server) loopIdle(ctx context.Context, l store.TopicLoop, card *store.Ed
 			}
 			card = &c
 		}
-		change = s.mayChangeTopic(ctx, l.TenantID, l.SetBy, l.SetBy, card.FromID)
+		change = s.mayChangeTopic(ctx, l.TenantID, l.SetBy, s.loopFrom(l), card.FromID)
 	}
 	if !s.mayArchiveByPolicy(ctx, l.TenantID, l.SetBy, policy, change) {
 		return "author_no_right"
@@ -122,10 +122,29 @@ func (s *Server) loopIdle(ctx context.Context, l store.TopicLoop, card *store.Ed
 	return ""
 }
 
+// dropTopicLoops deletes the loops of tasks when their topic is archived
+// or deleted (4.5, v0.5). A failed delete is logged and the caller still
+// answers: an archived topic's loops fire nothing (4.2 step 7). A lobby
+// card's topic is no task of its own (ownTask ""), so the lobby's loops stay.
+func (s *Server) dropTopicLoops(ctx context.Context, tenant string, tasks ...string) {
+	ls, ok := s.o.Store.(store.TopicLoopStore)
+	if !ok {
+		return
+	}
+	for _, task := range tasks {
+		if task == "" || task == s.o.LobbyTaskID {
+			continue
+		}
+		if _, err := ls.DeleteTopicLoops(ctx, tenant, task); err != nil {
+			s.o.Log.Error().Err(err).Str("tenant", tenant).Str("task", task).Msg("topic loops not deleted")
+		}
+	}
+}
+
 // loopJSON is one loop as every route answers it (7.1.2).
 func (s *Server) loopJSON(ctx context.Context, l store.TopicLoop, card *store.EditableMessage) map[string]any {
 	out := map[string]any{"loop_id": l.LoopID, "task_id": l.TaskID, "prompt": l.Prompt, "triggers": l.Triggers,
-		"state": l.State, "set_by": l.SetBy, "set_at": rfc(l.SetAt), "fires_in_hour": l.FiresInHour, "idle": ""}
+		"state": l.State, "set_by": s.loopFrom(l), "set_at": rfc(l.SetAt), "fires_in_hour": l.FiresInHour, "idle": ""}
 	if l.Triggers == nil {
 		out["triggers"] = []string{}
 	}
@@ -274,7 +293,7 @@ func (s *Server) handleTopicLoopAdd(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	l := store.TopicLoop{TaskID: q.task, Triggers: b.Triggers, SetBy: q.from, SetAt: s.o.Now().UTC()}
+	l := store.TopicLoop{TaskID: q.task, Triggers: b.Triggers, SetBy: q.hum, SetAt: s.o.Now().UTC()}
 	if b.Prompt != nil {
 		l.Prompt = *b.Prompt
 	}
@@ -285,7 +304,7 @@ func (s *Server) handleTopicLoopAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.topicLoopsWrote(q.t.ID, true)
-	s.o.Log.Info().Str("tenant", q.t.ID).Str("task", q.task).Str("loop_id", got.LoopID).Str("by", q.from).Msg("topic loop added")
+	s.o.Log.Info().Str("tenant", q.t.ID).Str("task", q.task).Str("loop_id", got.LoopID).Str("by", q.hum).Msg("topic loop added")
 	s.loopsFrame(r.Context(), ls, q)
 	writeJSON(w, http.StatusCreated, s.loopJSON(r.Context(), got, &q.card))
 }
@@ -301,13 +320,13 @@ func (s *Server) handleTopicLoopEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	e := store.TopicLoopEdit{Prompt: b.Prompt, Triggers: b.Triggers, Interval: b.IntervalMin, State: b.State,
-		Keyword: b.Keyword, IdleMin: b.IdleMin, DailyAt: b.DailyAt, DailyTZ: b.DailyTZ, By: q.from, At: s.o.Now().UTC()}
+		Keyword: b.Keyword, IdleMin: b.IdleMin, DailyAt: b.DailyAt, DailyTZ: b.DailyTZ, By: q.hum, At: s.o.Now().UTC()}
 	got, err := ls.EditTopicLoop(r.Context(), q.t.ID, q.task, r.PathValue("loop_id"), e)
 	if !s.loopWriteErr(w, q, err) {
 		return
 	}
 	s.topicLoopsWrote(q.t.ID, true)
-	s.o.Log.Info().Str("tenant", q.t.ID).Str("task", q.task).Str("loop_id", got.LoopID).Str("by", q.from).Str("state", got.State).Msg("topic loop edited")
+	s.o.Log.Info().Str("tenant", q.t.ID).Str("task", q.task).Str("loop_id", got.LoopID).Str("by", q.hum).Str("state", got.State).Msg("topic loop edited")
 	s.loopsFrame(r.Context(), ls, q)
 	writeJSON(w, http.StatusOK, s.loopJSON(r.Context(), got, &q.card))
 }
@@ -326,7 +345,7 @@ func (s *Server) handleTopicLoopDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.topicLoopsWrote(q.t.ID, false)
-	s.o.Log.Info().Str("tenant", q.t.ID).Str("task", q.task).Str("loop_id", id).Str("by", q.from).Bool("deleted", gone).Msg("topic loop deleted")
+	s.o.Log.Info().Str("tenant", q.t.ID).Str("task", q.task).Str("loop_id", id).Str("by", q.hum).Bool("deleted", gone).Msg("topic loop deleted")
 	s.loopsFrame(r.Context(), ls, q)
 	writeJSON(w, http.StatusOK, map[string]any{"loop_id": id, "deleted": gone})
 }

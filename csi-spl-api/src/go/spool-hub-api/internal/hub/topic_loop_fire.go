@@ -94,8 +94,9 @@ type loopEvent struct {
 	quote  string // what an issue fire quotes
 }
 
-// matches: one of l's checked boxes fits ev.
-func (ev loopEvent) matches(l store.TopicLoop) bool {
+// matches: one of l's checked boxes fits ev. author is l's v:1 id
+// (loopFrom), which before_human_reply compares with a reply's to.
+func (ev loopEvent) matches(l store.TopicLoop, author string) bool {
 	has := func(k string) bool { return slices.Contains(l.Triggers, k) }
 	switch ev.kind {
 	case loopEventBefore:
@@ -107,13 +108,13 @@ func (ev loopEvent) matches(l store.TopicLoop) bool {
 	case loopEventTime:
 		return slices.ContainsFunc(l.Due, func(k string) bool { return slices.Contains(loopTimeKeys, k) && has(k) })
 	case loopEventPost:
-		return !(ev.routed && has(store.LoopBeforeAgentReply)) && ev.postMatches(l, has)
+		return !(ev.routed && has(store.LoopBeforeAgentReply)) && ev.postMatches(l, author, has)
 	}
 	return false
 }
 
 // postMatches is matches for a stored post (4.2 steps 1, 2, 4, 8, 9, 10).
-func (ev loopEvent) postMatches(l store.TopicLoop, has func(string) bool) bool {
+func (ev loopEvent) postMatches(l store.TopicLoop, author string, has func(string) bool) bool {
 	m := ev.post
 	if has(store.LoopBlockerPosted) && m.Kind == blockerKind {
 		return true
@@ -124,7 +125,7 @@ func (ev loopEvent) postMatches(l store.TopicLoop, has func(string) bool) bool {
 	switch {
 	case ev.human && has(store.LoopAfterHumanReply),
 		ev.reply && has(store.LoopAfterAgentReply),
-		ev.reply && has(store.LoopBeforeHumanReply) && m.To == l.SetBy,
+		ev.reply && has(store.LoopBeforeHumanReply) && m.To == author,
 		has(store.LoopPostHasFile) && len(m.Files) > 0,
 		has(store.LoopPostHasKeyword) && topicLoopKeyword(l.Keyword, m.Body):
 		return true
@@ -304,7 +305,7 @@ func (s *Server) topicLoopFireIf(ctx context.Context, tenant, task string, ev lo
 	s.loopIdleTimer(ctx, ls, tenant, task, ev, loops)
 	var hit []store.TopicLoop
 	for _, l := range loops {
-		if ev.matches(l) && !s.loopAwaited(ctx, ls, l, ev) {
+		if ev.matches(l, s.loopFrom(l)) && !s.loopAwaited(ctx, ls, l, ev) {
 			hit = append(hit, l)
 		}
 	}
@@ -419,13 +420,14 @@ func (s *Server) loopSend(ctx context.Context, ls store.TopicLoopStore, l store.
 // agent announced now. The checks are a dispatch's, with the loop's author
 // as the commanding member (box locks, channel pins, announced, pinned).
 func (s *Server) loopTarget(ctx context.Context, l store.TopicLoop, ev loopEvent, envs [][]byte) (wuiSigning, bool) {
-	c := &wuiConn{tenant: l.TenantID, from: l.SetBy, member: l.SetBy}
+	from := s.loopFrom(l)
+	c := &wuiConn{tenant: l.TenantID, from: from, member: l.SetBy}
 	cands := topicAgents(envs)
 	if ev.agent != "" {
 		cands = [][2]string{{ev.agent, ev.box}}
 	}
 	for _, p := range cands {
-		probe := msg.Message{TaskID: l.TaskID, From: l.SetBy, To: p[0], Kind: "task"}
+		probe := msg.Message{TaskID: l.TaskID, From: from, To: p[0], Kind: "task"}
 		box, pin, tok, _, _ := s.dispatchCheckIn(ctx, c, &probe, p[1], "")
 		if tok == "" {
 			return wuiSigning{agent: p[0], box: box, pin: pin}, true
@@ -460,29 +462,34 @@ func (s *Server) loopCause(ctx context.Context, l store.TopicLoop, ev loopEvent,
 	return loopFireCause{"due:" + loopDueClaimed(l, now).Format(time.RFC3339), "fired by its timer", latestPost(envs, l.LastFiredAt)}
 }
 
-// loopDueClaimed is the due time a claim fired: the earliest of the row's
-// due columns as the claim returned them, else the claim's minute. The
-// claim moves the columns on in the same statement, so the value is one
-// per claim either way, which is all the id needs.
+// loopFrom is the v:1 id a loop speaks as (7.1.1 "The author's two ids"):
+// SetBy, the member id, when it is a v:1 id, else the HUM-<n> this hub
+// process mints for it, by editorID's rule.
+func (s *Server) loopFrom(l store.TopicLoop) string {
+	if msg.ValidID(l.SetBy) {
+		return l.SetBy
+	}
+	return s.humans.session(l.TenantID, l.SetBy)
+}
+
+// loopDueClaimed is the due time a claim fired (v0.5): DueAt, the earliest
+// due column that came due as it was BEFORE the claim moved it, so an
+// interval fire and a daily fire of one loop seed apart; the claim's
+// minute when DueAt is zero.
 func loopDueClaimed(l store.TopicLoop, now time.Time) time.Time {
-	due := time.Time{}
-	for _, t := range []time.Time{l.NextDueAt, l.DailyDueAt} {
-		if !t.IsZero() && (due.IsZero() || t.Before(due)) {
-			due = t
-		}
+	if l.DueAt.IsZero() {
+		return now.Truncate(time.Minute).UTC()
 	}
-	if due.IsZero() {
-		due = now.Truncate(time.Minute)
-	}
-	return due.UTC()
+	return l.DueAt.UTC()
 }
 
 // loopMessage is the fired prompt (4.3 step 2): kind task from the author
 // to the target, its id derived from (loop, cause) (4.3 step 3).
 func (s *Server) loopMessage(l store.TopicLoop, c loopFireCause, agent string, now time.Time) *msg.Message {
-	body := topicLoopPromptMark + "set by @" + l.SetBy + ", " + c.head + ")\n\n" + l.Prompt + "\n\n" + quoteBlock(c.quote)
+	from := s.loopFrom(l)
+	body := topicLoopPromptMark + "set by @" + from + ", " + c.head + ")\n\n" + l.Prompt + "\n\n" + quoteBlock(c.quote)
 	return &msg.Message{V: s.writeVersion(), MsgID: uid.FromSeed("topic-loop:" + l.LoopID + ":" + c.seed), TaskID: l.TaskID,
-		TS: now.Format(time.RFC3339), From: l.SetBy, To: agent, Kind: "task", Body: body, Files: []msg.Attachment{}}
+		TS: now.Format(time.RFC3339), From: from, To: agent, Kind: "task", Body: body, Files: []msg.Attachment{}}
 }
 
 // latestPost is the body of the topic's newest post that is not a loop
@@ -577,7 +584,7 @@ func (s *Server) TopicLoopTickOnce(ctx context.Context) int {
 	}
 	ev := loopEvent{kind: loopEventTime}
 	for _, l := range due {
-		if l.State != store.TopicLoopOn || !ev.matches(l) {
+		if l.State != store.TopicLoopOn || !ev.matches(l, s.loopFrom(l)) {
 			continue
 		}
 		if why := s.loopTopicHeld(ctx, l.TenantID, l.TaskID); why != "" {

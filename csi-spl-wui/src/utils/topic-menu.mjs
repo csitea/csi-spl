@@ -33,10 +33,10 @@ function isModerator(me) {
  * @param {string} viewerId
  * @param {{ role?: string | null, tenantOwner?: boolean, topicArchivePolicy?: string } | null} me
  * @param {{ editable?: boolean, lobbyTaskId?: string }} [opts]
- * @returns {{ edit: string, move: string, merge: string, archive: string, delete: string }}
+ * @returns {{ edit: string, move: string, merge: string, archive: string, delete: string, loops: string }}
  */
 export function topicMenuLocks(msg, viewerId, me, { editable = false, lobbyTaskId = '' } = {}) {
-  const none = { edit: '', move: '', merge: '', archive: '', delete: '' }
+  const none = { edit: '', move: '', merge: '', archive: '', delete: '', loops: '' }
   if (!isTopicCard(msg)) return none
   const m = /** @type {Record<string, unknown>} */ (msg)
   const out = { ...none }
@@ -53,6 +53,8 @@ export function topicMenuLocks(msg, viewerId, me, { editable = false, lobbyTaskI
   if (!mayArchiveTopic(m, viewerId, me)) {
     const policy = me && typeof me === 'object' ? me.topicArchivePolicy : ''
     out.archive = policy === 'admins' ? WHY + 'archive_admins' : WHY + 'archive_starter'
+    /* spec 182 answer 5 A: Discussion loops follow the same setting */
+    out.loops = policy === 'admins' ? WHY + 'loops_admins' : WHY + 'loops_starter'
   }
   if (!mayChangeTopic(m, viewerId, me)) out.delete = WHY + 'delete'
   return out
@@ -81,6 +83,7 @@ export function topicCardMenuOpts(msg, viewerId, me, { editable = false, lobbyTa
     parent: false,
     topicArchive: mayArchiveTopic(msg, viewerId, me),
     topicDelete: mayChangeTopic(msg, viewerId, me),
+    loops: mayArchiveTopic(msg, viewerId, me),
     moveChannel: move,
     mergeTopic: move,
     locks: topicMenuLocks(msg, viewerId, me, { editable: canEdit, lobbyTaskId }),

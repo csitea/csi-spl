@@ -763,7 +763,9 @@
         "merge": "Doar cel care a început subiectul, proprietarul spațiului de lucru sau un administrator poate îmbina acest subiect",
         "archive_admins": "În acest spațiu de lucru doar proprietarul sau un administrator poate arhiva subiecte",
         "archive_starter": "Doar cel care a început subiectul, proprietarul spațiului de lucru sau un administrator poate arhiva acest subiect",
-        "delete": "Doar cel care a început subiectul, proprietarul spațiului de lucru sau un administrator poate șterge acest subiect"
+        "delete": "Doar cel care a început subiectul, proprietarul spațiului de lucru sau un administrator poate șterge acest subiect",
+        "loops_admins": "În acest spațiu de lucru doar proprietarul sau un administrator pot seta bucle ale discuției",
+        "loops_starter": "Doar inițiatorul subiectului, proprietarul spațiului de lucru sau un administrator pot seta bucle pentru acest subiect"
       },
       "ai": {
         "group": "Acțiuni AI",
@@ -777,7 +779,8 @@
         "failed": "Acțiunea AI nu a reușit. Încercați din nou."
       },
       "add_to_note": "Adaugă la notiță",
-      "export_pdf": "Exportă în PDF"
+      "export_pdf": "Exportă în PDF",
+      "topic_loops": "Bucle ale discuției…"
     },
     "emoji": {
       "add": "Adaugă emoji",
@@ -999,6 +1002,63 @@
     "note_to_self": {
       "badge": "notă pentru mine",
       "title": "Etichetat doar pentru tine: niciun agent nu a fost întrebat și niciunul nu răspunde"
+    },
+    "topic_loops": {
+      "title": "Bucle ale discuției",
+      "empty": "Această discuție nu are încă bucle.",
+      "add": "Adaugă buclă",
+      "edit": "Editează",
+      "pause": "Întrerupe",
+      "resume": "Reia",
+      "delete": "Șterge",
+      "save": "Salvează bucla",
+      "prompt": "Instrucțiune",
+      "prompt_placeholder": "Ce trebuie să facă agentul subiectului de fiecare dată când rulează bucla",
+      "triggers": "Rulează",
+      "trigger": {
+        "after_agent_reply": "După fiecare răspuns al unui agent",
+        "before_agent_reply": "Înainte de fiecare răspuns al unui agent",
+        "after_human_reply": "După fiecare răspuns al unui om",
+        "before_human_reply": "Înainte de fiecare răspuns al unui om",
+        "every_hour": "În fiecare oră",
+        "every_n_minutes": "La fiecare n minute",
+        "post_has_keyword": "O postare care conține",
+        "post_has_file": "O postare cu un fișier atașat",
+        "blocker_posted": "Un blocaj postat în subiect",
+        "no_reply_after_human": "Niciun răspuns la n minute după o postare umană",
+        "issue_status_changed": "Un tichet legat de subiect își schimbă starea",
+        "daily_at": "În fiecare zi la"
+      },
+      "every_n": "la fiecare {n} minute",
+      "interval": "Minute, de la {min} la {max}",
+      "self_fire_note": "Răspunsul agentului la această buclă este tot un răspuns de agent. O buclă rulează de cel mult 12 ori pe oră.",
+      "by": "setată de {who}",
+      "state_on": "Pornită",
+      "state_paused": "Întreruptă",
+      "state_held": "Reținută până la {time}",
+      "idle_author_left": "Nu rulează: autorul a părăsit spațiul de lucru",
+      "idle_author_no_right": "Nu rulează: autorul nu mai poate seta bucle",
+      "locked": "Setarea de arhivare a spațiului tău de lucru nu îți permite să schimbi buclele acestui subiect.",
+      "err_prompt": "Scrie o instrucțiune.",
+      "err_prompt_long": "Instrucțiunea depășește 4000 de caractere.",
+      "err_trigger": "Bifează cel puțin un declanșator.",
+      "err_interval": "Alege între 5 și 1440 de minute.",
+      "err_bad_loop": "Hubul a refuzat această buclă. Verifică instrucțiunea și declanșatoarele.",
+      "err_not_allowed": "Nu poți schimba buclele acestui subiect.",
+      "err_demo": "Spațiul de lucru demo este doar pentru citire.",
+      "err_not_found": "Acest subiect sau această buclă nu mai există.",
+      "err_archived": "Acest subiect este arhivat.",
+      "err_not_implemented": "Buclele discuției nu sunt încă disponibile pe acest hub.",
+      "err_failed": "Nu a reușit. Încearcă din nou.",
+      "keyword_row": "o postare care conține „{keyword}”",
+      "idle_row": "niciun răspuns la {n} minute după o postare umană",
+      "daily_row": "în fiecare zi la {time} ({tz})",
+      "keyword": "Cuvânt sau expresie",
+      "daily_time": "Ora din zi",
+      "daily_tz": "Fus orar",
+      "err_keyword": "Scrie un cuvânt sau o expresie de cel mult 200 de caractere.",
+      "err_daily_at": "Alege o oră din zi.",
+      "err_daily_tz": "Alege un fus orar din listă."
     }
   },
   "topic": {

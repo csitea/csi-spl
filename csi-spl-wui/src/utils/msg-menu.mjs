@@ -76,8 +76,15 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * print. The phone sheet does not list it (its rows are measured to fit,
  * t1 7a6be5a3).
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, pdf?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
- * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'export-pdf' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes' | 'file-text', labelKey: string, disabled?: boolean, hintKey?: string }[]}
+ * Spec 182 row L3 (HUM-10, t1 f08c0c58 msg 19acb8f9): `loops` adds
+ * Discussion loops… on a topic card, desktop only (the phone sheet's rows are
+ * measured to fit, as for Export to PDF), right before Archive: it lists,
+ * adds, edits, pauses and deletes the topic's loops (TopicLoopsDialog.vue).
+ * Who may is the archive setting (answer 5 A), so a viewer it does not allow
+ * sees it disabled with `locks.loops` as the reason.
+ *
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, pdf?: boolean, loops?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string, loops?: string } }} [opts]
+ * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'export-pdf' | 'topic-loops' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes' | 'file-text' | 'refresh', labelKey: string, disabled?: boolean, hintKey?: string }[]}
  */
 /** HUM-10 (topic c15b557e): the parent item's words per place */
 const PARENT_LABEL = { dm: 'feed.msg_menu.open_in_dm', channel: 'feed.msg_menu.open_in_channels' }
@@ -129,6 +136,7 @@ export function msgMenuItems(opts = {}) {
   // 8f588edd: a reply can also be PROMOTED into a new topic of its own - the
   // keyboard / touch way to do what the drag into the topics list does.
   if (o.promoteTopic) items.push({ id: 'promote-topic', icon: 'move', labelKey: 'feed.msg_menu.promote_topic' })
+  if (!touch) gated(o.loops, { id: 'topic-loops', icon: 'refresh', labelKey: 'feed.msg_menu.topic_loops' }, locks.loops)
   if (!touch) archive()
   if (wantDelete || locks.delete) gated(wantDelete, { id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' }, locks.delete)
   // HUM-10 (t1 bb0091f1): a topic pane's REPLY offers Archive topic

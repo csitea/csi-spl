@@ -22,7 +22,8 @@ function menu(msg, viewer, me, { editable = viewer === msg.from, lobby = '' } = 
 }
 const ids = (items) => items.map((i) => i.id)
 const off = (items) => items.filter((i) => i.disabled).map((i) => i.id)
-const SHAPE = ['open', 'copy', 'edit', 'move-channel', 'merge-topic', 'archive', 'delete-topic']
+/* spec 182 L3: Discussion loops… sits right before Archive, on the same policy */
+const SHAPE = ['open', 'copy', 'edit', 'move-channel', 'merge-topic', 'topic-loops', 'archive', 'delete-topic']
 
 describe('topic card menu: one shape for every viewer (HUM-24)', () => {
   it('the starter, a member and an admin see the same entries in the same order', () => {
@@ -76,7 +77,7 @@ describe('topic card menu: one shape for every viewer (HUM-24)', () => {
   })
 
   it('a reply / not a card: no locks, the menu is unchanged', () => {
-    assert.deepEqual(topicMenuLocks({ ...card, is_parent: 0 }, 'HUM-2', member), { edit: '', move: '', merge: '', archive: '', delete: '' })
+    assert.deepEqual(topicMenuLocks({ ...card, is_parent: 0 }, 'HUM-2', member), { edit: '', move: '', merge: '', archive: '', delete: '', loops: '' })
     assert.deepEqual(ids(msgMenuItems({ editable: false })), ['open', 'copy'])
     assert.deepEqual(ids(msgMenuItems({ editable: true, locks: {} })), ['open', 'copy', 'edit', 'delete'])
   })

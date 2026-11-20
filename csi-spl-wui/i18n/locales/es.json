@@ -763,7 +763,9 @@
         "merge": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede fusionar este tema",
         "archive_admins": "En este espacio de trabajo solo el propietario o un administrador puede archivar temas",
         "archive_starter": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede archivar este tema",
-        "delete": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede eliminar este tema"
+        "delete": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede eliminar este tema",
+        "loops_admins": "En este espacio de trabajo solo el propietario o un administrador pueden configurar bucles de la conversación",
+        "loops_starter": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador pueden configurar bucles en este tema"
       },
       "ai": {
         "group": "Acciones de IA",
@@ -777,7 +779,8 @@
         "failed": "La acción de IA no se completó. Inténtalo de nuevo."
       },
       "add_to_note": "Añadir a una nota",
-      "export_pdf": "Exportar a PDF"
+      "export_pdf": "Exportar a PDF",
+      "topic_loops": "Bucles de la conversación…"
     },
     "emoji": {
       "add": "Añadir emoji",
@@ -999,6 +1002,63 @@
     "note_to_self": {
       "badge": "nota personal",
       "title": "Etiquetado solo para ti: no se preguntó a ningún agente y ninguno responde"
+    },
+    "topic_loops": {
+      "title": "Bucles de la conversación",
+      "empty": "Esta conversación aún no tiene bucles.",
+      "add": "Añadir bucle",
+      "edit": "Editar",
+      "pause": "Pausar",
+      "resume": "Reanudar",
+      "delete": "Eliminar",
+      "save": "Guardar bucle",
+      "prompt": "Instrucción",
+      "prompt_placeholder": "Qué debe hacer el agente del tema cada vez que se ejecuta el bucle",
+      "triggers": "Ejecutarlo",
+      "trigger": {
+        "after_agent_reply": "Después de cada respuesta de un agente",
+        "before_agent_reply": "Antes de cada respuesta de un agente",
+        "after_human_reply": "Después de cada respuesta de una persona",
+        "before_human_reply": "Antes de cada respuesta de una persona",
+        "every_hour": "Cada hora",
+        "every_n_minutes": "Cada n minutos",
+        "post_has_keyword": "Una publicación que contiene",
+        "post_has_file": "Una publicación con un archivo adjunto",
+        "blocker_posted": "Un bloqueo publicado en el tema",
+        "no_reply_after_human": "Sin respuesta n minutos después de una publicación de una persona",
+        "issue_status_changed": "Una incidencia vinculada al tema cambia de estado",
+        "daily_at": "Cada día a las"
+      },
+      "every_n": "cada {n} minutos",
+      "interval": "Minutos, de {min} a {max}",
+      "self_fire_note": "La respuesta del agente a este bucle también es una respuesta de agente. Un bucle se ejecuta como máximo 12 veces por hora.",
+      "by": "configurado por {who}",
+      "state_on": "Activo",
+      "state_paused": "En pausa",
+      "state_held": "Retenido hasta las {time}",
+      "idle_author_left": "No se ejecuta: su autor dejó el espacio de trabajo",
+      "idle_author_no_right": "No se ejecuta: su autor ya no puede configurar bucles",
+      "locked": "La configuración de archivo de tu espacio de trabajo no te permite cambiar los bucles de este tema.",
+      "err_prompt": "Escribe una instrucción.",
+      "err_prompt_long": "La instrucción supera los 4000 caracteres.",
+      "err_trigger": "Marca al menos un disparador.",
+      "err_interval": "Elige de 5 a 1440 minutos.",
+      "err_bad_loop": "El hub rechazó este bucle. Revisa la instrucción y los disparadores.",
+      "err_not_allowed": "No puedes cambiar los bucles de este tema.",
+      "err_demo": "El espacio de demostración es de solo lectura.",
+      "err_not_found": "Este tema o bucle ya no existe.",
+      "err_archived": "Este tema está archivado.",
+      "err_not_implemented": "Los bucles de la conversación aún no están disponibles en este hub.",
+      "err_failed": "No se pudo completar. Inténtalo de nuevo.",
+      "keyword_row": "una publicación que contiene «{keyword}»",
+      "idle_row": "sin respuesta {n} minutos después de una publicación de una persona",
+      "daily_row": "cada día a las {time} ({tz})",
+      "keyword": "Palabra o frase",
+      "daily_time": "Hora del día",
+      "daily_tz": "Zona horaria",
+      "err_keyword": "Escribe una palabra o frase de 200 caracteres como máximo.",
+      "err_daily_at": "Elige una hora del día.",
+      "err_daily_tz": "Elige una zona horaria de la lista."
     }
   },
   "topic": {

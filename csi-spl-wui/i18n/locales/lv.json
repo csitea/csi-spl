@@ -763,7 +763,9 @@
         "merge": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var apvienot šo tēmu",
         "archive_admins": "Šajā darbvietā tēmas arhivēt var tikai īpašnieks vai administrators",
         "archive_starter": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var arhivēt šo tēmu",
-        "delete": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var dzēst šo tēmu"
+        "delete": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var dzēst šo tēmu",
+        "loops_admins": "Šajā darbvietā diskusijas ciklus var iestatīt tikai īpašnieks vai administrators",
+        "loops_starter": "Šīs tēmas diskusijas ciklus var iestatīt tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators"
       },
       "ai": {
         "group": "MI darbības",
@@ -777,7 +779,8 @@
         "failed": "MI darbība neizdevās. Mēģiniet vēlreiz."
       },
       "add_to_note": "Pievienot piezīmei",
-      "export_pdf": "Eksportēt uz PDF"
+      "export_pdf": "Eksportēt uz PDF",
+      "topic_loops": "Diskusijas cikli…"
     },
     "emoji": {
       "add": "Pievienot emoji",
@@ -999,6 +1002,63 @@
     "note_to_self": {
       "badge": "piezīme sev",
       "title": "Atzīmēts tikai jums: nevienam aģentam netika jautāts, un neviens neatbild"
+    },
+    "topic_loops": {
+      "title": "Diskusijas cikli",
+      "empty": "Šai diskusijai vēl nav ciklu.",
+      "add": "Pievienot ciklu",
+      "edit": "Rediģēt",
+      "pause": "Apturēt",
+      "resume": "Atsākt",
+      "delete": "Dzēst",
+      "save": "Saglabāt ciklu",
+      "prompt": "Uzvedne",
+      "prompt_placeholder": "Kas tēmas aģentam jādara katru reizi, kad cikls tiek palaists",
+      "triggers": "Palaist",
+      "trigger": {
+        "after_agent_reply": "Pēc katras aģenta atbildes",
+        "before_agent_reply": "Pirms katras aģenta atbildes",
+        "after_human_reply": "Pēc katras cilvēka atbildes",
+        "before_human_reply": "Pirms katras cilvēka atbildes",
+        "every_hour": "Katru stundu",
+        "every_n_minutes": "Ik pēc n minūtēm",
+        "post_has_keyword": "Ziņa, kurā ir",
+        "post_has_file": "Ziņa ar pievienotu failu",
+        "blocker_posted": "Tēmā publicēts šķērslis",
+        "no_reply_after_human": "Nav atbildes n minūtes pēc cilvēka ziņas",
+        "issue_status_changed": "Ar tēmu saistīta pieteikuma statuss mainās",
+        "daily_at": "Katru dienu plkst."
+      },
+      "every_n": "ik pēc {n} minūtēm",
+      "interval": "Minūtes, no {min} līdz {max}",
+      "self_fire_note": "Aģenta atbilde uz šo ciklu arī ir aģenta atbilde. Cikls tiek palaists ne vairāk kā 12 reizes stundā.",
+      "by": "iestatīja {who}",
+      "state_on": "Ieslēgts",
+      "state_paused": "Apturēts",
+      "state_held": "Aizturēts līdz {time}",
+      "idle_author_left": "Nedarbojas: tā autors pameta darbvietu",
+      "idle_author_no_right": "Nedarbojas: tā autors vairs nedrīkst iestatīt ciklus",
+      "locked": "Jūsu darbvietas arhivēšanas iestatījums neļauj mainīt šīs tēmas ciklus.",
+      "err_prompt": "Uzrakstiet uzvedni.",
+      "err_prompt_long": "Uzvedne ir garāka par 4000 rakstzīmēm.",
+      "err_trigger": "Atzīmējiet vismaz vienu palaidēju.",
+      "err_interval": "Izvēlieties no 5 līdz 1440 minūtēm.",
+      "err_bad_loop": "Centrs noraidīja šo ciklu. Pārbaudiet uzvedni un palaidējus.",
+      "err_not_allowed": "Jūs nedrīkstat mainīt šīs tēmas ciklus.",
+      "err_demo": "Demo darbvieta ir tikai lasāma.",
+      "err_not_found": "Šīs tēmas vai cikla vairs nav.",
+      "err_archived": "Šī tēma ir arhivēta.",
+      "err_not_implemented": "Diskusijas cikli šajā centrā vēl nav pieejami.",
+      "err_failed": "Neizdevās. Mēģiniet vēlreiz.",
+      "keyword_row": "ziņa, kurā ir “{keyword}”",
+      "idle_row": "nav atbildes {n} minūtes pēc cilvēka ziņas",
+      "daily_row": "katru dienu plkst. {time} ({tz})",
+      "keyword": "Vārds vai frāze",
+      "daily_time": "Diennakts laiks",
+      "daily_tz": "Laika josla",
+      "err_keyword": "Uzrakstiet vārdu vai frāzi, ne garāku par 200 rakstzīmēm.",
+      "err_daily_at": "Izvēlieties diennakts laiku.",
+      "err_daily_tz": "Izvēlieties laika joslu no saraksta."
     }
   },
   "topic": {

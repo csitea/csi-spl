@@ -763,7 +763,9 @@
         "merge": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici birleştirebilir",
         "archive_admins": "Bu çalışma alanında konuları yalnızca sahip veya bir yönetici arşivleyebilir",
         "archive_starter": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici arşivleyebilir",
-        "delete": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici silebilir"
+        "delete": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici silebilir",
+        "loops_admins": "Bu çalışma alanında tartışma döngülerini yalnızca sahip veya bir yönetici ayarlayabilir",
+        "loops_starter": "Bu konunun tartışma döngülerini yalnızca konuyu başlatan, çalışma alanı sahibi veya bir yönetici ayarlayabilir"
       },
       "ai": {
         "group": "Yapay zekâ işlemleri",
@@ -777,7 +779,8 @@
         "failed": "Yapay zekâ işlemi tamamlanamadı. Yeniden deneyin."
       },
       "add_to_note": "Nota ekle",
-      "export_pdf": "PDF olarak dışa aktar"
+      "export_pdf": "PDF olarak dışa aktar",
+      "topic_loops": "Tartışma döngüleri…"
     },
     "emoji": {
       "add": "Emoji ekle",
@@ -999,6 +1002,63 @@
     "note_to_self": {
       "badge": "kendime not",
       "title": "Yalnızca siz etiketlendiniz: hiçbir ajana sorulmadı ve hiçbiri yanıtlamıyor"
+    },
+    "topic_loops": {
+      "title": "Tartışma döngüleri",
+      "empty": "Bu tartışmanın henüz döngüsü yok.",
+      "add": "Döngü ekle",
+      "edit": "Düzenle",
+      "pause": "Duraklat",
+      "resume": "Sürdür",
+      "delete": "Sil",
+      "save": "Döngüyü kaydet",
+      "prompt": "İstem",
+      "prompt_placeholder": "Döngü her çalıştığında konunun ajanının ne yapması gerektiği",
+      "triggers": "Çalıştır",
+      "trigger": {
+        "after_agent_reply": "Her ajan yanıtından sonra",
+        "before_agent_reply": "Her ajan yanıtından önce",
+        "after_human_reply": "Her insan yanıtından sonra",
+        "before_human_reply": "Her insan yanıtından önce",
+        "every_hour": "Her saat",
+        "every_n_minutes": "Her n dakikada",
+        "post_has_keyword": "Şunu içeren bir gönderi",
+        "post_has_file": "Dosya eklenmiş bir gönderi",
+        "blocker_posted": "Konuda paylaşılan bir engel",
+        "no_reply_after_human": "Bir insan gönderisinden sonra n dakika yanıt yok",
+        "issue_status_changed": "Konuya bağlı bir kaydın durumu değişir",
+        "daily_at": "Her gün saat"
+      },
+      "every_n": "her {n} dakikada",
+      "interval": "Dakika, {min} ile {max} arası",
+      "self_fire_note": "Ajanın bu döngüye yanıtı da bir ajan yanıtıdır. Bir döngü saatte en fazla 12 kez çalışır.",
+      "by": "ayarlayan: {who}",
+      "state_on": "Açık",
+      "state_paused": "Duraklatıldı",
+      "state_held": "{time} saatine kadar bekletiliyor",
+      "idle_author_left": "Çalışmıyor: sahibi çalışma alanından ayrıldı",
+      "idle_author_no_right": "Çalışmıyor: sahibi artık döngü ayarlayamaz",
+      "locked": "Çalışma alanınızın arşivleme ayarı bu konunun döngülerini değiştirmenize izin vermiyor.",
+      "err_prompt": "Bir istem yazın.",
+      "err_prompt_long": "İstem 4000 karakterden uzun.",
+      "err_trigger": "En az bir tetikleyici işaretleyin.",
+      "err_interval": "5 ile 1440 dakika arasında seçin.",
+      "err_bad_loop": "Merkez bu döngüyü reddetti. İstemi ve tetikleyicileri kontrol edin.",
+      "err_not_allowed": "Bu konunun döngülerini değiştiremezsiniz.",
+      "err_demo": "Demo çalışma alanı salt okunurdur.",
+      "err_not_found": "Bu konu veya döngü artık yok.",
+      "err_archived": "Bu konu arşivlendi.",
+      "err_not_implemented": "Tartışma döngüleri bu merkezde henüz kullanılamıyor.",
+      "err_failed": "Olmadı. Yeniden deneyin.",
+      "keyword_row": "“{keyword}” içeren bir gönderi",
+      "idle_row": "bir insan gönderisinden sonra {n} dakika yanıt yok",
+      "daily_row": "her gün saat {time} ({tz})",
+      "keyword": "Sözcük veya ifade",
+      "daily_time": "Günün saati",
+      "daily_tz": "Saat dilimi",
+      "err_keyword": "En fazla 200 karakterlik bir sözcük veya ifade yazın.",
+      "err_daily_at": "Günün bir saatini seçin.",
+      "err_daily_tz": "Listeden bir saat dilimi seçin."
     }
   },
   "topic": {

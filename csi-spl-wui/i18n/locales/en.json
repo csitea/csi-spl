@@ -763,7 +763,9 @@
         "merge": "Only the topic starter, the workspace owner or an admin can merge this topic",
         "archive_admins": "In this workspace only the owner or an admin can archive topics",
         "archive_starter": "Only the topic starter, the workspace owner or an admin can archive this topic",
-        "delete": "Only the topic starter, the workspace owner or an admin can delete this topic"
+        "delete": "Only the topic starter, the workspace owner or an admin can delete this topic",
+        "loops_admins": "In this workspace only the owner or an admin can set discussion loops",
+        "loops_starter": "Only the topic starter, the workspace owner or an admin can set discussion loops on this topic"
       },
       "ai": {
         "group": "AI actions",
@@ -777,7 +779,8 @@
         "failed": "The AI action did not go through. Try again."
       },
       "add_to_note": "Add to note",
-      "export_pdf": "Export to PDF"
+      "export_pdf": "Export to PDF",
+      "topic_loops": "Discussion loops…"
     },
     "emoji": {
       "add": "Add emoji",
@@ -999,6 +1002,63 @@
     "note_to_self": {
       "badge": "note to self",
       "title": "Tagged only to you: no agent was asked, and none answers it"
+    },
+    "topic_loops": {
+      "title": "Discussion loops",
+      "empty": "This discussion has no loops yet.",
+      "add": "Add loop",
+      "edit": "Edit",
+      "pause": "Pause",
+      "resume": "Resume",
+      "delete": "Delete",
+      "save": "Save loop",
+      "prompt": "Prompt",
+      "prompt_placeholder": "What the topic's agent should do each time the loop runs",
+      "triggers": "Run it",
+      "trigger": {
+        "after_agent_reply": "After each agent reply",
+        "before_agent_reply": "Before each agent reply",
+        "after_human_reply": "After each human reply",
+        "before_human_reply": "Before each human reply",
+        "every_hour": "Every hour",
+        "every_n_minutes": "Every n minutes",
+        "post_has_keyword": "A post that contains",
+        "post_has_file": "A post with a file attached",
+        "blocker_posted": "A blocker posted in the topic",
+        "no_reply_after_human": "No reply for n minutes after a human post",
+        "issue_status_changed": "An issue linked to the topic changes status",
+        "daily_at": "Every day at"
+      },
+      "every_n": "every {n} minutes",
+      "interval": "Minutes, {min} to {max}",
+      "self_fire_note": "The agent's answer to this loop is an agent reply too. A loop runs at most 12 times an hour.",
+      "by": "set by {who}",
+      "state_on": "On",
+      "state_paused": "Paused",
+      "state_held": "Held until {time}",
+      "idle_author_left": "Not running: its author left the workspace",
+      "idle_author_no_right": "Not running: its author may no longer set loops",
+      "locked": "Your workspace's archive setting does not let you change the loops of this topic.",
+      "err_prompt": "Write a prompt.",
+      "err_prompt_long": "The prompt is longer than 4000 characters.",
+      "err_trigger": "Check at least one trigger.",
+      "err_interval": "Choose 5 to 1440 minutes.",
+      "err_bad_loop": "The hub refused this loop. Check the prompt and the triggers.",
+      "err_not_allowed": "You may not change the loops of this topic.",
+      "err_demo": "The demo workspace is read only.",
+      "err_not_found": "This topic or loop is gone.",
+      "err_archived": "This topic is archived.",
+      "err_not_implemented": "Discussion loops are not available on this hub yet.",
+      "err_failed": "That did not go through. Try again.",
+      "keyword_row": "a post that contains “{keyword}”",
+      "idle_row": "no reply for {n} minutes after a human post",
+      "daily_row": "every day at {time} ({tz})",
+      "keyword": "Word or phrase",
+      "daily_time": "Time of day",
+      "daily_tz": "Time zone",
+      "err_keyword": "Write a word or phrase of at most 200 characters.",
+      "err_daily_at": "Choose a time of day.",
+      "err_daily_tz": "Choose a time zone from the list."
     }
   },
   "topic": {

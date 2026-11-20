@@ -80,10 +80,10 @@ func (s *Server) topicExportOperator(ctx context.Context, tenant, box, typedBy s
 		return "", &issueErr{http.StatusNotFound, "not_found", "no such topic"}
 	}
 	if typedBy != "" {
-		notBound := &issueErr{http.StatusForbidden, CodeTypedByNotBound, typedBy + " is not bound as an operator of " + box}
-		if !humanIDRe.MatchString(typedBy) {
-			return "", notBound
+		if !humanIDRe.MatchString(typedBy) { // the raw value is never echoed
+			return "", &issueErr{http.StatusForbidden, CodeTypedByNotBound, "typed_by is not a HUM id"}
 		}
+		notBound := &issueErr{http.StatusForbidden, CodeTypedByNotBound, typedBy + " is not bound as an operator of " + box}
 		if _, err := h.MemberRole(ctx, typedBy, tenant); err != nil {
 			return "", notBound
 		}
@@ -106,9 +106,10 @@ func (s *Server) topicExportOperator(ctx context.Context, tenant, box, typedBy s
 
 // topicExportRows is the OP read of spec 183 Q3, the one the render calls:
 // the topic door (canReadTopic) for human, then the per-message door
-// (canReadMessage) on every row, oldest first. store.ErrNotFound for a
-// missing topic and for one human may not read, alike; an empty human reads
-// nothing (never canReadTopic's door-off "").
+// (canReadMessage) on every row, oldest first; in the demo workspace a
+// moderator-hidden row is left out for a non-moderator (specs/077 T016).
+// store.ErrNotFound for a missing topic and for one human may not read,
+// alike; an empty human reads nothing (never canReadTopic's door-off "").
 func (s *Server) topicExportRows(ctx context.Context, tenant, task, human string) ([]store.EditableMessage, error) {
 	ex, ok := s.o.Store.(store.TopicExports)
 	if human == "" || !ok {
@@ -127,8 +128,15 @@ func (s *Server) topicExportRows(ctx context.Context, tenant, task, human string
 	if err != nil {
 		return nil, err
 	}
+	mod, err := s.moderation(ctx, tenant, human) // specs/077 T016, as messageHidden
+	if err != nil {
+		return nil, err
+	}
 	out := make([]store.EditableMessage, 0, len(rows))
 	for _, m := range rows {
+		if mod.drops(m.MsgID) {
+			continue
+		}
 		may, err := s.canReadMessage(ctx, tenant, m, human)
 		if err != nil {
 			return nil, err

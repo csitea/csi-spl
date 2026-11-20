@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/topicpdf"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -257,6 +259,41 @@ func TestTopicExportRefusesBrowserToken(t *testing.T) {
 	g.e.pin(g.tid, b)
 	if a := g.export(t, g.e.uploadToken(g.tid, b), uuidV4(), ""); a.status != 404 || a.token != "not_found" {
 		t.Fatalf("a box token: %d %q, want 404 not_found", a.status, a.token)
+	}
+}
+
+// specs/077 T016: in the demo workspace a moderator-hidden message is not
+// exported for a non-moderator operator, as the browser drops it
+// (messageHidden); the moderator's box still exports it.
+func TestTopicExportDropsModeratorHidden(t *testing.T) {
+	r := &stubRender{render: func(_ context.Context, html []byte) ([]byte, error) { return append([]byte(stubPDFHead), html...), nil }}
+	e, demo := quotaEnv(t, func(o *hub.Options) { o.TopicPDF = r })
+	g := topicExportRig{e: e, tid: demo, r: r}
+	m := &modRig{e: e, demo: demo, admin: seat(t, e, demo, rbac.Admin), dev: seat(t, e, demo, rbac.Developer)}
+	m.devSock = dialMember(t, e, demo, "", m.dev)
+	task, open, reply := uuidV4(), uuidV4(), uuidV4()
+	m.post(t, open, task, "opening line", 1)
+	m.post(t, reply, task, "a reply to hide", 0)
+	if code, _ := call(t, e, demo, http.MethodPut, "/v1/messages/"+reply+"/hidden", m.admin, nil); code != http.StatusOK {
+		t.Fatalf("hide the reply: %d", code)
+	}
+	ops, now := e.st.(store.BoxOperators), time.Now().UTC()
+	tokens := map[string]string{}
+	for _, bind := range [][3]string{{"box-b", "CLE-08", m.dev}, {"box-c", "CLE-09", m.admin}} {
+		b := e.box(demo, bind[0], bind[1])
+		e.pin(demo, b)
+		if err := ops.GrantBoxOperator(context.Background(), demo, bind[0], bind[2], "operator", now); err != nil {
+			t.Fatal(err)
+		}
+		tokens[bind[0]] = e.uploadToken(demo, b)
+	}
+	if a := g.export(t, tokens["box-b"], task, ""); a.status != 200 || !slices.Equal(a.ids, []string{open}) {
+		t.Fatalf("the developer's box: %d %q rows %v, want [%s] (the hidden reply left out)", a.status, a.token, a.ids, open)
+	}
+	// CONTROL: the moderator reads the hidden reply, so its box exports both.
+	// Both rows share a second, so the store's tie-break orders them.
+	if a := g.export(t, tokens["box-c"], task, ""); a.status != 200 || len(a.ids) != 2 || !slices.Contains(a.ids, open) || !slices.Contains(a.ids, reply) {
+		t.Fatalf("the moderator's box: %d %q rows %v, want %s and %s", a.status, a.token, a.ids, open, reply)
 	}
 }
 

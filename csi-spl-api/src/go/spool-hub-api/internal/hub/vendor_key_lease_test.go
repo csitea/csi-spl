@@ -326,13 +326,18 @@ func TestVendorKeyLeaseRefusals(t *testing.T) {
 	}
 }
 
-// TestVendorKeyMeteredFallbackSwitch: off by default, a manager turns it on
-// and off (159 9, owner Q-2 B); a developer cannot.
+// TestVendorKeyMeteredFallbackSwitch: spec 181 Q-10 A (owner msg 504cb94f:
+// we never resell tokens) retires the metered fall-back of 159 9. A
+// manager's PUT true is refused with no_metered_fallback_q10a and nothing
+// stored, PUT false stays 204, and GET reads false even over a stored true
+// row (CONTROL: the row is written straight through the store, as one
+// saved before the refusal would be). A developer still cannot PUT.
 func TestVendorKeyMeteredFallbackSwitch(t *testing.T) {
 	e, _ := vkEnv(t)
 	tid, _ := e.tenant()
 	admin := seat(t, e, tid, rbac.Admin)
 	dev := seat(t, e, tid, rbac.Developer)
+	st := e.st.(store.VendorKeyLeases)
 	read := func() any {
 		t.Helper()
 		_, body := call(t, e, tid, http.MethodGet, "/v1/vendor-keys", admin, nil)
@@ -341,13 +346,21 @@ func TestVendorKeyMeteredFallbackSwitch(t *testing.T) {
 	if v := read(); v != false {
 		t.Fatalf("default = %v, want false", v)
 	}
-	for _, on := range []bool{true, false} {
-		if code, body := call(t, e, tid, http.MethodPut, "/v1/vendor-keys/settings", admin, map[string]any{"metered_fallback": on}); code != http.StatusNoContent {
-			t.Fatalf("PUT %v = %d %v", on, code, body)
-		}
-		if v := read(); v != on {
-			t.Fatalf("after PUT %v: %v", on, v)
-		}
+	code, body := call(t, e, tid, http.MethodPut, "/v1/vendor-keys/settings", admin, map[string]any{"metered_fallback": true})
+	if code != http.StatusBadRequest || body["error"] != "no_metered_fallback_q10a" {
+		t.Fatalf("PUT true = %d %v, want 400 no_metered_fallback_q10a", code, body)
+	}
+	if on, err := st.VendorKeyMeteredFallback(context.Background(), tid); err != nil || on {
+		t.Fatalf("after the refused PUT the store holds %v (%v), want nothing stored", on, err)
+	}
+	if code, body := call(t, e, tid, http.MethodPut, "/v1/vendor-keys/settings", admin, map[string]any{"metered_fallback": false}); code != http.StatusNoContent {
+		t.Fatalf("PUT false = %d %v", code, body)
+	}
+	if err := st.SetVendorKeyMeteredFallback(context.Background(), tid, true, "HUM-1", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if v := read(); v != false {
+		t.Fatalf("over a stored true row: %v, want false (181 Q-10 A)", v)
 	}
 	if code, _ := call(t, e, tid, http.MethodPut, "/v1/vendor-keys/settings", dev, map[string]any{"metered_fallback": true}); code != http.StatusForbidden {
 		t.Fatalf("developer PUT = %d, want 403", code)

@@ -336,6 +336,12 @@ seats within one lease TTL, default 15 min) hold. N1-N3 add:
 
 ## 9. When a workspace's key runs out
 
+> Superseded by [spec 181 Q-10 A](../181-buy-private-workspace-vm/spec.md#10-the-owners-answers)
+> (owner msg `504cb94f`): no metered fall-back, we never resell tokens. The
+> hub refuses `PUT /v1/vendor-keys/settings {"metered_fallback": true}`
+> (400 `no_metered_fallback_q10a`, nothing stored) and `GET /v1/vendor-keys`
+> reads `metered_fallback: false` whatever a stored row says (SPL-6097).
+
 "Runs out" means: the vendor refuses for credit, quota or a revoked key
 (an HTTP 401, 402 or 429 with a quota reason, as each CLI reports it).
 A plain rate limit (a 429 that clears by itself) does not count.

@@ -1,7 +1,8 @@
 # Costs: each workspace's view rules, their legend, and no Google Cloud double count (SPL-6086)
 
-Status: **v0.1 (2026-11-20), design only, on a review branch; nothing is
-built.** Issue: SPL-6086 (epic SPL-2373). Discussion: csitea topic
+Status: **v0.1.1 (2026-11-20), design only, on a review branch; nothing is
+built.** v0.1.1 folds the v0.1 review (m-273, PASS on `186e756fb`): N1, red
+controls for rows R7 and R8; N3, the `inTenant` cite is line 175. Issue: SPL-6086 (epic SPL-2373). Discussion: csitea topic
 `bc9956bf` (#csi-fina, owner HUM-10). It changes the allocation of
 [costs-allocation.md](costs-allocation.md) (sections 1-7) for the
 workspaces that carry a view rule, and the Google Cloud reading of
@@ -56,7 +57,7 @@ no amount is written here).
   with `tenant_id` NULL, under the operator RLS scope
   (`store/cost_read.go:172`, `asOperator`).
 - otherwise the caller's own workspace, under its tenant RLS scope
-  (`store/cost_read.go:174`, `inTenant`), plus what is allocated to it.
+  (`store/cost_read.go:175`, `inTenant`), plus what is allocated to it.
 
 So the operator workspace's admin reads the whole estate on `t1`, and
 `csitea`, a customer workspace, reads only what was allocated to it.
@@ -399,8 +400,8 @@ One row = one lane, rounds-rulebook format. Every row: its tests green,
 | R4 | a workspace with rules reads by its rules (3.5-3.7), the precedence over the splits (3.6), the `view` object (5.2) | `hub/cost_read.go` (`costReadGather`), `hub/cost_view_read.go` + test | R2, R3 | the owner's table of 3.1 on synthetic data: csitea's total = the estate's; t1's Cloud = the `csi-spl-*` lines only and no rest part; t1's Persons = floor(30 %) per component; t1's Tokens = floor(70 %) per `ai_paid` part; a split naming t1 not applied; a workspace without rules unchanged | precedence removed: a cost split to t1 reaches t1 twice |
 | R5 | `do_spl_cost_view_apply` (3.4) | `csi-spl-orc/src/bash/run/spl-cost-view-apply.func.sh` + `src/bash/tests/spl-cost-view-apply.tst.sh` | R2 | dry run prints the PUTs, counts only; DRY_RUN=0 sends them (hub stubbed); a bad spec refused before any call | an amount printed: the test's no-amount grep fails |
 | R6 | the legend (5.1) and its strings (5.3), Settings -> Cost allocation's "not applied" note (3.6) | `csi-spl-wui/src/components/reporting/costs/CostsRulesLegend.vue`, `CostsLabel.vue`, `utils/costs-rules.mjs`, `i18n/locales/*.json` (19), mock bundle | R4 | unit: the lines from a synthetic `view`; e2e at 1440 and 390 px on the mock bundle: csitea's and t1's legends, the bold own line, no horizontal scroll; `i18n-parity`; agy PASS last | the `view` rules dropped from the mock: the e2e's rule lines fail |
-| R7 | docs: `csi-spl-doc/doc/help/` Costs page (the legend, the view rules), spec 123 15.6 pointer kept true | `csi-spl-doc/doc/help/*.md` | R6 | the help text names every legend line | - |
-| R8 | the owner's data (on the owner's go per env, dev first): the rules of 3.1 through R5, the `covers_source` of the 2026-10 entry (4.4) through R3's PATCH | none (data through the API) | R3, R4, R5 | `GET /v1/tenant/costs?month=2026-10` on csitea: the Google Cloud total equals the invoice; on t1: the `csi-spl-*` lines only; both legends shown | - |
+| R7 | docs: `csi-spl-doc/doc/help/` Costs page (the legend, the view rules), spec 123 15.6 pointer kept true | `csi-spl-doc/doc/help/*.md` | R6 | the help text names every legend line | a legend line of 5.1 with no help text: the doc grep for its key fails |
+| R8 | the owner's data (on the owner's go per env, dev first): the rules of 3.1 through R5, the `covers_source` of the 2026-10 entry (4.4) through R3's PATCH | none (data through the API) | R3, R4, R5 | `GET /v1/tenant/costs?month=2026-10` on csitea: the Google Cloud total equals the invoice; on t1: the `csi-spl-*` lines only; both legends shown | `covers_source` not set on the 2026-10 entry: csitea's Google Cloud total reads the invoice plus the export, not the invoice, and the check fails |
 
 ## 7. Questions for the owner
 
@@ -429,4 +430,4 @@ do_check_pre_push` before the push of this file. No amount, billing account
 id, person or customer project is written here: section 2.4 gives days and
 counts only, section 4.1's numbers are synthetic.
 
-<!-- version: 0.1.0 · updated: 2026-11-20 -->
+<!-- version: 0.1.1 · updated: 2026-11-20 -->

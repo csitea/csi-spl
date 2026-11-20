@@ -44,6 +44,10 @@ func costHumanSeedOp(t *testing.T, e *env, op string, stub *costReadStub) {
 			VALUES ($1, 'HUM-p02', '2011-03-01', 60000000, 'USD', 'HUM-owner')`, op); err != nil {
 			return err
 		}
+		if _, err := tx.Exec(ctx, `INSERT INTO hours_periods (tenant_id, member_id, period_start, period_end, state, decided_by)
+			VALUES ($1, 'HUM-p02', '2011-03-01', '2011-03-31', 'frozen', 'HUM-owner')`, op); err != nil {
+			return err
+		}
 		_, err := tx.Exec(ctx, `INSERT INTO hours_entries (tenant_id, member_id, day, target, minutes, state, updated_by)
 			VALUES ($1, 'HUM-p02', '2011-03-04', 'ws', 120, 'approved', 'HUM-p02')`, op)
 		return err
@@ -53,25 +57,23 @@ func costHumanSeedOp(t *testing.T, e *env, op string, stub *costReadStub) {
 	}
 }
 
-// TestCostProjectHumanServed: the operator admin's answer carries Human =
-// 120.00 USD and 120 minutes, in the priced total beside Cloud's 6.00; the
-// other workspace, which booked nothing, reads a known 0 Human. RED on the
-// parent (no human read in the hub): Human is not_tracked and null.
+// TestCostProjectHumanServed: the operator admin's answer carries the Human
+// part's 120 minutes (a frozen period, none pending); the other workspace,
+// which booked nothing, reads 0 minutes. Only the minutes are asserted: the
+// admin holds no hours.rates, so after P03's mask its Human money is null
+// (13.6); the money itself is TestCostProjectHumanSum's. RED on the parent
+// (no human read in the hub): Human is not_tracked, with no minutes.
 func TestCostProjectHumanServed(t *testing.T) {
 	e, op, other, who, whoOther, stub := costReadEnv(t)
 	costHumanSeedOp(t, e, op, stub)
 	code, body := call(t, e, op, http.MethodGet, "/v1/tenant/costs/project?month=2011-03", who[rbac.Admin], nil)
 	_, by := projectParts(t, body)
-	h := by["human"]
-	if code != http.StatusOK || h["completeness"] == "not_tracked" || h["usd_micros"] != float64(120_000_000) || h["minutes"] != float64(120) {
-		t.Fatalf("operator admin human %v (%d): want 120.00 USD, 120 min", h, code)
-	}
-	if projectTotalUSD(body) != float64(126_000_000) {
-		t.Errorf("total %v: want Cloud 6.00 + Human 120.00", body["total"])
+	if h := by["human"]; code != http.StatusOK || h["completeness"] == "not_tracked" || h["minutes"] != float64(120) || h["pending_minutes"] != float64(0) {
+		t.Fatalf("operator admin human %v (%d): want 120 min, 0 pending", h, code)
 	}
 	code, body = call(t, e, other, http.MethodGet, "/v1/tenant/costs/project?month=2011-03", whoOther[rbac.Admin], nil)
 	_, by = projectParts(t, body)
-	if h := by["human"]; code != http.StatusOK || h["usd_micros"] != float64(0) || h["completeness"] != "complete" {
-		t.Errorf("other admin human %v (%d): want a complete 0, none of the operator's minutes", h, code)
+	if h := by["human"]; code != http.StatusOK || h["minutes"] != float64(0) || h["completeness"] == "not_tracked" {
+		t.Errorf("other admin human %v (%d): want 0 min, none of the operator's minutes", h, code)
 	}
 }

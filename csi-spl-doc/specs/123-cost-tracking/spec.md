@@ -576,9 +576,10 @@ any part is incomplete. The shares are of the priced total.
 Status of every row: **Planned**, except P01: **built** (SPL-6054,
 `hub/cost_project.go`, `store/cost_project.go`; three choices where this
 section predates the code on master are written at the top of
-`store/cost_project.go`), P02: **built** (SPL-6075; two choices the
-section leaves open are written at the top of `store/cost_project_human.go`:
-approved = the entry's state, and absence rows are left out), and P03: **built** (SPL-6078, the mask in
+`store/cost_project.go`), P02: **built** (SPL-6075; a minute is priced
+only when its entry is approved and its period frozen or final, 13.5 and
+107 21.4 step 6, the rest is pending; absence rows are left out; both are
+written at the top of `store/cost_project_human.go`), and P03: **built** (SPL-6078, the mask in
 `hub/cost_project.go`, `TestCostProjectHumanMask` in
 `hub/cost_project_mask_test.go`, `TestCostProjectHumanMaskHTTP` in
 `hub/cost_project_mask_http_test.go`; 13.6). Each row is one lane, aiming at one push.
@@ -595,7 +596,7 @@ Paths: `hub/`, `store/` under `csi-spl-api/src/go/spool-hub-api/internal/`;
 | # | slug | what | target & proof | test (red control) | vendor | batch |
 |---|---|---|---|---|---|---|
 | P01 | `feat(api, project-cost-read)` | `GET /v1/tenant/costs/project?month=` (or `year=`), new `hub/cost_project.go` + `store/cost_project.go` + `store/cost_project_test.go`: the four parts (Cloud, Owned hardware from source `hand_asset`, AI tokens, Human), each with amount, share and completeness, over the month read (5.2); a customer workspace gets two parts only, its AI share and its own Human (Q-8 A, 13.7) | the parts sum to `total.priced`; an unpriced part is `null`, never 0; Human is `not_tracked` until P02 | `TestCostProjectParts` (red: a part with no rate summed as 0 changes the total; a `hand_asset` line left out changes the total) | claude | 1 |
-| P02 | `feat(api, project-cost-human)` | the human day sum for P01, new `store/cost_project_human.go` + `store/cost_project_human_test.go`, one call added in `store/cost_project.go` (plus the input's `HumanRead`/`Human` and the part's `minutes`/`unpriced_minutes`), and the read wired in `hub/cost_project.go` `costProjectInput` (+ `hub/cost_project_human_test.go`): approved minutes x the price in force per day, per currency, no member column; the Human part's new fields follow 13.6's field rule (money in `CostProjectMoney`, minutes outside it) | reads 107's T071 tables (`hours_entries`, `member_hourly_prices`, rdb 0295) directly; T072's store is not needed. The served answer carries Human; `TestCostProjectHumanServed` (red on the parent: `not_tracked`) | `TestCostProjectHumanSum` (red: pricing at today's price instead of the day's changes the sum) | claude | 2 |
+| P02 | `feat(api, project-cost-human)` | the human day sum for P01, new `store/cost_project_human.go` + `store/cost_project_human_test.go`, one call added in `store/cost_project.go` (plus the input's `HumanRead`/`Human` and the part's `minutes`/`unpriced_minutes`), and the read wired in `hub/cost_project.go` `costProjectInput` (+ `hub/cost_project_human_test.go`): approved minutes of frozen or final periods x the price in force per day, per currency, no member column; the other minutes count as pending (13.5); the Human part's new fields follow 13.6's field rule (money in `CostProjectMoney`, minutes outside it). The served Human money waits for P03's mask (13.6): P02 lands after P03 | reads 107's T071 tables (`hours_entries`, `member_hourly_prices`, rdb 0295) directly; T072's store is not needed. The served answer carries Human; `TestCostProjectHumanServed` (red on the parent: `not_tracked`) | `TestCostProjectHumanSum` (red: pricing at today's price instead of the day's changes the sum) | claude | 2 |
 | P04 | `test(api, project-cost-rls)` | tenant isolation and estate scope of P01 on Postgres, new `store/cost_project_rls_test.go` only | workspace B reads 0 of A's parts; a non-operator reads no estate part (no cloud, no owned hardware) | `TestCostProjectRLS` (red: the policy dropped reads A's rows) | claude | 2 |
 | P03 | `feat(api, project-cost-mask)` | the human money mask in `hub/cost_project.go` + new `hub/cost_project_mask_test.go`: without `hours.rates` the Human amount is `null` and `total.priced` covers Cloud + owned hardware + AI only, flagged | an operator admin without `hours.rates` gets hours, no money, and no total that holds it | `TestCostProjectHumanMask` (red: removing the mask lets total minus parts reveal the human money) | claude | 3 |
 | P05 | `feat(wui, project-cost-page)` | new page `pages/reporting/costs/project.vue`, its entry first in the Costs bar in `pages/reporting/costs.vue` and `/reporting/costs` opening on it as the default (Q-9 A, 13.2; Spend is no longer the default), labels in the locale catalogue (agy reviews the locale text last): the two first figures (month so far, year to date, 13.12 item 2), the table, shares, completeness words, links to the sections and pages | drawn at 1400 and 390 px, no sideways scroll; both first figures equal the sums of their parts | new `tests/e2e/reporting-costs-project.test.mjs` (red: a `null` part drawn as 0.00 fails; the year total without the closed months fails) | claude | 3 |
@@ -739,8 +740,11 @@ page and e2e file in the same batch (R1).
 - v1.7 (2026-11-20, SPL-6075): P02 built. It reads T071's tables directly,
   so it did not wait for T072. The row now also names the hub wiring
   (dispatch holder, msg c3b149d2): the store read alone would leave the
-  served Human `not_tracked`. The Human part also carries its minutes and
-  unpriced minutes (13.5).
+  served Human `not_tracked`. The Human part also carries its minutes,
+  unpriced minutes and pending minutes (13.5), outside the money that P03
+  masks. R7 (FAIL, W1 W2) folded: a minute is priced only when its period
+  is frozen or final (107 21.4 step 6), proposed and disputed rows count as
+  pending; P02 lands after P03, so the money is never served unmasked.
 
 ## 14. The operator's product owner reads the estate (SPL-5181)
 

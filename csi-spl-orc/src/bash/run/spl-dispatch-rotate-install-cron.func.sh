@@ -45,6 +45,23 @@ spl_disp_heal_offset() {
   done
 }
 
+# _spl_disp_cron_check CURRENT HCURRENT LINE EVERY TAG HTAG: ROTATE_CRON_ACTION=check
+# on the installed rotation line (CURRENT) and heal line (HCURRENT); rc 1 on a FAIL.
+_spl_disp_cron_check() {
+  local current="$1" hcurrent="$2" line="$3" every="$4" tag="$5" htag="$6" ran
+  [[ -n "$current" ]] || { do_log "FAIL the dispatcher rotation is NOT installed (no line tagged $tag)"; return 1; }
+  spl_desk_cron_say "$current"
+  ran="$(spl_desk_cron_script "$current")"
+  [[ -n "$ran" && -x "$ran" ]] || { do_log "FAIL the line names a script that is gone or not executable: ${ran:-<none>}"; return 1; }
+  [[ "$current" == "$line" ]] || do_log "INFO installed with other settings than this call would write - working"
+  if (( every )); then
+    [[ -n "$hcurrent" ]] || { do_log "FAIL the dispatcher heal is NOT installed (no line tagged $htag)"; return 1; }
+    spl_desk_cron_say "$hcurrent"
+  fi
+  do_log "OK the dispatcher rotation$( ((every)) && echo " and heal are" || echo " is") installed and its script is executable"
+  return 0
+}
+
 declare -F spl_desk_cron_update_pre >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
 declare -F spl_desk_cron_checkout >/dev/null ||
@@ -71,7 +88,11 @@ do_spl_dispatch_rotate_install_cron() {
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   script="$src/$SPL_ORG_APP-orc/src/bash/scripts/dispatch-rotate-cron.sh"
-  logdir="${ROTATE_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/dispatch-rotate}"
+  logdir="${ROTATE_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir dispatch-rotate || { do_log "FATAL cannot derive the dispatch-rotate cron log dir (no tree for spl_run_paths): set ROTATE_CRON_LOG_DIR"; return 1; }
+  fi
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
@@ -84,19 +105,7 @@ do_spl_dispatch_rotate_install_cron() {
     "$(spl_disp_heal_offset "$every" ${mins//,/ })" "$every" "$pre" "$ns" "$script" "$logdir" "$htag")"
   current="$(spl_desk_cron_line "$tag")"; hcurrent="$(spl_desk_cron_line "$htag")"
 
-  if [[ "$act" == check ]]; then
-    [[ -n "$current" ]] || { do_log "FAIL the dispatcher rotation is NOT installed (no line tagged $tag)"; return 1; }
-    spl_desk_cron_say "$current"
-    local ran; ran="$(spl_desk_cron_script "$current")"
-    [[ -n "$ran" && -x "$ran" ]] || { do_log "FAIL the line names a script that is gone or not executable: ${ran:-<none>}"; return 1; }
-    [[ "$current" == "$line" ]] || do_log "INFO installed with other settings than this call would write - working"
-    if (( every )); then
-      [[ -n "$hcurrent" ]] || { do_log "FAIL the dispatcher heal is NOT installed (no line tagged $htag)"; return 1; }
-      spl_desk_cron_say "$hcurrent"
-    fi
-    do_log "OK the dispatcher rotation$( ((every)) && echo " and heal are" || echo " is") installed and its script is executable"
-    return 0
-  fi
+  [[ "$act" == check ]] && { _spl_disp_cron_check "$current" "$hcurrent" "$line" "$every" "$tag" "$htag"; return; }
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
     spl_desk_cron_diff "$htag" "$([[ "$act" == install ]] && printf '%s' "$hline")"

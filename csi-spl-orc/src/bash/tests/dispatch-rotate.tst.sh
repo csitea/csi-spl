@@ -621,6 +621,30 @@ want="15,45 * * * * $SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh >>
 cron DRY_RUN=0 >/dev/null 2>&1
 [[ "$(grep -c '# csi-spl:dispatch-rotate$' "$T/crontab")" == 1 ]] && pass "10. idempotent" || fail "10. lines: $(cat "$T/crontab")"
 cron ROTATE_CRON_ACTION=check >"$T/o" 2>&1 && pass "10. check passes once installed" || fail "10. check: $(cat "$T/o")"
+# the check's 3 FAIL paths (r76-02: pinned before the branch moved to a helper)
+cp "$T/crontab" "$T/crontab.ok"
+grep -v '# csi-spl:dispatch-rotate$' "$T/crontab.ok" >"$T/crontab"
+cron ROTATE_CRON_ACTION=check >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 1 ]] && grep -qxF 'FAIL the dispatcher rotation is NOT installed (no line tagged csi-spl:dispatch-rotate)' "$T/o" &&
+  pass "10. check: no rotation line -> rc 1, FAIL NOT installed" || fail "10. check no line: rc=$rc $(cat "$T/o")"
+cp "$T/crontab.ok" "$T/crontab"; chmod -x "$SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh"
+cron ROTATE_CRON_ACTION=check >"$T/o" 2>&1; rc=$?
+chmod +x "$SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh"
+[[ $rc -eq 1 ]] && grep -qxF "FAIL the line names a script that is gone or not executable: $SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh" "$T/o" &&
+  pass "10. check: the line's script not executable -> rc 1, FAIL the line names a script" || fail "10. check script: rc=$rc $(cat "$T/o")"
+grep -v '# csi-spl:dispatch-heal$' "$T/crontab.ok" >"$T/crontab"
+cron ROTATE_CRON_ACTION=check ROTATE_HEAL_CRON_EVERY=3 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 1 ]] && grep -qxF 'FAIL the dispatcher heal is NOT installed (no line tagged csi-spl:dispatch-heal)' "$T/o" &&
+  pass "10. check: heal line dropped by hand, ROTATE_HEAL_CRON_EVERY=3 -> rc 1, FAIL heal NOT installed" || fail "10. check heal: rc=$rc $(cat "$T/o")"
+cp "$T/crontab.ok" "$T/crontab"
+# r76-02: no override -> the log dir is spl_var_app_subdir's <SPL_VAR_APP_DIR>/dispatch-rotate
+cron ROTATE_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/var" ]] && cmp -s "$T/crontab" "$T/crontab.ok" &&
+  grep -qF ">> $T/var/dispatch-rotate/cron.out 2>&1 # csi-spl:dispatch-rotate" "$T/o" &&
+  grep -qF "cron-no-stack.sh $T/var/dispatch-rotate/heal.lock " "$T/o" &&
+  grep -qF ">> $T/var/dispatch-rotate/heal.out 2>&1 # csi-spl:dispatch-heal" "$T/o" &&
+  pass "10. no ROTATE_CRON_LOG_DIR: the dry run's lines log to \$SPL_VAR_APP_DIR/dispatch-rotate, nothing created" ||
+  fail "10. default log dir: rc=$rc $(cat "$T/o")"
 cron CRON_REMOVE=1 DRY_RUN=0 >/dev/null 2>&1
 ! grep -q 'dispatch-rotate' "$T/crontab" && grep -q 'orch-rotate' "$T/crontab" && pass "10. CRON_REMOVE=1 takes only its line (FR-092)" || fail "10. remove: $(cat "$T/crontab")"
 cron DRY_RUN=0 >/dev/null 2>&1

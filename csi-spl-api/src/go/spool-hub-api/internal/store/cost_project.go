@@ -124,6 +124,10 @@ type CostProjectInput struct {
 // can drop a source (TestCostProjectParts).
 var costProjectOf = func(p CostPart, estate bool) (part string, beside bool) {
 	switch {
+	case p.Kind == "hr":
+		// Human money is the Human part's alone (P02, P03's mask): an hr
+		// line is never named in left_out with its amount (13.6).
+		return "", true
 	case p.Source == CostSourceAIPaid || p.Source == CostSourceAIShare:
 		return CostProjectAI, false
 	case p.Source == "fleet_tokens" || strings.HasPrefix(p.Source, "fleet_tokens.") ||

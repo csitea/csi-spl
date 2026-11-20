@@ -1,9 +1,12 @@
 # Spec 183: An Agent Exports Any Topic It Can Read to PDF
 
-Status: **Draft v0.2** (2026-11-20). Lane `c-977` (`claude`, backup for
-`specs_and_docs`: no agy cli on this box). v0.1 `f860d1b1b`; v0.2 folds
-the owner's answers to form `82bc7349` (msg `d2c6508b`) and the P1 lane's
-contract question (msg `fffc8411`); every contract change is in section 9.
+Status: **Draft v0.3** (2026-11-20). Lane `c-977` (`claude`, backup for
+`specs_and_docs`: no agy cli on this box). v0.1 `f860d1b1b`; v0.2
+`49d6ee226` folds the owner's answers to form `82bc7349` (msg `d2c6508b`)
+and the P1 lane's contract question (msg `fffc8411`); v0.3 folds Q5 SVC
+(form `ed3299a7`, msg `58733d06`) and the scale-to-zero order (msg
+`ac761f15`): the renderer service of 7.1.6 and row P4. Every contract
+change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6031**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f798e9aa-6548-44fa-aa8b-7425133bff2f` (`t1`).
 Builds on: [182 topic loop prompt](../182-topic-loop-prompt/spec.md) (its
@@ -11,8 +14,8 @@ worked example 4.6 and its row L6, which this spec takes over, section 6)
 and [005 spool WUI](../005-spool-wui/spec.md) FR-020 (the browser's Export
 to PDF, SPL-5888).
 
-Line references were measured on `origin/master` `64049c396` (v0.1:
-`91e92e63c`). Next free number at v0.1:
+Line references were measured on `origin/master` `656ab3389` (v0.2:
+`64049c396`, v0.1: `91e92e63c`). Next free number at v0.1:
 `git ls-tree --name-only origin/master csi-spl-doc/specs/ | grep -c 183`
 -> 0, and no `review/*` branch held a `183` folder.
 
@@ -32,6 +35,13 @@ Line references were measured on `origin/master` `64049c396` (v0.1:
   machine Answer 3: OP — Exactly what the person the agent works for can
   read in the web UI Answer 4: W — The whole topic as the web UI prints it:
   pictures inline, other files as links, no hidden loop prompts"
+- topic f798e9aa, msg `58733d06` (form `ed3299a7`), verbatim: "Answer: SVC —
+  A separate renderer service on Cloud Run that only the hub may call: the
+  hub's own image, memory and start time stay as they are; a render after
+  an idle period waits for the renderer to start"
+- topic f798e9aa, msg `ac761f15`, verbatim: "make sure this is started
+  ad-hoc - speed is not imprtant here , but the mear fact that the export
+  to dpf is possible , no need to permanently use resources"
 
 ## 1. Decided, and what is open
 
@@ -41,10 +51,13 @@ Line references were measured on `origin/master` `64049c396` (v0.1:
 | Q2 | **F**: a PDF file on the agent's machine | 4 step 4, 7.1.2; row P6 of v0.1 is dropped |
 | Q3 | **OP**: exactly what the person the agent works for reads in the WUI | 4 step 2, row P1, 7.1.1 (which person: 7.1.1) |
 | Q4 | **W**: the whole topic as the WUI prints it, pictures inline, other files as links, no hidden loop prompt | 7.1.3 |
+| Q5 | **SVC**: a separate renderer service on Cloud Run that only the hub may call; started ad hoc, no resources held while idle (msg `ac761f15`) | 7.1.5, 7.1.6, rows P2 and P4 |
 
-### 1.1 Open (one question)
+Nothing is open in v0.3.
 
-Q5. Where does Chrome run, inside "on the hub"? Measured on this box with
+### 1.1 Q5, the measurements it was decided on
+
+Where Chrome runs, inside "on the hub". Measured on this box with
 `docker run alpine:3.22` (the hub's base, `csi-spl-api/src/docker/hub.Dockerfile:41`),
 n=1 install, n=3 renders of a one-page HTML at `--cpus=1 --memory=1g`:
 `apk add chromium` adds **784 MiB** (803 028 KiB; chromium 142.0.7444.59)
@@ -55,19 +68,30 @@ one render, Chrome start included, takes **1.69-1.80 s** and peaks at
 (`csi-spl-cnf/csi-spl/all.env.yaml:408,409,418,449`). The image pull and
 cold start of a Cloud Run revision with that image were not measured.
 
-- **SVC** (recommended): a second Cloud Run service, the renderer
-  (alpine + chromium + font-dejavu, ~800 MiB image, `min_instances: 0`,
-  `concurrency: 1`, `memory: 1Gi`), reachable only by the hub's service
-  account. The hub route stays the only door: it checks access, builds the
-  HTML and calls the renderer. The hub's image, memory and cold start do
-  not change; a render after an idle period pays the renderer's cold start.
-- **IMG**: Chrome inside the hub image. One service, but every hub
-  instance carries the ~800 MiB image and needs its memory raised (a
-  190 MiB render does not fit next to the hub under 512Mi), and one
-  render's 1.8 s of CPU competes with the hub's 1000 requests.
+The answer is **SVC**: a second Cloud Run service, the renderer, that only
+the hub's service account may call (7.1.6). The hub's image, memory and
+cold start do not change. The rejected **IMG** (Chrome in the hub image)
+would have put ~800 MiB into every hub instance and needed its memory
+raised above 512Mi.
 
-Rows P1, P3 and P5 do not depend on Q5; rows P2 and P4 do, marked
-**[Q5]**.
+### 1.2 The renderer starts ad hoc (msg `ac761f15`, binding)
+
+- **R1** The renderer holds no resources while idle: `min_instance_count = 0`,
+  CPU only during a request (`cpu_idle = true`), no `startup_cpu_boost`,
+  no warm-up or keep-alive caller (no scheduler job, no uptime check, no
+  probe from the hub). Only a render request starts an instance.
+- **R2** Cold-start latency is accepted: there is no latency target. The
+  hub waits up to cnf `hub.pdf.timeout` (default 120 s), which covers a
+  cold start plus a render.
+- **Check** (row P4, in its test and in its plan): a static test of the
+  terraform step fails unless `min_instance_count = 0`, `cpu_idle = true`
+  and `startup_cpu_boost` is absent or `false`, and unless no
+  `google_cloud_scheduler_job` or `google_monitoring_uptime_check_config`
+  in `csi-spl-iac/src/terraform/` names the renderer. After the apply on
+  dev: `gcloud run services describe <renderer> --account=<dev SA>` shows
+  `minScale` 0 (or unset), and 20 minutes with no export later the
+  service's instance count metric reads 0. Red control: set
+  `min_instance_count = 1` in a test copy, and the static test fails.
 
 ## 2. Terms
 
@@ -111,8 +135,8 @@ Rows P1, P3 and P5 do not depend on Q5; rows P2 and P4 do, marked
    a missing one: `404 not_found`.
 3. **render (HUB)**: the hub builds one self-contained HTML (CSS inline,
    pictures from its blob store as `data:` URLs, other files as their name
-   and a link), and turns it into a PDF with headless Chrome where Q5
-   puts it **[Q5]**.
+   and a link), and posts it to the renderer service (7.1.6), which
+   starts if it is idle (1.2) and answers the PDF.
 4. **file (F)**: the route answers the PDF bytes; the CLI writes them to
    the path of 7.1.4 and prints one JSON line (7.1.2). Nothing is stored
    on the hub and nothing is posted in the topic.
@@ -126,7 +150,7 @@ Rows P1, P3 and P5 do not depend on Q5; rows P2 and P4 do, marked
 |---|---|---|
 | door | box bearer (`resolve.go:207`), `canReadTopic`, `canReadMessage`, `BoxOperatorBound` | the route, the operator choice, `topicExportRows` |
 | link | `ParseLink`, desk order (`link.go:41,148`) | nothing |
-| render | the card layout of `MessagePrint.vue` as the model | a Go HTML template in the hub; the Chrome call **[Q5]** |
+| render | the card layout of `MessagePrint.vue` as the model | a Go HTML template in the hub; the renderer service and the hub's call to it (7.1.5, 7.1.6) |
 | title, file name | `topicOpening` (`view-api.mjs:46`), `printSlug` (`msg-print.ts:17`) | their Go ports, held to the same cases |
 | pictures | the blob store | the `data:` inline, each bounded as `msg-print-run.ts:56-59` does |
 | CLI to REST | `Session.rest` (`hubclient.go:1089`) | a streaming variant that writes the body to a file |
@@ -134,17 +158,17 @@ Rows P1, P3 and P5 do not depend on Q5; rows P2 and P4 do, marked
 
 ## 6. Build order (rows a later lane can take in parallel)
 
-Every row builds against the contracts of 7.1. P1, P2 and P3 start at once;
-P4 waits for Q5 only. This spec takes over 182's row L6:
+Every row builds against the contracts of 7.1. P1, P2, P3 and P4 start at
+once; P4's apply needs P2's renderer image and the owner's go. This spec takes over 182's row L6:
 `do_spl_topic_pdf` keeps the names 182 gives it, as a thin wrapper of the
 CLI verb (P3). v0.1's row P6 (`--attach`) is dropped (Q2 = F).
 
 | row | depends on | kind | files | done test, and red control |
 |---|---|---|---|---|
 | **P1 hub: route, operator, access** | — | `complex_coding` | `internal/hub/topic_export.go` (`handleTopicExport`, `topicExportOperator`, `topicExportRows`), `topic_export_test.go`, the route in `internal/hub/server.go`; the store read for the OP rule (Postgres + Memory) | A box whose operator reads the channel gets `200 application/pdf`; an operator outside the channel and a topic that does not exist both get `404 not_found`; a DM the operator is no end of is left out of a mixed topic; two operators and no `typed_by` -> `400 operator_ambiguous`; a `typed_by` not bound to the box -> `403 typed_by_not_bound`; no loop prompt row once 182 L1 has landed `messages.loop_id`. Tests stub the renderer of 7.1.5. `PRE_PUSH_TIER=full`. Red control: skip the per-row `canReadMessage`, and the DM test sees the DM. |
-| **P2 hub: HTML and the renderer** | — **[Q5]** | `complex_coding` | `internal/topicpdf/{html.go,template.html,slug.go,title.go,render.go,*_test.go}`; under SVC also `csi-spl-api/src/docker/pdf.Dockerfile` and `cmd/spool-pdf/main.go` (the renderer's HTTP server) | A fixture of 3 rows and 1 picture makes a PDF whose `pdftotext` holds the 3 bodies and the title; the picture's `data:` URL is in the HTML; `Slug` and `Title` pass every case of `msg-print.test.mjs` and `view-api.test.mjs` for `printSlug` and `topicOpening`; a render past its timeout fails with `render_timeout`. Red control: drop the picture inline, and the picture check fails. |
+| **P2 hub: HTML and the renderer** | — | `complex_coding` | `internal/topicpdf/{html.go,template.html,slug.go,title.go,render.go,*_test.go}`; the renderer: `cmd/spool-pdf/main.go` (its HTTP server, 7.1.6) and `csi-spl-api/src/docker/pdf.Dockerfile` | A fixture of 3 rows and 1 picture makes a PDF whose `pdftotext` holds the 3 bodies and the title; the picture's `data:` URL is in the HTML; `Slug` and `Title` pass every case of `msg-print.test.mjs` and `view-api.test.mjs` for `printSlug` and `topicOpening`; a render past its timeout fails with `render_timeout`. Red control: drop the picture inline, and the picture check fails. |
 | **P3 box: CLI verb, MCP tool, orc wrapper** | the route of 7.1.1 (tests use a stub hub) | `simple_coding` | `cmd/spool/topic_pdf.go`, `cmd/spool/main.go` (the `case`, the help line), `internal/hubclient` (`Session.TopicPDF`), `internal/mcp/mcp.go` (`spool_topic_pdf`), `csi-spl-orc/src/bash/run/spl-topic-pdf.func.sh` + its test | Flags, output and exit codes of 7.1.2 hold; the file holds exactly the bytes the stub served (sha256); a 404 exits 3 and writes no file; the MCP tool returns the same JSON; `do_spl_topic_pdf` with `TOPIC_ID`, `ENV`, `OUT` runs the verb. Red control: ignore `--out`, and the path test fails. |
-| **P4 infra: the renderer on Cloud Run** | P2's image **[Q5]** | `complex_coding` (terraform: the owner's go before any apply) | SVC: a new terraform step for the renderer service (its service account, `roles/run.invoker` for the hub's service account only), its image in the hub's build workflow, cnf `hub.pdf.*` (URL, timeout); IMG: `hub.Dockerfile` (chromium + font-dejavu) and cnf `hub.cloud_run.memory` | `make do-tf-plan` for dev shows only the new service (SVC) or the memory change (IMG); after the owner's go and the apply, an export on dev returns a PDF; the measured cold start and render time are written into this spec. Red control: call the renderer without the hub's identity, and it answers 403. |
+| **P4 infra: the renderer on Cloud Run** | P2's image for the apply | `complex_coding` (terraform: the owner's go before any apply, dev before prd) | `csi-spl-iac/src/terraform/031-cloud-run-pdf/` (the service, its runtime service account with no roles, `roles/run.invoker` for the hub's service account only); cnf `pdf.cloud_run.*` and `hub.pdf.{url,timeout}` in `csi-spl-cnf/csi-spl/all.env.yaml` + the rendered tfvars; `csi-spl-orc/src/bash/run/build-push-pdf-image.func.sh` (`do_build_push_pdf_image`, as `build-push-hub-image.func.sh`) and its step in `.github/workflows/20_hub-build-deploy.yml` when `cmd/spool-pdf/**`, `internal/topicpdf/**` or `pdf.Dockerfile` change; the hub's env `SPOOL_PDF_URL` in `030-cloud-run-hub/04-cloud-run-service.tf` | The check of 1.2 (static test + the dev describe and the idle count); `make do-tf-plan` for dev shows only the new step and the hub's one env line; after the owner's go and the apply, an export on dev after 20 idle minutes returns a PDF, and its cold start and render time are written into this spec. Red control: call the renderer's URL with no token, and Cloud Run answers 403. |
 | **P5 e2e** | P1, P2, P3 | `tests` | `csi-spl-api/src/bash/tests/topic-pdf-e2e.tst.sh` | On a local hub (memory store, the renderer from P2 run locally): post 3 rows and a picture, run `spool topic-pdf`, `pdftotext` holds the 3 bodies; a box whose operator may not read gets exit 3. Red control: turn the access check off, and the exit-3 case fails. |
 | **P7 docs** | P3 | `specs_and_docs` | `csi-spl-doc/doc/md/spool-cli-reference.md`, this spec's row status, 182 row L6's status | `do_check_dist_hygiene`, `do_check_fleet_rules_drift`. |
 
@@ -180,7 +204,7 @@ is cited.
   `400 operator_ambiguous`; `403 typed_by_not_bound`;
   `413 too_large` (a PDF over `msg.MaxFileBytes`, `msg.go:44`);
   `503 render_unavailable` (renderer down or busy); `504 render_timeout`
-  (past cnf `hub.pdf.timeout`, default 60 s).
+  (past cnf `hub.pdf.timeout`, default 120 s, 1.2 R2).
 - Client: `func (s *hubclient.Session) TopicPDF(ctx context.Context,
   taskID, typedBy string, w io.Writer) (TopicPDFInfo, error)`;
   `TopicPDFInfo{Name string; Rows, Pictures int}`.
@@ -227,14 +251,39 @@ is cited.
   `type Renderer interface { Render(ctx context.Context, html []byte) ([]byte, error) }`;
   `func HTML(rows []store.EditableMessage, title string, blob func(fileID string) ([]byte, error)) ([]byte, int, error)`
   (the HTML and its picture count).
-- SVC **[Q5]**: `topicpdf.HTTPRenderer{URL string}` posts the HTML to
-  `POST <hub.pdf.url>/render` (`Content-Type: text/html`) with the hub's
-  ID token and gets `application/pdf` back; the renderer runs
-  `chromium-browser --headless=new --no-sandbox --disable-gpu
-  --disable-dev-shm-usage --print-to-pdf`, one render at a time.
-- IMG **[Q5]**: `topicpdf.ExecRenderer{Chrome string}` runs the same
-  command in the hub container, at most one render at a time per instance.
-- Errors: `topicpdf.ErrBusy` -> `503`, `context.DeadlineExceeded` -> `504`.
+- `topicpdf.HTTPRenderer{URL string}` posts the HTML to
+  `POST <URL>/render` (7.1.6) through `idtoken.NewClient(ctx, URL)`
+  (`google.golang.org/api`, already in `go.mod:29`), the hub's own
+  identity as the ID token. `URL` is the env `SPOOL_PDF_URL`; empty (lde,
+  tests without a renderer) answers `503 render_unavailable`.
+- Errors: `topicpdf.ErrBusy` (the renderer's `429`, or Cloud Run's `429`
+  / `503` when no instance can start) -> `503`; `context.DeadlineExceeded`
+  past `hub.pdf.timeout` -> `504`.
+
+#### 7.1.6 The renderer service (P2 builds the server, P4 deploys it)
+
+- Program `cmd/spool-pdf` (module `spool-hub-api`), image
+  `csi-spl-api/src/docker/pdf.Dockerfile`: `alpine:3.22` + `chromium` +
+  `font-dejavu` (~795 MiB, 1.1); runs as a non-root user.
+- HTTP on `$PORT` (Cloud Run's): `POST /render`, body `text/html` up to
+  40 MiB (32 MiB of pictures as base64), answers `200 application/pdf`;
+  `413` over the cap; `429` while a render runs (one at a time per
+  instance); `500` with Chrome's last 20 lines on a failed render. No
+  other route, no health route the hub calls (1.2 R1).
+- Each render runs `chromium-browser --headless=new --no-sandbox
+  --disable-gpu --disable-dev-shm-usage --print-to-pdf=<tmp> <tmp html>`
+  in a fresh temp dir, removed after the answer. The HTML holds no remote
+  resource: every picture is already a `data:` URL (7.1.3).
+- Cloud Run, terraform step `031-cloud-run-pdf`, cnf `pdf.cloud_run`:
+  service `<org>-<app>-<env>-pdf`; `cpu: "1"`, `memory: 1Gi`,
+  `min_instances: 0`, `max_instances: 2`, `concurrency: 1`,
+  `timeout: 120s`, `cpu_idle: true`, no `startup_cpu_boost` (1.2 R1);
+  ingress `all` with IAM: no `allUsers` invoker, `roles/run.invoker` for
+  the hub's runtime service account (`030-cloud-run-hub/03-runtime-sa.tf:4`)
+  only.
+- The hub learns the URL from cnf `hub.pdf.url` (the step's output, set
+  in cnf after the apply), passed as `SPOOL_PDF_URL`; cnf
+  `hub.pdf.timeout` (default `120s`) is the hub's wait.
 
 ## 8. Not in this spec
 
@@ -256,3 +305,15 @@ and the WUI's own export (005 FR-020, SPL-6023).
 | 7.1.4: the CLI names the file | the hub names it in `Content-Disposition`; the CLI keeps it | Q1 HUB |
 | — | 7.1.5 the renderer seam, new | Q1 HUB |
 | rows P2 box render, P4 Chrome on every box, P6 attach | P2 hub HTML + renderer, P4 the renderer on Cloud Run (terraform with the owner's go), P6 dropped | Q1 HUB, Q2 F |
+
+### 9.1 Changes from v0.2
+
+| v0.2 | v0.3 | why |
+|---|---|---|
+| 1.1: Q5 open, SVC or IMG | Q5 SVC decided; IMG removed from 7.1.5 and rows P2, P4 | msg `58733d06` |
+| — | 1.2: R1 scale to zero, no warm-up; R2 no latency target; the check | msg `ac761f15` |
+| 7.1.5: `HTTPRenderer` posts to `<hub.pdf.url>/render` | the same, through `idtoken.NewClient`, URL from env `SPOOL_PDF_URL`; empty -> `503` | the hub's identity is the only caller (Q5 SVC) |
+| 7.1.5: `ErrBusy` -> `503` | also Cloud Run's `429`/`503` -> `503` | an instance may not start |
+| — | 7.1.6: the renderer's program, image, HTTP contract, Cloud Run settings, step `031-cloud-run-pdf`, cnf `pdf.cloud_run`, `hub.pdf.{url,timeout}` | P4's design |
+| `hub.pdf.timeout` default 60 s | 120 s | R2: a cold start is accepted |
+| row P4: SVC or IMG | P4 = step 031, the image action and its workflow step, the hub's env line, the check of 1.2 | Q5 SVC |

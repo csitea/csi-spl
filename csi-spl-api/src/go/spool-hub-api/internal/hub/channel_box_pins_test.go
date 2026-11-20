@@ -63,7 +63,9 @@ func TestChannelBoxPinsAPI(t *testing.T) {
 	pinBox(t, e, ta, "box-x")
 	pinBox(t, e, ta, "box-y")
 	pinBox(t, e, ta, "box-r")
-	if err := e.st.RevokePin(context.Background(), ta, "box-r", time.Now(), time.Now()); err != nil {
+	// The revoke is strictly after the pin: in the same microsecond it is a
+	// stale op (the store truncates opTS to timestamptz precision).
+	if err := e.st.RevokePin(context.Background(), ta, "box-r", time.Now().Add(time.Millisecond), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	pinBox(t, e, tb, "box-b") // pinned in B only

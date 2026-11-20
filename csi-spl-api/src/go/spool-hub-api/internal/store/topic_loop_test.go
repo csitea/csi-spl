@@ -598,6 +598,11 @@ func assertLoopRowHidden(t *testing.T, f *loopFix, post, loop Message, now time.
 	if err != nil || len(vm) != 1 || vm[0].MsgID != post.MsgID {
 		t.Fatalf("topic view: %d rows %v, want only the post (the loop prompt is shown to nobody)", len(vm), err)
 	}
+	if ex, ok := f.s.(TopicExports); ok {
+		if er, err := ex.TopicExportRows(f.ctx, f.tn, f.task, now); err != nil || len(er) != 1 || er[0].MsgID != post.MsgID {
+			t.Fatalf("topic export: %d rows %v, want only the post (W4: a topic PDF carries no loop prompt)", len(er), err)
+		}
+	}
 	rows, err := f.s.ViewTopics(f.ctx, f.tn, TopicQuery{Now: now, Limit: 50})
 	if err != nil || len(rows) != 1 || rows[0].Count != 1 || !rows[0].LastAt.Equal(post.ReceivedAt) {
 		t.Fatalf("topic list: %+v %v, want one row of one line, last at the post", rows, err)

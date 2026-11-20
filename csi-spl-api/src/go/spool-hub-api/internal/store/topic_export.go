@@ -13,7 +13,8 @@ import (
 // the store only reads.
 type TopicExports interface {
 	// TopicExportRows is every live (not expired) message of taskID, oldest
-	// first by (ts, msg_id), with no reader filter: the fields the read door
+	// first by (ts, msg_id), less a loop prompt message (rdb 0299, spec 182
+	// 5.2: shown to nobody, so in no export), with no reader filter: the fields the read door
 	// decides on and the render prints. Deliveries and the revision number
 	// are not read.
 	TopicExportRows(ctx context.Context, tenantID, taskID string, now time.Time) ([]EditableMessage, error)
@@ -30,7 +31,7 @@ func (s *Memory) TopicExportRows(_ context.Context, tenant, taskID string, now t
 	defer s.mu.Unlock()
 	var ms []*Message
 	for k, m := range s.messages {
-		if k[0] == tenant && m.TaskID == taskID && m.ExpiresAt.After(now) {
+		if k[0] == tenant && m.TaskID == taskID && m.ExpiresAt.After(now) && m.LoopID == "" {
 			ms = append(ms, m)
 		}
 	}
@@ -81,7 +82,7 @@ func (s *Postgres) TopicExportRows(ctx context.Context, tenant, taskID string, n
 	err := s.queryTenant(ctx, tenant, `SELECT msg_id::text, task_id::text, channel, parent_task_id::text,
 			from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, ts, received_at, edited_at, edited_by, typed_by
 		FROM messages
-		WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3
+		WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3 AND loop_id IS NULL
 		ORDER BY ts, msg_id`, []any{tenant, taskID, now}, func(rows pgx.Rows) error {
 		var m EditableMessage
 		var channel, parent, editedBy, typedBy *string

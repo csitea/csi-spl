@@ -21,6 +21,8 @@
 #      files an issue names a spec folder on origin/master and its epic.
 #   R. a review lane on the author's open issue exits on its ACCEPTED, the
 #      issue untouched (SPL-5096); each of the three marks missing: refused.
+#      A seat on a round's issue (an id-less Author:, SPL-6099) or with an
+#      `Issue-Role: shared` brief line on its placed key exits the same way.
 #   W. a workspace lane (workspace-repo.inc.sh; owner HUM-10 msgs ca8a036d,
 #      dbead7a1): the brief's `Workspace: <tenant>` line passes the brief
 #      check with no csi-spl spec; the exit gate reads the workspace repo's
@@ -576,5 +578,39 @@ rv c-101 SPL-101 SPL-101 "$RV_P" ''
 gate "$T_SCRIPTS" c-101
 eq "R12 a panel-seat heading with no Author: line: refused" 3 "$RC"
 has "R12 ... by the issue gate" "issue SPL-101 is still wip" "$(cat "$T_TMP/e")"
+# SPL-6099: m-486 / m-484, a round's mistral PANEL seats, ended the rounds'
+# SPL-6080 / SPL-6081 diss at their exit while the rows were live: their
+# Author: line names the planner by placement, no lane id.
+: >"$RV_LOG"
+RV_A='Author: the planner seat (claude, placement `c002-bug-round-29-planner`; its id comes with its first message)'
+rv c-102 SPL-102 SPL-102 'Lane brief: bug round 29 (b29) plan - the PANEL seat, mistral (cross-vendor doc review, one task)' "$RV_A"
+gate "$T_SCRIPTS" c-102
+eq "R13 a panel seat whose Author: names the planner by placement: exits" 0 "$RC"
+has "R13 ... the line names the owner" "issue gate: SPL-102 is the planner seat's, this lane only reviews it" "$(cat "$T_TMP/e")"
+eq "R13 ... the round's issue is untouched: no hub call" 0 "$(wc -l <"$RV_LOG")"
+check "R13 ... and no end record" test ! -e "$SPOOL_ROOT/c-102/lifetime/issue-end"
+gate "$CTL_RV/scripts" c-102
+eq "R13 control (no review step): the same seat is refused, told to end the round's issue" 3 "$RC"
+has "R13 control ... as wip, with the end command" "issue SPL-102 is still wip" "$(cat "$T_TMP/e")"
+: >"$RV_LOG"
+rv c-103 SPL-103 SPL-103 'SPL-103 planner peer of round 9' $'Issue-Role: shared\nAuthor: c-275@box-b'
+gate "$T_SCRIPTS" c-103
+eq "R14 Issue-Role: shared on the placed key, no review heading: exits" 0 "$RC"
+has "R14 ... the line names the owner from Author:" "issue gate: SPL-103 is c-275's, this lane only reviews it" "$(cat "$T_TMP/e")"
+rv c-104 SPL-104 SPL-104 'SPL-104 planner peer of round 9' 'Issue-Role: shared'
+gate "$T_SCRIPTS" c-104
+eq "R15 Issue-Role: shared, no Author: line: exits" 0 "$RC"
+has "R15 ... naming the owning lane" "issue gate: SPL-104 is the owning lane's" "$(cat "$T_TMP/e")"
+rv c-105 SPL-105 '' 'SPL-105 planner peer of round 9' 'Issue-Role: shared'
+gate "$T_SCRIPTS" c-105
+eq "R16 Issue-Role: shared on a key the lane filed (no origin): refused" 3 "$RC"
+rv c-106 SPL-106 SPL-106 'SPL-106 planner peer of round 9' $'Issue-Role: shared\nAuthor: c-106@sat'
+gate "$T_SCRIPTS" c-106
+eq "R17 Issue-Role: shared but the Author: is the lane itself: refused" 3 "$RC"
+rv c-107 SPL-107 SPL-107 'SPL-107 widget work' "$RV_A"
+gate "$T_SCRIPTS" c-107
+eq "R18 an id-less Author: line, heading is no review: refused" 3 "$RC"
+has "R18 ... by the issue gate" "issue SPL-107 is still wip" "$(cat "$T_TMP/e")"
+eq "R14..R15 ... the owners' issues are untouched: no hub call" 0 "$(grep -c 'SPL-10[34]' "$RV_LOG")"
 unset LI_HUB_STATUS_CMD
 t_done

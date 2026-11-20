@@ -14,6 +14,7 @@
 # A workspace lane (a `Workspace: <tenant>` brief line, a row in the box map
 # workspace-repos.tsv; owner HUM-10 msgs ca8a036d, dbead7a1) files and ends
 # its issue in that workspace, as the map's desk, no csi-spl spec, no post.
+# A lane that only reviews or shares its placed key cannot end it (SPL-6099).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -896,6 +897,28 @@ run AGENT_ID=c-123 BRIEF="$T/o-self.md" DESC_COPY="$T/o3.md" ISSUE_GET="$GET2" D
 run AGENT_ID=c-123 BRIEF="$T/o-key.md" DESC_COPY="$T/o4.md" ISSUE_GET= DRY_RUN=0
 [[ $rc -eq 0 && ! -e "$T/o4.md.update" ]] && pass "origin: no answer from the hub writes no description" || fail "origin empty get: $(cat "$T/o4.md.update" 2>&1)"
 rm -f "$S/c-123/lifetime/origin-issue"
+
+# SPL-6099: a seat that only shares its round's issue (m-484 / m-486 ended
+# SPL-6081 / SPL-6080 diss at their exit while the rounds' rows were live): its
+# end is refused in one line naming the owner, nothing called, no issue-end.
+mkdir -p "$S/m-486/lifetime"
+echo SPL-6080 >"$S/m-486/lifetime/issue"; echo SPL-6080 >"$S/m-486/lifetime/origin-issue"
+printf '%s\n' '# Lane brief: bug round 29 (b29) plan - the PANEL seat, mistral (cross-vendor doc review, one task)' '' 'Issue: SPL-6080' \
+  'Author: the planner seat (claude, placement `c002-bug-round-29-planner`; its id comes with its first message)' >"$S/m-486/lifetime/brief.md"
+run AGENT_ID=m-486 LANE_ISSUE_OP=end LANE_ISSUE_REASON='panel seat done' DRY_RUN=0
+[[ $rc -ne 0 && ! -s "$T/calls.log" && ! -e "$S/m-486/lifetime/issue-end" ]] &&
+  grep -q "FATAL refused, nothing changed: SPL-6080 is the planner seat's, lane m-486 only reviews or shares it" "$T/o" &&
+  pass "end of a round's issue by its panel seat: refused naming the owner, nothing called" || fail "shared end (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
+printf '%s\n' '# Brief: planner peer of round 9' '' 'Issue: SPL-6080' 'Issue-Role: shared' 'Author: c-275@box-b' >"$S/m-486/lifetime/brief.md"
+run AGENT_ID=m-486 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_LANDED_REPO=x LANE_LANDED_SHA=abcdef1 DRY_RUN=0
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q "FATAL refused, nothing changed: SPL-6080 is c-275's, lane m-486" "$T/o" &&
+  pass "end (done too) with Issue-Role: shared: refused naming the Author: lane" || fail "shared end done (rc=$rc): $(cat "$T/o")"
+# CONTROL: the same seat's own filed key (no origin-issue) ends as any lane.
+rm -f "$S/m-486/lifetime/origin-issue"
+run AGENT_ID=m-486 LANE_ISSUE_OP=end LANE_ISSUE_REASON='panel seat done' DRY_RUN=0
+[[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-6080|--status|diss|' "$T/calls.log" &&
+  pass "control: no origin-issue (the lane filed it): the end goes through" || fail "shared control (rc=$rc): $(cat "$T/o")"
+rm -rf "$S/m-486"
 
 echo "spl-lane-issue: $fails failure(s)"
 exit "$fails"

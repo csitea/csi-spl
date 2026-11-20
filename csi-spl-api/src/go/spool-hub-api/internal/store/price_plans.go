@@ -157,6 +157,7 @@ func (p PricePlan) QuoteMonth(humans, vmCostMicros int64) (PriceQuote, error) {
 
 // VMDay is one UTC day of a private VM's cloud cost (spec 181 G5, row B4's
 // reader), drawn at At.
+// Day is read in UTC: a local midnight east of UTC names the day before.
 type VMDay struct {
 	VM         string
 	Day        time.Time

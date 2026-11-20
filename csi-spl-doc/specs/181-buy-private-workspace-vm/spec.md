@@ -321,7 +321,7 @@ On origin/master `17f0d7b00`, 2026-11-19, n = 1 per command.
 | the Agent keys page | Implemented | `csi-spl-wui/src/pages/tenant-settings/agent-keys.vue` |
 | the claude self sign-in | Implemented, behind its switch | `csi-spl-orc/src/bash/run/spl-ws-claude-signin.func.sh` (159 T8); test `csi-spl-orc/src/bash/tests/ws-claude-signin.tst.sh` |
 | `key_source` on the ledger | Implemented | rdb `0174`, `0175_usage_key_source_no_default.sql`; `internal/store/usage_events.go` |
-| a `byok` or private-VM plan kind, `price_plans` | Planned (v0.3.1: B1 builds `price_plans`, kind `private_vm`, rdb 0302) | `git grep -l "'byok'"` and `git grep -l price_plans` (api, orc, iac, rdb, wui, cnf) -> no file |
+| a `byok` or private-VM plan kind, `price_plans` | Planned (v0.3.1: B1 builds `price_plans`, kind `private_vm`, rdb 0302) | `git grep -l "'byok'"` and `git grep -l price_plans` (api, orc, iac, rdb, wui, cnf) -> no file, measured before v0.3.1 (B1 adds rdb `0302_private_workspace_price.sql` and `internal/store/price_plans.go`) |
 | the pricing gate (`pricing_not_ready`) | Planned | `git grep -l pricing_not_ready` (same trees) -> no file |
 | reading cost from the billing export | Partial | `csi-spl-iac/src/bash/run/gcp-billing-export-setup.func.sh` (DRY_RUN=0 is the owner's), `spl-estate-cost-read.func.sh`; no per-VM-of-a-workspace read |
 

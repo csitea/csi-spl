@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Spec 181 row B1 (rdb 0302): the private-workspace price on both drivers.
@@ -64,6 +66,39 @@ func TestPricePlanTokenLineRefusedByRdb(t *testing.T) {
 	} {
 		if _, err := pg.execTenant(ctx, tenant, q, tenant); pgCode(err) != "23514" {
 			t.Errorf("%s: %v, want a CHECK refusal (23514)", q, err)
+		}
+	}
+}
+
+// TestPricePlanNoTokenCheckAnyCase: the no-token CHECK of rdb 0302 holds a
+// later widening of the line list in any case. The line list is dropped in a
+// rolled-back transaction, so 'TOKEN' and 'LLM_X' reach that CHECK.
+// RED CONTROL: without lower() in the CHECK both are written.
+func TestPricePlanNoTokenCheckAnyCase(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	tenant := newTenant(t, pg)
+	if err := seedPricePlan(ctx, pg, tenant); err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range []string{"TOKEN", "LLM_X", "Ai_Token_Resale"} {
+		tx, err := pg.pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = tx.Exec(ctx, `ALTER TABLE price_plan_lines DROP CONSTRAINT price_plan_lines_line_check`)
+		if err == nil {
+			_, err = tx.Exec(ctx, `SELECT set_config('app.tenant_id', $1, true)`, tenant)
+		}
+		if err != nil {
+			tx.Rollback(ctx) //nolint:errcheck
+			t.Fatal(err)
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO price_plan_lines (tenant_id, line, margin_pct) VALUES ($1, $2, 33)`, tenant, line)
+		tx.Rollback(ctx) //nolint:errcheck
+		var pe *pgconn.PgError
+		if !errors.As(err, &pe) || pe.Code != "23514" || pe.ConstraintName != "price_plan_lines_no_token_check" {
+			t.Errorf("line %q past a widened list: %v, want 23514 by price_plan_lines_no_token_check", line, err)
 		}
 	}
 }

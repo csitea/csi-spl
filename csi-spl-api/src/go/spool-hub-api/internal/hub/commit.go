@@ -62,7 +62,7 @@ func (s *Server) pushUnacked(ctx context.Context, x *session, sentBefore time.Ti
 	s.relayDue.loops.ok(&s.o.Log, "unacked rows", x.tenant, x.box)
 	n := 0
 	for _, d := range q {
-		if !x.accepts(wire.InnerVersion(d.Env)) {
+		if !x.acceptsEnv(d.Env) {
 			continue
 		}
 		agents, ok := s.recvAgents(ctx, x, d.Env)

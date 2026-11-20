@@ -148,7 +148,7 @@ The owner, 2026-09-25 18:48:43Z, PRD #spool-hub-devel topic `db0f9d71`, verbatim
 
 ## Message kinds: seven more (SPL-5884)
 
-**Status**: Partial: T020 (`rdb/0300_message_kinds_seven.sql`, test `api/internal/store/message_kinds_seven_test.go`) and T021 (`msg.validKinds` holds the 13; exception E1 in `api/internal/hub/human_post_guard.go` `dmOpensKind`) are built, SPL-6055; T022-T027 Planned. The owner answered K.8 (Q1-Q5) · **Issue**: SPL-5884 ·
+**Status**: Partial: T020 (`rdb/0300_message_kinds_seven.sql`, test `api/internal/store/message_kinds_seven_test.go`) and T021 (`msg.validKinds` holds the 13; exception E1 in `api/internal/hub/human_post_guard.go` `dmOpensKind`) are built, SPL-6055; T022 (the `is:` enum holds the 13 kinds, test `api/internal/search/kinds_test.go`, `api/internal/store/search_kinds_test.go`) and T023 (hello feature `kinds13`, `api/internal/hub/kinds13.go` `acceptsEnv` at all 5 accepts sites, test `api/internal/hub/kinds13_test.go`) are built, SPL-6094; T024-T027 Planned. The owner answered K.8 (Q1-Q5) · **Issue**: SPL-5884 ·
 **Epic**: SPL-2403 · **Discussion**: t1 #spool-hub-ui topic `f4165bc3`.
 
 Spec 033 holds this section because the issue names it. The kind itself is
@@ -355,7 +355,8 @@ lacks v:2. T023 adds:
 - `session.acceptsKind(k)`: true for the old six, and true for any kind when
   the box announced `kinds13`.
 - At every site that calls `x.accepts` (`api/internal/hub/commit.go:65`,
-  `backfill.go:209`, `fallback.go:88`, `message_move_notice.go:97`), a frame
+  `backfill.go:209`, `fallback.go:88`, `message_move_notice.go:97`, and the
+  live push `ws.go:479`, which this list first missed; T023 found it), a frame
   whose inner kind the box cannot read is skipped. It stays queued, the same
   as a v:2 frame for a v:1 box. It is delivered once the box runs the new
   binary (`do_spl_spool_refresh`). Nothing is dropped.
@@ -458,4 +459,4 @@ All five are answered: owner HUM-10, t1 topic `f4165bc3`, msg
 | Q4 | May desk posts (`do_spl_desk_post`, `do_spl_desk_reply`) use the 7? | no: only the menu and `spool send` set them | yes: widen `DESK_KIND` (`spl-desk-post.func.sh:62`, `spl-desk-reply.func.sh:529`) | **B** | K.3 exception E3, desk post and desk reply only (`do_spl_fleet_notice` is not named, so it is unchanged); built in T024 (f) |
 | Q5 | Picker letters for bug and docs? | `U` (bUg) and `O` (dOcs) | `G` (buG) and `C` (doCs) | **A** | the default: no change; K.2 and T025 already use `U` and `O` |
 
-<!-- version: 0.3.2 · updated: 2026-11-20 · last-edit: 2026-11-20T12:51:15Z -->
+<!-- version: 0.3.3 · updated: 2026-11-20 · last-edit: 2026-11-20T19:50:00Z -->

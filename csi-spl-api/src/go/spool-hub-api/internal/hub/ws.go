@@ -476,7 +476,7 @@ func (s *Server) drain(ctx context.Context, x *session) {
 // returns the row to queued. Claim-before-push makes a concurrent drain and a
 // live send unable to deliver the same row twice.
 func (s *Server) push(ctx context.Context, x *session, msgID string, env []byte) bool {
-	if !x.accepts(wire.InnerVersion(env)) {
+	if !x.acceptsEnv(env) { // kinds13.go: the kind too (spec 033 K.4.3, T023)
 		// A reader that would refuse this v drops it with a log line only,
 		// after the row is already sent: silent loss. Keep it queued; the box's
 		// next hello from an upgraded binary drains it (specs/020 migration.md §3).

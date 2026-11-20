@@ -134,6 +134,12 @@ const TCommit = "commit"
 // hub expects no ack from the box and records none.
 const FeatureLiveAck = "live_ack"
 
+// FeatureKinds13 is the hello feature of a box client whose msg.Validate
+// takes all 13 message kinds (spec 033 K.4.3, T023). The hub keeps a frame of
+// a kind beyond the first six queued for a box without it: an old reader
+// refuses the frame and never commits it.
+const FeatureKinds13 = "kinds13"
+
 // TAck is the box's live ack of one delivery to one agent (spec 053 §4.2):
 // MsgID the delivered message, Agent the local agent poked, Outcome what the
 // poke did. Fire and forget: the hub sends no reply. Not the spec 059 commit
@@ -1030,6 +1036,21 @@ func InnerVersion(raw []byte) int {
 		return 0
 	}
 	return e.Msg.V
+}
+
+// InnerKind is the inner msg's kind without validating the rest; "" when the
+// envelope or its msg does not parse. v:1, v:2 and the sealed v:3 all carry
+// the kind in clear.
+func InnerKind(raw []byte) string {
+	var e struct {
+		Msg struct {
+			Kind string `json:"kind"`
+		} `json:"msg"`
+	}
+	if json.Unmarshal(raw, &e) != nil {
+		return ""
+	}
+	return e.Msg.Kind
 }
 
 // InnerMsgID is the inner msg's msg_id without validating the rest; "" when

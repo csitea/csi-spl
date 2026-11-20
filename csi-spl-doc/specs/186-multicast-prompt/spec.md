@@ -1,13 +1,18 @@
 # Spec 186: Multicast Prompt
 
-Status: **Draft v0.4, answered, two owner questions open (R2, R3)**
-(2026-11-20). v0.1 `83295f6d1`; v0.2
-`b53947cee` folded the spec review's W1-W6 and N1; v0.3 (`847bab6e1`) folds
+Status: **Draft v0.5, every question answered** (2026-11-20). v0.1
+`83295f6d1`; v0.2
+`b53947cee` folded the spec review's W1-W6 and N1; v0.3 (`a86daa6c5`) folds
 the owner's answers to form `e864b1cb` (Q1-Q5, Q7-Q11, msg `dcf298b8`) and
 the Q6 chat answer (msg `1b95d0ec`), and drops every part only an unchosen
-answer needed; v0.4 folds the v0.3 delta review (c-240, msg `9598398d`:
-W1-W5, N1-N6) and leaves R2 (the cap) and R3 (the phone entry) open: the
-holder put both to the owner as form `a07226d8` (t1 `032d8010`).
+answer needed; v0.4 (`cbbc11996`) folds the v0.3 delta review (c-240, msg
+`9598398d`: W1-W5, N1-N6) and put R2 (the cap) and R3 (the phone entry) to
+the owner as form `a07226d8` (t1 `032d8010`); v0.5 folds the owner's answers
+(msg `ee9b2558`: R2 **QTA**, R3 **ATT**), drops the target cap with every
+part only it needed (`hub.multicast.max_targets`, `multicast_too_many`,
+`multicast_max`), and folds the v0.4 review's notes (c-240, msg
+`d12953b2`: N1 the R2/R3-dependent spots, N2 the box-lock filter's row
+type, 7.1.2).
 Lane `c-098` (`claude`, backup for `specs_and_docs`: no agy cli on
 this box). Placement `c002-s-multicast-prompt-spec`.
 Epic: **SPL-2403**. Issue: **SPL-6058**. Class: `feature`. Kind: `specs_and_docs`.
@@ -22,8 +27,10 @@ multicast loop, 4.8).
 Line references were measured on `origin/master` `adcd75dbb` (v0.1) and
 re-checked on `4c4e97f75` (v0.3): since `adcd75dbb` the only change in the
 files cited here is `csi-spl-wui/src/public/help-md/how-to-post.md`. The
-references v0.4 adds (the box lock, the phone dock, `welcome`, the rdb
-head) were read on `7df5cecfc`.
+references v0.4 adds (the box lock, the phone dock, the rdb head) were read
+on `7df5cecfc`; the ones v0.5 adds (the quota, the Attach button, the
+phone e2e tests that tap it, `keepTopics`, `TopicRow.Parties`) on
+`2500f49fc`.
 
 ## 0. The owner's words (HUM-10, t1 topic 032d8010)
 
@@ -35,6 +42,11 @@ Msg `1b95d0ec` (answer to Q6, "How many topics at most per multicast?"),
 verbatim: "well I should be able to specify regexes for the topics titles
 and * should be multicast to all" (as the dispatch holder relayed the hub
 row, c-002 msg `1ab08343`; the topic is not readable from this box)
+
+Msg `ee9b2558` (20:51:09Z, form `a07226d8`), as the dispatch holder
+c-003@sat relayed it (msg `37cdfda8`): "Answer 1: ATT — Inside the Attach
+sheet; the dock row stays Back | Attach | Send" and "Answer 2: QTA — No cap:
+only the existing per-sender quota counts each copy".
 
 Read as: in the composer, the author writes ONE text (with files, if any),
 picks SEVERAL topics, from any channels of the same workspace, by ticking
@@ -57,14 +69,18 @@ of them. Nothing named multicast exists today:
 | Q9 | Some targets refuse: what happens? | **ALL** — nothing is posted unless every target passes a pre-check |
 | Q10 | Does it compose with loops (spec 182)? | **CMP** — also a "multicast loop": one loop whose prompt goes to several topics |
 | Q11 | Where is it offered? | **BTH** — desktop and the phone dock |
+| R2 | A target cap? (form `a07226d8`, msg `ee9b2558`) | **QTA** — no cap: only the existing quota counts each copy |
+| R3 | The phone entry? (form `a07226d8`, msg `ee9b2558`) | **ATT** — inside the Attach sheet; the dock row stays Back \| Attach \| Send |
 
 Dropped with the unchosen answers: saved target groups (Q1 GRP/BTH), the
 "new topic in #channel" row (Q2 NEW), unlinked copies (Q3 IND), the gathered
 "Multicast" view (Q4 GTH), the MEN/NON agent rules (Q5), DM targets (Q8),
-the send-what-passes path (Q9 SND), the fixed caps 10/25/50 (Q6).
+the send-what-passes path (Q9 SND), the fixed caps 10/25/50 (Q6), the cnf
+guard and the confirm above N (R2 CNF/ASK), the topic-header button and the
+fourth dock button (R3 HDR/DCK).
 
-One reading this spec decides (the v0.3 review confirmed it), and two
-questions for the owner:
+One reading this spec decides (the v0.3 review confirmed it), and the two
+owner answers to the v0.4 questions:
 
 - **R1, decided.** `*` covers every channel topic the author may post in,
   the lobby and `general` included ("* should be multicast to all" plus Q8
@@ -72,35 +88,32 @@ questions for the owner:
   issue's comment thread, never a topic of a list
   (`TopicQuery.NoIssues`, `internal/store/view.go:43-45`), so a title
   pattern cannot name it and the picker cannot tick it.
-- **R2, owner question: a target cap?** The owner dropped the fixed caps
-  (Q6) and asked that `*` go to all. The monthly message quota stays in
-  every case: each copy counts as one message (`admit`, 3.2 step 5), so a
-  multicast larger than the remaining quota is refused whole (Q9 ALL on
-  the existing quota, 4.2). The open part is a guard beyond the quota, and
-  the loop case: a `*` multicast loop with `daily_at` sends one `kind:
-  task` per target per fire, while 182's stop cap counts fires (4.8 step
-  4). No topic count per workspace is measured, so no guard value is
-  either. **Owner question open**, form `a07226d8`: **QTA** no cap but the
-  quota; **CNF** a hub cnf guard `hub.multicast.max_targets` N, above which
-  the whole multicast is refused; **ASK** a confirm above N ("Send to 1240
-  topics?"). The sections below are written for CNF with N = 1000 behind
-  the one cnf key, and marked "R2 open"; QTA removes the key and its
-  checks, ASK puts a WUI confirm in place of the refusal. The answer is
-  folded before any build lane takes M2, M3 or M4.
-- **R3, owner question: the phone entry** (v0.3 review W2). The phone dock
-  row is Back | Attach | Send by owner order (topic `d4bc9db4`,
-  `MessageComposer.vue:270-275` on `7df5cecfc`), and
+- **R2, decided: QTA, no target cap.** Nothing counts targets: no cnf key,
+  no cap refusal, no limit on the `welcome` frame. The one limit is the
+  existing monthly message quota, and each copy counts as one message in
+  it (`admit`, 3.2 step 5), so a multicast larger than the remaining quota
+  is refused whole at the check (Q9 ALL on the existing quota, 4.2). The
+  form's words say "per-sender quota"; the quota that exists is per
+  workspace: `messageQuota(ctx, tenant, msgID)` counts
+  `CountMessagesSince(ctx, tenant, ...)` (`internal/hub/ws.go:918-938` on
+  `2500f49fc`), and no per-sender message quota exists
+  (`git grep -n -i -E 'sender.?quota|quota.?per.?sender' origin/master -- csi-spl-api/src csi-spl-cnf | wc -l`
+  -> 0). This spec reuses that quota as it is and adds none. A `*`
+  multicast loop with `daily_at` sends one `kind: task` per target per
+  fire, each counted in that quota, while 182's stop cap counts fires (4.8
+  step 4).
+- **R3, decided: ATT, the Attach sheet** (v0.3 review W2). The phone dock
+  row stays Back | Attach | Send by owner order (topic `d4bc9db4`,
+  `MessageComposer.vue:270-275`), and
   `csi-spl-wui/tests/e2e/dock-buttons.test.mjs:158` and
-  `tests/unit/touch-ui.test.mjs:235-238` assert that order. Q11 BTH asks
-  for the phone too. **Owner question open**, form `a07226d8`: **ATT**
-  Attach opens a small sheet "Files" / "Send to several topics" instead of
-  the OS picker at once (one tap more for a photo); **HDR** an icon button
-  in the topic header's second row (`FeedHeader.vue`, beside the filter
-  and sort; the dock row unchanged); **DCK** a fourth dock button, Back |
-  Attach | Multicast | Send (changes the owner's row and both tests). The
-  sections below are written for HDR, the one that leaves the owner's row
-  and its tests as they are, and marked "R3 open"; the answer is folded
-  before any build lane takes M3 or M7.
+  `tests/unit/touch-ui.test.mjs:235-238` keep asserting that order. When
+  the composer is docked, Attach opens a small sheet of two rows, "Files"
+  and "Send to several topics", instead of the OS picker at once: "Files"
+  opens the OS picker as Attach does today (the tap on the row is the user
+  gesture the file input needs), so a photo costs one tap more. Off the
+  dock (desktop) Attach is unchanged and the multicast button sits beside
+  it (4.1). Three phone e2e tests that tap Attach and wait for the OS
+  picker then tap "Files" too (M3).
 
 ## 2. Terms
 
@@ -127,7 +140,9 @@ questions for the owner:
   catalogue `topicChoices`, `topic-in.mjs:80`). There is no way to name two
   topics. On a phone the composer dock is `MessageComposer.vue` itself
   (`--composer-dock-h`, `MessageComposer.vue:995`), and its button row is
-  the owner's Back | Attach | Send (R3).
+  the owner's Back | Attach | Send (R3). Attach calls `openFiles`
+  (`MessageComposer.vue:288-300`, `useComposerFiles`), which opens the
+  hidden file input at once, docked or not.
 - The store's `send` (`csi-spl-wui/src/stores/channel.ts:540`) calls
   `sendLive` (`:640-696`): files become refs once (`toFileRefs`), an
   optimistic row is drawn under a client-minted `msg_id`, one frame goes over
@@ -233,7 +248,8 @@ carries. Limits: body 64 KiB, 16 files (`internal/msg/msg.go:42-43`).
 1. **Composer.** On the desktop, a "Send to several topics" button beside
    the attach button (`MessageComposer.vue:288-300`) opens the picker; it
    is not rendered when the composer is docked. On a phone the entry is
-   R3's (4.6). The text and the picked files stay in the composer.
+   the Attach sheet's "Send to several topics" row (R3 ATT, 4.6). The text
+   and the picked files stay in the composer.
 2. **Picker** (Q1 MSL, Q8 CHN, 7.1.6). One dialog: a filtered list of the
    topics in scope (4.2: every channel the author may read and post in),
    grouped by channel,
@@ -277,11 +293,11 @@ carries. Limits: body 64 KiB, 16 files (`internal/msg/msg.go:42-43`).
   the explicit list. The send then names each target's `task_id` (7.1.1),
   so what is posted is exactly the list the author saw. A topic opened
   after the last check is not a target.
-- **Limits**: more targets than the tenant's remaining monthly messages
-  (`messageQuota`) refuse the whole check with the quota token; under R2 CNF
-  (R2 open), so do more targets than `hub.multicast.max_targets`, with
-  `multicast_too_many`. Both say the count, so the author narrows the
-  patterns.
+- **Limit** (R2 QTA): no target count. More targets than the tenant's
+  remaining monthly messages (`messageQuota`) refuse the whole check with
+  the quota token, saying the count and the remaining messages, so the
+  author narrows the patterns. An unlimited quota (`MessagesPerMonth` <= 0)
+  refuses nothing.
 
 ### 4.3 Send
 
@@ -292,9 +308,9 @@ carries. Limits: body 64 KiB, 16 files (`internal/msg/msg.go:42-43`).
 2. **Hub, per frame.** The whole chain of 3.2, unchanged, plus the
    multicast checks of 7.1.1: the target topic exists, is a channel topic
    and the author may read it (`multicast_no_topic`, Q2 EX, Q8 CHN); the
-   `mc_id` belongs to this author (`bad_json`); the stored copies of this
-   `mc_id` stay within the cap (`multicast_too_many`). The copy is stored
-   with `mc_id` (Q3 LNK).
+   `mc_id` belongs to this author (`bad_json`). No count of the copies of
+   one `mc_id` (R2 QTA): each copy passes the quota in `admit` as any
+   post. The copy is stored with `mc_id` (Q3 LNK).
 3. **Fan-out, per copy** (Q5 NRM): as any post of the author in that topic:
    `topicReplyAgent`, the channel's agents via `routeChannel`, a leading
    @mention dispatch; a paused topic's agents get nothing (spec 179); an
@@ -320,11 +336,15 @@ replies; `mc_id` is on neither the view row nor the `message` frame.
 
 ### 4.6 Phone (Q11 BTH)
 
-**R3 open.** As written for HDR: an icon button in the topic header's
-second row (`FeedHeader.vue`), rendered only when the composer is docked,
-and the dock row stays Back | Attach | Send. On a phone the picker opens
-as a full-screen sheet over the dock, the Patterns field above the list,
-the Send button fixed at its foot; the result lines replace the list.
+R3 ATT. The dock row stays Back | Attach | Send. When the composer is
+docked, a tap on Attach opens the Attach sheet (anchored above the dock,
+closed by a tap outside it or Back) with two rows: "Files", which opens the
+OS picker as Attach does today, and "Send to several topics", which opens
+the picker. No camera row: a photo is still taken through the OS picker
+(topic `d4bc9db4`; `touch-ui.test.mjs:230-231` bans a capture input). On a
+phone the picker opens as a full-screen sheet over the dock, the Patterns
+field above the list, the Send button fixed at its foot; the result lines
+replace the list.
 
 ### 4.7 Not changed
 
@@ -335,7 +355,8 @@ a normal post for loops, search, export and archive.
 
 A spec 182 loop whose prompt goes to several topics. It needs 182's loops
 on master first: `git grep -n topic_loops origin/master -- csi-spl-rdb csi-spl-api/src | wc -l`
--> 0 on `4c4e97f75`.
+-> 0 on `4c4e97f75`, 40 on `2500f49fc` (182's L1, `0301_topic_loops.sql`,
+landed; M10 also needs 182's L2, section 6).
 
 1. **Set.** In 182's "Discussion loops" dialog (182 4.1), on a topic the
    author may post in, a "Send to several topics" switch shows the selector
@@ -355,8 +376,9 @@ on master first: `git grep -n topic_loops origin/master -- csi-spl-rdb csi-spl-a
    `(loop_id, the fire's seed, target task_id)`, the seed being 182 4.3
    step 3's.
 4. **Stop.** As 182 4.5, from the home topic; the cap counts fires, not
-   copies, so a fire of a `*` loop sends one message per target (R2 puts
-   this to the owner).
+   copies, so a fire of a `*` loop sends one message per target, each
+   counted in the monthly quota; a fire whose targets exceed the remaining
+   quota fails whole at step 2's check (R2 QTA).
 
 ## 5. Reused, and the gaps
 
@@ -373,9 +395,9 @@ nothing, and is where patterns become task ids.
 | gap | what is missing | row |
 |---|---|---|
 | G1 | the column that links the copies | M1 |
-| G2 | `mc_id` on the frame, the existing-channel-topic check, the cap, the author check, the store write | M2 |
-| G3 | the check frame: selector resolution (patterns, `*`), the per-target dry run, the limits | M4 |
-| G4 | the composer button, the picker with the Patterns field, the N sends, the result list with Retry | M3 |
+| G2 | `mc_id` on the frame, the existing-channel-topic check, the author check, the store write | M2 |
+| G3 | the check frame: selector resolution (patterns, `*`), the per-target dry run, the quota for the whole count | M4 |
+| G4 | the desktop button, the phone Attach sheet, the picker with the Patterns field, the N sends, the result list with Retry | M3 |
 | G5 | e2e | M7 |
 | G6 | translations, agy's review | M8 |
 | G7 | contract and user docs | M9 |
@@ -392,13 +414,13 @@ dropped with Q4 GTH and Q1 GRP; the numbers are not reused.)
 
 | row | what | files | depends on | done test | red control |
 |---|---|---|---|---|---|
-| M1 | rdb: `mc_id` and its index | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_messages_mc_id.sql` (head `0300_message_kinds_seven.sql` on `7df5cecfc`, 0299 unclaimed; 182's L1 review branch adds `0301_topic_loops.sql` and spec 185's F1 plans one more, so 0302 or later: re-check) | none | applies twice on a throwaway postgres; `\d messages` lists `mc_id uuid` nullable and the partial index | a migration test asserting `mc_id` fails before the file exists |
-| M2 | hub: the send-time multicast checks and store | `internal/hub/wui.go` (`wuiIn.McID`, one `wuiMulticast` step after `wuiIDs`), new `internal/hub/wui_multicast.go` + `wui_multicast_test.go`, `internal/store` (postgres + memory: write `mc_id`, `CountMulticast(tenant, mc_id)`, `MulticastAuthor`), cnf `hub.multicast.max_targets` in `csi-spl-cnf/csi-spl/all.env.yaml` (R2 CNF, R2 open), `multicast_max` on the `welcome` map (`internal/hub/wui.go:336`) | 7.1.1, 7.1.3; M1's file for the postgres test | Go tests on postgres: the `welcome` frame carries `multicast_max` = the cnf value; N frames with one `mc_id` into N readable topics of different channels store N rows with that `mc_id`; each copy routes as 3.2 step 4 (Q5 NRM); an @agent copy into a humans-only channel is a plain post; the (max+1)th copy answers `multicast_too_many`; a resend of a stored copy re-acks, also when that copy is the max-th one (the resend of a stored `msg_id` is exempt from the cap, as from `wuiArchivedRefusal` and `messageQuota`); with the monthly quota set to the stored count + 2, 4 copies store 2 and the other 2 answer the quota token 429; an unpaid tenant answers 402 on every copy; of 3 targets where the middle one is an existing topic of a members-only channel the author is not in, or a DM topic, the first and third are stored and the middle one answers `multicast_no_topic` 404, the same token and detail as an unknown `task_id`, and its error frame names only its own `msg_id` | an unknown `task_id` with `mc_id` must answer `multicast_no_topic` (without the check it opens a topic); a DM topic the author is an end of must answer `multicast_no_topic` (Q8 CHN); a second author reusing the `mc_id` must answer `bad_json`; remove the stored-`msg_id` exemption: the max-th resend answers `multicast_too_many` and the test fails; answer `forbidden` for an unreadable topic: the members-only test fails (it must not say the topic exists); drop `multicast_max` from `welcome`: the welcome test fails, and so does M3's mock contract test |
-| M3 | WUI: button, picker, N sends, results | `components/MessageComposer.vue` (the desktop button, not rendered when docked), `components/FeedHeader.vue` (the phone entry, R3 HDR, R3 open), new `components/MulticastPickerDialog.vue`, new `composables/useMulticastSend.ts`, `stores/channel.ts` (`sendMulticast`, one `sendLive` per target), `utils/spool-client.mjs` + `spool-client-mock.mjs` (`mc_id`, `multicastCheck`), `i18n/locales/*.json` (en + machine drafts) | 7.1.1, 7.1.2, 7.1.4, 7.1.6 | a unit test of the picker rows (channel topics grouped, the lobby and `general` present, `issues` and DM topics absent); a unit test of `useMulticastSend` on the mock: the patterns go to the check verbatim and the WUI evaluates none, Send is disabled while any checked target is not ok, files uploaded once, N frames with one `mc_id` and N `msg_id`s, exactly the check's `task_id`s; the mock socket drops after 2 of 5 frames are acked: the 2 show sent, the 3 others show "waiting for network" (`sendLive` returns `waitForNetwork`, `channel.ts:681,686`), the composer keeps the text until all 5 are acked, and on reconnect the 3 go again under their own `msg_id`s; a send-time refusal lists that target with Retry under the same `msg_id`; a component test at a 390 px viewport opens the picker from the topic header; `dock-buttons.test.mjs` and `touch-ui.test.mjs` stay green unchanged (the dock row is Back | Attach | Send); the mock contract reads `multicast_max` from `welcome`; an answer with an older `req_id` than the newest sent is dropped; `pnpm run typecheck`; i18n gates | make the mock check refuse one target: Send must stay disabled; evaluate a pattern in JS: the "verbatim" test sees a filtered list and fails; clear the composer on the first ack: the socket-drop test fails; mint a new `msg_id` on the reconnect resend: 7 frames stored, not 5, and the test fails; render the button in the dock: `dock-buttons.test.mjs:158` fails |
-| M4 | hub: the check frame | `internal/hub/wui_multicast.go` (`multicast_check` handler, `resolveMulticast`), `wui_multicast_check_test.go` | 7.1.2; `ViewTopics` (3.4) | Go tests on postgres: `*` in a tenant with topics in a public channel, a members-only channel the author is in, one the author is not in, the lobby, `issues`, an archived topic and a DM returns exactly the first two and the lobby one; a topic in a channel the author reads but which touches a box locked to someone else (row B5) is absent under `*` and under `.`, and its title is in no answer; ` * ` (spaces round the star) resolves as `*`; a line of spaces is dropped; `^rel` matches "Release 2.0" and not "pre-release"; two patterns and a tick are unioned and deduplicated; a tenant with 450 topics (more than two pages of 200) resolves all 450 under `*`; a bad pattern answers `multicast_bad_pattern` naming its line; max+1 targets, and one target more than the remaining quota, each answer the whole check refused with the count; an archived ticked topic comes back `ok: false` `topic_archived`; no check stores anything (`messages` count unchanged); with one check in flight on a connection, a newer `req_id` cancels it: the older gets no answer, the newer one answer | stop paging: the 450 test fails; drop `(?i)`: "release" does not match "Release" and the test fails; drop `NoIssues`: the `*` test sees the issue topic and fails; drop `keepTopics`: the box-lock test sees the hidden topic's title and fails; drop the trim: ` * ` compiles as a regex, misses the titles without a space, and the test fails |
-| M7 | e2e | new `csi-spl-wui/tests/e2e/multicast-prompt.test.mjs` | M3, M4 (mock) | on the generated bundle, mock-served: tick one topic and type `^release` matching two topics in another channel, see "Send to 3 topics", send once, the card appears in all three; a check that refuses one target keeps Send disabled with the reason shown; the same flow at a 390x844 viewport from the topic header, the dock row still `dock-back,attach,send` | the e2e fails when the button is absent |
+| M1 | rdb: `mc_id` and its index | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_messages_mc_id.sql` (head `0301_topic_loops.sql` on `2500f49fc`, spec 182's L1; spec 185's F1 plans one more, so 0302 or later: re-check) | none | applies twice on a throwaway postgres; `\d messages` lists `mc_id uuid` nullable and the partial index | a migration test asserting `mc_id` fails before the file exists |
+| M2 | hub: the send-time multicast checks and store | `internal/hub/wui.go` (`wuiIn.McID`, one `wuiMulticast` step after `wuiIDs`), new `internal/hub/wui_multicast.go` + `wui_multicast_test.go`, `internal/store` (postgres + memory: write `mc_id`, `MulticastAuthor`); no cnf key (R2 QTA) | 7.1.1, 7.1.3; M1's file for the postgres test | Go tests on postgres: N frames with one `mc_id` into N readable topics of different channels store N rows with that `mc_id`; each copy routes as 3.2 step 4 (Q5 NRM); an @agent copy into a humans-only channel is a plain post; 1200 copies of one `mc_id` with an unlimited quota all store (no cap, R2 QTA); a resend of a stored copy re-acks, also with the quota spent (`messageQuota` exempts a stored `msg_id`); with the monthly quota set to the stored count + 2, 4 copies store 2 and the other 2 answer the quota token 429; an unpaid tenant answers 402 on every copy; of 3 targets where the middle one is an existing topic of a members-only channel the author is not in, or a DM topic, the first and third are stored and the middle one answers `multicast_no_topic` 404, the same token and detail as an unknown `task_id`, and its error frame names only its own `msg_id` | an unknown `task_id` with `mc_id` must answer `multicast_no_topic` (without the check it opens a topic); a DM topic the author is an end of must answer `multicast_no_topic` (Q8 CHN); a second author reusing the `mc_id` must answer `bad_json`; add any count of the copies of one `mc_id`: the 1200 test fails; answer `forbidden` for an unreadable topic: the members-only test fails (it must not say the topic exists) |
+| M3 | WUI: button, Attach sheet, picker, N sends, results | `components/MessageComposer.vue` (the desktop button, not rendered when docked; docked, Attach opens the Attach sheet, R3 ATT), new `components/AttachSheet.vue`, new `components/MulticastPickerDialog.vue`, new `composables/useMulticastSend.ts`, `stores/channel.ts` (`sendMulticast`, one `sendLive` per target), `utils/spool-client.mjs` + `spool-client-mock.mjs` (`mc_id`, `multicastCheck`), `i18n/locales/*.json` (en + machine drafts); the three phone e2e tests that tap Attach and wait for the OS picker tap "Files" next (`tests/e2e/composer-buttons-bottom.test.mjs:121-128`, `mobile-rail-whole-icons.test.mjs:254-259`, `snackbar-top-mobile.test.mjs:137-140`, all on a 390 px touch viewport) | 7.1.1, 7.1.2, 7.1.4, 7.1.6 | a unit test of the picker rows (channel topics grouped, the lobby and `general` present, `issues` and DM topics absent); a unit test of `useMulticastSend` on the mock: the patterns go to the check verbatim and the WUI evaluates none, Send is disabled while any checked target is not ok, files uploaded once, N frames with one `mc_id` and N `msg_id`s, exactly the check's `task_id`s; the mock socket drops after 2 of 5 frames are acked: the 2 show sent, the 3 others show "waiting for network" (`sendLive` returns `waitForNetwork`, `channel.ts:681,686`), the composer keeps the text until all 5 are acked, and on reconnect the 3 go again under their own `msg_id`s; a send-time refusal lists that target with Retry under the same `msg_id`; a component test at a 390 px viewport: a tap on Attach opens the Attach sheet, "Files" opens the OS picker, "Send to several topics" opens the picker, a tap outside closes the sheet; off the dock a click on Attach opens the OS picker at once (no sheet); `dock-buttons.test.mjs` and `touch-ui.test.mjs` stay green unchanged (the dock row is Back \| Attach \| Send, no capture input); an answer with an older `req_id` than the newest sent is dropped; `pnpm run typecheck`; i18n gates | make the mock check refuse one target: Send must stay disabled; evaluate a pattern in JS: the "verbatim" test sees a filtered list and fails; clear the composer on the first ack: the socket-drop test fails; mint a new `msg_id` on the reconnect resend: 7 frames stored, not 5, and the test fails; render the button in the dock: `dock-buttons.test.mjs:158` fails; open the sheet off the dock: the desktop Attach test sees no OS picker and fails |
+| M4 | hub: the check frame | `internal/hub/wui_multicast.go` (`multicast_check` handler, `resolveMulticast`), `wui_multicast_check_test.go` | 7.1.2; `ViewTopics` (3.4) | Go tests on postgres: `*` in a tenant with topics in a public channel, a members-only channel the author is in, one the author is not in, the lobby, `issues`, an archived topic and a DM returns exactly the first two and the lobby one; a topic in a channel the author reads but which touches a box locked to someone else (row B5) is absent under `*` and under `.`, and its title is in no answer; ` * ` (spaces round the star) resolves as `*`; a line of spaces is dropped; `^rel` matches "Release 2.0" and not "pre-release"; two patterns and a tick are unioned and deduplicated; a tenant with 450 topics (more than two pages of 200) resolves all 450 under `*`; a bad pattern answers `multicast_bad_pattern` naming its line; 1200 targets with an unlimited quota are all `ok` (no cap, R2 QTA); one target more than the remaining quota answers the whole check refused with the quota token, the count and the remaining messages; an archived ticked topic comes back `ok: false` `topic_archived`; no check stores anything (`messages` count unchanged); with one check in flight on a connection, a newer `req_id` cancels it: the older gets no answer, the newer one answer | stop paging: the 450 test fails; drop `(?i)`: "release" does not match "Release" and the test fails; drop `NoIssues`: the `*` test sees the issue topic and fails; drop the box-lock filter (7.1.2): the box-lock test sees the hidden topic's title and fails; count the quota per target instead of once: the quota test refuses at the first target past it, not the whole check, and fails; drop the trim: ` * ` compiles as a regex, misses the titles without a space, and the test fails |
+| M7 | e2e | new `csi-spl-wui/tests/e2e/multicast-prompt.test.mjs` | M3, M4 (mock) | on the generated bundle, mock-served: tick one topic and type `^release` matching two topics in another channel, see "Send to 3 topics", send once, the card appears in all three; a check that refuses one target keeps Send disabled with the reason shown; the same flow at a 390x844 viewport through Attach, then the sheet's "Send to several topics", the dock row still `dock-back,attach,send` | the e2e fails when the desktop button or the sheet row is absent |
 | M8 | i18n: agy's final review | the 18 non-en locale files, the keys of 7.1.4 | M3 landed | agy review per the language rule; gates green | the untranslated-count gate (`i18n-untranslated.test.mjs`) |
-| M9 | docs | `csi-spl-doc/specs/005-spool-wui/spec.md` (an FR for the multicast send: FR-022: FR-020 is the last on `4c4e97f75` and spec 185 row F7 plans FR-021; re-check), `csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` (section 4: `mc_id` and its refusals; the `multicast_check` / `multicast_checked` frames; `multicast_max` on `welcome`), the user help for the composer (patterns and `*`) | 7.1 | `grep -c -e mc_id -e multicast_no_topic -e multicast_too_many -e multicast_bad_pattern -e multicast_check -e multicast_max csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` -> at least 6 (0 on `4c4e97f75`) | none automatic: no test parses the fields of `wui-live-ws.md`; the reviewer re-runs the grep with one name removed and must see the count drop |
+| M9 | docs | `csi-spl-doc/specs/005-spool-wui/spec.md` (an FR for the multicast send: FR-022: FR-020 is the last on `4c4e97f75` and spec 185 row F7 plans FR-021; re-check), `csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` (section 4: `mc_id` and its refusals; the `multicast_check` / `multicast_checked` frames), the user help for the composer (patterns and `*`, the phone's Attach sheet) | 7.1 | `grep -c -e mc_id -e multicast_no_topic -e multicast_bad_pattern -e multicast_check -e multicast_none csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` -> at least 5 (0 on `4c4e97f75`) | none automatic: no test parses the fields of `wui-live-ws.md`; the reviewer re-runs the grep with one name removed and must see the count drop |
 | M10 | rdb + hub + WUI: the multicast loop (Q10 CMP) | `<next>_topic_loops_targets.sql` (7.1.7), the 182 fire path (`resolveMulticast` from M4 per fire), the 182 loop dialog (the switch and the selector), its tests | 4.8, 7.1.7; 182 L1, L2; M2, M4 | Go tests: a loop with `targets` `{"patterns": ["^ops"]}` fires once and stores one hidden `kind: task` per matching topic with one shared `mc_id`; a topic created after the loop was saved whose title matches gets the next fire; a target archived since makes the whole fire send nothing and logs one line; a target topic with no announced agent makes the whole fire send nothing and logs `loop_no_agent`; a refire for the same seed is a no-op (UUIDv5 ids) | resolve the targets at save time instead of fire time: the new-topic test fails; send what passes: the archived-target test sees N-1 rows and fails; skip the agentless target and send the rest: the no-agent test sees N-1 rows and fails |
 
 ## 7. Contracts
@@ -433,16 +455,11 @@ topic, plus one field:
   3.3). Its error frame names its own `msg_id` only; the other copies are
   untouched.
 - An `mc_id` already stored with another `from` is refused `bad_json` 400.
-- Under R2 CNF (R2 open), the copy that would make the stored copies of
-  this `mc_id` exceed `hub.multicast.max_targets` is refused
-  `multicast_too_many` 400. The
-  resend of a `msg_id` already stored is exempt (it adds nothing, and its
-  ack may be all the WUI is missing), as in `wuiArchivedRefusal`
-  (`topic_archived_input.go:48-61`) and `messageQuota` (`ws.go:918-938`):
-  look the `msg_id` up first, count only for a new one.
-- The cap is hub cnf `hub.multicast.max_targets`, default 1000 (R2); the
-  hub puts it on the `welcome` frame as `multicast_max` (M2) and the WUI
-  reads it there (M3).
+- No count of the copies of one `mc_id` and no cnf key (R2 QTA): each copy
+  is one message in the monthly quota, as any post. The resend of a
+  `msg_id` already stored re-acks and is never refused by the quota or
+  the archive (`messageQuota`, `ws.go:918-938`; `wuiArchivedRefusal`,
+  `topic_archived_input.go:48-61`).
 - Every existing refusal of `wuiSend` applies to each copy unchanged
   (`topic_archived`, `unknown_channel`, `forbidden`, `402 unpaid`, `429
   quota`: each copy counts as one message in `admit`; `missing_file`, the
@@ -460,12 +477,21 @@ topic, plus one field:
   "targets": [{ "task_id", "channel", "title", "ok": true|false, "error?": "<token>" }] }
 ```
 
-- `task_ids` at most `multicast_max`, `patterns` at most 10 of at most 256
-  bytes; both may be empty, not both (`bad_json` 400).
+- `patterns` at most 10 of at most 256 bytes; `task_ids` has no count of
+  its own (R2 QTA): duplicates count once, and the frame is bounded by the
+  socket's read limit, `maxFrameBytes` = 512 KiB (`internal/hub/ws.go:30`,
+  `SetReadLimit` `wui.go:239`). Both may be empty, not both (`bad_json`
+  400).
 - Resolution (`resolveMulticast`): pages `ViewTopics` with `Reader` = the
   author, `ReaderChannels`, `NoIssues`, `DM` false, until the end (3.4);
-  applies the box owner lock to each page as the topic list does
-  (`lockViewFor(author).keepTopics(page, lobby)`, 4.2); keeps a topic
+  applies the box owner lock to each page as the topic list does (4.2).
+  `keepTopics` takes `[]viewTopic` and reads `Participants`
+  (`internal/hub/box_lock_view.go:315-333`), while `ViewTopics` returns
+  `store.TopicRow`, whose seats are `Parties` (`internal/store/view.go:78`):
+  the filter drops a row when `lockViewFor(author).hidesSeat(p)` holds for
+  any `p` in `row.Parties`, the lobby exempt (the same loop as
+  `keepTopics`, run on the store rows before titles are read; converting
+  each row to a `viewTopic` first is the other way). It keeps a topic
   when the trimmed `*` is a pattern, or a pattern `(?i)<p>` matches its
   `subject`, or its `task_id` is ticked; drops topics in channels where the
   author lacks `notes.send`. A ticked `task_id` not in that set is listed
@@ -475,8 +501,7 @@ topic, plus one field:
   `agents.command`, billing, `missing_file`, token budget when an agent will
   act), and the quota once for the whole count.
 - The whole check is `ok: false` with `error` = `multicast_bad_pattern`
-  (detail: the line), `multicast_too_many` (detail: the count and the cap),
-  the quota token (detail: the count and the remaining messages), or
+  (detail: the line), the quota token (detail: the count and the remaining messages), or
   `multicast_none` (no target); `targets` is then as far as resolution got.
   Otherwise `ok` is true only when every target is ok.
 - It stores nothing and sends nothing to any box. Its `req_id` lets the WUI
@@ -507,7 +532,8 @@ New i18n keys (en text): `composer.multicast` "Send to several topics",
 `composer.multicast_title` "Send to topics", `composer.multicast_patterns`
 "Topic title patterns, one per line; * = every topic",
 `composer.multicast_count` "{n} topics", `composer.multicast_send` "Send to
-{n} topics", `composer.multicast_max` "At most {max} topics",
+{n} topics", `composer.attach_files` "Files" (the Attach sheet's first row;
+its second is `composer.multicast`),
 `composer.multicast_bad_pattern` "Pattern {line} is not valid: {reason}",
 `composer.multicast_sent` "Sent to {n} topics",
 `composer.multicast_refused` "Not sent to {topic}: {reason}",

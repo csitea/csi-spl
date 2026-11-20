@@ -18,7 +18,7 @@ import (
 
 // The fire of a discussion loop (spec 182 v0.4 sections 4.2-4.4 and 7.2,
 // row L2, SPL-6032). Every fire goes through topicLoopFire: a hook names
-// the event, each `on` loop of the topic one of whose twelve checked boxes
+// the event, each `on` loop of the topic one of whose eleven checked boxes
 // matches it is checked (4.2 step 7) and, if every check holds, its prompt
 // is stored as a hidden loop prompt message (messages.loop_id, 5.2) to the
 // topic's agent and queued for that agent's box. A loop fires at most once
@@ -29,8 +29,8 @@ import (
 //   - before_agent_reply: wuiSend, after its last refusal and right before
 //     the post is stored, so the agent's inbox holds the prompt first;
 //   - an agent's box send (onSend, after the `sent` frame): an agent reply
-//     fires after_agent_reply, before_human_reply (Q11 A: a reply to the
-//     loop's author), post_has_keyword, post_has_file and blocker_posted, and
+//     fires after_agent_reply, post_has_keyword, post_has_file and
+//     blocker_posted (Q11 C: "before each human reply" is no box), and
 //     clears no_reply_after_human; an agent-to-agent blocker fires
 //     blocker_posted only;
 //   - a post marked a blocker afterwards (handleSetMessageKind);
@@ -40,9 +40,8 @@ import (
 //     runTopicLoopTimer, every 60 s.
 //
 // A loop prompt message is never a trigger, nor is a hub note (HUB-0, which
-// also posts the pause notices of spec 179). Q10 A (the agent's answer to a
-// loop's prompt does not fire that loop) is on unless
-// Options.TopicLoopSelfFire.
+// also posts the pause notices of spec 179). Q10 A: the agent's answer to a
+// loop's prompt never fires that loop.
 
 // topicLoopCapDefault is the fires per loop per hour (answer 4 B).
 const topicLoopCapDefault = 12
@@ -94,9 +93,8 @@ type loopEvent struct {
 	quote  string // what an issue fire quotes
 }
 
-// matches: one of l's checked boxes fits ev. author is l's v:1 id
-// (loopFrom), which before_human_reply compares with a reply's to.
-func (ev loopEvent) matches(l store.TopicLoop, author string) bool {
+// matches: one of l's checked boxes fits ev.
+func (ev loopEvent) matches(l store.TopicLoop) bool {
 	has := func(k string) bool { return slices.Contains(l.Triggers, k) }
 	switch ev.kind {
 	case loopEventBefore:
@@ -108,13 +106,13 @@ func (ev loopEvent) matches(l store.TopicLoop, author string) bool {
 	case loopEventTime:
 		return slices.ContainsFunc(l.Due, func(k string) bool { return slices.Contains(loopTimeKeys, k) && has(k) })
 	case loopEventPost:
-		return !(ev.routed && has(store.LoopBeforeAgentReply)) && ev.postMatches(l, author, has)
+		return !(ev.routed && has(store.LoopBeforeAgentReply)) && ev.postMatches(l, has)
 	}
 	return false
 }
 
 // postMatches is matches for a stored post (4.2 steps 1, 2, 4, 8, 9, 10).
-func (ev loopEvent) postMatches(l store.TopicLoop, author string, has func(string) bool) bool {
+func (ev loopEvent) postMatches(l store.TopicLoop, has func(string) bool) bool {
 	m := ev.post
 	if has(store.LoopBlockerPosted) && m.Kind == blockerKind {
 		return true
@@ -125,7 +123,6 @@ func (ev loopEvent) postMatches(l store.TopicLoop, author string, has func(strin
 	switch {
 	case ev.human && has(store.LoopAfterHumanReply),
 		ev.reply && has(store.LoopAfterAgentReply),
-		ev.reply && has(store.LoopBeforeHumanReply) && m.To == author,
 		has(store.LoopPostHasFile) && len(m.Files) > 0,
 		has(store.LoopPostHasKeyword) && topicLoopKeyword(l.Keyword, m.Body):
 		return true
@@ -305,7 +302,7 @@ func (s *Server) topicLoopFireIf(ctx context.Context, tenant, task string, ev lo
 	s.loopIdleTimer(ctx, ls, tenant, task, ev, loops)
 	var hit []store.TopicLoop
 	for _, l := range loops {
-		if ev.matches(l, s.loopFrom(l)) && !s.loopAwaited(ctx, ls, l, ev) {
+		if ev.matches(l) && !s.loopAwaited(ctx, ls, l, ev) {
 			hit = append(hit, l)
 		}
 	}
@@ -343,7 +340,7 @@ func (s *Server) loopIdleTimer(ctx context.Context, ls store.TopicLoopStore, ten
 // target agent's next post, whatever box it matches), so it clears the
 // wait and does not fire l.
 func (s *Server) loopAwaited(ctx context.Context, ls store.TopicLoopStore, l store.TopicLoop, ev loopEvent) bool {
-	if s.o.TopicLoopSelfFire || ev.kind != loopEventPost || l.Awaiting == "" || l.Awaiting != ev.post.From {
+	if ev.kind != loopEventPost || l.Awaiting == "" || l.Awaiting != ev.post.From {
 		return false
 	}
 	if !s.o.Now().Before(l.AwaitUntil) {
@@ -408,10 +405,8 @@ func (s *Server) loopSend(ctx context.Context, ls store.TopicLoopStore, l store.
 	}
 	s.o.Log.Info().Str("tenant", l.TenantID).Str("task_id", l.TaskID).Str("loop_id", l.LoopID).Str("to", tg.agent).
 		Str("msg_id", m.MsgID).Str("event", ev.kind).Msg("topic loop: fired")
-	if !s.o.TopicLoopSelfFire {
-		if err := ls.SetTopicLoopAwaiting(ctx, l.TenantID, l.LoopID, tg.agent, now.Add(topicLoopAwait)); err != nil {
-			s.o.Log.Error().Err(err).Str("loop_id", l.LoopID).Msg("topic loop: awaiting not set")
-		}
+	if err := ls.SetTopicLoopAwaiting(ctx, l.TenantID, l.LoopID, tg.agent, now.Add(topicLoopAwait)); err != nil {
+		s.o.Log.Error().Err(err).Str("loop_id", l.LoopID).Msg("topic loop: awaiting not set")
 	}
 }
 
@@ -584,7 +579,7 @@ func (s *Server) TopicLoopTickOnce(ctx context.Context) int {
 	}
 	ev := loopEvent{kind: loopEventTime}
 	for _, l := range due {
-		if l.State != store.TopicLoopOn || !ev.matches(l, s.loopFrom(l)) {
+		if l.State != store.TopicLoopOn || !ev.matches(l) {
 			continue
 		}
 		if why := s.loopTopicHeld(ctx, l.TenantID, l.TaskID); why != "" {

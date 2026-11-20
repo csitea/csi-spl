@@ -95,8 +95,6 @@ func TestTopicLoopMatchTable(t *testing.T) {
 		{"routed human/after only", loopEvent{kind: loopEventPost, post: human, human: true, routed: true}, l(store.LoopAfterHumanReply), true},
 		{"before/before", loopEvent{kind: loopEventBefore, post: human}, l(store.LoopBeforeAgentReply), true},
 		{"reply/after_agent", loopEvent{kind: loopEventPost, post: reply, reply: true}, l(store.LoopAfterAgentReply), true},
-		{"reply to author/before_human", loopEvent{kind: loopEventPost, post: reply, reply: true}, l(store.LoopBeforeHumanReply), true},
-		{"reply to other/before_human", loopEvent{kind: loopEventPost, post: other, reply: true}, l(store.LoopBeforeHumanReply), false},
 		{"reply/keyword", loopEvent{kind: loopEventPost, post: reply, reply: true}, l(store.LoopPostHasKeyword), true},
 		{"reply/file", loopEvent{kind: loopEventPost, post: other, reply: true}, l(store.LoopPostHasFile), true},
 		{"reply no file/file", loopEvent{kind: loopEventPost, post: reply, reply: true}, l(store.LoopPostHasFile), false},
@@ -108,7 +106,7 @@ func TestTopicLoopMatchTable(t *testing.T) {
 		{"time due daily/daily", loopEvent{kind: loopEventTime}, store.TopicLoop{Triggers: []string{store.LoopDailyAt}, Due: []string{store.LoopDailyAt}}, true},
 		{"time nothing due", loopEvent{kind: loopEventTime}, store.TopicLoop{Triggers: []string{store.LoopDailyAt}}, false},
 	} {
-		if got := c.ev.matches(c.loop, c.loop.SetBy); got != c.want {
+		if got := c.ev.matches(c.loop); got != c.want {
 			t.Errorf("%s: matches = %v, want %v", c.name, got, c.want)
 		}
 	}

@@ -58,6 +58,14 @@ type MoveResult struct {
 	ReceivedAt time.Time
 }
 
+// MoveMessageReq is one MoveMessage call: re-home MsgID under ToTask on
+// channel ToChannel, received_at at least NotBefore, the move columns
+// stamped with By and At.
+type MoveMessageReq struct {
+	MsgID, ToTask, ToChannel, By string
+	At, NotBefore                time.Time
+}
+
 // Moves is the move half of the store contract (specs/045).
 type Moves interface {
 	// TaskCard reads a task's opening card in retention. ErrNotFound when
@@ -67,11 +75,11 @@ type Moves interface {
 	// (walkTopic, ownTask as TopicArchive takes it) in ONE transaction, and
 	// marks them. ErrNotFound when the card is gone.
 	MoveTopic(ctx context.Context, tenantID, msgID, ownTask, toChannel, by string, at time.Time) (MoveResult, error)
-	// MoveMessage re-homes msgID under toTask (parent none, level 0, channel
-	// toChannel, received_at at least notBefore) and takes its own thread
-	// along, in ONE transaction. ErrNotFound when the row is gone,
-	// ErrMoveCycle when toTask is inside its own thread.
-	MoveMessage(ctx context.Context, tenantID, msgID, toTask, toChannel, by string, at, notBefore time.Time) (MoveResult, error)
+	// MoveMessage re-homes r.MsgID under r.ToTask (parent none, level 0,
+	// channel r.ToChannel, received_at at least r.NotBefore) and takes its
+	// own thread along, in ONE transaction. ErrNotFound when the row is gone,
+	// ErrMoveCycle when r.ToTask is inside its own thread.
+	MoveMessage(ctx context.Context, tenantID string, r MoveMessageReq) (MoveResult, error)
 	// MovedTaskChannel is the channel of a task that has moved rows, and
 	// false when none of its rows is moved (spec 045 §3.7).
 	MovedTaskChannel(ctx context.Context, tenantID, taskID string) (string, bool, error)
@@ -133,34 +141,34 @@ func (s *Memory) MoveTopic(_ context.Context, tenant, msgID, ownTask, toChannel,
 	return MoveResult{MsgIDs: set.MsgIDs, TaskIDs: set.TaskIDs, Moved: card.Move.Moved(), ReceivedAt: card.ReceivedAt}, nil
 }
 
-func (s *Memory) MoveMessage(_ context.Context, tenant, msgID, toTask, toChannel, by string, at, notBefore time.Time) (MoveResult, error) {
+func (s *Memory) MoveMessage(_ context.Context, tenant string, r MoveMessageReq) (MoveResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	set, err := s.topicLocked(tenant, msgID, "")
+	set, err := s.topicLocked(tenant, r.MsgID, "")
 	if err != nil {
 		return MoveResult{}, err
 	}
 	for _, t := range set.TaskIDs {
-		if t == toTask {
+		if t == r.ToTask {
 			return MoveResult{}, ErrMoveCycle
 		}
 	}
-	row := s.messages[[2]string{tenant, msgID}]
+	row := s.messages[[2]string{tenant, r.MsgID}]
 	from := row.TaskID
 	if row.Move.At.IsZero() || row.Move.FromTask == "" {
 		row.Move.FromTask, row.Move.FromParent = row.TaskID, row.ParentTaskID
 	}
-	row.TaskID, row.ParentTaskID, row.IsParent = toTask, "", 0
-	if row.ReceivedAt.Before(notBefore) {
-		row.ReceivedAt = notBefore
+	row.TaskID, row.ParentTaskID, row.IsParent = r.ToTask, "", 0
+	if row.ReceivedAt.Before(r.NotBefore) {
+		row.ReceivedAt = r.NotBefore
 	}
-	markRow(row, toChannel, by, at, true)
+	markRow(row, r.ToChannel, r.By, r.At, true)
 	for _, id := range set.MsgIDs[1:] {
 		m := s.messages[[2]string{tenant, id}]
 		if m.ParentTaskID == from {
-			m.ParentTaskID = toTask
+			m.ParentTaskID = r.ToTask
 		}
-		markRow(m, toChannel, by, at, false)
+		markRow(m, r.ToChannel, r.By, r.At, false)
 	}
 	s.anyMoved = true
 	return MoveResult{MsgIDs: set.MsgIDs, TaskIDs: set.TaskIDs, Moved: row.Move.Moved(), ReceivedAt: row.ReceivedAt}, nil

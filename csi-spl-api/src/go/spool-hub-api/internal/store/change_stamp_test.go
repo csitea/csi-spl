@@ -166,7 +166,7 @@ func TestChangeStampWriters(t *testing.T) {
 			return err
 		}},
 		{name: "move", do: func(s seeded) error {
-			_, err := pg.MoveMessage(ctx, s.tenant, s.msg, uuid4(), s.channelID, "CLE-01", at(), time.Time{})
+			_, err := pg.MoveMessage(ctx, s.tenant, MoveMessageReq{MsgID: s.msg, ToTask: uuid4(), ToChannel: s.channelID, By: "CLE-01", At: at(), NotBefore: time.Time{}})
 			return err
 		}},
 		{name: "topic delete", do: func(s seeded) error {

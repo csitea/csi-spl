@@ -132,10 +132,10 @@ func TestMoveTopicAndMessage(t *testing.T) {
 
 			// 3. Move r1 (and its thread x1) into U: under U's card, out of T.
 			notBefore := d.ReceivedAt.Add(time.Millisecond)
-			if _, err := s.MoveMessage(ctx, tid, r1.MsgID, r1.MsgID, "ops", "HUM-1", at(30), notBefore); !errors.Is(err, ErrMoveCycle) {
+			if _, err := s.MoveMessage(ctx, tid, MoveMessageReq{MsgID: r1.MsgID, ToTask: r1.MsgID, ToChannel: "ops", By: "HUM-1", At: at(30), NotBefore: notBefore}); !errors.Is(err, ErrMoveCycle) {
 				t.Fatalf("into its own thread: %v", err)
 			}
-			res, err = s.MoveMessage(ctx, tid, r1.MsgID, U, "ops", "HUM-1", at(30), notBefore)
+			res, err = s.MoveMessage(ctx, tid, MoveMessageReq{MsgID: r1.MsgID, ToTask: U, ToChannel: "ops", By: "HUM-1", At: at(30), NotBefore: notBefore})
 			if err != nil || !res.Moved || len(res.MsgIDs) != 2 || res.MsgIDs[0] != r1.MsgID || !res.ReceivedAt.Equal(notBefore) {
 				t.Fatalf("move message: %+v %v", res, err)
 			}
@@ -158,7 +158,7 @@ func TestMoveTopicAndMessage(t *testing.T) {
 			}
 
 			// 4. r1 on to V keeps home T; back to T clears it and its thread.
-			if _, err := s.MoveMessage(ctx, tid, r1.MsgID, V, "ops", "HUM-2", at(31), v.ReceivedAt.Add(time.Millisecond)); err != nil {
+			if _, err := s.MoveMessage(ctx, tid, MoveMessageReq{MsgID: r1.MsgID, ToTask: V, ToChannel: "ops", By: "HUM-2", At: at(31), NotBefore: v.ReceivedAt.Add(time.Millisecond)}); err != nil {
 				t.Fatal(err)
 			}
 			if m := row(r1.MsgID); m.TaskID != V || m.Move.FromTask != T || m.Move.FromChannel != "devel" {
@@ -167,7 +167,7 @@ func TestMoveTopicAndMessage(t *testing.T) {
 			if x := row(x1.MsgID); x.ParentTaskID != V {
 				t.Fatalf("its thread's parent: %+v", x)
 			}
-			res, err = s.MoveMessage(ctx, tid, r1.MsgID, T, "devel", "HUM-1", at(32), c.ReceivedAt.Add(time.Millisecond))
+			res, err = s.MoveMessage(ctx, tid, MoveMessageReq{MsgID: r1.MsgID, ToTask: T, ToChannel: "devel", By: "HUM-1", At: at(32), NotBefore: c.ReceivedAt.Add(time.Millisecond)})
 			if err != nil || res.Moved {
 				t.Fatalf("message home: %+v %v", res, err)
 			}
@@ -194,14 +194,14 @@ func TestMoveTopicAndMessage(t *testing.T) {
 			}
 
 			// 5. A thread row moved home restores its home parent.
-			res, err = s.MoveMessage(ctx, tid, x1.MsgID, U, "ops", "HUM-1", at(40), notBefore)
+			res, err = s.MoveMessage(ctx, tid, MoveMessageReq{MsgID: x1.MsgID, ToTask: U, ToChannel: "ops", By: "HUM-1", At: at(40), NotBefore: notBefore})
 			if err != nil || !res.Moved {
 				t.Fatalf("thread row move: %+v %v", res, err)
 			}
 			if x := row(x1.MsgID); x.TaskID != U || x.ParentTaskID != "" || x.Move.FromTask != r1.MsgID {
 				t.Fatalf("thread row moved: %+v", x)
 			}
-			if _, err := s.MoveMessage(ctx, tid, x1.MsgID, r1.MsgID, "devel", "HUM-1", at(41), time.Time{}); err != nil {
+			if _, err := s.MoveMessage(ctx, tid, MoveMessageReq{MsgID: x1.MsgID, ToTask: r1.MsgID, ToChannel: "devel", By: "HUM-1", At: at(41), NotBefore: time.Time{}}); err != nil {
 				t.Fatal(err)
 			}
 			if x := row(x1.MsgID); x.TaskID != r1.MsgID || x.ParentTaskID != T || x.Move.Moved() {

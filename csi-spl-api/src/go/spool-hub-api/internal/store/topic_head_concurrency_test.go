@@ -150,7 +150,7 @@ func TestTopicHeadRaceInsertVsMove(t *testing.T) {
 			return err
 		}, func() error {
 			for _, id := range olds {
-				if _, err := pg.MoveMessage(ctx, f.tn, id, f.task["B"], ChannelLobby, "HUM-1", f.t0, time.Time{}); err != nil {
+				if _, err := pg.MoveMessage(ctx, f.tn, MoveMessageReq{MsgID: id, ToTask: f.task["B"], ToChannel: ChannelLobby, By: "HUM-1", At: f.t0, NotBefore: time.Time{}}); err != nil {
 					return err
 				}
 			}
@@ -476,7 +476,7 @@ func TestTopicHeadSameTaskTwoTenants(t *testing.T) {
 	before := headRevs(f2)
 	ctx := context.Background()
 	f1.line("a9", "A", 0, lineOpt{})
-	_, err := pg.MoveMessage(ctx, f1.tn, f1.msg["x0-3"], uuid4(), ChannelLobby, "HUM-1", t0, time.Time{})
+	_, err := pg.MoveMessage(ctx, f1.tn, MoveMessageReq{MsgID: f1.msg["x0-3"], ToTask: uuid4(), ToChannel: ChannelLobby, By: "HUM-1", At: t0, NotBefore: time.Time{}})
 	f1.must("move", err)
 	f1.must("delete", pg.DeleteMessage(ctx, f1.tn, f1.msg["x0-4"]))
 	if after := headRevs(f2); fmt.Sprint(after) != fmt.Sprint(before) {

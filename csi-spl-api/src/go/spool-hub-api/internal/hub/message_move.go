@@ -323,8 +323,8 @@ func (s *Server) moveMessage(w http.ResponseWriter, r *http.Request, mr moveRow,
 // beside it. The caller sends the move notice after its answer.
 func (s *Server) storeMessageMove(ctx context.Context, tenant string, m store.EditableMessage, task string, card store.TaskCard, by, actingFor string) (map[string]any, *issueErr) {
 	at := s.o.Now().UTC().Truncate(time.Second)
-	res, err := s.o.Store.MoveMessage(ctx, tenant, m.MsgID, task, card.Channel, by, at,
-		card.ReceivedAt.Add(time.Millisecond))
+	res, err := s.o.Store.MoveMessage(ctx, tenant, store.MoveMessageReq{MsgID: m.MsgID, ToTask: task,
+		ToChannel: card.Channel, By: by, At: at, NotBefore: card.ReceivedAt.Add(time.Millisecond)})
 	if errors.Is(err, store.ErrMoveCycle) {
 		return nil, &issueErr{http.StatusConflict, "cycle", moveRefusals["cycle"]}
 	}

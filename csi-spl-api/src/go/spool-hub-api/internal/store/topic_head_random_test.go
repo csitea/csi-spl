@@ -377,7 +377,7 @@ func (r *headRand) opKind() error {
 func (r *headRand) opMoveLine() error {
 	line, task, ch := r.pick(r.live), r.pick(r.topics), r.channel()
 	r.note("%s -> %s #%s", line, task, ch)
-	_, err := r.f.pg.MoveMessage(context.Background(), r.f.tn, r.f.msg[line], r.f.task[task], ch, "HUM-1", r.f.t0, time.Time{})
+	_, err := r.f.pg.MoveMessage(context.Background(), r.f.tn, MoveMessageReq{MsgID: r.f.msg[line], ToTask: r.f.task[task], ToChannel: ch, By: "HUM-1", At: r.f.t0, NotBefore: time.Time{}})
 	return err
 }
 

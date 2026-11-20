@@ -35,13 +35,8 @@ var longFuncs = map[string]bool{}
 // wideFuncs are the functions over maxParams when it dropped from 8 to 7
 // (SPL-3689); each may take at most maxParamsListed. The list may only
 // shrink: split a function's parameters into the struct they belong to and
-// delete its line. A NEW function over maxParams fails the gate. The
-// Memory / Postgres pair (MoveMessage)
-// implements one interface and leaves the list together.
-var wideFuncs = map[string]bool{
-	"internal/store/message_move.go (*Memory).MoveMessage":            true,
-	"internal/store/message_move_postgres.go (*Postgres).MoveMessage": true,
-}
+// delete its line. A NEW function over maxParams fails the gate.
+var wideFuncs = map[string]bool{}
 
 // folded are helpers that exist ONCE; the pattern may appear only in the
 // named file (SPL-1030, SPL-1031).

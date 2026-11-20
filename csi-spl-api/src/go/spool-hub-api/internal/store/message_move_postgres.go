@@ -94,23 +94,23 @@ func (s *Postgres) MoveTopic(ctx context.Context, tenant, msgID, ownTask, toChan
 	return res, nil
 }
 
-func (s *Postgres) MoveMessage(ctx context.Context, tenant, msgID, toTask, toChannel, by string, at, notBefore time.Time) (MoveResult, error) {
-	if !canonUUIDRe.MatchString(msgID) || !canonUUIDRe.MatchString(toTask) {
+func (s *Postgres) MoveMessage(ctx context.Context, tenant string, r MoveMessageReq) (MoveResult, error) {
+	if !canonUUIDRe.MatchString(r.MsgID) || !canonUUIDRe.MatchString(r.ToTask) {
 		return MoveResult{}, ErrNotFound
 	}
 	var res MoveResult
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		set, err := topicTx(ctx, tx, tenant, msgID, "") // locks the row FOR UPDATE
+		set, err := topicTx(ctx, tx, tenant, r.MsgID, "") // locks the row FOR UPDATE
 		if err != nil {
 			return err
 		}
 		for _, t := range set.TaskIDs {
-			if t == toTask {
+			if t == r.ToTask {
 				return ErrMoveCycle
 			}
 		}
 		res.MsgIDs, res.TaskIDs = set.MsgIDs, set.TaskIDs
-		err = tx.QueryRow(ctx, moveMessageCTE, tenant, msgID, set.MsgIDs, toTask, nullText(toChannel), notBefore, at, by).
+		err = tx.QueryRow(ctx, moveMessageCTE, tenant, r.MsgID, set.MsgIDs, r.ToTask, nullText(r.ToChannel), r.NotBefore, r.At, r.By).
 			Scan(&res.Moved, &res.ReceivedAt)
 		return err
 	})

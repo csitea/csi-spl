@@ -200,7 +200,7 @@ func TestViewTopicsSinceDelta(t *testing.T) {
 	// A message move within the channel: B's reply into topic A. Both
 	// topics are listed (A gains it, B lost it).
 	mv := st.(store.Moves)
-	if _, err := mv.MoveMessage(ctx, tenant, line["B"][1], task["A"], "feedback", me, at, time.Time{}); err != nil {
+	if _, err := mv.MoveMessage(ctx, tenant, store.MoveMessageReq{MsgID: line["B"][1], ToTask: task["A"], ToChannel: "feedback", By: me, At: at, NotBefore: time.Time{}}); err != nil {
 		t.Fatal(err)
 	}
 	l = read(rx)

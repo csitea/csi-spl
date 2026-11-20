@@ -187,7 +187,7 @@ func TestTopicHeadRuntimeRole(t *testing.T) {
 	}{
 		{"E01", func() error { rf.line("a3", "A", time.Minute, lineOpt{}); return nil }},
 		{"E07", func() error {
-			_, err := rt.MoveMessage(ctx, f.tn, f.msg["a3"], f.task["B"], "crew", "HUM-1", f.t0, time.Time{})
+			_, err := rt.MoveMessage(ctx, f.tn, MoveMessageReq{MsgID: f.msg["a3"], ToTask: f.task["B"], ToChannel: "crew", By: "HUM-1", At: f.t0, NotBefore: time.Time{}})
 			return err
 		}},
 		{"E13", func() error { _, err := rt.SetArchived(ctx, f.tn, f.msg["a0"], "HUM-1", f.t0, true); return err }},
@@ -328,7 +328,7 @@ func TestCrossTenantTopicHeads(t *testing.T) {
 	f2.task["A"] = f1.task["A"]
 	f2.line("a0", "A", time.Hour, lineOpt{card: true})
 	before := headRevs(f1)
-	_, _ = pg.MoveMessage(ctx, f2.tn, f1.msg["a2"], f1.task["B"], "crew", "HUM-1", t0, time.Time{})
+	_, _ = pg.MoveMessage(ctx, f2.tn, MoveMessageReq{MsgID: f1.msg["a2"], ToTask: f1.task["B"], ToChannel: "crew", By: "HUM-1", At: t0, NotBefore: time.Time{}})
 	_, _ = pg.SetArchived(ctx, f2.tn, f1.msg["a0"], "HUM-1", t0, true)
 	_ = pg.DeleteMessage(ctx, f2.tn, f1.msg["a1"])
 	_, _ = pg.DeleteTopic(ctx, f2.tn, f1.msg["b0"], f1.task["B"], "HUM-1", time.Now())
@@ -342,7 +342,7 @@ func TestCrossTenantTopicHeads(t *testing.T) {
 		}
 	}
 	// CONTROL: the same move under t1's own tenant does write t1's heads.
-	if _, err := pg.MoveMessage(ctx, f1.tn, f1.msg["a2"], f1.task["B"], "crew", "HUM-1", t0, time.Time{}); err != nil {
+	if _, err := pg.MoveMessage(ctx, f1.tn, MoveMessageReq{MsgID: f1.msg["a2"], ToTask: f1.task["B"], ToChannel: "crew", By: "HUM-1", At: t0, NotBefore: time.Time{}}); err != nil {
 		t.Fatal(err)
 	}
 	if fmt.Sprint(headRevs(f1)) == fmt.Sprint(before) {

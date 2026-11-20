@@ -138,7 +138,7 @@ func TestFlowPlaceKey0137(t *testing.T) {
 	}
 
 	// Move r1 into U in feedback, past its own time: place and cov_at follow, at stays.
-	if _, err := pg.MoveMessage(ctx, tid, r1.MsgID, U, "feedback", "HUM-1", base.Add(30*time.Second), base.Add(20*time.Second)); err != nil {
+	if _, err := pg.MoveMessage(ctx, tid, MoveMessageReq{MsgID: r1.MsgID, ToTask: U, ToChannel: "feedback", By: "HUM-1", At: base.Add(30 * time.Second), NotBefore: base.Add(20 * time.Second)}); err != nil {
 		t.Fatal(err)
 	}
 	check("move")

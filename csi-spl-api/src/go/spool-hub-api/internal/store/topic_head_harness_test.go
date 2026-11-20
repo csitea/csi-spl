@@ -299,13 +299,13 @@ func headCases() []headCase {
 			return ""
 		}},
 		{id: "E07", what: "move a line to another topic and channel", apply: func(f *headFix) {
-			_, err := f.pg.MoveMessage(ctx, f.tn, f.msg["a2"], f.task["B"], "crew", "HUM-1", f.t0, time.Time{})
+			_, err := f.pg.MoveMessage(ctx, f.tn, MoveMessageReq{MsgID: f.msg["a2"], ToTask: f.task["B"], ToChannel: "crew", By: "HUM-1", At: f.t0, NotBefore: time.Time{}})
 			f.must("move", err)
 		}, expect: func(f *headFix, r map[string]TopicRow) string {
 			return firstOf(countIs(f, r, "A", 2), countIs(f, r, "B", 3))
 		}},
 		{id: "E08", what: "move a #crew line into a #lobby topic", apply: func(f *headFix) {
-			_, err := f.pg.MoveMessage(ctx, f.tn, f.msg["b1"], f.task["A"], ChannelLobby, "HUM-1", f.t0, time.Time{})
+			_, err := f.pg.MoveMessage(ctx, f.tn, MoveMessageReq{MsgID: f.msg["b1"], ToTask: f.task["A"], ToChannel: ChannelLobby, By: "HUM-1", At: f.t0, NotBefore: time.Time{}})
 			f.must("move", err)
 		}, expect: func(f *headFix, r map[string]TopicRow) string {
 			return firstOf(countIs(f, r, "A", 4), countIs(f, r, "B", 1))
@@ -511,7 +511,7 @@ func headCasesT001b() []headCase {
 			return firstOf(countIs(f, r, "Q", 1), boundaryAt(f, f.t0.Add(-27*time.Minute), 1))
 		}},
 		{id: "E31", what: "a card that has left its topic is archived", apply: func(f *headFix) {
-			_, err := f.pg.MoveMessage(ctx, f.tn, f.msg["b0"], f.task["lobby"], ChannelLobby, "HUM-1", f.t0, time.Time{})
+			_, err := f.pg.MoveMessage(ctx, f.tn, MoveMessageReq{MsgID: f.msg["b0"], ToTask: f.task["lobby"], ToChannel: ChannelLobby, By: "HUM-1", At: f.t0, NotBefore: time.Time{}})
 			f.must("move card", err)
 			archive(f, "b0", true)
 		}, expect: func(f *headFix, r map[string]TopicRow) string {
@@ -572,7 +572,7 @@ func headCasesT001b() []headCase {
 		}},
 		{id: "E39", what: "an archived reply is moved", apply: func(f *headFix) {
 			archive(f, "a1", true)
-			_, err := f.pg.MoveMessage(ctx, f.tn, f.msg["a1"], f.task["B"], "crew", "HUM-1", f.t0, time.Time{})
+			_, err := f.pg.MoveMessage(ctx, f.tn, MoveMessageReq{MsgID: f.msg["a1"], ToTask: f.task["B"], ToChannel: "crew", By: "HUM-1", At: f.t0, NotBefore: time.Time{}})
 			f.must("move", err)
 		}, expect: func(f *headFix, r map[string]TopicRow) string {
 			return firstOf(countIs(f, r, "A", 2), absent(f, r, "B"))

@@ -322,7 +322,7 @@ func equivMove(t *testing.T, pg *Postgres, tid, id, dest string, now time.Time) 
 	equivDo(t, pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `SELECT task_id::text FROM messages WHERE tenant_id = $1 AND msg_id = $2`, tid, dest).Scan(&task)
 	}))
-	_, err := pg.MoveMessage(ctx, tid, id, task, "ops", "HUM-2", now, now)
+	_, err := pg.MoveMessage(ctx, tid, MoveMessageReq{MsgID: id, ToTask: task, ToChannel: "ops", By: "HUM-2", At: now, NotBefore: now})
 	equivDo(t, err)
 }
 

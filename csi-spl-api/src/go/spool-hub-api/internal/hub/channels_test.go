@@ -453,7 +453,7 @@ func TestBoxReplyInheritsCardlessChannel(t *testing.T) {
 	// A reply moved out of its topic into a fresh task: the task's only row is
 	// an is_parent 0 #lobby row (MoveMessage), so it has no card either.
 	r := wuiSend(carded, "feedback", 0)
-	if _, err := e.st.MoveMessage(ctx, tid, r, moved, store.ChannelLobby, "HUM-1", time.Now(), time.Time{}); err != nil {
+	if _, err := e.st.MoveMessage(ctx, tid, store.MoveMessageReq{MsgID: r, ToTask: moved, ToChannel: store.ChannelLobby, By: "HUM-1", At: time.Now(), NotBefore: time.Time{}}); err != nil {
 		t.Fatal(err)
 	}
 

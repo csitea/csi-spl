@@ -1,6 +1,6 @@
 # Spec 183: An Agent Exports Any Topic It Can Read to PDF
 
-Status: **Draft v0.6** (2026-11-20). Lane `c-977` (`claude`, backup for
+Status: **Draft v0.7** (2026-11-20). Lane `c-977` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `f860d1b1b`; v0.2
 `49d6ee226` folds the owner's answers to form `82bc7349` (msg `d2c6508b`)
 and the P1 lane's contract question (msg `fffc8411`); v0.3 folds Q5 SVC
@@ -11,8 +11,11 @@ lane's three gaps (msg `b8cb9d99`, approved by the dispatch holder, msg
 `145e456d`), a hung render's answer and the card author (holder msg
 `3d1b6071`); v0.6 names the hub's wait env (P4 c-339, msg `57a09b32`)
 and settles the default directory's agent id and P3's desk flags (P3
-c-338, msg `b158b296`), holder msg `3436f7ab`. Every contract change is
-in section 9.
+c-338, msg `b158b296`), holder msg `3436f7ab`; v0.7 builds the topic
+link per workspace host (P1 c-981, msg `1576d8f6`; R7 c-075, msg
+`7b084fa4`), states the 504 P2b landed (`f17b02d3b`) and the demo
+moderation filter (holder msgs `2e5c5646`, `50e27e9e`). Every contract
+change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6031**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f798e9aa-6548-44fa-aa8b-7425133bff2f` (`t1`).
 Builds on: [182 topic loop prompt](../182-topic-loop-prompt/spec.md) (its
@@ -202,6 +205,12 @@ is cited.
   `canReadMessage` per row, oldest first (`ts`, then `msg_id`); no row with
   `loop_id` set, added once 182 L1 lands the column (it is not on master at
   v0.2).
+- Demo moderation (specs/077 3.6, T016; `internal/hub/demo_moderation.go`)
+  applies, as on every read: in the demo workspace the operator's
+  `moderation` view drops the hidden rows (`keepMsgs`) unless the operator
+  is a moderator (`moderatePerm`), whose export keeps them, as their WUI
+  read does; outside the demo workspace nothing is filtered. P1 applies it
+  in `topicExportRows`.
 - Answer `200`: the PDF bytes, `Content-Type: application/pdf`,
   `Content-Disposition: attachment; filename="<name of 7.1.4>"`, headers
   `X-Spool-Rows: <n>`, `X-Spool-Pictures: <n>`.
@@ -285,9 +294,15 @@ is cited.
   `func HTML(rows []store.EditableMessage, title string, blob func(fileID string) ([]byte, error), opts ...Option) ([]byte, int, error)`
   (the HTML and its picture count); `type Option func(*htmlOpts)`;
   `func WithTopicLink(url string) Option` sets the WUI link printed after
-  each non-picture attachment (7.1.3). P1 passes it built from the
-  hub's WUI origin (`AppURL`, `internal/auth/config.go:58`) and the task
-  id, and passes none when `AppURL` is empty; without it an attachment
+  each non-picture attachment (7.1.3). P1 passes it built as
+  `topicLink` (`internal/hub/channel_move.go:396`) from
+  `TenantHostPattern`: `GcalWorkspaceURL(TenantHostPattern, WUIApexTenant,
+  "")(tenant) + "/t/" + task` (`gcal_connect.go:90`), so
+  `https://<tenant>.<fqdn>/t/<task>`, or `https://<fqdn>/t/<task>` for
+  the apex workspace; none without a pattern (that call then gives `""`,
+  and a bare `/t/<task>` opens nothing). `hub.New` refuses a pattern
+  without `{tenant}.` (`server.go:382`), so a running hub always passes
+  one. Hub `Options` hold no `AppURL`. Without the option an attachment
   prints its name only.
 - `topicpdf.HTTPRenderer{URL string}` posts the HTML to
   `POST <URL>/render` (7.1.6) through `idtoken.NewClient(ctx, URL)`
@@ -321,10 +336,10 @@ is cited.
   instance); `504` when the render passes its own cap
   (`SPOOL_PDF_RENDER_TIMEOUT`, default 115 s, under Cloud Run's 120 s), the
   browser's process group killed; `500` with Chrome's last 20 lines on any
-  other failed render. P2 at `c55e6a5b5` answers `500` for the cap too
-  (`cmd/spool-pdf/main.go:37,112`), which the hub turns into `503`: P2
-  follows up with the `504`, its test a render stub that sleeps past the
-  cap. No
+  other failed render. P2b (`f17b02d3b`, SPL-6049) answers the `504`
+  (`cmd/spool-pdf/main.go:119`) only for that cap, its cause set by
+  `context.WithTimeoutCause` (`main.go:143`); a client that goes away
+  first is not the cap. No
   other route, no health route the hub calls (1.2 R1).
 - Each render runs `chromium-browser --headless=new --no-sandbox
   --disable-gpu --disable-dev-shm-usage --no-pdf-header-footer
@@ -408,3 +423,11 @@ and the WUI's own export (005 FR-020, SPL-6023).
 | 7.1.6: cnf `hub.pdf.timeout` with no env name; step 030 passes only `SPOOL_PDF_URL` | env `SPOOL_PDF_TIMEOUT`, Go duration, default `120s`; P1 reads it into `HTTPRenderer.Timeout`; it stays above the renderer's 115 s and under the hub's 600 s | P4 c-339, msg `57a09b32` |
 | 7.1.4: the agent id falls back to "the box config" | it falls back to the box id (`SPOOL_BOX_ID`), as P3 does; the MCP tool uses its seat (`--as`) | P3 c-338, msg `b158b296`: the box config holds no agent id |
 | 7.1.2: no desk flags | `--desks` / `--desk-box` in the contract, as on `tail --url`; the MCP tool uses its server's | P3 c-338, msg `b158b296`: section 4 step 1's desk order needs them |
+
+### 9.5 Changes from v0.6
+
+| v0.6 | v0.7 | why |
+|---|---|---|
+| 7.1.5: the topic link from the hub's `AppURL`, none when it is empty | built as `topicLink` from `TenantHostPattern` (`https://<tenant>.<fqdn>/t/<task>`); none without a pattern | P1 c-981, msg `1576d8f6`; R7 c-075, msg `7b084fa4`: hub `Options` hold no `AppURL` and each workspace's WUI is on its own host |
+| 7.1.6: P2 answers `500` for the cap and follows up with the `504` | P2b `f17b02d3b` answers `504` for the renderer's own cap | c-360 P2b N1: the follow-up landed |
+| 7.1.1: demo moderation unstated | the specs/077 T016 filter applies to the export rows; a moderator's export keeps the hidden rows | R7 c-075 W1, msg `7b084fa4` |

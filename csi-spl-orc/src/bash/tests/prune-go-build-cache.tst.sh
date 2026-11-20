@@ -304,6 +304,13 @@ out="$(setup)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'DRY_RUN nothing was touched'* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
   pass "dry run: prints the */5 line, writes nothing" ||
   fail "install dry (rc=$rc): $out"
+# no GO_CACHE_CRON_LOG_DIR: the default dir is spl_var_app_subdir's $SPL_VAR_APP_DIR/go-cache-prune;
+# the trailing `env -u` drops the override setup() sets. A dry run creates nothing there.
+wantv="${want//"$T/log"/$T/var/go-cache-prune}"
+out="$(setup SPL_VAR_APP_DIR="$T/var" env -u GO_CACHE_CRON_LOG_DIR)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"+$wantv"* && ! -e "$T/var" ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
+  pass "no GO_CACHE_CRON_LOG_DIR: its lock and cron.out under \$SPL_VAR_APP_DIR/go-cache-prune, nothing created" ||
+  fail "default log dir (rc=$rc): $out"
 out="$(setup DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 && "$(grep -c 'csi-spl:go-cache-prune$' "$T/crontab")" -eq 1 && "$(grep -F -x -c "$want" "$T/crontab")" -eq 1 ]] &&
   pass "install: ONE */5 line tagged csi-spl:go-cache-prune" ||

@@ -143,6 +143,12 @@ want="23 5 * * * DRY_RUN=0 $SH/csi-spl-orc/src/bash/scripts/check-env-order.sh >
 out="$(inst)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'DRY_RUN nothing was touched'* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" \
   && pass "8. the dry run prints the daily line and writes nothing" || fail "8. dry (rc=$rc): $out"
+# no ENV_ORDER_CRON_LOG_DIR: the default dir is spl_var_app_subdir's $SPL_VAR_APP_DIR/env-order;
+# the trailing `env -u` drops the override inst() sets. A dry run creates nothing there.
+wantv="${want//"$T/log"/$T/var/env-order}"
+out="$(inst SPL_VAR_APP_DIR="$T/var" env -u ENV_ORDER_CRON_LOG_DIR)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"+$wantv"* && ! -e "$T/var" ]] && cmp -s "$T/crontab" "$T/crontab.orig" \
+  && pass "8. no ENV_ORDER_CRON_LOG_DIR: its cron.out under \$SPL_VAR_APP_DIR/env-order, nothing created" || fail "8. default log dir (rc=$rc): $out"
 out="$(inst ENV_ORDER_CRON_ACTION=check)"; rc=$?
 [[ $rc -eq 1 && "$out" == *'NOT installed'* ]] && pass "8. CONTROL: check fails while it is not installed" || fail "8. check before (rc=$rc): $out"
 out="$(inst DRY_RUN=0)"; rc=$?

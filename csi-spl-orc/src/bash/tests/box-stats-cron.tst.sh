@@ -189,6 +189,12 @@ want="*/5 * * * * $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.
 out="$(setup)"; rc=$?
 [[ $rc -eq 0 && "$out" == *"DRY_RUN nothing was touched"* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
   pass "dry run: prints the diff with the */5 line, writes nothing" || fail "dry run (rc=$rc): $out"
+# no BOX_STATS_CRON_LOG_DIR: the default dir is spl_var_app_subdir's $SPL_VAR_APP_DIR/box-stats;
+# the trailing `env -u` drops the override setup() sets. A dry run creates nothing there.
+wantv="${want//"$T/log"/$T/var/box-stats}"
+out="$(setup SPL_VAR_APP_DIR="$T/var" env -u BOX_STATS_CRON_LOG_DIR)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"+$wantv"* && ! -e "$T/var" ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
+  pass "no BOX_STATS_CRON_LOG_DIR: its lock and cron.out under \$SPL_VAR_APP_DIR/box-stats, nothing created" || fail "default log dir (rc=$rc): $out"
 out="$(setup BOX_STATS_CRON_ACTION=check)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"NOT installed"* ]] && pass "check before install: FAIL, exit 1" || fail "check none (rc=$rc): $out"
 out="$(setup DRY_RUN=0)"; rc=$?

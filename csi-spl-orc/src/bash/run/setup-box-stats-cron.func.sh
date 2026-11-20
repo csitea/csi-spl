@@ -45,7 +45,11 @@ do_setup_box_stats_cron() {
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   script="$src/$SPL_ORG_APP-orc/src/bash/scripts/box-stats-cron.sh"
-  logdir="${BOX_STATS_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/box-stats}"
+  logdir="${BOX_STATS_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir box-stats || { do_log "FATAL cannot derive the box-stats cron log dir (no tree for spl_run_paths): set BOX_STATS_CRON_LOG_DIR"; return 1; }
+  fi
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   if (( off == 0 )); then sched="*/$every"; else sched="$off-59/$every"; fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&

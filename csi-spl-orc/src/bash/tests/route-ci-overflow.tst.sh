@@ -244,6 +244,12 @@ want="*/5 * * * * $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.
 out="$(setup)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'DRY_RUN nothing was touched'* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
   pass "dry run: prints the every-5-minutes line, writes nothing" || fail "install dry (rc=$rc): $out"
+# no CI_OVERFLOW_CRON_LOG_DIR: the default dir is spl_var_app_subdir's $SPL_VAR_APP_DIR/ci-overflow ($T/var is the runner-var fixture here);
+# the trailing `env -u` drops the override setup() sets. A dry run creates nothing there.
+wantv="${want//"$T/log"/$T/var-app/ci-overflow}"
+out="$(setup SPL_VAR_APP_DIR="$T/var-app" env -u CI_OVERFLOW_CRON_LOG_DIR)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"+$wantv"* && ! -e "$T/var-app" ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
+  pass "no CI_OVERFLOW_CRON_LOG_DIR: its lock and cron.out under \$SPL_VAR_APP_DIR/ci-overflow, nothing created" || fail "default log dir (rc=$rc): $out"
 out="$(setup DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 && "$(grep -F -x -c "$want" "$T/crontab")" -eq 1 && "$(head -2 "$T/crontab")" == "$(cat "$T/crontab.orig")" ]] &&
   pass "install: ONE tagged line, every other line kept" || fail "install (rc=$rc): $out / $(cat "$T/crontab")"

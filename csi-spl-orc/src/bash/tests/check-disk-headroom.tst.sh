@@ -157,6 +157,12 @@ want="7-59/15 * * * * DRY_RUN=0 $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.s
 out="$(inst)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'DRY_RUN nothing was touched'* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" \
   && pass "2. the dry run prints the every-15-min line and writes nothing" || fail "2. dry (rc=$rc): $out"
+# no DISK_HEADROOM_CRON_LOG_DIR: the default dir is spl_var_app_subdir's $SPL_VAR_APP_DIR/disk-headroom;
+# the trailing `env -u` drops the override inst() sets. A dry run creates nothing there.
+wantv="${want//"$T/log"/$T/var/disk-headroom}"
+out="$(inst SPL_VAR_APP_DIR="$T/var" env -u DISK_HEADROOM_CRON_LOG_DIR)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"+$wantv"* && ! -e "$T/var" ]] && cmp -s "$T/crontab" "$T/crontab.orig" \
+  && pass "2. no DISK_HEADROOM_CRON_LOG_DIR: its lock and cron.out under \$SPL_VAR_APP_DIR/disk-headroom, nothing created" || fail "2. default log dir (rc=$rc): $out"
 out="$(inst DISK_HEADROOM_CRON_ACTION=check)"; rc=$?
 [ "$rc" = 1 ] && [[ "$out" == *'NOT installed'* ]] && pass "2. CONTROL: check fails while it is not installed" || fail "2. check before (rc=$rc): $out"
 out="$(inst DRY_RUN=0)"; rc=$?

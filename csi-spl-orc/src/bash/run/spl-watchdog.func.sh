@@ -537,9 +537,8 @@ spl_wd_boot_result() {
 spl_wd_boot_retired() {
   local d="${BOOT_CRON_LOG_DIR:-}"
   if [[ -z "$d" ]]; then
-    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
-    spl_run_paths && d="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/agent-boot-restore}"
-    [[ -n "$d" ]] || return 0
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir d agent-boot-restore || return 0
   fi
   echo "$d/retired"
 }

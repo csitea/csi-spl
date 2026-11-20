@@ -56,9 +56,8 @@ do_spl_agent_boot_restore_install_cron() {
   script="$src/$SPL_ORG_APP-orc/src/bash/scripts/agent-boot-restore-cron.sh"
   logdir="${BOOT_CRON_LOG_DIR:-}"
   if [[ -z "$logdir" ]]; then
-    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
-    spl_run_paths && logdir="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/agent-boot-restore}"
-    [[ -n "$logdir" ]] || { do_log "FATAL cannot derive the boot restore dir (no tree for spl_run_paths): set BOOT_CRON_LOG_DIR"; return 1; }
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir agent-boot-restore || { do_log "FATAL cannot derive the boot restore dir (no tree for spl_run_paths): set BOOT_CRON_LOG_DIR"; return 1; }
   fi
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&

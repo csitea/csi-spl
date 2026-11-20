@@ -253,5 +253,13 @@ cl REVERSE_TUNNEL_FROM_BOX=hub1 TUNNEL_LOGIN_USER=tun FAKE_PS="tun sshd-session"
 check "13. nothing listening: nothing to clear" 'grep -q "nothing listens" "$T/o"'
 kill "$HOLDER" 2>/dev/null
 
+# --- 14. no tree for spl_run_paths, no REVERSE_TUNNEL_STATE_DIR (r71-01) -----------------------
+out="$(env -u REVERSE_TUNNEL_STATE_DIR -u APP_PATH -u PROJ_PATH -u SPL_VAR_APP_DIR SPL_RUN_PATHS_TOP= ORC="$PROJ_ROOT" REVERSE_TUNNEL_CMD=status bash -c '
+  do_log() { echo "$*"; }
+  source "$ORC/src/bash/run/setup-reverse-tunnel.func.sh"
+  do_setup_reverse_tunnel; echo "rc=$?"' 2>&1)"
+printf '%s\n' "$out" >"$T/o"
+check "14. no tree, no state dir: rc 1, its own FATAL line" 'grep -qx "FATAL cannot derive the reverse tunnel state dir (no tree for spl_run_paths): set REVERSE_TUNNEL_STATE_DIR" "$T/o" && grep -qx "rc=1" "$T/o"'
+
 [[ $fails -eq 0 ]] && echo "reverse-tunnel: ALL PASS" || echo "reverse-tunnel: $fails FAIL"
 exit "$fails"

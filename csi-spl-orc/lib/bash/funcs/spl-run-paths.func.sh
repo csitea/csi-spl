@@ -75,6 +75,15 @@ spl_run_paths() {
   export SPL_ORG_DIR SPL_VAR_APP_DIR SPL_VAR_ORG_DIR SPL_WT_ROOT SPL_DESK_DIR
 }
 
+# spl_var_app_subdir <var> <sub>: set <var> (the caller's) to
+# $SPL_VAR_APP_DIR/<sub> (spl_run_paths). rc 1, <var> untouched, when no
+# dir is known; the caller says what that means (FATAL, or nothing to read).
+spl_var_app_subdir() {
+  [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+  spl_run_paths && [[ -n "${SPL_VAR_APP_DIR:-}" ]] || return 1
+  printf -v "$1" '%s/%s' "$SPL_VAR_APP_DIR" "$2"
+}
+
 # spl_cnf_path_expand < lines -> the lines with each ${SPL_ORG_DIR} and
 # ${SPL_VAR_APP_DIR} token of a cnf value replaced by its derived value
 # (spl_run_paths). A literal replace: no other $ in a value is touched; a

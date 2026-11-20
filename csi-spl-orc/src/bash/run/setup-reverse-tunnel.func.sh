@@ -45,9 +45,8 @@ do_setup_reverse_tunnel() {
     do_log "FATAL REVERSE_TUNNEL_PORT must be 1024..65535, got: '$port'"; return 1
   fi
   if [[ -z "$dir" ]]; then
-    declare -F spl_run_paths >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
-    spl_run_paths && dir="${SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/reverse-tunnel}"
-    [[ -n "$dir" ]] || { do_log "FATAL cannot derive the reverse tunnel state dir (no tree for spl_run_paths): set REVERSE_TUNNEL_STATE_DIR"; return 1; }
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir dir reverse-tunnel || { do_log "FATAL cannot derive the reverse tunnel state dir (no tree for spl_run_paths): set REVERSE_TUNNEL_STATE_DIR"; return 1; }
   fi
   if [[ "$cmd" != status ]]; then
     if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi

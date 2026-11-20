@@ -18,6 +18,8 @@
 #      W1-W3 of the R7 review (a-718): a cron without ./run, PROJ_PATH alone,
 #      box restart's desk step fail fast; N2 the agent-log filter.
 #   4. the live cnf: every src_dir / file_streams path value is a token form.
+#   5. spl_var_app_subdir <var> <sub> (r71-01): the caller's var set to
+#      $SPL_VAR_APP_DIR/<sub>; no tree or a bad name: rc 1, var untouched.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -42,6 +44,15 @@ want="$B/opt/acme|$B/var/acme/acme-app|$M-wt|$M-desk-cron"
 [[ "$(paths "$W" SPL_WT_ROOT=/x/wt)" == "$B/opt/acme|$B/var/acme/acme-app|/x/wt|$M-desk-cron" ]] && pass "1. an env SPL_WT_ROOT wins" || fail "1. env override: $(paths "$W" SPL_WT_ROOT=/x/wt)"
 out="$(env -u APP_PATH -u PROJ_PATH bash -c 'source "$0"; SPL_RUN_PATHS_TOP=; spl_run_paths; echo rc=$?' "$LIB")"
 [[ "$out" == "rc=1" ]] && pass "1. no APP_PATH, no PROJ_PATH, no file dir: rc 1" || fail "1. no tree: $out"
+# 5. spl_var_app_subdir <var> <sub> (r71-01): sets the caller's var to
+# $SPL_VAR_APP_DIR/<sub>; rc 1 and the var untouched when no dir is known
+sub() { env -u SPL_ORG_DIR -u SPL_VAR_APP_DIR -u SPL_WT_ROOT -u SPL_DESK_DIR -u SPL_VAR_ORG_DIR "$@" bash -c 'source "$0"; f() { local v=old; spl_var_app_subdir "${N:-v}" x; echo "rc=$? v=$v wt=${SPL_WT_ROOT:-}"; }; f' "$LIB" 2>&1; }
+out="$(sub APP_PATH="$W")"
+[[ "$out" == "rc=0 v=$B/var/acme/acme-app/x wt=$M-wt" ]] && pass "5. spl_var_app_subdir v x: rc 0, the caller's local v=$B/var/acme/acme-app/x, SPL_WT_ROOT set in the same shell" || fail "5. derive: '$out'"
+out="$(sub -u APP_PATH -u PROJ_PATH SPL_RUN_PATHS_TOP=)"
+[[ "$out" == "rc=1 v=old wt=" ]] && pass "5. no tree: rc 1, v keeps its old value" || fail "5. no tree: '$out'"
+out="$(sub APP_PATH="$W" N='a b')"
+[[ "$out" == "rc=1 v=old wt=" ]] && pass "5. a bad name 'a b': rc 1, nothing set" || fail "5. bad name: '$out'"
 # W2 (R7 a-718): run.sh's PROJ_PATH is <top>/<module>, so the tree is its parent
 mkdir -p "$W/csi-spl-orc"
 out="$(env -u SPL_ORG_DIR -u SPL_VAR_APP_DIR -u SPL_WT_ROOT -u SPL_DESK_DIR -u APP_PATH PROJ_PATH="$W/csi-spl-orc" bash -c 'source "$0"; spl_run_paths && echo "$SPL_ORG_DIR|$SPL_VAR_APP_DIR|$SPL_WT_ROOT|$SPL_DESK_DIR"' "$LIB")"

@@ -399,6 +399,23 @@ out="$(env -u BOOT_CRON_LOG_DIR SPL_VAR_APP_DIR="$T/var" PROJ_PATH="$PROJ_ROOT" 
   spl_wd_boot_retired' 2>&1)"
 [[ "$out" == "$T/var/agent-boot-restore/retired" ]] && pass "spl_wd_boot_retired: $T/var/agent-boot-restore/retired" || fail "spl_wd_boot_retired: '$out'"
 
+# ---- 12. no tree for spl_run_paths, no BOOT_CRON_LOG_DIR (r71-01) -----------
+echo "=== 12. no dir derived: the install-cron FATALs, the reader prints nothing"
+notree() { env -u BOOT_CRON_LOG_DIR -u APP_PATH -u PROJ_PATH -u SPL_VAR_APP_DIR SPL_RUN_PATHS_TOP= ORC="$PROJ_ROOT" "$@"; }
+out="$(notree PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$SRC" BOOT_CRON_RESULT="$T/boot.result" SPL_ORG_APP=csi-spl DRY_RUN=1 bash -c '
+  do_log() { echo "$*"; }
+  do_require_bin() { return 0; }
+  source "$ORC/src/bash/run/spl-desk-install-service.func.sh"
+  source "$ORC/src/bash/run/spl-agent-boot-restore-install-cron.func.sh"
+  do_spl_agent_boot_restore_install_cron; echo "rc=$?"' 2>&1)"
+grep -qx 'FATAL cannot derive the boot restore dir (no tree for spl_run_paths): set BOOT_CRON_LOG_DIR' <<<"$out" && grep -qx 'rc=1' <<<"$out" && ! grep -q '@reboot' <<<"$out" &&
+  pass "install-cron, no tree: rc 1, its own FATAL line, no @reboot line" || fail "install-cron no tree: '$out'"
+out="$(notree bash -c '
+  do_log() { echo "$*"; }
+  source "$ORC/src/bash/run/spl-watchdog.func.sh"
+  spl_wd_boot_retired; echo "rc=$?"' 2>&1)"
+[[ "$out" == "rc=0" ]] && pass "spl_wd_boot_retired, no tree: rc 0, prints nothing" || fail "spl_wd_boot_retired no tree: '$out'"
+
 echo
 if (( fails == 0 )); then echo "wd-reboot: all passed"; else echo "wd-reboot: $fails failed"; fi
 exit $(( fails > 0 ))

@@ -36,6 +36,15 @@ round-77 candidate) and lowers row 01's baseline by their 2 lines.
 (W1, row 02's scratch layout, fixed) and N1-N4 recorded (section 8); no row changes
 scope. m-484 PASS on v1.0 `1a835fa8c` too (section 9). Editor: **c-481** (claude).
 
+**Round closed** (c-481, the editor): both rows landed. r77-01 `a8d2ea7d5` (SPL-6092,
+R7 c-526 PASS on `32b64680f`), r77-02 `7ff2604dd` (SPL-6104, R7 c-343 PASS on
+`586f33fca`). Read `git merge-base --is-ancestor <sha> origin/master` -> rc 0 for both,
+at `7ff2604dd`. On that sha: `no-literal-paths-spelled.baseline` holds **17** files,
+**19** lines (row 02's 19 -> 17 and 21 -> 19, as planned); `grep -c bs_org_app` -> 0 in
+both box-sessions scripts; `no-literal-paths.tst.sh` rc 0 `ALL PASS` (17 files left);
+`test-box-sessions.sh` 51 passed, 0 failed (1.5's 44 plus the new ones). n=1 each,
+2026-11-20T21:5xZ, `SPOOL_TEST=1`, as the push user.
+
 **One sha:** every count is measured on **`7df5cecfc`** (`origin/master`
 7df5cecfc47f063e4c37818ea4b78bc5328382d7, committed 2026-11-20T20:04:17+02:00), n=1 per
 command unless stated. Reads are on that sha with `git show` / `git grep`; the tests ran
@@ -399,6 +408,15 @@ the body. Gates: `test-box-sessions.sh`, `no-literal-paths.tst.sh`,
     row lanes re-measure on their start sha.
   - N4: 1.5's counts, 1.3's count (21 in 19) and the perf floor reproduce.
 
+- Round closed (c-481), no version bump: the 2 rows landed, r77-01 `a8d2ea7d5`
+  (SPL-6092), r77-02 `7ff2604dd` (SPL-6104). The R7 findings, none a row defect:
+  r77-01 (c-526) N1 a baseline entry whose file name carries an OS user (a rename is
+  its own row), N2 cosmetic, N3 the commit body names no author pre-push run; r77-02
+  (c-343) N1 the sourced run lib exports its `SPL_*` path vars into the scripts'
+  children (the same values every tree derives; not tested), N2 two more SC2015 notes
+  in the suite, N3 the row's brief was not on the reviewer's box. Candidates for a
+  later round: r77-01 N1 and r77-02 N1. Status line and sections 8 and 9 only.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
@@ -414,3 +432,5 @@ The panel seat signs this plan (rulebook 3.2).
   `c8147a733` on `review/c002-refactor-round-77-mistral-seat`), no new findings; the
   holder c-002's review-line check rc 0 (DOCS-ONLY), and its GO (msg b1d2c44a).
 - Row R7 seats: section 4.
+- Closed: both rows landed (r77-01 `a8d2ea7d5`, R7 c-526 PASS; r77-02 `7ff2604dd`, R7
+  c-343 PASS). This close record carries `Closes: SPL-6081`.

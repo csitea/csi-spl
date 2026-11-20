@@ -1,9 +1,11 @@
 # Spec 182: Topic Loop Prompt (Discussion Loops)
 
-Status: **Draft v0.2** (2026-11-20). Lane `c-301` (`claude`, backup for
+Status: **Draft v0.3** (2026-11-20). Lane `c-301` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `bc0353485`; v0.2 folds the
 owner's answers to form `2c1c3f5d` (msg `a198ae53`) and the two requirements
-in msgs `eae9e64f` and `19acb8f9` (section 8).
+in msgs `eae9e64f` and `19acb8f9`; v0.2 `d17f582cb`; v0.3 folds Q9 (msg
+`e05bec70`, poll `7e28ed23`) and adds the binding contracts of 7.1
+(section 8).
 Epic: **SPL-2398**. Issue: **SPL-6022**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f08c0c58-9228-4e2a-af00-dbbdbd328083` (`t1`).
 Builds on: [179 pause the agents of a discussion](../179-pause-agents-of-a-discussion/spec.md)
@@ -36,7 +38,7 @@ at v0.1:
 `git grep -n -i "loop" origin/master -- csi-spl-wui/src/utils/msg-menu.mjs csi-spl-wui/src/utils/topic-menu.mjs csi-spl-api/src/go/spool-hub-api/internal/hub/wui.go | wc -l`
 -> 0.
 
-## 1. Decided, and the one open question
+## 1. Decided
 
 The owner's answers to form `2c1c3f5d` (msg `a198ae53`, 09:05:50Z), as this
 spec applies them:
@@ -51,6 +53,7 @@ spec applies them:
 | Q6 | **B** — several loops per topic, each with its own prompt and trigger | section 5 key; the list dialog of 4.1 |
 | Q7 | **C** — only the menu entry; nothing on the topic or the messages | 4.1; no badge, no notes |
 | Q8 | **A** — the loop's author, marked as sent by the loop | 4.3 step 2; the mark is `messages.loop_id` |
+| Q9 | **A** — yes, the agent's answer is an ordinary reply in the topic (msg `e05bec70`, poll `7e28ed23`) | 4.3 step 2, 4.4 step 1 |
 
 ### 1.1 Answer 2 and msg eae9e64f, reconciled
 
@@ -66,9 +69,8 @@ topic's task id that the agent receives, but the topic never shows it:
   head, unread counts or "last message" (section 5.2). This is also what
   answer 7 C asks for: nothing on the topic or on the messages.
 
-What the owner's words leave open is whether the agent's **answer** is
-shown. v0.2 shows it as an ordinary reply: without it, a loop has no
-visible effect. That is the one open question, Q9 below.
+The agent's **answer** is shown, as an ordinary reply in the topic (Q9 A,
+1.3).
 
 ### 1.2 What answer 4 B means in use
 
@@ -79,19 +81,11 @@ the hour rolls over (4.5). With several loops in one topic, the answer to
 loop X can fire loop Y; each loop has its own cap. The form for a loop says
 so next to the "any agent reply" box.
 
-### 1.3 The one open question (form)
+### 1.3 Q9, answered
 
-```poll
-Q9. A loop prompt runs in the background. Is the agent's answer to it shown in the topic?
-(A) Yes, as an ordinary reply in the topic
-(B) No; the agent only acts, and posts in the topic only if the prompt tells it to
-```
-
-**[Q9]** marks every part that depends on it. A recommended: the loop then
-works on every agent with no prompt wording needed, and the owner sees what
-each loop did. Under B the hub tells the agent in the prompt header to send
-its answer only when the prompt asks for a post, and nothing else changes in
-the hub.
+The v0.2 form asked whether the agent's answer to a loop prompt is shown in
+the topic. HUM-10 answered **A** — "Yes, as an ordinary reply in the topic"
+(msg `e05bec70`, poll `7e28ed23`). No question is open.
 
 ## 2. Terms
 
@@ -227,8 +221,8 @@ carry nothing new, so their statements and round trips do not change.
    > <the trigger post, cut to 600 characters, one quote block>
    ```
 
-   The first line is the mark of answer 8 A, for the agent. Under Q9 B it
-   adds: "Answer in the topic only if the prompt asks for a post."
+   The first line is the mark of answer 8 A, for the agent. The agent
+   answers in the topic as with any human's task (Q9 A).
 3. Its `msg_id` is a UUIDv5 of `(loop_id, trigger msg_id)`. A second try for
    the same trigger is then a no-op insert, the rule `postHubNote` uses for
    its id (`internal/hub/blocker_issue.go:481`).
@@ -237,8 +231,8 @@ carry nothing new, so their statements and round trips do not change.
 
 ### 4.4 Reply
 
-1. The agent answers in the topic as usual, to the author or to `ALL-0`
-   **[Q9]**. Under Q9 A that answer is an ordinary, visible reply.
+1. The agent answers in the topic as usual, to the author or to `ALL-0`.
+   That answer is an ordinary, visible reply (Q9 A).
 2. That answer is an agent reply, so it fires every loop of the topic with
    "any agent reply" checked, the one it answers included, until each
    loop's cap (1.2).
@@ -339,8 +333,136 @@ the store keeps it as the record of each fire.
 | **L4 e2e** | L3 | `tests` | `csi-spl-wui/tests/e2e/topic-loops.test.mjs` | `BASE_URL=<bundle> pnpm run test:e2e` on the mock: add a loop from the menu, edit it, pause it, delete it; a human post shows no loop prompt card in the topic. Red control: skip the emit, and the dialog never opens. |
 | **L5 docs** | L2, L3 | `specs_and_docs` | this spec's row status; `csi-spl-doc/doc/md/spool-cli-reference.md` only if a CLI verb is added | `do_check_dist_hygiene`, `do_check_fleet_rules_drift` |
 
-Only Q9 is open, and it changes one line of the prompt header (4.3 step 2),
-so L1 to L4 can start now.
+No question is open (Q9 answered, 1.3). L1, L2, L2b and L3 can run in
+parallel against the contracts of 7.1.
+
+### 7.1 Contracts for parallel rows (binding)
+
+These are binding: a row that needs to change one asks the dispatch holder
+first, and the change lands in this spec before the code. Every name below
+is new unless a file:line is cited.
+
+#### 7.1.1 Go store (L1 builds it, L2 calls it)
+
+Package `store`, file `internal/store/topic_loop.go`, implemented by
+`Memory` and `Postgres` (`var _ TopicLoopStore = (*Memory)(nil)` and
+`(*Postgres)(nil)`), in the workspace's own scope, as `TopicPauseStore`
+(`internal/store/topic_pause.go`).
+
+```go
+const (
+	LoopTriggerAgentReply     = "agent_reply"
+	LoopTriggerHumanPost      = "human_post"
+	LoopTriggerOtherHumanPost = "other_human_post"
+	TopicLoopOn               = "on"
+	TopicLoopPaused           = "paused"
+	TopicLoopPromptMax        = 4000 // characters, rdb CHECK
+)
+
+// ErrBadTopicLoop: an empty or too long prompt, no trigger, an unknown
+// trigger or state, or a set_by not 1..64 characters. Before any write.
+var ErrBadTopicLoop = errors.New("store: a topic loop needs a prompt (1..4000 characters), 1..3 known triggers, state on|paused and who (1..64)")
+
+type TopicLoop struct {
+	TenantID    string
+	LoopID      string    // uuid, lower case
+	TaskID      string    // uuid, lower case
+	Prompt      string
+	Triggers    []string  // distinct, sorted
+	SetBy       string    // HUM-n
+	SetAt       time.Time
+	State       string    // TopicLoopOn | TopicLoopPaused
+	HourStart   time.Time // zero: never fired
+	FiresInHour int
+	FiresTotal  int
+	LastFiredAt time.Time // zero: never fired
+}
+
+// TopicLoopEdit: nil / empty fields are kept. A changed Prompt or Triggers
+// resets HourStart and FiresInHour. By becomes SetBy and At SetAt (4.5).
+type TopicLoopEdit struct {
+	Prompt   *string
+	Triggers []string // nil: keep
+	State    *string
+	By       string
+	At       time.Time
+}
+
+type TopicLoopStore interface {
+	// TopicLoops: every loop of taskID, SetAt then LoopID order.
+	// ErrBadTopicTask (topic_priority.go:29) on a non-uuid task.
+	TopicLoops(ctx context.Context, tenant, taskID string) ([]TopicLoop, error)
+	// TopicLoopsOn: only State == on; the fire path's one index probe (4.2 step 3).
+	TopicLoopsOn(ctx context.Context, tenant, taskID string) ([]TopicLoop, error)
+	// AddTopicLoop stores l (LoopID minted with uid.New when ""), State on.
+	// ErrBadTopicTask, ErrBadTopicLoop; ErrNotFound: no such workspace.
+	AddTopicLoop(ctx context.Context, tenant string, l TopicLoop) (TopicLoop, error)
+	// EditTopicLoop: ErrNotFound when loopID is not a loop of taskID.
+	EditTopicLoop(ctx context.Context, tenant, taskID, loopID string, e TopicLoopEdit) (TopicLoop, error)
+	// DeleteTopicLoop: false when there was no such loop (never an error).
+	DeleteTopicLoop(ctx context.Context, tenant, taskID, loopID string) (bool, error)
+	// DeleteTopicLoops: every loop of taskID (the archive path, 4.5); the count.
+	DeleteTopicLoops(ctx context.Context, tenant, taskID string) (int, error)
+	// CountTopicLoopFire is 5.1's single UPDATE: true and the row after it
+	// when the loop is on and under cap in its hour (rolling the hour when
+	// HourStart <= at - 1h); false when paused, capped or gone.
+	CountTopicLoopFire(ctx context.Context, tenant, loopID string, at time.Time, cap int) (TopicLoop, bool, error)
+	// TenantHasTopicLoops refreshes the hub's in-memory bit (4.2 step 3).
+	TenantHasTopicLoops(ctx context.Context, tenant string) (bool, error)
+}
+```
+
+`store.Message` gains `LoopID string` (`""` = NULL), written by
+`InsertMessage` and `InsertMessageSent` to `messages.loop_id`.
+
+The fired message's id (4.3 step 3) is
+`uid.FromSeed("topic-loop:" + loopID + ":" + triggerMsgID)`
+(`internal/uid/uid.go:21`), so the UUID is minted where `cleancode_test.go`'s
+folded list wants it.
+
+#### 7.1.2 HTTP and WS (L2 serves them, L3 calls them)
+
+The loop JSON, every route's answer:
+
+```json
+{
+  "loop_id": "<uuid>", "task_id": "<uuid>", "prompt": "<text>",
+  "triggers": ["agent_reply", "human_post", "other_human_post"],
+  "state": "on", "set_by": "HUM-10", "set_at": "2026-11-20T09:30:00Z",
+  "fires_in_hour": 3, "held_until": "2026-11-20T10:12:00Z",
+  "idle": ""
+}
+```
+
+- `held_until`: `hour_start + 1h` when `fires_in_hour >= cap`, else omitted.
+- `idle`: `""`, `"author_left"` or `"author_no_right"` (4.5): why an `on`
+  loop would not fire.
+
+| route | body | answer | refusals |
+|---|---|---|---|
+| `GET /v1/topics/{task_id}/loops` | — | `200 {"task_id": "<uuid>", "may_edit": true, "loops": [<loop>...]}` | `404 not_found` (the topic's read door) |
+| `POST /v1/topics/{task_id}/loops` | `{"prompt": "...", "triggers": [...]}` | `201 <loop>` | `400 bad_loop`, `403 not_allowed`, `403 demo_read_only`, `404 not_found`, `409 topic_archived` |
+| `PUT /v1/topics/{task_id}/loops/{loop_id}` | any of `{"prompt", "triggers", "state"}` | `200 <loop>` | as POST, and `404 not_found` for no such loop |
+| `DELETE /v1/topics/{task_id}/loops/{loop_id}` | — | `200 {"loop_id": "<uuid>", "deleted": true}` (`false` when it was gone) | `403 not_allowed`, `404 not_found` (topic) |
+| `OPTIONS` on both paths | — | the CORS preflight, as `topicPreflight` (`topic_priority.go:39`) | — |
+
+`may_edit` is the archive-policy answer for the caller (answer 5 A); the
+WUI also computes it with `mayArchiveTopic` for the menu lock, and the hub
+re-checks every write. After each write the hub sends the topic's readers
+`{"type": "topic_loops", "task_id": "<uuid>", "loops": [<loop>...]}`.
+
+#### 7.1.3 `messages.loop_id` (L1 adds it, L2 writes it, L2b reads it)
+
+- Column `messages.loop_id uuid NULL`, no default, no foreign key (a
+  deleted loop keeps its prompt messages). Set only by the hub's fire
+  (4.3 step 2); NULL on every other row, old rows included.
+- `loop_id IS NOT NULL` means: a loop prompt message, `from_id = HUM-n`,
+  `from_box = box-wui`, `kind = task`, to one agent.
+- SQL readers filter `AND m.loop_id IS NULL` (5.2). L2b's sweep query does
+  so in its rows read; no other column changes for it.
+- JSON readers: the hub's task read behind `spool hub-tail --task`
+  (`spl-take-auto.func.sh:152`) carries `"loop_id": "<uuid>"` on such a row,
+  and omits the key when NULL. L2b's auto-take skips a row that has it.
 
 ## 8. Changes from v0.1
 
@@ -356,4 +478,11 @@ so L1 to L4 can start now.
 - New row L2b for the sweep and auto-take; the v0.1 row L2b (an
   author-only reply route) is dropped with answer 2 A.
 
-<!-- version: 0.2 · updated: 2026-11-20 · last-edit: 2026-11-20T09:30:00Z -->
+v0.3:
+
+- Q9 answered A (msg `e05bec70`): the agent's answer is an ordinary reply;
+  1.3 closed, the Q9 B line of 4.3 step 2 removed.
+- New 7.1, the binding contracts for the rows that run in parallel: the Go
+  store interface, the HTTP and WS shapes, the `messages.loop_id` column.
+
+<!-- version: 0.3 · updated: 2026-11-20 · last-edit: 2026-11-20T10:00:00Z -->

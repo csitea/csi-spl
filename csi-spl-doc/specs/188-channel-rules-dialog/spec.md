@@ -1,6 +1,6 @@
 # Spec 188: Channel rules dialog
 
-Status: **Draft v0.2** (2026-11-20). Lane `c-489` (`claude`, backup for
+Status: **Draft v0.3** (2026-11-20). Lane `c-489` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). Nothing below is built.
 Epic: **SPL-2403**. Issue: **SPL-6084**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:b1fe7670-8e80-4e67-b4d0-2a5484328981` (`t1`), task
@@ -23,8 +23,9 @@ Paths below: `api/` = `csi-spl-api/src/go/spool-hub-api/internal/`,
 `sa/` = `orc/features/spawn-agents/`, `rdb/` =
 `csi-spl-rdb/src/sql/postgres/spool-hub/`.
 
-History: v0.1 `582b96e85`. v0.2 folds the review of v0.1 (W1-W6, N1-N8;
-the fold map is section 9).
+History: v0.1 `582b96e85`. v0.2 `ed56ab310` folds the review of v0.1
+(W1-W6, N1-N8). v0.3 folds the review of v0.2 (W7, W8, N9-N11). The fold
+maps are section 9.
 
 ## 0. The owner's ask (verbatim)
 
@@ -71,7 +72,7 @@ Q7 How much may channel rules change what an agent does?
 (A) Add only: they add constraints; the fleet rules and the brief's scope always win
 (B) They win over the brief; the fleet rules still win
 Q8 Who may read a members-only channel's rules?
-(A) Its members and the agents working on it only
+(A) Its members, and the agent boxes of the workspace (the hub cannot tell one agent of a box from another)
 (B) Every member of the workspace
 ```
 
@@ -102,7 +103,12 @@ Why each recommendation:
   agent's scope; text that only adds constraints cannot. Today's seed line
   says the doc "wins over your brief" (section 2.2): A changes that line.
 - **Q8 A.** A members-only channel exists so that non-members do not read
-  it; its rules can name its customer, its tickets or its people.
+  it; its rules can name its customer, its tickets or its people. What A
+  grants, said plainly (W8): the hub knows a box by its upload token, not
+  the agent behind a call, so every agent box serving the workspace can read
+  every channel's rules, as it can read every workspace doc today
+  (section 2.5). The narrowing to "the agents working on the channel" is a
+  rule of the box code (section 3.3, last bullet), not a hub guarantee.
 
 ## 2. What exists (measured on `origin/master` `cbbc11996`)
 
@@ -244,8 +250,8 @@ Why each recommendation:
   out of a listing or search, and answers **404** to a direct read or write
   of one, whatever `docs.read` / `docs.write` the caller holds. The one door
   to such a node is C2 (and C6 for its revision).
-- C2 reads the node only for a member of the channel, or an agent of the
-  tenant (C2 rule 3) **[Q8 A]**; Q8 B: every member with `docs.read`.
+- C2 reads the node only for a member of the channel, or an agent box of
+  the tenant (C2 rule 3) **[Q8 A]**; Q8 B: every member with `docs.read`.
 - C2 writes only for an editor of 7.1 C2 rule 4 **[Q2]**. A `docs.write`
   holder who is not an editor gets 403 there and 404 on the doc-tree route.
 - The WUI's doc tree never shows the node; the dialog's "open in the full
@@ -253,6 +259,17 @@ Why each recommendation:
   through C2.
 - Under Q1 B (a column) the doc tree is not involved; C2 is the only door
   by construction.
+- Box side (W8): the box code exports a channel's rules only for an agent
+  whose brief `Channel:` line names that channel (2.2), or for the topic a
+  dispatcher takes or answers (3.5); `cr_export` refuses any other caller.
+  This is a box rule: it keeps a lane from being handed rules it does not
+  work on, and the data rule (who may take secret-class work) still applies
+  to what a channel's rules say. It does not stop an agent on the box from
+  calling C2 itself with the box token; only a per-agent token would, and
+  that is out of this spec (7.2).
+- Rules docs already named by a box map (N11) stay plain workspace docs,
+  outside this guard, until they are adopted: C7 moves one under the guard.
+  R2b migrates nothing on its own.
 
 ### 3.4 Precedence and trust (W2) **[Q7]**
 
@@ -346,7 +363,7 @@ column on `channels`.
 
 ```sql
 CREATE TABLE channel_rules (
-  tenant_id   uuid NOT NULL,
+  tenant_id   text NOT NULL REFERENCES tenants (tenant_id) ON DELETE CASCADE,
   channel_id  text NOT NULL,          -- '*' = the workspace default [Q6]
   doc_id      uuid NOT NULL,          -- the guarded doc-tree node (3.3)
   revision    bigint NOT NULL DEFAULT 0,
@@ -356,6 +373,10 @@ CREATE TABLE channel_rules (
 );
 ```
 
+- `tenant_id` is `text`, as `channels.tenant_id` is
+  (`rdb/0002_channels.sql:6`). `channel_id` has no foreign key, since `*` is
+  no channel; a channel's delete removes its row in the same transaction
+  (R2).
 - RLS by `tenant_id` (developer guide 2.6.4).
 - `revision` is the one counter C2's `base_revision` checks and C3 / C6
   carry; the doc tree's own revision log stays internal (N6).
@@ -380,14 +401,14 @@ the channel's rules only.
 | row | part | files | depends on | done test | red control |
 |---|---|---|---|---|---|
 | R1 | rdb: `channel_rules`, RLS, node kind **[Q1, Q6]** | `rdb/<next>_channel_rules.sql` (number from `do_rdb_migration_next`) | the answers | `TestRLSCoversEveryTenantTable` green; `PRE_PUSH_TIER=full` | the table without its policy fails `TestRLSCoversEveryTenantTable` |
-| R2 | hub: C2 and C6 **[Q1, Q2, Q6, Q8]** | `api/hub/channel_rules.go`, `api/store/channel_rules.go`, their tests | R1 for the Postgres test; the mock store lets it start on 7.1 | editor 200, non-editor 403, stale revision 409, unknown channel 404, non-member 404, other tenant 404, box token reads 200 and writes 403 | a `PUT` without the editor check passes the non-editor case: red |
-| R2b | hub: the doc-tree guard of 3.3 **[Q1 A, Q8]** | `api/hub/wsdoc_tree.go`, `wsdoc_nodes.go`, `wsdoc_lock.go`, `wsdoc_media.go`, the doc-tree store's list and search, their tests | R1 | a `docs.read` member who is not a channel member: the node is not in list / search and a direct read is 404; a `docs.write` holder's direct write is 404 | the list without the kind filter shows the node: red |
+| R2 | hub: C2, C6 and C7 **[Q1, Q2, Q6, Q8]** | `api/hub/channel_rules.go`, `api/store/channel_rules.go`, their tests | R1 for the Postgres test; the mock store lets it start on 7.1 | editor 200, non-editor 403, stale revision 409, unknown channel 404, non-member 404, other tenant 404, box token reads 200 and writes 403 | a `PUT` without the editor check passes the non-editor case: red |
+| R2b | hub: the doc-tree guard of 3.3 **[Q1 A, Q8]** | `api/hub/wsdoc_tree.go`, `wsdoc_nodes.go`, `wsdoc_lock.go`, `wsdoc_media.go`; the store's list and search: `api/store/workspace_doc_nodes.go` (`DocNodes` `:268`), `api/store/wsdoc_hub.go` (`DocList` `:70`, `DocSearch` `:102`), `api/store/search_docs_postgres.go` (`searchDocsSQL` `:95`, the global search); their tests | R1 | a `docs.read` member who is not a channel member: the node is not in list, doc search or the global search, and a direct read is 404; a `docs.write` holder's direct write is 404 | the list without the kind filter shows the node: red |
 | R3 | WUI: menu item + dialog **[Q2, Q5]** | `wui/utils/sidebar-row-menu.mjs`, `wui/components/ChannelRulesDialog.vue` (async), `ChannelSidebar.vue`, `useSidebarChannelAdmin.ts`, the new keys in `csi-spl-wui/i18n/locales/*.json`, unit tests | 7.1 C1-C2 only (mock api) | unit: the item on a channel row, not on a DM row; save sends `base_revision`; `i18n-parity` and `i18n-no-raw-text` green | the item shown on a DM row fails the unit test |
-| R4 | orc: hub-first export, new seed line, map disagreement **[Q3, Q7]** | `sa/lib/channel-rules.inc.sh`, `sa/scripts/spawn-core.inc.sh`, `orc/run/spl-lane-restart.func.sh`, `orc/run/spl-channel-rule.func.sh` (check), `sa/tests/test-seed-channel-rules.sh` | 7.1 C2, C4, C6 (stub hub) | the C4 cases each green; the seed line word for word (3.4) | 3.4's red control; C4's |
+| R4 | orc: hub-first export, new seed line, map disagreement, adopt **[Q3, Q7]** | `sa/lib/channel-rules.inc.sh`, `sa/scripts/spawn-core.inc.sh`, `orc/run/spl-lane-restart.func.sh`, `orc/run/spl-channel-rule.func.sh` (check, and `adopt` for C7), `sa/tests/test-seed-channel-rules.sh` | 7.1 C2, C4, C6 (stub hub) | the C4 cases each green; the seed line word for word (3.4) | 3.4's red control; C4's |
 | R4b | orc: `do_spl_channel_rules_sync` **[Q4]** | `orc/run/spl-channel-rules-sync.func.sh`, its cron line, `orc/tests/channel-rules-sync.tst.sh` | C3, C6 (stub hub) | 3.6's two-box test | 3.6's red control |
 | R5 | e2e: right-click -> edit -> save -> reload **[Q5]** | `csi-spl-wui/tests/e2e/channel-rules.spec.ts` | R3 (mock), then R2 deployed for the dev run | Chrome run green on the mock bundle | Save not wired: the reload shows the old text, red |
 | R6 | dispatchers and lanes **[Q3 A]** | `sa/lib/channel-rules.inc.sh` (`cr_topic_rules`), `orc/run/spl-take.func.sh`, `orc/run/spl-desk-reply.func.sh`, `orc/run/spl-spawn-enqueue.func.sh`, their tests | R4 (the same lib: after R4 lands) | take on a channel topic prints the rules line; a second take at the same revision exports nothing; a lane placed from a channel topic carries the `Channel:` line | take without the call: the case is red |
-| R7 | docs | a `csi-spl-doc/doc/md/channel-rules.md` page, the `channel-rules.inc.sh` header, this spec's status | R2-R6 | `do_check_fleet_rules_drift` green | the page naming an action not on the tree (`do_spl_channel_rules_synk`) fails `do_check_fleet_rules_drift`: red |
+| R7 | docs, and the drift gate reads the new page (W7) | a `csi-spl-doc/doc/md/channel-rules.md` page, the `channel-rules.inc.sh` header, this spec's status; `orc/run/check-fleet-rules-drift.func.sh` (`_FRD_AGENT_DOCS` `:250` gets the page, so fact 8 repo-refs checks its paths and actions) and a case in `orc/tests/check-fleet-rules-drift.tst.sh` | R2-R6 | `do_check_fleet_rules_drift` green with the page read | a fixture page naming `do_spl_channel_rules_synk` (not on the tree) gives `FAIL repo-refs`: red; the same fixture with `_FRD_AGENT_DOCS` at today's value stays green, which shows the gate change is what catches it |
 | R8 | i18n review (language rule) | the locale files of R3 | R3's commit, before it lands | agy has reviewed every non-English value; `i18n-untranslated` does not rise | a key missing in one locale fails `i18n-parity` |
 | R9 | spec 169 move carries the rules | the move plan store (`api/store/channel_move_plan_postgres.go`) and its test | R1 | a moved channel's rules read the same in the target workspace | the plan without the table: the case is red |
 
@@ -419,9 +440,10 @@ it is marked with.
      who may read but not edit; 409 `stale_revision` when `base_revision`
      is not `channel_rules.revision`; 413 over 64 KiB.
   3. Who reads: a signed-in member of the channel (every member of a
-     default channel) **[Q8 A]**, or an agent with a box upload token of
-     the tenant (the tenant is the token's, never the request's; any
-     channel of it, as a dispatcher serves them all). Anyone else: 404.
+     default channel) **[Q8 A]**, or a box upload token of the tenant (the
+     tenant is the token's, never the request's). A box token reads any
+     channel of its tenant: the hub cannot tell which agent of the box
+     calls (Q8 A says so; 3.3 names the box-side rule). Anyone else: 404.
   4. Who writes: the channel owner (`channelOwner`) or a holder of
      `tenant.settings` **[Q2 A]**. A box token never writes (403).
   5. `channel = "*"` is the workspace default **[Q6]**: every member of the
@@ -440,7 +462,8 @@ it is marked with.
      `do_spl_channel_rule` check reports it (a new reason, exit 3 stale).
   3. Hub has rules, no map row: the hub's rules, no WARN.
   4. Hub answers rev 0 and a map row exists: the map's doc through the
-     desk export as today, with a WARN that the channel has no hub rules.
+     desk export as today, with a WARN that the channel has no hub rules and
+     the command that adopts its doc (C7, `CHANNEL_RULE_CMD=adopt`).
   5. Hub silent (timeout or 5xx after `cr_export`'s tries) and a map row:
      the map's doc as today, with a WARN; neither: no rules line (today's
      behaviour).
@@ -451,21 +474,33 @@ it is marked with.
   upload token or `tenant.settings`) -> 200 `{"rules": [{"channel_id":
   "<id>", "revision": <n>}]}`, every channel of the tenant with rev > 0,
   `*` included. No markdown in it.
+- **C7 adopt a map's doc (N11).** `POST /v1/channels/{channel}/rules/adopt`
+  `{"doc_id": "<uuid>"}`, `tenant.settings` only: re-kinds that doc-tree
+  node to `channel_rules` (3.3 then guards it), writes the `channel_rules`
+  row with `revision 1`, and answers 200 `{"revision": 1}`. 409 when the
+  channel already has rules or the doc is another channel's; 404 for a doc
+  not in the tenant. Box side: `CHANNEL_RULE_CMD=adopt` of
+  `do_spl_channel_rule` (a dry run unless `DRY_RUN=0`) calls it for one map
+  row, printing the call it would make. The map row stays (columns 6-7).
 - **C5 org-neutral.** No channel or tenant name in git: tests use
   generated ids; the map stays out of git.
 
 ### 7.2 Not in this spec
 
 Moving the sole-seat and no-auto-post columns to the hub; rules for DMs;
-rules per topic; a hub-side push of C3.
+rules per topic; a hub-side push of C3; a per-agent token that would let
+the hub narrow C2's agent read to the agents of one channel.
 
 ## 8. Review
 
 v0.1 `582b96e85` went to the dispatch holder; its review asked for W1-W6
-and N1-N8. v0.2 folds them (section 9) and goes back to review; the owner
+and N1-N8. v0.2 `ed56ab310` folded them; its review asked for W7, W8 and
+N9-N11. v0.3 folds those (section 9.2) and goes back to review; the owner
 form of section 1 waits for that PASS. v0.3 folds the owner's answers.
 
-## 9. Fold map (v0.1 review)
+## 9. Fold maps
+
+### 9.1 The v0.1 review
 
 | id | finding | v0.2 |
 |---|---|---|
@@ -483,3 +518,13 @@ form of section 1 waits for that PASS. v0.3 folds the owner's answers.
 | N6 | two revision counters | folded: section 4 (`channel_rules.revision` only) |
 | N7 | a `hub` / `wui` channel has no owner | folded: 2.4, Q2 why |
 | N8 | same icon as Properties | folded: C1 `book-open` |
+
+### 9.2 The v0.2 review
+
+| id | finding | v0.3 |
+|---|---|---|
+| W7 | R7's red control cannot go red: fact 8 reads only the root `CLAUDE.md` and `AGENTS.md` | folded: R7 adds the page to `_FRD_AGENT_DOCS` (`check-fleet-rules-drift.func.sh:250`) with a test case, and the control shows the gate change catches the typo |
+| W8 | Q8 A promises more than C2 rule 3 gives | folded by rewording: Q8 A says what it grants (every agent box of the workspace), the Q8 why and C2 rule 3 say the hub cannot tell agents of one box apart, and 3.3 names the box-side rule and what it does not stop; a per-agent token is out of scope (7.2) |
+| N9 | `tenant_id uuid` vs `text` | folded: `text` with an FK to `tenants`, no FK on `channel_id` |
+| N10 | R2b named no store file | folded: `workspace_doc_nodes.go:268`, `wsdoc_hub.go:70`, `:102`, `search_docs_postgres.go:95` |
+| N11 | the map's existing docs stay unguarded | folded: C7 adopt (hub route + `CHANNEL_RULE_CMD=adopt`), C4 rule 4 names it, 3.3 says R2b migrates nothing |

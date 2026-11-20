@@ -34,7 +34,10 @@ reads and fetches, sends nothing, writes no ledger). Code:
    run-on-box request id (SPL-2953: c-368's `gr-cmd-890b4562175b`, a
    12-hex token that is no object, read as a pre-rebase sha): the hex of
    `gr-cmd-<hex>` (also `.zip`) and a token right after a `gr-cmd`,
-   `request id` or `req` label. An unlabelled lettered token that is no
+   `request id` or `req` label. So is the hex of a container image tag
+   `src-<hex>` (SPL-6074: c-339's `spool-pdf:src-73f6cd79d049`, the 12 hex of
+   a source hash that `spl_pdf_image_tag` makes, is no commit and was read
+   as a pre-rebase sha). An unlabelled lettered token that is no
    object still counts as a pre-rebase sha.
    **The claim is the sha line** (SPL-2338): when a line of the body starts
    with the word `sha` or `shas`, after list marks and bold (`sha:`,

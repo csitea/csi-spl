@@ -346,8 +346,9 @@ spl_done_claim_patch_ids() {
 # run-on-box request id (gr-cmd-<hex>[.zip], the token after a "gr-cmd",
 # "request id" or "req" label; SPL-2953; SPL-3758, measured on a lane's
 # results: after "gr id", "result", "result for", "results/", "gr-result-")
-# and a stable patch-id (the token after "patch-id", SPL-3758); one line,
-# space-separated. 13..39
+# and a stable patch-id (the token after "patch-id", SPL-3758) and the hex of
+# an image tag src-<hex> (spool-pdf:src-<hex>, spl_pdf_image_tag; SPL-6074);
+# one line, space-separated. 13..39
 # hex (a 32-hex md5) is no git sha. A token that
 # is a tree, a blob or a tag of no commit in a repo of [repos file] is no sha
 # (c-734's "(tree cefedf318)"); an all-digit token counts only when it is a
@@ -355,7 +356,8 @@ spl_done_claim_patch_ids() {
 spl_done_claim_tokens() {
   sed -E -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/ /g' \
     -e 's/(^|[^0-9a-zA-Z])(md5|sha-?(1|224|256|384|512))(sum)?[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \5/gI' \
-    -e 's/(^|[^0-9a-zA-Z])(gr-cmd|gr[ _-]?id|request[ _-]?id|req|results?( for)?|patch[ _-]?id)[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \4/gI' |
+    -e 's/(^|[^0-9a-zA-Z])(gr-cmd|gr[ _-]?id|request[ _-]?id|req|results?( for)?|patch[ _-]?id)[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \4/gI' \
+    -e 's/(^|[^0-9a-zA-Z])src-[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \2/gI' |
     tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,12}|[0-9a-f]{40}' | awk '!s[$0]++' |
     spl_done_claim_commits "${1:-}" | paste -sd' ' -
 }

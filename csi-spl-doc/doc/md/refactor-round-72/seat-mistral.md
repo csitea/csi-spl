@@ -285,3 +285,49 @@ None. W1..: none.
 ## Report line (sent on task `dispatch-refactor-r72`)
 
 `panel: m-206@sat mistral PASS 1d212b56fde9b13de133a08297bf385a71dd01bf seat-file: review/c002-refactor-round-72-mistral-seat <this commit's sha> ran: <commands> | read: <files> | log: m-206@sat:~/.vibe/logs/session/unified/37043005-d3c3-28f2-9471-b2d7fdb522d5`
+(resent unchanged except the `review: ` prefix, per the holder's SEND-BACK, msg `434914ef`; the checker passed it rc 0.)
+
+## Landed-sha signature (second commit on this branch)
+
+The editor's v1.0 landed on `origin/master` as
+`2f49bfad2006f3544cf75af4e56cf7ccbfd76611`. Provenance at my read (2026-11-20T04:0xZ):
+`git fetch origin master && git rev-parse origin/master` ->
+`2f49bfad2006f3544cf75af4e56cf7ccbfd76611` (the landed commit is the tip);
+`git merge-base --is-ancestor 2f49bfad2 origin/master` -> rc 0 (on master);
+`git log -1 --no-mailmap --format='%ae %ce' 2f49bfad2` -> the repo CLAUDE.md "Commits:"
+address in both fields; `git log -1 --format=%s 2f49bfad2` ->
+`docs(r72-plan, SPL-6012): refactor round 72 plan v1.0, signed by m-206 mistral PASS on 1d212b56f; no row changed`;
+`git show 2f49bfad2 --stat` -> 1 file, `csi-spl-doc/doc/md/refactor-round-72-plan.md`,
++24/-3, doc-only. The task `dispatch-refactor-r72` names it: c-002@sat 2026-11-20T03:40:50Z
+"plan v1.0 2f49bfad2 on origin/master (ancestor rc 0), panel m-206@sat PASS 1d212b56f
+line check rc 0" (rows r72-01 and r72-02 queued on it).
+
+**Signed v0.1 vs landed v1.0:** `git diff 1d212b56f 2f49bfad2 -- csi-spl-doc/doc/md/refactor-round-72-plan.md`
+-> 27 lines, hunks only at the status line ("v1.0, signed", recording this seat's PASS on
+`1d212b56f` and N1-N4), section 8 (the v1.0 entry) and section 9 (consensus);
+`git diff 1d212b56f 2f49bfad2 -- <plan> | grep -cE '^[+-].*(r72-01|r72-02)'` -> **0**
+(rows 01 and 02 unchanged, as the landing commit says).
+
+Re-run of the row checks on the landed `2f49bfad2`:
+- `git grep -nE '\bMoveMessage\(' 2f49bfad2 -- csi-spl-api | wc -l` -> **28** (unchanged);
+  `git show 2f49bfad2:.../cleancode/cleancode_test.go | sed -n '41,44p' | grep -c 'true'`
+  -> **2** `wideFuncs` entries (unchanged);
+  `git grep -nF 'SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/' 2f49bfad2 -- . ':!csi-spl-doc' | wc -l`
+  -> **1** (unchanged);
+  `git show 2f49bfad2:.../spl-reflection-gather.func.sh | sed -n '216,219p'` -> the derive
+  line and the `(not read ...)` line identical;
+  `git diff --name-only 99548495c 2f49bfad2 | grep -E 'message_move|spl-reflection-gather|cleancode_test|spl-run-paths'`
+  -> no match (no row file moved since the plan's base).
+- `lane-map.sh --check <the row paths> --agent m-206` -> **exit 3** now: the two orc row
+  files are owned by c-213@sat `c-213-c002-r72-02-orc-reflection-zombie-subdir` (the r72-02
+  row lane, spawned on the signed v1.0) — expected after the signature; at review time
+  (check 7) the exit was 4 with no owner.
+
+**PASS on `2f49bfad2006f3544cf75af4e56cf7ccbfd76611`** (plan v1.0, landed on origin/master).
+The landed commit differs from the signed `1d212b56f` only in the status line and
+sections 8-9 recording this seat's PASS; rows 01 and 02 are as signed, no new defect, no
+new note.
+
+## Landed report line (sent on task `dispatch-refactor-r72`)
+
+`review: m-206@sat mistral PASS 2f49bfad2006f3544cf75af4e56cf7ccbfd76611 seat-file: review/c002-refactor-round-72-mistral-seat <this commit's sha> ran: <commands> | read: <files> | log: m-206@sat:~/.vibe/logs/session/unified/37043005-d3c3-28f2-9471-b2d7fdb522d5`

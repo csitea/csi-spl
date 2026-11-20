@@ -32,7 +32,9 @@ back to the browser tab.
 ## An open note
 
 Click (or tap) a row to open the note. On a wide screen it opens as a window
-over the list: **Esc**, the **X** or a click beside it closes it. On a phone
+over the list: **Esc**, the **X** or a click beside it closes it. After
+**Esc** the focus is back on that note's row in the list, so **j** / **k**
+(or the arrow keys) move up and down the list at once. On a phone
 it fills the screen, and the **Back** arrow at the top left (or a swipe right,
 or the phone's Back) takes you back to the list.
 

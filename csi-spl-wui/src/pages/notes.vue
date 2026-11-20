@@ -6,7 +6,8 @@
      owner t1 2f4311d9, SPL-4897), so the bar has no Archived switch. A row is
      one line, the title alone (owner, t1 2a0b4d9e, SPL-4651) with its priority
      beside it (spec 155 2.9, SPL-4652; hidden on a phone, SPL-4893), and is
-     /notes?note=<id>; B6 (SPL-4186) opens it:
+     /notes?note=<id>; B6 (SPL-4186) opens it, and closing it puts the focus
+     on its row, a spec 103 vim item (j / k, arrows; SPL-6063):
      components/NoteDetail.vue, lazy, a modal above 820 px and the level-3
      full screen on a phone. The order is the person's own: drag a row, or
      Alt+Up / Alt+Down on it (utils/note-order.mjs). Every row has a menu
@@ -87,6 +88,7 @@
                   :href="noteHref(n.id)"
                   :aria-current="openId === n.id ? 'true' : undefined"
                   data-test="notes-open"
+                  data-vim-item
                   @click.exact.prevent="open(n.id)"
                   @keydown.alt.up.prevent="move(n.id, -1)"
                   @keydown.alt.down.prevent="move(n.id, 1)"
@@ -116,7 +118,7 @@
       :phone="phone"
       :can-up="canMove(openId, -1)"
       :can-down="canMove(openId, 1)"
-      @close="close"
+      @close="closeNote"
       @delete="onDelete"
       @archive="onArchive"
       @discuss="acts.discuss"
@@ -223,6 +225,20 @@ function onDelete(id: string) {
 function onArchive(id: string) {
   if (openId.value === id) close()
   void acts.archive(id)
+}
+
+/* SPL-6063 (owner HUM-10, t1 3858d264, msg 7bd1c224): Esc, the X or a click
+   beside the note puts the focus on its row, also for a note made with the +
+   (the dialog hands it back to the + first), so j / k and the arrows step the
+   list at once (each row link is a spec 103 vim item, data-vim-item) */
+function closeNote() {
+  const id = openId.value
+  close()
+  if (id && !phone.value) void nextTick(() => focusRow(id))
+}
+function focusRow(id: string) {
+  const row = [...document.querySelectorAll<HTMLElement>('[data-test=notes-row]')].find((el) => el.dataset.noteId === id)
+  row?.querySelector<HTMLElement>('[data-test=notes-open]')?.focus()
 }
 
 /* the row's menu: at the pointer (right-click), or under its button */

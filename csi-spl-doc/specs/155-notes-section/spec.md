@@ -257,6 +257,10 @@ and ref <= 2 048, <= 2 000 notes per person (`notes_full`).
   back in the list.
 - **Open**: a click (or Enter) opens the note above 820 px as a modal like
   an issue (1.2 row 6), on a phone as a level-3 full screen (1.2 row 7).
+  Closing it (Esc, the X, a click beside it) puts the focus on its row in
+  the list, also for a note made with the +, and a row is a spec 103 vim
+  item, so j / k and ArrowDown / ArrowUp step the rows at once (owner
+  HUM-10, t1 3858d264, msg 7bd1c224; SPL-6063).
   `/notes?note=<id>` opens it directly, so the browser's back and a
   bookmark work. Inside: the title, the text (plain text with the same
   link rendering as a message; see **Editor** below), the checklist (tick, add, edit, delete,

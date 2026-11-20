@@ -243,3 +243,15 @@ Read whole this session: `CLAUDE.md`, `csi-spl-doc/doc/help/how-to-post.md`,
 `csi-spl-doc/doc/md/refactor-round-77-plan.md` section 7 (on `0782cf525`),
 `/var/spool-hub/dispatch/c002-next-round-candidates.md`, the planner's brief
 `c002-refactor-round-78-planner.md`.
+
+## v1.0 signature
+
+**PASS** on the editor's v1.0 `2b7bb502ac83b1bd38098d623e75f52ad3b1d46b` (on
+`origin/master`, read 2026-11-20T23:5xZ). Verified before signing:
+`git diff bacd0159c 2b7bb502a -- csi-spl-doc/doc/md/refactor-round-78-plan.md` touches
+only sections 8-9 and the N3 count wording; the row table is byte-identical
+(`diff <(git show bacd0159c:<plan> | sed -n '/## 2. The 2 rows/,/### 2.1/p') <(git show
+2b7bb502a:<plan> | sed -n '/## 2. The 2 rows/,/### 2.1/p')` -> empty, ROWS-IDENTICAL).
+Section 9 of v1.0 records this seat's PASS on `a5f35558a` with N1-N3 and the holder's
+review-line check rc 0 (DOCS-ONLY). Rows unchanged from the reviewed v0.1, no new
+defect: this seat signs v1.0 `2b7bb502ac83b1bd38098d623e75f52ad3b1d46b`.

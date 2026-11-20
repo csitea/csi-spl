@@ -444,7 +444,7 @@ func (s *Memory) seedChannelStatsLocked(tenant string) *channelStatSet {
 func (s *Memory) tallyChannelStatsLocked(by *channelStatSet, tenant string, now time.Time, reads map[string]ReadMark, reader, lobby string) map[string]map[string]bool {
 	posters := map[string]map[string]bool{}
 	for _, m := range s.liveLocked(tenant, now) { // oldest first
-		if m.Channel == "" {
+		if m.Channel == "" || m.LoopID != "" { // spec 182 5.2
 			continue
 		}
 		st := by.get(m.Channel)

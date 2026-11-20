@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/search"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -518,8 +519,9 @@ func TestTopicLoopAwaiting(t *testing.T) {
 // TestTopicLoopRowHidden (spec 182 5.2, the row's red control): a loop
 // prompt message (Message.LoopID) is stored and read back by FanoutRow, but
 // it is in no topic view, no topic list row, no channel count, no batch
-// page and no fallback read; on Postgres it moves no topic head and
-// topic_head_diff stays empty.
+// page, no fallback read, no search hit (messages, files, topics), no
+// channel stat (count, unread, last) and no browser change; on Postgres it
+// moves no topic head and topic_head_diff stays empty.
 func TestTopicLoopRowHidden(t *testing.T) {
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
@@ -527,9 +529,11 @@ func TestTopicLoopRowHidden(t *testing.T) {
 			now := time.Now().UTC().Truncate(time.Microsecond)
 			post := msgFor(f.tn, f.task, "box-desk", now, now, `{"post":"`+uuid4()+`"}`)
 			post.Channel, post.FromBox, post.FromID, post.ToBox, post.ToID = "ops", "box-wui", "HUM-1", "box-desk", "CLE-07"
+			post.Body = postWord + " the human post"
 			loop := post
 			loop.MsgID, loop.Env, loop.ReceivedAt, loop.TS = uuid4(), []byte(`{"loop":"`+uuid4()+`"}`), now.Add(time.Second), now.Add(time.Second)
 			loop.LoopID = uuid4()
+			loop.Body, loop.Files = loopWord+" export this discussion", []byte(`[{"name":"`+loopWord+`.txt","kind":"text"}]`)
 			for _, m := range []Message{post, loop} {
 				if ok, err := s.InsertMessage(f.ctx, m); err != nil || !ok {
 					t.Fatalf("insert %s: %v %v", m.MsgID, ok, err)
@@ -539,6 +543,13 @@ func TestTopicLoopRowHidden(t *testing.T) {
 		})
 	}
 }
+
+// loopWord is a word only the loop prompt row of TestTopicLoopRowHidden
+// carries, postWord one only its human post carries.
+const (
+	loopWord = "zebraloopword"
+	postWord = "yakpostword"
+)
 
 // assertLoopRowHidden is TestTopicLoopRowHidden's checks of every reader.
 func assertLoopRowHidden(t *testing.T, f *loopFix, post, loop Message, now time.Time) {
@@ -565,6 +576,8 @@ func assertLoopRowHidden(t *testing.T, f *loopFix, post, loop Message, now time.
 			t.Fatalf("batch page: %+v %v, want only the post", page[f.task], err)
 		}
 	}
+	assertLoopRowUnsearched(t, f, post, now)
+	assertLoopRowNoStatNoChange(t, f, post, now)
 	fb := f.s.(Fallbacks)
 	for what, read := range map[string]func() ([]Queued, error){
 		"unheard": func() ([]Queued, error) {
@@ -599,6 +612,60 @@ func assertLoopRowHidden(t *testing.T, f *loopFix, post, loop Message, now time.
 	}
 	if last != post.MsgID {
 		t.Fatalf("topic head last_msg_id %s, want the post %s (a loop row moves no head)", last, post.MsgID)
+	}
+}
+
+// assertLoopRowUnsearched: a search for loopWord finds no message, no file
+// and no topic, and the topic a search for postWord finds counts only the
+// post (spec 182 5.2, the search statements).
+func assertLoopRowUnsearched(t *testing.T, f *loopFix, post Message, now time.Time) {
+	t.Helper()
+	pq, err := search.Parse(loopWord, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := SearchQuery{Q: pq, Now: now, Limit: 20}
+	sr := f.s.(Searcher)
+	ms, err := sr.SearchMessages(f.ctx, f.tn, q)
+	if err != nil || len(ms) != 0 {
+		t.Fatalf("search messages %q: %+v %v, want none", loopWord, ms, err)
+	}
+	fs, err := sr.SearchFiles(f.ctx, f.tn, q)
+	if err != nil || len(fs) != 0 {
+		t.Fatalf("search files %q: %+v %v, want none", loopWord, fs, err)
+	}
+	ts, err := sr.SearchTopics(f.ctx, f.tn, q)
+	if err != nil || len(ts) != 0 {
+		t.Fatalf("search topics %q: %+v %v, want none", loopWord, ts, err)
+	}
+	if q.Q, err = search.Parse(postWord, now); err != nil {
+		t.Fatal(err)
+	}
+	if ts, err = sr.SearchTopics(f.ctx, f.tn, q); err != nil || len(ts) != 1 || ts[0].Count != 1 || !ts[0].LastAt.Equal(post.ReceivedAt) {
+		t.Fatalf("search topics %q: %+v %v, want one topic of one line, last at the post", postWord, ts, err)
+	}
+}
+
+// assertLoopRowNoStatNoChange: the channel's stat counts only the post, for
+// a reader with no mark and one with a mark before both rows, and the
+// browser's change poll lists only the post as new.
+func assertLoopRowNoStatNoChange(t *testing.T, f *loopFix, post Message, now time.Time) {
+	t.Helper()
+	before := map[string]ReadMark{"ops": {At: post.ReceivedAt.Add(-time.Minute)}}
+	for what, reads := range map[string]map[string]ReadMark{"no mark": nil, "a mark": before} {
+		stats, err := f.s.(Channels).ViewChannelStats(f.ctx, f.tn, now, reads, "HUM-2", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, st := range stats {
+			if st.ChannelID == "ops" && (st.Count != 1 || st.Unread != 1 || st.LastMsgID != post.MsgID) {
+				t.Fatalf("channel stat, %s: count %d unread %d last %s, want 1 1 %s (the post)", what, st.Count, st.Unread, st.LastMsgID, post.MsgID)
+			}
+		}
+	}
+	cs, err := f.s.(ViewChanger).ViewChanges(f.ctx, f.tn, ChangeQuery{Since: post.ReceivedAt.Add(-time.Minute), Now: now, Max: 50})
+	if err != nil || len(cs) != 1 || cs[0].MsgID != post.MsgID || cs[0].Kind != ChangeNew {
+		t.Fatalf("view changes: %+v %v, want only the post as new", cs, err)
 	}
 }
 

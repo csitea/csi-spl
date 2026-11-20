@@ -23,7 +23,8 @@ import (
 //     tenant's topic_priorities rows (one per topic someone set, the
 //     primary key's tenant prefix), a small table: no set_at index.
 //
-// The join keeps rows inside retention and reads where each row is now.
+// The join keeps rows inside retention and reads where each row is now; a
+// loop prompt message (rdb 0299, spec 182 5.2) is no change of any topic.
 const viewChangesSQL = `SELECT c.kind, m.msg_id::text, m.task_id::text, COALESCE(m.channel, ''), m.from_id, m.to_id,
 		CASE WHEN m.moved_at IS NULL THEN '' ELSE COALESCE(m.moved_from_channel, '') END,
 		COALESCE(m.moved_from_task::text, '')
@@ -40,11 +41,11 @@ const viewChangesSQL = `SELECT c.kind, m.msg_id::text, m.task_id::text, COALESCE
 			WHERE h.n <> (SELECT count(*) FROM message_reactions x WHERE x.tenant_id = $1 AND x.msg_id = h.msg_id)
 		) r
 		UNION ALL SELECT 7, 'priority', (SELECT x.msg_id FROM messages x
-			WHERE x.tenant_id = $1 AND x.task_id = p.task_id AND x.expires_at > $5
+			WHERE x.tenant_id = $1 AND x.task_id = p.task_id AND x.expires_at > $5 AND x.loop_id IS NULL
 			ORDER BY x.received_at, x.msg_id LIMIT 1)
 			FROM topic_priorities p WHERE p.tenant_id = $1 AND p.set_at > $2
 	) c
-	JOIN messages m ON m.tenant_id = $1 AND m.msg_id = c.msg_id AND m.expires_at > $5
+	JOIN messages m ON m.tenant_id = $1 AND m.msg_id = c.msg_id AND m.expires_at > $5 AND m.loop_id IS NULL
 	ORDER BY c.o, m.received_at, m.msg_id
 	LIMIT $6`
 

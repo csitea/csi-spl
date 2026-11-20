@@ -84,7 +84,7 @@ type TopicLoop struct {
 	TaskID      string // uuid, lower case
 	Prompt      string
 	Triggers    []string // distinct, sorted
-	SetBy       string   // HUM-n
+	SetBy       string   // the member id (hum) of who set it; the v:1 from is derived from it at fire time (spec 182 v0.5)
 	SetAt       time.Time
 	State       string    // TopicLoopOn | TopicLoopPaused
 	HourStart   time.Time // zero: never fired

@@ -85,6 +85,9 @@ func (s *Memory) ViewChanges(_ context.Context, tenant string, q ChangeQuery) ([
 	var out []TopicChange
 	first := map[string]bool{}                      // topics whose oldest live row was seen
 	for _, m := range s.liveLocked(tenant, q.Now) { // oldest first
+		if m.LoopID != "" { // spec 182 5.2
+			continue
+		}
 		ks := s.changeKindsLocked(tenant, m, q)
 		if !first[m.TaskID] {
 			first[m.TaskID] = true

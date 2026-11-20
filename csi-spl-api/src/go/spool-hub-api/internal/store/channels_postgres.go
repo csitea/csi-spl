@@ -386,7 +386,8 @@ func (cs *channelStats) channelsRead() tenantRead {
 }
 
 // countsRead is each channel's live message count, newest message and
-// posters; unread starts at the count less the reader's own lines (OwnLine:
+// posters (a loop prompt message, rdb 0299 spec 182 5.2, is none of them, nor
+// is it unread in the reads below); unread starts at the count less the reader's own lines (OwnLine:
 // from_id, on the same covering index).
 func (cs *channelStats) countsRead(now time.Time, reader string) tenantRead {
 	// e908f41b lane B: one GROUP BY over the covering index messages_channel_stats
@@ -402,11 +403,11 @@ func (cs *channelStats) countsRead(now time.Time, reader string) tenantRead {
 	return tenantRead{`WITH c AS (
 			SELECT channel, count(*)::int AS n, max(received_at) AS last_at, count(DISTINCT from_id)::int AS posters,
 				count(*) FILTER (WHERE $3::text IS NULL OR from_id IS DISTINCT FROM $3)::int AS others
-			FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2
+			FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2 AND loop_id IS NULL
 			GROUP BY channel)
 		SELECT c.channel, c.n, c.last_at, l.msg_id, c.posters, c.others FROM c
 		CROSS JOIN LATERAL (SELECT x.msg_id::text AS msg_id FROM messages x
-			WHERE x.tenant_id = $1 AND x.channel = c.channel AND x.expires_at > $2 AND x.received_at = c.last_at
+			WHERE x.tenant_id = $1 AND x.channel = c.channel AND x.expires_at > $2 AND x.received_at = c.last_at AND x.loop_id IS NULL
 			ORDER BY x.msg_id::text DESC LIMIT 1) l`,
 		[]any{cs.tenant, now, nullIfEmpty(reader)}, func(r pgx.Rows) error {
 			var id string
@@ -464,7 +465,7 @@ func (cs *channelStats) markArgs(reads map[string]ReadMark, now time.Time, reade
 func (cs *channelStats) markedUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
 	return tenantRead{`WITH ` + channelMarksCTE + `
 		SELECT mk.ch, c.n FROM mk CROSS JOIN LATERAL (SELECT count(*)::int AS n FROM messages m
-			WHERE m.tenant_id = $1 AND m.channel = mk.ch AND m.expires_at > $2
+			WHERE m.tenant_id = $1 AND m.channel = mk.ch AND m.expires_at > $2 AND m.loop_id IS NULL
 			AND m.received_at >= mk.at AND (m.received_at, m.msg_id::text) > (mk.at, mk.id)
 			AND ($6::text IS NULL OR (m.from_id IS DISTINCT FROM $6 AND m.typed_by IS DISTINCT FROM $6))` +
 		threadReadSQL("m", "$1", "$6") + archivedHideSQL("m", "$1", "$7") + `) c`,
@@ -495,7 +496,7 @@ func (cs *channelStats) threadUnreadRead(reads map[string]ReadMark, now time.Tim
 		CROSS JOIN LATERAL (SELECT x.msg_id, x.channel, x.received_at, x.task_id, x.parent_task_id FROM messages x
 			WHERE x.tenant_id = $1 AND x.task_id = k.task
 			AND x.received_at >= tm.at AND (x.received_at, x.msg_id::text) > (tm.at, tm.msg_id)
-			AND x.channel IS NOT NULL AND x.expires_at > $2 AND x.from_id IS DISTINCT FROM $6 AND x.typed_by IS DISTINCT FROM $6 OFFSET 0) m
+			AND x.channel IS NOT NULL AND x.expires_at > $2 AND x.loop_id IS NULL AND x.from_id IS DISTINCT FROM $6 AND x.typed_by IS DISTINCT FROM $6 OFFSET 0) m
 		JOIN mk ON mk.ch = m.channel AND (m.received_at, m.msg_id::text) <= (mk.at, mk.id)
 		WHERE $6::text IS NOT NULL` + archivedHideSQL("m", "$1", "$7") + `
 		GROUP BY m.channel`,
@@ -559,7 +560,7 @@ const hiddenLineSQL = `(u.archived_at IS NOT NULL OR EXISTS (SELECT 1 FROM messa
 // once the tenant has an archived line at all (a one-time check): with none,
 // z is empty anyway (dev t1: 25 buffers, not 1 298).
 func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
-	const unmarked = ` AND m.channel IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)`
+	const unmarked = ` AND m.channel IS NOT NULL AND m.loop_id IS NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)`
 	return tenantRead{`WITH RECURSIVE ` + channelMarksCTE + `,
 		cl AS (SELECT (SELECT min(channel) FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL) AS ch
 			UNION ALL SELECT (SELECT min(x.channel) FROM messages x WHERE x.tenant_id = $1 AND x.channel > cl.ch) FROM cl WHERE cl.ch IS NOT NULL),

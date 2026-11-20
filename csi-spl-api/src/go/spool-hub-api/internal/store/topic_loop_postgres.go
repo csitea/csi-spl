@@ -22,6 +22,12 @@ const topicLoopCols = `tenant_id, loop_id::text, task_id::text, prompt, triggers
 	coalesce(keyword, ''), coalesce(idle_min, 0), idle_due_at, coalesce(idle_post::text, ''),
 	coalesce(to_char(daily_at, 'HH24:MI'), ''), daily_tz, daily_due_at`
 
+// topicLoopRowCols are the table columns topicLoopCols reads, by name: what an
+// UPDATE ... RETURNING hands on to a SELECT of topicLoopCols.
+const topicLoopRowCols = `tenant_id, loop_id, task_id, prompt, triggers, set_by, set_at, state,
+	hour_start, fires_in_hour, fires_total, last_fired_at, interval_min, next_due_at, awaiting, awaiting_until,
+	keyword, idle_min, idle_due_at, idle_post, daily_at, daily_tz, daily_due_at`
+
 // scanTopicLoop reads one topicLoopCols row, after any lead columns.
 func scanTopicLoop(row pgx.Row, lead ...any) (TopicLoop, error) {
 	var l TopicLoop
@@ -181,7 +187,7 @@ const topicLoopFireSQL = `WITH fired AS (
 			fires_total = fires_total + 1, last_fired_at = $3::timestamptz
 		WHERE tenant_id = $1 AND loop_id = $2 AND state = 'on'
 			AND (hour_start IS NULL OR hour_start <= $3::timestamptz - interval '1 hour' OR fires_in_hour < $4)
-		RETURNING *)
+		RETURNING ` + topicLoopRowCols + `)
 	SELECT true, ` + topicLoopCols + ` FROM fired
 	UNION ALL
 	SELECT false, ` + topicLoopCols + ` FROM topic_loops

@@ -475,7 +475,7 @@ func searchMessagesSQL(tenant string, q SearchQuery, sig bool, ids []string) (st
 	sql := `SELECT m.msg_id::text, m.task_id::text, COALESCE(m.parent_task_id::text, ''), COALESCE(m.channel, ''),
 			m.kind, m.body, m.from_id, m.from_box, m.to_id, m.to_box, m.ts, m.received_at, jsonb_array_length(m.files)
 		FROM messages m
-		WHERE m.tenant_id = ` + t + ` AND m.expires_at > ` + now + ` AND ` + priv + ` AND ` + where + page + `
+		WHERE m.tenant_id = ` + t + ` AND m.expires_at > ` + now + ` AND m.loop_id IS NULL AND ` + priv + ` AND ` + where + page + `
 		` + order + ` LIMIT ` + c.arg(pgLimit(q.Limit))
 	return sql, c.args
 }
@@ -506,7 +506,7 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 			m.kind, m.from_id, m.from_box, m.to_id, m.to_box, m.received_at, jsonb_array_length(m.files), f.i::int, f.a
 		FROM messages m CROSS JOIN LATERAL jsonb_array_elements(
 			CASE WHEN jsonb_typeof(m.files) = 'array' THEN m.files ELSE '[]'::jsonb END) WITH ORDINALITY AS f(a, i)
-		WHERE m.tenant_id = ` + t + ` AND m.expires_at > ` + now + ` AND ` + priv + ` AND ` + where + page + `
+		WHERE m.tenant_id = ` + t + ` AND m.expires_at > ` + now + ` AND m.loop_id IS NULL AND ` + priv + ` AND ` + where + page + `
 		ORDER BY m.received_at DESC, m.msg_id::text DESC, f.i
 		LIMIT ` + c.arg(pgLimit(q.Limit))
 	var out []SearchFileRow
@@ -582,7 +582,7 @@ func searchTopicsSQL(tenant string, q SearchQuery, sig bool, ids []string) (stri
 	sql := `WITH live AS (
 			SELECT task_id::text AS task_id, msg_id::text AS msg_id, received_at, kind, from_id, from_box, to_id, to_box,
 				COALESCE(channel, '') AS channel, COALESCE(parent_task_id::text, '') AS parent, body, msg
-			FROM messages WHERE tenant_id = ` + t + ` AND expires_at > ` + now + door + `
+			FROM messages WHERE tenant_id = ` + t + ` AND expires_at > ` + now + ` AND loop_id IS NULL` + door + `
 		), t AS (
 			SELECT task_id,
 				(array_agg(channel` + first + `)[1] AS channel,

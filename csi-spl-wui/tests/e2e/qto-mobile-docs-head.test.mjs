@@ -190,6 +190,8 @@ try {
     ok(`${vp.width}: the file menu button sits in the header row`, g.btnInHead && g.btn && g.head && g.btn.y >= g.head.y - 0.5 && g.btn.y + g.btn.h <= g.head.y + g.head.h + 0.5, { btn: g.btn, head: g.head })
     ok(`${vp.width}: no two header controls overlap`, g.overlaps.length === 0, g.overlaps)
     ok(`${vp.width}: the button is a 44 px tap with a name and a menu popup`, g.btn && g.btn.w >= 44 && g.btn.h >= 44 && g.popup === 'menu' && g.name.length > 0, g)
+    /* R7 W1: the menu holds the views too, so it is named for the document, not "Download" (en locale) */
+    ok(`${vp.width}: the menu button is named Document actions`, g.name === 'Document actions', g.name)
     if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/qto-export-menu-${vp.width}.png` })
 
     /* the keyboard: Enter opens it, both entries are in it, Escape closes it, the focus is back on the button */

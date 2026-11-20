@@ -8,7 +8,9 @@
 #      pdf.Dockerfile change -- and NOT when another file of the module does
 #      (CONTROL: a hub-only change keeps the tag);
 #   2. a dry run builds linux/amd64 <028 repo>/spool-pdf:<tag> from
-#      pdf.Dockerfile (stub docker records the call) and makes no gcloud call,
+#      pdf.Dockerfile with the Go module as the build context (pdf.Dockerfile
+#      COPYs go.mod; the repo root as context failed in wf 20 on 4168d752b)
+#      (stub docker records the call) and makes no gcloud call,
 #      no login and no push; the ref equals what 031's tfvars render once cnf
 #      pdf.image.tag is that tag;
 #   3. DRY_RUN=0 with the tag already in the registry (stub gcloud answers the
@@ -110,8 +112,8 @@ ref="$repo/spool-pdf:$tag"
 b="$(cat "$T/build.log")"
 [[ $rc -eq 0 ]] && pass "2. dry run exits 0" || fail "2. dry run rc=$rc: $(tail -3 <<<"$out" | tr '\n' ' ')"
 [[ $(grep -c . "$T/build.log") -eq 1 && " $b " == *" --platform linux/amd64 "* && " $b " == *" -t $ref "* \
-   && " $b " == *" -f $R/csi-spl-api/src/docker/pdf.Dockerfile $R "* ]] \
-  && pass "2. builds linux/amd64 $ref from pdf.Dockerfile" || fail "2. build call '${b:-<none>}' (want -t $ref -f pdf.Dockerfile)"
+   && " $b " == *" -f $R/csi-spl-api/src/docker/pdf.Dockerfile $R/csi-spl-api/src/go/spool-hub-api "* ]] \
+  && pass "2. builds linux/amd64 $ref from pdf.Dockerfile, context = the Go module" || fail "2. build call '${b:-<none>}' (want -t $ref -f pdf.Dockerfile <module dir>)"
 [[ ! -s "$T/calls.log" ]] && pass "2. dry run: no gcloud, login or push" || fail "2. dry run made calls: $(tr '\n' ';' <"$T/calls.log")"
 want031="$(sed -nE 's/^image *= "(.*):.*"$/\1/p' "$APP_ROOT/csi-spl-cnf/csi-spl/dev/tf/031-cloud-run-pdf.vars.tfvars")"
 [[ -n "$want031" && "${ref%:*}" == "$want031" ]] && pass "2. the ref is 031's image ($want031:<cnf pdf.image.tag>)" \

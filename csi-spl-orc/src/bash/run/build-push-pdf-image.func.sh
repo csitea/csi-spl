@@ -39,6 +39,9 @@ do_build_push_pdf_image() {
 
   local dockerfile="$APP_PATH/$SPL_ORG_APP-api/src/docker/pdf.Dockerfile" name tag ref rev
   [[ -f "$dockerfile" ]] || { do_log "FATAL missing $dockerfile (spec 183 row P2 builds it)"; return 1; }
+  # build context = the Go module, as pdf.Dockerfile's header says (COPY go.mod)
+  local ctx="$APP_PATH/$SPL_ORG_APP-api/src/go/spool-hub-api"
+  [[ -f "$ctx/go.mod" ]] || { do_log "FATAL no go.mod in the build context $ctx"; return 1; }
   name="$(yq -r '.env.pdf.image.name // ""' "$SPL_CNF")"
   [[ -n "$name" && "$name" != null ]] || { do_log "FATAL cnf env.pdf.image.name is empty"; return 1; }
   tag="$(spl_pdf_image_tag "$APP_PATH")" || return 1
@@ -66,7 +69,7 @@ do_build_push_pdf_image() {
   docker build -q --platform linux/amd64 \
     --label "org.opencontainers.image.revision=$rev" \
     --label "org.opencontainers.image.title=$SPL_ORG_APP-pdf" \
-    -t "$ref" -f "$dockerfile" "$APP_PATH" >/dev/null || { do_log "FATAL pdf image build failed"; return 1; }
+    -t "$ref" -f "$dockerfile" "$ctx" >/dev/null || { do_log "FATAL pdf image build failed"; return 1; }
   do_log "INFO built $ref ($(docker image inspect -f '{{.Id}}' "$ref"), revision $rev)"
 
   if (( dry )); then

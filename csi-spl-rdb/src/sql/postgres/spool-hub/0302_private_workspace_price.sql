@@ -16,7 +16,7 @@
 --    'vm_cost' (the VM's cloud cost + margin_pct %). A token line cannot be
 --    written (P5): the line CHECK lists the two, and the no-token CHECK names
 --    the rule so a later widening of the list still refuses any llm_ or
---    token line.
+--    token line, in any case (lower(), the Go guard's rule).
 -- 3. usage_events.kind gains 'vm_cost': the VM's day cost drawn from the
 --    prepaid balance. units = the cost in micros of EUR, unit_cost_micros =
 --    (100 + margin_pct) / 100, so units * unit_cost_micros, the sum the
@@ -32,9 +32,13 @@
 --
 -- Live-data safety: two new empty tables (the FKs take SHARE ROW EXCLUSIVE
 -- on tenants until COMMIT, hence lock_timeout). The usage_events CHECK is
--- swapped in the 0300 way: the new list is a superset of the old one, added
--- NOT VALID (no scan under ACCESS EXCLUSIVE) and validated after. No running
--- hub writes 'vm_cost' before the image that reads this file. Runs under the
+-- dropped and added again NOT VALID, and is NOT validated: the runner applies
+-- a file in one transaction (store/migrate.go applyMigration), so the DROP/ADD
+-- hold ACCESS EXCLUSIVE on usage_events until COMMIT and a VALIDATE here would
+-- scan the whole ledger under it (prd row count not measured). Nothing is
+-- lost: the new list is a superset of the old one (0171), so every old row
+-- passes it, and every row written from COMMIT on is checked. No running hub
+-- writes 'vm_cost' before the image that reads this file. Runs under the
 -- operator RLS scope (spool migrate, rdb 0014). No personal data, no secret.
 
 SET LOCAL lock_timeout = '5s';
@@ -53,7 +57,7 @@ CREATE TABLE price_plan_lines (
     cents_per_month bigint   NULL CHECK (cents_per_month >= 0),
     margin_pct      smallint NULL CHECK (margin_pct BETWEEN 0 AND 100),
     PRIMARY KEY (tenant_id, line),
-    CONSTRAINT price_plan_lines_no_token_check CHECK (line NOT LIKE 'llm\_%' AND line NOT LIKE '%token%'),
+    CONSTRAINT price_plan_lines_no_token_check CHECK (lower(line) NOT LIKE 'llm\_%' AND lower(line) NOT LIKE '%token%'),
     CONSTRAINT price_plan_lines_shape_check CHECK (CASE line
         WHEN 'seat_member' THEN cents_per_month IS NOT NULL AND margin_pct IS NULL
         ELSE margin_pct IS NOT NULL AND cents_per_month IS NULL END)
@@ -81,5 +85,3 @@ ALTER TABLE usage_events DROP CONSTRAINT IF EXISTS usage_events_kind_check;
 ALTER TABLE usage_events ADD CONSTRAINT usage_events_kind_check
     CHECK (kind IN ('llm_tokens_in', 'llm_tokens_out', 'llm_tokens_cache_read', 'llm_tokens_cache_write',
                     'agent_seconds', 'storage_bytes', 'cloud_share', 'unmetered', 'vm_cost')) NOT VALID;
-
-ALTER TABLE usage_events VALIDATE CONSTRAINT usage_events_kind_check;

@@ -36,7 +36,7 @@ run() {
   SNIPPET='do_spl_claude_login_mode' in_orc SPOOL_ROOT="$T/spool" SPOOL_AGENT_USER="$(id -un)" LOGIN_AGENT_HOME="$T/home" \
     LOGIN_STATE_DIR="$ST" LOGIN_NOW="$NOW" LOGIN_MODE_OWN_JSON="$T/own.json" LOGIN_MODE_ROWS_CMD="cat $T/rows.json" \
     LOGIN_MODE_HERE=box1 LOGIN_CRED_CMD="bash $T/cred.sh" LOGIN_SEND="$T/send.sh" LOGIN_ALERT_TO=c-002 LOGIN_FROM=c-001 \
-    LOGIN_PROBE_EVERY=0 BOX_QUOTA_WEEKLY_MAX_PCT=90 BOX_QUOTA_WEEKLY_MAX_PCT_CLAUDE= LOGIN_MODE_ENABLED=true DRY_RUN=0 "$@" 2>&1
+    LOGIN_PROBE_EVERY=0 BOX_QUOTA_WEEKLY_MAX_PCT=90 BOX_QUOTA_WEEKLY_MAX_PCT_CLAUDE=90 LOGIN_MODE_ENABLED=true DRY_RUN=0 "$@" 2>&1
 }
 mode() { awk '{print $2}' "$ST/login-mode" 2>/dev/null; }
 BL="$(lab uuid-sat)"; echo "$BL" > "$T/blab"; echo "ok fine" > "$T/bprobe"

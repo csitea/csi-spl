@@ -23,7 +23,9 @@ import (
 // part is the month read's parts folded (store/cost_project.go), with its
 // amount in USD, EUR and the reader's second currency (null where it is not
 // known, never 0), its share of total.priced and its completeness in words
-// (13.5); the parts sum to total.priced. Human is not_tracked until P02.
+// (13.5); the parts sum to total.priced. Human is the reader's workspace's
+// approved minutes x the price in force per day (P02), not_tracked on a
+// store with no such read.
 // Money in no part (a customer workspace's allocated share) is named in
 // left_out.
 //
@@ -158,6 +160,8 @@ type costProjectAsk struct {
 func (s *Server) costProjectInput(ctx context.Context, k costProjectAsk, wins []costMonthWindow) (store.CostProjectInput, error) {
 	in := store.CostProjectInput{Estate: k.estate}
 	cr, lines := s.o.Store.(store.CostRead)
+	hr, human := s.o.Store.(store.CostProjectHumanRead)
+	in.HumanRead = human
 	for _, win := range wins {
 		cm := store.CostMonth{Parts: []store.CostPart{}, Coverage: []store.CostSourceDays{}}
 		var err error
@@ -180,6 +184,13 @@ func (s *Server) costProjectInput(ctx context.Context, k costProjectAsk, wins []
 			in.Coverage = append(in.Coverage, c.CostSourceDays)
 		}
 		in.DaysEnded += win.Ended
+		if human {
+			days, err := hr.CostProjectHumanDays(ctx, store.CostProjectHumanQuery{Tenant: k.tenant, From: win.From, To: win.To, Currency: k.cur})
+			if err != nil {
+				return in, err
+			}
+			in.Human = append(in.Human, days...)
+		}
 		in.AIRead = in.AIRead || d.ai != nil
 	}
 	return in, nil

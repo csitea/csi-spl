@@ -488,6 +488,7 @@ The two missing pieces become rows L6 and L7 (section 7). L7 sends to the
 loop's author only: the hub checks that the request names a loop prompt
 message of that topic whose loop belongs to the person mailed, so an agent
 can mail a person only because that person's loop asked it to.
+Row L6 is specified, with its contracts, in [spec 183](../183-agent-topic-pdf-export/spec.md).
 
 ## 5. Store
 

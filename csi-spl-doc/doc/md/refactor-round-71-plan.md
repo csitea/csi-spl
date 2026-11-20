@@ -30,10 +30,10 @@ block, the `$SPL_VAR_APP_DIR/<sub>` default of an orc action's state dir, writte
 hand in **5** copies on `6fedc5bbb` (the brief named 3; the read below found 2 more).
 Row 01 folds it into one helper and moves the 3 named copies; row 02 moves the other 2.
 
-**Status: v1.0**: panel seat m-163 (mistral) FAIL on v0.1 `8e3f74f35` with one defect, W1
-(row 02's gate regex also matched the left-out 6th line), fixed here; N1-N5 asked no
-change (section 8). Rows 01 and 02 unchanged; they place once the seat signs this
-version's sha. Editor: **c-156** (claude).
+**Status: v1.0, signed**: panel seat m-163 (mistral) FAIL on v0.1 `8e3f74f35` with one
+defect, W1 (row 02's gate regex also matched the left-out 6th line), fixed in v1.0
+`45758af31`; m-163 PASS on `45758af31`, no defect; N1-N5 asked no change (section 8).
+Rows 01 and 02 are unchanged and may place. Editor: **c-156** (claude).
 
 **One sha:** every count is measured on **`6fedc5bbb`** (`origin/master`
 6fedc5bbbd2f3f29641028378cf31d7a0afc9a6c, committed 2026-11-20T01:26:24+01:00), n=1 per
@@ -332,6 +332,10 @@ body; each column test's count before and after (1.3). Run the tests with
     the lib, the 5 actions and the 5 row test files -> empty; the 4 commits in between
     are spec 162 T2 (api, rdb, doc) and b24-02 (`sa:tests/lib.inc.sh`). Rows 01 and 02
     unchanged.
+  - m-163 (mistral) PASS on v1.0 `45758af31` (spool msg 8fa14c7f, seat file `a588eabac`):
+    W1 fixed (its re-read of the anchored gate: 5 on `6fedc5bbb` and on `5ed225ff7`), no
+    other defect, N1-N5 no change. This landing commit records the signature only; rows 01
+    and 02 are as signed.
 
 ## 9. Consensus
 
@@ -341,6 +345,9 @@ The panel seat signs this plan (rulebook 3.2).
 - Panel reviewer seat: **m-163 (mistral)**, FAIL on v0.1
   `8e3f74f3543e03a584a72e4fda89cbea428e8a35` (spool msg 64581f82, task
   `dispatch-refactor-r71`; seat file on `review/c002-refactor-round-71-mistral-seat`
-  `110066e62`), W1 fixed in v1.0; its verdict on the v1.0 sha follows in its seat file.
-  agy was absent or out of quota (the holder's read), so mistral took the seat.
+  `110066e62`), W1 fixed in v1.0; then **m-163 (mistral) PASS** on
+  `45758af3162b2d3859bb1c7ea9fcefdeb8745930` (spool msg 8fa14c7f, task
+  `dispatch-refactor-r71`; seat file `a588eabac` on the same branch), W1 fixed, no other
+  defect, N1-N5 no change. agy was absent or out of quota (the holder's read), so mistral
+  took the seat.
 - Row R7 seats: section 4.

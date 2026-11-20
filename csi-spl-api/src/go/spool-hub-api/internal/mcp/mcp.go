@@ -1,7 +1,7 @@
 // Package mcp is the spool's stdio MCP server (`spool mcp`, spec 002 US4). It
 // exposes five canonical, kind-agnostic tools (plus spool_issue, specs/039,
 // spool_flow, spec 130, spool_read_link / spool_reply, SPL-2112, and
-// spool_note_add, spec 155 2.11), each a thin wrapper over the same
+// spool_note_add, spec 155 2.11, spool_topic_pdf, spec 183), each a thin wrapper over the same
 // internal/action verb the CLI calls, so a tool and its verb return the same
 // text (contracts/mcp-tools.md). A verb's CLI failure surfaces as a tool error
 // carrying the same reason and exit code (78 = verify/refuse).
@@ -112,6 +112,13 @@ type ReplyIn struct {
 	Kind string `json:"kind,omitempty" jsonschema:"one of task, result, note, reject, blocker, msg (default msg)"`
 }
 
+// TopicPDFIn is the input of spool_topic_pdf (spec 183 7.1.2).
+type TopicPDFIn struct {
+	Task    string `json:"task" jsonschema:"the topic: its uuid or a WUI link as the browser shows it (/t/<uuid>, /m/<id>, a page with ?topic=<uuid>)"`
+	Out     string `json:"out,omitempty" jsonschema:"the file to write, replaced when it exists; empty = <spool root>/<agent id>/exports/<the hub's name>"`
+	TypedBy string `json:"typed_by,omitempty" jsonschema:"HUM-<n>: export as this operator of the box; needed only when several are bound"`
+}
+
 // Options shape a server. The zero value is the unseated server of spec 002.
 type Options struct {
 	// Seat is the one agent id this server acts for ("" = any, as before).
@@ -197,6 +204,12 @@ func NewServerOpts(cfg *config.Config, version string, o Options) *sdk.Server {
 		Description: "Reply in the discussion a WUI link names, as this server's seat (never as a person): " +
 			"seats it on the desk of the link's workspace first when it has no seat there, then posts into the topic.",
 	}, t.reply)
+	sdk.AddTool(s, &sdk.Tool{
+		Name: "spool_topic_pdf",
+		Description: "Export a topic as a PDF file on this machine (hub mode): the hub renders exactly what the person this box works for " +
+			"reads in the web UI; answers {task_id, path, bytes, rows, pictures, sha256} (== spool topic-pdf). " +
+			"Exit 3 = no such topic for that person, 4 = name the operator with typed_by, 5 = the renderer could not make it.",
+	}, t.topicPDF)
 	return s
 }
 
@@ -375,6 +388,14 @@ func (t tools) reply(ctx context.Context, _ *sdk.CallToolRequest, in ReplyIn) (*
 	out, err := action.ReplyLink(ctx, t.desks(), action.ReplyArgs{Seat: t.o.Seat, URL: in.URL, Body: in.Body, Kind: in.Kind})
 	if err != nil {
 		return nil, out, toolErr(err)
+	}
+	return text(action.JSON(out)), out, nil
+}
+
+func (t tools) topicPDF(ctx context.Context, _ *sdk.CallToolRequest, in TopicPDFIn) (*sdk.CallToolResult, action.TopicPDFResult, error) {
+	out, err := action.TopicPDF(ctx, t.desks(), action.TopicPDFArgs{Task: in.Task, Out: in.Out, TypedBy: in.TypedBy, Agent: t.o.Seat})
+	if err != nil {
+		return nil, out, fmt.Errorf("spool: %w (exit %d)", err, action.TopicPDFExitCode(err))
 	}
 	return text(action.JSON(out)), out, nil
 }

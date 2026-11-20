@@ -430,5 +430,62 @@
       "type": "object"
     },
     "name": "spool_tail"
+  },
+  {
+    "description": "Export a topic as a PDF file on this machine (hub mode): the hub renders exactly what the person this box works for reads in the web UI; answers {task_id, path, bytes, rows, pictures, sha256} (== spool topic-pdf). Exit 3 = no such topic for that person, 4 = name the operator with typed_by, 5 = the renderer could not make it.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "out": {
+          "description": "the file to write, replaced when it exists; empty = \u003cspool root\u003e/\u003cagent id\u003e/exports/\u003cthe hub's name\u003e",
+          "type": "string"
+        },
+        "task": {
+          "description": "the topic: its uuid or a WUI link as the browser shows it (/t/\u003cuuid\u003e, /m/\u003cid\u003e, a page with ?topic=\u003cuuid\u003e)",
+          "type": "string"
+        },
+        "typed_by": {
+          "description": "HUM-\u003cn\u003e: export as this operator of the box; needed only when several are bound",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "type": "object"
+    },
+    "name": "spool_topic_pdf",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "pictures": {
+          "type": "integer"
+        },
+        "rows": {
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "path",
+        "bytes",
+        "rows",
+        "pictures",
+        "sha256"
+      ],
+      "type": "object"
+    }
   }
 ]

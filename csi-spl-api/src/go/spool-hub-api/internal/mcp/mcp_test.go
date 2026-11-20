@@ -292,7 +292,7 @@ func TestRecvMalformedIsToolError(t *testing.T) {
 
 // TestToolNamesAreCanonical: exactly the five kind-agnostic tools plus
 // spool_issue (specs/039 FR-008), spool_flow (spec 130), spool_read_link /
-// spool_reply (SPL-2112) and spool_note_add (spec 155 2.11), no per-kind variants (Constitution VIII,
+// spool_reply (SPL-2112), spool_note_add (spec 155 2.11) and spool_topic_pdf (spec 183), no per-kind variants (Constitution VIII,
 // contracts/mcp-tools.md).
 func TestToolNamesAreCanonical(t *testing.T) {
 	h := newHarness(t)
@@ -305,7 +305,7 @@ func TestToolNamesAreCanonical(t *testing.T) {
 		got = append(got, tl.Name)
 	}
 	sort.Strings(got)
-	want := "spool_flow,spool_get_file,spool_issue,spool_note_add,spool_put_file,spool_read_link,spool_recv,spool_reply,spool_send,spool_tail"
+	want := "spool_flow,spool_get_file,spool_issue,spool_note_add,spool_put_file,spool_read_link,spool_recv,spool_reply,spool_send,spool_tail,spool_topic_pdf"
 	if strings.Join(got, ",") != want {
 		t.Errorf("tools = %v, want %s", got, want)
 	}

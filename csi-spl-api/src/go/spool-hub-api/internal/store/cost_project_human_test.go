@@ -25,13 +25,28 @@ func humanEntry(t *testing.T, pg *Postgres, tenant, member, day, state string, m
 	}
 }
 
-// humanPrice sets member's price in tenant from day, in USD micros an hour.
-func humanPrice(t *testing.T, pg *Postgres, tenant, member, day string, usd int64) {
+// hoursUnpriced is a member who books time and has no price.
+const hoursUnpriced = "55555555-5555-4555-8555-555555555555"
+
+// humanPrice sets member's price in tenant from day, in micros of cur an
+// hour.
+func humanPrice(t *testing.T, pg *Postgres, tenant, member, day string, amount int64, cur string) {
 	t.Helper()
 	if _, err := pg.execTenant(context.Background(), tenant, `INSERT INTO member_hourly_prices
 		(tenant_id, member_id, valid_from, amount_micros, currency, set_by)
-		VALUES ($1, $2, $3::date, $4, 'USD', 'HUM-owner')`, tenant, member, day, usd); err != nil {
+		VALUES ($1, $2, $3::date, $4, $5, 'HUM-owner')`, tenant, member, day, amount, cur); err != nil {
 		t.Fatalf("price %s %s: %v", member, day, err)
+	}
+}
+
+// humanPeriod writes member's hours period from..to in tenant, in state
+// (frozen, returned or approved).
+func humanPeriod(t *testing.T, pg *Postgres, tenant, member, from, to, state string) {
+	t.Helper()
+	if _, err := pg.execTenant(context.Background(), tenant, `INSERT INTO hours_periods
+		(tenant_id, member_id, period_start, period_end, state, note, decided_by)
+		VALUES ($1, $2, $3::date, $4::date, $5, 'test', 'HUM-owner')`, tenant, member, from, to, state); err != nil {
+		t.Fatalf("period %s %s: %v", member, from, err)
 	}
 }
 
@@ -46,27 +61,75 @@ func humanUSD(days []CostProjectHumanDay) (usd, minutes int64) {
 	return usd, minutes
 }
 
-// TestCostProjectHumanSum: member P costs 60 USD/h from day 1 and 120 USD/h
-// from day 10; 60 min on day 5 and 30 min on day 12 are 60 + 60 = 120 USD,
-// each day at its own price (13.9 "a price changed mid-month"). Member Q has
-// no price: his 90 min count, unpriced, money left out (13.9 "a member with
-// no price"). An absence row and a rejected row count nothing; workspace
-// B's minutes never reach A's read. No row names a member.
-// CONTROL: priced at today's price (the latest start day) the same minutes
-// read 180 USD.
+// humanDay is the (day, currency) row of days: cur "" = the unpriced final
+// row, "pending" = the pending row.
+func humanDay(t *testing.T, days []CostProjectHumanDay, day, cur string) CostProjectHumanDay {
+	t.Helper()
+	for _, d := range days {
+		c := ""
+		if d.Currency != nil {
+			c = *d.Currency
+		}
+		if d.Pending {
+			c = "pending"
+		}
+		if d.Day == day && c == cur {
+			return d
+		}
+	}
+	t.Fatalf("no %s %q row in %+v", day, cur, days)
+	return CostProjectHumanDay{}
+}
+
+// costHumanSeedMonth seeds workspace a's month (day d) and returns it:
+//   - P costs 60 USD/h from day 1 and 120 USD/h from day 10, period frozen
+//     days 1..15: 60 min on day 5 and 30 min on day 12 are 60 + 60 = 120 USD
+//     (13.9 "a price changed mid-month"). Day 20 (approved, no period) and
+//     day 8 (disputed) are pending: 40 + 10 min, no money.
+//   - Q costs 90 EUR/h, period approved: 90 min on day 5 are 135 EUR, at the
+//     day 3 rate 0.9 EUR per USD 150 USD. Day 7 (proposed) is pending: 25 min.
+//   - R has no price, period frozen: 15 min on day 6 count, unpriced (13.9
+//     "a member with no price").
+//   - An absence row and a rejected row count nothing.
+//
+// Final priced: 270 USD over 180 min; 15 unpriced, 75 pending; 270 min.
+func costHumanSeedMonth(t *testing.T, pg *Postgres, a string, day func(int) string) {
+	t.Helper()
+	humanPrice(t, pg, a, hoursMember, day(1), 60_000_000, "USD")
+	humanPrice(t, pg, a, hoursMember, day(10), 120_000_000, "USD")
+	humanPrice(t, pg, a, hoursPriceOther, day(1), 90_000_000, "EUR")
+	humanPeriod(t, pg, a, hoursMember, day(1), day(15), "frozen")
+	humanPeriod(t, pg, a, hoursPriceOther, day(1), day(28), "approved")
+	humanPeriod(t, pg, a, hoursUnpriced, day(1), day(28), "frozen")
+	humanEntry(t, pg, a, hoursMember, day(5), "approved", 60, false)
+	humanEntry(t, pg, a, hoursMember, day(12), "approved", 30, false)
+	humanEntry(t, pg, a, hoursMember, day(13), "approved", 480, true)
+	humanEntry(t, pg, a, hoursMember, day(14), "rejected", 45, false)
+	humanEntry(t, pg, a, hoursMember, day(20), "approved", 40, false)
+	humanEntry(t, pg, a, hoursMember, day(8), "disputed", 10, false)
+	humanEntry(t, pg, a, hoursPriceOther, day(5), "approved", 90, false)
+	humanEntry(t, pg, a, hoursPriceOther, day(7), "proposed", 25, false)
+	humanEntry(t, pg, a, hoursUnpriced, day(6), "approved", 15, false)
+	if _, err := pg.PutFXRates(context.Background(), []FXRate{{Day: day(3), Quote: "EUR", Rate: 0.9, Source: "ECB"}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestCostProjectHumanSum: costHumanSeedMonth reads 270 USD over 270 min,
+// each final minute at its day's price, the EUR price converted at the rate
+// of a few days earlier, the pending and unpriced minutes counted with no
+// money; workspace B's minutes never reach A's read. No row names a member.
+// CONTROLS: priced at today's price (the latest start day) the same minutes
+// read 330 USD; with the period guard dropped (approved = the entry's state)
+// day 20's pending 40 min are priced, 350 USD.
 func TestCostProjectHumanSum(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
 	from, to, day := costTestMonth(t)
 	a, b := newTenant(t, pg), newTenant(t, pg)
-	humanPrice(t, pg, a, hoursMember, day(1), 60_000_000)
-	humanPrice(t, pg, a, hoursMember, day(10), 120_000_000)
-	humanEntry(t, pg, a, hoursMember, day(5), "approved", 60, false)
-	humanEntry(t, pg, a, hoursMember, day(12), "approved", 30, false)
-	humanEntry(t, pg, a, hoursMember, day(13), "approved", 480, true)
-	humanEntry(t, pg, a, hoursMember, day(14), "rejected", 45, false)
-	humanEntry(t, pg, a, hoursPriceOther, day(5), "approved", 90, false)
-	humanPrice(t, pg, b, hoursMember, day(1), 60_000_000)
+	costHumanSeedMonth(t, pg, a, day)
+	humanPrice(t, pg, b, hoursMember, day(1), 60_000_000, "USD")
+	humanPeriod(t, pg, b, hoursMember, day(1), day(28), "approved")
 	humanEntry(t, pg, b, hoursMember, day(5), "approved", 600, false)
 
 	q := CostProjectHumanQuery{Tenant: a, From: from, To: to, Currency: "USD"}
@@ -74,32 +137,55 @@ func TestCostProjectHumanSum(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if usd, min := humanUSD(days); usd != 120_000_000 || min != 180 || len(days) != 3 {
-		t.Fatalf("A's days %+v: %d USD micros, %d min; want 120.00 USD, 180 min, 3 rows", days, usd, min)
+	if usd, min := humanUSD(days); usd != 270_000_000 || min != 270 || len(days) != 7 {
+		t.Fatalf("A's days %+v: %d USD micros, %d min; want 270.00 USD, 270 min, 7 rows", days, usd, min)
 	}
-	if d := days[0]; d.Day != day(5) || d.Currency != nil || d.Minutes != 90 || d.AmountMicros != nil || d.USDMicros != nil {
-		t.Errorf("day 5 unpriced row %+v: want Q's 90 min, every amount null", d)
+	if d := humanDay(t, days, day(6), ""); d.Minutes != 15 || d.AmountMicros != nil || d.USDMicros != nil {
+		t.Errorf("day 6 unpriced row %+v: want R's 15 min, every amount null", d)
+	}
+	for n, want := range map[int]int64{20: 40, 8: 10, 7: 25} {
+		if d := humanDay(t, days, day(n), "pending"); d.Minutes != want || d.Currency != nil || d.AmountMicros != nil || d.USDMicros != nil {
+			t.Errorf("day %d pending row %+v: want %d min, no currency, every amount null", n, d, want)
+		}
+	}
+	if d := humanDay(t, days, day(5), "EUR"); pv(d.AmountMicros) != int64(135_000_000) || pv(d.USDMicros) != int64(150_000_000) ||
+		pv(d.EURMicros) != int64(135_000_000) {
+		t.Errorf("day 5 EUR row %+v: want 135.00 EUR = 150.00 USD at the day 3 rate", d)
+	}
+	if d := humanDay(t, days, day(5), "USD"); pv(d.EURMicros) != int64(54_000_000) {
+		t.Errorf("day 5 USD row %+v: want 60.00 USD = 54.00 EUR at the day 3 rate", d)
 	}
 	cp := CostProjectParts(CostProjectInput{Estate: true, HumanRead: true, Human: days})
 	h := projectPart(t, cp, CostProjectHuman)
-	if pv(h.USDMicros) != int64(120_000_000) || pv(h.SecondMicros) != int64(120_000_000) ||
-		*h.Minutes != 180 || *h.UnpricedMinutes != 90 || h.Completeness != CostProjectUnpriced {
-		t.Errorf("human part %+v: want 120.00 USD, 180 min of which 90 unpriced, unpriced", h)
+	if pv(h.USDMicros) != int64(270_000_000) || pv(h.SecondMicros) != int64(270_000_000) || pv(h.EURMicros) != int64(243_000_000) ||
+		*h.Minutes != 270 || *h.UnpricedMinutes != 90 || *h.PendingMinutes != 75 || h.Completeness != CostProjectUnpriced {
+		t.Errorf("human part %+v: want 270.00 USD, 243.00 EUR, 270 min of which 90 unpriced, 75 pending, unpriced", h)
 	}
 	costProjectSumsHold(t, cp)
 	if !cp.Total.Partial {
 		t.Error("total not partial with unpriced human minutes")
 	}
 
-	saved := costProjectHumanDays
-	costProjectHumanDays = strings.Replace(saved, "m.valid_from <= h.day", "m.valid_from <= current_date", 1)
-	days, err = pg.CostProjectHumanDays(ctx, q)
-	costProjectHumanDays = saved
-	if err != nil {
-		t.Fatal(err)
-	}
-	if usd, _ := humanUSD(days); usd != 180_000_000 {
-		t.Errorf("CONTROL: at today's price the minutes read %d USD micros, want 180.00", usd)
+	for _, c := range []struct {
+		old, new string
+		want     int64
+	}{
+		{"m.valid_from <= f.day", "m.valid_from <= current_date", 330_000_000},
+		{"h.day BETWEEN hp.period_start AND hp.period_end AND hp.state IN ('frozen', 'approved')", "true", 350_000_000},
+	} {
+		saved := costProjectHumanDays
+		costProjectHumanDays = strings.Replace(saved, c.old, c.new, 1)
+		if costProjectHumanDays == saved {
+			t.Fatalf("CONTROL %q: not in the query", c.old)
+		}
+		days, err = pg.CostProjectHumanDays(ctx, q)
+		costProjectHumanDays = saved
+		if err != nil {
+			t.Fatal(err)
+		}
+		if usd, _ := humanUSD(days); usd != c.want {
+			t.Errorf("CONTROL %q: the minutes read %d USD micros, want %d", c.new, usd, c.want)
+		}
 	}
 }
 

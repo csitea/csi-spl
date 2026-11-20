@@ -282,11 +282,11 @@ spl_lane_issue_assign() {
 }
 
 spl_lane_issue_place() {
-  local root="$1" id="$2" life="$1/$2/lifetime" brief key topic title desc out rc=0
+  local root="$1" id="$2" life="$1/$2/lifetime" brief key topic topic0 title desc out rc=0
   SLI_DRY="$3"
   brief="${BRIEF:-$life/brief.md}"
   key="${LANE_ISSUE_KEY:-$(li_key_from_brief "$brief")}"
-  topic="${LANE_ISSUE_TOPIC:-$(spl_lane_issue_topic "$brief")}"
+  topic="${LANE_ISSUE_TOPIC:-$(spl_lane_issue_topic "$brief")}"; topic0="$topic"
   SLI_ORIGIN="$(li_origin_from_brief "$brief" "$key")"
   if [[ -n "$key" ]]; then
     [[ "$key" =~ ^${LI_KEY_RE}$ ]] || { do_log "FATAL LANE_ISSUE_KEY must be an issue key like SPL-12, got: '$key'"; return 1; }
@@ -319,6 +319,7 @@ spl_lane_issue_place() {
     rm -f "$desc"
     (( rc == 0 )) || return 1
   fi
+  spl_lane_issue_more_topics "$key" "$brief" "$topic" "$topic0"
   if (( SLI_DRY )); then do_log "OK DRY_RUN $id -> issue $key (wip); nothing written. Re-run with DRY_RUN=0."; return 0; fi
   mkdir -p "$life" && printf '%s\n' "$key" >"$life/issue" || { do_log "FATAL cannot write $life/issue"; return 1; }
   chmod 0664 "$life/issue" 2>/dev/null
@@ -435,6 +436,25 @@ spl_lane_issue_topic() {
   t="$(grep -m1 -oiE "topic[^0-9a-f]{0,40}$u" "$1" 2>/dev/null | grep -oiE "$u\$")"
   [[ -n "$t" ]] || t="$(grep -m1 -oiE '(topic[^0-9a-f]{0,40}|dispatch-)[0-9a-f]{8}([^0-9a-f-]|$)' "$1" 2>/dev/null | grep -oiE '[0-9a-f]{8}' | tail -1)"
   printf '%s' "${t,,}"
+}
+
+# spl_lane_issue_more_topics KEY BRIEF TOPIC... : every further `Topic: <full
+# uuid>` line of the brief is linked to KEY too (SPL-6096: a round row taken
+# from an owner topic names it in a second line, and the issue linked only the
+# first). The TOPIC args (the linked one, the brief's first) and the uuids
+# they shorten are skipped. Best effort: a refused link is a WARN, never a
+# failed placement; a dry run prints the call.
+spl_lane_issue_more_topics() {
+  local key="$1" brief="$2" t s out
+  local u='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+  [[ -r "$brief" ]] || return 0
+  for t in $(grep -oiE "^[[:space:]]*Topic:[[:space:]]*$u([^0-9a-f-]|\$)" "$brief" | grep -oiE "$u" | tr 'A-F' 'a-f' | awk '!seen[$0]++'); do
+    for s in "${@:3}"; do [[ -n "$s" && "$t" == "${s,,}"* ]] && continue 2; done
+    (( SLI_DRY )) && { spl_lane_issue_hub link --ref "$key" --discussion "$t"; continue; }
+    out="$(RUN_STDOUT_IS_DATA=1 spl_lane_issue_hub link --ref "$key" --discussion "$t" 2>&1)" ||
+      do_log "WARN $key: the hub did not link the brief's further topic $t: $(tail -1 <<<"$out" | cut -c1-200)" >&2
+  done
+  return 0
 }
 
 # spl_lane_issue_default_topic -> the tenant's default discussion, the twin

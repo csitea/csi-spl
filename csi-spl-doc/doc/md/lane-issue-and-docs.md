@@ -84,7 +84,11 @@ an ambiguous short id), the issue links the workspace's default discussion
 `WARN brief <path> ...` line names the brief so it can be fixed. A placement
 never fails on the link (c-002, dispatch-fcf09921 msg c5c7d032). Once filed,
 the card's `Source` line carries the full id the hub linked, and the key is
-posted back only in a named topic, never in the default one.
+posted back only in a named topic, never in the default one. Every further
+`Topic: <full uuid>` line of the brief is linked to the issue too
+(`spool issue link`, SPL-6096), so a row taken from an owner topic reaches it;
+best effort: a refused link is one WARN line, never a failed placement, and a
+dry run prints the call.
 
 <a id="ws-doc-95b49ee8-d0f1-44d4-9ece-f6d87fa89181"></a>
 ### 0.3 No issue without an epic and a git spec (SPL-2355)

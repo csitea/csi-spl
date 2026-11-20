@@ -66,6 +66,7 @@ spl_desk_issue_run() {
     local i; for ((i = 1; i <= $#; i++)); do [[ "${!i}" == --description-file ]] && { i=$((i + 1)); cp "${!i}" "$DESC_COPY.$1"; }; done
   fi
   if [[ "${ROSTER:-1}" == 0 && " $* " == *" --assignee c-123 "* ]]; then echo "FATAL spool issue $1 as c-002: hub refused: bad_assignee"; return 1; fi
+  [[ "$1" == link && "${LINK_FAIL:-0}" == 1 ]] && { echo "FATAL spool issue link as c-002: hub refused: unknown_discussion"; return 1; }
   if [[ "$1" == create && "${REFUSE_TOPIC:-0}" == 1 ]]; then
     local j; for ((j = 1; j <= $#; j++)); do [[ "${!j}" == --description-file ]] && { j=$((j + 1)); break; }; done
     [[ "$(sed -n 2p "${!j}")" == /t/fcf09921-8f21-4518-a117-f8ddb41bfff5 ]] || { echo "FATAL spool issue create as c-002: hub refused: unknown_discussion"; return 1; }
@@ -120,6 +121,26 @@ run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 DRY_RUN=0
 [[ $rc -eq 0 ]] && ! grep -q '^create' "$T/calls.log" && grep -qx 'update|--ref|SPL-7|--status|wip|--assignee|c-123|' "$T/calls.log" &&
   grep -q '^comment|--ref|SPL-7|--body|Lane c-123 placed on SPL-7' "$T/calls.log" && [[ "$(cat "$S/c-123/lifetime/issue")" == SPL-7 ]] &&
   ! grep -q '^post|' "$T/calls.log" && pass "a key: wip, the lane assigned, a comment; no create, no post (no migration)" || fail "link (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+
+# SPL-6096: every further `Topic: <full uuid>` line is linked to the issue too
+# (round 24 row 01 linked only the round topic, so 32cb9c05 got no done post);
+# the first topic and a repeat of it are not linked again; best effort.
+{ cat "$T/brief.md"; printf '%s\n' 'Topic: 32cb9c05-f8c8-4f32-9cfd-8ff736c28d8d' 'Topic: 5EA2E615-ca23-451f-9fea-e1b87c369476' 'Topic: 32cb9c05-f8c8-4f32-9cfd-8ff736c28d8d' '  see topic 7d1e0a42-0000-4000-8000-000000000001'; } >"$T/brief-mt.md"
+MT='link|--ref|SPL-7|--discussion|32cb9c05-f8c8-4f32-9cfd-8ff736c28d8d|'
+run AGENT_ID=c-123 BRIEF="$T/brief-mt.md" LANE_ISSUE_KEY=SPL-7 DRY_RUN=0
+[[ $rc -eq 0 && "$(grep -c '^link|' "$T/calls.log")" == 1 ]] && grep -qx -- "$MT" "$T/calls.log" &&
+  pass "further Topic: lines: a key links 32cb9c05 once; the first topic, its repeat and prose are not linked" || fail "more topics key (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+run AGENT_ID=c-123 BRIEF="$T/brief-mt.md" DRY_RUN=0
+[[ $rc -eq 0 && "$(grep -c '^link|' "$T/calls.log")" == 1 ]] && grep -qx -- "${MT/SPL-7/SPL-42}" "$T/calls.log" &&
+  pass "... a filed issue links it too (SPL-42)" || fail "more topics create (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+run AGENT_ID=c-123 BRIEF="$T/brief-mt.md" LANE_ISSUE_KEY=SPL-7
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'would: spool issue link --ref SPL-7 --discussion 32cb9c05-f8c8-4f32-9cfd-8ff736c28d8d' "$T/o" &&
+  pass "... a dry run prints the link, calls nothing" || fail "more topics dry (rc=$rc): $(cat "$T/o")"
+run AGENT_ID=c-123 BRIEF="$T/brief-mt.md" LANE_ISSUE_KEY=SPL-7 LINK_FAIL=1 DRY_RUN=0
+[[ $rc -eq 0 && "$(cat "$S/c-123/lifetime/issue")" == SPL-7 ]] && grep -q 'WARN SPL-7: the hub did not link the brief.s further topic 32cb9c05-f8c8-4f32-9cfd-8ff736c28d8d: .*unknown_discussion' "$T/o" &&
+  pass "... a refused link is a WARN, the placement still lands" || fail "more topics refused (rc=$rc): $(cat "$T/o")"
+run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 DRY_RUN=0
+[[ $rc -eq 0 ]] && ! grep -q '^link|' "$T/calls.log" && pass "control: a brief with one topic links nothing more" || fail "one topic (rc=$rc): $(cat "$T/calls.log")"
 
 # The roster does not announce the lane: the placing desk, qualified by its box.
 run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 ROSTER=0 DRY_RUN=0

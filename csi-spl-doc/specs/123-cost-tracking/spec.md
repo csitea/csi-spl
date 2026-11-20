@@ -418,7 +418,7 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
 
 ## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.6, plan only)
 
-**Status: P01 built (SPL-6054), the other rows Planned.** Lane issue
+**Status: P01 built (SPL-6054), P03 built (SPL-6078), the other rows Planned.** Lane issue
 SPL-4189, epic SPL-2373. It is the level ABOVE the near-term three-sections
 build (ask `156c8939`: Costs gets Cloud / AI tokens / Human sections), and it
 does not duplicate it.
@@ -528,7 +528,26 @@ any part is incomplete. The shares are of the priced total.
   107 Q27 A (msg `ce14ad70`, 107 21.6), so it is not asked again. For that
   viewer the total and the shares cover Cloud + owned hardware + AI tokens
   only, labelled so: a total that included the human money would reveal it
-  by subtraction.
+  by subtraction. Built (P03, `hub/cost_project.go`
+  `costProjectHumanMask`), the answer's `human_mask` says which of three
+  levels the reader got:
+  - `none`: a holder of `hours.rates` reads the Human part as folded.
+  - `money`: a holder of `hours.read` (a customer workspace's biz_owner,
+    107 21.6) or the estate reader (`readsCostEstate`: the operator
+    workspace's admin, product owner and accountants), without
+    `hours.rates`. The Human part keeps its hours, counts and words; its
+    amounts and share are `null`.
+  - `whole`: every other `costs.read` reader (developer, tester,
+    biz_customer, a customer workspace's admin and the other member roles:
+    "nothing of others", 107 Q26 A). The Human part is its name and
+    `completeness: not_shown` only, every other field zero or `null`, and
+    `total.partial` is read over the other parts and `left_out` only.
+
+  Masked either way, `total.priced` and every other share are re-read
+  without the Human money. **Field rule for P02 and later rows**: a Human
+  money field goes INSIDE the part's `CostProjectMoney` (the `money` level
+  clears exactly that struct); Human hours or minutes go outside it, and
+  the `whole` level clears every field of the part, a new one included.
 - **Never per person**: the Human part is one sum per day; no row names a
   member (107 21.7). Each member sees only their own time (107 Q26 A).
 
@@ -552,7 +571,10 @@ any part is incomplete. The shares are of the priced total.
 Status of every row: **Planned**, except P01: **built** (SPL-6054,
 `hub/cost_project.go`, `store/cost_project.go`; three choices where this
 section predates the code on master are written at the top of
-`store/cost_project.go`). Each row is one lane, aiming at one push.
+`store/cost_project.go`), and P03: **built** (SPL-6078, the mask in
+`hub/cost_project.go`, `TestCostProjectHumanMask` in
+`hub/cost_project_mask_test.go`, `TestCostProjectHumanMaskHTTP` in
+`hub/cost_project_mask_http_test.go`; 13.6). Each row is one lane, aiming at one push.
 Each row names its files; no file is in two rows of one batch (rounds-rulebook
 2.1 R1), and a row that changes an earlier row's file sits in a later batch.
 A cross-vendor reviewer per row (R7). Waits: P02 waits for 107 T071..T072;
@@ -566,7 +588,7 @@ Paths: `hub/`, `store/` under `csi-spl-api/src/go/spool-hub-api/internal/`;
 | # | slug | what | target & proof | test (red control) | vendor | batch |
 |---|---|---|---|---|---|---|
 | P01 | `feat(api, project-cost-read)` | `GET /v1/tenant/costs/project?month=` (or `year=`), new `hub/cost_project.go` + `store/cost_project.go` + `store/cost_project_test.go`: the four parts (Cloud, Owned hardware from source `hand_asset`, AI tokens, Human), each with amount, share and completeness, over the month read (5.2); a customer workspace gets two parts only, its AI share and its own Human (Q-8 A, 13.7) | the parts sum to `total.priced`; an unpriced part is `null`, never 0; Human is `not_tracked` until P02 | `TestCostProjectParts` (red: a part with no rate summed as 0 changes the total; a `hand_asset` line left out changes the total) | claude | 1 |
-| P02 | `feat(api, project-cost-human)` | the human day sum for P01, new `store/cost_project_human.go` + `store/cost_project_human_test.go`, one call added in `store/cost_project.go`: approved minutes x the price in force per day, per currency, no member column | reads 107's tables once T071..T072 land | `TestCostProjectHumanSum` (red: pricing at today's price instead of the day's changes the sum) | claude | 2 |
+| P02 | `feat(api, project-cost-human)` | the human day sum for P01, new `store/cost_project_human.go` + `store/cost_project_human_test.go`, one call added in `store/cost_project.go`: approved minutes x the price in force per day, per currency, no member column; the Human part's new fields follow 13.6's field rule (money in `CostProjectMoney`, minutes outside it) | reads 107's tables once T071..T072 land | `TestCostProjectHumanSum` (red: pricing at today's price instead of the day's changes the sum) | claude | 2 |
 | P04 | `test(api, project-cost-rls)` | tenant isolation and estate scope of P01 on Postgres, new `store/cost_project_rls_test.go` only | workspace B reads 0 of A's parts; a non-operator reads no estate part (no cloud, no owned hardware) | `TestCostProjectRLS` (red: the policy dropped reads A's rows) | claude | 2 |
 | P03 | `feat(api, project-cost-mask)` | the human money mask in `hub/cost_project.go` + new `hub/cost_project_mask_test.go`: without `hours.rates` the Human amount is `null` and `total.priced` covers Cloud + owned hardware + AI only, flagged | an operator admin without `hours.rates` gets hours, no money, and no total that holds it | `TestCostProjectHumanMask` (red: removing the mask lets total minus parts reveal the human money) | claude | 3 |
 | P05 | `feat(wui, project-cost-page)` | new page `pages/reporting/costs/project.vue`, its entry first in the Costs bar in `pages/reporting/costs.vue` and `/reporting/costs` opening on it as the default (Q-9 A, 13.2; Spend is no longer the default), labels in the locale catalogue (agy reviews the locale text last): the two first figures (month so far, year to date, 13.12 item 2), the table, shares, completeness words, links to the sections and pages | drawn at 1400 and 390 px, no sideways scroll; both first figures equal the sums of their parts | new `tests/e2e/reporting-costs-project.test.mjs` (red: a `null` part drawn as 0.00 fails; the year total without the closed months fails) | claude | 3 |

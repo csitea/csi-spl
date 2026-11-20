@@ -47,6 +47,14 @@ describe('a section change on desktop closes the right pane', () => {
     assert.equal(routeLeavesTopic({ ...desk, toPath: '/search', toQuery: { q: 'x' } }), true)
   })
 
+  /* SPL-6064 (owner HUM-10, t1 18140959 msg 96212906): Docs shows the doc only */
+  it('closes it on the docs routes: Docs (Qto) and a /docs document, with or without a locale', () => {
+    for (const toPath of ['/workspace/docs', '/fi/workspace/docs', '/docs/README.md']) {
+      assert.equal(routeLeavesTopic({ ...desk, toPath, toQuery: {} }), true, toPath)
+    }
+    assert.equal(routeLeavesTopic({ ...desk, toPath: '/workspace/docs', popstate: true }), false)
+  })
+
   it('keeps it on channel to channel, channel to DM and a drill-down', () => {
     assert.equal(routeLeavesTopic({ ...desk, toPath: '/channel/feedback' }), false)
     assert.equal(routeLeavesTopic({ ...desk, toPath: '/dm/peer' }), false)

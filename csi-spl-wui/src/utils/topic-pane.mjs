@@ -16,7 +16,7 @@
 // other half — they keep the state honest so the section the reader opened
 // LAST is the one that wins.
 
-import { isSectionPage } from './section-strip.mjs'
+import { isSectionPage, railLinkSection } from './section-strip.mjs'
 import { isSearchPage } from './sidebar-tabs.mjs'
 
 /** The live pane (useLiveFeed('pane')): /, /lobby, /search, /?topic=. */
@@ -94,7 +94,8 @@ export function operatorCloses(opened, state = {}) {
  * Back / Forward (`popstate`) restores whatever its entry holds, a
  * `?topic=` write is the pane itself. A desktop shows the page beside the
  * pane, so there it closes only on a section page (`SECTION_PAGES`) or
- * `/search` (spec 078 FR-004), whichever section the pane holds.
+ * `/search` (spec 078 FR-004), whichever section the pane holds, and on a
+ * docs route (SPL-6064).
  *
  * @param {{ mobile?: boolean, open?: boolean, popstate?: boolean, fromPath?: string, toPath?: string, toQuery?: Record<string, unknown> }} nav
  * @returns {boolean}
@@ -104,6 +105,8 @@ export function routeLeavesTopic(nav = {}) {
   if (!nav.toPath || nav.toPath === nav.fromPath) return false
   if (nav.toQuery && nav.toQuery.topic) return false
   /* spec 078 FR-004 (owner b6f35bf4, 193d95f7): on desktop only a section's
-     own page or /search closes the pane; channel to channel / DM keeps it */
-  return Boolean(nav.mobile) || isSectionPage(nav.toPath) || isSearchPage(nav.toPath)
+     own page or /search closes the pane; channel to channel / DM keeps it.
+     SPL-6064 (owner HUM-10, t1 18140959 msg 96212906: "I shoud see only the
+     doc"): a docs route (/workspace/docs, a /docs document) closes it too */
+  return Boolean(nav.mobile) || isSectionPage(nav.toPath) || isSearchPage(nav.toPath) || railLinkSection(nav.toPath) === 'docs'
 }

@@ -406,10 +406,19 @@ type loopRig struct {
 
 func newLoopRig(t *testing.T, mut ...func(*hub.Options)) *loopRig {
 	t.Helper()
+	d := newLoopDouble()
+	r := newLoopRigOn(t, d, mut...)
+	r.d = d
+	return r
+}
+
+// newLoopRigOn is the rig on st (no loopDouble: r.d is nil).
+func newLoopRigOn(t *testing.T, st store.Store, mut ...func(*hub.Options)) *loopRig {
+	t.Helper()
 	pub, key, _ := ed25519.GenerateKey(nil)
-	r := &loopRig{d: newLoopDouble(), roles: loopRoles{gone: map[string]bool{}}, key: key}
+	r := &loopRig{roles: loopRoles{gone: map[string]bool{}}, key: key}
 	r.e = newEnv(t, append([]func(*hub.Options){func(o *hub.Options) {
-		o.Store, o.ViewDoor, o.LobbyTaskID = r.d, hub.ViewDoorOff, lobby
+		o.Store, o.ViewDoor, o.LobbyTaskID = st, hub.ViewDoorOff, lobby
 		o.ViewCORSOrigins = []string{wuiOrigin}
 		o.WUIKey, o.WUIDispatch = key, true
 		o.Authorizer = r.roles
@@ -420,7 +429,7 @@ func newLoopRig(t *testing.T, mut ...func(*hub.Options)) *loopRig {
 			return "", errors.New("no session")
 		}
 	}}, mut...)...)
-	r.e.st = r.d
+	r.e.st = st
 	r.tid, _ = r.e.tenant()
 	r.a = r.e.box(r.tid, "box-a", "CLE-07")
 	r.e.pin(r.tid, r.a)
@@ -985,7 +994,7 @@ func TestTopicLoopIdleFiresOnceWithoutReply(t *testing.T) {
 	r.dueNow(t, loop, func(l *store.TopicLoop) { l.IdleDueAt = time.Now().Add(-time.Second) })
 	r.e.srv.TopicLoopTickOnce(ctx)
 	p := r.wantPrompts(t, "idle", 1)[0]
-	if p.MsgID != uid.FromSeed("topic-loop:"+loop+":"+second) || !strings.Contains(p.Body, "> and the restore test?") {
+	if p.MsgID != uid.FromSeed("topic-loop:"+loop+":idle:"+second) || !strings.Contains(p.Body, "> and the restore test?") {
 		t.Fatalf("idle prompt %s:\n%s", p.MsgID, p.Body)
 	}
 	r.e.srv.TopicLoopTickOnce(ctx)
@@ -1147,4 +1156,87 @@ func TestTopicLoopMemberIDIsNotTheV1ID(t *testing.T) {
 	if p.FromID != from || !strings.Contains(p.Body, "set by @"+from+",") {
 		t.Fatalf("prompt from %q body:\n%s\nwant from %q", p.FromID, p.Body, from)
 	}
+}
+
+// --- R7 c-297 on 9bc0d3792: W1-W3 ---
+
+// W1, spec 042: a time fire never quotes a note to self to the agent; it
+// quotes the newest post an agent may read. RED CONTROL: quote from
+// TaskEnvelopes (no note_to_self flag) and the prompt quotes the note.
+func TestTopicLoopTimerSkipsNoteToSelf(t *testing.T) {
+	r := newLoopRig(t)
+	ctx := context.Background()
+	loop := r.addLoop(t, map[string]any{"prompt": "status?", "triggers": []string{store.LoopEveryHour}})
+	w := dialMember(t, r.e, r.tid, "Owner", "HUM-1")
+	r.wuiPost(t, w, uuidV4(), "HUM-1", "remind me to renew the domain")
+	r.wuiBarrier(t, w)
+	r.dueNow(t, loop, func(l *store.TopicLoop) { l.NextDueAt = time.Now().Add(-time.Minute) })
+	r.e.srv.TopicLoopTickOnce(ctx)
+	p := r.wantPrompts(t, "one timer fire", 1)[0]
+	if strings.Contains(p.Body, "renew the domain") || !strings.Contains(p.Body, "> the outage is over") {
+		t.Fatalf("the timer prompt quotes a note to self or not the agent's post:\n%s", p.Body)
+	}
+}
+
+// W2 (v0.8 "idle:" seed): one human post arms a no_reply_after_human loop
+// that also has after_human_reply; the post fire and the idle fire are two
+// prompts, and every counted fire is a stored prompt. RED CONTROL: seed the
+// idle fire on l.IdlePost and the tick stores 1 prompt, want 2.
+func TestTopicLoopIdleAndPostFireOnOneArmingPost(t *testing.T) {
+	r := newLoopRig(t)
+	ctx := context.Background()
+	loop := r.addLoop(t, map[string]any{"prompt": "nudge the agent", "idle_min": 15,
+		"triggers": []string{store.LoopAfterHumanReply, store.LoopNoReplyAfterHuman}})
+	w := dialMember(t, r.e, r.tid, "Owner", "HUM-1")
+	r.wuiPost(t, w, uuidV4(), "", "can someone check the backup job?")
+	r.wuiBarrier(t, w)
+	r.wantPrompts(t, "the human post", 1)
+	r.dueNow(t, loop, func(l *store.TopicLoop) { l.IdleDueAt = time.Now().Add(-time.Second) })
+	r.e.srv.TopicLoopTickOnce(ctx)
+	r.wantPrompts(t, "the idle fire on the same post", 2)
+	if l := r.d.get(loop); l.FiresTotal != 2 || l.FiresInHour != 2 {
+		t.Fatalf("fires total %d, in hour %d, want 2 and 2", l.FiresTotal, l.FiresInHour)
+	}
+}
+
+// W2 (the "inserted" half): a cause that already fired its loop is not
+// counted again, so the counters stay equal to the stored prompts. RED
+// CONTROL: drop the prompt id read before CountTopicLoopFire and the replayed
+// idle fire counts 2 for 1 prompt.
+func TestTopicLoopRefiredCauseIsNotCounted(t *testing.T) {
+	r := newLoopRig(t)
+	ctx := context.Background()
+	loop := r.addLoop(t, map[string]any{"prompt": "nudge the agent", "triggers": []string{store.LoopNoReplyAfterHuman}, "idle_min": 15})
+	w := dialMember(t, r.e, r.tid, "Owner", "HUM-1")
+	post := uuidV4()
+	r.wuiPost(t, w, post, "", "and the restore test?")
+	r.wuiBarrier(t, w)
+	for i := 0; i < 2; i++ {
+		r.dueNow(t, loop, func(l *store.TopicLoop) { l.IdleDueAt, l.IdlePost = time.Now().Add(-time.Second), post })
+		r.e.srv.TopicLoopTickOnce(ctx)
+	}
+	r.wantPrompts(t, "one cause, two claims", 1)
+	if l := r.d.get(loop); l.FiresTotal != 1 {
+		t.Fatalf("fires total %d for 1 prompt", l.FiresTotal)
+	}
+}
+
+// W3, 4.4 step 2: the target's next post clears the wait whatever box it
+// matches, so a later matching post fires again. RED CONTROL: run
+// loopAwaited only after ev.matches(l) and the second "pdf" post is taken
+// for the awaited answer: 1 prompt, want 2.
+func TestTopicLoopNonMatchingAnswerClearsTheWait(t *testing.T) {
+	r := newLoopRig(t)
+	loop := r.addLoop(t, map[string]any{"prompt": "mail it", "triggers": []string{store.LoopPostHasKeyword}, "keyword": "pdf"})
+	r.agentSay(t, r.task, "ALL-0", "the pdf is ready")
+	r.barrier(t)
+	r.wantPrompts(t, "the keyword post", 1)
+	r.agentSay(t, r.task, "ALL-0", "mailed it")
+	r.barrier(t)
+	if l := r.d.get(loop); l.Awaiting != "" {
+		t.Fatalf("a non-matching answer left the wait: %+v", l.Awaiting)
+	}
+	r.agentSay(t, r.task, "ALL-0", "a new pdf of the other report")
+	r.barrier(t)
+	r.wantPrompts(t, "the next keyword post", 2)
 }

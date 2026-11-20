@@ -53,6 +53,10 @@ const topicLoopAwait = 30 * time.Minute
 // topicLoopQuoteMax cuts the quoted trigger, in characters (4.3 step 2).
 const topicLoopQuoteMax = 600
 
+// topicLoopQuoteScan is how many of the topic's newest rows a time fire
+// reads for the post it quotes.
+const topicLoopQuoteScan = 20
+
 // topicLoopTimerEvery is the time ticker; topicLoopTimerBatch the loops one
 // tick claims (the rest are due at the next tick).
 const (
@@ -302,7 +306,7 @@ func (s *Server) topicLoopFireIf(ctx context.Context, tenant, task string, ev lo
 	s.loopIdleTimer(ctx, ls, tenant, task, ev, loops)
 	var hit []store.TopicLoop
 	for _, l := range loops {
-		if ev.matches(l) && !s.loopAwaited(ctx, ls, l, ev) {
+		if !s.loopAwaited(ctx, ls, l, ev) && ev.matches(l) { // 4.4 step 2: any next post of the target clears the wait
 			hit = append(hit, l)
 		}
 	}
@@ -337,8 +341,8 @@ func (s *Server) loopIdleTimer(ctx context.Context, ls store.TopicLoopStore, ten
 }
 
 // loopAwaited is Q10 A: ev is the awaited answer to l's last fire (the
-// target agent's next post, whatever box it matches), so it clears the
-// wait and does not fire l.
+// target agent's next post, whatever box it matches, so it runs before the
+// match), so it clears the wait and does not fire l.
 func (s *Server) loopAwaited(ctx context.Context, ls store.TopicLoopStore, l store.TopicLoop, ev loopEvent) bool {
 	if ev.kind != loopEventPost || l.Awaiting == "" || l.Awaiting != ev.post.From {
 		return false
@@ -391,7 +395,11 @@ func (s *Server) loopSend(ctx context.Context, ls store.TopicLoopStore, l store.
 		return
 	}
 	now := s.o.Now().UTC()
-	c := s.loopCause(ctx, l, ev, envs, now)
+	c := s.loopCause(ctx, l, ev, now)
+	if _, err := s.o.Store.GetEditable(ctx, l.TenantID, loopPromptID(l, c), now); err == nil {
+		s.loopSkip(l.TenantID, l.TaskID, l.LoopID, "this cause already fired this loop") // a replay, or an idle fire seeded on a post that fired
+		return
+	}
 	counted, fired, err := ls.CountTopicLoopFire(ctx, l.TenantID, l.LoopID, now, s.topicLoopCap())
 	if err != nil || !fired {
 		s.loopSkip(l.TenantID, l.TaskID, l.LoopID, "capped, paused or gone")
@@ -399,7 +407,7 @@ func (s *Server) loopSend(ctx context.Context, ls store.TopicLoopStore, l store.
 	}
 	l = counted
 	m := s.loopMessage(l, c, tg.agent, now)
-	if err := s.loopStorePrompt(ctx, l, tg, m); err != nil {
+	if inserted, err := s.loopStorePrompt(ctx, l, tg, m); err != nil || !inserted {
 		s.o.Log.Error().Err(err).Str("loop_id", l.LoopID).Str("msg_id", m.MsgID).Msg("topic loop: prompt not stored")
 		return
 	}
@@ -441,7 +449,7 @@ type loopFireCause struct {
 
 // loopCause: a post's id and body; an idle fire's arming post; a time
 // fire's due time and the topic's latest post; an issue fire's change.
-func (s *Server) loopCause(ctx context.Context, l store.TopicLoop, ev loopEvent, envs [][]byte, now time.Time) loopFireCause {
+func (s *Server) loopCause(ctx context.Context, l store.TopicLoop, ev loopEvent, now time.Time) loopFireCause {
 	switch {
 	case ev.post != nil:
 		return loopFireCause{ev.post.MsgID, "fired by msg:" + ev.post.MsgID, ev.post.Body}
@@ -452,9 +460,9 @@ func (s *Server) loopCause(ctx context.Context, l store.TopicLoop, ev loopEvent,
 		if m, err := s.o.Store.GetEditable(ctx, l.TenantID, l.IdlePost, now); err == nil {
 			body = m.Body
 		}
-		return loopFireCause{l.IdlePost, "fired by no reply to msg:" + l.IdlePost, body}
+		return loopFireCause{"idle:" + l.IdlePost, "fired by no reply to msg:" + l.IdlePost, body} // "idle:" apart from the arming post's own fire (v0.8)
 	}
-	return loopFireCause{"due:" + loopDueClaimed(l, now).Format(time.RFC3339), "fired by its timer", latestPost(envs, l.LastFiredAt)}
+	return loopFireCause{"due:" + loopDueClaimed(l, now).Format(time.RFC3339), "fired by its timer", s.latestPost(ctx, l, now)}
 }
 
 // loopFrom is the v:1 id a loop speaks as (7.1.1 "The author's two ids"):
@@ -483,28 +491,40 @@ func loopDueClaimed(l store.TopicLoop, now time.Time) time.Time {
 func (s *Server) loopMessage(l store.TopicLoop, c loopFireCause, agent string, now time.Time) *msg.Message {
 	from := s.loopFrom(l)
 	body := topicLoopPromptMark + "set by @" + from + ", " + c.head + ")\n\n" + l.Prompt + "\n\n" + quoteBlock(c.quote)
-	return &msg.Message{V: s.writeVersion(), MsgID: uid.FromSeed("topic-loop:" + l.LoopID + ":" + c.seed), TaskID: l.TaskID,
+	return &msg.Message{V: s.writeVersion(), MsgID: loopPromptID(l, c), TaskID: l.TaskID,
 		TS: now.Format(time.RFC3339), From: from, To: agent, Kind: "task", Body: body, Files: []msg.Attachment{}}
 }
 
-// latestPost is the body of the topic's newest post that is not a loop
-// prompt, or the "nothing new" line when it is not newer than prev.
-func latestPost(envs [][]byte, prev time.Time) string {
-	for i := len(envs) - 1; i >= 0; i-- {
-		e, err := wire.ParseEnvelope(envs[i])
-		if err != nil {
+// loopPromptID is the prompt's msg id, derived from (loop, cause) (4.3 step 3).
+func loopPromptID(l store.TopicLoop, c loopFireCause) string {
+	return uid.FromSeed("topic-loop:" + l.LoopID + ":" + c.seed)
+}
+
+// latestPost is the body of the topic's newest post that is neither a loop
+// prompt nor a note to self (spec 042: it reaches no agent), or the
+// "nothing new" line when it is not newer than the loop's last fire. The
+// view read carries note_to_self; the envelope does not.
+func (s *Server) latestPost(ctx context.Context, l store.TopicLoop, now time.Time) string {
+	const none = "no new post since the last fire"
+	rows, err := s.o.Store.ViewTopic(ctx, l.TenantID, store.TopicMsgQuery{TaskID: l.TaskID, Desc: true, Limit: topicLoopQuoteScan, Now: now})
+	if err != nil {
+		return none
+	}
+	for _, v := range rows {
+		e, err := wire.ParseEnvelope(v.Env)
+		if err != nil || v.NoteToSelf {
 			continue
 		}
 		in, err := e.Inner()
 		if err != nil || !isLoopTrigger(in) {
 			continue
 		}
-		if ts, err := time.Parse(time.RFC3339, in.TS); err == nil && !prev.IsZero() && !ts.After(prev) {
+		if ts, err := time.Parse(time.RFC3339, in.TS); err == nil && !l.LastFiredAt.IsZero() && !ts.After(l.LastFiredAt) {
 			break
 		}
 		return in.Body
 	}
-	return "no new post since the last fire"
+	return none
 }
 
 // quoteBlock is text cut to topicLoopQuoteMax characters, as one quote block.
@@ -518,16 +538,16 @@ func quoteBlock(text string) string {
 // loopStorePrompt signs m as box-wui for the target's box, with no channel
 // tag (only that box gets it, routeChannel does not fan it out), and stores
 // it through commitRowTyped with its loop id (fanoutWUI skips the row).
-func (s *Server) loopStorePrompt(ctx context.Context, l store.TopicLoop, tg wuiSigning, m *msg.Message) error {
+func (s *Server) loopStorePrompt(ctx context.Context, l store.TopicLoop, tg wuiSigning, m *msg.Message) (bool, error) {
 	if err := m.Validate(); err != nil {
-		return err
+		return false, err
 	}
 	env, err := s.dispatchEnvelope(tg.box, "", "", tg.pin, m)
 	if err != nil {
-		return err
+		return false, err
 	}
-	_, err = s.commitRowTyped(withLoopID(ctx, l.LoopID), l.TenantID, env, m, 0, "")
-	return err
+	c, err := s.commitRowTyped(withLoopID(ctx, l.LoopID), l.TenantID, env, m, 0, "")
+	return c.inserted, err
 }
 
 // loopIDKey carries a loop prompt's loop id to commitRowTyped.

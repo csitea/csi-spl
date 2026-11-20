@@ -33,6 +33,8 @@ export interface PrintJob {
 
 let host: HTMLElement | null = null
 let restoreTitle = ''
+/* removes the listeners that end the current print, if any */
+let disarm: (() => void) | null = null
 /* the newest export: an older one still waiting gives way, so there is one print block and one print */
 let latest = 0
 
@@ -84,6 +86,8 @@ async function markdownSettled(root: HTMLElement): Promise<void> {
 
 /** remove the print block and give the page its title back */
 function clearPrint() {
+  disarm?.()
+  disarm = null
   document.documentElement.classList.remove('msg-printing')
   if (host) {
     render(null, host)
@@ -92,6 +96,25 @@ function clearPrint() {
   }
   if (restoreTitle) document.title = restoreTitle
   restoreTitle = ''
+}
+
+/* the page events that mean the reader is back on the page after a phone's print */
+const BACK_EVENTS = ['pointerdown', 'keydown'] as const
+
+/*
+ * SPL-6110 (owner HUM-10, t1 703f2ce5 msg 4460aad7: "On mobile, at least,
+ * doesn't work"): a desktop's print returns when its dialog closes, and
+ * afterprint ends the print there. A phone's (a coarse pointer) may return at
+ * once and fire afterprint before the page is laid out for print, which took
+ * the block away first. There the block (print-only, never on screen) stays
+ * until the reader touches the page again, or the next export replaces it.
+ */
+function armClear() {
+  const phone = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+  const events: readonly string[] = phone ? BACK_EVENTS : ['afterprint']
+  const end = () => clearPrint()
+  for (const e of events) window.addEventListener(e, end, { capture: true, once: true })
+  disarm = () => { for (const e of events) window.removeEventListener(e, end, { capture: true }) }
 }
 
 /**
@@ -124,7 +147,7 @@ export async function printMessages(job: PrintJob): Promise<HTMLElement | null> 
   document.title = printFileName(job.title, job.msgId)
   document.documentElement.classList.add('msg-printing')
   el.setAttribute('data-ready', 'true')
-  window.addEventListener('afterprint', clearPrint, { once: true })
+  armClear()
   window.print()
   return el
 }

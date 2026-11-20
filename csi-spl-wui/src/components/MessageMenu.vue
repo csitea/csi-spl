@@ -199,16 +199,19 @@ function choose(id: string) {
    (0,4,0) beats SheetBackdrop's :root .touch-sheet.touch-sheet (0,3,0).
    SPL-4578: with Add to note a locked card's sheet is 12 rows; up to 760 px the
    rows keep 44 px and tighten, and up to 700 px a reason keeps one line (cut
-   with an ellipsis), so it still fits and leaves dimmed page to tap on. */
+   with an ellipsis), so it still fits and leaves dimmed page to tap on.
+   SPL-6110: Export to PDF makes it 13 rows; the locked card's sheet at 360x740
+   then left 35 px of dimmed page, so up to 760 px a reason keeps one line too
+   (a row stays 44 px, mobile-messages.test.mjs). */
 :root .msg-menu.touch-sheet.touch-sheet {
   max-height: calc(100dvh - var(--kb-inset, 0px) - 8px);
 }
 @media (max-height: 760px) {
   :root .msg-menu.touch-sheet.touch-sheet [role="menuitem"] { padding-block: 4px; }
+  :root .msg-menu.touch-sheet.touch-sheet .point-menu__why { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 }
 @media (max-height: 700px) {
   :root .msg-menu.touch-sheet.touch-sheet { padding-top: 6px; }
-  :root .msg-menu.touch-sheet.touch-sheet .point-menu__why { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   :root .msg-menu.touch-sheet.touch-sheet::before { margin-bottom: 4px; }
   :root .msg-menu.touch-sheet.touch-sheet [role="menuitem"] { min-height: 40px; padding-block: 4px; }
 }

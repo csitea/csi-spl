@@ -1,7 +1,9 @@
 # Spec 183: An Agent Exports Any Topic It Can Read to PDF
 
-Status: **Draft v0.1** (2026-11-20). Lane `c-977` (`claude`, backup for
-`specs_and_docs`: no agy cli on this box).
+Status: **Draft v0.2** (2026-11-20). Lane `c-977` (`claude`, backup for
+`specs_and_docs`: no agy cli on this box). v0.1 `f860d1b1b`; v0.2 folds
+the owner's answers to form `82bc7349` (msg `d2c6508b`) and the P1 lane's
+contract question (msg `fffc8411`); every contract change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6031**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f798e9aa-6548-44fa-aa8b-7425133bff2f` (`t1`).
 Builds on: [182 topic loop prompt](../182-topic-loop-prompt/spec.md) (its
@@ -9,9 +11,10 @@ worked example 4.6 and its row L6, which this spec takes over, section 6)
 and [005 spool WUI](../005-spool-wui/spec.md) FR-020 (the browser's Export
 to PDF, SPL-5888).
 
-Line references were measured on `origin/master` `91e92e63c`. Next free
-number: `git ls-tree --name-only origin/master csi-spl-doc/specs/ | grep -c 183`
--> 0, and no `review/*` branch holds a `183` folder.
+Line references were measured on `origin/master` `64049c396` (v0.1:
+`91e92e63c`). Next free number at v0.1:
+`git ls-tree --name-only origin/master csi-spl-doc/specs/ | grep -c 183`
+-> 0, and no `review/*` branch held a `183` folder.
 
 ## 0. The owner's words (HUM-10, t1 #spool-hub-devel)
 
@@ -24,60 +27,55 @@ number: `git ls-tree --name-only origin/master csi-spl-doc/specs/ | grep -c 183`
   an email after each reply to me by an agent"
 - topic f798e9aa, msg `c0958ad0`: "this is prio-01 , throw as may agents as
   possible to it , it must be done asap"
+- topic f798e9aa, msg `d2c6508b` (form `82bc7349`), verbatim: "Answer 1:
+  HUB — On the hub: a hub route renders it Answer 2: F — A PDF file on its
+  machine Answer 3: OP — Exactly what the person the agent works for can
+  read in the web UI Answer 4: W — The whole topic as the web UI prints it:
+  pictures inline, other files as links, no hidden loop prompts"
 
-## 1. Open questions (one form)
+## 1. Decided, and what is open
 
-Each has a recommended answer, listed first. Section 7.1 is written for the
-recommended answers; a part that changes with another answer is marked
-**[Qn]**.
+| Q | Answer | What it decides here |
+|---|---|---|
+| Q1 | **HUB**: a hub route renders the PDF | 4 step 3, row P2, 7.1.1, 7.1.5 |
+| Q2 | **F**: a PDF file on the agent's machine | 4 step 4, 7.1.2; row P6 of v0.1 is dropped |
+| Q3 | **OP**: exactly what the person the agent works for reads in the WUI | 4 step 2, row P1, 7.1.1 (which person: 7.1.1) |
+| Q4 | **W**: the whole topic as the WUI prints it, pictures inline, other files as links, no hidden loop prompt | 7.1.3 |
 
-Q1. Where is the PDF rendered?
-- **BOX** (recommended): the `spool` box CLI renders the rows it read to
-  HTML and prints it with the box's own headless Chrome. This box has
-  `/usr/bin/google-chrome` and `/usr/bin/chromium` (`which`); the hub
-  image is `alpine:3.22` with no browser
-  (`csi-spl-api/src/docker/hub.Dockerfile:41`). No new hub service.
-- **HUB**: a new hub route renders it. It needs a browser in a hub image
-  (or a second Cloud Run service), and the hub carries every render's
-  memory and time.
-- **WUI**: a headless browser on the box opens the WUI's topic page and
-  runs its print (`csi-spl-wui/src/utils/msg-print-run.ts:101`). It
-  prints exactly what a person sees, but the browser needs a member's
-  session, which an agent does not have.
+### 1.1 Open (one question)
 
-Q2. What does the agent get?
-- **F** (recommended): a file path on the box; the mail step of 182 (row
-  L7, `spool mail-file --file <path>`) takes it as it is.
-- **FA**: the path, and with `--attach` also the PDF posted in the topic as
-  a hub file (the existing `spool send --put-file`, `cmd/spool/main.go:505`).
-- **A**: always a hub file posted in the topic. In the loop of 182 4.6 that
-  is one more agent post in the topic on every run.
+Q5. Where does Chrome run, inside "on the hub"? Measured on this box with
+`docker run alpine:3.22` (the hub's base, `csi-spl-api/src/docker/hub.Dockerfile:41`),
+n=1 install, n=3 renders of a one-page HTML at `--cpus=1 --memory=1g`:
+`apk add chromium` adds **784 MiB** (803 028 KiB; chromium 142.0.7444.59)
+to an 8.5 MiB base; `font-dejavu` adds 11 MiB, `font-noto-cjk` 89 MiB;
+one render, Chrome start included, takes **1.69-1.80 s** and peaks at
+**189-191 MiB** RSS. The hub runs at `cpu: "1"`, `memory: 512Mi`,
+`min_instances: 1`, `concurrency: 1000`
+(`csi-spl-cnf/csi-spl/all.env.yaml:408,409,418,449`). The image pull and
+cold start of a Cloud Run revision with that image were not measured.
 
-Q3. Which rows may the agent export (the access rule)?
-- **OP** (recommended): the rows the box's bound operator (the person the
-  box acts for) may read, by the browser's rule: `canReadTopic`
-  (`internal/hub/privacy.go:129`) for the topic, then `canReadMessage`
-  (`privacy.go:94`) per row. "The whole discussion" as that person sees it.
-- **BOX**: only what `spool hub-tail` prints today: the rows the box sent,
-  received or was delivered (`internal/store/postgres.go:660-666`), within
-  a dedicated agent's scope (`internal/store/dedicated_postgres.go:143-152`).
-  Nothing new on the hub, but I believe, unchecked, that a channel topic's
-  posts never delivered to the box are missing, so it is not "the whole
-  discussion".
-- **GR**: OP, plus any topic its starter granted to the agent.
+- **SVC** (recommended): a second Cloud Run service, the renderer
+  (alpine + chromium + font-dejavu, ~800 MiB image, `min_instances: 0`,
+  `concurrency: 1`, `memory: 1Gi`), reachable only by the hub's service
+  account. The hub route stays the only door: it checks access, builds the
+  HTML and calls the renderer. The hub's image, memory and cold start do
+  not change; a render after an idle period pays the renderer's cold start.
+- **IMG**: Chrome inside the hub image. One service, but every hub
+  instance carries the ~800 MiB image and needs its memory raised (a
+  190 MiB render does not fit next to the hub under 512Mi), and one
+  render's 1.8 s of CPU competes with the hub's 1000 requests.
 
-Q4. What does the PDF hold?
-- **W** (recommended): the topic's title, then every row the rule of Q3
-  allows, oldest first, each as the WUI prints a card (author, time,
-  rendered markdown); pictures inline, other attachments as their name and
-  a link; no hidden loop prompt (182 section 5.2).
-- **WL**: W, plus the hidden loop prompts of the agent's own loops.
+Rows P1, P3 and P5 do not depend on Q5; rows P2 and P4 do, marked
+**[Q5]**.
 
 ## 2. Terms
 
-- **export**: one run of `spool topic-pdf` for one topic.
-- **operator**: the person a box is bound to, the one `spool send
-  --typed-by` names (`cmd/spool/main.go:510`).
+- **export**: one call of the route of 7.1.1 for one topic.
+- **operator**: a person bound to the box in `box_operators`
+  (rdb `0040_messages_typed_by_box_operators.sql`), checked by
+  `BoxOperatorBound` (`internal/store/box_operators.go:17`); the one
+  `spool send --typed-by` names (`cmd/spool/main.go:510`).
 - **loop prompt row**: a message with `messages.loop_id` set (182 7.1.3).
 
 ## 3. What exists today (measured)
@@ -87,30 +85,37 @@ Q4. What does the PDF hold?
 | browser export | `csi-spl-wui/src/components/TopicExportPdf.vue:44-53`, `src/utils/msg-print-run.ts:101-128` | prints the cards the pane shows through `window.print()`; a person only |
 | file name | `csi-spl-wui/src/utils/msg-print.ts:17-37`, cases in `tests/unit/msg-print.test.mjs` | `printSlug(title)`, at most 60 characters, `topic` when empty |
 | title | `csi-spl-wui/src/utils/view-api.mjs:32-50` (`topicTitleFromRows`, `topicOpening`), cases in `tests/unit/view-api.test.mjs` | the oldest row's body, whitespace collapsed, 100 characters then `...` |
-| multipage fix | `review/c002-bug-wui-pdf-export-multipage` `01b8d3bef` (SPL-6023) | not on master (`git merge-base --is-ancestor` -> no); browser only |
+| multipage fix | `review/c002-bug-wui-pdf-export-multipage` `01b8d3bef` (SPL-6023) | not on master at v0.1; browser only |
 | hub export route | `internal/hub/hours_export.go:273-274` | hours only, `csv` or `xlsx`; any other format is a 400 |
-| box topic read | `cmd/spool/hub.go:1361` (`hub-tail`), `internal/hub/ws.go:1136-1162` (`onTail`) | frames `tail` -> `tail_msg`* + `tail_end`, rows by the BOX rule of Q3 |
-| read a WUI link | `internal/action/link.go:41,321` (`ParseLink`, `ReadLink`), MCP `spool_read_link` (`internal/mcp/mcp.go:191`) | a link or a uuid -> the topic's rows, through the box's desks |
+| box REST with a box token | `GET /v1/files/{file_id}` (`internal/hub/server.go:479`), box bearer resolved by `bearerAny` (`internal/hub/resolve.go:207-216`), client `Session.rest` (`internal/hubclient/hubclient.go:1089`) as `FetchFile` uses it (`hubclient.go:1221-1230`) | a box calls a hub REST route with the token its session was issued |
+| frame size | `maxFrameBytes = 1 << 20` on the CLI (`hubclient.go:439`), `512 << 10` inbound on the hub (`internal/hub/ws.go:30`) | a PDF does not fit a frame: the route answers over HTTP |
+| file size | `msg.MaxFileBytes = 32 MiB` (`internal/msg/msg.go:44`) | the cap 7.1.1 reuses |
+| box topic read | `cmd/spool/hub.go:1361` (`hub-tail`), `internal/hub/ws.go:1136-1162` (`onTail`) | the rows the box sent, received or was delivered; not the OP rule |
+| read a WUI link | `internal/action/link.go:41,321` (`ParseLink`, `ReadLink`), MCP `spool_read_link` (`internal/mcp/mcp.go:191`) | a link or a uuid -> a task id and the desk to ask |
 | person's read rule | `internal/hub/privacy.go:71,94,129` | channel membership, DM ends, topic door |
-| pictures | `GET /v1/files/{file_id}` (`internal/hub/rest.go:184-200`, `mayReadFile`), `spool hub-get-file` | a box token fetches a file it may read |
-| attach a file | `spool send --put-file` (`cmd/spool/main.go:505`) | blobs a file and posts it |
-| PDF tooling | `/usr/bin/google-chrome`, `/usr/bin/chromium`, `/usr/bin/pdftotext` on this box (`which`) | no action requires them |
+| pictures | the tenant blob store the hub writes (`PutFile`, `internal/hub/rest.go:589`) | the hub reads them itself; no box fetch |
+| PDF tooling | `/usr/bin/google-chrome`, `/usr/bin/chromium`, `/usr/bin/pdftotext` on this box (`which`); none in the hub image | tests may use `pdftotext` |
 | mail a file | none: `git grep -c Attach origin/master -- csi-spl-api/src/go/spool-hub-api/internal/mail/mail.go` -> 0 | 182 row L7 |
 
 ## 4. The flow end to end
 
 1. **ask**: the agent runs `spool topic-pdf --task <uuid or WUI link>` or the
    MCP tool `spool_topic_pdf`. A link is parsed by `ParseLink` and tried on
-   the box's desks in the order `ReadLink` uses (`link.go:148`).
-2. **access check**: the box sends the new frame `topic_export`; the hub
-   applies the rule of Q3 and answers with the existing `tail_msg` frames
-   and one `tail_end`. A topic the agent may not read answers exactly as a
-   missing one: `not_found` **[Q3]**.
-3. **render**: the CLI fetches each picture with the box token, writes one
-   self-contained HTML file (CSS inline, pictures as `data:` URLs) and runs
-   `<chrome> --headless=new --print-to-pdf=<out> <html>` **[Q1]**.
-4. **file**: the PDF lands at the path of 7.1.4; the CLI prints one JSON
-   line (7.1.2). With `--attach` the CLI also posts it in the topic **[Q2]**.
+   the box's desks in the order `ReadLink` uses (`link.go:148`). The CLI
+   dials the hub as `hub-tail` does and calls the route of 7.1.1 with its
+   session's box token.
+2. **access check (OP)**: the hub resolves the operator (7.1.1), then
+   `topicExportRows` returns the rows that person reads: `canReadTopic`
+   (`privacy.go:129`) for the topic, `canReadMessage` (`privacy.go:94`)
+   per row, no loop prompt row. A topic the person may not read answers as
+   a missing one: `404 not_found`.
+3. **render (HUB)**: the hub builds one self-contained HTML (CSS inline,
+   pictures from its blob store as `data:` URLs, other files as their name
+   and a link), and turns it into a PDF with headless Chrome where Q5
+   puts it **[Q5]**.
+4. **file (F)**: the route answers the PDF bytes; the CLI writes them to
+   the path of 7.1.4 and prints one JSON line (7.1.2). Nothing is stored
+   on the hub and nothing is posted in the topic.
 5. **mail (182 4.6)**: the loop's agent passes the path to
    `spool mail-file --task <uuid> --cause <loop prompt msg_id> --file <path>`
    (182 row L7), then answers "PDF sent" in the topic.
@@ -119,28 +124,28 @@ Q4. What does the PDF hold?
 
 | part | reused as it is | gap (built here) |
 |---|---|---|
-| read rows | the `tail` frames (`ws.go:1136`), `retaskEnv` for moved rows (`ws.go:1157`) | the `topic_export` frame and its access rule **[Q3]** |
+| door | box bearer (`resolve.go:207`), `canReadTopic`, `canReadMessage`, `BoxOperatorBound` | the route, the operator choice, `topicExportRows` |
 | link | `ParseLink`, desk order (`link.go:41,148`) | nothing |
-| render | the card layout of `MessagePrint.vue` as the model | a Go HTML template; the headless Chrome call; the Chrome lookup |
+| render | the card layout of `MessagePrint.vue` as the model | a Go HTML template in the hub; the Chrome call **[Q5]** |
 | title, file name | `topicOpening` (`view-api.mjs:46`), `printSlug` (`msg-print.ts:17`) | their Go ports, held to the same cases |
-| pictures | `GET /v1/files/{id}` with the box token | the fetch and the `data:` inline, each bounded as `msg-print-run.ts:56-59` does |
-| attach | `spool send --put-file` | `--attach` calls it **[Q2]** |
+| pictures | the blob store | the `data:` inline, each bounded as `msg-print-run.ts:56-59` does |
+| CLI to REST | `Session.rest` (`hubclient.go:1089`) | a streaming variant that writes the body to a file |
 | mail | none | 182 row L7 (not this spec) |
 
 ## 6. Build order (rows a later lane can take in parallel)
 
-Every row builds against the contracts of 7.1, so P1, P2, P3 and P4 start at
-once. This spec takes over 182's row L6: `do_spl_topic_pdf` keeps the names
-182 gives it, as a thin wrapper of the CLI verb (P3).
+Every row builds against the contracts of 7.1. P1, P2 and P3 start at once;
+P4 waits for Q5 only. This spec takes over 182's row L6:
+`do_spl_topic_pdf` keeps the names 182 gives it, as a thin wrapper of the
+CLI verb (P3). v0.1's row P6 (`--attach`) is dropped (Q2 = F).
 
 | row | depends on | kind | files | done test, and red control |
 |---|---|---|---|---|
-| **P1 hub: `topic_export` frame + access** | — **[Q3]** | `complex_coding` | `internal/wire` (the frame type), `internal/hub/topic_export.go`, `topic_export_test.go`; the store read for the operator rule (Postgres + Memory) | A box whose operator reads the channel gets every row, oldest first, no loop prompt row; an operator outside the channel gets `not_found`, as a missing topic does; a DM the operator is no end of is left out of a mixed topic. `PRE_PUSH_TIER=full`. Red control: skip the per-row `canReadMessage`, and the DM test sees the DM. |
-| **P2 box: render engine** | the frame of 7.1.1 (tests use a fake session) **[Q1]** | `complex_coding` | `internal/topicpdf/{render.go,template.html,slug.go,title.go,chrome.go,*_test.go}` | A fixture of 3 rows and 1 picture makes a PDF whose `pdftotext` holds the 3 bodies and the title; the picture's `data:` URL is in the HTML; `Slug` and `Title` pass every case of `msg-print.test.mjs` and `view-api.test.mjs` for `printSlug` and `topicOpening`; no Chrome -> exit 4 with the install command. Red control: drop the picture fetch, and the picture check fails. |
-| **P3 box: CLI verb, MCP tool, orc wrapper** | P2's `topicpdf.Export` signature (7.1.2) | `simple_coding` | `cmd/spool/topic_pdf.go`, `cmd/spool/main.go` (the `case`, the help line), `internal/mcp/mcp.go` (`spool_topic_pdf`), `csi-spl-orc/src/bash/run/spl-topic-pdf.func.sh` + its test | Flags, output and exit codes of 7.1.2 hold; the MCP tool returns the same JSON; `do_spl_topic_pdf` with `TOPIC_ID`, `ENV`, `OUT` runs the verb. Red control: ignore `--out`, and the path test fails. |
-| **P4 box requirement: Chrome** | — | `simple_coding` | `csi-spl-iac`: a `do_box_pkg_install` record for `chromium`; the box health check | the check reports a box with no Chrome; the record installs it. Red control: hide the binary from the test `PATH`, and the check fails. |
-| **P5 e2e** | P1, P2, P3 | `tests` | `csi-spl-api/src/bash/tests/topic-pdf-e2e.tst.sh` | On a local hub (memory store): post 3 rows and a picture, run `spool topic-pdf`, `pdftotext` holds the 3 bodies; a box whose operator may not read gets exit 3. Red control: turn the access check off, and the exit-3 case fails. |
-| **P6 attach** | P3 **[Q2: only FA or A]** | `simple_coding` | `cmd/spool/topic_pdf.go` (`--attach`) | the PDF posts in the topic as a file. Red control: drop the send, and the post check fails. |
+| **P1 hub: route, operator, access** | — | `complex_coding` | `internal/hub/topic_export.go` (`handleTopicExport`, `topicExportOperator`, `topicExportRows`), `topic_export_test.go`, the route in `internal/hub/server.go`; the store read for the OP rule (Postgres + Memory) | A box whose operator reads the channel gets `200 application/pdf`; an operator outside the channel and a topic that does not exist both get `404 not_found`; a DM the operator is no end of is left out of a mixed topic; two operators and no `typed_by` -> `400 operator_ambiguous`; a `typed_by` not bound to the box -> `403 typed_by_not_bound`; no loop prompt row once 182 L1 has landed `messages.loop_id`. Tests stub the renderer of 7.1.5. `PRE_PUSH_TIER=full`. Red control: skip the per-row `canReadMessage`, and the DM test sees the DM. |
+| **P2 hub: HTML and the renderer** | — **[Q5]** | `complex_coding` | `internal/topicpdf/{html.go,template.html,slug.go,title.go,render.go,*_test.go}`; under SVC also `csi-spl-api/src/docker/pdf.Dockerfile` and `cmd/spool-pdf/main.go` (the renderer's HTTP server) | A fixture of 3 rows and 1 picture makes a PDF whose `pdftotext` holds the 3 bodies and the title; the picture's `data:` URL is in the HTML; `Slug` and `Title` pass every case of `msg-print.test.mjs` and `view-api.test.mjs` for `printSlug` and `topicOpening`; a render past its timeout fails with `render_timeout`. Red control: drop the picture inline, and the picture check fails. |
+| **P3 box: CLI verb, MCP tool, orc wrapper** | the route of 7.1.1 (tests use a stub hub) | `simple_coding` | `cmd/spool/topic_pdf.go`, `cmd/spool/main.go` (the `case`, the help line), `internal/hubclient` (`Session.TopicPDF`), `internal/mcp/mcp.go` (`spool_topic_pdf`), `csi-spl-orc/src/bash/run/spl-topic-pdf.func.sh` + its test | Flags, output and exit codes of 7.1.2 hold; the file holds exactly the bytes the stub served (sha256); a 404 exits 3 and writes no file; the MCP tool returns the same JSON; `do_spl_topic_pdf` with `TOPIC_ID`, `ENV`, `OUT` runs the verb. Red control: ignore `--out`, and the path test fails. |
+| **P4 infra: the renderer on Cloud Run** | P2's image **[Q5]** | `complex_coding` (terraform: the owner's go before any apply) | SVC: a new terraform step for the renderer service (its service account, `roles/run.invoker` for the hub's service account only), its image in the hub's build workflow, cnf `hub.pdf.*` (URL, timeout); IMG: `hub.Dockerfile` (chromium + font-dejavu) and cnf `hub.cloud_run.memory` | `make do-tf-plan` for dev shows only the new service (SVC) or the memory change (IMG); after the owner's go and the apply, an export on dev returns a PDF; the measured cold start and render time are written into this spec. Red control: call the renderer without the hub's identity, and it answers 403. |
+| **P5 e2e** | P1, P2, P3 | `tests` | `csi-spl-api/src/bash/tests/topic-pdf-e2e.tst.sh` | On a local hub (memory store, the renderer from P2 run locally): post 3 rows and a picture, run `spool topic-pdf`, `pdftotext` holds the 3 bodies; a box whose operator may not read gets exit 3. Red control: turn the access check off, and the exit-3 case fails. |
 | **P7 docs** | P3 | `specs_and_docs` | `csi-spl-doc/doc/md/spool-cli-reference.md`, this spec's row status, 182 row L6's status | `do_check_dist_hygiene`, `do_check_fleet_rules_drift`. |
 
 ### 7.1 Contracts for parallel rows (binding)
@@ -149,64 +154,105 @@ A row that needs to change one asks the dispatch holder first; the change
 lands in this spec before the code. Every name is new unless a file:line
 is cited.
 
-#### 7.1.1 Wire frame (P1 serves it, P2 and P3 call it)
+#### 7.1.1 Hub route (P1 serves it, P3 calls it)
 
-- Request: `{"type":"topic_export","task_id":"<uuid>"}` on a box session
-  dialled as `hub-tail` dials (`wire.RoleCLI`, `cmd/spool/hub.go:1384`).
-  Go constant `wire.TTopicExport = "topic_export"`.
-- Answer: zero or more `tail_msg` frames (`wire.TTailMsg`), oldest first
-  (`ts`, then `msg_id`, as `postgres.go:666` orders a tail), then one
-  `tail_end` with `count` (`ws.go:1155-1161`): the frames of `tail`, so
-  the client reads them with the code `Tail` uses.
-- Refusal: `not_found` (404) for a missing topic and for one the rule of Q3
-  does not allow, alike; `bad_json` (400) with no `task_id`.
-- Rows: the rule of Q3 **[Q3]**; never a row with `loop_id` set **[Q4]**;
-  moved rows retasked as `onTail` does (`ws.go:1157`).
-- Client: `func (s *hubclient.Session) TopicExport(ctx context.Context,
-  taskID string, fn func(*wire.Envelope)) (int, error)`.
+- `GET /v1/topics/{task_id}/export.pdf[?typed_by=HUM-<n>]`, authenticated
+  by the box bearer token its session was issued, as `GET /v1/files/{id}`
+  is (`resolve.go:207-216`); a WUI token (`WUIBox`) or a member session
+  is refused `401` in v0.2.
+- Operator (`topicExportOperator`), never the union of several (one
+  person's DM would reach another):
+  - `typed_by` given: it must be bound to the box (`BoxOperatorBound`) and
+    a member of the tenant, else `403 typed_by_not_bound`;
+  - no `typed_by` and exactly one operator bound to the box: that person;
+  - no `typed_by` and several bound: `400 operator_ambiguous`;
+  - none bound: `404 not_found`.
+- Rows (`topicExportRows(ctx, tenant, task, human) ([]store.EditableMessage, error)`,
+  the function the render calls): the topic door `canReadTopic`, then
+  `canReadMessage` per row, oldest first (`ts`, then `msg_id`); no row with
+  `loop_id` set, added once 182 L1 lands the column (it is not on master at
+  v0.2).
+- Answer `200`: the PDF bytes, `Content-Type: application/pdf`,
+  `Content-Disposition: attachment; filename="<name of 7.1.4>"`, headers
+  `X-Spool-Rows: <n>`, `X-Spool-Pictures: <n>`.
+- Refusals, JSON as every hub error: `404 not_found` (missing topic, a
+  topic the operator may not read, no operator: one answer for all);
+  `400 operator_ambiguous`; `403 typed_by_not_bound`;
+  `413 too_large` (a PDF over `msg.MaxFileBytes`, `msg.go:44`);
+  `503 render_unavailable` (renderer down or busy); `504 render_timeout`
+  (past cnf `hub.pdf.timeout`, default 60 s).
+- Client: `func (s *hubclient.Session) TopicPDF(ctx context.Context,
+  taskID, typedBy string, w io.Writer) (TopicPDFInfo, error)`;
+  `TopicPDFInfo{Name string; Rows, Pictures int}`.
 
-#### 7.1.2 CLI verb, MCP tool, Go entry (P3 serves, P2 builds the core)
+#### 7.1.2 CLI verb and MCP tool (P3)
 
-- Verb: `spool topic-pdf --task <uuid|WUI link> [--out <path>] [--attach]
-  [--chrome <path>] [--timeout <duration, default 120s>]` **[Q2: --attach]**.
+- Verb: `spool topic-pdf --task <uuid|WUI link> [--out <path>]
+  [--typed-by HUM-<n>] [--timeout <duration, default 120s>]`.
 - Output on stdout, one JSON line:
   `{"task_id":"<uuid>","path":"<abs path>","bytes":<n>,"rows":<n>,"pictures":<n>,"sha256":"<hex>"}`.
-- Exit codes: `0` written; `1` usage; `3` not found or not readable (one
-  code, as the hub gives one answer); `4` no Chrome (stderr names the
-  install command of P4); `5` render failed or timed out (stderr carries
-  Chrome's last 20 lines).
-- Chrome lookup: `--chrome`, else `$SPOOL_CHROME`, else the first of
-  `google-chrome`, `chromium`, `chromium-browser` on `PATH`.
+- Exit codes: `0` written; `1` usage; `3` `404` from the hub; `4`
+  `400 operator_ambiguous` or `403 typed_by_not_bound` (stderr names the
+  token); `5` `413`, `503` or `504` (stderr names the token). A failed
+  export writes no file and leaves no partial one.
 - MCP tool `spool_topic_pdf`, input `{"task":"<uuid|link>","out":"<path>",
-  "attach":false}`, output the JSON of the verb.
-- Go core, `package topicpdf`:
-  `func Export(ctx context.Context, rows []action.TailRow, fetch
-  func(fileID string) ([]byte, error), opt Options) (Result, error)`;
-  `Options{Out, Chrome string; Timeout time.Duration}`;
-  `Result{Path string; Bytes int64; Rows, Pictures int; SHA256 string}`.
-  `action.TailRow` is `internal/action/link.go:114`.
+  "typed_by":"HUM-<n>"}`, output the JSON of the verb.
 - orc wrapper (182 row L6's names kept): `do_spl_topic_pdf` with
   `TOPIC_ID` (required), `ENV` (required), `OUT` (optional) runs the verb.
 
-#### 7.1.3 Title
+#### 7.1.3 What the PDF holds (Q4 W), and its title
 
-`topicpdf.Title(rows)`: the Go port of `topicTitleFromRows` without a
-pinned root (`view-api.mjs:32-50`): the oldest row's body, whitespace
-collapsed, 100 characters then `...`; `topic` when empty.
+- The title, then each row as the WUI prints a card: author, time,
+  rendered markdown; pictures inline; other attachments as their name and
+  a link to the topic in the WUI; no loop prompt row.
+- Title, `topicpdf.Title(rows)`: the Go port of `topicTitleFromRows`
+  without a pinned root (`view-api.mjs:32-50`): the oldest row's body,
+  whitespace collapsed, 100 characters then `...`; `topic` when empty.
 
 #### 7.1.4 File naming
 
-- Default directory: `$SPOOL_ROOT/<agent id>/exports/`, created `0700`;
-  the agent id from `SPOOL_AGENT_ID`, else the box config.
 - Name: `<slug>-<task8>-<UTC yyyymmddThhmmssZ>.pdf`; `slug` is
   `topicpdf.Slug(title)`, the Go port of `printSlug` (`msg-print.ts:17-27`:
   the same 60-character cut and `topic` fallback); `task8` the first 8 hex
-  digits of the task id.
+  digits of the task id. The hub names it (7.1.1); the CLI keeps it.
+- Default directory: `$SPOOL_ROOT/<agent id>/exports/`, created `0700`;
+  the agent id from `SPOOL_AGENT_ID`, else the box config.
 - `--out` names the file itself; an existing file is replaced.
 - Old exports: a later `csi-spl-utl` sweep rule (not P1-P7) removes files in
   `exports/` older than 7 days.
+
+#### 7.1.5 The hub's renderer seam (P1 calls it, P2 builds it)
+
+- `package topicpdf`:
+  `type Renderer interface { Render(ctx context.Context, html []byte) ([]byte, error) }`;
+  `func HTML(rows []store.EditableMessage, title string, blob func(fileID string) ([]byte, error)) ([]byte, int, error)`
+  (the HTML and its picture count).
+- SVC **[Q5]**: `topicpdf.HTTPRenderer{URL string}` posts the HTML to
+  `POST <hub.pdf.url>/render` (`Content-Type: text/html`) with the hub's
+  ID token and gets `application/pdf` back; the renderer runs
+  `chromium-browser --headless=new --no-sandbox --disable-gpu
+  --disable-dev-shm-usage --print-to-pdf`, one render at a time.
+- IMG **[Q5]**: `topicpdf.ExecRenderer{Chrome string}` runs the same
+  command in the hub container, at most one render at a time per instance.
+- Errors: `topicpdf.ErrBusy` -> `503`, `context.DeadlineExceeded` -> `504`.
 
 ## 8. Not in this spec
 
 Mailing the file (182 row L7), the loop that asks for it (182 rows L1-L3),
 and the WUI's own export (005 FR-020, SPL-6023).
+
+## 9. Changes from v0.1
+
+| v0.1 | v0.2 | why |
+|---|---|---|
+| 1: four open questions | Q1 HUB, Q2 F, Q3 OP, Q4 W decided; Q5 (where Chrome runs) open | msg `d2c6508b` |
+| 7.1.1: WS frame `topic_export` answering `tail_msg` rows to the box | REST `GET /v1/topics/{task_id}/export.pdf` answering the PDF bytes | Q1 HUB; a PDF does not fit the CLI's 1 MiB frame (`hubclient.go:439`) |
+| 7.1.1: request with `task_id` only | optional `typed_by`; one operator rule, `400 operator_ambiguous`, `403 typed_by_not_bound`, never a union | P1 lane, msg `fffc8411` |
+| 7.1.1: rows with `loop_id` filtered | the filter lands once 182 L1 lands the column | P1 lane, msg `fffc8411`: not on master |
+| 7.1.1: `hubclient.Session.TopicExport` (rows) | `hubclient.Session.TopicPDF` (bytes to an `io.Writer`) | Q1 HUB |
+| 7.1.2: Go core `topicpdf.Export` on the box | removed: the box only writes bytes; the core is the hub seam of 7.1.5 | Q1 HUB |
+| 7.1.2: flags `--attach`, `--chrome`, env `SPOOL_CHROME` | removed; `--typed-by` added | Q2 F; Q1 HUB; the operator rule |
+| 7.1.2: exit `4` = no Chrome, `5` = render failed | `4` = operator refused, `5` = `413`/`503`/`504` from the hub | Q1 HUB |
+| 7.1.4: the CLI names the file | the hub names it in `Content-Disposition`; the CLI keeps it | Q1 HUB |
+| — | 7.1.5 the renderer seam, new | Q1 HUB |
+| rows P2 box render, P4 Chrome on every box, P6 attach | P2 hub HTML + renderer, P4 the renderer on Cloud Run (terraform with the owner's go), P6 dropped | Q1 HUB, Q2 F |

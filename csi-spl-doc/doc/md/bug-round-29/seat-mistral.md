@@ -255,3 +255,44 @@ and that no row changed.
 All other checks stand as on v0.1 (base `cbbc11996`, red controls unchanged and
 RED as run, row files undrifted on `cc13eac0b`). No new W; N1/N2 are resolved by
 the fold.
+
+---
+
+## Signature: plan v1.0 `cf39b5581349f3e083a71002575bf606b920a379` (landed on origin/master)
+
+**Verdict: PASS on `cf39b5581349f3e083a71002575bf606b920a379`** — the v1.0 the
+editor (c-482@sat) sent on `dispatch-bug-r29` (msg a77f61d3, 19:08:24Z) as
+"b29 plan v1.0 landed". All commands re-run by me at 19:2xZ from
+`/opt/csi/csi-spl-wt/m-486` after `git fetch origin`:
+
+- **The sha is a named plan version on origin/master.**
+  `git merge-base --is-ancestor cf39b5581349f3e083a71002575bf606b920a379 origin/master`
+  -> rc 0; `git log -1 --format='%H %s' cf39b5581...` ->
+  `cf39b5581349f3e083a71002575bf606b920a379 docs(b29-plan, SPL-6080): bug round 29 plan v1.0, panel m-486 (mistral) PASS on v0.2 adfa2dbd8, no W; rows unchanged`
+  (author and committer both the repo-canonical identity:
+  `git log -1 --no-mailmap --format='%ae %ce' cf39b5581... | grep -qx '<canonical> <canonical>'`
+  -> rc 0, address not printed here).
+- **The v1.0 delta is the signature record only; no row changed.**
+  `git diff adfa2dbd8e6338c9df7404319fdf236550cd8765 cf39b5581349f3e083a71002575bf606b920a379 -- csi-spl-doc/doc/md/bug-round-29-plan.md | grep '^@@'`
+  -> hunks at `@@ -10,10 +10,10 @@` (status + panel lines), `@@ -242,6 +242,8 @@`
+  and `@@ -249,5 +251,5 @@` (sections 8 and 9) only. Row lines 49-50:
+  `diff <(git show adfa2dbd8:...plan.md | sed -n '49,50p') <(git show cf39b5581:...plan.md | sed -n '49,50p')`
+  -> rc 0 (byte-identical); section 3.2 (red controls, lines 67-190) -> rc 0
+  (byte-identical). The status line now reads "v1.0, the panel passed v0.2
+  `adfa2dbd8` with no W" and section 9 records my PASS on v0.2 (msg b466eaaa,
+  relayed 6574d3f0, line check rc 0, holder GO a77f61d3).
+- **Row slugs still free.** `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b28-plan')`
+  -> `W=2026-11-20T20:04:17+02:00` (7df5cecfc, the same W as the plan).
+  `git log origin/master --since="$W" --oneline -E --grep='\(b29-'` -> 3 lines,
+  all the plan's own docs commits (`b43d27381` v0.1, `ef9e534ff` v0.2,
+  `cf39b5581` v1.0); `git log origin/master --oneline -E --grep='\(b29-0[0-9]' | wc -l`
+  -> `0`; `git ls-remote origin | grep -E 'b29-0[0-9]' | wc -l` -> `0`. No row
+  slug `b29-0N` is taken by a commit or a branch.
+- **Row files undrifted at v1.0.** `git diff --name-only cbbc11996 cf39b5581 -- <the 8 row/site files>`
+  -> empty, rc 0.
+- **Distribution hygiene.** `cd csi-spl-iac && ./run -a do_check_dist_hygiene`
+  -> all `ok`, `INFO distribution-hygiene: clean over the tracked tree of
+  /opt/csi/csi-spl-wt/m-486`, exit 0 (run after this section was written).
+
+No new W. The v0.1 FAIL (W1) and the v0.2 PASS stand; v1.0 changes no row, so the
+v0.2 verdict carries: **PASS on `cf39b5581349f3e083a71002575bf606b920a379`**.

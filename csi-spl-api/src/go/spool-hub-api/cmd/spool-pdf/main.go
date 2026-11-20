@@ -4,7 +4,9 @@
 // self-contained HTML the hub builds (internal/topicpdf) into a PDF with
 // headless Chromium. One route, POST /render: text/html of at most 40 MiB
 // in, application/pdf out; 413 over the cap, 429 while a render runs (one at
-// a time per instance), 500 with Chrome's last 20 lines when a render fails.
+// a time per instance), 504 when a render passes its cap (the browser's
+// process group killed), 500 with Chrome's last 20 lines on any other failed
+// render (spec 183 v0.5 7.1.6).
 // No other route, no health route (spec 183 1.2 R1: nothing keeps it warm).
 // It listens on $PORT (Cloud Run's, default 8080); only the hub's service
 // account may call it (Cloud Run IAM, terraform step 031-cloud-run-pdf).
@@ -35,6 +37,10 @@ import (
 const MaxHTMLBytes = 40 << 20
 
 const defaultRenderTimeout = 115 * time.Second
+
+// errRenderTimeout marks a render that passed its own cap: it answers 504, so
+// the hub reads a hung browser as render_timeout, never as a 503.
+var errRenderTimeout = errors.New("render timeout")
 
 func main() {
 	if err := run(); err != nil {
@@ -109,7 +115,11 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	pdf, err := s.render(r.Context(), html)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		code := http.StatusInternalServerError
+		if errors.Is(err, errRenderTimeout) {
+			code = http.StatusGatewayTimeout
+		}
+		http.Error(w, err.Error(), code)
 		return
 	}
 	w.Header().Set("Content-Type", "application/pdf")
@@ -144,12 +154,16 @@ func (s *server) render(ctx context.Context, html []byte) ([]byte, error) {
 	if runErr == nil && readErr == nil && len(pdf) > 0 {
 		return pdf, nil
 	}
+	tail := lastLines(trail.String(), 20)
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, fmt.Errorf("%w: render passed %s\n%s", errRenderTimeout, s.timeout, tail)
+	}
 	if ctx.Err() != nil {
-		runErr = fmt.Errorf("render passed %s: %w", s.timeout, ctx.Err())
+		runErr = fmt.Errorf("render stopped: %w", ctx.Err())
 	} else if runErr == nil {
 		runErr = errors.New("chrome wrote no PDF")
 	}
-	return nil, fmt.Errorf("%v\n%s", runErr, lastLines(trail.String(), 20))
+	return nil, fmt.Errorf("%v\n%s", runErr, tail)
 }
 
 // chromeArgs are spec 183 7.1.6's flags (v0.4): no header or footer (no

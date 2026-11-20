@@ -102,14 +102,14 @@ for a in "$@"; do case "$a" in --print-to-pdf=*) printf '%%PDF-stub' > "${a#--pr
 	}
 }
 
-func TestRenderTimeoutKillsChrome(t *testing.T) {
+func TestRenderTimeoutKillsChromeAnswers504(t *testing.T) {
 	s, err := newServer(fakeChrome(t, "sleep 30 & wait"), "200ms") // the sleep plays a hung browser (a fixture)
 	if err != nil {
 		t.Fatal(err)
 	}
 	start := time.Now()
 	w := post(t, s, "POST", "/render", []byte("<p>x</p>"))
-	if w.Code != 500 || !strings.Contains(w.Body.String(), "render passed 200ms") {
+	if w.Code != 504 || !strings.Contains(w.Body.String(), "render passed 200ms") {
 		t.Fatalf("= %d %s", w.Code, w.Body.String())
 	}
 	if d := time.Since(start); d > 10*time.Second {

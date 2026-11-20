@@ -1,6 +1,6 @@
 # Spec 183: An Agent Exports Any Topic It Can Read to PDF
 
-Status: **Draft v0.5** (2026-11-20). Lane `c-977` (`claude`, backup for
+Status: **Draft v0.6** (2026-11-20). Lane `c-977` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `f860d1b1b`; v0.2
 `49d6ee226` folds the owner's answers to form `82bc7349` (msg `d2c6508b`)
 and the P1 lane's contract question (msg `fffc8411`); v0.3 folds Q5 SVC
@@ -9,7 +9,10 @@ and the P1 lane's contract question (msg `fffc8411`); v0.3 folds Q5 SVC
 lane's three gaps (msg `b8cb9d99`, approved by the dispatch holder, msg
 `f718687c`); v0.5 folds P2's additions to 7.1.5 (R7 c-347 W1, msg
 `145e456d`), a hung render's answer and the card author (holder msg
-`3d1b6071`). Every contract change is in section 9.
+`3d1b6071`); v0.6 names the hub's wait env (P4 c-339, msg `57a09b32`)
+and settles the default directory's agent id and P3's desk flags (P3
+c-338, msg `b158b296`), holder msg `3436f7ab`. Every contract change is
+in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6031**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f798e9aa-6548-44fa-aa8b-7425133bff2f` (`t1`).
 Builds on: [182 topic loop prompt](../182-topic-loop-prompt/spec.md) (its
@@ -218,7 +221,14 @@ is cited.
 #### 7.1.2 CLI verb and MCP tool (P3)
 
 - Verb: `spool topic-pdf --task <uuid|WUI link> [--out <path>]
-  [--typed-by HUM-<n>] [--timeout <duration, default 120s>]`.
+  [--typed-by HUM-<n>] [--timeout <duration, default 120s>]
+  [--desks <dir>] [--desk-box <box>]`.
+- `--desks` (default `$SPOOL_DESKS`) and `--desk-box` (default
+  `$SPOOL_DESK_BOX`) are in the contract: the same flags, defaults and
+  meaning as `spool tail --url` (`cmd/spool/main.go:617-618`). They give
+  the desk order of section 4 step 1; with no `--desks`, this hub-mode
+  spool is the one desk. The MCP tool takes no desk input: it uses its
+  server's `spool mcp --desks/--desk-box` (`main.go:649-650`).
 - Output on stdout, one JSON line:
   `{"task_id":"<uuid>","path":"<abs path>","bytes":<n>,"rows":<n>,"pictures":<n>,"sha256":"<hex>"}`.
 - Exit codes: `0` written; `1` usage; `3` `404` from the hub; `4`
@@ -257,8 +267,13 @@ is cited.
   `topicpdf.Slug(title)`, the Go port of `printSlug` (`msg-print.ts:17-27`:
   the same 60-character cut and `topic` fallback); `task8` the first 8 hex
   digits of the task id. The hub names it (7.1.1); the CLI keeps it.
-- Default directory: `$SPOOL_ROOT/<agent id>/exports/`, created `0700`;
-  the agent id from `SPOOL_AGENT_ID`, else the box config.
+- Default directory: `$SPOOL_ROOT/<agent id>/exports/`, created `0700`.
+  The agent id: the verb's `SPOOL_AGENT_ID`, the MCP tool's seat
+  (`spool mcp --as`, `$SPOOL_MCP_AS`); when that is empty, the box id
+  (`config.Config.BoxID`, env `SPOOL_BOX_ID`, `config/config.go:41`).
+  The box config holds no agent id. In hub mode the box id is always set
+  (`config.go:198`), so the fallback always names a directory. P3 does
+  this at `a886216c7`.
 - `--out` names the file itself; an existing file is replaced.
 - Old exports: a later `csi-spl-utl` sweep rule (not P1-P7) removes files in
   `exports/` older than 7 days.
@@ -326,7 +341,16 @@ is cited.
   only.
 - The hub learns the URL from cnf `hub.pdf.url` (the step's output, set
   in cnf after the apply), passed as `SPOOL_PDF_URL`; cnf
-  `hub.pdf.timeout` (default `120s`) is the hub's wait.
+  `hub.pdf.timeout` (default `120s`) is the hub's wait, passed by step
+  030 as env `SPOOL_PDF_TIMEOUT`: a Go duration (`120s`, `2m`), unset =
+  `120s`. P1 reads it into the hub's config (`config/config.go`, beside
+  `SPOOL_HUB_WS_MAX_LIFE` at `:657`). A value that does not parse, or
+  that is not positive, refuses the hub's start. P1 sets
+  `HTTPRenderer.Timeout` (7.1.5) from it. It must stay above the
+  renderer's `SPOOL_PDF_RENDER_TIMEOUT` (115 s), so a hung Chrome answers
+  the renderer's `504` before the hub gives up. It must also stay under
+  the hub's own request timeout (cnf `hub.cloud_run.timeout_seconds`,
+  600 s).
 
 ## 8. Not in this spec
 
@@ -376,3 +400,11 @@ and the WUI's own export (005 FR-020, SPL-6023).
 | 7.1.5: `HTTPRenderer{URL}`, `ErrBusy` | `HTTPRenderer{URL, Timeout, Client}`, `ErrUnavailable`, `ErrBusy`, `ErrTimeout`, `ErrTooLarge`, `Status(err)`; P1 answers with `Status` | P2 `c55e6a5b5`, R7 c-347 W1 (msg `145e456d`): the contract lands before the code |
 | 7.1.6: a failed render answers `500` | a render past the renderer's cap answers `504`, so a hung Chrome is `504 render_timeout` at the hub, never `503` | R7 N2 (msg `3d1b6071`): `500` read as `503` hid a timeout |
 | 7.1.3: card author unstated | `typedByAuthor`'s rule; P1 adds `EditableMessage.TypedBy` and wires it into the card | c-334's note (msg `3d1b6071`): `EditableMessage` has no `TypedBy` |
+
+### 9.4 Changes from v0.5
+
+| v0.5 | v0.6 | why |
+|---|---|---|
+| 7.1.6: cnf `hub.pdf.timeout` with no env name; step 030 passes only `SPOOL_PDF_URL` | env `SPOOL_PDF_TIMEOUT`, Go duration, default `120s`; P1 reads it into `HTTPRenderer.Timeout`; it stays above the renderer's 115 s and under the hub's 600 s | P4 c-339, msg `57a09b32` |
+| 7.1.4: the agent id falls back to "the box config" | it falls back to the box id (`SPOOL_BOX_ID`), as P3 does; the MCP tool uses its seat (`--as`) | P3 c-338, msg `b158b296`: the box config holds no agent id |
+| 7.1.2: no desk flags | `--desks` / `--desk-box` in the contract, as on `tail --url`; the MCP tool uses its server's | P3 c-338, msg `b158b296`: section 4 step 1's desk order needs them |

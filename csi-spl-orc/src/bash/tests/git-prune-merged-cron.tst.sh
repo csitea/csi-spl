@@ -12,6 +12,8 @@
 #      no-op; remove restores the crontab byte for byte; a bad DRY_RUN,
 #      action or minute is refused
 #   6. CONTROL: the script without PRUNE_ALL_MERGED=1 fails case 1
+#   7. no GIT_PRUNE_CRON_LOG_DIR: the run lock is
+#      $SPL_VAR_APP_DIR/git-prune-merged/run.lock (spl_run_paths)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -22,7 +24,7 @@ SCRIPT="$PROJ_ROOT/src/bash/scripts/git-prune-merged-cron.sh"
 # tree <dir> <script>: a fake orc tree <dir>/csi-spl-orc with ./run and the script
 tree() {
   mkdir -p "$1/csi-spl-orc/src/bash/scripts" "$1/csi-spl-orc/lib/bash/funcs"
-  cp "$PROJ_ROOT/lib/bash/funcs/gh-box-token.func.sh" "$1/csi-spl-orc/lib/bash/funcs/"
+  cp "$PROJ_ROOT/lib/bash/funcs/gh-box-token.func.sh" "$PROJ_ROOT/lib/bash/funcs/spl-run-paths.func.sh" "$1/csi-spl-orc/lib/bash/funcs/"
   printf '#!/bin/sh\nexit 0\n' >"$1/csi-spl-orc/run" && chmod +x "$1/csi-spl-orc/run"
   cp "$2" "$1/csi-spl-orc/src/bash/scripts/git-prune-merged-cron.sh"
 }
@@ -85,6 +87,12 @@ else
   out="$(cronrun GIT_PRUNE_CRON_RUN="$STUB" bash "$T/ctl/csi-spl-orc/src/bash/scripts/git-prune-merged-cron.sh" 2>&1)"
   [[ "$out" == *'ALL=unset'* ]] && pass "6. control: without the mode the action runs as a round prune (ALL=unset), case 1 would fail" || fail "6. control: $out"
 fi
+
+# 7. no GIT_PRUNE_CRON_LOG_DIR: the lock dir is $SPL_VAR_APP_DIR/git-prune-merged ----
+out="$(env -u GIT_PRUNE_CRON_LOG_DIR GH_TOKEN=x SPL_VAR_APP_DIR="$T/var" GIT_PRUNE_CRON_RUN="$STUB" bash "$M" 2>&1)"; rc=$?
+[[ $rc -eq 0 && -f "$T/var/git-prune-merged/run.lock" && "$out" == *'STOP git-prune-merged rc=0'* ]] \
+  && pass "7. no GIT_PRUNE_CRON_LOG_DIR: the run lock is \$SPL_VAR_APP_DIR/git-prune-merged/run.lock" \
+  || fail "7. default lock dir rc=$rc out=$out ls=$(ls -R "$T/var" 2>&1)"
 
 if (( fails )); then echo "FAILED: $fails"; exit 1; fi
 echo "ALL PASS"

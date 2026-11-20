@@ -36,10 +36,11 @@ case "$ORC" in
 esac
 [ -x "$ORC/run" ] || { say "FATAL $ORC/run not found or not executable"; exit 2; }
 
-app="$(basename "$ORC")"
-app="${app%-orc}"
-org="${app%%-*}"
-logdir="${GIT_PRUNE_CRON_LOG_DIR:-/var/${org}/${app}/git-prune-merged}"
+# shellcheck source=../../../lib/bash/funcs/spl-run-paths.func.sh
+declare -F spl_run_paths >/dev/null || source "$ORC/lib/bash/funcs/spl-run-paths.func.sh"
+[ -n "${GIT_PRUNE_CRON_LOG_DIR:-}" ] || { spl_run_paths && [ -n "${SPL_VAR_APP_DIR:-}" ]; } ||
+  { say "FATAL cannot derive the git prune lock dir (no tree for spl_run_paths): set GIT_PRUNE_CRON_LOG_DIR"; exit 2; }
+logdir="${GIT_PRUNE_CRON_LOG_DIR:-$SPL_VAR_APP_DIR/git-prune-merged}"
 mkdir -p "$logdir" || { say "FATAL cannot create $logdir"; exit 2; }
 exec 9>"$logdir/run.lock"
 flock -n 9 || { say "OK another git-prune-merged run holds $logdir/run.lock"; exit 0; }

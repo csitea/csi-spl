@@ -29,10 +29,11 @@ case "$ORC" in
 esac
 [ -x "$ORC/run" ] || { say "FATAL $ORC/run not found or not executable"; exit 2; }
 
-app="$(basename "$ORC")"
-app="${app%-orc}"
-org="${app%%-*}"
-lockdir="${GO_CACHE_LOG_DIR:-/var/${org}/${app}/go-cache-prune}"
+# shellcheck source=../../../lib/bash/funcs/spl-run-paths.func.sh
+declare -F spl_run_paths >/dev/null || source "$ORC/lib/bash/funcs/spl-run-paths.func.sh"
+[ -n "${GO_CACHE_LOG_DIR:-}" ] || { spl_run_paths && [ -n "${SPL_VAR_APP_DIR:-}" ]; } ||
+  { say "FATAL cannot derive the go cache prune lock dir (no tree for spl_run_paths): set GO_CACHE_LOG_DIR"; exit 2; }
+lockdir="${GO_CACHE_LOG_DIR:-$SPL_VAR_APP_DIR/go-cache-prune}"
 mkdir -p "$lockdir" 2>/dev/null || true
 
 say "START go build cache prune pid=$$"

@@ -262,8 +262,9 @@ out="$(users FAKE_USERS="")"
 
 # cron script: calls the action with the gate on, refuses a worktree ----------
 SH="$T/shared"
-mkdir -p "$SH/csi-spl-orc/src/bash/scripts"
+mkdir -p "$SH/csi-spl-orc/src/bash/scripts" "$SH/csi-spl-orc/lib/bash/funcs"
 cp "$PROJ_ROOT/src/bash/scripts/prune-go-build-cache-cron.sh" "$SH/csi-spl-orc/src/bash/scripts/"
+cp "$PROJ_ROOT/lib/bash/funcs/spl-run-paths.func.sh" "$SH/csi-spl-orc/lib/bash/funcs/"
 printf '#!/usr/bin/env bash\nprintf "DRY_RUN=%%s GATE=%%s LOCK=%%s args=%%s\\n" "${DRY_RUN:-}" "${GO_CACHE_GATE:-}" "${GO_CACHE_LOCK_FILE:-}" "$*" >>"%s/calls"\nexit "${RUN_RC:-0}"\n' "$T" >"$SH/csi-spl-orc/run"
 chmod +x "$SH/csi-spl-orc/run" "$SH/csi-spl-orc/src/bash/scripts/prune-go-build-cache-cron.sh"
 out="$(GO_CACHE_LOG_DIR="$T/log" bash "$SH/csi-spl-orc/src/bash/scripts/prune-go-build-cache-cron.sh" 2>&1)"; rc=$?
@@ -698,6 +699,14 @@ out="$(env -u GO_CACHE_LOCK_FILE PATH="$T/noflock:$PATH" PROJ_PATH="$PROJ_ROOT" 
 [[ "$out" == *'rc=2'* && -f "$T/var/go-cache-prune/prune.lock" ]] &&
   pass "11. no GO_CACHE_LOCK_FILE: the lock is \$SPL_VAR_APP_DIR/go-cache-prune/prune.lock" ||
   fail "11. default lock ($out; $(ls -R "$T/var" 2>&1))"
+
+# 12. the cron script with no GO_CACHE_LOG_DIR: the lock it hands the action is
+# $SPL_VAR_APP_DIR/go-cache-prune/prune.lock (the stub run only records it).
+: >"$T/calls"
+out="$(env -u GO_CACHE_LOG_DIR SPL_VAR_APP_DIR="$T/var" bash "$SH/csi-spl-orc/src/bash/scripts/prune-go-build-cache-cron.sh" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/calls")" == "DRY_RUN=0 GATE=1 LOCK=$T/var/go-cache-prune/prune.lock args=-a do_prune_go_build_cache" ]] &&
+  pass "12. the cron script with no GO_CACHE_LOG_DIR: LOCK=\$SPL_VAR_APP_DIR/go-cache-prune/prune.lock" ||
+  fail "12. cron default lock (rc=$rc): $out / $(cat "$T/calls" 2>&1)"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "prune-go-build-cache: all passed"; exit 0; fi

@@ -8,8 +8,8 @@
 -- prompts, they should just run in the background".
 --
 --   topic_loops       one row per loop (answer 6 B: several per topic): its
---                     prompt, its checked triggers (the twelve of spec 182
---                     1.2) and the field each needs (the n of "each n
+--                     prompt, its checked triggers (the eleven of spec 182
+--                     1.2; Q11 C dropped before_human_reply) and the field each needs (the n of "each n
 --                     minutes", the keyword, the idle n, the daily time and
 --                     zone; set exactly when its trigger is checked), its
 --                     three due times (every_*, the idle count after a human
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS topic_loops (
     task_id        uuid        NOT NULL,
     prompt         text        NOT NULL CHECK (prompt <> '' AND length(prompt) <= 4000),
     triggers       text[]      NOT NULL CHECK (triggers <@ ARRAY['after_agent_reply', 'before_agent_reply', 'after_human_reply',
-                                                                 'before_human_reply', 'every_hour', 'every_n_minutes',
+                                                                 'every_hour', 'every_n_minutes',
                                                                  'post_has_keyword', 'post_has_file', 'blocker_posted',
                                                                  'no_reply_after_human', 'issue_status_changed', 'daily_at']
                                                AND cardinality(triggers) >= 1),

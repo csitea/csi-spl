@@ -61,6 +61,7 @@ func TestTopicLoopAddRefusals(t *testing.T) {
 				"prompt over 4000":   {with(func(l *TopicLoop) { l.Prompt = strings.Repeat("ä", TopicLoopPromptMax+1) }), ErrBadTopicLoop},
 				"no trigger":         {with(func(l *TopicLoop) { l.Triggers = nil }), ErrBadTopicLoop},
 				"unknown trigger":    {with(func(l *TopicLoop) { l.Triggers = []string{"other_human_post"} }), ErrBadTopicLoop},
+				"dropped by Q11 C":   {with(func(l *TopicLoop) { l.Triggers = []string{"before_human_reply"} }), ErrBadTopicLoop},
 				"n minutes, no n":    {with(func(l *TopicLoop) { l.Triggers = []string{LoopEveryNMinutes} }), ErrBadTopicLoop},
 				"n under 5":          {with(func(l *TopicLoop) { l.Triggers, l.IntervalMin = []string{LoopEveryNMinutes}, 4 }), ErrBadTopicLoop},
 				"n over 1440":        {with(func(l *TopicLoop) { l.Triggers, l.IntervalMin = []string{LoopEveryNMinutes}, 1441 }), ErrBadTopicLoop},
@@ -94,6 +95,40 @@ func TestTopicLoopAddRefusals(t *testing.T) {
 			}
 			if has, err := f.ls.TenantHasTopicLoops(f.ctx, f.tn); err != nil || has {
 				t.Fatalf("TenantHasTopicLoops = %v %v, want false", has, err)
+			}
+		})
+	}
+}
+
+// TestTopicLoopEachKey: each of the eleven keys of 1.2 (v0.6, Q11 C dropped
+// before_human_reply, which AddRefusals refuses) is stored alone, with the
+// field it needs, and read back.
+func TestTopicLoopEachKey(t *testing.T) {
+	if len(TopicLoopTriggers) != 11 {
+		t.Fatalf("TopicLoopTriggers has %d keys, want 11", len(TopicLoopTriggers))
+	}
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := newLoopFix(t, s)
+			for _, k := range TopicLoopTriggers {
+				l := TopicLoop{TaskID: f.task, Prompt: "p " + k, Triggers: []string{k}, SetBy: "HUM-1", SetAt: f.t0}
+				switch k {
+				case LoopEveryNMinutes:
+					l.IntervalMin = 30
+				case LoopPostHasKeyword:
+					l.Keyword = "pdf"
+				case LoopNoReplyAfterHuman:
+					l.IdleMin = 30
+				case LoopDailyAt:
+					l.DailyAt = "09:00"
+				}
+				got, err := f.ls.AddTopicLoop(f.ctx, f.tn, l)
+				if err != nil || !got.Has(k) || len(got.Triggers) != 1 {
+					t.Fatalf("add %s: %+v %v", k, got, err)
+				}
+			}
+			if got, err := f.ls.TopicLoops(f.ctx, f.tn, f.task); err != nil || len(got) != len(TopicLoopTriggers) {
+				t.Fatalf("list: %d loops %v, want %d", len(got), err, len(TopicLoopTriggers))
 			}
 		})
 	}
@@ -197,7 +232,7 @@ func TestTopicLoopCRUD(t *testing.T) {
 			if ok, err := f.ls.DeleteTopicLoop(f.ctx, f.tn, f.task, a.LoopID); err != nil || ok {
 				t.Fatalf("delete a again: %v %v, want false", ok, err)
 			}
-			f.add("third", 0, LoopBeforeHumanReply)
+			f.add("third", 0, LoopAfterHumanReply)
 			if n, err := f.ls.DeleteTopicLoops(f.ctx, f.tn, f.task); err != nil || n != 2 {
 				t.Fatalf("delete the topic's loops: %d %v, want 2", n, err)
 			}

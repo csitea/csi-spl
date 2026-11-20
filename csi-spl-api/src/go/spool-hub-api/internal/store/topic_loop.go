@@ -12,8 +12,8 @@ import (
 // Discussion loops (spec 182 v0.4 sections 4, 5 and 7.1.1, row L1, rdb
 // 0299). The owner (HUM-10, t1 f08c0c58, msg b20e28e9): "setup a txt prompt
 // for discussion, which will execute on either agent reply or human prompt
-// or another human prompt"; the twelve triggers, msgs d44af000 and
-// a1d73b19.
+// or another human prompt"; the eleven triggers, msgs d44af000 and
+// a1d73b19, less before_human_reply (Q11 C, msg 46e61a8c).
 //
 //   - a loop is one topic_loops row: its prompt, its checked triggers (spec
 //     182 1.2), the fields some triggers need (the n of "each n minutes",
@@ -30,13 +30,12 @@ import (
 // The contract is spec 182 7.1.1 (binding): who may write a loop, when it
 // fires, what it sends and the ticker are the hub's (row L2).
 
-// The twelve triggers (spec 182 1.2), the bounds of the fields some of them
+// The eleven triggers (spec 182 1.2, Q11 C dropped before_human_reply), the bounds of the fields some of them
 // need, the states and the prompt's length.
 const (
 	LoopAfterAgentReply    = "after_agent_reply"
 	LoopBeforeAgentReply   = "before_agent_reply"
 	LoopAfterHumanReply    = "after_human_reply"
-	LoopBeforeHumanReply   = "before_human_reply"
 	LoopEveryHour          = "every_hour"
 	LoopEveryNMinutes      = "every_n_minutes"
 	LoopPostHasKeyword     = "post_has_keyword"     // v0.4
@@ -53,11 +52,11 @@ const (
 	TopicLoopPromptMax     = 4000 // characters, rdb CHECK
 )
 
-// TopicLoopTriggers: the twelve keys in the order of 1.2 (v0.4). A new
+// TopicLoopTriggers: the eleven keys in the order of 1.2 (v0.4, less Q11 C). A new
 // trigger is a key here, a new rdb CHECK, and, when it needs a field, a
 // row of topicLoopFields.
 var TopicLoopTriggers = []string{LoopAfterAgentReply, LoopBeforeAgentReply,
-	LoopAfterHumanReply, LoopBeforeHumanReply, LoopEveryHour, LoopEveryNMinutes,
+	LoopAfterHumanReply, LoopEveryHour, LoopEveryNMinutes,
 	LoopPostHasKeyword, LoopPostHasFile, LoopBlockerPosted, LoopNoReplyAfterHuman,
 	LoopIssueStatusChanged, LoopDailyAt}
 
@@ -75,7 +74,7 @@ const topicLoopUTC = "UTC"
 // trigger or state, a missing or stray interval, keyword, idle n or daily
 // time, a daily zone time.LoadLocation refuses, or a set_by not 1..64
 // characters. Before any write.
-var ErrBadTopicLoop = errors.New("store: a topic loop needs a prompt (1..4000 characters), 1..12 known triggers, an interval of 5..1440 minutes exactly with every_n_minutes, a keyword of 1..200 characters exactly with post_has_keyword, an idle n of 5..1440 minutes exactly with no_reply_after_human, a time and a known zone exactly with daily_at, state on|paused and who (1..64)")
+var ErrBadTopicLoop = errors.New("store: a topic loop needs a prompt (1..4000 characters), 1..11 known triggers, an interval of 5..1440 minutes exactly with every_n_minutes, a keyword of 1..200 characters exactly with post_has_keyword, an idle n of 5..1440 minutes exactly with no_reply_after_human, a time and a known zone exactly with daily_at, state on|paused and who (1..64)")
 
 // TopicLoop is one topic_loops row.
 type TopicLoop struct {

@@ -270,7 +270,7 @@ On origin/master `17f0d7b00`, 2026-11-19, n = 1 per command.
 | the Agent keys page | Implemented | `csi-spl-wui/src/pages/tenant-settings/agent-keys.vue` |
 | the claude self sign-in | Implemented, behind its switch | `csi-spl-orc/src/bash/run/spl-ws-claude-signin.func.sh` (159 T8); test `csi-spl-orc/src/bash/tests/ws-claude-signin.tst.sh` |
 | `key_source` on the ledger | Implemented | rdb `0174`, `0175_usage_key_source_no_default.sql`; `internal/store/usage_events.go` |
-| a `byok` or private-VM plan kind, `price_plans` | Planned | `git grep -l "'byok'"` and `git grep -l price_plans` (api, orc, iac, rdb, wui, cnf) -> no file |
+| a `byok` or private-VM plan kind, `price_plans` | Planned (v0.3.1: B1 builds `price_plans`, kind `private_vm`, rdb 0302) | `git grep -l "'byok'"` and `git grep -l price_plans` (api, orc, iac, rdb, wui, cnf) -> no file |
 | the pricing gate (`pricing_not_ready`) | Planned | `git grep -l pricing_not_ready` (same trees) -> no file |
 | reading cost from the billing export | Partial | `csi-spl-iac/src/bash/run/gcp-billing-export-setup.func.sh` (DRY_RUN=0 is the owner's), `spl-estate-cost-read.func.sh`; no per-VM-of-a-workspace read |
 
@@ -394,6 +394,23 @@ brackets.
 | B10 [B10] | doc (agy) | 121, 127 and 159 edited by their editors as section 2 says | `grep -c 'x 1.20' csi-spl-doc/specs/121-sales-channel/spec.md` -> found only in history lines | - |
 | B11 (new) | hub + wui + orc (claude) | the web-UI sign-in relay to the CLI's terminal login on `<vm>`, one switch per vendor, default off | a relayed input found in a hub table or log -> its test fails; the switch off -> the relay refuses | B8 |
 
+Row status (v0.3.1):
+
+- **B1: Implemented** (SPL-6095): rdb
+  `0302_private_workspace_price.sql` makes `price_plans` (kind
+  `private_vm`, currency `EUR` only) and `price_plan_lines` (exactly
+  `seat_member`, cents per human member per month, and `vm_cost`, the
+  margin; a token line is refused by its CHECKs) and adds the ledger kind
+  `vm_cost` to `usage_events`. Store `internal/store/price_plans.go`:
+  `PrivateVMPlan` (900 cents, 33 %), `PutPricePlan` / `PricePlan`
+  (`ErrPlanTokenLine`, P5), `QuoteMonth` (seats x cents + VM cost x 1.33)
+  and `DrawVMDay` (one `vm_cost` row per VM and UTC day, units = cost
+  micros, unit cost 1.33, so the `token_budgets` balance draws the cost +
+  33 %; a re-run is no second charge). Red control:
+  `TestPricePlanTokenLineRefused` (`price_plans_test.go`). Open for B2: the
+  seat line is quoted, not drawn: how the seats are charged against the
+  balance is not decided in this spec (4.1 says only the VM is drawn).
+
 Not in this spec: a private hub (Q-2 B, not chosen); listing on Cloud
 Marketplace stays spec 156.
 
@@ -424,5 +441,7 @@ Marketplace stays spec 156.
   as the answers say; section 6 reordered checkout first (Q-13 B) and
   renumbered; new gap G11 and row B11 (the web-UI sign-in relay, Q-5,
   Q-14 A); G10 dropped (Q-2 A).
+- v0.3.1 (2026-11-20, c-292, SPL-6095): row B1 implemented (section 6
+  row status): rdb 0302, `internal/store/price_plans.go`.
 
-<!-- version: 0.3.0 · updated: 2026-11-20 · last-edit: 2026-11-20T15:16:19Z -->
+<!-- version: 0.3.1 · updated: 2026-11-20 · last-edit: 2026-11-20T19:43:00Z -->

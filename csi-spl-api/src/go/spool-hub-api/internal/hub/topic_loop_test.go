@@ -108,7 +108,7 @@ func TestTopicLoopMatchTable(t *testing.T) {
 		{"time due daily/daily", loopEvent{kind: loopEventTime}, store.TopicLoop{Triggers: []string{store.LoopDailyAt}, Due: []string{store.LoopDailyAt}}, true},
 		{"time nothing due", loopEvent{kind: loopEventTime}, store.TopicLoop{Triggers: []string{store.LoopDailyAt}}, false},
 	} {
-		if got := c.ev.matches(c.loop); got != c.want {
+		if got := c.ev.matches(c.loop, c.loop.SetBy); got != c.want {
 			t.Errorf("%s: matches = %v, want %v", c.name, got, c.want)
 		}
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
@@ -300,6 +301,12 @@ func (d *loopDouble) ClaimDueTopicLoops(_ context.Context, at time.Time, limit i
 			continue
 		}
 		var due []string
+		var pre time.Time // v0.5 DueAt: the earliest due column before the move
+		for _, c := range []time.Time{l.NextDueAt, l.DailyDueAt} {
+			if dueAt(c) && (pre.IsZero() || c.Before(pre)) {
+				pre = c
+			}
+		}
 		if dueAt(l.NextDueAt) {
 			due = append(due, l.Triggers[slices.IndexFunc(l.Triggers, func(k string) bool {
 				return k == store.LoopEveryHour || k == store.LoopEveryNMinutes
@@ -316,7 +323,7 @@ func (d *loopDouble) ClaimDueTopicLoops(_ context.Context, at time.Time, limit i
 			l.IdleDueAt, l.IdlePost = time.Time{}, ""
 		}
 		if len(due) > 0 {
-			claimed.Due, claimed.NextDueAt, claimed.DailyDueAt, claimed.IdleDueAt = due, l.NextDueAt, l.DailyDueAt, time.Time{}
+			claimed.Due, claimed.DueAt, claimed.NextDueAt, claimed.DailyDueAt, claimed.IdleDueAt = due, pre, l.NextDueAt, l.DailyDueAt, time.Time{}
 			out = append(out, claimed)
 		}
 	}
@@ -1033,3 +1040,105 @@ func TestTopicLoopIssueStatusChange(t *testing.T) {
 }
 
 func writeFile(p, body string) error { return os.WriteFile(p, []byte(body), 0o600) }
+
+// --- v0.5: spec 182 section 8.2 ---
+
+// Point 1: a loop with every_n_minutes and daily_at whose daily fire
+// follows an interval fire sends both. The seed is the pre-move due time
+// (DueAt); the post-move columns would seed both fires alike.
+func TestTopicLoopDailyAfterIntervalFiresBoth(t *testing.T) {
+	r := newLoopRig(t)
+	ctx := context.Background()
+	loop := r.addLoop(t, map[string]any{"prompt": "digest", "triggers": []string{store.LoopEveryNMinutes, store.LoopDailyAt},
+		"interval_min": 60, "daily_at": "09:00", "daily_tz": "UTC"})
+	now := time.Now().UTC()
+	r.dueNow(t, loop, func(l *store.TopicLoop) {
+		l.NextDueAt, l.DailyDueAt = now.Add(-30*time.Minute), now.Add(time.Hour)
+	})
+	if n := r.e.srv.TopicLoopTickOnce(ctx); n != 1 {
+		t.Fatalf("interval tick claimed %d", n)
+	}
+	moved := r.d.get(loop).NextDueAt
+	r.dueNow(t, loop, func(l *store.TopicLoop) { l.DailyDueAt = now.Add(-time.Minute) })
+	if r.d.get(loop).NextDueAt != moved || !moved.After(now) {
+		t.Fatalf("next_due_at %v, want the moved %v", r.d.get(loop).NextDueAt, moved)
+	}
+	if n := r.e.srv.TopicLoopTickOnce(ctx); n != 1 {
+		t.Fatalf("daily tick claimed %d", n)
+	}
+	p := r.wantPrompts(t, "interval then daily", 2)
+	if p[0].MsgID == p[1].MsgID {
+		t.Fatalf("the daily fire reused the interval fire's msg_id %s", p[0].MsgID)
+	}
+}
+
+// Point 2: archiving or deleting the topic leaves no loop; unarchiving
+// brings none back. HUM-1 started the #lobby card, so it may do both.
+func TestTopicLoopArchiveAndDeleteDropLoops(t *testing.T) {
+	r := newLoopRig(t)
+	r.lobbyTopic(t)
+	ctx := context.Background()
+	card := func() string {
+		rows, err := r.d.ViewTopic(ctx, r.tid, store.TopicMsgQuery{TaskID: r.task, Limit: 1, Now: time.Now()})
+		if err != nil || len(rows) == 0 {
+			t.Fatalf("opening card: %v", err)
+		}
+		return rows[0].MsgID
+	}
+	count := func() int {
+		ls, _ := r.d.TopicLoops(ctx, r.tid, r.task)
+		return len(ls)
+	}
+	r.addLoop(t, loopBody(store.LoopAfterHumanReply))
+	r.addLoop(t, loopBody(store.LoopAfterAgentReply))
+	id := card()
+	if code, out := call(t, r.e, r.tid, http.MethodPut, "/v1/messages/"+id+"/archive", "HUM-1", nil); code != http.StatusOK {
+		t.Fatalf("archive: %d %v", code, out)
+	}
+	if n := count(); n != 0 {
+		t.Fatalf("archived topic keeps %d loops", n)
+	}
+	if code, out := call(t, r.e, r.tid, http.MethodDelete, "/v1/messages/"+id+"/archive", "HUM-1", nil); code != http.StatusOK {
+		t.Fatalf("unarchive: %d %v", code, out)
+	}
+	if n := count(); n != 0 {
+		t.Fatalf("unarchive brought back %d loops", n)
+	}
+	r.addLoop(t, loopBody(store.LoopAfterHumanReply))
+	if code, out := call(t, r.e, r.tid, http.MethodDelete, "/v1/messages/"+id+"/topic", "HUM-1", nil); code != http.StatusOK {
+		t.Fatalf("delete topic: %d %v", code, out)
+	}
+	if n := count(); n != 0 {
+		t.Fatalf("deleted topic keeps %d loops", n)
+	}
+}
+
+// Point 3: a member whose session id is not a v:1 id sets a loop. SetBy
+// stores that member id; the JSON and the fired prompt speak as the
+// HUM-<n> the hub derives for it, as editorID does for its posts.
+func TestTopicLoopMemberIDIsNotTheV1ID(t *testing.T) {
+	const member = "HUM-google-sub-1@t1"
+	r := newLoopRig(t)
+	r.lobbyTopic(t)
+	ctx := context.Background()
+	code, out := call(t, r.e, r.tid, http.MethodPost, "/v1/topics/"+r.task+"/loops", member,
+		map[string]any{"prompt": "status?", "triggers": []string{store.LoopEveryHour}})
+	if code != http.StatusCreated {
+		t.Fatalf("add loop: %d %v", code, out)
+	}
+	loop, from := out["loop_id"].(string), out["set_by"].(string)
+	if got := r.d.get(loop).SetBy; got != member {
+		t.Fatalf("SetBy %q, want the member id %q", got, member)
+	}
+	if !msg.ValidID(from) || from == member {
+		t.Fatalf("set_by %q is not a derived v:1 id", from)
+	}
+	r.dueNow(t, loop, func(l *store.TopicLoop) { l.NextDueAt = time.Now().Add(-time.Minute) })
+	if n := r.e.srv.TopicLoopTickOnce(ctx); n != 1 {
+		t.Fatalf("claimed %d", n)
+	}
+	p := r.wantPrompts(t, "member id loop", 1)[0]
+	if p.FromID != from || !strings.Contains(p.Body, "set by @"+from+",") {
+		t.Fatalf("prompt from %q body:\n%s\nwant from %q", p.FromID, p.Body, from)
+	}
+}

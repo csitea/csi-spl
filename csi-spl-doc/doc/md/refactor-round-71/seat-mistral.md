@@ -250,4 +250,47 @@ tree of /opt/csi/csi-spl-wt/m-163`, exit 0.
 
 ## Report line (sent on task `dispatch-refactor-r71`)
 
-`panel: m-163@sat mistral FAIL 8e3f74f3543e03a584a72e4fda89cbea428e8a35 seat-file: review/c002-refactor-round-71-mistral-seat <this commit's sha> ran: <commands> | read: <files> | log: m-163@sat:.vibe/logs/session/unified/b2963654-8846-764f-a8f4-c880b640ab5a`
+`panel: m-163@sat mistral FAIL 8e3f74f3543e03a584a72e4fda89cbea428e8a35 seat-file: review/c002-refactor-round-71-mistral-seat 110066e62d84115781567ac1891d2ccc1f7078e0 ran: <commands> | read: <files> | log: m-163@sat:.vibe/logs/session/unified/b2963654-8846-764f-a8f4-c880b640ab5a`
+
+## v1.0 signature (second commit on this branch)
+
+The editor c-156 named plan v1.0 `45758af3162b2d3859bb1c7ea9fcefdeb8745930` (c-156 msg
+d2743c62, task `dispatch-refactor-r71`; routed to me by the dispatch holder c-002 msg
+565516e0, 2026-11-20T01:22:20Z). Provenance at my read (2026-11-20T01:2xZ):
+`git ls-remote origin | grep -E 'r71-[0-9]{2}|refactor-round-71'` ->
+`45758af3162b2d3859bb1c7ea9fcefdeb8745930  refs/heads/review/c002-refactor-round-71-planner`
+(head) and my seat branch `110066e62...  refs/heads/review/c002-refactor-round-71-mistral-seat`;
+`git merge-base --is-ancestor 8e3f74f3543e03a584a72e4fda89cbea428e8a35 45758af31` -> rc 0
+(fast-forward on v0.1); `git log --oneline 8e3f74f35..45758af31` -> one commit,
+`docs(r71-plan, SPL-6007): refactor round 71 plan v1.0, W1 of m-163 mistral FAIL on 8e3f74f35 folded`;
+`git diff --stat 8e3f74f35 45758af31` -> 1 file, the plan, +28/-5.
+
+**W1 fold verified** (plan at `45758af31`, read in full, 346 lines):
+- line 183 (row 02 gate cell): the gate is now
+  `git grep -nE 'spl_run_paths && .*SPL_VAR_APP_DIR:\+\$SPL_VAR_APP_DIR/' -- csi-spl-orc/src/bash/run`
+  -> 0 after row 02 (5 on `6fedc5bbb`, 2 after row 01), with a note that the bare regex
+  also matches `spl-reflection-gather.func.sh:217` (6), left out per section 7.
+- line 296 (section 6 counts): anchored `spl_run_paths && ...` blocks 5 -> 2 -> 0;
+  the unanchored `SPL_VAR_APP_DIR:+$SPL_VAR_APP_DIR/` reads 6 -> 3 -> 1.
+- My re-reads: anchored gate on `6fedc5bbb` -> **5** (the 5 copies, listed);
+  on `origin/master` (`5ed225ff7`) -> **5**; unanchored on `origin/master` -> **6**.
+  So the anchored gate reaches 0 after row 02, as v1.0 claims.
+- `git diff -U0 8e3f74f35 45758af31 -- <plan>` hunks: `@@ -33 +33` (status line),
+  `@@ -180 +183` (row 02 gate cell), `@@ -293 +296` (section 6), `@@ -315,0 +319,16`
+  (section 8 v1.0 entry), `@@ -321,2 +340,6` (section 9 consensus);
+  `git diff 8e3f74f35 45758af31 -- <plan> | grep -cE '^[+-].*r71-01-orc-var-app-subdir-helper'`
+  -> **0** (row 01's cell untouched; rows 01 and 02 otherwise unchanged).
+
+Re-run of the row checks on the current `origin/master` (`5ed225ff7`, unchanged since my
+v0.1 read): `git diff --stat 6fedc5bbb origin/master --` the lib, the 5 actions and
+`spl-run-paths.tst.sh` -> **empty** (no row file moved); the check-2 site lines are
+identical on both shas; `lane-map.sh --check <the 7 row paths> --agent m-163` ->
+**exit 4** again (10 unknown no-file lanes now, was 11; no live lane lists a row path).
+
+**PASS on `45758af3162b2d3859bb1c7ea9fcefdeb8745930`** (plan v1.0, signed). W1 is fixed
+exactly as proposed (anchored gate, 5 -> 2 -> 0, unanchored 6 -> 3 -> 1 recorded beside
+it); rows 01 and 02 are unchanged from v0.1 and re-verified; no new defect, no new note.
+
+## v1.0 report line (sent on task `dispatch-refactor-r71`)
+
+`panel: m-163@sat mistral PASS 45758af3162b2d3859bb1c7ea9fcefdeb8745930 seat-file: review/c002-refactor-round-71-mistral-seat <this commit's sha> ran: <commands> | read: <files> | log: m-163@sat:.vibe/logs/session/unified/b2963654-8846-764f-a8f4-c880b640ab5a`

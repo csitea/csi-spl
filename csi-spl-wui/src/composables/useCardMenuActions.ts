@@ -12,6 +12,8 @@ import { useViewPrefs } from '~/composables/useViewPrefs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useTopicStore } from '~/stores/topic'
 import { cardTitle } from '~/utils/card-clip.mjs'
+import { readHiddenCards } from '~/utils/hidden-cards.mjs'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { CardMenu } from '~/composables/useCardReactions'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -131,5 +133,34 @@ export function useCardExportPdf(props: MenuProps, title: Ref<string>) {
   return async function onExportPdf() {
     const { printMessages } = await import('~/utils/msg-print-run')
     await printMessages({ rows: [props.msg], title: topicTitle(), msgId: String(props.msg.msg_id || ''), appContext, api })
+  }
+}
+
+/*
+ * SPL-6205 (owner HUM-10, t1 f798e9aa msgs 90afbbfd, a1ca02fb): Export topic
+ * to PDF, the menu entry of a topic card in a channel / lobby feed. It prints
+ * every post of the card's topic, first to last: the topic read from the hub
+ * page by page (utils/msg-print.ts topicExportRows, capped), the card itself
+ * added (a #lobby root is not in its task), the cards hidden on this device
+ * left out. msg-print and the print run load on the click, never with the card
+ * (specs/027).
+ */
+export function useCardExportTopicPdf(props: MenuProps, title: Ref<string>) {
+  const appContext = getCurrentInstance()?.appContext ?? null
+  const api = useSpoolApi()
+  let busy = false
+  return async function onExportTopicPdf() {
+    if (busy) return
+    busy = true
+    try {
+      const { topicExportRows } = await import('~/utils/msg-print')
+      const hidden = new Set(readHiddenCards())
+      const getTopic = (id: string, o: { order: 'desc', limit: number, before?: string }) => withSessionRetry(api, () => api.getTopic(id, o))
+      const rows = await topicExportRows<SpoolMessage>({ taskId: String(props.msg.task_id || ''), held: [props.msg], getTopic, newestLast: true, isHidden: (id) => hidden.has(id) })
+      const { printMessages } = await import('~/utils/msg-print-run')
+      await printMessages({ rows, title: title.value, appContext, api })
+    } finally {
+      busy = false
+    }
   }
 }

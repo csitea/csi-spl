@@ -430,6 +430,7 @@
       :to-task="canMakeTask"
       :hide="menuHide"
       pdf
+      :topic-pdf="topicPdf"
       :loops="showTopicLoops"
       :locks="menuLocks"
       :ai-msg="msg"
@@ -457,6 +458,7 @@
       @make-issue="onMakeIssue"
       @hide-flow="onMenuHide"
       @export-pdf="onExportPdf"
+      @export-topic-pdf="onExportTopicPdf"
       @topic-loops="loopsOpen = true"
     />
     <!-- spec 182 L3: Discussion loops…, mounted when picked -->
@@ -530,7 +532,7 @@ import { playTapAnim } from '~/composables/useTapAnim'
 import { useCardEdit } from '~/composables/useCardEdit'
 import { useCardHeight, useCardTitle } from '~/composables/useCardHeight'
 import { useCardMakeTask, useCardMessageActions, useCardTopicActions } from '~/composables/useCardTopicActions'
-import { useCardExportPdf, useCardMenuActions } from '~/composables/useCardMenuActions'
+import { useCardExportPdf, useCardExportTopicPdf, useCardMenuActions } from '~/composables/useCardMenuActions'
 import { useCardNotes } from '~/composables/useCardNotes'
 import { useCardLongPress, useCardSwipe, useCardSwipeFlags } from '~/composables/useCardSwipe'
 import { useCardMove, useCardMoveFlags } from '~/composables/useCardMove'
@@ -739,6 +741,8 @@ const swipeTopicArchive = computed(() => (inPane.value
 /* ... on a reply (not the topic card) it keeps the message's own Delete */
 const paneArchiveReply = computed(() => inPane.value && !props.topicMenu && showTopicArchive.value)
 /* spec 182 L3 (answer 5 A): Discussion loops… on a topic card, for whom the archive setting allows */
+/* SPL-6205: a topic card of a channel / lobby feed (not inside an open topic) exports its whole topic */
+const topicPdf = computed(() => Boolean(props.topicMenu) && !inPane.value && Boolean(props.msg.task_id))
 const showTopicLoops = computed(() => Boolean(props.topicMenu) && mayArchiveTopic(props.msg, editorId.value, access.me))
 const loopsOpen = ref(false)
 const kindSettable = computed(() => canSetKind(props.msg, editorId.value, access.me?.role ?? null))
@@ -767,6 +771,7 @@ const { onMakeTask } = useCardMakeTask(props, menu, msgEdit, aiError)
 const { showParent, parentKind, onMenuParent, copyMessageLink, copyBody, onMenuOpen, onMenuReply, onMenuKind } = useCardMenuActions(props, viewerId, rowEl, menu, openReplies)
 /* SPL-5888: Export to PDF, this card alone (its code loads on the click) */
 const onExportPdf = useCardExportPdf(props, title)
+const onExportTopicPdf = useCardExportTopicPdf(props, title)
 
 const { movedFrom, movedText, dmRef, dmRefText, dmRefTip, pointerText, pointerTip } = useCardNotes(props)
 

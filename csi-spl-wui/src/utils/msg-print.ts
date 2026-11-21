@@ -6,6 +6,9 @@
 // the click by utils/msg-print-run.ts), so no PDF library ships. Pure: the Node
 // tests import it (tests/unit/lib/load-ts.mjs).
 
+import { newestFirst } from '~/utils/feed.mjs'
+import type { SpoolMessage } from '~/types/spool'
+
 /** the longest slug a file name carries, in characters */
 export const PRINT_SLUG_MAX = 60
 
@@ -37,29 +40,73 @@ export function printFileName(title: unknown, msgId?: unknown): string {
   return id ? `${printSlug(title)}-${id}` : printSlug(title)
 }
 
+/** rows per page of a whole-topic read: the hub's own cap (viewLimitMax) */
+export const TOPIC_EXPORT_PAGE = 200
 /**
- * The rows a topic export prints: the ids of the cards on screen, in the order
- * they are shown, each matched to its message. An id with no message is left
- * out, a repeated id printed once.
- *
- * @param ids data-msg-id of each card, top to bottom
- * @param rows every message the pane holds (opener rows included)
+ * The most pages a whole-topic read takes (200 x 50 = 10 000 posts), so a
+ * hub that keeps answering `next` never loops for ever. Past it the export
+ * prints what it read, plus the rows the pane holds.
  */
-export function rowsInShownOrder<T = Record<string, unknown>>(ids: unknown, rows: unknown): T[] {
-  const byId = new Map<string, T>()
-  for (const m of Array.isArray(rows) ? rows : []) {
-    const id = m && typeof m === 'object' ? String((m as { msg_id?: unknown }).msg_id || '') : ''
-    if (id && !byId.has(id)) byId.set(id, m)
-  }
-  const seen = new Set<string>()
+export const TOPIC_EXPORT_PAGES_MAX = 50
+
+type TopicPage<T> = { messages?: T[], next?: string | null }
+
+/**
+ * SPL-6205 (owner HUM-10, t1 f798e9aa msg 90afbbfd): every post of a topic,
+ * read from the hub with the pane's own paging (order=desc, before=<next>)
+ * until a page has no `next`, at most `max` pages. The pane holds only the
+ * newest page and the opener until the reader presses Load more, so the
+ * export reads the topic itself.
+ *
+ * @param page reads one page; `before` is the previous page's `next`
+ * @param max the page cap
+ */
+export async function readWholeTopic<T>(page: (before?: string) => Promise<TopicPage<T>>, max = TOPIC_EXPORT_PAGES_MAX): Promise<T[]> {
   const out: T[] = []
-  for (const raw of Array.isArray(ids) ? ids : []) {
-    const id = String(raw || '')
-    if (!id || seen.has(id) || !byId.has(id)) continue
-    seen.add(id)
-    out.push(byId.get(id) as T)
+  let before: string | undefined
+  for (let i = 0; i < max; i++) {
+    const data = await page(before)
+    out.push(...(data?.messages || []))
+    before = data?.next || undefined
+    if (!before) break
   }
   return out
+}
+
+/**
+ * The rows a whole-topic export prints: the rows the pane holds (its opener
+ * rows, a pending send) and every row read from the hub, each id once (the
+ * pane's copy wins, as on screen), minus the cards hidden on this device, in
+ * the pane's order: newest first (feed.mjs newestFirst), or newest last when
+ * the reader reads that way. Loop prompt rows never come: the hub's topic
+ * read leaves them out (spec 183 Q4 W).
+ *
+ * @param held the rows the pane holds
+ * @param read the rows readWholeTopic returned
+ * @param o.newestLast the reader's order; o.isHidden a card hidden here
+ */
+export function topicPrintRows<T = Record<string, unknown>>(held: unknown, read: unknown, o: { newestLast?: boolean, isHidden?: (id: string) => boolean } = {}): T[] {
+  const byId = new Map<string, T>()
+  for (const m of [...(Array.isArray(held) ? held : []), ...(Array.isArray(read) ? read : [])]) {
+    const id = m && typeof m === 'object' ? String((m as { msg_id?: unknown }).msg_id || '') : ''
+    if (id && !byId.has(id) && !o.isHidden?.(id)) byId.set(id, m as T)
+  }
+  const rows = newestFirst([...byId.values()] as SpoolMessage[]) as T[]
+  return o.newestLast ? rows.reverse() : rows
+}
+
+export type TopicExportRead = (taskId: string, o: { order: 'desc', limit: number, before?: string }) => Promise<TopicPage<unknown>>
+
+/**
+ * What the topic header's Export topic to PDF prints (SPL-6205): every page of
+ * `taskId` read with `getTopic` (TOPIC_EXPORT_PAGE rows a page, at most
+ * TOPIC_EXPORT_PAGES_MAX pages), merged with the rows the pane holds, in the
+ * pane's order (topicPrintRows).
+ */
+export async function topicExportRows<T = Record<string, unknown>>(o: { taskId: string, held: unknown, getTopic: TopicExportRead, newestLast?: boolean, isHidden?: (id: string) => boolean }): Promise<T[]> {
+  const id = String(o.taskId || '')
+  const read = id ? await readWholeTopic((before) => o.getTopic(id, { order: 'desc', limit: TOPIC_EXPORT_PAGE, before })) : []
+  return topicPrintRows<T>(o.held, read, { newestLast: o.newestLast, isHidden: o.isHidden })
 }
 
 /**

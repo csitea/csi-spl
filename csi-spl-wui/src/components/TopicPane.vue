@@ -22,9 +22,6 @@
       <UiCloseButton side="start" class="icon-btn topic-close" data-test="topic-pane-close" @click="topic.close()" />
       <strong class="topic-heading__title" :class="{ 'is-archived': archivedAt }" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading"><span v-if="titleText" class="topic-heading__label">{{ t('topic.list_title', { text: '' }) }}</span><span class="topic-heading__text">{{ titleText || t('topic.title') }}</span></strong>
       <ArchivedBadge v-if="archivedAt" :at="archivedAt" :show-when="true" :task-id="topic.parentTaskId || ''" @unarchived="archivedAt = ''" />
-      <!-- SPL-5888: Export topic to PDF on row 1, after the title: row 2 stays
-           SPL-5349's option A (bar left, height control right; SPL-5959) -->
-      <span class="pdf-slot"><LazyTopicExportPdf :title="titleText || t('topic.title')" :rows="exportRows" /></span>
       <UiCloseButton side="end" class="icon-btn topic-close" data-test="topic-pane-close" @click="topic.close()" />
       <!-- SPL-5349 (owner HUM-10, t1 2fafde5c, option A): row 2 under the full
            title - the topic's priority left (spec 150 B7), the replies' height
@@ -128,8 +125,6 @@ const paneRows = computed(() => {
 const messages = computed(() => newestFirst(paneRows.value.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[])
 /* SPL-1637: a ```poll form in this topic reads its answers from these replies */
 provide(POLL_ROWS, () => paneRows.value)
-/* SPL-5888: Export topic to PDF prints the cards shown, matched among these */
-const exportRows = () => [oldestRow.value, topic.rootMsg, ...messages.value]
 /* HUM-10: the topic's latest message offers Archive topic, a search or not */
 const latestId = computed(() => latestMessageId(paneRows.value))
 /* The open topic's own title, selected at the top of this pane. */

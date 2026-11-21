@@ -12,13 +12,16 @@
 //         PDF" with the arrow keys, Enter: print runs once on a render that
 //         holds exactly card A - its text, its picture loaded - and nothing
 //         of its neighbour card B; the document is named <topic>-<msg8>
-//   topic open A's topic, press the header's "Export topic to PDF": the
-//         render holds the topic title and exactly the cards the pane shows,
-//         in that order (A's picture included, B absent); the document is
-//         named after the topic
-//   long  (SPL-6023) a topic of 41 cards, several A4 pages: page.pdf holds
-//         more than one page and the link of every reply, the last printed
-//         one included; the single-card PDF is one page
+//   topic (SPL-6205, owner t1 f798e9aa msg a1ca02fb) right-click topic card A
+//         in the channel, "Export topic to PDF" (right after Export to PDF):
+//         the render holds the topic title and every post of the topic, first
+//         to last (A's picture included, B absent); the document is named
+//         after the topic. Inside the open topic: no header button, and a
+//         reply's menu has its own Export to PDF only
+//   long  (SPL-6023, SPL-6205) a topic of 41 posts, more than the pane's
+//         first read (opener + 30): the channel card's menu prints all 41,
+//         first to last, several A4 pages, the link of every post in the PDF;
+//         the single-card PDF is one page
 //
 // Red controls (each seen RED on a bundle with the planted defect):
 //   - useCardExportPdf printing every channel row (rows: channel.messages):
@@ -157,29 +160,45 @@ async function cardCase(p, ids, tag) {
   return pdf
 }
 
-/* topic: the header's button prints the pane, as shown */
-async function topicCase(p, ids, tag) {
-  await p.evaluate((task) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('topic').openTopic(task), ids.a.task_id)
-  const shown = await until(p, (id) => Boolean(document.querySelector(`[data-test=topic-root] article.msg[data-msg-id="${id}"]`)), ids.r.msg_id)
-  const btn = await until(p, () => Boolean(document.querySelector('[data-test=topic-export-pdf]')))
-  ok('topic: the pane shows the reply and the header has Export topic to PDF', shown && btn)
-  const label = await p.evaluate(() => document.querySelector('[data-test=topic-export-pdf]')?.getAttribute('aria-label') || '')
-  ok('topic: the button is labelled', label === 'Export topic to PDF', label)
-  const want = await p.evaluate(() => [...document.querySelectorAll('[data-test=topic-root] article.msg[data-msg-id]')].map((e) => e.getAttribute('data-msg-id')))
-  const heading = await p.evaluate(() => document.querySelector('[data-test=topic-heading] .topic-heading__text')?.textContent?.trim() || '')
+/* SPL-6205 (owner HUM-10, t1 f798e9aa msg a1ca02fb): the topic card's menu in
+   the channel prints the whole topic, first to last; no header button */
+async function topicMenuExport(p, rootId) {
+  await p.waitForSelector(midCard(rootId), { timeout: 10000 })
+  await p.click(`${midCard(rootId)} .msg-body`, { button: 'right' })
+  const opened = await until(p, () => document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]').length > 0)
+  const items = await p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
+  const label = await p.evaluate(() => document.querySelector('[data-testid=msg-menu-export-topic-pdf]')?.textContent?.trim() || '')
   await p.evaluate(() => { window.__printCalls = 0 })
-  await p.focus('[data-test=topic-export-pdf]')
-  await p.keyboard.press('Enter')
-  await until(p, () => Boolean(document.querySelector('[data-test=msg-print-host][data-ready=true]')), undefined, 20000)
+  await p.evaluate(() => document.querySelector('[data-testid=msg-menu-export-topic-pdf]')?.click())
+  const ready = await until(p, () => Boolean(document.querySelector('[data-test=msg-print-host][data-ready=true]')), undefined, 20000)
+  return { opened, items, label, ready }
+}
+
+async function topicCase(p, ids, tag) {
+  const m = await topicMenuExport(p, ids.a.msg_id)
+  ok('topic: the channel topic card menu lists Export topic to PDF after Export to PDF', m.opened && m.items.indexOf('msg-menu-export-topic-pdf') === m.items.indexOf('msg-menu-export-pdf') + 1, m.items)
+  ok('topic: the entry is labelled', m.label === 'Export topic to PDF', m.label)
   const got = await printed(p)
-  ok('topic: print runs once (Enter on the focused button)', got?.calls === 1, got?.calls)
-  ok('topic: exactly the cards shown, in order', want.length >= 2 && JSON.stringify(got?.ids) === JSON.stringify(want), { want, got: got?.ids })
-  ok('topic: the title heads it', Boolean(heading) && got?.heading === heading, { heading, got: got?.heading })
+  ok('topic: print runs once', m.ready && got?.calls === 1, got?.calls)
+  ok('topic: every post of the topic, first to last', JSON.stringify(got?.ids) === JSON.stringify([ids.a.msg_id, ids.r.msg_id]), got?.ids)
+  ok('topic: the title heads it', Boolean(got?.heading) && got.heading.includes(`PDF-A ${tag}`), got?.heading)
   ok('topic: the reply and the picture print, the neighbour does not', got && got.text.includes(`PDF-A-REPLY ${tag}`) && got.imgs.length === 1 && got.imgs[0].loaded && !got.text.includes('PDF-B'), got && { imgs: got.imgs })
   ok('topic: the file is named after the topic', Boolean(got?.docTitle) && !/-[0-9a-f]{8}$/.test(got.docTitle) && got.docTitle.startsWith('pdf-a-'), got?.docTitle)
   await savePdf(p, 'topic')
   await p.evaluate(() => window.dispatchEvent(new Event('afterprint')))
   await until(p, () => !document.querySelector('[data-test=msg-print-host]'))
+  /* inside the open topic: no topic export, a post keeps its own */
+  await p.evaluate((task) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('topic').openTopic(task), ids.a.task_id)
+  const sel = `[data-test=topic-root] article.msg[data-msg-id="${ids.r.msg_id}"]`
+  const shown = await until(p, (s) => Boolean(document.querySelector(s)), sel)
+  ok('topic pane: no header button', shown && await p.evaluate(() => !document.querySelector('[data-test=topic-export-pdf]')))
+  await p.click(`${sel} .msg-body`, { button: 'right' })
+  await until(p, () => document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]').length > 0)
+  const inner = await p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
+  ok('topic pane: a reply offers its own Export to PDF, not the topic one', inner.includes('msg-menu-export-pdf') && !inner.includes('msg-menu-export-topic-pdf'), inner)
+  await p.keyboard.press('Escape')
+  await until(p, () => !document.querySelector('[data-testid=msg-menu]'))
+  await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('topic').close())
 }
 
 /* SPL-6023: a topic longer than one A4 page prints every page. The screen
@@ -213,15 +232,15 @@ async function longTopicCase(p, tag, cardPdf) {
   ok('card: the single-card PDF is one page', pdfPages(cardPdf) === 1, pdfPages(cardPdf))
   const long = await seedLong(p, tag)
   const cards = Object.keys(long.ids)
-  await p.evaluate((task) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('topic').openTopic(task), long.task_id)
-  const shown = await until(p, (ids) => ids.every((id) => document.querySelector(`[data-test=topic-root] article.msg[data-msg-id="${id}"]`)), cards, 20000)
-  ok('long topic: the pane shows every card', shown)
-  await p.evaluate(() => { window.__printCalls = 0 })
-  await p.click('[data-test=topic-export-pdf]')
-  await until(p, () => Boolean(document.querySelector('[data-test=msg-print-host][data-ready=true]')), undefined, 20000)
+  /* SPL-6205: 41 posts, more than the pane's first read (opener + 30): the
+     channel card's menu prints them all, first to last, no pane opened */
+  const root = cards.find((id) => long.ids[id] === 0)
+  const m = await topicMenuExport(p, root)
   const got = await printed(p)
+  const order = cards.slice().sort((x, y) => long.ids[x] - long.ids[y])
+  ok('long topic: the menu export prints all 41 posts, first to last', m.ready && JSON.stringify(got?.ids) === JSON.stringify(order), got && { n: got.ids.length })
+  ok('long topic: the page is in print mode with the render', Boolean(got?.printing), got && { printing: got.printing })
   const lastI = long.ids[got?.ids.at(-1)]
-  ok('long topic: every card is in the print render', got?.ids.length === LONG_CARDS + 1 && cards.every((id) => got.ids.includes(id)) && lastI !== undefined, got && { n: got.ids.length, lastI })
   const buf = Buffer.from(await p.pdf({ format: 'A4', printBackground: true }))
   if (SHOTS) writeFileSync(`${SHOTS}/topic-long.pdf`, buf)
   const pages = pdfPages(buf)

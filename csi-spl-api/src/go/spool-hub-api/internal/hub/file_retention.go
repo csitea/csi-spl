@@ -35,8 +35,8 @@ const (
 
 // FileSweepResult counts what one orphan sweep did.
 type FileSweepResult struct {
-	Scanned int // objects listed under t/, tmp/ and each workspace's qto-assets/
-	Deleted int // unreferenced blobs, stale tmp objects and unnamed pictures removed
+	Scanned int // objects listed under t/, tmp/ and each workspace's qto-assets/, qto-media/ and .doctree/
+	Deleted int // unreferenced blobs, stale tmp objects, unnamed pictures and doc media removed
 }
 
 // SweepFiles deletes every tenant blob (t/<tenant>/files/<sha256>) that no
@@ -47,7 +47,7 @@ type FileSweepResult struct {
 // can sit on several messages, so it goes only when NONE carries it. The
 // decision is re-checked right before each delete, so a re-upload (Touch)
 // or a send landing while the listing runs keeps the blob. Then each
-// workspace's own docs store (sweepOwnAssets).
+// workspace's own docs store (sweepOwnAssets, sweepOwnMedia).
 func (s *Server) SweepFiles(ctx context.Context, now time.Time) (FileSweepResult, error) {
 	var r FileSweepResult
 	avatars := map[string]map[string]bool{}
@@ -91,7 +91,7 @@ func (s *Server) SweepFiles(ctx context.Context, now time.Time) (FileSweepResult
 	if err != nil {
 		return r, err
 	}
-	return r, s.sweepOwnAssets(ctx, now, &r)
+	return r, errors.Join(s.sweepOwnAssets(ctx, now, &r), s.sweepOwnMedia(ctx, now, &r))
 }
 
 // ownAssetTenants lists the live workspaces (store.BlockerIssues has the
@@ -244,4 +244,141 @@ func parseFileKey(key string) (tenant, fileID string, ok bool) {
 		return "", "", false
 	}
 	return p[1], p[3], true
+}
+
+// docMediaSweepStore is the store side of the doc media sweep (rdb 0306).
+type docMediaSweepStore interface {
+	DocMediaSweep(ctx context.Context, tenant string, now time.Time, grace time.Duration) ([]store.DocMedia, error)
+	DocGoneBefore(ctx context.Context, tenant string, cutoff time.Time, limit int) ([]string, error)
+	DocGoneDrop(ctx context.Context, tenant, doc string) error
+	DocMediaHold(ctx context.Context, tenant, doc, name string) (store.DocMediaHold, error)
+}
+
+var _ docMediaSweepStore = (*store.Postgres)(nil)
+
+// docMediaSwept are the per-doc prefixes of a workspace's own docs store
+// the media sweep walks: the media of spec 190 (qto-media/<doc>/) and the
+// pictures of spec 113 (.doctree/<doc>/, gap G6).
+var docMediaSwept = []string{DocMediaPrefix, ".doctree/"}
+
+// docGoneBatch bounds the deleted docs one sweep clears per workspace.
+const docGoneBatch = 500
+
+// sweepOwnMedia applies the 7-day grace of spec 190 (Q6 A, C7, row H3) to
+// each workspace's own docs store: a media file no section of its doc has
+// named for DocMediaGrace, every file of a doc deleted DocMediaGrace ago,
+// and, as a backstop, any object under docMediaSwept of a visible doc that
+// nothing names and that was uploaded before the grace. A doc locked to a
+// human is hidden from the sweep, and its files are kept. Errors as
+// sweepOwnAssets: a missing bucket is skipped, any other does not stop the
+// other workspaces.
+func (s *Server) sweepOwnMedia(ctx context.Context, now time.Time, r *FileSweepResult) error {
+	ms, ok := s.o.Store.(docMediaSweepStore)
+	lt, listed := s.o.Store.(ownAssetTenants)
+	if !ok || !listed || s.o.WorkspaceDocs == nil {
+		return nil
+	}
+	tenants, err := lt.BlockerTenants(ctx)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, tenant := range tenants {
+		st, own, err := s.docAssetBucket(ctx, tenant)
+		if !own {
+			continue
+		}
+		if err == nil {
+			err = s.sweepTenantMedia(ctx, mediaSweep{st: st, ms: ms, tenant: tenant, now: now, r: r})
+		}
+		if err != nil && !bucketMissing(err) {
+			errs = append(errs, errors.Join(errors.New("workspace "+tenant+" doc media"), err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// mediaSweep is one workspace's pass of sweepOwnMedia.
+type mediaSweep struct {
+	st     blob.Store
+	ms     docMediaSweepStore
+	tenant string
+	now    time.Time
+	r      *FileSweepResult
+}
+
+// sweepTenantMedia: the rows past their grace, the docs deleted before it,
+// then the backstop walk and the stale scratch uploads.
+func (s *Server) sweepTenantMedia(ctx context.Context, m mediaSweep) error {
+	defer s.fileUsage.forget(m.tenant)
+	rows, err := m.ms.DocMediaSweep(ctx, m.tenant, m.now, DocMediaGrace)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if err := m.delete(ctx, docMediaKey(row.Doc, row.FileName())); err != nil {
+			return err
+		}
+	}
+	docs, err := m.ms.DocGoneBefore(ctx, m.tenant, m.now.Add(-DocMediaGrace), docGoneBatch)
+	if err != nil {
+		return err
+	}
+	for _, doc := range docs {
+		for _, p := range docMediaSwept {
+			if err := m.st.List(ctx, p+doc+"/", func(key string, _ time.Time) error { m.r.Scanned++; return m.delete(ctx, key) }); err != nil {
+				return err
+			}
+		}
+		if err := m.ms.DocGoneDrop(ctx, m.tenant, doc); err != nil {
+			return err
+		}
+	}
+	for _, p := range docMediaSwept {
+		if err := m.st.List(ctx, p, func(key string, up time.Time) error { return m.backstop(ctx, p, key, up) }); err != nil {
+			return err
+		}
+	}
+	return m.st.List(ctx, docMediaScratch, func(key string, up time.Time) error {
+		m.r.Scanned++
+		if m.now.Sub(up) < FileOrphanGrace {
+			return nil
+		}
+		return m.delete(ctx, key)
+	})
+}
+
+// backstop deletes key (<prefix><doc>/<name>) when its doc is visible,
+// names it neither in the index nor in a section, and both the listing and
+// a fresh read put its upload before the grace. A gone doc waits for its
+// own pass above; a hidden one is kept.
+func (m mediaSweep) backstop(ctx context.Context, prefix, key string, up time.Time) error {
+	m.r.Scanned++
+	doc, name, ok := strings.Cut(strings.TrimPrefix(key, prefix), "/")
+	if !ok || strings.Contains(name, "/") || m.now.Sub(up) < DocMediaGrace {
+		return nil
+	}
+	h, err := m.ms.DocMediaHold(ctx, m.tenant, doc, name)
+	if err != nil || !h.Live || h.Index || h.Named {
+		return err
+	}
+	if up, err = m.st.Uploaded(ctx, key); errors.Is(err, blob.ErrNotFound) || err == nil && m.now.Sub(up) < DocMediaGrace {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return m.delete(ctx, key)
+}
+
+// delete removes key; gone already (another hub process, or a doc whose
+// row and object went in one pass) is no error.
+func (m mediaSweep) delete(ctx context.Context, key string) error {
+	err := m.st.Delete(ctx, key)
+	if errors.Is(err, blob.ErrNotFound) {
+		return nil
+	}
+	if err == nil {
+		m.r.Deleted++
+	}
+	return err
 }

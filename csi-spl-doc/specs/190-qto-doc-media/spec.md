@@ -580,11 +580,17 @@ that carries the line.
     tombstone. The FK of the media row cascades on the doc delete.
 - **D1, channel move**: `workspace_doc_media` is classed Moved in
   `api/channelmove/catalogue.go` (its rows follow their doc, M8) and
-  `workspace_doc_gone` not-channel. The bytes do not move: they stay in
-  the source workspace's bucket under `qto-media/<doc>/`, and the source's
-  doc delete writes the tombstone, so the sweep removes them 7 days after a
-  move. A copy step in the channel move is not built (not a row of this
-  spec).
+  `workspace_doc_gone` not-channel. The Qto part of P4
+  (`api/store/channel_move_docs_postgres.go`) stashes the media rows with
+  the doc's other rows and inserts them under `<DST>`, since the FK cascade
+  of the `<SRC>` delete takes them. It also drops the `<SRC>` tombstones the
+  delete trigger wrote: the doc lives on in `<DST>`, and the bytes of its
+  `qto-media/<doc>/` and `.doctree/<doc>/` stay in the source workspace's
+  bucket, the only copy. That doc then reads as hidden in `<SRC>`, so the
+  sweep keeps its files there; in `<DST>` they are not served until a
+  copy step in P3 exists (not built, not a row of this spec). Test
+  `TestApplyChannelMoveDocMediaNotGone` (Postgres); red control run:
+  without the tombstone drop `<SRC>` keeps 1 gone row (R7 c-825 W2).
 - **G8 measured** on dev, 2026-11-21T09:41Z, n=1 per size, `POST
   /v1/files` with no token (the hub answers 401 and stores nothing): a body
   of 33 554 000 bytes reached the hub (401); 33 554 432 bytes (exactly 32
@@ -614,3 +620,18 @@ that carries the line.
   - tenant `system` (the repo tree) takes no media: 404 `media_off`;
   - the hub-side table is `docMediaTypes`; its mirror in `-doctree-api.ts`
     and the test that reads both are W1's.
+- **H3 built**: `sweepOwnMedia` in `api/hub/file_retention.go`, run by
+  `SweepFiles` after the `qto-assets/` walk of SPL-2963, test
+  `wsdoc_media_sweep_test.go` (fake clock). Each workspace: rows no section body or attrs
+  named for 7 days are dropped and their objects deleted; a doc deleted 7
+  days ago loses every object under `qto-media/<doc>/` and
+  `.doctree/<doc>/`; a backstop deletes any object there of a visible doc
+  that nothing names and that is older than 7 days; scratch uploads
+  (`qto-media.tmp/`) go after 24 h. A doc locked to a human is hidden from
+  the sweep and keeps its files. Done test green: at grace - 1 s the gone
+  doc's files and an unnamed video are kept; at grace + 1 s they and an
+  unnamed picture are gone, the named video, the named picture and the
+  locked doc's video stay (and still at 3x grace). Red controls run:
+  without `qto-media/` in the per-doc walk the gone doc's video stays;
+  with no media sweep (origin/master) four files stay. A doc deleted
+  before rdb 0306 has no tombstone, reads as hidden, and keeps its files.

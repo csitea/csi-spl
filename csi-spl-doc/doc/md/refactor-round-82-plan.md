@@ -32,7 +32,11 @@ and r81-02 gave one function each. **Row 02** makes orc's `validate-params.func.
 byte-identical to the iac and utl copies (two comment lines drifted) and pins the three
 copies with a `cmp` in `run-sh-parity.tst.sh`, as that test already pins `run.sh`.
 
-**Status: v0.1**, for the panel. Editor: **c-706** (claude).
+**Status: v1.0.** The panel passed v0.1 `68117dca8` with no W (m-742@sat, mistral; seat
+file `fbe95d9ef`, folded here as `csi-spl-doc/doc/md/refactor-round-82/seat-mistral.md`;
+section 8). It lands on the holder's GO (c-002@sat, msg 1b6643cd), whose run of
+`do_spl_review_line_check` on the panel's line printed rc 0. No row changed since v0.1.
+Editor: **c-706** (claude).
 
 **One sha:** every count is measured on **`3174e591a`** (`origin/master` 3174e591a,
 committed 2026-11-21T09:44:36+02:00), n=1 per command unless stated. Reads are on that
@@ -78,7 +82,7 @@ map, brief and branch readings are live state and carry their own time.
 |---|---|---|---|
 | `gcp-account-pin.func.sh`, iac + orc | r81 section 7, "first candidate for r82" | byte-identical (`md5sum` equal, 322 lines each); `grep -c ':?'` -> **6** per copy: the 5 `local x="${1:?...}"` lines and `:159` inside a `$(jq ...)` (1.3) | **row 01**, the 5 lines; `:159` left out (it already returns 1, 1.3) |
 | the other `local x="${N:?...}"` lines | r81 section 7 | `git grep -nE 'local [A-Za-z_]+="?\$\{[0-9]:\?'` over iac, orc and utl `lib/bash/funcs` + `src/bash/run` -> **29 lines in 11 files**: iac 14 in 6, orc 10 in 3 plus `spl-self-host-up.func.sh:317` (r81-02's, building), utl 5 in 2 | row 01 takes the 10 of `gcp-account-pin.func.sh`; the rest left out (section 7) |
-| `validate-params.func.sh`, 3 copies | r81 section 7 ("3-copy rows") | the `:13` `${1:?}` line: its one caller guards it (`run.sh:159`, `[[ -n "$func_file" ]] && ... do_validate_params "$func_file"`, the same line in all 4 `run.sh`), so no caller reaches the empty path. Measured instead: the copies **differ**: `md5sum` iac = utl, orc differs; `diff iac orc` -> 2 hunks, **comment lines only** (1.4) | **row 02**: the copies made one text; the `:13` line left out (section 7) |
+| `validate-params.func.sh`, 3 copies | r81 section 7 ("3-copy rows") | the `:13` `${1:?}` line: its one caller guards it (`src/bash/run/run.sh:159`, `[[ -n "$func_file" ]] && ... do_validate_params "$func_file"`, the same line in all 4 `run.sh`), so no caller reaches the empty path. Measured instead: the copies **differ**: `md5sum` iac = utl, orc differs; `diff iac orc` -> 2 hunks, **comment lines only** (1.4) | **row 02**: the copies made one text; the `:13` line left out (section 7) |
 | `parse-metadata.func.sh`, 3 copies | r81 section 7 | 4 `${1:?}` lines per copy; copies orc = utl, iac differs in its 2 `@example` lines, which each name an action of their own module (`iac:src/bash/run/tf-state-show.func.sh` exists; `orc:src/bash/run/tf-030-import-existing-cloud-run.func.sh` exists, not in utl) | left out (section 7): 12 lines over 3 files is over the 5-site cap, and unifying the examples needs a module-neutral example first |
 | r81-01 R7 notes (c-699 PASS on `b4f602bf6`) | the brief | the landed body of `3174e591a` carries the review line and no N or W note (`git log -1 --format=%B 3174e591a \| grep -cE '^ *-? *\*?\*?[NW][0-9]'` -> 0) | nothing to take |
 | r81-02 R7 | the brief | not landed (the lane builds) | nothing to take yet; the r82 editor reads it when it lands |
@@ -179,7 +183,8 @@ GCP or needs a credential.
 >     # Check if marked as required
 ```
 
-(`<` = iac, `>` = orc in the plan's reading order: orc carries the SHORT comments; the
+(`<` = iac, `>` = orc in the plan's reading order; the hunk headers are those of
+`diff orc iac`, the reverse direction, same content (panel N2): orc carries the SHORT comments; the
 row takes iac's two-line forms into orc.) **Only comment lines differ**: the code under
 each is the same `read -r var_name _rest` and the same `${param_def,,}` match, so iac's
 comments are true of orc's code. The longer comments sit in the iac copy since
@@ -193,7 +198,7 @@ grep -vE '^[-+]\s*#'` -> 0.
 
 **The test.** `iac:tests/run-sh-parity.tst.sh` (44 lines) pins the four `run.sh` copies
 with `cmp -s` (`:23-31`) and a planted-drift control (`:38-40`). The row adds, before the
-root-copy check (`:32`), the same `cmp` for the helper:
+root-copy check (`:33-37`; `:32` closes the `run.sh` loop), the same `cmp` for the helper:
 
 ```text
 vp="$REPO_ROOT/csi-spl-iac/lib/bash/funcs/validate-params.func.sh"
@@ -244,7 +249,7 @@ on the same kind of tree.
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `refactor(r82-01-gcp-pin-returns)` | bash that fails safely: a function returns a code (developer guide 2.4.3) | five functions of the gcloud identity lib exit the caller's shell on an empty first argument instead of returning 1 (1.3); r81 section 7's first candidate | `iac:lib/gcp-account-pin.func.sh:40,138,171,216,264`<br>and the byte-identical `orc:lib/gcp-account-pin.func.sh`, the same 5 lines<br>(+ section 4b in `iac:tests/gcloud-account-pinned.tst.sh`, after `:195`) | 5 lines x 2 copies | The 5 lines take 1.3's shape in both copies (`cmp` of the copies stays 0). **New section 4b** (1.3): each of the 5 functions with `""` and with no argument prints `rc=1` and `usage: <fn> `. **Red control:** 4b on the parent's lib FAILs 10 (`line <n>: 1: <word>`, no `rc=`), then GREEN; outputs in the body. **Behaviour:** the 17 test files of 1.5's grep, each as on the parent. Tests: those 17, `bash-cleancode.tst.sh`, `cd csi-spl-iac && ./run -a do_check_pre_push`. No GCP, no real key: the tests stub gcloud and use fake keys. | either | claude | simple_coding | 1 |
-| 02 `refactor(r82-02-orc-validate-params-parity)` | one helper, one text (developer guide 2.2.4; the `run.sh` parity of SPL-2756) | orc's copy of the `./run` param check lost two comments the iac and utl copies carry (r3-28 drift); nothing pins the three copies (1.4) | `orc:lib/validate-params.func.sh:26,30`<br>(+ the `cmp` loop in `iac:tests/run-sh-parity.tst.sh`, before `:32`) | 1 file, 2 comment hunks | orc's file becomes iac's text (`diff` -> empty). **New loop** (1.4): iac vs orc and utl `cmp -s`. **Red control:** the loop on the parent's orc copy FAILs 1 (`iac and orc validate-params.func.sh differ`), then GREEN (8 pass); outputs in the body. **Behaviour:** comment lines only (1.4's `git diff -U0` filter -> 0). Tests: `run-sh-parity.tst.sh`, the three `param-required.tst.sh`, `parse-metadata-nofork.tst.sh`, `comment-refs-exist.tst.sh` (in the worktree), `action-header-tags.tst.sh`, `bash-cleancode.tst.sh`, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 02 `refactor(r82-02-orc-validate-params-parity)` | one helper, one text (developer guide 2.2.4; the `run.sh` parity of SPL-2756) | orc's copy of the `./run` param check lost two comments the iac and utl copies carry (r3-28 drift); nothing pins the three copies (1.4) | `orc:lib/validate-params.func.sh:26,30`<br>(+ the `cmp` loop in `iac:tests/run-sh-parity.tst.sh`, before `:33`) | 1 file, 2 comment hunks | orc's file becomes iac's text (`diff` -> empty). **New loop** (1.4): iac vs orc and utl `cmp -s`. **Red control:** the loop on the parent's orc copy FAILs 1 (`iac and orc validate-params.func.sh differ`), then GREEN (8 pass); outputs in the body. **Behaviour:** comment lines only (1.4's `git diff -U0` filter -> 0). Tests: `run-sh-parity.tst.sh`, the three `param-required.tst.sh`, `parse-metadata-nofork.tst.sh`, `comment-refs-exist.tst.sh` (in the worktree), `action-header-tags.tst.sh`, `bash-cleancode.tst.sh`, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 **Re-measure first:** each row lane re-runs its site reads (row 01's 5 lines and the
 `rc=` forms in both copies, row 02's `diff iac orc`) on the `origin/master` it starts
@@ -309,14 +314,16 @@ Row paths (5): `iac:lib/bash/funcs/gcp-account-pin.func.sh`,
 ## 4. Panel and reviewers (R7)
 
 - Editor: c-706 (claude). The panel seat signs the plan sha (rulebook 3.2).
-- **Panel seat: requested of the dispatch lease holder** (task `dispatch-refactor-r82`):
+- **Panel seat: m-742@sat (mistral), PASS on v0.1 `68117dca8`, no W, N1-N4** (section 8;
+  seat file `csi-spl-doc/doc/md/refactor-round-82/seat-mistral.md`). Requested of the
+  dispatch lease holder (task `dispatch-refactor-r82`):
   one **cross-vendor** doc seat, the queued mistral seat
   `c002-refactor-round-82-mistral-panel-seat` (live on the lane map as m-742; agy, the
   main vendor for plan reviews, is out until about 11-24). The seat reviews this plan
   only.
-- **The candidates file** is not on this lane's box (1.2): the holder is asked to inline
-  any refactor-shaped item added since the r81 reads; an item that fits goes into v1.0
-  or r83 section 7.
+- **The candidates file** is not on this lane's box (1.2). The holder inlined its new
+  items (msg 83d8860e) and the panel read the file on sat (101 lines, N4): every
+  refactor-shaped item is served (r78-02, r79-01, r81-01) or in section 7.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-21T07:56:08Z printed
   `pick=hold reason=waiting: grok weekly >= 95% or unknown on <both boxes> ...: queue the
@@ -350,7 +357,7 @@ claude.
 
 **r82-02 brief, Files: ONLY** `orc:lib/bash/funcs/validate-params.func.sh` (it becomes
 the iac text, comment lines `:26`, `:30`) and `iac:src/bash/tests/run-sh-parity.tst.sh`
-(the `cmp` loop before `:32`, its Purpose header). NOT the iac or utl copy, NOT
+(the `cmp` loop before `:33`, its Purpose header). NOT the iac or utl copy, NOT
 `parse-metadata.func.sh`, NOT any `run.sh`, NOT the `:13` `${1:?}` line (section 7). Do:
 plan section 2 row 02 verbatim, 1.4's shape; the red control (the loop on the parent's
 orc copy) RED then GREEN in the body. Gates: `run-sh-parity.tst.sh`, the three
@@ -375,7 +382,7 @@ orc copy) RED then GREEN in the body. Gates: `run-sh-parity.tst.sh`, the three
 | what | why | measured by |
 |---|---|---|
 | `gcp-account-pin.func.sh:159` (`do_gcp_sa_key_email`) | already returns 1: the `${1:?}` exits only its inner `$(jq ...)` | 1.3 |
-| `validate-params.func.sh:13` (3 copies) | its one caller guards the empty path (`run.sh:159`), so no caller reaches it; a row would change no reachable path | 1.2 |
+| `validate-params.func.sh:13` (3 copies) | its one caller guards the empty path (`src/bash/run/run.sh:159`), so no caller reaches it; a row would change no reachable path | 1.2 |
 | `parse-metadata.func.sh`, 3 copies: 4 `${1:?}` lines each, and the iac / orc+utl `@example` drift | 12 lines over 3 files, over the 5-site cap; the examples name per-module actions (utl's names an orc-only file), so unifying them needs a module-neutral example first. **First candidate for r83:** the `@example` lines made module-neutral and the 3 copies pinned in `run-sh-parity.tst.sh` (row 02's loop takes it) | 1.2 |
 | `tf-each-target.func.sh:14`, `gcp-billing-cnf.func.sh:48,68`, `spl-cost-gcp.func.sh:75` | r80 / r81 section 7's reasons hold: `set -e` by design; beside the queued spec 123 cost lanes (L3-L7, 2.2) | 1.2 |
 | `spl-self-host-up.func.sh:317` | r81-02's row, building | 2.2 |
@@ -384,6 +391,9 @@ orc copy) RED then GREEN in the body. Gates: `run-sh-parity.tst.sh`, the three
 | `terraform init` without `-input=false`; the desk hop's env forwarding | behaviour changes: bug rows (r78 section 7) | r78 1.2 |
 | the 3 tenant-dir sites, `gcp-backup-env.func.sh` | secret-class work (the data rule), r73 to r81 | r77 1.3 |
 | spec 011 T001-T008, T018-T021, T023, T027, T034 | owner-deferred (2026-09-19), an open owner decision, behaviour, or the full sweep; the spec folder unchanged since W | 1.2 |
+| the reply-kind set `result\|reject\|blocker\|msg\|$SPOOL_NOTE_KINDS`, written twice: the check in `spl-desk-reply.func.sh:550` and the copy in `test-spool-kinds.sh:57` (holder, 83d8860e; c-699 N1 f9b4dc2e) | it touches the reply action and the shared `spool-env.inc.sh`, not only the test: a third row. **First candidate for r83:** one named set in `spool-env.inc.sh` that both read | `git grep -nE 'result\|reject\|blocker\|msg\|' a83052abd -- csi-spl-orc/` |
+| `topic_loop_fire.go` `!inserted` branch (SPL-6032 R7 N1); `spl-spawn-place-argmax.tst.sh:181-212` section 9 guard cases (b30-01 R7 N1) | test rows: a missing test case each, not a refactor of the code; for a test row or r83 | holder, 83d8860e |
+| `[refactor] SPL-6107 N1`, `spl-desk-reply.sh` usage kinds | served: it is r81-01, `3174e591a` | `git log -1 3174e591a` |
 
 ## 8. Changes
 
@@ -392,11 +402,39 @@ orc copy) RED then GREEN in the body. Gates: `run-sh-parity.tst.sh`, the three
   candidate), row 02 makes orc's `validate-params.func.sh` byte-identical to iac's and
   utl's and pins the three. Every named test run on the row's head (1.5). Window W and
   the r82 slug proof recorded.
+- 2026-11-21 09:13Z: m-742@sat **PASS** on v0.1 `68117dca89e4a32b006c551752a968cf60e3e04e`,
+  no W (seat file `fbe95d9ef` on `review/c002-refactor-round-82-mistral-seat`, checks 1-8
+  with commands and output). It re-ran the slug proof (0 `(r82-` lines since W, all
+  history 0), printed every row site on `3174e591a` and origin/master `5d9bcef49` (all
+  the same), re-ran both red controls (4b on the parent's lib: rc 1, 10 FAIL; on the
+  row's head rc 0, 48 pass; the `cmp` loop on the parent's orc copy rc 1; on the head
+  rc 0, 8 pass), the lane map (exit 4, no live lane on a row path), the queue (15, none
+  on a row path), `do_check_dist_hygiene` and `do_check_pre_push` (all parts passed).
+  - **N1**: row 01 changes the empty or missing argument path only (shell exit -> return 1
+    plus a usage line on stderr); every caller outside the lib passes a non-empty first
+    argument (1+4+4 callers on `3174e591a`). Disclosed in 1.3, pinned by section 4b;
+    precedent r80-02 `5083f4cf9`, r81-02 `1fd68677a`. No change.
+  - **N2**: three citation slips, none on a row site. Fixed: `run.sh:159` is
+    `src/bash/run/run.sh:159` (1.2, section 7); the root-copy check of
+    `run-sh-parity.tst.sh` is `:33-37` (`:32` is the loop's `done`), so the loop goes
+    before `:33` (1.4, row 02, the r82-02 brief); 1.4's diff hunk headers are those of
+    `diff orc iac`, same content (said there).
+  - **N3**: live state moved since the plan's reads: the r81 control since W 3 -> 5 lines
+    (`1fd68677a`, `b474a58fb`; r81 closed); lane map 11 -> 15 `unknown:` lanes, exit 4
+    both times, none on a row path; queue 12 -> 15; refactor share 3/31 (9%), UNDER. No
+    row change.
+  - **N4**: the candidates file is on sat (101 lines) and the panel read it: every
+    refactor-shaped item served or in section 7. A scratch copy of the base needs a
+    staged git index (`git init` + `git add -A`) or the pin suite's section 6 CONTROL
+    fails; 1.5 already runs that suite in a `git init` copy.
+- v1.0 (c-706), on the holder's GO (c-002@sat, msg 1b6643cd; its review-line check rc 0):
+  the PASS and N1-N4 recorded, N2's citations fixed, the holder's inlined items (83d8860e)
+  in section 7, the seat file folded in. No row's files, red control or fix scope changed.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-706 (claude): v0.1.
-- Panel reviewer seat: requested (section 4).
+- Editor seat: c-706 (claude): v1.0.
+- Panel reviewer seat: m-742@sat (mistral): **PASS** on v0.1 `68117dca8`, no W (section 8).
 - Row R7 seats: section 4.

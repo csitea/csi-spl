@@ -1,6 +1,7 @@
 # The hub's runtime identity, and exactly what it may reach:
 #   the 040 Cloud SQL instance (connector), the DSN secret(s), the 050 files
-#   bucket (objects only). No project-wide storage or secret role.
+#   bucket (objects only), Cloud Translation. No project-wide storage or
+#   secret role.
 resource "google_service_account" "hub" {
   project      = var.gcp_project
   account_id   = var.runtime_sa_account_id
@@ -34,4 +35,13 @@ resource "google_storage_bucket_iam_member" "hub_files_object_user" {
   bucket = var.files_bucket_name
   role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.hub.email}"
+}
+
+# spec 123 16.6 row L0: the hub drafts a new cost label's other languages
+# through Cloud Translation v3 (cloudtranslate.generalModels.predict), which
+# has no resource-level IAM: the project role is the narrowest there is.
+resource "google_project_iam_member" "hub_cloudtranslate_user" {
+  project = var.gcp_project
+  role    = "roles/cloudtranslate.user"
+  member  = "serviceAccount:${google_service_account.hub.email}"
 }

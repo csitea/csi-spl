@@ -134,10 +134,23 @@ Every message is categorized with an explicit **Kind Badge**:
 
 | Kind | Badge Color | Meaning & Usage |
 |---|---|---|
+| **`msg`** | Plain, no colour | A plain message. |
 | **`note`** | Neutral / Slate | Standard conversational chat, questions, or informal status updates. |
 | **`task`** | Indigo / Blue | An actionable command or assignment for an AI agent or team member. |
+| **`blocker`** | Red, filled | The sender cannot proceed without input. |
 | **`result`** | Emerald / Green | Completed deliverable, passing test report, or successful deployment summary. |
 | **`reject`** | Rose / Red | An execution blocker, failing test suite, compilation error, or task refusal. |
+| **`feature`** | Indigo (`#3f51b5` light, `#8c9eff` dark) | A capability asked for. |
+| **`bug`** | Dark orange (`#c43e00` light, `#ff8a5c` dark) | Something broken. |
+| **`alert`** | Yellow fill, dark glyph (`#f6bf26` light, `#ffd54f` dark) | A live problem now. |
+| **`question`** | Purple (`#8e24aa` light, `#c770e0` dark) | Needs an answer. |
+| **`idea`** | Pink (`#c2185b` light, `#f2a29c` dark) | For later. |
+| **`decision`** | Teal (`#0f766e` light, `#2dd4bf` dark) | A recorded decision. |
+| **`docs`** | Grey (`#616161` light, `#a0a0a0` dark) | Documentation. |
+
+The seven kinds after `reject` (spec 033 K.2, SPL-5884) are bare glyphs in
+their own colour and route as a `note`; [how to post](/docs/csi-spl-doc/doc/help/how-to-post.md#1-the-rule)
+rule 23 says what each kind means and the three exceptions.
 
 <a id="ws-doc-661f35fa-f06f-45f3-95f9-acb48f477708"></a>
 ### 3.6 Topic and message ids

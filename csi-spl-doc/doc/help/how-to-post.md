@@ -209,13 +209,14 @@ comments and issue descriptions.
    said it; msg 85a20ac7: "add a check in the db to not accept the same
    msgs"). The hub refuses, and nothing is sent:
    - `dm_not_blocker`: a DM from an agent to a person that is not a
-     `blocker`, does not answer a DM that person started or wrote in, does
-     not follow up a blocker DM to them, and is not a DM about a channel
-     topic (spec 067, section 6). Answer in the channel topic, tagging the
-     person (`@HUM-n`). Once a person has written in a DM, any agent may
-     answer them there, not only the agent that opened it: a busy or dead
-     starter must not leave the person unanswered (SPL-3420, owner t1
-     679ee983, 2026-10-25).
+     `blocker` or a `question` (spec 033 K.3 exception E1: a `question` DM
+     passes like a `blocker` DM), does not answer a DM that person started
+     or wrote in, does not follow up a blocker or question DM to them, and
+     is not a DM about a channel topic (spec 067, section 6). Answer in the
+     channel topic, tagging the person (`@HUM-n`). Once a person has written
+     in a DM, any agent may answer them there, not only the agent that
+     opened it: a busy or dead starter must not leave the person unanswered
+     (SPL-3420, owner t1 679ee983, 2026-10-25).
    - `duplicate_to_human`: a post to a person, DM or channel topic, whose
      text (whitespace collapsed, case ignored) that person already got from
      an agent in the last 24 h. Say something new, or nothing.
@@ -304,6 +305,19 @@ comments and issue descriptions.
    checked: opened /about on dev and prd, both show v1.4.2
    not checked: the phone view
    ```
+
+23. **The message kinds** (spec 033 K.2, SPL-5884): a message's kind is one
+    of 13, set with `spool send --kind`, the kind menu or `DESK_KIND` — the
+    six `msg`, `note`, `task`, `blocker`, `result`, `reject`, then the seven
+    added 2026-11: `feature` (a capability asked for), `bug` (something
+    broken), `alert` (a live problem now), `question` (needs an answer),
+    `idea` (for later), `decision` (a recorded decision), `docs`
+    (documentation). The seven route as a `note` — they raise no ask, close
+    no lane, escalate no blocker and move no Flow line — with three
+    exceptions (spec 033 K.3): a `question` DM to a person passes like a
+    `blocker` DM (rule 18, E1), an unanswered `question` is an open item at
+    a lane handover, listed next to blockers (E2), and desk posts may set
+    the seven too (E3).
 
 <a id="ws-doc-43f5533b-1a5a-4696-8073-42c6814ab84a"></a>
 ## 2. Example

@@ -30,7 +30,8 @@
 #      the failing control: a line outside any checkout is named
 #  10. the desk-reconcile cut: the lease ensure + dispatch tick run without
 #      the marker and are cut with it; the desk steps run in both
-#  11. the cron scripts run their action from the checkout, name a missing tool
+#  11. the cron scripts run their action from the checkout, name a missing tool,
+#      and share one body: say, check_tools and peer_cron_main are in peer-cron.inc.sh
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -326,6 +327,7 @@ done
 printf '#!/bin/sh\n' > "$SH/csi-spl-orc/run"; printf '#!/bin/sh\n' > "$SH/csi-spl-orc/src/bash/features/box-sessions/scripts/save-sessions.sh"
 chmod +x "$SH/csi-spl-orc/run"
 for n in restart distill ensure; do cp "$PROJ_ROOT/src/bash/scripts/peer-$n-cron.sh" "$SC/"; done
+cp "$PROJ_ROOT/src/bash/scripts/peer-cron.inc.sh" "$SC/"
 # the 9 tags measured on the first box (spec 068 6.2) + a box-cron row, same shapes
 cat > "$T/crontab.before" <<EOF
 MAILTO=""
@@ -437,6 +439,9 @@ PEER_CRON_TOOLS=no-such-tool-x bash "$SC/peer-restart-cron.sh" > "$T/o" 2>&1; rc
 [[ $rc == 3 ]] && grep -q no-such-tool-x "$T/o" || { ok=0; echo "tools rc=$rc"; }
 (( ok )) && pass "11. the cron scripts run their action from the checkout (restart, distill with DRY_RUN=0), and name a missing tool (exit 3)" ||
   fail "11. cron scripts"
+got="$(cd "$PROJ_ROOT/src/bash/scripts" && grep -lE '^(say|check_tools|peer_cron_main)\(\) *\{' peer-cron.inc.sh peer-distill-cron.sh peer-ensure-cron.sh peer-restart-cron.sh 2>/dev/null | tr '\n' ' ')"
+[[ "$got" == "peer-cron.inc.sh " ]] && pass "11. say, check_tools and peer_cron_main are defined once, in peer-cron.inc.sh" ||
+  fail "11. defined once (want 'peer-cron.inc.sh ', got '$got')"
 
 echo
 (( fails == 0 )) && { echo "peer-restart: all passed"; exit 0; }

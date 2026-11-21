@@ -90,6 +90,9 @@ CO="$T/checkout"
 mkdir -p "$CO/$(basename "$PROJ_ROOT")/src/bash/scripts"
 cp "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cron.sh" "$CO/$(basename "$PROJ_ROOT")/src/bash/scripts/"
 chmod +x "$CO/$(basename "$PROJ_ROOT")/src/bash/scripts/desk-reconcile-cron.sh"
+# the --print-crontab block derives its log dir with the run lib (r79-02)
+mkdir -p "$CO/$(basename "$PROJ_ROOT")/lib/bash/funcs"
+cp "$PROJ_ROOT/lib/bash/funcs/spl-run-paths.func.sh" "$CO/$(basename "$PROJ_ROOT")/lib/bash/funcs/"
 printf '#!/bin/sh\nexit 0\n' >"$CO/$(basename "$PROJ_ROOT")/run"
 chmod +x "$CO/$(basename "$PROJ_ROOT")/run"
 

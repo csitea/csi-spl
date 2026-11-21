@@ -16,6 +16,8 @@
 //      brings those at deploy and refuses a missing one, and no bundle holds
 //      them, so they answer a placeholder. Any other /blog/img/ path 404s.
 //   2. DIRECTORY INDEXES. `nuxt generate` writes `<route>/index.html`.
+//      cleanUrls: a static page of src/public (about, privacy, terms) is
+//      served at its name without .html, as Hosting does.
 //   3. A SAME-ORIGIN /api/** and /v1/**. `--api <origin>` proxies them to a
 //      hub (lde: the auth-demo or the spool hub), the way the Hosting rewrite
 //      and the 031 load balancer do in dev/prd.
@@ -121,7 +123,7 @@ createServer(async (req, res) => {
     }
     return
   }
-  const candidates = [join(ROOT, path), join(ROOT, path, 'index.html')]
+  const candidates = [join(ROOT, path), ...(extname(path) ? [] : [join(ROOT, path + '.html')]), join(ROOT, path, 'index.html')]
   for (const c of candidates) {
     const body = await readIfFile(c)
     if (body) {

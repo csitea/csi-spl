@@ -327,7 +327,9 @@
         "blog": "Artículos del blog",
         "calendar": "Calendario",
         "help": "Ayuda",
-        "source": "Código"
+        "source": "Código",
+        "about": "Acerca de",
+        "privacy": "Privacidad"
       },
       "highlights": {
         "agents": "Agentes con nombre y presencia",

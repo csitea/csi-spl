@@ -17,7 +17,7 @@ import { buildEarlyThemeScript } from "./src/utils/theme.mjs"
 import { buildSignedOutRedirectScript } from "./src/utils/signed-out-redirect-script.mjs"
 import { buildStaleLoginHideScript } from "./src/utils/stale-login-hide-script.mjs"
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
-import { buildRobotsTxt, buildSitemapXml, injectPublicHead, isPublicSeoPath, publicPageHead, robotsContent, sitemapEntries } from "./src/utils/public-seo.mjs"
+import { STATIC_PUBLIC_PAGES, buildRobotsTxt, buildSitemapXml, injectPublicHead, isPublicSeoPath, publicPageHead, robotsContent, sitemapEntries } from "./src/utils/public-seo.mjs"
 import { plainStatics, writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
 import { writePublicCalendar } from "./src/node/pubcal/public-calendar-data.mjs"
 import { blogExtraLocales } from "./src/node/blog/sync-blog.mjs"
@@ -498,7 +498,7 @@ function publicSeoModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
       if (!SEO_INDEX) return
       const entries = sitemapEntries({
         codes: LOCALE_CODES, blogOnly: BLOG_EXTRA_LOCALES, defaultLocale: DEFAULT_LOCALE, help: helpSlugs(), pageSize: BLOG_PAGE_SIZE,
-        pages: PRERENDER_PAGES.filter((p) => isPublicSeoPath(p, LOCALE_CODES)),
+        pages: PRERENDER_PAGES.filter((p) => isPublicSeoPath(p, LOCALE_CODES)), staticPages: STATIC_PUBLIC_PAGES,
         blog: blogIndex(), today: new Date().toISOString().slice(0, 10),
       })
       writeFileSync(join(out, "sitemap.xml"), buildSitemapXml({ siteUrl: SITE_URL, defaultLocale: DEFAULT_LOCALE, entries }))

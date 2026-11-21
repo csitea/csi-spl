@@ -19,6 +19,15 @@
 export const SITE_NAME = 'spool-hub'
 /** the og/twitter picture of a page with none of its own */
 export const SITE_IMAGE = '/spool-hub-emblem-1120.webp'
+/**
+ * The static public pages under src/public (no JavaScript, one language):
+ * /about, the home page Google's OAuth verification reads (spec 149 section
+ * 12, SPL-6204), and the privacy policy and terms it links. Not Nuxt routes:
+ * Hosting serves the .html (cleanUrls). render-wui-firebase-json.sh sends
+ * them `index, follow` on an indexable build (its STATIC_PUBLIC_SOURCES, the
+ * same list; tests/unit/hosting-cache.test.mjs holds the two equal).
+ */
+export const STATIC_PUBLIC_PAGES = ['/about', '/privacy', '/terms']
 const PUBLIC_RE = /^\/(?:login|public-calendar|help(?:\/[a-z0-9][a-z0-9-]*)?|blog(?:\/.*)?)$/
 
 /**
@@ -218,6 +227,7 @@ export function buildRobotsTxt(o) {
     for (const p of ['/login', '/public-calendar', '/blog', '/help']) lines.push(`Allow: ${localizedPath(c, p, o.defaultLocale)}`)
   }
   for (const c of o.blogOnly || []) lines.push(`Allow: ${localizedPath(c, '/blog', o.defaultLocale)}`)
+  for (const p of STATIC_PUBLIC_PAGES) lines.push(`Allow: ${p}`)
   for (const a of ROBOTS_ASSETS) lines.push(`Allow: ${a}`)
   lines.push('', `Sitemap: ${o.siteUrl}/sitemap.xml`, '')
   return lines.join('\n')
@@ -231,8 +241,9 @@ const xmlEscape = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').
  * hreflang group, as the pages themselves declare them. `pages` = the public
  * pages prerendered in every locale (nuxt.config PRERENDER_PAGES: /login,
  * /public-calendar); default /login. The blog also has the blog-only
- * locales (`blogOnly`, env.blog.extra_locales).
- * @param {{ codes: string[], blogOnly?: string[], defaultLocale: string, today: string, help: string[], pageSize: number, pages?: string[],
+ * locales (`blogOnly`, env.blog.extra_locales). `staticPages`: the static
+ * one-language pages (STATIC_PUBLIC_PAGES), listed once after the help.
+ * @param {{ codes: string[], blogOnly?: string[], defaultLocale: string, today: string, help: string[], pageSize: number, pages?: string[], staticPages?: string[],
  *   blog: { locales?: Record<string, Array<{ id: string, date?: string, published?: string }>> } | null }} o
  * @returns {Array<{ base: string, code: string, langs: string[], lastmod: string }>}
  */
@@ -244,6 +255,7 @@ export function sitemapEntries(o) {
   for (const p of o.pages || ['/login']) all(p, o.today)
   const blogCodes = [...o.codes, ...(o.blogOnly || [])]
   for (const h of ['', ...o.help]) out.push({ base: h ? `/help/${h}` : '/help', code: o.defaultLocale, langs: [], lastmod: o.today })
+  for (const p of o.staticPages || []) out.push({ base: p, code: o.defaultLocale, langs: [], lastmod: o.today })
   const locales = o.blog?.locales || {}
   const en = locales.en || []
   /** @param {{ date?: string, published?: string }} e */

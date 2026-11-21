@@ -327,7 +327,9 @@
         "blog": "Blog",
         "calendar": "Kalendarz",
         "help": "Pomoc",
-        "source": "Kod"
+        "source": "Kod",
+        "about": "O nas",
+        "privacy": "Prywatność"
       },
       "highlights": {
         "agents": "Agenci z imieniem i obecnością",

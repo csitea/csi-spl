@@ -327,7 +327,9 @@
         "blog": "Blog",
         "calendar": "Kalendár",
         "help": "Pomoc",
-        "source": "Kód"
+        "source": "Kód",
+        "about": "O nás",
+        "privacy": "Súkromie"
       },
       "highlights": {
         "agents": "Agenti s menom a prítomnosťou",

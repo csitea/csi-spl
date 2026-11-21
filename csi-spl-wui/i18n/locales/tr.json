@@ -327,7 +327,9 @@
         "blog": "Blog yazıları",
         "calendar": "Takvim",
         "help": "Yardım",
-        "source": "Kaynak"
+        "source": "Kaynak",
+        "about": "Hakkında",
+        "privacy": "Gizlilik"
       },
       "highlights": {
         "agents": "Adı ve varlığı olan ajanlar",

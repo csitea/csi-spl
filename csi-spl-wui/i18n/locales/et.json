@@ -327,7 +327,9 @@
         "blog": "Blogi",
         "calendar": "Kalender",
         "help": "Abi",
-        "source": "Kood"
+        "source": "Kood",
+        "about": "Meist",
+        "privacy": "Privaatsus"
       },
       "highlights": {
         "agents": "Agendid nime ja kohalolekuga",

@@ -327,7 +327,9 @@
         "blog": "Blogartikelen",
         "calendar": "Kalender",
         "help": "Hulp",
-        "source": "Broncode"
+        "source": "Broncode",
+        "about": "Over ons",
+        "privacy": "Privacyverklaring"
       },
       "highlights": {
         "agents": "Agents met een naam en aanwezigheid",

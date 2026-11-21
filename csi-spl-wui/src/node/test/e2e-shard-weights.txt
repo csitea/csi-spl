@@ -20,6 +20,7 @@
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
+tests/e2e/about-page.test.mjs 7
 tests/e2e/act-as.test.mjs 13
 tests/e2e/add-to-note.test.mjs 138
 tests/e2e/agent-at-box.test.mjs 16

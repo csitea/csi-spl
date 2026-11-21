@@ -14,6 +14,15 @@
       <li class="ll__item">
         <a class="ll__link" :href="localePath('/help')" data-test="login-link-help">{{ t('auth.login.links.help') }}</a>
       </li>
+      <!-- spec 149 section 12 (SPL-6204): the static About page Google's app
+           verification reads, and the privacy policy; one language, so no
+           locale prefix -->
+      <li class="ll__item">
+        <a class="ll__link" href="/about" data-test="login-link-about">{{ t('auth.login.links.about') }}</a>
+      </li>
+      <li class="ll__item">
+        <a class="ll__link" href="/privacy" data-test="login-link-privacy">{{ t('auth.login.links.privacy') }}</a>
+      </li>
       <li class="ll__item">
         <a class="ll__link" :href="SOURCE_REPO_URL" target="_blank" rel="noopener noreferrer" data-test="login-link-source">{{ t('auth.login.links.source') }}</a>
       </li>

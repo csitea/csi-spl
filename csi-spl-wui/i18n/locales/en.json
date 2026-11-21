@@ -327,7 +327,9 @@
         "blog": "Blog",
         "calendar": "Calendar",
         "help": "Help",
-        "source": "Source"
+        "source": "Source",
+        "about": "About",
+        "privacy": "Privacy"
       },
       "highlights": {
         "agents": "Agents with a name and presence",

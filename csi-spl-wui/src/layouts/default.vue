@@ -136,7 +136,7 @@
           <div class="shell-late shell-late--bar" aria-hidden="true" />
           <div class="spool-shell">
             <div class="shell-late shell-late--side" aria-hidden="true" />
-            <div class="login"><p class="muted">{{ $t('app.loading') }}</p><BuyWorkspaceLink /></div>
+            <div class="login"><p class="muted">{{ $t('app.loading') }}</p><BuyWorkspaceLink /><p class="muted" data-test="shell-about-links"><a href="/about">{{ $t('auth.login.links.about') }}</a> · <a href="/privacy">{{ $t('auth.login.links.privacy') }}</a></p></div>
           </div>
         </div>
       </template>

@@ -1,7 +1,8 @@
 # Spec 189: A new topic lands at the list end
 
-Status: **Draft v0.1** (2026-11-21). Lane `c-601` (`claude`, backup for
-`specs_and_docs`: no agy cli on this box). Nothing below is built.
+Status: **Draft v0.2** (2026-11-21): the owner's four answers folded
+(section 1.1). Lane `c-601` (`claude`, backup for `specs_and_docs`: no agy
+cli on this box). Nothing below is built.
 Epic: **SPL-2403**. Issue: **SPL-6143**. Class: `feature`. Kind: `specs_and_docs`.
 Placement: `c002-s-new-topic-pinned-end-spec`.
 Discussion: `topic:a48d75d6-0385-4cfe-9316-5a859a6184f8` (`t1`), task
@@ -37,8 +38,8 @@ the default 3.
 
 ## 1. Owner questions (one form)
 
-My recommendation is the first option of each question. A part of this spec
-that depends on an answer is marked **[Qn]**.
+The form as posted (t1 `a48d75d6`, poll `7f51bc86`). My recommendation was
+the first option of each question; the owner chose it on all four (1.1).
 
 ```poll
 Q1 Whose new topic goes to the list end?
@@ -59,8 +60,29 @@ Q4 Is the pinned card marked?
 
 ### 1.1 The owner's answers
 
-None yet. The dispatch holder posts the form and relays the answers; v0.2
-folds them.
+HUM-10, t1 `a48d75d6`, msg `fa6d8718-dc40-4124-9602-00b13c446ab2`
+(08:09:48Z), relayed verbatim by the dispatch holder c-002@sat (spool msg
+`078d5ef8`):
+
+| Q | answer | what it decides |
+|---|---|---|
+| Q1 | **OWN**: only a topic I created myself (others' new topics keep today's unread edge) | D1, C5 |
+| Q2 | **RLD**: until I leave the channel or reload the page | D2, C6 |
+| Q3 | **YES**: yes, it shows while it is pinned | D3, C3 |
+| Q4 | **BDG**: yes, a small "new" badge on the card while it is pinned | D4, C7 |
+
+### 1.2 Decisions
+
+- **D1 whose.** Only a topic the viewer created in this tab is pinned. A
+  new topic from someone else arriving live is not pinned; it keeps today's
+  unread edge (2.4, last paragraph).
+- **D2 how long.** The pin lasts until the viewer leaves the channel (opens
+  another channel, a DM, Issues or any route off this channel) or reloads
+  the page. Opening a topic, changing the sort or the filter, and time do
+  not end it.
+- **D3 the New filter.** A pinned card is shown under **New** although it
+  is read.
+- **D4 the badge.** A pinned card carries a small "new" badge.
 
 ## 2. What exists (measured on `origin/master` `974d97031`)
 
@@ -141,18 +163,16 @@ already moves it to the edge, but behind any card with more unread
 
 1. I post a new topic in a channel (no parent task). The channel store
    records its `task_id` as **fresh** at the moment the pending row is drawn
-   **[Q1 OWN]**; under **[Q1 ANY]** it also records each new topic root that
-   arrives live in the open channel after the feed loaded.
+   (D1). A topic from anyone else is never fresh.
 2. Every redraw of the channel feed runs today's two steps (2.2), then a
    third: the fresh cards go to the very edge new posts go to (top for
    newest first, bottom for newest last), the newest fresh card outermost.
    The rest keep the order steps 1 and 2 gave them.
-3. Under **New**, a fresh card is kept even though it is read **[Q3 YES]**.
-4. While pinned, the card shows a "new" badge **[Q4 BDG]**.
-5. The pin ends **[Q2]**: on leaving the channel or a reload **[RLD]**; or
-   on opening another topic **[OPN]**; or on a change of sort or filter
-   **[SRT]**; or 10 minutes after the send **[MIN]**. Then the card takes
-   its place by the chosen sort like any other.
+3. Under **New**, a fresh card is kept even though it is read (D3).
+4. While pinned, the card shows a "new" badge (D4).
+5. The pin ends when I leave the channel or reload the page (D2). The next
+   time I open the channel the card takes its place by the chosen sort like
+   any other.
 
 The pin is view state only: no hub field, no rdb change, no change to the
 topic's priority (it stays 3 until someone sets it).
@@ -184,11 +204,11 @@ topic's priority (it stays 3 until someone sets it).
 
 | row | what | files | depends on | done test | red control |
 |---|---|---|---|---|---|
-| B1 | pure pin step `pinEdge(rows, freshIds, {atEnd})` and a `keep` set for `topicListView` under New **[Q3]** | `wui/utils/topic-list-order.mjs`, `wui/types/mjs-shims.d.ts`, `tests/unit/topic-list-order.test.mjs` | none | unit: C1..C4 of 7.1 on fixed rows, both orders, all 3 sorts x 2 filters | drop the pin step: the fresh P3 card under Priority is not at index 0 (newest first) / last (newest last) |
-| B2 | the fresh set, filled on a new-topic send **[Q1]**, cleared by the **[Q2]** rule | `wui/stores/channel.ts` (or a new `wui/composables/useFreshTopics.ts` if a clean-code ceiling in `channel.ts` is hit) | none | unit: a send with no parent adds its `task_id`; a reply adds none; the **[Q2]** trigger empties it | send a reply: the set must stay empty; a test that expects it filled fails |
+| B1 | pure pin step `pinEdge(rows, freshIds, {atEnd})` and a `keep` set for `topicListView` under New (D3) | `wui/utils/topic-list-order.mjs`, `wui/types/mjs-shims.d.ts`, `tests/unit/topic-list-order.test.mjs` | none | unit: C1..C4 of 7.1 on fixed rows, both orders, all 3 sorts x 2 filters | drop the pin step: the fresh P3 card under Priority is not at index 0 (newest first) / last (newest last) |
+| B2 | the fresh set, per channel, filled on the viewer's own new-topic send (D1), cleared when the open channel changes (D2); a reload clears it by being in memory | `wui/stores/channel.ts` (or a new `wui/composables/useFreshTopics.ts` if a clean-code ceiling in `channel.ts` is hit) | none | unit: a send with no parent adds its `task_id`; a reply adds none; a live topic root from another sender adds none; switching to another channel empties it; opening a topic or changing sort / filter keeps it | send a reply: the set must stay empty; a test that expects it filled fails |
 | B3 | wire B1 + B2 into the feed: `MessageFeed.vue` passes the fresh ids and the keep set; `LiveFeed.vue` `shown` runs `pinEdge` last, channel feed only (not a thread) | `wui/components/MessageFeed.vue`, `wui/components/LiveFeed.vue` | B1, B2 | e2e B5 | e2e B5 with B3 reverted is red |
-| B4 | the badge **[Q4 BDG]** (dropped on **[Q4 NO]**) | `wui/components/MessageCard.vue`, `csi-spl-wui/i18n/locales/*.json` (key `feed.topic_list.pinned_new`) | B3 | e2e B5 sees `[data-test="topic-pinned-new"]` on the fresh card only | the badge on a non-fresh card fails B5 |
-| B5 | e2e: create a topic in a mock channel that holds unread P1 cards, under each sort and both filters, in both message orders; the new card is first / last | `tests/e2e/topic-list-new-end.test.mjs` (new); mock rows in `wui/utils/spool-client-mock.mjs` only if the mock lacks a P1 unread card | B3 | `BASE_URL=<generated bundle> pnpm run test:e2e` green | run without B3: red on Priority and New |
+| B4 | the "new" badge (D4) | `wui/components/MessageCard.vue`, `csi-spl-wui/i18n/locales/*.json` (key `feed.topic_list.pinned_new`) | B3 | e2e B5 sees `[data-test="topic-pinned-new"]` on the fresh card only | the badge on a non-fresh card fails B5 |
+| B5 | e2e: create a topic in a mock channel that holds unread P1 cards, under each sort and both filters, in both message orders; the new card is first / last; it stays there after opening another topic and after changing the sort; after leaving the channel and coming back it sits by the sort, without the badge | `tests/e2e/topic-list-new-end.test.mjs` (new); mock rows in `wui/utils/spool-client-mock.mjs` only if the mock lacks a P1 unread card | B3 | `BASE_URL=<generated bundle> pnpm run test:e2e` green | run without B3: red on Priority and New |
 | B6 | help: a "Topic list" section (filter, sort, the pin) in `message-levels-and-topics.md`; one line in `user-settings.md` 5.3 that the edge follows Message order | `csi-spl-wui/src/public/help-md/message-levels-and-topics.md`, `csi-spl-wui/src/public/help-md/user-settings.md` | B3 | the help text states each of C1..C4 | n/a (docs) |
 | B7 | i18n: B4's key in every locale; agy reviews the text as the last step (language rule) | `csi-spl-wui/i18n/locales/*.json` | B4 | `tests/unit/i18n-parity.test.mjs`, `i18n-untranslated.test.mjs` green | a missing locale key: parity red |
 
@@ -222,19 +242,19 @@ that review and never ships unreviewed.
   is C1, whatever its priority (3 by default) and message count. The other
   cards keep exactly the order they have today (steps 1 and 2 of 2.2), so a
   list with no fresh card is unchanged.
-- **C3 the filter.** Under **New** a fresh card is kept **[Q3 YES]**; on
-  **[Q3 NO]** it is dropped like any read card, and C1 then holds only
-  under All.
+- **C3 the filter.** Under **New** a fresh card is kept although it is
+  read (D3), so C1 holds under both filters.
 - **C4 several fresh cards.** They form the outer group in send order, the
   newest outermost (index 0 / last).
-- **C5 whose.** **[Q1 OWN]**: only a topic the viewer created in this tab
-  (a send with no parent task). **[Q1 ANY]**: also a new topic root that
-  arrives live in the open channel after its first page loaded; a topic on a
-  loaded page is never fresh.
+- **C5 whose.** Only a topic the viewer created in this tab (a send with no
+  parent task) is fresh (D1). A new topic root from anyone else, live or on a
+  loaded page, is never fresh; it keeps today's unread edge (SPL-2506).
 - **C6 how long.** The fresh set is per tab, in memory, never stored (no
-  localStorage, no hub field), and it ends by the **[Q2]** rule. A reload
-  always ends it, whatever the answer.
-- **C7 the badge.** **[Q4 BDG]**: the card carries
+  localStorage, no hub field). It ends when the open channel changes (any
+  route that is not this channel's feed or one of its topics) or on a reload
+  (D2). Opening a topic of the same channel, changing the sort or the
+  filter, and elapsed time keep it.
+- **C7 the badge.** (D4) The card carries
   `data-test="topic-pinned-new"` and the text of key
   `feed.topic_list.pinned_new` while it is fresh, and loses both when the
   pin ends.
@@ -250,5 +270,12 @@ that review and never ships unreviewed.
 
 ## 8. Review
 
-v0.1 is for the owner's form (section 1). After the answers, v0.2 folds
-them, removes the losing branch of each **[Qn]**, and goes to review.
+v0.1 was for the owner's form (section 1). v0.2 folds the four answers
+(1.1, D1..D4) and drops the losing branch of each question; it goes to a
+spec review, placed by the dispatch holder, and lands on master only after
+that review's PASS and the holder's GO.
+
+| version | change |
+|---|---|
+| v0.1 | the ask, what exists, the flow, build rows, contracts, the owner form |
+| v0.2 | owner answers OWN / RLD / YES / BDG folded: 1.1, 1.2 D1..D4; section 3; rows B2, B4, B5; C3, C5, C6, C7 |

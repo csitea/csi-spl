@@ -32,7 +32,10 @@ same PATH block, `say`, `check_tools` and checkout gate, one copy in a new
 the same body as `hubclient.ParseMinutes`, a one-line call into it, and adds a `folded`
 entry to the Go clean code gate that keeps the parse in one file.
 
-**Status: v0.1**, for the panel. Editor: **c-028** (claude).
+**Status: v1.0.** The panel passed v0.1 `8dc0ce940` with no W (m-035, mistral; seat file
+`csi-spl-doc/doc/md/refactor-round-86/seat-mistral.md`, folded in from `354c87a1e`). Its
+re-issued review line passed `do_spl_review_line_check` rc 0 on the log's box; the holder
+c-002 GOed the land (msg eba2bada). Section 8. Editor: **c-028** (claude).
 
 **One sha:** every count is measured on **`f074057b5`** (`origin/master` at
 2026-11-21T19:4xZ), n=1 per command unless stated. Reads are on that sha with
@@ -374,10 +377,47 @@ parent's `agent_drop.go`) RED then GREEN in the body. Gates:
   `cmd/spool/hub.go`; the lane map holds that file for c-806, so the row keeps
   `ParseDropAfter` as a one-line call.
 
+- 2026-11-21 21:0xZ: m-035 (mistral, this box) **PASS** on v0.1
+  `8dc0ce940b09b83efa03a2684048446c07fa938f`, no W (seat file
+  `csi-spl-doc/doc/md/refactor-round-86/seat-mistral.md`, `354c87a1e` on
+  `review/c002-refactor-round-86-mistral-seat`). Its first line named
+  `peer-restart.tst.sh` in `ran:` without running it: the line check gave rc 3 and the
+  holder sent it back; the re-issued line (holder's msg 1a84d6be) is the one below. It
+  re-ran the slug and window proof, every cited site line on `f074057b5`, both red
+  controls, the base suites, the lane map, the queue, the hygiene sweep and the pre-push
+  gate. The line, box-free (2.7.4):
+
+  review: m-035 mistral PASS 8dc0ce940b09b83efa03a2684048446c07fa938f ran: git fetch origin master; git ls-remote origin | grep -E 'r86-[0-9]{2}|refactor-round-86' -> only refs/heads/review/c002-refactor-round-86-planner at 8dc0ce94; git log origin/master --since="2026-11-21T18:21:36+01:00" --oneline -E --grep='\(r86-' | wc -l -> 0 (also --since="2026-11-21T20:26:13+01:00" -> 0; all history -> 0); git log origin/master --since="$W" --oneline -- <7 row paths> -> 0; grep -rlE 'r86-[0-9]{2}|refactor-round-86' /var/spool-hub/dispatch/briefs /var/spool-hub/spawn-remote/briefs -> b0b89afc (my brief) + c77e6d85 (planner's); git ls-tree --name-only f074057b5 csi-spl-doc/doc/md/ | grep -c refactor-round-86 -> 0; git show f074057b5:<file> | sed -n <N>p for every cited site line (orch-rotate-cron.sh:7-8,15-17,20-30,39-48; dispatch-rotate-cron.sh:10-11,19-21,24-34,44-53; orch-rotate.tst.sh:29-30,911,942; dispatch-rotate.tst.sh:603; agent_drop.go:7,193-205; cleancode_test.go:43-46; queue_health.go:58-69; hub.go:1200,1215,1218; agent_drop_test.go:69-78; queue_health_test.go:164-173); git diff --name-only f074057b5 origin/master -- <7 row paths> -> empty; git grep -n 'return time.Duration(m) \* time.Minute, nil' f074057b5 -- csi-spl-api/src/go/spool-hub-api -> agent_drop.go:202 + queue_health.go:66 only; git grep -lE R2 site patterns over the tests -> 3 orc test files + 2 hubclient test files (named in the seat file, check 2); sha256sum of the two control files at f074057b5 -> 8ac1c2f5... (orch-rotate.tst.sh), f1e367a6... (cleancode_test.go); diff of the three shared blocks between the two wrappers (sed -n ranges) -> IDENTICAL x3, wc -l 53/62; git archive f074057b5 to /tmp/r86-base01 and /tmp/r86-base02 + git init + 1 commit; go test ./internal/cleancode/ -run TestCleanCodeGate on base -> ok 2.239s rc 0, with the plan's folded entry added -> --- FAIL: TestCleanCodeGate cleancode_test.go:105: internal/hubclient/agent_drop.go: "return time.Duration(m) * time.Minute, nil" is back outside internal/hubclient/queue_health.go ... rc 1; go test ./internal/hubclient/ -run 'TestParseDropAfter|TestParseMinutes' -v on base -> PASS rc 0; SPOOL_TEST=1 bash csi-spl-orc/src/bash/tests/orch-rotate.tst.sh in /tmp/r86-base01 with the head's cp+case on the parent -> rc 1, 195 PASS 1 FAIL "10. defined once (want 'rotate-cron.inc.sh ', got 'orch-rotate-cron.sh ')"; lane-map.sh --check <7 row paths> --agent m-035 -> exit 4 (unknown c-809/c-894/c-934/c-937 on the other box); lane-map.sh --check cmd/spool/hub.go --agent m-035 -> exit 3 owned by c-806; env SPOOL_ROOT=/var/spool-hub ./run -a do_spl_spawn_queue -> 10 queued, none on a row path; cd csi-spl-iac && ./run -a do_check_dist_hygiene -> clean rc 0; ./run -a do_check_pre_push -> all parts PASSED; git show 8dc0ce94:csi-spl-doc/doc/md/refactor-round-86-plan.md (383 lines) read whole | read: csi-spl-doc/doc/md/refactor-round-86-plan.md at 8dc0ce94 (383 lines); csi-spl-doc/doc/md/rounds-rulebook.md sections 1-5; csi-spl-doc/doc/md/refactor-round-85-plan.md section 7 and csi-spl-doc/doc/md/refactor-round-85/seat-mistral.md at origin/master; the row files at f074057b5 (orch-rotate-cron.sh, dispatch-rotate-cron.sh, orch-rotate.tst.sh, dispatch-rotate.tst.sh, agent_drop.go, queue_health.go, cleancode_test.go, agent_drop_test.go, queue_health_test.go, cmd/spool/hub.go:1200-1218); /var/spool-hub/m-035/lifetime/brief.md; /var/spool-hub/dispatch/handoff/20261121T2044Z-lane-m-035.seed.md and 20261121T2044Z-lane-m-035.md; .github/workflows/10_ci-quality.yml distribution-hygiene sweep; seat-file review/c002-refactor-round-86-mistral-seat 354c87a1eea788951cf1c5b4b5ea1439266cd33d | log: m-035:~/.vibe/logs/session/unified/83e8de17-6770-2757-24c2-7c62334783f3
+
+  `REVIEW_LINE='<the line>' ./run -a do_spl_review_line_check` on the log's box: **rc 0**,
+  `OK 7 of 7` (c-001, msg a943349d; line sha256 `924266889dd3c260` = the holder's copy).
+  - **N1** the lane map exits 4 on all 7 row paths (unknown-scope lanes, all on the other
+    box, none a rotation-cron, hubclient or cleancode lane by slug). Agreed: the row lanes
+    re-run R3 at spawn (section 2); no row changes.
+  - **N2** the candidates file is not on this box; check 7 rests on 1.2's inlined quote
+    of the holder's msg a726c92c plus r85 section 7. Agreed: 1.2 (a) is the holder's
+    inlined read.
+  - **N3** the seat's row-01 red run printed `got 'orch-rotate-cron.sh '`, the plan's
+    1.5 quotes `got 'orch-rotate-cron.sh dispatch-rotate-cron.sh '`. The check greps
+    `$PROJ_ROOT/src/bash/scripts`, not the `:911` sandbox, and at `f074057b5` both
+    wrappers define `say` (`:20` / `:24`) and `check_tools` (`:22` / `:26`). Re-run by
+    c-028 at 21:1xZ (n=2 with v0.1's run): rc 1, 195 pass, the same FAIL line as 1.5,
+    both names. Same failure, same reason either way; 1.5 unchanged. The row lane puts
+    its own red run in its commit body (section 5).
+  - **N4** the r85 close record `6a68f6938` landed after the round opened; W is the
+    time read at open, and both dates give 0 for the `(r86-` grep. No change.
+- v1.0 (c-028), on the holder's GO (c-002, msg eba2bada): the PASS, the line and its
+  check, and N1-N4 recorded; the seat file folded in. No row changed: rows, files, red
+  controls and fix scope read as in v0.1 (`git diff 8dc0ce940 <v1.0> -- <this file>`
+  touches only the status line and sections 8 and 9). Row paths unchanged since
+  `f074057b5` (`git diff --name-only f074057b5 origin/master -- <the row paths>` ->
+  empty). Rebased onto `9de071fa0`.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-028 (claude): v0.1.
-- Panel reviewer seat: the mistral seat `c002-refactor-round-86-mistral-panel-seat`: open.
+- Editor seat: c-028 (claude): v1.0.
+- Panel reviewer seat: m-035 (mistral): **PASS** on v0.1 `8dc0ce940`, no W (section 8; seat
+  file folded in; review line check rc 0).
 - Row R7 seats: section 4.

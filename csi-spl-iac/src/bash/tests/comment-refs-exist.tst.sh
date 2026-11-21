@@ -227,8 +227,9 @@ grep -q '@output' "$tf" && pass "site 3 has an @output line" || fail "site 3 has
 
 pm="$APP_ROOT/csi-spl-orc/lib/bash/funcs/parse-metadata.func.sh"
 grep -q 'zip-jira-ticket' "$pm" && fail "site 4 still cites zip-jira-ticket" || pass "site 4 dropped zip-jira-ticket"
-grep -q 'src/bash/run/tf-030-import-existing-cloud-run.func.sh' "$pm" \
-  && pass "site 4 example is a real action" || fail "site 4 example is not the 030 action"
+ex=$(sed -nE 's/^# @example do_parse_metadata "([^"]+)"$/\1/p' "$pm")
+[[ -n "$ex" && -f "$APP_ROOT/csi-spl-orc/$ex" ]] \
+  && pass "site 4 example is a real file ($ex)" || fail "site 4 example is not a file of orc: '$ex'"
 
 sm="$APP_ROOT/csi-spl-iac/src/bash/run/gcp-sm-secrets-to-env-file.func.sh"
 # B18 removed the dead action. Row 30 checked comments inside that file;

@@ -7,9 +7,12 @@
 #          iac and orc split it into six steps (r14-09). The three copies
 #          of lib/bash/funcs/validate-params.func.sh (iac, orc, utl) are
 #          held the same way (r82-02): orc's lost two comments in r3-28.
+#          So are the three of lib/bash/funcs/parse-metadata.func.sh
+#          (r83-02): their @example lines each named a file another
+#          module lacks.
 #   Checks: cmp of iac vs orc, utl and the root copy; the root copy is a
 #   real file, not a link to a module's; cmp of iac's validate-params.func.sh
-#   vs orc's and utl's.
+#   and parse-metadata.func.sh vs orc's and utl's.
 #   Control: a copy with one byte changed fails the same cmp, so the check
 #   is not blind.
 #------------------------------------------------------------------------------
@@ -33,13 +36,15 @@ for mod in orc utl root; do
     fail "iac and $mod run.sh differ" "diff $ref $src"
   fi
 done
-vp="$REPO_ROOT/csi-spl-iac/lib/bash/funcs/validate-params.func.sh"
-for mod in orc utl; do
-  if cmp -s "$vp" "$REPO_ROOT/csi-spl-$mod/lib/bash/funcs/validate-params.func.sh"; then
-    pass "iac and $mod validate-params.func.sh are byte-identical"
-  else
-    fail "iac and $mod validate-params.func.sh differ" "diff $vp $REPO_ROOT/csi-spl-$mod/lib/bash/funcs/validate-params.func.sh"
-  fi
+for h in validate-params parse-metadata; do
+  vp="$REPO_ROOT/csi-spl-iac/lib/bash/funcs/$h.func.sh"
+  for mod in orc utl; do
+    if cmp -s "$vp" "$REPO_ROOT/csi-spl-$mod/lib/bash/funcs/$h.func.sh"; then
+      pass "iac and $mod $h.func.sh are byte-identical"
+    else
+      fail "iac and $mod $h.func.sh differ" "diff $vp $REPO_ROOT/csi-spl-$mod/lib/bash/funcs/$h.func.sh"
+    fi
+  done
 done
 if [[ -f "$REPO_ROOT/src/bash/run/run.sh" && ! -L "$REPO_ROOT/src/bash/run/run.sh" ]]; then
   pass "the root run.sh is a real file"

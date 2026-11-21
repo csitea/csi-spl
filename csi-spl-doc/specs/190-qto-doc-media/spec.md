@@ -1,6 +1,7 @@
-# Spec 190: Media in Qto docs (pictures, video, audio)
+# Spec 190: Media in Qto docs (pictures, video, audio, files)
 
-Status: **Draft v0.1** (2026-11-21). Lane `c-700` (`claude`, backup for
+Status: **Draft v0.2** (2026-11-21): the owner's answers are in (section
+1.1). Lane `c-700` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). Nothing below is built.
 Epic: **SPL-2403**. Issue: **SPL-6152** (priority 5, the owner's `prio:05`).
 Class: `feature`. Kind: `specs_and_docs`.
@@ -14,7 +15,10 @@ the `foo.assets/` picture layout),
 [113 workspace docs](../113-workspace-docs-qto/spec.md) and
 [120 Qto doc tree](../120-qto-doc-tree/spec.md). It extends the Qto picture
 path (section 2.4). The post attachment path (section 2.3) was measured; only
-its streaming upload, its quota and its sweep are reused.
+its streaming upload, its quota and its sweep are reused. v0.2 re-read the
+parts it changes on `origin/master` `a83052abd`; the files cited in 2.3, 2.4,
+052 and `-doctree-api.ts` have no diff between `cd2012822` and `a83052abd`
+(`git diff --stat cd2012822 a83052abd -- <those paths>` -> empty).
 
 Number: the highest spec on `origin/master` `cd2012822` is
 `188-channel-rules-dialog`
@@ -53,9 +57,9 @@ the owner wrote "s3".
 ## 1. Owner questions (one form)
 
 The holder posts this form. The first option of each question is the
-recommendation. Keys are at most 3 characters. Every later section marks
-what it depends on as **[Qn X]**; an answer other than the first option
-rewrites only those parts.
+recommendation. Keys are at most 3 characters. In v0.1 every later
+section marked what it depended on as a Q mark; v0.2 settled them all
+(section 1.1).
 
 Recommended: **Q1 A, Q2 A, Q3 A, Q4 A, Q5 A, Q6 A, Q7 A**. "s3" is met by
 the workspace's own GCS bucket (S3-compatible API, no AWS needed).
@@ -93,8 +97,38 @@ Q7. Print, PDF and markdown export?
 
 ### 1.1 The owner's answers
 
-None yet. The holder relays them; v0.2 writes them in here and removes
-the **[Qn]** marks the answers settle.
+HUM-10, t1 `bc3df46d`, msg `653f9c91-6f1d-4dd7-b835-0cf30e258de2`
+(08:13:22Z, poll `fd47ab36`), relayed by the dispatch holder (msg
+`5ada054b`):
+
+| q | answer | vs the recommendation |
+|---|---|---|
+| Q1 | **A**: each workspace's own private GCS bucket (step 052), next to its Qto pictures | same |
+| Q2 | **B**: a short-lived signed URL (5 min) issued after the doc check (works for anyone holding it until it expires) | **differs** (A was hub-proxied) |
+| Q3 | **A**: picture 5 MiB, audio 32 MiB, video 32 MiB; inside the workspace's 10 GiB file quota | same |
+| Q4 | **B**: A, plus any other file shown as a download card | **differs** (A was media only) |
+| Q5 | **A**: upload button, drag and drop and paste | same |
+| Q6 | **A**: access follows the doc at every fetch; a file no doc names is deleted after a 7-day grace | same |
+| Q7 | **A**: pictures print inline; video and audio print as a card; md export keeps the link | same |
+
+What the two changed answers change, and where:
+
+- **Q2 B.** The hub never serves media bytes. After the doc check it
+  signs a GCS V4 URL valid 300 s, and the browser reads the bucket
+  directly: issuing (C5), expiry and refresh (C8), `Range` and seek, which
+  GCS answers itself (section 3 step 5), the CSP `media-src` and `img-src`
+  for the bucket host (G5, C9), and the bearer property: **a leaked URL
+  works for anyone until it expires** (section 4). The signing needs a
+  grant the estate does not have (G9, row T2). Gap G2 (the hub has no
+  `Range` read) is no longer on the media path; row B1 becomes the signer.
+- **Q4 B.** Any other file is kind `file`: stored, counted and swept like
+  media, never rendered inline, shown as a download card, served by a
+  signed URL that forces `Content-Disposition: attachment` and
+  `Content-Type: application/octet-stream`, with a deny list of executable
+  types (C3, C10, row W4).
+
+Every other section is written for these answers; no **[Qn]** mark is
+left open.
 
 ## 2. What exists (measured on `origin/master` `cd2012822`)
 
@@ -218,18 +252,37 @@ function and its comment (`wsdoc_media.go:26,49`).
   `img-src 'self' data:`, `connect-src 'self' <hub>` and **no `media-src`**:
   a `<video>` or `<audio>` falls back to `default-src 'self'`, so today it
   can play neither a hub URL nor a `blob:` URL (G5).
-- The session cookie is `SameSite=Lax` (`api/auth/handler.go:1676`); the
-  WUI calls the hub with `credentials: api.credentials`
-  (`-doctree-api.ts:59`). I believe, unchecked, that a
-  `<video crossorigin="use-credentials">` on the hub's origin sends that
-  cookie (the WUI and the hub are the same site); row W2 proves it in
-  Chrome before anything relies on it.
+- The WUI calls the hub with `credentials: api.credentials`
+  (`-doctree-api.ts:59`). Under Q2 B the bucket read carries no cookie and
+  no `crossorigin` attribute: the signature in the URL is the credential,
+  so the v0.1 question about `use-credentials` on `<video>` is moot.
+- Both CSPs (`nuxt.config.ts:156-164` and `csi-spl-wui/firebase.json:39`)
+  have `img-src 'self' data:` and no `media-src`; neither names a bucket
+  host (`git grep -n storage.googleapis.com origin/master --
+  csi-spl-wui/nuxt.config.ts csi-spl-wui/firebase.json` -> none).
+- `Referrer-Policy: strict-origin-when-cross-origin`
+  (`nuxt.config.ts:802`, `firebase.json:27-28`): a request to the bucket
+  carries only the WUI's origin, never the doc page's path.
+
+### 2.7 Signing on the estate
+
+- No code signs a URL: `git grep -n -iE
+  'SignedURL|SignURL|signBlob|Presign' origin/master -- csi-spl-api` finds
+  only the aws sdk's indirect `presigned-url` module in `go.mod:51` and
+  `go.sum`.
+- The hub holds no key (repo rule: no key outside the out-of-band project
+  keys). A keyless V4 signature on Cloud Run goes through the IAM
+  Credentials `signBlob` call, which needs `iam.serviceAccounts.signBlob`
+  on the signing SA. The only `roles/iam.serviceAccountTokenCreator` grants
+  in terraform are `055-gcp-kms-marketing/04-hub-key-grant.tf:17-21` (the
+  kms check SA on the runtime SA) and `056-gcs-box-state/04-box-writer.tf:25`;
+  **the runtime SA has none on itself** (G9).
 
 ## 3. The flow, end to end
 
 1. **Insert** (WUI editor): the existing picture controls widen to media.
-   The file picker, a paste and a drop take a picture, a video or an audio
-   file **[Q4 A, Q5 A]**. The editor checks type and size as the hub does
+   The file picker, a paste and a drop take a picture, a video, an audio
+   file or any other file (Q4 B, Q5 A). The editor checks type and size as the hub does
    (C3) before any byte leaves the browser.
 2. **Upload**: `POST /v1/workspace/doctree/{doc}/media` with the bytes and
    their `Content-Type` (C2). The hub runs `docTreeCaller(rbac.DocsWrite)`
@@ -239,30 +292,49 @@ function and its comment (`wsdoc_media.go:26,49`).
    a scratch key while hashing it (as `streamUpload`; never `readAllCapped`
    for video, which holds the whole body in memory), sniffs the first 512
    bytes and promotes it to `qto-media/<sha256>.<ext>` in the workspace's
-   bucket **[Q1 A]**.
+   bucket (Q1 A). A file outside the media table of C3 is kind `file`,
+   refused if its extension is on the deny list (C3), stored with
+   `Content-Type: application/octet-stream` whatever was sent.
 3. **Reference**: the hub answers `{name, bytes, kind, http_path}`; the
    editor writes the token `![caption](<http_path>)` at the cursor. It is
    the token pictures use, so `-doc-pics.ts` `picRuns`, export and print
-   find it. The doc's text names the file; the media index records it (C6).
-4. **Render** (WUI viewer): a token whose path ends in a picture extension
-   stays an `<img>` (data: URL, as today). A video extension renders
-   `<video controls preload="metadata" crossorigin="use-credentials">`, an
-   audio one `<audio controls preload="metadata" ...>`, both with `src` =
-   the hub URL, streamed with `Range`, never read whole into a data: URL
-   **[Q2 A]**. This needs `media-src` in the CSP (G5, row W2).
-5. **Fetch with the access check**:
-   `GET /v1/workspace/doctree/{doc}/media/{name}` runs the doc read check of
-   section 2.2 on **every** request (C1), then serves the object with
-   `http.ServeContent` semantics (`Range`, `206`, `Accept-Ranges`), the
-   stored type, `nosniff`, CSP `sandbox` and `Cache-Control: private,
-   no-cache` (not `immutable`: a revoked reader's browser must go back to
-   the door, C5) **[Q2 A]**.
-6. **Delete / GC**: removing a token from a section, deleting a section or
+   find it. The doc's text names the hub path, **never a signed URL**
+   (a signed URL expires in 5 minutes and is a bearer link); the media
+   index records the file (C6).
+4. **Issue** (Q2 B): for each media token on screen the viewer calls
+   `POST /v1/workspace/doctree/{doc}/media/{name}/url`. The hub runs the
+   doc read check of section 2.2 (C1) and, only if it passes, signs a GCS
+   V4 `GET` URL for the object, valid **300 s**, with the response headers
+   pinned in the signed query (C5). It answers `{url, expires_at}` with
+   `Cache-Control: no-store` and never logs the query string.
+5. **Render and fetch**: the `src` of an `<img>` (kind `image`), a
+   `<video controls preload="metadata">` or an `<audio controls
+   preload="metadata">` is the signed URL; no `crossorigin` attribute, no
+   `fetch()`, so the bucket needs no CORS. The browser reads the bucket
+   directly. **Range and seek**: GCS answers `Range` on a signed `GET` with
+   `206` itself; `Range` is not a signed header, so every seek inside the
+   300 s works with the same URL, and no byte passes through the hub (G2
+   is off the media path). A kind `file` token renders a **download card**
+   (name, type, size) whose link asks for a fresh URL on click; the signed
+   response forces `attachment` (C10). The CSP must allow the bucket host
+   in `media-src` and `img-src` (G5, C9, row W2). Pictures inserted by the
+   two existing picture routes (section 2.4) keep their hub path unchanged;
+   only files uploaded through the media route are signed.
+6. **Expiry and refresh** (C8): a URL is used only to start a read. A
+   player that is still open asks for a new URL before `expires_at - 60 s`
+   and swaps `src` keeping `currentTime` and the paused state; a `403` from
+   the bucket (expired, or a seek after a sleep) makes the viewer ask once
+   more, and a `404` from the issue route (access gone) replaces the player
+   with "no longer available". The door is asked again at every issue, so a
+   reader who loses access can start no new read; a URL already issued
+   works **until it expires, for anyone holding it** (section 4).
+7. **Delete / GC**: removing a token from a section, deleting a section or
    deleting the doc leaves the object in place. The sweep deletes a
    `qto-media/` object no doc of the workspace names once the grace has
-   passed **[Q6 A: 7 days]**, and a 052 lifecycle rule expires its
+   passed (Q6 A: 7 days), and a 052 lifecycle rule expires its
    noncurrent generation (G7). Sharing, unsharing or locking the doc
-   changes nothing in storage: the next fetch's check answers it (C1).
+   changes nothing in storage: the next issue's check answers it (C1),
+   and URLs already out lapse within 300 s.
 
 ### 3.1 Reused
 
@@ -272,6 +344,7 @@ function and its comment (`wsdoc_media.go:26,49`).
   unchanged.
 - `streamUpload`, `keepUpload` and `fileUsage` (`api/hub/rest.go:105,131`,
   `fileusage.go`): streaming, dedup by sha256, the 10 GiB quota.
+- GCS itself for the read: `Range`, `206`, the bytes. The hub serves none.
 - The own-bucket orphan sweep of `qto-assets/` (SPL-2963), widened to
   `qto-media/` and `.doctree/` (G6).
 - The WUI picture controls, the token, `picRuns`, print and md export.
@@ -281,44 +354,60 @@ function and its comment (`wsdoc_media.go:26,49`).
 | id | gap | where | row |
 |---|---|---|---|
 | G1 | no route takes video or audio; the picture routes cap at 5 MiB and hold the body in memory | `wsdoc_media.go:34,80` | H1 |
-| G2 | no `Range` read: a 30 MiB video downloads whole before it plays, and a seek downloads it again | `rest.go:245`, `wsdoc_media.go:130`; `blob.Store` has no range read | B1, H2 |
+| G2 | no `Range` read in the hub. **Off the media path under Q2 B**: GCS answers `Range` on the signed URL | `rest.go:245`, `wsdoc_media.go:130` | none |
 | G3 | no media index: the sweep would have to parse every body to know what a doc names | `wsdoc_assets.go:310` (`fileKept` asks the root attrs only) | D1 |
 | G4 | the WUI reads every picture into a data: URL; a video read that way is the whole file in memory | `-doctree-api.ts:57-61` | W2 |
-| G5 | no `media-src` in the deployed CSP | `nuxt.config.ts:156-160` | W2 |
+| G5 | no `media-src`, and `img-src` without the bucket host, in both CSPs | `nuxt.config.ts:156-164`, `firebase.json:39` | W2 |
 | G6 | `.doctree/<doc>/` pictures are never swept | section 2.4 | H3 |
 | G7 | 052 keeps a deleted object's noncurrent generation for ever outside `backup/` | `052-.../03-workspace-docs-buckets.tf:38-41` | T1 |
-| G8 | Cloud Run's request size limit: I believe, unchecked, that an HTTP/1 request body over 32 MiB is refused before the hub sees it, so caps above 32 MiB need a resumable or chunked upload **[Q3 B]** | Cloud Run | H1 measures it first |
+| G8 | Cloud Run's request size limit: I believe, unchecked, that an HTTP/1 request body over 32 MiB is refused before the hub sees it. Q3 A caps at 32 MiB, so it bites only if a cap is raised later | Cloud Run | H1 measures a 32 MiB upload on dev first |
+| G9 | no URL signer: no signing code, and the runtime SA holds no `signBlob` on itself | section 2.7 | T2, B1 |
+| G10 | no path for a non-media file in a doc, and no download card | section 2.4 (sniffed pictures only) | H1, W4 |
 
 ## 4. The access rule (M3)
 
 **Can read the doc = can read its media. Nothing else can.**
 
-- The media route asks exactly the doc read's question, in the same
+- The issue route asks exactly the doc read's question, in the same
   request, with the same caller resolution and the same `human_lock` mark:
-  no cached past answer, no capability in the URL.
+  no cached past answer. A URL is issued only after that answer is yes.
 - The `name` (a sha256) is **not** a capability. The object is looked up
   under the doc in the path, and that doc must pass the check; a sha256
   known from another doc or another workspace answers 404 (C1).
 - Never a public link: the bucket keeps `public_access_prevention =
-  enforced`, no object ACL, no signed URL **[Q2 A]**. Under **[Q2 B]** a
-  signed URL is a bearer link for its TTL; the form says so.
+  enforced`, no object ACL, no CORS. The signed URL is not a public link,
+  but it **is a bearer link** (the owner chose this, Q2 B): whoever holds
+  it, signed in or not, in this workspace or not, reads that one object
+  until it expires. So:
+  - the TTL is 300 s and is not a parameter of the call (C5);
+  - a reader who loses access (unshared, removed, the doc locked to
+    someone else, the doc deleted) can start no new read, but a URL issued
+    before that keeps working **for up to 300 s**; "access follows the doc
+    at every fetch" (Q6 A) holds at the issue, not at each byte;
+  - the URL is never written into a doc body, an export, a print, a post,
+    a log line or an error (C6, C8); hub logs carry the route and the
+    name, never the query;
+  - a copied URL forwarded to someone else works for the rest of its
+    300 s; nothing in GCS revokes one early except deleting the object;
+  - `Referrer-Policy: strict-origin-when-cross-origin` (section 2.6) keeps
+    the doc page's path out of the bucket request.
 - "Not yours" and "no such file" answer the same 404, as the attachment
   door does (`rest.go:196-205`).
-- Agents: an agent token reads media as it reads the doc (`docTreeWho`),
-  and never a doc locked to a human.
+- Agents: an agent token is issued URLs as it reads the doc
+  (`docTreeWho`), and never for a doc locked to a human.
 
-## 5. Data (rdb) **[Q4, Q6 A]**
+## 5. Data (rdb)
 
 One new tenant table, the media index (G3), at the next free migration
 number:
 
 `workspace_doc_media (tenant_id, doc_id, sha256, ext, kind, bytes, name, created_by, created_at)`,
-primary key `(tenant_id, doc_id, sha256)`, `kind IN ('image','video','audio')`
-**[Q4 A]** (`'file'` added under **[Q4 B]**), RLS like `workspace_doc_item`
+primary key `(tenant_id, doc_id, sha256)`, `kind IN
+('image','video','audio','file')` (Q4 B), RLS like `workspace_doc_item`
 (the tenant policy, plus the `human_lock` RESTRICTIVE policy through
 `doc_id`). The upload writes it with `INSERT ... ON CONFLICT DO NOTHING`.
 The doc's text stays the truth of what is shown; the index is what the
-read door (C1), the sweep and the quota read. A row is dropped once no
+issue door (C1), the sweep and the quota read. A row is dropped once no
 body of its doc has carried its token for the grace; an object is deleted
 once no row names it (C7).
 
@@ -326,29 +415,32 @@ once no row names it (C7).
 
 | row | what | files | depends on | done test | red control |
 |---|---|---|---|---|---|
-| T1 | 052: a lifecycle rule deleting noncurrent `qto-media/`, `qto-assets/` and `.doctree/` generations after 7 days; `make do-tf-plan` dev and prd, apply on the owner's go | `tf/052-gcs-workspace-docs/03-workspace-docs-buckets.tf`, `02-variables.tf`, `cnf/all.env.yaml`; `do_tpl_gen` | Q1 A, Q6 | plan: 0 to destroy, N in-place; `git diff --exit-code` after `ENV=<env> ./run -a do_tpl_gen` | a plan that replaces a bucket is refused |
-| B1 | `blob.Store` range read: `GetRange(ctx, key, off, n)` and `Size` in the GCS (`NewRangeReader`), S3 (`Range` header), cached and Dir drivers | `api/blob/blob.go`, `api/blob/s3.go`, `api/blob/cached.go` + tests | none | `go test ./internal/blob` reads bytes 10-19 of a fixture on every driver | a driver returning the whole object fails the length assert |
-| D1 | migration `workspace_doc_media` + RLS + `human_lock`; store methods `DocMediaPut`, `DocMediaNamed`, `DocMediaSweep` | `rdb/<next>_workspace_doc_media.sql`, `api/store/workspace_docs_media.go` + Postgres tests | Q4, Q6 | `TestRLSCoversEveryTenantTable` green; a locked doc's row is invisible to another human | the table without its policy fails `TestRLSCoversEveryTenantTable` |
-| H1 | hub upload `POST .../media`: caller + doc check, per-type cap and quota on the declared length, stream to scratch, sniff, promote to `qto-media/`, index row; first measure G8 on dev | `api/hub/wsdoc_media_av.go` (new), route next to `wsdoc_tree.go:143-146` | D1, Q3, Q4 | Go tests: a 20 MiB mp4 is stored; a 33 MiB one is 413 before the body; an mp4 sent as `audio/mpeg` is 415; an agent token stores | the route with `readAllCapped` in place of the stream fails the memory bound test |
-| H2 | hub read `GET .../media/{name}`: the doc check on every request, `Range`/`206`, the headers of C5 | same file | B1, D1, Q2 | Go tests: `Range: bytes=0-99` -> 206 + 100 bytes; another workspace's sha -> 404; a doc locked to someone else -> 404 | the route without `DocHeadOf` must FAIL the 404 tests |
-| H3 | sweep: `qto-media/` and `.doctree/<doc>/` objects no doc names, after the grace | `api/hub/file_retention.go`, the own-store walk of SPL-2963 | D1, Q6 | Go test on a fake clock: a deleted doc's video is gone after grace + 1 s, a named one stays | the sweep without the `qto-media/` prefix leaves the gone doc's video and fails |
-| W1 | WUI editor: picker, paste and drop accept video and audio; client caps; the token | `wui/composables/useDocPictures.ts` (or a sibling `useDocMedia.ts`), `-doctree-api.ts` | the C2 contract only, Q4, Q5 | unit test of the type and size checks; e2e on the mock hub inserts an mp4 and sees the token | a 40 MiB file reaching the mock hub fails the test |
-| W2 | WUI viewer: `<video>` / `<audio>` with the hub `src`; `media-src 'self' <hub>` in `CSP_PROD` and `firebase.json` | `WorkspaceDocView.vue`, `-doc-pics.ts`, `csi-spl-wui/nuxt.config.ts`, `csi-spl-wui/firebase.json` | the C5 contract only, Q2 | Chrome e2e: the video plays and seeks, a 206 in the network log; `csp-violations.test.mjs` 0 violations | the CSP without `media-src` must make `csp-violations` FAIL |
-| W3 | print, PDF and md export of media | `WorkspaceDocPrint.vue`, `-doctree-export.ts` | W2, Q7 | print snapshot shows the media card; the md export keeps the token byte-stable | an export that drops the token fails the round trip |
-| E1 | e2e on dev: upload, play, lock or unshare, the next fetch is 404 | `csi-spl-wui/tests/e2e/` | H1, H2, W1, W2 | the lock flips the fetch from 206 to 404 within one request | the same test against a route without the check must FAIL |
+| T1 | 052: a lifecycle rule deleting noncurrent `qto-media/`, `qto-assets/` and `.doctree/` generations after 7 days; `make do-tf-plan` dev and prd, apply on the owner's go | `tf/052-gcs-workspace-docs/03-workspace-docs-buckets.tf`, `02-variables.tf`, `cnf/all.env.yaml`; `do_tpl_gen` | none | plan: 0 to destroy, N in-place; `git diff --exit-code` after `ENV=<env> ./run -a do_tpl_gen` | a plan that replaces a bucket is refused |
+| T2 | the runtime SA may sign as itself: `roles/iam.serviceAccountTokenCreator` (or a custom role holding only `iam.serviceAccounts.signBlob`) of the runtime SA **on the runtime SA only**, never on the project; `make do-tf-plan` dev and prd, apply on the owner's go | a new file in the step that owns the runtime SA's grants (030 or 055; the lane reads both and picks the one that defines the runtime SA) | none | plan: 1 to add, 0 to change or destroy; the signer test of B1 on dev gets a 200 from the bucket | the same call before the apply answers `IAM_PERMISSION_DENIED`, recorded in the row's note |
+| B1 | the signer: `blob.Signer` with `SignGet(ctx, key, ttl, respType, respDisposition) (url, expires)`; GCS: V4 through IAM Credentials `signBlob` (no key), host from cnf; S3: the sdk presign; Dir (lde, tests): an HMAC'd hub route with the same expiry and headers | `api/blob/sign.go` (new), `api/blob/s3.go` + tests | T2 for the dev check only | `go test ./internal/blob`: a Dir URL works at 299 s and answers 403 at 301 s on a fake clock; `Range: bytes=10-19` through the Dir URL answers 206 + 10 bytes | a signer that drops `response-content-disposition` from the signed query fails the header assert |
+| D1 | migration `workspace_doc_media` + RLS + `human_lock`; store methods `DocMediaPut`, `DocMediaNamed`, `DocMediaSweep` | `rdb/<next>_workspace_doc_media.sql`, `api/store/workspace_docs_media.go` + Postgres tests | none | `TestRLSCoversEveryTenantTable` green; a locked doc's row is invisible to another human | the table without its policy fails `TestRLSCoversEveryTenantTable` |
+| H1 | hub upload `POST .../media`: caller + doc check, per-type cap and quota on the declared length, stream to scratch, sniff, promote to `qto-media/`, index row; kind `file` with the deny list of C3; first measure G8 on dev | `api/hub/wsdoc_media_av.go` (new), route next to `wsdoc_tree.go:143-146` | D1 | Go tests: a 20 MiB mp4 is stored; a 33 MiB one is 413 before the body; an mp4 sent as `audio/mpeg` is 415; a `.pdf` is kind `file`, stored as `application/octet-stream`; an `.exe` is 415 `denied_type`; an agent token stores | the route with `readAllCapped` in place of the stream fails the memory bound test |
+| H2 | hub issue `POST .../media/{name}/url`: the doc check on every call, then `SignGet` with TTL 300 s and the response headers of C5/C10; `no-store`; the query never logged | same file | B1, D1 | Go tests: a reader gets `{url, expires_at}` with `expires_at - now = 300 s`; another workspace's sha -> 404; a doc locked to someone else -> 404; a kind `file` URL carries `attachment` and `application/octet-stream`; the log capture holds no `X-Goog-Signature` | the route without `DocHeadOf` must FAIL the 404 tests |
+| H3 | sweep: `qto-media/` and `.doctree/<doc>/` objects no doc names, after the grace | `api/hub/file_retention.go`, the own-store walk of SPL-2963 | D1 | Go test on a fake clock: a deleted doc's video is gone after grace + 1 s, a named one stays | the sweep without the `qto-media/` prefix leaves the gone doc's video and fails |
+| W1 | WUI editor: picker, paste and drop accept video, audio and any other file; client caps and the deny list; the token | `wui/composables/useDocPictures.ts` (or a sibling `useDocMedia.ts`), `-doctree-api.ts` | the C2/C3 contracts only | unit test of the type, deny and size checks; e2e on the mock hub inserts an mp4 and a pdf and sees both tokens | a 40 MiB file or an `.exe` reaching the mock hub fails the test |
+| W2 | WUI viewer: the issue call, `<img>` / `<video>` / `<audio>` with the signed `src`, refresh before expiry keeping `currentTime`, the 403 retry and the 404 "no longer available"; the bucket host (from cnf) in `media-src` and `img-src` of `CSP_PROD` and `firebase.json` | `WorkspaceDocView.vue`, `-doc-pics.ts`, `-doctree-api.ts`, `csi-spl-wui/nuxt.config.ts`, `csi-spl-wui/firebase.json` | the C5/C8/C9 contracts only | Chrome e2e on the mock hub with the Dir signer: the video plays and seeks (206 in the network log), a fake clock past 240 s swaps `src` and keeps `currentTime`; `csp-violations.test.mjs` 0 violations | the CSP without the bucket host in `media-src` must make `csp-violations` FAIL |
+| W3 | print, PDF and md export of media | `WorkspaceDocPrint.vue`, `-doctree-export.ts` | W2 | print snapshot shows pictures inline (fresh URLs at print time) and a card for video, audio and files; the md export keeps the hub-path token byte-stable and holds no `X-Goog-Signature` | an export that writes a signed URL fails the round trip |
+| W4 | WUI download card for kind `file`: name, type, size, a link that issues a fresh URL on click; never an inline frame, `<object>` or preview | `WorkspaceDocView.vue` (or a new `DocFileCard.vue`), `-doc-pics.ts` | the C10 contract only | unit test: a `.pdf` and a `.html` token both render the card, neither an `<iframe>`; e2e: the click downloads with `attachment` | a card rendering an `<iframe>` for a `.pdf` fails the test |
+| E1 | e2e on dev: upload, play, lock or unshare, the next issue is 404 and the URL already out stops at its expiry | `csi-spl-wui/tests/e2e/` | H1, H2, T2, W1, W2 | the lock flips the issue from 200 to 404 within one request; the old URL answers 403 after 300 s | the same test against a route without the check must FAIL |
 | X1 | docs: the user help page and this spec's state | `csi-spl-doc/doc/help/`, this file | H1, W2 | `./run -a do_check_fleet_rules_drift` green | - |
-| X2 | i18n: every new key in every locale; **agy reviews the text last** (language rule) | `csi-spl-wui/i18n/locales/*.json` | W1, W2, W3 | `i18n-parity.test.mjs` and the raw-text ratchet green | a key missing from one locale fails parity |
+| X2 | i18n: every new key in every locale; **agy reviews the text last** (language rule) | `csi-spl-wui/i18n/locales/*.json` | W1, W2, W3, W4 | `i18n-parity.test.mjs` and the raw-text ratchet green | a key missing from one locale fails parity |
 
-Parallel at once: T1, B1, D1, W1 (against C2), X1. Then H1, H2, H3, W2,
-W3; E1 and X2 last. The live doc-view lanes (header cleanup, background
-themes) touch `WorkspaceDocView.vue`: W2 and W3 check
+Parallel at once: T1, T2, B1, D1, W1 (against C2/C3), X1. Then H1, H2,
+H3, W2, W3, W4; E1 and X2 last. The live doc-view lanes (header cleanup,
+background themes) touch `WorkspaceDocView.vue`: W2, W3 and W4 check
 `lane-map.sh --check` first and wait for them.
 
 ## 7. Contracts
 
 ### 7.1 Binding contracts
 
-- **C1 the door.** `GET` and `POST .../doctree/{doc}/media...` call
+- **C1 the door.** `POST .../doctree/{doc}/media` and
+  `POST .../doctree/{doc}/media/{name}/url` call
   `docTreeCaller` with `rbac.DocsRead` / `rbac.DocsWrite`, then
   `DocHeadOf(ctx, tenant, doc)` under the `human_lock` mark, on every
   request. The object key is derived from the path's `{doc}` workspace
@@ -363,38 +455,65 @@ themes) touch `WorkspaceDocView.vue`: W2 and W3 check
   `/v1/workspace/doctree/<doc>/media/<name>`; the same bytes again answer
   the same name with `200`. Errors: `413 too_large` (declared or streamed
   over the type's cap), `415 bad_media` (sniffed type not the sent one),
+  `415 denied_type` (the deny list of C3),
   the quota answer of `writeQuota`, `404` as C1.
-- **C3 types and caps** **[Q3 A, Q4 A]**: image png/jpeg/gif/webp 5 MiB;
+- **C3 types and caps** (Q3 A, Q4 B): image png/jpeg/gif/webp 5 MiB;
   video `video/mp4` (`mp4`), `video/webm` (`webm`) 32 MiB; audio
   `audio/mpeg` (`mp3`), `audio/mp4` (`m4a`), `audio/ogg` (`ogg`),
-  `audio/wav` (`wav`) 32 MiB. Never SVG or HTML. One table in the hub,
-  mirrored in `-doctree-api.ts`, with a test that reads both.
+  `audio/wav` (`wav`) 32 MiB; these are sniffed and must match the sent
+  type. **Any other file** is kind `file`, 32 MiB, not sniffed for a type,
+  stored with `Content-Type: application/octet-stream`; SVG and HTML are
+  never kind `image`, only kind `file`. **Deny list** (refused `415
+  denied_type`, by extension, case-folded, and by an executable magic
+  number: `MZ`, `\x7fELF`, Mach-O): `exe msi bat cmd com scr ps1 vbs js
+  jar apk dmg app sh`, held in cnf so the owner can change it without
+  code. One table in the hub, mirrored in `-doctree-api.ts`, with a test
+  that reads both.
 - **C4 storage.** Key `qto-media/<sha256>.<ext>` in the workspace's own 052
-  bucket **[Q1 A]**; tenant `system` keeps the hub store
-  `t/system/files/<sha256>`. Never public, no CORS, no object ACL. The
-  bytes count against the workspace file quota (`fileUsage.extra`).
-- **C5 read.** `200` or `206` with `Accept-Ranges: bytes`, `Content-Range`,
-  the stored `Content-Type`, `X-Content-Type-Options: nosniff`,
-  `Content-Security-Policy: sandbox; default-src 'none'`,
-  `Content-Disposition: inline`, `Cache-Control: private, no-cache`,
-  `Vary: Cookie, Authorization`. No signed URL, no redirect to the bucket
-  **[Q2 A]**.
+  bucket (Q1 A); tenant `system` keeps the hub store
+  `t/system/files/<sha256>` and is signed the same way. Never public, no
+  CORS, no object ACL. The bytes count against the workspace file quota
+  (`fileUsage.extra`).
+- **C5 issue.** `POST /v1/workspace/doctree/{doc}/media/{name}/url`, no
+  body. After C1: `200 {url, expires_at}` (RFC 3339 UTC),
+  `Cache-Control: no-store`. `url` is a GCS V4 signed `GET` for that one
+  object, `X-Goog-Expires=300` (fixed, not a parameter), signed as the
+  runtime SA through `signBlob`, with `response-content-type` = the stored
+  type and `response-content-disposition` = `inline` (image, video, audio)
+  or `attachment; filename="<name>"` (file) in the signed query. GCS
+  serves the bytes, `Range` and `206`. The hub never proxies or redirects
+  the bytes.
 - **C6 the token.** `![caption](/v1/workspace/doctree/<doc>/media/<name>)`
-  in a section body; the extension picks `<img>`, `<video>` or `<audio>`.
-  No other syntax.
-- **C7 GC** **[Q6 A]**: an object is deleted only when no
+  in a section body; the extension picks `<img>`, `<video>`, `<audio>` or
+  the download card. No other syntax. A signed URL is never written into
+  a body, an export or a print.
+- **C7 GC** (Q6 A): an object is deleted only when no
   `workspace_doc_media` row of the workspace names it and 7 days have
   passed since the last row went; 052 expires its noncurrent generation
   7 days after that.
+- **C8 expiry.** A signed URL lives 300 s. The WUI asks for a new one
+  before `expires_at - 60 s` while a player is open, retries once on a
+  bucket `403`, and on an issue `404` shows "no longer available". Access
+  revoked at time t: no URL is issued after t; URLs issued before t work
+  until their own expiry, at most t + 300 s, for anyone holding them.
+- **C9 CSP.** `media-src 'self' <bucket host>` and `img-src 'self' data:
+  <bucket host>` in `CSP_PROD` and `firebase.json`; the host comes from
+  cnf (e.g. `hub.media.signed_url_host`), never a literal in code. No
+  `connect-src` change: the WUI never `fetch()`es the bucket.
+- **C10 download card.** Kind `file` is never rendered inline (no
+  `<iframe>`, `<object>`, `<embed>` or preview); its URL forces
+  `attachment` and `application/octet-stream`, so a `.html` or `.svg` file
+  downloads and never runs in any origin.
 
 ### 7.2 Not in this spec
 
-Transcoding, thumbnails and posters (beyond **[Q7 B]**), streaming
+Transcoding, thumbnails and posters (the owner chose Q7 A), streaming
 formats (HLS, DASH), media in channel posts (the attachment path stays as
 it is), public sharing of a doc, and spec 114's grant enforcement on the
 doc read itself.
 
 ## 8. Review
 
-v0.1 goes to the holder with the form. The panel's findings and the
-owner's answers fold into v0.2 (section 1.1 and the **[Qn]** marks).
+v0.1 went to the holder with the form; v0.2 writes in the owner's answers
+(section 1.1). Next: the cross-vendor spec review; its findings fold into
+the next version; it lands on the holder's GO after `do_check_pre_push`.

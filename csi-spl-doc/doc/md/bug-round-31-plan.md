@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-30-plan.md](bug-round-30-plan.md) (same shape, same 5 sources).
 
-**Status: v0.3, for the panel's delta read (section 8). The panel passed v0.1 `a370b5786` with no W (m-642@sat, msg 6fc73e6c). v0.2 `78c13231e` added the `<box2>` halves; v0.3 adds the PASS and N4. No row changed.**
+**Status: v1.0. The panel passed v0.1 `a370b5786`, v0.2 `78c13231e` and v0.3 `8480b1d61`, each with no W (m-642@sat, msgs 6fc73e6c, 81e8a3b4, b5078628; section 8). No row changed since v0.1. It lands on the holder's GO.**
 
 Editor: **c-651@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
-Panel: m-642@sat (mistral, the b31 panel seat, ask `c002-bug-round-31-mistral-panel-seat`): **PASS** on v0.1 `a370b5786` (msg 6fc73e6c, seat file `e380f83fd` on `review/c002-bug-round-31-mistral-seat`), no W, N1-N4 (section 8).
+Panel: m-642@sat (mistral, the b31 panel seat, ask `c002-bug-round-31-mistral-panel-seat`): **PASS** on v0.1 `a370b5786` (msg 6fc73e6c, seat file `e380f83fd`), on v0.2 `78c13231e` (msg 81e8a3b4, seat file `1910926cb`) and on v0.3 `8480b1d61` (msg b5078628, seat file `81fbae04f`), all on `review/c002-bug-round-31-mistral-seat`, no W (section 8).
 
 **One sha:** every count below is measured on **`325a47c76`** (`origin/master` at this seat's fetch of 04:13Z), on sat, between 03:58Z and 04:18Z on 2026-11-21, unless a row says otherwise. n=1 per command unless stated. The worktree sits on `325a47c76` itself. The red controls were first run on `4a1c86baa` (04:11Z), then re-run on `325a47c76`: `git diff --stat 4a1c86baa 325a47c76 -- csi-spl-orc` is empty.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b30-plan')` -> `Window: W=2026-11-21T04:35:42+01:00` (commit `0eb0ea462`, the b30 close record), the value the brief quotes.
@@ -244,6 +244,10 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
   - 2026-11-21 04:3xZ: m-642@sat **PASS** on v0.1 `a370b578614753c566e2f92deb642883a02770bb` (msg 6fc73e6c; seat file `e380f83fd`), no W. It re-ran rc01 and rc02 on `325a47c76` (n=3 each, exit 1, wrong=1 and wrong=2), read every cited line at `325a47c76`, checked the rc files' sha256, ran the lane map (exit 4, no row file owned), grepped the queue (0 hits in 19 briefs) and ran `do_spl_box_pick` (hold), `do_check_dist_hygiene` (clean) and `do_check_pre_push` (all parts PASSED). N1: the exit-4 lanes are on `<box2>`, and section 8 asks for them (answered in v0.2). N2: the queue moved from 22 to 19, with 0 hits at both reads. N3: `origin/master` moved `325a47c76` -> `986ddca84` (one docs commit, SPL-6086); `git diff --stat 325a47c76 986ddca84 -- csi-spl-orc csi-spl-doc/doc/md/done-claim-check.md` is empty, so no cited line drifted. N4: the retired-author no-retry is b20-01 `2f634fbd4` (bug-round-27-plan.md:167); section 5's served list now names it.
   - 2026-11-21 04:3xZ: v0.2 `78c13231e`, one commit on `a370b5786` (a fast-forward of the review branch). It folds in the `<box2>` halves: 14 lanes with 0 hits (c-146 in msg cfdfc6ed), b31 free on `<box2>`, c-533's body. It corrects the exit-4 list (14 lanes, with c-146) and records the 04:26Z re-run. This file is the only one it touches. No row changed.
   - 2026-11-21 04:4xZ: v0.3, one commit on `78c13231e` (a fast-forward of the review branch). It records the status, panel and consensus lines, the PASS with N1-N4, and b20-01 in section 5's served list (N4). This file is the only one it touches. No row changed.
+  - 2026-11-21 04:5xZ: m-642@sat **PASS** on v0.2 `78c13231e745887f3ca054a3f5f12039a9824451` (msg 81e8a3b4; seat file `1910926cb`), no W. Its N1 says the `<box2>` worktree diffs were NOT RUN from sat but agree with the lane map; N2 and N3 confirm the 14-lane list and that the rows and red controls are unchanged.
+  - 2026-11-21 04:5xZ: m-642@sat **PASS** on v0.3 `8480b1d611d7b8ec0203de0482e58009b4beb852` (msg b5078628; seat file `81fbae04f`), no W. It found the rows section identical to v0.2 (130 lines), rc01 and rc02 still RED on `325a47c76`, b20-01 `2f634fbd4` named at bug-round-27-plan.md:167, the hygiene sweep clean and `do_check_pre_push` all PASSED.
+  - 2026-11-21 04:57:36Z, the editor's re-read on `974d97031` before v1.0: `git diff --name-only 325a47c76 origin/master -- <the five row files>` -> 0. `lane-map.sh --check <the five row files>` -> no live lane lists them; exit 4 for 16 `<box2>` lanes that record no files. Four of them are newly placed from the queue, and their briefs were grepped at 04:14:53Z and again now (`grep -cE 'review-notify\|done-claim'` -> 0 each): c-579 (`c002-wui-qto-doc-background-themes`), c-590 (`c002-wui-pulse-field-blog-login`), c-598 (`c002-s123-l2-store-cost-labels-origin`) and c-601 (`c002-s-new-topic-pinned-end-spec`). **c-562** (`c-562-rotate`, a rotation branch) is new and unread here: the holder's R3 check (rulebook 2.3) covers it when the rows are queued.
+  - 2026-11-21 04:5xZ: v1.0, one commit on `8480b1d61` (a fast-forward of the review branch). It records the status, panel and consensus lines, the two later PASSes and the 04:57Z re-read. This file is the only one it touches. No row changed.
 
 ---
 
@@ -251,5 +255,5 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-651@sat | v0.3 (`<box2>` halves, the PASS and N4 folded) |
-| Panel | m-642@sat (mistral) | **PASS** on v0.1 `a370b5786` (msg 6fc73e6c), no W; delta v0.1..v0.3 to read |
+| Editor | c-651@sat | v1.0 |
+| Panel | m-642@sat (mistral) | **PASS** on v0.1 `a370b5786` (msg 6fc73e6c), v0.2 `78c13231e` (msg 81e8a3b4) and v0.3 `8480b1d61` (msg b5078628), no W |

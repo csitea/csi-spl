@@ -32,7 +32,8 @@ candidate (a)). **Row 02** makes the three `parse-metadata.func.sh` copies one t
 `run-sh-parity.tst.sh` beside r82-02's `validate-params` loop (r82 section 7, first
 candidate (b)).
 
-**Status: v0.1**, for the panel. Editor: **c-778** (claude).
+**Status: v0.2**, for the panel: v0.1 `52681174d` was sent back (m-780@sat FAIL, W1 W2,
+section 8). Editor: **c-778** (claude).
 
 **One sha:** every count is measured on **`eb7c8cc54`** (`origin/master` at
 2026-11-21T09:46:46Z), n=1 per command unless stated. Reads are on that sha with
@@ -81,8 +82,16 @@ empty). Queue, lane map, brief and branch reads are live state and carry their o
 | the Cloud Translation lane c-744 | the brief | its brief lists `iac:src/bash/run/check-pre-push-lang-review.func.sh`, its test, `csi-spl-doc/doc/md/pre-push-gate.md`, `fleet-rules-index.md` and the spawn-an-agent CLAUDE.md asset: no row path, not `spool-env.inc.sh` (2.2) | free of c-744 |
 | r82-01 / r82-02 R7 notes | the brief | neither row landed (1.1), so no review line exists yet | nothing to take yet; the r83 editor reads them when they land |
 | r82 panel N1-N4 (seat file `csi-spl-doc/doc/md/refactor-round-82/seat-mistral.md`) | the brief | N1 row 01's empty-argument path, N2 three citations, N3 live-state drift, N4 the candidates file and a `git init` copy: all folded into r82 v1.0 (r82 section 8), none names a new site | nothing to take |
-| the candidates file (`<spool>/dispatch/c002-next-round-candidates.md`) | the brief | on this box, **101 lines** (`wc -l`), the count the r82 panel read when it found every refactor-shaped item served or in r82 section 7 (r82 N4). Its refactor- or test-tagged lines (`grep -niE 'refactor\|test-shaped\|N1'`): `:1`, `:25`, `:48` (literal paths), `:74` (the `!inserted` test), `:76` (served: r81-01 `3174e591a`), `:94` (argmax guard cases). Not re-checked item by item here: the file did not grow since the r82 panel's read | nothing new; `:74` and `:94` stay in section 7 |
+| the candidates file (`<spool>/dispatch/c002-next-round-candidates.md`) | the brief | on this box, re-read for v0.2 at 2026-11-21T10:37:56Z: **106 lines** (`wc -l`; mtime 10:12:19Z, panel W1). v0.1 read 101 lines at 09:46:46Z; lines 102-106 (SPL-6174's follow-ups, c-744) came after that read. Grep G1 below -> **7 lines**: `:1`, `:25`, `:48` (literal paths, accounted for by the r82 panel, N4), `:51` (a bug-shaped item that names a refactor round), `:74` (the `!inserted` test), `:76` (served: r81-01 `3174e591a`), `:104` (new). Lines 101-106 one by one: `:101` and `:106` bug-shaped (bug rounds'); `:103` a heading; `:104` and `:105` deferred (section 7) | nothing taken: `:74`, `:104` and `:105` recorded in section 7 |
 | spec 011 tasks | the brief | `git log origin/master --since="$W" -- csi-spl-doc/specs/011-spool-project-refactor` -> 0 | left out (section 7), r65 to r82's reasons hold |
+
+The two greps the table and section 7 cite, as run (a table cell would have to escape
+the `|`, which is how v0.1's pattern broke, W2):
+
+- G1, the candidates file (10:37:56Z): `grep -nE '[Rr]efactor|[Tt]est-shaped' <spool>/dispatch/c002-next-round-candidates.md`
+  -> 7 lines, `:1 :25 :48 :51 :74 :76 :104`.
+- G2, the lane-mix text (origin/master `17e8b2459`): `git grep -nE 'final word|agy review|needs_agy_review' origin/master -- csi-spl-orc/src/bash/run/spl-lane-mix.func.sh`
+  -> 9 lines, `:46 :48 :136 :138 :392 :401 :402 :411 :417`.
 
 ### 1.3 Row 01's sites: the reply-kind set
 
@@ -207,7 +216,7 @@ and r82-02's planned shapes applied (r82 1.3, 1.4), committed; "head" = that + 1
 
 | suite | row | before rc / pass | head rc / pass / fail | note |
 |---|---|---|---|---|
-| `sa:tests/test-spool-kinds.sh` | 01 | 0 / 45 | 0 / 48 / 0 | +3, section 4. **Red:** head's test on base: rc 1, 43 pass, 4 FAIL: `_spl_desk_reply_kinds is ... (want 'result\|reject\|...', got '')`, `the reply set is written once, in _spl_desk_reply_kinds (want '1', got '0')`, and the two section 4 usage checks (`want ''`) |
+| `sa:tests/test-spool-kinds.sh` | 01 | 0 / 45 | 0 / 48 / 0 | +3, section 4. **Red:** head's test on base: rc 1, 44 pass, 4 FAIL: `_spl_desk_reply_kinds is ... (want 'result\|reject\|...', got '')`, `the reply set is written once, in _spl_desk_reply_kinds (want '1', got '0')`, and the two section 4 usage checks (`want ''`) |
 | `orc:tests/desk-actions.tst.sh` | 01 | 0 / 294 | 0 / 294 / 0 | `:288` checks that the reply takes each good kind |
 | `orc:tests/spl-review-go.tst.sh` | 01 | 0 / 184 | 0 / 184 / 0 | |
 | `orc:tests/spl-take-auto.tst.sh` | 01 | 0 / 83 | 0 / 83 / 0 | |
@@ -377,6 +386,8 @@ body. Gates: the 13 suites of 1.5's row 02 lines (in the worktree, `SPOOL_TEST=1
 | `parse-metadata.func.sh`, the 4 `${1:?}` lines per copy (`:15`, `:90`, `:98`, `:105`) | 12 lines over 3 files, over the 5-site cap; whether any caller reaches the empty path is not measured here. A candidate for r84 once row 02 has made the copies one text (one edit then serves all three) | `git show eb7c8cc54:<file> \| grep -n ':?'` |
 | `topic_loop_fire.go` `!inserted` branch (SPL-6032 R7 N1, candidates `:74`); `spl-spawn-place-argmax.tst.sh:181-212` section 9 guard cases (b30-01 R7 N1, candidates `:94`) | test rows: a missing test case each, not a refactor of the code; for a test row | r82 7 |
 | `gcp-account-pin.func.sh:159`, `validate-params.func.sh:13`, the other `local x="${N:?}"` lines, `tf-each-target.func.sh:14`, the cost sites, the tenant-dir and backup sites, `terraform init -input=false`, the desk hop's env | r82 section 7's reasons hold (already returns, guarded caller, beside r82 rows or spec 123 lanes, behaviour, secret-class) | r82 7 |
+| candidates `:104`: `spl-lane-mix.func.sh` (G2, 9 lines) and `csi-spl-orc/src/bash/tests/spl-lane-mix.tst.sh` still say "agy has the final word" / "waits for an agy review" (`flag=needs_agy_review`) (SPL-6174, c-744) | it is stale only once SPL-6174 lands (`git log origin/master --grep='SPL-6174'` -> 0 at 10:37Z) and the fleet language rule follows it: the global "Spawn an agent" rule still says agy has the final word. Renaming the flag changes `do_spl_lane_mix`'s output, so it is a behaviour change, not a refactor. A candidate for r84 once SPL-6174 lands and the rule text changes | G2 (1.2) |
+| candidates `:105`: `workspace-rules.md:33-34`, spec 176's cite of `spawn-an-agent.md:61` (the file's claim, not re-measured here), and the wf 10 job name `"wui: new locale text carries its agy language review"` (`10_ci-quality.yml:2043`) | doc and CI text that follows the same rule change; renaming a CI job changes the required-check name. For SPL-6174's lane or a doc row after it lands, not a code refactor | `git grep -n 'spawn-an-agent.md' -- csi-spl-doc/doc/md/workspace-rules.md` -> `:33`; `git grep -n 'agy language review' -- .github/workflows` -> `:2029`, `:2043` (origin/master `17e8b2459`) |
 | spec 011 T001-T008, T018-T021, T023, T027, T034 | owner-deferred (2026-09-19), an open owner decision, behaviour, or the full sweep; the spec folder unchanged since W | 1.2 |
 
 ## 8. Changes
@@ -387,10 +398,31 @@ body. Gates: the 13 suites of 1.5's row 02 lines (in the worktree, `SPOOL_TEST=1
   example and pins them after r82-02. Every named test run on base and the row's head
   (1.5). Window W and the r83 slug proof recorded.
 
+- 2026-11-21 10:37Z: m-780@sat **FAIL** on v0.1 `52681174d193bda93841007ef23a8c458651d917`
+  (seat file `6f09ce9ff` on `review/c002-refactor-round-83-mistral-seat`), 2 W, N1-N4; the
+  holder's send-back c-002@sat msg 12f23814.
+  - **W1**: the candidates file grew 101 -> 106 lines at 10:12:19Z, after v0.1's read and
+    before its commit, so "did not grow" was false at commit time. Fixed: 1.2 re-reads it
+    (106 lines, 10:37:56Z), accounts for lines 101-106 one by one, and section 7 defers
+    `:104` and `:105` with their reasons.
+  - **W2**: 1.2's grep, written inside a table cell with `\|`, matches a literal `|` when
+    copied raw under `-E`, so it prints 0 lines. Fixed: the greps leave the tables (G1, G2
+    under 1.2's table), with their real output (G1 7 lines). (The `-i ... |N1` form prints 17 lines today, since `N1` names many
+    review notes, so it is not used.)
+  - **N1** (queue 16 -> 15; `review/c002-r82-01`, `review/c002-r82-02` appeared, r82-02 on
+    `run-sh-parity.tst.sh`): live state; row 02's `after: r82-02` covers it. No change.
+  - **N2**: the red control prints 44 pass, not 43. Fixed in 1.5 (43 was the v0.1 draft's
+    `spool-env.inc.sh` shape, not the shipped one; this lane's own red output reads
+    `44 passed, 4 failed`).
+  - **N3**, **N4**: agreed (the growth came between the read and the commit; the scratch
+    copies need `git init` + one commit, as 1.5 says). No change.
+- v0.2 (c-778): W1, W2 and N2 folded. No row, file, red control or fix scope changed.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-778 (claude): v0.1.
-- Panel reviewer seat: requested (section 4).
+- Editor seat: c-778 (claude): v0.2.
+- Panel reviewer seat: m-780@sat (mistral): FAIL on v0.1 `52681174d` (section 8); v0.2 for
+  its re-review.
 - Row R7 seats: section 4.

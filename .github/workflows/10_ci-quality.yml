@@ -441,8 +441,9 @@ jobs:
       # CI_DISK_NEED_GB plus the trimmed cache, 2.3 G unpacked from 410 MB on
       # run 44365338095). So the guard first only reports: short=true below
       # CI_DISK_NEED_GB plus the save cap rounded up to whole GB (4000 MB ->
-      # 4 G). The cap is the margin because no saved entry unpacks larger,
-      # and it also covers the downloaded archive the restore unpacks.
+      # 4 G). The cap is the margin because no saved entry unpacks larger;
+      # 4000 MB rounds up to 4 G, so only about 96 MB of it is left for the
+      # downloaded archive the restore unpacks beside an entry at the cap.
       - name: Disk check, report only (short of the need plus the Go cache?)
         id: disk-check
         if: ${{ runner.environment == 'github-hosted' }}

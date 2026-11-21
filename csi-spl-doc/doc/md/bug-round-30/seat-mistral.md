@@ -8,9 +8,10 @@ Review target: `csi-spl-doc/doc/md/bug-round-30-plan.md` on branch
 and 5 (3.2 panel signs the plan sha; 5.1 1 to 3 rows; 5.3 numbering and window;
 5.4 bugs priority 2).
 
-**Verdict: PASS on `26492502` (v0.1), 2026-11-21T01:16Z — see the verdict section at
-the end of this file.** The PENDING paragraph below is the 22:44Z state, kept as
-history. As of 2026-11-20T22:44Z the planner
+**Verdict: PASS on `2c3e1932` (v0.2), 2026-11-21T01:2xZ; PASS on `26492502`
+(v0.1) at 01:16Z — see the verdict sections at the end of this file.** The
+PENDING paragraph below is the 22:44Z state, kept as history. As of
+2026-11-20T22:44Z the planner
 seat (`claude:c002-bug-round-30-planner`, ask bb395b6d) is still queued
 (`do_spl_spawn_queue` -> `17/39 ... 51m ... QUEUE`), no `bug-round-30` / `b30-`
 branch exists on origin (`git ls-remote origin | grep -E 'refs/heads/.*(bug-round-30|b30-)'`
@@ -328,3 +329,62 @@ in a second commit and report again.
   plan into its v1.0 commit.
 - N3: `box-disk-sweep.tst.sh:171` (the end of the cited 150-171 range) is a
   blank line on the base; the range exists and the section header is at :150.
+
+## Panel delta verdict on v0.2 — PASS (2026-11-21T01:2xZ)
+
+- Reviewed sha: `2c3e1932a988818f9aa21f57bed23f019dd57fec` on
+  `review/c002-bug-round-30-planner` (named by the dispatch holder c-002@sat,
+  task `dispatch-bug-r30` msg 01:15:14Z; `git ls-remote` -> `2c3e1932...`, the
+  branch head). `git merge-base --is-ancestor 26492502f 2c3e1932a` -> rc 0
+  (fast-forward); `git diff --stat 26492502f 2c3e1932a` -> the plan file only,
+  +66 -18 (287 lines; blob sha256
+  `42419971fdcba05f96e35047f8cc541104e13a39fbcf30da08b6b6f21438073f`). The
+  delta adds row 03 and folds the holder's sat halves; rows 01 and 02 are
+  unchanged.
+- Carried over from the v0.1 PASS (the delta does not touch them): check 1
+  (slug b30 unused; row form `\(b30-[0-9]{2}` -> 0, `\(b30-03` -> 0), check 2
+  for rows 01/02 (re-verified: `git diff --name-only 4ad1b80a8 origin/master`
+  over all 14 cited files -> empty at the 01:2xZ fetch, `origin/master`
+  `7270e861f`), check 3 rc01/rc02 (their files unchanged), check 4 rows 01/02,
+  check 5 rows 01/02, check 6 rows 01/02, check 7's other inputs, check 8
+  (`do_check_dist_hygiene` re-run 01:2xZ -> clean, rc 0).
+- Delta checks on row 03 (`fix(b30-03-orc-after-slug-far-box-key)`):
+  - Sites on the base, each `git show 4ad1b80a8:<file> | sed -n <N>p`:
+    `spl-spawn-after.func.sh:57` -> `spl_spawn_after_key() {  # AFTER`;
+    `:64` -> `if [[ -z "$k" && -r "$f" ]]; then`; `:67` ->
+    `[[ -n "$k" || -z "$agent" ]] || k="$(li_key_of_agent "$SPOOL_ROOT" "${agent%@*}" 2>/dev/null)"`;
+    `:73` -> `[[ -z "$k" ]] || printf '%s\n' "$k"`; `:86` ->
+    `[[ "$2" != *@* ]] || box="${2#*@}"` (the hub fallback's box filter);
+    `:18-21` -> the header's "for a lane of this box, its lifetime/issue";
+    `spl-spawn-after.tst.sh:302` -> `# 6b. a slug placed on another box (SPL-5929) ...`;
+    `lane-issue.inc.sh:83` -> `li_key_of_agent() {`. All exist on
+    `origin/master` too (drift empty, spot `:67` identical).
+  - Root cause holds: with no key in `.place.slugs`, `:67` calls
+    `li_key_of_agent` with `${agent%@*}` — the `@<box>` dropped — so it reads
+    THIS box's `<spool>/<id>/lifetime/issue` even when the slug's lane is on
+    another box; `spl_spawn_after_hub_key` (`:86`, filters by box) is reached
+    only when the local read is empty. The header says "for a lane of this
+    box". Ids are reused across boxes, so another lane's key is returned and a
+    landed key there releases the dependent row early.
+  - Red control rc03 rebuilt from the plan's printed block: 2021 B,
+    `sha256sum` -> `da931bbcc8d4...` (first 12 hex match the plan's
+    `da931bbcc8d4`). `bash rc03.sh 4ad1b80a8` x3 -> each:
+    `rc03 far: key=SPL-6078 want=SPL-6100` / `rc03 here: key=SPL-6078 want=SPL-6078`
+    / `rc03 bare: key=SPL-6078 want=SPL-6078` / `rc03 sha=4ad1b80a8 wrong=1`,
+    exit 1. RED 3/3, exactly the plan's output; the here/bare controls pass, so
+    it fails for the claimed defect (the far-box slug reads this box's key),
+    not for an environment reason. It builds its own spool and lanes fixture in
+    a mktemp dir: no live state touched.
+  - Row fields: vendor claude, kind `simple_coding`, batch 1, R7 the claude
+    waiver seat (1a7c70da) — no mistral coding/testing row. R1: row 03's files
+    {spl-spawn-after.func.sh, spl-spawn-after.tst.sh} are disjoint from rows
+    01/02 (row 01's file sources row 03's at run time but they share no file).
+    Test column: `git grep -l 'spl_spawn_after_key\|spl-spawn-after' ba7acd634
+    -- csi-spl-orc/src/bash/tests csi-spl-orc/src/bash/features` ->
+    `spl-spawn-place-supply.tst.sh` (matches the plan);
+    `git log origin/master --since=2026-11-19 -- <both files>` -> 0.
+  - R3: `lane-map.sh --check <row 03 files> --agent m-551` -> exit 4, no live
+    lane lists them (15 `unknown:` rotate/c002 lanes record no files).
+  - Inputs: the v0.1 N1 (c-001 d77d912f, added to the candidates file 01:1xZ)
+    is now served as row 03 — accounted.
+- Defects: none (no W). Notes: N1-N3 of the v0.1 verdict stand; v0.2 answers N1.

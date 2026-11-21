@@ -30,6 +30,9 @@ import (
 //	DELETE /v1/operator/cost-entries/{id}   -> 204
 //	PATCH  /v1/operator/cost-entries/{id}/labels  the labels per locale
 //	                                        (SPL-5546, cost_labels.go)
+//	POST   /v1/operator/cost-labels/fill, GET .../unreviewed, PUT .../reviewed
+//	                                        the machine drafts (SPL-6173,
+//	                                        cost_labels_machine.go)
 //
 // AI costs are the paid items of fleet_token_paid.go, not these.
 //
@@ -66,6 +69,7 @@ func (s *Server) routeCostEntries(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/operator/cost-entries/{id}/labels", s.operatorWorkspacesPreflight)
 	mux.HandleFunc("OPTIONS /v1/operator/cost-entries", s.operatorWorkspacesPreflight)
 	mux.HandleFunc("OPTIONS /v1/operator/cost-entries/{id}", s.operatorWorkspacesPreflight)
+	s.routeCostLabelsMachine(mux) // SPL-6173, cost_labels_machine.go
 }
 
 // costEntryRate is the entries' rates, the paid items' (FleetPaidFXRate);
@@ -210,6 +214,7 @@ func (s *Server) handleCostEntryCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.o.Log.Info().Str("id", out.ID).Str("type", out.Type).Str("by", who).Msg("cost entry created")
+	s.costLabelDraftNew(r.Context(), out.Label) // SPL-6173: a new text in every locale, cost_labels_machine.go
 	writeJSON(w, http.StatusCreated, out)
 }
 

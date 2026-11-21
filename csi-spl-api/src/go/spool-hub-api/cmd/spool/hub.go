@@ -43,6 +43,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/topicpdf"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/translate"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 	"google.golang.org/api/idtoken"
 )
@@ -399,7 +400,8 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 			LiveVisitorsMax: hc.EmbedLiveVisitorsMax, ChallengeAfterHits: hc.EmbedChallengeAfterHits,
 			BanAfterHits: hc.EmbedBanAfterHits, HitsWindow: hc.EmbedHitsWindow, BanFor: hc.EmbedBanFor},
 		PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout, WSMaxLife: hc.WSMaxLife,
-		TopicPDF:      topicpdf.HTTPRenderer{URL: hc.PDFURL, Timeout: hc.PDFTimeout}, // spec 183 7.1.5, 7.1.6
+		TopicPDF:            topicpdf.HTTPRenderer{URL: hc.PDFURL, Timeout: hc.PDFTimeout},                      // spec 183 7.1.5, 7.1.6
+		CostLabelTranslator: costLabelTranslator(hc), CostLabelsTranslateTimeout: hc.CostLabelsTranslateTimeout, // spec 123 16.6.3
 		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion, MarketingWorkspaces: hc.MarketingWorkspaces,
 		NotesEnabled:                 hc.NotesEnabled,                 // spec 155 section 6
 		NotesAgentAddEnabled:         hc.NotesAgentAddEnabled,         // spec 155 2.11 (OQ-5)
@@ -418,6 +420,16 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 
 // openBlobStore is the tenant file store from the provider: under gcp the GCS
 // bucket when one is set, else a local dir; under none the SPOOL_S3_* service.
+// costLabelTranslator is the cost labels' machine draft client (spec 123
+// 16.6.3) as the runtime SA, nil when the hub's cnf names no translate URL.
+func costLabelTranslator(hc *config.Hub) hub.CostLabelTranslator {
+	if hc.CostLabelsTranslateURL == "" {
+		return nil
+	}
+	return &translate.Client{URL: hc.CostLabelsTranslateURL, Token: translate.MetadataToken(),
+		HTTP: &http.Client{Timeout: hc.CostLabelsTranslateTimeout}, DailyChars: hc.CostLabelsTranslateDailyChars}
+}
+
 func openBlobStore(ctx context.Context, cf cloud.Factory, hc *config.Hub) (blob.Store, error) {
 	bs, err := cf.BlobStore().Files(ctx, hc.FilesBucket, hc.FilesDir)
 	if err != nil {

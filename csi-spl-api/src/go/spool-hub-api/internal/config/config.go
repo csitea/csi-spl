@@ -664,6 +664,16 @@ type Hub struct {
 	// hub.pdf.timeout): above the renderer's SPOOL_PDF_RENDER_TIMEOUT (115 s),
 	// under the hub's request timeout. Must be positive.
 	PDFTimeout time.Duration `env:"SPOOL_PDF_TIMEOUT" envDefault:"120s"`
+	// The cost labels' machine draft (spec 123 16.6.3, row L3): the Google
+	// Cloud Translation v3 parent the hub calls as its runtime SA,
+	// https://translation.googleapis.com/v3/projects/<project>/locations/global
+	// ("" = no call, a new label waits for the night's fill); the one
+	// deadline of a label's calls (cnf env.cost.labels_translate_timeout_s;
+	// measured on dev, p95 5.3 s per call); the characters sent per UTC day
+	// (cnf env.cost.labels_translate_daily_chars; 0 = no cap).
+	CostLabelsTranslateURL        string        `env:"SPOOL_HUB_COST_LABELS_TRANSLATE_URL"`
+	CostLabelsTranslateTimeout    time.Duration `env:"SPOOL_HUB_COST_LABELS_TRANSLATE_TIMEOUT" envDefault:"8s"`
+	CostLabelsTranslateDailyChars int           `env:"SPOOL_HUB_COST_LABELS_TRANSLATE_DAILY_CHARS" envDefault:"200000"`
 	// MsgVersion is the schema version the hub WRITES for the messages it
 	// composes itself (WUI posts, dispatch, CI-logs notes), specs/020
 	// contracts/migration.md §5: 1 until every reader is deployed.

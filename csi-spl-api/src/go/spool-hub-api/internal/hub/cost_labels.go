@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -13,8 +14,10 @@ import (
 // section 16.5; owner HUM-10, csitea 720fa031):
 //
 //	GET /v1/operator/cost-entries        each entry also carries labels
-//	                                     {locale: text}, the answer
-//	                                     master_locale
+//	                                     {locale: text}, label_origins
+//	                                     {locale: hand|machine|reviewed} and
+//	                                     stale_locales [locale] (SPL-6173),
+//	                                     the answer master_locale
 //	PATCH /v1/operator/cost-entries/{id}/labels {labels: {locale: text}}
 //	                                     -> 200 {id, labels}: every locale
 //	                                     but the master's is replaced; the
@@ -67,10 +70,27 @@ func (s *Server) costLocalizeParts(ctx context.Context, locale string, parts ...
 	return nil
 }
 
-// costEntryOut is a listed entry with its labels per locale.
+// costEntryOut is a listed entry with its labels per locale, who wrote each
+// (hand, machine or reviewed: a machine row agy confirmed) and the hand rows
+// made from another master text (SPL-6173, spec 123 16.6.4).
 type costEntryOut struct {
 	store.PricedCostEntry
-	Labels map[string]string `json:"labels"`
+	Labels       map[string]string `json:"labels"`
+	LabelOrigins map[string]string `json:"label_origins"`
+	StaleLocales []string          `json:"stale_locales"`
+}
+
+// costEntryMarks is marks as label_origins and stale_locales (sorted).
+func costEntryMarks(marks map[string]store.CostLabelMark) (map[string]string, []string) {
+	origins, stale := map[string]string{}, []string{}
+	for loc, m := range marks {
+		origins[loc] = m.Origin
+		if m.Stale && m.Origin == store.CostLabelHand {
+			stale = append(stale, loc)
+		}
+	}
+	slices.Sort(stale)
+	return origins, stale
 }
 
 // costEntriesWithLabels is priced with each entry's labels, and the master
@@ -78,6 +98,7 @@ type costEntryOut struct {
 func (s *Server) costEntriesWithLabels(ctx context.Context, priced []store.PricedCostEntry) ([]costEntryOut, string, error) {
 	out := make([]costEntryOut, 0, len(priced))
 	var all map[string]map[string]string
+	var marks map[string]map[string]store.CostLabelMark
 	master := ""
 	if cl := s.costLabels(); cl != nil {
 		var err error
@@ -87,13 +108,17 @@ func (s *Server) costEntriesWithLabels(ctx context.Context, priced []store.Price
 		if all, err = cl.CostEntryLabels(ctx); err != nil {
 			return nil, "", err
 		}
+		if marks, err = cl.CostEntryLabelMarks(ctx); err != nil {
+			return nil, "", err
+		}
 	}
 	for _, p := range priced {
 		labels := all[p.ID]
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		out = append(out, costEntryOut{PricedCostEntry: p, Labels: labels})
+		origins, stale := costEntryMarks(marks[p.ID])
+		out = append(out, costEntryOut{PricedCostEntry: p, Labels: labels, LabelOrigins: origins, StaleLocales: stale})
 	}
 	return out, master, nil
 }

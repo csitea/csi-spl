@@ -324,6 +324,13 @@ type Options struct {
 	// hub.pdf.timeout. nil = GET /v1/topics/{task_id}/export.pdf answers 503
 	// render_unavailable.
 	TopicPDF topicpdf.Renderer
+	// CostLabelTranslator drafts a cost label in the other locales (spec 123
+	// 16.6.3, cost_labels_machine.go): a translate.Client on
+	// SPOOL_HUB_COST_LABELS_TRANSLATE_URL. nil = no draft, the texts stay
+	// missing for the night's fill. CostLabelsTranslateTimeout is the one
+	// deadline of a label's calls (0 = 8 s).
+	CostLabelTranslator        CostLabelTranslator
+	CostLabelsTranslateTimeout time.Duration
 }
 
 // Server is one hub process.

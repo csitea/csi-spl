@@ -721,6 +721,72 @@ spool_claude_perm_flags() {  # [KIND]   default claude
   esac
 }
 
+# The model syntax of spec 184 7.1.2: anything else never reaches a command
+# line (no quote, no space, so the single quotes of spool_model_args hold).
+SPOOL_MODEL_RX='^[A-Za-z0-9._:/-]{1,80}$'
+
+# The model a new, rotated or restarted agent starts with (spec 184 7.1.2).
+# Prints one model or nothing (= the CLI's own default), exit 0; exit 2 for an
+# unknown vendor; exit 3 when the winning model fails SPOOL_MODEL_RX. First
+# non-empty wins: 1 env SPAWN_MODEL; 2 SPAWN_MODEL_MAP (the line of
+# do_spl_agent_model_show, "<vendor>:<kind>=<model>,...", a leading
+# "SPAWN_MODEL_MAP=" tolerated), (vendor, kind) then (vendor, *); 3 cnf
+# env.box.agent_model.by_kind.<kind>.<vendor>; 4 cnf
+# env.box.agent_model.default.<vendor>; 5 empty. TASK_KIND defaults to
+# SPAWN_TASK_KIND. The cnf is SPOOL_AGENT_MODEL_CNF, else this checkout's
+# all.env.yaml; an unreadable cnf, or no yq, counts as empty (WARN for no yq).
+# Usage: m="$(spool_agent_model claude simple_coding)" || return
+# Test: tests/test-spool-agent-model.sh
+spool_agent_model() {  # VENDOR [TASK_KIND]
+  local v="${1:-}" k m e map cnf
+  local -a cell=()
+  spool_spawn_kind_ok "$v" || { echo "spool-env: no model for unknown vendor '${v}'" >&2; return 2; }
+  k="${2:-${SPAWN_TASK_KIND:-}}"; k="${k,,}"
+  m="${SPAWN_MODEL:-}"
+  if [ -z "$m" ] && [ -n "${SPAWN_MODEL_MAP:-}" ]; then
+    map=",${SPAWN_MODEL_MAP#SPAWN_MODEL_MAP=},"
+    for e in ${k:+"$v:$k="} "$v:*="; do
+      [[ "$map" == *",$e"* ]] || continue
+      m="${map#*,"$e"}"; m="${m%%,*}"
+      [ -z "$m" ] || break
+    done
+  fi
+  if [ -z "$m" ]; then
+    # Steps 3 and 4 from ONE yq; the names reach it as strenv, never as query text.
+    cnf="${SPOOL_AGENT_MODEL_CNF:-$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../../../../csi-spl-cnf/csi-spl/all.env.yaml}"
+    if [ -r "$cnf" ] && ! command -v yq >/dev/null 2>&1; then
+      echo "spool-env: WARN no yq: cnf agent_model not read, ${v} starts on its CLI default" >&2
+    elif [ -r "$cnf" ]; then
+      mapfile -t cell < <(V="$v" K="$k" yq -r '(.env.box.agent_model // {}) as $a
+        | [((($a.by_kind // {})[strenv(K)] // {})[strenv(V)] // ""),
+           ((($a.default // {})[strenv(V)]) // "")] | .[]' "$cnf" 2>/dev/null)
+      m="${cell[0]:-}"; [ -n "$m" ] || m="${cell[1]:-}"
+    fi
+  fi
+  [ -n "$m" ] || return 0
+  [[ "$m" =~ $SPOOL_MODEL_RX ]] || { echo "spool-env: REFUSED model for ${v}: fails ${SPOOL_MODEL_RX}" >&2; return 3; }
+  printf '%s\n' "$m"
+}
+
+# The words that start VENDOR on MODEL (spec 184 7.1.3); nothing for an empty
+# model, exit 0. claude and grok: --model '<m>' (after the perm flags);
+# mistral: VIBE_ACTIVE_MODEL='<m>' (for SPAWN_EXEC_PREFIX). codex, agy and
+# qwen print nothing until row M0 measures their CLI. Exit 2 for an unknown
+# vendor, 3 for a model that fails SPOOL_MODEL_RX.
+# Usage: w="$(spool_model_args grok grok-4.6)" || return
+# Test: tests/test-spool-agent-model.sh
+spool_model_args() {  # VENDOR MODEL
+  local v="${1:-}" m="${2:-}"
+  spool_spawn_kind_ok "$v" || { echo "spool-env: no model words for unknown vendor '${v}'" >&2; return 2; }
+  [ -n "$m" ] || return 0
+  [[ "$m" =~ $SPOOL_MODEL_RX ]] || { echo "spool-env: REFUSED model for ${v}: fails ${SPOOL_MODEL_RX}" >&2; return 3; }
+  case "$v" in
+    claude|grok) printf "%s '%s'" --model "$m" ;;
+    mistral)     printf "VIBE_ACTIVE_MODEL='%s'" "$m" ;;
+    *) ;;
+  esac
+}
+
 # Self-update is off for every agent CLI (102 spec 9.1): the controlled update
 # (do_spl_cli_update) is the only path to a new version. Exported here, so
 # spool-harness.sh (which sources this file as the agent user, right before it

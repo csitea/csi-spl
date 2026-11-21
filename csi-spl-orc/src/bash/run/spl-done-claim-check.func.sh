@@ -19,7 +19,10 @@
 # @description     right after an "md5" label is a file hash, SPL-2332, as
 # @description     is one after a "sha1" / "sha224" / "sha256" / "sha384" /
 # @description     "sha512" label, with or without "sum" and "-" ("SHA-256"),
-# @description     SPL-5990 (a bare "sha" label still names a git sha); a
+# @description     SPL-5990 (a bare "sha" label still names a git sha), also
+# @description     past "prefix" / "first" / "last" / a 1..3-digit count / "hex" /
+# @description     "chars" / "digits" before the hex, SPL-6150 ("sha256
+# @description     prefix <hex>", "sha256sum first 12 hex <hex>"); a
 # @description     relay run-on-box request id (gr-cmd-<hex>, also .zip, or
 # @description     a token right after a "gr-cmd" / "request id" / "req"
 # @description     label) is no sha, SPL-2953: c-368's "gr-cmd-890b4562175b";
@@ -342,7 +345,11 @@ spl_done_claim_patch_ids() {
 # spl_done_claim_tokens [repos file] (stdin): the distinct hex tokens of 9..12
 # or 40 chars, UUIDs and the token after an "md5" or "sha1" / "sha256" / ...
 # label (also "sha256sum", "SHA-256"; SPL-5990; a bare "sha" label still names
-# a git sha) cut out first, and a
+# a git sha; SPL-6150: also past hash-describing words between the label and
+# the hex, "prefix", "first", "last", a count of 1..3 digits (a longer all-digit word is the hash), "hex", "chars", "digits", as in
+# "sha256 prefix <hex>" and "sha256sum first 12 hex <hex>"; any other word ends
+# the label, so "sha256(git diff <sha> <sha>)" names both git shas) cut out
+# first, and a
 # run-on-box request id (gr-cmd-<hex>[.zip], the token after a "gr-cmd",
 # "request id" or "req" label; SPL-2953; SPL-3758, measured on a lane's
 # results: after "gr id", "result", "result for", "results/", "gr-result-")
@@ -355,7 +362,7 @@ spl_done_claim_patch_ids() {
 # commit (SPL-2706: c-597's "sha: 704617890" read as no sha), else a run id.
 spl_done_claim_tokens() {
   sed -E -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/ /g' \
-    -e 's/(^|[^0-9a-zA-Z])(md5|sha-?(1|224|256|384|512))(sum)?[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \5/gI' \
+    -e 's/(^|[^0-9a-zA-Z])(md5|sha-?(1|224|256|384|512))(sum)?([^0-9a-zA-Z]+(prefix|first|last|[0-9]{1,3}|hex|chars|digits))*[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \7/gI' \
     -e 's/(^|[^0-9a-zA-Z])(gr-cmd|gr[ _-]?id|request[ _-]?id|req|results?( for)?|patch[ _-]?id)[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \4/gI' \
     -e 's/(^|[^0-9a-zA-Z])src-[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \2/gI' |
     tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,12}|[0-9a-f]{40}' | awk '!s[$0]++' |

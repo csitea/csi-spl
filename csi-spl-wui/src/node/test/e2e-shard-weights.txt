@@ -15,6 +15,8 @@
 # A file whose test changed inside the window takes the runs whose head
 # contains that change only: invited-inactive-member (8de44d393, 4 -> 8 s)
 # from 44274958796 (n=1; the held-out run also took 8 s).
+# reporting-costs-project (spec 123 P05, SPL-6117) is new: 45 s, its one local run
+# on a generated mock bundle (n=1, 2026-11-21), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -303,6 +305,7 @@ tests/e2e/releases-project-picker.test.mjs 18
 tests/e2e/repo-edit-status.test.mjs 21
 tests/e2e/repo-edit.test.mjs 6
 tests/e2e/reporting-costs-labels.test.mjs 62
+tests/e2e/reporting-costs-project.test.mjs 45
 tests/e2e/reporting.test.mjs 75
 tests/e2e/responsible-seat.test.mjs 9
 tests/e2e/roadmap-goals.test.mjs 28

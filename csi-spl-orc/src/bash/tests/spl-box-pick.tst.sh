@@ -849,6 +849,20 @@ fresh; ans 39 200
   pass "16p. CONTROL faked panes without LANE_QUOTA_CLAUDE_CRED ask nothing" || fail "16p. seam: $(calls)"
 [[ -z "$(uk LANE_QUOTA_CLAUDE_USAGE_CMD= SPL_CNF=/nonexistent LANE_QUOTA_CLAUDE_PROFILE_HOST=)" && "$(calls)" == 0 ]] &&
   pass "16p. CONTROL no endpoint host (no cnf, no LANE_QUOTA_CLAUDE_PROFILE_HOST): no call, no reading" || fail "16p. nohost: $(calls)"
+# R7 W1 (c-426): the throttle is <kept>.usage, so a state dir that cannot be
+# written asks nothing, and a state dir not made yet is made on the first read
+fresh; ans 39 200; mkdir -p "$T/ro"; chmod 555 "$T/ro"
+for i in 1 2 3; do uk LANE_QUOTA_STATE="$T/ro/kept.tsv" >/dev/null; done
+[[ "$(calls)" == 0 ]] && pass "16p. RED CONTROL W1 (FAILs on 28f802950: 3 calls) an unwritable state dir: three reads, 0 calls" || fail "16p. W1 ro: $(calls) calls"
+chmod 755 "$T/ro"; rm -rf "$T/ro" "$T/new" "$T/usage-calls"
+uk LANE_QUOTA_STATE="$T/new/kept.tsv" >/dev/null; uk LANE_QUOTA_STATE="$T/new/kept.tsv" >/dev/null
+[[ "$(calls)" == 1 && -s "$T/new/kept.tsv.usage" ]] && pass "16p. RED CONTROL W1 (FAILs on 28f802950: 2 calls) a state dir not made yet: made on the first read, 1 call for two reads" ||
+  fail "16p. W1 new: $(calls) calls"
+rm -rf "$T/new"
+# R7 W2 (c-426): an answer kept across failed asks ages by LANE_QUOTA_CACHE_MAX_S (21600)
+aged() { fresh; ans 39 200; uk >/dev/null; ans 1 429; sed -i -E "s/^([0-9]+ [0-9]+ )[0-9]+ /\1$(( NOW - $1 )) /" "$KEPT.usage"; rm -f "$KEPT"; uk LANE_QUOTA_USAGE_S=0; }
+[[ -z "$(aged 21700)" ]] && pass "16p. RED CONTROL W2 (FAILs on 28f802950: 39) an answer 6 h old, the asks since refused -> no reading" || fail "16p. W2 old: $(aged 21700)"
+[[ "$(aged 21000)" == "claude:39@$FUT" ]] && pass "16p. CONTROL W2 an answer under 6 h old, the asks since refused -> still 39" || fail "16p. W2 young: $(aged 21000)"
 fresh; rm -f "$CJ" "$T"/cred-u*.json "$T/usage" "$T/usage-answer" "$T/profile"
 
 # 16n. a kept reading lapses unless re-read, and says where it came from

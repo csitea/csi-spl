@@ -353,15 +353,23 @@ spl_box_quota_usage_fetch() {
 # (a renewal, or a credential copied in). The last answer is kept in <kept
 # file>.usage ("<asked epoch> <wait s> <answer epoch> <access-token key>
 # <pct>@<reset> or -"), never the token; an answer of another token is no
-# reading. A failed ask keeps the last answer of the same token: its age
-# lapses it like any kept reading. Seam (tests): LANE_QUOTA_CLAUDE_CRED reads
+# reading. A failed ask keeps the last answer of the same token until it is
+# LANE_QUOTA_CACHE_MAX_S old (21600, as spl_box_quota_cache). A .usage that
+# cannot be written asks nothing: the throttle would not hold. Seam (tests): LANE_QUOTA_CLAUDE_CRED reads
 # that file as this user; a test that fakes the panes (LANE_PANES_CMD) or the
 # reading (LANE_QUOTA_CMD) without it asks nothing.
 spl_box_quota_usage() {
-  local now="${1:-$(date +%s)}" every="${LANE_QUOTA_USAGE_S:-900}" f c="" asked="" wait="" at="" ak="" r="" due=1 host out nak code ra v
+  local now="${1:-$(date +%s)}" every="${LANE_QUOTA_USAGE_S:-900}" max="${LANE_QUOTA_CACHE_MAX_S:-21600}" f c="" asked="" wait="" at="" ak="" r="" due=1 host out nak code ra v
   [[ "$every" =~ ^[0-9]+$ ]] || every=900
+  [[ "$max" =~ ^[0-9]+$ ]] || max=21600
   f="$(spl_box_quota_keep_file)"
-  [[ -n "$f" ]] && c="$f.usage" && read -r asked wait at ak r _ 2>/dev/null <"$c"
+  if [[ -n "$f" ]]; then
+    c="$f.usage"
+    # W1 (R7 c-426): the throttle is this file; one that cannot be written
+    # would let every read call, so none calls then
+    { mkdir -p "$(dirname "$c")" && : >>"$c"; } 2>/dev/null || return 0
+    read -r asked wait at ak r _ 2>/dev/null <"$c"
+  fi
   [[ "$asked" =~ ^[0-9]+$ && "$wait" =~ ^[0-9]+$ ]] && (( now - asked < (wait > every ? wait : every) )) && due=0
   host="$(spl_box_quota_profile_host)"
   if [[ -n "${LANE_QUOTA_CLAUDE_CRED:-}" ]]; then
@@ -385,7 +393,8 @@ spl_box_quota_usage() {
     (( ra > 86400 )) && ra=86400
     [[ -z "$c" ]] || { printf '%s %s %s %s %s\n' "$now" "$ra" "${at:-0}" "$nak" "${r:--}" >"$c.$$" && mv -f "$c.$$" "$c"; } 2>/dev/null
   fi
-  [[ "$at" =~ ^[0-9]+$ && "$r" =~ ^[0-9]+@([0-9]+)$ ]] && (( at > 0 && BASH_REMATCH[1] > now )) || return 0
+  # W2 (R7 c-426): an answer kept across failed asks ages like the CLI's cache
+  [[ "$at" =~ ^[0-9]+$ && "$r" =~ ^[0-9]+@([0-9]+)$ ]] && (( at > 0 && BASH_REMATCH[1] > now && now - at < max )) || return 0
   echo "$r~usage~$at"
 }
 

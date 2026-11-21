@@ -9,6 +9,8 @@
 // the pointer was captured, the tabs reshuffled, and the browser's pan then
 // cancelled it back. `touchHoldMs`: on touch a drag needs a press held that
 // long without moving; a move before then is the browser's scroll.
+// SPL-6175: `heldId` is the item whose hold ran out, until the press ends, so
+// a list can lift it before the finger moves (the notes list on a phone).
 import { DRAG_THRESHOLD_PX, dragAxis, dropIndex, isDrag, moveTo, sameOrder } from '~/utils/rail-order'
 
 /* how long after a drag ends its click may still land and be swallowed; a
@@ -57,6 +59,7 @@ export function useDragReorder<T extends string>(opts: {
   const norm = (o: T[]) => (opts.normalize ? opts.normalize(o) : o)
   const preview = ref<T[] | null>(null) as Ref<T[] | null>
   const draggingId = ref<T | ''>('') as Ref<T | ''>
+  const heldId = ref<T | ''>('') as Ref<T | ''>
   let start: { x: number, y: number, id: T, pointerId: number, el: HTMLElement, held: boolean } | null = null
   let hold: ReturnType<typeof setTimeout> | undefined
   let mids: number[] = []
@@ -96,6 +99,7 @@ export function useDragReorder<T extends string>(opts: {
     start = null
     preview.value = null
     draggingId.value = ''
+    heldId.value = ''
     unlisten()
     if (!dragged) return
     swallowClick()
@@ -110,10 +114,10 @@ export function useDragReorder<T extends string>(opts: {
     const wait = ev.pointerType === 'touch' ? opts.touchHoldMs || 0 : 0
     const s = { x: ev.clientX, y: ev.clientY, id, pointerId: ev.pointerId, el: ev.currentTarget as HTMLElement, held: wait <= 0 }
     start = s
-    if (!s.held) hold = setTimeout(() => { s.held = true }, wait)
+    if (!s.held) hold = setTimeout(() => { s.held = true; heldId.value = id }, wait)
     listeners = listenPress({ move: onMove, up: onUp, cancel: onCancel, touchMove: onTouchMove }, wait > 0)
   }
   onBeforeUnmount(unlisten)
 
-  return { preview, draggingId, down }
+  return { preview, draggingId, heldId, down }
 }

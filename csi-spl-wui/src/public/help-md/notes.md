@@ -70,7 +70,8 @@ or the phone's Back) takes you back to the list.
   there, or press **Unarchive** on its row, and it is back in your list.
 - **Move up** / **Move down** change the note's place in its group. In the
   list, **Alt+Up** / **Alt+Down** on a row does the same, and on a wide screen
-  you can drag a row. A note moved onto a note of another priority takes that
+  you can drag a row. On a phone, keep your finger on a row until it lifts,
+  then drag it up or down. A note moved onto a note of another priority takes that
   note's priority: drag a P5 note onto a P2 note and it becomes P2, in its
   place among the P2 notes. **Priority** in the open note changes it too.
 - **Delete** removes the note at once, with no question, and shows **Note

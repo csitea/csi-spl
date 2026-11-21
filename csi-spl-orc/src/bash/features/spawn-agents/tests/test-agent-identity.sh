@@ -29,6 +29,9 @@
 #   8. a mistral seat whose vibe renamed itself "Vibe CLI" is recorded as
 #      mistral, and adopt + pane-of route a restarted one to its new pane
 #      (drill 6); controls: a shell or another id is never adopted
+#   9. the model (spec 184 row I1): grok's short -m and a vibe's process env
+#      VIBE_ACTIVE_MODEL are recorded as its model; --model still wins; a vibe
+#      with no env and a claude's -m record none
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -227,5 +230,21 @@ eq "8. ... and the map still routes m-617 to %9" "%9" "$(ai_pane_of m-617 "$(cut
 printf 'SPOOL_AGENT_ID=m-629\0' > "$P/902/environ"
 if ai_pane_of m-617 "$(cut -f3 "$AI_PANES_FILE")" >/dev/null; then nok "8. control: no pane once the vibe carries another id"; else ok "8. control: no pane once the vibe carries another id"; fi
 rm -rf "$P/800" "$P/802" "$P/900" "$P/902" "$P/910" "$P/920"
+
+# --- 9 --------------------------------------------------------------------------
+# Spec 184 3.5: the map read only the long --model, so `grok -m grok-4.6` and a
+# vibe started with VIBE_ACTIVE_MODEL (vibe has no model flag) read as null.
+proc 950 1 950 /usr/bin/grok "$W/g-950" g-950 -m grok-4.6
+proc 951 1 951 /usr/bin/grok "$W/g-951" g-951 --model grok-long -m grok-short
+vibe 952 1 952 "$W/m-952" m-952; penv 952 SPOOL_AGENT_ID=m-952 VIBE_ACTIVE_MODEL=devstral-x
+vibe 953 1 953 "$W/m-953" m-953
+proc 954 1 954 /usr/bin/claude "$W/c-954" c-954 -m not-a-claude-flag
+f="$(ai_panes | ai_py facts)"
+has "9. grok -m grok-4.6 records its model" '"model": "grok-4.6"' "$(printf '%s\n' "$f" | grep '"g-950"')"
+has "9. grok: --model wins over -m" '"model": "grok-long"' "$(printf '%s\n' "$f" | grep '"g-951"')"
+has "9. a vibe pid with VIBE_ACTIVE_MODEL records its model" '"model": "devstral-x"' "$(printf '%s\n' "$f" | grep '"m-952"')"
+has "9. control: a vibe with no env records none" '"model": null' "$(printf '%s\n' "$f" | grep '"m-953"')"
+has "9. control: a claude's -m is not read" '"model": null' "$(printf '%s\n' "$f" | grep '"c-954"')"
+rm -rf "$P/950" "$P/951" "$P/952" "$P/953" "$P/954"
 
 t_done

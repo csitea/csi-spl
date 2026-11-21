@@ -9,7 +9,8 @@ window name or a registry row: those are what drifted (2026-10-01: windows
 shifted names after every spawn; a reboot resumed seven neighbours' sessions).
 
 Usage: agent-identity.py --dir DIR [--proc-root ROOT] CMD [ARGS]
-  facts           the live facts, one JSON object per agent process
+  facts           the live facts, one JSON object per agent process; its
+                  model is --model, grok's -m, or mistral's VIBE_ACTIVE_MODEL
   record [--apply] merge the live facts into the records; without --apply only
                   print what would change (PLAN), with it write (WRITE) and
                   refresh index.json. Idempotent: an unchanged record is not
@@ -315,6 +316,19 @@ def flag(argv, name):
     return ""
 
 
+def model_of(kind, argv, env):
+    """The model an agent CLI runs (spec 184 row I1). Usage: model_of(kind,
+    argv, env) -> the model or "". `--model` first (claude, grok, and what the
+    spawn passes); then grok's short `-m`; then, for mistral, the process env
+    VIBE_ACTIVE_MODEL (vibe has no model flag, spec 184 7.1.3)."""
+    m = flag(argv, "--model")
+    if not m and kind == "grok":
+        m = flag(argv, "-m")
+    if not m and kind == "mistral":
+        m = env.get("VIBE_ACTIVE_MODEL", "")
+    return m
+
+
 def user_of(uid):
     try:
         return pwd.getpwuid(uid).pw_name if uid is not None else ""
@@ -539,7 +553,7 @@ def facts(proc, panes):
                 "kind": kind,
                 "session_id": sid or None,
                 "worktree": cwd or None,
-                "model": flag(argv, "--model") or None,
+                "model": model_of(kind, argv, env) or None,
                 "permission_mode": perm or None,
                 "user": user_of(proc.uid(pid)),
                 "pid": int(pid),

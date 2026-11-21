@@ -13389,7 +13389,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: {entries, master_locale}, the cost entries (SPL-4383, rdb 0245), period then created_at order; each with its labels per locale (SPL-5546, rdb 0285)"
+            "description": "OK: {entries, master_locale}, the cost entries (SPL-4383, rdb 0245), period then created_at order; each with its labels per locale (SPL-5546, rdb 0285); label_origins {locale: hand|machine|reviewed} and stale_locales [locale] (SPL-6173)"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -13618,6 +13618,135 @@
           }
         },
         "summary": "Set a cost entry's labels in other languages",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/cost-labels/fill": {
+      "post": {
+        "operationId": "postOperatorCostLabelsFill",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {texts, written, refused, failed, capped}: every cost entry text and hr component that lacks a locale (or holds a machine row of another text) drafted through the translation API, masked first; counts only, never a label (SPL-6173, spec 123 16.6.2)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "501": {
+            "description": "Not Implemented: this hub's store keeps no cost labels"
+          },
+          "503": {
+            "description": "Service Unavailable: translate_unavailable, the hub names no SPOOL_HUB_COST_LABELS_TRANSLATE_URL"
+          }
+        },
+        "summary": "Draft every missing cost label in the other locales",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/cost-labels/reviewed": {
+      "put": {
+        "operationId": "putOperatorCostLabelsReviewed",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "The reviewed labels of one key, still masked (SPL-6173, spec 123 16.6.4). The operator service account only (Bearer).",
+                "properties": {
+                  "key": {
+                    "description": "the opaque key of the unreviewed read",
+                    "type": "string"
+                  },
+                  "labels": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "locale -> masked text (only the locales of masked_drafts)",
+                    "type": "object"
+                  },
+                  "source_sha": {
+                    "description": "the unreviewed read's source_sha",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "source_sha",
+                  "labels"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {written, refused: {locale: why}}: each label unmasked, checked and written as a reviewed machine row; a hand row is never written"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Conflict: stale_source, the master text or its terms changed since the read, or the key has nothing unreviewed: read again"
+          },
+          "501": {
+            "description": "Not Implemented: this hub's store keeps no cost labels"
+          }
+        },
+        "summary": "Write agy's reviewed cost labels",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/cost-labels/unreviewed": {
+      "get": {
+        "operationId": "getOperatorCostLabelsUnreviewed",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {items: [{key, source_sha, masked_text, masked_drafts: {locale: text}}]}: the machine label rows agy has not reviewed, names, emails and phone numbers masked as tokens; key is opaque; never an amount, period, person or entry id (SPL-6173, spec 123 16.6.4, 16.6.5)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "501": {
+            "description": "Not Implemented: this hub's store keeps no cost labels"
+          }
+        },
+        "summary": "Read the masked machine cost labels not yet reviewed",
         "tags": [
           "operator"
         ],

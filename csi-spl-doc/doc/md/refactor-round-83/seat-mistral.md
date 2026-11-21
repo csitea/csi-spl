@@ -10,7 +10,15 @@ Review target: `csi-spl-doc/doc/md/refactor-round-83-plan.md` on branch
 `52681174d193bda93841007ef23a8c458651d917  refs/heads/review/c002-refactor-round-83-planner`
 (head matches; `git log -1 --format='%H %cI %s'` ->
 `52681174d193bda93841007ef23a8c458651d917 2026-11-21T12:13:02+02:00 docs(r83-plan, SPL-6178): refactor round 83 plan v0.1, two rows: ...`).
-Editor c-778@<box>. Rules: `csi-spl-doc/doc/md/rounds-rulebook.md` sections 1 to 3 and 5
+Re-review target named by the dispatch holder c-002@<box> (spool msg
+`0b5a423d-1251-4686-bde6-fae8e46c2b9f`, 2026-11-21T11:03:59Z, task `dispatch-refactor-r83`):
+plan v0.2 head `46c97cac55805c0277f3bc4a8e097150697b3139` —
+`git ls-remote origin review/c002-refactor-round-83-planner` ->
+`46c97cac55805c0277f3bc4a8e097150697b3139  refs/heads/review/c002-refactor-round-83-planner`
+(matches). Plan change since v0.1: `git diff 35a429979 46c97cac5 --
+csi-spl-doc/doc/md/refactor-round-83-plan.md` -> 1 file, +37 -5 (commits `294e82f76`,
+`46c97cac5`; the range `52681174d..46c97cac5` also holds the r82-01/r82-02 picks,
+`git cherry` marks both `-`). Editor c-778@<box>. Rules: `csi-spl-doc/doc/md/rounds-rulebook.md` sections 1 to 3 and 5
 (3.2 the panel signs the plan sha; 5.1 1 to 3 rows; 5.3 numbering and window). Form:
 `csi-spl-doc/doc/md/refactor-round-82-plan.md` and `refactor-round-82/seat-mistral.md`
 (on origin/master). Measured base `eb7c8cc54` (the plan's own "One sha");
@@ -262,11 +270,159 @@ added: clean).
   commit) or `git grep`-based controls are blind on an empty index; with it staged, the
   base reads match the plan's 1.5 exactly (45 pass rc 0; 294 pass rc 0 spot check).
 
+## Re-review: verdict on v0.2 `46c97cac55805c0277f3bc4a8e097150697b3139` — PASS
+
+Read in full at the sha (`git show 46c97cac5:csi-spl-doc/doc/md/refactor-round-83-plan.md`
+-> 428 lines). Base sha unchanged `eb7c8cc54`; `origin/master` at my reads `51de076f3`
+(`git log -1 --format='%H %cI %s' origin/master` -> `51de076f3... 2026-11-21T12:5xZ+01:00
+docs(b34-plan, SPL-6179): ...`). The v0.1 defects are fixed and I verified each fix
+empirically:
+
+- **W1 fixed.** Plan 1.2 re-reads the candidates file at 2026-11-21T10:44:36Z: `wc -l
+  /var/spool-hub/dispatch/c002-next-round-candidates.md` -> **109**, `stat -c %y` ->
+  `2026-11-21 12:43:31 +0200` (= 10:43:31Z, as the plan says). G1 as written, `grep -nE
+  '[Rr]efactor|[Tt]est-shaped' <file>` -> **8 lines** `:1 :25 :48 :51 :74 :76 :104 :109` —
+  exactly the plan's quoted output. `sed -n '101,109p'` -> `:101` bug-shaped (spec-version
+  lane exit-clean), `:102` blank, `:103` heading "from SPL-6174", `:104` the
+  spl-lane-mix stale-agy line, `:105` the workspace-rules/wf10 line, `:106` bug-shaped
+  (SPL-6174 links t1), `:107` blank, `:108` heading "from SPL-6174 re-review", `:109` the
+  gct-coverage N4 line — matching the plan's one-by-one accounting. Section 7 carries
+  `:104` and `:105` with reasons (deferred, behaviour change, r84 candidate).
+- **W2 fixed.** G1/G2 left the tables with their real output; G2 re-run by me:
+  `git grep -nE 'final word|agy review|needs_agy_review' origin/master --
+  csi-spl-orc/src/bash/run/spl-lane-mix.func.sh` -> **9 lines** `:46 :48 :136 :138 :392
+  :401 :402 :411 :417` — matches the plan.
+- **N2 fixed.** Plan 1.5's red row now says 44 pass / 4 FAIL; my run below measured
+  exactly 44 pass + 4 FAIL, rc 1.
+
+Checks 1-8 re-run on `46c97cac5` (command -> output):
+
+1. Slug: `git log origin/master --since="$W" --oneline -E --grep='\(r83-' | wc -l` ->
+   **0**; all history -> **0**. `git ls-remote origin | grep -E 'r83-[0-9]{2}|refactor-round-83'`
+   -> exactly the 2 expected branches (planner `46c97cac5...`, my seat `6f09ce9ff...`).
+   `ls /var/spool-hub/dispatch/briefs | grep -E 'r83-[0-9]{2}|refactor-round-83'` -> the
+   2 expected files. `git ls-tree eb7c8cc54 csi-spl-doc/doc/md | grep -c refactor-round-83`
+   -> **0**. W source: `git log -1 --format='%h %cI' 0b6b9a1d9` ->
+   `0b6b9a1d9 2026-11-21T10:15:35+01:00` = the plan's W. Control `(r82-` since W ->
+   **4** now (r82 rows landed since the plan's read; was 1 at 09:46Z) — the read still
+   sees used ids (N1).
+2. Sites: every cited line re-printed on `eb7c8cc54` via `git show <sha>:<f> | sed -n <N>p`:
+   spl-desk-reply.func.sh `:192,:542,:544,:548,:550` (caller, header, def, spec-033
+   comment, the `spool_kind_in "result|reject|blocker|msg|$SPOOL_NOTE_KINDS"` check),
+   test-spool-kinds.sh `:56-57`, parse-metadata copies `:7-8` (iac names
+   `tf-state-show.func.sh`, orc/utl name `tf-030-import-existing-cloud-run.func.sh`) and
+   `:15,:90,:98,:105`, comment-refs-exist.tst.sh `:220,:228-231`, run-sh-parity.tst.sh
+   base 44 lines. Line counts base/master: 789/789, 64/64, 111/111 x3, run-sh-parity
+   **44/55**, comment-refs-exist 261/261, spool-env.inc.sh 1151/1151.
+   `git diff --name-only eb7c8cc54 origin/master -- <the 7 row paths + spool-env.inc.sh>`
+   -> **only** `csi-spl-iac/src/bash/tests/run-sh-parity.tst.sh` (r82-02 landed,
+   `17e8b2459`; master's copy has the validate-params loop — the drift the plan's
+   `after: r82-02` covers). md5 at base: iac `e44bb21b...`, orc = utl `200cca5d...`
+   (2 distinct texts, as the plan says).
+3. Red controls, scratch `/tmp/r83v02/{base,head01,parent,head02}` (`git archive` +
+   `git init` + one commit; `SPOOL_TEST=1`; hermetic — `t_sandbox` sets a mktemp
+   `SPOOL_ROOT`, the guard refuses the live root; nothing touched `/var/spool-hub`).
+   sha256 at base, unchanged from v0.1: test-spool-kinds `977881c8...`,
+   spl-desk-reply.func.sh `f5f2ce79...`, run-sh-parity `5a4786de...`,
+   comment-refs-exist `80aa864f...`, parse-metadata iac `49f8f851...`, orc = utl
+   `484df2c5...`.
+   - Row 01: base test on base -> rc **0**, 45 pass 0 fail, last line
+     `-- test-spool-kinds.sh: 45 passed, 0 failed`. Head test on head (1.3's shape:
+     `_spl_desk_reply_kinds` before `:542`, `:550` reads it, file 789 -> 793 lines;
+     test section 4 sources the action, +3 cases) -> rc **0**, 48 pass 0 fail.
+     **Red** (head's test copied into unmodified base) -> rc **1**, 44 pass 4 FAIL, last
+     line `-- test-spool-kinds.sh: 44 passed, 4 failed`; FAIL lines:
+     `4. _spl_desk_reply_kinds is ... (want 'result|reject|blocker|msg|note|...', got '')`,
+     `4. the reply set is written once, in _spl_desk_reply_kinds (want '1', got '0')`,
+     and the two section-4 usage checks with `want ''`. Fails for the plan's reason (the
+     function is absent on base), not an environment reason.
+   - Row 02: parent = `git archive origin/master` (carries r82-02's loop). **Red A**
+     (head's run-sh-parity — `for h in validate-params parse-metadata` — on parent) ->
+     rc **1**, 7 pass, 3 FAIL lines: `FAIL: iac and orc parse-metadata.func.sh differ`,
+     `FAIL: iac and utl parse-metadata.func.sh differ`, `FAIL: 2 assertion(s) in
+     run-sh-parity.tst.sh` (last line). **Green A** (head = parent + the 3 copies' `:7-8`
+     naming `lib/bash/funcs/parse-metadata.func.sh`; md5 of the three -> one value
+     `4a1af2ec...`) -> rc **0**, 10 pass 0 fail, last `PASS: all run-sh-parity.tst.sh
+     assertions`. **Green B** (comment-refs-exist site 4 replaced with the module-neutral
+     check, on head) -> rc **0**, 21 pass 0 fail, `PASS: site 4 example is a real file
+     (lib/bash/funcs/parse-metadata.func.sh)`. **Red B** (orc's example planted as
+     `lib/bash/funcs/no-such.func.sh` on head) -> rc **1**,
+     `FAIL: site 4 example is not a file of orc: 'lib/bash/funcs/no-such.func.sh'` plus
+     the scan's own 2 dangling-ref FAILs and the summary.
+4. Equivalence: row 01, 15-kind probe (`_spl_desk_reply_check_args body <kind> "" ""`,
+   `SPOOL_NOTE_KINDS` unset, framework funcs stubbed) on base and head -> `cmp` of the
+   two outputs **IDENTICAL** (`task=1`, the 12 reply kinds `0`, `bogus=1`, empty `=1`);
+   the FATAL line for `bogus` on head reads as before (`FATAL DESK_KIND must be result,
+   reject, blocker, msg or note, feature, ..., got: 'bogus'`). Row 02: the plan's
+   comment-only command `git diff -U0 -- <3 libs> | grep -E '^[-+][^-+]' | grep -vcE
+   '^[-+]\s*#'` -> **0**; the module-neutral example runs rc 0 from each module root
+   (the two `param=` lines, iac/orc/utl). No exit code, message, path or default changes
+   in either row; the controls catch a difference (check 3).
+5. Row fields: both rows vendor **claude**, kind **simple_coding**, batches **1** (row 01)
+   and **2, after r82-02** (row 02); each has a fail-today/pass-after control (check 3)
+   and a test list (1.5). No mistral coding or testing row. R7: `BOX_PICK_KIND=grok
+   ./run -a do_spl_box_pick` re-run now -> `pick=hold reason=waiting: grok weekly >= 95%
+   or unknown on <box>, <box> ...: queue the lane, spawn nothing` (same as the plan's
+   10:08:24Z read) -> each row takes a fresh **claude waiver seat** (1a7c70da), never
+   mistral. R1: row 01's and row 02's file sets share **0** files; one row per batch.
+6. R3 lane map: `bash /opt/csi/csi-spl-desk-cron/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh
+   --check <the 7 row paths, comma-separated> --agent m-780` -> **exit 3**:
+   `csi-spl-iac/src/bash/tests/run-sh-parity.tst.sh` owned by `c-778@<box>`
+   (c-778-c002-refactor-round-83-planner) and `m-785@<box>`
+   (m-785-c002-bug-round-34-mistral-panel-seat), both "changed in its worktree; no files
+   recorded"; the other 6 row paths print nothing (free). Both owners are planner/panel
+   seats whose branches carry the r82-02 pick; row 02's `after: r82-02` covers the file
+   and r82-02 has now landed on master (N3).
+7. Inputs: G1's 8 lines all accounted — `:1/:25/:48` literal paths (r82 panel N4:
+   `git show origin/master:csi-spl-doc/doc/md/refactor-round-82/seat-mistral.md` N4
+   "every refactor-shaped item ... served or accounted for"), `:51` bug-shaped, `:74`
+   test row (section 7), `:76` served by r81-01 `3174e591a`, `:104/:105` deferred in
+   section 7, `:109` not refactor by its own text. Section 7's measurements re-run:
+   `git grep -n 'spawn-an-agent.md' origin/master -- csi-spl-doc/doc/md/workspace-rules.md`
+   -> `:33`; `git grep -n 'agy language review' origin/master -- .github/workflows` ->
+   `:2029`, `:2043`; r82 plan section 7 exists (`git show origin/master:...82-plan.md |
+   grep -n '^## 7'` -> `:381`). `git log origin/master --grep='SPL-6174' | wc -l` ->
+   **4** now (`c081de61a`, `4d95cd4c3`, `197c8ac6d`, `63ff3e425` — landed after the plan's
+   10:37Z read of 0; N2). The deferral still holds: `spl-lane-mix.func.sh` still carries
+   the 9 agy lines (G2 above), the global rule asset
+   `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/20-spawn-an-agent.md:41`
+   now says gct "replaces the agy final word", and renaming the flag changes
+   `do_spl_lane_mix`'s output — a behaviour change, not a refactor row. No
+   refactor-shaped input is left unserved and unaccounted.
+8. `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene:
+   clean over the tracked tree of /opt/csi/csi-spl-wt/m-780`, exit 0.
+
+**Defects on v0.2: none.** W1, W2 and the N2 count from the v0.1 FAIL are fixed and
+verified above.
+
+**Notes on v0.2:**
+
+- **N1:** live drift since the plan's reads: `origin/master` `31a976ffb` -> `51de076f3`;
+  r82-01/r82-02 landed (`714df2994`, `17e8b2459` per `0e7b783c7`'s message);
+  run-sh-parity.tst.sh 44 -> 55 lines (the only row-file drift, covered by `after:
+  r82-02`); the W-derivation `git log -1 ... --grep='^docs\(r82-plan'` now returns
+  `0e7b783c7` (2026-11-21T11:50:02+01:00, the r82 "round closed" commit) — W itself is
+  unchanged (`0b6b9a1d9` = 10:15:35+01:00).
+- **N2:** SPL-6174 has landed (4 commits) since the plan's 10:37Z read; section 7's
+  "`git log origin/master --grep='SPL-6174'` -> 0 at 10:37Z" is time-stamped and was true
+  then. `:104`/`:105` are now live candidates for r84 / SPL-6174's follow-up lane,
+  exactly as the plan defers them.
+- **N3:** lane-map exit is 3 (not 4) now: run-sh-parity.tst.sh is changed in
+  c-778@<box>'s and m-785@<box>'s worktrees with no files recorded — both are
+  planner/panel seats carrying the r82-02 pick, not row lanes; no live lane lists any of
+  the other 6 row paths.
+- **N4:** the red controls are hermetic as in v0.1 (`SPOOL_TEST=1`, `t_sandbox` mktemp
+  `SPOOL_ROOT`, `spool_test_guard` refuses the live root); the scratch copies needed
+  `git init` + one commit or `git grep`-based controls are blind on an empty index.
+
 ## State history
 
-- 2026-11-21T10:3xZ commit on `review/c002-refactor-round-83-mistral-seat`: full review
-  of `52681174d193bda93841007ef23a8c458651d917` (checks 1-8 above), verdict FAIL, W1-W2,
-  N1-N4.
+- 2026-11-21T10:3xZ commit `6f09ce9ff` on `review/c002-refactor-round-83-mistral-seat`:
+  full review of `52681174d193bda93841007ef23a8c458651d917` (checks 1-8 above), verdict
+  FAIL, W1-W2, N1-N4.
+- 2026-11-21T11:xxZ commit on `review/c002-refactor-round-83-mistral-seat`: re-review of
+  v0.2 `46c97cac55805c0277f3bc4a8e097150697b3139` (section above), verdict **PASS**, no
+  W, N1-N4.
 
 Seed STEP 0: `cd csi-spl-orc && sudo -u <push user> env AGENT_ID=m-780 DEV_GUIDE_ACK=yes
 ./run -a do_dev_guide_ack` -> `ACK m-780 read developer-guide.md blob 8b1916cdc...`.

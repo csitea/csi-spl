@@ -357,11 +357,11 @@ cat >"$T/bin/id-lanes" <<'STUB'
 #!/usr/bin/env bash
 echo '{"hub": "ok", "lanes": [
   {"agent_id": "c-911", "agent_box": "box-far", "branch": "c-911-slug-x-far", "issue_key": "SPL-9212", "state": "live"},
-  {"agent_id": "c-911", "agent_box": "box-desk", "branch": "c-911-slug-x-here", "issue_key": "SPL-9211", "state": "live"}]}'
+  {"agent_id": "c-911", "agent_box": "box-desk", "branch": "c-911-slug-x-here", "issue_key": "SPL-9213", "state": "live"}]}'
 STUB
 chmod +x "$T/bin/id-lanes"
 for c in "far slug-x-far SPL-9212 the hub's key of box-far's c-911, not this box's lifetime/issue" \
-         "here slug-x-here SPL-9211 CONTROL c-911@box-desk (this box): its lifetime/issue" \
+         "here slug-x-here SPL-9211 CONTROL c-911@box-desk (this box): its lifetime/issue, not the hub row SPL-9213 (R7 c-531 W1)" \
          "bare slug-x-bare SPL-9211 CONTROL a bare c-911 (no box): its lifetime/issue"; do
   read -r cn cs cw ct <<<"$c"
   got="$(on "spl_asks_init; spl_spawn_after_key $cs" SPAWN_AFTER_LANES_CMD="$T/bin/id-lanes" SPAWN_AFTER_LANES_MIN=0 2>/dev/null | tail -1)"

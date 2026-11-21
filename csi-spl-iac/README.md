@@ -19,6 +19,7 @@
 | `src/terraform/060-gcp-vm-satellite` | prd only: the satellite agent box (spec 057): VM + data disk + logs-only SA + ONE ingress rule, tcp/22 from IAP |
 | `src/terraform/058-gcp-wine-box-budget` | dev only: the wine-box monthly budget alert, filtered to its `box` label (applied before 061) |
 | `src/terraform/061-gcp-vm-wine-box` | dev only: the wine-box test VM (Wine + a localhost-only VNC desktop). SSH from `ssh_source_ranges`, an ephemeral public address, no Cloud NAT |
+| `src/terraform/062-gcp-workspace-vms` | spec 181 B5, plan only: one private VM per private workspace, `for_each` over cnf `workspace_vms` (`<tenant>` -> machine type, empty by default = no change), each VM and boot disk labelled `workspace` and `box`; a VM without its `workspace` label is refused at plan time. Test: `src/bash/tests/workspace-vms-step.tst.sh` |
 | `src/bash/tests/` | `bash src/bash/tests/run-all-tests.sh` |
 | `cnf/tpl-gen.ref` | the tpl-gen commit the renders are made with |
 

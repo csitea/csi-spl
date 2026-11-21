@@ -426,10 +426,26 @@ worktree, `SPOOL_TEST=1`), `bash-cleancode.tst.sh`,
   row 02 gives the desk readers' `kv` one home in `desk-root.inc.sh`. Every test of 1.5
   run on base and the row's head. Window W and the r84 slug proof recorded.
 
+- 2026-11-21 13:24Z: m-840 (mistral, on the other box) **PASS** on v0.1
+  `d90bec9f397459574f3965aa4d4a2e64c49fd8b7`, no W (msg 73af119a; seat file
+  `csi-spl-doc/doc/md/refactor-round-84/seat-mistral.md`, `3654737c2` on
+  `review/c002-refactor-round-84-mistral-seat`). It re-ran the slug proof, the 38 cited
+  site lines on `e1ee705d8` and origin/master (identical), both red controls (1 FAIL,
+  4 FAILED, as 1.5 quotes), a 156-case `an_strip` probe (0 differ) and
+  `git grep -c "export AGENT_TOP_TAG"` (no match).
+  - **N1** the candidates file is not on the seat's box; it checked the 8 G1 lines against
+    r83 section 7. **N2** the red controls were rebuilt from 1.3 / 1.4's test text on a
+    copy of base. **N3** the perf-floor line was read, not re-run. **N4** a first,
+    orc-only scratch gave 5 environment FAILs; a full-tree copy as the box user gives
+    1.5's numbers. **N5** the lane map exits 4 there too. Agreed; no row changes.
+- State at 13:4xZ (lane rotation): the PASS is recorded here. v1.0 (this section, the
+  status line and section 9, plus the seat file folded in) follows the holder's GO and its
+  `do_spl_review_line_check` rc 0. Not on master before then.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
 - Editor seat: c-840 (claude): v0.1.
-- Panel reviewer seat: the queued mistral seat (section 4).
+- Panel reviewer seat: m-840 (mistral): **PASS** on v0.1 `d90bec9f3`, no W (section 8).
 - Row R7 seats: section 4.

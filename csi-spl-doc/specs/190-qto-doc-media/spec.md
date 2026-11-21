@@ -544,3 +544,37 @@ the notes:
 
 The G9 `signBlob` grant (row T2) stays an apply on the owner's go; this
 landing is docs only.
+
+## 9. Build status
+
+Lane `c-745` (SPL-6152), rows D1, H1, H3. Each line names what was built
+and where it differs from the text above; the landing sha is the commit
+that carries the line.
+
+- **D1 built**: rdb `0306_workspace_doc_media.sql`, store
+  `api/store/workspace_docs_media.go` (`DocMediaPut`, `DocMediaNamed`,
+  `DocMediaDrop`, `DocMediaSweep`, `DocGoneBefore`, `DocGoneDrop`,
+  `DocMediaHold`), tests `workspace_docs_media_test.go` (Postgres). Red
+  controls run: without the migration all three tests fail (`relation
+  "workspace_doc_media" does not exist`); without its ENABLE / FORCE lines
+  `TestRLSCoversEveryTenantTable` fails on the table; without its
+  `human_lock` policy `TestDocMediaHumanLock` fails (an unmarked reader
+  indexes into a locked doc). Differs from section 5:
+  - the row has `unnamed_since` (NULL while a body of its doc carries the
+    token; else when the sweep first saw none): it is what makes "7 days"
+    measurable for C7;
+  - a re-upload of the same bytes sets `unnamed_since = NULL` (`ON
+    CONFLICT DO UPDATE`), so it restarts the grace; the first row's `ext`
+    and `name` win;
+  - a second table, `workspace_doc_gone (tenant_id, doc_id, gone_at)`,
+    written by a `BEFORE DELETE` trigger on `workspace_doc`. Under RLS a
+    deleted document and one locked to another human both read as "no
+    document"; only the first may lose its files, so the sweep needs the
+    tombstone. The FK of the media row cascades on the doc delete.
+- **D1, channel move**: `workspace_doc_media` is classed Moved in
+  `api/channelmove/catalogue.go` (its rows follow their doc, M8) and
+  `workspace_doc_gone` not-channel. The bytes do not move: they stay in
+  the source workspace's bucket under `qto-media/<doc>/`, and the source's
+  doc delete writes the tombstone, so the sweep removes them 7 days after a
+  move. A copy step in the channel move is not built (not a row of this
+  spec).

@@ -209,5 +209,8 @@ export function freshEndsOnRoute(toPath, channel) {
   const path = String(toPath || '').split(/[?#]/)[0].replace(/\/+$/, '')
   if (path.startsWith('/t/')) return false
   const c = String(channel || '')
-  return !c || decodeURIComponent(path) !== `/channel/${c}`
+  if (!c) return true
+  let decoded
+  try { decoded = decodeURIComponent(path) } catch { return true }
+  return decoded !== `/channel/${c}`
 }

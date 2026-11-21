@@ -73,5 +73,8 @@ describe('spec 189 B2 D2 / C6 how long', () => {
     assert.equal(freshEndsOnRoute('/issues', 'alerts'), true)
     assert.equal(freshEndsOnRoute('/dm/CLE-07', 'alerts'), true)
     assert.equal(freshEndsOnRoute('/channel/alerts', ''), true)
+    // a malformed escape (a bare %) ends the pin rather than throwing in the route guard
+    assert.equal(freshEndsOnRoute('/channel/al%erts', 'alerts'), true)
+    assert.equal(freshEndsOnRoute('/channel/%E0%A4%A', 'alerts'), true)
   })
 })

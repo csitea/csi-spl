@@ -5,8 +5,10 @@ Status: **v1.0** (2026-11-21): the owner's four answers folded (section
 cli on this box).
 Build: rows B1-B7 built by lane `c-760` on branch
 `review/c002-s189-b1-b7-topic-list-end-build` (the `feat(wui, SPL-6143)` commit and
-the help commit after it); not on master until its agy language review and
-R7 code review pass. The fresh set and `pinEdge` share
+the help commit after it); its language check is Google Cloud Translation
+(`do_spl_lang_review_gct`, run `20261121T105714Z-83125f6a`: 7 match, 11 differ
+only in gender agreement with each locale's word for "topic", 0 placeholder);
+not on master until the R7 code review passes. The fresh set and `pinEdge` share
 `wui/utils/topic-list-order.mjs` (no new shim block: the shims cap is 102).
 Epic: **SPL-2403**. Issue: **SPL-6143**. Class: `feature`. Kind: `specs_and_docs`.
 Placement: `c002-s-new-topic-pinned-end-spec`.

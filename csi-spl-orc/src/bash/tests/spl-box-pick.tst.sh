@@ -852,9 +852,16 @@ fresh; ans 39 200
 # R7 W1 (c-426): the throttle is <kept>.usage, so a state dir that cannot be
 # written asks nothing, and a state dir not made yet is made on the first read
 fresh; ans 39 200; mkdir -p "$T/ro"; chmod 555 "$T/ro"
-for i in 1 2 3; do uk LANE_QUOTA_STATE="$T/ro/kept.tsv" >/dev/null; done
+for i in 1 2 3; do uk LANE_QUOTA_STATE="$T/ro/kept.tsv" >/dev/null 2>&1; done
 [[ "$(calls)" == 0 ]] && pass "16p. RED CONTROL W1 (FAILs on 28f802950: 3 calls) an unwritable state dir: three reads, 0 calls" || fail "16p. W1 ro: $(calls) calls"
 chmod 755 "$T/ro"; rm -rf "$T/ro" "$T/new" "$T/usage-calls"
+# c-451 (R7 of d285fde4f): the file exists, its dir takes no new file (the
+# answer's temp file + mv): asked 1000 s ago, past LANE_QUOTA_USAGE_S
+mkdir -p "$T/ro2"; uk LANE_QUOTA_STATE="$T/ro2/kept.tsv" >/dev/null; rm -f "$T/usage-calls"
+sed -i -E "s/^[0-9]+ /$(( NOW - 1000 )) /" "$T/ro2/kept.tsv.usage"; chmod 555 "$T/ro2"
+for i in 1 2 3 4 5; do uk LANE_QUOTA_STATE="$T/ro2/kept.tsv" >/dev/null 2>&1; done
+[[ "$(calls)" == 0 ]] && pass "16p. RED CONTROL W1 (FAILs on d285fde4f: 5 calls) .usage there, its dir unwritable, the ask due: five reads, 0 calls" || fail "16p. W1 ro2: $(calls) calls"
+chmod 755 "$T/ro2"; rm -rf "$T/ro2" "$T/usage-calls"
 uk LANE_QUOTA_STATE="$T/new/kept.tsv" >/dev/null; uk LANE_QUOTA_STATE="$T/new/kept.tsv" >/dev/null
 [[ "$(calls)" == 1 && -s "$T/new/kept.tsv.usage" ]] && pass "16p. RED CONTROL W1 (FAILs on 28f802950: 2 calls) a state dir not made yet: made on the first read, 1 call for two reads" ||
   fail "16p. W1 new: $(calls) calls"

@@ -354,10 +354,12 @@ spl_box_quota_usage_fetch() {
 # file>.usage ("<asked epoch> <wait s> <answer epoch> <access-token key>
 # <pct>@<reset> or -"), never the token; an answer of another token is no
 # reading. A failed ask keeps the last answer of the same token until it is
-# LANE_QUOTA_CACHE_MAX_S old (21600, as spl_box_quota_cache). A .usage that
-# cannot be written asks nothing: the throttle would not hold. Seam (tests): LANE_QUOTA_CLAUDE_CRED reads
-# that file as this user; a test that fakes the panes (LANE_PANES_CMD) or the
-# reading (LANE_QUOTA_CMD) without it asks nothing.
+# LANE_QUOTA_CACHE_MAX_S old (21600, as spl_box_quota_cache). The ask is
+# recorded in .usage, by the same temp file and mv as the answer, before the
+# endpoint is called; when that write fails, nothing is asked: the throttle
+# would not hold. Seam (tests): LANE_QUOTA_CLAUDE_CRED reads that file as this
+# user; a test that fakes the panes (LANE_PANES_CMD) or the reading
+# (LANE_QUOTA_CMD) without it asks nothing.
 spl_box_quota_usage() {
   local now="${1:-$(date +%s)}" every="${LANE_QUOTA_USAGE_S:-900}" max="${LANE_QUOTA_CACHE_MAX_S:-21600}" f c="" asked="" wait="" at="" ak="" r="" due=1 host out nak code ra v
   [[ "$every" =~ ^[0-9]+$ ]] || every=900
@@ -365,12 +367,15 @@ spl_box_quota_usage() {
   f="$(spl_box_quota_keep_file)"
   if [[ -n "$f" ]]; then
     c="$f.usage"
-    # W1 (R7 c-426): the throttle is this file; one that cannot be written
-    # would let every read call, so none calls then
-    { mkdir -p "$(dirname "$c")" && : >>"$c"; } 2>/dev/null || return 0
+    mkdir -p "$(dirname "$c")" 2>/dev/null
     read -r asked wait at ak r _ 2>/dev/null <"$c"
   fi
   [[ "$asked" =~ ^[0-9]+$ && "$wait" =~ ^[0-9]+$ ]] && (( now - asked < (wait > every ? wait : every) )) && due=0
+  # W1 (R7 c-426, c-451): the throttle is this file, so the ask is recorded
+  # first, by the very write the answer uses; a write that fails asks nothing
+  (( due )) && { asked="$now"; wait=0; }
+  [[ -z "$c" ]] || { printf '%s %s %s %s %s\n' "${asked:-$now}" "${wait:-0}" "${at:-0}" "${ak:--}" "${r:--}" >"$c.$$" && mv -f "$c.$$" "$c"; } 2>/dev/null ||
+    { rm -f "$c.$$" 2>/dev/null; return 0; }
   host="$(spl_box_quota_profile_host)"
   if [[ -n "${LANE_QUOTA_CLAUDE_CRED:-}" ]]; then
     out="$(spl_box_quota_usage_fetch "$LANE_QUOTA_CLAUDE_CRED" "$host" "$ak" "$due")"

@@ -14,7 +14,7 @@ are erased with it.
 ## The list
 
 - **New note** on top starts an empty note with priority 5, above your other
-  notes of that priority.
+  notes of that priority. Opening Notes puts the focus on it: press **Enter**.
 - The **filter box** narrows the list to the notes whose title or text holds
   what you type.
 - **Pinned** notes come first, in their own group; the other notes follow.

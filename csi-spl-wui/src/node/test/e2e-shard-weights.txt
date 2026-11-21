@@ -228,6 +228,7 @@ tests/e2e/notes-design.test.mjs 13
 tests/e2e/notes-link-click.test.mjs 4
 tests/e2e/notes-link-left.test.mjs 3
 tests/e2e/notes-menu.test.mjs 10
+tests/e2e/notes-open-focus-new.test.mjs 7
 tests/e2e/notes-open.test.mjs 59
 tests/e2e/notes-rail-on.test.mjs 5
 tests/e2e/notification-open.test.mjs 15

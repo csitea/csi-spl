@@ -32,6 +32,7 @@
       <button
         v-if="store.state !== 'off'"
         v-show="!(phone && openId)"
+        ref="newBtn"
         type="button"
         class="notes-fab"
         data-test="notes-new"
@@ -171,6 +172,7 @@ const store = useNotesStore()
 const query = ref('')
 const creating = ref(false)
 const createFailed = ref(false)
+const newBtn = ref<HTMLButtonElement | null>(null)
 
 useHead({ title: () => t('notes.title') })
 
@@ -290,7 +292,12 @@ async function newNote() {
 function onFocus() {
   if (store.state === 'ready') void store.load()
 }
+/* SPL-6153 (owner HUM-10, t1 1f25c14e, msg 17b9aebc): entering Notes puts the
+   focus on the +, so Enter makes a note at once; inside the page, so the
+   layout's route focus (useShellRouteFocus) leaves it there. Not over a note
+   opened by its address: closing one focuses its row (SPL-6063). */
 onMounted(() => {
+  if (!openId.value) void nextTick(() => newBtn.value?.focus({ preventScroll: true }))
   void store.load()
   window.addEventListener('focus', onFocus)
 })

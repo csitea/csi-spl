@@ -343,3 +343,58 @@ v0.2, sign it in this file, report in the same review-line form.
 Signed by m-729@sat. Notes: none new — the live-lane count moved (16 -> 18 `unknown:` lanes,
 13 -> 14 queued) and origin/master moved to `3174e591a` since the v0.1 review, all with no
 row file owned or named and no row-file drift: expected live drift, not a defect.
+
+---
+
+## v1.0 signature — PASS on `a83052abd454ac686d9128ffd5e6aabc9006f0db` (2026-11-21 09:04Z..09:08Z)
+
+Asked by c-001@sat (gc note, task `gc-m-729`, msg 0858f476, 09:04:07Z): the plan v1.0 is on
+origin/master as `a83052abd`; sign it in this file and report in the same review-line form.
+My brief requires the signature ("sign that sha in the same file ... and report again in the
+same form"), so this section is it.
+
+- On master: `git fetch origin`; `git merge-base --is-ancestor a83052abd origin/master` ->
+  rc 0; `git log -1 --format='%H %s' a83052abd` -> `a83052abd454ac686d9128ffd5e6aabc9006f0db
+  docs(b33-plan, SPL-6160): bug round 33 plan v1.0 records the panel's v0.2 PASS (m-729, no
+  W) and takes its seat file at 8bfd8d8d4; no row changed`.
+- Plan at v1.0: `git show a83052abd:csi-spl-doc/doc/md/bug-round-33-plan.md | sha256sum` ->
+  `b4986b270eda9180d3ae5e7c5fc92fe1992d1c234b61eb5d3f9a5e796bc7f653`, 305 lines, read whole.
+  `git diff 14de348c0 a83052abd -- csi-spl-doc/doc/md/bug-round-33-plan.md` -> only the Status
+  line, the version-history lines (v0.2 sha named, the 07:50Z PASS line, the v1.0 line) and the
+  seat table (Editor `v1.0`; Panel `PASS` on v0.2 `14de348c0`); **no row, red control, vendor,
+  kind, batch or R7 cell changed**; base still `5083f4cf9`, window unchanged.
+- Seat file taken: `git diff 8bfd8d8d4 a83052abd -- csi-spl-doc/doc/md/bug-round-33/seat-mistral.md | wc -l`
+  -> `0` (byte-identical to this branch's `8bfd8d8d4`); `git ls-tree a83052abd
+  csi-spl-doc/doc/md/bug-round-33/` -> `seat-mistral.md` blob `bde546c79`.
+- Slug re-check: `W=2026-11-21T07:57:34+02:00` (`8955c8b29`);
+  `git log origin/master --since="$W" --format='%h %s' | grep -E '\(b33-[0-9]{2}'` -> no match
+  (rc 1): no row commit on master. The only `(b33-` commits since W are the three plan commits
+  `af51c32cf` (v0.1), `e4b2347a8` (v0.2), `a83052abd` (v1.0).
+  `git ls-remote origin | grep -E 'b33-[0-9]{2}|bug-round-33'` -> `review/b33-01` `9158e74de`,
+  `review/b33-02` `5c383ed40` (the two row lanes' review branches, expected after the panel's
+  PASS), this seat's `8bfd8d8d4`, the planner's `14de348c0`.
+  `ls /var/spool-hub/dispatch/briefs | grep -E 'b33-[0-9]{2}|bug-round-33'` -> the two c002 b33
+  briefs plus `c003-b33-01-orc-enqueue-docs-lane-shared-issue.md`,
+  `c003-b33-02-orc-quota-token-key-private.md`, `c002-b33-02-claude-waiver-reviewer.md`,
+  `c003-b33-01-claude-waiver-reviewer.md` (the row lanes' and waiver reviewers' briefs; expected).
+- Drift re-check: `git diff --name-only 5083f4cf9 origin/master -- <the ten cited files>` ->
+  empty (origin/master now `5d9bcef49`): no row file or cited file moved since the base.
+- Red controls re-run on origin/master: sha256 unchanged (`0d16044948a4…` rc01,
+  `3576b3fc05ce…` rc02); `bash /var/spool-hub/dispatch/b33-red-controls/rc01.sh origin/master`
+  -> exit 1, last line `rc01 sha=5d9bcef49 wrong=3`;
+  `bash /var/spool-hub/dispatch/b33-red-controls/rc02.sh origin/master` -> exit 1, last line
+  `rc02 sha=5d9bcef49 wrong=4`; `RC01_PLANT=1 bash rc01.sh origin/master` -> exit 0, `wrong=0`.
+  Both RED on master for the plan's reason, green half green.
+- Lane map re-run: row files -> exit 3, `spl-spawn-enqueue.func.sh` and
+  `spl-spawn-queue.tst.sh` owned by `c-749@sat`
+  (`c-749-c003-b33-01-orc-enqueue-docs-lane-shared-issue`) — the b33-01 row lane, expected now
+  that the rows are placed after the panel's PASS; the quota files are not owned. This seat
+  file -> exit 4, no owner: free.
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene: clean over
+  the tracked tree of /opt/csi/csi-spl-wt/m-729`, rc 0.
+
+**Verdict on v1.0 `a83052abd454ac686d9128ffd5e6aabc9006f0db`: PASS (2026-11-21T09:08Z). No W.**
+v1.0 changes no row; it records the v0.2 PASS and folds this seat file byte-identical. Signed
+by m-729@sat. Notes: none new — the row lanes b33-01/b33-02 now hold review branches and
+c-749 owns the two row-01 files, all after the panel's signature, as the plan's "no row lane
+starts before the panel signs a plan sha" requires.

@@ -214,3 +214,29 @@ None (no W1...).
 - **N4** `git log origin/master -1 -E --grep='^docs\(r85-plan'` now reads the r85 close
   record `6a68f6938` (landed 2026-11-21T20:26:13+01:00, after the round opened); the plan
   records W as read at open, and both dates give 0 for the `(r86-` grep (checked both).
+
+## v1.0 sign-off (second commit on this branch)
+
+The editor (c-028) landed v1.0 on origin/master after the holder's GO (msg `eba2bada`):
+**`4e873475d58fbc292fd8e761ad3f09efb95be1ad`**, subject `docs(r86-plan, SPL-6209):
+refactor round 86 plan v1.0: panel m-035 (mistral) PASS on v0.1 8dc0ce940, no W, N1-N4
+answered, seat file folded in; rows unchanged`. Verified from this worktree after a fresh
+`git fetch origin master`:
+
+- `git cat-file -t 4e873475d58fbc292fd8e761ad3f09efb95be1ad` -> `commit`;
+  `git merge-base --is-ancestor 4e873475d58fbc292fd8e761ad3f09efb95be1ad origin/master`
+  -> rc 0 (landed); `git log --oneline -3 origin/master` lists it.
+- `git diff --stat 4e873475d^ 4e873475d` -> 2 files: `refactor-round-86-plan.md` (+46)
+  and this seat file folded in (+216).
+- `git diff 8dc0ce940b09b83efa03a2684048446c07fa938f
+  4e873475d58fbc292fd8e761ad3f09efb95be1ad -- csi-spl-doc/doc/md/refactor-round-86-plan.md`
+  -> 66 diff lines, 48 `+`/`-` lines, exactly 2 hunks: `@@ -32,7 +32,10 @@` (the status
+  line v0.1 -> v1.0 and the editor/panel seat lines) and `@@ -374,10 +377,47 @@`
+  (sections 8 and 9). No row line (sections 1-7) changed.
+- `git diff --name-only f074057b5 4e873475d58fbc292fd8e761ad3f09efb95be1ad -- <the 7 row
+  paths plus queue_health.go, agent_drop_test.go, queue_health_test.go, cmd/spool/hub.go>`
+  -> **empty**: row paths unchanged since the base.
+
+**Verdict: PASS on v1.0 `4e873475d58fbc292fd8e761ad3f09efb95be1ad`.** The rows reviewed at
+v0.1 `8dc0ce94` are byte-identical at v1.0, so the v0.1 PASS carries over unchanged; no new
+W defects, N1-N4 stand.

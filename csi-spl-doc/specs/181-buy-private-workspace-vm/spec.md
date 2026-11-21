@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
-**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.4
-(Q-1..Q-16 answered; Q-17, non-payment, and Q-18, what creates the tenant, open; section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.5
+(Q-1..Q-18 answered; Q-19, the invoice's payment term, open; section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -88,15 +88,17 @@ only, compute, disk and traffic (Q-8 A).
 
 ## 1. Questions for the owner (forms)
 
-Each was posted as a poll; the first option is the recommended one. Every
-question but Q-17 and Q-18 is answered (1.0). From v0.3 sections 2 to 7 are written
-as the answers say; a **[Q-n]** there names the answer it comes from.
+Each was posted as a poll; the first option is the recommended one. Q-1
+to Q-18 are answered (1.0); Q-19, new in v0.5, is open. From v0.3 sections
+2 to 7 are written as the answers say; a **[Q-n]** there names the answer
+it comes from.
 
 ### 1.0 The owner's answers
 
 Owner HUM-10, t1 topic `b12055b5`, relayed verbatim by the dispatch holder
 c-002@sat (msgs `20218211`, `64f641dd`, `94ddb2c5`, `b585876f`, `fc5c25e8`,
-`502db57e`, `884a85d8`). An answered question's **[Q-n]**
+`502db57e`, `884a85d8`); Q-17 and Q-18 by the owner's own post in the
+topic (msg `43573325`). An answered question's **[Q-n]**
 marks in sections 2 to 6 now read as that answer.
 
 | q | answer | owner msg | when (UTC) |
@@ -117,8 +119,9 @@ marks in sections 2 to 6 now read as that answer.
 | Q-14 | A: build the relay now; switch it on per vendor after that vendor's written OK (O1, O2, O3); the relay hands the login inputs straight to the VM and stores them nowhere on the hub; API keys work meanwhile | `375f9b8e` | 2026-11-20 |
 | Q-15 | "The customers will be invoiced afterwards." (asked in chat: how are the seats paid?) | `09472141` | 2026-11-20 21:39Z |
 | Q-16 | B: "Yes, everything: one monthly invoice in arrears for the seats and the VM cost + 33%; no prepaid balance (Q-9 changes to B)" (form `12d0d6f3`) | `6768e241` | 2026-11-20 |
-| Q-17 | open: what a non-payment does (form below) | - | - |
-| Q-18 | open: what the checkout takes up front and which event creates the tenant (form below) | - | - |
+| Q-17 | **B** (not the recommended A): a reminder only; the agents keep running, and the owner decides each case by hand | `43573325` | 2026-11-21 08:19:18Z |
+| Q-18 | **C** (not the recommended A): an order only, and the workspace is created at once on submit; the invoice is paid by bank transfer | `43573325` | 2026-11-21 08:19:18Z |
+| Q-19 | open: the payment term of the monthly invoice (form below) | - | - |
 
 Q-15, Q-16 and the change of Q-9 to B, verbatim (owner HUM-10, t1
 `b12055b5`, 2026-11-20): Q-15, msg `09472141` (21:39Z), "The customers will
@@ -133,24 +136,53 @@ sections 2 to 6:
   forwarded, then our invoice: 9 EUR per human member + the VM cost + 33%.
 - One invoice, in arrears, for the seats and the VM. No prepaid balance, no
   card top-up, no draw-down.
-- What a non-payment does is not decided: Q-17, open.
+- A non-payment: a reminder only; the agents keep running, and the owner
+  decides each case by hand [Q-17 B].
+- The checkout takes an order only, the workspace is created at once on
+  submit, and the invoice is paid by bank transfer [Q-18 C].
+
+Q-17 and Q-18, verbatim (owner HUM-10, t1 `b12055b5`, msg `43573325`,
+2026-11-21 08:19:18Z): "Poll: 22b9764f-c8fe-49ab-9c9d-1b0e30706f94 Answer
+1: B — A reminder only; the agents keep running, and you decide each case
+by hand Answer 2: C — An order only, and the workspace is created at once
+on submit; the invoice is paid by bank transfer". The answer text says
+"you" and "the workspace" where the forms below say "the owner" and "the
+tenant"; the meaning is the same, and this spec writes "the owner".
+
+The same post's poll `389e73c1`, answer B (msg `82b949e5`, 08:19:34Z):
+"Keep it, drop only the token gap": spec 121 section 7's `pricing_not_ready`
+gate keeps a closed month of billing data and the capacity measurements,
+and drops the token gap, since no token is sold [Q-10 A] (121 v1.6).
+
+The questions as they were asked (v0.4), kept as the record:
+
+- Q-17. A private workspace's monthly invoice is not paid by its due date.
+  What happens? (A) A reminder at the due date; 14 days later the agents
+  stop and the workspace stays readable until it is paid; the VM is kept
+  (Recommended: no work is lost, the cost stops growing). (B) A reminder
+  only; the agents keep running, and the owner decides each case by hand.
+  (C) 30 days after the due date the workspace is cancelled as Q-12 C (VM
+  deleted at once, hub data kept 30 days).
+- Q-18 (from the v0.4 review, m-626, W1: with nothing charged up front,
+  today's paid webhook, section 3, never fires). Nothing is charged up
+  front. What does the private-workspace checkout take, and which event
+  creates the tenant? (A) A card on file: the checkout saves the card with
+  the payment provider, no charge; the card-saved event creates the tenant
+  and the provisioning order; each month-end invoice is charged to that
+  card (Recommended). (B) An order only: name, seats and billing details;
+  the tenant is created when the owner approves the order; the invoice is
+  paid by bank transfer. (C) An order only, and the tenant is created at
+  once on submit; the invoice is paid by bank transfer.
+
+Q-19 is new in v0.5: Q-17 B sends a reminder "by its due date", and no
+answer sets how long after the invoice that date is. Rows B12 and B13
+(section 6) wait on it.
 
 ```poll
-Q-17. A private workspace's monthly invoice is not paid by its due date. What happens?
-(A) A reminder at the due date; 14 days later the agents stop and the workspace stays readable until it is paid; the VM is kept (Recommended: no work is lost, the cost stops growing)
-(B) A reminder only; the agents keep running, and the owner decides each case by hand
-(C) 30 days after the due date the workspace is cancelled as Q-12 C (VM deleted at once, hub data kept 30 days)
-```
-
-Q-18 comes from the v0.4 review (m-626, W1): with nothing charged up
-front, today's paid webhook (section 3) never fires, so what creates the
-tenant is not stated by the owner.
-
-```poll
-Q-18. Nothing is charged up front. What does the private-workspace checkout take, and which event creates the tenant?
-(A) A card on file: the checkout saves the card with the payment provider, no charge; the card-saved event creates the tenant and the provisioning order; each month-end invoice is charged to that card (Recommended: one checkout event as today, and the invoice has a way to be paid)
-(B) An order only: name, seats and billing details; the tenant is created when the owner approves the order; the invoice is paid by bank transfer
-(C) An order only, and the tenant is created at once on submit; the invoice is paid by bank transfer
+Q-19. How long after the monthly invoice is it due (its payment term)?
+(A) 14 days net from the invoice date (Recommended: a common B2B term; the reminder goes out on day 15)
+(B) 30 days net
+(C) 7 days net
 ```
 
 Q-13 is mapped by its answer text, which is form Q-13's option B word for
@@ -273,7 +305,9 @@ states what they are.
   **121 R7** (card top-up, stop at zero, no invoice): from v0.4 it does
   not apply to a private workspace. The seats and the VM cost + 33% are
   one monthly invoice in arrears, the GCP cost forwarded first; there is no
-  prepaid balance [Q-9 B, Q-16 B]. What a non-payment does is Q-17 (open).
+  prepaid balance [Q-9 B, Q-16 B]. The invoice is paid by bank transfer
+  [Q-18 C]; a non-payment gets a reminder only, the agents keep running,
+  and the owner decides each case by hand [Q-17 B].
 - **Where v0.4 differs from what is on master.** v0.3's line above said R7
   is kept and carries the VM cost [Q-9 A], and row B10 was briefed and
   landed on that reading (lane `c002-s181-b10-spec-121-127-159-edits`,
@@ -305,7 +339,7 @@ On origin/master `17f0d7b00`, 2026-11-19, n = 1 per command.
 
 | piece | state | command -> result |
 |---|---|---|
-| checkout and paid webhook make a tenant and its owner | Implemented | `ls csi-spl-api/src/go/spool-hub-api/internal/payments/` -> `handler.go`, `stripe_payments.go`, `m4_test.go`, ...; `ls csi-spl-wui/src/pages/checkout` -> `claim.vue index.vue success.vue` |
+| checkout and paid webhook make a tenant and its owner (not used by the private workspace from v0.5: Q-18 C, 4.1) | Implemented | `ls csi-spl-api/src/go/spool-hub-api/internal/payments/` -> `handler.go`, `stripe_payments.go`, `m4_test.go`, ...; `ls csi-spl-wui/src/pages/checkout` -> `claim.vue index.vue success.vue` |
 | the payment rail on dev and prd | Implemented (cnf) | `grep -n PAYMENT_PROVIDER csi-spl-cnf/csi-spl/{dev,prd}.env.yaml` -> `"stripe"` in both |
 | Stripe charges are one-off payment intents; no recurring charge | Partial | `grep -c subscriptions internal/payments/stripe_payments.go` -> 0; line 110 posts `/v1/payment_intents` |
 | seat line items (009 M4) | Implemented, not sold | `grep -n SEAT_USER_CENTS csi-spl-cnf/csi-spl/all.env.yaml` -> `"0"`; rdb `0016_m4_seat_line_items.sql` |
@@ -323,6 +357,8 @@ On origin/master `17f0d7b00`, 2026-11-19, n = 1 per command.
 | `key_source` on the ledger | Implemented | rdb `0174`, `0175_usage_key_source_no_default.sql`; `internal/store/usage_events.go` |
 | a `byok` or private-VM plan kind, `price_plans` | Planned (v0.3.1: B1 builds `price_plans`, kind `private_vm`, rdb 0302) | `git grep -l "'byok'"` and `git grep -l price_plans` (api, orc, iac, rdb, wui, cnf) -> no file, measured before v0.3.1 (B1 adds rdb `0302_private_workspace_price.sql` and `internal/store/price_plans.go`) |
 | the pricing gate (`pricing_not_ready`) | Planned | `git grep -l pricing_not_ready` (same trees) -> no file |
+| the paid transition that makes the tenant | Implemented, for paid checkouts | `git grep -n 'paidTx(' origin/master -- csi-spl-api` -> `internal/store/payments_postgres.go:156` (call) and `:180` (func), measured on `f8667b9b0` |
+| an overdue list or reminder for a hub-issued invoice | Planned | `git grep -liE overdue origin/master -- csi-spl-api csi-spl-wui/src csi-spl-orc/src csi-spl-rdb` on `f8667b9b0` -> 10 files: an accounting import's receivables flag (`internal/store/netvisor.go:87`), the ask queue's re-raise and the topic loop; none reads an invoice the hub issues |
 | reading cost from the billing export | Partial | `csi-spl-iac/src/bash/run/gcp-billing-export-setup.func.sh` (DRY_RUN=0 is the owner's), `spl-estate-cost-read.func.sh`; no per-VM-of-a-workspace read |
 
 Paths under `internal/` and `cmd/` are in `csi-spl-api/src/go/spool-hub-api/`.
@@ -341,15 +377,18 @@ Not measured: what prd serves, and which switches are on there.
    [Q-8 A], and the agents they can pick (4.3) [Q-4 A]. It shows no token
    price (P5, Q-10 A). The page says we hold root on the VM for upkeep
    only and run nothing else there [Q-3 A].
-3. Payment: nothing is charged up front. At the end of each month the
-   customer gets the VM's GCP cost forwarded, then our invoice: seats x
-   9 EUR + the VM cost + 33%, in arrears [Q-9 B, Q-15, Q-16 B]. The page
+3. Payment: nothing is charged up front, and the checkout takes an order
+   only: the workspace name, the seats and the billing details; no card
+   [Q-18 C]. At the end of each month the customer gets the VM's GCP cost
+   forwarded, then our invoice: seats x 9 EUR + the VM cost + 33%, in
+   arrears [Q-9 B, Q-15, Q-16 B], paid by bank transfer [Q-18 C]. The page
    says so.
-4. The event that creates the tenant is open [Q-18]: with nothing charged
-   up front, today's paid webhook (006, built) does not fire. That event
-   makes the tenant and its owner, sets the seat caps (009, built), turns
-   `box_join_enabled` on for it, and writes a **provisioning order** (new,
-   gap G3).
+4. Submitting the order creates the workspace at once [Q-18 C]: no payment
+   provider is called, and today's paid webhook (006, built) plays no part
+   for this product. The submit makes the tenant and its owner, sets the
+   seat caps (009, built), turns `box_join_enabled` on for it, and writes a
+   **provisioning order** (new, gap G3). No GCP cost starts on the submit:
+   the VM apply is still the owner's go per order (4.2, section 7).
 
 The checkout is built first, then provisioning [Q-13 B]; section 6 is in
 that order.
@@ -400,8 +439,14 @@ that order.
   is no fall-back on our keys, ever [Q-10 A].
 - The VM's cost (compute, disk, traffic) is summed per month [Q-8 A]. At
   month end the customer gets that GCP cost forwarded, then our invoice:
-  9 EUR per human member + the VM cost + 33% [Q-9 B, Q-16 B]. Work never
-  stops on a balance, as there is none; a non-payment is Q-17 (open).
+  9 EUR per human member + the VM cost + 33% [Q-9 B, Q-16 B], paid by
+  bank transfer [Q-18 C]. Work never stops on a balance, as there is none.
+- A non-payment [Q-17 B]: when the invoice is not paid by its due date
+  (the term is Q-19, open), the workspace's biz owner gets one reminder;
+  the agents keep running; nothing stops, is cancelled or deleted
+  automatically. The invoice goes on the owner's overdue list, and the
+  owner decides each case by hand (a cancel is 4.5, on the owner's go).
+  The owner marks an invoice paid when the bank transfer arrives.
 
 ### 4.5 Cancel
 
@@ -420,10 +465,13 @@ that order.
 |---|---|---|---|
 | G1 | a terraform step with one VM per private workspace, labelled by workspace | 4.2 | Q-1 A |
 | G2 | the customer box role set (no estate keys) and an operator join-token mint path | 4.2 | Q-3 A |
-| G3 | a provisioning order written by the event that creates the tenant (open, Q-18), and a named action that takes it to a plan | 4.1, 4.2 | Q-13 B, Q-18 |
+| G3 | a provisioning order written by the order submit that creates the workspace, and a named action that takes it to a plan | 4.1, 4.2 | Q-13 B, Q-18 C |
 | G4 | a price plan: seat cents per human member in EUR, VM cost + 33%; the `price_plans` table of 121 is not built | 4.1 | Q-6..Q-9, Q-11 A |
 | G5 | the VM's cost per day (compute, disk, traffic) from the billing export, by its label | 4.4 | Q-8 A |
-| G6 | the monthly invoice in arrears: the VM's GCP cost of the month forwarded, then our invoice (seats x 9 EUR + VM cost + 33%); today's rail has one-off payment intents only (section 3); what a non-payment does waits on Q-17 | 4.1, 4.4 | Q-9 B, Q-16 B, Q-17 |
+| G6 | the monthly invoice in arrears: the VM's GCP cost of the month forwarded, then our invoice (seats x 9 EUR + VM cost + 33%), paid by bank transfer; an invoice row with its due date; today's rail has one-off payment intents only and is not used (section 3) | 4.1, 4.4 | Q-9 B, Q-16 B, Q-18 C, Q-19 |
+| G12 | the order submit: a private-workspace order creates the tenant at once, with no payment event; today a checkout's tenant is made by the paid transition (`paidTx`, section 3) | 4.1 | Q-18 C |
+| G13 | the reminder: one mail to the workspace's biz owner when an invoice passes its due date unpaid; no stop, no cancel | 4.4 | Q-17 B, Q-19 |
+| G14 | the owner's overdue list: every unpaid invoice past its due date, and the owner's hand action to mark one paid on the bank transfer | 4.4 | Q-17 B, Q-18 C |
 | G7 | the checkout page for the private workspace, its texts in every locale, agy last | 4.1 | Q-4 A, Q-6 A, Q-7 A |
 | G8 | revoke (108 T012), a cancel action that deletes the VM at once, and the 30-day delete of the hub data | 4.5 | Q-12 C |
 | G9 | removal of 121's token pricing (`metered`, the x 1.20 buffer) and 159's metered fall-back; 127's byok margin to 33% | 2 | Q-10 A, Q-11 A |
@@ -440,8 +488,8 @@ brackets.
 | # | lane | task | red control | waits on |
 |---|---|---|---|---|
 | B1 [B6] | rdb + hub (claude) | the private-workspace price: seat cents per human member in EUR, VM cost + 33%, invoiced monthly in arrears | a plan with a token line -> refused (P5) | - |
-| B2 [B7] | hub (claude) | the tenant-creation event of Q-18 (not today's paid webhook: nothing is charged up front): tenant, seats, `box_join_enabled` on, the provisioning order | event replayed -> one order, not two | B1, Q-18 |
-| B3 [B8] | wui (claude) | the private-workspace checkout and its price lines; locale texts, agy review last | the page shows a token price -> e2e fails | B1 |
+| B2 [B7] | hub (claude) | the order submit [Q-18 C], gap G12: a private-workspace order (name, seats, billing details) creates at once the tenant, its owner, the seat caps, `box_join_enabled` on and the provisioning order, with no payment provider call; the paid webhook path (`internal/payments/handler.go` `stripeWebhook` / `paypalWebhook`, `internal/store/payments_postgres.go` `paidTx`) stays for the paid checkouts and is not reached. Files: `internal/payments/handler.go` (a submit route), `internal/store/payments_postgres.go` (the tenant creation shared with `paidTx`), their tests. Done test: a submit -> one tenant, one order, `box_join_enabled` true, zero provider calls | the submit replayed -> one tenant and one order, not two; a submit that reaches the provider stub -> its test fails | B1 |
+| B3 [B8] | wui (claude) | the private-workspace checkout as an order form (no card field) and its price lines; it says the invoice comes monthly in arrears, paid by bank transfer [Q-18 C]; locale texts, agy review last | the page shows a token price, or a card field -> e2e fails | B1, B2 |
 | B4 [B5] | iac/orc (claude) | per-VM cost per day (compute, disk, traffic) from the billing export by label (spec 123's reader) | a fixture row with another workspace's label -> not counted | - |
 | B5 [B1] | iac (claude) | step for per-workspace VMs: `for_each` over a cnf map `<tenant> -> machine type`, labels `workspace`, `box`; plan only | an entry without a `workspace` label -> the step's check refuses the plan | - |
 | B6 [B2] | iac (claude) | customer box role set: no estate key, no AI login of ours; `do_spl_box_workspace_setup` and the 127 5.3 checks run | the role set given an estate key file -> its test fails | - |
@@ -449,6 +497,8 @@ brackets.
 | B8 [B4] | orc (claude) | a named provisioning action (dry run): order -> cnf entry -> tfvars -> plan printed; apply only with `DRY_RUN=0` and the owner's go | `DRY_RUN` unset -> nothing applied | B2, B5..B7 |
 | B9 [B9] | hub + orc (claude) | cancel: leases end, pin revoked (108 T012), the VM deleted at once (owner's go), the hub data deleted after 30 days | a cancelled workspace's seat asks a lease -> 403 | B8 |
 | B10 [B10] | doc (agy) | 121, 127 and 159 edited by their editors as section 2 says; from v0.4 also 121 R7 (no prepaid balance for a private workspace, monthly invoice in arrears) | `grep -c 'x 1.20' csi-spl-doc/specs/121-sales-channel/spec.md` -> found only in history lines; `grep -n 'Kept by spec 181' csi-spl-doc/specs/121-sales-channel/spec.md` -> nothing | - |
+| B12 (v0.5) | rdb + hub (claude) | the monthly invoice row (gap G6) and the reminder (gap G13) [Q-17 B]: an invoice per private workspace per month (`QuoteMonth`'s sum, issue date, due date from Q-19's term, paid_at NULL), and one reminder mail to the biz owner when it passes its due date unpaid; nothing stops. Files: a new rdb migration (number from `do_rdb_migration_next`), `internal/store/` (the invoice store, Memory and Postgres), a mail template under `internal/mail/templates/`, the tick that sends it. Done test: an invoice one day past due, unpaid -> one reminder, and a second tick -> still one | an unpaid invoice past due -> any lease refused or any seat stopped: the test fails; the reminder sent twice -> the test fails | B1, Q-19 |
+| B13 (v0.5) | hub + wui (claude) | the owner's overdue list (gap G14) [Q-17 B, Q-18 C]: an operator-scope read of every invoice past its due date and unpaid, and the operator's action to mark one paid on the bank transfer (audited); no automatic decision. Files: an operator endpoint in `internal/hub/` named in `TestOperatorScopeCallers`, a page under `csi-spl-wui/src/pages/monitoring/`, locale texts, agy review last. Done test: two invoices, one paid -> the list shows one; mark it paid -> the list is empty | a workspace's own member reads the list -> 403; marking paid with no audit row -> the test fails | B12 |
 | B11 (new) | hub + wui + orc (claude) | the web-UI sign-in relay to the CLI's terminal login on `<vm>`, one switch per vendor, default off | a relayed input found in a hub table or log -> its test fails; the switch off -> the relay refuses | B8 |
 
 Row status (v0.4.1):
@@ -473,8 +523,9 @@ Marketplace stays spec 156.
 
 - A go per VM apply and per VM delete in the first slice (repo CLAUDE.md:
   nothing mutates GCP without the owner).
-- Q-17: what a non-payment of the monthly invoice does (1.0).
-- Q-18: what the checkout takes up front and which event creates the tenant (1.0).
+- Q-19: the payment term of the monthly invoice (1.0).
+- Each overdue invoice: the owner decides the case by hand, and marks an
+  invoice paid when its bank transfer arrives [Q-17 B, Q-18 C] (row B13).
 - 159's O1 (Anthropic), O2 (xAI) and O3 (Mistral): each vendor's written
   answer switches its sign-in relay on, and decides whether grok and
   mistral are offered [Q-4 A, Q-14 A].
@@ -513,5 +564,14 @@ Marketplace stays spec 156.
 - v0.4.1 (2026-11-21, c-292, SPL-6095): row B1 status follows v0.4: the
   `vm_cost` ledger kind and the balance draw are cut; B1 is the plan and
   its month quote.
+- v0.5 (2026-11-21, c-757, SPL-6169): the owner's answers Q-17 B and
+  Q-18 C (msg `43573325`) and the 121 gate answer B (msg `82b949e5`).
+  Non-payment: a reminder only, the agents keep running, the owner decides
+  each case by hand. Checkout: an order only, the workspace created at once
+  on submit, the invoice paid by bank transfer; no card, no paid webhook.
+  1.0, 2, 3, 4.1, 4.4, 5 (G3, G6; new G12..G14), 6 (B2, B3; new B12, B13)
+  and 7 rewritten; the two open poll blocks become the question record.
+  New open form Q-19 (the invoice's payment term). Spec 121 v1.6 drops the
+  token gap from its pricing gate.
 
-<!-- version: 0.4.1 · updated: 2026-11-21 · last-edit: 2026-11-21T03:30:00Z -->
+<!-- version: 0.5 · updated: 2026-11-21 · last-edit: 2026-11-21T10:45:00Z -->

@@ -251,5 +251,12 @@ Read whole this session: `CLAUDE.md`, `csi-spl-doc/doc/help/how-to-post.md`,
 
 ## v1.0 signature
 
-Pending — to be signed on the editor's v1.0 sha when the holder sends it (a second
-commit on this branch).
+**PASS** on the editor's v1.0 `5b195323d0675bb2430e8f6c03b78d6dc190b5ee` (branch
+`review/c002-refactor-round-79-planner`, read 2026-11-21T02:4xZ). Verified before
+signing: `git diff 043b1af8 5b195323 -- csi-spl-doc/doc/md/refactor-round-79-plan.md`
+touches only the Status line, the 2.2 N3 note, two section-7 rows (N1, N2), section 8
+and section 9; the row table is byte-identical
+(`diff <(git show 043b1af8:<plan> | sed -n '/## 2. The 2 rows/,/### 2.1/p') <(git show 5b195323:<plan> | sed -n '/## 2. The 2 rows/,/### 2.1/p')`
+-> empty, ROWS-IDENTICAL). Section 9 of v1.0 records this seat's PASS on `043b1af8` with
+N1-N3. Rows unchanged from the reviewed v0.1, no new defect: this seat signs v1.0
+`5b195323d0675bb2430e8f6c03b78d6dc190b5ee`.

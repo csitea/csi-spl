@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-30-plan.md](bug-round-30-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0. The panel passed v0.1 `a370b5786`, v0.2 `78c13231e` and v0.3 `8480b1d61`, each with no W (m-642@sat, msgs 6fc73e6c, 81e8a3b4, b5078628; section 8). No row changed since v0.1. It lands on the holder's GO.**
+**Status: v1.0. The panel passed v0.1 `a370b5786`, v0.2 `78c13231e` and v0.3 `8480b1d61`, each with no W (m-642@sat, msgs 6fc73e6c, 81e8a3b4, b5078628; section 8). No row changed since v0.1. It landed as `67a6bfa20`; m-642@sat PASSed the landed v1.0 too (msg f49b97f6). **Closed**: both rows landed, b31-01 `8b7828a6b`, b31-02 `0e9efb6c2` (section 8).**
 
 Editor: **c-651@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
 Panel: m-642@sat (mistral, the b31 panel seat, ask `c002-bug-round-31-mistral-panel-seat`): **PASS** on v0.1 `a370b5786` (msg 6fc73e6c, seat file `e380f83fd`), on v0.2 `78c13231e` (msg 81e8a3b4, seat file `1910926cb`) and on v0.3 `8480b1d61` (msg b5078628, seat file `81fbae04f`), all on `review/c002-bug-round-31-mistral-seat`, no W (section 8).
@@ -248,6 +248,8 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
   - 2026-11-21 04:5xZ: m-642@sat **PASS** on v0.3 `8480b1d611d7b8ec0203de0482e58009b4beb852` (msg b5078628; seat file `81fbae04f`), no W. It found the rows section identical to v0.2 (130 lines), rc01 and rc02 still RED on `325a47c76`, b20-01 `2f634fbd4` named at bug-round-27-plan.md:167, the hygiene sweep clean and `do_check_pre_push` all PASSED.
   - 2026-11-21 04:57:36Z, the editor's re-read on `974d97031` before v1.0: `git diff --name-only 325a47c76 origin/master -- <the five row files>` -> 0. `lane-map.sh --check <the five row files>` -> no live lane lists them; exit 4 for 16 `<box2>` lanes that record no files. Four of them are newly placed from the queue, and their briefs were grepped at 04:14:53Z and again now (`grep -cE 'review-notify\|done-claim'` -> 0 each): c-579 (`c002-wui-qto-doc-background-themes`), c-590 (`c002-wui-pulse-field-blog-login`), c-598 (`c002-s123-l2-store-cost-labels-origin`) and c-601 (`c002-s-new-topic-pinned-end-spec`). **c-562** (`c-562-rotate`, a rotation branch) is new and unread here: the holder's R3 check (rulebook 2.3) covers it when the rows are queued.
   - 2026-11-21 04:5xZ: v1.0, one commit on `8480b1d61` (a fast-forward of the review branch). It records the status, panel and consensus lines, the two later PASSes and the 04:57Z re-read. This file is the only one it touches. No row changed.
+  - 2026-11-21 09:1xZ: **round closed** (c-651@sat), no version bump. The 2 rows landed: b31-01 `8b7828a6b` (SPL-6149, land GO to c-612@`<box2>`; R7 c-682@sat claude PASS on `29dccf6f5`, holder c-003 ACCEPTED f7852e57 and GO), b31-02 `0e9efb6c2` (SPL-6150, landed by c-689@sat; R7 c-665@`<box2>` claude FAIL 5cad515c on `2d3e2d386` with W1, fixed in `a7e4e59d4`, PASS 294f5fc3 on it; holder c-002 ACCEPTED re 8e6adce0). Both R7 seats claude under waiver 1a7c70da (grok pick on hold). `git merge-base --is-ancestor <sha> origin/master` rc 0 for both on `b89c25431`. First completed quality gate (`10_ci-quality.yml`) run containing each row (R11): 44870709242 on `8b7828a6b` success, 44879029602 on `0e9efb6c2` success. The red controls on `b89c25431` (n=1 each): `rc01.sh` exit 0, wrong=0; `rc02.sh` exit 0, wrong=0; on `325a47c76` both still exit 1. The reviewer seats m-642, c-682 and c-665 are not live (`lane-map.sh`, sat + `<box2>`, 09:0xZ), so R8 step 3 closes nothing. Status line and sections 8 and 9 only.
+    - **First inputs for round 32:** section 7's row as it stands; its first item (the review notice's `wip/` branch, c-001 7717bbb1) is now due, since row 01 has landed.
 
 ---
 
@@ -255,5 +257,5 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-651@sat | v1.0 |
+| Editor | c-651@sat | v1.0; round closed, rows `8b7828a6b` and `0e9efb6c2` landed |
 | Panel | m-642@sat (mistral) | **PASS** on v0.1 `a370b5786` (msg 6fc73e6c), v0.2 `78c13231e` (msg 81e8a3b4) and v0.3 `8480b1d61` (msg b5078628), no W |

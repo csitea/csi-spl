@@ -7,6 +7,8 @@
        two panels of the same width side by side, the channel LEFT and the
        sign-in RIGHT, the feature posts under both. -->
   <div class="login-front" data-test="login-front">
+    <!-- spec 111 section 12: the theme's pulsating colour field, behind the page -->
+    <LazyPulseField />
     <header class="login-front__brand" data-test="login-front-logo">
       <img class="login-front__logo" src="/logo.webp" alt="" width="64" height="64" decoding="async">
       <span class="login-front__name">{{ siteName }}</span>

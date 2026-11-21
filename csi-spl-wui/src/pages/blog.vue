@@ -22,6 +22,8 @@
      prerendered document (JS off, a crawler) keeps the <details> links. -->
 <template>
   <div class="blog-page" data-test="blog-page">
+    <!-- spec 111 section 12: the theme's pulsating colour field, behind the page -->
+    <LazyPulseField />
     <header class="blog-bar" data-test="blog-bar">
       <NuxtLink :to="localePath('/login')" class="blog-bar__home" data-test="blog-bar-home">
         <img src="/logo.webp" alt="" width="28" height="28" decoding="async">
@@ -372,6 +374,10 @@ useHead(() => {
   overflow-y: auto;
   background: var(--color-bg);
   color: var(--color-fg);
+  /* spec 111 section 12: its own stacking context, so the pulse field
+     (z-index -1) draws over this background and under the content */
+  position: relative;
+  isolation: isolate;
 }
 .blog-bar {
   position: sticky;

@@ -210,6 +210,16 @@ None. No W.
 
 - 2026-11-21T05:47Z commit on `review/c002-refactor-round-80-mistral-seat`: full review of
   `7329be64194f2eb72715b4b5f9f3f9e606afc2c4` (checks 1-8 above), verdict PASS, notes N1-N3.
+- 2026-11-21T06:14Z rotation note from c-001 (task `lane-rotate-m-691`, msg
+  `4d3918ae-2ab4-428e-a72b-657699f5290e`, rotation at 06:28Z UTC): everything green was
+  already pushed (`PUSH_CMD=status` -> `PUSHED bc9b18189... landed_rc=0`); this entry is
+  the state write. Inbox at my read: only that note. Planner branch still at v0.1
+  `7329be64194f2eb72715b4b5f9f3f9e606afc2c4` (ls-remote); no v1.0 named yet. Verdict
+  delivered to c-680 (msg `3900b82c`) and c-002 (msg `7ec0125e`) on task
+  `dispatch-refactor-r80` in the `review:` line form. Waiting on: a v1.0 sha on
+  `review/c002-refactor-round-80-planner` (then re-verify, sign as a second commit in this
+  file, re-push, re-report) or a message starting with ACCEPTED (then `/exit-clean`). Lease
+  holder at my read: c-002@sat.
 
 Seed STEP 0: read `csi-spl-doc/doc/md/developer-guide.md`, then
 `cd csi-spl-orc && sudo -u <push user> env AGENT_ID=m-691 DEV_GUIDE_ACK=yes ./run -a do_dev_guide_ack`

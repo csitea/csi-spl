@@ -163,8 +163,14 @@ func (s *Memory) CreateCostEntry(_ context.Context, e CostEntry) (CostEntry, err
 		memCostEntries[s] = map[string]CostEntry{}
 	}
 	e.ID, e.CreatedAt = uuid.New(), time.Now().UTC().Truncate(time.Microsecond)
+	siblings := []CostEntry{}
+	for _, o := range memCostEntries[s] {
+		if o.Label == e.Label {
+			siblings = append(siblings, o)
+		}
+	}
 	memCostEntries[s][e.ID] = e
-	memCostLabelSet(s, e.ID, e.Label) // rdb 0285: the master locale's label
+	memCostLabelSet(s, e, siblings) // rdb 0285's master label, a known text's other rows (16.6.2)
 	return e, nil
 }
 

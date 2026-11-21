@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 )
 
 // SPL-5546, rdb 0285: an entry's text is its master-locale label from the
@@ -189,5 +192,258 @@ func TestCostLabelsOriginMigration(t *testing.T) {
 	})
 	if !errors.Is(err, errRollback) {
 		t.Fatal(err)
+	}
+}
+
+// costLabelsAll is a label in every locale but the master's, "<word> <loc>".
+func costLabelsAll(word string) map[string]string {
+	out := map[string]string{}
+	for _, loc := range costLabelOthers(MemCostLabelMaster) {
+		out[loc] = word + " " + loc
+	}
+	return out
+}
+
+// costLabelEntry stores a cloud entry with text and answers it.
+func costLabelEntry(t *testing.T, ce CostEntryStore, text string) CostEntry {
+	t.Helper()
+	e, err := ce.CreateCostEntry(context.Background(), CostEntry{Type: "cloud", Label: text, Amount: 5, Currency: "EUR", Period: "2026-11", CreatedBy: "op"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ce.DeleteCostEntry(context.Background(), e.ID) })
+	return e
+}
+
+// SPL-6141, spec 123 16.6.4 row L2: the machine write never touches a hand
+// row (RED CONTROL: drop "WHERE cost_entry_labels.origin = 'machine'" from
+// pgCostLabelMachineEntry and the postgres run fails here), writes the
+// others as machine, marks a reviewed one, and refuses a bad key.
+func TestCostLabelsMachineWriteLeavesHandRow(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			cl, ce := st.(CostLabelStore), st.(CostEntryStore)
+			text := "Hosting " + uid("")[:8]
+			e := costLabelEntry(t, ce, text)
+			if err := cl.SetCostEntryLabels(ctx, e.ID, map[string]string{"bg": "Хостинг ръчно"}, "acc"); err != nil {
+				t.Fatal(err)
+			}
+			n, err := cl.SetMachineCostLabels(ctx, CostLabelKey{Text: text}, map[string]string{"bg": "Хостинг машина", "fi": "Ylläpito"}, false, "hub")
+			if err != nil || n != 1 {
+				t.Fatalf("machine write: %d %v, want 1 row (fi; bg is a person's)", n, err)
+			}
+			all, _ := cl.CostEntryLabels(ctx)
+			marks, _ := cl.CostEntryLabelMarks(ctx)
+			if all[e.ID]["bg"] != "Хостинг ръчно" || marks[e.ID]["bg"].Origin != CostLabelHand {
+				t.Errorf("the hand row: %q %+v, want the person's text, hand", all[e.ID]["bg"], marks[e.ID]["bg"])
+			}
+			if all[e.ID]["fi"] != "Ylläpito" || marks[e.ID]["fi"] != (CostLabelMark{Origin: CostLabelMachine}) {
+				t.Errorf("the machine row: %q %+v, want Ylläpito, machine, not stale", all[e.ID]["fi"], marks[e.ID]["fi"])
+			}
+			if marks[e.ID][MemCostLabelMaster] != (CostLabelMark{Origin: CostLabelHand}) {
+				t.Errorf("the master row: %+v, want hand", marks[e.ID][MemCostLabelMaster])
+			}
+			if n, err := cl.SetMachineCostLabels(ctx, CostLabelKey{Text: text}, map[string]string{"fi": "Palvelin"}, true, "agy"); err != nil || n != 1 {
+				t.Fatalf("review write: %d %v", n, err)
+			}
+			if marks, _ = cl.CostEntryLabelMarks(ctx); marks[e.ID]["fi"].Origin != CostLabelReviewed {
+				t.Errorf("a reviewed machine row: %+v, want reviewed", marks[e.ID]["fi"])
+			}
+			for why, key := range map[string]CostLabelKey{"no key": {}, "both keys": {Text: text, Component: DefaultHRComponents[0].Component}} {
+				if _, err := cl.SetMachineCostLabels(ctx, key, map[string]string{"fi": "x"}, false, "hub"); err == nil || errors.Is(err, ErrNotFound) {
+					t.Errorf("%s: %v, want a check error", why, err)
+				}
+			}
+			if _, err := cl.SetMachineCostLabels(ctx, CostLabelKey{Text: text}, map[string]string{MemCostLabelMaster: text}, false, "hub"); err == nil {
+				t.Error("a master-locale machine label is written")
+			}
+			if _, err := cl.SetMachineCostLabels(ctx, CostLabelKey{Text: "No such " + uid("")[:8]}, map[string]string{"fi": "x"}, false, "hub"); !errors.Is(err, ErrNotFound) {
+				t.Errorf("an unknown text: %v, want ErrNotFound", err)
+			}
+		})
+	}
+}
+
+// SPL-6141, spec 123 16.6.4 row L2: a person's PATCH of one entry keeps a
+// machine row sent unchanged machine, makes a changed one hand, drops one
+// left out, and writes the same rows on every entry with the same text and
+// on no other (owner answer 5 "T").
+func TestCostLabelsPatchPerRowEveryEntryOfText(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			cl, ce := st.(CostLabelStore), st.(CostEntryStore)
+			text, other := "Storage "+uid("")[:8], "Network "+uid("")[:8]
+			a, b, c := costLabelEntry(t, ce, text), costLabelEntry(t, ce, text), costLabelEntry(t, ce, other)
+			for _, k := range []string{text, other} {
+				if _, err := cl.SetMachineCostLabels(ctx, CostLabelKey{Text: k}, map[string]string{"bg": "Съхранение", "fi": "Tallennus", "sv": "Lagring"}, false, "hub"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := cl.SetCostEntryLabels(ctx, b.ID, map[string]string{"bg": "Съхранение", "fi": "Tallennustila", MemCostLabelMaster: text}, "acc"); err != nil {
+				t.Fatal(err)
+			}
+			all, _ := cl.CostEntryLabels(ctx)
+			marks, _ := cl.CostEntryLabelMarks(ctx)
+			for _, e := range []CostEntry{a, b} {
+				want := map[string]string{"bg": "Съхранение", "fi": "Tallennustila", MemCostLabelMaster: text}
+				if fmt.Sprint(all[e.ID]) != fmt.Sprint(want) {
+					t.Errorf("entry %s labels %v, want %v (sv left out is dropped)", e.ID, all[e.ID], want)
+				}
+				if marks[e.ID]["bg"].Origin != CostLabelMachine || marks[e.ID]["fi"].Origin != CostLabelHand {
+					t.Errorf("entry %s marks %+v, want bg machine (sent unchanged), fi hand", e.ID, marks[e.ID])
+				}
+			}
+			if len(all[c.ID]) != 4 || marks[c.ID]["fi"].Origin != CostLabelMachine || all[c.ID]["fi"] != "Tallennus" {
+				t.Errorf("another text's entry: %v %+v, want its 3 machine rows and its master row untouched", all[c.ID], marks[c.ID])
+			}
+		})
+	}
+}
+
+// SPL-6141, spec 123 16.6.2 point 1 row L2: a POST of a known text lands
+// with its 19 rows, each origin kept; a new text has its master row only.
+func TestCostLabelsPostOfKnownTextCopiesRows(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			cl, ce := st.(CostLabelStore), st.(CostEntryStore)
+			text := "Backup " + uid("")[:8]
+			a := costLabelEntry(t, ce, text)
+			if _, err := cl.SetMachineCostLabels(ctx, CostLabelKey{Text: text}, costLabelsAll("Backup"), false, "hub"); err != nil {
+				t.Fatal(err)
+			}
+			hand := costLabelsAll("Backup")
+			hand["fi"], hand[MemCostLabelMaster] = "Varmuuskopio", text
+			if err := cl.SetCostEntryLabels(ctx, a.ID, hand, "acc"); err != nil {
+				t.Fatal(err)
+			}
+			b := costLabelEntry(t, ce, text)
+			all, _ := cl.CostEntryLabels(ctx)
+			marks, _ := cl.CostEntryLabelMarks(ctx)
+			if len(all[b.ID]) != len(i18n.Supported) || fmt.Sprint(all[b.ID]) != fmt.Sprint(all[a.ID]) {
+				t.Fatalf("the new entry of a known text: %d rows %v, want the %d of %v", len(all[b.ID]), all[b.ID], len(i18n.Supported), all[a.ID])
+			}
+			if marks[b.ID]["fi"].Origin != CostLabelHand || marks[b.ID]["bg"].Origin != CostLabelMachine {
+				t.Errorf("copied marks %+v, want fi hand, bg machine", marks[b.ID])
+			}
+			fresh := costLabelEntry(t, ce, "Fresh "+uid("")[:8])
+			if all, _ = cl.CostEntryLabels(ctx); len(all[fresh.ID]) != 1 {
+				t.Errorf("a new text's entry: %v, want its master row only", all[fresh.ID])
+			}
+		})
+	}
+}
+
+// costLabelWorkOf is the work of key in works, false when none.
+func costLabelWorkOf(works []CostLabelWork, key CostLabelKey) (CostLabelWork, bool) {
+	for _, w := range works {
+		if w.Key == key {
+			return w, true
+		}
+	}
+	return CostLabelWork{}, false
+}
+
+// SPL-6141, spec 123 16.6.2 points 3 and 6 row L2: a new text is missing in
+// every other locale until the machine rows exist; then it is unreviewed
+// until agy's write marks them reviewed. A component the same.
+func TestCostLabelsMissingAndUnreviewed(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			cl, ce := st.(CostLabelStore), st.(CostEntryStore)
+			text := "Licence " + uid("")[:8]
+			costLabelEntry(t, ce, text)
+			key, others := CostLabelKey{Text: text}, costLabelOthers(MemCostLabelMaster)
+			miss, err := cl.MissingCostLabels(ctx)
+			if w, ok := costLabelWorkOf(miss, key); err != nil || !ok || w.Source != text || fmt.Sprint(w.Locales) != fmt.Sprint(others) {
+				t.Fatalf("a new text's missing work: %+v %v %v, want all %d other locales", w, ok, err, len(others))
+			}
+			if _, err := cl.SetMachineCostLabels(ctx, key, costLabelsAll("Licence"), false, "hub"); err != nil {
+				t.Fatal(err)
+			}
+			miss, _ = cl.MissingCostLabels(ctx)
+			unrev, _ := cl.UnreviewedCostLabels(ctx)
+			if _, ok := costLabelWorkOf(miss, key); ok {
+				t.Error("a text with its 18 machine rows is still missing")
+			}
+			if w, ok := costLabelWorkOf(unrev, key); !ok || fmt.Sprint(w.Drafts) != fmt.Sprint(costLabelsAll("Licence")) {
+				t.Errorf("unreviewed: %+v %v, want the 18 drafts", w, ok)
+			}
+			if _, err := cl.SetMachineCostLabels(ctx, key, costLabelsAll("Licence"), true, "agy"); err != nil {
+				t.Fatal(err)
+			}
+			if unrev, _ = cl.UnreviewedCostLabels(ctx); func() bool { _, ok := costLabelWorkOf(unrev, key); return ok }() {
+				t.Error("a reviewed text is still unreviewed")
+			}
+			comp := DefaultHRComponents[len(DefaultHRComponents)-1]
+			ck := CostLabelKey{Component: comp.Component}
+			if n, err := cl.SetMachineCostLabels(ctx, ck, map[string]string{"sv": "Komponent"}, false, "hub"); err != nil || n != 1 {
+				t.Fatalf("a component's machine write: %d %v", n, err)
+			}
+			costLabelCompCleanup(t, st, comp.Component, "sv")
+			unrev, _ = cl.UnreviewedCostLabels(ctx)
+			miss, _ = cl.MissingCostLabels(ctx)
+			if w, ok := costLabelWorkOf(unrev, ck); !ok || w.Drafts["sv"] != "Komponent" || w.Source != comp.Label {
+				t.Errorf("the component's unreviewed work: %+v %v", w, ok)
+			}
+			if w, ok := costLabelWorkOf(miss, ck); !ok || slices.Contains(w.Locales, "sv") {
+				t.Errorf("the component's missing work: %+v %v, want every other locale but sv", w, ok)
+			}
+			if in, _ := cl.HRComponentLabelsIn(ctx, "sv"); in[comp.Component] != "Komponent" {
+				t.Errorf("the component in sv reads %q", in[comp.Component])
+			}
+		})
+	}
+}
+
+// costLabelCompCleanup removes component's label in locale on Postgres after
+// the test: the components are shared by every test of the package.
+func costLabelCompCleanup(t *testing.T, st Store, component, locale string) {
+	pg, ok := st.(*Postgres)
+	if !ok {
+		return
+	}
+	t.Cleanup(func() {
+		_ = pg.asOperator(context.Background(), func(tx pgx.Tx) error {
+			_, err := tx.Exec(context.Background(), `DELETE FROM hr_cost_component_labels WHERE component = $1 AND locale = $2`, component, locale)
+			return err
+		})
+	})
+}
+
+// SPL-6141, spec 123 16.6.2 point 5: a machine row made from another text
+// is stale: missing again and marked; a stale hand row is marked, not missing.
+func TestCostLabelsStaleRowsPostgres(t *testing.T) {
+	pg, ok := drivers(t)["postgres"].(*Postgres)
+	if !ok {
+		t.Skip("SPOOL_TEST_PG_DSN unset")
+	}
+	ctx := context.Background()
+	text := "Domain " + uid("")[:8]
+	e := costLabelEntry(t, pg, text)
+	if _, err := pg.SetMachineCostLabels(ctx, CostLabelKey{Text: text}, costLabelsAll("Domain"), false, "hub"); err != nil {
+		t.Fatal(err)
+	}
+	edit := costLabelsAll("Domain")
+	edit["bg"] = "Домейн"
+	if err := pg.SetCostEntryLabels(ctx, e.ID, edit, "acc"); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE cost_entry_labels SET source_text = 'an older text' WHERE entry_id = $1::uuid AND locale IN ('bg', 'fi')`, e.ID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	marks, _ := pg.CostEntryLabelMarks(ctx)
+	if !marks[e.ID]["bg"].Stale || !marks[e.ID]["fi"].Stale || marks[e.ID]["bg"].Origin != CostLabelHand {
+		t.Errorf("marks %+v, want bg hand stale, fi machine stale", marks[e.ID])
+	}
+	miss, _ := pg.MissingCostLabels(ctx)
+	if w, ok := costLabelWorkOf(miss, CostLabelKey{Text: text}); !ok || fmt.Sprint(w.Locales) != "[fi]" {
+		t.Errorf("missing %+v %v, want [fi] (a stale hand row is never re-made)", w, ok)
 	}
 }

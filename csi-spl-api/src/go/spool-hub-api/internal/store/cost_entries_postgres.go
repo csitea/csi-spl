@@ -60,7 +60,10 @@ func (s *Postgres) CreateCostEntry(ctx context.Context, e CostEntry) (CostEntry,
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, pgCostLabelMasterInsert, out.ID, out.Label, out.CreatedBy)
+		if _, err = tx.Exec(ctx, pgCostLabelMasterInsert, out.ID, out.Label, out.CreatedBy); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, pgCostLabelKnownCopy, out.ID, out.Label)
 		return err
 	})
 	return out, err

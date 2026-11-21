@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
-**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.5
-(Q-1..Q-18 answered; Q-19, the invoice's payment term, open; section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.6
+(Q-1..Q-19 answered; section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -88,8 +88,8 @@ only, compute, disk and traffic (Q-8 A).
 
 ## 1. Questions for the owner (forms)
 
-Each was posted as a poll; the first option is the recommended one. Q-1
-to Q-18 are answered (1.0); Q-19, new in v0.5, is open. From v0.3 sections
+Each was posted as a poll; the first option is the recommended one. Every
+question, Q-1 to Q-19, is answered (1.0). From v0.3 sections
 2 to 7 are written as the answers say; a **[Q-n]** there names the answer
 it comes from.
 
@@ -98,7 +98,8 @@ it comes from.
 Owner HUM-10, t1 topic `b12055b5`, relayed verbatim by the dispatch holder
 c-002@sat (msgs `20218211`, `64f641dd`, `94ddb2c5`, `b585876f`, `fc5c25e8`,
 `502db57e`, `884a85d8`); Q-17 and Q-18 by the owner's own post in the
-topic (msg `43573325`). An answered question's **[Q-n]**
+topic (msg `43573325`), Q-19 by msg `67b12564`, relayed verbatim by
+c-002@sat (msg `7d4f2c6c`). An answered question's **[Q-n]**
 marks in sections 2 to 6 now read as that answer.
 
 | q | answer | owner msg | when (UTC) |
@@ -121,7 +122,7 @@ marks in sections 2 to 6 now read as that answer.
 | Q-16 | B: "Yes, everything: one monthly invoice in arrears for the seats and the VM cost + 33%; no prepaid balance (Q-9 changes to B)" (form `12d0d6f3`) | `6768e241` | 2026-11-20 |
 | Q-17 | **B** (not the recommended A): a reminder only; the agents keep running, and the owner decides each case by hand | `43573325` | 2026-11-21 08:19:18Z |
 | Q-18 | **C** (not the recommended A): an order only, and the workspace is created at once on submit; the invoice is paid by bank transfer | `43573325` | 2026-11-21 08:19:18Z |
-| Q-19 | open: the payment term of the monthly invoice (form below) | - | - |
+| Q-19 | A: 14 days net from the invoice date; the reminder goes out on day 15 | `67b12564` | 2026-11-21 |
 
 Q-15, Q-16 and the change of Q-9 to B, verbatim (owner HUM-10, t1
 `b12055b5`, 2026-11-20): Q-15, msg `09472141` (21:39Z), "The customers will
@@ -174,16 +175,18 @@ The questions as they were asked (v0.4), kept as the record:
   paid by bank transfer. (C) An order only, and the tenant is created at
   once on submit; the invoice is paid by bank transfer.
 
-Q-19 is new in v0.5: Q-17 B sends a reminder "by its due date", and no
-answer sets how long after the invoice that date is. Rows B12 and B13
-(section 6) wait on it.
+Q-19 was new in v0.5: Q-17 B sends a reminder "by its due date", and no
+answer set how long after the invoice that date is. The owner answered A
+(HUM-10, t1 `b12055b5`, msg `67b12564`, relayed by c-002@sat, msg
+`7d4f2c6c`), verbatim: "Poll: c9f3edb6-4408-494e-993f-84ea1fc5968f Answer:
+A — 14 days net from the invoice date (Recommended: a common business term;
+the reminder goes out on day 15)". So an invoice is due 14 days after its
+invoice date, and an unpaid one gets its one reminder on day 15 [Q-19 A].
 
-```poll
-Q-19. How long after the monthly invoice is it due (its payment term)?
-(A) 14 days net from the invoice date (Recommended: a common B2B term; the reminder goes out on day 15)
-(B) 30 days net
-(C) 7 days net
-```
+The question as it was asked (v0.5, posted as form `c9f3edb6`), kept as
+the record: Q-19. How long after the monthly invoice is it due (its
+payment term)? (A) 14 days net from the invoice date (Recommended). (B) 30
+days net. (C) 7 days net.
 
 Q-13 is mapped by its answer text, which is form Q-13's option B word for
 word; its poll id `35df3e5f` could not be read from c-625's seat.
@@ -442,7 +445,8 @@ that order.
   9 EUR per human member + the VM cost + 33% [Q-9 B, Q-16 B], paid by
   bank transfer [Q-18 C]. Work never stops on a balance, as there is none.
 - A non-payment [Q-17 B]: when the invoice is not paid by its due date
-  (the term is Q-19, open), the workspace's biz owner gets one reminder;
+  (14 days net from the invoice date [Q-19 A]), the workspace's biz owner
+  gets one reminder, on day 15;
   the agents keep running; nothing stops, is cancelled or deleted
   automatically. The invoice goes on the owner's overdue list, and the
   owner decides each case by hand (a cancel is 4.5, on the owner's go).
@@ -468,9 +472,9 @@ that order.
 | G3 | a provisioning order written by the order submit that creates the workspace, and a named action that takes it to a plan | 4.1, 4.2 | Q-13 B, Q-18 C |
 | G4 | a price plan: seat cents per human member in EUR, VM cost + 33%; the `price_plans` table of 121 is not built | 4.1 | Q-6..Q-9, Q-11 A |
 | G5 | the VM's cost per day (compute, disk, traffic) from the billing export, by its label | 4.4 | Q-8 A |
-| G6 | the monthly invoice in arrears: the VM's GCP cost of the month forwarded, then our invoice (seats x 9 EUR + VM cost + 33%), paid by bank transfer; an invoice row with its due date; today's rail has one-off payment intents only and is not used (section 3) | 4.1, 4.4 | Q-9 B, Q-16 B, Q-18 C, Q-19 |
+| G6 | the monthly invoice in arrears: the VM's GCP cost of the month forwarded, then our invoice (seats x 9 EUR + VM cost + 33%), paid by bank transfer; an invoice row with its due date; today's rail has one-off payment intents only and is not used (section 3) | 4.1, 4.4 | Q-9 B, Q-16 B, Q-18 C, Q-19 A |
 | G12 | the order submit: a private-workspace order creates the tenant at once, with no payment event; today a checkout's tenant is made by the paid transition (`paidTx`, section 3) | 4.1 | Q-18 C |
-| G13 | the reminder: one mail to the workspace's biz owner when an invoice passes its due date unpaid; no stop, no cancel | 4.4 | Q-17 B, Q-19 |
+| G13 | the reminder: one mail to the workspace's biz owner when an invoice passes its due date unpaid; no stop, no cancel | 4.4 | Q-17 B, Q-19 A |
 | G14 | the owner's overdue list: every unpaid invoice past its due date, and the owner's hand action to mark one paid on the bank transfer | 4.4 | Q-17 B, Q-18 C |
 | G7 | the checkout page for the private workspace, its texts in every locale, agy last | 4.1 | Q-4 A, Q-6 A, Q-7 A |
 | G8 | revoke (108 T012), a cancel action that deletes the VM at once, and the 30-day delete of the hub data | 4.5 | Q-12 C |
@@ -497,7 +501,7 @@ brackets.
 | B8 [B4] | orc (claude) | a named provisioning action (dry run): order -> cnf entry -> tfvars -> plan printed; apply only with `DRY_RUN=0` and the owner's go | `DRY_RUN` unset -> nothing applied | B2, B5..B7 |
 | B9 [B9] | hub + orc (claude) | cancel: leases end, pin revoked (108 T012), the VM deleted at once (owner's go), the hub data deleted after 30 days | a cancelled workspace's seat asks a lease -> 403 | B8 |
 | B10 [B10] | doc (agy) | 121, 127 and 159 edited by their editors as section 2 says; from v0.4 also 121 R7 (no prepaid balance for a private workspace, monthly invoice in arrears) | `grep -c 'x 1.20' csi-spl-doc/specs/121-sales-channel/spec.md` -> found only in history lines; `grep -n 'Kept by spec 181' csi-spl-doc/specs/121-sales-channel/spec.md` -> nothing | - |
-| B12 (v0.5) | rdb + hub (claude) | the monthly invoice row (gap G6) and the reminder (gap G13) [Q-17 B]: an invoice per private workspace per month (`QuoteMonth`'s sum, issue date, due date from Q-19's term, paid_at NULL), and one reminder mail to the biz owner when it passes its due date unpaid; nothing stops. Files: a new rdb migration (number from `do_rdb_migration_next`), `internal/store/` (the invoice store, Memory and Postgres), a mail template under `internal/mail/templates/`, the tick that sends it. Done test: an invoice one day past due, unpaid -> one reminder, and a second tick -> still one | an unpaid invoice past due -> any lease refused or any seat stopped: the test fails; the reminder sent twice -> the test fails | B1, Q-19 |
+| B12 (v0.5) | rdb + hub (claude) | the monthly invoice row (gap G6) and the reminder (gap G13) [Q-17 B]: an invoice per private workspace per month (`QuoteMonth`'s sum, issue date, due date = issue date + 14 days [Q-19 A], paid_at NULL), and one reminder mail to the biz owner on day 15 when it is still unpaid; nothing stops. Files: a new rdb migration (number from `do_rdb_migration_next`), `internal/store/` (the invoice store, Memory and Postgres), a mail template under `internal/mail/templates/`, the tick that sends it. Done test: an invoice issued 14 days ago, unpaid -> no reminder; issued 15 days ago, unpaid -> one reminder, and a second tick -> still one | an unpaid invoice past due -> any lease refused or any seat stopped: the test fails; the reminder sent twice -> the test fails | B1 |
 | B13 (v0.5) | hub + wui (claude) | the owner's overdue list (gap G14) [Q-17 B, Q-18 C]: an operator-scope read of every invoice past its due date and unpaid, and the operator's action to mark one paid on the bank transfer (audited); no automatic decision. Files: an operator endpoint in `internal/hub/` named in `TestOperatorScopeCallers`, a page under `csi-spl-wui/src/pages/monitoring/`, locale texts, agy review last. Done test: two invoices, one paid -> the list shows one; mark it paid -> the list is empty | a workspace's own member reads the list -> 403; marking paid with no audit row -> the test fails | B12 |
 | B11 (new) | hub + wui + orc (claude) | the web-UI sign-in relay to the CLI's terminal login on `<vm>`, one switch per vendor, default off | a relayed input found in a hub table or log -> its test fails; the switch off -> the relay refuses | B8 |
 
@@ -523,7 +527,6 @@ Marketplace stays spec 156.
 
 - A go per VM apply and per VM delete in the first slice (repo CLAUDE.md:
   nothing mutates GCP without the owner).
-- Q-19: the payment term of the monthly invoice (1.0).
 - Each overdue invoice: the owner decides the case by hand, and marks an
   invoice paid when its bank transfer arrives [Q-17 B, Q-18 C] (row B13).
 - 159's O1 (Anthropic), O2 (xAI) and O3 (Mistral): each vendor's written
@@ -573,5 +576,10 @@ Marketplace stays spec 156.
   and 7 rewritten; the two open poll blocks become the question record.
   New open form Q-19 (the invoice's payment term). Spec 121 v1.6 drops the
   token gap from its pricing gate.
+- v0.6 (2026-11-21, c-757, SPL-6169): the owner's answer Q-19 A (msg
+  `67b12564`, verbatim in 1.0): the invoice is due 14 days net from its
+  invoice date, and the one reminder goes out on day 15. Status: every
+  question answered. 1.0, 4.4, G6, G13, B12 and 7 follow; B12 no longer
+  waits on Q-19.
 
-<!-- version: 0.5 · updated: 2026-11-21 · last-edit: 2026-11-21T10:45:00Z -->
+<!-- version: 0.6 · updated: 2026-11-21 · last-edit: 2026-11-21T11:10:00Z -->

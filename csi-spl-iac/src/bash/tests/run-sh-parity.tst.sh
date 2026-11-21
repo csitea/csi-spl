@@ -4,9 +4,12 @@
 #          and the repo root's src/bash/run/run.sh, SPL-5550) stay
 #          byte-identical (SPL-2756). A fix landed in one copy and
 #          not the others drifts unseen: utl's do_log stayed 131 lines while
-#          iac and orc split it into six steps (r14-09).
+#          iac and orc split it into six steps (r14-09). The three copies
+#          of lib/bash/funcs/validate-params.func.sh (iac, orc, utl) are
+#          held the same way (r82-02): orc's lost two comments in r3-28.
 #   Checks: cmp of iac vs orc, utl and the root copy; the root copy is a
-#   real file, not a link to a module's.
+#   real file, not a link to a module's; cmp of iac's validate-params.func.sh
+#   vs orc's and utl's.
 #   Control: a copy with one byte changed fails the same cmp, so the check
 #   is not blind.
 #------------------------------------------------------------------------------
@@ -28,6 +31,14 @@ for mod in orc utl root; do
     pass "iac and $mod run.sh are byte-identical"
   else
     fail "iac and $mod run.sh differ" "diff $ref $src"
+  fi
+done
+vp="$REPO_ROOT/csi-spl-iac/lib/bash/funcs/validate-params.func.sh"
+for mod in orc utl; do
+  if cmp -s "$vp" "$REPO_ROOT/csi-spl-$mod/lib/bash/funcs/validate-params.func.sh"; then
+    pass "iac and $mod validate-params.func.sh are byte-identical"
+  else
+    fail "iac and $mod validate-params.func.sh differ" "diff $vp $REPO_ROOT/csi-spl-$mod/lib/bash/funcs/validate-params.func.sh"
   fi
 done
 if [[ -f "$REPO_ROOT/src/bash/run/run.sh" && ! -L "$REPO_ROOT/src/bash/run/run.sh" ]]; then

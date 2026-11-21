@@ -284,8 +284,11 @@ spl_box_quota_profile_host() {
 # does the credential: its file, access token and refresh token all change at
 # every renewal of one login (refresh token measured, see the commit). The last
 # answer is kept in <kept file>.account, so the endpoint is asked once per
-# access token. Seam (tests): LANE_QUOTA_CLAUDE_CRED reads that file as this
-# user; a test that fakes the panes (LANE_PANES_CMD) or the reading
+# access token. That file is written 600 (umask 077 on its temp file, whatever
+# the caller's umask), and the kept access-token key reaches the agent-user hop
+# on its stdin, never on a command line (b33-02: ps shows a command line to
+# every user of the box). Seam (tests): LANE_QUOTA_CLAUDE_CRED reads that file
+# as this user; a test that fakes the panes (LANE_PANES_CMD) or the reading
 # (LANE_QUOTA_CMD) without it reads nothing.
 spl_box_quota_claude_key() {
   local f c="" ak="" acct="" host out
@@ -301,11 +304,11 @@ spl_box_quota_claude_key() {
     out="$(
       [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
       SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
-      spool_agent_exec "$(declare -f spl_box_quota_cred_account); spl_box_quota_cred_account \"\$HOME/.claude/.credentials.json\" $(printf '%q ' "$host" "$ak" "$acct")" </dev/null 2>/dev/null
+      spool_agent_exec "$(declare -f spl_box_quota_cred_account); read -r ak acct _; spl_box_quota_cred_account \"\$HOME/.claude/.credentials.json\" $(printf '%q' "$host") \"\$ak\" \"\$acct\"" <<<"${ak:--} $acct" 2>/dev/null
     )"
   fi
   [[ "$out" =~ ^a[0-9a-f]{12}\ (k[0-9a-f]{12}|-)$ ]] || return 0
-  [[ -n "$c" && "$out" != "$ak $acct" ]] && { printf '%s\n' "$out" >"$c.$$" && mv -f "$c.$$" "$c"; } 2>/dev/null
+  [[ -n "$c" && "$out" != "$ak $acct" ]] && (umask 077; printf '%s\n' "$out" >"$c.$$" && mv -f "$c.$$" "$c") 2>/dev/null
   [[ "${out#* }" == - ]] || echo "${out#* }"
   return 0
 }
@@ -352,7 +355,9 @@ spl_box_quota_usage_fetch() {
 # 429, retry-after 3584; capped at a day), but at once for a new access token
 # (a renewal, or a credential copied in). The last answer is kept in <kept
 # file>.usage ("<asked epoch> <wait s> <answer epoch> <access-token key>
-# <pct>@<reset> or -"), never the token; an answer of another token is no
+# <pct>@<reset> or -"), never the token, written 600 (umask 077 on its temp
+# file); the kept access-token key reaches the agent-user hop on its stdin,
+# never on a command line (b33-02). An answer of another token is no
 # reading. A failed ask keeps the last answer of the same token until it is
 # LANE_QUOTA_CACHE_MAX_S old (21600, as spl_box_quota_cache). The ask is
 # recorded in .usage, by the same temp file and mv as the answer, before the
@@ -374,7 +379,7 @@ spl_box_quota_usage() {
   # W1 (R7 c-426, c-451): the throttle is this file, so the ask is recorded
   # first, by the very write the answer uses; a write that fails asks nothing
   (( due )) && { asked="$now"; wait=0; }
-  [[ -z "$c" ]] || { printf '%s %s %s %s %s\n' "${asked:-$now}" "${wait:-0}" "${at:-0}" "${ak:--}" "${r:--}" >"$c.$$" && mv -f "$c.$$" "$c"; } 2>/dev/null ||
+  [[ -z "$c" ]] || (umask 077; printf '%s %s %s %s %s\n' "${asked:-$now}" "${wait:-0}" "${at:-0}" "${ak:--}" "${r:--}" >"$c.$$" && mv -f "$c.$$" "$c") 2>/dev/null ||
     { rm -f "$c.$$" 2>/dev/null; return 0; }
   host="$(spl_box_quota_profile_host)"
   if [[ -n "${LANE_QUOTA_CLAUDE_CRED:-}" ]]; then
@@ -386,7 +391,7 @@ spl_box_quota_usage() {
     out="$(
       [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
       SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
-      spool_agent_exec "$(declare -f spl_box_quota_usage_fetch); spl_box_quota_usage_fetch \"\$HOME/.claude/.credentials.json\" $(printf '%q ' "$host" "$ak" "$due")" </dev/null 2>/dev/null
+      spool_agent_exec "$(declare -f spl_box_quota_usage_fetch); read -r ak due _; spl_box_quota_usage_fetch \"\$HOME/.claude/.credentials.json\" $(printf '%q' "$host") \"\$ak\" \"\$due\"" <<<"${ak:--} $due" 2>/dev/null
     )"
   fi
   read -r nak code ra v _ <<<"$out"
@@ -396,7 +401,7 @@ spl_box_quota_usage() {
     [[ "$code" == 200 && "$v" =~ ^[0-9]+@[0-9]+$ ]] && { r="$v"; at="$now"; }
     [[ "$ra" =~ ^[0-9]+$ ]] || ra=0
     (( ra > 86400 )) && ra=86400
-    [[ -z "$c" ]] || { printf '%s %s %s %s %s\n' "$now" "$ra" "${at:-0}" "$nak" "${r:--}" >"$c.$$" && mv -f "$c.$$" "$c"; } 2>/dev/null
+    [[ -z "$c" ]] || (umask 077; printf '%s %s %s %s %s\n' "$now" "$ra" "${at:-0}" "$nak" "${r:--}" >"$c.$$" && mv -f "$c.$$" "$c") 2>/dev/null
   fi
   # W2 (R7 c-426): an answer kept across failed asks ages like the CLI's cache
   [[ "$at" =~ ^[0-9]+$ && "$r" =~ ^[0-9]+@([0-9]+)$ ]] && (( at > 0 && BASH_REMATCH[1] > now && now - at < max )) || return 0

@@ -1293,5 +1293,54 @@ printf '%s own acct-11111111 acct-22222222 96 - 40 /x/.claude-2 hold\n' "$(date 
 [[ "$(bq)" == '{"box-desk":96}' ]] && pass "22. CONTROL own login: its own reading (96)" || fail "22. own: $(bq)"
 rm -f "$LOGIN_STATE_DIR/login-mode"
 
+# 23. b33-02 (SPL-6168): the access-token key ("a" + the first 12 hex of the
+# token's sha256) stays private. b29-01 R7 N2: sat's <kept>.account was 664,
+# every file of its dir -rw-rw-r--, and both agent-user hops carried the key on
+# their command line (visible to ps). The kept .account and .usage files are
+# written 600 whatever the caller's umask, and the key rides the hop's stdin.
+# A fake credential and a stub spool_agent_exec that records its argv and stdin.
+QK="$T/kept23.tsv"; rm -f "$QK" "$QK.account" "$QK.usage"
+cred cred-23.json fixture-access-23 fixture-refresh-23
+AK23="a$(printf '%s' fixture-access-23 | sha256sum | cut -c1-12)"
+K23="k$(printf '%s' uuid-23 | sha256sum | cut -c1-12)"
+printf '#!/bin/sh\ncat >/dev/null; echo %s\n' "'{\"account\":{\"uuid\":\"uuid-23\"}}'" >"$T/profile23"
+printf '#!/bin/sh\ncat >/dev/null; echo %s; echo "200 -"\n' "'{\"seven_day\":{\"utilization\":10,\"resets_at\":\"2099-01-01T00:00:00Z\"}}'" >"$T/usage23"
+chmod +x "$T/profile23" "$T/usage23"
+# q23 FUNC STUB-ANSWER [env...]: FUNC under umask 002 (sat's), the hop stubbed
+q23() {
+  local fn="$1" ans="$2"; shift 2
+  (umask 002; env -u LANE_PANES_CMD -u LANE_QUOTA_CMD LANE_QUOTA_STATE="$QK" LANE_QUOTA_CLAUDE_PROFILE_HOST=profile.invalid \
+    SPOOL_AGENT_USER=fixture-user T23="$T" ANS23="$ans" "$@" bash -c 'set -uo pipefail; do_log() { :; }
+      source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh" 2>/dev/null
+      spool_agent_exec() { printf "%s\n" "$*" >"$T23/argv23"; cat >"$T23/stdin23"; echo "$ANS23"; }
+      '"$fn" 2>/dev/null)
+}
+m23() { stat -c %a "$1" 2>/dev/null || echo none; }
+[[ "$(q23 spl_box_quota_claude_key - LANE_QUOTA_CLAUDE_CRED="$T/cred-23.json" LANE_QUOTA_CLAUDE_PROFILE_CMD="$T/profile23")" == "$K23" ]] &&
+  [[ "$(cat "$QK.account")" == "$AK23 $K23" ]] &&
+  pass "23. CONTROL the account key is still read and kept (rc02 acctid)" || fail "23. acctid: $(cat "$QK.account" 2>/dev/null)"
+[[ "$(m23 "$QK.account")" == 600 ]] &&
+  pass "23. RED CONTROL (FAILs on 5083f4cf9: 664) <kept>.account is written 600 under umask 002 (rc02 acctmode)" || fail "23. acctmode: $(m23 "$QK.account")"
+q23 spl_box_quota_usage - LANE_QUOTA_CLAUDE_CRED="$T/cred-23.json" LANE_QUOTA_CLAUDE_USAGE_CMD="$T/usage23" >/dev/null
+[[ "$(m23 "$QK.usage")" == 600 ]] && [[ "$(cut -d' ' -f4,5 "$QK.usage")" == "$AK23 10@4070908800" ]] &&
+  pass "23. RED CONTROL (FAILs on 5083f4cf9: 664) <kept>.usage is written 600 under umask 002 (rc02 usagemode)" || fail "23. usagemode: $(m23 "$QK.usage")"
+printf 'a000000000000 k000000000001\n' >"$QK.account"; chmod 664 "$QK.account"
+q23 spl_box_quota_claude_key - LANE_QUOTA_CLAUDE_CRED="$T/cred-23.json" LANE_QUOTA_CLAUDE_PROFILE_CMD="$T/profile23" >/dev/null
+[[ "$(m23 "$QK.account")" == 600 ]] && pass "23. a live 664 <kept>.account becomes 600 at its next write" || fail "23. 664: $(m23 "$QK.account")"
+printf '%s %s\n' "$AK23" "$K23" >"$QK.account"; rm -f "$T/argv23" "$T/stdin23"
+[[ "$(q23 spl_box_quota_claude_key "$AK23 $K23")" == "$K23" ]] && [[ -s "$T/argv23" ]] && ! grep -qF -- "$AK23" "$T/argv23" &&
+  pass "23. RED CONTROL (FAILs on 5083f4cf9: on argv) the account hop's command line holds no access-token key (rc02 acctargv)" ||
+  fail "23. acctargv: $(grep -c -- "$AK23" "$T/argv23" 2>/dev/null)"
+[[ "$(cat "$T/stdin23" 2>/dev/null)" == "$AK23 $K23" ]] &&
+  pass "23. the account hop reads the kept keys on its stdin" || fail "23. acct stdin: $(cat "$T/stdin23" 2>/dev/null)"
+printf '1 0 0 %s -\n' "$AK23" >"$QK.usage"; rm -f "$T/argv23" "$T/stdin23"
+q23 spl_box_quota_usage "$AK23 200 - 10@4070908800" >/dev/null
+[[ -s "$T/argv23" ]] && ! grep -qF -- "$AK23" "$T/argv23" &&
+  pass "23. RED CONTROL (FAILs on 5083f4cf9: on argv) the usage hop's command line holds no access-token key (rc02 usageargv)" ||
+  fail "23. usageargv: $(grep -c -- "$AK23" "$T/argv23" 2>/dev/null)"
+[[ "$(cat "$T/stdin23" 2>/dev/null)" == "$AK23 1" ]] && [[ "$(m23 "$QK.usage")" == 600 ]] &&
+  pass "23. the usage hop reads the kept key and the due flag on its stdin" || fail "23. usage stdin: $(cat "$T/stdin23" 2>/dev/null)"
+rm -f "$QK" "$QK.account" "$QK.usage" "$T"/cred-23.json "$T"/profile23 "$T"/usage23 "$T"/argv23 "$T"/stdin23
+
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

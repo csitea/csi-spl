@@ -438,6 +438,13 @@ H3, W2, W3, W4; E1 and X2 last. The live doc-view lanes (header cleanup,
 background themes) touch `WorkspaceDocView.vue`: W2, W3 and W4 check
 `lane-map.sh --check` first and wait for them.
 
+### 6.1 Row status
+
+| row | state | evidence |
+|---|---|---|
+| T1 | **built, not applied** (SPL-6152, lane c-747): commit `feat(iac, SPL-6152): step 052 deletes the noncurrent ...`; the apply waits for the owner's go | `csi-spl-iac/src/bash/tests/tf-052-media-noncurrent.tst.sh` RED on `d42ec95e8` (rc 1), GREEN on the commit; `PLAN_REF=<that commit> make do-tf-plan` STEP 052 (tf-runner, plan only): dev `0 to add, 23 to change, 0 to destroy`, prd `0 to add, 22 to change, 0 to destroy`, every change `google_storage_bucket.workspace_docs[<slug>]` in place, the new `lifecycle_rule` only (no other attribute, no drift, no replace) |
+| T2 | **built, not applied** (SPL-6152, lane c-747): commit `feat(iac, SPL-6152): step 030 lets the hub runtime SA sign as itself ...`, new file `030-cloud-run-hub/08-hub-self-sign.tf` (030, not 055: 030 defines the runtime SA and its grants, 055 only reads its account id); the apply waits for the owner's go | `csi-spl-iac/src/bash/tests/tf-030-hub-self-sign.tst.sh` RED without the file (rc 1), GREEN with it; `PLAN_REF=<that commit> make do-tf-plan` STEP 030, after the SPL-6045 030 apply: dev and prd each `1 to add, 0 to change, 0 to destroy`, the one add `google_service_account_iam_member.hub_self_sign` (`roles/iam.serviceAccountTokenCreator`, the runtime SA on itself), no drift. Red control on dev before the apply (2026-11-21, n=1): `signBlob` as the runtime SA on itself -> `403 PERMISSION_DENIED`, reason `IAM_PERMISSION_DENIED`, "Permission 'iam.serviceAccounts.signBlob' denied". The 200 from the bucket is B1's dev check, after the apply |
+
 ## 7. Contracts
 
 ### 7.1 Binding contracts

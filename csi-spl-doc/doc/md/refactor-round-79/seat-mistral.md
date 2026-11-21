@@ -224,19 +224,27 @@ None. W1..: none.
 - **N1 (inputs):** the candidates item "[refactor] SPL-6107 N1" —
   `csi-spl-orc/src/bash/scripts/spl-desk-reply.sh:9,19` usage text does not list the
   `task` kind — is a refactor-shaped input the plan neither serves nor names in its
-  section 7 (verified present on `d6fc241f9`).
+  section 7 (verified present on `d6fc241f9`). **Served in v1.0 `2d00168fd`:** section 7
+  names it as a panel-N1 row ("re-measure next round, a wording row if it is").
 - **N2 (inputs):** spec 182 L2 `!inserted` branch untested (test-shaped; in r78 s7 line
   351) is not named in r79 section 7; its blocking reason still holds at read time
   (spec 182 v08 queued, `do_spl_spawn_queue` position 20, 2026-11-21T02:3xZ).
+  **Served in v1.0 `2d00168fd`:** section 7 names it as a panel-N2 row (spec 182 v08
+  queued, files stay off).
 - **N3 (lane map):** at this seat's read the unknown-lane count is 16 (exit 4), up from
   1 at the plan's 02:17:49Z read; none is on a row path by slug, and the plan says the
   holder re-checks the unknown lanes before placing. No plan change needed.
+  **Served in v1.0 `2d00168fd`:** 2.2 carries the panel-N3 note (16 unknown lanes at
+  02:3xZ, none on a row path; holder's re-check before placing is the one that counts).
 
 ## State history
 
-- 2026-11-21T02:3xZ this commit: full review of `043b1af86df5ce2386c5f7e2d0d2188a36f6a321`
-  (checks 1-8 above), verdict PASS, notes N1-N3, pushed to
-  `review/c002-refactor-round-79-mistral-seat` only.
+- 2026-11-21T02:3xZ commit `d832b6726`: full review of
+  `043b1af86df5ce2386c5f7e2d0d2188a36f6a321` (checks 1-8 above), verdict PASS, notes
+  N1-N3, pushed to `review/c002-refactor-round-79-mistral-seat` only.
+- 2026-11-21T02:4xZ commits `8b2963d8a`, `c59ffe154`: v1.0 signature on the planner head
+  `2d00168fd04d22f6677a95a14b6e5d12a24d6a81` (superseding `5b195323d` per holder msg
+  5089f1e9 / 29605022), N1-N3 marked served, pushed to the same review branch only.
 
 Seed STEP 0: read `csi-spl-doc/doc/md/developer-guide.md`, then
 `cd csi-spl-orc && sudo -u <push user> env AGENT_ID=m-620 DEV_GUIDE_ACK=yes ./run -a do_dev_guide_ack`

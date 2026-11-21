@@ -31,6 +31,17 @@ _spool_desk_root_key() {
   printf '%s' "$v"
 }
 
+# spool_box_kv FILE KEY: KEY's value from a KEY=value file (box.env,
+# lease.conf), read, never sourced (they sit in dirs the agents may write);
+# one pair of quotes dropped, the last line wins, empty when the file is
+# unreadable or the value holds any character but A-Z a-z 0-9 _ -. Its one
+# copy: spool-fleet-relay.sh, spool-topic-kind.sh and topic-text.sh read the
+# fleet desk's env, tenant and box with it.
+spool_box_kv() {
+  [ -r "$1" ] || return 0
+  sed -n "s/^$2=[\"']\{0,1\}\([A-Za-z0-9_-]*\)[\"']\{0,1\}\$/\1/p" "$1" | tail -1
+}
+
 spool_desk_root() {  # CALLER_HOME [BOX_ENV]
   local home="${1:?spool_desk_root: CALLER_HOME}" u s
   u="$(_spool_desk_root_key "${2:-}")"

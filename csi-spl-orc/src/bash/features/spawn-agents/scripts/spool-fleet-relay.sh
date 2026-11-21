@@ -79,17 +79,11 @@ spl_is_participant_id "$FROM" && spl_is_participant_id "$TO" && [[ -n "$KIND" &&
 [[ -z "$ACCEPT" || "$ACCEPT" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { say "bad --accept '$ACCEPT'"; exit 2; }
 [[ "$THISBOX" = 0 || -z "$TOBOX" ]] || { say "--to-this-box and --to-box name two boxes"; exit 2; }
 
-# KEY from a KEY=value file (read, never sourced: these files sit in dirs the
-# agents may write).
-kv() {  # FILE KEY
-  [ -r "$1" ] || return 0
-  sed -n "s/^$2=[\"']\{0,1\}\([A-Za-z0-9_-]*\)[\"']\{0,1\}\$/\1/p" "$1" | tail -1
-}
 BOXENV="${SPOOL_BOX_ENV:-$ROOT/box.env}" LCONF="$ROOT/dispatch/lease.conf"
-ENVN="${SPOOL_FLEET_ENV:-$(kv "$BOXENV" SPOOL_FLEET_ENV)}"; ENVN="${ENVN:-$(kv "$LCONF" LEASE_ENV)}"
+ENVN="${SPOOL_FLEET_ENV:-$(spool_box_kv "$BOXENV" SPOOL_FLEET_ENV)}"; ENVN="${ENVN:-$(spool_box_kv "$LCONF" LEASE_ENV)}"
 [[ -z "$ARG_TENANT" || "$ARG_TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { say "bad --tenant '$ARG_TENANT'"; exit 2; }
-TENANT="${ARG_TENANT:-${SPOOL_FLEET_TENANT:-$(kv "$BOXENV" SPOOL_FLEET_TENANT)}}"; TENANT="${TENANT:-$(kv "$LCONF" LEASE_TENANT)}"
-BOX="${SPOOL_DESK_BOX:-$(kv "$BOXENV" SPOOL_DESK_BOX)}"; BOX="${BOX:-$(kv "$LCONF" LEASE_DESK_BOX)}"; BOX="${BOX:-box-desk}"
+TENANT="${ARG_TENANT:-${SPOOL_FLEET_TENANT:-$(spool_box_kv "$BOXENV" SPOOL_FLEET_TENANT)}}"; TENANT="${TENANT:-$(spool_box_kv "$LCONF" LEASE_TENANT)}"
+BOX="${SPOOL_DESK_BOX:-$(spool_box_kv "$BOXENV" SPOOL_DESK_BOX)}"; BOX="${BOX:-$(spool_box_kv "$LCONF" LEASE_DESK_BOX)}"; BOX="${BOX:-box-desk}"
 [[ "$ENVN" =~ ^(dev|prd|self)$ && "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || {
   say "$TO is not an agent of this machine ($ROOT), and no fleet desk is configured to reach the other machine: set SPOOL_FLEET_ENV + SPOOL_FLEET_TENANT in $BOXENV (or LEASE_ENV + LEASE_TENANT in $LCONF). Nothing was sent."
   exit 3; }
@@ -179,7 +173,7 @@ if ! announced "$FROM"; then
     say "$FROM is neither seated on $BOX in $TENANT ($ENVN) and announced by it, nor in this machine's $ROOT/registry.tsv: the hub refuses a sender its box does not vouch for. Nothing was sent."
     exit 3; }
   SENDER=""
-  for p in "${SPOOL_FLEET_PROXY:-$(kv "$BOXENV" SPOOL_FLEET_PROXY)}" "$(kv "$LCONF" LEASE_ORCH)" \
+  for p in "${SPOOL_FLEET_PROXY:-$(spool_box_kv "$BOXENV" SPOOL_FLEET_PROXY)}" "$(spool_box_kv "$LCONF" LEASE_ORCH)" \
            "$d"/spool/*; do
     p="${p##*/}"
     spl_is_participant_id "$p" && announced "$p" && { SENDER="$p"; break; }

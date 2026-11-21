@@ -48,19 +48,15 @@ mapfile -t LINKS < <(grep -oE "https?://[A-Za-z0-9.-]+/t/${UUID}" "$BRIEF" 2>/de
   sed -E 's#^https?://([^/]+)/t/#\1 #' | awk '!seen[$2]++')
 [ "${#LINKS[@]}" -gt 0 ] || exit 0
 
-kv() {  # FILE KEY: KEY from a KEY=value file (read, never sourced)
-  [ -r "$1" ] || return 0
-  sed -n "s/^$2=[\"']\{0,1\}\([A-Za-z0-9_-]*\)[\"']\{0,1\}\$/\1/p" "$1" | tail -1
-}
-BOXENV="${SPOOL_BOX_ENV:-$ROOT/box.env}" LCONF="$ROOT/dispatch/lease.conf"
-ENVN="${SPOOL_FLEET_ENV:-$(kv "$BOXENV" SPOOL_FLEET_ENV)}"; ENVN="${ENVN:-$(kv "$LCONF" LEASE_ENV)}"
-FT="${SPOOL_FLEET_TENANT:-$(kv "$BOXENV" SPOOL_FLEET_TENANT)}"; FT="${FT:-$(kv "$LCONF" LEASE_TENANT)}"
-DBOX="${SPOOL_DESK_BOX:-$(kv "$BOXENV" SPOOL_DESK_BOX)}"; DBOX="${DBOX:-$(kv "$LCONF" LEASE_DESK_BOX)}"
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
 . "$_here/../lib/spool-env.inc.sh"
 # shellcheck source=../lib/desk-root.inc.sh
 . "$_here/../lib/desk-root.inc.sh"
+BOXENV="${SPOOL_BOX_ENV:-$ROOT/box.env}" LCONF="$ROOT/dispatch/lease.conf"
+ENVN="${SPOOL_FLEET_ENV:-$(spool_box_kv "$BOXENV" SPOOL_FLEET_ENV)}"; ENVN="${ENVN:-$(spool_box_kv "$LCONF" LEASE_ENV)}"
+FT="${SPOOL_FLEET_TENANT:-$(spool_box_kv "$BOXENV" SPOOL_FLEET_TENANT)}"; FT="${FT:-$(spool_box_kv "$LCONF" LEASE_TENANT)}"
+DBOX="${SPOOL_DESK_BOX:-$(spool_box_kv "$BOXENV" SPOOL_DESK_BOX)}"; DBOX="${DBOX:-$(spool_box_kv "$LCONF" LEASE_DESK_BOX)}"
 # No desk root (SPOOL_DESK_USER has no home): no desk, each topic gets its line.
 STATE="${SPOOL_FLEET_STATE_ROOT:-$(spool_desk_root "$(getent passwd "$(id -un)" | cut -d: -f6)" "$BOXENV")}" || STATE=/nonexistent
 DESKS="$STATE/${ENVN:-none}/desk"

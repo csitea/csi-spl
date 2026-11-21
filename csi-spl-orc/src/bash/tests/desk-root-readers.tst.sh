@@ -6,6 +6,9 @@
 # on the ./run side, from spl_desk_state_root:
 #   0. spool_desk_root: unset = the caller's home; set (env or box env) = the
 #      desk user's; a desk user with no passwd entry = non-zero, nothing printed
+#  0b. spool_box_kv, the box-config read the three fleet desk readers share:
+#      quotes dropped, the last line wins, a value with a space or an
+#      unreadable file reads empty; one definition, in desk-root.inc.sh
 #   per reader, three runs in a sandbox (caller A, desk user B, getent stub):
 #   a. SPOOL_DESK_USER unset, the desk under A: found, as before the key
 #   b. SPOOL_DESK_USER=B, the desk under B only: found
@@ -72,6 +75,13 @@ out="$(run a env SPOOL_DESK_USER=t-no-such bash -c "$LIB; spool_desk_root \"\$HO
 [[ $rc -ne 0 && -z "$out" ]] && pass "0. no passwd entry: non-zero, nothing printed" || fail "0. no passwd entry: rc=$rc out='$out'"
 out="$(run a env SPOOL_ROOT= bash -c "$LIB; _spool_desk_root_key")"
 eq "0. under SPOOL_TEST with no SPOOL_ROOT no box env is read" "" "$out"
+
+# --- 0b. spool_box_kv ----------------------------------------------------------
+printf 'K=one\nK="two"\nQ=a b\nE=\n' >"$T/kv.env"
+eq "0b. spool_box_kv: quotes dropped, the last line wins" two "$(run a bash -c "$LIB; spool_box_kv '$T/kv.env' K")"
+eq "0b. spool_box_kv: a value with a space reads empty" "" "$(run a bash -c "$LIB; spool_box_kv '$T/kv.env' Q")"
+eq "0b. spool_box_kv: an unreadable file reads empty, rc 0" ":0" "$(run a bash -c "$LIB; spool_box_kv '$T/no-such.env' K; echo \":\$?\"")"
+eq "0b. spool_box_kv is defined once, in desk-root.inc.sh" "$FEAT/lib/desk-root.inc.sh" "$(grep -rlE '^(spool_box_kv|kv)\(\) *\{' "$FEAT/lib" "$S")"
 
 # verdict NAME MODE FOUND(0|1): a/b must find, c must not.
 verdict() {

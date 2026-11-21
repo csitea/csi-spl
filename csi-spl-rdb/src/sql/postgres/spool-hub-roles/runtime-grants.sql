@@ -24,6 +24,10 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO :"runtime_role";
 -- schema owner holds EXECUTE on it WITH GRANT OPTION (rdb 0143). The runtime
 -- login is never a member of spool_search_reader.
 GRANT EXECUTE ON FUNCTION public.spool_search_candidates(tsquery, int) TO :"runtime_role";
+-- SPL-6180 (rdb 0307): the orphan sweep's lock-blind door, a boolean only.
+-- Its owner is spool_doc_asset_reader and PUBLIC has no EXECUTE, so it is
+-- named here; the runtime login is never a member of spool_doc_asset_reader.
+GRANT EXECUTE ON FUNCTION public.spool_doc_asset_held(text) TO :"runtime_role";
 -- SPL-1832 (rdb 0197): the channel rule on messages binds the members of
 -- spool_channel_scoped, never spool_search_reader; the runtime login is one,
 -- by inheritance, so a visitor session still reads its one channel only.

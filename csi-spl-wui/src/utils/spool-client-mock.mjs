@@ -87,13 +87,17 @@ export function mockListMessages(state, { channel, peer, limit = 50, since } = {
   if (since) rows = rows.filter((m) => m.ts > since)
   /* SPL-6205: the cap keeps the newest `limit` lines but never a topic's
      opening line, as the live listMessages does (spool-client.mjs): a topic
-     longer than the cap keeps its middle card */
+     longer than the cap keeps its middle card. Only a topic ROOT counts as
+     an opening line (is_parent 1, or msg_id = task_id): an old reply that is
+     its task's first held row stays outside the window, as live, where the
+     opener is read only for a topic the page lists */
+  const isRoot = (m) => Number(m.is_parent) === 1 || Boolean(m.msg_id && m.msg_id === m.task_id)
   const openers = new Set()
   const seenTask = new Set()
   for (const m of rows) {
     if (!m || !m.task_id || seenTask.has(m.task_id)) continue
     seenTask.add(m.task_id)
-    openers.add(m)
+    if (isRoot(m)) openers.add(m)
   }
   const cut = rows.length - limit
   return { messages: rows.filter((m, i) => i >= cut || openers.has(m)), next: null, ...seededTotals(rows) }

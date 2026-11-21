@@ -16,6 +16,13 @@ describe('mockListMessages cap', () => {
     assert.deepEqual(messages.slice(1).map((m) => m.msg_id), rows.slice(-30).map((m) => m.msg_id))
   })
 
+  it('an old reply is not an opening line: its own task stays outside the window', () => {
+    const replies = Array.from({ length: 40 }, (_, k) => row(k, `r${k}`, { is_parent: 0 }))
+    const { messages } = mockListMessages({ messages: replies }, { channel: 'c1', limit: 30 })
+    assert.equal(messages.length, 30, 'only the newest 30, no reply kept as an opener')
+    assert.deepEqual(messages.map((m) => m.msg_id), replies.slice(-30).map((m) => m.msg_id))
+  })
+
   it('a feed within the cap is returned whole, in order', () => {
     const rows = [row(0, 'a'), row(1, 'b'), row(2, 'a')]
     const { messages } = mockListMessages({ messages: rows }, { channel: 'c1', limit: 30 })

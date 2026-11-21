@@ -37,7 +37,8 @@
 # @example org=$(do_gcp_cnf_value gcp_org_id)
 #------------------------------------------------------------------------------
 do_gcp_cnf_value() {
-  local key="${1:?key}" cnf="${2:-}"
+  [[ -n "${1:-}" ]] || { do_log "FATAL do_gcp_cnf_value: usage: do_gcp_cnf_value <key> [cnf]" >&2; return 1; }
+  local key="$1" cnf="${2:-}"
   [[ -n "${cnf}" ]] || cnf="${APP_PATH:-}/${ORG:-}-${APP:-}-cnf/${ORG:-}-${APP:-}"
   command -v yq &>/dev/null || return 0
 
@@ -135,7 +136,8 @@ do_gcp_sa_key_file() {
 # @example key=$(do_gcp_env_sa_key_file prd "" "${envs}") || echo "no prd key"
 #------------------------------------------------------------------------------
 do_gcp_env_sa_key_file() {
-  local ENV="${1:?env}" ORG="${ORG:-}" APP="${APP:-}" pin="${GCP_SA_KEY_FILE:-}${PROJ_ID:-}${SPL_PROJECT:-}${GCP_PROJECT:-}"
+  [[ -n "${1:-}" ]] || { do_log "FATAL do_gcp_env_sa_key_file: usage: do_gcp_env_sa_key_file <env> [cnf] [envs]" >&2; return 1; }
+  local ENV="$1" ORG="${ORG:-}" APP="${APP:-}" pin="${GCP_SA_KEY_FILE:-}${PROJ_ID:-}${SPL_PROJECT:-}${GCP_PROJECT:-}"
   if [[ -n "${pin}" && "${3:-}" == *[![:space:]]*[[:space:]]*[![:space:]]* ]]; then
     do_log "FATAL GCP_SA_KEY_FILE / PROJ_ID / SPL_PROJECT / GCP_PROJECT name one project: set ENV to one env, not '${3}'" >&2
     return 2
@@ -168,7 +170,8 @@ do_gcp_sa_key_email() {
 # @param $1 the SA key file
 #------------------------------------------------------------------------------
 do_gcp_activate_sa_key() {
-  local key="${1:?key}" email have
+  [[ -n "${1:-}" ]] || { do_log "FATAL do_gcp_activate_sa_key: usage: do_gcp_activate_sa_key <key>" >&2; return 1; }
+  local key="$1" email have
   email=$(do_gcp_sa_key_email "${key}") || { do_log "FATAL no client_email in the SA key ${key}" >&2; return 1; }
   if ! do_gcp_config_isolated; then
     do_log "FATAL refusing to activate ${email} in the shared gcloud config: run under a private CLOUDSDK_CONFIG (do_gcp_pin_account makes one)" >&2
@@ -213,7 +216,8 @@ do_gcp_bootstrap_account() {
 }
 
 _do_gcp_resolve_account() {
-  local mode="${1:?mode}" cnf="${2:-}" account key
+  [[ -n "${1:-}" ]] || { do_log "FATAL _do_gcp_resolve_account: usage: _do_gcp_resolve_account <run|bootstrap> [cnf]" >&2; return 1; }
+  local mode="$1" cnf="${2:-}" account key
   account="${ACCOUNT:-${GCP_ACCOUNT:-}}"
   if [[ -n "${account}" ]]; then printf '%s' "${account}"; return 0; fi
 
@@ -261,7 +265,8 @@ do_gcp_pin_bootstrap_account() {
 }
 
 _do_gcp_pin() {
-  local mode="${1:?mode}" cnf="${2:-}" account
+  [[ -n "${1:-}" ]] || { do_log "FATAL _do_gcp_pin: usage: _do_gcp_pin <run|bootstrap> [cnf]" >&2; return 1; }
+  local mode="$1" cnf="${2:-}" account
   if [[ -z "${ACCOUNT:-}${GCP_ACCOUNT:-}" ]] && do_gcp_sa_key_file "${cnf}" >/dev/null; then
     do_gcp_isolate_config || return 1
   fi

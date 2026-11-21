@@ -19,6 +19,8 @@
 #      $GCP_ACCOUNT) -- the count is printed and must not be 0.
 #   3. do_gcp_org_id: GCP_ORG_ID > cnf env.gcp.gcp_org_id.
 #   4. The csi-spl-iac and csi-spl-orc copies of the lib are byte-identical.
+#   4b. An empty or missing first argument to the five lib functions that
+#      take one returns 1 with a usage line, never exits the caller's shell.
 #   5. SCAN: every `gcloud` / `gsutil` invocation under csi-spl-{iac,orc}
 #      src/bash/{run,scripts,features} and lib carries --account (continuation
 #      lines joined; only `gcloud auth ...` / `gcloud config ...` allow-listed).
@@ -193,6 +195,15 @@ echo "INFO resolver scan: $n_gc file(s) call gcloud"
 # --- 4. one lib, two copies --------------------------------------------------------
 ORC_PIN="$APP_ROOT/$ORG_APP-orc/lib/bash/funcs/gcp-account-pin.func.sh"
 cmp -s "$PIN" "$ORC_PIN" && pass "the iac and orc gcp-account-pin.func.sh are byte-identical" || fail "$ORC_PIN differs from $PIN"
+
+# --- 4b. an empty first argument returns 1, never exits the caller ----------------
+for fn in do_gcp_cnf_value do_gcp_env_sa_key_file do_gcp_activate_sa_key _do_gcp_resolve_account _do_gcp_pin; do
+  for a in '""' ''; do
+    out=$(PIN="$PIN" bash -c "do_log(){ echo \"\$*\"; }; source \"\$PIN\"; $fn $a; echo rc=\$?" 2>&1)
+    grep -qx 'rc=1' <<<"$out" && grep -q "usage: $fn " <<<"$out" \
+      && pass "4b. $fn '$a': returns 1 and says why" || fail "4b. $fn '$a': $out"
+  done
+done
 
 # --- 5. SCAN ----------------------------------------------------------------------
 # scan_file <file> -> one line per gcloud/gsutil invocation: <verdict> <file>:<line>: <cmd>

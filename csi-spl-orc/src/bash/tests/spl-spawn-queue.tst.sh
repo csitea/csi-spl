@@ -2288,6 +2288,57 @@ out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300 WINDOWS=40)"
   pass "41g. CONTROL the window ceiling still holds a seat; its #alerts line says window ceiling" || fail "41g. $(cat "$T/launch.log") | $(cat "$AS" 2>/dev/null) | $out"
 seat_clear
 
+# SPL-6167 (bug round 33 row 01, rc01): a docs lane placed on an issue it
+# does not own shares it. A Kind: specs_and_docs brief with an Issue: key and
+# no Issue-Role: line gets `Issue-Role: shared` once the key's card is read
+# (LI_HUB_CARD_CMD): an earlier lane's card (c-655's SPL-6086), a discussion
+# card and a card with no scope line all share; RED on 5083f4cf9 (none was
+# written). CONTROLS: a failed card read leaves the brief and logs one WARN; a
+# coding brief, a brief with no Issue: line and one that has its Issue-Role:
+# already are left and their card is never read.
+cat >"$T/bin/card6167" <<'STUB'
+#!/bin/sh
+echo "$1" >>"$CARD_LOG"
+[ "$CARD_SCOPE" = FAIL ] && exit 1
+printf '## Source\n/t/fcf09921-8f21-4518-a117-f8ddb41bfff5\n\n## Restart\n- key: %s\n%s- spec: csi-spl-doc/specs/135-work-process\n' "$1" "$CARD_SCOPE"
+STUB
+chmod +x "$T/bin/card6167"
+n6167=0
+c6167() {  # NAME KIND ISSUE-LINE CARD-SCOPE(or FAIL) WANT(shared|none) WANT-READS [EXTRA-LINE]
+  local id slug b out role
+  n6167=$((n6167 + 1)); id="$(printf '6167%04x-0000-4000-8000-%012d' "$n6167" "$n6167")"; slug="docs6167-$1"; b="$T/briefs/$slug.md"
+  printf '# Lane brief: spec 135 v0.2, the owner'"'"'s answers recorded (spec lane, docs only)\n\n%s\n%sClass: feature\nKind: %s\n%s' "$ES" "$3" "$2" "${7:-}" >"$b"
+  put "$id" c-002@box-desk "$OWNER_TOPIC" "SPAWN REQUEST $slug"
+  rm -f "$T/card6167.log"
+  out="$(on pc do_spl_spawn_enqueue ASK_ID="${id:0:8}" SPAWN_CLASS=bug SPAWN_PLACE="claude:$slug" \
+    LI_HUB_CARD_CMD="$T/bin/card6167" CARD_LOG="$T/card6167.log" CARD_SCOPE="$4" 2>&1)"
+  role=none; grep -qiE '^Issue-Role:[ ]*shared' "$b" && role=shared
+  if [[ "$role" == "$5" && "$(grep -c . "$T/card6167.log" 2>/dev/null || echo 0)" == "$6" ]] && grep -q "^OK ask ${id:0:8} queued" <<<"$out" &&
+     [[ "$5" == none || "$(grep -ciE '^Issue-Role:' "$b")" == 1 ]]; then
+    printf '%s\n' "$out"; return 0
+  fi
+  echo "c6167 $1: role=$role want=$5 reads=$(cat "$T/card6167.log" 2>/dev/null | tr '\n' ' ') want=$6 | $(tr '\n' '|' <"$b") | $out"
+  return 1
+}
+I6167=$'Issue: SPL-6086\n'
+out="$(c6167 c655 specs_and_docs "$I6167" $'- scope: the brief of lane c-259\n' shared 1)" &&
+  grep -q 'INFO ask 6167.*SPL-6086 is not this lane.s own issue.*Issue-Role: shared written' <<<"$out" &&
+  pass "SPL-6167 c655: a specs_and_docs brief on an earlier lane's key (card 'scope: the brief of lane c-259'): Issue-Role: shared written, card read once" ||
+  fail "SPL-6167 c655: $out"
+out="$(c6167 disc specs_and_docs "$I6167" $'- scope: the topic\n- Taken by: c-002\n' shared 1)" &&
+  pass "SPL-6167 disc: a discussion key (card 'scope: the topic' + Taken by:) is shared" || fail "SPL-6167 disc: $out"
+out="$(c6167 nomark specs_and_docs "$I6167" '' shared 1)" &&
+  pass "SPL-6167 nomark: a card with no scope line is shared" || fail "SPL-6167 nomark: $out"
+out="$(c6167 hubfail specs_and_docs "$I6167" FAIL none 1)" &&
+  [[ "$(grep -c "WARN ask 6167.*the card of SPL-6086 could not be read: brief .* left as it is" <<<"$out")" == 1 ]] &&
+  pass "SPL-6167 hubfail: CONTROL a failed card read leaves the brief as it is, one WARN line, the ask still queued" || fail "SPL-6167 hubfail: $out"
+out="$(c6167 coding simple_coding "$I6167" $'- scope: the brief of lane c-259\n' none 0)" &&
+  pass "SPL-6167 coding: CONTROL a simple_coding brief is unchanged, its card never read" || fail "SPL-6167 coding: $out"
+out="$(c6167 noissue specs_and_docs '' $'- scope: the topic\n' none 0)" &&
+  pass "SPL-6167 noissue: CONTROL a docs brief with no Issue: line (the placer files its issue) is unchanged, no card read" || fail "SPL-6167 noissue: $out"
+out="$(c6167 hasrole specs_and_docs "$I6167" $'- scope: the topic\n' none 0 $'Issue-Role: owner\n')" &&
+  pass "SPL-6167 hasrole: CONTROL a brief that has an Issue-Role: line already is unchanged, no card read" || fail "SPL-6167 hasrole: $out"
+
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }
 echo "FAIL: $fails"

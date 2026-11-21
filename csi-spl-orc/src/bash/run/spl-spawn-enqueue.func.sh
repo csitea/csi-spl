@@ -38,6 +38,13 @@
 # @description (spl-spawn-after.func.sh). An unknown key or slug, a diss key, the
 # @description row's own slug or a row with no brief here is refused (one FATAL
 # @description line, nothing queued); a hand-written After: line is checked the same.
+# @description A docs lane on a key it does not own shares it (SPL-6167): a
+# @description SPAWN_PLACE brief of kind specs_and_docs with an `Issue: <KEY>`
+# @description line and no `Issue-Role:` line gets `Issue-Role: shared`
+# @description appended once KEY's card is read from the hub (its scope is never
+# @description this placement's lane, which does not exist yet), so the lane
+# @description can /exit-clean without closing KEY. A failed card read leaves
+# @description the brief as it is, with one WARN line.
 # @param SPAWN_CLASS (required) - ci (a CI-red fix on trunk), refactor, bug or feature; no default, never guessed
 # @param SPAWN_URGENT (optional) - 1: a bug placed even over its band (owner-reported prd breakage; the dispatcher's call)
 # @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share. The owner's review-seat GO (SPL_SPAWN_REVIEW_SEAT_GO) also takes a review seat of class refactor or bug (SPL-3349), queued as a feature + bypass, the hub's one flag ahead of the bands (SPL-5638); unset on a review seat (a SPAWN_PLACE slug ending in -reviewer, no SPAWN_URGENT) it IS that GO (SPL-3762)
@@ -142,6 +149,7 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
     [[ -z "$closed" ]] || { do_log "FATAL ask not queued: $closed" >&2; return 1; }
     [[ -z "$brief" ]] || spl_spawn_q_enqueue_links "$id" "$brief" || return 1
     spl_spawn_after_enqueue "$id" "$place" "$brief" || return 1  # spec 157 4.2: the dependent row
+    [[ -z "$brief" ]] || spl_spawn_q_enqueue_shared "$id" "$brief"  # SPL-6167
   fi
   row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$bymsg")" || rc=$?
   (( rc == 0 )) || return "$rc"
@@ -153,6 +161,57 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
   fi
   do_log "OK ask ${id:0:8} queued ($class${flag:+, $flag}): position $(jq -r '.position // 0' <<<"$row") of $(jq -r '.queue_len // 0' <<<"$row")${place:+, placement $place}" >&2
   printf '%s\n' "$row"
+}
+
+# SPL-6167 (bug round 33 row 01, the holder's option A, msg 08e9399f): a
+# docs lane placed on an issue it does not own shares that issue. For a
+# placed brief of kind specs_and_docs (SPAWN_KIND, else its Kind:) with an
+# `Issue: <KEY>` line and no `Issue-Role:` line, KEY's card is read once from
+# the hub; unless its scope is the brief of this placement's lane, the brief
+# gets `Issue-Role: shared`, which the exit gate's li_review_lane honours
+# (c-655 on SPL-6086, ae541e19: its docs commit never closed the key, so
+# /exit-clean refused it). A discussion key, an earlier lane's key and a card
+# with no scope line all share. The placer writes a filed key only into the
+# lane's lifetime/brief.md, and at the enqueue no lane exists yet, so no card
+# names this placement's lane: every card read shares. A failed read changes
+# nothing and logs one WARN, never a guess.
+spl_spawn_q_enqueue_shared() {  # ID BRIEF
+  local brief="$2" kind key
+  kind="${SPAWN_KIND:-}"
+  declare -F spl_lane_mix_brief_kind >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
+  [[ -n "$kind" ]] || kind="$(spl_lane_mix_brief_kind "$brief")"
+  [[ "$kind" == specs_and_docs ]] || return 0
+  key="$(li_key_from_brief "$brief")" || return 0
+  ! grep -qiE '^[-*_ >]*Issue[- ]Role[*_ ]*:' "$brief" || return 0
+  if ! spl_spawn_q_issue_card "$key" >/dev/null; then
+    do_log "WARN ask ${1:0:8}: the card of $key could not be read: brief $brief left as it is (no Issue-Role: line, so the lane may not exit on $key)" >&2
+    return 0
+  fi
+  printf 'Issue-Role: shared\n' >>"$brief" ||
+    { do_log "WARN ask ${1:0:8}: cannot write Issue-Role: shared into $brief" >&2; return 0; }
+  do_log "INFO ask ${1:0:8}: $key is not this lane's own issue (a docs lane on it): Issue-Role: shared written into $brief (SPL-6167)" >&2
+}
+
+# spl_spawn_q_issue_card KEY -> the description (the card) of issue KEY on the
+# hub, through the lease's desk as do_spl_issue_status reads it; rc 1 when the
+# read fails or has no description. The test seam LI_HUB_CARD_CMD <key>
+# prints it, the twin of li_hub_read's LI_HUB_STATUS_CMD; under SPOOL_TEST=1
+# without the seam nothing is read (rc 1).
+spl_spawn_q_issue_card() {  # KEY
+  local out
+  if [[ -n "${LI_HUB_CARD_CMD:-}" ]]; then
+    out="$(timeout "${LI_HUB_TIMEOUT:-20}" "$LI_HUB_CARD_CMD" "$1" 2>/dev/null </dev/null)" || return 1
+  else
+    [[ "${SPOOL_TEST:-}" != 1 ]] || return 1
+    out="$(
+      declare -F spl_lane_issue_desk >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-issue.func.sh"
+      spl_lane_issue_desk "${SPOOL_ROOT:-/var/spool-hub}" 0 >&2 || exit 1
+      spl_desk_issue_run get --ref "$1" 2>/dev/null </dev/null | tail -n 1 |
+        jq -er '(.result.issue // .result).description // empty' 2>/dev/null
+    )" || return 1
+  fi
+  [[ -n "$out" ]] || return 1
+  printf '%s\n' "$out"
 }
 
 # The placer's links check (spl_spawn_place_no_links, SPL-4797) at the enqueue

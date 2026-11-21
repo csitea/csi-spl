@@ -1,6 +1,7 @@
 # 155 Notes section, with quick links to anything
 
-Version v1.6, 2026-11-17, by c-889 (claude): adds section 2.12, the issue
+Version v1.7, 2026-11-21, by c-749 (claude): a phone drags a row by a held
+press (2.9, SPL-6175). v1.6, 2026-11-17, by c-889 (claude): adds section 2.12, the issue
 dialog lists the person's own notes that link that issue (SPL-5769), with its
 route in section 5. v1.5, 2026-11-11, by a-624 (agy): adds section 2.11, an agent adds a
 note on a person's ask (SPL-5295), folding the owner's poll `03dbcb6b` answers
@@ -371,6 +372,13 @@ default. Every existing note reads 5. The WUI's discussion default is 3
   moved one, and the one it lands on gives its number; down mirrors it. Within
   one priority `position`, stored by the hub per note (PATCH position), orders
   before any date key, so a dragged order is kept across reloads and devices.
+- **A phone drags by a held press** (owner HUM-10, t1 cc9d7c26, msg
+  `82670a2e`: "just keeping the thumb down would activate the dragging mode";
+  SPL-6175): a press held ~450 ms on a row, without moving, lifts it; the
+  finger moves it inside its group and the release is the drop above, priority
+  included. A move before the hold scrolls the list, a tap opens the note, and
+  a hold let go in place opens nothing (no note, no row menu: the row's menu
+  button stays the phone's menu). No handle.
 
 ### 2.10 The note menu (SPL-5255)
 

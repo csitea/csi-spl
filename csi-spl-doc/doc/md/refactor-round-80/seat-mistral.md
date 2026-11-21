@@ -206,6 +206,47 @@ None. No W.
 - **N3:** lane map exit 4 (15 unknown lanes at my read, down from 19 at the plan's 05:22Z
   read) — none on a row path by slug; the holder re-checks before placing.
 
+## Verdict v1.0
+
+**PASS** on `d02aea0f88896cde76c1be07c3c43f6723505466` — plan v1.0, landed on
+`origin/master` by the editor c-680 (named on task `dispatch-refactor-r80`, c-680 msg
+2026-11-21T05:54:15Z "r80 plan v1.0 LANDED ... master:
+d02aea0f88896cde76c1be07c3c43f6723505466"). Re-verified at rotation 20261121T0623Z:
+
+- `git branch -r --contains d02aea0f8...` -> `origin/master` (plus review branches
+  `origin/review/b31-02`, `origin/review/c002-wui-notes-focus-plus-on-open`,
+  `origin/review/r80-01` that forked from it); `origin/master` head at my read
+  `04403ee23`.
+- `git diff 7329be641 d02aea0f8 -- csi-spl-doc/doc/md/refactor-round-80-plan.md | grep -c '^@@'`
+  -> `2`: only the Status line (v0.1 -> v1.0) and the section 8/9 record of this seat's
+  PASS. No row, file, test, vendor, kind or batch changed.
+- `git show d02aea0f8:csi-spl-doc/doc/md/refactor-round-80/seat-mistral.md | sha256sum` ->
+  `01e74130f61b898fa97201b30b6ad2a290d818c16c333b0e21cd5521fecead6e`, identical to
+  `git show bc9b18189:...seat-mistral.md` — my seat file is folded in byte-identical.
+- Every row site file:line exists at `d02aea0f8` (`git show <sha>:<file> | sed -n <N>p`):
+  `csi-spl-orc/src/bash/run/spl-unanswered-sweep-install-cron.func.sh:26` -> the spelled
+  default log dir comment, `:57` -> the hand-spelled `logdir=` line;
+  `csi-spl-orc/src/bash/tests/no-literal-paths-spelled.baseline:10` -> the installer entry;
+  `csi-spl-iac/src/bash/tests/satellite-ansible.tst.sh:272` -> the `-ge 4` floor;
+  `csi-spl-orc/src/bash/tests/unanswered-sweep.tst.sh:280` -> section 10 case;
+  `csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh:58` -> `local dir="${1:?cnf dir}" ...`;
+  `csi-spl-iac/src/bash/tests/cnf-one-key-per-fact.tst.sh:81` -> the `PASS: all` line.
+- Slug: `git log origin/master --since="2026-11-21T06:01:47+01:00" --oneline -E --grep='\(r80-'`
+  -> 2, both the plan's own docs commits (`ee9e63ea2` v0.1, `d02aea0f8` v1.0); no row
+  commit on master yet. `git ls-remote origin | grep -E 'r80-[0-9]{2}|refactor-round-80'`
+  -> planner branch `7329be641`, my seat branch `05834ec38`, and `review/r80-01`
+  `23141fe5e` (the r80-01 row lane's branch, expected). `ls /var/spool-hub/dispatch/briefs
+  | grep -E 'r80-[0-9]{2}|refactor-round-80'` -> the 2 round briefs + 3 row briefs
+  (r80-01, r80-02, r80-01 waiver reviewer), all expected.
+- R3: `lane-map.sh --check <the 6 row paths> --agent m-691` -> exit 4, 20 `unknown:` lanes
+  with no files recorded (all on the remote box the map printed), none on a row path by
+  slug (c-647/c-651/c-653 are the r80 row/reviewer lanes, files not recorded yet).
+  No exit 3.
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene:
+  clean over the tracked tree`, exit 0.
+
+No W on v1.0. The v0.1 PASS carries: v1.0 changes no row.
+
 ## State history
 
 - 2026-11-21T05:47Z commit on `review/c002-refactor-round-80-mistral-seat`: full review of
@@ -220,6 +261,13 @@ None. No W.
   `review/c002-refactor-round-80-planner` (then re-verify, sign as a second commit in this
   file, re-push, re-report) or a message starting with ACCEPTED (then `/exit-clean`). Lease
   holder at my read: c-002@sat.
+- 2026-11-21T06:35Z rotation 20261121T0623Z-lane-m-691 (ack sent 06:23:42Z, msg
+  `ae562934`): the editor's v1.0 was found on task `dispatch-refactor-r80` (c-680 msg
+  05:54:15Z naming master sha `d02aea0f8...`), not on the planner branch. Re-verified
+  (see "Verdict v1.0" above), signed as this second commit on
+  `review/c002-refactor-round-80-mistral-seat`, re-reported in the `review:` form to
+  c-680 and the lease holder. Waiting on: a message on the task starting with ACCEPTED
+  (then `/exit-clean`).
 
 Seed STEP 0: read `csi-spl-doc/doc/md/developer-guide.md`, then
 `cd csi-spl-orc && sudo -u <push user> env AGENT_ID=m-691 DEV_GUIDE_ACK=yes ./run -a do_dev_guide_ack`

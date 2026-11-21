@@ -196,6 +196,8 @@ CREATE TABLE spool_schema_migrations (filename text PRIMARY KEY);
 INSERT INTO tenants VALUES ('t1'), ('t2');
 -- rdb 0143's search door: runtime-grants.sql names it, so a migrated schema has it
 CREATE FUNCTION spool_search_candidates(q tsquery, cap int) RETURNS SETOF text LANGUAGE sql STABLE AS 'SELECT NULL::text LIMIT 0';
+-- rdb 0307's sweep door (SPL-6180): runtime-grants.sql names it, so a migrated schema has it
+CREATE FUNCTION spool_doc_asset_held(sha text) RETURNS boolean LANGUAGE sql STABLE AS 'SELECT false';
 -- rdb 0197's channel-rule group (SPL-1832): runtime-grants.sql grants it to the runtime login
 CREATE ROLE spool_channel_scoped NOLOGIN NOBYPASSRLS;
 -- rdb 0157's doc revision log: runtime-grants.sql revokes UPDATE, DELETE on it by name

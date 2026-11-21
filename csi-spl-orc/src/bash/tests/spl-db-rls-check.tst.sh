@@ -141,6 +141,23 @@ EOF
   su_sql <<<"SET ROLE own; CREATE FUNCTION public.second_definer() RETURNS int LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';"
   o=$(live)
   [[ "$o" == "rc=5 "*"FAIL"*"SECURITY DEFINER public.second_definer (runs as own)"* ]] && pass "7. a second definer the runtime can EXECUTE: liftable, exit 5, named" || fail "7. second definer: $o"
+  # SPL-6180 (rdb 0307): the sweep's boolean door, owned by a NOLOGIN role, EXECUTE granted to the runtime
+  su_sql <<'EOF_DOOR'
+DROP FUNCTION public.second_definer();
+CREATE ROLE spool_doc_asset_reader NOLOGIN NOBYPASSRLS;
+GRANT CREATE ON SCHEMA public TO spool_doc_asset_reader;
+SET ROLE spool_doc_asset_reader;
+CREATE FUNCTION public.spool_doc_asset_held(sha text) RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS 'SELECT false';
+REVOKE ALL ON FUNCTION public.spool_doc_asset_held(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.spool_doc_asset_held(text) TO rt;
+EOF_DOOR
+  o=$(live)
+  [[ "$o" == "rc=0 "*"liftable=0"* ]] && pass "7. SPL-6180: public.spool_doc_asset_held (rdb 0307) is allow-listed: not liftable" || fail "7. doc asset door: $o"
+  su_sql <<<"SET ROLE own; CREATE SCHEMA other_door; CREATE FUNCTION other_door.spool_doc_asset_held() RETURNS int LANGUAGE sql SECURITY DEFINER AS 'SELECT 1'; GRANT USAGE ON SCHEMA other_door TO rt;"
+  o=$(live)
+  [[ "$o" == "rc=5 "*"other_door.spool_doc_asset_held"* ]] && pass "7. CONTROL: the door's allow-list is schema-exact too" || fail "7. other_door: $o"
+  su_sql <<<"SET ROLE own; DROP FUNCTION other_door.spool_doc_asset_held(); CREATE FUNCTION public.second_definer() RETURNS int LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';"
   su_sql <<<"SET ROLE own; DROP FUNCTION public.second_definer(); CREATE SCHEMA other; CREATE FUNCTION other.spool_search_candidates() RETURNS int LANGUAGE sql SECURITY DEFINER AS 'SELECT 1'; GRANT USAGE ON SCHEMA other TO rt;"
   o=$(live)
   [[ "$o" == "rc=5 "*"other.spool_search_candidates"* ]] && pass "7. the allow-list is schema-exact: other.spool_search_candidates is liftable" || fail "7. other schema: $o"

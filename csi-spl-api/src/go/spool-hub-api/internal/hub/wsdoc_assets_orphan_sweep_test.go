@@ -1,6 +1,7 @@
 package hub_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -201,4 +203,50 @@ func TestWorkspaceDocAssetOwnSweepError(t *testing.T) {
 		t.Fatalf("a broken workspace store stopped the sweep of the others")
 	}
 	t.Logf("own sweep: a broken store is the sweep's error, the other workspace's stray picture still deleted")
+}
+
+// TestWorkspaceDocAssetLockedSweep (bug round 34 row 01, SPL-6180; spec 125
+// B8): the sweep reads with no human, and rdb 0256's human_lock hid a locked
+// doc's root item from it, so the doc's picture read as unnamed and was
+// deleted after the grace; its human then read 404. Red control: on a tree
+// without rdb 0307's door (31a976ffb) the sweep deletes it and the owner's
+// read is 404, want 200. Another admin still reads 404 (the lock holds).
+// The test prints no title, item or attrs of the locked doc.
+//
+//	go test ./internal/hub -run 'WorkspaceDocAssetLockedSweep' -v   (SPOOL_TEST_PG_DSN)
+func TestWorkspaceDocAssetLockedSweep(t *testing.T) {
+	d, err := hub.NewWorkspaceDocs(filepath.Join(t.TempDir(), "{tenant}"), func(_ context.Context, dir string) (blob.Store, error) {
+		return blob.Dir{Root: dir}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := rbacEnv(t, func(o *hub.Options) { o.WorkspaceDocs = d })
+	if _, ok := e.st.(*store.Postgres); !ok {
+		t.Skip("the document lock is rdb 0256 RLS: Postgres only (SPOOL_TEST_PG_DSN)")
+	}
+	tid, _ := e.tenant()
+	owner, admin := seat(t, e, tid, rbac.Admin), seat(t, e, tid, rbac.Admin)
+	doc := docTreeAPI + "/" + dtStr(mustCall(t, e, tid, http.MethodPost, docTreeAPI, owner,
+		map[string]any{"title": "locked", "restricted": true}, 200), "id")
+	path := doc + "/assets/locked.assets/01-a.png"
+	pic := pngOf(t, 64)
+	if code, _, _ := rawCall(t, e, tid, http.MethodPut, path, owner, "image/png", pic); code != 200 {
+		t.Fatalf("put the locked doc's picture: %d", code)
+	}
+	key := hub.DocAssetPrefix + shaHex(pic)
+	ageOwn(t, d, tid, key, time.Now().Add(-2*hub.FileOrphanGrace))
+	if _, err := e.srv.SweepFiles(context.Background(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if !ownKeys(t, d, tid)[key] {
+		t.Fatalf("the sweep deleted the picture of a doc locked to a human (aged 48 h)")
+	}
+	if code, body, _ := rawCall(t, e, tid, http.MethodGet, path, owner, "", nil); code != 200 || !bytes.Equal(body, pic) {
+		t.Fatalf("the locked doc's human reads its picture after the sweep: %d (%d bytes), want 200 and the bytes", code, len(body))
+	}
+	if code, _, _ := rawCall(t, e, tid, http.MethodGet, path, admin, "", nil); code != 404 {
+		t.Fatalf("CONTROL: another admin reads the locked doc's picture: %d, want 404", code)
+	}
+	t.Logf("locked sweep: the picture of a doc locked to a human, aged 48 h, survives SweepFiles; its human reads 200, another admin 404")
 }

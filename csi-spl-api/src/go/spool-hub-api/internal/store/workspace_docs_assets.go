@@ -62,12 +62,15 @@ func docAssetsCheck(m map[string]any) error {
 
 // DocAssetHeld reports whether some document of tenant names fileID in its
 // root's attrs.assets: the blob is a picture of that doc, and retention must
-// keep it although no message carries it.
+// keep it although no message carries it. Every document counts, also one
+// locked to a human the reading context is not (spec 125 B8): the orphan
+// sweep reads with no human, and rdb 0256's human_lock would hide such a
+// doc's root item, so the read goes through rdb 0307's door
+// spool_doc_asset_held, which sees every root item of the session's tenant
+// and returns only the boolean. No title, item or attrs of a locked doc
+// leaves the store (spec 125 C7-C9).
 func (s *Postgres) DocAssetHeld(ctx context.Context, tenant, fileID string) (bool, error) {
 	var ok bool
-	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS (SELECT 1 FROM workspace_doc_item i,
-		jsonb_each_text(CASE WHEN jsonb_typeof(i.attrs->'assets') = 'object' THEN i.attrs->'assets' ELSE '{}'::jsonb END) a
-		WHERE i.tenant_id = $1 AND i.parent_id IS NULL AND a.value = $2)`,
-		[]any{tenant, fileID}, &ok)
+	err := s.queryRowTenant(ctx, tenant, `SELECT spool_doc_asset_held($1)`, []any{fileID}, &ok)
 	return ok, err
 }

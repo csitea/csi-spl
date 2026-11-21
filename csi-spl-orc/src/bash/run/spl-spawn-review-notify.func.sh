@@ -37,6 +37,9 @@
 # @description      reviewer, the review branch and the brief. The branch is
 # @description      the one on a line starting "Branch `review/...`", else the
 # @description      first "`review/...`, head", else the first review/ ref.
+# @description      In the first two forms a `wip/...` ref is a target too
+# @description      (b32-02: a WUI-text head the hook refuses on review/*);
+# @description      the last stays review/ only.
 # @description A brief with no author id: a WARN line in
 # @description $SPOOL_ROOT/dispatch/queue.log, a note to the dispatcher, 0
 # @description notes to anyone else, exit 1. A failed send exits 1 too (the
@@ -104,11 +107,13 @@ spl_review_notify_placed() {  # HOLDER AGENT SLUG BRIEF
 # The review target of BRIEF: the ref on a line starting "Branch `review/...`",
 # else the first "`review/...`, head", else the first review/ ref anywhere
 # (SPL-5914: an earlier verdict's branch named above the target was sent).
+# The first two read a `wip/...` ref as a target too (b32-02); a wip/ named
+# in passing never wins, so the last stays review/ only.
 spl_review_notify_branch() {  # BRIEF
-  local r='review/[A-Za-z0-9._/-]*[A-Za-z0-9]' hit
-  hit="$({ grep -m1 -oE '^[[:space:]>*-]*Branch:?[[:space:]]+`?(origin/)?'"$r" "$1" ||
-    grep -m1 -oE '`(origin/)?'"$r"'`,?[[:space:]]+head' "$1" || grep -m1 -oE '\b'"$r" "$1"; } 2>/dev/null)" || true
-  [[ "${hit%%$'\n'*}" =~ ($r) ]] && echo "${BASH_REMATCH[1]}"
+  local r='review/[A-Za-z0-9._/-]*[A-Za-z0-9]' t='(review|wip)/[A-Za-z0-9._/-]*[A-Za-z0-9]' hit
+  hit="$({ grep -m1 -oE '^[[:space:]>*-]*Branch:?[[:space:]]+`?(origin/)?'"$t" "$1" ||
+    grep -m1 -oE '`(origin/)?'"$t"'`,?[[:space:]]+head' "$1" || grep -m1 -oE '\b'"$r" "$1"; } 2>/dev/null)" || true
+  [[ "${hit%%$'\n'*}" =~ ($t) ]] && echo "${BASH_REMATCH[0]}"
   return 0
 }
 

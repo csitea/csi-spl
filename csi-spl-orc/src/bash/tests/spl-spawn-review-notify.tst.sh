@@ -32,6 +32,10 @@
 #    12. RED CONTROL (SPL-5914) an earlier `review/old` named above
 #        "Branch `review/new`, head ..." -> the note names review/new; a
 #        "`review/new`, head" line wins over an earlier mention too
+#    13. RED CONTROL (b32-02, rc02) a `wip/` target: "Branch `wip/<x>` (...),
+#        head" and "Branch `wip/<x>`, head" name wip/<x>; a `review/` target,
+#        SPL-5914's target rule and a brief with no branch are unchanged; a
+#        wip/ named in passing is not the target
 #   REVIEW_NOTIFY_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -254,6 +258,30 @@ run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=g-500; rc=$?
 (( rc == 0 )) && grep -qF 'started on `review/new`' "$T/s/sends.log" &&
   pass "12. '\`origin/review/new\`, head' wins over an earlier review/old" ||
   fail "12. head form rc=$rc: $(cat "$T/out" "$T/s/sends.log")"
+
+# 13. RED CONTROL: a wip/ ref is a target on the Branch line and in the
+# head form (b32-02, rc02; c-001 7717bbb1: SPL-6123 T025 told "(no review/
+# branch named)"); the last fallback stays review/ only
+note_on() {  # NAME WANT TEXT: the note names `WANT`
+  reset; b="$(brief "c002-$1-reviewer" "Author: c-168
+$3")"
+  run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=g-500; rc=$?
+  (( rc == 0 )) && grep -qF "started on \`$2\`" "$T/s/sends.log" &&
+    pass "13. $1: the note names $2" || fail "13. $1 rc=$rc want $2: $(cat "$T/out" "$T/s/sends.log")"
+}
+# shellcheck disable=SC2016 # the backticks are brief text
+note_on wiplive wip/c002-s033-t025-t027-wui-kinds-live 'Branch `wip/c002-s033-t025-t027-wui-kinds-live` (a `wip/` ref: the pre-push hook refuses `review/*` until the `Lang-review:` line lands), head `e9e3f4ccf`.'
+# shellcheck disable=SC2016
+note_on wipbare wip/c-427-SPL-5147-why 'Branch `wip/c-427-SPL-5147-why`, head `0123456789abcdef0123456789abcdef01234567`.'
+# shellcheck disable=SC2016
+note_on review review/b99-01 'Branch `review/b99-01`, head abc. Report on task dispatch-bug-r99.'
+# shellcheck disable=SC2016
+note_on target review/new 'Earlier review: FAIL on `review/old` (msg 1).
+Branch `review/new`, head `0123456789abcdef0123456789abcdef01234567`.'
+note_on none '(no review/ branch named)' 'Review the lane. Nobody named a branch.'
+# shellcheck disable=SC2016
+note_on passing review/c-168-y 'Rebased from `wip/c-168-old` earlier.
+Review review/c-168-y on its tip.'
 
 echo "spl-spawn-review-notify: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

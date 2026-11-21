@@ -697,7 +697,14 @@
       "note": "huomautus",
       "reject": "hylkäys",
       "blocker": "este",
-      "msg": "viesti"
+      "msg": "viesti",
+      "feature": "ominaisuus",
+      "bug": "vika",
+      "alert": "hälytys",
+      "question": "kysymys",
+      "idea": "idea",
+      "decision": "päätös",
+      "docs": "dokumentaatio"
     },
     "live_state": {
       "idle": "odottaa",

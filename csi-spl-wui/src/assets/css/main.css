@@ -568,9 +568,19 @@ html.pane-dragging * {
 .kind-reject { color: var(--color-danger); border-color: var(--color-danger); }
 .kind-note { color: var(--color-warn); border-color: var(--color-warn); }
 .kind-blocker { color: var(--color-danger-fg); border-color: var(--color-danger); background: var(--color-danger); }
+/* spec 033 K.2 (SPL-5884): the seven kinds that route as a note, bare glyphs
+   in their own colour (variables.css --color-kind-*); alert is filled yellow
+   with a dark glyph, so a live problem stands out and does not read as the red blocker */
+.kind-feature { color: var(--color-kind-feature); }
+.kind-bug { color: var(--color-kind-bug); }
+.kind-alert { color: var(--color-kind-alert-fg); border-color: var(--color-kind-alert); background: var(--color-kind-alert); }
+.kind-question { color: var(--color-kind-question); }
+.kind-idea { color: var(--color-kind-idea); }
+.kind-decision { color: var(--color-kind-decision); }
+.kind-docs { color: var(--color-kind-docs); }
 /* owner 2026-09-26: the bare glyph is the icon, no frame around it; only the
-   blocker keeps its red fill so it stands out */
-.kind--icon:not(.kind-blocker) { border-color: transparent; }
+   blocker's red fill and the alert's yellow one keep theirs */
+.kind--icon:not(.kind-blocker):not(.kind-alert) { border-color: transparent; }
 /* t1 8fb802cd: an archived topic, where one still renders, reads muted next to
    its ArchivedBadge (the badge keeps its own colour) */
 .is-archived { color: var(--color-muted); }

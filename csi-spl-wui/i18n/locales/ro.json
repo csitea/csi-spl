@@ -697,7 +697,14 @@
       "note": "notă",
       "reject": "respingere",
       "blocker": "blocaj",
-      "msg": "mesaj"
+      "msg": "mesaj",
+      "feature": "funcționalitate",
+      "bug": "eroare",
+      "alert": "alertă",
+      "question": "întrebare",
+      "idea": "idee",
+      "decision": "decizie",
+      "docs": "documentație"
     },
     "live_state": {
       "idle": "inactiv",

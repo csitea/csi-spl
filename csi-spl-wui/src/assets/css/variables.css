@@ -413,6 +413,31 @@
   --color-code-inline-edge: rgba(12, 22, 38, 0.1);
 }
 
+/* spec 033 K.2 (SPL-5884): the seven message kinds that route as a note. A
+   bare glyph clears 3:1 on --color-bg-2 in its family; the alert is a filled
+   badge, its dark glyph clearing 3:1 on the yellow fill
+   (tests/unit/kind-tokens.test.mjs). Every light-* theme shares one set. */
+:root {
+  --color-kind-feature: #8c9eff;
+  --color-kind-bug: #ff8a5c;
+  --color-kind-alert: #ffd54f;
+  --color-kind-alert-fg: #1b1b1b;
+  --color-kind-question: #c770e0;
+  --color-kind-idea: #f2a29c;
+  --color-kind-decision: #2dd4bf;
+  --color-kind-docs: #a0a0a0;
+}
+:root[data-theme^="light"] {
+  --color-kind-feature: #3f51b5;
+  --color-kind-bug: #c43e00;
+  --color-kind-alert: #f6bf26;
+  --color-kind-alert-fg: #1b1b1b;
+  --color-kind-question: #8e24aa;
+  --color-kind-idea: #c2185b;
+  --color-kind-decision: #0f766e;
+  --color-kind-docs: #616161;
+}
+
 /* spec 097 T014 (G8, spec 3.3): an event's colour - the hub's 11 palette
    names, one variable each. The dark family (the default) gets lighter
    tones so a swatch and an event's edge read on the navy; every light-*

@@ -22,8 +22,19 @@ describe('kind picker letter keys (SPL-5836)', () => {
     assert.equal(new Set(letters).size, letters.length, `unique letters: ${letters.join(' ')}`)
   })
 
-  it('the owner-facing letters: M message, N note, T task, B blocker, R result, J reject', () => {
-    assert.deepEqual({ ...KIND_KEYS }, { msg: 'M', note: 'N', task: 'T', blocker: 'B', result: 'R', reject: 'J' })
+  it('the owner-facing letters: M N T B R J, then F U A Q I D O (spec 033 K.2, Q5 A)', () => {
+    assert.deepEqual({ ...KIND_KEYS }, {
+      msg: 'M', note: 'N', task: 'T', blocker: 'B', result: 'R', reject: 'J',
+      feature: 'F', bug: 'U', alert: 'A', question: 'Q', idea: 'I', decision: 'D', docs: 'O',
+    })
+    assert.equal(Object.keys(KIND_KEYS).length, 13)
+  })
+
+  it('U is bug (B is blocker), O is docs (D is decision)', () => {
+    assert.equal(kindForKey({ key: 'u' }, MSG_KINDS), 'bug')
+    assert.equal(kindForKey({ key: 'o' }, MSG_KINDS), 'docs')
+    assert.equal(kindForKey({ key: 'b' }, MSG_KINDS), 'blocker')
+    assert.equal(kindForKey({ key: 'd' }, MSG_KINDS), 'decision')
   })
 
   it('each letter picks its own kind, lower or upper case', () => {

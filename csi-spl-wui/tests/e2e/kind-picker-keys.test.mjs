@@ -1,6 +1,7 @@
 // SPL-5836 (HUM-10, t1 0cd27035): while the Kind picker is open, one plain
 // letter picks a kind (M message, N note, T task, B blocker, R result,
-// J reject), and each item shows its letter on the right. With Keyboard
+// J reject; spec 033 T025: F feature, U bug, A alert, Q question, I idea,
+// D decision, O docs), and each item shows its letter on the right. With Keyboard
 // shortcuts off (spec 081 FR-012) no letter shows and a letter picks nothing.
 //
 // Run: node tests/e2e/kind-picker-keys.test.mjs
@@ -113,7 +114,8 @@ try {
   await shiftK(p)
   ok('Shift + K opens the picker', await until(p, pickerOpen, null, 5000))
   ok('the focus is in the picker', await until(p, inPicker, null, 3000))
-  const want = [['msg', 'M'], ['note', 'N'], ['task', 'T'], ['blocker', 'B'], ['result', 'R'], ['reject', 'J']]
+  const want = [['msg', 'M'], ['note', 'N'], ['task', 'T'], ['blocker', 'B'], ['result', 'R'], ['reject', 'J'],
+    ['feature', 'F'], ['bug', 'U'], ['alert', 'A'], ['question', 'Q'], ['idea', 'I'], ['decision', 'D'], ['docs', 'O']]
   const got = await p.evaluate(hints)
   ok('each item shows its letter on the right', JSON.stringify(got.map((h) => [h.kind, h.key])) === JSON.stringify(want), got)
   ok('the letter is drawn (CSS ::after), not text in the item', got.every((h) => h.shown === `"${h.key}"`), got.map((h) => h.shown))
@@ -133,6 +135,27 @@ try {
   await p.keyboard.press('j')
   ok('J closes the picker', await until(p, pickerShut, null, 4000))
   ok('J set the kind to reject', await until(p, (sel) => document.querySelector(`${sel} [data-testid="kind-badge-btn"]`)?.getAttribute('data-kind') === 'reject', thread, 8000), await p.evaluate(badgeKind, thread))
+
+  /* 2b. spec 033 T025: U picks bug (B is blocker's), the badge draws its glyph */
+  ok('the card is focused for U', await focusCard(p))
+  await shiftK(p)
+  ok('Shift + K opens the picker for U', await until(p, pickerOpen, null, 5000))
+  await until(p, inPicker, null, 3000)
+  await p.keyboard.press('u')
+  ok('U closes the picker', await until(p, pickerShut, null, 4000))
+  ok('U set the kind to bug', await until(p, (sel) => document.querySelector(`${sel} [data-testid="kind-badge-btn"]`)?.getAttribute('data-kind') === 'bug', thread, 8000), await p.evaluate(badgeKind, thread))
+  const bugBadge = await p.evaluate((sel) => {
+    const b = document.querySelector(`${sel} [data-testid="kind-badge-btn"]`)
+    const k = b?.querySelector('.kind') || b
+    return { glyph: Boolean(b?.querySelector('svg path')), color: k ? getComputedStyle(k).color : '' }
+  }, thread)
+  ok('the bug badge draws a glyph in its own colour', bugBadge.glyph && /^rgb\(255, 138, 92\)$/.test(bugBadge.color), bugBadge)
+  ok('the card is focused again for J', await focusCard(p))
+  await shiftK(p)
+  await until(p, pickerOpen, null, 5000)
+  await until(p, inPicker, null, 3000)
+  await p.keyboard.press('j')
+  ok('J sets it back to reject', await until(p, (sel) => document.querySelector(`${sel} [data-testid="kind-badge-btn"]`)?.getAttribute('data-kind') === 'reject', thread, 8000), await p.evaluate(badgeKind, thread))
 
   /* 3. Keyboard shortcuts off: the badge opens the picker, no letter shows, N does nothing */
   await setShortcuts(p, false)

@@ -1,12 +1,17 @@
 /**
  * SPL-952: message kinds and their badge glyphs. The hub's list is
- * internal/msg validKinds; blocker and msg are the two SPL-952 added.
+ * internal/msg validKinds; blocker and msg are the two SPL-952 added, the
+ * seven after reject came with spec 033 K.2 (SPL-5884, owner msg 890eadfb)
+ * and route as a note.
  * Node tests import this file; KindBadge.vue reads it. A person's post with
  * no kind is a note (owner, 2026-09-26).
  */
 
 /** Every kind the hub accepts, in the order a picker lists them. */
-export const MSG_KINDS = ['msg', 'note', 'task', 'blocker', 'result', 'reject']
+export const MSG_KINDS = [
+  'msg', 'note', 'task', 'blocker', 'result', 'reject',
+  'feature', 'bug', 'alert', 'question', 'idea', 'decision', 'docs',
+]
 
 /** uiIcons glyph per kind; an unknown kind has none and shows as its word. */
 export const KIND_ICONS = {
@@ -16,6 +21,13 @@ export const KIND_ICONS = {
   blocker: 'kind-blocker',
   result: 'kind-result',
   reject: 'kind-reject',
+  feature: 'kind-feature',
+  bug: 'kind-bug',
+  alert: 'kind-alert',
+  question: 'kind-question',
+  idea: 'kind-idea',
+  decision: 'kind-decision',
+  docs: 'kind-docs',
 }
 
 export function kindIcon(kind) {

@@ -697,7 +697,14 @@
       "note": "piezīme",
       "reject": "noraidījums",
       "blocker": "šķērslis",
-      "msg": "ziņa"
+      "msg": "ziņa",
+      "feature": "funkcija",
+      "bug": "kļūda",
+      "alert": "trauksme",
+      "question": "jautājums",
+      "idea": "ideja",
+      "decision": "lēmums",
+      "docs": "dokumentācija"
     },
     "live_state": {
       "idle": "dīkstāvē",

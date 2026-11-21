@@ -697,7 +697,14 @@
       "note": "notitie",
       "reject": "afwijzing",
       "blocker": "blokkade",
-      "msg": "bericht"
+      "msg": "bericht",
+      "feature": "functie",
+      "bug": "fout",
+      "alert": "alarm",
+      "question": "vraag",
+      "idea": "idee",
+      "decision": "besluit",
+      "docs": "documentatie"
     },
     "live_state": {
       "idle": "inactief",

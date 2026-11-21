@@ -697,7 +697,14 @@
       "note": "anteckning",
       "reject": "avvisning",
       "blocker": "blockerare",
-      "msg": "meddelande"
+      "msg": "meddelande",
+      "feature": "funktion",
+      "bug": "bugg",
+      "alert": "larm",
+      "question": "fråga",
+      "idea": "idé",
+      "decision": "beslut",
+      "docs": "dokumentation"
     },
     "live_state": {
       "idle": "vilande",

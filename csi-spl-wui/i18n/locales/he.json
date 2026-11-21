@@ -697,7 +697,14 @@
       "note": "הערה",
       "reject": "דחייה",
       "blocker": "חוסם",
-      "msg": "הודעה"
+      "msg": "הודעה",
+      "feature": "תכונה",
+      "bug": "באג",
+      "alert": "התראה",
+      "question": "שאלה",
+      "idea": "רעיון",
+      "decision": "החלטה",
+      "docs": "תיעוד"
     },
     "live_state": {
       "idle": "לא פעיל",

@@ -24,6 +24,7 @@
     "tail -f": "command name, a code (spec 160 file streams list, SPL-4124)"
   },
   "keys": {
+    "feed.kind.idea": "es and fi spell the message kind idea like en, the correct word in both (spec 033 K.6, SPL-5884; agy review pending)",
     "expenses.hr.person": "sv spells the word Person like en (agy a-302, msg 8da43e07, SPL-5433)",
     "expenses.hr.payroll.col_person": "sv spells the word Person like en, as expenses.hr.person (agy a-126, msg 5606ae4e, SPL-5433)",
     "expenses.hr.payroll.total": "es and ro spell Total ({currency}) like en, as reporting.costs.label.total (agy a-126, msg 5606ae4e, SPL-5433)",

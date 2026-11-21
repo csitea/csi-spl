@@ -224,12 +224,16 @@ describe('operator autocomplete', () => {
     assert.equal(operatorTokenAt('/search "a fr', 13), null)
   })
   it('any part of an operator, example, or value matches', () => {
-    assert.deepEqual(completeOperators('f').map((c) => c.insert), ['from:', 'in:file-streams ', 'channel:file-streams ', 'is:offline ', 'has:file ', 'type:file ', 'type:file_line ', 'kind:file ', 'kind:file_line ', 'before:', 'after:', 'filename:', 'ext:'])
+    assert.deepEqual(completeOperators('f').map((c) => c.insert), ['from:', 'in:file-streams ', 'channel:file-streams ', 'is:feature ', 'is:offline ', 'has:file ', 'type:file ', 'type:file_line ', 'kind:file ', 'kind:file_line ', 'before:', 'after:', 'filename:', 'ext:'])
     assert.deepEqual(completeOperators('task').map((c) => c.insert), ['is:task ', 'topic:'])
     assert.ok(completeOperators('Is').some((c) => c.insert === 'is:'))
   })
   it('closed values after the colon', () => {
-    assert.deepEqual(completeOperators('is:r').map((c) => c.insert), ['is:result ', 'is:reject ', 'is:blocker ', 'is:relay ', 'is:root ', 'is:revoked '])
+    assert.deepEqual(completeOperators('is:r').map((c) => c.insert), ['is:result ', 'is:reject ', 'is:blocker ', 'is:feature ', 'is:alert ', 'is:relay ', 'is:root ', 'is:revoked '])
+    // spec 033 T025: the seven new message kinds are is: values (hub grammar.go T022)
+    for (const k of ['feature', 'bug', 'alert', 'question', 'idea', 'decision', 'docs']) {
+      assert.ok(completeOperators(`is:${k.slice(0, 2)}`).some((c) => c.insert === `is:${k} `), `is:${k}`)
+    }
     assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:robot ', 'type:user ', 'type:thread ', 'type:person ', 'type:workspace '])
     assert.deepEqual(completeOperators('type:ten').map((c) => c.insert), ['type:tenant '])
     assert.deepEqual(completeOperators('type:ev').map((c) => c.insert), ['type:event '])
@@ -277,11 +281,11 @@ describe('operator autocomplete', () => {
     assert.deepEqual(completeOperators('to:hum', SEARCH_OPERATORS, roster), [])
     assert.deepEqual(
       completeOperators('is:r', SEARCH_OPERATORS, roster).map((c) => c.insert),
-      ['is:result ', 'is:reject ', 'is:blocker ', 'is:relay ', 'is:root ', 'is:revoked '],
+      ['is:result ', 'is:reject ', 'is:blocker ', 'is:feature ', 'is:alert ', 'is:relay ', 'is:root ', 'is:revoked '],
     )
     assert.deepEqual(
       completeOperators('f', SEARCH_OPERATORS, roster).map((c) => c.insert),
-      ['from:', 'in:file-streams ', 'channel:file-streams ', 'is:offline ', 'has:file ', 'type:file ', 'type:file_line ', 'kind:file ', 'kind:file_line ', 'before:', 'after:', 'filename:', 'ext:'],
+      ['from:', 'in:file-streams ', 'channel:file-streams ', 'is:feature ', 'is:offline ', 'has:file ', 'type:file ', 'type:file_line ', 'kind:file ', 'kind:file_line ', 'before:', 'after:', 'filename:', 'ext:'],
     )
     const many = Array.from({ length: 9 }, (_, n) => ({ id: `CLE-${n + 1}` }))
     const capped = completeOperators('from:', SEARCH_OPERATORS, many)

@@ -539,15 +539,19 @@ _spl_desk_reply_body_file() {
   spl_desk_load_body_file body
 }
 
+# _spl_desk_reply_kinds: the |-joined kinds do_spl_desk_reply takes, today's
+# plus the ones that route as a note (spec 033 K.3 E3, owner Q4 B). The one
+# copy of the set: tests/test-spool-kinds.sh reads it from here.
+_spl_desk_reply_kinds() { printf '%s\n' "result|reject|blocker|msg|$SPOOL_NOTE_KINDS"; }
+
 # _spl_desk_reply_check_args <body> <kind> <to> <task> <file>...: 0 when the
 # answer's inputs are sane, else the FATAL that names the bad one.
 _spl_desk_reply_check_args() {
   local body="$1" kind="$2" to="$3" task="$4" f; shift 4
   local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' pfx_re='^[0-9a-f]{8}$'
   [[ -n "$body" ]] || { do_log "FATAL DESK_BODY must carry the answer text"; return 1; }
-  # spec 033 K.3 E3 (owner Q4 B): today's kinds plus the ones that route as a note
   { [[ -n "${SPOOL_NOTE_KINDS:-}" ]] && declare -F spool_kind_in >/dev/null; } || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
-  spool_kind_in "result|reject|blocker|msg|$SPOOL_NOTE_KINDS" "$kind" || { do_log "FATAL DESK_KIND must be result, reject, blocker, msg or ${SPOOL_NOTE_KINDS//|/, }, got: '$kind'"; return 1; }
+  spool_kind_in "$(_spl_desk_reply_kinds)" "$kind" || { do_log "FATAL DESK_KIND must be result, reject, blocker, msg or ${SPOOL_NOTE_KINDS//|/, }, got: '$kind'"; return 1; }
   [[ -z "$to" || "$to" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL DESK_TO must be a human id (HUM-...), got: '$to'"; return 1; }
   [[ -z "$task" || "$task" =~ $uuid_re || "$task" =~ $pfx_re ]] || { do_log "FATAL DESK_TASK must be a lowercase task UUID or an 8-hex topic prefix, got: '$task'"; return 1; }
   for f in "$@"; do

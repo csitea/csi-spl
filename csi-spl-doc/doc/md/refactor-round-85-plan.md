@@ -35,7 +35,8 @@ name and one `env` word, one body in a new `scripts/peer-cron.inc.sh`. **Row 02*
 **Status: v1.0.** The panel passed v0.1 `08c524dd5` with no W (m-919, mistral; seat file
 `csi-spl-doc/doc/md/refactor-round-85/seat-mistral.md`, folded in from `8bc5d6850`). Its
 review line passed `do_spl_review_line_check` rc 0 on the log's box; the holder c-003@sat
-GOed the land (msg 02f40655). Section 8. Editor: **c-918** (claude).
+GOed the land (msg 02f40655). Section 8. **Closed**: both rows landed, r85-01 `662d8559d`,
+r85-02 `76a14993e` (section 8). Editor: **c-918** (claude).
 
 **One sha:** every count is measured on **`4dd74b366`** (`origin/master` at
 2026-11-21T16:4xZ), n=1 per command unless stated. Reads are on that sha with
@@ -378,6 +379,24 @@ worktree), `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 4 files,
   check, and N1-N6 recorded; the seat file folded in. No row changed: rows, files, red
   controls and fix scope read as in v0.1 (`git diff 08c524dd5 <v1.0> -- <this file>`
   touches only the status line and sections 8 and 9). Rebased onto `15eb398c8`.
+- Round closed (c-918), no version bump: the 2 rows landed, r85-01 `662d8559d`
+  (SPL-6202, committed 2026-11-21T18:06:55Z; R7 g-953 grok PASS on `048bf09ab`, no W) and
+  r85-02 `76a14993e` (SPL-6206, committed 19:02:15Z; R7 g-989 grok PASS on `e3dc69cb4`,
+  no W). ACCEPTED by the holder c-003@sat (msg 7d70ff0e). **R7 vendor:** both seats are
+  grok, not section 4's claude waiver; the holder's pick at placement (N5). `git patch-id
+  --stable` of each landed commit equals its reviewed head's (r85-01 `f3b9c19d2fbc`, r85-02
+  `840ffcb0dc1a`). `merge-base --is-ancestor` rc 0 for both on `76a14993e`. Quality gate 10
+  success on `662d8559d` (44937266813) and on `76a14993e` (44938875768).
+  On `76a14993e` (n=1 each, `SPOOL_TEST=1`, in the worktree, 1.5's line counts):
+  `peer-restart.tst.sh` rc 0, 36 pass; `mcp-bot/tests/run-all-tests.sh` rc 0, 96 pass
+  (`test-id-from-ancestry.sh` alone rc 0, 6 pass); `bash-cleancode.tst.sh` rc 0, 15 pass;
+  0 fail lines each. Every count equals 1.5's head column: no drift, no plan miss. The
+  other suites 1.5 names were not re-run at close (the rows' R7 lines carry them).
+  - r85-01 R7 N1 (g-953): `peer-cron.inc.sh` is 54 lines against 1.3's 53, and the
+    diffstat +75 against section 6's +74: one blank line (`:28`). Scope unchanged.
+  - r85-02 (g-989): no N note. Its commit body records that four of the five suites 1.5
+    names fail on git's dubious-ownership check when run as another OS user, not on the
+    change; as the tree's owner all five ran rc 0. Notes only; none asks a change.
 
 ## 9. Consensus
 
@@ -387,3 +406,5 @@ The panel seat signs this plan (rulebook 3.2).
 - Panel reviewer seat: m-919 (mistral): **PASS** on v0.1 `08c524dd5`, no W (section 8; seat
   file folded in; review line check rc 0).
 - Row R7 seats: section 4.
+- Closed: both rows landed (r85-01 `662d8559d`, R7 g-953 PASS; r85-02 `76a14993e`,
+  R7 g-989 PASS). This close record carries `Closes: SPL-6197`.

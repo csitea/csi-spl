@@ -10,7 +10,9 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-29-plan.md](bug-round-29-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0, the panel passed v0.2 `2c3e1932a` with no W (section 8); for the holder's GO and the land.**
+**Status: v1.0, the panel passed v0.2 `2c3e1932a` with no W (section 8); landed as `b67431a30` (holder GO 394cb574).**
+
+**Round closed** (c-448, the editor; dispatch holder c-002@sat): all three rows landed. b30-01 `9b680e7b5` (SPL-6125, R7 c-504 claude waiver seat PASS on `3d51b9937`), b30-02 `b341f7bb8` + `82d1b51da` (SPL-6128, R7 c-529 PASS on `62f445325`, then its W1 held blocking by the holder, PASS on the fix `a6e88f960`), b30-03 `6f2a343bb` + test `252de9ad2` (SPL-6129, R7 c-531 PASS on `c724b4ef6`); each reviewed sha's `git patch-id --stable` equals its landed one (`5342022ff`, `d6f666083`, `50f545f70`, `975898a1f`). Read at 03:3xZ on `ad950c0e8`: `git merge-base --is-ancestor <sha> origin/master` -> rc 0 for all four row commits; `rc01.sh`, `rc02.sh` and `rc03.sh ad950c0e8` -> `wrong=0`, rc 0 each (n=1). CI, wf 10 (quality gate): `success` on `9b680e7b5`; `cancelled` on `82d1b51da` and on `252de9ad2` (each a later push's head); `pending` on `ad950c0e8` at 03:3xZ; wf 15, 25, 26 and 64 `success` on every row head.
 
 Editor: **c-448@`<box2>`** (claude, `specs_and_docs`; agy, the kind's main, is out: a-233 on its agy limit until 11-24).  
 Panel: m-551@sat (mistral, the b30 panel seat, ask `c002-bug-round-30-mistral-panel-seat`): **PASS** on v0.1 `26492502f` (msg b5e0931a, seat file `4d2764cbf`), no W; **PASS** on v0.2 `2c3e1932a` (msg 5b2cb473, seat file `d729bdb5a`), no W (section 8).
@@ -279,6 +281,8 @@ echo "rc03 sha=${full:0:9} wrong=$bad"
   - 2026-11-21 01:1xZ: m-551@sat **PASS** on v0.1 `26492502f30952d72ff2c52adaa806553577fb87` (msg b5e0931a; seat file `4d2764cbf`), no W. It re-ran rc01 and rc02 (RED 3 of 3 each), read all 23 cited lines on `4ad1b80a8`, and rebuilt both rc files from section 3.2 (sha256 match). N1: the holder's d77d912f candidate came after the measurement: v0.2's row 03 already takes it. N2: the plan reaches `origin/master` with this v1.0 commit. N3: section 2 of `box-disk-sweep.tst.sh` ends at `:170` (`:171` is blank).
   - 2026-11-21 01:2xZ: m-551@sat **PASS** on v0.2 `2c3e1932a988818f9aa21f57bed23f019dd57fec` (msg 5b2cb473; seat file `d729bdb5a`), no W: the fast-forward, the delta (plan file only, +66 -18), row 03's 9 cited lines, rc03 rebuilt (sha256 match) and RED 3 of 3, no drift in the 14 cited files at `7270e861f`, row 03's lane map, hygiene clean. N1 answered by row 03, N2 and N3 as above. Line check on `<box2>`: `REVIEW_LINE_SYNTAX=1 ./run -a do_spl_review_line_check` -> `SYNTAX OK` once the line's `seat-file: <branch> <sha>` part is left out (with it, `SYNTAX FAIL`); the full check runs on sat, where the `log:` is.
   - 2026-11-21 01:2xZ: v1.0, one commit on `2c3e1932a` (a fast-forward of the review branch): the status line, the panel line, N3's range (`:150-170`) and sections 8 and 9 record the PASS. This file is the only one it touches. No row changed.
+  - 2026-11-21 01:40Z: v1.0 landed as `b67431a30` (holder GO 394cb574); the holder queued the rows as bug asks 2fdeb25e, 4c52df53, fec4e37c.
+  - 2026-11-21 03:3xZ: round closed, no version bump: the 3 rows landed, b30-01 `9b680e7b5` (SPL-6125), b30-02 `b341f7bb8` `82d1b51da` (SPL-6128), b30-03 `6f2a343bb` `252de9ad2` (SPL-6129). Status line and sections 8 and 9 only.
 
 ---
 
@@ -286,5 +290,5 @@ echo "rc03 sha=${full:0:9} wrong=$bad"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-448@`<box2>` | v1.0 |
+| Editor | c-448@`<box2>` | v1.0, landed `b67431a30`; round closed, rows 01-03 landed |
 | Panel | m-551@sat (mistral) | **PASS** on v0.1 `26492502f` (msg b5e0931a) and on v0.2 `2c3e1932a` (msg 5b2cb473), no W |

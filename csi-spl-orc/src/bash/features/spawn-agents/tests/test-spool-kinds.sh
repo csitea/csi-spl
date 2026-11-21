@@ -53,8 +53,17 @@ for k in ${SPOOL_NOTE_KINDS//|/ }; do
 done
 
 # ---- 4. spl-desk-reply.sh names the reply action's kinds ----------------------
-# want = the set do_spl_desk_reply checks (spl-desk-reply.func.sh, spool_kind_in).
-want="$(tr '|' '\n' <<<"result|reject|blocker|msg|$SPOOL_NOTE_KINDS" | sort -u | paste -sd' ')"
+# want = the set do_spl_desk_reply checks, read from its one copy,
+# _spl_desk_reply_kinds (spl-desk-reply.func.sh defines functions only).
+. "$T_REPO/csi-spl-orc/src/bash/run/spl-desk-reply.func.sh"
+rk="$(declare -F _spl_desk_reply_kinds >/dev/null && _spl_desk_reply_kinds)"
+eq "4. _spl_desk_reply_kinds is result, reject, blocker, msg and the note kinds" "result|reject|blocker|msg|${SPOOL_NOTE_KINDS}" "$rk"
+# The literal, split so this file does not hold it: written once, in orc.
+lit='result|reject|blocker|msg|$SPOOL''_NOTE_KINDS'
+orc_src=("$T_REPO/csi-spl-orc/src" "$T_REPO/csi-spl-orc/lib")
+eq "4. the reply set is written once, in _spl_desk_reply_kinds" 1 "$(grep -rhF -- "$lit" "${orc_src[@]}" | grep -c '_spl_desk_reply_kinds() {')"
+eq "4. ...and nowhere else in orc" 1 "$(grep -rhF -- "$lit" "${orc_src[@]}" | wc -l)"
+want="$(tr '|' '\n' <<<"$rk" | sort -u | paste -sd' ')"
 u="$(bash "$T_REPO/csi-spl-orc/src/bash/scripts/spl-desk-reply.sh" --help 2>&1)"
 got="$(sed -nE 's/.*--kind ([a-z|]+).*/\1/p' <<<"$u" | tr '|' '\n' | sort -u | paste -sd' ')"
 eq "4. spl-desk-reply.sh usage --kind lists the reply kinds" "$want" "$got"

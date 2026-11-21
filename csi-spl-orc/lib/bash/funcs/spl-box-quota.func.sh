@@ -35,7 +35,9 @@
 # overrides, default 90. A vendor's own mark (SPL-5432, spl_box_quota_vendor_max:
 # cnf env.box.quota.vendor_weekly_max_pct.<kind>, grok 95) replaces it for that
 # vendor, and makes "unknown" wait. grok's reading also comes from its CLI's
-# billing log (spl_box_quota_grok_read), so no grok pane is needed.
+# billing log (spl_box_quota_grok_read), so no grok pane is needed. claude's
+# reading below the limit comes from its OAuth usage endpoint
+# (spl_box_quota_usage, c002): the CLI's own cache of it went days stale.
 #------------------------------------------------------------------------------
 
 # spl_box_quota_reset_at WHEN TZ NOW: the banner's reset ("Oct 17 11am", or a
@@ -306,6 +308,85 @@ spl_box_quota_claude_key() {
   [[ -n "$c" && "$out" != "$ak $acct" ]] && { printf '%s\n' "$out" >"$c.$$" && mv -f "$c.$$" "$c"; } 2>/dev/null
   [[ "${out#* }" == - ]] || echo "${out#* }"
   return 0
+}
+
+# spl_box_quota_usage_fetch FILE HOST [ATKEY DUE]: the weekly usage of the
+# claude credential FILE's login, asked of the OAuth usage endpoint of HOST
+# (c002, the 2026-11-20 hold: the CLI's cache, spl_box_quota_cache, is
+# rewritten only now and then: sat's was of 11-10 and of another login, the
+# main box's 10.9 h old, so a box below the limit had no reading and a vendor
+# with its own mark held every lane). Prints "<access-token key> <http code>
+# <retry-after s or -> <pct>@<reset epoch>", the last "-" when the answer
+# names no weekly %; "<access-token key> -" with no call when the token is
+# ATKEY (the last one asked) and DUE is not 1; nothing when FILE has no access
+# token or no HOST is known. The token is sent on stdin (curl -H @-), never on
+# a command line, and never leaves this function. Seam (tests):
+# LANE_QUOTA_CLAUDE_USAGE_CMD, run with the token on stdin, prints curl's
+# answer in place of the call: the body, then a last line "<code> <retry-after>".
+spl_box_quota_usage_fetch() {
+  local t ak out code ra v
+  t="$(jq -er '.claudeAiOauth.accessToken | strings | select(length > 0)' "$1" 2>/dev/null)" || return 0
+  ak="a$(printf '%s' "$t" | sha256sum | cut -c1-12)"
+  [[ "$ak" == "${3:-}" && "${4:-1}" != 1 ]] && { echo "$ak -"; return 0; }
+  if [[ -n "${LANE_QUOTA_CLAUDE_USAGE_CMD:-}" ]]; then
+    out="$(printf '%s' "$t" | "$LANE_QUOTA_CLAUDE_USAGE_CMD" 2>/dev/null)"
+  elif [[ -n "$2" ]]; then
+    out="$(printf 'Authorization: Bearer %s\nanthropic-beta: oauth-2025-04-20\n' "$t" |
+      curl -s -m 5 -H @- -w '\n%{http_code} %header{retry-after}' "https://$2/api/oauth/usage" 2>/dev/null)"
+  else
+    return 0
+  fi
+  read -r code ra _ <<<"$(tail -n 1 <<<"$out")"
+  [[ "${code:-}" =~ ^[0-9]{3}$ ]] || code=000
+  [[ "${ra:-}" =~ ^[0-9]+$ ]] || ra=-
+  v="$(sed '$d' <<<"$out" | jq -r '.seven_day // {} | select((.utilization | type) == "number" and (.resets_at | type) == "string")
+    | "\([[.utilization | floor, 100] | min, 0] | max)@\(.resets_at | sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | fromdateiso8601)"' 2>/dev/null)"
+  [[ "$v" =~ ^[0-9]+@[0-9]+$ ]] || v=-
+  echo "$ak $code $ra $v"
+}
+
+# spl_box_quota_usage [NOW]: claude's weekly usage of the agent user's login
+# now, "<pct>@<reset>~usage~<the answer's epoch>", or nothing. The endpoint
+# (spl_box_quota_usage_fetch) is asked at most every LANE_QUOTA_USAGE_S
+# (default 900), and not before its Retry-After when it refused (measured: sat
+# 429, retry-after 3584; capped at a day), but at once for a new access token
+# (a renewal, or a credential copied in). The last answer is kept in <kept
+# file>.usage ("<asked epoch> <wait s> <answer epoch> <access-token key>
+# <pct>@<reset> or -"), never the token; an answer of another token is no
+# reading. A failed ask keeps the last answer of the same token: its age
+# lapses it like any kept reading. Seam (tests): LANE_QUOTA_CLAUDE_CRED reads
+# that file as this user; a test that fakes the panes (LANE_PANES_CMD) or the
+# reading (LANE_QUOTA_CMD) without it asks nothing.
+spl_box_quota_usage() {
+  local now="${1:-$(date +%s)}" every="${LANE_QUOTA_USAGE_S:-900}" f c="" asked="" wait="" at="" ak="" r="" due=1 host out nak code ra v
+  [[ "$every" =~ ^[0-9]+$ ]] || every=900
+  f="$(spl_box_quota_keep_file)"
+  [[ -n "$f" ]] && c="$f.usage" && read -r asked wait at ak r _ 2>/dev/null <"$c"
+  [[ "$asked" =~ ^[0-9]+$ && "$wait" =~ ^[0-9]+$ ]] && (( now - asked < (wait > every ? wait : every) )) && due=0
+  host="$(spl_box_quota_profile_host)"
+  if [[ -n "${LANE_QUOTA_CLAUDE_CRED:-}" ]]; then
+    out="$(spl_box_quota_usage_fetch "$LANE_QUOTA_CLAUDE_CRED" "$host" "$ak" "$due")"
+  else
+    [[ -z "${LANE_PANES_CMD:-}${LANE_QUOTA_CMD:-}" ]] || return 0
+    declare -F spool_agent_exec >/dev/null ||
+      source "$(dirname "${BASH_SOURCE[0]}")/../../../src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+    out="$(
+      [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
+      SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
+      spool_agent_exec "$(declare -f spl_box_quota_usage_fetch); spl_box_quota_usage_fetch \"\$HOME/.claude/.credentials.json\" $(printf '%q ' "$host" "$ak" "$due")" </dev/null 2>/dev/null
+    )"
+  fi
+  read -r nak code ra v _ <<<"$out"
+  [[ "${nak:-}" =~ ^a[0-9a-f]{12}$ ]] || return 0
+  [[ "$nak" == "$ak" ]] || { at=""; r=""; }
+  if [[ "$code" != - ]]; then
+    [[ "$code" == 200 && "$v" =~ ^[0-9]+@[0-9]+$ ]] && { r="$v"; at="$now"; }
+    [[ "$ra" =~ ^[0-9]+$ ]] || ra=0
+    (( ra > 86400 )) && ra=86400
+    [[ -z "$c" ]] || { printf '%s %s %s %s %s\n' "$now" "$ra" "${at:-0}" "$nak" "${r:--}" >"$c.$$" && mv -f "$c.$$" "$c"; } 2>/dev/null
+  fi
+  [[ "$at" =~ ^[0-9]+$ && "$r" =~ ^[0-9]+@([0-9]+)$ ]] && (( at > 0 && BASH_REMATCH[1] > now )) || return 0
+  echo "$r~usage~$at"
 }
 
 # spl_box_quota_grok_read [NOW]: grok's weekly usage from its own log
@@ -639,7 +720,8 @@ spl_box_quota_banner_dated() {
 # when it was really read: "claude:97@<reset>~banner~<epoch>,claude:5@<reset>~cache~<epoch>",
 # each kind highest first, a kind's lower readings after it (SPL-4965). Reads
 # the box user's tmux (spl_lane_tm), claude's transcripts (spl_box_quota_log),
-# claude's cached usage (spl_box_quota_cache) and grok's billing log
+# claude's cached usage (spl_box_quota_cache), claude's usage endpoint
+# (spl_box_quota_usage) and grok's billing log
 # (spl_box_quota_grok_log, SPL-5432). Seam (tests): LANE_QUOTA_CMD
 # prints the answer (no source: read now); a test that fakes the panes
 # (LANE_PANES_CMD) reads only LANE_QUOTA_LOG_DIR; LANE_QUOTA_BANNERS_CMD prints
@@ -652,7 +734,7 @@ spl_box_quota_read() {
   local now t
   now="$(date +%s)"
   {
-    for t in "$(BOX_QUOTA_RESET=1 spl_box_quota_log "$now")" "$(BOX_QUOTA_RESET=1 spl_box_quota_cache "$now")"; do
+    for t in "$(BOX_QUOTA_RESET=1 spl_box_quota_log "$now")" "$(BOX_QUOTA_RESET=1 spl_box_quota_cache "$now")" "$(spl_box_quota_usage "$now")"; do
       [[ -n "$t" ]] && echo "claude:$t"
     done
     t="$(spl_box_quota_grok_log "$now")"

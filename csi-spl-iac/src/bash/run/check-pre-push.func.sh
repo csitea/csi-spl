@@ -1451,8 +1451,9 @@ _pp_summary() {
 # returns, and the old trap cleaned up and exited with no line anywhere, so
 # the run read as a gate that stopped mid-way (n=2, 2026-11-21). Now the part
 # it stopped in reads INTERRUPTED, every part not reached SKIP-interrupted, and
-# one overall `tree INTERRUPTED` verdict, on stdout and in pre-push.log, then
-# the summary; the rc stays 128 + the signal. Reads _pp_run_parts' locals.
+# one overall `tree INTERRUPTED` verdict: the part lines on stdout and in
+# pre-push.log, the tree line in pre-push.log only; then the summary; the rc
+# stays 128 + the signal. Reads _pp_run_parts' locals.
 _pp_interrupted() {  # <INT|TERM|HUP> <rc> <tree>
   local sig="$1" rc="$2" p seen=""
   trap - INT TERM HUP

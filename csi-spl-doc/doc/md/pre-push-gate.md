@@ -301,10 +301,12 @@ sudo relays to `./run`) ends with a verdict too (SPL-6213). Before, two
 `PRE_PUSH_TIER=full` runs (n=2, 2026-11-21) stopped right after the orc
 suite's `--- sum over ... files` line with no PART line and no summary: bash
 runs the trap only once the running part returns, and the trap exited without
-a word. Now the part it stopped in logs `PART <part> INTERRUPTED <secs>
-signal=<SIG>`, every planned part not reached `PART <part> SKIP-interrupted 0s
-signal=<SIG>`, and the run `PART tree INTERRUPTED <secs> signal=<SIG>
-part=<part>`, on stdout and in `pre-push.log`; then the summary, `FATAL
+a word. Now `pre-push.log` gets `PART <part> INTERRUPTED <secs> signal=<SIG>`
+for the part it stopped in, `PART <part> SKIP-interrupted 0s signal=<SIG>` for
+every planned part not reached, and `PART tree INTERRUPTED <secs>
+signal=<SIG> part=<part>` for the run; stdout gets the two part lines as
+`PART <part> INTERRUPTED (signal <SIG>)` and `PART <part> SKIP-interrupted
+(signal <SIG>)` (the tree line is log-only); then the summary, `FATAL
 pre-push: INTERRUPTED (signal <SIG>) in part <part> ...`, and rc 128 + the
 signal (130, 143, 129). Such a run is no verdict on the tree: re-run it. A
 part that fails with no signal still gets its own verdict, the remaining

@@ -14,7 +14,7 @@ the tabs you opened. Opening `/reporting` on its own goes to the Releases tab.
 |---|---|---|---|
 | **Releases** | `/reporting/releases` | every member | Delivery report over the release notes: KPI summary, filter bar (range, kinds, areas, search), and daily commit list with release notes. |
 | **SQL** | `/reporting/sql` | workspace admins | Read-only SQL query editor for workspace tables returning up to 2,000 rows, with Copy, CSV and JSON export. |
-| **Costs** | `/reporting/costs` | workspace owners and admins (permission to read costs) | What the workspace costs: five labels, The project's cost (the default), Total, Persons, Cloud and Tokens, under one period and currency header (below). |
+| **Costs** | `/reporting/costs` | workspace owners and admins (permission to read costs) | What the workspace costs: five labels, Project cost (the default), Total, Persons, Cloud and Tokens, under one period and currency header (below). |
 | **Marketing** | `/reporting/marketing` | the workspace owner and its admins | One card per marketing stage; its numbers appear once a source is connected. Attribution: last touch, 28 days. |
 | **Incomes** | `/reporting/incomes` | the workspace owner only | The chosen year's income from invoices: one row per month, the year's totals per currency below. |
 | **Finance** | `/reporting/finance` | every person of the Netvisor workspace | The newest Netvisor snapshot: the month-end cash forecast and its items, the newest bank voucher date, and card costs. Only the Netvisor owner can ask for a refresh. |
@@ -91,9 +91,9 @@ under it.
 | Part | What it counts |
 |---|---|
 | **Cloud** | The GCP bill of every project in the billing export, and the cloud costs entered by hand (for example an invoice). |
-| **Owned hardware** | Machines the workspace owns, entered by hand under Expenses: each one's purchase price written off in equal monthly shares over its write-off months. |
-| **AI tokens** | What was paid for AI: the subscriptions and top-ups. The tokens' list price is shown beside it, never added to it. |
-| **Human** | Approved time, priced at each person's own hourly price on the day it was worked. Only time in a frozen or final period is priced; the rest counts as pending and is left out of the money. |
+| **Owned hardware** | Machines the workspace owns: each one's purchase price written off in equal monthly shares over its write-off months. Entering them is not built yet, so this part reads 0 for now. |
+| **AI tokens** | What was paid for AI: the subscriptions and top-ups. Their list price is shown on the **Tokens** label, never added to it. |
+| **Human** | Approved time, priced at each person's own hourly price on the day it was worked. Only approved time in a frozen or final period is priced. Time still proposed or disputed, and approved time in an open period, counts as pending: its hours are counted, its money is left out. |
 
 The page first shows two figures, **this month so far** and **this year to
 date**, each the sum of its parts. Under them a table holds the parts for the
@@ -116,16 +116,18 @@ A part that is not known shows a dash and is never counted as 0. The total
 is labelled **Total, priced**, and it says **partial** while any part is
 incomplete. The shares are of the priced total. Below the table each part
 has a short section with a link to its own page: Cloud, Tokens, Persons, and
-Expenses -> AI costs for the owned hardware.
+Expenses -> AI costs (the paid items) for the owned hardware.
 
 ### Who sees what
 
-- In the operator workspace the page shows all four parts for the whole
-  estate.
+- In the operator workspace, its admins, product owners and accountants
+  see all four parts for the whole estate. Its other members see two,
+  like any other workspace.
 - Any other workspace sees two parts: its share of the AI tokens and its own
   people's time. It has no Cloud and no Owned hardware part; those belong to
   the estate.
-- Only a time accountant (the hours rates permission) sees the Human money.
+- Only a time accountant (the hours rates permission) sees the Human money,
+  and only together with a role that can open Costs.
   The operator workspace's admins and product owners, and a workspace's
   biz owner, see the Human hours without the money. Every other reader sees
   the Human part's name only. When the Human money is hidden, the total and

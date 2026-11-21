@@ -234,10 +234,53 @@ None. No W.
   item (`installation-and-configuration-guide.md:594`) is accounted by r80 section 7's
   "ask to the holder" ruling, not re-listed in r81 section 7.
 
+## Verdict v1.0
+
+**PASS** on `864f7ff17f842cd9b60d8b3067138e3dec2bc6cf` — plan v1.0, landed on
+`origin/master` by the editor c-722 (named on task `dispatch-refactor-r81`, c-722 msg
+2026-11-21T07:20:27Z "r81 plan LANDED (c-722, SPL-6161): v1.0 is master
+864f7ff17f842cd9b60d8b3067138e3dec2bc6cf"). Found at rotation 20261121T0751Z: the
+editor's v1.0 was on the task and on `origin/master`, not on the planner branch (that
+branch still reads `7dbfe9f78`). Re-verified this session, each with its command:
+
+- `git branch -r --contains 864f7ff17f842cd9b60d8b3067138e3dec2bc6cf` -> `origin/master`
+  (plus `origin/review/r81-01`, `origin/review/r81-02` and two unrelated review branches
+  that forked from it); `git log -1 --format='%H %cI %s' 864f7ff17` ->
+  `864f7ff17f842cd9b60d8b3067138e3dec2bc6cf 2026-11-21T09:19:19+02:00 docs(r81-plan,
+  SPL-6161): refactor round 81 plan v1.0, panel m-723 mistral PASS on v0.1 7dbfe9f78
+  with no W, ... the seat file 85ef799a7 folded in`.
+- Plan delta v0.1 -> v1.0: `git diff 7dbfe9f78 864f7ff17 --
+  csi-spl-doc/doc/md/refactor-round-81-plan.md | grep -cE '^[-+][^-+]'` -> **49** changed
+  lines, all in the Status line, section 4's waiver note, section 8's panel record, and
+  one test-list citation (1.3's `git grep -lE 'spl-desk-reply\.sh' -- '*test*'` 4 -> 2
+  files, N2's correction; row 01's gates keep `watcher-read-only.tst.sh` as a neighbour).
+  Row sites, row 02's table line, vendor, kind and batch are unchanged — the only row-table
+  edit is that Tests cell.
+- Row files: `git diff --name-only 7dbfe9f78 864f7ff17 -- <the 4 row files>` -> empty
+  (rc 0), so no row site moved between v0.1 and v1.0.
+- Seat file folded in byte-identical: `git diff 85ef799a7 864f7ff17 --
+  csi-spl-doc/doc/md/refactor-round-81/seat-mistral.md | wc -l` -> **0**.
+- Slug and branches re-read: `git ls-remote origin | grep -E 'r81-[0-9]{2}|refactor-round-81'`
+  -> my seat branch `85ef799a7`, the planner's `7dbfe9f78`, `review/r81-02 1a9c457fe6`
+  (the r81-02 row lane's, expected; r81-01 landed on master as `3174e591a3` and its branch
+  is gone). `ls /var/spool-hub/dispatch/briefs | grep -E 'r81-[0-9]{2}|refactor-round-81'`
+  -> the 2 round briefs + 4 row/reviewer briefs, all expected.
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene: clean
+  over the tracked tree`, exit 0.
+
+No W on v1.0. The v0.1 PASS carries: v1.0 changes no row. Signed as a second commit on
+`review/c002-refactor-round-81-mistral-seat` and re-reported in the `review:` form to the
+planner c-722 and the dispatch lease holder on task `dispatch-refactor-r81`. Waiting on: a
+message on the task whose body starts with ACCEPTED (then `/exit-clean`).
+
 ## State history
 
 - 2026-11-21T07:1xZ commit on `review/c002-refactor-round-81-mistral-seat`: full review of
   `7dbfe9f783ffcbcdb5a3738a9d01900186282eee` (checks 1-8 above), verdict PASS, notes N1-N4.
+- 2026-11-21T07:5xZ commit on `review/c002-refactor-round-81-mistral-seat` (rotation
+  20261121T0751Z): signs v1.0 `864f7ff17f842cd9b60d8b3067138e3dec2bc6cf` — PASS carries,
+  no row changed; the editor's v1.0 was found on task `dispatch-refactor-r81`, not on the
+  planner branch.
 
 Seed STEP 0: read `csi-spl-doc/doc/md/developer-guide.md`, then
 `cd csi-spl-orc && sudo -u <push user> env AGENT_ID=m-723 DEV_GUIDE_ACK=yes ./run -a do_dev_guide_ack`

@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
-**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.3
-(every question answered, Q-1..Q-14, section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.4
+(Q-1..Q-16 answered; Q-17, non-payment, open; section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -27,7 +27,9 @@ Builds on, and does not repeat:
 - [byo-gcp](../../doc/md/SPEC-spool-byo-gcp.md) (marked "later"): the
   customer pays Google, we provision in their project.
 - [121 sales channel](../121-sales-channel/spec.md): R6 (the price) is
-  **replaced** by this spec (0.2); R7 (card top-up, stop at zero) is not.
+  **replaced** by this spec (0.2); from v0.4 R7 (card top-up, stop at
+  zero) no longer applies to a private workspace either: it is invoiced
+  monthly in arrears [Q-9 B, Q-16 B] (section 2).
 - Also used, not changed: [009 M4 seats](../009-spool-m4/spec.md) (seat
   line items), [122 capacity scale-out](../122-capacity-scale-out/spec.md)
   section 4 (provisioning a box), [123 cost tracking](../123-cost-tracking/spec.md)
@@ -87,8 +89,8 @@ only, compute, disk and traffic (Q-8 A).
 ## 1. Questions for the owner (forms)
 
 Each was posted as a poll; the first option is the recommended one. Every
-question is answered (1.0). From v0.3 sections 2 to 7 are written as the
-answers say; a **[Q-n]** there names the answer it comes from.
+question but Q-17 is answered (1.0). From v0.3 sections 2 to 7 are written
+as the answers say; a **[Q-n]** there names the answer it comes from.
 
 ### 1.0 The owner's answers
 
@@ -109,10 +111,35 @@ marks in sections 2 to 6 now read as that answer.
 | Q-6 | A: 9 per month per human member; agents are not seats | `9beaf299` | 2026-11-20 |
 | Q-7 | A: EUR, the checkout's currency today | `9beaf299` | 2026-11-20 |
 | Q-8 | A: the VM only, compute, disk and traffic, read from the billing export by the VM's label; the shared hub is paid by the seats | `9beaf299` | 2026-11-20 |
-| Q-9 | A: prepaid balance by card (121 R7, kept): the VM's daily cost + 33% is drawn down; at zero the agents stop, the workspace stays readable | `9beaf299` | 2026-11-20 |
+| Q-9 | **B** since v0.4 (was A, `9beaf299`): monthly in arrears; no prepaid balance (Q-16 B) | `09472141`, `fb5eebab`, `6768e241` | 2026-11-20 21:39Z.. |
 | Q-11 | A: one rate, 33%, for every workspace; it replaces 127's byok 50% | `9beaf299` | 2026-11-20 |
 | Q-12 | **C** (not the recommended A): the VM is deleted at once; only the hub data stays 30 days | `9beaf299` | 2026-11-20 |
 | Q-14 | A: build the relay now; switch it on per vendor after that vendor's written OK (O1, O2, O3); the relay hands the login inputs straight to the VM and stores them nowhere on the hub; API keys work meanwhile | `375f9b8e` | 2026-11-20 |
+| Q-15 | "The customers will be invoiced afterwards." (asked in chat: how are the seats paid?) | `09472141` | 2026-11-20 21:39Z |
+| Q-16 | B: "Yes, everything: one monthly invoice in arrears for the seats and the VM cost + 33%; no prepaid balance (Q-9 changes to B)" (form `12d0d6f3`) | `6768e241` | 2026-11-20 |
+| Q-17 | open: what a non-payment does (form below) | - | - |
+
+Q-15, Q-16 and the change of Q-9 to B, verbatim (owner HUM-10, t1
+`b12055b5`, 2026-11-20): Q-15, msg `09472141` (21:39Z), "The customers will
+be invoiced afterwards."; msg `fb5eebab` (21:4xZ), "At the end of each
+month, they will be forwarded with the cost from the GCP and then our
+invoice."; Q-16, msg `6768e241`, form `12d0d6f3`, "B — Yes, everything: one
+monthly invoice in arrears for the seats and the VM cost + 33%; no prepaid
+balance (Q-9 changes to B)". The billing ruling they make, used in
+sections 2 to 6:
+
+- At the end of each month the customer gets the GCP cost of its VM
+  forwarded, then our invoice: 9 EUR per human member + the VM cost + 33%.
+- One invoice, in arrears, for the seats and the VM. No prepaid balance, no
+  card top-up, no draw-down.
+- What a non-payment does is not decided: Q-17, open.
+
+```poll
+Q-17. A private workspace's monthly invoice is not paid by its due date. What happens?
+(A) A reminder at the due date; 14 days later the agents stop and the workspace stays readable until it is paid; the VM is kept (Recommended: no work is lost, the cost stops growing)
+(B) A reminder only; the agents keep running, and the owner decides each case by hand
+(C) 30 days after the due date the workspace is cancelled as Q-12 C (VM deleted at once, hub data kept 30 days)
+```
 
 Q-13 is mapped by its answer text, which is form Q-13's option B word for
 word; its poll id `35df3e5f` could not be read from c-625's seat.
@@ -188,6 +215,8 @@ Q-8. What does "cloud cost" include for a workspace on a private VM?
 (B) The VM plus a slice of the shared hub's cost (121 section 7's fixed-cost slice), all + 33%
 ```
 
+Q-9 as asked in v0.1; answered A, then changed to B by Q-16 (1.0):
+
 ```poll
 Q-9. How is the VM cost charged?
 (A) Prepaid balance by card (121 R7, kept): the VM's daily cost + 33% is drawn down; at zero the agents stop, the workspace stays readable (Recommended)
@@ -229,8 +258,18 @@ states what they are.
 - **121 R6** (price = tokens x 1.20 + own cost + fixed slice, + 29%) is
   replaced for every workspace by 0.2 (form `b97a036d`). 121's `metered`
   plan and its x 1.20 token buffer go: we never resell tokens [Q-10 A].
-  **121 R7** (card top-up, stop at zero) is kept and carries the VM cost
-  [Q-9 A].
+  **121 R7** (card top-up, stop at zero, no invoice): from v0.4 it does
+  not apply to a private workspace. The seats and the VM cost + 33% are
+  one monthly invoice in arrears, the GCP cost forwarded first; there is no
+  prepaid balance [Q-9 B, Q-16 B]. What a non-payment does is Q-17 (open).
+- **Where v0.4 differs from what is on master.** v0.3's line above said R7
+  is kept and carries the VM cost [Q-9 A], and row B10 was briefed and
+  landed on that reading (lane `c002-s181-b10-spec-121-127-159-edits`,
+  commit `d6fc241f9`, 121 v1.5): 121's R7 row says "Kept by spec 181
+  (Q-9 A): the balance carries the VM's daily cost + 33%", and its 4. says
+  the balance is drawn down by spec 181's price. Both now differ from this
+  spec. This lane edits no other spec; 121's R7, its 4. and its draw-down
+  lines need a new B10 edit (row B10, section 6).
 - **127 K4 / 7.1** (byok, +50%): the margin becomes 33%, one rate for
   every workspace [Q-11 A]. The rest of 127 7.1's formula stands.
 - **159 9** (metered fall-back on our API keys) goes: a key that runs out
@@ -290,8 +329,10 @@ Not measured: what prd serves, and which switches are on there.
    [Q-8 A], and the agents they can pick (4.3) [Q-4 A]. It shows no token
    price (P5, Q-10 A). The page says we hold root on the VM for upkeep
    only and run nothing else there [Q-3 A].
-3. Payment: a first top-up by card through today's payment-intent rail;
-   the balance is drawn down by the VM's daily cost + 33% [Q-9 A].
+3. Payment: nothing is charged up front. At the end of each month the
+   customer gets the VM's GCP cost forwarded, then our invoice: seats x
+   9 EUR + the VM cost + 33%, in arrears [Q-9 B, Q-15, Q-16 B]. The page
+   says so.
 4. The paid webhook makes the tenant and its owner (006, built), sets the
    seat caps (009, built), turns `box_join_enabled` on for it, and writes a
    **provisioning order** (new, gap G3).
@@ -343,8 +384,10 @@ that order.
   places only on `<vm>` (159 5.3, with `<vm>` as W's only key host).
 - A key that runs out: the task waits until the customer replaces it; there
   is no fall-back on our keys, ever [Q-10 A].
-- The VM's daily cost + 33% is drawn from the balance [Q-8 A, Q-9 A]; at
-  zero the agents stop and the workspace stays readable (121 R7).
+- The VM's cost (compute, disk, traffic) is summed per month [Q-8 A]. At
+  month end the customer gets that GCP cost forwarded, then our invoice:
+  9 EUR per human member + the VM cost + 33% [Q-9 B, Q-16 B]. Work never
+  stops on a balance, as there is none; a non-payment is Q-17 (open).
 
 ### 4.5 Cancel
 
@@ -366,7 +409,7 @@ that order.
 | G3 | a provisioning order written by the paid webhook, and a named action that takes it to a plan | 4.1, 4.2 | Q-13 B |
 | G4 | a price plan: seat cents per human member in EUR, VM cost + 33%; the `price_plans` table of 121 is not built | 4.1 | Q-6..Q-9, Q-11 A |
 | G5 | the VM's cost per day (compute, disk, traffic) from the billing export, by its label | 4.4 | Q-8 A |
-| G6 | draw-down of the prepaid balance by the VM cost + 33% | 4.4 | Q-9 A |
+| G6 | the monthly invoice in arrears: the VM's GCP cost of the month forwarded, then our invoice (seats x 9 EUR + VM cost + 33%); today's rail has one-off payment intents only (section 3); what a non-payment does waits on Q-17 | 4.1, 4.4 | Q-9 B, Q-16 B, Q-17 |
 | G7 | the checkout page for the private workspace, its texts in every locale, agy last | 4.1 | Q-4 A, Q-6 A, Q-7 A |
 | G8 | revoke (108 T012), a cancel action that deletes the VM at once, and the 30-day delete of the hub data | 4.5 | Q-12 C |
 | G9 | removal of 121's token pricing (`metered`, the x 1.20 buffer) and 159's metered fall-back; 127's byok margin to 33% | 2 | Q-10 A, Q-11 A |
@@ -382,7 +425,7 @@ brackets.
 
 | # | lane | task | red control | waits on |
 |---|---|---|---|---|
-| B1 [B6] | rdb + hub (claude) | the private-workspace price: seat cents per human member in EUR, VM cost + 33%, drawn from the prepaid balance | a plan with a token line -> refused (P5) | - |
+| B1 [B6] | rdb + hub (claude) | the private-workspace price: seat cents per human member in EUR, VM cost + 33%, invoiced monthly in arrears | a plan with a token line -> refused (P5) | - |
 | B2 [B7] | hub (claude) | paid webhook: tenant, seats, `box_join_enabled` on, the provisioning order | webhook replayed -> one order, not two | B1 |
 | B3 [B8] | wui (claude) | the private-workspace checkout and its price lines; locale texts, agy review last | the page shows a token price -> e2e fails | B1 |
 | B4 [B5] | iac/orc (claude) | per-VM cost per day (compute, disk, traffic) from the billing export by label (spec 123's reader) | a fixture row with another workspace's label -> not counted | - |
@@ -391,7 +434,7 @@ brackets.
 | B7 [B3] | hub (claude) | operator-only join-token mint bound to `<tenant>` and `<vm>`, named in `TestOperatorScopeCallers`, audited | a token for `<vm>` redeemed by another box -> refused | B5 |
 | B8 [B4] | orc (claude) | a named provisioning action (dry run): order -> cnf entry -> tfvars -> plan printed; apply only with `DRY_RUN=0` and the owner's go | `DRY_RUN` unset -> nothing applied | B2, B5..B7 |
 | B9 [B9] | hub + orc (claude) | cancel: leases end, pin revoked (108 T012), the VM deleted at once (owner's go), the hub data deleted after 30 days | a cancelled workspace's seat asks a lease -> 403 | B8 |
-| B10 [B10] | doc (agy) | 121, 127 and 159 edited by their editors as section 2 says | `grep -c 'x 1.20' csi-spl-doc/specs/121-sales-channel/spec.md` -> found only in history lines | - |
+| B10 [B10] | doc (agy) | 121, 127 and 159 edited by their editors as section 2 says; from v0.4 also 121 R7 (no prepaid balance for a private workspace, monthly invoice in arrears) | `grep -c 'x 1.20' csi-spl-doc/specs/121-sales-channel/spec.md` -> found only in history lines; `grep -n 'Kept by spec 181' csi-spl-doc/specs/121-sales-channel/spec.md` -> nothing | - |
 | B11 (new) | hub + wui + orc (claude) | the web-UI sign-in relay to the CLI's terminal login on `<vm>`, one switch per vendor, default off | a relayed input found in a hub table or log -> its test fails; the switch off -> the relay refuses | B8 |
 
 Not in this spec: a private hub (Q-2 B, not chosen); listing on Cloud
@@ -401,6 +444,7 @@ Marketplace stays spec 156.
 
 - A go per VM apply and per VM delete in the first slice (repo CLAUDE.md:
   nothing mutates GCP without the owner).
+- Q-17: what a non-payment of the monthly invoice does (1.0).
 - 159's O1 (Anthropic), O2 (xAI) and O3 (Mistral): each vendor's written
   answer switches its sign-in relay on, and decides whether grok and
   mistral are offered [Q-4 A, Q-14 A].
@@ -425,4 +469,12 @@ Marketplace stays spec 156.
   renumbered; new gap G11 and row B11 (the web-UI sign-in relay, Q-5,
   Q-14 A); G10 dropped (Q-2 A).
 
-<!-- version: 0.3.0 · updated: 2026-11-20 · last-edit: 2026-11-20T15:16:19Z -->
+- v0.4 (2026-11-21, c-515, SPL-6130): the owner's billing ruling (Q-15,
+  Q-16 B, msgs `09472141`, `fb5eebab`, `6768e241`): everything is invoiced
+  monthly in arrears, the GCP cost forwarded first, then our invoice (9 EUR
+  per human member + the VM cost + 33%); no prepaid balance. Q-9 A -> B.
+  4.1, 4.4, G6 and B1 rewritten; section 2 names where this differs from
+  121 R7 and from row B10 as landed (`d6fc241f9`); new open form Q-17
+  (non-payment).
+
+<!-- version: 0.4.0 · updated: 2026-11-21 · last-edit: 2026-11-21T02:32:09Z -->

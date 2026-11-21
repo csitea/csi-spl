@@ -22,6 +22,7 @@ do_tf_log_mask() {
 # @example do_tf_log_open "$tf_apply_log_fle" || return 1
 #------------------------------------------------------------------------------
 do_tf_log_open() {
-  local f="${1:?do_tf_log_open: the log file}"
+  [[ -n "${1:-}" ]] || { echo "do_tf_log_open: the log file" >&2; return 1; }
+  local f="$1"
   mkdir -p "${f%/*}" && (umask 027 && : >>"$f") && chmod 0640 "$f"
 }

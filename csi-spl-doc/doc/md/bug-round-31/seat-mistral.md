@@ -9,8 +9,9 @@ task `dispatch-bug-r31` (c-002@sat, msg da191d7f, 04:2xZ). Rules:
 signs the plan sha; 5.1: 1 to 3 rows; 5.3 numbering and window; 5.4 bugs
 priority 2). Form: `csi-spl-doc/doc/md/bug-round-30-plan.md` on origin/master.
 
-**Verdict: PASS on `a370b578614753c566e2f92deb642883a02770bb` (v0.1),
-2026-11-21T04:3xZ — no W. See the verdict section at the end of this file.**
+**Verdict: PASS on `a370b578614753c566e2f92deb642883a02770bb` (v0.1) and on
+`78c13231e745887f3ca054a3f5f12039a9824451` (v0.2), 2026-11-21T04:3xZ — no W.
+See the verdict sections at the end of this file.**
 
 ## Setup
 
@@ -259,3 +260,44 @@ hygiene clean.
   the retired-author no-retry was b20-01 `2f634fbd4` (SPL-5953, accounted in
   b27 plan `bug-round-27-plan.md:167`); the input is served either way. Wording
   only.
+
+## Panel verdict on v0.2 — PASS (2026-11-21T04:36Z)
+
+- Reviewed sha: `78c13231e745887f3ca054a3f5f12039a9824451` on branch
+  `review/c002-bug-round-31-planner`, named by the dispatch holder c-002@sat on
+  task `dispatch-bug-r31` (msgs 9821047d 04:28Z, f9c3503b 04:35Z).
+  `git ls-remote origin review/c002-bug-round-31-planner` ->
+  `78c13231e745887f3ca054a3f5f12039a9824451` (the branch head, matches).
+  `git merge-base --is-ancestor a370b5786 78c13231e` -> rc 0 (fast-forward);
+  `git log --oneline a370b5786..78c13231e` -> one commit
+  (`78c13231e docs(b31-plan, SPL-6136): ... v0.2 ...`);
+  `git diff --name-only a370b5786 78c13231e` -> only
+  `csi-spl-doc/doc/md/bug-round-31-plan.md`; `git diff --stat` -> 10
+  insertions, 7 deletions. `git show 78c13231e:<plan> | sha256sum` ->
+  `2e5085910948c55e234f318c694fb22094017804b0edc62e06d8030b3d2d8df7`.
+- Delta review (`git diff a370b5786 78c13231e`, 61 lines): plan text only —
+  the status line, section 3.1 (the exit-4 list corrected to 14 lanes with
+  c-146, which v0.1 missed to a `tail` cut, plus the `<box2>` halves: 0 hits
+  against the five row files in every one of the 14 lanes, b31 free on `<box2>`
+  too), section 5 (c-533's result body read on `<box2>`: `sha: none`, so the
+  no-sha note is a true verdict), section 8 (asked-of-holder answered, review
+  history) and the consensus table. `diff` of the `## 3. The rows` ..
+  `### 3.1` range between v0.1 and v0.2 -> identical (no row, site, red control
+  or fix scope changed); the `One sha` base line is unchanged (`325a47c76`).
+- Checks re-run on the v0.2 head (04:36Z): check 1 -> 0 `(b31-` commits since
+  W; `git ls-remote origin | grep -E 'b31-[0-9]{2}|bug-round-31'` ->
+  `review/c002-bug-round-31-planner` (78c13231e) and this seat's
+  `review/c002-bug-round-31-mistral-seat` (e380f83fd), both expected; briefs ->
+  the two expected. Check 2 -> `git diff --name-only 325a47c76 origin/master --
+  <the five row files>` empty (no drift). Check 3 -> rc01/rc02 re-run on
+  `325a47c76`, last lines `rc01 sha=325a47c76 wrong=1` / `rc02 sha=325a47c76
+  wrong=2` (RED as before; exit 1 in the n=3 runs above). Check 6 ->
+  `lane-map.sh --check <5 row files + seat file> --agent m-642` -> exit 4 with
+  exactly 14 `unknown:` lanes (incl. c-146, matching the v0.2 corrected list),
+  no row file owned. The `<box2>` worktree diffs quoted in the delta (c-001@
+  `<box2>` msgs 977706b2, cfdfc6ed) are not readable from sat — NOT RUN here;
+  the hub lane map from this seat's run shows those lanes record no files,
+  consistent with the delta's 0 hits.
+- Verdict on v0.2: **PASS**, no W. The delta changes no row, no site, no red
+  control; it only folds in the other box's halves and corrects the exit-4
+  count, which this seat's own lane-map run confirms (14 unknowns).

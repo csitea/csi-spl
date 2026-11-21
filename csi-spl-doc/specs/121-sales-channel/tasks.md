@@ -7,7 +7,13 @@ task names its layer, what it waits on, the files it owns, its tests and the
 agent kind. Status vocabulary: `../README.md` item 3 (`[x]` Implemented,
 `[~]` Partial / in progress in a live lane, `[ ]` Planned).
 
-Version **v1.0** (2026-10-10, lane c-757, for the dispatch holder c-002,
+Version **v1.1** (2026-11-21, SPL-6124): phases 4 and 5 edited as
+[spec 181](../181-buy-private-workspace-vm/spec.md) v0.3 section 2 says
+(row B10; `spec.md` v1.5): the workspace sale is built by spec 181's rows
+B1 to B3, with no `metered` plan, no token buffer and no fixed-cost slice
+(Q-8 A, Q-10 A).
+
+v1.0 (2026-10-10, lane c-757, for the dispatch holder c-002,
 task dispatch-e001c851).
 
 **Path prefixes:**
@@ -84,8 +90,8 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T305 | unpaid spend cap: EUR 5 per visitor session + embed-wide daily ceiling | 3 | owner N1b; T304, T105 | HOLD | claude |
 | T306 | the sales agent: scoped context, small model, handover | 3 | T104, T304 | build | claude |
 | T307 | sales agent knowledge ingest (website + Drive), standby mode | 3 | owner G1/G2; T306 | HOLD | - |
-| T4xx | workspace sale on metered pricing | 4 | spec 122 pricing gate | HOLD | claude |
-| T5xx | fixed-cost slice, second embedding customer | 5 | spec 122 M0 + M3 | HOLD | - |
+| T4xx | workspace sale: moved to spec 181 B1..B3 | 4 | spec 181 | superseded | - |
+| T5xx | fixed-cost slice: dropped (spec 181 Q-8 A) | 5 | - | superseded | - |
 
 ## Tasks
 
@@ -439,9 +445,16 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   https://spool-hub.ai/m/001d47d4-693a-4c24-a73c-d81b846f3657. Not
   designed here; G2 = B would change T306's run model.
 
-### Phase 4: workspace sale on metered pricing (spec 3.4, 8, 9): HOLD
+### Phase 4: workspace sale (spec 3.4, 8, 9): superseded by spec 181
 
-- [ ] T4xx **HOLD on spec 122's pricing gate** (`pricingReady(month)`,
+- **T4xx superseded** (v1.1): spec 181 v0.3 builds the sale as its rows
+  B1 (the price: seat cents per human member in EUR, VM cost + 33%, drawn
+  from the prepaid balance), B2 (the paid webhook) and B3 (the checkout
+  page), checkout first (Q-13 B). There is no `metered` plan and no token
+  buffer (Q-10 A), and `margin_pct` is 33 (Q-11 A). Lanes take those rows,
+  not this one. v1.0's text, kept as the record:
+
+  T4xx **HOLD on spec 122's pricing gate** (`pricingReady(month)`,
   spec 122 section 9). It holds only when all of these measurements exist:
   - **M0**: an `estate_cost_months` row with `source=billing_export` for a
     closed month (needs `do_gcp_billing_export_setup`, the owner, once);
@@ -455,9 +468,11 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   (`margin_pct` = 29), card top-up drawn down by `token_budgets`, 409
   `pricing_not_ready`, the `/services` catalogue (section 9).
 
-### Phase 5: fixed-cost slice (spec 3.5): HOLD
+### Phase 5: fixed-cost slice (spec 3.5): superseded
 
-- [ ] T5xx **HOLD on spec 122 M0 and M3** (slice = the month's fixed cost /
+- **T5xx superseded** (v1.1): spec 181 Q-8 A prices the VM only; the
+  shared hub is paid by the seats, so no slice is charged. v1.0's text:
+  T5xx **HOLD on spec 122 M0 and M3** (slice = the month's fixed cost /
   `W_max`), and on a second embedding customer.
 
 ### Later (L1)

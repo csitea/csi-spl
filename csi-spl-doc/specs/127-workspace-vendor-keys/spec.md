@@ -1,12 +1,21 @@
 # Spec 127: Workspace vendor keys (bring your own keys)
 
-Version **v1.4** (2026-10-27): folded in [spec 159](../159-byo-ai-keys/spec.md)
+Version **v1.5** (2026-11-21): K4 and 7.1 edited as
+[spec 181](../181-buy-private-workspace-vm/spec.md) v0.3 (Decided,
+`abd0a5eef`) section 2 says, its row B10 (SPL-6124): the `byok` margin is
+33%, one rate for every workspace (spec 181 Q-11 A), not 50%; spec 121's
+`metered` plan is gone (Q-10 A: we never resell tokens). The rest of 7.1's
+formula stands.
+
+v1.4 (2026-10-27): folded in [spec 159](../159-byo-ai-keys/spec.md)
 (BYO AI keys on shared GCP hosts, owner HUM-10 msg `87578f3a`, decisions Q-1..Q-4):
 sections 5.1, 5.3 and 8 point at spec 159 (N1, N3), and a pointer at section 3
 (N2); K3 and L2 are amended as spec 159 sections 5.1 and 6 say, citing owner
 msg `2e9d03be`.
 
 Changelog:
+- v1.5 (2026-11-21, SPL-6124): spec 181 v0.3 Q-11 A: `byok` margin 50% ->
+  33% (K4, 7.1, 9.1 Q-3, P1); `metered` gone (7.1, Q-10 A).
 - v1.4 (2026-10-27): folded in [spec 159](../159-byo-ai-keys/spec.md) (BYO AI keys
   also on our shared GCP hosts, owner HUM-10 msg `87578f3a`). Points sections 5.1,
   5.3 and 8 at spec 159 (N1: `biz_owner` may add keys; N3: keys run on fleet boxes
@@ -60,7 +69,7 @@ The plan told to the owner: [74c1943b](https://spool-hub.ai/m/74c1943b-27aa-4ab9
 | K1 | A workspace admin sets, replaces and removes one API key per agent kind, in Workspace settings of that workspace | df10a44e |
 | K2 | Every launcher (claude, grok, agy, mistral, qwen) can start a seat on the workspace's key instead of the box login | 29fd4b3c |
 | K3 | Isolation: a key is used only by seats working for its own workspace. Never another workspace, the fleet's own lanes, the operator, a log, a core dump, a pane capture, a transcript or the desk mirror (amended for fleet boxes by [spec 159](../159-byo-ai-keys/spec.md) §5.1, owner msg `2e9d03be`: holds against fleet lanes only as far as they do not use sudo) | 29fd4b3c |
-| K4 | A plan "workspace as a service": the customer brings the keys, pays a share of the GCP cost + about 50% margin, no per-token charge | 6ad93fae |
+| K4 | A plan "workspace as a service": the customer brings the keys, pays a share of the GCP cost + about 50% margin, no per-token charge. **Margin 33%** since v1.5, one rate for every workspace ([spec 181](../181-buy-private-workspace-vm/spec.md) Q-11 A) | 6ad93fae |
 
 ## 2. Today, measured
 
@@ -473,10 +482,12 @@ What is NOT claimed:
 
 ### 7.1 The plan
 
-A new plan kind `byok` beside spec 121's `metered`. One formula, spec 122's,
-with the token term at 0 and the plan's margin (s-claude-2 C11):
+A new plan kind `byok`. Spec 121's `metered` plan, which v1.4 set it
+beside, is gone ([spec 181](../181-buy-private-workspace-vm/spec.md) v0.3
+Q-10 A: we never resell tokens). One formula, spec 122's, with the token
+term at 0 and the plan's margin (s-claude-2 C11):
 
-`monthly price = (measured own cost + fixed-cost slice + the hosts it runs on) x (1 + margin_pct/100)`, `margin_pct = 50`
+`monthly price = (measured own cost + fixed-cost slice + the hosts it runs on) x (1 + margin_pct/100)`, `margin_pct = 33`
 
 - **Measured own cost**: what the workspace itself uses, agent seats and
   storage (spec 121 7 "other own cost"; spec 122 M2 measures it).
@@ -490,10 +501,10 @@ with the token term at 0 and the plan's margin (s-claude-2 C11):
   hub (spec 121 7, spec 123), which no request-level number splits fairly
   yet; the slice is what spec 122 already measures and the owner already
   chose for the fixed cost.
-- **Margin**: 50% ("something like 50%", 6ad93fae) as
-  `price_plans.margin_pct = 50` for `byok`; spec 121's 29% stays for
-  `metered`. The schema already allows a per-plan value. The rate is
-  exactly 50% (owner decision Q-3 A, 9.1).
+- **Margin**: 33% as `price_plans.margin_pct = 33` for `byok`, one rate
+  for every workspace (spec 181 Q-11 A, v1.5). It replaces both v1.4's 50%
+  ("something like 50%", 6ad93fae; owner decision Q-3 A, 9.1) and spec
+  121's 29%. The schema still allows a per-plan value.
 - **The bill** (spec 006 payments, spec 121 8): the card checkout as today;
   `byok` is a monthly card charge of the price above, shown as "own use",
   "hub share" and "hosted box" (when there is one). No token line.
@@ -587,7 +598,7 @@ came with v1.2; the owner chose A (9.2, v1.3).
 |---|---|---|
 | Q-1 Missing key | A: refuse that kind; the picker takes the backup vendor with a key; none -> the task waits with "no key for <kind>", visible in the topic. No fall-back to the box login. | 7.3, H1/H2 lanes |
 | Q-2 Hosted dedicated boxes | A: accepted; our root's read of a hosted `byok` box is stated in the plan's terms; root access to such boxes only by a named, audited action; a customer who needs more runs its own box. | 5.3, 6, 7.1 |
-| Q-3 Margin | A: exactly 50%, `price_plans.margin_pct = 50` for `byok`. | 7.1, P1 |
+| Q-3 Margin | A: exactly 50%, `price_plans.margin_pct = 50` for `byok`. Replaced in v1.5 by spec 181 Q-11 A: 33%, one rate for every workspace. | 7.1, P1 |
 | Q-4 Operator-made admins | A: no `vendor_keys.manage` and no key-box approval until a confirmed admin of the workspace confirms; every admin is emailed. | 5.1, 8, H1 |
 
 Q-1..Q-4 are decided here; Q-5 is decided in 9.2 (v1.3).
@@ -667,7 +678,7 @@ Each a small task with tests and red controls; claude or mistral seats only
 | W1 | wui (mistral) | Agent keys page with the key-box list, L12 and L17 e2e; the agy row per Q-5 A (8, R5.2: "not supported" until B0c passes); locale text then agy review LAST |
 | X1 | box (claude) | desk socket with `SO_PEERCRED`, lease, seal open, start checks (groups, sudoers, hidepid, ptrace, suid_dumpable, core_pattern, swap, tmpfs runtime dir), helper answers from the held lease, seat-dir sweep (5.4), outbound redaction; L5, L8, L9, L13, L18 desk half; measure piped core_pattern |
 | X2 | box (claude) | `spool-key-exec` wrapper (setenv, unset other vendors, hard core limit, execve), claude `apiKeyHelper` via `--settings` in every mode, grok with `GROK_HOME` = seat dir and no provider command, telemetry switches (L16), agy's file per Q-5 A (5.4, R5.1, off until B0c); L6, L7, L10, L14, L15, L18 wrapper half |
-| P1 | hub (claude) | `byok` plan kind, the three price lines, `key_source` in the draw-down; after spec 122's gate |
+| P1 | hub (claude) | `byok` plan kind, the three price lines, `key_source` in the draw-down, `margin_pct` 33 (v1.5); after spec 122's gate. Spec 181 row B1 builds the price plan (seat cents, VM cost + 33%) |
 
 ## 11. Panel and consensus
 

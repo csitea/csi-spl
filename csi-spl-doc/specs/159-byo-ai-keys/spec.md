@@ -1,13 +1,13 @@
 # Spec 159: workspace admins and business owners bring their own AI keys, also on our shared GCP hosts
 
-**Feature ID**: `159-byo-ai-keys` · **Status**: Draft v0.2 (owner's Q-1..Q-4 answered, for R7) ·
+**Feature ID**: `159-byo-ai-keys` · **Status**: Draft v0.3 (owner's Q-1..Q-4 answered; edited as spec 181 v0.3 section 2 says) ·
 **Epic**: SPL-2398 · **Issue**: SPL-3566 · **Created**: 2026-10-26 · **Lead**: c-298 ·
 **Placement slug**: `c002-spec-byo-ai-keys`
 **Authority**: this file for what the owner's ask of 2026-10-26 adds to, or
 changes in, spec 127. Status vocabulary: [README.md](../README.md) §2.3. Docs
 only: this spec builds nothing ([README.md](../README.md) §2.4).
 
-> A private workspace on its own VM, with its keys only there: [spec 181](../181-buy-private-workspace-vm/spec.md) (its Q-10 asks whether section 9's metered fall-back goes).
+> A private workspace on its own VM, with its keys only there: [spec 181](../181-buy-private-workspace-vm/spec.md) v0.3 (Decided, `abd0a5eef`). Its section 2 edits this spec (v0.3, row B10): Q-10 A removes section 9's metered fall-back, L24 and T5's fall-back part (we never resell tokens); Q-5 and Q-14 A relay the sign-in of 4.3 from the web UI; a private workspace's keys run only on its own VM (5.1).
 
 Builds on, and does not repeat:
 
@@ -148,6 +148,15 @@ check. Under 127 Q-1 A, that kind's tasks go to the backup vendor.
   plan limits apply, and other members of W use it only through W's agents.
   Whether that use is "making your account available to anyone else" in the
   consumer terms is **unchecked**, and is part of O1.
+- **The web-UI relay** (v0.3, [spec 181](../181-buy-private-workspace-vm/spec.md)
+  Q-5, Q-14 A): the sign-in is driven from the web UI only. The hub relays
+  the person's inputs (the vendor URL out, the pasted code back) to the
+  CLI's own terminal login in W's seat, on a private workspace's VM run as
+  W's OS user. The relay is built now and switched on per vendor only after
+  that vendor's written OK (O1 Anthropic, O2 xAI, O3 Mistral); until then
+  API keys work. It hands the inputs straight to the seat and stores them
+  nowhere on the hub: no table, no log. The rule above stands: the hub, the
+  WUI and the desk never see the token. Spec 181 row B11 builds it.
 
 ### 4.4 Pilot: one customer workspace, `<PILOT>`
 
@@ -199,7 +208,9 @@ a fleet lane that uses sudo (5.4). 127 K3 holds unchanged for a key on a
 workspace's own box. T0 writes this amendment into 127.
 
 C remains a placement rule a workspace may ask for later; it is not
-designed here.
+designed here. Since v0.3 C is [spec 181](../181-buy-private-workspace-vm/spec.md)'s
+private VM (Q-1 A, Q-2 A, Q-3 A): B stays for shared workspaces, and a
+private workspace's keys run only on its own VM, never on a fleet box.
 
 ### 5.2 How a fleet box takes a workspace
 
@@ -289,7 +300,7 @@ these:
 | L21 | a lane without sudo reads another OS user's key on the same box (another workspace's seat, or a fleet lane) | uid separation + the 127 5.3 checks kept in 5.2 (hidepid, ptrace, tmpfs) | W1's seat and a fleet lane without sudo read W2's `/proc/<pid>/environ` and its tmpfs seat dir -> EACCES | mount `/proc` without `hidepid` -> the desk refuses to start |
 | L22 | an operator-made `biz_owner` reaches a key | 3: unconfirmed until a confirmed admin or biz owner confirms | operator invite as `biz_owner` -> PUT a key -> 403 `admin_unconfirmed` | drop the confirmation -> 204 |
 | L23 | the claude subscription token | 4.3: only in the CLI's own directory of W's OS user; excluded from mirror, collector and logs; L9 redacts its shape | a fake seat prints a fake token of the vendor's shape into a turn -> the hub stores the redacted text; grep the hub DB and logs -> 0 | redaction off -> the fake reaches the DB |
-| L24 | the metered fall-back (9) runs on our subscription login | the fall-back seat gets only our API key of that kind; the launcher refuses a fall-back with no API key | fall-back on, W's key exhausted, our API key unset -> the task waits with `no_metered_key`; set -> runs with `key_source = hub`, plan `metered` | let the fall-back use the box login -> it runs on our subscription |
+| L24 | ~~the metered fall-back (9) runs on our subscription login~~ removed in v0.3: there is no fall-back (spec 181 Q-10 A); the hub refuses turning it on (9) | - | - | - |
 
 A fleet lane **with** sudo reading a key is not a row here: it is the
 accepted risk of 5.4.
@@ -309,8 +320,8 @@ accepted risk of 5.4.
   fleet's subscription split (123 2.3).
 - No VM is W's (5.1 B), so 127 7.1's "hosted box" line has nothing to
   bill. The `byok` formula itself is unchanged (13).
-- A metered fall-back turn (9) is ours, not W's: `key_source = hub`, plan
-  `metered`, billed to W under spec 121.
+- No turn of W runs on our keys: v0.2's metered fall-back (9) is gone
+  (spec 181 Q-10 A, v0.3).
 
 ## 8. Rotation and revocation
 
@@ -346,12 +357,13 @@ seats within one lease TTL, default 15 min) hold. N1-N3 add:
 (an HTTP 401, 402 or 429 with a quota reason, as each CLI reports it).
 A plain rate limit (a 429 that clears by itself) does not count.
 
-The owner picked **Q-2 B** (HUM-10, t1 `f8f9dfcc`, msg
+v0.2 had the owner's **Q-2 B** (HUM-10, t1 `f8f9dfcc`, msg
 `45b1e8af-8f63-4057-a7bc-d4c188088251`), verbatim: "Answer 2: B —
 Per-workspace opt-in to fall back to spool-hub's metered agents, off by
-default". So each workspace has one setting, **"fall back to spool-hub's
-metered agents"**, which only a `biz_owner` or `admin` can change, and which
-is **off** by default.
+default". Spec 181 Q-10 A replaces it (v0.3): there is no fall-back
+setting that can be on, and a key that runs out makes the task wait until
+the customer replaces it. Points 1 to 3, 5 and 6 below stand; point 4 is
+removed.
 
 1. The wrapper (127 X2) classifies the CLI's exit or error line. The desk
    reports `key_exhausted <kind>` to the hub, without the vendor's message
@@ -364,11 +376,8 @@ is **off** by default.
    of credit or quota); a workspace admin or business owner can replace it
    on Agent keys." 127 Q-1 A's picker treats an exhausted kind as "no
    key", so a task whose backup vendor has a usable key of W goes there.
-4. **Fall-back on**: the task goes on with spool-hub's metered agents,
-   charged as `metered` under spec 121, and its topic gets one line saying
-   so. The metered agent runs **only on our API key** of that kind, never on
-   our Pro or Max subscription logins (owner Q-4, 12.3; L24). With no API key
-   of ours for that kind, the task waits as in 3, with `no_metered_key`.
+4. ~~**Fall-back on**~~: removed in v0.3 (spec 181 Q-10 A). The task
+   always waits as in 3; nothing runs on our keys for W.
 5. Either way, every `admin` and `biz_owner` of W is emailed once per
    exhaustion.
 6. **Our owner is not told.** It is the workspace's account. The operator
@@ -438,7 +447,7 @@ with its session's upload token; the box is the token's, never a body's:
   confirmed) clears it with a `retry` audit row; a PUT that replaces the
   key clears it too. `GET /v1/vendor-keys` shows `exhausted` and
   `exhausted_at` per kind.
-- The switch of point 4: `PUT /v1/vendor-keys/settings
+- The switch of point 4 (since SPL-6097 the hub refuses `true`, 9): `PUT /v1/vendor-keys/settings
   {"metered_fallback": bool}` (a manager), stored in
   `workspace_vendor_key_settings` (no row = off, the default), audited
   `fallback_on` / `fallback_off`, read back as `metered_fallback` in GET.
@@ -523,8 +532,8 @@ chain the refusal already takes:
 What it does not do:
 
 - **Point 4's line** ("the task goes on with spool-hub's metered agents")
-  waits for the picker (T4): nothing switches a task to a metered agent
-  yet, so the hub posts point 3's line whatever the switch says.
+  is never built: point 4 is removed (v0.3, spec 181 Q-10 A), and the hub
+  posts point 3's line.
 - **Who sets `SPOOL_TASK_ID`.** The seat launcher that starts `spool
   key-exec` for a workspace (127 X1, 5.3) must export it; a seat started
   without it reports with no task, and only the mail and the 409
@@ -556,8 +565,8 @@ with these changes:
 - The toggle "run our agents on spool-hub's shared boxes" (5.2), with the
   risk of 5.4 in plain words beside it, and the boxes where W has a desk,
   marked "shared spool-hub box", beside the workspace's own boxes.
-- The toggle "fall back to spool-hub's metered agents" (9), off by default,
-  with the line "charged as metered; runs on spool-hub's API keys".
+- ~~The toggle "fall back to spool-hub's metered agents" (9)~~: removed in
+  v0.3 (spec 181 Q-10 A); the page shows no such toggle.
 - The usage line per kind (127 8.1) shows this month's tokens at list price
   "paid to your vendor" (7).
 - All new text is translation keys in every locale file, and agy reviews
@@ -577,7 +586,7 @@ split; secrets work goes to claude (or grok, if it has quota).
 | T2 | orc (claude) | a read-only check action: measure each fleet box against the 127 5.3 checks kept in 5.2 (hidepid, ptrace, suid_dumpable, swap, tmpfs) and report which fail. No terraform, no new VM; any change to a box is a separate owner go | a fake box with swap on -> reported as failing (127 L13); all checks pass -> reported clean |
 | T3 | orc (claude), with 127 X1 | the named action that creates W's OS user (no sudoers, no root-equivalent group) and desk on a fleet box when W turns hosting on, a join token per box and workspace; the desk start checks with 5.2's one exception | the desk starts as W on a fleet box; W's user added to `sudo` or `docker` -> refused; `/proc` without `hidepid` -> refused |
 | T4 | orc (claude) | placer: `Workspace: <W>` + a keyed kind -> a box with W's desk, as W's OS user, else `waiting_key_host`; a brief without `Workspace:` never as W | L19, L20 |
-| T5 | box + hub (claude), with 127 X2/H2 | out of credit: classify the vendor refusal, `key_exhausted`, the hub state, the topic line, emails, picker as "no key", the per-workspace metered fall-back on our API key only (9, L24) | a fake CLI exits with a fake 402 -> the topic gets the line, the next lease -> 409 `key_exhausted`; classifier off -> the seat restarts in a loop on the dead key |
+| T5 | box + hub (claude), with 127 X2/H2 | out of credit: classify the vendor refusal, `key_exhausted`, the hub state, the topic line, emails, picker as "no key" (9). v0.3: its fall-back part is removed (spec 181 Q-10 A, L24 gone) | a fake CLI exits with a fake 402 -> the topic gets the line, the next lease -> 409 `key_exhausted`; classifier off -> the seat restarts in a loop on the dead key |
 | T6 | orc (claude), after `c002-costs-per-workspace` | collector: workspace and `key_source = 'workspace'` for seats run as W's OS user (7) | a fake seat as W's OS user -> its token row carries W and `workspace`; the same seat as the fleet user -> `hub` |
 | T7 | wui (claude), with 127 W1 | the page changes of 10; agy reviews the locale text LAST | e2e: a `biz_owner` sees the page, a `developer` does not; the exhausted state shows retry; the key cleared from the store after save (127 L12) |
 | T8 | box (claude), behind a switch **off until Anthropic's written OK (O1)** | claude self sign-in in W's seat on a fleet box, sign-out, directory excluded from mirror, collector and logs; the hub's L9 redaction gains the token shape | L23; grep the hub DB, hub logs and the mirror for a fake token after sign-in -> 0 |
@@ -663,7 +672,7 @@ The lease holder c-002 posted Q-1..Q-4 as one poll in t1 `f8f9dfcc`
 | q | answer | msg | where |
 |---|---|---|---|
 | Q-1 where a key runs | "Answer 1: B — On our fleet boxes as a per-workspace OS user: cheaper, but any fleet lane with sudo could read the key" | `2e9d03be-99f7-4a3a-88c7-a9ef094f5da2`, form `45b1e8af-8f63-4057-a7bc-d4c188088251` | 5.1, 5.4 |
-| Q-2 a key that runs out | "Answer 2: B — Per-workspace opt-in to fall back to spool-hub's metered agents, off by default" | `45b1e8af-8f63-4057-a7bc-d4c188088251` | 9 |
+| Q-2 a key that runs out | "Answer 2: B — Per-workspace opt-in to fall back to spool-hub's metered agents, off by default". Replaced by spec 181 Q-10 A (msg `504cb94f`): no fall-back, we never resell tokens | `45b1e8af-8f63-4057-a7bc-d4c188088251` | 9 |
 | Q-3 claude subscriptions | "Answer: A — Allow them: build the self sign-in behind a switch, on only after Anthropic confirms in writing (Q-3 A)" (replaces his earlier "Answer 3: C — API keys only, no subscriptions" in `45b1e8af`) | `36279386-d0f1-4aff-b3e3-bf9f6cfc1acf` | 4.3, T8 |
 | Q-4 the 12.3 finding | "we will make the Customers use their own API Keys", refined to "we will try to get them to use their own subscriptions and api keys , not ours" | `26288821-e223-4f70-b37e-a7a71404a700`, `ee47ddde-d9d8-4097-805f-f8bb13a21e92` | 12.3 |
 
@@ -696,9 +705,9 @@ their users". v0.1 reported this to the owner.
 **The owner's decision** (Q-4, msgs `26288821` and `ee47ddde`, 12.1):
 customer workspaces use **their own subscriptions and API keys, not ours**.
 In this spec that means: a workspace's AI work runs on that workspace's own
-keys (5.3) and claude sign-ins (4.3), and the one place this spec uses our
-credentials for a customer, the metered fall-back of 9, runs only on our API
-keys, never on our Pro or Max subscriptions (L24).
+keys (5.3) and claude sign-ins (4.3). v0.2's one place that used our
+credentials for a customer, the metered fall-back of 9, is removed in v0.3
+(spec 181 Q-10 A): nothing of a customer runs on our credentials.
 
 What it means elsewhere. This spec names these and changes neither; their
 owners decide:
@@ -706,8 +715,7 @@ owners decide:
 - **SPL-3528 fleet lanes doing customer work** (2, the `Workspace: <tenant>`
   brief line): today such a lane runs on our own subscription logins when W
   has no key (5.3). Under Q-4 that is the case to end.
-- **Spec 121's `metered` plan**: under Q-4 it serves customer turns only
-  from our API keys, never from a subscription.
+- **Spec 121's `metered` plan**: gone (spec 181 Q-10 A; spec 121 v1.5).
 
 ## 13. Not in scope
 
@@ -742,5 +750,12 @@ owners decide:
 - v0.2 + T9 (2026-10-28, a-553, SPL-4097): 11.2 records what row T9 built
   in orc: do_spl_vendor_terms_check, the monthly box cron vendor-terms-check,
   its test spl-vendor-terms-check.tst.sh with red controls.
+- v0.3 (2026-11-21, SPL-6124): edited as spec 181 v0.3 (`abd0a5eef`)
+  section 2 says, its row B10. Q-10 A: section 9's metered fall-back (point
+  4), L24, T5's fall-back part and the page toggle go; a key that runs out
+  makes the task wait. Q-5, Q-14 A: 4.3 gains the web-UI relay to the CLI's
+  terminal login, on per vendor after its written OK, nothing stored on the
+  hub. 5.1: B stays for shared workspaces; a private workspace's keys run
+  only on its own VM (Q-2 A, Q-3 A). 7, 9.2, 9.4, 10, 12.1, 12.3 follow.
 
-<!-- version: 0.2.1 · updated: 2026-10-28 · last-edit: 2026-10-28T21:00:00Z -->
+<!-- version: 0.3.0 · updated: 2026-11-21 · last-edit: 2026-11-21T03:00:00Z -->

@@ -52,4 +52,13 @@ for k in ${SPOOL_NOTE_KINDS//|/ }; do
   eq "3. a $k to the orchestrator raises no ask" "" "$(spool_ask_wanted c-001 "$k" '' 0)"
 done
 
+# ---- 4. spl-desk-reply.sh names the reply action's kinds ----------------------
+# want = the set do_spl_desk_reply checks (spl-desk-reply.func.sh, spool_kind_in).
+want="$(tr '|' '\n' <<<"result|reject|blocker|msg|$SPOOL_NOTE_KINDS" | sort -u | paste -sd' ')"
+u="$(bash "$T_REPO/csi-spl-orc/src/bash/scripts/spl-desk-reply.sh" --help 2>&1)"
+got="$(sed -nE 's/.*--kind ([a-z|]+).*/\1/p' <<<"$u" | tr '|' '\n' | sort -u | paste -sd' ')"
+eq "4. spl-desk-reply.sh usage --kind lists the reply kinds" "$want" "$got"
+got="$(sed -nE 's/^ *DESK_KIND +([a-z |]+)\(default.*/\1/p' <<<"$u" | tr -d ' ' | tr '|' '\n' | sed '/^$/d' | sort -u | paste -sd' ')"
+eq "4. spl-desk-reply.sh DESK_KIND line lists the reply kinds" "$want" "$got"
+
 t_done

@@ -37,7 +37,8 @@ readers already source.
 **Status: v1.0.** The panel passed v0.1 `d90bec9f3` with no W (m-840, mistral; seat file
 `csi-spl-doc/doc/md/refactor-round-84/seat-mistral.md`, folded in from `3654737c2`). The
 holder c-002@sat asked for v1.0 (msg 4702131a); it GOes the land after the review-line
-check. Section 8. Editor: **c-840** (claude).
+check. Section 8. **Closed**: both rows landed, r84-01 `fce46fccf`, r84-02 `15eb398c8`
+(section 8). Editor: **c-840** (claude).
 
 **One sha:** every count is measured on **`e1ee705d8`** (`origin/master` at
 2026-11-21T12:39:10Z), n=1 per command unless stated. Reads are on that sha with
@@ -453,6 +454,34 @@ worktree, `SPOOL_TEST=1`), `bash-cleancode.tst.sh`,
   in v0.1 (`git diff d90bec9f3 <v1.0> -- <this file>` touches only the status line and
   sections 8 and 9). v0.1 lands rebased on master with a new sha; its plan text is
   byte-identical to `d90bec9f3`'s.
+- Round closed (c-840), no version bump: the 2 rows landed, r84-02 `15eb398c8`
+  (SPL-6196, c-906 on the other box, 16:40:48Z; R7 g-889 grok PASS on `7d6a8f7a1`,
+  msg 1f2cd30d, no W; the holder c-002's review-line check rc 0, 9 of 9, and its GO LAND
+  1f5b132c) and r84-01 `fce46fccf` (SPL-6195, c-880, 17:28:00Z; R7 g-888 grok PASS on
+  `71f351646`, msg 7d6b6485, no W; the holder's line check rc 0, 12 of 12, and its GO
+  LAND, 15:56:12Z). ACCEPTED by the holder (msg 29425c9f). **R7 vendor:** both seats are
+  grok, not section 4's claude waiver: `do_spl_box_pick` at 15:2xZ read grok weekly 1% on
+  both boxes (c-001's run 15:24:22Z), so waiver 1a7c70da lapsed. `git patch-id --stable`
+  of each landed commit equals its reviewed head's (r84-01 `3646c12d4489`, r84-02
+  `ad232944d532`). `merge-base --is-ancestor` rc 0 for both on `ae93a3339`. Quality gate
+  10 success on `fce46fccf` (44930306814) and on `15eb398c8` (44927605136).
+  On `ae93a3339` (n=1 each, `SPOOL_TEST=1`, in the worktree, 1.5's line counts):
+  `test-agent-id.sh` rc 0, 87 pass; `desk-root-readers.tst.sh` rc 0, 41 pass;
+  `bash-cleancode.tst.sh` rc 0, 15 pass; 0 fail lines each. Every count equals 1.5's head
+  column: no drift, no plan miss. The other suites of 1.5 were not re-run at close (their
+  rows' R7 lines carry them).
+  - r84-01 R7 N1 (g-888): 1.5's `test-agent-id-retire-worktree.sh` reads 29 pass; the seat
+    measured 31 on parent and head alike. A count drift of the base, not of the row.
+  - r84-01 N2 / r84-02 N2 (g-888, g-889): the reviewer briefs named
+    `csi-spl-orc/src/bash/tests/bash-cleancode.tst.sh`, absent on the tree; 1.5's
+    `csi-spl-iac/...` copy ran rc 0, 15 pass. A brief-template slip, not a plan one.
+  - r84-01 N3 (g-888): the one probe differ (`AGENT_TOP_TAG`) is unreachable from
+    `tmux-close-window.sh`; no shell exports it. r84-01 N4: the seat did not re-run
+    `do_check_pre_push` (the author's run only).
+  - r84-02 N1 (g-889): the diffstat is +35 -29, section 6 says +34 -29: one more line in
+    the test (the section banner / blank line) than section 6 counted. Scope unchanged.
+    r84-02 N3: the 12-run probe set an empty `SPOOL_FLEET_STATE_ROOT`, so the live desk
+    path was not walked. Notes only; none asks a change.
 
 ## 9. Consensus
 
@@ -462,3 +491,5 @@ The panel seat signs this plan (rulebook 3.2).
 - Panel reviewer seat: m-840 (mistral): **PASS** on v0.1 `d90bec9f3`, no W (section 8; seat
   file folded in; the line in its fixed form, msg 1b028329).
 - Row R7 seats: section 4.
+- Closed: both rows landed (r84-01 `fce46fccf`, R7 g-888 PASS; r84-02 `15eb398c8`,
+  R7 g-889 PASS). This close record carries `Closes: SPL-6187`.

@@ -31,7 +31,8 @@ empty argument instead of exiting the caller's shell (`spl-self-host-up.func.sh:
 the shape r80-02 gave `do_spl_merged_cnf`: the one `local x="${1:?...}"` line of r80
 section 7 that is in one file with one copy.
 
-**Status: v0.1**, the draft for the panel. Editor: **c-722** (claude).
+**Status: v1.0**: panel seat m-723 (mistral) PASS on v0.1 `7dbfe9f78`, no W finding,
+N1-N4 recorded (section 8); no row changes scope. Editor: **c-722** (claude).
 
 **One sha:** every count is measured on **`5083f4cf9`** (`origin/master`
 5083f4cf9, committed 2026-11-21T07:49:19+01:00), n=1 per command unless stated. Reads
@@ -96,7 +97,7 @@ SPL-6160):
 ### 1.3 Row 01's site: the desk-reply launcher's usage text
 
 `orc:scripts/spl-desk-reply.sh` (280 lines), the usage block `:7-22` that `usage()`
-(`:25-28`) prints from `# Usage:` to the rule:
+(`:26-29`) prints from `# Usage:` to the rule:
 
 ```text
 :9   #                     [--to <HUM-id>] [--task <uuid>] [--kind note|result|reject|blocker|msg]
@@ -141,11 +142,12 @@ eq "4. spl-desk-reply.sh DESK_KIND line lists the reply kinds" "$want" "$got"
 `T_REPO`; the lane may word the case otherwise, the two sets and the source of `want`
 stay.)
 
-**The tests that name the site** (`git grep -lE 'spl-desk-reply\.sh' -- '*test*'` -> 4
+**The tests that name the site** (`git grep -lE 'spl-desk-reply\.sh' -- '*test*'` -> 2
 files: `orc:tests/desk-root-readers.tst.sh` section 7 runs it in a dry run,
-`orc:tests/enc-dirs-untouched.tst.sh:50` and `orc:tests/watcher-read-only.tst.sh` list
-it, `orc:tests/orc-shard-weights.txt` is the shard table, no test). None reads the usage
-text.
+`orc:tests/enc-dirs-untouched.tst.sh:50` lists it; v1.0, panel N2). None reads the usage
+text. `orc:tests/watcher-read-only.tst.sh` names the reply action
+(`spl-desk-reply.func.sh`), not the launcher; it stays in row 01's gates as a cheap
+neighbour (81 pass before and on head, 1.5).
 
 ### 1.4 Row 02's site: `do_hub_deploy_roll_none`
 
@@ -219,7 +221,7 @@ in 1.3's / 1.4's shape.
 
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 `refactor(r81-01-orc-desk-reply-usage-kinds)` | no comment describes behaviour the code does not perform (rulebook C5); one list (developer guide 2.2.4) | the launcher's usage names 5 kinds; the reply action takes 12 (`spl-desk-reply.func.sh:550`, SPL-6107), so the help hides 7 (1.3) | `orc:scripts/spl-desk-reply.sh:9,19`<br>(+ section 4 in `orc:features/spawn-agents/tests/test-spool-kinds.sh`, before `:55`) | 1 site, 2 lines | Both lines list the 12 kinds (1.3). **New section 4** (1.3): the `--kind` set and the `DESK_KIND` set of `--help` equal `result\|reject\|blocker\|msg\|$SPOOL_NOTE_KINDS`. **Red control:** section 4 on the parent's site FAILs 2 (`got 'blocker msg note reject result'`), then GREEN (45 pass); outputs in the body. **Behaviour:** comment lines only (`git diff -U0 \| grep '^[-+][^-+#]'` -> 0 on the script). Tests: `test-spool-kinds.sh`, the 3 test files of 1.3's grep (in the worktree, 1.5), `bash-cleancode.tst.sh`, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 01 `refactor(r81-01-orc-desk-reply-usage-kinds)` | no comment describes behaviour the code does not perform (rulebook C5); one list (developer guide 2.2.4) | the launcher's usage names 5 kinds; the reply action takes 12 (`spl-desk-reply.func.sh:550`, SPL-6107), so the help hides 7 (1.3) | `orc:scripts/spl-desk-reply.sh:9,19`<br>(+ section 4 in `orc:features/spawn-agents/tests/test-spool-kinds.sh`, before `:55`) | 1 site, 2 lines | Both lines list the 12 kinds (1.3). **New section 4** (1.3): the `--kind` set and the `DESK_KIND` set of `--help` equal `result\|reject\|blocker\|msg\|$SPOOL_NOTE_KINDS`. **Red control:** section 4 on the parent's site FAILs 2 (`got 'blocker msg note reject result'`), then GREEN (45 pass); outputs in the body. **Behaviour:** comment lines only (`git diff -U0 \| grep '^[-+][^-+#]'` -> 0 on the script). Tests: `test-spool-kinds.sh`, the 2 test files of 1.3's grep and `watcher-read-only.tst.sh` (in the worktree, 1.5), `bash-cleancode.tst.sh`, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 | 02 `refactor(r81-02-orc-roll-none-returns)` | bash that fails safely: a function returns a code (developer guide 2.4.3) | `do_hub_deploy_roll_none`'s `${1:?}` exits the caller's shell on an empty argument, so `do_spl_self_host_up`'s `\|\| return 1` never runs (1.4) | `orc:run/spl-self-host-up.func.sh:317`<br>(+ one case in `orc:tests/check-hub-deploy.tst.sh`, after `:241`) | 1 site | The site takes 1.4's shape. **New case** (1.4): an empty and a missing argument each print `rc=1`, the usage on stderr, run no docker. **Red control:** the case against the parent's site FAILs 2 (`line 317: 1: do_hub_deploy_roll_none <dir>`, no `rc=` line), then GREEN (56 pass); outputs in the body. **Behaviour:** the 10 test files of 1.4's grep, each as on the parent (1.5). Tests: those 10, `bash-cleancode.tst.sh`, `cd csi-spl-iac && ./run -a do_check_pre_push`. No docker: the test stubs it. | either | claude | simple_coding | 1 |
 
 **Re-measure first:** each row lane re-runs its site reads (row 01's two usage lines
@@ -299,8 +301,8 @@ Row paths (4): `orc:scripts/spl-desk-reply.sh`,
   overflow 180%)`: a box pick by load, with no grok quota line. This plan did not
   re-check grok's quota or the owner's grok order; the brief's read (06:2xZ) is grok
   on hold (99% weekly on both boxes). So each row takes a fresh **claude waiver seat**
-  (1a7c70da), as r63 to r80, unless the holder finds grok placeable when it places
-  the rows. Not a mistral code R7.
+  (1a7c70da), as r63 to r80. The holder's own read at 07:07Z: `pick=hold` (grok weekly
+  unknown on both boxes), so the waiver seat stands (v1.0). Not a mistral code R7.
 - A row with no reviewer for 15 minutes reports a blocker (2.7.3).
 
 ## 5. Proposed row briefs
@@ -368,11 +370,41 @@ Gates: the 10 test files of 1.4 (each, rc and pass lines in the body,
   usage list the reply action's 12 kinds (r80's first candidate), row 02 makes
   `do_hub_deploy_roll_none` return 1 on an empty argument. Every named test run on the
   row's head (1.5). Window W and the r81 slug proof recorded.
+- v1.0 (c-722): the panel seat m-723 (mistral) PASS on v0.1
+  `7dbfe9f783ffcbcdb5a3738a9d01900186282eee` (spool msg e0b5abaf; seat file `85ef799a7`
+  on `review/c002-refactor-round-81-mistral-seat`, folded into this landing), no W
+  finding. Its notes, none changing a row:
+  - N1: row 02 changes only the empty or missing argument path (an exit becomes
+    `return 1` plus a usage line); one caller (`:283`, `|| return 1`), disclosed in 1.4,
+    pinned by its control, as r80-02 was. Recorded; no change.
+  - N2: two citations corrected: `usage()` is `:26-29` (`:25` is blank), and 1.3's grep
+    returns 2 files, not 4 (`watcher-read-only.tst.sh` names the `.func.sh`,
+    `orc-shard-weights.txt` names `spl-desk-reply-ref.tst.sh`). Row 01's gate list keeps
+    `watcher-read-only.tst.sh` as a neighbour. No row site moved.
+  - N3: live state moved between the two reads (lane map 16 -> 17 `unknown:` lanes,
+    exit 4 both; queue 15 -> 13; branches in 24 h 78 -> 86; `(r80-` since W 3 -> 4,
+    `dc435a712`, the r80 close record, 07:06:40Z). The holder re-checks before placing.
+    **W stays as recorded** (rulebook 5.3: read once when the round opens): a
+    re-derive now names `dc435a712`, a later edit of the previous plan.
+  - N4: `origin/master` moved past the base (`dc435a712`, `0e9efb6c2`); the 4 row files
+    are unchanged (`git diff --name-only 5083f4cf9 origin/master -- <4 files>` empty).
+    The install guide's reverse-tunnel literal stays under r80 section 7's ruling (a
+    Qto export: an ask to the holder).
+  - The holder's grok read (c-002, `do_spl_box_pick` at 07:07Z): `pick=hold`, grok
+    weekly unknown on both boxes, so the claude waiver seat (1a7c70da) stands (4).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-722 (claude): v0.1.
-- Panel reviewer seat: pending (section 4).
+- Editor seat: c-722 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-723 (mistral) PASS** on
+  `7dbfe9f783ffcbcdb5a3738a9d01900186282eee` (spool msg e0b5abaf to the editor, task
+  `dispatch-refactor-r81`; seat file `85ef799a7` on
+  `review/c002-refactor-round-81-mistral-seat`, in
+  `csi-spl-doc/doc/md/refactor-round-81/seat-mistral.md`), no W, N1-N4 recorded. agy
+  was unavailable (out until about 11-24), so mistral took the seat. The holder's
+  review-line check on that line: rc 0 ("OK 2 of 2 ran: tests found in" the seat's
+  session dir: `check-hub-deploy.tst.sh`, `test-spool-kinds.sh`; holder c-003 GO msg
+  2e13e939; the seat's line forwarded by c-002, msg 70cf9639).
 - Row R7 seats: section 4.

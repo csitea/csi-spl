@@ -16,7 +16,8 @@
 #      SWEEP_FULL_EVERY -> full again with drift=0; a cache of another
 #      ENV -> full
 #   5. the read's DB time is floored, never past the read (a rounded
-#      time skips a change made just after a read in the upper half second)
+#      time skips a change made just after a read in the upper half second),
+#      on a fixed DB clock. CONTROL: a planted copy that rounds is red
 #   7. spec 182 (5.2, 7.1.3): a moved topic whose last line is a loop prompt
 #      (messages.loop_id set, after the agent reply that fired it) reads its
 #      agent reply as the last line in the delta (k1). CONTROL: a planted
@@ -193,24 +194,31 @@ SW_ENV=dev sweep spl_sweep_rows_cached "$T/r4" 2>"$T/e4" && [[ "$(info)" == *"ro
 # 5. the read's DB time is floored, never after the read: a rounded now
 # (::bigint) stores the NEXT second for a read in the upper half of one, and
 # a change committed just after that read is then older than the next
-# delta's since and missed. Bracketed by the DB clock: t0 before the read,
-# t1 after it, both in one second with t0 at >= .5 s; retried until it holds.
-n5=""
-for try in 1 2 3 4 5 6 7 8; do
-  until [[ "$(psql_owner -c "SELECT extract(microseconds FROM clock_timestamp())::int % 1000000 BETWEEN 500000 AND 520000")" == t ]]; do sleep 0.005; done
-  t0="$(psql_owner -c "SELECT extract(epoch FROM clock_timestamp())")"
-  sweep _spl_sweep_rows_read "" "$T/now5" 2>"$T/e5" || { fail "5. read: $(cat "$T/e5")"; break; }
-  t1="$(psql_owner -c "SELECT extract(epoch FROM clock_timestamp())")"
-  [[ "${t0%.*}" == "${t1%.*}" ]] || continue
-  n5="$(cat "$T/now5")"; break
-done
-if [[ -z "$n5" ]]; then
-  fail "5. the timing never held in 8 tries (a read inside the upper half of one second)"
-elif [[ "$n5" == "${t0%.*}" ]]; then
-  pass "5. a read at $t0..$t1 stores $n5: floored, not past the read (try $try)"
-else
-  fail "5. a read at $t0..$t1 stores $n5, past the read: a change right after it would be missed"
-fi
+# delta's since and missed. SPL-6217: no wall-clock race (on a loaded box the
+# read never fit in half a second): it runs as a login whose search_path
+# puts a fixed now() (x.75 s) ahead of pg_catalog's, so it must store x.
+# CONTROL: a planted copy that rounds stores x+1.
+clk5=1700000000
+psql_owner <<SQL >/dev/null || fail "5. fixed clock"
+CREATE ROLE spool_clk5 LOGIN PASSWORD 'clk5';
+CREATE SCHEMA clock5;
+CREATE FUNCTION clock5.now() RETURNS timestamptz LANGUAGE sql STABLE AS \$\$ SELECT to_timestamp($clk5.75) \$\$;
+GRANT USAGE ON SCHEMA clock5 TO spool_clk5;
+ALTER ROLE spool_clk5 SET search_path = public, clock5, pg_catalog;
+SQL
+CLK_DSN="postgres://spool_clk5:clk5@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
+RT_DSN="$CLK_DSN" sweep _spl_sweep_rows_read "" "$T/now5" 2>"$T/e5" || fail "5. read: $(cat "$T/e5")"
+n5="$(cat "$T/now5" 2>/dev/null)"
+[[ "$n5" == "$clk5" ]] && pass "5. a read at DB time $clk5.75 stores $n5: floored, not past the read" ||
+  fail "5. a read at DB time $clk5.75 stores '$n5', past the read: a change right after it would be missed"
+mkdir -p "$T/p5/run"; ln -s "$PROJ_ROOT/src/bash/features" "$T/p5/features"; ln -s "$PROJ_ROOT/src/bash/scripts" "$T/p5/scripts"
+sed 's/floor(extract(epoch FROM now()))::bigint/extract(epoch FROM now())::bigint/' \
+  "$PROJ_ROOT/src/bash/run/spl-unanswered-sweep.func.sh" >"$T/p5/run/spl-unanswered-sweep.func.sh"
+RT_DSN="$CLK_DSN" SW_FUNC="$T/p5/run/spl-unanswered-sweep.func.sh" sweep _spl_sweep_rows_read "" "$T/now5p" 2>"$T/e5p" ||
+  fail "5. planted read: $(cat "$T/e5p")"
+[[ "$(grep -c 'floor(extract(epoch FROM now()))' "$T/p5/run/spl-unanswered-sweep.func.sh")" == 0 && "$(cat "$T/now5p" 2>/dev/null)" == $((clk5 + 1)) ]] &&
+  pass "5. CONTROL: a rounded DB time stores $((clk5 + 1)) (check 5 would be red)" ||
+  fail "5. CONTROL: the planted copy stored '$(cat "$T/now5p" 2>/dev/null)' (want $((clk5 + 1)))"
 
 # 6. SPL-2705: the edited-lines arm starts from the few revisions edited since
 # :since, never from every message. prd 2026-10-20 (1 665 revisions, 48 822

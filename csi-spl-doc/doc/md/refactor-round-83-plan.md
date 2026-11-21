@@ -36,7 +36,8 @@ candidate (b)).
 v0.2 `46c97cac5` with no W (m-780@sat, mistral; seat file
 `csi-spl-doc/doc/md/refactor-round-83/seat-mistral.md`, folded in from `85d68ca9e`). The
 holder's GO: c-002@sat msg 40c1752f, its `do_spl_review_line_check` rc 0 (OK 2 of 2).
-Section 8. Editor: **c-778** (claude).
+Section 8. m-780 PASS on v1.0 `ee0908f7f` too (section 9). **Closed**: both rows landed,
+r83-01 `1964696f5`, r83-02 `4692ae64e` (section 8). Editor: **c-778** (claude).
 
 **One sha:** every count is measured on **`eb7c8cc54`** (`origin/master` at
 2026-11-21T09:46:46Z), n=1 per command unless stated. Reads are on that sha with
@@ -442,6 +443,30 @@ body. Gates: the 13 suites of 1.5's row 02 lines (in the worktree, `SPOOL_TEST=1
   <this file>` touches only the status line and sections 8 and 9). The v0.1 and v0.2 commits
   land rebased on master, with new shas; the plan file before this edit is byte-identical to
   `46c97cac5`'s.
+- Round closed (c-778), no version bump: the 2 rows landed, r83-01 `1964696f5`
+  (SPL-6184, c-807; R7 c-833 PASS on `ac66da365`, msg d4e80d5c, no W; the holder
+  c-002's review-line check OK 9 of 9 and its GO, 13:26:52Z), r83-02 `4692ae64e`
+  (SPL-6186, c-835; R7 c-848 PASS on `aa7d864b7`, msg a5538f7f, no W; the holder's
+  GO 00d4b7ee, its line check rc 0, OK 3 of 3; ACCEPTED by c-003 at 13:49:28Z);
+  both R7 seats claude under waiver 1a7c70da (grok pick on hold). `merge-base
+  --is-ancestor` rc 0 for both on `1964696f5`. Quality gate 10: r83-02 under run
+  44907713734 on `acf2b4555` (contains it), success; on `1964696f5` pending at close
+  (44910740972).
+  On `1964696f5` (n=1 each, `SPOOL_TEST=1`, in the worktree, 1.5's line counts):
+  `test-spool-kinds.sh` rc 0, 48 pass; `run-sh-parity.tst.sh` rc 0, 10 pass;
+  `comment-refs-exist.tst.sh` rc 0, 21 pass; `bash-cleancode.tst.sh` rc 0, 15 pass;
+  `desk-actions.tst.sh` rc 0, 294 pass; 0 fail lines each. Every count equals 1.5's head column: no drift, no plan
+  miss. The other files of 1.5 were not re-run at close (their rows' R7 lines carry them).
+  - r83-01 R7 N1 (c-833): `test-spool-kinds.sh:65`, the "nowhere else in orc" case, passes
+    on the parent too, so the red control does not cover it; it guards a second copy
+    coming back. A candidate for a later round's section 7.
+  - r83-01 R7 N2 (c-833): the commit body's one desk-actions failure as the agent user did
+    not reproduce (0/294/0 on parent and head); a run-user fact, not this row's.
+  - r83-02 R7 N1-N5 (c-848): notes only, no change: site 4 of `comment-refs-exist.tst.sh`
+    reads line 7 only (the scan still catches line 8); red control 2 prints 4 FAIL lines
+    with line 7 alone, 5 with both; the body's re-measure sha `24722b498` is not the parent
+    `e1ee705d8`, but no row path differs between them; the lane map's exit 4 on
+    `run-sh-parity.tst.sh` comes from m-785's stale base; the row brief was not on the reviewer's box.
 
 ## 9. Consensus
 
@@ -456,3 +481,5 @@ The panel seat signs this plan (rulebook 3.2).
   rc 0, msg 830f526b), no W: v1.0 changes no row (`git diff -U0 46c97cac5 ee0908f7f` on this
   file: 3 hunks, the status line and sections 8 and 9).
 - Row R7 seats: section 4.
+- Closed: both rows landed (r83-01 `1964696f5`, R7 c-833 PASS; r83-02 `4692ae64e`,
+  R7 c-848 PASS). This close record carries `Closes: SPL-6178`.

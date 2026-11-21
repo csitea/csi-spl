@@ -183,8 +183,8 @@ CLI verb (P3). v0.1's row P6 (`--attach`) is dropped (Q2 = F).
 
 ### 6.1 Row P4 status (lane `c-339`, SPL-6045)
 
-Built, not applied. The step, the image action and the hub's env line are
-on the branch of this row; nothing in GCP changed.
+Built by `c-339`; applied in dev and prd on 2026-11-21 (the record at the
+end of this section).
 
 - Step `031-cloud-run-pdf`: service and runtime SA `<org>-<app>-<env>-pdf`
   (the SA holds no role), `roles/run.invoker` for the hub's runtime SA only,
@@ -211,10 +211,30 @@ on the branch of this row; nothing in GCP changed.
   job, a 030 that drops `SPOOL_PDF_TIMEOUT` or leaves `pdf_timeout` out of
   its template hash) each fail it.
 
-After the apply (dev, then prd; c-001, with the owner's go): the
-`minScale` describe, the idle instance count after 20 minutes, an export
-after 20 idle minutes, the `403` without a token, and the measured cold
-start and render time, written here.
+After the apply (dev, then prd; c-001, with the owner's go):
+
+Applied 2026-11-21 by lane `c-769` (SPL-6172), owner go msg `888fc530`:
+dev 031 then dev 030, one dev export, then prd 031 and prd 030, each prd
+plan matching dev's. Image `src-73f6cd79d049` (cnf `b383c7a86`);
+`hub.pdf.url` per env file (`ba10a2b5f` dev, `31a976ffb` prd). Every
+after-plan reads `No changes`; the hub's `/version` stayed `a83052abd` in
+both envs across the 030 applies. Plans, applies and after-plans:
+`<spool root>/dispatch/spl6045-{031,030}-{dev,prd}-*-20261121.txt`.
+
+| check | dev | prd |
+|---|---|---|
+| `minScale` (`gcloud run services describe`) | `0` (max `2`, cpu-throttling `true`) | `0` (max `2`, cpu-throttling `true`) |
+| `run.invoker` | the hub's runtime SA only | the hub's runtime SA only |
+| `POST /render` with no token | `403` | `403` |
+| idle instance count (`run.googleapis.com/container/instance_count`) | `0` from 09:55Z to the read at 10:06Z (idle `2` after the 09:40Z export, `1` from 09:51Z) | `0` from 09:58Z to the read at 10:06Z (idle `1` from 09:43Z, after the apply) |
+| export (`do_spl_topic_pdf`) | rc 0, 23907 B, 1 page A4, Producer Skia/PDF m142, 13.6 s end to end (run from a box with a dev desk) | not run |
+
+Limits of these numbers (n=1): the export was a synthetic 1-row topic
+with no picture, and the hub's HTTP status was not printed (rc 0 and a
+written PDF imply 2xx). Not measured: an export after 20 idle minutes, so
+the cold start and the render time apart are not known. The 13.6 s is no
+cold-start figure: dev held 1 idle instance (09:28Z-09:39Z) when it ran. No
+prd export. Scale to zero took ~15 min after the last request, n=1 per env.
 
 ### 7.1 Contracts for parallel rows (binding)
 

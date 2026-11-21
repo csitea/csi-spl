@@ -15,10 +15,17 @@
 #      renamed; a rename INTO a text an allocation keys on; a rename into the
 #      text another entry (not renamed by this action) already carries; a
 #      mapping whose master_locale is not the table's
+#   6. (SPL-6165) every row the fill writes but the master's reads
+#      origin = 'machine' with source_text = the entry's text; a person's
+#      ('hand') row, entry or component, is left byte for byte and counted
+#      as hand= in the plan; a rename re-makes the entry's machine rows from
+#      the new text (reviewed_at NULL) and keeps its hand rows (stale, spec
+#      123 16.6.2 point 5); a second run changes nothing
 #   CONTROLS (mutated copies of the action): without each of the three
 #   rename guards its case commits; with the rename UPDATE removed the master
 #   row check trips (rc != 0, nothing written); without the operator scope
-#   cost_label_settings reads no row and the run is refused (RLS binds).
+#   cost_label_settings reads no row and the run is refused (RLS binds);
+#   without the origin guard the fill overwrites the person's row.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -116,8 +123,8 @@ run "$ACTION" spl_cost_labels_map_ok "$MAP"; [[ $? -eq 0 ]] && grep -q "ok entri
 before="$(snap)"
 DRY=1 run "$ACTION" _spl_cost_labels_fill_run; rc=$?
 [[ $rc -eq 0 ]] && grep -qx "PLAN cost_entries.label rename=2 matched=3" "$T/out" && grep -qx "PLAN cost_entries unmapped=1" "$T/out" &&
-  grep -qx "PLAN cost_entry_labels en insert=0 update=2" "$T/out" && grep -qx "PLAN cost_entry_labels fi insert=3 update=0" "$T/out" &&
-  grep -qx "PLAN hr_cost_component_labels fi insert=2 update=0" "$T/out" && grep -qx "PLAN hr_cost_component_labels en insert=0 update=0" "$T/out" &&
+  grep -qx "PLAN cost_entry_labels en insert=0 update=2 hand=0" "$T/out" && grep -qx "PLAN cost_entry_labels fi insert=3 update=0 hand=0" "$T/out" &&
+  grep -qx "PLAN hr_cost_component_labels fi insert=2 update=0 hand=0" "$T/out" && grep -qx "PLAN hr_cost_component_labels en insert=0 update=0 hand=0" "$T/out" &&
   grep -qx "COUNT after cost_entry_labels fi 3" "$T/out" && grep -q "OK DRY_RUN=1" "$T/out" &&
   pass "2 DRY_RUN=1 plans per table and locale" || fail "2 dry rc=$rc: $(cat "$T/out")"
 [[ "$(snap)" == "$before" && "$(q "SELECT count(*) FROM cost_entries WHERE label = 'Test salary (account 1)'")" == 0 ]] &&
@@ -204,6 +211,57 @@ DRY=1 run "$T/no-scope.sh" _spl_cost_labels_fill_run
 grep -q "REFUSED cost_label_settings reads no row" "$T/out" && ! grep -q "^PLAN" "$T/out" &&
   pass "CONTROL without the operator scope cost_label_settings reads no row and the run is refused (RLS binds)" ||
   fail "CONTROL scope: $(cat "$T/out")"
+
+# 6 --------------------------------------------------------------------------
+# SPL-6165, spec 123 16.6.2 point 5 and 16.6.4: the fill's rows say machine
+# and carry the text they were made from; a person's row is never written; a
+# rename re-makes the entry's machine rows from the new text
+q "SELECT count(*) || ' ' || count(*) FILTER (WHERE origin = 'machine' AND source_text = 'Test salary (account 1)')
+     FROM cost_entry_labels WHERE entry_id = '00000000-0000-4000-8000-000000000001' AND locale <> 'en'" | grep -qx "18 18" &&
+  [[ "$(q "SELECT origin || ':' || coalesce(source_text, 'NULL') FROM cost_entry_labels WHERE entry_id = '00000000-0000-4000-8000-000000000001' AND locale = 'en'")" == "hand:NULL" ]] &&
+  [[ "$(q "SELECT count(*) FROM hr_cost_component_labels WHERE component = 'base_pay' AND locale <> 'en' AND origin = 'machine' AND source_text = 'Base pay'")" == 18 ]] &&
+  pass "6a the fill's rows read machine with source_text = the entry's (renamed) text, the master row hand" ||
+  fail "6a origin: $(q "SELECT locale||'='||origin||':'||coalesce(source_text, 'NULL') FROM cost_entry_labels WHERE entry_id = '00000000-0000-4000-8000-000000000001' ORDER BY 1" | tr '\n' ' ')"
+psql_owner -c "SET app.rls_scope = 'operator'" -c "INSERT INTO cost_entries (id, type, label, amount, currency, period, created_by) VALUES
+  ('00000000-0000-4000-8000-000000000009', 'hr', 'Hand fixture', 5, 'EUR', '2026-01-01', 'seed'),
+  ('00000000-0000-4000-8000-00000000000a', 'hr', 'Rename old', 5, 'EUR', '2026-01-01', 'seed');
+  INSERT INTO cost_entry_labels (entry_id, locale, label, updated_by, origin, source_text, reviewed_at, updated_at) VALUES
+  ('00000000-0000-4000-8000-000000000009', 'en', 'Hand fixture', 'seed', 'hand', NULL, NULL, '2026-01-01T00:00:00Z'),
+  ('00000000-0000-4000-8000-000000000009', 'fi', 'Käsin kirjoitettu', 'person', 'hand', 'Hand fixture', NULL, '2026-01-01T00:00:00Z'),
+  ('00000000-0000-4000-8000-00000000000a', 'en', 'Rename old', 'seed', 'hand', NULL, NULL, '2026-01-01T00:00:00Z'),
+  ('00000000-0000-4000-8000-00000000000a', 'fi', 'Rename fi', 'machine', 'machine', 'Rename old', '2026-01-02T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('00000000-0000-4000-8000-00000000000a', 'sv', 'Käsi sv', 'person', 'hand', 'Rename old', NULL, '2026-01-01T00:00:00Z');
+  UPDATE hr_cost_component_labels SET label = 'Ylityö käsin', origin = 'hand', source_text = 'Overtime' WHERE component = 'overtime' AND locale = 'fi'" >/dev/null
+# lrow <entry id> <locale> -> the whole cost_entry_labels row as text; crow the same for a component
+lrow() { q "SELECT row(l.*)::text FROM cost_entry_labels l WHERE entry_id = '$1' AND locale = '$2'"; }
+crow() { q "SELECT row(l.*)::text FROM hr_cost_component_labels l WHERE component = '$1' AND locale = '$2'"; }
+hand_fi="$(lrow 00000000-0000-4000-8000-000000000009 'fi')"; hand_sv="$(lrow 00000000-0000-4000-8000-00000000000a sv)"; comp_fi="$(crow overtime 'fi')"
+mkmap "$T/maps/origin.json" "d['entries']['Hand fixture'] = all19(lambda l: 'Hand fixture' if l == 'en' else f'Hand fixture {l}'); d['entries']['Rename old'] = all19(lambda l: {'en': 'Rename new', 'fi': 'Rename fi'}.get(l, f'Rename {l}'))"
+DRY=1 RMAP="$T/maps/origin.json" run "$ACTION" _spl_cost_labels_fill_run; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "PLAN cost_entry_labels fi insert=0 update=1 hand=1" "$T/out" && grep -qx "PLAN cost_entry_labels sv insert=1 update=0 hand=1" "$T/out" &&
+  grep -qx "PLAN hr_cost_component_labels fi insert=0 update=0 hand=1" "$T/out" &&
+  pass "6 DRY_RUN=1 counts the hand rows it keeps apart from the updates" || fail "6 plan rc=$rc: $(grep -E '^PLAN [a-z_]+ (fi|sv) ' "$T/out" | tr '\n' ' ')"
+DRY=0 RMAP="$T/maps/origin.json" run "$ACTION" _spl_cost_labels_fill_run; rc=$?
+[[ $rc -eq 0 ]] && grep -q "CHECK master rows unequal to cost_entries.label= 0" "$T/out" || fail "6 apply rc=$rc: $(cat "$T/out")"
+[[ "$(lrow 00000000-0000-4000-8000-000000000009 'fi')" == "$hand_fi" && "$(crow overtime 'fi')" == "$comp_fi" &&
+   "$(q "SELECT origin || ':' || source_text FROM cost_entry_labels WHERE entry_id = '00000000-0000-4000-8000-000000000009' AND locale = 'sv'")" == "machine:Hand fixture" ]] &&
+  pass "6b a person's row (entry and component) is left byte for byte, the empty locale beside it is filled machine" ||
+  fail "6b hand: $(lrow 00000000-0000-4000-8000-000000000009 'fi') / $(crow overtime 'fi')"
+[[ "$(q "SELECT label FROM cost_entries WHERE id = '00000000-0000-4000-8000-00000000000a'")" == "Rename new" &&
+   "$(q "SELECT label || ':' || origin || ':' || source_text || ':' || coalesce(reviewed_at::text, 'NULL') FROM cost_entry_labels WHERE entry_id = '00000000-0000-4000-8000-00000000000a' AND locale = 'fi'")" == "Rename fi:machine:Rename new:NULL" &&
+   "$(lrow 00000000-0000-4000-8000-00000000000a sv)" == "$hand_sv" &&
+   "$(q "SELECT label || ':' || origin || ':' || coalesce(source_text, 'NULL') FROM cost_entry_labels WHERE entry_id = '00000000-0000-4000-8000-00000000000a' AND locale = 'en'")" == "Rename new:hand:NULL" ]] &&
+  pass "6c a rename re-makes the machine row from the new text (unreviewed), keeps the hand row (stale), the master row follows" ||
+  fail "6c rename: $(q "SELECT locale||'='||label||':'||origin||':'||coalesce(source_text, 'NULL') FROM cost_entry_labels WHERE entry_id = '00000000-0000-4000-8000-00000000000a' AND locale IN ('en', 'fi', 'sv') ORDER BY 1" | tr '\n' ' ')"
+before="$(snap)"
+DRY=0 RMAP="$T/maps/origin.json" run "$ACTION" _spl_cost_labels_fill_run; rc=$?
+[[ $rc -eq 0 && "$(snap)" == "$before" ]] && ! grep "^PLAN cost_entry_labels\|^PLAN hr_cost" "$T/out" | grep -v "insert=0 update=0" >/dev/null &&
+  pass "6 a second run over the hand rows plans 0 and changes nothing" || fail "6 second run rc=$rc: $(grep '^PLAN' "$T/out" | grep -v 'insert=0 update=0' | tr '\n' ' ')"
+sed "s/^  WHERE cost_entry_labels.origin = 'machine'$/  WHERE true/" "$ACTION" >"$T/no-hand-guard.sh"
+grep -q "^  WHERE true$" "$T/no-hand-guard.sh" || fail "CONTROL hand guard: the mutation did not apply"
+DRY=0 RMAP="$T/maps/origin.json" run "$T/no-hand-guard.sh" _spl_cost_labels_fill_run; rc=$?
+[[ $rc -eq 0 && "$(q "SELECT label FROM cost_entry_labels WHERE entry_id = '00000000-0000-4000-8000-000000000009' AND locale = 'fi'")" == "Hand fixture fi" ]] &&
+  pass "CONTROL without the origin guard the fill overwrites the person's row" || fail "CONTROL hand guard rc=$rc: $(grep -c . "$T/out") lines"
 
 echo "fails=$fails"
 [[ $fails -eq 0 ]]

@@ -21,6 +21,15 @@
 # @description                             (CheckCostEntryLabels)
 # @description   cost_entry_labels         every locale's row, master included
 # @description   hr_cost_component_labels  every locale's row
+# @description Who wrote a row (rdb 0303, spec 123 16.6.4; SPL-6165): the
+# @description master row is origin 'hand', source_text NULL, and always
+# @description follows the mapping; every other row is written origin
+# @description 'machine', source_text = the text it was made from (the
+# @description entry's text after the rename, the component's master text),
+# @description reviewed_at NULL. A row a person wrote (origin 'hand') is never
+# @description written, only counted (PLAN ... hand=). A machine row made from
+# @description another text (a rename) is re-made from the new one in the same
+# @description transaction; a hand row stays, stale (16.6.2 point 5).
 # @description Refused before any write: no cost_label_settings row (e.g. no
 # @description operator scope), a master_locale other than its, a rename whose
 # @description old OR new text a cost_allocations row keys on (source
@@ -31,7 +40,7 @@
 # @description two keys sharing one master text. DRY_RUN=1 (default) runs it all
 # @description in a transaction that is rolled back and prints the plan. The
 # @description output is counts only, never a label text: COUNT before/after
-# @description per table and locale, PLAN insert/update per table and locale,
+# @description per table and locale, PLAN insert/update/hand per table and locale,
 # @description the entries renamed and the entries no mapping covers.
 # @param ENV (required) - dev or prd
 # @param LABELS_MAP (required) - the mapping JSON (mode 0640 or tighter, outside git)
@@ -130,6 +139,7 @@ spl_cost_labels_sql_plan() {
 BEGIN;
 SET LOCAL app.rls_scope = 'operator';
 CREATE TEMP TABLE cl_doc ON COMMIT DROP AS SELECT :'map'::jsonb AS d;
+SELECT d ->> 'master_locale' AS master FROM cl_doc \gset
 CREATE TEMP TABLE cl_e ON COMMIT DROP AS
   SELECT e.key AS src, e.value ->> (SELECT d ->> 'master_locale' FROM cl_doc) AS master_text, l.key AS locale, l.value AS label
     FROM cl_doc, jsonb_each(d -> 'entries') e, jsonb_each_text(e.value) l;
@@ -137,9 +147,10 @@ CREATE TEMP TABLE cl_t ON COMMIT DROP AS
   SELECT ce.id, ce.label AS cur, s.src, s.master_text
     FROM cost_entries ce JOIN (SELECT DISTINCT src, master_text FROM cl_e) s ON ce.label IN (s.src, s.master_text);
 CREATE TEMP TABLE cl_want_e ON COMMIT DROP AS
-  SELECT t.id AS entry_id, m.locale, m.label FROM cl_t t JOIN cl_e m ON m.src = t.src;
+  SELECT t.id AS entry_id, m.locale, m.label, CASE WHEN m.locale <> :'master' THEN t.master_text END AS source_text
+    FROM cl_t t JOIN cl_e m ON m.src = t.src;
 CREATE TEMP TABLE cl_want_c ON COMMIT DROP AS
-  SELECT c.key AS component, l.key AS locale, l.value AS label
+  SELECT c.key AS component, l.key AS locale, l.value AS label, CASE WHEN l.key <> :'master' THEN c.value ->> :'master' END AS source_text
     FROM cl_doc, jsonb_each(d -> 'components') c, jsonb_each_text(c.value) l;
 SELECT CASE
   WHEN NOT EXISTS (SELECT 1 FROM cost_label_settings)
@@ -169,28 +180,47 @@ SELECT 'COUNT before hr_cost_component_labels ' || locale || ' ' || count(*) FRO
 SELECT 'PLAN cost_entries.label rename=' || count(*) FILTER (WHERE cur <> master_text) || ' matched=' || count(*) FROM cl_t;
 SELECT 'PLAN cost_entries unmapped=' || count(*) FROM cost_entries ce WHERE NOT EXISTS (SELECT 1 FROM cl_t t WHERE t.id = ce.id);
 SELECT 'PLAN cost_entry_labels ' || w.locale || ' insert=' || count(*) FILTER (WHERE x.label IS NULL)
-       || ' update=' || count(*) FILTER (WHERE x.label <> w.label)
+       || ' update=' || count(*) FILTER (WHERE (w.locale = :'master' OR x.origin = 'machine')
+                                          AND (x.label <> w.label OR x.source_text IS DISTINCT FROM w.source_text))
+       || ' hand=' || count(*) FILTER (WHERE w.locale <> :'master' AND x.origin = 'hand')
   FROM cl_want_e w LEFT JOIN cost_entry_labels x USING (entry_id, locale) GROUP BY w.locale ORDER BY w.locale;
 SELECT 'PLAN hr_cost_component_labels ' || w.locale || ' insert=' || count(*) FILTER (WHERE x.label IS NULL)
-       || ' update=' || count(*) FILTER (WHERE x.label <> w.label)
+       || ' update=' || count(*) FILTER (WHERE (w.locale = :'master' OR x.origin = 'machine')
+                                          AND (x.label <> w.label OR x.source_text IS DISTINCT FROM w.source_text))
+       || ' hand=' || count(*) FILTER (WHERE w.locale <> :'master' AND x.origin = 'hand')
   FROM cl_want_c w LEFT JOIN hr_cost_component_labels x USING (component, locale) GROUP BY w.locale ORDER BY w.locale;
 SQL
 }
 
 # spl_cost_labels_sql_apply -> the writes, the after counts and the master
 # row check, then COMMIT or (dry) ROLLBACK. The rename goes first: the
-# master row then equals the new text.
+# master row then equals the new text. The master row is written as today
+# (origin 'hand'); every other row is a machine row whose upsert carries the
+# guard of the store's machine write (pgCostLabelMachineEntry, spec 123
+# 16.6.4): a hand row is skipped in SQL.
 spl_cost_labels_sql_apply() {
   cat <<'SQL'
 UPDATE cost_entries ce SET label = t.master_text FROM cl_t t WHERE ce.id = t.id AND ce.label <> t.master_text;
-INSERT INTO cost_entry_labels (entry_id, locale, label, updated_by)
-  SELECT entry_id, locale, label, 'do_spl_cost_labels_fill' FROM cl_want_e
+INSERT INTO cost_entry_labels (entry_id, locale, label, updated_by, origin, source_text)
+  SELECT entry_id, locale, label, 'do_spl_cost_labels_fill', 'hand', NULL FROM cl_want_e WHERE locale = :'master'
   ON CONFLICT (entry_id, locale) DO UPDATE SET label = EXCLUDED.label, updated_by = EXCLUDED.updated_by, updated_at = now()
   WHERE cost_entry_labels.label IS DISTINCT FROM EXCLUDED.label;
-INSERT INTO hr_cost_component_labels (component, locale, label)
-  SELECT component, locale, label FROM cl_want_c
+INSERT INTO cost_entry_labels (entry_id, locale, label, updated_by, origin, source_text)
+  SELECT entry_id, locale, label, 'do_spl_cost_labels_fill', 'machine', source_text FROM cl_want_e WHERE locale <> :'master'
+  ON CONFLICT (entry_id, locale) DO UPDATE SET label = EXCLUDED.label, updated_by = EXCLUDED.updated_by, updated_at = now(),
+    source_text = EXCLUDED.source_text, reviewed_at = NULL
+  WHERE cost_entry_labels.origin = 'machine'
+    AND (cost_entry_labels.label IS DISTINCT FROM EXCLUDED.label OR cost_entry_labels.source_text IS DISTINCT FROM EXCLUDED.source_text);
+INSERT INTO hr_cost_component_labels (component, locale, label, origin, source_text)
+  SELECT component, locale, label, 'hand', NULL FROM cl_want_c WHERE locale = :'master'
   ON CONFLICT (component, locale) DO UPDATE SET label = EXCLUDED.label
   WHERE hr_cost_component_labels.label IS DISTINCT FROM EXCLUDED.label;
+INSERT INTO hr_cost_component_labels (component, locale, label, origin, source_text)
+  SELECT component, locale, label, 'machine', source_text FROM cl_want_c WHERE locale <> :'master'
+  ON CONFLICT (component, locale) DO UPDATE SET label = EXCLUDED.label, source_text = EXCLUDED.source_text, reviewed_at = NULL
+  WHERE hr_cost_component_labels.origin = 'machine'
+    AND (hr_cost_component_labels.label IS DISTINCT FROM EXCLUDED.label
+         OR hr_cost_component_labels.source_text IS DISTINCT FROM EXCLUDED.source_text);
 SELECT 'COUNT after cost_entry_labels ' || locale || ' ' || count(*) FROM cost_entry_labels GROUP BY locale ORDER BY locale;
 SELECT 'COUNT after hr_cost_component_labels ' || locale || ' ' || count(*) FROM hr_cost_component_labels GROUP BY locale ORDER BY locale;
 SELECT count(*) AS master_bad FROM cost_entries ce JOIN cost_label_settings s ON true

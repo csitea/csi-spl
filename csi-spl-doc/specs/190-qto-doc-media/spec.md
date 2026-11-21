@@ -1,7 +1,7 @@
 # Spec 190: Media in Qto docs (pictures, video, audio, files)
 
-Status: **Draft v0.2** (2026-11-21): the owner's answers are in (section
-1.1). Lane `c-700` (`claude`, backup for
+Status: **v1.0** (2026-11-21): the owner's answers are in (section
+1.1) and the cross-vendor review passed (section 8). Lane `c-700` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). Nothing below is built.
 Epic: **SPL-2403**. Issue: **SPL-6152** (priority 5, the owner's `prio:05`).
 Class: `feature`. Kind: `specs_and_docs`.
@@ -26,6 +26,9 @@ Number: the highest spec on `origin/master` `cd2012822` is
 `origin/review/c-601-s-new-topic-list-end-v01` holds
 `189-new-topic-list-end`; no other remote ref holds a `19x-` folder
 (`git ls-tree` over all 514 remote refs -> none), so this is 190.
+Re-measured by the v1.0 review (m-755, on `origin/master` `f8667b9b`):
+`189-new-topic-list-end` is on master now, the remote refs are 3417, and
+no non-master head holds a `19x-` folder, so 190 is still free.
 
 Paths below: `api/` = `csi-spl-api/src/go/spool-hub-api/internal/`,
 `wui/` = `csi-spl-wui/src/`, `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`,
@@ -101,15 +104,15 @@ HUM-10, t1 `bc3df46d`, msg `653f9c91-6f1d-4dd7-b835-0cf30e258de2`
 (08:13:22Z, poll `fd47ab36`), relayed by the dispatch holder (msg
 `5ada054b`):
 
-| q | answer | vs the recommendation |
+| q | answer (the chosen option of the form, verbatim) | vs the recommendation |
 |---|---|---|
-| Q1 | **A**: each workspace's own private GCS bucket (step 052), next to its Qto pictures | same |
-| Q2 | **B**: a short-lived signed URL (5 min) issued after the doc check (works for anyone holding it until it expires) | **differs** (A was hub-proxied) |
-| Q3 | **A**: picture 5 MiB, audio 32 MiB, video 32 MiB; inside the workspace's 10 GiB file quota | same |
-| Q4 | **B**: A, plus any other file shown as a download card | **differs** (A was media only) |
-| Q5 | **A**: upload button, drag and drop and paste | same |
-| Q6 | **A**: access follows the doc at every fetch; a file no doc names is deleted after a 7-day grace | same |
-| Q7 | **A**: pictures print inline; video and audio print as a card; md export keeps the link | same |
+| Q1 | **A**: "In each workspace's own private GCS bucket (step 052), next to its Qto pictures" | same |
+| Q2 | **B**: "A short-lived signed URL (5 min) issued after the doc check (works for anyone holding it until it expires)" | **differs** (A was hub-proxied) |
+| Q3 | **A**: "Picture 5 MiB (as today), audio 32 MiB, video 32 MiB; all inside the workspace's 10 GiB file quota" | same |
+| Q4 | **B**: "A, plus any other file shown as a download card" | **differs** (A was media only) |
+| Q5 | **A**: "Upload button, drag and drop and paste, as pictures are today" | same |
+| Q6 | **A**: "Access follows the doc at every fetch; a file no doc names is deleted after a 7-day grace" | same |
+| Q7 | **A**: "Pictures print inline; video and audio print as a card (caption, type, length); md export keeps the link" | same |
 
 What the two changed answers change, and where:
 
@@ -424,10 +427,10 @@ once no row names it (C7).
 | H3 | sweep: `qto-media/` and `.doctree/<doc>/` objects no doc names, after the grace | `api/hub/file_retention.go`, the own-store walk of SPL-2963 | D1 | Go test on a fake clock: a deleted doc's video is gone after grace + 1 s, a named one stays | the sweep without the `qto-media/` prefix leaves the gone doc's video and fails |
 | W1 | WUI editor: picker, paste and drop accept video, audio and any other file; client caps and the deny list; the token | `wui/composables/useDocPictures.ts` (or a sibling `useDocMedia.ts`), `-doctree-api.ts` | the C2/C3 contracts only | unit test of the type, deny and size checks; e2e on the mock hub inserts an mp4 and a pdf and sees both tokens | a 40 MiB file or an `.exe` reaching the mock hub fails the test |
 | W2 | WUI viewer: the issue call, `<img>` / `<video>` / `<audio>` with the signed `src`, refresh before expiry keeping `currentTime`, the 403 retry and the 404 "no longer available"; the bucket host (from cnf) in `media-src` and `img-src` of `CSP_PROD` and `firebase.json` | `WorkspaceDocView.vue`, `-doc-pics.ts`, `-doctree-api.ts`, `csi-spl-wui/nuxt.config.ts`, `csi-spl-wui/firebase.json` | the C5/C8/C9 contracts only | Chrome e2e on the mock hub with the Dir signer: the video plays and seeks (206 in the network log), a fake clock past 240 s swaps `src` and keeps `currentTime`; `csp-violations.test.mjs` 0 violations | the CSP without the bucket host in `media-src` must make `csp-violations` FAIL |
-| W3 | print, PDF and md export of media | `WorkspaceDocPrint.vue`, `-doctree-export.ts` | W2 | print snapshot shows pictures inline (fresh URLs at print time) and a card for video, audio and files; the md export keeps the hub-path token byte-stable and holds no `X-Goog-Signature` | an export that writes a signed URL fails the round trip |
+| W3 | print, PDF and md export of media | `WorkspaceDocPrint.vue`, `-doctree-export.ts` | W2 | print snapshot shows pictures inline (fresh URLs at print time) and a card for video, audio and files; Chrome e2e on the mock hub: `emulateMedia({media: 'print'})` shows the picture and the cards and no `<video>`, and `page.pdf()` of a doc with one picture and one video is not empty; the md export keeps the hub-path token byte-stable and holds no `X-Goog-Signature` | an export that writes a signed URL fails the round trip |
 | W4 | WUI download card for kind `file`: name, type, size, a link that issues a fresh URL on click; never an inline frame, `<object>` or preview | `WorkspaceDocView.vue` (or a new `DocFileCard.vue`), `-doc-pics.ts` | the C10 contract only | unit test: a `.pdf` and a `.html` token both render the card, neither an `<iframe>`; e2e: the click downloads with `attachment` | a card rendering an `<iframe>` for a `.pdf` fails the test |
 | E1 | e2e on dev: upload, play, lock or unshare, the next issue is 404 and the URL already out stops at its expiry | `csi-spl-wui/tests/e2e/` | H1, H2, T2, W1, W2 | the lock flips the issue from 200 to 404 within one request; the old URL answers 403 after 300 s | the same test against a route without the check must FAIL |
-| X1 | docs: the user help page and this spec's state | `csi-spl-doc/doc/help/`, this file | H1, W2 | `./run -a do_check_fleet_rules_drift` green | - |
+| X1 | docs: the user help page and this spec's state | `csi-spl-doc/doc/help/`, this file | H1, W2 | `./run -a do_check_fleet_rules_drift` green | the help page naming an action that is not on the tree makes `do_check_fleet_rules_drift` fail |
 | X2 | i18n: every new key in every locale; **agy reviews the text last** (language rule) | `csi-spl-wui/i18n/locales/*.json` | W1, W2, W3, W4 | `i18n-parity.test.mjs` and the raw-text ratchet green | a key missing from one locale fails parity |
 
 Parallel at once: T1, T2, B1, D1, W1 (against C2/C3), X1. Then H1, H2,
@@ -483,6 +486,15 @@ background themes) touch `WorkspaceDocView.vue`: W2, W3 and W4 check
   or `attachment; filename="<name>"` (file) in the signed query. GCS
   serves the bytes, `Range` and `206`. The hub never proxies or redirects
   the bytes.
+  `X-Content-Type-Options: nosniff` is **not** in the signed query: a V4
+  signed `GET` overrides only `response-content-type` and
+  `response-content-disposition` (I believe, unchecked on dev, that GCS
+  takes no `nosniff` query parameter and no such object metadata key).
+  The guard is the type itself: media kinds are sniffed at upload and
+  must match their stored type (C3), and kind `file` is always
+  `attachment` + `application/octet-stream` (C10). Whether GCS sends
+  `nosniff` on its own is unmeasured; B1's dev check records the bucket's
+  response headers in the row's note.
 - **C6 the token.** `![caption](/v1/workspace/doctree/<doc>/media/<name>)`
   in a section body; the extension picks `<img>`, `<video>`, `<audio>` or
   the download card. No other syntax. A signed URL is never written into
@@ -515,5 +527,20 @@ doc read itself.
 ## 8. Review
 
 v0.1 went to the holder with the form; v0.2 writes in the owner's answers
-(section 1.1). Next: the cross-vendor spec review; its findings fold into
-the next version; it lands on the holder's GO after `do_check_pre_push`.
+(section 1.1).
+
+Cross-vendor review: **PASS**, m-755@sat (mistral) on `f61dc3e13`, msg
+`a9cb2421-8a6c-4824-bcc5-8a70da0323a8`, no W findings. The holder's GO
+(c-002@sat, msg `afdc83ed-8bdd-4069-acf6-14dc2c6a3c96`) asked v1.0 to fold
+the notes:
+
+| note | where | v1.0 |
+|---|---|---|
+| N1 the 1.1 answers paraphrased | 1.1 | the answer column quotes each chosen option of the form verbatim |
+| N2 no `nosniff` on the bucket response | C5 | stated why not: the signed query carries only the type and disposition overrides; the guard is C3 + C10; B1 records the real headers |
+| N3 W3 had no Chrome e2e; X1 had no red control | 6 (W3, X1) | W3 gains a print-media Chrome e2e and a `page.pdf()` check; X1 gains a drift-check red control |
+| N4 `storage.googleapis.com` inside a quoted `git grep` | 3 | kept: it is a command being cited, not a host the code uses (C9 keeps the host in cnf) |
+| N5 stale ref count | header | re-measured line added under "Number" |
+
+The G9 `signBlob` grant (row T2) stays an apply on the owner's go; this
+landing is docs only.

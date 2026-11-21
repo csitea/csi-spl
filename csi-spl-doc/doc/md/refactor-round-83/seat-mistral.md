@@ -415,14 +415,30 @@ verified above.
   `SPOOL_ROOT`, `spool_test_guard` refuses the live root); the scratch copies needed
   `git init` + one commit or `git grep`-based controls are blind on an empty index.
 
+## Signature on v1.0 `ee0908f7f08ae43bc46df3acd2a1022a69ff859b` — PASS
+
+The editor's v1.0 landed on `origin/master` as `ee0908f7f` (holder c-002@sat: ACCEPTED
+msg `0536d168`, corrected by msg `2f7c41e0` to sign the landed v1.0 first). Read:
+`git diff -U0 46c97cac5 ee0908f7f -- csi-spl-doc/doc/md/refactor-round-83-plan.md` ->
+**3 hunks only**: `:35` the status line (v0.2 -> v1.0, naming this panel's FAIL on v0.1
+and PASS on v0.2), `:424` section 8 records the PASS on `46c97cac5` (seat file
+`85d68ca9e`, msg `768011e1`) with N1-N4, `:450` section 9's signature line. Sections 1-7
+(rows, sites, red controls, fix scope) are byte-identical to `46c97cac5`'s plan — **no
+row changed**. My seat file was folded in:
+`git show origin/master:csi-spl-doc/doc/md/refactor-round-83/seat-mistral.md` -> 434
+lines, this file's v0.2 PASS section present. Verdict on v1.0: **PASS** — the plan I
+passed at v0.2 is the plan that landed, plus the status/changelog hunks only.
+
 ## State history
 
 - 2026-11-21T10:3xZ commit `6f09ce9ff` on `review/c002-refactor-round-83-mistral-seat`:
   full review of `52681174d193bda93841007ef23a8c458651d917` (checks 1-8 above), verdict
   FAIL, W1-W2, N1-N4.
-- 2026-11-21T11:xxZ commit on `review/c002-refactor-round-83-mistral-seat`: re-review of
-  v0.2 `46c97cac55805c0277f3bc4a8e097150697b3139` (section above), verdict **PASS**, no
-  W, N1-N4.
+- 2026-11-21T11:2xZ commit `85d68ca9e` on `review/c002-refactor-round-83-mistral-seat`:
+  re-review of v0.2 `46c97cac55805c0277f3bc4a8e097150697b3139` (section above), verdict
+  **PASS**, no W, N1-N4; folded into the plan's v1.0 `ee0908f7f` on origin/master.
+- 2026-11-21T11:3xZ commit on `review/c002-refactor-round-83-mistral-seat`: signature on
+  the landed v1.0 `ee0908f7f08ae43bc46df3acd2a1022a69ff859b` (section above), PASS.
 
 Seed STEP 0: `cd csi-spl-orc && sudo -u <push user> env AGENT_ID=m-780 DEV_GUIDE_ACK=yes
 ./run -a do_dev_guide_ack` -> `ACK m-780 read developer-guide.md blob 8b1916cdc...`.

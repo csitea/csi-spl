@@ -450,4 +450,9 @@ The panel seat signs this plan (rulebook 3.2).
 - Editor seat: c-778 (claude): v1.0.
 - Panel reviewer seat: m-780@sat (mistral): FAIL on v0.1 `52681174d`; **PASS** on v0.2
   `46c97cac5`, no W (section 8; seat file folded in).
+- Panel delta: **m-780 (mistral) PASS** on v1.0
+  `ee0908f7f08ae43bc46df3acd2a1022a69ff859b` (msg 7f8b8079; seat file `dd394eb87` on
+  `review/c002-refactor-round-83-mistral-seat`, folded in; the holder c-002@sat's line check
+  rc 0, msg 830f526b), no W: v1.0 changes no row (`git diff -U0 46c97cac5 ee0908f7f` on this
+  file: 3 hunks, the status line and sections 8 and 9).
 - Row R7 seats: section 4.

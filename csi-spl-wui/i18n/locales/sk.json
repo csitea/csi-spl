@@ -697,7 +697,14 @@
       "note": "poznámka",
       "reject": "odmietnutie",
       "blocker": "prekážka",
-      "msg": "správa"
+      "msg": "správa",
+      "feature": "funkcia",
+      "bug": "chyba",
+      "alert": "upozornenie",
+      "question": "otázka",
+      "idea": "nápad",
+      "decision": "rozhodnutie",
+      "docs": "dokumentácia"
     },
     "live_state": {
       "idle": "nečinné",

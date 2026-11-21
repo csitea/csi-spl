@@ -3,7 +3,9 @@
 // ( the implmentation ) and the shortcuts labels to those".
 //
 // One letter per kind, unique: M message, N note, T task, B blocker,
-// R result, J reJect (R is result's). The picker shows the letter on the
+// R result, J reJect (R is result's); spec 033 K.2 (owner Q5 A): F feature,
+// U bUg (B is blocker's), A alert, Q question, I idea, D decision,
+// O dOcs (D is decision's). The picker shows the letter on the
 // right of each item, as the message menu shows its keys, and both the
 // letter and its hint follow the Keyboard shortcuts setting (spec 081
 // FR-012, FR-016). The listener is KindPicker.vue's onKey; the rule lives
@@ -17,6 +19,13 @@ export const KIND_KEYS: Readonly<Record<string, string>> = Object.freeze({
   blocker: 'B',
   result: 'R',
   reject: 'J',
+  feature: 'F',
+  bug: 'U',
+  alert: 'A',
+  question: 'Q',
+  idea: 'I',
+  decision: 'D',
+  docs: 'O',
 })
 
 /** The hint a picker item shows on its right ("M"), '' for a kind with no key. */

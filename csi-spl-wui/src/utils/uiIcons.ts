@@ -341,6 +341,64 @@ export const UI_ICON_PATHS = {
   "kind-result": ["M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z", "m8.5 12 2.5 2.5 4.5-4.5"],
   // reject: an x in a circle (lucide circle-x).
   "kind-reject": ["M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z", "m15 9-6 6", "m9 9 6 6"],
+  // spec 033 K.2 (SPL-5884): the seven kinds that route as a note.
+  // feature: a puzzle piece (lucide puzzle).
+  "kind-feature": [
+    "M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z",
+  ],
+  // bug: lucide bug.
+  "kind-bug": [
+    "m8 2 1.88 1.88",
+    "M14.12 3.88 16 2",
+    "M9 7.13v-1a3.003 3.003 0 1 1 6 0v1",
+    "M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6",
+    "M12 20v-9",
+    "M6.53 9C4.6 8.8 3 7.1 3 5",
+    "M6 13H2",
+    "M3 21c0-2.1 1.7-3.9 3.8-4",
+    "M20.97 5c0 2.1-1.6 3.8-3.5 4",
+    "M22 13h-4",
+    "M17.2 17c2.1.1 3.8 1.9 3.8 4",
+  ],
+  // alert: a siren (lucide siren); main.css fills its badge yellow.
+  "kind-alert": [
+    "M7 18v-6a5 5 0 1 1 10 0v6",
+    "M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z",
+    "M21 12h1",
+    "M18.5 4.5 18 5",
+    "M2 12h1",
+    "M12 2v1",
+    "m4.929 4.929.707.707",
+    "M12 12v6",
+  ],
+  // question: a question mark in a circle (lucide circle-help).
+  "kind-question": [
+    "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20z",
+    "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3",
+    "M12 17h.01",
+  ],
+  // idea: a light bulb (lucide lightbulb).
+  "kind-idea": [
+    "M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5",
+    "M9 18h6",
+    "M10 22h4",
+  ],
+  // decision: a balance (lucide scale).
+  "kind-decision": [
+    "m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z",
+    "m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z",
+    "M7 21h10",
+    "M12 3v18",
+    "M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2",
+  ],
+  // docs: a page of text (lucide file-text).
+  "kind-docs": [
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+    "M10 9H8",
+    "M16 13H8",
+    "M16 17H8",
+  ],
   // Card height modes (CardClipControl, SPL-941): one line / a clipped
   // paragraph / the whole card.
   "clip-titles": ["M4 12h16"],

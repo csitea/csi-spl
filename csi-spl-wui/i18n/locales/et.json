@@ -697,7 +697,14 @@
       "note": "märkus",
       "reject": "tagasilükkamine",
       "blocker": "takistus",
-      "msg": "sõnum"
+      "msg": "sõnum",
+      "feature": "funktsioon",
+      "bug": "viga",
+      "alert": "häire",
+      "question": "küsimus",
+      "idea": "idee",
+      "decision": "otsus",
+      "docs": "dokumentatsioon"
     },
     "live_state": {
       "idle": "ootel",

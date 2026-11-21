@@ -697,7 +697,14 @@
       "note": "pastaba",
       "reject": "atmesta",
       "blocker": "kliūtis",
-      "msg": "žinutė"
+      "msg": "žinutė",
+      "feature": "funkcija",
+      "bug": "klaida",
+      "alert": "perspėjimas",
+      "question": "klausimas",
+      "idea": "idėja",
+      "decision": "sprendimas",
+      "docs": "dokumentacija"
     },
     "live_state": {
       "idle": "neaktyvu",

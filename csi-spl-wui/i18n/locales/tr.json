@@ -697,7 +697,14 @@
       "note": "not",
       "reject": "ret",
       "blocker": "engel",
-      "msg": "mesaj"
+      "msg": "mesaj",
+      "feature": "özellik",
+      "bug": "hata",
+      "alert": "uyarı",
+      "question": "soru",
+      "idea": "fikir",
+      "decision": "karar",
+      "docs": "belgeler"
     },
     "live_state": {
       "idle": "boşta",

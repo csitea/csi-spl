@@ -1,6 +1,6 @@
 # Feature Specification: Message Levels — the Opening Card and the Thread Line
 
-**Feature ID**: `033-spool-message-levels` · **Milestone**: M3 · **Status**: Implemented (the live proof in CI skips until the secrets `SPL_PROBE_PW_<ENV>` are set, `tasks.md` T015); section "Message kinds: seven more" (SPL-5884) Partial (T020, T021 built; T022-T027 Planned)
+**Feature ID**: `033-spool-message-levels` · **Milestone**: M3 · **Status**: Implemented (the live proof in CI skips until the secrets `SPL_PROBE_PW_<ENV>` are set, `tasks.md` T015); section "Message kinds: seven more" (SPL-5884) Partial (T020-T023, T024 (b)-(g) and T025 built; T024 (a), T026 and T027 Planned)
 **Created**: 2026-09-25 · **Lane**: MESSAGE-LEVELS (hub + DB + browser)
 **Authority**: this file for the rule; `tasks.md` for what is built and where.
 
@@ -148,7 +148,7 @@ The owner, 2026-09-25 18:48:43Z, PRD #spool-hub-devel topic `db0f9d71`, verbatim
 
 ## Message kinds: seven more (SPL-5884)
 
-**Status**: Partial: T020 (`rdb/0300_message_kinds_seven.sql`, test `api/internal/store/message_kinds_seven_test.go`) and T021 (`msg.validKinds` holds the 13; exception E1 in `api/internal/hub/human_post_guard.go` `dmOpensKind`) are built, SPL-6055; T022 (the `is:` enum holds the 13 kinds, test `api/internal/search/kinds_test.go`, `api/internal/store/search_kinds_test.go`) and T023 (hello feature `kinds13`, `api/internal/hub/kinds13.go` `acceptsEnv` at all 5 accepts sites, test `api/internal/hub/kinds13_test.go`) are built, SPL-6094; T024 (b) (`SPOOL_KINDS`, `SPOOL_NOTE_KINDS`, `spool_kind_in` in `orc/features/spawn-agents/lib/spool-env.inc.sh`, parity test `orc/features/spawn-agents/tests/test-spool-kinds.sh`), (c) (`spool-send.sh --kind` reads `SPOOL_KINDS`), (d), (e), (f) (`DESK_KIND` of the desk post and reply takes `SPOOL_NOTE_KINDS`) and (g) are built, SPL-6107; T024 (a) (the box refresh, a box operation) and T025-T027 Planned. The owner answered K.8 (Q1-Q5) · **Issue**: SPL-5884 ·
+**Status**: Partial: T020 (`rdb/0300_message_kinds_seven.sql`, test `api/internal/store/message_kinds_seven_test.go`) and T021 (`msg.validKinds` holds the 13; exception E1 in `api/internal/hub/human_post_guard.go` `dmOpensKind`) are built, SPL-6055; T022 (the `is:` enum holds the 13 kinds, test `api/internal/search/kinds_test.go`, `api/internal/store/search_kinds_test.go`) and T023 (hello feature `kinds13`, `api/internal/hub/kinds13.go` `acceptsEnv` at all 5 accepts sites, test `api/internal/hub/kinds13_test.go`) are built, SPL-6094; T024 (b) (`SPOOL_KINDS`, `SPOOL_NOTE_KINDS`, `spool_kind_in` in `orc/features/spawn-agents/lib/spool-env.inc.sh`, parity test `orc/features/spawn-agents/tests/test-spool-kinds.sh`), (c) (`spool-send.sh --kind` reads `SPOOL_KINDS`), (d), (e), (f) (`DESK_KIND` of the desk post and reply takes `SPOOL_NOTE_KINDS`) and (g) are built, SPL-6107; T025 (the WUI lists the 13: `wui/src/utils/msg-kind.mjs`, `kind-picker-keys.ts` F U A Q I D O, the seven glyphs, the `--color-kind-*` tokens, `is:` suggestions, 19 locales; tests `wui/tests/unit/msg-kind.test.mjs`, `kind-picker-keys.test.mjs`, `kind-tokens.test.mjs`, `search.test.mjs`, e2e `wui/tests/e2e/kind-picker-keys.test.mjs`) is built, SPL-6123, its locale words waiting on the agy review (K.6); T024 (a) (the box refresh, a box operation), T026 and T027 Planned. The owner answered K.8 (Q1-Q5) · **Issue**: SPL-5884 ·
 **Epic**: SPL-2403 · **Discussion**: t1 #spool-hub-ui topic `f4165bc3`.
 
 Spec 033 holds this section because the issue names it. The kind itself is
@@ -211,6 +211,18 @@ that post.
     `#616161`) and `alert` reuses `#f6bf26`; `bug` (`#c43e00`) and `idea`
     (`#c2185b`) are new darker values, picked to clear 3:1 on the light
     surfaces (T025's contrast test proves it).
+  - **The alert is measured by its glyph.** The light alert fill `#f6bf26`
+    reads 1.29-1.43:1 on the six light `--color-bg-2` values, so it cannot
+    clear 3:1 as the bare glyphs do (the dark fill reads 13.07:1). The owner
+    asked for a yellow badge (Q1 A), so the fill stays, and
+    `wui/tests/unit/kind-tokens.test.mjs` holds the alert's glyph
+    (`--color-kind-alert-fg`, `#1b1b1b`) at 3:1 on its fill: 10.17:1 light,
+    12.21:1 dark. T025's planted `--color-kind-alert: #ffffff` on light
+    therefore stays green (the dark glyph reads on white too); its red
+    control is a white glyph (`--color-kind-alert-fg: #ffffff` on light),
+    which fails in all six light themes. The other six kinds clear 3:1 on
+    `--color-bg-2` in all 8 themes; the lowest is `bug` on light-violet,
+    3.98:1.
   - The tokens go in one `:root` block and one `:root[data-theme^="light"]`
     block, as the row-alt and mode tokens do (`variables.css:391-398`), so
     every light-* theme shares one set.
@@ -459,4 +471,4 @@ All five are answered: owner HUM-10, t1 topic `f4165bc3`, msg
 | Q4 | May desk posts (`do_spl_desk_post`, `do_spl_desk_reply`) use the 7? | no: only the menu and `spool send` set them | yes: widen `DESK_KIND` (`spl-desk-post.func.sh:62`, `spl-desk-reply.func.sh:529`) | **B** | K.3 exception E3, desk post and desk reply only (`do_spl_fleet_notice` is not named, so it is unchanged); built in T024 (f) |
 | Q5 | Picker letters for bug and docs? | `U` (bUg) and `O` (dOcs) | `G` (buG) and `C` (doCs) | **A** | the default: no change; K.2 and T025 already use `U` and `O` |
 
-<!-- version: 0.3.3 · updated: 2026-11-20 · last-edit: 2026-11-20T19:50:00Z -->
+<!-- version: 0.3.4 · updated: 2026-11-21 · last-edit: 2026-11-21T02:30:00Z -->

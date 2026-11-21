@@ -697,7 +697,14 @@
       "note": "nota",
       "reject": "rechazo",
       "blocker": "bloqueo",
-      "msg": "mensaje"
+      "msg": "mensaje",
+      "feature": "funcionalidad",
+      "bug": "error",
+      "alert": "alerta",
+      "question": "pregunta",
+      "idea": "idea",
+      "decision": "decisión",
+      "docs": "documentación"
     },
     "live_state": {
       "idle": "inactivo",

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -12,8 +11,8 @@ import (
 // Spec 181 row B1 (rdb 0302): the private-workspace price on both drivers.
 // RED CONTROL (P5): a plan with a token line is refused and writes nothing;
 // on Postgres the CHECKs refuse the same line written past the store. The
-// month quote is seats x 9 EUR + the VM cost + 33%; a VM day is drawn from
-// the prepaid balance once, never twice.
+// month quote, what the monthly invoice in arrears charges (Q-9 B), is
+// seats x 9 EUR + the VM cost + 33%.
 
 // seedPricePlan writes the private-VM plan of tenant through the store API
 // (crosstenant_test.go seeds both rdb 0302 tables with it).
@@ -130,59 +129,5 @@ func TestPricePlanQuoteAndRoundTrip(t *testing.T) {
 				t.Error("a negative member count is quoted")
 			}
 		})
-	}
-}
-
-func TestPricePlanDrawVMDay(t *testing.T) {
-	for name, s := range drivers(t) {
-		t.Run(name, func(t *testing.T) {
-			ctx := context.Background()
-			pp, ul := s.(PricePlans), s.(UsageLedger)
-			tenant := newTenant(t, s)
-			day := time.Date(2026, 11, 19, 0, 0, 0, 0, time.UTC)
-			d := VMDay{VM: "ws-vm-1", Day: day, CostMicros: 3_000_000, At: day.Add(25 * time.Hour)}
-			if _, err := pp.DrawVMDay(ctx, tenant, d); !errors.Is(err, ErrNoPricePlan) {
-				t.Fatalf("a draw without a plan: %v, want ErrNoPricePlan", err)
-			}
-			if err := pp.PutPricePlan(ctx, tenant, PrivateVMPlan()); err != nil {
-				t.Fatal(err)
-			}
-			if n, err := pp.DrawVMDay(ctx, tenant, d); err != nil || n != 1 {
-				t.Fatalf("DrawVMDay = %d, %v; want 1 row", n, err)
-			}
-			if n, err := pp.DrawVMDay(ctx, tenant, d); err != nil || n != 0 {
-				t.Errorf("the same day drawn again = %d, %v; want 0 (never a second charge)", n, err)
-			}
-			got, err := ul.TurnLedger(ctx, tenant, d.turnID())
-			if err != nil || got.CostMicros != "3990000.000000" || got.Currency != "EUR" {
-				t.Errorf("the drawn day reads %+v, %v; want 3 EUR + 33%% = 3990000 micros EUR", got, err)
-			}
-			if _, err := pp.DrawVMDay(ctx, tenant, VMDay{VM: "Bad VM", Day: day, CostMicros: 1, At: d.At}); err == nil {
-				t.Error("a draw for a VM name that is no VM name is written")
-			}
-		})
-	}
-}
-
-// TestPricePlanDrawLowersBalance: on Postgres the drawn day is spent from
-// the workspace's prepaid top-up (token_budgets), the cost + 33% exactly.
-func TestPricePlanDrawLowersBalance(t *testing.T) {
-	pg := rlsStore(t)
-	ctx := context.Background()
-	tenant := newTenant(t, pg)
-	day := time.Date(2026, 11, 19, 0, 0, 0, 0, time.UTC)
-	top := int64(20_000_000)
-	if _, err := pg.PutTokenBudget(ctx, tenant, TokenBudget{TopupMicros: &top, TopupCurrency: "EUR", ToppedUpAt: day}); err != nil {
-		t.Fatal(err)
-	}
-	if err := seedPricePlan(ctx, pg, tenant); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pg.DrawVMDay(ctx, tenant, VMDay{VM: "ws-vm-1", Day: day, CostMicros: 3_000_000, At: day.Add(time.Hour)}); err != nil {
-		t.Fatal(err)
-	}
-	uses, err := pg.BudgetUses(ctx, tenant, "", day.Add(2*time.Hour))
-	if err != nil || len(uses) != 1 || uses[0].SpentMicros != "3990000.000000" || uses[0].DayTokens != 0 {
-		t.Fatalf("budget after the VM day: %+v, %v; want 3990000 micros spent, 0 tokens", uses, err)
 	}
 }

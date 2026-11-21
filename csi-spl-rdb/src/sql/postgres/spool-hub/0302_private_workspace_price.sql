@@ -1,13 +1,12 @@
 -- 0302_private_workspace_price.sql - the private-workspace price (spec 181
--- row B1, sections 0.2 and 4, gap G4 and the ledger half of G6). Forward-only,
+-- row B1, sections 0.2 and 4, gap G4). Forward-only,
 -- additive.
 --
 -- Owner HUM-10, t1 b12055b5: we sell the harness at "cloud costs + 33% ...
 -- and nothing else" (4f17f3da) and never resell tokens (be43a039, Q-10 A).
 -- The answers that set the lines: Q-6 A (9 per month per human member,
 -- agents are not seats), Q-7 A (EUR), Q-8 A (the VM only: compute, disk and
--- traffic), Q-9 A (drawn from the prepaid balance of 121 R7), Q-11 A (one
--- rate, 33%).
+-- traffic), Q-11 A (one rate, 33%).
 --
 -- 1. price_plans: one plan per workspace. kind 'private_vm' is the only kind
 --    (spec 181); currency 'EUR' the only currency (Q-7 A).
@@ -17,13 +16,6 @@
 --    written (P5): the line CHECK lists the two, and the no-token CHECK names
 --    the rule so a later widening of the list still refuses any llm_ or
 --    token line, in any case (lower(), the Go guard's rule).
--- 3. usage_events.kind gains 'vm_cost': the VM's day cost drawn from the
---    prepaid balance. units = the cost in micros of EUR, unit_cost_micros =
---    (100 + margin_pct) / 100, so units * unit_cost_micros, the sum the
---    token_budgets balance subtracts (store/token_budget.go budgetUseSQL), is
---    the cost + 33%, and the raw cost stays readable. turn_id names the VM
---    and the day, so the unique (tenant, turn, kind) index makes a re-run of
---    a day a conflict, never a second charge.
 --
 -- RLS: both new tables in the 0171 shape with the NULLIF guard; store
 -- TestRLSPoliciesFailClosed reads them from the catalogue and
@@ -31,15 +23,8 @@
 -- channel_scope policy: a visitor never reads a price plan.
 --
 -- Live-data safety: two new empty tables (the FKs take SHARE ROW EXCLUSIVE
--- on tenants until COMMIT, hence lock_timeout). The usage_events CHECK is
--- dropped and added again NOT VALID, and is NOT validated: the runner applies
--- a file in one transaction (store/migrate.go applyMigration), so the DROP/ADD
--- hold ACCESS EXCLUSIVE on usage_events until COMMIT and a VALIDATE here would
--- scan the whole ledger under it (prd row count not measured). Nothing is
--- lost: the new list is a superset of the old one (0171), so every old row
--- passes it, and every row written from COMMIT on is checked. No running hub
--- writes 'vm_cost' before the image that reads this file. Runs under the
--- operator RLS scope (spool migrate, rdb 0014). No personal data, no secret.
+-- on tenants until COMMIT, hence lock_timeout). No existing table changes.
+-- Runs under the operator RLS scope (spool migrate, rdb 0014). No personal data, no secret.
 
 SET LOCAL lock_timeout = '5s';
 
@@ -79,9 +64,3 @@ BEGIN
     END LOOP;
 END
 $$;
-
-ALTER TABLE usage_events DROP CONSTRAINT IF EXISTS usage_events_kind_check;
-
-ALTER TABLE usage_events ADD CONSTRAINT usage_events_kind_check
-    CHECK (kind IN ('llm_tokens_in', 'llm_tokens_out', 'llm_tokens_cache_read', 'llm_tokens_cache_write',
-                    'agent_seconds', 'storage_bytes', 'cloud_share', 'unmetered', 'vm_cost')) NOT VALID;

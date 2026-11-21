@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"regexp"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -20,11 +18,9 @@ import (
 // No AI token is ever sold (P5, Q-10 A): a plan with a token line is
 // refused here (ErrPlanTokenLine) and by rdb 0302's CHECKs.
 //
-// The VM line is drawn from the prepaid balance (Q-9 A, 121 R7): DrawVMDay
-// writes one usage_events row of kind vm_cost per VM and UTC day, units =
-// the day's cost in micros, unit cost = (100 + margin) / 100. The
-// token_budgets balance (token_budget.go) subtracts every priced ledger row
-// in its currency, so the row draws the cost + 33% and nothing else changes.
+// The plan is invoiced monthly in arrears, no prepaid balance (Q-9 B,
+// Q-16 B): QuoteMonth prices one month (seats x cents + the VM's month cost
+// x 1.33), exactly the invoice. Writing the invoice is a later row, not B1.
 
 // The plan's kind, currency and lines (rdb 0302).
 const (
@@ -36,9 +32,7 @@ const (
 	PrivateVMSeatCents = 900
 	// PrivateVMMarginPct is the one rate on the VM's cloud cost (Q-11 A).
 	PrivateVMMarginPct = 33
-	// UsageKindVMCost is the ledger kind of a VM day drawn from the balance.
-	UsageKindVMCost = "vm_cost"
-	centMicros      = 10_000
+	centMicros         = 10_000
 )
 
 var (
@@ -46,7 +40,6 @@ var (
 	ErrPlanTokenLine = errors.New("store: a price plan never carries a token line (spec 181 P5)")
 	// ErrNoPricePlan: the workspace has no price plan, or it has no VM line.
 	ErrNoPricePlan = errors.New("store: no price plan")
-	planVMRx       = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
 )
 
 // PlanLine is one price_plan_lines row: CentsPerMonth for the seat line,
@@ -155,32 +148,6 @@ func (p PricePlan) QuoteMonth(humans, vmCostMicros int64) (PriceQuote, error) {
 	return q, nil
 }
 
-// VMDay is one UTC day of a private VM's cloud cost (spec 181 G5, row B4's
-// reader), drawn at At.
-// Day is read in UTC: a local midnight east of UTC names the day before.
-type VMDay struct {
-	VM         string
-	Day        time.Time
-	CostMicros int64
-	At         time.Time
-}
-
-// turnID is the ledger key of the day: one draw per VM and UTC day.
-func (d VMDay) turnID() string { return "vm/" + d.VM + "/" + d.Day.UTC().Format(time.DateOnly) }
-
-func checkVMDay(tenant string, d VMDay) error {
-	if err := checkTenant(tenant); err != nil {
-		return err
-	}
-	if !planVMRx.MatchString(d.VM) {
-		return fmt.Errorf("vm day: VM name %q is not a VM name", d.VM)
-	}
-	if d.Day.IsZero() || d.At.IsZero() || d.CostMicros < 0 {
-		return fmt.Errorf("vm day: a day, a draw time and a cost >= 0")
-	}
-	return nil
-}
-
 // PricePlans is the store half of the private-workspace price. Optional: a
 // store without it sells no private workspace.
 type PricePlans interface {
@@ -189,10 +156,6 @@ type PricePlans interface {
 	PutPricePlan(ctx context.Context, tenant string, p PricePlan) error
 	// PricePlan reads it back; ErrNoPricePlan when none.
 	PricePlan(ctx context.Context, tenant string) (PricePlan, error)
-	// DrawVMDay draws a VM day's cost + the plan's margin from the prepaid
-	// balance: one vm_cost ledger row. written 0 = the day is drawn already
-	// (a re-run is never a second charge). ErrNoPricePlan: no VM line.
-	DrawVMDay(ctx context.Context, tenant string, d VMDay) (written int, err error)
 }
 
 var (
@@ -236,25 +199,6 @@ func (s *Memory) PricePlan(_ context.Context, tenant string) (PricePlan, error) 
 	return p, nil
 }
 
-// DrawVMDay draws a VM day from the balance (PricePlans).
-func (s *Memory) DrawVMDay(_ context.Context, tenant string, d VMDay) (int, error) {
-	if err := checkVMDay(tenant, d); err != nil {
-		return 0, err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	vm, ok := memPlans[s][tenant].Line(PlanLineVMCost)
-	if !ok {
-		return 0, ErrNoPricePlan
-	}
-	if s.turnHasRows(tenant, d.turnID()) {
-		return 0, nil
-	}
-	memUsage[s] = append(memUsage[s], usageEvent{tenant, d.turnID(), UsageKindVMCost, PlanCurrency,
-		d.CostMicros, vmUnitCost(vm.MarginPct).FloatString(usageCostDecimal)})
-	return 1, nil
-}
-
 // Postgres side.
 const (
 	planPutSQL = `INSERT INTO price_plans (tenant_id, kind, currency) VALUES ($1, $2, $3)
@@ -265,7 +209,6 @@ const (
 	planReadSQL      = `SELECT kind, currency FROM price_plans WHERE tenant_id = $1`
 	planLinesReadSQL = `SELECT line, coalesce(cents_per_month, 0), coalesce(margin_pct, 0)::bigint
 		FROM price_plan_lines WHERE tenant_id = $1 ORDER BY line`
-	planVMMarginSQL = `SELECT margin_pct::bigint FROM price_plan_lines WHERE tenant_id = $1 AND line = 'vm_cost'`
 )
 
 // PutPricePlan writes the workspace's plan (PricePlans).
@@ -316,31 +259,4 @@ func (s *Postgres) PricePlan(ctx context.Context, tenant string) (PricePlan, err
 		return PricePlan{}, ErrNoPricePlan
 	}
 	return p, err
-}
-
-// DrawVMDay draws a VM day from the balance (PricePlans).
-func (s *Postgres) DrawVMDay(ctx context.Context, tenant string, d VMDay) (int, error) {
-	if err := checkVMDay(tenant, d); err != nil {
-		return 0, err
-	}
-	written := 0
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		var margin int64
-		if err := tx.QueryRow(ctx, planVMMarginSQL, tenant).Scan(&margin); err != nil {
-			return err
-		}
-		if has, err := lockTurn(ctx, tx, tenant, d.turnID()); err != nil || has {
-			return err
-		}
-		if _, err := tx.Exec(ctx, usageInsertSQL, tenant, "", "", "", d.turnID(), UsageKindVMCost, "", "",
-			d.CostMicros, vmUnitCost(margin).FloatString(usageCostDecimal), PlanCurrency, d.At.UTC()); err != nil {
-			return err
-		}
-		written = 1
-		return nil
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, ErrNoPricePlan
-	}
-	return written, err
 }

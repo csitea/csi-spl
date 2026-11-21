@@ -451,22 +451,20 @@ brackets.
 | B10 [B10] | doc (agy) | 121, 127 and 159 edited by their editors as section 2 says; from v0.4 also 121 R7 (no prepaid balance for a private workspace, monthly invoice in arrears) | `grep -c 'x 1.20' csi-spl-doc/specs/121-sales-channel/spec.md` -> found only in history lines; `grep -n 'Kept by spec 181' csi-spl-doc/specs/121-sales-channel/spec.md` -> nothing | - |
 | B11 (new) | hub + wui + orc (claude) | the web-UI sign-in relay to the CLI's terminal login on `<vm>`, one switch per vendor, default off | a relayed input found in a hub table or log -> its test fails; the switch off -> the relay refuses | B8 |
 
-Row status (v0.3.1):
+Row status (v0.4.1):
 
 - **B1: Implemented** (SPL-6095): rdb
   `0302_private_workspace_price.sql` makes `price_plans` (kind
   `private_vm`, currency `EUR` only) and `price_plan_lines` (exactly
   `seat_member`, cents per human member per month, and `vm_cost`, the
-  margin; a token line is refused by its CHECKs) and adds the ledger kind
-  `vm_cost` to `usage_events`. Store `internal/store/price_plans.go`:
-  `PrivateVMPlan` (900 cents, 33 %), `PutPricePlan` / `PricePlan`
-  (`ErrPlanTokenLine`, P5), `QuoteMonth` (seats x cents + VM cost x 1.33)
-  and `DrawVMDay` (one `vm_cost` row per VM and UTC day, units = cost
-  micros, unit cost 1.33, so the `token_budgets` balance draws the cost +
-  33 %; a re-run is no second charge). Red control:
-  `TestPricePlanTokenLineRefused` (`price_plans_test.go`). Open for B2: the
-  seat line is quoted, not drawn: how the seats are charged against the
-  balance is not decided in this spec (4.1 says only the VM is drawn).
+  margin; a token line is refused by its CHECKs); no existing table
+  changes. Store `internal/store/price_plans.go`: `PrivateVMPlan` (900
+  cents, 33 %), `PutPricePlan` / `PricePlan` (`ErrPlanTokenLine`, P5) and
+  `QuoteMonth` (seats x cents + the VM's month cost x 1.33, exact), the
+  sum the monthly invoice in arrears charges (Q-9 B). Nothing is drawn
+  from a balance. Red control: `TestPricePlanTokenLineRefused`
+  (`price_plans_test.go`). Writing the invoice (the month's VM cost from
+  the billing export, `QuoteMonth`, an invoice row) is a later row, not B1.
 
 Not in this spec: a private hub (Q-2 B, not chosen); listing on Cloud
 Marketplace stays spec 156.
@@ -512,5 +510,8 @@ Marketplace stays spec 156.
   (non-payment). After review (m-626, W1): new open form Q-18 (what the
   checkout takes up front, which event creates the tenant); 4.1 step 4,
   G3 and B2 no longer name the paid webhook.
+- v0.4.1 (2026-11-21, c-292, SPL-6095): row B1 status follows v0.4: the
+  `vm_cost` ledger kind and the balance draw are cut; B1 is the plan and
+  its month quote.
 
-<!-- version: 0.4.0 · updated: 2026-11-21 · last-edit: 2026-11-21T02:48:05Z -->
+<!-- version: 0.4.1 · updated: 2026-11-21 · last-edit: 2026-11-21T03:30:00Z -->

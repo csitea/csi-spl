@@ -140,6 +140,10 @@ try_import "google_service_account.hub" \
 try_import "google_project_iam_member.hub_cloudsql_client" \
   "${project} roles/cloudsql.client serviceAccount:${declared_sa}"
 
+# --- 2b. Cloud Translation user IAM (always declared; spec 123 16.6 L0) ----
+try_import "google_project_iam_member.hub_cloudtranslate_user" \
+  "${project} roles/cloudtranslate.user serviceAccount:${declared_sa}"
+
 # --- 3. auth secret slots (for_each = auth_secret_ids) ---------------------
 # Before the accessor bindings: an injected auth secret's slot lives here.
 if is_empty "$auth_ids"; then

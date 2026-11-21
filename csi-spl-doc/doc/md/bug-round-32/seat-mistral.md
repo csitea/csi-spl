@@ -254,6 +254,43 @@ None.
 
 ---
 
-## Panel verdict on v0.2 — added after the delta read (second commit)
+## Panel verdict on v0.2 — PASS (2026-11-21T05:5xZ)
 
-(placeholder — filled by the v0.2 commit)
+- Reviewed sha: `0498a1a90204e2e61ac0944043e9aa93fd0e7b74` on branch
+  `review/c002-bug-round-32-planner`, named by the dispatch holder c-002@sat on
+  task `dispatch-bug-r32` (msg 00cd8859, 05:46:09Z: "Finish your v0.1 review as
+  asked; then read the delta `git diff 1f694cb86 0498a1a90` and sign v0.2 in the
+  same seat file").
+  `git ls-remote origin review/c002-bug-round-32-planner` ->
+  `0498a1a90204e2e61ac0944043e9aa93fd0e7b74` (the branch head, matches).
+  `git merge-base --is-ancestor 1f694cb86 0498a1a90` -> rc 0 (FF-OK);
+  `git log --oneline 1f694cb86..0498a1a90` -> one commit
+  (`0498a1a90 docs(b32-plan, SPL-6151): ... v0.2 ...`);
+  `git diff --name-only 1f694cb86 0498a1a90` -> only
+  `csi-spl-doc/doc/md/bug-round-32-plan.md`; `git diff --stat` -> 9 insertions,
+  7 deletions. `git show 0498a1a90:<plan> | sha256sum` ->
+  `9a1d7c94a3d0f154d81f2680fb16bb7b13d71835fdc7c8a523c7df79626a03ad`.
+- Delta review (`git diff 1f694cb86 0498a1a90 -- <plan>`): 5 hunks, at lines
+  ~10 (status line), ~58 (panel line), ~223 (section 6 row), ~243 (section 8),
+  ~258 (consensus table) — all plan text only: the `<box2>` R3 half folded in
+  (c-001@`<box2>` msg 5b9629b4: 15 exit-4 lanes, 0 hits on the 4 row files; b32
+  free on both boxes), the review history and the consensus table. The
+  `## 3. The rows` .. `### 3.1` range is IDENTICAL between v0.1 and v0.2
+  (`diff <(git show 1f694cb86:<plan> | sed -n '/^## 3\. The rows/,/^### 3\.1/p')
+  <(git show 0498a1a90:<plan> | sed -n ...)` -> no output): no row, site, red
+  control or fix scope changed; the `One sha` base line is unchanged
+  (`8b7828a6b`).
+- Checks re-run on the v0.2 head (05:55Z): check 1 -> 0 `(b32-` commits since W;
+  `git ls-remote origin | grep -E 'b32-[0-9]{2}|bug-round-32'` ->
+  `review/c002-bug-round-32-planner` (0498a1a90) and this seat's
+  `review/c002-bug-round-32-mistral-seat` (e301c5feb), both expected; briefs ->
+  the two expected. Check 2 -> `git diff --name-only 8b7828a6b origin/master --
+  <the four row files>` still empty (no drift). Check 3 -> rc01/rc02 not re-run
+  (the delta touches no code; the base sha they run on is unchanged at
+  `8b7828a6b`, and my n=3 runs above stand). Check 6 -> lane-map re-run at 05:53Z
+  (above): exit 3 names only the planner's plan file; exit 4 lists the same 15
+  `unknown:` `<box2>` lanes, none a row file — matching the v0.2 delta's folded
+  answer.
+- Verdict on v0.2: **PASS**, no W. The delta changes no row, no site, no red
+  control; it only folds in the other box's R3 half and the review history,
+  which this seat's own lane-map run confirms (the same 15 unknowns).

@@ -294,3 +294,33 @@ None.
 - Verdict on v0.2: **PASS**, no W. The delta changes no row, no site, no red
   control; it only folds in the other box's R3 half and the review history,
   which this seat's own lane-map run confirms (the same 15 unknowns).
+
+## Panel verdict on v1.0 — PASS (2026-11-21T06:1xZ)
+
+- Reviewed sha: `8955c8b298c44f4ee5534598402e06dbfef00f93`, the landed v1.0 on
+  `origin/master` (`git merge-base --is-ancestor 8955c8b29 origin/master` -> rc 0;
+  the holder's queue messages cite "Plan v1.0 8955c8b29 on origin/master (ancestor
+  rc 0)"). Its review-branch twin is `cdc03719521a25863b83e16f2a9d77fbab21cb0c`
+  (`review/c002-bug-round-32-planner` head before the land); the b32 files are
+  identical between the two (`git show <sha>:csi-spl-doc/doc/md/bug-round-32-plan.md
+  | sha256sum` -> `c48bbed4c5a7a3db9725dbfde91d77a1fca5cf9dbd10e22a359d89aa4456f927`
+  on both).
+- `git show 8955c8b29 --stat` -> 2 files: `bug-round-32-plan.md` +9 -6 and
+  `bug-round-32/seat-mistral.md` +41 -2 (the editor folded this seat file at its
+  branch head `f6496e726`, which carries both the v0.1 and the v0.2 verdicts,
+  and recorded the v0.2 PASS in the status/panel lines, per the holder's GO LAND
+  msg 05:56:32Z). The `## 3. The rows` .. `### 3.1` range is IDENTICAL to v0.2
+  (`diff` of the two `git show ... | sed -n` ranges -> empty): no row, site, red
+  control or fix scope changed from v0.1 through v1.0.
+- Checks re-run on the landed sha (06:1xZ): check 1 -> `git log origin/master
+  --since="$W" --oneline -E --grep='\(b32-'` now prints the plan commits
+  themselves (`1683e4b79` v0.1, `460d812e6` v0.2, `22267e0f7`/`8955c8b29` v1.0 —
+  all `docs(b32-plan, SPL-6151)`, the plan's own commits, no row commit);
+  `git ls-remote origin | grep -E 'b32-[0-9]{2}|bug-round-32'` -> the planner's
+  and this seat's review branches only. Check 2 -> `git diff --name-only
+  8b7828a6b origin/master -- <the four row files>` still empty. Check 6 ->
+  lane-map unchanged in shape (the planner's plan file is now on master; the row
+  files remain unlisted by any live lane).
+- Verdict on v1.0: **PASS**, no W. The signed plan is the landed
+  `8955c8b298c44f4ee5534598402e06dbfef00f93`; rows b32-01 and b32-02 are queued
+  (asks 3bff0adf, d29db2f7) off it.

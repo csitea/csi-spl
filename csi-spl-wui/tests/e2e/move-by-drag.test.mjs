@@ -331,6 +331,15 @@ try {
     opener: Boolean(document.querySelector(`aside[data-pane="topic"] article.msg[data-msg-id="${c}"] [data-testid=move-handle]`)),
   }), { r: seeded.reply.msg_id, c: seeded.one.msg_id })
   ok('6 in the open topic the reply has a handle, the opening card has none', paneState.reply && !paneState.opener, paneState)
+  /* spec 189 B3 (SPL-6143): both seeded topics are the viewer's own new ones,
+     pinned newest outermost, so topic two sits ABOVE topic one; opening topic
+     one lands its card at the list top (parent-section-open landCard), which
+     scrolls topic two out of view. Once the landing hold has ended (it stops
+     after the card is still, at most 2 s), scroll topic two back into view so
+     both cards are under the pointer's path. */
+  await sleep(2200)
+  await p.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: 'nearest' }), midCard(seeded.two.msg_id))
+  await sleep(300)
   const rStart = await p.$eval(handleOf(paneRow(seeded.reply.msg_id)), (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
   const ownCard = await centre(p, midCard(seeded.one.msg_id))
   const twoCard = await centre(p, midCard(seeded.two.msg_id))

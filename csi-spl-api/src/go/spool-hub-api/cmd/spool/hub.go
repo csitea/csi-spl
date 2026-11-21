@@ -1057,6 +1057,37 @@ func cmdHubResetPassword(args []string) int {
 	return 0
 }
 
+// cmdHubClearLockout ends the native sign-in lockout of one email (spec 015
+// FR-006b, SPL-6182): it drops the address's counted wrong sign-ins (rdb
+// 0308 native_login_failures), from every client address, on every hub
+// instance at once, with no redeploy. The verdict carries the count, never
+// the email. An address with nothing counted exits 0 with cleared 0.
+func cmdHubClearLockout(args []string) int {
+	fs := flag.NewFlagSet("hub-clear-lockout", flag.ContinueOnError)
+	email := fs.String("email", "", "the locked email (lower-cased)")
+	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	subj := strings.ToLower(strings.TrimSpace(*email))
+	if !strings.Contains(subj, "@") || *dsn == "" {
+		return fail(fmt.Errorf("--email (an address) and --db / $SPOOL_HUB_DB_DSN are required"))
+	}
+	ctx, stop := interruptible()
+	defer stop()
+	pg, err := store.OpenPostgres(ctx, *dsn)
+	if err != nil {
+		return fail(err)
+	}
+	defer pg.Close()
+	n, err := (auth.PgCredStore{Pool: pg.Pool()}).ClearLoginFailures(ctx, subj)
+	if err != nil {
+		return fail(err)
+	}
+	fmt.Println(action.JSON(map[string]any{"status": "cleared", "cleared": n}))
+	return 0
+}
+
 func cmdHubInvite(args []string) int {
 	fs := flag.NewFlagSet("hub-invite", flag.ContinueOnError)
 	tenant := fs.String("tenant", "", "tenant id")

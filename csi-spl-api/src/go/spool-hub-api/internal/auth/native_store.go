@@ -94,6 +94,16 @@ type CredStore interface {
 	ConsumeReset(ctx context.Context, tokenHash, newHash string, now time.Time) (subject string, err error)
 	SetPassword(ctx context.Context, subject, newHash string, now time.Time) error
 	TouchLogin(ctx context.Context, subject string, now time.Time) error
+	// LoginFailures counts the wrong native sign-ins of subject since since:
+	// fromIP those from ip, all those from every address (FR-006b). In the
+	// store, so every hub instance counts the same (SPL-6182 defect 5).
+	LoginFailures(ctx context.Context, subject, ip string, since time.Time) (fromIP, all int, err error)
+	// RecordLoginFailure stores one wrong sign-in and drops every failure
+	// older than prune, of any subject.
+	RecordLoginFailure(ctx context.Context, subject, ip string, now, prune time.Time) error
+	// ClearLoginFailures drops every counted failure of subject (the
+	// operator's clear); n is how many there were.
+	ClearLoginFailures(ctx context.Context, subject string) (n int, err error)
 }
 
 type memToken struct {
@@ -107,6 +117,7 @@ type MemoryCredStore struct {
 	mu     sync.Mutex
 	creds  map[string]Credential
 	tokens map[string]*memToken
+	fails  []memFailure
 }
 
 // NewMemoryCredStore returns an empty store.
@@ -238,3 +249,55 @@ func (m *MemoryCredStore) SetPassword(_ context.Context, subject, newHash string
 }
 
 func (m *MemoryCredStore) TouchLogin(context.Context, string, time.Time) error { return nil }
+
+type memFailure struct {
+	subject, ip string
+	at          time.Time
+}
+
+// LoginFailures counts the subject's failures since since (CredStore).
+func (m *MemoryCredStore) LoginFailures(_ context.Context, subject, ip string, since time.Time) (int, int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	fromIP, all := 0, 0
+	for _, f := range m.fails {
+		if f.subject != subject || f.at.Before(since) {
+			continue
+		}
+		all++
+		if f.ip == ip {
+			fromIP++
+		}
+	}
+	return fromIP, all, nil
+}
+
+// RecordLoginFailure appends one failure and prunes the old ones (CredStore).
+func (m *MemoryCredStore) RecordLoginFailure(_ context.Context, subject, ip string, now, prune time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	kept := m.fails[:0]
+	for _, f := range m.fails {
+		if !f.at.Before(prune) {
+			kept = append(kept, f)
+		}
+	}
+	m.fails = append(kept, memFailure{subject: subject, ip: ip, at: now})
+	return nil
+}
+
+// ClearLoginFailures drops the subject's failures (CredStore).
+func (m *MemoryCredStore) ClearLoginFailures(_ context.Context, subject string) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	kept, n := m.fails[:0], 0
+	for _, f := range m.fails {
+		if f.subject == subject {
+			n++
+			continue
+		}
+		kept = append(kept, f)
+	}
+	m.fails = kept
+	return n, nil
+}

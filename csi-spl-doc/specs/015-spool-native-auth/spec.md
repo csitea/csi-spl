@@ -107,13 +107,28 @@ Already built: `POST /api/v1/auth/logout` (010).
 - **FR-006** Rate limits, two layers (donor spec 100 T023/T024):
   (a) **per account, in the database**: at most one verification or reset mail
   per 60 s and 5 per 24 h per credential — refusals are the same `204`;
-  (b) **per client IP and per email, in process**, decided **before** any lookup,
-  answering `429 rate_limited` with `Retry-After`: login 10/15 min per email and
-  30/15 min per IP; register/forgot/reset/verify 10/15 min per IP. The client
-  IP is the `SPOOL_HUB_TRUSTED_PROXY_HOPS`-th `X-Forwarded-For` entry from
-  the right (0 = TCP peer; OQ-N6). One value for every per-IP limit (017
-  FR-SEC-006); the native-only `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` is
-  retired and the hub refuses to boot when it disagrees (`cmd/spool/hub.go`).
+  (b) **per client IP, in process**, decided **before** any lookup, answering
+  `429 rate_limited` with `Retry-After`: login 30/15 min per IP;
+  register/forgot/reset/verify 10/15 min per IP. The per-email login
+  ceiling is FR-006b below. The client IP is the
+  `SPOOL_HUB_TRUSTED_PROXY_HOPS`-th `X-Forwarded-For` entry from the right
+  (0 = TCP peer; OQ-N6). One value for every per-IP limit (017 FR-SEC-006);
+  the native-only `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` is retired and
+  the hub refuses to boot when it disagrees (`cmd/spool/hub.go`).
+- **FR-006b** The per-email login ceiling is **in the database** (rdb 0308
+  `native_login_failures`, SPL-6182 defect 5), so every hub instance counts
+  the same and an operator can clear it without a redeploy. Only a WRONG
+  sign-in is recorded (an unknown email counts like a known one, so the
+  lockout enumerates nothing); a right password records nothing. Before the
+  credential is read, the hub counts the email's failures in the last
+  `SPOOL_HUB_AUTH_NATIVE_RATE_WINDOW` (15 min): 10 from the caller's address,
+  or 100 from all addresses, answer `429 rate_limited` with `Retry-After`. A
+  stranger's guesses from their address therefore never lock the owner out
+  from theirs. A store that cannot count or record answers `503 unavailable`
+  (fail closed). Every write prunes the rows past the window. Operator clear:
+  `spool hub-clear-lockout --email <addr>` (`do_spl_native_lockout_clear`,
+  dry run by default; prd needs `OWNER_GO`), which drops the address's rows
+  from every client address. The password-change ceiling stays in process.
 - **FR-006c** Operator paths leave a working credential (SPL-6182).
   `spool hub-provision-member --password-stdin` (`do_spl_tenant_member_add
   CREATE_HUMAN=1 PASSWORD_FILE=`) writes the password and marks the email

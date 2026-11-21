@@ -17,7 +17,9 @@ is on, the answer carries `"native": true` next to the social list.
 - Emails are trimmed and lower-cased server-side.
 - A body over 8 KiB is `400 bad_request`.
 - `429 rate_limited` + `Retry-After: <seconds>` can come from any route **before**
-  anything is looked up (per IP; per email on `login`). The client IP is the
+  anything is looked up (per IP; per email on `login`, counted in the hub DB
+  so every instance answers the same, spec FR-006b; `login` answers
+  `503 unavailable` when that count cannot be read). The client IP is the
   `SPOOL_HUB_TRUSTED_PROXY_HOPS`-th `X-Forwarded-For` entry from the right (017
   FR-SEC-006; the native-only `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` is
   retired, spec OQ-N6). Render "Too many attempts —

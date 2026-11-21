@@ -154,3 +154,46 @@ func TestClientIPHops(t *testing.T) {
 		}
 	}
 }
+
+// TestLoginFailuresContract: both drivers count per address and over all
+// addresses inside the window, prune past it, and clear one subject only
+// (rdb 0308, SPL-6182 defect 5).
+func TestLoginFailuresContract(t *testing.T) {
+	for name, st := range credStores(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			sfx := fmt.Sprintf("%d", time.Now().UnixNano())
+			subj, other := "lock-"+sfx+"@example.com", "lock-other-"+sfx+"@example.com"
+			t0 := time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
+			win := 15 * time.Minute
+			rec := func(s, ip string, at time.Time) {
+				t.Helper()
+				if err := st.RecordLoginFailure(ctx, s, ip, at, at.Add(-win)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			rec(subj, "198.51.100.1", t0)
+			rec(subj, "198.51.100.1", t0.Add(time.Minute))
+			rec(subj, "203.0.113.2", t0.Add(2*time.Minute))
+			rec(other, "198.51.100.1", t0.Add(2*time.Minute))
+			if ip, all, err := st.LoginFailures(ctx, subj, "198.51.100.1", t0.Add(-win)); err != nil || ip != 2 || all != 3 {
+				t.Fatalf("count: %d %d %v, want 2 3", ip, all, err)
+			}
+			if ip, all, err := st.LoginFailures(ctx, subj, "198.51.100.1", t0.Add(30*time.Second)); err != nil || ip != 1 || all != 2 {
+				t.Fatalf("window: %d %d %v, want 1 2", ip, all, err)
+			}
+			// a write past the window prunes the old rows of every subject
+			rec(subj, "203.0.113.2", t0.Add(time.Hour))
+			if ip, all, err := st.LoginFailures(ctx, other, "198.51.100.1", t0.Add(-time.Hour)); err != nil || ip != 0 || all != 0 {
+				t.Fatalf("prune: %d %d %v, want 0 0", ip, all, err)
+			}
+			rec(other, "198.51.100.1", t0.Add(time.Hour))
+			if n, err := st.ClearLoginFailures(ctx, subj); err != nil || n != 1 {
+				t.Fatalf("clear: %d %v, want 1", n, err)
+			}
+			if _, all, err := st.LoginFailures(ctx, other, "x", t0); err != nil || all != 1 {
+				t.Fatalf("CONTROL: the clear left another subject alone: %d %v", all, err)
+			}
+		})
+	}
+}

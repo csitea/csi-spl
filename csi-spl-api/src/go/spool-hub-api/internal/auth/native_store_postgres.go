@@ -196,3 +196,27 @@ func (p PgCredStore) TouchLogin(ctx context.Context, subject string, now time.Ti
 		WHERE provider = 'password' AND subject = $1`, subject, now)
 	return err
 }
+
+// LoginFailures counts in rdb 0308 native_login_failures (FR-006b).
+func (p PgCredStore) LoginFailures(ctx context.Context, subject, ip string, since time.Time) (fromIP, all int, err error) {
+	err = p.Pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE client_ip = $2), count(*)
+		FROM native_login_failures WHERE subject = $1 AND failed_at >= $3`, subject, ip, since).Scan(&fromIP, &all)
+	return fromIP, all, err
+}
+
+// RecordLoginFailure inserts one row and prunes every row older than prune,
+// so the table holds at most one window of failures.
+func (p PgCredStore) RecordLoginFailure(ctx context.Context, subject, ip string, now, prune time.Time) error {
+	if _, err := p.Pool.Exec(ctx, `INSERT INTO native_login_failures (subject, client_ip, failed_at)
+		VALUES ($1, $2, $3)`, subject, ip, now); err != nil {
+		return err
+	}
+	_, err := p.Pool.Exec(ctx, `DELETE FROM native_login_failures WHERE failed_at < $1`, prune)
+	return err
+}
+
+// ClearLoginFailures deletes the subject's rows of rdb 0308.
+func (p PgCredStore) ClearLoginFailures(ctx context.Context, subject string) (int, error) {
+	tag, err := p.Pool.Exec(ctx, `DELETE FROM native_login_failures WHERE subject = $1`, subject)
+	return int(tag.RowsAffected()), err
+}

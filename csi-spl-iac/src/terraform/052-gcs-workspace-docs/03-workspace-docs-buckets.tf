@@ -38,7 +38,7 @@ resource "google_storage_bucket" "workspace_docs" {
   # spec 114 9.5: the daily per-workspace export under backup/ expires after
   # backup_retention_days. Versioning is on, so the age rule only turns a
   # live export into a noncurrent generation; the second rule deletes that
-  # generation 7 days later. No other prefix has a lifecycle rule.
+  # generation 7 days later.
   lifecycle_rule {
     condition {
       age            = var.backup_retention_days
@@ -54,6 +54,23 @@ resource "google_storage_bucket" "workspace_docs" {
     condition {
       days_since_noncurrent_time = 7
       matches_prefix             = ["backup/"]
+      with_state                 = "ARCHIVED"
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  # spec 190 row T1 (gap G7, owner poll fd47ab36 Q6 A): a Qto picture, media
+  # file or asset the hub's sweep deleted (or overwrote) stays a noncurrent
+  # generation; this rule deletes that generation after
+  # media_noncurrent_retention_days. ARCHIVED only: a live object is never
+  # matched, the sweep alone decides what no doc names any more. The md docs,
+  # tree.json and .history/ keep every generation.
+  lifecycle_rule {
+    condition {
+      days_since_noncurrent_time = var.media_noncurrent_retention_days
+      matches_prefix             = ["qto-media/", "qto-assets/", ".doctree/"]
       with_state                 = "ARCHIVED"
     }
     action {

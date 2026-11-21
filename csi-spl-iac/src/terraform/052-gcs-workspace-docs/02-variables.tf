@@ -66,10 +66,20 @@ variable "soft_delete_retention_seconds" {
 
 variable "backup_retention_days" {
   type        = number
-  description = "Spec 114 9.5: lifecycle on the backup/ prefix only. A daily per-workspace Qto export older than N days is deleted (its noncurrent generation goes after the soft-delete week); the md docs, tree.json, .history/ and qto-assets/ never expire."
+  description = "Spec 114 9.5: lifecycle on the backup/ prefix only. A daily per-workspace Qto export older than N days is deleted (its noncurrent generation goes after the soft-delete week); live md docs, tree.json, .history/ and qto-assets/ never expire."
 
   validation {
     condition     = var.backup_retention_days >= 7 && var.backup_retention_days <= 3650
     error_message = "backup_retention_days must be between 7 and 3650: below 7 a week of daily exports would not survive."
+  }
+}
+
+variable "media_noncurrent_retention_days" {
+  type        = number
+  description = "Spec 190 row T1: a NONCURRENT generation under qto-media/, qto-assets/ or .doctree/ (an object the hub's sweep deleted or replaced) is deleted N days after it became noncurrent. Live objects are never matched."
+
+  validation {
+    condition     = var.media_noncurrent_retention_days >= 7 && var.media_noncurrent_retention_days <= 365
+    error_message = "media_noncurrent_retention_days must be between 7 and 365: below 7 a deleted file would not outlive the owner's 7-day grace (spec 190 Q6 A)."
   }
 }

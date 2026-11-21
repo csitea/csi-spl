@@ -10,3 +10,4 @@ bucket_prefix = "csi-spl-dev-docs-"
 workspaces = ["t1", "csitea", "e2e", "demo", "ws-hidden-10", "p1proof164658", "p1proof171204", "p1site174600", "m2card1", "m2card3", "m2card4", "m1devfi", "m1deven", "spl68-093728", "spl57b1", "spl57b2", "w1paid1", "w12live1", "b5paid1", "own1stripe", "ws-hidden-05", "bj108", "csi-rel"]
 soft_delete_retention_seconds = 604800
 backup_retention_days = 30
+media_noncurrent_retention_days = 7

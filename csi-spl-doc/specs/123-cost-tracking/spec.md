@@ -418,7 +418,7 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
 
 ## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.6, plan only)
 
-**Status: P01 built (SPL-6054), P02 built (SPL-6075), P03 built (SPL-6078), P05 built (SPL-6117, the page, first in the Costs bar and the default, owner 2026-11-21 Q-9 A again, below), the other rows Planned.** Lane issue
+**Status: P01 built (SPL-6054), P02 built (SPL-6075), P03 built (SPL-6078), P05 built (SPL-6117, the page, first in the Costs bar and the default, owner 2026-11-21 Q-9 A again, below), P07 built (SPL-6118, the help section), the other rows Planned.** Lane issue
 SPL-4189, epic SPL-2373. It is the level ABOVE the near-term three-sections
 build (ask `156c8939`: Costs gets Cloud / AI tokens / Human sections), and it
 does not duplicate it.
@@ -585,7 +585,10 @@ written at the top of `store/cost_project_human.go`), and P03: **built** (SPL-60
 `hub/cost_project_mask_http_test.go`; 13.6), and P05: **built** (SPL-6117,
 `pages/reporting/costs/project.vue` over `utils/cost-project.mjs` and the
 client's `getTenantCostsProject`, e2e `tests/e2e/reporting-costs-project.test.mjs`
-at 1400 and 390 px). Where P05 predates master: since SPL-5312 (spec 143
+at 1400 and 390 px), and P07: **built** (SPL-6118, "The project's cost" in
+the Reporting help, qto doc `d29362c7` and its export
+`csi-spl-doc/doc/help/reporting.md`, served copy refreshed; the Costs section
+above it now names five labels and the project's cost as the default). Where P05 predates master: since SPL-5312 (spec 143
 `costs-redesign.md` 3.9, owner t1 41a74806, "only the following labels -
 Total, Persons, Cloud, Tokens") the bar is four labels with Total the
 default, and Spend is gone. Asked again where the page goes (t1 e2c0e6b4,

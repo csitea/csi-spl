@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -192,14 +191,5 @@ func ParseKeep(s string) map[string]bool {
 
 // ParseDropAfter reads SPOOL_AGENT_DROP_AFTER: whole minutes ("60", what
 // cnf env.box.agent_drop_after_minutes renders), or a Go duration ("1h").
-// Empty or 0 = never drop.
-func ParseDropAfter(s string) (time.Duration, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, nil
-	}
-	if m, err := strconv.Atoi(s); err == nil {
-		return time.Duration(m) * time.Minute, nil
-	}
-	return time.ParseDuration(s)
-}
+// Empty or 0 = never drop. The parse is ParseMinutes'.
+func ParseDropAfter(s string) (time.Duration, error) { return ParseMinutes(s) }

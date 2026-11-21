@@ -277,6 +277,10 @@ before="$(md5sum <"$T/crontab")"
 cron >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(md5sum <"$T/crontab")" == "$before" ]] && grep -q '^    +\* \* \* \* \* ENV=prd SWEEP_MIN_AGE=3 SWEEP_ESCALATE_AGE=5 .*unanswered-sweep-cron.sh >> .*/cron.out 2>&1 # csi-spl:unanswered-sweep$' "$T/o" &&
   pass "10. dry run: the diff, nothing written" || fail "10. dry: rc=$rc $(cat "$T/o")"
+# 10. SWEEP_CRON_LOG_DIR unset: the default log dir is spl_var_app_subdir's; a dry run creates nothing
+cron SWEEP_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" >"$T/o" 2>&1
+grep -qF ">> $T/var/unanswered-sweep/cron.out 2>&1 # csi-spl:unanswered-sweep" "$T/o" && [[ ! -e "$T/var" ]] &&
+  pass "10. default log dir: spl_var_app_subdir's, nothing created" || fail "10. default log dir: $(grep -F cron.out "$T/o")"
 cron SWEEP_CRON_ACTION=check >"$T/o" 2>&1 && fail "10. check passed with no line" || pass "10. check fails while not installed"
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 want="* * * * * ENV=prd SWEEP_MIN_AGE=3 SWEEP_ESCALATE_AGE=5 $SRC/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.lock $SRC/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:unanswered-sweep"

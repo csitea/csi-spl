@@ -23,7 +23,7 @@
 # @param SWEEP_CRON_MIN_AGE (optional) - the line's SWEEP_MIN_AGE, minutes, default 3
 # @param SWEEP_CRON_ESCALATE_AGE (optional) - the line's SWEEP_ESCALATE_AGE, minutes, default 5
 # @param SWEEP_CRON_OFFSET (optional) - minute offset, default 2 (off the desk ticks)
-# @param SWEEP_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/unanswered-sweep
+# @param SWEEP_CRON_LOG_DIR (optional) - default <SPL_VAR_APP_DIR>/unanswered-sweep (spl_run_paths)
 # @param DESK_CRON_SRC / DESK_CRON_SELF_UPDATE / DESK_CRON_TRUNK (optional) - as do_spl_desk_install_service
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_unanswered_sweep_install_cron
@@ -54,7 +54,11 @@ do_spl_unanswered_sweep_install_cron() {
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   script="$src/$SPL_ORG_APP-orc/src/bash/scripts/unanswered-sweep-cron.sh"
-  logdir="${SWEEP_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/unanswered-sweep}"
+  logdir="${SWEEP_CRON_LOG_DIR:-}"
+  if [[ -z "$logdir" ]]; then
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir unanswered-sweep || { do_log "FATAL cannot derive the unanswered sweep log dir (no tree for spl_run_paths): set SWEEP_CRON_LOG_DIR"; return 1; }
+  fi
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   if (( every == 1 )); then sched="*"; elif (( off == 0 )); then sched="*/$every"; else sched="$off-59/$every"; fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&

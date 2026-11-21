@@ -7,7 +7,6 @@
 1 csi-spl-orc/src/bash/run/spl-invite-e2e.func.sh
 1 csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh
 1 csi-spl-orc/src/bash/run/spl-spool-refresh.func.sh
-1 csi-spl-orc/src/bash/run/spl-unanswered-sweep-install-cron.func.sh
 1 csi-spl-orc/src/bash/run/spl-wd-ensure.func.sh
 2 csi-spl-utl/src/bash/run/box-disk-guard-install.func.sh
 2 csi-spl-utl/src/bash/run/box-proc-sample.func.sh

@@ -1,0 +1,19 @@
+You review machine translations of short cost labels (an expense line's name in a cost report).
+Do not use any tool, read any file or run any command. Answer from this text only.
+
+The input below is one JSON object: {"items": [{"i": <number>, "text": <the English label>, "drafts": {<locale>: <the machine translation>}}]}.
+Locales are ISO 639-1 codes (bg = Bulgarian, sr = Serbian in Cyrillic, he = Hebrew, mk = Macedonian, and so on).
+Tokens in square brackets, such as [NAME_1], [WORKSPACE_2], [EMAIL_1] or [PHONE_1], stand for names that were hidden on purpose.
+Keep every token exactly as written, once each, never translated, never removed, never added.
+
+For each draft, answer "ok" when it is a correct, natural translation of the text into that locale.
+Otherwise answer the corrected translation: at most 100 characters, the tokens kept, no HTML, no quotes around it.
+A brand or product name may stay as it is.
+
+Answer with ONE JSON object and nothing else: no prose, no code fence. It must follow this JSON schema:
+{{SCHEMA}}
+
+Answer only the items and locales of the input; "i" is the item's number from the input.
+
+Input:
+{{INPUT}}

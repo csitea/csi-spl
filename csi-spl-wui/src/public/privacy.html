@@ -51,12 +51,14 @@ stored.</p>
 <h2>3. Data from Google Calendar</h2>
 <p>If you connect your Google Calendar in Settings, spool-hub creates one new calendar in
 your Google account, named <em>Spool Hub (your workspace's name)</em>, and writes to it the
-Spool events you created or are named on, changing or deleting them there when they change
-in Spool. It also reads the events of that one calendar back: an event you add or change
+Spool events you can see: every event shared with the workspace, and the private events you
+created or are named on; another member's private event is never written. It changes or
+deletes them there when they change in Spool. It also reads the events of that one calendar back: an event you add or change
 there comes into Spool as your own private event, which only you see; its title,
 description, start, end, time zone and repeat rule are copied, and nobody is invited or
-named on it. It also reads, without changing them, the events of the other calendars you
-show in Google Calendar, so your Spool calendar shows when you are busy; they too come in as
+named on it. It also reads your other calendars (the ones you show in Google Calendar)
+read-only, for your busy times, and never changes them, so your Spool calendar shows when
+you are busy; their events too come in as
 your private events, which only you see. It never writes to, changes or deletes anything in
 any other calendar of yours. We keep the email
 address of the Google account you connected, the id of that one calendar, which Spool event

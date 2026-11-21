@@ -25,6 +25,10 @@
 #   8. round trip: the action's report and line, committed with the change,
 #      pass the gate's checker (csi-spl-iac lang-review-gct-check.py)
 #   9. the action resolves through the real ./run loader
+#  10. RED: gcloud cannot mint the token -> exit 2, its reason printed
+#  11. RED: a non-https endpoint (not 127.0.0.1) -> exit 2, no request
+#  12. round trip of an en-only change: the en-changed rows of every locale
+#      holding the key pass the gate's checker
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -49,6 +53,7 @@ chmod 600 "$KEY"
 cat >"$T/stub/gcloud" <<'EOF'
 #!/usr/bin/env bash
 echo "gcloud $* CFG=${CLOUDSDK_CONFIG:-} CRED=${CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE:-}" >>"$STUB_LOG"
+[[ -n "${FAKE_GCLOUD_ERR:-}" ]] && { echo "$FAKE_GCLOUD_ERR" >&2; exit 1; }
 [[ "$1 $2 $3" == "auth print-access-token --account=sa@csi-spl-dev.iam.gserviceaccount.com" ]] || exit 1
 [[ -d "${CLOUDSDK_CONFIG:-}" && "$CLOUDSDK_CONFIG" != "$HOME/.config/gcloud" ]] || exit 1
 echo "$FAKE_TOKEN"
@@ -195,6 +200,32 @@ eq "8. the committed report and line pass the gate's checker" 0 "$?"
     ./run -a do_spl_lang_review_gct ) >"$T/run" 2>&1
 eq "9. ./run -a do_spl_lang_review_gct resolves and passes" 0 "$?"
 grep -q 'NOT found' "$T/run" && fail "9. ... no 'NOT found'" "$(tail -3 "$T/run")" || pass "9. ... no 'NOT found'"
+
+# 10. RED: gcloud fails
+change; gct FAKE_GCLOUD_ERR="ERROR: (gcloud.auth.print-access-token) invalid_grant: account not found"
+eq "10. gcloud cannot mint the token -> exit 2" 2 "$?"
+grep -q 'gcloud: ERROR: (gcloud.auth.print-access-token) invalid_grant' "$T/o" && pass "10. ... prints gcloud's reason" || fail "10. ... reason" "$(cat "$T/o")"
+
+# 11. RED: the token never goes to a plain-http host
+change; gct LANG_GCT_ENDPOINT="http://translation.example.com"
+eq "11. an http endpoint off 127.0.0.1 -> exit 2" 2 "$?"
+grep -q 'is not https' "$T/o" && pass "11. ... says not https" || fail "11. ... says" "$(cat "$T/o")"
+grep -qF "$TOKEN" "$T/o" && fail "11. ... no token in the output" || pass "11. ... no token in the output"
+
+# 12. round trip of an en-only change
+git -C "$R" checkout -q -- . 2>/dev/null; git -C "$R" clean -qfd
+printf '{"a":{"hi":"Hello {name}","bye":"Goodbye","new":"Save"}}\n' >"$R/$L/en.json"
+rm -rf "$T/out"; mkdir -p "$T/out"
+IN_ORC_RUN=spl-lang-review-gct SNIPPET=do_spl_lang_review_gct in_orc FAKE_TOKEN="$TOKEN" GCP_SA_KEY_FILE="$KEY" \
+  LANG_GCT_TREE="$R" LANG_GCT_BASE=HEAD LANG_GCT_OUT_DIR="$T/out" \
+  LANG_GCT_ENDPOINT="http://127.0.0.1:$(cat "$T/port")" </dev/null >"$T/o" 2>&1
+eq "12. an en-only change -> exit 0" 0 "$?"
+id="$(sed -n 's/^Lang-review: gct //p' "$T/o")"
+eq "12. ... en-changed rows for fi and sv" "en-changed en-changed" "$(jq -r '[.rows[] | select(.key == "a.bye") | .why] | join(" ")' "$T/out/$id.json" 2>/dev/null)"
+cp "$T/out/$id.json" "$R/csi-spl-wui/i18n/lang-review/"
+git -C "$R" add -A; git -C "$R" -c user.name=t -c user.email=t@t commit -qm "feat(wui): en text" -m "Lang-review: gct $id"
+python3 "$APP_ROOT/csi-spl-iac/src/bash/scripts/lang-review-gct-check.py" "$R" "$L" csi-spl-wui/i18n/lang-review HEAD "$id" >"$T/chk" 2>&1
+eq "12. ... the committed report passes the gate's checker" 0 "$?"
 
 echo "spl-lang-review-gct: $fails failure(s)"
 ((fails == 0))

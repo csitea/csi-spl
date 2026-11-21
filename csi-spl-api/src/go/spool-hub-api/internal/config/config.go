@@ -336,6 +336,9 @@ type Hub struct {
 	DocsEditInstallationID   string        `env:"SPOOL_HUB_DOCS_EDIT_INSTALLATION_ID"`
 	// DocsEditGitHubRepo is "<owner>/<repo>", the one repository edits land in.
 	DocsEditGitHubRepo string `env:"SPOOL_HUB_DOCS_EDIT_GITHUB_REPO"`
+	// DocMediaDeny is the file extensions a Qto doc's media upload refuses
+	// (spec 190 C3, Q4 B); the default is the spec's list.
+	DocMediaDeny []string `env:"SPOOL_HUB_DOC_MEDIA_DENY" envSeparator:"," envDefault:"exe,msi,bat,cmd,com,scr,ps1,vbs,js,jar,apk,dmg,app,sh"`
 	// RepoSyncEnabled switches on the hub's own GitHub sync of workspace
 	// repos (spec 143 releases-projects.md row B-6b, SPL-5808). It reads
 	// through the Docs edit App (app id, installation, SPOOL_GITHUB_APP_KEY);

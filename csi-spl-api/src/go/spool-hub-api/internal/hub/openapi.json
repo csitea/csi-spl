@@ -24331,6 +24331,67 @@
         ]
       }
     },
+    "/v1/workspace/doctree/{doc}/media": {
+      "post": {
+        "operationId": "postWorkspaceDoctreeMedia",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the sent file name: the extension of a kind file (any type outside the media table); none = bin",
+            "in": "query",
+            "name": "filename",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the same bytes were already stored for this document: {name, bytes, kind, http_path}"
+          },
+          "201": {
+            "description": "stored: {name, bytes, kind, http_path}; name is <sha256>.<ext>, http_path the token path a section body names (spec 190 C2, C6)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "too_large: over the type cap (picture 5 MiB, video, audio and other files 32 MiB), declared or streamed"
+          },
+          "415": {
+            "description": "bad_media: the bytes are not the sent media type; denied_type: an extension on the deny list or an executable"
+          },
+          "429": {
+            "description": "quota: the workspace file quota"
+          }
+        },
+        "summary": "Upload a picture, video, audio or other file into a Qto document (spec 190 H1); stored in the workspace bucket, indexed under the document",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
     "/v1/workspace/doctree/{doc}/subtree": {
       "get": {
         "operationId": "getWorkspaceDoctreeSubtree",

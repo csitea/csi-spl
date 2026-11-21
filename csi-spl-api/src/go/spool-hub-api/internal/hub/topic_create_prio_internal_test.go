@@ -46,6 +46,9 @@ func TestCreatePrioSuffix(t *testing.T) {
 		{"see `prio:1`", "", 0},
 		{"see:\n```\nprio:1\n```", "", 0},
 		{"see:\n```\nprio:1", "", 0},
+		{"my text prio 2\n> quoted post prio:1", "", 0},
+		{"prio:3 ```\nprio:1", "", 0},
+		{"x prio:1 ```y prio:1 ", "", 0},
 	}
 	for _, c := range cases {
 		body, prio := createPrioSuffix(c.in)

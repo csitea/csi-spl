@@ -32,10 +32,12 @@ import (
 var createPrioRe = regexp.MustCompile(`(?i)(?:^|\s)prio(?::|-|[ \t]+)0?([1-5])\s*$`)
 
 // createPrioSuffix is body without its trailing prio token, and the token's
-// priority; (body, 0) when there is none.
+// priority; (body, 0) when there is none. The token matched in body must be
+// the one prioOwnText keeps: the NUL sentinel is eaten by a quote line or an
+// unclosed fence that holds the token, so the own text no longer ends with it.
 func createPrioSuffix(body string) (string, int) {
 	loc := createPrioRe.FindStringSubmatchIndex(body)
-	if loc == nil || !createPrioRe.MatchString(prioOwnText(body)) {
+	if loc == nil || !strings.HasSuffix(prioOwnText(body+"\x00"), body[loc[0]:]+"\x00") {
 		return body, 0
 	}
 	rest := strings.TrimRight(body[:loc[0]], " \t\r\n")

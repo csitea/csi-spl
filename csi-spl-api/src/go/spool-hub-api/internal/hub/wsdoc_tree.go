@@ -142,6 +142,7 @@ func (s *Server) routeDocTree(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /v1/workspace/doctree/{doc}/lock", s.handleDocTreeLock)
 	mux.HandleFunc("POST /v1/workspace/doctree/{doc}/images", s.handleDocTreeImagePut)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}/images/{name}", s.handleDocTreeImageGet)
+	mux.HandleFunc("POST /v1/workspace/doctree/{doc}/media", s.handleDocTreeMediaPut) // spec 190 H1
 	mux.HandleFunc("PUT /v1/workspace/doctree/{doc}/assets/{path...}", s.handleDocTreeAssetPut)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}/assets/{path...}", s.handleDocTreeAssetGet)
 	mux.HandleFunc("OPTIONS /v1/workspace/doctree", s.docTreePreflight)

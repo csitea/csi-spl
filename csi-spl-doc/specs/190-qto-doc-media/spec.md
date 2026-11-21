@@ -578,3 +578,32 @@ that carries the line.
   doc delete writes the tombstone, so the sweep removes them 7 days after a
   move. A copy step in the channel move is not built (not a row of this
   spec).
+- **G8 measured** on dev, 2026-11-21T09:41Z, n=1 per size, `POST
+  /v1/files` with no token (the hub answers 401 and stores nothing): a body
+  of 33 554 000 bytes reached the hub (401); 33 554 432 bytes (exactly 32
+  MiB) and 34 603 008 (33 MiB) got Google Frontend's own HTML 413. So on
+  Cloud Run a file of exactly 32 MiB never reaches the hub; the hub's cap
+  stays 32 MiB (Q3 A) and W1's client check should say so.
+- **H1 built**: `api/hub/wsdoc_media_av.go` (`POST
+  /v1/workspace/doctree/{doc}/media`, route at `wsdoc_tree.go` next to the
+  picture routes), tests `wsdoc_media_av_test.go`. Done tests green: a 20
+  MiB mp4 stored (heap +152 KiB for the upload), the same bytes again 200
+  with the same name; a declared 33 MiB is 413 `too_large` with its body
+  held after 64 KiB; an mp4 sent as `audio/mpeg` 415 `bad_media`; a `.pdf`
+  kind `file`; `.exe` and an ELF named `.pdf` 415 `denied_type`; an agent
+  token stores; quota 429 on the declared length. Red controls run: on the
+  route reading the body with `readAllCapped` the memory bound fails (64
+  MiB allocated); with no route every upload is 405. Differs from C2/C4:
+  - the key is `qto-media/<doc>/<sha256>.<ext>`, one per document: a
+    document's files go with it, and a sha256 from another doc names
+    nothing (C1). The same bytes in two docs are stored twice;
+  - kind `file` takes its extension from `?filename=<name>` (the body is
+    raw bytes, C2), `bin` when it has none or when it is a media extension
+    not sent as that type (so no file renders inline); the name is kept in
+    the row for W4's card;
+  - the deny list is cnf-able as `SPOOL_HUB_DOC_MEDIA_DENY` (hub config,
+    default the C3 list); the cnf row itself and its tfvars render are not
+    in this lane (terraform-adjacent);
+  - tenant `system` (the repo tree) takes no media: 404 `media_off`;
+  - the hub-side table is `docMediaTypes`; its mirror in `-doctree-api.ts`
+    and the test that reads both are W1's.

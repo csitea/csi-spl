@@ -1492,7 +1492,7 @@ Still open on `49f34bef6`:
   `TRANSLATE_CMD=measure MEASURE_N=20 ./run -a do_spl_cost_labels_translate`
   for a box with a signed-in agy; until then the action validates agy's JSON
   itself and does not pass `--json-schema` (16.6.6).
-- The first prd night run (`DRY_RUN=0`) and the prd cron install each wait
+- The first prd fill and night run (`DRY_RUN=0`) and the prd cron install each wait
   for the owner's go; dev first.
 
 #### 16.6.2 The trigger
@@ -1723,7 +1723,7 @@ Status on `49f34bef6`: 16.6.1.
 | L6 | the WUI: Expenses shows per row "machine translated, not yet reviewed", "reviewed" or "corrected by hand", the stale hand rows, the languages still waiting; removing a row says it will be made again | `csi-spl-wui/src/components/expenses/CostEntryLabels.vue`, `src/utils/cost-entries.mjs`, `i18n/locales/*.json`, the unit and e2e tests | L3 | e2e on the generated bundle: a machine row shows its mark, a hand edit flips it | a locale file missing the new key fails `i18n-parity` | landed `743f68e90`; served dev and prd |
 | L7 | the docs: this section's v1.0 and 16.5's write rule | `csi-spl-doc/specs/123-cost-tracking/spec.md` | L2..L6 | - | - | this text |
 
-The first prd night run (L4, `DRY_RUN=0`) and the prd cron install (L5)
+The first prd fill and night run (L4, `DRY_RUN=0`) and the prd cron install (L5)
 each wait for the owner's go; dev runs first (dev leads prd).
 
 #### 16.6.8 The owner's answers (all folded since v0.4)

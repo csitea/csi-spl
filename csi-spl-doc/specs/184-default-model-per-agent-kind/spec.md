@@ -1,11 +1,12 @@
 # Spec 184: Default Model per Agent Kind
 
-Status: **Draft v0.3** (2026-11-20). Lane `c-358` (`claude`, the backup for
+Status: **Draft v0.4** (2026-11-21). Lane `c-358` (`claude`, the backup for
 `specs_and_docs`: no agy CLI on this box, agy at quota on the other).
 v0.1 `3c8f2f7fd`; v0.2 folds the owner's answers to the form (poll
 `ccb3a406`, HUM-10 msg `0d33aa83`): Q1 `bo`, Q2 `bo`, Q3 `liv`, Q4 `rot`,
 Q5 `fb`; v0.3 folds the R7 review notes N1 and N2 (a-069, agy PASS on
-`9ff267a3b`). Every change is in section 9.
+`9ff267a3b`); v0.4 fills the agy, qwen and codex rows of 3.2 and 7.1.3
+(row M0, lane `c-888`). Every change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6036**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:815215f5-2d1b-47df-b465-b4ea0ee5d991` (`t1`).
 Builds on: [115 vendor split by task kind](../115-vendor-split-by-task-kind/spec.md)
@@ -143,12 +144,20 @@ they start with a top-level `csi-spl-*` directory.
 | claude | 2.1.323 | `--model <model>`: "an alias for the latest model (e.g. 'fable', 'opus', or 'sonnet') or a model's full name" | no list subcommand under `claude --help` "Commands:"; `/model` is interactive |
 | grok | 1.0.89 | `-m, --model <MODEL>` "Model ID to use" | `grok models` "List available models and exit" (not run: it may call the vendor). The CLI's own cache `<agent home>/.grok/models_cache.json` (`fetched_at` 2026-11-20T11:30Z, `grok_version` 1.0.89) lists `grok-4.7`, `grok-4.7-build-fast`, `grok-4.6`, `grok-4.5` |
 | mistral | vibe 2.26.0 | no model flag; `--agent NAME` picks a tool profile, not a model. "`VIBE_*` Override any config field (e.g. `VIBE_ACTIVE_MODEL=local`)" | the `[[models]]` entries (`name`, `alias`) of `<agent home>/.vibe/config.toml` |
-| agy | absent | UNVERIFIED (row M0) | UNVERIFIED |
-| qwen | absent | UNVERIFIED (row M0) | UNVERIFIED |
-| codex | absent | UNVERIFIED; the adapter already passes `-c key=value` overrides (`scripts/spawn-codex.sh:60`); I believe, unchecked, that `-c model="<m>"` and `-m <m>` both work (row M0) | UNVERIFIED |
+| agy | 1.5.14 (second box) | `--model` "Model for the current CLI session" (no short form; the help is Go `flag` style, `Usage of agy:`). The help does not give the value form: the agent user's `~/.gemini/antigravity-cli/settings.json` holds `"model": "Gemini 3.8 Flash (High)"`, a display name with spaces and parentheses | `agy models` "List available models" (`agy help models`: flags `-h`, `--help` only). Not run: the help does not say whether it reads a local file or asks the vendor. No model cache file under `~/.gemini/antigravity-cli/` (`settings.json` holds the current model only) |
+| qwen | 0.25.1 (second box) | `-m, --model` "Model  [string]"; also `--fallback-model` "Fallback model(s) for capacity errors (429/503/529), repeatable or comma-separated (max 3)" | no list subcommand under `qwen --help` "Commands:". The CLI keeps `~/.qwen/model-registry.json` (`source` `https://models.dev/api.json`, `fetchedAt` 2026-10-13T21:37Z, 301 entries): a public catalogue of every provider, not the models this account may use, so not a list for the live check |
+| codex | codex-cli 0.166.0 (second box) | `-m, --model <MODEL>` "Model the agent should use"; and `-c, --config <key=value>`, whose help gives the example `` -c model="o3" `` (the value is parsed as TOML) | `codex debug models` "Render the raw model catalog as JSON"; its flag `--bundled` "Skip refresh and dump only the bundled catalog shipped with this binary" (not run; the help reads that without `--bundled` it refreshes from the vendor). The CLI's own cache `~/.codex/models_cache.json` (`fetched_at` 2026-11-14T11:46Z, `client_version` 0.166.0) lists `gpt-reserve`, `gpt-6-luna`, `gpt-5.6-terra`, `gpt-5.6-luna`, `codex-auto-review` |
 
-"Absent": neither in the agent user's `~/.local/bin` nor on `PATH` on this
-box.
+The agy, qwen and codex rows were read on a second box, where all three
+are in the agent user's `~/.local/bin` (`--version` and `--help` only, with
+stdin from `/dev/null`; no model call, no list command run). On the same
+box grok is 1.0.92: `grok help models` shows only `--debug`,
+`--debug-file`, `-h` and `--leader-socket` ("Use a custom leader socket path
+instead of the default `~/.grok/leader.sock`"), so the list goes through
+the local grok leader process, and its help does not say whether that asks
+the vendor. Whether `grok models` is a free list call stays UNVERIFIED; its
+cache there (`fetched_at` 2026-11-21T13:30Z, `grok_version` 1.0.92) lists
+the same four models as above.
 
 ### 3.3 Where a model is pinned today
 
@@ -333,9 +342,9 @@ empty model:
 | claude | `--model '<m>'` | after the perm flags | measured (2.1.323 `--help`) |
 | grok | `--model '<m>'` (the long form, so the identity map reads it) | after the perm flags | measured (1.0.89 `--help`) |
 | mistral | `VIBE_ACTIVE_MODEL='<m>'` | appended to `SPAWN_EXEC_PREFIX` (the `env ...` prefix, `scripts/spawn-mistral.sh:63`) | measured (vibe 2.26.0 `--help`: `VIBE_*` overrides any config field); `<m>` must be a `[[models]]` name or alias |
-| codex | `-c model='"<m>"'` | in `SPAWN_EXTRA_FLAGS` | UNVERIFIED (M0) |
-| agy | none until M0 | n/a | UNVERIFIED (M0) |
-| qwen | none until M0 | n/a | UNVERIFIED (M0) |
+| codex | `--model '<m>'` (the long form of `-m`, so the identity map reads it) | after the perm and extra flags | measured (codex-cli 0.166.0 `--help`: `-m, --model <MODEL>`); `-c model="<m>"`, the help's own example, needs TOML quoting, so `--model` is used |
+| agy | `--model '<m>'` | after the perm flags | flag measured (1.5.14 `--help`); the value form is open: agy's own settings store a display name (`Gemini 3.8 Flash (High)`), which the syntax of 7.1.2 refuses. Until that is decided, agy stays `""` (UNVERIFIED for the validator, 7.1.1) |
+| qwen | `--model '<m>'` (the long form of `-m`) | after the perm flags | measured (0.25.1 `--help`: `-m, --model`) |
 
 #### 7.1.4 Lifetime record (row L2)
 
@@ -410,3 +419,21 @@ Folds the R7 review notes (a-069, agy PASS on `9ff267a3b`), spec text only:
 - N2: the reading routes are named in row H1, row A1 and 7.1.5:
   `PUT /v1/boxes/{box}/agent-models/{vendor}` (a box reports a reading) and
   `GET /v1/tenant/agent-model-readings` (the WUI reads them).
+
+### 9.2 Changes from v0.3
+
+Row M0 (lane `c-888`), sections 3.2 and 7.1.3 only, measured from
+`--version` and `--help` on a second box (no model call, no list command
+run):
+
+- 3.2: the agy (1.5.14), qwen (0.25.1) and codex (codex-cli 0.166.0) rows
+  cite their help lines and their list source: agy `agy models` (not run,
+  unknown whether it asks the vendor), qwen none (its models.dev registry
+  is not the account's list), codex `codex debug models --bundled`
+  (offline by its help) and its `models_cache.json`. The note under the
+  table says that `grok models` (1.0.92) goes through the local leader and
+  its help does not show a free call: UNVERIFIED.
+- 7.1.3: codex `--model '<m>'` (was `-c model='"<m>"'`, unverified), qwen
+  `--model '<m>'`, agy `--model '<m>'` with its value form open: agy's
+  settings hold a display name with spaces and parentheses, outside the
+  syntax of 7.1.2. That contract question goes to the spec's editor.

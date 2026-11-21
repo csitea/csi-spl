@@ -161,6 +161,8 @@ change in either place shows up in the other at once.
 ### 5.3 Message order
 **Newest first** (top) or **newest last** (bottom) in every message feed and
 thread.
+The topic list follows it too: the topics with unread messages and a topic
+you just started sit at that edge ([the topic list](message-levels-and-topics.md)).
 
 ### 5.4 Omnibox position
 The omnibox in the **top** bar, or docked at the **bottom** (on tablets and

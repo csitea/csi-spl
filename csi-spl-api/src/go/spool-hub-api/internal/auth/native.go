@@ -757,7 +757,7 @@ func (n *native) handleReset(w http.ResponseWriter, r *http.Request) {
 func (n *native) signIn(ctx context.Context, w http.ResponseWriter, r *http.Request, subject string, revoke bool) bool {
 	cred, err := n.store.GetCredential(ctx, subject)
 	if err != nil {
-		n.log.Warn().Err(err).Msg("auth.native_reset_sign_in credential (non-fatal)")
+		n.log.Warn().Err(err).Msg("auth.native_sign_in credential (non-fatal)")
 		return false
 	}
 	now := n.h.now()
@@ -767,7 +767,7 @@ func (n *native) signIn(ctx context.Context, w http.ResponseWriter, r *http.Requ
 		hum, landed, err := n.h.registerLanding(ctx, Identity{Provider: ProviderPassword, Subject: subject, Email: subject,
 			Name: cred.DisplayName}, "")
 		if err != nil {
-			n.log.Warn().Err(err).Str("email", digest(subject)).Msg("auth.native_reset_sign_in registrar (non-fatal)")
+			n.log.Warn().Err(err).Str("email", digest(subject)).Msg("auth.native_sign_in registrar (non-fatal)")
 			return false
 		}
 		sess.HumanID, sess.Tenant = hum, landed
@@ -775,7 +775,7 @@ func (n *native) signIn(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	}
 	if revoke {
 		if err := n.h.RevokeSessions(ctx, sess.HumanID, now); err != nil {
-			n.log.Error().Err(err).Msg("auth.native_reset_sign_in revoke")
+			n.log.Error().Err(err).Msg("auth.native_sign_in revoke")
 			return false
 		}
 	}
@@ -784,7 +784,7 @@ func (n *native) signIn(ctx context.Context, w http.ResponseWriter, r *http.Requ
 		return false
 	}
 	if err := n.store.TouchLogin(ctx, subject, now); err != nil {
-		n.log.Warn().Err(err).Msg("auth.native_reset_sign_in touch (non-fatal)")
+		n.log.Warn().Err(err).Msg("auth.native_sign_in touch (non-fatal)")
 	}
 	http.SetCookie(w, n.h.sessionCookie(tok, int(n.h.cfg.SessionTTL.Seconds())))
 	event := "auth.login_ok_after_verify"

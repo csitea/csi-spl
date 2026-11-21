@@ -531,24 +531,37 @@ func provisionHumanTx(ctx context.Context, tx pgx.Tx, in ProvisionInput, email s
 // provisionCredentialTx writes the native email+password credential, email
 // verified so no mail is sent, and the (password, email) identity native
 // login resolves, so a first native login lands on hum with the membership
-// already there. An existing credential (an earlier self-service register
-// that never confirmed its mail, SPL-6182) takes the operator's password and
-// becomes verified, and every session of hum ends, as the operator reset
-// does. It answers CredCreated or CredReplaced, and whether this verified it.
+// already there. An existing credential takes the operator's password and
+// every session of hum ends, as the operator reset does: an earlier
+// self-service register that never confirmed its mail (SPL-6182) becomes
+// verified, and a VERIFIED credential's password is overwritten too (before
+// SPL-6182 a seat left any existing credential as it was; FR-006c). It
+// answers CredCreated or CredReplaced, and whether this verified it.
 func provisionCredentialTx(ctx context.Context, tx pgx.Tx, hum, email, pwHash, name string, now time.Time) (string, bool, error) {
-	var created, wasUnverified bool
-	err := tx.QueryRow(ctx, `WITH old AS (
-			SELECT email_verified_at FROM password_credentials WHERE provider = 'password' AND subject = $1 FOR UPDATE)
-		INSERT INTO password_credentials
+	// The existing row is read (and locked) in its own statement: a FOR UPDATE
+	// CTE read only from RETURNING runs after the upsert touched the row and
+	// Postgres skips a row the same command modified, so it read empty and
+	// every replace was reported as created (R7 W1).
+	created, wasUnverified := false, false
+	var verifiedAt *time.Time
+	err := tx.QueryRow(ctx, `SELECT email_verified_at FROM password_credentials
+		WHERE provider = 'password' AND subject = $1 FOR UPDATE`, email).Scan(&verifiedAt)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		created = true
+	case err != nil:
+		return "", false, err
+	default:
+		wasUnverified = verifiedAt == nil
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO password_credentials
 			(provider, subject, password_hash, display_name, email_verified_at, created_at, updated_at)
 		VALUES ('password', $1, $2, NULLIF($3, ''), $4, $4, $4)
 		ON CONFLICT (provider, subject) DO UPDATE SET password_hash = EXCLUDED.password_hash,
 			email_verified_at = COALESCE(password_credentials.email_verified_at, EXCLUDED.email_verified_at),
 			display_name = COALESCE(password_credentials.display_name, EXCLUDED.display_name),
-			updated_at = EXCLUDED.updated_at
-		RETURNING NOT EXISTS (SELECT 1 FROM old), COALESCE((SELECT email_verified_at IS NULL FROM old), false)`,
-		email, pwHash, name, now).Scan(&created, &wasUnverified)
-	if err != nil {
+			updated_at = EXCLUDED.updated_at`,
+		email, pwHash, name, now); err != nil {
 		return "", false, err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO human_identities (provider, subject, human_id, email, email_verified, created_at)

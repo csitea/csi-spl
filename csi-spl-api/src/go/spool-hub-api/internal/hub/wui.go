@@ -612,6 +612,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		s.wuiRefuse(ctx, c, f, rf)
 		return
 	}
+	rt.createPrio = s.createPrioCut(ctx, c, m) // SPL-6145, topic_create_prio.go: before the envelope signs the body
 	env, tok, status, detail := s.wuiEnvelope(ctx, c.tenant, m, rt.signing, rt.channel, f.ParentTaskID)
 	if tok != "" {
 		s.wuiRefuse(ctx, c, f, &frameRefusal{tok, status, detail})
@@ -651,8 +652,10 @@ func (s *Server) wuiAfterStore(ctx context.Context, c *wuiConn, rt wuiRouted, en
 	}
 	s.noteMentionNonMembers(ctx, c.tenant, rt.channel, c.member, m) // SPL-2419
 	s.noteMentionAgentsHumansOnly(ctx, c.tenant, rt.channel, m)     // SPL-2423
-	s.ownerPrioWord(ctx, c.tenant, c.member, m, rt.noteToSelf)      // SPL-5524
-	s.topicLoopHuman(ctx, c.tenant, rt, m)                          // spec 182 4.2 step 1, topic_loop_fire.go
+	if !s.createPrioSet(ctx, c, m, rt.createPrio) {                 // SPL-6145: the number the poster wrote beats the prio word
+		s.ownerPrioWord(ctx, c.tenant, c.member, m, rt.noteToSelf) // SPL-5524
+	}
+	s.topicLoopHuman(ctx, c.tenant, rt, m) // spec 182 4.2 step 1, topic_loop_fire.go
 }
 
 // wuiRefuse logs one line for a browser send the hub did not store and
@@ -726,6 +729,8 @@ type wuiRouted struct {
 	fallback *replyFallback
 	// noteToSelf: the post tags only its author and reaches no agent (note_to_self.go)
 	noteToSelf bool
+	// createPrio: the priority a new topic's first post ends with (topic_create_prio.go); 0 = none
+	createPrio int
 }
 
 // wuiRoute checks the channel / parent tags and the poster's rights and

@@ -1,6 +1,11 @@
 # 150 Topic-list controls and discussion priority
 
-Version v1.6 (2026-11-18): only an owner of the operator workspace orders
+Version v1.7 (2026-11-21): a new topic's first post that ends with
+`prio:N` (also `prio:0N`, `prio-N`, `prio-0N`, `prio N`; N 1..5) sets the
+topic's priority, and the token is not stored (section 3.3.1; the owner, t1
+0f457318 msg `c94e2d29`, SPL-6145). The default stays 3.
+
+v1.6 (2026-11-18): only an owner of the operator workspace orders
 the agents' work. An operator issue linking another workspace's topic
 follows a set there only when its setter owns the operator workspace, as
 the spawn queue does; that workspace's own owner sets its topic and its own
@@ -360,6 +365,36 @@ holds (panel.md section 1, one row per claim with its command).
 - **The topic card shows a small badge** when a priority other than the
   default 3 is set (panel D11): `P1`, `P2`, `P4`, `P5`, so a list sorted by
   priority shows why. `wui/components/MessageCard.vue`.
+
+#### 3.3.1 A priority typed with the new topic (v1.7, SPL-6145)
+
+The owner (t1 0f457318, msg `c94e2d29`): "I should be able during the
+creation of a topic to just write prio:01, prio:02, prio:3, prio-04, or prio
+5 at the end which will override the default prio-03 for the new topic".
+
+- **Where**: the hub's browser send (`hub/wui.go` `wuiSend`, code
+  `hub/topic_create_prio.go`), before the envelope, so every WUI page that
+  opens a topic is one place. A box or CLI post is signed by its box; the
+  hub does not change its body, and it sets nothing.
+- **The token**: at the very end of the post, after white space or a line
+  break, any case: `prio:N`, `prio:0N`, `prio-N`, `prio-0N`, `prio N`, N
+  1..5. Anything else is plain text and the default 3 stays: `prio:0`,
+  `prio:6`, `prio:10`, `prio: 2`, the token mid-text or glued to a word, in
+  a `> ` quote line or in code, or a post that is the token alone.
+- **Only the topic's first post** (a resend of that same `msg_id` too); a
+  reply never changes the priority, and keeps its text as typed.
+- **Who**: as the PUT, the poster being the starter: a member session, not
+  a demo visitor, and "Who can archive topics" (`mayArchiveByPolicy`). A
+  poster who may not set it keeps the token as text.
+- **Then**: the post is stored without the token, and the topic gets the
+  priority as on the PUT: `followTopicPriority` (issues and lanes),
+  `priorityToOperator`, the `topic_priority` frame. The owner's prio word
+  (spec 157 section 4.1) does not run on that post: the number written is
+  the one meant (before, "prio:04" from the owner set 1, "prio" being a
+  prio word).
+- Tests: `hub/topic_create_prio_internal_test.go` (the parser, every form
+  and the rejects), `hub/topic_create_prio_test.go` (a browser send: the
+  stored body, the priority, a reply, the policy, the prio word).
 
 ### 3.4 Part 4: the orchestrator serves priority 1 first
 

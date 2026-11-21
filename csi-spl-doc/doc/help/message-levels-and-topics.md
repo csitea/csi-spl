@@ -104,6 +104,8 @@ Spool makes it effortless to switch between starting a new topic and continuing 
 | **Start a NEW topic in channel** | Click anywhere in the Middle Feed. | The Omnibox placeholder reverts to *"Message #channel..."*. Sending creates a **Level 1** topic card. |
 | **Reply to a specific topic without clicking** | Type `in: <topic_name> <message>` in the Omnibox. | Spool routes the message directly into that topic as a **Level 2** line. |
 
+**Give a new topic its priority as you write it**: end the topic's first message with `prio:1` to `prio:5` (`prio:01`, `prio-2` and `prio 3` work too, in any case). Spool removes the word from the message and the topic gets that priority instead of the default 3. A reply never changes a topic's priority: use the topic's **prio:** bar for that.
+
 ---
 
 <a id="ws-doc-16c245c0-249c-41ad-8981-ce36c0692a1f"></a>

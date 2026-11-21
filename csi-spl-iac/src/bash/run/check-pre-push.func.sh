@@ -218,6 +218,13 @@ _pp_wui_tree_id() {  # <tree>
     | sha1sum | cut -c1-40
 }
 
+# The orc map's outside paths (changed-tests.sh --ext-paths), space separated.
+_pp_orc_external() {  # <tree>
+  local m="$1/csi-spl-orc/src/bash/tests/changed-tests.sh"
+  [[ -r "$m" ]] && bash "$m" --ext-paths 2>/dev/null | paste -sd' ' -
+  return 0
+}
+
 # The paths each part reads: they select it AND key its green cache.
 _pp_paths() {  # <part>
   case "$1" in
@@ -229,7 +236,11 @@ _pp_paths() {  # <part>
     wui-vendor) echo "csi-spl-wui csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" ;;
     wui-e2e)    echo "csi-spl-wui csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh csi-spl-orc/src/bash/scripts/wui-e2e-mock-api.py" ;;
     api)        echo "csi-spl-api csi-spl-rdb .version" ;;
-    orc)        echo "csi-spl-orc" ;;
+    # orc: plus the paths outside it that an orc test reads by a name no key
+    # of the orc map carries (a terraform step dir): the map's own list,
+    # changed-tests.sh --ext-paths (SPL-6198: a step-030-only push ran no orc
+    # test and turned wf 10 red on tf-030-import-existing-cloud-run, twice)
+    orc)        echo "csi-spl-orc${_PP_TOP:+ $(_pp_orc_external "$_PP_TOP")}" ;;
     orc-features) echo "csi-spl-orc csi-spl-api/src/bash/use-go-toolchain.sh" ;;
     iac-cross)  _ppx_paths ;;
     cnf)        echo "csi-spl-cnf/csi-spl csi-spl-iac/src/tpl csi-spl-iac/cnf/tpl-gen.ref csi-spl-iac/src/bash/run/tpl-gen.func.sh csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh $_PP_TH_ENTRY_FN" ;;

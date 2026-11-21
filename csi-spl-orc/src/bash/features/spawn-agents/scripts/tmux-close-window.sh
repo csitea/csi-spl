@@ -94,6 +94,7 @@ SPOOL_ENV_NO_BINS=1 spool_env_resolve
 # classify_screen (the idle test of the --rebirth closer).
 # shellcheck source=../lib/agent-state.inc.sh
 . "$(dirname "$_sp_lib")/agent-state.inc.sh" || { echo "tmux-close-window: cannot load agent-state.inc.sh" >&2; exit 2; }
+# shellcheck disable=SC2034 # BOX_TAG: an_tag (agent-state.inc.sh) reads it
 BOX_USER="$SPOOL_BOX_USER" BOX_TMUX_SOCKET="$SPOOL_TMUX_SOCKET" BOX_TAG="${SPOOL_BOX_TAG:-}"
 DEFER=0
 RETIRE=0
@@ -268,34 +269,8 @@ pane_exists() { pane_row "${1:-}" >/dev/null 2>&1; }
 
 pane_window_name() { pane_row "${1:-}" 2>/dev/null | cut -d'|' -f4- ; }
 
-# Box tag ("bx1: CLE-07 wip") is DISPLAY only — strip it before reading an id
-# out of a window name. No-op on an untagged box / undeployed helper.
-# BOX_TAG is SPOOL_BOX_TAG; BOX_TAGS (optional) lists every tag a box may show.
-an_strip() {
-  local n="${1-}" head rest id tail
-  case "$n" in
-    '> '*|'? '*|'! '*)
-      rest="$(an_strip "${n:2}")"
-      if printf '%s' "$rest" | grep -E "^${SPOOL_AGENT_ID_RX}([[:space:]]|\$)" >/dev/null; then
-        id="${rest%% *}"; tail="${rest#"$id"}"; tail="${tail# }"
-        case "$tail" in '>'|'?'|'!') tail="" ;; '> '*|'? '*|'! '*) tail="${tail:2}" ;; esac
-        printf '%s %s%s' "$id" "${n:0:1}" "${tail:+ $tail}"; return 0
-      fi ;;
-  esac
-  if [[ "$n" =~ ^${SPOOL_PARTICIPANT_RX}@[a-z0-9][a-z0-9-]{0,31}(([[:space:]].*)?)$ ]]; then
-    printf '%s%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"; return 0   # "<ID>@<box>" (specs/058)
-  fi
-  case "$n" in *": "*) ;; *) printf '%s' "$n"; return 0 ;; esac
-  head="${n%%": "*}"; rest="${n#*": "}"
-  printf '%s' "$head" | grep -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' >/dev/null || { printf '%s' "$n"; return 0; }
-  if [ -n "${BOX_TAG:-}" ] && [ "$head" = "$BOX_TAG" ]; then an_strip "$rest"; return 0; fi
-  if [ -n "${BOX_TAGS:-}" ]; then
-    case " $BOX_TAGS " in *" $head "*) an_strip "$rest"; return 0 ;; esac
-  elif printf '%s' "$head" | LC_ALL=C grep -qE '^[a-z][a-z0-9]{2}$'; then
-    an_strip "$rest"; return 0
-  fi
-  printf '%s' "$n"
-}
+# an_strip (the box tag is DISPLAY only: strip it before reading an id out of
+# a window name) is agent-state.inc.sh's, sourced above: its one copy.
 
 pane_window_target() {
   local row

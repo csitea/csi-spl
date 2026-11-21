@@ -1,0 +1,11 @@
+Monthly salary [NAME_1]
+Travel of [NAME_2] and [NAME_3], then [NAME_4] alone
+Not a word start: XTesti, _Testi, 9Testi
+Laptop for [NAME_5] and Ивану
+Hosting [WORKSPACE_1] and [WORKSPACE_2]-extra
+Invoice [EMAIL_1], again [EMAIL_1], [EMAIL_2]
+Call [PHONE_1] or [PHONE_2] or [PHONE_3]
+Not phones: 2026-10-12, version 1.3.0, 25 items, 12040 123 4567, +0 12
+Phone then digit [PHONE_4] and phone then letter [PHONE_2]x
+[OTHER_1], [OTHER_2]
+Plain label with no data

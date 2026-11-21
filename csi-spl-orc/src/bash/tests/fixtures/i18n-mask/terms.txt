@@ -1,0 +1,7 @@
+# The shared fixture of the bash mask (do_spl_i18n_mask) and its Go port
+# (csi-spl-api .../internal/i18nmask). SYNTHETIC: made-up names, example.org.
+name Testi Henkilö
+name Testi
+name Иван Тестов
+workspace fixture-acme-ws
+other Projekti Kuu

@@ -1,0 +1,11 @@
+Monthly salary Testi Henkilö
+Travel of testi henkilö and Testi Henkilölle, then TESTI alone
+Not a word start: XTesti, _Testi, 9Testi
+Laptop for Иван Тестов and Ивану
+Hosting fixture-acme-ws and Fixture-Acme-WS-extra
+Invoice anna.fixture@example.org, again anna.fixture@example.org, Anna.Fixture@Example.org
+Call +358 40 123 4567 or 040 123 4567 or 0888 123 456
+Not phones: 2026-10-12, version 1.3.0, 25 items, 12040 123 4567, +0 12
+Phone then digit 040 123 45678 and phone then letter 040 123 4567x
+Projekti Kuussa, projekti kuu
+Plain label with no data

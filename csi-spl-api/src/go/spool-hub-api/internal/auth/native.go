@@ -382,7 +382,10 @@ func (n *native) handleVerify(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := n.ctx(r)
 	defer cancel()
 	accept := func(pwHash string) bool { return VerifyPassword(pwHash, req.Password) == nil }
-	switch err := n.store.ConsumeVerification(ctx, tokenHash(t), n.h.now(), accept); {
+	switch subject, err := n.store.ConsumeVerification(ctx, tokenHash(t), n.h.now(), accept); {
+	case err == nil && subject != "" && n.signIn(ctx, w, r, subject, false):
+		// SPL-6182: the click proved the mailbox and the password, so the
+		// person lands signed in, as after a reset.
 	case err == nil:
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, ErrVerifyPasswordMismatch):
@@ -464,7 +467,7 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := n.ctx(r)
 	defer cancel()
-	cred, ok := n.checkPassword(ctx, w, email, req.Password)
+	cred, ok := n.checkPassword(ctx, w, r, email, req.Password)
 	if !ok {
 		return
 	}
@@ -503,10 +506,19 @@ func (n *native) loginEmailAllowed(w http.ResponseWriter, r *http.Request, email
 		n.limit(w, "login-email-all:"+email, 10*n.cfg.LoginPerEmail))
 }
 
+// refundLogin takes back the per-email attempts of a login whose password
+// was right: only a wrong password counts toward the lockout (SPL-6182, prd
+// 2026-11-21: ten right-password tries on an unverified credential locked
+// the person out).
+func (n *native) refundLogin(r *http.Request, email string) {
+	n.lim.Refund("login-email:" + email + "|" + n.ip(r))
+	n.lim.Refund("login-email-all:" + email)
+}
+
 // checkPassword answers the credential of email when password matches it
 // and it may sign in; otherwise it has written the refusal. An unknown email
 // costs the same hash as a wrong password and answers the same 401 (FR-005).
-func (n *native) checkPassword(ctx context.Context, w http.ResponseWriter, email, password string) (Credential, bool) {
+func (n *native) checkPassword(ctx context.Context, w http.ResponseWriter, r *http.Request, email, password string) (Credential, bool) {
 	var cred Credential
 	err := ErrCredNotFound
 	if email != "" {
@@ -527,12 +539,30 @@ func (n *native) checkPassword(ctx context.Context, w http.ResponseWriter, email
 		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "email or password")
 		return cred, false
 	}
+	n.refundLogin(r, email)
 	// Past the password on purpose: this branch enumerates nothing.
 	if !cred.Verified() && n.cfg.VerifyRequired {
-		writeErr(w, http.StatusForbidden, ErrTokEmailUnverified, "confirm your email first")
+		n.unverifiedLogin(ctx, w, r, cred)
 		return cred, false
 	}
 	return cred, true
+}
+
+// unverifiedLogin answers a right password on an unverified credential: 403
+// email_unverified, and a fresh confirmation link mailed under the account
+// floor (SPL-6182: the old answer mailed nothing, so a person whose first
+// link had expired was stuck). The link carries the credential's own hash,
+// which this request just proved, so FR-015 holds. verification_sent says
+// whether a mail left this hub.
+func (n *native) unverifiedLogin(ctx context.Context, w http.ResponseWriter, r *http.Request, cred Credential) {
+	plain, _, sent := n.mint(ctx, TokenVerify, cred.Subject, cred.PasswordHash, n.h.now(),
+		n.mailLocale(ctx, cred.Subject, cred.Locale, n.h.RequestLocale(r)))
+	body := map[string]any{"error": ErrTokEmailUnverified, "detail": "confirm your email first", "verification_sent": sent}
+	if n.cfg.DebugTokens && plain != "" {
+		body["debug_token"] = plain
+	}
+	n.log.Info().Str("email", digest(cred.Subject)).Bool("sent", sent).Msg("auth.native_login_unverified")
+	writeJSON(w, http.StatusForbidden, body)
 }
 
 // registerLogin names the human of a verified credential through the
@@ -708,21 +738,23 @@ func (n *native) handleReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n.log.Info().Str("email", digest(subject)).Msg("auth.native_password_reset")
-	if n.signInAfterReset(ctx, w, r, subject) {
+	if n.signIn(ctx, w, r, subject, true) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// signInAfterReset opens a session for the person who just set a password
+// signIn opens a session for the person who just set a password
 // with a reset link (owner HUM-10, t1 ea0af569 msg 2a57fe20: "open link, set
 // new password, land in the app"), from the self-service forgot mail and the
 // admin's alike. The link proved the mailbox, the same proof a login's
 // verified credential rests on. Every OTHER session of the human ends first
 // (revoke.go), so the new one is the only one. It answers 200 with the login
 // body; false = nothing written, the caller answers 204 (the password is set
-// either way, so a refused sign-in never undoes the reset).
-func (n *native) signInAfterReset(ctx context.Context, w http.ResponseWriter, r *http.Request, subject string) bool {
+// either way, so a refused sign-in never undoes the reset). A confirmed
+// email link signs in the same way (SPL-6182) with revoke false: confirming
+// an address is no reason to end the person's other sessions.
+func (n *native) signIn(ctx context.Context, w http.ResponseWriter, r *http.Request, subject string, revoke bool) bool {
 	cred, err := n.store.GetCredential(ctx, subject)
 	if err != nil {
 		n.log.Warn().Err(err).Msg("auth.native_reset_sign_in credential (non-fatal)")
@@ -741,9 +773,11 @@ func (n *native) signInAfterReset(ctx context.Context, w http.ResponseWriter, r 
 		sess.HumanID, sess.Tenant = hum, landed
 		n.h.bindTenant(ctx, &sess)
 	}
-	if err := n.h.RevokeSessions(ctx, sess.HumanID, now); err != nil {
-		n.log.Error().Err(err).Msg("auth.native_reset_sign_in revoke")
-		return false
+	if revoke {
+		if err := n.h.RevokeSessions(ctx, sess.HumanID, now); err != nil {
+			n.log.Error().Err(err).Msg("auth.native_reset_sign_in revoke")
+			return false
+		}
 	}
 	tok, err := signToken(n.h.sessionKey, sess)
 	if err != nil {
@@ -753,7 +787,11 @@ func (n *native) signInAfterReset(ctx context.Context, w http.ResponseWriter, r 
 		n.log.Warn().Err(err).Msg("auth.native_reset_sign_in touch (non-fatal)")
 	}
 	http.SetCookie(w, n.h.sessionCookie(tok, int(n.h.cfg.SessionTTL.Seconds())))
-	n.log.Info().Str("email", digest(subject)).Str("tenant", sess.Tenant).Msg("auth.login_ok_after_reset")
+	event := "auth.login_ok_after_verify"
+	if revoke {
+		event = "auth.login_ok_after_reset"
+	}
+	n.log.Info().Str("email", digest(subject)).Str("tenant", sess.Tenant).Msg(event)
 	n.h.recordAuth(r, sess.Tenant, sess.HumanID, "sign_in", ProviderPassword)
 	writeJSON(w, http.StatusOK, n.loginAnswer(ctx, sess, "/"))
 	return true

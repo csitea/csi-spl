@@ -106,10 +106,10 @@ func (p PgCredStore) IssueToken(ctx context.Context, t TokenIssue) (bool, error)
 	return true, tx.Commit(ctx)
 }
 
-func (p PgCredStore) ConsumeVerification(ctx context.Context, tokenHash string, now time.Time, accept func(pwHash string) bool) error {
+func (p PgCredStore) ConsumeVerification(ctx context.Context, tokenHash string, now time.Time, accept func(pwHash string) bool) (string, error) {
 	tx, err := p.Pool.Begin(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	var subject, pwHash string
@@ -122,32 +122,32 @@ func (p PgCredStore) ConsumeVerification(ctx context.Context, tokenHash string, 
 		 WHERE t.token_hash = $1
 		   FOR UPDATE OF t, c`, tokenHash).Scan(&subject, &pwHash, &expires, &consumed, &verified)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrTokenInvalid
+		return "", ErrTokenInvalid
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	if verified != nil {
-		return nil
+		return "", nil
 	}
 	if consumed != nil {
-		return ErrTokenInvalid
+		return "", ErrTokenInvalid
 	}
 	if !expires.After(now) {
-		return ErrTokenExpired
+		return "", ErrTokenExpired
 	}
 	if !accept(pwHash) {
-		return ErrVerifyPasswordMismatch
+		return "", ErrVerifyPasswordMismatch
 	}
 	if _, err := tx.Exec(ctx, `UPDATE password_credentials SET email_verified_at = $2, password_hash = $3, updated_at = $2
 		WHERE provider = 'password' AND subject = $1`, subject, now, pwHash); err != nil {
-		return err
+		return "", err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE email_verification_tokens SET consumed_at = $2
 		WHERE provider = 'password' AND subject = $1 AND consumed_at IS NULL`, subject, now); err != nil {
-		return err
+		return "", err
 	}
-	return tx.Commit(ctx)
+	return subject, tx.Commit(ctx)
 }
 
 func (p PgCredStore) ConsumeReset(ctx context.Context, tokenHash, newHash string, now time.Time) (string, error) {

@@ -84,7 +84,11 @@ type CredStore interface {
 	// the MAILBOX; accept proves the clicker is also the person who chose
 	// that password, else anyone could register a victim's address with
 	// their own password and have the victim's click verify it.
-	ConsumeVerification(ctx context.Context, tokenHash string, now time.Time, accept func(pwHash string) bool) error
+	//
+	// subject is the verified address only when THIS call checked the
+	// password and verified it ("" on a repeat click), so a caller may sign
+	// that person in (SPL-6182) and never on a stale token alone.
+	ConsumeVerification(ctx context.Context, tokenHash string, now time.Time, accept func(pwHash string) bool) (subject string, err error)
 	// ConsumeReset sets newHash, marks the email verified and consumes every
 	// live reset token of the credential. Returns the subject.
 	ConsumeReset(ctx context.Context, tokenHash, newHash string, now time.Time) (subject string, err error)
@@ -177,31 +181,31 @@ func (m *MemoryCredStore) consumeAll(kind, subject string) {
 	}
 }
 
-func (m *MemoryCredStore) ConsumeVerification(_ context.Context, tokenHash string, now time.Time, accept func(pwHash string) bool) error {
+func (m *MemoryCredStore) ConsumeVerification(_ context.Context, tokenHash string, now time.Time, accept func(pwHash string) bool) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	t, ok := m.tokens[tokenHash]
 	if !ok || t.kind != TokenVerify {
-		return ErrTokenInvalid
+		return "", ErrTokenInvalid
 	}
 	c := m.creds[t.subject]
 	if c.Verified() {
-		return nil
+		return "", nil
 	}
 	if t.consumed {
-		return ErrTokenInvalid
+		return "", ErrTokenInvalid
 	}
 	if !t.expires.After(now) {
-		return ErrTokenExpired
+		return "", ErrTokenExpired
 	}
 	if !accept(t.pwHash) {
-		return ErrVerifyPasswordMismatch
+		return "", ErrVerifyPasswordMismatch
 	}
 	c.EmailVerifiedAt = &now
 	c.PasswordHash = t.pwHash
 	m.creds[t.subject] = c
 	m.consumeAll(TokenVerify, t.subject)
-	return nil
+	return t.subject, nil
 }
 
 func (m *MemoryCredStore) ConsumeReset(_ context.Context, tokenHash, newHash string, now time.Time) (string, error) {

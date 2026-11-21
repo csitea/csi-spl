@@ -82,15 +82,16 @@ func TestNativeLoginLandsInInvitedTenant(t *testing.T) {
 	if got := r.post(t, c, "register", map[string]string{"email": "invitee@example.com", "password": pwA}); got.code != http.StatusAccepted {
 		t.Fatalf("register: %d %s", got.code, got.raw)
 	}
-	if got := r.post(t, c, "email/verify", map[string]string{"token": r.lastToken(t, "email_verification"), "password": pwA}); got.code != http.StatusNoContent {
+	if got := r.post(t, c, "email/verify", map[string]string{"token": r.lastToken(t, "email_verification"), "password": pwA}); got.code != http.StatusOK {
 		t.Fatalf("verify: %d %s", got.code, got.raw)
 	}
 	got := r.post(t, c, "login", map[string]string{"email": "invitee@example.com", "password": pwA})
 	if got.code != http.StatusOK || got.body["t"] != "t1" {
 		t.Fatalf("login: %d %s, want t=t1", got.code, got.raw)
 	}
-	if len(r.reg.tenants) != 1 || r.reg.tenants[0] != "t1" {
-		t.Fatalf("registrar tenants %v, want [t1]", r.reg.tenants)
+	// The verify signs in (SPL-6182) with no tenant asked; the login asks t1.
+	if len(r.reg.tenants) != 2 || r.reg.tenants[1] != "t1" {
+		t.Fatalf("registrar tenants %v, want [<verify> t1]", r.reg.tenants)
 	}
 }
 

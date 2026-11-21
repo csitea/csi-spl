@@ -56,3 +56,22 @@ func TestWindow(t *testing.T) {
 		t.Fatal("the window never slid")
 	}
 }
+
+// TestWindowRefund: a refunded attempt no longer counts (SPL-6182: a right
+// password gives back its login attempt); a refund of an empty key is a no-op.
+func TestWindowRefund(t *testing.T) {
+	now := time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
+	w := edge.NewWindow(time.Minute, func() time.Time { return now })
+	w.Refund("none")
+	for i := 0; i < 5; i++ {
+		if ok, _ := w.Allow("k", 2); !ok {
+			t.Fatalf("attempt %d refused although each was refunded", i)
+		}
+		w.Refund("k")
+	}
+	w.Allow("k", 2)
+	w.Allow("k", 2)
+	if ok, _ := w.Allow("k", 2); ok {
+		t.Fatal("the third unrefunded attempt must be refused")
+	}
+}

@@ -104,6 +104,17 @@ func (l *Window) Allow(key string, max int) (ok bool, retry time.Duration) {
 	return true, 0
 }
 
+// Refund takes back the newest attempt recorded for key, for an attempt
+// that proved it was no guess (SPL-6182: a right password must not count
+// toward a lockout).
+func (l *Window) Refund(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if v := l.hits[key]; len(v) > 0 {
+		l.hits[key] = v[:len(v)-1]
+	}
+}
+
 // Limits is cnf hub.env SPOOL_HUB_EDGE_* (config.Hub). A limit of 0 is off.
 type Limits struct {
 	TrustedProxyHops  int

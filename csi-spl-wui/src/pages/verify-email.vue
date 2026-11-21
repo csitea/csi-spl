@@ -9,6 +9,10 @@
      and have the owner's click verify it. The hub refuses a verify without
      the password the link was issued for, and consumes nothing on a miss.
 
+     A 200 (SPL-6182) confirms the email AND signs the person in: the page
+     adopts the session and goes into the app, like /reset-password. A 204
+     (a repeat click, or a sign-in the hub could not open) confirms only.
+
      Served from 200.html (not prerendered), so the token is read through
      useSettledQuery like /login's query. -->
 <template>
@@ -31,7 +35,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { NativeResult } from '~/utils/auth-client.mjs'
+import { safeRedirect, type NativeResult } from '~/utils/auth-client.mjs'
+import { useSessionStore, type SessionClaims } from '~/stores/session'
 import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useAuthCopy } from '~/composables/useAuthCopy'
@@ -42,6 +47,7 @@ const auth = useAuthClient()
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const copy = useAuthCopy()
+const session = useSessionStore()
 
 const route = useRoute()
 const router = useRouter()
@@ -67,6 +73,14 @@ async function submit() {
     if (route.query.token !== undefined) {
       const { token: _drop, ...rest } = route.query
       void router.replace({ query: rest })
+    }
+    if (out.ok && out.status === 200 && out.data && (out.data as SessionClaims).p) {
+      const { redirect: to, ...claims } = out.data as SessionClaims & { redirect?: string }
+      session.adopt(claims)
+      held.value = ''
+      password.value = ''
+      await navigateTo(localePath(safeRedirect(to || '/')))
+      return
     }
     if (out.ok) {
       state.value = 'ok'

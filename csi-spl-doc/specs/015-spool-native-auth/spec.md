@@ -47,8 +47,9 @@ The same `202` comes back whether or not the address already has a credential.
 
 ### US2 — Confirm email (P1)
 **Given** the link, **when** the WUI posts the token, **then** the credential
-becomes verified (`204`) with the password sent in the `register` call that
-minted the link. A second click is `204` too; an unknown, consumed or
+becomes verified with the password sent in the `register` call that
+minted the link, and the person is signed in (`200` + session, SPL-6182). A
+second click is `204` with no session; an unknown, consumed or
 superseded token is `401 verification_token_invalid`; an expired one
 `410 verification_token_expired`. A new link is requested by posting
 `register` again (there is no separate resend route, FR-015).
@@ -59,7 +60,11 @@ superseded token is `401 verification_token_invalid`; an expired one
 answers `200` with the session claims. A wrong password, an unknown email and
 a credential without a password all answer the **same** `401 invalid_credentials`.
 A right password on an unverified credential answers `403 email_unverified`
-(checked after the password, so it enumerates nothing). A Registrar refusal is
+(checked after the password, so it enumerates nothing) and mails a fresh
+confirmation link under the FR-006a floor (`verification_sent` in the body,
+SPL-6182: a person whose first link had expired had no way through but a
+resend control). A right password never counts toward the per-email
+ceiling of FR-006b; only a wrong one does. A Registrar refusal is
 `403 not_allowed`.
 
 ### US4 — Forgot / reset password (P1)

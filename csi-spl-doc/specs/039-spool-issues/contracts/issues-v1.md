@@ -131,13 +131,18 @@ description line only).
   a topic or channel delete, the retention sweep), its links go; an issue
   left with none links its tenant's default discussion (owner msg 81a43a7f,
   "B"). A topic merged into another moves its links there.
-- The default (`issue_discussion_default`, Go `store.IssueDiscussionDefault`):
-  in t1 the owner's topic `fcf09921-8f21-4518-a117-f8ddb41bfff5`; in every
-  other workspace its "Issue backlog" topic (owner msg e3c349e2, "A"), a #lobby
-  card the hub posts (it is signed, so SQL cannot) under msg_id = task_id =
-  the first 128 bits of sha256(`spool-issue-backlog:<tenant>`), at start, on
-  every retention sweep and on a link to it. rdb 0194 linked every issue that
-  existed to it.
+- The default (`issue_discussion_default`, Go `store.IssueDiscussionDefault`,
+  bash `spl_lane_issue_default_topic`): every workspace's "Issue backlog"
+  topic (owner msg e3c349e2, "A"), a #lobby card the hub posts (it is signed,
+  so SQL cannot) under msg_id = task_id = the first 128 bits of
+  sha256(`spool-issue-backlog:<tenant>`), at start, on every retention sweep
+  and on a link to it. rdb 0194 linked every issue that existed to it.
+- t1 uses its "Issue backlog" topic like every workspace since rdb 0310
+  (SPL-6212; owner HUM-10, t1 438d96a1, msg 564f9723, "B"). Until then t1's
+  default was the owner's topic `fcf09921-8f21-4518-a117-f8ddb41bfff5`; 0310
+  moved every t1 issue linked there that is not `done` or `diss` (222 on prd,
+  2026-11-21) to the backlog topic, and the done and diss ones keep their
+  fcf09921 link as history.
 - Add: `{"discussion":"<topic id | 8-hex short id | a link carrying /t/<id>>"}`.
   A short id must match exactly one topic of the tenant
   (`ambiguous_discussion` otherwise, never a guess); the actor must be able to

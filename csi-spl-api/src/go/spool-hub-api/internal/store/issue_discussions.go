@@ -33,13 +33,8 @@ const (
 	DiscussionGone     = "gone"     // no message left: the link opens the "no longer exists" page
 )
 
-// IssueDiscussionDefaultT1 is t1's default discussion: the owner's topic
-// (msg 62f96f94, "For all of the existing issues, they could link to this
-// discussion").
-const IssueDiscussionDefaultT1 = "fcf09921-8f21-4518-a117-f8ddb41bfff5"
-
-// IssueBacklogBody is the "Issue backlog" topic the hub posts in a tenant
-// other than t1 (owner msg e3c349e2, "A").
+// IssueBacklogBody is the "Issue backlog" topic the hub posts in every
+// tenant, t1 included (owner msg e3c349e2, "A"; t1 since rdb 0310, SPL-6212).
 const IssueBacklogBody = "**Issue backlog**\n\n" +
 	"The discussion every issue of this workspace links to when it has no other: " +
 	"the issues that existed before issues had to link to a discussion, " +
@@ -58,12 +53,10 @@ func IssueBacklogID(tenant string) string {
 }
 
 // IssueDiscussionDefault is what an issue with no other discussion links to,
-// the twin of rdb 0194 issue_discussion_default: t1 the owner's topic, every
-// other tenant its "Issue backlog" topic.
+// the twin of rdb issue_discussion_default: the tenant's "Issue backlog"
+// topic. t1 too since rdb 0310 (SPL-6212; owner HUM-10, t1 438d96a1, msg
+// 564f9723, "B"): before it, t1's default was its topic fcf09921.
 func IssueDiscussionDefault(tenant string) string {
-	if tenant == "t1" {
-		return IssueDiscussionDefaultT1
-	}
 	return IssueBacklogID(tenant)
 }
 

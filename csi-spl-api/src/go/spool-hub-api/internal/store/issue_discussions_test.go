@@ -130,8 +130,8 @@ func TestIssueDiscussions0194(t *testing.T) {
 			t.Fatalf("%s: SQL %s / %s, Go %s / %s", tn, backlog, def, IssueBacklogID(tn), IssueDiscussionDefault(tn))
 		}
 	}
-	if IssueDiscussionDefault("t1") != IssueDiscussionDefaultT1 || IssueDiscussionDefault("acme") != IssueBacklogID("acme") {
-		t.Fatal("the default: t1 the owner's topic, any other tenant its backlog topic")
+	if IssueDiscussionDefault("t1") != IssueBacklogID("t1") || IssueDiscussionDefault("acme") != IssueBacklogID("acme") {
+		t.Fatal("the default: every tenant's backlog topic, t1 included (rdb 0310)")
 	}
 
 	tn := newTenant(t, pg)

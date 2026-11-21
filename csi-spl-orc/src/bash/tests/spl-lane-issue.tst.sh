@@ -70,7 +70,7 @@ spl_desk_issue_run() {
   [[ "$1" == link && "${LINK_FAIL:-0}" == 1 ]] && { echo "FATAL spool issue link as c-002: hub refused: unknown_discussion"; return 1; }
   if [[ "$1" == create && "${REFUSE_TOPIC:-0}" == 1 ]]; then
     local j; for ((j = 1; j <= $#; j++)); do [[ "${!j}" == --description-file ]] && { j=$((j + 1)); break; }; done
-    [[ "$(sed -n 2p "${!j}")" == /t/fcf09921-8f21-4518-a117-f8ddb41bfff5 ]] || { echo "FATAL spool issue create as c-002: hub refused: unknown_discussion"; return 1; }
+    [[ "$(sed -n 2p "${!j}")" == /t/8af34b9c-d2e7-e4e9-65b1-9b765c75ca9d ]] || { echo "FATAL spool issue create as c-002: hub refused: unknown_discussion"; return 1; }
   fi
   local ds=""; [[ -n "${RESOLVE:-}" ]] && ds=", \"discussions\": [{\"task_id\": \"$RESOLVE\"}]"
   [[ "$1" == create ]] && echo "{\"op\": \"create\", \"result\": {\"key\": \"SPL-42\", \"epic\": \"SPL-1\"$ds}}"
@@ -597,16 +597,16 @@ run AGENT_ID=c-126 BRIEF="$T/short.md" DESC_COPY="$T/s.md" RESOLVE=0a1b2c3d-0000
 [[ $rc -eq 0 && "$(sed -n 2p "$T/s.md.create")" == /t/0a1b2c3d ]] && [[ "$(sed -n 2p "$T/s.md.update")" == /t/0a1b2c3d-0000-4000-8000-000000000001 ]] &&
   grep -q '^post|0a1b2c3d-0000-4000-8000-000000000001|0|' "$T/calls.log" && ! grep -q 'WARN brief' "$T/o" &&
   pass "short id: the card sends /t/0a1b2c3d; the resolved full id goes into the card and the post-back" || fail "short id (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
-# (3) No topic: the tenant's default (t1: fcf09921), one WARN naming the brief, no post-back.
+# (3) No topic: the tenant's default (t1: its Issue backlog topic 8af34b9c, rdb 0310), one WARN naming the brief, no post-back.
 printf '# Brief: no topic at all\n\nJust do it.\n%s\n' "$ES" >"$T/none.md"
 run AGENT_ID=c-127 BRIEF="$T/none.md" DESC_COPY="$T/n.md" DRY_RUN=0
-[[ $rc -eq 0 && "$(sed -n 2p "$T/n.md.create")" == /t/fcf09921-8f21-4518-a117-f8ddb41bfff5 ]] &&
+[[ $rc -eq 0 && "$(sed -n 2p "$T/n.md.create")" == /t/8af34b9c-d2e7-e4e9-65b1-9b765c75ca9d ]] &&
   [[ "$(grep -c "WARN brief $T/none.md names no topic" "$T/o")" == 1 ]] && ! grep -q '^post|' "$T/calls.log" &&
   [[ "$(cat "$S/c-127/lifetime/issue")" == SPL-42 ]] &&
-  pass "no topic: links t1's default fcf09921, one WARN line names the brief, no post-back" || fail "no topic (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
+  pass "no topic: links t1's default, its backlog topic 8af34b9c, one WARN line names the brief, no post-back" || fail "no topic (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
 # A topic the hub does not resolve: one WARN naming the brief, then the default; the placement stands.
 run AGENT_ID=c-128 BRIEF="$T/short.md" DESC_COPY="$T/u.md" REFUSE_TOPIC=1 DRY_RUN=0
-[[ $rc -eq 0 && "$(grep -c '^create|' "$T/calls.log")" == 2 && "$(sed -n 2p "$T/u.md.create")" == /t/fcf09921-8f21-4518-a117-f8ddb41bfff5 ]] &&
+[[ $rc -eq 0 && "$(grep -c '^create|' "$T/calls.log")" == 2 && "$(sed -n 2p "$T/u.md.create")" == /t/8af34b9c-d2e7-e4e9-65b1-9b765c75ca9d ]] &&
   [[ "$(grep -c "WARN brief $T/short.md: topic /t/0a1b2c3d did not resolve in t1 (unknown_discussion)" "$T/o")" == 1 ]] &&
   [[ "$(cat "$S/c-128/lifetime/issue")" == SPL-42 ]] &&
   pass "an unresolved topic: one WARN naming the brief, the create again on the default, the lane keeps SPL-42" || fail "unresolved (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"

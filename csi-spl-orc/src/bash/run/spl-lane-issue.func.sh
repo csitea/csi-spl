@@ -479,11 +479,10 @@ spl_lane_issue_more_topics() {
 }
 
 # spl_lane_issue_default_topic -> the tenant's default discussion, the twin
-# of rdb 0194 issue_discussion_default: t1 the owner's topic, any other
-# tenant its "Issue backlog" topic (owner msgs 62f96f94, e3c349e2).
+# of rdb issue_discussion_default: its "Issue backlog" topic (owner msg
+# e3c349e2), t1 too since rdb 0310 (SPL-6212, owner msg 564f9723 "B").
 spl_lane_issue_default_topic() {
   local h
-  [[ "$TENANT_ID" == t1 ]] && { printf 'fcf09921-8f21-4518-a117-f8ddb41bfff5'; return 0; }
   h="$(printf 'spool-issue-backlog:%s' "$TENANT_ID" | sha256sum | cut -c1-32)"
   printf '%s-%s-%s-%s-%s' "${h:0:8}" "${h:8:4}" "${h:12:4}" "${h:16:4}" "${h:20:12}"
 }

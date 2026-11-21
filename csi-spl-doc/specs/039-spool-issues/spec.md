@@ -258,6 +258,10 @@ rdb `0047_issues.sql`: `issue_counters`, `issue_labels`, `issues`; RLS in the
 0021 fail-closed form plus the operator policy on all three. Applied to dev
 and prd with `do_spl_db_bootstrap` before any hub that reads them rolled.
 
+Every issue links to one or more discussions (rdb 0194); one with no other
+links its workspace's "Issue backlog" topic, t1 included since rdb 0310
+(SPL-6212): [issues-v1](contracts/issues-v1.md) section 2.2.
+
 ## Changing a workspace's prefix (SPL-3570)
 
 A key shows the workspace's CURRENT prefix (`issue_counters.prefix`), so a

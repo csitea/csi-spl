@@ -267,7 +267,8 @@ got="$(PROJ_PATH="$PROJ_ROOT" bash -c 'source "$PROJ_PATH/src/bash/run/spl-spawn
   pass "phase: the class pick with no or an unknown phase takes no class ($got)" || fail "classes by phase: $got"
 
 # 9. the lane's discussion (SPL-5860) ----------------------------------------------
-BACKLOG=fcf09921-8f21-4518-a117-f8ddb41bfff5 OWN=11111111-2222-4333-8444-555555555555
+# t1's default: its "Issue backlog" topic since rdb 0310 (SPL-6212)
+BACKLOG=8af34b9c-d2e7-e4e9-65b1-9b765c75ca9d OWN=11111111-2222-4333-8444-555555555555
 { iss SPL-30 todo 1 '["bug"]' | jq -c --arg b "$BACKLOG" '.discussions = [{task_id: $b}]'
   iss SPL-31 todo 2 '["bug"]' | jq -c --arg b "$BACKLOG" --arg o "$OWN" '.discussions = [{task_id: $b}, {task_id: $o}]'
 } | jq -s '{result: {issues: .}}' >"$T/issues-9.json"

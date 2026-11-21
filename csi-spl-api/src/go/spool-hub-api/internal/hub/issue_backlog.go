@@ -11,14 +11,15 @@ import (
 )
 
 // The "Issue backlog" discussion (rdb 0194, SPL-1593; owner HUM-10, t1
-// fcf09921, msg e3c349e2, "A"): in every workspace other than t1, the
-// discussion an issue links to when it has no other (the issues from before
-// the rule, and an issue whose last discussion was deleted). It is a SIGNED
-// message, so the hub posts it, as it posts the #public notice: one #lobby
-// card under msg_id = task_id = store.IssueBacklogID(tenant), which never
-// expires. PostIssueBacklogs runs at start and on every retention sweep for
-// every tenant whose issues link to it while it is missing; a link to it
-// made through the hub posts it at once (checkDiscussion).
+// fcf09921, msg e3c349e2, "A"; t1 too since rdb 0310, SPL-6212): in every
+// workspace, the discussion an issue links to when it has no other (the
+// issues from before the rule, and an issue whose last discussion was
+// deleted). It is a SIGNED message, so the hub posts it, as it posts the
+// #public notice: one #lobby card under msg_id = task_id =
+// store.IssueBacklogID(tenant), which never expires. PostIssueBacklogs
+// runs at start and on every retention sweep for every tenant whose issues
+// link to it while it is missing; a link to it made through the hub posts
+// it at once (checkDiscussion).
 
 // PostIssueBacklogs posts the backlog topic into every tenant that links to
 // it and lacks it, and answers how many it stored.

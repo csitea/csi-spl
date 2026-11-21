@@ -276,3 +276,70 @@ Row files: `csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh`,
   (all other cited lines exist and match on both refs).
 - W1 must be folded into the next plan version before signing; no row, red
   control, vendor, kind, batch or R7 assignment changes with it.
+
+---
+
+## v0.2 review — PASS on `14de348c08bc46d64106e739a10a6b2b48ba1bfa` (2026-11-21 07:41Z..07:50Z)
+
+Asked by the dispatch holder (c-002@sat, msg 3f91600a, 07:40:56Z): re-check every pin of
+v0.2, sign it in this file, report in the same review-line form.
+
+- Branch: `git ls-remote origin review/c002-bug-round-33-planner` ->
+  `14de348c08bc46d64106e739a10a6b2b48ba1bfa`; `git merge-base --is-ancestor
+  5cb0ae4e5eba40227ec51573b72e496e31c59ab9 FETCH_HEAD` -> yes (fast-forward);
+  `git diff --stat 5cb0ae4e5 14de348c0` -> 1 file, +25 -14, only
+  `csi-spl-doc/doc/md/bug-round-33-plan.md`. Plan file at v0.2: sha256
+  `22854be2c03e71d7f0d6b5398dbde083e80cbd107b06ce4579c1452134f34263`, 303 lines, read whole.
+- **W1 fixed, re-verified on `5083f4cf9` and on origin/master (`3174e591a`), identical on
+  both refs.** `git show <sha>:csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh | sed -n
+  '135p;138p;145p'` -> `if [[ -n "$place" ]]; then ...` / the `spl_spawn_place_brief` read /
+  `fi`: the block is `:135-145`, `spl_spawn_place_brief` at `:138`; `:131` is the seat block.
+  `lane-issue.inc.sh:578` -> `li_gate() {`, `:612` -> `}`, the file is 612 lines (`:616` is
+  past EOF). Row 01's sites cell now reads `:135-145` (`:138`) and `lane-issue.inc.sh:578-612`.
+- **The two further pins fixed.** `li_review_lane` is `:543-554` (`:543` `li_review_lane() {`,
+  `:547` the `Issue-Role: shared` grep, `:551` the review-heading grep, `:554` `}`; `:555` is
+  empty, so v0.1's `:555` was wrong). `spl-box-quota.func.sh:329` ->
+  `ak="a$(printf '%s' "$t" | sha256sum | cut -c1-12)"` (v0.1's `:331` was wrong); `:258` is the
+  same derivation in the cred fetcher; `spl_box_quota_claude_key` spans `:280-312` (`:280` its
+  doc comment, `:304` the argv hop, `:308` the temp+mv).
+- Every other cited pin re-printed with `git show <sha>:<file> | sed -n <N>p` on both refs:
+  `lane-issue.inc.sh:393-407` (`li_hub_read`, `:393`..`:407`), `spl-lane-issue.func.sh:353`
+  (the filed key goes to `lifetime/brief.md` only) and `:501-523`
+  (`spl_lane_issue_discussion`), `spl-issue-status.func.sh:30`, `topic_loop_fire.go:416`
+  (`CountTopicLoopFire`), `topic_loop_postgres.go:180-194`, `topic_loop_memory.go:172-173`,
+  `test-agent-name-shape.sh:89`, `blog.test.mjs:329`, `spl-spawn-queue.tst.sh` = 2294 lines /
+  102 `do_spl_spawn_enqueue` lines, and c-655's brief
+  `/var/spool-hub/dispatch/briefs/c002-s143-cwv-v02-owner-answers.md:1-9` with `Issue:
+  SPL-6086` at `:5` (lines 5-7 = Issue/Class/Kind). All match.
+- Check 1 re-run: `W=2026-11-21T07:57:34+02:00` (`8955c8b29`);
+  `git log origin/master --since="$W" --oneline -E --grep='\(b33-' | wc -l` -> `0`;
+  `git ls-remote origin | grep -E 'b33-[0-9]{2}|bug-round-33'` -> only the planner's and this
+  seat's review branches; the briefs dir holds only the two c002 b33 briefs; `git worktree
+  list | grep -E 'b33|bug-round-33'` -> c-725 (planner, `14de348c0`), m-729 (this seat), c-307
+  (HEAD `656ab3389` merely holds the hex `b338`).
+- Check 2 re-run: `git diff --name-only 5083f4cf9 origin/master -- <the ten files>` -> empty at
+  07:47Z (origin/master then `3174e591a`): no drift.
+- Check 3 re-run: rc01/rc02 sha256 unchanged (`0d16044948a4…`, `3576b3fc05ce…`);
+  `bash rc01.sh 5083f4cf9` -> `wrong=3`, exit 1; `RC01_PLANT=1 bash rc01.sh 5083f4cf9` ->
+  `wrong=0`, exit 0; `bash rc02.sh 5083f4cf9` -> `wrong=4`, exit 1; on origin/master rc01 ->
+  `wrong=3` exit 1, rc02 -> `wrong=4` exit 1. Both RED on both refs, green half green.
+- R1/R2 re-run: `git show 5083f4cf9:csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh | grep -c
+  spl-box-quota` -> `0`; the row-01 grep -> the same 12 files (8 tests + 4 non-tests); the gate
+  grep -> `test-lane-issue.sh`, `test-lane-issue-remote-desk.sh`, `spl-lane-issue.tst.sh` (plus
+  lib/run files); the row-02 grep -> `spl-box-pick.tst.sh`, `rotate-weekly-first.tst.sh`,
+  `weekly-limit-alert.tst.sh` + `spawn-window.sh`.
+- Check 6 re-run: lane-map on the 4 row files -> exit 4, no live lane lists a row file (18
+  `unknown:` lanes now, was 16 at 07:21Z: c-668, c-697 added); queue -> `14 queued, 0 placing`;
+  the 12 queued/held slugs' briefs grepped for the four row files -> 0 hits.
+- Check 7 re-run: `git log origin/master --oneline -E --grep='\(b32-0[12]-|\(b31-02-'` ->
+  `b7b10a2fd` (b32-01, SPL-6157), `1fadfb77b` (b32-02, SPL-6159), `0e9efb6c2` (b31-02, SPL-6150)
+  all landed, matching v0.2's header and section 4.
+- N1-N7 folded: the header names b32-01's landing; section 4 names the After:-hold (b30-03) and
+  bare-`Author:` (b31-01) entries and the `/tmp` sweep; section 8 records this seat's FAIL on
+  v0.1 (msg 4ccd49c8, seat `d948f650e`) and each N's fold. The diffstat touches only the plan
+  file: no row's files, red control or fix scope changed.
+
+**Verdict on v0.2 `14de348c08bc46d64106e739a10a6b2b48ba1bfa`: PASS (2026-11-21T07:50Z). No W.**
+Signed by m-729@sat. Notes: none new — the live-lane count moved (16 -> 18 `unknown:` lanes,
+13 -> 14 queued) and origin/master moved to `3174e591a` since the v0.1 review, all with no
+row file owned or named and no row-file drift: expected live drift, not a defect.

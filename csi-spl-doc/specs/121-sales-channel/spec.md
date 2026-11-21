@@ -1,6 +1,7 @@
 # 121 Sales channel: selling Csitea.net services on spool-hub.ai
 
-Version **v1.5** (2026-11-21): edited as [spec 181](../181-buy-private-workspace-vm/spec.md) v0.3 (Decided, `abd0a5eef`) section 2 says, its row B10 (SPL-6124). R6 (price = measured tokens x 1.20 + own cost + fixed-cost slice, + 29%) is replaced for every workspace by spec 181 section 0.2 (owner form `b97a036d`): the `metered` plan, the x 1.20 token buffer and the fixed-cost slice go, because we never resell tokens (spec 181 Q-10 A, msg `504cb94f`). R7 (card top-up, stop at zero) is kept and carries the VM cost + 33% (Q-9 A). Changed: 1.3, 1.4, 3, 7, 8, 8.1, 9, 12.4.
+Version **v1.6** (2026-11-21): section 7's pricing gate keeps a closed month of billing data and the capacity measurements and drops the token gap condition (owner msg `82b949e5`, form `389e73c1` B; spec 181 Q-10 A, no token sold), as [spec 181](../181-buy-private-workspace-vm/spec.md) v0.5 says. Changed: 7 only.
+v1.5 (2026-11-21): edited as [spec 181](../181-buy-private-workspace-vm/spec.md) v0.3 (Decided, `abd0a5eef`) section 2 says, its row B10 (SPL-6124). R6 (price = measured tokens x 1.20 + own cost + fixed-cost slice, + 29%) is replaced for every workspace by spec 181 section 0.2 (owner form `b97a036d`): the `metered` plan, the x 1.20 token buffer and the fixed-cost slice go, because we never resell tokens (spec 181 Q-10 A, msg `504cb94f`). R7 (card top-up, stop at zero) is kept and carries the VM cost + 33% (Q-9 A). Changed: 1.3, 1.4, 3, 7, 8, 8.1, 9, 12.4.
 v1.4 (2026-10-10): folded the owner's answers to Q-C1 and Q-C2 (msg 31913cc1, csitea ebfb10dc).
 v1.3 (2026-10-10): the live credits counter (section 8.1, R9), from the owner's posts in csitea topic ebfb10dc (msgs 057db9f5 and 259e8711), written by c-876. 057db9f5 restates the price of section 7 and the top-up of section 8 (R6, R7) and confirms them; nothing there changes. New: where a member sees the balance, how often it refreshes, what it is computed from, its warning threshold, its cost in the first-paint bundle, its tests, and the owner's rule that the counter informs and never nudges spend. No owner question is open.
 
@@ -366,11 +367,17 @@ store: there is no Redis in the estate. Every limit is cnf per embed
   - No token line, ever: `usage_events` rows record the tokens, at list
     price, for the counter and for capacity, and are never charged (127
     7.2).
-- **No price before the measurements** (55309d31, post 4e2e378b): no price
-  is published, on `/services` (9) or at checkout (8), until spec 122's
-  pricing gate holds (its section 9: a closed month of billing data, the
-  capacity measurements, the token gap). Until then the checkout answers
-  409 `pricing_not_ready`.
+- **No price before the measurements** (55309d31, post 4e2e378b; narrowed
+  in v1.6): no price is published, on `/services` (9) or at checkout (8),
+  until spec 122's pricing gate holds for two of its conditions (its
+  section 9): a closed month of billing data and the capacity measurements.
+  Until then the checkout answers 409 `pricing_not_ready`. The token gap
+  condition (122's M4 row) is dropped: no token is sold or priced (spec 181
+  Q-10 A, msg `504cb94f`), so there is no buffer to measure it against.
+  Owner HUM-10, t1 `b12055b5`, msg `82b949e5` (2026-11-21), verbatim:
+  "Poll: 389e73c1-faa4-47b6-8848-50af29e9d094 Answer: B — Keep it, drop
+  only the token gap". Spec 122 section 9 still lists the M4 condition in
+  its gate; that edit is 122's editor's.
 - **Unpaid visitors** are metered to the workspace that embeds them; for
   csitea.net that is Csitea's own workspace, so the owner sees what the sales
   channel costs.

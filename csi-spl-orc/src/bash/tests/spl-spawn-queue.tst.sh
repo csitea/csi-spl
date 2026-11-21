@@ -2339,6 +2339,43 @@ out="$(c6167 noissue specs_and_docs '' $'- scope: the topic\n' none 0)" &&
 out="$(c6167 hasrole specs_and_docs "$I6167" $'- scope: the topic\n' none 0 $'Issue-Role: owner\n')" &&
   pass "SPL-6167 hasrole: CONTROL a brief that has an Issue-Role: line already is unchanged, no card read" || fail "SPL-6167 hasrole: $out"
 
+# SPL-6181 (bug round 34 row 02, rc02; b33-01 R7 N3): the enqueue writes
+# `Issue-Role: shared` on a line of its own. A brief whose last line has no
+# newline got the line glued to it, so the ^-anchored greps (the enqueue's
+# guard, li_review_lane at the exit gate) missed it and a re-queue appended a
+# second one; RED on 31a976ffb (nonl, lastln, twice). CONTROL nl: a brief that
+# ends in a newline gets the line and no blank line before it.
+L6181='You write a SPEC change, no code.'
+n6181=0
+b6181() {  # NAME NL(1|0) -> the brief path; NL=0 drops the final newline
+  local b="$T/briefs/docs6181-$1.md"
+  printf '# Lane brief: spec 135 v0.3 (spec lane, docs only)\n\n%s\nIssue: SPL-6086\nClass: feature\nKind: specs_and_docs\n\n%s' "$ES" "$L6181" >"$b"
+  [[ "$2" == 0 ]] || printf '\n' >>"$b"
+  printf '%s\n' "$b"
+}
+q6181() {  # NAME -> enqueue a new ask of placement docs6181-NAME; rc 0 when it queued
+  local id out
+  n6181=$((n6181 + 1)); id="$(printf '6181%04x-0000-4000-8000-%012d' "$n6181" "$n6181")"
+  put "$id" c-002@box-desk "$OWNER_TOPIC" "SPAWN REQUEST docs6181-$1"
+  out="$(on pc do_spl_spawn_enqueue ASK_ID="${id:0:8}" SPAWN_CLASS=bug SPAWN_PLACE="claude:docs6181-$1" \
+    LI_HUB_CARD_CMD="$T/bin/card6167" CARD_LOG="$T/card6181.log" CARD_SCOPE=$'- scope: the brief of lane c-259\n' 2>&1)"
+  grep -q "^OK ask ${id:0:8} queued" <<<"$out" || { echo "q6181 $1: $out"; return 1; }
+}
+b="$(b6181 nl 1)"; out="$(q6181 nl)" &&
+  [[ "$(tail -n2 "$b")" == "$L6181"$'\nIssue-Role: shared' && "$(grep -ciE '^Issue-Role:[ ]*shared$' "$b")" == 1 ]] &&
+  pass "SPL-6181 nl: CONTROL a brief ending in a newline gets Issue-Role: shared as its next line, no blank line" ||
+  fail "SPL-6181 nl: $(tr '\n' '|' <"$b") | $out"
+b="$(b6181 nonl 0)"; out="$(q6181 nonl)" &&
+  [[ "$(grep -ciE '^Issue-Role:[ ]*shared$' "$b")" == 1 && -z "$(tail -c1 "$b")" ]] &&
+  pass "SPL-6181 nonl: a brief with no final newline gets Issue-Role: shared on a line of its own" ||
+  fail "SPL-6181 nonl: $(tr '\n' '|' <"$b") | $out"
+[[ "$(grep -cxF -- "$L6181" "$b")" == 1 ]] &&
+  pass "SPL-6181 lastln: the brief's last line is unchanged (nothing glued to it)" ||
+  fail "SPL-6181 lastln: $(tr '\n' '|' <"$b")"
+out="$(q6181 nonl)" && [[ "$(grep -ciE 'Issue[- ]Role' "$b")" == 1 ]] &&
+  pass "SPL-6181 twice: a re-queue of the same brief appends no second Issue-Role: line" ||
+  fail "SPL-6181 twice: $(tr '\n' '|' <"$b") | $out"
+
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }
 echo "FAIL: $fails"

@@ -174,7 +174,10 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
 # with no scope line all share. The placer writes a filed key only into the
 # lane's lifetime/brief.md, and at the enqueue no lane exists yet, so no card
 # names this placement's lane: every card read shares. A failed read changes
-# nothing and logs one WARN, never a guess.
+# nothing and logs one WARN, never a guess. SPL-6181 (b34-02): the line goes on
+# a line of its own: a brief whose last byte is not a newline gets one first,
+# so the ^-anchored greps (the guard below, li_review_lane) see it and a
+# re-queue appends nothing; a brief that ends in a newline gets no blank line.
 spl_spawn_q_enqueue_shared() {  # ID BRIEF
   local brief="$2" kind key
   kind="${SPAWN_KIND:-}"
@@ -187,7 +190,7 @@ spl_spawn_q_enqueue_shared() {  # ID BRIEF
     do_log "WARN ask ${1:0:8}: the card of $key could not be read: brief $brief left as it is (no Issue-Role: line, so the lane may not exit on $key)" >&2
     return 0
   fi
-  printf 'Issue-Role: shared\n' >>"$brief" ||
+  { [[ ! -s "$brief" || -z "$(tail -c1 "$brief")" ]] || printf '\n'; printf 'Issue-Role: shared\n'; } >>"$brief" ||
     { do_log "WARN ask ${1:0:8}: cannot write Issue-Role: shared into $brief" >&2; return 0; }
   do_log "INFO ask ${1:0:8}: $key is not this lane's own issue (a docs lane on it): Issue-Role: shared written into $brief (SPL-6167)" >&2
 }

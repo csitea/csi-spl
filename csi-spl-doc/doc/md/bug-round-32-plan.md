@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-31-plan.md](bug-round-31-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0. The panel passed v0.1 `1f694cb86` with no W (m-696@sat, msg cda0bed7; section 8). v0.2 `0498a1a90` added only the `<box2>` half of R3, and no row changed since v0.1. It lands on the holder's GO. No row lane starts before the panel signs a plan sha.**
+**Status: v1.0. The panel passed v0.1 `1f694cb86` and v0.2 `0498a1a90`, each with no W (m-696@sat, msgs cda0bed7, 6816af46; section 8). v0.2 added only the `<box2>` half of R3, and no row changed since v0.1. It lands on the holder's GO. No row lane starts before the panel signs a plan sha.**
 
 Editor: **c-694@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
-Panel: m-696@sat (mistral, the b32 panel seat, ask `c002-bug-round-32-mistral-panel-seat`): **PASS** on v0.1 `1f694cb86` (msg cda0bed7, seat file `e301c5feb` on `review/c002-bug-round-32-mistral-seat`, folded here as `csi-spl-doc/doc/md/bug-round-32/seat-mistral.md`), no W. Both rows are orc bash with no WUI file, so a mistral seat may sit (developer guide 5.1).
+Panel: m-696@sat (mistral, the b32 panel seat, ask `c002-bug-round-32-mistral-panel-seat`): **PASS** on v0.1 `1f694cb86` (msg cda0bed7, seat file `e301c5feb`) and on v0.2 `0498a1a90` (msg 6816af46, seat file `f6496e726`), both on `review/c002-bug-round-32-mistral-seat`, folded here as `csi-spl-doc/doc/md/bug-round-32/seat-mistral.md`), no W. Both rows are orc bash with no WUI file, so a mistral seat may sit (developer guide 5.1).
 
 **One sha:** every count below is measured on **`8b7828a6b`** (`origin/master` at this seat's fetch, 05:32Z), on sat, between 05:32Z and 05:38Z on 2026-11-21, unless a row says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b31-plan')` -> `Window: W=2026-11-21T06:58:42+02:00` (commit `67a6bfa20`, b31 plan v1.0), the value the brief quotes.
@@ -258,7 +258,8 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
     - N4: the 15 `<box2>` worktree diffs were NOT RUN from sat; v0.2 folds c-001@`<box2>`'s 0 hits.
     N1 and N2 grow with new briefs: the counts in section 3 are as of `8b7828a6b` and the times given.
   - 2026-11-21 05:53:38Z, the editor's re-read before v1.0: `git diff --name-only 8b7828a6b origin/master -- <the four row files>` -> 0 (origin/master `cd2012822`). The lane map shows no live lane listing a row file, with exit 4 for 16 `<box2>` lanes. The new one, c-634 (`c002-wui-notes-focus-plus-on-open`, a WUI lane), was placed from the queue; its brief was grepped at 05:35:40Z with no row-file edit (its one hit is its own landing line). The holder's R3 check (rulebook 2.3) covers it when the rows are queued.
-  - 2026-11-21 05:5xZ: v1.0, one commit on `0498a1a90` (a fast-forward of the review branch). It records the status, panel and consensus lines, the PASS with N1-N4 and the re-read, and folds in the seat file. No row changed.
+  - 2026-11-21 06:0xZ: m-696@sat **PASS** on v0.2 `0498a1a90204e2e61ac0944043e9aa93fd0e7b74` (msg 6816af46; seat file `f6496e726`), no W. It found that v0.2 is a fast-forward of v0.1 touching only the plan (+9 -7), with the rows section identical. It found no `(b32-` commit since W, no row-file drift, and the same 15 exit-4 `<box2>` lanes on the lane map. Its review line passes `do_spl_review_line_check` on sat (rc 0, `DOCS-ONLY 0498a1a90204`).
+  - 2026-11-21 05:5xZ: v1.0, one commit on `0498a1a90` (a fast-forward of the review branch). It records the status, panel and consensus lines, the PASS with N1-N4 and the re-read, and folds in the seat file. A second commit records the v0.2 PASS and takes the seat file at `f6496e726`. No row changed.
 
 ---
 
@@ -267,4 +268,4 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 | seat | id | status |
 |---|---|---|
 | Editor | c-694@sat | v1.0 |
-| Panel | m-696@sat (mistral) | **PASS** on v0.1 `1f694cb86` (msg cda0bed7), no W |
+| Panel | m-696@sat (mistral) | **PASS** on v0.1 `1f694cb86` (msg cda0bed7) and v0.2 `0498a1a90` (msg 6816af46), no W |

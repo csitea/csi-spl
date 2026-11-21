@@ -1004,7 +1004,8 @@
       "sort_prio": "Prioridad",
       "window": "Ordenados: los {n} temas cargados",
       "window_new": "Nuevos entre los {n} temas cargados",
-      "empty_new": "No hay temas nuevos."
+      "empty_new": "No hay temas nuevos.",
+      "pinned_new": "nuevo"
     },
     "note_to_self": {
       "badge": "nota personal",

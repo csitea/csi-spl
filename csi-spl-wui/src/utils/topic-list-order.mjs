@@ -79,7 +79,8 @@ function keyOf(sort, row, countOf, priorityOf) {
  *   countOf?: (row: T) => number,
  *   priorityOf?: (row: T) => number | null | undefined,
  *   lastOf?: (row: T) => string,
- * }} [opts]
+ *   keep?: readonly string[],
+ * }} [opts] keep: spec 189 D3, task ids New keeps although read (the fresh cards)
  * @returns {T[]} a new array, unread group first, each group in the chosen sort
  */
 export function topicListView(rows, opts = {}) {
@@ -97,8 +98,116 @@ export function topicListView(rows, opts = {}) {
     last: String(lastOf(row) || ''),
     id: String((row && row.task_id) || ''),
   }))
-  const kept = filter === 'new' ? items.filter((d) => d.unread) : items
+  const keep = new Set(Array.isArray(opts.keep) ? opts.keep.map(String) : [])
+  const kept = filter === 'new' ? items.filter((d) => d.unread || keep.has(d.id)) : items
   /* unread group first (the edge), then the chosen key, then last update, then task_id */
   kept.sort((a, b) => Number(b.unread) - Number(a.unread) || b.k - a.k || b.last.localeCompare(a.last) || b.id.localeCompare(a.id))
   return kept.map((d) => d.row)
+}
+
+/**
+ * Spec 189 row B1 (owner HUM-10, t1 a48d75d6, D1..D4): the topics the viewer
+ * just created ("fresh", in send order) go to the very edge new posts go to,
+ * whatever the sort, the filter and their priority (C1, C2). Run it LAST, on
+ * the drawn rows, after `topicListView` and the unread edge (`unreadFirst`),
+ * so nothing moves another card past them. Several fresh cards are the outer
+ * group in send order, the newest outermost (C4). The other cards keep their
+ * order, so a list with no fresh card comes back as it was.
+ *
+ * @template T
+ * @param {T[]} rows the drawn rows (top first)
+ * @param {readonly string[] | null | undefined} freshIds task ids, oldest send first
+ * @param {{ atEnd?: boolean, idOf?: (row: T) => string }} [opts]
+ *   atEnd: the edge is the bottom (newest last); idOf: a row's task id
+ * @returns {T[]} a new array; `rows` when no row is fresh
+ */
+export function pinEdge(rows, freshIds, opts = {}) {
+  const list = Array.isArray(rows) ? rows : []
+  const rank = new Map((Array.isArray(freshIds) ? freshIds : []).map((id, i) => [String(id || ''), i]))
+  rank.delete('')
+  if (!rank.size) return list
+  const idOf = typeof opts.idOf === 'function' ? opts.idOf : (r) => String((r && r.task_id) || '')
+  const pinned = []
+  const rest = []
+  for (const row of list) {
+    const i = rank.get(idOf(row))
+    if (i === undefined) rest.push(row)
+    else pinned.push({ row, i })
+  }
+  if (!pinned.length) return list
+  /* the newest send outermost: first at the top, last at the bottom */
+  pinned.sort((a, b) => (opts.atEnd ? a.i - b.i : b.i - a.i))
+  const group = pinned.map((p) => p.row)
+  return opts.atEnd ? [...rest, ...group] : [...group, ...rest]
+}
+
+/*
+ * Spec 189 row B2 (owner HUM-10, t1 a48d75d6, answers OWN and RLD): the
+ * topics the viewer created in this tab, per channel ("fresh"), which the
+ * channel's topic list pins at its edge (`pinEdge` above).
+ *
+ * - D1 / C5: only the viewer's own send with no parent task, in a channel
+ *   (not a DM), adds its task id. A reply, a DM, and a topic root from anyone
+ *   else (live or on a loaded page) add none: no such event reaches `freshNote`.
+ * - D2 / C6: the set ends when the open channel changes (`channel` to another
+ *   name, or `leave` to a route off this channel) and on a reload (the state
+ *   lives in memory only: no localStorage, no hub field). Opening a topic,
+ *   a sort or a filter change and time do not end it.
+ *
+ * Unit-tested in tests/unit/fresh-topics.test.mjs; the tab's one copy lives
+ * in composables/useFreshTopics.ts.
+ *
+ * @typedef {{ channel: string, ids: string[] }} FreshState  ids: oldest send first
+ * @typedef {{ type: 'send', channel?: string | null, peer?: string | null, parentTaskId?: string | null, taskId?: string | null }
+ *   | { type: 'channel', channel?: string | null }
+ *   | { type: 'leave' }} FreshEvent
+ */
+
+/** @returns {FreshState} */
+export function freshEmpty() {
+  return { channel: '', ids: [] }
+}
+
+/**
+ * @param {FreshState} state
+ * @param {FreshEvent} ev
+ * @returns {FreshState} the next state; `state` itself when nothing changes
+ */
+export function freshNote(state, ev) {
+  const s = state && Array.isArray(state.ids) ? state : freshEmpty()
+  if (!ev || typeof ev !== 'object') return s
+  if (ev.type === 'leave') return s.ids.length || s.channel ? freshEmpty() : s
+  const channel = String(ev.channel || '')
+  if (ev.type === 'channel') return channel === s.channel ? s : { channel, ids: [] }
+  if (ev.type !== 'send' || ev.parentTaskId || ev.peer || !channel) return s
+  const id = String(ev.taskId || '')
+  if (!id) return s
+  const ids = channel === s.channel ? s.ids.filter((x) => x !== id) : []
+  return { channel, ids: [...ids, id] }
+}
+
+/**
+ * The fresh task ids of one channel, oldest send first; none for another
+ * channel, a DM ('' / null) or an empty state.
+ * @param {FreshState} state
+ * @param {string | null | undefined} channel
+ * @returns {string[]}
+ */
+export function freshIdsFor(state, channel) {
+  const c = String(channel || '')
+  return c && state && state.channel === c && Array.isArray(state.ids) ? state.ids : []
+}
+
+/**
+ * D2: does a route change end the pin? It does unless the next route is this
+ * channel's own feed (any query: ?topic= opens one of its topics) or a topic
+ * page (`/t/<task_id>`).
+ * @param {string} toPath the next route's path
+ * @param {string | null | undefined} channel the channel the pin is for
+ */
+export function freshEndsOnRoute(toPath, channel) {
+  const path = String(toPath || '').split(/[?#]/)[0].replace(/\/+$/, '')
+  if (path.startsWith('/t/')) return false
+  const c = String(channel || '')
+  return !c || decodeURIComponent(path) !== `/channel/${c}`
 }

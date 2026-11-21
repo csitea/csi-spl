@@ -1004,7 +1004,8 @@
       "sort_prio": "Priorita",
       "window": "Zoradené načítané témy: {n}",
       "window_new": "Nové medzi načítanými témami: {n}",
-      "empty_new": "Žiadne nové témy."
+      "empty_new": "Žiadne nové témy.",
+      "pinned_new": "nová"
     },
     "note_to_self": {
       "badge": "poznámka pre seba",

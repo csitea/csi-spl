@@ -355,6 +355,7 @@ tests/e2e/topic-archive-policy.test.mjs 14
 tests/e2e/topic-archived-state.test.mjs 12
 tests/e2e/topic-card-countless-mark.test.mjs 5
 tests/e2e/topic-list-control.test.mjs 14
+tests/e2e/topic-list-new-end.test.mjs 20
 tests/e2e/topic-menu-open-pane.test.mjs 7
 tests/e2e/topic-menu-parity.test.mjs 15
 tests/e2e/topic-moved-link.test.mjs 134

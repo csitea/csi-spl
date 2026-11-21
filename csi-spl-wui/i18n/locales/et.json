@@ -1004,7 +1004,8 @@
       "sort_prio": "Prioriteet",
       "window": "Laaditud teemad sorditud: {n}",
       "window_new": "Uued laaditud teemade seas: {n}",
-      "empty_new": "Uusi teemasid pole."
+      "empty_new": "Uusi teemasid pole.",
+      "pinned_new": "uus"
     },
     "note_to_self": {
       "badge": "märge endale",

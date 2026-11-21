@@ -38,6 +38,7 @@ import { applyReactions as patchReactions } from '~/utils/emoji-core.mjs'
 import { withSessionRetry } from '~/utils/live-follow-core.mjs'
 import { readFirstPage, readMore } from '~/utils/feed-read.mjs'
 import type { ChannelRow, FileRef, SendFrame, SpoolMessage } from '~/types/spool'
+import type { FreshEvent } from '~/utils/topic-list-order.mjs'
 
 export type { ChannelRow }
 
@@ -351,6 +352,7 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
     if (active.value !== name || peer.value) resetView()
     peer.value = null
     active.value = name
+    noteFresh({ type: 'channel', channel: name }) /* spec 189 D2: another channel ends the pin */
     unread.value[name] = 0
     await refresh()
   }
@@ -359,6 +361,7 @@ function pageSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'qu
     if (peer.value !== id) resetView()
     active.value = null
     peer.value = id
+    noteFresh({ type: 'channel', channel: '' })
     unread.value[`dm:${id}`] = 0
     await refresh()
   }
@@ -522,6 +525,14 @@ function outboxSteps(s: ChannelState) {
   return { queueFailure, sendNote, queue, holdForNetwork, toFileRefs }
 }
 
+/** Spec 189 B2: tell the tab's fresh-topics state (composables/useFreshTopics)
+    of a channel switch or an own send. A dynamic import: the store is on the
+    initial script and the state is not (ci_initial_gzip_kb); the feed that
+    reads the state has loaded it already. */
+function noteFresh(ev: FreshEvent) {
+  if (import.meta.client) void import('~/composables/useFreshTopics').then((m) => m.useFreshTopics().note(ev))
+}
+
 /** SPL-2026 e2e hook (mock only): while `spool.mock.hold-ack` is set, the mock's answer waits. */
 function mockAckHold(): Promise<void> | null {
   const on = () => { try { return Boolean(localStorage.getItem('spool.mock.hold-ack')) } catch { return false } }
@@ -582,6 +593,8 @@ function sendSteps(s: ChannelState, d: Pick<Outbox, 'holdForNetwork' | 'toFileRe
     const row = body as unknown as FeedMessage
     /* a reply into another channel must not appear in this feed */
     if (showMock) messages.value = [...withoutMsg(messages.value, String(row.msg_id || '')), row]
+    /* spec 189 D1: my own new topic is pinned at the list edge (the mock mints its task id) */
+    if (showMock) noteFresh({ type: 'send', channel: req.channel, peer: req.peer, parentTaskId, taskId: String(row.task_id || '') })
     /* CLE-77852: the mock pokes nobody, but shows the "sent as a direct
        message" notice for a seated agent outside the channel (the e2e) */
     const pokeAt = channelId || (peer.value ? '' : active.value)
@@ -659,6 +672,8 @@ function liveSendSteps(s: ChannelState, d: Pick<Outbox, 'toFileRefs'> & Pick<Cou
         is_parent: parentBit,
       })
       messages.value = mergeLive(messages.value, own) as FeedMessage[]
+      /* spec 189 D1: my own new topic is pinned at the list edge from its pending row */
+      noteFresh({ type: 'send', channel: channelNow, peer: asDm ? peerId : null, parentTaskId, taskId: frame.task_id })
     }
     /* CLE-77804: the reader's own reply never counts as unread (owner default 2).
        CLE-77889: synchronously, before the store's watcher ingests the pending

@@ -1004,7 +1004,8 @@
       "sort_prio": "Öncelik",
       "window": "Sıralandı: yüklenen {n} konu",
       "window_new": "Yüklenen {n} konu arasında yeniler",
-      "empty_new": "Yeni konu yok."
+      "empty_new": "Yeni konu yok.",
+      "pinned_new": "yeni"
     },
     "note_to_self": {
       "badge": "kendime not",

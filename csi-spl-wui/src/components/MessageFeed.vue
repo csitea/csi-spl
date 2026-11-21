@@ -33,6 +33,7 @@
       :await-for="awaitFor"
       :unread-boundary="boundary"
       :seated-at="seatedAt"
+      :pin-ids="freshIds"
       always-topic
       clickable
       open-button
@@ -70,6 +71,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMove } from '~/composables/useMove'
 import { useTopicListChoice } from '~/composables/useTopicListChoice'
 import { useTopicCardNew } from '~/composables/useTopicCardNew'
+import { useFreshTopics } from '~/composables/useFreshTopics'
 import { topicListView } from '~/utils/topic-list-order.mjs'
 import { isPromoteDropTarget, moveBlocked } from '~/utils/move.mjs'
 import type { SpoolMessage } from '~/types/spool'
@@ -103,10 +105,18 @@ const { applyEverywhere, viewerId } = useMessageEdit()
    today's rows untouched. The priority is the hub's, on the topic totals. */
 const choice = useTopicListChoice()
 const cardNew = useTopicCardNew(() => props.boundary, viewerId, { countFor: channel.repliesFor, unreadFor: channel.unreadFor })
+/* Spec 189 B3 (D1..D3): my own new topics of this channel, pinned at the
+   list edge by LiveFeed (pinEdge, last) and kept under New although read.
+   A DM has none. Leaving the channel (another route that is not its feed or
+   a topic page) ends the pin; another channel or a DM ends it in the store. */
+const fresh = useFreshTopics()
+const freshIds = computed(() => (channel.peer ? [] : fresh.idsFor(channel.active)))
+onBeforeRouteLeave((to) => { fresh.leaveTo(to.path) })
 const listRows = computed(() => {
   const rows = channel.newestFirst
   if (!choice.filtered.value && !choice.sorted.value) return rows
   return topicListView(rows, {
+    keep: freshIds.value,
     filter: choice.filter.value,
     sort: choice.sort.value,
     unreadOf: (m: SpoolMessage) => cardNew.unseen(m),

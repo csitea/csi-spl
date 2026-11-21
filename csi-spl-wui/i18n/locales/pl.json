@@ -1004,7 +1004,8 @@
       "sort_prio": "Priorytet",
       "window": "Posortowano wczytane tematy: {n}",
       "window_new": "Nowe spośród wczytanych tematów: {n}",
-      "empty_new": "Brak nowych tematów."
+      "empty_new": "Brak nowych tematów.",
+      "pinned_new": "nowy"
     },
     "note_to_self": {
       "badge": "notatka dla siebie",

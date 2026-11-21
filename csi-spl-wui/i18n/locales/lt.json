@@ -1004,7 +1004,8 @@
       "sort_prio": "Prioritetas",
       "window": "Surikiuotos įkeltos temos: {n}",
       "window_new": "Naujos tarp įkeltų temų: {n}",
-      "empty_new": "Naujų temų nėra."
+      "empty_new": "Naujų temų nėra.",
+      "pinned_new": "nauja"
     },
     "note_to_self": {
       "badge": "pastaba sau",

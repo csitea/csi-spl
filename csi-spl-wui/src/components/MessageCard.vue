@@ -118,6 +118,12 @@
           :data-priority="priority"
           :title="t('topic.priority.label')"
         >{{ t('topic.priority.badge', { n: priority }) }}</span>
+        <!-- spec 189 D4 / C7: my own new topic, pinned at the list edge until I leave the channel -->
+        <span
+          v-if="pinnedNew"
+          class="msg-prio msg-pinned-new"
+          data-test="topic-pinned-new"
+        >{{ t('feed.topic_list.pinned_new') }}</span>
         <!-- spec 068 L8: the seat that must deal with it; nothing while nobody is -->
         <span
           v-if="msg.responsible"
@@ -581,6 +587,8 @@ const props = defineProps<{
   paneOpener?: SpoolMessage | null
   /** SPL-1994: this post (or this topic row's topic) waits for an agent's answer. */
   awaiting?: 'spin' | 'wait' | null
+  /** spec 189 D4: the viewer's own new topic, pinned at the topic list's edge (the "new" badge). */
+  pinnedNew?: boolean
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -844,6 +852,11 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 0 4px;
+}
+/* spec 189 D4: the pinned "new" tag, the priority tag in the accent ink */
+.msg-pinned-new {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 /* spec 068 L8: the responsible seat gives way like the time (ellipsis, title) */
 .msg-responsible {

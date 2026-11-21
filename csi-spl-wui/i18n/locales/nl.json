@@ -1004,7 +1004,8 @@
       "sort_prio": "Prioriteit",
       "window": "Gesorteerd: de {n} geladen onderwerpen",
       "window_new": "Nieuwe onder de {n} geladen onderwerpen",
-      "empty_new": "Geen nieuwe onderwerpen."
+      "empty_new": "Geen nieuwe onderwerpen.",
+      "pinned_new": "nieuw"
     },
     "note_to_self": {
       "badge": "notitie voor mezelf",

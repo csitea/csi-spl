@@ -1004,7 +1004,8 @@
       "sort_prio": "Priority",
       "window": "Sorted: the {n} topics loaded",
       "window_new": "Showing new among the {n} topics loaded",
-      "empty_new": "No new topics."
+      "empty_new": "No new topics.",
+      "pinned_new": "new"
     },
     "note_to_self": {
       "badge": "note to self",

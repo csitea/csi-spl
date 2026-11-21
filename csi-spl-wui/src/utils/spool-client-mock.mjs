@@ -18,6 +18,13 @@ import { mockBoxSendRefusal } from './box-lock.mjs'
 import { TOPIC_PRIORITY_DEFAULT } from './topic-list-order.mjs'
 import { loopBody, loopFormError } from './topic-loops.mjs'
 
+/** The priorities set in this mock, over the e2e hook `spool.mock.priorities`
+    = { <task_id>: 1..5 } (spec 189 B5: a channel that holds unread P1 cards). */
+function mockPriorities(state) {
+  const seeded = storageGetJson('spool.mock.priorities', null)
+  return { ...(seeded && typeof seeded === 'object' ? seeded : {}), ...(state.priorities || {}) }
+}
+
 /** view-v1 §4.3 over the mock messages: one row per topic, no server pages. */
 export function mockListTopics(state, { limit = 50, channel, dm, peer } = {}) {
   let rows = state.messages.slice()
@@ -28,7 +35,7 @@ export function mockListTopics(state, { limit = 50, channel, dm, peer } = {}) {
     rows = rows.filter((m) => m.from === id || m.to === id)
   }
   /* spec 150 B3: each row carries its priority, 3 when nobody set it */
-  const prio = state.priorities || {}
+  const prio = mockPriorities(state)
   const topics = topicsFromMessages(rows).slice(0, limit).map((t) => ({ ...t, priority: prio[t.task_id] || TOPIC_PRIORITY_DEFAULT }))
   return { topics, next: null }
 }
@@ -52,7 +59,7 @@ export function mockGetTopic(state, id, { limit = 200, after, order, before, vie
   const arch = (state.archived || []).find((m) => m.archived_at && (m.msg_id === id || m.task_id === id))
   const stamp = arch && !after ? { archived_at: arch.archived_at, archived_by: arch.archived_by } : {}
   /* spec 150 B3: the hub's topic read carries its priority, 3 when nobody set it */
-  stamp.priority = (state.priorities || {})[id] || TOPIC_PRIORITY_DEFAULT
+  stamp.priority = mockPriorities(state)[id] || TOPIC_PRIORITY_DEFAULT
   if (order !== 'desc') return { task_id: id, messages: all, next: null, ...stamp }
   const desc = all.slice().reverse()
   const start = before ? desc.findIndex((m) => m.msg_id === before) + 1 : 0
@@ -78,7 +85,18 @@ export function mockListMessages(state, { channel, peer, limit = 50, since } = {
   /* dc6d5e3f: plus the channel lines between me and that agent, as pointers */
   else if (peer) rows = [...rows.filter((m) => belongsTo(m, { peer: String(peer) })), ...mockDmPointers(rows, state.me && state.me.id, String(peer))]
   if (since) rows = rows.filter((m) => m.ts > since)
-  return { messages: rows.slice(-limit), next: null }
+  return { messages: rows.slice(-limit), next: null, ...seededTotals(rows) }
+}
+
+/** spec 189 B5: the e2e hook's priorities ride on the feed read as the hub's
+    topic totals do (spec 150 B6); nothing when the hook is unset. */
+function seededTotals(rows) {
+  const seeded = storageGetJson('spool.mock.priorities', null)
+  if (!seeded || typeof seeded !== 'object') return {}
+  const held = new Set(rows.map((m) => m && m.task_id))
+  const totals = {}
+  for (const [id, n] of Object.entries(seeded)) if (held.has(id)) totals[id] = { count: 0, last_ts: '', priority: n }
+  return { totals }
 }
 
 /**

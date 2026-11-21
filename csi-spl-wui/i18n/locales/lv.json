@@ -1004,7 +1004,8 @@
       "sort_prio": "Prioritāte",
       "window": "Sakārtotas ielādētās tēmas: {n}",
       "window_new": "Jaunās starp ielādētajām tēmām: {n}",
-      "empty_new": "Nav jaunu tēmu."
+      "empty_new": "Nav jaunu tēmu.",
+      "pinned_new": "jauna"
     },
     "note_to_self": {
       "badge": "piezīme sev",

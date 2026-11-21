@@ -1004,7 +1004,8 @@
       "sort_prio": "Prioriteetti",
       "window": "Ladatut aiheet lajiteltu: {n}",
       "window_new": "Uudet ladattujen aiheiden joukosta: {n}",
-      "empty_new": "Ei uusia aiheita."
+      "empty_new": "Ei uusia aiheita.",
+      "pinned_new": "uusi"
     },
     "note_to_self": {
       "badge": "muistiinpano itselle",

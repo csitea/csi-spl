@@ -1004,7 +1004,8 @@
       "sort_prio": "Prioritet",
       "window": "Sorterat: de {n} inlästa ämnena",
       "window_new": "Nya bland de {n} inlästa ämnena",
-      "empty_new": "Inga nya ämnen."
+      "empty_new": "Inga nya ämnen.",
+      "pinned_new": "nytt"
     },
     "note_to_self": {
       "badge": "anteckning till mig själv",

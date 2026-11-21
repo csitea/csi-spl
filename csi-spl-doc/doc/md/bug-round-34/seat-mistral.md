@@ -3,15 +3,17 @@
 Issue: SPL-6179 (epic SPL-2402). Spec: csi-spl-doc/specs/157-dispatch-automation.
 Brief: `/var/spool-hub/dispatch/briefs/c002-bug-round-34-mistral-panel-seat.md`.
 Review target: `csi-spl-doc/doc/md/bug-round-34-plan.md` on branch
-`review/c002-bug-round-34-planner`, at the v0.1 sha the planner named as a plan
-version: the commit subject of the branch head reads "bug round 34 plan v0.1 ...
-for the panel" and the plan's section 8 records "v0.1, pushed to
-`review/c002-bug-round-34-planner` for the panel". Rules:
+`review/c002-bug-round-34-planner`, at the plan-version shas the dispatch holder
+named on task `dispatch-bug-r34`: v0.1 `05e6be867...` (the planner's commit
+subject and plan section 8), then v0.2 `1bd6972bf...` and v0.3
+`4e296278c8e2a799c383b9e11acc499fc7a5c115` (holder msgs ed6a7078 and
+1c337d42/10:25:36Z, "NEW REVIEW TARGET, replaces v0.2"). Rules:
 `csi-spl-doc/doc/md/rounds-rulebook.md` sections 1 to 3 and 5 (3.2: the panel
 signs the plan sha; 5.1: 1 to 3 rows; 5.3 numbering and window; 5.4 bugs
 priority 2). Form: `csi-spl-doc/doc/md/bug-round-33-plan.md` on origin/master.
 
-**Verdict: PASS on `05e6be867d09253512a67b845459448ae70a62de` (v0.1). No W. Three N.**
+**Verdict: PASS on `05e6be867d09253512a67b845459448ae70a62de` (v0.1) and PASS on
+`4e296278c8e2a799c383b9e11acc499fc7a5c115` (v0.3, the current review target). No W. Notes N1-N5.**
 
 Reviewed sha: `05e6be867d09253512a67b845459448ae70a62de`, the head of
 `review/c002-bug-round-34-planner` at my fetch (`git ls-remote origin
@@ -206,3 +208,186 @@ None. No W.
   spec-183 doc only); no row file drifted (`git diff --name-only 31a976ffb
   origin/master -- <row files>` empty), and every cited line is identical on
   both refs.
+
+---
+
+# v0.3 review — `4e296278c8e2a799c383b9e11acc499fc7a5c115`
+
+**Verdict: PASS on `4e296278c8e2a799c383b9e11acc499fc7a5c115` (v0.3, the review
+target the holder named at 10:25:36Z, replacing v0.2 `1bd6972bf`). No W. Notes
+N1-N5 (N1-N3 above stand; N4, N5 below).**
+
+v0.3 = 2 rows, batch 1: row 01 `fix(b34-01-store-doc-asset-held-locked-doc)`
+(store, `complex_coding`, claude) and row 02 `fix(b34-02-orc-enqueue-shared-line-own-line)`
+(orc bash, `simple_coding`, claude) — row 02 is v0.1's row, unchanged. Base still
+`31a976ffb`, `Window: W=2026-11-21T11:45:44+02:00`. Checks run on sat
+2026-11-21 ~10:3xZ..10:5xZ.
+
+## v0.3 Check 1 — slug
+
+- `git log origin/master --since="$W" --oneline -E --grep='\(b34-' | wc -l` -> `0`.
+- `git ls-remote origin | grep -E 'b34-[0-9]{2}|bug-round-34'` ->
+  `4aac09e75b3e755137296554c5b0fe5439acb8fa refs/heads/review/c002-bug-round-34-mistral-seat`
+  (this seat's, expected) and
+  `4e296278c8e2a799c383b9e11acc499fc7a5c115 refs/heads/review/c002-bug-round-34-planner`
+  (the planner's, expected). Nothing else.
+- `ls /var/spool-hub/dispatch/briefs | grep -E 'b34-[0-9]{2}|bug-round-34'` ->
+  the planner's and this seat's briefs only.
+
+## v0.3 Check 2 — every site file:line on `31a976ffb` and on origin/master
+
+- `git diff --name-only 31a976ffb origin/master` ->
+  `csi-spl-doc/specs/183-agent-topic-pdf-export/spec.md`,
+  `csi-spl-iac/lib/bash/funcs/gcp-account-pin.func.sh`,
+  `csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh`,
+  `csi-spl-orc/lib/bash/funcs/gcp-account-pin.func.sh` (the `f43fc60f1` and
+  `714df2994` commits). Row files: `git diff --name-only 31a976ffb origin/master
+  -- <workspace_docs_assets.go, file_retention.go, wsdoc_assets.go, rls.go,
+  0256_...sql, wsdoc_assets_orphan_sweep_test.go, spl-spawn-enqueue.func.sh,
+  spl-spawn-queue.tst.sh>` -> empty.
+- Every cited line printed with `git show <sha>:<file> | sed -n <N>p` at both
+  refs, identical on both:
+  - `store/workspace_docs_assets.go:63` comment `// DocAssetHeld reports whether...`;
+    `:66` `func (s *Postgres) DocAssetHeld(ctx context.Context, tenant, fileID string) (bool, error) {`;
+    `:68` `err := s.queryRowTenant(ctx, tenant, ` + backtick + `SELECT EXISTS (SELECT 1 FROM workspace_doc_item i,`;
+    `:73` `}`.
+  - `hub/file_retention.go:30` `FileOrphanGrace = 24 * time.Hour`;
+    `:94` `return r, s.sweepOwnAssets(ctx, now, &r)`;
+    `:111` `func (s *Server) sweepOwnAssets(...) error {`;
+    `:151` `if kept, err := s.fileKept(ctx, tenant, id); err != nil || kept {`;
+    `:195` `func (s *Server) orphanDelete(...) (bool, error) {`;
+    `:200` same fileKept line.
+  - `hub/wsdoc_assets.go:310` `func (s *Server) fileKept(...) (bool, error) {`;
+    `:316` `}`.
+  - `store/rls.go:80` `// WithHuman marks ctx as read by hum...`;
+    `:86` `func WithHuman(ctx context.Context, hum string) context.Context {`;
+    `:102` `func humanScope(ctx context.Context) string {`;
+    `:107` `return ", set_config('app.doc_human_id', '" + hum + "', true)"`.
+  - `0256_workspace_doc_restricted_to_human.sql:52` `DROP POLICY IF EXISTS human_lock ON workspace_doc;`;
+    `:53` `CREATE POLICY human_lock ON workspace_doc AS RESTRICTIVE`;
+    `:57` the `OR restricted_to_human = NULLIF(current_setting('app.doc_human_id', true), ''));` line;
+    `:59` `DROP POLICY IF EXISTS human_lock ON workspace_doc_item;`;
+    `:60` `CREATE POLICY human_lock ON workspace_doc_item AS RESTRICTIVE`;
+    `:62` `WITH CHECK (true);`.
+  - Row 02's orc cites as in the v0.1 section above (`:178`, `:185`, `:186`,
+    `:190`, `:193`; `lane-issue.inc.sh:543/:547/:554`; `spl-lane-issue.func.sh:353`;
+    `spl-spawn-queue.tst.sh` 2345 lines, `:2291`).
+- `0143_messages_search_index.sql` carries the pattern the row names:
+  `grep -nE 'NOLOGIN|SECURITY DEFINER' 0143...sql` -> `:45` `CREATE ROLE
+  spool_search_reader NOLOGIN NOBYPASSRLS;`, `:79` `LANGUAGE sql STABLE SECURITY
+  DEFINER ROWS 200`.
+- Migrations on `31a976ffb` end at `0305_cost_entry_covers.sql`;
+  `git ls-remote origin 'refs/rdb-claims/*'` -> `... refs/rdb-claims/0306`
+  (claimed, c-745's), so the plan's "0306 is c-745's" holds.
+
+## v0.3 Check 3 — red controls read, sha256, run on the base in a scratch copy
+
+- `/var/spool-hub/dispatch/b34-red-controls/rc01-pg/`: `rc01pg.sh` 1964 B,
+  `sha256sum` -> `17f39bc880adf251e026f9e7e63bfc3d9952ab689d65aa0bb0cd1ab4e879f9b0`
+  (first 12 `17f39bc880ad`, the plan's claim); `b34_rc_asset_held_test.go` 1839 B,
+  -> `fe0adcc73aa57a699bb62139b473add904df0851f9202da55bd98d2c397eff3b` (first 12
+  `fe0adcc73aa5`, the plan's claim). `rc02.sh` 4871 B, ->
+  `15e47f56c771e391c3b95db9e69bed9878e182269617a26208b4ece3a89d3416`; it is
+  v0.1's `rc01.sh` renamed with its labels (the old `rc01.sh` is gone; diff modulo
+  the `rcNN` labels is empty).
+- Read whole: both export the sha with `git archive` into `mktemp -d` (trap
+  `rm -rf`), stub or fixture everything, and touch no live state. `rc01pg.sh`
+  runs the throwaway store test under the repo's `hub-live-stack.sh`, which
+  migrates a throwaway Postgres 16 (cached `postgres:16-alpine` image on this
+  box, never pulled) and exports `SPOOL_TEST_PG_DSN`; fixture tenant/docs only,
+  no live database, no hub, no network.
+- `bash .../rc01-pg/rc01pg.sh 31a976ffb` from this checkout, n=2: RED 2 of 2,
+  the same output each run, last line `rc01pg sha=31a976ffb exit=1`, exit 1:
+  `rcpg open: held=true want=true` / `rcpg lockedhuman: held=true want=true` /
+  `rcpg lockedsweep: held=false want=true` / `rcpg unnamed: held=false want=false` /
+  `rcpg wrong=1` — identical to the plan's table. It fails for the plan's reason:
+  with no human on the context, rdb 0256's `human_lock` hides the locked doc's
+  root item, so `DocAssetHeld` reads false and the sweep deletes the picture.
+- `bash .../rc02.sh 31a976ffb`, n=1: RED, last line `rc02 sha=31a976ffb wrong=3`,
+  exit 1 (`nonl got=none/3`, `lastln got=0`, `twice got=2`, `nl` control
+  `shared/0`). `RC02_PLANT=1 ... rc02.sh 31a976ffb`, n=1: `wrong=0`, exit 0.
+
+## v0.3 Check 4 — root cause of each row
+
+- Row 01, read at `31a976ffb`: `DocAssetHeld` (`store/workspace_docs_assets.go:66-73`)
+  runs `queryRowTenant` with no human; `humanScope` (`store/rls.go:102-107`)
+  returns "" without one, so `app.doc_human_id` is unset; 0256:53-57 hides a
+  `restricted_to_human` doc from everyone but its human (fail closed), and
+  0256:59-62 passes an item only when its doc is visible. So the sweep's
+  `fileKept` -> `DocAssetHeld` read (`hub/wsdoc_assets.go:310-316`,
+  `hub/file_retention.go:151/:200`) sees no locked doc's root item and deletes
+  its picture after `FileOrphanGrace` (`:30`, 24 h). The plan's reading holds.
+  The caveat also holds: both `human_lock` policies are `AS RESTRICTIVE` with no
+  `TO` clause (`:53`, `:60`), so they narrow every role, a NOBYPASSRLS definer
+  owner too.
+- Row 02: as in the v0.1 section above (`:185` guard and `:190` append are
+  `^`-anchored / newline-less; `lane-issue.inc.sh:547` `^`-anchored;
+  `spl-lane-issue.func.sh:353` writes `\n` first).
+
+## v0.3 Check 5 — row fields
+
+- Row 01: red control fails today (rc01pg RED n=2, exit 1); test column
+  `git grep -l -E 'DocAssetHeld|fileKept|SweepFiles|sweepOwnAssets' 31a976ffb --
+  csi-spl-api` -> exactly the plan's list: tests `hub/file_retention_test.go`,
+  `hub/wsdoc_assets_orphan_sweep_test.go`, `hub/wsdoc_assets_test.go`,
+  `channelmove/asset_locs_test.go`, `channelmove/objects_test.go` + 6 non-test
+  files; `git grep -l DocAssetHeld 31a976ffb -- '*/store/*_test.go' | wc -l` -> 0
+  (the plan's "no Postgres store test reads DocAssetHeld today"). Vendor claude,
+  kind `complex_coding`, batch 1, box sat or `<box2>` (no pin). R7: claude waiver
+  seat; `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` re-run -> `pick=hold ...`
+  (grok weekly unknown/>=95% on both boxes). Suite runs under `PRE_PUSH_TIER=full`
+  (a migration) — the plan says so.
+- Row 02: as v0.1 (rc02 RED exit 1, plant exit 0; test column matches; claude,
+  `simple_coding`, batch 1; R7 claude waiver).
+- No mistral coding or testing row (both rows claude); no WUI file in either row,
+  so a mistral panel seat may sit (developer guide 5.1). R1: batch 1 rows share
+  no file — row 01 edits `store/workspace_docs_assets.go` + its new test + a new
+  migration + `hub/wsdoc_assets_orphan_sweep_test.go`; row 02 edits
+  `spl-spawn-enqueue.func.sh` + `spl-spawn-queue.tst.sh`; the two hub files c-745
+  edits (`hub/file_retention.go`, `hub/wsdoc_assets.go`) are read-only in row 01.
+- 2 rows, within 5.1's 1 to 3; issue priority 2 in the header (5.4); numbering and
+  window as v0.1 (5.3).
+
+## v0.3 Check 6 — R3 lane map
+
+- `lane-map.sh --check <the six row paths> --agent m-785` -> exit 4: `WARN no
+  live lane lists` them, `17 live lane(s) record no files: their scope is
+  unknown, not free` (all on `<box2>`; was 18 at the plan's 10:15:51Z check, one
+  lane closed since). No exit-3 owner. The plan records the sat half (worktree
+  diff+status scan: 2 stale hits, `g-962-r4620` and `/tmp/g-418-red-master`,
+  both retired) and asks the holder for the `<box2>` half (section 8 item 1,
+  answered msg 42c66c91 with the "not proof of absence" caveat).
+- Queue: `do_spl_spawn_queue` -> `16 queued, 0 placing`; the 11 file-naming
+  queued briefs (spec 184 x6, spec 033 T026, spec 123 L4-L7): none names a row
+  file (grep over their briefs).
+
+## v0.3 Check 7 — inputs accounted for
+
+Same as the v0.1 section (b33's 13 first-inputs, c-763 N1-N4 / c-761 N1-N3 all
+in section 4; candidates file's bug-shaped entries served — landed shas
+verified — or carried; spec 181 owned by its lanes; CI reds re-run and matching).
+The new input since v0.1 is the holder's pick (msg 0a22e4ec, from c-001
+8bd74383 re c-745's repro): it is row 01, re-measured by the planner (rc01pg
+RED 3/3) and by me (RED n=2). N1 above (the candidates file's post-read
+SPL-6174 entry) still stands as a round-35 input.
+
+## v0.3 Check 8 — distribution hygiene
+
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> clean, exit 0, re-run
+  after this section was added.
+
+## v0.3 Notes
+
+- N4: c-745's review branch was not yet on origin at my check (`git ls-remote
+  origin 'refs/heads/review/c002-s190*'` -> empty; the planner's 10:24Z note
+  says the push was still in its pre-push hook), so the plan's claim that
+  c-745's branch does not touch `store/workspace_docs_assets.go` is NOT
+  verified by me from this box. The plan's mitigation covers the risk: row 01
+  keeps both hub files c-745 edits read-only, and the holder's answer
+  (msg 42c66c91) records the `<box2>` half with the "not proof of absence"
+  caveat.
+- N5: row 01's red control has no green half at plan time (the fix has two
+  routes and the migration does not exist yet); the plan delegates the
+  RED-then-GREEN proof to the row lane's commit body (C2), which is the
+  rulebook's requirement. Row 02's control has its planted green (RC02_PLANT,
+  exit 0, verified).

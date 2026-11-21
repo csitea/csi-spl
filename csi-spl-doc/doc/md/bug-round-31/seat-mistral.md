@@ -10,8 +10,9 @@ signs the plan sha; 5.1: 1 to 3 rows; 5.3 numbering and window; 5.4 bugs
 priority 2). Form: `csi-spl-doc/doc/md/bug-round-30-plan.md` on origin/master.
 
 **Verdict: PASS on `a370b578614753c566e2f92deb642883a02770bb` (v0.1), on
-`78c13231e745887f3ca054a3f5f12039a9824451` (v0.2) and on
-`8480b1d611d7b8ec0203de0482e58009b4beb852` (v0.3), 2026-11-21T04:4xZ — no W.
+`78c13231e745887f3ca054a3f5f12039a9824451` (v0.2), on
+`8480b1d611d7b8ec0203de0482e58009b4beb852` (v0.3) and on the landed v1.0
+`67a6bfa2065b0a5c395ebe5dc4378954ca11e112`, 2026-11-21T04:4x-05:0xZ — no W.
 See the verdict sections at the end of this file.**
 
 ## Setup
@@ -350,3 +351,42 @@ hygiene clean.
 - Verdict on v0.3: **PASS**, no W. The delta changes no row, no site, no red
   control; it records this seat's v0.1 PASS and N1-N4 and adds b20-01 to the
   served list, which this seat verified on origin/master.
+
+## Panel signature on v1.0 — PASS (2026-11-21T05:0xZ)
+
+- Signed sha: `67a6bfa2065b0a5c395ebe5dc4378954ca11e112`, the v1.0 the editor
+  landed on master (c-651@sat msg on `dispatch-bug-r31`, 05:00:08Z: "bug round
+  31 plan v1.0 has LANDED on master as 67a6bfa20..."; the same patch sits on
+  `review/c002-bug-round-31-planner` as `9287b42163`).
+  `git ls-remote origin refs/heads/master` ->
+  `67a6bfa2065b0a5c395ebe5dc4378954ca11e112`, and
+  `git log --oneline origin/master -1` -> `67a6bfa20 docs(b31-plan, SPL-6136):
+  bug round 31 plan v1.0, panel m-642 mistral PASS on v0.1, v0.2 and v0.3
+  (8480b1d61) with no W; ...` (the 4 plan docs sit on `f5256aa6b`, the r79-02
+  head, on top of `974d97031`).
+  `git show 67a6bfa20:csi-spl-doc/doc/md/bug-round-31-plan.md | sha256sum` ->
+  `54c4f7d63eff850b9b39b8daff493d04af0da097286da77ef8374d7cc2d86cf3`, identical
+  to `git show 9287b42163:<plan> | sha256sum` (same patch, pre-rebase).
+- Delta v0.3..v1.0 (`git diff 8480b1d61 9287b42163`, 36 lines; the master
+  replay `git diff 007136502 67a6bfa20 -- <plan>` is the same patch): plan
+  text only — status line (v1.0), panel line (the three PASSes), review
+  history (adds this seat's v0.2/v0.3 PASS entries and the editor's 04:57Z
+  re-read) and the seat table. `git diff --name-only 8480b1d61 9287b42163` ->
+  only `csi-spl-doc/doc/md/bug-round-31-plan.md`. `git merge-base --is-ancestor
+  8480b1d61 9287b42163` -> rc 0 (FF-OK). `sed -n '/^## 3\./,/^## 4\./p'` of the
+  plan at v0.3 and at v1.0 -> `diff` empty (ROWS-IDENTICAL): no row, site, red
+  control or fix scope changed.
+- Checks re-run on the v1.0 head (05:0xZ): `git diff --name-only 325a47c76
+  origin/master -- <the five row files> | wc -l` -> `0` (no drift; master's new
+  commits since the base are the r79-02 pair, the revert, the 4 plan docs and
+  this seat's reverted notes — none touches a row file). `git ls-remote origin | grep -cE 'b31-[0-9]{2}|bug-round-31'` -> `2`
+  (the planner's and this seat's review branches, both expected).
+  `lane-map.sh --check <5 row files + seat file> --agent m-642` -> exit 4, no
+  row file owned by a live lane; 18 `unknown:` lanes record no files (lane
+  movement since 04:4xZ, same N1 class: their `<box2>` worktrees are not
+  readable from sat). rc01/rc02 unchanged this round (they run on the base
+  `325a47c76`, which did not move; last run 04:4xZ: exit 1, `wrong=1` /
+  `wrong=2`).
+- Signature on v1.0: **PASS** on `67a6bfa2065b0a5c395ebe5dc4378954ca11e112`, no
+  W. The v1.0 delta records the PASSes and changes no row; the plan file it
+  lands is byte-identical to the v1.0 the editor pushed on the planner branch.

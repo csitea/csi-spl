@@ -3,7 +3,6 @@
 1 csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh
 1 csi-spl-iac/src/bash/run/install-weekly-full-scan-cron.func.sh
 1 csi-spl-orc/src/bash/run/check-ysg-box-deps.func.sh
-1 csi-spl-orc/src/bash/run/spl-desk-install-service.func.sh
 1 csi-spl-orc/src/bash/run/spl-desk-rebox.func.sh
 1 csi-spl-orc/src/bash/run/spl-invite-e2e.func.sh
 1 csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh

@@ -80,7 +80,7 @@
 # @param   <org>-<app>:desk-reconcile-<env> elsewhere, matched EXACTLY at the end
 # @param   of the line, so installing dev never touches the prd line (it did, as a
 # @param   prefix match, on 2026-10-01: prd stopped reconciling for 7 minutes)
-# @param DESK_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/desk-reconcile
+# @param DESK_CRON_LOG_DIR (optional) - default <SPL_VAR_APP_DIR>/desk-reconcile (spl_run_paths)
 # @param DESK_BOOT_HOST (optional) - the host the @reboot run waits to resolve,
 # @param   default env.dns.api_fqdn of the cnf (none: it waits for a route only)
 # @param DESK_BOOT_WAIT (optional) - seconds the @reboot run waits, default 180
@@ -117,7 +117,11 @@ do_spl_desk_install_service() {
   # yet is created by the install itself.
   [[ "$act" != install || -x "$script" || ( "$SPL_DESK_CRON_CREATE" == 1 ) ]] ||
     { do_log "FATAL $script is missing or not executable in $src"; return 1; }
-  logdir="${DESK_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/desk-reconcile}"
+  if [[ -n "${DESK_CRON_LOG_DIR:-}" ]]; then logdir="$DESK_CRON_LOG_DIR"
+  else
+    declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
+    spl_var_app_subdir logdir desk-reconcile || { do_log "FATAL cannot derive the desk-reconcile log dir (spl_run_paths): set DESK_CRON_LOG_DIR"; return 1; }
+  fi
 
   local mute="${DESK_MUTE:-}" line
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"

@@ -29,6 +29,11 @@ reads and fetches, sends nothing, writes no ledger). Code:
    without `sum` and a `-`, any case (`sha256sum`, `sha1sum=`, `SHA-256:`;
    SPL-5990: the first 12 hex of a script's `sha256sum` that a lane quotes,
    c-944's `92fd284d8549`, is no object and was read as a pre-rebase sha).
+   Hash-describing words between the label and the hex keep it a file hash
+   (SPL-6150): `prefix`, `first`, `last`, a count, `hex`, `chars`,
+   `digits`, as in `sha256 prefix <hex>` (c-513's `da931bbcc8d4`, read as
+   a pre-rebase sha) and `sha256sum first 12 hex <hex>`. Any other word ends
+   the label: `sha256(git diff <sha> <sha>)` still names both git shas.
    A bare `sha` / `shas` label still names git shas (the sha line below).
    So is a relay
    run-on-box request id (SPL-2953: c-368's `gr-cmd-890b4562175b`, a

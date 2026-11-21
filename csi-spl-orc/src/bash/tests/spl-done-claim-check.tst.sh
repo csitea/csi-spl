@@ -127,7 +127,7 @@ msg c-002/inbox  rew   c-570 c-002 30 "SPL-9001 landed feedface0123 (fix(x))"
 msg c-002/inbox  nokey c-571 c-002 30 "SPL-9002 landed feedface0124"
 msg c-002/inbox  twokey c-572 c-002 30 "SPL-9003 landed feedface0125"
 msg c-002/inbox  md5   c-573 c-002 30 "landed $LANDED; files md5 d99415cbcf6b5c881b92d0846c5ec4ef 32aab288f7b1648d40275f7c76886015, md5sum=abc123def456"
-msg c-002/inbox  sha256 c-578 c-002 30 "landed $LANDED; rc01.sh sha256sum -> 92fd284d8549, sha256 92fd284d8549 of rc01.sh, SHA-256: 92fd284d8549, sha1sum=4a5f55c8a4f3, SHA512 0123abcd4567"
+msg c-002/inbox  sha256 c-578 c-002 30 "landed $LANDED; rc01.sh sha256sum -> 92fd284d8549, sha256 92fd284d8549 of rc01.sh, SHA-256: 92fd284d8549, sha1sum=4a5f55c8a4f3, SHA512 0123abcd4567; rc03.sh sha256 prefix `da931bbcc8d4`, rc01.sh (`sha256sum` first 12 hex `a366e7466e55`)"
 msg c-002/inbox  srctag c-579 c-002 30 "landed $LANDED; image spool-pdf:src-73f6cd79d049 pushed (tag src-0a1b2c3d4e5f)"
 msg c-002/inbox  old48 c-574 c-002 30 "SPL-9004 landed feedface0126"
 msg c-002/inbox  prespawn c-575 c-002 30 "SPL-9005 landed feedface0127"
@@ -173,6 +173,18 @@ want="m595=would-alert land=landed short=landed other=landed local=would-alert r
 [ "$(awk -F'\t' '$1 == "sha256" { print $4 }' "$T/o")" = "$LANDED" ] &&
   pass "2b2. SPL-5990: a token after a sha1 / sha256 / sha512 label (also sha256sum, sha1sum=, SHA-256:) is a file hash, no sha (only the landed sha is read)" ||
   fail "2b2. sha<N> label: $(cat "$T/o")"
+# 2b2b. SPL-6150 (bug round 31 row 02, rc02): hash-describing words between a
+# sha<N> label and its hex ("prefix", "first 12 hex") still mark a file hash;
+# any other word ends the label ("sha256(git diff <sha> <sha>)" names both).
+tok() { (cd "$PROJ_ROOT" && PROJ_PATH="$PROJ_ROOT" bash -c 'do_log() { :; }
+  source src/bash/run/spl-done-claim-check.func.sh
+  printf "%s\n" "$1" | spl_done_claim_tokens' _ "$1" 2>/dev/null); }
+v="prefix=$(tok 'rc03.sh sha256 prefix `da931bbcc8d4`.') first12=$(tok 'rc01.sh 2488 B (`sha256sum` first 12 hex `a366e7466e55`).')"
+v="$v label=$(tok 'rc02.sh sha256 `faa73d5664fe`.') gitsha=$(tok 'landed `9b680e7b5` on master.')"
+v="$v diff=$(tok 'sha256(git diff cc13eac0b 5e137db43) equal.') and=$(tok 'sha256sum and git diff 5e137db43')"
+[ "$v" = "prefix= first12= label= gitsha=9b680e7b5 diff=cc13eac0b 5e137db43 and=5e137db43" ] &&
+  pass "2b2b. SPL-6150: 'sha256 prefix <hex>' and 'sha256sum first 12 hex <hex>' are file hashes, no sha; a plain sha256 label still is; a git sha, the shas in 'sha256(git diff <sha> <sha>)' and after 'sha256sum and git diff' are read" ||
+  fail "2b2b. sha<N> label + words: got '$v'"
 [ "$(awk -F'\t' '$1 == "srctag" { print $4 }' "$T/o")" = "$LANDED" ] &&
   pass "2b3. SPL-6074: the hex of an image tag src-<hex> (spool-pdf:src-<hex>, a bare src-<hex>) is no sha (only the landed sha is read)" ||
   fail "2b3. src- image tag: $(cat "$T/o")"

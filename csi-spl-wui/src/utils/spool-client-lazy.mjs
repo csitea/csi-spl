@@ -2004,6 +2004,19 @@ async function getTenantCosts(ctx, month = '', secondCurrency = '', locale = '')
 }
 
 /**
+ * Spec 123 13, row P05 (SPL-6117): GET /v1/tenant/costs/project?month= or
+ * ?year=, the project's cost, its parts and the Human mask (rows P01, P03;
+ * costs.read, 403 names it). The mock answers from cost-project.mjs, which
+ * loads only here and on the project page. `secondCurrency` as getTenantCosts.
+ */
+async function getTenantCostsProject(ctx, period = {}, secondCurrency = '') {
+  const { live, mock } = ctx
+  const cp = await import('./cost-project.mjs')
+  if (mock) return cp.mockCostProject(period, { me: mockMeGet(), currency: secondCurrency || 'EUR' })
+  return live('/v1/tenant/costs/project' + cp.costProjectQuery(period))
+}
+
+/**
  * SPL-4187 (spec 123 5.5): GET /v1/tenant/costs/cloud?month=&project=, one
  * estate GCP project's month per day and service, the Cloud section's third
  * level (403 for anyone but the operator workspace's admin). The mock
@@ -2562,6 +2575,7 @@ export const lazySpoolMethods = {
   getFleetLoad,
   patchFleetLoad,
   getTenantCosts,
+  getTenantCostsProject,
   getCloudCostDays,
   getFleetTokens,
   getFleetLanes,

@@ -313,7 +313,8 @@ describe('the chunk rule (spec 123 8: ci_initial_gzip_kb stays <= 155)', () => {
   })
   it('tenant-costs.mjs is statically imported by the costs label code only (SPL-5312: the four labels share CostsLabel); the client loads it on call', () => {
     const statics = files.filter((f) => /^import [^\n]*from '[^']*tenant-costs\.mjs'/m.test(read(f)))
-    assert.deepEqual(statics, ['src/components/reporting/costs/CostsLabel.vue', 'src/components/reporting/costs/CostsLabelExtras.vue', 'src/composables/useCostsPeriod.ts', 'src/utils/costs-labels.mjs'])
+    /* SPL-6117 (spec 123 P05): the project's cost page and its own util, each its own chunk */
+    assert.deepEqual(statics, ['src/components/reporting/costs/CostsLabel.vue', 'src/components/reporting/costs/CostsLabelExtras.vue', 'src/composables/useCostsPeriod.ts', 'src/pages/reporting/costs/project.vue', 'src/utils/cost-project.mjs', 'src/utils/costs-labels.mjs'])
     /* the label code is imported by the four label pages only, never the shell */
     const labelUsers = files.filter((f) => /^import [^\n]*(CostsLabel\.vue|useCostsPeriod|costs-labels\.mjs)'/m.test(read(f)))
     assert.deepEqual(labelUsers, ['src/components/reporting/costs/CostsLabel.vue', 'src/components/reporting/costs/CostsLabelExtras.vue', 'src/components/reporting/costs/CostsMonthTable.vue',

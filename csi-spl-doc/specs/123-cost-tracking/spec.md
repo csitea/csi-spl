@@ -418,7 +418,7 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
 
 ## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.6, plan only)
 
-**Status: P01 built (SPL-6054), P02 built (SPL-6075), P03 built (SPL-6078), the other rows Planned.** Lane issue
+**Status: P01 built (SPL-6054), P02 built (SPL-6075), P03 built (SPL-6078), P05 built (SPL-6117, the page, first in the Costs bar and the default, owner 2026-11-21 Q-9 A again, below), the other rows Planned.** Lane issue
 SPL-4189, epic SPL-2373. It is the level ABOVE the near-term three-sections
 build (ask `156c8939`: Costs gets Cloud / AI tokens / Human sections), and it
 does not duplicate it.
@@ -582,7 +582,22 @@ only when its entry is approved and its period frozen or final, 13.5 and
 written at the top of `store/cost_project_human.go`), and P03: **built** (SPL-6078, the mask in
 `hub/cost_project.go`, `TestCostProjectHumanMask` in
 `hub/cost_project_mask_test.go`, `TestCostProjectHumanMaskHTTP` in
-`hub/cost_project_mask_http_test.go`; 13.6). Each row is one lane, aiming at one push.
+`hub/cost_project_mask_http_test.go`; 13.6), and P05: **built** (SPL-6117,
+`pages/reporting/costs/project.vue` over `utils/cost-project.mjs` and the
+client's `getTenantCostsProject`, e2e `tests/e2e/reporting-costs-project.test.mjs`
+at 1400 and 390 px). Where P05 predates master: since SPL-5312 (spec 143
+`costs-redesign.md` 3.9, owner t1 41a74806, "only the following labels -
+Total, Persons, Cloud, Tokens") the bar is four labels with Total the
+default, and Spend is gone. Asked again where the page goes (t1 e2c0e6b4,
+the dispatch holder's blocker poll 3aa4b938), the owner answered A on
+2026-11-21 (msg 3a795cdb): "First label and the default, as Q-9 A says (five
+labels, Total second)". So `utils/reporting-costs.mjs` `COSTS_PAGES` is
+Project cost, Total, Persons, Cloud, Tokens, and `/reporting/costs` lands on
+the project's cost; the old links that named Total (`/monitoring/costs`,
+`/reporting/costs/spend`) still land on Total. Its links
+go to the current pages: Cloud, Tokens, Persons, and Expenses -> AI costs for
+the owned hardware. The header's "last 12 months" pick draws the year to date,
+since the read answers a month or a year only. Each row is one lane, aiming at one push.
 Each row names its files; no file is in two rows of one batch (rounds-rulebook
 2.1 R1), and a row that changes an earlier row's file sits in a later batch.
 A cross-vendor reviewer per row (R7). Waits: P02 waits for 107 T071..T072;
@@ -625,8 +640,9 @@ Both answered, decided (owner HUM-10, prd t1 topic `e2c0e6b4`, msg
   (recommended)". A customer workspace gets its own project cost (13.7).
 - **Q-9 A**: "A fifth Costs page, first and the default (recommended)". The
   project's cost is `/reporting/costs/project`, first in the Costs bar and
-  the page `/reporting/costs` opens on (13.2, P05); 143 3.2 needs the
-  matching change, a follow-up outside this spec.
+  the page `/reporting/costs` opens on (13.2, P05); confirmed against
+  SPL-5312's four labels on 2026-11-21 (msg 3a795cdb, "five labels, Total
+  second"), built with P05 (SPL-6117).
 
 No owner question of section 13 is open.
 

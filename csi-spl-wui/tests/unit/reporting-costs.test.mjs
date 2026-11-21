@@ -23,12 +23,12 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
 const ids = (pages) => pages.map((p) => p.id)
 
-describe('the pages (section 3.2; SPL-5312 the four labels)', () => {
-  it('Total (default), Persons, Cloud, Tokens, each its own path and page file (its own chunk)', () => {
+describe('the pages (section 3.2; SPL-5312 the four labels; spec 123 P05 the project\'s cost first)', () => {
+  it('The project\'s cost (default, SPL-6117 Q-9 A), Total, Persons, Cloud, Tokens, each its own path and page file (its own chunk)', () => {
     assert.deepEqual(COSTS_PAGES.map((p) => [p.id, p.path]), [
-      ['total', '/reporting/costs/total'], ['persons', '/reporting/costs/persons'], ['cloud', '/reporting/costs/cloud'], ['tokens', '/reporting/costs/tokens'],
+      ['project', '/reporting/costs/project'], ['total', '/reporting/costs/total'], ['persons', '/reporting/costs/persons'], ['cloud', '/reporting/costs/cloud'], ['tokens', '/reporting/costs/tokens'],
     ])
-    assert.equal(COSTS_DEFAULT_PATH, '/reporting/costs/total')
+    assert.equal(COSTS_DEFAULT_PATH, '/reporting/costs/project')
     for (const p of COSTS_PAGES) {
       assert.ok(existsSync(join(WUI, 'src/pages' + p.path + '.vue')), p.path)
       assert.equal(p.labelKey, 'reporting.costs.label.' + p.id)
@@ -36,13 +36,14 @@ describe('the pages (section 3.2; SPL-5312 the four labels)', () => {
     /* no page is imported by hand: Nuxt makes each route its own chunk */
     for (const f of walk('src')) assert.doesNotMatch(read(f), /import [^\n]*pages\/reporting\/costs\//, f)
   })
-  it('every costs reader sees the four labels (the hub scopes the money to the workspace)', () => {
-    for (const who of [undefined, {}, { operator: false }, { operator: true }]) assert.deepEqual(ids(visibleCostsPages(who)), ['total', 'persons', 'cloud', 'tokens'], JSON.stringify(who))
+  it('every costs reader sees the five labels (the hub scopes the money to the workspace)', () => {
+    for (const who of [undefined, {}, { operator: false }, { operator: true }]) assert.deepEqual(ids(visibleCostsPages(who)), ['project', 'total', 'persons', 'cloud', 'tokens'], JSON.stringify(who))
     /* CONTROL: before SPL-5312 Cloud and Price were the operator admin's only */
     assert.equal(COSTS_PAGES.some((p) => p.operatorsOnly), false)
   })
   it('costsPageFor: the page a route is on, locale prefix or not; the Reporting tab is Costs', () => {
     assert.equal(costsPageFor('/reporting/costs/total'), 'total')
+    assert.equal(costsPageFor('/et/reporting/costs/project'), 'project')
     assert.equal(costsPageFor('/fi/reporting/costs/persons'), 'persons')
     /* the pages before the labels and Paid items are no Costs page: they redirect */
     for (const p of ['/reporting/costs/spend', '/reporting/costs/human', '/reporting/costs/price', '/reporting/costs/paid', '/reporting/costs', '/reporting/costs/totalx']) assert.equal(costsPageFor(p), null, p)
@@ -55,7 +56,7 @@ describe('the redirect table (section 5 "Links")', () => {
     assert.deepEqual({ ...COSTS_REDIRECTS }, {
       '/monitoring/costs': '/reporting/costs/total',
       '/reporting/tokens': '/reporting/costs/tokens',
-      '/reporting/costs': '/reporting/costs/total',
+      '/reporting/costs': '/reporting/costs/project',
       '/reporting/costs/spend': '/reporting/costs/total',
       '/reporting/costs/human': '/reporting/costs/persons',
       '/reporting/costs/price': '/reporting/costs/tokens',

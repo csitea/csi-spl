@@ -3899,6 +3899,7 @@
         "empty": "Încă nu există nicio linie de cost cu tokeni AI luna aceasta."
       },
       "label": {
+        "project": "Costul proiectului",
         "total": "Total",
         "persons": "Persoane",
         "cloud": "Cloud",
@@ -3916,7 +3917,52 @@
       "empty": "Nu există costuri în această categorie în această perioadă.",
       "no_split": "Acest spațiu de lucru nu are încă costuri proprii în această categorie: ele aparțin întregii infrastructuri și sunt afișate în spațiul de lucru al operatorului.",
       "tokens_sub": "{units} tokeni · preț de listă {list}, neplătit",
-      "price_link": "Preț pe token: prețul efectiv al fiecărui tip de agent se află la Cheltuieli → Costuri IA."
+      "price_link": "Preț pe token: prețul efectiv al fiecărui tip de agent se află la Cheltuieli → Costuri IA.",
+      "project": {
+        "title": "Costul proiectului",
+        "figures_label": "Costul proiectului luna aceasta și anul acesta",
+        "month_so_far": "Luna aceasta până acum ({month})",
+        "year_to_date": "Anul acesta până acum ({year})",
+        "table_label": "Părțile costului proiectului, {period}",
+        "col_part": "Parte",
+        "col_amount": "Sumă ({currency})",
+        "col_done": "Completitudine",
+        "part": {
+          "cloud": "Costuri cloud",
+          "owned_hardware": "Hardware propriu",
+          "ai_tokens": "Tokeni AI",
+          "human": "Personal"
+        },
+        "total": "Total, cu preț",
+        "total_partial": "parțial: vedeți părțile",
+        "total_complete": "complet",
+        "done": {
+          "complete": "fiecare zi citită, fiecare linie cu preț",
+          "partial": "{n} din {total} zile citite",
+          "unpriced": "{n} fără preț, în afara sumei",
+          "hand": "introdus manual",
+          "not_tracked": "încă neurmărit",
+          "not_shown": "nu se afișează pentru rolul dvs."
+        },
+        "money_hidden": "suma: doar pentru contabilul de ore",
+        "mask_money": "Suma pentru personal o vede doar contabilul de ore: totalul și ponderile o exclud.",
+        "mask_whole": "Partea de personal nu se afișează pentru rolul dvs.: totalul și ponderile o exclud.",
+        "unknown": "Necunoscut: în afara oricărei sume, nu se numără niciodată ca 0",
+        "l12m_note": "Costul proiectului se citește pentru o lună sau pentru anul până acum: ultimele 12 luni sunt afișate ca anul până acum.",
+        "left_out": "În nicio parte: {item}, {amount}",
+        "section": {
+          "cloud": "Fiecare proiect GCP din exportul de facturare și costurile cloud introduse manual.",
+          "owned_hardware": "Mașinile deținute de proiect, introduse manual și amortizate lună de lună.",
+          "ai_tokens": "Ce s-a plătit pentru abonamentele și reîncărcările AI. Valoarea de listă a tokenilor apare alături, nu se adaugă niciodată.",
+          "human": "Ore aprobate la prețul propriu al fiecărei persoane: o sumă pe zi, niciodată pe persoană."
+        },
+        "open": {
+          "cloud": "Deschide Cloud",
+          "owned_hardware": "Deschide elementele plătite din Cheltuieli",
+          "ai_tokens": "Deschide Tokeni",
+          "human": "Deschide Persoane"
+        }
+      }
     },
     "releases": {
       "soon": "Raportul versiunilor vine în curând.",

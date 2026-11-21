@@ -80,6 +80,7 @@ const LAZY_METHODS = [
   'boxStats',
   'getFleetLoad',
   'getTenantCosts',
+  'getTenantCostsProject',
   'getCloudCostDays',
   'getFleetTokens',
   'getFleetLanes',

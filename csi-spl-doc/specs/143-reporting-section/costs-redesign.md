@@ -123,9 +123,13 @@ Paid items page left Costs for the **Expenses** section (3.8): Costs only
 reports costs, it enters none (owner HUM-10, t1 4f48f878, msg baa43948), and
 `/reporting/costs/paid` redirects to `/expenses/ai`, the query kept.
 
-**Since SPL-5312** (section 3.9) the bar is the four labels **Total**
-(default), **Persons**, **Cloud** and **Tokens**, each for every costs
-reader; Spend, Human and Price per token redirect to their label.
+**Since SPL-5312** (section 3.9) the bar is the four labels **Total**,
+**Persons**, **Cloud** and **Tokens**, each for every costs
+reader; Spend, Human and Price per token redirect to their label. **Since
+SPL-6117** (spec 123 P05; owner HUM-10, t1 e2c0e6b4, msg 3a795cdb, 2026-11-21:
+"First label and the default, as Q-9 A says (five labels, Total second)")
+**The project's cost** comes first and is the default: five labels, and
+`/reporting/costs` lands on `/reporting/costs/project`.
 
 ### 3.3 Spend
 
@@ -406,7 +410,7 @@ cost split to workspaces by hand, is the separate lane c003-feat-costs-workspace
 
 | label | path | its items (one table row each) | was |
 |---|---|---|---|
-| **Total** (default) | `/reporting/costs/total` | Persons, Cloud, Tokens, and Other when a part fits none (agent hours, a count) | Spend's total |
+| **Total** (the default until SPL-6117, now second after the project's cost, 3.2) | `/reporting/costs/total` | Persons, Cloud, Tokens, and Other when a part fits none (agent hours, a count) | Spend's total |
 | **Persons** | `/reporting/costs/persons` | each hand-entered `hr` cost (the month answer's `human` list, SPL-4840); since SPL-5433 step b one row per hr group (spec 123 16.3) | Human |
 | **Cloud** | `/reporting/costs/cloud` | each GCP project (its box apart) and each hand-entered `cloud` cost; a project's link opens its services (`?project=`), and for a single month a service's link its days (`&kind=`) | Cloud |
 | **Tokens** | `/reporting/costs/tokens` | each token part: the burn per vendor (`fleet_tokens`, its tokens and list price under its name, never added), the paid AI items (`ai_paid`) or a workspace's share of them (`ai_share`) | AI tokens; Price per token |

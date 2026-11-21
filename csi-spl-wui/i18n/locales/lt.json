@@ -3899,6 +3899,7 @@
         "empty": "Šį mėnesį dar nėra DI žetonų išlaidų eilutės."
       },
       "label": {
+        "project": "Projekto išlaidos",
         "total": "Iš viso",
         "persons": "Asmenys",
         "cloud": "Debesija",
@@ -3916,7 +3917,52 @@
       "empty": "Šioje kategorijoje per šį laikotarpį išlaidų nėra.",
       "no_split": "Ši darbo sritis šioje kategorijoje dar neturi savų išlaidų: jos priklauso visai infrastruktūrai ir rodomos operatoriaus darbo srityje.",
       "tokens_sub": "{units} žetonų · kainyno kaina {list}, nesumokėta",
-      "price_link": "Žetono kaina: kiekvieno agento tipo tikroji kaina pateikta skiltyje Išlaidos → DI išlaidos."
+      "price_link": "Žetono kaina: kiekvieno agento tipo tikroji kaina pateikta skiltyje Išlaidos → DI išlaidos.",
+      "project": {
+        "title": "Projekto išlaidos",
+        "figures_label": "Projekto išlaidos šį mėnesį ir šiais metais",
+        "month_so_far": "Šis mėnuo iki šiol ({month})",
+        "year_to_date": "Šie metai iki šiol ({year})",
+        "table_label": "Projekto išlaidų dalys, {period}",
+        "col_part": "Dalis",
+        "col_amount": "Suma ({currency})",
+        "col_done": "Išsamumas",
+        "part": {
+          "cloud": "Debesija",
+          "owned_hardware": "Nuosava įranga",
+          "ai_tokens": "DI žetonai",
+          "human": "Žmonės"
+        },
+        "total": "Iš viso, įkainota",
+        "total_partial": "dalinis: žr. dalis",
+        "total_complete": "išsamus",
+        "done": {
+          "complete": "kiekviena diena nuskaityta, kiekviena eilutė įkainota",
+          "partial": "nuskaityta {n} iš {total} dienų",
+          "unpriced": "{n} neįkainota, į sumą neįtraukta",
+          "hand": "įvesta ranka",
+          "not_tracked": "dar nesekama",
+          "not_shown": "jūsų vaidmeniui nerodoma"
+        },
+        "money_hidden": "suma: tik laiko apskaitininkui",
+        "mask_money": "Žmonių suma rodoma tik laiko apskaitininkui: bendra suma ir dalys jos neapima.",
+        "mask_whole": "Žmonių dalis jūsų vaidmeniui nerodoma: bendra suma ir dalys jos neapima.",
+        "unknown": "Nežinoma: neįtraukta į jokią sumą, niekada neskaičiuojama kaip 0",
+        "l12m_note": "Projekto išlaidos skaitomos vienam mėnesiui arba metams iki šiol: paskutiniai 12 mėnesių rodomi kaip metai iki šiol.",
+        "left_out": "Nė vienoje dalyje: {item}, {amount}",
+        "section": {
+          "cloud": "Kiekvienas GCP projektas iš sąskaitų eksporto ir ranka įvestos debesijos išlaidos.",
+          "owned_hardware": "Projektui priklausantys kompiuteriai, įvesti ranka ir nurašomi kas mėnesį.",
+          "ai_tokens": "Kas sumokėta už DI prenumeratas ir papildymus. Žetonų kainoraščio vertė rodoma šalia, niekada nepridedama.",
+          "human": "Patvirtintos valandos pagal kiekvieno asmens kainą: viena suma per dieną, niekada ne pagal asmenį."
+        },
+        "open": {
+          "cloud": "Atidaryti Debesiją",
+          "owned_hardware": "Atidaryti apmokėtus elementus skiltyje Išlaidos",
+          "ai_tokens": "Atidaryti Žetonus",
+          "human": "Atidaryti Asmenis"
+        }
+      }
     },
     "releases": {
       "soon": "Leidimų ataskaita netrukus.",

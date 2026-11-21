@@ -3899,6 +3899,7 @@
         "empty": "Ingen rad med kostnad för AI-token ännu den här månaden."
       },
       "label": {
+        "project": "Projektkostnad",
         "total": "Totalt",
         "persons": "Personer",
         "cloud": "Moln",
@@ -3916,7 +3917,52 @@
       "empty": "Inga kostnader i den här kategorin under den här perioden.",
       "no_split": "Den här arbetsytan har ännu inga egna kostnader i den här kategorin: de tillhör hela infrastrukturen och visas i operatörens arbetsyta.",
       "tokens_sub": "{units} token · listpris {list}, inte betalt",
-      "price_link": "Pris per token: varje agenttyps faktiska pris finns under Utgifter → AI-kostnader."
+      "price_link": "Pris per token: varje agenttyps faktiska pris finns under Utgifter → AI-kostnader.",
+      "project": {
+        "title": "Projektets kostnad",
+        "figures_label": "Projektets kostnad den här månaden och i år",
+        "month_so_far": "Den här månaden hittills ({month})",
+        "year_to_date": "I år hittills ({year})",
+        "table_label": "Delarna av projektets kostnad, {period}",
+        "col_part": "Del",
+        "col_amount": "Belopp ({currency})",
+        "col_done": "Fullständighet",
+        "part": {
+          "cloud": "Moln",
+          "owned_hardware": "Egen hårdvara",
+          "ai_tokens": "AI-token",
+          "human": "Personal"
+        },
+        "total": "Totalt, prissatt",
+        "total_partial": "delvis: se delarna",
+        "total_complete": "fullständig",
+        "done": {
+          "complete": "varje dag läst, varje rad prissatt",
+          "partial": "{n} av {total} dagar lästa",
+          "unpriced": "{n} utan pris, utanför beloppet",
+          "hand": "inmatat för hand",
+          "not_tracked": "spåras inte än",
+          "not_shown": "visas inte för din roll"
+        },
+        "money_hidden": "belopp: endast för tidsredovisaren",
+        "mask_money": "Personalbeloppet visas endast för tidsredovisaren: totalen och andelarna utelämnar det.",
+        "mask_whole": "Personaldelen visas inte för din roll: totalen och andelarna utelämnar den.",
+        "unknown": "Okänt: utanför varje summa, räknas aldrig som 0",
+        "l12m_note": "Projektets kostnad läses för en månad eller för året hittills: de senaste 12 månaderna visas som året hittills.",
+        "left_out": "I ingen del: {item}, {amount}",
+        "section": {
+          "cloud": "Varje GCP-projekt i faktureringsexporten och molnkostnaderna inmatade för hand.",
+          "owned_hardware": "Maskinerna som projektet äger, inmatade för hand och avskrivna månad för månad.",
+          "ai_tokens": "Det som betalats för AI-prenumerationer och påfyllningar. Tokenens listvärde visas bredvid och läggs aldrig till.",
+          "human": "Godkända timmar till varje persons eget pris: en summa per dag, aldrig per person."
+        },
+        "open": {
+          "cloud": "Öppna Moln",
+          "owned_hardware": "Öppna de betalda posterna under Utgifter",
+          "ai_tokens": "Öppna Token",
+          "human": "Öppna Personer"
+        }
+      }
     },
     "releases": {
       "soon": "Versionsrapporten kommer snart.",

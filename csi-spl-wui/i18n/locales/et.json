@@ -3899,6 +3899,7 @@
         "empty": "Selle kuu kohta pole veel ühtegi AI-tokenite kulu rida."
       },
       "label": {
+        "project": "Projekti kulu",
         "total": "Kokku",
         "persons": "Isikud",
         "cloud": "Pilv",
@@ -3916,7 +3917,52 @@
       "empty": "Selles kategoorias pole sel perioodil kulusid.",
       "no_split": "Sellel tööruumil pole selles kategoorias veel oma kulusid: need kuuluvad kogu taristule ja on näha operaatori tööruumis.",
       "tokens_sub": "{units} tokenit · hinnakirja hind {list}, tasumata",
-      "price_link": "Tokeni hind: iga agenditüübi tegelik hind on jaotises Kulud → Tehisintellekti kulud."
+      "price_link": "Tokeni hind: iga agenditüübi tegelik hind on jaotises Kulud → Tehisintellekti kulud.",
+      "project": {
+        "title": "Projekti kulu",
+        "figures_label": "Projekti kulu sel kuul ja sel aastal",
+        "month_so_far": "Sel kuul seni ({month})",
+        "year_to_date": "Sel aastal seni ({year})",
+        "table_label": "Projekti kulu osad, {period}",
+        "col_part": "Osa",
+        "col_amount": "Summa ({currency})",
+        "col_done": "Täielikkus",
+        "part": {
+          "cloud": "Pilv",
+          "owned_hardware": "Oma riistvara",
+          "ai_tokens": "AI-tokenid",
+          "human": "Inimesed"
+        },
+        "total": "Kokku, hinnaga",
+        "total_partial": "osaline: vaata osi",
+        "total_complete": "täielik",
+        "done": {
+          "complete": "iga päev loetud, iga rida hinnaga",
+          "partial": "{n} päeva {total}-st loetud",
+          "unpriced": "{n} hindamata, summast väljas",
+          "hand": "sisestatud käsitsi",
+          "not_tracked": "veel ei jälgita",
+          "not_shown": "teie rollile ei näidata"
+        },
+        "money_hidden": "summa: ainult tööaja raamatupidajale",
+        "mask_money": "Inimeste summat näeb ainult tööaja raamatupidaja: kogusumma ja osakaalud jätavad selle välja.",
+        "mask_whole": "Inimeste osa teie rollile ei näidata: kogusumma ja osakaalud jätavad selle välja.",
+        "unknown": "Teadmata: igast summast väljas, ei loeta kunagi nulliks",
+        "l12m_note": "Projekti kulu loetakse ühe kuu või aasta algusest seni kohta: viimased 12 kuud näidatakse aasta algusest seni.",
+        "left_out": "Üheski osas pole: {item}, {amount}",
+        "section": {
+          "cloud": "Iga GCP projekt arvelduse ekspordist ja käsitsi sisestatud pilvekulud.",
+          "owned_hardware": "Projektile kuuluvad masinad, sisestatud käsitsi ja amortiseeritud kuu kaupa.",
+          "ai_tokens": "Mis maksti AI tellimuste ja lisaostude eest. Tokenite hinnakirjaväärtus on kõrval, seda ei liideta.",
+          "human": "Kinnitatud tunnid iga inimese oma hinnaga: üks summa päevas, mitte inimese kaupa."
+        },
+        "open": {
+          "cloud": "Ava Pilv",
+          "owned_hardware": "Ava makstud kirjed jaotises Kulud",
+          "ai_tokens": "Ava Tokenid",
+          "human": "Ava Isikud"
+        }
+      }
     },
     "releases": {
       "soon": "Väljalasete aruanne tuleb peagi.",

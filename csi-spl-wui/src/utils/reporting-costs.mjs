@@ -18,10 +18,14 @@
 
 import { productPath } from './signed-out-redirect.mjs'
 
-/** The pages in their order; Total is where /reporting/costs lands.
+/** The pages in their order; the first is where /reporting/costs lands.
+ *  Spec 123 P05 (SPL-6117; owner HUM-10, t1 e2c0e6b4, msg 3a795cdb, Q-9 A:
+ *  "First label and the default ... (five labels, Total second)"): the
+ *  project's cost first, then the four labels of SPL-5312.
  *  `operatorsOnly`: drawn for an operator admin only (none since SPL-5312:
  *  a workspace reads its own costs on every label, the hub's scope). */
 export const COSTS_PAGES = Object.freeze([
+  Object.freeze({ id: 'project', path: '/reporting/costs/project', labelKey: 'reporting.costs.label.project', operatorsOnly: false }),
   Object.freeze({ id: 'total', path: '/reporting/costs/total', labelKey: 'reporting.costs.label.total', operatorsOnly: false }),
   Object.freeze({ id: 'persons', path: '/reporting/costs/persons', labelKey: 'reporting.costs.label.persons', operatorsOnly: false }),
   Object.freeze({ id: 'cloud', path: '/reporting/costs/cloud', labelKey: 'reporting.costs.label.cloud', operatorsOnly: false }),
@@ -49,7 +53,7 @@ export function costsPageFor(path) {
 export const COSTS_REDIRECTS = Object.freeze({
   '/monitoring/costs': '/reporting/costs/total',
   '/reporting/tokens': '/reporting/costs/tokens',
-  '/reporting/costs': '/reporting/costs/total',
+  '/reporting/costs': COSTS_DEFAULT_PATH,
   /* SPL-5312: the pages before the four labels land on their label; Price
      per token's figures live in Expenses -> AI costs, linked from Tokens */
   '/reporting/costs/spend': '/reporting/costs/total',

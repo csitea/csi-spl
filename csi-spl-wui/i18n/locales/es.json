@@ -3899,6 +3899,7 @@
         "empty": "Aún no hay ninguna línea de coste de tokens de IA este mes."
       },
       "label": {
+        "project": "Coste del proyecto",
         "total": "Total",
         "persons": "Personas",
         "cloud": "Nube",
@@ -3916,7 +3917,52 @@
       "empty": "No hay costes en esta categoría en este periodo.",
       "no_split": "Este espacio de trabajo aún no tiene costes propios en esta categoría: pertenecen a toda la infraestructura y se muestran en el espacio de trabajo del operador.",
       "tokens_sub": "{units} tokens · precio de lista {list}, no pagado",
-      "price_link": "Precio por token: el precio efectivo de cada tipo de agente está en Gastos → Costes de IA."
+      "price_link": "Precio por token: el precio efectivo de cada tipo de agente está en Gastos → Costes de IA.",
+      "project": {
+        "title": "El coste del proyecto",
+        "figures_label": "El coste del proyecto este mes y este año",
+        "month_so_far": "Este mes hasta ahora ({month})",
+        "year_to_date": "Este año hasta la fecha ({year})",
+        "table_label": "Las partes del coste del proyecto, {period}",
+        "col_part": "Parte",
+        "col_amount": "Importe ({currency})",
+        "col_done": "Completitud",
+        "part": {
+          "cloud": "Nube",
+          "owned_hardware": "Hardware propio",
+          "ai_tokens": "Tokens de IA",
+          "human": "Personal"
+        },
+        "total": "Total con precio",
+        "total_partial": "parcial: vea las partes",
+        "total_complete": "completo",
+        "done": {
+          "complete": "cada día leído, cada línea con precio",
+          "partial": "{n} de {total} días leídos",
+          "unpriced": "{n} sin precio, fuera del importe",
+          "hand": "introducido a mano",
+          "not_tracked": "aún sin seguimiento",
+          "not_shown": "no se muestra a tu rol"
+        },
+        "money_hidden": "importe: solo para el contable de horas",
+        "mask_money": "El importe del personal solo lo ve el contable de horas: el total y las proporciones lo excluyen.",
+        "mask_whole": "La parte del personal no se muestra a tu rol: el total y las proporciones la excluyen.",
+        "unknown": "Desconocido: fuera de toda suma, nunca se cuenta como 0",
+        "l12m_note": "El coste del proyecto se lee por un mes o por el año hasta la fecha: los últimos 12 meses se muestran como el año hasta la fecha.",
+        "left_out": "Fuera de toda parte: {item}, {amount}",
+        "section": {
+          "cloud": "Cada proyecto de GCP de la exportación de facturación y los costes de nube introducidos a mano.",
+          "owned_hardware": "Las máquinas propiedad del proyecto, introducidas a mano y amortizadas mes a mes.",
+          "ai_tokens": "Lo pagado por las suscripciones y recargas de IA. El precio de lista de los tokens se muestra al lado, nunca se suma.",
+          "human": "Horas aprobadas al precio propio de cada persona: una suma por día, nunca por persona."
+        },
+        "open": {
+          "cloud": "Abrir Nube",
+          "owned_hardware": "Abrir los elementos pagados en Gastos",
+          "ai_tokens": "Abrir Tokens",
+          "human": "Abrir Personas"
+        }
+      }
     },
     "releases": {
       "soon": "El informe de versiones llegará pronto.",

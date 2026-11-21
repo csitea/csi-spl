@@ -3899,6 +3899,7 @@
         "empty": "W tym miesiącu nie ma jeszcze żadnej pozycji kosztów tokenów AI."
       },
       "label": {
+        "project": "Koszt projektu",
         "total": "Razem",
         "persons": "Osoby",
         "cloud": "Chmura",
@@ -3916,7 +3917,52 @@
       "empty": "Brak kosztów w tej kategorii w tym okresie.",
       "no_split": "Ten obszar roboczy nie ma jeszcze własnych kosztów w tej kategorii: należą one do całej infrastruktury i są widoczne w obszarze roboczym operatora.",
       "tokens_sub": "{units} tokenów · cena katalogowa {list}, niezapłacona",
-      "price_link": "Cena za token: rzeczywista cena każdego typu agenta jest w sekcji Wydatki → Koszty AI."
+      "price_link": "Cena za token: rzeczywista cena każdego typu agenta jest w sekcji Wydatki → Koszty AI.",
+      "project": {
+        "title": "Koszt projektu",
+        "figures_label": "Koszt projektu w tym miesiącu i w tym roku",
+        "month_so_far": "Ten miesiąc do teraz ({month})",
+        "year_to_date": "Ten rok do teraz ({year})",
+        "table_label": "Części kosztu projektu, {period}",
+        "col_part": "Część",
+        "col_amount": "Kwota ({currency})",
+        "col_done": "Kompletność",
+        "part": {
+          "cloud": "Chmura",
+          "owned_hardware": "Własny sprzęt",
+          "ai_tokens": "Tokeny AI",
+          "human": "Personel"
+        },
+        "total": "Razem, wycenione",
+        "total_partial": "częściowe: zobacz części",
+        "total_complete": "kompletne",
+        "done": {
+          "complete": "każdy dzień odczytany, każda pozycja wyceniona",
+          "partial": "odczytano {n} z {total} dni",
+          "unpriced": "{n} bez ceny, poza kwotą",
+          "hand": "wprowadzone ręcznie",
+          "not_tracked": "jeszcze nie śledzone",
+          "not_shown": "niewidoczne dla Twojej roli"
+        },
+        "money_hidden": "kwota: tylko dla księgowego czasu pracy",
+        "mask_money": "Kwotę personelu widzi tylko księgowy czasu pracy: suma i udziały ją pomijają.",
+        "mask_whole": "Koszty personelu są niewidoczne dla Twojej roli: suma i udziały je pomijają.",
+        "unknown": "Nieznane: poza każdą sumą, nigdy nie liczone jako 0",
+        "l12m_note": "Koszt projektu odczytuje się za jeden miesiąc lub za rok do teraz: ostatnie 12 miesięcy pokazano jako rok do teraz.",
+        "left_out": "W żadnej części: {item}, {amount}",
+        "section": {
+          "cloud": "Każdy projekt GCP z eksportu rozliczeń i ręcznie wprowadzone koszty chmury.",
+          "owned_hardware": "Maszyny należące do projektu, wprowadzone ręcznie i amortyzowane miesiąc po miesiącu.",
+          "ai_tokens": "Kwota zapłacona za subskrypcje i doładowania AI. Wartość cennikowa tokenów jest obok, nigdy nie jest dodawana.",
+          "human": "Zatwierdzone godziny według własnej stawki każdej osoby: jedna suma dziennie, nigdy na osobę."
+        },
+        "open": {
+          "cloud": "Otwórz Chmurę",
+          "owned_hardware": "Otwórz opłacone pozycje w Wydatkach",
+          "ai_tokens": "Otwórz Tokeny",
+          "human": "Otwórz Osoby"
+        }
+      }
     },
     "releases": {
       "soon": "Raport wydań już wkrótce.",

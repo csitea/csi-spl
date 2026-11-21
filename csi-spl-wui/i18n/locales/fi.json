@@ -3899,6 +3899,7 @@
         "empty": "Tältä kuukaudelta ei ole vielä tekoälytokenien kulurivejä."
       },
       "label": {
+        "project": "Projektin kustannus",
         "total": "Yhteensä",
         "persons": "Henkilöt",
         "cloud": "Pilvi",
@@ -3916,7 +3917,52 @@
       "empty": "Tällä ajanjaksolla ei ole kuluja tässä luokassa.",
       "no_split": "Tällä työtilalla ei ole vielä omia kuluja tässä luokassa: ne kuuluvat koko infrastruktuurille ja näkyvät operaattorin työtilassa.",
       "tokens_sub": "{units} tokenia · listahinta {list}, ei maksettu",
-      "price_link": "Tokenin hinta: kunkin agenttityypin todellinen hinta on kohdassa Kulut → Tekoälykulut."
+      "price_link": "Tokenin hinta: kunkin agenttityypin todellinen hinta on kohdassa Kulut → Tekoälykulut.",
+      "project": {
+        "title": "Projektin kustannus",
+        "figures_label": "Projektin kustannus tässä kuussa ja tänä vuonna",
+        "month_so_far": "Tämä kuu tähän mennessä ({month})",
+        "year_to_date": "Tämä vuosi tähän mennessä ({year})",
+        "table_label": "Projektin kustannuksen osat, {period}",
+        "col_part": "Osa",
+        "col_amount": "Summa ({currency})",
+        "col_done": "Kattavuus",
+        "part": {
+          "cloud": "Pilvi",
+          "owned_hardware": "Oma laitteisto",
+          "ai_tokens": "Tekoälytokenit",
+          "human": "Henkilöstö"
+        },
+        "total": "Yhteensä, hinnoitellut",
+        "total_partial": "osittainen: katso osat",
+        "total_complete": "täydellinen",
+        "done": {
+          "complete": "jokainen päivä luettu, jokainen rivi hinnoiteltu",
+          "partial": "{n}/{total} päivää luettu",
+          "unpriced": "{n} hinnoittelematta, jätetty summasta pois",
+          "hand": "syötetty käsin",
+          "not_tracked": "ei vielä seurannassa",
+          "not_shown": "ei näytetä roolillesi"
+        },
+        "money_hidden": "summa: vain tuntikirjanpitäjälle",
+        "mask_money": "Henkilöstön summa näytetään vain tuntikirjanpitäjälle: kokonaissumma ja osuudet jättävät sen pois.",
+        "mask_whole": "Henkilöstön osaa ei näytetä roolillesi: kokonaissumma ja osuudet jättävät sen pois.",
+        "unknown": "Ei tiedossa: jätetty jokaisesta summasta pois, ei koskaan lasketa nollaksi",
+        "l12m_note": "Projektin kustannus luetaan yhdeltä kuukaudelta tai vuoden alusta: viimeiset 12 kuukautta näytetään vuoden alusta.",
+        "left_out": "Ei missään osassa: {item}, {amount}",
+        "section": {
+          "cloud": "Jokainen laskutusviennin GCP-projekti ja käsin syötetyt pilvikustannukset.",
+          "owned_hardware": "Projektin omistamat koneet, syötetty käsin ja poistettu kuukausittain.",
+          "ai_tokens": "Mitä tekoälytilauksista ja lisäostoista maksettiin. Tokenien listahinta näytetään vieressä, sitä ei lasketa mukaan.",
+          "human": "Hyväksytyt tunnit kunkin henkilön omalla hinnalla: yksi summa päivässä, ei koskaan henkilöittäin."
+        },
+        "open": {
+          "cloud": "Avaa Pilvi",
+          "owned_hardware": "Avaa maksetut erät kohdassa Kulut",
+          "ai_tokens": "Avaa Tokenit",
+          "human": "Avaa Henkilöt"
+        }
+      }
     },
     "releases": {
       "soon": "Julkaisuraportti on tulossa pian.",

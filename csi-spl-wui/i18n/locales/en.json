@@ -3899,6 +3899,7 @@
         "empty": "No AI token cost line in this month yet."
       },
       "label": {
+        "project": "Project cost",
         "total": "Total",
         "persons": "Persons",
         "cloud": "Cloud",
@@ -3916,7 +3917,52 @@
       "empty": "No costs under this label in this period.",
       "no_split": "This workspace has no costs of its own under this label yet: they belong to the whole estate, shown in the operator workspace.",
       "tokens_sub": "{units} tokens · list price {list}, not paid",
-      "price_link": "Price per token: each agent type's effective price is under Expenses → AI costs."
+      "price_link": "Price per token: each agent type's effective price is under Expenses → AI costs.",
+      "project": {
+        "title": "The project's cost",
+        "figures_label": "The project's cost this month and this year",
+        "month_so_far": "This month so far ({month})",
+        "year_to_date": "This year to date ({year})",
+        "table_label": "The parts of the project's cost, {period}",
+        "col_part": "Part",
+        "col_amount": "Amount ({currency})",
+        "col_done": "Completeness",
+        "part": {
+          "cloud": "Cloud",
+          "owned_hardware": "Owned hardware",
+          "ai_tokens": "AI tokens",
+          "human": "Human"
+        },
+        "total": "Total, priced",
+        "total_partial": "partial: see the parts",
+        "total_complete": "complete",
+        "done": {
+          "complete": "every day read, every line priced",
+          "partial": "{n} of {total} days read",
+          "unpriced": "{n} unpriced, left out of the money",
+          "hand": "entered by hand",
+          "not_tracked": "not tracked yet",
+          "not_shown": "not shown to your role"
+        },
+        "money_hidden": "money: time accountant only",
+        "mask_money": "The Human money is shown to the time accountant only: the total and the shares leave it out.",
+        "mask_whole": "The Human part is not shown to your role: the total and the shares leave it out.",
+        "unknown": "Not known: left out of every sum, never counted as 0",
+        "l12m_note": "The project's cost reads one month or the year to date: the last 12 months are drawn as the year to date.",
+        "left_out": "Not in any part: {item}, {amount}",
+        "section": {
+          "cloud": "Every GCP project of the billing export, and the cloud costs entered by hand.",
+          "owned_hardware": "The machines the project owns, entered by hand and written off month by month.",
+          "ai_tokens": "What was paid for the AI subscriptions and top-ups. The tokens' list value is shown beside it, never added.",
+          "human": "Approved hours at each person's own price: one sum per day, never per person."
+        },
+        "open": {
+          "cloud": "Open Cloud",
+          "owned_hardware": "Open the paid items under Expenses",
+          "ai_tokens": "Open Tokens",
+          "human": "Open Persons"
+        }
+      }
     },
     "releases": {
       "soon": "The Releases report is coming soon.",

@@ -3899,6 +3899,7 @@
         "empty": "Nog geen regel met kosten van AI-tokens in deze maand."
       },
       "label": {
+        "project": "Projectkosten",
         "total": "Totaal",
         "persons": "Personen",
         "cloud": "Cloud",
@@ -3916,7 +3917,52 @@
       "empty": "Geen kosten in deze categorie in deze periode.",
       "no_split": "Deze werkruimte heeft in deze categorie nog geen eigen kosten: ze horen bij de hele infrastructuur en staan in de werkruimte van de operator.",
       "tokens_sub": "{units} tokens · catalogusprijs {list}, niet betaald",
-      "price_link": "Prijs per token: de werkelijke prijs van elk agenttype staat onder Uitgaven → AI-kosten."
+      "price_link": "Prijs per token: de werkelijke prijs van elk agenttype staat onder Uitgaven → AI-kosten.",
+      "project": {
+        "title": "De kosten van het project",
+        "figures_label": "De kosten van het project deze maand en dit jaar",
+        "month_so_far": "Deze maand tot nu toe ({month})",
+        "year_to_date": "Dit jaar tot nu toe ({year})",
+        "table_label": "De delen van de projectkosten, {period}",
+        "col_part": "Deel",
+        "col_amount": "Bedrag ({currency})",
+        "col_done": "Volledigheid",
+        "part": {
+          "cloud": "Cloudkosten",
+          "owned_hardware": "Eigen hardware",
+          "ai_tokens": "AI-tokens",
+          "human": "Personeel"
+        },
+        "total": "Totaal, geprijsd",
+        "total_partial": "gedeeltelijk: zie de delen",
+        "total_complete": "volledig",
+        "done": {
+          "complete": "elke dag gelezen, elke regel geprijsd",
+          "partial": "{n} van {total} dagen gelezen",
+          "unpriced": "{n} zonder prijs, buiten het bedrag",
+          "hand": "met de hand ingevoerd",
+          "not_tracked": "nog niet gevolgd",
+          "not_shown": "niet zichtbaar voor uw rol"
+        },
+        "money_hidden": "bedrag: alleen voor de urenadministrateur",
+        "mask_money": "Het personeelsbedrag ziet alleen de urenadministrateur: het totaal en de aandelen laten het weg.",
+        "mask_whole": "Het personeelsdeel is niet zichtbaar voor uw rol: het totaal en de aandelen laten het weg.",
+        "unknown": "Onbekend: buiten elke som, nooit als 0 geteld",
+        "l12m_note": "De projectkosten worden per maand of voor het jaar tot nu toe gelezen: de laatste 12 maanden worden als het jaar tot nu toe getoond.",
+        "left_out": "In geen enkel deel: {item}, {amount}",
+        "section": {
+          "cloud": "Elk GCP-project uit de factuurexport, en de met de hand ingevoerde cloudkosten.",
+          "owned_hardware": "De machines van het project, met de hand ingevoerd en maand voor maand afgeschreven.",
+          "ai_tokens": "Wat betaald is voor de AI-abonnementen en opwaarderingen. De catalogusprijs van de tokens staat ernaast en wordt nooit opgeteld.",
+          "human": "Goedgekeurde uren tegen de eigen prijs van elke persoon: één som per dag, nooit per persoon."
+        },
+        "open": {
+          "cloud": "Cloud openen",
+          "owned_hardware": "De betaalde posten onder Uitgaven openen",
+          "ai_tokens": "Tokens openen",
+          "human": "Personen openen"
+        }
+      }
     },
     "releases": {
       "soon": "Het uitgaverapport komt binnenkort.",

@@ -3899,6 +3899,7 @@
         "empty": "Šajā mēnesī vēl nav nevienas MI tokenu izmaksu rindas."
       },
       "label": {
+        "project": "Projekta izmaksas",
         "total": "Kopā",
         "persons": "Personas",
         "cloud": "Mākonis",
@@ -3916,7 +3917,52 @@
       "empty": "Šajā kategorijā šajā periodā nav izmaksu.",
       "no_split": "Šai darbvietai šajā kategorijā vēl nav savu izmaksu: tās pieder visai infrastruktūrai un ir redzamas operatora darbvietā.",
       "tokens_sub": "{units} tokenu · cenrāža cena {list}, nav samaksāta",
-      "price_link": "Tokena cena: katra aģenta veida faktiskā cena ir sadaļā Izdevumi → MI izmaksas."
+      "price_link": "Tokena cena: katra aģenta veida faktiskā cena ir sadaļā Izdevumi → MI izmaksas.",
+      "project": {
+        "title": "Projekta izmaksas",
+        "figures_label": "Projekta izmaksas šajā mēnesī un šogad",
+        "month_so_far": "Šis mēnesis līdz šim ({month})",
+        "year_to_date": "Šis gads līdz šim ({year})",
+        "table_label": "Projekta izmaksu daļas, {period}",
+        "col_part": "Daļa",
+        "col_amount": "Summa ({currency})",
+        "col_done": "Pilnīgums",
+        "part": {
+          "cloud": "Mākonis",
+          "owned_hardware": "Sava aparatūra",
+          "ai_tokens": "MI tokeni",
+          "human": "Cilvēki"
+        },
+        "total": "Kopā, ar cenu",
+        "total_partial": "daļēji: skatiet daļas",
+        "total_complete": "pilnīgs",
+        "done": {
+          "complete": "katra diena nolasīta, katra rinda ar cenu",
+          "partial": "nolasītas {n} no {total} dienām",
+          "unpriced": "{n} bez cenas, summā neiekļauts",
+          "hand": "ievadīts ar roku",
+          "not_tracked": "vēl netiek izsekots",
+          "not_shown": "jūsu lomai netiek rādīts"
+        },
+        "money_hidden": "summa: tikai laika grāmatvedim",
+        "mask_money": "Cilvēku summu redz tikai laika grāmatvedis: kopsumma un daļas to neietver.",
+        "mask_whole": "Cilvēku daļa jūsu lomai netiek rādīta: kopsumma un daļas to neietver.",
+        "unknown": "Nav zināms: neiekļauts nevienā summā, nekad netiek skaitīts kā 0",
+        "l12m_note": "Projekta izmaksas tiek nolasītas par vienu mēnesi vai gadu līdz šim: pēdējie 12 mēneši tiek rādīti kā gads līdz šim.",
+        "left_out": "Nevienā daļā: {item}, {amount}",
+        "section": {
+          "cloud": "Katrs GCP projekts no norēķinu eksporta un ar roku ievadītās mākoņa izmaksas.",
+          "owned_hardware": "Projektam piederošās iekārtas, ievadītas ar roku un norakstītas pa mēnešiem.",
+          "ai_tokens": "Kas samaksāts par MI abonementiem un papildinājumiem. Tokenu cenrāža vērtība ir rādīta blakus, tā netiek pieskaitīta.",
+          "human": "Apstiprinātās stundas pēc katras personas cenas: viena summa dienā, nekad pa personām."
+        },
+        "open": {
+          "cloud": "Atvērt Mākoni",
+          "owned_hardware": "Atvērt apmaksātās pozīcijas sadaļā Izdevumi",
+          "ai_tokens": "Atvērt Tokenus",
+          "human": "Atvērt Personas"
+        }
+      }
     },
     "releases": {
       "soon": "Laidienu pārskats drīzumā.",

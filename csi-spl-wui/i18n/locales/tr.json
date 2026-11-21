@@ -3899,6 +3899,7 @@
         "empty": "Bu ay henüz yapay zekâ belirteci maliyeti satırı yok."
       },
       "label": {
+        "project": "Proje maliyeti",
         "total": "Toplam",
         "persons": "Kişiler",
         "cloud": "Bulut",
@@ -3916,7 +3917,52 @@
       "empty": "Bu dönemde bu kategoride maliyet yok.",
       "no_split": "Bu çalışma alanının bu kategoride henüz kendine ait maliyeti yok: maliyetler tüm altyapıya aittir ve operatörün çalışma alanında gösterilir.",
       "tokens_sub": "{units} belirteç · liste fiyatı {list}, ödenmedi",
-      "price_link": "Belirteç başına fiyat: her ajan türünün gerçek fiyatı Giderler → Yapay zekâ maliyetleri altındadır."
+      "price_link": "Belirteç başına fiyat: her ajan türünün gerçek fiyatı Giderler → Yapay zekâ maliyetleri altındadır.",
+      "project": {
+        "title": "Projenin maliyeti",
+        "figures_label": "Projenin bu ayki ve bu yılki maliyeti",
+        "month_so_far": "Bu ay şimdiye kadar ({month})",
+        "year_to_date": "Bu yıl şimdiye kadar ({year})",
+        "table_label": "Proje maliyetinin kalemleri, {period}",
+        "col_part": "Kalem",
+        "col_amount": "Tutar ({currency})",
+        "col_done": "Tamlık",
+        "part": {
+          "cloud": "Bulut",
+          "owned_hardware": "Sahip olunan donanım",
+          "ai_tokens": "Yapay zekâ belirteçleri",
+          "human": "Personel"
+        },
+        "total": "Toplam, fiyatlandırılmış",
+        "total_partial": "kısmi: kalemlere bakın",
+        "total_complete": "tam",
+        "done": {
+          "complete": "her gün okundu, her satır fiyatlandırıldı",
+          "partial": "{total} günün {n} günü okundu",
+          "unpriced": "{n} fiyatsız, tutarın dışında",
+          "hand": "elle girildi",
+          "not_tracked": "henüz izlenmiyor",
+          "not_shown": "rolünüze gösterilmiyor"
+        },
+        "money_hidden": "tutar: yalnızca zaman muhasebecisine",
+        "mask_money": "Personel tutarını yalnızca zaman muhasebecisi görür: toplam ve paylar onu dışarıda bırakır.",
+        "mask_whole": "Personel kalemi rolünüze gösterilmiyor: toplam ve paylar onu dışarıda bırakır.",
+        "unknown": "Bilinmiyor: her toplamın dışında, asla 0 sayılmaz",
+        "l12m_note": "Projenin maliyeti bir ay ya da yılbaşından bugüne okunur: son 12 ay yılbaşından bugüne olarak gösterilir.",
+        "left_out": "Hiçbir kalemde değil: {item}, {amount}",
+        "section": {
+          "cloud": "Faturalama dışa aktarımındaki her GCP projesi ve elle girilen bulut maliyetleri.",
+          "owned_hardware": "Projenin sahip olduğu makineler, elle girilir ve ay ay amorti edilir.",
+          "ai_tokens": "Yapay zekâ abonelikleri ve yüklemeleri için ödenen. Belirteçlerin liste değeri yanında gösterilir, asla eklenmez.",
+          "human": "Her kişinin kendi fiyatıyla onaylanmış saatler: günde bir toplam, asla kişi başına değil."
+        },
+        "open": {
+          "cloud": "Bulut'u aç",
+          "owned_hardware": "Giderler altındaki ödenmiş kalemleri aç",
+          "ai_tokens": "Belirteçler'i aç",
+          "human": "Kişiler'i aç"
+        }
+      }
     },
     "releases": {
       "soon": "Sürüm raporu yakında geliyor.",

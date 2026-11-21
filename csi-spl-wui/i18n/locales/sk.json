@@ -3899,6 +3899,7 @@
         "empty": "Tento mesiac zatiaľ nie je žiadny riadok nákladov na tokeny AI."
       },
       "label": {
+        "project": "Náklady projektu",
         "total": "Spolu",
         "persons": "Osoby",
         "cloud": "Cloud",
@@ -3916,7 +3917,52 @@
       "empty": "V tejto kategórii za toto obdobie nie sú náklady.",
       "no_split": "Tento pracovný priestor zatiaľ nemá v tejto kategórii vlastné náklady: patria celej infraštruktúre a zobrazujú sa v pracovnom priestore operátora.",
       "tokens_sub": "{units} tokenov · cenníková cena {list}, nezaplatená",
-      "price_link": "Cena za token: skutočná cena každého typu agenta je v časti Výdavky → Náklady na AI."
+      "price_link": "Cena za token: skutočná cena každého typu agenta je v časti Výdavky → Náklady na AI.",
+      "project": {
+        "title": "Náklady projektu",
+        "figures_label": "Náklady projektu tento mesiac a tento rok",
+        "month_so_far": "Tento mesiac doteraz ({month})",
+        "year_to_date": "Tento rok doteraz ({year})",
+        "table_label": "Časti nákladov projektu, {period}",
+        "col_part": "Časť",
+        "col_amount": "Suma ({currency})",
+        "col_done": "Úplnosť",
+        "part": {
+          "cloud": "Cloudové náklady",
+          "owned_hardware": "Vlastný hardvér",
+          "ai_tokens": "Tokeny AI",
+          "human": "Ľudia"
+        },
+        "total": "Spolu, nacenené",
+        "total_partial": "čiastočné: pozrite časti",
+        "total_complete": "úplné",
+        "done": {
+          "complete": "každý deň načítaný, každý riadok nacenený",
+          "partial": "načítaných {n} z {total} dní",
+          "unpriced": "{n} bez ceny, mimo sumy",
+          "hand": "zadané ručne",
+          "not_tracked": "zatiaľ nesledované",
+          "not_shown": "pre vašu rolu sa nezobrazuje"
+        },
+        "money_hidden": "suma: len pre účtovníka času",
+        "mask_money": "Sumu za ľudí vidí len účtovník času: súčet a podiely ju vynechávajú.",
+        "mask_whole": "Časť za ľudí sa pre vašu rolu nezobrazuje: súčet a podiely ju vynechávajú.",
+        "unknown": "Neznáme: mimo každého súčtu, nikdy sa nepočíta ako 0",
+        "l12m_note": "Náklady projektu sa čítajú za jeden mesiac alebo za rok doteraz: posledných 12 mesiacov sa zobrazuje ako rok doteraz.",
+        "left_out": "V žiadnej časti: {item}, {amount}",
+        "section": {
+          "cloud": "Každý projekt GCP z exportu fakturácie a ručne zadané náklady na cloud.",
+          "owned_hardware": "Stroje vo vlastníctve projektu, zadané ručne a odpisované mesiac po mesiaci.",
+          "ai_tokens": "Čo sa zaplatilo za predplatné a dobitia AI. Cenníková hodnota tokenov je uvedená vedľa, nikdy sa nepripočítava.",
+          "human": "Schválené hodiny za vlastnú cenu každej osoby: jeden súčet za deň, nikdy po osobách."
+        },
+        "open": {
+          "cloud": "Otvoriť Cloud",
+          "owned_hardware": "Otvoriť zaplatené položky vo Výdavkoch",
+          "ai_tokens": "Otvoriť Tokeny",
+          "human": "Otvoriť Osoby"
+        }
+      }
     },
     "releases": {
       "soon": "Prehľad vydaní už čoskoro.",

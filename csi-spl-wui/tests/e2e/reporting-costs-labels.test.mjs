@@ -2,10 +2,10 @@
 // 2026-11-11): Reporting -> Costs is four labels, Total, Persons, Cloud and
 // Tokens, in a real browser against the mock bundle, at 1440x900 and
 // 390x844:
-//   - the bar is exactly the four labels, for a member and an operator
-//     admin; the pages before them land on their label, the query kept
+//   - the bar is the project's cost, then exactly the four labels; the pages before them land on their label, the query kept
 //     (/reporting/costs/spend -> total, /human -> persons, /price -> tokens,
-//     /reporting/costs, /monitoring/costs -> total, /reporting/tokens ->
+//     /monitoring/costs -> total, /reporting/costs -> the project's cost
+//     (spec 123 P05, SPL-6117 Q-9 A: the first label), /reporting/tokens ->
 //     tokens, /reporting/costs/paid -> /expenses/ai), never a 404;
 //   - each label: its name, then straight after it the pie, each legend row
 //     showing the item's value AND its percentage on screen (no hover), the
@@ -98,7 +98,7 @@ const act = (what, fn) => Promise.resolve().then(fn).then(() => true, (e) => { o
 async function redirects(browser, base, size) {
   const { ctx, p } = await costsPage(browser, base, size)
   const cases = [
-    ['/reporting/costs?month=2026-09', '/reporting/costs/total?month=2026-09'],
+    ['/reporting/costs?month=2026-09', '/reporting/costs/project?month=2026-09'],
     ['/reporting/costs/spend?month=2026-09&currency=EUR', '/reporting/costs/total?month=2026-09&currency=EUR'],
     ['/reporting/costs/human', '/reporting/costs/persons'],
     ['/reporting/costs/price', '/reporting/costs/tokens'],
@@ -111,10 +111,10 @@ async function redirects(browser, base, size) {
     ok(`redirect ${from} -> ${to}`, await waitWhere(p, to), where(p))
   }
   await open(p, base, '/reporting/costs/total')
-  await p.waitForFunction(() => document.querySelectorAll('[data-test^=costs-page-]').length === 4, { timeout: 15000 }).catch(() => null)
-  ok('bar: exactly Total, Persons, Cloud, Tokens for a member; Total active', (await labelIds(p)).join(',') === 'total,persons,cloud,tokens'
+  await p.waitForFunction(() => document.querySelectorAll('[data-test^=costs-page-]').length === 5, { timeout: 15000 }).catch(() => null)
+  ok('bar: exactly Project cost, Total, Persons, Cloud, Tokens for a member; Total active', (await labelIds(p)).join(',') === 'project,total,persons,cloud,tokens'
     && (await p.$eval('[data-test=costs-page-total]', (e) => e.getAttribute('aria-current')).catch(() => '')) === 'page', await labelIds(p))
-  ok('bar: the label names', (await p.$$eval('[data-test^=costs-page-]', (els) => els.map((e) => e.textContent.trim()))).join(',') === 'Total,Persons,Cloud,Tokens')
+  ok('bar: the label names', (await p.$$eval('[data-test^=costs-page-]', (els) => els.map((e) => e.textContent.trim()))).join(',') === 'Project cost,Total,Persons,Cloud,Tokens')
   await ctx.close()
 }
 

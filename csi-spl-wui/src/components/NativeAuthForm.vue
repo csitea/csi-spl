@@ -165,7 +165,11 @@ async function submit() {
   try {
     if (mode.value === 'login') {
       const out = await auth.login({ email: email.value, password: password.value, tenant: props.tenant, redirect: props.redirect })
-      if (!out.ok) return fail(out)
+      if (!out.ok) {
+        /* SPL-6182: a right password on an unverified address mails a fresh link itself */
+        if (out.error === 'email_unverified' && out.data && out.data.verification_sent === true) notice.value = 'auth.native.check_inbox'
+        return fail(out)
+      }
       const { redirect: to, ...claims } = (out.data || {}) as SessionClaims & { redirect?: string }
       session.adopt(claims)
       password.value = ''

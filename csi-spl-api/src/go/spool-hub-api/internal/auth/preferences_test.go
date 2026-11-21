@@ -959,7 +959,7 @@ func TestResetMailLocalePrecedence(t *testing.T) {
 	if got := r.call(t, nil, http.MethodPost, "register", jsonBody(map[string]string{"email": "p@example.com", "password": pwA}), "X-Locale", "fi"); got.code != http.StatusAccepted {
 		t.Fatal(got.raw)
 	}
-	if got := r.post(t, nil, "email/verify", map[string]string{"token": r.lastToken(t, mail.TemplateEmailVerification), "password": pwA}); got.code != http.StatusNoContent {
+	if got := r.post(t, nil, "email/verify", map[string]string{"token": r.lastToken(t, mail.TemplateEmailVerification), "password": pwA}); got.code != http.StatusOK {
 		t.Fatal(got.raw)
 	}
 	// 1) no human pick yet: the registration locale beats the request's

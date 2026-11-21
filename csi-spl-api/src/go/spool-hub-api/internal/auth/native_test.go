@@ -95,7 +95,14 @@ func newNRig(t *testing.T, extra map[string]string, members auth.Membership, del
 // rig above it runs.
 func newNRigWith(t *testing.T, extra map[string]string, members auth.Membership, delivers bool, fed auth.FederatedLookup) *nrig {
 	t.Helper()
-	r := &nrig{box: &mail.Recorder{}, reg: &recReg{}, store: auth.NewMemoryCredStore(),
+	return newNRigOn(t, extra, members, delivers, fed, auth.NewMemoryCredStore())
+}
+
+// newNRigOn is newNRigWith on a given credential store, so two rigs can play
+// two hub instances over one database (SPL-6182).
+func newNRigOn(t *testing.T, extra map[string]string, members auth.Membership, delivers bool, fed auth.FederatedLookup, st *auth.MemoryCredStore) *nrig {
+	t.Helper()
+	r := &nrig{box: &mail.Recorder{}, reg: &recReg{}, store: st,
 		t: time.Date(2026, 9, 19, 6, 0, 0, 0, time.UTC)}
 	var hubH http.Handler
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, q *http.Request) { hubH.ServeHTTP(w, q) }))
@@ -197,7 +204,7 @@ func (r *nrig) registerVerified(t *testing.T, email, pw string) {
 	if got := r.post(t, nil, "register", map[string]string{"email": email, "password": pw}); got.code != http.StatusAccepted {
 		t.Fatalf("register: %d %s", got.code, got.raw)
 	}
-	if got := r.post(t, nil, "email/verify", map[string]string{"token": r.lastToken(t, mail.TemplateEmailVerification), "password": pw}); got.code != http.StatusNoContent {
+	if got := r.post(t, nil, "email/verify", map[string]string{"token": r.lastToken(t, mail.TemplateEmailVerification), "password": pw}); got.code != http.StatusOK {
 		t.Fatalf("verify: %d %s", got.code, got.raw)
 	}
 }
@@ -214,7 +221,7 @@ func TestNativeRegisterVerifyLoginFlow(t *testing.T) {
 		!strings.Contains(msgs[0].TextBody, "http://app.example.test/verify-email?token=") {
 		t.Fatalf("mail: %+v", msgs)
 	}
-	if got := r.post(t, c, "email/verify", map[string]string{"token": r.lastToken(t, mail.TemplateEmailVerification), "password": pwA}); got.code != http.StatusNoContent {
+	if got := r.post(t, c, "email/verify", map[string]string{"token": r.lastToken(t, mail.TemplateEmailVerification), "password": pwA}); got.code != http.StatusOK {
 		t.Fatalf("verify: %d %s", got.code, got.raw)
 	}
 	got = r.post(t, c, "login", map[string]string{"email": "PERSON@example.com", "password": pwA, "tenant": "acme", "redirect": "//evil.example"})
@@ -225,7 +232,8 @@ func TestNativeRegisterVerifyLoginFlow(t *testing.T) {
 	if code, s := sessionAt(t, c, r.url); code != http.StatusOK || s.Provider != "password" || s.HumanID != "HUM-1" || s.Name != "FirstName LastName" {
 		t.Fatalf("session: %d %+v", code, s)
 	}
-	if r.reg.n() != 1 || r.reg.calls[0].Provider != "password" || r.reg.calls[0].Email != "person@example.com" {
+	// Two calls: the verify signs in (SPL-6182), then the login.
+	if r.reg.n() != 2 || r.reg.calls[1].Provider != "password" || r.reg.calls[1].Email != "person@example.com" {
 		t.Fatalf("registrar calls: %+v", r.reg.calls)
 	}
 	res, _ := http.Get(r.url + "/api/v1/auth/providers")
@@ -263,7 +271,8 @@ func TestNativeLoginWrongPasswordAndUnknownEmailSame401(t *testing.T) {
 	if wrong.raw != unknown.raw {
 		t.Fatalf("bodies differ: %q vs %q", wrong.raw, unknown.raw)
 	}
-	if r.reg.n() != 0 {
+	// One call: the verify that signed known@ in (SPL-6182); none from a refusal.
+	if r.reg.n() != 1 {
 		t.Fatal("a refused login reached the Registrar")
 	}
 }
@@ -385,7 +394,7 @@ func TestNativePreAccountTakeover(t *testing.T) {
 	if g := r.post(t, nil, "email/verify", map[string]string{"token": squatterLink, "password": pwA}); g.code != http.StatusUnauthorized {
 		t.Fatalf("retired squatter link: %d %s", g.code, g.raw)
 	}
-	if g := r.post(t, nil, "email/verify", map[string]string{"token": ownerLink, "password": pwB}); g.code != http.StatusNoContent {
+	if g := r.post(t, nil, "email/verify", map[string]string{"token": ownerLink, "password": pwB}); g.code != http.StatusOK {
 		t.Fatalf("owner link: %d %s", g.code, g.raw)
 	}
 	if g := r.post(t, nil, "login", map[string]string{"email": "victim@example.com", "password": pwA}); g.code != http.StatusUnauthorized {
@@ -419,7 +428,7 @@ func TestNativeVerifyNeedsTheRegisteredPassword(t *testing.T) {
 		t.Fatalf("squatter signed in after the victim's click: %s", g.raw)
 	}
 	// Control: nothing was consumed; the person who chose pwA verifies.
-	if g := r.post(t, nil, "email/verify", map[string]string{"token": link, "password": pwA}); g.code != http.StatusNoContent {
+	if g := r.post(t, nil, "email/verify", map[string]string{"token": link, "password": pwA}); g.code != http.StatusOK {
 		t.Fatalf("matching password: %d %s", g.code, g.raw)
 	}
 }
@@ -434,8 +443,11 @@ func TestNativeVerifyExpiredAndRepeat(t *testing.T) {
 	}
 	r.post(t, nil, "register", map[string]string{"email": "late@example.com", "password": pwA})
 	tok = r.lastToken(t, mail.TemplateEmailVerification)
-	for i := 0; i < 2; i++ {
-		if g := r.post(t, nil, "email/verify", map[string]string{"token": tok, "password": pwA}); g.code != http.StatusNoContent {
+	// The first click verifies and signs in (SPL-6182); a repeat click is a
+	// success that opens no session, so a stale link never signs anyone in.
+	for i, want := range []int{http.StatusOK, http.StatusNoContent} {
+		g := r.post(t, nil, "email/verify", map[string]string{"token": tok, "password": pwA})
+		if g.code != want || (want == http.StatusNoContent && g.hdr.Get("Set-Cookie") != "") {
 			t.Fatalf("click %d: %d %s", i, g.code, g.raw)
 		}
 	}
@@ -616,7 +628,7 @@ func TestNativeRegisterFailsClosedWithoutMail(t *testing.T) {
 	if g.code != http.StatusAccepted || len(tok) != 64 {
 		t.Fatalf("debug register: %d %s", g.code, g.raw)
 	}
-	if g := d.post(t, nil, "email/verify", map[string]string{"token": tok, "password": pwA}); g.code != http.StatusNoContent {
+	if g := d.post(t, nil, "email/verify", map[string]string{"token": tok, "password": pwA}); g.code != http.StatusOK {
 		t.Fatalf("debug verify: %d", g.code)
 	}
 }

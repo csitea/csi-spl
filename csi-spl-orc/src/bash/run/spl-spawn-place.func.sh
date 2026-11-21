@@ -42,8 +42,10 @@
 # @description      floor of the live lanes) are queued, the refactor blocker
 # @description      names the night instead, once per night, so the day's
 # @description      planner has rows ready at its start
-# @description   3b. BANDS (SPL-1817) - a ci head (CI-red on trunk) or a flagged
-# @description      one (urgent bug, owner bypass feature) is taken as it is;
+# @description   3b. BANDS (SPL-1817) - a ci row (CI-red on trunk), wherever it
+# @description      stands in the queue and at any priority, is taken first
+# @description      when the placer can launch it; then a flagged head (urgent
+# @description      bug, owner bypass feature) is taken as it is;
 # @description      then a review seat queued on the owner's review-seat GO
 # @description      (SPL-3349: in the local bypass log, any class);
 # @description      otherwise the queued row of the class furthest under its band
@@ -431,13 +433,22 @@ spl_spawn_place_dispatch() {
   return 0
 }
 
-# 3b. The row the bands pick, HEAD when it is ci or flagged, or at priority 1
-# (its discussion's, e.g. set by the owner's prio word, SPL-5524), a review
-# seat on the owner's review-seat GO next, or HEAD when the share cannot be
-# read (the hub's order holds). The share goes to jq as a file, never argv: its bypass
+# 3b. The row the bands pick: a ci row, wherever it stands (the first queued
+# one of ROWS by position the placer can launch, SPL-1817), HEAD when it is ci
+# or flagged, or at priority 1 (its discussion's, e.g. set by the owner's prio
+# word, SPL-5524), a review seat on the owner's review-seat GO next, or HEAD
+# when the share cannot be read (the hub's order holds). The hub orders by
+# priority first, so a ci row on an unset discussion sits behind every
+# priority 1 or 2 row. The share goes to jq as a file, never argv: its bypass
 # list is over one argument's 128 KiB (171 KB on sat 2026-10-29, SPL-4156).
 spl_spawn_place_band() {  # HEAD ROWS
   local share pick
+  pick="$(jq -c '[.[] | select(.state == "queued" and (.class // "") == "ci" and ._l != false)] | sort_by(.position) | .[0] // empty' <<<"$2")"
+  if [[ -n "$pick" ]]; then
+    [[ "$(jq -r .ask_id <<<"$pick")" == "$(jq -r .ask_id <<<"$1")" ]] ||
+      do_log "INFO ci row: ask $(jq -r '"\(.ask_id[0:8]) (\(.placement // ""), queue position \(.position))"' <<<"$pick") is placed first, ahead of the queue's order (SPL-1817)" >&2
+    printf '%s' "$pick"; return 0
+  fi
   if jq -e '(.class // "") == "ci" or (.flag // "") != ""' >/dev/null <<<"$1"; then printf '%s' "$1"; return 0; fi
   if jq -e '(.priority // 3) == 1' >/dev/null <<<"$1"; then
     do_log "INFO priority 1 head: ask $(jq -r '"\(.ask_id[0:8]) (\(.class // "") \(.placement // ""))"' <<<"$1") is placed first, ahead of the bands (SPL-5524)" >&2

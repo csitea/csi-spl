@@ -145,7 +145,7 @@ out="$(svc ENV=prd DESK_CRON_PROBE_DIR='/x; rm -rf /')"; rc=$?
 CO="$T/co/$OA-orc"
 mkdir -p "$CO/src/bash/scripts" "$CO/lib/bash/funcs"
 cp "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cron.sh" "$CO/src/bash/scripts/"
-cp "$PROJ_ROOT/lib/bash/funcs/spl-cloud-cnf.func.sh" "$CO/lib/bash/funcs/"
+cp "$PROJ_ROOT/lib/bash/funcs/spl-cloud-cnf.func.sh" "$PROJ_ROOT/lib/bash/funcs/spl-run-paths.func.sh" "$CO/lib/bash/funcs/"
 printf '#!/bin/sh\n' >"$CO/run"; chmod +x "$CO/run"
 pc() { env SPOOL_TEST=1 SPOOL_BOX_ENV="$T/no-box.env" DESK_TRUNK_CHECK=0 "$@" bash "$CO/src/bash/scripts/desk-reconcile-cron.sh" --print-crontab 2>"$T/err"; }
 out="$(pc)"; rc=$?
@@ -154,6 +154,9 @@ out="$(pc)"; rc=$?
 out="$(pc SPOOL_DESK_USER="$B")"; rc=$?
 [[ $rc -eq 0 && "$(wc -l <<<"$out")" == 1 && "$out" == *"# $OA:desk-reconcile" && "$(cat "$T/err")" == *"crontab of $B"* ]] &&
   pass "9. SPOOL_DESK_USER=$B: stdout stays the line, stderr names $B's crontab" || fail "9. rc=$rc $out / $(cat "$T/err")"
+out="$(unset DESK_CRON_LOG_DIR; pc SPL_VAR_APP_DIR="$T/var")"; rc=$?
+[[ $rc -eq 0 && "$(wc -l <<<"$out")" == 1 && "$out" == *">> $T/var/desk-reconcile/cron.out 2>&1 "* ]] &&
+  pass "9. DESK_CRON_LOG_DIR unset: the log dir is spl_var_app_subdir's, under SPL_VAR_APP_DIR" || fail "9. rc=$rc $out / $(cat "$T/err")"
 
 # --- 10. PATH carries go -----------------------------------------------------------------
 # a stub go outside cron's PATH, reachable only through DESK_CRON_PATH_EXTRA: runs on

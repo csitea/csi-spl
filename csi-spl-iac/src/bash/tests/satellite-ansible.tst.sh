@@ -269,7 +269,7 @@ grep -qF 'test -w "$V" && echo "varcsi writable $u"' "$v" && grep -qF 'for m in 
 # every /var/<org>/<org>-<app> path the orc actions write sits under the dir role 05 makes
 bad=$(grep -rhoE '/var/(\$\{?[A-Za-z_%*-]+\}?|csi)/[^ "]*(desk-reconcile|unanswered-sweep|weekly-scan|backup|tenants)' "$PROJ_PATH/../csi-spl-orc/src/bash" "$PROJ_PATH/src/bash" | grep -vE '^/var/(csi/csi-spl|\$\{?(org|ORG|SPL_ORG_APP%%-\*|ORG_APP%%-\*)\}?/)' || true)
 n_sd=$(grep -rhoE '/var/(\$\{?[A-Za-z_%*-]+\}?|csi)/[^ "]*(desk-reconcile|unanswered-sweep|weekly-scan|backup|tenants)' "$PROJ_PATH/../csi-spl-orc/src/bash" "$PROJ_PATH/src/bash" | sort -u | wc -l)
-[[ -z "$bad" && "$n_sd" -ge 5 ]] && pass "every state dir the actions write ($n_sd paths, desk-reconcile included) is under /var/<org>/<org>-<app>" || fail "state dirs outside /var/<org>/<org>-<app>: $bad"
+[[ -z "$bad" && "$n_sd" -ge 4 ]] && pass "every state dir the actions write ($n_sd paths) is under /var/<org>/<org>-<app>" || fail "state dirs outside /var/<org>/<org>-<app>: $bad"
 
 # 10. claude starts with no first-run menu; tmux main is a user unit (2026-10-02)
 H="$T/home"; mkdir -p "$H/.local/bin"

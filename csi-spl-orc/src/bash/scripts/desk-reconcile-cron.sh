@@ -183,10 +183,15 @@ if [ "$PRINT" = 1 ]; then
   # <org>-<app> from the module dir, like every other name in this tree, so a
   # fork of this repo does not fight this one over the same crontab line.
   ORG_APP="$(basename "$ORC")"; ORG_APP="${ORG_APP%-orc}"
+  if [ -n "${DESK_CRON_LOG_DIR:-}" ]; then ld="$DESK_CRON_LOG_DIR"
+  else
+    # shellcheck source=../../../lib/bash/funcs/spl-run-paths.func.sh
+    . "$ORC/lib/bash/funcs/spl-run-paths.func.sh" &&
+      spl_var_app_subdir ld desk-reconcile || { say "FATAL cannot derive the desk-reconcile log dir (spl_run_paths): set DESK_CRON_LOG_DIR"; exit 2; }
+  fi
   m=""; [ -n "${DESK_MUTE:-}" ] && m=" DESK_MUTE='${DESK_MUTE}'"
   printf '*/5 * * * * ENV=%s TENANT_ID=%s%s %s >> %s/cron.out 2>&1 # %s:desk-reconcile\n' \
-    "$ENV_NAME" "$TENANT" "$m" "$SELF" \
-    "${DESK_CRON_LOG_DIR:-/var/${ORG_APP%%-*}/$ORG_APP/desk-reconcile}" "$ORG_APP"
+    "$ENV_NAME" "$TENANT" "$m" "$SELF" "$ld" "$ORG_APP"
   # The line belongs to the desk user (spec 069 8.5 row B6): name it on
   # stderr, so stdout stays a line that can be piped into crontab.
   if [ -r "$ORC/lib/bash/funcs/spl-cloud-cnf.func.sh" ]; then

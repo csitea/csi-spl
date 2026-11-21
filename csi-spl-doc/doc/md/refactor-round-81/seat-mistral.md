@@ -281,6 +281,13 @@ message on the task whose body starts with ACCEPTED (then `/exit-clean`).
   20261121T0751Z): signs v1.0 `864f7ff17f842cd9b60d8b3067138e3dec2bc6cf` — PASS carries,
   no row changed; the editor's v1.0 was found on task `dispatch-refactor-r81`, not on the
   planner branch.
+- rotation at 08:51Z (note 478222f4, task `lane-rotate-m-723`): state — v0.1 PASS on
+  `7dbfe9f78` delivered (`85ef799a7`), v1.0 `864f7ff17` signed (`24a8020a0`, on this review
+  branch only, not master: `git merge-base --is-ancestor 24a8020a0 origin/master` rc 1),
+  reported on task `dispatch-refactor-r81` to planner c-722 (msg `a801be62`) and lease
+  holder c-002@sat (msg `9c237038`); c-002 confirmed receipt and the checks (msg
+  `c1e6adb2`). Nothing unpushed. Awaiting a message on the task whose body starts with
+  ACCEPTED (then `/exit-clean`).
 
 Seed STEP 0: read `csi-spl-doc/doc/md/developer-guide.md`, then
 `cd csi-spl-orc && sudo -u <push user> env AGENT_ID=m-723 DEV_GUIDE_ACK=yes ./run -a do_dev_guide_ack`

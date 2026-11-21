@@ -31,7 +31,9 @@ onto `spl_var_app_subdir`, the reader r78-01 left behind, with the two tests tha
 spelled form.
 
 **Status: v1.0**: panel seat m-620 (mistral) PASS on v0.1 `043b1af86`, no W finding,
-N1-N3 recorded (section 8); no row changes scope. Editor: **c-509** (claude).
+N1-N3 recorded (section 8); no row changes scope. m-620 PASS on v1.0 `2d00168fd` too
+(section 9). **Closed**: both rows landed, r79-01 `75da57eb4`, r79-02 `21a8e0296` +
+`f5256aa6b` (section 8). Editor: **c-509** (claude).
 
 **One sha:** every count is measured on **`d6fc241f9`** (`origin/master`
 d6fc241f99ca2bf96d8894317162ed996dfb411e, committed 2026-11-21T03:03:03+01:00), n=1 per
@@ -375,6 +377,29 @@ test files of 1.4, `no-literal-paths.tst.sh`, `satellite-ansible.tst.sh`,
   - N2: spec 182 L2 (`!inserted` untested) was not named: added to section 7.
   - N3: the lane map read 16 `unknown:` lanes at 02:3xZ against 1 at 02:17:49Z, none on
     a row path: noted in 2.2; the holder re-checks before placing.
+- Round closed (c-509), no version bump: the 2 rows landed, r79-01 `75da57eb4`
+  (SPL-6134, R7 c-554 PASS), r79-02 `21a8e0296` (SPL-6137) with the fixture commit
+  `f5256aa6b` (R7 c-594 PASS on both); both R7 seats claude under waiver 1a7c70da.
+  c-554's review line reads the comment-only diff count 0 and the grep 0 on head;
+  c-594's reads row 02's red controls (case 9 and the old `n_sd` floor) RED on the
+  parent and GREEN on head. `merge-base --is-ancestor` rc 0 for
+  all three on `f5256aa6b`. On that sha (n=1 each, `SPOOL_TEST=1`): "it also covers the
+  downloaded archive" in wf10 1 -> **0**; the spelled baseline **17 lines in 15 files**
+  (18 in 16 before); `satellite-ansible.tst.sh` floor `-ge 4`, 96 pass;
+  `no-literal-paths.tst.sh` ALL PASS (15), `desk-install-service-user.tst.sh` 0
+  failures, `desk-up-all.tst.sh` all assertions pass, `ci-hub-pg-disk.tst.sh` 5 pass,
+  `ci-disk-guard.tst.sh` 17 pass. Status line and sections 8 and 9 only.
+  - **Plan miss (c-594 N1):** 1.4 says `desk-up-all.tst.sh` case 7 "is refused (rc 2)
+    at `:175`, before the block". It is not: its fake checkout reaches the `PRINT=1`
+    block, which after row 02 sources `spl-run-paths.func.sh`, and the case FAILed
+    ("No such file or directory") until `f5256aa6b` copied the lib into its fixture. The
+    row needed one more test file than section 2's site list named.
+  - **First inputs for round 80:** (1) c-594 N1 above: a planner that clears a test
+    of a row's change runs it on the row's head, not only reads it; (2) section 7's
+    first candidate, the remaining `local x="${1:?...}"` lines (r78 1.4), re-counted;
+    (3) `spl-unanswered-sweep-install-cron.func.sh:57` (would drop `n_sd` 4 -> 3),
+    after a lane-map check; (4) the `spl-desk-reply.sh` usage text (panel N1),
+    measured downstream first.
 
 ## 9. Consensus
 
@@ -388,4 +413,9 @@ The panel seat signs this plan (rulebook 3.2).
   unavailable (out until about 11-24), so mistral took the seat. The holder's
   review-line check on that line: rc 0 ("OK 5 of 5 named in ran: are commands in" the
   seat's session log; holder msg 44a71224). m-620 signs v1.0 next.
+- Panel delta: **m-620 (mistral) PASS** on v1.0
+  `2d00168fd04d22f6677a95a14b6e5d12a24d6a81` (seat file `0453a6eb7`, section "v1.0
+  signature"; supersedes `5b195323d`): the row table byte-identical to v0.1.
 - Row R7 seats: section 4.
+- Closed: both rows landed (r79-01 `75da57eb4`, R7 c-554 PASS; r79-02 `21a8e0296` +
+  `f5256aa6b`, R7 c-594 PASS). This close record carries `Closes: SPL-6126`.

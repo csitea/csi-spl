@@ -35,7 +35,8 @@ entry to the Go clean code gate that keeps the parse in one file.
 **Status: v1.0, signed.** The panel passed v0.1 `8dc0ce940` and v1.0 `4e873475d` with no W (m-035, mistral; seat file
 `csi-spl-doc/doc/md/refactor-round-86/seat-mistral.md`, folded in from `354c87a1e`). Its
 re-issued review line passed `do_spl_review_line_check` rc 0 on the log's box; the holder
-c-002 GOed the land (msg eba2bada). Section 8. Editor: **c-028** (claude).
+c-002 GOed the land (msg eba2bada). Section 8. **Closed**: both rows landed, r86-01
+`49f34bef6`, r86-02 `61977111c` (section 8). Editor: **c-028** (claude).
 
 **One sha:** every count is measured on **`f074057b5`** (`origin/master` at
 2026-11-21T19:4xZ), n=1 per command unless stated. Reads are on that sha with
@@ -424,6 +425,27 @@ parent's `agent_drop.go`) RED then GREEN in the body. Gates:
   `OK 5 of 5` (c-028, 22:1xZ; line 2347 bytes, sha256 `cb7047e73d772831`, the size of
   the holder's copy, holder c-003's syntax check rc 0, msg da20e009).
 
+- Round closed (c-028), no version bump: the 2 rows landed, r86-01 `49f34bef6`
+  (SPL-6214, committed 2026-11-21T22:49:15Z; R7 g-108 grok PASS on `14a2d2830`, no W) and
+  r86-02 `61977111c` (SPL-6215, committed 23:01:27Z; R7 g-005 grok PASS on `b2a533a4a`,
+  no W). r86-01 ACCEPTED by the holder c-003 (msg ab4b3fd9, 23:50:49Z); r86-02's
+  ACCEPTED was not in this box's spool when this record was written (its row seat runs on
+  the other box). **R7 vendor:** both seats are grok, the holder's pick at placement
+  (section 4). `git patch-id --stable` of each landed commit equals its reviewed head's
+  (r86-01 `63ba94b7b540`, r86-02 `cd03ed1b7a96`). `merge-base --is-ancestor` rc 0 for both
+  on `e4b824abe`. Quality gate 10: `cancelled` on `49f34bef6` (44958782216, superseded)
+  and `failure` on `61977111c` (44959763821: only the browser e2e shards 1, 3 and 6 of 8,
+  which the WUI mock fix `75acaab9f` (SPL-6205) addressed; neither row touches the WUI);
+  **success** on `e4b824abe` (44961651373), which holds both rows.
+  On `e4b824abe` (n=1 each, `SPOOL_TEST=1`, in the worktree, 1.5's line counts):
+  `orch-rotate.tst.sh` rc 0, 196 pass; `dispatch-rotate.tst.sh` rc 0, 203 pass;
+  `peer-restart.tst.sh` rc 0, 36 pass; `bash-cleancode.tst.sh` rc 0, 15 pass; `go test -v
+  ./internal/hubclient/ ./internal/cleancode/` ok, 169 top-level `--- PASS` (266 with
+  subtests); 0 fail lines each. Every count equals 1.5's head column and the rows' commit
+  bodies: no drift, no plan miss. `go test ./cmd/spool/` and shellcheck were not re-run at
+  close (the rows' R7 lines carry them).
+  - r86-01 and r86-02: no N note in either R7 line. Notes only; none asks a change.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
@@ -433,3 +455,5 @@ The panel seat signs this plan (rulebook 3.2).
   `4e873475d`, no W (section 8; seat file folded in, v1.0 sign-off `ee029c3ed`; both
   review line checks rc 0).
 - Row R7 seats: section 4.
+- Closed: both rows landed (r86-01 `49f34bef6`, R7 g-108 PASS; r86-02 `61977111c`,
+  R7 g-005 PASS). This close record carries `Closes: SPL-6209`.

@@ -8,30 +8,25 @@
 # The gate: cd csi-spl-iac && ./run -a do_spl_customer_box_role_check, and its
 # test src/bash/tests/customer-box-role-set.tst.sh. Not wired to a terraform
 # step yet: the per-workspace VM step is row B5, the provisioning action B8.
+# Every per-VM value comes from the inventory (customer-box.inventory.example.ini),
+# never from this play: tenant_id, and repo_url / repo_dir rendered from the
+# cnf (env.wui.repo_clone_url) by the provisioning action.
 - name: The customer box - hardening, the harness repo, the workspace, the desk start checks
   hosts: customer_box
   become: true
-  vars:
-    # the one workspace this VM belongs to: set per VM in the inventory
-    tenant_id: ""
-    # the public repo, read over https with no credential
-    repo_url: https://github.com/csitea/csi-spl.git
-    repo_dir: /opt/csi/csi-spl
 
   pre_tasks:
-    - name: Refuse a VM with no workspace slug
+    - name: Refuse a VM without its workspace slug, repo URL or repo dir
       ansible.builtin.assert:
         that:
-          - tenant_id is match('^[a-z0-9][a-z0-9-]{0,31}$')
-        fail_msg: "set tenant_id (the workspace slug) for this VM in the inventory"
+          - tenant_id is defined and tenant_id is match('^[a-z0-9][a-z0-9-]{0,31}$')
+          - repo_url is defined and repo_url is match('^https://')
+          - repo_dir is defined and repo_dir is match('^/.+')
+        fail_msg: "set tenant_id (the workspace slug), repo_url (cnf env.wui.repo_clone_url) and repo_dir for this VM in the inventory"
+      tags: [always]
 
   roles:
     - { role: 01_box_hardening, tags: [01_box_hardening] }
     - { role: 02_spool_harness, tags: [02_spool_harness] }
-    - { role: 03_workspace, tags: [03_workspace, always] }
+    - { role: 03_workspace, tags: [03_workspace] }
     - { role: 04_desk_start_checks, tags: [04_desk_start_checks] }
-
-  handlers:
-    - name: Load sysctl
-      ansible.builtin.command: sysctl --system
-      changed_when: true

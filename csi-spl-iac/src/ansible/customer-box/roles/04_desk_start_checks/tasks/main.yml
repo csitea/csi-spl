@@ -2,7 +2,10 @@
 # 04 the desk start checks of spec 127 5.3, run as the workspace user with
 # the repo's own code: the play fails when one refuses. Spec 159 5.2's
 # exception for fleet boxes is not needed here: no fleet user is on the VM.
-- name: The desk start checks (spl_desk_start_checks) as the workspace user
+- name: The workspace facts
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/ws-facts.yml"
+
+- name: The desk start checks as the workspace user
   ansible.builtin.shell: |
     set -uo pipefail
     do_log() { printf '%s\n' "$*"; }

@@ -1,10 +1,12 @@
 ---
 # 02 the harness repo at repo_dir, the public tree over https with no
-# credential helper, fast-forwarded to master on every run. Nothing here
-# signs a CLI in: the customer's own keys come later, on Agent keys.
-- name: git on the VM
+# credential helper, fast-forwarded to master on every run, and what the
+# repo's ./run and role 04 need: perl (./run), acl (become_user to the
+# unprivileged workspace user). Nothing here signs a CLI in: the customer's
+# own keys come later, on Agent keys.
+- name: git, perl and acl on the VM
   ansible.builtin.apt:
-    name: git
+    name: [git, perl, acl]
     state: present
     update_cache: true
     cache_valid_time: 3600

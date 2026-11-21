@@ -26,7 +26,7 @@ type TopicPDFInfo struct {
 // topicPDFTokens are the export route's refusal tokens (spec 183 7.1.1). A
 // 5xx carrying one of them is the hub's answer, not an unreachable hub.
 var topicPDFTokens = map[string]bool{
-	"not_found": true, "operator_ambiguous": true, "typed_by_not_bound": true,
+	"not_found": true, "operator_ambiguous": true, "typed_by_not_bound": true, "no_operator": true,
 	"too_large": true, "render_unavailable": true, "render_timeout": true,
 }
 

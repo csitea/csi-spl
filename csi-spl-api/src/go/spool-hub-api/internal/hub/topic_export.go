@@ -20,7 +20,9 @@ import (
 // one topic as a PDF, holding the rows the box's operator may read in the
 // browser (Q3 = OP): the topic door, then the per-message door, so a DM the
 // operator is no end of is left out of a mixed topic. A topic the operator
-// may not read answers exactly as a missing one: 404 not_found.
+// may not read answers exactly as a missing one: 404 not_found. A box with
+// no bound operator at all is 403 no_operator, before any topic is looked
+// up: it names the box and the tenant, never the topic.
 
 // Refusal tokens of the operator rule (spec 183 7.1.1); the render's come
 // from topicpdf.Status. Not named Token*: gosec G101 reads a Token const as a
@@ -28,6 +30,7 @@ import (
 const (
 	CodeOperatorAmbiguous = "operator_ambiguous"
 	CodeTypedByNotBound   = "typed_by_not_bound"
+	CodeNoOperator        = "no_operator"
 )
 
 func (s *Server) routeTopicExport(mux *http.ServeMux) {
@@ -71,7 +74,7 @@ func (s *Server) handleTopicExport(w http.ResponseWriter, r *http.Request) {
 // several (one person's DM would reach another): typed_by when it names a
 // member bound to this box (rdb 0040), else 403 typed_by_not_bound; without
 // it the box's single bound operator; several is 400 operator_ambiguous and
-// none 404 not_found, as a topic the box may not read.
+// none 403 no_operator (a missing grant, do_spl_box_operator_grant).
 func (s *Server) topicExportOperator(ctx context.Context, tenant, box, typedBy string) (string, *issueErr) {
 	ex, hasEx := s.o.Store.(store.TopicExports)
 	ops, hasOps := s.o.Store.(store.BoxOperators)
@@ -97,7 +100,7 @@ func (s *Server) topicExportOperator(ctx context.Context, tenant, box, typedBy s
 	case err != nil:
 		return "", &issueErr{http.StatusInternalServerError, "internal", "operator lookup failed"}
 	case len(hums) == 0:
-		return "", &issueErr{http.StatusNotFound, "not_found", "no such topic"}
+		return "", &issueErr{http.StatusForbidden, CodeNoOperator, "box " + box + " has no bound operator in " + tenant}
 	case len(hums) > 1:
 		return "", &issueErr{http.StatusBadRequest, CodeOperatorAmbiguous, box + " has several operators: name one with typed_by"}
 	}

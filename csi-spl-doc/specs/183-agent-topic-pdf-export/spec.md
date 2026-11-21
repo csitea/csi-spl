@@ -14,8 +14,10 @@ and settles the default directory's agent id and P3's desk flags (P3
 c-338, msg `b158b296`), holder msg `3436f7ab`; v0.7 builds the topic
 link per workspace host (P1 c-981, msg `1576d8f6`; R7 c-075, msg
 `7b084fa4`), states the 504 P2b landed (`f17b02d3b`) and the demo
-moderation filter (holder msgs `2e5c5646`, `50e27e9e`). Every contract
-change is in section 9.
+moderation filter (holder msgs `2e5c5646`, `50e27e9e`); v0.8 answers a
+box with no bound operator `403 no_operator` instead of `404 not_found`
+(SPL-6188, lane c-851: every prd export from `sat` read "no such topic").
+Every contract change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6031**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f798e9aa-6548-44fa-aa8b-7425133bff2f` (`t1`).
 Builds on: [182 topic loop prompt](../182-topic-loop-prompt/spec.md) (its
@@ -254,7 +256,11 @@ is cited.
     a member of the tenant, else `403 typed_by_not_bound`;
   - no `typed_by` and exactly one operator bound to the box: that person;
   - no `typed_by` and several bound: `400 operator_ambiguous`;
-  - none bound: `404 not_found`.
+  - none bound: `403 no_operator`, detail `box <box> has no bound operator
+    in <tenant>`, answered before any topic is looked up, so it says
+    nothing about the topic. The fix is a grant
+    (`do_spl_box_operator_grant`, specs/036 FR-010); the bindings of a
+    tenant: `ENV=<env> TENANT_ID=<t> ./run -a do_spl_box_operator_list`.
 - Rows (`topicExportRows(ctx, tenant, task, human) ([]store.EditableMessage, error)`,
   the function the render calls): the topic door `canReadTopic`, then
   `canReadMessage` per row, oldest first (`ts`, then `msg_id`); no row with
@@ -270,8 +276,8 @@ is cited.
   `Content-Disposition: attachment; filename="<name of 7.1.4>"`, headers
   `X-Spool-Rows: <n>`, `X-Spool-Pictures: <n>`.
 - Refusals, JSON as every hub error: `404 not_found` (missing topic, a
-  topic the operator may not read, no operator: one answer for all);
-  `400 operator_ambiguous`; `403 typed_by_not_bound`;
+  topic the operator may not read: one answer for both);
+  `403 no_operator`; `400 operator_ambiguous`; `403 typed_by_not_bound`;
   `413 too_large` (a PDF over `msg.MaxFileBytes`, `msg.go:44`);
   `503 render_unavailable` (renderer down, busy or Chrome failed);
   `504 render_timeout` (past cnf `hub.pdf.timeout`, default 120 s, 1.2 R2,
@@ -296,8 +302,10 @@ is cited.
 - Output on stdout, one JSON line:
   `{"task_id":"<uuid>","path":"<abs path>","bytes":<n>,"rows":<n>,"pictures":<n>,"sha256":"<hex>"}`.
 - Exit codes: `0` written; `1` usage; `3` `404` from the hub; `4`
-  `400 operator_ambiguous` or `403 typed_by_not_bound` (stderr names the
-  token); `5` `413`, `503` or `504` (stderr names the token). A failed
+  `400 operator_ambiguous`, `403 typed_by_not_bound` or `403 no_operator`
+  (stderr names the token). A desk that answers `no_operator` hands over
+  to the next desk, as a `404` does; when none serves the topic, an
+  unreachable desk is reported first, then `no_operator`, then the `404`; `5` `413`, `503` or `504` (stderr names the token). A failed
   export writes no file and leaves no partial one.
 - MCP tool `spool_topic_pdf`, input `{"task":"<uuid|link>","out":"<path>",
   "typed_by":"HUM-<n>"}`, output the JSON of the verb.
@@ -486,3 +494,10 @@ and the WUI's own export (005 FR-020, SPL-6023).
 | 7.1.5: the topic link from the hub's `AppURL`, none when it is empty | built as `topicLink` from `TenantHostPattern` (`https://<tenant>.<fqdn>/t/<task>`); none without a pattern | P1 c-981, msg `1576d8f6`; R7 c-075, msg `7b084fa4`: hub `Options` hold no `AppURL` and each workspace's WUI is on its own host |
 | 7.1.6: P2 answers `500` for the cap and follows up with the `504` | P2b `f17b02d3b` answers `504` for the renderer's own cap | c-360 P2b N1: the follow-up landed |
 | 7.1.1: demo moderation unstated | the specs/077 T016 filter applies to the export rows; a moderator's export keeps the hidden rows | R7 c-075 W1, msg `7b084fa4` |
+
+### 9.6 Changes from v0.7
+
+| v0.7 | v0.8 | why |
+|---|---|---|
+| 7.1.1: no operator bound to the box answers `404 not_found`, as a topic the box may not read | `403 no_operator`, `box <box> has no bound operator in <tenant>`, before any topic lookup; `404` stays for a missing topic and one the operator may not read | SPL-6188 (c-851): on prd t1 one other box had the only binding (`do_spl_box_operator_list`, 2026-11-21), so every export from `sat` read "no such topic" for topics its agents read; the new answer names the box, not the topic |
+| 7.1.2: exit `4` = `operator_ambiguous` or `typed_by_not_bound` | also `no_operator`; such a desk hands over to the next one like a `404`, and is reported before the `404` | the same |

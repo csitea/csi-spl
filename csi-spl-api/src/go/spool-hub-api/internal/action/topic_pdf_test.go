@@ -45,31 +45,37 @@ func fakeExport(t *testing.T, by map[string]any, tried *[]string) {
 var (
 	notFound    = &hubclient.HubError{Token: "not_found", Status: 404}
 	unreachable = fmt.Errorf("%w: dial refused", hubclient.ErrUnreachable)
+	noOperator  = &hubclient.HubError{Token: "no_operator", Status: 403}
 )
 
-// The link's workspace is asked first; a 404 hands over to the next desk,
-// whose bytes (not the partial ones of the first try) are the file.
+// The link's workspace is asked first; a 404, or a workspace where this box
+// has no operator, hands over to the next desk, whose bytes (not the partial
+// ones of the first try) are the file.
 func TestTopicPDFDeskOrderAndHandOver(t *testing.T) {
-	d := fakeDesks(t, "box-desk", []string{"aaa", "csitea", "zzz"}, nil)
-	d.Base = testkit.NewConfig(t)
-	var tried []string
-	fakeExport(t, map[string]any{"csitea": notFound, "aaa": unreachable, "zzz": "%PDF-zzz"}, &tried)
-	out := filepath.Join(t.TempDir(), "t.pdf")
-	res, err := TopicPDF(context.Background(), d, TopicPDFArgs{Task: "https://csitea.example.net/t/" + linkTask, Out: out})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Join(tried, ",") != "csitea,aaa,zzz" {
-		t.Errorf("tried %v, want the link's workspace first", tried)
-	}
-	sum := sha256.Sum256([]byte("%PDF-zzz"))
-	if b, _ := os.ReadFile(out); string(b) != "%PDF-zzz" || res.SHA256 != hex.EncodeToString(sum[:]) || res.Bytes != 8 || res.Rows != 2 || res.Pictures != 1 {
-		t.Errorf("file %q result %+v", b, res)
+	for _, first := range []error{notFound, noOperator} {
+		d := fakeDesks(t, "box-desk", []string{"aaa", "csitea", "zzz"}, nil)
+		d.Base = testkit.NewConfig(t)
+		var tried []string
+		fakeExport(t, map[string]any{"csitea": first, "aaa": unreachable, "zzz": "%PDF-zzz"}, &tried)
+		out := filepath.Join(t.TempDir(), "t.pdf")
+		res, err := TopicPDF(context.Background(), d, TopicPDFArgs{Task: "https://csitea.example.net/t/" + linkTask, Out: out})
+		if err != nil {
+			t.Fatalf("first desk %v: %v", first, err)
+		}
+		if strings.Join(tried, ",") != "csitea,aaa,zzz" {
+			t.Errorf("first desk %v: tried %v, want the link's workspace first", first, tried)
+		}
+		sum := sha256.Sum256([]byte("%PDF-zzz"))
+		if b, _ := os.ReadFile(out); string(b) != "%PDF-zzz" || res.SHA256 != hex.EncodeToString(sum[:]) || res.Bytes != 8 || res.Rows != 2 || res.Pictures != 1 {
+			t.Errorf("first desk %v: file %q result %+v", first, b, res)
+		}
 	}
 }
 
 // No desk serves it: an unreachable desk is reported before a 404 (exit 1,
-// not 3); 404 everywhere is exit 3; a refusal other than 404 stops at once.
+// not 3); 404 everywhere is exit 3; a workspace where the box has no
+// operator hands over like a 404 but is reported before it (exit 4); any
+// other refusal stops at once.
 func TestTopicPDFRefusals(t *testing.T) {
 	cases := []struct {
 		by    map[string]any
@@ -79,6 +85,9 @@ func TestTopicPDFRefusals(t *testing.T) {
 		{map[string]any{"aaa": notFound, "bbb": unreachable}, 1, "aaa,bbb"},
 		{map[string]any{"aaa": notFound, "bbb": notFound}, ExitTopicPDFNotFound, "aaa,bbb"},
 		{map[string]any{"aaa": &hubclient.HubError{Token: "operator_ambiguous", Status: 400}, "bbb": "%PDF"}, ExitTopicPDFOperator, "aaa"},
+		{map[string]any{"aaa": noOperator, "bbb": notFound}, ExitTopicPDFOperator, "aaa,bbb"},
+		{map[string]any{"aaa": notFound, "bbb": noOperator}, ExitTopicPDFOperator, "aaa,bbb"},
+		{map[string]any{"aaa": noOperator, "bbb": unreachable}, 1, "aaa,bbb"},
 		{map[string]any{"aaa": &hubclient.HubError{Token: "render_unavailable", Status: 503}, "bbb": "%PDF"}, ExitTopicPDFRender, "aaa"},
 	}
 	for i, c := range cases {

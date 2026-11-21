@@ -139,6 +139,7 @@ func (g topicExportRig) put(t *testing.T, task, channel, from, to string, at tim
 type exportAnswer struct {
 	status int
 	token  string
+	detail string
 	ids    []string
 	html   string
 	header http.Header
@@ -164,7 +165,7 @@ func (g topicExportRig) export(t *testing.T, token, task, typedBy string) export
 	if resp.StatusCode != http.StatusOK {
 		var eb wire.ErrorBody
 		json.Unmarshal(raw, &eb) //nolint:errcheck
-		a.token = eb.Error
+		a.token, a.detail = eb.Error, eb.Detail
 		return a
 	}
 	body, ok := strings.CutPrefix(string(raw), stubPDFHead)
@@ -215,7 +216,8 @@ func TestTopicExportRefusals(t *testing.T) {
 		{"operator outside the channel", b, g.secret, "", 404, "not_found"},
 		{"missing topic", b, uuidV4(), "", 404, "not_found"},
 		{"not a uuid", b, "nope", "", 404, "not_found"},
-		{"box with no operator", c, g.open, "", 404, "not_found"},
+		{"box with no operator, an existing topic", c, g.open, "", 403, hub.CodeNoOperator},
+		{"box with no operator, a missing topic", c, uuidV4(), "", 403, hub.CodeNoOperator},
 		{"several operators, none named", d, g.open, "", 400, hub.CodeOperatorAmbiguous},
 		{"typed_by a member not bound to the box", b, g.open, g.outsider, 403, hub.CodeTypedByNotBound},
 		{"typed_by bound to another box only", b, g.open, g.peer, 403, hub.CodeTypedByNotBound},
@@ -227,6 +229,11 @@ func TestTopicExportRefusals(t *testing.T) {
 		if a := g.export(t, k.token, k.task, k.typedBy); a.status != k.status || a.token != k.want {
 			t.Errorf("%s: %d %q, want %d %q", k.label, a.status, a.token, k.status, k.want)
 		}
+	}
+	// The no-operator answer names the box and the tenant, never the topic
+	// (7.1.1: it is given before any topic is looked up).
+	if a := g.export(t, c, g.open, ""); a.detail != "box box-c has no bound operator in "+g.tid {
+		t.Errorf("no operator detail %q", a.detail)
 	}
 	// CONTROL: the ambiguous box reads once it names a bound operator, and
 	// as the peer (in #secret) it reads #secret.
@@ -254,11 +261,12 @@ func TestTopicExportRefusesBrowserToken(t *testing.T) {
 	if a := g.export(t, browser, uuidV4(), ""); a.status != 401 || a.token != "door" {
 		t.Fatalf("the browser's token: %d %q, want 401 door", a.status, a.token)
 	}
-	// CONTROL: a box token on the same hub passes the door to the topic lookup.
+	// CONTROL: a box token on the same hub passes the door to the operator
+	// lookup (this box has none bound).
 	b := g.e.box(g.tid, "box-b", "CLE-08")
 	g.e.pin(g.tid, b)
-	if a := g.export(t, g.e.uploadToken(g.tid, b), uuidV4(), ""); a.status != 404 || a.token != "not_found" {
-		t.Fatalf("a box token: %d %q, want 404 not_found", a.status, a.token)
+	if a := g.export(t, g.e.uploadToken(g.tid, b), uuidV4(), ""); a.status != 403 || a.token != hub.CodeNoOperator {
+		t.Fatalf("a box token: %d %q, want 403 %s", a.status, a.token, hub.CodeNoOperator)
 	}
 }
 

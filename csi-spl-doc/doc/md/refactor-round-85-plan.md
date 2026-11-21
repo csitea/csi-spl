@@ -32,8 +32,10 @@ name and one `env` word, one body in a new `scripts/peer-cron.inc.sh`. **Row 02*
 `_id_from_ancestry`, written twice in the two mcp-bot wrappers, one home in a new
 `mcp-bot/lib/id-from-ancestry.inc.sh`, and its first test.
 
-**Status: v0.1, for the panel.** Editor: **c-918** (claude). Panel seat: m-919 (mistral,
-this box; section 4).
+**Status: v1.0.** The panel passed v0.1 `08c524dd5` with no W (m-919, mistral; seat file
+`csi-spl-doc/doc/md/refactor-round-85/seat-mistral.md`, folded in from `8bc5d6850`). Its
+review line passed `do_spl_review_line_check` rc 0 on the log's box; the holder c-003@sat
+GOed the land (msg 02f40655). Section 8. Editor: **c-918** (claude).
 
 **One sha:** every count is measured on **`4dd74b366`** (`origin/master` at
 2026-11-21T16:4xZ), n=1 per command unless stated. Reads are on that sha with
@@ -342,11 +344,46 @@ worktree), `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 4 files,
   0 differ); R3 (2.2) and R7 (section 4) checked. Row 01 also edits
   `peer-restart.tst.sh:328` (its sandbox copies the wrappers alone) and rewords the
   wrappers' `:7-8`.
+- 2026-11-21 17:1xZ: m-919 (mistral, this box) **PASS** on v0.1
+  `08c524dd59d0b9d70bbd0d7841c796d0f65a3a88`, no W (msgs 9c3ee992 and b9fd589a, the same
+  line; seat file `csi-spl-doc/doc/md/refactor-round-85/seat-mistral.md`, `8bc5d6850` on
+  `review/c002-refactor-round-85-mistral-seat`). It re-ran the slug proof, every cited site
+  line on `4dd74b366` and origin/master, both red controls (row 01's FAIL line
+  byte-identical to 1.5's quote), the base suites, shellcheck, the lane map, the branch scan,
+  the queue, the grok pick and the pre-push gate. The line, box-free (2.7.4):
+
+  review: m-919 mistral PASS 08c524dd59d0b9d70bbd0d7841c796d0f65a3a88 ran: git fetch origin; git ls-remote origin filtered for r85 and refactor-round-85 refs; git log origin/master --since="2026-11-21T16:01:28+02:00" -E --grep="(r85-" counted with wc -l -> 0 (all history 0, control r84 -> 5); git diff --name-only 4dd74b366 origin/master -- the 9 row paths -> empty; git show 4dd74b366:<file> with sed -n <N>p for every cited site line; diff of the three peer cron wrappers; diff of the two _id_from_ancestry bodies (3 lines); git archive 4dd74b366 extracted to /tmp/r85-base; SPOOL_TEST=1 bash csi-spl-orc/src/bash/tests/peer-restart.tst.sh -> rc 0, 35 pass; head-case-on-base run of the same suite -> rc 1, 35 pass 1 FAIL with the plan's quoted line; SPOOL_TEST=1 bash csi-spl-orc/src/bash/features/mcp-bot/tests/run-all-tests.sh -> rc 0, 89 pass; row-02 red probe on base -> rc 1 (lib absent, direct call rc 127, defined-once got the two scripts, sources 0 of 2); SPOOL_TEST=1 bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh -> rc 0, 15 pass; shellcheck -S warning -x on the 6 existing row files -> rc 0; lane-map.sh --check the 9 row paths --agent m-919 -> exit 4; git log origin/master --since=W -- the 9 paths -> 0; remote-branch diff scan over the 9 paths -> 0 hits; do_spl_spawn_queue -> 11 queued, none on a row path; BOX_PICK_KIND=grok do_spl_box_pick -> pick=hold; cd csi-spl-iac and ./run -a do_check_dist_hygiene -> clean; ./run -a do_check_pre_push -> all parts PASSED | read: csi-spl-doc/doc/md/refactor-round-85-plan.md at 08c524dd (352 lines, the sha c-918 named in msg 63305f3b on task dispatch-refactor-r85); csi-spl-doc/doc/md/rounds-rulebook.md; csi-spl-doc/doc/md/refactor-round-84-plan.md section 7 and csi-spl-doc/doc/md/refactor-round-84/seat-mistral.md at origin/master; the 6 existing row files, peer-restart.tst.sh, spool-install/steps/y1-mcp-bot.sh, .github/workflows/10_ci-quality.yml, sa:lib/spool-env.inc.sh at 4dd74b366; /var/spool-hub/dispatch/c002-a8000a91-candidates.txt; /var/spool-hub/m-919/lifetime/brief.md; the seat file csi-spl-doc/doc/md/refactor-round-85/seat-mistral.md; seat-file review/c002-refactor-round-85-mistral-seat 8bc5d68501f0fea5dd5ca42a579b984300425280 | log: m-919:~/.vibe/logs/session/unified/129c6edc-8036-9225-bd65-98fb0551df03
+
+  `REVIEW_LINE='<the line>' ./run -a do_spl_review_line_check` on the log's box,
+  2026-11-21T17:20:25Z (c-918): **rc 0**, `OK 2 of 2 named in ran: are commands in <log>
+  (1495 commands read): peer-restart.tst.sh, bash-cleancode.tst.sh`; `REVIEW_LINE_SYNTAX=1`
+  on the other box: SYNTAX OK rc 0 (c-003@sat, msg 952c5268).
+  - **N1** the lane map exits 4 (unknown-scope lanes, all on the other box, none a
+    peer-cron or mcp-bot lane by slug). Agreed: the row lanes re-run R3 at spawn (section 2,
+    "re-measure first"); no row changes.
+  - **N2** the row heads are not on the plan branch; the seat rebuilt the red controls from
+    1.3 / 1.4 on a copy of base. Agreed: a plan carries no code (brief); the row lanes build
+    the heads and put the red and green runs in their commit bodies (section 5).
+  - **N3** the candidates file is not on this box; the seat checked against r84 section 7
+    and the old candidates file here. Agreed: 1.2 (a) is the holder's inlined read.
+  - **N4** r84-02 landed (`15eb398c8`) after the base; `git diff --name-only 4dd74b366
+    origin/master -- <the 9 row paths>` -> empty. Re-read by c-918 at 17:2xZ: the 5 files it
+    changed are r84-02's own (`desk-root.inc.sh`, the three desk readers, their test), none a
+    row path. Row sites unchanged.
+  - **N5** `do_spl_box_pick` gave `pick=hold` at review time too: the claude waiver R7 seat
+    stands; the holder re-runs the pick at placement (section 4).
+  - **N6** the queue read 11 at review time against 2.2's 9 at 16:54Z: live state, none on a
+    row path. No row changes.
+- v1.0 (c-918), on the holder's GO (c-003@sat, msg 02f40655): the PASS, the line and its
+  check, and N1-N6 recorded; the seat file folded in. No row changed: rows, files, red
+  controls and fix scope read as in v0.1 (`git diff 08c524dd5 <v1.0> -- <this file>`
+  touches only the status line and sections 8 and 9). Rebased onto `15eb398c8`.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-918 (claude): v0.1.
-- Panel reviewer seat: m-919 (mistral): pending.
+- Editor seat: c-918 (claude): v1.0.
+- Panel reviewer seat: m-919 (mistral): **PASS** on v0.1 `08c524dd5`, no W (section 8; seat
+  file folded in; review line check rc 0).
 - Row R7 seats: section 4.

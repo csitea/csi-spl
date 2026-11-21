@@ -3166,6 +3166,17 @@
       "delete_title": "Kustuta see dokument?",
       "delete_body": "\"{title}\" ja kõik selle sisu kustutatakse."
     },
+    "doc_bg": {
+      "menu": "Taust…",
+      "title": "Lehe taust",
+      "auto": "Vaikimisi",
+      "white": "Valge",
+      "paper": "Paber",
+      "grey": "Helehall",
+      "dark": "Tume",
+      "note": "Vaikimisi on leht heledas teemas valge ja tumedas teemas rakenduse enda oma. Valik salvestatakse selles brauseris.",
+      "done": "Valmis"
+    },
     "edit_doc_title": "Nimeta dokument ümber",
     "edit_code": "Muuda koodiplokki",
     "code_placeholder": "Kood",

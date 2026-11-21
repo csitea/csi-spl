@@ -3166,6 +3166,17 @@
       "delete_title": "Usunąć ten dokument?",
       "delete_body": "Dokument \"{title}\" i cała jego zawartość zostaną usunięte."
     },
+    "doc_bg": {
+      "menu": "Tło…",
+      "title": "Tło strony",
+      "auto": "Domyślne",
+      "white": "Białe",
+      "paper": "Papier",
+      "grey": "Jasnoszare",
+      "dark": "Ciemne",
+      "note": "Domyślnie strona jest biała w jasnym motywie, a w ciemnym motywie taka jak w aplikacji. Twój wybór jest zapisywany w tej przeglądarce.",
+      "done": "Gotowe"
+    },
     "edit_doc_title": "Zmień nazwę dokumentu",
     "edit_code": "Edytuj blok kodu",
     "code_placeholder": "Kod",

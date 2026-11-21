@@ -3166,6 +3166,17 @@
       "delete_title": "Dzēst šo dokumentu?",
       "delete_body": "\"{title}\" un viss tajā esošais tiks dzēsts."
     },
+    "doc_bg": {
+      "menu": "Fons…",
+      "title": "Lapas fons",
+      "auto": "Noklusējums",
+      "white": "Balts",
+      "paper": "Papīrs",
+      "grey": "Gaiši pelēks",
+      "dark": "Tumšs",
+      "note": "Pēc noklusējuma gaišajā motīvā lapa ir balta, bet tumšajā – kā lietotnē. Jūsu izvēle tiek saglabāta šajā pārlūkā.",
+      "done": "Gatavs"
+    },
     "edit_doc_title": "Pārdēvēt dokumentu",
     "edit_code": "Rediģēt koda bloku",
     "code_placeholder": "Kods",

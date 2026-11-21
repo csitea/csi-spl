@@ -3166,6 +3166,17 @@
       "delete_title": "Odstrániť tento dokument?",
       "delete_body": "Dokument \"{title}\" a všetko v ňom sa odstráni."
     },
+    "doc_bg": {
+      "menu": "Pozadie…",
+      "title": "Pozadie stránky",
+      "auto": "Predvolené",
+      "white": "Biele",
+      "paper": "Papier",
+      "grey": "Svetlosivé",
+      "dark": "Tmavé",
+      "note": "Predvolene je stránka v svetlej téme biela a v tmavej téme ako v aplikácii. Vaša voľba sa uloží v tomto prehliadači.",
+      "done": "Hotovo"
+    },
     "edit_doc_title": "Premenovať dokument",
     "edit_code": "Upraviť blok kódu",
     "code_placeholder": "Kód",

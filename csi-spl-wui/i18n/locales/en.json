@@ -3166,6 +3166,17 @@
       "delete_title": "Delete this document?",
       "delete_body": "\"{title}\" and everything in it will be deleted."
     },
+    "doc_bg": {
+      "menu": "Background…",
+      "title": "Page background",
+      "auto": "Default",
+      "white": "White",
+      "paper": "Paper",
+      "grey": "Light grey",
+      "dark": "Dark",
+      "note": "Default is a white page in a light theme and the app's own page in the dark theme. Your choice is saved in this browser.",
+      "done": "Done"
+    },
     "edit_doc_title": "Rename the document",
     "edit_code": "Edit the code block",
     "code_placeholder": "Code",

@@ -3166,6 +3166,17 @@
       "delete_title": "Poistetaanko tämä asiakirja?",
       "delete_body": "\"{title}\" ja kaikki sen sisältö poistetaan."
     },
+    "doc_bg": {
+      "menu": "Tausta…",
+      "title": "Sivun tausta",
+      "auto": "Oletus",
+      "white": "Valkoinen",
+      "paper": "Paperi",
+      "grey": "Vaaleanharmaa",
+      "dark": "Tumma",
+      "note": "Oletuksena sivu on valkoinen vaaleassa teemassa ja sovelluksen oma tummassa teemassa. Valintasi tallennetaan tähän selaimeen.",
+      "done": "Valmis"
+    },
     "edit_doc_title": "Nimeä asiakirja uudelleen",
     "edit_code": "Muokkaa koodilohkoa",
     "code_placeholder": "Koodi",

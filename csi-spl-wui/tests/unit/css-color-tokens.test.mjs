@@ -18,6 +18,7 @@ const ALLOWED = {
   'src/pages/login.vue': '#000 is the mask alpha of the light running along the panel edges',
   'src/components/ChannelSidebar.vue': '#000 is the darkening operand of color-mix',
   'src/components/MessageComposer.vue': 'file-kind colours: move to --color-file-* once CLE-77917 lands',
+  'src/components/workspace-docs/WorkspaceDocBackgroundDialog.vue': 'SPL-6139: each swatch previews a doc page theme, not the current app theme',
 }
 
 function walk(dir, out = []) {

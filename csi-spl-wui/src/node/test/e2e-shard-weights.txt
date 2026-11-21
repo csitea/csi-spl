@@ -283,6 +283,7 @@ tests/e2e/prio-cardsize-scroll-hide.test.mjs 10
 tests/e2e/promote-by-drag.test.mjs 5
 tests/e2e/public-calendar.test.mjs 6
 tests/e2e/pwa-resume-reload.test.mjs 6
+tests/e2e/qto-doc-background.test.mjs 10
 tests/e2e/qto-mobile-docs-head.test.mjs 20
 tests/e2e/qto-sidebar-entry.test.mjs 23
 tests/e2e/qto-tree-reorder.test.mjs 31

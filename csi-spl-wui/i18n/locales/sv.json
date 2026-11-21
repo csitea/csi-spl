@@ -3166,6 +3166,17 @@
       "delete_title": "Ta bort det här dokumentet?",
       "delete_body": "\"{title}\" och allt innehåll kommer att tas bort."
     },
+    "doc_bg": {
+      "menu": "Bakgrund…",
+      "title": "Sidans bakgrund",
+      "auto": "Standard",
+      "white": "Vit",
+      "paper": "Papper",
+      "grey": "Ljusgrå",
+      "dark": "Mörk",
+      "note": "Som standard är sidan vit i ett ljust tema och appens egen i det mörka temat. Ditt val sparas i den här webbläsaren.",
+      "done": "Klar"
+    },
     "edit_doc_title": "Byt namn på dokumentet",
     "edit_code": "Redigera kodblocket",
     "code_placeholder": "Kod",

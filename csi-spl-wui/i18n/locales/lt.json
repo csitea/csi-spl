@@ -3166,6 +3166,17 @@
       "delete_title": "Ištrinti šį dokumentą?",
       "delete_body": "\"{title}\" ir viskas, kas jame yra, bus ištrinta."
     },
+    "doc_bg": {
+      "menu": "Fonas…",
+      "title": "Puslapio fonas",
+      "auto": "Numatytasis",
+      "white": "Baltas",
+      "paper": "Popierius",
+      "grey": "Šviesiai pilkas",
+      "dark": "Tamsus",
+      "note": "Pagal numatytuosius nustatymus šviesioje temoje puslapis baltas, o tamsioje – kaip programos. Jūsų pasirinkimas išsaugomas šioje naršyklėje.",
+      "done": "Atlikta"
+    },
     "edit_doc_title": "Pervadinti dokumentą",
     "edit_code": "Redaguoti kodo bloką",
     "code_placeholder": "Kodas",

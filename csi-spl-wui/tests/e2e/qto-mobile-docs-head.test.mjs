@@ -120,7 +120,8 @@ async function menuPick(p, id) {
   await p.click(sel).catch(() => null)
 }
 
-const VIEW_ITEMS = ['ws-doc-file-menu-print', 'ws-doc-file-menu-export_md', 'ws-doc-file-menu-view_doc', 'ws-doc-file-menu-view_grid']
+/* SPL-6139: Background… sits after Export to Markdown, in the doc view only */
+const VIEW_ITEMS = ['ws-doc-file-menu-print', 'ws-doc-file-menu-export_md', 'ws-doc-file-menu-background', 'ws-doc-file-menu-view_doc', 'ws-doc-file-menu-view_grid']
 
 const server = await startServer()
 const browser = await launch()
@@ -202,10 +203,10 @@ try {
       items: [...document.querySelectorAll('[data-test=ws-doc-file-menu] [role=menuitem]')].map((e) => ({ id: e.dataset.test, h: Math.round(e.getBoundingClientRect().height), icon: e.querySelector('[data-icon]')?.getAttribute('data-icon') })),
       expanded: document.querySelector('[data-test=ws-doc-file-btn]')?.getAttribute('aria-expanded'),
     }))
-    ok(`${vp.width}: Enter opens the menu with Print, Export to Markdown, Outline and Grid`, m.expanded === 'true'
+    ok(`${vp.width}: Enter opens the menu with Print, Export to Markdown, Background, Outline and Grid`, m.expanded === 'true'
       && JSON.stringify(m.items.map((i) => i.id)) === JSON.stringify(VIEW_ITEMS), m)
     ok(`${vp.width}: ... Outline is checked`, m.items.find((i) => i.id === 'ws-doc-file-menu-view_doc')?.icon === 'check', m.items)
-    if (vp.width <= 820) ok(`${vp.width}: each entry is a 44 px tap`, m.items.length === 4 && m.items.every((i) => i.h >= 44), m.items)
+    if (vp.width <= 820) ok(`${vp.width}: each entry is a 44 px tap`, m.items.length === VIEW_ITEMS.length && m.items.every((i) => i.h >= 44), m.items)
     if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/qto-export-menu-${vp.width}-open.png` })
     await p.keyboard.press('Escape')
     await p.waitForFunction(() => !document.querySelector('[data-test=ws-doc-file-menu]'), { timeout: STEP }).catch(() => null)

@@ -3166,6 +3166,17 @@
       "delete_title": "Ștergi acest document?",
       "delete_body": "\"{title}\" și tot ce conține va fi șters."
     },
+    "doc_bg": {
+      "menu": "Fundal…",
+      "title": "Fundalul paginii",
+      "auto": "Implicit",
+      "white": "Alb",
+      "paper": "Hârtie",
+      "grey": "Gri deschis",
+      "dark": "Întunecat",
+      "note": "Implicit, pagina este albă într-o temă deschisă și cea a aplicației în tema întunecată. Alegerea ta se salvează în acest browser.",
+      "done": "Gata"
+    },
     "edit_doc_title": "Redenumește documentul",
     "edit_code": "Editează blocul de cod",
     "code_placeholder": "Cod",

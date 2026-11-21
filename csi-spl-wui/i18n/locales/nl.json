@@ -3174,6 +3174,17 @@
       "delete_title": "Dit document verwijderen?",
       "delete_body": "\"{title}\" en alles erin wordt verwijderd."
     },
+    "doc_bg": {
+      "menu": "Achtergrond…",
+      "title": "Paginaachtergrond",
+      "auto": "Standaard",
+      "white": "Wit",
+      "paper": "Papier",
+      "grey": "Lichtgrijs",
+      "dark": "Donker",
+      "note": "Standaard is de pagina wit in een licht thema en die van de app in het donkere thema. Je keuze wordt in deze browser bewaard.",
+      "done": "Klaar"
+    },
     "edit_doc_title": "Document hernoemen",
     "edit_code": "Codeblok bewerken",
     "code_placeholder": "Broncode",

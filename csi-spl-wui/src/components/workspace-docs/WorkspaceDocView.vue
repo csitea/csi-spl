@@ -28,7 +28,7 @@
      an unknown anchor opens the top with one status line. "Copy link to
      section" is in the section menu and on a long-press of the '#'. -->
 <template>
-  <div ref="rootEl" class="wsdoc wsdoc--headbar" :class="{ 'wsdoc--toc': tocOpen }" data-test="ws-doc-view">
+  <div ref="rootEl" class="wsdoc wsdoc--headbar" :class="[{ 'wsdoc--toc': tocOpen }, 'wsdoc--bg-' + (background || 'auto')]" :data-doc-bg="background || 'auto'" data-test="ws-doc-view">
     <!-- SPL-2094 (owner t1 8f704763): the bar is in the page's header row,
          at its right end (WorkspaceDocsPage #wsdocs-head-tools). SPL-3233
          (owner t1 a1b42c34, msg 7caac933: "Remove the bar with the export
@@ -349,6 +349,7 @@ import {
 import { assetRoute, figureNumbers, paraRuns, type ParaRun } from './-doc-pics'
 import { previewLinks } from './-doc-blocks'
 import { branchOf as branchIn } from './-doc-outline'
+import type { DocBg } from './-doc-background'
 import { anchorOf } from './-doc-anchor'
 import { onCodeTool, scrollToNextStep } from './-doc-next-step'
 import { useDocHeadBar } from './-doc-headbar'
@@ -359,7 +360,7 @@ import { useDocPermalink } from '~/composables/useDocPermalink'
 import { useDocItemMenu } from '~/composables/useDocItemMenu'
 
 /* changed: the page counts a structural change made elsewhere (the tree's section drag, SPL-1892); each one reads the document again */
-const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[], changed?: number }>()
+const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[], changed?: number, background?: DocBg }>()
 const emit = defineEmits<{ print: [item: DocItem | null], list: [outline: string], open: [doc: string, item: string], renamed: [title: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 
@@ -910,3 +911,6 @@ defineExpose({ exportDoc, empty })
   }
 }
 </style>
+
+<!-- SPL-6139: the page background themes; not scoped, the default keys on the app theme on <html> -->
+<style src="./-doc-background.css"></style>

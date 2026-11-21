@@ -1,0 +1,68 @@
+/* SPL-6139 (owner HUM-10, t1 60bf4e56, msg 2dda6b09): the Qto doc view's page
+   themes (-doc-background.ts), loaded unscoped by WorkspaceDocView. A theme
+   sheet like assets/css/variables.css, so its colours are literals: each
+   theme redefines the colour tokens on the doc view's root, and the
+   document, its contents pane and its inputs all follow; the header bar
+   (teleported out) and the menus and dialogs (on <body>) keep the app's. */
+.wsdoc[class*='wsdoc--bg-'] { min-height: 100%; background: var(--color-bg); color: var(--color-fg); }
+/* auto, the default: white under a light app theme; the dark theme keeps its page */
+:root[data-theme^='light'] .wsdoc--bg-auto { --color-bg: #ffffff; --color-surface: #ffffff; }
+/* an explicit pick reads the same under every app theme: page and text colours both */
+.wsdoc--bg-white,
+.wsdoc--bg-paper,
+.wsdoc--bg-grey {
+  color-scheme: light;
+  --color-fg: #0c1626;
+  --color-heading: #0c1626;
+  --color-muted: #47597a;
+  --color-border: rgba(12, 22, 38, 0.16);
+  --color-border-strong: rgba(12, 22, 38, 0.32);
+  --color-accent: #0a6f99;
+  --color-accent-pressed: #085a7c;
+  --color-code-inline-fg: #2a4a6b;
+  --color-code-inline-bg: rgba(12, 22, 38, 0.04);
+  --color-code-inline-edge: rgba(12, 22, 38, 0.1);
+  --color-row-alt: rgba(12, 22, 38, 0.05);
+}
+.wsdoc--bg-white { --color-bg: #ffffff; --color-bg-2: #f2f4f7; --color-surface: #ffffff; --color-surface-hover: #e9edf2; }
+.wsdoc--bg-paper {
+  --color-bg: #f7f0e1;
+  --color-bg-2: #efe5d0;
+  --color-surface: #fbf6ea;
+  --color-surface-hover: #e8dcc2;
+  --color-fg: #2e2618;
+  --color-heading: #2e2618;
+  --color-muted: #6b5d45;
+  /* the shared accent is 4.48:1 on this bg-2; the pressed shade is the accent here */
+  --color-accent: #085a7c;
+  --color-accent-pressed: #064a66;
+  --color-border: rgba(70, 50, 20, 0.18);
+  --color-border-strong: rgba(70, 50, 20, 0.34);
+}
+.wsdoc--bg-grey {
+  --color-bg: #eceef1;
+  --color-bg-2: #e1e4e9;
+  --color-surface: #f4f5f7;
+  --color-surface-hover: #d9dde3;
+  --color-muted: #4f5866;
+  --color-accent: #085a7c;
+  --color-accent-pressed: #064a66;
+}
+.wsdoc--bg-dark {
+  color-scheme: dark;
+  --color-bg: #14171c;
+  --color-bg-2: #1c2027;
+  --color-surface: #1a1e24;
+  --color-surface-hover: #262b33;
+  --color-fg: #e4e7ec;
+  --color-heading: #f2f4f7;
+  --color-muted: #9aa3b0;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-border-strong: rgba(255, 255, 255, 0.24);
+  --color-accent: #5cc8e8;
+  --color-accent-pressed: #3fb3d6;
+  --color-code-inline-fg: #c5d0e6;
+  --color-code-inline-bg: rgba(255, 255, 255, 0.05);
+  --color-code-inline-edge: rgba(255, 255, 255, 0.12);
+  --color-row-alt: rgba(255, 255, 255, 0.06);
+}

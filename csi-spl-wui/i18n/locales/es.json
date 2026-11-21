@@ -3174,6 +3174,17 @@
       "delete_title": "¿Eliminar este documento?",
       "delete_body": "\"{title}\" y todo su contenido serán eliminados."
     },
+    "doc_bg": {
+      "menu": "Fondo…",
+      "title": "Fondo de página",
+      "auto": "Predeterminado",
+      "white": "Blanco",
+      "paper": "Papel",
+      "grey": "Gris claro",
+      "dark": "Oscuro",
+      "note": "De forma predeterminada, la página es blanca con un tema claro y la propia de la aplicación con el tema oscuro. Tu elección se guarda en este navegador.",
+      "done": "Listo"
+    },
     "edit_doc_title": "Cambiar el nombre del documento",
     "edit_code": "Editar el bloque de código",
     "code_placeholder": "Código",

@@ -3174,6 +3174,17 @@
       "delete_title": "Bu belge silinsin mi?",
       "delete_body": "\"{title}\" ve içindeki her şey silinecek."
     },
+    "doc_bg": {
+      "menu": "Arka plan…",
+      "title": "Sayfa arka planı",
+      "auto": "Varsayılan",
+      "white": "Beyaz",
+      "paper": "Kâğıt",
+      "grey": "Açık gri",
+      "dark": "Koyu",
+      "note": "Varsayılan olarak sayfa açık temada beyaz, koyu temada uygulamanın kendi rengindedir. Seçiminiz bu tarayıcıda kaydedilir.",
+      "done": "Bitti"
+    },
     "edit_doc_title": "Belgeyi yeniden adlandır",
     "edit_code": "Kod bloğunu düzenle",
     "code_placeholder": "Kod",

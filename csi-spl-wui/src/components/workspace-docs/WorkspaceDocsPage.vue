@@ -75,12 +75,13 @@
         @title="(v) => { drillTitle = v }"
       />
       <template v-if="session && root && !phoneList">
-        <WorkspaceDocView v-if="view === 'doc'" ref="docView" :key="'doc' + mount" :changed="changed" :session="session" :root="root" :title="docTitle" :docs="docs" @print="printBranch" @list="openList" @open="openAt" @renamed="renamed" />
+        <WorkspaceDocView v-if="view === 'doc'" ref="docView" :key="'doc' + mount" :changed="changed" :session="session" :root="root" :title="docTitle" :docs="docs" :background="docBg" @print="printBranch" @list="openList" @open="openAt" @renamed="renamed" />
         <WorkspaceGridView v-else :key="'grid' + mount" :session="session" :filter="String(route.query.q || '')" @print="printBranch" />
       </template>
     </div>
     <WorkspaceDocPrint :title="docTitle" :items="printItems" :doc="session?.doc ?? ''" :srcs="printSrcs" />
     <WorkspaceDocNewDialog v-model:open="newOpen" :create="createDoc" />
+    <WorkspaceDocBackgroundDialog v-model:open="bgOpen" :model-value="docBg" @update:model-value="pickBg" />
   </div>
 </template>
 
@@ -91,6 +92,8 @@ import WorkspaceGridView from './WorkspaceGridView.vue'
 import WorkspaceDocPrint from './WorkspaceDocPrint.vue'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
 import WorkspaceDocFileMenu from './WorkspaceDocFileMenu.vue'
+import WorkspaceDocBackgroundDialog from './WorkspaceDocBackgroundDialog.vue'
+import { DOC_BG_DEFAULT, readDocBg, writeDocBg, type DocBg } from './-doc-background'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import QtoFileTree from './QtoFileTree.vue'
 import { createDocSession, DocTreeError, seedStarterDoc, useDocTree, useQtoFolder, type DocHead, type DocItem, type DocSession } from './-doctree-api'
@@ -154,6 +157,7 @@ const fileItems = computed<PointMenuItem[]>(() => {
   return [
     { id: 'print', icon: 'file-text', labelKey: 'ws_doctree.print_doc', disabled: empty },
     ...(view.value === 'doc' ? [{ id: 'export_md', icon: 'file-code', labelKey: 'ws_doctree.menu.export_md', disabled: empty } as PointMenuItem] : []),
+    ...(view.value === 'doc' ? [{ id: 'background', icon: 'palette', labelKey: 'ws_doctree.doc_bg.menu' } as PointMenuItem] : []),
     { id: 'view_doc', icon: view.value === 'doc' ? 'check' : 'list', labelKey: 'ws_doctree.view_doc', groupKey: 'ws_doctree.view_label' },
     { id: 'view_grid', icon: view.value === 'grid' ? 'check' : 'file-spreadsheet', labelKey: 'ws_doctree.view_grid' },
   ]
@@ -161,7 +165,17 @@ const fileItems = computed<PointMenuItem[]>(() => {
 function chooseFile(id: string) {
   if (id === 'print') void printBranch(null)
   else if (id === 'export_md') void docView.value?.exportDoc()
+  else if (id === 'background') bgOpen.value = true
   else if (id === 'view_doc' || id === 'view_grid') setView(id === 'view_doc' ? 'doc' : 'grid')
+}
+
+/* SPL-6139: the doc view's page background, this viewer's (-doc-background.ts);
+   read on mount, as the generated page has no localStorage */
+const docBg = ref<DocBg>(DOC_BG_DEFAULT)
+const bgOpen = ref(false)
+function pickBg(bg: DocBg) {
+  docBg.value = bg
+  writeDocBg(bg)
 }
 
 /** Qto's "open as list": the grid, filtered to one branch's number */
@@ -301,6 +315,7 @@ async function printBranch(item: DocItem | null) {
 }
 
 onMounted(() => {
+  docBg.value = readDocBg()
   /* test hook (mock tenant only): another writer moves the doc rev on */
   if (useSpoolApi().mock) {
     const w = window as unknown as Record<string, unknown>

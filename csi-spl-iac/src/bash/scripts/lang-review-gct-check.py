@@ -6,8 +6,11 @@ Usage: lang-review-gct-check.py <tree> <locales-dir> <report-dir> <sha> <run id>
 
 The report <report-dir>/<run id>.json (written by do_spl_lang_review_gct,
 csi-spl-orc) must be in the commit's tree, be a gct report of that run id
-with no row marked 'placeholder', and cover every key the commit adds or
-changes in a non-English locale file with that key's text as committed. The
+with no row marked 'placeholder', every row shaped as the action writes it
+(mark match or differs; en, text, reference and back non-empty), and cover
+every key the commit adds or changes in a non-English locale file, and every
+key it adds or changes in en.json for each locale holding it, with that
+key's en and locale text as committed. The
 {placeholders} of each such string are checked again against en.json at the
 commit: a missing or an extra one fails, whatever the report says.
 
@@ -53,6 +56,67 @@ def load_report(tree, sha, path, run_id):
     return rep, []
 
 
+def locale_files(tree, sha, locales):
+    """every non-en <locales>/*.json at the commit"""
+    r = subprocess.run(
+        ["git", "-C", tree, "ls-tree", "--name-only", sha, f"{locales}/"],
+        capture_output=True,
+        text=True,
+    )
+    return [
+        f
+        for f in r.stdout.split()
+        if f.endswith(".json") and not f.endswith("/en.json")
+    ]
+
+
+def bad_shape(row):
+    """why a report row is not one do_spl_lang_review_gct writes, or None"""
+    if row.get("mark") not in ("match", "differs", "placeholder"):
+        return f"mark {row.get('mark')!r} is not match or differs"
+    for field in ("en", "text", "reference", "back"):
+        if not isinstance(row.get(field), str) or not row[field]:
+            return f"no {field} text"
+    return None
+
+
+def wanted(tree, locales, sha, en):
+    """-> ({(file, key): text}, [why]): each key a non-en locale file adds or
+    changes, and each key the commit adds or changes in en.json for every
+    locale holding it (an en edit asks its translations again), where the en
+    and the locale text are both strings, as the action's rows are"""
+    en_path = f"{locales}/en.json"
+    changed = keys_lib.changed_files(tree, sha, locales)
+    en_keys = []
+    if en_path in changed and isinstance(en, dict):
+        old_en = keys_lib.parse(show(tree, f"{sha}^:{en_path}"))
+        en_keys = list(
+            keys_lib.added_or_changed({} if old_en is keys_lib._MISSING else old_en, en)
+        )
+    files = set(changed) - {en_path}
+    if en_keys:
+        files |= set(locale_files(tree, sha, locales))
+    want, out = {}, []
+    for f in sorted(files):
+        new = keys_lib.parse(show(tree, f"{sha}:{f}"))
+        if new is keys_lib._MISSING:
+            if f in changed:
+                out.append(f"{f}: not valid JSON")
+            continue
+        keys = list(en_keys)
+        if f in changed:
+            old = keys_lib.parse(show(tree, f"{sha}^:{f}"))
+            keys += keys_lib.added_or_changed(
+                {} if old is keys_lib._MISSING else old, new
+            )
+        for k in keys:
+            text = keys_lib.lookup(new, k)
+            src = keys_lib.lookup(en, k) if isinstance(en, dict) else keys_lib._MISSING
+            if isinstance(text, str) and isinstance(src, str):
+                want[(f, k)] = text
+    return want, out
+
+
 def problems(tree, locales, report_dir, sha, run_id):
     path = f"{report_dir.rstrip('/')}/{run_id}.json"
     rep, why = load_report(tree, sha, path, run_id)
@@ -68,35 +132,31 @@ def problems(tree, locales, report_dir, sha, run_id):
         for (f, k), r in rows.items()
         if r.get("mark") == "placeholder"
     ]
+    out += [
+        f"{f} {k}: {bad} in {path} (not a row do_spl_lang_review_gct writes)"
+        for (f, k), r in rows.items()
+        if (bad := bad_shape(r))
+    ]
     en = keys_lib.parse(show(tree, f"{sha}:{locales}/en.json"))
-    for f in keys_lib.changed_files(tree, sha, locales):
-        if f.endswith("/en.json"):
-            continue
-        new = keys_lib.parse(show(tree, f"{sha}:{f}"))
-        if new is keys_lib._MISSING:
-            out.append(f"{f}: not valid JSON")
-            continue
-        old = keys_lib.parse(show(tree, f"{sha}^:{f}"))
-        for k in keys_lib.added_or_changed(
-            {} if old is keys_lib._MISSING else old, new
-        ):
-            text = keys_lib.lookup(new, k)
-            row = rows.get((f, k))
-            if row is None:
-                out.append(f"{f} {k}: not in {path}")
-            elif row.get("text") != text:
-                out.append(
-                    f"{f} {k}: the committed text is not the text {path} checked (run it again)"
-                )
-            src = keys_lib.lookup(en, k) if isinstance(en, dict) else keys_lib._MISSING
-            if (
-                isinstance(text, str)
-                and isinstance(src, str)
-                and keys_lib.placeholders(text) != keys_lib.placeholders(src)
-            ):
-                out.append(
-                    f"{f} {k}: placeholders {sorted(keys_lib.placeholders(text))} differ from en {sorted(keys_lib.placeholders(src))}"
-                )
+    want, why = wanted(tree, locales, sha, en)
+    out += why
+    for (f, k), text in want.items():
+        src = keys_lib.lookup(en, k)
+        row = rows.get((f, k))
+        if row is None:
+            out.append(f"{f} {k}: not in {path}")
+        elif row.get("text") != text:
+            out.append(
+                f"{f} {k}: the committed text is not the text {path} checked (run it again)"
+            )
+        elif row.get("en") != src:
+            out.append(
+                f"{f} {k}: the committed en text is not the en {path} checked (run it again)"
+            )
+        if keys_lib.placeholders(text) != keys_lib.placeholders(src):
+            out.append(
+                f"{f} {k}: placeholders {sorted(keys_lib.placeholders(text))} differ from en {sorted(keys_lib.placeholders(src))}"
+            )
     return out
 
 

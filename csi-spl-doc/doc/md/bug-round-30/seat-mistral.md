@@ -8,7 +8,9 @@ Review target: `csi-spl-doc/doc/md/bug-round-30-plan.md` on branch
 and 5 (3.2 panel signs the plan sha; 5.1 1 to 3 rows; 5.3 numbering and window;
 5.4 bugs priority 2).
 
-**Verdict: PENDING — no plan sha named yet.** As of 2026-11-20T22:44Z the planner
+**Verdict: PASS on `26492502` (v0.1), 2026-11-21T01:16Z — see the verdict section at
+the end of this file.** The PENDING paragraph below is the 22:44Z state, kept as
+history. As of 2026-11-20T22:44Z the planner
 seat (`claude:c002-bug-round-30-planner`, ask bb395b6d) is still queued
 (`do_spl_spawn_queue` -> `17/39 ... 51m ... QUEUE`), no `bug-round-30` / `b30-`
 branch exists on origin (`git ls-remote origin | grep -E 'refs/heads/.*(bug-round-30|b30-)'`
@@ -170,3 +172,159 @@ in a second commit and report again.
   (`git ls-remote origin | grep -c 'bug-round-30-planner'` -> `0`).
   `origin/master` moved to `7f4ab4743` (SPL-6110, SPL-6112, other lanes).
   Verdict stays PENDING.
+
+## Panel verdict on v0.1 — PASS (2026-11-21T01:16Z)
+
+- Reviewed sha: `26492502f30952d72ff2c52adaa806553577fb87` on branch
+  `review/c002-bug-round-30-planner`, named by the dispatch holder c-002@sat on
+  task `dispatch-bug-r30` (msg 01:06:27Z); `git ls-remote origin
+  refs/heads/review/c002-bug-round-30-planner` -> `26492502...` (the branch
+  head). The commit touches only `csi-spl-doc/doc/md/bug-round-30-plan.md`
+  (239 lines; `git show 26492502:<file> | sha256sum` ->
+  `fdd240796de4aea33dbc21485293a82a96486a54501ca04fbd79a27048a42a03`). The
+  plan's own base: `4ad1b80a8`; window `W=2026-11-20T21:05:53+02:00`.
+- Rotation 20261121T0058Z: ack run first -> `ACK OK sent by pid 2826261`
+  (01:00:22Z). A stale push worker of the previous session (started 00:43:37Z,
+  pushing the pre-rebase `e2a0bb1ea`) was still alive; stopped by its own pids
+  (worker, `git push`, `git-remote-http`, pre-push hook and its test children).
+  Rebase onto `origin/master` skipped the two duplicate fix commits
+  (`323c7b97c`, `5d1bca96e`: `git patch-id --stable` equal to the landed
+  `28f802950`, `7f4ab4743`); HEAD became `31ab9645`; gates
+  `do_check_dist_hygiene` + `do_check_pre_push` PASSED; push of `31ab9645`
+  started 01:06:38Z (in flight at verdict time).
+
+### Check 1 — slug b30 unused since W
+
+- `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b29-plan')` ->
+  `2026-11-20T21:05:53+02:00` (same as the plan).
+- `git log origin/master --since="$W" --oneline -E --grep='\(b30-' | wc -l` ->
+  `2` (`b86bcc246` + revert `5f1e27bc7`, this seat's own incident pair); row
+  form `--grep='\(b30-[0-9]{2}'` -> `0`.
+- `git ls-remote origin | grep -E 'b30-[0-9]{2}|bug-round-30'` ->
+  `review/c002-bug-round-30-mistral-seat` (this seat) and
+  `review/c002-bug-round-30-planner` (the planner) only.
+- `ls /var/spool-hub/dispatch/briefs | grep -E 'b30-[0-9]{2}|bug-round-30'` ->
+  the two expected briefs.
+
+### Check 2 — site file:line on the base and on origin/master
+
+- All 23 cited file:line checked with `git show 4ad1b80a8:<file> | sed -n <N>p`;
+  every one prints the line the plan claims (e.g.
+  `spl-spawn-place.func.sh:441` -> `if jq -e '(.class // "") == "ci" or (.flag // "") != ""' ...`,
+  `:454` -> `def cls: ... if . == "" or . == "ci" then "bug" ...`,
+  `wt-dead-sweep.sh:129` -> `[[ "${wt%/*}" == "$wt_root" ]] || continue`,
+  `tmp-stale-sweep.sh:141` -> `... as_root test -f "$p/.git"; then why="worktree"`,
+  `fleet_ask.go:293` -> `func askPositions(as []FleetAsk) {`).
+  `box-disk-sweep.tst.sh` has 459 lines on the base; the cited range 150-171
+  exists (150 = section 2 header, 171 = the blank line before section 3).
+- All cited files exist on `origin/master` (`git cat-file -e
+  origin/master:<f>` -> OK for each of the 11).
+- `git diff --name-only 4ad1b80a8 origin/master -- <all 11 cited files>` ->
+  empty: no drift; every cited line is identical on current `origin/master`
+  (`ba7acd634` at the 01:1xZ fetch).
+
+### Check 3 — red controls rebuilt and run on the base (n=3 each)
+
+- The controls are not on sat (`ls /var/spool-hub/dispatch/b30-red-controls` ->
+  no such dir), so they were rebuilt from the plan's printed blocks:
+  `sha256sum` -> `a366e7466e55...` (rc01, 2488 B) and `e9277ae4c346...` (rc02,
+  2365 B) — first 12 hex and byte size match the plan's `a366e7466e55` /
+  `e9277ae4c346`, 2488 B / 2365 B.
+- `bash rc01.sh 4ad1b80a8` x3 -> each run:
+  `rc01 behind: took=refac-2 want=ci-3` / `rc01 behind-p1: took=feat-1 want=ci-2` /
+  `rc01 head: took=ci-1 want=ci-1` / `rc01 none: took=refac-2 want=refac-2` /
+  `rc01 sha=4ad1b80a8 wrong=2`, exit 1. RED 3/3, exactly the plan's output. The
+  two control cases (head, none) pass, so it fails for the claimed defect (a ci
+  row behind the head loses), not for an environment reason. It exports the sha
+  with `git archive` into a mktemp dir and uses a fixture share: no live queue,
+  worktree or credential is touched.
+- `bash rc02.sh 4ad1b80a8` x3 -> each run:
+  `rc02 tmp dead planned: no want=yes` / `rc02 tmp alive kept: no want=no` /
+  `rc02 tmp dashless untouched: no want=no` / `rc02 tmp non-id untouched: no want=no` /
+  `rc02 wt-root dead planned: yes want=yes` / `rc02 default off: no tmp line: no want=no` /
+  `rc02 sha=4ad1b80a8 wrong=1`, exit 1. RED 3/3, exactly the plan's output; the
+  five control cases pass, so it fails for the claimed defect (a dead /tmp
+  worktree is not planned), not for an environment reason. It builds its own
+  fixture repo in a mktemp dir and runs the sweep with DRY_RUN=1: no live state
+  touched.
+
+### Check 4 — root causes read on 4ad1b80a8
+
+- Row 01 holds: `spl_spawn_place_band` (`spl-spawn-place.func.sh:439`) tests
+  ci/flagged on HEAD only (`:441`) and priority 1 (`:442`); the band pick maps
+  `ci` to `bug` (`:454`) and sorts by band then position, so a ci row behind the
+  head is taken only as "bug" under its band, never ahead of a priority 1 head.
+  The queue's order is priority first, then class (`askPositions`,
+  `fleet_ask.go:293`, its comment cites spec 150 3.4 / poll Q5 A). The rule
+  text (`fleet-rules-index.md:55`, SPL-1817 row): "The placer takes a `ci` row
+  first, then a flagged one ..., then a priority 1 head as it is ..., then the
+  class furthest under its band". rc01's behind/behind-p1 cases demonstrate the
+  break.
+- Row 02 holds: `wt-dead-sweep.sh` `list_dirs` (`:118-124`) skips every
+  worktree not directly under `WT_ROOT` (`:129`); `tmp-stale-sweep.sh` keeps a
+  lane dir that is a linked worktree as `worktree` (`:141`) and its header
+  (`:18-21`) says no sweep removes a /tmp lane worktree unless listed in
+  workdirs.tsv. rc02's "tmp dead planned: no want=yes" vs "wt-root dead planned:
+  yes" demonstrates the gap.
+
+### Check 5 — row fields (R1/R2/R7, vendor, kind, batch)
+
+- 2 rows (rulebook 5.1: 1-3, aim 2 — ok); numbering b30-01/b30-02 and window W
+  quoted (5.3 — ok); issue SPL-6108 priority 2 (5.4 — ok).
+- R1: batch 1 rows share no file — row 01 {spl-spawn-place.func.sh,
+  spl-spawn-place-argmax.tst.sh}, row 02 {wt-dead-sweep.sh,
+  box-disk-sweep.tst.sh, tmp-stale-sweep.sh comment} — disjoint.
+- R2: each row names a red control that fails on the base (verified in check 3)
+  and requires the commit body to show exit 0 on the fix; test lists in the
+  plan's 3.1.
+- Vendor claude, kind `simple_coding`, batch 1 on both rows: no mistral
+  coding/testing row (mistral is only this panel). R7 reviewer: the claude
+  waiver seat (1a7c70da), fresh session, tree only — the allowed waiver, never
+  mistral; the grok `do_spl_box_pick` hold is quoted in the plan's section 8.
+
+### Check 6 — R3 lane map on the row paths
+
+- `lane-map.sh --check <the 5 row files> --agent m-551` -> exit 4: no live lane
+  lists any row file; 16 `unknown:` lanes record no files (rotate lanes and c002
+  lanes on the other box, incl. c-448 the planner).
+- Queue re-run 01:1xZ: `ENV=prd ./run -a do_spl_spawn_queue` -> `35 queued,
+  0 placing` (same as the plan's 00:56:17Z); grep of the queued placements for
+  `spl-spawn-place|spawn-place-argmax|wt-dead-sweep|box-disk-sweep|tmp-stale-sweep`
+  -> 0 matches.
+
+### Check 7 — inputs accounted
+
+- Re-read `/var/spool-hub/dispatch/c002-next-round-candidates.md` (79 lines, its
+  "next BUG round" and "Bug-shaped" entries) and the b29 plan's section 7
+  (`bug-round-29-plan.md` on origin/master, its "first inputs for round 30"
+  row). Every bug-shaped input is either a row (CI-first rule b96b804a -> row
+  01; dead lanes' /tmp worktrees 82c02da9 -> row 02) or accounted for in the
+  plan's sections 4-6 (AltGr picker, blog switcher Enter, done-claim job label
+  and sha256-prefix, test-agent-name-shape, orc/iac hermeticity, gcp-billing
+  3rd sighting, unanswered-sweep case 12 (fixed by `74bd535d8`), `tasks <hex>`
+  forms, review-go rows, panel-seat slug forms, b29-01 N1/N2/N6, SPL-6032
+  N1/N2, SPL-6107 N1; the overlay mounts are handed to the holder in section 6).
+
+### Check 8 — dist hygiene
+
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (01:1xZ) ->
+  `INFO distribution-hygiene: clean over the tracked tree of
+  /opt/csi/csi-spl-wt/m-551`, rc 0.
+
+### Defects
+
+- none (no W).
+
+### Notes
+
+- N1: `/var/spool-hub/dispatch/c002-next-round-candidates.md` gained a
+  bug-shaped entry at 2026-11-21 01:1xZ (c-001 d77d912f: placer After: hold
+  reads the wrong box's key, `spl-spawn-after.func.sh:67`), after the plan's
+  measurement window (00:52Z-01:05Z). The plan neither serves nor accounts for
+  it; it is a round-31 candidate, not a defect of v0.1.
+- N2: the form file `csi-spl-doc/doc/md/bug-round-30-plan.md` does not exist on
+  `origin/master` yet (`git ls-tree origin/master --
+  csi-spl-doc/doc/md/bug-round-30/` -> empty); expected — the editor folds the
+  plan into its v1.0 commit.
+- N3: `box-disk-sweep.tst.sh:171` (the end of the cited 150-171 range) is a
+  blank line on the base; the range exists and the section header is at :150.

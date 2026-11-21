@@ -88,7 +88,7 @@ const epicQuery = computed(() => {
 .epic-row__bar > span { display: block; height: 100%; background: var(--color-accent); }
 .epic-row--closed { opacity: 0.6; }
 .epic-row__kind { display: inline-block; width: 0.5rem; height: 0.5rem; margin-inline-end: 6px; border-radius: var(--radius-pill); background: var(--color-kind-epic); vertical-align: middle; }
-.epic-row__kind[data-kind="feature"] { background: var(--color-kind-feature); }
+.epic-row__kind[data-kind="feature"] { background: var(--color-epic-feature); }
 /* SPL-992 (epic SPL-988): on a phone this panel is level 1, full width - a
    row is a 44 px touch target, and a tap opens the epic's list (level 2) */
 @media (max-width: 820px) {

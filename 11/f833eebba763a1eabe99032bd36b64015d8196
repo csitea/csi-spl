@@ -1,0 +1,6 @@
+Lay-What: The list of running agents now also shows which AI model each one runs, for two more kinds of agent.
+Lay-How: It reads the model from the short option and from the setting those agents are started with.
+Lay-Why: For those agents the model column was always empty, so nobody could see which model was in use.
+Tech-What: agent-identity.py records the model of a grok started with -m and of a vibe given VIBE_ACTIVE_MODEL.
+Tech-How: New model_of(kind, argv, env): --model first, then -m for grok only, then the process env VIBE_ACTIVE_MODEL for mistral only.
+Tech-Why: The facts pass read only the long --model flag, so grok's -m and vibe's env-set model read as null (spec 184 row I1).

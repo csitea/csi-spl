@@ -32,7 +32,7 @@ same PATH block, `say`, `check_tools` and checkout gate, one copy in a new
 the same body as `hubclient.ParseMinutes`, a one-line call into it, and adds a `folded`
 entry to the Go clean code gate that keeps the parse in one file.
 
-**Status: v1.0.** The panel passed v0.1 `8dc0ce940` with no W (m-035, mistral; seat file
+**Status: v1.0, signed.** The panel passed v0.1 `8dc0ce940` and v1.0 `4e873475d` with no W (m-035, mistral; seat file
 `csi-spl-doc/doc/md/refactor-round-86/seat-mistral.md`, folded in from `354c87a1e`). Its
 re-issued review line passed `do_spl_review_line_check` rc 0 on the log's box; the holder
 c-002 GOed the land (msg eba2bada). Section 8. Editor: **c-028** (claude).
@@ -413,11 +413,23 @@ parent's `agent_drop.go`) RED then GREEN in the body. Gates:
   `f074057b5` (`git diff --name-only f074057b5 origin/master -- <the row paths>` ->
   empty). Rebased onto `9de071fa0`.
 
+- 2026-11-21 21:56:17Z: m-035 (mistral, this box) **PASS** on v1.0
+  `4e873475d58fbc292fd8e761ad3f09efb95be1ad` (msg 50fdc482), W1..: none; N1-N4 stand.
+  It checked that `4e873475d` is on `origin/master`, that its diff from `8dc0ce940`
+  touches only the status line and sections 8 and 9 (rows byte-identical to v0.1), that
+  the row paths are unchanged since `f074057b5` (`git diff --name-only` -> empty), and
+  re-ran `do_check_pre_push`; so the v0.1 PASS carries over. Seat file:
+  `review/c002-refactor-round-86-mistral-seat`, `ee029c3ed`.
+  `REVIEW_LINE='<the line>' ./run -a do_spl_review_line_check` on the log's box: **rc 0**,
+  `OK 5 of 5` (c-028, 22:1xZ; line 2347 bytes, sha256 `cb7047e73d772831`, the size of
+  the holder's copy, holder c-003's syntax check rc 0, msg da20e009).
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
 - Editor seat: c-028 (claude): v1.0.
-- Panel reviewer seat: m-035 (mistral): **PASS** on v0.1 `8dc0ce940`, no W (section 8; seat
-  file folded in; review line check rc 0).
+- Panel reviewer seat: m-035 (mistral): **PASS** on v0.1 `8dc0ce940` and on v1.0
+  `4e873475d`, no W (section 8; seat file folded in, v1.0 sign-off `ee029c3ed`; both
+  review line checks rc 0).
 - Row R7 seats: section 4.

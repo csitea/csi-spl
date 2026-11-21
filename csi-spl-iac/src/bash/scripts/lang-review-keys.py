@@ -18,11 +18,33 @@ per file and side.
 """
 
 import json
+import re
 import subprocess
 import sys
 
 
 _MISSING = object()
+
+# a vue-i18n interpolation: {name}, {n}, {'literal'}
+_PLACEHOLDER_RX = re.compile(r"\{[^{}]*\}")
+
+
+def placeholders(text):
+    """the set of {placeholder} tokens in text (SPL-6174: a locale string
+    must carry exactly the tokens of its en source)"""
+    return set(_PLACEHOLDER_RX.findall(text)) if isinstance(text, str) else set()
+
+
+def lookup(obj, key):
+    """the leaf at a '.'-joined key (list items by index), or _MISSING"""
+    for part in key.split("."):
+        if isinstance(obj, dict) and part in obj:
+            obj = obj[part]
+        elif isinstance(obj, list) and part.isdigit() and int(part) < len(obj):
+            obj = obj[int(part)]
+        else:
+            return _MISSING
+    return obj
 
 
 def leaves(obj, pre):

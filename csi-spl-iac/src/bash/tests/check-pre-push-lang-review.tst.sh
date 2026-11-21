@@ -26,6 +26,14 @@
 #      waiver <8hex>' passes; a bare c-NNN line, a waiver with no id and the
 #      g-/m-/x- prefixes FAIL; a-NNN still passes. Each case through both
 #      callers: the pre-push range and the CI range (LANG_REVIEW_RANGE)
+#  14. 'Lang-review: gct <run id>' (SPL-6174, Cloud Translation): the line with
+#      its report in the commit's tree, covering the committed fi text -> PASS;
+#      RED controls, each FAIL: the line with no report, neither line, a
+#      report of another run id, a report whose text is not the committed
+#      text, a report missing a key, a row marked placeholder, a committed
+#      string whose {placeholder} differs from en although the report says
+#      match, a malformed run id. A report landed in an earlier commit of the
+#      range still holds. Each case through both callers
 #------------------------------------------------------------------------------
 set -uo pipefail
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
@@ -76,7 +84,7 @@ p="$(plan PRE_PUSH_ONLY=lint)"; case " $p " in *" wui-lang-review "*) fail "1. a
 part; eq "2. a new key with no Lang-review line -> FAIL (rc 1)" 1 "$?"
 eq "2. ... one FAIL line" 1 "$(grep -c '^wui-lang-review: FAIL ' "$ROOT/part")"
 grep -q "first: $L/en.json a.d" "$ROOT/part" && pass "2. ... names the first key" || fail "2. ... names the key" "$(cat "$ROOT/part")"
-grep -q '/agy-spawn' "$ROOT/part" && pass "2. ... says how to get the review" || fail "2. ... says how" "$(cat "$ROOT/part")"
+grep -q 'do_spl_lang_review_gct' "$ROOT/part" && pass "2. ... says how to get the check (do_spl_lang_review_gct)" || fail "2. ... says how" "$(cat "$ROOT/part")"
 
 # 3. the line
 git -C "$R" commit -q --amend -m "feat(wui): a new key" -m "Lang-review: a-511 d30773a7"
@@ -172,7 +180,43 @@ for px in g m x; do
   lr 1 "$px-NNN <msg> waiver <8hex> -> FAIL" "Lang-review: $px-123 94eea503 waiver 3a71dac1"
 done
 lr 1 "a waiver line not at line start -> FAIL" "see Lang-review: c-523 94eea503 waiver 3a71dac1"
-grep -q "waiver <owner msg id>" "$ROOT/part" && pass "13. the FAIL line names the waiver form" || fail "13. FAIL names waiver" "$(cat "$ROOT/part")"
+grep -q "Lang-review: gct <run id>" "$ROOT/part" && pass "13. the FAIL line names the gct form" || fail "13. FAIL names the gct form" "$(cat "$ROOT/part")"
+
+# 14. the gct form (SPL-6174)
+G=csi-spl-wui/i18n/lang-review ID=20261121T092858Z-022bbca5 FI_H='Moi {name}'
+gct_report() {  # <run id> <file id> <rows json> -> $R/$G/<file id>.json
+  mkdir -p "$R/$G"
+  printf '{"v":1,"engine":"gct","run_id":"%s","rows":%s}\n' "$1" "$3" >"$R/$G/$2.json"
+}
+row() {  # <key> <text> <mark>
+  printf '{"file":"%s/fi.json","lang":"fi","key":"%s","en":"x","text":"%s","reference":"r","back":"b","mark":"%s"}' "$L" "$1" "$2" "$3"
+}
+gct() {  # <want rc> <label> <line> [fi text of a.h] -> one commit adding a.h, checked by both callers
+  reset; printf '{"a":{"b":"Hello","c":"Bye","h":"Hi {name}"}}\n' >"$R/$L/en.json"
+  printf '{"a":{"b":"Hei","c":"Hei hei","h":"%s"}}\n' "${4:-$FI_H}" >"$R/$L/fi.json"
+  [[ -n "${GCT_ROWS:-}" ]] && gct_report "${GCT_RUN:-$ID}" "${GCT_FILE:-$ID}" "$GCT_ROWS"
+  git -C "$R" add -A; git -C "$R" commit -qm "feat(wui): gct case" -m "$3"
+  part; eq "14. pre-push: $2" "$1" "$?"
+  LANG_REVIEW_TREE="$R" LANG_REVIEW_RANGE=trunk..HEAD do_check_pre_push_lang_review >"$ROOT/ci" 2>&1
+  eq "14. CI range: $2" "$1" "$?"
+}
+GCT_ROWS="[$(row a.h 'Moi {name}' differs)]" gct 0 "gct line + its report covering the committed text -> PASS" "Lang-review: gct $ID"
+grep -q "PASS .* checked by gct $ID" "$ROOT/part" && pass "14. ... says checked by gct" || fail "14. ... says checked by gct" "$(cat "$ROOT/part")"
+GCT_ROWS="" gct 1 "gct line, no report -> FAIL" "Lang-review: gct $ID"
+grep -q "no report $G/$ID.json" "$ROOT/part" && pass "14. ... names the missing report" || fail "14. ... names the missing report" "$(cat "$ROOT/part")"
+GCT_ROWS="[$(row a.h 'Moi {name}' match)]" gct 1 "a report but neither line -> FAIL" "Lang-review: none"
+GCT_ROWS="[$(row a.h 'Moi {name}' match)]" GCT_RUN=20261121T000000Z-00000000 gct 1 "a report of another run id -> FAIL" "Lang-review: gct $ID"
+GCT_ROWS="[$(row a.h 'Terve {name}' match)]" gct 1 "the report checked other text -> FAIL" "Lang-review: gct $ID"
+GCT_ROWS="[$(row a.b 'Hei' match)]" gct 1 "the report misses a key -> FAIL" "Lang-review: gct $ID"
+GCT_ROWS="[$(row a.h 'Moi {name}' placeholder)]" gct 1 "a row marked placeholder -> FAIL" "Lang-review: gct $ID"
+GCT_ROWS="[$(row a.h 'Moi {nimi}' match)]" gct 1 "a {placeholder} differs from en, the report says match -> FAIL" "Lang-review: gct $ID" 'Moi {nimi}'
+grep -q "placeholders .*differ from en" "$ROOT/part" && pass "14. ... names the placeholder" || fail "14. ... names the placeholder" "$(cat "$ROOT/part")"
+GCT_ROWS="[$(row a.h 'Moi {name}' match)]" GCT_FILE=2026-11-21 gct 1 "a malformed run id -> FAIL" "Lang-review: gct 2026-11-21"
+# a report from an earlier commit of the range
+reset; gct_report "$ID" "$ID" "[$(row a.h 'Moi {name}' match)]"; commit "chore(wui): the report first"
+printf '{"a":{"b":"Hello","c":"Bye","h":"Hi {name}"}}\n' >"$R/$L/en.json"; printf '{"a":{"b":"Hei","c":"Hei hei","h":"Moi {name}"}}\n' >"$R/$L/fi.json"
+git -C "$R" add -A; git -C "$R" commit -qm "feat(wui): the text" -m "Lang-review: gct $ID"
+part; eq "14. a report landed earlier in the range -> PASS" 0 "$?"
 
 echo "check-pre-push-lang-review: $fails failure(s)"
 ((fails == 0))

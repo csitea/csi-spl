@@ -263,3 +263,47 @@ None.
   re-run by me; I verified its consequence claims that are cheap to check (the
   open WUI red's owner branch exists, check 7). Everything else in the plan I
   re-ran or re-read myself.
+
+## v1.0 signature
+
+**PASS on `aae0f987eaa83c75d6cbc322fac1c005948da834` (v1.0).** The sha is named
+by the editor c-009@sat (result on `dispatch-bug-r36` 23:12:22Z: "plan v1.0
+LANDED: `aae0f987e...`") and is on origin/master:
+`git merge-base --is-ancestor aae0f987eaa83c75d6cbc322fac1c005948da834 origin/master`
+-> rc 0; `git log -1 --format='%H %s' aae0f987e` ->
+`aae0f987eaa83c75d6cbc322fac1c005948da834 docs(b36-plan, SPL-6216): bug round 36 plan v1.0: panel m-011 (mistral) PASS on v0.1 83f118d35, no W; ...`.
+Checks re-run by me on sat 2026-11-21 23:16Z..23:18Z:
+
+- v1.0 is v0.1 rebased (`b64a27da3`) plus one commit: `git diff --stat b64a27da3 aae0f987e`
+  -> the plan file (33 lines) and this seat file (265 lines added), nothing
+  else. The plan diff changes only the Status line, section 8 and the
+  consensus table; the row table is unchanged (no row changed).
+- The folded seat file is blob-identical to my push:
+  `git rev-parse aae0f987e:csi-spl-doc/doc/md/bug-round-36/seat-mistral.md`
+  -> `ccb01bc7daf7de5eac001d414a074ee3afff74fd`;
+  `git rev-parse a01e164cf:csi-spl-doc/doc/md/bug-round-36/seat-mistral.md`
+  -> `ccb01bc7daf7de5eac001d414a074ee3afff74fd`. Equal.
+- Slug at v1.0: `git log origin/master --since="$W" --oneline -E --grep='\(b36-'`
+  -> the two plan commits only (`b64a27da3`, `aae0f987e`, both `docs(b36-plan`);
+  row ids `git log origin/master --since="$W" --oneline -E --grep='\(b36-[0-9]{2}-' | wc -l`
+  -> `0`. `git ls-remote origin | grep -E 'b36-[0-9]{2}|bug-round-36'` ->
+  `review/c002-bug-round-36-planner` `83f118d35...` and
+  `review/c002-bug-round-36-mistral-seat` `a01e164cf...`, both expected.
+  `ls /var/spool-hub/dispatch/briefs | grep -E 'b36-[0-9]{2}|bug-round-36'` ->
+  the two round briefs plus the two row briefs `c002-b36-02-...md` and
+  `hand-sat-c002-b36-01-...md` (the queued rows, expected).
+- Row files: `git diff --name-only 1685e0ebe aae0f987e -- <the five row files>`
+  -> empty; cited lines re-printed on `aae0f987e` are identical to the base
+  (spot: `spl-spawn-share.func.sh:149`, `spl-customer-box-role-check.func.sh:82`).
+- Red controls on the unchanged base, n=1 each at 23:1xZ:
+  `bash rc01.sh 1685e0ebe` last line
+  `rc01 sha=1685e0ebe by={"refactor":0,"bug":1,"feature":3} wrong=2` (exit 1 in
+  the direct runs at 23:0xZ); `bash rc02.sh 1685e0ebe` last line
+  `rc02 sha=1685e0ebe wrong=3` (exit 1). Still RED for the plan's reason.
+- `lane-map.sh --check <the five row files> --agent m-011` (23:17Z) -> exit 4,
+  same 13 no-file lanes (all on `<box2>`), no live lane lists a row file.
+  `do_spl_spawn_queue` (23:17Z) -> `7 queued, 0 placing`; each of the two
+  queued row briefs names only its own row file (grep 1 hit each).
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (23:17:53Z) -> clean.
+
+Verdict on v1.0: **PASS**, no W, notes N1-N5 stand.

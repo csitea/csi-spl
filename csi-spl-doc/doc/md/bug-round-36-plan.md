@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-35-plan.md](bug-round-35-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0. The panel passed v0.1 `83f118d35` with no W (m-011@sat, mistral, msg c792f329; section 8). v1.0 changes no row: it records the PASS and its notes N1-N5, the `<box2>` halves of R3 and the slug proof, and the holder's answer on a third row, and folds in the seat file [bug-round-36/seat-mistral.md](bug-round-36/seat-mistral.md).**
+**Status: v1.0, landed `aae0f987e`, signed: the panel passed v0.1 `83f118d35` and v1.0 `aae0f987e`, each with no W (m-011@sat, mistral, msg c792f329; section 8). v1.0 changes no row: it records the PASS and its notes N1-N5, the `<box2>` halves of R3 and the slug proof, and the holder's answer on a third row, and folds in the seat file [bug-round-36/seat-mistral.md](bug-round-36/seat-mistral.md) (at `1de2c4dea`, its v1.0 signature section).**
 
 Editor: **c-009@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
-Panel: m-011@sat (mistral, ask `c002-bug-round-36-mistral-panel-seat`): **PASS** on v0.1 `83f118d35` (msg c792f329, the holder's copy a4b61f6f; seat file `a01e164cf` on `review/c002-bug-round-36-mistral-seat`, folded here), no W. Neither row has a WUI file (orc and iac bash), so a mistral seat may sit on the plan (developer guide 5.1); it writes no row code.
+Panel: m-011@sat (mistral, ask `c002-bug-round-36-mistral-panel-seat`): **PASS** on v0.1 `83f118d35` (msg c792f329, the holder's copy a4b61f6f) and on v1.0 `aae0f987e` (msg 1244f877), seat file `1de2c4dea` on `review/c002-bug-round-36-mistral-seat`, folded here, no W. Neither row has a WUI file (orc and iac bash), so a mistral seat may sit on the plan (developer guide 5.1); it writes no row code.
 
 **One sha:** every count below is measured on **`1685e0ebe`** (`origin/master` at this seat's fetch), on sat, between 22:3xZ and 22:50Z on 2026-11-21, unless a row says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b35-plan')` -> `Window: W=2026-11-21T15:44:45+02:00` (commit `962628106`), the value the brief quotes.
@@ -267,7 +267,8 @@ The candidates file has 110 lines (22:3xZ), as round 35 read it: no entry since.
     - **N3**: the lane map's exit 4 on the 5 row files (13 no-file lanes, all on `<box2>`); the `<box2>` half came back with 0 hits (section 3.1).
     - **N4**: the planted half fix leaves `xbox` red (wrong=1), as section 3.2 says; the row fix takes a cross-box seat's class from the queued brief in `dispatch/briefs`.
     - **N5**: the CI source (100 runs) was not re-run by the seat; the open red's owner branch was checked (`review/c003-wui-topic-pdf-all-posts-fix` = `e928128e5`). Since then SPL-6205's fix-forward landed on master (`75acaab9f`).
-  - 2026-11-21 23:1xZ: v1.0. No row changed.
+  - 2026-11-21 23:12Z: v1.0 landed on master as `aae0f987e` (the holder's GO b40b696e). No row changed.
+  - 2026-11-21 23:1xZ: m-011@sat **PASS** on v1.0 `aae0f987eaa83c75d6cbc322fac1c005948da834`, no W (msg 1244f877; the holder's copy 1325feb3). N1-N5 stand as on v0.1. It re-checked at 23:16Z-23:18Z: 0 `(b36-NN-` row commits, only the planner and seat branches on origin, no row-file drift, rc01 and rc02 still RED on `1685e0ebe` (wrong=2 / wrong=3), lane map exit 4 unchanged, hygiene clean, the seat file blob-identical in `aae0f987e`. Its line passes `do_spl_review_line_check` on sat (rc 0, DOCS-ONLY; the holder c-003's run, msg 2acfa40e). Seat file `1de2c4dea` (its v1.0 section), folded here. The rows are queued: b36-01 ask dc208b13, b36-02 ask 8e132d60 (c-002 msg 4bef1bb0).
 
 ---
 
@@ -276,5 +277,5 @@ The candidates file has 110 lines (22:3xZ), as round 35 read it: no entry since.
 | seat | id | status |
 |---|---|---|
 | Editor | c-009@sat | v1.0 |
-| Panel | m-011@sat (mistral) | **PASS** on v0.1 `83f118d35` (msg c792f329), no W |
-| Holder | c-002@sat | - |
+| Panel | m-011@sat (mistral) | **PASS** on v0.1 `83f118d35` (msg c792f329) and on v1.0 `aae0f987e` (msg 1244f877), no W |
+| Holder | c-002@sat, then c-003@sat | GO on v1.0 (c-002 msg b40b696e); rows queued (4bef1bb0) |

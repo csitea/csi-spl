@@ -31,7 +31,8 @@ r78-01 gave the desk-reconcile installer; r79 section 8's input 3. **Row 02** ma
 (`spl-merged-cnf.func.sh:58`), the shape r78-02 gave `do_tf_log_open`; r79 section 7's
 first candidate for r80, one file of the remaining `local x="${1:?...}"` lines.
 
-**Status: v0.1**, draft for the panel. Editor: **c-680** (claude).
+**Status: v1.0**: panel seat m-691 (mistral) PASS on v0.1 `7329be641`, no W finding,
+N1-N3 recorded (section 8); no row changes scope. Editor: **c-680** (claude).
 
 **One sha:** every count is measured on **`07f34efeb`** (`origin/master`
 07f34efebd7e7f1791795588df74510aa9d94395, committed 2026-11-21T07:05:15+02:00), n=1 per
@@ -407,11 +408,37 @@ as 1.5 says), `bash-cleancode.tst.sh` (`SPOOL_TEST=1`), `cd csi-spl-iac && ./run
   `n_sd` floor with the count; row 02 makes `do_spl_merged_cnf` return 1 on an empty
   argument. Every named test run on the row's head (1.5). Window W and the r80 slug
   proof recorded.
+- v1.0 (c-680): the panel seat m-691 (mistral) PASS on v0.1
+  `7329be64194f2eb72715b4b5f9f3f9e606afc2c4` (spool msg 3900b82c to the editor, task
+  `dispatch-refactor-r80`; seat file `bc9b18189` on
+  `review/c002-refactor-round-80-mistral-seat`, folded into this landing), no W finding. Its notes, none changing a
+  row:
+  - N1: row 02 changes only the empty or missing argument path (an exit becomes
+    `return 1` plus a usage line), which no caller takes (18 calls in `iac:src/bash/run`,
+    4 in libs and make, all with non-empty arguments): disclosed in 1.4 and pinned by
+    section 4's control, as r78-02 was. Recorded; no change.
+  - N2: counting conventions. The spelled baseline is 16 file lines (a comment and 15
+    entries) by `wc -l`. This plan counts as the gate and r79 do: the sum of the entries'
+    first column, `awk 'NR>1{n++; s+=$1} END{print n, s}'` on `07f34efeb` -> **15 entries,
+    17 counted lines** (two entries count 2). Both conventions give the same row delta (one
+    entry, one counted line, `:10`). `cnf-one-key-per-fact.tst.sh` "before 10" in 1.5
+    counts 9 assertion PASS lines plus the final `PASS: all`. The red run prints 9 PASS
+    and 4 FAIL, and no `PASS: all`. Green prints 14, the final line included.
+  - N3: the lane map read 15 `unknown:` lanes at the seat's read against 19 at
+    05:22:11Z, none on a row path by slug: the holder's re-check before placing is the
+    one that counts.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-680 (claude): v0.1.
-- Panel reviewer seat: pending (section 4).
+- Editor seat: c-680 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-691 (mistral) PASS** on
+  `7329be64194f2eb72715b4b5f9f3f9e606afc2c4` (spool msg 3900b82c; seat file `bc9b18189`
+  on `review/c002-refactor-round-80-mistral-seat`, in
+  `csi-spl-doc/doc/md/refactor-round-80/seat-mistral.md`), N1-N3 recorded. agy was
+  unavailable (out until about 11-24), so mistral took the seat. The holder's
+  review-line check on that line: rc 0 ("OK 4 of 4 ran: tests found in" the seat's
+  session log; holder GO msg 4393fa3a, the GO given by hand because review-go held a
+  plan panel line with no `Author:`, rc 3).
 - Row R7 seats: section 4.

@@ -1,0 +1,16 @@
+---
+# 04 the desk start checks of spec 127 5.3, run as the workspace user with
+# the repo's own code: the play fails when one refuses. Spec 159 5.2's
+# exception for fleet boxes is not needed here: no fleet user is on the VM.
+- name: The desk start checks (spl_desk_start_checks) as the workspace user
+  ansible.builtin.shell: |
+    set -uo pipefail
+    do_log() { printf '%s\n' "$*"; }
+    . "{{ repo_dir }}/csi-spl-orc/lib/bash/funcs/spl-desk-start-checks.func.sh" || exit 1
+    spl_desk_start_checks "{{ ws_user }}" "{{ ws_prefix }}"
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ ws_user }}"
+  register: dsc_out
+  changed_when: false

@@ -1,0 +1,18 @@
+---
+# 02 the harness repo at repo_dir, the public tree over https with no
+# credential helper, fast-forwarded to master on every run. Nothing here
+# signs a CLI in: the customer's own keys come later, on Agent keys.
+- name: git on the VM
+  ansible.builtin.apt:
+    name: git
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: The harness repo, at master
+  ansible.builtin.git:
+    repo: "{{ repo_url }}"
+    dest: "{{ repo_dir }}"
+    version: master
+    update: true
+    force: false

@@ -1,0 +1,29 @@
+---
+# 03 enrol the VM into its one workspace (spec 108 3.5) with the repo's own
+# action: the workspace OS user, its spool root and state dir, the box claim.
+# The user name is the cnf's (env.box.workspace_user_prefix + tenant), read
+# from the repo's cnf and handed to the action, so role 04 checks that user.
+- name: The workspace OS user prefix, from the repo's cnf
+  ansible.builtin.slurp:
+    src: "{{ repo_dir }}/csi-spl-cnf/csi-spl/all.env.yaml"
+  register: all_cnf
+
+- name: The workspace OS user
+  ansible.builtin.set_fact:
+    ws_prefix: "{{ (all_cnf.content | b64decode | from_yaml).env.box.workspace_user_prefix }}"
+    ws_user: "{{ (all_cnf.content | b64decode | from_yaml).env.box.workspace_user_prefix }}{{ tenant_id }}"
+
+- name: Enrol this VM into the workspace (do_spl_box_workspace_setup)
+  ansible.builtin.shell: |
+    set -uo pipefail
+    cd "{{ repo_dir }}/csi-spl-orc" || exit 1
+    TENANT_ID="{{ tenant_id }}" SPL_WS_USER="{{ ws_user }}" DRY_RUN=0 ./run -a do_spl_box_workspace_setup
+  args:
+    executable: /bin/bash
+  register: ws_out
+  changed_when: false
+
+- name: Linger for the workspace user (its tmpfs runtime dir exists with no login)
+  ansible.builtin.command: loginctl enable-linger {{ ws_user }}
+  args:
+    creates: "/var/lib/systemd/linger/{{ ws_user }}"

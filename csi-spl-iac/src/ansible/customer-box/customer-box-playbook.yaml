@@ -1,0 +1,37 @@
+---
+# The customer box role set (spec 181 row B6, spec 122 4 point 4): the setup
+# of a private workspace's own VM. One play, numbered roles, idempotent.
+# What it never puts on the VM (spec 181 4.2, Q-3 A): an estate key, a
+# GitHub token or an AI login of ours. The customer's agents sign in with the
+# customer's own keys (spec 127, Agent keys) after this play. We hold root for
+# upkeep only; no fleet lane and no other workspace runs here.
+# The gate: cd csi-spl-iac && ./run -a do_spl_customer_box_role_check, and its
+# test src/bash/tests/customer-box-role-set.tst.sh. Not wired to a terraform
+# step yet: the per-workspace VM step is row B5, the provisioning action B8.
+- name: The customer box - hardening, the harness repo, the workspace, the desk start checks
+  hosts: customer_box
+  become: true
+  vars:
+    # the one workspace this VM belongs to: set per VM in the inventory
+    tenant_id: ""
+    # the public repo, read over https with no credential
+    repo_url: https://github.com/csitea/csi-spl.git
+    repo_dir: /opt/csi/csi-spl
+
+  pre_tasks:
+    - name: Refuse a VM with no workspace slug
+      ansible.builtin.assert:
+        that:
+          - tenant_id is match('^[a-z0-9][a-z0-9-]{0,31}$')
+        fail_msg: "set tenant_id (the workspace slug) for this VM in the inventory"
+
+  roles:
+    - { role: 01_box_hardening, tags: [01_box_hardening] }
+    - { role: 02_spool_harness, tags: [02_spool_harness] }
+    - { role: 03_workspace, tags: [03_workspace, always] }
+    - { role: 04_desk_start_checks, tags: [04_desk_start_checks] }
+
+  handlers:
+    - name: Load sysctl
+      ansible.builtin.command: sysctl --system
+      changed_when: true

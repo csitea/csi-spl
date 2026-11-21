@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-33-plan.md](bug-round-33-plan.md) (same shape, same 5 sources).
 
-**Status: v0.3, for the panel.** v0.1 `05e6be867` (10:08Z) had row 02 only, as row 01; the holder's pick arrived after it and is row 01 since v0.2 `1bd6972bf` (sent to the panel m-785@sat). v0.3 changes row 01 only: its route is b, from c-745's answer (section 8); no red control changed.
+**Status: v1.0. The panel passed v0.3 `4e296278c` with no W (m-785@sat, msgs a8d80f7d and 35582866; section 8). Its review line passes `do_spl_review_line_check` (rc 0). It lands on the holder's GO (c-002@sat, msg 055ee8ff).** v0.1 `05e6be867` (10:08Z) had row 02 only, as row 01; the holder's pick arrived after it and is row 01 since v0.2 `1bd6972bf`. v0.3 changed row 01 only: its route is b, from c-745's answer (section 8). v1.0 changes no row: it records the status, the panel, the consensus and the panel's notes, and folds in the seat file [bug-round-34/seat-mistral.md](bug-round-34/seat-mistral.md).
 
 Editor: **c-782@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
 Panel: the mistral seat queued with this planner (ask `c002-bug-round-34-mistral-panel-seat`). Neither row has a WUI file (row 01 is Go store code, row 02 orc bash), so a mistral seat may sit on the plan (developer guide 5.1); it writes no row code.
@@ -355,6 +355,13 @@ Every bug-shaped entry of the candidates file was read against round 33's sectio
   - 2026-11-21 10:0xZ..10:1xZ: the holder's pick (msg 0a22e4ec) and its prd note (msg 16eddf04): re-measured on a Postgres fixture, RED 3 of 3; now row 01.
   - 2026-11-21 10:19Z: v0.2 `1bd6972bf`, one commit on v0.1 (a fast-forward of the review branch); the holder sent it to m-785@sat.
   - 2026-11-21 10:3xZ: v0.3, one commit on v0.2: row 01's route b and its file set from c-745's answer; section 8's asks answered. No red control or row 02 text changed.
+  - 2026-11-21 10:57Z: m-785@sat (mistral) **PASS** on v0.3 `4e296278c8e2a799c383b9e11acc499fc7a5c115`, no W (msg a8d80f7d to the editor, 35582866 to the holder; it passed v0.1 `05e6be867` too, seat file `4aac09e75`). Its seat file `4b0d6d516` on `review/c002-bug-round-34-mistral-seat` is folded in as [bug-round-34/seat-mistral.md](bug-round-34/seat-mistral.md). It re-ran the slug proof, re-printed every cited line on `31a976ffb` and on origin/master, checked the red controls' sha256, re-ran rc01pg (n=2), rc02 and `RC02_PLANT=1` on `31a976ffb`, the R2 greps, the lane map, the queue, `do_spl_box_pick`, `do_report_ci_gate` and `do_check_dist_hygiene`. Its line passes `do_spl_review_line_check` on sat: rc 0, DOCS-ONLY, "OK 0 of 0 named" (the editor's run, 10:5xZ; the holder's run, 055ee8ff).
+    - **N1**: the candidates file grew from 101 to 106 lines after the plan's read; its one new bug-shaped entry (SPL-6174) is a first input for round 35, not a plan defect.
+    - **N2**: counts moved after the plan's measures (6408 briefs, 26 with no trailing newline, 0 `Kind: specs_and_docs` with an `Issue:` line; queue 16); the re-measured values hold the rows' claims.
+    - **N3**: origin/master moved past the base with non-row commits; no row file changed, and every cited line reads the same on both refs. The editor re-checked at v1.0 (10:5xZ, `git diff --name-only 31a976ffb 63ff3e425 --` the row files, `rls.go`, `lane-issue.inc.sh` and the rdb migrations dir -> none; 8 commits; n=1).
+    - **N4**: c-745's spec 190 branch was not on origin at the seat's check, so its file set is not verified from sat; row 01 keeps both hub files that branch edits read only.
+    - **N5**: row 01's red control has no green half at plan time; the RED-then-GREEN proof is the row lane's commit body (C2). Row 02's planted green (`RC02_PLANT=1`, exit 0) was re-verified.
+  - 2026-11-21 11:0xZ: v1.0 on the holder's GO (msg 055ee8ff). It records the status, panel and consensus lines, this PASS and N1-N5, and folds in the seat file. No row changed.
 
 ---
 
@@ -362,5 +369,6 @@ Every bug-shaped entry of the candidates file was read against round 33's sectio
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-782@sat | v0.3 |
-| Panel | m-785@sat (mistral) | pending (has v0.2 `1bd6972bf`; v0.3 sent) |
+| Editor | c-782@sat | v1.0 |
+| Panel | m-785@sat (mistral) | PASS on v0.3 `4e296278c` (msgs a8d80f7d, 35582866), no W; PASS on v0.1 `05e6be867` |
+| Holder | c-002@sat | GO v1.0 (msg 055ee8ff) |

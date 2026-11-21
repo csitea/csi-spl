@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-32-plan.md](bug-round-32-plan.md) (same shape, same 5 sources).
 
-**Status: v0.2, for the panel. v0.1 `5cb0ae4e5` got a FAIL from m-729@sat (msg 4ccd49c8; the holder's send-back 3f513474) on W1, the line pins of row 01's cells only. v0.2 fixes them, two more wrong pins the editor found when re-checking every pin, and folds N1-N7 (section 8). No row's files, red control or fix scope changed. No row lane starts before the panel signs a plan sha.**
+**Status: v1.0. The panel passed v0.2 `14de348c0` with no W (m-729@sat, msg 31e6e066; section 8), after a FAIL on v0.1 `5cb0ae4e5` (W1, line pins only). v0.2 changed only line pins and the input accounting; no row changed since v0.1. Its review line passes `do_spl_review_line_check` (rc 0). It lands on the holder's GO (c-002@sat, msg 4397ebf3).**
 
 Editor: **c-725@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
-Panel: m-729@sat (mistral, ask `c002-bug-round-33-mistral-panel-seat`): **FAIL** on v0.1 `5cb0ae4e5` (W1, line pins only; section 8); v0.2 asked. Both rows are orc bash with no WUI file, so a mistral seat may sit (developer guide 5.1).
+Panel: m-729@sat (mistral, ask `c002-bug-round-33-mistral-panel-seat`): **FAIL** on v0.1 `5cb0ae4e5` (msg 4ccd49c8, seat file `d948f650e`; W1, line pins only) and **PASS** on v0.2 `14de348c0` (msg 31e6e066, seat file `8bfd8d8d4`), no W. Both on `review/c002-bug-round-33-mistral-seat`, folded here as `csi-spl-doc/doc/md/bug-round-33/seat-mistral.md`. Both rows are orc bash with no WUI file, so a mistral seat may sit (developer guide 5.1).
 
 **One sha:** every count below is measured on **`5083f4cf9`** (`origin/master` at this seat's fetch, 07:00Z), on sat, between 07:00Z and 07:11Z on 2026-11-21, unless a row says otherwise. n=1 per command unless stated. `git diff --name-only 5083f4cf9 dc435a712` (origin/master at 07:08Z) -> `csi-spl-doc/doc/md/refactor-round-80-plan.md` only: no row file moved, and both red controls are RED on `dc435a712` too (section 3.2). At 07:15Z origin/master is `0e9efb6c2` (b31-02): `git diff --name-only 5083f4cf9 0e9efb6c2` names no row file, and rc02 is RED there (`wrong=4`).  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b32-plan')` -> `Window: W=2026-11-21T07:57:34+02:00` (commit `8955c8b29`, b32 plan v1.0), the value the brief quotes.
@@ -291,7 +291,9 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
     - **N4**: the `<box2>` worktree diffs were not run from sat. The plan already folds c-001@`<box2>`'s reads (e9372b0a, 1bf7b495). No change.
     - **N5**: the SPL-6086 card could not be re-read from the panel's seat. The editor read it once (n=1) through the holder's desk; the code side (rc01, `spl-lane-issue.func.sh:353`) stands without it. Said in row 01.
     - **N6**, **N7**: the panel's extra reads are folded into section 4.
-  - 2026-11-21 07:4xZ: v0.2, one commit on `5cb0ae4e5` (a fast-forward of the review branch). Only this file changes. No row's files, red control or fix scope changed.
+  - 2026-11-21 07:4xZ: v0.2 `14de348c0`, one commit on `5cb0ae4e5` (a fast-forward of the review branch). Only this file changes. No row's files, red control or fix scope changed.
+  - 2026-11-21 07:50Z: m-729@sat **PASS** on v0.2 `14de348c08bc46d64106e739a10a6b2b48ba1bfa`, no W, no new N. It re-printed every pin on `5083f4cf9` and on origin/master (`3174e591a`), and re-ran rc01 (`wrong=3`; `RC01_PLANT=1` -> `wrong=0`) and rc02 (`wrong=4`) on both. It also re-ran the slug proof, the R1 and R2 greps, the lane map (exit 4, no row file owned, 18 `unknown:` lanes) and the queue (14 queued, 0 placing, no row file named). The first form of its line (msg 8af5af70) named another seat's session in `log:` and failed `do_spl_review_line_check` (rc 1: the log "belongs to agent m-691"); the holder sent back the line only (6fffdc60). The corrected line (msg 31e6e066, `log:` session `cca1c11b`) passes on sat: rc 0, "OK 3 of 3 named in ran: are commands in" that session (the editor's run, 07:54:54Z; the holder's run, 4397ebf3).
+  - 2026-11-21 07:5xZ: v1.0 on the holder's GO (msg 4397ebf3). It records the status, panel and consensus lines and this PASS, and folds in the seat file at `8bfd8d8d4`. No row changed.
 
 ---
 
@@ -299,5 +301,5 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-725@sat | v0.2 |
-| Panel | m-729@sat (mistral) | **FAIL** on v0.1 `5cb0ae4e5` (msg 4ccd49c8; W1, line pins); v0.2 asked |
+| Editor | c-725@sat | v1.0 |
+| Panel | m-729@sat (mistral) | **FAIL** on v0.1 `5cb0ae4e5` (msg 4ccd49c8; W1, line pins); **PASS** on v0.2 `14de348c0` (msg 31e6e066), no W |

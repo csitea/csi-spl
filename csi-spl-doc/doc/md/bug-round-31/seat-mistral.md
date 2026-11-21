@@ -9,8 +9,9 @@ task `dispatch-bug-r31` (c-002@sat, msg da191d7f, 04:2xZ). Rules:
 signs the plan sha; 5.1: 1 to 3 rows; 5.3 numbering and window; 5.4 bugs
 priority 2). Form: `csi-spl-doc/doc/md/bug-round-30-plan.md` on origin/master.
 
-**Verdict: PASS on `a370b578614753c566e2f92deb642883a02770bb` (v0.1) and on
-`78c13231e745887f3ca054a3f5f12039a9824451` (v0.2), 2026-11-21T04:3xZ — no W.
+**Verdict: PASS on `a370b578614753c566e2f92deb642883a02770bb` (v0.1), on
+`78c13231e745887f3ca054a3f5f12039a9824451` (v0.2) and on
+`8480b1d611d7b8ec0203de0482e58009b4beb852` (v0.3), 2026-11-21T04:4xZ — no W.
 See the verdict sections at the end of this file.**
 
 ## Setup
@@ -301,3 +302,51 @@ hygiene clean.
 - Verdict on v0.2: **PASS**, no W. The delta changes no row, no site, no red
   control; it only folds in the other box's halves and corrects the exit-4
   count, which this seat's own lane-map run confirms (14 unknowns).
+
+## Panel verdict on v0.3 — PASS (2026-11-21T04:4xZ)
+
+- Reviewed sha: `8480b1d611d7b8ec0203de0482e58009b4beb852` on branch
+  `review/c002-bug-round-31-planner`, named by the dispatch holder c-002@sat on
+  task `dispatch-bug-r31` (msg dc71a0f6, 04:4xZ; c-651@sat msg d705dbe7).
+  `git ls-remote origin review/c002-bug-round-31-planner` ->
+  `8480b1d611d7b8ec0203de0482e58009b4beb852` (the branch head, matches).
+  `git merge-base --is-ancestor 78c13231e 8480b1d61` -> rc 0 (FF-OK);
+  `git log --oneline 78c13231e..8480b1d61` -> one commit
+  (`8480b1d61 docs(b31-plan, SPL-6136): ... v0.3 ... no row changed`);
+  `git diff --name-only 78c13231e 8480b1d61` -> only
+  `csi-spl-doc/doc/md/bug-round-31-plan.md`; `git diff --stat` -> 8
+  insertions, 6 deletions. `git show 8480b1d61:<plan> | sha256sum` ->
+  `414703a40ef1d88e1a8ed6e0517ccd91a47131f3b3e3d0a3f58eb7b8fc352b7a`.
+- Delta review (`git diff 78c13231e 8480b1d61`, 45 lines): plan text only —
+  the status line (v0.3), the panel line (PASS on v0.1 recorded), section 5's
+  served list (adds b20-01 `2f634fbd4`, the N4 fold), section 8's review
+  history and the seat table. `sed -n '/^## 3\./,/^## 4\./p'` of the plan at
+  v0.2 and at v0.3 -> `diff` empty (ROWS-IDENTICAL, 130 lines): no row, site,
+  red control or fix scope changed; the `One sha` base line is unchanged
+  (`325a47c76`).
+- N4 verified: `git log origin/master --format='%h %s' | grep -m1 2f634fbd4`
+  -> `2f634fbd4 fix(b20-01-orc-review-go-retired-author-no-retry, SPL-5953): ...`;
+  `git show origin/master:csi-spl-doc/doc/md/bug-round-27-plan.md | sed -n 167p`
+  names `2f634fbd4` as the fix for the retired-author no-retry. The served-list
+  addition is correct.
+- Checks re-run on the v0.3 head (04:4xZ): check 1 -> `W=2026-11-21T04:35:42+01:00`,
+  `git log origin/master --since="$W" --oneline -E --grep='\(b31-' | wc -l` ->
+  `0`; `git ls-remote origin | grep -E 'b31-[0-9]{2}|bug-round-31'` ->
+  `review/c002-bug-round-31-mistral-seat` (1910926cb) and
+  `review/c002-bug-round-31-planner` (8480b1d61), both expected; briefs -> the
+  two expected. Check 2 -> `git diff --name-only 325a47c76 origin/master --
+  <the five row files> | wc -l` -> `0` (no drift). Check 3 -> rc01/rc02 re-run
+  on `325a47c76` (n=1 this round, n=3 at v0.1): exit 1 each, last lines
+  `rc01 sha=325a47c76 wrong=1` / `rc02 sha=325a47c76 wrong=2` (RED as before);
+  `sha256sum` of the two control files -> `d65e368447bd...` /
+  `32f36e2b021f...`, exactly the values the plan quotes. Check 6 ->
+  `lane-map.sh --check <5 row files + seat file> --agent m-642` -> exit 4, no
+  row file owned by any live lane; 15 `unknown:` lanes record no files (the
+  14 of v0.2 plus c-562@`<box2>`, a claude waiver reviewer — lane movement since
+  04:3xZ, same N1 class: their `<box2>` worktrees are not readable from sat; the
+  hub map shows none records a row file). Check 8 -> `cd csi-spl-iac &&
+  ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene: clean ...`,
+  rc 0.
+- Verdict on v0.3: **PASS**, no W. The delta changes no row, no site, no red
+  control; it records this seat's v0.1 PASS and N1-N4 and adds b20-01 to the
+  served list, which this seat verified on origin/master.

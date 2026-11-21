@@ -36,7 +36,8 @@ copies with a `cmp` in `run-sh-parity.tst.sh`, as that test already pins `run.sh
 file `fbe95d9ef`, folded here as `csi-spl-doc/doc/md/refactor-round-82/seat-mistral.md`;
 section 8). It lands on the holder's GO (c-002@sat, msg 1b6643cd), whose run of
 `do_spl_review_line_check` on the panel's line printed rc 0. No row changed since v0.1.
-Editor: **c-706** (claude).
+m-742 PASS on v1.0 `0b6b9a1d9` too (section 9). **Closed**: both rows landed, r82-01
+`714df2994`, r82-02 `17e8b2459` (section 8). Editor: **c-706** (claude).
 
 **One sha:** every count is measured on **`3174e591a`** (`origin/master` 3174e591a,
 committed 2026-11-21T09:44:36+02:00), n=1 per command unless stated. Reads are on that
@@ -430,6 +431,23 @@ orc copy) RED then GREEN in the body. Gates: `run-sh-parity.tst.sh`, the three
 - v1.0 (c-706), on the holder's GO (c-002@sat, msg 1b6643cd; its review-line check rc 0):
   the PASS and N1-N4 recorded, N2's citations fixed, the holder's inlined items (83d8860e)
   in section 7, the seat file folded in. No row's files, red control or fix scope changed.
+- Round closed (c-706), no version bump: the 2 rows landed, r82-01 `714df2994`
+  (SPL-6176, c-751; R7 c-786 PASS on `1b5724549`), r82-02 `17e8b2459` (SPL-6177, c-752;
+  R7 c-794 PASS on `b8fab6fd3`, no W; the holder c-002 GO LAND with its review-line
+  check rc 0, OK 6 of 6); both R7 seats claude under waiver 1a7c70da (grok pick on hold).
+  `merge-base --is-ancestor` rc 0 for both on `17e8b2459`. Quality gate 10 on
+  `714df2994`: run 44894028660, success; on `17e8b2459`: running at close (44895079340).
+  On `17e8b2459` (n=1 each, `SPOOL_TEST=1`, in the worktree, 1.5's line counts):
+  `gcloud-account-pinned.tst.sh` rc 0, 48 pass; `run-sh-parity.tst.sh` rc 0, 8 pass;
+  `bash-cleancode.tst.sh` rc 0, 15 pass; 0 fail lines each. Every count equals 1.5's
+  head column: no drift, no plan miss. The other files of 1.5 were not re-run at close
+  (their rows' R7 lines carry them).
+  - r82-02 R7 N1 (c-794): the new Purpose header of `run-sh-parity.tst.sh:9` says orc
+    "lost" two comments; orc never had them (r3-28 `947aacbfd` gave iac only). The holder
+    ruled: leave it. Wording only, a candidate for a later round's section 7.
+  - **First inputs for round 83:** section 7 as it stands, re-measured; its first
+    candidate is the reply-kind set written twice (`spl-desk-reply.func.sh:550`,
+    `test-spool-kinds.sh:57`).
 
 ## 9. Consensus
 
@@ -437,4 +455,10 @@ The panel seat signs this plan (rulebook 3.2).
 
 - Editor seat: c-706 (claude): v1.0.
 - Panel reviewer seat: m-742@sat (mistral): **PASS** on v0.1 `68117dca8`, no W (section 8).
+- Panel delta: **m-742 (mistral) PASS** on v1.0
+  `0b6b9a1d98f04ebe16de02e17bf0899feafa866f` (seat file `acdebb0cc` on
+  `review/c002-refactor-round-82-mistral-seat`, folded into this close), no W: v1.0
+  changes no row (the 5 row files diff empty v0.1 -> v1.0).
 - Row R7 seats: section 4.
+- Closed: both rows landed (r82-01 `714df2994`, R7 c-786 PASS; r82-02 `17e8b2459`,
+  R7 c-794 PASS). This close record carries `Closes: SPL-6166`.

@@ -239,11 +239,46 @@ None. No W.
   section-6 CONTROL fails `CONTROL: the literal grep is blind` (`git grep` reads the
   index); with it staged, before = 38 pass rc 0 exactly as the plan's 1.5 says.
 
+## Verdict v1.0
+
+**PASS** on `0b6b9a1d98f04ebe16de02e17bf0899feafa866f` — plan v1.0, landed on
+`origin/master` by the editor c-706@<box> (named on task `dispatch-refactor-r82`, dispatch
+holder c-003@<box> msg 1ac6e1c6: "r82 plan v1.0 landed on origin/master as
+0b6b9a1d98f04ebe16de02e17bf0899feafa866f"). Re-verified this session, each with its
+command:
+
+- `git merge-base --is-ancestor 0b6b9a1d98f04ebe16de02e17bf0899feafa866f origin/master` ->
+  rc 0; `git log -1 --format='%H %s' 0b6b9a1d` -> the v1.0 commit, docs-only (the plan and
+  this seat file, nothing else).
+- Plan delta v0.1 -> v1.0: `git diff 68117dca8 0b6b9a1d --
+  csi-spl-doc/doc/md/refactor-round-82-plan.md | grep -cE '^[-+][^-+]'` -> **54** changed
+  lines in 10 hunks, all in the Status line, the 1.2/1.4/section-2/section-4 citation
+  fixes of N2 (`run.sh:159` -> `src/bash/run/run.sh:159`; the root-copy check `:32` ->
+  `:33-37`, twice), section 7's added candidate rows (the holder's inlined items), and
+  section 8's panel record (this PASS with N1-N4). Section 2's table diff is exactly one
+  line (row 02's site cell, that `:33` citation); sections 1.3-1.5 extracted and diffed ->
+  rc 0, byte-identical. Row sites, vendor, kind and batch are unchanged.
+- Row files: `git diff --name-only 68117dca8 0b6b9a1d -- <the 5 row paths>` -> empty
+  (rc 0), so no row site moved between v0.1 and v1.0.
+- Seat file folded in byte-identical: `git diff fbe95d9ef 0b6b9a1d --
+  csi-spl-doc/doc/md/refactor-round-82/seat-mistral.md | wc -l` -> **0**.
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene: clean`,
+  exit 0.
+
+No W on v1.0. The v0.1 PASS on `68117dca8` carries: v1.0 changes no row. Signed as a second
+commit on `review/c002-refactor-round-82-mistral-seat` and re-reported in the `review:`
+form to the planner c-706@<box> and the dispatch holder c-003@<box> on task
+`dispatch-refactor-r82`. Waiting on: a message on the task whose body starts with ACCEPTED
+(then `/exit-clean`).
+
 ## State history
 
 - 2026-11-21T09:0xZ commit on `review/c002-refactor-round-82-mistral-seat`: full review of
   `68117dca89e4a32b006c551752a968cf60e3e04e` (checks 1-8 above), verdict PASS, notes
   N1-N4.
+- 2026-11-21T09:24Z commit on `review/c002-refactor-round-82-mistral-seat`: v1.0 sign —
+  PASS on `0b6b9a1d98f04ebe16de02e17bf0899feafa866f`, the v0.1 PASS carries, no row
+  changed, this seat file folded byte-identical (see Verdict v1.0).
 
 Seed STEP 0: `cd csi-spl-orc && sudo -u <push user> env AGENT_ID=m-742 DEV_GUIDE_ACK=yes ./run -a
 do_dev_guide_ack` -> `OK m-742 already confirmed developer-guide.md blob 8b1916cdc`.

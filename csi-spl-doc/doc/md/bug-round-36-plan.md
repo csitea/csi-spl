@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-35-plan.md](bug-round-35-plan.md) (same shape, same 5 sources).
 
-**Status: v0.1, for the panel.**
+**Status: v1.0. The panel passed v0.1 `83f118d35` with no W (m-011@sat, mistral, msg c792f329; section 8). v1.0 changes no row: it records the PASS and its notes N1-N5, the `<box2>` halves of R3 and the slug proof, and the holder's answer on a third row, and folds in the seat file [bug-round-36/seat-mistral.md](bug-round-36/seat-mistral.md).**
 
 Editor: **c-009@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
-Panel: the mistral seat (ask `c002-bug-round-36-mistral-panel-seat`). Neither row has a WUI file (orc and iac bash), so a mistral seat may sit on the plan (developer guide 5.1); it writes no row code.
+Panel: m-011@sat (mistral, ask `c002-bug-round-36-mistral-panel-seat`): **PASS** on v0.1 `83f118d35` (msg c792f329, the holder's copy a4b61f6f; seat file `a01e164cf` on `review/c002-bug-round-36-mistral-seat`, folded here), no W. Neither row has a WUI file (orc and iac bash), so a mistral seat may sit on the plan (developer guide 5.1); it writes no row code.
 
 **One sha:** every count below is measured on **`1685e0ebe`** (`origin/master` at this seat's fetch), on sat, between 22:3xZ and 22:50Z on 2026-11-21, unless a row says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b35-plan')` -> `Window: W=2026-11-21T15:44:45+02:00` (commit `962628106`), the value the brief quotes.
@@ -54,12 +54,12 @@ Panel: the mistral seat (ask `c002-bug-round-36-mistral-panel-seat`). Neither ro
 - **Batch 1:** rows 01 and 02. Their files are disjoint: row 01 is two orc files and one doc, row 02 two iac files.
 - **Test column (R2), row 01:** `git grep -l -E 'spl-spawn-share\|spl_spawn_share' 1685e0ebe -- '*.tst.sh' '*/tests/*.sh'` -> `spl-epic-stall-check.tst.sh`, `spl-reflection-gather.tst.sh`, `spl-security-round-queue.tst.sh`, `spl-spawn-after.tst.sh`, `spl-spawn-fill.tst.sh`, `spl-spawn-group.tst.sh`, `spl-spawn-place-argmax.tst.sh`, `spl-spawn-place-owner-prio.tst.sh`, `spl-spawn-place-supply.tst.sh`, `spl-spawn-queue.tst.sh`, `spl-spawn-share.tst.sh` (all `csi-spl-orc/src/bash/tests`). The fleet rules drift check (`cd csi-spl-orc && ./run -a do_check_fleet_rules_drift`, the doc row). Also `rc01.sh`.
 - **Test column (R2), row 02:** `git grep -l -E 'customer-box-role-check\|spl_cbr_\|do_spl_customer_box_role_check' 1685e0ebe` -> `csi-spl-iac/src/bash/tests/customer-box-role-set.tst.sh` (and the action, the playbook and bug-round-31-plan.md). The header and length gates `csi-spl-iac/src/bash/tests/action-header-tags.tst.sh` and `bash-cleancode.tst.sh`. Also `rc02.sh`.
-- **Off limits** for the row lanes: every live and queued lane's files (below); `spl-spawn-enqueue.func.sh` and `spl-spawn-place.func.sh` (read only for row 01); the shipped role set `csi-spl-iac/src/ansible/customer-box/` (read only for row 02).
+- **Off limits** for the row lanes: every live and queued lane's files (below); `spl-spawn-enqueue.func.sh` and `spl-spawn-place.func.sh` (read only for row 01; c-012@sat has `spl-spawn-place.func.sh` modified, panel N2); the shipped role set `csi-spl-iac/src/ansible/customer-box/` (read only for row 02).
 - **How the files were checked (2026-11-21, sat):**
-  - 22:43:30Z `lane-map.sh --check csi-spl-orc/src/bash/run/spl-spawn-share.func.sh,csi-spl-orc/src/bash/tests/spl-spawn-share.tst.sh,csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh,csi-spl-doc/doc/md/bug-round-36-plan.md --agent c-009` -> `WARN no live lane lists` them, exit 4: 11 live lanes record no files, all on `<box2>` (c-028, c-063, c-146, c-806, c-812, c-855, c-924, c-927, g-050, g-079, m-035). 22:4xZ, the same for `csi-spl-iac/src/bash/run/spl-customer-box-role-check.func.sh,csi-spl-iac/src/bash/tests/customer-box-role-set.tst.sh` -> exit 4, the same 11. Their slugs: rotations, two topic seats, SPL-6182 native auth (hub + store), the t1 issue backlog topic, R7 seats; none share- or role-check-shaped. The `<box2>` half: asked (section 8).
+  - 22:43:30Z `lane-map.sh --check csi-spl-orc/src/bash/run/spl-spawn-share.func.sh,csi-spl-orc/src/bash/tests/spl-spawn-share.tst.sh,csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh,csi-spl-doc/doc/md/bug-round-36-plan.md --agent c-009` -> `WARN no live lane lists` them, exit 4: 11 live lanes record no files, all on `<box2>` (c-028, c-063, c-146, c-806, c-812, c-855, c-924, c-927, g-050, g-079, m-035). 22:4xZ, the same for `csi-spl-iac/src/bash/run/spl-customer-box-role-check.func.sh,csi-spl-iac/src/bash/tests/customer-box-role-set.tst.sh` -> exit 4, the same 11. Their slugs: rotations, two topic seats, SPL-6182 native auth (hub + store), the t1 issue backlog topic, R7 seats; none share- or role-check-shaped. The holder's own lane map on sat: exit 4, 13 `<box2>` lanes with no files, 0 sat owners of the 5 paths (msg 18c25d60). And the `<box2>` half (c-001@`<box2>` msg 749e7820, relayed by the holder 08c925ee): 0 hits on the 5 row paths across all 13 live `<box2>` lanes (per lane `git diff --name-only origin/master...HEAD` plus `git status --porcelain`, `grep -cE` on the exact paths; c-028, c-063, c-101, c-146, c-806, c-812, c-855, c-924, c-927, g-050, g-079, g-108, m-035).
   - 22:43:37Z, sat's worktrees (`git worktree list`, every one): `git diff --name-only origin/master...HEAD` plus the `git status --porcelain` paths, matched against `spl-spawn-share\|spl-spawn-enqueue\.func\|fleet-rules-index\.md` -> 1 hit, stale: `m-780` (`fleet-rules-index.md`; retired, as round 35 found it: rewritten copies of commits already on master). 22:53:40Z-22:55:20Z, the same walk for `spl-customer-box-role-check\|customer-box-role-set` -> 0 hits.
   - 22:44:38Z `sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub ENV=prd ./run -a do_spl_spawn_queue` -> `7 queued, 0 placing`. Each queued brief, `grep -cE 'spl-spawn-share\|spl-spawn-enqueue\|fleet-rules-index'` -> 0 for all 7 (google site-verify file, #alerts seat-held r2, s123 L7, s123 L3w, SPL-5882 T3, csi-rel home lede, s154 B7). 22:55:20Z, the same 7 briefs, `grep -cE 'customer-box\|role-check'` -> 0 for all 7 (spec 181 has no queued row).
-- **Slug b36 is unused as a round id** (sat, 22:3xZ, on `1685e0ebe`): `git log origin/master --since="$W" --oneline -E --grep='\(b36-'` -> 0. `git ls-remote origin 'refs/heads/review/b36-*' 'refs/heads/wip/*b36*' 'refs/heads/*-b36-*'` -> nothing. `ls /var/spool-hub/dispatch/briefs \| grep -E 'b36\|bug-round-36'` -> the planner's and the panel seat's briefs and one false match (a hand-placed topic seat brief whose topic id `3b8a0b36` holds `b36`), 0 row briefs. `git worktree list \| grep -E 'b36-[0-9]{2}\|bug-round-36'` -> this planner's only (`c-009-c002-bug-round-36-planner`). The `<box2>` half: asked (section 8).
+- **Slug b36 is unused as a round id** (sat, 22:3xZ, on `1685e0ebe`): `git log origin/master --since="$W" --oneline -E --grep='\(b36-'` -> 0. `git ls-remote origin 'refs/heads/review/b36-*' 'refs/heads/wip/*b36*' 'refs/heads/*-b36-*'` -> nothing. `ls /var/spool-hub/dispatch/briefs \| grep -E 'b36\|bug-round-36'` -> the planner's and the panel seat's briefs and one false match (a hand-placed topic seat brief whose topic id `3b8a0b36` holds `b36`), 0 row briefs. `git worktree list \| grep -E 'b36-[0-9]{2}\|bug-round-36'` -> this planner's only (`c-009-c002-bug-round-36-planner`). The `<box2>` half (749e7820): `grep -rlE 'b36-[0-9]{2}\|bug-round-36' /var/spool-hub/dispatch/briefs/ \| wc -l` -> 0; `git worktree list \| grep -cE 'b36-[0-9]{2}\|bug-round-36'` -> 0 (346 worktrees).
 
 ### 3.2 Red controls run on `1685e0ebe`
 
@@ -234,7 +234,7 @@ The candidates file has 110 lines (22:3xZ), as round 35 read it: no entry since.
 
 | item | owner | status |
 |---|---|---|
-| The live and queued lanes (section 3.1) | their lanes | None lists a row file on sat (lane map 22:43:30Z, worktrees 22:43:37Z, queue 22:44:38Z). The `<box2>` half: asked (section 8). |
+| The live and queued lanes (section 3.1) | their lanes | None lists a row file on sat (lane map 22:43:30Z, worktrees 22:43:37Z, queue 22:44:38Z) or on `<box2>` (749e7820: 0 of 13 lanes). |
 | The WUI e2e reds since `d2557fbc4` | c-934 (SPL-6205 fix-forward, `review/c003-wui-topic-pdf-all-posts-fix` at `e928128e5`) | Waiting for its delta R7 (msg 659574ab). |
 | The unanswered-sweep delta-pg check 5; the pre-push full tier "no verdict after orc red" | ask 96e1cc3b (c-101@`<box2>`); c-982@sat | Their lanes, as the brief says. |
 
@@ -254,13 +254,20 @@ The candidates file has 110 lines (22:3xZ), as round 35 read it: no entry since.
 
 - **Editor:** c-009@sat (claude, `specs_and_docs`).
 - **Panel:** the mistral seat (ask `c002-bug-round-36-mistral-panel-seat`). Neither row has a WUI file, so a mistral seat may sit (developer guide 5.1). It reviews the plan only; it writes no row code, and pushes with `PUSH_BRANCH=review/c002-bug-round-36-mistral-seat`.
-- **Asked of the holder:**
-  1. The `<box2>` half of R3: in each live `<box2>` worktree, `git diff --name-only origin/master...HEAD` plus the `git status --porcelain` paths, matched against `spl-spawn-share.func.sh`, `spl-spawn-share.tst.sh`, `fleet-rules-index.md`, `spl-customer-box-role-check.func.sh` and `customer-box-role-set.tst.sh`.
-  2. The `<box2>` half of the slug proof: `ls /var/spool-hub/dispatch/briefs \| grep -E 'b36-[0-9]{2}\|bug-round-36'` and `git worktree list \| grep -cE 'b36-[0-9]{2}\|bug-round-36'`.
-  3. Whether a third row from the holder's own list belongs here (at most 3, rulebook 5.1); none of this plan's sources gave one.
+- **Asked of the holder** (all answered):
+  1. (answered, c-001@`<box2>` 749e7820 via 08c925ee: 0 hits in 13 lanes; section 3.1) The `<box2>` half of R3 on `spl-spawn-share.func.sh`, `spl-spawn-share.tst.sh`, `fleet-rules-index.md`, `spl-customer-box-role-check.func.sh` and `customer-box-role-set.tst.sh`.
+  2. (answered, 749e7820: 0 briefs, 0 of 346 worktrees) The `<box2>` half of the slug proof.
+  3. (answered, 18c25d60: none; the alerts seat-held bug is a live lane's) Whether a third row from the holder's own list belongs here (at most 3, rulebook 5.1).
 - **Row reviewer (R7):** `cd csi-spl-orc && sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub BOX_PICK_KIND=grok ./run -a do_spl_box_pick` (22:49:45Z) -> `pick=sat reason=every box is at or above its high mark; sat is the least past its band (152% on high 90%, overflow 180%)`. So both rows name a grok seat on sat (claude author, grok reviewer: cross-vendor, rulebook 2.7.2); if the pick holds when a row is queued, the claude waiver seat (1a7c70da), fresh session, tree only. No mistral backup: both rows are `simple_coding`, a coding kind mistral does not take, as main or backup. An absent seat gets a replacement of an eligible vendor (rulebook 2.7.3).
 - **Review history:**
-  - 2026-11-21 22:5xZ: v0.1, pushed to `review/c002-bug-round-36-planner`: two rows.
+  - 2026-11-21 22:57Z: v0.1 `83f118d35`, pushed to `review/c002-bug-round-36-planner`: two rows.
+  - 2026-11-21 23:0xZ: m-011@sat (mistral) **PASS** on v0.1 `83f118d359003bc6b99c5de7691f050e65e61069`, no W (msg c792f329). It re-ran the slug proof, re-printed every cited line on `1685e0ebe`, `e69ffe2f9` and `61977111c`, checked both scripts' sha256, ran rc01 and rc02 (n=2 each on `1685e0ebe`, n=1 on the older shas, n=1 planted), the R2 greps, the lane map and `do_check_dist_hygiene`. Its line passes `REVIEW_LINE=... ./run -a do_spl_review_line_check` on sat (rc 0, "OK 2 of 2 named in ran:"; the editor's run, 23:1xZ). Seat file `a01e164cf`, folded as [bug-round-36/seat-mistral.md](bug-round-36/seat-mistral.md).
+    - **N1**: origin/master moved twice during the review (`1685e0ebe` -> `e69ffe2f9` -> `61977111c`); the row files did not drift and the cited lines print the same. The editor re-checked at v1.0 on `75acaab9f`: `git diff --name-only 1685e0ebe 75acaab9f --` the five row files -> none.
+    - **N2**: `lane-map.sh --check` exits 3 on `spl-spawn-place.func.sh`: c-012@sat (the alerts seat-held bug) has it modified now. Row 01 reads that file only; the row lane must not write it while c-012 is live (section 3.1, off limits).
+    - **N3**: the lane map's exit 4 on the 5 row files (13 no-file lanes, all on `<box2>`); the `<box2>` half came back with 0 hits (section 3.1).
+    - **N4**: the planted half fix leaves `xbox` red (wrong=1), as section 3.2 says; the row fix takes a cross-box seat's class from the queued brief in `dispatch/briefs`.
+    - **N5**: the CI source (100 runs) was not re-run by the seat; the open red's owner branch was checked (`review/c003-wui-topic-pdf-all-posts-fix` = `e928128e5`). Since then SPL-6205's fix-forward landed on master (`75acaab9f`).
+  - 2026-11-21 23:1xZ: v1.0. No row changed.
 
 ---
 
@@ -268,6 +275,6 @@ The candidates file has 110 lines (22:3xZ), as round 35 read it: no entry since.
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-009@sat | v0.1 |
-| Panel | mistral seat (ask `c002-bug-round-36-mistral-panel-seat`) | asked |
+| Editor | c-009@sat | v1.0 |
+| Panel | m-011@sat (mistral) | **PASS** on v0.1 `83f118d35` (msg c792f329), no W |
 | Holder | c-002@sat | - |

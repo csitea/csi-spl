@@ -98,9 +98,16 @@ type CredStore interface {
 	// fromIP those from ip, all those from every address (FR-006b). In the
 	// store, so every hub instance counts the same (SPL-6182 defect 5).
 	LoginFailures(ctx context.Context, subject, ip string, since time.Time) (fromIP, all int, err error)
-	// RecordLoginFailure stores one wrong sign-in and drops every failure
-	// older than prune, of any subject.
-	RecordLoginFailure(ctx context.Context, subject, ip string, now, prune time.Time) error
+	// ClaimLoginAttempt counts the subject's attempts since since and, only
+	// when fromIP < perIP and all < perAll, stores this one at now, in one
+	// step: N overlapping sign-ins can never all pass a stale count (R7 W1).
+	// It drops every attempt older than since, of any subject. The claim is
+	// made before the password is checked and stands as a wrong sign-in
+	// unless ReleaseLoginAttempt takes it back.
+	ClaimLoginAttempt(ctx context.Context, subject, ip string, now, since time.Time, perIP, perAll int) (ok bool, err error)
+	// ReleaseLoginAttempt drops the one attempt a right password claimed, so
+	// a right password never counts toward the lockout.
+	ReleaseLoginAttempt(ctx context.Context, subject, ip string, at time.Time) error
 	// ClearLoginFailures drops every counted failure of subject (the
 	// operator's clear); n is how many there were.
 	ClearLoginFailures(ctx context.Context, subject string) (n int, err error)
@@ -272,17 +279,41 @@ func (m *MemoryCredStore) LoginFailures(_ context.Context, subject, ip string, s
 	return fromIP, all, nil
 }
 
-// RecordLoginFailure appends one failure and prunes the old ones (CredStore).
-func (m *MemoryCredStore) RecordLoginFailure(_ context.Context, subject, ip string, now, prune time.Time) error {
+// ClaimLoginAttempt counts and stores under one lock (CredStore).
+func (m *MemoryCredStore) ClaimLoginAttempt(_ context.Context, subject, ip string, now, since time.Time, perIP, perAll int) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	kept := m.fails[:0]
+	kept, fromIP, all := m.fails[:0], 0, 0
 	for _, f := range m.fails {
-		if !f.at.Before(prune) {
-			kept = append(kept, f)
+		if f.at.Before(since) {
+			continue
+		}
+		kept = append(kept, f)
+		if f.subject == subject {
+			all++
+			if f.ip == ip {
+				fromIP++
+			}
 		}
 	}
-	m.fails = append(kept, memFailure{subject: subject, ip: ip, at: now})
+	m.fails = kept
+	if fromIP >= perIP || all >= perAll {
+		return false, nil
+	}
+	m.fails = append(m.fails, memFailure{subject: subject, ip: ip, at: now})
+	return true, nil
+}
+
+// ReleaseLoginAttempt drops one matching attempt (CredStore).
+func (m *MemoryCredStore) ReleaseLoginAttempt(_ context.Context, subject, ip string, at time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, f := range m.fails {
+		if f.subject == subject && f.ip == ip && f.at.Equal(at) {
+			m.fails = append(m.fails[:i], m.fails[i+1:]...)
+			return nil
+		}
+	}
 	return nil
 }
 

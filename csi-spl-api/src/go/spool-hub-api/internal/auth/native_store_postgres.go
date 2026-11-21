@@ -204,14 +204,44 @@ func (p PgCredStore) LoginFailures(ctx context.Context, subject, ip string, sinc
 	return fromIP, all, err
 }
 
-// RecordLoginFailure inserts one row and prunes every row older than prune,
-// so the table holds at most one window of failures.
-func (p PgCredStore) RecordLoginFailure(ctx context.Context, subject, ip string, now, prune time.Time) error {
-	if _, err := p.Pool.Exec(ctx, `INSERT INTO native_login_failures (subject, client_ip, failed_at)
-		VALUES ($1, $2, $3)`, subject, ip, now); err != nil {
-		return err
+// ClaimLoginAttempt counts and inserts in one transaction under a
+// per-subject advisory lock (seed 308), so overlapping sign-ins on any
+// instance queue on the count and the 11th sees the ten before it (R7 W1).
+// The prune of every row older than since rides in the same transaction,
+// so the table holds at most one window of attempts.
+func (p PgCredStore) ClaimLoginAttempt(ctx context.Context, subject, ip string, now, since time.Time, perIP, perAll int) (bool, error) {
+	tx, err := p.Pool.Begin(ctx)
+	if err != nil {
+		return false, err
 	}
-	_, err := p.Pool.Exec(ctx, `DELETE FROM native_login_failures WHERE failed_at < $1`, prune)
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 308))`, subject); err != nil {
+		return false, err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM native_login_failures WHERE failed_at < $1`, since); err != nil {
+		return false, err
+	}
+	var fromIP, all int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FILTER (WHERE client_ip = $2), count(*)
+		FROM native_login_failures WHERE subject = $1 AND failed_at >= $3`, subject, ip, since).Scan(&fromIP, &all); err != nil {
+		return false, err
+	}
+	if fromIP >= perIP || all >= perAll {
+		return false, tx.Commit(ctx)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO native_login_failures (subject, client_ip, failed_at)
+		VALUES ($1, $2, $3)`, subject, ip, now); err != nil {
+		return false, err
+	}
+	return true, tx.Commit(ctx)
+}
+
+// ReleaseLoginAttempt deletes one row the claim inserted (rows with the
+// same subject, address and instant are interchangeable).
+func (p PgCredStore) ReleaseLoginAttempt(ctx context.Context, subject, ip string, at time.Time) error {
+	_, err := p.Pool.Exec(ctx, `DELETE FROM native_login_failures WHERE ctid = (
+		SELECT ctid FROM native_login_failures
+		 WHERE subject = $1 AND client_ip = $2 AND failed_at = $3 LIMIT 1)`, subject, ip, at)
 	return err
 }
 

@@ -120,14 +120,18 @@ Already built: `POST /api/v1/auth/logout` (010).
 - **FR-006b** The per-email login ceiling is **in the database** (rdb 0308
   `native_login_failures`, SPL-6182 defect 5), so every hub instance counts
   the same and an operator can clear it without a redeploy. Only a WRONG
-  sign-in is recorded (an unknown email counts like a known one, so the
-  lockout enumerates nothing); a right password records nothing. Before the
-  credential is read, the hub counts the email's failures in the last
-  `SPOOL_HUB_AUTH_NATIVE_RATE_WINDOW` (15 min): 10 from the caller's address,
-  or 100 from all addresses, answer `429 rate_limited` with `Retry-After`. A
-  stranger's guesses from their address therefore never lock the owner out
-  from theirs. A store that cannot count or record answers `503 unavailable`
-  (fail closed). Every write prunes the rows past the window. Operator clear:
+  sign-in counts (an unknown email counts like a known one, so the lockout
+  enumerates nothing); a right password counts nothing. Before the
+  credential is read, the hub counts the email's attempts in the last
+  `SPOOL_HUB_AUTH_NATIVE_RATE_WINDOW` (15 min) and claims this one in the
+  same step (one transaction under a per-email lock): 10 from the caller's
+  address, or 100 from all addresses, answer `429 rate_limited` with
+  `Retry-After`, so in a burst of overlapping wrong sign-ins the 11th is a
+  429 too. A right password takes its claim back. A stranger's guesses from
+  their address therefore never lock the owner out from theirs. A store that
+  cannot claim answers `503 unavailable` (fail closed); one that cannot take
+  a right password's claim back leaves it counted. Every claim prunes the
+  rows past the window. Operator clear:
   `spool hub-clear-lockout --email <addr>` (`do_spl_native_lockout_clear`,
   dry run by default; prd needs `OWNER_GO`), which drops the address's rows
   from every client address. The password-change ceiling stays in process.

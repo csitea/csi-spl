@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -168,8 +170,8 @@ func TestLoginFailuresContract(t *testing.T) {
 			win := 15 * time.Minute
 			rec := func(s, ip string, at time.Time) {
 				t.Helper()
-				if err := st.RecordLoginFailure(ctx, s, ip, at, at.Add(-win)); err != nil {
-					t.Fatal(err)
+				if ok, err := st.ClaimLoginAttempt(ctx, s, ip, at, at.Add(-win), 1000, 1000); err != nil || !ok {
+					t.Fatal(ok, err)
 				}
 			}
 			rec(subj, "198.51.100.1", t0)
@@ -193,6 +195,65 @@ func TestLoginFailuresContract(t *testing.T) {
 			}
 			if _, all, err := st.LoginFailures(ctx, other, "x", t0); err != nil || all != 1 {
 				t.Fatalf("CONTROL: the clear left another subject alone: %d %v", all, err)
+			}
+		})
+	}
+}
+
+// TestClaimLoginAttemptContract: twenty overlapping claims from one address
+// under a per-address cap of 10 store exactly ten, on both drivers (R7 W1:
+// the old count-then-record let a burst through on a stale count); the cap
+// over all addresses holds the same way; a release frees one slot.
+func TestClaimLoginAttemptContract(t *testing.T) {
+	for name, st := range credStores(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			subj := fmt.Sprintf("claim-%d@example.com", time.Now().UnixNano())
+			now := time.Now().UTC()
+			since := now.Add(-15 * time.Minute)
+			burst := func(ip func(int) string) int {
+				t.Helper()
+				var won atomic.Int32
+				var wg sync.WaitGroup
+				start := make(chan struct{})
+				for i := 0; i < 20; i++ {
+					wg.Add(1)
+					go func(i int) {
+						defer wg.Done()
+						<-start
+						ok, err := st.ClaimLoginAttempt(ctx, subj, ip(i), now, since, 10, 15)
+						if err != nil {
+							t.Error(err)
+						}
+						if ok {
+							won.Add(1)
+						}
+					}(i)
+				}
+				close(start)
+				wg.Wait()
+				return int(won.Load())
+			}
+			if n := burst(func(int) string { return "198.51.100.1" }); n != 10 {
+				t.Fatalf("per address: %d claims won, want 10", n)
+			}
+			if fromIP, all, err := st.LoginFailures(ctx, subj, "198.51.100.1", since); err != nil || fromIP != 10 || all != 10 {
+				t.Fatalf("stored %d %d %v, want 10 10", fromIP, all, err)
+			}
+			if n := burst(func(i int) string { return fmt.Sprintf("203.0.113.%d", i) }); n != 5 {
+				t.Fatalf("over all addresses: %d claims won, want 5 (cap 15)", n)
+			}
+			if err := st.ReleaseLoginAttempt(ctx, subj, "198.51.100.1", now); err != nil {
+				t.Fatal(err)
+			}
+			if fromIP, all, err := st.LoginFailures(ctx, subj, "198.51.100.1", since); err != nil || fromIP != 9 || all != 14 {
+				t.Fatalf("after one release: %d %d %v, want 9 14", fromIP, all, err)
+			}
+			if ok, err := st.ClaimLoginAttempt(ctx, subj, "198.51.100.1", now, since, 10, 15); err != nil || !ok {
+				t.Fatalf("the released slot: %v %v", ok, err)
+			}
+			if _, err := st.ClearLoginFailures(ctx, subj); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

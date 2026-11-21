@@ -464,10 +464,11 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	email := normEmail(req.Email)
 	ctx, cancel := n.ctx(r)
 	defer cancel()
-	if !n.loginEmailAllowed(ctx, w, r, email) {
+	at, ok := n.claimLoginAttempt(ctx, w, r, email)
+	if !ok {
 		return
 	}
-	cred, ok := n.checkPassword(ctx, w, r, email, req.Password)
+	cred, ok := n.checkPassword(ctx, w, r, email, req.Password, at)
 	if !ok {
 		return
 	}
@@ -495,31 +496,35 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, n.loginAnswer(ctx, sess, req.Redirect))
 }
 
-// loginEmailAllowed checks the per-email ceilings against the wrong
-// sign-ins in the store, before the credential is read. The ceiling is per
+// claimLoginAttempt checks the per-email ceilings against the wrong
+// sign-ins in the store and claims this attempt in the same step, before the
+// credential is read: overlapping sign-ins cannot all pass one stale count
+// (R7 W1), and the attempt stands as wrong unless checkPassword releases it. The ceiling is per
 // (email, client IP), so a stranger's wrong guesses from their address do
 // not lock the owner out from theirs; a tenfold per-email ceiling across ALL
 // addresses still bounds a guess spread over many IPs. The count lives in
 // the store (SPL-6182 defect 5): every instance sees the same lockout and an
 // operator clears it with `spool hub-clear-lockout`. A store that cannot
 // count answers 503: a sign-in is never let past an uncounted ceiling.
-func (n *native) loginEmailAllowed(ctx context.Context, w http.ResponseWriter, r *http.Request, email string) bool {
+func (n *native) claimLoginAttempt(ctx context.Context, w http.ResponseWriter, r *http.Request, email string) (time.Time, bool) {
+	now := n.h.now()
 	if email == "" {
-		return true
+		return now, true
 	}
-	fromIP, all, err := n.store.LoginFailures(ctx, email, n.failIP(r), n.h.now().Add(-n.cfg.RateWindow))
+	ok, err := n.store.ClaimLoginAttempt(ctx, email, n.failIP(r), now, now.Add(-n.cfg.RateWindow),
+		n.cfg.LoginPerEmail, 10*n.cfg.LoginPerEmail)
 	if err != nil {
-		n.log.Error().Err(err).Msg("auth.native_login lockout count")
+		n.log.Error().Err(err).Msg("auth.native_login lockout claim")
 		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
-		return false
+		return now, false
 	}
-	if fromIP < n.cfg.LoginPerEmail && all < 10*n.cfg.LoginPerEmail {
-		return true
+	if ok {
+		return now, true
 	}
 	w.Header().Set("Retry-After", strconv.Itoa(int(n.cfg.RateWindow.Seconds())))
 	writeErr(w, http.StatusTooManyRequests, ErrTokRateLimited, "too many attempts")
 	n.log.Warn().Str("bucket", "login-email").Msg("auth.native_rate_limited")
-	return false
+	return now, false
 }
 
 // failIP is the caller's address as native_login_failures keeps it (rdb
@@ -532,24 +537,25 @@ func (n *native) failIP(r *http.Request) string {
 	return ip
 }
 
-// loginFailed records a wrong sign-in (an unknown email counts like a known
-// one, FR-005) and writes the 401; a store that cannot record it answers 503.
-func (n *native) loginFailed(ctx context.Context, w http.ResponseWriter, r *http.Request, email string) {
-	if email != "" {
-		now := n.h.now()
-		if err := n.store.RecordLoginFailure(ctx, email, n.failIP(r), now, now.Add(-n.cfg.RateWindow)); err != nil {
-			n.log.Error().Err(err).Msg("auth.native_login lockout record")
-			writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
-			return
-		}
-	}
+// loginFailed writes the 401 of a wrong sign-in (an unknown email counts
+// like a known one, FR-005): claimLoginAttempt already counted it.
+func (n *native) loginFailed(w http.ResponseWriter) {
 	writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "email or password")
+}
+
+// releaseLoginAttempt takes back the claim of a right password, which never
+// counts toward the lockout. A release the store refuses leaves it counted
+// (the safe side) and is logged.
+func (n *native) releaseLoginAttempt(ctx context.Context, r *http.Request, email string, at time.Time) {
+	if err := n.store.ReleaseLoginAttempt(ctx, email, n.failIP(r), at); err != nil {
+		n.log.Warn().Err(err).Msg("auth.native_login lockout release")
+	}
 }
 
 // checkPassword answers the credential of email when password matches it
 // and it may sign in; otherwise it has written the refusal. An unknown email
 // costs the same hash as a wrong password and answers the same 401 (FR-005).
-func (n *native) checkPassword(ctx context.Context, w http.ResponseWriter, r *http.Request, email, password string) (Credential, bool) {
+func (n *native) checkPassword(ctx context.Context, w http.ResponseWriter, r *http.Request, email, password string, at time.Time) (Credential, bool) {
 	var cred Credential
 	err := ErrCredNotFound
 	if email != "" {
@@ -562,14 +568,15 @@ func (n *native) checkPassword(ctx context.Context, w http.ResponseWriter, r *ht
 	}
 	if errors.Is(err, ErrCredNotFound) {
 		_ = VerifyPassword(n.dummy, password) // equal timing (FR-005)
-		n.loginFailed(ctx, w, r, email)
+		n.loginFailed(w)
 		return cred, false
 	}
 	if VerifyPassword(cred.PasswordHash, password) != nil {
 		n.log.Warn().Str("email", digest(email)).Msg("auth.native_login_fail")
-		n.loginFailed(ctx, w, r, email)
+		n.loginFailed(w)
 		return cred, false
 	}
+	n.releaseLoginAttempt(ctx, r, email, at)
 	// Past the password on purpose: this branch enumerates nothing.
 	if !cred.Verified() && n.cfg.VerifyRequired {
 		n.unverifiedLogin(ctx, w, r, cred)

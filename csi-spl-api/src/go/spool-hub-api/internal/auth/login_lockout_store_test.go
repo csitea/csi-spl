@@ -1,10 +1,15 @@
 package auth_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -66,24 +71,67 @@ func TestNativeLockoutOperatorClear(t *testing.T) {
 	}
 }
 
+// Twenty overlapping wrong sign-ins from one address (under the per-IP
+// cap of 30) answer exactly ten 401 and ten 429: the count and the record
+// are one step, so no burst passes a stale count (R7 W1 on 439a8387e, where
+// all twenty answered 401 and stored twenty). FR-006b: the 11th is 429.
+func TestNativeLockoutBurstCannotOvershoot(t *testing.T) {
+	st := auth.NewMemoryCredStore()
+	r := newNRigOn(t, nil, nil, true, nil, st)
+	r.registerVerified(t, "burst@example.com", pwA)
+	const n = 20
+	codes := make(chan int, n)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			b, _ := json.Marshal(map[string]string{"email": "burst@example.com", "password": fmt.Sprintf("guess-%08d", i)})
+			<-start
+			res, err := http.Post(r.url+"/api/v1/auth/login", "application/json", bytes.NewReader(b))
+			if err != nil {
+				codes <- 0
+				return
+			}
+			_, _ = io.Copy(io.Discard, res.Body)
+			res.Body.Close()
+			codes <- res.StatusCode
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	close(codes)
+	got := map[int]int{}
+	for c := range codes {
+		got[c]++
+	}
+	if got[http.StatusUnauthorized] != 10 || got[http.StatusTooManyRequests] != 10 {
+		t.Fatalf("burst of %d: %v, want 10x401 and 10x429", n, got)
+	}
+	if _, all, err := st.LoginFailures(context.Background(), "burst@example.com", "", time.Time{}); err != nil || all != 10 {
+		t.Fatalf("stored %d %v, want 10", all, err)
+	}
+}
+
 type lockoutCreds struct {
 	*auth.MemoryCredStore
-	countErr, recordErr error
-	gets                int
+	claimErr, releaseErr error
+	gets                 int
 }
 
-func (l *lockoutCreds) LoginFailures(ctx context.Context, s, ip string, since time.Time) (int, int, error) {
-	if l.countErr != nil {
-		return 0, 0, l.countErr
+func (l *lockoutCreds) ClaimLoginAttempt(ctx context.Context, s, ip string, now, since time.Time, perIP, perAll int) (bool, error) {
+	if l.claimErr != nil {
+		return false, l.claimErr
 	}
-	return l.MemoryCredStore.LoginFailures(ctx, s, ip, since)
+	return l.MemoryCredStore.ClaimLoginAttempt(ctx, s, ip, now, since, perIP, perAll)
 }
 
-func (l *lockoutCreds) RecordLoginFailure(ctx context.Context, s, ip string, now, prune time.Time) error {
-	if l.recordErr != nil {
-		return l.recordErr
+func (l *lockoutCreds) ReleaseLoginAttempt(ctx context.Context, s, ip string, at time.Time) error {
+	if l.releaseErr != nil {
+		return l.releaseErr
 	}
-	return l.MemoryCredStore.RecordLoginFailure(ctx, s, ip, now, prune)
+	return l.MemoryCredStore.ReleaseLoginAttempt(ctx, s, ip, at)
 }
 
 func (l *lockoutCreds) GetCredential(ctx context.Context, s string) (auth.Credential, error) {
@@ -91,23 +139,24 @@ func (l *lockoutCreds) GetCredential(ctx context.Context, s string) (auth.Creden
 	return l.MemoryCredStore.GetCredential(ctx, s)
 }
 
-// A store that cannot count or record a failure fails closed (503, no
-// cookie), and the count comes before the credential is read.
+// A store that cannot claim the attempt fails closed (503, no cookie) before
+// the credential is read; a store that cannot release a right password's
+// claim still signs the person in and leaves the attempt counted.
 func TestNativeLockoutStoreDownFailsClosed(t *testing.T) {
 	mem := auth.NewMemoryCredStore()
 	seedVerified(t, mem, "ok@example.com")
-	st := &lockoutCreds{MemoryCredStore: mem, countErr: errors.New("db down")}
+	st := &lockoutCreds{MemoryCredStore: mem, claimErr: errors.New("db down")}
 	r := newLoginRig(t, nil, st, &recReg{})
 	g := r.post(t, nil, "login", map[string]string{"email": "ok@example.com", "password": pwA})
 	if g.code != http.StatusServiceUnavailable || g.body["error"] != "unavailable" || g.hdr.Get("Set-Cookie") != "" || st.gets != 0 {
-		t.Fatalf("count down: %d %s (credential reads %d, want 0)", g.code, g.raw, st.gets)
+		t.Fatalf("claim down: %d %s (credential reads %d, want 0)", g.code, g.raw, st.gets)
 	}
-	st = &lockoutCreds{MemoryCredStore: mem, recordErr: errors.New("db down")}
+	st = &lockoutCreds{MemoryCredStore: mem, releaseErr: errors.New("db down")}
 	r = newLoginRig(t, nil, st, &recReg{})
-	if g := r.post(t, nil, "login", map[string]string{"email": "ok@example.com", "password": pwB}); g.code != http.StatusServiceUnavailable {
-		t.Fatalf("record down: %d %s", g.code, g.raw)
-	}
 	if g := r.post(t, nil, "login", map[string]string{"email": "ok@example.com", "password": pwA}); g.code != http.StatusOK {
-		t.Fatalf("CONTROL: a right password needs no record: %d %s", g.code, g.raw)
+		t.Fatalf("release down: a right password still signs in: %d %s", g.code, g.raw)
+	}
+	if _, all, err := mem.LoginFailures(context.Background(), "ok@example.com", "", time.Time{}); err != nil || all != 1 {
+		t.Fatalf("release down: counted %d %v, want 1 (the safe side)", all, err)
 	}
 }

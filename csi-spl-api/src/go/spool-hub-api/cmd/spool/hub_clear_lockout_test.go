@@ -49,7 +49,7 @@ func TestHubClearLockoutPostgres(t *testing.T) {
 	cs := auth.PgCredStore{Pool: pg.Pool()}
 	now := time.Now().UTC()
 	for i, s := range []string{email, email, email, other} {
-		if err := cs.RecordLoginFailure(ctx, s, fmt.Sprintf("198.51.100.%d", i), now, now.Add(-time.Hour)); err != nil {
+		if ok, err := cs.ClaimLoginAttempt(ctx, s, fmt.Sprintf("198.51.100.%d", i), now, now.Add(-time.Hour), 100, 100); err != nil || !ok {
 			t.Fatal(err)
 		}
 	}

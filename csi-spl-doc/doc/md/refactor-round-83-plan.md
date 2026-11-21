@@ -82,14 +82,14 @@ empty). Queue, lane map, brief and branch reads are live state and carry their o
 | the Cloud Translation lane c-744 | the brief | its brief lists `iac:src/bash/run/check-pre-push-lang-review.func.sh`, its test, `csi-spl-doc/doc/md/pre-push-gate.md`, `fleet-rules-index.md` and the spawn-an-agent CLAUDE.md asset: no row path, not `spool-env.inc.sh` (2.2) | free of c-744 |
 | r82-01 / r82-02 R7 notes | the brief | neither row landed (1.1), so no review line exists yet | nothing to take yet; the r83 editor reads them when they land |
 | r82 panel N1-N4 (seat file `csi-spl-doc/doc/md/refactor-round-82/seat-mistral.md`) | the brief | N1 row 01's empty-argument path, N2 three citations, N3 live-state drift, N4 the candidates file and a `git init` copy: all folded into r82 v1.0 (r82 section 8), none names a new site | nothing to take |
-| the candidates file (`<spool>/dispatch/c002-next-round-candidates.md`) | the brief | on this box, re-read for v0.2 at 2026-11-21T10:37:56Z: **106 lines** (`wc -l`; mtime 10:12:19Z, panel W1). v0.1 read 101 lines at 09:46:46Z; lines 102-106 (SPL-6174's follow-ups, c-744) came after that read. Grep G1 below -> **7 lines**: `:1`, `:25`, `:48` (literal paths, accounted for by the r82 panel, N4), `:51` (a bug-shaped item that names a refactor round), `:74` (the `!inserted` test), `:76` (served: r81-01 `3174e591a`), `:104` (new). Lines 101-106 one by one: `:101` and `:106` bug-shaped (bug rounds'); `:103` a heading; `:104` and `:105` deferred (section 7) | nothing taken: `:74`, `:104` and `:105` recorded in section 7 |
+| the candidates file (`<spool>/dispatch/c002-next-round-candidates.md`) | the brief | on this box, re-read for v0.2 at 2026-11-21T10:44:36Z: **109 lines** (`wc -l`; mtime 10:43:31Z). v0.1 read 101 lines at 09:46:46Z; lines 102-106 (SPL-6174's follow-ups, c-744; mtime 10:12:19Z, panel W1) and 107-109 (SPL-6174's re-review, c-002) came after that read. Grep G1 below -> **8 lines**: `:1`, `:25`, `:48` (literal paths, accounted for by the r82 panel, N4), `:51` (a bug-shaped item that names a refactor round), `:74` (the `!inserted` test), `:76` (served: r81-01 `3174e591a`), `:104` (new), `:109` (new; it matches only as "not refactor"). Lines 101-109 one by one: `:101` and `:106` bug-shaped (bug rounds'); `:103` and `:108` headings, `:102` and `:107` blank; `:104` and `:105` deferred (section 7); `:109` feature- or bug-shaped by its own text (the gct check covers only the WUI locale files), not a refactor | nothing taken: `:74`, `:104` and `:105` recorded in section 7 |
 | spec 011 tasks | the brief | `git log origin/master --since="$W" -- csi-spl-doc/specs/011-spool-project-refactor` -> 0 | left out (section 7), r65 to r82's reasons hold |
 
 The two greps the table and section 7 cite, as run (a table cell would have to escape
 the `|`, which is how v0.1's pattern broke, W2):
 
-- G1, the candidates file (10:37:56Z): `grep -nE '[Rr]efactor|[Tt]est-shaped' <spool>/dispatch/c002-next-round-candidates.md`
-  -> 7 lines, `:1 :25 :48 :51 :74 :76 :104`.
+- G1, the candidates file (10:44:36Z): `grep -nE '[Rr]efactor|[Tt]est-shaped' <spool>/dispatch/c002-next-round-candidates.md`
+  -> 8 lines, `:1 :25 :48 :51 :74 :76 :104 :109`.
 - G2, the lane-mix text (origin/master `17e8b2459`): `git grep -nE 'final word|agy review|needs_agy_review' origin/master -- csi-spl-orc/src/bash/run/spl-lane-mix.func.sh`
   -> 9 lines, `:46 :48 :136 :138 :392 :401 :402 :411 :417`.
 
@@ -403,11 +403,11 @@ body. Gates: the 13 suites of 1.5's row 02 lines (in the worktree, `SPOOL_TEST=1
   holder's send-back c-002@sat msg 12f23814.
   - **W1**: the candidates file grew 101 -> 106 lines at 10:12:19Z, after v0.1's read and
     before its commit, so "did not grow" was false at commit time. Fixed: 1.2 re-reads it
-    (106 lines, 10:37:56Z), accounts for lines 101-106 one by one, and section 7 defers
+    (109 lines at 10:44:36Z: it grew again at 10:43:31Z, after a first v0.2 draft), accounts for lines 101-109 one by one, and section 7 defers
     `:104` and `:105` with their reasons.
   - **W2**: 1.2's grep, written inside a table cell with `\|`, matches a literal `|` when
     copied raw under `-E`, so it prints 0 lines. Fixed: the greps leave the tables (G1, G2
-    under 1.2's table), with their real output (G1 7 lines). (The `-i ... |N1` form prints 17 lines today, since `N1` names many
+    under 1.2's table), with their real output (G1 8 lines). (The `-i ... |N1` form prints 17 lines today, since `N1` names many
     review notes, so it is not used.)
   - **N1** (queue 16 -> 15; `review/c002-r82-01`, `review/c002-r82-02` appeared, r82-02 on
     `run-sh-parity.tst.sh`): live state; row 02's `after: r82-02` covers it. No change.

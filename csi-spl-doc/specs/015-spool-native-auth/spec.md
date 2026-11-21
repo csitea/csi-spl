@@ -73,7 +73,9 @@ credential and the per-account floor allows it, a link to
 `<APP_URL>[/<locale>]/reset-password?token=…` is mailed. `POST …/password/reset` with a
 live token sets the new hash, consumes **every** live reset token of that
 credential, marks the email verified (the link proved the inbox), and answers
-`204`. A reused, expired or unknown token is `401 reset_token_invalid`.
+`200` + `spool_session` (the person lands signed in, every other session of
+the human revoked); `204` with no session only when the sign-in cannot
+complete. A reused, expired or unknown token is `401 reset_token_invalid`.
 
 ### US5 — Change password (P2)
 A person signed in with `p="password"` posts current + new password. Wrong

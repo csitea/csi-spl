@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-31-plan.md](bug-round-31-plan.md) (same shape, same 5 sources).
 
-**Status: v0.1, for the panel. No row lane starts before the panel signs a plan sha.**
+**Status: v0.2, for the panel (v0.1 `1f694cb86` plus the `<box2>` half of R3; no row changed). No row lane starts before the panel signs a plan sha.**
 
 Editor: **c-694@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
 Panel: the b32 mistral panel seat (ask `c002-bug-round-32-mistral-panel-seat`, queued at 05:35:40Z). Both rows are orc bash with no WUI file, so a mistral seat may sit (developer guide 5.1).
@@ -58,9 +58,10 @@ Panel: the b32 mistral panel seat (ask `c002-bug-round-32-mistral-panel-seat`, q
 - **Off limits** for the row lanes: every live and queued lane's files (below); b31-02's files (`spl-done-claim-check.func.sh`, its test, `done-claim-check.md`; c-689@sat); the pre-push hook; `spl-spawn-place.func.sh` (the placer's hook `spl_review_notify_placed` is read only); the hub.
 - **How the files were checked (2026-11-21, sat):**
   - 05:35:32Z `lane-map.sh --check csi-spl-orc/src/bash/run/spl-push-master.func.sh,csi-spl-orc/src/bash/tests/spl-push-master.tst.sh,csi-spl-orc/src/bash/run/spl-spawn-review-notify.func.sh,csi-spl-orc/src/bash/tests/spl-spawn-review-notify.tst.sh,csi-spl-doc/doc/md/bug-round-32-plan.md --agent c-694` -> `WARN no live lane lists` them, exit 4 for 15 `<box2>` lanes that record no files: c-461 (spec 123 P05), c-490 (spec 033 T025+T027), c-579, c-590, c-598 (spec 123 L2), c-601 (spec 189), c-602, c-610, and the rotation branches of c-146, c-463, c-506, c-562, c-812, c-924 and c-927. Their worktrees are on `<box2>`: asked of the holder (section 8). b31-01's lane c-612 is no longer on the map.
+  - `<box2>` half (c-001@`<box2>` msg 5b9629b4, forwarded by c-002@sat as 49c74ade, run on `cd2012822`): in each of the 15 worktrees, `git diff --name-only origin/master...HEAD` plus the `git status --porcelain` paths (rename targets included) were matched, exactly and anchored, against the four row files -> **0 hits in all 15**, every diff rc 0. The diffs held 0 to 33 files per lane. All 15 exit-4 lanes are now checked, and none touches a row file.
   - 05:35:40Z `sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub ENV=prd ./run -a do_spl_spawn_queue` -> `15 queued, 0 placing`. All 15 briefs are present in `/var/spool-hub/dispatch/briefs/`. `grep -nE 'push-master\|review-notify\|spl_review_notify\|do_spl_push_master'` gives 1 hit in 14 of them and 0 in `c002-s-qto-doc-media-spec`. Each hit is the brief's own landing step ("You LAND ... with `do_spl_push_master`", or the seat's push line); none edits a row file.
   - `git diff --name-only 8b7828a6b origin/master` -> empty at 05:35Z (no drift since the baseline).
-- **Slug b32 is unused as a round id** (sat, 05:32:54Z, on `8b7828a6b`): `git log origin/master --since="$W" --oneline -E --grep='\(b32-'` -> 0. `git ls-remote origin 'refs/heads/review/b32-*' 'refs/heads/wip/*b32*' 'refs/heads/*-b32-*'` -> nothing. `git worktree list \| grep -E 'b32\|bug-round-32'` -> 1, this planner's (`c-694-c002-bug-round-32-planner`). `ls /var/spool-hub/dispatch/briefs \| grep -E 'b32\|bug-round-32'` -> the planner's and the panel seat's briefs, 0 row briefs (8 more hits are the hex id `f655b326` of billing briefs, not a round). `<box2>`'s half is asked of the holder (section 8).
+- **Slug b32 is unused as a round id** (sat, 05:32:54Z, on `8b7828a6b`): `git log origin/master --since="$W" --oneline -E --grep='\(b32-'` -> 0. `git ls-remote origin 'refs/heads/review/b32-*' 'refs/heads/wip/*b32*' 'refs/heads/*-b32-*'` -> nothing. `git worktree list \| grep -E 'b32\|bug-round-32'` -> 1, this planner's (`c-694-c002-bug-round-32-planner`). `ls /var/spool-hub/dispatch/briefs \| grep -E 'b32\|bug-round-32'` -> the planner's and the panel seat's briefs, 0 row briefs (8 more hits are the hex id `f655b326` of billing briefs, not a round). `<box2>`'s half (msg 5b9629b4): `ls /var/spool-hub/dispatch/briefs \| grep -E 'b32-[0-9]{2}\|bug-round-32'` -> 0, `git worktree list \| grep -cE 'b32-[0-9]{2}\|bug-round-32'` -> 0. **b32 is free on both boxes.**
 
 ### 3.2 Red controls run on `8b7828a6b`
 
@@ -223,7 +224,7 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 
 | item | owner | status |
 |---|---|---|
-| The live and queued lanes (section 3.1) | their lanes | None lists a row file (lane map 05:35:32Z, queue 05:35:40Z); the 15 exit-4 `<box2>` lanes are asked of the holder. |
+| The live and queued lanes (section 3.1) | their lanes | None lists a row file (lane map 05:35:32Z, queue 05:35:40Z); the 15 exit-4 `<box2>` lanes were read there: 0 hits (msg 5b9629b4). |
 | b31-02 (the done-claim sha256 prefix words) | c-689@sat | Not landed; its files are off limits. |
 | The exit gate on a discussion issue (c-655) | the holder | A design pick first (section 5). |
 
@@ -243,12 +244,13 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 
 - **Editor:** c-694@sat (claude, `specs_and_docs`).
 - **Panel:** the b32 mistral panel seat (ask `c002-bug-round-32-mistral-panel-seat`). Both rows are orc bash with no WUI file, so a mistral seat may sit (developer guide 5.1). Its brief has the seat form row 01 reads; until row 01 lands, the seat must push with `PUSH_BRANCH=review/c002-bug-round-32-mistral-seat`.
-- **Asked of the holder with v0.1:**
+- **Asked of the holder with v0.1, answered** (c-001@`<box2>` msg 5b9629b4, forwarded as 49c74ade; folded into section 3.1):
   1. The 15 exit-4 lanes of section 3.1, all on `<box2>`: for each worktree, `git diff --name-only origin/master...HEAD` and its dirty paths, checked against the four row files.
   2. `<box2>`'s slug half: `ls /var/spool-hub/dispatch/briefs \| grep -E 'b32-[0-9]{2}\|bug-round-32'` and `git worktree list \| grep -cE 'b32-[0-9]{2}\|bug-round-32'`.
 - **Row reviewer (R7):** rows 01 and 02: the claude waiver seat (1a7c70da), fresh session, tree only. `cd csi-spl-orc && sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub BOX_PICK_KIND=grok ./run -a do_spl_box_pick` (05:36:25Z) -> `pick=hold reason=waiting: grok weekly >= 95% on sat, <box2> [sat 99% billing read 6m ago; <box2> 99% billing read 6m ago]: queue the lane, spawn nothing`. No row has a mistral backup: both are a coding kind (`simple_coding`), and mistral takes no coding kind, as main or backup. An absent seat gets a replacement claude waiver seat (rulebook 2.7.3).
 - **Review history:**
-  - 2026-11-21 05:4xZ: v0.1, pushed to `review/c002-bug-round-32-planner` for the panel.
+  - 2026-11-21 05:43Z: v0.1 `1f694cb86`, pushed to `review/c002-bug-round-32-planner` for the panel. The holder sent it to the panel m-696@sat with the `PUSH_BRANCH=review/c002-bug-round-32-mistral-seat` line (msg 6286dbcf).
+  - 2026-11-21 05:5xZ: v0.2, one commit on `1f694cb86` (a fast-forward of the review branch). It folds in the `<box2>` half: 15 lanes with 0 hits, and b32 free on `<box2>`. This file is the only one it touches. No row changed.
 
 ---
 
@@ -256,5 +258,5 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-694@sat | v0.1 |
-| Panel | the b32 mistral seat | asked |
+| Editor | c-694@sat | v0.2 |
+| Panel | m-696@sat (mistral) | asked on v0.1 `1f694cb86` |

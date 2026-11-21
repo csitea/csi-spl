@@ -96,6 +96,15 @@ mkdir -p "$T/h"; echo kept >"$T/h/x.log"; chmod 0664 "$T/h/x.log"
 [[ "$(stat -c %a "$T/h/new/y.log" 2>/dev/null)" == 640 ]] \
   && pass "do_tf_log_open creates a new log (and its dir) at 640" \
   || fail "do_tf_log_open: new log is $(stat -c %a "$T/h/new/y.log" 2>&1)"
+# an empty or missing log path returns 1 with its message, creates nothing
+# (developer guide 2.4.3: the callers' `|| return 1` runs, the shell lives)
+for arg in empty none; do
+  mkdir -p "$T/e-$arg"
+  out="$(cd "$T/e-$arg" && bash -c 'source "$1"; if [[ $2 == empty ]]; then do_tf_log_open ""; else do_tf_log_open; fi; echo "rc=$?"' _ "$MASK_LIB" "$arg" 2>"$T/e-$arg.err")"
+  [[ "$out" == rc=1 && "$(cat "$T/e-$arg.err")" == "do_tf_log_open: the log file" && -z "$(ls -A "$T/e-$arg")" ]] \
+    && pass "do_tf_log_open with $arg argument returns 1, says why, creates nothing" \
+    || fail "do_tf_log_open with $arg argument: out '$out', stderr '$(cat "$T/e-$arg.err")', made '$(ls -A "$T/e-$arg")'"
+done
 
 # 4. terraform's status still comes through the mask and the log helper
 stub terraform 'echo "$*" >>"$STUB_CALLS"; case " $* " in *" apply "*) exit 3 ;; esac; exit 0'

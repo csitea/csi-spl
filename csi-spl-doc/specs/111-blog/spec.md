@@ -788,8 +788,9 @@ code, and no code or asset was copied.
 - **Cost**: client-only and lazy (its own chunk, not in the initial JS of
   `/`), at most 900 dashes (`PULSE_MAX_DASHES`), DPR capped at 2, about 30
   frames a second, one fill per colour bucket (16). The loop stops while the
-  tab is hidden (`visibilitychange`) or the canvas is off screen
-  (`IntersectionObserver`).
+  tab is hidden (`visibilitychange`). The canvas is `position: fixed;
+  inset: 0`, so it never leaves the viewport and the component's
+  IntersectionObserver never stops it there.
 - **Tests**: `csi-spl-wui/tests/unit/pulse-field.test.mjs` (the token reader
   against every theme block of `variables.css`, the caps, the ring) and
   `csi-spl-wui/tests/e2e/pulse-field.test.mjs`. The e2e checks that the

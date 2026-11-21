@@ -23,11 +23,13 @@ do_validate_params() {
     local param_def="${param_line#param=}"
     [[ -z "$param_def" ]] && continue
 
-    # Extract variable name (first word)
+    # Extract variable name (first word). read, not awk: this runs per
+    # @param on every ./run.
     local var_name _rest
     read -r var_name _rest <<<"$param_def"
 
-    # Check if marked as required
+    # Check if marked as required. Case-insensitive, same as grep -i,
+    # with no fork.
     if [[ "${param_def,,}" == *"(required)"* ]]; then
       # Check if the env var has a value
       local var_val="${!var_name:-}"

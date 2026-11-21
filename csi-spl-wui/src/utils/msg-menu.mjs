@@ -78,6 +78,14 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * (Archive keeps its place, t1 7a6be5a3; phone-card-menu.test.mjs proves the
  * sheet still fits whole).
  *
+ * SPL-6205 (owner HUM-10, t1 f798e9aa msg a1ca02fb: "an export-to-PDF option
+ * on the topics-level right-click menu ... after one opens the channel level
+ * on the topics level"): `topicPdf` (a topic card of a channel / lobby feed,
+ * never a card inside an open topic) adds Export topic to PDF right after
+ * the card's own Export to PDF on desktop; on the phone sheet, measured to
+ * fit whole, it takes that entry's place. It prints every post of the
+ * topic, first to last, read from the hub (utils/msg-print.ts).
+ *
  * Spec 182 row L3 (HUM-10, t1 f08c0c58 msg 19acb8f9): `loops` adds
  * Discussion loops… on a topic card, desktop only (the phone sheet's rows are
  * measured to fit, as for Export to PDF), right before Archive: it lists,
@@ -85,8 +93,8 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * Who may is the archive setting (answer 5 A), so a viewer it does not allow
  * sees it disabled with `locks.loops` as the reason.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, pdf?: boolean, loops?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string, loops?: string } }} [opts]
- * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'export-pdf' | 'topic-loops' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes' | 'file-text' | 'refresh', labelKey: string, disabled?: boolean, hintKey?: string }[]}
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, pdf?: boolean, topicPdf?: boolean, loops?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string, loops?: string } }} [opts]
+ * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'export-pdf' | 'export-topic-pdf' | 'topic-loops' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes' | 'file-text' | 'refresh', labelKey: string, disabled?: boolean, hintKey?: string }[]}
  */
 /** HUM-10 (topic c15b557e): the parent item's words per place */
 const PARENT_LABEL = { dm: 'feed.msg_menu.open_in_dm', channel: 'feed.msg_menu.open_in_channels' }
@@ -115,8 +123,12 @@ export function msgMenuItems(opts = {}) {
   if (o.hide) items.push({ id: 'hide-flow', icon: 'eye-off', labelKey: 'feed.msg_menu.hide_flow' })
   const note = () => { if (o.note) items.push({ id: 'add-to-note', icon: 'notes', labelKey: 'feed.msg_menu.add_to_note' }) }
   if (!touch) note()
-  const pdf = { id: 'export-pdf', icon: 'file-text', labelKey: 'feed.msg_menu.export_pdf' }
-  if (!touch && o.pdf) items.push(pdf)
+  /* the phone sheet is measured to fit whole (phone-card-menu.test.mjs): there the topic entry takes the card's slot */
+  const pdf = () => {
+    if (o.pdf && !(touch && o.topicPdf)) items.push({ id: 'export-pdf', icon: 'file-text', labelKey: 'feed.msg_menu.export_pdf' })
+    if (o.topicPdf) items.push({ id: 'export-topic-pdf', icon: 'file-text', labelKey: 'topic.export_pdf' })
+  }
+  if (!touch) pdf()
   gated(editable, edit, locks.edit)
   // CLE-77819: Archive and Delete are gated apart - a member the card is
   // addressed to may archive but not delete. `topic` stays the both-shorthand.
@@ -126,7 +138,7 @@ export function msgMenuItems(opts = {}) {
   if (touch) {
     archive()
     note()
-    if (o.pdf) items.push(pdf)
+    pdf()
   }
   if (touch && o.kind) items.push({ id: 'kind', icon: 'tag', labelKey: 'feed.msg_menu.kind' })
   if (o.toTask) items.push({ id: 'make-task', icon: 'tag', labelKey: 'feed.msg_menu.make_task' })

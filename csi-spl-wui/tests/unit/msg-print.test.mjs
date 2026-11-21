@@ -6,7 +6,13 @@
 //
 // Red controls (each seen RED, then reverted):
 //   - msgMenuItems without the `pdf` push: "the desktop menu offers Export to PDF" fails
-//   - rowsInShownOrder returning every row: "only the cards shown" fails
+//   - SPL-6205, on origin/master 662d8559d: the 13 tests of the two SPL-6205
+//     suites fail (no whole-topic read, no menu entry; the header button
+//     printed only the cards the pane showed). Planted on this tree:
+//     topicExportRows printing the held rows only (the pane's opener + 30):
+//     "a topic of 45 posts prints all 45" fails, 31 of 45; readWholeTopic
+//     with max = 1: "a topic longer than one hub page" fails; no page cap:
+//     "a hub that never ends its pages" never settles (timeout 20 -> 124)
 //   - a static `import ... from '~/utils/msg-print-run'` in MessageCard.vue:
 //     "the print code loads on the click only" fails
 //   - printImageSrcs awaiting `load(f)` with no timer (R7 W3): "a download
@@ -14,7 +20,7 @@
 // Run: node --test tests/unit/msg-print.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { msgMenuItems } from '../../src/utils/msg-menu.mjs'
@@ -22,7 +28,7 @@ import { importTs } from './lib/load-ts.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
-const { PRINT_SLUG_MAX, printFileKey, printFileName, printImageSrcs, printSlug, rowsInShownOrder } = await importTs('src/utils/msg-print.ts')
+const { PRINT_SLUG_MAX, printFileKey, printFileName, printImageSrcs, printSlug, readWholeTopic, topicExportRows, topicPrintRows, TOPIC_EXPORT_PAGE, TOPIC_EXPORT_PAGES_MAX } = await importTs('src/utils/msg-print.ts')
 
 describe('Export to PDF: the file name', () => {
   it('slugs the topic title: lower case, one dash per gap, no dash at the ends', () => {
@@ -47,20 +53,6 @@ describe('Export to PDF: the file name', () => {
 })
 
 describe('Export to PDF: which cards a topic prints', () => {
-  const rows = [
-    { msg_id: 'a', body: 'root' },
-    { msg_id: 'b', body: 'one' },
-    { msg_id: 'c', body: 'two' },
-    { msg_id: 'd', body: 'not shown (a search hides it)' },
-  ]
-  it('only the cards shown, in the order shown', () => {
-    assert.deepEqual(rowsInShownOrder(['c', 'a', 'b'], rows).map((m) => m.msg_id), ['c', 'a', 'b'])
-  })
-  it('an id twice prints once; an id with no message, or an empty one, prints nothing', () => {
-    assert.deepEqual(rowsInShownOrder(['a', 'a', 'zz', '', 'b'], [...rows, null, { body: 'no id' }]).map((m) => m.msg_id), ['a', 'b'])
-    assert.deepEqual(rowsInShownOrder(null, rows), [])
-    assert.deepEqual(rowsInShownOrder(['a'], null), [])
-  })
   it('a picture is keyed by its file id, else sha256, path, name', () => {
     assert.equal(printFileKey({ file_id: 'f1', sha256: 's', name: 'n.png' }), 'f1')
     assert.equal(printFileKey({ sha256: 's', name: 'n.png' }), 's')
@@ -100,16 +92,120 @@ describe('Export to PDF: the card menu entry', () => {
   })
 })
 
-describe('Export to PDF: the topic entry', () => {
-  it('both topic panes mount the lazy header button with the pane title and rows', () => {
+describe('Export topic to PDF: the topic card menu entry of a channel feed (SPL-6205)', () => {
+  const topicItem = { id: 'export-topic-pdf', icon: 'file-text', labelKey: 'topic.export_pdf' }
+  it('`topicPdf` adds Export topic to PDF right after the card\'s Export to PDF on desktop, in its place on the phone sheet; Archive and Delete keep their places', () => {
+    const desk = msgMenuItems({ pdf: true, topicPdf: true, note: true, topic: true }).map((i) => i.id)
+    assert.deepEqual(desk.slice(0, 5), ['open', 'copy', 'add-to-note', 'export-pdf', 'export-topic-pdf'], desk.join())
+    assert.deepEqual(desk.slice(-2), ['archive', 'delete-topic'])
+    const phone = msgMenuItems({ pdf: true, topicPdf: true, touch: true, note: true, editable: true, topic: true }).map((i) => i.id)
+    assert.deepEqual(phone.slice(0, 9), ['reply', 'react', 'open', 'copy-text', 'copy', 'edit', 'archive', 'add-to-note', 'export-topic-pdf'], phone.join())
+    assert.ok(!phone.includes('export-pdf'), 'the sheet keeps its height (phone-card-menu.test.mjs)')
+    assert.ok(!msgMenuItems({ pdf: true }).some((i) => i.id === 'export-topic-pdf'), 'not without topicPdf')
+    assert.deepEqual(msgMenuItems({ topicPdf: true }).find((i) => i.id === 'export-topic-pdf'), topicItem, 'the existing key, no new text')
+  })
+  it('MessageMenu passes `topicPdf` through and emits export-topic-pdf', () => {
+    const menu = src('src/components/MessageMenu.vue')
+    assert.match(menu, /topicPdf: props\.topicPdf,/)
+    assert.match(menu, /else if \(id === 'export-topic-pdf'\) emit\('export-topic-pdf'\)/)
+  })
+  it('the card asks for it only as a topic card outside an open topic, and handles it', () => {
+    const card = src('src/components/MessageCard.vue')
+    assert.match(card, /const topicPdf = computed\(\(\) => Boolean\(props\.topicMenu\) && !inPane\.value && Boolean\(props\.msg\.task_id\)\)/)
+    assert.match(card, /:topic-pdf="topicPdf"/)
+    assert.match(card, /@export-topic-pdf="onExportTopicPdf"/)
+  })
+  it('the action reads the whole topic, first to last, and loads msg-print and the print run on the click only', () => {
+    const act = src('src/composables/useCardMenuActions.ts')
+    assert.match(act, /await topicExportRows<SpoolMessage>\(\{ taskId: String\(props\.msg\.task_id \|\| ''\), held: \[props\.msg\], getTopic, newestLast: true, isHidden: \(id\) => hidden\.has\(id\) \}\)/)
+    assert.match(act, /api\.getTopic\(id, o\)/)
+    assert.match(act, /await import\('~\/utils\/msg-print'\)/)
+    assert.doesNotMatch(act, /^import .*'~\/utils\/msg-print(-run)?'/m, 'no static import of the print code')
+  })
+  it('the topic header button is gone: no export inside an open topic but a post\'s own', () => {
+    assert.ok(!existsSync(join(WUI, 'src/components/TopicExportPdf.vue')))
     for (const f of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {
-      assert.match(src(f), /<span class="pdf-slot"><LazyTopicExportPdf :title="titleText \|\| t\('topic\.title'\)" :rows="exportRows" \/><\/span>/, f)
+      assert.doesNotMatch(src(f), /TopicExportPdf|pdf-slot|exportRows/, f)
     }
   })
-  it('the button is a labelled <button>, so Tab reaches it and Enter or Space runs it', () => {
-    const btn = src('src/components/TopicExportPdf.vue')
-    assert.match(btn, /<button[\s\S]*?type="button"[\s\S]*?:aria-label="t\('topic\.export_pdf'\)"/)
-    assert.match(btn, /rowsInShownOrder<SpoolMessage>\(shownIds\(\)/)
+})
+
+/* SPL-6205: a hub topic of n synthetic posts, read as GET /v1/view/topics/{id}
+   answers it: order=desc, at most `limit` rows (the hub caps it at 200),
+   `next` = the cursor of the page's oldest row while older rows remain */
+function mockHub(n, task = 'task-1') {
+  const all = Array.from({ length: n }, (_, i) => ({
+    msg_id: `m-${String(i).padStart(4, '0')}`,
+    task_id: task,
+    ts: new Date(Date.UTC(2026, 10, 21, 0, 0, i)).toISOString(),
+    body: `post ${i}`,
+  }))
+  const desc = all.slice().reverse()
+  const calls = []
+  const getTopic = async (id, o = {}) => {
+    calls.push({ id, ...o })
+    if (id !== task) return { messages: [], next: null }
+    const limit = Math.min(Number(o.limit) || 50, 200)
+    const from = o.before ? desc.findIndex((m) => m.msg_id === o.before) + 1 : 0
+    const page = desc.slice(from, from + limit)
+    return { messages: page, next: from + limit < desc.length ? page.at(-1).msg_id : null }
+  }
+  return { all, desc, calls, getTopic }
+}
+/* what the pane holds after an open: the opener + the newest WINDOW (30) */
+const paneHeld = (hub) => [hub.all[0], ...hub.desc.slice(0, 30)]
+
+describe('Export topic to PDF: every post of the topic (SPL-6205)', () => {
+  it('a topic of 45 posts prints all 45, not the 31 the pane holds', async () => {
+    const hub = mockHub(45)
+    const rows = await topicExportRows({ taskId: 'task-1', held: paneHeld(hub), getTopic: hub.getTopic })
+    assert.equal(paneHeld(hub).length, 31, 'the pane holds 31')
+    assert.equal(rows.length, 45)
+    assert.deepEqual(rows.map((m) => m.msg_id), hub.desc.map((m) => m.msg_id), 'newest first by default')
+  })
+  it('a topic longer than one hub page: every page, read with before=<next>, until no next', async () => {
+    const hub = mockHub(450)
+    const rows = await topicExportRows({ taskId: 'task-1', held: paneHeld(hub), getTopic: hub.getTopic })
+    assert.equal(rows.length, 450)
+    assert.equal(hub.calls.length, 3, '200 + 200 + 50')
+    assert.deepEqual(hub.calls.map((c) => [c.order, c.limit]), Array(3).fill(['desc', TOPIC_EXPORT_PAGE]))
+    assert.equal(hub.calls[0].before, undefined)
+    assert.equal(hub.calls[1].before, hub.desc[199].msg_id)
+  })
+  it('first to last with newestLast (the menu entry)', async () => {
+    const hub = mockHub(40)
+    const rows = await topicExportRows({ taskId: 'task-1', held: [], getTopic: hub.getTopic, newestLast: true })
+    assert.deepEqual(rows.map((m) => m.msg_id), hub.all.map((m) => m.msg_id))
+  })
+  it('a card hidden on this device stays out, as in the pane', async () => {
+    const hub = mockHub(40)
+    const gone = new Set([hub.all[3].msg_id, hub.all[35].msg_id])
+    const rows = await topicExportRows({ taskId: 'task-1', held: paneHeld(hub), getTopic: hub.getTopic, isHidden: (id) => gone.has(id) })
+    assert.equal(rows.length, 38)
+    assert.ok(rows.every((m) => !gone.has(m.msg_id)))
+  })
+  it('a held row the hub read does not return (a #lobby root, a pending send) still prints, once', async () => {
+    const hub = mockHub(35)
+    const root = { msg_id: 'root-x', ts: '2026-11-20T00:00:00.000Z', body: 'the clicked message' }
+    const rows = await topicExportRows({ taskId: 'task-1', held: [root, root, null, ...paneHeld(hub)], getTopic: hub.getTopic })
+    assert.equal(rows.length, 36)
+    assert.equal(rows.at(-1).msg_id, 'root-x', 'oldest, so last when newest first')
+  })
+  it('the pane\'s copy of a row wins (an edit shown on screen)', () => {
+    const rows = topicPrintRows([{ msg_id: 'a', ts: '1', body: 'edited' }], [{ msg_id: 'a', ts: '1', body: 'old' }])
+    assert.deepEqual(rows.map((m) => m.body), ['edited'])
+  })
+  it('no topic id: the held rows alone, no read', async () => {
+    const hub = mockHub(5)
+    const rows = await topicExportRows({ taskId: '', held: hub.all, getTopic: hub.getTopic })
+    assert.equal(rows.length, 5)
+    assert.equal(hub.calls.length, 0)
+  })
+  it('a hub that never ends its pages: at most TOPIC_EXPORT_PAGES_MAX reads', async () => {
+    let n = 0
+    const rows = await readWholeTopic(async () => ({ messages: [{ msg_id: `x${n}` }], next: `c${++n}` }))
+    assert.equal(n, TOPIC_EXPORT_PAGES_MAX)
+    assert.equal(rows.length, TOPIC_EXPORT_PAGES_MAX)
   })
 })
 
@@ -147,7 +243,7 @@ describe('Export to PDF: weight and print', () => {
       && /^\s*import\s[^(]*from\s+['"](~\/utils\/msg-print-run|~\/components\/MessagePrint\.vue)['"]/m.test(src(f)))
     assert.deepEqual(offenders, [])
     const lazy = walk('src').filter((f) => /import\('~\/utils\/msg-print-run'\)/.test(src(f)))
-    assert.deepEqual(lazy.sort(), ['src/components/TopicExportPdf.vue', 'src/composables/useCardMenuActions.ts'])
+    assert.deepEqual(lazy.sort(), ['src/composables/useCardMenuActions.ts'])
   })
   it('while printing only the print block shows; on screen it never does', () => {
     const print = src('src/components/MessagePrint.vue')

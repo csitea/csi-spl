@@ -8,11 +8,13 @@
 // inside the call, then page.pdf (print media, as Save as PDF) is taken.
 //
 // Cases:
-//   card   the card's ⋯ sheet lists Export to PDF; a tap on it prints once,
-//          on a render that holds exactly that card, and the render is still
-//          there for the print after afterprint fired
-//   topic  a tap on the topic header's Export topic to PDF prints the cards
-//          the pane shows, in order; the render outlives the early
+//   card   a reply's ⋯ sheet in the open topic lists Export to PDF (and not
+//          the topic one); a tap on it prints once, on a render that holds
+//          exactly that reply, and the render is still there for the print
+//          after afterprint fired
+//   topic  (SPL-6205) a tap on Export topic to PDF in the topic card's sheet
+//          (channel view) prints every post of the topic, first to last;
+//          the render outlives the early
 //          afterprint and page.pdf is taken with it; the next touch on the
 //          page removes it
 //
@@ -103,20 +105,26 @@ const printed = (p) => p.evaluate(() => {
 
 const cardSel = (id) => `.spool-main article.msg[data-msg-id="${id}"]`
 
+/* SPL-6205: on the phone a channel topic card's sheet offers the topic export
+   in the card export's place, so the one-card export is a reply's, in the open topic */
+const replySel = (id) => `[data-test=topic-root] article.msg[data-msg-id="${id}"]`
+
 async function cardCase(p, ids) {
-  await p.waitForSelector(cardSel(ids.a.msg_id), { timeout: 10000 })
-  await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-menu-btn]`)?.click(), cardSel(ids.a.msg_id))
+  await p.evaluate((task) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('topic').openTopic(task), ids.a.task_id)
+  await p.waitForSelector(replySel(ids.r.msg_id), { timeout: 10000 })
+  await sleep(600) /* the pane's slide-in */
+  await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-menu-btn]`)?.click(), replySel(ids.r.msg_id))
   const opened = await until(p, () => document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]').length > 0)
   await sleep(400) /* the sheet's slide-up */
   const items = await p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
-  ok('card: the phone sheet lists Export to PDF', opened && items.includes('msg-menu-export-pdf'), items)
+  ok('card: the phone sheet lists Export to PDF (not the topic one, inside the topic)', opened && items.includes('msg-menu-export-pdf') && !items.includes('msg-menu-export-topic-pdf'), items)
   await p.evaluate(() => { window.__printCalls = 0; window.__printSaw = null })
   const tapped = await tap(p, '[data-testid=msg-menu-export-pdf]')
   ok('card: a finger reaches it', tapped)
   await until(p, () => window.__printCalls > 0, undefined, 20000)
   const got = await printed(p)
-  ok('card: print runs once, on exactly that card', got.calls === 1 && JSON.stringify(got.seen) === JSON.stringify([ids.a.msg_id]), got)
-  ok('card: the render outlives an early afterprint', JSON.stringify(got.now) === JSON.stringify([ids.a.msg_id]) && got.printing, got)
+  ok('card: print runs once, on exactly that card', got.calls === 1 && JSON.stringify(got.seen) === JSON.stringify([ids.r.msg_id]), got)
+  ok('card: the render outlives an early afterprint', JSON.stringify(got.now) === JSON.stringify([ids.r.msg_id]) && got.printing, got)
 }
 
 async function topicCase(p, ids) {
@@ -127,16 +135,19 @@ async function topicCase(p, ids) {
     await until(p, () => !document.querySelector('[data-testid=msg-menu]'))
     await sleep(600) /* the overlay's Back settles before the topic opens */
   }
-  await p.evaluate((task) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('topic').openTopic(task), ids.a.task_id)
-  const shown = await until(p, (id) => Boolean(document.querySelector(`[data-test=topic-root] article.msg[data-msg-id="${id}"]`)), ids.r.msg_id)
-  await until(p, () => Boolean(document.querySelector('[data-test=topic-export-pdf]')))
-  const want = await p.evaluate(() => [...document.querySelectorAll('[data-test=topic-root] article.msg[data-msg-id]')].map((e) => e.getAttribute('data-msg-id')))
+  /* SPL-6205 (owner t1 f798e9aa msg a1ca02fb): the topic card's sheet in the channel, no header button */
+  await p.waitForSelector(cardSel(ids.a.msg_id), { timeout: 10000 })
+  await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-menu-btn]`)?.click(), cardSel(ids.a.msg_id))
+  const opened = await until(p, () => document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]').length > 0)
+  await sleep(400) /* the sheet's slide-up */
+  const items = await p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
+  const want = [ids.a.msg_id, ids.r.msg_id]
   await p.evaluate(() => { window.__printCalls = 0; window.__printSaw = null })
-  const tapped = await tap(p, '[data-test=topic-export-pdf]')
-  ok('topic: the pane shows the reply and a finger reaches Export topic to PDF', shown && tapped)
+  const tapped = await tap(p, '[data-testid=msg-menu-export-topic-pdf]')
+  ok('topic: the topic card\'s sheet lists Export topic to PDF and a finger reaches it', opened && items.includes('msg-menu-export-topic-pdf') && tapped, items)
   await until(p, () => window.__printCalls > 0, undefined, 20000)
   const got = await printed(p)
-  ok('topic: print runs once, on the cards shown, in order', got.calls === 1 && want.length >= 2 && JSON.stringify(got.seen) === JSON.stringify(want), { want, got })
+  ok('topic: print runs once, on every post of the topic, first to last', got.calls === 1 && JSON.stringify(got.seen) === JSON.stringify(want), { want, got })
   ok('topic: the render outlives an early afterprint', JSON.stringify(got.now) === JSON.stringify(want) && got.printing, got)
   const pdf = Buffer.from(await p.pdf({ format: 'A4', printBackground: true }))
   ok('topic: page.pdf is written with the render in place', pdf.length > 0 && await p.evaluate(() => Boolean(document.querySelector('[data-test=msg-print-host][data-ready=true]'))))
@@ -168,8 +179,8 @@ try {
   await sleep(600)
   const tag = Math.random().toString(36).slice(2, 8)
   const ids = await seed(p, tag)
-  await cardCase(p, ids)
   await topicCase(p, ids)
+  await cardCase(p, ids)
   ok('no page error', errors.length === 0, errors)
 } catch (e) {
   console.error(e)

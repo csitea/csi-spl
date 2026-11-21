@@ -299,7 +299,7 @@ opening it.
   msg ba033650 ("the label for the human should be written in his first name, last name
   and not id"). Check: `node --test tests/unit/calendar-owner-name.test.mjs`,
   `tests/e2e/calendar-owner-name.test.mjs`.
-- **FR-020** — Implemented (SPL-5888): Export to PDF, of one message card or of a
+- **FR-020** — Implemented (SPL-5888, SPL-6205): Export to PDF, of one message card or of a
   whole topic. Owner HUM-10, t1 topic 703f2ce5, msg 922da756 ("add the export to pdf
   entry in the right click menu of each msg card, which will export only the msg card
   content into pdf (including the pics in it) add also the export to pdf for a whole
@@ -308,14 +308,23 @@ opening it.
      (and Add to note), before Edit, on every card of the desktop menu. The phone's
      long-press sheet lists it right after Add to note, Archive keeping its place
      (SPL-6110, owner msg 4460aad7: "On mobile, at least, doesn't work"; the sheet
-     still fits whole, t1 7a6be5a3). The topic header (row 1, after the title; SPL-5959: on row 2 it
-     narrowed the phone's priority bar, SPL-5349 option A) has
-     "Export topic to PDF", in both topic panes. Both are reached by keyboard: the
-     arrow keys in the menu, Tab to the header button, then Enter.
+     still fits whole, t1 7a6be5a3). A topic card of a channel or lobby feed also lists
+     "Export topic to PDF" right after it, desktop menu and phone sheet (SPL-6205, owner
+     HUM-10, t1 f798e9aa msg a1ca02fb: "an export-to-PDF option on the topics-level
+     right-click menu ... There should not be a button"); a card inside an open topic
+     does not, and the topic panes have no export button (it was in the header,
+     SPL-5888 to SPL-6205). Both entries are reached by keyboard: the arrow keys in the
+     menu, then Enter.
   2. **What goes in.** Card: the author, the time sent, the kind, the body rendered as
      on the card (MessageBody, markdown included) and each picture attached to it at
      the page's full width; any other file is listed by name. Topic: the topic's title,
-     then every card the pane shows, in the order shown, each laid out as one card.
+     then every post of the topic, first to last, each laid out as one card. Every
+     post, not only those a pane has loaded (SPL-6205, owner msg 90afbbfd: "It should
+     export all of the messages"): on the click the WUI reads the whole topic from the
+     hub with the pane's own paging (`order=desc`, `before=<next>`, 200 rows a page,
+     until no `next`, at most 50 pages), adds the card itself, and leaves out the
+     cards hidden on this device; loop prompt rows never come (the hub's topic read
+     leaves them out).
      A card prints whole, whatever the card clip mode or the search hides of its body.
   3. **What stays out.** Menus, buttons, the reactions bar, the composer, side panels,
      every other card.
@@ -338,9 +347,9 @@ opening it.
      page is laid out for print, which removed the render first; there the render
      stays until the next touch or key on the page, or the next export. A second export started while one still waits replaces it: one render,
      one print. The A4 page and its margins are a named `@page` used only by the
-     render, so a later print of the WUI keeps the browser's own page. The topic
-     button and its reserved slot are as tall as the header row's other controls, so
-     the header does not grow when the button mounts. Nothing of it is in the initial JS.
+     render, so a later print of the WUI keeps the browser's own page. Nothing of it
+     is in the initial JS: the whole-topic read (`utils/msg-print.ts`) loads on the
+     click too.
   6. **Every page.** A topic longer than one page prints on as many A4 pages as it
      needs (SPL-6023: it printed page 1 only). The screen holds `html` and `body` at
      the viewport's height with `overflow: hidden` (`assets/css/base.css`, and
@@ -348,7 +357,9 @@ opening it.
      carries `msg-printing` the print sheet sets both to `overflow: visible`,
      `height: auto`, `max-height: none`. The screen layout does not change.
   Check: `node --test tests/unit/msg-print.test.mjs`, `tests/e2e/msg-export-pdf.test.mjs`
-  (its long case: 41 cards print on more than one page, each card's link in the PDF).
+  (its long case: 41 posts, more than a pane first reads, all print from the channel
+  card menu on more than one page, each post's link in the PDF),
+  `tests/e2e/phone-export-pdf.test.mjs`.
 
 ## 3. Success criteria
 

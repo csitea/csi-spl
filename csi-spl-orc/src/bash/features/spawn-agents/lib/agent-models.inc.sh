@@ -129,10 +129,12 @@ spool_agent_models_report() {
   [[ "$SPOOL_BOX_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$ ]] || return 1
   body="$(_agent_models_clean | jq -Rn --arg cli "$cli" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{cli_version: $cli, models: [inputs], read_at: $at}')" || return 1
+  # The token goes through fd 3, never on curl's argv (/proc/<pid>/cmdline is
+  # world-readable), as set-mistral-key.func.sh does.
   code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time "${SPOOL_AGENT_MODELS_HUB_TIMEOUT:-10}" \
-    -X PUT -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer $SPOOL_AGENT_MODELS_HUB_TOKEN" -H "X-Spool-Tenant: $SPOOL_TENANT" \
-    --data-binary "$body" "${hub%/}/v1/boxes/$SPOOL_BOX_ID/agent-models/$vendor" 2>/dev/null)"
+    -X PUT -H 'Content-Type: application/json' -H @/dev/fd/3 -H "X-Spool-Tenant: $SPOOL_TENANT" \
+    --data-binary "$body" "${hub%/}/v1/boxes/$SPOOL_BOX_ID/agent-models/$vendor" \
+    3<<<"Authorization: Bearer $SPOOL_AGENT_MODELS_HUB_TOKEN" 2>/dev/null)"
   case "$code" in
     2??) return 0 ;;
     404 | 405) return 3 ;;

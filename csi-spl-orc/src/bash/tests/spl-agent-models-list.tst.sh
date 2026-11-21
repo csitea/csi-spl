@@ -177,9 +177,14 @@ hub() {  # code -> HUB_PID, HUB_URL
   wait_event 10 test -s "$T/hub.log.port" || { fail "6. stub hub did not start"; return 1; }
   HUB_URL="http://127.0.0.1:$(cat "$T/hub.log.port")"
 }
+# A curl first on PATH that logs its argv, then runs the real one: the token
+# must never be on it (/proc/<pid>/cmdline is world-readable).
+mkdir -p "$T/curlstub"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\nexec "%s" "$@"\n' "$T/curl-argv.log" "$(command -v curl)" >"$T/curlstub/curl"
+chmod +x "$T/curlstub/curl"
 rep() {  # vendor [ENV=...]...
   local v="$1"; shift
-  printf 'grok-4.7\nbad name\ngrok-4.6\n' | env -u SPOOL_HUB_URL -u SPOOL_AGENT_MODELS_HUB_TOKEN "$@" \
+  printf 'grok-4.7\nbad name\ngrok-4.6\n' | env -u SPOOL_HUB_URL -u SPOOL_AGENT_MODELS_HUB_TOKEN PATH="$T/curlstub:$PATH" "$@" \
     bash -c 'source "$1"; spool_agent_models_report "$2" 1.0.92' _ "$LIB" "$v"
   rc=$?
 }
@@ -195,11 +200,22 @@ if [[ $rc -eq 0 ]] && jq -e '.path == "/v1/boxes/box-a/agent-models/grok" and .a
     and (.body.read_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$"))' "$T/hub.log" >/dev/null; then
   pass "6. report: PUT /v1/boxes/{box}/agent-models/{vendor} with the 7.1.5 body"
 else fail "6. report: rc=$rc $(cat "$T/hub.log" 2>/dev/null)"; fi
+if [[ -s "$T/curl-argv.log" ]] && ! grep -q tok1 "$T/curl-argv.log"; then
+  pass "6. the token is never on curl's argv"
+else fail "6. the token is on curl's argv (or curl did not run): $(cat "$T/curl-argv.log" 2>/dev/null)"; fi
+for unset_var in SPOOL_BOX_ID SPOOL_TENANT; do
+  rm -f "$T/hub.log"
+  rep grok "${ON[@]/$unset_var=*/$unset_var=}"
+  [[ $rc -eq 3 && ! -s "$T/hub.log" ]] && pass "6. report off with $unset_var empty: exit 3, no call" || fail "6. $unset_var empty: rc=$rc"
+done
 hub 404; ON[0]="SPOOL_HUB_URL=$HUB_URL"
 rep grok "${ON[@]}"; [[ $rc -eq 3 ]] && pass "6. a hub without the route (404): off, exit 3" || fail "6. 404: rc=$rc"
+hub 405; ON[0]="SPOOL_HUB_URL=$HUB_URL"
+rep grok "${ON[@]}"; [[ $rc -eq 3 ]] && pass "6. a hub without the method (405): off, exit 3" || fail "6. 405: rc=$rc"
 hub 500; ON[0]="SPOOL_HUB_URL=$HUB_URL"
 rep grok "${ON[@]}"; [[ $rc -eq 1 ]] && pass "6. a hub error (500): exit 1" || fail "6. 500: rc=$rc"
-rep grok "${ON[@]/SPOOL_BOX_ID=box-a/SPOOL_BOX_ID=../x}"; [[ $rc -eq 1 ]] && pass "6. a bad box id is refused before any call" || fail "6. bad box: rc=$rc"
+rm -f "$T/hub.log"
+rep grok "${ON[@]/SPOOL_BOX_ID=box-a/SPOOL_BOX_ID=../x}"; [[ $rc -eq 1 && ! -s "$T/hub.log" ]] && pass "6. a bad box id is refused before any call" || fail "6. bad box: rc=$rc"
 
 echo
 [[ $fails -eq 0 ]] && { echo "ALL PASS"; exit 0; }

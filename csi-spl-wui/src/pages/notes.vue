@@ -269,9 +269,10 @@ function swallowHeldClick(e: MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
 }
-/* a long press is the drag on a phone, never the row menu (it has its button) */
+/* a long press is the drag on a phone, never the row menu (it has its button);
+   a wider touch screen keeps the long press menu */
 function onContextMenu(id: string, e: MouseEvent) {
-  if ((e as PointerEvent).pointerType === 'touch' || rowDrag.heldId.value) return
+  if (phone.value && ((e as PointerEvent).pointerType === 'touch' || rowDrag.heldId.value)) return
   openMenu(id, e.clientX, e.clientY)
 }
 

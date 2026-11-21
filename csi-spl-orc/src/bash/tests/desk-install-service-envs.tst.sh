@@ -17,6 +17,8 @@
 #   6. remove on dev leaves the prd line
 #   7. no self-updating checkout yet: the dry run plans a detached worktree;
 #      an explicit DESK_CRON_SRC gets no self-update prefix
+#   8. DESK_CRON_LOG_DIR unset: the log dir is spl_var_app_subdir's
+#      <SPL_VAR_APP_DIR>/desk-reconcile (check only: it writes nothing)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -119,6 +121,12 @@ out="$(svc ENV=dev DESK_CRON_EVERY=3 DESK_CRON_SRC="$C")"
 [[ "$out" == *"+*/3 * * * * ENV=dev"* ]] && pass "7. an explicit DESK_CRON_SRC gets no self-update prefix" || fail "7. explicit: $out"
 out="$(svc ENV=dev DESK_CRON_EVERY=3 DESK_CRON_SRC="$C" DESK_CRON_SELF_UPDATE=1)"
 [[ "$out" == *"+*/3 * * * * ${PRE}ENV=dev"* ]] && pass "7. ...unless DESK_CRON_SELF_UPDATE=1" || fail "7. forced: $out"
+
+# --- 8. the default log dir comes from spl_run_paths ----------------------------------------
+out="$(svc ENV=dev SPL_VAR_APP_DIR="$T/var" DESK_SERVICE_ACTION=check env -u DESK_CRON_LOG_DIR)"
+[[ "$out" == *"\"log_dir\": \"$T/var/desk-reconcile\""* ]] &&
+  pass "8. DESK_CRON_LOG_DIR unset: check reports <SPL_VAR_APP_DIR>/desk-reconcile" || fail "8. log_dir: $out"
+[[ ! -e "$T/var" ]] && pass "8. ...and check creates no dir" || fail "8. check created $T/var"
 
 echo "desk-install-service-envs: $fails failure(s)"
 [[ $fails -eq 0 ]]

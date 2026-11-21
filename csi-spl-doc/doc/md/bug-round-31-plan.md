@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-30-plan.md](bug-round-30-plan.md) (same shape, same 5 sources).
 
-**Status: v0.2, for the panel (section 8): v0.1 `a370b5786` plus the holder's `<box2>` halves (c-001@`<box2>` msg 977706b2). No row changed.**
+**Status: v0.3, for the panel's delta read (section 8). The panel passed v0.1 `a370b5786` with no W (m-642@sat, msg 6fc73e6c). v0.2 `78c13231e` added the `<box2>` halves; v0.3 adds the PASS and N4. No row changed.**
 
 Editor: **c-651@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
-Panel: the b31 mistral panel seat (ask `c002-bug-round-31-mistral-panel-seat`, m-642@sat's worktree is up): pending.
+Panel: m-642@sat (mistral, the b31 panel seat, ask `c002-bug-round-31-mistral-panel-seat`): **PASS** on v0.1 `a370b5786` (msg 6fc73e6c, seat file `e380f83fd` on `review/c002-bug-round-31-mistral-seat`), no W, N1-N4 (section 8).
 
 **One sha:** every count below is measured on **`325a47c76`** (`origin/master` at this seat's fetch of 04:13Z), on sat, between 03:58Z and 04:18Z on 2026-11-21, unless a row says otherwise. n=1 per command unless stated. The worktree sits on `325a47c76` itself. The red controls were first run on `4a1c86baa` (04:11Z), then re-run on `325a47c76`: `git diff --stat 4a1c86baa 325a47c76 -- csi-spl-orc` is empty.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b30-plan')` -> `Window: W=2026-11-21T04:35:42+01:00` (commit `0eb0ea462`, the b30 close record), the value the brief quotes.
@@ -204,7 +204,7 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 | **spec 181 B6 R7 c-502 N1-N4** (ban-list limits of `spl-customer-box-role-check.func.sh`) | `git log origin/master -E --grep='SPL-6122'` -> `3f33e9dab`, `91804ac3e`, `59d9adf7a` (B6 landed) | **Not this round's (R3)**: spec 181's checks (live lanes B1 c-292, B5 c-477), and a ban list cannot prove absence. For the spec 181 lanes, through the holder. |
 | **spec 181 B5 R7 c-507 N3-N5, N8; B10 R7 m-612 N1, N2, N4** | the candidates file | **Not this round's (R3)**: spec 181 notes (N8 is B8's, the provisioning action) and doc rows after the owner answers the `pricing_not_ready` poll. |
 | **`ws-docs-head.mjs` synthetic `el.click()`** (c-473 W1 on SPL-6115) | the candidates file | **Not a bug**: the test proves less than it says, but nothing a user sees is broken. A test-hardening input. |
-| **Served since round 22**: the kept weekly reading after a credential copy (b29-01 `ac367b7a5`), review-go's "found locally only" and its loop (b27-01 `656ab3389`, b28-02 `4c4e97f75`), the panel-seat UI swap and its slug forms (b27-02 `21abdb87e`, b29-02 `ae4898ae1`), the never-list author (b22-02 `3e46a758c`), the done-claim sha256 label (b23-02 `a6f5a723d`) and image tag (`f136d78da`), the CI-first rule (b30-01), the `/tmp` worktrees (b30-02), the `After:` box (b30-03), `unanswered-sweep.tst.sh` section 12 (`74bd535d8`) | `git log origin/master --format='%h %s' -E --grep=<key>` per item | **Served.** |
+| **Served since round 22**: the kept weekly reading after a credential copy (b29-01 `ac367b7a5`), review-go's "found locally only" and its loop (b27-01 `656ab3389`, b28-02 `4c4e97f75`), review-go's send to a retired author held once, not retried (b20-01 `2f634fbd4`, panel N4), the panel-seat UI swap and its slug forms (b27-02 `21abdb87e`, b29-02 `ae4898ae1`), the never-list author (b22-02 `3e46a758c`), the done-claim sha256 label (b23-02 `a6f5a723d`) and image tag (`f136d78da`), the CI-first rule (b30-01), the `/tmp` worktrees (b30-02), the `After:` box (b30-03), `unanswered-sweep.tst.sh` section 12 (`74bd535d8`) | `git log origin/master --format='%h %s' -E --grep=<key>` per item | **Served.** |
 | **b29-01 N2, N6; the topic loop cap race; Rows A and B of the reflection; the agent-boot-restore dir; SPL-6107 N1** | as round 30 section 5 | **Not bugs this round**, as round 30 reads them: a hardening input, untraced callers, not a bug (one `UPDATE ... WHERE`), detectors, a refactor and a usage text. |
 
 ---
@@ -241,7 +241,9 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 - **Row reviewer (R7):** rows 01 and 02: the claude waiver seat (1a7c70da), fresh session, tree only. `cd csi-spl-orc && sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub BOX_PICK_KIND=grok ./run -a do_spl_box_pick` (04:15Z) -> `pick=hold reason=waiting: grok weekly >= 95% on sat, <box2> [sat 99% billing read 45m ago; <box2> 99% billing read 1h45m ago]: queue the lane, spawn nothing`. No row has a mistral backup: both are a coding kind (`simple_coding`), and mistral takes no coding kind, as main or backup. An absent seat gets a replacement claude waiver seat (rulebook 2.7.3).
 - **Review history:**
   - 2026-11-21 04:24Z: the editor pushed v0.1 (`a370b5786`) to `review/c002-bug-round-31-planner` and reported to the holder (msg 6f2d517b). The holder checked the head and sent it to m-642@sat for the panel (msg d2604ba8).
-  - 2026-11-21 04:3xZ: v0.2, one commit on `a370b5786` (a fast-forward of the review branch). It folds in the `<box2>` halves: 14 lanes with 0 hits (c-146 in msg cfdfc6ed), b31 free on `<box2>`, c-533's body. It corrects the exit-4 list (14 lanes, with c-146) and records the 04:26Z re-run. This file is the only one it touches. No row changed.
+  - 2026-11-21 04:3xZ: m-642@sat **PASS** on v0.1 `a370b578614753c566e2f92deb642883a02770bb` (msg 6fc73e6c; seat file `e380f83fd`), no W. It re-ran rc01 and rc02 on `325a47c76` (n=3 each, exit 1, wrong=1 and wrong=2), read every cited line at `325a47c76`, checked the rc files' sha256, ran the lane map (exit 4, no row file owned), grepped the queue (0 hits in 19 briefs) and ran `do_spl_box_pick` (hold), `do_check_dist_hygiene` (clean) and `do_check_pre_push` (all parts PASSED). N1: the exit-4 lanes are on `<box2>`, and section 8 asks for them (answered in v0.2). N2: the queue moved from 22 to 19, with 0 hits at both reads. N3: `origin/master` moved `325a47c76` -> `986ddca84` (one docs commit, SPL-6086); `git diff --stat 325a47c76 986ddca84 -- csi-spl-orc csi-spl-doc/doc/md/done-claim-check.md` is empty, so no cited line drifted. N4: the retired-author no-retry is b20-01 `2f634fbd4` (bug-round-27-plan.md:167); section 5's served list now names it.
+  - 2026-11-21 04:3xZ: v0.2 `78c13231e`, one commit on `a370b5786` (a fast-forward of the review branch). It folds in the `<box2>` halves: 14 lanes with 0 hits (c-146 in msg cfdfc6ed), b31 free on `<box2>`, c-533's body. It corrects the exit-4 list (14 lanes, with c-146) and records the 04:26Z re-run. This file is the only one it touches. No row changed.
+  - 2026-11-21 04:4xZ: v0.3, one commit on `78c13231e` (a fast-forward of the review branch). It records the status, panel and consensus lines, the PASS with N1-N4, and b20-01 in section 5's served list (N4). This file is the only one it touches. No row changed.
 
 ---
 
@@ -249,5 +251,5 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-651@sat | v0.2 (`<box2>` halves folded) |
-| Panel | the b31 mistral panel seat (m-642@sat's worktree) | pending |
+| Editor | c-651@sat | v0.3 (`<box2>` halves, the PASS and N4 folded) |
+| Panel | m-642@sat (mistral) | **PASS** on v0.1 `a370b5786` (msg 6fc73e6c), no W; delta v0.1..v0.3 to read |

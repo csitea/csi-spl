@@ -43,8 +43,30 @@
 # selected: CI and the default mode still run the whole suite.
 # ORC_TEST_FILES (repo paths, space or newline separated) replaces the git
 # change set, e.g. to see what a past commit would have run.
+# THE OUTSIDE MAP (ext, SPL-6198): an orc test that reads a path outside
+# csi-spl-orc by a name no key carries (a terraform step dir, never a file
+# name) has a row "<test> <path prefix>...". A changed file under a prefix
+# selects the test. The pre-push gate selects its orc part for the same
+# prefixes (`changed-tests.sh --ext-paths` prints them, one per line), so an
+# iac-only push that changes step 030 runs tf-030-import-existing-cloud-run
+# (wf 10 red twice, ad950c0e8 and 4baf28e8f). The mirror of the iac part's
+# _PPX_MAP (csi-spl-iac/src/bash/run/check-pre-push-cross.func.sh).
+# The orc tests that read csi-spl-iac/src/terraform with no row:
+#   tf-plan-ref.tst.sh             a fixture repo of its own (step 070-x-test)
+#   check-fleet-rules-drift.tst.sh step names only; the pre-push hygiene part
+#                                  runs the drift check on the real tree on
+#                                  every push
 #------------------------------------------------------------------------------
 set -uo pipefail
+ext=(
+  "tf-030-import-existing-cloud-run.tst.sh csi-spl-iac/src/terraform/030-cloud-run-hub"
+  "check-hub-image-regress.tst.sh csi-spl-iac/src/terraform/030-cloud-run-hub/04-cloud-run-service.tf"
+  "tf-import-existing.tst.sh csi-spl-iac/src/terraform/040-cloud-sql-postgres"
+)
+if [[ "${1:-}" == --ext-paths ]]; then
+  for r in "${ext[@]}"; do read -r -a w <<<"$r"; printf '%s\n' "${w[@]:1}"; done | sort -u
+  exit 0
+fi
 dir=$(cd "$(dirname "$0")" && pwd)
 base_ref="${ORC_TEST_BASE:-origin/master}"
 always="${ORC_TEST_ALWAYS-require-cloud-env.tst.sh run-eager-files.tst.sh}"
@@ -114,6 +136,12 @@ while IFS= read -r f; do
   keys "$f" | sort -u >"$kf"
   hits=""
   [[ -s "$kf" ]] && hits=$(cd "$dir" && grep -lwF -f "$kf" -- *.tst.sh 2>/dev/null)
+  for r in "${ext[@]}"; do
+    read -r -a w <<<"$r"
+    for p in "${w[@]:1}"; do
+      [[ "$f" == "$p" || "$f" == "$p"/* ]] && [[ -f "$dir/${w[0]}" ]] && hits+="${hits:+$'\n'}${w[0]}"
+    done
+  done
   if [[ -n "$hits" ]]; then
     while IFS= read -r t; do add "$t" "names $f"; done <<<"$hits"
   elif [[ "$f" == *.md ]]; then

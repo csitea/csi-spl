@@ -74,7 +74,16 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   file or a function it defines, plus the always-run list
   (`run-all-tests.sh --changed`; the map is
   `csi-spl-orc/src/bash/tests/changed-tests.sh`, the list its
-  `ORC_TEST_ALWAYS`). A doc name that several tracked `.md` files share
+  `ORC_TEST_ALWAYS`). It is selected by `csi-spl-orc` and by the iac
+  paths an orc test reads by a name no key carries: the map's outside rows
+  (`ext`, printed by `changed-tests.sh --ext-paths`), today
+  `csi-spl-iac/src/terraform/030-cloud-run-hub` (`tf-030-import-existing-cloud-run.tst.sh`,
+  `check-hub-image-regress.tst.sh`) and
+  `csi-spl-iac/src/terraform/040-cloud-sql-postgres` (`tf-import-existing.tst.sh`).
+  Such a push runs the iac part too; another terraform step selects iac
+  alone. Before it (SPL-6198), a push changing only a step-030 file ran no
+  orc test and turned wf 10 red twice (ad950c0e8, 4baf28e8f).
+  A doc name that several tracked `.md` files share
   (`spec.md`, `README.md`, `tasks.md`) keys by its path, never its basename:
   its repo path and each trailing part down to `<parent dir>/<name>`, so a
   test that writes a fixture `spec.md` is not selected by every spec edit

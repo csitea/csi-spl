@@ -20,6 +20,9 @@
 #   12. (SPL-5607) a `full` orc plan (a touched orc file no test names): the
 #       fast tier still runs the always-run list and says so, a planted red in
 #       an always-run test fails the part, an empty list runs nothing
+#   8d. (SPL-6198, rc01) a step-030 terraform change selects the orc part
+#       too (part), the iac part still runs; CONTROL: an orc-only change
+#       selects orc (ctrl); a terraform step no orc test reads does not
 #   do_log and do_check_dist_hygiene are stubbed; PLAN mode returns before
 #   either would run, so the routing is all that is under test.
 #------------------------------------------------------------------------------
@@ -135,6 +138,31 @@ p="$(plan)"
 { has "$p" orc && ! has "$p" iac && ! has "$p" api && ! has "$p" wui; } \
   && pass "8c. FAST orc-only -> hygiene+orc" || fail "8c. FAST orc-only -> hygiene+orc" "$p"
 rm -f "$T/csi-spl-orc/src/bash/run/x.func.sh"
+
+# 8d. SPL-6198 (rc01 part/ctrl): the orc part is selected by the outside
+#     paths of the orc map (changed-tests.sh --ext-paths) of the pushed tree.
+#     Red before: a push changing only 030-cloud-run-hub/03-runtime-sa.tf
+#     (ad950c0e8) selected iac alone, and wf 10 went red on the orc test.
+mkdir -p "$T/csi-spl-orc/src/bash/tests"
+cp "$PROJ_ROOT/../csi-spl-orc/src/bash/tests/changed-tests.sh" "$T/csi-spl-orc/src/bash/tests/"
+git -C "$T" add -A; git -C "$T" commit -qm orc-map; git -C "$T" branch -f base
+git -C "$T" commit -q --allow-empty -m head
+mkdir -p "$T/csi-spl-iac/src/terraform/030-cloud-run-hub" "$T/csi-spl-iac/src/terraform/099-other"
+echo a >"$T/csi-spl-iac/src/terraform/030-cloud-run-hub/03-runtime-sa.tf"
+p="$(plan)"
+{ has "$p" orc && has "$p" iac && ! has "$p" api && ! has "$p" wui && ! has "$p" orc-features; } \
+  && pass "8d. part: a step-030 tf change -> orc + iac" || fail "8d. part: a step-030 tf change -> orc + iac" "$p"
+rm -rf "$T/csi-spl-iac/src/terraform/030-cloud-run-hub"
+echo a >"$T/csi-spl-iac/src/terraform/099-other/main.tf"
+p="$(plan)"
+{ has "$p" iac && ! has "$p" orc; } \
+  && pass "8d. CONTROL: a tf step no orc test reads -> iac, not orc" || fail "8d. a tf step no orc test reads -> iac, not orc" "$p"
+rm -rf "$T/csi-spl-iac/src/terraform"
+mkdir -p "$T/csi-spl-orc/src/bash/scripts"; echo a >"$T/csi-spl-orc/src/bash/scripts/tf-030-import-existing-cloud-run.sh"
+p="$(plan)"
+{ has "$p" orc && ! has "$p" iac; } \
+  && pass "8d. ctrl: an orc-only change -> orc" || fail "8d. ctrl: an orc-only change -> orc" "$p"
+rm -rf "$T/csi-spl-orc/src/bash/scripts"
 
 # 9. functional control: the payment-vendor gate (run on a WUI change) REFUSES a
 #    planted vendor word in a WUI file -- the "stripe" that FAST used to miss.

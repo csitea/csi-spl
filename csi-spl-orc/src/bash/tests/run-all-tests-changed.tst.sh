@@ -39,8 +39,16 @@
 #      change to c/d/spec.md selects dreader.tst.sh, which names only its
 #      trailing d/spec.md; CONTROL: a unique doc name (only-one.md) still
 #      selects onefix.tst.sh by its name
+#  14. (SPL-6198, rc01 test/ctrl) the outside map: a step-030 terraform file
+#      selects tf-030-import-existing-cloud-run.tst.sh, which names the step,
+#      never the file (red before: ignored, wf 10 red twice); CONTROL: a
+#      terraform step no row covers is still ignored; ctrl: the importer
+#      script (an orc file) selects the test by its name; --ext-paths lists
+#      the 030 step dir (the pre-push gate selects the orc part by it)
 #------------------------------------------------------------------------------
 set -uo pipefail
+# the map reads these: a caller's (the pre-push orc part, rc01) must not steer the cases
+unset ORC_TEST_FILES ORC_TEST_BASE ORC_TEST_ALWAYS ORC_TEST_JOBS 2>/dev/null || true
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 
@@ -173,6 +181,25 @@ p13=$(plan13 c/d/spec.md)
 p13=$(plan13 only-one.md)
 [ "$p13" = "$(printf 'run\tonefix.tst.sh\tnames only-one.md')" ] \
   && pass "13 CONTROL a unique doc name selects onefix.tst.sh" || fail "13 control unique" "$p13"
+g reset -q --hard master; g clean -qfd
+# 14
+mkdir -p "$O/src/bash/scripts"
+printf '#!/usr/bin/env bash\n# STEP=030-cloud-run-hub; reads the step dir, drives scripts/tf-030-import-existing-cloud-run.sh\n' >"$D/tf-030-import-existing-cloud-run.tst.sh"
+printf 'importer_030_fn() { :; }\n' >"$O/src/bash/scripts/tf-030-import-existing-cloud-run.sh"
+g add -A; g commit -qm 'the step-030 test and its importer'
+plan14() { (cd "$R" && ORC_TEST_BASE=master ORC_TEST_ALWAYS='' ORC_TEST_FILES="$1" bash "$D/changed-tests.sh"); }
+tf030=csi-spl-iac/src/terraform/030-cloud-run-hub/zz-rc01-fixture.tf
+p14=$(plan14 "$tf030")
+[ "$p14" = "$(printf 'run\ttf-030-import-existing-cloud-run.tst.sh\tnames %s' "$tf030")" ] \
+  && pass "14 test: a step-030 tf file selects tf-030-import-existing-cloud-run.tst.sh" || fail "14 test" "$p14"
+p14=$(plan14 csi-spl-iac/src/terraform/099-other/zz-rc01-other.tf)
+[ "$p14" = "$(printf 'ignore\tcsi-spl-iac/src/terraform/099-other/zz-rc01-other.tf\toutside csi-spl-orc, no orc test names it')" ] \
+  && pass "14 CONTROL a tf step no row covers is ignored" || fail "14 control other step" "$p14"
+p14=$(plan14 csi-spl-orc/src/bash/scripts/tf-030-import-existing-cloud-run.sh)
+[ "$p14" = "$(printf 'run\ttf-030-import-existing-cloud-run.tst.sh\tnames csi-spl-orc/src/bash/scripts/tf-030-import-existing-cloud-run.sh')" ] \
+  && pass "14 ctrl: the importer (orc) selects the test" || fail "14 ctrl" "$p14"
+grep -qx csi-spl-iac/src/terraform/030-cloud-run-hub <<<"$(bash "$D/changed-tests.sh" --ext-paths)" \
+  && pass "14 --ext-paths lists the step-030 dir" || fail "14 --ext-paths" "$(bash "$D/changed-tests.sh" --ext-paths)"
 g reset -q --hard master; g clean -qfd
 # 8
 printf 'do_foo() { echo foo4; }\n' >"$O/lib/bash/funcs/foo.func.sh"

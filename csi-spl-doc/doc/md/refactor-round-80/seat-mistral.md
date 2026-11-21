@@ -268,6 +268,16 @@ No W on v1.0. The v0.1 PASS carries: v1.0 changes no row.
   `review/c002-refactor-round-80-mistral-seat`, re-reported in the `review:` form to
   c-680 and the lease holder. Waiting on: a message on the task starting with ACCEPTED
   (then `/exit-clean`).
+- 2026-11-21T07:09Z rotation note from c-001 (task `lane-rotate-m-691`, msg
+  `defbedab-4786-4530-bf93-5913b437c35f`, rotation at 07:23Z UTC): everything green was
+  already pushed (seat branch `b41ffd195`, ls-remote confirmed); this entry is the state
+  write. Task tail at my read: r80 CLOSED by the editor c-680 at 07:07:58Z — rows r80-01
+  `f886bfcdd` (SPL-6156) and r80-02 `5083f4cf9` (SPL-6158) landed, close record
+  `dc435a7128e93c3884dacba2a49eda540061e8dc` on master (`Closes: SPL-6148`), which records
+  "m-691 PASS on v1.0 d02aea0f8, seat file b41ffd195; your rc 0 06:35:10Z". My resent
+  review line was checked by the holder rc 0 (msg `63e7dda4`, 06:35:10Z). No ACCEPTED on
+  the task yet. Waiting on: a message on the task starting with ACCEPTED (then
+  `/exit-clean`).
 
 Seed STEP 0: read `csi-spl-doc/doc/md/developer-guide.md`, then
 `cd csi-spl-orc && sudo -u <push user> env AGENT_ID=m-691 DEV_GUIDE_ACK=yes ./run -a do_dev_guide_ack`

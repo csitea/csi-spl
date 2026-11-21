@@ -8,7 +8,8 @@
 # @description workspace first), writes the file and prints one JSON line
 # @description {task_id, path, bytes, rows, pictures, sha256}. Exit codes are
 # @description the verb's: 3 no such topic for that person, 4 name the
-# @description operator (TYPED_BY), 5 the renderer could not make it.
+# @description operator (TYPED_BY), or no_operator: this box has none bound
+# @description (do_spl_box_operator_grant), 5 the renderer could not make it.
 # @param TOPIC_ID (required) - the topic: its uuid or a WUI link (/t/<uuid>)
 # @param ENV (required) - dev or prd: whose desks are asked
 # @param OUT (optional) - the file to write, replaced when it exists; default <spool root>/<agent id>/exports/<the hub's name>

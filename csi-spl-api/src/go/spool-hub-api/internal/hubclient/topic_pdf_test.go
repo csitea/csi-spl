@@ -94,7 +94,7 @@ func TestTopicPDFRefusals(t *testing.T) {
 		status int
 		token  string
 	}{
-		{404, "not_found"}, {400, "operator_ambiguous"}, {403, "typed_by_not_bound"},
+		{404, "not_found"}, {400, "operator_ambiguous"}, {403, "typed_by_not_bound"}, {403, "no_operator"},
 		{413, "too_large"}, {503, "render_unavailable"}, {504, "render_timeout"}, {401, ""},
 	} {
 		s, _ := pdfSession(t, refuse(c.status, c.token))

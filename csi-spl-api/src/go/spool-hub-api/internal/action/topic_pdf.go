@@ -34,7 +34,7 @@ const TopicPDFTimeout = 120 * time.Second
 // Exit codes of spool topic-pdf (spec 183 7.1.2); 1 is a usage error.
 const (
 	ExitTopicPDFNotFound = 3 // 404 not_found: no such topic, or not this operator's to read
-	ExitTopicPDFOperator = 4 // 400 operator_ambiguous or 403 typed_by_not_bound
+	ExitTopicPDFOperator = 4 // 400 operator_ambiguous, 403 typed_by_not_bound or 403 no_operator
 	ExitTopicPDFRender   = 5 // 413 too_large, 503 render_unavailable or 504 render_timeout
 )
 
@@ -71,7 +71,7 @@ func TopicPDFExitCode(err error) int {
 		switch {
 		case he.Token == "not_found" || he.Status == http.StatusNotFound:
 			return ExitTopicPDFNotFound
-		case he.Token == "operator_ambiguous" || he.Token == "typed_by_not_bound":
+		case he.Token == "operator_ambiguous" || he.Token == "typed_by_not_bound" || he.Token == "no_operator":
 			return ExitTopicPDFOperator
 		case he.Status == http.StatusRequestEntityTooLarge || he.Status == http.StatusServiceUnavailable ||
 			he.Status == http.StatusGatewayTimeout:
@@ -126,9 +126,10 @@ func TopicPDF(ctx context.Context, d Desks, in TopicPDFArgs) (TopicPDFResult, er
 
 // topicPDFFromDesks writes the PDF into f from the first desk that serves it;
 // f is emptied before each try. The error, when none does: a refusal other
-// than not_found at once; else an unreachable desk before a 404.
+// than not_found or no_operator at once; else an unreachable desk, then a
+// workspace where this box has no operator (a missing grant), then a 404.
 func topicPDFFromDesks(ctx context.Context, desks []desk, taskID, typedBy string, f *os.File) (hubclient.TopicPDFInfo, hash.Hash, error) {
-	var notFound, unreachable error
+	var notFound, noOperator, unreachable error
 	for _, k := range desks {
 		if err := truncate(f); err != nil {
 			return hubclient.TopicPDFInfo{}, nil, err
@@ -141,6 +142,8 @@ func topicPDFFromDesks(ctx context.Context, desks []desk, taskID, typedBy string
 			return info, h, nil
 		case errors.As(err, &he) && TopicPDFExitCode(err) == ExitTopicPDFNotFound:
 			notFound = err
+		case errors.As(err, &he) && he.Token == "no_operator":
+			noOperator = fmt.Errorf("desk %s in %s: %w", k.cfg.BoxID, k.tenant, err)
 		case errors.Is(err, hubclient.ErrUnreachable) && ctx.Err() == nil:
 			unreachable = fmt.Errorf("desk %s in %s: %w", k.cfg.BoxID, k.tenant, err)
 		default:
@@ -149,6 +152,9 @@ func topicPDFFromDesks(ctx context.Context, desks []desk, taskID, typedBy string
 	}
 	if unreachable != nil {
 		return hubclient.TopicPDFInfo{}, nil, unreachable
+	}
+	if noOperator != nil {
+		return hubclient.TopicPDFInfo{}, nil, noOperator
 	}
 	return hubclient.TopicPDFInfo{}, nil, notFound
 }

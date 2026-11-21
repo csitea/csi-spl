@@ -20,7 +20,9 @@
 #     6. the Author line / phrase forms; a local author goes out as its bare id;
 #        RED CONTROL (b22-02) a brief with a line-start `Author: <id>` line
 #        reads only those lines: an id after "author" in its "never" list is
-#        not told
+#        not told; RED CONTROL (b31-01) a bare `Author: c-140` whose brief
+#        writes `c-140@boxb` elsewhere goes to c-140@boxb, not to this box's
+#        retired c-140; two boxes named, or none, leave it bare (skipped)
 #     7. the dry run plans, sends nothing, logs nothing
 #     8. the dispatcher defaults to the dispatch lease holder
 #     9. a failed send is logged send-failed and exits 1; the others are sent
@@ -163,6 +165,29 @@ run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=c-500@boxa; rc=$?
 (( rc == 0 )) && sent_to c-947 && ! sent_to c-944 && [[ "$(sends)" == 1 ]] &&
   pass "6. b22-02 RED CONTROL 'Author: c-947@boxa' line: c-947 told; c-944, named only in the 'never' list, is not (1 note)" ||
   fail "6. b22-02 rc=$rc: c-944, named only in the 'never' list, is told: $(sends) note(s): $(grep -o -- '--to [^ ]*' "$T/s/sends.log" | paste -sd' ')"
+# b31-01 RED CONTROL: a bare `Author: <id>` takes the one box the brief
+# writes the id with; this box's retired c-140 does not judge it
+reset; b="$(brief c002-b31-far-reviewer "# R7 reviewer seat
+Author: c-140
+Branch \`review/b99-01\`, head abc. Report on task dispatch-bug-r99.
+Author lane: c-140@boxb (claude), started from c-140@boxb's brief.")"
+run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=c-500@boxb; rc=$?
+(( rc == 0 )) && sent_to c-140@boxb && [[ "$(sends)" == 1 ]] && ! grep -q 'SKIP: author c-140' "$T/out" &&
+  grep -q 'action=sent actor=c-001 brief=c002-b31-far-reviewer to=c-140@boxb send_rc=0$' "$T/s/dispatch/automation.log" &&
+  pass "6. b31-01 RED CONTROL 'Author: c-140' + 'c-140@boxb' elsewhere: told c-140@boxb, not skipped as this box's retired c-140" ||
+  fail "6. b31-01 far rc=$rc: $(cat "$T/out" "$T/s/sends.log")"
+reset; b="$(brief c002-b31-two-reviewer "Author: c-140
+Earlier c-140@boxb, now c-140@boxc.")"
+run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=c-500@boxb; rc=$?
+(( rc == 0 )) && [[ "$(sends)" == 0 ]] && grep -q 'SKIP: author c-140 already retired' "$T/out" &&
+  pass "6. b31-01 two boxes named for c-140: no guess, it stays bare and this box's retired c-140 skips it" ||
+  fail "6. b31-01 two boxes rc=$rc: $(cat "$T/out" "$T/s/sends.log")"
+reset; b="$(brief c002-b31-here-reviewer "Author: c-168
+The same lane, c-168@boxa, and xc-168@boxc is another word.")"
+run REVIEW_NOTIFY_BRIEF="$b" REVIEW_NOTIFY_REVIEWER=c-500@boxb; rc=$?
+(( rc == 0 )) && [[ "$(sends)" == 1 ]] && grep -qE -- '--to c-168 ' "$T/s/sends.log" &&
+  pass "6. b31-01 'Author: c-168' + 'c-168@boxa' (this box): told bare as today; 'xc-168@boxc' is not a mention" ||
+  fail "6. b31-01 here rc=$rc: $(cat "$T/out" "$T/s/sends.log")"
 
 # 7. the dry run
 reset; b="$(brief c002-good-reviewer "$GOOD")"

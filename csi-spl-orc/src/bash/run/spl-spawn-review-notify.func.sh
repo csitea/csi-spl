@@ -18,8 +18,14 @@
 # @description      told). The cell form is read either way.
 # @description      Role seats (spl_is_role_seat) and the reviewer itself are
 # @description      left out; an id named twice is notified once.
-# @description   2. routes each author to the box its cell names (`@sat`),
-# @description      else this box. An author on this box with no live row in
+# @description   2. routes each author to the box its cell names (`@sat`).
+# @description      A bare id from an author line or phrase takes the box the
+# @description      brief writes it with elsewhere (`Author: c-442` and
+# @description      `c-442@sat` on another line: sat), when every such
+# @description      mention names one box (b31-01: ids are reused across
+# @description      boxes, so a retired local c-442 skipped the live one on
+# @description      sat). Else, and for a bare cell, this box. An author on
+# @description      this box with no live row in
 # @description      $SPOOL_ROOT/registry.tsv and no spool dir is skipped:
 # @description      `SKIP: author <id> already retired` when
 # @description      registry.retired.tsv names it, else `SKIP: author <id>
@@ -110,7 +116,9 @@ spl_review_notify_branch() {  # BRIEF
 # first: an id alone in a table cell (decorated `| a-213@sat (agy) |`) or after
 # "author" (`Author: c-372@boxa`, `(author c-418, ...)`). A brief with a
 # line-start `Author: <id>` line is read on those lines only, not the phrase
-# (b22-02). Role seats and SELF (the reviewer's bare id) are left out.
+# (b22-02). A bare id after "author" takes its box from the brief
+# (spl_review_notify_named_box, b31-01). Role seats and SELF (the reviewer's
+# bare id) are left out.
 spl_review_notify_authors() {  # BRIEF SELF
   # the id letters from their one home, SPOOL_AGENT_ID_NEW_RX (SPL-5470: o- was missing)
   local l="${SPOOL_AGENT_ID_NEW_RX%%-*}"
@@ -125,8 +133,18 @@ spl_review_notify_authors() {  # BRIEF SELF
     [[ "$id" == "$2" || "$seen" == *" $id "* ]] && continue
     spl_is_role_seat "$id" && continue
     seen+="$id "
+    [[ -n "$box" || "$hit" == \|* ]] || box="$(spl_review_notify_named_box "$1" "$id")"
     printf '%s\t%s\n' "$id" "$box"
   done < <({ grep -E '^[[:space:]]*\|' "$1" | grep -oE "$cell"; grep -oE "$phrase" "$1"; } 2>/dev/null)
+}
+
+# The one box BRIEF writes ID with (`c-442@sat`, anywhere in it), else
+# nothing: no such mention, or two different boxes named.
+spl_review_notify_named_box() {  # BRIEF ID
+  local boxes
+  boxes="$(grep -oE "(^|[^A-Za-z0-9-])$2@[A-Za-z0-9._-]*[A-Za-z0-9]" "$1" 2>/dev/null | sed 's/.*@//' | sort -u)"
+  [[ -n "$boxes" && "$boxes" != *$'\n'* ]] && echo "$boxes"
+  return 0
 }
 
 # On this box: "live" when registry.tsv has a row for ID (its 6th column is

@@ -32,7 +32,9 @@ r78-01 gave the desk-reconcile installer; r79 section 8's input 3. **Row 02** ma
 first candidate for r80, one file of the remaining `local x="${1:?...}"` lines.
 
 **Status: v1.0**: panel seat m-691 (mistral) PASS on v0.1 `7329be641`, no W finding,
-N1-N3 recorded (section 8); no row changes scope. Editor: **c-680** (claude).
+N1-N3 recorded (section 8); no row changes scope. m-691 PASS on v1.0 `d02aea0f8` too
+(section 9). **Closed**: both rows landed, r80-01 `f886bfcdd`, r80-02 `5083f4cf9`
+(section 8). Editor: **c-680** (claude).
 
 **One sha:** every count is measured on **`07f34efeb`** (`origin/master`
 07f34efebd7e7f1791795588df74510aa9d94395, committed 2026-11-21T07:05:15+02:00), n=1 per
@@ -427,6 +429,27 @@ as 1.5 says), `bash-cleancode.tst.sh` (`SPOOL_TEST=1`), `cd csi-spl-iac && ./run
   - N3: the lane map read 15 `unknown:` lanes at the seat's read against 19 at
     05:22:11Z, none on a row path by slug: the holder's re-check before placing is the
     one that counts.
+- Round closed (c-680), no version bump: the 2 rows landed, r80-01 `f886bfcdd`
+  (SPL-6156, R7 c-653 PASS on `23141fe5e`), r80-02 `5083f4cf9` (SPL-6158, R7 c-672
+  PASS on `937bc49b8`); both R7 seats claude under waiver 1a7c70da (grok pick on hold).
+  c-653's review line reads the new section 10 case RED on the parent's site (rc 1, 70
+  pass) and GREEN on head (rc 0, 71 pass), the old `n_sd` floor RED on head, and the
+  hand form equal to `spl_var_app_subdir` on 3 of 3 trees; c-672's reads section 4 of
+  `cnf-one-key-per-fact.tst.sh` RED against the parent's lib (4 FAIL) and GREEN on head
+  (14 PASS), and the merged cnf byte-identical parent vs head for dev, prd and lde.
+  `merge-base --is-ancestor` rc 0 for both on `5083f4cf9`. On that sha (n=1 each,
+  `SPOOL_TEST=1`): the spelled baseline **14 entries, 16 counted lines** (15 / 17 before,
+  as planned); `satellite-ansible.tst.sh` floor `-ge 3`, rc 0, 96 pass;
+  `unanswered-sweep.tst.sh` rc 0, 71 pass; `cnf-one-key-per-fact.tst.sh` rc 0, 14 pass;
+  `bash-cleancode.tst.sh` rc 0, 15 pass; `no-literal-paths.tst.sh` (worktree) ALL PASS
+  (15). Status line and sections 8 and 9 only.
+  - **Count drift, no miss:** row 02's lane read `hub-payment-030.tst.sh` at 13 pass
+    lines where 1.5 says 11. c-672's review line reads 11 + 1 SKIP without `TPL_GEN_DIR`
+    and 13 with it, on head and on the parent alike: 1.5 counted the run without
+    `TPL_GEN_DIR`. `conf-validator-exit-codes.tst.sh` stayed NOT RUN on this box, as 1.5
+    said.
+  - **First inputs for round 81:** section 7 as it stands, re-measured; the remaining
+    `local x="${1:?...}"` lines (r78 1.4) less this round's one file, re-counted.
 
 ## 9. Consensus
 
@@ -441,4 +464,12 @@ The panel seat signs this plan (rulebook 3.2).
   review-line check on that line: rc 0 ("OK 4 of 4 ran: tests found in" the seat's
   session log; holder GO msg 4393fa3a, the GO given by hand because review-go held a
   plan panel line with no `Author:`, rc 3).
+- Panel delta: **m-691 (mistral) PASS** on v1.0
+  `d02aea0f88896cde76c1be07c3c43f6723505466` (seat file `b41ffd195` on
+  `review/c002-refactor-round-80-mistral-seat`): v1.0 changes no row (`git diff
+  7329be641 d02aea0f8` on the plan, 2 hunks: the status line and sections 8 and 9). The
+  holder's review-line check on the resent line: rc 0 (holder note 06:35:10Z; the first
+  line named another seat's log, rc 1, sent back).
 - Row R7 seats: section 4.
+- Closed: both rows landed (r80-01 `f886bfcdd`, R7 c-653 PASS; r80-02 `5083f4cf9`,
+  R7 c-672 PASS). This close record carries `Closes: SPL-6148`.

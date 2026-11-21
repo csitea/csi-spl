@@ -14,7 +14,18 @@
 #   - nothing in it (node_modules aside) changed in the last WT_SWEEP_AGE_H h.
 # The removal is `git worktree remove` (no --force: git refuses a dirty one
 # again) and `git branch -d` (merged branches only). The main checkout and a
-# worktree outside WT_ROOT are never touched.
+# worktree outside WT_ROOT (and WT_SWEEP_TMP_ROOT, below) are never touched.
+#
+# A dead lane's /tmp worktree (SPL-6128, bug round 30 row 02): a seat that made
+# a worktree for a red control or a review under /tmp left it there for good,
+# since tmp-stale-sweep.sh keeps a lane worktree and the retire lists only the
+# lane's own one (one box, 2026-11-21: 27 such trees, idle 113-126 h). With
+# WT_SWEEP_TMP_ROOT set, a linked worktree of WT_REPO directly under it whose
+# name is <agent-id>-<rest> ([acgmq]-NNN-, the lane_ere of tmp-stale-sweep.sh)
+# is judged like one under WT_ROOT, with the id = that <agent-id> prefix: every
+# check above holds, the removal is the same. A name with no such prefix
+# (g273-x, x-review) is never touched, nor is a .stale- dir under it. Unset
+# (the default) = off: only WT_ROOT is swept, as before.
 #
 # The one non-worktree dir it removes (SPL-2309): <ID>.stale-<UTC> directly
 # under WT_ROOT, the dir spawn moves aside (_spawn_reusable). Its id <ID> must
@@ -28,6 +39,7 @@
 #   WT_TRUNK          default origin/master
 #   WT_SWEEP_AGE_H    default 72
 #   WT_SWEEP_KEEP_RE  default ^(<SPL_ROLE_SEAT_RX>|CLE-00[1-3])$ (role seats, any vendor letter)
+#   WT_SWEEP_TMP_ROOT unset (default, off) | a dir such as /tmp (see above)
 #   SPOOL_ROOT        default /var/spool-hub (its agents/ records)
 #
 # Salvage (SPL-2514), wt-dirty-salvage.inc.sh: a dirty tree is kept, but
@@ -62,6 +74,8 @@ repo="${WT_REPO:-$(git -C "$self_dir" rev-parse --path-format=absolute --git-com
 wt_root="${WT_ROOT:-${repo}-wt}"
 trunk="${WT_TRUNK:-origin/master}"
 age_h="${WT_SWEEP_AGE_H:-72}"
+tmp_root="${WT_SWEEP_TMP_ROOT:-}"
+tmp_ere='^([acgmq]-[0-9]{3})-[A-Za-z0-9._-]+$'
 # shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
 . "$self_dir/../features/spawn-agents/lib/spool-env.inc.sh"
 keep_re="${WT_SWEEP_KEEP_RE:-^(${SPL_ROLE_SEAT_RX}|CLE-00[1-3])$}"
@@ -74,7 +88,11 @@ g() { git -c safe.directory='*' "$@"; }
 [[ "$dry" == 0 || "$dry" == 1 ]] || refuse "DRY_RUN must be 0 or 1, got '$dry'"
 [[ "$age_h" =~ ^[0-9]+$ ]] && (( age_h >= 1 )) || refuse "WT_SWEEP_AGE_H must be a whole number >= 1, got '$age_h'"
 [[ -n "$repo" && -d "$repo/.git" ]] || refuse "WT_REPO '$repo' is not a main checkout"
-[[ -d "$wt_root" ]] || { say "OK no worktree root $wt_root: nothing to sweep"; exit 0; }
+if [[ -n "$tmp_root" ]]; then
+  [[ -d "$tmp_root" ]] || refuse "WT_SWEEP_TMP_ROOT '$tmp_root' is not a dir"
+  tmp_root="$(readlink -f "$tmp_root")"
+fi
+[[ -d "$wt_root" || -n "$tmp_root" ]] || { say "OK no worktree root $wt_root: nothing to sweep"; exit 0; }
 wt_root="$(readlink -f "$wt_root")"
 g -C "$repo" rev-parse --verify -q "$trunk^{commit}" >/dev/null || refuse "no trunk ref $trunk in $repo"
 [[ -d "$spool/agents" && -r "$spool/agents" ]] || refuse "cannot read the agent records in $spool/agents"
@@ -111,7 +129,7 @@ landed_by_patch() {
   [[ -n "$out" ]] && ! grep -q '^+' <<<"$out"
 }
 
-say "START repo=$repo root=$wt_root trunk=$trunk dry_run=$dry age_h=$age_h salvage=$salvage_on"
+say "START repo=$repo root=$wt_root${tmp_root:+ tmp_root=$tmp_root} trunk=$trunk dry_run=$dry age_h=$age_h salvage=$salvage_on"
 n_rm=0 kb_rm=0 n_keep=0 n_sv=0 kb_sv=0
 
 # Every linked worktree, then every bare <ID>.stale-<UTC> dir (no .git).
@@ -126,8 +144,11 @@ list_dirs() {
 while IFS= read -r wt; do
   stale=0; [[ "$wt" == "stale "* ]] && { stale=1; wt="${wt#stale }"; }
   wt="$(readlink -f "$wt")"
-  [[ "${wt%/*}" == "$wt_root" ]] || continue
   id="${wt##*/}"; why=""; br=""; sv_sha=""; patched=""
+  if [[ "${wt%/*}" == "$wt_root" ]]; then :
+  elif (( ! stale )) && [[ -n "$tmp_root" && "${wt%/*}" == "$tmp_root" && "$id" =~ $tmp_ere ]]; then id="${BASH_REMATCH[1]}"
+  else continue
+  fi
   if (( stale )); then id="${id%%.stale-*}"
   else br="$(g -C "$wt" symbolic-ref -q --short HEAD 2>/dev/null)" || br=""
   fi

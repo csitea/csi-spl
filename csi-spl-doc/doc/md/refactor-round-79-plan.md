@@ -386,5 +386,6 @@ The panel seat signs this plan (rulebook 3.2).
   on `review/c002-refactor-round-79-mistral-seat`, in
   `csi-spl-doc/doc/md/refactor-round-79/seat-mistral.md`), N1-N3 recorded. agy was
   unavailable (out until about 11-24), so mistral took the seat. The holder's
-  review-line check on that line: pending.
+  review-line check on that line: rc 0 ("OK 5 of 5 named in ran: are commands in" the
+  seat's session log; holder msg 44a71224). m-620 signs v1.0 next.
 - Row R7 seats: section 4.

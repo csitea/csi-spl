@@ -125,3 +125,28 @@ func TestApplyChannelMoveC3cControl(t *testing.T) {
 		t.Fatalf("CONTROL: <SRC> kept %d", n)
 	}
 }
+
+// Spec 190 W2 of the R7 review: a moved doc's media index rows go with it,
+// and <SRC> keeps no workspace_doc_gone tombstone for it. The doc lives on
+// in <DST>, so <SRC>'s media sweep must not take it for deleted: the bytes
+// of qto-media/<doc>/ and .doctree/<doc>/ stay in <SRC>'s bucket, the only
+// copy until a P3 copy step for them exists.
+func TestApplyChannelMoveDocMediaNotGone(t *testing.T) {
+	f := seedMove(t)
+	doc := seedMoveDoc(t, f, "moves, with a video")
+	if _, _, err := f.pg.DocMediaPut(context.Background(), f.src, mediaRow(doc, 7, "mp4", "video")); err != nil {
+		t.Fatal(err)
+	}
+	req := f.req()
+	req.RuleDoc = doc
+	f.apply(t, req)
+	if n := f.docRows(t, "workspace_doc_gone", "doc_id = $2::uuid", f.src, doc); n != 0 {
+		t.Errorf("<SRC> holds %d gone rows for a moved doc: its sweep would delete the only copy of its media", n)
+	}
+	if n := f.docRows(t, "workspace_doc_media", "doc_id = $2::uuid", f.dst, doc); n != 1 {
+		t.Errorf("workspace_doc_media in <DST>: %d, want 1", n)
+	}
+	if n := f.docRows(t, "workspace_doc_media", "doc_id = $2::uuid", f.src, doc); n != 0 {
+		t.Errorf("workspace_doc_media in <SRC>: %d left", n)
+	}
+}

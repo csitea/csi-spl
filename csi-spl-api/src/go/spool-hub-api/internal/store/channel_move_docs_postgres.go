@@ -13,7 +13,8 @@ import (
 //
 //  1. every row is stashed;
 //  2. the workspace_doc rows are deleted, and the FK cascades take the items,
-//     rev log, node and ACL with them. The cascade is the only way to remove
+//     rev log, node, ACL and media index (rdb 0306) with them, and <SRC>'s
+//     gone marks the delete trigger wrote are dropped. The cascade is the only way to remove
 //     a rev log row: the runtime login has no DELETE on it (rdb 0157);
 //  3. <SRC>'s tree closes the gap each doc node left;
 //  4. the rows are inserted under <DST>, each doc node appended to a folder
@@ -23,7 +24,7 @@ import (
 // follow by their own triggers.
 func init() {
 	mvParts["workspace_doc"] = mvPart{copy: mvCopyDocs, del: mvNothing}
-	for _, t := range []string{"workspace_doc_item", "workspace_doc_node", "workspace_doc_acl", "workspace_doc_rev_log"} {
+	for _, t := range []string{"workspace_doc_item", "workspace_doc_node", "workspace_doc_acl", "workspace_doc_rev_log", "workspace_doc_media"} {
 		mvParts[t] = mvPart{copy: mvNothing, del: mvNothing}
 	}
 }
@@ -50,6 +51,7 @@ func mvCopyDocs(m *pgMove, _ MoveTable) error {
 		{"workspace_doc_item", `doc_id = ANY($2::uuid[])`},
 		{"workspace_doc_rev_log", `doc_id = ANY($2::uuid[])`},
 		{"workspace_doc_acl", `node_id = ANY($2::uuid[])`},
+		{"workspace_doc_media", `doc_id = ANY($2::uuid[])`},
 	} {
 		arg := docs
 		if t.table == "workspace_doc_acl" {
@@ -63,7 +65,7 @@ func mvCopyDocs(m *pgMove, _ MoveTable) error {
 	if err := m.dropSrcDocs(nodes); err != nil {
 		return err
 	}
-	for _, t := range []string{"workspace_doc", "workspace_doc_item", "workspace_doc_rev_log"} {
+	for _, t := range []string{"workspace_doc", "workspace_doc_item", "workspace_doc_rev_log", "workspace_doc_media"} {
 		if m.req.skipCopy[t] {
 			continue
 		}
@@ -111,6 +113,12 @@ func (m *pgMove) dropSrcDocs(nodes []mvDocNode) error {
 		return err
 	}
 	m.res.Deleted["workspace_doc"] = n
+	// The delete's trigger (rdb 0306) marked each doc gone, but it lives on
+	// in <DST>: <SRC>'s media sweep must not take it for deleted, since the
+	// bytes of its qto-media/ and .doctree/ stay in <SRC>'s bucket (spec 190).
+	if _, err := m.exec(`DELETE FROM workspace_doc_gone WHERE tenant_id = $1 AND doc_id = ANY($2::uuid[])`, m.req.Src, m.b.Docs); err != nil {
+		return err
+	}
 	for _, node := range nodes {
 		if _, err := m.exec(`UPDATE workspace_doc_node
 			SET lft = lft - CASE WHEN lft > $2 THEN 2 ELSE 0 END, rgt = rgt - 2

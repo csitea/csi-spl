@@ -72,7 +72,8 @@ var cpCarried = map[string]bool{
 	"spec_sync_map": false,
 	"usage_events":  false, "token_budgets": false, "workspace_events": false, "operator_audit": false,
 	"demo_post_audit": false, "sql_query_audit": false,
-	"topic_loops": false, // spec 182: a snapshot does not start firing a topic's loops
+	"topic_loops":         false, // spec 182: a snapshot does not start firing a topic's loops
+	"workspace_doc_media": false, // spec 190: the bytes sit under qto-media/<doc>/ of the source; a copied doc has a new id and none
 }
 
 func cpCheckRequest(req ChannelCopyRequest) error {

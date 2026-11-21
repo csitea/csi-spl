@@ -7,6 +7,7 @@ go 1.26.10
 toolchain go1.26.11
 
 require (
+	cloud.google.com/go/compute/metadata v0.10.0
 	cloud.google.com/go/storage v1.69.0
 	filippo.io/age v1.3.2
 	github.com/aws/aws-sdk-go-v2 v1.47.1
@@ -34,7 +35,6 @@ require (
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.24.1-0.20261001053825-dbc26066f70a // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.3.0 // indirect
-	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	cloud.google.com/go/iam v1.12.0 // indirect
 	cloud.google.com/go/monitoring v1.30.0 // indirect
 	filippo.io/hpke v0.4.0 // indirect

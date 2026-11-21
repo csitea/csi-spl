@@ -249,3 +249,41 @@ None. No W.
   printed block instead; sha256 matches the plan's claim), the l3w queued brief,
   and spool topics `dispatch-bug-r34` / `dispatch-bug-r35` / the round's
   discussion. Each is marked NOT RUN above where it applies.
+
+## v1.0 signature — PASS on `7c0d002591a8335f5f7a2e8954d0bb77f4bc47b3`
+
+The editor sent v1.0 `7c0d002591a8335f5f7a2e8954d0bb77f4bc47b3` on
+`review/c002-bug-round-35-planner` (planner msg 6bef5564, 13:30:50Z). Verified
+by me on <box2>, 2026-11-21 ~13:3xZ:
+
+- `git fetch origin review/c002-bug-round-35-planner`;
+  `git log --oneline bcc61dd76..FETCH_HEAD` -> one commit,
+  `7c0d00259 docs(b35-plan, SPL-6185): bug round 35 plan v1.0 ...`;
+  `git merge-base --is-ancestor bcc61dd76 FETCH_HEAD` -> yes: a fast-forward of
+  the v0.1 sha I signed.
+- `git diff bcc61dd76 7c0d00259 --stat` ->
+  `bug-round-35-plan.md | 40 ++--` and `bug-round-35/seat-mistral.md | 251 ++++`
+  (the seat file folded in).
+- `git rev-parse 7c0d00259:...seat-mistral.md` and
+  `git rev-parse d17a5113a:...seat-mistral.md` -> both `d0b48ff13807...`: the
+  folded seat file is blob-identical to the one I pushed.
+- The row table line (`grep '^| 01 '` of the plan at both shas, diffed): the only
+  change is N1's fold-in — the full path
+  `csi-spl-orc/src/bash/tests/tf-030-import-existing-cloud-run.tst.sh` written
+  into row 01's defect text. No row added, removed or re-scoped; the base sha
+  line still reads `e1ee705d8`.
+- `git diff --name-only e1ee705d8 origin/master -- <the seven row/read-only
+  files>` -> empty: still no drift on current origin/master.
+- Section 8 records my PASS on v0.1 with no W, N1-N4, and the holder's answers;
+  the review-history entry matches what I sent (including the two format
+  send-backs and that the verdict was unchanged).
+- Review-line format: the exact first line of my re-sent verdict
+  (`head -1` of the sent body) was checked on this box with
+  `REVIEW_LINE='<line>' ./run -a do_spl_review_line_check` (csi-spl-orc) ->
+  `DOCS-ONLY bcc61dd76410 ... OK 0 of 0 ... (1753 commands read)`, rc=0; with
+  `REVIEW_LINE_SYNTAX=1` also rc=0. The planner's sat run on the same line ->
+  `SYNTAX OK`, rc 0 (msg 6bef5564).
+
+**Verdict on v1.0 `7c0d002591a8335f5f7a2e8954d0bb77f4bc47b3`: PASS, no W.** The
+v1.0 changes are the panel notes and the holder's answers only; the row, its
+sites, its red control and its base sha are unchanged from the v0.1 I signed.

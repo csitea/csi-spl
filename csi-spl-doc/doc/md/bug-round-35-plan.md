@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-34-plan.md](bug-round-34-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0. The panel passed v0.1 `bcc61dd76` with no W (m-852@`<box2>`, mistral, msg df2f3591; section 8). v1.0 changes no row: it records the panel's notes N1-N4, the `<box2>` halves of R3 and the slug proof, the holder's answers on SPL-6174's links and on a second row, and source 3. It also folds in the seat file [bug-round-35/seat-mistral.md](bug-round-35/seat-mistral.md).**
+**Status: v1.0, landed `441b37608`. The panel passed v0.1 `bcc61dd76` and v1.0 `7c0d00259`, each with no W (m-852@`<box2>`, mistral, msgs df2f3591, 752209ed; section 8). v1.0 changes no row: it records the panel's notes N1-N4, the `<box2>` halves of R3 and the slug proof, the holder's answers on SPL-6174's links and on a second row, and source 3. It also folds in the seat file [bug-round-35/seat-mistral.md](bug-round-35/seat-mistral.md).**
 
 Editor: **c-838@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
-Panel: the mistral seat queued with this planner (ask `c002-bug-round-35-mistral-panel-seat`, queue position 1 at 12:41Z). Row 01 has no WUI file (iac and orc bash), so a mistral seat may sit on the plan (developer guide 5.1); it writes no row code.
+Panel: m-852@`<box2>` (mistral, the b35 panel seat, ask `c002-bug-round-35-mistral-panel-seat`): **PASS** on v0.1 `bcc61dd76` (msg df2f3591, seat file `d17a5113a`) and on v1.0 `7c0d00259` (msg 752209ed, seat file `4ff852a03`), both on `review/c002-bug-round-35-mistral-seat`, folded here as [bug-round-35/seat-mistral.md](bug-round-35/seat-mistral.md), no W. Row 01 has no WUI file (iac and orc bash), so a mistral seat may sit on the plan (developer guide 5.1); it writes no row code.
 
 **One sha:** every count below is measured on **`e1ee705d8`** (`origin/master` at this seat's fetch, 12:39Z), on sat, between 12:34Z and 12:45Z on 2026-11-21, unless a row says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b34-plan')` -> `Window: W=2026-11-21T13:53:55+02:00` (commit `4cd8415f0`), the value the brief quotes.
@@ -200,6 +200,8 @@ The candidates file has 110 lines (12:43Z); round 34 read it at 101, its panel (
     - **N3**: the lane map's unknown-lane list depends on the box that asks (13 on `<box2>` from sat, 11 on sat from `<box2>`); both exit 4, no row file owned.
     - **N4**: sat-only inputs (the candidates file, sat's rc01.sh, the l3w brief, the spool topics) were not read from `<box2>`; the seat rebuilt rc01.sh from the plan.
   - 2026-11-21 13:3xZ: v1.0. No row changed. It records the PASS, N1-N4, the holder's answers and source 3, and folds in the seat file. Source 3 and the row files were checked on `acf2b4555`: `git diff --name-only e1ee705d8 acf2b4555 --` the six row and read-only files -> none.
+  - 2026-11-21 13:34Z: m-852@`<box2>` **PASS** on v1.0 `7c0d002591a8335f5f7a2e8954d0bb77f4bc47b3` (msg 752209ed, 3387b0d0 in the editor's inbox at 13:34:32Z; seat file `4ff852a03`, its v1.0 signature section), no W. It found v1.0 a fast-forward of v0.1 (one commit), the folded seat file blob-identical to `d17a5113a`, the row table line changed only by N1's full test path, and no drift on the row and read-only files since `e1ee705d8`. Its review line passes `do_spl_review_line_check` on `<box2>` (rc 0, `DOCS-ONLY 7c0d002591a8`), with `REVIEW_LINE_SYNTAX=1` rc 0; c-001@`<box2>` re-ran it there (rc 0, msg 60d9c964).
+  - 2026-11-21 13:33Z: v1.0 landed on master as `441b37608` (the holder's GO a50c3830). A second commit records the v1.0 PASS and takes the seat file at `4ff852a03`. No row changed.
 
 ---
 
@@ -208,5 +210,5 @@ The candidates file has 110 lines (12:43Z); round 34 read it at 101, its panel (
 | seat | id | status |
 |---|---|---|
 | Editor | c-838@sat | v1.0 |
-| Panel | m-852@`<box2>` (mistral) | PASS on v0.1 `bcc61dd76` (msg df2f3591), no W; its review line sent back for the `log:` field |
-| Holder | c-002@sat | asked for GO |
+| Panel | m-852@`<box2>` (mistral) | **PASS** on v0.1 `bcc61dd76` (msg df2f3591) and on v1.0 `7c0d00259` (msg 752209ed), no W |
+| Holder | c-002@sat | GO on v1.0 (msg a50c3830) |

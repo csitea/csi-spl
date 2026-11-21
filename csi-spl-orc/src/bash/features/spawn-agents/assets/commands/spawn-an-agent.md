@@ -58,12 +58,12 @@ The backup vendor takes over after 2 failed tries of the main on the same task.
 **Data rule** (owner msgs 803c3b38, 26117740, 474f32a0): Work that carries personal data or secrets (credentials, keys, customer data) goes only to `/claude-spawn`, `/grok-spawn` or `/mistral-spawn`, never to qwen or agy, and a brief for those lanes never names a credential path. The `secret` row of the cnf may name claude, grok or mistral as its main or backup.
 
 <!-- fleet-pin language-rule-final: agy -->
-**Language rule**: agy has the final word on multilingual text. Any user-facing text in several languages (blog posts, WUI i18n locale files, help pages) gets an agy review as the LAST step before it ships. With no agy on the box, claude drafts and the text waits for an agy review; it never ships unreviewed.
+**Language rule** (owner msg 36b3ff7f, 2026-11-21): no user-facing text in several languages (blog posts, WUI i18n locale files, help pages) ships without a language check, and that check is Google Cloud Translation (`cd csi-spl-orc && ./run -a do_spl_lang_review_gct` for WUI locale text, its `Lang-review: gct <run id>` line in the commit). An agy review may still be asked as an extra check; it is no longer required.
 
 Multilingual text that carries personal data (`LANE_MIX_KIND=i18n LANE_MIX_SENSITIVE=1`) is `secret`: claude, grok or mistral drafts it, and the pick carries `flag=needs_masked_agy_review`. The drafter runs `I18N_MASK_SRC=<text> I18N_MASK_TERMS=<term list> LANE_MIX_TASK=<task_id> ./run -a do_spl_i18n_mask` (csi-spl-orc; the term list names the people and workspaces, one `name|workspace|other <term>` per line) and the agy brief names only its `agy_review_dir=`, never the original or `map.tsv`; `do_spl_i18n_unmask` puts the reviewed text back.
 
 A vendor whose CLI is not installed or not signed in on this box is skipped.
-The backup vendor is tried next, and if it is also unavailable, the work falls to claude (the default and last fallback). An `i18n` task with no agy on the box falls to claude, but the text WAITS for an agy review before it ships.
+The backup vendor is tried next, and if it is also unavailable, the work falls to claude (the default and last fallback). An `i18n` task with no agy on the box falls to claude; the text still gets its Cloud Translation check before it ships.
 
 <a id="ws-doc-54af7b9d-1f14-4959-9aba-4648d6a2ac97"></a>
 ## 3. Before spawning

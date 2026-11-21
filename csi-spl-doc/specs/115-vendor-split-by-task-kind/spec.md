@@ -33,7 +33,7 @@ below is what exists on master at 5b49a31a9.
 | D5: docs and specs go to mistral first, then agy | spec 110, msg c7970593 | **superseded for docs and specs** by msg 4f07eb34 (agy has "much more weight on the documentation specifications"); mistral keeps a weight there (section 2). D5's low-level coding to mistral stays. |
 | D2: mistral may take secret and personal-data work | spec 110, msg 803c3b38 | the secret kind's backup is mistral |
 | Data rule: secrets go to claude or mistral only, never qwen, grok or agy | global CLAUDE.md "Spawn an agent", spec 110 D2 | holds in every path, the fallback included (section 5) |
-| Language rule: agy has the final word on multilingual text | t1 msg 296582df, 2026-10-08 | i18n main is agy; a claude draft waits for an agy review |
+| Language rule: agy has the final word on multilingual text | t1 msg 296582df, 2026-10-08 | i18n main is agy; **since 2026-11-21 the required check is Google Cloud Translation, not the agy review** (section 12) |
 | Claude is the default vendor and the last fallback | t1 65f75266, spec 110 D4 | the last fallback for every kind except secret, which holds |
 
 ## 1. Goals
@@ -426,3 +426,29 @@ cases (94 places, 95 waits, unknown waits), RED CONTROLs without the mark (90
 holds 94, unknown places), claude unchanged, the env override, the review
 seat, the log reader's edges, and this box's log read live into the pick.
 Against the code before this change, section 21 fails 18 of its 25 checks.
+
+## 12. The language check is Google Cloud Translation (SPL-6174)
+
+Owner HUM-10, csi-rel c36682ea, msg 36b3ff7f (2026-11-21): "BTW google
+translationd Api 's are now available - use them - better and cheaper".
+The orchestrator's ruling (c-001 msg 1cddfbe9): Cloud Translation REPLACES
+the agy language review as the required check; agy may still be asked as an
+extra check. What stays: no multilingual text ships without a language check.
+
+- The rule's one home is the Language rule of the fleet `CLAUDE.md` part
+  `20-spawn-an-agent.md`; the `i18n` kind's vendor pick (section 2, agy main)
+  is unchanged: it says who drafts a translation, not who checks it.
+- The check: `cd csi-spl-orc && ENV=dev ./run -a do_spl_lang_review_gct`.
+  Per new or changed non-English key: the placeholders against en (a
+  difference fails), a fresh en -> lang reference (`match` when equal after
+  normalisation, else `differs`, read and folded in by the author) and a back
+  translation; the report `csi-spl-wui/i18n/lang-review/<run id>.json` is
+  committed with the change.
+- The gate: the pre-push part and CI job `wui-lang-review` accept
+  `Lang-review: gct <run id>` when that report is in the commit's tree and
+  covers the committed text ([pre-push gate](../../doc/md/pre-push-gate.md)).
+- Identity: the env's project SA from its key, never the owner account. The
+  dev and prd project SAs both answered a v3 `translateText` call on
+  2026-11-21; only the prd hub runtime SA holds an explicit
+  `roles/cloudtranslate.user` grant (step 030), the project SAs reach it
+  through their project role.

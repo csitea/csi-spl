@@ -15,6 +15,9 @@
 # @description <ID>@<box>", the hub keeps it a week), else a `Class: <class>`
 # @description line in its brief (<spool root>/<ID>/lifetime/brief.md, this
 # @description box only). ci (a CI-red fix on trunk) counts as bug.
+# @description An R7 review seat (queued as a feature + bypass on the review-seat
+# @description GO, SPL-5638) counts as its brief's class: its own brief, else the
+# @description queued brief in <spool root>/dispatch/briefs (SPL-6221).
 # @description Bands by phase (spec 166 row B2; owner HUM-10, t1 c0b0d572 msg
 # @description 421e479a, poll d102c775 Q2 B): do_spl_rhythm_phase says day or
 # @description night, and the live lanes are judged against that phase's bands
@@ -67,6 +70,7 @@ spl_spawn_share() {
   printf '%s' "$lanes" >"$tmpdir/lanes.json" || rc=1
   ((rc == 0)) && { spl_asks_hub list --fleet "$LANE_FLEET" --role orch --all >"$tmpdir/asks.json" 2>"${ASKS_ERR:-/dev/null}" || rc=1; }
   ((rc == 0)) && { spl_spawn_share_briefs "$lanes" >"$tmpdir/briefs.json" || rc=1; }
+  ((rc == 0)) && { spl_spawn_share_seats "$tmpdir/asks.json" >"$tmpdir/seats.json" || rc=1; }
   ((rc == 0)) && { spl_spawn_share_bypass_log >"$tmpdir/log.json" || rc=1; }
   ((rc == 0)) && { spl_spawn_share_jq "$tmpdir" >"$tmpdir/share.json"; rc=$?; }
   ((rc == 0)) && { spl_spawn_share_sample "$tmpdir/share.json"; cat "$tmpdir/share.json"; }
@@ -128,17 +132,24 @@ spl_spawn_share_sample_due() {
 }
 
 # The share from the input files in DIR (lanes, asks, briefs, log .json; the
-# 24 h samples hist.json, read here when absent).
+# 24 h samples hist.json, read here when absent; the review seats seats.json,
+# {} when absent).
+# A lane's class: the class of the ask that placed it, else its brief's. A
+# lane placed by a review seat (a key of seats.json, SPL-6221) takes its
+# brief's class first: its own brief on this box, else the queued brief its
+# ask names, else the ask's class (feature, as queued).
 spl_spawn_share_jq() {  # DIR
   local phase bands
   read -r phase bands < <(spl_spawn_share_phase)
   [[ -s "$1/hist.json" ]] || spl_spawn_share_hist >"$1/hist.json" || printf '[]' >"$1/hist.json"
+  [[ -s "$1/seats.json" ]] || printf '{}' >"$1/seats.json"
   jq -e -c -n --slurpfile lanes "$1/lanes.json" --slurpfile asks "$1/asks.json" --argjson bands "$bands" \
     --arg phase "$phase" --argjson owner "$SPL_SPAWN_BANDS" --slurpfile hist "$1/hist.json" \
-    --slurpfile briefs "$1/briefs.json" --slurpfile log "$1/log.json" '
+    --slurpfile briefs "$1/briefs.json" --slurpfile log "$1/log.json" --slurpfile seats "$1/seats.json" '
     def cls: if . == "ci" then "bug" else . end;
     def verdict($none; $p; $b): if $none then "no data" elif $p < $b[0] then "UNDER" elif $p > $b[1] then "OVER" else "ok" end;
     $lanes[0] as $lanes | $asks[0] as $asks | $briefs[0] as $briefs | $log[0] as $log | $hist[0] as $hist
+    | $seats[0] as $seats
     | ($hist | map(.known) | add // 0) as $hk
     | {samples: ($hist | length), by: ($owner | with_entries(.key as $c | .value as $b
         | (if $hk > 0 then (($hist | map(.[$c]) | add) * 100 / $hk | floor) else null end) as $p
@@ -146,7 +157,8 @@ spl_spawn_share_jq() {  # DIR
     | ([$asks.asks[] | select(.state == "done" and ((.reason // "") | test("^placed: ")) and (.class // "") != "")
       | {key: (.reason | sub("^placed: "; "") | split(" ")[0]), value: (.class | cls)}] | from_entries) as $placed
     | [$lanes[] | (.agent_id + "@" + .agent_box) as $id
-       | {id: $id, class: ($placed[$id] // ($briefs[$id] // "" | cls) | if . == "" then "unknown" else . end)}] as $l
+       | (if $seats | has($id) then $briefs[$id] // $seats[$id] // $placed[$id] else $placed[$id] // $briefs[$id] end) as $c
+       | {id: $id, class: ($c // "" | cls | if . == "" then "unknown" else . end)}] as $l
     | ([$l[] | select(.class != "unknown")] | length) as $known
     | {phase: $phase, known: $known, unknown: ([$l[] | select(.class == "unknown")] | length), lanes: $l, h24: $h24,
        by: ($bands | with_entries(.key as $c | .value as $b
@@ -199,6 +211,28 @@ spl_spawn_share_briefs() {  # LANES
   { grep -m1 -oiHE '^Class: *(ci|refactor|bug|feature)\b' "${briefs[@]}" 2>/dev/null || :; } |
     jq -R -s -c -j --arg b "$ASKS_BOX" '[split("\n")[] | capture("/(?<id>[^/]+)/lifetime/brief\\.md:class: *(?<c>[a-z]+)$"; "i")
       | {key: "\(.id)@\($b)", value: (.c | ascii_downcase)}] | from_entries'
+}
+
+# {"<ID>@<box>": "<class>" | null} for each lane an R7 review seat placed: an
+# ask flagged bypass on the review-seat GO (spl_spawn_q_review_seat_go). The
+# enqueue queues such a seat as a feature (SPL-5638), so the ask's class says
+# nothing of the seat's work (SPL-6221). The value is the `Class:` line of the
+# queued brief its placement slug names (spl_spawn_place_brief, this box's
+# dispatch/briefs: the holder's box, where the seat briefs are written), null
+# when there is none. Reads the hub's asks list in ASKS_FILE.
+spl_spawn_share_seats() {  # ASKS_FILE
+  local id place msg f c out='{}'
+  declare -F spl_spawn_q_review_seat_go >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-enqueue.func.sh"
+  while IFS=$'\t' read -r id place msg; do
+    spl_spawn_q_review_seat_go "$place" "$msg" || continue
+    declare -F spl_spawn_place_brief >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-place.func.sh"
+    f="$(spl_spawn_place_brief "${place#*:}")"; c=""
+    [[ -n "$f" ]] && c="$(grep -m1 -oiE '^Class: *(ci|refactor|bug|feature)\b' "$f" 2>/dev/null | sed -E 's/^[^:]*: *//' | tr '[:upper:]' '[:lower:]')"
+    out="$(jq -c --arg k "$id" --arg c "$c" '.[$k] = (if $c == "" then null else $c end)' <<<"$out")" || return 1
+  done < <(jq -r --arg go "$SPL_SPAWN_REVIEW_SEAT_GO" '.asks[]? | select(.state == "done" and (.flag // "") == "bypass"
+      and (.flag_msg // "") == $go and ((.reason // "") | test("^placed: ")))
+    | [(.reason | sub("^placed: "; "") | split(" ")[0]), (.placement // ""), .flag_msg] | @tsv' "$1" 2>/dev/null)
+  printf '%s' "$out"
 }
 
 # The local bypass log (it outlives the hub's week of closed rows) as JSON.

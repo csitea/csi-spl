@@ -32,6 +32,13 @@
 #      sed and tr: (a) one call execs at most 3 of them (red before the fix:
 #      about 4 per lane); (b) CONTROL the map is the expected JSON; (c)
 #      CONTROL no lane on the box -> {}, without a grep
+#  15. an R7 review seat (queued feature + bypass on the review-seat GO,
+#      SPL-5638) counts as its brief's class (bug round 36 row 01, SPL-6221;
+#      the cases of red control rc01): seat, a bug seat on this box -> bug;
+#      xbox, a refactor seat on the other box -> the queued brief's refactor
+#      (both red before the fix: feature); CONTROL an owner bypass stays
+#      feature and a plain bug ask bug; a seat brief with no Class: line stays
+#      feature
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -180,6 +187,39 @@ n14="$(wc -l <"$B14/execs.log")"
 check "14b CONTROL the map: the Class: edge cases, the other box left out" "$want14" "$got14"
 check "14c CONTROL no lane on the box -> {}" "{}" "$(b14 '[{"agent_id":"c-600","agent_box":"box2"}]')"
 check "14c no lane on the box: no grep" "0" "$(grep -c '^grep$' "$B14/execs.log")"
+
+# 15. an R7 review seat counts as its brief's class -----------------------------
+S15="$T/s15"; mkdir -p "$S15/spool/dispatch/briefs" "$S15/asks"
+b15() { mkdir -p "$(dirname "$S15/spool/$1")"; printf 'Lane brief\n%b' "$2" >"$S15/spool/$1"; }
+b15 c-901/lifetime/brief.md 'Class: bug\n'
+b15 dispatch/briefs/c002-b99-01-claude-waiver-reviewer.md 'Class: bug\n'
+b15 dispatch/briefs/c002-r99-01-grok-reviewer.md 'Class: refactor\n'
+b15 c-903/lifetime/brief.md 'Class: feature\n'
+b15 c-904/lifetime/brief.md 'Class: bug\n'
+b15 dispatch/briefs/c002-b99-03-grok-reviewer.md 'Kind: specs_and_docs\n'
+jq -n -c '{lanes: [{agent_id: "c-901", agent_box: "boxa"}, {agent_id: "g-902", agent_box: "boxb"},
+  {agent_id: "c-903", agent_box: "boxa"}, {agent_id: "c-904", agent_box: "boxa"}, {agent_id: "g-905", agent_box: "boxb"}]
+  | map(. + {state: "live", age_s: 60})}' >"$S15/lanes.json"
+jq -n -c --arg go 994f2257-8ad1-4010-88c8-4f0a16230937 --arg own 11111111-2222-4333-8444-555555555555 '{asks: [
+ {ask_id: "a1", state: "done", reason: "placed: c-901@boxa", class: "feature", flag: "bypass", flag_msg: $go, placement: "claude:c002-b99-01-claude-waiver-reviewer"},
+ {ask_id: "a2", state: "done", reason: "placed: g-902@boxb", class: "feature", flag: "bypass", flag_msg: $go, placement: "grok:c002-r99-01-grok-reviewer"},
+ {ask_id: "a3", state: "done", reason: "placed: c-903@boxa", class: "feature", flag: "bypass", flag_msg: $own, placement: "claude:c002-owner-feature"},
+ {ask_id: "a4", state: "done", reason: "placed: c-904@boxa", class: "bug", placement: "claude:c002-b99-02-fix"},
+ {ask_id: "a5", state: "done", reason: "placed: g-905@boxb", class: "feature", flag: "bypass", flag_msg: $go, placement: "grok:c002-b99-03-grok-reviewer"}]}' >"$S15/asks.json"
+printf '#!/usr/bin/env bash\ncat %q\n' "$S15/asks.json" >"$S15/hub.sh"; chmod +x "$S15/hub.sh"
+share15="$(env SPOOL_ROOT="$S15/spool" SPOOL_ASKS_DIR="$S15/asks" ASKS_BOX=boxa LANE_FLEET=fx APP_PATH="$T" PROJ_PATH="$PROJ_ROOT" \
+  SPAWN_SHARE_LANES_CMD="cat $S15/lanes.json" ASKS_HUB_CMD="$S15/hub.sh" RHYTHM_NOW=2026-01-15T12:00Z bash -c '
+    do_log() { printf "%s\n" "$*" >&2; }
+    source "$1/src/bash/features/spawn-agents/lib/spool-asks.inc.sh"
+    source "$1/src/bash/run/spl-asks-open.func.sh"
+    source "$1/src/bash/run/spl-spawn-share.func.sh"
+    spl_spawn_share' _ "$PROJ_ROOT" 2>"$T/err15")"
+c15() { jq -r --arg i "$1" '.lanes[] | select(.id == $i) | .class' <<<"$share15" 2>/dev/null; }
+check "15 seat: a bug R7 seat on this box, queued feature + bypass on the review-seat GO -> bug" "bug" "$(c15 c-901@boxa)"
+check "15 xbox: a refactor R7 seat on the other box -> its queued brief's refactor" "refactor" "$(c15 g-902@boxb)"
+check "15 ctrl: an owner bypass stays feature, a plain bug ask stays bug" "feature/bug" "$(c15 c-903@boxa)/$(c15 c-904@boxa)"
+check "15 a seat whose brief has no Class: line stays feature" "feature" "$(c15 g-905@boxb)"
+check "15 the share: refactor 1, bug 2, feature 2" '{"refactor":1,"bug":2,"feature":2}' "$(jq -c '.by | map_values(.n)' <<<"$share15" 2>/dev/null)"
 
 echo "$fails failure(s)"
 ((fails == 0))

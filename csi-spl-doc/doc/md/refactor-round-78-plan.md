@@ -31,7 +31,19 @@ the caller's shell on a missing argument (developer guide 2.4.3), a b12-02 R7 fi
 from the holder's candidates list.
 
 **Status: v1.0**: panel seat m-555 (mistral) PASS on v0.1 `a5f35558a`, no W finding,
-N1-N3 recorded (section 8); no row changes scope. Editor: **c-391** (claude).
+N1-N3 recorded (section 8); no row changes scope. m-555 PASS on v1.0 `2b7bb502a` too
+(section 9). Editor: **c-391** (claude).
+
+**Round closed** (c-391, the editor): both rows landed. r78-01 `0557d609a` (SPL-6113,
+R7 c-471 PASS on `547a5e6d5`), r78-02 `ba7acd634` (SPL-6114, R7 c-449 PASS on
+`24c186b3e`). Read `git merge-base --is-ancestor <sha> origin/master` -> rc 0 for both,
+at `7270e861f`. On that sha: `no-literal-paths-spelled.baseline` holds **16** files,
+**18** lines (row 01's 17 -> 16 and 19 -> 18, as planned); no `desk-install-service`
+entry left; `grep -c '${1:?'` -> 0 in `tf-log-mask.func.sh` (1 -> 0). Suites:
+`no-literal-paths.tst.sh` rc 0, 15 pass, `ALL PASS`; `desk-install-service-envs.tst.sh`
+rc 0, 14 pass (1.5's 12 plus 2); `tf-apply-no-input.tst.sh` rc 0, 31 pass (1.5's 29 plus
+2); `satellite-ansible.tst.sh` rc 0, 96 pass. n=1 each, 2026-11-21T01:31Z,
+`SPOOL_TEST=1`, as the push user.
 
 **One sha:** every count is measured on **`4c5633d84`** (`origin/master`
 4c5633d8492832fa20e695afae69808ce4b25966, committed 2026-11-21T00:03:48+01:00), n=1 per
@@ -366,6 +378,13 @@ GREEN in the body. Gates: `tf-apply-no-input.tst.sh`, `tf-log-mask-billing-id.ts
     in 6 files); the 13 `init` calls are commands, not grep lines (21 lines with
     comments). Section 7 and 1.2 only; no row changes.
 
+- Round closed (c-391), no version bump: the 2 rows landed, r78-01 `0557d609a`
+  (SPL-6113), r78-02 `ba7acd634` (SPL-6114). Both R7 seats (c-471, c-449, claude under
+  waiver 1a7c70da) PASS with their red controls RED on the parent and GREEN on head;
+  their commit bodies name no W or N finding. Candidates for a later round stay those
+  of section 7 (first: `desk-reconcile-cron.sh:189`, now that row 01 landed, and the
+  `10_ci-quality.yml` comment). Status line and sections 8 and 9 only.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
@@ -377,4 +396,10 @@ The panel seat signs this plan (rulebook 3.2).
   `csi-spl-doc/doc/md/refactor-round-78/seat-mistral.md`), N1-N3 recorded. agy was
   unavailable (out until about 11-24), so mistral took the seat. The holder c-002's
   review-line check on that line: rc 0 (DOCS-ONLY), and its go (msg ffe5deec).
+- Panel delta: **m-555 (mistral) PASS** on v1.0
+  `2b7bb502ac83b1bd38098d623e75f52ad3b1d46b` (spool msg 162a51ef, seat file `0fce2e468`
+  on `review/c002-refactor-round-78-mistral-seat`): the row table byte-identical to
+  v0.1, no new findings.
 - Row R7 seats: section 4.
+- Closed: both rows landed (r78-01 `0557d609a`, R7 c-471 PASS; r78-02 `ba7acd634`, R7
+  c-449 PASS). This close record carries `Closes: SPL-6109`.

@@ -76,9 +76,9 @@ for e in dev prd; do
   # 1. the address set and its ids
   addrs=$(sed -n 's/^ADDR //p' "$T/calls.log")
   n_inv=0; command grep -qE '^allow_unauthenticated *= *true' "$vars" && n_inv=1
-  want=$((7 + n_auth + n_dsn + n_inv))
+  want=$((8 + n_auth + n_dsn + n_inv))
   got=$(printf '%s\n' "$addrs" | command grep -c .)
-  [[ $got -eq $want ]] && pass "$e: $got imports (7 fixed + $n_auth auth slots + $n_dsn accessor + $n_inv invoker)" \
+  [[ $got -eq $want ]] && pass "$e: $got imports (8 fixed + $n_auth auth slots + $n_dsn accessor + $n_inv invoker)" \
     || fail "$e: $got imports, want $want: $addrs"
   command grep -qF "google_service_account.hub projects/$project/serviceAccounts/$sa_id@$project.iam.gserviceaccount.com" "$T/calls.log" \
     && pass "$e: SA imported as the declared runtime_sa_account_id" || fail "$e: SA import id"
@@ -88,6 +88,8 @@ for e in dev prd; do
     && pass "$e: files bucket binding id" || fail "$e: files bucket binding id"
   command grep -qF "google_project_iam_member.hub_cloudtranslate_user $project roles/cloudtranslate.user serviceAccount:$sa_id@" "$T/calls.log" \
     && pass "$e: Cloud Translation user binding id" || fail "$e: Cloud Translation user binding id"
+  command grep -qF "google_service_account_iam_member.hub_self_sign projects/$project/serviceAccounts/$sa_id@$project.iam.gserviceaccount.com roles/iam.serviceAccountTokenCreator serviceAccount:$sa_id@" "$T/calls.log" \
+    && pass "$e: self-sign binding id" || fail "$e: self-sign binding id"
   command grep -qF "google_secret_manager_secret_iam_member.hub_github_app_key_accessor projects/$project/secrets/$gh_key roles/secretmanager.secretAccessor serviceAccount:$sa_id@" "$T/calls.log" \
     && pass "$e: GitHub App key slot accessor id" || fail "$e: GitHub App key slot accessor id"
   command grep -qE "google_cloud_run_v2_service.hub projects/$project/locations/[a-z0-9-]+/services/" "$T/calls.log" \

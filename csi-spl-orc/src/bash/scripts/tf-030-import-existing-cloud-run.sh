@@ -144,6 +144,10 @@ try_import "google_project_iam_member.hub_cloudsql_client" \
 try_import "google_project_iam_member.hub_cloudtranslate_user" \
   "${project} roles/cloudtranslate.user serviceAccount:${declared_sa}"
 
+# --- 2c. the runtime SA signs as itself (always declared; spec 190 T2) -----
+try_import "google_service_account_iam_member.hub_self_sign" \
+  "projects/${project}/serviceAccounts/${declared_sa} roles/iam.serviceAccountTokenCreator serviceAccount:${declared_sa}"
+
 # --- 3. auth secret slots (for_each = auth_secret_ids) ---------------------
 # Before the accessor bindings: an injected auth secret's slot lives here.
 if is_empty "$auth_ids"; then

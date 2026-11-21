@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-31-plan.md](bug-round-31-plan.md) (same shape, same 5 sources).
 
-**Status: v0.2, for the panel (v0.1 `1f694cb86` plus the `<box2>` half of R3; no row changed). No row lane starts before the panel signs a plan sha.**
+**Status: v1.0. The panel passed v0.1 `1f694cb86` with no W (m-696@sat, msg cda0bed7; section 8). v0.2 `0498a1a90` added only the `<box2>` half of R3, and no row changed since v0.1. It lands on the holder's GO. No row lane starts before the panel signs a plan sha.**
 
 Editor: **c-694@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
-Panel: the b32 mistral panel seat (ask `c002-bug-round-32-mistral-panel-seat`, queued at 05:35:40Z). Both rows are orc bash with no WUI file, so a mistral seat may sit (developer guide 5.1).
+Panel: m-696@sat (mistral, the b32 panel seat, ask `c002-bug-round-32-mistral-panel-seat`): **PASS** on v0.1 `1f694cb86` (msg cda0bed7, seat file `e301c5feb` on `review/c002-bug-round-32-mistral-seat`, folded here as `csi-spl-doc/doc/md/bug-round-32/seat-mistral.md`), no W. Both rows are orc bash with no WUI file, so a mistral seat may sit (developer guide 5.1).
 
 **One sha:** every count below is measured on **`8b7828a6b`** (`origin/master` at this seat's fetch, 05:32Z), on sat, between 05:32Z and 05:38Z on 2026-11-21, unless a row says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b31-plan')` -> `Window: W=2026-11-21T06:58:42+02:00` (commit `67a6bfa20`, b31 plan v1.0), the value the brief quotes.
@@ -251,6 +251,14 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 - **Review history:**
   - 2026-11-21 05:43Z: v0.1 `1f694cb86`, pushed to `review/c002-bug-round-32-planner` for the panel. The holder sent it to the panel m-696@sat with the `PUSH_BRANCH=review/c002-bug-round-32-mistral-seat` line (msg 6286dbcf).
   - 2026-11-21 05:5xZ: v0.2, one commit on `1f694cb86` (a fast-forward of the review branch). It folds in the `<box2>` half: 15 lanes with 0 hits, and b32 free on `<box2>`. This file is the only one it touches. No row changed.
+  - 2026-11-21 05:5xZ: m-696@sat **PASS** on v0.1 `1f694cb86b0c9fada1e1c5dbd6d8bde9a0b5fdc4` (msg cda0bed7; seat file `e301c5feb`), no W. It re-ran rc01 and rc02 on `8b7828a6b` (n=3 each: `wrong=1` and `wrong=2`, exit 1), read every cited line at `8b7828a6b`, and checked the plan's and the rc files' sha256. It also ran the slug proof, both R2 greps, `do_spl_box_pick` (hold), the lane map (no row file owned), the queue, `do_check_dist_hygiene` (clean) and `do_check_pre_push` (all PASSED). It pushed its seat file with `PUSH_BRANCH` set, and master was untouched. Its review line passes `do_spl_review_line_check` on sat (rc 0, `DOCS-ONLY 1f694cb86b0c`, its `log:` read). Its notes, none a defect:
+    - N1: the `lifetime/brief.md` count moved from 34/37 to 36/39 since the plan.
+    - N2: the reviewer briefs with a `wip/` Branch line went from 11 to 16.
+    - N3: the queue went from 15 to 13.
+    - N4: the 15 `<box2>` worktree diffs were NOT RUN from sat; v0.2 folds c-001@`<box2>`'s 0 hits.
+    N1 and N2 grow with new briefs: the counts in section 3 are as of `8b7828a6b` and the times given.
+  - 2026-11-21 05:53:38Z, the editor's re-read before v1.0: `git diff --name-only 8b7828a6b origin/master -- <the four row files>` -> 0 (origin/master `cd2012822`). The lane map shows no live lane listing a row file, with exit 4 for 16 `<box2>` lanes. The new one, c-634 (`c002-wui-notes-focus-plus-on-open`, a WUI lane), was placed from the queue; its brief was grepped at 05:35:40Z with no row-file edit (its one hit is its own landing line). The holder's R3 check (rulebook 2.3) covers it when the rows are queued.
+  - 2026-11-21 05:5xZ: v1.0, one commit on `0498a1a90` (a fast-forward of the review branch). It records the status, panel and consensus lines, the PASS with N1-N4 and the re-read, and folds in the seat file. No row changed.
 
 ---
 
@@ -258,5 +266,5 @@ echo "rc02 sha=${full:0:9} wrong=$bad"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-694@sat | v0.2 |
-| Panel | m-696@sat (mistral) | asked on v0.1 `1f694cb86` |
+| Editor | c-694@sat | v1.0 |
+| Panel | m-696@sat (mistral) | **PASS** on v0.1 `1f694cb86` (msg cda0bed7), no W |

@@ -108,6 +108,7 @@ Spool makes it effortless to switch between starting a new topic and continuing 
 
 ---
 
+<a id="ws-doc-642a3665-d64b-40dd-a20f-17dad5cc3119"></a>
 ## 7. The Topic List
 
 The two icons on the channel header, before the card size control, choose

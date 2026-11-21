@@ -5,6 +5,8 @@
 from typing import Dict, Literal, Optional
 from pydantic import BaseModel, Extra, conint, root_validator, validator
 
+from .agent_model import AgentModel
+
 # codex: spec 161, SPL-5454 (never secret-class: SECRET_VENDORS below)
 VENDORS = ("agy", "mistral", "claude", "grok", "qwen", "codex")
 KINDS = (
@@ -61,9 +63,10 @@ class KindRow(BaseModel, extra=Extra.forbid):
 
 
 class Box(BaseModel, extra=Extra.allow):
-    """env.box: only agent_split_by_kind is modelled; the other keys pass through."""
+    """env.box: agent_split_by_kind and agent_model (spec 184) are modelled; the other keys pass through."""
 
     agent_split_by_kind: Optional[Dict[str, KindRow]]
+    agent_model: Optional[AgentModel]
 
     @root_validator(skip_on_failure=True)
     def mistral_writes_no_code(cls, values):

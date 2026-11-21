@@ -789,6 +789,68 @@ rm -f "$KEPT"; LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CMD="echo grok:91" LANE_QUOTA
 [[ "$(awk -F'\t' '{ print NF }' "$KEPT")" == 4 ]] && pass "16o. CONTROL a grok row carries no key" || fail "16o. grok: $(cat "$KEPT")"
 rm -f "$KEPT" "$KEPT.account" "$CJ" "$T"/cred-*.json "$T/profile" "$T/profile-calls"
 
+# 16p. (c002) claude's reading below the limit from its OAuth usage endpoint.
+#     2026-11-20 23:06Z: the CLI's cache (cachedUsageUtilization) was last
+#     fetched 13:06Z on the main box (10.9 h, past LANE_QUOTA_CACHE_MAX_S) and
+#     on 11-10 under another login on sat; no banner, no limit entry. Every box
+#     read "claude weekly unknown" and, claude having its own mark (99), every
+#     claude lane waited. The endpoint (faked by LANE_QUOTA_CLAUDE_USAGE_CMD,
+#     the token on stdin, curl's body then "<code> <retry-after>") names the
+#     login's weekly % now.
+NOW=$(date +%s); CJ="$T/cj-usage.json"; A=one-login; RU="$(date -u -d "@$FUT" +%Y-%m-%dT%H:%M:%S).156837+00:00"
+cj "$A" "$A" $(( NOW - 39322 )) 6
+cred cred-u1.json fixture-access-u1 fixture-refresh-u1
+cred cred-u2.json fixture-access-u2 fixture-refresh-u2
+# the endpoint: answers $T/usage-answer, counts its calls, records that a token came on stdin
+printf '#!/bin/bash\nt="$(cat)"; echo "call ${t:+token}" >>"%s/usage-calls"\ncat "%s/usage-answer"\n' "$T" "$T" >"$T/usage"
+chmod +x "$T/usage"
+ans() { printf '{"five_hour":null,"seven_day":{"utilization":%s,"resets_at":"%s"}}\n%s %s\n' "$1" "${3:-$RU}" "$2" "${4:-}" >"$T/usage-answer"; }
+calls() { grep -c . "$T/usage-calls" 2>/dev/null || echo 0; }
+uk() { known LANE_QUOTA_CMD= LANE_PANES_CMD=true LANE_QUOTA_LOG_DIR="$T/none" LANE_QUOTA_CLAUDE_JSON="$CJ" \
+  LANE_QUOTA_CLAUDE_CRED="$T/${UC:-cred-u1.json}" LANE_QUOTA_CLAUDE_PROFILE_CMD="$T/profile" LANE_QUOTA_CLAUDE_USAGE_CMD="$T/usage" "$@"; }
+# the profile endpoint (spl_box_quota_claude_key): access-u2 is another login
+printf '#!/bin/bash\n[[ "$(cat)" == fixture-access-u2 ]] && u=uuid-b || u=uuid-a; echo "{\\"account\\":{\\"uuid\\":\\"$u\\"}}"\n' >"$T/profile"; chmod +x "$T/profile"
+fresh() { rm -f "$KEPT" "$KEPT.usage" "$KEPT.account" "$T/usage-calls"; }
+fresh; ans 39.0 200
+[[ "$(uk)" == "claude:39@$FUT" ]] && [[ "$(cut -f1,2,6 "$KEPT")" == "claude"$'\t'"39"$'\t'"usage" ]] && [[ "$(cat "$T/usage-calls")" == "call token" ]] &&
+  pass "16p. RED CONTROL (FAILs on 2b7bb502a: unknown) the 11-20 case: the CLI cache 10.9 h old, no banner -> 39 % from the usage endpoint, source usage" ||
+  fail "16p. usage: $(fresh; uk), $(cat "$KEPT" 2>/dev/null)"
+fresh; wk "box-a::60" "box-b::60"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_CMD= LANE_PANES_CMD=true LANE_QUOTA_LOG_DIR="$T/none" \
+  LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/cred-u1.json" LANE_QUOTA_CLAUDE_PROFILE_CMD="$T/profile" \
+  LANE_QUOTA_CLAUDE_USAGE_CMD="$T/usage" BOX_PICK_KIND=claude BOX_QUOTA_WEEKLY_MAX_PCT_CLAUDE=99)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^BOX box-a .*  claude weekly 39%  <- pick$' <<<"$out" &&
+  pass "16p. RED CONTROL (FAILs on 2b7bb502a: pick=hold) the pick: claude's own mark 99, box-a at 39 % -> picked" || fail "16p. pick: $out"
+! grep -rqs 'fixture-access\|fixture-refresh' "$KEPT" "$KEPT.usage" "$KEPT.account" && [[ "$(wc -w <"$KEPT.usage")" == 5 ]] &&
+  pass "16p. the kept answer (<kept>.usage) holds no token" || fail "16p. token: $(cat "$KEPT.usage")"
+fresh; ans 39 200; uk >/dev/null; ans 45 200; uk >/dev/null; uk >/dev/null
+[[ "$(calls)" == 1 && "$(uk)" == "claude:39@$FUT" ]] &&
+  pass "16p. the endpoint is asked at most every LANE_QUOTA_USAGE_S (900): three more reads, 1 call" || fail "16p. throttle: $(calls) calls"
+[[ "$(uk LANE_QUOTA_USAGE_S=0)" == "claude:45@$FUT" && "$(calls)" == 2 ]] &&
+  pass "16p. CONTROL its time passed: asked again, the higher % climbs" || fail "16p. again: $(calls) $(cat "$KEPT")"
+fresh; ans 1 429 '' 3584
+[[ -z "$(uk)" ]] && [[ "$(cut -d' ' -f2 "$KEPT.usage")" == 3584 ]] && uk LANE_QUOTA_USAGE_S=0 >/dev/null && [[ "$(calls)" == 1 ]] &&
+  pass "16p. CONTROL a refusal (429, retry-after 3584): no reading, not asked again before its Retry-After" || fail "16p. 429: $(calls) $(cat "$KEPT.usage")"
+fresh; ans 39 200; uk >/dev/null; ans 1 429 '' 60
+[[ "$(uk LANE_QUOTA_USAGE_S=0)" == "claude:39@$FUT" && "$(calls)" == 2 ]] &&
+  pass "16p. CONTROL a refusal after an answer of the same token keeps that answer" || fail "16p. 429 kept: $(cat "$KEPT.usage")"
+fresh; ans 97 200; uk >/dev/null; ans 5 200
+[[ "$(UC=cred-u2.json uk)" == "claude:5@$FUT" && "$(calls)" == 2 ]] &&
+  pass "16p. RED CONTROL a new access token (another login copied in) is asked at once: its 5 %, not the old token's 97" ||
+  fail "16p. new token: $(calls) $(cat "$KEPT" "$KEPT.usage")"
+fresh; printf 'garbage\n500 \n' >"$T/usage-answer"
+[[ -z "$(uk)" && "$(cut -d' ' -f5 "$KEPT.usage")" == - ]] && pass "16p. CONTROL an answer with no weekly % -> no reading" || fail "16p. garbage: $(cat "$KEPT.usage")"
+fresh; ans 130 200
+[[ "$(uk)" == "claude:100@$FUT" ]] && pass "16p. over 100 reads 100" || fail "16p. 130"
+fresh; ans 39 200 "$(date -u -d "@$PAST" +%Y-%m-%dT%H:%M:%S).1+00:00"
+[[ -z "$(uk)" ]] && pass "16p. CONTROL a reset that passed -> no reading" || fail "16p. past"
+fresh; ans 39 200
+[[ -z "$(known LANE_QUOTA_CMD= LANE_PANES_CMD=true LANE_QUOTA_LOG_DIR="$T/none" LANE_QUOTA_CLAUDE_JSON="$CJ")" && "$(calls)" == 0 ]] &&
+  pass "16p. CONTROL faked panes without LANE_QUOTA_CLAUDE_CRED ask nothing" || fail "16p. seam: $(calls)"
+[[ -z "$(uk LANE_QUOTA_CLAUDE_USAGE_CMD= SPL_CNF=/nonexistent LANE_QUOTA_CLAUDE_PROFILE_HOST=)" && "$(calls)" == 0 ]] &&
+  pass "16p. CONTROL no endpoint host (no cnf, no LANE_QUOTA_CLAUDE_PROFILE_HOST): no call, no reading" || fail "16p. nohost: $(calls)"
+fresh; rm -f "$CJ" "$T"/cred-u*.json "$T/usage" "$T/usage-answer" "$T/profile"
+
 # 16n. a kept reading lapses unless re-read, and says where it came from
 #     (SPL-4965). 2026-11-06: a kept 97 % held the placer for 2 h 15 while the
 #     alert read 0 %. SPL-4608 kept the reading because lanes were placed past

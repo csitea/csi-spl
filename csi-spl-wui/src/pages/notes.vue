@@ -10,10 +10,11 @@
      on its row, a spec 103 vim item (j / k, arrows; SPL-6063):
      components/NoteDetail.vue, lazy, a modal above 820 px and the level-3
      full screen on a phone. The order is the person's own: drag a row, or
-     Alt+Up / Alt+Down on it (utils/note-order.mjs). Every row has a menu
-     (spec 155 2.10, SPL-5255): a right-click, or its menu button (a phone has
-     no right-click), with Archive, Turn into a discussion and Delete
-     (components/NoteMenu.vue, composables/useNoteActions.ts). Archive and
+     Alt+Up / Alt+Down on it (utils/note-order.mjs); on a phone a press held on
+     a row lifts it and the finger drags it (SPL-6175, useDragReorder). Every
+     row has a menu (spec 155 2.10, SPL-5255): a right-click, or its menu
+     button (a phone has no right-click), with Archive, Turn into a discussion
+     and Delete (components/NoteMenu.vue, composables/useNoteActions.ts). Archive and
      Delete (D2) act at once, no confirm, and show a 10 s Undo snackbar, at the
      bottom on a phone and at the top on a desktop; the DELETE goes when it ends. -->
 <template>
@@ -72,16 +73,18 @@
                 v-for="n in g.rows"
                 :key="n.id"
                 class="notes-row"
-                :class="{ 'notes-row--over': dragOver === n.id }"
+                :class="{ 'notes-row--over': dragOver === n.id, 'notes-row--lifted': lifted === n.id }"
                 data-test="notes-row"
                 :data-note-id="n.id"
+                :data-reorder-id="n.id"
                 :draggable="phone ? undefined : 'true'"
                 @dragstart="onDragStart(n.id, $event)"
                 @dragover.prevent="dragOver = n.id"
                 @dragleave="dragOver = ''"
                 @drop.prevent="onDrop(n.id)"
                 @dragend="dragId = ''; dragOver = ''"
-                @contextmenu.prevent="openMenu(n.id, $event.clientX, $event.clientY)"
+                @contextmenu.prevent="onContextMenu(n.id, $event)"
+                @click.capture="swallowHeldClick"
               >
                 <a
                   class="notes-row__open"
@@ -90,6 +93,8 @@
                   :aria-current="openId === n.id ? 'true' : undefined"
                   data-test="notes-open"
                   data-vim-item
+                  :draggable="phone ? 'false' : undefined"
+                  @pointerdown="phone && holdRow(g.id, n.id, $event)"
                   @click.exact.prevent="open(n.id)"
                   @keydown.alt.up.prevent="move(n.id, -1)"
                   @keydown.alt.down.prevent="move(n.id, 1)"
@@ -157,6 +162,7 @@ import type { NoteSummary } from '~/stores/notes'
 import { movePlacement, dropPlacement, drawnAbove, notePriority } from '~/utils/note-order.mjs'
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useDragReorder } from '~/composables/useDragReorder'
 import { useNoteOpen } from '~/composables/useNoteOpen'
 import { NOTE_UNDO_MS, noteToastView, useNoteActions } from '~/composables/useNoteActions'
 import { NOTE_MENU_ARCHIVE, NOTE_MENU_DELETE, NOTE_MENU_DISCUSS, NOTE_MENU_UNARCHIVE } from '~/utils/note-menu.mjs'
@@ -179,8 +185,8 @@ useHead({ title: () => t('notes.title') })
 const rows = computed(() => filterNotes(store.notes, query.value, false))
 /* 2.6: the Pinned group, then the rest; archived notes are in the Archive section */
 const groups = computed(() => {
-  const pinned = rows.value.filter((n) => n.pinned)
-  const rest = rows.value.filter((n) => !n.pinned)
+  const pinned = dragged('pinned', rows.value.filter((n) => n.pinned))
+  const rest = dragged('rest', rows.value.filter((n) => !n.pinned))
   if (!pinned.length) return [{ id: 'rest', label: '', rows: rest }]
   return [{ id: 'pinned', label: 'notes.pinned', rows: pinned }, ...(rest.length ? [{ id: 'rest', label: 'notes.others', rows: rest }] : [])]
 })
@@ -213,6 +219,60 @@ function onDrop(target: string) {
   if (!id) return
   /* dragged down: it lands after the row it is dropped on; dragged up: before it */
   place(id, dropPlacement(store.notes, id, target, drawnAbove(store.notes, id, target)))
+}
+
+/* SPL-6175 (owner HUM-10, t1 cc9d7c26, msg 82670a2e): "just keeping the thumb
+   down would activate the dragging mode". On a phone a press held on a row
+   (the rail's 450 ms, no move) lifts it, the finger drags it inside its group,
+   and the release lands it as a desktop drop: on the row it took the place
+   of, so D8 gives it that row's priority. A move before the hold scrolls. */
+const dragGroup = ref('rest')
+const groupRows = (g: string) => [...document.querySelectorAll<HTMLElement>(`[data-test=notes-group-${g}] [data-reorder-id]`)]
+const rowDrag = useDragReorder<string>({
+  order: () => groupRows(dragGroup.value).map((el) => el.dataset.reorderId || ''),
+  items: () => groupRows(dragGroup.value),
+  onDrop: (next) => onHoldDrop(next),
+  touchHoldMs: 450,
+})
+const lifted = computed(() => rowDrag.draggingId.value || rowDrag.heldId.value)
+/* the pressed row and its group's order when the press began */
+let press = { id: '', order: [] as string[] }
+function holdRow(group: string, id: string, ev: PointerEvent) {
+  dragGroup.value = group
+  press = { id, order: groupRows(group).map((el) => el.dataset.reorderId || '') }
+  rowDrag.down(ev, id)
+}
+/* the group's rows in the order the finger shows while it drags */
+function dragged(group: string, list: NoteSummary[]) {
+  const order = rowDrag.preview.value
+  if (!order || dragGroup.value !== group) return list
+  const byId = new Map(list.map((n) => [n.id, n]))
+  return order.map((id) => byId.get(id)).filter((n): n is NoteSummary => Boolean(n))
+}
+/* dragged down: it lands after the row now above it; dragged up: before the one below */
+function onHoldDrop(next: string[]) {
+  const { id, order } = press
+  const k = next.indexOf(id)
+  const down = k > order.indexOf(id)
+  const target = next[down ? k - 1 : k + 1]
+  if (target) place(id, dropPlacement(store.notes, id, target, down))
+}
+/* the lift buzzes where a phone can; a hold let go in place opens nothing */
+let heldClickUntil = 0
+watch(() => rowDrag.heldId.value, (now, was) => {
+  if (now) navigator.vibrate?.(15)
+  else if (was) heldClickUntil = Date.now() + 400
+}, { flush: 'sync' })
+function swallowHeldClick(e: MouseEvent) {
+  if (Date.now() >= heldClickUntil) return
+  heldClickUntil = 0
+  e.preventDefault()
+  e.stopPropagation()
+}
+/* a long press is the drag on a phone, never the row menu (it has its button) */
+function onContextMenu(id: string, e: MouseEvent) {
+  if ((e as PointerEvent).pointerType === 'touch' || rowDrag.heldId.value) return
+  openMenu(id, e.clientX, e.clientY)
 }
 
 /* 2.10 (SPL-5255): Archive and Delete act at once, no confirm, then the Undo
@@ -367,6 +427,8 @@ onUnmounted(() => {
 }
 .notes-row__open--current { border-color: var(--color-accent); }
 .notes-row--over .notes-row__open { border-top: 2px solid var(--color-accent); }
+/* SPL-6175: the row a held press lifted, while the finger drags it */
+.notes-row--lifted .notes-row__open { border-color: var(--color-accent); background: var(--color-surface); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25); }
 /* owner t1 ba784026 (msg 037cedef): the chip sits right of the title, not at
    the row's far edge, so the title takes only its own width */
 .notes-row__title {
@@ -391,6 +453,8 @@ onUnmounted(() => {
 @media (max-width: 820px) {
   .notes-bar .btn, .notes-bar__filter, .notes-row__open { min-height: var(--tap, 44px); }
   .notes-row__menu { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+  /* a held press is the drag: no text selection, no link callout */
+  .notes-row__open { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   /* the phone +: over the dock, if any, on the bottom right */
   .notes-fab {
     position: fixed;

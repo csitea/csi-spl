@@ -233,6 +233,7 @@ tests/e2e/notes-link-left.test.mjs 3
 tests/e2e/notes-menu.test.mjs 10
 tests/e2e/notes-open-focus-new.test.mjs 7
 tests/e2e/notes-open.test.mjs 59
+tests/e2e/notes-phone-long-press-drag.test.mjs 17
 tests/e2e/notes-rail-on.test.mjs 5
 tests/e2e/notification-open.test.mjs 15
 tests/e2e/notify-offscreen-reply.test.mjs 7

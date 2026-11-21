@@ -113,6 +113,8 @@ var movedTables = []Entry{
 	{Table: "workspace_doc_node", Class: Moved, Set: `doc_id = ANY(@docs)`, Reason: "M8, re-placed under a folder named for the channel"},
 	{Table: "workspace_doc_acl", Class: Moved, Set: `node_id = ANY(@nodes)`, Reason: "M8"},
 	{Table: "workspace_doc_rev_log", Class: Moved, Set: `doc_id = ANY(@docs)`, Reason: "M8"},
+	{Table: "workspace_doc_media", Class: Moved, Set: `doc_id = ANY(@docs)`,
+		Reason: "M8, the media index (rdb 0306, spec 190 D1); the rows follow their doc, the bytes stay in <SRC>'s own bucket (qto-media/<doc>/) until a copy step exists"},
 	{Table: "spec_sync_map", Class: Moved, Set: `issue_number = ANY(@numbers) OR qto_doc_id = ANY(@docs)`,
 		Reason: "M7 (rdb 0208); a row a staying issue or doc also needs is a shared item: plan refuses (5.5, Q6)"},
 	{Table: "usage_events", Class: Moved, Set: `channel_id = @channel`, Reason: "M10"},
@@ -204,6 +206,8 @@ var notChannelTables = concat(
 	notChannel("the workspace's invoiced income, keyed by invoice number (rdb 0259)", "income_invoices"),
 	notChannel("the workspace's price plan and its lines (rdb 0302, spec 181 B1), names no channel",
 		"price_plan_lines", "price_plans"),
+	notChannel("tombstones of deleted Qto docs for the media sweep (rdb 0306, spec 190); a move's <SRC> doc delete writes its own",
+		"workspace_doc_gone"),
 )
 
 // notChannel returns NotChannel entries that share one reason.

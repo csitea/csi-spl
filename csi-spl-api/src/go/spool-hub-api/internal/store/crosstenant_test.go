@@ -527,9 +527,18 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		}
 		// workspace_doc_acl (rdb 0192, spec 137 T021): one grant on the doc's
 		// node. No store API yet, so a raw row.
-		_, err := tx.Exec(ctx, `INSERT INTO workspace_doc_acl (tenant_id, node_id, subject, action)
+		if _, err := tx.Exec(ctx, `INSERT INTO workspace_doc_acl (tenant_id, node_id, subject, action)
 			SELECT $1, id, 'role:tester', 'read' FROM workspace_doc_node WHERE tenant_id = $1 AND doc_id = $2::uuid`,
-			s.tenant, doc)
+			s.tenant, doc); err != nil {
+			return err
+		}
+		// workspace_doc_media, workspace_doc_gone (rdb 0306, spec 190 D1):
+		// one media row of the doc and one deleted doc's tombstone (no FK).
+		if _, err := tx.Exec(ctx, `INSERT INTO workspace_doc_media (tenant_id, doc_id, sha256, ext, kind, bytes, created_by)
+			VALUES ($1, $2, repeat('a', 64), 'mp4', 'video', 1, $3)`, s.tenant, doc, hum); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO workspace_doc_gone (tenant_id, doc_id) VALUES ($1, gen_random_uuid())`, s.tenant)
 		return err
 	}); err != nil {
 		t.Fatal(err)

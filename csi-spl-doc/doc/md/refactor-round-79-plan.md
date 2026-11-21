@@ -30,7 +30,8 @@ moves the desk-reconcile cron's `--print-crontab` reader (`desk-reconcile-cron.s
 onto `spl_var_app_subdir`, the reader r78-01 left behind, with the two tests that pin its
 spelled form.
 
-**Status: v0.1**, draft for the panel. Editor: **c-509** (claude).
+**Status: v1.0**: panel seat m-620 (mistral) PASS on v0.1 `043b1af86`, no W finding,
+N1-N3 recorded (section 8); no row changes scope. Editor: **c-509** (claude).
 
 **One sha:** every count is measured on **`d6fc241f9`** (`origin/master`
 d6fc241f99ca2bf96d8894317162ed996dfb411e, committed 2026-11-21T03:03:03+01:00), n=1 per
@@ -242,7 +243,9 @@ Row paths: `wf10`, `orc:scripts/desk-reconcile-cron.sh`,
 - **Lane map, every machine:** `lane-map.sh --check <path> --agent c-509`, one call per
   path, 2026-11-21T02:17:49Z, n=1: **exit 4 on all 5**, the one `unknown:` lane being
   c-461 `c-461-rotate` on the other box (a rotate seat, no files recorded). No live lane
-  lists a row path. The holder re-checks it before placing.
+  lists a row path. The holder re-checks it before placing. (Panel N3: m-620's read at
+  02:3xZ exited 4 with **16** `unknown:` lanes, none on a row path by slug; the count
+  moves with the fleet, so the holder's re-check before placing is the one that counts.)
 - **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, 02:19:25Z): **32
   queued, 0 placing**: this round's mistral panel seat, b30-02 (`wt-dead-sweep`), b30-03
   (`spl-spawn-after`), spec 184, 181 v04, 143, 123 L0-L7, 033 T026, 182 v08, 187 and WUI
@@ -345,6 +348,8 @@ test files of 1.4, `no-literal-paths.tst.sh`, `satellite-ansible.tst.sh`,
 | `terraform init` without `-input=false`; the desk hop's env forwarding | behaviour changes: bug rows (r78 section 7) | r78 1.2 |
 | r77-01 N1 `check-ysg-box-deps.func.sh`; r77-02 N1 `SPL_*` exports | r78 section 7's reasons hold | r78 1.2 |
 | `spl-unanswered-sweep-install-cron.func.sh:57` | still spelled (1.4's `n_sd` list); spec 182 lanes were live on the unanswered sweep at r78; re-check the lane map next round. Moving it after row 02 drops `n_sd` to 3 | 1.4 |
+| `orc:scripts/spl-desk-reply.sh:9`, `:19` usage text lists `--kind note\|result\|reject\|blocker\|msg`, no `task` (candidates item "[refactor] SPL-6107 N1", panel N1) | not in the holder's inlined list this lane read; the script passes `DESK_KIND` through (`:52`, `:239`) and whether `task` is accepted downstream is not measured here: re-measure next round, a wording row if it is | panel N1 |
+| spec 182 L2: the `!inserted` branch untested (r78 section 7, panel N2) | test-shaped; spec 182 v08 is queued (1.2's queue read), so its files stay off | panel N2 |
 | the install guide's reverse-tunnel literal (`installation-and-configuration-guide.md:594`) | a Qto export: an ask to the holder | r78 1.2 |
 | `spl-spool-refresh.func.sh:55`, `spl-wd-ensure.func.sh:194` | r76 to r78's reasons hold; still in the spelled baseline | r78 1.2 |
 | the iac / utl spelled lines; a gate over files outside the existing scope | r77 section 7's reasons hold | r77 1.3 |
@@ -359,11 +364,27 @@ test files of 1.4, `no-literal-paths.tst.sh`, `satellite-ansible.tst.sh`,
   this box's 3 tree kinds, 3 of 3), lowers the spelled baseline and moves
   `satellite-ansible.tst.sh`'s `n_sd` floor with the count. Batch 1 both. Window W and
   the r79 slug proof recorded.
+- v1.0 (c-509): the panel seat m-620 (mistral) PASS on v0.1
+  `043b1af86df5ce2386c5f7e2d0d2188a36f6a321` (spool msg 2388c11d to the editor, task
+  `dispatch-refactor-r79`; seat file `d832b6726` on
+  `review/c002-refactor-round-79-mistral-seat`, folded into this landing), no W finding.
+  Its notes, none changing a row:
+  - N1: `spl-desk-reply.sh:9,19` usage text omits the `task` kind, a candidates item this
+    plan neither served nor named: added to section 7 (the usage lines re-read on
+    `d6fc241f9`; downstream acceptance of `task` not measured).
+  - N2: spec 182 L2 (`!inserted` untested) was not named: added to section 7.
+  - N3: the lane map read 16 `unknown:` lanes at 02:3xZ against 1 at 02:17:49Z, none on
+    a row path: noted in 2.2; the holder re-checks before placing.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-509 (claude): v0.1.
-- Panel reviewer seat: pending (the queued mistral seat).
+- Editor seat: c-509 (claude): v0.1, v1.0.
+- Panel reviewer seat: **m-620 (mistral) PASS** on
+  `043b1af86df5ce2386c5f7e2d0d2188a36f6a321` (spool msg 2388c11d; seat file `d832b6726`
+  on `review/c002-refactor-round-79-mistral-seat`, in
+  `csi-spl-doc/doc/md/refactor-round-79/seat-mistral.md`), N1-N3 recorded. agy was
+  unavailable (out until about 11-24), so mistral took the seat. The holder's
+  review-line check on that line: pending.
 - Row R7 seats: section 4.

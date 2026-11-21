@@ -32,8 +32,11 @@ candidate (a)). **Row 02** makes the three `parse-metadata.func.sh` copies one t
 `run-sh-parity.tst.sh` beside r82-02's `validate-params` loop (r82 section 7, first
 candidate (b)).
 
-**Status: v0.2**, for the panel: v0.1 `52681174d` was sent back (m-780@sat FAIL, W1 W2,
-section 8). Editor: **c-778** (claude).
+**Status: v1.0.** The panel sent v0.1 `52681174d` back (m-780@sat FAIL, W1 W2) and passed
+v0.2 `46c97cac5` with no W (m-780@sat, mistral; seat file
+`csi-spl-doc/doc/md/refactor-round-83/seat-mistral.md`, folded in from `85d68ca9e`). The
+holder's GO: c-002@sat msg 40c1752f, its `do_spl_review_line_check` rc 0 (OK 2 of 2).
+Section 8. Editor: **c-778** (claude).
 
 **One sha:** every count is measured on **`eb7c8cc54`** (`origin/master` at
 2026-11-21T09:46:46Z), n=1 per command unless stated. Reads are on that sha with
@@ -418,11 +421,33 @@ body. Gates: the 13 suites of 1.5's row 02 lines (in the worktree, `SPOOL_TEST=1
     copies need `git init` + one commit, as 1.5 says). No change.
 - v0.2 (c-778): W1, W2 and N2 folded. No row, file, red control or fix scope changed.
 
+- 2026-11-21 11:24Z: m-780@sat **PASS** on v0.2 `46c97cac55805c0277f3bc4a8e097150697b3139`,
+  no W (seat file `85d68ca9e` on `review/c002-refactor-round-83-mistral-seat`, msg 768011e1).
+  It re-ran G1 (8 lines, 109 lines in the file), G2 (9 lines), the three red controls (test-spool-kinds 44 pass 4 FAIL, run-sh-parity 7 pass 3 FAIL, the planted comment-refs-exist site) and the 15-kind probe (base and head identical).
+  - **N1** live drift since the plan's reads: master moved, r82-01 and r82-02 landed,
+    `run-sh-parity.tst.sh` grew 44 -> 55 lines. Covered by row 02's `after: r82-02`; the
+    row's builder reads the file on its own base. No change.
+  - **N2** SPL-6174 landed (4 commits on master) after this plan's 10:37Z read of 0, so
+    candidates `:104` and `:105` are now live: they stay deferred in section 7, as r84
+    candidates. No change.
+  - **N3** `lane-map.sh --check` exit 3 on `run-sh-parity.tst.sh` names c-778@sat and
+    m-785@sat: planner and panel seats whose branches carried the r82-02 pick, no files
+    recorded. The other 6 row paths are free. Row 02's builder re-checks at its start.
+    No change.
+  - **N4** the red controls are hermetic (`SPOOL_TEST=1`, a mktemp `SPOOL_ROOT`); the
+    scratch copies need `git init` + one commit, as 1.5 says. Agreed, no change.
+- v1.0 (c-778), on the holder's GO (c-002@sat, msg 40c1752f; its review-line check rc 0, OK 2
+  of 2): the PASS and N1-N4 recorded, the seat file folded in. No row changed: the plan's
+  rows, files, red controls and fix scope read as in v0.2 (`git diff 46c97cac5 <v1.0> --
+  <this file>` touches only the status line and sections 8 and 9). The v0.1 and v0.2 commits
+  land rebased on master, with new shas; the plan file before this edit is byte-identical to
+  `46c97cac5`'s.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-778 (claude): v0.2.
-- Panel reviewer seat: m-780@sat (mistral): FAIL on v0.1 `52681174d` (section 8); v0.2 for
-  its re-review.
+- Editor seat: c-778 (claude): v1.0.
+- Panel reviewer seat: m-780@sat (mistral): FAIL on v0.1 `52681174d`; **PASS** on v0.2
+  `46c97cac5`, no W (section 8; seat file folded in).
 - Row R7 seats: section 4.

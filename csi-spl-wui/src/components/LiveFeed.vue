@@ -104,6 +104,7 @@
           :last-msg-id="paneLatestId || undefined"
           :pane-opener="paneOpener"
           :awaiting="awaitingOf(it.msg)"
+          :pinned-new="isPinned(it.msg)"
           :class="{ pending: it.msg.pending, 'msg--new': isNew(it.msg) }"
           :data-key="it.msg.msg_id"
           :data-pending="it.msg.pending ? 'true' : undefined"
@@ -185,6 +186,7 @@ import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useThreadAwait, type AwaitMark } from '~/composables/useAwaitReply'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { displayOrder } from '~/utils/view-prefs.mjs'
+import { pinEdge } from '~/utils/topic-list-order.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { provideFeedEditing } from '~/composables/useFeedEditing'
 import { perfDelivered, perfFeed, perfFeedState, perfOn, perfWatchRouter } from '~/utils/perf-mark.mjs'
@@ -260,6 +262,9 @@ const props = defineProps<{
       waits for an agent's answer; a thread (clipPane "thread") marks the post. */
   awaitFor?: (taskId: string) => AwaitMark
   virtual?: boolean /* SPL-2146: draw only the rows near the viewport (the channel feed) */
+  /** spec 189 B3: a channel's topic list only (never a thread): the viewer's own
+      new topics, oldest send first, drawn at the very edge new posts go to. */
+  pinIds?: readonly string[]
 }>()
 const emit = defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -300,8 +305,13 @@ const openerId = computed(() => String(openerRow.value?.msg_id || ''))
 const unreadRank = (m: SpoolMessage) => (openerId.value && String(m.msg_id) === openerId.value ? 0 : countedRow(m) ? cardNew.unseen(m) : Number(isNew(m)))
 /* the rows in DOM (= reading) order */
 /* CLE-77840: a reply deleted with the Delete key stays hidden while its Undo
-   window is open, even if a re-read brings the hub's (not yet deleted) row back */
-const shown = computed(() => unreadOrder.order(displayOrder(props.rows.filter((m) => !pendingDeleteId.value || String(m.msg_id || '') !== pendingDeleteId.value), newestLast.value ? 'newest-last' : 'newest-first') as SpoolMessage[], unreadRank, (m) => String(m.ts || '')))
+   window is open, even if a re-read brings the hub's (not yet deleted) row back.
+   Spec 189 B3: the pinned new topics go last, so no other step moves a card past them (C1). */
+const shown = computed(() => pinEdge(unreadOrder.order(displayOrder(props.rows.filter((m) => !pendingDeleteId.value || String(m.msg_id || '') !== pendingDeleteId.value), newestLast.value ? 'newest-last' : 'newest-first') as SpoolMessage[], unreadRank, (m) => String(m.ts || '')), props.pinIds, { atEnd: newestLast.value }))
+const pinSet = computed(() => new Set(props.pinIds || []))
+function isPinned(m: SpoolMessage) {
+  return pinSet.value.size > 0 && pinSet.value.has(String(m.task_id || ''))
+}
 /* Newest last: a thread follows new replies too while its reader sits at the
    bottom (A6); a reader scrolled up in it is never moved. */
 const { pill, jump, hold } = useScrollAnchor(

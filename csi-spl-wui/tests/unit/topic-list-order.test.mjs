@@ -5,16 +5,19 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  TOPIC_LIST_FILTERS,
   TOPIC_LIST_SORTS,
   TOPIC_PRIORITY_DEFAULT,
   parseTopicListFilter,
   parseTopicListSort,
+  pinEdge,
   topicListView,
   topicPriority,
   topicUnreadCount,
 } from '../../src/utils/topic-list-order.mjs'
 import { channelView } from '../../src/utils/channel-feed.mjs'
 import { unreadFirst } from '../../src/utils/unread-first.mjs'
+import { displayOrder } from '../../src/utils/view-prefs.mjs'
 
 /* a topic card: task id, last update, total count, priority, unread */
 function card(task, last, count, priority, unread = 0) {
@@ -128,5 +131,75 @@ describe('C210 New and the unread edge agree', () => {
     assert.deepEqual([...kept].sort(), [...edge].sort())
     assert.deepEqual([...kept].sort(), ['t10', 't3', 't4'])
     assert.deepEqual(odd.map(topicUnreadCount), [0, 0, 0, 2, 1, 0, -1, 0, 0, 0, 3])
+  })
+})
+
+// Spec 189 row B1 (owner HUM-10, t1 a48d75d6, D1..D4): pinEdge, the last step
+// of the channel feed's drawn order (MessageFeed -> topicListView with `keep`,
+// LiveFeed -> displayOrder -> unreadFirst -> pinEdge). Contracts C1..C4 of
+// spec 189 section 7.1 on fixed rows, both message orders, 3 sorts x 2 filters.
+// Red control (spec row B1): drop the pin step from `drawn` below and the
+// fresh P3 card under Priority is not at index 0 (newest first) / last
+// (newest last).
+describe('spec 189 B1 the fresh card at the list edge', () => {
+  /* read cards with more messages and a higher priority, two unread P1 cards, and
+     my own new topic: newest, 1 message, the default priority 3, read (own) */
+  const base = () => [
+    card('mine', at(12), 1, undefined, 0),
+    card('u-p1-a', at(11), 4, 1, 2),
+    card('r-p1', at(10), 9, 1, 0),
+    card('u-p1-b', at(9), 7, 1, 5),
+    card('r-p2', at(8), 6, 2, 0),
+    card('r-p5', at(7), 2, 5, 0),
+  ]
+  /* the feed's steps as MessageFeed and LiveFeed run them */
+  function drawn(rows, { filter, sort, atEnd, fresh }) {
+    const listed = topicListView(rows, { filter, sort, unreadOf, keep: fresh })
+    const ordered = displayOrder(listed, atEnd ? 'newest-last' : 'newest-first')
+    const edged = unreadFirst(ordered, unreadOf, { atEnd })
+    return pinEdge(edged, fresh, { atEnd })
+  }
+  /* the same steps without the pin: the order every other card must keep (C2) */
+  function today(rows, { filter, sort, atEnd }) {
+    const listed = topicListView(rows, { filter, sort, unreadOf })
+    return unreadFirst(displayOrder(listed, atEnd ? 'newest-last' : 'newest-first'), unreadOf, { atEnd })
+  }
+  for (const atEnd of [false, true]) {
+    for (const sort of TOPIC_LIST_SORTS) {
+      for (const filter of TOPIC_LIST_FILTERS) {
+        const tag = `${atEnd ? 'newest last' : 'newest first'}, ${sort}, ${filter}`
+        it(`C1 C2 C3 ${tag}: the fresh card sits at the edge, every other card keeps today's order`, () => {
+          const out = ids(drawn(base(), { filter, sort, atEnd, fresh: ['mine'] }))
+          assert.equal(atEnd ? out[out.length - 1] : out[0], 'mine', JSON.stringify(out))
+          const rest = out.filter((id) => id !== 'mine')
+          assert.deepEqual(rest, ids(today(base(), { filter, sort, atEnd })).filter((id) => id !== 'mine'))
+          /* C1: the unread cards sit next to it, on the inner side */
+          const inner = atEnd ? rest.slice(-2) : rest.slice(0, 2)
+          assert.deepEqual([...inner].sort(), ['u-p1-a', 'u-p1-b'])
+        })
+      }
+    }
+  }
+  it('C4 several fresh cards: the outer group in send order, the newest outermost', () => {
+    const rows = [card('mine-2', at(13), 1, undefined, 0), ...base()]
+    const fresh = ['mine', 'mine-2']
+    for (const sort of TOPIC_LIST_SORTS) {
+      const top = ids(drawn(rows, { filter: 'new', sort, atEnd: false, fresh }))
+      assert.deepEqual(top.slice(0, 2), ['mine-2', 'mine'], sort)
+      const bottom = ids(drawn(rows, { filter: 'new', sort, atEnd: true, fresh }))
+      assert.deepEqual(bottom.slice(-2), ['mine', 'mine-2'], sort)
+    }
+  })
+  it('C2 no fresh card: the very same array back; a fresh id not on screen changes nothing', () => {
+    const rows = base()
+    assert.equal(pinEdge(rows, []), rows)
+    assert.equal(pinEdge(rows, null), rows)
+    assert.equal(pinEdge(rows, ['gone']), rows)
+    assert.equal(pinEdge(rows, ['']), rows)
+  })
+  it('C3 keep: New keeps a kept read card, and only that one', () => {
+    const out = ids(topicListView(base(), { filter: 'new', unreadOf, keep: ['mine'] }))
+    assert.deepEqual([...out].sort(), ['mine', 'u-p1-a', 'u-p1-b'])
+    assert.deepEqual(ids(topicListView(base(), { filter: 'new', unreadOf })).sort(), ['u-p1-a', 'u-p1-b'])
   })
 })

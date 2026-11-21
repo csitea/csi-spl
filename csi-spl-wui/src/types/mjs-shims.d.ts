@@ -2341,7 +2341,22 @@ declare module '~/utils/topic-list-order.mjs' {
       countOf?: (row: T) => number | null | undefined
       priorityOf?: (row: T) => number | null | undefined
       lastOf?: (row: T) => string
+      keep?: readonly string[]
     },
   ): T[]
+  export function pinEdge<T>(
+    rows: T[],
+    freshIds: readonly string[] | null | undefined,
+    opts?: { atEnd?: boolean, idOf?: (row: T) => string },
+  ): T[]
+  export type FreshState = { channel: string, ids: string[] }
+  export type FreshEvent =
+    | { type: 'send', channel?: string | null, peer?: string | null, parentTaskId?: string | null, taskId?: string | null }
+    | { type: 'channel', channel?: string | null }
+    | { type: 'leave' }
+  export function freshEmpty(): FreshState
+  export function freshNote(state: FreshState, ev: FreshEvent): FreshState
+  export function freshIdsFor(state: FreshState, channel: string | null | undefined): string[]
+  export function freshEndsOnRoute(toPath: string, channel: string | null | undefined): boolean
 }
 

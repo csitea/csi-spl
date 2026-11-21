@@ -1,7 +1,9 @@
 # Costs: each workspace's view rules, their legend, and no Google Cloud double count (SPL-6086)
 
-Status: **v0.1.1 (2026-11-20), design only, on a review branch; nothing is
-built.** v0.1.1 folds the v0.1 review (m-273, PASS on `186e756fb`): N1, red
+Status: **v0.2 (2026-11-21), design only, on a review branch; nothing is
+built.** v0.2 records the owner's four answers to the form of section 7
+(HUM-10, csitea `bc9956bf`, msg `f1c6353a`): all four took the recommended
+option A, so no row of section 6 changes. v0.1.1 folds the v0.1 review (m-273, PASS on `186e756fb`): N1, red
 controls for rows R7 and R8; N3, the `inTenant` cite is line 175. Issue: SPL-6086 (epic SPL-2373). Discussion: csitea topic
 `bc9956bf` (#csi-fina, owner HUM-10). It changes the allocation of
 [costs-allocation.md](costs-allocation.md) (sections 1-7) for the
@@ -233,13 +235,13 @@ applied**: W reads its rules only, so no cost reaches W both ways. They stay
 stored and keep applying to every workspace without rules. Settings -> Cost
 allocation shows, on an item whose split names a workspace with rules,
 "<workspace> reads by its view rules; this share is not applied". Deleting
-the inert split rows is a separate owner call (form question 4).
+the inert split rows was the owner's call: they are kept (decided, 7 Q4).
 
 ### 3.7 Who reads a view
 
 - **The workspace's page reads its rules for every reader**, the operator
-  workspace's admin included, when that workspace has rules (form question
-  1, recommended A). So on prd the t1 page shows t1's share, and the whole
+  workspace's admin included, when that workspace has rules (decided,
+  7 Q1). So on prd the t1 page shows t1's share, and the whole
   estate is csitea's page (its rules are all 10000). The `estate` scope of
   2.1 stays for the reads that need the unscoped estate: Settings -> Cost
   allocation, Expenses and the accountants (`costEstateReaders`), and for a
@@ -249,7 +251,7 @@ the inert split rows is a separate owner call (form question 4).
   rules (10000 for Persons and Cloud `*`) then show every hr component and
   every GCP project of the estate, other customers' projects included, to
   every `costs.read` holder of csitea. That is what the owner asked; who
-  holds `costs.read` in csitea decides who sees it (form question 3).
+  holds `costs.read` in csitea decides who sees it (decided, 7 Q3).
 
 ## 4. Google Cloud: never counted twice
 
@@ -329,7 +331,7 @@ Google Cloud cost: the remedy of 4.1 removes the duplicated days and keeps
 the rest. No row is deleted, and nothing is changed without the owner's
 go.
 
-The rows that would change, on the owner's go (form question 2):
+The rows that change (the remedy decided, 7 Q2; the write itself is row R8, on the owner's go per env):
 
 | table | rows | change |
 |---|---|---|
@@ -403,25 +405,25 @@ One row = one lane, rounds-rulebook format. Every row: its tests green,
 | R7 | docs: `csi-spl-doc/doc/help/` Costs page (the legend, the view rules), spec 123 15.6 pointer kept true | `csi-spl-doc/doc/help/*.md` | R6 | the help text names every legend line | a legend line of 5.1 with no help text: the doc grep for its key fails |
 | R8 | the owner's data (on the owner's go per env, dev first): the rules of 3.1 through R5, the `covers_source` of the 2026-10 entry (4.4) through R3's PATCH | none (data through the API) | R3, R4, R5 | `GET /v1/tenant/costs?month=2026-10` on csitea: the Google Cloud total equals the invoice; on t1: the `csi-spl-*` lines only; both legends shown | `covers_source` not set on the 2026-10 entry: csitea's Google Cloud total reads the invoice plus the export, not the invoice, and the check fails |
 
-## 7. Questions for the owner
+## 7. Decided
 
-One form; the first option is the one recommended.
+The owner answered the form of v0.1 (poll `54640590`, HUM-10, csitea
+`bc9956bf`, msg `f1c6353a`, 2026-11-20 ~20:05Z). Each answer is option A,
+the one v0.1 recommended, so sections 3-6 already said it: no row of
+section 6 changes. Checked: `grep -n 'form question'` on v0.1.1 -> 4 lines
+(3.6, 3.7 twice, 4.4); none contradicted its answer, and each now cites the
+decision instead of the open question. The section 6 rows were read against
+each answer too: none says otherwise.
 
-```poll
-1. On the spool-hub (t1) Costs page, what do you yourself see once t1 has its rules?
-(A) t1's share by its rules, like every reader; the whole estate is the csitea page
-(B) the whole estate as today; only the other t1 members see the share
-2. The October Google Cloud entry overlaps the billing export on 23-31 Oct only (9 of 31 days). What do we do?
-(A) Keep the entry, mark it as the export's invoice: October shows the export lines plus the invoice minus the export, so the total equals the invoice
-(B) Delete the entry: October then shows only the 9 days of the export
-(C) Keep the entry and drop the export lines of October
-3. csitea will show every GCP project and every human cost of the estate. Who in csitea may read that?
-(A) Whoever holds costs.read in csitea, as on any workspace
-(B) Only csitea's admins, business owners and accountants
-4. The hand splits already in prd (each GCP project to csitea or t1, tokens 30/70) stop applying to csitea and t1. What happens to them?
-(A) Keep them stored, unused while the view rules exist
-(B) Delete them once the view rules are live
-```
+| # | question | answer (verbatim) | the line it fixes |
+|---|---|---|---|
+| Q1 | On the spool-hub (t1) Costs page, what does the owner see once t1 has its rules? | "A — t1's share by its rules, like every reader; the whole estate is the csitea page" | 3.7: the workspace's page reads its rules for every reader, t1's admin included; the unscoped estate stays for Settings -> Cost allocation, Expenses and the accountants |
+| Q2 | The October Google Cloud entry overlaps the billing export on 23-31 Oct only (9 of 31 days). What do we do? | "A — Keep the entry, mark it as the export's invoice: October shows the export lines plus the invoice minus the export, so the total equals the invoice" | 4.1 and 4.4: no row is deleted; the 2026-10 entry of account A gets `covers_source = 'gcp'` (row R8, through R3's PATCH, dev first, each env on the owner's go) and October reads L plus the rest part |
+| Q3 | csitea will show every GCP project and every human cost of the estate. Who in csitea may read that? | "A — Whoever holds costs.read in csitea, as on any workspace" | 3.7: no extra gate on a view; `costs.read` in csitea decides, as on any workspace |
+| Q4 | The hand splits already in prd stop applying to csitea and t1. What happens to them? | "A — Keep them stored, unused while the view rules exist" | 3.6: the item and instance splits stay stored and are not applied to a workspace with rules; nothing deletes them |
+
+The options not taken (Q1 B, Q2 B and C, Q3 B, Q4 B) are out of scope: no
+row builds them.
 
 ## 8. Gates for this section
 
@@ -430,4 +432,4 @@ do_check_pre_push` before the push of this file. No amount, billing account
 id, person or customer project is written here: section 2.4 gives days and
 counts only, section 4.1's numbers are synthetic.
 
-<!-- version: 0.1.1 · updated: 2026-11-20 -->
+<!-- version: 0.2 · updated: 2026-11-21 -->

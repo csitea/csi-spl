@@ -12,7 +12,7 @@
     </div>
     <div v-for="(row, ri) in rows" :key="ri" class="cal-month__row" role="row">
       <div
-        v-for="c in row"
+        v-for="(c, ci) in row"
         :key="c.iso"
         role="gridcell"
         class="cal-month__cell"
@@ -22,13 +22,17 @@
         :aria-current="c.iso === today ? 'date' : undefined"
         @click="emit('create', c.iso)"
       >
-        <button
-          type="button"
-          class="cal-month__num"
-          data-test="calendar-month-day"
-          :aria-label="`${c.iso} - ${t('calendar.events_n', { n: (byDay.get(c.iso) || []).length })}`"
-          @click.stop="emit('day', c.iso)"
-        >{{ c.d }}</button>
+        <div class="cal-month__head">
+          <!-- SPL-6146: the row's ISO week, a label in front of its first day -->
+          <span v-if="ci === 0" class="cal-month__wk" data-test="calendar-month-week" dir="ltr">{{ calWeekLabel(c.iso) }}</span>
+          <button
+            type="button"
+            class="cal-month__num"
+            data-test="calendar-month-day"
+            :aria-label="`${c.iso} - ${t('calendar.events_n', { n: (byDay.get(c.iso) || []).length })}`"
+            @click.stop="emit('day', c.iso)"
+          >{{ c.d }}</button>
+        </div>
         <ul class="cal-month__list">
           <li v-for="ev in (byDay.get(c.iso) || []).slice(0, MAX)" :key="ev.id">
             <button
@@ -57,6 +61,7 @@
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { isoClock } from '~/utils/date-iso.mjs'
 import { calPhoneMonthGrid } from '~/utils/calendar-phone-nav.mjs'
+import { calWeekLabel } from '~/utils/calendar-year.mjs'
 
 const props = defineProps<{
   focus: string
@@ -109,6 +114,8 @@ const rows = computed(() => {
 /* the other months' days: flat, a step back (meaning kept, no shadow) */
 .cal-month__cell--out { background: var(--color-bg-2); box-shadow: none; }
 .cal-month__cell--out .cal-month__num { color: var(--color-muted); }
+.cal-month__head { display: flex; align-items: center; gap: 4px; }
+.cal-month__wk { font-size: 0.75rem; font-weight: 600; color: var(--color-muted); font-variant-numeric: tabular-nums; }
 .cal-month__num {
   align-self: flex-start;
   min-width: 1.75rem;

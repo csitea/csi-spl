@@ -779,6 +779,26 @@ Every v1 editing feature (section 6) adapts to a small touchscreen:
 | M4 | When an event is deleted, should the 10-second Undo toast float immediately above the Calendar bottom toolbar (Today/prev/next), or should it temporarily replace the bottom toolbar? | Float immediately above the bottom toolbar (`bottom: calc(var(--cal-bottom-bar-h) + var(--composer-dock-h) + 8px)`), so date navigation remains available while the Undo option is visible. **Superseded** (owner, msg b6f816c2): the phone Undo bar sits at the top, like the app's other undo bars. |
 | M5 | In the mobile Day view, should tapping an empty time slot directly create/open the event dialog pre-filled with that hour, or should event creation only be triggered by the bottom "+ New event" button? | Both: tapping an empty time slot opens the dialog pre-filled with that specific hour; tapping the bottom "+ New event" button defaults to the next full hour. |
 
+### 5.2 The week number is a label (SPL-6146)
+
+Owner HUM-10, t1 74772974 (msg `3d289c5c`): the week number is written
+`w-01`, `w-02` .. `w-53`, two digits, "in the front of the week on the
+monthly view and on each day, after the day number in the calendar view and
+not as a separate event".
+
+- The number is the ISO-8601 week (Monday first, the week holding its
+  Thursday names it): 2026-12-28 is `w-53`, 2027-01-04 is `w-01`. One helper
+  draws it everywhere, `calWeekLabel` in `csi-spl-wui/src/utils/calendar-year.mjs`.
+- Month (desktop and phone): `w-NN` in the first cell of each week row, in
+  front of its day number.
+- Day, 3 days and Week (desktop) and the phone Week: `w-NN` after the date in
+  each day header. The phone Day: after the date in the header title.
+- It is a label of the grid, never an event item. A "Week NN of YYYY" event
+  a member sees comes from a calendar they imported or connected (the WUI
+  makes none) and stays as that calendar sent it.
+- Tests: `csi-spl-wui/tests/unit/calendar-week-label.test.mjs`,
+  `csi-spl-wui/tests/e2e/calendar-week-label.test.mjs`.
+
 ## 6. Ranked value to the owner, and v1
 
 | rank | item | v1 |
@@ -1352,6 +1372,7 @@ table's rows in order.
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v1.3 | 2026-11-21 | c-610 | Section 5.2: the ISO week as a `w-NN` label beside the day number in every view (owner msg `3d289c5c`), never an event. SPL-6146. |
 | v1.2 | 2026-11-19 | c-852 | Section 11.3: no `tag_ids` index in T1 (R7 finding W1 of c-318 on T1: under FORCE RLS a non-LEAKPROOF `@>` never reaches a GIN's Index Cond; decision (a) of c-001, msg `7f1d9e7b`); T6 adds any index with the access path that can use it, in its own migration, proved by an EXPLAIN under FORCE RLS. 11.4.3 points to it. SPL-5945. |
 | v1.1 | 2026-11-19 | c-836 | Section 11: the owner's answers (msg `cde26d3f`, poll `c15f11e0`) written in. O1 A: any member who writes events creates tags, delete stays admin-only (11.5). O2 B: the filter matches events with ALL chosen tags (`@>`), `none` only alone, unknown ids dropped (11.4.3, 11.8); T6's test and red control flipped. O3 A: To-do filters by issue labels, also "all" (`label_match=all`, new T17). O5 B: the filter is also remembered per member and workspace in `tenant_memberships.settings` (rdb 0078, no new table), the link wins, Clear forgets, deleted tags pruned (11.8.2, measured on `86572482f`; new T16, T12 grows). O6 A: later row T15, the first tag's colour as Google `colorId`. 11.12 is now "Owner answers". SPL-5883. |
 | v1.0 | 2026-11-19 | c-702 | Section 11: event tags with colours per workspace (own `calendar_tags` table, not issue labels, and why), ordered `tag_ids` on the event (the first tag sets the 5 px stripe), the tags API and the one write allowed on a synced event, the tag manager and its permissions, the editor's picker, chips in every view, the filter in every view (`tags` in the URL; To-do filters by issue labels), imports keep tags, build rows T1..T14, owner questions O1, O2, O3, O5, O6 (O4 dropped: DECIDED by the owner, msg `62e387eb`, 11.7). Review fixes W1..W5 of m-707. SPL-5883. |
@@ -1365,4 +1386,4 @@ table's rows in order.
 | v0.2 | 2026-10-06 | c-397 | Owner decisions E1..E3 (section 0.1): v1 list approved; reminders are a typed whole number of minutes / hours / days (up to 5); video-call link and busy / free dropped. Q1..Q9 still open. |
 | v0.1 | 2026-10-06 | c-397 | Gap analysis against Google Calendar (G1..G15); additive DDL (jsonb `props` under the 098 promotion rule, recurrence columns, soft delete, `calendar_guests`); the calls; the WUI surface; ranking and v1 line; Q1..Q9. |
 
-<!-- version: 1.1 · updated: 2026-11-19 -->
+<!-- version: 1.3 · updated: 2026-11-21 -->

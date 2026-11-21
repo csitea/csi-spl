@@ -8,6 +8,7 @@ declare module '~/utils/calendar-year.mjs' {
   export function calAddDays(iso: string, n: number): string
   export function calWeekStart(iso: string): string
   export function calWeekday(iso: string): number
+  export function calWeekLabel(iso: string): string
   export function calWeekDays(iso: string): string[]
   export function calLoadWindow(from: string, to: string): { start: string, end: string } | null
   export function calStripYears(todayIso: string): number[]

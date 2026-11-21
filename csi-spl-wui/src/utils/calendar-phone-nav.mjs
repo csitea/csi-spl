@@ -11,7 +11,7 @@
 // file stays in the calendar's lazy chunk. Names carry "calPhone" because
 // Nuxt auto-imports every utils export.
 
-import { calAddDays, calDayMs, calIsoDay, calWeekDays, calWeekday, calWeekStart } from './calendar-year.mjs'
+import { calAddDays, calDayMs, calIsoDay, calWeekDays, calWeekday, calWeekLabel, calWeekStart } from './calendar-year.mjs'
 import { isoDateTimeIn } from './date-iso-zone.mjs'
 
 export const CAL_PHONE_VIEWS = ['month', 'week', 'day']
@@ -177,7 +177,7 @@ export function calPhoneTitle(view, iso, names = {}) {
   const short = names.monthsShort || months.map((m) => String(m).slice(0, 3))
   const weekdays = names.weekdays || CAL_PHONE_WEEKDAYS
   if (view === 'month') return `${months[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`
-  if (view === 'day') return `${weekdays[calWeekday(iso) - 1]} ${iso}`
+  if (view === 'day') return `${weekdays[calWeekday(iso) - 1]} ${iso} ${calWeekLabel(iso)}`
   if (view !== 'week' && view !== '3day') return ''
   const part = (/** @type {string} */ day) => ({ d: Number(day.slice(8)), m: short[Number(day.slice(5, 7)) - 1], y: day.slice(0, 4) })
   const from = view === 'week' ? calWeekStart(iso) : calAddDays(iso, -1)

@@ -51,6 +51,7 @@
           <h3 class="calweek__day" :class="{ 'calweek__day--today': row.iso === today }">
             <span class="calweek__day-wd">{{ weekdays[calWeekday(row.iso) - 1] }}</span>
             <span class="calweek__day-iso">{{ row.iso }}</span>
+            <span class="calweek__day-wk" data-test="calweek-day-week" dir="ltr">{{ calWeekLabel(row.iso) }}</span>
             <span v-if="row.iso === today" class="calweek__day-today">{{ t('calendar_phone.today') }}</span>
           </h3>
           <CalendarHoursLine v-if="hoursLine(row.iso)" class="calweek__worked" compact :day="row.iso" :data="calHours?.index.value.get(row.iso)" @open="calHours?.open(row.iso)" />
@@ -97,7 +98,7 @@ import type { Ref } from 'vue'
 import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
 import type { HoursDay } from '~/composables/useCalendarHours'
 import { CAL_COLORS } from '~/utils/calendar-event-form.mjs'
-import { calWeekday } from '~/utils/calendar-year.mjs'
+import { calWeekday, calWeekLabel } from '~/utils/calendar-year.mjs'
 import { isoDateTimeIn } from '~/utils/date-iso-zone.mjs'
 import { calDayCompare, calPhoneEventDays, calPhoneFoldDays, calPhoneFoldLabel, calPhoneWeekStrip } from '~/utils/calendar-phone-nav.mjs'
 
@@ -292,7 +293,8 @@ watch(() => [props.state, props.day] as const, async ([state]) => {
   font-weight: 600;
   color: var(--color-heading);
 }
-.calweek__day-iso { font-weight: 400; color: var(--color-muted); }
+.calweek__day-iso,
+.calweek__day-wk { font-weight: 400; color: var(--color-muted); }
 .calweek__day--today .calweek__day-wd,
 .calweek__day-today { color: var(--color-accent); }
 .calweek__fold {

@@ -78,6 +78,22 @@ export function calWeekday(iso) {
 }
 
 /**
+ * SPL-6146 (owner HUM-10, t1 74772974): the ISO-8601 week of `iso` as
+ * 'w-01' .. 'w-53', two digits; the week holding its Thursday names it, so
+ * 2026-12-28 is w-53 and 2027-01-04 is w-01. '' when `iso` is not a day.
+ * @param {string} iso
+ * @returns {string}
+ */
+export function calWeekLabel(iso) {
+  const ms = calDayMs(iso)
+  if (Number.isNaN(ms)) return ''
+  const thu = ms + (4 - calWeekday(iso)) * DAY_MS
+  const jan1 = Date.UTC(new Date(thu).getUTCFullYear(), 0, 1)
+  const week = Math.floor((thu - jan1) / DAY_MS / 7) + 1
+  return `w-${String(week).padStart(2, '0')}`
+}
+
+/**
  * The seven days, Monday first, of the week holding `iso`.
  * @param {string} iso
  * @returns {string[]}

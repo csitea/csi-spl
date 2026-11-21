@@ -141,7 +141,7 @@ describe('the header title (spec 4.1)', () => {
   it('Month, Week, Day', () => {
     assert.equal(calPhoneTitle('month', '2026-10-07'), 'October 2026')
     assert.equal(calPhoneTitle('week', '2026-10-07'), '5-11 Oct 2026')
-    assert.equal(calPhoneTitle('day', '2026-10-07'), 'Wed 2026-10-07')
+    assert.equal(calPhoneTitle('day', '2026-10-07'), 'Wed 2026-10-07 w-41')
   })
   it('a week across a month or a year names both ends (control: one month names one)', () => {
     assert.equal(calPhoneTitle('week', '2026-10-01'), '28 Sep - 4 Oct 2026')
@@ -152,7 +152,7 @@ describe('the header title (spec 4.1)', () => {
     const months = ['tammikuu', 'helmikuu', 'maaliskuu', 'huhtikuu', 'toukokuu', 'kesäkuu', 'heinäkuu', 'elokuu', 'syyskuu', 'lokakuu', 'marraskuu', 'joulukuu']
     const weekdays = ['ma', 'ti', 'ke', 'to', 'pe', 'la', 'su']
     assert.equal(calPhoneTitle('month', '2026-10-07', { months }), 'lokakuu 2026')
-    assert.equal(calPhoneTitle('day', '2026-10-07', { weekdays }), 'ke 2026-10-07')
+    assert.equal(calPhoneTitle('day', '2026-10-07', { weekdays }), 'ke 2026-10-07 w-41')
     assert.equal(calPhoneTitle('week', '2026-10-07', { months, monthsShort: months.map((m) => `${m.slice(0, 4)}.`) }), '5-11 loka. 2026')
     assert.equal(calPhoneTitle('week', 'x'), '')
   })

@@ -97,7 +97,7 @@
         @click="onDayClick($event, day)"
       >
         <div class="cal-week__top">
-          <h4 class="cal-week__head">{{ t('calendar.weekdays.d' + calWeekday(day)) }} <span class="cal-week__date" dir="ltr">{{ day.slice(5) }}</span></h4>
+          <h4 class="cal-week__head">{{ t('calendar.weekdays.d' + calWeekday(day)) }} <span class="cal-week__date" dir="ltr">{{ day.slice(5) }}</span> <span class="cal-week__wk" data-test="calendar-week-label" dir="ltr">{{ calWeekLabel(day) }}</span></h4>
           <!-- spec 107 v1.2 T011 (owner R9): the day's Working hours line -->
           <CalendarHoursLine v-if="hoursShowsLine(day, hours.index.value)" :day="day" :data="hours.index.value.get(day)" @open="openHours" />
           <ul class="cal-week__list">
@@ -225,7 +225,7 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { calLoadWindow, calWeekday, calWeekStart } from '~/utils/calendar-year.mjs'
+import { calLoadWindow, calWeekday, calWeekLabel, calWeekStart } from '~/utils/calendar-year.mjs'
 import { calDayCompare } from '~/utils/calendar-phone-nav.mjs'
 import { CAL_DESK_MIN_HOUR_PX, CAL_DESK_OPEN_MIN, calDeskDays, calDeskHourPx, calDeskRange, calDeskStep, calDeskTitle } from '~/utils/calendar-desktop-view.mjs'
 import { isoClock } from '~/utils/date-iso.mjs'
@@ -615,6 +615,8 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 /* a date is YYYY-MM-DD in every UI locale (utils/date-iso.mjs), the weekday
    from the catalogue; a narrow column breaks between them, never in the date */
 .cal-week__date { white-space: nowrap; }
+/* SPL-6146: the ISO week after the day number, a label, not an event */
+.cal-week__wk { white-space: nowrap; font-weight: 400; color: var(--color-muted); }
 .cal-week__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cal-week__item {
   display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline;

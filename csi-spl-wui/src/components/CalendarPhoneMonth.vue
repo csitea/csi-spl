@@ -23,7 +23,7 @@
       </div>
       <div v-for="(row, ri) in rows" :key="ri" class="calmonth__row" role="row">
         <div
-          v-for="c in row"
+          v-for="(c, ci) in row"
           :key="c.iso"
           role="gridcell"
           class="calmonth__cell"
@@ -41,6 +41,8 @@
           :tabindex="interactive && c.iso === day ? 0 : -1"
           @click="tap(c.iso)"
         >
+          <!-- SPL-6146: the row's ISO week, a label in front of its first day -->
+          <span v-if="ci === 0" class="calmonth__wk" data-test="calphone-month-week" dir="ltr" aria-hidden="true">{{ calWeekLabel(c.iso) }}</span>
           <span class="calmonth__num" aria-hidden="true">{{ c.d }}</span>
           <span class="calmonth__dots" aria-hidden="true">
             <span
@@ -93,7 +95,7 @@ import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import type { Ref } from 'vue'
 import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
 import type { HoursDay } from '~/composables/useCalendarHours'
-import { calAddDays, calWeekday } from '~/utils/calendar-year.mjs'
+import { calAddDays, calWeekday, calWeekLabel } from '~/utils/calendar-year.mjs'
 import { isoDateTimeIn } from '~/utils/date-iso-zone.mjs'
 import { calDayCompare, calPhoneEventDays, calPhoneMonthGrid, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
 import { CAL_COLORS } from '~/utils/calendar-event-form.mjs'
@@ -288,6 +290,15 @@ function onKey(e: KeyboardEvent) {
 .calmonth__cell:focus-visible {
   outline: var(--focus-ring-w) solid var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
+}
+.calmonth__wk {
+  position: absolute;
+  inset-block-start: 1px;
+  inset-inline-start: 2px;
+  font-size: 0.625rem;
+  line-height: 1;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
 }
 .calmonth__num {
   font-size: 0.875rem;

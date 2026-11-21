@@ -1,7 +1,7 @@
 # Spec 189: A new topic lands at the list end
 
-Status: **Draft v0.2** (2026-11-21): the owner's four answers folded
-(section 1.1). Lane `c-601` (`claude`, backup for `specs_and_docs`: no agy
+Status: **v1.0** (2026-11-21): the owner's four answers folded (section
+1.1), spec review PASS (section 8). Lane `c-601` (`claude`, backup for `specs_and_docs`: no agy
 cli on this box). Nothing below is built.
 Epic: **SPL-2403**. Issue: **SPL-6143**. Class: `feature`. Kind: `specs_and_docs`.
 Placement: `c002-s-new-topic-pinned-end-spec`.
@@ -14,9 +14,9 @@ its topic cards) and [150 topic list priority](../150-topic-list-priority/spec.m
 Number: the highest spec on `origin/master` `974d97031` is
 `188-channel-rules-dialog`
 (`git ls-tree --name-only origin/master csi-spl-doc/specs/ | tail -2`); no
-worktree of this box and none of the 478 fetched `refs/remotes/origin/*`
-holds a `189-` or `19x-` folder (`git ls-tree` of each -> none), so this is
-189.
+other worktree of this box (only this lane's own `c-601` worktree, which
+holds this spec) and none of the 478 fetched `refs/remotes/origin/*` holds
+a `189-` or `19x-` folder (`git ls-tree` of each -> none), so this is 189.
 
 Paths below: `wui/` = `csi-spl-wui/src/`, `tests/` = `csi-spl-wui/tests/`.
 Every line number is on `origin/master` `974d97031`.
@@ -64,12 +64,14 @@ HUM-10, t1 `a48d75d6`, msg `fa6d8718-dc40-4124-9602-00b13c446ab2`
 (08:09:48Z), relayed verbatim by the dispatch holder c-002@sat (spool msg
 `078d5ef8`):
 
+The answer texts below are the owner's, verbatim.
+
 | Q | answer | what it decides |
 |---|---|---|
-| Q1 | **OWN**: only a topic I created myself (others' new topics keep today's unread edge) | D1, C5 |
-| Q2 | **RLD**: until I leave the channel or reload the page | D2, C6 |
-| Q3 | **YES**: yes, it shows while it is pinned | D3, C3 |
-| Q4 | **BDG**: yes, a small "new" badge on the card while it is pinned | D4, C7 |
+| Q1 | **OWN**: Only a topic I created myself (others' new topics keep today's unread edge) | D1, C5 |
+| Q2 | **RLD**: Until I leave the channel or reload the page | D2, C6 |
+| Q3 | **YES**: Yes, it shows while it is pinned | D3, C3 |
+| Q4 | **BDG**: Yes, a small "new" badge on the card while it is pinned | D4, C7 |
 
 ### 1.2 Decisions
 
@@ -270,12 +272,20 @@ that review and never ships unreviewed.
 
 ## 8. Review
 
-v0.1 was for the owner's form (section 1). v0.2 folds the four answers
-(1.1, D1..D4) and drops the losing branch of each question; it goes to a
-spec review, placed by the dispatch holder, and lands on master only after
-that review's PASS and the holder's GO.
+v0.1 was for the owner's form (section 1). v0.2 folded the four answers
+(1.1, D1..D4) and dropped the losing branch of each question.
+
+Spec review of v0.2 `3cfb45fd6`: **PASS** by m-717 (`mistral`, brief
+`c002-s189-v02-mistral-spec-reviewer`, spool msg `cee8494f`), no blocker;
+it re-measured every cited line on `origin/master` `a83052abd` (none of the
+18 cited files moved since `974d97031`). Its notes: N1 the 1.1 table
+lowercased the answers, N2 the spec-number line missed this lane's own
+worktree (both fixed in v1.0), N3 `c-002@sat` passes the hygiene gate (no
+change). GO to land: the dispatch holder c-002@sat, spool msgs `83a3d4b3`
+and `202b36a2`.
 
 | version | change |
 |---|---|
 | v0.1 | the ask, what exists, the flow, build rows, contracts, the owner form |
 | v0.2 | owner answers OWN / RLD / YES / BDG folded: 1.1, 1.2 D1..D4; section 3; rows B2, B4, B5; C3, C5, C6, C7 |
+| v1.0 | review PASS recorded; N1 answers verbatim in 1.1; N2 spec-number line names this lane's own worktree |

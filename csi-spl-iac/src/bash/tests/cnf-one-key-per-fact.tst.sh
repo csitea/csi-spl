@@ -78,4 +78,12 @@ do_spl_merged_cnf "$tmp/ctl" dev "$tmp/ctl.yaml" &&
   grep -qx 'env.steps.050-gcs-files.files_bucket_name' <(null_slots "$tmp/ctl.yaml") &&
   pass "CONTROL: an env file that leaves a slot empty is caught" || fail "CONTROL: an empty slot was not caught"
 
+# --- 4. an empty or missing argument returns 1 and says why; it never exits the caller's shell
+for a in "|dev|$tmp/e1.yaml" "$CNF||$tmp/e2.yaml" "$CNF|dev|" "none"; do
+  if [[ "$a" == none ]]; then r=$( (do_spl_merged_cnf 2>"$tmp/e.err"; echo "rc=$?") ); else
+    IFS='|' read -r a1 a2 a3 <<<"$a"; r=$( (do_spl_merged_cnf "$a1" "$a2" "$a3" 2>"$tmp/e.err"; echo "rc=$?") ); fi
+  [[ "$r" == rc=1 ]] && grep -q 'usage: do_spl_merged_cnf' "$tmp/e.err" && [[ ! -e "$tmp/e1.yaml" && ! -e "$tmp/e2.yaml" ]] &&
+    pass "4. do_spl_merged_cnf '$a': returns 1, says why, writes nothing" || fail "4. '$a': out '$r', stderr '$(cat "$tmp/e.err")'"
+done
+
 (( fails == 0 )) && echo "PASS: all" || { echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1; }

@@ -55,7 +55,8 @@
 # @example do_spl_merged_cnf "$APP_PATH/csi-spl-cnf/csi-spl" dev /tmp/dev.yaml
 #------------------------------------------------------------------------------
 do_spl_merged_cnf() {
-  local dir="${1:?cnf dir}" env="${2:?env}" out="${3:?out}"
+  [[ -n "${1:-}" && -n "${2:-}" && -n "${3:-}" ]] || { echo "do_spl_merged_cnf: usage: do_spl_merged_cnf <cnf dir> <env> <out>" >&2; return 1; }
+  local dir="$1" env="$2" out="$3"
   [[ -f "$dir/all.env.yaml" && -f "$dir/$env.env.yaml" ]] || {
     echo "do_spl_merged_cnf: missing $dir/all.env.yaml or $dir/$env.env.yaml" >&2; return 1; }
   local own_steps

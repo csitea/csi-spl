@@ -614,3 +614,18 @@ that carries the line.
   - tenant `system` (the repo tree) takes no media: 404 `media_off`;
   - the hub-side table is `docMediaTypes`; its mirror in `-doctree-api.ts`
     and the test that reads both are W1's.
+- **H3 built**: `sweepOwnMedia` in `api/hub/file_retention.go`, run by
+  `SweepFiles` after the `qto-assets/` walk of SPL-2963, test
+  `wsdoc_media_sweep_test.go` (fake clock). Each workspace: rows no body
+  named for 7 days are dropped and their objects deleted; a doc deleted 7
+  days ago loses every object under `qto-media/<doc>/` and
+  `.doctree/<doc>/`; a backstop deletes any object there of a visible doc
+  that nothing names and that is older than 7 days; scratch uploads
+  (`qto-media.tmp/`) go after 24 h. A doc locked to a human is hidden from
+  the sweep and keeps its files. Done test green: at grace - 1 s the gone
+  doc's files and an unnamed video are kept; at grace + 1 s they and an
+  unnamed picture are gone, the named video, the named picture and the
+  locked doc's video stay (and still at 3x grace). Red controls run:
+  without `qto-media/` in the per-doc walk the gone doc's video stays;
+  with no media sweep (origin/master) four files stay. A doc deleted
+  before rdb 0306 has no tombstone, reads as hidden, and keeps its files.

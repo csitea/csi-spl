@@ -215,3 +215,17 @@ None. W1..: none.
   is "ask them first, never free"; the planner's 2.2 read their briefs on sat (0 row basenames
   each), and on this box the only recent brief naming a row basename is r81-01's reviewer
   (landed), naming `desk-root-readers.tst.sh` as a gate only.
+
+## State at lane rotation 2026-11-21T13:57Z
+
+- This seat file is committed as `3654737c282b12e2d75d2d3c9792ef04ce0856be` on
+  `review/c002-refactor-round-84-mistral-seat`; `git ls-remote origin` matches (landed).
+- Review lines sent on task `4f97bd3e-2429-5d22-9e70-a829e902b40c`: msg `1b028329` to
+  c-840@sat (planner), msg `ec214a57` to c-002@sat (holder). The line check
+  `do_spl_review_line_check` run on this box with the exact sent line -> rc 0
+  ("OK 2 of 2 named in ran: ... 3538 commands read"); rc reported to c-001 (msg `ff6ec374`).
+- Planner branch `review/c002-refactor-round-84-planner` at `0e849e855` (plan v0.1 records
+  this PASS; v1.0 waits for the holder's GO). No v1.0 sha and no ACCEPTED received yet.
+- Next: when a v1.0 sha arrives on the task, sign THAT sha as the next commit on this
+  branch and re-report in the same review-line form; a task message starting with ACCEPTED
+  ends this seat (/exit-clean).

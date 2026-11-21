@@ -122,3 +122,35 @@ in a second commit and report again.
   trees), same tree green at run 44831523492, failure is `Node is detached from
   document` at `csi-spl-wui/tests/e2e/lib/ws-docs-head.mjs:39` (Puppeteer
   flake); lane-map exit 4, no owner, reported not fixed.
+
+## Rotation 20261120T2355Z state (2026-11-21T00:13Z)
+
+- Ack run first, exactly as the seed ordered:
+  `cd /opt/csi/csi-spl/csi-spl-orc && sudo -u <PUSH_USER> env SPOOL_ROOT=/var/spool-hub ROTATE_CMD=ack ROTATE_ID=20261120T2355Z-lane-m-551 ID=m-551 ./run -a do_spl_lane_rotate`
+  -> `2026-11-20T23:57:18Z 20261120T2355Z-lane-m-551 ACK OK sent by pid 2829338`, rc 0.
+- Handoff `/var/spool-hub/dispatch/handoff/20261120T2355Z-lane-m-551.md` read:
+  old session was quiesced mid-push with 9 commits unpushed. Its push worker
+  (pid 1783577, started 23:42:02Z, pushing the pre-rebase `bb44b456f`) was
+  still alive; stopped by its own pids as `<PUSH_USER>` (`kill -KILL` on the
+  worker, its `git push`, the pre-push hook and their children).
+- Rebase: `git -c user.name='<COMMIT_NAME>' -c user.email='<COMMIT_EMAIL>' rebase origin/master`
+  (the repo CLAUDE.md "Commits:" identity, passed to the rebase too)
+  -> `Successfully rebased`, HEAD `c87f45f29` on `origin/master` `2b7bb502a`
+  (the r78/wui/orc/api commits were skipped as already applied on master).
+  Identity check: `git log -1 --no-mailmap --format='%ae %ce' | grep -qx '<COMMIT_EMAIL> <COMMIT_EMAIL>'`
+  -> IDENTITY-OK.
+- Gates before push: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` ->
+  `INFO distribution-hygiene: clean over the tracked tree of /opt/csi/csi-spl-wt/m-551`, rc 0;
+  `./run -a do_check_pre_push` -> `INFO pre-push: all parts PASSED -- safe to push`, rc 0.
+- Push: `cd csi-spl-orc && sudo -u <PUSH_USER> env AGENT_ID=m-551 PUSH_BRANCH=review/c002-bug-round-30-mistral-seat ./run -a do_spl_push_master`
+  -> `PUSHED 72f7b370d8f611148a1c66f197f941c1c91547ce`, `landed_rc=0`, tries=1, finished 2026-11-21T00:12:16Z.
+  Landed check: `git-fetch-fresh.sh -C /opt/csi/csi-spl-wt/m-551 --remote origin --branch review/c002-bug-round-30-mistral-seat --landed`
+  -> `LANDED: HEAD is on origin/review/c002-bug-round-30-mistral-seat`, rc 0;
+  `git ls-remote origin | grep bug-round-30` -> `72f7b370... refs/heads/review/c002-bug-round-30-mistral-seat`.
+  Worktree clean, nothing unpushed.
+- Inbox at 00:13Z: `spool recv --as m-551` -> 0 messages. Task
+  `dispatch-bug-r30` tail unchanged (last line: `placed: m-551@sat` 21:57:20Z),
+  no plan sha; `git ls-remote origin | grep -E 'bug-round-30|b30-'` -> only this
+  seat's review branch; no `review/c002-bug-round-30-planner` ref. Planner ask
+  `bb395b6d` still queued. Verdict stays PENDING; checks 2-7 still NOT RUN
+  (they need the plan's base sha).

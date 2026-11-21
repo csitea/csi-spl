@@ -85,7 +85,18 @@ export function mockListMessages(state, { channel, peer, limit = 50, since } = {
   /* dc6d5e3f: plus the channel lines between me and that agent, as pointers */
   else if (peer) rows = [...rows.filter((m) => belongsTo(m, { peer: String(peer) })), ...mockDmPointers(rows, state.me && state.me.id, String(peer))]
   if (since) rows = rows.filter((m) => m.ts > since)
-  return { messages: rows.slice(-limit), next: null, ...seededTotals(rows) }
+  /* SPL-6205: the cap keeps the newest `limit` lines but never a topic's
+     opening line, as the live listMessages does (spool-client.mjs): a topic
+     longer than the cap keeps its middle card */
+  const openers = new Set()
+  const seenTask = new Set()
+  for (const m of rows) {
+    if (!m || !m.task_id || seenTask.has(m.task_id)) continue
+    seenTask.add(m.task_id)
+    openers.add(m)
+  }
+  const cut = rows.length - limit
+  return { messages: rows.filter((m, i) => i >= cut || openers.has(m)), next: null, ...seededTotals(rows) }
 }
 
 /** spec 189 B5: the e2e hook's priorities ride on the feed read as the hub's

@@ -59,17 +59,22 @@ func (s *Server) docAssetBucket(ctx context.Context, tenant string) (st blob.Sto
 	return st, true, err
 }
 
-// docAssetBytes is the size of tenant's pictures in its own docs store, for
-// the file quota (fileUsage.extra). A store that cannot be listed counts 0
-// and is logged: an attachment upload never fails over the docs bucket.
+// docAssetBytes is the size of tenant's pictures and doc media (spec 190
+// C4, qto-media/) in its own docs store, for the file quota
+// (fileUsage.extra). A store that cannot be listed counts 0 and is logged:
+// an attachment upload never fails over the docs bucket.
 func (s *Server) docAssetBytes(ctx context.Context, tenant string) int64 {
 	st, own, err := s.docAssetBucket(ctx, tenant)
 	if !own {
 		return 0
 	}
-	var n int64
+	var n, m int64
 	if err == nil {
 		n, err = st.PrefixBytes(ctx, DocAssetPrefix)
+	}
+	if err == nil {
+		m, err = st.PrefixBytes(ctx, DocMediaPrefix)
+		n += m
 	}
 	if err != nil {
 		s.o.Log.Warn().Err(err).Str("workspace", tenant).Msg("doc asset bytes; counted 0")

@@ -194,6 +194,11 @@ var pvSteps = []pvStep{
 			w.t.Fatalf("image post: %d %s", code, out)
 		}
 	}},
+	{"POST /v1/workspace/doctree/{doc}/media", true, func(w *pvWalk) {
+		if code, out, _ := rawCall(w.t, w.e, w.tid, http.MethodPost, docTreeAPI+"/"+w.doc+"/media", w.as, "image/png", w.png); code != 201 {
+			w.t.Fatalf("media post: %d %s", code, out)
+		}
+	}},
 	{"PUT /v1/workspace/doctree/{doc}/assets/{path...}", true, func(w *pvWalk) {
 		if code, out, _ := rawCall(w.t, w.e, w.tid, http.MethodPut, docTreeAPI+"/"+w.doc+"/assets/priv.assets/01-a.png", w.as, "image/png", w.png); code != 200 {
 			w.t.Fatalf("asset put: %d %s", code, out)

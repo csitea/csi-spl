@@ -919,8 +919,10 @@ func cmdHubTenantBilling(args []string) int {
 // signed in (CLE-77781, "added, not invited"). With --password-stdin it also
 // creates a native email+password credential from a password read on STDIN
 // (never argv/env: one trailing newline is stripped, empty is refused), email
-// pre-verified so no mail is sent. Idempotent. store.ProvisionMember does the
-// one-transaction work; a later Google/native sign-in links to this human.
+// pre-verified so no mail is sent; an existing credential takes the new
+// password, becomes verified and its sessions end. Without a password it is
+// idempotent. The JSON says what changed (SPL-6182). store.ProvisionMemberReport
+// does the one-transaction work; a later Google/native sign-in links to this human.
 func cmdHubProvisionMember(args []string) int {
 	fs := flag.NewFlagSet("hub-provision-member", flag.ContinueOnError)
 	tenant := fs.String("tenant", "", "tenant id")
@@ -952,7 +954,7 @@ func cmdHubProvisionMember(args []string) int {
 	}
 	defer st.Close()
 	now := time.Now().UTC()
-	hum, created, err := st.ProvisionMember(ctx, store.ProvisionInput{
+	res, err := st.ProvisionMemberReport(ctx, store.ProvisionInput{
 		Tenant: *tenant, Email: *email, DisplayName: *name, Role: rbac.Legacy(strings.TrimSpace(*role)),
 		OrderedBy: *orderedBy, OrderedVia: *orderedVia, PasswordHash: pwHash}, now)
 	if err != nil {
@@ -964,14 +966,28 @@ func cmdHubProvisionMember(args []string) int {
 		}
 		return fail(err)
 	}
+	// What the transaction changed, never what was asked (SPL-6182).
 	out := map[string]any{"tenant": *tenant, "email": strings.ToLower(strings.TrimSpace(*email)),
-		"human_id": hum, "role": rbac.Legacy(strings.TrimSpace(*role)), "created_human": created,
-		"credential": *pwStdin, "status": "provisioned"}
+		"human_id": res.HumanID, "role": rbac.Legacy(strings.TrimSpace(*role)), "created_human": res.CreatedHuman,
+		"member_added": res.MemberAdded, "credential": provisionCredential(res), "status": "provisioned"}
+	if res.Credential != "" {
+		out["email_verified_now"] = res.VerifiedNow
+		out["sessions_revoked"] = res.Credential == store.CredReplaced
+	}
 	if *orderedBy != "" {
 		out["ordered_by"] = *orderedBy
 	}
 	fmt.Println(action.JSON(out))
 	return 0
+}
+
+// provisionCredential names the credential outcome of one seat: "none"
+// without --password-stdin, else created or replaced.
+func provisionCredential(res store.ProvisionResult) string {
+	if res.Credential == "" {
+		return "none"
+	}
+	return res.Credential
 }
 
 // passwordHashFromStdin reads a native password from STDIN (never argv or
@@ -1037,7 +1053,7 @@ func cmdHubResetPassword(args []string) int {
 	case err != nil:
 		return fail(err)
 	}
-	fmt.Println(action.JSON(map[string]any{"human_id": hum, "status": "reset", "sessions_revoked": true}))
+	fmt.Println(action.JSON(map[string]any{"human_id": hum, "status": "reset", "email_verified": true, "sessions_revoked": true}))
 	return 0
 }
 

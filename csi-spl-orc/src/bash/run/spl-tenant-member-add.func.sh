@@ -45,7 +45,9 @@
 # @param PASSWORD_FILE (optional, CREATE_HUMAN=1 only) - a 0600 file holding a
 # @param   native password. The member also gets an email+password credential
 # @param   (email pre-verified, NO mail), so a first native login lands on the
-# @param   same human. The password rides only the CLI's STDIN — never an
+# @param   same human. An existing credential (an unconfirmed register) takes
+# @param   this password, is verified and its human's sessions end; the OK
+# @param   line carries the CLI JSON saying what changed (SPL-6182). The password rides only the CLI's STDIN — never an
 # @param   argument, env var, or log — and one trailing newline is stripped.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 EMAIL=person@example.com MEMBER_ROLE=developer ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_tenant_member_add

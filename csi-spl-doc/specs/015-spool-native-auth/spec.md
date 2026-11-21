@@ -109,6 +109,15 @@ Already built: `POST /api/v1/auth/logout` (010).
   the right (0 = TCP peer; OQ-N6). One value for every per-IP limit (017
   FR-SEC-006); the native-only `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` is
   retired and the hub refuses to boot when it disagrees (`cmd/spool/hub.go`).
+- **FR-006c** Operator paths leave a working credential (SPL-6182).
+  `spool hub-provision-member --password-stdin` (`do_spl_tenant_member_add
+  CREATE_HUMAN=1 PASSWORD_FILE=`) writes the password and marks the email
+  verified also when the address already holds a credential (an earlier
+  register that never confirmed); a replaced credential ends the human's
+  sessions. Its JSON says what changed: `member_added`, `credential`
+  (`none` | `created` | `replaced`), `email_verified_now`,
+  `sessions_revoked`. `spool hub-reset-password` marks the email verified
+  too, as the self-service reset does.
 - **FR-007** Admission is the Registrar's (HUMANS, OQ-A3): the login hands it
   `Identity{Provider:"password", Subject:<lower-cased email>, Email}` plus the optional
   `tenant` from the body (HUMANS' key for a native account, rdb `0006` header,

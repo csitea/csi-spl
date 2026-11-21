@@ -431,63 +431,74 @@ func refusal(ctx context.Context, tx pgx.Tx, email, tenant string, now time.Time
 // address is advisory-locked like Admit so a concurrent first sign-in and this
 // cannot both mint a human. See store.MemberProvisioner for the contract.
 func (s *Postgres) ProvisionMember(ctx context.Context, in ProvisionInput, now time.Time) (string, bool, error) {
+	res, err := s.ProvisionMemberReport(ctx, in, now)
+	return res.HumanID, res.CreatedHuman, err
+}
+
+// ProvisionMemberReport is ProvisionMember that says what it changed
+// (SPL-6182: the CLI printed "credential":true from its flag while an
+// existing credential was left as it was).
+func (s *Postgres) ProvisionMemberReport(ctx context.Context, in ProvisionInput, now time.Time) (ProvisionResult, error) {
+	var res ProvisionResult
 	email := strings.ToLower(strings.TrimSpace(in.Email))
 	if email == "" || !strings.Contains(email, "@") {
-		return "", false, errors.New("provision: a valid email is required")
+		return res, errors.New("provision: a valid email is required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return "", false, err
+		return res, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	// Same address lock Admit takes, so a first sign-in of this address in
 	// flight cannot mint a second human next to the one this seats.
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('@email|' || $1, 0))`, email); err != nil {
-		return "", false, err
+		return res, err
 	}
-	hum, createdHuman, err := provisionHumanTx(ctx, tx, in, email, now)
-	if err != nil {
-		return "", false, err
+	if res.HumanID, res.CreatedHuman, err = provisionHumanTx(ctx, tx, in, email, now); err != nil {
+		return res, err
 	}
+	hum := res.HumanID
 	// The operator identity carries the verified address so a later Google /
 	// native sign-in LINKS here (findHuman), yet cannot itself sign in.
 	if _, err := tx.Exec(ctx, `INSERT INTO human_identities (provider, subject, human_id, email, email_verified, created_at)
 		VALUES ($1, $2, $3, $2, true, $4) ON CONFLICT (provider, subject) DO NOTHING`,
 		ProviderOperator, email, hum, now); err != nil {
-		return "", false, err
+		return res, err
 	}
 	// Membership: tenant-scoped (rdb 0014), admitted_by 'operator'. An unknown
 	// role fails the rbac_roles FK (rdb 0021) and rolls the whole thing back.
 	if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeTenant), in.Tenant); err != nil {
-		return "", false, err
+		return res, err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by, created_at)
+	tag, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by, created_at)
 		VALUES ($1, $2, $3, 'operator', $4) ON CONFLICT (tenant_id, human_id) DO NOTHING`,
-		in.Tenant, hum, in.Role, now); err != nil {
-		return "", false, err
+		in.Tenant, hum, in.Role, now)
+	if err != nil {
+		return res, err
 	}
+	res.MemberAdded = tag.RowsAffected() == 1
 	// Accept any pending invite for the address (provenance coalesced), so the
 	// list shows a member, not a dangling invite.
 	if _, err := tx.Exec(ctx, `UPDATE tenant_invites SET accepted_at = $3, accepted_by = $2,
 		ordered_by = COALESCE(ordered_by, NULLIF($4, '')), ordered_via = COALESCE(ordered_via, NULLIF($5, ''))
 		WHERE tenant_id = $1 AND email = $6 AND accepted_at IS NULL`,
 		in.Tenant, hum, now, in.OrderedBy, in.OrderedVia, email); err != nil {
-		return "", false, err
+		return res, err
 	}
 	// spec 025 section 11: the channels the invite was added to (rdb 0231).
 	if err := promoteChannelInvitesTx(ctx, tx, in.Tenant, email, hum, now); err != nil {
-		return "", false, err
+		return res, err
 	}
 	if in.PasswordHash != "" {
-		if err := provisionCredentialTx(ctx, tx, hum, email, in.PasswordHash, in.DisplayName, now); err != nil {
-			return "", false, err
+		if res.Credential, res.VerifiedNow, err = provisionCredentialTx(ctx, tx, hum, email, in.PasswordHash, in.DisplayName, now); err != nil {
+			return res, err
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return "", false, err
+		return res, err
 	}
 	s.hot.forget() // an already-seated hum may hold a cached channel_humans list
-	return hum, createdHuman, nil
+	return res, nil
 }
 
 // provisionHumanTx finds the human a verified identity for email names (an
@@ -517,20 +528,42 @@ func provisionHumanTx(ctx context.Context, tx pgx.Tx, in ProvisionInput, email s
 	return hum, false, nil
 }
 
-// provisionCredentialTx writes the native email+password credential (email
-// PRE-VERIFIED so no verification mail is sent) and the (password, email)
-// identity native login resolves, so a first native login lands on hum with
-// the membership already there. Idempotent (ON CONFLICT DO NOTHING).
-func provisionCredentialTx(ctx context.Context, tx pgx.Tx, hum, email, pwHash, name string, now time.Time) error {
-	if _, err := tx.Exec(ctx, `INSERT INTO password_credentials
-		(provider, subject, password_hash, display_name, email_verified_at, created_at, updated_at)
+// provisionCredentialTx writes the native email+password credential, email
+// verified so no mail is sent, and the (password, email) identity native
+// login resolves, so a first native login lands on hum with the membership
+// already there. An existing credential (an earlier self-service register
+// that never confirmed its mail, SPL-6182) takes the operator's password and
+// becomes verified, and every session of hum ends, as the operator reset
+// does. It answers CredCreated or CredReplaced, and whether this verified it.
+func provisionCredentialTx(ctx context.Context, tx pgx.Tx, hum, email, pwHash, name string, now time.Time) (string, bool, error) {
+	var created, wasUnverified bool
+	err := tx.QueryRow(ctx, `WITH old AS (
+			SELECT email_verified_at FROM password_credentials WHERE provider = 'password' AND subject = $1 FOR UPDATE)
+		INSERT INTO password_credentials
+			(provider, subject, password_hash, display_name, email_verified_at, created_at, updated_at)
 		VALUES ('password', $1, $2, NULLIF($3, ''), $4, $4, $4)
-		ON CONFLICT (provider, subject) DO NOTHING`, email, pwHash, name, now); err != nil {
-		return err
+		ON CONFLICT (provider, subject) DO UPDATE SET password_hash = EXCLUDED.password_hash,
+			email_verified_at = COALESCE(password_credentials.email_verified_at, EXCLUDED.email_verified_at),
+			display_name = COALESCE(password_credentials.display_name, EXCLUDED.display_name),
+			updated_at = EXCLUDED.updated_at
+		RETURNING NOT EXISTS (SELECT 1 FROM old), COALESCE((SELECT email_verified_at IS NULL FROM old), false)`,
+		email, pwHash, name, now).Scan(&created, &wasUnverified)
+	if err != nil {
+		return "", false, err
 	}
-	_, err := tx.Exec(ctx, `INSERT INTO human_identities (provider, subject, human_id, email, email_verified, created_at)
-		VALUES ('password', $1, $2, $1, true, $3) ON CONFLICT (provider, subject) DO NOTHING`, email, hum, now)
-	return err
+	if _, err := tx.Exec(ctx, `INSERT INTO human_identities (provider, subject, human_id, email, email_verified, created_at)
+		VALUES ('password', $1, $2, $1, true, $3) ON CONFLICT (provider, subject) DO NOTHING`, email, hum, now); err != nil {
+		return "", false, err
+	}
+	if created {
+		return CredCreated, true, nil
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO session_revocations (human_id, revoked_at) VALUES ($1, $2)
+		ON CONFLICT (human_id) DO UPDATE SET revoked_at = GREATEST(session_revocations.revoked_at, EXCLUDED.revoked_at)`,
+		hum, now); err != nil {
+		return "", false, err
+	}
+	return CredReplaced, wasUnverified, nil
 }
 
 // MemberRole reads the human's role in tenant, once per request when ctx

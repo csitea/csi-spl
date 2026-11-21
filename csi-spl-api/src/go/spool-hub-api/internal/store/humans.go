@@ -392,10 +392,28 @@ type ProvisionInput struct {
 	// hashes a password read from a file on stdin, never argv/env): the member
 	// also gets a native email+password credential, email PRE-VERIFIED so no
 	// verification mail is sent, and the (provider=password, subject=email)
-	// identity native login resolves. Postgres only — the memory store keeps no
+	// identity native login resolves. An existing credential takes this
+	// password and is verified too (SPL-6182). Postgres only — the memory store keeps no
 	// credentials table, so the memory path ignores it.
 	PasswordHash string
 }
+
+// ProvisionResult is what one ProvisionMemberReport changed (SPL-6182).
+type ProvisionResult struct {
+	HumanID      string
+	CreatedHuman bool
+	MemberAdded  bool // false = already a member, the role left as it was
+	// Credential is CredCreated, CredReplaced (an existing credential took
+	// the new password; the human's sessions ended), or "" (no password given).
+	Credential  string
+	VerifiedNow bool // the credential was unverified (or new) and is verified now
+}
+
+// The ProvisionResult.Credential outcomes.
+const (
+	CredCreated  = "created"
+	CredReplaced = "replaced"
+)
 
 // MemberProvisioner seats a member by email before any sign-in, idempotently:
 // it creates the human (once), an 'operator' identity that carries the

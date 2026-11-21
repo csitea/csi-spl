@@ -15,9 +15,9 @@ import (
 // so a forgotten owner password cannot go through the reset link
 // (auth.AdminPasswordReset refuses with ErrMailUndeliverable). The operator
 // CLI (`spool hub-reset-password --password-stdin`) replaces the native
-// credential's hash with one typed on the operator's terminal and revokes
-// every session of its human, so neither the old password nor an open
-// browser still gets in.
+// credential's hash with one typed on the operator's terminal, marks its
+// email verified, and revokes every session of its human, so neither the old
+// password nor an open browser still gets in.
 
 // ErrNotTenantMember: the credential's human is no member of the tenant the
 // reset was scoped to; nothing changed.
@@ -26,7 +26,7 @@ var ErrNotTenantMember = errors.New("not a member of that tenant")
 // PasswordResetter replaces a native password and signs its human out.
 type PasswordResetter interface {
 	// ResetNativePassword sets the (password, email) credential's hash to
-	// pwHash and revokes every session its human holds at now. A non-empty
+	// pwHash, marks it verified, and revokes every session its human holds at now. A non-empty
 	// tenant limits it to a member of that tenant (ErrNotTenantMember).
 	// auth.ErrCredNotFound when the email has no password credential.
 	ResetNativePassword(ctx context.Context, tenant, email, pwHash string, now time.Time) (humanID string, err error)
@@ -67,7 +67,11 @@ func (s *Postgres) ResetNativePassword(ctx context.Context, tenant, email, pwHas
 			return "", err
 		}
 	}
-	tag, err := tx.Exec(ctx, `UPDATE password_credentials SET password_hash = $2, updated_at = $3
+	// The operator stands in for the inbox the reset link would have proved,
+	// so the credential is verified too (SPL-6182: an unverified one was
+	// still bounced to email confirmation after the reset).
+	tag, err := tx.Exec(ctx, `UPDATE password_credentials SET password_hash = $2, updated_at = $3,
+		email_verified_at = COALESCE(email_verified_at, $3)
 		WHERE provider = 'password' AND subject = $1`, email, pwHash, now)
 	if err != nil {
 		return "", err

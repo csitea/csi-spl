@@ -105,6 +105,16 @@
 #      box-free form (`review: g-247 grok ...| log: g-247:~/...`, its sha
 #      the temp repo's review/r99-01 head) passes that sweep and the R7 gate:
 #      PUSHED; the old `<id>@<box>` form stays accepted (case 8)
+#  21. a panel seat's brief allows its review branch only (SPL-6157, b32-01
+#      rc01; m-551 b86bcc246, m-642 56d672462..685cef6c8 landed seat heads on
+#      master): c-999's <SPOOL_ROOT>/c-999/lifetime/brief.md says "to the
+#      branch `review/<x>` only", PUSH_BRANCH unset and =master -> start exits
+#      1, `FATAL PUSH: c-999's brief allows review/<x> only: PUSH_BRANCH=...`,
+#      no status file, master unmoved, the sha not on origin (the red: PUSHED
+#      on master). Controls: the same brief with PUSH_BRANCH=review/<x> ->
+#      PUSHED on that ref, master unmoved; a planner brief ("never master
+#      before the GO") and a row lane brief ("never master ... You LAND only
+#      after the R7 PASS") with PUSH_BRANCH unset -> PUSHED on master
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -541,6 +551,41 @@ msg_hyg "$base20..HEAD"; rc=$?
 run >/dev/null; v="$(verdict)"; vrc=$?
 [ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$L" rev-parse HEAD)" <<<"$v" \
   && pass "20. the box-free line passes the R7 gate -> PUSHED" || fail "20. box-free gate (rc $vrc: $v)"
+
+# 21 a panel seat's brief allows review/<x> only: master is refused at start
+SP21="$T/spool/c-999/lifetime"; mkdir -p "$SP21"
+SEAT21='Commit it and push it to the branch `review/c-999-s21-seat` only, never to master: the editor folds it into the plan.'
+ROW21='5. Push `review/c-999-s21-row` (never master). You LAND only after the R7 PASS and the holder'"'"'s GO, with `do_spl_push_master`.'
+PLAN21='Push the plan to `review/c-999-s21-plan` (`PUSH_BRANCH=review/c-999-s21-plan`; never master before the GO).'
+FATAL21="FATAL PUSH: c-999's brief allows review/c-999-s21-seat only: PUSH_BRANCH=review/c-999-s21-seat ./run -a do_spl_push_master"
+echo ok >"$T/hook.mode"
+git -C "$W7" fetch -q origin && git -C "$W7" reset -q --hard origin/master
+c21() {  # <name> <brief line> - c-999's brief says it; a new commit in its worktree
+  printf '# brief\n\n%s\n' "$2" >"$SP21/brief.md"
+  printf '%s\n' "$1" >"$W7/$1.txt"; git -C "$W7" add "$1.txt" && git -C "$W7" "${G[@]}" commit -qm "docs(x): $1"
+  m21="$(git --git-dir="$B" rev-parse master)" sha="$(git -C "$W7" rev-parse HEAD)"
+}
+c21 seat21 "$SEAT21"
+for br in '' master; do
+  rm -f "$S/status"
+  out="$(run AGENT_ID=c-999 PUSH_WORKTREE="$W7" ${br:+PUSH_BRANCH=$br})"; rc=$?
+  [ "$rc" -eq 1 ] && grep -qxF "$FATAL21" <<<"$out" && [ ! -e "$S/status" ] \
+    && [ "$(git --git-dir="$B" rev-parse master)" = "$m21" ] && ! git --git-dir="$B" cat-file -e "$sha^{commit}" 2>/dev/null \
+    && pass "21. seat brief, PUSH_BRANCH=${br:-unset} -> exit 1, FATAL names review/c-999-s21-seat, no status, master unmoved" \
+    || fail "21. seat ${br:-unset} (rc $rc: $out)"
+done
+run AGENT_ID=c-999 PUSH_WORKTREE="$W7" PUSH_BRANCH=review/c-999-s21-seat >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && [ "$(git --git-dir="$B" rev-parse refs/heads/review/c-999-s21-seat 2>/dev/null)" = "$sha" ] \
+  && [ "$(git --git-dir="$B" rev-parse master)" = "$m21" ] \
+  && pass "21. control: the seat brief with PUSH_BRANCH=review/c-999-s21-seat -> PUSHED there, master unmoved" \
+  || fail "21. seatrev (rc $vrc: $v)"
+for c in "plan21|$PLAN21" "row21|$ROW21"; do
+  c21 "${c%%|*}" "${c#*|}"
+  run AGENT_ID=c-999 PUSH_WORKTREE="$W7" >/dev/null; v="$(verdict)"; vrc=$?
+  [ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && on_origin "$sha" \
+    && pass "21. control: a ${c%%|*} brief that names a review/ branch, PUSH_BRANCH unset -> PUSHED on master" \
+    || fail "21. ${c%%|*} (rc $vrc: $v)"
+done
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

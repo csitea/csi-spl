@@ -36,6 +36,11 @@
 # @description <main>-wt/<AGENT_ID>, or a linked worktree on branch <AGENT_ID>-*):
 # @description any other tree, the main checkout included, is a FATAL at start
 # @description (m-181 pushed the main checkout, origin's own head, and read LANDED).
+# @description A lane whose brief (<SPOOL_ROOT>/<AGENT_ID>/lifetime/brief.md) allows one review branch
+# @description only (the panel seat form "to the branch `review/<x>` only") and that pushes with PUSH_BRANCH
+# @description unset or master is a FATAL at start too, naming PUSH_BRANCH=review/<x>: nothing pushed, no
+# @description status file (m-551 b86bcc246, m-642 56d672462..685cef6c8 landed a seat's head on master,
+# @description SPL-6157). A planner's or a row lane's brief names a review/ branch too and still lands on master.
 # @description An origin url or pushurl with embedded credentials (`https://<user>[:<token>]@...`) is a FATAL at start
 # @description too, naming the repo and the `git -C <repo> remote set-url` fix, the userinfo masked; it never rewrites the URL (SPL-3766). It never forces, never sets SPL_PREPUSH_OVERRIDE
 # @description (it unsets it, and AGENT_ID: the hook sees a hand push's env) and never edits a file; a rebase conflict is aborted.
@@ -46,9 +51,9 @@
 # @param PUSH_CMD (optional) - start (default) or status
 # @param PUSH_WORKTREE (optional) - the lane's checkout; default the current dir; held to the AGENT_ID worktree rule too
 # @param PUSH_STATE_DIR (optional) - default <SPOOL_ROOT>/<AGENT_ID>/lifetime/push-master when that lifetime dir exists, else <git-dir>/spl-push-master
-# @param AGENT_ID (optional) - the lane id: picks the default state dir; a lane id must push from its own worktree
+# @param AGENT_ID (optional) - the lane id: picks the default state dir; a lane id must push from its own worktree; its lifetime brief.md may allow a review branch only
 # @param PUSH_REMOTE (optional) - default origin
-# @param PUSH_BRANCH (optional) - default master; a review/* branch skips the R7 review-line check only
+# @param PUSH_BRANCH (optional) - default master; a review/* branch skips the R7 review-line check only; unset or master is refused when the AGENT_ID's brief says "to the branch `review/<x>` only"
 # @param PUSH_RETRIES (optional) - pushes refused because the branch moved, retried; default 4
 # @param PUSH_GIT_NAME, PUSH_GIT_EMAIL (optional) - the identity for the rebase and the check; default HEAD's author
 # @example AGENT_ID=c-050 ./run -a do_spl_push_master
@@ -90,6 +95,7 @@ _spl_push_master_state_dir() {
 _spl_push_master_start() {
   local wt="$1" state="$2" self name email
   _spl_push_master_own_tree "$wt" || return 1
+  _spl_push_master_brief_only || return 1
   _spl_push_master_url_creds "$wt" || return 1
   [[ "${PUSH_RETRIES:-4}" =~ ^[1-9][0-9]?$ ]] || { echo "FATAL PUSH: PUSH_RETRIES must be 1..99"; return 1; }
   if ! flock -n "$state/lock" true 2>/dev/null; then
@@ -116,6 +122,24 @@ _spl_push_master_start() {
       source "$1" && _spl_push_master_worker' _ "$self" </dev/null >>"$state/log" 2>&1
   echo "PUSH: started for $(git -C "$wt" rev-parse --short HEAD) in $wt"
   echo "PUSH: poll with PUSH_CMD=status (state $state)"
+}
+
+# _spl_push_master_brief_only - 0 unless PUSH_BRANCH is unset or master and the
+# lane's brief, <SPOOL_ROOT>/<AGENT_ID>/lifetime/brief.md (the one the spawn
+# keeps and a rotation restarts from), allows one review branch only: the panel
+# seat form "to the branch `review/<x>` only". Then a FATAL naming that branch.
+# Only that form counts: a planner ("never master before the GO") and a row lane
+# ("never master ... You LAND only after the R7 PASS") name a review/ branch too
+# and land on master after the GO. No AGENT_ID, lifetime dir or brief: 0.
+_spl_push_master_brief_only() {
+  local brief only
+  [[ "${PUSH_BRANCH:-master}" == master && "${AGENT_ID:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || return 0
+  brief="${SPOOL_ROOT:-/var/spool-hub}/$AGENT_ID/lifetime/brief.md"
+  [[ -f "$brief" ]] || return 0
+  only="$(grep -m1 -oE 'to the branch `review/[^`]+` only' "$brief")" || return 0
+  only="${only#to the branch \`}"; only="${only%\` only}"
+  echo "FATAL PUSH: $AGENT_ID's brief allows $only only: PUSH_BRANCH=$only ./run -a do_spl_push_master"
+  return 1
 }
 
 # _spl_push_master_url_creds <worktree> - 0 unless the push remote's url or

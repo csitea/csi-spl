@@ -34,17 +34,19 @@ variable "gcp_zone" {
 }
 
 # spec 181 B5: one private VM per private workspace, <tenant> -> machine type.
-# Empty (the default): the step plans no resource at all.
+# Empty (the default): the step plans no resource at all. Set at run time by
+# TF_VAR_workspace_vms, never in the rendered tfvars (tenant ids are not committed).
 variable "workspace_vms" {
   type        = map(string)
+  default     = {}
   description = "One entry per private workspace: the tenant id -> the VM's machine type."
 
   validation {
     condition = alltrue([
       for tenant, machine_type in var.workspace_vms :
-      can(regex("^[a-z0-9][a-z0-9-]{0,31}$", tenant)) && can(regex("^[a-z][a-z0-9]*-[a-z0-9-]+$", machine_type))
+      can(regex("^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$", tenant)) && can(regex("^[a-z][a-z0-9]*-[a-z0-9-]+$", machine_type))
     ])
-    error_message = "workspace_vms keys must be tenant ids (^[a-z0-9][a-z0-9-]{0,31}$, the hub's tenants check, also a valid label value) and values machine types such as e2-standard-2."
+    error_message = "workspace_vms keys must be tenant ids that end in a letter or digit (^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$: the hub's tenants check, narrowed by the instance name rule, which refuses a trailing -) and values machine types such as e2-standard-2."
   }
 }
 

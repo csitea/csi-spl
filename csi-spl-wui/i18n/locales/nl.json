@@ -4383,6 +4383,12 @@
       "labels_remove": "Verwijderen",
       "labels_save": "Labels opslaan",
       "labels_saved": "Labels opgeslagen",
+      "labels_mark_machine": "Machinevertaling, nog niet nagekeken",
+      "labels_mark_reviewed": "Nagekeken",
+      "labels_mark_hand": "Met de hand gecorrigeerd",
+      "labels_stale": "Gemaakt van een oudere hoofdtekst: controleer het",
+      "labels_waiting": "Wachten nog op een vertaling: {langs}",
+      "labels_removed": "Verwijderd: {langs}. Opslaan wist ze, en de volgende run vertaalt ze opnieuw machinaal.",
       "err_labels_locale": "Kies elke taal maar één keer, nooit de hoofdtaal."
     },
     "operators_only": "Uitgaven zijn alleen voor beheerders en producteigenaren van de operator.",

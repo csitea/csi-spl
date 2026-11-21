@@ -4383,6 +4383,12 @@
       "labels_remove": "Poista",
       "labels_save": "Tallenna nimikkeet",
       "labels_saved": "Nimikkeet tallennettu",
+      "labels_mark_machine": "Konekäännös, ei vielä tarkistettu",
+      "labels_mark_reviewed": "Tarkistettu",
+      "labels_mark_hand": "Korjattu käsin",
+      "labels_stale": "Tehty vanhemmasta päätekstistä: tarkista se",
+      "labels_waiting": "Odottaa vielä käännöstä: {langs}",
+      "labels_removed": "Poistettu: {langs}. Tallennus poistaa ne, ja seuraava ajo kääntää ne uudelleen konekäännöksenä.",
       "err_labels_locale": "Valitse kukin kieli vain kerran, älä pääkieltä."
     },
     "operators_only": "Kulut ovat vain operaattorin ylläpitäjille ja tuoteomistajille.",

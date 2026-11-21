@@ -4383,6 +4383,12 @@
       "labels_remove": "Usuń",
       "labels_save": "Zapisz nazwy",
       "labels_saved": "Nazwy zapisane",
+      "labels_mark_machine": "Tłumaczenie maszynowe, jeszcze niesprawdzone",
+      "labels_mark_reviewed": "Sprawdzone",
+      "labels_mark_hand": "Poprawione ręcznie",
+      "labels_stale": "Utworzone ze starszego tekstu głównego: sprawdź je",
+      "labels_waiting": "Nadal czekają na tłumaczenie: {langs}",
+      "labels_removed": "Usunięte: {langs}. Zapisanie je kasuje, a następne uruchomienie przetłumaczy je ponownie maszynowo.",
       "err_labels_locale": "Wybierz każdy język tylko raz i nie wybieraj języka głównego."
     },
     "operators_only": "Wydatki są tylko dla administratorów i właścicieli produktu operatora.",

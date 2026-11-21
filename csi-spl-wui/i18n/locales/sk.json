@@ -4383,6 +4383,12 @@
       "labels_remove": "Odstrániť",
       "labels_save": "Uložiť označenia",
       "labels_saved": "Označenia sú uložené",
+      "labels_mark_machine": "Strojový preklad, zatiaľ neskontrolovaný",
+      "labels_mark_reviewed": "Skontrolované",
+      "labels_mark_hand": "Opravené ručne",
+      "labels_stale": "Vytvorené zo staršieho hlavného textu: skontrolujte ho",
+      "labels_waiting": "Ešte čakajú na preklad: {langs}",
+      "labels_removed": "Odstránené: {langs}. Uloženie ich vymaže a ďalšie spustenie ich znova strojovo preloží.",
       "err_labels_locale": "Každý jazyk vyberte len raz, nikdy nie hlavný jazyk."
     },
     "operators_only": "Výdavky sú len pre administrátorov a vlastníkov produktu operátora.",

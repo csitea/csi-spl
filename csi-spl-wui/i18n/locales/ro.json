@@ -4383,6 +4383,12 @@
       "labels_remove": "Elimină",
       "labels_save": "Salvează etichetele",
       "labels_saved": "Etichetele au fost salvate",
+      "labels_mark_machine": "Traducere automată, încă neverificată",
+      "labels_mark_reviewed": "Verificată",
+      "labels_mark_hand": "Corectată manual",
+      "labels_stale": "Făcută dintr-un text principal mai vechi: verificați-o",
+      "labels_waiting": "Încă așteaptă traducerea: {langs}",
+      "labels_removed": "Eliminate: {langs}. Salvarea le șterge, iar următoarea rulare le traduce din nou automat.",
       "err_labels_locale": "Alege fiecare limbă o singură dată, niciodată limba principală."
     },
     "operators_only": "Cheltuielile sunt doar pentru administratorii și proprietarii de produs ai operatorului.",

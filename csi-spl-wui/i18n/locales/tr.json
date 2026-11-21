@@ -4383,6 +4383,12 @@
       "labels_remove": "Kaldır",
       "labels_save": "Etiketleri kaydet",
       "labels_saved": "Etiketler kaydedildi",
+      "labels_mark_machine": "Makine çevirisi, henüz gözden geçirilmedi",
+      "labels_mark_reviewed": "Gözden geçirildi",
+      "labels_mark_hand": "Elle düzeltildi",
+      "labels_stale": "Daha eski bir ana metinden yapıldı: kontrol edin",
+      "labels_waiting": "Hâlâ çeviri bekleyenler: {langs}",
+      "labels_removed": "Kaldırılanlar: {langs}. Kaydetmek bunları siler ve sonraki çalıştırma bunları yeniden makineyle çevirir.",
       "err_labels_locale": "Her dili yalnızca bir kez seçin, birincil dili asla seçmeyin."
     },
     "operators_only": "Giderler yalnızca operatör yöneticileri ve ürün sahipleri içindir.",

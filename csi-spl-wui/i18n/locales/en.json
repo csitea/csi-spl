@@ -4383,6 +4383,12 @@
       "labels_remove": "Remove",
       "labels_save": "Save labels",
       "labels_saved": "Labels saved",
+      "labels_mark_machine": "Machine translated, not yet reviewed",
+      "labels_mark_reviewed": "Reviewed",
+      "labels_mark_hand": "Corrected by hand",
+      "labels_stale": "Made from an older master text: check it",
+      "labels_waiting": "Still waiting for a translation: {langs}",
+      "labels_removed": "Removed: {langs}. Saving deletes them, and the next run translates them again by machine.",
       "err_labels_locale": "Pick each language only once, never the master language."
     },
     "operators_only": "Expenses are for operator admins and product owners only.",

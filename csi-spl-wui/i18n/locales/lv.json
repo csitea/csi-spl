@@ -4383,6 +4383,12 @@
       "labels_remove": "Noņemt",
       "labels_save": "Saglabāt nosaukumus",
       "labels_saved": "Nosaukumi saglabāti",
+      "labels_mark_machine": "Mašīntulkojums, vēl nav pārskatīts",
+      "labels_mark_reviewed": "Pārskatīts",
+      "labels_mark_hand": "Labots manuāli",
+      "labels_stale": "Izveidots no vecāka galvenā teksta: pārbaudiet to",
+      "labels_waiting": "Vēl gaida tulkojumu: {langs}",
+      "labels_removed": "Noņemtas: {langs}. Saglabājot tās tiek dzēstas, un nākamā palaišana tās atkal iztulko ar mašīntulkošanu.",
       "err_labels_locale": "Izvēlieties katru valodu tikai vienreiz, bet ne galveno valodu."
     },
     "operators_only": "Izdevumi ir tikai operatora administratoriem un produkta īpašniekiem.",

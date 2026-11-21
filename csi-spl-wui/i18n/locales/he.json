@@ -4383,6 +4383,12 @@
       "labels_remove": "הסרה",
       "labels_save": "שמירת התוויות",
       "labels_saved": "התוויות נשמרו",
+      "labels_mark_machine": "תרגום מכונה, טרם נבדק",
+      "labels_mark_reviewed": "נבדק",
+      "labels_mark_hand": "תוקן ידנית",
+      "labels_stale": "נוצר מטקסט ראשי ישן יותר: בדקו אותו",
+      "labels_waiting": "עדיין ממתינות לתרגום: {langs}",
+      "labels_removed": "הוסרו: {langs}. השמירה מוחקת אותן, וההרצה הבאה מתרגמת אותן שוב בתרגום מכונה.",
       "err_labels_locale": "יש לבחור כל שפה פעם אחת בלבד, ולא את השפה הראשית."
     },
     "operators_only": "ההוצאות מיועדות למנהלי המפעיל ולבעלי המוצר שלו בלבד.",

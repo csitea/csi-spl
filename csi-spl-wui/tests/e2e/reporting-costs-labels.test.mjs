@@ -22,12 +22,17 @@
 //   - SPL-5546: Persons reads its hand-entered rows in the interface
 //     language (/bg/... the bg label), a row with no label its master text,
 //     the row keys unchanged;
+//   - SPL-6203 (spec 123 16.6.4, row L6): Expenses marks each label row
+//     machine translated and not yet reviewed, reviewed, or corrected by
+//     hand, a stale hand row, the languages still waiting; a hand edit
+//     flips a machine row's mark; a removed row says it is made again;
 //   - the currency switch writes ?currency= and the cells follow; no
 //     sideways page scroll; without costs.read the 403 line.
 //
 // CONTROL: on master before SPL-5312 the bar is Spend, AI tokens, Human
 // (Cloud, Price for an operator admin) and /reporting/costs/total is no page,
-// so every label check here FAILS there.
+// so every label check here FAILS there. SPL-6203: on master before it the
+// card draws no cost-label-mark, so every expensesMarks check FAILS there.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e reporting-costs-labels
@@ -38,6 +43,7 @@ import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 import { COSTS_MOCK_KEY } from '../../src/utils/tenant-costs.mjs'
 import { TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
+import { COST_ENTRIES_MOCK_KEY } from '../../src/utils/cost-entries.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const MOCK_ME_KEY = 'spool.mock.me'
@@ -263,6 +269,49 @@ async function personsLanguage(browser, base, size) {
   await ctx.close()
 }
 
+/* SPL-6203 (spec 123 16.6.4; owner answer 2 d: readers see the machine draft at once, marked unreviewed) */
+const MARKS_ENTRY = {
+  id: 'mock-cost-marks', type: 'cloud', label: 'Hosting plan', amount: 12, currency: 'USD', period: '2026-09', note: '',
+  labels: { bg: 'Хостинг план', fi: 'Hosting-paketti', sv: 'Värdplan' }, label_origins: { bg: 'machine', fi: 'reviewed', sv: 'hand' }, stale_locales: ['sv'],
+}
+async function expensesMarks(browser, base, size) {
+  const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+  await p.evaluate((k, e) => localStorage.setItem(k, JSON.stringify([e])), COST_ENTRIES_MOCK_KEY, MARKS_ENTRY)
+  await open(p, base, '/expenses/cloud')
+  ok('marks: the entry is listed', await waitFor(p, '[data-test=cost-labels-toggle]'))
+  await act('open [data-test=cost-labels-toggle]', () => p.$eval('[data-test=cost-labels-toggle]', (e) => e.click()))
+  await waitFor(p, '[data-test=cost-label-row]')
+  const marks = () => p.$$eval('[data-test=cost-label-row]', (els) => els.map((r) => [r.querySelector('[data-test=cost-label-locale]').value,
+    r.querySelector('[data-test=cost-label-mark]')?.getAttribute('data-mark') || '', r.querySelector('[data-test=cost-label-mark]')?.textContent.trim() || '', Boolean(r.querySelector('[data-test=cost-label-stale]'))]))
+  const got = await marks()
+  ok('marks: a machine row reads "machine translated, not yet reviewed", a reviewed one "reviewed", a hand one "corrected by hand"', JSON.stringify(got.map((m) => m.slice(0, 3))) === JSON.stringify([
+    ['bg', 'machine', 'Machine translated, not yet reviewed'], ['fi', 'reviewed', 'Reviewed'], ['sv', 'hand', 'Corrected by hand']]), got)
+  ok('marks: only the stale hand row is marked stale', got.map((m) => m[3]).join(',') === 'false,false,true'
+    && (await text(p, '[data-test=cost-label-stale]')) === 'Made from an older master text: check it', got)
+  const waiting = await text(p, '[data-test=cost-labels-waiting]')
+  ok('marks: the languages still waiting are named, never the master or a language with a row', /^Still waiting for a translation: /.test(waiting) && waiting.includes('Nederlands')
+    && !/English|Suomi|Svenska|Български/.test(waiting), waiting)
+  await shot(p, 'expenses-marks-machine', size)
+  /* a hand edit of the machine row: saved, it reads "corrected by hand" */
+  await act('edit the bg row', () => p.$eval('[data-test=cost-label-row] [data-test=cost-label-text]', (e) => { e.value = 'Хостинг пакет'; e.dispatchEvent(new Event('input', { bubbles: true })) }))
+  ok('marks: an edit not saved yet shows no mark', (await marks())[0][1] === '', await marks())
+  await act('save', () => p.$eval('[data-test=cost-label-save]', (e) => e.click()))
+  const flipped = await p.waitForFunction(() => document.querySelector('[data-test=cost-label-row] [data-test=cost-label-mark]')?.getAttribute('data-mark') === 'hand', { timeout: 10000 }).then(() => true, () => false)
+  const stored = await p.evaluate((k) => JSON.parse(localStorage.getItem(k) || '[]')[0]?.label_origins || {}, COST_ENTRIES_MOCK_KEY)
+  ok('marks: a hand edit flips the machine row to "corrected by hand"; the others keep theirs', flipped && (await marks())[0][2] === 'Corrected by hand'
+    && JSON.stringify(stored) === JSON.stringify({ bg: 'hand', fi: 'reviewed', sv: 'hand' }), [await marks(), stored])
+  await shot(p, 'expenses-marks-hand', size)
+  /* a removed row: the card says the next fill makes it again by machine */
+  ok('marks: nothing removed, no removed line', (await count(p, '[data-test=cost-labels-removed]')) === 0)
+  await act('remove the fi row', () => p.$$eval('[data-test=cost-label-row]', (els) => els[1].querySelector('[data-test=cost-label-remove]').click()))
+  await waitFor(p, '[data-test=cost-labels-removed]')
+  const removed = await text(p, '[data-test=cost-labels-removed]')
+  ok('marks: removing a row says it is translated again by machine', removed === 'Removed: Suomi. Saving deletes them, and the next run translates them again by machine.', removed)
+  ok('marks: no sideways page scroll', (await sideways(p)) <= 0, await sideways(p))
+  await shot(p, 'expenses-marks-removed', size)
+  await ctx.close()
+}
+
 async function workspaceAndForbidden(browser, base, size) {
   {
     /* a customer workspace (mock 'share', last month): its own Tokens; Persons and Cloud say they have no split */
@@ -291,7 +340,7 @@ const browser = await launch()
 try {
   for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     console.log(`-- ${size.width}x${size.height}`)
-    for (const section of [redirects, totalLabel, period, cloudPersonsTokens, personsLanguage, workspaceAndForbidden]) {
+    for (const section of [redirects, totalLabel, period, cloudPersonsTokens, personsLanguage, expensesMarks, workspaceAndForbidden]) {
       // a section that still throws is one FAIL, and the sections after it run (N5)
       await section(browser, server.base, size).catch((e) => ok(`${section.name} ran to its end`, false, String(e && e.message || e).slice(0, 160)))
     }

@@ -26,6 +26,10 @@ import {
   costEntriesMasterOf,
   costLabelRows,
   costLabelsBody,
+  costLabelMark,
+  costLabelStale,
+  costLabelsWaiting,
+  costLabelsRemoved,
 } from '../../src/utils/cost-entries.mjs'
 import { TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
 
@@ -177,6 +181,61 @@ describe('the labels in other languages', () => {
     const lazy = read('src/utils/spool-client-lazy.mjs')
     assert.match(lazy, /op === 'entry_labels'\) return live\(entries \+ '\/' \+ encodeURIComponent\(a\) \+ '\/labels', json\('PATCH', b\)\)/)
     assert.match(lazy, /'\/v1\/operator\/hr-components' \+ \(\/\^\[a-z\]\{2\}\$\/\.test/)
+  })
+})
+
+// SPL-6203 (spec 123 16.6.4, row L6): who wrote each label row, the stale
+// hand rows, the languages still waiting, and a removed row made again
+describe('the label rows\' marks', () => {
+  const LOCS = ['bg', 'en', 'fi', 'sv']
+  const body = { master_locale: 'en', entries: [{ id: 'a', label: 'Salary', labels: { en: 'Salary', bg: 'Заплата', fi: 'Palkka', sv: 'Lön' },
+    label_origins: { en: 'hand', bg: 'machine', fi: 'reviewed', sv: 'hand', 'x-y': 'machine', de: 'robot' }, stale_locales: ['sv', 'Xx', 4] }] }
+  const [e] = costEntriesOf(body)
+  it('the list keeps known origins and two-letter stale locales only', () => {
+    assert.deepEqual(e.labelOrigins, { en: 'hand', bg: 'machine', fi: 'reviewed', sv: 'hand' })
+    assert.deepEqual(e.staleLocales, ['sv'])
+    assert.deepEqual(costEntriesOf({ entries: [{ id: 'b' }] })[0].labelOrigins, {}, 'an older hub names no origin')
+  })
+  it('a stored row shows its origin; an edit not saved yet, a new row and an unknown origin show none', () => {
+    assert.deepEqual(costLabelRows(e, 'en').map((r) => costLabelMark(e, r)), ['machine', 'reviewed', 'hand'])
+    assert.equal(costLabelMark(e, { locale: 'bg', text: 'Заплата ' }), 'machine', 'trimmed as the PATCH sends it')
+    assert.equal(costLabelMark(e, { locale: 'bg', text: 'Възнаграждение' }), '')
+    assert.equal(costLabelMark(e, { locale: 'bg', text: '' }), '')
+    assert.equal(costLabelMark({ ...e, labelOrigins: {} }, { locale: 'bg', text: 'Заплата' }), '')
+  })
+  it('only a stored hand row the hub lists is stale', () => {
+    assert.deepEqual(costLabelRows(e, 'en').filter((r) => costLabelStale(e, r)).map((r) => r.locale), ['sv'])
+    assert.equal(costLabelStale(e, { locale: 'sv', text: 'Lönen' }), false, 'an edit replaces the stale text')
+    assert.equal(costLabelStale({ ...e, staleLocales: ['bg'] }, { locale: 'bg', text: 'Заплата' }), false, 'a machine row is re-made, never shown stale')
+  })
+  it('the languages still waiting: every locale with no label, never the master', () => {
+    assert.deepEqual(costLabelsWaiting(e, 'en', [...LOCS, 'de']), ['de'])
+    assert.deepEqual(costLabelsWaiting({ labels: { en: 'Salary' } }, 'en', LOCS), ['bg', 'fi', 'sv'])
+  })
+  it('a row taken out of the editor is named as removed, the master never', () => {
+    assert.deepEqual(costLabelsRemoved(e, costLabelRows(e, 'en'), 'en'), [])
+    assert.deepEqual(costLabelsRemoved(e, [{ locale: 'fi', text: 'Palkka' }], 'en'), ['bg', 'sv'])
+  })
+  it('the mock PATCH, as the hub: a changed text turns hand and not stale, an unchanged one keeps its row, a left-out one goes; every entry of the text', () => {
+    const store = memStore()
+    const a = mockCostEntryCreate({ ...costEntryBody('hr', good), labels: { bg: 'Фактура', fi: 'Lasku', sv: 'Faktura' }, label_origins: { bg: 'machine', fi: 'reviewed', sv: 'hand' }, stale_locales: ['sv'] }, store)
+    const b = mockCostEntryCreate({ ...costEntryBody('hr', good), labels: { bg: 'Фактура' }, label_origins: { bg: 'machine' } }, store)
+    const other = mockCostEntryCreate({ ...costEntryBody('hr', { ...good, label: 'Other' }), labels: { bg: 'Друго' }, label_origins: { bg: 'machine' } }, store)
+    const out = mockCostEntryLabels(a.id, { labels: { bg: 'Сметка', fi: 'Lasku' } }, store)
+    assert.deepEqual(out.label_origins, { bg: 'hand', fi: 'reviewed' })
+    assert.deepEqual(out.stale_locales, [])
+    const listed = Object.fromEntries(mockCostEntryList('hr', store).entries.map((x) => [x.id, x]))
+    for (const id of [a.id, b.id]) assert.deepEqual([listed[id].labels, listed[id].label_origins], [{ bg: 'Сметка', fi: 'Lasku', [MOCK_COST_LABEL_MASTER]: good.label }, { bg: 'hand', fi: 'reviewed' }], id)
+    assert.deepEqual([listed[other.id].labels.bg, listed[other.id].label_origins], ['Друго', { bg: 'machine' }], 'another text is not touched')
+  })
+  it('the card draws the mark, the stale mark, the waiting and the removed lines from these helpers, in t() keys', () => {
+    const vue = read('src/components/expenses/CostEntryLabels.vue')
+    for (const re of [/t\('expenses\.entries\.labels_mark_' \+ costLabelMark\(entry, r\)\)/, /costLabelStale\(entry, r\)/, /costLabelsWaiting\(props\.entry, props\.master/, /costLabelsRemoved\(props\.entry, rows\.value, props\.master\)/,
+      /data-test="cost-label-mark"/, /data-test="cost-label-stale"/, /data-test="cost-labels-waiting"/, /data-test="cost-labels-removed"/]) assert.match(vue, re)
+    const en = JSON.parse(read('i18n/locales/en.json')).expenses.entries
+    for (const o of ['machine', 'reviewed', 'hand']) assert.ok(en['labels_mark_' + o], o)
+    assert.match(en.labels_waiting, /\{langs\}/)
+    assert.match(en.labels_removed, /\{langs\}/)
   })
 })
 

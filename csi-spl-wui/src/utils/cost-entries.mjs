@@ -69,6 +69,9 @@ export function costEntriesOf(body) {
     correctsPeriod: str(e.corrects_period),
     /* SPL-5546 (rdb 0285): the label per locale, the master's included */
     labels: labelsOf(e.labels),
+    /* SPL-6203 (spec 123 16.6.4): who wrote each row, and the hand rows made from an older master text */
+    labelOrigins: originsOf(e.label_origins),
+    staleLocales: Array.isArray(e.stale_locales) ? e.stale_locales.filter((l) => typeof l === 'string' && /^[a-z]{2}$/.test(l)) : [],
   })).sort((a, b) => b.period.localeCompare(a.period))
 }
 
@@ -76,6 +79,16 @@ export function costEntriesOf(body) {
 function labelsOf(v) {
   const out = {}
   if (v && typeof v === 'object') for (const [k, t] of Object.entries(v)) if (/^[a-z]{2}$/.test(k) && typeof t === 'string' && t) out[k] = t
+  return out
+}
+
+/** SPL-6203: who wrote a label row (hub label_origins; reviewed = a machine row agy confirmed). */
+const COST_LABEL_ORIGINS = Object.freeze(['machine', 'reviewed', 'hand'])
+
+/** A {locale: origin} map with only two-letter locales and known origins. */
+function originsOf(v) {
+  const out = {}
+  if (v && typeof v === 'object') for (const [k, o] of Object.entries(v)) if (/^[a-z]{2}$/.test(k) && COST_LABEL_ORIGINS.includes(o)) out[k] = o
   return out
 }
 
@@ -108,6 +121,35 @@ export function checkCostLabelRows(rows, master, locales) {
     seen.add(r.locale)
   }
   return ''
+}
+
+/**
+ * SPL-6203 (spec 123 16.6.4): one editor row's mark, an origin of
+ * COST_LABEL_ORIGINS as the hub stored it; '' while the row's text differs
+ * from the stored one (an edit not saved yet, or a new row) or the hub names
+ * no origin.
+ */
+export function costLabelMark(entry, row) {
+  const text = str(row && row.text).trim()
+  if (!text || ((entry && entry.labels) || {})[row.locale] !== text) return ''
+  return ((entry && entry.labelOrigins) || {})[row.locale] || ''
+}
+
+/** True when the row is a hand row the hub lists stale (made from an older master text), shown as stored. */
+export function costLabelStale(entry, row) {
+  return costLabelMark(entry, row) === 'hand' && ((entry && entry.staleLocales) || []).includes(row.locale)
+}
+
+/** The locales with no label yet, still waiting for their translation (every locale but the master's), sorted. */
+export function costLabelsWaiting(entry, master, locales) {
+  const have = (entry && entry.labels) || {}
+  return locales.filter((l) => l !== master && !have[l]).sort()
+}
+
+/** The stored locales the rows no longer hold: a save deletes them, and the next fill makes them again by machine. */
+export function costLabelsRemoved(entry, rows, master) {
+  const kept = new Set(rows.map((r) => r.locale))
+  return Object.keys((entry && entry.labels) || {}).filter((l) => l !== master && !kept.has(l)).sort()
 }
 
 /** The PATCH body of checked label rows. */
@@ -178,12 +220,19 @@ export function mockCostEntryList(type, store = mockStore()) {
   return {
     entries: mockRead(store).filter((e) => e.type === type).map((e) => ({
       ...e, ...mockMoney(e.amount, e.currency, undefined, e.period + '-01'), labels: { ...(e.labels || {}), [MOCK_COST_LABEL_MASTER]: e.label },
+      label_origins: { ...(e.label_origins || {}) }, stale_locales: [...(e.stale_locales || [])],
     })),
     master_locale: MOCK_COST_LABEL_MASTER,
   }
 }
 
-/** The mock's PATCH .../{id}/labels: every locale but the master's replaced; 404 on an unknown id. */
+/**
+ * The mock's PATCH .../{id}/labels, as the hub's (SPL-6203, spec 123
+ * 16.6.4): a locale whose text changed becomes hand and is no longer stale,
+ * one sent unchanged keeps its row, one left out is deleted; the named entry's
+ * rows are worked out, then every entry with its text gets them (store
+ * SetCostEntryLabels), never the master's. 404 on an unknown id.
+ */
 export function mockCostEntryLabels(id, body, store = mockStore()) {
   mockGate(store)
   const list = mockRead(store)
@@ -192,9 +241,18 @@ export function mockCostEntryLabels(id, body, store = mockStore()) {
   const labels = { ...((body && body.labels) || {}) }
   if (MOCK_COST_LABEL_MASTER in labels && labels[MOCK_COST_LABEL_MASTER] !== e.label) throw mockError(400, 'bad_cost_labels', "the master language's label is the entry's own label")
   delete labels[MOCK_COST_LABEL_MASTER]
-  e.labels = labels
+  const next = mockLabelRows(e, labels)
+  for (const x of list.filter((y) => y.label === e.label)) Object.assign(x, { labels: { ...labels }, label_origins: { ...next.origins }, stale_locales: [...next.stale] })
   mockWrite(store, list)
-  return { id, labels: { ...labels, [MOCK_COST_LABEL_MASTER]: e.label } }
+  return { id, labels: { ...labels, [MOCK_COST_LABEL_MASTER]: e.label }, label_origins: { ...e.label_origins }, stale_locales: [...e.stale_locales] }
+}
+
+/* entry e's origins and stale locales after a person's PATCH of labels */
+function mockLabelRows(e, labels) {
+  const was = e.labels || {}
+  const origins = {}
+  for (const [loc, text] of Object.entries(labels)) origins[loc] = was[loc] === text ? (e.label_origins || {})[loc] || 'hand' : 'hand'
+  return { origins, stale: (e.stale_locales || []).filter((l) => l in labels && was[l] === labels[l]) }
 }
 
 /** The mock's POST: stores the body, or refuses once when COST_ENTRIES_MOCK_REFUSE_KEY is set. */

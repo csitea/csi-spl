@@ -4383,6 +4383,12 @@
       "labels_remove": "Pašalinti",
       "labels_save": "Išsaugoti pavadinimus",
       "labels_saved": "Pavadinimai išsaugoti",
+      "labels_mark_machine": "Mašininis vertimas, dar neperžiūrėtas",
+      "labels_mark_reviewed": "Peržiūrėta",
+      "labels_mark_hand": "Pataisyta rankiniu būdu",
+      "labels_stale": "Sukurta iš senesnio pagrindinio teksto: patikrinkite",
+      "labels_waiting": "Dar laukia vertimo: {langs}",
+      "labels_removed": "Pašalinta: {langs}. Įrašius jos ištrinamos, o kitas paleidimas jas vėl išverčia mašininiu vertimu.",
       "err_labels_locale": "Kiekvieną kalbą pasirinkite tik kartą, bet ne pagrindinę."
     },
     "operators_only": "Išlaidos skirtos tik operatoriaus administratoriams ir produkto savininkams.",

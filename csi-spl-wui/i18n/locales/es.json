@@ -4383,6 +4383,12 @@
       "labels_remove": "Quitar",
       "labels_save": "Guardar etiquetas",
       "labels_saved": "Etiquetas guardadas",
+      "labels_mark_machine": "Traducción automática, aún sin revisar",
+      "labels_mark_reviewed": "Revisada",
+      "labels_mark_hand": "Corregida a mano",
+      "labels_stale": "Hecha a partir de un texto maestro anterior: revísela",
+      "labels_waiting": "Aún esperan traducción: {langs}",
+      "labels_removed": "Eliminadas: {langs}. Al guardar se borran y la próxima ejecución las vuelve a traducir automáticamente.",
       "err_labels_locale": "Elige cada idioma una sola vez, nunca el idioma principal."
     },
     "operators_only": "Los gastos son solo para administradores y propietarios de producto del operador.",

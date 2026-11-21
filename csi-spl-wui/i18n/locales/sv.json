@@ -4383,6 +4383,12 @@
       "labels_remove": "Ta bort",
       "labels_save": "Spara etiketter",
       "labels_saved": "Etiketterna har sparats",
+      "labels_mark_machine": "Maskinöversatt, inte granskad än",
+      "labels_mark_reviewed": "Granskad",
+      "labels_mark_hand": "Rättad för hand",
+      "labels_stale": "Gjord från en äldre huvudtext: kontrollera den",
+      "labels_waiting": "Väntar fortfarande på översättning: {langs}",
+      "labels_removed": "Borttagna: {langs}. När du sparar raderas de, och nästa körning översätter dem igen maskinellt.",
       "err_labels_locale": "Välj varje språk bara en gång, aldrig huvudspråket."
     },
     "operators_only": "Utgifter är bara för operatörens administratörer och produktägare.",

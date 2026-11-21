@@ -4383,6 +4383,12 @@
       "labels_remove": "Eemalda",
       "labels_save": "Salvesta nimetused",
       "labels_saved": "Nimetused salvestatud",
+      "labels_mark_machine": "Masintõlge, veel üle vaatamata",
+      "labels_mark_reviewed": "Üle vaadatud",
+      "labels_mark_hand": "Käsitsi parandatud",
+      "labels_stale": "Tehtud vanemast põhitekstist: kontrollige seda",
+      "labels_waiting": "Ootavad veel tõlget: {langs}",
+      "labels_removed": "Eemaldatud: {langs}. Salvestamine kustutab need ja järgmine käivitus tõlgib need uuesti masinaga.",
       "err_labels_locale": "Vali iga keel ainult üks kord, mitte põhikeelt."
     },
     "operators_only": "Kulud on ainult operaatori administraatoritele ja tooteomanikele.",

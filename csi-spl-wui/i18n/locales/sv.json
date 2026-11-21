@@ -763,7 +763,9 @@
         "merge": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan slå ihop det här ämnet",
         "archive_admins": "I den här arbetsytan kan bara ägaren eller en administratör arkivera ämnen",
         "archive_starter": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan arkivera det här ämnet",
-        "delete": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan ta bort det här ämnet"
+        "delete": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan ta bort det här ämnet",
+        "loops_admins": "I den här arbetsytan kan bara ägaren eller en administratör ställa in diskussionsslingor",
+        "loops_starter": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan ställa in diskussionsslingor för det här ämnet"
       },
       "ai": {
         "group": "AI-åtgärder",
@@ -777,7 +779,8 @@
         "failed": "AI-åtgärden gick inte igenom. Försök igen."
       },
       "add_to_note": "Lägg till i anteckning",
-      "export_pdf": "Exportera till PDF"
+      "export_pdf": "Exportera till PDF",
+      "topic_loops": "Diskussionsslingor…"
     },
     "emoji": {
       "add": "Lägg till emoji",
@@ -999,6 +1002,62 @@
     "note_to_self": {
       "badge": "anteckning till mig själv",
       "title": "Bara du är taggad: ingen agent tillfrågades och ingen svarar"
+    },
+    "topic_loops": {
+      "title": "Diskussionsslingor",
+      "empty": "Den här diskussionen har inga slingor än.",
+      "add": "Lägg till slinga",
+      "edit": "Redigera",
+      "pause": "Pausa",
+      "resume": "Återuppta",
+      "delete": "Ta bort",
+      "save": "Spara slingan",
+      "prompt": "Instruktion",
+      "prompt_placeholder": "Vad ämnets agent ska göra varje gång slingan körs",
+      "triggers": "Kör den",
+      "trigger": {
+        "after_agent_reply": "Efter varje agentsvar",
+        "before_agent_reply": "Före varje agentsvar",
+        "after_human_reply": "Efter varje mänskligt svar",
+        "every_hour": "Varje timme",
+        "every_n_minutes": "Var n:e minut",
+        "post_has_keyword": "Ett inlägg som innehåller",
+        "post_has_file": "Ett inlägg med en bifogad fil",
+        "blocker_posted": "En blockerare postad i ämnet",
+        "no_reply_after_human": "Inget svar på n minuter efter ett mänskligt inlägg",
+        "issue_status_changed": "Ett ärende kopplat till ämnet byter status",
+        "daily_at": "Varje dag kl."
+      },
+      "every_n": "var {n}:e minut",
+      "interval": "Minuter, {min} till {max}",
+      "self_fire_note": "Agentens svar på den här slingan kör den aldrig igen. En slinga körs högst 12 gånger i timmen.",
+      "by": "inställd av {who}",
+      "state_on": "På",
+      "state_paused": "Pausad",
+      "state_held": "Vilar till {time}",
+      "idle_author_left": "Körs inte: dess upphovsperson har lämnat arbetsytan",
+      "idle_author_no_right": "Körs inte: dess upphovsperson får inte längre ställa in slingor",
+      "locked": "Arbetsytans arkiveringsinställning låter dig inte ändra slingorna i det här ämnet.",
+      "err_prompt": "Skriv en instruktion.",
+      "err_prompt_long": "Instruktionen är längre än 4000 tecken.",
+      "err_trigger": "Markera minst en utlösare.",
+      "err_interval": "Välj 5 till 1440 minuter.",
+      "err_bad_loop": "Navet avvisade slingan. Kontrollera instruktionen och utlösarna.",
+      "err_not_allowed": "Du får inte ändra slingorna i det här ämnet.",
+      "err_demo": "Demoarbetsytan är skrivskyddad.",
+      "err_not_found": "Ämnet eller slingan finns inte längre.",
+      "err_archived": "Ämnet är arkiverat.",
+      "err_not_implemented": "Diskussionsslingor finns inte på det här navet än.",
+      "err_failed": "Det gick inte igenom. Försök igen.",
+      "keyword_row": "ett inlägg som innehåller ”{keyword}”",
+      "idle_row": "inget svar på {n} minuter efter ett mänskligt inlägg",
+      "daily_row": "varje dag kl. {time} ({tz})",
+      "keyword": "Ord eller fras",
+      "daily_time": "Tid på dagen",
+      "daily_tz": "Tidszon",
+      "err_keyword": "Skriv ett ord eller en fras på högst 200 tecken.",
+      "err_daily_at": "Välj en tid på dagen.",
+      "err_daily_tz": "Välj en tidszon i listan."
     }
   },
   "topic": {

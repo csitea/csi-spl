@@ -17,9 +17,12 @@
 #   - a row slug: its lane's issue landed by that same rule. The lane's key is
 #     the slug brief's `Issue:` line, else the key the placer read when it
 #     launched the slug (<asks dir>/.place.slugs), else, for a lane of this
-#     box, its lifetime/issue, else the issue_key of its lane row on the hub
+#     box (its .place.slugs agent is a bare <id> or <id>@<this box>, ASKS_BOX),
+#     its lifetime/issue, else the issue_key of its lane row on the hub
 #     (a slug placed on another box: the far launcher's "carries issue" line
-#     never comes back, SPL-5929), written back into .place.slugs. No key
+#     never comes back, SPL-5929), written back into .place.slugs. A lane of
+#     another box never reads this box's lifetime/issue: ids are reused across
+#     boxes, so it would be another lane's key (SPL-6129). No key
 #     known yet -> held, and the reason says so (a hub that did not answer
 #     too: held, never free)
 # The land time is the committer time of the oldest closing commit; the
@@ -64,7 +67,8 @@ spl_spawn_after_key() {  # AFTER
   if [[ -z "$k" && -r "$f" ]]; then
     k="$(awk -F'\t' -v s="$1" '$1 == s && $3 != "" { k = $3 } END { print k }' "$f")"
     agent="$(awk -F'\t' -v s="$1" '$1 == s { a = $2 } END { print a }' "$f")"
-    [[ -n "$k" || -z "$agent" ]] || k="$(li_key_of_agent "$SPOOL_ROOT" "${agent%@*}" 2>/dev/null)"
+    [[ -n "$k" || -z "$agent" ]] || ! spl_spawn_after_here "$agent" ||
+      k="$(li_key_of_agent "$SPOOL_ROOT" "${agent%@*}" 2>/dev/null)"
     if [[ -z "$k" && -n "$agent" ]]; then
       k="$(spl_spawn_after_hub_key "$1" "$agent")" || rc=$?
       [[ -z "$k" ]] || spl_spawn_after_slug_key "$1" "$agent" "$k"
@@ -73,6 +77,14 @@ spl_spawn_after_key() {  # AFTER
   [[ -z "$k" ]] || printf '%s\n' "$k"
   (( rc != 2 )) || return 2
   return 0
+}
+
+# 0 = AGENT (<id> or <id>@<box>, a .place.slugs column 2) is a lane of this
+# box: no box, or the box is ASKS_BOX (else SPOOL_DESK_BOX). An unknown own
+# box counts as far: the hub is asked, never this box's lifetime/issue.
+spl_spawn_after_here() {  # AGENT
+  local here="${ASKS_BOX:-${SPOOL_DESK_BOX:-}}"
+  [[ "$1" != *@* ]] || [[ -n "$here" && "${1#*@}" == "$here" ]]
 }
 
 # The issue key of the hub's lane row of AGENT (<id>@<box>) that ran SLUG:

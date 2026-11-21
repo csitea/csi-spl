@@ -382,6 +382,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		WakeWUI:         hc.WakeWUI,
 		HumanPostGuard:  hc.HumanPostGuard,
 		OwnerPrioWords:  hc.OwnerPrioWords,
+		TopicLoopCap:    hc.TopicLoopCap,
 		UnansweredGrace: hub.UnansweredAfter(hc.UnansweredGrace, hc.DeskAckDefer),
 		ReescalateEvery: hc.ReescalateEvery,
 		ReescalateMax:   hc.ReescalateMax,

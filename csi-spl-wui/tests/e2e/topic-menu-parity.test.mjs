@@ -101,7 +101,7 @@ async function withPolicy(p, policy, path, role = 'developer') {
   await sleep(800)
 }
 
-const SHAPE = ['msg-menu-open', 'msg-menu-copy', 'msg-menu-add-to-note', 'msg-menu-export-pdf', 'msg-menu-edit', 'msg-menu-move-channel', 'msg-menu-merge-topic', 'msg-menu-archive', 'msg-menu-delete-topic']
+const SHAPE = ['msg-menu-open', 'msg-menu-copy', 'msg-menu-add-to-note', 'msg-menu-export-pdf', 'msg-menu-edit', 'msg-menu-move-channel', 'msg-menu-merge-topic', 'msg-menu-topic-loops', 'msg-menu-archive', 'msg-menu-delete-topic']
 /* t1 b6c742f0: a PERSON's card also ends with the AI actions group (never an
    agent's, by the owner's order) - the topic entries are what stays the same */
 const bare = (ids) => ids.filter((i) => !i.startsWith('msg-menu-ai-')).map((i) => i.replace(/:off$/, ''))
@@ -167,6 +167,8 @@ try {
   const st = await openMenu(p, midCard(OTHER))
   ok('4 starter policy: the SAME entries', same(bare(st), SHAPE), st)
   ok('4 starter policy: Archive disabled too', offs(st).includes('msg-menu-archive'), st)
+  /* spec 182 L3 (answer 5 A): Discussion loops… follows the archive setting */
+  ok('4 starter policy: Discussion loops disabled with Archive', offs(st).includes('msg-menu-topic-loops'), st)
   await p.keyboard.press('Escape')
 
   /* ---- 5. Bulgarian -------------------------------------------------------- */

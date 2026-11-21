@@ -19,7 +19,12 @@
          bar at the top): a phone with a document open draws one row -->
     <header class="feed-header wsdocs-head" :class="{ 'wsdocs-head--doc': docId && !phoneList }">
       <MobileBack />
-      <h2 data-test="ws-docs-heading">{{ phoneList && drillTitle ? drillTitle : t('ws_doctree.title') }}</h2>
+      <!-- SPL-6083 (owner t1 60bf4e56, msg ce88082a): a document open, the
+           Documents label, the + and the document picker leave the header;
+           the explorer tree's / and folder menus make a document, its rows
+           open one. The heading stays for screen readers. The list (a phone,
+           or no document yet) keeps all of it. -->
+      <h2 data-test="ws-docs-heading" :class="{ 'sr-only': docOpen }">{{ phoneList && drillTitle ? drillTitle : t('ws_doctree.title') }}</h2>
       <!-- a drilled level opens as a document too: the menu's Edit (a folder level is no document) -->
       <button v-if="phoneList && drillAt && !drillAt.startsWith('f:')" type="button" class="btn ghost" data-test="ws-docs-drill-open" @click="openDrilled">
         {{ t('ws_doctree.doc_menu.edit') }}
@@ -27,33 +32,16 @@
       <!-- owner t1 889e15d9: a new document is made through the + and its
            modal, the issues page's pattern (SPL-978 round +; SPL-992 on a
            phone it floats bottom right) -->
-      <button v-if="state === 'ready' || state === 'loading'" type="button" class="wsdocs-fab" data-test="ws-docs-new" aria-haspopup="dialog" :aria-label="t('ws_doctree.new_doc')" :title="t('ws_doctree.new_doc')" @click="newOpen = true">
+      <button v-if="showNew" type="button" class="wsdocs-fab" data-test="ws-docs-new" aria-haspopup="dialog" :aria-label="t('ws_doctree.new_doc')" :title="t('ws_doctree.new_doc')" @click="newOpen = true">
         <UiIcon name="plus" :size="22" :stroke-width="2.5" />
       </button>
-      <label v-if="docs.length && !phoneList" class="wsdocs-pick">
-        <span class="sr-only">{{ t('ws_doctree.doc_label') }}</span>
-        <select :value="docId" data-test="ws-docs-select" :aria-label="t('ws_doctree.doc_label')" @change="pick(($event.target as HTMLSelectElement).value)">
-          <option v-for="d in docs" :key="d.id" :value="d.id">{{ d.title }}</option>
-        </select>
-      </label>
-      <div v-if="docId && !phoneList" class="wsdocs-views" role="radiogroup" :aria-label="t('ws_doctree.view_label')">
-        <button
-          v-for="v in VIEWS"
-          :key="v"
-          type="button"
-          role="radio"
-          class="wsdocs-views__opt"
-          :data-test="'ws-docs-view-' + v"
-          :aria-checked="view === v ? 'true' : 'false'"
-          :title="t('ws_doctree.view_' + v)"
-          @click="setView(v)"
-        >
-          <UiIcon :name="v === 'doc' ? 'list' : 'file-spreadsheet'" :size="16" />
-          <span class="wsdocs-views__label">{{ t('ws_doctree.view_' + v) }}</span>
-        </button>
+      <!-- SPL-2094 / SPL-3233: the doc view's bar (its contents toggle) teleports
+           here on every width; SPL-6083 (msg 55440858): right of it the one
+           file menu, in both views, holds Outline / Grid -->
+      <div class="wsdocs-head__tools" data-test="ws-docs-head-tools">
+        <div id="wsdocs-head-tools" class="wsdocs-head__slot" />
+        <WorkspaceDocFileMenu v-if="docOpen && session" :items="fileItems" @choose="chooseFile" />
       </div>
-      <!-- SPL-2094 / SPL-3233: the doc view's bar (contents toggle, file menu) teleports here on every width -->
-      <div id="wsdocs-head-tools" class="wsdocs-head__tools" data-test="ws-docs-head-tools" />
     </header>
     <div class="feed-body wsdocs-body">
       <p v-if="state === 'loading'" class="muted wsdocs-note">{{ t('ws_doctree.loading') }}</p>
@@ -87,7 +75,7 @@
         @title="(v) => { drillTitle = v }"
       />
       <template v-if="session && root && !phoneList">
-        <WorkspaceDocView v-if="view === 'doc'" :key="'doc' + mount" :changed="changed" :session="session" :root="root" :title="docTitle" :docs="docs" @print="printBranch" @list="openList" @open="openAt" @renamed="renamed" />
+        <WorkspaceDocView v-if="view === 'doc'" ref="docView" :key="'doc' + mount" :changed="changed" :session="session" :root="root" :title="docTitle" :docs="docs" @print="printBranch" @list="openList" @open="openAt" @renamed="renamed" />
         <WorkspaceGridView v-else :key="'grid' + mount" :session="session" :filter="String(route.query.q || '')" @print="printBranch" />
       </template>
     </div>
@@ -102,6 +90,8 @@ import WorkspaceDocView from './WorkspaceDocView.vue'
 import WorkspaceGridView from './WorkspaceGridView.vue'
 import WorkspaceDocPrint from './WorkspaceDocPrint.vue'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
+import WorkspaceDocFileMenu from './WorkspaceDocFileMenu.vue'
+import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import QtoFileTree from './QtoFileTree.vue'
 import { createDocSession, DocTreeError, seedStarterDoc, useDocTree, useQtoFolder, type DocHead, type DocItem, type DocSession } from './-doctree-api'
 import { picPaths } from './-doc-pics'
@@ -109,8 +99,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { drillParent } from '~/utils/docs-drill-up.mjs'
 
-const VIEWS = ['doc', 'grid'] as const
-type View = typeof VIEWS[number]
+type View = 'doc' | 'grid'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
@@ -137,14 +126,42 @@ const drillAt = computed(() => String(route.query.in || ''))
 const drillTitle = ref('')
 const view = computed<View>(() => (route.query.view === 'grid' ? 'grid' : 'doc'))
 const docTitle = computed(() => docs.value.find((d) => d.id === docId.value)?.title || '')
+/* SPL-6083: a document on screen (not the phone's list): the header is its bar alone */
+const docOpen = computed(() => Boolean(docId.value) && !phoneList.value)
+/* the + makes a document from the list (a phone) or when there is none yet; with one open, the tree's menus do */
+const showNew = computed(() => (phoneList.value ? state.value === 'ready' || state.value === 'loading' : state.value === 'ready' && !docs.value.length))
+const docView = ref<InstanceType<typeof WorkspaceDocView> | null>(null)
 
 async function setQuery(q: Record<string, string>) {
   const next: Record<string, unknown> = { ...route.query, ...q }
   for (const k of Object.keys(next)) if (next[k] === '') delete next[k] /* an empty value leaves the URL */
-  await router.replace({ query: next as Record<string, string> })
+  /* SPL-6083: a replace, but through push: on a phone a menu's sheet that just
+     closed (the file menu's Outline / Grid) still has its Back entry, and the
+     mobile stack holds a push until that entry is gone (useMobileStack);
+     router.replace would write the entry its Back then drops */
+  await router.push({ query: next as Record<string, string>, replace: true })
 }
 function setView(v: View) {
   void setQuery({ view: v, q: '' })
+}
+
+/* SPL-3233 / SPL-6083: the header's file menu. Print and Export to Markdown
+   (the doc view's, so Outline only), then the views, the current one
+   checked. Owner msg 06a6925f: a PDF export of this document drops in here
+   later as one more entry. */
+const fileItems = computed<PointMenuItem[]>(() => {
+  const empty = view.value === 'doc' && (docView.value?.empty ?? true)
+  return [
+    { id: 'print', icon: 'file-text', labelKey: 'ws_doctree.print_doc', disabled: empty },
+    ...(view.value === 'doc' ? [{ id: 'export_md', icon: 'file-code', labelKey: 'ws_doctree.menu.export_md', disabled: empty } as PointMenuItem] : []),
+    { id: 'view_doc', icon: view.value === 'doc' ? 'check' : 'list', labelKey: 'ws_doctree.view_doc', groupKey: 'ws_doctree.view_label' },
+    { id: 'view_grid', icon: view.value === 'grid' ? 'check' : 'file-spreadsheet', labelKey: 'ws_doctree.view_grid' },
+  ]
+})
+function chooseFile(id: string) {
+  if (id === 'print') void printBranch(null)
+  else if (id === 'export_md') void docView.value?.exportDoc()
+  else if (id === 'view_doc' || id === 'view_grid') setView(id === 'view_doc' ? 'doc' : 'grid')
 }
 
 /** Qto's "open as list": the grid, filtered to one branch's number */
@@ -180,7 +197,7 @@ async function pick(id: string) {
   await open()
 }
 
-/** the doc view renamed the open document: the picker shows the new title, the view stays mounted */
+/** the doc view renamed the open document: the tree and the print title show the new one, the view stays mounted */
 function renamed(title: string) {
   docs.value = docs.value.map((d) => (d.id === docId.value ? { ...d, title } : d))
 }
@@ -313,31 +330,9 @@ defineExpose({ docs, docId, session, newOpen, pick, openAt, refreshDocs, docMove
 
 <style scoped>
 .wsdocs-head { gap: 12px; flex-wrap: wrap; }
-.wsdocs-head__tools { display: flex; margin-inline-start: auto; min-width: 0; }
-.wsdocs-head__tools:empty { display: none; }
-.wsdocs-pick select {
-  font: inherit;
-  padding: 4px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg);
-  color: var(--color-fg);
-  max-width: 18rem;
-}
-.wsdocs-views { display: inline-flex; gap: 4px; }
-.wsdocs-views__opt {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: none;
-  color: var(--color-fg);
-  font: inherit;
-  cursor: pointer;
-}
-.wsdocs-views__opt[aria-checked='true'] { background: var(--color-selected); border-color: var(--color-accent); }
+.wsdocs-head__tools { display: flex; align-items: center; gap: 4px; margin-inline-start: auto; min-width: 0; }
+.wsdocs-head__slot { display: flex; min-width: 0; }
+.wsdocs-head__tools:not(:has(button)) { display: none; }
 .wsdocs-body { display: grid; align-content: start; gap: 8px; }
 /* the issues page's + (issues.vue .issues-fab, SPL-978 / SPL-992), same size and look */
 .wsdocs-fab {
@@ -377,37 +372,11 @@ defineExpose({ docs, docId, session, newOpen, pick, openAt, refreshDocs, docMove
     height: 56px;
     box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14), 0 1px 18px rgba(0, 0, 0, 0.12);
   }
-  /* a document open: one strip (<= 46 px), no wrap. The heading stays for
-     screen readers only, the view pills show their icons, the picker takes
-     the room left and the + sits in the row instead of floating */
-  .wsdocs-head--doc { flex-wrap: nowrap; min-height: 45px; padding-block: 0; }
-  .wsdocs-head--doc > h2,
-  .wsdocs-head--doc .wsdocs-views__label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-  .wsdocs-head--doc .wsdocs-pick { flex: 1 1 auto; min-width: 0; }
-  .wsdocs-head--doc .wsdocs-pick select { width: 100%; max-width: none; text-overflow: ellipsis; }
-  .wsdocs-head--doc .wsdocs-views { flex: 0 0 auto; }
-  /* SPL-3233: the doc view's contents toggle and file menu (two 44 px taps)
-     keep their width; the picker gives the room. A tighter gap leaves it more */
-  .wsdocs-head--doc { gap: 8px; }
-  .wsdocs-head--doc .wsdocs-head__tools { flex: 0 0 auto; }
-  .wsdocs-head--doc .wsdocs-views__opt { min-height: 36px; padding: 4px 8px; }
-  .wsdocs-head--doc .wsdocs-fab {
-    position: static;
-    order: 1;
-    width: 40px;
-    height: 40px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  }
+  /* a document open: one strip (<= 46 px), no wrap: the Back chevron, then
+     the contents toggle and the file menu (two 44 px taps) at the end
+     (SPL-3233, SPL-6083). The heading is for screen readers only. */
+  .wsdocs-head--doc { flex-wrap: nowrap; min-height: 45px; padding-block: 0; gap: 8px; }
+  .wsdocs-head--doc .wsdocs-head__tools { flex: 0 0 auto; gap: 0; }
 }
 .wsdocs-note { padding: 12px 16px; }
 .wsdocs-stale {

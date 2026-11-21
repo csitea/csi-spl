@@ -732,6 +732,146 @@ rm -f "$KEPT"; here "grok:91" >/dev/null
 [[ "$(awk -F'\t' '{ print NF }' "$KEPT")" == 4 ]] && pass "16m. CONTROL a grok row carries no login" || fail "16m. grok: $(cat "$KEPT")"
 rm -f "$KEPT" "$CJ"
 
+# 16o. (b29-01) a credential copied in from another login lifts a kept claude
+#     reading; a renewal of the same login does not. sat 2026-11-20: kept 98 at
+#     11:55Z, another box's credential copied in at 12:04Z, ~/.claude.json's
+#     oauthAccount still the old label, so 16m's login check never fired and
+#     the box held claude lanes on the old login's 98 until the 10 h lapse.
+#     The row records the login's account key: the account the OAuth profile
+#     endpoint names for the access token (faked by LANE_QUOTA_CLAUDE_PROFILE_CMD,
+#     the token on stdin). The credential file, its access and its refresh token
+#     all change at every renewal; the account does not.
+NOW=$(date +%s); CJ="$T/cj-cred.json"; A=one-login
+cj "$A" "$A" $(( NOW - 86400 )) 40
+# cred FILE ACCESS REFRESH: a fixture credential
+cred() { printf '{"claudeAiOauth":{"accessToken":"%s","refreshToken":"%s","expiresAt":%s}}\n' "$2" "$3" "$(( (NOW + 3600) * 1000 ))" >"$T/$1"; }
+cred cred-a.json fixture-access-1 fixture-refresh-a
+cred cred-b.json fixture-access-9 fixture-refresh-b
+cred cred-a2.json fixture-access-2 fixture-refresh-a2
+# the profile endpoint: access-9 is login b, every other token login a; a
+# fixture-fail token answers nothing; each call is counted
+printf '#!/bin/bash\necho call >>"%s/profile-calls"\nt="$(cat)"\ncase "$t" in fixture-access-9) u=uuid-b ;; fixture-fail*) exit 7 ;; *) u=uuid-a ;; esac\necho "{\\"account\\":{\\"uuid\\":\\"$u\\"}}"\n' "$T" >"$T/profile"
+chmod +x "$T/profile"
+cq() { known LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/$1" LANE_QUOTA_CLAUDE_PROFILE_CMD="$T/profile" BOX_QUOTA_RESET=0 LANE_QUOTA_CMD="echo ${2:-}"; }
+kept98() { rm -f "$KEPT" "$KEPT.account"; cq cred-a.json "claude:98@$FUT" >/dev/null; }
+kept98; KA="$(cut -f10 "$KEPT")"
+[[ "$KA" =~ ^k[0-9a-f]{12}$ ]] && ! grep -q 'fixture-' "$KEPT" &&
+  pass "16o. a new claude row records its login key, never the token" || fail "16o. stamp: $(cat "$KEPT")"
+[[ -z "$(cq cred-b.json)" ]] && ! grep -q '^claude' "$KEPT" &&
+  pass "16o. RED CONTROL (FAILs on 49694bbc5) another login's credential copied in, oauthAccount unchanged -> unknown, row dropped" ||
+  fail "16o. copy: $(kept98; cq cred-b.json)"
+kept98; [[ "$(cq cred-b.json "claude:6@$FUT")" == "claude:6@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" =~ ^k && "$(cut -f10 "$KEPT")" != "$KA" ]] &&
+  pass "16o. RED CONTROL (FAILs on 49694bbc5) the copied login's own 6 % stands alone, the row names its key" || fail "16o. new: $(cat "$KEPT")"
+kept98; [[ "$(cq cred-a2.json)" == "claude:98@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" == "$KA" ]] &&
+  pass "16o. CONTROL a renewal (new access and refresh token, same account) keeps the 98 and the key" || fail "16o. renewal: $(cat "$KEPT")"
+kept98; : >"$T/profile-calls"; cq cred-a.json >/dev/null; cq cred-a.json >/dev/null
+[[ "$(grep -c . "$T/profile-calls")" == 0 ]] && pass "16o. the endpoint is asked once per access token: two more reads, 0 calls" || fail "16o. calls: $(grep -c . "$T/profile-calls")"
+cred cred-fail.json fixture-fail-1 fixture-refresh-x
+kept98; : >"$T/profile-calls"; [[ "$(cq cred-fail.json)" == "claude:98@$FUT" && "$(cut -f10 "$KEPT")" == "$KA" ]] && cq cred-fail.json >/dev/null &&
+  [[ "$(grep -c . "$T/profile-calls")" == 1 ]] &&
+  pass "16o. CONTROL the endpoint fails: holds, the row keeps its key, no retry until the token changes" || fail "16o. fail: $(cat "$KEPT") calls $(grep -c . "$T/profile-calls")"
+cred cred-nohost.json fixture-access-9 fixture-refresh-b
+kept98; [[ "$(known LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/cred-nohost.json" SPL_CNF=/nonexistent BOX_QUOTA_RESET=0 LANE_QUOTA_CMD=echo)" == "claude:98@$FUT" ]] &&
+  pass "16o. CONTROL no profile host (no cnf, no LANE_QUOTA_CLAUDE_PROFILE_HOST): no call, today's behaviour" || fail "16o. nohost: $(cat "$KEPT")"
+kept98; [[ "$(cq no-such-cred.json)" == "claude:98@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" == "$KA" ]] &&
+  pass "16o. CONTROL an unreadable credential lifts nothing, the row keeps its key" || fail "16o. none: $(cat "$KEPT")"
+printf '{"claudeAiOauth":{"refreshToken":"x"}}\n' >"$T/cred-noaccess.json"
+kept98; [[ "$(cq cred-noaccess.json)" == "claude:98@$FUT" ]] && pass "16o. CONTROL a credential with no access token is unreadable: holds" || fail "16o. no access: $(cat "$KEPT")"
+printf 'claude\t98\t%s\t%s\t%s\tbanner\n' "$FUT" $(( NOW - 7200 )) "$A" >"$KEPT"
+[[ "$(cq cred-b.json)" == "claude:98@$FUT" ]] && [[ "$(cut -f10 "$KEPT")" =~ ^k[0-9a-f]{12}$ && "$(cut -f6 "$KEPT")" == banner ]] &&
+  pass "16o. CONTROL a row kept before b29-01 (no key) keeps today's behaviour, and now names the key" || fail "16o. legacy: $(cat "$KEPT")"
+kept98; out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_STATE="$KEPT" BOX_PICK_KIND=claude \
+  BOX_QUOTA_WEEKLY_MAX_PCT=90 LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/cred-b.json" LANE_QUOTA_CLAUDE_PROFILE_CMD="$T/profile")"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
+  pass "16o. RED CONTROL (FAILs on 49694bbc5) the pick: box-a placed again (unknown), not held on the old login's 98" || fail "16o. pick: $out"
+rm -f "$KEPT"; LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CMD="echo grok:91" LANE_QUOTA_CLAUDE_CRED="$T/cred-a.json" bash -c \
+  'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_known' >/dev/null
+[[ "$(awk -F'\t' '{ print NF }' "$KEPT")" == 4 ]] && pass "16o. CONTROL a grok row carries no key" || fail "16o. grok: $(cat "$KEPT")"
+rm -f "$KEPT" "$KEPT.account" "$CJ" "$T"/cred-*.json "$T/profile" "$T/profile-calls"
+
+# 16p. (c002) claude's reading below the limit from its OAuth usage endpoint.
+#     2026-11-20 23:06Z: the CLI's cache (cachedUsageUtilization) was last
+#     fetched 13:06Z on the main box (10.9 h, past LANE_QUOTA_CACHE_MAX_S) and
+#     on 11-10 under another login on sat; no banner, no limit entry. Every box
+#     read "claude weekly unknown" and, claude having its own mark (99), every
+#     claude lane waited. The endpoint (faked by LANE_QUOTA_CLAUDE_USAGE_CMD,
+#     the token on stdin, curl's body then "<code> <retry-after>") names the
+#     login's weekly % now.
+NOW=$(date +%s); CJ="$T/cj-usage.json"; A=one-login; RU="$(date -u -d "@$FUT" +%Y-%m-%dT%H:%M:%S).156837+00:00"
+cj "$A" "$A" $(( NOW - 39322 )) 6
+cred cred-u1.json fixture-access-u1 fixture-refresh-u1
+cred cred-u2.json fixture-access-u2 fixture-refresh-u2
+# the endpoint: answers $T/usage-answer, counts its calls, records that a token came on stdin
+printf '#!/bin/bash\nt="$(cat)"; echo "call ${t:+token}" >>"%s/usage-calls"\ncat "%s/usage-answer"\n' "$T" "$T" >"$T/usage"
+chmod +x "$T/usage"
+ans() { printf '{"five_hour":null,"seven_day":{"utilization":%s,"resets_at":"%s"}}\n%s %s\n' "$1" "${3:-$RU}" "$2" "${4:-}" >"$T/usage-answer"; }
+calls() { grep -c . "$T/usage-calls" 2>/dev/null || echo 0; }
+uk() { known LANE_QUOTA_CMD= LANE_PANES_CMD=true LANE_QUOTA_LOG_DIR="$T/none" LANE_QUOTA_CLAUDE_JSON="$CJ" \
+  LANE_QUOTA_CLAUDE_CRED="$T/${UC:-cred-u1.json}" LANE_QUOTA_CLAUDE_PROFILE_CMD="$T/profile" LANE_QUOTA_CLAUDE_USAGE_CMD="$T/usage" "$@"; }
+# the profile endpoint (spl_box_quota_claude_key): access-u2 is another login
+printf '#!/bin/bash\n[[ "$(cat)" == fixture-access-u2 ]] && u=uuid-b || u=uuid-a; echo "{\\"account\\":{\\"uuid\\":\\"$u\\"}}"\n' >"$T/profile"; chmod +x "$T/profile"
+fresh() { rm -f "$KEPT" "$KEPT.usage" "$KEPT.account" "$T/usage-calls"; }
+fresh; ans 39.0 200
+[[ "$(uk)" == "claude:39@$FUT" ]] && [[ "$(cut -f1,2,6 "$KEPT")" == "claude"$'\t'"39"$'\t'"usage" ]] && [[ "$(cat "$T/usage-calls")" == "call token" ]] &&
+  pass "16p. RED CONTROL (FAILs on 2b7bb502a: unknown) the 11-20 case: the CLI cache 10.9 h old, no banner -> 39 % from the usage endpoint, source usage" ||
+  fail "16p. usage: $(fresh; uk), $(cat "$KEPT" 2>/dev/null)"
+fresh; wk "box-a::60" "box-b::60"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_CMD= LANE_PANES_CMD=true LANE_QUOTA_LOG_DIR="$T/none" \
+  LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CLAUDE_JSON="$CJ" LANE_QUOTA_CLAUDE_CRED="$T/cred-u1.json" LANE_QUOTA_CLAUDE_PROFILE_CMD="$T/profile" \
+  LANE_QUOTA_CLAUDE_USAGE_CMD="$T/usage" BOX_PICK_KIND=claude BOX_QUOTA_WEEKLY_MAX_PCT_CLAUDE=99)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^BOX box-a .*  claude weekly 39%  <- pick$' <<<"$out" &&
+  pass "16p. RED CONTROL (FAILs on 2b7bb502a: pick=hold) the pick: claude's own mark 99, box-a at 39 % -> picked" || fail "16p. pick: $out"
+! grep -rqs 'fixture-access\|fixture-refresh' "$KEPT" "$KEPT.usage" "$KEPT.account" && [[ "$(wc -w <"$KEPT.usage")" == 5 ]] &&
+  pass "16p. the kept answer (<kept>.usage) holds no token" || fail "16p. token: $(cat "$KEPT.usage")"
+fresh; ans 39 200; uk >/dev/null; ans 45 200; uk >/dev/null; uk >/dev/null
+[[ "$(calls)" == 1 && "$(uk)" == "claude:39@$FUT" ]] &&
+  pass "16p. the endpoint is asked at most every LANE_QUOTA_USAGE_S (900): three more reads, 1 call" || fail "16p. throttle: $(calls) calls"
+[[ "$(uk LANE_QUOTA_USAGE_S=0)" == "claude:45@$FUT" && "$(calls)" == 2 ]] &&
+  pass "16p. CONTROL its time passed: asked again, the higher % climbs" || fail "16p. again: $(calls) $(cat "$KEPT")"
+fresh; ans 1 429 '' 3584
+[[ -z "$(uk)" ]] && [[ "$(cut -d' ' -f2 "$KEPT.usage")" == 3584 ]] && uk LANE_QUOTA_USAGE_S=0 >/dev/null && [[ "$(calls)" == 1 ]] &&
+  pass "16p. CONTROL a refusal (429, retry-after 3584): no reading, not asked again before its Retry-After" || fail "16p. 429: $(calls) $(cat "$KEPT.usage")"
+fresh; ans 39 200; uk >/dev/null; ans 1 429 '' 60
+[[ "$(uk LANE_QUOTA_USAGE_S=0)" == "claude:39@$FUT" && "$(calls)" == 2 ]] &&
+  pass "16p. CONTROL a refusal after an answer of the same token keeps that answer" || fail "16p. 429 kept: $(cat "$KEPT.usage")"
+fresh; ans 97 200; uk >/dev/null; ans 5 200
+[[ "$(UC=cred-u2.json uk)" == "claude:5@$FUT" && "$(calls)" == 2 ]] &&
+  pass "16p. RED CONTROL a new access token (another login copied in) is asked at once: its 5 %, not the old token's 97" ||
+  fail "16p. new token: $(calls) $(cat "$KEPT" "$KEPT.usage")"
+fresh; printf 'garbage\n500 \n' >"$T/usage-answer"
+[[ -z "$(uk)" && "$(cut -d' ' -f5 "$KEPT.usage")" == - ]] && pass "16p. CONTROL an answer with no weekly % -> no reading" || fail "16p. garbage: $(cat "$KEPT.usage")"
+fresh; ans 130 200
+[[ "$(uk)" == "claude:100@$FUT" ]] && pass "16p. over 100 reads 100" || fail "16p. 130"
+fresh; ans 39 200 "$(date -u -d "@$PAST" +%Y-%m-%dT%H:%M:%S).1+00:00"
+[[ -z "$(uk)" ]] && pass "16p. CONTROL a reset that passed -> no reading" || fail "16p. past"
+fresh; ans 39 200
+[[ -z "$(known LANE_QUOTA_CMD= LANE_PANES_CMD=true LANE_QUOTA_LOG_DIR="$T/none" LANE_QUOTA_CLAUDE_JSON="$CJ")" && "$(calls)" == 0 ]] &&
+  pass "16p. CONTROL faked panes without LANE_QUOTA_CLAUDE_CRED ask nothing" || fail "16p. seam: $(calls)"
+[[ -z "$(uk LANE_QUOTA_CLAUDE_USAGE_CMD= SPL_CNF=/nonexistent LANE_QUOTA_CLAUDE_PROFILE_HOST=)" && "$(calls)" == 0 ]] &&
+  pass "16p. CONTROL no endpoint host (no cnf, no LANE_QUOTA_CLAUDE_PROFILE_HOST): no call, no reading" || fail "16p. nohost: $(calls)"
+# R7 W1 (c-426): the throttle is <kept>.usage, so a state dir that cannot be
+# written asks nothing, and a state dir not made yet is made on the first read
+fresh; ans 39 200; mkdir -p "$T/ro"; chmod 555 "$T/ro"
+for i in 1 2 3; do uk LANE_QUOTA_STATE="$T/ro/kept.tsv" >/dev/null 2>&1; done
+[[ "$(calls)" == 0 ]] && pass "16p. RED CONTROL W1 (FAILs on 28f802950: 3 calls) an unwritable state dir: three reads, 0 calls" || fail "16p. W1 ro: $(calls) calls"
+chmod 755 "$T/ro"; rm -rf "$T/ro" "$T/new" "$T/usage-calls"
+# c-451 (R7 of d285fde4f): the file exists, its dir takes no new file (the
+# answer's temp file + mv): asked 1000 s ago, past LANE_QUOTA_USAGE_S
+mkdir -p "$T/ro2"; uk LANE_QUOTA_STATE="$T/ro2/kept.tsv" >/dev/null; rm -f "$T/usage-calls"
+sed -i -E "s/^[0-9]+ /$(( NOW - 1000 )) /" "$T/ro2/kept.tsv.usage"; chmod 555 "$T/ro2"
+for i in 1 2 3 4 5; do uk LANE_QUOTA_STATE="$T/ro2/kept.tsv" >/dev/null 2>&1; done
+[[ "$(calls)" == 0 ]] && pass "16p. RED CONTROL W1 (FAILs on d285fde4f: 5 calls) .usage there, its dir unwritable, the ask due: five reads, 0 calls" || fail "16p. W1 ro2: $(calls) calls"
+chmod 755 "$T/ro2"; rm -rf "$T/ro2" "$T/usage-calls"
+uk LANE_QUOTA_STATE="$T/new/kept.tsv" >/dev/null; uk LANE_QUOTA_STATE="$T/new/kept.tsv" >/dev/null
+[[ "$(calls)" == 1 && -s "$T/new/kept.tsv.usage" ]] && pass "16p. RED CONTROL W1 (FAILs on 28f802950: 2 calls) a state dir not made yet: made on the first read, 1 call for two reads" ||
+  fail "16p. W1 new: $(calls) calls"
+rm -rf "$T/new"
+# R7 W2 (c-426): an answer kept across failed asks ages by LANE_QUOTA_CACHE_MAX_S (21600)
+aged() { fresh; ans 39 200; uk >/dev/null; ans 1 429; sed -i -E "s/^([0-9]+ [0-9]+ )[0-9]+ /\1$(( NOW - $1 )) /" "$KEPT.usage"; rm -f "$KEPT"; uk LANE_QUOTA_USAGE_S=0; }
+[[ -z "$(aged 21700)" ]] && pass "16p. RED CONTROL W2 (FAILs on 28f802950: 39) an answer 6 h old, the asks since refused -> no reading" || fail "16p. W2 old: $(aged 21700)"
+[[ "$(aged 21000)" == "claude:39@$FUT" ]] && pass "16p. CONTROL W2 an answer under 6 h old, the asks since refused -> still 39" || fail "16p. W2 young: $(aged 21000)"
+fresh; rm -f "$CJ" "$T"/cred-u*.json "$T/usage" "$T/usage-answer" "$T/profile"
+
 # 16n. a kept reading lapses unless re-read, and says where it came from
 #     (SPL-4965). 2026-11-06: a kept 97 % held the placer for 2 h 15 while the
 #     alert read 0 %. SPL-4608 kept the reading because lanes were placed past

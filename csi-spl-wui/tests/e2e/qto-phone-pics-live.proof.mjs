@@ -59,7 +59,8 @@ try {
   await p.tap('[data-test=ws-docs-create]')
   await p.waitForFunction((t) => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent?.trim() === t, { timeout: STEP }, title).catch(() => null)
   await p.waitForSelector(text('1.1.1'), { timeout: STEP }).catch(() => null)
-  res.doc = await p.$eval('[data-test=ws-docs-select]', (e) => e.value).catch(() => '')
+  /* SPL-6083: no document picker; the open document is the URL's ?doc= */
+  res.doc = new URL(p.url()).searchParams.get('doc') || ''
   step('a new document opens with sections 1.1 and 1.1.1', Boolean(res.doc && await p.$(text('1.1.1'))), { title, doc: res.doc })
 
   /* every picture loaded and the layout still: a tap lands where it was aimed */

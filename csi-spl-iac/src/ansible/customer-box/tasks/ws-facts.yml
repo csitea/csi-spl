@@ -1,0 +1,24 @@
+---
+# The workspace's OS user and base, from the repo's cnf (env.box), shared by
+# roles 03 and 04 so either runs alone under --tags. The user is
+# workspace_user_prefix + tenant, at most 32 chars (spl_box_ws_user).
+- name: The workspace cnf, from the repo
+  ansible.builtin.slurp:
+    src: "{{ repo_dir }}/csi-spl-cnf/csi-spl/all.env.yaml"
+  register: all_cnf
+
+- name: The workspace OS user and base
+  ansible.builtin.set_fact:
+    ws_prefix: "{{ (all_cnf.content | b64decode | from_yaml).env.box.workspace_user_prefix }}"
+    ws_base: "{{ (all_cnf.content | b64decode | from_yaml).env.box.workspace_base }}"
+
+- name: The workspace OS user name
+  ansible.builtin.set_fact:
+    ws_user: "{{ ws_prefix }}{{ tenant_id }}"
+
+- name: Refuse a user name over 32 chars or a relative base
+  ansible.builtin.assert:
+    that:
+      - ws_user is match('^[a-z_][a-z0-9_-]{0,31}$')
+      - ws_base is match('^/.+')
+    fail_msg: "workspace user '{{ ws_user }}' must be at most 32 chars, base '{{ ws_base }}' absolute (cnf env.box)"

@@ -16,6 +16,7 @@ import { isPublicChannel, normalizeChannelId } from './spool-client.mjs'
 import { mentionedIds } from './notify.mjs'
 import { mockBoxSendRefusal } from './box-lock.mjs'
 import { TOPIC_PRIORITY_DEFAULT } from './topic-list-order.mjs'
+import { loopBody, loopFormError } from './topic-loops.mjs'
 
 /** view-v1 §4.3 over the mock messages: one row per topic, no server pages. */
 export function mockListTopics(state, { limit = 50, channel, dm, peer } = {}) {
@@ -224,4 +225,127 @@ export function mockOnTopicPriority(fn) {
     const f = e && e.data
     if (f && f.type === 'topic_priority') fn(f.task_id, f.priority)
   }
+}
+
+/*
+ * Spec 182 row L3 (SPL-6034), the mock twin of the loop routes of section
+ * 7.1.2 (GET / POST /v1/topics/{task_id}/loops, PUT / DELETE
+ * .../loops/{loop_id}), so the dialog works before the hub (row L2) serves
+ * them. `state.loops` is task_id -> loops. A write is checked with the
+ * form's rule (400 bad_loop) and sends the `topic_loops` frame to the
+ * browser's other tabs. e2e hook `spool.mock.loops-fault` = a token (e.g.
+ * not_allowed) refuses every write with 403 and answers may_edit false.
+ */
+function mockLoopsOf(state, taskId) {
+  state.loops = state.loops || {}
+  return (state.loops[taskId] ||= [])
+}
+
+function mockLoopFault() {
+  const fault = storageGetJson('spool.mock.loops-fault', null)
+  if (fault) throw Object.assign(new Error(`spool 403 ${fault}`), { status: 403, token: String(fault) })
+}
+
+function mockLoopTell(taskId, loops) {
+  const bc = mockLive()
+  if (!bc) return
+  bc.postMessage({ type: 'topic_loops', task_id: taskId, loops })
+  bc.close()
+}
+
+/** A route body (7.1.2) over the loop it edits, as the form of topic-loops.mjs. */
+function mockLoopForm(body, old = {}) {
+  const b = body && typeof body === 'object' ? body : {}
+  const pick = (k) => (b[k] !== undefined ? b[k] : old[k])
+  return {
+    prompt: pick('prompt'), triggers: pick('triggers'), interval: pick('interval_min'), keyword: pick('keyword'),
+    idle: pick('idle_min'), dailyAt: pick('daily_at'), dailyTz: pick('daily_tz') || 'UTC',
+  }
+}
+
+/** MOCK ONLY: the next hh:mm in UTC (the hub computes it in daily_tz) */
+function mockNextDaily(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number)
+  const d = new Date()
+  d.setUTCHours(h, m, 0, 0)
+  if (d.getTime() <= Date.now()) d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString()
+}
+
+const MOCK_LOOP_FIELDS = ['interval_min', 'next_due_at', 'keyword', 'idle_min', 'daily_at', 'daily_tz', 'daily_due_at']
+
+/** The loop JSON of 7.1.2 from a checked form and the row it replaces: each field only with its box. */
+function mockLoopRow(form, old) {
+  const body = loopBody(form)
+  const row = { ...old, prompt: body.prompt, triggers: body.triggers }
+  for (const k of MOCK_LOOP_FIELDS) delete row[k]
+  for (const k of ['interval_min', 'keyword', 'idle_min', 'daily_at', 'daily_tz']) if (body[k] !== undefined) row[k] = body[k]
+  if (body.daily_at && row.state !== 'paused') row.daily_due_at = mockNextDaily(body.daily_at)
+  const every = body.interval_min || (body.triggers.includes('every_hour') ? 60 : 0)
+  if (every && row.state !== 'paused') row.next_due_at = new Date(Date.now() + Math.min(every, 60) * 60000).toISOString()
+  return row
+}
+
+function mockLoopBad(form) {
+  if (loopFormError(form)) throw Object.assign(new Error('bad loop'), { status: 400, token: 'bad_loop' })
+}
+
+/** GET: { task_id, may_edit, loops } */
+export function mockTopicLoops(state, taskId) {
+  const fault = storageGetJson('spool.mock.loops-fault', null)
+  return { task_id: taskId, may_edit: !fault, loops: mockLoopsOf(state, taskId).slice() }
+}
+
+/** POST: 201 <loop> */
+export function mockAddTopicLoop(state, taskId, body) {
+  mockLoopFault()
+  const form = mockLoopForm(body)
+  mockLoopBad(form)
+  const loop_id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `loop-${Date.now()}`
+  const base = { loop_id, task_id: taskId, state: 'on', set_by: state.me.id, set_at: new Date().toISOString(), fires_in_hour: 0, idle: '' }
+  const row = mockLoopRow(form, base)
+  const list = mockLoopsOf(state, taskId)
+  list.push(row)
+  mockLoopTell(taskId, list.slice())
+  return row
+}
+
+/** PUT: any of prompt, triggers, interval_min, state; the editor becomes the author (4.5) */
+export function mockEditTopicLoop(state, taskId, loopId, patch) {
+  mockLoopFault()
+  const list = mockLoopsOf(state, taskId)
+  const at = list.findIndex((l) => l.loop_id === loopId)
+  if (at < 0) throw Object.assign(new Error('no such loop'), { status: 404, token: 'not_found' })
+  const old = list[at]
+  const p = patch && typeof patch === 'object' ? patch : {}
+  if (p.state !== undefined && p.state !== 'on' && p.state !== 'paused') throw Object.assign(new Error('bad state'), { status: 400, token: 'bad_loop' })
+  const form = mockLoopForm(p, old)
+  mockLoopBad(form)
+  const edited = ['prompt', 'triggers', ...MOCK_LOOP_FIELDS].some((k) => p[k] !== undefined)
+  const next = { ...old, state: p.state || old.state, set_by: state.me.id, set_at: new Date().toISOString() }
+  if (edited) next.fires_in_hour = 0
+  list[at] = mockLoopRow(form, next)
+  mockLoopTell(taskId, list.slice())
+  return list[at]
+}
+
+/** DELETE: { loop_id, deleted } (idempotent) */
+export function mockDeleteTopicLoop(state, taskId, loopId) {
+  mockLoopFault()
+  const list = mockLoopsOf(state, taskId)
+  const at = list.findIndex((l) => l.loop_id === loopId)
+  if (at >= 0) list.splice(at, 1)
+  mockLoopTell(taskId, list.slice())
+  return { loop_id: loopId, deleted: at >= 0 }
+}
+
+/** The receiving side: fn(frame) for each `topic_loops` frame another tab sends; returns the off switch. */
+export function mockOnTopicLoops(fn) {
+  const bc = mockLive()
+  if (!bc) return () => {}
+  bc.onmessage = (e) => {
+    const f = e && e.data
+    if (f && f.type === 'topic_loops') fn(f)
+  }
+  return () => bc.close()
 }

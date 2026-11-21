@@ -94,7 +94,7 @@ func (s *Server) moveNotice(ctx context.Context, tenant string, m store.Editable
 			continue
 		}
 		raw, err := env.Marshal()
-		if err != nil || !x.accepts(wire.InnerVersion(raw)) {
+		if err != nil || !x.acceptsEnv(raw) {
 			continue
 		}
 		if err := x.write(ctx, wire.Frame{Type: wire.TRecv, Env: raw, Agents: []string{h[1]}}); err != nil {

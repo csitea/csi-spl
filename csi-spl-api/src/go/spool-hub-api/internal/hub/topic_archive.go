@@ -213,6 +213,9 @@ func (s *Server) handleArchiveTopic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.o.Log.Info().Str("tenant", c.t.ID).Str("msg_id", c.m.MsgID).Str("by", c.from).Bool("archived", archive).Msg("topic archive")
+	if archive {
+		s.dropTopicLoops(r.Context(), c.t.ID, c.ownTask)
+	}
 	out := archivedBody(c.m, st)
 	s.fanoutTopic(r.Context(), c.t.ID, c.m, withType(topicArchivedFrame, c.m, out))
 	s.pushFlowCountsAll(r.Context(), c.t.ID)
@@ -262,6 +265,7 @@ func (s *Server) handleDeleteTopic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.o.Log.Info().Str("tenant", c.t.ID).Str("msg_id", c.m.MsgID).Str("by", c.from).Int("rows", len(set.MsgIDs)).Msg("topic deleted")
+	s.dropTopicLoops(r.Context(), c.t.ID, append([]string{c.ownTask}, set.TaskIDs...)...)
 	out := map[string]any{"msg_id": c.m.MsgID, "task_id": c.m.TaskID, "deleted": len(set.MsgIDs),
 		"msg_ids": set.MsgIDs, "task_ids": set.TaskIDs}
 	s.fanoutTopic(r.Context(), c.t.ID, c.m, withType(topicDeletedFrame, c.m, out))

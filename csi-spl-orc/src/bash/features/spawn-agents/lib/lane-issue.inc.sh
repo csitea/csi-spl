@@ -524,22 +524,50 @@ li_end_record() {
   return 3
 }
 
-# li_review_lane ROOT ID KEY -> the author it reviews for, 0 when the lane only
-# reviews KEY (SPL-5096; c-207 on csi-rel SPL-17, c-906, c-244): KEY is the
-# issue the lane was placed on, never one it filed (lifetime/origin-issue), its
-# brief's Author: line names another lane, and its heading says review. All
-# three, because each alone also matches a coding lane: heading + Author: c-897
-# (filed its own issue), heading + placed key: c-140 (applies R7 findings).
-# Measured on the 345 lanes with an issue, 2026-11-08: 129 match, all reviewers.
-# A round's panel seat (heading "panel seat" or "doc review") reviews too (SPL-5633).
+# li_review_lane ROOT ID KEY -> the owner of KEY, 0 when the lane only
+# reviews or shares KEY (SPL-5096; c-207 on csi-rel SPL-17, c-906, c-244): KEY
+# is the issue the lane was placed on, never one it filed (lifetime/origin-issue),
+# and then either
+#   - its brief says `Issue-Role: shared` (SPL-6099: a panel, planner-peer or
+#     R7 seat on a round's or another lane's issue), or
+#   - its brief's Author: line names another lane, or names no lane id at all
+#     (a round's "Author: the planner seat (claude, placement ...)": m-484 and
+#     m-486 ended SPL-6081 / SPL-6080 diss while the rounds' rows were live,
+#     SPL-6099), and its heading says review.
+# Heading + Author: + placed key, because each alone also matches a coding
+# lane: heading + Author: c-897 (filed its own issue), heading + placed key:
+# c-140 (applies R7 findings, no Author: line). Measured on the 345 lanes with
+# an issue, 2026-11-08: 129 match, all reviewers. A round's panel seat
+# (heading "panel seat" or "doc review") reviews too (SPL-5633). ID may be a
+# retired generation (<id>.<spawned-utc>, spl_lane_issue_life).
 li_review_lane() {
-  local life="$1/$2/lifetime" a
+  local life="$1/$2/lifetime" self="${2%%.*}" a rc=0
   [ "$(li_origin_of_agent "$1" "$2")" = "$3" ] || return 1
+  a="$(li_author_of "$life/brief.md" "$self")" || rc=$?
+  if grep -qiE '^[-*_ >]*Issue[- ]Role[*_ ]*:[*_` ]*shared([^A-Za-z]|$)' "$life/brief.md" 2>/dev/null; then
+    (( rc == 2 )) && return 1
+    printf '%s\n' "${a:-the owning lane}"; return 0
+  fi
   grep -m1 '^# ' "$life/brief.md" 2>/dev/null | grep -qiE '\b(R7|re-?review(er)?|reviewer|language review|review seat|review only|panel seat|doc review)\b' || return 1
+  (( rc == 0 )) || return 1
+  printf '%s\n' "$a"
+}
+
+# li_author_of BRIEF SELF -> the brief's first Author: line as an owner: the
+# first lane id on it that is not SELF, else its text up to a "(" or ";" (a
+# placement, e.g. "the planner seat"). rc 1: no Author: line; rc 2: the line
+# names only SELF (the lane is its own author).
+li_author_of() {
+  local line a
+  line="$(grep -m1 -iE '^Author[*_ ]*:' "$1" 2>/dev/null)" || return 1
   # the id letters from their one home (SPL-5470: a codex o- author was missed)
   [ -n "${SPOOL_AGENT_ID_NEW_RX:-}" ] || . "$(dirname "${BASH_SOURCE[0]}")/spool-env.inc.sh"
-  a="$(grep -m1 -iE '^Author:' "$life/brief.md" | grep -oE "\b${SPOOL_AGENT_ID_NEW_RX}\b" | grep -vx "$2" | sed -n 1p)"
-  [ -n "$a" ] && printf '%s\n' "$a"
+  a="$(grep -oE "\b${SPOOL_AGENT_ID_NEW_RX}\b" <<<"$line" | grep -vx "$2" | sed -n 1p)"
+  [ -n "$a" ] && { printf '%s\n' "$a"; return 0; }
+  grep -qE "\b${SPOOL_AGENT_ID_NEW_RX}\b" <<<"$line" && return 2
+  a="$(sed -E 's/^[^:]*:[*_` ]*//; s/[(;].*$//; s/[[:space:]]+$//' <<<"$line" | cut -c1-60)"
+  [ -n "$a" ] || return 1
+  printf '%s\n' "$a"
 }
 
 # li_gate SPOOL_ROOT ID WORKDIR: 0 = the lane may exit; 3 = refused, one line

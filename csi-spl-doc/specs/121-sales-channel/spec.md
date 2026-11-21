@@ -1,6 +1,7 @@
 # 121 Sales channel: selling Csitea.net services on spool-hub.ai
 
-Version **v1.4** (2026-10-10): folded the owner's answers to Q-C1 and Q-C2 (msg 31913cc1, csitea ebfb10dc).
+Version **v1.5** (2026-11-21): edited as [spec 181](../181-buy-private-workspace-vm/spec.md) v0.3 (Decided, `abd0a5eef`) section 2 says, its row B10 (SPL-6124). R6 (price = measured tokens x 1.20 + own cost + fixed-cost slice, + 29%) is replaced for every workspace by spec 181 section 0.2 (owner form `b97a036d`): the `metered` plan, the x 1.20 token buffer and the fixed-cost slice go, because we never resell tokens (spec 181 Q-10 A, msg `504cb94f`). R7 (card top-up, stop at zero) is kept and carries the VM cost + 33% (Q-9 A). Changed: 1.3, 1.4, 3, 7, 8, 8.1, 9, 12.4.
+v1.4 (2026-10-10): folded the owner's answers to Q-C1 and Q-C2 (msg 31913cc1, csitea ebfb10dc).
 v1.3 (2026-10-10): the live credits counter (section 8.1, R9), from the owner's posts in csitea topic ebfb10dc (msgs 057db9f5 and 259e8711), written by c-876. 057db9f5 restates the price of section 7 and the top-up of section 8 (R6, R7) and confirms them; nothing there changes. New: where a member sees the balance, how often it refreshes, what it is computed from, its warning threshold, its cost in the first-paint bundle, its tests, and the owner's rule that the counter informs and never nudges spend. No owner question is open.
 
 v1.2 (2026-10-10): the owner's answers to the two questions v1.1
@@ -53,16 +54,16 @@ The spoken names read as: "spoolhop.ai" = spool-hub.ai, "SiteNet" and
 | R1 | a signed-out visitor asks questions in a pop-up on csitea.net, in a channel only they and the owner see | 3cf34194, 84910839 |
 | R2 | v1 sells **whole workspaces** only: the buyer gets their own workspace | 97b94903 |
 | R3 | a business that bought a workspace embeds part of the Spool Hub UI in its own site, in an iframe | 0ee6d8af |
-| R4 | price = metered cost (cloud + LLM tokens) + a margin; we resell usage, the margin pays for the UI and the whole system | 294eb431, 1f03918f |
+| R4 | price = metered cost (cloud + LLM tokens) + a margin; we resell usage, the margin pays for the UI and the whole system. **Token part replaced** (v1.5): no AI tokens are sold (spec 181 P5, Q-10 A); the cloud cost + margin stays as R6 says | 294eb431, 1f03918f |
 | R5 | tokens counted, limited and costed, per workspace too | 1f03918f, 0137a1bd |
 | L1 | **later, not v1**: the paid private channel (one channel inside someone else's workspace) | 1a374b78, deferred by 97b94903 |
 
-| R6 | price = (measured tokens x 1.20 + other own cost + a slice of the fixed hub cost) + 29%, one rate for every workspace | cd2d25e3, acaed9ef, 55309d31, f5c0e3c7, 9e0c0dba |
-| R7 | customers top up a balance by card; work stops at zero; no invoice | e38f9953 |
+| R6 | **replaced** (v1.5) by spec 181 section 0.2, for every workspace: the cloud cost + 33% (for a private VM: its compute, disk and traffic, Q-8 A) and EUR 9 per month per human member, agents are not seats (Q-6 A, Q-7 A); no token price, nothing else | spec 181: b97a036d, 4f17f3da, be43a039 |
+| R7 | customers top up a balance by card; work stops at zero; no invoice. Kept by spec 181 (Q-9 A): the balance carries the VM's daily cost + 33% | e38f9953 |
 | R8 | above 80% capacity, hardware is added (spec 122) | 72b5ed23 |
 | R9 | a live credits counter: tokens and money, near real time, refreshed once a minute; it informs and never nudges spend (section 8.1) | 057db9f5, 259e8711 |
 
-> **R6 is replaced** for every workspace by [spec 181](../181-buy-private-workspace-vm/spec.md) section 0.2 (owner forms `b97a036d` and `ae56056d`, t1 topic `b12055b5`): no AI tokens sold.
+> **R6 is replaced** for every workspace by [spec 181](../181-buy-private-workspace-vm/spec.md) v0.3 section 0.2 (owner forms `b97a036d` and `ae56056d`, t1 topic `b12055b5`): no AI tokens sold. R5 (tokens counted, limited) stays: the ledger records every turn, and a token is never charged.
 
 The csitea.net pop-up (R1) is not a sale: it is customer #1 of the embed (R3),
 with Csitea's own workspace paying for its usage.
@@ -89,6 +90,11 @@ a798a19b, the owner's last post).
 | 72b5ed23 | "The idea is that the service should be scalable. People are basically plugging in their credit cards, and as soon as we find out that we have more than 80% capacity filled in, we will spawn new hardware resources and we will add them to the spawn hub." | above 80% capacity, add hardware; its own spec | 7.1, [spec 122](../122-capacity-scale-out/spec.md) |
 
 Spoken names: "spawn hub" = the spool hub.
+
+Since v1.5 the rows on the margin (cd2d25e3, acaed9ef: 29%), the fixed-cost
+slice (55309d31, b6a56949, 2d9490e7) and the token buffer (f5c0e3c7,
+9e0c0dba) are the record of what the owner said then; the price they built
+is replaced by spec 181 section 0.2 (R6).
 
 Two later answers, to the questions v1.1 left open (12.4). Quoted as
 relayed verbatim by the dispatch holder c-002@sat (spool msgs dfb256af and
@@ -140,13 +146,13 @@ v1, smallest first; each phase ships alone, dev then prd:
    of section 6.
 3. **Agent answers and metering** (R4, R5): the sales agent (Q-V1 = A, Q-V2
    = A) and the `usage_events` ledger, model prices, token budgets.
-4. **Workspace sale on metered pricing** (R2, R4, R6, R7): the existing
-   buy-a-tenant checkout sells a workspace whose balance is drawn down by the
-   price of 7; card top-up only. It opens only when spec 122's pricing gate
-   holds (7.1).
-5. **Fixed-cost slice** (R6) from spec 122's measurements; a second
-   embedding customer. (v1.0's monthly invoice is dropped: M2 = A,
-   e38f9953.)
+4. **Workspace sale** (R2, R6, R7): the existing buy-a-tenant checkout
+   sells a workspace whose balance is drawn down by the price of 7 (spec
+   181's); card top-up only. Built as spec 181 rows B1 to B3 (checkout
+   first, Q-13 B).
+5. ~~**Fixed-cost slice**~~: dropped in v1.5. Spec 181 Q-8 A prices the VM
+   only; the shared hub is paid by the seats. (v1.0's monthly invoice is
+   dropped too: M2 = A, e38f9953.)
 
 Later (L1): the paid private channel. Section 10 keeps it buildable on the
 same parts.
@@ -324,7 +330,11 @@ store: there is no Redis in the estate. Every limit is cnf per embed
 - **Which model access**: agents that serve paying customers or visitors
   run on pay-per-token API keys, so the cost per token is exact; our own
   work stays on subscriptions (Q-M3 = A, 8bb20332).
-- **Fixed cost, a slice in every price** (55309d31): the always-on part of
+- **Fixed cost** (55309d31), **replaced in v1.5**: spec 181 Q-8 A charges
+  the VM only (compute, disk and traffic, read from the billing export by
+  the VM's label); the shared hub is paid by the seats. The slice below is
+  kept as the record of v1.4, and no price uses it.
+  v1.4: the always-on part of
   the estate is charged to every workspace as a fixed-cost slice, its own
   `cloud_share` line.
   - Which cost counts (b6a56949, spec 122 Q-5): the prd environment (hub,
@@ -340,22 +350,22 @@ store: there is no Redis in the estate. Every limit is cnf per embed
     [spec 122](../122-capacity-scale-out/spec.md) section 9; this spec only
     uses them. The slice replaces v1.0's `agent_seconds` split for the fixed
     part, so one cost is never charged twice.
-- **Token buffer** (f5c0e3c7, pick A 9e0c0dba): metered token counts are
-  priced at x 1.20 at launch, for the tokens we cannot measure. The buffer
-  is a setting, lowered to the measured gap between our count and the
-  provider's numbers once spec 122's token-gap measurement (its M4) exists.
-  Only the Spool Hub admin changes it (Q-N2, c2a30422): the monthly named
-  action measures the gap and proposes the new value; it never applies it.
-- **Price**, one formula for every workspace (posts 4e2e378b, 1099c002;
-  margin cd2d25e3, acaed9ef):
+- **Token buffer** (f5c0e3c7, pick A 9e0c0dba): **gone in v1.5**. No token
+  is priced (spec 181 Q-10 A), so there is no buffer to set or lower.
+- **Price**, one rule for every workspace: spec 181 section 0.2 (R6,
+  replaced in v1.5; form `b97a036d`):
 
-  `price = (measured tokens x 1.20 + other own cost + fixed-cost slice) + 29%`
+  `price = cloud cost + 33%, plus EUR 9 per month per human member`
 
-  - "other own cost": agent seats and storage the workspace uses
-    (`agent_seconds`, `storage_bytes`).
-  - The margin is 29%, one rate for all (Q-M1 = A). It stays a setting,
-    `price_plans.margin_pct` = 29; the schema still allows a per-plan value
-    later without a migration, but v1 sets none.
+  - "cloud cost": for a private VM, the VM's compute, disk and traffic from
+    the billing export by its label (spec 181 Q-8 A); agents are not seats
+    (Q-6 A); the currency is EUR (Q-7 A).
+  - The margin is 33%, one rate for every workspace (spec 181 Q-11 A). It
+    stays a setting, `price_plans.margin_pct` = 33; the schema still allows
+    a per-plan value later without a migration, but none is set.
+  - No token line, ever: `usage_events` rows record the tokens, at list
+    price, for the counter and for capacity, and are never charged (127
+    7.2).
 - **No price before the measurements** (55309d31, post 4e2e378b): no price
   is published, on `/services` (9) or at checkout (8), until spec 122's
   pricing gate holds (its section 9: a closed month of billing data, the
@@ -376,9 +386,10 @@ depends on it only through the pricing gate above.
 ## 8. Selling a workspace (R2)
 
 - The buyer uses the existing buy-a-tenant checkout (`internal/payments`,
-  specs 006 / 009) with a new plan kind `metered`: no seat price; a prepaid
-  card top-up that `token_budgets` draws down at the price of 7 (Q-M2 = A,
-  e38f9953: the same for every customer, no invoice).
+  specs 006 / 009). v1.4's plan kind `metered` (no seat price, tokens drawn
+  down) is gone in v1.5 (spec 181 Q-10 A): a prepaid card top-up is drawn
+  down at the price of 7, spec 181's (Q-M2 = A, e38f9953: the same for
+  every customer, no invoice; spec 181 Q-9 A).
 - The paid webhook, as today, makes the tenant and its owner; it also writes
   the workspace's `price_plans` row and its first budget.
 - At zero balance agent turns are refused with "credit used up, top up here";
@@ -389,6 +400,11 @@ depends on it only through the pricing gate above.
   spent on is a `GROUP BY` of the ledger.
 
 ### 8.1 The credits counter (R9)
+
+Since v1.5 the balance is drawn down by spec 181's price (7), not by
+tokens: the counter still shows the tokens, at list price "paid to your
+vendor", never as a charge (127 7.2). Below, "the `metered` plan" reads as
+"a workspace with a prepaid balance (R7)".
 
 **The rule** (259e8711): the counter informs and never nudges spend. It
 shows tokens as well as money, near real time. No dark patterns: the balance
@@ -441,8 +457,8 @@ no warning colour appears before the threshold below.
 ## 9. What the catalogue shows
 
 - The catalogue lists what Csitea sells: the workspace plan(s), the services
-  the sales agent can talk about, and how the price is built (usage + margin),
-  not fixed prices. Entry shape: name, short description, what is metered,
+  the sales agent can talk about, and how the price is built (spec 181's:
+  cloud cost + 33% and the seats; no token price), not fixed prices. Entry shape: name, short description, what is metered,
   margin plan, delivery note.
 - It shows the formula of section 7 but no number until spec 122's pricing
   gate holds.
@@ -580,7 +596,7 @@ owner's pick on its first line.
 | # | owner's pick | msg |
 |---|---|---|
 | Q-N1 | A, EUR 5 per day | 41925444 |
-| Q-N2 | B, narrowed: only the Spool Hub admin changes the buffer; the action proposes | c2a30422 |
+| Q-N2 | B, narrowed: only the Spool Hub admin changes the buffer; the action proposes (moot since v1.5: the buffer is gone, 7) | c2a30422 |
 
 - **Q-N1 The daily spend ceiling for unpaid visitors, per embed (section 6).
   Recommended: A. Owner: A, EUR 5 (41925444).** The spec had the ceiling

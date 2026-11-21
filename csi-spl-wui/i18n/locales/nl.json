@@ -763,7 +763,9 @@
         "merge": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp samenvoegen",
         "archive_admins": "In deze werkruimte kunnen alleen de eigenaar of een beheerder onderwerpen archiveren",
         "archive_starter": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp archiveren",
-        "delete": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp verwijderen"
+        "delete": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp verwijderen",
+        "loops_admins": "In deze werkruimte kunnen alleen de eigenaar of een beheerder discussielussen instellen",
+        "loops_starter": "Alleen de starter van het onderwerp, de eigenaar van de werkruimte of een beheerder kan discussielussen voor dit onderwerp instellen"
       },
       "ai": {
         "group": "AI-acties",
@@ -777,7 +779,8 @@
         "failed": "De AI-actie is niet gelukt. Probeer het opnieuw."
       },
       "add_to_note": "Aan notitie toevoegen",
-      "export_pdf": "Exporteren naar PDF"
+      "export_pdf": "Exporteren naar PDF",
+      "topic_loops": "Discussielussen…"
     },
     "emoji": {
       "add": "Emoji toevoegen",
@@ -999,6 +1002,62 @@
     "note_to_self": {
       "badge": "notitie voor mezelf",
       "title": "Alleen jij bent getagd: er is geen agent gevraagd en niemand antwoordt"
+    },
+    "topic_loops": {
+      "title": "Discussielussen",
+      "empty": "Deze discussie heeft nog geen lussen.",
+      "add": "Lus toevoegen",
+      "edit": "Bewerken",
+      "pause": "Pauzeren",
+      "resume": "Hervatten",
+      "delete": "Verwijderen",
+      "save": "Lus opslaan",
+      "prompt": "Opdracht",
+      "prompt_placeholder": "Wat de agent van het onderwerp moet doen telkens als de lus draait",
+      "triggers": "Uitvoeren",
+      "trigger": {
+        "after_agent_reply": "Na elk antwoord van een agent",
+        "before_agent_reply": "Vóór elk antwoord van een agent",
+        "after_human_reply": "Na elk antwoord van een mens",
+        "every_hour": "Elk uur",
+        "every_n_minutes": "Elke n minuten",
+        "post_has_keyword": "Een bericht dat bevat",
+        "post_has_file": "Een bericht met een bijlage",
+        "blocker_posted": "Een blokkade gemeld in het onderwerp",
+        "no_reply_after_human": "Geen antwoord binnen n minuten na een bericht van een mens",
+        "issue_status_changed": "Een aan het onderwerp gekoppeld issue krijgt een andere status",
+        "daily_at": "Elke dag om"
+      },
+      "every_n": "elke {n} minuten",
+      "interval": "Minuten, {min} tot {max}",
+      "self_fire_note": "Het antwoord van de agent op deze lus laat haar nooit opnieuw draaien. Een lus draait hoogstens 12 keer per uur.",
+      "by": "ingesteld door {who}",
+      "state_on": "Aan",
+      "state_paused": "Gepauzeerd",
+      "state_held": "Wacht tot {time}",
+      "idle_author_left": "Draait niet: de maker heeft de werkruimte verlaten",
+      "idle_author_no_right": "Draait niet: de maker mag geen lussen meer instellen",
+      "locked": "De archiefinstelling van je werkruimte laat je de lussen van dit onderwerp niet wijzigen.",
+      "err_prompt": "Schrijf een opdracht.",
+      "err_prompt_long": "De opdracht is langer dan 4000 tekens.",
+      "err_trigger": "Vink minstens één trigger aan.",
+      "err_interval": "Kies 5 tot 1440 minuten.",
+      "err_bad_loop": "De hub weigerde deze lus. Controleer de opdracht en de triggers.",
+      "err_not_allowed": "Je mag de lussen van dit onderwerp niet wijzigen.",
+      "err_demo": "De demowerkruimte is alleen-lezen.",
+      "err_not_found": "Dit onderwerp of deze lus bestaat niet meer.",
+      "err_archived": "Dit onderwerp is gearchiveerd.",
+      "err_not_implemented": "Discussielussen zijn nog niet beschikbaar op deze hub.",
+      "err_failed": "Dat is niet gelukt. Probeer het opnieuw.",
+      "keyword_row": "een bericht dat “{keyword}” bevat",
+      "idle_row": "geen antwoord binnen {n} minuten na een bericht van een mens",
+      "daily_row": "elke dag om {time} ({tz})",
+      "keyword": "Woord of zinsdeel",
+      "daily_time": "Tijdstip",
+      "daily_tz": "Tijdzone",
+      "err_keyword": "Schrijf een woord of zinsdeel van hoogstens 200 tekens.",
+      "err_daily_at": "Kies een tijdstip.",
+      "err_daily_tz": "Kies een tijdzone uit de lijst."
     }
   },
   "topic": {

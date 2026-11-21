@@ -42,8 +42,10 @@
 # @description      floor of the live lanes) are queued, the refactor blocker
 # @description      names the night instead, once per night, so the day's
 # @description      planner has rows ready at its start
-# @description   3b. BANDS (SPL-1817) - a ci head (CI-red on trunk) or a flagged
-# @description      one (urgent bug, owner bypass feature) is taken as it is;
+# @description   3b. BANDS (SPL-1817) - a ci row (CI-red on trunk), wherever it
+# @description      stands in the queue and at any priority, is taken first
+# @description      when the placer can launch it; then a flagged head (urgent
+# @description      bug, owner bypass feature) is taken as it is;
 # @description      then a review seat queued on the owner's review-seat GO
 # @description      (SPL-3349: in the local bypass log, any class);
 # @description      otherwise the queued row of the class furthest under its band
@@ -106,8 +108,9 @@
 # @description         (a review stays cross-vendor to a claude author, SPL-2942).
 # @description         A review seat (slug ending -reviewer, or Kind: review)
 # @description         or a panel seat (slug ending -panel-seat, or
-# @description         -panel-seat-<vendor>[-<suffix>], read-only, SPL-6028,
-# @description         SPL-6071) stays mistral (SPL-3954, owner msg 594d77e1:
+# @description         -panel-seat-<vendor>[-<suffix>] or -panel-seat-<digits>,
+# @description         read-only, SPL-6028, SPL-6071, SPL-6093) stays mistral
+# @description         (SPL-3954, owner msg 594d77e1:
 # @description         mistral may review UI work read-only); on a mistral
 # @description         author it is refused, handed back to the holder (SPL-3776)
 # @description      AGY OUT (SPL-3018): while agy is out on every box (this
@@ -430,13 +433,22 @@ spl_spawn_place_dispatch() {
   return 0
 }
 
-# 3b. The row the bands pick, HEAD when it is ci or flagged, or at priority 1
-# (its discussion's, e.g. set by the owner's prio word, SPL-5524), a review
-# seat on the owner's review-seat GO next, or HEAD when the share cannot be
-# read (the hub's order holds). The share goes to jq as a file, never argv: its bypass
+# 3b. The row the bands pick: a ci row, wherever it stands (the first queued
+# one of ROWS by position the placer can launch, SPL-1817), HEAD when it is ci
+# or flagged, or at priority 1 (its discussion's, e.g. set by the owner's prio
+# word, SPL-5524), a review seat on the owner's review-seat GO next, or HEAD
+# when the share cannot be read (the hub's order holds). The hub orders by
+# priority first, so a ci row on an unset discussion sits behind every
+# priority 1 or 2 row. The share goes to jq as a file, never argv: its bypass
 # list is over one argument's 128 KiB (171 KB on sat 2026-10-29, SPL-4156).
 spl_spawn_place_band() {  # HEAD ROWS
   local share pick
+  pick="$(jq -c '[.[] | select(.state == "queued" and (.class // "") == "ci" and ._l != false)] | sort_by(.position) | .[0] // empty' <<<"$2")"
+  if [[ -n "$pick" ]]; then
+    [[ "$(jq -r .ask_id <<<"$pick")" == "$(jq -r .ask_id <<<"$1")" ]] ||
+      do_log "INFO ci row: ask $(jq -r '"\(.ask_id[0:8]) (\(.placement // ""), queue position \(.position))"' <<<"$pick") is placed first, ahead of the queue's order (SPL-1817)" >&2
+    printf '%s' "$pick"; return 0
+  fi
   if jq -e '(.class // "") == "ci" or (.flag // "") != ""' >/dev/null <<<"$1"; then printf '%s' "$1"; return 0; fi
   if jq -e '(.priority // 3) == 1' >/dev/null <<<"$1"; then
     do_log "INFO priority 1 head: ask $(jq -r '"\(.ask_id[0:8]) (\(.class // "") \(.placement // ""))"' <<<"$1") is placed first, ahead of the bands (SPL-5524)" >&2
@@ -1011,16 +1023,17 @@ spl_spawn_place_reopen() {  # BRIEF SLUG WHY [COMMENT]
 # holds for building)"). A panel seat is read-only too, its scope its seat
 # file, though its brief says Kind: specs_and_docs, so it is spared the same
 # way: a slug ending -panel-seat (SPL-6028), or -panel-seat-<vendor> with an
-# optional -<suffix>, e.g. -panel-seat-mistral-2 (SPL-6071). A coding lane
-# whose slug merely holds the words (-panel-seat-no-ui-swap) is no seat. A
-# mistral review or panel seat on a mistral author (spl_spawn_place_authors)
-# prints "refuse\t<why>".
+# optional -<suffix>, e.g. -panel-seat-mistral-2 (SPL-6071), or
+# -panel-seat-<digits>, the numbered form, e.g. -panel-seat-3 (SPL-6093). A
+# coding lane whose slug merely holds the words (-panel-seat-no-ui-swap,
+# -panel-seat-3-no-ui-swap) is no seat. A mistral review or panel seat on a
+# mistral author (spl_spawn_place_authors) prints "refuse\t<why>".
 spl_spawn_place_swap() {  # VENDOR BRIEF
   local why kind to=claude dr au cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
   [[ "$1" == mistral ]] || { printf '%s\t\n' "$1"; return 0; }
   declare -F spl_lane_mix_mistral_ui_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
   kind="$(spl_lane_mix_brief_kind "$2")"
-  local seat_rx='-panel-seat(-(agy|claude|grok|mistral|qwen)(-[0-9a-z]+)?)?$'
+  local seat_rx='-panel-seat(-[0-9]+|-(agy|claude|grok|mistral|qwen)(-[0-9a-z]+)?)?$'
   if spl_spawn_place_review_seat "$2" "$kind" || [[ "$(basename "$2" .md)" =~ $seat_rx ]]; then
     au="$(spl_spawn_place_authors "$2" | awk -F'\t' '$1 == "mistral" { printf "%s%s", (n++ ? ", " : ""), $2 }')"
     [[ -z "$au" ]] || { printf 'refuse\ta review seat on mistral would review its author'"'"'s vendor (mistral: %s), so it is not placed (SPL-3776)\n' "$au"; return 0; }

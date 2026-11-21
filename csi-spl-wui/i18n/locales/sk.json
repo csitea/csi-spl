@@ -763,7 +763,9 @@
         "merge": "Túto tému môže zlúčiť len jej zakladateľ, vlastník pracovného priestoru alebo správca",
         "archive_admins": "V tomto pracovnom priestore môže témy archivovať len vlastník alebo správca",
         "archive_starter": "Túto tému môže archivovať len jej zakladateľ, vlastník pracovného priestoru alebo správca",
-        "delete": "Túto tému môže odstrániť len jej zakladateľ, vlastník pracovného priestoru alebo správca"
+        "delete": "Túto tému môže odstrániť len jej zakladateľ, vlastník pracovného priestoru alebo správca",
+        "loops_admins": "V tomto pracovnom priestore môže slučky diskusie nastaviť iba vlastník alebo správca",
+        "loops_starter": "Slučky diskusie v tejto téme môže nastaviť iba autor témy, vlastník pracovného priestoru alebo správca"
       },
       "ai": {
         "group": "Akcie AI",
@@ -777,7 +779,8 @@
         "failed": "Akcia AI sa nepodarila. Skúste to znova."
       },
       "add_to_note": "Pridať do poznámky",
-      "export_pdf": "Exportovať do PDF"
+      "export_pdf": "Exportovať do PDF",
+      "topic_loops": "Slučky diskusie…"
     },
     "emoji": {
       "add": "Pridať emoji",
@@ -999,6 +1002,62 @@
     "note_to_self": {
       "badge": "poznámka pre seba",
       "title": "Označené len pre vás: žiadny agent nebol oslovený a nikto neodpovedá"
+    },
+    "topic_loops": {
+      "title": "Slučky diskusie",
+      "empty": "Táto diskusia zatiaľ nemá žiadne slučky.",
+      "add": "Pridať slučku",
+      "edit": "Upraviť",
+      "pause": "Pozastaviť",
+      "resume": "Pokračovať",
+      "delete": "Odstrániť",
+      "save": "Uložiť slučku",
+      "prompt": "Pokyn",
+      "prompt_placeholder": "Čo má agent témy urobiť pri každom spustení slučky",
+      "triggers": "Spúšťať",
+      "trigger": {
+        "after_agent_reply": "Po každej odpovedi agenta",
+        "before_agent_reply": "Pred každou odpoveďou agenta",
+        "after_human_reply": "Po každej odpovedi človeka",
+        "every_hour": "Každú hodinu",
+        "every_n_minutes": "Každých n minút",
+        "post_has_keyword": "Príspevok, ktorý obsahuje",
+        "post_has_file": "Príspevok s priloženým súborom",
+        "blocker_posted": "Prekážka zverejnená v téme",
+        "no_reply_after_human": "Žiadna odpoveď n minút po príspevku človeka",
+        "issue_status_changed": "Úloha prepojená s témou zmení stav",
+        "daily_at": "Každý deň o"
+      },
+      "every_n": "každých {n} minút",
+      "interval": "Minúty, od {min} do {max}",
+      "self_fire_note": "Odpoveď agenta na túto slučku ju nikdy znova nespustí. Slučka sa spustí najviac 12-krát za hodinu.",
+      "by": "nastavil(a) {who}",
+      "state_on": "Zapnutá",
+      "state_paused": "Pozastavená",
+      "state_held": "Zadržaná do {time}",
+      "idle_author_left": "Nespúšťa sa: jej autor opustil pracovný priestor",
+      "idle_author_no_right": "Nespúšťa sa: jej autor už nesmie nastavovať slučky",
+      "locked": "Nastavenie archivácie vo vašom pracovnom priestore vám nedovoľuje meniť slučky tejto témy.",
+      "err_prompt": "Napíšte pokyn.",
+      "err_prompt_long": "Pokyn má viac ako 4000 znakov.",
+      "err_trigger": "Označte aspoň jeden spúšťač.",
+      "err_interval": "Zvoľte 5 až 1440 minút.",
+      "err_bad_loop": "Centrum túto slučku odmietlo. Skontrolujte pokyn a spúšťače.",
+      "err_not_allowed": "Slučky tejto témy nemôžete meniť.",
+      "err_demo": "Ukážkový pracovný priestor je iba na čítanie.",
+      "err_not_found": "Táto téma alebo slučka už neexistuje.",
+      "err_archived": "Táto téma je archivovaná.",
+      "err_not_implemented": "Slučky diskusie zatiaľ nie sú v tomto centre dostupné.",
+      "err_failed": "Nepodarilo sa. Skúste to znova.",
+      "keyword_row": "príspevok, ktorý obsahuje „{keyword}“",
+      "idle_row": "žiadna odpoveď {n} minút po príspevku človeka",
+      "daily_row": "každý deň o {time} ({tz})",
+      "keyword": "Slovo alebo fráza",
+      "daily_time": "Čas dňa",
+      "daily_tz": "Časové pásmo",
+      "err_keyword": "Napíšte slovo alebo frázu s najviac 200 znakmi.",
+      "err_daily_at": "Zvoľte čas dňa.",
+      "err_daily_tz": "Zvoľte časové pásmo zo zoznamu."
     }
   },
   "topic": {

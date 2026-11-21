@@ -124,5 +124,13 @@ Owner HUM-10, t1 topic `acc0c5d3-ec8f-4968-9ed9-f25e99d16e0e`: order msgs `b0c3b
 | **T075** | **Planned** | `orc` | `bulk-import` | **Bulk import specs (503 files, 138 specs) into `system` tenant** ([spec.md](spec.md) §10.1, §10.3). Batch import specs by number (`002` through `141`) under `/repo/specs/`; import clean slice (382 files); hold 127 files paused across G3-G6 until tooling fixes land; append to `qto-docs.tsv` with `repo` tag. Gate: `do_spl_doc_tree_check` reports 0 violations; `do_spl_doctree_export_md` round trip unchanged. |
 | **T076** | **Planned** | `test` | `gates-retire` | **Build lane tests: direct edit refusal and round-trip parity** ([spec.md](spec.md) §10.6). Add automated test cases in `doctree-export-md.tst.sh` and pre-push gate verifying that: (1) direct git modification of any mapped spec, agent, or README file is refused by `do_check_pre_push`; (2) `do_spl_doctree_export_md` export matches git working tree byte-for-byte with 0 diff beyond the standardized header stamp. Gate: test suite green with positive and negative controls. |
 
-<!-- version: 0.3.0 · updated: 2026-10-15 · last-edit: 2026-10-15T20:30:00Z -->
+## 9. The doc view header (SPL-6083)
+
+Owner HUM-10, t1 topic `60bf4e56-7c44-494a-9562-dee06438c759`: msg `5e671975` ("refactor the qto doc view"), msg `ce88082a` (the picker, the `Documents` label and the `+` go; the menu stays, with the contents icon; the contents toggle gets another icon), msg `55440858` (Outline and Grid move into that menu). Later, not built here: msg `06a6925f`, a PDF export of the current document as one more menu entry.
+
+| ID | Status | Area | Lane | Summary & Gate |
+|---|---|---|---|---|
+| **T080** | **Implemented** | `wui` | `doc-view-header` | **One header row with a document open** (SPL-6083). With a document open (`/workspace/docs?doc=<id>`, any width) the header holds no document picker, no `+` and no Outline / Grid buttons, and the `Documents` heading is for screen readers only. Right of the contents toggle (now an open book icon) is one menu (`WorkspaceDocFileMenu.vue`, the three-bar icon), drawn in both views: Print document, Export to Markdown (Outline only), then **View**: Outline and Grid, the current one checked. The explorer tree's `/` and folder menus make a document; a tree row opens one. The phone's list and an empty workspace keep the `Documents` heading and the `+`. Gate: `csi-spl-wui/tests/e2e/qto-mobile-docs-head.test.mjs` (360, 412, 800, 1280, 1440 px). |
+
+<!-- version: 0.3.1 · updated: 2026-11-20 · last-edit: 2026-11-20T21:30:00Z -->
 

@@ -205,6 +205,16 @@ declare module '~/utils/spool-client.mjs' {
     makeBlockerIssue(msgId: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     /** SPL-983 (specs/041): archive (true) or unarchive (false) a topic card. */
     archiveTopic(msgId: string, archived?: boolean): Promise<{ msg_id: string, task_id: string, archived: boolean, archived_at?: string, archived_by?: string }>
+    /** spec 182 7.1.2: GET /v1/topics/{task_id}/loops */
+    listTopicLoops(taskId: string): Promise<{ task_id: string, may_edit: boolean, loops: import('~/utils/topic-loops').TopicLoop[] }>
+    /** spec 182 7.1.2: POST, 201 the new loop */
+    addTopicLoop(taskId: string, body: import('~/utils/topic-loops').TopicLoopBody): Promise<import('~/utils/topic-loops').TopicLoop>
+    /** spec 182 7.1.2: PUT, any of prompt, triggers, interval_min, state */
+    editTopicLoop(taskId: string, loopId: string, patch: Partial<import('~/utils/topic-loops').TopicLoopBody> & { state?: 'on' | 'paused' }): Promise<import('~/utils/topic-loops').TopicLoop>
+    /** spec 182 7.1.2: DELETE (idempotent) */
+    deleteTopicLoop(taskId: string, loopId: string): Promise<{ loop_id: string, deleted: boolean }>
+    /** spec 182: the mock's other-tab `topic_loops` frames (live frames ride useLive().onTopic); the off switch */
+    onMockTopicLoops(fn: (frame: Record<string, unknown>) => void): Promise<() => void>
     /** SPL-983: the confirm dialog's reply count and what the caller may do. */
     topicSize(msgId: string): Promise<{ msg_id: string, task_id: string, replies: number, task_ids: string[], can_delete: boolean, can_archive: boolean }>
     /** SPL-983: delete a topic card and every child, one transaction. */
@@ -862,7 +872,7 @@ declare module '~/utils/msg-ai-actions.mjs' {
 }
 
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, pdf?: boolean, locks?: Partial<import('~/utils/topic-menu.mjs').TopicMenuLocks> }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'export-pdf' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes' | 'file-text', labelKey: string, disabled?: boolean, hintKey?: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, pdf?: boolean, loops?: boolean, locks?: Partial<import('~/utils/topic-menu.mjs').TopicMenuLocks> }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'export-pdf' | 'topic-loops' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes' | 'file-text' | 'refresh', labelKey: string, disabled?: boolean, hintKey?: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
   export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
@@ -929,7 +939,7 @@ declare module '~/utils/move-mock.mjs' {
 
 declare module '~/utils/topic-menu.mjs' {
   /** CLE-77891: per topic-card entry, '' or the i18n key of why it is disabled */
-  export type TopicMenuLocks = { edit: string, move: string, merge: string, archive: string, delete: string }
+  export type TopicMenuLocks = { edit: string, move: string, merge: string, archive: string, delete: string, loops: string }
   export function topicMenuLocks(msg: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean, topicArchivePolicy?: string } | null, opts?: { editable?: boolean, lobbyTaskId?: string }): TopicMenuLocks
 }
 

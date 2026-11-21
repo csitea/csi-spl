@@ -38,6 +38,7 @@ _PPX_MAP=(
   "gcloud-account-pinned.tst.sh ."
   "gcp-sa-key-email.tst.sh csi-spl-orc/lib/bash/funcs csi-spl-orc/src/bash/run/box-copy-gcp-key.func.sh"
   "satellite-ansible.tst.sh csi-spl-orc/src/bash csi-spl-api/src/go/spool-hub-api/go.mod"
+  "customer-box-role-set.tst.sh csi-spl-orc/lib/bash/funcs csi-spl-orc/src/bash/run/spl-box-workspace-setup.func.sh csi-spl-orc/src/bash/run/run.sh"
   "satellite-actions.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk csi-spl-orc/src/bash/features/spool-install/render-yield.sh"
   "satellite-steps.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk"
   "env-order-gate.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk"

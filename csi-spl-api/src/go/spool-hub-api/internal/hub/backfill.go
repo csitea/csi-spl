@@ -206,7 +206,7 @@ func (s *Server) backfillable(x *session, seat store.BackfillSeat, r store.Backf
 	if ok, _, _, _ := lockAdmits(lock, e.FromBox, r.FromID); !ok {
 		return false
 	}
-	if !x.accepts(wire.InnerVersion(r.Env)) {
+	if !x.acceptsEnv(r.Env) {
 		return false
 	}
 	return !(e.FromBox == seat.Box && r.FromID == seat.Agent)

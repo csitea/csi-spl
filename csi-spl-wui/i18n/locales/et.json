@@ -763,7 +763,9 @@
         "merge": "Ainult teema algataja, tööruumi omanik või administraator saab seda teemat ühendada",
         "archive_admins": "Selles tööruumis saavad teemasid arhiveerida ainult omanik või administraator",
         "archive_starter": "Ainult teema algataja, tööruumi omanik või administraator saab seda teemat arhiveerida",
-        "delete": "Ainult teema algataja, tööruumi omanik või administraator saab seda teemat kustutada"
+        "delete": "Ainult teema algataja, tööruumi omanik või administraator saab seda teemat kustutada",
+        "loops_admins": "Selles tööruumis saavad arutelu tsükleid seada ainult omanik või administraator",
+        "loops_starter": "Selle teema arutelu tsükleid saavad seada ainult teema alustaja, tööruumi omanik või administraator"
       },
       "ai": {
         "group": "AI toimingud",
@@ -777,7 +779,8 @@
         "failed": "AI toiming ei õnnestunud. Proovi uuesti."
       },
       "add_to_note": "Lisa märkmesse",
-      "export_pdf": "Ekspordi PDF-ina"
+      "export_pdf": "Ekspordi PDF-ina",
+      "topic_loops": "Arutelu tsüklid…"
     },
     "emoji": {
       "add": "Lisa emoji",
@@ -999,6 +1002,62 @@
     "note_to_self": {
       "badge": "märge endale",
       "title": "Märgitud ainult sulle: üheltki agendilt ei küsitud ja keegi ei vasta"
+    },
+    "topic_loops": {
+      "title": "Arutelu tsüklid",
+      "empty": "Sellel arutelul pole veel tsükleid.",
+      "add": "Lisa tsükkel",
+      "edit": "Muuda",
+      "pause": "Peata",
+      "resume": "Jätka",
+      "delete": "Kustuta",
+      "save": "Salvesta tsükkel",
+      "prompt": "Viip",
+      "prompt_placeholder": "Mida teema agent peab tegema iga kord, kui tsükkel käivitub",
+      "triggers": "Käivita",
+      "trigger": {
+        "after_agent_reply": "Pärast iga agendi vastust",
+        "before_agent_reply": "Enne iga agendi vastust",
+        "after_human_reply": "Pärast iga inimese vastust",
+        "every_hour": "Iga tund",
+        "every_n_minutes": "Iga n minuti järel",
+        "post_has_keyword": "Postitus, mis sisaldab",
+        "post_has_file": "Postitus manusega",
+        "blocker_posted": "Teemasse postitatud takistus",
+        "no_reply_after_human": "Pole vastust n minutit pärast inimese postitust",
+        "issue_status_changed": "Teemaga seotud pileti olek muutub",
+        "daily_at": "Iga päev kell"
+      },
+      "every_n": "iga {n} minuti järel",
+      "interval": "Minutid, {min} kuni {max}",
+      "self_fire_note": "Agendi vastus sellele tsüklile ei käivita seda kunagi uuesti. Tsükkel käivitub kõige rohkem 12 korda tunnis.",
+      "by": "seadis {who}",
+      "state_on": "Sees",
+      "state_paused": "Peatatud",
+      "state_held": "Ootel kuni {time}",
+      "idle_author_left": "Ei käivitu: selle autor lahkus tööruumist",
+      "idle_author_no_right": "Ei käivitu: selle autor ei tohi enam tsükleid seada",
+      "locked": "Sinu tööruumi arhiveerimise seade ei luba selle teema tsükleid muuta.",
+      "err_prompt": "Kirjuta viip.",
+      "err_prompt_long": "Viip on pikem kui 4000 märki.",
+      "err_trigger": "Märgi vähemalt üks käivitaja.",
+      "err_interval": "Vali 5 kuni 1440 minutit.",
+      "err_bad_loop": "Keskus lükkas selle tsükli tagasi. Kontrolli viipa ja käivitajaid.",
+      "err_not_allowed": "Sa ei tohi selle teema tsükleid muuta.",
+      "err_demo": "Demotööruum on ainult lugemiseks.",
+      "err_not_found": "Seda teemat või tsüklit enam pole.",
+      "err_archived": "See teema on arhiveeritud.",
+      "err_not_implemented": "Arutelu tsüklid pole selles keskuses veel saadaval.",
+      "err_failed": "See ei õnnestunud. Proovi uuesti.",
+      "keyword_row": "postitus, mis sisaldab „{keyword}“",
+      "idle_row": "pole vastust {n} minutit pärast inimese postitust",
+      "daily_row": "iga päev kell {time} ({tz})",
+      "keyword": "Sõna või fraas",
+      "daily_time": "Kellaaeg",
+      "daily_tz": "Ajavöönd",
+      "err_keyword": "Kirjuta sõna või fraas, kuni 200 märki.",
+      "err_daily_at": "Vali kellaaeg.",
+      "err_daily_tz": "Vali ajavöönd loendist."
     }
   },
   "topic": {

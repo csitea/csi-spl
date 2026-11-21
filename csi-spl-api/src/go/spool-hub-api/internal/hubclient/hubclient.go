@@ -479,8 +479,9 @@ func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string, 
 	if role != wire.RoleBox {
 		return hello, nil
 	}
-	// SPL-987 backfill.go, SPL-997 fallback.go, spec 059 S2 commit (readLoop)
-	hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback, wire.FeatureCommit}
+	// SPL-987 backfill.go, SPL-997 fallback.go, spec 059 S2 commit (readLoop),
+	// spec 033 K.4.3 kinds13 (this binary's msg.Validate takes the 13 kinds)
+	hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback, wire.FeatureCommit, wire.FeatureKinds13}
 	agents, run, err := c.rosterAgents() // t1 bc1a43e1 fix B: not a dead one
 	if err != nil {
 		return wire.Frame{}, err

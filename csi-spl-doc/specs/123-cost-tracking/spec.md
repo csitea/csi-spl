@@ -1,6 +1,6 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.6 + 16.6 v0.4 (2026-11-20: every owner answer folded, the follow-ups 1 `a`, 2 `m`, 3 `g` included, msg baae5fb7: the hub drafts through Google Cloud Translation in its own project with names masked, readers see the draft at once, agy corrects it nightly; new row L0 for the API and its role; SPL-6057) · 16.6 v0.3 (2026-11-20: the owner's answers 3 `1d`, 4 `mc` and 5 `t` folded, msg e9f8e835; answers 1 and 2 wait for the holder's follow-ups, msg 5a82621d; SPL-6057) · 16.6 v0.2 (2026-11-20: the spec review's notes N1-N3 folded: L4 asserts agy sees the mask token, the machine write keys an hr component apart with its own guard, the PATCH's reach follows owner question 5; SPL-6057) · 16.6 v0.1 (2026-11-20: 16.6, every new or edited cost label translated into all 19 languages on save, design only, for review; SPL-6057) · v1.6 (2026-10-30: the owner's Q-8 A and Q-9 A folded into section 13, msg 4316d471: the project's cost is a fifth Costs page, first and the default; a customer workspace gets its own project cost, its AI share + its own people, no cloud part; SPL-4368) · v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+**Status:** v1.7 (2026-11-20: row P02 built, the Human part from 107's tables; SPL-6075) · v1.6 + 16.6 v0.4 (2026-11-20: every owner answer folded, the follow-ups 1 `a`, 2 `m`, 3 `g` included, msg baae5fb7: the hub drafts through Google Cloud Translation in its own project with names masked, readers see the draft at once, agy corrects it nightly; new row L0 for the API and its role; SPL-6057) · 16.6 v0.3 (2026-11-20: the owner's answers 3 `1d`, 4 `mc` and 5 `t` folded, msg e9f8e835; answers 1 and 2 wait for the holder's follow-ups, msg 5a82621d; SPL-6057) · 16.6 v0.2 (2026-11-20: the spec review's notes N1-N3 folded: L4 asserts agy sees the mask token, the machine write keys an hr component apart with its own guard, the PATCH's reach follows owner question 5; SPL-6057) · 16.6 v0.1 (2026-11-20: 16.6, every new or edited cost label translated into all 19 languages on save, design only, for review; SPL-6057) · v1.6 (2026-10-30: the owner's Q-8 A and Q-9 A folded into section 13, msg 4316d471: the project's cost is a fifth Costs page, first and the default; a customer workspace gets its own project cost, its AI share + its own people, no cloud part; SPL-4368) · v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
 s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
 all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
@@ -418,7 +418,7 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
 
 ## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.6, plan only)
 
-**Status: P01 built (SPL-6054), the other rows Planned.** Lane issue
+**Status: P01 built (SPL-6054), P02 built (SPL-6075), P03 built (SPL-6078), the other rows Planned.** Lane issue
 SPL-4189, epic SPL-2373. It is the level ABOVE the near-term three-sections
 build (ask `156c8939`: Costs gets Cloud / AI tokens / Human sections), and it
 does not duplicate it.
@@ -528,7 +528,31 @@ any part is incomplete. The shares are of the priced total.
   107 Q27 A (msg `ce14ad70`, 107 21.6), so it is not asked again. For that
   viewer the total and the shares cover Cloud + owned hardware + AI tokens
   only, labelled so: a total that included the human money would reveal it
-  by subtraction.
+  by subtraction. Built (P03, `hub/cost_project.go`
+  `costProjectHumanMask`), the answer's `human_mask` says which of three
+  levels the reader got:
+  - `none`: a holder of `hours.rates` reads the Human part as folded.
+  - `money`: a holder of `hours.read` (a customer workspace's biz_owner,
+    107 21.6) or the operator workspace's admin or product owner (the
+    estate read, never an act-as clone), without `hours.rates`. The Human
+    part keeps its hours, counts and words; its amounts and share are
+    `null`. The operator's internal and external accountant read the
+    estate's other parts and get `whole` for Human (owner HUM-10, t1
+    e2c0e6b4 msg 9af86e15, form 129aa0a2 answer C: "Also the product
+    owner, not the accountants"); the external accountant is still 403 at
+    the door (section 16 follow-up 2), so it reads no Human part at all.
+  - `whole`: every other `costs.read` reader (developer, tester,
+    biz_customer, a customer workspace's admin, the operator's accountants
+    and the other member roles: "nothing of others", 107 Q26 A). The
+    Human part is its name and `completeness: not_shown` only, every other
+    field zero or `null`, and `total.partial` is read over the other parts
+    and `left_out` only.
+
+  Masked either way, `total.priced` and every other share are re-read
+  without the Human money. **Field rule for P02 and later rows**: a Human
+  money field goes INSIDE the part's `CostProjectMoney` (the `money` level
+  clears exactly that struct); Human hours or minutes go outside it, and
+  the `whole` level clears every field of the part, a new one included.
 - **Never per person**: the Human part is one sum per day; no row names a
   member (107 21.7). Each member sees only their own time (107 Q26 A).
 
@@ -552,7 +576,13 @@ any part is incomplete. The shares are of the priced total.
 Status of every row: **Planned**, except P01: **built** (SPL-6054,
 `hub/cost_project.go`, `store/cost_project.go`; three choices where this
 section predates the code on master are written at the top of
-`store/cost_project.go`). Each row is one lane, aiming at one push.
+`store/cost_project.go`), P02: **built** (SPL-6075; a minute is priced
+only when its entry is approved and its period frozen or final, 13.5 and
+107 21.4 step 6, the rest is pending; absence rows are left out; both are
+written at the top of `store/cost_project_human.go`), and P03: **built** (SPL-6078, the mask in
+`hub/cost_project.go`, `TestCostProjectHumanMask` in
+`hub/cost_project_mask_test.go`, `TestCostProjectHumanMaskHTTP` in
+`hub/cost_project_mask_http_test.go`; 13.6). Each row is one lane, aiming at one push.
 Each row names its files; no file is in two rows of one batch (rounds-rulebook
 2.1 R1), and a row that changes an earlier row's file sits in a later batch.
 A cross-vendor reviewer per row (R7). Waits: P02 waits for 107 T071..T072;
@@ -566,7 +596,7 @@ Paths: `hub/`, `store/` under `csi-spl-api/src/go/spool-hub-api/internal/`;
 | # | slug | what | target & proof | test (red control) | vendor | batch |
 |---|---|---|---|---|---|---|
 | P01 | `feat(api, project-cost-read)` | `GET /v1/tenant/costs/project?month=` (or `year=`), new `hub/cost_project.go` + `store/cost_project.go` + `store/cost_project_test.go`: the four parts (Cloud, Owned hardware from source `hand_asset`, AI tokens, Human), each with amount, share and completeness, over the month read (5.2); a customer workspace gets two parts only, its AI share and its own Human (Q-8 A, 13.7) | the parts sum to `total.priced`; an unpriced part is `null`, never 0; Human is `not_tracked` until P02 | `TestCostProjectParts` (red: a part with no rate summed as 0 changes the total; a `hand_asset` line left out changes the total) | claude | 1 |
-| P02 | `feat(api, project-cost-human)` | the human day sum for P01, new `store/cost_project_human.go` + `store/cost_project_human_test.go`, one call added in `store/cost_project.go`: approved minutes x the price in force per day, per currency, no member column | reads 107's tables once T071..T072 land | `TestCostProjectHumanSum` (red: pricing at today's price instead of the day's changes the sum) | claude | 2 |
+| P02 | `feat(api, project-cost-human)` | the human day sum for P01, new `store/cost_project_human.go` + `store/cost_project_human_test.go`, one call added in `store/cost_project.go` (plus the input's `HumanRead`/`Human` and the part's `minutes`/`unpriced_minutes`), and the read wired in `hub/cost_project.go` `costProjectInput` (+ `hub/cost_project_human_test.go`): approved minutes of frozen or final periods x the price in force per day, per currency, no member column; the other minutes count as pending (13.5); the Human part's new fields follow 13.6's field rule (money in `CostProjectMoney`, minutes outside it). The served Human money waits for P03's mask (13.6): P02 lands after P03 | reads 107's T071 tables (`hours_entries`, `member_hourly_prices`, rdb 0295) directly; T072's store is not needed. The served answer carries Human; `TestCostProjectHumanServed` (red on the parent: `not_tracked`) | `TestCostProjectHumanSum` (red: pricing at today's price instead of the day's changes the sum) | claude | 2 |
 | P04 | `test(api, project-cost-rls)` | tenant isolation and estate scope of P01 on Postgres, new `store/cost_project_rls_test.go` only | workspace B reads 0 of A's parts; a non-operator reads no estate part (no cloud, no owned hardware) | `TestCostProjectRLS` (red: the policy dropped reads A's rows) | claude | 2 |
 | P03 | `feat(api, project-cost-mask)` | the human money mask in `hub/cost_project.go` + new `hub/cost_project_mask_test.go`: without `hours.rates` the Human amount is `null` and `total.priced` covers Cloud + owned hardware + AI only, flagged | an operator admin without `hours.rates` gets hours, no money, and no total that holds it | `TestCostProjectHumanMask` (red: removing the mask lets total minus parts reveal the human money) | claude | 3 |
 | P05 | `feat(wui, project-cost-page)` | new page `pages/reporting/costs/project.vue`, its entry first in the Costs bar in `pages/reporting/costs.vue` and `/reporting/costs` opening on it as the default (Q-9 A, 13.2; Spend is no longer the default), labels in the locale catalogue (agy reviews the locale text last): the two first figures (month so far, year to date, 13.12 item 2), the table, shares, completeness words, links to the sections and pages | drawn at 1400 and 390 px, no sideways scroll; both first figures equal the sums of their parts | new `tests/e2e/reporting-costs-project.test.mjs` (red: a `null` part drawn as 0.00 fails; the year total without the closed months fails) | claude | 3 |
@@ -707,6 +737,20 @@ page and e2e file in the same batch (R1).
   row waits for an owner answer any more: P01, P04 and P05 are unblocked
   by these answers (P05 still waits for the three-sections build, P02 for
   107 T071..T072).
+- v1.7 (2026-11-20, SPL-6075): P02 built. It reads T071's tables directly,
+  so it did not wait for T072. The row now also names the hub wiring
+  (dispatch holder, msg c3b149d2): the store read alone would leave the
+  served Human `not_tracked`. The Human part also carries its minutes,
+  unpriced minutes and pending minutes (13.5), outside the money that P03
+  masks. R7 (FAIL, W1 W2) folded: a minute is priced only when its period
+  is frozen or final (107 21.4 step 6), proposed and disputed rows count as
+  pending; P02 lands after P03, so the money is never served unmasked.
+  R7 r3 (FAIL, W3 N2) folded on P03 r2: a returned period's approved
+  minutes count as pending too, and the Human part's `hr` lines never enter
+  `left_out` (they travel in the month read's human list, guarded and
+  tested); with P02 the fold's word for a workspace that booked nothing is
+  `complete`, so P03's HTTP test reads `complete` where it read
+  `not_tracked`.
 
 ## 14. The operator's product owner reads the estate (SPL-5181)
 

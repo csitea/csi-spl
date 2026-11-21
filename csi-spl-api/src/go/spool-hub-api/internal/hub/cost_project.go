@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -22,9 +23,32 @@ import (
 // part is the month read's parts folded (store/cost_project.go), with its
 // amount in USD, EUR and the reader's second currency (null where it is not
 // known, never 0), its share of total.priced and its completeness in words
-// (13.5); the parts sum to total.priced. Human is not_tracked until P02.
+// (13.5); the parts sum to total.priced. Human is the reader's workspace's
+// approved minutes x the price in force per day (P02), not_tracked on a
+// store with no such read.
 // Money in no part (a customer workspace's allocated share) is named in
-// left_out. The human money mask is P03's.
+// left_out.
+//
+// The human mask (row P03, 13.6; spec 107 21.6, Q26 A and Q27 A, msg
+// ce14ad70), human_mask in the answer:
+//   - none:  a holder of hours.rates reads the Human part as folded.
+//   - money: a holder of hours.read, or the operator workspace's admin or
+//     product owner (readsOperatorEstate's roles, never an act-as clone),
+//     without hours.rates, reads the Human hours, counts and words but no
+//     money: its amounts and share null. The operator's accountants read the
+//     estate's other parts but the Human part whole (owner HUM-10, t1
+//     e2c0e6b4 msg 9af86e15, form 129aa0a2 C: "Also the product owner, not
+//     the accountants").
+//   - whole: every other costs.read reader ("nothing of others", Q26 A)
+//     reads the Human part as its name and "not_shown" only; every other
+//     field is zero or null, so a field P02 adds is hidden too.
+//
+// Masked either way, total.priced holds Cloud + owned hardware + AI tokens
+// only and every share is of that total: a total that held the human money
+// would reveal it by subtraction. Under whole, total.partial is read over
+// the other parts and left_out only. Human money goes in the part's
+// CostProjectMoney (the money mask clears exactly that); hours sit outside
+// it (13.6).
 
 type costProjectBody struct {
 	Period   string                     `json:"period"` // month | year
@@ -40,6 +64,9 @@ type costProjectBody struct {
 	Parts    []store.CostProjectPart    `json:"parts"`
 	Total    store.CostProjectTotal     `json:"total"`
 	LeftOut  []store.CostProjectLeftOut `json:"left_out"`
+	// HumanMask is what of the Human part this reader may not see (13.6):
+	// none | money | whole.
+	HumanMask string `json:"human_mask"`
 }
 
 func (s *Server) routeCostProject(mux *http.ServeMux) {
@@ -115,7 +142,11 @@ func (s *Server) handleCostProject(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "project cost unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, costProjectAnswer(q.Get("year"), wins, estate, cur, store.CostProjectParts(in)))
+	sight := costProjectSight{rates: a.Can(rbac.HoursRates), hours: a.Can(rbac.HoursRead) || (estate && operatorReadRole(op, t.ID, a))}
+	cp, mask := costProjectHumanMask(store.CostProjectParts(in), sight)
+	b := costProjectAnswer(q.Get("year"), wins, estate, cur, cp)
+	b.HumanMask = mask
+	writeJSON(w, http.StatusOK, b)
 }
 
 // costProjectAsk is who reads the project's cost, in which currency.
@@ -129,6 +160,8 @@ type costProjectAsk struct {
 func (s *Server) costProjectInput(ctx context.Context, k costProjectAsk, wins []costMonthWindow) (store.CostProjectInput, error) {
 	in := store.CostProjectInput{Estate: k.estate}
 	cr, lines := s.o.Store.(store.CostRead)
+	hr, human := s.o.Store.(store.CostProjectHumanRead)
+	in.HumanRead = human
 	for _, win := range wins {
 		cm := store.CostMonth{Parts: []store.CostPart{}, Coverage: []store.CostSourceDays{}}
 		var err error
@@ -151,6 +184,13 @@ func (s *Server) costProjectInput(ctx context.Context, k costProjectAsk, wins []
 			in.Coverage = append(in.Coverage, c.CostSourceDays)
 		}
 		in.DaysEnded += win.Ended
+		if human {
+			days, err := hr.CostProjectHumanDays(ctx, store.CostProjectHumanQuery{Tenant: k.tenant, From: win.From, To: win.To, Currency: k.cur})
+			if err != nil {
+				return in, err
+			}
+			in.Human = append(in.Human, days...)
+		}
 		in.AIRead = in.AIRead || d.ai != nil
 	}
 	return in, nil
@@ -176,4 +216,79 @@ func costProjectAnswer(year string, wins []costMonthWindow, estate bool, cur str
 		b.Ended += w.Ended
 	}
 	return b
+}
+
+// The human mask levels (13.6) and the word a whole-masked Human part reads.
+const (
+	costProjectMaskNone  = "none"
+	costProjectMaskMoney = "money"
+	costProjectMaskWhole = "whole"
+	costProjectNotShown  = "not_shown"
+)
+
+// costProjectSight is what a reader may see of the Human part: rates =
+// hours.rates (the money), hours = hours.read or the estate read by the
+// operator admin or product owner, not its accountants (the hours).
+type costProjectSight struct {
+	rates, hours bool
+}
+
+// costProjectMaskOn and costProjectWholeOn are the two masks' switches;
+// package vars so the red controls can drop them (TestCostProjectHumanMask).
+var costProjectMaskOn, costProjectWholeOn = true, true
+
+// costProjectHumanMask takes out of cp what the reader may not see of the
+// Human part (13.6) and answers the mask level. Masked, the Human part's
+// known amounts leave total.priced and every share is re-read over the
+// smaller total; money nulls the part's money and share and keeps the rest;
+// whole keeps only its name and "not_shown". cp itself is not changed.
+func costProjectHumanMask(cp store.CostProject, see costProjectSight) (store.CostProject, string) {
+	if see.rates || !costProjectMaskOn {
+		return cp, costProjectMaskNone
+	}
+	whole := !see.hours && costProjectWholeOn
+	parts := make([]store.CostProjectPart, len(cp.Parts))
+	copy(parts, cp.Parts)
+	t := cp.Total.Priced
+	tot := [3]*int64{costProjectCopy(t.USDMicros), costProjectCopy(t.EURMicros), costProjectCopy(t.SecondMicros)}
+	partial := len(cp.LeftOut) > 0
+	for i := range parts {
+		p := &parts[i]
+		if p.Part != store.CostProjectHuman {
+			partial = partial || (p.Completeness != store.CostProjectComplete && p.Completeness != store.CostProjectHand)
+			continue
+		}
+		for j, v := range []*int64{p.USDMicros, p.EURMicros, p.SecondMicros} {
+			if v != nil && tot[j] != nil {
+				*tot[j] -= *v
+			}
+		}
+		p.CostProjectMoney, p.Share = store.CostProjectMoney{}, nil
+		if whole {
+			*p = store.CostProjectPart{Part: store.CostProjectHuman, Completeness: costProjectNotShown}
+		}
+	}
+	cp.Parts = parts
+	cp.Total.Priced = store.CostProjectMoney{USDMicros: tot[0], EURMicros: tot[1], SecondMicros: tot[2]}
+	for i := range cp.Parts {
+		p := &cp.Parts[i]
+		p.Share = nil
+		if p.USDMicros != nil && tot[0] != nil && *tot[0] > 0 {
+			sh := math.Round(float64(*p.USDMicros)*1000/float64(*tot[0])) / 10 // store.costProjectTotal's rounding
+			p.Share = &sh
+		}
+	}
+	if !whole {
+		return cp, costProjectMaskMoney
+	}
+	cp.Total.Partial = partial // the Human part's state is not this reader's either
+	return cp, costProjectMaskWhole
+}
+
+func costProjectCopy(v *int64) *int64 {
+	if v == nil {
+		return nil
+	}
+	c := *v
+	return &c
 }

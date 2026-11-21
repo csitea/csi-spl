@@ -124,6 +124,21 @@ hasnt "retiring: the window is not made" "retiring" "$(windows)"
 has "retiring: the skip is logged" "a rotation's retiring window" "$boot"
 hasnt "retiring: verify does not want it" "retiring;" "$boot"
 
+# ── 5c. no override: the state dir is the run lib's spl_var_app_subdir ────
+# r77-02 (SPL-6104): BOX_SESSIONS_DIR unset, SPL_VAR_APP_DIR=$T/var (it wins
+# in spl_run_paths), so both scripts use $T/var/box-sessions and nothing else.
+dflt="$T/var/box-sessions"
+out="$(env -u BOX_SESSIONS_DIR SPL_VAR_APP_DIR="$T/var" BOX_SESSIONS_SAVE_GRACE_SEC=0 bash "$SCRIPTS/save-sessions.sh" --stdout)"; rv=$?
+eq "derived dir: save exits 0" 0 "$rv"
+has "derived dir: save writes its state.tsv" "-> $dflt/state.tsv" "$out"
+[ -s "$dflt/state.tsv" ] && ok "derived dir: state.tsv is there" || nok "derived dir: state.tsv is there"
+env -u BOX_SESSIONS_DIR SPL_VAR_APP_DIR="$T/var" BOX_SESSIONS_AGENT_RESTORE_CMD="" bash "$SCRIPTS/sessions-boot.sh" --foreground > "$T/boot6.out" 2>&1; rv=$?
+eq "derived dir: boot exits 0" 0 "$rv"
+has "derived dir: boot reads the derived state" "state $dflt/state.tsv ===" "$(cat "$T/boot6.out")"
+srv="$(tm display -p '#{pid} #{start_time}')"
+[ -e "$dflt/.restored.${srv%% *}.${srv##* }" ] && ok "derived dir: boot stamp under it" || nok "derived dir: boot stamp under it"
+eq "derived dir: nothing else under \$T/var" "box-sessions" "$(ls -A "$T/var")"
+
 # ── 6. hygiene: no engine path, no literal home, no box user ───────────────
 src="$(cat "$SCRIPTS"/*.sh)"
 hasnt "no engine path" "ysg-box" "$src"

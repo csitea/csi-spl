@@ -17,6 +17,12 @@
 #   2. do_wt_dead_sweep: DRY_RUN=0 removes ONLY the dead, clean, landed, idle
 #      worktree (and its merged branch); keeps a role seat, an alive record, a
 #      dirty one, one off the trunk, a recent one and one a process works in
+#   2b. WT_SWEEP_TMP_ROOT (SPL-6128): a dead lane's <agent-id>-<rest> worktree
+#      directly under it is planned, then removed with its branch (RED CONTROL:
+#      without the knob nothing under it is named); an alive record and a role
+#      seat keep theirs; a dashless (c913-x) or non-id (x-review) name is never
+#      named; WT_ROOT's trees are judged as before; a WT_ROOT whose parent is
+#      missing names only the tmp root's tree (R7 W1)
 #   3. do_box_disk_sweep: runs the steps in order with DRY_RUN and the docker
 #      age passed on, the workdirs step as csi-spl-utl's ./run -a
 #      do_sweep_workdirs with the measured free % (its own test:
@@ -168,6 +174,29 @@ for k in "role-seat c-001" "alive c-904" "dirty c-902" "not-on-trunk c-903" "rec
   grep -q "KEEP ${k% *} $W/${k#* }\$" <<<"$out" && [ -d "$W/${k#* }" ] && pass "2. kept: ${k% *}" || fail "2. ${k% *} ($out)"
 done
 kill "$busy_pid" 2>/dev/null; wait "$busy_pid" 2>/dev/null
+
+# ---- 2b. a dead lane's /tmp worktree, WT_SWEEP_TMP_ROOT (SPL-6128) ----------
+X="$T/tmp-wt"; mkdir -p "$X"
+for d in c-911-review c-912-review c913-review x-review c-001-review; do gq -C "$G" worktree add -b "tmp-$d" "$X/$d"; done
+printf '{"id":"c-912","alive":true}\n' >"$SP/agents/c-912.json"
+old "$X"
+out="$(wsw)"; rc=$?
+[ "$rc" = 0 ] && ! grep -q " $X/" <<<"$out" && pass "2b. RED CONTROL: without WT_SWEEP_TMP_ROOT no tree under it is named" || fail "2b. default off (rc $rc: $out)"
+out="$(wsw WT_SWEEP_TMP_ROOT="$X")"; rc=$?
+[ "$rc" = 0 ] && grep -q "PLAN remove [0-9]*KB $X/c-911-review branch tmp-c-911-review\$" <<<"$out" && [ -d "$X/c-911-review" ] \
+  && pass "2b. the dry run plans the dead lane's tmp worktree and removes nothing" || fail "2b. dry run (rc $rc: $out)"
+grep -q "KEEP alive $X/c-912-review\$" <<<"$out" && grep -q "KEEP role-seat $X/c-001-review\$" <<<"$out" \
+  && pass "2b. kept: an alive record and a role seat under the tmp root" || fail "2b. kept ($out)"
+! grep -qE " $X/(c913-review|x-review)( |\$)" <<<"$out" && pass "2b. a dashless or non-id name is never named" || fail "2b. untouched ($out)"
+grep -q "KEEP dirty $W/c-902\$" <<<"$out" && pass "2b. WT_ROOT's trees are judged as before" || fail "2b. wt root ($out)"
+out="$(wsw WT_SWEEP_TMP_ROOT="$X" WT_ROOT="$T/no-such/wt")"; rc=$?
+[ "$rc" = 0 ] && grep -q "INFO no worktree root $T/no-such/wt: only $X is swept\$" <<<"$out" \
+  && [ "$(grep -cE ' (PLAN|KEEP|SALVAGE)' <<<"$out")" = 3 ] && [ -z "$(grep -E ' (PLAN|KEEP|SALVAGE)' <<<"$out" | grep -v " $X/")" ] \
+  && pass "2b. a WT_ROOT with a missing parent names only the tmp root's trees" || fail "2b. missing wt root (rc $rc: $out)"
+out="$(wsw WT_SWEEP_TMP_ROOT="$X" DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && [ ! -e "$X/c-911-review" ] && ! git -C "$G" rev-parse -q --verify tmp-c-911-review >/dev/null \
+  && [ -d "$X/c-912-review" ] && [ -d "$X/c913-review" ] && [ -d "$X/x-review" ] && [ -d "$X/c-001-review" ] \
+  && pass "2b. DRY_RUN=0 removes only the dead lane's tmp worktree and its branch" || fail "2b. live run (rc $rc: $out)"
 
 # ---- 3. the sweep runs the steps --------------------------------------------
 F="$T/fake" O="$T/fake-orc" U="$T/fake-utl" L="$T/steps.log"

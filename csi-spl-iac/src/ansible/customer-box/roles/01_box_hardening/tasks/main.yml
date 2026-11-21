@@ -1,0 +1,58 @@
+---
+# 01 what the desk start checks of spec 127 5.3 want of the machine (role 04
+# runs them in the same play, so every setting is live before this role
+# ends): ptrace_scope >= 2, no suid core dumps and a core file path, a hard
+# core limit of 0, /proc hidepid=2 with no gid exemption, no plain swap.
+- name: The kernel settings the desk start checks want
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/60-spool-customer-box.conf
+    content: |
+      # written by customer-box-playbook.yaml role 01_box_hardening; do not edit
+      kernel.yama.ptrace_scope = 2
+      fs.suid_dumpable = 0
+      kernel.core_pattern = core
+    mode: "0644"
+  register: sysctl_conf
+
+- name: Load them now, before role 04 reads them
+  ansible.builtin.command: sysctl --system
+  when: sysctl_conf.changed
+
+- name: A hard core limit of 0 for every login
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/60-spool-customer-box.conf
+    content: |
+      # written by customer-box-playbook.yaml role 01_box_hardening; do not edit
+      * hard core 0
+    mode: "0644"
+
+- name: /proc hidepid=2 on every boot
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^proc[[:space:]]+/proc[[:space:]]'
+    line: "proc /proc proc defaults,hidepid=2 0 0"
+
+- name: /proc hidepid=2 now
+  ansible.builtin.shell: |
+    set -uo pipefail
+    awk '$2 == "/proc" && $3 == "proc" { print $4 }' /proc/mounts | tr ',' '\n' | grep -x 'hidepid=2\|hidepid=invisible' >/dev/null && { echo OK; exit 0; }
+    mount -o remount,hidepid=2 /proc && echo CHANGED
+  args:
+    executable: /bin/bash
+  register: hidepid_out
+  changed_when: "'CHANGED' in hidepid_out.stdout"
+
+- name: No plain swap now
+  ansible.builtin.shell: |
+    [ "$(wc -l </proc/swaps)" -le 1 ] && { echo OK; exit 0; }
+    swapoff -a && echo CHANGED
+  args:
+    executable: /bin/bash
+  register: swap_out
+  changed_when: "'CHANGED' in swap_out.stdout"
+
+- name: No swap on boot
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#][^\n]*[[:space:]]swap[[:space:]][^\n]*)$'
+    replace: '# \1'

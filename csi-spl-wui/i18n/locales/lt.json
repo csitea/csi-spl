@@ -763,7 +763,9 @@
         "merge": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali sujungti šią temą",
         "archive_admins": "Šioje darbo erdvėje temas archyvuoti gali tik savininkas arba administratorius",
         "archive_starter": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali archyvuoti šią temą",
-        "delete": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali ištrinti šią temą"
+        "delete": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali ištrinti šią temą",
+        "loops_admins": "Šioje darbo erdvėje diskusijos ciklus gali nustatyti tik savininkas arba administratorius",
+        "loops_starter": "Šios temos diskusijos ciklus gali nustatyti tik temos pradininkas, darbo erdvės savininkas arba administratorius"
       },
       "ai": {
         "group": "DI veiksmai",
@@ -777,7 +779,8 @@
         "failed": "DI veiksmas nepavyko. Bandykite dar kartą."
       },
       "add_to_note": "Pridėti prie užrašo",
-      "export_pdf": "Eksportuoti į PDF"
+      "export_pdf": "Eksportuoti į PDF",
+      "topic_loops": "Diskusijos ciklai…"
     },
     "emoji": {
       "add": "Pridėti emoji",
@@ -999,6 +1002,62 @@
     "note_to_self": {
       "badge": "pastaba sau",
       "title": "Pažymėta tik jums: nė vieno agento nepaklausta ir niekas neatsako"
+    },
+    "topic_loops": {
+      "title": "Diskusijos ciklai",
+      "empty": "Ši diskusija dar neturi ciklų.",
+      "add": "Pridėti ciklą",
+      "edit": "Redaguoti",
+      "pause": "Pristabdyti",
+      "resume": "Tęsti",
+      "delete": "Ištrinti",
+      "save": "Išsaugoti ciklą",
+      "prompt": "Užklausa",
+      "prompt_placeholder": "Ką temos agentas turi daryti kiekvieną kartą, kai ciklas paleidžiamas",
+      "triggers": "Paleisti",
+      "trigger": {
+        "after_agent_reply": "Po kiekvieno agento atsakymo",
+        "before_agent_reply": "Prieš kiekvieną agento atsakymą",
+        "after_human_reply": "Po kiekvieno žmogaus atsakymo",
+        "every_hour": "Kas valandą",
+        "every_n_minutes": "Kas n minučių",
+        "post_has_keyword": "Įrašas, kuriame yra",
+        "post_has_file": "Įrašas su prisegtu failu",
+        "blocker_posted": "Temoje paskelbta kliūtis",
+        "no_reply_after_human": "Nėra atsakymo n minučių po žmogaus įrašo",
+        "issue_status_changed": "Su tema susietos užduoties būsena pasikeičia",
+        "daily_at": "Kasdien"
+      },
+      "every_n": "kas {n} min.",
+      "interval": "Minutės, nuo {min} iki {max}",
+      "self_fire_note": "Agento atsakymas į šį ciklą niekada jo nepaleidžia iš naujo. Ciklas paleidžiamas ne daugiau kaip 12 kartų per valandą.",
+      "by": "nustatė {who}",
+      "state_on": "Įjungtas",
+      "state_paused": "Pristabdytas",
+      "state_held": "Sulaikytas iki {time}",
+      "idle_author_left": "Neveikia: jo autorius paliko darbo erdvę",
+      "idle_author_no_right": "Neveikia: jo autorius nebegali nustatyti ciklų",
+      "locked": "Jūsų darbo erdvės archyvavimo nustatymas neleidžia keisti šios temos ciklų.",
+      "err_prompt": "Parašykite užklausą.",
+      "err_prompt_long": "Užklausa ilgesnė nei 4000 simbolių.",
+      "err_trigger": "Pažymėkite bent vieną paleidiklį.",
+      "err_interval": "Pasirinkite nuo 5 iki 1440 minučių.",
+      "err_bad_loop": "Centras atmetė šį ciklą. Patikrinkite užklausą ir paleidiklius.",
+      "err_not_allowed": "Jūs negalite keisti šios temos ciklų.",
+      "err_demo": "Demonstracinė darbo erdvė skirta tik skaityti.",
+      "err_not_found": "Šios temos ar ciklo nebėra.",
+      "err_archived": "Ši tema suarchyvuota.",
+      "err_not_implemented": "Diskusijos ciklų šiame centre dar nėra.",
+      "err_failed": "Nepavyko. Bandykite dar kartą.",
+      "keyword_row": "įrašas, kuriame yra „{keyword}“",
+      "idle_row": "nėra atsakymo {n} min. po žmogaus įrašo",
+      "daily_row": "kasdien {time} ({tz})",
+      "keyword": "Žodis ar frazė",
+      "daily_time": "Paros laikas",
+      "daily_tz": "Laiko juosta",
+      "err_keyword": "Parašykite žodį ar frazę, ne ilgesnę nei 200 simbolių.",
+      "err_daily_at": "Pasirinkite paros laiką.",
+      "err_daily_tz": "Pasirinkite laiko juostą iš sąrašo."
     }
   },
   "topic": {

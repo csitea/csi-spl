@@ -1,0 +1,28 @@
+---
+# 03 enrol the VM into its one workspace (spec 108 3.5) with the repo's own
+# action: the workspace OS user, its spool root and state dir, the box claim.
+# The user and the base come from the cnf (tasks/ws-facts.yml) and are handed
+# to the action, so it reads no cnf itself (no yq on the VM) and role 04
+# checks that same user.
+- name: The workspace facts
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/ws-facts.yml"
+
+- name: The box claim before the enrol
+  ansible.builtin.stat:
+    path: "{{ ws_base }}/claim"
+  register: claim_before
+
+- name: Enrol this VM into the workspace
+  ansible.builtin.shell: |
+    set -uo pipefail
+    cd "{{ repo_dir }}/csi-spl-orc" || exit 1
+    TENANT_ID="{{ tenant_id }}" SPL_WS_USER="{{ ws_user }}" SPL_WS_BASE="{{ ws_base }}" DRY_RUN=0 ./run -a do_spl_box_workspace_setup
+  args:
+    executable: /bin/bash
+  register: ws_out
+  changed_when: not claim_before.stat.exists
+
+- name: Linger for the workspace user (its tmpfs runtime dir exists with no login)
+  ansible.builtin.command: loginctl enable-linger {{ ws_user }}
+  args:
+    creates: "/var/lib/systemd/linger/{{ ws_user }}"

@@ -62,6 +62,8 @@ export const FRAMES = {
   topicUnmerged: 'topic_unmerged',
   /* spec 150 B3: a topic's priority was set (task_id, priority) */
   topicPriority: 'topic_priority',
+  /* spec 182 7.1.2: a topic's loops after a write (task_id, loops), to its readers */
+  topicLoops: 'topic_loops',
   /* An emoji was added or removed. Not a `message` frame: mergeById would keep the old row. */
   reaction: 'message_reaction',
   /* issues-v1 §5: pushed to every browser of the tenant. Not a message frame. */
@@ -579,6 +581,7 @@ function handle(c, f) {
     case FRAMES.topicMerged:
     case FRAMES.topicUnmerged:
     case FRAMES.topicPriority:
+    case FRAMES.topicLoops:
       onTopic(f)
       return
     case FRAMES.reaction:

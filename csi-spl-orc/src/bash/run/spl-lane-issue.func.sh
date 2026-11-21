@@ -46,6 +46,11 @@
 # @description     transaction, and a later comment answered not_found
 # @description     (SPL-3064). An issue already at the target status (done
 # @description     too) is ended: one OK line, no hub write, issue-end written.
+# @description     A lane that only reviews or shares the key (li_review_lane:
+# @description     placed on it, and an `Issue-Role: shared` brief line or a
+# @description     review heading with an Author: line naming another lane or
+# @description     a placement) is refused in one line naming the owner, any
+# @description     status, nothing changed (SPL-6099): its exit needs no end.
 # @description   LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done (SPL-2229: the lane's
 # @description     work landed in ANOTHER repo, so no csi-spl commit can close
 # @description     its key): LANE_LANDED_REPO=<name> LANE_LANDED_SHA=<sha>. The
@@ -130,6 +135,7 @@ do_spl_lane_issue() {
   [[ "$op" =~ ^(place|discussion|end)$ ]] || { do_log "FATAL LANE_ISSUE_OP must be place, discussion or end, got: '$op'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   SLI_LIFE="$(spl_lane_issue_life "$root" "$id")"
+  [[ "$op" != end ]] || spl_lane_issue_shared "$id" || return 1
   spl_lane_issue_ws "$root" "$id" "$op" || return 1
   spl_lane_issue_where "$root" || return 1
   # A desk that moved is 0700 under its owner: the seat scan below sees nothing
@@ -164,6 +170,21 @@ spl_lane_issue_life() {
     [[ -n "$g" ]] && { printf '%s\n' "$1/.retired/$g/lifetime"; return 0; }
   fi
   printf '%s\n' "$1/$2/lifetime"
+}
+
+# spl_lane_issue_shared ID: an end of an issue the lane does not own is
+# refused in one line naming the owner, nothing read or written (SPL-6099:
+# the panel seats m-484 / m-486 ended their rounds' SPL-6081 / SPL-6080 diss
+# while the rounds' rows were live). Not owning = li_review_lane: the key the
+# lane was placed on, and an `Issue-Role: shared` brief line, or a review
+# heading with an Author: line naming another lane or a placement. Such a
+# lane's /exit-clean passes with no end (li_gate); the owner ends or lands it.
+spl_lane_issue_shared() {
+  local d="${SLI_LIFE%/lifetime}" key owner
+  key="$(spl_lane_issue_key "$SLI_LIFE")" || return 0
+  owner="$(li_review_lane "${d%/*}" "${d##*/}" "$key")" || return 0
+  do_log "FATAL refused, nothing changed: $key is $owner's, lane $1 only reviews or shares it (lifetime/origin-issue + its brief): its /exit-clean passes with no end, and $owner lands or ends $key"
+  return 1
 }
 
 # spl_lane_issue_key LIFE -> the key of the lane whose lifetime dir is LIFE.

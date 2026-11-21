@@ -1117,6 +1117,9 @@ done
 # (-panel-seat-mistral, -panel-seat-mistral-2 stay mistral; they swapped to
 # agy before); CONTROL: a coding lane whose slug merely holds the words
 # (-orc-panel-seat-no-ui-swap, Kind: simple_coding) still swaps to claude.
+# SPL-6093: the -panel-seat-<digits> form is a panel seat too (-panel-seat-3,
+# -panel-seat-12 stay mistral; they swapped to agy before); CONTROL: a coding
+# lane -orc-panel-seat-3-no-ui-swap (Kind: simple_coding) still swaps to claude.
 R1=c3c3c3c3-0000-4000-8000-000000000001; R2=c4c4c4c4-0000-4000-8000-000000000002
 R3=c5c5c5c5-0000-4000-8000-000000000003; R4=c6c6c6c6-0000-4000-8000-000000000004
 printf 'Kind: secret\nThe cross-vendor R7 reviewer of c-709@box-desk, review only.\n%s\n' "$ES" >"$T/briefs/sec-x-reviewer.md"
@@ -1132,9 +1135,16 @@ R8=cacacaca-0000-4000-8000-000000000008; R9=cbcbcbcb-0000-4000-8000-000000000009
 for s6071 in r97-spec-panel-seat-mistral r96-spec-panel-seat-mistral-2; do
   printf 'Kind: specs_and_docs\nAuthor: c-717@box-desk\nRead-only panel seat on the spec of c-717. Live lanes to stay off: r99-01 edits csi-spl-wui/src/components/Foo.vue\n%s\n' "$ES" >"$T/briefs/$s6071.md"
 done
-printf 'Kind: simple_coding\nFix the panel seat swap in csi-spl-orc. Live lanes to stay off: r99-01 edits csi-spl-wui/src/components/Foo.vue\n%s\n' "$ES" >"$T/briefs/r95-orc-panel-seat-no-ui-swap.md"
+for s6093 in r95-orc-panel-seat-no-ui-swap r92-orc-panel-seat-3-no-ui-swap; do
+  printf 'Kind: simple_coding\nFix the panel seat swap in csi-spl-orc. Live lanes to stay off: r99-01 edits csi-spl-wui/src/components/Foo.vue\n%s\n' "$ES" >"$T/briefs/$s6093.md"
+done
+R11=cdcdcdcd-0000-4000-8000-000000000011; R12=cececece-0000-4000-8000-000000000012; R13=cfcfcfcf-0000-4000-8000-000000000013
+for s6093 in r94-spec-panel-seat-3 r93-monitoring-panel-seat-12; do
+  printf 'Kind: specs_and_docs\nAuthor: c-717@box-desk\nRead-only panel seat on the spec of c-717. Live lanes to stay off: r99-01 edits csi-spl-wui/src/components/Foo.vue\n%s\n' "$ES" >"$T/briefs/$s6093.md"
+done
 for r in "$R1 sec-x-reviewer m-511 mistral" "$R2 sec-code c-512 claude" "$R4 sec-grok-reviewer m-514 mistral" "$R5 ui-docs-reviewer m-515 mistral" "$R6 r99-plan-panel-seat m-516 mistral" \
-  "$R8 r97-spec-panel-seat-mistral m-523 mistral" "$R9 r96-spec-panel-seat-mistral-2 m-524 mistral" "$R10 r95-orc-panel-seat-no-ui-swap c-525 claude"; do
+  "$R8 r97-spec-panel-seat-mistral m-523 mistral" "$R9 r96-spec-panel-seat-mistral-2 m-524 mistral" "$R10 r95-orc-panel-seat-no-ui-swap c-525 claude" \
+  "$R11 r94-spec-panel-seat-3 m-526 mistral" "$R12 r93-monitoring-panel-seat-12 m-527 mistral" "$R13 r92-orc-panel-seat-3-no-ui-swap c-528 claude"; do
   read -r rid rslug rlid rto <<<"$r"
   put "$rid" c-002@box-desk "dispatch-spl3776-$rslug" "SPAWN REQUEST $rslug"
   on pc do_spl_spawn_enqueue ASK_ID="$rid" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE="mistral:$rslug" >/dev/null 2>&1

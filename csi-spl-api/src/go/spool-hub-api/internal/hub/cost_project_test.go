@@ -31,8 +31,8 @@ func projectTotalUSD(body map[string]any) any {
 }
 
 // TestCostProjectRead: the operator admin reads the estate's four parts,
-// Cloud holding the gcp rows; Human is not_tracked (null) and the total
-// partial; another workspace's admin reads two parts, its own gcp row named
+// Cloud holding the gcp rows; Human is a known 0 (no hours booked, P02)
+// and the total partial (Cloud's days not read); another workspace's admin reads two parts, its own gcp row named
 // in left_out, never in a part. year= sums the year's months; bad periods
 // are 400. CONTROL: the other workspace's row is there (left_out names it),
 // so its 0 total is the two-part rule, not an empty month.
@@ -46,8 +46,8 @@ func TestCostProjectRead(t *testing.T) {
 	if by["cloud"]["usd_micros"] != float64(6_000_000) || projectTotalUSD(body) != float64(6_000_000) || by["cloud"]["share"] != float64(100) {
 		t.Errorf("cloud %v total %v: want 6.00 USD, 100 %%", by["cloud"], body["total"])
 	}
-	if h := by["human"]; h["usd_micros"] != nil || h["completeness"] != "not_tracked" || !body["total"].(map[string]any)["partial"].(bool) {
-		t.Errorf("human %v total %v: want not_tracked, null, the total partial", h, body["total"])
+	if h := by["human"]; h["usd_micros"] != nil || h["minutes"] != float64(0) || h["completeness"] != "complete" || !body["total"].(map[string]any)["partial"].(bool) || body["human_mask"] != "money" {
+		t.Errorf("human %v total %v mask %v: want 0 complete minutes, the money masked (estate reader, no hours.rates: level money), the total partial", h, body["total"], body["human_mask"])
 	}
 	if by["owned_hardware"]["usd_micros"] != float64(0) || by["owned_hardware"]["completeness"] != "hand" {
 		t.Errorf("owned hardware %v: want 0 until P08, entered by hand", by["owned_hardware"])

@@ -27,6 +27,12 @@
 #      the same for bug (red on the one band set for bug)
 #   8. night: an owner-approved bypass feature head is taken as it is, before
 #      a refactor under its band (poll Q6 A)
+#   9. a ci row wherever it stands (b30-01, SPL-1817 row of the fleet rules
+#      index): behind a priority 2 head and a refactor under its band, and
+#      behind a priority 1 head, the ci row is taken and "INFO ci row" logged
+#      (both red before the fix); CONTROLS: a ci head is taken as it is, no
+#      ci row -> the band pick, a ci row the placer cannot launch (_l false)
+#      -> the band pick
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -171,6 +177,39 @@ rm -f "$T/asks/share.24h.tsv"
 got="$(pick "$NIGHT" refactor bypass) $(pick "$DAY" refactor bypass)"
 [[ "$got" == "f0000000-0 f0000000-0" ]] && pass "8 an owner-approved bypass feature head is placed at night as by day, before a refactor under its band" ||
   fail "8 bypass: got '$got' (night, day) | $(head -c 400 "$T/err")"
+
+# 9. a ci row wherever it stands ---------------------------------------------------
+# ci_rows SPEC...: SPEC = id:class:priority[:l], position by order; l false -> _l false.
+ci_rows() {
+  local i=0 a out=() id c p l
+  for a in "$@"; do
+    i=$((i + 1)); IFS=: read -r id c p l <<<"$a"
+    out+=("$(jq -n -c --arg i "$id" --arg c "$c" --argjson p "$p" --argjson n "$i" --arg l "$l" \
+      '{ask_id: $i, state: "queued", class: $c, priority: $p, position: $n, placement: "claude:\($i)"}
+       + (if $l == "" then {} else {_l: ($l == "true")} end)')")
+  done
+  local IFS=,; printf '[%s]' "${out[*]}"
+}
+jq -n -c '{known: 4, unknown: 0, bypasses: [], by: {refactor: {n: 0, pct: 0, lo: 20, hi: 30, verdict: "under"},
+  bug: {n: 2, pct: 50, lo: 20, hi: 30, verdict: "over"}, feature: {n: 2, pct: 50, lo: 40, hi: 100, verdict: "in"}}}' >"$T/share.json"
+# ci_pick ROWS: the ask_id the band pick takes, its HEAD the first row.
+ci_pick() { run spl_spawn_place_band "$(jq -c '.[0]' <<<"$1")" "$1"; jq -r '.ask_id // empty' "$T/out" 2>/dev/null; }
+got="$(ci_pick "$(ci_rows feat-1:feature:2 refac-2:refactor:3 ci-3:ci:3:true)")"
+[[ "$got" == ci-3 ]] && grep -q "INFO ci row: ask ci-3 (claude:ci-3, queue position 3) is placed first" "$T/err" &&
+  pass "9 a ci row at position 3, behind a priority 2 head and a refactor under its band: the ci row, logged" ||
+  fail "9 ci behind: got '$got' | $(head -c 400 "$T/err")"
+got="$(ci_pick "$(ci_rows feat-1:feature:1 ci-2:ci:3)")"
+[[ "$got" == ci-2 ]] && ! grep -q "priority 1 head" "$T/err" &&
+  pass "9 a ci row behind a priority 1 head: the ci row" || fail "9 ci behind p1: got '$got' | $(head -c 400 "$T/err")"
+got="$(ci_pick "$(ci_rows ci-1:ci:3 refac-2:refactor:3)")"
+[[ "$got" == ci-1 ]] && ! grep -q "INFO ci row" "$T/err" &&
+  pass "9 CONTROL: a ci head is taken as it is" || fail "9 ci head: got '$got' | $(head -c 400 "$T/err")"
+got="$(ci_pick "$(ci_rows feat-1:feature:2 refac-2:refactor:3)")"
+[[ "$got" == refac-2 ]] && pass "9 CONTROL: no ci row -> the band pick, the refactor" || fail "9 no ci: got '$got' | $(head -c 400 "$T/err")"
+got="$(ci_pick "$(ci_rows feat-1:feature:2:true refac-2:refactor:3:true ci-3:ci:3:false)")"
+[[ "$got" == refac-2 ]] && ! grep -q "INFO ci row" "$T/err" &&
+  pass "9 CONTROL: a ci row the placer cannot launch (_l false) -> the band pick" ||
+  fail "9 ci not launchable: got '$got' | $(head -c 400 "$T/err")"
 
 echo "$fails failure(s)"
 ((fails == 0))

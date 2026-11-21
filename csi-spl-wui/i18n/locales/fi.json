@@ -763,7 +763,9 @@
         "merge": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi yhdistää tämän aiheen",
         "archive_admins": "Tässä työtilassa vain omistaja tai ylläpitäjä voi arkistoida aiheita",
         "archive_starter": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi arkistoida tämän aiheen",
-        "delete": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi poistaa tämän aiheen"
+        "delete": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi poistaa tämän aiheen",
+        "loops_admins": "Tässä työtilassa vain omistaja tai ylläpitäjä voi asettaa keskustelusilmukoita",
+        "loops_starter": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi asettaa tämän aiheen keskustelusilmukoita"
       },
       "ai": {
         "group": "AI-toiminnot",
@@ -777,7 +779,8 @@
         "failed": "AI-toiminto ei onnistunut. Yritä uudelleen."
       },
       "add_to_note": "Lisää muistiinpanoon",
-      "export_pdf": "Vie PDF-tiedostoksi"
+      "export_pdf": "Vie PDF-tiedostoksi",
+      "topic_loops": "Keskustelusilmukat…"
     },
     "emoji": {
       "add": "Lisää emoji",
@@ -999,6 +1002,62 @@
     "note_to_self": {
       "badge": "muistiinpano itselle",
       "title": "Merkitty vain sinulle: yhdeltäkään agentilta ei kysytty eikä kukaan vastaa"
+    },
+    "topic_loops": {
+      "title": "Keskustelusilmukat",
+      "empty": "Tällä keskustelulla ei ole vielä silmukoita.",
+      "add": "Lisää silmukka",
+      "edit": "Muokkaa",
+      "pause": "Keskeytä",
+      "resume": "Jatka",
+      "delete": "Poista",
+      "save": "Tallenna silmukka",
+      "prompt": "Kehote",
+      "prompt_placeholder": "Mitä aiheen agentin pitää tehdä aina, kun silmukka käynnistyy",
+      "triggers": "Käynnistä",
+      "trigger": {
+        "after_agent_reply": "Jokaisen agentin vastauksen jälkeen",
+        "before_agent_reply": "Ennen jokaista agentin vastausta",
+        "after_human_reply": "Jokaisen ihmisen vastauksen jälkeen",
+        "every_hour": "Joka tunti",
+        "every_n_minutes": "n minuutin välein",
+        "post_has_keyword": "Viesti, jossa on",
+        "post_has_file": "Viesti, jossa on liitetiedosto",
+        "blocker_posted": "Aiheeseen lähetetty este",
+        "no_reply_after_human": "Ei vastausta n minuuttiin ihmisen viestin jälkeen",
+        "issue_status_changed": "Aiheeseen linkitetyn tiketin tila muuttuu",
+        "daily_at": "Joka päivä klo"
+      },
+      "every_n": "{n} minuutin välein",
+      "interval": "Minuutit, {min}–{max}",
+      "self_fire_note": "Agentin vastaus tähän silmukkaan ei koskaan käynnistä sitä uudelleen. Silmukka käynnistyy enintään 12 kertaa tunnissa.",
+      "by": "asettanut {who}",
+      "state_on": "Päällä",
+      "state_paused": "Keskeytetty",
+      "state_held": "Odottaa klo {time} asti",
+      "idle_author_left": "Ei käynnissä: sen tekijä on poistunut työtilasta",
+      "idle_author_no_right": "Ei käynnissä: sen tekijä ei enää saa asettaa silmukoita",
+      "locked": "Työtilasi arkistointiasetus ei salli tämän aiheen silmukoiden muuttamista.",
+      "err_prompt": "Kirjoita kehote.",
+      "err_prompt_long": "Kehote on yli 4000 merkkiä pitkä.",
+      "err_trigger": "Valitse vähintään yksi käynnistin.",
+      "err_interval": "Valitse 5–1440 minuuttia.",
+      "err_bad_loop": "Keskus hylkäsi tämän silmukan. Tarkista kehote ja käynnistimet.",
+      "err_not_allowed": "Et voi muuttaa tämän aiheen silmukoita.",
+      "err_demo": "Esittelytyötila on vain luku -tilassa.",
+      "err_not_found": "Tätä aihetta tai silmukkaa ei enää ole.",
+      "err_archived": "Tämä aihe on arkistoitu.",
+      "err_not_implemented": "Keskustelusilmukat eivät ole vielä käytössä tässä keskuksessa.",
+      "err_failed": "Se ei mennyt läpi. Yritä uudelleen.",
+      "keyword_row": "viesti, jossa on ”{keyword}”",
+      "idle_row": "ei vastausta {n} minuuttiin ihmisen viestin jälkeen",
+      "daily_row": "joka päivä klo {time} ({tz})",
+      "keyword": "Sana tai ilmaus",
+      "daily_time": "Kellonaika",
+      "daily_tz": "Aikavyöhyke",
+      "err_keyword": "Kirjoita sana tai ilmaus, enintään 200 merkkiä.",
+      "err_daily_at": "Valitse kellonaika.",
+      "err_daily_tz": "Valitse aikavyöhyke luettelosta."
     }
   },
   "topic": {

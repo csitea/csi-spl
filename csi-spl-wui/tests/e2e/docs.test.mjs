@@ -600,30 +600,19 @@ try {
   await b.setViewport({ width: 1280, height: 800 })
   await b.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   
-  // Verify the create button matches the issues button's style
-  const createBtn = await b.waitForSelector('[data-test=ws-docs-new]', { timeout: 15000 }).catch(() => null)
-  ok('the create button is present', Boolean(createBtn))
-  if (createBtn) {
-    const createBox = await createBtn.boundingBox()
-    ok('the create button is a small, round icon button', Boolean(createBox && createBox.width > 20 && createBox.height > 20 && createBox.width < 50 && createBox.height < 50))
-    
-    // Compare with the issues button
-    await b.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-    const issuesBtn = await b.waitForSelector('[data-test=issues-new]', { timeout: 15000 }).catch(() => null)
-    ok('the issues create button is present for comparison', Boolean(issuesBtn))
-    if (issuesBtn) {
-      const issuesBox = await issuesBtn.boundingBox()
-      ok('the issues button is a small, round icon button', Boolean(issuesBox && issuesBox.width > 20 && issuesBox.height > 20 && issuesBox.width < 50 && issuesBox.height < 50))
-      
-      if (createBox && issuesBox) {
-        const sizeMatch = Math.abs(createBox.width - issuesBox.width) <= 1 && Math.abs(createBox.height - issuesBox.height) <= 1
-        ok('the create button matches the issues button size within 1px', sizeMatch)
-      }
-    }
-  }
-  
+  // SPL-6083 (owner t1 60bf4e56, msg ce88082a): a document open, no + in the
+  // header (the tree's / menu makes one); the file menu wears the three bars
+  // the contents toggle wore, the contents toggle an icon of its own
+  await b.waitForSelector('[data-test=ws-doc-file-btn]', { timeout: 15000 }).catch(() => null)
+  const icons = await b.evaluate(() => ({
+    plus: Boolean(document.querySelector('[data-test=ws-docs-new]')),
+    file: document.querySelector('[data-test=ws-doc-file-btn] [data-icon]')?.getAttribute('data-icon') ?? '',
+    toc: document.querySelector('[data-test=ws-doc-toc-toggle] [data-icon]')?.getAttribute('data-icon') ?? '',
+  }))
+  ok('a document open: no + in the header', !icons.plus, icons)
+  ok('the file menu shows the three bars, the contents toggle an open book', icons.file === 'menu' && icons.toc === 'book-open', icons)
+
   // Verify the TOC and file menu buttons are in a tight row at the top (SPL-3233: print is in the file menu)
-  await b.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   const tocBtn = await b.waitForSelector('[data-test=ws-doc-toc-toggle]', { timeout: 15000 }).catch(() => null)
   const fileBtn = await b.waitForSelector('[data-test=ws-doc-file-btn]', { timeout: 15000 }).catch(() => null)
   ok('the TOC button is present', Boolean(tocBtn))

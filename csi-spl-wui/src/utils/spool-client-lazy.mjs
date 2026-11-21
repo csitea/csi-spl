@@ -1137,6 +1137,55 @@ async function archiveTopicAndTell(ctx, msgId, archived = true) {
   return out
 }
 
+/*
+ * Spec 182 row L3 (SPL-6034): a topic's Discussion loops, the routes of
+ * section 7.1.2. The hub (row L2) re-checks the archive policy on every
+ * write (403 not_allowed); a hub without the store answers 501
+ * not_implemented. The mock answers from spool-client-mock.mjs.
+ */
+function loopsPath(taskId, loopId = '') {
+  const id = String(taskId || '')
+  if (!id) throw Object.assign(new Error('task_id required'), { status: 400, token: 'bad_json' })
+  const base = `/v1/topics/${encodeURIComponent(id)}/loops`
+  return loopId ? `${base}/${encodeURIComponent(String(loopId))}` : base
+}
+
+const JSON_HEAD = { 'content-type': 'application/json' }
+
+/** GET: { task_id, may_edit, loops } */
+async function listTopicLoops(ctx, taskId) {
+  const path = loopsPath(taskId)
+  if (ctx.mock) return (await ctx.answers()).mockTopicLoops(ctx.state, String(taskId))
+  return ctx.live(path)
+}
+
+/** POST { prompt, triggers, interval_min? }: the new loop */
+async function addTopicLoop(ctx, taskId, body) {
+  const path = loopsPath(taskId)
+  if (ctx.mock) return (await ctx.answers()).mockAddTopicLoop(ctx.state, String(taskId), body)
+  return ctx.live(path, { method: 'POST', headers: JSON_HEAD, body: JSON.stringify(body) })
+}
+
+/** PUT any of { prompt, triggers, interval_min, state }: the loop after it */
+async function editTopicLoop(ctx, taskId, loopId, patch) {
+  const path = loopsPath(taskId, loopId)
+  if (ctx.mock) return (await ctx.answers()).mockEditTopicLoop(ctx.state, String(taskId), String(loopId), patch)
+  return ctx.live(path, { method: 'PUT', headers: JSON_HEAD, body: JSON.stringify(patch) })
+}
+
+/** DELETE: { loop_id, deleted } (idempotent) */
+async function deleteTopicLoop(ctx, taskId, loopId) {
+  const path = loopsPath(taskId, loopId)
+  if (ctx.mock) return (await ctx.answers()).mockDeleteTopicLoop(ctx.state, String(taskId), String(loopId))
+  return ctx.live(path, { method: 'DELETE' })
+}
+
+/** MOCK ONLY: the other tabs' `topic_loops` frames; the live ones ride useLive().onTopic. Returns the off switch. */
+async function onMockTopicLoops(ctx, fn) {
+  if (!ctx.mock) return () => {}
+  return (await ctx.answers()).mockOnTopicLoops(fn)
+}
+
 /** topic-archive-v1 §3: { replies, task_ids, can_delete, ... } for the confirm dialog. */
 async function topicSize(ctx, msgId) {
   const { live, mock, state } = ctx
@@ -2535,6 +2584,11 @@ export const lazySpoolMethods = {
   mergeMessage,
   removeAttachment,
   archiveTopic: archiveTopicAndTell,
+  listTopicLoops,
+  addTopicLoop,
+  editTopicLoop,
+  deleteTopicLoop,
+  onMockTopicLoops,
   topicSize,
   deleteTopic,
   moveTopic,

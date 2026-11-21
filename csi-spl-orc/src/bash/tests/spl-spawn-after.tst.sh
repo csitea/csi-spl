@@ -28,7 +28,11 @@
 #      it lands, then placed. CONTROL: a hub that does not answer, and a
 #      lane row of a reused id (another branch, or none): held, never free.
 #      The lane map is read once for all held rows of a tick and kept
-#      SPAWN_AFTER_LANES_MIN: the next tick reads it 0 times (R7 c-044 W2)
+#      SPAWN_AFTER_LANES_MIN: the next tick reads it 0 times (R7 c-044 W2).
+#      SPL-6129 (b30-03): this box's spool holds c-911/lifetime/issue (its own
+#      c-911, another lane); a slug placed as c-911@box-far gets the hub's key
+#      of box-far's c-911, never this box's (RED before the fix); CONTROL
+#      c-911@<this box> and a bare c-911 read this box's lifetime/issue
 #   7. refused at enqueue (FATAL, nothing queued): an unknown key, a diss
 #      key, an unknown slug, the row's own slug, a bad delay, SPAWN_AFTER
 #      with no SPAWN_PLACE, SPAWN_AFTER_DELAY alone
@@ -346,6 +350,23 @@ out="$(tick SPAWN_AFTER_LANES_CMD=false)"
 [[ "$(launched row-after-far)" == 1 ]] && grep -q 'ask f1f1f1f1 (row-after-far): slug-far (SPL-9201) landed' <<<"$out" &&
   pass "6b. SPL-9201 landed: placed, from the written-back key (the hub not read again)" || fail "6b. landed: $out | $(cat "$T/launch.log")"
 done_ask "$F2" 2>/dev/null; done_ask "$F3" 2>/dev/null
+# SPL-6129: the same id on two boxes, no key in .place.slugs
+mkdir -p "$T/spool/c-911/lifetime" && echo SPL-9211 >"$T/spool/c-911/lifetime/issue"
+printf 'slug-x-far\tc-911@box-far\t\nslug-x-here\tc-911@box-desk\t\nslug-x-bare\tc-911\t\n' >>"$T/spool/asks/.place.slugs"
+cat >"$T/bin/id-lanes" <<'STUB'
+#!/usr/bin/env bash
+echo '{"hub": "ok", "lanes": [
+  {"agent_id": "c-911", "agent_box": "box-far", "branch": "c-911-slug-x-far", "issue_key": "SPL-9212", "state": "live"},
+  {"agent_id": "c-911", "agent_box": "box-desk", "branch": "c-911-slug-x-here", "issue_key": "SPL-9213", "state": "live"}]}'
+STUB
+chmod +x "$T/bin/id-lanes"
+for c in "far slug-x-far SPL-9212 the hub's key of box-far's c-911, not this box's lifetime/issue" \
+         "here slug-x-here SPL-9211 CONTROL c-911@box-desk (this box): its lifetime/issue, not the hub row SPL-9213 (R7 c-531 W1)" \
+         "bare slug-x-bare SPL-9211 CONTROL a bare c-911 (no box): its lifetime/issue"; do
+  read -r cn cs cw ct <<<"$c"
+  got="$(on "spl_asks_init; spl_spawn_after_key $cs" SPAWN_AFTER_LANES_CMD="$T/bin/id-lanes" SPAWN_AFTER_LANES_MIN=0 2>/dev/null | tail -1)"
+  [[ "$got" == "$cw" ]] && pass "6b. SPL-6129 $cn: $cs -> $cw, $ct" || fail "6b. SPL-6129 $cn: $cs -> ${got:-none}, want $cw"
+done
 
 # 7. refused at enqueue -----------------------------------------------------------------
 B=c1c1c1c1-0000-4000-8000-0000000091

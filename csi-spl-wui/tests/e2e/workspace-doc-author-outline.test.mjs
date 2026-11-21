@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+import { newDocDialog, setDocView } from './lib/ws-docs-head.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const STEP = 10000
@@ -60,11 +61,10 @@ const browser = await launch()
 try {
   const p = await browser.newPage()
   await p.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await p.waitForSelector('[data-test=ws-docs-new]', { visible: true, timeout: NAV_TIMEOUT })
-  await p.waitForFunction(() => typeof window.__wsDocTreeCall === 'function', { timeout: STEP })
+  await p.waitForFunction(() => typeof window.__wsDocTreeCall === 'function', { timeout: NAV_TIMEOUT })
 
-  await p.click('[data-test=ws-docs-new]')
-  await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+  /* the + (a phone's list) or the tree's / menu, New document (SPL-6083) */
+  await newDocDialog(p, { timeout: NAV_TIMEOUT })
   await p.type('[data-test=ws-docs-new-title]', 'E2E author numbers')
   await p.click('[data-test=ws-docs-create]')
   await p.waitForSelector('[data-test=ws-doc-row]', { visible: true, timeout: STEP })
@@ -86,9 +86,8 @@ try {
   }
 
   /* the view mounted again, as after an import */
-  await p.click('[data-test=ws-docs-view-grid]')
-  await p.waitForSelector('[data-test=ws-grid-view]', { visible: true, timeout: STEP })
-  await p.click('[data-test=ws-docs-view-doc]')
+  await setDocView(p, 'grid')
+  await setDocView(p, 'doc')
   await p.waitForFunction((n) => document.querySelectorAll('[data-test=ws-doc-row]').length === n, { timeout: STEP }, PAGE.length).catch(() => null)
   const shown = await p.$$eval('[data-test=ws-doc-row]', (rows) => rows.map((r) => ({
     outline: r.dataset.outline,

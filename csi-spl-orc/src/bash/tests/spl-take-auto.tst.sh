@@ -176,10 +176,18 @@ gate c-002 HUM-10 note "$TOPIC" 'no fleet root' SPOOL_FLEET_ROOT=
 touch "$S/dispatch/take-auto.off"; gate c-002 HUM-10 note "$TOPIC" 'off'; rm -f "$S/dispatch/take-auto.off"
 sleep 1
 eq "6. agent sender, non-holder, probe, short id, result, other box, no fleet root, off: nothing started" 1 "$(n "$RUN_LOG")"
+# A kind that routes as a note (spec 033 K.3, SPOOL_NOTE_KINDS) is taken like a
+# note; spool-notify.sh has the list from spool-env.inc.sh (wiring, 7).
+NK="$(bash -c '. "$1/lib/spool-env.inc.sh" >/dev/null 2>&1; printf %s "$SPOOL_NOTE_KINDS"' _ "$FEAT")"
+gate c-002 HUM-10 idea "$TOPIC" 'an idea for later' SPOOL_NOTE_KINDS="$NK"
+waitrun 2
+eq "6. a human's idea post starts the action, like a note" 2 "$(n "$RUN_LOG")"
 
 # ---- 7. wiring -----------------------------------------------------------------
 SN="$FEAT/scripts/spool-notify.sh"
 eq "7. spool-notify.sh sources the take lib" 1 "$(grep -c '^\. "\$_here/../lib/spool-notify-take.inc.sh"' "$SN")"
+eq "7. spool-notify.sh sources spool-env.inc.sh (SPOOL_NOTE_KINDS) before the take lib" 1 \
+  "$(awk '/^\. "\$_here\/..\/lib\/spool-env.inc.sh"/ { e = NR } /^\. "\$_here\/..\/lib\/spool-notify-take.inc.sh"/ { t = NR } END { print (e && t && e < t) ? 1 : 0 }' "$SN")"
 eq "7. spool-notify.sh calls the gate with the delivery" 1 "$(grep -c '^spool_notify_take_auto "\$TO" "\$FROM" "\$KIND" "\$TASK" "\$MSGID" "\$BODY"$' "$SN")"
 eq "7. the lib's default ./run is the orc run" "$PROJ_ROOT/run" "$(. "$FEAT/lib/spool-notify-take.inc.sh"; echo "$SPOOL_NOTIFY_TAKE_RUN_DEFAULT")"
 

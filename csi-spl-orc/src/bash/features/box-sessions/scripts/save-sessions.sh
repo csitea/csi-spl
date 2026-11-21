@@ -37,8 +37,12 @@ BS_ORC="$(cd "$BS_SELF/../../../../.." && pwd)"
 # shellcheck source=../../spawn-agents/lib/spool-env.inc.sh
 . "$BS_SELF/../../spawn-agents/lib/spool-env.inc.sh" || exit 2
 
-bs_org_app="$(basename "$BS_ORC")"; bs_org_app="${bs_org_app%-orc}"
-BS_DIR="${BOX_SESSIONS_DIR:-/var/${bs_org_app%%-*}/$bs_org_app/box-sessions}"
+if [[ -n "${BOX_SESSIONS_DIR:-}" ]]; then BS_DIR="$BOX_SESSIONS_DIR"
+else
+  # shellcheck source=../../../../../lib/bash/funcs/spl-run-paths.func.sh
+  . "$BS_ORC/lib/bash/funcs/spl-run-paths.func.sh" || exit 2
+  spl_var_app_subdir BS_DIR box-sessions || { echo "save-sessions.sh: cannot derive the state dir (spl_run_paths): set BOX_SESSIONS_DIR" >&2; exit 2; }
+fi
 BS_SOCK="${BOX_SESSIONS_TMUX_SOCKET:-${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}}"
 BS_GRACE="${BOX_SESSIONS_SAVE_GRACE_SEC:-600}"
 BS_KEEP="${BOX_SESSIONS_ARCHIVE_KEEP:-60}"

@@ -35,7 +35,10 @@
          and export to PDF ... as a separate menu somewhere at the top"): a
          phone too, so the document starts right under the header; Print
          (the browser's PDF) and Export to Markdown are one menu behind the
-         dots, the contents toggle stays an icon -->
+         dots, the contents toggle stays an icon. SPL-6083 (owner t1
+         60bf4e56, msg ce88082a): that menu is the page's now
+         (WorkspaceDocFileMenu, drawn in both views, with Outline / Grid);
+         the contents toggle gets an icon of its own, an open book -->
     <Teleport to="#wsdocs-head-tools" defer>
     <div ref="barEl" class="wsdoc__bar wsdoc__bar--head" data-test="ws-doc-bar">
       <button
@@ -48,23 +51,7 @@
         :aria-label="t('ws_doctree.toc')"
         :title="t('ws_doctree.toc')"
       >
-        <UiIcon name="menu" :size="16" />
-      </button>
-      <button
-        ref="fileBtn"
-        type="button"
-        class="wsdoc__tool wsdoc__tool--file"
-        data-test="ws-doc-file-btn"
-        aria-haspopup="menu"
-        :aria-expanded="fileMenu ? 'true' : 'false'"
-        :disabled="!items.length"
-        @click="openFileMenu"
-        @keydown.esc="fileKey"
-        @keydown.down="fileKey"
-        :aria-label="t('docs.ws.download')"
-        :title="t('docs.ws.download')"
-      >
-        <UiIcon name="more" :size="16" />
+        <UiIcon name="book-open" :size="16" />
       </button>
       <span class="wsdoc__status" role="status" data-test="ws-doc-status">{{ status }}</span>
     </div>
@@ -334,20 +321,6 @@
       @escape="menu = null"
       @choose="choose"
     />
-    <UiPointMenu
-      :open="Boolean(fileMenu)"
-      :x="fileMenu?.x ?? 0"
-      :y="fileMenu?.y ?? 0"
-      :items="FILE_ITEMS"
-      :label="t('docs.ws.download')"
-      block="wsdoc-file-menu"
-      testid="ws-doc-file-menu"
-      data-test="ws-doc-file-menu"
-      wide
-      @close="closeFileMenu"
-      @escape="fileBtn?.focus()"
-      @choose="chooseFile"
-    />
     <UiConfirm
       :open="Boolean(doomed)"
       :title="t('ws_doctree.delete_title')"
@@ -366,7 +339,7 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
-import UiPointMenu, { type PointMenuItem } from '~/components/UiPointMenu.vue'
+import UiPointMenu from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import { useEditModeStore } from '~/stores/editMode'
 import {
@@ -544,49 +517,7 @@ async function renameDoc() {
   emit('renamed', r.title)
 }
 
-/* SPL-3233: the header's file menu, opened under its dots button; a key
-   (Escape) or a choice gives the focus back to the button */
-const FILE_ITEMS: PointMenuItem[] = [
-  { id: 'print', icon: 'file-text', labelKey: 'ws_doctree.print_doc' },
-  { id: 'export_md', icon: 'file-code', labelKey: 'ws_doctree.menu.export_md' },
-]
-const fileBtn = ref<HTMLButtonElement | null>(null)
-const fileMenu = ref<{ x: number, y: number } | null>(null)
-/* a click on the open menu's button: its pointerdown already closed the
-   menu (a press outside it, usePointMenu), so that click must not open it
-   again. A window capture listener runs before usePointMenu's document one. */
-let pressOnBtn = false
-function notePress(e: PointerEvent) {
-  pressOnBtn = Boolean(fileBtn.value && e.target instanceof Node && fileBtn.value.contains(e.target))
-}
-watch(fileMenu, (m, was) => {
-  if (m && !was) window.addEventListener('pointerdown', notePress, true)
-  else if (!m) window.removeEventListener('pointerdown', notePress, true)
-})
-function closeFileMenu() {
-  fileMenu.value = null
-}
-function openFileMenu(e: MouseEvent) {
-  const reclick = pressOnBtn && e.detail > 0
-  pressOnBtn = false
-  if (reclick) return
-  const r = fileBtn.value?.getBoundingClientRect()
-  fileMenu.value = { x: r ? r.right : 0, y: r ? r.bottom : 0 }
-}
-/* a phone's sheet leaves the focus on the button: Escape closes it there, ArrowDown steps into it */
-function fileKey(e: KeyboardEvent) {
-  if (!fileMenu.value) return
-  e.preventDefault()
-  if (e.key === 'Escape') closeFileMenu()
-  else document.querySelector<HTMLElement>('[data-test=ws-doc-file-menu] [role=menuitem]')?.focus()
-}
-function chooseFile(id: string) {
-  if (id === 'print') emit('print', null)
-  else void exportDoc()
-  fileBtn.value?.focus()
-}
-
-/** the file menu's Export to Markdown: the whole document, the preamble first, the file `spool doctree export` writes */
+/** the page's file menu (WorkspaceDocFileMenu, SPL-6083): Export to Markdown: the whole document, the preamble first, the file `spool doctree export` writes */
 async function exportDoc() {
   const x = await import('./-doctree-export')
   const figure = (n: number) => t('ws_doctree.figure', { n })
@@ -693,10 +624,13 @@ onBeforeUnmount(() => {
   editMode.setEditing(false)
   ro?.disconnect()
   settleStop()
-  window.removeEventListener('pointerdown', notePress, true)
   clearTimeout(statusTimer)
   pressEnd()
 })
+
+/* the page's file menu (SPL-6083): Export to Markdown, and nothing to print or export while the document is empty */
+const empty = computed(() => !items.value.length)
+defineExpose({ exportDoc, empty })
 </script>
 
 <style scoped>

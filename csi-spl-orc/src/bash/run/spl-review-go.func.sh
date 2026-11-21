@@ -187,14 +187,17 @@ _spl_review_go_read_fail() {
 }
 
 # _spl_review_go_scan <max minutes> <spool dir | message file>: one TSV row per
-# result / note message whose body holds a `review: ` line sent by the
+# result message, or one of a kind that routes as a note (SPOOL_NOTE_KINDS,
+# spec 033 K.3), whose body holds a `review: ` line sent by the
 # reviewer it names: msg_id task_id from line, oldest first. A spool dir is
 # read in inbox/ and archive/, by the delivery time its file names open with;
 # REVIEW_GO_NOW pins the clock (tests).
 _spl_review_go_scan() {
-  python3 - "$1" "$2" "${REVIEW_GO_NOW:-}" <<'EOF_PY'
+  { [[ -n "${SPOOL_NOTE_KINDS:-}" ]] && declare -F spool_kind_in >/dev/null; } || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  python3 - "$1" "$2" "${REVIEW_GO_NOW:-}" "result|$SPOOL_NOTE_KINDS" <<'EOF_PY'
 import datetime as dt, json, os, re, sys
 mins, src, now = int(sys.argv[1]), sys.argv[2], sys.argv[3]
+kinds = set(sys.argv[4].split("|"))
 now = dt.datetime.strptime(now, "%Y-%m-%dT%H:%M:%SZ") if now else dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
 cut = (now - dt.timedelta(minutes=mins)).strftime("%Y%m%dT%H%M%SZ")
 files = [src] if os.path.isfile(src) else []
@@ -212,7 +215,7 @@ for f in files:
             m = json.load(fh)
     except (OSError, ValueError):
         continue
-    if not isinstance(m, dict) or m.get("kind") not in ("result", "note"):
+    if not isinstance(m, dict) or m.get("kind") not in kinds:
         continue
     line = next((l.strip() for l in str(m.get("body", "")).split("\n") if l.startswith("review: ")), "")
     who = LINE.match(line)

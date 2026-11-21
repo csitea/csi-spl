@@ -424,6 +424,7 @@
       :to-task="canMakeTask"
       :hide="menuHide"
       pdf
+      :loops="showTopicLoops"
       :locks="menuLocks"
       :ai-msg="msg"
       :ai-fail="onAiFail"
@@ -450,6 +451,13 @@
       @make-issue="onMakeIssue"
       @hide-flow="onMenuHide"
       @export-pdf="onExportPdf"
+      @topic-loops="loopsOpen = true"
+    />
+    <!-- spec 182 L3: Discussion loops…, mounted when picked -->
+    <LazyTopicLoopsDialog
+      v-if="loopsOpen"
+      v-model:open="loopsOpen"
+      :task-id="String(msg.task_id || '')"
     />
     <!-- SPL-1024: Move to channel… / Move to topic…, mounted when picked -->
     <LazyMovePickerDialog
@@ -722,6 +730,9 @@ const swipeTopicArchive = computed(() => (inPane.value
   : showTopicArchive.value))
 /* ... on a reply (not the topic card) it keeps the message's own Delete */
 const paneArchiveReply = computed(() => inPane.value && !props.topicMenu && showTopicArchive.value)
+/* spec 182 L3 (answer 5 A): Discussion loops… on a topic card, for whom the archive setting allows */
+const showTopicLoops = computed(() => Boolean(props.topicMenu) && mayArchiveTopic(props.msg, editorId.value, access.me))
+const loopsOpen = ref(false)
 const kindSettable = computed(() => canSetKind(props.msg, editorId.value, access.me?.role ?? null))
 /* t1 5ea2e615 (owner db5ed497): a workspace owner makes an issue of a blocker */
 const canMakeIssue = computed(() => ownerAllows(access.me) && String(props.msg.kind || '') === 'blocker')

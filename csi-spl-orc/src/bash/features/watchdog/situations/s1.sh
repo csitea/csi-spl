@@ -51,11 +51,14 @@ s1_plan() {
   echo "HIT S1 age=$((WD_NOW - base))$unk plan $(sed -E 's/^[[:space:]]*//' <<<"$line" | wd_short 80) open at an idle prompt, last progress $( (( p > 0 )) && echo "$((WD_NOW - p))s ago" || echo unknown)"
   exit 0
 }
-# The inbox jobs that arrived after epoch $1 (0: all), one line each.
+# The inbox jobs that arrived after epoch $1 (0: all), one line each. A kind
+# in SPOOL_NOTE_KINDS (exported by spool-env.inc.sh, spec 033 K.3) is a note;
+# unset, only note is.
 s1_jobs() {
   wd_has inbox || return 0
-  awk -v p="${1:-0}" -v me="$WD_ID" -v box="${WD_BOX:-}" '
-    $1 + 0 > p + 0 && $3 != "note" && $4 != me && !(box != "" && $4 == me "@" box)' "$WD_CTX/inbox"
+  awk -v p="${1:-0}" -v me="$WD_ID" -v box="${WD_BOX:-}" -v nk="${SPOOL_NOTE_KINDS:-note}" '
+    BEGIN { n = split(nk, a, "|"); for (i = 1; i <= n; i++) note[a[i]] = 1 }
+    $1 + 0 > p + 0 && !($3 in note) && $4 != me && !(box != "" && $4 == me "@" box)' "$WD_CTX/inbox"
 }
 # An idle wait with no job in the inbox: the IDLE line and exit, or nothing.
 # $1 is the open plan line.

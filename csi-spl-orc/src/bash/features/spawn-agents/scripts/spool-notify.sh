@@ -14,7 +14,7 @@
 # is the second leg, and every failure mode below leaves the message delivered.
 #
 # Usage:
-#   spool-notify.sh --to <ID> [--from <ID>] [--kind task|result|note|reject|blocker|msg]
+#   spool-notify.sh --to <ID> [--from <ID>] [--kind <SPOOL_KINDS>]
 #                   [--task <uuid>] [--msg-id <uuid>]
 #                   (--body <text> | --body-file <path> | --body-stdin)
 #
@@ -42,7 +42,7 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
 usage() {
-  sed -n '/^# Usage:/,/^# The rendered/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '/^# Usage:/,/^# The rendered/p' "${BASH_SOURCE[0]}" | sed "s/^# \{0,1\}//; s/<SPOOL_KINDS>/${SPOOL_KINDS}/" >&2
   exit 2
 }
 

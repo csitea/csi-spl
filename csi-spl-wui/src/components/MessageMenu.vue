@@ -68,6 +68,8 @@ const props = defineProps<{
   hide?: boolean
   /** SPL-5888 (spec 005 FR-020): offer Export to PDF (desktop menu only) */
   pdf?: boolean
+  /** spec 182 L3: a topic card the archive setting lets the viewer set loops on (Discussion loops…) */
+  loops?: boolean
   /** CLE-77891: a topic card's entries the viewer may not use, shown disabled with the reason */
   locks?: Partial<TopicMenuLocks>
   /** t1 b6c742f0: the message, for the AI actions group (a person's message only);
@@ -101,6 +103,7 @@ const emit = defineEmits<{
   'make-issue': []
   'hide-flow': []
   'export-pdf': []
+  'topic-loops': []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -149,6 +152,7 @@ const topicItems = computed(() => msgMenuItems({
   hide: props.hide,
   note: note.offered.value,
   pdf: props.pdf,
+  loops: props.loops,
   locks: props.locks,
 }))
 function withKeys<T extends { id: string }>(list: T[]): (T & { keyHint?: string })[] {
@@ -177,6 +181,7 @@ function choose(id: string) {
   else if (id === 'make-issue') emit('make-issue')
   else if (id === 'hide-flow') emit('hide-flow')
   else if (id === 'export-pdf') emit('export-pdf')
+  else if (id === 'topic-loops') emit('topic-loops')
   /* a topic card (its menu carries the topic locks) adds its topic, any other line the message */
   else if (id === 'add-to-note') note.open(msgNoteLink(props.aiMsg as SpoolMessage, { topic: Boolean(props.locks), workspace: note.workspace() }))
   else if (ai.more(id)) { /* the sheet now shows the seven actions */ }
@@ -194,16 +199,19 @@ function choose(id: string) {
    (0,4,0) beats SheetBackdrop's :root .touch-sheet.touch-sheet (0,3,0).
    SPL-4578: with Add to note a locked card's sheet is 12 rows; up to 760 px the
    rows keep 44 px and tighten, and up to 700 px a reason keeps one line (cut
-   with an ellipsis), so it still fits and leaves dimmed page to tap on. */
+   with an ellipsis), so it still fits and leaves dimmed page to tap on.
+   SPL-6110: Export to PDF makes it 13 rows; the locked card's sheet at 360x740
+   then left 35 px of dimmed page, so up to 760 px a reason keeps one line too
+   (a row stays 44 px, mobile-messages.test.mjs). */
 :root .msg-menu.touch-sheet.touch-sheet {
   max-height: calc(100dvh - var(--kb-inset, 0px) - 8px);
 }
 @media (max-height: 760px) {
   :root .msg-menu.touch-sheet.touch-sheet [role="menuitem"] { padding-block: 4px; }
+  :root .msg-menu.touch-sheet.touch-sheet .point-menu__why { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 }
 @media (max-height: 700px) {
   :root .msg-menu.touch-sheet.touch-sheet { padding-top: 6px; }
-  :root .msg-menu.touch-sheet.touch-sheet .point-menu__why { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   :root .msg-menu.touch-sheet.touch-sheet::before { margin-bottom: 4px; }
   :root .msg-menu.touch-sheet.touch-sheet [role="menuitem"] { min-height: 40px; padding-block: 4px; }
 }

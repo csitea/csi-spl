@@ -180,6 +180,9 @@ var Operators = []Operator{
 	{Name: OpIs, Values: "enum", Enum: map[string][]Type{
 		"task": {TypeMessage}, "note": {TypeMessage}, "result": {TypeMessage}, "reject": {TypeMessage},
 		"blocker": {TypeMessage}, "msg": {TypeMessage}, "relay": {TypeMessage},
+		// spec 033 K.2 (T022): the seven kinds of rdb 0300 / msg.KindList
+		"feature": {TypeMessage}, "bug": {TypeMessage}, "alert": {TypeMessage}, "question": {TypeMessage},
+		"idea": {TypeMessage}, "decision": {TypeMessage}, "docs": {TypeMessage},
 		"root": {TypeTopic}, "online": presence, "offline": presence, "revoked": {TypeRobot, TypeBox},
 	}, Applies: []Type{TypeMessage, TypeTopic, TypeRobot, TypeUser, TypeBox}, Example: "is:task", Doc: "message kind, root topic, presence or revoked pin; is:relay: agent-to-agent mail, which a search leaves out unless it asks (is:relay, from:, to: or topic:)"},
 	{Name: OpHas, Values: "enum", Enum: map[string][]Type{

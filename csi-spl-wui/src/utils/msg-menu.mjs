@@ -73,11 +73,20 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * SPL-5888 (owner HUM-10, t1 703f2ce5 msg 922da756; spec 005 FR-020): `pdf`
  * adds Export to PDF on desktop, right after Copy link (Hide from flow, Add to
  * note) and before Edit: the card alone, with its pictures, to the browser's
- * print. The phone sheet does not list it (its rows are measured to fit,
- * t1 7a6be5a3).
+ * print. SPL-6110 (owner HUM-10, t1 703f2ce5 msg 4460aad7: "On mobile, at
+ * least, doesn't work"): the phone sheet lists it too, right after Add to note
+ * (Archive keeps its place, t1 7a6be5a3; phone-card-menu.test.mjs proves the
+ * sheet still fits whole).
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, pdf?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
- * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'export-pdf' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes' | 'file-text', labelKey: string, disabled?: boolean, hintKey?: string }[]}
+ * Spec 182 row L3 (HUM-10, t1 f08c0c58 msg 19acb8f9): `loops` adds
+ * Discussion loops… on a topic card, desktop only (the phone sheet's rows are
+ * measured to fit, as for Export to PDF), right before Archive: it lists,
+ * adds, edits, pauses and deletes the topic's loops (TopicLoopsDialog.vue).
+ * Who may is the archive setting (answer 5 A), so a viewer it does not allow
+ * sees it disabled with `locks.loops` as the reason.
+ *
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, pdf?: boolean, loops?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string, loops?: string } }} [opts]
+ * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'export-pdf' | 'topic-loops' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes' | 'file-text' | 'refresh', labelKey: string, disabled?: boolean, hintKey?: string }[]}
  */
 /** HUM-10 (topic c15b557e): the parent item's words per place */
 const PARENT_LABEL = { dm: 'feed.msg_menu.open_in_dm', channel: 'feed.msg_menu.open_in_channels' }
@@ -106,7 +115,8 @@ export function msgMenuItems(opts = {}) {
   if (o.hide) items.push({ id: 'hide-flow', icon: 'eye-off', labelKey: 'feed.msg_menu.hide_flow' })
   const note = () => { if (o.note) items.push({ id: 'add-to-note', icon: 'notes', labelKey: 'feed.msg_menu.add_to_note' }) }
   if (!touch) note()
-  if (!touch && o.pdf) items.push({ id: 'export-pdf', icon: 'file-text', labelKey: 'feed.msg_menu.export_pdf' })
+  const pdf = { id: 'export-pdf', icon: 'file-text', labelKey: 'feed.msg_menu.export_pdf' }
+  if (!touch && o.pdf) items.push(pdf)
   gated(editable, edit, locks.edit)
   // CLE-77819: Archive and Delete are gated apart - a member the card is
   // addressed to may archive but not delete. `topic` stays the both-shorthand.
@@ -116,6 +126,7 @@ export function msgMenuItems(opts = {}) {
   if (touch) {
     archive()
     note()
+    if (o.pdf) items.push(pdf)
   }
   if (touch && o.kind) items.push({ id: 'kind', icon: 'tag', labelKey: 'feed.msg_menu.kind' })
   if (o.toTask) items.push({ id: 'make-task', icon: 'tag', labelKey: 'feed.msg_menu.make_task' })
@@ -129,6 +140,7 @@ export function msgMenuItems(opts = {}) {
   // 8f588edd: a reply can also be PROMOTED into a new topic of its own - the
   // keyboard / touch way to do what the drag into the topics list does.
   if (o.promoteTopic) items.push({ id: 'promote-topic', icon: 'move', labelKey: 'feed.msg_menu.promote_topic' })
+  if (!touch) gated(o.loops, { id: 'topic-loops', icon: 'refresh', labelKey: 'feed.msg_menu.topic_loops' }, locks.loops)
   if (!touch) archive()
   if (wantDelete || locks.delete) gated(wantDelete, { id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' }, locks.delete)
   // HUM-10 (t1 bb0091f1): a topic pane's REPLY offers Archive topic

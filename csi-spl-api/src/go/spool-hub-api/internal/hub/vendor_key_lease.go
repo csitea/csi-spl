@@ -271,9 +271,11 @@ func (s *Server) handleRetryVendorKey(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePutVendorKeySettings: PUT /v1/vendor-keys/settings
-// {"metered_fallback": bool} -> 204, the switch "fall back to spool-hub's
-// metered agents" (159 9, owner Q-2 B; off by default). GET /v1/vendor-keys
-// reads it as metered_fallback.
+// {"metered_fallback": false} -> 204. The switch "fall back to spool-hub's
+// metered agents" (159 9, owner Q-2 B) is retired by spec 181 Q-10 A (owner
+// msg 504cb94f: we never resell tokens): true is 400
+// no_metered_fallback_q10a and nothing is stored. GET /v1/vendor-keys reads
+// metered_fallback as false.
 func (s *Server) handlePutVendorKeySettings(w http.ResponseWriter, r *http.Request) {
 	act, ok := s.vendorKeyActor(w, r, true)
 	if !ok {
@@ -294,6 +296,11 @@ func (s *Server) handlePutVendorKeySettings(w http.ResponseWriter, r *http.Reque
 		writeErr(w, http.StatusBadRequest, "bad_body", `the body is {"metered_fallback": true|false}`)
 		return
 	}
+	if *in.MeteredFallback {
+		writeErr(w, http.StatusBadRequest, "no_metered_fallback_q10a",
+			"spec 181 Q-10 A: there is no metered fall-back, spool-hub never resells tokens")
+		return
+	}
 	if err := st.SetVendorKeyMeteredFallback(r.Context(), act.tenant, *in.MeteredFallback, act.hum, s.o.Now()); err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", act.tenant).Msg("vendor_key.fallback_failed")
 		writeErr(w, http.StatusInternalServerError, "internal", "the setting was not saved")
@@ -304,14 +311,10 @@ func (s *Server) handlePutVendorKeySettings(w http.ResponseWriter, r *http.Reque
 }
 
 // vendorKeyMeteredFallback reads the fall-back switch for GET
-// /v1/vendor-keys. A store error reads as off (the default).
-func (s *Server) vendorKeyMeteredFallback(ctx context.Context, tenant string) bool {
-	st, ok := s.o.Store.(store.VendorKeyLeases)
-	if !ok {
-		return false
-	}
-	on, err := st.VendorKeyMeteredFallback(ctx, tenant)
-	return err == nil && on
+// /v1/vendor-keys: always false since spec 181 Q-10 A (no metered fall-back,
+// we never resell tokens), whatever a stored row says.
+func (s *Server) vendorKeyMeteredFallback(context.Context, string) bool {
+	return false
 }
 
 // exhaustedAt formats a row's exhausted time, "" when usable.

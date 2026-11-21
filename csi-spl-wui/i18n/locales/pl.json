@@ -763,7 +763,9 @@
         "merge": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może scalić ten temat",
         "archive_admins": "W tej przestrzeni roboczej tylko właściciel lub administrator może archiwizować tematy",
         "archive_starter": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może zarchiwizować ten temat",
-        "delete": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może usunąć ten temat"
+        "delete": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może usunąć ten temat",
+        "loops_admins": "W tej przestrzeni roboczej pętle dyskusji może ustawiać tylko właściciel lub administrator",
+        "loops_starter": "Pętle dyskusji w tym temacie może ustawiać tylko autor tematu, właściciel przestrzeni roboczej lub administrator"
       },
       "ai": {
         "group": "Akcje AI",
@@ -777,7 +779,8 @@
         "failed": "Akcja AI nie powiodła się. Spróbuj ponownie."
       },
       "add_to_note": "Dodaj do notatki",
-      "export_pdf": "Eksportuj do PDF"
+      "export_pdf": "Eksportuj do PDF",
+      "topic_loops": "Pętle dyskusji…"
     },
     "emoji": {
       "add": "Dodaj emoji",
@@ -999,6 +1002,62 @@
     "note_to_self": {
       "badge": "notatka dla siebie",
       "title": "Oznaczone tylko dla Ciebie: nie zapytano żadnego agenta i nikt nie odpowiada"
+    },
+    "topic_loops": {
+      "title": "Pętle dyskusji",
+      "empty": "Ta dyskusja nie ma jeszcze pętli.",
+      "add": "Dodaj pętlę",
+      "edit": "Edytuj",
+      "pause": "Wstrzymaj",
+      "resume": "Wznów",
+      "delete": "Usuń",
+      "save": "Zapisz pętlę",
+      "prompt": "Polecenie",
+      "prompt_placeholder": "Co agent tematu ma zrobić za każdym razem, gdy pętla się uruchomi",
+      "triggers": "Uruchamiaj",
+      "trigger": {
+        "after_agent_reply": "Po każdej odpowiedzi agenta",
+        "before_agent_reply": "Przed każdą odpowiedzią agenta",
+        "after_human_reply": "Po każdej odpowiedzi człowieka",
+        "every_hour": "Co godzinę",
+        "every_n_minutes": "Co n minut",
+        "post_has_keyword": "Wpis zawierający",
+        "post_has_file": "Wpis z załączonym plikiem",
+        "blocker_posted": "Bloker zgłoszony w temacie",
+        "no_reply_after_human": "Brak odpowiedzi przez n minut po wpisie człowieka",
+        "issue_status_changed": "Zgłoszenie powiązane z tematem zmienia status",
+        "daily_at": "Codziennie o"
+      },
+      "every_n": "co {n} min",
+      "interval": "Minuty, od {min} do {max}",
+      "self_fire_note": "Odpowiedź agenta na tę pętlę nigdy nie uruchamia jej ponownie. Pętla uruchamia się najwyżej 12 razy na godzinę.",
+      "by": "ustawił(a) {who}",
+      "state_on": "Włączona",
+      "state_paused": "Wstrzymana",
+      "state_held": "Wstrzymana do {time}",
+      "idle_author_left": "Nie działa: jej autor opuścił przestrzeń roboczą",
+      "idle_author_no_right": "Nie działa: jej autor nie może już ustawiać pętli",
+      "locked": "Ustawienie archiwizacji w Twojej przestrzeni roboczej nie pozwala zmieniać pętli tego tematu.",
+      "err_prompt": "Wpisz polecenie.",
+      "err_prompt_long": "Polecenie ma ponad 4000 znaków.",
+      "err_trigger": "Zaznacz co najmniej jeden wyzwalacz.",
+      "err_interval": "Wybierz od 5 do 1440 minut.",
+      "err_bad_loop": "Centrum odrzuciło tę pętlę. Sprawdź polecenie i wyzwalacze.",
+      "err_not_allowed": "Nie możesz zmieniać pętli tego tematu.",
+      "err_demo": "Demonstracyjna przestrzeń robocza jest tylko do odczytu.",
+      "err_not_found": "Tego tematu lub pętli już nie ma.",
+      "err_archived": "Ten temat jest zarchiwizowany.",
+      "err_not_implemented": "Pętle dyskusji nie są jeszcze dostępne w tym centrum.",
+      "err_failed": "Nie udało się. Spróbuj ponownie.",
+      "keyword_row": "wpis zawierający „{keyword}”",
+      "idle_row": "brak odpowiedzi przez {n} min po wpisie człowieka",
+      "daily_row": "codziennie o {time} ({tz})",
+      "keyword": "Słowo lub fraza",
+      "daily_time": "Pora dnia",
+      "daily_tz": "Strefa czasowa",
+      "err_keyword": "Wpisz słowo lub frazę, najwyżej 200 znaków.",
+      "err_daily_at": "Wybierz porę dnia.",
+      "err_daily_tz": "Wybierz strefę czasową z listy."
     }
   },
   "topic": {

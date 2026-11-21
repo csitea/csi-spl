@@ -314,7 +314,8 @@ spl_self_host_s3_ensure() {
 # @description router's FATAL (no adapter), never a gcloud call.
 #------------------------------------------------------------------------------
 do_hub_deploy_roll_none() {
-  local dir="${1:?do_hub_deploy_roll_none <dir>}"
+  [[ -n "${1:-}" ]] || { do_log "FATAL do_hub_deploy_roll_none: usage: do_hub_deploy_roll_none <dir>"; return 1; }
+  local dir="$1"
   do_log "INFO docker compose up -d --wait (pulls the images, pinned by digest; a failed pull builds them only when .env sets SPOOL_IMAGE_TAG, e.g. local)"
   docker compose --project-directory "$dir" up -d --wait ||
     { do_log "FATAL docker compose up failed: 'docker compose --project-directory $dir logs hub-init hub web' names the problem"; return 1; }

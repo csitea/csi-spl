@@ -239,6 +239,13 @@ in_none -- 'do_spl_cloud_dispatch hub_deploy roll "$SPOOL_SELF_HOST_DIR"'; rc=$?
 in_none SPOOL_CLOUD_PROVIDER=gcp -- 'do_spl_cloud_dispatch hub_deploy roll "$SPOOL_SELF_HOST_DIR"'; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'do_hub_deploy_roll_gcp is not defined' "$T/nerr" && [[ ! -s "$T/nstub.log" ]] \
   && pass "gcp: hub_deploy roll has no shell adapter (router FATAL, nothing run)" || fail "gcp roll: rc=$rc $(cat "$T/nerr")"
+# an empty or missing <dir> returns 1 and says why; it never exits the caller's shell nor runs docker
+for a in '""' ''; do
+  in_none -- "do_spl_cloud_dispatch hub_deploy roll $a; echo \"rc=\$?\""
+  grep -qx 'rc=1' "$T/nout" && grep -q 'usage: do_hub_deploy_roll_none <dir>' "$T/nerr" && [[ ! -s "$T/nstub.log" ]] \
+    && pass "none: hub_deploy roll '$a': returns 1, says why, runs nothing" \
+    || fail "none roll '$a': out '$(cat "$T/nout")' err '$(cat "$T/nerr")' stub '$(cat "$T/nstub.log")'"
+done
 
 n=$(wc -l <"$T/gcloud-none.log")
 [[ $n -eq 0 ]] && pass "none: zero gcloud calls across every none case" || fail "none: $n gcloud call(s): $(sed -n 1p "$T/gcloud-none.log")"

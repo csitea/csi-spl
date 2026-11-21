@@ -90,6 +90,8 @@ var rlsTables = []string{
 	"topic_pauses", "topic_pause_issues",
 	// rdb 0301, spec 182 L1: a discussion's loops
 	"topic_loops",
+	// rdb 0309, spec 184 H1: a workspace's model per agent kind, its boxes' readings
+	"tenant_agent_model", "agent_model_reading",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

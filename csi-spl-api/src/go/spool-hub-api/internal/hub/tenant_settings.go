@@ -61,6 +61,9 @@ type tenantSettingsBody struct {
 	// Settings is every registered generic setting (rdb 0136, spec 098) with
 	// the value in force: the stored one, else the registered default.
 	Settings map[string]any `json:"settings"`
+	// AgentModels is the workspace's model per vendor and task kind (spec
+	// 184 H1, rdb 0309); [] = none set, the cnf env.box.agent_model applies.
+	AgentModels []agentModelJSON `json:"agent_models"`
 }
 
 func (s *Server) writeTenantSettings(w http.ResponseWriter, r *http.Request, t store.Tenant, ts store.TenantSettings, fb store.Fallbacks) {
@@ -84,10 +87,15 @@ func (s *Server) writeTenantSettings(w http.ResponseWriter, r *http.Request, t s
 			return
 		}
 	}
+	models, err := s.agentModelsOf(r.Context(), t.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "tenant settings unavailable")
+		return
+	}
 	writeJSON(w, http.StatusOK, tenantSettingsBody{TenantID: t.ID, DisplayName: cfg.DisplayName,
 		DefaultLocale: cfg.DefaultLocale, TopicArchivePolicy: store.EffectiveArchivePolicy(cfg.TopicArchivePolicy),
 		Responders: resp, MaxResponders: store.MaxResponders, IssuePrefix: prefix,
-		AgentSplit: agentSplitJSONFrom(cfg.AgentSplit), Settings: cfg.Settings.Effective()})
+		AgentSplit: agentSplitJSONFrom(cfg.AgentSplit), Settings: cfg.Settings.Effective(), AgentModels: models})
 }
 
 // GET /v1/tenant/settings
@@ -103,7 +111,21 @@ func (s *Server) handleTenantSettings(w http.ResponseWriter, r *http.Request) {
 	s.writeTenantSettings(w, r, t, ts, fb)
 }
 
-// PATCH /v1/tenant/settings {display_name?, default_locale?, responders?, issue_prefix?, agent_split?, settings?}
+// tenantSettingsPatchBody is PATCH /v1/tenant/settings; every field optional.
+type tenantSettingsPatchBody struct {
+	DisplayName        *string          `json:"display_name"`
+	DefaultLocale      *string          `json:"default_locale"`
+	TopicArchivePolicy *string          `json:"topic_archive_policy"`
+	Responders         *[]string        `json:"responders"`
+	IssuePrefix        *string          `json:"issue_prefix"`
+	AgentSplit         *agentSplitPatch `json:"agent_split"`
+	// Settings: {"<key>": <value> | null}; null resets a key to its default.
+	Settings map[string]json.RawMessage `json:"settings"`
+	// AgentModels: {"<vendor>": {"<kind>|*": "<model>" | "" | null}} (agent_model.go).
+	AgentModels map[string]map[string]*string `json:"agent_models"`
+}
+
+// PATCH /v1/tenant/settings {display_name?, default_locale?, responders?, issue_prefix?, agent_split?, settings?, agent_models?}
 func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Request) {
 	t, a, _, _, ok := s.membersActor(w, r, rbac.TenantSettings)
 	if !ok {
@@ -113,16 +135,7 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	var body struct {
-		DisplayName        *string          `json:"display_name"`
-		DefaultLocale      *string          `json:"default_locale"`
-		TopicArchivePolicy *string          `json:"topic_archive_policy"`
-		Responders         *[]string        `json:"responders"`
-		IssuePrefix        *string          `json:"issue_prefix"`
-		AgentSplit         *agentSplitPatch `json:"agent_split"`
-		// Settings: {"<key>": <value> | null}; null resets a key to its default.
-		Settings map[string]json.RawMessage `json:"settings"`
-	}
+	var body tenantSettingsPatchBody
 	if !decodeMembers(w, r, &body) {
 		return
 	}
@@ -142,6 +155,10 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 	}
 	split, okSplit := patchAgentSplit(w, body.AgentSplit)
 	if !okSplit {
+		return
+	}
+	models, okModels := s.agentModelsPatch(w, body.AgentModels)
+	if !okModels {
 		return
 	}
 	if kv != nil && !s.saveSettings(w, r, t.ID, *kv) {
@@ -171,11 +188,15 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
+	if !s.saveAgentModels(w, r, t.ID, a.HumanID, models) {
+		return
+	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Bool("name", body.DisplayName != nil).
 		Bool("locale", body.DefaultLocale != nil).Bool("archive_policy", body.TopicArchivePolicy != nil).
 		Bool("responders", body.Responders != nil).
 		Bool("issue_prefix", body.IssuePrefix != nil).
-		Bool("agent_split", split != nil).Bool("settings", kv != nil).Msg("tenant.settings_changed")
+		Bool("agent_split", split != nil).Bool("agent_models", models != nil).Bool("settings", kv != nil).
+		Msg("tenant.settings_changed")
 	s.writeTenantSettings(w, r, t, ts, fb)
 }
 
@@ -714,6 +735,7 @@ func (s *Server) routeTenantSettings(mux *http.ServeMux) {
 	s.routeAgentLifecycle(mux) // spec 063 sections 11 + 12: Workspace settings -> Agents
 	s.routeMarketing(mux)      // spec 090 §15: Workspace settings -> General, the marketing switch
 	s.routeAgentSplit(mux)     // spec 115 HUB-1: Workspace settings -> Vendor split, per task kind
+	s.routeAgentModels(mux)    // spec 184 H1: the model per agent kind and the boxes' readings
 	s.routeVendorKeys(mux)     // spec 127 H1 + spec 159 T1: a workspace's own vendor keys
 	s.routeTakeoverLadder(mux) // SPL-2115: Workspace settings -> Agent takeover
 	s.routeSenderAllow(mux)    // SPL-1018 (spec 044 FR-OS-017): Workspace settings -> Agents, who may message an agent

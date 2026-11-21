@@ -1,12 +1,14 @@
 # Spec 184: Default Model per Agent Kind
 
-Status: **Draft v0.4** (2026-11-21). Lane `c-358` (`claude`, the backup for
+Status: **Draft v0.5** (2026-11-21). Lane `c-358` (`claude`, the backup for
 `specs_and_docs`: no agy CLI on this box, agy at quota on the other).
 v0.1 `3c8f2f7fd`; v0.2 folds the owner's answers to the form (poll
 `ccb3a406`, HUM-10 msg `0d33aa83`): Q1 `bo`, Q2 `bo`, Q3 `liv`, Q4 `rot`,
 Q5 `fb`; v0.3 folds the R7 review notes N1 and N2 (a-069, agy PASS on
 `9ff267a3b`); v0.4 fills the agy, qwen and codex rows of 3.2 and 7.1.3
-(row M0, lane `c-888`). Every change is in section 9.
+(row M0, lane `c-888`); v0.5 records the reading route's auth and the
+built shapes of 7.1.5 and proposes row H2 (row H1, lane `c-894`). Every
+change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6036**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:815215f5-2d1b-47df-b465-b4ea0ee5d991` (`t1`).
 Builds on: [115 vendor split by task kind](../115-vendor-split-by-task-kind/spec.md)
@@ -289,6 +291,7 @@ W1 can start at once (L1, A1, C1, H1, I1, M0 in parallel). Each row lands with i
 | A1 | `spool_agent_models VENDOR` (7.1.6), the live read: grok `grok models` (M0 first confirms it makes no paid call; until then the CLI's own cache file), vibe's `[[models]]` names and aliases, claude's `--model` help aliases (G8), M0's answer for agy, qwen, codex; a reading is reported to the hub (`PUT /v1/boxes/{box}/agent-models/{vendor}`, 7.1.5); `do_spl_agent_models_list` prints it by hand | `lib/agent-models.inc.sh` (new; L1 owns `lib/spool-env.inc.sh`, so A1 never edits it), `csi-spl-orc/src/bash/run/spl-agent-models-list.func.sh` (new), `csi-spl-orc/src/bash/tests/spl-agent-models-list.tst.sh` (new) | contract 7.1.6 | stub CLIs and fixture homes give the expected list per vendor; a vendor with no source exits 4; the read never writes the cnf | a model added to the stub's output is missing from the list -> the test fails |
 | I1 | the identity map reads `-m` and `VIBE_ACTIVE_MODEL` | `scripts/agent-identity.py`, `tests/test-agent-identity.sh` | none | `grok -m grok-4.6` and a vibe pid with the env both record their model | revert the `-m` read -> the grok case fails |
 | H1 | hub: `tenant_agent_model` and `agent_model_reading` (7.1.5), store, the tenant settings field, the reading routes `PUT /v1/boxes/{box}/agent-models/{vendor}` and `GET /v1/tenant/agent-model-readings`, `do_spl_agent_model_show` | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_tenant_agent_model.sql`, `csi-spl-api/src/go/spool-hub-api/internal/store/agent_model.go`, the hub handlers and their tests, `csi-spl-orc/src/bash/run/spl-agent-model-show.func.sh` | contract 7.1.5 | on PostgreSQL (`PRE_PUSH_TIER=full`): a workspace reads only its rows (RLS); an unknown vendor or kind, or a model failing the syntax, is refused; a newer reading replaces the older | drop the RLS policy in a test copy -> the cross-workspace read case fails |
+| H2 | (proposed, the holder queues it after H1) a `spool agent-models report --vendor V --cli-version X` verb (models on stdin) that sends the PUT of 7.1.5 with the box's upload token; then A1's `spool_agent_models_report` calls it and drops curl and `SPOOL_AGENT_MODELS_HUB_TOKEN` | `csi-spl-api/src/go/spool-hub-api/internal/hubclient/` (one method, as `vendor_key_lease.go`), `csi-spl-api/src/go/spool-hub-api/cmd/spool/` (the verb) and their tests | H1 | against a test hub: the verb's reading is stored and read back; a second, older reading answers `stored false` | a verb that sends no bearer -> 401 `door` and the test fails |
 | W1 | WUI: a model column on the Split page per vendor and kind; choices = the latest box reading (N1) with its time and CLI version, plus a typed model (syntax-checked); empty = "CLI default"; optionally the model in Agents | `csi-spl-wui/src/components/AgentSplitKinds.vue` (or a new `AgentModels.vue`), `csi-spl-wui/src/utils/tenant-settings.mjs`, a unit test, every locale (agy review last) | H1 | unit test, and e2e on the generated bundle | saving a model with a space -> the test fails |
 | D1 | docs: how to set and refresh (operations guide), pointers from specs 115 and 110, this spec's status | `csi-spl-doc/` | the rows it documents | `do_check_fleet_rules_drift` green | n/a (doc) |
 
@@ -372,6 +375,36 @@ input: a restore re-resolves (Q4 `rot`).
 - `do_spl_agent_model_show` (`ENV`, `TENANT_ID`) prints one line,
   `SPAWN_MODEL_MAP=<vendor>:<kind>=<model>,...`, the form the resolver reads.
 
+As built by row H1 (rdb `0309_tenant_agent_model.sql`, holder GO c-002
+msg `8f132278`):
+
+- **Auth of the PUT**: the box's own upload token, as every desk REST call
+  (`tokenTenant`, `csi-spl-api/src/go/spool-hub-api/internal/hub/resolve.go`;
+  the same check as `vendorKeyBox` in `internal/hub/vendor_key_lease.go`).
+  The reading's tenant is the token's; an `X-Spool-Tenant` naming another
+  is 403 `tenant_mismatch`. `{box}` must be the token's box, else 403
+  `box_mismatch`; a WUI socket's token is 403 `box_only`; no token is 401
+  `door`. No new token kind. Bash cannot get that token (it is minted over
+  the WS session, `internal/hubclient/hubclient.go` `Session.rest`), so the
+  box side is row H2's verb.
+- **Body of the PUT**: read as JSON whatever its `Content-Type`
+  (`Session.rest` sends `application/octet-stream`; the token is a bearer,
+  never a cookie, so this opens no cross-site form). Unknown fields, a
+  model outside the 7.1.2 syntax, more than 500 models, a `cli_version`
+  over 80 printable characters, no `read_at` or one more than 10 minutes
+  ahead of the hub's clock: 400 `bad_reading`. An unknown vendor: 400
+  `bad_vendor`. The answer: `{"box", "vendor", "stored": true|false}`.
+- **Tenant settings**: `PATCH /v1/tenant/settings`
+  `{"agent_models": {"<vendor>": {"<kind>|*": "<model>" | "" | null}}}`
+  sets the named cells; `""` and `null` drop a cell (it then reads as the
+  cnf). An unknown vendor or kind, an alias kind (`spec`, `hard`,
+  `default`) or a model outside the syntax is 400 `bad_model`, and nothing
+  of that PATCH is written. `GET /v1/tenant/settings` carries
+  `"agent_models": [{"vendor", "kind", "model", "updated_by", "updated_at"}]`,
+  sorted by vendor (the split order), then kind (`*` first); `[]` = none.
+- **Readings**: `GET /v1/tenant/agent-model-readings` needs
+  `tenant.settings`, like the settings GET; sorted by box, then vendor.
+
 #### 7.1.6 Live list (row A1; Q3 `liv`)
 
 `spool_agent_models VENDOR` prints the models the installed CLI offers,
@@ -437,3 +470,12 @@ run):
   `--model '<m>'`, agy `--model '<m>'` with its value form open: agy's
   settings hold a display name with spaces and parentheses, outside the
   syntax of 7.1.2. That contract question goes to the spec's editor.
+
+### 9.3 Changes from v0.4
+
+Row H1 (lane `c-894`, holder GO c-002 msg `8f132278`): 7.1.5 gains "As
+built by row H1": the PUT's auth (the box's upload token, `{box}` = the
+token's box), its body and answer codes, the tenant settings shapes of
+`agent_models`, and the readings GET's permission. Section 6 gains the
+proposed row H2 (the `spool` verb that sends the PUT), which closes the
+contract gap A1 raised (c-884 msg `0b5a2bc7`).

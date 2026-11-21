@@ -1652,6 +1652,166 @@
         ]
       }
     },
+    "/v1/boxes/{box}/agent-models/{vendor}": {
+      "put": {
+        "operationId": "putAgentModelReading",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "box",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vendor",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "cli_version": {
+                    "description": "the CLI's version the list was read from",
+                    "maxLength": 80,
+                    "type": "string"
+                  },
+                  "models": {
+                    "items": {
+                      "pattern": "^[A-Za-z0-9._:/-]{1,80}$",
+                      "type": "string"
+                    },
+                    "maxItems": 500,
+                    "type": "array"
+                  },
+                  "read_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "read_at"
+                ],
+                "type": "object"
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "properties": {
+                  "cli_version": {
+                    "description": "the CLI's version the list was read from",
+                    "maxLength": 80,
+                    "type": "string"
+                  },
+                  "models": {
+                    "items": {
+                      "pattern": "^[A-Za-z0-9._:/-]{1,80}$",
+                      "type": "string"
+                    },
+                    "maxItems": 500,
+                    "type": "array"
+                  },
+                  "read_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "read_at"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "box": {
+                      "type": "string"
+                    },
+                    "stored": {
+                      "type": "boolean"
+                    },
+                    "vendor": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "box",
+                    "vendor",
+                    "stored"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: stored true (the reading replaced an older one, or was the first) or false (ignored: not newer)"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request: bad_vendor (not one of the six vendors), bad_reading (unknown field, a model outside the syntax, over 500 models, a bad cli_version, no read_at or one more than 10 minutes ahead)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden: box_mismatch ({box} is not the token's box), box_only (a WUI token), tenant_mismatch"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal: the reading was not saved"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "unsupported: this hub's store keeps no agent models"
+          }
+        },
+        "summary": "A box reports its live list of one vendor CLI's models (spec 184 H1, contract 7.1.5); box upload token only, {box} = the token's box; a newer read_at replaces the box's reading, an older or equal one is ignored",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
     "/v1/boxes/{box}/lock": {
       "delete": {
         "operationId": "deleteBoxesByBoxLock",
@@ -18560,6 +18720,90 @@
           }
         },
         "summary": "Read tenant agent lifecycle events",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/tenant/agent-model-readings": {
+      "get": {
+        "operationId": "getAgentModelReadings",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "readings": {
+                      "items": {
+                        "properties": {
+                          "box": {
+                            "type": "string"
+                          },
+                          "cli_version": {
+                            "type": "string"
+                          },
+                          "models": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "read_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "vendor": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "readings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: sorted by box, then vendor"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal: the readings are unavailable"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "unsupported: this hub's store keeps no agent models"
+          }
+        },
+        "summary": "Every box's latest live model list per vendor in the workspace (spec 184 H1, display only); needs tenant.settings",
         "tags": [
           "tenant"
         ]

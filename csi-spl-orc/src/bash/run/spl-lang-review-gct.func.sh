@@ -38,10 +38,12 @@
 # @param LANG_GCT_BASE (optional) - the rev the locale files are compared with, default origin/master
 # @param LANG_GCT_FILES (optional) - space-separated locale files (repo-relative); default every changed one
 # @param LANG_GCT_TREE (optional) - the checkout, default $APP_PATH
-# @param LANG_GCT_OUT_DIR (optional) - default <tree>/csi-spl-wui/i18n/lang-review
+# @param LANG_GCT_LOCALES (optional) - the repo-relative locales dir holding en.json; default the one dir all LANG_GCT_FILES share, else csi-spl-wui/i18n/locales
+# @param LANG_GCT_OUT_DIR (optional) - default <tree>/<locales dir's parent>/lang-review (csi-spl: csi-spl-wui/i18n/lang-review)
 # @param LANG_GCT_ENDPOINT (optional) - default https://translation.googleapis.com; https only (http on 127.0.0.1 for tests)
 # @example ENV=dev ./run -a do_spl_lang_review_gct
 # @example ENV=prd LANG_GCT_FILES=csi-spl-wui/i18n/locales/fi.json ./run -a do_spl_lang_review_gct
+# @example ENV=dev LANG_GCT_TREE=/opt/<org>/<repo> LANG_GCT_FILES="x-wui/i18n/locales/de.json x-wui/i18n/locales/fi.json" ./run -a do_spl_lang_review_gct
 #------------------------------------------------------------------------------
 
 # spl_lgct_header <key> <account>: "Authorization: Bearer <token>" on stdout
@@ -56,12 +58,28 @@ spl_lgct_header() {
       sed -n 's/^\([A-Za-z0-9._-]\{20,\}\)$/Authorization: Bearer \1/p' )
 }
 
+# spl_lgct_locales <file>...: the locales dir on stdout: LANG_GCT_LOCALES,
+# else the one dir every file shares, else csi-spl-wui/i18n/locales; two
+# dirs and no LANG_GCT_LOCALES is a FATAL, return 2 (SPL-6208).
+spl_lgct_locales() {
+  local f d dir="${LANG_GCT_LOCALES:-}"
+  [[ -n "$dir" ]] && { printf '%s\n' "${dir%/}"; return 0; }
+  for f in "$@"; do
+    d="$(dirname -- "$f")"
+    [[ -z "$dir" || "$d" == "$dir" ]] && { dir="$d"; continue; }
+    do_log "FATAL lang-review-gct: LANG_GCT_FILES span two locales dirs ($dir, $d); set LANG_GCT_LOCALES" >&2
+    return 2
+  done
+  printf '%s\n' "${dir:-csi-spl-wui/i18n/locales}"
+}
+
 do_spl_lang_review_gct() {
   local env="${ENV:-dev}" tree="${LANG_GCT_TREE:-$APP_PATH}" key account project rc
-  local out="${LANG_GCT_OUT_DIR:-}" files=() org_app locales=csi-spl-wui/i18n/locales
+  local out="${LANG_GCT_OUT_DIR:-}" files=() org_app locales
   org_app="$(basename "${PROJ_PATH:-x-orc}")"; org_app="${org_app%-orc}"
-  [[ -n "$out" ]] || out="$tree/csi-spl-wui/i18n/lang-review"
   read -r -a files <<<"${LANG_GCT_FILES:-}"
+  locales="$(spl_lgct_locales "${files[@]}")" || return 2
+  [[ -n "$out" ]] || out="$tree/$(dirname -- "$locales")/lang-review"
   # the env's cnf (env.gcp.gcp_project) names the project, so the key
   key="$(ENV="$env" do_gcp_sa_key_file "$APP_PATH/${org_app}-cnf/${org_app}")" ||
     { do_log "FATAL lang-review-gct: no project SA key for $env (\$HOME/.gcp/.<org>/key-<project>.json); never the owner account"; return 2; }

@@ -29,6 +29,14 @@
 #  11. RED: a non-https endpoint (not 127.0.0.1) -> exit 2, no request
 #  12. round trip of an en-only change: the en-changed rows of every locale
 #      holding the key pass the gate's checker
+#  13. another repo's tree (SPL-6208): locales in x-wui/i18n/locales
+#      (a) LANG_GCT_FILES there, no LANG_GCT_LOCALES -> the dir is derived,
+#          exit 0, the report under x-wui/i18n/lang-review/
+#      (b) the same with LANG_GCT_LOCALES set explicitly
+#      (c) RED: LANG_GCT_FILES in two dirs, no LANG_GCT_LOCALES -> exit 2,
+#          both dirs named, no report, the API not called
+#      (d) csi-spl's default unchanged: no LANG_GCT_FILES / _LOCALES /
+#          _OUT_DIR -> the report under csi-spl-wui/i18n/lang-review/
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -226,6 +234,47 @@ cp "$T/out/$id.json" "$R/csi-spl-wui/i18n/lang-review/"
 git -C "$R" add -A; git -C "$R" -c user.name=t -c user.email=t@t commit -qm "feat(wui): en text" -m "Lang-review: gct $id"
 python3 "$APP_ROOT/csi-spl-iac/src/bash/scripts/lang-review-gct-check.py" "$R" "$L" csi-spl-wui/i18n/lang-review HEAD "$id" >"$T/chk" 2>&1
 eq "12. ... the committed report passes the gate's checker" 0 "$?"
+
+# 13. another repo's tree: the locales dir is not csi-spl's
+X=x-wui/i18n/locales; R2="$T/r2"
+mkdir -p "$R2/$X"; git init -q "$R2"
+printf '{"a":{"bye":"Bye"}}\n' >"$R2/$X/en.json"
+printf '{"a":{"bye":"Hei hei"}}\n' >"$R2/$X/fi.json"
+printf '{"a":{"bye":"Hej då"}}\n' >"$R2/$X/sv.json"
+git -C "$R2" add -A; git -C "$R2" -c user.name=t -c user.email=t@t commit -qm base
+printf '{"a":{"bye":"Bye","new":"Save"}}\n' >"$R2/$X/en.json"
+printf '{"a":{"bye":"Hei hei","new":"Tallenna"}}\n' >"$R2/$X/fi.json"
+printf '{"a":{"bye":"Hej då","new":"Spara"}}\n' >"$R2/$X/sv.json"
+gct_tree() {  # <tree> [VAR=value]... -> rc; no LANG_GCT_OUT_DIR; output in $T/o
+  local tree="$1"; shift
+  IN_ORC_RUN=spl-lang-review-gct SNIPPET=do_spl_lang_review_gct in_orc FAKE_TOKEN="$TOKEN" GCP_SA_KEY_FILE="$KEY" \
+    LANG_GCT_TREE="$tree" LANG_GCT_BASE=HEAD \
+    LANG_GCT_ENDPOINT="http://127.0.0.1:$(cat "$T/port")" "$@" </dev/null >"$T/o" 2>&1
+}
+xrep() {  # <tree> <dir> -> the run id's report path, from the printed line
+  local id; id="$(sed -n 's/^Lang-review: gct //p' "$T/o")"
+  [[ -n "$id" ]] && printf '%s' "$1/$2/$id.json"
+}
+rm -rf "$R2/x-wui/i18n/lang-review"
+gct_tree "$R2" LANG_GCT_FILES="$X/fi.json $X/sv.json"
+eq "13a. x-wui locales, no LANG_GCT_LOCALES -> exit 0" 0 "$?"
+f="$(xrep "$R2" x-wui/i18n/lang-review)"
+[[ -n "$f" && -f "$f" ]] && pass "13a. ... the report under x-wui/i18n/lang-review/" || fail "13a. ... report" "$(cat "$T/o"; ls -R "$R2/x-wui")"
+eq "13a. ... rows of both files" "$X/fi.json,$X/sv.json" "$(jq -r '[.rows[].file] | unique | join(",")' "$f" 2>/dev/null)"
+rm -rf "$R2/x-wui/i18n/lang-review"
+gct_tree "$R2" LANG_GCT_FILES="$X/fi.json" LANG_GCT_LOCALES="$X/"
+eq "13b. LANG_GCT_LOCALES set explicitly -> exit 0" 0 "$?"
+f="$(xrep "$R2" x-wui/i18n/lang-review)"
+[[ -n "$f" && -f "$f" ]] && pass "13b. ... the report under x-wui/i18n/lang-review/" || fail "13b. ... report" "$(cat "$T/o")"
+rm -rf "$R2/x-wui/i18n/lang-review"; : >"$T/api.log"
+gct_tree "$R2" LANG_GCT_FILES="$X/fi.json $L/fi.json"
+eq "13c. two locales dirs, no LANG_GCT_LOCALES -> exit 2" 2 "$?"
+grep -qF "two locales dirs ($X, $L)" "$T/o" && pass "13c. ... names both dirs" || fail "13c. ... names both" "$(cat "$T/o")"
+[[ ! -e "$R2/x-wui/i18n/lang-review" && ! -s "$T/api.log" ]] && pass "13c. ... no report, the API not called" || fail "13c. ... no report" "$(ls "$R2/x-wui/i18n"; head -c 200 "$T/api.log")"
+change; gct_tree "$R"
+eq "13d. csi-spl defaults -> exit 0" 0 "$?"
+f="$(xrep "$R" csi-spl-wui/i18n/lang-review)"
+[[ -n "$f" && -f "$f" ]] && pass "13d. ... the report under csi-spl-wui/i18n/lang-review/" || fail "13d. ... report" "$(cat "$T/o")"
 
 echo "spl-lang-review-gct: $fails failure(s)"
 ((fails == 0))

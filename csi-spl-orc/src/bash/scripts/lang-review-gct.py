@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The language check of new WUI text through Google Cloud Translation v3
-(SPL-6174, owner HUM-10 msg 36b3ff7f: "google translation Api's are now
+(SPL-6174, owner HUM-10 msg 36b3ff7f: "google translationd Api 's are now
 available - use them - better and cheaper"). Called by
 do_spl_lang_review_gct (csi-spl-orc/src/bash/run/spl-lang-review-gct.func.sh).
 
@@ -48,6 +48,7 @@ import subprocess
 import sys
 import unicodedata
 import urllib.error
+import urllib.parse
 import urllib.request
 
 _KEYS_PY = (
@@ -121,12 +122,25 @@ def rows_for(tree, base, path, en_base, en_now):
     return rows
 
 
+def fatal(line):
+    """no report: print the reason, exit 2 (1 is the placeholder failure)"""
+    print(line)
+    sys.exit(2)
+
+
 class Api:
     def __init__(self, endpoint, project, header):
+        u = urllib.parse.urlsplit(endpoint)
+        if u.scheme != "https" and not (
+            u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost")
+        ):
+            fatal(
+                f"lang-review-gct: FATAL endpoint {endpoint!r} is not https (http only on 127.0.0.1): the token goes to it"
+            )
         self.url = f"{endpoint.rstrip('/')}/v3/projects/{project}/locations/global:translateText"
         name, _, value = header.partition(":")
         if name.strip().lower() != "authorization" or not value.strip():
-            raise SystemExit(
+            fatal(
                 "lang-review-gct: FATAL no 'Authorization: Bearer <token>' line on fd 3"
             )
         self.auth = value.strip()

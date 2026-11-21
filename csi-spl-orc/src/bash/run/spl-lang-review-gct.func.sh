@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # @description The language check of new WUI text through Google Cloud
 # @description Translation v3 (SPL-6174; owner HUM-10 msg 36b3ff7f: "google
-# @description translation Api's are now available - use them - better and
+# @description translationd Api 's are now available - use them - better and
 # @description cheaper"). It replaces the agy language review as the required
 # @description check; the rule's one home is the fleet CLAUDE.md source
 # @description 20-spawn-an-agent.md (Language rule).
@@ -39,7 +39,7 @@
 # @param LANG_GCT_FILES (optional) - space-separated locale files (repo-relative); default every changed one
 # @param LANG_GCT_TREE (optional) - the checkout, default $APP_PATH
 # @param LANG_GCT_OUT_DIR (optional) - default <tree>/csi-spl-wui/i18n/lang-review
-# @param LANG_GCT_ENDPOINT (optional) - default https://translation.googleapis.com
+# @param LANG_GCT_ENDPOINT (optional) - default https://translation.googleapis.com; https only (http on 127.0.0.1 for tests)
 # @example ENV=dev ./run -a do_spl_lang_review_gct
 # @example ENV=prd LANG_GCT_FILES=csi-spl-wui/i18n/locales/fi.json ./run -a do_spl_lang_review_gct
 #------------------------------------------------------------------------------
@@ -52,7 +52,7 @@ spl_lgct_header() {
     trap 'rm -rf -- "${CLOUDSDK_CONFIG:?}"' EXIT
     export CLOUDSDK_CONFIG CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="$1"
     account="$2"
-    gcloud auth print-access-token --account="${account}" 2>/dev/null |
+    gcloud auth print-access-token --account="${account}" 2> >(sed 's/^/lang-review-gct: gcloud: /' >&2) |
       sed -n 's/^\([A-Za-z0-9._-]\{20,\}\)$/Authorization: Bearer \1/p' )
 }
 

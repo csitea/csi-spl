@@ -1403,21 +1403,25 @@ _pp_run_parts() {  # <tree> <base> <only> <changed>
   printf '%s %s %s %s\n' "$_PP_PID" "$(ps -o pgid= -p "$_PP_PID" 2>/dev/null | tr -d ' ')" \
     "$(_pp_starttime "$_PP_PID")" "$tree" >"$_PP_PIDFILE" 2>/dev/null \
     || do_log "WARN pre-push: cannot write $_PP_PIDFILE -- do_stop_pre_push will not find this run"
-  # a kill mid-run must not leave the baseline worktree (or the pidfile) behind
+  # a kill mid-run must not leave the baseline worktree (or the pidfile)
+  # behind, nor end the run with no verdict (_pp_interrupted)
   local _pp_old_traps; _pp_old_traps="$(trap -p INT TERM HUP)"
+  local _PP_CUR="" _PP_CUR_T0="$SECONDS" _PP_T0="$SECONDS"
   # shellcheck disable=SC2064
-  trap "_pp_baseline_cleanup '$tree'; _pp_pidfile_drop; exit 130" INT
+  trap "_pp_interrupted INT 130 '$tree'" INT
   # shellcheck disable=SC2064
-  trap "_pp_baseline_cleanup '$tree'; _pp_pidfile_drop; exit 143" TERM
+  trap "_pp_interrupted TERM 143 '$tree'" TERM
   # shellcheck disable=SC2064
-  trap "_pp_baseline_cleanup '$tree'; _pp_pidfile_drop; exit 129" HUP
+  trap "_pp_interrupted HUP 129 '$tree'" HUP
   for p in $all; do
     if [[ " $parts " == *" $p "* ]]; then
+      _PP_CUR="$p" _PP_CUR_T0="$SECONDS"
       _pp_run "$(_pp_label "$p")" "$(_pp_fn "$p")" "$tree" "$base" "$p"
     else
       _pp_verdict "$p" SKIP-untouched 0
     fi
   done
+  _PP_CUR=""
 
   [[ -n "$changed" && "${PRE_PUSH_LINT:-1}" != 0 && "$only" != override ]] && _ppl_typos "$changed" "$tree"
   # spec 065 L2: every pushed commit carries its release note -- WARN only, never blocks
@@ -1428,13 +1432,48 @@ _pp_run_parts() {  # <tree> <base> <only> <changed>
   trap - INT TERM HUP
   [[ -n "$_pp_old_traps" ]] && eval "$_pp_old_traps"
 
+  _pp_summary
+  return 0
+}
+_pp_summary() {
+  local i
   echo ""
   echo "============ pre-push summary (mode=$mode tier=$_PP_TIER) ============"
   for i in "${!_PP_NAMES[@]}"; do
     printf '  %-4s %5ss  %s\n' "${_PP_STAT[$i]}" "${_PP_SECS[$i]}" "${_PP_NAMES[$i]}"
   done
   echo "======================================================================"
-  return 0
+}
+
+# The INT/TERM/HUP handler of _pp_run_parts (SPL-6213). A rotated pane's
+# signal (sudo relays it to ./run) used to end a full-tier run right after the
+# orc suite's last line: bash runs a trap only when the foreground child
+# returns, and the old trap cleaned up and exited with no line anywhere, so
+# the run read as a gate that stopped mid-way (n=2, 2026-11-21). Now the part
+# it stopped in reads INTERRUPTED, every part not reached SKIP-interrupted, and
+# one overall `tree INTERRUPTED` verdict, on stdout and in pre-push.log, then
+# the summary; the rc stays 128 + the signal. Reads _pp_run_parts' locals.
+_pp_interrupted() {  # <INT|TERM|HUP> <rc> <tree>
+  local sig="$1" rc="$2" p seen=""
+  trap - INT TERM HUP
+  for p in $all; do
+    [[ -n "$_PP_CUR" && " $parts " == *" $p "* ]] || continue
+    if [[ "$p" == "$_PP_CUR" ]]; then
+      seen=1
+      echo "PART $p INTERRUPTED (signal $sig)"
+      _pp_verdict "$p" INTERRUPTED "$((SECONDS - _PP_CUR_T0))" "signal=$sig"
+      _pp_record "$(_pp_label "$p") (INTERRUPTED: signal $sig)" "INTR" "$((SECONDS - _PP_CUR_T0))"
+    elif [[ -n "$seen" ]]; then
+      echo "PART $p SKIP-interrupted (signal $sig)"
+      _pp_verdict "$p" SKIP-interrupted 0 "signal=$sig"
+    fi
+  done
+  _pp_verdict tree INTERRUPTED "$((SECONDS - _PP_T0))" "signal=$sig${_PP_CUR:+ part=$_PP_CUR}"
+  _pp_baseline_cleanup "$3"
+  _pp_pidfile_drop
+  _pp_summary
+  do_log "FATAL pre-push: INTERRUPTED (signal $sig)${_PP_CUR:+ in part $_PP_CUR} -- no verdict for this tree, do not push on it; re-run the gate (rc=$rc)"
+  exit "$rc"
 }
 
 # ./run sources every *.func.sh into one shell: a top-level `set -e` in any of

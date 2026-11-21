@@ -296,6 +296,21 @@ the same grace, and the log names each one: `WARN pre-push: orphan pid <pid>
 test that leaks a process; fix the test, the hook only cleans up after it.
 The orc runner hands a test no fd beyond its own stdout and stderr.
 
+A run stopped by a signal (INT, TERM or HUP: a closed or rotated pane, which
+sudo relays to `./run`) ends with a verdict too (SPL-6213). Before, two
+`PRE_PUSH_TIER=full` runs (n=2, 2026-11-21) stopped right after the orc
+suite's `--- sum over ... files` line with no PART line and no summary: bash
+runs the trap only once the running part returns, and the trap exited without
+a word. Now the part it stopped in logs `PART <part> INTERRUPTED <secs>
+signal=<SIG>`, every planned part not reached `PART <part> SKIP-interrupted 0s
+signal=<SIG>`, and the run `PART tree INTERRUPTED <secs> signal=<SIG>
+part=<part>`, on stdout and in `pre-push.log`; then the summary, `FATAL
+pre-push: INTERRUPTED (signal <SIG>) in part <part> ...`, and rc 128 + the
+signal (130, 143, 129). Such a run is no verdict on the tree: re-run it. A
+part that fails with no signal still gets its own verdict, the remaining
+parts still run, and the run ends with one overall verdict line. Test:
+`csi-spl-iac/src/bash/tests/check-pre-push-interrupt.tst.sh`.
+
 <a id="ws-doc-2a614fe9-783d-4d85-bc3f-8d6843822bcf"></a>
 ## 2. Lint parts
 

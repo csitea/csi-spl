@@ -327,7 +327,9 @@
         "blog": "Blogs",
         "calendar": "Kalendārs",
         "help": "Palīdzība",
-        "source": "Kods"
+        "source": "Kods",
+        "about": "Par mums",
+        "privacy": "Privātums"
       },
       "highlights": {
         "agents": "Aģenti ar vārdu un klātbūtni",

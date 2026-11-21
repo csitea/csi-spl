@@ -327,7 +327,9 @@
         "blog": "בלוג",
         "calendar": "יומן",
         "help": "עזרה",
-        "source": "קוד"
+        "source": "קוד",
+        "about": "אודות",
+        "privacy": "פרטיות"
       },
       "highlights": {
         "agents": "סוכנים עם שם ונוכחות",

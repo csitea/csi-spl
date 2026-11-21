@@ -212,6 +212,10 @@ for h in dict.fromkeys(hosts):
 # src/utils/public-seo.mjs is the same list; nuxt generate checks the meta)
 seo_index = bool((env.get("wui") or {}).get("seo_index"))
 SEO_PUBLIC_SOURCES = ("**/blog", "**/blog/**", "/login", "/*/login", "/help", "/help/**", "/public-calendar", "/*/public-calendar")
+# spec 149 section 12 (SPL-6204): the static pages of src/public Google's app
+# verification reads, the home page /about and the policies it links
+# (public-seo.mjs STATIC_PUBLIC_PAGES, the same list)
+STATIC_PUBLIC_SOURCES = ("/about", "/privacy", "/terms")
 card = (env.get("payment") or {}).get("wui_csp") or {}
 ORIGIN_RE = re.compile(r"^https://(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 def card_sources(kind):
@@ -271,7 +275,7 @@ doc = {
       # so it replaces that rule's noindex for these paths. A header matches
       # the path on any host: the pages' canonical names the apex.
       *[{"source": src, "headers": [{"key": "X-Robots-Tag", "value": "index, follow"}]}
-        for src in (SEO_PUBLIC_SOURCES if seo_index else ())],
+        for src in ((SEO_PUBLIC_SOURCES + STATIC_PUBLIC_SOURCES) if seo_index else ())],
       # Unhashed static media (logo, login wallpapers, icons, the manifest):
       # under `**` alone every reload revalidated each one, a full round trip
       # for a 304 (CLE-35076, prd /login warm reload: 7 of 10 round trips).

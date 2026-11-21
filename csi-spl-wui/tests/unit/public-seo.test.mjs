@@ -112,7 +112,7 @@ describe('public SEO: head', () => {
 describe('public SEO: robots.txt and sitemap.xml', () => {
   it('an indexable build allows the public pages, disallows the rest, names the sitemap', () => {
     const r = buildRobotsTxt({ siteUrl: site, codes: ['bg', 'en', 'fi'], defaultLocale: 'en', indexOn: true })
-    for (const l of ['Disallow: /', 'Allow: /login', 'Allow: /fi/login', 'Allow: /public-calendar', 'Allow: /fi/public-calendar', 'Allow: /blog', 'Allow: /help', 'Allow: /_nuxt/', `Sitemap: ${site}/sitemap.xml`]) {
+    for (const l of ['Disallow: /', 'Allow: /about', 'Allow: /privacy', 'Allow: /terms', 'Allow: /login', 'Allow: /fi/login', 'Allow: /public-calendar', 'Allow: /fi/public-calendar', 'Allow: /blog', 'Allow: /help', 'Allow: /_nuxt/', `Sitemap: ${site}/sitemap.xml`]) {
       assert.ok(r.split('\n').includes(l), l)
     }
     assert.ok(!/Allow: \/(lobby|channel|dm\/|t\/|settings|docs|calendar)/.test(r))
@@ -121,6 +121,12 @@ describe('public SEO: robots.txt and sitemap.xml', () => {
     const r = buildRobotsTxt({ siteUrl: site, codes: ['en', 'fi'], blogOnly: ['de'], defaultLocale: 'en', indexOn: true }).split('\n')
     assert.ok(r.includes('Allow: /de/blog'))
     assert.ok(!r.some((l) => /^Allow: \/de\/(login|public-calendar|help)/.test(l)))
+  })
+  // spec 149 section 12 (SPL-6204): the static one-language pages, once each, after the help
+  it('the sitemap lists the static pages once, in no hreflang group', () => {
+    const entries = sitemapEntries({ codes: ['en', 'fi'], defaultLocale: 'en', today: '2026-10-10', help: [], pageSize: 10, staticPages: ['/about', '/privacy'], blog: null })
+    const locs = entries.map((e) => `${e.code}:${e.base}:${e.langs.length}`)
+    assert.deepEqual(locs, ['en:/login:2', 'fi:/login:2', 'en:/help:0', 'en:/about:0', 'en:/privacy:0', 'en:/blog:2', 'fi:/blog:2'])
   })
   it('any other build disallows everything and names no sitemap', () => {
     assert.equal(buildRobotsTxt({ siteUrl: site, codes, defaultLocale: 'en', indexOn: false }), 'User-agent: *\nDisallow: /\n')

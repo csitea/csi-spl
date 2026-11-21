@@ -327,7 +327,9 @@
         "blog": "Tinklaraštis",
         "calendar": "Kalendorius",
         "help": "Pagalba",
-        "source": "Kodas"
+        "source": "Kodas",
+        "about": "Apie mus",
+        "privacy": "Privatumas"
       },
       "highlights": {
         "agents": "Agentai su vardu ir buvimu",

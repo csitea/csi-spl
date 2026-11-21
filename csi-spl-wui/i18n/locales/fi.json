@@ -327,7 +327,9 @@
         "blog": "Blogi",
         "calendar": "Kalenteri",
         "help": "Ohje",
-        "source": "Lähdekoodi"
+        "source": "Lähdekoodi",
+        "about": "Tietoa meistä",
+        "privacy": "Tietosuoja"
       },
       "highlights": {
         "agents": "Agenteilla on nimi ja läsnäolo",

@@ -327,7 +327,9 @@
         "blog": "Blog",
         "calendar": "Calendar",
         "help": "Ajutor",
-        "source": "Cod"
+        "source": "Cod",
+        "about": "Despre noi",
+        "privacy": "Confidențialitate"
       },
       "highlights": {
         "agents": "Agenți cu nume și prezență",

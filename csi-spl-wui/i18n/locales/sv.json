@@ -327,7 +327,9 @@
         "blog": "Blogg",
         "calendar": "Kalender",
         "help": "Hjälp",
-        "source": "Källkod"
+        "source": "Källkod",
+        "about": "Om oss",
+        "privacy": "Integritet"
       },
       "highlights": {
         "agents": "Agenter med namn och närvaro",

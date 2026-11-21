@@ -623,4 +623,46 @@ v1.0 is signed by each seat's own message on that sha.
 | m-911@sat | mistral | none: voided by c-002 (msg `cb6c814b`); nothing of it is folded in |
 | agy seat | agy | none: not placed before the owner's go (agy out of quota, c-002 msg `9ec38fd7`); it did not review |
 
-<!-- version: 1.0 · updated: 2026-10-23 -->
+## 12. Google verification: the home page (SPL-6204)
+
+Google's branding review of the OAuth app (owner HUM-10, topic
+1d9ec3c5, msgs 8dde8db4 and 7bcccf80, 2026-11-21) said the home page
+`https://<BASE_DOMAIN>` is "unresponsive" and "not registered to you", and
+that a home page must identify the app, describe what it does and say why it
+asks for Google data. Measured by c-002 before this change (n=1): `/`
+answered 200 with `x-robots-tag: noindex, nofollow`, and its HTML without
+JavaScript was only "Loading Spool… / Buy a workspace", with no link to
+`/privacy` or `/terms`.
+
+### 12.1 What the page set holds
+
+| item | where |
+|---|---|
+| `/about`: static, no JavaScript; names spool-hub and Csitea, what it does, why it asks for Google Calendar (the one Spool Hub calendar, two ways; the shown calendars read-only as private events, section 2.10), the Limited Use line; links `/privacy`, `/terms`, `/login` | `csi-spl-wui/src/public/about.html` |
+| Limited Use, in Google's words, with the policy link; the read of the shown calendars stated (it said "does not read ... any other calendar", which `calendar.readonly` made untrue) | `privacy.html` section 3 |
+| `X-Robots-Tag: index, follow` on `/about`, `/privacy`, `/terms` on an indexable build (cnf `env.wui.seo_index`, prd); every other path keeps `noindex, nofollow`, `/` included | `STATIC_PUBLIC_SOURCES` in `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` = `STATIC_PUBLIC_PAGES` in `csi-spl-wui/src/utils/public-seo.mjs` |
+| `Allow:` lines in robots.txt and one sitemap entry each | `buildRobotsTxt`, `sitemapEntries` (`public-seo.mjs`) |
+| the home URL leads there: the prerendered shell at `/` (read without JavaScript) and the sign-in links row link `/about` and `/privacy` | `src/layouts/default.vue`, `src/components/LoginLinks.vue` |
+
+Tests: `tests/unit/legal-pages.test.mjs`, `hosting-cache.test.mjs`,
+`public-seo.test.mjs`, `tests/e2e/about-page.test.mjs` (`/about` read with
+JavaScript off, its links, the shell at `/`, the sign-in links).
+
+### 12.2 The owner's console steps (never a lane)
+
+1. Search Console: verify the domain `<BASE_DOMAIN>` (a DNS TXT record) with
+   the Google account that owns the OAuth project; that answers "not
+   registered to you".
+2. Google Auth Platform, Branding: home page `https://<BASE_DOMAIN>/about`
+   (the app itself stays at `/`, `noindex`; that Google accepts a home page
+   with a path is unchecked, I believe), privacy `https://<BASE_DOMAIN>/privacy`,
+   terms `https://<BASE_DOMAIN>/terms`. Then ask for the review again.
+
+### 12.3 Spec 116
+
+`/about` is not spec 116's public front page and builds none of its design:
+it is the smallest static page Google's review needs. When 116's front page
+is built it can take this text or link it; `/about` stays as the page a
+crawler reads without JavaScript.
+
+<!-- version: 1.0 · updated: 2026-11-21 -->

@@ -23,6 +23,7 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const REPO = join(WUI, '..')
 const RENDER = join(REPO, 'csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh')
 const PUBLIC = join(WUI, 'src/public')
+const { STATIC_PUBLIC_PAGES } = await import(join(WUI, 'src/utils/public-seo.mjs'))
 
 /** Hosting glob -> RegExp: `**`, `*` and the extglob `@(a|b)`. */
 function globRe(glob) {
@@ -63,12 +64,22 @@ const REVALIDATE = 'public, max-age=0, must-revalidate'
 /* spec 116 T7: the served X-Robots-Tag follows cnf env.wui.seo_index - prd
    indexes the public pages (every locale copy), dev indexes nothing */
 describe('Hosting X-Robots-Tag (spec 116 T7)', () => {
-  const PUBLIC_PAGES = ['/login', '/fi/login', '/help', '/help/agents', '/blog', '/blog/page/2', '/blog/2026-10-09-x', '/fi/blog/2026-10-09-x']
-  const APP = ['/', '/fi', '/lobby', '/channel/general', '/dm/x', '/t/abc', '/settings', '/fi/help', '/api/v1/auth/login', '/help-md/index.md', '/200.html']
+  const PUBLIC_PAGES = ['/login', '/fi/login', '/help', '/help/agents', '/blog', '/blog/page/2', '/blog/2026-10-09-x', '/fi/blog/2026-10-09-x', ...STATIC_PUBLIC_PAGES]
+  const APP = ['/', '/fi', '/about-x', '/fi/about', '/privacy.json', '/lobby', '/channel/general', '/dm/x', '/t/abc', '/settings', '/fi/help', '/api/v1/auth/login', '/help-md/index.md', '/200.html']
   it('prd: the public pages are index, follow; every app path stays noindex', () => {
     const doc = rendered('prd')
     for (const p of PUBLIC_PAGES) assert.equal(effective(doc, p, 'X-Robots-Tag'), 'index, follow', p)
     for (const p of APP) assert.equal(effective(doc, p, 'X-Robots-Tag'), 'noindex, nofollow', p)
+  })
+  // spec 149 section 12 (SPL-6204): the static pages Google's app verification
+  // reads; render-wui-firebase-json.sh's STATIC_PUBLIC_SOURCES is this list
+  it('prd: each static public page (public-seo STATIC_PUBLIC_PAGES) is a file in src/public with its own index rule', () => {
+    const doc = rendered('prd')
+    assert.deepEqual(STATIC_PUBLIC_PAGES, ['/about', '/privacy', '/terms'])
+    for (const p of STATIC_PUBLIC_PAGES) {
+      assert.ok(walk(PUBLIC).includes(join(PUBLIC, p.slice(1) + '.html')), p)
+      assert.ok(doc.hosting.headers.some((r) => r.source === p && r.headers.some((h) => h.key === 'X-Robots-Tag' && h.value === 'index, follow')), p)
+    }
   })
   it('dev: nothing is indexable, the blog included', () => {
     const doc = rendered('dev')

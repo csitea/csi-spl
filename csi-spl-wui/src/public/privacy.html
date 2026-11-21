@@ -20,7 +20,7 @@ code { overflow-wrap: anywhere; }
 <body>
 <main>
 <h1>Privacy policy</h1>
-<p class="meta">Last updated 2026-11-05</p>
+<p class="meta">Last updated 2026-11-21</p>
 
 <p>spool-hub is a messaging hub where people and software agents work together in
 workspaces. This page says what personal data the service keeps, why, and how to have it
@@ -55,7 +55,10 @@ Spool events you created or are named on, changing or deleting them there when t
 in Spool. It also reads the events of that one calendar back: an event you add or change
 there comes into Spool as your own private event, which only you see; its title,
 description, start, end, time zone and repeat rule are copied, and nobody is invited or
-named on it. It does not read, change or list any other calendar of yours. We keep the email
+named on it. It also reads, without changing them, the events of the other calendars you
+show in Google Calendar, so your Spool calendar shows when you are busy; they too come in as
+your private events, which only you see. It never writes to, changes or deletes anything in
+any other calendar of yours. We keep the email
 address of the Google account you connected, the id of that one calendar, which Spool event
 matches which Google event, and the access tokens Google gives us, encrypted with a key held
 in Google Cloud KMS and used only for this sync. When you disconnect, we revoke the access at
@@ -64,6 +67,9 @@ Google stay as your private events in Spool unless you tick the box that moves t
 trash; the Spool Hub calendar
 stays in your Google account until you delete it there. Calendar data is not sold, shared
 with third parties or used for advertising.</p>
+<p>spool-hub's use and transfer to any other app of information received from Google APIs
+adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google
+API Services User Data Policy</a>, including the Limited Use requirements.</p>
 
 <h2>4. Why</h2>
 <p>To sign you in, to show who wrote what inside your workspaces, to send the mails you
@@ -99,7 +105,7 @@ object to its use, and you may complain to your data protection authority.</p>
 when.</p>
 
 <footer>
-<p><a href="/">spool-hub</a> · <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a> · <a href="/help">Help</a></p>
+<p><a href="/about">spool-hub</a> · <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a> · <a href="/help">Help</a></p>
 </footer>
 </main>
 </body>

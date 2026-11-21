@@ -2,7 +2,12 @@
 
 Status: **v1.0** (2026-11-21): the owner's four answers folded (section
 1.1), spec review PASS (section 8). Lane `c-601` (`claude`, backup for `specs_and_docs`: no agy
-cli on this box). Nothing below is built.
+cli on this box).
+Build: rows B1-B7 built by lane `c-760` on branch
+`review/c002-s189-b1-b7-topic-list-end-build` (the `feat(wui, SPL-6143)` commit and
+the help commit after it); not on master until its agy language review and
+R7 code review pass. The fresh set and `pinEdge` share
+`wui/utils/topic-list-order.mjs` (no new shim block: the shims cap is 102).
 Epic: **SPL-2403**. Issue: **SPL-6143**. Class: `feature`. Kind: `specs_and_docs`.
 Placement: `c002-s-new-topic-pinned-end-spec`.
 Discussion: `topic:a48d75d6-0385-4cfe-9316-5a859a6184f8` (`t1`), task

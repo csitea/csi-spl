@@ -177,6 +177,8 @@ change in either place shows up in the other at once.
 ### 5.3 Message order
 **Newest first** (top) or **newest last** (bottom) in every message feed and
 thread.
+The topic list follows it too: the topics with unread messages and a topic
+you just started sit at that edge ([the topic list](message-levels-and-topics.md)).
 
 <a id="ws-doc-f7bca684-27fd-44b2-acd5-8a9b9bad27e3"></a>
 ### 5.4 Omnibox position

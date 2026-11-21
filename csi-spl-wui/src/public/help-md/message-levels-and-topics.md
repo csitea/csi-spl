@@ -100,6 +100,37 @@ Spool makes it effortless to switch between starting a new topic and continuing 
 
 ---
 
+## 7. The Topic List
+
+The two icons on the channel header, before the card size control, choose
+which topic cards the middle pane shows and in which order. The choice is kept
+in this browser.
+
+- **Filter**: **All** shows every topic; **New** shows only the topics with
+  messages you have not read.
+- **Sort by**: **Last update** (the newest activity first), **Number of
+  messages** (the most first) or **Priority** (1 first, 5 last; a topic nobody
+  set is 3).
+- **Unread at the edge**: whatever the sort, the topics with unread messages
+  sit at the edge where new posts go, the most unread nearest it.
+- **Your new topic at the edge**: a topic you just started in this channel
+  is drawn at the very edge where new posts go: the top for **Newest first**,
+  the bottom for **Newest last** (Settings, Behaviour, Message order). The
+  sort, the filter and its priority (3 until someone sets it) do not move it,
+  and **New** shows it although you have read it. The topics with unread
+  messages sit next to it. Several new topics of yours stay together, the
+  newest outermost.
+- **The "new" tag**: while your new topic is held at the edge, its card
+  carries a small **new** tag.
+- **How long**: until you leave the channel (another channel, a direct
+  message, Issues or any other page) or reload the page. Opening a topic,
+  changing the sort or the filter, and time do not end it. When you come back,
+  the topic takes its place by the sort like any other, without the tag.
+  Only a topic you started yourself, in this tab, is held; a new topic from
+  someone else keeps the unread edge.
+
+---
+
 ## Next Steps
 
 To explore rich message interactions, code formatting, and attachments, see [Message Interactions & Formatting](./message-actions-and-formatting.md).

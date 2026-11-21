@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
 **Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.4
-(Q-1..Q-16 answered; Q-17, non-payment, open; section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+(Q-1..Q-16 answered; Q-17, non-payment, and Q-18, what creates the tenant, open; section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -89,7 +89,7 @@ only, compute, disk and traffic (Q-8 A).
 ## 1. Questions for the owner (forms)
 
 Each was posted as a poll; the first option is the recommended one. Every
-question but Q-17 is answered (1.0). From v0.3 sections 2 to 7 are written
+question but Q-17 and Q-18 is answered (1.0). From v0.3 sections 2 to 7 are written
 as the answers say; a **[Q-n]** there names the answer it comes from.
 
 ### 1.0 The owner's answers
@@ -118,6 +118,7 @@ marks in sections 2 to 6 now read as that answer.
 | Q-15 | "The customers will be invoiced afterwards." (asked in chat: how are the seats paid?) | `09472141` | 2026-11-20 21:39Z |
 | Q-16 | B: "Yes, everything: one monthly invoice in arrears for the seats and the VM cost + 33%; no prepaid balance (Q-9 changes to B)" (form `12d0d6f3`) | `6768e241` | 2026-11-20 |
 | Q-17 | open: what a non-payment does (form below) | - | - |
+| Q-18 | open: what the checkout takes up front and which event creates the tenant (form below) | - | - |
 
 Q-15, Q-16 and the change of Q-9 to B, verbatim (owner HUM-10, t1
 `b12055b5`, 2026-11-20): Q-15, msg `09472141` (21:39Z), "The customers will
@@ -139,6 +140,17 @@ Q-17. A private workspace's monthly invoice is not paid by its due date. What ha
 (A) A reminder at the due date; 14 days later the agents stop and the workspace stays readable until it is paid; the VM is kept (Recommended: no work is lost, the cost stops growing)
 (B) A reminder only; the agents keep running, and the owner decides each case by hand
 (C) 30 days after the due date the workspace is cancelled as Q-12 C (VM deleted at once, hub data kept 30 days)
+```
+
+Q-18 comes from the v0.4 review (m-626, W1): with nothing charged up
+front, today's paid webhook (section 3) never fires, so what creates the
+tenant is not stated by the owner.
+
+```poll
+Q-18. Nothing is charged up front. What does the private-workspace checkout take, and which event creates the tenant?
+(A) A card on file: the checkout saves the card with the payment provider, no charge; the card-saved event creates the tenant and the provisioning order; each month-end invoice is charged to that card (Recommended: one checkout event as today, and the invoice has a way to be paid)
+(B) An order only: name, seats and billing details; the tenant is created when the owner approves the order; the invoice is paid by bank transfer
+(C) An order only, and the tenant is created at once on submit; the invoice is paid by bank transfer
 ```
 
 Q-13 is mapped by its answer text, which is form Q-13's option B word for
@@ -333,9 +345,11 @@ Not measured: what prd serves, and which switches are on there.
    customer gets the VM's GCP cost forwarded, then our invoice: seats x
    9 EUR + the VM cost + 33%, in arrears [Q-9 B, Q-15, Q-16 B]. The page
    says so.
-4. The paid webhook makes the tenant and its owner (006, built), sets the
-   seat caps (009, built), turns `box_join_enabled` on for it, and writes a
-   **provisioning order** (new, gap G3).
+4. The event that creates the tenant is open [Q-18]: with nothing charged
+   up front, today's paid webhook (006, built) does not fire. That event
+   makes the tenant and its owner, sets the seat caps (009, built), turns
+   `box_join_enabled` on for it, and writes a **provisioning order** (new,
+   gap G3).
 
 The checkout is built first, then provisioning [Q-13 B]; section 6 is in
 that order.
@@ -406,7 +420,7 @@ that order.
 |---|---|---|---|
 | G1 | a terraform step with one VM per private workspace, labelled by workspace | 4.2 | Q-1 A |
 | G2 | the customer box role set (no estate keys) and an operator join-token mint path | 4.2 | Q-3 A |
-| G3 | a provisioning order written by the paid webhook, and a named action that takes it to a plan | 4.1, 4.2 | Q-13 B |
+| G3 | a provisioning order written by the event that creates the tenant (open, Q-18), and a named action that takes it to a plan | 4.1, 4.2 | Q-13 B, Q-18 |
 | G4 | a price plan: seat cents per human member in EUR, VM cost + 33%; the `price_plans` table of 121 is not built | 4.1 | Q-6..Q-9, Q-11 A |
 | G5 | the VM's cost per day (compute, disk, traffic) from the billing export, by its label | 4.4 | Q-8 A |
 | G6 | the monthly invoice in arrears: the VM's GCP cost of the month forwarded, then our invoice (seats x 9 EUR + VM cost + 33%); today's rail has one-off payment intents only (section 3); what a non-payment does waits on Q-17 | 4.1, 4.4 | Q-9 B, Q-16 B, Q-17 |
@@ -426,7 +440,7 @@ brackets.
 | # | lane | task | red control | waits on |
 |---|---|---|---|---|
 | B1 [B6] | rdb + hub (claude) | the private-workspace price: seat cents per human member in EUR, VM cost + 33%, invoiced monthly in arrears | a plan with a token line -> refused (P5) | - |
-| B2 [B7] | hub (claude) | paid webhook: tenant, seats, `box_join_enabled` on, the provisioning order | webhook replayed -> one order, not two | B1 |
+| B2 [B7] | hub (claude) | the tenant-creation event of Q-18 (not today's paid webhook: nothing is charged up front): tenant, seats, `box_join_enabled` on, the provisioning order | event replayed -> one order, not two | B1, Q-18 |
 | B3 [B8] | wui (claude) | the private-workspace checkout and its price lines; locale texts, agy review last | the page shows a token price -> e2e fails | B1 |
 | B4 [B5] | iac/orc (claude) | per-VM cost per day (compute, disk, traffic) from the billing export by label (spec 123's reader) | a fixture row with another workspace's label -> not counted | - |
 | B5 [B1] | iac (claude) | step for per-workspace VMs: `for_each` over a cnf map `<tenant> -> machine type`, labels `workspace`, `box`; plan only | an entry without a `workspace` label -> the step's check refuses the plan | - |
@@ -445,6 +459,7 @@ Marketplace stays spec 156.
 - A go per VM apply and per VM delete in the first slice (repo CLAUDE.md:
   nothing mutates GCP without the owner).
 - Q-17: what a non-payment of the monthly invoice does (1.0).
+- Q-18: what the checkout takes up front and which event creates the tenant (1.0).
 - 159's O1 (Anthropic), O2 (xAI) and O3 (Mistral): each vendor's written
   answer switches its sign-in relay on, and decides whether grok and
   mistral are offered [Q-4 A, Q-14 A].
@@ -475,6 +490,8 @@ Marketplace stays spec 156.
   per human member + the VM cost + 33%); no prepaid balance. Q-9 A -> B.
   4.1, 4.4, G6 and B1 rewritten; section 2 names where this differs from
   121 R7 and from row B10 as landed (`d6fc241f9`); new open form Q-17
-  (non-payment).
+  (non-payment). After review (m-626, W1): new open form Q-18 (what the
+  checkout takes up front, which event creates the tenant); 4.1 step 4,
+  G3 and B2 no longer name the paid webhook.
 
-<!-- version: 0.4.0 · updated: 2026-11-21 · last-edit: 2026-11-21T02:32:09Z -->
+<!-- version: 0.4.0 · updated: 2026-11-21 · last-edit: 2026-11-21T02:48:05Z -->

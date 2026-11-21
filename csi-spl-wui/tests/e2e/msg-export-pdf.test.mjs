@@ -163,9 +163,15 @@ async function cardCase(p, ids, tag) {
 /* SPL-6205 (owner HUM-10, t1 f798e9aa msg a1ca02fb): the topic card's menu in
    the channel prints the whole topic, first to last; no header button */
 async function topicMenuExport(p, rootId) {
-  await p.waitForSelector(midCard(rootId), { timeout: 10000 })
-  await p.click(`${midCard(rootId)} .msg-body`, { button: 'right' })
-  const opened = await until(p, () => document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]').length > 0)
+  /* the card re-renders while its replies land (its count): a right-click on a
+     node that left the page retries, as a reader clicks again */
+  let opened = false
+  for (let i = 0; i < 5 && !opened; i++) {
+    await p.waitForSelector(midCard(rootId), { timeout: 10000 })
+    /* at the text's start: the body may end in a link, which keeps the browser's menu */
+    await p.click(`${midCard(rootId)} .msg-body`, { button: 'right', offset: { x: 4, y: 6 } }).catch(() => {})
+    opened = await until(p, () => document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]').length > 0, undefined, 2000)
+  }
   const items = await p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
   const label = await p.evaluate(() => document.querySelector('[data-testid=msg-menu-export-topic-pdf]')?.textContent?.trim() || '')
   await p.evaluate(() => { window.__printCalls = 0 })
@@ -235,10 +241,13 @@ async function longTopicCase(p, tag, cardPdf) {
   /* SPL-6205: 41 posts, more than the pane's first read (opener + 30): the
      channel card's menu prints them all, first to last, no pane opened */
   const root = cards.find((id) => long.ids[id] === 0)
+  /* back on the channel (the topic case opened a topic pane) */
+  await p.evaluate((ch) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/channel/' + ch), CH)
+  await until(p, (sel) => Boolean(document.querySelector(sel)), midCard(root), 15000)
   const m = await topicMenuExport(p, root)
   const got = await printed(p)
   const order = cards.slice().sort((x, y) => long.ids[x] - long.ids[y])
-  ok('long topic: the menu export prints all 41 posts, first to last', m.ready && JSON.stringify(got?.ids) === JSON.stringify(order), got && { n: got.ids.length })
+  ok('long topic: the menu export prints all 41 posts, first to last', m.ready && JSON.stringify(got?.ids) === JSON.stringify(order), got ? { n: got.ids.length } : { opened: m.opened, ready: m.ready, items: m.items.length })
   ok('long topic: the page is in print mode with the render', Boolean(got?.printing), got && { printing: got.printing })
   const lastI = long.ids[got?.ids.at(-1)]
   const buf = Buffer.from(await p.pdf({ format: 'A4', printBackground: true }))

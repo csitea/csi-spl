@@ -58,6 +58,7 @@ tests/e2e/calendar-phone.test.mjs 20
 tests/e2e/calendar-reminder.test.mjs 63
 tests/e2e/calendar-synced.test.mjs 5
 tests/e2e/calendar-undo.test.mjs 12
+tests/e2e/calendar-week-label.test.mjs 13
 tests/e2e/calendar.test.mjs 20
 tests/e2e/card-edge-inset.test.mjs 63
 tests/e2e/card-header-menu-row.test.mjs 25

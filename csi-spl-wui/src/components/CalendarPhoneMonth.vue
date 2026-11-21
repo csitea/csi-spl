@@ -291,10 +291,14 @@ function onKey(e: KeyboardEvent) {
   outline: var(--focus-ring-w) solid var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
+/* SPL-6146: the week label has its own band at the top of the row, inside
+   the 2 px card; every cell of the row keeps that band (padding-top), so the
+   numbers stay level and never sit under the label */
+.calmonth__row:not(.calmonth__row--head) .calmonth__cell { padding-top: calc(4px + 0.625rem + 2px); }
 .calmonth__wk {
   position: absolute;
-  inset-block-start: 1px;
-  inset-inline-start: 2px;
+  inset-block-start: 4px;
+  inset-inline-start: 4px;
   font-size: 0.625rem;
   line-height: 1;
   color: var(--color-muted);

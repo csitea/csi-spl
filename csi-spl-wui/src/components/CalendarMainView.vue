@@ -616,7 +616,7 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
    from the catalogue; a narrow column breaks between them, never in the date */
 .cal-week__date { white-space: nowrap; }
 /* SPL-6146: the ISO week after the day number, a label, not an event */
-.cal-week__wk { white-space: nowrap; font-weight: 400; color: var(--color-muted); }
+.cal-week__wk { white-space: nowrap; font-weight: 400; color: var(--color-muted); text-transform: none; }
 .cal-week__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cal-week__item {
   display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline;

@@ -8,7 +8,10 @@
 // number in each day header. Phone 390x844: Month the same in the first
 // cell of each row, Week after each day's date, Day after the date in the
 // header title. Every label is the ISO week of its day (calWeekLabel) and
-// none is an event item.
+// none is an event item. Labels are read as drawn (innerText follows
+// text-transform: a capitalized header must not turn w-42 into W-42), and
+// on the phone Month the label's box must not overlap the day number's,
+// at 390 and at 320 px.
 //
 // Control: on origin/master before SPL-6146 no view draws a w-NN label, so
 // every check FAILS.
@@ -70,7 +73,7 @@ async function deskMonth(browser, base) {
     const num = first?.querySelector('[data-test=calendar-month-day]')
     return {
       iso: first?.getAttribute('data-day') || '',
-      label: wk?.textContent?.trim() || '',
+      label: wk?.innerText?.trim() || '',
       before: Boolean(wk && num && (wk.compareDocumentPosition(num) & Node.DOCUMENT_POSITION_FOLLOWING)),
       others: cells.slice(1).filter((c) => c.querySelector('[data-test=calendar-month-week]')).length,
       inItem: Boolean(wk?.closest('[data-test=calendar-item]')),
@@ -92,7 +95,7 @@ async function deskDays(browser, base, v, days) {
     const wk = h?.querySelector('[data-test=calendar-week-label]')
     return {
       day: el.getAttribute('data-day'),
-      label: wk?.textContent?.trim() || '',
+      label: wk?.innerText?.trim() || '',
       after: Boolean(wk && date && (date.compareDocumentPosition(wk) & Node.DOCUMENT_POSITION_FOLLOWING)),
       inItem: Boolean(wk?.closest('[data-test=calendar-item]')),
     }
@@ -103,14 +106,14 @@ async function deskDays(browser, base, v, days) {
   await p.close()
 }
 
-async function phone(browser, base, view) {
+async function phone(browser, base, view, width = 390) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   await pinClock(p, 'UTC')
   await p.evaluateOnNewDocument((v) => {
     try { localStorage.setItem('spool-calendar-phone-view', v) } catch { /* about:blank */ }
   }, view)
-  const spec = { width: 390, height: 844, hasTouch: true }
+  const spec = { width, height: 844, hasTouch: true }
   await setPageViewport(p, spec)
   await p.goto(`${base}/calendar`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await applyViewport(p, spec)
@@ -118,8 +121,8 @@ async function phone(browser, base, view) {
   return { p, ctx }
 }
 
-async function phoneMonth(browser, base) {
-  const { p, ctx } = await phone(browser, base, 'month')
+async function phoneMonth(browser, base, width) {
+  const { p, ctx } = await phone(browser, base, 'month', width)
   const want = monthRows()
   await p.waitForSelector(`[data-test=calphone-month][data-period="${want[0].iso}"] [data-test=calphone-month-cell]`, { timeout: 15000 }).catch(() => null)
   const got = await p.$$eval(`[data-test=calphone-month][data-period="${want[0].iso}"] [data-test=calphone-month-grid] [role=row]`, (rows) => rows.slice(1).map((r) => {
@@ -128,12 +131,21 @@ async function phoneMonth(browser, base) {
     const num = cells[0]?.querySelector('.calmonth__num')
     return {
       iso: cells[0]?.getAttribute('data-iso') || '',
-      label: wk?.textContent?.trim() || '',
+      label: wk?.innerText?.trim() || '',
       before: Boolean(wk && num && (wk.compareDocumentPosition(num) & Node.DOCUMENT_POSITION_FOLLOWING)),
       others: cells.slice(1).filter((c) => c.querySelector('[data-test=calphone-month-week]')).length,
+      apart: (() => {
+        const a = wk?.getBoundingClientRect()
+        const b = num?.getBoundingClientRect()
+        const c = cells[0]?.getBoundingClientRect()
+        if (!a || !b || !c || !a.width || !b.width) return false
+        const disjoint = a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top
+        return disjoint && a.top >= c.top && a.left >= c.left && a.right <= c.right
+      })(),
     }
   })).catch(() => [])
-  ok('phone Month: each row\'s first cell shows its ISO week w-NN, in front of the day number', got.length === 6 && want.every((w, i) => got[i].iso === w.iso && got[i].label === w.label && got[i].before && got[i].others === 0), { want, got })
+  ok(`phone Month ${width}px: each row\'s first cell shows its ISO week w-NN, in front of the day number`, got.length === 6 && want.every((w, i) => got[i].iso === w.iso && got[i].label === w.label && got[i].before && got[i].others === 0), { want, got })
+  ok(`phone Month ${width}px: the label never overlaps the day number and stays inside its cell`, got.length === 6 && got.every((g) => g.apart), got.map((g) => g.apart))
   await ctx.close()
 }
 
@@ -147,7 +159,7 @@ async function phoneWeek(browser, base) {
     const wk = h.querySelector('[data-test=calweek-day-week]')
     return {
       day: iso?.textContent?.trim() || '',
-      label: wk?.textContent?.trim() || '',
+      label: wk?.innerText?.trim() || '',
       after: Boolean(wk && iso && (iso.compareDocumentPosition(wk) & Node.DOCUMENT_POSITION_FOLLOWING)),
     }
   })).catch(() => [])
@@ -158,7 +170,7 @@ async function phoneWeek(browser, base) {
 async function phoneDay(browser, base) {
   const { p, ctx } = await phone(browser, base, 'day')
   const title = await p.waitForFunction((d) => {
-    const s = document.querySelector('[data-test=calphone-title] .calphone__title-text')?.textContent?.trim() || ''
+    const s = document.querySelector('[data-test=calphone-title] .calphone__title-text')?.innerText?.trim() || ''
     return s.includes(d) ? s : false
   }, { timeout: 15000 }, E2E_TODAY).then((h) => h.jsonValue(), () => '')
   const want = calWeekLabel(E2E_TODAY)
@@ -173,7 +185,8 @@ try {
   await deskDays(browser, server.base, 'day', [E2E_TODAY])
   await deskDays(browser, server.base, '3day', [calAddDays(E2E_TODAY, -1), E2E_TODAY, calAddDays(E2E_TODAY, 1)])
   await deskDays(browser, server.base, 'week', Array.from({ length: 7 }, (_, i) => calAddDays(calWeekStart(E2E_TODAY), i)))
-  await phoneMonth(browser, server.base)
+  await phoneMonth(browser, server.base, 390)
+  await phoneMonth(browser, server.base, 320)
   await phoneWeek(browser, server.base)
   await phoneDay(browser, server.base)
 } finally {

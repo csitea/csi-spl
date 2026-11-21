@@ -792,7 +792,12 @@ not as a separate event".
 - Month (desktop and phone): `w-NN` in the first cell of each week row, in
   front of its day number.
 - Day, 3 days and Week (desktop) and the phone Week: `w-NN` after the date in
-  each day header. The phone Day: after the date in the header title.
+  each day header. The phone Day: after the date in the header title, so the
+  phone search's day group headings read the same (`Wed 2026-10-07 w-41`).
+- It is drawn lower case as written: a day header that capitalizes its
+  weekday leaves the label alone (`text-transform: none`). On the phone
+  Month it has its own band at the top of the row, above the day number
+  and inside the cell, never on top of the number (at 390 and 320 px).
 - It is a label of the grid, never an event item. A "Week NN of YYYY" event
   a member sees comes from a calendar they imported or connected (the WUI
   makes none) and stays as that calendar sent it.
@@ -1372,6 +1377,7 @@ table's rows in order.
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v1.4 | 2026-11-21 | c-610 | Section 5.2: the label is drawn lower case in capitalized day headers and has its own band on the phone Month, never over the day number (R7 c-709 W1, W2); the phone search headings carry it too. SPL-6146. |
 | v1.3 | 2026-11-21 | c-610 | Section 5.2: the ISO week as a `w-NN` label beside the day number in every view (owner msg `3d289c5c`), never an event. SPL-6146. |
 | v1.2 | 2026-11-19 | c-852 | Section 11.3: no `tag_ids` index in T1 (R7 finding W1 of c-318 on T1: under FORCE RLS a non-LEAKPROOF `@>` never reaches a GIN's Index Cond; decision (a) of c-001, msg `7f1d9e7b`); T6 adds any index with the access path that can use it, in its own migration, proved by an EXPLAIN under FORCE RLS. 11.4.3 points to it. SPL-5945. |
 | v1.1 | 2026-11-19 | c-836 | Section 11: the owner's answers (msg `cde26d3f`, poll `c15f11e0`) written in. O1 A: any member who writes events creates tags, delete stays admin-only (11.5). O2 B: the filter matches events with ALL chosen tags (`@>`), `none` only alone, unknown ids dropped (11.4.3, 11.8); T6's test and red control flipped. O3 A: To-do filters by issue labels, also "all" (`label_match=all`, new T17). O5 B: the filter is also remembered per member and workspace in `tenant_memberships.settings` (rdb 0078, no new table), the link wins, Clear forgets, deleted tags pruned (11.8.2, measured on `86572482f`; new T16, T12 grows). O6 A: later row T15, the first tag's colour as Google `colorId`. 11.12 is now "Owner answers". SPL-5883. |

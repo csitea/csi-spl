@@ -2170,11 +2170,14 @@ tick40 LAUNCH_ID=c-542 >/dev/null
 grep -q '^k2-plain-fix BOX_PICK_REVIEW_SEAT=0$' "$T/launch.log.seat" && pass "40a. CONTROL any other row launches on the weekly mark" || fail "40a. control: $(cat "$T/launch.log.seat")"
 
 seat_clear; seat_q "$K1" k1-reviewer 31
+printf 'Issue: SPL-9001\nAuthor: c-982@box-a (claude)\n' >>"$T/briefs/k1-reviewer.md"
 out="$(tick40 LAUNCH_HOLD_SLUG=k1-reviewer)"
 [[ "$(alarms)" == 0 ]] && grep -q 'back in line' <<<"$out" && pass "40b. first HOLD of a seat 31 min in line: no hold was known at the check, nothing yet" || fail "40b. first: $(sends) | $out"
 tick40 LAUNCH_HOLD_SLUG=k1-reviewer >/dev/null
 [[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && grep -q "c-001 c-002 blocker spawn-queue .*ask ${K1:0:8} (claude:k1-reviewer), 3[0-9] min in line: waiting: grok weekly >= 90% on box-a" "$T/send.log" &&
-  grep -q "^- ask ${K1:0:8}, 3[0-9] min in line, held by: weekly quota$" "$AS" && pass "40c. the next tick: one blocker to the dispatch holder naming the hold, and one #alerts post" || fail "40c. $(sends) | $(cat "$AS" 2>/dev/null)"
+  grep -q "^- ask ${K1:0:8}, 3[0-9] min in line, held by: weekly quota; reviews: SPL-9001 \"R7 reviewer, review only\"; seat: claude; author: c-982@box-a$" "$AS" &&
+  grep -q "waiting: grok weekly >= 90% on box-a; reviews: SPL-9001 \"R7 reviewer, review only\"; seat: claude; author: c-982@box-a" "$T/send.log" &&
+  pass "40c. the next tick: one blocker to the dispatch holder naming the hold, and one #alerts post; both name the issue, the thing, the seat's vendor and the author (SPL-6219)" || fail "40c. $(sends) | $(cat "$AS" 2>/dev/null)"
 rm -f "$Q40/.place.seat-alarm.last"
 tick40 LAUNCH_HOLD_SLUG=k1-reviewer >/dev/null
 [[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && pass "40d. the same seat, still held, past the alarm gap: no second alarm" || fail "40d. $(sends)"
@@ -2226,8 +2229,28 @@ tick40 WINDOWS=40 >/dev/null
 [[ "$(alarms)" == 1 && "$(posts)" == 1 ]] && grep -q "(claude:acme-corp-portal-reviewer), 3[0-9] min in line: the launcher says acme-corp-portal-reviewer.md under /briefs/acme" "$T/send.log" &&
   pass "40l. a customer-style slug and a hold line naming it reach the blocker" || fail "40l. blocker: $(sends)"
 if grep -qiE 'acme|box-|/briefs' "$AS"; then fail "40l. the #alerts post carries the slug or the hold: $(cat "$AS")"
-elif [[ "$(grep '^- ' "$AS" | grep -cvE "^- ask ${K1:0:8}, [0-9]+ min in line, held by: ($HOLD_CLASSES)$")" != 0 || "$(grep -c '^- ' "$AS")" != 1 ]]; then fail "40l. a seat line of the post is more than id8, minutes and a hold class: $(cat "$AS")"
-else pass "40l. ... and not the #alerts post: its seat line is id8, minutes and a class of the fixed list only"; fi
+elif [[ "$(grep '^- ' "$AS" | grep -cvE "^- ask ${K1:0:8}, [0-9]+ min in line, held by: ($HOLD_CLASSES); reviews: no Issue: line \"R7 reviewer, review only\"; seat: claude$")" != 0 || "$(grep -c '^- ' "$AS")" != 1 ]]; then fail "40l. a seat line of the post is more than id8, minutes, a hold class and the brief's issue, heading, vendor, author: $(cat "$AS")"
+else pass "40l. ... and not the #alerts post: its seat line is id8, minutes, a class of the fixed list and what the seat is"; fi
+# 40m. SPL-6219 (owner HUM-10, msgs b8f1b546 and c97d462d): each seat line of the
+# #alerts post says what the seat reviews: the brief's Issue: key and heading, the
+# seat's vendor, the author lane when an Author: line names one. A brief this box
+# cannot read says so. RED on origin/master f074057b5: its line ends at the hold class.
+seat_clear; seat_q "$K1" k1-reviewer 31 "R7 reviewer for SPL-6213 (a signalled pre-push run ends INTERRUPTED), grok, code review only"
+printf 'Issue: SPL-6213\nIssue-Role: shared\nAuthor: c-982@box-b (claude)\n' >>"$T/briefs/k1-reviewer.md"
+seat_q "$K3" k3-reviewer 33 "R7 reviewer, no author line"
+printf 'Issue: SPL-6214\n' >>"$T/briefs/k3-reviewer.md"
+tick40 WINDOWS=40 >/dev/null
+L1="- ask ${K1:0:8}, N min in line, held by: window ceiling; reviews: SPL-6213 \"R7 reviewer for SPL-6213 (a signalled pre-push run ends INTERRUPTED), grok, code review only\"; seat: claude; author: c-982@box-b"
+L3="- ask ${K3:0:8}, N min in line, held by: window ceiling; reviews: SPL-6214 \"R7 reviewer, no author line\"; seat: claude"
+seatlines() { sed -E 's/^(- ask [0-9a-f]{8}), 3[0-9] min in line/\1, N min in line/' "$AS" 2>/dev/null; }
+[[ "$(posts)" == 1 ]] && grep -qxF -e "$L1" <(seatlines) && grep -qxF -e "$L3" <(seatlines) &&
+  pass "40m. PROOF the #alerts seat lines name the issue key, the brief's heading, the seat's vendor and the author (none when no Author: line)" ||
+  fail "40m. post: $(cat "$AS" 2>/dev/null)"
+seat_clear; seat_q "$K1" k1-reviewer 31
+rm -f "$T/briefs/k1-reviewer.md"
+tick40 WINDOWS=40 >/dev/null
+[[ "$(posts)" == 1 ]] && grep -qxF -e "- ask ${K1:0:8}, N min in line, held by: window ceiling; reviews: brief not on this box; seat: claude" <(seatlines) &&
+  pass "40m. a brief not on this box: the line says so, never an empty field" || fail "40m. no brief: $(cat "$AS" 2>/dev/null)"
 seat_clear
 
 # 41. SPL-5686 (alerts panel task 5.5, owner poll 80d656c5): 19 review-seat
@@ -2263,7 +2286,7 @@ out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300 LAUNCH_ID=c-563)"
   pass "41b. the seat behind a plain row is taken past the hold, the plain row stays queued" || fail "41b. behind: $(cat "$T/launch.log") | $(hubrow "$K2") | $out"
 seat_clear; seat_q "$K1" k1-reviewer 31
 out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300 PICK_ROOM_AT=400)"
-[[ ! -s "$T/launch.log" && "$(alarms)" == 1 && "$(posts)" == 1 ]] && grep -q "^- ask ${K1:0:8}, 3[0-9] min in line, held by: CPU overflow$" "$AS" &&
+[[ ! -s "$T/launch.log" && "$(alarms)" == 1 && "$(posts)" == 1 ]] && grep -q "^- ask ${K1:0:8}, 3[0-9] min in line, held by: CPU overflow; reviews: no Issue: line \"R7 reviewer, review only\"; seat: claude$" "$AS" &&
   grep -q "ask ${K1:0:8} (claude:k1-reviewer), 3[0-9] min in line: the fleet load target says hold" "$T/send.log" &&
   pass "41c. every box past the seats' own mark too: held, one alarm, its #alerts line names the hold class CPU overflow" || fail "41c. $(sends) | $(cat "$AS" 2>/dev/null) | $out"
 seat_clear; seat_q "$K1" k1-reviewer 31
@@ -2284,7 +2307,7 @@ grep -q 'k1-reviewer$' "$T/launch.log" && grep -q '^k1-reviewer BOX_PICK_OVERFLO
   pass "41f. the mark read from cnf env.box.fleet_load.review_seat_overflow_pct" || fail "41f. $(cat "$T/launch.log") | $out"
 seat_clear; seat_q "$K1" k1-reviewer 31
 out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300 WINDOWS=40)"
-[[ ! -s "$T/launch.log" && "$(alarms)" == 1 ]] && grep -q "held by: window ceiling$" "$AS" &&
+[[ ! -s "$T/launch.log" && "$(alarms)" == 1 ]] && grep -q "held by: window ceiling; reviews: no Issue: line \"R7 reviewer, review only\"; seat: claude$" "$AS" &&
   pass "41g. CONTROL the window ceiling still holds a seat; its #alerts line says window ceiling" || fail "41g. $(cat "$T/launch.log") | $(cat "$AS" 2>/dev/null) | $out"
 seat_clear
 

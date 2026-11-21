@@ -185,7 +185,10 @@
 # @description      or more in line, the dispatch lease holder gets ONE blocker naming
 # @description      the seat and the hold, #alerts one post with neither, only
 # @description      the hold's class from a fixed list (spl_spawn_place_hold_class,
-# @description      SPL-5686: "CPU overflow", "weekly quota", ...)
+# @description      SPL-5686: "CPU overflow", "weekly quota", ...) and what the
+# @description      seat is: the issue key and heading of its brief, its vendor,
+# @description      its author lane (spl_spawn_place_seat_what, SPL-6219); both
+# @description      channels carry that
 # @description      (spl_spawn_place_seat_alarm)
 # @description   2a. REVIEW SEAT PAST THE CPU OVERFLOW HOLD (SPL-5686) - when the
 # @description      load pick holds every row because no box is below its overflow
@@ -570,14 +573,41 @@ spl_spawn_place_hold_class() {  # WHY
   esac
 }
 
+# 2a. What the logged review seat PLACEMENT (<vendor>:<slug>) is, in words, for
+# its #alerts line (owner HUM-10, msgs b8f1b546 and c97d462d, SPL-6219: "what
+# is the issue, which reviewers, what is the thing"): the issue it reviews (its
+# brief's `Issue:` key) and the thing (the brief's first "# " heading, without
+# "Lane brief: ", at most 160 characters), the seat's vendor (the placement's),
+# and the author lane when a line-start `Author:` names one. A brief this box
+# cannot read gives "brief not on this box", never an empty field.
+spl_spawn_place_seat_what() {  # PLACEMENT
+  local brief key head author="" out
+  [[ -n "${SPOOL_AGENT_ID_NEW_RX:-}" ]] || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  brief="$(spl_spawn_place_brief "${1#*:}")"
+  if [[ -z "$brief" || ! -r "$brief" ]]; then
+    out="reviews: brief not on this box"
+  else
+    key="$(grep -m1 -E '^Issue:' "$brief" | grep -oE '\b[A-Z][A-Z0-9]*-[0-9]+\b' | sed -n 1p)"
+    head="$(grep -m1 '^# ' "$brief" | sed -E 's/^# +//; s/^Lane brief: *//')"
+    (( ${#head} <= 160 )) || head="${head:0:157}..."
+    out="reviews: ${key:-no Issue: line}${head:+ \"$head\"}"
+    author="$(grep -m1 -iE '^Author:' "$brief" | grep -oE "\b${SPOOL_AGENT_ID_NEW_RX}(@[A-Za-z0-9._-]+)?" | sed -n 1p)"
+  fi
+  out+="; seat: ${1%%:*}"
+  [[ -z "$author" ]] || out+="; author: $author"
+  printf '%s' "$out"
+}
+
 # 2a. A logged review seat under a hold: on 11-06 three R7 seats waited 320-406
 # min under the weekly hold and their authors sat on written work (spec 146,
 # what-broke-20261106 3.2). A seat SPAWN_PLACE_SEAT_ALARM_MIN (30) or more in line
 # (wait_s: enqueued_at, kept across a re-queue) that a hold stops alarms ONCE per
 # ask: one blocker to the dispatch lease holder (none: HOLDER), one #alerts post.
-# The post is ask id8, minutes and count, nothing read from a row or a hold: every
-# human of the tenant reads #alerts, a slug can name a customer, and a hold line can
-# hold the slug, a brief path or a box (spl_spawn_place_away_hold, _pin_hold).
+# The post is ask id8, minutes, count, the hold's class and what the seat is
+# (spl_spawn_place_seat_what: issue key, brief heading, vendor, author; SPL-6219),
+# never the slug or the hold line: a hold line can hold the slug, a brief path or a
+# box (spl_spawn_place_away_hold, _pin_hold), and every human of the tenant reads
+# #alerts.
 # The hold is its .place.wait line (a launcher HOLD, a pin, agy out, a brief on
 # another box), else the room check without its gap: the gap is a pace, no hold.
 # Time in line alone is no alarm: 209 of 412 logged seats since 10-31 took 30 min
@@ -587,7 +617,7 @@ spl_spawn_place_hold_class() {  # WHY
 # alarm per SPAWN_PLACE_SEAT_ALARM_GAP_MIN; a seat due meanwhile goes in the next.
 # Neither channel took it: retried next tick. Never stops the tick.
 spl_spawn_place_seat_alarm() {  # HOLDER MARKED_ROWS
-  local d f now gap=$(( ${SPAWN_PLACE_SEAT_ALARM_GAP_MIN:-30} * 60 )) id place min why room="" to text post tail ok=0 lines="" plines="" fired=() out
+  local d f now gap=$(( ${SPAWN_PLACE_SEAT_ALARM_GAP_MIN:-30} * 60 )) id place min why room="" to text post tail ok=0 lines="" plines="" fired=() out what
   d="$(spool_asks_dir)"; f="$d/.place.seat-alarm"; now="$(date +%s)"
   (( now - $(stat -c %Y "$f.last" 2>/dev/null || echo 0) >= gap )) || return 0
   [[ -e "$f" ]] || : >"$f"
@@ -601,10 +631,11 @@ spl_spawn_place_seat_alarm() {  # HOLDER MARKED_ROWS
       why="$room"
       spl_spawn_place_seat_past "$place" "$why" >/dev/null && continue
     fi
+    what="$(spl_spawn_place_seat_what "$place")"
     lines+=$'
-'"- ask ${id:0:8} ($place), $min min in line: $why"
+'"- ask ${id:0:8} ($place), $min min in line: $why; $what"
     plines+=$'
-'"- ask ${id:0:8}, $min min in line, held by: $(spl_spawn_place_hold_class "$why")"
+'"- ask ${id:0:8}, $min min in line, held by: $(spl_spawn_place_hold_class "$why"); $what"
     fired+=("$id")
   done < <(spl_spawn_place_seats "$2" | jq -r --argjson s "$(( ${SPAWN_PLACE_SEAT_ALARM_MIN:-30} * 60 ))" --rawfile seen "$f" '
     ($seen | split("

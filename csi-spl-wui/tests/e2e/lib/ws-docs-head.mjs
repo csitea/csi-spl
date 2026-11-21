@@ -15,10 +15,25 @@ async function shown(p, sel) {
   return p.$eval(sel, (el) => el.getBoundingClientRect().width > 0).catch(() => false)
 }
 
+/* SPL-6115 (CI 44832401773): the page reopens a document (a create, a pick)
+   by dropping its session, which takes the header's file menu down and draws
+   it again. A handle read by p.click (or a waitForSelector) is then detached
+   when its click lands: "Node is detached from document", "not clickable".
+   So a click is a query and a click in one page task, retried on each poll
+   until the element is there and shown. */
+function clickShown(p, sel, { timeout = STEP } = {}) {
+  return p.waitForFunction((sel) => {
+    const el = document.querySelector(sel)
+    if (!el || el.getBoundingClientRect().width === 0) return false
+    el.click()
+    return true
+  }, { timeout, polling: 100 }, sel)
+}
+
 /** opens the new-document modal; resolves once its title field is shown */
 export async function newDocDialog(p, { timeout = STEP } = {}) {
   if (await shown(p, '[data-test=ws-docs-new]')) {
-    await p.click('[data-test=ws-docs-new]')
+    await clickShown(p, '[data-test=ws-docs-new]', { timeout })
   } else {
     const at = await p.waitForFunction(() => {
       const el = document.querySelector('#qto-file-tree [data-test=file-tree-row][data-key="/"]')
@@ -27,18 +42,26 @@ export async function newDocDialog(p, { timeout = STEP } = {}) {
       return r.width > 0 ? { x: r.left + 40, y: r.top + r.height / 2 } : null
     }, { timeout }).then((h) => h.jsonValue())
     await p.mouse.click(at.x, at.y, { button: 'right' })
-    await p.waitForSelector('[data-testid=qto-root-menu-new_doc]', { visible: true, timeout })
-    await p.click('[data-testid=qto-root-menu-new_doc]')
+    await clickShown(p, '[data-testid=qto-root-menu-new_doc]', { timeout })
   }
   await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout })
 }
 
-/** Outline ('doc') or Grid ('grid') from the header's file menu; resolves once that view is shown */
+/** Outline ('doc') or Grid ('grid') from the header's file menu; resolves once that view is shown.
+    Each poll reads the menu afresh: its entry once shown, else a shown, closed button (a reopen
+    may have drawn a new one) */
 export async function setDocView(p, v, { timeout = STEP } = {}) {
-  await p.waitForSelector('[data-test=ws-doc-file-btn]', { visible: true, timeout })
-  await p.click('[data-test=ws-doc-file-btn]')
-  await p.waitForSelector(`[data-test=ws-doc-file-menu-view_${v}]`, { visible: true, timeout })
-  await p.click(`[data-test=ws-doc-file-menu-view_${v}]`)
+  await p.waitForFunction((v) => {
+    const shownEl = (sel) => {
+      const el = document.querySelector(sel)
+      return el && el.getBoundingClientRect().width > 0 ? el : null
+    }
+    const entry = shownEl(`[data-test=ws-doc-file-menu-view_${v}]`)
+    if (entry) { entry.click(); return true }
+    const btn = shownEl('[data-test=ws-doc-file-btn]')
+    if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click()
+    return false
+  }, { timeout, polling: 100 }, v)
   await p.waitForSelector(`[data-test=ws-${v}-view]`, { visible: true, timeout })
 }
 
@@ -50,6 +73,6 @@ export function openDocId(p) {
 
 /** opens a document from its explorer tree row; resolves once ?doc= names it */
 export async function pickDoc(p, id, { timeout = STEP } = {}) {
-  await p.click(`#qto-file-tree [data-test=file-tree-row][data-key="d:${id}"]`)
+  await clickShown(p, `#qto-file-tree [data-test=file-tree-row][data-key="d:${id}"]`, { timeout })
   await p.waitForFunction((id) => new URL(location.href).searchParams.get('doc') === id, { timeout }, id)
 }

@@ -391,3 +391,200 @@ SPL-6174 entry) still stands as a round-35 input.
   RED-then-GREEN proof to the row lane's commit body (C2), which is the
   rulebook's requirement. Row 02's control has its planted green (RC02_PLANT,
   exit 0, verified).
+
+---
+
+# v1.0 review — `51de076f3ae5b44ae5a7e2d6b73b382785addc1d`
+
+**Verdict: PASS on `51de076f3ae5b44ae5a7e2d6b73b382785addc1d` (v1.0, on
+origin/master; named by c-782@sat to c-002@sat on `dispatch-bug-r34` at
+11:01:45Z, on the holder's GO msg 055ee8ff). No W. Notes N1-N5 stand, N1
+updated below.**
+
+Checks run on sat 2026-11-21 ~11:35Z..11:45Z, from this worktree.
+
+## v1.0 Check 0 — the sha, its place on master, and the v0.3..v1.0 delta
+
+- `git fetch origin`; `git merge-base --is-ancestor
+  51de076f3ae5b44ae5a7e2d6b73b382785addc1d origin/master` -> rc 0 (on master).
+  `git log --oneline origin/master | grep 51de076f3` ->
+  `51de076f3 docs(b34-plan, SPL-6179): bug round 34 plan v1.0 on the holder's GO (c-002 055ee8ff): m-785 mistral PASS on v0.3 4e296278c, no W, N1-N5 recorded, its seat file 4b0d6d516 folded in as bug-round-34/seat-mistral.md; no row changed`.
+- `git show --stat 51de076f3` -> 2 files: `csi-spl-doc/doc/md/bug-round-34-plan.md`
+  (14 lines changed) and `csi-spl-doc/doc/md/bug-round-34/seat-mistral.md` (+393, added).
+- `git diff 4e296278c8e2a799c383b9e11acc499fc7a5c115 51de076f3... --
+  csi-spl-doc/doc/md/bug-round-34-plan.md` -> only the Status line, the section-8
+  review-history entries (this seat's v0.3 PASS + N1-N5 + the v1.0 line) and the
+  section-9 seat table. No row text changed: the "no row changed" claim holds.
+- Seat file folded in blob-identical: `git rev-parse
+  51de076f3...:csi-spl-doc/doc/md/bug-round-34/seat-mistral.md` ->
+  `aed04bf364c9272b5e5ce8c51df355bf6e934efc`, and `git rev-parse
+  4b0d6d5161ba293e9d719a717eaa498d08046c04:...seat-mistral.md` -> the same blob.
+  At v0.3 `4e296278` the path does not exist (it lived on this seat's branch only).
+- CI on the sha: `gh run list --commit 51de076f3...` -> every run `success`
+  except `12 ci: rerun an action-download flake` `skipped` (6 runs) — matches the
+  planner's 11:22:50Z note (9 non-skipped runs success).
+
+## v1.0 Check 1 — slug b34 unused since the plan's W
+
+- `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b33-plan')` ->
+  `W=2026-11-21T11:45:44+02:00` (unchanged, commit `eb7c8cc54`).
+- `git log origin/master --since="$W" --oneline -E --grep='\(b34-' | wc -l` -> `4`:
+  all four are the planner's own `docs(b34-plan, SPL-6179)` commits now on master
+  (v0.1 `0d3f2bfe6`, v0.2 `95464d839`, v0.3 `6d9e07e80`, v1.0 `51de076f3`). No
+  `fix(b34-01...` / `fix(b34-02...` row commit exists — the rows are queued, not
+  landed.
+- `git ls-remote origin | grep -E 'b34-[0-9]{2}|bug-round-34'` ->
+  `4e296278... refs/heads/review/c002-bug-round-34-planner` and
+  `4b0d6d5161... refs/heads/review/c002-bug-round-34-mistral-seat` only. Nothing else.
+- `ls /var/spool-hub/dispatch/briefs | grep -E 'b34-[0-9]{2}|bug-round-34'` ->
+  the planner's and this seat's briefs plus the two row briefs
+  `c002-b34-01-store-doc-asset-held-locked-doc.md`,
+  `c002-b34-02-orc-enqueue-shared-line-own-line.md` (expected: c-002 queued both
+  rows at 11:03Z).
+- `git worktree list | grep -E 'b34-[0-9]{2}|bug-round-34'` -> c-782 (planner),
+  c-809 (b34-01), c-811 (b34-02), m-785 (this seat). Expected.
+
+## v1.0 Check 2 — every site file:line on the base, on v1.0 and on origin/master
+
+- `git diff --name-only 31a976ffb origin/master -- <workspace_docs_assets.go,
+  file_retention.go, wsdoc_assets.go, rls.go, the rdb migrations dir,
+  spl-spawn-enqueue.func.sh, spl-spawn-queue.tst.sh, lane-issue.inc.sh,
+  spl-lane-issue.func.sh>` -> empty (no drift);
+  `git rev-list --count 31a976ffb..origin/master` -> 21 commits;
+  `git diff --name-only 31a976ffb 51de076f3... -- csi-spl-api csi-spl-rdb <the orc
+  row paths>` -> empty.
+- 55 cited lines printed with `git show <sha>:<file> | sed -n <N>p` at `31a976ffb`,
+  at `51de076f3...` and at `origin/master`; `diff` of the three dumps -> identical
+  except the header line. Cites: `workspace_docs_assets.go:63-73`;
+  `file_retention.go:30/:94/:111/:151/:195/:200`; `wsdoc_assets.go:310-316`;
+  `rls.go:80/:86/:102-107`; `0256_...sql:52/:53/:57/:59/:60/:61/:62/:67`;
+  `spl-spawn-enqueue.func.sh:152/:154/:166/:177/:178/:185/:186/:190/:193/:205/:211`;
+  `lane-issue.inc.sh:543/:547/:554`; `spl-lane-issue.func.sh:353`.
+
+## v1.0 Check 3 — red controls read, sha256, run on the base in a scratch copy
+
+- `sha256sum` re-run: `rc01-pg/rc01pg.sh` 1964 B ->
+  `17f39bc880adf251e026f9e7e63bfc3d9952ab689d65aa0bb0cd1ab4e879f9b0` (first 12
+  `17f39bc880ad`, the plan's claim); `rc01-pg/b34_rc_asset_held_test.go` 1839 B ->
+  `fe0adcc73aa57a699bb62139b473add904df0851f9202da55bd98d2c397eff3b` (first 12
+  `fe0adcc73aa5`); `rc02.sh` 4871 B ->
+  `15e47f56c771e391c3b95db9e69bed9878e182269617a26208b4ece3a89d3416` (first 12
+  `15e47f56c771`). All three match the plan's claimed prefixes and sizes.
+- `bash /var/spool-hub/dispatch/b34-red-controls/rc01-pg/rc01pg.sh 31a976ffb` from
+  this checkout, n=1: RED, last line `rc01pg sha=31a976ffb exit=1`, exit 1 —
+  `rcpg open: held=true want=true` / `rcpg lockedhuman: held=true want=true` /
+  `rcpg lockedsweep: held=false want=true` / `rcpg unnamed: held=false want=false` /
+  `rcpg wrong=1`, identical to the plan's table. It fails for the plan's reason
+  (rdb 0256's `human_lock` hides the locked doc's root item from the no-human
+  sweep read), not an environment one; `git archive` into `mktemp -d`, throwaway
+  Postgres 16 fixture, no live database, hub, network or state.
+- `bash /var/spool-hub/dispatch/b34-red-controls/rc02.sh 31a976ffb`, n=1: RED,
+  last line `rc02 sha=31a976ffb wrong=3`, exit 1 (`nl shared/0`, `nonl none/3`,
+  `lastln 0`, `twice 2`). `RC02_PLANT=1 bash .../rc02.sh 31a976ffb`, n=1:
+  `wrong=0`, exit 0. Temp `SPOOL_ROOT`, stubbed hub reads, no live state.
+
+## v1.0 Check 4 — root cause of each row, re-read at the cited lines
+
+All cited lines identical on the three refs (check 2). Row 01:
+`DocAssetHeld` (`workspace_docs_assets.go:66-73`) runs `queryRowTenant` with no
+human; `humanScope` (`rls.go:102-107`) returns "" without one, so
+`app.doc_human_id` is unset; 0256:53-57 hides a `restricted_to_human` doc from
+everyone but its human and 0256:59-62 passes an item only when its doc is
+visible; the sweep's `fileKept` -> `DocAssetHeld` read
+(`wsdoc_assets.go:310-316`, `file_retention.go:151/:200`) therefore sees no
+locked doc's root item and deletes its picture after `FileOrphanGrace`
+(`:30`, 24 h). Both `human_lock` policies are `AS RESTRICTIVE` with no `TO`
+clause (`:53`, `:60`). The plan's reading holds. Row 02: the append at
+`spl-spawn-enqueue.func.sh:190` is newline-less, the guard at `:185` and
+`li_review_lane`'s grep at `lane-issue.inc.sh:547` are `^`-anchored, and the
+placer's twin at `spl-lane-issue.func.sh:353` writes `\n` first. Holds.
+
+## v1.0 Check 5 — row fields (R2, tests, vendor, kind, batch, R7, R1)
+
+- Row 01: red control fails today (rc01pg RED n=1 this review, exit 1; no green
+  half at plan time — N5); test column re-grepped:
+  `git grep -l -E 'DocAssetHeld|fileKept|SweepFiles|sweepOwnAssets' 31a976ffb --
+  csi-spl-api` -> exactly the plan's list (tests `hub/file_retention_test.go`,
+  `hub/wsdoc_assets_orphan_sweep_test.go`, `hub/wsdoc_assets_test.go`,
+  `channelmove/asset_locs_test.go`, `channelmove/objects_test.go` + 6 non-test
+  files); `git grep -l DocAssetHeld 31a976ffb -- '*/store/*_test.go' | wc -l` -> 0.
+  Vendor claude, kind `complex_coding`, batch 1, box sat or `<box2>` (no pin).
+- Row 02: rc02 RED exit 1 + planted green exit 0 (check 3); test column
+  re-grepped -> the plan's 8 tests + 4 non-test files;
+  `spl-spawn-queue.tst.sh` 2345 lines, `:2291` the SPL-6167 case. Vendor claude,
+  kind `simple_coding`, batch 1.
+- R7 reviewer both rows: the claude waiver seat (1a7c70da), a cross-vendor/waiver
+  seat, never mistral; `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` re-run ->
+  `pick=hold reason=waiting: grok weekly >= 95% or unknown on sat, <box2> [sat
+  unknown (no reading); <box2> unknown (no reading)]: queue the lane, spawn nothing`
+  (the other box written as the plan writes it, `<box2>`; same as the plan's
+  10:04:45Z read). No mistral coding or testing row; no WUI
+  file in either row, so a mistral panel seat may sit (developer guide 5.1).
+- R1: batch 1 rows share no file — row 01 edits `store/workspace_docs_assets.go`
+  + its new test + a new migration + `hub/wsdoc_assets_orphan_sweep_test.go`;
+  row 02 edits `spl-spawn-enqueue.func.sh` + `spl-spawn-queue.tst.sh`; the two
+  hub files c-745 edits stay read-only in row 01. 2 rows, within 5.1's 1 to 3;
+  issue priority 2 (5.4); numbering and window per 5.3.
+
+## v1.0 Check 6 — R3 lane map on the row paths
+
+- `lane-map.sh --check <workspace_docs_assets.go, workspace_docs_assets_test.go,
+  file_retention.go, wsdoc_assets.go, wsdoc_assets_orphan_sweep_test.go,
+  spl-spawn-enqueue.func.sh, spl-spawn-queue.tst.sh> --agent m-785` -> exit 3:
+  5 paths owned, all by the rows' own lanes — c-809@sat
+  (`c-809-c002-b34-01-store-doc-asset-held-locked-doc`) owns
+  `workspace_docs_assets.go`, `workspace_docs_assets_test.go`,
+  `wsdoc_assets_orphan_sweep_test.go`; c-811@sat
+  (`c-811-c002-b34-02-orc-enqueue-shared-line-own-line`) owns
+  `spl-spawn-enqueue.func.sh`, `spl-spawn-queue.tst.sh`. The two hub files
+  (`file_retention.go`, `wsdoc_assets.go`) are owned by no live lane — row 01's
+  read-only holds. No third lane touches a row file.
+- Queue: `SPOOL_ROOT=/var/spool-hub ./run -a do_spl_spawn_queue` ->
+  `16 queued, 0 placing`; bug share 14% (band 15-20%: UNDER).
+
+## v1.0 Check 7 — inputs accounted for
+
+- b33 plan's "first inputs for round 34" row (bug-round-33-plan.md:271 on
+  origin/master): all 13 items present in the b34 plan's sections 4 and 7.
+  b33 rows' R7 notes (c-763 N1-N4, c-761 N1-N3): all seven in section 4.
+- Candidates file `/var/spool-hub/dispatch/c002-next-round-candidates.md`:
+  `wc -l` -> 110 (101 at the plan's read, 106 at my v0.3 check). The added blocks
+  are the SPL-6174 follow-ups (lines 103-110); SPL-6174 itself is served on
+  origin/master (`git log origin/master --oneline -E --grep='SPL-6174'` ->
+  `63ff3e425`, `197c8ac6d`, `4d95cd4c3`, `c081de61a`). The follow-ups (stale agy
+  text in `spl-lane-mix.func.sh`, the ro.json topic/theme collision, the gct
+  coverage gap) postdate the plan's read — first inputs for round 35, not plan
+  defects (N1 updated).
+- Done-claim log: `grep -ciE 'job [0-9a-f]{7}' /var/csi/csi-spl/done-claim-check/cron.log`
+  -> 0. `grep -n LEASE_VENDOR_ORDER /var/spool-hub/dispatch/lease.conf` ->
+  `12:LEASE_VENDOR_ORDER=claude,agy,claude2` (unchanged). Briefs exposure re-measured
+  as the push user: 6424 `*.md` briefs, 26 without a trailing newline, 0 of them
+  `Kind: specs_and_docs` with an `Issue: SPL-` line — the plan's "no lane is caught
+  today" holds.
+
+## v1.0 Check 8 — distribution hygiene
+
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` ->
+  `INFO distribution-hygiene: clean over the tracked tree of
+  /opt/csi/csi-spl-wt/m-785`, exit 0 (re-run after this section was added).
+
+## v1.0 Defects
+
+None. No W.
+
+## v1.0 Notes
+
+- N1 (updated): the candidates file grew 101 -> 110 lines since the plan's read;
+  the new entries are SPL-6174 follow-ups and SPL-6174 is served on master
+  (`63ff3e425` et al.) — round-35 inputs, not plan defects.
+- N2: counts moved, re-measured values hold: briefs 6401 -> 6424 (`*.md`), 26
+  without a trailing newline, 0 `specs_and_docs` with an `Issue: SPL-` line;
+  queue 16; done-claim `job` alerts 0; lease.conf unchanged.
+- N3: 21 commits on origin/master past the base, none touching a row file; all
+  55 cited lines identical on `31a976ffb`, v1.0 and origin/master.
+- N4: the lane map now names the rows' own lanes (c-809, c-811) as owners of the
+  5 row paths — expected after placement at 11:09Z/11:13Z; the two hub files
+  stay unowned and read-only.
+- N5: row 01's red control still has no green half at plan time (rc01pg RED
+  exit 1, re-run n=1); RED-then-GREEN stays delegated to the row lane's commit
+  body (C2). Row 02's planted green re-verified (exit 0).

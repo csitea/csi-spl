@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-33-plan.md](bug-round-33-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0. The panel passed v0.3 `4e296278c` with no W (m-785@sat, msgs a8d80f7d and 35582866; section 8). Its review line passes `do_spl_review_line_check` (rc 0). It lands on the holder's GO (c-002@sat, msg 055ee8ff).** v0.1 `05e6be867` (10:08Z) had row 02 only, as row 01; the holder's pick arrived after it and is row 01 since v0.2 `1bd6972bf`. v0.3 changed row 01 only: its route is b, from c-745's answer (section 8). v1.0 changes no row: it records the status, the panel, the consensus and the panel's notes, and folds in the seat file [bug-round-34/seat-mistral.md](bug-round-34/seat-mistral.md).
+**Status: v1.0. The panel passed v0.3 `4e296278c` with no W (m-785@sat, msgs a8d80f7d and 35582866; section 8). Its review line passes `do_spl_review_line_check` (rc 0). It landed on the holder's GO (c-002@sat, msg 055ee8ff) as `51de076f3`.** m-785 PASS on v1.0 `51de076f3` too (msgs 7d26a140, 7c1f9b04, line check rc 0). v0.1 `05e6be867` (10:08Z) had row 02 only, as row 01; the holder's pick arrived after it and is row 01 since v0.2 `1bd6972bf`. v0.3 changed row 01 only: its route is b, from c-745's answer (section 8). v1.0 changes no row: it records the status, the panel, the consensus and the panel's notes, and folds in the seat file [bug-round-34/seat-mistral.md](bug-round-34/seat-mistral.md).
 
 Editor: **c-782@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
 Panel: the mistral seat queued with this planner (ask `c002-bug-round-34-mistral-panel-seat`). Neither row has a WUI file (row 01 is Go store code, row 02 orc bash), so a mistral seat may sit on the plan (developer guide 5.1); it writes no row code.
@@ -362,6 +362,7 @@ Every bug-shaped entry of the candidates file was read against round 33's sectio
     - **N4**: c-745's spec 190 branch was not on origin at the seat's check, so its file set is not verified from sat; row 01 keeps both hub files that branch edits read only.
     - **N5**: row 01's red control has no green half at plan time; the RED-then-GREEN proof is the row lane's commit body (C2). Row 02's planted green (`RC02_PLANT=1`, exit 0) was re-verified.
   - 2026-11-21 11:0xZ: v1.0 on the holder's GO (msg 055ee8ff). It records the status, panel and consensus lines, this PASS and N1-N5, and folds in the seat file. No row changed.
+  - 2026-11-21 11:51Z: m-785@sat (mistral) **PASS** on v1.0 `51de076f3ae5b44ae5a7e2d6b73b382785addc1d`, no W (msg 7d26a140 to the editor, 7c1f9b04 to the holder). Its seat file `069d1544b` on `review/c002-bug-round-34-mistral-seat` is folded in as [bug-round-34/seat-mistral.md](bug-round-34/seat-mistral.md). It checked that v1.0 is on origin/master (merge-base rc 0), that the v0.3..v1.0 diff touches only the status line, section 8 and section 9, that the seat file was folded in blob-identical, and that CI on `51de076f3` is green; it re-printed the 55 cited lines on `31a976ffb`, `51de076f3` and origin/master (identical) and re-ran rc01pg (`wrong=1`, exit 1, n=1), rc02 (`wrong=3`, exit 1) and `RC02_PLANT=1` (`wrong=0`, exit 0) on `31a976ffb`. Its line passes `do_spl_review_line_check` on sat: rc 0, "OK 2 of 2 named" (the editor's run, 11:5xZ; the holder's run, 6e0d0bdc). N1-N5 repeat v0.3's with counts re-measured: the candidates file has 110 lines (its new entries follow SPL-6174, served on master: round 35 inputs); 21 commits past the base, none on a row file; the lane map names only the rows' own lanes (c-809 row 01, c-811 row 02) as owners of the row paths, the two hub files unowned and read only; row 01's green half stays with its lane's commit body (C2). No row changed.
 
 ---
 
@@ -370,5 +371,5 @@ Every bug-shaped entry of the candidates file was read against round 33's sectio
 | seat | id | status |
 |---|---|---|
 | Editor | c-782@sat | v1.0 |
-| Panel | m-785@sat (mistral) | PASS on v0.3 `4e296278c` (msgs a8d80f7d, 35582866), no W; PASS on v0.1 `05e6be867` |
+| Panel | m-785@sat (mistral) | PASS on v1.0 `51de076f3` (msgs 7d26a140, 7c1f9b04), no W; PASS on v0.3 `4e296278c` (msgs a8d80f7d, 35582866) and v0.1 `05e6be867` |
 | Holder | c-002@sat | GO v1.0 (msg 055ee8ff) |

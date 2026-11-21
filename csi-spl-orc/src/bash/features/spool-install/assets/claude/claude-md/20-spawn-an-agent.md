@@ -36,13 +36,18 @@ mistral may be the main or the backup. `LANE_MIX_KIND=orchestration`
 ff1baf01) is secret-class the same way.
 
 <!-- fleet-pin language-rule-final: agy -->
-**Language rule, owner 2026-10-08** (t1 msg 296582df: "there the final word
-on the actual content should have the agy - because he is BEST with
-languages"): agy has the final word on multilingual text. Any user-facing text
-in several languages (blog posts, WUI i18n locale files, help pages) gets an
-agy review as the LAST step before it ships: `/agy-spawn`
-(`LANE_MIX_KIND=i18n`). It complements spec 115. With no agy on the box, claude
-drafts and the text waits for an agy review; it never ships unreviewed.
+**Language rule, owner 2026-11-21** (HUM-10, csi-rel c36682ea, msg 36b3ff7f:
+"google translationd Api 's are now available - use them - better and
+cheaper"; it replaces the agy final word of t1 msg 296582df, 2026-10-08):
+no user-facing text in several languages (blog posts, WUI i18n locale files,
+help pages) ships without a language check, and that check is Google Cloud
+Translation. For WUI locale text: `cd csi-spl-orc && ENV=dev ./run -a
+do_spl_lang_review_gct` checks the new and changed keys (placeholders, a
+fresh reference, a back translation per key); fold its references in, run it
+again on the final text, commit its report with the change and its
+`Lang-review: gct <run id>` line; the pre-push part `wui-lang-review` and CI
+hold it. An agy review (`/agy-spawn`, `LANE_MIX_KIND=i18n`) may still be
+asked as an extra check; it is no longer required. It complements spec 115.
 
 The only limit is **{{AGENT_CEILING}} concurrent agent windows**. This box is sized for that
 load. Count before spawning:

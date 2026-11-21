@@ -139,9 +139,11 @@ standards](csi-spl-doc/doc/md/developer-guide.md#ws-doc-5396f07f-c552-4cc4-a2e1-
   committer; the other commit rules: [developer guide, coding
   standards](csi-spl-doc/doc/md/developer-guide.md#ws-doc-5396f07f-c552-4cc4-a2e1-f4d29d060d43) section 2.9.
 - **Agent ceiling: 40 concurrent agent windows**, the **data rule** (who may
-  take secrets) and the **language rule** (agy has the final word on
-  multilingual text) are fleet-wide: their one home is the global CLAUDE.md
-  section "Spawn an agent", source
+  take secrets) and the **language rule** (no multilingual text ships without
+  a language check, and that check is Google Cloud Translation,
+  `do_spl_lang_review_gct`; agy optional, owner msg 36b3ff7f) are
+  fleet-wide: their one home is the global CLAUDE.md section "Spawn an
+  agent", source
   `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/20-spawn-an-agent.md`
   (the count command is there and in each launcher's section 1.1). Agent ids:
   [spec 061 section 0](csi-spl-doc/specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03).

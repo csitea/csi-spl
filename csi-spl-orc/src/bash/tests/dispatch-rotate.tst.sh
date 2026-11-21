@@ -601,6 +601,7 @@ EOF
 chmod +x "$T/bin/crontab"
 SRC="$T/shared"; mkdir -p "$SRC/csi-spl-orc/src/bash/scripts"
 cp "$PROJ_ROOT/src/bash/scripts/dispatch-rotate-cron.sh" "$SRC/csi-spl-orc/src/bash/scripts/"
+cp "$PROJ_ROOT/src/bash/scripts/rotate-cron.inc.sh" "$SRC/csi-spl-orc/src/bash/scripts/"
 printf '5 * * * * x # csi-spl:orch-rotate\n' >"$T/crontab"
 cron() {
   env PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$SRC" ROTATE_CRON_LOG_DIR="$T/log" "$@" bash -c '

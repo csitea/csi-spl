@@ -27,7 +27,8 @@
 #      SPAWN with the new pid dead -> fails cleanly; abort (FR-091)
 #   9. T-ACK-FORGED: a wrong pid, an unknown rid -> exit 3
 #  10. T-CRON: dry run, exact line at :05, idempotent, check, CRON_REMOVE=1,
-#      a worktree source refused, a missing tool named
+#      a worktree source refused, a missing tool named; say, check_tools and
+#      rotate_cron_orc defined once, in rotate-cron.inc.sh (r86-01)
 #  11. T-ORCH-PENDING-INPUT: a multi-row input the Escape put back is emptied
 #      whole and exactly /exit-clean is submitted; control: an empty box gets
 #      no C-c; a box that never reads the command: no Enter, SIGTERM
@@ -909,6 +910,7 @@ EOF
 chmod +x "$T/bin/crontab"
 SRC="$T/shared"; mkdir -p "$SRC/csi-spl-orc/src/bash/scripts"
 cp "$PROJ_ROOT/src/bash/scripts/orch-rotate-cron.sh" "$SRC/csi-spl-orc/src/bash/scripts/"
+cp "$PROJ_ROOT/src/bash/scripts/rotate-cron.inc.sh" "$SRC/csi-spl-orc/src/bash/scripts/"
 printf '*/3 * * * * other job # csi-spl:desk-reconcile\n' >"$T/crontab"
 cron() {
   env PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$SRC" ROTATE_CRON_LOG_DIR="$T/log" "$@" bash -c '
@@ -940,6 +942,8 @@ mkdir -p "$T/repo-wt/X"
 cron DESK_CRON_SRC="$T/repo-wt/X" >"$T/o" 2>&1 && fail "10. a worktree source accepted" || pass "10. an agent worktree is refused"
 ROTATE_CRON_TOOLS=no-such-tool-x bash "$SRC/csi-spl-orc/src/bash/scripts/orch-rotate-cron.sh" --check-tools >"$T/o" 2>&1
 [[ $? -eq 3 ]] && grep -q 'no-such-tool-x' "$T/o" && pass "10. the cron script names a missing tool (exit 3)" || fail "10. tools: $(cat "$T/o")"
+got="$(cd "$PROJ_ROOT/src/bash/scripts" && grep -lE '^(say|check_tools|rotate_cron_orc)\(\) *\{' orch-rotate-cron.sh dispatch-rotate-cron.sh rotate-cron.inc.sh | tr '\n' ' ')"
+[[ "$got" == "rotate-cron.inc.sh " ]] && pass "10. say, check_tools and rotate_cron_orc are defined once, in rotate-cron.inc.sh" || fail "10. defined once (want 'rotate-cron.inc.sh ', got '$got')"
 
 # --- 13. spec 061 L6: the rotation switches a legacy LEASE_ORCH to its new id ------------------
 # (owner 2026-10-02 21:37Z: "Why the orc does not restart from cron")

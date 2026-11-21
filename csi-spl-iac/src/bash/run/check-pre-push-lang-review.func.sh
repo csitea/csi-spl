@@ -17,8 +17,11 @@
 # @description   Lang-review: gct <run id>
 # @description (SPL-6174: the run of csi-spl-orc do_spl_lang_review_gct; its
 # @description report csi-spl-wui/i18n/lang-review/<run id>.json must be in
-# @description the commit's tree, mark no placeholder failure and cover every
-# @description non-English key the commit adds or changes with the text as
+# @description the commit's tree, mark no placeholder failure, hold rows as
+# @description the action writes them (mark match/differs; en, text,
+# @description reference, back non-empty) and cover every non-English key the
+# @description commit adds or changes, and every en key it adds or changes for
+# @description each locale holding it, with the en and locale text as
 # @description committed; the {placeholders} are checked again against
 # @description en.json: ../scripts/lang-review-gct-check.py), or
 # @description   Lang-review: a-NNN <msg id>

@@ -32,8 +32,12 @@
 #      report of another run id, a report whose text is not the committed
 #      text, a report missing a key, a row marked placeholder, a committed
 #      string whose {placeholder} differs from en although the report says
-#      match, a malformed run id. A report landed in an earlier commit of the
-#      range still holds. Each case through both callers
+#      match, a malformed run id, a row with no reference / no back / no en
+#      or another mark, a row whose en is not the committed en. A commit that
+#      changes an en value checks the locales holding that key: no row, or a
+#      row of the old en -> FAIL; a row of the committed en -> PASS. A report
+#      landed in an earlier commit of the range still holds. Each case
+#      through both callers
 #------------------------------------------------------------------------------
 set -uo pipefail
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
@@ -188,8 +192,10 @@ gct_report() {  # <run id> <file id> <rows json> -> $R/$G/<file id>.json
   mkdir -p "$R/$G"
   printf '{"v":1,"engine":"gct","run_id":"%s","rows":%s}\n' "$1" "$3" >"$R/$G/$2.json"
 }
-row() {  # <key> <text> <mark>
-  printf '{"file":"%s/fi.json","lang":"fi","key":"%s","en":"x","text":"%s","reference":"r","back":"b","mark":"%s"}' "$L" "$1" "$2" "$3"
+row() {  # <key> <text> <mark> [en] [reference] [back]
+  local hi='Hi {name}' moi='Moi {name}'
+  printf '{"file":"%s/fi.json","lang":"fi","key":"%s","en":"%s","text":"%s","reference":"%s","back":"%s","mark":"%s"}' \
+    "$L" "$1" "${4-$hi}" "$2" "${5-$moi}" "${6-$hi}" "$3"
 }
 gct() {  # <want rc> <label> <line> [fi text of a.h] -> one commit adding a.h, checked by both callers
   reset; printf '{"a":{"b":"Hello","c":"Bye","h":"Hi {name}"}}\n' >"$R/$L/en.json"
@@ -211,6 +217,26 @@ GCT_ROWS="[$(row a.b 'Hei' match)]" gct 1 "the report misses a key -> FAIL" "Lan
 GCT_ROWS="[$(row a.h 'Moi {name}' placeholder)]" gct 1 "a row marked placeholder -> FAIL" "Lang-review: gct $ID"
 GCT_ROWS="[$(row a.h 'Moi {nimi}' match)]" gct 1 "a {placeholder} differs from en, the report says match -> FAIL" "Lang-review: gct $ID" 'Moi {nimi}'
 grep -q "placeholders .*differ from en" "$ROOT/part" && pass "14. ... names the placeholder" || fail "14. ... names the placeholder" "$(cat "$ROOT/part")"
+GCT_ROWS="[$(row a.h 'Moi {name}' match 'Hi {name}' '')]" gct 1 "a row with no reference -> FAIL" "Lang-review: gct $ID"
+grep -q "no reference text" "$ROOT/part" && pass "14. ... names the missing reference" || fail "14. ... names the missing reference" "$(cat "$ROOT/part")"
+GCT_ROWS="[$(row a.h 'Moi {name}' match 'Hi {name}' 'Moi {name}' '')]" gct 1 "a row with no back -> FAIL" "Lang-review: gct $ID"
+GCT_ROWS="[$(row a.h 'Moi {name}' ok)]" gct 1 "a row with another mark -> FAIL" "Lang-review: gct $ID"
+GCT_ROWS='[{"file":"'"$L"'/fi.json","key":"a.h","text":"Moi {name}","mark":"differs"}]' gct 1 "a hand-written row (no en, reference, back) -> FAIL" "Lang-review: gct $ID"
+GCT_ROWS="[$(row a.h 'Moi {name}' match 'Hello {name}')]" gct 1 "a row whose en is not the committed en -> FAIL" "Lang-review: gct $ID"
+grep -q "committed en text is not the en" "$ROOT/part" && pass "14. ... names the en" || fail "14. ... names the en" "$(cat "$ROOT/part")"
+# an en value change: the locales holding the key are asked again
+gct_en() {  # <want rc> <label> <rows json> -> one commit changing en a.b only
+  reset; printf '{"a":{"b":"Hello there","c":"Bye"}}\n' >"$R/$L/en.json"
+  [[ -n "$3" ]] && gct_report "$ID" "$ID" "$3"
+  git -C "$R" add -A; git -C "$R" commit -qm "feat(wui): en case" -m "Lang-review: gct $ID"
+  part; eq "14. pre-push: $2" "$1" "$?"
+  LANG_REVIEW_TREE="$R" LANG_REVIEW_RANGE=trunk..HEAD do_check_pre_push_lang_review >"$ROOT/ci" 2>&1
+  eq "14. CI range: $2" "$1" "$?"
+}
+gct_en 1 "en a.b changed, a report with no rows -> FAIL" "[]"
+grep -q "fi.json a.b: not in" "$ROOT/part" && pass "14. ... names the fi key of the en change" || fail "14. ... names the fi key" "$(cat "$ROOT/part")"
+gct_en 1 "en a.b changed, the fi row checked the old en -> FAIL" "[$(row a.b 'Hei' differs 'Hello' 'Hei' 'Hi')]"
+gct_en 0 "en a.b changed, the fi row checked the committed en -> PASS" "[$(row a.b 'Hei' differs 'Hello there' 'Hei siellä' 'Hi')]"
 GCT_ROWS="[$(row a.h 'Moi {name}' match)]" GCT_FILE=2026-11-21 gct 1 "a malformed run id -> FAIL" "Lang-review: gct 2026-11-21"
 # a report from an earlier commit of the range
 reset; gct_report "$ID" "$ID" "[$(row a.h 'Moi {name}' match)]"; commit "chore(wui): the report first"

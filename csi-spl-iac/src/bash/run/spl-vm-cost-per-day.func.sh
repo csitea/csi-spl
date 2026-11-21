@@ -10,11 +10,15 @@
 # @description
 # @description A line counts only when its `workspace` label is WORKSPACE: a
 # @description line labelled for another workspace, or with no such label, is
-# @description never counted. A line's part is its service and SKU: egress,
-# @description ingress, network or an IP charge = traffic; a persistent disk,
-# @description snapshot, image or storage = disk; anything else (cores, RAM,
-# @description licences) = compute. Credits are netted. No token line exists
-# @description here: spec 181 Q-10, we never resell tokens.
+# @description never counted (compared as strings: `007` is not `7`). Only the
+# @description VM's services count (Q-8 A, the VM only): Compute Engine and
+# @description Networking. A line of any other service with this label (an AI
+# @description API, a bucket) is never counted and holds its day `partial`
+# @description with the service named, so no token line can reach a VM cost
+# @description (spec 181 Q-10, P5: we never resell tokens). A counted line's
+# @description part is its SKU: egress, ingress, network or an IP charge =
+# @description traffic; a persistent disk, snapshot, image or storage = disk;
+# @description anything else (cores, RAM, licences) = compute. Credits are netted.
 # @description
 # @description The window is the trailing env.cost.reread_days days ending DAY
 # @description (the export lags and revises recent days). One TSV row per day
@@ -120,10 +124,11 @@ function part(svc, sku,   s) {
   if (s ~ /pd capacity|pd snapshot|snapshot|hyperdisk|local ssd|disk|image storage|storage/) return "disk"
   return "compute"
 }
-BEGIN { OFS = "\t"; ndays = split(days, D, " "); for (i = 1; i <= ndays; i++) inwin[D[i]] = 1 }
+BEGIN { OFS = "\t"; vm_svc["Compute Engine"] = 1; vm_svc["Networking"] = 1; ndays = split(days, D, " "); for (i = 1; i <= ndays; i++) inwin[D[i]] = 1 }
 # the one place a line is counted: its own workspace label, nothing else
-fail == "" && ($1 in inwin) && $3 == ws && $8 ~ /^-?[0-9]+$/ {
+fail == "" && ($1 in inwin) && ($3 "") == (ws "") && $8 ~ /^-?[0-9]+$/ {
   day = $1; box = ($4 == "" ? "-" : $4)
+  if (!($5 in vm_svc)) { other[day]++; if (index(osvc[day], $5) == 0) osvc[day] = osvc[day] (osvc[day] == "" ? "" : ", ") $5; next }
   if ($7 != "EUR") { held[day]++; next }
   k = day SUBSEP box
   if (!(k in seen)) { seen[k] = 1; boxes[day] = boxes[day] (boxes[day] == "" ? "" : SUBSEP) box }
@@ -139,7 +144,8 @@ END {
     }
     st = "ok"
     if (held[d] > 0) { st = "partial"; why = held[d] " line(s) held back: billed in a currency with no EUR rate source yet (spec 123 Q-6)" }
-    else if (d == frontier) { st = "partial"; why = "the export is still filling " d " (its newest day)" }
+    if (other[d] > 0) { st = "partial"; why = (why == "" ? "" : why "; ") other[d] " line(s) of a service that is not the VM not counted: " osvc[d] }
+    if (st == "ok" && d == frontier) { st = "partial"; why = "the export is still filling " d " (its newest day)" }
     if (rows[d] == 0) { print d, ws, "-", (st == "ok" ? "none" : st), 0, 0, 0, 0, (why == "" ? "no line labelled workspace=" ws : why); continue }
     nb = split(boxes[d], B, SUBSEP)
     for (j = 1; j <= nb; j++) {

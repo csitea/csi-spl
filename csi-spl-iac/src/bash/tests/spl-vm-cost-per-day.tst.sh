@@ -4,9 +4,13 @@
 #          curl (BigQuery REST) and psql are stubs; the rows are synthetic.
 #   1. ENV / WORKSPACE / DAY wrong -> refused before any call.
 #   2. B4's red control: a fixture row with another workspace's label (and one
-#      whose label only starts with it) is not counted, though the stubbed
-#      export returns it; CONTROL: the action with its label filter cut out
-#      counts it.
+#      whose label only starts with it, and `7` / `1000` for WORKSPACE=007 /
+#      1e3: a string compare, never awk's numeric one) is not counted, though
+#      the stubbed export returns it; CONTROL: the action with its label filter
+#      cut out (or compared as awk compares by default) counts it.
+#   2b. Only the VM's services count (Q-8 A, Q-10, P5): a Vertex AI token line
+#      and a Cloud Storage line labelled ws-a are not counted, the day reads
+#      partial naming them; CONTROL: the allow-list cut out counts the tokens.
 #   3. Per day and box: compute, disk and traffic by SKU, credits netted;
 #      ok / partial (a USD line held, the export's newest day) / none (no line
 #      of this workspace); a row outside the window ignored.
@@ -38,11 +42,15 @@ row() { printf '{"f":[{"v":"%s"},{"v":"%s"},{"v":"%s"},{"v":"%s"},{"v":"%s"},{"v
   row 2026-11-05 csi-spl-prd ws-a vm-a "Compute Engine" "Balanced PD Capacity in Finland" EUR 200000 220000; echo ,
   row 2026-11-05 csi-spl-prd ws-a vm-a "Networking" "Network Internet Egress from Finland to Europe" EUR 50000 55000; echo ,
   row 2026-11-05 csi-spl-prd ws-b vm-b "Compute Engine" "N2 Instance Core running in Finland" EUR 9000000 9900000; echo ,
+  row 2026-11-05 csi-spl-prd 7 vm-x "Compute Engine" "N2 Instance Core running in Finland" EUR 5000 5500; echo ,
+  row 2026-11-05 csi-spl-prd 1000 vm-y "Compute Engine" "N2 Instance Core running in Finland" EUR 6000 6600; echo ,
   row 2026-11-06 csi-spl-prd ws-a vm-a "Compute Engine" "N2 Instance Core running in Finland" EUR 300 330; echo ,
   row 2026-11-06 csi-spl-prd ws-a vm-a "Compute Engine" "Snapshot Storage" USD 50 50; echo ,
   row 2026-11-07 csi-spl-prd ws-b vm-b "Compute Engine" "N2 Instance Core running in Finland" EUR 7000 7700; echo ,
   row 2026-11-08 csi-spl-prd ws-a vm-a "Compute Engine" "N2 Instance Core running in Finland" EUR 10 11; echo ,
   row 2026-11-08 csi-spl-prd ws-a-old vm-c "Compute Engine" "N2 Instance Core running in Finland" EUR 777 800; echo ,
+  row 2026-11-08 csi-spl-prd ws-a "" "Vertex AI" "Gemini 2.5 Pro Input Tokens" EUR 123456 135000; echo ,
+  row 2026-11-08 csi-spl-prd ws-a "" "Cloud Storage" "Standard Storage Europe" EUR 20 22; echo ,
   row 2026-11-09 csi-spl-prd ws-a vm-a "Compute Engine" "N2 Instance Core running in Finland" EUR 5 6; echo ,
   row 2026-11-01 csi-spl-prd ws-a vm-a "Compute Engine" "N2 Instance Core running in Finland" EUR 999 999
   echo ']'
@@ -103,16 +111,42 @@ grep -q '^rc=0$' "$T/o" && pass "the fixture export is read, rc 0" || fail "read
   || fail "another workspace counted: $(day 2026-11-05)"
 [[ "$(day 2026-11-07)" == "- none 0 0 0 0" ]] && grep -qP '^2026-11-07\t.*\tno line labelled workspace=ws-a$' "$T/o" \
   && pass "2026-11-07: a day with only ws-b's line reads none, 0, for ws-a" || fail "only-ws-b day: $(day 2026-11-07)"
-[[ "$(day 2026-11-08)" == "vm-a ok 10 0 0 10" ]] \
+[[ "$(day 2026-11-08)" == "vm-a partial 10 0 0 10" ]] \
   && pass "2026-11-08: a label that only starts with ws-a (ws-a-old) is not counted" || fail "prefix label: $(day 2026-11-08)"
+for w in 007 1e3; do
+  run_case "$T/o" "$F" WORKSPACE="$w"
+  [[ "$(day 2026-11-05)" == "- none 0 0 0 0" ]] \
+    && pass "WORKSPACE=$w: the rows labelled 7 and 1000 are not counted (a string compare, not awk's numeric one)" || fail "WORKSPACE=$w numeric match: $(day 2026-11-05)"
+done
 # CONTROL: cut the label filter out of the action -> ws-b's line is counted
-mkdir -p "$T/mut"; cp "$PROJ_ROOT/src/bash/run/spl-estate-cost-read.func.sh" "$T/mut/"
-sed 's/ \&\& \$3 == ws//' "$F" >"$T/mut/spl-vm-cost-per-day.func.sh"
-cmp -s "$F" "$T/mut/spl-vm-cost-per-day.func.sh" && fail "CONTROL: the label filter was not found to cut"
-run_case "$T/o" "$T/mut/spl-vm-cost-per-day.func.sh"
-[[ "$(day 2026-11-05)" == "vm-a ok 1300000 200000 50000 1550000" ]] \
-  && fail "CONTROL: without the label filter ws-b's line should be counted, got $(day 2026-11-05)" \
-  || pass "CONTROL: without the label filter ws-b's line is counted ($(day 2026-11-05 | tr '\n' ';')): the filter is what keeps it out"
+# mutant <name> <sed expr> - a copy of the action with <sed expr> applied, beside spec 123's reader
+mutant() {
+  mkdir -p "$T/$1"; cp "$PROJ_ROOT/src/bash/run/spl-estate-cost-read.func.sh" "$T/$1/"
+  sed "$2" "$F" >"$T/$1/spl-vm-cost-per-day.func.sh"
+  cmp -s "$F" "$T/$1/spl-vm-cost-per-day.func.sh" && fail "CONTROL $1: the sed found nothing to change"
+  M="$T/$1/spl-vm-cost-per-day.func.sh"
+}
+mutant nolabel 's/ \&\& (\$3 "") == (ws "")//'
+run_case "$T/o" "$M"
+grep -qx "vm-b ok 9000000 0 0 9000000" <<<"$(day 2026-11-05)" \
+  && pass "CONTROL: without the label filter ws-b's 9000000 line is counted: the filter is what keeps it out" \
+  || fail "CONTROL: without the label filter ws-b's line should be counted, got $(day 2026-11-05 | tr '\n' ';')"
+mutant numeric 's/(\$3 "") == (ws "")/$3 == ws/'
+run_case "$T/o" "$M" WORKSPACE=007
+grep -qx "vm-x ok 5000 0 0 5000" <<<"$(day 2026-11-05)" \
+  && pass "CONTROL: compared as awk does by default, WORKSPACE=007 counts the row labelled 7" \
+  || fail "CONTROL numeric: $(day 2026-11-05 | tr '\n' ';')"
+
+# --- 2b. only the VM's services count ----------------------------------------------
+run_case "$T/o" "$F"
+grep -qP '^2026-11-08\tws-a\tvm-a\tpartial\t10\t0\t0\t10\t2 line\(s\) of a service that is not the VM not counted: Vertex AI, Cloud Storage$' "$T/o" \
+  && pass "2026-11-08: a Vertex AI token line and a Cloud Storage line labelled ws-a are not counted; the day reads partial naming them" \
+  || fail "non-VM service: $(grep '^2026-11-08' "$T/o")"
+mutant noallow 's/if (!(\$5 in vm_svc))/if (0)/'
+run_case "$T/o" "$M"
+[[ "$(day 2026-11-08)" == "vm-a ok 10 0 0 10"$'\n'"- ok 123456 20 0 123476" ]] \
+  && pass "CONTROL: without the service allow-list the Vertex AI tokens count as compute (123456): the allow-list is what keeps them out" \
+  || fail "CONTROL allow-list: $(day 2026-11-08 | tr '\n' ';')"
 
 # --- 3. the parts, the states, the window -----------------------------------------
 run_case "$T/o" "$F"

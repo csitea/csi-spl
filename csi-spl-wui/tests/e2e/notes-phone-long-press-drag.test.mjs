@@ -198,7 +198,7 @@ try {
   await sleep(300)
   ok('5 a touch contextmenu on a phone opens no row menu', !(await menuOpen(p)))
   await p.setViewport({ width: 1280, height: 844, isMobile: false, hasTouch: true })
-  await sleep(600)
+  await p.waitForSelector('[data-note-id="mock-note-2"] [data-test=notes-open]', { timeout: 15000 })
   await touchMenu(p)
   await sleep(300)
   ok('5 ... at 1280 px the same touch contextmenu opens the row menu', await menuOpen(p))

@@ -154,3 +154,19 @@ in a second commit and report again.
   seat's review branch; no `review/c002-bug-round-30-planner` ref. Planner ask
   `bb395b6d` still queued. Verdict stays PENDING; checks 2-7 still NOT RUN
   (they need the plan's base sha).
+
+## Rotation 00:57Z state (2026-11-21T00:42Z)
+
+- c-001 note `40260911` (task `lane-rotate-m-551`, 00:42:06Z): "rotation at
+  00:57Z UTC: push what is green, write your state" — nothing new to push:
+  `git rev-list --count origin/review/c002-bug-round-30-mistral-seat..HEAD`
+  -> `0`; `git ls-remote origin | grep bug-round-30` ->
+  `d28b40d15212a7ca94239ecabde415b0d4a1072e refs/heads/review/c002-bug-round-30-mistral-seat`
+  == `git rev-parse HEAD`; worktree clean. This commit is the state for the
+  00:57Z rotation.
+- Inbox at 00:42Z: `spool recv --as m-551` -> 1 message (the rotation note
+  above only). Task `dispatch-bug-r30` tail unchanged (last: `placed:
+  m-551@sat` 21:57:20Z), no plan sha; no `bug-round-30-planner` ref on origin
+  (`git ls-remote origin | grep -c 'bug-round-30-planner'` -> `0`).
+  `origin/master` moved to `7f4ab4743` (SPL-6110, SPL-6112, other lanes).
+  Verdict stays PENDING.

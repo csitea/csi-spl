@@ -93,7 +93,10 @@ if [[ -n "$tmp_root" ]]; then
   tmp_root="$(readlink -f "$tmp_root")"
 fi
 [[ -d "$wt_root" || -n "$tmp_root" ]] || { say "OK no worktree root $wt_root: nothing to sweep"; exit 0; }
-wt_root="$(readlink -f "$wt_root")"
+# A missing WT_ROOT (only reachable with the tmp root set) matches nothing:
+# never "", which would take every worktree under / and glob /*.stale-*.
+if [[ -d "$wt_root" ]]; then wt_root="$(readlink -f "$wt_root")"
+else say "INFO no worktree root $wt_root: only $tmp_root is swept"; wt_root=""; fi
 g -C "$repo" rev-parse --verify -q "$trunk^{commit}" >/dev/null || refuse "no trunk ref $trunk in $repo"
 [[ -d "$spool/agents" && -r "$spool/agents" ]] || refuse "cannot read the agent records in $spool/agents"
 
@@ -136,6 +139,7 @@ n_rm=0 kb_rm=0 n_keep=0 n_sv=0 kb_sv=0
 list_dirs() {
   local d
   g -C "$repo" worktree list --porcelain | sed -n 's/^worktree //p' | tail -n +2
+  [[ -n "$wt_root" ]] || return 0
   for d in "$wt_root"/*.stale-*; do
     [[ "${d##*/}" =~ ^[^/]+\.stale-[0-9]{8}T[0-9]{6}Z$ && -d "$d" && ! -L "$d" && ! -e "$d/.git" ]] && printf 'stale %s\n' "$d"
   done
@@ -145,7 +149,7 @@ while IFS= read -r wt; do
   stale=0; [[ "$wt" == "stale "* ]] && { stale=1; wt="${wt#stale }"; }
   wt="$(readlink -f "$wt")"
   id="${wt##*/}"; why=""; br=""; sv_sha=""; patched=""
-  if [[ "${wt%/*}" == "$wt_root" ]]; then :
+  if [[ -n "$wt_root" && "${wt%/*}" == "$wt_root" ]]; then :
   elif (( ! stale )) && [[ -n "$tmp_root" && "${wt%/*}" == "$tmp_root" && "$id" =~ $tmp_ere ]]; then id="${BASH_REMATCH[1]}"
   else continue
   fi

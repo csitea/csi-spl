@@ -15,6 +15,8 @@
 //   3  CONTROL: a quick swipe on a row scrolls the list, lifts and moves
 //      nothing and opens no note
 //   4  a hold released in place moves nothing, opens no note and no row menu
+//   5  a touch contextmenu (synthetic: headless CDP touch fires none) opens no
+//      row menu at 390 px; at 1280 px the same event still opens it
 // CONTROL: on the parent (no touch drag on a phone, notes.vue draggable off),
 // case 1 FAILS and 2..4 stay OK.
 //
@@ -185,6 +187,21 @@ try {
   await sleep(600)
   ok('4 a hold let go in place moves nothing', JSON.stringify(await rows(p)) === JSON.stringify(order4))
   ok('4 ... opens no note and no row menu', (await noteQuery(p)) === '' && !(await menuOpen(p)), { note: await noteQuery(p), menu: await menuOpen(p) })
+
+  /* ---- 5. a touch contextmenu: no menu on a phone, the menu when wider -- */
+  const touchMenu = (p) => p.evaluate(() => {
+    const e = document.querySelector('[data-note-id="mock-note-2"] [data-test=notes-open]')
+    const r = e.getBoundingClientRect()
+    e.dispatchEvent(new PointerEvent('contextmenu', { pointerType: 'touch', bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 5 }))
+  })
+  await touchMenu(p)
+  await sleep(300)
+  ok('5 a touch contextmenu on a phone opens no row menu', !(await menuOpen(p)))
+  await p.setViewport({ width: 1280, height: 844, isMobile: false, hasTouch: true })
+  await sleep(600)
+  await touchMenu(p)
+  await sleep(300)
+  ok('5 ... at 1280 px the same touch contextmenu opens the row menu', await menuOpen(p))
 
   ok('no page errors', errors.length === 0, errors)
 } finally {

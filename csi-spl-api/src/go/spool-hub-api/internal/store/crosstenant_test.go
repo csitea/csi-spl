@@ -682,6 +682,16 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.NetvisorIngest(ctx, s.tenant, snap); err != nil {
 		t.Fatal(err)
 	}
+	// tenant_agent_model and agent_model_reading (rdb 0309, spec 184 row H1):
+	// one default-model cell and one box reading per tenant.
+	if err := pg.SetAgentModels(ctx, s.tenant, AgentModelPatch{By: "HUM-1",
+		Set: []AgentModel{{Vendor: "claude", Kind: "*", Model: "opus"}}}, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pg.PutAgentModelReading(ctx, s.tenant, AgentModelReading{Box: "box-a", Vendor: "claude",
+		CLIVersion: "1.0.0", Models: []string{"opus"}, ReadAt: now}); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

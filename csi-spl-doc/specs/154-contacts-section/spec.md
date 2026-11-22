@@ -974,6 +974,14 @@ lands behind `contacts.workspaces: []`.
 | S3 | no new client, redirect, key or secret | 149's client, its redirect URI (149 S3) and the KMS key are reused |
 | S4 | switch on | `contacts.workspaces` per env, dev first, after B9 is live; a step-030 apply each (149 S5) |
 
+**S2, read-only first (owner HUM-10, t1 b400601b, msg 3e7751ee, 2026-11-22:
+"Now: add read-only contacts access today").** cnf `contacts.scopes` is
+`https://www.googleapis.com/auth/contacts.readonly` (SPL-6252), so a
+connect with `want=contacts` asks Google for read access only and no longer
+answers 503 `gcal_not_configured`. The two-way sync of 2.5 (B8, O1 = A)
+needs `https://www.googleapis.com/auth/contacts`; switching to it is a new
+cnf change and a new consent from every connected person.
+
 ## 8. Editor's proposals (for the panel)
 
 | # | question | proposal | reason |

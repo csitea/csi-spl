@@ -35,6 +35,10 @@ for env in dev prd; do
   scopes=$(yq -r '.env.contacts.scopes' "$CNF/$env.env.json")
   grep -qF "\"SPOOL_HUB_CONTACTS_SCOPES\": \"$scopes\"" <<<"$line" \
     && pass "$env 030 carries SPOOL_HUB_CONTACTS_SCOPES=\"$scopes\"" || fail "$env 030 lacks SPOOL_HUB_CONTACTS_SCOPES"
+  # contacts on with no scope = every connect that wants contacts answers
+  # 503 gcal_not_configured (gcalWantScope); owner msg 3e7751ee: read-only.
+  [[ "$scopes" =~ ^https://www\.googleapis\.com/auth/contacts(\.readonly)?$ ]] \
+    && pass "$env contacts.scopes is a Google contacts scope" || fail "$env contacts.scopes=\"$scopes\" is not a Google contacts scope"
 done
 
 # --- control: [] renders no contacts key, a list joins with commas ----------

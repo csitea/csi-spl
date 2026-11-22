@@ -56,6 +56,9 @@
 #      -> re-probed (ok), not the cached expired; the same credential inside
 #      LOGIN_PROBE_EVERY -> cached as before; an old probe file with no
 #      credential key -> one re-probe, then cached
+#  23. r90-01: with only this action's file and spool-env.inc.sh sourced and
+#      LEASE_ORCH=c-007, _lc_alert_from prints c-007 (the guard loads
+#      spl_owner_digest_lease_conf)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -439,6 +442,13 @@ grep -q 'probe=ok ' <<<"$out" && [ "$(probes)" = 1 ] \
 out="$(NOPEERS=1 EVERY=300 tick)"
 grep -q 'probe=ok ' <<<"$out" && [ "$(probes)" = 1 ] \
   && pass "22. ...then cached" || fail "22. old line, then cached ($out; probes $(probes))"
+
+# 23. r90-01: _lc_alert_from reads LEASE_ORCH through spl_owner_digest_lease_conf,
+# loaded by its guard when this file is sourced alone
+reset; echo "LEASE_ORCH=c-007" >"$T/spool/dispatch/lease.conf"
+out="$(SNIPPET='source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh"; _lc_alert_from' \
+  IN_ORC_RUN=spl-agent-login-check in_orc SPOOL_ROOT="$T/spool" LOGIN_FROM= 2>&1)"
+[ "$out" = c-007 ] && pass "23. this file sourced alone, LEASE_ORCH=c-007 -> _lc_alert_from prints c-007" || fail "23. sourced alone ($out)"
 
 echo "spl-agent-login-check: $fails failed"
 exit $(( fails > 0 ))

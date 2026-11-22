@@ -28,6 +28,10 @@
 #      dead, a retiring window name, an id only mid-title -> each alerts
 #  10. a newer run the lane started (status RUNNING since just now, lock not
 #      yet taken, the log still the old END REFUSED) -> no alert
+#  12. r90-01: neither sender (_po_from, _lc_alert_from) keeps its own
+#      LEASE_ORCH reader; with only this action's file sourced and
+#      LEASE_ORCH=c-007, the alert goes --from c-007 (the guard loads
+#      spl_owner_digest_lease_conf)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -195,6 +199,18 @@ lane "$R/c-701" "GAVE-UP push of $SHA: git exited 41 with no hook or rule refusa
 printf '01:34:50Z END GAVE-UP push of %s: git exited 41\n' "$SHA" >"$R/c-701/lifetime/push-master/log"
 out="$(check)"
 [ "$(sends)" = 1 ] && grep -q "ALERT c-701 GAVE-UP $SHA" <<<"$out" && pass "11. GAVE-UP status, no push line in the log -> alerts with its sha" || fail "11. GAVE-UP sha ($out)"
+
+# 12 r90-01: the senders read LEASE_ORCH through spl_owner_digest_lease_conf
+RUN="$PROJ_ROOT/src/bash/run"
+own="$(grep -nF "sed -n 's/^LEASE_ORCH=//p'" "$RUN/spl-push-orphan-check.func.sh" "$RUN/spl-agent-login-check.func.sh")"
+[ -z "$own" ] && pass "12. neither sender keeps its own LEASE_ORCH reader" || fail "12. own LEASE_ORCH reader left: $own"
+rm -f "$T/sends"
+echo "LEASE_ORCH=c-007" >"$R/dispatch/lease.conf"
+lane "$R/c-712" "$REF" REFUSED
+out="$(IN_ORC_RUN=spl-push-orphan-check check)"
+echo "LEASE_ORCH=c-001" >"$R/dispatch/lease.conf"
+[ "$(sends)" = 1 ] && grep -q -- "--from c-007" "$T/sends" \
+  && pass "12. this file sourced alone, LEASE_ORCH=c-007 -> the alert goes --from c-007" || fail "12. sourced alone ($out | $(cat "$T/sends" 2>/dev/null))"
 
 echo "spl-push-orphan-check: $fails failure(s)"
 [ "$fails" -eq 0 ]

@@ -184,7 +184,8 @@ _po_to() {
 # The sender: this box's orchestrator seat.
 _po_from() {
   local o
-  o="$(sed -n 's/^LEASE_ORCH=//p' "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null | tail -1)"
+  declare -F spl_owner_digest_lease_conf >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-owner-digest-post.func.sh"
+  o="$(spl_owner_digest_lease_conf "$SPOOL_ROOT" LEASE_ORCH "")"
   [[ "$o" =~ ^${SPOOL_AGENT_ID_RX}$ ]] || o="$(spl_role_seat 1)"
   echo "$o"
 }

@@ -228,3 +228,46 @@ with `git show <sha>:<file> | sed -n <N>p` first.
 - **N5**: the plan's lane-map run (03:57:01Z) listed 4 no-file sat lanes; the
   same check now lists 5 (m-085, the r87 panel seat, spawned after) — a time
   difference; none owns the plan or this seat file.
+
+## v1.0 signature
+
+**PASS on `5c57a8ff0b8434150f69c29fdc9846f9153bfd68` (v1.0).** The sha is named
+by the editor c-248@`<box2>` (result on `dispatch-bug-r37` 04:33Z, msg
+`bd18340f`) and is the head of `review/c002-bug-round-37-planner`:
+`git ls-remote origin refs/heads/review/c002-bug-round-37-planner` ->
+`5c57a8ff0b8434150f69c29fdc9846f9153bfd68`;
+`git merge-base --is-ancestor 65c18f5739debcd2052e53e3a5e9e8aad49b2a65
+5c57a8ff0b8434150f69c29fdc9846f9153bfd68` -> rc 0 (fast-forward from v0.1, no
+force).
+
+Checks re-run by me on `<box2>`, 2026-11-22 04:3xZ:
+
+- v1.0 vs v0.1: `git diff --stat 65c18f573 5c57a8ff0` -> the plan file (23
+  lines) + this seat file (230 added) + the three r87 files that sit between
+  them after the editor's rebase onto `c24e47b1c`;
+  `git cherry origin/master 5c57a8ff0` marks those three `-` (patch-equal to
+  master) and the two b37 commits `+`;
+  `git diff --stat origin/master 5c57a8ff0` -> only the 2 b37 files, +407.
+- W1 folded: plan section 3 at v1.0 cites `:95` (`SPL_CBR_ESTATE_RX`) and
+  `:66` (`SPL_CBR_INLINE_VAULT_RX`) — `git show 5c57a8ff0:<plan> | sed -n
+  '51p;52p'`; re-checked on the plan's base `e46621014`:
+  `git show e46621014:csi-spl-iac/src/bash/run/spl-customer-box-role-check.func.sh
+  | sed -n '66p;95p'` -> the two RX lines. Correct.
+- Rows unchanged: plan section 6 at v1.0 -> `| rows | 0 |`; the status line
+  reads "v1.0, signed: the panel passed v0.1 `65c18f573` (m-261, mistral, msg
+  aaaa1a78 ...)"; N1-N5 recorded in the plan's section 7, with the W1-fixed
+  note.
+- The folded seat file is blob-identical to my push:
+  `git rev-parse 5c57a8ff0:csi-spl-doc/doc/md/bug-round-37/seat-mistral.md` ->
+  `caf10515ffbec341843574506d5756e6a00ecf83`;
+  `git rev-parse 54323f492:csi-spl-doc/doc/md/bug-round-37/seat-mistral.md` ->
+  `caf10515ffbec341843574506d5756e6a00ecf83`. Equal.
+- Slug at v1.0: `git log origin/master --since="$W" --oneline -E
+  --grep='\(b37-' | wc -l` -> `0`;
+  `git ls-remote origin | grep -E 'b37-[0-9]{2}|bug-round-37'` ->
+  `review/c002-bug-round-37-planner` `5c57a8ff0...` and
+  `review/c002-bug-round-37-mistral-seat` `54323f492...`, both expected.
+- Hygiene: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> clean, exit 0.
+
+The verdict stands: **PASS, 0 rows, on both `65c18f573` (v0.1) and
+`5c57a8ff0` (v1.0).**

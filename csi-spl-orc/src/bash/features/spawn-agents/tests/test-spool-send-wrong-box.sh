@@ -111,4 +111,39 @@ eq "8. a cache older than the TTL is read again" 2 "$(n_map)"
 reset; SPOOL_SEND_BOX_GUARD=0 send c-346@box-b; rc=$?
 eq "9. guard off: the wrong box is relayed as before" "0 1" "$rc $(n_relay)"
 
+
+# ---- 10. W1: lane-map.sh stdout carries do_log lines around the JSON -------
+# (./run without --json echoes INFO/WARN/OK; R7 g-379 msg 3563e4f6 P1, P2)
+for lead in "INFO the hub answered on try 2" "WARN the hub read try 1/3: timeout"; do
+  cat >"$T_TMP/map-log" <<SH
+#!/usr/bin/env bash
+echo x >>"$T_TMP/map.calls"; echo "$lead"; cat "$T_TMP/map.json"; echo "OK lane map"
+SH
+  chmod +x "$T_TMP/map-log"
+  reset; SPOOL_LANE_MAP_CMD="$T_TMP/map-log" send c-346@box-b; rc=$?
+  eq "10. a '${lead%% *}' line before the map: still refused, exit 8" 8 "$rc"
+  eq "10. ... no relay, no outbox, no WARN" "0 0 0" "$(n_relay) $(n_out) $(grep -c WARN "$T_TMP/err")"
+done
+reset; SPOOL_LANE_MAP_CMD="$T_TMP/map-log" send c-500@box-far; rc=$?
+eq "10. a log-wrapped map still allows the right box" "0 1" "$rc $(n_relay)"
+eq "10. ... and the cache holds the JSON alone" ok "$(jq -r .hub "$SPOOL_ROOT/dispatch/lane-map-send.cache.json" 2>/dev/null)"
+
+# ---- 11. N1: --to <ID>@<this box> is checked too ---------------------------
+reset; send c-500@box-a; rc=$?
+eq "11. c-500 live on box-far, named @box-a (this box): exit 8" 8 "$rc"
+has "11. ... the corrected --to is c-500@box-far" "send it with --to c-500@box-far." "$(cat "$T_TMP/err")"
+eq "11. ... nothing written" "0 0" "$(n_relay) $(n_out)"
+reset; send c-346@box-a; rc=$?
+eq "11. c-346 live on box-a, named @box-a: exit 0, sent" "0 1" "$rc $(n_out)"
+hasnt "11. ... as a this-box send (no to-box)" "--to-box" "$(cat "$T_TMP/relay.calls" 2>/dev/null)"
+
+# ---- 12. N2: a cache whose lanes is not a list is read again ----------------
+reset; echo '{"hub":"ok","lanes":{}}' >"$SPOOL_ROOT/dispatch/lane-map-send.cache.json"
+SPOOL_LANE_MAP_TTL=120 send c-346@box-b; rc=$?
+eq "12. a lanes-not-a-list cache is not used: one map read, exit 8" "1 8" "$(n_map) $rc"
+
+# ---- 13. N3: --to peers reads no map (no <ID>@<box>) ------------------------
+reset; SPOOL_TO_PEERS=1 bash "$SS" --from c-370 --to peers --kind note --body 'to peers' --no-poke >/dev/null 2>"$T_TMP/err"; rc=$?
+eq "13. --to peers: exit 0, no map read" "0 0" "$rc $(n_map)"
+
 t_done

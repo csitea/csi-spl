@@ -411,9 +411,11 @@ if [ "$TO" = orchestrator ] || [ "$TO" = peers ]; then
 fi
 [ "$PEERS" -eq 0 ] || [ "$POKE_ONLY" -eq 0 ] || { echo "ERROR: --poke-only rings one agent, not the peers" >&2; exit 2; }
 TO_BOX=""
+NAMED_BOX=""  # the box --to named, THIS box too: the box guard checks it (R7 N1)
 case "$TO" in
   *@*) TO_BOX="${TO##*@}"; TO="${TO%@*}"
        [[ "$TO_BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "ERROR: bad box in --to: '${TO_BOX}'" >&2; exit 2; }
+       NAMED_BOX="$TO_BOX"
        [ "$TO_BOX" = "$(spool_fleet_box)" ] && TO_BOX="" ;;
 esac
 [ "$PEERS" -eq 1 ] || spool_valid_id "$TO" || exit 2
@@ -430,7 +432,8 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   [ -z "$ACCEPT" ] || [ "$PEERS" -eq 0 ] || { echo "ERROR: --accept goes to the agent whose result it accepts, not to the peers. Nothing was sent." >&2; exit 2; }
   send_from_guard "$FROM" || exit 10
   send_desk_root_guard "$FROM" "$TO" || exit 9
-  [ "$PEERS" -eq 1 ] || send_box_guard "$TO" "$TO_BOX" || exit 8
+  # peers is no <ID>@<box>: the hub fans it out to the seats, no lane to check
+  [ "$PEERS" -eq 1 ] || send_box_guard "$TO" "$NAMED_BOX" || exit 8
 
   # ---- an owner topic is the owner's (owner rule 2026-10-08) ----------------
   # Agent-to-agent rows sent on an owner topic uuid land INSIDE the owner's

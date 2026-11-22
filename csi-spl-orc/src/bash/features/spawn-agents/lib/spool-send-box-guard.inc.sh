@@ -19,11 +19,18 @@
 # (default 120): one read took 2.7..3.4 s on a fleet box (n=3, 2026-11-22),
 # a cached one is a jq call. Only a send that names another box reads it.
 #
+# lane-map.sh runs ./run without --json, so its stdout can carry do_log lines
+# (INFO/WARN/OK, e.g. "INFO the hub answered on try 2") before the JSON: the
+# map is the first JSON value from the first line that starts with `{`
+# (R7 W1, g-379 msg 3563e4f6: read whole, such a map failed open).
+#
 # SPOOL_LANE_MAP_CMD (tests): replaces lane-map.sh --json, prints the map's
 # JSON. Under SPOOL_TEST=1 without it the guard is off (no real hub).
 # SPOOL_LANE_MAP_TIMEOUT: seconds a fresh read may take, default 15.
 # SPOOL_SEND_BOX_GUARD=0 turns the guard off.
 
+# A usable map: the hub answered and lanes is a list (the cache and a fresh read, R7 N2).
+_SEND_BOX_MAP_OK='.hub == "ok" and (.lanes | type == "array")'
 _send_box_cache() { printf '%s/dispatch/lane-map-send.cache.json' "$SPOOL_ROOT"; }
 
 # The map's JSON on stdout; rc 1 when it cannot be read. A fresh read is
@@ -36,7 +43,7 @@ send_box_map() {
   [[ "$lim" =~ ^[1-9][0-9]*$ ]] || lim=15
   if [ -r "$c" ]; then
     age=$(( $(date +%s) - $(stat -c %Y "$c" 2>/dev/null || echo 0) ))
-    if [ "$age" -ge 0 ] && [ "$age" -lt "$t" ] && jq -e '.hub == "ok"' "$c" >/dev/null 2>&1; then
+    if [ "$age" -ge 0 ] && [ "$age" -lt "$t" ] && jq -e "$_SEND_BOX_MAP_OK" "$c" >/dev/null 2>&1; then
       cat "$c"; return 0
     fi
   fi
@@ -46,7 +53,8 @@ send_box_map() {
   else
     out="$(timeout -k 1 "$lim" bash "$SPOOL_FEATURE_DIR/scripts/lane-map.sh" --json 2>/dev/null)" || return 1
   fi
-  jq -e '.hub == "ok" and (.lanes | type == "array")' >/dev/null 2>&1 <<<"$out" || return 1
+  out="$(sed -n '/^{/,$p' <<<"$out" | jq -c -n 'first(inputs)' 2>/dev/null)" || return 1
+  jq -e "$_SEND_BOX_MAP_OK" >/dev/null 2>&1 <<<"$out" || return 1
   if [ -d "${c%/*}" ] && tmp="$(mktemp "${c%/*}/.lane-map-send.XXXXXX" 2>/dev/null)"; then
     if printf '%s\n' "$out" >"$tmp" && chmod 0664 "$tmp" 2>/dev/null && mv -f "$tmp" "$c" 2>/dev/null; then :; else rm -f "$tmp"; fi
   fi

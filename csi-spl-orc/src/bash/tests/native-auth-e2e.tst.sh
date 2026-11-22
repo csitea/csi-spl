@@ -92,6 +92,15 @@ out="$(act APP_PATH="$T/app" NAE_MODE=wui NAE_CMD_NODE="$T/node.sh" NAE_SEAT_TEN
 out="$(act APP_PATH="$T/app" NAE_MODE=wui NAE_CMD_NODE="$T/node.sh" NAE_SEAT_TENANT=t1 NAE_ORDERED_BY=HUM-10 NAE_ORDERED_VIA=c-806)"; rc=$?
 [[ $rc -eq 0 ]] && grep -qxF "cd $T/app/org-app-orc && ENV=dev TENANT_ID=t1 EMAIL=\"\$SEAT_EMAIL\" DISPLAY_NAME='Native E2E' MEMBER_ROLE=${NAE_SEAT_ROLE:-regular_user} CREATE_HUMAN=1 ORDERED_BY=HUM-10 ORDERED_VIA='c-806' DRY_RUN=0 ./run -a do_spl_tenant_member_add" "$T/log.seat" &&
   pass "2b. NAE_SEAT_TENANT: the proof gets the member-add seat (CREATE_HUMAN=1, no password)" || fail "2b. seat cmd: rc=$rc $(cat "$T/log.seat")"
+IFS='|' read -r w_pwd w_base _ <"$T/log.wui"
+[[ "$w_base" == https://wui.example.net ]] && pass "2b. a t1 seat runs on the apex host" || fail "2b. t1 host: $w_base"
+out="$(act APP_PATH="$T/app" NAE_MODE=wui NAE_CMD_NODE="$T/node.sh" NAE_SEAT_TENANT=e2e NAE_ORDERED_BY=HUM-10)"; rc=$?
+[[ $rc -ne 0 ]] && grep -q "'e2e' has no tenant host" <<<"$out" && pass "2b. a seat tenant with no mapped host is refused" || fail "2b. unmapped: rc=$rc $out"
+printf '    mapped_tenants: [demo, e2e]\n' | sed -i '/^    fqdn:/r /dev/stdin' "$T/cnf.yaml"
+out="$(act APP_PATH="$T/app" NAE_MODE=wui NAE_CMD_NODE="$T/node.sh" NAE_SEAT_TENANT=e2e NAE_ORDERED_BY=HUM-10)"; rc=$?
+IFS='|' read -r w_pwd w_base _ <"$T/log.wui"
+[[ $rc -eq 0 && "$w_base" == https://e2e.wui.example.net ]] && grep -q 'TENANT_ID=e2e .*MEMBER_ROLE=regular_user ' "$T/log.seat" &&
+  pass "2b. an e2e seat runs on e2e.<fqdn> as regular_user" || fail "2b. e2e host: rc=$rc $w_base $(cat "$T/log.seat")"
 
 # 3. the flow against a fake hub and mailbox: FAKE_MODE ok | wrongpw | noreset
 run_py() {

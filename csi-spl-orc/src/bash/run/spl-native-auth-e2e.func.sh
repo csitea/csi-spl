@@ -28,6 +28,7 @@
 # @param NAE_SEAT_TENANT (optional) - wui: seat the account as a member of this TEST tenant after verify
 # @param   (do_spl_tenant_member_add CREATE_HUMAN=1, no password touched), so the WUI sign-in on that
 # @param   tenant's host can open; the unseated refusal is kept as a control step. A tenant write: prd only on a go
+# @param   The proof then runs on that tenant's host <tenant>.<fqdn> (t1: the apex); a tenant not in env.dns.mapped_tenants is refused
 # @param NAE_SEAT_ROLE (optional) - the seat's role, default regular_user
 # @param NAE_ORDERED_BY / NAE_ORDERED_VIA (with NAE_SEAT_TENANT) - the seat's provenance (ORDERED_BY HUM-*, ORDERED_VIA)
 # @param NAE_EMAIL (optional) - <relay>+<tag>@<relay domain> with no earlier mail; default <relay>+native-e2e-<utc>@<relay domain>
@@ -77,6 +78,12 @@ spl_native_auth_e2e_wui() {
     spl_require_tenant_slug "$NAE_SEAT_TENANT" || return 1
     [[ "${NAE_ORDERED_BY:-}" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL NAE_SEAT_TENANT needs NAE_ORDERED_BY=HUM-<n>, got: '${NAE_ORDERED_BY:-}'"; return 1; }
     [[ "${NAE_SEAT_ROLE:-regular_user}" =~ ^[a-z_]+$ ]] || { do_log "FATAL NAE_SEAT_ROLE must be a role id, got: '$NAE_SEAT_ROLE'"; return 1; }
+    # the apex host is t1; any other tenant signs in on its own <tenant>.<fqdn> host
+    if [[ "$NAE_SEAT_TENANT" != t1 ]]; then
+      yq -r '.env.dns.mapped_tenants // [] | .[]' "$SPL_CNF" | grep -xF "$NAE_SEAT_TENANT" >/dev/null ||
+        { do_log "FATAL NAE_SEAT_TENANT '$NAE_SEAT_TENANT' has no tenant host in env.dns.mapped_tenants of $SPL_CNF"; return 1; }
+      fqdn="$NAE_SEAT_TENANT.$fqdn"
+    fi
     seat="cd $APP_PATH/$SPL_ORG_APP-orc && ENV=$ENV TENANT_ID=$NAE_SEAT_TENANT EMAIL=\"\$SEAT_EMAIL\" DISPLAY_NAME='Native E2E' MEMBER_ROLE=${NAE_SEAT_ROLE:-regular_user} CREATE_HUMAN=1 ORDERED_BY=$NAE_ORDERED_BY ORDERED_VIA='${NAE_ORDERED_VIA:-native-auth-e2e}' DRY_RUN=0 ./run -a do_spl_tenant_member_add"
   fi
   ( cd "$APP_PATH/$SPL_ORG_APP-wui" &&

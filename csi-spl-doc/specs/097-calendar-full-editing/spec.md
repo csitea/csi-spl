@@ -352,7 +352,11 @@ event as changed (for `following`, the first occurrence of the new series).
   `TestCalendarSendsNothing` is narrowed to the reminder code, and a new test
   proves an invite sends exactly one notice per guest.
 - Who may edit: unchanged from 089 (anyone with `notes.send` who can read the
-  event); a guest who may not edit can still answer (Q4).
+  event); a guest who may not edit can still answer (Q4). Amended by spec 149
+  section 13.6 (plan, SPL-6255): an event whose `edit_level` is `owner`
+  ("workspace can read") is edited and deleted only by its creator and the
+  workspace's `biz_owner` / `admin` holders; `everyone`, every existing
+  event's value, keeps this rule.
 
 ### 4.6 Quick add (G12)
 

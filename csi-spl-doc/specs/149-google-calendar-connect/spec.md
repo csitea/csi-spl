@@ -686,9 +686,9 @@ over". Every `file:line` below was read on origin/master `8604ad411` with
    delete in the web app does.
 4. Everyone else who connected Google sees the change in their own
    "Spool Hub" calendar on their next sync (about a minute).
-5. One choice is left to the requester: whether a NEW event added on the
-   phone stays private to its author (today) or becomes a workspace event
-   (13.4).
+5. A NEW event added on the phone, and who may change a shared event at
+   all, follow the three sharing kinds of 13.6 (private, workspace can
+   read, workspace can edit), the requester's answer to Q13.
 
 ### 13.1 The rule
 
@@ -720,6 +720,9 @@ it. The conflict rule of 2.5 is unchanged (13.2).
   (`hub/calendar.go:1067` `calendarSyncedReadOnly`, :1167 for DELETE): its
   Google edit and delete are dropped and the out half writes Spool's values
   back. Today it is dropped only because the member did not create it.
+- **"The out half writes Spool's values back" does not hold on master**
+  for an event Spool did not change meanwhile (13.6.5, finding). Every
+  refusal in this section writes back through 13.6.2's `revert`.
 - The sync writes only title, description, start, end, all-day, time zone
   and rrule (`hub/gcal_sync_in.go:264-268`); it never changes audience,
   guests, kind or links. So `privateOwnerOnly` (`hub/calendar.go:1017`,
@@ -775,30 +778,30 @@ Spool `updated_at`), a tie goes to Spool, the write carries
   connected member sees the change through their own out half on their next
   cycle (60 s), and the web app shows it on its next read.
 
-### 13.4 Open question for the requester
+### 13.4 Q13, answered: three sharing kinds
 
-```poll
-Q13. A member adds a NEW event on their phone in the "Spool Hub (<workspace>)" calendar. What should it become in Spool Hub?
-(A) Stays their private event, seen only by them (today)
-(B) Becomes a workspace event that every member sees and may edit
-```
+Q13 asked whether a NEW phone event stays private (A) or becomes a
+workspace event every member may edit (B). The requester answered neither
+alone (topic 1d9ec3c5, msg ce0b5455): "it should be possible to define
+events to be workspace-readable , workspace editable and private". That
+answer is section 13.6; the default for a new phone event is its Q14.
 
-Today (A): an unmapped item is imported by `put` (`hub/gcal_sync_in.go:195`)
+Today: an unmapped item is imported by `put` (`hub/gcal_sync_in.go:195`)
 as `GcalSpoolOf` (:286): audience `private`, kind `other`,
 `source_key gcal:<connection>:<google id>`; Google always wins on it
-(:182). On B, row R3 is placed; on A it is not. Either way the member's
-other Google calendars (2.10 B) stay read-only private imports.
+(:182). The member's other Google calendars (2.10 B) stay read-only
+private imports either way.
 
 ### 13.5 Rows, files, risks
 
 | row | files (only these) | what | test (red on `8604ad411`, green on the row) | author | R7 reviewer |
 |---|---|---|---|---|---|
-| R1 edits and deletes by an editor | `hub/gcal_sync_in.go`, `hub/gcal_sync_in_test.go` | a per-cycle `mayEdit` (13.2); `patch` replaces `cur.CreatorID != cy.c.Human` with `!mayEdit`; `take` and `cancelled` skip an event with a non-`gcal:` `source_key`; `cancelled` trashes when `mayEdit` (an import as today); the header comment (:15-40) rewritten | new `TestGcalSyncInEditorEditsOthersEvent` (member B, `notes.send`, edits member A's `internal` event in Google, Google newer: Spool has B's title; **red control**: on master Spool keeps A's title and the next cycle patches Google back); `TestGcalSyncInEditorDeletesOthersEvent` (B cancels it: trashed, `deleted_by` B; red: on master it stays live and is inserted at Google again); twins that pass on both: `...NoNotesSendKeepsSpool` (B a channel guest), `...DemoVisitorKeepsSpool`, `...UnpaidKeepsSpool`, `...NonMemberKeepsSpool`, `...RepoSyncedStaysReadOnly`; `...GuestOfPrivateEdits` (B a guest of A's private event: taken; red on master); the existing C15-C19 tests unchanged; api tests; full tier | claude | agy (mistral) |
+| R1 edits and deletes by an editor | `hub/gcal_sync_in.go`, `hub/gcal_sync_in_test.go` | a per-cycle `mayEdit` (13.2); `patch` replaces `cur.CreatorID != cy.c.Human` with `!mayEdit`; `take` and `cancelled` skip an event with a non-`gcal:` `source_key`; `cancelled` trashes when `mayEdit` (an import as today); the header comment (:15-40) rewritten | new `TestGcalSyncInEditorEditsOthersEvent` (member B, `notes.send`, edits member A's `internal` event in Google, Google newer: Spool has B's title; **red control**: on master Spool keeps A's title, and Google keeps B's, unpatched (13.6.5)); `TestGcalSyncInEditorDeletesOthersEvent` (B cancels it: trashed, `deleted_by` B; red: on master it stays live and is inserted at Google again); twins that pass on both: `...NoNotesSendKeepsSpool` (B a channel guest), `...DemoVisitorKeepsSpool`, `...UnpaidKeepsSpool`, `...NonMemberKeepsSpool`, `...RepoSyncedStaysReadOnly`; `...GuestOfPrivateEdits` (B a guest of A's private event: taken; red on master); the existing C15-C19 tests unchanged; api tests; full tier | claude | agy (mistral) |
 | R2 docs | `csi-spl-doc/specs/149-google-calendar-connect/spec.md` (2.5 "In": the creator rule replaced by 13.1; this section's status to built); the calendar help page through its qto doc (`csi-spl-doc/doc/help/calendar.md:3`), one paragraph | the text follows R1 | `cd csi-spl-iac && ./run -a do_check_dist_hygiene`; the qto doc drift check | agy | claude |
-| R3 new phone events are workspace events (only on Q13 B) | `hub/gcal_sync_in.go`, `hub/gcal_sync_in_test.go` | an unmapped item of the hub calendar is created as a normal Spool event (audience `internal`, kind `other`, no `source_key`, creator the member) under the 13.2 checks, then mapped; a member who fails them keeps today's private import | new `TestGcalSyncInNewEventIsWorkspaceEvent` (red: on master it is `private` with a `gcal:` key; C16 inverted: another member sees it); twin: the 2.10 source calendars still import as private | claude | agy (mistral) |
+| R3 | - | **replaced** by rows K1-K6 of 13.6.4 (three sharing kinds; a new phone event takes its kind from Google's `visibility`) | - | - | - |
 
-R1 and R3 edit the same two files: R3 runs after R1. R2 after R1 (and R3
-when placed). No migration, no cnf, no WUI change.
+R2 after R1. R1 is still no migration, no cnf, no WUI change; the
+migration, the cnf value and the WUI change are 13.6's (K1, K3, K4).
 
 Risks:
 
@@ -827,4 +830,197 @@ Risks:
   (13.3); the creator cannot undo it from their own trash. Same as the web
   app today.
 
-<!-- version: 1.0, section 13 a plan · updated: 2026-11-22 -->
+### 13.6 Three sharing kinds: private, workspace can read, workspace can edit (SPL-6255, plan)
+
+Status: **plan, not built, not signed.** The requester's answer to Q13
+(topic 1d9ec3c5, msg ce0b5455): "it should be possible to define events to
+be workspace-readable , workspace editable and private". It replaces Q13
+(13.4) and row R3 (13.5). Every `file:line` below was read on origin/master
+`0674db0a5` with `sed -n` / `grep -n`. Paths as at the top of this spec.
+
+#### 13.6.0 In plain words
+
+1. Every event has one of three kinds: **private** (only you and your
+   guests), **workspace can read** (everyone sees it, only you and the
+   workspace admins change it) or **workspace can edit** (everyone sees and
+   changes it, as every shared event works today).
+2. You pick the kind in the event dialog of the web app; events that exist
+   today become "workspace can edit", so nothing changes for them.
+3. On the phone, an event marked Private in Google becomes private, one
+   marked Public becomes "workspace can read", and one left as it is takes
+   the default the requester chooses (13.6.2, Q14).
+4. A change on the phone to an event you may not change is undone: Spool
+   puts its own version back on your phone within about a minute.
+
+#### 13.6.1 The rule
+
+The kind is two fields of the event, one that exists and one new:
+
+| kind (UI) | `audience` (exists) | `edit_level` (new) | who reads | who edits and deletes |
+|---|---|---|---|---|
+| Private | `private` | `everyone` (ignored) | creator and guests (`store/calendar_postgres.go:35`, `calendarPrivateSQL`) | creator and guests, as today (13.2 "guest-only event") |
+| Workspace can read | `workspace` or `internal` (or `public`) | `owner` | as the audience says today | the creator, and members holding `biz_owner` or `admin` in the workspace |
+| Workspace can edit | `workspace` or `internal` (or `public`) | `everyone` | as the audience says today | anyone who reads it and holds `notes.send` (spec 097 4.5, unchanged) |
+
+- **The field.** `calendar_events.edit_level text NOT NULL DEFAULT
+  'everyone' CHECK (edit_level IN ('everyone', 'owner'))`, in a new
+  migration `rdb/<next>_calendar_edit_level.sql` (number claimed with
+  `do_rdb_migration_next` at build time; `ls rdb/ | tail -1` ->
+  `0310_t1_issue_backlog_default.sql` today). The default keeps every
+  existing row's behaviour: anyone who may edit it today still may.
+- **Who is an admin here.** The same pair the roadmap approval uses,
+  `roadmapApproverRoles = []string{rbac.BizOwner, rbac.Admin}`
+  (`hub/calendar_sync.go:83`), read with `s.access(...).HasAny(...)`
+  (`hub/calendar_sync.go:255`). One shared helper, `calendarEditAdmins`,
+  so the two lists cannot drift apart.
+- **Who may change `edit_level`.** The creator and those admins. Anyone
+  else's PATCH that carries `edit_level` is 403 `edit_level_owner_only`,
+  the twin of `privateOwnerOnly` (`hub/calendar.go:1017`). Moving to or
+  from `private` stays the creator's alone (FR-010, unchanged), so an admin
+  can lock or unlock an event but never make someone's event private.
+- **Guests of an `owner` event** read it and answer it (RSVP,
+  `hub/calendar.go:1251`); they do not edit it. A guest of a private event
+  keeps today's rights (097 Q4).
+- **Agents.** The operator writes (`hub/calendar_operator_write.go`) act for
+  `ordered_by`: an `owner` event is written only when `ordered_by` is its
+  creator or an admin; an agent with no `ordered_by` writes only an `owner`
+  event it created itself.
+- **Where the web app shows and sets it.** The event dialog
+  (`wui/components/CalendarEventDialog.vue:168`, today the Private switch
+  shown to the creator only, `calCanSetPrivate`,
+  `wui/utils/calendar-event-form.mjs:194`) becomes one three-way choice
+  "Private / Workspace can read / Workspace can edit", shown to whoever may
+  change the kind; the Public switch (:182) stays as it is and is offered
+  only with the two workspace kinds. The pop-over
+  (`wui/components/CalendarEventPopover.vue`) shows the kind as a label and
+  hides Edit, Delete, drag and resize when the viewer may not edit, the
+  way a synced event is read-only today (`calEditable`,
+  `wui/utils/calendar-event-form.mjs:176`).
+- **The wire.** The event object gains `edit_level` (`everyone` | `owner`)
+  and `can_edit` (bool, for this viewer), beside `source_key` in
+  `calendarEventJSON` (`hub/calendar.go:70`, filled in `toCalendarJSON`,
+  :146). `can_edit` is the hub's answer, so the web app never re-derives
+  the rule; the list read makes one `s.access` call per request, not one per
+  event. POST and PATCH accept `edit_level`; an unknown value is 400.
+
+#### 13.6.2 The phone
+
+Google Calendar has no "others may read but not edit" setting on an event
+in one person's calendar; its per-event field is `visibility` (`default`,
+`public`, `private`, `confidential`; `gcal/client.go:49` carries it). So
+the kind rides on `visibility`, both ways:
+
+| Google `visibility` on a NEW phone event | Spool kind |
+|---|---|
+| `private` or `confidential` | Private |
+| `public` | Workspace can read |
+| `default` or absent | **the default, Q14 below** |
+
+- **Out (Spool -> Google).** `GcalEventOf` (`hub/gcal_map.go:49`) today
+  writes `private` for a private event and `default` for any other. It
+  writes `public` for an `owner` event too, so the member's phone shows the
+  lock and a round trip keeps the kind. `visibility` joins the sync hash
+  (`GcalSyncHash`, `hub/gcal_map.go:27`) so a kind change in Spool reaches
+  Google; every mapped event is patched once after the build (one cycle per
+  member, not a burst: the out half already pages by connection).
+- **In, a new item.** An unmapped item of the "Spool Hub" calendar becomes a
+  normal Spool event (no `gcal:` `source_key`, creator the member, kind
+  `other`, then mapped), with the audience and `edit_level` of the table,
+  when the member passes the 13.2 "who" checks; a member who fails them
+  keeps today's private import (`GcalSpoolOf`, `hub/gcal_sync_in.go:286`).
+  A workspace kind gets audience `workspace` (the create default, owner
+  decision D2, `store/calendar.go:45-48`), never `public`. The member's
+  other Google calendars (2.10 B) stay read-only private imports.
+- **In, an edit of a mapped event.** Taken when the member may edit the
+  event under 13.6.1 (13.1's `mayEdit`, now with the `edit_level` term).
+  A `visibility` change on the phone is not taken in v1: the kind is
+  changed in the web app (risk below).
+- **In, a refused edit or delete** (an `owner` event the member did not
+  create and is no admin of, or any 13.2 refusal): Spool's version is
+  written back to Google in the same cycle. Today nothing does that, see
+  13.6.5: a new `revert` in `hub/gcal_sync_in.go` PATCHes the item with
+  `GcalEventOf(cur)` and stores the new etag and `GcalSyncHash(cur)` on the
+  map row. A refused delete drops the map row, and the out half inserts
+  the event again, as today (`hub/gcal_sync_in.go:238-254` then
+  `hub/gcal_sync.go:456` `push`, `!has`).
+
+**Q14, the default of a new phone event left at Google's default
+visibility.** The holder asked the requester (topic 1d9ec3c5, msg
+0fec74f4): (P) private, (R) workspace can read, (E) workspace can read and
+edit. **Chosen: pending, no answer on this lane's task yet.** The plan works
+for each: the default is one cnf value, `env.gcal.new_event_kind`, beside `gcal.workspaces`,
+(`private` | `read` | `edit`) in `cnf/all.env.yaml`, read by the in half,
+so a later change of mind is a cnf change, not a build. When the answer
+lands, this line names it and the cnf default is set to it.
+
+#### 13.6.3 The checks in the hub
+
+One function decides, and every writer calls it:
+`calendarMayEdit(a rbac.Access, e store.CalendarEvent, actor string) bool`
+in `hub/calendar.go`: true when `e.EditLevel != "owner"`, or `e.CreatorID ==
+actor`, or `a.HasAny(calendarEditAdmins...)`. It runs after the event is
+read (so the private filter has already answered "not found" to a stranger)
+and after `notes.send`.
+
+| writer | today, file:line | the new check |
+|---|---|---|
+| member PATCH | `patchCalendarOnce`, `hub/calendar.go:1060`: synced check :1067, `privateOwnerOnly` :1091 | after :1067: `!calendarMayEdit` -> 403 `edit_owner_only`; beside :1091: `editLevelOwnerOnly` for a patch that carries `edit_level` |
+| member DELETE | `handleDeleteCalendarEvent`, `hub/calendar.go:1158`: synced check :1167, then `TrashCalendarScope` :1171 | at :1167, the same read: `!calendarMayEdit` -> 403 `edit_owner_only` |
+| member POST | `handleCreateCalendarEvent`, `hub/calendar.go:973`, `q.newEvent` :985 | takes `edit_level` (default `everyone`); the creator is the actor, so no further check |
+| operator PATCH / DELETE | `operatorCalendarSingle`, `hub/calendar_operator_write.go:129` (synced :141) | beside :141, with `ordered_by` (else the agent) as the actor |
+| Google in half, edit | `patch`, `hub/gcal_sync_in.go:259`, creator test :261 (13.1 replaces it with `mayEdit`) | `mayEdit` = the 13.2 "who" checks, once per cycle, AND `calendarMayEdit(cycle access, cur, member)` per item; refused -> `revert` |
+| Google in half, delete | `cancelled`, `hub/gcal_sync_in.go:238`, creator test :245 | the same `mayEdit`; refused -> map row dropped, the out half inserts it again |
+| Google in half, new item | `put`, `hub/gcal_sync_in.go:195` | 13.6.2 "In, a new item" |
+| restore | `handleRestoreCalendarEvent`, `hub/calendar.go:1184` | none: it restores only the caller's own deletion, and only someone who could edit could delete |
+
+The store gains the column on every read and write
+(`store/calendar_postgres.go:15` `calendarCols89`, the insert :147-155 and
+the update :264-277, the import upserts :569-610) and in the memory store;
+a database before the migration reads `everyone` (the store already probes
+for newer columns, `store/calendar.go`, rdb 0139 note).
+
+#### 13.6.4 Rows, files, tests
+
+| row | files (only these) | what | test (red on master, green on the row) | author | R7 reviewer |
+|---|---|---|---|---|---|
+| K1 store + migration | `rdb/<next>_calendar_edit_level.sql`, `store/calendar.go`, `store/calendar_postgres.go`, `store/calendar_memory.go`, their tests | the column, its check, read and written everywhere; `CalendarEditEveryone` / `CalendarEditOwner` constants | `TestCalendarEditLevelRoundTrip` (create `owner`, read it back; red: no column); `TestCalendarEditLevelDefault` (an old row reads `everyone`); an `owner` value outside the check is `ErrInvalidCalendarEvent`; `PRE_PUSH_TIER=full` | claude | agy (mistral) |
+| K2 hub rule | `hub/calendar.go`, `hub/calendar_operator_write.go`, `hub/calendar_sync.go` (the shared admin list), their tests | `calendarMayEdit`, `editLevelOwnerOnly`, `edit_level` + `can_edit` on the wire | `TestCalendarOwnerEventRefusesOtherMember` (PATCH and DELETE 403 `edit_owner_only`; **red control**: on master both are 200); twins that pass on master: creator edits, an admin edits, an `everyone` event edited by any member; `TestCalendarEditLevelOwnerOnly` (a non-creator, non-admin PATCH of `edit_level` is 403); `TestCalendarCanEditField`; operator twin; api tests, full tier | claude | agy (mistral) |
+| K3 Google in + out | `hub/gcal_sync_in.go`, `hub/gcal_map.go`, `hub/gcal_sync_in_test.go`, `hub/gcal_map_test.go`, `cnf/all.env.yaml` (+ rendered twins) | after R1: the `edit_level` term in `mayEdit`, `revert`, the visibility mapping both ways, the new-item kind and the Q14 cnf default | `TestGcalSyncInRefusedEditWrittenBack` (member B edits A's `owner` event in Google: Spool keeps A's title AND Google shows A's title after the cycle; **red control**: on master Google keeps B's title, 13.6.5); `TestGcalSyncInNewEventKindFromVisibility` (private, public, default -> the three kinds; red: on master all three are private imports with a `gcal:` key); `TestGcalEventOfOwnerIsPublic`; the 2.10 source-calendar imports still private | claude | agy (mistral) |
+| K4 WUI | `wui/components/CalendarEventDialog.vue`, `wui/components/CalendarEventPopover.vue`, `wui/components/CalendarMainView.vue`, `wui/utils/calendar-event-form.mjs`, `wui/utils/calendar-mock.mjs`, `wui/types/calendar-shims.d.ts`, unit and e2e tests | the three-way kind choice, the label, read-only by `can_edit` | unit: `calEditable` false when `can_edit` is false (red on master: true); e2e: another member opens an `owner` event, no Edit button, drag refused; `pnpm run typecheck`; `BASE_URL=<bundle> pnpm run test:e2e` | claude | agy (mistral) |
+| K5 i18n | `csi-spl-wui/i18n/locales/*.json` (19 files) | the kind labels, hints and the two error tokens | `i18n-parity.test.mjs`, `i18n-untranslated.test.mjs` (baseline never raised); `do_spl_lang_review_gct` before land | claude | agy (language) |
+| K6 docs | this spec (status to built, Q14's answer), spec 097 4.5, the calendar help page through its qto doc (`csi-spl-doc/doc/help/calendar.md:3`), one section | the text follows K1-K4 | `cd csi-spl-iac && ./run -a do_check_dist_hygiene`; the qto doc drift check | agy | claude |
+
+Order: K1, then K2 and R1 (R1 first: K3 builds on its `mayEdit`), then K3
+and K4, then K5, then K6. K1 is the one migration; K3 the one cnf change.
+
+#### 13.6.5 Risks and findings
+
+- **Finding: a refused Google edit is not written back today.** 13.1 and
+  13.2 say "the out half writes Spool's values back". On master it does not
+  when Spool's event did not change: the in half drops the edit
+  (`hub/gcal_sync_in.go:261`), and the out half skips the event because its
+  `updated_at` is not after the out cursor and its hash still equals the map
+  row's (`hub/gcal_sync.go:460-466`). The phone keeps the refused edit until
+  Spool's event next changes, and the sync token means the in half never
+  lists it again. Measured on `0674db0a5`, memory store, n=1 scenario
+  over 3 cycles, with a throwaway test (not committed) in the
+  `gcal_sync_in_test.go` env: member A's `internal` event pushed to member
+  B's calendar, B edits its summary at Google, then `cycle 1..3: spool="A
+  title" google="B edit" patches=0`. K3's `revert` fixes it for every refusal
+  (13.2's included), so R1 should take `revert` too: this finding goes to
+  the R1 lane through the holder.
+- **A kind changed on the phone is not taken in v1** (13.6.2). The phone
+  shows what the member set; Spool keeps its kind, and the next Spool
+  change of that event writes `visibility` back. A follow-up may take it
+  for the creator and admins only.
+- **Two workspace kinds, one Google level.** `public` means "workspace
+  can read" only in the member's own "Spool Hub" calendar; Google shows it
+  to people the member shares that calendar with, which Spool does not
+  control (unchecked, I believe, that Google's sharing honours `public`
+  per event as described in its help).
+- **An admin's edit of a locked event** is recorded nowhere (13.3: no editor
+  column); the creator sees only the new values. Same as an edit today.
+- **Existing events stay `everyone`.** A member who expected their shared
+  events to be locked must lock them one by one; the help page says so.
+
+<!-- version: 1.0, sections 13 and 13.6 a plan · updated: 2026-11-22 -->

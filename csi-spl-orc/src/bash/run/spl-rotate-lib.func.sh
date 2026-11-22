@@ -1422,7 +1422,8 @@ spl_rotate_transcript() {
   sid="$(jq -r '.session_id // empty' "$rec" 2>/dev/null || true)"
   wt="$(jq -r '.worktree // empty' "$rec" 2>/dev/null || true)"
   [[ "$sid" =~ ^[0-9a-f-]{36}$ && -n "$wt" ]] || return 0
-  echo "$ROTATE_AGENT_HOME/.claude/projects/$(sed 's/[^A-Za-z0-9]/-/g' <<<"$wt")/$sid.jsonl"
+  declare -F spl_claude_project_slug >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-claude-project-slug.func.sh"
+  echo "$ROTATE_AGENT_HOME/.claude/projects/$(spl_claude_project_slug "$wt")/$sid.jsonl"
 }
 
 # The last 10 user lines and 10 assistant text blocks, in order, 300 chars

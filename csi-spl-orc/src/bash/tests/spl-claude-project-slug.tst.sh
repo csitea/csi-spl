@@ -35,7 +35,7 @@ out="$(env W="$W" LOGIN_AGENT_HOME="$H" IDENTITY_RESTORE_ADAPTER_DIR="$A" bash -
 [[ $rc -eq 0 ]] && pass "2. sourced alone, _lc_restorable finds the transcript by the slug" || fail "2. rc $rc: $out"
 
 # 3. the copies left
-want="spl-dispatch-lease.func.sh spl-rotate-lib.func.sh "
+want="spl-dispatch-lease.func.sh "
 got="$(grep -lF 's/[^A-Za-z0-9]/-/g' "$RUN"/*.func.sh | xargs -n1 basename | sort | tr '\n' ' ')"
 [[ "$got" == "$want" ]] && pass "3. the inline copies left: $want" || fail "3. want '$want', got '$got'"
 

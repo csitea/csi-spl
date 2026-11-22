@@ -11,7 +11,7 @@ agy_review: owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
 tags: [numbers, agents, open-source, cost, fleet]
 draft: false
 image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
-image_alt: "O mașinărie uriașă și prietenoasă din mii de blocuri luminoase, cu roboței veseli de desene animate care cară alte blocuri spre un pupitru central de comandă."
+image_alt: "O cameră de control luminoasă sub sigla spool-hub: un om și un robot lucrează la birouri, în timp ce fluxuri de agenți AI trec prin Comunicare, Planificare, Dezvoltare, Livrare, Monitorizare și Conducerea afacerii."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
 Spool Hub a pornit pe 17 septembrie 2026 cu un depozit git gol. După două luni: circa 10.300 de commituri, 1,2 milioane de linii de cod (jumătate teste), 250.000 de linii de documentație și 178 de specificații. Un om cu pregătire IT a coordonat, alți câțiva au participat; agenții AI au scris codul.

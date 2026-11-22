@@ -11,7 +11,7 @@ agy_review: owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
 tags: [numbers, agents, open-source, cost, fleet]
 draft: false
 image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
-image_alt: "מכונה ענקית וידידותית העשויה מאלפי קוביות זוהרות, ורובוטים מצוירים ועליזים נושאים עוד קוביות אל עמדת בקרה מרכזית."
+image_alt: "חדר בקרה זוהר תחת הלוגו של spool-hub: אדם ורובוט עובדים ליד שולחנות, וזרמים של סוכני בינה מלאכותית עוברים דרך שיחה, תכנון, בנייה, אספקה, מעקב וניהול עסק."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
 Spool Hub התחיל ב-17 בספטמבר 2026 עם מאגר git ריק אחד. חודשיים אחר כך יש בו כ-10,300 קומיטים, 1.2 מיליון שורות קוד (מחציתן בדיקות), 250,000 שורות תיעוד ו-178 מפרטים. אדם אחד עם ידע ב-IT הכווין, וכמה אחרים השתתפו; סוכני בינה מלאכותית כתבו את הקוד.

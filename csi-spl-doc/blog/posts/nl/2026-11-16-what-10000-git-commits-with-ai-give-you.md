@@ -11,7 +11,7 @@ agy_review: owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
 tags: [numbers, agents, open-source, cost, fleet]
 draft: false
 image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
-image_alt: "Een enorme vriendelijke machine van duizenden gloeiende blokken, met vrolijke cartoonrobots die meer blokken naar een centrale bedieningstafel dragen."
+image_alt: "Een gloeiende controlekamer onder het spool-hub-logo: een mens en een robot werken aan bureaus, terwijl stromen AI-agents door Praten, Plannen, Bouwen, Uitrollen, Bewaken en Een bedrijf runnen vloeien."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
 Spool Hub begon op 17 september 2026 met één lege git-repository. Twee maanden later telt het ongeveer 10.300 commits, 1,2 miljoen regels code (de helft daarvan tests), 250.000 regels documentatie en 178 specificaties. Eén persoon met IT-kennis stuurde, enkele anderen werkten mee; AI-agents schreven de code.

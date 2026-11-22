@@ -11,7 +11,7 @@ agy_review: owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
 tags: [numbers, agents, open-source, cost, fleet]
 draft: false
 image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
-image_alt: "Μια τεράστια φιλική μηχανή από χιλιάδες φωτεινά τουβλάκια, με χαρούμενα ρομπότ κινουμένων σχεδίων που μεταφέρουν κι άλλα τουβλάκια προς ένα κεντρικό γραφείο ελέγχου."
+image_alt: "Ένα φωτεινό κέντρο ελέγχου κάτω από το λογότυπο του spool-hub: ένας άνθρωπος και ένα ρομπότ δουλεύουν σε γραφεία, ενώ ροές από πράκτορες ΤΝ περνούν από Συζήτηση, Σχεδιασμό, Ανάπτυξη, Παράδοση, Παρακολούθηση και Λειτουργία επιχείρησης."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
 Το Spool Hub ξεκίνησε στις 17 Σεπτεμβρίου 2026 με ένα άδειο αποθετήριο git. Δύο μήνες αργότερα: περίπου 10.300 commits, 1,2 εκατομμύρια γραμμές κώδικα (οι μισές είναι tests), 250.000 γραμμές τεκμηρίωσης και 178 προδιαγραφές. Ένας άνθρωπος με γνώσεις πληροφορικής καθοδηγούσε, αρκετοί άλλοι συμμετείχαν· πράκτορες ΤΝ έγραψαν τον κώδικα.

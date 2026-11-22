@@ -11,7 +11,7 @@ agy_review: owner-waiver-941fc61c-65fd-4767-b7ec-e852235a9ea7
 tags: [numbers, agents, open-source, cost, fleet]
 draft: false
 image: 2026-11-16-what-10000-git-commits-with-ai-give-you.webp
-image_alt: "Milžiniška draugiška mašina iš tūkstančių šviečiančių blokelių, o linksmi animaciniai robotai neša dar daugiau blokelių link centrinio valdymo pulto."
+image_alt: "Švytinti valdymo salė po spool-hub logotipu: žmogus ir robotas dirba prie stalų, o DI agentų srautai teka per Bendravimą, Planavimą, Kūrimą, Pristatymą, Stebėjimą ir Verslo valdymą."
 image_prompt: "a colorful cartoon illustration of a huge friendly machine built from thousands of small glowing building blocks stacked into towers, cheerful small robots carrying blocks along conveyor belts toward a central control desk, a long ribbon of tiny commit dots winding through the scene; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 ---
 Spool Hub pradėtas 2026 m. rugsėjo 17 d. nuo vienos tuščios git saugyklos. Po dviejų mėnesių jame yra apie 10 300 commit'ų, 1,2 milijono kodo eilučių (pusė jų – testai), 250 000 dokumentacijos eilučių ir 178 specifikacijos. Vienas IT išmanantis žmogus vadovavo, dar keli prisidėjo; kodą rašė DI agentai.

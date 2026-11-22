@@ -290,3 +290,46 @@ func TestUsageReportFrame(t *testing.T) {
 		}
 	}
 }
+
+// strictFrame decodes raw into a Frame with unknown keys refused.
+func strictFrame(t *testing.T, raw []byte) Frame {
+	t.Helper()
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var f Frame
+	if err := dec.Decode(&f); err != nil {
+		t.Fatalf("strict decode of %s: %v", raw, err)
+	}
+	return f
+}
+
+// TestBoxSampleFrames (spec 071 7.8 "wire feature", row T1): the hub's
+// box_sample ask and the box's box_sample_put answer round-trip through the
+// strict decoder with their request id and, on the answer, the sample object
+// byte for byte; the ask carries no body.
+func TestBoxSampleFrames(t *testing.T) {
+	if TBoxSample != "box_sample" || TBoxSamplePut != "box_sample_put" || FeatureBoxSample != "box_sample" {
+		t.Fatalf("wire names %q %q %q, want box_sample box_sample_put box_sample", TBoxSample, TBoxSamplePut, FeatureBoxSample)
+	}
+	const req = "33333333-3333-4333-8333-333333333333"
+	raw, err := json.Marshal(Frame{Type: TBoxSample, MsgID: req})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"type":"box_sample","msg_id":"` + req + `"}`; string(raw) != want {
+		t.Errorf("box_sample frame %s, want %s (no body)", raw, want)
+	}
+	if f := strictFrame(t, raw); f.Type != TBoxSample || f.MsgID != req || len(f.Lane) != 0 {
+		t.Errorf("box_sample round trip %+v", f)
+	}
+	sample := `{"box":"box-a","load1":0.5,"load5":0.4,"load15":0.3,"cpus":8,"mem_total_kb":16000000,` +
+		`"mem_avail_kb":9000000,"swap_used_kb":0,"agents_live":3,"disks":[{"mount":"/","total_kb":100,"avail_kb":40,"used_kb":55}]}`
+	raw, err = json.Marshal(Frame{Type: TBoxSamplePut, MsgID: req, Lane: json.RawMessage(sample)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := strictFrame(t, raw)
+	if f.Type != TBoxSamplePut || f.MsgID != req || string(f.Lane) != sample {
+		t.Errorf("box_sample_put round trip: type %q msg_id %q lane %s", f.Type, f.MsgID, f.Lane)
+	}
+}

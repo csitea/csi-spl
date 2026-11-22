@@ -146,6 +146,21 @@ const FeatureLiveAck = "live_ack"
 // refuses the frame and never commits it.
 const FeatureKinds13 = "kinds13"
 
+// TBoxSample is the hub asking a box for one fresh RAM and disk sample now
+// (spec 071 7.6.1): MsgID the request id, no body. Sent only to a role=box
+// socket whose hello carried FeatureBoxSample.
+const TBoxSample = "box_sample"
+
+// TBoxSamplePut is the box's answer to a TBoxSample (spec 071 7.6.1): MsgID
+// the request id, Lane one sample object, the same JSON as lane_op
+// box_stats_put. Fire and forget: the hub sends no reply.
+const TBoxSamplePut = "box_sample_put"
+
+// FeatureBoxSample is the hello feature of a box client that answers
+// TBoxSample (spec 071 7.6.1). The hub asks no socket without it, so an old
+// binary gets no frame it would mis-route.
+const FeatureBoxSample = "box_sample"
+
 // TAck is the box's live ack of one delivery to one agent (spec 053 §4.2):
 // MsgID the delivered message, Agent the local agent poked, Outcome what the
 // poke did. Fire and forget: the hub sends no reply. Not the spec 059 commit

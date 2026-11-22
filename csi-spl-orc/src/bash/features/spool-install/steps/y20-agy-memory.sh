@@ -48,26 +48,15 @@
 # say "no index", because agy still loads that file. Idempotent.
 # SPOOL_INSTALL_AGY_MEMORY=0 skips the step.
 #------------------------------------------------------------------------------
+# shellcheck source=claude-memory.inc.sh
+. "$(dirname "${BASH_SOURCE[0]}")/claude-memory.inc.sh"
+
 Y20_MARK='<!-- spool-install: y20 agy-memory header -->'
 Y20_IDX_MARK='<!-- spool-install: y20 agy-memory index, generated from MEMORY.md and agy-allow.list -->'
 Y20_LIST=agy-allow.list
 Y20_SNAP_MARK=.spool-install-y20-snapshot
 
 _y20_say() { echo "spool-install: agy memory: $*" >&2; }
-
-# The claude project slug of an absolute path: /opt/x/y-z -> -opt-x-y-z.
-_y20_slug() { printf '%s' "$1" | sed 's/[^A-Za-z0-9]/-/g'; }
-
-_y20_repo() {
-  local here common
-  if [ -n "${SPOOL_INSTALL_CLAUDE_MEMORY_REPO:-}" ]; then
-    printf '%s\n' "$SPOOL_INSTALL_CLAUDE_MEMORY_REPO"
-    return 0
-  fi
-  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  common="$(git -C "$here" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
-  dirname "$common"
-}
 
 _y20_sha() { sha256sum | cut -d' ' -f1; }
 
@@ -261,8 +250,8 @@ spool_install_agy_memory() {
   local force="${SPOOL_INSTALL_AGY_MEMORY_FORCE:-0}"
   if [ "${SPOOL_INSTALL_AGY_MEMORY:-1}" = 0 ]; then _y20_say "skipped (SPOOL_INSTALL_AGY_MEMORY=0)"; return 0; fi
   [ -d "$home/.gemini" ] || { _y20_say "no $home/.gemini (agy not installed for this user): skipped"; return 0; }
-  [ -n "$repo" ] || repo="$(_y20_repo)" || { _y20_say "cannot tell the repo (set SPOOL_INSTALL_CLAUDE_MEMORY_REPO)"; return 7; }
-  memdir="$home/.claude/projects/$(_y20_slug "$repo")/memory"
+  [ -n "$repo" ] || repo="$(spool_install_memory_repo)" || { _y20_say "cannot tell the repo (set SPOOL_INSTALL_CLAUDE_MEMORY_REPO)"; return 7; }
+  memdir="$home/.claude/projects/$(spool_install_memory_slug "$repo")/memory"
   rules="$home/.gemini/config/rules"
   hdr="$rules/fleet-memory-0-where.md"
   idx="$rules/AGENTS.md"

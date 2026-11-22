@@ -24,23 +24,12 @@
 # (SPOOL_INSTALL_GROK_MEMORY_FORCE=1 replaces it). Idempotent.
 # SPOOL_INSTALL_GROK_MEMORY=0 skips the step.
 #------------------------------------------------------------------------------
+# shellcheck source=claude-memory.inc.sh
+. "$(dirname "${BASH_SOURCE[0]}")/claude-memory.inc.sh"
+
 Y18_MARK='<!-- spool-install: y18 grok-memory header -->'
 
 _y18_say() { echo "spool-install: grok memory: $*" >&2; }
-
-# The claude project slug of an absolute path: /opt/x/y-z -> -opt-x-y-z.
-_y18_slug() { printf '%s' "$1" | sed 's/[^A-Za-z0-9]/-/g'; }
-
-_y18_repo() {
-  local here common
-  if [ -n "${SPOOL_INSTALL_CLAUDE_MEMORY_REPO:-}" ]; then
-    printf '%s\n' "$SPOOL_INSTALL_CLAUDE_MEMORY_REPO"
-    return 0
-  fi
-  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  common="$(git -C "$here" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
-  dirname "$common"
-}
 
 _y18_header() {  # MEMDIR REPO
   cat <<EOF
@@ -64,8 +53,8 @@ spool_install_grok_memory() {
   local force="${SPOOL_INSTALL_GROK_MEMORY_FORCE:-0}"
   if [ "${SPOOL_INSTALL_GROK_MEMORY:-1}" = 0 ]; then _y18_say "skipped (SPOOL_INSTALL_GROK_MEMORY=0)"; return 0; fi
   [ -d "$home/.grok" ] || { _y18_say "no $home/.grok (grok not installed for this user): skipped"; return 0; }
-  [ -n "$repo" ] || repo="$(_y18_repo)" || { _y18_say "cannot tell the repo (set SPOOL_INSTALL_CLAUDE_MEMORY_REPO)"; return 7; }
-  memdir="$home/.claude/projects/$(_y18_slug "$repo")/memory"
+  [ -n "$repo" ] || repo="$(spool_install_memory_repo)" || { _y18_say "cannot tell the repo (set SPOOL_INSTALL_CLAUDE_MEMORY_REPO)"; return 7; }
+  memdir="$home/.claude/projects/$(spool_install_memory_slug "$repo")/memory"
   if [ ! -f "$memdir/MEMORY.md" ]; then
     _y18_say "no claude memory index $memdir/MEMORY.md for $repo: skipped (SPOOL_INSTALL_CLAUDE_MEMORY_REPO names the repo)"
     return 0

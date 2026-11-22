@@ -15,6 +15,8 @@
 #   7. install.sh calls the step once, only with --fleet
 #   8. do_spl_grok_memory_install, dry run, this user, a sandbox repo: rc 0,
 #      nothing written in the real ~/.grok/rules
+#   9. one copy: of the steps, only claude-memory.inc.sh reads the memory
+#      repo or its slug (r87-02); Y18 and Y20 source it
 # The `grok inspect` checks run only with grok on PATH (a dev box); without
 # it they print one INFO line and count nothing (CI's runners have no grok,
 # and its orc job refuses a SKIP line).
@@ -116,6 +118,11 @@ out="$(PROJ_PATH="$ORC" GROK_MEMORY_USERS="$(id -un)" GROK_MEMORY_REPO="$R" DRY_
   . "$1/src/bash/run/spl-grok-memory-install.func.sh" && do_spl_grok_memory_install' _ "$ORC" 2>&1)"; rc=$?
 if [ "$rc" = 0 ] && [[ "$out" == *"OK grok memory: $(id -un) (DRY_RUN=1)"* ]] && [ "$(find "$HOME/.grok/rules" -maxdepth 1 -printf "%f %l %s\n" 2>/dev/null | sort | cksum)" = "$real" ]
 then pass "action dry run: rc 0, the real ~/.grok/rules untouched"; else fail "action: rc=$rc $out"; fi
+
+# 9. the memory repo and its slug are defined once
+got="$(cd "$FEAT/steps" && grep -lE 'git-common-dir|s/\[\^A-Za-z0-9\]/-/g' -- * | tr '\n' ' ')"
+if [ "$got" = "claude-memory.inc.sh " ]
+then pass "9: defined once, in claude-memory.inc.sh"; else fail "9: defined once (want 'claude-memory.inc.sh ', got '$got')"; fi
 
 echo "--- y18 grok memory: $((n - fails))/$n passed, $notrun grok checks not run"
 [ "$fails" = 0 ]

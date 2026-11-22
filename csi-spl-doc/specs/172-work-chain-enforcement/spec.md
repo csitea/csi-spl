@@ -63,8 +63,9 @@ constraint triggers refuses an issue with no link at COMMIT
 (`grep -c 'CREATE CONSTRAINT TRIGGER' rdb/0194_issue_discussions.sql` -> 2).
 So "no link" cannot happen: the 0-link count is 0 in every workspace. A bare
 issue today is one whose only link is the workspace's default discussion
-(`store.IssueDiscussionDefault`: t1 `fcf09921`, any other workspace its "Issue
-backlog" topic, `spool_issue_backlog_id`).
+(`store.IssueDiscussionDefault`: every workspace its "Issue backlog" topic,
+`spool_issue_backlog_id`; t1 too since SPL-6212, rdb 0310, which moved its open
+issues off `fcf09921`).
 
 `select tenant_id, count(*), count(*) filter (where only_default) ... from
 issues left join issue_discussions ... group by 1`:

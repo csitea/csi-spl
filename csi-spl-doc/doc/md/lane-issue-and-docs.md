@@ -80,7 +80,7 @@ its first 8-hex short id after "topic" or "dispatch-"; the hub resolves a
 short id inside the issue's own workspace and links it only when exactly one
 topic matches. With no topic, or one the hub does not resolve (no such topic,
 an ambiguous short id), the issue links the workspace's default discussion
-(t1: topic fcf09921; any other workspace: its "Issue backlog" topic) and one
+(every workspace, t1 included since SPL-6212: its "Issue backlog" topic) and one
 `WARN brief <path> ...` line names the brief so it can be fixed. A placement
 never fails on the link (c-002, dispatch-fcf09921 msg c5c7d032). Once filed,
 the card's `Source` line carries the full id the hub linked, and the key is

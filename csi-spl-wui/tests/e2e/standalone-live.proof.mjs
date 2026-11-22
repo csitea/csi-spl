@@ -84,11 +84,20 @@ try {
   await p.waitForSelector('[data-test=verify-email-password]', { timeout: 15000 })
   await p.type('[data-test=verify-email-password]', PW)
   await p.click('[data-test=verify-email-submit]')
-  const verified = await p.waitForSelector('[data-test=verify-email-ok], [data-test=verify-email-error]', { timeout: 15000 })
-    .then((el) => el.evaluate((n) => n.dataset.test)).catch(() => 'none')
-  step('confirm email: the hub marks the account verified', verified === 'verify-email-ok', { got: verified })
+  // a 200 (SPL-6182) confirms AND signs in: the page leaves for the app; a
+  // 204 stays and shows verify-email-ok
+  const verified = await Promise.race([
+    p.waitForSelector('[data-test=verify-email-ok], [data-test=verify-email-error]', { timeout: 15000 })
+      .then((el) => el.evaluate((n) => n.dataset.test)),
+    p.waitForFunction(() => !location.pathname.includes('/verify-email'), { timeout: 15000 }).then(() => 'left-page'),
+  ]).catch(() => 'none')
+  await sleep(1500)
+  const afterVerify = await sessionStatus(p)
+  step('confirm email: the hub marks the account verified',
+    verified === 'verify-email-ok' || (verified === 'left-page' && afterVerify === 200), { got: verified, session: afterVerify })
 
-  // 2. sign in
+  // 2. sign in: drop the session the link opened, so the password opens the door
+  await p.browserContext().deleteCookie(...(await p.browserContext().cookies()))
   await p.goto(`${BASE}/login`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('[data-native-auth=on]', { timeout: 20000 })
   await p.click('[data-test=native-auth-tab-login]')

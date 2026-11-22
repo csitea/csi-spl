@@ -84,6 +84,8 @@ IMAP_PASS_FILE = os.environ.get("M3_IMAP_PASS_FILE", "")
 IMAP_HOST = os.environ.get("M3_IMAP_HOST", "imap.gmail.com")
 IMAP_TIMEOUT = int(os.environ.get("M3_IMAP_TIMEOUT", "240"))
 VERIFY_LINK = re.compile(r"(https?://[^\s\"'<>]*/verify-email)\?token=([0-9a-f]{64})")
+# SPL-6182: the forgot / admin-reset mail's link (native-auth-e2e.py).
+RESET_LINK = re.compile(r"(https?://[^\s\"'<>]*/reset-password)\?token=([0-9a-f]{64})")
 
 # specs/028-spool-terminal-delivery: the terminal leg. M3_NOTIFY_CMD is the
 # box's own renderer (csi-spl-orc .../scripts/spool-notify.sh); the panes are a
@@ -265,8 +267,9 @@ def imap_uids(rcpt):
         m.logout()
 
 
-def imap_verify_token(rcpt, seen):
-    """Poll the mailbox for a new verify mail to rcpt. Returns (token, evidence);
+def imap_verify_token(rcpt, seen, link=VERIFY_LINK):
+    """Poll the mailbox for a new verify mail (or, with link=RESET_LINK, a reset
+    mail) to rcpt. Returns (token, evidence);
     the evidence names the sender, subject, message id, the link's page (host +
     path, no query) and that page's HTTP status, never the token."""
     t0 = time.time()
@@ -282,7 +285,7 @@ def imap_verify_token(rcpt, seen):
                 for part in msg.walk():
                     if part.get_content_maintype() != "text":
                         continue
-                    hit = VERIFY_LINK.search(
+                    hit = link.search(
                         (part.get_payload(decode=True) or b"").decode(
                             "utf-8", "replace"
                         )
@@ -306,7 +309,8 @@ def imap_verify_token(rcpt, seen):
         finally:
             m.logout()
         time.sleep(5)
-    return "", {"mail": "no verify mail to %s within %ds" % (rcpt, IMAP_TIMEOUT)}
+    kind = "reset" if link is RESET_LINK else "verify"
+    return "", {"mail": "no %s mail to %s within %ds" % (kind, rcpt, IMAP_TIMEOUT)}
 
 
 # ---- WebSocket client (TLS or plain), one reader topic ------------------------

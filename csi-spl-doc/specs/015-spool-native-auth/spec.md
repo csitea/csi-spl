@@ -171,6 +171,15 @@ Already built: `POST /api/v1/auth/logout` (010).
   `do_spl_paid_owner_probe`, `do_spl_m3_e2e` / `do_spl_invite_e2e` (prd) and
   the WUI live proofs (`MAIL_TOKEN_CMD` = `do_spl_mail_verify_token`) read the
   verify mail of a relay plus-address over IMAP. lde keeps `debug_token`.
+  `do_spl_native_auth_e2e` (SPL-6182) runs the whole native flow on dev or
+  prd with no human step: register, the verify mail, verify (signed in),
+  sign-in, a wrong password refused, forgot, the reset mail
+  (`/reset-password` link), reset (signed in), the old password refused,
+  sign-in with the new one. One PASS/FAIL line per step with the http code,
+  the mail Message-ID and the served `/version`; each run leaves one
+  tenant-less native credential for its fresh plus-address (no hub route
+  erases a native credential yet; the run logs the address). prd runs are
+  picked by hand, never scheduled.
 - **FR-012** Fail closed: with verification required and no way to deliver
   the link (transport `none`, and no debug tokens) `register` answers
   `503 email_delivery_unavailable` instead of creating an unusable credential.

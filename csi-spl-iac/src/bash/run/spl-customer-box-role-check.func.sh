@@ -5,7 +5,9 @@
 # @description a private workspace's VM must never get. READ ONLY: it reads the
 # @description role set's files and runs nothing on any box. It refuses:
 # @description   link        any symlink in the set (it could point at a key)
-# @description   vault       an Ansible Vault file (its content is unreadable)
+# @description   vault       an Ansible Vault file, or an inline vaulted value
+# @description               (a !vault tag on a non-comment line) in any file
+# @description               of the set: either content is unreadable
 # @description   key-file    a file shaped like a key or a login: its name
 # @description               (key-*.json, *.pem, *.key, *.p12, id_rsa*, id_dsa*,
 # @description               id_ecdsa*, id_ed25519*, *credentials*.json,
@@ -15,7 +17,10 @@
 # @description   estate-ref  a task line that reads an estate key, a GitHub
 # @description               token or an AI login of ours (the gcp key dir, the
 # @description               controller's env or files, gh, gcloud, a CLI
-# @description               credentials file, a vendor API key variable)
+# @description               credentials file, a vendor API key variable),
+# @description               or a task run on the controller (delegate_to:
+# @description               localhost or 127.*, local_action, connection:
+# @description               local), each value bare, single- or double-quoted
 # @description   ws-setup    no task calls ./run -a do_spl_box_workspace_setup
 # @description   checks      no task calls spl_desk_start_checks (127 5.3)
 # @description   when-false  a task switched off with when: false
@@ -57,13 +62,20 @@ spl_cbr_links() {
 # key, a GitHub token, a vendor API key.
 SPL_CBR_KEY_CONTENT_RX='"?private_key"?[[:space:]]*:|service_account|-----BEGIN [A-Z ]*PRIVATE KEY|\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-ant-[A-Za-z0-9_-]{10,}|\bsk-[A-Za-z0-9_-]{20,}|\bxai-[A-Za-z0-9]{20,}|\bAIza[A-Za-z0-9_-]{30,}'
 
-# spl_cbr_key_files <dir>: no vault file, no file named or shaped like a key.
+# An inline vaulted value: a YAML !vault tag on a line that is not a comment.
+SPL_CBR_INLINE_VAULT_RX='^[[:space:]]*([^#[:space:]].*)?!vault([^[:alnum:]_]|$)'
+
+# spl_cbr_key_files <dir>: no vault file, no inline vaulted value, no file
+# named or shaped like a key.
 spl_cbr_key_files() {
   local d="$1" f n bad=0
   while IFS= read -r -d '' f; do
     n="${f##*/}"
     if head -c 14 "$f" 2>/dev/null | grep -F '$ANSIBLE_VAULT' >/dev/null; then
       spl_cbr_refuse vault "${f#"$d"/} is an Ansible Vault file"; bad=1; continue
+    fi
+    if grep -qE "$SPL_CBR_INLINE_VAULT_RX" "$f" 2>/dev/null; then
+      spl_cbr_refuse vault "${f#"$d"/} holds an inline Ansible Vault value (!vault)"; bad=1; continue
     fi
     case "$n" in
       key-*.json | *.pem | *.key | *.p12 | id_rsa* | id_dsa* | id_ecdsa* | id_ed25519* | *credentials*.json | *token* | .netrc | auth.json | oauth_creds.json)
@@ -77,9 +89,10 @@ spl_cbr_key_files() {
 }
 
 # The estate keys, the GitHub token and our AI logins, as a task would read
-# them, and any task run on the controller. Comment lines are not read: a
-# header may say what the set leaves out.
-SPL_CBR_ESTATE_RX='\.gcp/|key-\{\{|key-csi-|GOOGLE_APPLICATION_CREDENTIALS|application_default_credentials|\.config/g[c]loud|\.config/gh\b|GITHUB_TOKEN|GH_TOKEN|\.github/token|gh auth|controller_home|lookup\([^)]*env|ansible_env|delegate_to:[[:space:]]*(localhost|127\.)|local_action|connection:[[:space:]]*local|\.credentials\.json|\.claude\.json|\.claude/|\.codex/|\.gemini/|\.qwen/|\.vibe/|\.grok/|oauth_creds|auth\.json|\.netrc|\.aws/|ANTHROPIC_API_KEY|OPENAI_API_KEY|XAI_API_KEY|MISTRAL_API_KEY|DASHSCOPE_API_KEY|GEMINI_API_KEY|setup-token|claude login|g[c]loud auth|\.ssh/id_'
+# them, and any task run on the controller; a quoted value ("localhost",
+# 'local') is the same YAML value as the bare one. Comment lines are not
+# read: a header may say what the set leaves out.
+SPL_CBR_ESTATE_RX='\.gcp/|key-\{\{|key-csi-|GOOGLE_APPLICATION_CREDENTIALS|application_default_credentials|\.config/g[c]loud|\.config/gh\b|GITHUB_TOKEN|GH_TOKEN|\.github/token|gh auth|controller_home|lookup\([^)]*env|ansible_env|delegate_to:[[:space:]]*["'"'"']?(localhost|127\.)|local_action|connection:[[:space:]]*["'"'"']?local|\.credentials\.json|\.claude\.json|\.claude/|\.codex/|\.gemini/|\.qwen/|\.vibe/|\.grok/|oauth_creds|auth\.json|\.netrc|\.aws/|ANTHROPIC_API_KEY|OPENAI_API_KEY|XAI_API_KEY|MISTRAL_API_KEY|DASHSCOPE_API_KEY|GEMINI_API_KEY|setup-token|claude login|g[c]loud auth|\.ssh/id_'
 
 # spl_cbr_estate_refs <dir>: no task line names one of them.
 spl_cbr_estate_refs() {

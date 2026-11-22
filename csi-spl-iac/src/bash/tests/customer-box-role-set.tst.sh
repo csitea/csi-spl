@@ -11,8 +11,10 @@
 #      synthetic dummy key file (by name, by JSON or YAML content), a symlink,
 #      a vault file, token content, key-like names, a task reading the
 #      controller's gcp, gh or gcloud files, its env (plain or FQCN lookup), a
-#      CLI login file, a task delegated to the controller, the workspace
-#      setup or the desk checks left only in a name: line, a when: false.
+#      CLI login file, a task delegated to the controller (bare, and
+#      delegate_to / connection quoted: one YAML value), an inline !vault
+#      value, the workspace setup or the desk checks left only in a name:
+#      line, a when: false.
 #      A comment line naming a token stays green (comments are not read).
 #   4. role 01's kernel and mount settings pass the desk start checks they
 #      serve (ptrace, dumpable, hidepid, swap), run with the orc code on a
@@ -93,6 +95,15 @@ plant_task "  ansible.builtin.copy:" "    src: \"{{ lookup('ansible.builtin.env'
 refused "j: an FQCN env lookup of the gh login" "REFUSED estate-ref: roles/02_spool_harness/tasks/main.yml:"
 plant_task "  ansible.builtin.slurp:" "    src: \"{{ ansible_env.HOME }}/.config/x/y.json\"" "  delegate_to: localhost"
 refused "k: a task delegated to the controller" "REFUSED estate-ref: roles/02_spool_harness/tasks/main.yml:"
+plant_task "  ansible.builtin.command: \"true\"" '  delegate_to: "localhost"'
+refused "k2 (b36-02 dq): delegate_to double-quoted" "REFUSED estate-ref: roles/02_spool_harness/tasks/main.yml:"
+plant_task "  ansible.builtin.command: \"true\"" "  connection: 'local'"
+refused "k3 (b36-02 sq): connection single-quoted" "REFUSED estate-ref: roles/02_spool_harness/tasks/main.yml:"
+D="$T/set/roles/02_spool_harness/defaults"
+copy_set; mkdir -p "$D"; printf '%s\n' 'planted_secret: !vault |' '  $ANSIBLE_VAULT;1.1;AES256' '  6231356533396433' >>"$D/main.yml"
+refused "e2 (b36-02 ivault): an inline vaulted value in a vars file" "REFUSED vault: roles/02_spool_harness/defaults/main.yml holds an inline Ansible Vault value"
+copy_set; mkdir -p "$D"; printf '%s\n' 'planted_secret:' '  !vault |' '  $ANSIBLE_VAULT;1.1;AES256' '  6231' >>"$D/main.yml"
+refused "e3: a !vault tag on its own line" "REFUSED vault: roles/02_spool_harness/defaults/main.yml holds an inline Ansible Vault value"
 for p in "/srv/.codex/x.json" "/srv/.gemini/oauth_creds.json" "files/.credentials.json"; do
   plant_task "  ansible.builtin.copy:" "    src: $p" "    dest: /tmp/x"
   refused "l: a task copying $p" "REFUSED estate-ref: roles/02_spool_harness/tasks/main.yml:"
@@ -106,6 +117,8 @@ copy_set; sed -i 's/^  changed_when: false$/  changed_when: false\n  when: false
 refused "o: the desk checks switched off with when: false" "REFUSED when-false: roles/04_desk_start_checks/tasks/main.yml:"
 copy_set; printf '%s\n' "# a comment may name GITHUB_TOKEN: the set leaves it out" >>"$T/set/roles/02_spool_harness/tasks/main.yml"
 out=$(check "$T/set") && pass "a comment naming a token stays green (comments are not read)" || fail "a comment line was refused: $out"
+copy_set; printf '%s\n' "# a value may never be !vault here" >>"$T/set/roles/02_spool_harness/tasks/main.yml"
+out=$(check "$T/set") && pass "a comment naming !vault stays green" || fail "a !vault comment line was refused: $out"
 
 # 4. role 01's settings pass the desk start checks they serve
 R1="$SET/roles/01_box_hardening/tasks/main.yml"

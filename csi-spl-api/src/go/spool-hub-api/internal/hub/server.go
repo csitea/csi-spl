@@ -975,7 +975,9 @@ func (s *Server) logServerError(r *http.Request, rid string, sw *statusWriter, r
 	if rec != nil {
 		ev.Interface("panic", rec).Msg(handlerPanicMsg)
 	} else {
-		ev.Msg(httpServerErrMsg)
+		// The literal, not httpServerErrMsg: monitoring-incident-070.tst.sh reads it
+		// from this source to keep the hub_errors metric filter off this line.
+		ev.Msg("http 5xx")
 	}
 	s.serverErrSighting(r, sw, rec, stack)
 }

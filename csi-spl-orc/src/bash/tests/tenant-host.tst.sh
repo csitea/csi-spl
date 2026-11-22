@@ -38,6 +38,9 @@
 #      a moved trunk and a dirty unrelated file; the tree that kept the edit
 #      ends clean on the trunk; a rejected push and an unpushed local cnf
 #      commit both FAIL loudly; provision marks the tenant failed on it
+#   5e. spec 158 10.5 (H3): a new hidden row with no placeholder WAITS: no
+#      edit, outside apply, pending with its reason, the run green with a
+#      visible add done; CONTROL: past HOST_WAIT_LIMIT -> failed, run red
 #   5d. SPL-1811: a failed row with no tenants row (deleted) is a remove,
 #      never an add; a failed cnf push / apply keeps a removing row removing
 #   6a. SPL-1811: the cnf push hands AGENT_ID to the pre-push hook; with a
@@ -212,18 +215,24 @@ runner() {
 printf 'workspaces:\n  ws-hidden-01: zq-hidold\n' >"$T/ovl-ci.yaml"
 ci_rec() { in_orc REAL_LOG=1 REAL_MARK=1 LOG_DIR="$T/log" DRY_RUN=0 TENANT_VISIBLE=0 GITHUB_ACTIONS=true SPL_PRIVATE_CNF="$T/ovl-ci.yaml" "$@"; }
 reset
-SNIPPET='do_spl_tenant_host_reconcile' ci_rec STUB_ROWS=$'row zq-hidnew pending active on\nrow t1 pending active on' >"$T/ci1.raw" 2>&1; rc=$?
-runner "$T/ci1.raw" >"$T/ci1.log"
-[[ $rc -ne 0 ]] && grep -q 'would be a new HIDDEN workspace' "$T/ci1.log" && ! grep -q zq-hidnew "$CNF" "$T/ovl-ci.yaml" &&
-  pass "2d. CI: an unlisted new hidden tenant is refused (the FATAL ran)" || fail "2d. unlisted rc=$rc: $(cat "$T/ci1.log")"
-grep -q zq-hidnew <<<"$(grep 'would be a new HIDDEN workspace' "$T/ci1.raw")" &&
-  fail "2d. the CI FATAL itself names the unlisted slug: $(grep 'HIDDEN' "$T/ci1.raw")" ||
+# the add itself, as provision runs it: CI refuses the new hidden slug
+SNIPPET='spl_th_tenant_set "$C" add zq-hidnew' ci_rec C="$CNF" >"$T/ci0.raw" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'would be a new HIDDEN workspace' "$T/ci0.raw" && ! grep -q zq-hidnew "$CNF" "$T/ovl-ci.yaml" &&
+  pass "2d. CI: an unlisted new hidden tenant is refused (the FATAL ran)" || fail "2d. unlisted rc=$rc: $(cat "$T/ci0.raw")"
+grep -q zq-hidnew <<<"$(grep 'would be a new HIDDEN workspace' "$T/ci0.raw")" &&
+  fail "2d. the CI FATAL itself names the unlisted slug: $(grep 'HIDDEN' "$T/ci0.raw")" ||
   pass "2d. the CI FATAL names no slug, even before the runner masks it (the overlay cannot list it)"
-grep -q 'TENANT_VISIBLE=1' <<<"$(grep 'would be a new HIDDEN workspace' "$T/ci1.raw")" &&
-  pass "2d. the CI FATAL keeps the operator's instruction" || fail "2d. the CI FATAL lost its instruction: $(grep HIDDEN "$T/ci1.raw")"
+grep -q 'TENANT_VISIBLE=1' <<<"$(grep 'would be a new HIDDEN workspace' "$T/ci0.raw")" &&
+  pass "2d. the CI FATAL keeps the operator's instruction" || fail "2d. the CI FATAL lost its instruction: $(grep HIDDEN "$T/ci0.raw")"
+# the reconcile never reaches that FATAL: the row waits (spec 158 10.5, H3)
+reset
+SNIPPET='do_spl_tenant_host_reconcile' ci_rec STUB_ROWS=$'row zq-hidnew pending active on 60\nrow t1 pending active on 60' >"$T/ci1.raw" 2>&1; rc=$?
+runner "$T/ci1.raw" >"$T/ci1.log"
+[[ $rc -eq 0 ]] && ! grep -q 'would be a new HIDDEN workspace' "$T/ci1.log" && ! grep -q zq-hidnew "$CNF" "$T/ovl-ci.yaml" &&
+  pass "2d. CI reconcile: the unlisted new hidden row waits, no FATAL, the run is green" || fail "2d. reconcile unlisted rc=$rc: $(cat "$T/ci1.log")"
 grep -n zq-hidnew "$T/ci1.log" && fail "2d. the Actions log shows the unlisted hidden slug (above)" ||
   pass "2d. the Actions log never shows the unlisted hidden slug ($(grep -c . "$T/ci1.log") lines, the reconcile and tenant_hosts lines included)"
-grep -q 'add \[\*\*\*\]' "$T/ci1.log" && grep -q 'tenant_hosts t1 pending -> ready' "$T/ci1.log" &&
+grep -q 'wait \[\*\*\*\]' "$T/ci1.log" && grep -q 'tenant_hosts \*\*\* pending -> pending (waits' "$T/ci1.log" && grep -q 'tenant_hosts t1 pending -> ready' "$T/ci1.log" &&
   pass "2d. its reconcile line ran, masked; t1's tenant_hosts line ran in the clear" || fail "2d. the reconcile lines did not run: $(cat "$T/ci1.log")"
 grep -q 'check \[t1\]' "$T/ci1.log" && pass "2d. CONTROL: the public t1 stays readable" || fail "2d. t1 was masked too: $(cat "$T/ci1.log")"
 # listed: the overlay maps it, the cnf does not list it yet; 052 applies and
@@ -387,6 +396,52 @@ lst=$(yq -r '.env.dns.mapped_tenants | join(",")' "$CNF")
   fail "reconcile rc=$rc list=$lst marks=$(cat "$T/mark.log") :: $out"
 lst=$(yq -r '.env.steps."052-gcs-workspace-docs".workspaces | join(",")' "$CNF")
 [[ "$lst" == "m2proof1,p1gone" ]] && pass "reconcile: the 052 docs buckets follow (+m2proof1 +p1gone -t1)" || fail "reconcile docs list: $lst"
+
+# --- 5e. spec 158 10.5 (H3): one stuck row holds up no other ------------------
+# zq-wait is a new hidden slug with no placeholder (no overlay line), newt a
+# visible add (TENANT_VISIBLE=0 for both; e2e-newt stays visible by its name)
+printf 'workspaces:\n  ws-hidden-01: zq-old\n' >"$T/ovl-w.yaml"
+wait_rec() { in_orc TENANT_VISIBLE=0 SPL_PRIVATE_CNF="$T/ovl-w.yaml" "$@"; }
+grep -q 'requested_at' <<<"$rows_sql" && pass "5e. the open-rows read carries each row's age (requested_at)" || fail "5e. open-rows SQL lacks requested_at: $rows_sql"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' wait_rec STUB_ROWS=$'row zq-wait pending active on 120\nrow e2e-newt pending active on 120' 2>&1); rc=$?
+[[ $rc == 0 && ! -s "$STUB_LOG" ]] && grep -q '^open=2$' <<<"$out" && grep -q '^apply=1$' <<<"$out" &&
+  grep -q 'add \[e2e-newt\] remove \[\] wait \[zq-wait\]' <<<"$out" &&
+  pass "5e. DRY_RUN: the hidden row with no placeholder waits, outside apply; the visible add is the apply" || fail "5e. dry rc=$rc: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' wait_rec DRY_RUN=0 STUB_ROWS=$'row zq-wait pending active on 120\nrow e2e-newt pending active on 120' STUB_PLAN_019="$P_ADD" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
+lst=$(yq -r '.env.dns.mapped_tenants | join(",")' "$CNF")
+[[ $rc == 0 && "$lst" == "t1,e2e-newt" ]] && grep -q 'do-provision 019' "$STUB_LOG" &&
+  [[ "$(grep MARK "$T/mark.log" | sort)" == $'MARK e2e-newt ready\nMARK zq-wait pending' ]] &&
+  ! grep -q zq-wait "$CNF" "$T/ovl-w.yaml" && grep -q 'wait \[zq-wait\]' <<<"$(grep '^OK' <<<"$out")" &&
+  pass "5e. a hidden row with no placeholder + a visible add: the add goes (ready), the row stays pending, the run is green" ||
+  fail "5e. wait + add rc=$rc list=$lst marks=[$(cat "$T/mark.log")] make=[$(cat "$STUB_LOG")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' wait_rec DRY_RUN=0 REAL_MARK=1 STUB_ROWS=$'row zq-wait pending active on 120' 2>&1); rc=$?
+[[ $rc == 0 && ! -s "$STUB_LOG" ]] && grep -q 'tenant_hosts zq-wait pending -> pending (waits (2 of 30 min): no placeholder in the private overlay yet' <<<"$out" &&
+  pass "5e. the waiting row's detail says what it waits for and for how long; no make" || fail "5e. wait detail rc=$rc make=[$(cat "$STUB_LOG")] :: $out"
+# CONTROL: past HOST_WAIT_LIMIT the same row is failed with its reason, and the run is red
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' wait_rec DRY_RUN=0 REAL_MARK=1 STUB_ROWS=$'row zq-wait pending active on 1860' 2>&1); rc=$?
+[[ $rc != 0 && ! -s "$STUB_LOG" ]] && grep -q 'tenant_hosts zq-wait pending -> failed (waited 31 min, past HOST_WAIT_LIMIT=30 min: no placeholder' <<<"$out" &&
+  grep -q 'FATAL 1 tenant host(s) not ready' <<<"$out" && ! grep -q zq-wait "$CNF" &&
+  pass "5e. CONTROL: past HOST_WAIT_LIMIT (31 > 30 min) -> failed with its reason, the run is red" || fail "5e. limit rc=$rc :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' wait_rec DRY_RUN=0 HOST_WAIT_LIMIT=60 STUB_ROWS=$'row zq-wait failed active on 1860\nrow e2e-newt pending active on 1860' STUB_PLAN_019="$P_ADD" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
+[[ $rc == 0 ]] && [[ "$(grep MARK "$T/mark.log" | sort)" == $'MARK e2e-newt ready\nMARK zq-wait pending' ]] &&
+  pass "5e. HOST_WAIT_LIMIT=60: a 31 min wait is still pending, the add still goes" || fail "5e. limit 60 rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' wait_rec DRY_RUN=0 STUB_ROWS=$'row zq-wait failed active on 1860\nrow e2e-newt pending active on 1860' STUB_PLAN_019="$P_ADD" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
+[[ $rc != 0 ]] && [[ "$(grep MARK "$T/mark.log" | sort)" == $'MARK e2e-newt ready\nMARK zq-wait failed' ]] &&
+  pass "5e. past the limit the add of the same run still goes; only the stuck row fails" || fail "5e. limit + add rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' wait_rec DRY_RUN=0 CHECK_ONLY=1 STUB_ROWS=$'row zq-wait pending active on 1860' 2>&1); rc=$?
+[[ $rc == 0 && ! -s "$T/mark.log" ]] && grep -q 'wait \[zq-wait\]' <<<"$out" &&
+  pass "5e. CHECK_ONLY lists a waiting row and records nothing" || fail "5e. CHECK_ONLY rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+out=$(SNIPPET='do_spl_tenant_host_reconcile' wait_rec DRY_RUN=0 HOST_WAIT_LIMIT=x STUB_ROWS=$'row zq-wait pending active on 1' 2>&1); rc=$?
+[[ $rc != 0 ]] && grep -q 'FATAL HOST_WAIT_LIMIT must be whole minutes' <<<"$out" &&
+  pass "5e. CONTROL: a HOST_WAIT_LIMIT that is not whole minutes is refused" || fail "5e. bad limit rc=$rc :: $out"
+rm -f "$T/tenant-host.lock"
 
 # --- 5d. SPL-1811: a deleted tenant is never added; a failed push keeps removing --
 grep -q "WHEN t.tenant_id IS NULL THEN 'gone'" <<<"$rows_sql" && grep -q 'BEGIN TRANSACTION READ ONLY' <<<"$rows_sql" && ! grep -qE '^(INSERT|UPDATE|DELETE|COMMIT)' <<<"$rows_sql" &&

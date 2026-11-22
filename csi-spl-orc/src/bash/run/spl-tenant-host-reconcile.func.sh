@@ -18,6 +18,11 @@
 # @description   removing         -> drop from both
 # @description   (a tenant whose billing_status is unpaid, or that is
 # @description   suspended or archived, is left pending: never provisioned)
+# @description   pending / failed, a new hidden slug with no placeholder in the
+# @description                      private overlay -> WAIT (spec 158 10.5): no
+# @description                      edit, no apply, the run stays green; stays
+# @description                      pending with detail saying what it waits
+# @description                      for; past HOST_WAIT_LIMIT -> failed (red)
 # @description render 052 + 019 + 025, push that cnf change to the trunk from a
 # @description throwaway worktree BEFORE the apply (a run that dies mid-apply
 # @description leaves trunk declaring the host, and the next run completes it),
@@ -38,6 +43,9 @@
 # @param   recorded; an unmapped or removing row is listed, never applied
 # @param CNF_PUSH (optional) - 1 (default): push the cnf change to the trunk
 # @param   (spl_th_cnf_push). 0: leave it uncommitted in the tree, loudly
+# @param HOST_WAIT_LIMIT (optional) - minutes a wait row may wait since its
+# @param   requested_at, default 30; past it the row is marked failed with its
+# @param   reason and the run fails (the master box's cron is not working)
 # @param CNF_GIT_BRANCH (optional) - trunk branch, default master
 # @param TH_ISSUE (optional) - the issue key the cnf commit cites in its subject
 # @param   scope, 'cnf(024, SPL-123): ...' (SPL-5875: the pre-push part
@@ -69,11 +77,12 @@ do_spl_tenant_host_reconcile() {
   mapfile -t row_ids < <(awk '$1 == "row" { print $2 }' <<<"$rows")
   spl_th_ci_mask "$cnf" "${row_ids[@]}" || return 1
   local -a add=() chk=() del=() held=()
-  local -a off=()
-  local tag t st bill act
-  # only `row <tenant> <status> <billing> <on|off|gone>` lines: the proxy
+  local -a off=() wait=()
+  local -A wait_age=()
+  local tag t st bill act age
+  # only `row <tenant> <status> <billing> <on|off|gone> <age s>` lines: the proxy
   # start logs to stdout too, and a log line must never read as a tenant
-  while read -r tag t st bill act; do
+  while read -r tag t st bill act age; do
     [[ "$tag" == row && -n "$t" ]] || continue
     spl_th_valid_slug "$t" 2>/dev/null || { do_log "WARN skipping invalid tenant id '$t'"; continue; }
     if [[ "$st" == removing ]]; then del+=("$t")
@@ -85,10 +94,11 @@ do_spl_tenant_host_reconcile() {
     elif [[ "$act" == off ]]; then off+=("$t")
     elif [[ "$bill" == unpaid ]]; then held+=("$t")
     elif spl_th_is_apex "$cnf" "$t"; then chk+=("$t")
+    elif spl_th_waits "$cnf" "$t" >/dev/null; then wait+=("$t"); wait_age[$t]="$age"
     elif ! spl_th_cnf_has "$cnf" "$t" || spl_th_apply_unfinished "$t"; then add+=("$t")
     else chk+=("$t"); fi
   done <<<"$rows"
-  local open=$(( ${#add[@]} + ${#chk[@]} + ${#del[@]} )) apply=$(( ${#add[@]} + ${#del[@]} ))
+  local open=$(( ${#add[@]} + ${#chk[@]} + ${#del[@]} + ${#wait[@]} )) apply=$(( ${#add[@]} + ${#del[@]} ))
   [[ "${CHECK_ONLY:-0}" == 1 ]] && apply=0
   spl_th_output open "$open"; spl_th_output apply "$apply"
   (( ${#held[@]} )) && do_log "INFO left pending (billing unpaid): ${held[*]}"
@@ -97,7 +107,7 @@ do_spl_tenant_host_reconcile() {
     do_log "OK nothing to reconcile in $ENV"
     return 0
   fi
-  do_log "INFO $ENV reconcile: check [${chk[*]}] add [${add[*]}] remove [${del[*]}]${CHECK_ONLY:+ CHECK_ONLY=$CHECK_ONLY}"
+  do_log "INFO $ENV reconcile: check [${chk[*]}] add [${add[*]}] remove [${del[*]}] wait [${wait[*]}]${CHECK_ONLY:+ CHECK_ONLY=$CHECK_ONLY}"
   if (( dry )); then
     (( apply )) && spl_th_issue_dry
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to apply."
@@ -107,13 +117,44 @@ do_spl_tenant_host_reconcile() {
 
   local fails=0
   for t in "${chk[@]}"; do spl_th_finish "$t" || fails=$((fails + 1)); done
+  [[ "${CHECK_ONLY:-0}" == 1 ]] || spl_th_wait_mark "$cnf" || return 1
   if (( apply )); then
     spl_th_reconcile_apply "$cnf" || return 1
   elif (( ${#add[@]} + ${#del[@]} )); then
     do_log "INFO CHECK_ONLY: add [${add[*]}] remove [${del[*]}] left for a full run"
   fi
   (( fails == 0 )) || { do_log "FATAL $fails tenant host(s) not ready in $ENV (tenant_hosts.status = failed, retried next run)"; return 1; }
-  do_log "OK $ENV tenant hosts reconciled: check [${chk[*]}] add [${add[*]}] remove [${del[*]}]"
+  do_log "OK $ENV tenant hosts reconciled: check [${chk[*]}] add [${add[*]}] remove [${del[*]}] wait [${wait[*]}]"
+}
+
+# spl_th_waits <cnf> <tenant> -> 0 and the reason on stdout when the row
+# cannot proceed this run and must wait (spec 158 10.5, M18): a new hidden
+# slug that the cnf does not list and the private overlay has no placeholder
+# for. Its placeholder is made on the overlay's master box; until then an add
+# would FATAL (in CI) and hold up every other row of the run.
+spl_th_waits() {
+  { spl_th_cnf_has "$1" "$2" || spl_th_docs_has "$1" "$2"; } && return 1
+  spl_th_new_hidden "$2" || return 1
+  echo "no placeholder in the private overlay yet (made on the overlay master box ${SPL_PRIVATE_MASTER_BOX:-sat}, or TENANT_VISIBLE=1)"
+}
+
+# spl_th_wait_mark <cnf>: each of the caller's wait rows stays pending with
+# what it waits for in detail; one past HOST_WAIT_LIMIT minutes (default 30)
+# since its requested_at is marked failed with that reason and counts in the
+# caller's fails. An age that is not a number reads as 0.
+spl_th_wait_mark() {
+  local cnf="$1" lim="${HOST_WAIT_LIMIT:-30}" t why a
+  [[ "$lim" =~ ^[0-9]+$ ]] || { do_log "FATAL HOST_WAIT_LIMIT must be whole minutes, got '$lim'"; return 1; }
+  for t in "${wait[@]}"; do
+    why="$(spl_th_waits "$cnf" "$t")"
+    a="${wait_age[$t]:-0}"; [[ "$a" =~ ^[0-9]+$ ]] || a=0
+    if (( a >= lim * 60 )); then
+      spl_th_mark_one "$t" failed "waited $((a / 60)) min, past HOST_WAIT_LIMIT=$lim min: $why"
+      fails=$((fails + 1))
+    else
+      spl_th_mark_one "$t" pending "waits ($((a / 60)) of $lim min): $why"
+    fi
+  done
 }
 
 # spl_th_apply_unfinished <tenant> (SPL-5008) -> 0 when a mapped tenant's apply
@@ -181,7 +222,8 @@ BEGIN TRANSACTION READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
 SELECT 'row', h.tenant_id, h.status, coalesce(t.billing_status, '-'),
        CASE WHEN t.tenant_id IS NULL THEN 'gone'
-            WHEN t.suspended_at IS NOT NULL OR t.archived_at IS NOT NULL THEN 'off' ELSE 'on' END
+            WHEN t.suspended_at IS NOT NULL OR t.archived_at IS NOT NULL THEN 'off' ELSE 'on' END,
+       floor(extract(epoch FROM now() - h.requested_at))::bigint
   FROM tenant_hosts h LEFT JOIN tenants t USING (tenant_id)
  WHERE h.status IN ('pending', 'failed', 'removing')
  ORDER BY h.requested_at, h.tenant_id;

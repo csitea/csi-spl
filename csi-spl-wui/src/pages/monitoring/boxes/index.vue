@@ -18,7 +18,12 @@
 
      SPL-3399 (owner HUM-10, t1 fb9b6e4b, msgs f9e50fae + 56f0fd00): each
      box's card carries the anchor #box-<id>; the agent card's Box links
-     here with it, and the list scrolls to that card and marks it. -->
+     here with it, and the list scrolls to that card and marks it.
+
+     Spec 071 7.4.1 (SPL-6239 row T9; owner HUM-10, t1 78f0138c, msg
+     f87c349b): above the cards, one summary table, one row per box of this
+     workspace (BoxSummaryTable), from the same box-stats read the cards use;
+     the cards below stay as they are (option A, poll c9db41d2 open). -->
 <template>
   <div ref="listEl" class="monitoring-list" data-test="monitoring-boxes">
     <MonitoringAllocation v-if="fleet" :view="fleet" :split="split" />
@@ -35,6 +40,7 @@
       <p class="muted boxes-count" data-test="boxes-count">{{ t('boxes.count', { count: shown.length + foreignShown.length }) }}</p>
       <p v-if="shown.length + foreignShown.length === 0" class="muted monitoring-empty" data-test="boxes-no-match">{{ t('boxes.no_match') }}</p>
     </template>
+    <BoxSummaryTable v-if="summary.length" :rows="summary" :readings="statsReadable" />
     <template v-for="g in groups" :key="g.key">
       <div v-if="g.rows.length" class="boxes-group" :data-test="'boxes-group-' + g.key">
         <p class="boxes-group__head muted">{{ g.label }} <span class="boxes-group__n">{{ g.rows.length }}</span></p>
@@ -94,6 +100,8 @@ import { useFleetRosterStore } from '~/stores/fleet-roster'
 import { boxRows, boxTag, filterBoxes } from '~/utils/box-rows.mjs'
 import { byWorkspace, filterForeignBoxes } from '~/utils/fleet-roster.mjs'
 import { boxStatsOf, latestBoxStat } from '~/utils/box-resources.mjs'
+import { boxSummaryRows } from '~/utils/box-summary.mjs'
+import BoxSummaryTable from '~/components/BoxSummaryTable.vue'
 import type { BoxStat } from '~/utils/box-resources.mjs'
 import { fleetLoadReadable, normalizeFleetLoad } from '~/utils/fleet-load.mjs'
 import type { FleetLoadView } from '~/utils/fleet-load.mjs'
@@ -171,6 +179,10 @@ const fleet = ref<FleetLoadView | null>(null)
 const split = ref<Record<string, number> | null>(null)
 const access = useAccessStore()
 const stats = ref<BoxStat[]>([])
+/* spec 071 7.4.1: the table's readings are drawn for audit.read only, the
+   box-stats read's own rule; until /v1/view/me says so, Box only */
+const statsReadable = ref(false)
+const summary = computed(() => boxSummaryRows(groups.value.flatMap((g) => g.rows), stats.value))
 
 /* three reads, each on its own: a 403 or a hub without the route hides
    only its part (the hub's 403 is the gate, as on the settings pages) */
@@ -189,6 +201,7 @@ onMounted(() => {
      audit.read only; a reader /v1/view/me names without it is not read */
   void access.ensure().then(async () => {
     if (!access.can('audit.read')) return
+    statsReadable.value = true
     stats.value = boxStatsOf(await api.boxStats({ since: '1h' }) as { rows?: unknown[] } | null).rows
   }).catch(() => { stats.value = [] })
 })

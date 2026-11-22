@@ -191,6 +191,18 @@ export function currentOf(row) {
 }
 
 /**
+ * RAM used as a percent of what the box has, from currentOf() (spec 071
+ * 7.4.1): used / (used + avail), rounded up as diskUsedPct rounds; 0 with no
+ * memory reported.
+ * @param {{ memUsedKB: number, memAvailKB: number } | null | undefined} cur currentOf()
+ */
+export function memUsedPct(cur) {
+  const used = Number(cur && cur.memUsedKB) || 0
+  const base = used + (Number(cur && cur.memAvailKB) || 0)
+  return base > 0 ? Math.ceil((used * 100) / base) : 0
+}
+
+/**
  * The box's OS as the hub reports it (`boxes[].os`: name, version, pretty,
  * kernel, arch), or null when the hub reports none.
  * @param {{ os?: unknown } | null | undefined} detail roster.boxes[box]

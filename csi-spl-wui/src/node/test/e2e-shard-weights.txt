@@ -17,6 +17,8 @@
 # from 44274958796 (n=1; the held-out run also took 8 s).
 # reporting-costs-project (spec 123 P05, SPL-6117) is new: 45 s, its one local run
 # on a generated mock bundle (n=1, 2026-11-21), until a refresh measures CI.
+# box-summary-table (spec 071 row T9, SPL-6239) is new: 6 s, its one local run
+# on a generated mock bundle (n=1, 2026-11-22), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -42,6 +44,7 @@ tests/e2e/blocker-issue-setting.test.mjs 25
 tests/e2e/blog-share.test.mjs 4
 tests/e2e/blog.test.mjs 12
 tests/e2e/box-seat-counts.test.mjs 20
+tests/e2e/box-summary-table.test.mjs 6
 tests/e2e/boxes-three-panes.test.mjs 12
 tests/e2e/build-watch.test.mjs 29
 tests/e2e/calendar-day-order.test.mjs 11

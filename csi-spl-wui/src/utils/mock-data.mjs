@@ -54,8 +54,12 @@ const MOCK_DESK_FACTS = {
 
 /* HUM-10 (owner ba10751d, "present also the current info"): box-desk's latest
    box-stats sample (GET /v1/tenant/box-stats rows), the Boxes page's "Now".
-   The other boxes have none, so their "no current sample yet" shows too. */
+   The other boxes have none, so their "no current sample yet" shows too.
+   Spec 071 7.4.1 (SPL-6239 T9): an older sample comes first (the 09:00 hour's,
+   no disks), so a reader that takes the first row, not the newest, shows
+   other numbers (the summary table's e2e red control). */
 export const MOCK_BOX_STATS = [
+  { box: 'box-desk', writer_box: 'box-desk', at: '2026-09-18T09:30:00Z', load1: 0.5, load5: 0.5, load15: 0.5, cpus: 8, mem_total_kb: 33554432, mem_avail_kb: 25165824, swap_used_kb: 0, agents_live: 1 },
   { box: 'box-desk', writer_box: 'box-desk', at: T0, load1: 1.25, load5: 0.9, load15: 0.7, cpus: 8, mem_total_kb: 33554432, mem_avail_kb: 20971520, swap_used_kb: 524288, agents_live: 1,
     disks: [{ mount: '/', total_kb: 104857600, avail_kb: 52428800 }, { mount: '/var', total_kb: 209715200, avail_kb: 10485760 }] },
 ]

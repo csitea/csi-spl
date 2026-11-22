@@ -1059,7 +1059,7 @@ func cmdHubResetPassword(args []string) int {
 
 // cmdHubClearLockout ends the native sign-in lockout of one email (spec 015
 // FR-006b, SPL-6182): it drops the address's counted wrong sign-ins (rdb
-// 0308 native_login_failures), from every client address, on every hub
+// 0311 native_login_failures), from every client address, on every hub
 // instance at once, with no redeploy. The verdict carries the count, never
 // the email. An address with nothing counted exits 0 with cleared 0.
 func cmdHubClearLockout(args []string) int {

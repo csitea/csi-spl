@@ -528,7 +528,7 @@ func (n *native) claimLoginAttempt(ctx context.Context, w http.ResponseWriter, r
 }
 
 // failIP is the caller's address as native_login_failures keeps it (rdb
-// 0308: at most 64 chars).
+// 0311: at most 64 chars).
 func (n *native) failIP(r *http.Request) string {
 	ip := n.ip(r)
 	if len(ip) > 64 {

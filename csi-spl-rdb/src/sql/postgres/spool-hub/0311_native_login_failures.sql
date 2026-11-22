@@ -1,4 +1,4 @@
--- 0308_native_login_failures.sql - the per-email native sign-in lockout in
+-- 0311_native_login_failures.sql - the per-email native sign-in lockout in
 -- the database (spec 015 FR-006b, SPL-6182 defect 5). Forward-only,
 -- additive, idempotent (a second apply changes nothing).
 --

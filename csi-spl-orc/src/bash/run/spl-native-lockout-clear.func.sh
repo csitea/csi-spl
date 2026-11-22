@@ -3,7 +3,7 @@
 # @description End the native (email + password) sign-in lockout of one
 # @description address: the 429 "too many attempts" of spec 015 FR-006b
 # @description (SPL-6182 defect 5). The hub counts wrong sign-ins in its
-# @description database (rdb 0308 native_login_failures), so the clear works
+# @description database (rdb 0311 native_login_failures), so the clear works
 # @description on every hub instance at once and needs no redeploy: it runs
 # @description `spool hub-clear-lockout` against the env's hub DB through a
 # @description Cloud SQL proxy, as the env's project SA. It clears the count

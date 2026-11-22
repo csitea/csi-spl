@@ -117,7 +117,7 @@ Already built: `POST /api/v1/auth/logout` (010).
   (0 = TCP peer; OQ-N6). One value for every per-IP limit (017 FR-SEC-006);
   the native-only `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` is retired and
   the hub refuses to boot when it disagrees (`cmd/spool/hub.go`).
-- **FR-006b** The per-email login ceiling is **in the database** (rdb 0308
+- **FR-006b** The per-email login ceiling is **in the database** (rdb 0311
   `native_login_failures`, SPL-6182 defect 5), so every hub instance counts
   the same and an operator can clear it without a redeploy. Only a WRONG
   sign-in counts (an unknown email counts like a known one, so the lockout

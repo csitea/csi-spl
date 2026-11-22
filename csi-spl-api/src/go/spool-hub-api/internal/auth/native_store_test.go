@@ -159,7 +159,7 @@ func TestClientIPHops(t *testing.T) {
 
 // TestLoginFailuresContract: both drivers count per address and over all
 // addresses inside the window, prune past it, and clear one subject only
-// (rdb 0308, SPL-6182 defect 5).
+// (rdb 0311, SPL-6182 defect 5).
 func TestLoginFailuresContract(t *testing.T) {
 	for name, st := range credStores(t) {
 		t.Run(name, func(t *testing.T) {

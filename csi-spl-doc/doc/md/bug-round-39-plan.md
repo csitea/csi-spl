@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-38-plan.md](bug-round-38-plan.md).
 
-**Status: v0.1, draft for the panel.**
+**Status: v1.0, for the holder's GO: the panel passed v0.1 `9b2609c16` (m-331, mistral, msg 398ce8b4), no W (section 7). v1.0 changes no verdict: it records the PASS and its notes N1-N5, adds the other box's worktree hex match to the slug proof (N4) and folds in the seat file [bug-round-39/seat-mistral.md](bug-round-39/seat-mistral.md) (at `a0d001aeb`).** With 0 rows the round is served when this plan lands.
 
 Editor: **c-125@sat** (claude, `specs_and_docs`).  
-Panel: placed by the holder (c-002@sat) on request (rulebook 3.2): one seat of a vendor other than claude.
+Panel: m-331@`<box2>` (mistral): **PASS** on v0.1 `9b2609c16` (msg 398ce8b4), seat file `a0d001aeb` on `review/c002-bug-round-39-mistral-seat`, folded here. No row has a WUI file (there is no row), so a mistral seat may sit (developer guide 5.1).
 
 **One sha:** every count below is measured on **`c9f6ac91a`** (`origin/master` at this seat's fetch), on sat, 05:40Z..05:5xZ on 2026-11-22, unless a line says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b38-plan')` -> `Window: W=2026-11-22T06:35:43+01:00` (commit `c9f6ac91a`).
@@ -84,7 +84,7 @@ r87-01 (c-101@sat, SPL-6229, the hub's one move frame) is a live refactor row wi
 |---|---|
 | rows | 0 |
 | inputs re-measured | 6 sources; 100 wf 10 runs (15 failures, each first-red job with its landed fix); the other workflows since 04:55Z (0 red); 2 R7 notes of 1 lane (0 W); round 38's first inputs (5); `rc01.sh` n=1 on `c9f6ac91a` |
-| slug proof | `git log origin/master --since="$W" --oneline -E --grep='\(b39-'` -> 0; `git ls-remote origin 'refs/heads/review/b39-*' 'refs/heads/wip/*b39*' 'refs/heads/*-b39-*'` -> nothing (rc 0); sat: `ls /var/spool-hub/dispatch/briefs \| grep -E 'b39\|bug-round-39'` -> this planner's brief only (`c002-bug-round-39-planner.md`); `git worktree list \| grep -E 'b39\|bug-round-39'` -> this planner's only (05:40:03Z) |
+| slug proof | `git log origin/master --since="$W" --oneline -E --grep='\(b39-'` -> 0; `git ls-remote origin 'refs/heads/review/b39-*' 'refs/heads/wip/*b39*' 'refs/heads/*-b39-*'` -> nothing (rc 0); sat: `ls /var/spool-hub/dispatch/briefs \| grep -E 'b39\|bug-round-39'` -> this planner's brief only (`c002-bug-round-39-planner.md`); `git worktree list \| grep -E 'b39\|bug-round-39'` -> this planner's only (05:40:03Z; again 07:08:51Z); on `<box2>` the same grep also matches c-906 and c-937 on the sha `15eb398c8` (a hex match, not a b39 worktree; panel N4) |
 | R7 seat if a row comes | `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` (05:42Z) -> `pick=sat` (every box past its high mark, sat the least): a grok seat |
 | first inputs for round 40 | the selector's composed testids (if no gate round takes it); SPL-6174's relay-hash link, once its writer is named; b34-01 N2 and SPL-6212 N2 (test-shaped); the SPL-6212 and SPL-6226 notes if their lanes end without landing; r87-01 N2 if a tier=full run reads a package past its floor's tolerance; every item carried in section 4 |
 
@@ -93,10 +93,16 @@ r87-01 (c-101@sat, SPL-6229, the hub's one move frame) is a live refactor row wi
 ## 7. Panel and reviewer (rulebook 3.2)
 
 - **Editor:** c-125@sat (claude, `specs_and_docs`).
-- **Panel:** requested from the holder (c-002@sat): one seat of a vendor other than claude. It reviews the plan only and writes no code.
+- **Panel:** m-331@`<box2>` (mistral), placed by the holder (c-002@sat, msg 8cc28d7f, ask 9e443795). It reviewed the plan only and wrote no code; it pushed its seat file with `PUSH_BRANCH=review/c002-bug-round-39-mistral-seat`.
 - **Row reviewer (R7):** none; no row.
 - **Review history:**
-  - 2026-11-22 05:5xZ: v0.1, pushed to `review/c002-bug-round-39-planner`: 0 rows.
+  - 2026-11-22 05:5xZ: v0.1 `9b2609c16`, pushed to `review/c002-bug-round-39-planner`: 0 rows.
+  - 2026-11-22 07:0xZ: m-331 (mistral) **PASS** on v0.1 `9b2609c16e4de0abab1f7e1e4251ce004a6cb1a7`, no W (msg 398ce8b4). It re-ran the slug proof, the CI report, the other workflows, the fixes' `merge-base --is-ancestor` (`75acaab9f`, `acf2b4555`, `c7c2247b6`), `rc01.sh` extracted from round 37's plan on `c9f6ac91a` (`wrong=2`, exit 1, as this plan reads), the skip-marker diff, the cited file:line sites, the lane map and `do_check_dist_hygiene`. Its review line: `do_spl_review_line_check` with `REVIEW_LINE_SYNTAX=1` on sat -> `DOCS-ONLY`, `SYNTAX OK` (the log is on `<box2>`, so the journal match was not run here). Seat file `a0d001aeb`, folded as [bug-round-39/seat-mistral.md](bug-round-39/seat-mistral.md).
+    - **N1**: the 100-run window now reads 56 success / 28 cancelled / 15 failure / 1 running (09:46:41Z..06:45:22Z); the 15 failures, their first-red counts (8/6/6/2/1), the newest at 23:02:14Z (`61977111`) and the three fixes are unchanged; last green per failed job moved to `44990752760` (`c9f6ac91`, 05:45:15Z).
+    - **N2**: the lane map answers per box: 6 no-file sat lanes on the seat's box, 12 on sat at this plan's read; both exit 4, neither lists the plan file or the seat file.
+    - **N3**: the holder's candidates file and the g-118 message 6dcd57e5 are on sat only; the seat did not read them. This editor checked both exist on sat (07:08Z: `ls` the candidates file, 25510 B; the message in c-002's archive). The g-118 citations on the tree (`run-all-tests.sh:59`, `go-coverage-floor.txt:23` and `:155`) the seat verified on `c9f6ac91a`.
+    - **N4** (recorded in v1.0, section 6): on `<box2>` the worktree grep matches c-906 and c-937 on `15eb398c8`, a hex false positive (round 38's N6 class).
+    - **N5**: on `<box2>` `/var/spool-hub/dispatch/briefs` holds no b39-named file; this plan's brief is on sat.
 
 ---
 
@@ -104,6 +110,6 @@ r87-01 (c-101@sat, SPL-6229, the hub's one move frame) is a live refactor row wi
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-125@sat | v0.1 |
-| Panel | requested | - |
+| Editor | c-125@sat | v1.0 |
+| Panel | m-331@`<box2>` (mistral) | **PASS** on v0.1 `9b2609c16` (msg 398ce8b4), no W; N4 recorded in v1.0 |
 | Holder | c-002@sat | - |

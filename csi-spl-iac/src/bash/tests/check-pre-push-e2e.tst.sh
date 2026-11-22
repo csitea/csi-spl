@@ -36,8 +36,10 @@
 #  13. the shell's data-* state attributes (SPL-4139), on 46afd70ba's tree:
 #      A main.css alone selects a test reading one; B the 4 files of that
 #      commit score mobile-stack above master's 22; C still <= MAX files
-#  21. SPL-6271, the night's two CI reds replayed on their real trees: the
-#      budget is filled under the cap of 35. A 5332dd943..0674db0a5 (SPL-6239
+#  21. SPL-6271, the night's two CI reds replayed from fixtures
+#      (fixtures/ppe-cap/<range>: the scored rows _ppe_cap got on the range's
+#      own tree, and that tree's CI weights; rescoring the tree took 35 s and
+#      timed this file out in CI): the budget is filled under the cap of 35. A 5332dd943..0674db0a5 (SPL-6239
 #      T9) selects box-seat-counts, the file that failed in CI; RED CONTROL:
 #      the old cap, PRE_PUSH_E2E_MAX=6, prints "CUT ... cap" for it. B
 #      f074057b5..d2557fbc4 (SPL-6205) the documented limit: its 3 red files
@@ -467,39 +469,23 @@ got="$(PRE_PUSH_E2E_MAX=9 sel csi-spl-wui/src/app.vue | runs)"
   || fail "14. app.vue selected '$got', want tests/e2e/attr-level.test.mjs alone"
 rm -f "$W/src/app.vue" "$W"/tests/e2e/attr-*.test.mjs
 
-# --- 21. the night's two CI reds, replayed on their real trees (SPL-6271) ------------------
-# replay <range> <dir>: the WUI tree of the range's last commit in <dir>, and
-# the range's changed paths on stdout ("" when the repo lacks the commits).
-replay() {
-  local top="$PROJ_ROOT/.." end="${1#*..}"
-  mkdir -p "$2"
-  git -C "$top" archive "$end" csi-spl-wui/src csi-spl-wui/tests/e2e 2>/dev/null | tar -x -C "$2" || return 1
-  git -C "$top" diff --name-only "$1" 2>/dev/null
-}
-sel_r() { local d="$1"; shift; PRE_PUSH_TREE="$d" WUI_E2E_CHANGED="$*" do_check_pre_push_e2e; }
+# --- 21. the night's two CI reds, replayed from fixtures (SPL-6271) -------------------------
+# cap_r <range-dir>: _ppe_cap on the rows recorded on that range's tree
+cap_r() { _ppe_cap "$TEST_DIR/fixtures/ppe-cap/$1" <"$TEST_DIR/fixtures/ppe-cap/$1/rows.tsv"; }
 cut_why() { awk -v t="$2" '$1 == "CUT" && $2 == t { print $5 }' <<<"$1"; }
-if ch="$(replay 5332dd943..0674db0a5 "$T/r2")" && [[ -n "$ch" ]]; then
-  got="$(sel_r "$T/r2" $ch)"
-  bsc=tests/e2e/box-seat-counts.test.mjs
-  grep -q "^$bsc " <<<"$got" && pass "21A. 5332dd943..0674db0a5 selects $bsc, the file red in CI (budget filled, cap 35)" \
-    || fail "21A. 5332dd943..0674db0a5 left out $bsc: '$(grep -F "$bsc" <<<"$got")'"
-  old="$(PRE_PUSH_E2E_MAX=6 sel_r "$T/r2" $ch)"
-  [[ "$(cut_why "$old" "$bsc")" == cap ]] && pass "21A RED CONTROL. under the old cap 6: CUT $bsc ... cap" \
-    || fail "21A RED CONTROL. under the old cap 6 $bsc read '$(grep -F "$bsc" <<<"$old")', want CUT ... cap"
-else
-  fail "21A. cannot read 5332dd943..0674db0a5 from the repo (a shallow clone?)"
-fi
-if ch="$(replay f074057b5..d2557fbc4 "$T/r1")" && [[ -n "$ch" ]]; then
-  got="$(sel_r "$T/r1" $ch)"; old="$(PRE_PUSH_E2E_MAX=6 sel_r "$T/r1" $ch)"
-  for t in topic-menu-parity poll-state-shared msg-deep-links; do
-    t="tests/e2e/$t.test.mjs"
-    [[ "$(cut_why "$got" "$t")" == budget && "$(cut_why "$old" "$t")" == cap ]] \
-      && pass "21B. f074057b5..d2557fbc4, the documented limit: $t CUT by the budget (cap 35), by the cap under the old 6" \
-      || fail "21B. $t read '$(grep -F "$t" <<<"$got")' (cap 35) and '$(grep -F "$t" <<<"$old")' (cap 6), want budget / cap"
-  done
-else
-  fail "21B. cannot read f074057b5..d2557fbc4 from the repo (a shallow clone?)"
-fi
+got="$(cap_r 5332dd943-0674db0a5)"; old="$(PRE_PUSH_E2E_MAX=6 cap_r 5332dd943-0674db0a5)"
+bsc=tests/e2e/box-seat-counts.test.mjs
+grep -q "^$bsc " <<<"$got" && pass "21A. 5332dd943..0674db0a5 selects $bsc, the file red in CI (budget filled, cap 35)" \
+  || fail "21A. 5332dd943..0674db0a5 left out $bsc: '$(grep -F "$bsc" <<<"$got")'"
+[[ "$(cut_why "$old" "$bsc")" == cap ]] && pass "21A RED CONTROL. under the old cap 6: CUT $bsc ... cap" \
+  || fail "21A RED CONTROL. under the old cap 6 $bsc read '$(grep -F "$bsc" <<<"$old")', want CUT ... cap"
+got="$(cap_r f074057b5-d2557fbc4)"; old="$(PRE_PUSH_E2E_MAX=6 cap_r f074057b5-d2557fbc4)"
+for t in topic-menu-parity poll-state-shared msg-deep-links; do
+  t="tests/e2e/$t.test.mjs"
+  [[ "$(cut_why "$got" "$t")" == budget && "$(cut_why "$old" "$t")" == cap ]] \
+    && pass "21B. f074057b5..d2557fbc4, the documented limit: $t CUT by the budget (cap 35), by the cap under the old 6" \
+    || fail "21B. $t read '$(grep -F "$t" <<<"$got")' (default cap) and '$(grep -F "$t" <<<"$old")' (cap 6), want budget / cap"
+done
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all check-pre-push-e2e.tst.sh assertions"

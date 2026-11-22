@@ -26,7 +26,7 @@ INV=sys+inv-r1@example.com
 cat >"$T/hub.py" <<'PY'
 import http.server, json, os, sys
 LOGIN = int(os.environ.get("FAKE_LOGIN", "200"))
-VERIFY = int(os.environ.get("FAKE_VERIFY", "200"))
+VERIFY = os.environ.get("FAKE_VERIFY", "200")
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def out(self, code, body=None, ctype="application/json", hdrs=()):
@@ -47,7 +47,8 @@ class H(http.server.BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         if self.path == "/api/v1/auth/register": return self.out(202, {"debug_token": "d" * 64})
         if self.path == "/api/v1/auth/email/verify":  # native.go handleVerify: a first click signs in (SPL-6182)
-            if VERIFY != 200: return self.out(VERIFY)
+            if VERIFY == "200nc": return self.out(200, {"hum": "HUM-77"})  # a 200 with no session
+            if VERIFY != "200": return self.out(int(VERIFY))
             return self.out(200, {"hum": "HUM-77"}, hdrs=[("Set-Cookie", "spool_session=fake-cookie-s3cret; Path=/")])
         if self.path == "/api/v1/auth/login":
             if LOGIN != 200: return self.out(LOGIN, {"error": "not_allowed"})
@@ -105,7 +106,7 @@ setup v204; mail "$T/v204/mail/1.eml" t1 "$INV"; engine v204
 grep -q '^PASS 4-sign-in ' <<<"$out" && [[ $rc == 0 ]] && pass "1. verify 204: 4-sign-in PASS" || fail "1. verify 204: rc=$rc $out"
 start_hub
 
-# --- 2. controls ---------------------------------------------------------------------
+# --- 2. controls ---
 ctl() {  # <case> <step that must FAIL> <label>
   if [[ $rc != 0 ]] && grep -q "^FAIL $2 " <<<"$out"; then pass "2. CONTROL $3: $2 FAIL, exit $rc"; else fail "2. CONTROL $3: rc=$rc $out"; fi
 }
@@ -135,6 +136,20 @@ PY
 )
 grep -qF "[(b'3390', b'To: x@example.com\r\n\r\nbody\r\n', ['\\\\Inbox', '\\\\Sent'])]" <<<"$out" \
   && pass "2. IMAP X-GM-LABELS parsed to \\Inbox, \\Sent" || fail "2. label parse: $out"
+# a verify that answers 200 with NO session cookie is not a verify: fail before the login
+start_hub 200 200nc
+setup v200nc; mail "$T/v200nc/mail/1.eml" t1 "$INV"; engine v200nc; ctl v200nc 4-sign-in "verify 200 without a session"
+[[ ! -s "$T/v200nc/pw-invitee" ]] && pass "2. verify 200 without a session: no password stored, no login" || fail "2. v200nc stored a password"
+start_hub
+# verify_ok, which h-verify-mail (m3-e2e.py) gates on too
+out=$(python3 -B - "$PROJ_ROOT/src/bash/scripts/m3-e2e.py" <<'PY' 2>&1
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("m3", sys.argv[1]); m3 = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m3)
+print([m3.verify_ok(*c) for c in ((200, True), (204, False), (200, False), (302, True), (400, False), (None, None))])
+PY
+)
+[[ "$out" == "[True, True, False, False, False, False]" ]] && pass "2. verify_ok: 200+session, 204 pass; 200 bare, 302, 400, none fail" || fail "2. verify_ok: $out"------------------------------------------------------------------
 setup mid; mail "$T/mid/mail/1.eml" t1 "$INV" "$INV" '<other@example.com>'; engine mid; ctl mid 2-invite-mail "another mail's Message-ID"
 setup nomail not_sent; mail "$T/nomail/mail/1.eml" t1 "$INV"; engine nomail; ctl nomail 1-invite-mailed "the hub did not mail it"
 start_hub 403

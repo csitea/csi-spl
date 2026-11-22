@@ -171,6 +171,13 @@ def write_secret(name, value):
         f.write(value + "\n")
 
 
+def verify_ok(status, session):
+    """SPL-6182 (native.go handleVerify, spec 015 native-auth-v1.md): a first
+    verifying click answers 200 WITH a session cookie, a repeat click 204.
+    A 200 without the cookie is not a verify."""
+    return status == 204 or (status == 200 and bool(session))
+
+
 def native_login(email, tenant, tag):
     """Sign in with the native provider (015). A stored password is tried
     first; register + debug-token verify only when it does not work, which
@@ -218,14 +225,13 @@ def native_login(email, tenant, tag):
     if not token:
         write_json("verify-%s.json" % tag, ev)
         return st, {"step": "register", "body": out, "mail": ev}, ""
-    st, _, out = http(
+    st, vh, out = http(
         "POST", AUTH + "/api/v1/auth/email/verify", {"token": token, "password": pw}
     )
     ev["hub_verify_api"] = st
+    ev["hub_verify_session"] = bool(session_cookie(vh)) if vh else False
     write_json("verify-%s.json" % tag, ev)
-    # SPL-6182 (native.go handleVerify): a first click answers 200 + session,
-    # a repeat click 204; both verify. The password login below gives the session.
-    if st not in (200, 204):
+    if not verify_ok(st, ev["hub_verify_session"]):
         return st, {"step": "verify", "body": out}, ""
     write_secret(pw_name, pw)
     body["password"] = pw
@@ -958,7 +964,8 @@ def run():
         # link's WUI page serves (it 404s until the apex serves the WUI).
         record(
             "h-verify-mail",
-            mv.get("hub_verify_api") == 204 and bool(mv.get("mail_message_id")),
+            verify_ok(mv.get("hub_verify_api"), mv.get("hub_verify_session"))
+            and bool(mv.get("mail_message_id")),
             {
                 k: mv.get(k)
                 for k in (
@@ -969,6 +976,7 @@ def run():
                     "mail_message_id",
                     "mail_after_s",
                     "hub_verify_api",
+                    "hub_verify_session",
                     "link_page",
                     "link_page_status",
                     "link_page_type",

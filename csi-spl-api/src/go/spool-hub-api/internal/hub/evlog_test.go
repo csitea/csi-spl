@@ -176,7 +176,7 @@ func (rg *evlogRig) cookie(t *testing.T, hum string, exp time.Time) *http.Cookie
 	payload := base64.RawURLEncoding.EncodeToString(raw)
 	m := hmac.New(sha256.New, sub.Sum(nil))
 	m.Write([]byte(payload))
-	return &http.Cookie{Name: rg.cfg.CookieName, Value: payload + "." + base64.RawURLEncoding.EncodeToString(m.Sum(nil))}
+	return &http.Cookie{Name: rg.cfg.CookieName, Value: payload + "." + base64.RawURLEncoding.EncodeToString(m.Sum(nil)), HttpOnly: true, Secure: true}
 }
 
 // do sends one request through the middleware and answers the recorder.
@@ -418,8 +418,8 @@ func TestEvlogMineCopy(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		rg.do(t, "/v1/evlog-test/fail/2", c)
 	}
-	rg.do(t, "/v1/evlog-test/fail/3", nil)                                                          // no cookie
-	rg.do(t, "/v1/evlog-test/fail/4", &http.Cookie{Name: "spool_box", Value: "box-token-of-a-box"}) // a box
+	rg.do(t, "/v1/evlog-test/fail/3", nil)                                                                                        // no cookie
+	rg.do(t, "/v1/evlog-test/fail/4", &http.Cookie{Name: "spool_box", Value: "box-token-of-a-box", HttpOnly: true, Secure: true}) // a box
 	rg.panicLoop(t, "evlog-test-loop")
 	rg.srv.FlushEvlog(context.Background())
 	rows = rg.mine(t, hum)
@@ -463,7 +463,7 @@ func TestEvlogPersonWithoutTheStore(t *testing.T) {
 	rg := newEvlogRig(t, true)
 	const hum = "HUM-4242" // not in any store: the cookie alone names it
 	valid := rg.cookie(t, hum, rg.now.Add(time.Hour))
-	forged := &http.Cookie{Name: valid.Name, Value: valid.Value[:strings.Index(valid.Value, ".")] + ".AAAA"}
+	forged := &http.Cookie{Name: valid.Name, Value: valid.Value[:strings.Index(valid.Value, ".")] + ".AAAA", HttpOnly: true, Secure: true}
 	expired := rg.cookie(t, hum, rg.now.Add(-time.Minute))
 	for _, tc := range []struct {
 		name string

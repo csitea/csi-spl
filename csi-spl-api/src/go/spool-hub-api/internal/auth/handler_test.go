@@ -77,7 +77,7 @@ func TestHumanFromCookieReadsNoStore(t *testing.T) {
 	} {
 		r := httptest.NewRequest(http.MethodGet, "/v1/x", nil)
 		if tc.cookie != "" {
-			r.AddCookie(&http.Cookie{Name: cfg.CookieName, Value: tc.cookie})
+			r.AddCookie(&http.Cookie{Name: cfg.CookieName, Value: tc.cookie, HttpOnly: true, Secure: true})
 		}
 		if got := h.HumanFromCookie(r); got != tc.want {
 			t.Errorf("%s: HumanFromCookie = %q, want %q", name, got, tc.want)
@@ -89,7 +89,7 @@ func TestHumanFromCookieReadsNoStore(t *testing.T) {
 	// The control: SessionFromRequest on the same valid cookie does read the
 	// store (its revocation check), which is what the error path must avoid.
 	r := httptest.NewRequest(http.MethodGet, "/v1/x", nil)
-	r.AddCookie(&http.Cookie{Name: cfg.CookieName, Value: valid})
+	r.AddCookie(&http.Cookie{Name: cfg.CookieName, Value: valid, HttpOnly: true, Secure: true})
 	h.SessionFromRequest(r)
 	if rev.calls.Load() == 0 {
 		t.Fatal("control: SessionFromRequest made no revocation-store call; the no-store claim above proves nothing")

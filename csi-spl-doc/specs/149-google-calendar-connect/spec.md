@@ -443,7 +443,7 @@ own tenant.
 | route | who | answer |
 |---|---|---|
 | `GET /v1/me/google-calendar` | member | `{connected:false}` or `{connected, google_email, calendar_title, status, status_detail, last_synced_at}`; never a token |
-| `POST` / `GET /v1/me/google-calendar/connect?workspace=` | member | `{authorize_url}` / 302 |
+| `POST` / `GET /v1/me/google-calendar/connect?workspace=&want=` | member | `{authorize_url}` / 302; `want` = `calendar` (the default), `contacts` or `calendar,contacts` (spec 154 B7), else 400 `bad_want` |
 | `GET /v1/me/google-calendar/callback` | Google's redirect (state + nonce cookie, no session needed) | 302 to the WUI |
 | `POST /v1/me/google-calendar/sync` | member | 202; 409 `sync_in_progress` while `sync_lease_until > now()` |
 | `DELETE /v1/me/google-calendar?remove_imported=0\|1` | member | 204 |

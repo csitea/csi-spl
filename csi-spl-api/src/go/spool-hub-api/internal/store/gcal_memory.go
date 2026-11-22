@@ -68,6 +68,7 @@ func (s *Memory) ConnectGcal(_ context.Context, c GcalConnection, tok GcalTokens
 		delete(g.maps, cur.ID)
 	}
 	cur.GoogleEmail, cur.Status, cur.StatusDetail = c.GoogleEmail, GcalConnected, ""
+	cur.GrantedScopes = c.GrantedScopes
 	cur.KMSKeyID, cur.AccessExpiry = tok.KMSKeyID, tok.AccessExpiry
 	cur.DueAt, cur.SyncLeaseUntil, cur.UpdatedAt = now, nil, now
 	g.toks[cur.ID] = tok

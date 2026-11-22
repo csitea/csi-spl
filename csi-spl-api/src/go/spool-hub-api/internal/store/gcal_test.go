@@ -488,3 +488,37 @@ func TestGcalHubCalendars(t *testing.T) {
 		})
 	}
 }
+
+// TestGcalGrantedScopes (spec 154 B7): the connect stores the grant's
+// scopes (rdb 0226 granted_scopes) and a reconnect replaces them on the
+// same row; a row connected without them reads ""; over 2000 bytes is
+// refused, as the column's CHECK.
+func TestGcalGrantedScopes(t *testing.T) {
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			f := newGcalFix(t, st)
+			tok := GcalTokens{AccessSealed: "v1.sealed-a", RefreshSealed: "v1.sealed-r", KMSKeyID: "fake-kms/1", AccessExpiry: f.now.Add(time.Hour)}
+			conn := func(scopes string) (GcalConnection, error) {
+				return f.g.ConnectGcal(ctx, GcalConnection{Tenant: f.tenant, Human: f.m1, GoogleEmail: "m1@example.com", GrantedScopes: scopes}, tok, f.now)
+			}
+			if c := f.connect(t, f.m2, "m2@example.com"); c.GrantedScopes != "" {
+				t.Errorf("no scopes given: granted %q, want \"\"", c.GrantedScopes)
+			}
+			first, err := conn("openid email cal")
+			if err != nil || first.GrantedScopes != "openid email cal" {
+				t.Fatalf("connect: %q %v", first.GrantedScopes, err)
+			}
+			again, err := conn("openid email cal contacts")
+			if err != nil || again.ID != first.ID || again.GrantedScopes != "openid email cal contacts" {
+				t.Fatalf("reconnect: %s %q %v, want %s with both", again.ID, again.GrantedScopes, err, first.ID)
+			}
+			if got, _ := f.g.GcalConnection(ctx, f.tenant, f.m1); got.GrantedScopes != "openid email cal contacts" {
+				t.Errorf("read back %q", got.GrantedScopes)
+			}
+			if _, err := conn(strings.Repeat("s", 2001)); !errors.Is(err, ErrInvalidGcal) {
+				t.Errorf("2001-byte scopes = %v, want ErrInvalidGcal", err)
+			}
+		})
+	}
+}

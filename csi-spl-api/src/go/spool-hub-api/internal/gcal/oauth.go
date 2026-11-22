@@ -66,17 +66,53 @@ var identityScopes = map[string]bool{
 // MissingScopes answers the cnf scopes, identity scopes aside, that granted
 // (a token answer's space separated "scope") does not hold.
 func (c Config) MissingScopes(granted string) []string {
+	return Missing(c.Scopes, granted)
+}
+
+// Missing answers the scopes of asked, identity scopes aside, that granted
+// does not hold. Both are space separated scope strings.
+func Missing(asked, granted string) []string {
 	have := map[string]bool{}
 	for _, s := range strings.Fields(granted) {
 		have[s] = true
 	}
 	var missing []string
-	for _, s := range strings.Fields(c.Scopes) {
+	for _, s := range strings.Fields(asked) {
 		if !identityScopes[s] && !have[s] {
 			missing = append(missing, s)
 		}
 	}
 	return missing
+}
+
+// HoldsAny answers whether granted holds at least one scope of part,
+// identity scopes aside: a grant that can serve that part at all (spec 154
+// section 2.2 step 2).
+func HoldsAny(part, granted string) bool {
+	n := 0
+	for _, s := range strings.Fields(part) {
+		if !identityScopes[s] {
+			n++
+		}
+	}
+	return n > 0 && len(Missing(part, granted)) < n
+}
+
+// JoinScopes answers the space separated union of the scope strings, in
+// their first order, each scope once (spec 154 2.2 step 1: the scopes of
+// each wanted part).
+func JoinScopes(parts ...string) string {
+	seen := map[string]bool{}
+	var out []string
+	for _, p := range parts {
+		for _, s := range strings.Fields(p) {
+			if !seen[s] {
+				seen[s] = true
+				out = append(out, s)
+			}
+		}
+	}
+	return strings.Join(out, " ")
 }
 
 // Config is the OAuth client and the Google endpoints, all from cnf.
@@ -119,6 +155,9 @@ type Google struct {
 	cfg Config
 }
 
+// Scopes answers cnf gcal.scopes: what the calendar part asks for.
+func (g *Google) Scopes() string { return g.cfg.Scopes }
+
 // New checks cfg and returns the client.
 func New(cfg Config) (*Google, error) {
 	if err := cfg.Validate(); err != nil {
@@ -142,6 +181,9 @@ type State struct {
 	Member string `json:"m"`
 	Exp    int64  `json:"e"`
 	Nonce  string `json:"n"`
+	// Scope is what the connect asked Google for (spec 154 B7); the
+	// callback checks the grant against it. Empty = cnf gcal.scopes.
+	Scope string `json:"s,omitempty"`
 }
 
 func (g *Google) stateKey() []byte {
@@ -192,13 +234,19 @@ func (g *Google) VerifyState(s string, now time.Time) (State, error) {
 
 // AuthorizeURL is where the member's browser goes to approve the app:
 // offline access (a refresh token) and a forced consent, so Google sends
-// the refresh token again on a re-connect.
-func (g *Google) AuthorizeURL(state string) string {
+// the refresh token again on a re-connect. scope is what to ask for (spec
+// 154 B7: the scopes of each wanted part); empty = cnf gcal.scopes.
+// include_granted_scopes keeps what the member granted before, so a
+// contacts connect on a calendar grant answers both.
+func (g *Google) AuthorizeURL(state, scope string) string {
+	if strings.TrimSpace(scope) == "" {
+		scope = g.cfg.Scopes
+	}
 	q := url.Values{
 		"response_type":          {"code"},
 		"client_id":              {g.cfg.ClientID},
 		"redirect_uri":           {g.cfg.RedirectURI},
-		"scope":                  {g.cfg.Scopes},
+		"scope":                  {scope},
 		"access_type":            {"offline"},
 		"include_granted_scopes": {"true"},
 		"prompt":                 {"consent"},
@@ -224,6 +272,16 @@ type Token struct {
 // that lacks a calendar scope cnf asks for is revoked at once and answers
 // ErrScopeMissing: no connection is kept that could never sync.
 func (g *Google) Exchange(ctx context.Context, code string, now time.Time) (Token, error) {
+	return g.ExchangeFor(ctx, code, "", now)
+}
+
+// ExchangeFor is Exchange checking the grant against asked, the scope the
+// connect asked for (State.Scope); empty = cnf gcal.scopes. A contacts-only
+// connect is then not refused for the calendar scope it never asked.
+func (g *Google) ExchangeFor(ctx context.Context, code, asked string, now time.Time) (Token, error) {
+	if strings.TrimSpace(asked) == "" {
+		asked = g.cfg.Scopes
+	}
 	tok, err := g.token(ctx, url.Values{
 		"grant_type":   {"authorization_code"},
 		"code":         {code},
@@ -235,7 +293,7 @@ func (g *Google) Exchange(ctx context.Context, code string, now time.Time) (Toke
 	if tok.Refresh.Reveal() == "" {
 		return Token{}, errors.New("gcal token exchange: no refresh token in the answer")
 	}
-	if missing := g.cfg.MissingScopes(tok.Scope); len(missing) > 0 {
+	if missing := Missing(asked, tok.Scope); len(missing) > 0 {
 		if err := g.Revoke(ctx, tok.Refresh); err != nil {
 			return Token{}, fmt.Errorf("%w: %s (and %w)", ErrScopeMissing, strings.Join(missing, " "), err)
 		}

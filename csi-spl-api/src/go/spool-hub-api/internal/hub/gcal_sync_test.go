@@ -507,3 +507,72 @@ func TestGcalSyncSendsWorkspaceEvents(t *testing.T) {
 		t.Fatalf("google events %+v after the event turned private, want none", got)
 	}
 }
+
+// Spec 154 C14b: a contacts-only connection, one 149 calendar cycle: the
+// cycle claims it and makes no calendar call at the fake (no "Spool Hub"
+// calendar). Twin: a connection whose grant holds the calendar scope gets
+// its calendar created in the same kind of cycle.
+// RED CONTROL (the scope check in gcalCycle.run removed): the contacts-only
+// cycle calls the fake (token, calendars.insert).
+func TestGcalSyncSkipsContactsOnlyGrant(t *testing.T) {
+	se := gcalSyncEnvOf(t)
+	se.gc.ContactsScopes = gcalContactsTestScope
+	hum := seat(t, se.env, se.tid, rbac.Developer)
+	t.Cleanup(func() {
+		se.st.(store.Gcal).DeleteGcalConnection(context.Background(), se.tid, hum) //nolint:errcheck // gone is fine
+	})
+	if loc := gcalConnectContactsOnly(t, se.gcalTestEnv, se.tid, hum); !strings.HasSuffix(loc, "gcal=connected") {
+		t.Fatalf("contacts-only connect landed on %s", loc)
+	}
+	se.event(t, hum, "Planning", nil)
+	se.fake.ResetCalls()
+	if !se.cycle(t) {
+		t.Fatal("the contacts-only connection was not claimed")
+	}
+	if n := se.calls(append(gcalWriteCalls, "events.list", "calendarList.list")...); n != 0 {
+		t.Errorf("C14b: a contacts-only cycle made %d calendar call(s), want 0", n)
+	}
+	if c := se.conn(t, hum); c.CalendarID != "" {
+		t.Errorf("C14b: a contacts-only connection got calendar %q", c.CalendarID)
+	}
+
+	cal := se.member(t)
+	se.event(t, cal, "Review", nil)
+	se.next()
+	se.fake.ResetCalls()
+	if !se.cycle(t) {
+		t.Fatal("twin: the calendar connection was not claimed")
+	}
+	if n := se.calls("calendars.insert"); n != 1 {
+		t.Errorf("twin: a calendar cycle created %d calendar(s), want 1", n)
+	}
+}
+
+// Spec 154 B7 (c-002 ruling, dispatch-b400601b): a row connected before B7
+// holds granted_scopes "" and still syncs its calendar; today's calendar
+// connections keep running.
+func TestGcalSyncLegacyEmptyGrantedScopes(t *testing.T) {
+	se := gcalSyncEnvOf(t)
+	hum := se.member(t)
+	ctx := context.Background()
+	gs := se.st.(store.Gcal)
+	tok, err := gs.GcalTokens(ctx, se.tid, hum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := se.conn(t, hum)
+	if _, err := gs.ConnectGcal(ctx, store.GcalConnection{Tenant: se.tid, Human: hum, GoogleEmail: c.GoogleEmail}, tok, se.clock.now()); err != nil {
+		t.Fatal(err)
+	}
+	if c := se.conn(t, hum); c.GrantedScopes != "" {
+		t.Fatalf("CONTROL: granted_scopes %q, want the pre-B7 \"\"", c.GrantedScopes)
+	}
+	se.event(t, hum, "Planning", nil)
+	se.fake.ResetCalls()
+	if !se.cycle(t) {
+		t.Fatal("the legacy connection was not claimed")
+	}
+	if n := se.calls("calendars.insert"); n != 1 {
+		t.Errorf("a pre-B7 row created %d calendar(s), want 1", n)
+	}
+}

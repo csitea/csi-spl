@@ -16,14 +16,14 @@ import (
 const gcalCols = `connection_id::text, tenant_id, human_id, google_email, calendar_id, status, status_detail,
 	kms_key_id, access_expiry, coalesce(sync_token, ''), out_cursor, due_at, sync_lease_until,
 	coalesce(watch_channel_id::text, ''), coalesce(watch_resource_id, ''), watch_expiry, last_synced_at,
-	created_at, updated_at, source_sync`
+	created_at, updated_at, source_sync, granted_scopes`
 
 func scanGcal(r pgx.Row) (GcalConnection, error) {
 	var c GcalConnection
 	err := r.Scan(&c.ID, &c.Tenant, &c.Human, &c.GoogleEmail, &c.CalendarID, &c.Status, &c.StatusDetail,
 		&c.KMSKeyID, &c.AccessExpiry, &c.SyncToken, &c.OutCursor, &c.DueAt, &c.SyncLeaseUntil,
 		&c.WatchChannelID, &c.WatchResourceID, &c.WatchExpiry, &c.LastSyncedAt, &c.CreatedAt, &c.UpdatedAt,
-		&c.SourceSync)
+		&c.SourceSync, &c.GrantedScopes)
 	if len(c.SourceSync) == 0 {
 		c.SourceSync = nil
 	}
@@ -62,8 +62,8 @@ func (s *Postgres) ConnectGcal(ctx context.Context, c GcalConnection, tok GcalTo
 		}
 		var err error
 		out, err = scanGcal(tx.QueryRow(ctx, `INSERT INTO gcal_connections AS g (tenant_id, human_id, google_email,
-				access_sealed, refresh_sealed, kms_key_id, access_expiry, due_at, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $8)
+				access_sealed, refresh_sealed, kms_key_id, access_expiry, due_at, created_at, updated_at, granted_scopes)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $8, $9)
 			ON CONFLICT (tenant_id, human_id) DO UPDATE SET
 				calendar_id = CASE WHEN g.google_email = EXCLUDED.google_email THEN g.calendar_id ELSE '' END,
 				sync_token = CASE WHEN g.google_email = EXCLUDED.google_email THEN g.sync_token END,
@@ -75,9 +75,10 @@ func (s *Postgres) ConnectGcal(ctx context.Context, c GcalConnection, tok GcalTo
 				google_email = EXCLUDED.google_email, status = 'connected', status_detail = '',
 				access_sealed = EXCLUDED.access_sealed, refresh_sealed = EXCLUDED.refresh_sealed,
 				kms_key_id = EXCLUDED.kms_key_id, access_expiry = EXCLUDED.access_expiry,
-				due_at = EXCLUDED.due_at, sync_lease_until = NULL, updated_at = EXCLUDED.updated_at
+				due_at = EXCLUDED.due_at, sync_lease_until = NULL, updated_at = EXCLUDED.updated_at,
+				granted_scopes = EXCLUDED.granted_scopes
 			RETURNING `+gcalCols,
-			c.Tenant, c.Human, c.GoogleEmail, tok.AccessSealed, tok.RefreshSealed, tok.KMSKeyID, tok.AccessExpiry, now))
+			c.Tenant, c.Human, c.GoogleEmail, tok.AccessSealed, tok.RefreshSealed, tok.KMSKeyID, tok.AccessExpiry, now, c.GrantedScopes))
 		return err
 	})
 	return out, err

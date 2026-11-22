@@ -112,7 +112,7 @@ func TestStateRoundTrip(t *testing.T) {
 
 func TestAuthorizeURL(t *testing.T) {
 	g, f := newClient(t)
-	u, err := url.Parse(g.AuthorizeURL("st"))
+	u, err := url.Parse(g.AuthorizeURL("st", ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,5 +217,71 @@ func TestMissingScopes(t *testing.T) {
 		if got := strings.Join(c.MissingScopes(granted), " "); got != want {
 			t.Errorf("granted %q: missing %q, want %q", granted, got, want)
 		}
+	}
+}
+
+// testContacts is what cnf contacts.scopes would hold (spec 154 B7).
+const testContacts = "https://contacts.scope.example/contacts"
+
+// consentCode walks the fake consent page for au, as the browser would,
+// and answers the code it sends back: the fake grants what au asked.
+func consentCode(t *testing.T, au string) string {
+	t.Helper()
+	cl := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := cl.Get(au)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	back, _ := url.Parse(resp.Header.Get("Location"))
+	if back.Query().Get("code") == "" {
+		t.Fatalf("consent: %d %s", resp.StatusCode, back)
+	}
+	return back.Query().Get("code")
+}
+
+// Spec 154 C14 (gcal half): AuthorizeURL asks the scope it is given, with
+// include_granted_scopes; empty asks cnf gcal.scopes. A contacts-only
+// grant passes ExchangeFor its own asked scope; the twin: the same grant
+// checked against cnf gcal.scopes (Exchange, as on master) is refused
+// ErrScopeMissing, which is why the callback passes what it asked.
+func TestAuthorizeURLScopeAndContactsOnlyExchange(t *testing.T) {
+	g, _ := newClient(t)
+	asked := gcal.JoinScopes("openid email", testContacts)
+	u, _ := url.Parse(g.AuthorizeURL("st", asked))
+	if q := u.Query(); q.Get("scope") != asked || q.Get("include_granted_scopes") != "true" {
+		t.Fatalf("scope %q include %q, want %q true", q.Get("scope"), q.Get("include_granted_scopes"), asked)
+	}
+	if u, _ := url.Parse(g.AuthorizeURL("st", " ")); u.Query().Get("scope") != testScopes {
+		t.Errorf("empty scope asks %q, want cnf %q", u.Query().Get("scope"), testScopes)
+	}
+	ctx := context.Background()
+	tok, err := g.ExchangeFor(ctx, consentCode(t, g.AuthorizeURL("st", asked)), asked, time.Now())
+	if err != nil || !strings.Contains(tok.Scope, testContacts) {
+		t.Fatalf("contacts-only ExchangeFor: scope %q %v", tok.Scope, err)
+	}
+	if _, err := g.Exchange(ctx, consentCode(t, g.AuthorizeURL("st", asked)), time.Now()); !errors.Is(err, gcal.ErrScopeMissing) {
+		t.Errorf("twin: contacts-only grant checked against cnf gcal.scopes = %v, want ErrScopeMissing", err)
+	}
+}
+
+// The scope string helpers of spec 154 2.2.
+func TestHoldsAnyAndJoinScopes(t *testing.T) {
+	for _, c := range []struct {
+		part, granted string
+		want          bool
+	}{
+		{testScopes, testScopes, true},
+		{testScopes, "openid email " + testContacts, false},
+		{testScopes, "openid email", false},
+		{"openid email", "openid email", false},
+		{testContacts, testScopes + " " + testContacts, true},
+	} {
+		if got := gcal.HoldsAny(c.part, c.granted); got != c.want {
+			t.Errorf("HoldsAny(%q, %q) = %v, want %v", c.part, c.granted, got, c.want)
+		}
+	}
+	if got := gcal.JoinScopes(testScopes, "openid email "+testContacts, ""); got != testScopes+" "+testContacts {
+		t.Errorf("JoinScopes = %q", got)
 	}
 }

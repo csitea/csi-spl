@@ -19,8 +19,8 @@ import (
 // SPL-3208): the connect handshake, the status, the disconnect.
 //
 //	GET    /v1/me/google-calendar                     the member's connection, never a token
-//	POST   /v1/me/google-calendar/connect?workspace=  {authorize_url} (the WUI)
-//	GET    /v1/me/google-calendar/connect?workspace=  302 to Google (a plain link)
+//	POST   /v1/me/google-calendar/connect?workspace=&want=  {authorize_url} (the WUI)
+//	GET    /v1/me/google-calendar/connect?workspace=&want=  302 to Google (a plain link)
 //	GET    /v1/me/google-calendar/callback?code&state Google's redirect, on the WUI origin
 //	DELETE /v1/me/google-calendar?remove_imported=0|1 revoke at Google, delete the row
 //	POST   /v1/me/google-calendar/sync?workspace=     "Sync now": 202, the cycle runs (gcal_sync.go)
@@ -54,7 +54,15 @@ type GcalConnect struct {
 	// member's existing Google calendars in (GcalReadsCalendars, poll
 	// d93654e1 B).
 	ReadCalendars bool
+	// ContactsScopes is cnf contacts.scopes (spec 154 B7): what
+	// ?want=contacts asks Google for beside "openid email". Empty = a
+	// connect that wants contacts answers 503 gcal_not_configured.
+	ContactsScopes string
 }
+
+// gcalIdentityScopes is the sign-in part every connect asks (spec 154 2.2
+// step 1): the callback reads the Google email with it.
+const gcalIdentityScopes = "openid email"
 
 // GcalPurpose is the AAD the calendar tokens are sealed under (spec 149
 // 2.4, P6): a calendar token never opens as a marketing token.
@@ -171,13 +179,46 @@ func (s *Server) gcalStart(w http.ResponseWriter, r *http.Request) (string, bool
 		writeGcalNotConfigured(w)
 		return "", false
 	}
-	state, nonce := g.Google.NewState(gcal.State{Tenant: t.ID, Member: hum, Exp: s.o.Now().Add(gcalStateTTL).Unix()})
+	scope, ok := s.gcalWantScope(w, r)
+	if !ok {
+		return "", false
+	}
+	state, nonce := g.Google.NewState(gcal.State{Tenant: t.ID, Member: hum, Exp: s.o.Now().Add(gcalStateTTL).Unix(), Scope: scope})
 	// nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure -- Secure = the auth cookie posture (SPOOL_HUB_AUTH_COOKIE_SECURE, "true" in dev+prd cnf), as the sign-in state cookie.
 	http.SetCookie(w, &http.Cookie{
 		Name: g.CookieName, Value: nonce, Path: gcalCookiePath, Domain: g.CookieDomain,
 		MaxAge: int(gcalStateTTL.Seconds()), HttpOnly: true, Secure: g.CookieSecure, SameSite: http.SameSiteLaxMode,
 	})
-	return g.Google.AuthorizeURL(state), true
+	return g.Google.AuthorizeURL(state, scope), true
+}
+
+// gcalWantScope answers the scope a connect asks Google for, from
+// ?want=calendar|contacts|calendar,contacts (spec 154 2.2 step 1): cnf
+// gcal.scopes for calendar, "openid email" + cnf contacts.scopes for
+// contacts. No want = calendar, as before B7. false after writing 400
+// bad_want, or 503 when contacts is wanted and cnf holds no contacts scope.
+func (s *Server) gcalWantScope(w http.ResponseWriter, r *http.Request) (string, bool) {
+	g := s.o.Gcal
+	want := r.URL.Query().Get("want")
+	if want == "" {
+		want = "calendar"
+	}
+	parts := []string{}
+	for _, p := range strings.Split(want, ",") {
+		switch {
+		case p == "calendar" && !slices.Contains(parts, g.Google.Scopes()):
+			parts = append(parts, g.Google.Scopes())
+		case p == "contacts" && strings.TrimSpace(g.ContactsScopes) == "":
+			writeErr(w, http.StatusServiceUnavailable, "gcal_not_configured", "google contacts is not configured on this hub")
+			return "", false
+		case p == "contacts":
+			parts = append(parts, gcalIdentityScopes, g.ContactsScopes)
+		default:
+			writeErr(w, http.StatusBadRequest, "bad_want", "want is calendar, contacts or calendar,contacts")
+			return "", false
+		}
+	}
+	return gcal.JoinScopes(parts...), true
 }
 
 // POST /v1/me/google-calendar/connect: the WUI gets the URL to open.
@@ -280,7 +321,7 @@ func (s *Server) connectGcal(ctx context.Context, gs store.Gcal, st gcal.State, 
 		return store.GcalConnection{}, errors.New("no code in the callback")
 	}
 	g, now := s.o.Gcal, s.o.Now()
-	tok, err := g.Google.Exchange(ctx, code, now)
+	tok, err := g.Google.ExchangeFor(ctx, code, st.Scope, now)
 	if err != nil {
 		return store.GcalConnection{}, err
 	}
@@ -299,7 +340,9 @@ func (s *Server) connectGcal(ctx context.Context, gs store.Gcal, st gcal.State, 
 	if err != nil {
 		return store.GcalConnection{}, err
 	}
-	return gs.ConnectGcal(ctx, store.GcalConnection{Tenant: st.Tenant, Human: st.Member, GoogleEmail: email},
+	// the grant's scopes as Google answered them: with include_granted_scopes
+	// a contacts connect on a calendar grant holds both (spec 154 C14)
+	return gs.ConnectGcal(ctx, store.GcalConnection{Tenant: st.Tenant, Human: st.Member, GoogleEmail: email, GrantedScopes: tok.Scope},
 		store.GcalTokens{AccessSealed: acc, RefreshSealed: ref, KMSKeyID: keyID, AccessExpiry: tok.ExpiresAt}, now)
 }
 

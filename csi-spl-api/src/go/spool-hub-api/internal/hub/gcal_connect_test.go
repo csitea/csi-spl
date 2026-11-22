@@ -3,6 +3,7 @@ package hub_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -563,5 +564,171 @@ func TestGcalWorkspaceURL(t *testing.T) {
 	}
 	if g := hub.GcalWorkspaceURL("", "t1", "https://example.test/"); g("w2") != "https://example.test" {
 		t.Fatalf("without a pattern: %q", g("w2"))
+	}
+}
+
+// gcalContactsTestScope is what cnf contacts.scopes would hold (spec 154
+// B7); deliberately not Google's string, as gcalTestScopes.
+const gcalContactsTestScope = "https://scope.example/contacts-test"
+
+// gcalStartWant is a connect with ?want=, answering the response.
+func gcalStartWant(t *testing.T, e *gcalTestEnv, tid, as, want string) *http.Response {
+	t.Helper()
+	return gcalDo(t, e, tid, http.MethodPost, "/v1/me/google-calendar/connect?want="+url.QueryEscape(want), as)
+}
+
+// gcalWantURL starts a connect with ?want= and answers its consent URL's
+// query, the state and the nonce cookie.
+func gcalWantURL(t *testing.T, e *gcalTestEnv, tid, as, want string) (string, url.Values, *http.Cookie) {
+	t.Helper()
+	resp := gcalStartWant(t, e, tid, as, want)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("connect want=%s: %d %v", want, resp.StatusCode, gcalBody(t, resp))
+	}
+	au, _ := gcalBody(t, resp)["authorize_url"].(string)
+	u, err := url.Parse(au)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nonce *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == gcalCookie {
+			nonce = c
+		}
+	}
+	return au, u.Query(), nonce
+}
+
+// gcalConsent walks the fake consent page for au and answers its code: the
+// fake grants what au asked.
+func gcalConsent(t *testing.T, au string) string {
+	t.Helper()
+	cl := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := cl.Get(au)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	back, _ := url.Parse(resp.Header.Get("Location"))
+	if back.Query().Get("code") == "" {
+		t.Fatalf("consent: %d %s", resp.StatusCode, back)
+	}
+	return back.Query().Get("code")
+}
+
+// gcalConnectContactsOnly connects as with ?want=contacts and no earlier
+// grant: the consent grants "openid email" and the contacts scope only.
+func gcalConnectContactsOnly(t *testing.T, e *gcalTestEnv, tid, as string) string {
+	t.Helper()
+	au, q, nonce := gcalWantURL(t, e, tid, as, "contacts")
+	resp := gcalCallback(t, e, tid, gcalConsent(t, au), q.Get("state"), nonce)
+	return resp.Header.Get("Location")
+}
+
+// Spec 154 C14: connect with want=contacts on a row that holds the
+// calendar scope asks the contacts scope with include_granted_scopes=true,
+// and the callback stores both scopes in granted_scopes on the same row.
+// Google answers the union under include_granted_scopes; the fake grants
+// what its Config holds, so the test sets it to that union for the code.
+// RED CONTROL (origin/master a64003a5c): want is not read, the URL asks
+// gcal.scopes and no granted_scopes is stored.
+func TestGcalConnectWantContacts(t *testing.T) {
+	tid := mktIDs(1)[0]
+	e := gcalEnvOf(t, []string{tid}, tid)
+	e.gc.ContactsScopes = gcalContactsTestScope
+	hum := seat(t, e.env, tid, rbac.Developer)
+	if loc := gcalConnectMember(t, e, tid, hum); !strings.HasSuffix(loc, "gcal=connected") {
+		t.Fatalf("calendar connect landed on %s", loc)
+	}
+	before, err := gcalRow(t, e, tid, hum)
+	if err != nil || before.GrantedScopes != gcalTestScopes {
+		t.Fatalf("calendar connect stored granted_scopes %q %v, want %q", before.GrantedScopes, err, gcalTestScopes)
+	}
+	_, q, nonce := gcalWantURL(t, e, tid, hum, "contacts")
+	if q.Get("scope") != "openid email "+gcalContactsTestScope || q.Get("include_granted_scopes") != "true" {
+		t.Fatalf("C14: want=contacts asks scope %q include %q", q.Get("scope"), q.Get("include_granted_scopes"))
+	}
+	both := gcal.JoinScopes(gcalTestScopes, gcalContactsTestScope)
+	e.fake.Config(gcalApp+hub.GcalCallbackPath, both)
+	resp := gcalCallback(t, e, tid, e.fake.IssueCode(fakegcal.DefaultEmail), q.Get("state"), nonce)
+	if loc := resp.Header.Get("Location"); !strings.HasSuffix(loc, "gcal=connected") {
+		t.Fatalf("C14: contacts callback landed on %s", loc)
+	}
+	after, err := gcalRow(t, e, tid, hum)
+	if err != nil || after.ID != before.ID || after.GrantedScopes != both {
+		t.Fatalf("C14: row %s granted %q %v, want %s granted %q", after.ID, after.GrantedScopes, err, before.ID, both)
+	}
+	if _, q, _ := gcalWantURL(t, e, tid, hum, "calendar,contacts"); q.Get("scope") != both {
+		t.Errorf("want=calendar,contacts asks %q, want %q", q.Get("scope"), both)
+	}
+}
+
+// Spec 154 B7: a contacts-only connect (no calendar grant) is kept, its
+// grant checked against what it asked; want is refused when unknown, and
+// 503 gcal_not_configured while cnf holds no contacts scope. Twin: no want
+// asks cnf gcal.scopes as before B7 (gcalStart checks it).
+// RED CONTROL (origin/master a64003a5c): the contacts-only grant is
+// revoked as scope_missing.
+func TestGcalConnectContactsOnlyAndRefusals(t *testing.T) {
+	tid := mktIDs(1)[0]
+	e := gcalEnvOf(t, []string{tid}, tid)
+	hum := seat(t, e.env, tid, rbac.Developer)
+	resp := gcalStartWant(t, e, tid, hum, "contacts")
+	if resp.StatusCode != http.StatusServiceUnavailable || gcalBody(t, resp)["error"] != "gcal_not_configured" {
+		t.Errorf("want=contacts with no cnf contacts scope = %d, want 503 gcal_not_configured", resp.StatusCode)
+	}
+	e.gc.ContactsScopes = gcalContactsTestScope
+	for _, bad := range []string{"mail", "calendar,", "contacts;calendar"} {
+		if resp := gcalStartWant(t, e, tid, hum, bad); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("want=%q = %d, want 400", bad, resp.StatusCode)
+		}
+	}
+	gcalStart(t, e, tid, hum)
+	if loc := gcalConnectContactsOnly(t, e, tid, hum); !strings.HasSuffix(loc, "gcal=connected") {
+		t.Fatalf("contacts-only connect landed on %s, want gcal=connected", loc)
+	}
+	row, err := gcalRow(t, e, tid, hum)
+	if err != nil || row.GrantedScopes != "openid email "+gcalContactsTestScope {
+		t.Fatalf("contacts-only row granted %q %v", row.GrantedScopes, err)
+	}
+}
+
+// Spec 154 C14c: a reconnect of a connected row keeps its connection_id
+// and the contacts_sync binding, with the new refresh token. Twin: a
+// delete-and-insert callback loses the binding (the FK cascade of rdb
+// 0226). Postgres: the Memory store keeps no cascade.
+func TestGcalReconnectKeepsContactsBinding(t *testing.T) {
+	tid := mktIDs(1)[0]
+	e := gcalEnvOf(t, []string{tid}, tid)
+	if _, pg := e.st.(*store.Postgres); !pg {
+		t.Skip("C14c is a Postgres test (SPOOL_TEST_PG_DSN): the FK cascade lives in rdb 0226")
+	}
+	ctx := context.Background()
+	hum := seat(t, e.env, tid, rbac.Developer)
+	gcalConnectMember(t, e, tid, hum)
+	first, _ := gcalRow(t, e, tid, hum)
+	tok1, err := e.st.(store.Gcal).GcalTokens(ctx, tid, hum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := e.st.(store.ContactsSyncs)
+	if _, err := cs.SetContactsSync(ctx, tid, hum, true, e.clock.now()); err != nil {
+		t.Fatalf("binding: %v", err)
+	}
+	gcalConnectMember(t, e, tid, hum)
+	again, _ := gcalRow(t, e, tid, hum)
+	tok2, _ := e.st.(store.Gcal).GcalTokens(ctx, tid, hum)
+	if again.ID != first.ID || tok2.RefreshSealed == tok1.RefreshSealed {
+		t.Errorf("C14c: reconnect row %s (was %s), refresh replaced %v", again.ID, first.ID, tok2.RefreshSealed != tok1.RefreshSealed)
+	}
+	if _, err := cs.ContactsSyncIn(ctx, tid, hum); err != nil {
+		t.Errorf("C14c: the contacts_sync row after the reconnect: %v", err)
+	}
+	if _, err := e.st.(store.Gcal).DeleteGcalConnection(ctx, tid, hum); err != nil {
+		t.Fatal(err)
+	}
+	gcalConnectMember(t, e, tid, hum)
+	if _, err := cs.ContactsSyncIn(ctx, tid, hum); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("twin: a delete-and-insert connect kept the binding: %v", err)
 	}
 }

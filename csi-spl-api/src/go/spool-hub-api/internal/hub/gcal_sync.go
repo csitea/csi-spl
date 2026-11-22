@@ -188,6 +188,12 @@ func (cy *gcalCycle) run(ctx context.Context) error {
 	if !cy.g.listed(cy.c.Tenant) {
 		return cy.finish(ctx, nil, cy.now().Add(gcalOffRecheck))
 	}
+	// a contacts-only grant has no calendar to sync: no Google call, so no
+	// "Spool Hub" calendar is created for it (spec 154 2.2 step 2, C14b);
+	// a reconnect that adds the calendar scope makes the row due at once
+	if !gcalCalendarGranted(cy.c, cy.g.Google.Scopes()) {
+		return cy.finish(ctx, nil, cy.now().Add(gcalOffRecheck))
+	}
 	cursor, err := cy.sync(ctx)
 	switch {
 	case errors.Is(err, store.ErrGcalLeaseLost):
@@ -214,6 +220,13 @@ func (cy *gcalCycle) run(ctx context.Context) error {
 		}
 	}
 	return cy.finish(ctx, cursor, cy.now().Add(gcalSyncEvery))
+}
+
+// gcalCalendarGranted: the grant holds a calendar scope of cnf
+// gcal.scopes. "" is a row connected before spec 154 B7, whose connect
+// refused any grant without the calendar scopes: a calendar grant.
+func gcalCalendarGranted(c store.GcalConnection, calendar string) bool {
+	return c.GrantedScopes == "" || gcal.HoldsAny(calendar, c.GrantedScopes)
 }
 
 // sync is the cycle's Google work: a valid access token, the target

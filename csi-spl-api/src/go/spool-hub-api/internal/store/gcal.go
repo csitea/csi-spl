@@ -105,6 +105,10 @@ type GcalConnection struct {
 	LastSyncedAt    *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	// GrantedScopes is the token answer's space separated "scope", stored
+	// by the connect (rdb 0226, spec 154 B7); "" on a row connected before
+	// B7, which the calendar sync reads as a calendar grant.
+	GrantedScopes string
 }
 
 // GcalTokens is a connection's sealed tokens: ciphertext only, the KMS key
@@ -177,7 +181,7 @@ func gcalStatusOK(status, detail string) bool {
 
 func gcalConnectOK(c GcalConnection, tok GcalTokens) bool {
 	return c.Tenant != "" && c.Human != "" && len(c.GoogleEmail) >= 3 && len(c.GoogleEmail) <= 320 &&
-		gcalTokensOK(tok)
+		len(c.GrantedScopes) <= 2000 && gcalTokensOK(tok)
 }
 
 func gcalTokensOK(tok GcalTokens) bool {

@@ -54,7 +54,7 @@ spool_install_grok_memory() {
   if [ "${SPOOL_INSTALL_GROK_MEMORY:-1}" = 0 ]; then _y18_say "skipped (SPOOL_INSTALL_GROK_MEMORY=0)"; return 0; fi
   [ -d "$home/.grok" ] || { _y18_say "no $home/.grok (grok not installed for this user): skipped"; return 0; }
   [ -n "$repo" ] || repo="$(spool_install_memory_repo)" || { _y18_say "cannot tell the repo (set SPOOL_INSTALL_CLAUDE_MEMORY_REPO)"; return 7; }
-  memdir="$home/.claude/projects/$(spool_install_memory_slug "$repo")/memory"
+  memdir="$home/.claude/projects/$(spl_claude_project_slug "$repo")/memory"
   if [ ! -f "$memdir/MEMORY.md" ]; then
     _y18_say "no claude memory index $memdir/MEMORY.md for $repo: skipped (SPOOL_INSTALL_CLAUDE_MEMORY_REPO names the repo)"
     return 0

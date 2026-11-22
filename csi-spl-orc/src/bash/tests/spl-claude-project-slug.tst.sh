@@ -8,6 +8,8 @@
 #      finds a transcript by the slug: its declare -F guard loads the helper.
 #   3. the src/bash/run/*.func.sh files that still spell the sed are exactly
 #      the list below; it only shrinks.
+#   4. the spool-install steps spell no copy (r89-01, SPL-6262), and their
+#      claude-memory.inc.sh sourced ALONE loads the helper by its guard.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -38,6 +40,13 @@ out="$(env W="$W" LOGIN_AGENT_HOME="$H" IDENTITY_RESTORE_ADAPTER_DIR="$A" bash -
 want="spl-dispatch-lease.func.sh "
 got="$(grep -lF 's/[^A-Za-z0-9]/-/g' "$RUN"/*.func.sh | xargs -n1 basename | sort | tr '\n' ' ')"
 [[ "$got" == "$want" ]] && pass "3. the inline copies left: $want" || fail "3. want '$want', got '$got'"
+
+# 4. the spool-install steps: no copy, the inc loads the helper
+STEPS="$PROJ_ROOT/src/bash/features/spool-install/steps"
+got="$(grep -lF 's/[^A-Za-z0-9]/-/g' "$STEPS"/* | xargs -rn1 basename | sort | tr '\n' ' ')"
+[[ -z "$got" ]] && pass "4. the steps spell no copy of the slug rule" || fail "4. want no copy in the steps, got '$got'"
+got="$(bash -c 'source "$0"; spl_claude_project_slug /srv/acme/acme-app-wt/c-170' "$STEPS/claude-memory.inc.sh" 2>&1)"
+[[ "$got" == "-srv-acme-acme-app-wt-c-170" ]] && pass "4. claude-memory.inc.sh sourced alone -> $got" || fail "4. claude-memory.inc.sh sourced alone: $got"
 
 (( fails == 0 )) && { echo "ALL PASS"; exit 0; }
 echo "$fails FAILED"; exit 1

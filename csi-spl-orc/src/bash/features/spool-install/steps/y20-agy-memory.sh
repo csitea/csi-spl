@@ -251,7 +251,7 @@ spool_install_agy_memory() {
   if [ "${SPOOL_INSTALL_AGY_MEMORY:-1}" = 0 ]; then _y20_say "skipped (SPOOL_INSTALL_AGY_MEMORY=0)"; return 0; fi
   [ -d "$home/.gemini" ] || { _y20_say "no $home/.gemini (agy not installed for this user): skipped"; return 0; }
   [ -n "$repo" ] || repo="$(spool_install_memory_repo)" || { _y20_say "cannot tell the repo (set SPOOL_INSTALL_CLAUDE_MEMORY_REPO)"; return 7; }
-  memdir="$home/.claude/projects/$(spool_install_memory_slug "$repo")/memory"
+  memdir="$home/.claude/projects/$(spl_claude_project_slug "$repo")/memory"
   rules="$home/.gemini/config/rules"
   hdr="$rules/fleet-memory-0-where.md"
   idx="$rules/AGENTS.md"

@@ -34,9 +34,11 @@ type memWake struct {
 	subs map[int]memWakeSub
 }
 
-// memWakeSub is one listener: box wake-ups and (S3) stored messages; nil = not asked.
+// memWakeSub is one listener: box wake-ups, (S3) stored messages and (spec
+// 071 T4) box sample requests; nil = not asked.
 type memWakeSub struct {
 	box, wui func(tenant, key string)
+	sample   func(BoxSampleReq)
 }
 
 func (w *memWake) notify(tenant, box string) {
@@ -66,6 +68,11 @@ func (s *Memory) ListenWake(ctx context.Context, fn func(tenant, box string)) er
 
 // ListenWakes: see WUIWaker.
 func (s *Memory) ListenWakes(ctx context.Context, box func(tenant, box string), wui func(tenant, msgID string)) error {
+	return s.ListenAll(ctx, WakeHandlers{Box: box, WUI: wui})
+}
+
+// ListenAll: see BoxSampleWaker.
+func (s *Memory) ListenAll(ctx context.Context, h WakeHandlers) error {
 	w := &s.wake
 	w.mu.Lock()
 	if w.subs == nil {
@@ -73,7 +80,7 @@ func (s *Memory) ListenWakes(ctx context.Context, box func(tenant, box string), 
 	}
 	id := w.next
 	w.next++
-	w.subs[id] = memWakeSub{box: box, wui: wui}
+	w.subs[id] = memWakeSub{box: h.Box, wui: h.WUI, sample: h.BoxSample}
 	w.mu.Unlock()
 	<-ctx.Done()
 	w.mu.Lock()
@@ -92,14 +99,20 @@ func (s *Postgres) ListenWake(ctx context.Context, fn func(tenant, box string)) 
 // ListenWakes listens on both channels over that one connection (S3 adds no
 // connection); a nil fn leaves its channel unlistened.
 func (s *Postgres) ListenWakes(ctx context.Context, box func(tenant, box string), wui func(tenant, msgID string)) error {
+	return s.ListenAll(ctx, WakeHandlers{Box: box, WUI: wui})
+}
+
+// ListenAll listens on every channel of h over that one connection (spec 071
+// T4 adds no connection either); a nil handler leaves its channel unlistened.
+func (s *Postgres) ListenAll(ctx context.Context, h WakeHandlers) error {
 	conn, err := pgx.ConnectConfig(ctx, s.pool.Config().ConnConfig.Copy())
 	if err != nil {
 		return err
 	}
 	defer conn.Close(context.Background()) //nolint:errcheck
-	fns := map[string]func(string, string){WakeChannel: box, WUIWakeChannel: wui}
-	for ch, fn := range fns {
-		if fn == nil {
+	fns := map[string]func(string, string){WakeChannel: h.Box, WUIWakeChannel: h.WUI}
+	for ch, on := range map[string]bool{WakeChannel: h.Box != nil, WUIWakeChannel: h.WUI != nil, BoxSampleChannel: h.BoxSample != nil} {
+		if !on {
 			continue
 		}
 		if _, err := conn.Exec(ctx, "LISTEN "+ch); err != nil {
@@ -113,6 +126,10 @@ func (s *Postgres) ListenWakes(ctx context.Context, box func(tenant, box string)
 				return nil
 			}
 			return err
+		}
+		if n.Channel == BoxSampleChannel {
+			deliverBoxSample(h.BoxSample, n.Payload)
+			continue
 		}
 		fn := fns[n.Channel]
 		if tenant, key, ok := strings.Cut(n.Payload, "|"); ok && fn != nil {

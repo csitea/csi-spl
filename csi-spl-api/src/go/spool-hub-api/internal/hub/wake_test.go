@@ -60,6 +60,13 @@ func wakeRig(t *testing.T, wake bool) (*env, *hub.Server, *box, *box) {
 		t.Fatal(err)
 	}
 	t.Cleanup(s.Close)
+	// The welcome comes before the hello's queue drain (ws.go hello): a send
+	// made in between is delivered by that drain, which a loaded runner read
+	// as a wake-up (SPL-6264). queue_end ends the drain; only a wake-up or a
+	// relay tick can deliver after it.
+	if _, err := s.WaitQueueEnd(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	return e, peer, sender, desk
 }
 

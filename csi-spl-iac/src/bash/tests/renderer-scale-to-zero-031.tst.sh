@@ -100,7 +100,7 @@ verdict() { # <label> <reasons>
 # timeout to the hub as 7.1.6 says, one a line ("" = it does)
 hub_env_gaps() {
   local f="$1"
-  grep -qF 'hub_env = merge(var.environment_variables, var.pdf_url == "" ? {} : { SPOOL_PDF_URL = var.pdf_url, SPOOL_PDF_TIMEOUT = var.pdf_timeout })' "$f" ||
+  grep -qF 'hub_env = merge(var.environment_variables, var.pdf_url == "" ? {} : { SPOOL_PDF_URL = var.pdf_url, SPOOL_PDF_TIMEOUT = var.pdf_timeout }' "$f" ||
     echo "030 does not merge SPOOL_PDF_URL and SPOOL_PDF_TIMEOUT from var.pdf_url and var.pdf_timeout"
   grep -qE '^[[:space:]]*for_each = local.hub_env$' "$f" || echo "030's container env does not read local.hub_env"
   grep -qE '^[[:space:]]*want_env += local.hub_env$' "$f" || echo "030's revision check does not read local.hub_env"

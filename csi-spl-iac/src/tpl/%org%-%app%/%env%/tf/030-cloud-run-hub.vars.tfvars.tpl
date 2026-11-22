@@ -27,6 +27,13 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {#- spec 183 7.1.6: the topic PDF renderer (step 031); "" until its apply #}
 pdf_url                      = {{ (hub["pdf"]["url"] if (hub["pdf"] is defined and hub["pdf"]["url"]) else "") | tojson }}
 pdf_timeout                  = {{ (hub["pdf"]["timeout"] if (hub["pdf"] is defined and hub["pdf"]["timeout"]) else "120s") | tojson }}
+{#- spec 123 16.6.3 row L3w (SPL-6223): the cost labels' Cloud Translation v3
+    parent in the env's own project; "" (no api_base) passes no translate var #}
+{%- set tr_cost = cost if cost is defined else {} %}
+{%- set tr_base = tr_cost.get("labels_translate_api_base", "") or "" %}
+cost_labels_translate_url    = {{ ((tr_base.rstrip("/") ~ "/projects/" ~ gcp["gcp_project"] ~ "/locations/" ~ tr_cost.get("labels_translate_location", "global")) if tr_base else "") | tojson }}
+cost_labels_translate_timeout = {{ ((tr_cost.get("labels_translate_timeout_s", 8) | int | string) ~ "s") | tojson }}
+cost_labels_translate_daily_chars = {{ tr_cost.get("labels_translate_daily_chars", 200000) | int }}
 {#- spec 010 T020: auth.social.env, auth.native.env and mail.env join hub.env
     (plain values). Secrets are injected only when used, since Cloud Run refuses
     a revision whose secret has no version: the session key when an IdP is

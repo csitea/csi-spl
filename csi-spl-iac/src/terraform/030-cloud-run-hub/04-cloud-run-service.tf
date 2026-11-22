@@ -28,11 +28,17 @@ locals {
   }
   cloud_sql_connection_name = "${var.gcp_project}:${var.gcp_region}:${var.cloud_sql_instance_name}"
 
+  # Spec 123 16.6.3 row L3w (SPL-6223): the cost labels' Cloud Translation v3
+  # parent, from cnf env.cost.labels_translate_*, with the hub's wait for one
+  # call and its daily character cap; none of the three while the url is ""
+  # (the hub then answers the fill 503 translate_unavailable).
+  translate_env = var.cost_labels_translate_url == "" ? {} : { SPOOL_HUB_COST_LABELS_TRANSLATE_URL = var.cost_labels_translate_url, SPOOL_HUB_COST_LABELS_TRANSLATE_TIMEOUT = var.cost_labels_translate_timeout, SPOOL_HUB_COST_LABELS_TRANSLATE_DAILY_CHARS = tostring(var.cost_labels_translate_daily_chars) }
+
   # spec 183 7.1.6: the topic PDF renderer (step 031) the hub posts to with
   # its own ID token, from cnf hub.pdf.url, and the hub's wait for one render
   # from cnf hub.pdf.timeout; neither while the url is "" (the hub then
   # answers an export 503 render_unavailable).
-  hub_env = merge(var.environment_variables, var.pdf_url == "" ? {} : { SPOOL_PDF_URL = var.pdf_url, SPOOL_PDF_TIMEOUT = var.pdf_timeout })
+  hub_env = merge(var.environment_variables, var.pdf_url == "" ? {} : { SPOOL_PDF_URL = var.pdf_url, SPOOL_PDF_TIMEOUT = var.pdf_timeout }, local.translate_env)
 
   # SPL-4298: every template input terraform owns (the image is the 20
   # pipeline's), this file included so a changed constant counts too. It rides
@@ -51,6 +57,9 @@ locals {
     env            = var.environment_variables
     pdf_url        = var.pdf_url
     pdf_timeout    = var.pdf_timeout
+    tr_url         = var.cost_labels_translate_url
+    tr_timeout     = var.cost_labels_translate_timeout
+    tr_daily_chars = var.cost_labels_translate_daily_chars
     secret_env     = var.secret_environment_variables
     secret_version = var.secret_versions
     pepper_secret  = var.vendor_keys_pepper_secret_id

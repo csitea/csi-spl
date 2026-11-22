@@ -151,6 +151,39 @@ variable "pdf_timeout" {
   }
 }
 
+variable "cost_labels_translate_url" {
+  type        = string
+  description = "The Cloud Translation v3 parent the hub drafts cost labels with (spec 123 16.6.3, row L3w): cnf env.cost.labels_translate_api_base + /projects/<gcp_project>/locations/<labels_translate_location>, passed as SPOOL_HUB_COST_LABELS_TRANSLATE_URL. \"\" passes none of the three translate vars (the hub answers 503 translate_unavailable)."
+  default     = ""
+
+  validation {
+    condition     = var.cost_labels_translate_url == "" || can(regex("^https://[^/]+/.*/projects/[a-z0-9-]+/locations/[a-z0-9-]+$", var.cost_labels_translate_url))
+    error_message = "cost_labels_translate_url must be \"\" or https://<host>/<version>/projects/<project>/locations/<location>."
+  }
+}
+
+variable "cost_labels_translate_timeout" {
+  type        = string
+  description = "The hub's wait for one translateText call (cnf env.cost.labels_translate_timeout_s), passed as SPOOL_HUB_COST_LABELS_TRANSLATE_TIMEOUT with the url. A Go duration in whole seconds, 1s..60s."
+  default     = "8s"
+
+  validation {
+    condition     = can(regex("^[0-9]+s$", var.cost_labels_translate_timeout)) && try(tonumber(trimsuffix(var.cost_labels_translate_timeout, "s")) >= 1 && tonumber(trimsuffix(var.cost_labels_translate_timeout, "s")) <= 60, false)
+    error_message = "cost_labels_translate_timeout must be <n>s with 1 <= n <= 60 (e.g. \"8s\")."
+  }
+}
+
+variable "cost_labels_translate_daily_chars" {
+  type        = number
+  description = "The hub's daily character cap for translateText, per process and UTC day (cnf env.cost.labels_translate_daily_chars), passed as SPOOL_HUB_COST_LABELS_TRANSLATE_DAILY_CHARS with the url. 0 = no cap."
+  default     = 200000
+
+  validation {
+    condition     = var.cost_labels_translate_daily_chars >= 0 && floor(var.cost_labels_translate_daily_chars) == var.cost_labels_translate_daily_chars
+    error_message = "cost_labels_translate_daily_chars must be a whole number >= 0."
+  }
+}
+
 variable "secret_environment_variables" {
   type        = map(string)
   description = "env var -> Secret Manager secret id (cnf hub.secret_env); injected at its secret_versions pin."

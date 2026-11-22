@@ -20,6 +20,9 @@
 #      its own count; a "Lane brief: ... reviewer seat" one is still ended; a
 #      live seat row whose issue_key is the key keeps it as c6; red control:
 #      without the c10 check the seat brief is ended
+#  10. one copy of the lease.conf reader (r89-02): the action keeps no reader of
+#      its own and reads LEASE_TENANT through spl_owner_digest_lease_conf, the
+#      owner digest's, which it loads itself when sourced alone (case 1)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -189,6 +192,12 @@ seat_case; sweep DRY_RUN=0; rc=$?
 mkdir -p "$T/v10/src/bash/scripts"; sed 's/if (i.get("title") or "").lstrip().startswith(SEAT_BRIEF):/if False:/' "$JUDGE" >"$T/v10/src/bash/scripts/issue-stale-sweep-judge.py"
 seat_case; PROJ_OVERRIDE="$T/v10" sweep DRY_RUN=0
 [[ "$(ended)" == "SPL-120 SPL-121" ]] && pass "9. red control: without the c10 check the Seat brief: SPL-120 is ended, and the test sees it" || fail "9. c10 red: '$(ended)'"
+
+# --- 10. the lease.conf reader is the owner digest's, one copy (r89-02) --------------
+own="$(grep -nE 'spl_stale_lease_conf\(\)|sed -n .*dispatch/lease\.conf' "$FUNC" | tr '\n' ' ')"
+[[ -z "$own" ]] && pass "10. the sweep keeps no lease.conf reader of its own" || fail "10. the sweep still reads lease.conf itself: $own"
+grep -q 'TENANT_ID:-$(spl_owner_digest_lease_conf "$root" LEASE_TENANT' "$FUNC" &&
+  pass "10. LEASE_TENANT is read through spl_owner_digest_lease_conf" || fail "10. LEASE_TENANT is not read through spl_owner_digest_lease_conf"
 
 echo "---"
 [[ $fails == 0 ]] && echo "spl-issue-stale-sweep: all passed" || echo "spl-issue-stale-sweep: $fails FAILED"

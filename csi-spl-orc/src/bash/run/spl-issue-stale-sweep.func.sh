@@ -51,8 +51,9 @@ do_spl_issue_stale_sweep() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   spl_stale_conf || return 1
   read -r holder _ <"$root/dispatch/lease" 2>/dev/null || holder=""
-  export ENV="${ENV:-$(spl_stale_lease_conf "$root" LEASE_ENV prd)}"
-  export TENANT_ID="${TENANT_ID:-$(spl_stale_lease_conf "$root" LEASE_TENANT "")}"
+  declare -F spl_owner_digest_lease_conf >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-owner-digest-post.func.sh"
+  export ENV="${ENV:-$(spl_owner_digest_lease_conf "$root" LEASE_ENV prd)}"
+  export TENANT_ID="${TENANT_ID:-$(spl_owner_digest_lease_conf "$root" LEASE_TENANT "")}"
   export DESK_AGENT="${DESK_AGENT:-${holder%@*}}"
   [[ -n "$TENANT_ID" && -n "$DESK_AGENT" ]] ||
     { do_log "FATAL issue-stale-sweep: no TENANT_ID / DESK_AGENT (LEASE_TENANT in $root/dispatch/lease.conf, the dispatch holder): nothing written"; return 1; }
@@ -66,12 +67,6 @@ do_spl_issue_stale_sweep() {
   fi
   rm -rf "$work"
   return $rc
-}
-
-spl_stale_lease_conf() {
-  local v
-  v="$(sed -n "s/^$2=//p" "$1/dispatch/lease.conf" 2>/dev/null | tail -1)"
-  echo "${v:-$3}"
 }
 
 # spl_stale_conf: STALE_MAX and STALE_IDLE_DAYS checked; the idle default is

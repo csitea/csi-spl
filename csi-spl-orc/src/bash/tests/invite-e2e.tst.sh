@@ -2,7 +2,8 @@
 #------------------------------------------------------------------------------
 # Purpose: do_spl_invite_e2e + invite-e2e.py, offline (t1 afa8a4fb R7): a fake
 # hub on loopback and a STUBBED mailbox (INVITE_E2E_MAILDIR, .eml files).
-#   1. the happy path: steps 1-5 PASS, 6 SKIPPED with no root key, exit 0
+#   1. the happy path: steps 1-5 PASS, 6 SKIPPED with no root key, exit 0;
+#      the verify answers 200 + session (SPL-6182) or 204, both sign in
 #   2. CONTROLS, each must FAIL the run: the link names another tenant, the
 #      link's login_hint is not the invitee, a sent copy with no Delivered-To,
 #      the hub did not mail the invite, the login is refused
@@ -25,6 +26,7 @@ INV=sys+inv-r1@example.com
 cat >"$T/hub.py" <<'PY'
 import http.server, json, os, sys
 LOGIN = int(os.environ.get("FAKE_LOGIN", "200"))
+VERIFY = int(os.environ.get("FAKE_VERIFY", "200"))
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def out(self, code, body=None, ctype="application/json", hdrs=()):
@@ -44,7 +46,9 @@ class H(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         if self.path == "/api/v1/auth/register": return self.out(202, {"debug_token": "d" * 64})
-        if self.path == "/api/v1/auth/email/verify": return self.out(204)
+        if self.path == "/api/v1/auth/email/verify":  # native.go handleVerify: a first click signs in (SPL-6182)
+            if VERIFY != 200: return self.out(VERIFY)
+            return self.out(200, {"hum": "HUM-77"}, hdrs=[("Set-Cookie", "spool_session=fake-cookie-s3cret; Path=/")])
         if self.path == "/api/v1/auth/login":
             if LOGIN != 200: return self.out(LOGIN, {"error": "not_allowed"})
             return self.out(200, {"hum": "HUM-77"}, hdrs=[("Set-Cookie", "spool_session=fake-cookie-s3cret; Path=/")])
@@ -55,7 +59,7 @@ s.serve_forever()
 PY
 start_hub() {
   [[ -n "${HUB_PID:-}" ]] && { kill "$HUB_PID" 2>/dev/null; wait "$HUB_PID" 2>/dev/null; }
-  coproc HUBP { FAKE_LOGIN="${1:-200}" exec python3 -u "$T/hub.py" 2>/dev/null; }
+  coproc HUBP { FAKE_LOGIN="${1:-200}" FAKE_VERIFY="${2:-200}" exec python3 -u "$T/hub.py" 2>/dev/null; }
   HUB_PID=$HUBP_PID
   read -r PORT <&"${HUBP[0]}"
 }
@@ -94,6 +98,12 @@ done
 grep -q '^SKIPPED 6-agent-answers ' <<<"$out" && [[ $rc == 0 ]] && pass "1. no root key: 6 SKIPPED, exit 0" || fail "1. rc=$rc: $out"
 jq -e '[.results[] | select(.result == "FAIL")] | length == 0' "$T/ok/results.json" >/dev/null \
   && pass "1. results.json carries no FAIL" || fail "1. results.json: $(cat "$T/ok/results.json")"
+
+# a hub whose verify answers 204 (a repeat click, or no sign-in): the login still gives the session
+start_hub 200 204
+setup v204; mail "$T/v204/mail/1.eml" t1 "$INV"; engine v204
+grep -q '^PASS 4-sign-in ' <<<"$out" && [[ $rc == 0 ]] && pass "1. verify 204: 4-sign-in PASS" || fail "1. verify 204: rc=$rc $out"
+start_hub
 
 # --- 2. controls ---------------------------------------------------------------------
 ctl() {  # <case> <step that must FAIL> <label>

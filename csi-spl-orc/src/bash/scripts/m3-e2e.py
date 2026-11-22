@@ -223,7 +223,9 @@ def native_login(email, tenant, tag):
     )
     ev["hub_verify_api"] = st
     write_json("verify-%s.json" % tag, ev)
-    if st != 204:
+    # SPL-6182 (native.go handleVerify): a first click answers 200 + session,
+    # a repeat click 204; both verify. The password login below gives the session.
+    if st not in (200, 204):
         return st, {"step": "verify", "body": out}, ""
     write_secret(pw_name, pw)
     body["password"] = pw

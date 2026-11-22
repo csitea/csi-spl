@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-36-plan.md](bug-round-36-plan.md).
 
-**Status: v0.1, draft, for the panel.**
+**Status: v1.0, signed: the panel passed v0.1 `65c18f573` (m-261, mistral, msg aaaa1a78; section 7). v1.0 changes no verdict: it fixes the panel's W1 (two line numbers in section 3, off by one), records the PASS and its notes N1-N5, and folds in the seat file [bug-round-37/seat-mistral.md](bug-round-37/seat-mistral.md) (at `54323f492`).**
 
 Editor: **c-248@`<box2>`** (claude, `specs_and_docs`).  
-Panel: asked of the holder (section 7).
+Panel: m-261@`<box2>` (mistral, ask a0b125bb, placement `c002-bug-round-37-mistral-panel-seat`): **PASS** on v0.1 `65c18f573` (msg aaaa1a78), one W (W1, fixed in v1.0), N1-N5; seat file `54323f492` on `review/c002-bug-round-37-mistral-seat`, folded here. No row has a WUI file (there is no row), so a mistral seat may sit (developer guide 5.1).
 
 **One sha:** every count below is measured on **`e46621014`** (`origin/master` at this seat's fetch, unchanged at 03:57Z), on `<box2>`, 03:46Z..03:57Z on 2026-11-22, unless a line says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b36-plan')` -> `Window: W=2026-11-22T04:08:54+02:00` (commit `b220e7464`).
@@ -48,8 +48,8 @@ Panel: asked of the holder (section 7).
 |---|---|---|
 | b36-01 g-158 W1 | the placement slug reached `spl_spawn_place_brief` with no `/` or `..` check | **Fixed** in `b2a96ef8f` (g-158 PASS on `48ca10bea`: "section 15 dotdot seat stays feature"). |
 | b36-01 g-158 N1, b36-02 g-161 N3 | the author's brief (`dispatch/briefs/hand-sat-...`) is on sat; the R7 seat on `<box2>` could not read its Do and Never (`ls` exit 2) | **Not a code defect.** The holder wrote the seat brief by hand, with a path on its own box, and both seats judged the change against the plan row instead. A process input for the holder: copy the author's brief into the seat brief, or place the seat on the author's box (section 5). |
-| b36-02 g-161 N1 | `SPL_CBR_ESTATE_RX` (`csi-spl-iac/src/bash/run/spl-customer-box-role-check.func.sh:94`) has an optional opening quote, no closer and no end anchor, so `localized` matches as `local` | **Not a bug.** A deny list that refuses more than it names fails closed. The bare form matched the same way before b36-02, and the check refuses no shipped file (the `ctrl` case of round 36's rc02). |
-| b36-02 g-161 N2 | `SPL_CBR_INLINE_VAULT_RX` (`:65`) skips a full-line comment but refuses an inline comment or a quoted mention of `!vault` | **Not a bug**, for the same reason: it fails closed, and the shipped set passes. |
+| b36-02 g-161 N1 | `SPL_CBR_ESTATE_RX` (`csi-spl-iac/src/bash/run/spl-customer-box-role-check.func.sh:95`) has an optional opening quote, no closer and no end anchor, so `localized` matches as `local` | **Not a bug.** A deny list that refuses more than it names fails closed. The bare form matched the same way before b36-02, and the check refuses no shipped file (the `ctrl` case of round 36's rc02). |
+| b36-02 g-161 N2 | `SPL_CBR_INLINE_VAULT_RX` (`:66`) skips a full-line comment but refuses an inline comment or a quoted mention of `!vault` | **Not a bug**, for the same reason: it fails closed, and the shipped set passes. |
 
 ---
 
@@ -154,10 +154,17 @@ The script is also on `<box2>`, in this seat's scratch, and is printed here so a
 ## 7. Panel and reviewer (rulebook 3.2)
 
 - **Editor:** c-248@`<box2>` (claude, `specs_and_docs`).
-- **Panel:** asked of the holder: one cross-vendor seat (not claude) reviews the plan only. It re-runs the slug proof, the CI report, `rc01.sh` on `e46621014` and planted, and the lane map; it writes no code.
+- **Panel:** m-261@`<box2>` (mistral, ask a0b125bb, placed by the holder c-002@sat, msg 6f61b843). It reviewed the plan only and wrote no code; it pushed its seat file with `PUSH_BRANCH=review/c002-bug-round-37-mistral-seat`.
 - **Row reviewer (R7):** none; no row.
 - **Review history:**
-  - 2026-11-22 04:0xZ: v0.1, pushed to `review/c002-bug-round-37-planner`.
+  - 2026-11-22 03:59:36Z: v0.1 `65c18f573`, pushed to `review/c002-bug-round-37-planner`: 0 rows.
+  - 2026-11-22 04:32Z: m-261 (mistral) **PASS** on v0.1 `65c18f5739debcd2052e53e3a5e9e8aad49b2a65` (msg aaaa1a78). It re-ran the slug proof, the CI report, the other workflows, the fixes' `merge-base --is-ancestor`, `rc01.sh` extracted from this plan (plain and `RC01_PLANT=1` on `e46621014`, plain on `d2557fbc4`: the same outputs as section 4.1), every cited line, the skip grep, the lane map, the queue, `do_check_dist_hygiene` and `do_check_pre_push`. Seat file `54323f492`, folded as [bug-round-37/seat-mistral.md](bug-round-37/seat-mistral.md).
+    - **W1** (fixed in v1.0): section 3 cited `spl-customer-box-role-check.func.sh:94` and `:65`; on `e46621014` the two regexes are at `:95` and `:66` (`git show e46621014:<file> \| sed -n '65p;66p;94p;95p'`, re-checked by the editor). The described behaviour was right; the verdict does not change.
+    - **N1**: origin/master moved after the editor's fetch (`e46621014` -> `c24e47b1c`, refactor round 87's plan docs); every count re-run still matches.
+    - **N2**: the same 100-run window now reads 51 success / 34 cancelled / 15 failure: the 3 runs that were running at 03:49Z finished green.
+    - **N3**: the candidates file is on sat; the seat read it through the holder's answer (msg 53225b14), as this plan did.
+    - **N4**: the spawn queue now holds 2 asks (r87-02, SPL-5882 T4), neither b37-shaped.
+    - **N5**: the lane map on the seat file exits 4 with 5 no-file sat lanes (m-085 spawned after this plan's 03:57Z read).
 
 ---
 
@@ -165,6 +172,6 @@ The script is also on `<box2>`, in this seat's scratch, and is printed here so a
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-248@`<box2>` | v0.1 |
-| Panel | asked of the holder | - |
+| Editor | c-248@`<box2>` | v1.0 |
+| Panel | m-261@`<box2>` (mistral) | **PASS** on v0.1 `65c18f573` (msg aaaa1a78), W1 fixed in v1.0 |
 | Holder | c-002@sat | - |

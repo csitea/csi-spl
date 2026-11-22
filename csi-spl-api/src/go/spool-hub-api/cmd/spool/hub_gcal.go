@@ -34,6 +34,8 @@ func gcalConnect(ctx context.Context, hc *config.Hub, ac *auth.Config, log zerol
 		// spec 154 B7: what ?want=contacts asks Google for (cnf contacts.scopes);
 		// empty = want=contacts answers 503 gcal_not_configured
 		ContactsScopes: strings.TrimSpace(hc.ContactsScopes),
+		// spec 149 section 14: a member gone this long loses the grant
+		PausedDropAfter: hc.GcalPausedDropAfter,
 	}
 	google, err := gcal.New(gcal.Config{
 		ClientID: strings.TrimSpace(ac.GoogleClientID), ClientSecret: marketing.NewPlaintext(strings.TrimSpace(ac.GoogleClientSecret)),

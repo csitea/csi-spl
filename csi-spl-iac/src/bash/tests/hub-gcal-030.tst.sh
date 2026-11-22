@@ -15,7 +15,7 @@ fails=0
 skip() { echo "SKIP: $1"; }
 CNF="$APP_ROOT/csi-spl-cnf/csi-spl"
 CFG="$APP_ROOT/csi-spl-api/src/go/spool-hub-api/internal/config/config.go"
-for v in WORKSPACES SCOPES AUTH_URL TOKEN_URL REVOKE_URL USERINFO_URL CALENDAR_BASE; do
+for v in WORKSPACES SCOPES AUTH_URL TOKEN_URL REVOKE_URL USERINFO_URL CALENDAR_BASE PAUSED_DROP_AFTER; do
   grep -qF "env:\"SPOOL_HUB_GCAL_$v\"" "$CFG" \
     && pass "the hub reads SPOOL_HUB_GCAL_$v" || fail "config.go does not name SPOOL_HUB_GCAL_$v"
 done
@@ -37,6 +37,9 @@ for env in dev prd; do
   base=$(yq -r '.env.gcal.calendar_base' "$CNF/$env.env.json")
   grep -qF "\"SPOOL_HUB_GCAL_CALENDAR_BASE\": \"$base\"" <<<"$line" \
     && pass "$env 030 carries SPOOL_HUB_GCAL_CALENDAR_BASE" || fail "$env 030 lacks SPOOL_HUB_GCAL_CALENDAR_BASE"
+  drop=$(yq -r '.env.gcal.paused_drop_after' "$CNF/$env.env.json")
+  grep -qF "\"SPOOL_HUB_GCAL_PAUSED_DROP_AFTER\": \"$drop\"" <<<"$line" \
+    && pass "$env 030 carries SPOOL_HUB_GCAL_PAUSED_DROP_AFTER=\"$drop\"" || fail "$env 030 lacks SPOOL_HUB_GCAL_PAUSED_DROP_AFTER=\"$drop\""
 done
 
 # --- control: [] renders no gcal key, a list joins with commas --------------

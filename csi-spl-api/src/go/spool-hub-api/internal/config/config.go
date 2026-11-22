@@ -538,6 +538,11 @@ type Hub struct {
 	GcalRevokeURL    string   `env:"SPOOL_HUB_GCAL_REVOKE_URL"`
 	GcalUserinfoURL  string   `env:"SPOOL_HUB_GCAL_USERINFO_URL"`
 	GcalCalendarBase string   `env:"SPOOL_HUB_GCAL_CALENDAR_BASE"`
+	// GcalPausedDropAfter is cnf gcal.paused_drop_after (spec 149 section
+	// 14): how long the connection of a member who left the workspace stays
+	// paused before it is revoked at Google and deleted. Unset = the hub's
+	// fallback, 30 days.
+	GcalPausedDropAfter time.Duration `env:"SPOOL_HUB_GCAL_PAUSED_DROP_AFTER"`
 	// The contacts switch (spec 154 2.9, cnf contacts): workspace ids or the
 	// one entry "all"; empty = off, every /v1/me/contacts route answers 404.
 	// ContactsScopes is what the Google connect asks for contacts (B7),

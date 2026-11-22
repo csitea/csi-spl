@@ -16,14 +16,14 @@ import (
 const gcalCols = `connection_id::text, tenant_id, human_id, google_email, calendar_id, status, status_detail,
 	kms_key_id, access_expiry, coalesce(sync_token, ''), out_cursor, due_at, sync_lease_until,
 	coalesce(watch_channel_id::text, ''), coalesce(watch_resource_id, ''), watch_expiry, last_synced_at,
-	created_at, updated_at, source_sync, granted_scopes`
+	created_at, updated_at, source_sync, granted_scopes, paused_at`
 
 func scanGcal(r pgx.Row) (GcalConnection, error) {
 	var c GcalConnection
 	err := r.Scan(&c.ID, &c.Tenant, &c.Human, &c.GoogleEmail, &c.CalendarID, &c.Status, &c.StatusDetail,
 		&c.KMSKeyID, &c.AccessExpiry, &c.SyncToken, &c.OutCursor, &c.DueAt, &c.SyncLeaseUntil,
 		&c.WatchChannelID, &c.WatchResourceID, &c.WatchExpiry, &c.LastSyncedAt, &c.CreatedAt, &c.UpdatedAt,
-		&c.SourceSync, &c.GrantedScopes)
+		&c.SourceSync, &c.GrantedScopes, &c.PausedAt)
 	if len(c.SourceSync) == 0 {
 		c.SourceSync = nil
 	}
@@ -267,6 +267,11 @@ func (s *Postgres) SetGcalStatus(ctx context.Context, l GcalLease, status, detai
 		return ErrInvalidGcal
 	}
 	return s.gcalFencedSet(ctx, l, `status = $3, status_detail = $4, updated_at = $5`, status, detail, now)
+}
+
+// SetGcalPaused implements Gcal on the Postgres store (rdb 0312).
+func (s *Postgres) SetGcalPaused(ctx context.Context, l GcalLease, pausedAt *time.Time, now time.Time) error {
+	return s.gcalFencedSet(ctx, l, `paused_at = $3, updated_at = $4`, pausedAt, now)
 }
 
 // SetGcalWatch implements Gcal on the Postgres store (rdb 0217).

@@ -238,6 +238,17 @@ func (s *Memory) SetGcalStatus(_ context.Context, l GcalLease, status, detail st
 	})
 }
 
+// SetGcalPaused implements Gcal on the Memory store (rdb 0312).
+func (s *Memory) SetGcalPaused(_ context.Context, l GcalLease, pausedAt *time.Time, now time.Time) error {
+	return s.gcalSet(l, func(_ *memGcal, c *GcalConnection) error {
+		c.PausedAt, c.UpdatedAt = nil, now
+		if pausedAt != nil {
+			c.PausedAt = memTime(pausedAt.UTC().Truncate(time.Microsecond))
+		}
+		return nil
+	})
+}
+
 // SetGcalWatch implements Gcal on the Memory store (rdb 0217).
 func (s *Memory) SetGcalWatch(_ context.Context, l GcalLease, w GcalWatch, now time.Time) error {
 	if w.ChannelID != "" && !calendarIDRe.MatchString(w.ChannelID) {

@@ -58,6 +58,22 @@ type GcalConnect struct {
 	// ?want=contacts asks Google for beside "openid email". Empty = a
 	// connect that wants contacts answers 503 gcal_not_configured.
 	ContactsScopes string
+	// PausedDropAfter is cnf gcal.paused_drop_after (spec 149 section 14,
+	// owner msg 08cec636): a connection paused this long because its member
+	// left the workspace is revoked at Google and deleted. Zero = the hub's
+	// fallback gcalPausedDropAfter (30 days), the one the cnf documents.
+	PausedDropAfter time.Duration
+}
+
+// gcalPausedDropAfter is the fallback of GcalConnect.PausedDropAfter.
+const gcalPausedDropAfter = 30 * 24 * time.Hour
+
+// pausedDropAfter is how long a paused connection is kept.
+func (g *GcalConnect) pausedDropAfter() time.Duration {
+	if g.PausedDropAfter > 0 {
+		return g.PausedDropAfter
+	}
+	return gcalPausedDropAfter
 }
 
 // gcalIdentityScopes is the sign-in part every connect asks (spec 154 2.2
@@ -401,24 +417,24 @@ func (s *Server) handleGcalDelete(w http.ResponseWriter, r *http.Request) {
 	if rm == "1" {
 		imported = s.gcalImported(ctx, gs, c)
 	}
-	s.gcalRevoke(ctx, gs, c)
-	if _, err := gs.DeleteGcalConnection(ctx, t.ID, hum); err != nil && !errors.Is(err, store.ErrNotFound) {
+	_ = s.gcalRevoke(ctx, gs, c) // logged; the member asked to cut the link, the row goes either way
+	if err := s.gcalRemove(ctx, gs, c, imported); err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "google calendar connection not deleted")
 		return
 	}
-	s.gcalTrash(ctx, c, imported)
 	s.o.Log.Info().Str("tenant", t.ID).Str("member", hum).Str("connection", c.ID).Int("removed_imported", len(imported)).Msg("gcal: disconnected")
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // gcalRevoke revokes the member's grant at Google (the refresh token revokes
-// the whole grant). A failure is logged and the disconnect goes on: the
-// member asked to cut the link, and the row with the tokens goes either way.
-func (s *Server) gcalRevoke(ctx context.Context, gs store.Gcal, c store.GcalConnection) {
+// the whole grant). A failure is logged and answered: the disconnect goes on
+// (the member asked to cut the link, and the row with the tokens goes either
+// way), the drop of a long-paused connection keeps the row and tries again.
+func (s *Server) gcalRevoke(ctx context.Context, gs store.Gcal, c store.GcalConnection) error {
 	g := s.o.Gcal
 	if !g.configured() {
 		s.o.Log.Warn().Str("connection", c.ID).Msg("gcal: disconnect without a google client, grant not revoked")
-		return
+		return errGcalNoClient
 	}
 	tok, err := gs.GcalTokens(ctx, c.Tenant, c.Human)
 	if err == nil {
@@ -430,6 +446,21 @@ func (s *Server) gcalRevoke(ctx context.Context, gs store.Gcal, c store.GcalConn
 	if err != nil {
 		s.o.Log.Warn().Str("connection", c.ID).Str("err", err.Error()).Msg("gcal: revoke failed")
 	}
+	return err
+}
+
+// errGcalNoClient: no Google client is configured, so nothing is revoked.
+var errGcalNoClient = errors.New("gcal: no google client")
+
+// gcalRemove ends a connection after its revoke: the row is deleted (its map
+// rows cascade) and the imported events go to the member's trash. The
+// disconnect route and the drop of a long-paused connection both end here.
+func (s *Server) gcalRemove(ctx context.Context, gs store.Gcal, c store.GcalConnection, imported []string) error {
+	if _, err := gs.DeleteGcalConnection(ctx, c.Tenant, c.Human); err != nil && !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	s.gcalTrash(ctx, c, imported)
+	return nil
 }
 
 // gcalImported answers the member's events that came from this connection's

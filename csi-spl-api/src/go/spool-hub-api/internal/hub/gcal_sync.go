@@ -246,6 +246,11 @@ func (cy *gcalCycle) sync(ctx context.Context) (*time.Time, error) {
 	if err := cy.member(ctx); err != nil {
 		return nil, err
 	}
+	if cy.c.PausedAt != nil { // a member again: the pause is over
+		if err := cy.gs.SetGcalPaused(ctx, cy.l, nil, cy.now()); err != nil {
+			return nil, err
+		}
+	}
 	cursor, err := cy.twoWay(ctx)
 	if err != nil {
 		return cursor, err
@@ -272,15 +277,45 @@ func (cy *gcalCycle) member(ctx context.Context) error {
 
 // pause ends the cycle of a removed member: the connection, its tokens,
 // map rows and the Google calendar as it is are kept, and looked at again
-// after gcalOffRecheck, so a member admitted again syncs on.
+// after gcalOffRecheck, so a member admitted again syncs on. The first
+// pause is recorded (paused_at); one paused longer than
+// GcalConnect.PausedDropAfter is dropped instead.
 func (cy *gcalCycle) pause(ctx context.Context) error {
+	now := cy.now()
+	if cy.c.PausedAt != nil && now.Sub(*cy.c.PausedAt) > cy.g.pausedDropAfter() {
+		return cy.drop(ctx)
+	}
 	cy.s.o.Log.Info().Str("tenant", cy.c.Tenant).Str("connection", cy.c.ID).Msg("gcal: not a member, sync paused")
+	if cy.c.PausedAt == nil {
+		if err := cy.gs.SetGcalPaused(ctx, cy.l, &now, now); err != nil {
+			return err
+		}
+	}
 	if cy.c.StatusDetail != gcalNotMemberDetail {
 		if err := cy.gs.SetGcalStatus(ctx, cy.l, cy.c.Status, gcalNotMemberDetail, cy.now()); err != nil {
 			return err
 		}
 	}
 	return cy.finish(ctx, nil, cy.now().Add(gcalOffRecheck))
+}
+
+// drop ends the connection of a member who did not come back within
+// GcalConnect.PausedDropAfter (owner msg 08cec636, poll 2c0013de A): the
+// grant is revoked at Google, then the row is deleted and its imports
+// trashed, as a disconnect with remove_imported=1. A revoke that fails keeps
+// the row, paused, and the next recheck tries again: a connection is never
+// deleted with its grant still live at Google.
+func (cy *gcalCycle) drop(ctx context.Context) error {
+	imported := cy.s.gcalImported(ctx, cy.gs, cy.c)
+	if err := cy.s.gcalRevoke(ctx, cy.gs, cy.c); err != nil {
+		return cy.finish(ctx, nil, cy.now().Add(gcalOffRecheck))
+	}
+	if err := cy.s.gcalRemove(ctx, cy.gs, cy.c, imported); err != nil {
+		return err
+	}
+	cy.s.o.Log.Info().Str("tenant", cy.c.Tenant).Str("connection", cy.c.ID).Int("removed_imported", len(imported)).
+		Msg("gcal: not a member past the limit, grant revoked and connection deleted")
+	return nil
 }
 
 // twoWay is the hub's own calendar: In, then out.

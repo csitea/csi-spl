@@ -132,6 +132,10 @@ cost_labels_translate_daily_chars = {{ tr_cost.get("labels_translate_daily_chars
 {%- set gc_ws = gc_ws if gc_ws is string else (gc_ws | join(",")) %}
 {%- if gc_ws %}
 {%- set _ = run_env.update({"SPOOL_HUB_GCAL_WORKSPACES": gc_ws, "SPOOL_HUB_GCAL_SCOPES": gc["scopes"], "SPOOL_HUB_GCAL_AUTH_URL": gc["auth_url"], "SPOOL_HUB_GCAL_TOKEN_URL": gc["token_url"], "SPOOL_HUB_GCAL_REVOKE_URL": gc["revoke_url"], "SPOOL_HUB_GCAL_USERINFO_URL": gc["userinfo_url"], "SPOOL_HUB_GCAL_CALENDAR_BASE": gc["calendar_base"]}) %}
+{#- spec 149 section 14 (SPL-6272): a member gone this long loses the grant #}
+{%- if gc.get("paused_drop_after") %}
+{%- set _ = run_env.update({"SPOOL_HUB_GCAL_PAUSED_DROP_AFTER": gc["paused_drop_after"] | string}) %}
+{%- endif %}
 {%- endif %}
 {#- spec 154 S4 (SPL-4263): cnf contacts reaches the hub as
     SPOOL_HUB_CONTACTS_*, the workspaces joined with commas or the literal

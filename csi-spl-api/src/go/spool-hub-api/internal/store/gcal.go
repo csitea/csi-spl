@@ -67,6 +67,9 @@ type Gcal interface {
 	SetGcalCalendar(ctx context.Context, l GcalLease, calendarID string, now time.Time) error
 	// SetGcalStatus sets connected, error or revoked with its reason.
 	SetGcalStatus(ctx context.Context, l GcalLease, status, detail string, now time.Time) error
+	// SetGcalPaused stores when the sync was first paused for a member who
+	// left the workspace (rdb 0312, spec 149 section 14); nil clears it.
+	SetGcalPaused(ctx context.Context, l GcalLease, pausedAt *time.Time, now time.Time) error
 	// SetGcalWatch stores the push channel; a zero GcalWatch clears it.
 	SetGcalWatch(ctx context.Context, l GcalLease, w GcalWatch, now time.Time) error
 	// PutGcalEventMap upserts the map row of m.EventID. ErrConflict when
@@ -109,6 +112,10 @@ type GcalConnection struct {
 	// by the connect (rdb 0226, spec 154 B7); "" on a row connected before
 	// B7, which the calendar sync reads as a calendar grant.
 	GrantedScopes string
+	// PausedAt is when the sync was first paused because the human is no
+	// longer a member of the workspace (rdb 0312, spec 149 section 14); nil
+	// when it is not paused.
+	PausedAt *time.Time
 }
 
 // GcalTokens is a connection's sealed tokens: ciphertext only, the KMS key

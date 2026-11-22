@@ -1040,14 +1040,14 @@ access check.
 The rule (`hub/gcal_sync.go`):
 
 - **The gate.** Before any Google call, the cycle's `sync` (:245) asks
-  `member` (:260): the connection's human must still hold `self.keys` in
+  `member` (:265): the connection's human must still hold `self.keys` in
   the workspace, read through the hub's authorizer (`hub/rbac.go:45`). It
   is the permission the connect, "Sync now" and disconnect routes ask for
-  (`hub/gcal_connect.go:173`, `:382`, `hub/gcal_sync.go:134`). No role
+  (`hub/gcal_connect.go:189`, `:398`, `hub/gcal_sync.go:134`). No role
   (`rbac.ErrNotMember`, also a disabled member) or a role without it is
   `errGcalNotMember`; any other error is a failed cycle as before, retried
   after 5 minutes.
-- **Paused, not dropped.** `pause` (:276) makes no Google call and writes
+- **Paused, not dropped at once.** `pause` (:283) makes no Google call and writes
   nothing into Spool: neither half runs. The row, its sealed tokens and
   its map rows are kept; `status_detail` reads "not a member of this
   workspace: sync paused" and the row is due again after an hour
@@ -1059,11 +1059,25 @@ The rule (`hub/gcal_sync.go`):
   it, and Google edits there no longer reach Spool. Emptying it would need
   Google calls made on the grant of someone who is no longer a member, and
   it holds the member's own Google events too, which are theirs.
-- **Open: the grant of a member who never comes back.** Its tokens stay
-  sealed in `gcal_connections` until the human row goes; the disconnect
-  route asks for `self.keys` in the workspace, so the removed member
-  cannot use it. Dropping a long-paused connection (revoke at Google,
-  delete the row) is a separate decision for the owner, not built here.
+- **Dropped after 30 days paused** (owner HUM-5, msg 08cec636, poll
+  2c0013de answer A: "Revoke it at Google and delete it after 30 days
+  paused"; SPL-6272). The first paused cycle records when the pause began
+  (`gcal_connections.paused_at`, rdb 0312); the hourly rechecks keep it,
+  and a cycle whose member passes the gate again clears it (`sync`,
+  :245). Once a connection has been paused longer than cnf
+  `gcal.paused_drop_after` (720h; the hub's fallback, also 30 days, is
+  `gcalPausedDropAfter`, `hub/gcal_connect.go:69`), its next cycle
+  `drop`s it (:308): the grant is revoked at Google first (`gcalRevoke`,
+  `hub/gcal_connect.go:433`), then the row is deleted with its map rows and
+  the imported events go to the member's trash (`gcalRemove`, :458, the
+  end the disconnect route uses; as `remove_imported=1`). A revoke Google
+  refuses keeps the row, paused, and the next hourly recheck tries again:
+  a connection is never deleted while its grant may still be live. A
+  member added back before the limit resumes with no reconnect. Tests:
+  `TestGcalSyncPausedKeptBeforeLimit`,
+  `TestGcalSyncPausedDroppedAfterLimit`,
+  `TestGcalSyncPausedDropKeepsRowOnRevokeFailure`
+  (`hub/gcal_sync_member_test.go`, memory and Postgres).
 
 Tests (`hub/gcal_sync_member_test.go`, memory and Postgres under
 `PRE_PUSH_TIER=full`): `TestGcalSyncRemovedMemberPaused` (0 Google calls,

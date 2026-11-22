@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { contactCreate, contactDelete, contactErrorKey, contactGet, contactPatch, contactReread, contactsImport, contactsImportErrorKey, contactsList, contactsSkipKey, onContactsChanged } from '../../src/utils/contacts-client.mjs'
+import { contactCreate, contactDelete, contactErrorKey, contactGet, contactPatch, contactPhoto, contactReread, contactsImport, contactsImportErrorKey, contactsList, contactsSkipKey, onContactsChanged } from '../../src/utils/contacts-client.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const ANSWERS = JSON.parse(readFileSync(join(WUI, '../csi-spl-api/src/go/spool-hub-api/internal/hub/testdata/contacts_answers.golden.json'), 'utf8'))
@@ -276,5 +276,94 @@ describe('spec 154 B17: the CSV import', () => {
     assert.equal(contactsSkipKey('bad_birthday'), 'contacts.import.skip_bad_birthday')
     assert.equal(contactsSkipKey('row_empty'), 'contacts.import.skip_row_empty')
     assert.equal(contactsSkipKey('too_long'), 'contacts.import.skip_too_long')
+  })
+})
+
+describe('spec 154 B17: the card\'s five fields', () => {
+  const EN = JSON.parse(readFileSync(join(WUI, 'i18n/locales/en.json'), 'utf8')).contacts
+  const MORE = { company: 'Example Oy', job_title: 'Engineer', birthday: '--05-31', notes: 'Line one\nLine two' }
+
+  it('create and patch send the four new values; a cleared birthday goes as ""', async () => {
+    hubAnswers('create')
+    await contactCreate(HUB, { ...VALUES, ...MORE })
+    assert.deepEqual(sent[0].body, { ...VALUES, ...MORE })
+    hubAnswers('patch')
+    await contactPatch(HUB, 'k1', { ...VALUES, ...MORE, birthday: null })
+    assert.equal(sent[1].body.birthday, '')
+  })
+
+  it('the mock keeps them, and a cleared birthday reads back null as the hub answers', async () => {
+    const made = await contactCreate(MOCK, { ...VALUES, ...MORE })
+    const got = await contactGet(MOCK, made.contact_id)
+    for (const [k, v] of Object.entries(MORE)) assert.equal(got[k], v)
+    assert.equal(got.in_only, false)
+    assert.equal(got.photo, null)
+    const year = await contactPatch(MOCK, made.contact_id, { ...VALUES, ...MORE, birthday: '1990-05-31' })
+    assert.equal(year.birthday, '1990-05-31')
+    assert.equal((await contactPatch(MOCK, made.contact_id, { ...VALUES, ...MORE, birthday: null })).birthday, null)
+    assert.equal(ANSWERS.get.body.birthday, null)
+  })
+
+  it('the mock refuses what the hub refuses, and the form names each', async () => {
+    const bad = await contactCreate(MOCK, { ...VALUES, birthday: '31.05.1990' }).catch((e) => e)
+    assert.equal(contactErrorKey(bad), 'contacts.error_bad_birthday')
+    const long = await contactCreate(MOCK, { ...VALUES, notes: 'x'.repeat(8001) }).catch((e) => e)
+    assert.equal(contactErrorKey(long), 'contacts.error_too_long')
+    const atCap = await contactCreate(MOCK, { ...VALUES, notes: 'x'.repeat(8000), company: 'y'.repeat(200) })
+    assert.equal(atCap.notes.length, 8000)
+  })
+
+  it('every key the card and its form use is in en.json', () => {
+    for (const k of ['company', 'job_title', 'birthday', 'notes', 'birthday_hint', 'in_only', 'error_too_long', 'error_bad_birthday']) assert.ok(EN[k], k)
+    for (const code of ['too_long', 'bad_birthday']) assert.ok(EN[contactErrorKey({ error: code }).replace('contacts.', '')], code)
+  })
+})
+
+describe('spec 154 B17: the picture', () => {
+  const SHA = 'a'.repeat(64)
+  const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+  it('no photo: no fetch, no picture', async () => {
+    let calls = 0
+    assert.equal(await contactPhoto(HUB, { contact_id: 'k1', photo: null }, async () => { calls++; return 'x' }), '')
+    assert.equal(calls, 0)
+  })
+
+  it('asks the photo route with the sha256 in the URL and the session\'s credentials, on the network', async () => {
+    const asked = []
+    globalThis.fetch = async (url, init) => { sent.push({ url: String(url), credentials: init?.credentials }); return new Response(PNG) }
+    const load = async (url, o) => { asked.push({ url, credentials: o.credentials }); const r = await o.fetchFn(url, { credentials: o.credentials }); return r.ok ? 'data:image/png;base64,x' : '' }
+    assert.equal(await contactPhoto(HUB, { contact_id: 'k/1', photo: SHA }, load), 'data:image/png;base64,x')
+    assert.deepEqual(asked, [{ url: `http://hub.example.com/v1/me/contacts/k%2F1/photo?workspace=t1&v=${SHA}`, credentials: 'include' }])
+    assert.equal(sent[0].url, asked[0].url)
+  })
+
+  it('at most 4 pictures are asked at once; each that ends lets the next go', async () => {
+    let running = 0
+    let most = 0
+    const ends = []
+    const load = () => new Promise((resolve) => {
+      running++
+      most = Math.max(most, running)
+      ends.push(() => { running--; resolve('data:image/png;base64,x') })
+    })
+    const all = Promise.all([1, 2, 3, 4, 5, 6].map((n) => contactPhoto(HUB, { contact_id: 'k' + n, photo: SHA }, load)))
+    await new Promise((r) => setTimeout(r, 0))
+    assert.equal(ends.length, 4)
+    ends.shift()()
+    await new Promise((r) => setTimeout(r, 0))
+    assert.equal(ends.length, 4)
+    while (ends.length) { ends.shift()(); await new Promise((r) => setTimeout(r, 0)) }
+    assert.equal((await all).length, 6)
+    assert.equal(most, 4)
+  })
+
+  it('the mock answers the bytes it holds, a 404 for none, and counts its reads', async () => {
+    localStorage.setItem('spool.mock.contact_photos', JSON.stringify({ k1: Buffer.from(PNG).toString('base64') }))
+    globalThis.SPOOL_MOCK_CONTACT_PHOTO_READS = 0
+    const load = async (url, o) => { const r = await o.fetchFn(url); return r.ok ? Buffer.from(await r.arrayBuffer()).toString('hex') : String(r.status) }
+    assert.equal(await contactPhoto(MOCK, { contact_id: 'k1', photo: SHA }, load), Buffer.from(PNG).toString('hex'))
+    assert.equal(await contactPhoto(MOCK, { contact_id: 'k2', photo: SHA }, load), '404')
+    assert.equal(globalThis.SPOOL_MOCK_CONTACT_PHOTO_READS, 2)
   })
 })

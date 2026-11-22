@@ -3,11 +3,16 @@
      this workspace (member_id), else Invite for a reader who may invite. Email
      and phone open the reader's own apps (contact-links.mjs, rdb 0193).
      /people/contact/new is the same form, empty: the panel's Add contact (+),
-     with Import from file above its fields (SPL-5279). -->
+     with Import from file above its fields (SPL-5279).
+     Spec 154 B17 (11.3, 11.4): company, job title, birthday and notes, shown
+     when set and edited in the form; the picture (from Google only, no upload)
+     beside the name, as a data: URL; the in_only line when a value from Google
+     was cut and the contact is no longer written back. -->
 <template>
   <div class="feed-col" data-test="contact-page">
     <header class="feed-header">
       <MobileBack />
+      <img v-if="photoSrc && !isNew" :src="photoSrc" alt="" class="contact-head__pic" data-test="contact-photo">
       <h2 class="contact-head">{{ isNew ? t('people.add_contact') : shownName }}</h2>
     </header>
     <div class="feed-body">
@@ -22,7 +27,17 @@
         </div>
         <label v-for="f in FIELDS" :key="f.key" class="contact-card__field">
           <span>{{ t('contacts.' + f.key) }}</span>
-          <input v-model="form[f.key]" class="input" :type="f.type" autocomplete="off" :data-test="'contact-input-' + f.key">
+          <textarea v-if="f.type === 'textarea'" v-model="form[f.key]" class="input" rows="4" :maxlength="f.max" :data-test="'contact-input-' + f.key" />
+          <input
+            v-else
+            v-model="form[f.key]"
+            class="input"
+            :type="f.type"
+            :maxlength="f.max"
+            :placeholder="f.key === 'birthday' ? t('contacts.birthday_hint') : undefined"
+            autocomplete="off"
+            :data-test="'contact-input-' + f.key"
+          >
         </label>
         <p v-if="error" class="contact-card__error" role="alert" data-test="contact-error">{{ t(error) }}</p>
         <div class="contact-card__actions contact-card__actions--form">
@@ -46,7 +61,14 @@
             <a v-if="phoneLink" :href="phoneLink" :target="blank(phoneLink)" rel="noopener noreferrer">{{ contact?.phone }}</a>
             <template v-else>{{ contact?.phone || '-' }}</template>
           </dd>
+          <template v-for="f in MORE" :key="f">
+            <template v-if="contact?.[f]">
+              <dt>{{ t('contacts.' + f) }}</dt>
+              <dd :class="{ 'contact-card__notes-text': f === 'notes' }" :data-test="'contact-' + f">{{ contact?.[f] }}</dd>
+            </template>
+          </template>
         </dl>
+        <p v-if="contact?.in_only" class="muted contact-card__in-only" data-test="contact-in-only">{{ t('contacts.in_only') }}</p>
         <div class="contact-card__actions">
           <button v-if="canMessage" type="button" class="btn" data-test="contact-message" @click="message">
             <UiIcon name="messages" :size="16" /><span>{{ t('people.message') }}</span>
@@ -77,26 +99,37 @@
 <script setup lang="ts">
 import UiDialog from '~/components/UiDialog.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { loadAvatarImageUrl } from '~/utils/avatar'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { contactHref } from '~/utils/contact-links.mjs'
-import { contactCreate, contactDelete, contactErrorKey, contactGet, contactInvite, contactPatch, contactReread } from '~/utils/contacts-client.mjs'
+import { contactCreate, contactDelete, contactErrorKey, contactGet, contactInvite, contactPatch, contactPhoto, contactReread } from '~/utils/contacts-client.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { contactName } from '~/utils/people-order.mjs'
 import { userErrorKey } from '~/utils/tenant-users.mjs'
 
 const ContactsImportDialog = defineAsyncComponent(() => import('~/components/ContactsImportDialog.vue'))
 
-type Contact = { contact_id: string, first_name: string, last_name: string, email: string | null, phone: string | null, member_id?: string | null }
-type FieldKey = 'first_name' | 'last_name' | 'email' | 'phone'
+type Contact = {
+  contact_id: string, first_name: string, last_name: string, email: string | null, phone: string | null, member_id?: string | null
+  company?: string, job_title?: string, birthday?: string | null, notes?: string, in_only?: boolean, photo?: string | null
+}
+type FieldKey = 'first_name' | 'last_name' | 'email' | 'phone' | 'company' | 'job_title' | 'birthday' | 'notes'
 
-const FIELDS: Array<{ key: FieldKey, type: string }> = [
-  { key: 'first_name', type: 'text' },
-  { key: 'last_name', type: 'text' },
+/* max = the hub's caps (spec 154 11.3), so a too_long is rare; the hub still checks */
+const FIELDS: Array<{ key: FieldKey, type: string, max?: number }> = [
+  { key: 'first_name', type: 'text', max: 100 },
+  { key: 'last_name', type: 'text', max: 100 },
   { key: 'email', type: 'email' },
   { key: 'phone', type: 'tel' },
+  { key: 'company', type: 'text', max: 200 },
+  { key: 'job_title', type: 'text', max: 200 },
+  { key: 'birthday', type: 'text', max: 10 },
+  { key: 'notes', type: 'textarea', max: 8000 },
 ]
+/* the card shows these only when set */
+const MORE = ['company', 'job_title', 'birthday', 'notes'] as const
 
 const { t, locale } = useI18n({ useScope: 'global' })
 const route = useRoute()
@@ -110,12 +143,13 @@ const id = computed(() => decodeURIComponent(String(route.params.id || '')))
 const isNew = computed(() => id.value === 'new')
 const contact = ref<Contact | null>(null)
 const view = ref<'loading' | 'missing' | 'form' | 'card'>('loading')
-const form = reactive<Record<FieldKey, string>>({ first_name: '', last_name: '', email: '', phone: '' })
+const form = reactive<Record<FieldKey, string>>({ first_name: '', last_name: '', email: '', phone: '', company: '', job_title: '', birthday: '', notes: '' })
 const busy = ref(false)
 const error = ref('')
 const said = ref(false)
 const confirmOpen = ref(false)
 const importOpen = ref(false)
+const photoSrc = ref('')
 
 const shownName = computed(() => contactName(contact.value))
 const canMessage = computed(() => Boolean(contact.value?.member_id) && contact.value?.member_id !== roster.self?.id)
@@ -125,10 +159,15 @@ const phoneLink = computed(() => (contact.value?.phone ? contactHref('tel:' + co
 const blank = (href: string) => (/^https:/i.test(href) ? '_blank' : undefined)
 
 function fillForm(c: Contact | null) {
-  form.first_name = c?.first_name || ''
-  form.last_name = c?.last_name || ''
-  form.email = c?.email || ''
-  form.phone = c?.phone || ''
+  for (const f of FIELDS) form[f.key] = String(c?.[f.key] || '')
+}
+
+/* the picture of the contact on screen; a later contact's answer wins */
+async function showPhoto(c: Contact | null) {
+  photoSrc.value = ''
+  if (!c?.photo) return
+  const src = await contactPhoto(api, c, loadAvatarImageUrl)
+  if (contact.value?.contact_id === c.contact_id && contact.value?.photo === c.photo) photoSrc.value = src
 }
 
 async function load() {
@@ -136,6 +175,7 @@ async function load() {
   said.value = false
   if (isNew.value) {
     contact.value = null
+    photoSrc.value = ''
     fillForm(null)
     view.value = 'form'
     return
@@ -144,6 +184,7 @@ async function load() {
   try {
     contact.value = await withSessionRetry(api, () => contactGet(api, id.value)) as Contact
     view.value = 'card'
+    void showPhoto(contact.value)
   } catch {
     contact.value = null
     view.value = 'missing'
@@ -171,6 +212,10 @@ async function save() {
     last_name: form.last_name.trim(),
     email: form.email.trim() || null,
     phone: form.phone.trim() || null,
+    company: form.company.trim(),
+    job_title: form.job_title.trim(),
+    birthday: form.birthday.trim() || null,
+    notes: form.notes.trim(),
   }
   try {
     if (isNew.value) {
@@ -180,6 +225,7 @@ async function save() {
       const row = await contactPatch(api, id.value, values)
       contact.value = await contactReread(api, id.value, row, contact.value) as Contact
       view.value = 'card'
+      void showPhoto(contact.value)
     }
   } catch (e) {
     error.value = contactErrorKey(e)
@@ -232,6 +278,10 @@ onMounted(() => {
 
 <style scoped>
 .contact-head { min-width: 0; overflow-wrap: anywhere; }
+.contact-head__pic { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.contact-card__notes-text { white-space: pre-wrap; }
+.contact-card__in-only { margin: 0; overflow-wrap: anywhere; }
+.contact-card--form textarea.input { height: auto; min-height: calc(var(--contact-input-h) * 3); padding: 6px 10px; resize: vertical; font-family: inherit; }
 .contact-card { padding: 16px; max-width: 640px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .contact-card__field { display: flex; flex-direction: column; gap: 4px; }
 .contact-card__field span { color: var(--color-muted); font-size: 0.8125rem; }

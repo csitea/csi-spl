@@ -9,6 +9,7 @@
  *   PATCH  /v1/me/contacts/{id}                the contact, member_id null
  *   DELETE /v1/me/contacts/{id}                204
  *   POST   /v1/me/contacts/import[?dry_run=1]  a text/csv body, the counts (B17)
+ *   GET    /v1/me/contacts/{id}/photo?v=<sha256>  the picture's bytes, 404 for none (B17)
  *
  * The contact is the whole body, no wrapper. A patch keeps a field sent as null
  * and clears one sent as "". tests/unit/contacts-client.test.mjs holds the
@@ -20,16 +21,24 @@
  * A refusal throws { status, error } (status 0 off the network). No bearer:
  * the routes are a signed-in person's and answer 403 person_only to one. The
  * mock keeps the list in localStorage (MOCK_CONTACTS_KEY) and counts its reads
- * in globalThis.SPOOL_MOCK_CONTACTS_READS, so an e2e can count the calls.
+ * in globalThis.SPOOL_MOCK_CONTACTS_READS, so an e2e can count the calls; its
+ * pictures are base64 bytes by contact_id (MOCK_PHOTOS_KEY), their reads counted
+ * in globalThis.SPOOL_MOCK_CONTACT_PHOTO_READS.
  */
 import { BOOT_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 const MOCK_CONTACTS_KEY = 'spool.mock.contacts'
+const MOCK_PHOTOS_KEY = 'spool.mock.contact_photos'
 const ROUTE = '/v1/me/contacts'
 /* the hub answers in created_at order and the panel sorts A-Z, so it needs every page */
 const MAX_PAGES = 100
 /* the hub's cap, contactsImportMaxBytes: a bigger file is refused before it is sent */
 const IMPORT_MAX_BYTES = 5 << 20
+/* spec 154 11.4: the rows ask at most this many pictures at once */
+const PHOTO_PARALLEL = 4
+/* the hub's caps (rdb contacts columns, spec 154 11.3): over one, too_long */
+const MOCK_CAPS = { first_name: 100, last_name: 100, company: 200, job_title: 200, notes: 8000 }
+const BIRTHDAY = /^(?:\d{4}|-)-\d{2}-\d{2}$/
 
 function contactsUrl(api, tail, params) {
   const q = new URLSearchParams()
@@ -87,11 +96,13 @@ function mockKeep(list) {
 
 let mockMade = 0
 
-/** The hub's checks on the four values, its error codes. */
+/** The hub's checks on the values, its error codes. */
 function mockChecked(row) {
   if (!row.first_name && !row.last_name && !row.email && !row.phone) throw refused(400, 'contact_empty')
   if (row.email && !/^[^@\s]+@[^@\s]+$/.test(row.email)) throw refused(400, 'bad_email')
   if (row.phone && !/^\+?[\d\s()./-]{3,}$/.test(row.phone)) throw refused(400, 'bad_phone')
+  if (Object.entries(MOCK_CAPS).some(([k, cap]) => [...String(row[k] || '')].length > cap)) throw refused(400, 'too_long')
+  if (row.birthday && !BIRTHDAY.test(row.birthday)) throw refused(400, 'bad_birthday')
   return row
 }
 
@@ -107,7 +118,7 @@ function mockWrite(values, id) {
   const now = new Date().toISOString()
   const was = id ? mockFound(list, id) : { contact_id: 'mock-' + Date.now().toString(36) + '-' + (++mockMade), first_name: '', last_name: '', email: null, phone: null, google: false, member_id: null, created_at: now, company: '', job_title: '', birthday: null, notes: '', in_only: false, photo: null }
   const next = { ...was, ...Object.fromEntries(Object.entries(values).filter(([, v]) => v !== null)), updated_at: now }
-  const row = mockChecked({ ...next, email: next.email || null, phone: next.phone || null })
+  const row = mockChecked({ ...next, email: next.email || null, phone: next.phone || null, birthday: next.birthday || null })
   mockKeep(id ? list.map((c) => (c.contact_id === id ? row : c)) : [...list, row])
   return { ...row, member_id: null }
 }
@@ -120,7 +131,7 @@ const MOCK_GOOGLE_COLUMNS = {
   email: ['E-mail 1 - Value'],
   phone: ['Phone 1 - Value'],
 }
-const MOCK_SKIP_CODE = { contact_empty: 'row_empty', bad_email: 'bad_email', bad_phone: 'bad_phone' }
+const MOCK_SKIP_CODE = { contact_empty: 'row_empty', bad_email: 'bad_email', bad_phone: 'bad_phone', too_long: 'too_long', bad_birthday: 'bad_birthday' }
 const mockPhoneKey = (phone) => 'p:' + phone.replace(/\D/g, '')
 const mockMatchKey = (c) => {
   if (c.email) return 'e:' + c.email.toLowerCase()
@@ -220,14 +231,20 @@ export async function contactGet(api, id) {
   return call(api, 'GET', '/' + encodeURIComponent(id))
 }
 
-/** @param {any} api @param {{ first_name: string, last_name: string, email: string | null, phone: string | null }} values */
+/**
+ * The values a create or a patch sends: the four, and the four of spec 154
+ * 11.3 (birthday YYYY-MM-DD or --MM-DD). in_only and photo are the hub's.
+ * @typedef {{ first_name: string, last_name: string, email: string | null, phone: string | null, company?: string, job_title?: string, birthday?: string | null, notes?: string }} ContactValues
+ */
+
+/** @param {any} api @param {ContactValues} values */
 export async function contactCreate(api, values) {
   const row = api.mock ? mockWrite(values) : await call(api, 'POST', '', { body: values })
   changed()
   return row
 }
 
-/** @param {any} api @param {string} id @param {{ first_name: string, last_name: string, email: string | null, phone: string | null }} values */
+/** @param {any} api @param {string} id @param {ContactValues} values */
 export async function contactPatch(api, id, values) {
   const body = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v ?? '']))
   const row = api.mock ? mockWrite(body, id) : await call(api, 'PATCH', '/' + encodeURIComponent(id), { body })
@@ -296,5 +313,73 @@ export function contactInvite(api, email, locale) {
 /** i18n key of a refused save. */
 export function contactErrorKey(err) {
   const code = String(err?.error || '')
-  return ['contact_empty', 'bad_email', 'bad_phone'].includes(code) ? 'contacts.error_' + code : 'contacts.save_failed'
+  return ['contact_empty', 'bad_email', 'bad_phone', 'too_long', 'bad_birthday'].includes(code) ? 'contacts.error_' + code : 'contacts.save_failed'
+}
+
+/**
+ * The picture's URL, '' for none. The sha256 is in it, so a changed picture is
+ * a new URL and the page-life cache per URL (avatar.ts) fetches each one once.
+ * @param {any} api @param {{ contact_id: string, photo?: string | null }} c
+ */
+function contactPhotoUrl(api, c) {
+  if (!c?.photo) return ''
+  return contactsUrl(api, '/' + encodeURIComponent(c.contact_id) + '/photo', { v: c.photo })
+}
+
+function mockPhotoBytes(id) {
+  try {
+    const b64 = JSON.parse(globalThis.localStorage?.getItem(MOCK_PHOTOS_KEY) ?? '{}')?.[id]
+    return typeof b64 === 'string' && b64 ? Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The fetch the picture loader uses: the network, or on the mock the bytes of
+ * MOCK_PHOTOS_KEY, answered as the hub does (the bytes, or a 404).
+ * @param {any} api @returns {typeof fetch}
+ */
+function contactPhotoFetch(api) {
+  if (!api.mock) return (url, init) => globalThis.fetch(url, init)
+  return async (url) => {
+    const g = /** @type {{ SPOOL_MOCK_CONTACT_PHOTO_READS?: number }} */ (globalThis)
+    g.SPOOL_MOCK_CONTACT_PHOTO_READS = (g.SPOOL_MOCK_CONTACT_PHOTO_READS || 0) + 1
+    const id = decodeURIComponent(String(url).match(/\/contacts\/([^/?]+)\/photo/)?.[1] || '')
+    const bytes = mockPhotoBytes(id)
+    return bytes ? new Response(bytes, { status: 200 }) : new Response(null, { status: 404 })
+  }
+}
+
+let photoRunning = 0
+const photoWaiting = []
+
+/** Run `task` once fewer than PHOTO_PARALLEL picture fetches are running. */
+function photoSlot(task) {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      photoRunning++
+      Promise.resolve().then(task).then(resolve, reject).finally(() => {
+        photoRunning--
+        photoWaiting.shift()?.()
+      })
+    }
+    if (photoRunning < PHOTO_PARALLEL) run()
+    else photoWaiting.push(run)
+  })
+}
+
+/**
+ * The contact's picture as a data: URL, '' for none: the CSP is img-src 'self'
+ * data:, so a blob: URL would be blocked (spec 154 11.4, avatar.ts). `load` is
+ * avatar.ts loadAvatarImageUrl (magic bytes, the page-life cache per URL),
+ * passed in so this file stays plain JS for the unit tests.
+ * @param {any} api @param {{ contact_id: string, photo?: string | null }} c
+ * @param {(url: string, opts: { credentials?: RequestCredentials, fetchFn?: typeof fetch }) => Promise<string>} load
+ * @returns {Promise<string>}
+ */
+export function contactPhoto(api, c, load) {
+  const url = contactPhotoUrl(api, c)
+  if (!url) return Promise.resolve('')
+  return photoSlot(() => load(url, { credentials: api.credentials, fetchFn: contactPhotoFetch(api) }))
 }

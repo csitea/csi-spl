@@ -10,6 +10,7 @@
  * at most 20 ids; `store` is any Storage-shaped object (see prefs.mjs).
  */
 import { storageGetJson, storageSetJson } from './prefs.mjs'
+import { contactName } from './people-order.mjs'
 
 export const PALETTE_RECENT_KEY = 'spool.palette-recent'
 export const PALETTE_RECENT_MAX = 20
@@ -158,4 +159,33 @@ export function noteRows(list, untitled) {
     icon: 'notes',
     to: '/notes?note=' + encodeURIComponent(n.id),
   }))
+}
+
+/**
+ * Spec 154 B10 (2.3, C26): the reader's contacts as rows of the existing
+ * `people` group; a row opens the contact's card (2.7). A contact whose
+ * member_id names a listed person (`members`, the palette's people rows'
+ * ids) is that person's row already, so it gets none: it shows once, as the
+ * member. A contact with no name, email or phone gets none either.
+ * @param {{ contact_id: string, member_id?: string | null, first_name?: string, last_name?: string, email?: string | null, phone?: string | null }[]} list
+ * @param {Iterable<string>} members
+ */
+export function contactRows(list, members) {
+  if (!Array.isArray(list)) return []
+  const listed = new Set(members || [])
+  const rows = []
+  for (const c of list) {
+    if (!c || !c.contact_id || (c.member_id && listed.has(c.member_id))) continue
+    const label = contactName(c)
+    if (!label) continue
+    rows.push({
+      id: 'contact:' + c.contact_id,
+      group: 'people',
+      label,
+      keywords: [c.email, c.phone].filter(Boolean).map(String),
+      icon: 'user',
+      to: '/people/contact/' + encodeURIComponent(c.contact_id),
+    })
+  }
+  return rows
 }

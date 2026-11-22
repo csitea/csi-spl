@@ -5,8 +5,9 @@ import assert from 'node:assert/strict'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 import {
   PALETTE_RECENT_KEY, PALETTE_RECENT_MAX, TIER_EXACT, TIER_PREFIX, TIER_WORD, TIER_SUBSTRING,
-  parseQuery, matchTier, rankItems, loadRecent, pushRecent, noteRows,
+  parseQuery, matchTier, rankItems, loadRecent, pushRecent, noteRows, contactRows,
 } from '../../src/utils/palette.mjs'
+import { readFileSync } from 'node:fs'
 
 const item = (id, label = id, keywords) => (keywords ? { id, label, keywords } : { id, label })
 const ids = (rows) => rows.map((r) => r.id)
@@ -119,5 +120,44 @@ describe('C30: a note is a palette hit that opens it', () => {
   it('CONTROL: no notes is no hit for the same title', () => {
     assert.deepEqual(ids(rankItems(noteRows([], 'U'), 'milk', [])), [])
     assert.deepEqual(noteRows(null, 'U'), [])
+  })
+})
+
+describe('C26: contacts in the palette\'s people group (spec 154 B10)', () => {
+  const list = [
+    { contact_id: 'c-1', first_name: 'FirstName', last_name: 'LastName', email: 'one@example.com', phone: null, member_id: null },
+    { contact_id: 'c-2', first_name: 'Member', last_name: 'Here', email: 'two@example.com', phone: null, member_id: 'HUM-7' },
+    { contact_id: 'c-3', first_name: '', last_name: '', email: null, phone: '+1 555 0100', member_id: 'HUM-99' },
+    { contact_id: 'c/4', first_name: '', last_name: '', email: null, phone: null, member_id: null },
+  ]
+
+  it('a contact is a people row that opens its card; email and phone are keywords', () => {
+    const rows = contactRows(list, ['HUM-7'])
+    assert.deepEqual(rows.map((r) => r.id), ['contact:c-1', 'contact:c-3'])
+    assert.deepEqual(rows[0], { id: 'contact:c-1', group: 'people', label: 'FirstName LastName', keywords: ['one@example.com'], icon: 'user', to: '/people/contact/c-1' })
+    assert.equal(rows[1].label, '+1 555 0100')
+  })
+  it('a contact matched to a listed member appears once, as that member', () => {
+    const peopleIds = ['HUM-7']
+    const rows = [...peopleIds.map((id) => ({ id: 'dm:' + id, label: 'Member Here', keywords: [id] })), ...contactRows(list, peopleIds)]
+    assert.deepEqual(ids(rankItems(rows, 'member', [])), ['dm:HUM-7'])
+    /* a member_id naming nobody listed stays a contact, never lost */
+    assert.ok(contactRows(list, []).some((r) => r.id === 'contact:c-2'))
+  })
+  it('the rows rank by name and by email', () => {
+    assert.deepEqual(ids(rankItems(contactRows(list, ['HUM-7']), 'one@', [])), ['contact:c-1'])
+    assert.deepEqual(ids(rankItems(contactRows(list, ['HUM-7']), 'lastname', [])), ['contact:c-1'])
+  })
+  it('the card route escapes the id; bad input is no rows', () => {
+    assert.equal(contactRows([{ contact_id: 'a/b', email: 'x@example.com' }], [])[0].to, '/people/contact/a%2Fb')
+    assert.deepEqual(contactRows(null, []), [])
+    assert.deepEqual(contactRows([null, {}], null), [])
+  })
+  it('control: no new palette group, the contacts ride `people`', () => {
+    const src = readFileSync(new URL('../../src/composables/usePaletteItems.ts', import.meta.url), 'utf8')
+    const groups = src.match(/export const PALETTE_GROUPS = \[([^\]]*)\]/)
+    assert.ok(groups, 'PALETTE_GROUPS is declared')
+    assert.deepEqual(groups[1].split(',').map((g) => g.trim().replace(/'/g, '')), ['sections', 'channels', 'people', 'topics', 'docs', 'notes', 'settings'])
+    assert.match(src, /contactRows\(contacts\.value, roster\.peers\.map\(\(p\) => p\.id\)\)/)
   })
 })

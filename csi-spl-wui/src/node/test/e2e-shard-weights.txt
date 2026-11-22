@@ -19,6 +19,8 @@
 # on a generated mock bundle (n=1, 2026-11-21), until a refresh measures CI.
 # box-summary-table (spec 071 row T9, SPL-6239) is new: 6 s, its one local run
 # on a generated mock bundle (n=1, 2026-11-22), until a refresh measures CI.
+# palette-contacts (spec 154 row B10, SPL-6254) is new: 14 s, its one local run
+# on a generated mock bundle (n=1, 2026-11-22), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -261,6 +263,7 @@ tests/e2e/open-parent-section.test.mjs 2
 tests/e2e/operator-console.test.mjs 12
 tests/e2e/own-picture.test.mjs 8
 tests/e2e/page-never-scrolls.test.mjs 4
+tests/e2e/palette-contacts.test.mjs 14
 tests/e2e/pane-keys.test.mjs 9
 tests/e2e/panel-collapse.test.mjs 18
 tests/e2e/people-contacts.test.mjs 28

@@ -1684,6 +1684,7 @@ declare module '~/utils/palette.mjs' {
   export function rankItems<T extends PaletteItem>(items: readonly T[] | null | undefined, query: unknown, recent?: readonly string[] | null): T[]
   export function loadRecent(store: Storage | undefined): string[]
   export function noteRows(list: ReadonlyArray<{ id: string, title?: string, archived?: boolean }> | null | undefined, untitled: string): { id: string, group: 'notes', label: string, icon: 'notes', to: string }[]
+  export function contactRows(list: ReadonlyArray<{ contact_id: string, member_id?: string | null, first_name?: string, last_name?: string, email?: string | null, phone?: string | null }> | null | undefined, members: Iterable<string> | null | undefined): { id: string, group: 'people', label: string, keywords: string[], icon: 'user', to: string }[]
   export function pushRecent(store: Storage | undefined, id: unknown): string[]
 }
 

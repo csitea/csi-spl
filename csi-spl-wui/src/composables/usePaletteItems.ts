@@ -1,6 +1,7 @@
 // 081 T003 (FR-002): the command palette's go-to rows, built from the stores
 // the app already holds: the rail tabs, Help, Docs and Workspace settings;
-// the channels and the people (a person opens their DM); the viewer's
+// the channels and the people (a person opens their DM; a contact of the
+// reader's own list opens its card, spec 154 B10); the viewer's
 // recent topics; the docs (075's trees, repo and workspace); the person's
 // notes (spec 155 2.5, B9: while the Notes tab is drawn); the Settings pages. No second index: every row reads the list its own section shows,
 // behind the same gates (the DM tab while acting as a member, specs/054;
@@ -23,7 +24,9 @@ import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav'
 import { docsRoute, validDocsPath } from '~/utils/docs.mjs'
 import { wsDocsRoute } from '~/utils/ws-docs.mjs'
-import { noteRows, pushRecent, type PaletteItem } from '~/utils/palette.mjs'
+import { contactRows, noteRows, pushRecent, type PaletteItem } from '~/utils/palette.mjs'
+import { contactsList } from '~/utils/contacts-client.mjs'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 import type { TopicRow } from '~/types/spool'
 import { useTheme } from '~/composables/useTheme'
@@ -142,11 +145,18 @@ export function usePaletteItems() {
   const viewer = useViewerStore()
   const access = useAccessStore()
   const notesStore = useNotesStore()
+  const session = useSessionStore()
   const acting = computed(() => Boolean(access.me?.actAs))
+  /* spec 154 B10: the reader's contacts, read the first time the palette opens
+     (contactsList holds the read for the page); the People panel's gate */
+  const contacts = shallowRef<NonNullable<Parameters<typeof contactRows>[0]>>([])
+  const contactsOn = computed(() => access.contacts && !acting.value && session.state !== 'out')
 
   const sections = computed(() => sectionRows(t, { acting: acting.value, tenantSettings: tenantSettingsVisible(access.me, { mock: api.mock }) }))
   const channels = computed(() => channelRows(channel.ordered))
-  const people = computed(() => (acting.value ? [] : personRows(roster.peers, names.label)))
+  const people = computed(() => (acting.value
+    ? []
+    : [...personRows(roster.peers, names.label), ...(contactsOn.value ? contactRows(contacts.value, roster.peers.map((p) => p.id)) : [])]))
   const topics = computed(() => topicRows(viewer.topics))
   const docs = computed(() => docRows(wsDocs.files.value, repoDocs.value))
   /* spec 155 2.5: off with the Notes tab (NOTES_RAIL_ON), as its Settings section is */
@@ -166,7 +176,16 @@ export function usePaletteItems() {
     if (viewer.topics.length === 0 && !viewer.loading) void viewer.loadTopics()
     if (wsDocs.files.value.length === 0 && wsDocs.treeState.value !== 'off') void wsDocs.loadTree()
     if (NOTES_RAIL_ON && (notesStore.state === 'idle' || notesStore.state === 'failed')) void notesStore.load()
+    if (contactsOn.value && contacts.value.length === 0) void loadContacts()
     repoLoad ||= readRepoDocs(api).then((files) => { repoDocs.value = files }, () => { repoLoad = null })
+  }
+
+  /** The contact rows' one read; a refusal or failure leaves them out. */
+  async function loadContacts(): Promise<void> {
+    try {
+      const list = await withSessionRetry(api, () => contactsList(api, String(session.claims?.hum || '')))
+      contacts.value = Array.isArray(list) ? list : []
+    } catch { /* no contact rows; the members still show */ }
   }
 
   /** Go to a row, and remember it as recent (spool.palette-recent). */

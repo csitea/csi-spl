@@ -464,7 +464,7 @@ func TestContactsC23gCycleReadsWrites(t *testing.T) {
 		}
 		changed := func(person string, since *time.Time) []string {
 			t.Helper()
-			rows, err := f.st.ContactsChangedSince(ctx, person, since)
+			rows, err := f.st.ContactsChangedSince(ctx, person, since, "")
 			if err != nil {
 				t.Fatalf("C23g ContactsChangedSince: %v", err)
 			}
@@ -494,7 +494,7 @@ func TestContactsC23gCycleReadsWrites(t *testing.T) {
 		if ids := changed(p1, &last); len(ids) != 0 {
 			t.Errorf("C23g a link is no change to send: %v, want none", ids)
 		}
-		if rows, _ := f.st.ContactsChangedSince(ctx, p1, nil); len(rows) == 0 || rows[0].GoogleETag != "etag-1" || rows[0].SyncHash != hash {
+		if rows, _ := f.st.ContactsChangedSince(ctx, p1, nil, ""); len(rows) == 0 || rows[0].GoogleETag != "etag-1" || rows[0].SyncHash != hash {
 			t.Errorf("C23g the outbound read carries the link: %+v", rows)
 		}
 		if _, err := f.st.LinkContact(ctx, p1, c[1].ID, link); !errors.Is(err, ErrConflict) {
@@ -514,7 +514,7 @@ func TestContactsC23gCycleReadsWrites(t *testing.T) {
 		if err := f.st.DeleteContact(ctx, p1, c[1].ID, ContactDeletedByGoogle, t0.Add(6*time.Second)); err != nil {
 			t.Fatal(err)
 		}
-		rows, err := f.st.ContactsChangedSince(ctx, p1, &last)
+		rows, err := f.st.ContactsChangedSince(ctx, p1, &last, "")
 		if err != nil || len(rows) != 1 || rows[0].ID != c[0].ID || rows[0].DeletedAt == nil || !rows[0].ChangedAt.Equal(t0.Add(5*time.Second)) {
 			t.Errorf("C23g pending Google delete: %+v (%v), want only %s, deleted, changed at its delete", rows, err, c[0].ID)
 		}

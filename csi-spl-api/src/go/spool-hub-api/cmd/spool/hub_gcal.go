@@ -40,6 +40,7 @@ func gcalConnect(ctx context.Context, hc *config.Hub, ac *auth.Config, log zerol
 		RedirectURI: appURL + hub.GcalCallbackPath, Scopes: strings.TrimSpace(hc.GcalScopes),
 		AuthURL: hc.GcalAuthURL, TokenURL: hc.GcalTokenURL, RevokeURL: hc.GcalRevokeURL,
 		UserinfoURL: hc.GcalUserinfoURL, CalendarBase: hc.GcalCalendarBase,
+		PeopleBase: hc.ContactsPeopleBase, // spec 154 B8: the contacts sync
 	})
 	if err != nil || appURL == "" {
 		log.Warn().Bool("app_url", appURL != "").Str("err", errText(err)).Msg("gcal: not configured, connect answers 503")

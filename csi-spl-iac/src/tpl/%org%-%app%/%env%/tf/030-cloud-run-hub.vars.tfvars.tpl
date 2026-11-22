@@ -141,7 +141,7 @@ cost_labels_translate_daily_chars = {{ tr_cost.get("labels_translate_daily_chars
 {%- set ct_ws = ct.get("workspaces", []) %}
 {%- set ct_ws = ct_ws if ct_ws is string else (ct_ws | join(",")) %}
 {%- if ct_ws %}
-{%- set _ = run_env.update({"SPOOL_HUB_CONTACTS_WORKSPACES": ct_ws, "SPOOL_HUB_CONTACTS_SCOPES": ct.get("scopes", "")}) %}
+{%- set _ = run_env.update({"SPOOL_HUB_CONTACTS_WORKSPACES": ct_ws, "SPOOL_HUB_CONTACTS_SCOPES": ct.get("scopes", ""), "SPOOL_HUB_CONTACTS_PEOPLE_BASE": ct.get("people_base", "")}) %}
 {%- endif %}
 {#- spec 025 box owner lock 6.4 (row B6, SPL-3014): hub.box_locks_expected
     reaches the hub as one plain env value, "<tenant>:<box>:<lock_pubkey>"

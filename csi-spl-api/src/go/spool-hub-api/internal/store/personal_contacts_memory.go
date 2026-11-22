@@ -222,7 +222,7 @@ func (c *memContact) changedAt() time.Time {
 }
 
 // ContactsChangedSince is ContactsCycle.ContactsChangedSince.
-func (s *Memory) ContactsChangedSince(_ context.Context, person string, since *time.Time) ([]ContactOut, error) {
+func (s *Memory) ContactsChangedSince(_ context.Context, person string, since *time.Time, afterID string) ([]ContactOut, error) {
 	if err := checkPerson(person); err != nil {
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func (s *Memory) ContactsChangedSince(_ context.Context, person string, since *t
 	defer s.mu.Unlock()
 	out := []ContactOut{}
 	for _, c := range s.contactsLocked().byPerson[person] {
-		if (c.deletedAt != nil && c.deletedBy != ContactDeletedByMember) || (since != nil && !c.changedAt().After(*since)) {
+		if (c.deletedAt != nil && c.deletedBy != ContactDeletedByMember) || !contactChangedAfter(c.changedAt(), c.ID, since, afterID) {
 			continue
 		}
 		out = append(out, ContactOut{Contact: c.Contact, GoogleETag: c.etag, SyncHash: c.syncHash,
@@ -405,4 +405,53 @@ func (s *Memory) CountContactPhotos(_ context.Context, person string) (int, erro
 		}
 	}
 	return n, nil
+}
+
+// ApplyGooglePeople is ContactsCycle.ApplyGooglePeople: planGooglePeople on
+// the person's rows, every write under one hold of s.mu (the transaction).
+func (s *Memory) ApplyGooglePeople(_ context.Context, person string, a GoogleApply, people []GooglePerson, now time.Time) (GoogleApplied, error) {
+	a, err := checkGoogleApply(person, a)
+	if err != nil {
+		return GoogleApplied{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	mem := s.contactsLocked().byPerson[person]
+	rows := make([]*ContactOut, 0, len(mem))
+	for _, c := range mem {
+		rows = append(rows, &ContactOut{Contact: c.Contact, GoogleETag: c.etag, SyncHash: c.syncHash, DeletedAt: c.deletedAt})
+	}
+	ops, n := planGooglePeople(rows, a, people)
+	if n.Added > 0 { // an insert needs the human, as CreateContact
+		if err := s.realmLocked(person, true); err != nil {
+			return GoogleApplied{}, err
+		}
+	}
+	now = contactTime(now)
+	for _, op := range ops {
+		if op.kind == googleOpInsert {
+			added := s.addContactLocked(person, op.values, now)
+			op.id = added.ID
+		}
+		c := s.contactsLocked().byPerson[person][op.id]
+		switch op.kind {
+		case googleOpInsert, googleOpUpdate:
+			id, created := c.ID, c.CreatedAt
+			c.Contact = op.values
+			c.ID, c.CreatedAt, c.UpdatedAt, c.PhotoSHA256 = id, created, now, photoSHA(c.photo)
+		case googleOpDelete:
+			c.deletedAt, c.deletedBy = &now, ContactDeletedByGoogle
+			continue
+		}
+		c.GoogleAccount, c.GoogleResource, c.etag, c.syncHash = op.link.Account, op.link.Resource, op.link.ETag, op.link.SyncHash
+	}
+	return n, nil
+}
+
+// photoSHA is a row's picture hash, "" for none.
+func photoSHA(p *ContactPhoto) string {
+	if p == nil {
+		return ""
+	}
+	return p.SHA256
 }

@@ -544,6 +544,9 @@ type Hub struct {
 	// empty until the owner step S2.
 	ContactsWorkspaces []string `env:"SPOOL_HUB_CONTACTS_WORKSPACES" envSeparator:","`
 	ContactsScopes     string   `env:"SPOOL_HUB_CONTACTS_SCOPES"`
+	// ContactsPeopleBase is the People API v1 root the contacts sync calls
+	// (spec 154 B8, cnf contacts.people_base); empty = no contacts sync.
+	ContactsPeopleBase string `env:"SPOOL_HUB_CONTACTS_PEOPLE_BASE"`
 	// The workspaces whose member card shows the name only (spec 154 section
 	// 12.4, SPL-5431; owner HUM-10, t1 028ac340: "In the T1 workspace only the
 	// first name and the last name ... Nothing else should be visible.").

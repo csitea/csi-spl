@@ -346,3 +346,33 @@ func (s *Postgres) GcalHubCalendars(ctx context.Context, googleEmail string) ([]
 		})
 	return out, err
 }
+
+// gcalSharedSet is one GcalShared UPDATE of the member's connection in its
+// workspace scope, set's own arguments from $3 on; no row is ErrNotFound.
+func (s *Postgres) gcalSharedSet(ctx context.Context, tenant, human, set string, args ...any) error {
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `UPDATE gcal_connections SET `+set+` WHERE tenant_id = $1 AND human_id = $2`,
+			append([]any{tenant, human}, args...)...)
+		if err == nil && tag.RowsAffected() == 0 {
+			err = ErrNotFound
+		}
+		return err
+	})
+}
+
+// SetGcalAccess implements GcalShared on the Postgres store (rdb 0217).
+func (s *Postgres) SetGcalAccess(ctx context.Context, tenant, human string, tok GcalTokens, now time.Time) error {
+	if !gcalTokensOK(tok) {
+		return ErrInvalidGcal
+	}
+	return s.gcalSharedSet(ctx, tenant, human, `access_sealed = $3, refresh_sealed = $4, kms_key_id = $5,
+		access_expiry = $6, updated_at = $7`, tok.AccessSealed, tok.RefreshSealed, tok.KMSKeyID, tok.AccessExpiry, now)
+}
+
+// RevokeGcalConnection implements GcalShared on the Postgres store (rdb 0217).
+func (s *Postgres) RevokeGcalConnection(ctx context.Context, tenant, human, detail string, now time.Time) error {
+	if !gcalStatusOK(GcalRevoked, detail) {
+		return ErrInvalidGcal
+	}
+	return s.gcalSharedSet(ctx, tenant, human, `status = $3, status_detail = $4, updated_at = $5`, GcalRevoked, detail, now)
+}

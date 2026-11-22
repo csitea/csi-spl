@@ -722,6 +722,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	s.PostPublicNotices(ctx)    // rdb 0173: the #public notice of every existing tenant
 	s.PostIssueBacklogs(ctx)    // rdb 0194: the "Issue backlog" topic the backfill linked
 	go s.runGcalSync(ctx)       // spec 149 B6a: the Google Calendar sync, its own ticker
+	go s.runContactsSync(ctx)   // spec 154 B8: the Google Contacts sync, its own ticker
 	go s.runTopicLoopTimer(ctx) // spec 182 4.2 step 5: the time loops, its own ticker
 	for {
 		select {

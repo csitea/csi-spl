@@ -192,6 +192,29 @@ func gcalMapOK(m GcalEventMap) bool {
 	return calendarIDRe.MatchString(m.EventID) && m.GoogleID != "" && len(m.GoogleID) <= 1024 && len(m.SyncHash) == 64
 }
 
+// GcalShared is the two gcal_connections writes the contacts sync cycle
+// (spec 154 2.5, build row B8) makes without the calendar's lease: the
+// contacts cycle holds its own lease on contacts_sync, never this row's.
+// Each is one UPDATE in the connection's workspace scope that touches only
+// the columns it names, so a calendar cycle running on the same row keeps
+// its due_at, sync_token and out_cursor (spec 154 2.5 "One token pair, two
+// cycles", C23c). ErrNotFound: the member has no connection there.
+type GcalShared interface {
+	// SetGcalAccess stores refreshed sealed tokens: access_sealed,
+	// refresh_sealed, kms_key_id, access_expiry and updated_at only. Last
+	// writer wins on the access token.
+	SetGcalAccess(ctx context.Context, tenant, human string, tok GcalTokens, now time.Time) error
+	// RevokeGcalConnection sets status revoked with its reason (an
+	// invalid_grant in a contacts cycle, C23b): status, status_detail and
+	// updated_at only.
+	RevokeGcalConnection(ctx context.Context, tenant, human, detail string, now time.Time) error
+}
+
+var (
+	_ GcalShared = (*Memory)(nil)
+	_ GcalShared = (*Postgres)(nil)
+)
+
 // GcalHubCalendars answers the "Spool Hub" calendars the hub made for one
 // Google account (spec 149 section 2.10, SPL-5782). A member who connects
 // several workspaces with the same Google account has one hub calendar per

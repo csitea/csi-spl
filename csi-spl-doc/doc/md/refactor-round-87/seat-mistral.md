@@ -18,7 +18,9 @@ Review target: `csi-spl-doc/doc/md/refactor-round-87-plan.md` on branch
   review time.
 - Every file:line cited below was checked with `git show b220e7464:<file> | sed -n <N>p`.
 
-**Verdict: PASS on `aacf9637a1305c79544c195fb2044454f2946c24`. No W defects.**
+**Verdict: PASS on v0.1 `aacf9637a1305c79544c195fb2044454f2946c24` and on v1.0
+`c24e47b1c4974c7f1dcf8f18b1e9de417b2d6202` (see the v1.0 signature at the end). No W
+defects.**
 
 ## 1. Slug r87 unused since the plan's W
 
@@ -199,3 +201,23 @@ None (no W1...).
   byte-identical to the plan's 1.5 quotes.
 - **N5** the plan's 2.2 recorded 2 unknown lanes at 02:52Z; at review time there are 11 —
   same result class (exit 4, no owner of any row path).
+
+## v1.0 signature
+
+Signed on the editor's v1.0 (c-230, msg `b8d4311b`):
+
+- `git ls-remote origin refs/heads/review/c002-refactor-round-87-planner-v1` ->
+  `c24e47b1c4974c7f1dcf8f18b1e9de417b2d6202`; the v0.1 branch still reads `aacf9637a...`.
+- Stack `aacf9637a..c24e47b1c` (`git log --oneline aacf9637a..FETCH_HEAD`): `e46621014`
+  (master), `a9731a592` (v0.1 plan), `c18a4ba46` (this seat file, cherry-picked from
+  `11b7f922b`), `c24e47b1c` (v1.0).
+- `git diff aacf9637a c24e47b1c -- csi-spl-doc/doc/md/refactor-round-87-plan.md` -> 2
+  hunks only: `@@ -33,7 +33,10 @@` (the status line) and `@@ -339,10 +342,46 @@`
+  (sections 8 and 9): v1.0 changes only the status line and sections 8/9, as the editor
+  says; rows, files, red controls and fix scope are unchanged from v0.1.
+- `git diff 11b7f922b c24e47b1c -- csi-spl-doc/doc/md/refactor-round-87/seat-mistral.md` ->
+  empty: the seat file folded into the v1.0 stack is byte-identical to this branch's.
+- Row paths unchanged since `b220e7464` on current `origin/master` (`e46621014`):
+  `git diff --name-only b220e7464 origin/master -- <the 9 row paths>` -> empty.
+
+**v1.0 verdict: PASS on `c24e47b1c4974c7f1dcf8f18b1e9de417b2d6202`.**

@@ -33,10 +33,11 @@ spool-install memory steps Y18 (grok) and Y20 (agy), which carry the same repo a
 project slug helpers, one copy in a new sourced `steps/claude-memory.inc.sh` (the r86-01
 shape).
 
-**Status: v1.0, for the panel's signature.** The panel passed v0.1 `aacf9637a` with no W
-(m-085, mistral; seat file `csi-spl-doc/doc/md/refactor-round-87/seat-mistral.md`,
-folded in from `11b7f922b`). Its review line passed `do_spl_review_line_check` rc 0 on
-the log's box (holder c-002, msg 36c52658). Section 8. Editor: **c-230** (claude).
+**Status: closed.** The panel (m-085, mistral) passed v0.1 `aacf9637a` and v1.0
+`c24e47b1c` with no W (seat file `csi-spl-doc/doc/md/refactor-round-87/seat-mistral.md`,
+v1.0 signature folded in from `2023b1346`); its review line passed
+`do_spl_review_line_check` rc 0 on the log's box (holder c-002, msg 36c52658). Both rows
+landed: r87-01 `fa86b70d7`, r87-02 `a42fff43c`. Section 8. Editor: **c-230** (claude).
 
 **One sha:** every count is measured on **`b220e7464`** (`origin/master` at
 2026-11-22T02:5xZ), n=1 per command unless stated. Reads are on that sha with
@@ -378,10 +379,44 @@ on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...
   `b220e7464` (`git diff --name-only b220e7464 origin/master -- <the 9 row paths>` ->
   empty, 04:2xZ). Rebased onto `e46621014`.
 
+- 2026-11-22 04:1xZ: m-085 **PASS** on v1.0 `c24e47b1c4974c7f1dcf8f18b1e9de417b2d6202`,
+  no W; N1-N5 stand. It checked the v1.0 branch head, that `git diff aacf9637a c24e47b1c
+  -- <this file>` touches only the status line and sections 8 and 9, that the folded seat
+  file equals `11b7f922b`'s, and that the row paths are unchanged since `b220e7464`. Its
+  v1.0 signature (`2023b1346`, which was not on `origin/master`) is folded into the seat
+  file by this close record. The holder c-002 confirmed the v0.1 line check, gave the GO
+  (msg 118f1356) and v1.0 landed as `c24e47b1c`.
+
+- Round closed (c-230), no version bump: the 2 rows landed, r87-01 `fa86b70d7`
+  (SPL-6229, committed 2026-11-22T07:30:50Z; R7 g-118 grok PASS on `ea2bf74e2`, no W;
+  holder GO msgs 24b05a0a, 7fff17bc) and r87-02 `a42fff43c` (SPL-6230, committed
+  04:55:05Z; R7 g-273 grok PASS on `8f7d74390`, no W). r87-02 ACCEPTED by the holder
+  c-002 (msg 76440ff4, 05:11:40Z: c-104 and g-273 ACCEPTED); r87-01's ACCEPTED was not in
+  this box's spool when this record was written (its row seat c-101 runs on the other
+  box). **R7 vendor:** both seats are grok, the holder's pick at placement (section 4).
+  `git patch-id --stable` of each landed commit equals its reviewed head's (r87-01
+  `4a6ba6166658`, r87-02 `6ddc0492d53c`). `merge-base --is-ancestor` rc 0 for both on
+  `d4c869b1a`. CI on `a42fff43c`: 10 quality gate, 15, 25, 26, 64, 67 **success**. On
+  `fa86b70d7`: 10 quality gate, 15, 21, 25, 26, 40, 50, 61, 62, 64 **success**; 20 (hub
+  build + deploy, 44998641108) still `in_progress` at 07:58Z, so its deploy is not
+  recorded here.
+  On `d4c869b1a` (n=1 each, `SPOOL_TEST=1`, in the worktree, 1.5's line counts): `go test
+  -count=1 -v ./internal/hub/ ./internal/cleancode/` ok, 1505 `--- PASS` (1350 top-level),
+  0 `--- FAIL`, `TestCleanCodeGate` PASS (1.5 read 1337 on `b220e7464`; r87-01's body
+  read 1500 on its parent and head: the growth is tests landed by other lanes, not a
+  row change); `test-y18-grok-memory.sh` rc 0, 13 pass, 0 fail, "2 grok checks not run"
+  (no grok on the measuring user here; g-273 read 15/15, 0 not run, on its box);
+  `test-y20-agy-memory.sh` rc 0, 68 pass; `test-agy-rules-always-on.sh` rc 0, 14 pass;
+  `bash-cleancode.tst.sh` rc 0, 15 pass; 0 fail lines each. No plan miss.
+  - r87-01 and r87-02: no N note in either R7 line. Notes only; none asks a change.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
 - Editor seat: c-230 (claude): v0.1, v1.0.
-- Panel reviewer seat: m-085 (mistral): PASS on v0.1 `aacf9637a`, no W; v1.0 to sign.
-- Row R7 seats: section 4.
+- Panel reviewer seat: m-085 (mistral): **PASS** on v0.1 `aacf9637a` and on v1.0
+  `c24e47b1c`, no W (section 8; seat file folded in, v1.0 signature `2023b1346`).
+- Row R7 seats: section 4; both grok (section 8, round closed).
+- Closed: both rows landed (r87-01 `fa86b70d7`, R7 g-118 PASS; r87-02 `a42fff43c`,
+  R7 g-273 PASS). This close record carries `Closes: SPL-6227`.

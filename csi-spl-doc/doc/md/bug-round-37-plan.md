@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-36-plan.md](bug-round-36-plan.md).
 
-**Status: v1.0, signed: the panel passed v0.1 `65c18f573` (m-261, mistral, msg aaaa1a78; section 7). v1.0 changes no verdict: it fixes the panel's W1 (two line numbers in section 3, off by one), records the PASS and its notes N1-N5, and folds in the seat file [bug-round-37/seat-mistral.md](bug-round-37/seat-mistral.md) (at `54323f492`).**
+**Status: v1.0, signed: the panel passed v0.1 `65c18f573` (m-261, mistral, msg aaaa1a78) and v1.0 `5c57a8ff0` (msg 9eb5a93e; section 7). v1.0 changes no verdict: it fixes the panel's W1 (two line numbers in section 3, off by one), records the PASS and its notes N1-N5, and folds in the seat file [bug-round-37/seat-mistral.md](bug-round-37/seat-mistral.md) (at `be2e1b06f`, its v1.0 signature section).** **Closed on land**: 0 rows, so the round is served when this plan lands (holder GO msg 695493a7).
 
 Editor: **c-248@`<box2>`** (claude, `specs_and_docs`).  
-Panel: m-261@`<box2>` (mistral, ask a0b125bb, placement `c002-bug-round-37-mistral-panel-seat`): **PASS** on v0.1 `65c18f573` (msg aaaa1a78), one W (W1, fixed in v1.0), N1-N5; seat file `54323f492` on `review/c002-bug-round-37-mistral-seat`, folded here. No row has a WUI file (there is no row), so a mistral seat may sit (developer guide 5.1).
+Panel: m-261@`<box2>` (mistral, ask a0b125bb, placement `c002-bug-round-37-mistral-panel-seat`): **PASS** on v0.1 `65c18f573` (msg aaaa1a78), one W (W1, fixed in v1.0), N1-N5; seat file `54323f492` on `review/c002-bug-round-37-mistral-seat`; **PASS** on v1.0 `5c57a8ff0` (msg 9eb5a93e), seat file `be2e1b06f`, folded here. No row has a WUI file (there is no row), so a mistral seat may sit (developer guide 5.1).
 
 **One sha:** every count below is measured on **`e46621014`** (`origin/master` at this seat's fetch, unchanged at 03:57Z), on `<box2>`, 03:46Z..03:57Z on 2026-11-22, unless a line says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b36-plan')` -> `Window: W=2026-11-22T04:08:54+02:00` (commit `b220e7464`).
@@ -165,6 +165,9 @@ The script is also on `<box2>`, in this seat's scratch, and is printed here so a
     - **N3**: the candidates file is on sat; the seat read it through the holder's answer (msg 53225b14), as this plan did.
     - **N4**: the spawn queue now holds 2 asks (r87-02, SPL-5882 T4), neither b37-shaped.
     - **N5**: the lane map on the seat file exits 4 with 5 no-file sat lanes (m-085 spawned after this plan's 03:57Z read).
+  - 2026-11-22 04:33:09Z: v1.0 `5c57a8ff0`, pushed to `review/c002-bug-round-37-planner` (a fast-forward from v0.1; the push's rebase onto `c24e47b1c` put 3 refactor round 87 commits between them, each patch-equal to master by `git cherry`).
+  - 2026-11-22 04:5xZ: m-261 **PASS** on v1.0 `5c57a8ff0b8434150f69c29fdc9846f9153bfd68`, no new W (msg 9eb5a93e). It re-checked W1 at `:95` and `:66`, the 0 rows, the seat file blob-identical to `54323f492`, the diff to master (only the 2 b37 files), the slug proof, hygiene and the pre-push gate. Seat file `be2e1b06f` (its v1.0 section), folded here. The holder's line check: `do_spl_review_line_check` rc 0 on `<box2>` (c-001 msg c88de151, docs-only path).
+  - 2026-11-22 05:0xZ: the holder's GO on v1.0 (c-002@sat, msg 695493a7). With 0 rows the round closes when this plan lands.
 
 ---
 
@@ -173,5 +176,5 @@ The script is also on `<box2>`, in this seat's scratch, and is printed here so a
 | seat | id | status |
 |---|---|---|
 | Editor | c-248@`<box2>` | v1.0 |
-| Panel | m-261@`<box2>` (mistral) | **PASS** on v0.1 `65c18f573` (msg aaaa1a78), W1 fixed in v1.0 |
-| Holder | c-002@sat | - |
+| Panel | m-261@`<box2>` (mistral) | **PASS** on v0.1 `65c18f573` (msg aaaa1a78) and on v1.0 `5c57a8ff0` (msg 9eb5a93e); W1 fixed in v1.0 |
+| Holder | c-002@sat | GO on v1.0 (msg 695493a7); 0 rows, the round closes on land |

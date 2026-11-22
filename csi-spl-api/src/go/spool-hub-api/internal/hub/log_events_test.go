@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"slices"
 	"strings"
@@ -246,11 +247,19 @@ func addPlain(t *testing.T, e *env, kind string, n int) {
 	}
 }
 
-const (
-	fpA = "0123456789abcdef"
-	fpB = "fedcba9876543210"
-	fpC = "00000000000000aa"
-)
+// t4Run is one test run's own kind prefix and fingerprints: the System log
+// is hub-wide, so on Postgres it holds the other tests' rows and groups,
+// and a fixed fingerprint or a bare error. prefix would read them.
+type t4Run struct{ prefix, fpA, fpB, fpC, fpUnknown string }
+
+func newT4Run() t4Run {
+	tag := make([]byte, 8)
+	for i := range tag {
+		tag[i] = 'a' + byte(rand.IntN(26))
+	}
+	fp := func() string { return fmt.Sprintf("%016x", rand.Uint64()) }
+	return t4Run{prefix: "error.tfour" + string(tag), fpA: fp(), fpB: fp(), fpC: fp(), fpUnknown: fp()}
+}
 
 // C41 hub half (spec 162 10.7, row T4, SPL-6231): GET
 // /v1/operator/events?kind=error. lists the error groups only, newest
@@ -263,26 +272,38 @@ const (
 func TestSystemEventsErrorGroupsC41(t *testing.T) {
 	e, op, _, who, _ := operatorEnv(t, func(op, _ string) string { return op })
 	adm := who[rbac.Admin]
-	a := addGroup(t, e, "error.http_server", fpA, 3, "HUM-7")
+	x := newT4Run()
+	q := sysEventsPath + "?kind=" + x.prefix
+	a := addGroup(t, e, x.prefix+"_http", x.fpA, 3, "HUM-7")
 	addPlain(t, e, store.LogKindHubStarted, 2)
-	b := addGroup(t, e, "error.panic", fpB, 40, "")
+	b := addGroup(t, e, x.prefix+"_panic", x.fpB, 40, "")
 	addPlain(t, e, store.LogKindLeaseFailover, 600)
-	c := addGroup(t, e, "error.loop_panic", fpC, 1, "")
+	c := addGroup(t, e, x.prefix+"_loop", x.fpC, 1, "")
 	addPlain(t, e, store.LogKindHubStarted, 1)
 
-	p, _ := readLog(t, e, op, sysEventsPath+"?kind=error.", adm, http.StatusOK)
+	p, _ := readLog(t, e, op, sysEventsPath+"?kind=error.&limit=200", adm, http.StatusOK)
 	var fps []string
 	for _, r := range p.Events {
-		if r.Fingerprint == nil {
-			t.Fatalf("C41 kind=error. lists a row that is no group: %+v", r)
+		if r.Fingerprint == nil || r.Kind[:6] != "error." {
+			t.Fatalf("C41 kind=error. lists a row that is no error group: %+v", r)
 		}
+		if *r.Fingerprint == x.fpA || *r.Fingerprint == x.fpB || *r.Fingerprint == x.fpC {
+			fps = append(fps, *r.Fingerprint)
+		}
+	}
+	if !slices.Equal(fps, []string{x.fpC, x.fpB, x.fpA}) {
+		t.Fatalf("C41 kind=error. lists this run's groups as %v, want newest first [%s %s %s]", fps, x.fpC, x.fpB, x.fpA)
+	}
+	p, _ = readLog(t, e, op, q, adm, http.StatusOK)
+	fps = nil
+	for _, r := range p.Events {
 		fps = append(fps, *r.Fingerprint)
 	}
-	if !slices.Equal(fps, []string{fpC, fpB, fpA}) || p.NextBefore != 0 {
-		t.Fatalf("C41 kind=error. lists %v next_before %d, want the 3 groups newest first [%s %s %s], 0", fps, p.NextBefore, fpC, fpB, fpA)
+	if !slices.Equal(fps, []string{x.fpC, x.fpB, x.fpA}) || p.NextBefore != 0 {
+		t.Fatalf("C41 kind=%s lists %v next_before %d, want [%s %s %s], 0", x.prefix, fps, p.NextBefore, x.fpC, x.fpB, x.fpA)
 	}
 	g := p.Events[1]
-	if g.ID != b.ID || g.Kind != "error.panic" || *g.N != 40 || *g.IssueKey != "" || *g.IssueN != 0 || *g.HumanID != "" ||
+	if g.ID != b.ID || g.Kind != x.prefix+"_panic" || *g.N != 40 || *g.IssueKey != "" || *g.IssueN != 0 || *g.HumanID != "" ||
 		g.FirstAt.IsZero() || !g.FirstAt.Before(g.At) {
 		t.Errorf("C41 group row fields: %+v", g)
 	}
@@ -290,16 +311,16 @@ func TestSystemEventsErrorGroupsC41(t *testing.T) {
 		t.Errorf("C41 group a: human %q n %d, want HUM-7 3", *r.HumanID, *r.N)
 	}
 
-	p, _ = readLog(t, e, op, sysEventsPath+"?kind=error.&limit=2", adm, http.StatusOK)
+	p, _ = readLog(t, e, op, q+"&limit=2", adm, http.StatusOK)
 	if len(p.Events) != 2 || p.Events[0].ID != c.ID || p.NextBefore != b.ID {
 		t.Fatalf("C41 filtered page 1: %+v, want c, b and next_before %d", p, b.ID)
 	}
-	p, _ = readLog(t, e, op, fmt.Sprintf("%s?kind=error.&limit=2&before=%d", sysEventsPath, p.NextBefore), adm, http.StatusOK)
+	p, _ = readLog(t, e, op, fmt.Sprintf("%s&limit=2&before=%d", q, p.NextBefore), adm, http.StatusOK)
 	if len(p.Events) != 1 || p.Events[0].ID != a.ID || p.NextBefore != 0 {
 		t.Fatalf("C41 filtered page 2: %+v, want only a", p)
 	}
-	if p, _ = readLog(t, e, op, sysEventsPath+"?kind=error.pan", adm, http.StatusOK); len(p.Events) != 1 || p.Events[0].ID != b.ID {
-		t.Fatalf("C41 kind=error.pan (a prefix, not a whole name): %+v, want only b", p)
+	if p, _ = readLog(t, e, op, q+"_pan", adm, http.StatusOK); len(p.Events) != 1 || p.Events[0].ID != b.ID {
+		t.Fatalf("C41 kind=%s_pan (a prefix, not a whole name): %+v, want only b", x.prefix, p)
 	}
 	if p, _ = readLog(t, e, op, sysEventsPath+"?kind=lease.", adm, http.StatusOK); len(p.Events) != 50 || p.Events[0].Fingerprint != nil {
 		t.Fatalf("C41 kind=lease.: %d rows, want a full page of plain rows without group fields", len(p.Events))
@@ -309,12 +330,12 @@ func TestSystemEventsErrorGroupsC41(t *testing.T) {
 		t.Fatalf("C41 unfiltered newest row: %+v, want a plain row with no group field", p.Events)
 	}
 
-	code, body := call(t, e, op, http.MethodPost, sysEventsPath+"/link", adm, map[string]any{"fingerprint": fpB, "issue_key": "SPL-6231"})
+	code, body := call(t, e, op, http.MethodPost, sysEventsPath+"/link", adm, map[string]any{"fingerprint": x.fpB, "issue_key": "SPL-6231"})
 	if code != http.StatusOK || body["issue_key"] != "SPL-6231" || body["issue_n"] != float64(40) || body["n"] != float64(40) ||
-		body["id"] != float64(b.ID) || body["fingerprint"] != fpB {
+		body["id"] != float64(b.ID) || body["fingerprint"] != x.fpB {
 		t.Fatalf("C41 link: %d %v, want 200 issue_key SPL-6231 issue_n 40, id kept", code, body)
 	}
-	p, _ = readLog(t, e, op, sysEventsPath+"?kind=error.", adm, http.StatusOK)
+	p, _ = readLog(t, e, op, q, adm, http.StatusOK)
 	if r := p.Events[1]; r.ID != b.ID || *r.IssueKey != "SPL-6231" || *r.IssueN != 40 {
 		t.Fatalf("C41 read after link: %+v", r)
 	}
@@ -330,7 +351,9 @@ func TestSystemEventsErrorGroupsC41(t *testing.T) {
 func TestSystemEventsLinkRefusals(t *testing.T) {
 	e, op, other, who, whoOther := operatorEnv(t, func(op, _ string) string { return op })
 	adm := who[rbac.Admin]
-	addGroup(t, e, "error.http_server", fpA, 2, "")
+	x := newT4Run()
+	fpA := x.fpA
+	addGroup(t, e, x.prefix+"_http", fpA, 2, "")
 	link := sysEventsPath + "/link"
 	for _, q := range []string{"?kind=Error.", "?kind=.error", "?kind=error%20x", "?kind=error-x", "?kind=" + strings.Repeat("a", 49)} {
 		if code, _ := call(t, e, op, http.MethodGet, sysEventsPath+q, adm, nil); code != http.StatusBadRequest {
@@ -351,7 +374,7 @@ func TestSystemEventsLinkRefusals(t *testing.T) {
 			t.Errorf("link body %v: %d %v, want 400", bad, code, body)
 		}
 	}
-	if code, body := call(t, e, op, http.MethodPost, link, adm, map[string]any{"fingerprint": fpB, "issue_key": "SPL-1"}); code != http.StatusNotFound || body["error"] != "not_found" {
+	if code, body := call(t, e, op, http.MethodPost, link, adm, map[string]any{"fingerprint": x.fpUnknown, "issue_key": "SPL-1"}); code != http.StatusNotFound || body["error"] != "not_found" {
 		t.Errorf("link of an unknown fingerprint: %d %v, want 404 not_found", code, body)
 	}
 	type caller struct{ name, tenant, hum string }
@@ -370,7 +393,7 @@ func TestSystemEventsLinkRefusals(t *testing.T) {
 			t.Errorf("GET ?kind=error. as %s: %d, want 403", c.name, code)
 		}
 	}
-	p, _ := readLog(t, e, op, sysEventsPath+"?kind=error.", adm, http.StatusOK)
+	p, _ := readLog(t, e, op, sysEventsPath+"?kind="+x.prefix, adm, http.StatusOK)
 	if len(p.Events) != 1 || *p.Events[0].IssueKey != "" || *p.Events[0].IssueN != 0 {
 		t.Fatalf("CONTROL: a refused link changed the group: %+v", p.Events)
 	}

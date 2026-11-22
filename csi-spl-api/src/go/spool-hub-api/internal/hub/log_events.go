@@ -1,8 +1,11 @@
 package hub
 
 import (
+	"errors"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -17,6 +20,7 @@ import (
 //	POST /v1/view/events/delete {"ids":[..]}
 //	GET  /v1/operator/events?limit=&before=  the hub-wide log
 //	POST /v1/operator/events/delete {"ids":[..]}
+//	POST /v1/operator/events/link {"fingerprint":"<16 hex>","issue_key":"SPL-n"}
 //
 // Who may: the Workspace log, a member session whose role set makes it the
 // workspace's owner or an admin (TenantOwner || Has(rbac.Admin), the spec
@@ -27,8 +31,29 @@ import (
 // rows (another workspace's id counts 0, never 403) and leaves one
 // log.deleted row by the caller. No delete-all: Clear stays the personal
 // log's verb (3.2).
+//
+// Backend error groups (spec 162 10.5-10.7, row T4, SPL-6231): a System row
+// that is an error group carries its group fields (fingerprint, first_at,
+// n, issue_key, issue_n, human_id); a row that is no group carries none of
+// them. GET /v1/operator/events?kind=<prefix> lists only the rows whose kind
+// starts with prefix (kind=error. = every error group), next_before paging
+// within that filter. The link sets a group's issue_key and issue_n = n,
+// same caller rule as the delete; an unknown fingerprint is 404 not_found.
 
 const permWorkspaceEvents = "workspace.events"
+
+// systemScanBatch is how many System rows one store read takes while a
+// ?kind= filter fills a page; the log keeps store.SystemEventsKeep rows, so
+// a full scan is at most SystemEventsKeep/systemScanBatch reads.
+const systemScanBatch = 500
+
+var (
+	// logKindPrefixRe is a ?kind= value: the start of a dotted kind name.
+	logKindPrefixRe = regexp.MustCompile(`^[a-z][a-z._]{0,47}$`)
+	// evlogFPRe and evlogIssueKeyRe are the link body's rules (10.7).
+	evlogFPRe       = regexp.MustCompile(`^[0-9a-f]{16}$`)
+	evlogIssueKeyRe = regexp.MustCompile(`^SPL-[1-9][0-9]{0,9}$`)
+)
 
 type logEventJSON struct {
 	ID         int64     `json:"id"`
@@ -39,6 +64,29 @@ type logEventJSON struct {
 	Message    string    `json:"message"`
 	OriginKind string    `json:"origin_kind"`
 	OriginRef  string    `json:"origin_ref"`
+	*logGroupJSON
+}
+
+// logGroupJSON is an error group's fields (spec 162 10.5); nil on a row that
+// is no group, so such a row carries none of them.
+type logGroupJSON struct {
+	Fingerprint string    `json:"fingerprint"`
+	FirstAt     time.Time `json:"first_at"`
+	N           int       `json:"n"`
+	IssueKey    string    `json:"issue_key"`
+	IssueN      int       `json:"issue_n"`
+	HumanID     string    `json:"human_id"`
+}
+
+// logEventOut is e as JSON, with its group fields when it is a group.
+func logEventOut(e store.LogEvent) logEventJSON {
+	o := logEventJSON{ID: e.ID, At: e.At.UTC(), Kind: e.Kind, Level: e.Level, Actor: e.Actor,
+		Message: e.Message, OriginKind: e.OriginKind, OriginRef: e.OriginRef}
+	if e.Fingerprint != "" {
+		o.logGroupJSON = &logGroupJSON{Fingerprint: e.Fingerprint, FirstAt: e.FirstAt.UTC(), N: e.N,
+			IssueKey: e.IssueKey, IssueN: e.IssueN, HumanID: e.HumanID}
+	}
+	return o
 }
 
 type logEventsPageJSON struct {
@@ -51,6 +99,7 @@ func (s *Server) routeLogEvents(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/view/events/delete", s.viewHandler(s.handleWorkspaceEventsDelete))
 	mux.HandleFunc("GET /v1/operator/events", s.handleSystemEvents)
 	mux.HandleFunc("POST /v1/operator/events/delete", s.handleSystemEventsDelete)
+	mux.HandleFunc("POST /v1/operator/events/link", s.handleSystemEventsLink)
 }
 
 // logEventsStore is the store's two logs; false = 503 answered.
@@ -111,8 +160,7 @@ func writeLogEventsPage(w http.ResponseWriter, list []store.LogEvent, limit int)
 		out.NextBefore = list[limit-1].ID
 	}
 	for _, e := range list {
-		out.Events = append(out.Events, logEventJSON{ID: e.ID, At: e.At.UTC(), Kind: e.Kind, Level: e.Level, Actor: e.Actor,
-			Message: e.Message, OriginKind: e.OriginKind, OriginRef: e.OriginRef})
+		out.Events = append(out.Events, logEventOut(e))
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -191,7 +239,12 @@ func (s *Server) handleSystemEvents(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	list, err := es.SystemEventsPage(r.Context(), before, limit+1)
+	prefix := r.URL.Query().Get("kind")
+	if prefix != "" && !logKindPrefixRe.MatchString(prefix) {
+		writeErr(w, http.StatusBadRequest, "bad_request", "kind must be the start of a dotted lowercase kind name, at most 48 characters")
+		return
+	}
+	list, err := systemEventsOfKind(r, es, prefix, before, limit+1)
 	if err != nil {
 		s.o.Log.Error().Err(err).Msg("system events page")
 		writeErr(w, http.StatusServiceUnavailable, "unavailable", "event store")
@@ -222,4 +275,65 @@ func (s *Server) handleSystemEventsDelete(w http.ResponseWriter, r *http.Request
 	}
 	s.o.Log.Info().Str("by", a.hum).Int("rows", n).Msg("system_events.deleted")
 	writeJSON(w, http.StatusOK, map[string]int{"deleted": n})
+}
+
+// systemEventsOfKind reads at most want System rows below before, newest
+// first, only those whose kind starts with prefix ("" = every row).
+func systemEventsOfKind(r *http.Request, es store.LogEvents, prefix string, before int64, want int) ([]store.LogEvent, error) {
+	if prefix == "" {
+		return es.SystemEventsPage(r.Context(), before, want)
+	}
+	var out []store.LogEvent
+	for {
+		list, err := es.SystemEventsPage(r.Context(), before, systemScanBatch)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range list {
+			if strings.HasPrefix(e.Kind, prefix) {
+				if out = append(out, e); len(out) == want {
+					return out, nil
+				}
+			}
+		}
+		if len(list) < systemScanBatch {
+			return out, nil
+		}
+		before = list[len(list)-1].ID
+	}
+}
+
+// POST /v1/operator/events/link
+func (s *Server) handleSystemEventsLink(w http.ResponseWriter, r *http.Request) {
+	a, ok := s.operatorActor(w, r)
+	if !ok {
+		return
+	}
+	es, ok := s.logEventsStore(w)
+	if !ok {
+		return
+	}
+	var req struct {
+		Fingerprint string `json:"fingerprint"`
+		IssueKey    string `json:"issue_key"`
+	}
+	if !readJSONStrict(w, r, &req, keysMaxBody, `invalid JSON body (expected {"fingerprint":"<16 hex>","issue_key":"SPL-<n>"})`) {
+		return
+	}
+	if !evlogFPRe.MatchString(req.Fingerprint) || !evlogIssueKeyRe.MatchString(req.IssueKey) {
+		writeErr(w, http.StatusBadRequest, "bad_request", "fingerprint must be 16 lowercase hex and issue_key SPL-<n>")
+		return
+	}
+	ev, err := es.LinkSystemErrorGroup(r.Context(), req.Fingerprint, req.IssueKey)
+	if errors.Is(err, store.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, "not_found", "no error group has that fingerprint")
+		return
+	}
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("fp", req.Fingerprint).Msg("system events link")
+		writeErr(w, http.StatusServiceUnavailable, "unavailable", "event store")
+		return
+	}
+	s.o.Log.Info().Str("by", a.hum).Str("fp", ev.Fingerprint).Str("issue", ev.IssueKey).Int("issue_n", ev.IssueN).Msg("system_events.linked")
+	writeJSON(w, http.StatusOK, logEventOut(ev))
 }

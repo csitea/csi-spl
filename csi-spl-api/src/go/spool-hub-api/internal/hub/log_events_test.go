@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +34,13 @@ type logPage struct {
 		Message    string    `json:"message"`
 		OriginKind string    `json:"origin_kind"`
 		OriginRef  string    `json:"origin_ref"`
+
+		Fingerprint *string    `json:"fingerprint"`
+		FirstAt     *time.Time `json:"first_at"`
+		N           *int       `json:"n"`
+		IssueKey    *string    `json:"issue_key"`
+		IssueN      *int       `json:"issue_n"`
+		HumanID     *string    `json:"human_id"`
 	} `json:"events"`
 	NextBefore int64 `json:"next_before"`
 }
@@ -210,5 +219,159 @@ func TestSystemEvents(t *testing.T) {
 	}
 	if code, _ := call(t, e, op, http.MethodPost, del, who[rbac.Admin], map[string]any{"ids": []int64{}}); code != http.StatusBadRequest {
 		t.Fatalf("system delete of 0 ids: %d, want 400", code)
+	}
+}
+
+// addGroup upserts one error group into the System log through the store.
+func addGroup(t *testing.T, e *env, kind, fp string, n int, hum string) store.LogEvent {
+	t.Helper()
+	last := time.Now().UTC()
+	ev, err := e.st.(store.LogEvents).UpsertSystemErrorGroup(context.Background(), store.LogEvent{Kind: kind, Level: store.LogLevelError,
+		Actor: "hub", Message: "t4 " + kind, OriginKind: store.LogOriginComponent, OriginRef: "GET /v1/t4",
+		Fingerprint: fp, FirstAt: last.Add(-time.Hour), At: last, N: n, HumanID: hum})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ev
+}
+
+// addPlain writes n plain System rows of kind through the store.
+func addPlain(t *testing.T, e *env, kind string, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		if _, err := e.st.(store.LogEvents).AddSystemEvent(context.Background(), store.LogEvent{Kind: kind, Actor: "hub",
+			Message: fmt.Sprintf("t4 plain %d", i)}, time.Now().UTC()); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+const (
+	fpA = "0123456789abcdef"
+	fpB = "fedcba9876543210"
+	fpC = "00000000000000aa"
+)
+
+// C41 hub half (spec 162 10.7, row T4, SPL-6231): GET
+// /v1/operator/events?kind=error. lists the error groups only, newest
+// first, each with its group fields, paged within the filter, also past
+// more than one store read of other rows; a row that is no group carries
+// no group field; POST /v1/operator/events/link sets issue_key and
+// issue_n = n and keeps the id.
+// RED CONTROL: the ?kind= filter as an exact match, or no filter at all,
+// fails this test (both seen RED in the T4 commit body).
+func TestSystemEventsErrorGroupsC41(t *testing.T) {
+	e, op, _, who, _ := operatorEnv(t, func(op, _ string) string { return op })
+	adm := who[rbac.Admin]
+	a := addGroup(t, e, "error.http_server", fpA, 3, "HUM-7")
+	addPlain(t, e, store.LogKindHubStarted, 2)
+	b := addGroup(t, e, "error.panic", fpB, 40, "")
+	addPlain(t, e, store.LogKindLeaseFailover, 600)
+	c := addGroup(t, e, "error.loop_panic", fpC, 1, "")
+	addPlain(t, e, store.LogKindHubStarted, 1)
+
+	p, _ := readLog(t, e, op, sysEventsPath+"?kind=error.", adm, http.StatusOK)
+	var fps []string
+	for _, r := range p.Events {
+		if r.Fingerprint == nil {
+			t.Fatalf("C41 kind=error. lists a row that is no group: %+v", r)
+		}
+		fps = append(fps, *r.Fingerprint)
+	}
+	if !slices.Equal(fps, []string{fpC, fpB, fpA}) || p.NextBefore != 0 {
+		t.Fatalf("C41 kind=error. lists %v next_before %d, want the 3 groups newest first [%s %s %s], 0", fps, p.NextBefore, fpC, fpB, fpA)
+	}
+	g := p.Events[1]
+	if g.ID != b.ID || g.Kind != "error.panic" || *g.N != 40 || *g.IssueKey != "" || *g.IssueN != 0 || *g.HumanID != "" ||
+		g.FirstAt.IsZero() || !g.FirstAt.Before(g.At) {
+		t.Errorf("C41 group row fields: %+v", g)
+	}
+	if r := p.Events[2]; *r.HumanID != "HUM-7" || *r.N != 3 {
+		t.Errorf("C41 group a: human %q n %d, want HUM-7 3", *r.HumanID, *r.N)
+	}
+
+	p, _ = readLog(t, e, op, sysEventsPath+"?kind=error.&limit=2", adm, http.StatusOK)
+	if len(p.Events) != 2 || p.Events[0].ID != c.ID || p.NextBefore != b.ID {
+		t.Fatalf("C41 filtered page 1: %+v, want c, b and next_before %d", p, b.ID)
+	}
+	p, _ = readLog(t, e, op, fmt.Sprintf("%s?kind=error.&limit=2&before=%d", sysEventsPath, p.NextBefore), adm, http.StatusOK)
+	if len(p.Events) != 1 || p.Events[0].ID != a.ID || p.NextBefore != 0 {
+		t.Fatalf("C41 filtered page 2: %+v, want only a", p)
+	}
+	if p, _ = readLog(t, e, op, sysEventsPath+"?kind=error.pan", adm, http.StatusOK); len(p.Events) != 1 || p.Events[0].ID != b.ID {
+		t.Fatalf("C41 kind=error.pan (a prefix, not a whole name): %+v, want only b", p)
+	}
+	if p, _ = readLog(t, e, op, sysEventsPath+"?kind=lease.", adm, http.StatusOK); len(p.Events) != 50 || p.Events[0].Fingerprint != nil {
+		t.Fatalf("C41 kind=lease.: %d rows, want a full page of plain rows without group fields", len(p.Events))
+	}
+	if p, _ = readLog(t, e, op, sysEventsPath+"?limit=1", adm, http.StatusOK); len(p.Events) != 1 || p.Events[0].Kind != store.LogKindHubStarted ||
+		p.Events[0].Fingerprint != nil || p.Events[0].N != nil || p.Events[0].IssueKey != nil || p.Events[0].HumanID != nil {
+		t.Fatalf("C41 unfiltered newest row: %+v, want a plain row with no group field", p.Events)
+	}
+
+	code, body := call(t, e, op, http.MethodPost, sysEventsPath+"/link", adm, map[string]any{"fingerprint": fpB, "issue_key": "SPL-6231"})
+	if code != http.StatusOK || body["issue_key"] != "SPL-6231" || body["issue_n"] != float64(40) || body["n"] != float64(40) ||
+		body["id"] != float64(b.ID) || body["fingerprint"] != fpB {
+		t.Fatalf("C41 link: %d %v, want 200 issue_key SPL-6231 issue_n 40, id kept", code, body)
+	}
+	p, _ = readLog(t, e, op, sysEventsPath+"?kind=error.", adm, http.StatusOK)
+	if r := p.Events[1]; r.ID != b.ID || *r.IssueKey != "SPL-6231" || *r.IssueN != 40 {
+		t.Fatalf("C41 read after link: %+v", r)
+	}
+	if r := p.Events[0]; *r.IssueKey != "" || *r.IssueN != 0 {
+		t.Fatalf("C41 link touched another group: %+v", r)
+	}
+}
+
+// T4 (SPL-6231): the ?kind= value and the link body are checked (400), an
+// unknown fingerprint is 404 not_found and links nothing, and every caller
+// but an admin of the operator workspace gets 403 operator.workspaces, as on
+// the other System log routes.
+func TestSystemEventsLinkRefusals(t *testing.T) {
+	e, op, other, who, whoOther := operatorEnv(t, func(op, _ string) string { return op })
+	adm := who[rbac.Admin]
+	addGroup(t, e, "error.http_server", fpA, 2, "")
+	link := sysEventsPath + "/link"
+	for _, q := range []string{"?kind=Error.", "?kind=.error", "?kind=error%20x", "?kind=error-x", "?kind=" + strings.Repeat("a", 49)} {
+		if code, _ := call(t, e, op, http.MethodGet, sysEventsPath+q, adm, nil); code != http.StatusBadRequest {
+			t.Errorf("GET %s: %d, want 400", q, code)
+		}
+	}
+	for _, bad := range []any{map[string]any{}, "x", map[string]any{"fingerprint": fpA},
+		map[string]any{"issue_key": "SPL-1"},
+		map[string]any{"fingerprint": "0123456789ABCDEF", "issue_key": "SPL-1"},
+		map[string]any{"fingerprint": "0123456789abcde", "issue_key": "SPL-1"},
+		map[string]any{"fingerprint": fpA + "0", "issue_key": "SPL-1"},
+		map[string]any{"fingerprint": fpA, "issue_key": "spl-1"},
+		map[string]any{"fingerprint": fpA, "issue_key": "SPL-0"},
+		map[string]any{"fingerprint": fpA, "issue_key": "ABC-1"},
+		map[string]any{"fingerprint": fpA, "issue_key": "SPL-"},
+		map[string]any{"fingerprint": fpA, "issue_key": "SPL-1", "issue_n": 9}} {
+		if code, body := call(t, e, op, http.MethodPost, link, adm, bad); code != http.StatusBadRequest {
+			t.Errorf("link body %v: %d %v, want 400", bad, code, body)
+		}
+	}
+	if code, body := call(t, e, op, http.MethodPost, link, adm, map[string]any{"fingerprint": fpB, "issue_key": "SPL-1"}); code != http.StatusNotFound || body["error"] != "not_found" {
+		t.Errorf("link of an unknown fingerprint: %d %v, want 404 not_found", code, body)
+	}
+	type caller struct{ name, tenant, hum string }
+	denied := []caller{{"anonymous", op, ""}}
+	for _, r := range rbac.RoleIDs {
+		if r != rbac.Admin {
+			denied = append(denied, caller{"operator " + r, op, who[r]})
+		}
+		denied = append(denied, caller{"other-workspace " + r, other, whoOther[r]})
+	}
+	for _, c := range denied {
+		if code, body := call(t, e, c.tenant, http.MethodPost, link, c.hum, map[string]any{"fingerprint": fpA, "issue_key": "SPL-1"}); code != http.StatusForbidden || body["permission"] != "operator.workspaces" {
+			t.Errorf("link as %s: %d %v, want 403 operator.workspaces", c.name, code, body)
+		}
+		if code, _ := call(t, e, c.tenant, http.MethodGet, sysEventsPath+"?kind=error.", c.hum, nil); code != http.StatusForbidden {
+			t.Errorf("GET ?kind=error. as %s: %d, want 403", c.name, code)
+		}
+	}
+	p, _ := readLog(t, e, op, sysEventsPath+"?kind=error.", adm, http.StatusOK)
+	if len(p.Events) != 1 || *p.Events[0].IssueKey != "" || *p.Events[0].IssueN != 0 {
+		t.Fatalf("CONTROL: a refused link changed the group: %+v", p.Events)
 	}
 }

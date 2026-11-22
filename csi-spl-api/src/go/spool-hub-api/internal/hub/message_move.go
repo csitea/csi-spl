@@ -371,7 +371,8 @@ func (s *Server) moveStoreErr(err error, msgID string) *issueErr {
 	}
 }
 
-// moveFrame is the answer as a frame: the type added, undo left out.
+// moveFrame is the answer as a frame: the type added, undo and kind left out.
+// The move, merge and promote answers all go through it.
 func moveFrame(typ string, out map[string]any) map[string]any {
 	f := map[string]any{"type": typ}
 	for k, v := range out {

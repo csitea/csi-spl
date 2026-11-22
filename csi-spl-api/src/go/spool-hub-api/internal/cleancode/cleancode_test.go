@@ -44,6 +44,7 @@ var folded = []struct{ pattern, home, why string }{
 	{"& 0x0f) | 0x40", "internal/uid/uid.go", "a UUID is minted by internal/uid (SPL-1030)"},
 	{"json.NewEncoder(w).Encode(", "internal/wire/http.go", "a JSON answer goes through wire.WriteJSON / wire.WriteError (SPL-1031)"},
 	{"return time.Duration(m) * time.Minute, nil", "internal/hubclient/queue_health.go", "a cnf minutes-or-duration value is read by hubclient.ParseMinutes (r86-02)"},
+	{`if k != "undo" && k != "kind" {`, "internal/hub/message_move.go", "a move, merge or promote answer becomes a frame through hub.moveFrame (r87-01)"},
 }
 
 // banned are patterns no Go source may carry (SPL-1029 round 2).

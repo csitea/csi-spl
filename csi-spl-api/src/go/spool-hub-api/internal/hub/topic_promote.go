@@ -108,7 +108,7 @@ func (s *Server) promoteMessage(w http.ResponseWriter, r *http.Request, mr moveR
 		"undo": promoteUndo{FromTask: newTask, MsgIDs: res.MsgIDs}}
 	to := c.m
 	to.TaskID = newTask
-	s.fanoutMove(r.Context(), c.t.ID, c.m, to, promoteFrame(topicPromotedFrame, out))
+	s.fanoutMove(r.Context(), c.t.ID, c.m, to, moveFrame(topicPromotedFrame, out))
 	writeJSON(w, http.StatusOK, out)
 	s.moveNotice(r.Context(), c.t.ID, c.m, newTask, c.m.Channel, c.from)
 }
@@ -133,20 +133,9 @@ func (s *Server) demoteTopic(w http.ResponseWriter, r *http.Request, mr moveRow,
 		"channel": c.m.Channel, "from_channel": c.m.Channel, "msg_ids": ids}
 	to := c.m
 	to.TaskID = home
-	s.fanoutMove(r.Context(), c.t.ID, c.m, to, promoteFrame(topicDemotedFrame, out))
+	s.fanoutMove(r.Context(), c.t.ID, c.m, to, moveFrame(topicDemotedFrame, out))
 	writeJSON(w, http.StatusOK, out)
 	s.moveNotice(r.Context(), c.t.ID, c.m, home, c.m.Channel, c.from)
-}
-
-// promoteFrame is the answer as a frame: the type added, undo and kind left out.
-func promoteFrame(typ string, out map[string]any) map[string]any {
-	f := map[string]any{"type": typ}
-	for k, v := range out {
-		if k != "undo" && k != "kind" {
-			f[k] = v
-		}
-	}
-	return f
 }
 
 // promotePreflight answers CORS preflight for POST .../promote-topic.

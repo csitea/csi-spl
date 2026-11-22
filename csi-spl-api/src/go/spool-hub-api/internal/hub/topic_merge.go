@@ -120,7 +120,7 @@ func (s *Server) mergeTopic(w http.ResponseWriter, r *http.Request, mr moveRow, 
 		"moved_at": rfc(at), "msg_ids": res.MsgIDs, "undo": mergeUndo{FromTask: c.m.TaskID, MsgIDs: res.MsgIDs}}
 	to := c.m
 	to.Channel, to.TaskID = card.Channel, task
-	s.fanoutMove(r.Context(), c.t.ID, c.m, to, mergeFrame(topicMergedFrame, out))
+	s.fanoutMove(r.Context(), c.t.ID, c.m, to, moveFrame(topicMergedFrame, out))
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -144,7 +144,7 @@ func (s *Server) unmergeTopic(w http.ResponseWriter, r *http.Request, mr moveRow
 		"msg_ids": ids}
 	to := c.m
 	to.TaskID, to.Channel = from, c.m.Move.FromChannel
-	s.fanoutMove(r.Context(), c.t.ID, c.m, to, mergeFrame(topicUnmergedFrame, out))
+	s.fanoutMove(r.Context(), c.t.ID, c.m, to, moveFrame(topicUnmergedFrame, out))
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -165,17 +165,6 @@ func (s *Server) unmergeHomeOpen(w http.ResponseWriter, r *http.Request, tenant 
 // maxUndoRows caps an undo's msg_ids: a topic deeper than the delete walk is a
 // bug, and this bounds the ANY() array the store binds.
 const maxUndoRows = 4096
-
-// mergeFrame is the answer as a frame: the type added, undo and kind left out.
-func mergeFrame(typ string, out map[string]any) map[string]any {
-	f := map[string]any{"type": typ}
-	for k, v := range out {
-		if k != "undo" && k != "kind" {
-			f[k] = v
-		}
-	}
-	return f
-}
 
 // mergeTopicPreflight answers CORS preflight for POST .../merge-topic.
 func (s *Server) mergeTopicPreflight(w http.ResponseWriter, r *http.Request) {

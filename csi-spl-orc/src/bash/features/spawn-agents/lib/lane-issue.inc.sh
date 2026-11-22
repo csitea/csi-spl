@@ -570,6 +570,50 @@ li_author_of() {
   printf '%s\n' "$a"
 }
 
+# li_own_cites ROOT ID WORKDIR KEY -> the lane's own trunk commits whose
+# message names KEY anywhere (subject, body or trailer). "Its own" is read
+# from <ROOT>/<ID>/lifetime/push-master/pushes.log, the `<utc> <base>..<sha>`
+# ranges do_spl_push_master appends once per landed push of THIS lane (base =
+# the branch right before the push): li_landed and li_cites read the key on
+# the trunk, which is every lane's work. A range whose sha this checkout lacks
+# is skipped, and a commit not on the trunk (a review/ branch push) is not
+# counted.
+li_own_cites() {
+  local f="$1/$2/lifetime/push-master/pushes.log" t r h k="(^|[^A-Za-z0-9-])$4([^0-9]|\$)"
+  [ -r "$f" ] || return 0
+  t="$(li_trunk "$3")" || return 0
+  while read -r _ r; do
+    [[ "$r" =~ ^([0-9a-f]{40})\.\.([0-9a-f]{40})$ ]] || continue
+    li_git "$3" cat-file -e "${BASH_REMATCH[2]}^{commit}" 2>/dev/null || continue
+    while read -r h; do
+      li_git "$3" merge-base --is-ancestor "$h" "$t" 2>/dev/null && printf '%s\n' "$h"
+    done < <(li_git "$3" log --format=%H -E --grep="$k" "$r" 2>/dev/null)
+  done <"$f" | awk '!seen[$0]++'
+}
+
+# li_shared_row ROOT ID WORKDIR KEY: a row lane on a shared multi-row issue
+# (SPL-6257; spec 071 section 7.9's rows T1..T9 on SPL-6239): its brief says
+# `Issue-Role: shared`, KEY is the issue it was placed on (origin-issue), and
+# each row cites KEY outside its commit scope with no Closes:, so KEY stays
+# wip for the next rows and li_landed finds nothing. 0: the lane landed at
+# least one own commit citing KEY (li_own_cites) and their docs are current,
+# one stderr line, nothing read or written on the hub; 3: the docs rule
+# refuses; 1: not such a lane, or nothing of its own landed (the gate goes on).
+li_shared_row() {
+  local own v
+  [ "$(li_origin_of_agent "$1" "$2")" = "$4" ] || return 1
+  grep -qiE '^[-*_ >]*Issue[- ]Role[*_ ]*:[*_` ]*shared([^A-Za-z]|$)' "$1/$2/lifetime/brief.md" 2>/dev/null || return 1
+  mapfile -t own < <(li_own_cites "$1" "$2" "$3" "$4")
+  [ "${#own[@]}" -gt 0 ] || return 1
+  v="$(li_docs_verdict "$3" "${own[@]}")"
+  if [[ "$v" == missing* ]]; then
+    echo "exit-clean refused: $4 is shared and this lane's ${#own[@]} commit(s) change behaviour (${v#missing }) with no csi-spl-doc/ change and no 'Docs: none (<why>)' trailer; land a doc change citing $4, or a commit citing $4 whose message carries 'Docs: none (<why>)'" >&2
+    return 3
+  fi
+  echo "issue gate: $4 is shared: this lane landed ${#own[@]} commit(s) citing it, newest $(li_git "$3" rev-list --no-walk -n 1 "${own[@]}" | cut -c1-12); docs: ${v#ok }; the issue is left as it is for its other rows" >&2
+  return 0
+}
+
 # li_gate SPOOL_ROOT ID WORKDIR: 0 = the lane may exit; 3 = refused, one line
 # on stderr naming what is missing and the command that fixes it. With no
 # landed commit and no end reason it asks the hub last: an issue the
@@ -593,6 +637,7 @@ li_gate() {
   local -a cites=()
   mapfile -t shas < <(li_landed "$w" "$key")
   if [ "${#shas[@]}" -eq 0 ]; then
+    li_shared_row "$root" "$id" "$w" "$key"; v=$?; (( v == 1 )) || return "$v"
     [ -s "$end" ] && { li_end_record "$key" "$end" "$id"; return; }
     if [ "$(li_hub_status "$key")" = "done" ]; then
       echo "issue gate: $key done on the hub (no landed commit)" >&2

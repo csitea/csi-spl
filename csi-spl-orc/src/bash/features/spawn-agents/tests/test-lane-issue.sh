@@ -23,6 +23,10 @@
 #      issue untouched (SPL-5096); each of the three marks missing: refused.
 #      A seat on a round's issue (an id-less Author:, SPL-6099) or with an
 #      `Issue-Role: shared` brief line on its placed key exits the same way.
+#   S. a row lane on a shared multi-row issue (`Issue-Role: shared`, SPL-6257)
+#      exits on its own landed commit citing the key (its pushes.log ranges,
+#      on the trunk), the issue untouched; landed nothing, another key, no
+#      docs, no origin or a review-branch commit only: refused.
 #   W. a workspace lane (workspace-repo.inc.sh; owner HUM-10 msgs ca8a036d,
 #      dbead7a1): the brief's `Workspace: <tenant>` line passes the brief
 #      check with no csi-spl spec; the exit gate reads the workspace repo's
@@ -612,5 +616,67 @@ gate "$T_SCRIPTS" c-107
 eq "R18 an id-less Author: line, heading is no review: refused" 3 "$RC"
 has "R18 ... by the issue gate" "issue SPL-107 is still wip" "$(cat "$T_TMP/e")"
 eq "R14..R15 ... the owners' issues are untouched: no hub call" 0 "$(grep -c 'SPL-10[34]' "$RV_LOG")"
+
+# --- S. a row lane on a shared multi-row issue (SPL-6257) ---------------------
+# A row lane cites the round's key outside its commit scope with no Closes:,
+# so the key stays wip for the next rows. Its own commits are the ranges its
+# do_spl_push_master appended to lifetime/push-master/pushes.log.
+CTL_SHR="$T_TMP/ctl-shr/spawn-agents"; mkdir -p "$CTL_SHR"
+cp -r "$T_FEAT/scripts" "$T_FEAT/lib" "$CTL_SHR/"
+sed -i '/li_shared_row "\$root"/d' "$CTL_SHR/lib/lane-issue.inc.sh"
+check "control: the copy has no shared-row step" sh -c "! grep -q 'li_shared_row \"\$root\"' '$CTL_SHR/lib/lane-issue.inc.sh'"
+pushed() {  # ID MSG: land one commit on master, logged as ID's push
+  local b; b="$(git -C "$R" rev-parse HEAD)"
+  land "$2" "csi-spl-orc/src/bash/run/row-$1.func.sh"
+  mkdir -p "$SPOOL_ROOT/$1/lifetime/push-master"
+  echo "2026-11-22T11:05:12Z $b..$(git -C "$R" rev-parse HEAD)" >>"$SPOOL_ROOT/$1/lifetime/push-master/pushes.log"
+}
+: >"$RV_LOG"
+rv c-110 SPL-110 SPL-110 'Lane brief: row T1 of round 7' $'Issue-Role: shared\nAuthor: c-110@sat'
+pushed c-110 $'feat(api): the wire names box_sample (SPL-110 row T1)\n\nDocs: none (wire constants only)'
+gate "$T_SCRIPTS" c-110
+eq "S1 a shared row lane whose own landed commit cites the key outside its scope: exits" 0 "$RC"
+has "S1 ... the line: its own commit, the shared key left as it is" "issue gate: SPL-110 is shared: this lane landed 1 commit(s) citing it" "$(cat "$T_TMP/e")"
+eq "S1 ... one issue-gate line" 1 "$(grep -c 'issue gate' "$T_TMP/e")"
+eq "S1 ... the shared issue is untouched: no hub call" 0 "$(wc -l <"$RV_LOG")"
+check "S1 ... and no end record" test ! -e "$SPOOL_ROOT/c-110/lifetime/issue-end"
+gate "$CTL_SHR/scripts" c-110
+eq "S1 control (no shared-row step): the same lane is refused" 3 "$RC"
+has "S1 control ... as wip" "issue SPL-110 is still wip" "$(cat "$T_TMP/e")"
+rv c-111 SPL-110 SPL-110 'Lane brief: row T2 of round 7' $'Issue-Role: shared\nAuthor: c-111@sat'
+gate "$T_SCRIPTS" c-111
+eq "S2 a shared row lane that landed nothing (row T1's commit is not its own): refused" 3 "$RC"
+has "S2 ... by the issue gate" "issue SPL-110 is still wip" "$(cat "$T_TMP/e")"
+mkdir -p "$SPOOL_ROOT/c-111/lifetime/push-master"
+h="$(git -C "$R" rev-parse HEAD)"; echo "2026-11-22T11:09:00Z $h..$h" >"$SPOOL_ROOT/c-111/lifetime/push-master/pushes.log"
+gate "$T_SCRIPTS" c-111
+eq "S2 ... an empty pushed range is no commit: refused" 3 "$RC"
+rv c-112 SPL-112 SPL-112 'Lane brief: fix the widget' 'Author: c-112@sat'
+pushed c-112 $'feat(api): the widget (SPL-112)\n\nDocs: none (test fixture)'
+gate "$T_SCRIPTS" c-112
+eq "S3 not shared: its own commit cites the key outside its scope: refused as before" 3 "$RC"
+has "S3 ... as wip" "issue SPL-112 is still wip" "$(cat "$T_TMP/e")"
+rv c-113 SPL-113 SPL-113 'Lane brief: row T3 of round 7' $'Issue-Role: shared\nAuthor: c-113@sat'
+pushed c-113 $'feat(api): the sampler (SPL-1130 row T3)\n\nDocs: none (test fixture)'
+gate "$T_SCRIPTS" c-113
+eq "S4 shared, its own commit cites another key (SPL-1130): refused" 3 "$RC"
+rv c-114 SPL-114 SPL-114 'Lane brief: row T4 of round 7' $'Issue-Role: shared\nAuthor: c-114@sat'
+pushed c-114 'feat(api): the sampler (SPL-114 row T4)'
+gate "$T_SCRIPTS" c-114
+eq "S5 shared, its own code commit has no doc change and no Docs: none line: refused" 3 "$RC"
+has "S5 ... by the docs rule" "SPL-114 is shared and this lane's 1 commit(s) change behaviour" "$(cat "$T_TMP/e")"
+rv c-115 SPL-115 '' 'Lane brief: row T5 of round 7' $'Issue-Role: shared\nAuthor: c-115@sat'
+pushed c-115 $'feat(api): the sampler (SPL-115 row T5)\n\nDocs: none (test fixture)'
+gate "$T_SCRIPTS" c-115
+eq "S6 shared on a key the lane filed (no origin): refused" 3 "$RC"
+rv c-116 SPL-116 SPL-116 'Lane brief: row T6 of round 7' $'Issue-Role: shared\nAuthor: c-116@sat'
+g checkout -q -b review-s7
+b="$(git -C "$R" rev-parse HEAD)"; echo s7 >"$R/s7.txt"
+g add s7.txt && g commit -q -m $'feat(api): the sampler (SPL-116 row T6)\n\nDocs: none (test fixture)'
+mkdir -p "$SPOOL_ROOT/c-116/lifetime/push-master"
+echo "2026-11-22T11:10:00Z $b..$(git -C "$R" rev-parse HEAD)" >"$SPOOL_ROOT/c-116/lifetime/push-master/pushes.log"
+g checkout -q master
+gate "$T_SCRIPTS" c-116
+eq "S7 shared, its pushed commit is on a review branch, not the trunk: refused" 3 "$RC"
 unset LI_HUB_STATUS_CMD
 t_done

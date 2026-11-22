@@ -973,20 +973,25 @@ got1="$(scan spl_lane_wt_scan LANE_WT_JOBS=1)"
 # scan reaching diff (its temp dir is made before any worker starts), then
 # the dir emptying or the scan subshell being gone, whichever comes first.
 # The budgets are caps; a scan that never reaches diff fails on its own line.
+# Each pass has its own marker (SLOW_MARK): the scan runs `timeout 20 git diff`
+# and GNU timeout makes its own process group, so the group KILL of the INT
+# pass misses a shim that has not written yet; under load it wrote the shared
+# marker after the TERM pass removed it, and TERM measured before its scan's
+# mktemp (mid=0, c-806 and SPL-6234 run 7, TERM both times).
 mkdir -p "$T/slowshim"
-printf '#!/usr/bin/env bash\nif [[ " $* " == *" diff "* ]]; then : >>"%s/slow.started"; exec sleep 300; fi\nexec %q "$@"\n' \
-  "$T" "$(command -v git)" >"$T/slowshim/git"
+printf '#!/usr/bin/env bash\nif [[ " $* " == *" diff "* ]]; then : >>"${SLOW_MARK:?}"; exec sleep 300; fi\nexec %q "$@"\n' \
+  "$(command -v git)" >"$T/slowshim/git"
 chmod +x "$T/slowshim/git"
 td_settled() { [[ -z "$(ls -A "$1")" ]] || pid_gone "$2"; }
 reach=300
 for sig in INT TERM; do
-  td="$T/tmp-$sig"; mkdir -p "$td"; rm -f "$T/slow.started" "$T/scan-parent.pid"
+  td="$T/tmp-$sig"; mk="$T/slow-$sig.started"; mkdir -p "$td"; rm -f "$mk" "$T/scan-parent.pid"
   set -m
   on scan 'echo "$$" >"'"$T"'/scan-parent.pid"; spl_lane_wt_scan "$(cat "'"$T"'/scan-rows.json")" >/dev/null' \
-    LANE_REPO_DIRS= LANE_BOX=box-desk TMPDIR="$td" PATH="$T/slowshim:$PATH" &
+    LANE_REPO_DIRS= LANE_BOX=box-desk TMPDIR="$td" SLOW_MARK="$mk" PATH="$T/slowshim:$PATH" &
   pg=$!
   set +m
-  if ! wait_event "$reach" test -e "$T/slow.started"; then
+  if ! wait_event "$reach" test -e "$mk"; then
     kill -KILL -- -"$pg" 2>/dev/null; wait "$pg" 2>/dev/null
     fail "the $sig scan never reached diff in $reach s: no $sig sent, nothing measured"
     continue

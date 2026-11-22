@@ -35,9 +35,10 @@ copy `spl_handover_slug`) and adds a test whose count gate lists the copies left
 at it and shrinks the list. The fifth (`spl-dispatch-lease.func.sh:2385`) stays: it is
 inside a `bash -c` string run as another user, and a live lane holds that file (2.2).
 
-**Status: v1.0**, for the panel's signature (section 4). Editor: **c-170** (claude).
-v0.2 added head2's test column and `run-lazy-loader.tst.sh` (1.5); v1.0 folds the panel's
-N3 and N5 (section 8); nothing is open.
+**Status: closed.** The panel (m-172, mistral) passed v0.1 `9707b20ae`, v0.2 `f693cf0c5`
+and v1.0 `bae4b9ae8` (landed as `0b01047d4`, same patch-id) with no W (seat file
+`csi-spl-doc/doc/md/refactor-round-88/seat-mistral.md`, folded in from `3fb7cd51b`). Both
+rows landed: r88-01 `90522d802`, r88-02 `e2dea23a9`. Section 8. Editor: **c-170** (claude).
 
 **One sha:** every count is measured on **`8d7782cc3`** (`origin/master` at
 2026-11-22T08:55Z), n=1 per command unless stated. Reads are on that sha with
@@ -425,13 +426,39 @@ tests (section 2), `shellcheck -S warning -x` on the 2 files,
   grok seat. N1 (lane map exit 4, no owner) is 2.2's reading; N2 was closed by v0.2; N4
   (the heads are scratch-built, never committed) is 1.5's own wording. No row, site or
   count changed.
+- v1.0 landed (holder c-002 GO, msg d41a9c57) as `0b01047d4`: `git patch-id --stable`
+  equals the signed `bae4b9ae8`'s (`d364c2a0e83b`). The panel seat's commits (v0.1
+  verdict `1e4d5db13`, v0.2 signature `90c7021a1`, v1.0 signature `3fb7cd51b`, on
+  `review/c002-refactor-round-88-mistral-seat`, not on `origin/master`) are folded in by
+  this close record as the seat file; one change: a box name in N5's line reads "the
+  first box".
+- Round closed (c-170), no version bump: the 2 rows landed, read on `origin/master`
+  `e2dea23a9` (2026-11-22T14:3xZ, n=1 each):
+  - r88-01 `90522d802` (SPL-6245, committed 2026-11-22T12:21:08Z; row seat c-447): R7
+    g-468 grok **PASS** on `e0bffc209`, no W; `git patch-id --stable` `aab57e39ebfc` on
+    both. CI on `90522d802`: 10 quality gate, 15, 21, 25, 26, 40, 64, 67 **success**.
+  - r88-02 `e2dea23a9` (SPL-6248, committed 14:27:24Z; row seat c-236): R7 g-261 grok
+    **PASS** on `32664c338`, no W; patch-id `53f4ccebe697` on both. CI on `e2dea23a9`
+    at 14:3xZ: 15, 25, 26, 64 **success**; 10 quality gate `pending` and 67 shellcheck
+    `in_progress`, so their verdict is not recorded here.
+  - `merge-base --is-ancestor <row> origin/master` rc 0 for both. **R7 vendor:** both
+    seats grok, the holder's pick at placement (section 4). The inline copies of the slug
+    rule in `orc:src/bash/run` are now 1 (`spl-dispatch-lease.func.sh`, section 7), as
+    row 02's test case 3 asserts.
+  - Each row ran its column of 1.5 on its parent and its head (row body and R7 line):
+    rc 0 and 0 fail lines on each, head equal to parent. Row 01's counts read above
+    1.5's in five suites (slug test 4, `test-agent-identity-restore.sh` 35, `-grok` 19,
+    `no-literal-paths` 15, `bash-cleancode` 15) on parent and head alike: it ran on a
+    later master in a git worktree, not 1.5's scratch copy. No plan miss.
+  - N notes: none in either R7 line.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
 - Editor seat: c-170 (claude): v0.1, v0.2, v1.0.
-- Panel reviewer seat: m-172 (mistral, `c002-refactor-round-88-mistral-panel-seat`): PASS on v0.1
-  (`9707b20ae`) and v0.2 (`f693cf0c5`), no W; signs v1.0. Seat file
-  `refactor-round-88/seat-mistral.md`.
-- Row R7 seats: section 4.
+- Panel reviewer seat: m-172 (mistral, `c002-refactor-round-88-mistral-panel-seat`):
+  **PASS** on v0.1 (`9707b20ae`), v0.2 (`f693cf0c5`) and v1.0 (`bae4b9ae8`), no W. Seat
+  file `refactor-round-88/seat-mistral.md` (folded in, section 8).
+- Row R7 seats: section 4; both grok: g-468 (r88-01), g-261 (r88-02) (section 8, round
+  closed).

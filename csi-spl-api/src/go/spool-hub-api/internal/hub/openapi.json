@@ -14237,11 +14237,22 @@
               "minimum": 1,
               "type": "integer"
             }
+          },
+          {
+            "description": "list only the rows whose kind starts with this (spec 162 10.7), e.g. error. for every backend error group; next_before pages within the filter",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "maxLength": 48,
+              "pattern": "^[a-z][a-z._]*$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK: {events, next_before}: the hub-wide log (spec 162 3.1-3.2, rdb 0240: lease handovers, hub starts), newest first, at most limit rows: each id, at (the hub's clock, RFC 3339 UTC), kind (a dotted name such as member.invited or lease.failover), level (info, warn or error), actor (HUM-*, <agent id>@<box> or hub), message (English text built by the hub), origin_kind (empty, msg, topic, issue or component) and origin_ref; next_before as GET /v1/view/events. Only an admin of the operator workspace (403 operator.workspaces)"
+            "description": "OK: {events, next_before}: the hub-wide log (spec 162 3.1-3.2, rdb 0240: lease handovers, hub starts, backend error groups), newest first, at most limit rows: each id, at (the hub's clock, RFC 3339 UTC; for an error group its last sighting), kind (a dotted name such as member.invited or lease.failover), level (info, warn or error), actor (HUM-*, <agent id>@<box> or hub), message (English text built by the hub), origin_kind (empty, msg, topic, issue or component) and origin_ref; a row that is a backend error group (spec 162 10.5-10.6, rdb 0298) also carries fingerprint (16 hex), first_at (its first sighting), n (sightings counted), issue_key (the linked issue, empty for none), issue_n (n when the issue was linked) and human_id (HUM-* of the last sighting that had a person, empty for none); a row that is no group carries none of these six; next_before as GET /v1/view/events. Only an admin of the operator workspace (403 operator.workspaces)"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -14310,6 +14321,66 @@
           }
         },
         "summary": "Delete selected entries of the system event log",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/events/link": {
+      "post": {
+        "operationId": "postOperatorEventsLink",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "the error group and the issue filed for it; Content-Type application/json (spec 162 10.7)",
+                "properties": {
+                  "fingerprint": {
+                    "description": "the group's fingerprint, 16 lowercase hex",
+                    "pattern": "^[0-9a-f]{16}$",
+                    "type": "string"
+                  },
+                  "issue_key": {
+                    "description": "the issue, SPL-<n>",
+                    "pattern": "^SPL-[1-9][0-9]{0,9}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fingerprint",
+                  "issue_key"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the group's row, as a row of GET /v1/operator/events, with issue_key set and issue_n = n (spec 162 10.7); its id stays. Only an admin of the operator workspace (403 operator.workspaces; an act-as clone is refused)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Link a backend error group of the system event log to its issue",
         "tags": [
           "operator"
         ],

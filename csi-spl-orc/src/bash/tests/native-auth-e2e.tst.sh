@@ -6,6 +6,7 @@
 #   2. the action: the env reaches the script (auth URL, IMAP mailbox, host,
 #      password file, a default fresh plus-address), the relay password file
 #      is gone after the run, a failed flow is FAIL
+#   2b. NAE_MODE=wui runs the WUI proof with the hosts, address and mail command
 #   3. the flow (hub + mailbox faked in-process): 11 steps PASS, exit 0, the
 #      reset mail is read with the /reset-password link; no token, password
 #      or address on stdout. CONTROLS: a hub that signs in a wrong password,
@@ -61,6 +62,36 @@ out="$(act)"; [[ $? -eq 0 ]] && grep -Eq ' relay\+native-e2e-[0-9]{8}t[0-9]{6}@e
 touch "$T/fail"; out="$(act)"; rc=$?
 [[ $rc -ne 0 ]] && grep -q '^FAIL native auth e2e on dev' <<<"$out" && [[ ! -e "$(cat "$T/log.pass")" ]] &&
   pass "2. a failed flow is FAIL, the password file still removed" || fail "2. fail: rc=$rc $out"
+
+# 2b. NAE_MODE=wui: the WUI proof gets the WUI + API hosts, the address, the
+# state dir, the cred file and a MAIL_TOKEN_CMD; no relay password is read here
+cat >"$T/node.sh" <<'FAKE'
+#!/usr/bin/env bash
+echo "$PWD|$BASE|$API|$EMAIL|$OUT|$CRED_FILE|$MAIL_TOKEN_CMD" >"$FAKE_LOG.wui"
+echo "$SEAT_CMD" >"$FAKE_LOG.seat"
+[[ -e "$FAKE_FAIL" ]] && exit 1 || exit 0
+FAKE
+chmod +x "$T/node.sh"; rm -f "$T/fail"; mkdir -p "$T/app/org-app-wui"
+printf 'env:\n  dns:\n    fqdn: wui.example.net\n  mail:\n    env:\n      SPOOL_HUB_MAIL_SMTP_USER: relay@example.net\n      SPOOL_HUB_MAIL_SMTP_HOST: smtp.example.net\n' >"$T/cnf.yaml"
+out="$(act APP_PATH="$T/app" NAE_MODE=wui NAE_CMD_NODE="$T/node.sh" NAE_EMAIL=relay+w1@example.net NAE_CRED_FILE=/x/cred)"; rc=$?
+IFS='|' read -r w_pwd w_base w_api w_email w_out w_cred w_cmd <"$T/log.wui"
+[[ $rc -eq 0 && "$w_pwd" == "$T/app/org-app-wui" && "$w_base" == https://wui.example.net && "$w_api" == https://api.example.net &&
+  "$w_email" == relay+w1@example.net && "$w_out" == "$T/state/"* && "$w_cred" == /x/cred &&
+  "$w_cmd" == "cd $T/app/org-app-orc && ENV=dev ./run -a do_spl_mail_verify_token" ]] && ! grep -q SECRET-READ <<<"$out" &&
+  pass "2b. NAE_MODE=wui: the proof gets both hosts, address, state dir, cred file and the mail command; no password read" || fail "2b. wui: rc=$rc $out $(cat "$T/log.wui")"
+out="$(act APP_PATH="$T/app" NAE_MODE=wui NAE_CMD_NODE="$T/node.sh" NAE_CRED_FILE=cred)"
+[[ $? -ne 0 ]] && grep -q 'NAE_CRED_FILE must be an absolute path' <<<"$out" && pass "2b. a relative cred file is refused" || fail "2b. cred: $out"
+touch "$T/fail"; out="$(act APP_PATH="$T/app" NAE_MODE=wui NAE_CMD_NODE="$T/node.sh")"
+[[ $? -ne 0 ]] && grep -q '^FAIL native auth WUI proof on dev' <<<"$out" && pass "2b. a failed WUI proof is FAIL" || fail "2b. wui fail: $out"
+rm -f "$T/fail"
+[[ -z "$(cat "$T/log.seat")" ]] && pass "2b. no NAE_SEAT_TENANT: no seat command" || fail "2b. seat without tenant: $(cat "$T/log.seat")"
+out="$(act APP_PATH="$T/app" NAE_MODE=wui NAE_CMD_NODE="$T/node.sh" NAE_SEAT_TENANT=t1)"
+[[ $? -ne 0 ]] && grep -q 'needs NAE_ORDERED_BY=HUM-<n>' <<<"$out" && pass "2b. a seat with no ORDERED_BY is refused" || fail "2b. ordered_by: $out"
+out="$(act APP_PATH="$T/app" NAE_MODE=wui NAE_CMD_NODE="$T/node.sh" NAE_SEAT_TENANT='T 1' NAE_ORDERED_BY=HUM-10)"
+[[ $? -ne 0 ]] && grep -q 'must be a tenant slug' <<<"$out" && pass "2b. a seat tenant that is no slug is refused" || fail "2b. slug: $out"
+out="$(act APP_PATH="$T/app" NAE_MODE=wui NAE_CMD_NODE="$T/node.sh" NAE_SEAT_TENANT=t1 NAE_ORDERED_BY=HUM-10 NAE_ORDERED_VIA=c-806)"; rc=$?
+[[ $rc -eq 0 ]] && grep -qxF "cd $T/app/org-app-orc && ENV=dev TENANT_ID=t1 EMAIL=\"\$SEAT_EMAIL\" DISPLAY_NAME='Native E2E' MEMBER_ROLE=${NAE_SEAT_ROLE:-regular_user} CREATE_HUMAN=1 ORDERED_BY=HUM-10 ORDERED_VIA='c-806' DRY_RUN=0 ./run -a do_spl_tenant_member_add" "$T/log.seat" &&
+  pass "2b. NAE_SEAT_TENANT: the proof gets the member-add seat (CREATE_HUMAN=1, no password)" || fail "2b. seat cmd: rc=$rc $(cat "$T/log.seat")"
 
 # 3. the flow against a fake hub and mailbox: FAKE_MODE ok | wrongpw | noreset
 run_py() {

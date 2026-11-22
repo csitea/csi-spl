@@ -7,8 +7,11 @@ debug_token (dev and prd since SPL-2157).
 
 The address must be new (no earlier mail to it): every mail to it counts.
 
+MAIL_TOKEN_KIND=reset reads the newest /reset-password link instead (SPL-6182,
+the native-auth WUI proof); the default is verify.
+
 Env: MAIL_TOKEN_EMAIL, MAIL_TOKEN_FILE (the token is written there, 0600, and
-nowhere else), M3_IMAP_USER / M3_IMAP_PASS_FILE / M3_IMAP_HOST /
+nowhere else), MAIL_TOKEN_KIND, M3_IMAP_USER / M3_IMAP_PASS_FILE / M3_IMAP_HOST /
 M3_IMAP_TIMEOUT. Prints one JSON line of evidence (sender, subject, delay,
 never the token or the address); exit 0 = token written.
 """
@@ -31,11 +34,19 @@ def main():
     if not m3.IMAP_USER:
         print(json.dumps({"ok": False, "error": "no M3_IMAP_USER mailbox set"}))
         return 1
-    token, ev = m3.imap_verify_token(email, set())
+    kind = os.environ.get("MAIL_TOKEN_KIND", "verify")
+    if kind not in ("verify", "reset"):
+        print(json.dumps({"ok": False, "error": "MAIL_TOKEN_KIND is verify or reset"}))
+        return 1
+    link = m3.RESET_LINK if kind == "reset" else m3.VERIFY_LINK
+    token, ev = m3.imap_verify_token(email, set(), link)
     if not token:
         print(
             json.dumps(
-                {"ok": False, "error": "no verify mail within %ds" % m3.IMAP_TIMEOUT}
+                {
+                    "ok": False,
+                    "error": "no %s mail within %ds" % (kind, m3.IMAP_TIMEOUT),
+                }
             )
         )
         return 1
@@ -43,7 +54,13 @@ def main():
     os.fchmod(fd, 0o600)
     with os.fdopen(fd, "w") as f:
         f.write(token + "\n")
-    keep = ("mail_from", "mail_subject", "mail_after_s", "link_page_status")
+    keep = (
+        "mail_from",
+        "mail_subject",
+        "mail_message_id",
+        "mail_after_s",
+        "link_page_status",
+    )
     print(json.dumps(dict({"ok": True}, **{k: ev[k] for k in keep if k in ev})))
     return 0
 

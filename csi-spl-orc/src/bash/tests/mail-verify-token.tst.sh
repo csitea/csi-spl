@@ -61,8 +61,10 @@ run_py() {
     python3 -B - "$PY" <<'PYI' 2>&1
 import importlib.util, os, sys
 spec = importlib.util.spec_from_file_location("mvt", sys.argv[1]); mvt = importlib.util.module_from_spec(spec); spec.loader.exec_module(mvt)
-def fake(rcpt, seen):
+def fake(rcpt, seen, link=None):
     assert seen == set() and rcpt == "relay+wui-1@example.net"
+    want = mvt.m3.RESET_LINK if os.environ.get("MAIL_TOKEN_KIND") == "reset" else mvt.m3.VERIFY_LINK
+    assert link is want, "wrong link kind"
     t = os.environ["FAKE_TOK"]
     return (t, {"mail_from": "noreply@example.net", "mail_subject": "Confirm", "mail_after_s": 1.0, "link_page": "https://x/verify-email"}) if t else ("", {"mail": "no verify mail to %s within 1s" % rcpt})
 mvt.m3.imap_verify_token = fake
@@ -74,6 +76,10 @@ out="$(run_py "$TOK")"; rc=$?
 [[ $rc -eq 0 && "$(cat "$T/tok")" == "$TOK" && "$(stat -c %a "$T/tok")" == 600 ]] && pass "3. the token lands in the file, 0600" || fail "3. token file: rc=$rc $out"
 grep -q "$TOK" <<<"$out" && fail "3. the token printed" || pass "3. the token is on no stdout line"
 grep -q 'relay+wui' <<<"$out" && fail "3. the address printed" || pass "3. the evidence names no address"
+rm -f "$T/tok"; out="$(MAIL_TOKEN_KIND=reset run_py "$TOK")"; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/tok")" == "$TOK" ]] && pass "3. MAIL_TOKEN_KIND=reset reads the /reset-password link" || fail "3. reset kind: rc=$rc $out"
+rm -f "$T/tok"; out="$(MAIL_TOKEN_KIND=bogus run_py "$TOK")"; rc=$?
+[[ $rc -eq 1 && ! -e "$T/tok" ]] && pass "3. CONTROL: another MAIL_TOKEN_KIND is refused, no file" || fail "3. bogus kind: rc=$rc $out"
 rm -f "$T/tok"; out="$(run_py "")"; rc=$?
 [[ $rc -eq 1 && ! -e "$T/tok" ]] && grep -q '"error": "no verify mail within 1s"' <<<"$out" && ! grep -q 'relay+wui' <<<"$out" &&
   pass "3. CONTROL: no mail -> exit 1, no file, no address" || fail "3. control: rc=$rc $out"

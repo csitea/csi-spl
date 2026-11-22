@@ -32,6 +32,14 @@ check('the command gets the address and writes the token file', r.token === 'b'.
 r = withCmd('echo "FAIL no verify token: no verify mail within 1s"; exit 1', () => verifyToken({}, 'x+1@example.net'))
 check('a command that finds no mail -> no token, its last line in the error', r.token === '' && r.via === 'mail' && r.error === 'MAIL_TOKEN_CMD exit 1: FAIL no verify token: no verify mail within 1s', JSON.stringify(r))
 
+r = withCmd(`[ "$MAIL_TOKEN_KIND" = verify ] && printf '%s\\n' ${'c'.repeat(64)} >"$MAIL_TOKEN_FILE"`, () => verifyToken({}, 'x+1@example.net'))
+check('the default kind is verify (MAIL_TOKEN_KIND=verify to the command)', r.token === 'c'.repeat(64), JSON.stringify(r))
+r = withCmd(`[ "$MAIL_TOKEN_KIND" = reset ] && printf '%s\\n' ${'d'.repeat(64)} >"$MAIL_TOKEN_FILE"`, () => verifyToken({}, 'x+1@example.net', 'reset'))
+check('kind reset reaches the command as MAIL_TOKEN_KIND=reset (SPL-6182)', r.token === 'd'.repeat(64), JSON.stringify(r))
+
+r = withCmd(`echo 'OK the verify token for x is in f: {"ok": true, "mail_message_id": "<m@x>"}'; printf '%s\\n' ${'e'.repeat(64)} >"$MAIL_TOKEN_FILE"`, () => verifyToken({}, 'x+1@example.net'))
+check('the mail evidence the command printed comes back, the token not in it', r.mail && r.mail.mail_message_id === '<m@x>' && !JSON.stringify(r.mail).includes('e'.repeat(64)), JSON.stringify(r))
+
 check('relayPlus makes a plus-address of the relay mailbox', relayPlus('relay@example.net', 'wui-1') === 'relay+wui-1@example.net', relayPlus('relay@example.net', 'wui-1'))
 
 if (failed) { console.log(`\nproof-verify-token: ${failed} FAILED`); process.exit(1) }

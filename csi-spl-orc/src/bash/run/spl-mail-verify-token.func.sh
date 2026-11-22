@@ -13,6 +13,7 @@
 # @param ENV (required) - dev or prd
 # @param MAIL_TOKEN_EMAIL (required) - <relay>+<tag>@<relay domain>, with no earlier mail
 # @param MAIL_TOKEN_FILE (required) - absolute path the token is written to (0600)
+# @param MAIL_TOKEN_KIND (optional) - verify (default) or reset: the /reset-password link of a forgot mail (SPL-6182)
 # @param M3_IMAP_TIMEOUT (optional) - seconds to wait for the mail (default 240)
 # @example ENV=dev MAIL_TOKEN_EMAIL=<relay>+wui-proof-1@<relay domain> MAIL_TOKEN_FILE=/tmp/x/token ./run -a do_spl_mail_verify_token
 #------------------------------------------------------------------------------

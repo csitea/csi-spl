@@ -179,7 +179,11 @@ Already built: `POST /api/v1/auth/logout` (010).
   the mail Message-ID and the served `/version`; each run leaves one
   tenant-less native credential for its fresh plus-address (no hub route
   erases a native credential yet; the run logs the address). prd runs are
-  picked by hand, never scheduled.
+  picked by hand, never scheduled. `NAE_MODE=wui` runs the same flow in the
+  deployed WUI (`csi-spl-wui/tests/e2e/native-auth-live.proof.mjs`, headless
+  Chrome) and saves a screenshot of each human-visible step;
+  `NAE_CRED_FILE` keeps the account's address and password in one 0600 file
+  for a person to inspect it.
 - **FR-012** Fail closed: with verification required and no way to deliver
   the link (transport `none`, and no debug tokens) `register` answers
   `503 email_delivery_unavailable` instead of creating an unusable credential.

@@ -40,8 +40,12 @@ export const NO_TOKEN = 'the hub answered no debug_token (lde only since SPL-215
 // the hub's debug_token when it answers one (lde), else the link in the verify
 // mail to email, which MAIL_TOKEN_CMD (a shell command) writes to the file
 // MAIL_TOKEN_FILE it is given, with MAIL_TOKEN_EMAIL. Never throws:
-// { token, via } or { token: '', via, error }. The token is never printed.
-export function verifyToken(body, email) {
+// { token, via[, mail] } or { token: '', via, error }; mail = the evidence
+// JSON the command printed (sender, subject, Message-ID, delay), when it
+// printed one. The token is never printed.
+// kind 'reset' (SPL-6182) reads the forgot mail's /reset-password link
+// instead (MAIL_TOKEN_KIND=reset to the command).
+export function verifyToken(body, email, kind = 'verify') {
   const dbg = body && typeof body.debug_token === 'string' ? body.debug_token : ''
   if (dbg) return { token: dbg, via: 'debug_token' }
   const cmd = process.env.MAIL_TOKEN_CMD
@@ -50,13 +54,24 @@ export function verifyToken(body, email) {
   const file = join(dir, 'token')
   try {
     const r = spawnSync('sh', ['-c', cmd], {
-      env: { ...process.env, MAIL_TOKEN_EMAIL: email, MAIL_TOKEN_FILE: file }, encoding: 'utf8', timeout: 600000,
+      env: { ...process.env, MAIL_TOKEN_EMAIL: email, MAIL_TOKEN_FILE: file, MAIL_TOKEN_KIND: kind }, encoding: 'utf8', timeout: 600000,
     })
     const token = existsSync(file) ? readFileSync(file, 'utf8').trim() : ''
-    if (token) return { token, via: 'mail' }
+    if (token) return { token, via: 'mail', mail: mailEvidence(r.stdout) }
     const last = `${r.stdout || ''}${r.stderr || ''}`.trim().split('\n').slice(-1)[0]
     return { token: '', via: 'mail', error: `MAIL_TOKEN_CMD exit ${r.status}: ${last}` }
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+}
+
+// mailEvidence(stdout) - the last {"ok": true, ...} object a MAIL_TOKEN_CMD
+// line carries (do_spl_mail_verify_token prints it), else null.
+function mailEvidence(stdout) {
+  for (const line of String(stdout || '').trim().split('\n').reverse()) {
+    const i = line.indexOf('{"ok": true')
+    if (i < 0) continue
+    try { return JSON.parse(line.slice(i)) } catch { /* not this line */ }
+  }
+  return null
 }

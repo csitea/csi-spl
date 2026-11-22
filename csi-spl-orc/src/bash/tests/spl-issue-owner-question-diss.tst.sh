@@ -6,6 +6,8 @@
 # SKIPped. A dry run writes nothing. DRY_RUN=0 comments the owner's reason and
 # sets diss on each MOVE item, leaves one that is done or diss by now alone,
 # deletes none and writes a 0600 undo file. The SQL carries every filter.
+# One copy of the comment-then-diss step (r90-02): the action calls the
+# blocker-RCA closer's spl_issue_brc_one and loads it when sourced alone.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -67,6 +69,16 @@ run OWNER_ID="x'; DROP TABLE issues; --"
 [[ $RC -ne 0 ]] && grep -q 'OWNER_ID must be' "$T/o" && pass "a bad OWNER_ID is refused before any read" || fail "bad owner (rc=$RC): $(cat "$T/o")"
 run ISSUE_NUM_FROM=1471 ISSUE_NUM_TO=1351
 [[ $RC -ne 0 ]] && grep -q 'ISSUE_NUM_FROM..ISSUE_NUM_TO' "$T/o" && pass "a reversed range is refused" || fail "range (rc=$RC): $(cat "$T/o")"
+
+own=$(grep -n 'spl_issue_oq_one' "$PROJ_ROOT/src/bash/run/spl-issue-owner-question-diss.func.sh")
+[[ -z "$own" ]] && grep -q 'if spl_issue_brc_one "$key" "$why"; then' "$PROJ_ROOT/src/bash/run/spl-issue-owner-question-diss.func.sh" &&
+  pass "r90-02: one copy of the step: no spl_issue_oq_one, the apply calls spl_issue_brc_one" ||
+  fail "r90-02: own copy left: $own"
+run DRY_RUN=0 ISSUE_UNDO="$T/undo2.sh" IN_ORC_RUN=spl-issue-owner-question-diss
+[[ $RC -eq 0 ]] && grep -q '^update --ref SPL-1351 --status diss$' "$T/desk.log" &&
+  grep -q '^comment --ref SPL-1351 --body owner question, not an issue (owner db5ed497)' "$T/desk.log" &&
+  pass "r90-02 sourced alone: the action loads spl_issue_brc_one, a real run comments and sets SPL-1351 diss" ||
+  fail "r90-02 sourced alone (rc=$RC): $(cat "$T/o") / $(cat "$T/desk.log")"
 
 sql=$(SNIPPET='spl_issue_oq_sql' in_orc "${base[@]}" 2>&1)
 grep -q "assignee = 'HUM-10'" <<<"$sql" && grep -q "'blocker' = ANY (i.labels)" <<<"$sql" &&

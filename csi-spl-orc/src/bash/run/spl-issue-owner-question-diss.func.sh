@@ -137,6 +137,7 @@ spl_issue_oq_apply() {
   local plan="$1" undo="${ISSUE_UNDO:-${1%.tsv}.undo.sh}" key status verdict n=0 gone=0 fail=0 now
   local why="${ISSUE_REASON:-owner question, not an issue (owner db5ed497): it becomes an issue only when the owner decides that. Nothing was deleted; setting the old status back undoes it.}"
   (umask 077; printf '#!/bin/bash\n# undo do_spl_issue_owner_question_diss (%s): each item back to its old status\n' "$plan" >"$undo") || return 1
+  declare -F spl_issue_brc_one >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-issue-blocker-rca-close.func.sh"
   spl_desk_issue_once || return 1
   while IFS=$'\t' read -r key status verdict _; do
     [[ "$verdict" == MOVE ]] || continue
@@ -147,7 +148,7 @@ print((d.get("issue") or d).get("status", ""))' 2>/dev/null)"
       do_log "INFO $key is $now already: left alone (one move per issue)"
       gone=$((gone + 1)); continue
     fi
-    if spl_issue_oq_one "$key" "$why"; then
+    if spl_issue_brc_one "$key" "$why"; then
       printf 'cd %q && ENV=%q TENANT_ID=%q DESK_AGENT=%q ISSUE_REF=%q ISSUE_STATUS=%q DRY_RUN=0 ./run -a do_spl_issue_update\n' \
         "$PROJ_PATH" "$ENV" "$TENANT_ID" "$DESK_AGENT" "$key" "$status" >>"$undo"
       n=$((n + 1))
@@ -158,11 +159,4 @@ print((d.get("issue") or d).get("status", ""))' 2>/dev/null)"
   do_log "UNDO $undo"
   (( fail == 0 )) || { do_log "FATAL moved $n, $fail failed (above)"; return 1; }
   do_log "OK moved $n items to diss, $gone already closed by someone else"
-}
-
-# spl_issue_oq_one KEY WHY: the reason comment, then status diss.
-spl_issue_oq_one() {
-  local key="$1" why="$2" out
-  out="$(spl_desk_issue_run comment --ref "$key" --body "$why" 2>&1)" || { do_log "FATAL comment $key: $out"; return 1; }
-  out="$(spl_desk_issue_run update --ref "$key" --status diss 2>&1)" || { do_log "FATAL diss $key: $out"; return 1; }
 }

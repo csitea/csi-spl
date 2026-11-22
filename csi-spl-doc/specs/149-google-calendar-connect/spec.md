@@ -665,4 +665,166 @@ it is the smallest static page Google's review needs. When 116's front page
 is built it can take this text or link it; `/about` stays as the page a
 crawler reads without JavaScript.
 
-<!-- version: 1.0 · updated: 2026-11-21 -->
+<a id="s13-gcal-in-edits"></a>
+## 13. Google edits by a member who may edit the event (SPL-6247, plan)
+
+Status: **plan, not built, not signed.** An amendment to 2.5 "In" for the
+requester of topic 1d9ec3c5 (HUM-5, poll cc419749 answer A, msg
+604ab12e): "edits in Google to events she may edit in Spool Hub are taken
+over". Every `file:line` below was read on origin/master `8604ad411` with
+`sed -n` / `grep -n`. Paths as at the top of this spec.
+
+### 13.0 In plain words
+
+1. Today, when a member changes a workspace event in their phone's
+   "Spool Hub" calendar, Spool keeps the change only if that member created
+   the event; otherwise Spool puts the old values back within a minute.
+2. After this change, Spool keeps the change whenever that member is
+   allowed to edit the event in Spool Hub itself, exactly as if they had
+   edited it in the web app.
+3. Deleting such an event on the phone moves it to Spool's trash, as a
+   delete in the web app does.
+4. Everyone else who connected Google sees the change in their own
+   "Spool Hub" calendar on their next sync (about a minute).
+5. One choice is left to the requester: whether a NEW event added on the
+   phone stays private to its author (today) or becomes a workspace event
+   (13.4).
+
+### 13.1 The rule
+
+A Google edit of a mapped Spool event (an item of the member's "Spool Hub"
+calendar with a `gcal_event_map` row whose Spool event has no `source_key`)
+is written to Spool when the connected member **may edit that event in
+Spool**: the same checks the member PATCH runs, not only when they created
+it. The conflict rule of 2.5 is unchanged (13.2).
+
+- Today: `hub/gcal_sync_in.go:261`
+  `if cur.CreatorID != cy.c.Human || !it.Updated.After(cur.UpdatedAt) { return nil }`
+  drops any edit of an event another member or an agent created, and the
+  out half (`hub/gcal_sync.go:456` `push`) then writes Spool's values back
+  over it at Google.
+- The member PATCH: `hub/calendar.go:1121` `handlePatchCalendarEvent` ->
+  `calendarWriter` (:938) -> `patchCalendarOnce` (:1060). Spec 097 4.5
+  (`specs/097-calendar-full-editing/spec.md:354`): "Who may edit: unchanged
+  from 089 (anyone with `notes.send` who can read the event)"; 097 Q4 kept
+  it (:896).
+- **A Google delete trashes it too**, under the same check. Today
+  `hub/gcal_sync_in.go:245` (`case cur.CreatorID == cy.c.Human`) trashes
+  only the member's own event; for any other event it drops the map row and
+  the out half inserts the event at Google again, so the delete is undone.
+  The member DELETE (`hub/calendar.go:1158` `handleDeleteCalendarEvent`)
+  runs the same `calendarWriter` checks as PATCH and no creator check, so the
+  sync follows it. A delete still beats an edit (2.5).
+- An event with a `source_key` that is not this connection's `gcal:` key
+  (a repo-synced event, spec 112) stays read-only, as on PATCH
+  (`hub/calendar.go:1067` `calendarSyncedReadOnly`, :1167 for DELETE): its
+  Google edit and delete are dropped and the out half writes Spool's values
+  back. Today it is dropped only because the member did not create it.
+- The sync writes only title, description, start, end, all-day, time zone
+  and rrule (`hub/gcal_sync_in.go:264-268`); it never changes audience,
+  guests, kind or links. So `privateOwnerOnly` (`hub/calendar.go:1017`,
+  only the owner sets or clears `private`) never applies, and nothing a
+  Google edit carries can widen who reads the event.
+
+### 13.2 The checks at sync time
+
+The cycle has no HTTP request: it runs from the sweeper with the
+connection's `tenant_id` and `human_id`. Today it makes no access check at
+all (`grep -cE 's\.allowed\(|s\.access\(' hub/gcal_sync.go hub/gcal_sync_in.go`
+-> 0 and 0). The PATCH checks, and how the sync makes each:
+
+| check | on PATCH | at sync time | store / code call |
+|---|---|---|---|
+| membership | `humanTenant` (`hub/resolve.go:60`), then `access` (`hub/rbac.go:45`) answers `rbac.ErrNotMember` for a non-member | the same `s.access` through `s.allowed`; a non-member is refused | `s.o.Authorizer.Access` (`hub/rbac.go:53`); with no request the memo is nil (`hub/privacy.go:255`), so one store read per call |
+| role grants `notes.send` | `s.permit(..., rbac.NotesSend)` (`hub/calendar.go:941`) | `s.allowed(ctx, hum, tenant, rbac.NotesSend)` (`hub/rbac.go:63`) | `rbac.Access.Can` (`internal/rbac/rbac.go:391`); roles without it: channel guest and the three accountant roles (`internal/rbac/rbac.go:292-295`) |
+| not a demo visitor | `isDemoVisitor` (`hub/calendar.go:944`) | the same call (`hub/demo_quota.go:38`) | `s.access`, role `demo_user` |
+| workspace may write | `billing.AllowsWrite(t.BillingStatus)` (`hub/calendar.go:948`) | the same, on `s.o.Store.GetTenant(ctx, tenant)` (as `hub/resolve.go:44`) | `store.GetTenant` |
+| reads the event (private filter) | `GetCalendarEvent` (`store/calendar_postgres.go:176`) with `calendarPrivateSQL` (:35): a `private` event is read only by its creator and its guests (`mentions`) | unchanged: `hub/gcal_sync_in.go:176` already reads with the member as viewer; not found -> nothing written | `store.Calendar.GetCalendarEvent`; `UpdateCalendarEvent` (:238) and `TrashCalendarScope` (:301) lock with the same filter (`lockCalendarEvent`, :225) |
+| guest-only event | nothing beyond the private filter: a guest of a `private` event may edit it in Spool (097 Q4: "owner-and-guests only") | the same: a guest's Google edit is taken | - |
+| synced read-only | `cur.SourceKey != ""` (`hub/calendar.go:1067`) | the same (13.1) | - |
+
+The four "who" checks (membership, `notes.send`, demo, billing) are made
+**once per cycle**, the first time a mapped item needs them, and kept for
+that cycle. A member who fails them keeps today's behaviour (Spool wins,
+the out half writes back), with one log line per cycle naming the reason,
+not one per item.
+
+**Conflict rule: unchanged.** The newer side wins (Google `updated` vs
+Spool `updated_at`), a tie goes to Spool, the write carries
+`IfUpdatedAt: cur.UpdatedAt` (`hub/gcal_sync_in.go:265`) and an
+`ErrEditConflict` drops the Google value for this cycle (:270).
+
+### 13.3 Who is recorded, history and notifications
+
+- **Edit.** `UpdateCalendarEvent` takes the member as `viewer` and sets
+  `updated_at` (`store/calendar_postgres.go:273-277`); `calendar_events`
+  has no editor column (`grep -n 'updated_by\|edited_by' store/calendar*.go`
+  -> none), so an edit records who made it nowhere, the same as a PATCH from
+  the web app. The creator and owner stay as they were.
+- **Delete.** `TrashCalendarScope` writes `deleted_by` = the member
+  (`store/calendar_postgres.go:327`). The trash list shows only events the
+  viewer deleted (`calendarTrashSQL`, :335): the member who deleted it on
+  the phone can restore it in Spool; the creator does not see it in their
+  trash. Same as a web-app delete today.
+- **History.** There is no event history: `grep -c workspaceEvent
+  hub/calendar.go` -> 0 (no Workspace log row for a calendar write), and
+  none is added.
+- **Notifications.** The PATCH and DELETE handlers send none
+  (`hub/calendar.go:1121-1180`; `notify_guests`, :229, is parsed but no
+  hub code outside tests reads it). The sync sends none either. Every other
+  connected member sees the change through their own out half on their next
+  cycle (60 s), and the web app shows it on its next read.
+
+### 13.4 Open question for the requester
+
+```poll
+Q13. A member adds a NEW event on their phone in the "Spool Hub (<workspace>)" calendar. What should it become in Spool Hub?
+(A) Stays their private event, seen only by them (today)
+(B) Becomes a workspace event that every member sees and may edit
+```
+
+Today (A): an unmapped item is imported by `put` (`hub/gcal_sync_in.go:195`)
+as `GcalSpoolOf` (:286): audience `private`, kind `other`,
+`source_key gcal:<connection>:<google id>`; Google always wins on it
+(:182). On B, row R3 is placed; on A it is not. Either way the member's
+other Google calendars (2.10 B) stay read-only private imports.
+
+### 13.5 Rows, files, risks
+
+| row | files (only these) | what | test (red on `8604ad411`, green on the row) | author | R7 reviewer |
+|---|---|---|---|---|---|
+| R1 edits and deletes by an editor | `hub/gcal_sync_in.go`, `hub/gcal_sync_in_test.go` | a per-cycle `mayEdit` (13.2); `patch` replaces `cur.CreatorID != cy.c.Human` with `!mayEdit`; `take` and `cancelled` skip an event with a non-`gcal:` `source_key`; `cancelled` trashes when `mayEdit` (an import as today); the header comment (:15-40) rewritten | new `TestGcalSyncInEditorEditsOthersEvent` (member B, `notes.send`, edits member A's `internal` event in Google, Google newer: Spool has B's title; **red control**: on master Spool keeps A's title and the next cycle patches Google back); `TestGcalSyncInEditorDeletesOthersEvent` (B cancels it: trashed, `deleted_by` B; red: on master it stays live and is inserted at Google again); twins that pass on both: `...NoNotesSendKeepsSpool` (B a channel guest), `...DemoVisitorKeepsSpool`, `...UnpaidKeepsSpool`, `...NonMemberKeepsSpool`, `...RepoSyncedStaysReadOnly`; `...GuestOfPrivateEdits` (B a guest of A's private event: taken; red on master); the existing C15-C19 tests unchanged; api tests; full tier | claude | agy (mistral) |
+| R2 docs | `csi-spl-doc/specs/149-google-calendar-connect/spec.md` (2.5 "In": the creator rule replaced by 13.1; this section's status to built); the calendar help page through its qto doc (`csi-spl-doc/doc/help/calendar.md:3`), one paragraph | the text follows R1 | `cd csi-spl-iac && ./run -a do_check_dist_hygiene`; the qto doc drift check | agy | claude |
+| R3 new phone events are workspace events (only on Q13 B) | `hub/gcal_sync_in.go`, `hub/gcal_sync_in_test.go` | an unmapped item of the hub calendar is created as a normal Spool event (audience `internal`, kind `other`, no `source_key`, creator the member) under the 13.2 checks, then mapped; a member who fails them keeps today's private import | new `TestGcalSyncInNewEventIsWorkspaceEvent` (red: on master it is `private` with a `gcal:` key; C16 inverted: another member sees it); twin: the 2.10 source calendars still import as private | claude | agy (mistral) |
+
+R1 and R3 edit the same two files: R3 runs after R1. R2 after R1 (and R3
+when placed). No migration, no cnf, no WUI change.
+
+Risks:
+
+- **Two members edit the same event in Google.** Each cycle compares
+  Google `updated` with Spool `updated_at`, and a sync write sets
+  `updated_at` to the cycle's time, not to Google's. So if member A's cycle
+  takes A's edit after member B made a later edit but before B's cycle
+  runs, B's edit is older than Spool's `updated_at` and loses: B's phone is
+  overwritten with A's values. The window is one cycle (60 s; push, B7, is
+  not built: `ls hub/gcal_push.go` -> absent). Accepted for v1; the web
+  app's own last-write-wins has the same shape.
+- **A member who lost edit rights.** The check runs every cycle, so a role
+  change or removal takes effect on the next cycle; their Google edits are
+  then overwritten. Separate finding, not in R1: the out half makes no
+  membership check either, and a connection is deleted only on disconnect
+  (`store/gcal_postgres.go:116`) or when the human row goes
+  (`rdb/0217_google_calendar.sql:20`, `ON DELETE CASCADE` on `humans`, not
+  on membership). Whether a removed member's "Spool Hub" calendar keeps
+  receiving workspace events is unchecked, I believe; it goes to the
+  orchestrator as its own lane.
+- **Recurring events.** A changed occurrence (`recurringEventId`) is still
+  skipped both ways (`hub/gcal_sync_in.go:156`); an edit of a whole series
+  is taken as today (the `RRULE:` line, :266). A member who edits one
+  occurrence on the phone keeps seeing it reverted.
+- **A delete by another member.** It lands in the deleter's trash only
+  (13.3); the creator cannot undo it from their own trash. Same as the web
+  app today.
+
+<!-- version: 1.0, section 13 a plan · updated: 2026-11-22 -->

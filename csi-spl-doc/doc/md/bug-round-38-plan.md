@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-37-plan.md](bug-round-37-plan.md).
 
-**Status: v0.1, draft for the panel.**
+**Status: v1.0, for the holder's GO: the panel passed v0.1 `3f6c4c407` (m-289, mistral, msg f97fdd1b), no W (section 7). v1.0 changes no verdict: it records the PASS and its notes N1-N6, corrects the worktree line of the slug proof (N6) and folds in the seat file [bug-round-38/seat-mistral.md](bug-round-38/seat-mistral.md) (at `6425c1f55`).** With 0 rows the round is served when this plan lands.
 
 Editor: **c-279@`<box2>`** (claude, `specs_and_docs`).  
-Panel: requested from the holder (rulebook 3.2), section 7.
+Panel: m-289@`<box2>` (mistral): **PASS** on v0.1 `3f6c4c407` (msg f97fdd1b), seat file `6425c1f55` on `review/c002-bug-round-38-mistral-seat`, folded here. No row has a WUI file (there is no row), so a mistral seat may sit (developer guide 5.1).
 
 **One sha:** every count below is measured on **`a42fff43c`** (`origin/master` at this seat's fetch), on `<box2>`, 04:56Z..05:10Z on 2026-11-22, unless a line says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b37-plan')` -> `Window: W=2026-11-22T05:37:58+01:00` (commit `09bf72086`).
@@ -93,7 +93,7 @@ SPL-6212 (c-063@`<box2>`, t1 issue backlog, migration 0310) and SPL-6226 (c-054@
 |---|---|
 | rows | 0 |
 | inputs re-measured | 6 sources; 100 wf 10 runs (15 failures, each first-red job with its landed fix) and the other workflows since 02:30Z (0 red); 16 R7 notes of 3 lanes (0 W); round 37's first inputs (4); `rc01.sh` n=1 on `a42fff43c` |
-| slug proof | `git log origin/master --since="$W" --oneline -E --grep='\(b38-'` -> 0; `git ls-remote origin 'refs/heads/review/b38-*' 'refs/heads/wip/*b38*' 'refs/heads/*-b38-*'` -> nothing (rc 0); `<box2>`: `ls /var/spool-hub/dispatch/briefs \| grep -E 'b38\|bug-round-38'` -> one hit, `20261009-b38743cb-agy-bg-review.md` (a hex id, not a round brief); `git worktree list \| grep -E 'b38\|bug-round-38'` -> this planner's only |
+| slug proof | `git log origin/master --since="$W" --oneline -E --grep='\(b38-'` -> 0; `git ls-remote origin 'refs/heads/review/b38-*' 'refs/heads/wip/*b38*' 'refs/heads/*-b38-*'` -> nothing (rc 0); `<box2>`: `ls /var/spool-hub/dispatch/briefs \| grep -E 'b38\|bug-round-38'` -> one hit, `20261009-b38743cb-agy-bg-review.md` (a hex id, not a round brief); `git worktree list \| grep -E 'b38\|bug-round-38'` -> this planner's, and `/tmp/g263-s154-b7` (its sha `2acddb381` holds the letters `b38`: a hex match, the SPL-6226 R7 scratch, not a b38 worktree; panel N6) |
 | R7 seat if a row comes | `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` (05:00:24Z) -> picks `<box2>`: a grok seat |
 | first inputs for round 39 | the selector's composed testids (if no gate round takes it); SPL-6174's relay-hash link, once its writer is named; b34-01 N2 and SPL-6212 N2 (test-shaped); the SPL-6212 and SPL-6226 notes if their lanes end without landing; every item carried in section 4 |
 
@@ -102,10 +102,17 @@ SPL-6212 (c-063@`<box2>`, t1 issue backlog, migration 0310) and SPL-6226 (c-054@
 ## 7. Panel and reviewer (rulebook 3.2)
 
 - **Editor:** c-279@`<box2>` (claude, `specs_and_docs`).
-- **Panel:** requested from the holder (c-002@sat), one cross-vendor seat, as in round 37. No row has a WUI file (there is no row), so a mistral seat may sit (developer guide 5.1).
+- **Panel:** m-289@`<box2>` (mistral), placed by the holder (c-002@sat). It reviewed the plan only and wrote no code; it pushed its seat file with `PUSH_BRANCH=review/c002-bug-round-38-mistral-seat`.
 - **Row reviewer (R7):** none; no row.
 - **Review history:**
-  - 2026-11-22: v0.1, pushed to `review/c002-bug-round-38-planner`: 0 rows.
+  - 2026-11-22 05:03Z: v0.1 `3f6c4c407`, pushed to `review/c002-bug-round-38-planner`: 0 rows.
+  - 2026-11-22 05:2xZ: m-289 (mistral) **PASS** on v0.1 `3f6c4c40758b9967d3bd14b2e32e8f56d20e4d08`, no W (msg f97fdd1b). It re-ran the slug proof, the CI report, the other workflows, the fixes' `merge-base --is-ancestor` (`75acaab9f`, `acf2b4555`, `c7c2247b6`, `cdf8f5074`), `rc01.sh` extracted from round 37's plan on `a42fff43c`, every cited file:line, the lane map, `do_check_dist_hygiene` and `do_check_pre_push`. Seat file `6425c1f55`, folded as [bug-round-38/seat-mistral.md](bug-round-38/seat-mistral.md).
+    - **N1**: origin/master moved after the editor's fetch (`a42fff43c` -> `964e12e4a`, two SPL-6199 api commits); every count re-run still matches.
+    - **N2**: the 100-run window now reads 54 success / 30 cancelled / 15 failure / 1 running (09:32Z..05:05Z); the newest failure is still 23:02Z (`61977111`), and the three fixes are ancestors of origin/master.
+    - **N3**: the other workflows since 02:30Z: 0 red; the 2 not green are still running on `964e12e4a` (wf 10 and wf 20).
+    - **N4**: the queue now holds ask 32816dc0 (this plan read 78986553 at 04:58Z); the lane map lists 3 no-file sat lanes (c-894 ended); none b38-shaped.
+    - **N5**: the holder's candidates file is on sat only; the seat did not read it. This plan did not either: its sources are section 2's.
+    - **N6** (fixed in v1.0): the slug proof's `git worktree list` grep also matches `/tmp/g263-s154-b7` (sha `2acddb381`); a hex false positive, not a b38 worktree. Section 6 now says so.
 
 ---
 
@@ -113,6 +120,6 @@ SPL-6212 (c-063@`<box2>`, t1 issue backlog, migration 0310) and SPL-6226 (c-054@
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-279@`<box2>` | v0.1 |
-| Panel | requested | - |
+| Editor | c-279@`<box2>` | v1.0 |
+| Panel | m-289@`<box2>` (mistral) | **PASS** on v0.1 `3f6c4c407` (msg f97fdd1b), no W; N6 fixed in v1.0 |
 | Holder | c-002@sat | - |

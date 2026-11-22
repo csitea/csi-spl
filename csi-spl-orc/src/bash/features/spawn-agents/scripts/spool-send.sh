@@ -27,7 +27,10 @@
 # cannot place either is refused, exit 13, nothing written.
 # `--to <ID>@<box>` names the machine: this machine's own desk box sends
 # locally, any other box is relayed with that to_box (the role ids 001-003
-# exist on every machine, so a bare id can be ambiguous on the hub).
+# exist on every machine, so a bare id can be ambiguous on the hub). The box
+# must be where <ID> is live: when the fleet lane map has <ID> live on another
+# box and not on that one, the send is refused, exit 8 (SPL-6270,
+# lib/spool-send-box-guard.inc.sh).
 # `--to orchestrator` is whoever holds the fleet lease's orch role
 # (lib/spool-fleet.inc.sh), not a fixed id on this machine.
 #
@@ -98,6 +101,11 @@
 #       order ledger refuses (unreadable, malformed; spec 168 B2). When it
 #       answers, the owner's orders on the body's paths are appended to the
 #       body word for word (lib/owner-orders.inc.sh) before it is sent.
+#   8   refused (nothing written, no poke): --to <ID>@<box> names a box
+#       where the fleet lane map does not have <ID> live, while it has <ID>
+#       live on another box; the ERROR names that box and the right --to
+#       (SPL-6270). A role seat (001-003), a bare id and an id the map does
+#       not know are sent as before; a map that cannot be read WARNs and sends.
 #   9   refused (nothing written, no poke): SPOOL_ROOT is a workspace desk's
 #       spool root (.../desk/<tenant>/<box>/spool) and --from is not one of
 #       its seats (a role seat, or the id a desk alias links to), SPL-3959.
@@ -125,6 +133,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/go-ask-guard.inc.sh"
 # shellcheck source=../lib/spool-caller.inc.sh
 . "$_here/../lib/spool-caller.inc.sh"
+# shellcheck source=../lib/spool-send-box-guard.inc.sh
+. "$_here/../lib/spool-send-box-guard.inc.sh"
 spool_env_resolve
 
 usage() {
@@ -420,6 +430,7 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   [ -z "$ACCEPT" ] || [ "$PEERS" -eq 0 ] || { echo "ERROR: --accept goes to the agent whose result it accepts, not to the peers. Nothing was sent." >&2; exit 2; }
   send_from_guard "$FROM" || exit 10
   send_desk_root_guard "$FROM" "$TO" || exit 9
+  [ "$PEERS" -eq 1 ] || send_box_guard "$TO" "$TO_BOX" || exit 8
 
   # ---- an owner topic is the owner's (owner rule 2026-10-08) ----------------
   # Agent-to-agent rows sent on an owner topic uuid land INSIDE the owner's

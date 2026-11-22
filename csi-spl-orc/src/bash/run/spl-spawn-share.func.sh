@@ -219,14 +219,17 @@ spl_spawn_share_briefs() {  # LANES
 # nothing of the seat's work (SPL-6221). The value is the `Class:` line of the
 # queued brief its placement slug names (spl_spawn_place_brief, this box's
 # dispatch/briefs: the holder's box, where the seat briefs are written), null
-# when there is none. Reads the hub's asks list in ASKS_FILE.
+# when there is none or the slug holds a / or .. (it is never read: a path out
+# of dispatch/briefs). Reads the hub's asks list in ASKS_FILE.
 spl_spawn_share_seats() {  # ASKS_FILE
   local id place msg f c out='{}'
   declare -F spl_spawn_q_review_seat_go >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-enqueue.func.sh"
   while IFS=$'\t' read -r id place msg; do
     spl_spawn_q_review_seat_go "$place" "$msg" || continue
     declare -F spl_spawn_place_brief >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-place.func.sh"
-    f="$(spl_spawn_place_brief "${place#*:}")"; c=""
+    f=""; c=""
+    # a slug is one file name in dispatch/briefs: one with a / or .. would read outside it (R7 W1)
+    [[ "${place#*:}" == */* || "${place#*:}" == *..* ]] || f="$(spl_spawn_place_brief "${place#*:}")"
     [[ -n "$f" ]] && c="$(grep -m1 -oiE '^Class: *(ci|refactor|bug|feature)\b' "$f" 2>/dev/null | sed -E 's/^[^:]*: *//' | tr '[:upper:]' '[:lower:]')"
     out="$(jq -c --arg k "$id" --arg c "$c" '.[$k] = (if $c == "" then null else $c end)' <<<"$out")" || return 1
   done < <(jq -r --arg go "$SPL_SPAWN_REVIEW_SEAT_GO" '.asks[]? | select(.state == "done" and (.flag // "") == "bypass"

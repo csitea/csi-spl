@@ -2584,6 +2584,12 @@ spl_fleet_takeover_cause() {
 # (spl_fleet_seat_gone): no live process, a rotation hold, a watchdog S2
 # (limit) HIT, a stalled pane, a stuck unread. A vendor switch (another tier)
 # and a cross-box move keep their own rules.
+# The count is fresh for 2 x LEASE_STALE (SPL-6236), the age at which the
+# keeper judges the loop hung (LEASE_KEEP_MAX), not for LEASE_STALE: sat
+# 2026-11-22 05:55-06:03Z (load 93-104) ticked 228 s and 190 s apart, each
+# over 180 s, so the count restarted every tick, the lease stayed on the
+# failover and the master rotation's RELEASE failed (ticks measured up to
+# 246 s under load, SPL-5339).
 
 # spl_fleet_seat_gone <id>: 0 + why when <id> cannot act for good: no live
 # process, a rotation hold, or a verdict in able.<id> (this tick's, when <id>
@@ -2606,14 +2612,14 @@ spl_fleet_seat_gone() {
 # keeps it) while a same-box move between seats of one tier waits.
 spl_fleet_seat_move() {
   local role="$1" me="$LEASE_MACHINE" f="$LEASE_DIR/fleet.$1.seat-move" from="" to="" n=0 at=0 now
-  local hold="${LEASE_SEAT_HOLD:-2}"
+  local hold="${LEASE_SEAT_HOLD:-2}" fresh=$((2 * LEASE_STALE))
   now="$(spl_lease_now)"
   if (( FG == 0 || $3 != $4 )) || [[ "${FH##*@}" != "$me" || "$FH" == "$2@$me" ]] ||
     [[ " $(spl_fleet_role_agents "$role") " != *" ${FH%@*} "* ]] || spl_fleet_seat_gone "${FH%@*}" >/dev/null; then
     rm -f "$f"; echo "$2@$me"; return 0
   fi
   [[ -s "$f" ]] && read -r from to n at < "$f"
-  [[ "$from $to" == "$FH $2@$me" && "$n" =~ ^[0-9]+$ && "$at" =~ ^[0-9]+$ ]] && (( now - at <= LEASE_STALE )) || n=0
+  [[ "$from $to" == "$FH $2@$me" && "$n" =~ ^[0-9]+$ && "$at" =~ ^[0-9]+$ ]] && (( now - at <= fresh )) || n=0
   n=$((n + 1))
   (( n >= hold )) && { rm -f "$f"; echo "$2@$me"; return 0; }
   echo "$FH $2@$me $n $now" > "$f"

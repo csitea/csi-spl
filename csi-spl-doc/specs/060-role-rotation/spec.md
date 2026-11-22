@@ -337,8 +337,11 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
   SPL-5333: in fleet mode nobody writes the lease back at RELEASE. The fleet
   loop moves it: the new M shows able on its next tick, then the same-box
   seat move waits `LEASE_SEAT_HOLD` (2) ticks in a row (SPL-3069). Under load
-  the ticks are 100 to 180 s apart, and a gap over `LEASE_STALE` restarts the
-  count. On sat, n=55 master releases (2026-11-10 and 11): the lease came
+  the ticks are 100 to 250 s apart; a gap over 2 x `LEASE_STALE` (360 s, the
+  keeper's hung-loop age) restarts the count. Until SPL-6236 the bound was
+  `LEASE_STALE` itself: sat ticked 228 s and 190 s apart on 2026-11-22
+  05:55-06:03Z, the count restarted every tick and 20261122T0545Z-master
+  ended `RELEASE FAIL`. On sat, n=55 master releases (2026-11-10 and 11): the lease came
   back after 78 to 484 s (median 158 s). 9 of them took longer than the old
   240 s wait (`ROTATE_PROMOTE_WAIT`), so each raised `RELEASE FAIL`, an ask
   and an #alerts card. Then the next slot spent itself on a RESUME. RELEASE

@@ -2,9 +2,10 @@ package hub_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/rand/v2"
 	"net/http"
 	"slices"
 	"strings"
@@ -254,10 +255,15 @@ type t4Run struct{ prefix, fpA, fpB, fpC, fpUnknown string }
 
 func newT4Run() t4Run {
 	tag := make([]byte, 8)
+	_, _ = rand.Read(tag)
 	for i := range tag {
-		tag[i] = 'a' + byte(rand.IntN(26))
+		tag[i] = 'a' + tag[i]%26
 	}
-	fp := func() string { return fmt.Sprintf("%016x", rand.Uint64()) }
+	fp := func() string {
+		b := make([]byte, 8)
+		_, _ = rand.Read(b)
+		return hex.EncodeToString(b)
+	}
 	return t4Run{prefix: "error.tfour" + string(tag), fpA: fp(), fpB: fp(), fpC: fp(), fpUnknown: fp()}
 }
 

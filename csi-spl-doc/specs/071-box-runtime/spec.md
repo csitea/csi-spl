@@ -1,6 +1,6 @@
 # 071: box runtime - one start/stop action, one deploy action
 
-Status: **draft v0.2** (v0.2: the 4.4 gap is closed by the lease pause). Lane A (c-142) writes this spec and builds
+Status: **draft v0.3** (v0.2: the 4.4 gap is closed by the lease pause; v0.3: section 7, refresh now, SPL-6239, in review). Lane A (c-142) writes this spec and builds
 `do_spl_pool_ctl` (section 4). Lane B builds `do_spl_box_deploy` (section 5)
 on this contract. Draft 2026-10-03, c-142, on tree `origin/master` @
 `e69fbb44`.
@@ -271,4 +271,293 @@ A run on `<pc box>` with `ENV=dev` then shows `POOL_CMD=status` all
 | A (c-142) | this spec, `spl-pool-ctl.func.sh`, `tests/spl-pool-ctl.tst.sh` | stub test: start then status = all running, stop then status = all stopped, stop twice = no-op, `pool serve` absent = "not built yet", an interactive pane is never killed. Each check has a failing control |
 | B | `spl-box-deploy.func.sh` and its test | 5.3 |
 
-<!-- version: 0.2.0 · updated: 2026-10-03 -->
+## 7. Refresh now: a box sample within 10 s of a click (SPL-6239)
+
+Status of this section: **draft v0.3, for a cross-vendor spec review**. Docs
+only: nothing below is built. Written 2026-11-22 by c-176 on tree
+`origin/master` @ `8d7782cc3`; every `file:line` below is on that tree.
+
+### 7.1 The ask
+
+The owner (HUM-10, t1 topic `78f0138c`, msg `cfc8ec2b`, 2026-11-22 08:32Z),
+verbatim:
+
+> "As the Admin I want to have the means to see the RAM and disk utilization rates on the boxes within 10s of a click on a refresh button"
+
+The dispatcher's plan in that topic (msg `fb111060`): the hub asks each
+connected box for a sample over its open connection; the box answers with the
+same sample as its 5-minute one; the page shows each box's sample age and
+marks a box that did not answer within 10 s as old; only admins may click;
+clicks are rate-limited. This section follows that plan. Where it differs or
+says more, 7.11 lists it.
+
+### 7.2 What exists (measured on `8d7782cc3`)
+
+| part | where | what it does today |
+|---|---|---|
+| the 5-minute sample | `csi-spl-orc/src/bash/run/post-box-stats.func.sh:23-42` (`do_post_box_stats`), run by the `*/5` `# csi-spl:box-stats` cron (`box-stats-cron.sh`, `do_setup_box_stats_cron`) | reads `/proc/loadavg`, `nproc`, `/proc/meminfo`, the live panes and `df`, then `spool box-stats put` on a one-shot `role=cli` session |
+| the sample's fields | `csi-spl-orc/src/bash/run/spl-lane-map.func.sh:745-764` (`spl_lane_box_sample`), `:769` (`spl_lane_box_disks`: `timeout 10 df -kP -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs`, at most 16 mounts) | `{box, load1, load5, load15, cpus, mem_total_kb, mem_avail_kb, swap_used_kb, agents_live, disks[]}` |
+| the box CLI | `csi-spl-api/src/go/spool-hub-api/cmd/spool/box_stats.go:38-74` | `box-stats put` sends lane_op `box_stats_put` |
+| the hub, box side | `internal/hub/box_stats.go:144-184` | `box_stats_put`: `At` = the hub's clock, `WriterBox` = the session's box, `AppendBoxStat` |
+| the hub, browser side | `internal/hub/box_stats.go:37-40`, `:104-137` | `GET /v1/tenant/box-stats?box=&since=` under `audit.read`, minus the boxes the box-owner lock hides (`lockViewFor`, `box_lock_view.go:133`) |
+| the table | rdb `0117_box_stats.sql`, `0121_box_stats_disks.sql`; `internal/store/box_stats.go:22` (`BoxStatsRetention` 30 days), `:25` (`BoxStatsMax` 20000 rows per list) | append-only, pruned by the hub's retention sweep (`box_stats.go:43`) |
+| the box's open socket | `internal/hub/ws.go:402-421` (`register`: one `role=box` session per (tenant, box), last hello wins), `:455-459` (`boxSession`); client `internal/hubclient/hubclient.go:593-640` (`readLoop`, a `switch f.Type`) | the desk sidecar `spool hub-run` (`cmd/spool/hub.go:1298`) keeps it; the hub closes it at `SPOOL_HUB_WS_MAX_LIFE` (5 min) and the box redials (`ws_maxlife.go:30`, `rotateGrace` 15 s) |
+| hello features | `internal/wire/wire.go:121-141` (`backfill`, `fallback`, `commit`, `live_ack`) | how the hub knows what a box client understands |
+| two hub instances | cnf `env.hub.cloud_run.max_instances` = 2 | a box's socket may sit on the other instance; cross-instance fan-out is Postgres LISTEN/NOTIFY (`internal/store/wake.go:19`, `internal/hub/wake.go:27`) |
+| the agent-run report | `internal/hubclient/agent_run.go:41` (`AgentRunReport`), wired at `cmd/spool/hub.go:1234` | which roster agents run, from the dispatch lease's liveness file |
+| the pages | `csi-spl-wui/src/pages/monitoring/boxes/index.vue:189-193` (box stats since 1 h, under `audit.read`), `[id].vue:87-92` (NOW: the latest sample and its age), `[id].vue:242-262` (`loadStats`, which already has a quiet re-read) | no refresh button: `grep -niE 'refresh\|reload'` on both pages -> 3 lines, all in `[id].vue`: the `loadStats` comment (`:245`) and the roster refresh (`:322`, `:324`). `[id].vue:328` re-reads quietly every 5 min while the tab is visible |
+
+Two facts differ from the lane brief: the 5-minute sample comes from the
+box-stats cron, not the lane-map tick (`post-box-stats.func.sh:11-12`; the
+lane-map's `LANE_BOX_ROW_S` only rate-limits the BOX-0 row it refreshes on
+the same run); and the disks column is rdb `0121`, while `0118` is
+`0118_fleet_load_target.sql`.
+
+### 7.3 The flow and its 10-second budget
+
+1. The admin clicks **Refresh** on Monitoring > Boxes (the list or one box).
+2. The browser sends `POST /v1/tenant/box-stats/refresh` (body `{}` for every
+   box, or `{"box": "<id>"}`).
+3. The hub checks the permission and the limits (7.5), picks the boxes to
+   ask (7.6.2), mints one request id per box and announces each on the
+   NOTIFY channel `spool_box_sample` (payload `<tenant>|<box>|<req>|<deadline unix ms>`).
+4. Every hub instance listens. The one that holds that box's `role=box`
+   socket, with the hello feature `box_sample`, writes it a `box_sample`
+   frame (`msg_id` = the request id). An instance that holds no such socket
+   keeps the request until its deadline: a box that says hello in that time
+   gets the frame then (the 5-minute socket roll).
+5. The box's `spool hub-run` collects the sample (7.6.3) and writes one
+   `box_sample_put` frame on the same socket. No new dial and no new hello.
+6. The instance that holds the socket checks the request id, stores the
+   sample in `box_stats` exactly as a tick sample (`At` = the hub's clock),
+   and drops the request.
+7. The requesting instance reads `box_stats` for the asked boxes every 250 ms
+   and answers as soon as every asked box has a row newer than the click, or
+   at its wait cap, whichever comes first.
+8. The page renders each box's row, its age, and the stale mark (7.4).
+
+| step | share of the 10 s | basis |
+|---|---|---|
+| 1-2 browser to hub | 0.5 s | not measured |
+| 3 checks, box list, NOTIFY | 0.2 s | not measured |
+| 4 NOTIFY to the socket's instance, frame written | 0.3 s | not measured (the message wake-up rides the same mechanism) |
+| 5 box collects | 3.0 s cap | `df` under a 3 s timeout; the rest is `/proc` reads. Measured: the `spl_lane_box_disks` `df` command took 4, 6, 4, 6, 5 ms on one box, n=5, 2026-11-22 |
+| 5-6 frame back, `AppendBoxStat` | 0.3 s | not measured |
+| 7 the requester sees the row | 0.25 s | the poll interval |
+| hub wait cap (steps 3-7) | **7.0 s** | `SPOOL_HUB_BOX_REFRESH_WAIT`, cnf `hub.env` |
+| 8 answer to render | 1.0 s | not measured |
+| slack | 1.5 s | |
+| **total** | **10 s** | 0.5 + 7.0 + 1.0 + 1.5 |
+
+The hub never holds the request past the cap: a box that did not answer by
+then is stale (7.4). Build row T8 measures the real click-to-render time on
+dev before the issue closes.
+
+### 7.4 What the page shows per box
+
+- **Every box keeps a row.** The answer carries each asked box's newest
+  sample, fresh or not. A box is never blanked by a refresh, and nothing
+  shows a value it did not measure.
+- **Its age**: "12 s ago" from the row's `at` (the hub's clock), with the
+  exact time as the title, as `[id].vue:92` does today.
+- **Its state**, one of:
+
+| state | when | shown as |
+|---|---|---|
+| `fresh` | the box answered within the wait, row `at` >= the click | the age only |
+| `recent` | not asked: its newest sample is younger than the per-box limit (7.5) | the age only; no box is sampled twice inside the limit |
+| `stale` | asked, no answer by the cap (socket down, an old binary, a hung box) | its last sample, its real age and a "no answer within 10 s" mark |
+| `never` | asked, and no sample at all in the retention | "no sample yet", as the page says today for an empty history |
+
+- The Refresh button is disabled while a refresh runs, and shows the time
+  the last one ended.
+
+### 7.5 Who may click, and the limits
+
+**Who: `tenant.settings`**, so `biz_owner` and `admin` (`internal/rbac/rbac.go:271-281`).
+Seeing box stats stays `audit.read` (adds `product_owner`). Why: a refresh
+makes every box do work, so it is an operator action, not a read; the owner
+asked it "as the Admin"; and an existing permission needs no rbac migration.
+The other choice was a new `boxes.refresh` permission, granted to the same
+two roles: cleaner names, at the cost of an rbac change. The reviewer may
+pick it; this spec proposes `tenant.settings`. Without the permission the
+button is not drawn and the route answers 403.
+
+**Limits** (cnf `hub.env`, the defaults named here):
+
+| limit | default | what happens |
+|---|---|---|
+| per box, hub side: `SPOOL_HUB_BOX_REFRESH_MIN_S` | 60 s | a box whose newest sample (tick or refresh) is younger is not asked; it answers `recent` |
+| per tenant, in flight | 1 | a click while one runs joins it and gets the same answer |
+| per tenant, per rolling hour: `SPOOL_HUB_BOX_REFRESH_PER_H` | 12 | the 13th answers 429 with `Retry-After` |
+| per box, box side: `SPOOL_BOX_SAMPLE_MIN_S` | 30 s | `spool hub-run` answers at most one `box_sample` per 30 s, whatever the hub sends; a frame inside it is logged and dropped |
+| unsolicited answers | refused | the hub stores a `box_sample_put` only for a request id it issued for that (tenant, box) and whose deadline has not passed, so a box cannot write extra samples this way |
+
+So a box samples on demand at most once a minute through the hub, and at
+most twice a minute even with a faulty hub.
+
+### 7.6 The build
+
+#### 7.6.1 Wire
+
+`internal/wire/wire.go`, three constants:
+
+- `TBoxSample = "box_sample"`: hub to box, `msg_id` = the request id. No body.
+- `TBoxSamplePut = "box_sample_put"`: box to hub, `msg_id` = the request id,
+  `lane` = one sample object, the same JSON as `box_stats_put` (no new field).
+  Fire and forget: the hub sends no reply; a refused sample is logged on the
+  hub with the reason (the `store.CheckBoxStat` text).
+- `FeatureBoxSample = "box_sample"`: the hello feature of a box client that
+  answers `box_sample`. The hub asks no socket without it, so an old binary
+  gets no frame it would mis-route, and its box reads `stale`.
+
+The hub writes `Box` and `WriterBox` from the session (`x.box`), never from
+the frame, as `box_stats_put` does (`box_stats.go:176`).
+
+#### 7.6.2 Hub
+
+New file `internal/hub/box_refresh.go`:
+
+- the route `POST /v1/tenant/box-stats/refresh` (+ `OPTIONS`), beside
+  `routeBoxStats`;
+- the boxes it asks: every box with a sample in the last 24 h for the tenant,
+  minus the ones `lockViewFor` hides from this actor, minus the `recent`
+  ones; or the one box named, under the same rules;
+- the pending map `(tenant, box) -> {req, deadline}` on every instance, fed
+  by the NOTIFY listener (a new channel on the listen connection that
+  `RunWake` already holds; `store.BoxSampleWaker`, Memory and Postgres, so
+  the tests run two hub servers on one Memory store as two instances, as
+  `memWake` does for the message wake-up);
+- on a NOTIFY: when this instance holds the box's socket with the feature,
+  write `box_sample`; on a `role=box` hello: when a pending request for that
+  box is still inside its deadline, write it then;
+- `case wire.TBoxSamplePut` in the session's frame switch (`ws.go`, beside
+  `case wire.TCommit` at `:193`): check the pending request id, decode with
+  `DisallowUnknownFields`, `CheckBoxStat`, `AppendBoxStat`;
+- the answer: `{asked_at, wait_ms, boxes: [{box, state, row}]}`, `row` the
+  same `store.BoxStat` the GET returns, `state` one of 7.4.
+
+#### 7.6.3 Box
+
+New file `internal/hubclient/box_sample.go`, and `case wire.TBoxSample` in
+`readLoop` (`hubclient.go:612`), handled off the read goroutine so a slow
+`df` never stalls deliveries:
+
+- `load1/5/15` from `/proc/loadavg`, `cpus` as `nproc` counts it (the
+  process's CPU affinity), `mem_total_kb`, `mem_avail_kb`, `swap_used_kb`
+  from `/proc/meminfo`: the same sources and the same arithmetic as
+  `spl_lane_box_sample`;
+- `disks` from the same `df -kP -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs`
+  command under a 3 s timeout (the tick allows 10 s), parsed as
+  `spl_lane_box_disks` parses it: the same mounts, at most 16, `used_kb`
+  when df prints it; a timeout sends `disks: []`, as the tick does on an
+  unreadable df;
+- `agents_live`: the number of roster agents the `AgentRunReport` says run.
+  This is the one field whose source differs: the tick counts live panes
+  (`spl_lane_live_here`), which the desk sidecar's user may not be able to
+  read. When the box has no fresh report, the hub copies `agents_live` from
+  the box's newest tick sample. The owner asked for RAM and disk, so the
+  agent count is not part of the ask; T2's parity test names the difference;
+- the 30 s box-side guard (7.5);
+- `FeatureBoxSample` added to the hello features of `role=box` sessions.
+
+The desk sidecar binary is rebuilt by `spl_host_spool` on the desk-reconcile
+tick (section 3.1), so boxes pick it up without a deploy step. Until a box
+runs it, the feature is absent and the box reads `stale`.
+
+#### 7.6.4 WUI
+
+- `utils/spool-client-lazy.mjs` (beside `boxStats`, `:966`): `refreshBoxStats(ctx, { box })`;
+  its type in `types/mjs-shims.d.ts` (beside `:151`).
+- A `BoxRefreshButton.vue` on `monitoring/boxes/index.vue` (all boxes) and
+  `[id].vue` (this box), drawn only with `tenant.settings`.
+- `utils/box-resources.mjs`: merge the answer's rows into the page's rows and
+  keep each box's `state`; `[id].vue` re-reads its history quietly
+  (`loadStats(true)`, `:242`) after the answer.
+- Every new string is a translation key in every locale file
+  (`developer-guide.md` 3.4), with the fleet's language check before it
+  ships.
+
+#### 7.6.5 Migration and cnf
+
+No migration: the refresh sample is a `box_stats` row like the tick's (7.7)
+and the permission exists. The new hub settings
+(`SPOOL_HUB_BOX_REFRESH_WAIT`, `_MIN_S`, `_PER_H`) are cnf `hub.env` keys,
+rendered by tpl-gen in the same commit.
+
+### 7.7 Stored, and the retention effect
+
+**A refresh sample is stored in `box_stats`, like the tick's.** It has to be:
+the instance that holds the socket is often not the instance that holds the
+browser's request, and the table is how the answer crosses between them. It
+also keeps the page consistent: a reload after a refresh shows the same
+sample, not the older tick one.
+
+The effect, with the limits of 7.5:
+
+- **rows**: at most 12 refreshes per hour per tenant, so at most 12 extra
+  rows per box per hour, beside the 12 tick rows. A box clicked every hour
+  for 30 days reaches 17280 rows, under `BoxStatsMax` (20000) for one box;
+  the pages read 1 h or 24 h, never the full window.
+- **hourly averages**: `BoxStatHours` (`internal/store/box_stats.go:122`) averages every row of an hour, so an
+  hour with refreshes weights the minutes someone looked at. Peaks are not
+  affected. Telling refresh rows apart would need a column (a migration);
+  this spec does not add one. The reviewer may ask for it.
+- **retention**: unchanged, 30 days, the same sweep.
+
+### 7.8 Tests
+
+Each test lands with its build row and ships with its red control
+(`developer-guide.md` 2.12.1): seen red on the planted defect, then green,
+both outputs in the commit body.
+
+| test | where | proves | red control |
+|---|---|---|---|
+| refresh contract | `internal/hub/box_refresh_test.go` | two hub servers on one Memory store; a fake box client with the feature on instance B; `POST` on instance A answers `fresh` for that box, within the wait cap + 1 s, waited on the answer event, no fixed sleep | the fake box sends its hello without `box_sample`: the answer is `stale`, the test fails |
+| silent box is stale | same file | a fake box with the feature that never answers: the answer comes at the cap, `stale`, with its last row and that row's own `at` | plant a hub that labels any box with a row `fresh`: the test fails |
+| limits | same file | a second click inside 60 s writes no second frame (frames counted on the fake box); the 13th click in an hour is 429; an unsolicited `box_sample_put` stores nothing; `product_owner` gets 403 | drop each check in turn: its case fails |
+| box handler | `internal/hubclient/box_sample_test.go` | fixture `/proc` files and a stub `df`: the sample is the expected object; two frames within 30 s give one answer; a hung `df` gives `disks: []` within 3 s | remove the guard: two answers, the test fails |
+| collector parity | `csi-spl-orc/src/bash/tests/box-sample-parity.tst.sh` | the same fixtures through `spl_lane_box_sample` (`LANE_LOADAVG`, `LANE_MEMINFO`, `LANE_NPROC`, `LANE_DF_CMD`) and through the Go collector give the same object, `agents_live` left out and named | change the Go mount filter: the test fails |
+| click to render | `csi-spl-wui/tests/e2e/box-refresh.test.mjs` (Playwright, mocked api) | click Refresh: the mocked fresh row's age is shown within 10 s of the click; a mocked `stale` box keeps its old row with the stale mark, never blank; without `tenant.settings` no button | remove the stale branch from the page: the stale case fails |
+
+### 7.9 Build rows
+
+Dependency-ordered, smallest first. Each row lands with its test and its
+red control.
+
+| row | builds | test | needs |
+|---|---|---|---|
+| T1 | the wire constants and the hello feature (7.6.1) | a hello carrying `box_sample` parses; the hub reads the feature | - |
+| T2 | the Go collector, no frame yet (7.6.3, minus the handler) | box handler (fixture part) + collector parity | - |
+| T3 | the box handler in `readLoop`, the 30 s guard, the feature in the hello | box handler (frames, guard, hung df) | T1, T2 |
+| T4 | `store.BoxSampleWaker`: the NOTIFY channel, Memory and Postgres | a NOTIFY reaches a second listener; Postgres under `PRE_PUSH_TIER=full` | - |
+| T5 | the hub's pending map, frame send, hello catch-up, `box_sample_put` accept | two-instance frame delivery; unsolicited answer refused | T1, T4 |
+| T6 | the route, permission, limits, wait, answer; the cnf keys + tpl-gen | refresh contract, silent box, limits | T5 |
+| T7 | the WUI button, age, stale mark, i18n | click to render (e2e) + the i18n gates | T6 |
+| T8 | the help text for Monitoring > Boxes; on dev, 10 clicks timed click to render | the measurement in the commit body: n, min, max, the tree sha and binary versions | T3 on the dev boxes, T7 deployed |
+
+T3 can ship before T5: a box that sends the feature to a hub that never asks
+changes nothing.
+
+### 7.10 Out of scope
+
+A periodic auto-refresh, a faster tick, CPU % (the sample has load, not CPU
+use), alerts on a threshold, and a refresh of the daily host facts sheet
+(`hostEvery`, 24 h, `internal/hubclient/host.go`).
+
+### 7.11 Where this differs from the dispatcher's plan (msg `fb111060`)
+
+1. "Only admins can click": `tenant.settings`, held by `admin` and
+   `biz_owner` (the tenant owner). 7.5 says why and names the alternative.
+2. "The same sample it sends every 5 minutes": the same fields and the same
+   reads, collected by `spool hub-run` in Go and sent on the open socket, not
+   by running the bash cron action. That action needs a fresh hello and a
+   lane read on top of its own work, and runs as the box user, while the
+   socket belongs to the desk sidecar's user. Only `agents_live` comes from
+   another source (7.6.3).
+3. The 10 s is split into a 7 s hub wait and 3 s for the browser and render
+   (7.3), not 10 s of waiting for the box.
+4. A refresh sample is stored like a tick sample (7.7): the two hub instances
+   need the table to pass the answer between them.
+
+<!-- version: 0.3.0 · updated: 2026-11-22 -->

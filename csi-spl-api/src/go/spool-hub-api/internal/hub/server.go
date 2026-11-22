@@ -624,6 +624,8 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeChannelBoxPins(mux) // spec 164 B2: /v1/channels/{channel}/box-pins + the operator PUT, channel_box_pins.go
 	s.routeRepoSync(mux)       // spec 143 B-6b part 2: "Sync now" + the GitHub webhook, repo_sync_routes.go
 	s.routeTopicExport(mux)    // spec 183 7.1.1: GET /v1/topics/{task_id}/export.pdf, topic_export.go
+	// spec 158 10.8 row V1: GET /v1/operator/workspaces/{id}/readiness, operator_readiness.go
+	s.routeOperatorReadiness(mux)
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

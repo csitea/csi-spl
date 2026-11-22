@@ -17217,6 +17217,43 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/workspaces/{id}/readiness": {
+      "get": {
+        "operationId": "getOperatorWorkspacesReadiness",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Spec 158 10.8 row V1: {workspace, read_at, steps: [{step, u, state, detail, at?, row?}]}, in order invite (U1/U2: not_sent|sent|accepted), host (U3: waiting|ready|failed|removing|removed|missing, from tenant_hosts), docs (U4: waiting|ok|unavailable|unknown), pin (U5: ok|missing|revoked|other_key|unknown, box-wui against this hub's key), seats (U6: seated|waiting|unknown, fleet desk boxes and the roster), first_answer (U6: no_post|waiting|answered). unknown names what is not stored; row names the tasks.md row that will store it. Read-only, writes one operator_audit read row. Only an admin of the operator workspace (403 operator.workspaces)."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read each step of a new workspace's readiness",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/workspaces/{id}/repos": {
       "put": {
         "description": "Spec 143 releases-projects.md 4.5, row B-6: create or update a repo of workspace id under one of its software projects (spec 171's repos route with a required project_slug). A workspace's first repo becomes its primary; is_primary moves the primary to it, false never moves it away. Operator token only, driven by the box action do_workspace_repo_register. 404 unknown_project for a project the workspace lacks; 409 repo_taken when another workspace holds the slug. Answers {workspace, repo_slug, project_slug, is_primary, notes_public}.",

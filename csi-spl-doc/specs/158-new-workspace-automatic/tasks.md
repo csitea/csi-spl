@@ -68,7 +68,7 @@ needs; `-` needs none beyond the review and landing rules.
 | 11 | S3 | List the desk boxes on dev; run S2 there | `do_spl_fleet_desk_box`, no code | the roster holds the role seats within 5 minutes | **owner's go** | todo |
 | 12 | S4 | T10 | as T10 | as T10 | - | todo |
 | 13 | S5 | T10b | as T10b | as T10b | - | todo |
-| 14 | V1 | 10.8: the readiness route | a new `hub/operator_readiness.go`, `openapi.json` | hub + Postgres tests: each state of each step; control: a workspace admin gets 403 | - | todo |
+| 14 | V1 | 10.8: the readiness route | a new `hub/operator_readiness.go`, `openapi.json` | hub + Postgres tests: each state of each step; control: a workspace admin gets 403 | - | landed (SPL-5027): `GET /v1/operator/workspaces/{id}/readiness`, steps invite, host, docs, pin, seats, first_answer; `unknown` names its row (host reason H3, seats S2) |
 | 15 | V2 | 10.8: the operator page row; every locale; agy's final word | `OperatorPane.vue`, `operator-console.mjs`, locale files | `pnpm run typecheck`, unit, an e2e with the mock's states, a Chrome screenshot | - | todo |
 | 16 | E1 | 10.8: the e2e on dev, U1..U6; sets U3's target from its measured time | a new orc action + its test | one dev run with each step's time in the body; control: the reserve cron off -> stops at U3, V2 names it | - | todo |
 | 17 | S6 | List the desk boxes on prd | `do_spl_fleet_desk_box`, no code | a new workspace is seated | **owner's go** | todo |

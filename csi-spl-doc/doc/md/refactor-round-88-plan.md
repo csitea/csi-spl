@@ -35,8 +35,9 @@ copy `spl_handover_slug`) and adds a test whose count gate lists the copies left
 at it and shrinks the list. The fifth (`spl-dispatch-lease.func.sh:2385`) stays: it is
 inside a `bash -c` string run as another user, and a live lane holds that file (2.2).
 
-**Status: draft v0.2**, for the panel (section 4). Editor: **c-170** (claude). v0.2
-adds head2's test column and `run-lazy-loader.tst.sh` (1.5); nothing is open.
+**Status: v1.0**, for the panel's signature (section 4). Editor: **c-170** (claude).
+v0.2 added head2's test column and `run-lazy-loader.tst.sh` (1.5); v1.0 folds the panel's
+N3 and N5 (section 8); nothing is open.
 
 **One sha:** every count is measured on **`8d7782cc3`** (`origin/master` at
 2026-11-22T08:55Z), n=1 per command unless stated. Reads are on that sha with
@@ -155,10 +156,17 @@ herestring's trailing newline is stripped by `$( )` in every caller).
 
 `orc:src/bash/run/spl-rotate-lib.func.sh:1425` (`spl_rotate_transcript`):
 `echo "$ROTATE_AGENT_HOME/.claude/projects/$(sed 's/[^A-Za-z0-9]/-/g' <<<"$wt")/$sid.jsonl"`.
-The file is sourced alone by `agent-id-reap.sh:89` (outside `./run`), by
-`spl-agent-identity-restore.func.sh:87`, `spl-dispatch-rotate.func.sh:87`,
-`spl-gc.func.sh:76`, `spl-lane-restart.func.sh:47` and
-`test-agent-identity-restore-box-socket.sh:83`, so it takes the same guard.
+The file is sourced alone (`git grep -nE '(source|\.) .*spl-rotate-lib\.func\.sh'
+8d7782cc3`, `.md` left out, comments and a `grep -q` line dropped; panel N3) by
+`agent-id-reap.sh:89` (outside `./run`), by 11 orc run files
+(`spl-agent-identity-restore.func.sh:87`, `spl-dispatch-rotate.func.sh:87`,
+`spl-gc.func.sh:76`, `spl-lane-restart.func.sh:47`, `spl-lane-rotate.func.sh:77`,
+`spl-orch-rotate.func.sh:79`, `spl-peer-restart.func.sh:44`,
+`spl-role-failover.func.sh:71`, `spl-rotate-status.func.sh:14`,
+`spl-watchdog.func.sh:80`, `spl-wd-inst-start.func.sh:26`) and by 18 test lines
+(`test-agent-identity-restore-box-socket.sh:83` and 17 in 13 `src/bash/tests` files, all
+in 1.5's column), so it takes the same guard. v0.1 listed 6 of them; the guard
+conclusion is the same.
 
 Shape (built as head2 of 1.5, on head1):
 - `:1425` becomes the guard line (after `:1424`'s `|| return 0`) and
@@ -332,7 +340,8 @@ Paths (6): the 5 of row 01 and `spl-rotate-lib.func.sh` (row 02's other file is 
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-22T09:01:51Z printed
   `pick=<this box> reason=<this box> is the first box in order below its low mark (51% < 70%)`, grok
-  weekly 27% on both boxes: **a grok R7 seat per row**. The holder re-runs the pick when
+  weekly 27% on both boxes: **a grok R7 seat per row**. The panel's re-run (N5) printed the
+  other box (both above the high mark): still a grok seat. The holder re-runs the pick when
   it places the rows; a hold then gives the row a fresh **claude waiver seat**
   (1a7c70da). Not a mistral code R7.
 - A row with no reviewer for 15 minutes reports a blocker (2.7.3).
@@ -410,11 +419,19 @@ tests (section 2), `shellcheck -S warning -x` on the 2 files,
 - v0.2 (c-170): head2's column of 1.5 complete (every suite equals base);
   `run-lazy-loader.tst.sh` run on base, head1 and head2 (rc 0, 30 / 0 each). No row,
   site or count changed.
+- v1.0 (c-170): the panel's notes (m-172, PASS on v0.1 and v0.2, no W). N3: 1.4 lists
+  every file that sources `spl-rotate-lib.func.sh` alone (v0.1 named 6), same guard
+  conclusion. N5: section 4 records the panel's grok pick re-run (the other box), still a
+  grok seat. N1 (lane map exit 4, no owner) is 2.2's reading; N2 was closed by v0.2; N4
+  (the heads are scratch-built, never committed) is 1.5's own wording. No row, site or
+  count changed.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-170 (claude): v0.1, v0.2.
-- Panel reviewer seat: the mistral panel seat (queued, `c002-refactor-round-88-mistral-panel-seat`).
+- Editor seat: c-170 (claude): v0.1, v0.2, v1.0.
+- Panel reviewer seat: m-172 (mistral, `c002-refactor-round-88-mistral-panel-seat`): PASS on v0.1
+  (`9707b20ae`) and v0.2 (`f693cf0c5`), no W; signs v1.0. Seat file
+  `refactor-round-88/seat-mistral.md`.
 - Row R7 seats: section 4.

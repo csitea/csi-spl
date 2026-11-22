@@ -113,9 +113,13 @@ old_tees() {
   for c in "$@"; do n=$(( n + $(log_writers "$c" | wc -l) )); done
   echo "$n"
 }
-# settle PID WANT: kids PID drops to WANT within 5 s; prints the last count
-kids_at_most() { (( $(kids "$1") <= $2 )); }
-settle() { wait_event 5 kids_at_most "$1" "$2"; kids "$1"; }
+# settle PID WANT: kids PID drops to WANT within 5 s; prints the count of the
+# sample that ended the wait, never a fresh one: the loop forks a child for
+# its `sleep 0.1` and `$(cat go)`, still comm "bash" until it execs, and a
+# second sample could count it (SPL-6268: 4 of 3 at "start on A", 3 of 2 on
+# a reload). A leak stays above WANT for the whole 5 s and still fails.
+kids_at_most() { last_kids="$(kids "$1")"; (( last_kids <= $2 )); }
+settle() { wait_event 5 kids_at_most "$1" "$2"; echo "$last_kids"; }
 execs_n() { wc -l < "$W/execs" 2>/dev/null || echo 0; }
 execs_at_least() { (( $(execs_n) >= $1 )); }
 wait_execs() { wait_event 10 execs_at_least "$1"; }

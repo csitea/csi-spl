@@ -1,0 +1,6 @@
+Lay-What: Nothing a user sees changes; the box installer now names Claude Code's project folders with the same shared code as the rest of the tools.
+Lay-How: Two install steps stop carrying their own copy of the naming rule and use the shared one.
+Lay-Why: One rule kept in one place cannot drift apart from its copy.
+Tech-What: spool-install steps Y18 and Y20 call spl_claude_project_slug; claude-memory.inc.sh loads it with a declare -F guard and drops spool_install_memory_slug.
+Tech-How: the guarded source of csi-spl-orc/lib/bash/funcs/spl-claude-project-slug.func.sh; spl-claude-project-slug.tst.sh case 4 proves no copy is left.
+Tech-Why: the deleted body was byte-identical to r88-01's helper (developer guide 2.2.4).

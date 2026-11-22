@@ -31,12 +31,16 @@ func gcalConnect(ctx context.Context, hc *config.Hub, ac *auth.Config, log zerol
 		CookieName: ac.StateCookieName, CookieDomain: ac.CookieDomain, CookieSecure: ac.CookieSecure,
 		WorkspaceURL:  hub.GcalWorkspaceURL(hc.TenantHostPattern, apex, appURL),
 		ReadCalendars: hub.GcalReadsCalendars(hc.GcalScopes),
+		// spec 154 B7/B8: what ?want=contacts asks Google for, and what the
+		// contacts sync needs in a grant (cnf contacts.scopes)
+		ContactsScopes: strings.TrimSpace(hc.ContactsScopes),
 	}
 	google, err := gcal.New(gcal.Config{
 		ClientID: strings.TrimSpace(ac.GoogleClientID), ClientSecret: marketing.NewPlaintext(strings.TrimSpace(ac.GoogleClientSecret)),
 		RedirectURI: appURL + hub.GcalCallbackPath, Scopes: strings.TrimSpace(hc.GcalScopes),
 		AuthURL: hc.GcalAuthURL, TokenURL: hc.GcalTokenURL, RevokeURL: hc.GcalRevokeURL,
 		UserinfoURL: hc.GcalUserinfoURL, CalendarBase: hc.GcalCalendarBase,
+		PeopleBase: hc.ContactsPeopleBase, // spec 154 B8: the contacts sync
 	})
 	if err != nil || appURL == "" {
 		log.Warn().Bool("app_url", appURL != "").Str("err", errText(err)).Msg("gcal: not configured, connect answers 503")

@@ -319,3 +319,37 @@ func (s *Memory) GcalHubCalendars(_ context.Context, googleEmail string) ([]stri
 	sort.Strings(out)
 	return out, nil
 }
+
+// gcalSharedSet runs set on the member's connection; none is ErrNotFound.
+func (s *Memory) gcalSharedSet(tenant, human string, set func(g *memGcal, c *GcalConnection)) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g := s.gcalLocked()
+	c := g.member(tenant, human)
+	if c == nil {
+		return ErrNotFound
+	}
+	set(g, c)
+	return nil
+}
+
+// SetGcalAccess implements GcalShared on the Memory store (rdb 0217).
+func (s *Memory) SetGcalAccess(_ context.Context, tenant, human string, tok GcalTokens, now time.Time) error {
+	if !gcalTokensOK(tok) {
+		return ErrInvalidGcal
+	}
+	return s.gcalSharedSet(tenant, human, func(g *memGcal, c *GcalConnection) {
+		g.toks[c.ID] = tok
+		c.KMSKeyID, c.AccessExpiry, c.UpdatedAt = tok.KMSKeyID, tok.AccessExpiry, now
+	})
+}
+
+// RevokeGcalConnection implements GcalShared on the Memory store (rdb 0217).
+func (s *Memory) RevokeGcalConnection(_ context.Context, tenant, human, detail string, now time.Time) error {
+	if !gcalStatusOK(GcalRevoked, detail) {
+		return ErrInvalidGcal
+	}
+	return s.gcalSharedSet(tenant, human, func(_ *memGcal, c *GcalConnection) {
+		c.Status, c.StatusDetail, c.UpdatedAt = GcalRevoked, detail, now
+	})
+}

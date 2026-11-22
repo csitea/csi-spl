@@ -263,7 +263,7 @@ func (c *contactsRig) link(t *testing.T, id, account, resource string) {
 // by id: true = soft-deleted.
 func (c *contactsRig) pending(t *testing.T) map[string]bool {
 	t.Helper()
-	rows, err := c.r.e.st.(store.ContactsCycle).ContactsChangedSince(context.Background(), c.p1, nil)
+	rows, err := c.r.e.st.(store.ContactsCycle).ContactsChangedSince(context.Background(), c.p1, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

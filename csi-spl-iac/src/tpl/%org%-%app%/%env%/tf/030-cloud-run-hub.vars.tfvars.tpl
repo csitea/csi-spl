@@ -146,6 +146,11 @@ cost_labels_translate_daily_chars = {{ tr_cost.get("labels_translate_daily_chars
 {%- set ct_ws = ct_ws if ct_ws is string else (ct_ws | join(",")) %}
 {%- if ct_ws %}
 {%- set _ = run_env.update({"SPOOL_HUB_CONTACTS_WORKSPACES": ct_ws, "SPOOL_HUB_CONTACTS_SCOPES": ct.get("scopes", ""), "SPOOL_HUB_CONTACTS_PEOPLE_BASE": ct.get("people_base", "")}) %}
+{#- spec 154 11.4 B16 (SPL-6276): the contacts' pictures, the per-person cap
+    and the https hosts a picture may be fetched from, joined with commas (the
+    hub's envSeparator); "" = no host, nothing is fetched until owner step S2 #}
+{%- set ct_ph = ct.get("photo_hosts", []) %}
+{%- set _ = run_env.update({"SPOOL_HUB_CONTACTS_PHOTO_MAX_PER_PERSON": (ct.get("photo_max_per_person", 2000) | int | string), "SPOOL_HUB_CONTACTS_PHOTO_HOSTS": (ct_ph if ct_ph is string else (ct_ph | join(",")))}) %}
 {%- endif %}
 {#- spec 025 box owner lock 6.4 (row B6, SPL-3014): hub.box_locks_expected
     reaches the hub as one plain env value, "<tenant>:<box>:<lock_pubkey>"

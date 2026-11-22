@@ -827,4 +827,52 @@ Risks:
   (13.3); the creator cannot undo it from their own trash. Same as the web
   app today.
 
+## 14. Membership and sync (SPL-6250)
+
+A connection belongs to a member of one workspace, but it is not tied to the
+membership: it goes only on disconnect (`store/gcal_postgres.go:116`) or
+when the human row goes (`rdb/0217_google_calendar.sql:20`, `ON DELETE
+CASCADE` on `humans`). Measured on 5332dd943, before the fix
+(`TestGcalSyncRemovedMemberPaused`, memory and Postgres, n=1 each): after
+`RemoveMember`, one cycle wrote a workspace event added after the removal
+to the removed member's "Spool Hub" calendar (`events.insert` 1) and took a
+Google event of that calendar into the workspace as the member's private
+event (1 imported). The out half reads with `SearchCalendarEvents`, which
+filters by tenant and the private rule only, and the In half writes with no
+access check.
+
+The rule (`hub/gcal_sync.go`):
+
+- **The gate.** Before any Google call, the cycle's `sync` (:245) asks
+  `member` (:260): the connection's human must still hold `self.keys` in
+  the workspace, read through the hub's authorizer (`hub/rbac.go:45`). It
+  is the permission the connect, "Sync now" and disconnect routes ask for
+  (`hub/gcal_connect.go:173`, `:382`, `hub/gcal_sync.go:134`). No role
+  (`rbac.ErrNotMember`, also a disabled member) or a role without it is
+  `errGcalNotMember`; any other error is a failed cycle as before, retried
+  after 5 minutes.
+- **Paused, not dropped.** `pause` (:276) makes no Google call and writes
+  nothing into Spool: neither half runs. The row, its sealed tokens and
+  its map rows are kept; `status_detail` reads "not a member of this
+  workspace: sync paused" and the row is due again after an hour
+  (`gcalOffRecheck`). A member admitted again syncs on from where it
+  stopped, with no reconnect (`TestGcalSyncReadmittedMemberResumes`). A
+  removal by mistake, undone, loses nothing.
+- **The Google calendar is left as it is.** What it held at the removal
+  stays (the member saw those events while a member); nothing new reaches
+  it, and Google edits there no longer reach Spool. Emptying it would need
+  Google calls made on the grant of someone who is no longer a member, and
+  it holds the member's own Google events too, which are theirs.
+- **Open: the grant of a member who never comes back.** Its tokens stay
+  sealed in `gcal_connections` until the human row goes; the disconnect
+  route asks for `self.keys` in the workspace, so the removed member
+  cannot use it. Dropping a long-paused connection (revoke at Google,
+  delete the row) is a separate decision for the owner, not built here.
+
+Tests (`hub/gcal_sync_member_test.go`, memory and Postgres under
+`PRE_PUSH_TIER=full`): `TestGcalSyncRemovedMemberPaused` (0 Google calls,
+"After" not at Google, nothing imported, the paused row; red with the gate
+taken out of `sync`: 2 Google calls) and
+`TestGcalSyncReadmittedMemberResumes`.
+
 <!-- version: 1.0, section 13 a plan · updated: 2026-11-22 -->

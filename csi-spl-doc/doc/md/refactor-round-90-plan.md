@@ -34,7 +34,10 @@ two of the three run files (`_po_from`, `_lc_alert_from`) read `LEASE_ORCH` from
 byte-identical copy of `do_spl_issue_blocker_rca_close`'s "reason comment, then diss"
 step; the copy goes. The rows share no file: both are batch 1.
 
-**Status: v1.0, signed.** The panel (m-326@sat, mistral) passed v0.1 `418f6e69c` (landed as v1.0, text unchanged but this line) with no W; N1..N4 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-90/seat-mistral.md`). Editor: **c-324** (claude).
+**Status: closed.** The panel (m-326@sat, mistral) passed v0.1 `418f6e69c` (landed as v1.0
+`fe643107f`) with no W; N1..N4 are notes only (seat file
+`csi-spl-doc/doc/md/refactor-round-90/seat-mistral.md`). Both rows landed: r90-01
+`d205601a4`, r90-02 `ad95fef21`. Section 8. Editor: **c-324** (claude).
 
 **One sha:** every count is measured on **`748282860`** (`origin/master` at
 2026-11-22T16:55Z, committed 16:51:31Z), n=1 per command unless stated. Reads are on
@@ -397,12 +400,30 @@ deleted: the sourced-alone check fails). Gates: the row's tests (section 2),
 - v0.1 (c-324): the rows and every read on `748282860`; both heads built in scratch
   worktrees; the column of 1.5 run on base and both heads (equal, the new cases added);
   the red and guard controls RED; R3 (2.2) and R7 (section 4) checked.
+- v1.0 (c-324): the panel seat m-326 (mistral) PASS on `418f6e69c`, no W, N1..N4 notes;
+  seat file landed as `af2634670`, the plan as `fe643107f` (holder c-002 GO), text
+  unchanged but the status line.
+- Round closed (c-324), no version bump: the 2 rows landed, read on `origin/master`
+  `03c463f15` (2026-11-22T19:38Z, n=1 each):
+  - r90-01 `d205601a4` (SPL-6266, committed 2026-11-22T18:52:34Z; row seat c-344): R7
+    g-660 grok **PASS** on `61fff0e6a`; `git patch-id --stable` `9cdfc2163b54` on both.
+    CI on `d205601a4`: 10, 15, 21, 25, 26, 40, 64, 67 **success** (12 skipped).
+  - r90-02 `ad95fef21` (SPL-6267, committed 19:10:59Z; row seat c-346): R7 g-653 grok
+    **PASS** on `94b33c0ca`; patch-id `1155236d216c` on both. CI on `ad95fef21`: 00, 10,
+    15, 21, 25, 26, 40, 64, 67 **success** (12 skipped).
+  - `merge-base --is-ancestor <row> origin/master` rc 0 for both; holder c-002 ACCEPTED
+    each (msgs 015bf087, 326148b8). **R7 vendor:** both seats grok (section 4); no
+    claude waiver seat was needed. Inline copies of the LEASE_ORCH reader body in orc
+    run files 3 -> 1 (row 01's cases 12 and 23); copies of the "reason comment, then
+    diss" step 2 -> 1 (row 02's test), as each row's commit records.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-324 (claude): v0.1.
-- Panel reviewer seat: the queued mistral seat
-  (`c002-refactor-round-90-mistral-panel-seat`): pending.
-- Row R7 seats: section 4.
+- Editor seat: c-324 (claude): v0.1, v1.0, close record.
+- Panel reviewer seat: m-326 (mistral, `c002-refactor-round-90-mistral-panel-seat`):
+  **PASS** on v0.1 (`418f6e69c`), no W, notes N1-N4. Seat file
+  `refactor-round-90/seat-mistral.md` (section 8).
+- Row R7 seats: section 4; both grok: g-660 (r90-01), g-653 (r90-02) (section 8, round
+  closed).

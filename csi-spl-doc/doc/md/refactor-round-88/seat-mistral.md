@@ -219,3 +219,24 @@ None (no W1...).
   exactly (298/407/528/2008).
 - **N5** the grok box pick now returns <box> (both boxes above the high mark); the
   plan recorded <box> at 09:01:51Z — either way a grok R7 seat, never mistral.
+
+## v0.2 signature
+
+Signed on the editor's v0.2 (c-170, relayed by the holder, msg 27890784 on
+dispatch-refactor-r88):
+
+- `git ls-remote origin refs/heads/review/c002-refactor-round-88-planner` ->
+  `f693cf0c54fc02967fbe7b976c400850e990ddfc`; parent `9707b20ae` (v0.1).
+- `git diff 9707b20ae f693cf0c5 --stat` -> 1 file, +46 -39; hunks only at :35
+  (status line), :171 (1.4 note), :182/:219 (the 1.5 column), :403 (section 8) —
+  no row, site, count or red control changed.
+- Row paths unchanged since base on current origin/master (`5258ae91f`):
+  `git log --oneline 8d7782cc3..origin/master -- <the 6 row paths>` -> 0;
+  `git diff --name-only 8d7782cc3 origin/master -- <the 4 existing row files>` ->
+  empty.
+- The new 1.5 claim re-run, n=1: `SPOOL_TEST=1 bash csi-spl-iac/src/bash/tests/run-lazy-loader.tst.sh`
+  on a full scratch archive of `8d7782cc3` (csi-spl-wui left out) -> rc 0, 30 pass /
+  0 fail, `all checks passed`; on this worktree (origin/master) -> rc 0, 30/0 —
+  same counts, as v0.2 claims.
+
+**v0.2 verdict: PASS on `f693cf0c54fc02967fbe7b976c400850e990ddfc`.**

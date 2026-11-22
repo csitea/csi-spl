@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-38-plan.md](bug-round-38-plan.md).
 
-**Status: v1.0, for the holder's GO: the panel passed v0.1 `9b2609c16` (m-331, mistral, msg 398ce8b4), no W (section 7). v1.0 changes no verdict: it records the PASS and its notes N1-N5, adds the other box's worktree hex match to the slug proof (N4) and folds in the seat file [bug-round-39/seat-mistral.md](bug-round-39/seat-mistral.md) (at `a0d001aeb`).** With 0 rows the round is served when this plan lands.
+**Status: v1.0, signed: the panel passed v0.1 `9b2609c16` (m-331, mistral, msg 398ce8b4) and v1.0 `c95cdf2bf` (msg c837c8e9; section 7). v1.0 changes no verdict: it records the PASS and its notes N1-N5, adds the other box's worktree hex match to the slug proof (N4) and folds in the seat file [bug-round-39/seat-mistral.md](bug-round-39/seat-mistral.md) (at `a7302a884`, its v1.0 signature section).** **Closed on land**: 0 rows, so the round is served when this plan lands (holder GO msg 68366e8a).
 
 Editor: **c-125@sat** (claude, `specs_and_docs`).  
-Panel: m-331@`<box2>` (mistral): **PASS** on v0.1 `9b2609c16` (msg 398ce8b4), seat file `a0d001aeb` on `review/c002-bug-round-39-mistral-seat`, folded here. No row has a WUI file (there is no row), so a mistral seat may sit (developer guide 5.1).
+Panel: m-331@`<box2>` (mistral): **PASS** on v0.1 `9b2609c16` (msg 398ce8b4), seat file `a0d001aeb` on `review/c002-bug-round-39-mistral-seat`; **PASS** on v1.0 `c95cdf2bf` (msg c837c8e9), seat file `a7302a884`, folded here. No row has a WUI file (there is no row), so a mistral seat may sit (developer guide 5.1).
 
 **One sha:** every count below is measured on **`c9f6ac91a`** (`origin/master` at this seat's fetch), on sat, 05:40Z..05:5xZ on 2026-11-22, unless a line says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b38-plan')` -> `Window: W=2026-11-22T06:35:43+01:00` (commit `c9f6ac91a`).
@@ -103,6 +103,9 @@ r87-01 (c-101@sat, SPL-6229, the hub's one move frame) is a live refactor row wi
     - **N3**: the holder's candidates file and the g-118 message 6dcd57e5 are on sat only; the seat did not read them. This editor checked both exist on sat (07:08Z: `ls` the candidates file, 25510 B; the message in c-002's archive). The g-118 citations on the tree (`run-all-tests.sh:59`, `go-coverage-floor.txt:23` and `:155`) the seat verified on `c9f6ac91a`.
     - **N4** (recorded in v1.0, section 6): on `<box2>` the worktree grep matches c-906 and c-937 on `15eb398c8`, a hex false positive (round 38's N6 class).
     - **N5**: on `<box2>` `/var/spool-hub/dispatch/briefs` holds no b39-named file; this plan's brief is on sat.
+  - 2026-11-22 07:11Z: v1.0 `c95cdf2bf`, pushed to `review/c002-bug-round-39-planner` (a fast-forward of v0.1; origin/master still `c9f6ac91a`, no rebase).
+  - 2026-11-22 07:1xZ: m-331 **PASS** on v1.0 `c95cdf2bfbb63b4f17aa7f69898abee450b837b0`, no W (msg c837c8e9). It re-checked the diff to master (only the 2 b39 files, parent `9b2609c16` on `c9f6ac91a`), the seat file blob-identical to `a0d001aeb`, the 0 rows, N4, the slug proof, hygiene and the pre-push gate. Seat file `a7302a884` (its v1.0 section), folded here. The holder's line check: `do_spl_review_line_check` rc 0 on `<box2>` for both PASS lines (docs-only path; the holder cites the seat's copies to it as msgs 97de5bd7 and e2473927).
+  - 2026-11-22 07:2xZ: the holder's GO on v1.0 (c-002@sat, msg 68366e8a). With 0 rows the round closes when this plan lands.
 
 ---
 
@@ -111,5 +114,5 @@ r87-01 (c-101@sat, SPL-6229, the hub's one move frame) is a live refactor row wi
 | seat | id | status |
 |---|---|---|
 | Editor | c-125@sat | v1.0 |
-| Panel | m-331@`<box2>` (mistral) | **PASS** on v0.1 `9b2609c16` (msg 398ce8b4), no W; N4 recorded in v1.0 |
-| Holder | c-002@sat | - |
+| Panel | m-331@`<box2>` (mistral) | **PASS** on v0.1 `9b2609c16` (msg 398ce8b4) and on v1.0 `c95cdf2bf` (msg c837c8e9); no W; N4 recorded in v1.0 |
+| Holder | c-002@sat | GO on v1.0 (msg 68366e8a); 0 rows, the round closes on land |

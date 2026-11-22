@@ -27,9 +27,11 @@
 # @description tests, SPL-3190),
 # @description then the score, the CI weight (e2e-shard-weights.txt) as the
 # @description tie-break;
-# @description taken while the summed CI seconds fit PRE_PUSH_E2E_BUDGET and
-# @description the count PRE_PUSH_E2E_MAX (the top file always runs). What is
-# @description cut is printed: CI still runs every file.
+# @description taken in that order while the summed CI seconds fit
+# @description PRE_PUSH_E2E_BUDGET, a file that does not fit skipped for the
+# @description next, under the hard count PRE_PUSH_E2E_MAX (the top file always
+# @description runs). What is cut is printed with what cut it, cap or budget:
+# @description CI still runs every file.
 # @description THE RUN: the mock bundle (as wf 10 builds it) is cached by the
 # @description WUI tree without e2e/bench contents, so an e2e-only edit and a
 # @description rebase over non-WUI commits reuse it; the files run through
@@ -39,7 +41,7 @@
 # @description newest 3 bundles; a run holds its bundle (a shared flock on
 # @description <cache>/.locks/<key>) until it ends, and the prune skips a held one.
 # @param PRE_PUSH_E2E (optional) - 0 = never select the part, default 1
-# @param PRE_PUSH_E2E_MAX (optional) - most files run, default 6
+# @param PRE_PUSH_E2E_MAX (optional) - most files run, default 35 (_ppe_cap)
 # @param PRE_PUSH_E2E_BUDGET (optional) - CI seconds the files may sum to, default 240
 # @param PRE_PUSH_E2E_TIMEOUT (optional) - seconds for the whole part; wins over PRE_PUSH_PART_TIMEOUT, default cnf row wui_e2e_<tier>
 # @param PRE_PUSH_E2E_BUNDLES (optional) - bundle cache dir, default ~/.cache/csi-spl/wui-e2e-bundle
@@ -50,7 +52,7 @@
 #------------------------------------------------------------------------------
 
 # do_check_pre_push_e2e - print the e2e files a change selects, "<file> <score>
-# <ci secs>" per line, then one "CUT" line per file left out by the cap. The
+# <ci secs>" per line, then one "CUT ... cap|budget" line per file left out. The
 # change: WUI_E2E_CHANGED (paths, space or newline separated) or the files of
 # WUI_E2E_RANGE (a git range), in PRE_PUSH_TREE (default the checkout).
 do_check_pre_push_e2e() {
@@ -203,20 +205,27 @@ _ppe_score() {
 # fit: the pinned ones first (an edited test 2, then each changed source
 # file's best test 1, so one component cannot starve another's), then the highest direct score, then the
 # score, "<test> <score> <ci secs>",
-# then "CUT <test> <score> <ci secs>" per file left out. The CI weight of a
-# file with no line is the median.
+# then "CUT <test> <score> <ci secs> <cap|budget>" per file left out, the
+# reason being what cut it. The CI weight of a file with no line is the median.
+# The budget is filled: a file that does not fit is skipped for the next one.
+# The hard cap, 35 files, is the budget over the wall time of one extra
+# file on a warm mock bundle, the worst of n=3 on the first box (SPL-6271:
+# 3.3, 3.8, 6.8 s at load 11..31 on 16 cores; 240 / 6.8 = 35): 35 files that
+# cost CI 1 s each still spend no more than the budget's worth of wall time
+# on their start-up alone. The old cap, 6, cut box-seat-counts.test.mjs at
+# 133 of 240 s (SPL-6239 T9).
 _ppe_cap() {
   local wts="$1/src/node/test/e2e-shard-weights.txt"
-  awk -F'\t' -v wf="$wts" -v max="${PRE_PUSH_E2E_MAX:-6}" -v budget="${PRE_PUSH_E2E_BUDGET:-240}" '
+  awk -F'\t' -v wf="$wts" '
     BEGIN { n = 0
       while ((getline l < wf) > 0) { sub(/#.*/, "", l); if (split(l, a, " ") == 2) { w[a[1]] = a[2]; v[++n] = a[2] } }
       for (i = 1; i <= n; i++) for (j = i + 1; j <= n; j++) if (v[j] < v[i]) { x = v[i]; v[i] = v[j]; v[j] = x }
       med = n ? v[int((n + 1) / 2)] : 30 }
     { print ($4 + 0) "\t" ($3 + 0) "\t" $2 "\t" (($1 in w) ? w[$1] : med) "\t" $1 }' |
     sort -t$'\t' -k1,1nr -k2,2nr -k3,3nr -k4,4n -k5,5 |
-    awk -F'\t' -v max="${PRE_PUSH_E2E_MAX:-6}" -v budget="${PRE_PUSH_E2E_BUDGET:-240}" '
+    awk -F'\t' -v max="${PRE_PUSH_E2E_MAX:-35}" -v budget="${PRE_PUSH_E2E_BUDGET:-240}" '
       { if (k == 0 || (k < max && sum + $4 <= budget)) { print $5 " " $3 " " $4; k++; sum += $4 }
-        else print "CUT " $5 " " $3 " " $4 }'
+        else print "CUT " $5 " " $3 " " $4 " " ((k >= max) ? "cap" : "budget") }'
 }
 
 # The files this push selects, set by _ppe_plan for the part to run (the part
@@ -413,7 +422,7 @@ _pp_part_wui_e2e() {
   [[ -z "$missing" ]] || echo "INFO wui-e2e: not on this tree, left out of this run (new in the push, no baseline):$missing"
   [[ -n "$files" ]] || { echo "wui-e2e: no selected e2e file is on this tree, nothing to run"; return 1; }
   echo "wui-e2e: runs $(wc -w <<<"$files") file(s): $files"
-  [[ -n "${_PPE_CUT:-}" ]] && echo "wui-e2e: left to CI by the cap (PRE_PUSH_E2E_MAX / _BUDGET): $(paste -sd' ' <<<"$_PPE_CUT")"
+  [[ -n "${_PPE_CUT:-}" ]] && echo "wui-e2e: left to CI by the cap or the budget (PRE_PUSH_E2E_MAX / _BUDGET): $(paste -sd' ' <<<"$_PPE_CUT")"
   export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal _ppe_bundle_hold _ppe_bundle_prune _ppe_budget_margin _ppe_budget _ppe_tree_lock _ppe_bundle_drop _ppe_bundle_reuse
   timeout -k 10 "$(_pp_budget _pp_part_wui_e2e)" bash -c '
     set -uo pipefail

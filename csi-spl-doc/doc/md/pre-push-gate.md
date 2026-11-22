@@ -56,9 +56,19 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   tests that name a testid (or a page's route) of the changed file or of the
   files that use it, never through the layouts. First each changed source
   file's best test, then the tests that name the changed files' own
-  testids (`data-test` too), then the score (SPL-3612); at most
-  `PRE_PUSH_E2E_MAX` files (6) summing to `PRE_PUSH_E2E_BUDGET` CI seconds
-  (240); the rest print as left to CI. A change to a layout, `app.vue` or
+  testids (`data-test` too), then the score (SPL-3612). In that order the
+  files fill `PRE_PUSH_E2E_BUDGET` CI seconds (240), a file that does not
+  fit skipped for the next, under a hard cap of `PRE_PUSH_E2E_MAX` files
+  (35); the rest print as `CUT <file> <score> <ci secs> cap|budget`, left to
+  CI. The cap is the budget over the wall time of one extra file on a warm
+  mock bundle, the worst of n=3 on the first box: 3.3, 3.8 and 6.8 s at load
+  11..31 on 16 cores, 240 / 6.8 = 35 (SPL-6271). The old cap, 6, cut
+  `box-seat-counts.test.mjs` at 133 of 240 s, red in CI after
+  `5332dd943..0674db0a5`; the budget now selects it. Its limit: on
+  `f074057b5..d2557fbc4` (SPL-6205) the 3 files red in CI score 37, 9 and 6
+  among 386 candidates, files 61, 288 and 330 in score order, past the
+  budget at 13 files; they print `CUT ... budget`, and only a scoring or
+  budget change would run them. A change to a layout, `app.vue` or
   `main.css` also scores the tests by the shell's `data-*` state attributes
   it names (`data-mobile-level`), at weight 9 (SPL-4139): a shell change
   still cannot run all 31 data-mobile-level tests within the cap; the 4

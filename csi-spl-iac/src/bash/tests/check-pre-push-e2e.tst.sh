@@ -11,8 +11,9 @@
 #   3. a page change selects the tests that open its route
 #   4. an edited e2e test selects itself first (score 100); an edited helper
 #      the tests that import it
-#   5. the cap: PRE_PUSH_E2E_MAX=1 runs the best file, the rest print CUT; a
-#      budget smaller than every file still runs the top one
+#   5. the cap: PRE_PUSH_E2E_MAX=1 runs the best file, the rest print
+#      "CUT ... cap"; a budget smaller than every file still runs the top
+#      one, the rest print "CUT ... budget"
 #   6. no WUI path, or PRE_PUSH_E2E=0 -> the part is not selected
 #   7. the run: the runner gets the selected files; a second run on the same
 #      tree re-uses the bundle (1 build for 2 runs); a .output that was there
@@ -35,6 +36,14 @@
 #  13. the shell's data-* state attributes (SPL-4139), on 46afd70ba's tree:
 #      A main.css alone selects a test reading one; B the 4 files of that
 #      commit score mobile-stack above master's 22; C still <= MAX files
+#  21. SPL-6271, the night's two CI reds replayed on their real trees: the
+#      budget is filled under the cap of 35. A 5332dd943..0674db0a5 (SPL-6239
+#      T9) selects box-seat-counts, the file that failed in CI; RED CONTROL:
+#      the old cap, PRE_PUSH_E2E_MAX=6, prints "CUT ... cap" for it. B
+#      f074057b5..d2557fbc4 (SPL-6205) the documented limit: its 3 red files
+#      score too low for the budget, "CUT ... budget" under the new cap, so
+#      only a scoring or budget change selects them (out of this scope);
+#      under the old cap 6 they read "cap"
 #  14. the shell's attribute keys leave out Vue's scoped data-v-* and the
 #      data-test-* family, and one-word names (data-state): app.vue naming
 #      all of them selects only the test reading data-mobile-level
@@ -142,10 +151,11 @@ got="$(sel csi-spl-wui/tests/e2e/lib/helper.mjs | runs)"
   || fail "4. helper selected '$got'"
 # --- 5. the cap -----------------------------------------------------------------------
 got="$(PRE_PUSH_E2E_MAX=1 sel csi-spl-wui/src/components/FooBar.vue)"
-[[ "$(grep -vc '^CUT ' <<<"$got")" == 1 && "$(grep -c '^CUT ' <<<"$got")" == 1 ]] \
-  && pass "5. PRE_PUSH_E2E_MAX=1: one file runs, the other prints CUT" || fail "5. MAX=1 gave '$got'"
+[[ "$(grep -vc '^CUT ' <<<"$got")" == 1 && "$(grep -c '^CUT .* cap$' <<<"$got")" == 1 ]] \
+  && pass "5. PRE_PUSH_E2E_MAX=1: one file runs, the other prints CUT ... cap" || fail "5. MAX=1 gave '$got'"
 got="$(PRE_PUSH_E2E_BUDGET=1 sel csi-spl-wui/src/components/FooBar.vue)"
-[[ "$(grep -vc '^CUT ' <<<"$got")" == 1 ]] && pass "5. a budget under every file still runs the top one" \
+[[ "$(grep -vc '^CUT ' <<<"$got")" == 1 && "$(grep -c '^CUT .* budget$' <<<"$got")" == 1 ]] \
+  && pass "5. a budget under every file still runs the top one, the other prints CUT ... budget" \
   || fail "5. BUDGET=1 gave '$got'"
 # --- 6. not selected ----------------------------------------------------------------------
 _ppe_plan "csi-spl-api/x.go" "$R" && fail "6. a non-WUI change selected the part" \
@@ -439,8 +449,8 @@ if git -C "$PROJ_ROOT/.." archive 46afd70ba csi-spl-wui/src csi-spl-wui/tests/e2
     || fail "13B. mobile-stack.test.mjs scores '$sc', want more than master's 22"
   # C: the cap still holds
   kept="$(grep -vc '^CUT ' <<<"$got")"
-  [[ "$kept" -ge 1 && "$kept" -le 6 ]] && pass "13C. the same change keeps $kept file(s), within PRE_PUSH_E2E_MAX 6" \
-    || fail "13C. the same change keeps $kept file(s), want 1..6"
+  [[ "$kept" -ge 1 && "$kept" -le 35 ]] && pass "13C. the same change keeps $kept file(s), within PRE_PUSH_E2E_MAX 35" \
+    || fail "13C. the same change keeps $kept file(s), want 1..35"
 else
   fail "13. cannot read 46afd70ba from the repo (a shallow clone?)"
 fi
@@ -456,6 +466,40 @@ got="$(PRE_PUSH_E2E_MAX=9 sel csi-spl-wui/src/app.vue | runs)"
   && pass "14. app.vue's keys: data-mobile-level only (not data-v-*, data-test-*, data-state)" \
   || fail "14. app.vue selected '$got', want tests/e2e/attr-level.test.mjs alone"
 rm -f "$W/src/app.vue" "$W"/tests/e2e/attr-*.test.mjs
+
+# --- 21. the night's two CI reds, replayed on their real trees (SPL-6271) ------------------
+# replay <range> <dir>: the WUI tree of the range's last commit in <dir>, and
+# the range's changed paths on stdout ("" when the repo lacks the commits).
+replay() {
+  local top="$PROJ_ROOT/.." end="${1#*..}"
+  mkdir -p "$2"
+  git -C "$top" archive "$end" csi-spl-wui/src csi-spl-wui/tests/e2e 2>/dev/null | tar -x -C "$2" || return 1
+  git -C "$top" diff --name-only "$1" 2>/dev/null
+}
+sel_r() { local d="$1"; shift; PRE_PUSH_TREE="$d" WUI_E2E_CHANGED="$*" do_check_pre_push_e2e; }
+cut_why() { awk -v t="$2" '$1 == "CUT" && $2 == t { print $5 }' <<<"$1"; }
+if ch="$(replay 5332dd943..0674db0a5 "$T/r2")" && [[ -n "$ch" ]]; then
+  got="$(sel_r "$T/r2" $ch)"
+  bsc=tests/e2e/box-seat-counts.test.mjs
+  grep -q "^$bsc " <<<"$got" && pass "21A. 5332dd943..0674db0a5 selects $bsc, the file red in CI (budget filled, cap 35)" \
+    || fail "21A. 5332dd943..0674db0a5 left out $bsc: '$(grep -F "$bsc" <<<"$got")'"
+  old="$(PRE_PUSH_E2E_MAX=6 sel_r "$T/r2" $ch)"
+  [[ "$(cut_why "$old" "$bsc")" == cap ]] && pass "21A RED CONTROL. under the old cap 6: CUT $bsc ... cap" \
+    || fail "21A RED CONTROL. under the old cap 6 $bsc read '$(grep -F "$bsc" <<<"$old")', want CUT ... cap"
+else
+  fail "21A. cannot read 5332dd943..0674db0a5 from the repo (a shallow clone?)"
+fi
+if ch="$(replay f074057b5..d2557fbc4 "$T/r1")" && [[ -n "$ch" ]]; then
+  got="$(sel_r "$T/r1" $ch)"; old="$(PRE_PUSH_E2E_MAX=6 sel_r "$T/r1" $ch)"
+  for t in topic-menu-parity poll-state-shared msg-deep-links; do
+    t="tests/e2e/$t.test.mjs"
+    [[ "$(cut_why "$got" "$t")" == budget && "$(cut_why "$old" "$t")" == cap ]] \
+      && pass "21B. f074057b5..d2557fbc4, the documented limit: $t CUT by the budget (cap 35), by the cap under the old 6" \
+      || fail "21B. $t read '$(grep -F "$t" <<<"$got")' (cap 35) and '$(grep -F "$t" <<<"$old")' (cap 6), want budget / cap"
+  done
+else
+  fail "21B. cannot read f074057b5..d2557fbc4 from the repo (a shallow clone?)"
+fi
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all check-pre-push-e2e.tst.sh assertions"

@@ -1645,6 +1645,28 @@ func (h *Handler) SessionFromRequest(r *http.Request) (Session, bool) {
 	return s, true
 }
 
+// HumanFromCookie names the person (HUM-*) whose signed session cookie r
+// carries, or "" (spec 162 10.4.2, Q4 B). It is SessionFromRequest's
+// signature and expiry check WITHOUT the revocation read: it never touches
+// the store, so the hub's error path (a 5xx storm is often a database storm)
+// can name the person whose request failed. A revoked session's person
+// still made the request, so it is still named. No cookie, a bad or expired
+// one, or a session with no HUM-* (a box, a public route) is "".
+func (h *Handler) HumanFromCookie(r *http.Request) string {
+	if h == nil || h.sessionKey == nil {
+		return ""
+	}
+	c, err := r.Cookie(h.cfg.CookieName)
+	if err != nil {
+		return ""
+	}
+	var s Session
+	if openToken(h.sessionKey, c.Value, &s, h.now()) != nil || s.V != 1 || !strings.HasPrefix(s.HumanID, "HUM-") {
+		return ""
+	}
+	return s.HumanID
+}
+
 // SessionForTenant is the door check for tenant-scoped reads (003 T033b): a
 // valid session, a registered HUM-* in it, and Membership saying yes for the
 // Host tenant. It fails closed: no Membership configured, no human, or a

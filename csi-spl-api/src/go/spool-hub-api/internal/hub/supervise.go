@@ -29,7 +29,9 @@ const LoopPanicMsg = "hub loop panicked; restarting"
 // run starts again after a backoff that doubles from 1 s to 1 min (and
 // starts over once a run outlived the maximum). A run that returns without
 // a panic is done: a loop that is off (an interval <= 0) returns at once and
-// is not restarted. It returns the number of restarts.
+// is not restarted. It returns the number of restarts. When ctx carries the
+// hub's Evlog (WithEvlog), each panic is also one error.loop_panic sighting
+// of the backend error log (spec 162 10.4.2), anchored on the loop name.
 func Supervise(ctx context.Context, log zerolog.Logger, name string, run func(context.Context)) int {
 	return supervise(ctx, log, name, run, loopBackoffMin, loopBackoffMax, time.Now)
 }
@@ -51,6 +53,7 @@ func supervise(ctx context.Context, log zerolog.Logger, name string, run func(co
 		restarts++
 		log.Error().Str("loop", name).Str("panic", fmt.Sprint(rec)).Str("stack", stack).
 			Int("restarts", restarts).Dur("retry_in", backoff).Msg(LoopPanicMsg)
+		loopPanicSighting(ctx, name, rec) // spec 162 10.4.2: one error.loop_panic sighting (WithEvlog)
 		t := time.NewTimer(backoff)
 		select {
 		case <-ctx.Done():

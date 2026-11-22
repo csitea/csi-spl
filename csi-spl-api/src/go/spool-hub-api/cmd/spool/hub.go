@@ -85,8 +85,7 @@ func cmdServe() int {
 	if err := applyRuntimeLimits(hc); err != nil {
 		return fail(err)
 	}
-	log := logging.New(&config.Config{LogLevel: hc.LogLevel, LogFormat: hc.LogFormat}).
-		With().Str("component", "hub").Str("env", hc.Env).Str("version", version).Logger()
+	log, evHook := hubLogger(hc)
 	ctx, stop := interruptible()
 	defer stop()
 
@@ -140,6 +139,7 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
+	ctx = superviseEvlog(ctx, log, srv, evHook)
 	store.CommittedRetention = hc.CommittedRetention // spec 059 S4, read by Sweep
 	claimOperatorWorkspace(ctx, log, srv)
 	srv.LogHubStarted(ctx) // spec 162 3.3: each start shows in the System log
@@ -151,6 +151,41 @@ func cmdServe() int {
 	superviseMarketing(ctx, log, srv)
 	superviseReleases(ctx, log, srv)
 	return serveUntilDone(ctx, hc, log, srv)
+}
+
+// hubLogger is the serving hub's logger, with the hook that makes every
+// other ERROR line a sighting of the backend error log (spec 162 10.4.2;
+// attached to the server by superviseEvlog).
+func hubLogger(hc *config.Hub) (zerolog.Logger, *hub.EvlogHook) {
+	h := hub.NewEvlogHook()
+	return logging.New(&config.Config{LogLevel: hc.LogLevel, LogFormat: hc.LogFormat}).
+		With().Str("component", "hub").Str("env", hc.Env).Str("version", version).Logger().Hook(h), h
+}
+
+// superviseEvlog starts source (a) of the backend error log (spec 162
+// 10.4.2, SPL-5882): the hook counts into srv's sightings, the trace field
+// names the cnf project, the loops' context carries the sightings (a loop
+// panic is one), and the evlog-flush loop writes them every
+// SPOOL_HUB_EVLOG_FLUSH_S seconds (cnf hub.env, default 30). The shutdown
+// flush is serveUntilDone's, after the drain.
+func superviseEvlog(ctx context.Context, log zerolog.Logger, srv *hub.Server, h *hub.EvlogHook) context.Context {
+	e := srv.Evlog()
+	h.Attach(e)
+	e.SetTraceProject(strings.TrimSpace(os.Getenv("SPOOL_HUB_GCP_PROJECT")))
+	ctx = hub.WithEvlog(ctx, e)
+	every := evlogFlushEvery(os.Getenv("SPOOL_HUB_EVLOG_FLUSH_S"))
+	go hub.Supervise(ctx, log, "evlog-flush", func(ctx context.Context) { srv.RunEvlogFlush(ctx, every) })
+	return ctx
+}
+
+// evlogFlushEvery reads SPOOL_HUB_EVLOG_FLUSH_S (whole seconds); unset, not a
+// number or <= 0 is hub.EvlogFlushDefault.
+func evlogFlushEvery(v string) time.Duration {
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n <= 0 {
+		return hub.EvlogFlushDefault
+	}
+	return time.Duration(n) * time.Second
 }
 
 // superviseReleases starts the spec 143 release loops, each supervised
@@ -730,6 +765,7 @@ func serveUntilDone(ctx context.Context, hc *config.Hub, log zerolog.Logger, srv
 	if err := hs.Shutdown(sctx); err != nil {
 		log.Error().Err(err).Msg("http shutdown")
 	}
+	srv.FlushEvlog(context.Background()) // spec 162 10.4.2: the sightings of the drain, before exit
 	return 0
 }
 

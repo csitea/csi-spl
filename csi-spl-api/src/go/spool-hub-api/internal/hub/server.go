@@ -926,15 +926,24 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		sw := &statusWriter{ResponseWriter: w}
 		defer func() {
 			rec := recover()
+			var stack string
+			if rec != nil { // spec 162 10.4.2: the stack before it unwinds further, for TopFrame
+				stack = panicStack()
+			}
 			if rec != nil && sw.status == 0 {
 				writeErrCause(sw, http.StatusInternalServerError, "internal", "internal error", fmt.Errorf("panic: %v", rec))
 			}
+			trace := s.Evlog().traceField(r) // Cloud Logging's trace (10.4.2); "" = none
 			if sw.status >= 500 || rec != nil {
-				s.logServerError(r, rid, sw, rec)
+				s.logServerError(r, rid, sw, rec, stack, trace)
 			}
 			// Path only: no query string, no Authorization, no token (Constitution VII).
-			s.o.Log.Info().Str("request_id", rid).Str("method", r.Method).Str("path", r.URL.Path).
-				Str("host", r.Host).Int("status", sw.status).Dur("dur", s.o.Now().Sub(start)).Msg("http")
+			ev := s.o.Log.Info().Str("request_id", rid).Str("method", r.Method).Str("path", r.URL.Path).
+				Str("host", r.Host).Int("status", sw.status).Dur("dur", s.o.Now().Sub(start))
+			if trace != "" {
+				ev = ev.Str(evlogTraceKey, trace)
+			}
+			ev.Msg("http")
 		}()
 		next.ServeHTTP(sw, r)
 	})
@@ -943,14 +952,20 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 // logServerError writes the one ERROR line a 5xx (or a panic) leaves: the
 // request id, method, route and the cause writeErr noted. Same redaction as
 // the access log: the path and the mux pattern only, never the query string,
-// a header, the body or a token (Constitution VII).
-func (s *Server) logServerError(r *http.Request, rid string, sw *statusWriter, rec any) {
+// a header, the body or a token (Constitution VII). Then one sighting of
+// the backend error log (spec 162 10.4.2): an in-memory add, flushed by the
+// evlog-flush loop; with the person of the session cookie, read without
+// the store. trace is Cloud Logging's trace field, "" = none.
+func (s *Server) logServerError(r *http.Request, rid string, sw *statusWriter, rec any, stack, trace string) {
 	route := r.Pattern
 	if route == "" {
 		route = r.Method + " " + r.URL.Path
 	}
 	ev := s.o.Log.Error().Str("request_id", rid).Str("method", r.Method).Str("route", route).
 		Str("path", r.URL.Path).Int("status", sw.status)
+	if trace != "" {
+		ev = ev.Str(evlogTraceKey, trace)
+	}
 	if sw.token != "" {
 		ev = ev.Str("token", sw.token).Str("detail", sw.detail).Str("site", sw.site)
 	}
@@ -958,10 +973,11 @@ func (s *Server) logServerError(r *http.Request, rid string, sw *statusWriter, r
 		ev = ev.Err(sw.err)
 	}
 	if rec != nil {
-		ev.Interface("panic", rec).Msg("handler panic")
-		return
+		ev.Interface("panic", rec).Msg(handlerPanicMsg)
+	} else {
+		ev.Msg(httpServerErrMsg)
 	}
-	ev.Msg("http 5xx")
+	s.serverErrSighting(r, sw, rec, stack)
 }
 
 // writeVersion is the v the hub stamps on a message it composes (specs/020).

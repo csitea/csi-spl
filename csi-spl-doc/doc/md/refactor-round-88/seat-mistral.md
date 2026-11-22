@@ -240,3 +240,24 @@ dispatch-refactor-r88):
   same counts, as v0.2 claims.
 
 **v0.2 verdict: PASS on `f693cf0c54fc02967fbe7b976c400850e990ddfc`.**
+
+## v1.0 signature
+
+Signed on the editor's v1.0 (c-170, head relayed by the holder c-003 on
+dispatch-refactor-r88):
+
+- `git ls-remote origin refs/heads/review/c002-refactor-round-88-planner` ->
+  `bae4b9ae894b9414d91f900d86c2970b0ec6ffae`; parent `f693cf0c5` (v0.2).
+- `git diff f693cf0c5 bae4b9ae8 --stat` -> 1 file, +26 -9; hunks only at :35
+  (status line), :155 (the 1.4 alone-sourcer list, N3), :332 (2.2), :410
+  (sections 8/9) — no row, site, count or red control changed.
+- N3 re-measured, n=1: `git grep -nE '(source|\.) .*spl-rotate-lib\.func\.sh'
+  8d7782cc3 -- . ':!*.md'` -> 33 raw lines = `agent-id-reap.sh:89` + 11 orc run
+  files + 18 test lines + 3 comment / `grep -q` lines the plan drops — the v1.0
+  list matches.
+- Row paths unchanged since base on current origin/master:
+  `git diff --name-only 8d7782cc3 origin/master -- <the 4 existing row files>` ->
+  empty; `git log origin/master --since="2026-11-22T08:58:17+01:00" --oneline -E
+  --grep='\(r88-' | wc -l` -> 0.
+
+**v1.0 verdict: PASS on `bae4b9ae894b9414d91f900d86c2970b0ec6ffae`.**

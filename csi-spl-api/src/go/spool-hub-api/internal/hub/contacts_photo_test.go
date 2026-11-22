@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -233,6 +234,41 @@ func TestContactsPhotoPerPersonCap(t *testing.T) {
 	if got, n := pe.pictured(t), pe.photos(); got != 2 || n != 2 {
 		t.Errorf("cap 2: %d pictures after %d fetches, want 2 and 2", got, n)
 	}
+	// W1 of the R7 review: the sync's status_detail says so, counts only
+	const want = "Google contacts sync: pictures: 1 contact(s) have no picture: past contacts.photo_max_per_person (2 a person)"
+	if d := pe.detail(t); d != want {
+		t.Errorf("cap 2: status_detail %q, want %q", d, want)
+	}
+	pe.sync(t) // no one changed at Google: the line stays
+	if d := pe.detail(t); d != want {
+		t.Errorf("cap 2, a cycle with no change: status_detail %q, want %q", d, want)
+	}
+	// c0 loses its photo at Google and c2 is edited: c2 gets the free place
+	var res []string
+	for _, p := range pe.fake.People(fakegcal.DefaultEmail) {
+		res = append(res, p.ResourceName)
+	}
+	sort.Strings(res)
+	if err := pe.fake.EditPerson(fakegcal.DefaultEmail, res[0], func(p *gcal.Person) { p.Photos[0].Default = true }); err != nil {
+		t.Fatal(err)
+	}
+	if err := pe.fake.EditPerson(fakegcal.DefaultEmail, res[2], func(p *gcal.Person) { p.Names[0].GivenName = "FirstNameB" }); err != nil {
+		t.Fatal(err)
+	}
+	pe.sync(t)
+	if got, d := pe.pictured(t), pe.detail(t); got != 2 || d != "" {
+		t.Errorf("cap 2, a place freed: %d pictures, status_detail %q; want 2 and \"\"", got, d)
+	}
+}
+
+// detail is the member's contacts sync status_detail.
+func (pe *cpEnv) detail(t *testing.T) string {
+	t.Helper()
+	b, err := pe.st.(store.ContactsSyncs).ContactsSyncIn(context.Background(), pe.tid, pe.hum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b.StatusDetail
 }
 
 // C46: 300 contacts with photos: 200 fetched this cycle, 100 the next, 0

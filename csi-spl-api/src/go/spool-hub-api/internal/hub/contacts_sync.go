@@ -167,8 +167,9 @@ func (cy *contactsCycle) run(ctx context.Context) error {
 	if err := cy.photos(ctx); err != nil { // after the writes (spec 154 11.4, B16)
 		return cy.fail(ctx, cursor, err)
 	}
-	if cy.b.BackoffUntil != nil || strings.HasPrefix(cy.b.StatusDetail, contactsDetailHead) {
-		if err := cy.st.binds.SetContactsBackoff(ctx, cy.l, nil, "", cy.now()); err != nil {
+	detail := cy.photoDetail() // "" clears an earlier failure's line
+	if cy.b.BackoffUntil != nil || detail != cy.b.StatusDetail && (detail != "" || strings.HasPrefix(cy.b.StatusDetail, contactsDetailHead)) {
+		if err := cy.st.binds.SetContactsBackoff(ctx, cy.l, nil, detail, cy.now()); err != nil {
 			return err
 		}
 	}

@@ -66,11 +66,20 @@ type contactsPhotoPass struct {
 	started bool
 	token   string            // the sync token the cycle started from
 	want    map[string]string // Google resource -> its user photo URL, "" = none
+	ran     bool              // the pass walked the person's contacts to the end or the cycle cap
+	held    int               // pictures the person holds after the pass
+	placed  int               // contacts that got their first picture in the pass
+	overCap int               // contacts left without a picture: past contacts.photo_max_per_person
 }
+
+// contactsPhotoCapHead starts the status line of a person past the
+// per-person cap (11.4). It holds counts only, no contact value or URL (C12).
+const contactsPhotoCapHead = contactsDetailHead + "pictures: "
 
 // contactsPhotoCount is what one pass did, for the cycle's log line.
 type contactsPhotoCount struct {
 	fetched, stored, deleted, dropped, overCap int
+	held, placed                               int  // pictures the person holds; new ones this pass
 	more                                       bool // fetches left for the next cycle
 }
 
@@ -110,6 +119,9 @@ func (cy *contactsCycle) photos(ctx context.Context) error {
 	err := cy.photoRows(ctx, pc, &n)
 	if n.more || err != nil {
 		cy.b.SyncToken = cy.photo.token
+	}
+	if err == nil {
+		cy.photo.ran, cy.photo.held, cy.photo.placed, cy.photo.overCap = true, n.held, n.placed, n.overCap
 	}
 	cy.s.o.Log.Info().Str("tenant", cy.b.Tenant).Str("person", cy.b.Human).Int("fetched", n.fetched).
 		Int("stored", n.stored).Int("deleted", n.deleted).Int("dropped", n.dropped).Int("over_cap", n.overCap).
@@ -157,14 +169,32 @@ func (cy *contactsCycle) photoRows(ctx context.Context, pc store.PersonalContact
 			return err
 		}
 	}
+	n.held = held
 	return nil
+}
+
+// photoDetail is the status line the cycle leaves (spec 154 11.4: past
+// contacts.photo_max_per_person the sync's status_detail says so): the
+// over-cap count of this pass; else the earlier cap line while no pass ran
+// (a cycle listing no one changed proves nothing) or the person is still at
+// the cap and no contact got a first picture; else "".
+func (cy *contactsCycle) photoDetail() string {
+	p, prev := cy.photo, cy.b.StatusDetail
+	switch {
+	case p.overCap > 0:
+		return fmt.Sprintf("%s%d contact(s) have no picture: past contacts.photo_max_per_person (%d a person)",
+			contactsPhotoCapHead, p.overCap, cy.s.o.ContactsPhotos.MaxPerPerson)
+	case strings.HasPrefix(prev, contactsPhotoCapHead) && (!p.ran || p.held >= cy.s.o.ContactsPhotos.MaxPerPerson && p.placed == 0):
+		return prev
+	}
+	return ""
 }
 
 // photoRow brings one contact's picture in line with its Google URL.
 func (cy *contactsCycle) photoRow(ctx context.Context, pc store.PersonalContacts, c store.Contact, raw string, held *int, n *contactsPhotoCount) error {
 	cfg := cy.s.o.ContactsPhotos
 	if raw == "" {
-		return cy.photoDrop(ctx, pc, c, n)
+		return cy.photoDrop(ctx, pc, c, held, n)
 	}
 	u, ok := cfg.photoURL(raw)
 	if !ok {
@@ -213,13 +243,14 @@ func (cy *contactsCycle) photoFetchPut(ctx context.Context, pc store.PersonalCon
 	}
 	if c.PhotoSHA256 == "" {
 		*held++
+		n.placed++
 	}
 	n.stored++
 	return nil
 }
 
 // photoDrop deletes the picture of a contact Google has no user photo for.
-func (cy *contactsCycle) photoDrop(ctx context.Context, pc store.PersonalContacts, c store.Contact, n *contactsPhotoCount) error {
+func (cy *contactsCycle) photoDrop(ctx context.Context, pc store.PersonalContacts, c store.Contact, held *int, n *contactsPhotoCount) error {
 	if c.PhotoSHA256 == "" {
 		return nil
 	}
@@ -229,6 +260,7 @@ func (cy *contactsCycle) photoDrop(ctx context.Context, pc store.PersonalContact
 	}
 	if err == nil {
 		n.deleted++
+		*held--
 	}
 	return err
 }

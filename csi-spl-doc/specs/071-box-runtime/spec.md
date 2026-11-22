@@ -368,7 +368,7 @@ dev before the issue closes.
 | `fresh` | the box answered within the wait, row `at` >= the click | the age only |
 | `recent` | not asked: its newest sample is younger than the per-box limit (7.5) | the age only; no box is sampled twice inside the limit |
 | `stale` | asked, no answer by the cap (socket down, an old binary, a hung box) | its last sample, its real age and a "no answer within the wait" mark (the hub's 7 s cap, 7.3) |
-| `never` | asked, no answer by the cap, and no sample at all in the retention (a roster box whose cron never wrote and whose socket did not answer) | the page's existing "No current sample yet." (`boxes.now_none`, `csi-spl-wui/i18n/locales/en.json:2554`) |
+| `never` | asked, no answer by the cap, and no sample at all in the retention (a pinned box whose cron never wrote and whose socket did not answer) | the page's existing "No current sample yet." (`boxes.now_none`, `csi-spl-wui/i18n/locales/en.json:2554`) |
 
 - The Refresh button is disabled while a refresh runs, and shows the time
   the last one ended.
@@ -465,8 +465,9 @@ The hub writes both `Box` and `WriterBox` of a refresh sample from the
 session (`x.box`); the frame's `box` field is ignored. This is stricter
 than `box_stats_put`, which takes `WriterBox` from the session but keeps
 `Box` from the frame (`box_stats.go:176`, returned at `:184`; review W1).
-The asked unit is the roster box, which is the socket's `x.box`, so the
-stored row lands under the id the page matches rows by (`latestBoxStat`).
+The asked unit is a pinned box (7.6.2), the id a `role=box` socket
+registers under (`ws.go:403-422`, `x.box`), so the stored row lands under
+the id the page matches rows by (`latestBoxStat`).
 A box whose 5-minute cron writes another `box` than its desk id
 (`LANE_BOX`) already does not match its roster row today; T8 names any
 such box on dev.
@@ -477,14 +478,22 @@ New file `internal/hub/box_refresh.go`:
 
 - the route `POST /v1/tenant/box-stats/refresh` (+ `OPTIONS`), beside
   `routeBoxStats`;
-- the boxes it asks: **every box of the tenant's roster**
-  (`Store.Roster`, `internal/store/store.go:259`: the box ids the `role=box`
-  sockets register under, the same machines the page lists), whether it has
-  a sample or not, minus the ones `lockViewFor` hides from this actor, minus
-  the `recent` ones; or the one box named, under the same rules. So a box
-  with a live socket whose 5-minute cron wrote nothing (no sample in 24 h,
-  or none at all) is asked like any other, and its row fills on the answer
-  (review W3, g-180, on `3a806f18c`). A roster box with no socket anywhere
+- the boxes it asks: **every pinned box the page lists**: `Store.ViewBoxes`
+  (`internal/store/store.go:286`; Postgres reads `FROM pins LEFT JOIN roster`,
+  `view_postgres.go:53-59`, so a pin whose box announced no agents is still
+  a row), the same detail the page builds its rows from (`hub/view.go:348`,
+  `index.vue:115`, `box-rows.mjs:76`), minus a revoked pin (`ViewBox.Revoked`),
+  minus the browser pseudo-box `box-wui` (`BROWSER_BOX`,
+  `csi-spl-wui/src/utils/view-api-core.mjs:180`, which the page skips too),
+  minus the ones `lockViewFor` hides from this actor, minus the `recent`
+  ones; or the one box named, under the same rules. Not `Store.Roster`
+  (`store.go:259`): it holds only boxes that announced agents (Postgres
+  `SELECT box_id, agent_id FROM roster`, Memory drops an empty set), so a
+  pinned box with a live socket and no agents would be listed and not asked
+  (review W1 on `b130fc296`). Whether the box has a sample does not matter:
+  a box with a live socket whose 5-minute cron wrote nothing (no sample in
+  24 h, or none at all) is asked like any other, and its row fills on the
+  answer (review W3 on `3a806f18c`). A pinned box with no socket anywhere
   reads `stale`, or `never` when it has no sample;
 - the pending map `(tenant, box) -> {req, deadline}` on every instance, fed
   by the NOTIFY listener (a new channel on the listen connection that
@@ -584,7 +593,7 @@ both outputs in the commit body.
 | wire feature (T1) | `internal/wire/wire_test.go` + `internal/hub/box_refresh_test.go` | a hello carrying `box_sample` gives a session whose features hold it; `box_sample` / `box_sample_put` frames round-trip through the strict decoder | drop `FeatureBoxSample` from the hello's features: the session lacks it, the test fails |
 | NOTIFY channel (T4) | `internal/store/box_sample_wake_test.go` (Memory) + the Postgres twin under `PRE_PUSH_TIER=full` | a `spool_box_sample` announce from one store handle reaches a second listener with tenant, box, request id and deadline intact; a malformed payload is dropped, never delivered | plant a listener on another channel name: nothing arrives, the test fails |
 | two-instance delivery (T5) | `internal/hub/box_refresh_test.go` | an announce on instance A puts one `box_sample` frame on the fake box socket held by instance B; a box that says hello on B inside the deadline gets it then, after it none; an unsolicited `box_sample_put` (unknown request id, or past its deadline) stores nothing | plant a frame write that ignores the feature (asks every socket): the featureless fake box gets a frame, the test fails |
-| a never-sampled box (W3) | same file | a roster box with a live featured socket and no row in `box_stats` at all is asked; its answer is stored and the POST answers `fresh` with that row; the same box with no socket answers `never` | plant the asked set as "boxes with a sample in 24 h": the box is not asked, the test fails |
+| a never-sampled box (W3) | same file | a pinned box **with no roster row** (it announced no agents) and a live featured socket, and no row in `box_stats` at all, is asked; its answer is stored and the POST answers `fresh` with that row; the same box with no socket answers `never`; a revoked pin and `box-wui` are not asked | two plants, each fails the test: the asked set as "boxes with a sample in 24 h", and the asked set as `Store.Roster` (the box has no roster row, so it is not asked) |
 | refresh contract | `internal/hub/box_refresh_test.go` | two hub servers on one Memory store; a fake box client with the feature on instance B; `POST` on instance A answers `fresh` for that box, within the wait cap + 1 s, waited on the answer event, no fixed sleep | the fake box sends its hello without `box_sample`: the answer is `stale`, the test fails |
 | silent box is stale | same file | a fake box with the feature that never answers: the answer comes at the cap, `stale`, with its last row and that row's own `at` | plant a hub that labels any box with a row `fresh`: the test fails |
 | limits | same file | a second click inside 60 s writes no second frame (frames counted on the fake box); the 13th click in an hour is 429; an unsolicited `box_sample_put` stores nothing; `product_owner` gets 403 | drop each check in turn: its case fails |
@@ -607,7 +616,7 @@ carries the numbers.
 | T3 | the box handler in `readLoop`, the 30 s guard, the feature in the hello | box handler (frames, guard, hung df) | T1, T2 |
 | T4 | `store.BoxSampleWaker`: the NOTIFY channel, Memory and Postgres | NOTIFY channel | - |
 | T5 | the hub's pending map, frame send, hello catch-up, `box_sample_put` accept | two-instance delivery | T1, T4 |
-| T6 | the route, permission, limits, the asked set (the roster), wait, answer; the cnf keys + tpl-gen | refresh contract, silent box, a never-sampled box, limits | T5 |
+| T6 | the route, permission, limits, the asked set (the pinned boxes, `ViewBoxes`), wait, answer; the cnf keys + tpl-gen | refresh contract, silent box, a never-sampled box, limits | T5 |
 | T9 | the summary table of 7.4.1 from today's `GET /v1/tenant/box-stats`, the details below as option A; i18n | summary table (e2e + unit) + the i18n gates | - (it reads only what exists; the owner's poll `c9db41d2` decides the part below the table) |
 | T7 | the WUI button on the table's header, age, stale mark in its State column, i18n | click to render (e2e) + the i18n gates | T6, T9 |
 | T8 | the help text for Monitoring > Boxes; on dev, 10 clicks timed click to render | the measurement in the commit body: n, min, max, the tree sha and binary versions | T3 on the dev boxes, T7 deployed |
@@ -638,4 +647,4 @@ use), alerts on a threshold, and a refresh of the daily host facts sheet
 4. A refresh sample is stored like a tick sample (7.7): the two hub instances
    need the table to pass the answer between them.
 
-<!-- version: 0.3.2 · updated: 2026-11-22 -->
+<!-- version: 0.3.3 · updated: 2026-11-22 -->

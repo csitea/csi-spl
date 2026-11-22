@@ -125,6 +125,9 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
+# wait_event, pid_gone: the one bounded poll of the orc tests (spec 016)
+# shellcheck source=wait-event.inc.sh
+source "$TEST_DIR/wait-event.inc.sh"
 T=$(mktemp -d)
 # never the box's live Claude login mode (SPL-5695, spl-claude-login.func.sh)
 export LOGIN_STATE_DIR="$T/login-state"
@@ -964,28 +967,41 @@ got1="$(scan spl_lane_wt_scan LANE_WT_JOBS=1)"
 
 # 23. an interrupted scan leaves no temp dir (SPL-5624): a git diff that hangs
 # holds the scan mid-way, its process group then gets INT (a Ctrl-C) or TERM;
-# the scan's mktemp dir under TMPDIR must be gone once the group has stopped
+# the scan's mktemp dir under TMPDIR must be gone once the scan has stopped.
+# Each wait is on its event, not the clock (SPL-6234: a 10 s cap on reaching
+# diff lost to a loaded box, read "0 there during the scan" as a leak): the
+# scan reaching diff (its temp dir is made before any worker starts), then
+# the dir emptying or the scan subshell being gone, whichever comes first.
+# The budgets are caps; a scan that never reaches diff fails on its own line.
 mkdir -p "$T/slowshim"
-printf '#!/usr/bin/env bash\nif [[ " $* " == *" diff "* ]]; then : >>"%s/slow.started"; exec sleep 30; fi\nexec %q "$@"\n' \
+printf '#!/usr/bin/env bash\nif [[ " $* " == *" diff "* ]]; then : >>"%s/slow.started"; exec sleep 300; fi\nexec %q "$@"\n' \
   "$T" "$(command -v git)" >"$T/slowshim/git"
 chmod +x "$T/slowshim/git"
+td_settled() { [[ -z "$(ls -A "$1")" ]] || pid_gone "$2"; }
+reach=300
 for sig in INT TERM; do
-  td="$T/tmp-$sig"; mkdir -p "$td"; rm -f "$T/slow.started"
+  td="$T/tmp-$sig"; mkdir -p "$td"; rm -f "$T/slow.started" "$T/scan-parent.pid"
   set -m
-  on scan 'spl_lane_wt_scan "$(cat "'"$T"'/scan-rows.json")" >/dev/null' \
+  on scan 'echo "$$" >"'"$T"'/scan-parent.pid"; spl_lane_wt_scan "$(cat "'"$T"'/scan-rows.json")" >/dev/null' \
     LANE_REPO_DIRS= LANE_BOX=box-desk TMPDIR="$td" PATH="$T/slowshim:$PATH" &
   pg=$!
   set +m
-  for _ in $(seq 100); do [[ -e "$T/slow.started" ]] && break; sleep 0.1; done
+  if ! wait_event "$reach" test -e "$T/slow.started"; then
+    kill -KILL -- -"$pg" 2>/dev/null; wait "$pg" 2>/dev/null
+    fail "the $sig scan never reached diff in $reach s: no $sig sent, nothing measured"
+    continue
+  fi
+  # the scan subshell is the one child of its bash -c, which TERM kills first
+  sp="$(ps -o pid= --ppid "$(cat "$T/scan-parent.pid")" | tr -d ' ')"
   mid="$(find "$td" -mindepth 1 -maxdepth 1 | wc -l)"
   kill -"$sig" -- -"$pg" 2>/dev/null
   wait "$pg" 2>/dev/null
-  for _ in $(seq 50); do [[ -z "$(ls -A "$td")" ]] && break; sleep 0.1; done
+  wait_event 120 td_settled "$td" "${sp:-0}"
   left="$(find "$td" -mindepth 1 -maxdepth 1 | wc -l)"
   kill -KILL -- -"$pg" 2>/dev/null
-  [[ "$mid" -ge 1 && "$left" -eq 0 ]] &&
+  [[ "$sp" =~ ^[0-9]+$ && "$mid" -ge 1 && "$left" -eq 0 ]] &&
     pass "a scan stopped by $sig mid-way removes its temp dir ($mid there during the scan, $left left)" ||
-    fail "a scan stopped by $sig left $left temp entr(ies) under TMPDIR ($mid there during the scan): $(ls -A "$td" | tr '\n' ' ')"
+    fail "a scan stopped by $sig left $left temp entr(ies) under TMPDIR ($mid there during the scan, scan pid '${sp}'): $(ls -A "$td" | tr '\n' ' ')"
 done
 
 echo

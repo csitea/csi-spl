@@ -46,6 +46,14 @@
 #      repeated; CONTROL while it is wip: none
 #  11. W1: a row held past SPAWN_AFTER_ALARM_MIN: ONE held-age blocker;
 #      CONTROL under the limit and with SPAWN_AFTER_ALARM_MIN=0: none
+#  12. SPL-6261: a row slug is judged by its own review/<slug> commits, not
+#      by its key. RED before the fix: slug-split (Issue: SPL-9301) pushed
+#      review/slug-split, a split fix `fix(api, SPL-9301)` lands on trunk,
+#      the row's own commit does not -> still HELD ("1 of 1 commits
+#      missing"); GREEN: the row's commit lands rebased (another sha, same
+#      patch) -> placed once. A trunk twin by subject only (a conflict fix
+#      on landing) and a branch under trunk count as landed; CONTROL a slug
+#      with no review branch still falls back to its key, with a WARN line
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -456,6 +464,49 @@ tick >/dev/null; tick >/dev/null
 [[ "$(sent 'ask abababab (row-long)')" == 1 ]] && grep -q "ask abababab (row-long), 1500 min in line, waiting on SPL-9011: not landed on origin/master" "$T/send.log" &&
   grep -q 'The held-age limit is 1440 min' "$T/send.log" &&
   pass "11. W1: held 1500 min past the 1440 min limit: ONE held-age blocker, not repeated" || fail "11. age: $(cat "$T/send.log")"
+
+# 12. SPL-6261: the row's own review/<slug> commits decide, not its key ----------------
+work() {  # BRANCH FILE SUBJECT: one commit changing FILE, pushed to origin BRANCH from the pusher
+  git -C "$T/pusher" fetch -q origin && git -C "$T/pusher" checkout -q -B "w-$1" origin/master &&
+    echo "$2 $RANDOM" >"$T/pusher/$2" && git -C "$T/pusher" add "$2" && gq -C "$T/pusher" commit -q -m "$3" &&
+    git -C "$T/pusher" push -q -f origin "HEAD:refs/heads/$1" 2>/dev/null
+}
+S1=d1d1d1d1-0000-4000-8000-000000009301
+export HUB_ISSUES="$HUB_ISSUES SPL-9301=wip"
+put "$S1" row-after-split
+printf '# Lane brief: slug-split\nIssue: SPL-9301\n%s\n' "$ES" >"$T/briefs/slug-split.md"
+work review/slug-split split.txt "feat(orc, SPL-9301): the row's own work"
+rev="$(git -C "$T/pusher" rev-parse HEAD)"
+git -C "$T/pusher" checkout -q -B w-master origin/master
+land "fix(api, SPL-9301): a split fix of the same lane, on the same key"
+on do_spl_spawn_enqueue ASK_ID="$S1" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-split SPAWN_AFTER=slug-split >/dev/null 2>&1
+out="$(tick)"
+if [[ "$(launched row-after-split)" == 0 && "$(state "$S1")" == queued ]] &&
+   grep -q 'ask d1d1d1d1 (row-after-split) is waiting on slug-split: review/slug-split not on origin/master (1 of 1 commits missing)' <<<"$out"; then
+  pass "12. RED case: SPL-9301 closed on trunk by a split fix, the row's own review commit not: still held"
+else fail "12. split key: launched $(launched row-after-split) | $out"; fi
+git -C "$T/pusher" fetch -q origin && git -C "$T/pusher" checkout -q -B w-master origin/master &&
+  GIT_COMMITTER_DATE="@$(( $(date +%s) - 120 )) +0000" gq -C "$T/pusher" cherry-pick "$rev" >/dev/null 2>&1 &&
+  git -C "$T/pusher" push -q origin HEAD:master 2>/dev/null
+[[ "$(git -C "$T/pusher" rev-parse HEAD)" != "$rev" ]] || fail "12. the landed commit should be a rebased twin, another sha"
+out="$(tick)"; tick >/dev/null
+[[ "$(launched row-after-split)" == 1 ]] && grep -q 'ask d1d1d1d1 (row-after-split): slug-split (review/slug-split) landed' <<<"$out" &&
+  pass "12. GREEN: the row's commit lands rebased (another sha, same patch-id): placed once" || fail "12. landed: $(launched row-after-split) | $out"
+# a twin by subject only (the landing changed the patch), and a branch already under trunk
+work review/slug-subj subj.txt "feat(orc, SPL-9302): the same subject, another patch"
+git -C "$T/pusher" checkout -q -B w-master origin/master && echo other >"$T/pusher/subj.txt" && git -C "$T/pusher" add subj.txt &&
+  gq -C "$T/pusher" commit -q -m "feat(orc, SPL-9302): the same subject, another patch" && git -C "$T/pusher" push -q origin HEAD:master 2>/dev/null
+git -C "$T/pusher" push -q -f origin origin/master:refs/heads/review/slug-under 2>/dev/null
+git -C "$T/app" fetch -q origin
+for c in slug-subj slug-under; do
+  got="$(on "spl_spawn_after_row_landed $c" 2>/dev/null)"; rc=$?
+  (( rc == 0 )) && [[ "$got" =~ ^[0-9]+$ ]] && pass "12. $c: landed (rc 0, at $got)" || fail "12. $c: rc $rc $got"
+done
+got="$(on "spl_spawn_after_row_landed slug-b" 2>/dev/null)"; rc=$?
+(( rc == 3 )) && pass "12. CONTROL slug-b has no review branch: rc 3, the key decides" || fail "12. no branch: rc $rc $got"
+got="$(on "spl_asks_init; spl_spawn_after_state $T/briefs/row-after-b.md" 2>&1)"
+grep -q 'WARN after: slug-b has no review/slug-b on origin: judged by its lane' <<<"$got" && grep -q $'^free\tslug-b (SPL-9004) landed' <<<"$got" &&
+  pass "12. CONTROL the key fallback names its source in one WARN line" || fail "12. fallback: $got"
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

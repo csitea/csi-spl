@@ -25,8 +25,18 @@
 #     boxes, so it would be another lane's key (SPL-6129). No key
 #     known yet -> held, and the reason says so (a hub that did not answer
 #     too: held, never free)
-# The land time is the committer time of the oldest closing commit; the
-# delay counts from it.
+#   - a row slug whose lane pushed `review/<slug>` (the branch the row's R7
+#     reads; origin, as of the tick's fetch): every commit of that branch
+#     not on trunk has its twin on trunk (same stable patch-id, else the same
+#     subject: a rebase or a conflict fix on landing), and that decides,
+#     before any key (SPL-6261). The key above is only the fallback for a
+#     slug with no such branch, and a WARN line says so: one key is cited by
+#     several commits (a split fix of the same lane, a multi-row issue), so a
+#     key on trunk does not prove the row's own work landed (a dependent row
+#     was placed on a split fix citing its prerequisite's key while the
+#     prerequisite's review head was not on trunk, 2026-11-22).
+# The land time is the committer time of the oldest closing commit (a key),
+# resp. of the newest trunk twin (a review branch); the delay counts from it.
 #
 # Callers: do_spl_spawn_enqueue (spl_spawn_after_enqueue: checks and writes
 # the lines), do_spl_spawn_place (spl_spawn_place_after_hold, the alarm
@@ -153,13 +163,50 @@ spl_spawn_after_landed() {  # KEY
   li_git "$dir" log -1 --format=%ct "$h"
 }
 
+# The row SLUG's own work on origin/master, judged by origin's review/<slug>
+# (see the header): prints the epoch it landed (the newest trunk twin's
+# committer time; the tip's own when the branch is under trunk) and rc 0;
+# rc 1 + "<n> of <m>" on stdout: n commits not on trunk yet; rc 3: no such
+# branch (or no trunk), the caller falls back to the key.
+spl_spawn_after_row_landed() {  # SLUG
+  local dir ref t base c pid s ct at=0 n=0 m=0
+  local -A tpid=() tsub=() tct=()
+  dir="$(spl_spawn_after_dir)"; ref="refs/remotes/origin/review/$1"
+  git -C "$dir" rev-parse -q --verify "$ref^{commit}" >/dev/null 2>&1 || return 3
+  t="$(git -C "$dir" rev-parse -q --verify refs/remotes/origin/master 2>/dev/null)" || return 3
+  if git -C "$dir" merge-base --is-ancestor "$ref" "$t" 2>/dev/null; then
+    git -C "$dir" log -1 --format=%ct "$ref"; return 0
+  fi
+  base="$(git -C "$dir" merge-base "$ref" "$t" 2>/dev/null)" || return 3
+  while read -r c ct s; do tct["$c"]="$ct"; [[ -z "$s" ]] || tsub["$s"]="$ct"; done < <(git -C "$dir" log --no-merges --format='%H %ct %s' "$base..$t")
+  while read -r pid c; do tpid["$pid"]="${tct[$c]:-0}"; done < <(git -C "$dir" log --no-merges -p --format='commit %H' "$base..$t" | git -C "$dir" patch-id --stable)
+  while read -r c s; do
+    m=$(( m + 1 ))
+    pid="$(git -C "$dir" show --format= -p "$c" | git -C "$dir" patch-id --stable | cut -d' ' -f1)"
+    if [[ -n "$pid" && -n "${tpid[$pid]:-}" ]]; then ct="${tpid[$pid]}"
+    elif [[ -n "$s" && -n "${tsub[$s]:-}" ]]; then ct="${tsub[$s]}"
+    else n=$(( n + 1 )); continue; fi
+    (( ct > at )) && at="$ct"
+  done < <(git -C "$dir" log --no-merges --format='%H %s' "$base..$ref")
+  (( n == 0 && m > 0 )) || { printf '%s of %s\n' "$n" "$m"; return 1; }
+  printf '%s\n' "$at"
+}
+
 # The state of BRIEF's prerequisite: "free\t<why>" (none, or landed and past
 # its delay), else "held\t<why>"; one line.
 spl_spawn_after_state() {  # BRIEF
-  local spec after delay key at left
+  local spec after delay key at rc=0
   spec="$(spl_spawn_after_of "$1")"
   [[ -n "$spec" ]] || { printf 'free\tno After: line\n'; return 0; }
   after="${spec%%$'\t'*}"; delay="${spec#*$'\t'}"
+  if ! spl_spawn_after_is_key "$after"; then
+    at="$(spl_spawn_after_row_landed "$after")" || rc=$?
+    case "$rc" in
+      0) spl_spawn_after_delay_state "$after (review/$after)" "$at" "$delay"; return 0 ;;
+      1) printf 'held\twaiting on %s: review/%s not on origin/master (%s commits missing)\n' "$after" "$after" "$at"; return 0 ;;
+    esac
+    do_log "WARN after: $after has no review/$after on origin: judged by its lane's issue key (another commit citing that key releases it too)" >&2
+  fi
   key="$(spl_spawn_after_key "$after")" || {
     printf 'held\twaiting on %s: its lane has no issue key known on this box, and the hub lane map did not answer\n' "$after"
     return 0
@@ -173,13 +220,18 @@ spl_spawn_after_state() {  # BRIEF
     printf 'held\twaiting on %s: not landed on origin/master\n' "$after"
     return 0
   fi
-  left=$(( at + delay * 60 - $(date +%s) ))
+  spl_spawn_after_delay_state "$after" "$at" "$delay"
+}
+
+# The state of a prerequisite NAME that landed at epoch AT, with DELAY minutes.
+spl_spawn_after_delay_state() {  # NAME AT DELAY
+  local left=$(( $2 + $3 * 60 - $(date +%s) ))
   if (( left > 0 )); then
-    printf 'held\twaiting on %s: landed %s, placed after its %s min delay (%s min left)\n' "$after" \
-      "$(date -u -d "@$at" +%Y-%m-%dT%H:%MZ)" "$delay" "$(( (left + 59) / 60 ))"
+    printf 'held\twaiting on %s: landed %s, placed after its %s min delay (%s min left)\n' "$1" \
+      "$(date -u -d "@$2" +%Y-%m-%dT%H:%MZ)" "$3" "$(( (left + 59) / 60 ))"
     return 0
   fi
-  printf 'free\t%s landed %s\n' "$after" "$(date -u -d "@$at" +%Y-%m-%dT%H:%MZ)"
+  printf 'free\t%s landed %s\n' "$1" "$(date -u -d "@$2" +%Y-%m-%dT%H:%MZ)"
 }
 
 # Fetches origin once a tick, only when a row waits on a prerequisite

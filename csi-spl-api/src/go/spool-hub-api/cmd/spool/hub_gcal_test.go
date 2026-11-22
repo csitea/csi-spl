@@ -132,3 +132,26 @@ func TestErrText(t *testing.T) {
 		t.Fatalf("errText = %q, want boom", got)
 	}
 }
+
+// SPL-6253 (c-246's finding, SPL-6252): the env SPOOL_HUB_CONTACTS_SCOPES
+// (cnf contacts.scopes, step 030) reaches GcalConnect.ContactsScopes, the one
+// field gcalWantScope reads for ?want=contacts; empty there = 503
+// gcal_not_configured although the env is set.
+func TestGcalConnectContactsScopesFromEnv(t *testing.T) {
+	const scope = "https://www.googleapis.com/auth/contacts.readonly"
+	for _, tc := range []struct{ env, want string }{{" " + scope + " ", scope}, {"", ""}} {
+		hubEnv(t)
+		t.Setenv("SPOOL_HUB_CONTACTS_SCOPES", tc.env)
+		adcFile(t, adcStub)
+		hc := gcalOnHub()
+		hc.ContactsScopes = loadHub(t).ContactsScopes
+		var buf bytes.Buffer
+		g := gcalConnect(context.Background(), hc, gcalOnAuth(), zerolog.New(&buf))
+		if g == nil || g.Google == nil {
+			t.Fatalf("env %q: gcalConnect = %+v, want on; log %q", tc.env, g, buf.String())
+		}
+		if g.ContactsScopes != tc.want {
+			t.Fatalf("env %q: ContactsScopes = %q, want %q (empty = want=contacts answers 503)", tc.env, g.ContactsScopes, tc.want)
+		}
+	}
+}

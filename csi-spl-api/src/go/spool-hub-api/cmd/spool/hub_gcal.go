@@ -31,6 +31,9 @@ func gcalConnect(ctx context.Context, hc *config.Hub, ac *auth.Config, log zerol
 		CookieName: ac.StateCookieName, CookieDomain: ac.CookieDomain, CookieSecure: ac.CookieSecure,
 		WorkspaceURL:  hub.GcalWorkspaceURL(hc.TenantHostPattern, apex, appURL),
 		ReadCalendars: hub.GcalReadsCalendars(hc.GcalScopes),
+		// spec 154 B7: what ?want=contacts asks Google for (cnf contacts.scopes);
+		// empty = want=contacts answers 503 gcal_not_configured
+		ContactsScopes: strings.TrimSpace(hc.ContactsScopes),
 	}
 	google, err := gcal.New(gcal.Config{
 		ClientID: strings.TrimSpace(ac.GoogleClientID), ClientSecret: marketing.NewPlaintext(strings.TrimSpace(ac.GoogleClientSecret)),

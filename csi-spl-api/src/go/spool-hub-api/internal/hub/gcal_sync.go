@@ -69,6 +69,13 @@ const gcalPage = 500
 // errGcalCalendarGone: Google answered 404 for the target calendar.
 var errGcalCalendarGone = errors.New("gcal: the target calendar is gone")
 
+// errGcalNotMember: the connection's human is no longer a member of its
+// workspace (or no longer holds rbac.SelfKeys there).
+var errGcalNotMember = errors.New("gcal: not a member of the workspace")
+
+// gcalNotMemberDetail is the status_detail of a paused connection.
+const gcalNotMemberDetail = "not a member of this workspace: sync paused"
+
 // gcalAllTime is the range of the out half's reads: every event.
 var gcalAllTime = store.CalendarRange{
 	Start: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC),
@@ -198,6 +205,8 @@ func (cy *gcalCycle) run(ctx context.Context) error {
 	switch {
 	case errors.Is(err, store.ErrGcalLeaseLost):
 		return err
+	case errors.Is(err, errGcalNotMember):
+		return cy.pause(ctx)
 	case errors.Is(err, gcal.ErrInvalidGrant):
 		cy.s.o.Log.Warn().Str("tenant", cy.c.Tenant).Str("connection", cy.c.ID).Msg("gcal: grant revoked at google")
 		if err := cy.gs.SetGcalStatus(ctx, cy.l, store.GcalRevoked,
@@ -234,11 +243,44 @@ func gcalCalendarGranted(c store.GcalConnection, calendar string) bool {
 // (read-only, gcal_sync_sources.go). A target calendar deleted at Google is
 // created again once, and every event written to it anew.
 func (cy *gcalCycle) sync(ctx context.Context) (*time.Time, error) {
+	if err := cy.member(ctx); err != nil {
+		return nil, err
+	}
 	cursor, err := cy.twoWay(ctx)
 	if err != nil {
 		return cursor, err
 	}
 	return cursor, cy.sources(ctx)
+}
+
+// member is errGcalNotMember unless the connection's human still holds
+// rbac.SelfKeys in its workspace, the permission the connect and "Sync now"
+// routes ask for (spec 149 section 14). It runs before any Google call, so
+// a removed member's cycle neither writes to Google nor into Spool.
+func (cy *gcalCycle) member(ctx context.Context) error {
+	a, err := cy.s.access(ctx, cy.c.Human, cy.c.Tenant)
+	switch {
+	case errors.Is(err, rbac.ErrNotMember):
+		return errGcalNotMember
+	case err != nil:
+		return err
+	case !a.Can(rbac.SelfKeys):
+		return errGcalNotMember
+	}
+	return nil
+}
+
+// pause ends the cycle of a removed member: the connection, its tokens,
+// map rows and the Google calendar as it is are kept, and looked at again
+// after gcalOffRecheck, so a member admitted again syncs on.
+func (cy *gcalCycle) pause(ctx context.Context) error {
+	cy.s.o.Log.Info().Str("tenant", cy.c.Tenant).Str("connection", cy.c.ID).Msg("gcal: not a member, sync paused")
+	if cy.c.StatusDetail != gcalNotMemberDetail {
+		if err := cy.gs.SetGcalStatus(ctx, cy.l, cy.c.Status, gcalNotMemberDetail, cy.now()); err != nil {
+			return err
+		}
+	}
+	return cy.finish(ctx, nil, cy.now().Add(gcalOffRecheck))
 }
 
 // twoWay is the hub's own calendar: In, then out.

@@ -138,7 +138,8 @@ attachment without `bytes`, or a directory) matches neither.
 `workspaces`], `event` [`events`, `log`, `error`, `errors`], `doc` [`docs`,
 `document`, `documents`, `qto`] (grammar 1.4, SPL-3337), `file_line`
 [`file_lines`] (grammar 1.5, spec 160 3.6, SPL-3888), `contact`
-[`contacts`] (grammar 1.6, spec 154 row B5, SPL-4197). `thread`
+[`contacts`] (grammar 1.6, spec 154 row B5, SPL-4197), `calendar` [`cal`,
+`calendars`] (grammar 1.7, spec 100 section 15, SPL-6251). `thread`
 [`threads`] is accepted as the pre-rename spelling of `topic`.
 
 - At most one `type:` term, at the **top level** of the AND (not inside `OR`,
@@ -162,6 +163,9 @@ attachment without `bytes`, or a directory) matches neither.
   same; no `#`) is a reserved word, as `dm` is, and searches `file_line`
   only; `#file-streams` stays the channel of that name. It picks the
   section, so it cannot be negated (`400 bad_query`), as `type:`.
+- `calendar` is opt-in, as `event` (§4.13): only `type:calendar` (`type:cal`)
+  reads the calendar entries, so a plain search keeps its round-trip budget.
+  `type:event` stays the event log (owner HUM-10, t1 317d37e1, poll answer B).
 - **Applicability**: a section is searched only when **every** operator in
   the query applies to its type (§3.2). `from:CLE-07 report` searches
   messages, threads and files; `filename:plan` searches files only;
@@ -190,7 +194,7 @@ attachment without `bytes`, or a directory) matches neither.
 | `thread:` | `<task_id>` (UUID) | message, thread, file | `task_id` = value |
 | `before:` `after:` `on:` | §2.3 | message, thread, file, event, doc, file_line | receive time (thread: last activity; doc: last edit; file_line: the line's time) |
 | `title:` [`subject:`] | text | thread | the thread title (first line of its first message, ≤ 140 chars, view-v1 §4.3), FTS |
-| `name:` | text | file, robot, user, channel, box, tenant, event, doc, file_line | the entity's name only (substring; file_line: the stream key) |
+| `name:` | text | file, robot, user, channel, box, tenant, event, doc, file_line, calendar | the entity's name only (substring; file_line: the stream key; calendar: the entry's title) |
 | `filename:` | text | file | the attachment `name` (substring) |
 | `ext:` | `[a-z0-9]{1,16}`, leading `.` allowed | file | `name` ends with `.<ext>` (case-insensitive) |
 | `larger:` `smaller:` | §2.4 | file | attachment `bytes` |
@@ -393,6 +397,22 @@ clone, no agent seat: the contacts routes' gate) in a workspace inside the
 kill switch; anyone else gets no `contacts` group. Never another person's
 contacts, an admin's and the operator's included. A hit carries no member
 match: it opens the contact's card (spec 154 2.7).
+
+### 4.13 `calendar`
+
+The workspace's calendar entries (spec 100 section 15, SPL-6251), by start,
+one year back to one year ahead, one row per entry: `{ "id", "kind",
+"audience", "starts_at", "ends_at", "all_day", "location", "title": {text,
+highlights}, "snippet": {text, highlights} }` (`location` `null` when unset;
+`snippet` is the description's). The rows are the store query of
+`GET /v1/calendar/search` (spec 097 4.7), so who sees a hit is exactly the
+calendar's read rule: a private entry only for its creator and the people it
+names, a deleted entry never, a demo visitor workspace and public entries
+only. The longest free-text word at the query's top level narrows the store
+read (a case-insensitive substring of the title, the description or the
+location); the whole query then filters the page (`OR`, `-`, `name:` = the
+title), so a page may hold fewer rows than the limit and still carry `next`.
+The WUI row opens `/calendar?d=<start day, UTC>&event=<id>`.
 
 ## 5. Errors and warnings
 

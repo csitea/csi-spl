@@ -1,5 +1,6 @@
 # 100 Search index: a message search that stays fast as a workspace grows
 
+Version v1.2 (2026-11-22): section 15 adds the calendar entries (SPL-6251).
 Version v1.1 (2026-10-25): section 14 adds the Qto documents (SPL-3337).
 Version v1.0 (2026-10-06). **Panel consensus recorded** (section 12). Doc only;
 the build starts on consensus (owner rule 2026-10-05). Each rdb file still
@@ -471,6 +472,8 @@ before P1 is applied.
 
 ## 13. Changes
 
+- v1.2 (2026-11-22, c-496, SPL-6251): section 15, the calendar entries:
+  `type:calendar` (grammar 1.7), who may see a hit, the WUI row, tests.
 - v1.1 (2026-10-25, c-884, SPL-3337): section 14, the Qto documents: their
   index entries (rdb 0227), who may see a hit, `type:doc` (grammar 1.4) and
   the WUI row.
@@ -648,3 +651,80 @@ section anchor), the address the document page already scrolls to.
 | `search/doc_test.go` `TestDocGrammar` | the spellings, the default, which operators keep or drop `doc` |
 | `csi-spl-wui/tests/unit/search.test.mjs` "doc hits" | the group, the row text, the link, junk ids build no link |
 | `do_spl_search_doc_probe` (`csi-spl-orc`, test `spl-search-doc-probe.tst.sh`) | the live red and green on dev and prd |
+
+## 15. Calendar entries (v1.2, SPL-6251)
+
+Owner HUM-10, t1 317d37e1 (msg da227744): "As an user of the spool-hub I want
+to be able to searhc via the omnibox calendar entries this way
+https://<workspace host>/search?q=type:event+SQ323" (the host left out
+here). The decision, poll
+258e5b25, answer msg 11bd236b: "B — A new type:calendar (also type:cal);
+type:event stays the event log". `type:event` is not renamed.
+
+### 15.1 The red
+
+`cd csi-spl-orc && ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_search_calendar_probe`
+makes one throwaway calendar entry (audience workspace, tomorrow) whose title
+holds a fresh random word, as the m3 e2e member, searches it and deletes it.
+Dev, hub of origin/master `5332dd943`, 2026-11-22, n=1:
+
+| search | answer |
+|---|---|
+| `type:calendar` + its word | 400 `bad_query` (no such type) |
+| `type:cal` + its word | 400 `bad_query` |
+| `type:event` + its word | 200, types `[event]`, 0 hits |
+
+The calendar had its own search (`GET /v1/calendar/search`, spec 097 4.7,
+the calendar page's search button), which `GET /v1/view/search` never called.
+
+### 15.2 `type:calendar` (grammar 1.7)
+
+`type:calendar` [`cal`, `calendars`], group `calendars`. **Opt-in**, as
+`event` and `issue`: a plain search does not read the calendar. Why: the
+owner's ask names a `type:`, and a default section would add its store read
+(and, in the demo workspace, the visitor's role lookup) to every plain
+search, which `TestRoundTripsPerRequest` (spec 027 P2) pins. Whether the
+budget could carry it was not measured. Free text matches the title, the
+description and the location, case-insensitive; `name:` the title. No other
+operator applies (`from:x type:calendar` is `400 bad_query`, as for every
+type an operator empties). Answer row: search-v1 section 4.13.
+
+### 15.3 Who may see a hit
+
+Exactly the calendar's own read rule, through its one store query
+(`store.CalendarSearch.SearchCalendarEvents`, the query of
+`GET /v1/calendar/search`); there is no second visibility path:
+
+1. The workspace's own entries (the statement's tenant, under RLS).
+2. A private entry only for its creator and the people it names
+   (`calendarPrivateSQL` / `calendarVisible`).
+3. A deleted entry never (`deleted_at`).
+4. A demo visitor reads workspace and public entries only (`demoAudiences`,
+   the same narrowing the calendar route applies).
+
+The range is the calendar search's default: one year back to one year ahead
+of now. The longest top-level free-text word narrows the store read; the
+whole query then filters the page (`OR`, `-`, `name:`), and the next page
+continues the store's `(starts_at, id)` keyset.
+
+### 15.4 The WUI row
+
+The group "Calendar" (`search.group.calendars`, each locale's existing
+`calendar.title` word), after Issues. A row shows the entry's title with its
+highlights, its place and its start; it opens
+`/calendar?d=<start day, UTC>&event=<id>`, the link the calendar already
+opens an entry by (`useCalendarDeepLinks`). `type:` offers `calendar` and
+`cal`; the help page (`doc/help/global-search.md`) has the row.
+
+### 15.5 Tests
+
+| test | holds |
+|---|---|
+| `hub/search_calendar_test.go` `TestSearchTypeCalendar` (memory, Postgres) | `type:calendar`, `type:cal`, `type:calendars` find the entry by title, location, description; another member's private entry and a deleted one never; the private entry's creator finds it; two words, `-`, `name:`; CONTROL: `type:event` and a plain search have no calendar section; the cursor walks every entry once |
+| `TestSearchTypeCalendarRow` | the row: id, times, place, kind, the title highlighted |
+| `TestSearchTypeCalendarDemo` | a demo visitor finds the workspace entry only; CONTROL the developer finds all three |
+| red control (commit body) | `calendarPrivateSQL` / `calendarVisible` planted to pass every row: `TestSearchTypeCalendar` FAILS on memory and on Postgres (another member's private entry is found) |
+| `search/calendar_test.go` `TestCalendarGrammar` | the spellings, opt-in, `type:event` / `type:log` stay the event log, matching |
+| `csi-spl-wui/tests/unit/search.test.mjs` "calendar hits" | the group and its order, the row text, the link at the UTC start day, junk ids build no link, `type:` values, every locale |
+| `csi-spl-wui/tests/e2e/search-type-calendar.test.mjs` | `/s type:cal <word>` in the Omnibox lists the entry and opens it in the calendar (mock tenant, Chrome) |
+| `do_spl_search_calendar_probe` (`csi-spl-orc`, test `spl-search-calendar-probe.tst.sh`) | the live red and green on dev and prd |

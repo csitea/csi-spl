@@ -17,8 +17,9 @@ import (
 // Version is the grammar version published by the operators endpoint. 1.4
 // (SPL-3337): type:doc, the Qto documents. 1.5 (spec 160 3.6, SPL-3888):
 // type:file_line and in:file-streams, the box file stream lines. 1.6 (spec
-// 154 row B5, SPL-4197): type:contact, the reader's own contacts.
-const Version = "1.6"
+// 154 row B5, SPL-4197): type:contact, the reader's own contacts. 1.7 (spec
+// 100 section 15, SPL-6251): type:calendar, the workspace's calendar entries.
+const Version = "1.7"
 
 // Limits (search-v1 §1, §2.1).
 const (
@@ -61,10 +62,17 @@ const (
 	// plain search finds a contact with the members; the hub answers no
 	// section where the contacts kill switch is off (spec 2.9).
 	TypeContact Type = "contact"
+	// TypeCalendar (spec 100 section 15, SPL-6251): the workspace's calendar
+	// entries a reader may see on the calendar itself (GET
+	// /v1/calendar/search's store query: private entries only for their
+	// people, deleted never, a demo visitor workspace and public only).
+	// Opt-in like event: a default search would pay its round trips. event
+	// stays the event log (owner HUM-10, t1 317d37e1, poll answer B).
+	TypeCalendar Type = "calendar"
 )
 
 // Types is every type in response order (search-v1 §4).
-var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc, TypeFileLine, TypeContact}
+var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc, TypeFileLine, TypeContact, TypeCalendar}
 
 // DefaultTypes are searched when no type: is given: content search (owner,
 // 2026-09-26: "the normal search should be by content, but there should be a
@@ -98,6 +106,7 @@ var typeAliases = map[string]Type{
 	"doc": TypeDoc, "docs": TypeDoc, "document": TypeDoc, "documents": TypeDoc, "qto": TypeDoc,
 	"file_line": TypeFileLine, "file_lines": TypeFileLine,
 	"contact": TypeContact, "contacts": TypeContact,
+	"calendar": TypeCalendar, "calendars": TypeCalendar, "cal": TypeCalendar,
 }
 
 // Aliases are the type: spellings of t other than its own name, sorted.
@@ -172,7 +181,7 @@ var (
 // Operators is the table; the parser, the applicability check and the
 // operators endpoint all read it.
 var Operators = []Operator{
-	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event, issue, doc, file_line, contact (comma list)"},
+	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event, issue, doc, file_line, contact, calendar (comma list)"},
 	{Name: OpFrom, Values: "id", Applies: msgTopicFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
 	{Name: OpTo, Values: "id", Applies: msgTopicFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
 	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox, TypeFileLine}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself; a file stream line of this box"},
@@ -193,7 +202,7 @@ var Operators = []Operator{
 	{Name: OpAfter, Values: "date", Applies: dated, Example: "after:7d", Doc: "received (a doc section: last edited) on or after a UTC day, or within an age"},
 	{Name: OpOn, Values: "date", Applies: dated, Example: "on:2026-09-19", Doc: "received (a doc section: last edited) on a UTC day"},
 	{Name: OpTitle, Aliases: []string{"subject"}, Values: "text", Applies: []Type{TypeTopic, TypeDoc}, Example: "title:migration", Doc: "topic title words; a doc section's heading (the document's title for its top)"},
-	{Name: OpName, Values: "text", Applies: []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc, TypeFileLine}, Example: "name:ops", Doc: "the object's NAME contains this (a topic's title, an event's code, an issue's key and title, a document's title, a file stream's key), never its content"},
+	{Name: OpName, Values: "text", Applies: []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc, TypeFileLine, TypeCalendar}, Example: "name:ops", Doc: "the object's NAME contains this (a topic's title, an event's code, an issue's key and title, a document's title, a file stream's key, a calendar entry's title), never its content"},
 	{Name: OpFilename, Values: "text", Applies: []Type{TypeFile}, Example: `filename:"q3 report"`, Doc: "attachment name contains this"},
 	{Name: OpExt, Values: "ext", Applies: []Type{TypeFile}, Example: "ext:pdf", Doc: "attachment extension"},
 	{Name: OpLarger, Values: "size", Applies: []Type{TypeFile}, Example: "larger:1M", Doc: "attachment larger than (bytes, K, M, G)"},

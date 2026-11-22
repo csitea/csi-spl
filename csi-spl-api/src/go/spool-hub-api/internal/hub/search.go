@@ -318,6 +318,8 @@ func (s *Server) searchSection(ctx context.Context, t store.Tenant, q *search.Qu
 		return s.fileLineSection(ctx, t.ID, q, sq, c, limit)
 	case search.TypeContact:
 		return s.contactSection(ctx, q, c, limit)
+	case search.TypeCalendar:
+		return s.calendarSection(ctx, t.ID, q, sq, c, limit)
 	}
 	out := section{Results: []any{}}
 	rows, err := s.searchEntities(ctx, t.ID, q, c.T, sq)

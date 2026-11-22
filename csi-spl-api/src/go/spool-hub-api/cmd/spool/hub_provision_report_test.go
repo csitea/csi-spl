@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,5 +86,45 @@ func TestHubProvisionMemberReportsWhatChanged(t *testing.T) {
 	cut, err = pg.SessionRevocations(ctx, before)
 	if fh, _ := v["human_id"].(string); err != nil || !cut[fh].IsZero() {
 		t.Fatalf("CONTROL: a created credential revoked sessions: %v %v", cut, err)
+	}
+}
+
+// SPL-6182: the credential outcome is "none" without --password-stdin, else
+// what the transaction did.
+func TestProvisionCredentialNames(t *testing.T) {
+	for in, want := range map[string]string{"": "none", store.CredCreated: store.CredCreated, store.CredReplaced: store.CredReplaced} {
+		if got := provisionCredential(store.ProvisionResult{Credential: in}); got != want {
+			t.Fatalf("%q: got %q want %q", in, got, want)
+		}
+	}
+}
+
+// SPL-6182: `spool hub-provision-member` and `spool hub-clear-lockout`
+// refuse what they cannot apply, exit 1, print no verdict: a missing flag,
+// an empty password on STDIN, a hub database that does not answer.
+func TestHubProvisionMemberAndClearLockoutRefusals(t *testing.T) {
+	t.Setenv("SPOOL_HUB_DB_DSN", "")
+	down := "postgres://spool@127.0.0.1:1/spool?connect_timeout=1"
+	seat := []string{"hub-provision-member", "--tenant", "t-prov", "--email", "m@example.com", "--role", "member"}
+	cases := []struct {
+		name, stdin, want string
+		args              []string
+	}{
+		{"no --role", "", "--role", []string{"hub-provision-member", "--tenant", "t-prov", "--email", "m@example.com", "--db", down}},
+		{"bad --tenant", "", "--tenant", []string{"hub-provision-member", "--tenant", "Not A Slug", "--email", "m@example.com", "--role", "member", "--db", down}},
+		{"no DSN", "", "--db", seat},
+		{"empty STDIN", "\n", "STDIN was empty", append(append([]string{}, seat...), "--password-stdin", "--db", down)},
+		{"seat, database down", "a-new-pass-123\n", "", append(append([]string{}, seat...), "--password-stdin", "--db", down)},
+		{"clear, database down", "", "", []string{"hub-clear-lockout", "--email", "o@example.com", "--db", down}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var rc int
+			var out, errOut string
+			withStdin(t, c.stdin, func() { rc, out, errOut = captureRun(t, c.args) })
+			if rc != 1 || !strings.Contains(errOut, c.want) || strings.Contains(out, `"status"`) {
+				t.Fatalf("rc %d out %q err %q, want rc 1 naming %q", rc, out, errOut, c.want)
+			}
+		})
 	}
 }

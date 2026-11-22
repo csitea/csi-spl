@@ -108,10 +108,16 @@ func (g *readinessRig) pin(t *testing.T, box string, pub ed25519.PublicKey, forc
 // post stores one message of task in w from box.
 func (g *readinessRig) post(t *testing.T, task, box, from string, at time.Time) {
 	t.Helper()
+	g.postSig(t, task, box, from, "", at)
+}
+
+// postSig stores one message of task in w from box with env_sig sig.
+func (g *readinessRig) postSig(t *testing.T, task, box, from, sig string, at time.Time) {
+	t.Helper()
 	id := uuidV4()
 	if _, err := g.e.st.InsertMessage(context.Background(), store.Message{TenantID: g.w, MsgID: id, TaskID: task,
 		Channel: "lobby", IsParent: 1, TS: at, FromBox: box, FromID: from, ToBox: "box-x", ToID: "c-001", Kind: "note",
-		Body: "hello " + id, Files: []byte(`[]`), Msg: []byte(`{"v":1}`),
+		Body: "hello " + id, Files: []byte(`[]`), Msg: []byte(`{"v":1}`), EnvSig: sig,
 		Env:        []byte(`{"from_box":"` + box + `","msg_id":"` + id + `"}`),
 		ReceivedAt: at, ExpiresAt: at.Add(30 * 24 * time.Hour)}); err != nil {
 		t.Fatal(err)
@@ -214,7 +220,10 @@ func TestOperatorReadinessHostDocs(t *testing.T) {
 	g.want(t, "host", "removing", "")
 }
 
-// Each state of the pin step (U5): missing, other key, revoked, the hub's key.
+// Each state of the pin step (U5): missing, other key, revoked, then on the
+// hub's key no_post, unsigned and ok. U5 is the signed post of spec 158 10.1
+// (SPL-5027, g-773's send-back): the hub's key alone is no_post, never ok,
+// and a signed post under a key that is not the hub's stays other_key.
 func TestOperatorReadinessPin(t *testing.T) {
 	g := newReadinessRig(t)
 	g.want(t, "pin", "missing", "")
@@ -227,7 +236,18 @@ func TestOperatorReadinessPin(t *testing.T) {
 	}
 	g.want(t, "pin", "revoked", "")
 	g.pin(t, hub.WUIBox, g.wui.Public().(ed25519.PublicKey), true)
-	g.want(t, "pin", "ok", "")
+	g.want(t, "pin", "no_post", "")
+	at := time.Now().UTC().Truncate(time.Second).Add(-time.Minute)
+	g.post(t, uuidV4(), "box-x", "c-002", at.Add(-time.Minute)) // an agent's own signed-or-not post is no member post
+	g.want(t, "pin", "no_post", "")
+	g.post(t, uuidV4(), hub.WUIBox, "HUM-1", at)
+	g.want(t, "pin", "unsigned", "")
+	g.postSig(t, uuidV4(), hub.WUIBox, "HUM-1", "sig", at.Add(time.Second))
+	if s := g.want(t, "pin", "ok", ""); s["at"] != at.Add(time.Second).Format(time.RFC3339) {
+		t.Fatalf("signed at: %v", s)
+	}
+	g.pin(t, hub.WUIBox, foreign, true)
+	g.want(t, "pin", "other_key", "")
 }
 
 // Each state of the seats step (U6): no desk box listed (unknown, row S2),

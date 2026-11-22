@@ -23,14 +23,17 @@ import (
 //	host          U3  waiting | ready | failed | removing |    tenant_hosts
 //	                  removed | missing
 //	docs          U4  waiting | ok | unavailable | unknown     the workspace docs store, once the host is ready
-//	pin           U5  ok | missing | revoked | other_key |     the box-wui pin against this hub's key
-//	                  unknown
+//	pin           U5  ok | no_post | unsigned | missing |      the box-wui pin against this hub's key, then
+//	                  revoked | other_key | unknown            env_sig of the newest topics' member posts
 //	seats         U6  seated | waiting | unknown               fleet_desk_boxes, the workspace's pins and roster
 //	first_answer  U6  no_post | waiting | answered             the newest topics: a member post, then an agent's
 //
 // unknown never guesses: it says what is not stored, and row names the row of
 // tasks.md section 6 that will store it. A pending host with no detail is
 // waiting, with row H3 (the reconcile writes the wait reason from then on).
+// U5 is ok only when a stored member post has a non-empty env_sig (10.1) AND
+// box-wui is pinned to this hub's key, the key the boxes check that sig with;
+// a pin with no signed post yet is no_post or unsigned, never ok.
 // Read-only, the operator workspace's admin only (operatorActor: anyone else
 // 403), one AuditRead row as GET /v1/operator/workspaces/{id}. The body holds
 // no topic, message, member or key of the workspace: states, counts and times.
@@ -46,6 +49,7 @@ const (
 	readyMissing  = "missing"
 	readySeated   = "seated"
 	readyNoPost   = "no_post"
+	readyUnsigned = "unsigned"
 	readyAnswered = "answered"
 )
 
@@ -109,11 +113,11 @@ func (s *Server) readiness(ctx context.Context, id string) ([]readyStep, error) 
 	if err != nil {
 		return nil, err
 	}
-	answer, err := s.readyFirstAnswer(ctx, id)
+	posts, err := s.readPosts(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return []readyStep{invite, host, s.readyDocs(ctx, id, host), s.readyPin(boxes), seats, answer}, nil
+	return []readyStep{invite, host, s.readyDocs(ctx, id, host), s.readyPin(boxes, posts), seats, posts.firstAnswer()}, nil
 }
 
 // readyInvite is U1 and U2: a member who came in by an invite is accepted;
@@ -202,8 +206,9 @@ func (s *Server) readyDocs(ctx context.Context, id string, host readyStep) ready
 	return st
 }
 
-// readyPin is U5: box-wui pinned to this hub's key signs the browser posts.
-func (s *Server) readyPin(boxes []store.ViewBox) readyStep {
+// readyPin is U5: a member post signed for the boxes (10.1), which needs
+// box-wui pinned to this hub's key; a pin that is not stops it first.
+func (s *Server) readyPin(boxes []store.ViewBox, posts readyPosts) readyStep {
 	st := readyStep{Step: "pin", U: "U5", State: readyMissing, Detail: "no " + WUIBox + " pin row"}
 	for _, b := range boxes {
 		if b.BoxID != WUIBox {
@@ -218,8 +223,19 @@ func (s *Server) readyPin(boxes []store.ViewBox) readyStep {
 		case !pub.Equal(b.PubKey):
 			st.State, st.Detail = "other_key", WUIBox+" is pinned to a key that is not this hub's"
 		default:
-			st.State, st.Detail = readyOK, WUIBox+" is pinned to this hub's key"
+			st.State = readyOK
 		}
+	}
+	switch {
+	case st.State != readyOK:
+	case !posts.sigRead:
+		st.State, st.Detail = readyUnknown, "this hub's store cannot read a post's env_sig"
+	case !posts.signed.IsZero():
+		st.Detail, st.At = "a member post is signed, "+WUIBox+" is pinned to this hub's key", rfcOrNil(posts.signed)
+	case posts.members == 0:
+		st.State, st.Detail = readyNoPost, WUIBox+" is pinned to this hub's key, no member post in the newest topics"
+	default:
+		st.State, st.Detail = readyUnsigned, "a member post is stored with an empty env_sig"
 	}
 	return st
 }
@@ -261,39 +277,71 @@ func (s *Server) readySeats(ctx context.Context, boxes []store.ViewBox) (readySt
 	return st, nil
 }
 
-// readyFirstAnswer is U6's answer: in the newest topics, a member's post
-// (from box-wui) followed by a message from any other box.
-func (s *Server) readyFirstAnswer(ctx context.Context, id string) (readyStep, error) {
-	st := readyStep{Step: "first_answer", U: "U6", State: readyNoPost, Detail: "no member post in the newest topics"}
+// readyPosts is what the newest topics say for U5 and U6's answer: the first
+// member post (from box-wui) of each topic, the earliest of them with a
+// non-empty env_sig, and the first message from any other box after one.
+type readyPosts struct {
+	members                 int       // topics whose first member post was read
+	sigRead                 bool      // the store answers env_sig (MessageEdits)
+	signed, since, answered time.Time // zero = none
+}
+
+// readPosts reads the newest topics, oldest message first.
+func (s *Server) readPosts(ctx context.Context, id string) (readyPosts, error) {
+	var p readyPosts
 	now := s.o.Now()
+	edits, sigRead := s.o.Store.(store.MessageEdits)
+	p.sigRead = sigRead
 	topics, err := s.o.Store.ViewTopics(ctx, id, store.TopicQuery{NoIssues: true, Limit: readinessTopics, Now: now})
 	if err != nil {
-		return st, err
+		return p, err
 	}
-	var since time.Time
 	for _, t := range topics {
 		msgs, err := s.o.Store.ViewTopic(ctx, id, store.TopicMsgQuery{TaskID: t.TaskID, Limit: readinessTopicMsgs, Now: now})
 		if err != nil {
-			return st, err
+			return p, err
 		}
-		posted, answered := topicAnswer(msgs)
-		if !answered.IsZero() {
-			st.State, st.Detail, st.At = readyAnswered, "an agent answered a member's post", rfcOrNil(answered)
-			return st, nil
+		post, posted, answered := topicAnswer(msgs)
+		if posted.IsZero() {
+			continue
 		}
-		if !posted.IsZero() && (since.IsZero() || posted.Before(since)) {
-			since = posted
+		p.members++
+		if sigRead {
+			m, err := edits.GetEditable(ctx, id, post, now)
+			switch {
+			case errors.Is(err, store.ErrNotFound): // expired between the two reads
+			case err != nil:
+				return p, err
+			case m.EnvSig != "" && (p.signed.IsZero() || posted.Before(p.signed)):
+				p.signed = posted
+			}
+		}
+		if !answered.IsZero() && (p.answered.IsZero() || answered.Before(p.answered)) {
+			p.answered = answered
+		}
+		if p.since.IsZero() || posted.Before(p.since) {
+			p.since = posted
 		}
 	}
-	if !since.IsZero() {
-		st.State, st.Detail, st.At = readyWaiting, "a member posted, no agent answered yet", rfcOrNil(since)
-	}
-	return st, nil
+	return p, nil
 }
 
-// topicAnswer is the first member post of msgs (oldest first) and the first
-// message from another box after it; zero when there is none.
-func topicAnswer(msgs []store.ViewMsg) (posted, answered time.Time) {
+// firstAnswer is U6's answer: an agent answered a member's post, or one
+// waits since the earliest member post read.
+func (p readyPosts) firstAnswer() readyStep {
+	st := readyStep{Step: "first_answer", U: "U6", State: readyNoPost, Detail: "no member post in the newest topics"}
+	switch {
+	case !p.answered.IsZero():
+		st.State, st.Detail, st.At = readyAnswered, "an agent answered a member's post", rfcOrNil(p.answered)
+	case !p.since.IsZero():
+		st.State, st.Detail, st.At = readyWaiting, "a member posted, no agent answered yet", rfcOrNil(p.since)
+	}
+	return st
+}
+
+// topicAnswer is the first member post of msgs (oldest first), its id, and
+// the first message from another box after it; zero when there is none.
+func topicAnswer(msgs []store.ViewMsg) (post string, posted, answered time.Time) {
 	for _, m := range msgs {
 		var env struct {
 			FromBox string `json:"from_box"`
@@ -303,10 +351,10 @@ func topicAnswer(msgs []store.ViewMsg) (posted, answered time.Time) {
 		}
 		switch {
 		case env.FromBox == WUIBox && posted.IsZero():
-			posted = m.ReceivedAt
+			post, posted = m.MsgID, m.ReceivedAt
 		case env.FromBox != WUIBox && !posted.IsZero():
-			return posted, m.ReceivedAt
+			return post, posted, m.ReceivedAt
 		}
 	}
-	return posted, time.Time{}
+	return post, posted, time.Time{}
 }

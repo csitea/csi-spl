@@ -505,10 +505,16 @@ names it.
 **V1 + V2, the operator page.** `GET /v1/operator/workspaces/{id}/readiness`
 answers each step's state and its detail: `invite` (not sent, sent, accepted),
 `host` (waiting with the reason, ready, failed with the reason, from
-`tenant_hosts`), `docs` (with the host), `pin` (ok, missing, revoked, other key),
+`tenant_hosts`), `docs` (with the host), `pin` (U5: ok only when box-wui is
+pinned to this hub's key AND a stored member post has a non-empty `env_sig`, as
+10.1 defines U5; else no post yet, unsigned, missing, revoked, other key),
 `seats` (listed boxes pinned of listed, role seats in the roster) and `first_answer`
 (no member post yet, waiting since, answered). It is read-only and operator admin
-only. The row shows them as one line of states with the reason for a stuck one, in
+only. It reads stored facts only: U3's browser sign-in and U6's clocks (60 min,
+180 s) are E1's measurements, not states the route can read. `first_answer` and
+`pin` read the newest 20 topics, 50 messages each, oldest first: a member post
+outside that window reads as no post. The row shows them as one line of states
+with the reason for a stuck one, in
 every locale, in the rem and focus rules, with agy's final word on the text. A stuck
 step then reads in the page, with no agent.
 

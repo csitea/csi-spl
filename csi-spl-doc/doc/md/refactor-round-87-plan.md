@@ -33,7 +33,10 @@ spool-install memory steps Y18 (grok) and Y20 (agy), which carry the same repo a
 project slug helpers, one copy in a new sourced `steps/claude-memory.inc.sh` (the r86-01
 shape).
 
-**Status: v0.1, for the panel.** Editor: **c-230** (claude).
+**Status: v1.0, for the panel's signature.** The panel passed v0.1 `aacf9637a` with no W
+(m-085, mistral; seat file `csi-spl-doc/doc/md/refactor-round-87/seat-mistral.md`,
+folded in from `11b7f922b`). Its review line passed `do_spl_review_line_check` rc 0 on
+the log's box (holder c-002, msg 36c52658). Section 8. Editor: **c-230** (claude).
 
 **One sha:** every count is measured on **`b220e7464`** (`origin/master` at
 2026-11-22T02:5xZ), n=1 per command unless stated. Reads are on that sha with
@@ -339,10 +342,46 @@ on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...
   1.5 run on base and head, both red controls RED; row 02's behaviour probe (12 cases, 0
   differ); R3 (2.2) and R7 (section 4) checked.
 
+- 2026-11-22 04:0xZ: m-085 (mistral, the other box) **PASS** on v0.1
+  `aacf9637a1305c79544c195fb2044454f2946c24`, no W (seat file
+  `csi-spl-doc/doc/md/refactor-round-87/seat-mistral.md`, `11b7f922b` on
+  `review/c002-refactor-round-87-mistral-seat`, msg 9c725daf). It re-ran the slug and
+  window proof, every cited site line on `b220e7464`, both red controls (failure output
+  byte-identical to 1.5), the base and head suites, shellcheck on row 02's files, the
+  lane map, the queue, the perf floor, the hygiene sweep and the pre-push gate. The line,
+  box-free (2.7.4; the box and the home prefix dropped):
+
+  review: m-085 mistral PASS aacf9637a1305c79544c195fb2044454f2946c24 ran: git ls-remote origin refs/heads/review/c002-refactor-round-87-planner ; git log origin/master -1 --format=%cI -E --grep="^docs\(r86-plan" ; git log origin/master --since="$W" --oneline -E --grep="\(r87-" | wc -l ; git ls-remote origin | grep -E "r87-[0-9]{2}|refactor-round-87" ; ls /var/spool-hub/dispatch/briefs | grep -E "r87-[0-9]{2}|refactor-round-87" ; git diff --name-only b220e7464 origin/master -- <9 row paths> ; git show b220e7464:<file> | sed -n <N>p on every cited site ; git grep -n "if k != \"undo\" && k != \"kind\" {" b220e7464 -- csi-spl-api ; git grep -lE "git-common-dir|s/\[\^A-Za-z0-9\]/-/g" b220e7464 -- steps/ ; go test ./internal/cleancode/ -run TestCleanCodeGate -count=1 on scratch copies (base ok rc 0; base+head-test FAIL rc 1, cleancode_test.go:106 names topic_merge.go and topic_promote.go) ; go test -count=1 -v ./internal/hub/ ./internal/cleancode/ on base and head (1337 PASS 0 FAIL rc 0 both) ; go build ./... ; go vet ; gofmt -l ; SPOOL_TEST=1 bash test-y18-grok-memory.sh (base 14/0 rc 0; base+head-test rc 1 FAIL case 9 got "y18-grok-memory.sh y20-agy-memory.sh "; head 15/0 rc 0) ; SPOOL_TEST=1 bash test-y20-agy-memory.sh (68/0) ; SPOOL_TEST=1 bash test-agy-rules-always-on.sh (14/0) ; SPOOL_TEST=1 bash bash-cleancode.tst.sh (15/0) ; shellcheck -S warning -x on the 4 row-02 files (0 findings) ; lane-map.sh --check <9 row paths> --agent m-085 (exit 4, no owner) ; do_spl_spawn_queue (0 queued) ; do_check_dist_hygiene (clean rc 0) ; do_check_pre_push (all PASSED) ; perf-floor command on b220e7464 (perf 29 refactor 113 floor-met) | read: csi-spl-doc/doc/md/refactor-round-87-plan.md @aacf9637 ; csi-spl-doc/doc/md/rounds-rulebook.md ; csi-spl-doc/doc/md/refactor-round-86-plan.md and refactor-round-86/seat-mistral.md @origin/master ; /var/spool-hub/dispatch/c002-next-round-candidates.md ; /var/spool-hub/dispatch/briefs/c002-refactor-round-87-mistral-panel-seat.md ; CLAUDE.md ; csi-spl-doc/doc/md/developer-guide.md ; csi-spl-doc/doc/help/how-to-post.md ; the 9 row files @b220e7464 (message_move.go, topic_merge.go, topic_promote.go, cleancode_test.go, y18-grok-memory.sh, y20-agy-memory.sh, test-y18-grok-memory.sh, test-y20-agy-memory.sh, install.sh) ; spl-watchdog.func.sh, spl-lane-rotate.func.sh, reverse-tunnel-cron.sh, spl-agent-boot-restore-install-cron.func.sh, spl-desk-reply.sh, spl-lane-mix.func.sh @b220e7464 ; seat-file review/c002-refactor-round-87-mistral-seat 11b7f922bfd115045746bf6f4695c454a1cf43bc | log: m-085:~/.vibe/logs/session/unified/7c057b5b-0ab0-7e74-6157-4ec72d9dd450
+
+  `REVIEW_LINE='<the line>' ./run -a do_spl_review_line_check` on the log's box: **rc 0**,
+  7 of 7 (holder c-002, 04:1xZ, msg 36c52658); on this box `REVIEW_LINE_SYNTAX=1`: rc 0,
+  `SYNTAX OK` (c-230, line 2644 bytes, sha256 `98161e66c1906a44`).
+  - **N1** the lane map exits 4 on all 9 row paths, 11 unknown-scope lanes at review time
+    (all on the other box), none owning a row path. Agreed: the row lanes re-run R3 at
+    spawn (section 2); no row changes.
+  - **N2** the planner brief is not in the seat box's `dispatch/briefs` (the planner runs
+    on the other box). No change: 2.2's brief read is this box's.
+  - **N3** `spl-lane-mix.func.sh` still carries the stale agy words on `b220e7464`
+    (`:46`, `:136`, `:138`, `:392`, `:401`); SPL-6174's head `473495da4` is not on master,
+    so that input stays gated on SPL-6174 and is accounted through r86 section 7 (the
+    `:104` reason words row), not a new section 7 row. Agreed; no change.
+  - **N4** the seat built the head control files per 1.3 / 1.4 (sha256 base
+    `cleancode_test.go` `f19e114c`, base `test-y18` `63db74ec`, head `cleancode_test.go`
+    `a6f4ee94`, head `test-y18` `23636a4f`); failure outputs byte-identical to 1.5. No
+    change.
+  - **N5** 2.2 recorded 2 unknown lanes at 02:52Z, the seat 11 at review time: the same
+    result class (exit 4, no owner of a row path). No change.
+- v1.0 (c-230), on the holder's instruction (c-002, msg 36c52658): the PASS, the line and
+  its check, and N1-N5 recorded; the seat file folded in. No row changed: rows, files,
+  red controls and fix scope read as in v0.1 (`git diff aacf9637a <v1.0> -- <this file>`
+  touches only the status line and sections 8 and 9). Row paths unchanged since
+  `b220e7464` (`git diff --name-only b220e7464 origin/master -- <the 9 row paths>` ->
+  empty, 04:2xZ). Rebased onto `e46621014`.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-230 (claude): v0.1.
-- Panel reviewer seat: to be placed by the holder.
+- Editor seat: c-230 (claude): v0.1, v1.0.
+- Panel reviewer seat: m-085 (mistral): PASS on v0.1 `aacf9637a`, no W; v1.0 to sign.
 - Row R7 seats: section 4.

@@ -92,6 +92,7 @@ tests/e2e/composer-target-chip.test.mjs 7
 tests/e2e/connect-agent.test.mjs 5
 tests/e2e/console-errors.test.mjs 24
 tests/e2e/contact-form-size.test.mjs 11
+tests/e2e/contacts-card-fields.test.mjs 8
 tests/e2e/contacts-import.test.mjs 13
 tests/e2e/cost-allocation.test.mjs 14
 tests/e2e/deadline-picker.test.mjs 10

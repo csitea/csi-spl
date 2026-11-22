@@ -93,6 +93,10 @@
         }
       },
       {
+        "source": "/google7802cb3c38c5cbf8.html",
+        "destination": "/google-site-verification/google7802cb3c38c5cbf8.html"
+      },
+      {
         "source": "/_nuxt/**",
         "destination": "/__stale-nuxt-build-404__"
       },

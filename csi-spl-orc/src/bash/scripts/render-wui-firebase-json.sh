@@ -320,6 +320,13 @@ doc = {
       # spec 006 checkout-v1 §1 (the bare prefix for POST /api/v1/checkout)
       {"source": "/api/v1/checkout", "run": {"serviceId": service, "region": region}},
       {"source": "/api/v1/checkout/**", "run": {"serviceId": service, "region": region}},
+      # spec 149 (SPL-6225): Google Search Console's HTML-file proof of the
+      # domain, the owner's file byte for byte. Never remove it: Google
+      # re-checks it. Search Console "does not follow redirects when looking
+      # for this file", and cleanUrls 301s a .html file that exists at the
+      # asked path, so the file lives in a subdirectory and this rewrite
+      # answers the root path with a 200.
+      {"source": "/google7802cb3c38c5cbf8.html", "destination": "/google-site-verification/google7802cb3c38c5cbf8.html"},
       # CLE-77803: an old tab still on the previous deploy asks for its own
       # build's app manifest (/_nuxt/builds/meta/<old-id>.json). That build's
       # files are gone, so without this the request falls to the SPA catch-all

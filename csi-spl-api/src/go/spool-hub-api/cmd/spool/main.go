@@ -181,6 +181,7 @@ on a box (an agent's machine):
   move                move a topic by its task id to another channel, or (--msg) a message to another topic
   react               add (or --remove, or --list) an emoji reaction on a topic's message
   lease               read, or compare-and-set (--holder --if-gen), a fleet-wide lease
+  evlog               the box reader's error log: cursor --env, or put --env --from --to --gen (gcloud JSON on stdin)
   lane                list, or write (--agent ...), the fleet-wide lane map (who owns what)
   lifecycle           print the agent lifecycle config (config), or append one event (event --json)
   memory              add or merge a lesson in the shared memory (add), read one (show), the titles (index)
@@ -359,6 +360,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdReact(cfg, rest)
 	case "lease": // CLE-77911
 		return cmdLease(cfg, rest)
+	case "evlog": // spec 162 10.4.4
+		return cmdEvlog(cfg, rest)
 	case "lane": // CLE-77920
 		return cmdLane(cfg, rest)
 	case "box-stats", "caps", "box-beat", "fleet-load", "fleet-tokens", "file-streams", "box-presence", "channel-pins":

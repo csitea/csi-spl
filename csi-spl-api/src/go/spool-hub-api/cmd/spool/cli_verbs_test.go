@@ -426,3 +426,86 @@ func TestFleetTokensVerbRefusals(t *testing.T) {
 		t.Fatalf("bad input reached the hub: %+v", fr)
 	}
 }
+
+// evlogEntries is a synthetic gcloud JSON read (spec 162 10.4.3 field
+// names): one ERROR line holding a planted bearer token and an email, one
+// hub line (rule 2, skipped) and one Cloud Run 503 with no hub trace.
+const evlogEntries = `[
+ {"logName":"projects/p-dev/logs/run.googleapis.com%2Fstderr","severity":"ERROR","timestamp":"2026-11-20T10:00:05Z",
+  "textPayload":"upstream refused: Authorization: Bearer PLANTEDtok0001 for someone@example.com",
+  "resource":{"labels":{"revision_name":"hub-00042"}}},
+ {"logName":"projects/p-dev/logs/run.googleapis.com%2Fstderr","severity":"ERROR","timestamp":"2026-11-20T10:00:06Z",
+  "jsonPayload":{"service":"spool","message":"http 5xx","token":"PLANTEDtok0002"}},
+ {"logName":"projects/p-dev/logs/run.googleapis.com%2Frequests","severity":"ERROR","timestamp":"2026-11-20T10:00:07Z",
+  "trace":"projects/p-dev/traces/22222222222222222222222222222222","httpRequest":{"status":503}}
+]`
+
+// C38: `spool evlog put` sends no field that holds a raw log line: the frame
+// of a fixture with a planted token carries <redacted>, never the token,
+// the email or the line itself. A put another box won prints one SKIP line
+// and exits 0; cursor sends {env}.
+func TestEvlogVerb(t *testing.T) {
+	put := []string{"put", "--env", "dev", "--from", "2026-11-20T10:00:00Z", "--to", "2026-11-20T11:00:00Z", "--gen", "4"}
+	h := newScriptHub(t, echoAnswer(wire.TEvlog, func(r *wire.Frame, f wire.Frame) {
+		r.Evlog = json.RawMessage(`{"env":"dev","gen":5,"by":"box-a"}`)
+	}), nil)
+	cfg := hubCfg(t, h.URL)
+	rc, out, errOut := capture(t, evlogEntries, func() int { return cmdEvlog(cfg, put) })
+	if rc != 0 || !strings.Contains(out, `"gen":5`) {
+		t.Fatalf("put: rc %d out %q err %q", rc, out, errOut)
+	}
+	runVerbCases(t, func(a []string) int { return cmdEvlog(cfg, a) }, []verbCase{
+		{"cursor", []string{"cursor", "--env", "dev"}, 0, `"by":"box-a"`},
+	})
+	fr := h.Frames()
+	if len(fr) != 2 || fr[0].EvlogOp != wire.EvlogOpPut || fr[1].EvlogOp != wire.EvlogOpCursor || string(fr[1].Evlog) != `{"env":"dev"}` {
+		t.Fatalf("evlog frames = %+v", fr)
+	}
+	sent := string(fr[0].Evlog)
+	for _, leak := range []string{"PLANTEDtok", "someone@example.com", "Bearer PLANTED"} {
+		if strings.Contains(sent, leak) {
+			t.Errorf("C38: the frame carries %q: %s", leak, sent)
+		}
+	}
+	var req wire.EvlogPutReq
+	if err := json.Unmarshal(fr[0].Evlog, &req); err != nil || req.Gen != 4 || req.Env != "dev" || len(req.Groups) != 2 {
+		t.Fatalf("put body %s: %v", sent, err)
+	}
+	if g := req.Groups[0]; !strings.Contains(g.Message, "<redacted>") || g.Kind != "error.cloudlog_other" || g.OriginRef != "cloud-run/hub-00042" {
+		t.Errorf("C38: group %+v, want the token as <redacted>", g)
+	}
+	if g := req.Groups[1]; g.Kind != "error.cloudrun_request" || g.N != 1 {
+		t.Errorf("request group %+v", g)
+	}
+}
+
+// The losing box (409 cursor_moved) prints SKIP and exits 0; any other
+// refusal fails; bad input and --dry-run never reach the hub.
+func TestEvlogVerbSkipAndRefusals(t *testing.T) {
+	put := []string{"put", "--env", "dev", "--from", "2026-11-20T10:00:00Z", "--to", "2026-11-20T11:00:00Z", "--gen", "4"}
+	moved := newScriptHub(t, func(f wire.Frame) []wire.Frame {
+		return []wire.Frame{{Type: wire.TError, MsgID: f.MsgID, Error: "cursor_moved", Status: 409}}
+	}, nil)
+	if rc, out, _ := capture(t, "[]", func() int { return cmdEvlog(hubCfg(t, moved.URL), put) }); rc != 0 || out != "SKIP cursor_moved: another box read this window first\n" {
+		t.Errorf("stale put: rc %d out %q", rc, out)
+	}
+	h := newScriptHub(t, refuseAll, nil)
+	cfg := hubCfg(t, h.URL)
+	if rc, _, errOut := capture(t, "[]", func() int { return cmdEvlog(cfg, put) }); rc == 0 || !strings.Contains(errOut, "forbidden") {
+		t.Errorf("refused put: rc %d err %q", rc, errOut)
+	}
+	n := len(h.Frames())
+	runVerbCases(t, func(a []string) int { return cmdEvlog(cfg, a) }, []verbCase{
+		{"no op", nil, 1, "usage: spool evlog"},
+		{"bad env", []string{"cursor", "--env", "stg"}, 1, "--env must be dev or prd"},
+		{"bad window", []string{"put", "--env", "dev", "--from", "2026-11-20T11:00:00Z", "--to", "2026-11-20T10:00:00Z", "--gen", "1"}, 1, "--to must be after"},
+		{"no gen", []string{"put", "--env", "dev", "--from", "2026-11-20T10:00:00Z", "--to", "2026-11-20T11:00:00Z"}, 1, "--gen"},
+		{"dry run", append(append([]string{}, put...), "--dry-run"), 0, `"groups":[]`},
+	})
+	if rc, _, errOut := capture(t, "not json", func() int { return cmdEvlog(cfg, put) }); rc == 0 || !strings.Contains(errOut, "gcloud JSON array") {
+		t.Errorf("bad stdin: rc %d err %q", rc, errOut)
+	}
+	if got := len(h.Frames()); got != n {
+		t.Fatalf("bad input or a dry run reached the hub: %d frames, want %d", got, n)
+	}
+}

@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -68,6 +69,11 @@ const (
 	// lease, and the hub's answer (CLE-77911, rdb 0094). Request and reply
 	// pair on MsgID, a request id the box picks.
 	TLease = "lease"
+	// TEvlog is the box reader of the backend error log reading its env's
+	// cursor (evlog_op cursor) or putting one window's error groups by
+	// compare-and-set on it (evlog_op put), and the hub's answer (spec 162
+	// 10.4.4). Request and reply pair on MsgID, a request id the box picks.
+	TEvlog = "evlog"
 	// TLane is a box writing (lane_op put) or reading (lane_op list) the
 	// fleet-wide lane map, and the hub's answer (CLE-77920, rdb 0096).
 	// Request and reply pair on MsgID, a request id the box picks.
@@ -166,6 +172,50 @@ var LeaseReasons = []string{"claim", "rotation", "seat_move", "failover", "handb
 
 // ValidLeaseReason is r one of LeaseReasons ("" is none, and valid).
 func ValidLeaseReason(r string) bool { return r == "" || slices.Contains(LeaseReasons, r) }
+
+// The evlog frame's ops (spec 162 10.4.4).
+const (
+	EvlogOpCursor = "cursor"
+	EvlogOpPut    = "put"
+)
+
+// EvlogCursorReq names the env whose reader cursor an evlog cursor reads.
+type EvlogCursorReq struct {
+	Env string `json:"env"`
+}
+
+// EvlogPutReq is one window [From, To) of the box reader of Env, read at
+// cursor generation Gen, and its error groups (at most 500, grouped,
+// redacted and normalized on the box: never a raw log line).
+type EvlogPutReq struct {
+	Env    string       `json:"env"`
+	Gen    int64        `json:"gen"`
+	From   time.Time    `json:"from"`
+	To     time.Time    `json:"to"`
+	Groups []EvlogGroup `json:"groups"`
+}
+
+// EvlogGroup is one error group of a put: evlog.Group plus the row's
+// origin (cloud-run/<revision> for a Cloud Run kind, "" for none).
+type EvlogGroup struct {
+	Kind        string    `json:"kind"`
+	Level       string    `json:"level"`
+	Message     string    `json:"message"`
+	Fingerprint string    `json:"fingerprint"`
+	FirstAt     time.Time `json:"first_at"`
+	LastAt      time.Time `json:"last_at"`
+	N           int       `json:"n"`
+	OriginRef   string    `json:"origin_ref,omitempty"`
+}
+
+// EvlogCursor is the hub's answer: how far the reader of Env has read
+// (zero ReadUntil and Gen 0 before the first put) and the box that moved it.
+type EvlogCursor struct {
+	Env       string    `json:"env"`
+	ReadUntil time.Time `json:"read_until"`
+	Gen       int64     `json:"gen"`
+	By        string    `json:"by"`
+}
 
 // Hello roles (http-v1.md §2.2).
 const (
@@ -413,6 +463,12 @@ type Frame struct {
 	IfGen       int64           `json:"if_gen,omitempty"`
 	LeaseReason string          `json:"lease_reason,omitempty"`
 	Lease       json.RawMessage `json:"lease,omitempty"`
+
+	// evlog (spec 162 10.4.4): EvlogOp cursor | put. The request's Evlog is
+	// an EvlogCursorReq (cursor) or an EvlogPutReq (put); the reply's is an
+	// EvlogCursor, the cursor after the op.
+	EvlogOp string          `json:"evlog_op,omitempty"`
+	Evlog   json.RawMessage `json:"evlog,omitempty"`
 
 	// lane (CLE-77920): LaneOp put | list, Fleet names the map. A put carries
 	// the row in Lane {agent_id, agent_box, repo, branch, scope, files, topic,

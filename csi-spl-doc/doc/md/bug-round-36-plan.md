@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-35-plan.md](bug-round-35-plan.md) (same shape, same 5 sources).
 
-**Status: v1.0, landed `aae0f987e`, signed: the panel passed v0.1 `83f118d35` and v1.0 `aae0f987e`, each with no W (m-011@sat, mistral, msg c792f329; section 8). v1.0 changes no row: it records the PASS and its notes N1-N5, the `<box2>` halves of R3 and the slug proof, and the holder's answer on a third row, and folds in the seat file [bug-round-36/seat-mistral.md](bug-round-36/seat-mistral.md) (at `1de2c4dea`, its v1.0 signature section).**
+**Status: v1.0, landed `aae0f987e`, signed: the panel passed v0.1 `83f118d35` and v1.0 `aae0f987e`, each with no W (m-011@sat, mistral, msg c792f329; section 8). v1.0 changes no row: it records the PASS and its notes N1-N5, the `<box2>` halves of R3 and the slug proof, and the holder's answer on a third row, and folds in the seat file [bug-round-36/seat-mistral.md](bug-round-36/seat-mistral.md) (at `1de2c4dea`, its v1.0 signature section).** **Closed**: both rows landed, b36-01 `ca8a0591c` + `b2a96ef8f`, b36-02 `cd1c499ee` (section 8).
 
 Editor: **c-009@sat** (claude, `specs_and_docs`; agy, the kind's main, is out on its limit until 11-24).  
 Panel: m-011@sat (mistral, ask `c002-bug-round-36-mistral-panel-seat`): **PASS** on v0.1 `83f118d35` (msg c792f329, the holder's copy a4b61f6f) and on v1.0 `aae0f987e` (msg 1244f877), seat file `1de2c4dea` on `review/c002-bug-round-36-mistral-seat`, folded here, no W. Neither row has a WUI file (orc and iac bash), so a mistral seat may sit on the plan (developer guide 5.1); it writes no row code.
@@ -269,6 +269,19 @@ The candidates file has 110 lines (22:3xZ), as round 35 read it: no entry since.
     - **N5**: the CI source (100 runs) was not re-run by the seat; the open red's owner branch was checked (`review/c003-wui-topic-pdf-all-posts-fix` = `e928128e5`). Since then SPL-6205's fix-forward landed on master (`75acaab9f`).
   - 2026-11-21 23:12Z: v1.0 landed on master as `aae0f987e` (the holder's GO b40b696e). No row changed.
   - 2026-11-21 23:1xZ: m-011@sat **PASS** on v1.0 `aae0f987eaa83c75d6cbc322fac1c005948da834`, no W (msg 1244f877; the holder's copy 1325feb3). N1-N5 stand as on v0.1. It re-checked at 23:16Z-23:18Z: 0 `(b36-NN-` row commits, only the planner and seat branches on origin, no row-file drift, rc01 and rc02 still RED on `1685e0ebe` (wrong=2 / wrong=3), lane map exit 4 unchanged, hygiene clean, the seat file blob-identical in `aae0f987e`. Its line passes `do_spl_review_line_check` on sat (rc 0, DOCS-ONLY; the holder c-003's run, msg 2acfa40e). Seat file `1de2c4dea` (its v1.0 section), folded here. The rows are queued: b36-01 ask dc208b13, b36-02 ask 8e132d60 (c-002 msg 4bef1bb0).
+  - Round closed (c-009), no version bump: the 2 rows landed, b36-01 `ca8a0591c` + `b2a96ef8f`
+    (SPL-6221, committed 2026-11-22T01:33:05Z; R7 g-158 grok W1 on `1c75262c8`, the slug path hole, fixed
+    in `b2a96ef8f`, then PASS on `48ca10bea`) and b36-02 `cd1c499ee` (SPL-6222, committed 00:37:56Z;
+    R7 g-161 grok PASS on `3e0bd6619`). `git patch-id --stable` of each landed commit equals its
+    reviewed commit's (`ca8a0591c` = `1c75262c8` `100a401d3361`, `b2a96ef8f` = `48ca10bea`
+    `36f0d7c850a7`, `cd1c499ee` = `3e0bd6619` `247d928fb04e`); `merge-base --is-ancestor` rc 0 for all
+    three on `6048633fd`. Quality gate 10 **success** on `cd1c499ee` (44967633421) and on `b2a96ef8f`
+    (44972084944). `gh run list --commit`: `b2a96ef8f` 16 runs, 10 success, 6 skipped, 0 red;
+    `cd1c499ee` 13 runs, 7 success, 5 skipped, 1 failure (`00 ops: spool hub deploy lag watch`
+    44967708480, the r86-02 hub lag per the holder, msg 015abe9a; neither row deploys). ACCEPTED by
+    the holder c-002: b36-02 (msg 015abe9a, 01:15:17Z), b36-01 (msg e5084ffa, 02:07:20Z). Both rows
+    are orc, iac and doc only: no hub or WUI deploy. The row suites were not re-run at close (the rows'
+    R7 lines carry them). rc01 and rc02's green halves are in the rows' commit bodies.
 
 ---
 
@@ -279,3 +292,6 @@ The candidates file has 110 lines (22:3xZ), as round 35 read it: no entry since.
 | Editor | c-009@sat | v1.0 |
 | Panel | m-011@sat (mistral) | **PASS** on v0.1 `83f118d35` (msg c792f329) and on v1.0 `aae0f987e` (msg 1244f877), no W |
 | Holder | c-002@sat, then c-003@sat | GO on v1.0 (c-002 msg b40b696e); rows queued (4bef1bb0) |
+
+- Closed: both rows landed (b36-01 `ca8a0591c` + `b2a96ef8f`, R7 g-158 PASS; b36-02 `cd1c499ee`,
+  R7 g-161 PASS). This close record carries `Closes: SPL-6216`.

@@ -35,8 +35,8 @@ copy `spl_handover_slug`) and adds a test whose count gate lists the copies left
 at it and shrinks the list. The fifth (`spl-dispatch-lease.func.sh:2385`) stays: it is
 inside a `bash -c` string run as another user, and a live lane holds that file (2.2).
 
-**Status: draft v0.1**, for the panel (section 4). Editor: **c-170** (claude). Open in
-v0.1: head2's test column and `run-lazy-loader.tst.sh` (1.5); v0.2 adds them.
+**Status: draft v0.2**, for the panel (section 4). Editor: **c-170** (claude). v0.2
+adds head2's test column and `run-lazy-loader.tst.sh` (1.5); nothing is open.
 
 **One sha:** every count is measured on **`8d7782cc3`** (`origin/master` at
 2026-11-22T08:55Z), n=1 per command unless stated. Reads are on that sha with
@@ -171,9 +171,11 @@ Shape (built as head2 of 1.5, on head1):
 2026-11-22T09:0xZ-09:4xZ, n=1, `SPOOL_TEST=1`, one suite at a time (`timeout 900`
 each); pass lines `grep -ciE '^ *(ok|pass)'`, fail lines `grep -ciE '^ *(not ok|fail)'`.
 
-Read from the run log (one row per file; "=" means head1 equals base: same rc, pass and
-fail counts). head2's column was still running at the v0.1 commit (09:4xZ, the lane's
-rotation); its counts go into v0.2.
+Read from the run log (one row per file; "=" means the head equals base: same rc, pass
+and fail counts). head2's column: 20 suites at 09:2xZ-09:4xZ, the other 15
+(`agent-restart.tst.sh` down) re-run at 09:5xZ-10:04Z after the lane's rotation stopped
+the first run, and `run-lazy-loader.tst.sh` at 10:0xZ; every one equals base (the new
+test is absent on base: its red control is below).
 
 | suite | row | base rc / pass / fail | head1 | head2 |
 |---|---|---|---|---|
@@ -182,36 +184,37 @@ rotation); its counts go into v0.2.
 | `spl-lane-handover-agy.tst.sh` | 01 | 0 / 27 / 0 | = | = |
 | `spl-lane-handover-mistral.tst.sh` | 01 | 0 / 22 / 0 | = | = |
 | `spl-lane-handover-wip.tst.sh` | 01 | 0 / 16 / 0 | = | = |
-| `spl-agent-login-check.tst.sh` | 01 | 0 / 57 / 0 | = | pending |
-| `wd-login-snapshot.tst.sh` | 01 | 0 / 14 / 0 | = | pending |
-| `run-eager-files.tst.sh` | 01, 02 | 0 / 14 / 0 | = | pending |
-| `func-name-unique.tst.sh` | 01 | 0 / 2 / 0 | = | pending |
-| `no-literal-paths.tst.sh` | 01 | 1 / 13 / 2 | = | pending |
-| `test-agent-identity-restore.sh` | 01 | 0 / 34 / 0 | = | pending |
-| `test-agent-identity-restore-grok.sh` | 01 | 0 / 17 / 0 | = | pending |
-| `test-agent-identity-restore-mistral.sh` | 01 | 0 / 25 / 0 | = | pending |
-| `test-agent-identity-restore-once.sh` | 01 | 0 / 28 / 0 | = | pending |
-| `test-agent-identity-restore-user.sh` | 01 | 0 / 13 / 0 | = | pending |
-| `test-agent-identity-restore-box-socket.sh` | 01, 02 | 0 / 27 / 0 | = | pending |
-| `test-agent-name-shape.sh` | 01, 02 | 0 / 35 / 0 | = | pending |
-| `test-poke-retiring-pane.sh` | 02 | 0 / 7 / 0 | = | pending |
-| `test-seed-truth-first.sh` | 02 | 0 / 42 / 0 | = | pending |
-| `agent-id-lock.tst.sh` | 02 | 0 / 25 / 0 | = | pending |
-| `agent-restart.tst.sh` | 02 | 0 / 89 / 0 | = | pending |
-| `dispatch-rotate.tst.sh` | 02 | 0 / 203 / 0 | = | pending |
-| `dispatch-setup-check.tst.sh` | 02 | 0 / 95 / 0 | = | pending |
-| `kill-target-guard.tst.sh` | 02 | 0 / 112 / 0 | = | pending |
-| `lane-rotate-role-seats.tst.sh` | 02 | 0 / 15 / 0 | = | pending |
-| `lane-rotate.tst.sh` | 02 | 0 / 164 / 0 | = | pending |
-| `orch-rotate.tst.sh` | 02 | 0 / 196 / 0 | = | pending |
-| `rotate-ack-seen.tst.sh` | 02 | 0 / 9 / 0 | = | pending |
-| `rotate-alert-streak-role.tst.sh` | 02 | 0 / 6 / 0 | = | pending |
-| `rotate-open-takes.tst.sh` | 02 | 0 / 16 / 0 | = | pending |
-| `rotate-stalled.tst.sh` | 02 | 0 / 12 / 0 | = | pending |
-| `rotate-weekly-first.tst.sh` | 02 | 0 / 13 / 0 | = | pending |
-| `rotate-workdir.tst.sh` | 02 | 0 / 21 / 0 | = | pending |
-| `wd-restart-seed-stable-paths.tst.sh` | 02 | 0 / 6 / 1 | = | pending |
-| `iac:src/bash/tests/bash-cleancode.tst.sh` | 01, 02 | 1 / 13 / 1 | = | pending |
+| `spl-agent-login-check.tst.sh` | 01 | 0 / 57 / 0 | = | = |
+| `wd-login-snapshot.tst.sh` | 01 | 0 / 14 / 0 | = | = |
+| `run-eager-files.tst.sh` | 01, 02 | 0 / 14 / 0 | = | = |
+| `func-name-unique.tst.sh` | 01 | 0 / 2 / 0 | = | = |
+| `no-literal-paths.tst.sh` | 01 | 1 / 13 / 2 | = | = |
+| `test-agent-identity-restore.sh` | 01 | 0 / 34 / 0 | = | = |
+| `test-agent-identity-restore-grok.sh` | 01 | 0 / 17 / 0 | = | = |
+| `test-agent-identity-restore-mistral.sh` | 01 | 0 / 25 / 0 | = | = |
+| `test-agent-identity-restore-once.sh` | 01 | 0 / 28 / 0 | = | = |
+| `test-agent-identity-restore-user.sh` | 01 | 0 / 13 / 0 | = | = |
+| `test-agent-identity-restore-box-socket.sh` | 01, 02 | 0 / 27 / 0 | = | = |
+| `test-agent-name-shape.sh` | 01, 02 | 0 / 35 / 0 | = | = |
+| `test-poke-retiring-pane.sh` | 02 | 0 / 7 / 0 | = | = |
+| `test-seed-truth-first.sh` | 02 | 0 / 42 / 0 | = | = |
+| `agent-id-lock.tst.sh` | 02 | 0 / 25 / 0 | = | = |
+| `agent-restart.tst.sh` | 02 | 0 / 89 / 0 | = | = |
+| `dispatch-rotate.tst.sh` | 02 | 0 / 203 / 0 | = | = |
+| `dispatch-setup-check.tst.sh` | 02 | 0 / 95 / 0 | = | = |
+| `kill-target-guard.tst.sh` | 02 | 0 / 112 / 0 | = | = |
+| `lane-rotate-role-seats.tst.sh` | 02 | 0 / 15 / 0 | = | = |
+| `lane-rotate.tst.sh` | 02 | 0 / 164 / 0 | = | = |
+| `orch-rotate.tst.sh` | 02 | 0 / 196 / 0 | = | = |
+| `rotate-ack-seen.tst.sh` | 02 | 0 / 9 / 0 | = | = |
+| `rotate-alert-streak-role.tst.sh` | 02 | 0 / 6 / 0 | = | = |
+| `rotate-open-takes.tst.sh` | 02 | 0 / 16 / 0 | = | = |
+| `rotate-stalled.tst.sh` | 02 | 0 / 12 / 0 | = | = |
+| `rotate-weekly-first.tst.sh` | 02 | 0 / 13 / 0 | = | = |
+| `rotate-workdir.tst.sh` | 02 | 0 / 21 / 0 | = | = |
+| `wd-restart-seed-stable-paths.tst.sh` | 02 | 0 / 6 / 1 | = | = |
+| `iac:src/bash/tests/bash-cleancode.tst.sh` | 01, 02 | 1 / 13 / 1 | = | = |
+| `iac:src/bash/tests/run-lazy-loader.tst.sh` | 01, 02 | 0 / 30 / 0 | = | = |
 
 The reds of base are the scratch copy's, equal on base and head1, not the rows':
 `bash-cleancode.tst.sh` `FAIL: CONTROL: the walk does not list
@@ -219,9 +222,10 @@ csi-spl-wui/src/docker/wui-config.sh` (the copy leaves `csi-spl-wui` out);
 `no-literal-paths.tst.sh` `STALE baseline: .../spl-file-erase.func.sh` and
 `.../spl-m3-e2e.func.sh has none` (the copy carries no git; unchecked why it reads them
 so). `wd-restart-seed-stable-paths.tst.sh`'s fail count is its own `fails=0` line, rc 0.
-The row lanes run both gates in their worktree. **NOT RUN in v0.1:**
-`iac:src/bash/tests/run-lazy-loader.tst.sh` (the loader guard `run.sh:849` names; the
-column looked for it under orc). It goes into v0.2 on base, head1 and head2.
+The row lanes run both gates in their worktree. `iac:src/bash/tests/run-lazy-loader.tst.sh`
+(the loader guard `run.sh:849` names; v0.1's column looked for it under orc) ran in v0.2
+at 10:0xZ on base, head1 and head2: rc 0, 30 pass lines, 0 fail, `all checks passed` on
+each (n=1).
 
 **Red controls** (n=1 each):
 - Row 01: head1's `spl-claude-project-slug.tst.sh` on base: rc 1, `2 FAILED`: case 1
@@ -403,11 +407,14 @@ tests (section 2), `shellcheck -S warning -x` on the 2 files,
   1.5 run on base and head1 (equal) and the red controls RED; head2's column and
   `run-lazy-loader.tst.sh` still open (v0.2); 1.3's 8-path probe (0 differ); R3 (2.2)
   and R7 (section 4) checked. Committed at the lane's rotation (c-001 note 09:54Z).
+- v0.2 (c-170): head2's column of 1.5 complete (every suite equals base);
+  `run-lazy-loader.tst.sh` run on base, head1 and head2 (rc 0, 30 / 0 each). No row,
+  site or count changed.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-170 (claude): v0.1.
+- Editor seat: c-170 (claude): v0.1, v0.2.
 - Panel reviewer seat: the mistral panel seat (queued, `c002-refactor-round-88-mistral-panel-seat`).
 - Row R7 seats: section 4.

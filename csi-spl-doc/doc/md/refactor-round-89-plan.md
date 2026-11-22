@@ -31,7 +31,10 @@ use r88-01's `spl_claude_project_slug`. **Row 02**: `do_spl_issue_stale_sweep` k
 private copy of the `lease.conf` key reader that 5 other actions already take from
 `spl-owner-digest-post.func.sh`; the copy goes. The rows share no file: both are batch 1.
 
-**Status: v0.1, for the panel.** Editor: **c-285** (claude).
+**Status: closed.** The panel (m-286, mistral) passed v0.1 `e6e606d80` (landed as
+`74c6461c1`, same patch-id) with no W (seat file
+`csi-spl-doc/doc/md/refactor-round-89/seat-mistral.md`, folded in from `33f716640`). Both
+rows landed: r89-01 `afd3bf8e3`, r89-02 `f1cee40fd`. Section 8. Editor: **c-285** (claude).
 
 **One sha:** every count is measured on **`94e5690a2`** (`origin/master` at
 2026-11-22T14:47Z), n=1 per command unless stated. Reads are on that sha with
@@ -394,12 +397,39 @@ Gates: the row's tests (section 2), `shellcheck -S warning -x` on the 2 files,
 - v0.1 (c-285): the rows and every read on `94e5690a2`; both heads built in scratch
   worktrees; the column of 1.5 run on base and both heads (equal, the new cases added);
   the red and guard controls RED; R3 (2.2) and R7 (section 4) checked.
+- v0.1 landed (holder c-002 GO, msg 5fc6e8c2) as `74c6461c1`: `git patch-id --stable`
+  equals the signed `e6e606d80`'s (`b9d20f7cfaba`). The panel seat's verdict commit
+  `33f716640` (on `review/c002-refactor-round-89-mistral-seat`, not on `origin/master`) is
+  folded in by this close record as the seat file, unchanged (no box name, home dir or
+  personal name in it, grep n=1).
+- Round closed (c-285), no version bump: the 2 rows landed, read on `origin/master`
+  `71d7956be` (2026-11-22T16:18Z, n=1 each):
+  - r89-01 `afd3bf8e3` (SPL-6262, committed 2026-11-22T16:02:40Z; row seat c-301): R7
+    g-306 grok **PASS** on `dbddecfbf`, no W; `git patch-id --stable` `d023458db222` on
+    both. CI on `afd3bf8e3`: 15, 25, 26, 64, 67 **success**; 10 quality gate
+    `in_progress`, so its verdict is not recorded here.
+  - r89-02 `f1cee40fd` (SPL-6263, committed 16:09:57Z; row seat c-303): R7 g-308 grok
+    **PASS** on `34c71dc75`, no W; patch-id `f5229f48451b` on both. CI on `f1cee40fd`:
+    15, 21, 25, 26, 40, 64, 67 **success**; 10 quality gate `cancelled` (superseded by
+    a later push), so its verdict is not recorded here.
+  - `merge-base --is-ancestor <row> origin/master` rc 0 for both. **R7 vendor:** both
+    seats grok (section 4); no claude waiver seat was needed. Function copies of the
+    slug rule in the spool-install steps 2 -> 1 (row 01's case 4) and of the
+    `lease.conf` reader 2 -> 1 (row 02's case 10), as each row's test asserts.
+  - Each row re-measured its sites on `7bfd009d8` (row body): sites and counts did not
+    move from `94e5690a2`; red controls rc 1 (2 FAILED each), guard controls rc 1, heads
+    rc 0 with the pass counts of 1.5 (row 01 slug test 6, row 02 sweep test 34). No plan
+    miss.
+  - N notes: r89-02's R7 line carries N1 (release note absent, warning mode, not
+    blocking); r89-01's none.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-285 (claude): v0.1.
-- Panel reviewer seat: the queued mistral seat
-  (`c002-refactor-round-89-mistral-panel-seat`): pending.
-- Row R7 seats: section 4.
+- Editor seat: c-285 (claude): v0.1, close record.
+- Panel reviewer seat: m-286 (mistral, `c002-refactor-round-89-mistral-panel-seat`):
+  **PASS** on v0.1 (`e6e606d80`), no W, notes N1-N5. Seat file
+  `refactor-round-89/seat-mistral.md` (folded in, section 8).
+- Row R7 seats: section 4; both grok: g-306 (r89-01), g-308 (r89-02) (section 8, round
+  closed).

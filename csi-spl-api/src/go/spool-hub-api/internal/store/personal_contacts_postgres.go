@@ -257,14 +257,16 @@ const contactOutCols = contactCols + `, google_etag, COALESCE(sync_hash, ''), de
 	GREATEST(updated_at, COALESCE(deleted_at, updated_at))`
 
 // ContactsChangedSince is ContactsCycle.ContactsChangedSince.
-func (s *Postgres) ContactsChangedSince(ctx context.Context, person string, since *time.Time) ([]ContactOut, error) {
+func (s *Postgres) ContactsChangedSince(ctx context.Context, person string, since *time.Time, afterID string) ([]ContactOut, error) {
 	out := []ContactOut{}
 	err := s.inPerson(ctx, person, func(tx pgx.Tx) error {
 		return eachRow(ctx, tx, `SELECT `+contactOutCols+` FROM personal.contacts
 			WHERE person_id = $1 AND (deleted_at IS NULL OR deleted_by = 'member')
-			  AND ($2::timestamptz IS NULL OR GREATEST(updated_at, COALESCE(deleted_at, updated_at)) > $2::timestamptz)
-			ORDER BY GREATEST(updated_at, COALESCE(deleted_at, updated_at)), contact_id LIMIT $3`,
-			[]any{person, since, ContactsCycleMax}, func(r pgx.Rows) error {
+			  AND ($2::timestamptz IS NULL OR GREATEST(updated_at, COALESCE(deleted_at, updated_at)) > $2::timestamptz
+				OR ($4 <> '' AND GREATEST(updated_at, COALESCE(deleted_at, updated_at)) = $2::timestamptz
+					AND contact_id::text > $4))
+			ORDER BY GREATEST(updated_at, COALESCE(deleted_at, updated_at)), contact_id::text LIMIT $3`,
+			[]any{person, since, ContactsCycleMax, afterID}, func(r pgx.Rows) error {
 				var c ContactOut
 				err := r.Scan(append(contactDests(&c.Contact), &c.GoogleETag, &c.SyncHash, &c.DeletedAt, &c.ChangedAt)...)
 				out = append(out, c)
@@ -479,4 +481,72 @@ func (s *Postgres) CountContactPhotos(ctx context.Context, person string) (int, 
 		return tx.QueryRow(ctx, `SELECT count(*) FROM personal.contact_photos WHERE person_id = $1`, person).Scan(&n)
 	})
 	return n, err
+}
+
+// ApplyGooglePeople is ContactsCycle.ApplyGooglePeople: one inPerson
+// transaction under B14's lock (the form of importContactsTx, the same key),
+// the person's rows read, planGooglePeople, each write.
+func (s *Postgres) ApplyGooglePeople(ctx context.Context, person string, a GoogleApply, people []GooglePerson, now time.Time) (GoogleApplied, error) {
+	a, err := checkGoogleApply(person, a)
+	if err != nil {
+		return GoogleApplied{}, err
+	}
+	var n GoogleApplied
+	err = s.inPerson(ctx, person, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('contacts-import:' || $1::text))`, person); err != nil {
+			return err
+		}
+		rows := []*ContactOut{}
+		err := eachRow(ctx, tx, `SELECT `+contactOutCols+` FROM personal.contacts WHERE person_id = $1`,
+			[]any{person}, func(r pgx.Rows) error {
+				c := &ContactOut{}
+				rows = append(rows, c)
+				return r.Scan(append(contactDests(&c.Contact), &c.GoogleETag, &c.SyncHash, &c.DeletedAt, &c.ChangedAt)...)
+			})
+		if err != nil {
+			return err
+		}
+		var ops []googleOp
+		ops, n = planGooglePeople(rows, a, people)
+		for _, op := range ops {
+			if err := googleOpTx(ctx, tx, person, op, contactTime(now)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return GoogleApplied{}, contactPGErr(err)
+	}
+	return n, nil
+}
+
+// googleOpTx is one planned In-half write.
+func googleOpTx(ctx context.Context, tx pgx.Tx, person string, op googleOp, now time.Time) error {
+	v, l := op.values, op.link
+	var err error
+	switch op.kind {
+	case googleOpInsert:
+		_, err = tx.Exec(ctx, `INSERT INTO personal.contacts (person_id, first_name, last_name, email, phone,
+				company, job_title, birthday, notes, in_only, google_account, google_resource, google_etag, sync_hash,
+				created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)`,
+			person, v.FirstName, v.LastName, nilEmpty(v.Email), nilEmpty(v.Phone), v.Company, v.JobTitle,
+			nilEmpty(v.Birthday), v.Notes, v.InOnly, nilEmpty(l.Account), nilEmpty(l.Resource), l.ETag, nilEmpty(l.SyncHash), now)
+	case googleOpUpdate:
+		_, err = tx.Exec(ctx, `UPDATE personal.contacts SET first_name = $3, last_name = $4, email = $5, phone = $6,
+				company = $7, job_title = $8, birthday = $9, notes = $10, in_only = $11, google_account = $12,
+				google_resource = $13, google_etag = $14, sync_hash = $15, updated_at = $16
+			WHERE person_id = $1 AND contact_id = $2::uuid AND deleted_at IS NULL`,
+			person, op.id, v.FirstName, v.LastName, nilEmpty(v.Email), nilEmpty(v.Phone), v.Company, v.JobTitle,
+			nilEmpty(v.Birthday), v.Notes, v.InOnly, nilEmpty(l.Account), nilEmpty(l.Resource), l.ETag, nilEmpty(l.SyncHash), now)
+	case googleOpLink:
+		_, err = tx.Exec(ctx, `UPDATE personal.contacts SET google_account = $3, google_resource = $4, google_etag = $5,
+				sync_hash = $6 WHERE person_id = $1 AND contact_id = $2::uuid`,
+			person, op.id, nilEmpty(l.Account), nilEmpty(l.Resource), l.ETag, nilEmpty(l.SyncHash))
+	case googleOpDelete:
+		_, err = tx.Exec(ctx, `UPDATE personal.contacts SET deleted_at = $3, deleted_by = $4
+			WHERE person_id = $1 AND contact_id = $2::uuid AND deleted_at IS NULL`, person, op.id, now, ContactDeletedByGoogle)
+	}
+	return err
 }

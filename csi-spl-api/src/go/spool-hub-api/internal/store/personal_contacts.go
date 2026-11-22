@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -190,7 +191,11 @@ type ContactsCycle interface {
 	// after since (nil: every one), live or soft-deleted by a member (the
 	// Google delete still to send), in changed order, at most
 	// ContactsCycleMax; a Google-side delete is never sent back.
-	ContactsChangedSince(ctx context.Context, person string, since *time.Time) ([]ContactOut, error)
+	// afterID continues a page inside one changed time: with since set,
+	// a row changed exactly at since comes only when its id sorts after
+	// afterID ("" = none of them), so a tie of more than ContactsCycleMax
+	// rows (an import writes one time) is read whole, page by page.
+	ContactsChangedSince(ctx context.Context, person string, since *time.Time, afterID string) ([]ContactOut, error)
 	// LinkContact stores the Google link of a live contact, never its
 	// updated_at (a link is no change to send). ErrConflict: another of
 	// the person's contacts holds that link (rdb 0226 contacts_google).
@@ -198,6 +203,12 @@ type ContactsCycle interface {
 	// DropDeletedContact hard-deletes a soft-deleted contact once Google
 	// confirmed its delete (spec 2.5 "Deletes"); ErrNotFound for a live one.
 	DropDeletedContact(ctx context.Context, person, contactID string) error
+	// ApplyGooglePeople is the In half of one page of Google people (spec
+	// 2.5 "In", 11.2.2, 11.3; build row B8 amended): one transaction, under
+	// the import's lock (B14's, so an import beside the sync adds a row
+	// once), the match of planGooglePeople, then each insert, patch, link
+	// and soft delete.
+	ApplyGooglePeople(ctx context.Context, person string, a GoogleApply, people []GooglePerson, now time.Time) (GoogleApplied, error)
 }
 
 var (
@@ -563,3 +574,208 @@ func contactAfter(c Contact, at time.Time, id string) bool {
 
 // contactTime is now as Postgres stores it, so both stores order alike.
 func contactTime(now time.Time) time.Time { return now.UTC().Truncate(time.Microsecond) }
+
+// GooglePerson is one person of a Google list, mapped to Spool's values by
+// the sync (spec 11.3): Values holds the eight values and InOnly (a value
+// was cut at its cap). UpdatedAt is Google's update time of the person, zero
+// when Google gave none (then a tie, which Spool wins).
+type GooglePerson struct {
+	Resource  string
+	ETag      string
+	Deleted   bool
+	Values    Contact
+	UpdatedAt time.Time
+}
+
+// GoogleApply is how a page is applied: the bound account the contacts are
+// linked under, and NoDeletes for the first sync of a binding and for the
+// full list after an expired sync token (spec 2.5: never deletes).
+type GoogleApply struct {
+	Account   string
+	NoDeletes bool
+}
+
+// GoogleApplied counts what a page did. SpoolKept: a contact edited on both
+// sides that Spool wins (its etag stored, the Out half sends it).
+// OtherAccount: the person's live contacts linked under another account
+// after the page (the binding moved account, C23d).
+type GoogleApplied struct {
+	Added, Linked, Updated, Deleted, SpoolKept, Unchanged, Skipped int
+	OtherAccount                                                   int
+}
+
+// ContactSyncHash is the echo hash of spec 11.2.2: SHA-256 over the eight
+// text values of 11.3, joined by newlines (cleaned values, as stored).
+func ContactSyncHash(c Contact) string {
+	sum := sha256.Sum256([]byte(strings.Join([]string{c.FirstName, c.LastName, c.Email, c.Phone,
+		c.Company, c.JobTitle, c.Birthday, c.Notes}, "\n")))
+	return hex.EncodeToString(sum[:])
+}
+
+// The kinds of a planned In-half write.
+const (
+	googleOpInsert = iota + 1 // a new contact, linked
+	googleOpUpdate            // Google's values over a live contact, linked; updated_at = now
+	googleOpLink              // the link only (etag, hash); updated_at kept: nothing to send
+	googleOpDelete            // soft delete, deleted_by google-sync
+)
+
+// googleOp is one planned write of ApplyGooglePeople.
+type googleOp struct {
+	kind   int
+	id     string // "" for an insert
+	values Contact
+	link   ContactLink
+}
+
+// planGooglePeople is both stores' one In-half rule (spec 2.5 "In",
+// "Conflicts", "Deletes"; 11.3), on the person's rows (soft-deleted ones
+// too), which it updates as it plans so a page is matched against itself:
+//
+//   - linked under the account and soft-deleted in Spool: nothing (a
+//     delete wins on either side; a member's delete is the Out half's);
+//   - linked, deleted at Google or left with none of the four: soft
+//     deleted, unless a.NoDeletes;
+//   - linked, the same hash: nothing, the new etag stored (echo);
+//   - linked, Spool's values changed since its hash and Google's time not
+//     after Spool's: Spool wins, the etag stored, the Out half sends it;
+//   - linked, else: Google's values;
+//   - not linked: the oldest live contact with the email that is not
+//     linked under the account is linked (the newer side's values win),
+//     else a new contact; a deleted or empty person is nothing.
+func planGooglePeople(rows []*ContactOut, a GoogleApply, people []GooglePerson) ([]googleOp, GoogleApplied) {
+	var ops []googleOp
+	var n GoogleApplied
+	for _, p := range people {
+		vals, err := cleanContact(p.Values)
+		empty := errors.Is(err, ErrContactEmpty)
+		if err != nil && !empty {
+			n.Skipped++
+			continue
+		}
+		vals.InOnly = p.Values.InOnly
+		link, lerr := cleanContactLink(ContactLink{Account: a.Account, Resource: p.Resource, ETag: p.ETag,
+			SyncHash: ContactSyncHash(vals)})
+		if lerr != nil || p.Resource == "" {
+			n.Skipped++
+			continue
+		}
+		r := linkedRow(rows, a.Account, p.Resource)
+		op, count := planGooglePerson(rows, r, a, p, vals, link, p.Deleted || empty)
+		*count(&n)++
+		if op.kind == googleOpInsert { // a later person of the page matches it
+			row := &ContactOut{}
+			setGoogleRow(row, vals, link)
+			rows = append(rows, row)
+		}
+		if op.kind != 0 {
+			ops = append(ops, op)
+		}
+	}
+	for _, r := range rows {
+		if r.DeletedAt == nil && r.GoogleAccount != "" && r.GoogleAccount != a.Account {
+			n.OtherAccount++
+		}
+	}
+	return ops, n
+}
+
+// planGooglePerson plans one person against its linked row r (nil: none)
+// and answers the counter it adds to.
+func planGooglePerson(rows []*ContactOut, r *ContactOut, a GoogleApply, p GooglePerson, vals Contact,
+	link ContactLink, gone bool) (googleOp, func(*GoogleApplied) *int) {
+	unchanged := func(n *GoogleApplied) *int { return &n.Unchanged }
+	switch {
+	case r != nil && r.DeletedAt != nil:
+		return googleOp{}, unchanged
+	case r != nil && gone:
+		if a.NoDeletes {
+			return googleOp{}, unchanged
+		}
+		r.DeletedAt = &p.UpdatedAt
+		return googleOp{kind: googleOpDelete, id: r.ID}, func(n *GoogleApplied) *int { return &n.Deleted }
+	case r != nil && link.SyncHash == r.SyncHash:
+		if p.ETag == r.GoogleETag {
+			return googleOp{}, unchanged
+		}
+		r.GoogleETag = p.ETag
+		return googleOp{kind: googleOpLink, id: r.ID, link: link}, unchanged
+	case r != nil && ContactSyncHash(r.Contact) != r.SyncHash && !p.UpdatedAt.After(r.UpdatedAt):
+		link.SyncHash, r.GoogleETag = r.SyncHash, p.ETag
+		return googleOp{kind: googleOpLink, id: r.ID, link: link}, func(n *GoogleApplied) *int { return &n.SpoolKept }
+	case r != nil:
+		setGoogleRow(r, vals, link)
+		return googleOp{kind: googleOpUpdate, id: r.ID, values: vals, link: link}, func(n *GoogleApplied) *int { return &n.Updated }
+	case gone:
+		return googleOp{}, unchanged
+	}
+	linked := func(n *GoogleApplied) *int { return &n.Linked }
+	if m := emailRow(rows, a.Account, vals.Email); m != nil {
+		if m.UpdatedAt.After(p.UpdatedAt) { // Spool's values: no hash, so the Out half sends them
+			m.GoogleAccount, m.GoogleResource, m.GoogleETag, m.SyncHash = link.Account, link.Resource, link.ETag, ""
+			link.SyncHash = ""
+			return googleOp{kind: googleOpLink, id: m.ID, link: link}, linked
+		}
+		setGoogleRow(m, vals, link)
+		return googleOp{kind: googleOpUpdate, id: m.ID, values: vals, link: link}, linked
+	}
+	return googleOp{kind: googleOpInsert, values: vals, link: link}, func(n *GoogleApplied) *int { return &n.Added }
+}
+
+// setGoogleRow is r after Google's values and link are written.
+func setGoogleRow(r *ContactOut, vals Contact, link ContactLink) {
+	id, created, updated := r.ID, r.CreatedAt, r.UpdatedAt
+	r.Contact = vals
+	r.ID, r.CreatedAt, r.UpdatedAt = id, created, updated
+	r.GoogleAccount, r.GoogleResource, r.GoogleETag, r.SyncHash = link.Account, link.Resource, link.ETag, link.SyncHash
+}
+
+// linkedRow is the row linked under (account, resource), soft-deleted
+// included, or nil.
+func linkedRow(rows []*ContactOut, account, resource string) *ContactOut {
+	for _, r := range rows {
+		if r.GoogleAccount == account && r.GoogleResource == resource {
+			return r
+		}
+	}
+	return nil
+}
+
+// emailRow is the oldest live row with email that is not linked under
+// account (spec 2.5 "Deletes", C20b), or nil.
+func emailRow(rows []*ContactOut, account, email string) *ContactOut {
+	if email == "" {
+		return nil
+	}
+	var best *ContactOut
+	for _, r := range rows {
+		if r.DeletedAt != nil || r.Email != email || r.GoogleAccount == account || r.ID == "" {
+			continue
+		}
+		if best == nil || r.CreatedAt.Before(best.CreatedAt) || (r.CreatedAt.Equal(best.CreatedAt) && r.ID < best.ID) {
+			best = r
+		}
+	}
+	return best
+}
+
+// checkGoogleApply is checkPerson plus a bound account rdb 0226 holds.
+func checkGoogleApply(person string, a GoogleApply) (GoogleApply, error) {
+	if err := checkPerson(person); err != nil {
+		return a, err
+	}
+	a.Account = strings.ToLower(strings.TrimSpace(a.Account))
+	if checkContactEmail(a.Account) != nil {
+		return a, fmt.Errorf("%w: a bad Google account", ErrRealmBad)
+	}
+	return a, nil
+}
+
+// contactChangedAfter is the out read's keyset: changed after since, or at
+// since with an id after afterID ("" = none at since).
+func contactChangedAfter(changed time.Time, id string, since *time.Time, afterID string) bool {
+	if since == nil || changed.After(*since) {
+		return true
+	}
+	return afterID != "" && changed.Equal(*since) && id > afterID
+}

@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -127,6 +128,10 @@ type Config struct {
 	RevokeURL    string
 	UserinfoURL  string // OpenID Connect userinfo: the Google email
 	CalendarBase string // the Calendar API v3 root
+	// PeopleBase is the People API v1 root (spec 154 B8, cnf
+	// contacts.people_base). Not part of Validate: a hub without it syncs
+	// the calendar and no contacts (PeopleConfigured).
+	PeopleBase string
 
 	HTTP *http.Client
 }
@@ -164,6 +169,7 @@ func New(cfg Config) (*Google, error) {
 		return nil, err
 	}
 	cfg.CalendarBase = strings.TrimRight(cfg.CalendarBase, "/")
+	cfg.PeopleBase = strings.TrimRight(strings.TrimSpace(cfg.PeopleBase), "/")
 	return &Google{cfg: cfg}, nil
 }
 
@@ -389,6 +395,11 @@ type HTTPError struct {
 	Status  int
 	Reason  string
 	Message string
+	// Code is the API error's status word (FAILED_PRECONDITION, ...), ""
+	// for an OAuth error. RetryAfter is a 429 or 503's Retry-After in
+	// seconds, 0 when absent (spec 154 2.5 "Rate limits").
+	Code       string
+	RetryAfter time.Duration
 }
 
 // Error implements error.
@@ -406,7 +417,11 @@ func (e *HTTPError) Is(target error) bool {
 	case ErrNotFound:
 		return e.Status == http.StatusNotFound
 	case ErrSyncTokenGone:
-		return e.Status == http.StatusGone
+		return e.Status == http.StatusGone || e.Reason == "EXPIRED_SYNC_TOKEN"
+	case ErrRateLimited:
+		return e.Status == http.StatusTooManyRequests || e.Status == http.StatusServiceUnavailable
+	case ErrETagMismatch:
+		return e.Status == http.StatusBadRequest && e.Code == "FAILED_PRECONDITION" && e.Reason != "EXPIRED_SYNC_TOKEN"
 	}
 	return false
 }
@@ -419,7 +434,11 @@ func (g *Google) doJSON(req *http.Request, out any) error {
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if resp.StatusCode/100 != 2 {
-		return httpError(resp.StatusCode, b)
+		e := httpError(resp.StatusCode, b)
+		if n, err := strconv.Atoi(strings.TrimSpace(resp.Header.Get("Retry-After"))); err == nil && n > 0 {
+			e.RetryAfter = time.Duration(n) * time.Second
+		}
+		return e
 	}
 	if out == nil || len(b) == 0 {
 		return nil
@@ -443,15 +462,26 @@ func httpError(status int, body []byte) *HTTPError {
 			Errors  []struct {
 				Reason string `json:"reason"`
 			} `json:"errors"`
+			Details []struct {
+				Reason string `json:"reason"`
+			} `json:"details"`
 		} `json:"error"`
 	}
 	switch {
 	case json.Unmarshal(body, &oauth) == nil && oauth.Error != "":
 		e.Reason, e.Message = oauth.Error, oauth.Description
 	case json.Unmarshal(body, &api) == nil:
-		e.Message, e.Reason = api.Error.Message, api.Error.Status
+		e.Message, e.Reason, e.Code = api.Error.Message, api.Error.Status, api.Error.Status
 		if len(api.Error.Errors) > 0 && api.Error.Errors[0].Reason != "" {
 			e.Reason = api.Error.Errors[0].Reason
+		}
+		// the People API's google.rpc.ErrorInfo (EXPIRED_SYNC_TOKEN,
+		// unchecked, I believe, spec 154 11.5) wins over the legacy list
+		for _, d := range api.Error.Details {
+			if d.Reason != "" {
+				e.Reason = d.Reason
+				break
+			}
 		}
 	}
 	if len(e.Message) > 200 {

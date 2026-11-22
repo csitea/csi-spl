@@ -78,6 +78,7 @@ var personCallers = map[string]string{
 	"ContactsChangedSince": "personal.contacts of the claimed binding's human (contacts_sync.human_id, not a session): the outbound read since out_cursor, live rows and member soft deletes still to send (154 2.5, C23g)",
 	"LinkContact":          "personal.contacts of the claimed binding's human (contacts_sync.human_id, not a session): google_account, google_resource, google_etag, sync_hash of one live contact (154 2.5, C23g)",
 	"DropDeletedContact":   "personal.contacts of the claimed binding's human (contacts_sync.human_id, not a session): the hard delete once Google confirmed the delete (154 2.5, C23g)",
+	"ApplyGooglePeople":    "personal.contacts of the claimed binding's human (contacts_sync.human_id, not a session): the In half of one page of Google people under the import lock: insert, patch, link and soft delete (154 2.5, 11.3, B8)",
 }
 
 // realmTenantCallers is the realm code allowed to ALSO run a tenant scope,

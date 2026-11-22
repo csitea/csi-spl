@@ -91,7 +91,8 @@ type Fake struct {
 	cals     map[string]*calendar
 	channels map[string]*channel
 	calls    map[string]int
-	redirect []string // registered redirect URIs, as on a Google OAuth client
+	redirect []string     // registered redirect URIs, as on a Google OAuth client
+	ppl      *peopleState // the People API's contacts (people.go, spec 154 B8)
 }
 
 // New starts a fake Google for t; it closes with the test.
@@ -100,6 +101,7 @@ func New(t testing.TB) *Fake {
 	f := &Fake{
 		codes: map[string]*grant{}, refresh: map[string]*grant{}, access: map[string]access{},
 		cals: map[string]*calendar{}, channels: map[string]*channel{}, calls: map[string]int{},
+		ppl: newPeopleState(),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /o/oauth2/v2/auth", f.consent)
@@ -115,6 +117,7 @@ func New(t testing.TB) *Fake {
 	mux.HandleFunc("DELETE /calendar/v3/calendars/{cal}/events/{ev}", f.eventsDelete)
 	mux.HandleFunc("POST /calendar/v3/channels/stop", f.channelsStop)
 	mux.HandleFunc("GET /calendar/v3/users/me/calendarList", f.calendarList)
+	f.peopleRoutes(mux)
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)
 	return f
@@ -138,8 +141,8 @@ func (f *Fake) Config(redirectURI, scopes string) gcal.Config {
 		RedirectURI: redirectURI, Scopes: scopes,
 		AuthURL: f.srv.URL + "/o/oauth2/v2/auth", TokenURL: f.srv.URL + "/token",
 		RevokeURL: f.srv.URL + "/revoke", UserinfoURL: f.srv.URL + "/oauth2/v3/userinfo",
-		CalendarBase: f.srv.URL + "/calendar/v3",
-		HTTP:         f.srv.Client(),
+		CalendarBase: f.srv.URL + "/calendar/v3", PeopleBase: f.srv.URL + peoplePath,
+		HTTP: f.srv.Client(),
 	}
 }
 

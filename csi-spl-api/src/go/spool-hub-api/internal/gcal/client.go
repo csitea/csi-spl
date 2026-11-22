@@ -231,10 +231,21 @@ func isGone(err error) bool {
 }
 
 func (g *Google) call(ctx context.Context, access marketing.Plaintext, method, path string, q url.Values, in, out any) error {
-	u := g.cfg.CalendarBase + path
+	return g.callURL(ctx, access, method, apiURL(g.cfg.CalendarBase, path, q), in, out)
+}
+
+// apiURL is an API root, a path and a query.
+func apiURL(base, path string, q url.Values) string {
+	u := base + path
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
+	return u
+}
+
+// callURL is one JSON call: the Calendar API's (call) or the People API's
+// (people.go peopleCall).
+func (g *Google) callURL(ctx context.Context, access marketing.Plaintext, method, u string, in, out any) error {
 	var body io.Reader
 	if in != nil {
 		b, err := json.Marshal(in)

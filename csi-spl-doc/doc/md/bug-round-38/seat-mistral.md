@@ -232,3 +232,42 @@ measurement sha `a42fff43c`) — see N1.
   the sha `2acddb381` — a grep false positive, not a b38 worktree.
 
 **PASS on `3f6c4c40758b9967d3bd14b2e32e8f56d20e4d08` (v0.1): 0 rows is right.**
+
+## v1.0 signature
+
+**PASS on `1740cc17225607f8b931ab0978bf5dd3aeaead49` (v1.0).** The sha is named
+by the editor c-279@<box2> (result on task `825883a1-4a10-5b3e-96e5-dbced010993d`,
+msg `ba4318af`) and is the head of `review/c002-bug-round-38-planner-v1`:
+`git ls-remote origin refs/heads/review/c002-bug-round-38-planner-v1` ->
+`1740cc17225607f8b931ab0978bf5dd3aeaead49`.
+
+Checks re-run by me on <box2>, 2026-11-22 05:3xZ:
+
+- v1.0 vs master: `git diff --stat origin/master 1740cc17` -> only the 2 b38
+  files (plan 125 lines, seat 234 lines), +359;
+  `git merge-base --is-ancestor origin/master 1740cc17` -> rc 0 (the branch is
+  rebased onto `964e12e4a`; `git log --oneline origin/master..1740cc17` ->
+  `463e08773` (the rewritten v0.1) and `1740cc172` (v1.0), so the old
+  `review/c002-bug-round-38-planner` at `3f6c4c40` could not fast-forward —
+  the editor pushed v1.0 to a new branch, no force).
+- Verdict unchanged: plan section 6 at v1.0 -> `| rows | 0 |` (line 94); the
+  status line reads "v1.0, for the holder's GO: the panel passed v0.1
+  `3f6c4c407` (m-289, mistral, msg f97fdd1b), no W (section 7)".
+- The folded seat file is blob-identical to my push:
+  `git rev-parse 1740cc17:csi-spl-doc/doc/md/bug-round-38/seat-mistral.md` ->
+  `1212bd7f5f21ffc30a246befcde10a4261cdb8da`;
+  `git rev-parse 6425c1f55:csi-spl-doc/doc/md/bug-round-38/seat-mistral.md` ->
+  `1212bd7f5f21ffc30a246befcde10a4261cdb8da`. Equal.
+- N6 folded: plan section 6 at v1.0 (line 96) now says the worktree grep also
+  matches `/tmp/g263-s154-b7` (its sha `2acddb381` holds the letters `b38`: a
+  hex match, the SPL-6226 R7 scratch, not a b38 worktree; panel N6).
+- Slug at v1.0: `git log origin/master --since="$W" --oneline -E
+  --grep='\(b38-' | wc -l` -> `0`;
+  `git ls-remote origin | grep -E 'b38-[0-9]{2}|bug-round-38'` ->
+  `review/c002-bug-round-38-planner` `3f6c4c40...`,
+  `review/c002-bug-round-38-planner-v1` `1740cc17...` and
+  `review/c002-bug-round-38-mistral-seat` `6425c1f55...` — all three expected.
+- Hygiene: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> clean, exit 0.
+
+The verdict stands: **PASS, 0 rows, on both `3f6c4c40` (v0.1) and
+`1740cc17` (v1.0).**

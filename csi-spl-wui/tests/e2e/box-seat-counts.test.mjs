@@ -75,6 +75,10 @@ async function shot(p, name) {
 }
 async function click(p, sel) {
   await p.waitForSelector(sel, { visible: true, timeout: NAV_TIMEOUT })
+  /* centre it first: puppeteer scrolls a target only to the viewport's edge,
+     and at 390 px the fixed notify-chime there takes the click once the
+     summary table (SPL-6239 T9) pushes box-desk below the fold */
+  await p.$eval(sel, (e) => e.scrollIntoView({ block: 'center', inline: 'center' }))
   await p.click(sel)
 }
 const railCounts = (box) => `[data-test=monitoring-boxes] [data-testid=box-seat-counts][data-box="${box}"]`

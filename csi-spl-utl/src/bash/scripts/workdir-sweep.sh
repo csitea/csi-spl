@@ -22,7 +22,9 @@
 #     removed as its owner (sudo -n -u), never one owned by root.
 # Otherwise the row stays and one KEEP line says why. A removed or vanished
 # directory's row is dropped; so is a worktree now on another branch (a new
-# lane holds it). Rows go oldest first.
+# lane holds it). Rows go oldest first. A path this user cannot see (another
+# user's 0700 /tmp/claude-<uid>, SPL-4463) is asked of root (sudo -n); when
+# neither can tell, it is KEEP unknown, never gone.
 #
 # Untabled worktrees (SPL-2856; WORKDIR_SWEEP_ORPHANS=1, off by default): a
 # dir <wt root>/<agent id> with no table row (a lane retired before the table
@@ -77,6 +79,15 @@ as_root() { if [[ "$use_sudo" == 1 && "$(id -u)" != 0 ]]; then sudo -n -- "$@"; 
 # as_owner <owner> <cmd...>: run as the dir's owner (git and rm alike)
 as_owner() { if [[ "$1" == "$(id -un)" ]]; then shift; "$@"; else local o="$1"; shift; sudo -n -u "$o" -- "$@"; fi; }
 g() { as_owner "$1" env GIT_TERMINAL_PROMPT=0 timeout 60 git -c safe.directory='*' -C "$2" "${@:3}"; }
+# seen <path>: y it exists, n it is gone, empty when nobody can tell: its
+# parent is not searchable by this user (another user's 0700 scratch root)
+# and root cannot be asked. Never "gone" for a path we cannot see.
+seen() {
+  if [[ -e "$1" || -L "$1" ]]; then echo y; return; fi
+  if [[ -d "${1%/*}" && -x "${1%/*}" ]]; then echo n; return; fi
+  [[ "$use_sudo" == 1 ]] || return 0
+  as_root sh -c '{ [ -e "$1" ] || [ -L "$1" ]; } && echo y || echo n' _ "$1" 2>/dev/null
+}
 
 [[ "$dry" == 0 || "$dry" == 1 ]] || refuse "DRY_RUN must be 0 or 1, got '$dry'"
 [[ "$use_sudo" == 0 || "$use_sudo" == 1 ]] || refuse "WORKDIR_SWEEP_SUDO must be 0 or 1, got '$use_sudo'"
@@ -198,11 +209,15 @@ while IFS=$'\x1f' read -r -u 3 p kind agent box br at src; do
   fi
   t="$(date -u -d "$at" +%s 2>/dev/null)" || { say "KEEP bad-finished-at '$at' $p"; n_keep=$((n_keep + 1)); continue; }
   age=$(( (now - t) / 3600 ))
-  if [[ ! -e "$p" && ! -L "$p" ]]; then drop "$p" "gone"; continue; fi
+  case "$(seen "$p")" in
+    n) drop "$p" "gone"; continue ;;
+    y) ;;
+    *) say "KEEP unknown (cannot see it as $(id -un), not gone) $kind_l $p ($agent)"; n_keep=$((n_keep + 1)); continue ;;
+  esac
   if (( now - t < limit_h * 3600 )); then say "KEEP fresh ${age}h<${limit_h}h $kind_l $p ($agent)"; n_keep=$((n_keep + 1)); continue; fi
-  why="" owner="$(stat -c %U -- "$p" 2>/dev/null)" || why="unreadable"
+  why="" owner="$(stat -c %U -- "$p" 2>/dev/null || as_root stat -c %U -- "$p" 2>/dev/null)" || why="unreadable"
   if [[ -z "$why" ]]; then
-    if [[ -L "$p" ]]; then why="symlink"
+    if [[ -L "$p" ]] || as_root test -L "$p"; then why="symlink"
     elif [[ "$owner" == root ]]; then why="root-owned"
     elif [[ "$use_sudo" == 0 && "$owner" != "$(id -un)" ]]; then why="not-ours (owner $owner)"
     elif is_held "$p"; then why="in-use (a process has its cwd or an open file under it)"
@@ -210,7 +225,7 @@ while IFS=$'\x1f' read -r -u 3 p kind agent box br at src; do
       case "$kind" in
         worktree) why="$(worktree_why "$p" "$owner" "$br" "$src")"
                   [[ "$why" == reused* ]] && { drop "$p" "$why"; continue; } ;;
-        scratch)  [[ "${p%/*}" =~ ^"${tmp_root%/}"/claude-[0-9]+$ && -d "$p" ]] || why="not-a-scratch-dir (not ${tmp_root%/}/claude-<uid>/<name>)" ;;
+        scratch)  [[ "${p%/*}" =~ ^"${tmp_root%/}"/claude-[0-9]+$ ]] && as_root test -d "$p" || why="not-a-scratch-dir (not ${tmp_root%/}/claude-<uid>/<name>)" ;;
         var-tmp)  [[ "${p%/*}" == "${vartmp_root%/}" && "${p##*/}" != .* ]] || why="not-a-var-tmp-entry (not a top-level entry of ${vartmp_root%/})" ;;
         *)        why="unknown-kind '$kind'" ;;
       esac
@@ -227,7 +242,7 @@ while IFS=$'\x1f' read -r -u 3 p kind agent box br at src; do
       [[ -z "$br" ]] || g "$owner" "${cd_%/.git}" branch -d "$br" >/dev/null 2>&1 || say "INFO branch $br kept: git branch -d refused (not merged)"
     else
       as_owner "$owner" chmod -R u+w -- "$p" 2>/dev/null; as_owner "$owner" rm -rf -- "$p"
-      [[ -e "$p" ]] && { say "WARN could not remove $p (owner $owner)"; n_keep=$((n_keep + 1)); continue; }
+      [[ "$(seen "$p")" != n ]] && { say "WARN could not remove $p (owner $owner)"; n_keep=$((n_keep + 1)); continue; }
     fi
     say "REMOVE ${kb}KB $kind_l $p ($agent, ${age}h)${br:+ branch $br}"
     [[ "$src" == o ]] || bash "$register" drop "$p" || say "WARN the row of $p was not dropped"

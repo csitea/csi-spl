@@ -30,9 +30,19 @@
 # Installed by do_tmp_scratch_sweep_install_cron as ONE line tagged
 # `# csi-spl:tmp-scratch-sweep`; one PLAN|REMOVE / KEEP line per session dir.
 #
+# The scratch is the AGENT user's (SPL-4463): /tmp/claude-<uid> is mode 0700,
+# so a sweep run as anyone else reads nothing. The agent user is
+# SPOOL_AGENT_USER, else the SPOOL_AGENT_USER= line of the box config
+# (SPOOL_BOX_ENV, default $SPOOL_ROOT/box.env), else the running user. Run as
+# another user, the sweep runs itself again as the agent user (sudo -n -u,
+# its root and sessions resolved from the agent user's uid and home), or
+# refuses when it cannot.
+#
 #   DRY_RUN=1 (default) | 0
-#   SCRATCH_ROOT                default /tmp/claude-$(id -u)
-#   SCRATCH_SESSIONS            default $HOME/.claude/sessions
+#   SPOOL_AGENT_USER            the user whose scratch is swept (above)
+#   SCRATCH_ROOT                default /tmp/claude-<agent uid>
+#   SCRATCH_SESSIONS            default <agent home>/.claude/sessions
+#   SCRATCH_SUDO                default "sudo -n" (tests pass a fake)
 #   SCRATCH_SWEEP_AGE_H         default 2
 #   SCRATCH_INODE_MIN_FREE_PCT  default 10 (0 = no inode guard)
 #   SCRATCH_PRESSURE_AGE_M      default 30
@@ -44,8 +54,13 @@ set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
 dry="${DRY_RUN:-1}"
-root="${SCRATCH_ROOT:-/tmp/claude-$(id -u)}"
-sessions="${SCRATCH_SESSIONS:-$HOME/.claude/sessions}"
+box_env="${SPOOL_BOX_ENV-${SPOOL_ROOT:-/var/spool-hub}/box.env}"
+agent="${SPOOL_AGENT_USER:-}"
+[[ -n "$agent" || -z "$box_env" || ! -r "$box_env" ]] \
+  || agent="$(sed -n 's/^SPOOL_AGENT_USER=//p' "$box_env" | tail -1 | tr -d "\"'\r")"
+agent="${agent:-$(id -un)}"
+root="${SCRATCH_ROOT:-/tmp/claude-$(id -u "$agent" 2>/dev/null)}"
+sessions="${SCRATCH_SESSIONS:-$(getent passwd "$agent" | cut -d: -f6)/.claude/sessions}"
 age_h="${SCRATCH_SWEEP_AGE_H:-2}"
 min_pct="${SCRATCH_INODE_MIN_FREE_PCT:-10}"
 p_age_m="${SCRATCH_PRESSURE_AGE_M:-30}"
@@ -72,6 +87,19 @@ inode_count() {
 }
 
 [[ "$dry" == 0 || "$dry" == 1 ]] || refuse "DRY_RUN must be 0 or 1, got '$dry'"
+id -u "$agent" >/dev/null 2>&1 || refuse "no such agent user '$agent'"
+if [[ "$agent" != "$(id -un)" && -z "${SCRATCH_AS_AGENT:-}" ]]; then
+  # Run again as the agent user, once (SCRATCH_AS_AGENT), every knob set here
+  # passed on resolved.
+  args=(SCRATCH_AS_AGENT=1 SPOOL_AGENT_USER="$agent" HOME="$(getent passwd "$agent" | cut -d: -f6)" DRY_RUN="$dry"
+        SCRATCH_ROOT="$root" SCRATCH_SESSIONS="$sessions")
+  for v in SCRATCH_SWEEP_AGE_H SCRATCH_INODE_MIN_FREE_PCT SCRATCH_PRESSURE_AGE_M SCRATCH_DF SCRATCH_DU; do
+    [[ -n "${!v:-}" ]] && args+=("$v=${!v}")
+  done
+  ${SCRATCH_SUDO:-sudo -n} -u "$agent" -- env "${args[@]}" bash "$(readlink -f "${BASH_SOURCE[0]}")" && exit 0
+  rc=$?; (( rc == 2 )) && exit 2
+  refuse "cannot run as the agent user $agent (sudo -n -u $agent: rc $rc)"
+fi
 [[ "$age_h" =~ ^[0-9]+$ ]] && (( age_h >= 1 )) || refuse "SCRATCH_SWEEP_AGE_H must be a whole number >= 1, got '$age_h'"
 [[ "$min_pct" =~ ^[0-9]+$ ]] && (( min_pct <= 50 )) || refuse "SCRATCH_INODE_MIN_FREE_PCT must be 0..50, got '$min_pct'"
 [[ "$p_age_m" =~ ^[0-9]+$ ]] && (( p_age_m >= 10 )) || refuse "SCRATCH_PRESSURE_AGE_M must be a whole number >= 10, got '$p_age_m'"

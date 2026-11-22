@@ -24,6 +24,9 @@
 #      pushed <wt root>/<id> with no row is listed and goes (CONTROL: off, the
 #      default, it is not listed); dirty, unpushed, role id, desk id, a live
 #      local window and fresh ones are kept; a non-id name is not listed
+#  10. SPL-4463: a scratch dir under another user's 0700 claude-<uid> root
+#      (a parent this user cannot search) is KEEP unknown and its row stays,
+#      never dropped as gone (CONTROL: the root readable, the same dir goes)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -197,6 +200,19 @@ for v in true false; do
 done
 [ "$o_seen" = 10 ] && pass "9. ./run -a do_sweep_workdirs takes orphans from cnf (true: listed, false: not)" || fail "9. cnf orphans ($o_seen)"
 unset WORKDIR_SWEEP_WT_ROOT WORKDIR_SWEEP_WINDOWS
+
+# ---- 10. an unreadable scratch root is unknown, never gone (SPL-4463) -------------
+H="$TMPR/claude-99999"
+mkdir -p "$H/x/scratchpad"; echo x >"$H/x/scratchpad/f"; add scratch c-940 25 "$H/x"
+chmod 000 "$H"
+out="$(sweep DRY_RUN=0)"
+chmod 700 "$H"
+grep -q "KEEP unknown (cannot see it as $(id -un), not gone) scratch $H/x (c-940)" <<<"$out" && [ -n "$(row "$H/x")" ] \
+  && [ -f "$H/x/scratchpad/f" ] && ! grep -q "DROP gone $H/x" <<<"$out" \
+  && pass "10. a dir under an unsearchable 0700 scratch root is KEEP unknown, its row stays" || fail "10. unreadable ($out)"
+out="$(sweep DRY_RUN=0)"
+[ ! -e "$H/x" ] && [ -z "$(row "$H/x")" ] && grep -q "REMOVE [0-9]*KB scratch $H/x (c-940, 25h)" <<<"$out" \
+  && pass "10. CONTROL: the root readable, the same 25 h dir goes with its row" || fail "10. control ($out)"
 
 echo "workdir-sweep: $fails failure(s)"
 [ "$fails" = 0 ]

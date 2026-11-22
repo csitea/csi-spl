@@ -18,6 +18,12 @@
 #   2. the install: the dry run prints the diff and changes nothing; DRY_RUN=0
 #      adds ONE tagged line, DRY_RUN=0 inside it, every other line kept; a
 #      second install is a no-op; remove restores the crontab byte for byte
+#   4. SPL-4463, the AGENT user's scratch: SPOOL_AGENT_USER (or the box
+#      config's line) names another user, the sweep runs itself again as that
+#      user (a fake sudo records -u <user>) rooted at /tmp/claude-<its uid>
+#      (CONTROL: the running user as agent calls no sudo; a sudo that fails
+#      refuses, exit 2); the install writes THAT user's crontab (crontab -u)
+#      and its line logs under that user's home
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -53,6 +59,8 @@ bash -c 'sleep 600 & trap "kill $!" TERM; wait' "$u_resumed" & resumed_pid=$!
 # u_keep's registry pid is dead, but the dir is kept by a later test below.
 touch "$R/-opt-e/$u_keep"
 
+# The running user is the agent user unless a test says otherwise.
+SPOOL_AGENT_USER="$(id -un)"; export SPOOL_AGENT_USER
 sweep() { SNIPPET='do_tmp_scratch_sweep' in_orc SCRATCH_ROOT="$R" SCRATCH_SESSIONS="$S" "$@" 2>&1; }
 
 out="$(sweep SCRATCH_SESSIONS="$T/nope" DRY_RUN=0)"; rc=$?
@@ -167,6 +175,47 @@ out="$(inst DRY_RUN=0)"
 grep -q 'OK cron: nothing to change' <<<"$out" && pass "2. a second install is a no-op" || fail "2. second install ($out)"
 inst DRY_RUN=0 SCRATCH_CRON_ACTION=remove >/dev/null
 cmp -s "$CT" "$T/crontab.orig" && pass "2. remove restores the crontab byte for byte" || fail "2. remove ($(cat "$CT"))"
+
+# 4. the agent user's scratch (SPL-4463). "nobody" stands for another user;
+# the fake sudo records its arguments and runs the command as us, emulating
+# crontab -u <user> over a fixture crontab.
+other=nobody o_uid="$(id -u "$other")" o_home="$(getent passwd "$other" | cut -d: -f6)"
+CT2="$T/crontab-other"; printf '%s\n' '@reboot /usr/bin/true' >"$CT2"; cp "$CT2" "$T/crontab-other.orig"
+cat >"$T/fake-sudo" <<EOF
+#!/bin/bash
+echo "\$*" >>"$T/sudo.log"
+while :; do case "\$1" in -n|--) shift ;; -u) shift 2 ;; *) break ;; esac; done
+if [ "\$1" = crontab ]; then
+  shift 3; if [ "\$1" = -l ]; then cat "$CT2"; else cp "\$1" "$CT2"; fi; exit
+fi
+exec "\$@"
+EOF
+chmod +x "$T/fake-sudo"; : >"$T/sudo.log"
+out="$(sweep)"
+[ ! -s "$T/sudo.log" ] && grep -q "START root=$R " <<<"$out" \
+  && pass "4. CONTROL: the running user as the agent user calls no sudo" || fail "4. self ($(cat "$T/sudo.log"): $out)"
+out="$(SNIPPET='do_tmp_scratch_sweep' in_orc SPOOL_AGENT_USER="$other" SCRATCH_SUDO="$T/fake-sudo" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && [ "$(wc -l <"$T/sudo.log")" = 1 ] && grep -q "^-u $other -- env SCRATCH_AS_AGENT=1 SPOOL_AGENT_USER=$other HOME=$o_home DRY_RUN=1 SCRATCH_ROOT=/tmp/claude-$o_uid " "$T/sudo.log" \
+  && grep -q "no scratch root /tmp/claude-$o_uid: nothing to sweep" <<<"$out" \
+  && pass "4. SPOOL_AGENT_USER=$other: the sweep runs as $other, rooted at /tmp/claude-$o_uid" || fail "4. other (rc $rc: $(cat "$T/sudo.log"): $out)"
+printf 'SPOOL_AGENT_USER="%s"\n' "$other" >"$T/box.env"; : >"$T/sudo.log"
+out="$(SNIPPET='do_tmp_scratch_sweep' in_orc SPOOL_AGENT_USER= SPOOL_BOX_ENV="$T/box.env" SCRATCH_SUDO="$T/fake-sudo" 2>&1)"
+grep -q "^-u $other -- env SCRATCH_AS_AGENT=1 SPOOL_AGENT_USER=$other " "$T/sudo.log" \
+  && pass "4. unset, the box config's SPOOL_AGENT_USER= line names the agent user" || fail "4. box.env ($(cat "$T/sudo.log"): $out)"
+out="$(SNIPPET='do_tmp_scratch_sweep' in_orc SPOOL_AGENT_USER="$other" SCRATCH_SUDO=false SCRATCH_ROOT="$R" DRY_RUN=0 2>&1)"; rc=$?
+[ "$rc" = 2 ] && grep -q "REFUSE cannot run as the agent user $other" <<<"$out" && [ -d "$R/-opt-b/$u_live" ] \
+  && pass "4. a sudo that fails refuses (exit 2), nothing removed" || fail "4. no sudo (rc $rc: $out)"
+: >"$T/sudo.log"
+oinst() { SNIPPET='do_tmp_scratch_sweep_install_cron' in_orc SPOOL_AGENT_USER="$other" SCRATCH_SUDO="$T/fake-sudo" SCRATCH_ALLOW_WORKTREE=1 "$@" 2>&1; }
+out="$(oinst)"
+grep -q "^  +17 .* >> $o_home/.cache/csi-spl/tmp-scratch-sweep.log 2>&1 # csi-spl:tmp-scratch-sweep\$" <<<"$out" \
+  && grep -q "INFO the crontab of the agent user $other" <<<"$out" && cmp -s "$CT2" "$T/crontab-other.orig" \
+  && pass "4. the install's dry run plans $other's crontab, logging under $other's home; nothing written" || fail "4. install dry ($out)"
+out="$(oinst DRY_RUN=0 SCRATCH_CRON_LOG_DIR="$T/log-other")"
+[ "$(grep -c ' # csi-spl:tmp-scratch-sweep$' "$CT2")" = 1 ] && grep -q '^@reboot /usr/bin/true$' "$CT2" \
+  && grep -q "^crontab -u $other " "$T/sudo.log" && [ -d "$T/log-other" ] \
+  && grep -q "^-u $other -- mkdir -p $T/log-other\$" "$T/sudo.log" \
+  && pass "4. DRY_RUN=0 writes $other's crontab (crontab -u $other), its log dir made as $other" || fail "4. install ($(cat "$T/sudo.log"): $out)"
 
 echo "tmp-scratch-sweep: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

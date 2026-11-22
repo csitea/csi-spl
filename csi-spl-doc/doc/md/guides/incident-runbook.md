@@ -273,6 +273,14 @@ A count it cannot trust removes nothing by pressure (SPL-4761): when
 `du --inodes` fails for a dir, the pass stops with one `PRESSURE WARN cannot
 count the inodes` line, and a `df -i` row whose total or free count is not a
 number skips the guard.
+The scratch is the agent user's (SPL-4463): `/tmp/claude-<uid>` is mode
+0700, so the sweep takes `SPOOL_AGENT_USER` (else the box config's line, else
+the running user) and, run as another user, runs itself again as that user
+with `sudo -n -u` (no sudo: `REFUSE`, exit 2). Its cron line goes in that
+user's crontab: `do_tmp_scratch_sweep_install_cron` writes it with
+`sudo -n crontab -u <agent user>`. The lane table sweep (`do_sweep_workdirs`)
+asks root about a row it cannot see as the box user, and keeps one nobody can
+see as `KEEP unknown`, never dropping it as gone.
 
 #### 4.3.5 Clean stale temporary directories
 

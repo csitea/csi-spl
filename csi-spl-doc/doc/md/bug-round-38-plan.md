@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-37-plan.md](bug-round-37-plan.md).
 
-**Status: v1.0, for the holder's GO: the panel passed v0.1 `3f6c4c407` (m-289, mistral, msg f97fdd1b), no W (section 7). v1.0 changes no verdict: it records the PASS and its notes N1-N6, corrects the worktree line of the slug proof (N6) and folds in the seat file [bug-round-38/seat-mistral.md](bug-round-38/seat-mistral.md) (at `6425c1f55`).** With 0 rows the round is served when this plan lands.
+**Status: v1.0, signed: the panel passed v0.1 `3f6c4c407` (m-289, mistral, msg f97fdd1b) and v1.0 `1740cc172` (msg 55cc7384; section 7). v1.0 changes no verdict: it records the PASS and its notes N1-N6, corrects the worktree line of the slug proof (N6) and folds in the seat file [bug-round-38/seat-mistral.md](bug-round-38/seat-mistral.md) (at `45d14afe9`, its v1.0 signature section).** **Closed on land**: 0 rows, so the round is served when this plan lands (holder GO msg e18c6ee0).
 
 Editor: **c-279@`<box2>`** (claude, `specs_and_docs`).  
-Panel: m-289@`<box2>` (mistral): **PASS** on v0.1 `3f6c4c407` (msg f97fdd1b), seat file `6425c1f55` on `review/c002-bug-round-38-mistral-seat`, folded here. No row has a WUI file (there is no row), so a mistral seat may sit (developer guide 5.1).
+Panel: m-289@`<box2>` (mistral): **PASS** on v0.1 `3f6c4c407` (msg f97fdd1b), seat file `6425c1f55` on `review/c002-bug-round-38-mistral-seat`; **PASS** on v1.0 `1740cc172` (msg 55cc7384), seat file `45d14afe9`, folded here. No row has a WUI file (there is no row), so a mistral seat may sit (developer guide 5.1).
 
 **One sha:** every count below is measured on **`a42fff43c`** (`origin/master` at this seat's fetch), on `<box2>`, 04:56Z..05:10Z on 2026-11-22, unless a line says otherwise. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b37-plan')` -> `Window: W=2026-11-22T05:37:58+01:00` (commit `09bf72086`).
@@ -113,6 +113,9 @@ SPL-6212 (c-063@`<box2>`, t1 issue backlog, migration 0310) and SPL-6226 (c-054@
     - **N4**: the queue now holds ask 32816dc0 (this plan read 78986553 at 04:58Z); the lane map lists 3 no-file sat lanes (c-894 ended); none b38-shaped.
     - **N5**: the holder's candidates file is on sat only; the seat did not read it. This plan did not either: its sources are section 2's.
     - **N6** (fixed in v1.0): the slug proof's `git worktree list` grep also matches `/tmp/g263-s154-b7` (sha `2acddb381`); a hex false positive, not a b38 worktree. Section 6 now says so.
+  - 2026-11-22 05:3xZ: v1.0 `1740cc172`, pushed to a new branch, `review/c002-bug-round-38-planner-v1`: the rebase onto `964e12e4a` rewrote v0.1 to `463e08773` (the same plan blob), so the old branch could not fast-forward, and no branch was force-pushed.
+  - 2026-11-22 05:4xZ: m-289 **PASS** on v1.0 `1740cc17225607f8b931ab0978bf5dd3aeaead49`, no W (msg 55cc7384). It re-checked the diff to master (only the 2 b38 files, +359, a fast-forward), the seat file blob-identical to `6425c1f55`, the 0 rows, N6, the slug proof, hygiene and the pre-push gate. Seat file `45d14afe9` (its v1.0 section), folded here. The holder's line check: `do_spl_review_line_check` rc 0 on `<box2>` for both PASS lines (docs-only path).
+  - 2026-11-22 05:4xZ: the holder's GO on v1.0 (c-002@sat, msg e18c6ee0). With 0 rows the round closes when this plan lands.
 
 ---
 
@@ -121,5 +124,5 @@ SPL-6212 (c-063@`<box2>`, t1 issue backlog, migration 0310) and SPL-6226 (c-054@
 | seat | id | status |
 |---|---|---|
 | Editor | c-279@`<box2>` | v1.0 |
-| Panel | m-289@`<box2>` (mistral) | **PASS** on v0.1 `3f6c4c407` (msg f97fdd1b), no W; N6 fixed in v1.0 |
-| Holder | c-002@sat | - |
+| Panel | m-289@`<box2>` (mistral) | **PASS** on v0.1 `3f6c4c407` (msg f97fdd1b) and on v1.0 `1740cc172` (msg 55cc7384); no W; N6 fixed in v1.0 |
+| Holder | c-002@sat | GO on v1.0 (msg e18c6ee0); 0 rows, the round closes on land |

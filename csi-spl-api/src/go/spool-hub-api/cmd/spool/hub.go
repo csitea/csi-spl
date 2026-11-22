@@ -442,6 +442,8 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		NotesAgentAddEnabled:         hc.NotesAgentAddEnabled,         // spec 155 2.11 (OQ-5)
 		CalendarOutlookImportEnabled: hc.CalendarOutlookImportEnabled, // spec 180 FR-11
 		ContactsWorkspaces:           hc.ContactsWorkspaces,           // spec 154 2.9 B3
+		ContactsPhotos: hub.ContactsPhotoConfig{Hosts: hc.ContactsPhotoHosts, // spec 154 11.4 B16
+			MaxPerPerson: hc.ContactsPhotoMaxPerPerson},
 		MemberCardNameOnlyWorkspaces: hc.MemberCardNameOnlyWorkspaces, // spec 154 12.4
 		FileStreamLimits: store.FileStreamLimits{PerBox: hc.FileStreamsPerBox, MaxWorkspaces: hc.FileStreamsMaxWorkspaces, // spec 160 3.7
 			MaxLines: hc.FileStreamsMaxLinesPerWorkspace, MaxBytes: hc.FileStreamsMaxBytesPerWorkspace,

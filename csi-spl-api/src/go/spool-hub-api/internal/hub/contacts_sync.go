@@ -137,6 +137,7 @@ type contactsCycle struct {
 	writes   int // Google writes this cycle
 	other    int // live contacts linked under another account, after the In half
 	in       store.GoogleApplied
+	photo    contactsPhotoPass // the In half's pictures (contacts_photo.go, B16)
 }
 
 func (cy *contactsCycle) now() time.Time { return cy.s.o.Now() }
@@ -161,6 +162,9 @@ func (cy *contactsCycle) run(ctx context.Context) error {
 	cy.writable = gcal.HoldsAny(contactsWriteScopes(cy.g.ContactsScopes), conn.GrantedScopes)
 	cursor, err := cy.sync(ctx)
 	if err != nil {
+		return cy.fail(ctx, cursor, err)
+	}
+	if err := cy.photos(ctx); err != nil { // after the writes (spec 154 11.4, B16)
 		return cy.fail(ctx, cursor, err)
 	}
 	if cy.b.BackoffUntil != nil || strings.HasPrefix(cy.b.StatusDetail, contactsDetailHead) {
@@ -368,6 +372,7 @@ func (cy *contactsCycle) inPages(ctx context.Context, syncToken string) error {
 		if err != nil {
 			return err
 		}
+		cy.notePhotos(page.Connections)
 		people := make([]store.GooglePerson, 0, len(page.Connections))
 		for _, p := range page.Connections {
 			people = append(people, contactFromGoogle(p))

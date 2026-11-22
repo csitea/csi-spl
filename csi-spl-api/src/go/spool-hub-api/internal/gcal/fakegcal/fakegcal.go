@@ -93,6 +93,7 @@ type Fake struct {
 	calls    map[string]int
 	redirect []string     // registered redirect URIs, as on a Google OAuth client
 	ppl      *peopleState // the People API's contacts (people.go, spec 154 B8)
+	pho      *photoState  // the contact pictures (photos.go, spec 154 B16)
 }
 
 // New starts a fake Google for t; it closes with the test.

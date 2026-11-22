@@ -272,6 +272,10 @@ type Options struct {
 	// contacts.workspaces): workspace ids, or the one entry "all"; empty = off,
 	// every /v1/me/contacts route answers 404 (contacts.go).
 	ContactsWorkspaces []string
+	// ContactsPhotos is the Google contacts picture fetch (spec 154 11.4,
+	// cnf contacts.photo_hosts and contacts.photo_max_per_person,
+	// contacts_photo.go); no Hosts = no picture is fetched.
+	ContactsPhotos ContactsPhotoConfig
 	// MemberCardNameOnlyWorkspaces are the workspaces whose member card
 	// answers the name only, never the address (spec 154 section 12.4,
 	// member_card.go); config defaults it to t1. Empty = the address in

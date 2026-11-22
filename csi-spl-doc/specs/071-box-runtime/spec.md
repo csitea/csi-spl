@@ -372,6 +372,54 @@ dev before the issue closes.
 - The Refresh button is disabled while a refresh runs, and shows the time
   the last one ended.
 
+#### 7.4.1 The summary table at the top (owner follow-up)
+
+The owner (HUM-10, t1 topic `78f0138c`, msg `f87c349b`, 09:18:14Z), verbatim;
+the post ends mid-sentence:
+
+> "Also, although UI has to be changed, the most essential info per box should be on the top in a single table, in one row, one box, and then the attributes on the table. Then the rest of the info could be as"
+
+So Monitoring > Boxes (`index.vue`) opens with **one table: one row per box,
+one column per key attribute**. Today the page is a list of cards, one per
+box, each with its facts under it (`index.vue:38-73`, `MonitoringBoxFacts` at `:70`);
+there is no table.
+
+| column | value | source (all exist on `8d7782cc3`) |
+|---|---|---|
+| Box | the box tag and its online dot, a link to `/monitoring/boxes/<id>` | the roster row, as the card's link today |
+| RAM used % | `(mem_total_kb - mem_avail_kb) / mem_total_kb`, rounded up | `currentOf` (`utils/box-resources.mjs:178`) |
+| RAM free | `mem_avail_kb`, in GiB | `currentOf` |
+| Fullest disk | its mount and its used %, df's Use% | `lowestDisk` + `diskUsedPct` (`box-resources.mjs:108`, `:95`) |
+| Load / CPUs | `load1` / `cpus` | `currentOf` |
+| Agents live | `agents_live` | `currentOf` |
+| Sample age | "12 s ago", the exact time as the title | the row's `at` |
+| State | the 7.4 mark: none for `fresh` / `recent`, "stale" for `stale`, "no sample yet" for `never` | the refresh answer; before any refresh, none |
+
+Rules:
+
+- **One row per box of this workspace**, in the order the list uses today
+  (online, then offline). The filter above the list filters the table too.
+  The groups of other workspaces (`index.vue:74`) stay below it as today:
+  this workspace's box stats do not cover them.
+- **Every number comes from the box's newest sample**, the same row the card
+  shows (`latestBoxStat`, `box-resources.mjs:153`), so the table and the
+  details below it never disagree. A box with no sample shows "no sample
+  yet" across its reading cells, never a 0.
+- **The Refresh button (7.6.4) sits on the table's header**, and a refresh
+  updates the table's rows, ages and marks in place.
+- **Without `audit.read`** (today's rule for box stats, `index.vue:191`) the
+  reading columns are not drawn: the table shows Box only.
+- **Narrow screens**: below 640 px the table keeps Box, RAM used %, Fullest
+  disk and Sample age; the other columns move into the row's title text.
+  The page never scrolls sideways.
+- Every header and mark is a translation key (`developer-guide.md` 3.4).
+
+**Below the table** the per-box details stay as they are today (option A).
+This waits on the owner's answer to the poll in the same topic (msg
+`c9db41d2`): A as today, one section per box; B folded per box, opened by
+its row; C on a separate page per box. A different answer changes only
+build row T9 and its e2e test, not the hub or the box.
+
 ### 7.5 Who may click, and the limits
 
 **Who: `tenant.settings`**, so `biz_owner` and `admin` (`internal/rbac/rbac.go:271-281`).
@@ -471,6 +519,8 @@ runs it, the feature is absent and the box reads `stale`.
   its type in `types/mjs-shims.d.ts` (beside `:151`).
 - A `BoxRefreshButton.vue` on `monitoring/boxes/index.vue` (all boxes) and
   `[id].vue` (this box), drawn only with `tenant.settings`.
+- The summary table (7.4.1), a `BoxSummaryTable.vue` at the top of
+  `monitoring/boxes/index.vue`, built by row T9 before the button.
 - `utils/box-resources.mjs`: merge the answer's rows into the page's rows and
   keep each box's `state`; `[id].vue` re-reads its history quietly
   (`loadStats(true)`, `:242`) after the answer.
@@ -518,6 +568,7 @@ both outputs in the commit body.
 | limits | same file | a second click inside 60 s writes no second frame (frames counted on the fake box); the 13th click in an hour is 429; an unsolicited `box_sample_put` stores nothing; `product_owner` gets 403 | drop each check in turn: its case fails |
 | box handler | `internal/hubclient/box_sample_test.go` | fixture `/proc` files and a stub `df`: the sample is the expected object; two frames within 30 s give one answer; a hung `df` gives `disks: []` within 3 s | remove the guard: two answers, the test fails |
 | collector parity | `csi-spl-orc/src/bash/tests/box-sample-parity.tst.sh` | the same fixtures through `spl_lane_box_sample` (`LANE_LOADAVG`, `LANE_MEMINFO`, `LANE_NPROC`, `LANE_DF_CMD`) and through the Go collector give the same object, `agents_live` left out and named | change the Go mount filter: the test fails |
+| summary table | `csi-spl-wui/tests/e2e/box-summary-table.test.mjs` (Playwright, mocked api) + a unit test of the row builder | one row per box of the workspace, the columns of 7.4.1 in order, the values of the mocked newest sample (RAM used %, the fullest mount's df Use%); a box with no sample reads "no sample yet", never 0; without `audit.read` only the Box column; at 375 px no sideways scroll | build each row from the first sample instead of the newest: the values differ, the test fails |
 | click to render | `csi-spl-wui/tests/e2e/box-refresh.test.mjs` (Playwright, mocked api) | click Refresh: the mocked fresh row's age is shown within 10 s of the click; a mocked `stale` box keeps its old row with the stale mark, never blank; without `tenant.settings` no button | remove the stale branch from the page: the stale case fails |
 
 ### 7.9 Build rows
@@ -533,11 +584,14 @@ red control.
 | T4 | `store.BoxSampleWaker`: the NOTIFY channel, Memory and Postgres | a NOTIFY reaches a second listener; Postgres under `PRE_PUSH_TIER=full` | - |
 | T5 | the hub's pending map, frame send, hello catch-up, `box_sample_put` accept | two-instance frame delivery; unsolicited answer refused | T1, T4 |
 | T6 | the route, permission, limits, wait, answer; the cnf keys + tpl-gen | refresh contract, silent box, limits | T5 |
-| T7 | the WUI button, age, stale mark, i18n | click to render (e2e) + the i18n gates | T6 |
+| T9 | the summary table of 7.4.1 from today's `GET /v1/tenant/box-stats`, the details below as option A; i18n | summary table (e2e + unit) + the i18n gates | - (it reads only what exists; the owner's poll `c9db41d2` decides the part below the table) |
+| T7 | the WUI button on the table's header, age, stale mark in its State column, i18n | click to render (e2e) + the i18n gates | T6, T9 |
 | T8 | the help text for Monitoring > Boxes; on dev, 10 clicks timed click to render | the measurement in the commit body: n, min, max, the tree sha and binary versions | T3 on the dev boxes, T7 deployed |
 
 T3 can ship before T5: a box that sends the feature to a hub that never asks
-changes nothing.
+changes nothing. T9 needs no other row and can ship first: it is the owner's
+"most essential info per box on the top" with the 5-minute samples, and T7
+then adds the button and the fresh ones.
 
 ### 7.10 Out of scope
 
@@ -560,4 +614,4 @@ use), alerts on a threshold, and a refresh of the daily host facts sheet
 4. A refresh sample is stored like a tick sample (7.7): the two hub instances
    need the table to pass the answer between them.
 
-<!-- version: 0.3.0 · updated: 2026-11-22 -->
+<!-- version: 0.3.1 · updated: 2026-11-22 -->

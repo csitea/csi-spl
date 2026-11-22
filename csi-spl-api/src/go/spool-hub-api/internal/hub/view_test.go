@@ -501,6 +501,59 @@ func TestViewRosterHumanAvatar(t *testing.T) {
 	}
 }
 
+// SPL-6242 (owner): a member who signed in through another
+// workspace has the picture at avatars/<sha256> and in THAT tenant only, so
+// GET /v1/files/{id} through this tenant's host was 404 and every post of
+// theirs here drew the identicon. A current member's avatar file_id is read
+// from the hub-wide copy when this tenant has none. CONTROL: a non-member's
+// hub-wide picture stays 404 through this host.
+func TestViewAvatarFallsBackToHubWideCopy(t *testing.T) {
+	r := newDoorRig(t)
+	mine, _ := r.e.tenant()
+	theirs, _ := r.e.tenant()
+	ctx := context.Background()
+	h := r.e.st.(store.Humans)
+	if landed := r.signIn(t, mine); strings.Contains(landed, "auth_error") {
+		t.Fatalf("sign-in landed on %s", landed)
+	}
+	if err := h.PutInvite(ctx, store.Invite{TenantID: mine, Email: "dave@example.com", Role: store.RoleDefault,
+		InvitedBy: store.AdmittedOperator, ExpiresAt: time.Now().Add(time.Hour)}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	dave, err := h.Admit(ctx, store.Identity{Provider: "google", Subject: "dave-sub", Email: "dave@example.com"}, mine, store.AdmitPolicy{}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	put := func(key string, pic []byte) {
+		if err := (blob.Dir{Root: r.e.blobs}).Put(ctx, key, pic); err != nil {
+			t.Fatal(err)
+		}
+	}
+	davePic := fakeidp.Avatar("dave-sub")
+	daveFID := sha256Hex(davePic)
+	put("avatars/"+daveFID, davePic) // the sign-in went through another tenant
+	if err := h.SetAvatar(ctx, dave, daveFID); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, pic := r.get(t, mine, "/v1/files/"+daveFID); code != http.StatusOK || pic != string(davePic) {
+		t.Fatalf("member avatar with only the hub-wide copy: %d (%d bytes)", code, len(pic))
+	}
+	// CONTROL: B's owner, not a member of A, keeps a 404 through A's host.
+	bob, err := h.Admit(ctx, store.Identity{Provider: "google", Subject: "bob-sub"}, theirs, store.AdmitPolicy{BootstrapOwner: true}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bobPic := fakeidp.Avatar("bob-sub")
+	bobFID := sha256Hex(bobPic)
+	put("avatars/"+bobFID, bobPic)
+	if err := h.SetAvatar(ctx, bob, bobFID); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, body := r.get(t, mine, "/v1/files/"+bobFID); code != http.StatusNotFound {
+		t.Fatalf("non-member's hub-wide avatar via tenant A: %d %s", code, body)
+	}
+}
+
 // TestViewRosterHumanDisplayName: the roster carries each member's chosen
 // display name, so the WUI shows it instead of the HUM-* id. CONTROL: a
 // member who never chose one is null.

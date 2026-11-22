@@ -212,6 +212,9 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	}
 	rc, err := s.o.Blob.Get(r.Context(), key)
 	if errors.Is(err, blob.ErrNotFound) {
+		rc, err = s.hubWideAvatar(r.Context(), t.ID, fileID)
+	}
+	if errors.Is(err, blob.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "not_found", "no such file")
 		return
 	}
@@ -385,6 +388,23 @@ func (s *Server) isTenantAvatar(ctx context.Context, tenant, fileID string) (boo
 		}
 	}
 	return false, nil
+}
+
+// hubWideAvatar is the avatars/<sha256> copy of a current member's picture
+// when the tenant has none (SPL-6242): a sign-in puts the picture in the
+// tenant it went through only, so a member who signed in elsewhere drew the
+// identicon here. Anything that is not this tenant's avatar stays
+// blob.ErrNotFound.
+func (s *Server) hubWideAvatar(ctx context.Context, tenant, fileID string) (io.ReadCloser, error) {
+	avatar, err := s.isTenantAvatar(ctx, tenant, fileID)
+	if err != nil {
+		return nil, err
+	}
+	key, kerr := blob.AvatarKey(fileID)
+	if !avatar || kerr != nil {
+		return nil, blob.ErrNotFound
+	}
+	return s.o.Blob.Get(ctx, key)
 }
 
 // routePins mounts the box pin routes: the root-key pin and revoke, and the

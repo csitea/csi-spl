@@ -282,7 +282,10 @@ func shortSHA(sha string) string { return sha[:min(len(sha), 12)] }
 
 // repoVersionTags is sha -> version: the tags matching glob and the tags
 // of published Releases. A sha with several takes the lowest name; a tag
-// the hygiene filter would redact is no version.
+// the hygiene filter would redact is no version. A tag with a path prefix
+// (shop-wui/v1.2.0, glob shop-wui/v*) is its version after the last
+// /: a stored version holds no / (rdb 0267), the box ingest's rule too
+// (SPL-6277).
 func repoVersionTags(ctx context.Context, rd RepoSyncReader, glob string, f releaseFilter) (map[string]string, error) {
 	tags, err := rd.Tags(ctx)
 	if err != nil {
@@ -304,8 +307,9 @@ func repoVersionTags(ctx context.Context, rd RepoSyncReader, glob string, f rele
 		if f.bans(tg.Name) {
 			continue
 		}
-		if old, has := out[tg.SHA]; !has || tg.Name < old {
-			out[tg.SHA] = tg.Name
+		v := tg.Name[strings.LastIndex(tg.Name, "/")+1:]
+		if old, has := out[tg.SHA]; !has || v < old {
+			out[tg.SHA] = v
 		}
 	}
 	return out, nil

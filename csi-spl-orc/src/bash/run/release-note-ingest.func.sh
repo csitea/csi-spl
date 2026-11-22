@@ -43,7 +43,7 @@
 # @param RELEASE_NOTE_REPO_PATH (optional) - the clone to read, default APP_PATH (this repo)
 # @param RELEASE_NOTE_TENANT (optional) - the workspace the rows land in; needed when RELEASE_NOTE_REPO_PATH is not APP_PATH
 # @param RELEASE_NOTE_REPO_SLUG (optional) - the registered owner/name of that repo; needed when RELEASE_NOTE_REPO_PATH is not APP_PATH
-# @param RELEASE_NOTE_TAG_GLOB (optional) - the version tags of a workspace clone, default v*
+# @param RELEASE_NOTE_TAG_GLOB (optional) - the version tags of a workspace clone, default v*; a path prefix names it (shop-wui/v*), the version is the tag after its last /
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account
 # @example ENV=dev DRY_RUN=0 ./run -a do_release_note_ingest
 # @example ENV=prd RELEASE_SHA=9f175b2e RELEASE_NOTE_DEPTH=50 ./run -a do_release_note_ingest
@@ -124,7 +124,9 @@ spl_release_repo_scope() {
   fi
   [[ -z "$RN_TENANT" || "$RN_TENANT" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]] || { do_log "FATAL RELEASE_NOTE_TENANT is not a workspace id: '$RN_TENANT'"; return 1; }
   [[ -z "$RN_SLUG" || "$RN_SLUG" =~ ^[a-z0-9._-]+/[a-z0-9._-]+$ ]] || { do_log "FATAL RELEASE_NOTE_REPO_SLUG must be a lowercase owner/name: '$RN_SLUG'"; return 1; }
-  [[ "$RN_GLOB" =~ ^[A-Za-z0-9._*-]{1,40}$ ]] || { do_log "FATAL RELEASE_NOTE_TAG_GLOB must be a plain tag glob: '$RN_GLOB'"; return 1; }
+  # a path prefix is allowed (shop-wui/v*: git's * stops at a /), never a leading /, an empty, . or .. part
+  [[ "$RN_GLOB" =~ ^[A-Za-z0-9_*-][A-Za-z0-9._*-]*(/[A-Za-z0-9_*-][A-Za-z0-9._*-]*)*$ && ${#RN_GLOB} -le 64 && "$RN_GLOB" != *..* ]] ||
+    { do_log "FATAL RELEASE_NOTE_TAG_GLOB must be a tag glob, parts joined by /: '$RN_GLOB'"; return 1; }
   git -C "$RN_PATH" rev-parse -q --git-dir >/dev/null 2>&1 || { do_log "FATAL RELEASE_NOTE_REPO_PATH is not a git clone: '$RN_PATH'"; return 1; }
 }
 
@@ -143,14 +145,15 @@ spl_release_issue_tenant() {
 # RN_PATH's tags matching RN_GLOB, the lowest tag of a commit. This repo
 # (RN_FOREIGN 0): v-tags ordered as release keys (cycle, then X.Y.Z), a non
 # key tag ignored. A workspace clone (row B-6): any tag of the glob, kept as
-# written, ordered by sort -V.
+# written after its last / (shop-wui/v1.2.0 -> v1.2.0: a stored version
+# holds no /, rdb 0267), ordered by sort -V.
 spl_release_tag_map() {
   local -A tagv=()
   local obj ref v lo
   # an annotated tag's commit is %(*objectname); a lightweight one's is %(objectname)
   while read -r obj ref; do
     if ((${RN_FOREIGN:-0})); then
-      lo="$(printf '%s\n' "${tagv[$obj]:-$ref}" "$ref" | sort -V)"
+      lo="$(printf '%s\n' "${tagv[$obj]:-${ref##*/}}" "${ref##*/}" | sort -V)"
       tagv[$obj]="${lo%%$'\n'*}"
       continue
     fi

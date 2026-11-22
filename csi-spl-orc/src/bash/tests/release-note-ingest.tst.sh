@@ -210,5 +210,26 @@ for bad in "RELEASE_NOTE_REPO_PATH=$T/ws-api RELEASE_NOTE_REPO_SLUG=example-org/
   [[ $rc == 1 && -z "$out" ]] && pass "$bad -> rc 1" || fail "$bad: rc $rc out '$out'"
 done
 
+# --- 12. a tag glob with a path prefix (SPL-6277) ------------------------------
+# A repo whose tags are app/vX.Y.Z (shop-wui/v1.2.0): git's * stops
+# at a /, so 'app*' matches none and every row went without a version. The
+# glob names the prefix; the version is the tag after its last /, since a
+# stored version holds no / (rdb 0267).
+read -r P1 P2 P3 < <(two_repo "$T/ws-pfx" app/v1.0.0 x)
+git -C "$T/ws-pfx" tag -d x >/dev/null
+git -C "$T/ws-pfx" tag -a -m release app/v1.1.0 "$P2"
+git -C "$T/ws-pfx" tag other/v0.0.1 "$P2"
+git -C "$T/ws-pfx" tag v0.0.2 "$P1"
+PFX=(ENV=dev RELEASE_NOTE_TENANT=ws-x RELEASE_NOTE_REPO_PATH="$T/ws-pfx" RELEASE_NOTE_REPO_SLUG=example-org/ws-pfx)
+out=$(act "${PFX[@]}" RELEASE_NOTE_TAG_GLOB='app/v*'); rc=$?
+[[ $rc == 0 && "$(vers "$out" "$P1") $(vers "$out" "$P2") $(vers "$out" "$P3")" == "v1.0.0 v1.1.0 none" ]] &&
+  pass "glob app/v*: app/v1.0.0 (lightweight), app/v1.1.0 (annotated) -> v1.0.0, v1.1.0; other/ and plain tags ignored" ||
+  fail "prefix glob: rc $rc versions $(vers "$out" "$P1") $(vers "$out" "$P2") $(vers "$out" "$P3") err '$(cat "$T/err")'"
+for bad in '/v*' 'app//v*' 'app/' '../v*' 'app/../v*' 'app/./v*' '.app/v*' 'app v*' 'app/v*;id' 'app/$(id)' 'app/v?' \
+  "$(printf 'a%.0s' {1..62})/v*"; do
+  out=$(act "${PFX[@]}" RELEASE_NOTE_TAG_GLOB="$bad"); rc=$?
+  [[ $rc == 1 && -z "$out" ]] && grep -q 'FATAL RELEASE_NOTE_TAG_GLOB' "$T/err" && pass "glob '$bad' -> rc 1, refused" || fail "glob '$bad': rc $rc out '$out'"
+done
+
 echo "release-note-ingest: $fails failure(s)"
 ((fails == 0))

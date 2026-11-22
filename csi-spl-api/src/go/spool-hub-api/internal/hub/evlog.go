@@ -260,7 +260,7 @@ func (s *Server) writeGroup(ctx context.Context, ls store.LogEvents, g evlog.Gro
 	}
 	if err != nil {
 		s.o.Log.Error().Str("fp", g.Fingerprint).Str("kind", g.Kind).Int("n", g.N).
-			Time("first_at", g.FirstAt).Time("last_at", g.LastAt).Str("message", g.Message).
+			Time("first_at", g.FirstAt).Time("last_at", g.LastAt).Str("group_message", g.Message).
 			Str("error", evlog.Redact(err.Error())).Msg(EvlogUnwrittenMsg)
 	}
 }

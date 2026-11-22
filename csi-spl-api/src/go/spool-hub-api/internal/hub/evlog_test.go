@@ -387,6 +387,46 @@ func TestEvlogUnwrittenLinePerGroup(t *testing.T) {
 	}
 }
 
+// SPL-6240: a group's unwritten line carries exactly one "message" key,
+// zerolog's own (EvlogUnwrittenMsg), and the group's text under
+// "group_message" (the field the box reader's rule 1 reads, 10.4.4): with
+// the text under "message" too, a JSON reader keeps only one of the two.
+func TestEvlogUnwrittenLineOneMessageKey(t *testing.T) {
+	ok := newEvlogRig(t, false)
+	ok.do(t, "/v1/evlog-test/panic", nil)
+	ok.srv.FlushEvlog(context.Background())
+	sys := ok.system(t)
+	if len(sys) != 1 || sys[0].Message == "" {
+		t.Fatalf("system rows %+v, want the one panic group with its text", sys)
+	}
+	rg := newEvlogRig(t, true)
+	rg.do(t, "/v1/evlog-test/panic", nil)
+	rg.srv.FlushEvlog(context.Background())
+	rg.logs.mu.Lock()
+	raw := strings.Split(strings.TrimSpace(rg.logs.b.String()), "\n")
+	rg.logs.mu.Unlock()
+	var groups int
+	for _, l := range raw {
+		if !strings.Contains(l, EvlogUnwrittenMsg) || strings.Contains(l, `"target":"mine"`) {
+			continue
+		}
+		groups++
+		if n := strings.Count(l, `"message":`); n != 1 {
+			t.Errorf("unwritten line carries %d message keys, want 1: %s", n, l)
+		}
+		var m map[string]any
+		if err := json.Unmarshal([]byte(l), &m); err != nil {
+			t.Fatal(err)
+		}
+		if m["message"] != EvlogUnwrittenMsg || m["group_message"] != sys[0].Message {
+			t.Errorf("message %q group_message %q, want %q and %q", m["message"], m["group_message"], EvlogUnwrittenMsg, sys[0].Message)
+		}
+	}
+	if groups != 1 {
+		t.Fatalf("%d group unwritten lines, want 1: %v", groups, raw)
+	}
+}
+
 // C43 (Q4 B): a 5xx of a signed-in person, then one flush, writes one
 // source=hub row in that person's Mine log and names them on the group; 100
 // identical 5xx of that person write ONE Mine row ending " (x100)" (red

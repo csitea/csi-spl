@@ -613,7 +613,9 @@ by the `spool` CLI, so the box and the hub group and redact in one way:
 - **When the write fails** (the database is down, which is when 5xx storm):
   one ERROR line per group, message `EvlogUnwrittenMsg` =
   `event log write failed`, fields `fp`, `kind`, `n`, `first_at`,
-  `last_at`, `message`. The groups are then dropped from memory. The box
+  `last_at`, `group_message` (the group's text: zerolog's own `message`
+  key is the line's message, so one key each, SPL-6240). The groups are
+  then dropped from memory. The box
   reader takes those lines (10.4.4 rule 1), so the counts reach the table
   an hour later instead of being lost. The hook skips this message, so it
   never loops.

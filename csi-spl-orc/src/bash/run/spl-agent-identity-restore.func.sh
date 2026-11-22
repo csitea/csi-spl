@@ -369,7 +369,8 @@ _ai_copy_transcript() {  # FROM TO WT SID
   elif [[ "$(id -u)" == 0 ]]; then su=""; else su="sudo -n"; fi
   fh="$(_ai_home "$1")"; th="$(_ai_home "$2")"
   [[ -n "$fh" && -n "$th" ]] || return 1
-  slug="$(printf '%s' "$3" | sed 's/[^A-Za-z0-9]/-/g')"
+  declare -F spl_claude_project_slug >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-claude-project-slug.func.sh"
+  slug="$(spl_claude_project_slug "$3")"
   local src="$fh/.claude/projects/$slug" dst="$th/.claude/projects/$slug"
   local d made=()
   # shellcheck disable=SC2086  # su is a command prefix, split on purpose

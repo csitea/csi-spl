@@ -436,7 +436,8 @@ _lc_restorable() {
   [[ -r "${IDENTITY_RESTORE_ADAPTER_DIR:-$PROJ_PATH/src/bash/features/spawn-agents/scripts}/restore-$kind.sh" ]] || { echo "no restore adapter for $kind"; return 1; }
   [[ "$kind" == claude ]] || return 0
   home="${LOGIN_AGENT_HOME:-$(getent passwd "${SPOOL_AGENT_USER:-$(id -un)}" | cut -d: -f6)}"
-  slug="$(sed 's/[^A-Za-z0-9]/-/g' <<<"$wt")"
+  declare -F spl_claude_project_slug >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-claude-project-slug.func.sh"
+  slug="$(spl_claude_project_slug "$wt")"
   own="$(stat -c %U "$home" 2>/dev/null)"
   if [[ -z "$own" || "$own" == "$(id -un)" ]]; then test -f "$home/.claude/projects/$slug/$sid.jsonl"
   else sudo -n -u "$own" test -f "$home/.claude/projects/$slug/$sid.jsonl"; fi || { echo "its transcript $sid is not in the agent user's home"; return 1; }

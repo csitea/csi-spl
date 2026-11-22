@@ -78,7 +78,7 @@ do_spl_lane_handover() {
     echo "PLAN close   $from (tmux-close-window.sh --agent $from)"
     echo "PLAN wip     push $ref"
     echo "PLAN prep    ssh $box: worktree $newwt on branch $to-handover at $ref"
-    [[ "$m" == A ]] && echo "PLAN session ssh $box: transcript $sid -> the agent user's ~/.claude/projects/$(spl_handover_slug "$newwt"); restore-claude.sh $to $newwt $sid"
+    [[ "$m" == A ]] && echo "PLAN session ssh $box: transcript $sid -> the agent user's ~/.claude/projects/$(spl_claude_project_slug "$newwt"); restore-claude.sh $to $newwt $sid"
     [[ "$m" == B ]] && echo "PLAN spawn   ssh $box: spawn-window.sh claude $to $repo <handover brief>"
     echo "PLAN retire  $from (agent-id-retire.sh --apply, RETIRE_WORKTREE=0)"
     do_log "OK DRY_RUN nothing was handed over. DRY_RUN=0 does it."
@@ -118,7 +118,7 @@ spl_handover_live() {
   brief="$work/brief.md" rbrief="$root/handover/$to-from-$from.md"
   spl_handover_brief "$from" "$to" "$box" "$here" "$m" "$wt" "$newwt" "$ref" "$sha" >"$brief"
   if [[ "$m" == A ]]; then
-    if spl_handover_on "$dest" agent transcript "$(spl_handover_slug "$newwt")" "$sid" <"$tr" >"$work/tr" 2>&1; then
+    if spl_handover_on "$dest" agent transcript "$(spl_claude_project_slug "$newwt")" "$sid" <"$tr" >"$work/tr" 2>&1; then
       echo "COPIED  transcript $sid to $box (ssh)"
     else
       echo "WARN transcript copy failed ($(tail -n1 "$work/tr")): falling back to B"; m=B
@@ -149,7 +149,7 @@ spl_handover_pick_mode() {
   [[ "$to" == "$from" ]] || { echo "B (TO_ID $to != $from: another worktree path, another session slug)"; return 0; }
   [[ "$sid" =~ ^[0-9a-f-]{36}$ ]] || { echo "B (no session id in the identity record)"; return 0; }
   home="${HANDOVER_AGENT_HOME:-$(getent passwd "$user" | cut -d: -f6)}"
-  slug="$(spl_handover_slug "$wt")"
+  slug="$(spl_claude_project_slug "$wt")"
   [[ -n "$home" ]] && spl_handover_as "$user" test -f "$home/.claude/projects/$slug/$sid.jsonl" ||
     { echo "B (no transcript $slug/$sid.jsonl for $user)"; return 0; }
   # ./ first: a slug starts with "-", which tar would read as an option
@@ -172,9 +172,6 @@ spl_handover_as() {
   local u="$1"; shift
   if [[ -z "$u" || "$u" == "$(id -un)" ]]; then "$@"; else sudo -n -u "$u" "$@"; fi
 }
-
-# spl_handover_slug PATH -> Claude Code's project dir name for a cwd
-spl_handover_slug() { printf '%s' "$1" | sed 's/[^A-Za-z0-9]/-/g'; }
 
 spl_handover_pack_sh() { printf '%s' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/box-state-pack.sh"; }
 

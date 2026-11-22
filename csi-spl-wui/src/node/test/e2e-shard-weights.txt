@@ -324,6 +324,7 @@ tests/e2e/search-budget-message.test.mjs 8
 tests/e2e/search-channel-name.test.mjs 10
 tests/e2e/search-help-start.test.mjs 3
 tests/e2e/search-in-contacts.test.mjs 9
+tests/e2e/search-type-calendar.test.mjs 9
 tests/e2e/search-left.test.mjs 6
 tests/e2e/search-original.test.mjs 7
 tests/e2e/section-closes-pane.test.mjs 15

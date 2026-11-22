@@ -234,7 +234,7 @@ describe('operator autocomplete', () => {
     for (const k of ['feature', 'bug', 'alert', 'question', 'idea', 'decision', 'docs']) {
       assert.ok(completeOperators(`is:${k.slice(0, 2)}`).some((c) => c.insert === `is:${k} `), `is:${k}`)
     }
-    assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:robot ', 'type:user ', 'type:thread ', 'type:person ', 'type:workspace '])
+    assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:robot ', 'type:user ', 'type:calendar ', 'type:thread ', 'type:person ', 'type:workspace '])
     assert.deepEqual(completeOperators('type:ten').map((c) => c.insert), ['type:tenant '])
     assert.deepEqual(completeOperators('type:ev').map((c) => c.insert), ['type:event '])
     assert.deepEqual(completeOperators('kind:ten').map((c) => c.insert), ['kind:tenant '])
@@ -868,6 +868,42 @@ describe('file stream lines (spec 160 3.6, SPL-3888)', () => {
     for (const f of readdirSync(join(WUI, 'i18n/locales')).filter((x) => x.endsWith('.json'))) {
       const s = JSON.parse(readFileSync(join(WUI, 'i18n/locales', f), 'utf8')).search
       assert.ok(s.group.file_lines && s.group.contacts && s.notice.file_streams_staff_only, f)
+    }
+  })
+})
+
+describe('calendar hits (spec 100 section 15, SPL-6251)', () => {
+  const ID = '00000000-0000-4000-8000-000000000101'
+  const row = { id: ID, kind: 'release', starts_at: '2026-11-25T23:30:00Z', ends_at: '2026-11-26T00:30:00Z', all_day: false,
+    location: 'Gate 7', title: { text: 'Flight SQ323', highlights: [[7, 12]] }, snippet: { text: '', highlights: [] } }
+  it('a calendar entry is a row of its own, after the issues, shown by its title', () => {
+    const r = normalizeSearchResponse({ groups: { issues: { results: [{ key: 'SPL-1', title: 'x' }], next: null }, calendars: { results: [row], next: 'c1' } } })
+    assert.deepEqual(r.groups.map((g) => g.type), ['issues', 'calendars'])
+    const g = r.groups[1]
+    assert.equal(g.next, 'c1')
+    assert.equal(g.items[0].key, `calendars:${ID}`)
+    assert.deepEqual(g.items[0].display, { text: 'Flight SQ323', highlights: [[7, 12]] })
+  })
+  it('it opens the entry in the calendar at the UTC day it starts', () => {
+    const g = normalizeSearchResponse({ groups: { calendars: { results: [row], next: null } } }).groups[0]
+    assert.deepEqual(searchTarget(g.items[0]), { path: `/calendar?d=2026-11-25&event=${ID}` })
+    assert.deepEqual(searchRowMenuItems(g.items[0]).map((m) => m.id), ['original', 'copy'])
+  })
+  it('CONTROL: junk ids and times build no link', () => {
+    for (const r of [{ type: 'calendars', id: 'x/../y', starts_at: row.starts_at }, { type: 'calendars', id: ID, starts_at: 'soon' }, { type: 'calendars' }]) {
+      assert.equal(searchTarget(r), null, JSON.stringify(r))
+    }
+  })
+  it('type: offers calendar and cal', () => {
+    const types = SEARCH_OPERATORS.find((o) => o.op === 'type:').values
+    assert.ok(types.includes('calendar') && types.includes('cal'), types.join(','))
+    assert.deepEqual(completeOperators('type:cale').map((c) => c.insert), ['type:calendar '])
+    assert.ok(completeOperators('type:ca').some((c) => c.insert === 'type:cal '))
+  })
+  it('every locale names the group', () => {
+    for (const f of readdirSync(join(WUI, 'i18n/locales')).filter((x) => x.endsWith('.json'))) {
+      const d = JSON.parse(readFileSync(join(WUI, 'i18n/locales', f), 'utf8'))
+      assert.equal(d.search.group.calendars, d.calendar.title, f)
     }
   })
 })

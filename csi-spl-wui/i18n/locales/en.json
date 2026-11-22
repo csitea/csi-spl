@@ -1225,6 +1225,7 @@
       "issues": "Issues",
       "docs": "Documents",
       "contacts": "Contacts",
+      "calendars": "Calendar",
       "file_lines": "File stream lines"
     },
     "notice": {

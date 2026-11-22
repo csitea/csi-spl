@@ -1225,6 +1225,7 @@
       "issues": "Probleemid",
       "docs": "Dokumendid",
       "contacts": "Kontaktid",
+      "calendars": "Kalender",
       "file_lines": "Failivoogude read"
     },
     "notice": {

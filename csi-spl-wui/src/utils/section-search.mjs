@@ -7,8 +7,9 @@
  *   the Omnibox line prefilled `/search type:doc ` (the token is visible;
  *   deleting it widens the search).
  * - `calendar`: calendar entries (`/calendar`): the calendar's own search
- *   (`GET /v1/calendar/search`, CalendarPhoneSearch); the hub search has no
- *   calendar type (`type:event` is the event log).
+ *   (`GET /v1/calendar/search`, CalendarPhoneSearch). From any other page the
+ *   hub search reaches the same entries with `type:calendar` (SPL-6251;
+ *   `type:event` stays the event log).
  * - `notes`: notes (`/notes`): the Notes page's own filter; notes are not in
  *   the hub search on purpose (spec 155 section 2.5).
  * - '': every other section keeps the plain `/search `.

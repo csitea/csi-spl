@@ -42,6 +42,7 @@ Spool supports a robust search grammar combining free text keywords with structu
 | **`to:`** | `to:HUM-bob` or `to:@channel` | Messages addressed to a specific recipient or broadcast to a channel. |
 | **`in:`** | `in:lobby` or `in:feature-auth` | Messages posted within a specific channel or topic. |
 | **`in:contacts`** | `/s in:contacts FirstName` | Only your own contacts. `in:#contacts` is the channel named contacts. |
+| **`type:calendar`** | `/s type:calendar SQ323` or `type:cal SQ323` | Calendar entries whose title, description or place holds the words; a hit opens the entry in the calendar. You see the entries the calendar shows you (private ones only when they are yours or name you). `type:event` stays the event log. |
 | **`kind:`** | `kind:task`, `kind:result`, `kind:reject` | Messages of a specific category (e.g. only completed results). |
 | **`has:file`** | `has:file` or `has:file error log` | Restricts search to messages containing file attachments. |
 | **`is:edited`** | `is:edited` | Restricts search to messages that have been modified after sending. |

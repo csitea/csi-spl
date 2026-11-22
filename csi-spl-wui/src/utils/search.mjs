@@ -32,7 +32,7 @@ export const NOTE_TITLE_MAX = 200
  * `values` are closed value sets offered after the colon.
  */
 /** Canonical kinds first, then the aliases a person actually types. */
-const TYPE_VALUES = ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event', 'issue', 'doc', 'file_line', 'thread', 'person', 'workspace', 'log', 'issues', 'ticket', 'tickets', 'docs', 'document', 'qto']
+const TYPE_VALUES = ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event', 'issue', 'doc', 'file_line', 'calendar', 'cal', 'thread', 'person', 'workspace', 'log', 'issues', 'ticket', 'tickets', 'docs', 'document', 'qto']
 
 /** Rows the omnibox list shows. The nine kinds fit; a longer prefix narrows the rest. */
 export const OP_PICKER_CAP = 12

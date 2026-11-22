@@ -12,14 +12,18 @@
 
 import { SEARCH_OPERATORS, searchPath } from './search.mjs'
 import { parentSection, parentSectionHref } from './parent-section.mjs'
+import { mockCalendarSearchHits } from './calendar-mock.mjs'
+import { calToday } from './calendar-year.mjs'
 
 /** Result sections in render order (spec 022 FR-021; group keys of search-v1 §4).
  *  tenants, events and issues are opt-in: the hub returns them for type:tenant,
  *  type:event and type:issue. docs (spec 100 section 14, SPL-3337) are the
  *  workspace's Qto document sections, in every plain search. file_lines (spec
  *  160 3.6) are the box file stream lines, only for in:file-streams. contacts
- *  (spec 154 2.3) are the reader's own, in a plain search and in:contacts. */
-export const SEARCH_GROUPS = ['robots', 'users', 'contacts', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'docs', 'file_lines', 'events', 'issues']
+ *  (spec 154 2.3) are the reader's own, in a plain search and in:contacts.
+ *  calendars (spec 100 section 15, SPL-6251) are the workspace's calendar
+ *  entries, opt-in: type:calendar (type:cal). */
+export const SEARCH_GROUPS = ['robots', 'users', 'contacts', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'docs', 'file_lines', 'events', 'issues', 'calendars']
 
 /**
  * Canonical type names, then each type's aliases. `type:` completions lead
@@ -124,6 +128,7 @@ function displayOf(r, type) {
   if (type === 'file_lines') { /* a stream line: its own text, the highlights beside it (search-v1 §4.11) */
     return { text: typeof r.text === 'string' ? r.text : '', highlights: Array.isArray(r.highlights) ? r.highlights : [] }
   }
+  if (type === 'calendars') return textOf(r.title) || { text: '', highlights: [] } /* an entry: its title (search-v1 4.13) */
   if (type === 'docs') {
     const sn = textOf(r.snippet)
     return (sn && sn.text && sn.highlights.length ? sn : textOf(r.title)) || { text: '', highlights: [] }
@@ -141,6 +146,7 @@ function keyOf(type, r, i) {
   }
   if (type === 'docs') return `docs:${r.item_id || i}`
   if (type === 'contacts') return `contacts:${r.contact_id || i}`
+  if (type === 'calendars') return `calendars:${r.id || i}`
   if (type === 'file_lines') return `file_lines:${r.stream_id || ''}:${r.seq ?? i}`
   const id = r.msg_id || r.file_id || r.task_id || r.box_id || r.channel || r.tenant_id || r.event_id || r.error_id || r.id || i
   const extra = type === 'files' ? `/${r.msg_id || ''}/${displayOf(r).text}` : ''
@@ -271,6 +277,13 @@ export function searchTarget(row) {
       /* the reader's own contact: its card (spec 154 2.3) */
       const id = String(r.contact_id || '').trim()
       return id ? { path: `/people/contact/${encodeURIComponent(id)}` } : null
+    }
+    case 'calendars': {
+      /* the entry in the calendar, at the UTC day it starts (useCalendarDeepLinks) */
+      const id = String(r.id || '').trim()
+      const at = Date.parse(String(r.starts_at || ''))
+      if (!/^[0-9a-f-]{36}$/i.test(id) || Number.isNaN(at)) return null
+      return { path: `/calendar?d=${new Date(at).toISOString().slice(0, 10)}&event=${id}` }
     }
     case 'file_lines': {
       /* the File streams tab at that line, Follow off (spec 160 3.6) */
@@ -414,8 +427,10 @@ export function mockSearch(messages, q, channels = []) {
     return { channel: id, default: false, count: (messages || []).filter((m) => m.channel === id).length, last_ts: null,
       name: { text: id, highlights: at >= 0 ? [[at, at + w.length]] : [] } }
   })
-  return { query: String(q || ''), sort: 'newest', types: ['message', 'channel'], warnings, notices: [],
-    groups: { messages: { results, next: null }, channels: { results: chans, next: null } } }
+  const groups = { messages: { results, next: null }, channels: { results: chans, next: null } }
+  /* type:calendar: the mock tenant's calendar entries (spec 100 section 15) */
+  if (/(^|\s)(type|kind):(calendars?|cal)(\s|$)/i.test(String(q || ''))) groups.calendars = { results: mockCalendarSearchHits(q, calToday()), next: null }
+  return { query: String(q || ''), sort: 'newest', types: ['message', 'channel'], warnings, notices: [], groups }
 }
 
 /**

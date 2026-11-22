@@ -233,6 +233,26 @@ export function mockCalendarItems(todayIso) {
 }
 
 /**
+ * The mock's type:calendar section (spec 100 section 15): the entries whose
+ * title, description or location holds every free word, by start, as rows of
+ * the hub's calendars group (search-v1 4.13).
+ * @param {string} q the search line
+ * @param {string} todayIso
+ */
+export function mockCalendarSearchHits(q, todayIso) {
+  const words = String(q || '').toLowerCase().split(/\s+/).filter((w) => w && !w.includes(':'))
+  return mockCalendarItems(todayIso)
+    .filter((x) => x.source === 'event')
+    .filter((x) => {
+      const hay = [x.title, x.description, x.location].map((v) => String(v || '').toLowerCase())
+      return words.every((w) => hay.some((h) => h.includes(w)))
+    })
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at) || a.id.localeCompare(b.id))
+    .map((x) => ({ id: x.id, kind: x.kind, audience: x.audience, starts_at: x.starts_at, ends_at: x.ends_at, all_day: x.all_day,
+      location: x.location || null, title: { text: x.title, highlights: [] }, snippet: { text: x.description || '', highlights: [] } }))
+}
+
+/**
  * GET /v1/calendar/events?start=&end= (6.1.2): the items overlapping
  * [start, end), by starts_at then id.
  * @param {string} start RFC 3339

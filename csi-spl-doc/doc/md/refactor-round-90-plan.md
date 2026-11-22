@@ -34,7 +34,7 @@ two of the three run files (`_po_from`, `_lc_alert_from`) read `LEASE_ORCH` from
 byte-identical copy of `do_spl_issue_blocker_rca_close`'s "reason comment, then diss"
 step; the copy goes. The rows share no file: both are batch 1.
 
-**Status: v0.1, for the panel.** Editor: **c-324** (claude).
+**Status: v1.0, signed.** The panel (m-326@sat, mistral) passed v0.1 `418f6e69c` (landed as v1.0, text unchanged but this line) with no W; N1..N4 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-90/seat-mistral.md`). Editor: **c-324** (claude).
 
 **One sha:** every count is measured on **`748282860`** (`origin/master` at
 2026-11-22T16:55Z, committed 16:51:31Z), n=1 per command unless stated. Reads are on

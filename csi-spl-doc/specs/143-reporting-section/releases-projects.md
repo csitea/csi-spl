@@ -217,6 +217,8 @@ These stay single-repo in v1, which keeps the change small: the modal list, `GET
 
 `GET /v1/release-notes/{ref}` takes an optional `repo`, so a commit row from another repo can open its own note. It must belong to the workspace; absent means primary.
 
+**The version card's dialog is the platform's (SPL-6274)**: the Release notes dialog and `/releases/<ref>` read with `scope=platform` in every workspace (owner HUM-10, t1 `95c5be35`, msgs `315e9644` and `228bbd19`; spec 065 7.1 item 6): the operator workspace's primary repo, read as a visitor of it (its `notes_public` repos only) unless the session is a member there. Without the scope both reads stay the workspace's own, as this section says; the workspace's own projects are read in Reporting -> Releases (`/v1/reporting/releases/*`), unchanged. A `repo` that is not the operator workspace's answers 404 in that scope.
+
 **Anonymous readers (A4)**: with no member session (`releaseReader`, `hub/release_notes.go:186`), these reads return rows of repos with `notes_public = true` only. A workspace whose primary repo is not flagged answers an anonymous reader with an empty list, and `/releases/<ref>` with 404. A member session reads every repo of the workspace.
 
 ### 6.4 Access (spec.md 6.1)

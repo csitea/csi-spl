@@ -36,8 +36,22 @@ export async function releaseNotesGet(api, path, running) {
 }
 
 /**
+ * The dialog's path in the platform scope (SPL-6274; owner HUM-10, t1
+ * 95c5be35, msg 315e9644: "Release notes must show in every workspace: the
+ * release notes of the ... project CSI-SPL"): the version card names the
+ * spool's version, so its notes are the operator workspace's primary repo in
+ * every workspace. A workspace's own repos stay in Reporting -> Releases
+ * (/v1/reporting/releases/*, msg 228bbd19); the link previews keep the
+ * workspace's own read (releasePreviews).
+ * @param {string} path a /v1/release-notes read
+ */
+export function platformReleasePath(path) {
+  return `${path}${path.includes('?') ? '&' : '?'}scope=platform`
+}
+
+/**
  * The dialog's read: releaseNotesGet behind the view door, as every other
- * view read. Opened cold (/releases/<sha> in a new tab) the dialog reads
+ * view read, in the platform scope (platformReleasePath). Opened cold (/releases/<sha> in a new tab) the dialog reads
  * before the session probe has armed the `session` door, so the first read
  * goes out without the cookie and the hub answers 401 (c-834, dev, n=4:
  * "Back to the list" said "Could not load"). A 401 arms the door once and
@@ -47,8 +61,9 @@ export async function releaseNotesGet(api, path, running) {
  * @param {string} running
  */
 export function releaseNotesRead(api, path, running) {
-  if (api.mock) return releaseNotesGet(api, path, running)
-  return withSessionRetry(api, () => releaseNotesGet(api, path, running))
+  const scoped = platformReleasePath(path)
+  if (api.mock) return releaseNotesGet(api, scoped, running)
+  return withSessionRetry(api, () => releaseNotesGet(api, scoped, running))
 }
 
 /**

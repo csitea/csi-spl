@@ -44,6 +44,18 @@ import (
 // workspace's primary repo only, so two repos' v1.0.0 never merge into one
 // version; a member of a workspace with no primary repo reads every row, as
 // before row B-5. A store without ReleaseNotes answers as off.
+//
+// scope=platform on either read (SPL-6274; owner HUM-10, t1 95c5be35, msgs
+// 315e9644 "Release notes must show in every workspace: the release notes
+// of the ... project CSI-SPL" and 228bbd19 "the releases in the reporting
+// section must show the preconfigured software projects for that
+// workspace"): the read is the operator workspace's, the spool's own
+// release log the version card names, whatever workspace the page or the
+// session names, signed in or not. It reads as a visitor of the operator
+// workspace (its notes_public repos only, its primary by default) unless
+// the session is a member of it, so no customer workspace's repo is ever
+// reachable this way. Without the scope the reads stay the workspace's own
+// (sections 6.3/6.4), as Reporting -> Releases is.
 
 // Release note ingest limits.
 const (
@@ -231,6 +243,9 @@ func (rn *releaseNotes) releaseReader(w http.ResponseWriter, r *http.Request) (r
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
 	rs, _ := s.o.Store.(store.ReleaseNotes)
+	if q := r.URL.Query(); q.Has("scope") {
+		return rn.platformReader(w, r, rs, q.Get("scope"))
+	}
 	if id := s.webCalendarTenant(r); id != "" {
 		if _, ok := s.loadTenant(w, r, id); !ok {
 			return releaseScope{}, false
@@ -249,6 +264,30 @@ func (rn *releaseNotes) releaseReader(w http.ResponseWriter, r *http.Request) (r
 	return releaseScope{rs: rs, tenant: t.ID, member: true}, true
 }
 
+// releaseScopePlatform is the one scope value the reads take: the operator
+// workspace's notes, from any workspace's page or none.
+const releaseScopePlatform = "platform"
+
+// platformReader is releaseReader for scope=platform: the operator workspace,
+// a member of it reads as one, anyone else as a visitor. No operator
+// workspace on this hub: tenant "", which noteRepo reads as nothing.
+func (rn *releaseNotes) platformReader(w http.ResponseWriter, r *http.Request, rs store.ReleaseNotes, scope string) (releaseScope, bool) {
+	if scope != releaseScopePlatform {
+		writeErr(w, http.StatusBadRequest, "bad_query", "scope must be "+releaseScopePlatform)
+		return releaseScope{}, false
+	}
+	op, err := rn.s.operatorTenant(r.Context())
+	if err != nil {
+		writeErrCause(w, http.StatusServiceUnavailable, "internal", "release notes are not available", err)
+		return releaseScope{}, false
+	}
+	if op == "" {
+		return releaseScope{rs: rs}, true
+	}
+	hum, err := rn.s.memberID(r, op)
+	return releaseScope{rs: rs, tenant: op, member: err == nil && hum != ""}, true
+}
+
 // noteRepo is the repo a read of sc reads (section 6.3): want, a repo of the
 // workspace, or the primary repo for want "". ok false: there is none the
 // reader may read (unknown, another workspace's, or not notes_public for a
@@ -256,6 +295,9 @@ func (rn *releaseNotes) releaseReader(w http.ResponseWriter, r *http.Request) (r
 // workspace with no primary repo: a member reads every repo (repo ""), a
 // visitor nothing.
 func (rn *releaseNotes) noteRepo(ctx context.Context, sc releaseScope, want string) (repo string, ok bool, err error) {
+	if sc.tenant == "" {
+		return "", false, nil
+	}
 	var repos []store.ReleaseProjectRepo
 	if rr, has := rn.s.o.Store.(store.ReleaseReports); has {
 		ps, err := rr.ReleaseProjects(ctx, sc.tenant)

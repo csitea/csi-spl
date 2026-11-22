@@ -67,3 +67,26 @@ describe('release notes read on a cold load (door not armed yet)', () => {
     assert.equal(body.versions.length, 30)
   })
 })
+
+// SPL-6274 (owner HUM-10, t1 95c5be35, msgs 315e9644 and 228bbd19): the
+// dialog reads the spool's own notes in every workspace, so each of its reads
+// names the platform scope. RED CONTROL: drop platformReleasePath from
+// releaseNotesRead and both paths go out bare; this test fails.
+describe('the dialog reads in the platform scope', () => {
+  it('the list and a ref read both carry scope=platform', async () => {
+    const urls = []
+    globalThis.fetch = async (url) => { urls.push(String(url)); return new Response('{"versions":[]}', { status: 200 }) }
+    const api = client()
+    await releaseNotesRead(api, '/v1/release-notes?limit=30', 'v1.0.0')
+    await releaseNotesRead(api, '/v1/release-notes/abcdef1', 'v1.0.0')
+    assert.deepEqual(urls, [
+      'https://api.example.com/v1/release-notes?limit=30&scope=platform',
+      'https://api.example.com/v1/release-notes/abcdef1?scope=platform',
+    ])
+  })
+
+  it('the mock still answers a scoped ref', async () => {
+    const body = await releaseNotesRead({ mock: true }, `/v1/release-notes/${'00000001'.repeat(5)}`, 'v1.0.0')
+    assert.equal(body.note.sha, '00000001'.repeat(5))
+  })
+})

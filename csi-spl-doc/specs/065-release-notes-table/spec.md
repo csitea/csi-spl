@@ -227,6 +227,22 @@ reading path):
    (Q11). The notes themselves are public since 2026-10-31 (owner, t1
    `2e46fcb6` msg `daf6efcf`, SPL-4530): a `/releases/<ref>` link opened
    signed out shows the note, see 7.2.
+6. **Every workspace reads the spool's notes** (SPL-6274; owner HUM-10,
+   t1 `95c5be35`, msg `315e9644`: "Release notes must show in every
+   workspace: the release notes of the ... project CSI-SPL"; msg `228bbd19`:
+   "But the releases in the reporting section must show the preconfigured
+   software projects for that workspace"). The version card shows the
+   spool's version, so its dialog and `/releases/<ref>` read with
+   `scope=platform`: the operator workspace's primary repo, the rows t1
+   shows, in any workspace, signed in or not
+   (`platformReleasePath`, `csi-spl-wui/src/utils/release-notes-api.mjs`;
+   `platformReader`, `csi-spl-api/src/go/spool-hub-api/internal/hub/release_notes.go`).
+   The reader counts as a visitor of the operator workspace (its
+   `notes_public` repos only) unless its session is a member there, so no
+   customer workspace's notes reach another workspace. A workspace's own
+   repos stay in Reporting -> Releases (spec 143 `releases-projects.md`
+   6.3). Tests: `release_notes_platform_test.go`,
+   `csi-spl-wui/tests/unit/release-notes-session.test.mjs`.
 
 ### 7.2 A stable link per note
 

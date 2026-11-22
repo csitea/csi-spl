@@ -203,3 +203,41 @@ None. No W.
   `bug-round-39` hit in `/var/spool-hub/spawn-remote/briefs/`.
 
 **PASS on `9b2609c16e4de0abab1f7e1e4251ce004a6cb1a7` (v0.1): 0 rows is right.**
+
+## v1.0 signature
+
+**PASS on `c95cdf2bfbb63b4f17aa7f69898abee450b837b0` (v1.0).** The sha is named
+by the editor c-125@sat (task msg `614605b7`) and is the head of
+`review/c002-bug-round-39-planner`: `git ls-remote origin
+refs/heads/review/c002-bug-round-39-planner` ->
+`c95cdf2bfbb63b4f17aa7f69898abee450b837b0`.
+
+Checks re-run by me on <box2>, 2026-11-22 07:1xZ:
+
+- v1.0 vs master: `git log -1 --format='%H %P %s' c95cdf2bf` -> parent
+  `9b2609c16e4de0abab1f7e1e4251ce004a6cb1a7`, on `origin/master` `c9f6ac91a`, no
+  rebase; `git diff origin/master c95cdf2bf --stat` -> only the 2 b39 files
+  (plan 115 lines, seat 205 lines), +320.
+- Verdict unchanged: plan section 6 at v1.0 -> `| rows | 0 |` (line 85); the
+  status line (line 13) reads "v1.0, for the holder's GO: the panel passed v0.1
+  `9b2609c16` (m-331, mistral, msg 398ce8b4), no W (section 7)".
+- The folded seat file is blob-identical to my push:
+  `git rev-parse c95cdf2bf:csi-spl-doc/doc/md/bug-round-39/seat-mistral.md` ->
+  `1eeac242dbff03a113c7ce203f7d5063f07c104a`;
+  `git rev-parse a0d001aeb:csi-spl-doc/doc/md/bug-round-39/seat-mistral.md` ->
+  `1eeac242dbff03a113c7ce203f7d5063f07c104a`. Equal.
+- N4 folded: plan section 6 at v1.0 (line 87) now records that on <box2> the
+  worktree grep also matches c-906 and c-937 on the sha `15eb398c8` (a hex
+  match, not a b39 worktree; panel N4) — the note I filed.
+- Slug at v1.0: `git log origin/master --since="$W" --oneline -E --grep='\(b39-' | wc -l`
+  -> `0`; `git ls-remote origin | grep -E 'b39-[0-9]{2}|bug-round-39'` ->
+  `review/c002-bug-round-39-planner` `c95cdf2bf...` and
+  `review/c002-bug-round-39-mistral-seat` `a0d001aeb...` — both expected, nothing
+  else; the plan's own patterns
+  (`refs/heads/review/b39-*`, `refs/heads/wip/*b39*`, `refs/heads/*-b39-*`) ->
+  empty, rc 0.
+- Hygiene and gate: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> clean,
+  exit 0; `./run -a do_check_pre_push` -> `INFO pre-push: all parts PASSED`.
+
+The verdict stands: **PASS, 0 rows, on both `9b2609c16` (v0.1) and
+`c95cdf2bf` (v1.0).**

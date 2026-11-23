@@ -1,0 +1,168 @@
+{
+ "v": 1,
+ "engine": "gct",
+ "run_id": "20261123T060057Z-14d5c306",
+ "created_at": "2026-11-23T06:00:57Z",
+ "api": "Cloud Translation v3 translateText",
+ "project": "csi-spl-dev",
+ "identity": "project-sa",
+ "base": "origin/master",
+ "base_sha": "1b49782a001cc4b93d1870c5a856b91aa96f001d",
+ "files": [
+  "csi-spl-wui/i18n/locales/bg.json",
+  "csi-spl-wui/i18n/locales/mk.json",
+  "csi-spl-wui/i18n/locales/tr.json"
+ ],
+ "judge": "reference = fresh en -> lang translation; match = equal after NFC, casefold, whitespace collapse, trailing punctuation dropped; placeholder = the {tokens} differ from en (a failure)",
+ "rows": [
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "contacts.error_too_long",
+   "why": "changed",
+   "en": "A value is too long.",
+   "text": "Стойността е твърде дълга.",
+   "reference": "Стойността е твърде дълга.",
+   "back": "The value is too long.",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_elsewhere",
+   "why": "changed",
+   "en": "Contacts sync is on in another of your workspaces. Turn it off there first.",
+   "text": "Синхронизирането на контактите е включено в друго от работните ви пространства. Първо го изключете там.",
+   "reference": "Синхронизирането на контакти е включено в друго от вашите работни пространства. Първо го изключете там.",
+   "back": "Contact sync is turned on in another of your workspaces. Turn it off there first.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_load_failed",
+   "why": "changed",
+   "en": "Could not read the contacts sync.",
+   "text": "Синхронизирането на контактите не можа да бъде прочетено.",
+   "reference": "Синхронизирането на контактите не можа да бъде прочетено.",
+   "back": "Contact sync could not be read.",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_failed",
+   "why": "changed",
+   "en": "Could not change the contacts sync.",
+   "text": "Синхронизирането на контактите не можа да бъде променено.",
+   "reference": "Синхронизирането на контактите не можа да се промени.",
+   "back": "Contact sync could not be changed.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_started",
+   "why": "changed",
+   "en": "Contacts sync is on. The first import has started.",
+   "text": "Синхронизирането на контактите е включено. Първото импортиране започна.",
+   "reference": "Синхронизирането на контактите е включено. Първото импортиране започна.",
+   "back": "Contacts sync is on. First import started.",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_stopped",
+   "why": "changed",
+   "en": "Contacts sync is off.",
+   "text": "Синхронизирането на контактите е изключено.",
+   "reference": "Синхронизирането на контактите е изключено.",
+   "back": "Contact syncing is turned off.",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/mk.json",
+   "lang": "mk",
+   "key": "gcal.contacts_elsewhere",
+   "why": "changed",
+   "en": "Contacts sync is on in another of your workspaces. Turn it off there first.",
+   "text": "Синхронизацијата на контактите е вклучена во друг ваш работен простор. Прво исклучете ја таму.",
+   "reference": "Синхронизацијата на контакти е вклучена во друг од вашите работни простори. Прво исклучете ја таму.",
+   "back": "Contact sync is turned on in another of your workspaces. Turn it off there first.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/mk.json",
+   "lang": "mk",
+   "key": "gcal.contacts_load_failed",
+   "why": "changed",
+   "en": "Could not read the contacts sync.",
+   "text": "Синхронизацијата на контактите не може да се прочита.",
+   "reference": "Не можев да ја прочитам синхронизацијата на контактите.",
+   "back": "Contact synchronization cannot be read.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/mk.json",
+   "lang": "mk",
+   "key": "gcal.contacts_failed",
+   "why": "changed",
+   "en": "Could not change the contacts sync.",
+   "text": "Синхронизацијата на контактите не може да се промени.",
+   "reference": "Не може да се промени синхронизацијата на контактите.",
+   "back": "Contact synchronization cannot be changed.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/mk.json",
+   "lang": "mk",
+   "key": "gcal.contacts_started",
+   "why": "changed",
+   "en": "Contacts sync is on. The first import has started.",
+   "text": "Синхронизацијата на контактите е вклучена. Првиот увоз започна.",
+   "reference": "Синхронизацијата на контактите е вклучена. Првиот увоз започна.",
+   "back": "Contact synchronization is on. First import started.",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/mk.json",
+   "lang": "mk",
+   "key": "gcal.contacts_stopped",
+   "why": "changed",
+   "en": "Contacts sync is off.",
+   "text": "Синхронизацијата на контактите е исклучена.",
+   "reference": "Синхронизацијата на контактите е исклучена.",
+   "back": "Contact synchronization is turned off.",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/tr.json",
+   "lang": "tr",
+   "key": "gcal.contacts_switch",
+   "why": "changed",
+   "en": "Sync Google Contacts",
+   "text": "Google Kişiler'i senkronize et",
+   "reference": "Google Kişilerini Senkronize Et",
+   "back": "Sync Google Contacts",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/tr.json",
+   "lang": "tr",
+   "key": "gcal.contacts_load_failed",
+   "why": "changed",
+   "en": "Could not read the contacts sync.",
+   "text": "Kişi senkronizasyonu okunamadı.",
+   "reference": "Kişilerin senkronizasyonu okunamadı.",
+   "back": "Person synchronization could not be read.",
+   "mark": "differs"
+  }
+ ],
+ "summary": {
+  "match": 6,
+  "differs": 7,
+  "placeholder": 0,
+  "rows": 13
+ }
+}

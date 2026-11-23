@@ -307,8 +307,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		ValueMs: 1, Device: "phone", Outcome: "ok"}}); err != nil {
 		t.Fatal(err)
 	}
-	// box_stats (rdb 0117): one load + memory sample.
-	if err := pg.AppendBoxStat(ctx, s.tenant, BoxStat{Box: "sat", WriterBox: "box-seed", At: now, CPUs: 1}); err != nil {
+	// box_stats (rdb 0117): one load + memory sample; box_snapshots (rdb
+	// 0317, spec 071 T10): its snapshot, one du directory.
+	if err := pg.AppendBoxStatSnapshot(ctx, s.tenant, BoxStat{Box: "sat", WriterBox: "box-seed", At: now, CPUs: 1},
+		&BoxSnapshot{TopDirs: []BoxDir{{"/var/log", "/", 1, false}}}); err != nil {
 		t.Fatal(err)
 	}
 	// box_beats (rdb 0147, spec 102 10.2): one beat.

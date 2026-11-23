@@ -26,6 +26,8 @@
 #         stays open.
 #   Plus do_spl_channel_manifest_add: adds 0600, dedupes, refuses a path
 #   outside the allowed roots, an unknown kind and a bad marker.
+#   One copy: the lib defines no cm_chain(); its caller check calls send_caller_chain
+#   of spool-caller.inc.sh, and the lib sourced alone defines it (the guarded load).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -363,6 +365,14 @@ out="$(env -u SPOOL_TEST PATH="$T/w4bin:$PATH" "BASH_FUNC_[%%=$F_BR" CHANNEL=bad
 [ "$rc" = 3 ] && ! grep -qE 'c-998|SHADOW' <<<"$out" && pass "W5 the file run directly with an exported '[': refused rc 3, never ran" || fail "W5 direct: rc $rc $out"
 out="$(env -u SPOOL_TEST -u SPOOL_AGENT_ID PATH="$T/w4bin:$PATH" CHANNEL=bad TO=BAD bash "$PROJ_ROOT/src/bash/run/spl-channel-move.func.sh" </dev/null 2>&1)"
 ! grep -qE 'c-998|exports a function' <<<"$out" && pass "W5 CONTROL: the file run directly with only the fake PATH: no refusal for a function, the pane not read as c-998" || fail "W5 direct control: $out"
+
+# ---- one copy: the caller's pid chain is send_caller_chain of spool-caller.inc.sh ------------
+own="$(grep -nE '^cm_chain\(\)' "$LIB")"
+[ -z "$own" ] && grep -q 'chain="$(send_caller_chain "$root"' "$LIB" &&
+  pass "one copy: channel-move.inc.sh defines no cm_chain() and its caller check calls send_caller_chain" ||
+  fail "one copy: channel-move.inc.sh keeps its own pid-chain walk, or no call of send_caller_chain: $own"
+out="$(env -i PATH="$PATH" bash -c '. "$0"; declare -F send_caller_chain' "$LIB" 2>&1)"
+[ "$out" = send_caller_chain ] && pass "one copy load: the lib sourced alone defines send_caller_chain (the guarded load)" || fail "one copy load: $out"
 
 # ---- unknown and unbuilt commands --------------------------------------------------------
 out="$(run 600 MOVE_CMD=status)"; rc=$?

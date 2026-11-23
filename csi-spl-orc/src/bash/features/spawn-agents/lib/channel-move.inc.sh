@@ -61,6 +61,9 @@
 CM_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=channel-rules.inc.sh
 declare -F cr_map >/dev/null || . "$CM_LIB_DIR/channel-rules.inc.sh"
+# The caller's pid chain is send_caller_chain of spool-caller.inc.sh, its one copy.
+# shellcheck source=spool-caller.inc.sh
+declare -F send_caller_chain >/dev/null || . "$CM_LIB_DIR/spool-caller.inc.sh"
 CM_KINDS_DECLARED='data config binary secret marker tests-not-run'
 CM_AGENT_COMMS='claude grok agy antigravity vibe mistral qwen codex gemini'
 CM_ID_RX='[a-z]-[0-9]{3}'
@@ -134,18 +137,6 @@ cm_proc_root() {
 cm_start_pid() {
   if [ "${SPOOL_TEST:-}" = 1 ] && [ -n "${MOVE_CALLER_PID:-}" ]; then printf '%s' "$MOVE_CALLER_PID"
   else printf '%s' "$$"; fi
-}
-
-# The caller's pids, itself first, up to (not into) the tmux server or pid 1.
-cm_chain() {  # ROOT PID
-  local root="$1" pid="$2" n=0 comm
-  while [[ "$pid" =~ ^[0-9]+$ ]] && [ "$pid" -gt 1 ] && [ "$n" -lt 64 ]; do
-    comm="$(cat "$root/$pid/comm" 2>/dev/null)" || break
-    case "$comm" in tmux*) break ;; esac
-    echo "$pid"
-    pid="$(awk '/^PPid:/ { print $2; exit }' "$root/$pid/status" 2>/dev/null)"
-    n=$((n + 1))
-  done
 }
 
 # "<pid> <how>" of the first agent sign in CHAIN: a CLI by its comm, or an
@@ -229,7 +220,7 @@ cm_owner_process() {
 # "seat <id>". 3 = refused, one line on stderr naming why.
 cm_caller_check() {  # CMD
   local cmd="$1" root chain agent="" id=""
-  root="$(cm_proc_root)"; chain="$(cm_chain "$root" "$(cm_start_pid)")"
+  root="$(cm_proc_root)"; chain="$(send_caller_chain "$root" "$(cm_start_pid)")"
   agent="$(cm_chain_agent "$root" "$chain")"
   id="$(cm_chain_pane_id "$chain")"
   CM_CALLER="" CM_WHY=""

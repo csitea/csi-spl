@@ -611,9 +611,45 @@ func TestContactsSyncLogsNoValues(t *testing.T) {
 	if !strings.Contains(logs, "contacts: synced") {
 		t.Fatalf("CONTROL: the cycle's log line is missing: %s", logs)
 	}
-	for _, v := range []string{"FirstName", "LastName", "first.last", "Spoolfirst", "Spoollast", "spool.only", "555"} {
-		if strings.Contains(logs, v) {
-			t.Errorf("C12: the log holds the contact value %q", v)
+	for _, v := range contactLogLeaks(logs) {
+		t.Errorf("C12: the log holds the contact value %q; the log:\n%s", v, logs)
+	}
+}
+
+// contactLogValues are the values of TestContactsSyncLogsNoValues: gperson's
+// names, email and two phones and the Spool contact's, each phone as written
+// and in E.164. Never a short digit run: the log carries random hex ids (the
+// tenant, the connection uuid, the request id), and a bare "555" matched one
+// of them on the schedule run 45208818805 (SPL-6324).
+var contactLogValues = []string{"FirstName", "LastName", "First.Last", "Spoolfirst", "Spoollast", "spool.only",
+	"555 010 0000", "+15550100000", "555 010 0099", "+15550100099", "555 010 0042", "+15550100042"}
+
+// contactLogLeaks returns the contact values the log holds, case-insensitive.
+func contactLogLeaks(logs string) []string {
+	low := strings.ToLower(logs)
+	var hit []string
+	for _, v := range contactLogValues {
+		if strings.Contains(low, strings.ToLower(v)) {
+			hit = append(hit, v)
+		}
+	}
+	return hit
+}
+
+// SPL-6324 red control for C12: an unrelated "555" (a port, a hex id) is not
+// a leak; the contact's phone, as written or in E.164, and its email are.
+func TestContactLogLeaksControl(t *testing.T) {
+	for _, c := range []struct {
+		line string
+		want int
+	}{
+		{`{"connection":"e6c30968-a722-4555-b284-4f1b8bb22571","addr":"127.0.0.1:45551","message":"http"}`, 0},
+		{`{"phone":"+1 555 010 0042","message":"contacts: synced"}`, 1},
+		{`{"phone":"+15550100042"}`, 1},
+		{`{"email":"first.last@example.com"}`, 1},
+	} {
+		if got := contactLogLeaks(c.line); len(got) != c.want {
+			t.Errorf("contactLogLeaks(%s) = %q, want %d hit(s)", c.line, got, c.want)
 		}
 	}
 }

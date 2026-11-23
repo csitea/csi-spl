@@ -92,6 +92,8 @@ var rlsTables = []string{
 	"topic_loops",
 	// rdb 0309, spec 184 H1: a workspace's model per agent kind, its boxes' readings
 	"tenant_agent_model", "agent_model_reading",
+	// rdb 0317, spec 071 8.6.2 T10 (SPL-6318): a box's newest snapshot
+	"box_snapshots",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

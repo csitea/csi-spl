@@ -1080,6 +1080,26 @@ so `<NNNN> >= 0314`). Forward-only PostgreSQL 16 DDL:
   explicit column names (never `SELECT *`, `developer-guide.md` 2.2.3);
   `PruneBoxStats` prunes `box_snapshots WHERE at < $1` too.
 
+Built by row T10 (SPL-6318) as follows; where section 8 named no value, the
+choice is recorded here:
+
+- Migration `0317_box_live_snapshot.sql` (claimed with `do_rdb_migration_next`).
+  Range CHECKs: `cpu_pct BETWEEN 0 AND 100`; `tasks_total` and
+  `tasks_running BETWEEN 0 AND 4194304` (Linux `PID_MAX_LIMIT`); the other
+  five `>= 0`. Same limits in `checkBoxStatHeader`, called by `CheckBoxStat`.
+- `BoxSnapshots` is a store interface beside `BoxStats`:
+  `AppendBoxStatSnapshot(ctx, tenant, b, snap)` (a nil `snap` writes only the
+  `box_stats` row and leaves the box's snapshot row as it was) and
+  `ListBoxSnapshots(ctx, tenant, box) map[box]BoxSnapshot`. `AppendBoxStat`
+  is unchanged for its callers.
+- `BoxDir` JSON keys: `path`, `mount`, `size_kb`, `partial`.
+- Both drivers store the percentages of a snapshot rounded to 1 decimal, the
+  precision 8.3.3 gives them, so the stored JSON stays far below the
+  16 KiB CHECK. Without the rounding, a value such as `1e-300` prints 300
+  digits in jsonb.
+- `BoxDisk.FSType` (8.6.1) is not in T10: no T10 test needs it. Row T11
+  adds it with the collector.
+
 ### 8.7 Limits and privacy
 
 #### 8.7.1 Limits

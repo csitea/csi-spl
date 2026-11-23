@@ -179,7 +179,7 @@ var notChannelTables = concat(
 	notChannel("boxes, keys and desks; a seat's <DST> desk is proved in P2b (W2), not moved",
 		"boxes", "pins", "pins_history", "roster", "agent_seats", "agent_join_tokens", "agent_id_aliases",
 		"box_beats", "box_facts", "box_lock_audit", "box_locks", "box_operators", "box_stats",
-		"agent_model_reading"),
+		"box_snapshots", "agent_model_reading"),
 	notChannel("DM agents: a DM is two parties', not a channel's (M9)", "dm_agents"),
 	notChannel("box file streams, keyed by box and path", "file_stream_folders", "file_stream_glob_audit",
 		"file_stream_globs", "file_stream_lines", "file_streams"),

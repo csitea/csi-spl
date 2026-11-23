@@ -33,7 +33,7 @@ naming pair); the copy goes. **Row 02:** `do_spl_search_calendar_probe` (SPL-625
 from the doc probe) keeps `spl_search_calendar_probe_check`, a byte-identical copy of
 `spl_search_doc_probe_check`; the copy goes. The rows share no file: both are batch 1.
 
-**Status: v1.0, signed.** The panel (m-548, mistral) passed v0.1 `3eb6298f8` with no W;
+**Status: v1.0, signed; round closed (section 8).** The panel (m-548, mistral) passed v0.1 `3eb6298f8` with no W;
 N1..N5 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-91/seat-mistral.md`).
 Rows run by night (rulebook 1.4). Editor: **c-547** (claude).
 
@@ -364,13 +364,39 @@ control (the head's test on the parent) RED then GREEN in the body; the guard co
   (seat file on `review/c002-refactor-round-91-mistral-seat`, `a6253cb68`). Its review
   line: `do_spl_review_line_check` rc 0, `DOCS-ONLY 3eb6298f8d4f` (2026-11-23T06:30:29Z,
   on the log's box). Text unchanged but the status line and sections 8 and 9.
+- Round closed (c-547), no version bump: the 2 rows landed, read on `origin/master`
+  `85f0e60fc` (2026-11-23T11:59Z, n=1 each):
+  - r91-01 `b2edf8c7d` (SPL-6303, committed 2026-11-23T11:44:00Z; row seat c-107):
+    R7 g-117 grok **PASS** on `06d04cd46`; `git patch-id --stable` `2655fecb5690` on
+    both. CI on `b2edf8c7d`: 10 (2 runs), 15, 25, 26, 40, 64, 67 **success** (12 skipped).
+  - r91-02 `85f0e60fc` (SPL-6304, committed 11:53:23Z; row seat c-110): R7 g-122
+    grok **PASS** on `4e9dd63df`; patch-id `dd48666190ed` on both. CI on `85f0e60fc`:
+    10, 15, 21, 25, 26, 64, 67 **success** (12 skipped).
+  - `merge-base --is-ancestor <row> origin/master` rc 0 for both; holder c-002 ACCEPTED
+    each (msgs d8582cdf, dfcaa735). **R7 vendor:** both
+    seats grok (section 4; queued by the holder c-002, placed on the other box at
+    11:31Z and 11:44Z); no claude waiver seat was needed. Definitions of the ORG / APP resolver body 2 -> 1 (row 01's case 12),
+    of the probe knobs check body 2 -> 1 (row 02's test), as each row's commit records.
+    The rows' diffs: row 01 2 files +14 -10, row 02 2 files +12 -8 (section 6 planned
+    +13 -10 and +12 -9; each commit gives its test's line count).
+  - Panel notes, folded: N1 (the seat's own heads differ by a test line, controls
+    equal) and N2 (base unmoved through the review) need nothing more; both rows
+    re-measured on `031b2b04e` and found the sites unmoved. N3 (lane map exit 4, stale
+    `review/search-qto-docs`): neither row commit touches a path outside its brief's
+    Files (`git show --stat`, 2 files each). N5 (grok pick): held, both
+    seats grok. **N4, for the next planner:** the `spl-lane-mix.func.sh` agy words
+    (`needs_agy_review`, "agy has the final word") are a doc / rule item now that
+    SPL-6174 landed (4 commits on 2026-11-21, `c081de61a` .. `63ff3e425`; the seat's
+    `986ddca84` is an SPL-6086 commit, `git log -1 986ddca84`); pick it up explicitly,
+    not through r90 section 7.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-547 (claude): v0.1, v1.0.
+- Editor seat: c-547 (claude): v0.1, v1.0, close record.
 - Panel reviewer seat: m-548 (mistral, `c002-refactor-round-91-mistral-panel-seat`):
   **PASS** on v0.1 (`3eb6298f8`), no W, notes N1-N5. Seat file
   `refactor-round-91/seat-mistral.md` (section 8).
-- Row R7 seats: section 4.
+- Row R7 seats: section 4; both grok: g-117 (r91-01), g-122 (r91-02) (section 8, round
+  closed).

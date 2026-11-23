@@ -1,0 +1,7 @@
+# The exact toolchain (rust-candidates-analysis.md section 5.1): never a
+# floating channel. A bump changes this line and CI's pinned rustup-init.
+[toolchain]
+channel = "1.100.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["x86_64-unknown-linux-musl"]

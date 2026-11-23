@@ -5,7 +5,8 @@ Issue: SPL-5984. Epic: SPL-2402. Discussion: `/t/100cf095-2329-4ce7-a2de-8427eda
 the orc ./run start (n >= 3), names the biggest part, and files ONE issue for
 its Rust replacement").
 
-Rust issue filed from this split: **SPL-5985**.
+Rust issue filed from this split: **SPL-5985**, built as spl-run-path
+([rust-run-path.md](rust-run-path.md)).
 
 ## 1. Method
 

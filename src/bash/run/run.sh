@@ -476,6 +476,7 @@ main_exec() {
   local args=("$@")
   do_load_functions
   do_detect_base_paths
+  [[ -z "${RUN_PATH_NOTE:-}" ]] || do_log "DEBUG run path: $RUN_PATH_NOTE; took the Bash path (SPL-5985)"
   do_load_config
   do_require_bins
   do_verify_symlinks
@@ -770,9 +771,51 @@ _do_log_emit_full() {
   esac
 }
 
-do_set_vars() {
-  set -u -o pipefail
-  do_read_cmd_args "$@"
+# The path step of do_set_vars (SPL-5985, spec 027 rust-run-path.md): one
+# exec of <dir of $0>/../bin/spl-run-path, which is <repo>/bin for a module's
+# ./run (build it: cd csi-spl-orc && ./run -a do_build_spl_run_path). Taken
+# when it is there and prints RUN_PATH_BIN_VERSION on its first line, in the
+# same exec as the values; else today's Bash path below, and RUN_PATH_NOTE
+# says why (main_exec logs it once, DEBUG). Sets unit_run_dir, RUN_UNIT,
+# PROJ_PATH, APP_PATH, ORG_PATH, BASE_PATH and HOST_NAME either way;
+# run-path-bin.tst.sh runs every case both ways and wants the same values.
+RUN_PATH_BIN_VERSION=0.1.0
+do_set_vars_paths() {
+  local _rp_b="${0%/*}" _rp_out="" _rp_rc=0
+  [[ "$_rp_b" == "$0" ]] && _rp_b=.
+  _rp_b+=/../bin/spl-run-path
+  RUN_PATH_NOTE=""
+  if [[ ! -f "$_rp_b" || ! -x "$_rp_b" ]]; then
+    RUN_PATH_NOTE="no binary at $_rp_b"
+  else
+    _rp_out=$("$_rp_b" -- "$0" 2>/dev/null) || _rp_rc=$?
+    if ((_rp_rc != 0)); then
+      RUN_PATH_NOTE="$_rp_b exited $_rp_rc"
+    elif do_set_vars_paths_read "$_rp_out"; then
+      return 0
+    else
+      RUN_PATH_NOTE="$_rp_b is not version $RUN_PATH_BIN_VERSION: ${_rp_out%%$'\n'*}"
+    fi
+  fi
+  do_set_vars_paths_bash
+}
+
+# do_set_vars_paths_read <output>: the binary's 8 KEY=value lines, checked in
+# full (version, then every key in order) before any value is set.
+do_set_vars_paths_read() {
+  local _l=() _k _i=0
+  mapfile -t _l <<<"$1"
+  ((${#_l[@]} == 8)) && [[ "${_l[0]}" == "SPL_RUN_PATH_VERSION=$RUN_PATH_BIN_VERSION" ]] || return 1
+  for _k in unit_run_dir RUN_UNIT PROJ_PATH APP_PATH ORG_PATH BASE_PATH HOST_NAME; do
+    _i=$((_i + 1))
+    [[ "${_l[_i]}" == "$_k="* ]] || return 1
+  done
+  unit_run_dir="${_l[1]#*=}"
+  declare -gx RUN_UNIT="${_l[2]#*=}" PROJ_PATH="${_l[3]#*=}" APP_PATH="${_l[4]#*=}"
+  declare -gx ORG_PATH="${_l[5]#*=}" BASE_PATH="${_l[6]#*=}" HOST_NAME="${_l[7]#*=}"
+}
+
+do_set_vars_paths_bash() {
   # Follow $0's symlinks one hop at a time and stop at the first file whose
   # dir resolves to a <dir>/src/bash/run/ dir: only that dir is
   # abs_path-resolved, never the file, so a module whose src/bash/run/run.sh
@@ -791,9 +834,16 @@ do_set_vars() {
   declare -gx RUN_UNIT="${unit_run_dir##*/}.sh" && export RUN_UNIT
   declare -gx PROJ_PATH="$(cd "${unit_run_dir:-}/../../.." && pwd)" && export PROJ_PATH
   declare -gx APP_PATH="$(cd "${unit_run_dir:-}/../../../.." && pwd)" && export APP_PATH
-  declare -gx ORG_APP_PATH="${APP_PATH}" && export ORG_APP_PATH
   declare -gx ORG_PATH="$(cd "${unit_run_dir:-}/../../../../.." && pwd)" && export ORG_PATH
   declare -gx BASE_PATH="$(cd "${unit_run_dir:-}/../../../../../.." && pwd)" && export BASE_PATH
+  declare -gx HOST_NAME="$(hostname -s)" && export HOST_NAME
+}
+
+do_set_vars() {
+  set -u -o pipefail
+  do_read_cmd_args "$@"
+  do_set_vars_paths
+  declare -gx ORG_APP_PATH="${APP_PATH}" && export ORG_APP_PATH
   _above_base="${BASE_PATH%/*}" && declare -gx VAR_DIR="${VAR_DIR:-${_above_base%/}/var}" && export VAR_DIR
   # Detect framework layer: if parent of PROJ_PATH matches *-frw, expose it as FRW_PATH
   _frw_candidate="${PROJ_PATH%/*}"
@@ -811,7 +861,6 @@ do_set_vars() {
   declare -gx PROJ_KIND="${PROJ_KIND:-${PROJ#${APP}-}}" && export PROJ_KIND
 
   declare -gx USER="${USER:-$(id -un)}" && export USER
-  declare -gx HOST_NAME="$(hostname -s)" && export HOST_NAME
   declare -gx LOG_DIR="" && export LOG_DIR
 }
 

@@ -1,0 +1,9 @@
+# A static musl binary linked by the toolchain's own rust-lld: no C compiler
+# or linker on the box or the CI runner (rust-candidates-analysis.md 5.1),
+# and nothing to match on the box that runs it (no glibc version).
+[build]
+target = "x86_64-unknown-linux-musl"
+
+[target.x86_64-unknown-linux-musl]
+linker = "rust-lld"
+rustflags = ["-C", "link-self-contained=yes"]

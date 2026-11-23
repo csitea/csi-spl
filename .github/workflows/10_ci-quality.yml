@@ -1512,6 +1512,25 @@ jobs:
           bash csi-spl-orc/src/rust/spl-cmd-guard/parity/parity.sh
           echo "parity: $((SECONDS - t0)) s"
 
+      # spl-run-path (SPL-5985, spec 027 rust-run-path.md): the path step of
+      # run.sh's do_set_vars as one exec. The same toolchain as above; then
+      # run-path-bin.tst.sh with the binary just built, every case both ways
+      # (binary and Bash), and REQUIRE=1 so a missing binary is a failure,
+      # never the orc suite's skip.
+      - name: "spl-run-path: fmt, clippy, test, release build, run-path-bin.tst.sh both ways"
+        working-directory: csi-spl-orc/src/rust/spl-run-path
+        run: |
+          set -euo pipefail
+          t0=$SECONDS; cargo fmt --check; echo "fmt: $((SECONDS - t0)) s"
+          t0=$SECONDS; cargo clippy --locked --offline --all-targets -- -D warnings; echo "clippy: $((SECONDS - t0)) s"
+          t0=$SECONDS; cargo test --locked --offline; echo "test: $((SECONDS - t0)) s"
+          t0=$SECONDS; cargo build --release --locked --offline; echo "build: $((SECONDS - t0)) s"
+          b="$CARGO_TARGET_DIR/x86_64-unknown-linux-musl/release/spl-run-path"
+          "$b" --version
+          t0=$SECONDS
+          SPL_RUN_PATH_TEST_BIN="$b" SPL_RUN_PATH_TEST_REQUIRE=1 bash ../../bash/tests/run-path-bin.tst.sh
+          echo "run-path-bin: $((SECONDS - t0)) s"
+
   # ===========================================================================
   # The CNF suite (016 T005): the conf-validator exit-code contract
   # (0 valid / 1 invalid / 2 could not check). The test refuses to skip: an

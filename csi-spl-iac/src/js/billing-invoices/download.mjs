@@ -31,6 +31,7 @@ const pdfRoot = env('BILLING_PDF_DIR');
 const dry = process.env.BILLING_DRY === '1';
 const LOGIN_WAIT_MS = 10 * 60 * 1000;
 const PAGE_WAIT_MS = Number(process.env.BILLING_PAGE_WAIT_MS || 90000);
+const POLL_MS = Math.min(Number(process.env.BILLING_POLL_MS || 2000), PAGE_WAIT_MS);
 const CONSOLE = 'https://console.cloud.google.com';
 const ROWS = '[role="row"], tr';
 const STABLE_READS = 3;
@@ -52,14 +53,17 @@ async function waitLoggedIn(page) {
   }
 }
 
-// poll(page, probe) - probe() until it returns a value, at most PAGE_WAIT_MS.
+// poll(page, probe) - probe() until it returns a value, POLL_MS apart, for at
+// most PAGE_WAIT_MS of waiting. The budget counts the waits, not the wall
+// clock, so a slow probe (a loaded box) never cuts the number of reads short:
+// a wall-clock deadline let 3 slow probes outrun it and failed a list that was
+// there (SPL-6333). A probe's own time comes on top of the budget.
 async function poll(page, probe) {
-  const until = Date.now() + PAGE_WAIT_MS;
-  for (;;) {
+  for (let waited = 0; ; waited += POLL_MS) {
     const v = await probe();
     if (v) return v;
-    if (Date.now() > until) return null;
-    await page.waitForTimeout(Math.min(2000, PAGE_WAIT_MS));
+    if (waited >= PAGE_WAIT_MS) return null;
+    await page.waitForTimeout(POLL_MS);
   }
 }
 
@@ -161,7 +165,7 @@ async function oneAccount(page, id) {
 // than both windows together with no progress bar is still not seen.
 async function recheckRows(page, rows, n, id, label) {
   for (let i = 0; i < STABLE_READS; i += 1) {
-    await page.waitForTimeout(Math.min(2000, PAGE_WAIT_MS));
+    await page.waitForTimeout(POLL_MS);
     const now = await rows.count();
     if (now !== n) fail(id, `the documents list on the "${label}" page changed from ${n} to ${now} rows after it was read (it was still loading); run again`);
   }

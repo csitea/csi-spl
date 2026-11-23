@@ -43,7 +43,9 @@
 #      the direct, checkbox + "Download selected" and menu paths save real
 #      %PDF- files; a .zip name or a non-PDF body -> FATAL, nothing left; the
 #      payments iframe beats the page's own table; an href-less entry is
-#      clicked; a Chrome that fails to start -> one line, rc 2.
+#      clicked; a Chrome that fails to start -> one line, rc 2. SPL-6333: the
+#      wait budget counts poll waits, not the wall clock: page reads slower
+#      than the whole budget still pass (CONTROL: a wall-clock deadline FATALs).
 # Stubs: gcloud, curl, npm, node on PATH (they log their argv); E runs the
 # real node on a fake playwright-core. Nothing reaches GCP, npm or a browser.
 #------------------------------------------------------------------------------
@@ -307,7 +309,9 @@ function page() {
     } });
   const p = {
     goto: async (u) => { url = u; [key, html] = serve(u); log(`goto ${u}`); },
-    url: () => url, content: async () => html, waitForTimeout: async () => {},
+    // FAKE_SLOW_MS: each page read takes that long, a loaded runner (SPL-6333)
+    url: () => url, content: async () => { if (E.FAKE_SLOW_MS) await new Promise((r) => setTimeout(r, Number(E.FAKE_SLOW_MS))); return html; },
+    waitForTimeout: async () => {},
     waitForEvent: () => new Promise((res) => { fire = res; }),
     getByRole: (role, o) => ctl(true, async () => { log(`click ${role} ${o.name}`); await p.goto(`${url}/invoices`); }),
   };
@@ -319,13 +323,14 @@ function page() {
 }
 JS
 # dl <out> <FAKE_MAP> [VAR=value ...] - download.mjs (or DLMJS, a copy) on the
-# fixtures, DRY unless BILLING_DRY=0 is passed; rc on the last line
+# fixtures, DRY unless BILLING_DRY=0 is passed; rc on the last line. The fake
+# waits take no time, so a poll is 200/10 + 1 = 21 reads, however loaded the box.
 dl() {
   local out="$1" m="$2"; shift 2
   : >"$T/fake.log"; rm -rf "$T/dlpdf"
   env -i PATH="$PATH" HOME="$T/home" FAKE_FIX="$FIX" FAKE_LOG="$T/fake.log" FAKE_MAP="$m" \
     BILLING_ACCOUNTS="$A1" BILLING_TODAY=2026-11-10 BILLING_MONTHS=12 BILLING_PDF_DIR="$T/dlpdf" \
-    BILLING_PW_DIR="$T/fakepw" BILLING_CHROME=/bin/false BILLING_DRY=1 BILLING_PAGE_WAIT_MS=20 "$@" \
+    BILLING_PW_DIR="$T/fakepw" BILLING_CHROME=/bin/false BILLING_DRY=1 BILLING_PAGE_WAIT_MS=200 BILLING_POLL_MS=10 "$@" \
     node "${DLMJS:-$DL}" >"$out" 2>&1
   echo "rc=$?" >>"$out"
 }
@@ -407,6 +412,18 @@ if command -v node >/dev/null 2>&1 && [[ "$(command -v node)" != "$T/bin/node" ]
   dl "$T/e" overview=overview.html,invoices=invoices-decoy.html BILLING_DRY=0 FAKE_DL=direct FAKE_IFRAME=invoices.html
   [[ -e "$T/dlpdf/$A1/2026-11-01-5123456789.pdf" && -z "$(find "$T/dlpdf" -name '*59999999*')" ]] && grep -q '^rc=0$' "$T/e" \
     && pass "download: the payments.google.com iframe's list wins over the page's own table" || fail "download iframe: $(cat "$T/e"; find "$T/dlpdf")"
+  # SPL-6333: a page read slower than the whole wait budget (a loaded runner) still gets
+  # its 3 stable reads: the budget counts the poll's waits, never the wall clock
+  dl "$T/e" overview=overview.html,invoices=invoices.html FAKE_SLOW_MS=250
+  [[ "$(grep -c 'would save' "$T/e")" -eq 3 ]] && grep -q '^rc=0$' "$T/e" \
+    && pass "download: page reads slower than the wait budget -> all 3 rows, rc 0 (SPL-6333)" || fail "download slow: $(cat "$T/e")"
+  # CONTROL: the same slow reads against a wall-clock deadline -> the CI flake's FATAL
+  mkdir -p "$T/ctlw" && cp "$(dirname "$DL")/lib.mjs" "$T/ctlw/"
+  sed -e 's/^  for (let waited = 0; ; waited += POLL_MS) {/  const T0 = Date.now(); for (let waited = 0; ; waited += POLL_MS) {/' \
+    -e 's/^    if (waited >= PAGE_WAIT_MS) return null;/    if (Date.now() - T0 >= PAGE_WAIT_MS) return null;/' "$DL" >"$T/ctlw/download.mjs"
+  DLMJS="$T/ctlw/download.mjs" dl "$T/e" overview=overview.html,invoices=invoices.html FAKE_SLOW_MS=250
+  [[ "$(grep -c 'T0' "$T/ctlw/download.mjs")" -eq 2 ]] && grep -qF 'no documents list on the "Invoices" page, or it never stopped loading' "$T/e" && grep -q '^rc=2$' "$T/e" \
+    && pass "download CONTROL: a wall-clock deadline on the same slow reads -> FATAL no documents list, rc 2 (the SPL-6333 flake)" || fail "download slow control: $(cat "$T/e")"
   dl "$T/e" overview=overview-nohref.html,invoices=invoices.html
   grep -q '^click link Invoices$' "$T/fake.log" && [[ "$(grep -c 'would save' "$T/e")" -eq 3 ]] && grep -q '^rc=0$' "$T/e" \
     && pass "download: an 'Invoices' entry with no href is clicked by its name" || fail "download nohref: $(cat "$T/e" "$T/fake.log")"

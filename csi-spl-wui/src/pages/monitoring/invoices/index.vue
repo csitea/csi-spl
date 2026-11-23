@@ -74,9 +74,9 @@ import { useAccessStore } from '~/stores/access'
 import { gateMe, operatorReadable } from '~/utils/read-gates.mjs'
 import { invoiceMoney, overdueInvoicesOf } from '~/utils/monitoring-invoices.mjs'
 
+/* the lazy client's one paid method (spool-client-lazy.mjs fleetPaid): no new stub in the initial chunk */
 type InvoicesApi = {
-  getOverdueInvoices: () => Promise<unknown>
-  markInvoicePaid: (workspace: string, month: string) => Promise<unknown>
+  fleetPaid: (op: 'invoices_overdue' | 'invoice_paid', workspace?: string, month?: string) => Promise<unknown>
 }
 type InvoicesView = ReturnType<typeof overdueInvoicesOf>
 type Row = InvoicesView['invoices'][number]
@@ -102,7 +102,7 @@ async function load() {
       state.value = 'forbidden'
       return
     }
-    const body = await api().getOverdueInvoices()
+    const body = await api().fleetPaid('invoices_overdue')
     if (mine !== seq) return
     view.value = overdueInvoicesOf(body)
     state.value = 'ok'
@@ -123,7 +123,7 @@ async function markPaid(inv: Row) {
   marking.value = inv.workspace + '/' + inv.month
   notice.value = ''
   try {
-    await api().markInvoicePaid(inv.workspace, inv.month)
+    await api().fleetPaid('invoice_paid', inv.workspace, inv.month)
     notice.value = t('monitoring.invoices.marked', { workspace: name, month: inv.month })
   } catch (e) {
     const token = (e as { token?: string })?.token

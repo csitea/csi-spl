@@ -307,14 +307,17 @@ spl_lane_issue_assign() {
 # BRIEF with SLI_ORIGIN as its origin (lifetime/origin-issue is written after
 # the placement). An R7 seat is placed on a fix that landed first (rulebook
 # 2.11.3): the closer set the key done, and a wip here reopened it for good.
-# Such a placement leaves the status and the assignee alone. An `Issue-Role:
-# shared` row lane is not one here: it may reopen its shared key (SPL-6152).
+# Such a placement leaves the status and the assignee alone. The copy drops
+# its `Issue-Role:` lines, so li_review_lane judges by heading + Author: only:
+# an R7 seat's brief carries `Issue-Role: shared` (doc row 1.6, the enqueue
+# stamp) and is still a reviewer; a shared row lane with no review heading is
+# not one and may reopen its shared key (SPL-6152).
 spl_lane_issue_reviews() {
   local tmp rc=1
   [[ -r "$3" && "$SLI_ORIGIN" == "$2" ]] || return 1
-  grep -qiE '^[-*_ >]*Issue[- ]Role[*_ ]*:[*_` ]*shared([^A-Za-z]|$)' "$3" && return 1
   tmp="$(mktemp -d)" || return 1
-  mkdir -p "$tmp/$1/lifetime" && cp "$3" "$tmp/$1/lifetime/brief.md" && printf '%s\n' "$2" >"$tmp/$1/lifetime/origin-issue" &&
+  mkdir -p "$tmp/$1/lifetime" && grep -viE '^[-*_ >]*Issue[- ]Role[*_ ]*:' "$3" >"$tmp/$1/lifetime/brief.md"
+  printf '%s\n' "$2" >"$tmp/$1/lifetime/origin-issue" &&
     li_review_lane "$tmp" "$1" "$2" >/dev/null && rc=0
   rm -rf "$tmp"; return "$rc"
 }

@@ -933,12 +933,20 @@ run AGENT_ID=g-777 LANE_ISSUE_KEY=SPL-77 ISSUE_GET="$GETD" DRY_RUN=0
   grep -q '^comment|--ref|SPL-77|--body|Review lane g-777 placed on SPL-77, status and assignee left as they are.' "$T/calls.log" &&
   [[ "$(cat "$S/g-777/lifetime/issue")" == SPL-77 && "$(cat "$S/g-777/lifetime/origin-issue")" == SPL-77 ]] &&
   pass "b40-02: a reviewer placed on a done key: no status write, no assignee, a comment; issue + origin recorded" || fail "b40-02 review (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
-# Control: the same brief with `Issue-Role: shared` (a row lane on a shared
-# key, SPL-6152) is placed as before: wip and the lane assigned.
+# The same R7 brief with `Issue-Role: shared` (the line the enqueue stamps on
+# a specs_and_docs reviewer, doc row 1.6) is still a reviewer: left alone.
 printf '%s\n' 'Issue-Role: shared' >>"$S/g-777/lifetime/brief.md"
 run AGENT_ID=g-777 LANE_ISSUE_KEY=SPL-77 ISSUE_GET="$GETD" DRY_RUN=0
+[[ $rc -eq 0 ]] && ! grep -q '^update|--ref|SPL-77|--status|' "$T/calls.log" && ! grep -q -- '--assignee' "$T/calls.log" &&
+  grep -q '^comment|--ref|SPL-77|--body|Review lane g-777 placed on SPL-77' "$T/calls.log" &&
+  pass "... an R7 brief with Issue-Role: shared is still a reviewer: no status write, no assignee" || fail "b40-02 shared R7 (rc=$rc): $(cat "$T/calls.log")"
+# Control: a shared ROW lane (no review heading, SPL-6152) is placed as
+# before: wip and the lane assigned.
+printf '%s\n' '# Lane brief: row T3 of the shared work (one lane)' '' 'Issue: SPL-77' 'Issue-Role: shared' 'Spec: csi-spl-doc/specs/135-work-process' 'Epic: SPL-1' \
+  'Author: c-253@box-a (the planner)' >"$S/g-777/lifetime/brief.md"
+run AGENT_ID=g-777 LANE_ISSUE_KEY=SPL-77 ISSUE_GET="$GETD" DRY_RUN=0
 [[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-77|--status|wip|--assignee|g-777|' "$T/calls.log" &&
-  pass "... control: an Issue-Role: shared brief still sets wip and assigns the lane" || fail "b40-02 shared control (rc=$rc): $(cat "$T/calls.log")"
+  pass "... control: a shared row lane with no review heading still sets wip and assigns the lane" || fail "b40-02 shared row control (rc=$rc): $(cat "$T/calls.log")"
 rm -rf "$S/g-777"
 
 echo "spl-lane-issue: $fails failure(s)"

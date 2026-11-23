@@ -185,16 +185,18 @@ jobs:
   # changed an INPUT of that component (the hub image's own build inputs; the
   # allow-list 30 deploys on), so a docs-only or iac-only trunk head is never
   # red, and GRACE_MINUTES keeps a roll that is still in flight out of the
-  # verdict. No GCP call, no credential, nothing mutated: one HTTPS GET per
-  # component plus local git.
+  # verdict. A hub roll that 20's 2-hour hold planned is pending too, through
+  # the hold and LAG_CATCHUP_MINUTES (default 70) after it while 21's catch-up
+  # rolls trunk head (SPL-6310). No GCP call, no credential, nothing mutated:
+  # one HTTPS GET per component plus local git.
   #
   # SOFT vs HARD, as 22_deploy-verify: `lagging` (rc 3) FAILS -- the env has
-  # been behind longer than the grace and somebody must roll it. `cannot tell`
-  # (rc 1 -- endpoint blip, junk body) is a ::warning:: and stays green; an
-  # endpoint that answers WRONG is 22's job, and an unready revision is
-  # `watch`'s. Nothing is auto-dispatched here: a WUI lag would be a 30
-  # dispatch, but a hub lag needs a cnf image-tag bump, which is a change to
-  # the repo and nobody's to make from a cron.
+  # been behind longer than the grace (hub: and the hold and its catch-up) and
+  # the roll is stuck. `cannot tell` (rc 1 -- endpoint blip, junk body) is a
+  # ::warning:: and stays green; an endpoint that answers WRONG is 22's job,
+  # and an unready revision is `watch`'s. Nothing is auto-dispatched here: 21
+  # is the catch-up (it reads the same check with LAG_CATCHUP_MINUTES=0, so it
+  # dispatches as soon as the hold ends); this job only reports a stuck roll.
   # ---------------------------------------------------------------------------
   lag:
     name: Does ${{ matrix.environment }} serve this commit?
@@ -244,5 +246,5 @@ jobs:
         env:
           ENV: ${{ matrix.environment }}
         run: |
-          echo "::error::$ENV does not serve ${GITHUB_SHA:0:8} and the grace period has passed -- a component of trunk is not live. Roll it (hub: bump cnf env.hub.image.tag, then 030 through make do-provision; WUI: dispatch 30) and re-run. See the job summary."
+          echo "::error::$ENV does not serve ${GITHUB_SHA:0:8} and the grace period has passed -- a component of trunk is not live. Roll it (hub: the hold and 21's catch-up are past, so read 21_hub-deploy-catchup's last runs and 20's run on trunk head, then dispatch 21; WUI: dispatch 30) and re-run. See the job summary."
           exit 1

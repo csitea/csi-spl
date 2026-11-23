@@ -75,6 +75,12 @@ out="$(upd DRY_RUN=0 LAG_WUI=lagging)"
 grep -q '^gh workflow run 30_wui-build-deploy.yml' "$T/calls.log" && [ "$(dispatched)" = 1 ] \
   && pass "2. a lagging WUI dispatches 30, not 20" || fail "2. wui ($out; $(cat "$T/calls.log"))"
 
+# 2b. SPL-6310: this dispatches as 21 does, so it asks the lag check with no
+# catch-up allowance (LAG_CATCHUP_MINUTES=0): past the hold, the hub lags at once
+out="$(upd BOX_UPDATE_LAG_CMD='printf "%s hub current catchup=%s\n%s wui current y\n" "$ENV" "${LAG_CATCHUP_MINUTES-unset}" "$ENV"')"
+grep -q '^  dev hub current catchup=0$' <<<"$out" && grep -q '^  prd hub current catchup=0$' <<<"$out" \
+  && pass "2b. the lag check runs with LAG_CATCHUP_MINUTES=0 (both envs)" || fail "2b. ($out)"
+
 # 3. red gate
 out="$(upd DRY_RUN=0 LAG_HUB=lagging STUB_GATE=failure STUB_GREEN=feedbeef)"; rc=$?
 [ "$rc" -eq 0 ] && [ "$(dispatched)" = 0 ] && grep -q "SKIP hub lags, but the CI gate on trunk .* is 'failure'; the newest green trunk sha is feedbeef" <<<"$out" \

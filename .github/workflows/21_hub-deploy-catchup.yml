@@ -85,6 +85,9 @@ jobs:
         id: lag
         env:
           GRACE_MINUTES: ${{ vars.DEPLOY_CATCHUP_GRACE_MINUTES || '30' }}
+          # this IS the catch-up: a hub lag past the hold is `lagging` at once,
+          # not the watch's `pending catchup=<m>` that waits for it (SPL-6310)
+          LAG_CATCHUP_MINUTES: '0'
           GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail

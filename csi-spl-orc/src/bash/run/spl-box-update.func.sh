@@ -86,16 +86,17 @@ box_update_fetch() {
 }
 
 # box_update_lag <dry> <trunk>: do_check_deploy_lag per env; dispatch each
-# lagging component once (environment=all covers both envs)
+# lagging component once (environment=all covers both envs). It dispatches as
+# 21 does, so a hub lag past the hold is lagging at once: LAG_CATCHUP_MINUTES=0
 box_update_lag() {
   local dry="$1" trunk="$2" e out line hub=0 wui=0 rc=0
   [[ -n "$trunk" ]] || { do_log "FAIL no origin/master in $APP_PATH"; return 1; }
   for e in ${BOX_UPDATE_LAG_ENVS:-dev prd}; do
     if [[ -n "${BOX_UPDATE_LAG_CMD:-}" ]]; then
-      out="$(ENV="$e" SHA="$trunk" GRACE_MINUTES="${BOX_UPDATE_GRACE:-45}" bash -c "$BOX_UPDATE_LAG_CMD" 2>&1)"
+      out="$(ENV="$e" SHA="$trunk" GRACE_MINUTES="${BOX_UPDATE_GRACE:-45}" LAG_CATCHUP_MINUTES=0 bash -c "$BOX_UPDATE_LAG_CMD" 2>&1)"
     else
       # each env its own state dir and cnf: unset, do_spl_cloud_cnf derives them
-      out="$( (unset SPL_STATE_DIR SPL_CNF; ENV="$e" SHA="$trunk" GRACE_MINUTES="${BOX_UPDATE_GRACE:-45}" do_check_deploy_lag) 2>&1)"
+      out="$( (unset SPL_STATE_DIR SPL_CNF; ENV="$e" SHA="$trunk" GRACE_MINUTES="${BOX_UPDATE_GRACE:-45}" LAG_CATCHUP_MINUTES=0 do_check_deploy_lag) 2>&1)"
     fi
     while IFS= read -r line; do
       [[ "$line" =~ ^"$e"[[:space:]]+(hub|wui)[[:space:]]+([a-z]+) ]] || continue

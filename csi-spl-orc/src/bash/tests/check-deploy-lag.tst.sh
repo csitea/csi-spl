@@ -16,6 +16,9 @@
 #     4. CONTROL, the artificial lag: a real input
 #        commit, older than the grace                   -> lagging, rc 3
 #     5. the same lag INSIDE the grace period           -> pending, rc 0
+#    2b. the 2-hour hold (held=<m>), then SPL-6310: LAG_CATCHUP_MINUTES after
+#        it while 21's catch-up rolls trunk head (catchup=<m>) -> pending;
+#        past hold + catch-up -> lagging; prd reads dev's hold end too (2c)
 #     6. the age is the OLDEST unserved input commit's, not the newest
 #     7. no endpoint / junk body / commit not in this
 #        checkout / served not an ancestor              -> unknown, rc 1
@@ -106,8 +109,15 @@ lag_one "the same lag inside a wide grace period" "$(fixture "$C_BASE" lag)" "$C
 fixture_built() { printf '{"commit":"%s","built_at":"%s"}' "$1" "$(ago "$3")" >"$T/$2.json"; echo "file://$T/$2.json"; }
 lag_one "a lag whose served build is 30 min old is held" "$(fixture_built "$C_BASE" held30 30)" "$C_FRESH" 45 0 pending
 grep -qE 'held=(89|90)m' "$T/last" && pass "held: says ~90 min left" || fail "held: no held=89|90m in: $(cat "$T/last")"
-lag_one "CONTROL: the same lag, served build 130 min old -> RED" "$(fixture_built "$C_BASE" held130 130)" "$C_FRESH" 45 3 lagging
+lag_one "CONTROL: the same lag, served build 300 min old (past hold + catch-up) -> RED" "$(fixture_built "$C_BASE" held300 300)" "$C_FRESH" 45 3 lagging
 HUB_DEPLOY_COALESCE_MIN=0 lag_one "the same lag, hold off (window 0) -> RED" "$(fixture_built "$C_BASE" held0 30)" "$C_FRESH" 45 3 lagging
+# SPL-6310 (b41-01, rc01-b41.sh): the hold ended 10 min ago and 21's catch-up
+# roll is not live yet -> pending catchup=<m>, rc 0 (bce008e61: lagging, rc 3)
+lag_one "the hold ended 10 min ago -> pending (21's catch-up)" "$(fixture_built "$C_BASE" b41h130 130)" "$C_FRESH" 45 0 pending
+grep -qE 'catchup=(59|60)m held_by=own' "$T/last" && pass "catch-up: says ~60 min left, held_by=own" || fail "catch-up: no catchup=59|60m held_by=own in: $(cat "$T/last")"
+LAG_CATCHUP_MINUTES=0 lag_one "the hold ended 10 min ago, catch-up allowance off -> RED" "$(fixture_built "$C_BASE" b41h130z 130)" "$C_FRESH" 45 3 lagging
+LAG_CATCHUP_MINUTES=20 lag_one "the hold ended 30 min ago, allowance 20 min -> RED" "$(fixture_built "$C_BASE" b41h150 150)" "$C_FRESH" 45 3 lagging
+lag_one "CONTROL: the hold ended 180 min ago -> RED" "$(fixture_built "$C_BASE" b41h300 300)" "$C_FRESH" 45 3 lagging
 
 # 2c. prd waits while dev is held (workflow 20 :479, R7 W1 on f6d885e15): a prd
 # hub whose own build is past the hold reads pending while DEV's served build
@@ -126,11 +136,29 @@ lag_prd() {
 }
 lag_prd "prd lagging, dev held (dev built 30 min ago) -> pending" "$(fixture_built "$C_BASE" prd130 130)" "$(fixture_built "$C_FRESH" dev30 30)" "$C_FRESH" 0 pending
 grep -q 'held_by=dev' "$T/last" && pass "prd held by dev: says held_by=dev" || fail "prd held by dev: no held_by=dev in: $(cat "$T/last")"
-lag_prd "CONTROL: prd lagging, dev built 130 min ago -> RED" "$(fixture_built "$C_BASE" prd130b 130)" "$(fixture_built "$C_FRESH" dev130 130)" "$C_FRESH" 3 lagging
-lag_prd "prd lagging, dev /version unreachable -> RED (fails open)" "$(fixture_built "$C_BASE" prd130c 130)" "file://$T/no-such-dev.json" "$C_FRESH" 3 lagging
-lag_prd "prd lagging, no dev URL -> RED (own hold only)" "$(fixture_built "$C_BASE" prd130d 130)" "" "$C_FRESH" 3 lagging
+lag_prd "CONTROL: prd lagging, dev built 300 min ago -> RED" "$(fixture_built "$C_BASE" prd300b 300)" "$(fixture_built "$C_FRESH" dev300 300)" "$C_FRESH" 3 lagging
+lag_prd "prd lagging, dev /version unreachable -> RED (fails open)" "$(fixture_built "$C_BASE" prd300c 300)" "file://$T/no-such-dev.json" "$C_FRESH" 3 lagging
+lag_prd "prd lagging, no dev URL -> RED (own hold only)" "$(fixture_built "$C_BASE" prd300d 300)" "" "$C_FRESH" 3 lagging
+# SPL-6310: prd past its own hold + catch-up, dev's hold ended 10 min ago ->
+# pending catchup, held_by=dev (prd rolls in the same catch-up as dev)
+lag_prd "prd past hold + catch-up, dev's hold ended 10 min ago -> pending" "$(fixture_built "$C_BASE" prd300e 300)" "$(fixture_built "$C_FRESH" dev130c 130)" "$C_FRESH" 0 pending
+grep -qE 'catchup=(59|60)m held_by=dev' "$T/last" && pass "prd catch-up by dev: says catchup=~60m held_by=dev" || fail "prd catch-up by dev: no catchup=59|60m held_by=dev in: $(cat "$T/last")"
 lag_prd "prd own build 30 min old, dev 130 -> pending held_by=own" "$(fixture_built "$C_BASE" prd30 30)" "$(fixture_built "$C_FRESH" dev130b 130)" "$C_FRESH" 0 pending
 grep -q 'held_by=own' "$T/last" && pass "prd own hold: says held_by=own" || fail "prd own hold: no held_by=own in: $(cat "$T/last")"
+
+# 2d. SPL-6310: the dispatchers ask with no catch-up allowance -- they ARE the
+# catch-up, so a hub lag past the hold must read lagging to them at once
+# (with the default 70, 21 would wait out its own allowance and never dispatch)
+wf21="$APP_ROOT/.github/workflows/21_hub-deploy-catchup.yml"
+if [[ -f "$wf21" ]]; then
+  [[ "$(yq -r '.jobs[].steps[] | select(.id == "lag") | .env.LAG_CATCHUP_MINUTES' "$wf21" 2>/dev/null)" == 0 ]] \
+    && pass "21's lag step sets LAG_CATCHUP_MINUTES 0" || fail "21's lag step does not set LAG_CATCHUP_MINUTES 0: $wf21"
+else
+  echo "SKIP: no $wf21 in this checkout"
+fi
+wf00="$APP_ROOT/.github/workflows/00_deploy-lag-watch.yml"
+[[ "$(yq -r '.jobs.lag.steps[] | select(.id == "lag") | .env.LAG_CATCHUP_MINUTES // "unset"' "$wf00" 2>/dev/null)" == unset ]] \
+  && pass "00's lag step keeps the default catch-up allowance" || fail "00's lag step overrides LAG_CATCHUP_MINUTES: $wf00"
 
 # 3. "behind, nothing of MINE changed": served C_BASE, sha C_DOC -> n=0
 lag_one "behind by a docs-only commit -> n=0, not lag" "$(fixture "$C_BASE" b2)" "$C_DOC" 45 0 current
@@ -255,6 +283,7 @@ else
   action "COMPONENT=hub asks only the hub" 0 'dev hub current' COMPONENT=hub
   action "COMPONENT=junk is refused" 1 'COMPONENT must be hub, wui or all' COMPONENT=junk
   action "a non-numeric GRACE_MINUTES is refused" 1 'GRACE_MINUTES must be' GRACE_MINUTES=soon
+  action "a non-numeric LAG_CATCHUP_MINUTES is refused" 1 'LAG_CATCHUP_MINUTES must be' LAG_CATCHUP_MINUTES=soon
   action "a SHA that is not a commit here is refused" 1 'is not a commit in' SHA=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
 fi
 

@@ -49,7 +49,9 @@
 # @description <verdict> ...`, and exits with the WORST of them:
 # @description   0 current  - served, or ahead, or no input of it changed since
 # @description   0 pending  - it did change, but within the grace period, or (hub)
-# @description                within the 2-hour rollout hold: held=<min left>
+# @description                within the 2-hour rollout hold: held=<min left>,
+# @description                or (hub) within LAG_CATCHUP_MINUTES after the hold,
+# @description                while 21's catch-up rolls trunk head: catchup=<min left>
 # @description   3 lagging  - it changed, the grace has passed, and it is not live
 # @description   1          - cannot tell (no endpoint, junk body, commit not in
 # @description                this checkout -- a shallow clone, so fetch-depth 0)
@@ -64,6 +66,7 @@
 # @param LAG_DEV_HUB_URL - optional (ENV=prd): dev's /version URL whose hold the prd hub also waits for (default from dev's cnf; empty = prd's own hold only)
 # @param LAG_TRUNK - optional: the branch whose pushes date a landing (default master)
 # @param HUB_DEPLOY_COALESCE_MIN - optional: hub rollout hold in minutes (default 120, 0 = off); a younger served build reads pending held=<m> (SPL-5641)
+# @param LAG_CATCHUP_MINUTES - optional: minutes after the hold a hub lag still reads pending catchup=<m> while 21's catch-up rolls it (default 70: a tick gap up to ~25 min + a roll up to ~42 min; 0 = off, and off with the hold; the dispatchers, 21 and do_spl_box_update, pass 0: they ARE the catch-up) (SPL-6310)
 # @example ENV=dev ./run -a do_check_deploy_lag
 # @example ENV=prd SHA=$(git rev-parse origin/master) GRACE_MINUTES=60 ./run -a do_check_deploy_lag
 #------------------------------------------------------------------------------
@@ -75,6 +78,7 @@ do_check_deploy_lag() {
   case "$component" in hub|wui|all) ;; *) do_log "FATAL COMPONENT must be hub, wui or all, got: '$component'"; return 1 ;; esac
   local grace="${GRACE_MINUTES:-45}"
   [[ "$grace" =~ ^[0-9]+$ ]] || { do_log "FATAL GRACE_MINUTES must be a whole number of minutes, got: '$grace'"; return 1; }
+  [[ "${LAG_CATCHUP_MINUTES:-70}" =~ ^[0-9]+$ ]] || { do_log "FATAL LAG_CATCHUP_MINUTES must be a whole number of minutes, got: '$LAG_CATCHUP_MINUTES'"; return 1; }
   local timeout="${LAG_HTTP_TIMEOUT:-15}"
 
   local sha
@@ -195,28 +199,57 @@ _spl_lag_one() {
     echo "$ENV $comp pending served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from (a roll is still within its grace period)"
     return 0
   fi
-  # The 2-hour hold (SPL-5641, owner pick B on poll 9f948a6a): workflow 20
-  # stands a guarded hub roll down while the served build is younger than
-  # HUB_DEPLOY_COALESCE_MIN (default 120), and 21 dispatches trunk head once it
-  # has passed. Inside that window the lag is planned, not stuck: pending.
-  local held
-  if [[ "$comp" == hub ]]; then
-    held="$(bash "$PROJ_PATH/src/bash/scripts/hub-deploy-coalesce.sh" hold-version 2>/dev/null <<<"$body")" || held=0
-    [[ "$held" =~ ^[0-9]+$ ]] || held=0
-    # prd waits while dev is held: the same max(own, dev) as workflow 20
-    local devhold=0 held_by=own
-    if [[ "$ENV" == prd && -n "${LAG_DEV_HOLD_URL:-}" ]]; then
-      devhold="$(curl -sS --max-time "$timeout" -H 'Cache-Control: no-cache' "$LAG_DEV_HOLD_URL" 2>/dev/null |
-        bash "$PROJ_PATH/src/bash/scripts/hub-deploy-coalesce.sh" hold-version 2>/dev/null)" || devhold=0
-      [[ "$devhold" =~ ^[0-9]+$ ]] && ((devhold > held)) && { held=$devhold; held_by=dev; }
-    fi
-    if ((held > 0)); then
-      echo "$ENV $comp pending served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from held=$((held / 60))m held_by=$held_by (the 2-hour rollout hold: the served build$([[ $held_by == dev ]] && echo " on dev") is younger than ${HUB_DEPLOY_COALESCE_MIN:-120}m; 21 rolls trunk head after it)"
-      return 0
-    fi
-  fi
+  # The 2-hour hold and the catch-up after it (SPL-5641, SPL-6310): pending
+  [[ "$comp" == hub ]] && _spl_lag_hub_planned "$body" "$timeout" \
+    "$ENV $comp pending served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from" && return 0
   echo "$ENV $comp lagging served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from url=$url"
   return 3
+}
+
+# _spl_lag_hub_planned <body> <timeout s> <pending line head> -> 0 and the
+# pending line when the hub lag is one the system planned and is doing, else 1.
+# The 2-hour hold (SPL-5641, owner pick B on poll 9f948a6a): workflow 20
+# stands a guarded hub roll down while the served build is younger than
+# HUB_DEPLOY_COALESCE_MIN (default 120), and 21 dispatches trunk head once it
+# has passed. Inside that window the lag is planned, not stuck: held=<m>.
+# After it, 21 still has to tick (every 15 min) and its roll to run (~40 min):
+# LAG_CATCHUP_MINUTES more of catchup=<m>, then lagging (SPL-6310).
+_spl_lag_hub_planned() {
+  local body="$1" timeout="$2" head="$3"
+  local min="${HUB_DEPLOY_COALESCE_MIN:-120}" catchup="${LAG_CATCHUP_MINUTES:-70}"
+  [[ "$min" =~ ^[0-9]+$ ]] || return 1  # unreadable window: no hold, as before (fails open)
+  [[ "$catchup" =~ ^[0-9]+$ ]] || catchup=70
+  ((min > 0)) || catchup=0
+  # prd waits while dev is held: the same max(own, dev) as workflow 20
+  local devbody=""
+  if [[ "$ENV" == prd && -n "${LAG_DEV_HOLD_URL:-}" ]]; then
+    devbody="$(curl -sS --max-time "$timeout" -H 'Cache-Control: no-cache' "$LAG_DEV_HOLD_URL" 2>/dev/null)" || devbody=""
+  fi
+  local left by
+  read -r left by < <(_spl_lag_hold_left "$body" "$devbody" "$min")
+  if ((left > 0)); then
+    echo "$head held=$((left / 60))m held_by=$by (the 2-hour rollout hold: the served build$([[ $by == dev ]] && echo " on dev") is younger than ${min}m; 21 rolls trunk head after it)"
+    return 0
+  fi
+  ((catchup > 0)) || return 1
+  read -r left by < <(_spl_lag_hold_left "$body" "$devbody" $((min + catchup)))
+  ((left > 0)) || return 1
+  echo "$head catchup=$((left / 60))m held_by=$by (the hold ended under ${catchup}m ago$([[ $by == dev ]] && echo " on dev"): 21's catch-up roll of trunk head is due)"
+}
+
+# _spl_lag_hold_left <body> <dev body> <window min> -> "<seconds left> <own|dev>":
+# what is left of a <window min> hold counted from the served build's
+# .built_at (hub-deploy-coalesce.sh's math), the larger of this env's and
+# dev's (an empty dev body = this env's only). Unreadable -> 0 (fails open).
+_spl_lag_hold_left() {
+  local body="$1" devbody="$2" win="$3" left devleft by=own
+  left="$(HUB_DEPLOY_COALESCE_MIN="$win" bash "$PROJ_PATH/src/bash/scripts/hub-deploy-coalesce.sh" hold-version 2>/dev/null <<<"$body")" || left=0
+  [[ "$left" =~ ^[0-9]+$ ]] || left=0
+  if [[ -n "$devbody" ]]; then
+    devleft="$(HUB_DEPLOY_COALESCE_MIN="$win" bash "$PROJ_PATH/src/bash/scripts/hub-deploy-coalesce.sh" hold-version 2>/dev/null <<<"$devbody")" || devleft=0
+    [[ "$devleft" =~ ^[0-9]+$ ]] && ((devleft > left)) && { left=$devleft; by=dev; }
+  fi
+  echo "$left $by"
 }
 
 # _spl_lag_age <commit> <grace min> <timeout s> -> "<age in minutes> <from>":

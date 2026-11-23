@@ -520,8 +520,11 @@ Row status (v0.4.1):
   (`price_plans_test.go`). Writing the invoice (the month's VM cost from
   the billing export, `QuoteMonth`, an invoice row) is a later row, not B1.
 - **B2: Implemented** (SPL-6322): `POST /api/v1/checkout/private-workspace`
-  (`internal/payments/handler.go` `submitOrder`) takes an order only: the
-  slug, the email, `seats_users` (human members, 1..`SPOOL_HUB_PAYMENT_SEATS_MAX`)
+  (`internal/payments/handler.go` `submitOrder`) takes a signed-in
+  person's order only (4.1 step 1): 401 without a session (the hub's
+  `auth.Handler.SessionFromRequest`, wired in `cmd/spool/hub.go`), and the
+  biz_owner is the session's email (a body `email` that differs is 400
+  `email_mismatch`). The order is the slug, `seats_users` (human members, 1..`SPOOL_HUB_PAYMENT_SEATS_MAX`)
   and `billing` (name, address, 2-letter country, optional VAT id); no card.
   One operator transaction (`SubmitWorkspaceOrder`, Memory and Postgres)
   makes the tenant with the paid transition's own insert
@@ -537,9 +540,9 @@ Row status (v0.4.1):
   Tests: `internal/payments/order_submit_test.go` (zero provider calls,
   red control: a submit that calls the provider stub fails it) and
   `internal/store/payments_order_test.go` (both drivers; red control: the
-  replay answered as a second order fails it). Open for the holder: the
-  route is public like the checkout's, with no sign-in and no switch
-  (4.1 step 1 says a signed-in person); B3 decides how the page reaches it.
+  replay answered as a second order fails it; a submit with no session,
+  or one naming a stranger's email, fails `TestOrderSubmitNeedsSession` /
+  `TestOrderSubmitEmailIsTheSessions`).
 
 Not in this spec: a private hub (Q-2 B, not chosen); listing on Cloud
 Marketplace stays spec 156.

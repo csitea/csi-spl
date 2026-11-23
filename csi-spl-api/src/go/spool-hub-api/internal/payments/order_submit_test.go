@@ -3,12 +3,14 @@ package payments
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -17,7 +19,9 @@ import (
 // order only and creates the workspace at once. Done test: a submit -> one
 // tenant, one order, box_join_enabled true, zero provider calls. RED
 // CONTROLS: a submit that reaches the provider stub fails its test; the
-// submit replayed -> one tenant and one order, not two.
+// submit replayed -> one tenant and one order, not two. The order is a
+// signed-in person's (4.1 step 1): no session -> 401 and no tenant; a body
+// email that is not the session's -> no tenant for that email.
 
 // countingRail is a card AND wallet rail that counts every call: the order
 // submit must never reach it.
@@ -48,17 +52,35 @@ func (c *countingRail) CaptureProviderOrder(context.Context, string, string) (st
 	return "cap_x", "payer_x", nil
 }
 
-// orderHandler is a handler on the fake rail whose card and wallet are rail.
+// fakeSessions is the hub's session check in a test: signed in as email,
+// or no session at all when email is "".
+type fakeSessions struct{ email string }
+
+func (f *fakeSessions) SessionFromRequest(*http.Request) (auth.Session, bool) {
+	if f.email == "" {
+		return auth.Session{}, false
+	}
+	return auth.Session{V: 1, Provider: "google", Subject: "sub-1", Email: f.email}, true
+}
+
+// orderHandler is a handler on the fake rail whose card and wallet are rail,
+// with the buyer signed in.
 func orderHandler(t *testing.T, rail *countingRail) (*Handler, *store.Memory, *mail.Recorder) {
+	t.Helper()
+	h, st, rec, _ := orderHandlerAs(t, rail, &fakeSessions{email: "buyer@example.com"})
+	return h, st, rec
+}
+
+func orderHandlerAs(t *testing.T, rail *countingRail, sess Sessions) (*Handler, *store.Memory, *mail.Recorder, Sessions) {
 	t.Helper()
 	cfg := mustLoad(t, "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true", "SPOOL_HUB_PAYMENT_PLAN_CENTS": "2000"})
 	st, rec := store.NewMemory(), &mail.Recorder{}
 	h, err := New(cfg, Deps{Store: st, Log: zerolog.Nop(), Mail: rec, MailDelivers: true,
-		TenantHostPattern: pattern, Card: rail, PayPal: rail})
+		TenantHostPattern: pattern, Card: rail, PayPal: rail, Sessions: sess})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return h, st, rec
+	return h, st, rec, sess
 }
 
 const orderBody = `{"tenant_id":"acme-private","email":"buyer@example.com","seats_users":4,
@@ -117,9 +139,10 @@ func TestOrderSubmitReplayIsOneOrder(t *testing.T) {
 	if !t1.RootPubKey.Equal(t2.RootPubKey) {
 		t.Fatal("the replay re-keyed the tenant: a second tenant creation ran")
 	}
-	other := strings.Replace(orderBody, "buyer@example.com", "someone-else@example.com", 1)
+	h.d.Sessions = &fakeSessions{email: "someone-else@example.com"}
+	other := strings.Replace(orderBody, `"email":"buyer@example.com",`, "", 1)
 	if code, out := postOrder(h, other); code != 409 || out["error"] != "tenant_taken" {
-		t.Fatalf("another email on the slug: %d %v, want 409 tenant_taken", code, out)
+		t.Fatalf("another person on the slug: %d %v, want 409 tenant_taken", code, out)
 	}
 	if len(rail.calls) != 0 {
 		t.Fatalf("provider calls: %v", rail.calls)
@@ -137,7 +160,7 @@ func TestOrderSubmitRefusals(t *testing.T) {
 		token    string
 	}{
 		"bad slug":      {`"acme-private"`, `"A B"`, 400, "bad_tenant_id"},
-		"bad email":     {`"buyer@example.com"`, `"nobody"`, 400, "bad_request"},
+		"bad email":     {`"buyer@example.com"`, `"nobody"`, 400, "email_mismatch"},
 		"no seats":      {`"seats_users":4`, `"seats_users":0`, 400, "bad_seats"},
 		"too many":      {`"seats_users":4`, `"seats_users":1001`, 400, "bad_seats"},
 		"no address":    {`"1 Example Street, 00100 City"`, `""`, 400, "bad_billing"},
@@ -151,5 +174,52 @@ func TestOrderSubmitRefusals(t *testing.T) {
 	}
 	if code, _ := postOrder(h, `{`); code != 400 {
 		t.Errorf("bad json: %d, want 400", code)
+	}
+}
+
+// RED CONTROL (4.1 step 1): no session, or a session with no email, is 401
+// and makes no tenant and no provider call.
+func TestOrderSubmitNeedsSession(t *testing.T) {
+	for name, sess := range map[string]Sessions{"no sign-in wired": nil, "no session": &fakeSessions{},
+		"session without email": emptyEmailSessions{}} {
+		rail := &countingRail{}
+		h, st, _, _ := orderHandlerAs(t, rail, sess)
+		if code, out := postOrder(h, orderBody); code != 401 || out["error"] != "unauthorized" {
+			t.Errorf("%s: %d %v, want 401 unauthorized", name, code, out)
+		}
+		if _, err := st.GetTenant(context.Background(), "acme-private"); err == nil {
+			t.Errorf("%s: a tenant was made without a signed-in person", name)
+		}
+		if len(rail.calls) != 0 {
+			t.Errorf("%s: provider calls %v", name, rail.calls)
+		}
+	}
+}
+
+type emptyEmailSessions struct{}
+
+func (emptyEmailSessions) SessionFromRequest(*http.Request) (auth.Session, bool) {
+	return auth.Session{V: 1, Provider: "google", Subject: "sub-2"}, true
+}
+
+// RED CONTROL: the owner is the session's email. A body naming a stranger
+// is 400 and makes no tenant; a body with no email orders for the session.
+func TestOrderSubmitEmailIsTheSessions(t *testing.T) {
+	h, st, _, _ := orderHandlerAs(t, &countingRail{}, &fakeSessions{email: "Buyer@Example.com"})
+	ctx := context.Background()
+	stranger := strings.Replace(orderBody, "buyer@example.com", "stranger@example.com", 1)
+	if code, out := postOrder(h, stranger); code != 400 || out["error"] != "email_mismatch" {
+		t.Fatalf("a stranger's email: %d %v, want 400 email_mismatch", code, out)
+	}
+	if _, err := st.GetTenant(ctx, "acme-private"); err == nil {
+		t.Fatal("a tenant was made for a stranger's email")
+	}
+	noEmail := strings.Replace(orderBody, `"email":"buyer@example.com",`, "", 1)
+	code, out := postOrder(h, noEmail)
+	if code != 201 || out["email"] != "buyer@example.com" {
+		t.Fatalf("no body email: %d %v, want 201 for the session's email", code, out)
+	}
+	if o, err := st.WorkspaceOrder(ctx, "acme-private"); err != nil || o.Email != "buyer@example.com" {
+		t.Fatalf("order email: %+v %v, want the session's", o, err)
 	}
 }

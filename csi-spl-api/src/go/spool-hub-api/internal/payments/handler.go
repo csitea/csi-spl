@@ -16,6 +16,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/invitemail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
@@ -51,6 +52,13 @@ type PayPalRail interface {
 	ProviderOrderProvider
 }
 
+// Sessions verifies a signed-in person's session cookie: the hub's
+// auth.Handler (SessionFromRequest, internal/auth/handler.go). The
+// private-workspace order is for a signed-in person only (spec 181 4.1).
+type Sessions interface {
+	SessionFromRequest(r *http.Request) (auth.Session, bool)
+}
+
 // Deps wires a Handler.
 type Deps struct {
 	Store             Store
@@ -61,7 +69,9 @@ type Deps struct {
 	Card              PaymentProvider // StripePayments, or StubPayments on the fake rail
 	PayPal            PayPalRail      // nil unless SPOOL_HUB_ENABLE_PAYPAL
 	PayPalVerifier    *PayPalVerifier // nil unless SPOOL_HUB_ENABLE_PAYPAL
-	Now               func() time.Time
+	// Sessions: nil = no sign-in is wired, and every order submit is 401.
+	Sessions Sessions
+	Now      func() time.Time
 	// DefaultLocale is SPOOL_HUB_DEFAULT_LOCALE: the claim mail's language
 	// when the checkout kept no buyer locale, and the claim link's
 	// prefix_except_default reference. "" = i18n.DefaultLocale.
@@ -357,7 +367,9 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 }
 
 type orderReq struct {
-	TenantID   string `json:"tenant_id"`
+	TenantID string `json:"tenant_id"`
+	// Email may be omitted: the order is the signed-in person's. When sent,
+	// it must be that person's address (400 email_mismatch otherwise).
 	Email      string `json:"email"`
 	SeatsUsers int    `json:"seats_users"` // human members; agents are not seats (Q-6 A)
 	Billing    struct {
@@ -374,8 +386,9 @@ func newOrderID() (string, error) {
 	return "wo_" + strings.TrimPrefix(id, "co_"), err
 }
 
-// submitOrder is the private-workspace order (spec 181 4.1 step 4, B2,
-// Q-18 C): an order only, no card. It creates the workspace at once -- the
+// submitOrder is the private-workspace order (spec 181 4.1 steps 1 and 4,
+// B2, Q-18 C): a signed-in person's order only, no card; 401 without a
+// session, and the workspace's biz_owner is the session's email. It creates the workspace at once -- the
 // tenant, its biz_owner invite, the seat caps, box_join_enabled on, the
 // private_vm price plan and the provisioning order -- and calls NO payment
 // provider: the invoice comes monthly in arrears, paid by bank transfer. A
@@ -386,6 +399,12 @@ func (h *Handler) submitOrder(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "body is not order JSON")
 		return
 	}
+	email, rf := h.orderEmail(r, req.Email)
+	if rf != nil {
+		writeErr(w, rf.status, rf.token, rf.detail)
+		return
+	}
+	req.Email = email
 	o, rf := h.orderInput(r, &req)
 	if rf != nil {
 		writeErr(w, rf.status, rf.token, rf.detail)
@@ -411,6 +430,25 @@ func (h *Handler) submitOrder(w http.ResponseWriter, r *http.Request) {
 		"seats_users": o.SeatsUsers, "email": o.Email, "tenant_url": h.tenantURL(o.TenantID), "replayed": !created,
 		"currency": store.PlanCurrency, "seat_member_cents": store.PrivateVMSeatCents, "vm_margin_pct": store.PrivateVMMarginPct,
 		"invoice": "monthly_in_arrears", "payment": "bank_transfer"})
+}
+
+// orderEmail is the order's owner email: the signed-in person's (spec 181
+// 4.1 step 1). No session, or one with no email, is 401; a body email that is
+// not the session's is 400, so nobody makes a stranger a workspace owner.
+func (h *Handler) orderEmail(r *http.Request, body string) (string, *refusal) {
+	var sess auth.Session
+	ok := false
+	if h.d.Sessions != nil {
+		sess, ok = h.d.Sessions.SessionFromRequest(r)
+	}
+	email := strings.TrimSpace(sess.Email)
+	if !ok || email == "" {
+		return "", &refusal{http.StatusUnauthorized, "unauthorized", "sign in to order a private workspace"}
+	}
+	if b := strings.TrimSpace(body); b != "" && !strings.EqualFold(b, email) {
+		return "", &refusal{http.StatusBadRequest, "email_mismatch", "the order is for the signed-in person's email"}
+	}
+	return email, nil
 }
 
 // orderInput checks an order request and builds the order: the slug, the

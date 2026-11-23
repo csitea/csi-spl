@@ -636,7 +636,7 @@ func wirePayments(opts *hub.Options, hc *config.Hub, log zerolog.Logger, st stor
 	}
 	ph, err := payments.NewWired(pc, payments.Deps{Store: st, Log: plog,
 		Mail: pmc.Sender(log), MailDelivers: pmc.Delivers(), TenantHostPattern: hc.TenantHostPattern,
-		DefaultLocale: hc.DefaultLocale})
+		DefaultLocale: hc.DefaultLocale, Sessions: opts.Auth})
 	if err != nil {
 		return nil, err
 	}

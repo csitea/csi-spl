@@ -1,6 +1,9 @@
 # Costs: a cost assigned or split to workspaces by hand (SPL-5291)
 
-Status: **v0.5 (SPL-5768, 2026-11-17): section 7 adds the instance's
+Status: **v0.6 (SPL-6301, 2026-11-23): section 7.7 adds a tokens split
+of one vendor over a month range (split kind `tokens_vendor`), and section
+7.8 routes one project prefix to one workspace without moving any other
+item.** v0.5 (SPL-5768, 2026-11-17): section 7 adds the instance's
 splits, tokens and per person, set by the operator workspace's admins and
 business owners; it replaces answer 1 B for those two kinds only.** v0.4:
 hub + store + Settings -> Cost allocation (SPL-5291). v0.2
@@ -314,8 +317,82 @@ split winning over it.
 
 The web UI screen for the splits is a later lane.
 
+### 7.7 A share of one vendor over a month range (v0.6, SPL-6301)
+
+Owner HUM-10, a customer workspace's topic `f3203933` (relayed by the seat
+c-086, msg `a843a016`), msg `cfbd1832`: "take the claude code tokens costs
+from 2026-01 till 2026-06, take 40% of them and set them as the claude
+costs for this project". Issue SPL-6301, discussion issue SPL-6299.
+
+The tokens split of 7.1 covers every vendor and every month, so "40 % of
+one vendor's paid items over six months" cannot be said with it. The model
+is a **third split kind**, not a view rule:
+
+| kind | subject | applies to |
+|---|---|---|
+| `tokens_vendor` | `<vendor>:<from>:<to>`: a vendor of rdb 0205 (`claude`, `mistral`, `grok`, `agy`, `qwen`) and two months `YYYY-MM`, both included, `from <= to` | the paid AI items (`ai_paid`) of that vendor in the months `from..to`, in place of the tokens split for those parts only |
+
+Why a split and not a view rule ([costs-workspace-views.md](costs-workspace-views.md)):
+a view rule has no vendor and no month (3.1 there), its reads (row R4) are
+not built, and a workspace with any view rule stops reading its item
+splits (3.6 there), so a workspace given a rule for its tokens would lose
+its Cloud allocations. The split is read today (7.5) and stays a
+partition: the estate's money is attributed once.
+
+The rules (the store's `CheckCostSplit` and the PUT of 7.4, 400
+`bad_cost_split`):
+
+- the shares sum to 10000 like every split; the rest of the vendor's
+  months goes where the split says, so the data entry (below) fills it from
+  the tokens split, pro rata, and nothing reaches a workspace twice;
+- a `tokens_vendor` split refines the tokens split: its PUT is refused
+  while no tokens split is stored, and the reads apply it only while one is
+  (7.5 keeps the automatic share without a tokens split);
+- two `tokens_vendor` splits of one vendor never cover the same month: a
+  PUT whose range meets a stored one of the same vendor (another subject)
+  is refused. A removal (`shares: []`) is never checked.
+
+How the reads apply it (7.5, per part): a customer workspace W's
+`ai_share` part of vendor V in month M takes W's share of the
+`tokens_vendor` split of V that covers M, else W's share of the tokens
+split. The estate's `ai_paid` part of V in M names that split in
+`allocation` (section 4), else the tokens split. Every other vendor, every
+month outside `from..to`, the persons and the items keep their meaning.
+A forward-only rdb migration (`cost_splits_vendor`) widens rdb 0293's two
+CHECKs to the new kind; the table and its RLS do not change.
+
+Data entry, a dry run unless `DRY_RUN=0`, counts only:
+`cd csi-spl-orc && ENV=<env> COST_SHARE_VENDOR=claude COST_SHARE_FROM=2026-01 COST_SHARE_TO=2026-06 COST_SHARE_WORKSPACE=<ws> COST_SHARE_BP=4000 ./run -a do_spl_cost_vendor_share`.
+It reads the splits and the paid items (`GET /v1/operator/fleet-tokens/paid`),
+logs the vendor's items per month of the range (a count, never an amount),
+and PUTs the `tokens_vendor` split: `<ws>` at `COST_SHARE_BP`, the other
+`10000 - bp` over the tokens split's shares pro rata (largest remainder;
+a workspace of the tokens split that is `<ws>` itself adds its part of the
+rest to its share). `COST_SHARE_REST='<ws>=<bp>,...'` names the rest
+instead. It refuses without a stored tokens split, a range with no item of
+the vendor, a workspace that is not live, or a bp outside 1..10000.
+
+### 7.8 Routing one project prefix to one workspace (v0.6, SPL-6301)
+
+Owner msg `ceb7f372` (same topic): the cloud costs of that customer's GCP
+projects (one project prefix) belong in its workspace. The cloud step of 7.4's `do_spl_cost_split_apply`
+knows two workspaces, so running it with another prefix would re-assign
+every other item. `COST_SPLIT_ROUTE='<prefix>:<ws>'` adds a rule that wins
+over both: every Cloud cost line item (not a cost entry) of the months
+FROM..TO whose project starts with `<prefix>` gets `<ws>` at 10000, through
+the item split of section 2 (no new storage).
+
+- With `COST_SPLIT_ROUTE` and no `COST_SPLIT_CLOUD_PREFIX` in the
+  environment, the action plans the routed items only: no other item is
+  PUT.
+- With both, the full cloud step runs and the routed items take the route
+  (so a full run keeps them where they were routed).
+- It refuses a prefix that matches no item of the range, a route whose
+  workspace is not live, and a malformed spec. The dry run (the default)
+  logs `PLAN cloud rule=line-route -> <ws>: items=<n> already=<n>`.
+
 A workspace with view rules ([costs-workspace-views.md](costs-workspace-views.md),
 SPL-6086, v0.1 draft) reads by its rules, and sections 2 and 7 are not
 applied to it (that page, 3.6).
 
-<!-- version: 0.5.0 · updated: 2026-11-17 -->
+<!-- version: 0.6.0 · updated: 2026-11-23 -->

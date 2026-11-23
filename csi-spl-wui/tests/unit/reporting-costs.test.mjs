@@ -15,8 +15,10 @@ import { fileURLToPath } from 'node:url'
 import {
   COSTS_PAGES, COSTS_DEFAULT_PATH, COSTS_REDIRECTS, COSTS_YTD, COSTS_L12M, visibleCostsPages, costsPageFor, legacyCostsPath,
   costsMonth, costsMonthOptions, costsPeriod, costsPeriodMonths, costsCurrencyOptions, costsCurrency, costsQueryWith,
+  COSTS_RANGE_MAX, costsMonthsBetween, costsRange, costsPeriodOf, costsRangeOf, costsRangeEnds,
 } from '../../src/utils/reporting-costs.mjs'
 import { reportingTabFor } from '../../src/utils/reporting-tabs.mjs'
+import { costProjectOf, costProjectQuery, mockCostProject } from '../../src/utils/cost-project.mjs'
 import { legacyMonitoringPath, monitoringTabFor } from '../../src/utils/monitoring-tabs.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -152,7 +154,7 @@ describe('the header: one period, one currency, in the query', () => {
     }
     /* the labels read the header's period, they have no picker of their own */
     const c2 = read('src/composables/useCostsPeriod.ts')
-    assert.match(c2, /costsPeriod\(route\.query\.month, new Date\(\)\)/)
+    assert.match(c2, /costsPeriodOf\(route\.query, new Date\(\)\)/)
     assert.doesNotMatch(read('src/components/reporting/costs/CostsLabel.vue'), /<select/)
     assert.match(h, /:value="COSTS_YTD"/)
     assert.match(h, /:value="COSTS_L12M"/)
@@ -166,6 +168,74 @@ describe('the header: one period, one currency, in the query', () => {
     for (const f of files) {
       const cat = JSON.parse(readFileSync(join(dir, f), 'utf8'))
       for (const key of keys) assert.equal(typeof key.split('.').reduce((o, k) => o?.[k], cat), 'string', f + ': ' + key)
+    }
+  })
+})
+
+describe('SPL-6300: a start month and an end month, both included, in the URL', () => {
+  const NOW = new Date(Date.UTC(2026, 10, 23, 10))
+  it('?from=&to= is the range; its months oldest first, both ends included', () => {
+    assert.deepEqual(costsRange({ from: '2026-09', to: '2026-11' }, NOW), { from: '2026-09', to: '2026-11' })
+    assert.equal(costsPeriodOf({ from: '2026-09', to: '2026-11' }, NOW), '2026-09..2026-11')
+    assert.deepEqual(costsPeriodMonths('2026-09..2026-11', NOW), ['2026-09', '2026-10', '2026-11'])
+    assert.deepEqual(costsPeriodMonths(costsPeriodOf({ from: '2025-11', to: '2026-02' }, NOW), NOW), ['2025-11', '2025-12', '2026-01', '2026-02'])
+    assert.deepEqual(costsRangeOf('2026-09..2026-11'), { from: '2026-09', to: '2026-11' })
+    assert.equal(costsRangeOf('2026-09'), null)
+    assert.equal(costsRangeOf('ytd'), null)
+  })
+  it('from = to is that one month; no range is ?month= as before (the current month by default)', () => {
+    assert.equal(costsPeriodOf({ from: '2026-09', to: '2026-09' }, NOW), '2026-09')
+    assert.equal(costsPeriodOf({ month: 'ytd' }, NOW), 'ytd')
+    assert.equal(costsPeriodOf({ month: '2026-10' }, NOW), '2026-10')
+    assert.equal(costsPeriodOf({}, NOW), '')
+    assert.deepEqual(costsPeriodMonths(costsPeriodOf({}, NOW), NOW), ['2026-11'])
+    /* the range wins over a stale month */
+    assert.equal(costsPeriodOf({ month: '2026-01', from: '2026-09', to: '2026-10' }, NOW), '2026-09..2026-10')
+  })
+  it('a bad range is no range: from after to, a future end, a bad shape, one end, more than 24 months', () => {
+    for (const q of [{ from: '2026-11', to: '2026-09' }, { from: '2026-11', to: '2026-12' }, { from: '2026-9', to: '2026-11' },
+      { from: '2026-09' }, { to: '2026-09' }, { from: '2024-11', to: '2026-11' }]) {
+      assert.equal(costsRange(q, NOW), null, JSON.stringify(q))
+      assert.equal(costsRangeOf(costsPeriodOf(q, NOW)), null, JSON.stringify(q))
+    }
+    assert.equal(COSTS_RANGE_MAX, 24)
+    assert.deepEqual(costsRange({ from: '2024-12', to: '2026-11' }, NOW), { from: '2024-12', to: '2026-11' })
+    assert.equal(costsMonthsBetween('2024-12', '2026-11').length, 24)
+  })
+  it('a range pick writes from and to and drops month; the current month both ends leaves the URL; a month pick drops the range', () => {
+    assert.deepEqual(costsQueryWith({ month: 'ytd', currency: 'EUR' }, { from: '2026-09', to: '2026-11', current: '2026-11' }),
+      { currency: 'EUR', from: '2026-09', to: '2026-11' })
+    assert.deepEqual(costsQueryWith({ from: '2026-09', to: '2026-11' }, { from: '2026-11', to: '2026-11', current: '2026-11' }), {})
+    assert.deepEqual(costsQueryWith({ from: '2026-09', to: '2026-11', x: '1' }, { month: 'l12m', current: '2026-11' }), { x: '1', month: 'l12m' })
+    /* CONTROL: the query a pick writes reads back as the same range */
+    assert.equal(costsPeriodOf(costsQueryWith({}, { from: '2026-02', to: '2026-04', current: '2026-11' }), NOW), '2026-02..2026-04')
+  })
+  it('one end picked: the other follows when they would cross or span over 24 months', () => {
+    assert.deepEqual(costsRangeEnds({ from: '2026-09', to: '2026-10' }, 'from', '2026-11'), { from: '2026-11', to: '2026-11' })
+    assert.deepEqual(costsRangeEnds({ from: '2026-09', to: '2026-10' }, 'to', '2026-05'), { from: '2026-05', to: '2026-05' })
+    assert.deepEqual(costsRangeEnds({ from: '2026-09', to: '2026-10' }, 'from', '2026-02'), { from: '2026-02', to: '2026-10' })
+    assert.deepEqual(costsRangeEnds({ from: '2026-11', to: '2026-11' }, 'from', '2023-01'), { from: '2023-01', to: '2024-12' })
+    assert.deepEqual(costsRangeEnds({ from: '2023-01', to: '2023-02' }, 'to', '2026-11'), { from: '2024-12', to: '2026-11' })
+  })
+  it('the project\'s cost asks the hub for the range in one read (period range)', () => {
+    assert.equal(costProjectQuery({ from: '2026-09', to: '2026-11' }), '?from=2026-09&to=2026-11')
+    assert.equal(costProjectQuery({ month: '2026-09' }), '?month=2026-09')
+    assert.equal(costProjectQuery({ from: '2026-09' }), '', 'one end is no range')
+    const r = costProjectOf(mockCostProject({ from: '2026-09', to: '2026-11' }, { now: NOW, scenario: '' }))
+    assert.equal(r.period, 'range')
+    assert.deepEqual([r.monthFrom, r.monthTo, r.from], ['2026-09', '2026-11', '2026-09-01'])
+    /* CONTROL: one month stays the month answer */
+    assert.equal(costProjectOf(mockCostProject({ month: '2026-09' }, { now: NOW, scenario: '' })).period, 'month')
+  })
+  it('the header draws both pickers from the catalogue; the shell and the project page carry from and to', () => {
+    const h = read('src/components/reporting/costs/CostsHeader.vue')
+    for (const s of ['data-test="costs-range-from"', 'data-test="costs-range-to"', "t('reporting.costs.range_from')", "t('reporting.costs.range_to')", "t('reporting.costs.range_label')"]) assert.ok(h.includes(s), s)
+    for (const f of ['src/pages/reporting/costs.vue', 'src/pages/reporting/costs/project.vue']) assert.match(read(f), /\['month', 'from', 'to', 'currency'\]/, f)
+    const dir = join(WUI, 'i18n/locales')
+    for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+      const c = JSON.parse(readFileSync(join(dir, f), 'utf8')).reporting.costs
+      for (const k of ['range_label', 'range_from', 'range_to', 'range_name']) assert.equal(typeof c[k], 'string', f + ': ' + k)
+      assert.match(c.range_name, /\{from\}.*\{to\}/, f)
     }
   })
 })

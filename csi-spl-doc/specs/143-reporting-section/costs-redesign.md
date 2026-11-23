@@ -468,6 +468,52 @@ in all 19 locales (agy review last). Tests: `tests/unit/costs-labels.test.mjs`,
 `reporting-costs.test.mjs`, `tests/e2e/reporting-costs-labels.test.mjs`
 (1440 and 390 px).
 
+### 3.10 A start month and an end month (SPL-6300)
+
+Owner HUM-10, workspace topic f3203933 (msg 2f3e560e, relayed by the seat
+c-086): "change the interface so that there will be from month till month
+(including) aka start month and end month to calculate all of the costs".
+Issue SPL-6300 (epic SPL-2402, discussion SPL-6299).
+
+- **Two pickers in the header**, beside the period dropdown: **From month**
+  and **To month** (`costs-range-from`, `costs-range-to`), each of the
+  current month and the 23 before it, plus an older end a link carries.
+  Both months are included. They always show the period's first and last
+  month: the default is the current month in both (today's view, no query),
+  a preset (3.9: a month, `ytd`, `l12m`) sets them to its ends.
+- **The URL carries the range**: `?from=YYYY-MM&to=YYYY-MM`, so a link
+  alone reproduces the view; the page bar carries it to every label, as
+  `month` and `currency`. A range pick drops `month`; a preset pick drops
+  the range; both ends on the current month drop it too. A range the WUI
+  cannot read (from after to, an end in the future, a bad shape, one end
+  only, more than 24 months) is ignored and `?month=` is read as before.
+- **Picking one end** moves the other when they would cross (from after to)
+  or span more than 24 months, so the pickers never ask for a range the hub
+  refuses (`costsRangeEnds`).
+- **The labels** (Total, Persons, Cloud, Tokens) read every month of the
+  range with one month read each, as `ytd` does, and draw a column per
+  month, a Total column that adds them, and the share of the range's total.
+  The period dropdown shows a range that is no preset as "<from> – <to>".
+  Cloud's day level stays for a single month.
+- **The project's cost** reads the range in one hub call,
+  `GET /v1/tenant/costs/project?from=&to=` (spec 123 5.2), its table
+  captioned "<from> – <to>".
+- **The cap, 24 months**, is the hub's (`costRangeMaxMonths`,
+  `csi-spl-api/.../internal/hub/cost_range.go`) and the WUI's
+  (`COSTS_RANGE_MAX`).
+
+**As built** (`csi-spl-wui`): `utils/reporting-costs.mjs` (`costsRange`,
+`costsPeriodOf`, `costsRangeOf`, `costsMonthsBetween`, `costsRangeEnds`,
+`costsQueryWith` with `from` and `to`), `CostsHeader.vue`,
+`composables/useCostsPeriod.ts`, `pages/reporting/costs.vue` and
+`costs/project.vue`, `utils/cost-project.mjs` (`costProjectQuery`, the
+mock's period `range`). Strings `reporting.costs.{range_label,range_from,
+range_to,range_name}` in all 19 locales, checked with Google Cloud
+Translation (`do_spl_lang_review_gct`, run 20261123T110651Z-54b0812b).
+Tests: `tests/unit/reporting-costs.test.mjs` (the range in the URL),
+`tests/e2e/reporting-costs-labels.test.mjs` (section `monthRange`, 1440 and
+390 px).
+
 ## 4. Data: what feeds each figure
 
 | figure | read from | exists? |

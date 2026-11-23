@@ -26,9 +26,17 @@
 //     machine translated and not yet reviewed, reviewed, or corrected by
 //     hand, a stale hand row, the languages still waiting; a hand edit
 //     flips a machine row's mark; a removed row says it is made again;
+//   - SPL-6300: the start and end month pickers, both months included:
+//     the current month by default (no query); a start pick writes
+//     ?from=&to=, draws a column per month and a Total that is their sum;
+//     the link alone reproduces the view on another label; the page bar
+//     carries the range; the project's cost reads it as "<from> – <to>";
+//     a preset pick drops the range;
 //   - the currency switch writes ?currency= and the cells follow; no
 //     sideways page scroll; without costs.read the 403 line.
 //
+// CONTROL: on master before SPL-6300 there is no costs-range-from picker,
+// so every "range:" check FAILS there.
 // CONTROL: on master before SPL-5312 the bar is Spend, AI tokens, Human
 // (Cloud, Price for an operator admin) and /reporting/costs/total is no page,
 // so every label check here FAILS there. SPL-6203: on master before it the
@@ -98,6 +106,10 @@ const shot = async (p, name, size) => { if (process.env.SHOT_DIR) await p.screen
 const ready = (p) => p.waitForFunction(() => document.querySelectorAll('[data-test=costs-page]').length === 1 && document.querySelector('[data-test=costs-month-table]') && !document.querySelector('[data-test=costs-loading]'), { timeout: 20000 }).then(() => true, () => false)
 /** a link's click, as the browser dispatches it, once the async pie no longer shifts the layout */
 const follow = async (p, sel) => { await new Promise((r) => setTimeout(r, 300)); await act(`follow ${sel}`, () => p.$eval(sel, (a) => a.click())) }
+/** a click as a reader makes it: scrolled to the middle first, so the phone's
+ *  docked bottom bar never takes it (SPL-6300: the range pickers made the
+ *  header a row taller, putting the sort button under that bar at 390 px) */
+const clickSeen = async (p, sel) => { await p.$eval(sel, (e) => e.scrollIntoView({ block: 'center' })); await p.click(sel) }
 /** an interaction on an element that may be missing: a FAIL naming it, never a throw that ends the run (c-974 review N5) */
 const act = (what, fn) => Promise.resolve().then(fn).then(() => true, (e) => { ok(`can ${what}`, false, String(e && e.message || e).slice(0, 160)); return false })
 
@@ -156,10 +168,10 @@ async function totalLabel(browser, base, size) {
   ok('Total: n of N per source for a single month', (await count(p, '[data-test=costs-coverage-row]')) === 3)
   await shot(p, 'total', size)
   /* the sort: name A-Z, then Z-A; aria-sort on the column */
-  await act('click [data-test=cmt-sort-name]', () => p.click('[data-test=cmt-sort-name]'))
+  await act('click [data-test=cmt-sort-name]', () => clickSeen(p, '[data-test=cmt-sort-name]'))
   const sortedName = await p.waitForFunction(() => [...document.querySelectorAll('[data-test=cmt-row]')].map((e) => e.getAttribute('data-key')).join(',') === 'cloud,other,persons,tokens', { timeout: 5000 }).then(() => true, () => false)
   ok('sort: a name click sorts A-Z, ▲, aria-sort ascending', sortedName && (await p.$eval('[data-test=cmt-col-name]', (th) => th.getAttribute('aria-sort') + ':' + th.textContent.trim())) === 'ascending:Item▲', await rowKeys(p))
-  await act('click [data-test=cmt-sort-name]', () => p.click('[data-test=cmt-sort-name]'))
+  await act('click [data-test=cmt-sort-name]', () => clickSeen(p, '[data-test=cmt-sort-name]'))
   ok('sort: a second click flips it, ▼', (await rowKeys(p)).join(',') === 'tokens,persons,other,cloud'
     && (await p.$eval('[data-test=cmt-col-name]', (th) => th.getAttribute('aria-sort'))) === 'descending', await rowKeys(p))
   /* keyboard: Enter on the focused share column sorts by it, highest first */
@@ -210,6 +222,50 @@ async function period(browser, base, size) {
   ok('currency: EUR writes ?currency=EUR, the period kept', await waitWhere(p, '/reporting/costs/total?month=ytd&currency=EUR'), where(p))
   const eur = await p.waitForFunction(() => /^€/.test(document.querySelector('[data-test=cmt-foot-total], [data-test=cmt-foot-cell]')?.textContent.trim() || ''), { timeout: 15000 }).then(() => true, () => false)
   ok('currency: the totals are in EUR', eur, await text(p, '[data-test=cmt-foot]'))
+  await ctx.close()
+}
+
+/** SPL-6300: the start month and the end month, both included, in the URL. */
+async function monthRange(browser, base, size) {
+  const { ctx, p } = await costsPage(browser, base, size)
+  await open(p, base, '/reporting/costs/total')
+  await ready(p)
+  const now = new Date()
+  const cur = now.toISOString().slice(0, 7)
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1)).toISOString().slice(0, 7)
+  const val = (sel) => p.$eval(sel, (e) => e.value).catch(() => '')
+  ok('range: both pickers show the current month by default', await val('[data-test=costs-range-from]') === cur && await val('[data-test=costs-range-to]') === cur,
+    [await val('[data-test=costs-range-from]'), await val('[data-test=costs-range-to]')])
+  await act('select [data-test=costs-range-from]', () => p.select('[data-test=costs-range-from]', from))
+  const path = `/reporting/costs/total?from=${from}&to=${cur}`
+  ok('range: a start pick writes ?from=&to=', await waitWhere(p, path), where(p))
+  const want = 'name,0,1,2,total,pct'
+  const cols = await p.waitForFunction((w) => [...document.querySelectorAll('[data-test=costs-month-table] thead th')].map((e) => e.getAttribute('data-test').slice(8)).join(',') === w
+    && !document.querySelector('[data-test=costs-loading]'), { timeout: 20000 }, want).then(() => true, () => false)
+  ok('range: three month columns and a Total', cols, await p.$$eval('[data-test=costs-month-table] thead th', (els) => els.map((e) => e.getAttribute('data-test'))).catch(() => []))
+  const heads = await p.$$eval('[data-test=costs-month-table] thead th', (els) => els.slice(1, 4).map((e) => e.textContent.trim())).catch(() => [])
+  ok('range: the columns are the start month to the end month', heads[0] === from && heads[2] === cur, heads)
+  const cloud = await p.$eval('[data-test=cmt-row][data-key=cloud]', (r) => ({
+    cells: [...r.querySelectorAll('[data-test=cmt-cell]')].map((c) => Number(c.textContent.replace(/[^\d.]/g, ''))),
+    total: Number(r.querySelector('[data-test=cmt-total]').textContent.replace(/[^\d.]/g, '')),
+  })).catch(() => ({ cells: [], total: -1 }))
+  const sum = Math.round(cloud.cells.reduce((a, x) => a + x, 0) * 100) / 100
+  ok('range: a row\'s Total is the sum of its months', cloud.cells.length === 3 && cloud.total > 0 && Math.abs(sum - cloud.total) <= 0.06, cloud)
+  ok('range: the period list names the range', (await text(p, '[data-test=costs-period-range]')) === `${from} – ${cur}`, await text(p, '[data-test=costs-period-range]'))
+  if (size.width < 600) ok('range: the pickers on a phone add no sideways page scroll', (await sideways(p)) <= 0, await sideways(p))
+  await shot(p, 'total-range', size)
+  await follow(p, '[data-test=costs-page-tokens]')
+  ok('range: the page bar carries the range', await waitWhere(p, `/reporting/costs/tokens?from=${from}&to=${cur}`), where(p))
+  /* the link alone reproduces the view */
+  await open(p, base, `/reporting/costs/cloud?from=${from}&to=${cur}`)
+  await ready(p)
+  const again = await p.waitForFunction((w) => [...document.querySelectorAll('[data-test=costs-month-table] thead th')].map((e) => e.getAttribute('data-test').slice(8)).join(',') === w, { timeout: 20000 }, want).then(() => true, () => false)
+  ok('range: the link alone draws the range on Cloud, the pickers set', again && await val('[data-test=costs-range-from]') === from && await val('[data-test=costs-range-to]') === cur, where(p))
+  await open(p, base, `/reporting/costs/project?from=${from}&to=${cur}`)
+  const cap = await p.waitForFunction((w) => (document.querySelector('[data-test=project-table] caption')?.textContent || '').includes(w), { timeout: 20000 }, `${from} – ${cur}`).then(() => true, () => false)
+  ok('range: the project\'s cost reads the range', cap, await text(p, '[data-test=project-table] caption'))
+  await act('select [data-test=costs-header-month] ytd', () => p.select('[data-test=costs-header-month]', 'ytd'))
+  ok('range: a preset pick drops the range', await waitWhere(p, '/reporting/costs/project?month=ytd'), where(p))
   await ctx.close()
 }
 
@@ -340,7 +396,7 @@ const browser = await launch()
 try {
   for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     console.log(`-- ${size.width}x${size.height}`)
-    for (const section of [redirects, totalLabel, period, cloudPersonsTokens, personsLanguage, expensesMarks, workspaceAndForbidden]) {
+    for (const section of [redirects, totalLabel, period, monthRange, cloudPersonsTokens, personsLanguage, expensesMarks, workspaceAndForbidden]) {
       // a section that still throws is one FAIL, and the sections after it run (N5)
       await section(browser, server.base, size).catch((e) => ok(`${section.name} ran to its end`, false, String(e && e.message || e).slice(0, 160)))
     }

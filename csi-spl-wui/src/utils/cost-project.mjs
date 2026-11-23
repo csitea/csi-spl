@@ -42,9 +42,14 @@ const intOrNull = (v) => (v === null || v === undefined || v === '' || !Number.i
 const numOrNull = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
 const money = (m) => ({ usd: intOrNull(m?.usd_micros), eur: intOrNull(m?.eur_micros), second: intOrNull(m?.second_micros) })
 
-/** The query of one period: a year, a month, or '' (the current month so far). @param {{ month?: string, year?: string }} [p] */
-export function costProjectQuery({ month = '', year = '' } = {}) {
+/**
+ * The query of one period: a year, a month range (SPL-6300, both months
+ * included), a month, or '' (the current month so far).
+ * @param {{ month?: string, year?: string, from?: string, to?: string }} [p]
+ */
+export function costProjectQuery({ month = '', year = '', from = '', to = '' } = {}) {
   if (YEAR_RE.test(String(year))) return '?year=' + year
+  if (MONTH_RE.test(String(from)) && MONTH_RE.test(String(to))) return '?from=' + from + '&to=' + to
   if (MONTH_RE.test(String(month))) return '?month=' + month
   return ''
 }
@@ -68,8 +73,10 @@ export function costProjectOf(body) {
   const parts = (Array.isArray(b.parts) ? b.parts : []).map(partOf).filter((p) => COST_PROJECT_PARTS.includes(p.part))
   parts.sort((a, c) => COST_PROJECT_PARTS.indexOf(a.part) - COST_PROJECT_PARTS.indexOf(c.part))
   return {
-    period: b.period === 'year' ? 'year' : 'month',
+    period: b.period === 'year' || b.period === 'range' ? b.period : 'month',
     month: str(b.month),
+    monthFrom: str(b.month_from),
+    monthTo: str(b.month_to),
     year: str(b.year),
     from: str(b.from),
     to: str(b.to),
@@ -202,8 +209,13 @@ function mockMaskOf(me) {
   return perms.includes('hours.read') ? 'money' : 'whole'
 }
 
-function mockMonths(month, year, now) {
+function mockMonths(month, year, now, from = '', to = '') {
   const cur = now.toISOString().slice(0, 7)
+  if (MONTH_RE.test(String(from)) && MONTH_RE.test(String(to)) && from <= to && !YEAR_RE.test(String(year))) {
+    const out = []
+    for (let d = new Date(from + '-01T00:00:00Z'); d.toISOString().slice(0, 7) <= to; d.setUTCMonth(d.getUTCMonth() + 1)) out.push(d.toISOString().slice(0, 7))
+    return out
+  }
   if (!YEAR_RE.test(String(year))) return [MONTH_RE.test(String(month)) ? month : cur]
   const last = year === cur.slice(0, 4) ? Number(cur.slice(5, 7)) : 12
   return Array.from({ length: last }, (_, i) => year + '-' + String(i + 1).padStart(2, '0'))
@@ -215,15 +227,16 @@ function mockMonths(month, year, now) {
  * Human not tracked yet (null, as P01 answers before P02); 'share' a
  * customer workspace's two parts; 'human' Human priced (as after P02), masked
  * by the mock reader's permissions; 'norate' no rate in the second currency.
- * @param {{ month?: string, year?: string }} period
+ * @param {{ month?: string, year?: string, from?: string, to?: string }} period
  * @param {{ me?: any, now?: Date, scenario?: string, currency?: string }} [o]
  */
-export function mockCostProject({ month = '', year = '' } = {}, { me = null, now = new Date(), scenario, currency = 'EUR' } = {}) {
+export function mockCostProject({ month = '', year = '', from = '', to = '' } = {}, { me = null, now = new Date(), scenario, currency = 'EUR' } = {}) {
   if (me && Array.isArray(me.permissions) && !me.permissions.includes(COSTS_READ)) {
     throw Object.assign(new Error('your role in this tenant does not grant ' + COSTS_READ), { status: 403, code: 'forbidden', permission: COSTS_READ })
   }
   const sc = scenario === undefined ? String(storageGet(COSTS_MOCK_KEY, '') || '') : scenario
-  const months = mockMonths(month, year, now)
+  const months = mockMonths(month, year, now, from, to)
+  const ranged = !year && months.length > 1
   const estate = sc !== 'share'
   const human = sc === 'human'
   const f = mockFold(months, estate, human, now)
@@ -231,8 +244,9 @@ export function mockCostProject({ month = '', year = '' } = {}, { me = null, now
   const sum = (k) => parts.reduce((a, p) => (p[k] === null ? a : a + p[k]), 0)
   const last = mockMonthWindow(months[months.length - 1], now)
   const body = {
-    period: year ? 'year' : 'month',
+    period: year ? 'year' : ranged ? 'range' : 'month',
     ...(year ? { year } : { month: months[0] }),
+    ...(ranged ? { month_from: months[0], month_to: months[months.length - 1] } : {}),
     from: months[0] + '-01',
     to: last.to,
     status: last.soFar ? 'so_far' : 'ended',

@@ -82,7 +82,7 @@ export const COSTS_YTD = 'ytd'
  *  for both the start of the year till now and for the last 12 months"), `?month=l12m`:
  *  the current month so far and the 11 before it. */
 export const COSTS_L12M = 'l12m'
-/** The periods that span months; anything else is one month. */
+/** The preset periods that span months; a range (costsRange) spans too; anything else is one month. */
 const COSTS_SPANS = Object.freeze([COSTS_YTD, COSTS_L12M])
 
 /** A valid YYYY-MM (the first of an array query), else ''. */
@@ -94,17 +94,19 @@ export function costsMonth(v) {
 const monthOf = (d) => d.toISOString().slice(0, 7)
 
 /**
- * The picker's months, the current UTC month first, then the 11 before it.
+ * The picker's months, the current UTC month first, then the 11 before it
+ * (`n` months: the range pickers take COSTS_RANGE_MAX).
  * A `keep` month from the URL (an old link, a bookmark) older than those but
  * not in the future is added last, so the page shows what the link asked for
  * and never rewrites it.
  * @param {Date} [now]
  * @param {string} [keep]
+ * @param {number} [n]
  */
-export function costsMonthOptions(now = new Date(), keep = '') {
+export function costsMonthOptions(now = new Date(), keep = '', n = COSTS_MONTHS_MAX) {
   const out = []
   const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-  while (out.length < COSTS_MONTHS_MAX) {
+  while (out.length < n) {
     out.push(monthOf(d))
     d.setUTCMonth(d.getUTCMonth() - 1)
   }
@@ -122,13 +124,89 @@ export function costsPeriod(v, now = new Date()) {
 }
 
 /**
+ * SPL-6300 (spec 143 costs-redesign.md 3.10; owner HUM-10, workspace topic
+ * f3203933 msg 2f3e560e: "from month till month (including) aka start month
+ * and end month to calculate all of the costs"): a start month and an end
+ * month, both included, `?from=YYYY-MM&to=YYYY-MM`. At most this many
+ * months, the hub's own cap (cost_range.go costRangeMaxMonths).
+ */
+export const COSTS_RANGE_MAX = 24
+/** A range period reads `<from>..<to>`. */
+const RANGE_SEP = '..'
+
+/** The months from `from` to `to`, both included, oldest first. @param {string} from @param {string} to */
+export function costsMonthsBetween(from, to) {
+  const out = []
+  const d = new Date(Date.UTC(Number(from.slice(0, 4)), Number(from.slice(5, 7)) - 1, 1))
+  while (monthOf(d) <= to && out.length <= COSTS_RANGE_MAX) {
+    out.push(monthOf(d))
+    d.setUTCMonth(d.getUTCMonth() + 1)
+  }
+  return out
+}
+
+/**
+ * The range a query names: `from` and `to` both a valid YYYY-MM, from not
+ * after to, to not in the future, at most COSTS_RANGE_MAX months; else null
+ * (the page then reads `?month=` as before).
+ * @param {Record<string, unknown>} query
+ * @param {Date} [now]
+ */
+export function costsRange(query, now = new Date()) {
+  const from = costsMonth(query?.from)
+  const to = costsMonth(query?.to)
+  if (!from || !to || from > to || to > monthOf(now)) return null
+  return costsMonthsBetween(from, to).length > COSTS_RANGE_MAX ? null : { from, to }
+}
+
+/**
+ * The period a whole query names: a range (`<from>..<to>`; one month when
+ * from = to), else costsPeriod of `?month=`.
+ * @param {Record<string, unknown>} query
+ * @param {Date} [now]
+ */
+export function costsPeriodOf(query, now = new Date()) {
+  const r = costsRange(query, now)
+  if (r) return r.from === r.to ? r.from : r.from + RANGE_SEP + r.to
+  return costsPeriod(query?.month, now)
+}
+
+/**
+ * The range after one end is picked: the other end follows it when the two
+ * would cross, and when they would span more than COSTS_RANGE_MAX months.
+ * @param {{ from: string, to: string }} ends the range shown
+ * @param {'from' | 'to'} end
+ * @param {string} month the month picked
+ */
+export function costsRangeEnds(ends, end, month) {
+  const shift = (m, n) => {
+    const d = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1))
+    return monthOf(d)
+  }
+  if (end === 'from') {
+    const last = shift(month, COSTS_RANGE_MAX - 1)
+    return { from: month, to: ends.to < month ? month : ends.to > last ? last : ends.to }
+  }
+  const first = shift(month, 1 - COSTS_RANGE_MAX)
+  return { from: ends.from > month ? month : ends.from < first ? first : ends.from, to: month }
+}
+
+/** A range period's ends, else null. @param {string} period */
+export function costsRangeOf(period) {
+  const [from, to] = String(period).split(RANGE_SEP)
+  return to !== undefined && costsMonth(from) && costsMonth(to) ? { from, to } : null
+}
+
+/**
  * The months a period reads, oldest first: the year to date is January to the
- * current month, the last 12 months the picker's 12.
+ * current month, the last 12 months the picker's 12, a range its months.
  * @param {string} period
  * @param {Date} [now]
  */
 export function costsPeriodMonths(period, now = new Date()) {
   const cur = monthOf(now)
+  const r = costsRangeOf(period)
+  if (r) return costsMonthsBetween(r.from, r.to)
   if (period === COSTS_L12M) return costsMonthOptions(now).reverse()
   if (period !== COSTS_YTD) return [costsPeriod(period, now) || cur]
   const out = []
@@ -156,15 +234,25 @@ export function costsCurrency(v, options) {
 
 /**
  * The query after a header pick: `month` (a month, 'ytd' or 'l12m') dropped for the current month,
- * `currency` dropped for USD, every other key kept.
+ * `currency` dropped for USD, every other key kept. A month pick drops the
+ * range; a range pick (`from` and `to`, SPL-6300) drops `month`, and is
+ * dropped itself when both are the current month (the default view).
  * @param {Record<string, unknown>} query
- * @param {{ month?: string, currency?: string, current?: string }} pick
+ * @param {{ month?: string, currency?: string, current?: string, from?: string, to?: string }} pick
  */
-export function costsQueryWith(query, { month, currency, current } = {}) {
+export function costsQueryWith(query, { month, currency, current, from, to } = {}) {
   const q = { ...query }
   if (month !== undefined) {
+    delete q.from
+    delete q.to
     if ((!costsMonth(month) && !COSTS_SPANS.includes(month)) || month === current) delete q.month
     else q.month = month
+  }
+  if (from !== undefined && to !== undefined) {
+    delete q.month
+    delete q.from
+    delete q.to
+    if (costsMonth(from) && costsMonth(to) && !(from === current && to === current)) Object.assign(q, { from, to })
   }
   if (currency !== undefined) {
     if (!currency || currency === COSTS_CURRENCY_DEFAULT) delete q.currency

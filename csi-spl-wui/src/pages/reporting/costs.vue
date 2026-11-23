@@ -10,7 +10,8 @@
      year to date. The pages before them redirect to their label.
      Spec 123 P05 (SPL-6117; owner HUM-10, t1 e2c0e6b4, msg 3a795cdb, Q-9
      A): the project's cost is the first label and the default, Total
-     second; /reporting/costs lands on it. -->
+     second; /reporting/costs lands on it. SPL-6300: the header's month
+     range (`from`, `to`) travels with the bar too. -->
 <template>
   <div class="reporting-costs" data-test="reporting-costs">
     <nav class="costs-pages" :aria-label="t('reporting.costs.pages_label')" data-test="costs-pages">
@@ -44,7 +45,7 @@ const active = computed(() => costsPageFor(route.path))
 /* the header's picks travel with the page bar */
 const carried = computed(() => {
   const q: Record<string, string> = {}
-  for (const k of ['month', 'currency']) if (typeof route.query[k] === 'string') q[k] = route.query[k] as string
+  for (const k of ['month', 'from', 'to', 'currency']) if (typeof route.query[k] === 'string') q[k] = route.query[k] as string
   return q
 })
 

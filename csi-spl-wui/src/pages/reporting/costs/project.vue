@@ -13,7 +13,8 @@
      0.00, and no sum holds it. Human money only with hours.rates (13.6):
      the hub's human_mask says what is hidden. Its own route and chunk, the
      first label of the Costs bar and its default (owner Q-9 A, t1 e2c0e6b4,
-     msg 3a795cdb). -->
+     msg 3a795cdb). SPL-6300: the header's month range (`?from=&to=`) is
+     one hub read over its months, its table "<from> – <to>". -->
 <template>
   <section class="cost-project" data-test="cost-project" data-section="project">
     <h3 class="cost-project-title" data-test="costs-label-title">{{ t('reporting.costs.project.title') }}</h3>
@@ -88,13 +89,13 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { COST_PROJECT_LINKS, costProjectAmount, costProjectDoneOf, costProjectOf } from '~/utils/cost-project.mjs'
-import { COSTS_L12M, COSTS_YTD, costsCurrency, costsCurrencyOptions, costsMonthOptions, costsPeriod } from '~/utils/reporting-costs.mjs'
+import { COSTS_L12M, COSTS_YTD, costsCurrency, costsCurrencyOptions, costsMonthOptions, costsPeriodOf, costsRangeOf } from '~/utils/reporting-costs.mjs'
 import { COSTS_READ, costMoney } from '~/utils/tenant-costs.mjs'
 
 type View = ReturnType<typeof costProjectOf>
 type Money = { usd: number | null, eur: number | null, second: number | null }
 type Part = View['parts'][number]
-type ProjectApi = { getTenantCostsProject: (period: { month?: string, year?: string }, secondCurrency?: string) => Promise<unknown> }
+type ProjectApi = { getTenantCostsProject: (period: { month?: string, year?: string, from?: string, to?: string }, secondCurrency?: string) => Promise<unknown> }
 
 const DASH = '—'
 const { t, locale } = useI18n({ useScope: 'global' })
@@ -105,12 +106,13 @@ const session = useSessionStore()
 const pick = computed(() => String(session.claims?.second_currency || ''))
 const current = costsMonthOptions(new Date())[0]
 const thisYear = current.slice(0, 4)
-const period = computed(() => costsPeriod(route.query.month, new Date()) || current)
+const period = computed(() => costsPeriodOf(route.query, new Date()) || current)
+const range = computed(() => costsRangeOf(period.value))
 const l12m = computed(() => period.value === COSTS_L12M)
 const currency = computed(() => costsCurrency(route.query.currency, costsCurrencyOptions(pick.value)))
 const carried = computed(() => {
   const q: Record<string, string> = {}
-  for (const k of ['month', 'currency']) if (typeof route.query[k] === 'string') q[k] = route.query[k] as string
+  for (const k of ['month', 'from', 'to', 'currency']) if (typeof route.query[k] === 'string') q[k] = route.query[k] as string
   return q
 })
 
@@ -123,7 +125,7 @@ const forbiddenPerm = ref(COSTS_READ)
 /* the table's period: the year to date for ytd and l12m, else the month */
 const spansYear = computed(() => period.value === COSTS_YTD || l12m.value)
 const periodView = computed(() => (spansYear.value ? yearView.value : period.value === current ? monthView.value : pastView.value))
-const periodName = computed(() => (spansYear.value ? t('reporting.costs.period_ytd', { year: thisYear }) : period.value === current ? t('monitoring.costs.month_so_far', { month: current }) : period.value))
+const periodName = computed(() => (spansYear.value ? t('reporting.costs.period_ytd', { year: thisYear }) : range.value ? t('reporting.costs.range_name', range.value) : period.value === current ? t('monitoring.costs.month_so_far', { month: current }) : period.value))
 const figures = computed(() => [
   { id: 'month', label: t('reporting.costs.project.month_so_far', { month: current }), view: monthView.value as View },
   { id: 'year', label: t('reporting.costs.project.year_to_date', { year: thisYear }), view: yearView.value as View },
@@ -154,11 +156,13 @@ async function load() {
   state.value = 'loading'
   const api = useSpoolApi() as unknown as ProjectApi
   const past = !spansYear.value && period.value !== current ? period.value : ''
+  /* SPL-6300: a range is one hub read, ?from=&to= (cost_range.go) */
+  const asked = range.value ? { ...range.value } : { month: past }
   try {
     const [m, y, p] = await Promise.all([
       api.getTenantCostsProject({}, pick.value),
       api.getTenantCostsProject({ year: thisYear }, pick.value),
-      past ? api.getTenantCostsProject({ month: past }, pick.value) : Promise.resolve(null),
+      past ? api.getTenantCostsProject(asked, pick.value) : Promise.resolve(null),
     ])
     if (mine !== seq) return
     monthView.value = costProjectOf(m)

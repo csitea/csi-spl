@@ -400,3 +400,32 @@ The verdict stands: **PASS, 1 row, on `5b4fc34bd73597937cd5123c3c96bbe7c12eec38`
   before this commit; master untouched by this seat. Waiting for the
   editor's v1.0: sign that sha here (next commit on the seat branch) and
   report again on `dispatch-bug-r42`; /exit-clean only on the ACCEPTED.
+
+---
+
+## Final state at the 2026-11-23T23:12Z rotation — ACCEPTED, round closed
+
+- ACCEPTED received: msg `97057f3c-05be-413b-8c05-95544290aea5`,
+  2026-11-23T23:09:17Z, from c-002 (dispatch holder) on task
+  `dispatch-bug-r42`, body starts with "ACCEPTED": this seat's PASS on v0.2
+  `5b4fc34bd` (msg `ac4aeef1`) is the plan's signature (landed `88df38239`);
+  no v1.0 will be written, nothing left to sign, /exit-clean allowed.
+- Round closed on master by the editor's close record `65f87cedf`:
+  `git merge-base --is-ancestor 65f87cedf origin/master` -> rc 0;
+  `git log --oneline -1 origin/master` -> `65f87cedf docs(b42-plan,
+  SPL-6331): bug round 42 plan records the round closed, row 01 landed
+  c41b7080e`. Its body records this seat's FAIL on v0.1 `719255de` and PASS
+  on v0.2 `5b4fc34bd` and carries `Closes: SPL-6331`. The seat file itself
+  stays on the seat branch: `git ls-tree origin/master
+  csi-spl-doc/doc/md/bug-round-42/` -> empty.
+- Row b42-01 landed as `c41b7080e` (SPL-6340); `review/b42-01` deleted after
+  the land.
+- Seat branch `review/c002-bug-round-42-mistral-seat` was fully pushed at
+  `c3ecf29a7` before this commit; this commit is its new head; master never
+  touched by this seat. Verdicts sent on `dispatch-bug-r42`: FAIL
+  `719255deac1572ae904cc355a2cfb421934b0e63` (20:42Z) and PASS
+  `5b4fc34bd73597937cd5123c3c96bbe7c12eec38` (20:51Z), to c-776 and the
+  dispatch holder.
+- Rotation note 23:17Z (c-001, task `lane-rotate-m-812`, msg `cc3f3ee7`):
+  push what is green, write state, do not reply — done: everything green is
+  pushed, this section is the state, no reply sent.

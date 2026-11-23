@@ -76,18 +76,19 @@ describe('monitoring invoices', () => {
     }
     assert.match(page, /operatorReadable\(await gateMe\(access\)\)/)
     assert.match(page, /if \(!confirm\(t\('monitoring\.invoices\.confirm'/)
-    assert.match(page, /markInvoicePaid\(inv\.workspace, inv\.month\)/)
+    assert.match(page, /fleetPaid\('invoice_paid', inv\.workspace, inv\.month\)/)
     const en = JSON.parse(read('i18n/locales/en.json'))
     for (const key of [...page.matchAll(/t\('monitoring\.invoices\.([a-z_]+)'/g)].map((m) => m[1])) {
       assert.equal(typeof en.monitoring.invoices[key], 'string', 'en has monitoring.invoices.' + key)
     }
     assert.equal(en.monitoring.tab.invoices, 'Invoices')
   })
-  it('the lazy client routes both calls to the operator paths', () => {
+  it('the lazy client routes both calls to the operator paths, through fleetPaid (no new stub in the initial chunk)', () => {
     const lazy = read('src/utils/spool-client-lazy.mjs')
     assert.match(lazy, /live\('\/v1\/operator\/invoices\/overdue'\)/)
     assert.match(lazy, /live\(mi\.invoicePaidPath\(workspace, month\), \{ method: 'POST' \}\)/)
+    assert.match(lazy, /if \(op\.startsWith\('invoice'\)\) return fleetPaidInvoices\(live, mock, op, a, b\)/)
     const client = read('src/utils/spool-client.mjs')
-    for (const name of ['getOverdueInvoices', 'markInvoicePaid']) assert.match(client, new RegExp(`'${name}'`), name)
+    for (const name of ['getOverdueInvoices', 'markInvoicePaid']) assert.doesNotMatch(client, new RegExp(`'${name}'`), name)
   })
 })

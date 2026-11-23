@@ -17,6 +17,7 @@
 //	BYMONTH     YEARLY: 1..12
 //	COUNT       1..MaxCount, or
 //	UNTIL       YYYYMMDDTHHMMSSZ (UTC) or YYYYMMDD (end of that local day)
+//	WKST        MO | TU | WE | TH | FR | SA | SU (default MO, RFC 5545's)
 package calrecur
 
 import (
@@ -57,8 +58,9 @@ type Rule struct {
 	byMonthDay []int
 	byMonth    []int
 	count      int
-	until      time.Time // UTC instant; zero when none or untilDate is set
-	untilDate  string    // YYYYMMDD, resolved in the series' zone
+	until      time.Time     // UTC instant; zero when none or untilDate is set
+	untilDate  string        // YYYYMMDD, resolved in the series' zone
+	wkst       rrule.Weekday // week start; MO unless WKST says otherwise
 }
 
 // Bounded reports whether the series ends (COUNT or UNTIL).
@@ -75,7 +77,7 @@ func Parse(s string) (Rule, error) {
 	if err != nil {
 		return Rule{}, err
 	}
-	r := Rule{interval: 1}
+	r := Rule{interval: 1, wkst: rrule.MO}
 	if r.freq, err = parseFreq(parts["FREQ"]); err != nil {
 		return Rule{}, err
 	}
@@ -140,6 +142,8 @@ func (r *Rule) setPart(key, val string) error {
 		r.byMonthDay, err = intList(key, val, 31, true)
 	case "BYMONTH":
 		r.byMonth, err = intList(key, val, 12, false)
+	case "WKST":
+		r.wkst, err = parseWkst(val)
 	default:
 		err = badRule("%s is not supported", key)
 	}
@@ -206,6 +210,16 @@ var weekdays = map[string]rrule.Weekday{
 	"FR": rrule.FR, "SA": rrule.SA, "SU": rrule.SU,
 }
 
+// parseWkst reads the week start: one weekday, no ordinal. Google sends it
+// on some series (WKST=SU, b41-02); before, such a series never reached Spool.
+func parseWkst(v string) (rrule.Weekday, error) {
+	day, ok := weekdays[v]
+	if !ok {
+		return rrule.MO, badRule("WKST value %q", v)
+	}
+	return day, nil
+}
+
 // parseByDay reads MO,WE for WEEKLY and 2TU,-1FR for MONTHLY: a weekly day
 // carries no ordinal and a monthly day must. Other FREQs are refused by
 // checkShape.
@@ -252,7 +266,7 @@ func (r Rule) option(start time.Time, loc *time.Location) rrule.ROption {
 		Freq:       r.freq,
 		Dtstart:    start.In(loc),
 		Interval:   r.interval,
-		Wkst:       rrule.MO,
+		Wkst:       r.wkst,
 		Count:      r.count,
 		Until:      r.until,
 		Bymonthday: r.byMonthDay,

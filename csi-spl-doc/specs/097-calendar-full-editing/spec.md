@@ -298,9 +298,12 @@ The 089 body fields stay; these are added, all optional:
 **The rule.** `rrule` is an RFC 5545 `RRULE` value without the `RRULE:`
 prefix. v1 accepts this subset, anything else is `400 bad_event`:
 `FREQ=DAILY|WEEKLY|MONTHLY|YEARLY`, `INTERVAL`, `BYDAY` (weekly: `MO,WE`;
-monthly: `2TU`, `-1FR`), `BYMONTHDAY`, `BYMONTH` (yearly), and at most one of
-`COUNT` / `UNTIL`. That covers every choice in Google's "Custom" repeat
-dialog. The hub expands it in the event's `time_zone`, so a 09:00 Helsinki
+monthly: `2TU`, `-1FR`), `BYMONTHDAY`, `BYMONTH` (yearly), `WKST` (one day,
+`MO`..`SU`, no ordinal; `MO` when absent, the RFC 5545 default) and at most one
+of `COUNT` / `UNTIL`. That covers every choice in Google's "Custom" repeat
+dialog, and the `WKST` Google puts on some series (b41-02: before it was taken,
+such a series was refused and never reached Spool). `WKST` changes the dates
+only of a weekly rule with `INTERVAL` > 1 and more than one `BYDAY`. The hub expands it in the event's `time_zone`, so a 09:00 Helsinki
 meeting stays 09:00 across a daylight-saving change.
 
 **Storage, Google's model.** One series row (`rrule` set). An occurrence that

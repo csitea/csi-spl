@@ -48,6 +48,9 @@ func TestParseSubset(t *testing.T) {
 		"FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=14",
 		"FREQ=YEARLY;UNTIL=20301231",
 		"COUNT=4;FREQ=DAILY",
+		"FREQ=WEEKLY;WKST=SU",
+		"FREQ=WEEKLY;WKST=SU;INTERVAL=2;BYDAY=MO,WE",
+		"FREQ=MONTHLY;BYDAY=2TU;WKST=MO",
 	}
 	for _, s := range ok {
 		if _, err := Parse(s); err != nil {
@@ -70,7 +73,10 @@ func TestParseSubset(t *testing.T) {
 		"FREQ=DAILY;INTERVAL=0",
 		"FREQ=DAILY;BYHOUR=9",
 		"FREQ=DAILY;BYSETPOS=1",
-		"FREQ=WEEKLY;WKST=SU",
+		"FREQ=WEEKLY;WKST=XX",
+		"FREQ=WEEKLY;WKST=1MO",
+		"FREQ=WEEKLY;WKST=su",
+		"FREQ=WEEKLY;WKST=MO,SU",
 		"FREQ=DAILY;BYDAY=MO",
 		"FREQ=YEARLY;BYDAY=1MO",
 		"FREQ=WEEKLY;BYDAY=-1FR",
@@ -213,6 +219,32 @@ func TestMonthlyLastFriday(t *testing.T) {
 	want := "2026-10-30 15:00 UTC|2026-11-27 15:00 UTC|2026-12-25 15:00 UTC|2027-01-29 15:00 UTC"
 	if got := strings.Join(starts(occ, time.UTC), "|"); got != want {
 		t.Errorf("starts = %s, want %s", got, want)
+	}
+}
+
+// WKST changes the dates of a WEEKLY rule with INTERVAL > 1 and more than one
+// BYDAY: RFC 5545's own example, DTSTART 1997-08-05 (a Tuesday). No WKST is
+// WKST=MO (b41-02).
+func TestWeekStartChangesDates(t *testing.T) {
+	start := time.Date(1997, 8, 5, 9, 0, 0, 0, time.UTC)
+	cases := []struct{ rule, want string }{
+		{"FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU;WKST=MO", "1997-08-05|1997-08-10|1997-08-19|1997-08-24"},
+		{"FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU", "1997-08-05|1997-08-10|1997-08-19|1997-08-24"},
+		{"FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU;WKST=SU", "1997-08-05|1997-08-17|1997-08-19|1997-08-31"},
+	}
+	for _, c := range cases {
+		s := mustSeries(t, c.rule, start, time.Hour, "UTC")
+		occ, err := s.Expand(nil, start, start.AddDate(0, 2, 0), MaxOccurrences)
+		if err != nil {
+			t.Fatalf("%s: Expand: %v", c.rule, err)
+		}
+		days := make([]string, len(occ))
+		for i, o := range occ {
+			days[i] = o.Start.Format("2006-01-02")
+		}
+		if got := strings.Join(days, "|"); got != c.want {
+			t.Errorf("%s: %s, want %s", c.rule, got, c.want)
+		}
 	}
 }
 

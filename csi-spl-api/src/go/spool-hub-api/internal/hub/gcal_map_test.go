@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/calrecur"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/gcal"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -106,6 +108,25 @@ func TestGcalEventOfAllDayAndSeries(t *testing.T) {
 		e.RRule = rule
 		if g := hub.GcalEventOf(e); !slices.Equal(g.Recurrence, []string{"RRULE:FREQ=WEEKLY;COUNT=4"}) {
 			t.Fatalf("rrule %q -> %v", rule, g.Recurrence)
+		}
+	}
+}
+
+// b41-02: a Google weekly series whose RRULE carries WKST, mapped by
+// GcalSpoolOf, passes calrecur.NewSeries (the check the store runs before it
+// writes the event), as the same rule without WKST does. Before, the store
+// refused it ("WKST is not supported") and the sync moved past it for good.
+func TestGcalSpoolOfWeeklyRuleWithWKSTIsTaken(t *testing.T) {
+	start := time.Date(2026, 11, 23, 9, 0, 0, 0, time.UTC)
+	for _, c := range []struct{ name, rule string }{
+		{"wkst", "RRULE:FREQ=WEEKLY;WKST=SU;INTERVAL=2;BYDAY=MO,WE"},
+		{"control", "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE"},
+	} {
+		it := gcal.Event{ID: "g1", Summary: "standup", Recurrence: []string{c.rule},
+			Start: gcal.EventTime{DateTime: start, TimeZone: "UTC"}, End: gcal.EventTime{DateTime: start.Add(30 * time.Minute), TimeZone: "UTC"}}
+		e := hub.GcalSpoolOf(it, "HUM-1")
+		if _, err := calrecur.NewSeries("ev-1", e.RRule, e.StartsAt, e.EndsAt, e.TimeZone); err != nil {
+			t.Errorf("%s: rrule %q: a Google rule the store refuses: %v", c.name, e.RRule, err)
 		}
 	}
 }

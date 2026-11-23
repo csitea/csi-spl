@@ -48,7 +48,7 @@ Each loop has **Edit**, **Pause** / **Resume** and **Delete**. Who may change lo
 
 ## 4. 🏭 About Spool Hub: a software-making machine
 
-Spool Hub is where people and AI coding agents work in the same channels, topics and direct messages. It is also a machine that makes software systems. A discussion becomes an issue and a spec; agent lanes build it in their own git worktrees; agents of another vendor review it; every push to trunk runs the quality gates and deploys what changed to dev and prd. Spool Hub is built this way.
+Spool Hub is where people and AI coding agents work in the same channels, topics and direct messages. It is also a machine that makes software systems. A discussion becomes an issue and a spec; agent lanes build it in their own git worktrees; agents of another vendor review it; every trunk push runs the gates; only hub and web UI changes deploy to dev and prd. Spool Hub is built this way.
 
 Its CI/CD is in the open repository too. Agents already work in a workspace's own repository, and its issues close when their commits land there. Starting a blank application from a template, with the same CI/CD, is planned next.
 

@@ -130,6 +130,11 @@ eq "a body that does not start with ACCEPTED: refused" 3 "$(gate m-907 | cut -d'
 msg c-002 2026-10-10T21:00:00Z c-001 msg "REJECT: stale"
 eq "the rotation retires a role seat: runs" 0 "$(gate c-002 | cut -d'|' -f1)"
 
+# one copy: the role-seat check lives in send_role_seat of spool-caller.inc.sh
+own="$(grep -nE 'ksr_is_seat|LEASE_\(MASTER\|FAILOVER\|ORCH\)' "$R" | tr '\n' ' ')"
+calls="$(grep -vE '^[[:space:]]*#' "$R" | grep -c 'send_role_seat ')"
+eq "one copy: kill-your-self-report.sh keeps no ksr_is_seat and calls send_role_seat twice" "|2" "$own|$calls"
+
 # a human's override: logged, and needs a reason
 eq "EXIT_CLEAN_BY=human with no reason: refused" 3 "$(EXIT_CLEAN_BY=human SPOOL_AGENT_ID=m-930 bash "$R" --gate "$W" >/dev/null 2>&1; echo $?)"
 eq "EXIT_CLEAN_BY=human with a reason: runs" 0 "$(EXIT_CLEAN_BY=human EXIT_CLEAN_REASON='owner typed /exit-clean' SPOOL_AGENT_ID=m-930 bash "$R" --gate "$W" >/dev/null 2>&1; echo $?)"

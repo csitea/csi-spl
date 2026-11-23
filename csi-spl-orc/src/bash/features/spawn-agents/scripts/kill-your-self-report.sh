@@ -67,6 +67,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/agent-state.inc.sh"
 # shellcheck source=../lib/lane-issue.inc.sh
 . "$_here/../lib/lane-issue.inc.sh"
+# shellcheck source=../lib/spool-caller.inc.sh
+. "$_here/../lib/spool-caller.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
 MODE=discovery OUTCOME="" NUMBERS="" DETAIL="" DETAIL_PATH="" SHAS=() GATE=1
@@ -144,16 +146,10 @@ ksr_reporter() {
   REP_TO="$to" REP_FROM="$from"
 }
 
-# A role seat: the rotation (spec 060) retires it with `/exit-clean no-close`
-# and hands the same id to the successor; no reviewer ACCEPTs a seat.
-ksr_is_seat() {  # ID (bare)
-  spl_is_role_seat "$1" && return 0
-  grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null
-}
-
+# Role-seat ids live in send_role_seat of spool-caller.inc.sh (their one copy).
 # A review counts only from the same senders an ACCEPTED counts from.
 ksr_reviewer() {  # bare-from rep-bare
-  ksr_is_seat "$1" && return 0
+  send_role_seat "$1" && return 0
   [ "$1" = "$2" ] && return 0
   [[ "$1" =~ ^HUM-[0-9]+$ ]]
 }
@@ -175,7 +171,7 @@ ksr_gate() {
     echo "exit-clean refused: no agent id (SPOOL_AGENT_ID, worktree path or window); nothing retired, closed or reported" >&2
     return 3
   fi
-  if ksr_is_seat "${ID%@*}"; then
+  if send_role_seat "${ID%@*}"; then
     echo "exit gate: $ID is a role seat (the rotation retires it); no ACCEPTED needed" >&2
     return 0
   fi

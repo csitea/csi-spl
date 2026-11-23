@@ -219,3 +219,83 @@ exit 0.
 
 The verdict stands: **FAIL, 1 row, on `719255deac1572ae904cc355a2cfb421934b0e63`
 (v0.1). One W (W1), four N.** Row b42-01 itself: keep.
+
+---
+
+# Re-review of v0.2 — `5b4fc34bd73597937cd5123c3c96bbe7c12eec38`
+
+Holder ask (c-002@sat, msg 20cb84e7, task `dispatch-bug-r42`, 2026-11-23T22:4xZ):
+re-review the plan's next head. `git ls-remote origin
+refs/heads/review/c002-bug-round-42-planner` ->
+`5b4fc34bd73597937cd5123c3c96bbe7c12eec38`, a fast-forward of `719255dea`;
+`git log 719255dea..5b4fc34b` -> one commit;
+`git show 5b4fc34b --stat` -> `bug-round-42-plan.md | 25 ++++...`, 1 file
+changed, 14 insertions(+), 11 deletions(-) — the plan file only.
+`git diff 719255dea 5b4fc34b -- <plan>` read whole (86 lines): status line,
+section 3.1's "why it is a bug" and "fix scope" sentences (N1/N2 folds),
+section 3.3's rows (the g-162 N2 row added, the "other R7 notes" row reworded),
+the R3 line, section 6's `g-003` row, the counts row, section 7's first-inputs
+row, section 8's review history, the consensus table. The row table (section 5)
+and the red control (section 4) are unchanged context.
+
+**Verdict: PASS on `5b4fc34bd73597937cd5123c3c96bbe7c12eec38` (v0.2), 1 row. No
+open W.**
+
+## W1 answer — judged, holds
+
+The planner's answer: section 3.3 names g-162 N2 as its own row, re-measured on
+`70f05ea48`; not a b42 row because the gate still accepts the `a-NNN` form, so
+the `_doc` is incomplete, not false; carried to a docs/refactor round
+(section 7). Verified on `70f05ea48` (and still on `origin/master` at my
+fetch):
+
+- `git grep -n 'Lang-review' 70f05ea48 -- csi-spl-wui/i18n/i18n-lang-review-exempt.json`
+  -> 1 line, `:2`: the `_doc` names `'Lang-review: a-NNN <msg id>'`.
+- `git grep -c 'an agy review still counts' 70f05ea48 -- csi-spl-iac/src/bash/run/check-pre-push-lang-review.func.sh`
+  -> `1` (line 151).
+- `git show 70f05ea48:csi-spl-iac/src/bash/run/check-pre-push-lang-review.func.sh | sed -n '66p'`
+  -> `_PPR_LINE_RX='^Lang-review:[[:space:]]+(a-[0-9]{3}(@[A-Za-z0-9._-]+)?[[:space:]]+[0-9a-f]{8}|c-...waiver...)'`
+  — the `a-NNN` agy form is still an accepted pass line.
+- `git show 70f05ea48:.../check-pre-push-lang-review.func.sh | sed -n '151p'`
+  -> the FAIL text: "...with no 'Lang-review: gct <run id>' line ... (an agy
+  review still counts: 'Lang-review: a-NNN <msg id>')".
+- Same two greps on `origin/master` -> `1` and `1`.
+
+So a commit that follows the `_doc`'s `a-NNN` form still passes the gate: the
+`_doc` omits the gct form the language rule now asks for, but it is not false,
+and no wrong behaviour follows. "Not a row, carried to a docs/refactor round"
+is the right call, and the plan now accounts for g-162 N2 by name (section 3.3)
+and in section 7's first inputs for round 43. W1 is resolved.
+
+## N1/N2 folds — verified
+
+- N1: the v0.2 "why it is a bug" line now reads the alert metric
+  (`05-policies.tf:121`) as `jsonPayload.level` and
+  `jsonPayload.message = "http 5xx"` (the hub's `logServerError` line, written
+  with `Msg`, no second `message` key; the fix keeps it), and no
+  `env`/`version`/`component`. Verified: `git show bd41a3890:<api>/internal/hub/server.go | sed -n '987p'`
+  -> `ev.Msg("http 5xx")` (with the `:985-986` comment that the metric filter
+  reads the literal). Accurate.
+- N2: the v0.2 "fix scope" line now prints the docs grep as 3 lines, all
+  `csi-spl-doc/specs/143-reporting-section/spec.md:317,358,359` (deploy-record
+  API payload examples, not hub log lines), and notes v0.1's 0 was true only for
+  a top-level pathspec. Matches my N2 measurement exactly.
+
+## Rest of the seat, re-checked on v0.2
+
+- The row (section 5), its sites and `rc01-b42.sh` (section 4) are unchanged in
+  the diff; checks 2, 3, 5 above still stand (same `bd41a3890` citations, same
+  red-control run).
+- R3: the v0.2 line records c-779's landing as `e23e1bbc6` on origin/master and
+  a `lane-map.sh --check` exit 4 with no live lane listing the row files —
+  matching my check 7 (I read the same: exit 3 names only the planner's plan
+  file; `hub.go` alone exit 4; `git -C /opt/csi/csi-spl-wt/c-779 status --short`
+  -> lane-state file only, HEAD `e23e1bbc6`; `git diff bd41a3890 e23e1bbc6 --
+  <api>/cmd/spool/hub.go` touches `:636-640` and `:1288+`, not `:159-163`/`:686`).
+- Check 1 still holds: `git log origin/master --since="$W" --oneline -E --grep='\(b42-' | wc -l`
+  -> `0` (the v0.2 commit lives on the review branch, not master).
+- Check 8 re-run on this tree with the seat file updated:
+  `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> clean, exit 0.
+
+The verdict stands: **PASS, 1 row, on `5b4fc34bd73597937cd5123c3c96bbe7c12eec38`
+(v0.2). No W.** Row b42-01: keep.

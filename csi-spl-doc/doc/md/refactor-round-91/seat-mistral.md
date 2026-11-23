@@ -26,6 +26,15 @@ Review target: `csi-spl-doc/doc/md/refactor-round-91-plan.md` on branch
 
 **Verdict: PASS on v0.1 `3eb6298f8d4f0b46cb24a0e5fa10bce1f032cb3e`. No W defects.**
 
+**v1.0 signature.** The editor landed v1.0 as
+`42434d77c4ef88ffbd3003b589edd07c1df493fb` (on `origin/master`:
+`git merge-base --is-ancestor 42434d77c origin/master` -> rc 0, fetched
+2026-11-23T06:5xZ; CI on it green per the editor, `gh run list --commit 42434d77c`).
+`git diff 3eb6298f8 42434d77c -- csi-spl-doc/doc/md/refactor-round-91-plan.md` ->
++10 -3, only the status line and sections 8 and 9 — the rows, sites, counts and
+controls are unchanged — so the v0.1 verdict carries:
+**PASS on v1.0 `42434d77c4ef88ffbd3003b589edd07c1df493fb` as well, no W.**
+
 ## 1. Slug r91 unused since the plan's W
 
 - W: `git log origin/master -1 --format='%h %cI' -E --grep='^docs\(r90-plan'` ->

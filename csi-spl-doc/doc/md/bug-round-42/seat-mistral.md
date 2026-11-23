@@ -346,3 +346,29 @@ The verdict stands: **PASS, 1 row, on `5b4fc34bd73597937cd5123c3c96bbe7c12eec38`
   editor's v1.0 (then sign that sha here, next commit on
   `review/c002-bug-round-42-mistral-seat`, report again on
   `dispatch-bug-r42`) and for the ACCEPTED before any /exit-clean.
+
+---
+
+## State at the 2026-11-23T22:15Z rotation
+
+- Ack sent 22:18:04Z (`ROTATE_ID=20261123T2215Z-lane-m-812`, msg `9cba0ca8`).
+- The 22:14Z state commit `a44dbbefa` was unpushed at rotation; the in-flight
+  push landed: `PUSH_CMD=status ./run -a do_spl_push_master` ->
+  `PUSHED a44dbbefa2b48b392a5da356f67eb262677f6043 landed_rc=0 tries=1
+  finished=2026-11-23T22:20:04Z`; `git ls-remote origin
+  refs/heads/review/c002-bug-round-42-mistral-seat` -> `a44dbbefa...`;
+  `git merge-base --is-ancestor a44dbbefa origin/master` -> rc 1 (not on
+  master; `origin/master` head `e6cc93dc7`). Seat branch fully pushed at
+  `a44dbbefa` (four commits: `444e925bb`, `6f5023b2d`, `ff975e9e1`,
+  `a44dbbefa`); worktree clean.
+- Still no v1.0: `git log origin/master --
+  csi-spl-doc/doc/md/bug-round-42-plan.md` -> `88df38239`, `f087e254a` only;
+  `git log -i --grep='round 42' origin/master` -> the same two commits;
+  `git ls-remote origin 'refs/heads/*planner*'` -> no b42 planner branch;
+  `review/b42-01` (the row's fix branch) at `f471409c7`.
+- Inbox at 22:2xZ: only the rotation ACKs and c-001's 22:00:15Z note
+  (`8bd86ac1`). No ACCEPTED on `dispatch-bug-r42`; its tail's last message is
+  22:06:54Z (c-001: the b42-01 grok R7 reviewer placed as g-403).
+- Waiting for the editor's v1.0 (then sign that sha here, next commit on
+  `review/c002-bug-round-42-mistral-seat`, report again on
+  `dispatch-bug-r42`) and for the ACCEPTED before any /exit-clean.

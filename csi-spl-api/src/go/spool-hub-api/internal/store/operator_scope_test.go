@@ -173,6 +173,9 @@ var operatorCallers = map[string]string{
 	"SweepEmbed": "embed token sweep (spec 121 4.1, hub sweeper goroutine): expired visitor tokens, stale embed counters and lapsed automatic bans of every workspace, global by design; no route",
 	// spec 160 3.7 (SPL-3888): the workspaces-that-stream cap of a file streams announce.
 	"fileStreamWorkspaces": "file streams announce (spec 160 3.7 max_workspaces, box lane frame): a count of the workspaces that stream and whether the box's own is one, inside the box tenant's announce transaction; no row of another workspace is read out",
+
+	// spec 181 row B7 (SPL-6329): the operator join-token mint for a private VM.
+	"MintOperatorJoinToken": "POST /v1/operator/workspaces/{id}/join-tokens (spec 181 B7, 4.2): the box id check reads the pins and open join tokens of EVERY workspace (a private VM serves one workspace, Q-3 A); it writes ONE named workspace's token + its operator_audit row (tenant_id = the URL id); only an admin of the operator workspace reaches it",
 }
 
 // operatorEntries are the only functions that set the operator scope:

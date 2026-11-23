@@ -3585,7 +3585,8 @@
       "tokens": "Žetonai",
       "lanes": "Linijos",
       "topics": "Temos",
-      "file_streams": "Failų srautai"
+      "file_streams": "Failų srautai",
+      "invoices": "Sąskaitos"
     },
     "alloc": {
       "title": "Paskirstymas",
@@ -3894,6 +3895,27 @@
           "forbidden": "Failų sąrašą gali keisti tik darbo srities savininkas ir administratoriai."
         }
       }
+    },
+    "invoices": {
+      "hint": "Privačių darbo sričių sąskaitos, neapmokėtos praėjus mokėjimo terminui. Niekas nesustabdoma automatiškai: kiekvieną atvejį sprendžiate patys. Pažymėkite sąskaitą apmokėta, kai gaunamas jos banko pervedimas.",
+      "loading": "Įkeliamos pradelstos sąskaitos…",
+      "forbidden": "Pradelstas sąskaitas mato tik operatoriaus darbo srities administratorius.",
+      "error": "Nepavyko įkelti pradelstų sąskaitų.",
+      "empty": "Pradelstų sąskaitų nėra.",
+      "table_label": "Pradelstos sąskaitos",
+      "col_workspace": "Darbo sritis",
+      "col_month": "Mėnuo",
+      "col_total": "Iš viso",
+      "col_due": "Mokėjimo terminas",
+      "col_overdue": "Pradelsta dienų",
+      "col_reminded": "Priminimas išsiųstas",
+      "col_action": "Veiksmas",
+      "not_reminded": "Dar ne",
+      "mark_paid": "Pažymėti apmokėta",
+      "confirm": "Pažymėti darbo srities {workspace} {month} sąskaitą ({total}) apmokėta? Darykite tai tik gavę banko pervedimą.",
+      "marked": "Darbo srities {workspace} {month} sąskaita pažymėta apmokėta.",
+      "already_paid": "Ši sąskaita jau buvo pažymėta apmokėta.",
+      "mark_failed": "Nepavyko pažymėti sąskaitos apmokėta. Bandykite dar kartą."
     }
   },
   "takeover": {

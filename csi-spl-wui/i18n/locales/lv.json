@@ -3585,7 +3585,8 @@
       "tokens": "Tokeni",
       "lanes": "Līnijas",
       "topics": "Tēmas",
-      "file_streams": "Failu plūsmas"
+      "file_streams": "Failu plūsmas",
+      "invoices": "Rēķini"
     },
     "alloc": {
       "title": "Sadalījums",
@@ -3894,6 +3895,27 @@
           "forbidden": "Failu sarakstu var mainīt tikai darbvietas īpašnieks un administratori."
         }
       }
+    },
+    "invoices": {
+      "hint": "Privāto darbvietu rēķini, kas nav apmaksāti pēc apmaksas termiņa. Nekas netiek apturēts automātiski: katru gadījumu izlemjat jūs. Atzīmējiet rēķinu kā apmaksātu, kad pienāk tā bankas pārskaitījums.",
+      "loading": "Ielādē kavētos rēķinus…",
+      "forbidden": "Kavētos rēķinus redz tikai operatora darbvietas administrators.",
+      "error": "Neizdevās ielādēt kavētos rēķinus.",
+      "empty": "Neviens rēķins nav kavēts.",
+      "table_label": "Kavētie rēķini",
+      "col_workspace": "Darbvieta",
+      "col_month": "Mēnesis",
+      "col_total": "Kopā",
+      "col_due": "Apmaksas termiņš",
+      "col_overdue": "Kavējuma dienas",
+      "col_reminded": "Atgādinājums nosūtīts",
+      "col_action": "Darbība",
+      "not_reminded": "Vēl nē",
+      "mark_paid": "Atzīmēt kā apmaksātu",
+      "confirm": "Atzīmēt darbvietas {workspace} {month} rēķinu ({total}) kā apmaksātu? Dariet to tikai tad, kad bankas pārskaitījums ir pienācis.",
+      "marked": "Darbvietas {workspace} {month} rēķins ir atzīmēts kā apmaksāts.",
+      "already_paid": "Šis rēķins jau bija atzīmēts kā apmaksāts.",
+      "mark_failed": "Rēķinu neizdevās atzīmēt kā apmaksātu. Mēģiniet vēlreiz."
     }
   },
   "takeover": {

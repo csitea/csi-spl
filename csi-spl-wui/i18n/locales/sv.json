@@ -3585,7 +3585,8 @@
       "tokens": "Token",
       "lanes": "Banor",
       "topics": "Ämnen",
-      "file_streams": "Filströmmar"
+      "file_streams": "Filströmmar",
+      "invoices": "Fakturor"
     },
     "alloc": {
       "title": "Tilldelning",
@@ -3894,6 +3895,27 @@
           "forbidden": "Bara arbetsytans ägare och administratörer kan ändra fillistan."
         }
       }
+    },
+    "invoices": {
+      "hint": "Privata arbetsytors fakturor som är obetalda efter förfallodagen. Inget stoppas automatiskt: du avgör varje fall. Markera en faktura som betald när dess banköverföring har kommit.",
+      "loading": "Läser in förfallna fakturor…",
+      "forbidden": "Endast en administratör för operatörens arbetsyta ser de förfallna fakturorna.",
+      "error": "Det gick inte att läsa in de förfallna fakturorna.",
+      "empty": "Ingen faktura är förfallen.",
+      "table_label": "Förfallna fakturor",
+      "col_workspace": "Arbetsyta",
+      "col_month": "Månad",
+      "col_total": "Totalt",
+      "col_due": "Förfallodag",
+      "col_overdue": "Dagar försenad",
+      "col_reminded": "Påminnelse skickad",
+      "col_action": "Åtgärd",
+      "not_reminded": "Inte än",
+      "mark_paid": "Markera som betald",
+      "confirm": "Markera fakturan för {month} från {workspace} ({total}) som betald? Gör detta bara när banköverföringen har kommit.",
+      "marked": "Fakturan för {month} från {workspace} är markerad som betald.",
+      "already_paid": "Fakturan var redan markerad som betald.",
+      "mark_failed": "Fakturan kunde inte markeras som betald. Försök igen."
     }
   },
   "takeover": {

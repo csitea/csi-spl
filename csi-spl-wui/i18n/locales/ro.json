@@ -3585,7 +3585,8 @@
       "tokens": "Tokeni",
       "lanes": "Linii",
       "topics": "Subiecte",
-      "file_streams": "Fluxuri de fișiere"
+      "file_streams": "Fluxuri de fișiere",
+      "invoices": "Facturi"
     },
     "alloc": {
       "title": "Alocare",
@@ -3894,6 +3895,27 @@
           "forbidden": "Doar proprietarul și administratorii spațiului de lucru pot modifica lista de fișiere."
         }
       }
+    },
+    "invoices": {
+      "hint": "Facturile spațiilor de lucru private neplătite după data scadenței. Nimic nu se oprește automat: decideți fiecare caz. Marcați o factură ca plătită când sosește transferul bancar.",
+      "loading": "Se încarcă facturile restante…",
+      "forbidden": "Doar un administrator al spațiului de lucru al operatorului vede facturile restante.",
+      "error": "Facturile restante nu au putut fi încărcate.",
+      "empty": "Nicio factură nu este restantă.",
+      "table_label": "Facturi restante",
+      "col_workspace": "Spațiu de lucru",
+      "col_month": "Luna",
+      "col_total": "Suma totală",
+      "col_due": "Scadentă la",
+      "col_overdue": "Zile de întârziere",
+      "col_reminded": "Memento trimis",
+      "col_action": "Acțiune",
+      "not_reminded": "Încă nu",
+      "mark_paid": "Marchează ca plătită",
+      "confirm": "Marcați factura din {month} a {workspace} ({total}) ca plătită? Faceți acest lucru doar când transferul bancar a sosit.",
+      "marked": "Factura din {month} a {workspace} este marcată ca plătită.",
+      "already_paid": "Această factură era deja marcată ca plătită.",
+      "mark_failed": "Factura nu a putut fi marcată ca plătită. Încercați din nou."
     }
   },
   "takeover": {

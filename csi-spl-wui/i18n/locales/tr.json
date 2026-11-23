@@ -3585,7 +3585,8 @@
       "tokens": "Belirteçler",
       "lanes": "Hatlar",
       "topics": "Tartışmalar",
-      "file_streams": "Dosya akışları"
+      "file_streams": "Dosya akışları",
+      "invoices": "Faturalar"
     },
     "alloc": {
       "title": "Tahsis",
@@ -3894,6 +3895,27 @@
           "forbidden": "Dosya listesini yalnızca çalışma alanının sahibi ve yöneticileri değiştirebilir."
         }
       }
+    },
+    "invoices": {
+      "hint": "Özel çalışma alanlarının vade tarihinden sonra ödenmemiş faturaları. Hiçbir şey otomatik olarak durmaz: her durumu siz karara bağlarsınız. Banka havalesi geldiğinde faturayı ödendi olarak işaretleyin.",
+      "loading": "Vadesi geçmiş faturalar yükleniyor…",
+      "forbidden": "Vadesi geçmiş faturaları yalnızca operatör çalışma alanının yöneticisi görür.",
+      "error": "Vadesi geçmiş faturalar yüklenemedi.",
+      "empty": "Vadesi geçmiş fatura yok.",
+      "table_label": "Vadesi geçmiş faturalar",
+      "col_workspace": "Çalışma alanı",
+      "col_month": "Ay",
+      "col_total": "Toplam",
+      "col_due": "Vade tarihi",
+      "col_overdue": "Gecikme günü",
+      "col_reminded": "Hatırlatma gönderildi",
+      "col_action": "İşlem",
+      "not_reminded": "Henüz değil",
+      "mark_paid": "Ödendi olarak işaretle",
+      "confirm": "{workspace} çalışma alanının {month} faturası ({total}) ödendi olarak işaretlensin mi? Bunu yalnızca banka havalesi geldiğinde yapın.",
+      "marked": "{workspace} çalışma alanının {month} faturası ödendi olarak işaretlendi.",
+      "already_paid": "Bu fatura zaten ödendi olarak işaretlenmişti.",
+      "mark_failed": "Fatura ödendi olarak işaretlenemedi. Yeniden deneyin."
     }
   },
   "takeover": {

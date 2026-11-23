@@ -3585,7 +3585,8 @@
       "tokens": "Tokens",
       "lanes": "Líneas",
       "topics": "Temas",
-      "file_streams": "Flujos de archivos"
+      "file_streams": "Flujos de archivos",
+      "invoices": "Facturas"
     },
     "alloc": {
       "title": "Asignación",
@@ -3894,6 +3895,27 @@
           "forbidden": "Solo el propietario y los administradores del espacio de trabajo pueden cambiar la lista de archivos."
         }
       }
+    },
+    "invoices": {
+      "hint": "Facturas de espacios de trabajo privados impagadas tras su fecha de vencimiento. Nada se detiene automáticamente: usted decide cada caso. Marque una factura como pagada cuando llegue su transferencia bancaria.",
+      "loading": "Cargando las facturas vencidas…",
+      "forbidden": "Solo un administrador del espacio de trabajo del operador ve las facturas vencidas.",
+      "error": "No se pudieron cargar las facturas vencidas.",
+      "empty": "No hay ninguna factura vencida.",
+      "table_label": "Facturas vencidas",
+      "col_workspace": "Espacio de trabajo",
+      "col_month": "Mes",
+      "col_total": "Importe total",
+      "col_due": "Vencimiento",
+      "col_overdue": "Días de retraso",
+      "col_reminded": "Recordatorio enviado",
+      "col_action": "Acción",
+      "not_reminded": "Aún no",
+      "mark_paid": "Marcar como pagada",
+      "confirm": "¿Marcar como pagada la factura de {month} de {workspace} ({total})? Hágalo solo cuando haya llegado la transferencia bancaria.",
+      "marked": "La factura de {month} de {workspace} está marcada como pagada.",
+      "already_paid": "Esta factura ya estaba marcada como pagada.",
+      "mark_failed": "No se pudo marcar la factura como pagada. Inténtelo de nuevo."
     }
   },
   "takeover": {

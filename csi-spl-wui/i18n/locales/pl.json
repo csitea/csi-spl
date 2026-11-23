@@ -3585,7 +3585,8 @@
       "tokens": "Tokeny",
       "lanes": "Linie",
       "topics": "Tematy",
-      "file_streams": "Strumienie plików"
+      "file_streams": "Strumienie plików",
+      "invoices": "Faktury"
     },
     "alloc": {
       "title": "Przydział",
@@ -3894,6 +3895,27 @@
           "forbidden": "Listę plików mogą zmieniać tylko właściciel i administratorzy obszaru roboczego."
         }
       }
+    },
+    "invoices": {
+      "hint": "Faktury prywatnych obszarów roboczych nieopłacone po terminie płatności. Nic nie zatrzymuje się automatycznie: o każdym przypadku decydujesz sam. Oznacz fakturę jako opłaconą, gdy wpłynie przelew bankowy.",
+      "loading": "Wczytywanie zaległych faktur…",
+      "forbidden": "Zaległe faktury widzi tylko administrator obszaru roboczego operatora.",
+      "error": "Nie udało się wczytać zaległych faktur.",
+      "empty": "Żadna faktura nie jest zaległa.",
+      "table_label": "Zaległe faktury",
+      "col_workspace": "Obszar roboczy",
+      "col_month": "Miesiąc",
+      "col_total": "Suma",
+      "col_due": "Termin płatności",
+      "col_overdue": "Dni zwłoki",
+      "col_reminded": "Przypomnienie wysłane",
+      "col_action": "Działanie",
+      "not_reminded": "Jeszcze nie",
+      "mark_paid": "Oznacz jako opłaconą",
+      "confirm": "Oznaczyć fakturę za {month} obszaru {workspace} ({total}) jako opłaconą? Zrób to tylko wtedy, gdy przelew bankowy już wpłynął.",
+      "marked": "Faktura za {month} obszaru {workspace} jest oznaczona jako opłacona.",
+      "already_paid": "Ta faktura była już oznaczona jako opłacona.",
+      "mark_failed": "Nie udało się oznaczyć faktury jako opłaconej. Spróbuj ponownie."
     }
   },
   "takeover": {

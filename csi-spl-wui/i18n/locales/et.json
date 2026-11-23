@@ -3585,7 +3585,8 @@
       "tokens": "Tokenid",
       "lanes": "Rajad",
       "topics": "Teemad",
-      "file_streams": "Failivood"
+      "file_streams": "Failivood",
+      "invoices": "Arved"
     },
     "alloc": {
       "title": "Jaotus",
@@ -3894,6 +3895,27 @@
           "forbidden": "Failide loendit saavad muuta ainult tööruumi omanik ja administraatorid."
         }
       }
+    },
+    "invoices": {
+      "hint": "Privaatsete tööruumide arved, mis on pärast maksetähtaega tasumata. Midagi ei peatu automaatselt: otsustad iga juhtumi ise. Märgi arve tasutuks, kui selle pangaülekanne on laekunud.",
+      "loading": "Tähtaja ületanud arvete laadimine…",
+      "forbidden": "Tähtaja ületanud arveid näeb ainult operaatori tööruumi administraator.",
+      "error": "Tähtaja ületanud arveid ei õnnestunud laadida.",
+      "empty": "Ühelgi arvel pole tähtaeg ületatud.",
+      "table_label": "Tähtaja ületanud arved",
+      "col_workspace": "Tööruum",
+      "col_month": "Kuu",
+      "col_total": "Kokku",
+      "col_due": "Maksetähtaeg",
+      "col_overdue": "Päevi üle tähtaja",
+      "col_reminded": "Meeldetuletus saadetud",
+      "col_action": "Toiming",
+      "not_reminded": "Veel mitte",
+      "mark_paid": "Märgi tasutuks",
+      "confirm": "Kas märkida tööruumi {workspace} {month} arve ({total}) tasutuks? Tee seda ainult siis, kui pangaülekanne on laekunud.",
+      "marked": "Tööruumi {workspace} {month} arve on märgitud tasutuks.",
+      "already_paid": "See arve oli juba tasutuks märgitud.",
+      "mark_failed": "Arvet ei õnnestunud tasutuks märkida. Proovi uuesti."
     }
   },
   "takeover": {

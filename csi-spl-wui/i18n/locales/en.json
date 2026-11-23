@@ -3585,7 +3585,8 @@
       "tokens": "Tokens",
       "lanes": "Lanes",
       "topics": "Topics",
-      "file_streams": "File streams"
+      "file_streams": "File streams",
+      "invoices": "Invoices"
     },
     "alloc": {
       "title": "Allocation",
@@ -3894,6 +3895,27 @@
           "forbidden": "Only the workspace owner and admins can change the file list."
         }
       }
+    },
+    "invoices": {
+      "hint": "Private workspaces' invoices that are unpaid past their due date. Nothing stops automatically: you decide each case. Mark an invoice paid when its bank transfer arrives.",
+      "loading": "Loading the overdue invoices…",
+      "forbidden": "Only an admin of the operator workspace sees the overdue invoices.",
+      "error": "Could not load the overdue invoices.",
+      "empty": "No invoice is overdue.",
+      "table_label": "Overdue invoices",
+      "col_workspace": "Workspace",
+      "col_month": "Month",
+      "col_total": "Total",
+      "col_due": "Due on",
+      "col_overdue": "Days overdue",
+      "col_reminded": "Reminder sent",
+      "col_action": "Action",
+      "not_reminded": "Not yet",
+      "mark_paid": "Mark paid",
+      "confirm": "Mark the {month} invoice of {workspace} ({total}) as paid? Do this only when the bank transfer has arrived.",
+      "marked": "The {month} invoice of {workspace} is marked paid.",
+      "already_paid": "This invoice was already marked paid.",
+      "mark_failed": "The invoice could not be marked paid. Try again."
     }
   },
   "takeover": {

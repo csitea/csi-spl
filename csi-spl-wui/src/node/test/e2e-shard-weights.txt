@@ -25,6 +25,8 @@
 # on a generated mock bundle (n=1, 2026-11-23), until a refresh measures CI.
 # checkout-private-workspace (spec 181 row B3, SPL-6338) is new: 4 s, its one local run
 # on a generated mock bundle (n=1, 2026-11-23), until a refresh measures CI.
+# monitoring-invoices (spec 181 row B13, SPL-6341) is new: 29 s, its one local run
+# on a generated mock bundle (n=1, 2026-11-23), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -220,6 +222,7 @@ tests/e2e/monitoring-boxes-align.test.mjs 12
 tests/e2e/monitoring-costs.test.mjs 180
 tests/e2e/monitoring-file-streams.test.mjs 32
 tests/e2e/monitoring-head-actions-row.test.mjs 104
+tests/e2e/monitoring-invoices.test.mjs 29
 tests/e2e/monitoring-lane-console.test.mjs 13
 tests/e2e/monitoring-lane-id-links.test.mjs 5
 tests/e2e/monitoring-lanes-like-events.test.mjs 13

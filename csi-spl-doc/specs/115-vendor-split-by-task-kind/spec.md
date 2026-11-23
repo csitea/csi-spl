@@ -216,7 +216,7 @@ then claude. Pick the first candidate that is:
 | main failed 2 tries on this task | backup |
 | backup also out or exhausted | claude, the default and last fallback (t1 65f75266) |
 | `secret`: claude and mistral both out or exhausted | `pick=hold`: queue the work and send a blocker to the orchestrator. Never agy, grok or qwen. |
-| `i18n` served by claude | the lane's result is flagged `needs_agy_review`, and the text does not ship until an agy lane reviews it (language rule) |
+| `i18n` served by claude | the lane's result is flagged `needs_gct_lang_review`: the text does not ship until the Google Cloud Translation check (`do_spl_lang_review_gct`) passes; an agy review is optional (language rule, owner msg 36b3ff7f, 2026-11-21) |
 | claude itself out, last in line | `pick=hold`, as today |
 
 A vendor out of every row (for example grok at 0) never enters the order.
@@ -327,7 +327,7 @@ These are coded checks with tests, never an agent's judgement (owner
 | T3 | per-kind nudge: with `simple_coding` actuals at 100% mistral over the window, the next pick is claude | weights ignored, so the pick is always main |
 | T4 | 2 journal rows `fail:F2` for mistral on task X, so the pick for X is claude; with 1 row it is mistral | threshold at 3 |
 | T5 | an S2 `kind=limit` verdict on a mistral lane gives an immediate backup and no journal `fail` | count S2 as F2 |
-| T6 | `i18n` with agy out gives claude plus `needs_agy_review` | drop the flag |
+| T6 | `i18n` with agy out gives claude plus `needs_gct_lang_review` | drop the flag |
 | T7 | aliases `spec`, `hard` and `default` give the same pick as the new names | remove an alias |
 | T8 | the validator refuses a row that does not sum to 100, a tied main, or a secret backup outside {claude, grok, mistral} | accept a tie |
 | T9 | `i18n` combined with `secret`: agy receives no unmasked personal data | send unmasked personal data |

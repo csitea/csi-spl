@@ -77,7 +77,7 @@ repo `CLAUDE.md` or `AGENTS.md` names what is not on the tree:
 | 3.2 | ceiling-count | the window-count regex in 1.1 `20` vs every launcher and any other source |
 | 3.3 | ceiling-number | the default of `install.sh` and `y4-claude-config.sh` vs "Agent ceiling: N" in the repo `CLAUDE.md` |
 | 3.4 | data-rule | every `fleet-pin data-rule-vendors` pin (1.1 `20`, 1.5) agrees, its prose names each pinned vendor, and `do_spl_lane_mix`'s secret pick is in the set |
-| 3.5 | language-rule | the same for the `fleet-pin language-rule-final` pins and `do_spl_lane_mix`'s `i18n` pick |
+| 3.5 | language-rule | every `fleet-pin language-rule-final` pin agrees, its prose names the pinned check (`gct`), and it is the check `do_spl_lane_mix`'s `i18n` flag asks for (`needs_gct_lang_review`) |
 | 3.6 | commit-address | the repo `CLAUDE.md` "Commits:" address vs every recent commit by that author name |
 | 3.7 | per-kind-main | each per-kind table (its "main \| backup" header) in 1.1 `20` and 1.5 names the spec's main vendor per kind |
 | 3.8 | repo-refs | every path, link, `do_*` action, `make do-*` target, "spec NNN" folder and "terraform step NNN" the repo `CLAUDE.md` and `AGENTS.md` name exists on the tree, and the `CLAUDE.md` dir table has a row per top-level `csi-spl-*` dir |

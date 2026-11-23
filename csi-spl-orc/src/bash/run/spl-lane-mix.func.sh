@@ -42,8 +42,10 @@
 # @description go to claude, grok or mistral only (owner msgs 803c3b38,
 # @description 26117740, 474f32a0), never agy or qwen;
 # @description none left -> pick=hold. Language
-# @description rule: i18n goes to agy; served by anyone else the pick carries
-# @description flag=needs_agy_review and the text waits for an agy review.
+# @description rule (owner msg 36b3ff7f): i18n goes to agy; served by anyone
+# @description else the pick carries flag=needs_gct_lang_review: the text ships
+# @description only after the Google Cloud Translation check
+# @description (do_spl_lang_review_gct); an agy review is optional.
 # @description i18n with LANE_MIX_SENSITIVE=1 is secret, and its pick carries
 # @description flag=needs_masked_agy_review: agy reviews the masked copy of
 # @description do_spl_i18n_mask (spl-i18n-mask.func.sh), never the original.
@@ -133,9 +135,9 @@ do_spl_lane_mix() {
   _spl_lane_mix_table "$cnf" "$reg"
   case "$_LM_KIND" in
     secret|orchestration) _spl_lane_mix_secret ;;
-    # owner HUM-10 t1 296582df (2026-10-08): agy has the final word on any
-    # user-facing text in several languages
-    i18n) _spl_lane_mix_want agy "kind i18n: agy has the final word on multilingual text" ;;
+    # owner HUM-10 msg 36b3ff7f (2026-11-21): agy stays main for text in
+    # several languages, and the required check is Google Cloud Translation
+    i18n) _spl_lane_mix_want agy "kind i18n: main agy; the required language check is Google Cloud Translation (do_spl_lang_review_gct), an agy review is optional" ;;
     *) _spl_lane_mix_want "$_LM_MAIN" "kind $_LM_KIND: main $_LM_MAIN, backup $_LM_BACKUP" ;;
   esac
 }
@@ -389,7 +391,7 @@ _spl_lane_mix_choose() {
 }
 
 # _spl_lane_mix_want <main> <reason> -> the pick line of the one rule; an
-# i18n pick other than agy carries flag=needs_agy_review (language rule)
+# i18n pick other than agy carries flag=needs_gct_lang_review (language rule)
 _spl_lane_mix_want() {
   local flag=""
   _spl_lane_mix_choose "$1"
@@ -398,8 +400,8 @@ _spl_lane_mix_want() {
     return 0
   fi
   if [[ "$_LM_KIND" == i18n && "$_LM_CHOICE" != agy ]]; then
-    flag=needs_agy_review
-    _LM_CHOICE_WHY+="; the text waits for an agy review before it ships"
+    flag=needs_gct_lang_review
+    _LM_CHOICE_WHY+="; the text ships only after the Google Cloud Translation check (do_spl_lang_review_gct); an agy review is optional"
   fi
   _spl_lane_mix_pick "$_LM_CHOICE" "$2; $_LM_CHOICE_WHY" "$flag"
 }

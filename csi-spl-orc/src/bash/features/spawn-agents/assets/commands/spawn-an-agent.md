@@ -57,7 +57,7 @@ The backup vendor takes over after 2 failed tries of the main on the same task.
 <!-- fleet-pin data-rule-vendors: claude grok mistral -->
 **Data rule** (owner msgs 803c3b38, 26117740, 474f32a0): Work that carries personal data or secrets (credentials, keys, customer data) goes only to `/claude-spawn`, `/grok-spawn` or `/mistral-spawn`, never to qwen or agy, and a brief for those lanes never names a credential path. The `secret` row of the cnf may name claude, grok or mistral as its main or backup.
 
-<!-- fleet-pin language-rule-final: agy -->
+<!-- fleet-pin language-rule-final: gct -->
 **Language rule** (owner msg 36b3ff7f, 2026-11-21): no user-facing text in several languages (blog posts, WUI i18n locale files, help pages) ships without a language check, and that check is Google Cloud Translation (`cd csi-spl-orc && ./run -a do_spl_lang_review_gct` for WUI locale text, its `Lang-review: gct <run id>` line in the commit). An agy review may still be asked as an extra check; it is no longer required.
 
 Multilingual text that carries personal data (`LANE_MIX_KIND=i18n LANE_MIX_SENSITIVE=1`) is `secret`: claude, grok or mistral drafts it, and the pick carries `flag=needs_masked_agy_review`. The drafter runs `I18N_MASK_SRC=<text> I18N_MASK_TERMS=<term list> LANE_MIX_TASK=<task_id> ./run -a do_spl_i18n_mask` (csi-spl-orc; the term list names the people and workspaces, one `name|workspace|other <term>` per line) and the agy brief names only its `agy_review_dir=`, never the original or `map.tsv`; `do_spl_i18n_unmask` puts the reviewed text back.

@@ -13,7 +13,8 @@
 #          backup, else claude. The data rule: secret goes to claude, grok
 #          or mistral only (never qwen or agy), else hold; orchestration
 #          is secret-class the same way. The language rule: i18n goes to agy, and
-#          any other pick carries flag=needs_agy_review.
+#          any other pick carries flag=needs_gct_lang_review (the required
+#          Google Cloud Translation check; an agy review is optional).
 #          A fake agent home, registry and journal; the cnf is a copy of the
 #          real all.env.yaml with the section 2 table pinned, so a cnf change
 #          does not move these cases; it also pins mistral_coding_allowed
@@ -468,13 +469,13 @@ rm -f "$H/.local/bin/qwen"; rm -rf "$H/.qwen"
 # --- 8. the language rule: i18n goes to agy (T6) ------------------------------
 registry i18n 0 0 0
 mix LANE_MIX_KIND=i18n
-[[ "$(pick)" == agy ]] && ! grep -q 'flag=' "$T/out" && grep -q 'kind i18n: agy has the final word on multilingual text' "$T/out" \
+[[ "$(pick)" == agy ]] && ! grep -q 'flag=' "$T/out" && grep -q 'kind i18n: main agy; the required language check is Google Cloud Translation (do_spl_lang_review_gct), an agy review is optional' "$T/out" \
   && pass "8. kind i18n -> agy, no flag" || fail "8. i18n: $(cat "$T/out")"
 cli_off agy
 mix LANE_MIX_KIND=i18n
-[[ "$(pick)" == claude ]] && grep -q '^pick=claude launcher=/claude-spawn kind=i18n flag=needs_agy_review reason=' "$T/out" \
-  && grep -q 'the text waits for an agy review before it ships' "$T/out" \
-  && pass "8. i18n with agy out: claude plus flag=needs_agy_review" || fail "8. i18n no agy: $(cat "$T/out")"
+[[ "$(pick)" == claude ]] && grep -q '^pick=claude launcher=/claude-spawn kind=i18n flag=needs_gct_lang_review reason=' "$T/out" \
+  && grep -q 'the text ships only after the Google Cloud Translation check (do_spl_lang_review_gct); an agy review is optional' "$T/out" \
+  && pass "8. i18n with agy out: claude plus flag=needs_gct_lang_review" || fail "8. i18n no agy: $(cat "$T/out")"
 cli_on agy
 
 # --- 9. the row: overrides and refusals --------------------------------------

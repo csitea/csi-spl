@@ -35,7 +35,7 @@ mistral may be the main or the backup. `LANE_MIX_KIND=orchestration`
 (dispatching and orchestrating, owner 2026-10-11, msgs a1e5c678 and
 ff1baf01) is secret-class the same way.
 
-<!-- fleet-pin language-rule-final: agy -->
+<!-- fleet-pin language-rule-final: gct -->
 **Language rule, owner 2026-11-21** (HUM-10, csi-rel c36682ea, msg 36b3ff7f:
 "google translationd Api 's are now available - use them - better and
 cheaper"; it replaces the agy final word of t1 msg 296582df, 2026-10-08):

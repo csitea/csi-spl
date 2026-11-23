@@ -17,8 +17,10 @@
 #   4 data-rule       every `<!-- fleet-pin data-rule-vendors: ... -->` pin
 #                     agrees, each pinned vendor is named in the prose under
 #                     its pin, and do_spl_lane_mix's secret pick is in the set
-#   5 language-rule   the same for `fleet-pin language-rule-final` pins and
-#                     do_spl_lane_mix's i18n pick
+#   5 language-rule   every `fleet-pin language-rule-final` pin agrees, the
+#                     prose under it names it, and it is the check
+#                     do_spl_lane_mix's i18n flag asks for (gct: the
+#                     needs_gct_lang_review flag, owner msg 36b3ff7f)
 #   6 per-kind-main   each per-kind table (found by its "main | backup"
 #                     header, anywhere in the file) in the installed fragment
 #                     and the spawn-an-agent launcher names the spec's main
@@ -169,14 +171,14 @@ _frd_pins() {  # <fact> <pin key> <code pick sed -n script> <what the code pick 
   pick="$(sed -nE "$code_rx" "$t/csi-spl-orc/src/bash/run/spl-lane-mix.func.sh" 2>/dev/null | sed -n 1p)"
   if [[ -z "$pick" ]]; then _frd_log "FAIL $fact: no $what in spl-lane-mix.func.sh"; bad=1
   elif [[ -n "$want" && " $want " != *" $pick "* ]]; then _frd_log "FAIL $fact: do_spl_lane_mix's $what is $pick, the pins allow '$want'"; bad=1; fi
-  (( bad )) || _frd_log "OK $fact: $n pins = '$want', lane_mix picks $pick"
+  (( bad )) || _frd_log "OK $fact: $n pins = '$want', do_spl_lane_mix's $what is $pick"
   return "$bad"
 }
 _frd_data_rule() {  # <tree> <home>
   _frd_pins data-rule data-rule-vendors 's/.*_spl_lane_mix_pick ([a-z]+) "data rule:.*/\1/p' "secret pick" "$1" "$2"
 }
 _frd_language_rule() {  # <tree> <home>
-  _frd_pins language-rule language-rule-final 's/.*_spl_lane_mix_want ([a-z]+) "kind i18n:.*/\1/p' "i18n pick" "$1" "$2"
+  _frd_pins language-rule language-rule-final 's/.*flag=needs_([a-z]+)_lang_review$/\1/p' "i18n check" "$1" "$2"
 }
 
 # _frd_kind_rows <file>: "<line> <kind> <main>" per row of the per-kind table,

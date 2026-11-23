@@ -131,11 +131,11 @@ run "$T/p"; rc=$?; control "7 data-rule missing pin" "data-rule: no data-rule-ve
 plant; sed -i 's/_spl_lane_mix_pick claude "data rule:/_spl_lane_mix_pick qwen "data rule:/' "$T/p/csi-spl-orc/src/bash/run/spl-lane-mix.func.sh"
 run "$T/p"; rc=$?; control "8 data-rule code" "data-rule: do_spl_lane_mix's secret pick is qwen"
 
-# 8b. language-rule: a pin names another vendor; the code sends i18n elsewhere.
-plant; sed -i 's/language-rule-final: agy/language-rule-final: grok/' "$T/p/$CMDS/spawn-an-agent.md"
-run "$T/p"; rc=$?; control "8b language-rule pins" "language-rule: $CMDS/spawn-an-agent.md:[0-9]* pins 'grok'"
-plant; sed -i 's/_spl_lane_mix_want agy "kind i18n:/_spl_lane_mix_want claude "kind i18n:/' "$T/p/csi-spl-orc/src/bash/run/spl-lane-mix.func.sh"
-run "$T/p"; rc=$?; control "8c language-rule code" "language-rule: do_spl_lane_mix's i18n pick is claude"
+# 8b. language-rule: a pin names another check; the code flags i18n for another check.
+plant; sed -i 's/language-rule-final: gct/language-rule-final: agy/' "$T/p/$CMDS/spawn-an-agent.md"
+run "$T/p"; rc=$?; control "8b language-rule pins" "language-rule: $CMDS/spawn-an-agent.md:[0-9]* pins 'agy'"
+plant; sed -i 's/flag=needs_gct_lang_review$/flag=needs_agy_lang_review/' "$T/p/csi-spl-orc/src/bash/run/spl-lane-mix.func.sh"
+run "$T/p"; rc=$?; control "8c language-rule code" "language-rule: do_spl_lane_mix's i18n check is agy"
 
 # 9. per-kind-main: a per-kind main vendor is altered.
 plant; sed -i 's/(`specs_and_docs`) *| agy *|/(`specs_and_docs`) | mistral |/' "$T/p/$FRAG/20-spawn-an-agent.md"

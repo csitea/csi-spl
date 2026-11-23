@@ -155,11 +155,15 @@ func cmdServe() int {
 
 // hubLogger is the serving hub's logger, with the hook that makes every
 // other ERROR line a sighting of the backend error log (spec 162 10.4.2;
-// attached to the server by superviseEvlog).
+// attached to the server by superviseEvlog). Its own facts sit under keys no
+// other hub line writes (hub_env, hub_version; "service" names the process),
+// so a part logger's "component" or a deploy line's "env" / "version" stands
+// alone: zerolog appends a repeated key and Cloud Logging joins the values
+// ("hubauth", "prddev"; SPL-6340).
 func hubLogger(hc *config.Hub) (zerolog.Logger, *hub.EvlogHook) {
 	h := hub.NewEvlogHook()
 	return logging.New(&config.Config{LogLevel: hc.LogLevel, LogFormat: hc.LogFormat}).
-		With().Str("component", "hub").Str("env", hc.Env).Str("version", version).Logger().Hook(h), h
+		With().Str("hub_env", hc.Env).Str("hub_version", version).Logger().Hook(h), h
 }
 
 // superviseEvlog starts source (a) of the backend error log (spec 162

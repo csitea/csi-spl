@@ -172,7 +172,7 @@ func (c *Client) do(ctx context.Context, op, method, path, auth string, in, out 
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if resp.StatusCode/100 != 2 {
 		ae := &APIError{Op: op, Status: resp.StatusCode, Message: messageOf(raw)}
-		c.log.Warn().Str("op", op).Int("status", resp.StatusCode).Str("message", ae.Message).Msg("github: request refused")
+		c.log.Warn().Str("op", op).Int("status", resp.StatusCode).Str("github_message", ae.Message).Msg("github: request refused")
 		return ae
 	}
 	if out == nil {

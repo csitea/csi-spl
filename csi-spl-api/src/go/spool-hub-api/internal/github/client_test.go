@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"strings"
@@ -328,5 +329,37 @@ func TestCommitterNoreplyFromAPI(t *testing.T) {
 	want := "4242+" + githubtest.BotName + "@users.noreply.127.0.0.1"
 	if bot.Name != githubtest.BotName || bot.Email != want {
 		t.Fatalf("committer %+v, want %s <%s>", bot, githubtest.BotName, want)
+	}
+}
+
+// TestRefusalLineKeepsItsMessage: the refusal line carries "message" once,
+// as its own text, and GitHub's answer under "github_message". Named
+// "message", GitHub's text was a second key that Cloud Logging joined into
+// "Not Foundgithub: request refused" (SPL-6340), so a filter on the line's
+// message found none of them.
+func TestRefusalLineKeepsItsMessage(t *testing.T) {
+	gh := githubtest.New(t, map[string]string{doc: "a\n"})
+	var log bytes.Buffer
+	c := newClient(t, gh, &log, nil)
+	gh.FailNext("GET /repos/", 404)
+	_, _ = c.HeadBlob(context.Background(), doc)
+	var line string
+	for _, l := range strings.Split(log.String(), "\n") {
+		if strings.Contains(l, "github: request refused") {
+			line = l
+		}
+	}
+	if line == "" {
+		t.Fatalf("no refusal line:\n%s", log.String())
+	}
+	if n := strings.Count(line, `"message":`); n != 1 {
+		t.Errorf("the refusal line carries \"message\" %d times: %s", n, line)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(line), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["message"] != "github: request refused" || got["github_message"] == nil || got["github_message"] == "" {
+		t.Errorf("message = %v, github_message = %v: %s", got["message"], got["github_message"], line)
 	}
 }

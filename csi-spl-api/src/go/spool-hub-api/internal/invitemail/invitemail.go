@@ -148,7 +148,9 @@ func Send(ctx context.Context, d Deps, tenant, email string) (Result, error) {
 	if lim.MaxSends == 0 {
 		lim.MaxSends = DefaultMaxSends
 	}
-	log := d.Log.With().Str("component", "invitemail").Str("tenant", tenant).Str("to", res.To).Logger()
+	// The caller's logger names the component (hub: "invitemail", CLI: "cli");
+	// naming it again here would put the key on the line twice.
+	log := d.Log.With().Str("tenant", tenant).Str("to", res.To).Logger()
 
 	c, err := d.Store.ClaimInviteMail(ctx, tenant, email, lim, now().UTC())
 	if err != nil {

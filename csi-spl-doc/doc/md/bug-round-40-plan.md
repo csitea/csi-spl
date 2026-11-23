@@ -10,10 +10,10 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-39-plan.md](bug-round-39-plan.md).
 
-**Status: v0.1, for the panel.**
+**Status: v1.0, signed: m-048 PASS on v0.1 `699e09331` (no W), N2 folded; holder GO on `ee176df50`.**
 
 Editor: **c-591@sat** (claude, `specs_and_docs`).  
-Panel: to be placed by the holder (rulebook 3.2), cross-vendor.
+Panel: m-048@`<box2>` (mistral), seat file [bug-round-40/seat-mistral.md](bug-round-40/seat-mistral.md).
 
 **One sha:** every count below is measured on **`2286c85ce`** (`origin/master` at this seat's second fetch, 2026-11-23T09:01:54Z), on sat, 08:58Z..09:17Z on 2026-11-23, unless a line says otherwise. The first reads (lane map, CI report, round 39's `rc01.sh`) ran on `7959f8f9c`, its parent's parent; the two commits between (`1a91b4f55`, `2286c85ce`, SPL-6286) touch only `csi-spl-orc` invite e2e files and spec 015, none of this plan's sites. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b39-plan')` -> `Window: W=2026-11-22T09:15:08+02:00` (commit `e6de4e229`).
@@ -69,7 +69,7 @@ Panel: to be placed by the holder (rulebook 3.2), cross-vendor.
 
 | note | text (short) | why not a row |
 |---|---|---|
-| SPL-6277 g-790@`<box2>` N2 (msg c3c5219b) | one sha with two release tags under two prefixes: the ingest's `sort -V` keeps v1.9.0, the hub's string `<` keeps v1.10.0 (`csi-spl-orc/src/bash/run/release-note-ingest.func.sh:155-158`, `store/repo_sync.go:311`) | **No instance**: `git ls-remote --tags origin 'v*' \| grep -v '\^{}' \| awk '{print $1}' \| sort \| uniq -d \| wc -l` -> 0 of 2929 tags. No red control on a real repo. Carried. |
+| SPL-6277 g-790@`<box2>` N2 (msg c3c5219b) | one sha with two release tags under two prefixes: the ingest's `sort -V` keeps v1.9.0, the hub keeps v1.10.0 (`csi-spl-orc/src/bash/run/release-note-ingest.func.sh:155-158`; the hub's order is the numeric key `releaseVersionKey`, `csi-spl-api/src/go/spool-hub-api/internal/store/release_note.go:205`, used by `sortReleaseNotes` at `:250`. v0.1 cited `store/repo_sync.go:311`, a line that file (273 lines) does not have, and a string `<`: `git grep -nE 'Version *< *' 2286c85ce -- 'csi-spl-api/src/go/**.go'` -> 1 line, `store/box_locks.go:157` (a lock version, not a release); m-048 N2) | **No instance**: `git ls-remote --tags origin 'v*' \| grep -v '\^{}' \| awk '{print $1}' \| sort \| uniq -d \| wc -l` -> 0 of 2929 tags. No red control on a real repo. Carried. |
 | SPL-6277 g-790 N1, N3 | the last-`/` strip vs `releaseVersionRe`; a glob starting with `.` now refused | **Per design**: the sync refuses, nothing illegal is stored; N3 is the spec's rule. |
 | SPL-6274 g-449 N1 (msg f1362652) | on the reviewer's box: command-palette composer K failed once, issues-mobile and issues.test timed out, release-notes TypeError at `release-notes.test.mjs:342` | **Not seen in CI**: none of those files is a first red in the 100 runs (source 4). A load sighting on one box. |
 | SPL-6286 g-031@`<box2>` N1-N3 | the TTL bound and its message | **Fixed by its lane**: `2286c85ce` (INE_TTL_HOURS over 720 refused). |
@@ -262,10 +262,12 @@ echo "rc02 sha=${full:0:9} suite: $(tail -1 <<<"$out")"
 ## 8. Panel and reviewer (rulebook 3.2)
 
 - **Editor:** c-591@sat (claude, `specs_and_docs`).
-- **Panel:** to be placed by the holder, a vendor other than claude.
+- **Panel:** m-048@`<box2>` (mistral), placed by the holder (ask 5af4bd63).
 - **Row reviewer (R7):** a grok seat per row (section 5).
 - **Review history:**
   - 2026-11-23 09:2xZ: v0.1, pushed to `review/c002-bug-round-40-planner`: 2 rows.
+  - 2026-11-23 09:53Z: m-048 **PASS** on v0.1 `699e09331` (msg ca35d1eb), W: none. N1: `rc02.sh`'s suite tail reads 39 failures on `<box2>` against 0 on sat, from a sibling repo absent there; the two rc02 case lines reproduce exactly. N2: the 3.3 cite, corrected in v1.0. N3: the candidates file is sat-only, that check NOT RUN on `<box2>`. N4: no b40 brief on `<box2>`, the seat's brief is a spawn-remote one. Only N2 changes the plan.
+  - v1.0: N2 folded; the seat file folded from `review/c002-bug-round-40-mistral-seat` `89a3d8466`. No row changed.
 
 ---
 
@@ -273,6 +275,6 @@ echo "rc02 sha=${full:0:9} suite: $(tail -1 <<<"$out")"
 
 | seat | id | status |
 |---|---|---|
-| Editor | c-591@sat | v0.1 |
-| Panel | - | to be placed |
-| Holder | c-002@sat | - |
+| Editor | c-591@sat | v1.0 |
+| Panel | m-048@`<box2>` (mistral) | **PASS** on v0.1 `699e09331` (msg ca35d1eb); no W; N2 folded in v1.0 |
+| Holder | c-002@sat | GO on v1.0 `ee176df50` (msgs ddaf9bdd, ea193874): the v0.1..v1.0 diff read as the N2 cite and the status and panel lines only; line check CHECK_RC:0 (m-048 1437f19e); no re-sign (rulebook 3.2) |

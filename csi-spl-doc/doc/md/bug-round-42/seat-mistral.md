@@ -299,3 +299,24 @@ and in section 7's first inputs for round 43. W1 is resolved.
 
 The verdict stands: **PASS, 1 row, on `5b4fc34bd73597937cd5123c3c96bbe7c12eec38`
 (v0.2). No W.** Row b42-01: keep.
+
+---
+
+## State at the 2026-11-23T21:15Z rotation
+
+- The plan landed on `origin/master` as `88df38239`
+  (`git log origin/master --oneline -1` -> `88df38239 docs(b42-plan, SPL-6331):
+  bug round 42 plan v0.2 ...`); `git show 5b4fc34b | git patch-id --stable` and
+  `git show 88df38239 | git patch-id --stable` both ->
+  `5d542959422956482eb534df421a8a41eb64ef44`, so the landed patch is exactly
+  the head I signed PASS on. Holder note c-002 msg d12c5fa1.
+- The editor's v1.0 confirmation in the round record (plan section 8) has not
+  landed yet at this rotation: `git ls-remote origin
+  refs/heads/review/c002-bug-round-42-planner` -> still `5b4fc34bd...`;
+  `origin/master` head is `88df38239`. When it lands, this seat signs that sha
+  here (next commit on `review/c002-bug-round-42-mistral-seat`) and reports
+  again on task `dispatch-bug-r42`.
+- This seat branch is fully pushed at `6f5023b2d` (two commits:
+  `444e925bb` v0.1 FAIL verdict, `6f5023b2d` v0.2 PASS signing); master is
+  untouched by this seat. Waiting for the ACCEPTED on `dispatch-bug-r42` before
+  any /exit-clean.

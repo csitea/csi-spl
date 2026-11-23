@@ -21,6 +21,10 @@
 #      read as success, and the FATAL line as failure (live bug found
 #      2026-09-19: the action matched the raw "OK Resource imported" string,
 #      which do_log never prints, so every successful import read as WARN)
+#  12. one ORG / APP resolver: the action keeps no copy of tf-plan-ref's
+#      _tf_plan_ref_oap (no _tf_import_oap(), no do_resolve_oap) and calls it;
+#      cases 4-10 source the action alone, so they prove its declare -F guard
+#      loads tf-plan-ref.func.sh (refactor round 91, row 01)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -158,6 +162,13 @@ verdict() { bash -c 'do_log() { :; }; source "$0"; _tf_import_succeeded "$1"' "$
 verdict "$ok_out" && pass "real OK line -> success" || fail "real OK line read as failure: $ok_out"
 verdict "$bad_out" && fail "real FATAL line read as success" || pass "real FATAL line -> failure"
 verdict "" && fail "empty output read as success" || pass "empty output -> failure"
+
+# 12.
+act="$PROJ_ROOT/src/bash/run/tf-import-existing.func.sh"
+own=$(command grep -nE '_tf_import_oap\(\)|do_resolve_oap' "$act")
+[[ -z "$own" ]] && command grep -qF '"$(_tf_plan_ref_oap ORG ' "$act" \
+  && pass "12. one ORG/APP resolver: calls _tf_plan_ref_oap, keeps no copy" \
+  || fail "12. own ORG/APP resolver left, or no call of _tf_plan_ref_oap ORG: $own"
 
 echo "--- $fails failure(s)"
 [[ $fails -eq 0 ]]

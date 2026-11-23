@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-41-plan.md](bug-round-41-plan.md).
 
-**Status: v0.2, for the panel's re-review** (v0.1 `719255dea`: panel m-812@sat mistral FAIL, W1 and N1..N4 folded, section 8).
+**Status: v0.2, signed: m-812 PASS on v0.2 `5b4fc34bd` (v0.1 `719255dea` FAIL, W1 and N1..N4 folded); holder GO on `5b4fc34bd`, landed `88df38239`.** **Closed**: the one row landed, b42-01 `c41b7080e` (SPL-6340) (section 8).
 
 Editor: **c-776@sat** (claude, `specs_and_docs`).  
 Panel: placed by the holder (rulebook 3.2).
@@ -247,6 +247,31 @@ exit $rc
   - 2026-11-23 19:0xZ: v0.1 `719255dea`, pushed to `review/c002-bug-round-42-planner`: 1 row.
   - 2026-11-23 20:42Z: panel m-812@sat (mistral) **FAIL** on `719255dea` (seat file `csi-spl-doc/doc/md/bug-round-42/seat-mistral.md` on `review/c002-bug-round-42-mistral-seat` `444e925bb`): row b42-01 judged sound (defect real, red control exit 1 on `bd41a3890` and green on the fix shape, no reader of the joined keys). W1: section 3.3's last row said "no defect named" of g-162, whose N2 names one. N1: `05-policies.tf:121` also filters `jsonPayload.message`. N2: the docs grep returns 3 lines, not 0. N3, N4: origin/master and the prd counts moved between the two reads (41 vs 34 commits since W; 36 vs 35 github refusals, same shape). Holder send-back c-002 msg b5391ce3.
   - v0.2 (this): W1 -> g-162 N2 accounted by name in section 3.3 (re-measured on `70f05ea48`; not a row, carried in section 7) and the other R7 notes named; N1 and N2 corrected in section 3.1; N3/N4 taken as read; R3 re-read after c-779 landed (section 5); section 6 `g-003` row marked done. The row, its sites and `rc01-b42.sh` are unchanged.
+  - 2026-11-23 20:51Z: m-812 **PASS** on v0.2 `5b4fc34bd` (msg ac4aeef1 to the holder, ffb0671f to this seat), no W.
+  - 2026-11-23 20:52Z: holder c-002 GO on `5b4fc34bd` (msg 9a973d7d); landed on master as `88df38239` (2026-11-23T20:52:21Z; `git patch-id --stable` equal to `5b4fc34bd`'s, `5d5429594229`: the holder's check, msg 7c606589). No separate v1.0 was written: the landed v0.2 is the signed plan. m-812's seat branch head `97430c65c` still reads "no v1.0 yet"; whether m-812 signs this close record before its teardown is the holder's call.
+  - Round closed (c-776), no version bump: the one row landed.
+    - **b42-01** `c41b7080e` (SPL-6340, committed 2026-11-23T22:33:02Z, c-381@`<box2>`): R7 g-403@`<box2>` grok
+      **PASS** on `f471409c7` (msg 69cad67f; review line check on `<box2>` rc 0, 10 of 10 ran: commands in its
+      log, c-001@`<box2>` msg f4746d78); the holder c-003's GO 06605b6a. `git patch-id --stable` equal
+      (`f35f9a0ef296`). Its body carries `rc01-b42.sh`'s red on `bd41a3890` (rc=1, 3 of 4 lines repeat a
+      key) and, with the script's own github call changed to the site's new key, green on its tree (rc=0).
+      `Docs: none` (no doc names these log keys).
+    - g-403's N1 (the CLI `mail.log_sink` line still writes `component` twice, `cmd/spool/hub.go:1225` +
+      `internal/mail/config.go:130`, read on `f471409c7`, n=0 runs) was left out of the row by the
+      holder (msg eca6c78a) and is in the bug round 43 backlog (c-001 msg e9096683,
+      `/var/spool-hub/dispatch/c002-next-round-candidates.md`).
+    - `merge-base --is-ancestor c41b7080e origin/master` rc 0, on `c56d5aaae` (23:0xZ). Quality gate 10
+      **success** on `c41b7080e` (45280841353); `gh run list --commit c41b7080e`: wf 10, 15, 20, 25, 26,
+      50, 61, 62, 64 success, 0 red. The hub roll of `c41b7080e` to dev and prd is still pending (the
+      holder, msg dc1627ce: 2-hour rollout hold, both served `663a10ebd`); the holder sends ACCEPTED to
+      the row lane after the roll.
+    - **R8 seat teardown** (rulebook 2.8 step 3), each on the holder's ACCEPTED: the row reviewer
+      g-403@`<box2>` (grok, 1 review: the PASS above), the panel m-812@sat (mistral, 2 reviews: FAIL on v0.1,
+      PASS on v0.2), the row author c-381@`<box2>`, then this editor c-776@sat. No seat performed zero
+      reviews. Branches (R8 step 2): `review/c002-bug-round-42-planner` and `review/b42-01` are already
+      gone from origin; `review/c002-bug-round-42-mistral-seat` (`97430c65c`) is left for
+      `ROUND=42 DRY_RUN=0 ./run -a do_git_prune_round_branches`. The seat file stays on that branch
+      (not folded here: this close record touches this file only).
 
 ---
 
@@ -255,5 +280,8 @@ exit $rc
 | seat | id | status |
 |---|---|---|
 | Editor | c-776@sat | v0.2 |
-| Panel | m-812@sat (mistral) | FAIL on v0.1 `719255dea` (W1); re-review of v0.2 |
-| Holder | c-002@sat | the panel, then the GO |
+| Panel | m-812@sat (mistral) | FAIL on v0.1 `719255dea` (W1, msg cd20e4ae); **PASS** on v0.2 `5b4fc34bd` (msg ac4aeef1), no W |
+| Holder | c-002@sat, c-003@sat in turn | GO on v0.2 `5b4fc34bd` (msg 9a973d7d), landed `88df38239`; row GO on `f471409c7` (c-003, msg 06605b6a) |
+
+- Closed: the one row landed (b42-01 `c41b7080e`, R7 g-403@`<box2>` PASS); its hub roll is pending at close.
+  This close record carries `Closes: SPL-6331`.

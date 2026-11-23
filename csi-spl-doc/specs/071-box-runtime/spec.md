@@ -276,6 +276,7 @@ A run on `<pc box>` with `ENV=dev` then shows `POOL_CMD=status` all
 Status of this section: **draft v0.3, for a cross-vendor spec review**. Docs
 only: nothing below is built. Written 2026-11-22 by c-176 on tree
 `origin/master` @ `8d7782cc3`; every `file:line` below is on that tree.
+Extended by [section 8](#8-actual-box-values-from-one-snapshot-htop-df-and-du-spl-6318) (SPL-6318: actual `htop`, `df -P` per mount and `du` top-10 directories from one timestamped snapshot, superseding the configured/daily display on Monitoring > Boxes).
 
 ### 7.1 The ask
 
@@ -647,4 +648,501 @@ use), alerts on a threshold, and a refresh of the daily host facts sheet
 4. A refresh sample is stored like a tick sample (7.7): the two hub instances
    need the table to pass the answer between them.
 
-<!-- version: 0.3.3 · updated: 2026-11-22 -->
+## 8. Actual box values from one snapshot: `htop`, `df` and `du` (SPL-6318)
+
+Status of this section: **draft v0.4, for a cross-vendor spec review**. Docs
+only: no code, no migration and no terraform in this change. Written
+2026-11-23 by a-729 on tree `origin/master` @ `16fbe330e`; every `file:line`
+below is verified on `16fbe330e`. Builds on section 7 (SPL-6239); section 8.9
+lists every place it extends or changes section 7.
+
+### 8.1 The ask
+
+The owner (HUM-10, t1 topic `78f0138c`, 2026-11-23 ~16:0xZ), verbatim:
+
+- msg `b27fa22f` (with a screenshot of Monitoring > Boxes):
+  > "BUT THOSE are the configured and I want to see the ACTUAL data from the boxes"
+- msg `c5acabfa`:
+  > "as they would be shown from the htop and du cmds"
+- msg `ed55626d`:
+  > "at the moment the snaphot of their values where taken"
+- Poll `e657ed62`, answer A:
+  > "Per mount: used / size / % (as df), plus the 10 biggest directories (as du)"
+
+### 8.2 What exists on `origin/master` (`16fbe330e`)
+
+#### 8.2.1 Section 7 build status (verified via `git log origin/master -E --grep='SPL-6239 row T'`)
+
+- **On `origin/master`**:
+  - **T1** (`38da97302`): wire constants `TBoxSample`, `TBoxSamplePut`,
+    `FeatureBoxSample` (`internal/wire/wire.go:149-162`).
+  - **T2** (`8604ad411`): Go collector `BoxSampler.Collect`
+    (`internal/hubclient/box_sample.go:53-236`), plus bash parity test
+    (`csi-spl-orc/src/bash/tests/box-sample-parity.tst.sh`).
+  - **T4** (`2af5387bf`): `BoxSampleChannel = "spool_box_sample"` and
+    `store.BoxSampleWaker` on Memory and Postgres
+    (`internal/store/box_sample_wake.go:20-116`).
+  - **T9** (`0674db0a5`, test fix `e20037af4`): `BoxSummaryTable.vue:1-90` and
+    `utils/box-summary.mjs:1-50`, wired at `pages/monitoring/boxes/index.vue:43`.
+- **Not on `origin/master`**: **T3**, **T5**, **T6**, **T7**, **T8**. Section
+  8.8 folds them in as explicit prerequisites or extends them.
+
+#### 8.2.2 Configured vs 24-hour daily facts vs 5-minute sampled on Monitoring > Boxes
+
+Inspecting the real WUI code explains why Monitoring > Boxes reads as
+configured and stale data instead of live box telemetry:
+
+| page / component | `file:line` (`16fbe330e`) | fields shown | actual source | kind |
+|---|---|---|---|---|
+| `pages/monitoring/boxes/index.vue` | `:29`, `:193-199`; `MonitoringAllocation.vue:10-49`; `MonitoringAllocRows.vue:15`; `utils/monitoring-allocation.mjs:45-46,59-118` | Fleet band, runner CPU cap, CI overflow, runner CPUs, box order, per-box bands, agent kinds on/off, vendor split — **at the very top of the page**, above every box | `GET /v1/operator/fleet-load`, `GET /v1/tenant/settings`; every row carries `planned: true, measured: null` | **Configured** |
+| `components/BoxSummaryTable.vue` | `:13-50`; `utils/box-summary.mjs:23-50`; `index.vue:43,205` | RAM used %, RAM free, fullest disk (`mount pct%` only — no used/size), `load1 / cpus`, live agents, age, State (empty until T7) | `GET /v1/tenant/box-stats?since=1h` (`latestBoxStat`) | **Sampled (5 min)**, incomplete |
+| `components/MonitoringBoxFacts.vue` | `:11-13,15-32,40-46,52-68`; `index.vue:76` | OS, CPU model, CPUs, total RAM, hostname, service state, boot uptime, timezone, run-times, network IPs/gateway/DNS | `GET /v1/view/roster` `boxes[]` (`internal/hub/view.go:317-322`), collected at most once per 24 h (`internal/hubclient/host.go:32` `hostEvery`) | **Daily hello facts (24 h)** |
+| `components/MonitoringBoxFacts.vue` | `:33-34,47,94,101-107` | **Free memory**, **Swap used**, **Load (1, 5, 15 min)** | **24-hour daily hello facts** (`detail.system.mem_avail_mb`, `swap_free_mb`, `load`), ignoring `props.stat` | **Stale daily facts** (should be live) |
+| `components/MonitoringBoxFacts.vue` | `:35,98` | Disk: single fullest mount (`lowestDisk`); other mounts hidden in hover `title` | `props.stat` (`box_stats`, 5 min) | **Sampled (5 min)**, single mount only |
+| `components/MonitoringBoxFacts.vue` | `:70-73,99`; `utils/monitoring-allocation.mjs:127-142` | Per-box band, runner CPU cap, box-order place `(planned)` | `GET /v1/operator/fleet-load` | **Configured** |
+| `pages/monitoring/boxes/[id].vue` | `:89-110,253`; `utils/box-resources.mjs:178-191` | `Now` block: `load1 on cpus CPUs`, `used, avail` (no total, no %), `swapUsedKB` (no total), single `lowestDisk` line, `agentsLive` | `GET /v1/tenant/box-stats?box=<id>&since=24h` | **Sampled (5 min)**, incomplete |
+| `pages/monitoring/boxes/[id].vue` | `:114`; `BoxLoadBand.vue:12-69` | Per-box load band form (`low..high % of cores`), plus one live line (`:24`, `load5` % of cores) | `GET/PATCH /v1/operator/fleet-load` | **Configured** |
+| `components/BoxStatsPane.vue` | `:53-59,119-128` | `?r=hardware` opens with 24-hour `sys.memAvailMB` / `swapLine`; `?r=system` shows 24-hour `sys.load` / `bootAt` | `roster.boxes[id].system` (24 h) | **Stale daily facts** |
+| `components/BoxStatsPane.vue` | `:99-110` | Per-mount disk table (`Mount`, `Size`, `Used (%)`, `Free`), buried under `?r=hardware`, omits `Used` in GiB/MiB | `latestBoxStat(stats.rows)` | **Sampled (5 min)**, no `Used` size, no `du` |
+
+Not collected anywhere on `16fbe330e`: CPU % (total or per core), `swap_total_kb`
+in `box_stats`, `mem_buffers_kb` / `mem_cached_kb`, task/thread counts, live
+`uptime_s`, top processes by CPU / RSS, and the 10 biggest directories (`du`).
+
+### 8.3 What one snapshot holds
+
+Every live reading of a box is captured together in one collector run and
+labelled with one snapshot timestamp (`at`, stamped by the hub clock when stored,
+as in 7.2/7.6.1). Because the fast collection takes ~0.35 s (8.3.4), `at` is
+within 1 s of the instant the readings were taken on the box. The WUI prints
+both the exact snapshot time (in the reader's time zone, ISO 8601 UTC on hover)
+and its relative age (`12 s ago`), and never mixes 24-hour daily facts into the
+snapshot block.
+
+#### 8.3.1 Per-mount disk usage (`df -P`)
+
+Each entry in `disks[]` (cap `BoxDisksMax = 16`, `store/box_stats.go:28`,
+rdb `0121` CHECK) holds:
+
+| field | type | meaning |
+|---|---|---|
+| `mount` | `string` | absolute mount point, printable ASCII, `<= 256` bytes, unique per sample |
+| `fstype` | `string` (optional) | filesystem type (`ext4`, `xfs`, `vfat`, `tmpfs`, `overlay`, ...), printable `[a-z0-9._-]{1,24}` |
+| `total_kb` | `int64` | `df -kP` `1024-blocks` (Size) |
+| `used_kb` | `int64` | `df -kP` `Used` |
+| `avail_kb` | `int64` | `df -kP` `Available` |
+
+`Use%` is derived on read exactly as POSIX/GNU `df -P` computes `Capacity`:
+`ceil(used_kb * 100 / (used_kb + avail_kb))` (`diskUsedPct` at
+`box-resources.mjs:95-100`). Never `1 - avail/total`, which includes ext4's
+root-reserved blocks and reads higher than `df` (note in `box-resources.mjs:90-91`).
+
+**Which mounts are included (exact rule)**:
+
+1. Run `df -kPT` under the 3 s timeout (`boxSampleDFTimeout`, `box_sample.go:40`),
+   ignoring rows whose size/avail are non-numeric (`-`, e.g. unreachable network
+   mounts) and deduplicating identical mount paths.
+2. Always exclude pseudo/virtual/image filesystems: `devtmpfs`, `squashfs`,
+   `efivarfs`, `proc`, `sysfs`, `cgroup`, `cgroup2`, `debugfs`, `tracefs`,
+   `fusectl`, `pstore`, `securityfs`, `autofs`, `mqueue`, `hugetlbfs`,
+   `rpc_pipefs`, `nsfs`, `ramfs`.
+3. Include all real local and network filesystems (`ext4`, `ext3`, `ext2`,
+   `xfs`, `btrfs`, `zfs`, `vfat`, `ntfs`, `nfs`, `nfs4`, `cifs`, `virtiofs`,
+   `9p`, etc.). GNU `df` already lists each backing block device once (so bind
+   mounts like `/opt` or `/var/spool-hub` backed by `/mnt/data` are not
+   duplicated; if two mounts still share one `st_dev`, keep the shortest mount
+   path).
+4. **`tmpfs` and `overlay` exception rule**: exclude `tmpfs` and `overlay` by
+   default, **except** when a box's agents live or write scratch data there:
+   resolve `stat(path).st_dev` for `$SPOOL_ROOT`, `$SPL_WT_ROOT`,
+   `$SPL_VAR_APP_DIR`, and `/tmp`. If a `tmpfs` or `overlay` mount's `st_dev`
+   matches any of those paths — and for `/tmp` only when it is a dedicated mount
+   with `total_kb >= 1048576` (1 GiB) — include it with its `fstype`. Every
+   other `tmpfs` (`/run`, `/run/user/*`, `/dev/shm`, `/run/credentials/*`) and
+   container/worktree `overlay` (`/mnt/data/docker/overlay2/*/merged`,
+   `.../node_modules`) stays excluded.
+
+#### 8.3.2 The 10 biggest directories (`du`)
+
+| rule | value | why |
+|---|---|---|
+| count | **10** (`BoxTopDirsMax = 10`) | owner poll `e657ed62` answer A |
+| roots | every included mount from 8.3.1 with `total_kb >= 262144` (256 MiB) | covers real data/root disks and dedicated `>= 1 GiB` `/tmp`, skips tiny firmware partitions (e.g. `/boot/efi` at 124 MiB) |
+| filesystem boundary | stay on one filesystem (`st_dev == mount_dev`, as `du -x`), never follow symlinks (`lstat`), deduplicate hardlinks by `(st_dev, st_ino)` per mount | matches GNU `du -kx`; never double-counts bind mounts or traverses `/proc`/`/sys` |
+| size accounting | `st_blocks * 512 / 1024` (allocated 1 KiB blocks, identical to `du -k`) | matches `du`, not apparent `st_size` |
+| depth | **depth 2** below each scanned mount (depth 1 only when a depth-1 dir has no subdirectories); mount root (depth 0) is omitted | gives actionable paths (`/var/log`, `/var/cache`, `/mnt/data/spool-hub`) without wasting top-10 slots on nested parent/child duplicates (e.g. both `/mnt/data/opt` and `/mnt/data/opt/csi`); mount totals are already in `df` |
+| time cap | **`BOX_DU_TIMEOUT_S = 30`** s total wall-clock cap, **`BOX_DU_BUCKET_TIMEOUT_S = 5`** s per depth-2 bucket, under `nice -n 19` + `ionice -c 3` | prevents `du` from ever loading a box or starving other mounts (measured below) |
+| partial / unreadable handling | when a depth-2 bucket hits its 5 s cap, stop descending it, keep the exact KiB summed so far, mark that row `partial: true` (rendered `>= X GiB`), and continue to the next bucket; unreadable dirs (e.g. root-only `/var/lib/docker`) are skipped without aborting | guarantees a non-empty, honest top-10 even on a multi-million-inode worktree disk |
+| timestamp | `top_dirs_at` (RFC 3339 UTC, clamped `<= at` by the hub) + `top_dirs_partial` (bool) | honest age when served from the box's throttled cache (8.4) |
+
+**Measured cost on a live large fleet box (2026-11-23, 16 cores, 64 GiB RAM,
+`/` 29 GiB with 661,671 used inodes, `/mnt/data` 196 GiB with 5,458,578 used
+inodes, `/tmp` 32 GiB `tmpfs`)**:
+
+| command | measured wall time | notes |
+|---|---|---|
+| `df -kP -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs` (n=5) | **4.0..5.7 ms** | negligible |
+| `/proc` single pass (all ~657–725 PIDs + `stat`/`meminfo`/`loadavg`/`uptime`, Python, n=5) | **46.6..74.3 ms** | Go will be faster |
+| Two-pass 250 ms `htop` + process snapshot (~552 PIDs, Python, n=1) | **315.3 ms** | ~250 ms window + ~65 ms reads |
+| `du -kx --max-depth=2 /boot/efi` | **2.5 ms** | 1 dir |
+| `du -kx --max-depth=2 /tmp` | **1.90 s** | 1,885 dirs, rc=1 (unreadable entries) |
+| `du -kx --max-depth=2 /var` | **1.93 s** | 156 dirs, rc=1 |
+| `du -kx --max-depth=2 /` | **6.07 s** | 131 dirs, rc=1 |
+| `du -ksx` on `/mnt/data` subdirs: `var-csi`, `gh-runner-go`, `tmp`, `spool-hub`, `home` | **0.04 s**, **0.18 s**, **2.44 s**, **2.79 s**, **6.30 s** | 1.8 GiB..44 GiB each |
+| `du -kx --max-depth=2 /mnt/data` (under `nice -n 19 ionice -c 3`) | **> 60 s (timeout)** | 5.46M inodes; `/mnt/data/opt` (agent worktrees + `node_modules`) alone timed out at > 10 s |
+
+This measurement proves two design facts: (1) `du` **cannot** run synchronously
+inside section 7's 3 s box cap / 10 s click-to-render budget, and (2) an
+unbounded monolithic `du` on a large data disk exceeds 60 s and yields nothing
+when killed, whereas a per-bucket time-capped Go walker returns every completed
+directory plus lower-bound (`>=`) entries for huge worktree subtrees inside 30 s.
+
+#### 8.3.3 `htop` header values and top processes
+
+All collected directly from `/proc` in Go (zero subprocesses):
+
+- **CPU %**: read `/proc/stat` (`cpu` aggregate and `cpu0..cpuN-1`, up to
+  `BoxCPUCoresMax = 256`) twice across a **250 ms** window
+  (`boxSampleCPUWindow = 250 * time.Millisecond`). For each line, sum
+  `user + nice + system + idle + iowait + irq + softirq + steal`; active delta =
+  `totalDelta - (idleDelta + iowaitDelta)`. Output:
+  - `cpu_pct`: total CPU % (`0.0..100.0`, 1 decimal) on `BoxStat`;
+  - `cpu_user_pct`, `cpu_sys_pct`, `cpu_iowait_pct`: breakdown on `BoxSnapshot`;
+  - `cpu_cores_pct[]`: per-core CPU % (`0.0..100.0`, length `cpus`) on `BoxSnapshot`.
+- **Load average**: `load1`, `load5`, `load15` from `/proc/loadavg` fields 1–3
+  (already in `BoxStat`).
+- **Memory**: from `/proc/meminfo` (all in KiB):
+  - `mem_total_kb`, `mem_avail_kb` (existing on `BoxStat`);
+  - `mem_buffers_kb` (`Buffers`), `mem_cached_kb` (`max(0, Cached + SReclaimable - Shmem)`,
+    matching `htop` 3.x's green/blue/yellow memory meter calculation).
+  - Headline `Used` = `max(0, mem_total_kb - mem_avail_kb)` (consistent with
+    `box_stats` history and `memUsedPct` at `box-resources.mjs:199`); `htop`
+    bar detail shows Used, Buffers, Cache and Available against Total.
+- **Swap**: `swap_used_kb` (existing) + **`swap_total_kb`** (new on `BoxStat`,
+  from `SwapTotal`, `0` when the box has no swap).
+- **Tasks**: from `/proc/loadavg` field 4 (`<running>/<threads>`) and the `/proc/<pid>`
+  count:
+  - `tasks_total` (total PIDs), `tasks_running` (runnable kernel entities) on `BoxStat`;
+  - `tasks_threads` (total threads) on `BoxSnapshot`.
+- **Uptime**: `uptime_s` (whole seconds from `/proc/uptime` field 1) on `BoxStat`.
+- **Top processes (proposed N = 5 per list, cheap: ~65 ms extra across ~600 PIDs)**:
+  - During the same two-pass 250 ms window, read `/proc/<pid>/stat` (fields:
+    `comm`, `state`, `utime`, `stime`, `rss` in pages x `os.Getpagesize()/1024`).
+  - Per-process CPU % = `100 * ((utime2+stime2) - (utime1+stime1)) / (totalCPUDelta / cpus)`
+    (scaled to `100% * cpus`, matching `htop`'s unnormalized per-process CPU%,
+    capped at `cpus * 100`).
+  - Emit **`top_cpu`** (top **5** processes descending by `cpu_pct`, tie-break
+    by `rss_kb`, `pid`) and **`top_mem`** (top **5** descending by `rss_kb`,
+    tie-break by `cpu_pct`, `pid`).
+  - Each row carries ONLY `{pid, comm, cpu_pct, rss_kb, state}` — **`comm` only
+    (15-char kernel name), never `/proc/<pid>/cmdline` and never OS user**
+    (privacy rule, 8.7).
+  - Why N = 5: answers "what is spiking CPU or RAM right now?" at a glance in
+    <= 10 rows (~800 bytes JSON) without turning a box card into a wall of
+    processes.
+
+#### 8.3.4 Budget check against section 7's 10-second target
+
+| step | time | fits 7.3's 10 s budget? |
+|---|---|---|
+| two-pass `/proc` `htop` + top-5 CPU/RSS processes | ~0.32 s (measured 315.3 ms in Python) | yes |
+| `df -kPT` with agent-root `st_dev` check | ~0.01 s (measured 4.0..5.7 ms) | yes |
+| read cached `top-dirs.json` (`du` top 10) | < 0.002 s | yes |
+| **total box collection** | **~0.35 s** (3.0 s cap unchanged) | **yes — leaves > 6.6 s of hub wait + render** |
+
+### 8.4 How it is collected and stored (retention)
+
+#### 8.4.1 Collection split: fast snapshot vs throttled `du`
+
+1. **One Go collector** (`BoxSampler.Collect` in `internal/hubclient/box_sample.go`):
+   collects the fast snapshot (`htop` header, per-core CPU, top-5 CPU/RSS procs,
+   `df` mounts) and reads the local `du` cache file (`$SPL_VAR_APP_DIR/box-stats/top-dirs.json`,
+   or empty if absent/corrupt).
+2. **On-demand Refresh now** (section 7's `box_sample` WS frame on `spool hub-run`):
+   calls `BoxSampler.Collect` (~0.35 s, never runs `du`), replies with
+   `box_sample_put` carrying both the `BoxStat` scalars and `BoxSnapshot`
+   (including the cached `top_dirs` + `top_dirs_at`).
+3. **The 300 s box-stats cron (`do_post_box_stats`, `post-box-stats.func.sh:23-42`)**:
+   - First runs `nice -n 19 ionice -c 3 flock -n "$SPL_VAR_APP_DIR/box-stats/du.lock" spool box-stats du-cache --out "$SPL_VAR_APP_DIR/box-stats/top-dirs.json" --max-age 15m --timeout 30s --bucket-timeout 5s`.
+     If `top-dirs.json` is younger than `BOX_DU_EVERY_S` (900 s / 15 min), it
+     returns immediately without scanning disk; otherwise it walks the mounts
+     and atomically replaces `top-dirs.json` (mode `0644`, already redacted).
+   - Then runs `spool box-stats sample` (invoking the same Go `BoxSampler.Collect`)
+     and posts via `spool box-stats put` (carrying `agents_live` from live panes,
+     as today). If an older hub rejects the new v2 fields (`DisallowUnknownFields`
+     at `hub/box_stats.go:172`), `do_post_box_stats` strips them and retries the
+     legacy v1 payload, matching the `used_kb` fallback at
+     `post-box-stats.func.sh:33-39`.
+
+#### 8.4.2 Storage and retention: scalar history + 1-row-per-box latest snapshot
+
+"Answered only (no storage)" does not work with two Cloud Run instances
+(`max_instances = 2`, section 7.2/7.7) and blanks the page on reload. Storing
+`top_dirs`, `top_procs` and `cpu_cores_pct` on every 5-minute `box_stats` row
+would bloat 30-day history and `GET /v1/tenant/box-stats?since=24h` by ~25x.
+
+So the snapshot is split across two tenant-scoped tables written in **one
+transaction** under the same `at`:
+
+1. **`box_stats`** (existing 30-day append-only time series, `BoxStatsRetention = 30d`):
+   adds only small nullable scalar columns (`cpu_pct`, `swap_total_kb`,
+   `mem_buffers_kb`, `mem_cached_kb`, `tasks_total`, `tasks_running`, `uptime_s`
+   — ~40 bytes/row). Existing rows keep `NULL`; retention (30 days) and
+   `BoxStatsMax` (20,000) are unchanged.
+2. **`box_snapshots`** (new **1 row per `(tenant_id, box)`**, upserted on every
+   tick and every refresh): holds `{at, writer_box, snapshot jsonb}` (`cpu_cores_pct`,
+   `cpu_user_pct`, `cpu_sys_pct`, `cpu_iowait_pct`, `tasks_threads`, `top_cpu`,
+   `top_mem`, `top_dirs`, `top_dirs_at`, `top_dirs_partial`; hard cap 16 KiB).
+   O(1) rows per box regardless of refresh rate or retention; retired boxes older
+   than `BoxStatsRetention` (30 days) are pruned by the same `PruneBoxStats` sweep.
+
+### 8.5 What Monitoring > Boxes shows
+
+**Actual live box data leads the page; configured values are demoted and
+explicitly labelled `(configured / planned)`.**
+
+1. **Top of Monitoring > Boxes (`pages/monitoring/boxes/index.vue`) — Summary
+   table (`BoxSummaryTable.vue`) with Refresh button**:
+   - Moves **above** `MonitoringAllocation` (the first block under the filter
+     and count).
+   - Columns (all from the box's newest snapshot, never from 24-hour facts or
+     configured targets):
+     - `Box` (tag, online dot, link to `/monitoring/boxes/<id>`)
+     - `CPU` (`cpu_pct%` from `htop`, `—` on older boxes)
+     - `Load / CPUs` (`load1 / cpus`, hover shows `load1 / load5 / load15`)
+     - `RAM` (`used / total (pct%)`, e.g. `16.0 / 62.8 GiB (26%)`)
+     - `Swap` (`used / total`, e.g. `0 / 0` or `512 MiB / 4.0 GiB`)
+     - `Fullest disk` (`mount used / size (pct%)` per `df -P`)
+     - `Snapshot` (local time + relative age, ISO UTC on hover)
+     - `State` (section 7.4 mark: none for `fresh`/`recent`, stale mark for
+       `stale`, `boxes.now_none` for `never`)
+   - Narrow screens (`< 640 px`): keep `Box`, `CPU`, `RAM`, `Fullest disk`,
+     `Snapshot`; move the rest to the row title, zero horizontal scroll.
+2. **Per-box live snapshot (`components/BoxLiveSnapshot.vue`) — on each box card
+   in `index.vue` AND as the upgraded `Now` block on `[id].vue`**:
+   - Header: **`Live snapshot · taken <local time> (<age> ago)`** (exact ISO UTC
+     on hover; Refresh button on `[id].vue` for `tenant.settings`).
+   - **`htop` header strip**:
+     - CPU total % (`user / sys / iowait` breakdown) + compact per-core bars
+       (inline up to 16 cores; summary chip with expand toggle above 16);
+     - Memory: `Used / Total (pct%)`, `Avail`, `Buffers`, `Cache`;
+     - Swap: `Used / Total`;
+     - Load average: `1m  5m  15m`;
+     - Tasks: `<total> total, <threads> thr, <running> running` · `Live agents: <n>`;
+     - Uptime: `<d>d <hh>:<mm>:<ss>` from `uptime_s`.
+   - **Per-mount disks (`df -P`) — always visible as a table (never hidden in hover
+     text)**:
+     - Columns: `Mount | Type | Used | Size | Avail | Use%`.
+     - Replaces the single-line `lowestDisk` summary on `MonitoringBoxFacts.vue:35`
+       and adds the missing `Used` size column to `BoxStatsPane.vue:103-105`.
+   - **Top 10 biggest directories (`du`)**:
+     - Sub-heading carries its own honest time:
+       **`Top 10 directories (du · taken <time>, <age> ago)`**, plus a
+       `partial (time-capped)` badge when `top_dirs_partial` is true.
+     - Columns: `Directory | Mount | Size` (`>= X GiB` on a time-capped bucket).
+     - When `details_redacted` is true (8.7), shows a muted note ("Directory and
+       process details are shown to the box's operator or owner admin") rather
+       than an empty table that looks broken.
+   - **Top processes (`htop`, collapsible, default expanded on `[id].vue` and
+     compact/collapsed on `index.vue` so a multi-box list stays scannable)**:
+     - Two compact 5-row tables: **Top 5 by CPU** and **Top 5 by Memory**
+       (`PID | Command | CPU % | RSS | State`).
+3. **Removing stale 24-hour duplicates & demoting configured values**:
+   - `MonitoringBoxFacts.vue:33-34,47` and `BoxStatsPane.vue:57-58,125` **stop
+     rendering** `sys.memAvailMB`, `swapLine`, and `sys.load` from the 24-hour
+     hello sheet. Static daily facts (OS, CPU model, Hostname, Timezone,
+     Run-times, Network) remain in a clearly labelled **`Static host facts
+     (daily · reported <age> ago)`** block below the live snapshot.
+   - `MonitoringAllocation.vue` (`index.vue:29`) moves **below** the box cards,
+     wrapped in a collapsed-by-default `<details>` block titled **`Configured
+     targets & allocation (planned, not live)`**, keeping its existing
+     `(planned)` markers and Settings links. Per-box `mbf-allocation`
+     (`MonitoringBoxFacts.vue:70-73`) keeps its explicit **`Configured (planned)`**
+     heading, clearly separate from the live snapshot above it.
+   - Every new label, column header and badge is an i18n key across every locale
+     with the fleet's GCT language check (`developer-guide.md` 3.4).
+
+### 8.6 Wire, store and RDB changes (named only; no migration written here)
+
+#### 8.6.1 Wire (`internal/wire/wire.go`, `internal/store/box_stats.go`)
+
+- Keep `TBoxSample`, `TBoxSamplePut`, `FeatureBoxSample` (`wire.go:149-162`).
+- Add hello feature `FeatureBoxLiveV2 = "box_live_v2"`.
+- Additive optional fields on `store.BoxStat` (`omitempty` so v1 boxes stay valid):
+  - `CPUPct *float64` (`cpu_pct`), `SwapTotalKB *int64` (`swap_total_kb`),
+    `MemBuffersKB *int64` (`mem_buffers_kb`), `MemCachedKB *int64` (`mem_cached_kb`),
+    `TasksTotal *int` (`tasks_total`), `TasksRunning *int` (`tasks_running`),
+    `UptimeS *int64` (`uptime_s`), `BoxDisk.FSType string` (`fstype,omitempty`),
+    and on the inbound wire struct (`box_stats_put` / `box_sample_put` payload)
+    `Snapshot *store.BoxSnapshot` (`snapshot,omitempty`).
+- New `store.BoxSnapshot` struct (returned in `GET /v1/tenant/box-stats` as
+  top-level `snapshots: { "<box>": BoxSnapshot }` and in
+  `POST /v1/tenant/box-stats/refresh` as `boxes[].snapshot`):
+  - `At time.Time` (`at`, set by hub = `BoxStat.At`)
+  - `CPUCoresPct []float64` (`cpu_cores_pct,omitempty`)
+  - `CPUUserPct, CPUSysPct, CPUIOWaitPct float64` (`cpu_user_pct`, `cpu_sys_pct`, `cpu_iowait_pct`)
+  - `TasksThreads int` (`tasks_threads`)
+  - `TopCPU []BoxProc` (`top_cpu,omitempty`), `TopMem []BoxProc` (`top_mem,omitempty`),
+    where `BoxProc = {PID int, Comm string, CPUPct float64, RSSKB int64, State string}`
+  - `TopDirs []BoxDir` (`top_dirs,omitempty`),
+    where `BoxDir = {Path string, Mount string, SizeKB int64, Partial bool}`
+  - `TopDirsAt *time.Time` (`top_dirs_at,omitempty`), `TopDirsPartial bool` (`top_dirs_partial,omitempty`)
+  - `DetailsRedacted bool` (`details_redacted,omitempty`, hub-set on read when
+    `top_dirs`/`top_procs` were stripped per 8.7)
+- **Deploy order**: hub deploys with the new fields accepted BEFORE boxes start
+  sending them (both `hub/box_stats.go:172` and `cmd/spool/box_stats.go:59` use
+  `DisallowUnknownFields()`).
+
+#### 8.6.2 RDB (`csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_box_live_snapshot.sql`)
+
+Not written in this spec commit; build row T10 claims the next number with
+`do_rdb_migration_next` (head on `16fbe330e` is `0313_cost_splits_vendor.sql`,
+so `<NNNN> >= 0314`). Forward-only PostgreSQL 16 DDL:
+
+1. `ALTER TABLE box_stats` adds the 7 nullable scalar columns (`cpu_pct real`,
+   `swap_total_kb bigint`, `mem_buffers_kb bigint`, `mem_cached_kb bigint`,
+   `tasks_total integer`, `tasks_running integer`, `uptime_s bigint`) with
+   range `CHECK` constraints (catalog-only on PG 16, no table rewrite).
+2. `CREATE TABLE box_snapshots`:
+   - `(tenant_id text NOT NULL REFERENCES tenants (tenant_id) ON DELETE CASCADE, box text NOT NULL CHECK (box ~ '^[a-z0-9][a-z0-9-]{0,31}$'), writer_box text NOT NULL, at timestamptz NOT NULL, snapshot jsonb NOT NULL CHECK (jsonb_typeof(snapshot) = 'object' AND octet_length(snapshot::text) <= 16384), PRIMARY KEY (tenant_id, box))`
+   - `CREATE INDEX box_snapshots_at ON box_snapshots (at);`
+   - **RLS** (`developer-guide.md` 2.6.4, identical to `0117_box_stats.sql:45-52`):
+     `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY`, `tenant_scope`
+     (`tenant_id = NULLIF(current_setting('app.tenant_id', true), '')`) and
+     `operator_scope` (`current_setting('app.rls_scope', true) = 'operator'`).
+
+#### 8.6.3 Store (`internal/store/box_stats.go`, `box_stats_postgres.go`)
+
+- Extend `CheckBoxStat` for the new scalar fields and add `CheckBoxSnapshot`
+  enforcing every limit in 8.7.1.
+- Extend `BoxStats` (or add `BoxSnapshots` beside it): write `box_stats` +
+  `INSERT INTO box_snapshots ... ON CONFLICT (tenant_id, box) DO UPDATE` inside
+  the **same** `inTenant` transaction when `snapshot != nil`, so `at` never
+  drifts; `ListBoxSnapshots(ctx, tenantID, box)` reads `box_snapshots` with
+  explicit column names (never `SELECT *`, `developer-guide.md` 2.2.3);
+  `PruneBoxStats` prunes `box_snapshots WHERE at < $1` too.
+
+### 8.7 Limits and privacy
+
+#### 8.7.1 Limits
+
+All section 7.5 refresh limits stay in force (`SPOOL_HUB_BOX_REFRESH_WAIT=7s`,
+`_MIN_S=60`, `_PER_H=12`, `SPOOL_BOX_SAMPLE_MIN_S=30`). Additions:
+
+| limit | value | enforced at |
+|---|---|---|
+| CPU / proc sampling window | `250 ms` | `BoxSampler.Collect` |
+| `du` scan interval (`BOX_DU_EVERY_S`) | `900 s` (15 min) | `spool box-stats du-cache` + `do_post_box_stats` |
+| `du` total wall-clock cap (`BOX_DU_TIMEOUT_S`) | `30 s` (under `nice -n 19 ionice -c 3`) | `box_du.go` |
+| `du` per-bucket cap (`BOX_DU_BUCKET_TIMEOUT_S`) | `5 s` | `box_du.go` |
+| `disks[]` cap | `16` mounts (`BoxDisksMax`) | `box_sample.go`, `CheckBoxStat`, rdb `0121` |
+| `top_dirs[]` cap | `10` entries (`BoxTopDirsMax`), path printable ASCII `<= 256` bytes, absolute, no `..` | `box_du.go`, `CheckBoxSnapshot` |
+| `top_cpu[]` / `top_mem[]` cap | `5` entries each (`BoxTopProcsMax`), `comm` printable ASCII `<= 32` bytes | `box_sample.go`, `CheckBoxSnapshot` |
+| `cpu_cores_pct[]` cap | `256` cores (`BoxCPUCoresMax`), values `0..100` | `box_sample.go`, `CheckBoxSnapshot` |
+| `snapshot` JSON size cap | `16384` bytes (`BoxSnapshotMaxBytes`) | `CheckBoxSnapshot`, rdb CHECK (`cmd/spool/box_stats.go:50` stdin cap is 64 KiB) |
+
+#### 8.7.2 Privacy and access control (no user names or cross-tenant paths leak)
+
+A shared fleet box can be seated in multiple workspaces (`index.vue:70-75`),
+and host directories may contain OS user home directories or other workspaces'
+checkouts. Three layers prevent leaks:
+
+1. **Box-side path and process sanitization (before bytes leave the box)**:
+   - **Home-directory user redaction**: any `du` path matching a user home
+     prefix from `/etc/passwd` (or `/home/<seg>` or `/mnt/data/home/<seg>`) has
+     the `<seg>` username replaced with `uid-<st_uid>` (rendered as
+     `/mnt/data/home/<uid>/.cache`, where `<uid>` is `uid-<st_uid>`). Numeric UID distinguishes heavy accounts
+     for operators while never transmitting personal or OS login names.
+   - **Process command**: kernel `comm` from `/proc/<pid>/stat` only (<= 15 chars,
+     printable ASCII). Never `/proc/<pid>/cmdline` (which may hold tokens, flags
+     or repo paths), never environment variables, never OS username.
+2. **Tenant isolation and box-owner lock**:
+   - `box_stats` and `box_snapshots` both enforce PostgreSQL RLS (`tenant_scope`).
+   - Both `GET /v1/tenant/box-stats` and `POST /v1/tenant/box-stats/refresh`
+     apply `lockViewFor` (`internal/hub/box_lock_view.go:133`) to both `rows`
+     and `snapshots`: a box locked to someone else is completely omitted.
+3. **Who may see `top_dirs` (`du`) and `top_procs` (hub-side gate)**:
+   - **`htop` header + `df` mounts**: readable by any `audit.read` holder in the
+     workspace (`biz_owner`, `product_owner`, `admin`), as `box_stats` is today.
+   - **`top_dirs` and `top_procs`**: returned ONLY when the caller is:
+     - (a) an **operator workspace admin** (`operatorActor`,
+       `internal/hub/fleet_load.go:124` — sees every non-locked box in the
+       operator workspace), **OR**
+     - (b) a **`tenant.settings` holder (`admin` or `biz_owner`)** in a
+       non-operator workspace AND the box is **dedicated to that workspace**
+       (pinned in no other tenant) or **owned by the caller under a box-owner
+       lock** (`BoxLock.IsOwner(hum)`).
+   - For every other `audit.read` caller (e.g. a customer workspace viewing a
+     shared fleet box, or a `product_owner`), the hub strips `top_dirs`,
+     `top_dirs_at`, `top_dirs_partial`, `top_cpu`, and `top_mem` from the
+     response and sets `details_redacted: true`. Neither host directory layouts
+     nor other tenants' process names ever cross a workspace boundary.
+
+### 8.8 Tests (with red controls) and build rows
+
+Every test lands with its build row and ships with its red control
+(`developer-guide.md` 2.12.1: seen RED on the planted defect, then GREEN, both
+outputs in the commit body). Store/migration rows run `PRE_PUSH_TIER=full`
+(real Postgres + RLS tests, `developer-guide.md` 2.6.4, 2.12.4).
+
+#### 8.8.1 Tests and red controls
+
+| test | where | proves | red control |
+|---|---|---|---|
+| store + PG RLS (T10) | `internal/store/box_stats_test.go`, `rls_test.go`, `rls_failclosed_test.go` | new `box_stats` scalar cols + `box_snapshots` upsert/list/prune on Memory and Postgres; `TestRLSCoversEveryTenantTable` covers `box_snapshots`; a statement without a tenant reads 0 rows; `CheckBoxSnapshot` rejects > 10 dirs, > 5 procs, `..` paths, > 16 KiB | drop the `box_snapshots` RLS policy or `..` path check: the test fails |
+| `htop` + `df` collector (T11) | `internal/hubclient/box_sample_test.go` | two-pass `/proc/stat` fixture yields exact total + per-core CPU % and user/sys/iowait; `/proc/meminfo` yields buffers/cached/swap_total; `/proc/loadavg` + `/proc/uptime` yield tasks/threads/uptime; `/proc/<pid>/stat` fixtures yield exact top-5 CPU and top-5 RSS with `comm` only (no `cmdline`); `df` rule includes an agent-root `tmpfs` while excluding `/run` `tmpfs` and container `overlay` | drop the agent-root `st_dev` check (so `/tmp` `tmpfs` is dropped) or drop `comm`-only filter: the test fails |
+| time-capped `du` + redaction + parity (T12) | `internal/hubclient/box_du_test.go` + `csi-spl-orc/src/bash/tests/box-du-parity.tst.sh` | fixture tree sizes match real GNU `du -kx` (allocated blocks, hardlink dedup, symlinks not followed, `-x` boundary); depth-2 top-10 ordering; a slow/stubbed bucket hitting its 5 s cap stops, keeps partial KiB with `partial: true`, and still scans remaining buckets; `/home/<user>` and `/mnt/data/home/<user>` segments rewrite to `uid-<n>` before JSON encode; `do_post_box_stats` respects `BOX_DU_EVERY_S` cache and strips v2 fields on legacy hub fallback | remove the hardlink dedup or remove the `/home/<user>` redaction: parity or privacy assertion fails |
+| hub snapshot + privacy gate (T13) | `internal/hub/box_stats_test.go`, `box_refresh_test.go` | `box_stats_put` and `box_sample_put` store scalars + upsert `box_snapshots` in one tx (`at` identical, future `top_dirs_at` clamped `<= at`); `GET /v1/tenant/box-stats` returns `snapshots`; `POST /refresh` returns `boxes[].snapshot`; `lockViewFor` hides locked boxes' snapshots; non-operator workspace admin on a shared box gets `details_redacted: true` with `top_dirs`/`top_procs` stripped, while operator admin and single-tenant box admin see them | bypass the operator/shared-box redaction gate: customer-admin test sees `top_dirs` and fails |
+| box handler v2 (T14) | `internal/hubclient/box_sample_test.go` | `spool hub-run` advertises `FeatureBoxLiveV2`; on `box_sample` frame it sends scalars + snapshot + cached `top-dirs.json` within 1 s without invoking `du`; missing/corrupt `top-dirs.json` still sends `htop` + `df` with `top_dirs: []` | call `du` synchronously or drop `FeatureBoxLiveV2`: timing/invocation or feature assertion fails |
+| WUI summary + refresh (T15) | `csi-spl-wui/tests/unit/box-summary.test.mjs`, `tests/e2e/box-summary-table.test.mjs`, `tests/e2e/box-refresh.test.mjs` | summary table shows actual CPU %, Load 1/5/15, RAM `used / total (%)`, Swap `used / total`, fullest mount `used / size (%)`, snapshot time + age, Refresh button (only with `tenant.settings`); Refresh updates values in place and marks stale boxes; i18n gates + 375 px no sideways scroll | read RAM/load from 24-hour `detail.system` or drop stale branch: test fails |
+| WUI live snapshot + configured demotion (T16) | `csi-spl-wui/tests/unit/box-resources.test.mjs`, `tests/e2e/box-live-snapshot.test.mjs` | live snapshot appears ABOVE configured allocation on `index.vue`; `MonitoringAllocation` is collapsed below under "Configured (planned)"; every mount of `df -P` renders with Used/Size/Avail/Use%; top-10 `du` renders with its own `top_dirs_at` + partial badge (or redacted notice when `details_redacted`); `htop` header + top-5 CPU/RSS procs render; 24-hour `MonitoringBoxFacts` / `BoxStatsPane` no longer show stale `mem_avail_mb`/`swap`/`load`; i18n gates + 375 px no sideways scroll | leave `MonitoringAllocation` at line 29 above `BoxSummaryTable`, or leave `sys.load` in `MonitoringBoxFacts`: DOM order / stale-value check fails |
+
+#### 8.8.2 Build rows (dependency-ordered, smallest first)
+
+Rows **T1** (`38da97302`), **T2** (`8604ad411`), **T4** (`2af5387bf`) and **T9**
+(`0674db0a5`) from section 7.9 are already on `origin/master` (`16fbe330e`).
+The remaining section-7 rows (**T3, T5, T6**) stay prerequisites below; section
+7's **T7** and **T8** are absorbed into **T15** and **T17** so the WUI and live
+dev measurement are built once.
+
+| row | builds | test (8.8.1 / 7.8) | needs |
+|---|---|---|---|
+| T3 *(§7)* | box `box_sample` handler in `readLoop`, 30 s guard, `FeatureBoxSample` in hello (`internal/hubclient`) | 7.8 box handler (frames, guard, hung df) | T1, T2 *(done)* |
+| T5 *(§7)* | hub pending map, `box_sample` frame send, hello catch-up, `box_sample_put` accept (`internal/hub`) | 7.8 two-instance delivery | T1, T4 *(done)* |
+| T6 *(§7)* | `POST /v1/tenant/box-stats/refresh`, `tenant.settings`, limits, `ViewBoxes` asked set, wait, cnf + tpl-gen | 7.8 refresh contract, silent box, never-sampled box, limits | T5 |
+| T10 | migration `<NNNN>_box_live_snapshot.sql` (`box_stats` scalar cols + `box_snapshots` with RLS), Go store types, `CheckBoxSnapshot`, Memory + Postgres store | store + PG RLS (`PRE_PUSH_TIER=full`) | — |
+| T11 | Go `htop` + `df` agent-root collector (`BoxSampler` 250 ms `/proc/stat` + `/proc/<pid>/stat` top-5 CPU/RSS + `meminfo`/`uptime`/`loadavg` + `df` `st_dev` exception), `FeatureBoxLiveV2` | `htop` + `df` collector | T2 *(done)*, T10 |
+| T12 | Go time-capped `du` walker (`box_du.go`), path `uid-<n>` redaction, `spool box-stats du-cache` / `sample`, `do_post_box_stats` 900 s sub-cadence + legacy fallback | time-capped `du` + redaction + parity | T11 |
+| T13 | hub `box_stats_put` / `box_sample_put` snapshot upsert, `GET /v1/tenant/box-stats` `snapshots`, `POST /refresh` `boxes[].snapshot`, `lockViewFor` + shared-box privacy redaction gate | hub snapshot + privacy gate | T6, T10 |
+| T14 | box `spool hub-run` v2 handler: `FeatureBoxLiveV2`, attaches cached `top-dirs.json` to `box_sample_put` without blocking on `du` | box handler v2 | T3, T11, T12, T13 *(hub deploys first)* |
+| T15 *(absorbs §7 T7)* | WUI client `refreshBoxStats`, snapshot helpers (`box-resources.mjs`, `box-summary.mjs`), `BoxRefreshButton.vue`, upgraded `BoxSummaryTable.vue` (CPU %, Load, RAM, Swap, Fullest disk, Snapshot time, State), i18n + GCT | WUI summary + refresh + i18n gates | T9 *(done)*, T13 |
+| T16 | WUI `BoxLiveSnapshot.vue` (`htop` header + per-core bars, top-5 CPU/RSS, full `df -P` mount table, top-10 `du` with `top_dirs_at`/partial/redacted), remove 24-hour volatile duplicates from `MonitoringBoxFacts.vue` & `BoxStatsPane.vue`, demote `MonitoringAllocation.vue` below live boxes as `Configured (planned)`, i18n + GCT | WUI live snapshot + configured demotion + i18n gates | T15 |
+| T17 *(absorbs §7 T8)* | Monitoring > Boxes help text; on dev with T14 boxes + T16 WUI live: 10 timed Refresh clicks (proving `<= 10 s`), live parity check against `df -P`, `htop` and `du`, and shared-box privacy verification | measurement and live proof in commit body (n, min, max, shas, binary versions) | T14 on dev boxes, T16 deployed |
+
+T10 has no prerequisite and can land in parallel with T3, T5 and T6.
+
+### 8.9 Where this extends or changes section 7
+
+1. **Mount filter (7.2, 7.6.3)**: adds the agent-root `st_dev` exception for
+   `tmpfs`/`overlay` (including dedicated `>= 1 GiB` `/tmp`) and optional
+   `fstype`, while preserving `df -P` `Use%` arithmetic.
+2. **Sample payload & collector (7.6.1, 7.6.3)**: extends `BoxSampler.Collect`
+   with the 250 ms `/proc` `htop` header + top-5 CPU/RSS processes (`comm` only)
+   and attaches the cron's cached `top-dirs.json` (`du` top 10); adds
+   `FeatureBoxLiveV2`; retires the bash `awk` collector on `do_post_box_stats`
+   in favour of `spool box-stats sample` (keeping a fallback strip for older
+   hubs).
+3. **Database & retention (7.6.5, 7.7)**: section 7 needed no migration;
+   section 8 adds one forward-only migration (`box_stats` scalar columns +
+   1-row-per-box `box_snapshots` with RLS), keeping 30-day history lean.
+4. **Page layout (7.4, 7.4.1)**: promotes live actual box data above configured
+   `(planned)` allocation, adds per-mount `df -P` and top-10 `du` tables plus
+   `htop` header/processes, and removes 24-hour volatile duplicates from daily
+   facts.
+5. **Out of scope (7.10)**: CPU % (total and per core) moves into scope per the
+   owner's `htop` ask; periodic auto-refresh, threshold alerts and daily host
+   facts refresh remain out of scope.
+6. **Build rows (7.9)**: keeps unbuilt T3, T5, T6 as prerequisites and absorbs
+   T7 and T8 into T15 and T17.
+
+<!-- version: 0.4.0 · updated: 2026-11-23 -->

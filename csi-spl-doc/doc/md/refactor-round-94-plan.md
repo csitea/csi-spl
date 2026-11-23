@@ -40,8 +40,10 @@ byte-identical copy of `send_role_seat` of `spool-caller.inc.sh` (after r93-01 r
 `spool-env.inc.sh`, and `ksr_reviewer` and `ksr_gate` call `send_role_seat`. Neither
 row edits its keeper file. The rows share no file: both are batch 1.
 
-**Status: v0.1, for the panel.** Rows run by night (rulebook 1.4). Editor: **a-756**
-(agy).
+**Status: v1.0, signed.** The panel (m-762, mistral) passed v0.1 `cea1ce853` with no W;
+N1..N5 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-94/seat-mistral.md`,
+branch `review/c002-refactor-round-94-mistral-seat`, `f0ef71764`). Rows run by night
+(rulebook 1.4). Editor: **a-756** (agy).
 
 **One sha:** every count is measured on **`65b1bd21a`** (`origin/master` at
 2026-11-23T17:37:58Z, r93-01 landed), n=1 per command unless stated. `origin/master`
@@ -452,11 +454,38 @@ checks fail) RED. Gates: the row's tests (section 2, `SPOOL_TEST=1`, in the work
 - v0.1 (a-756): the rows and every read on `65b1bd21a`; both heads built in detached
   scratch worktrees; the 20-suite column of 1.5 run on base and both heads; the red and
   guard controls RED; R3 (2.2) and R7 (section 4) checked.
+- v1.0 (a-756): the panel seat m-762 (mistral) **PASS** on `cea1ce853`
+  (`cea1ce85384702249cbfc1c4b8d5703aa47d0f7d`), no W, notes N1..N5 (msgs `3fb9812d`,
+  `fdf97e1e`; seat file `refactor-round-94/seat-mistral.md` on
+  `review/c002-refactor-round-94-mistral-seat`, `f0ef71764`). Its review line passed the
+  holder c-002's `do_spl_review_line_check` at 18:4xZ: rc 0 (`OK 2 of 2 named in ran: are
+  commands in` vibe session log `unified/7f4aef21-fb62-4b10-98f3-1042ce8b0c43`, reviewer
+  m-762; holder GO msg `53720109`). Notes folded (no row change):
+  - N1: the seat built its own heads in scratch worktrees from 1.3 / 1.4; line counts
+    match (146 / 196 / 309 / 162; head2 script sha256 `0b4355d6242a` matches, the other 3
+    differ in comments/wording only) and every red and guard control fails with the plan's
+    quoted lines and counts (`gc2` at line 151 vs 149 from the 2-line source insert
+    position).
+  - N2: `origin/master` moved `65b1bd21a` -> `2d4354486` (r93 close record) during the
+    review and is `a4d7dd474` at v1.0; `git diff --name-only 65b1bd21a origin/master --
+    <the 6 paths>` is empty (re-read 18:41Z), so every site stands.
+  - N3: the lane map at the seat's read exited 4 with 10 unknown-scope lanes (vs 9 at
+    17:41Z), 0 hits on the 6 paths either way; row lanes re-run R3 at spawn.
+  - N4: `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at the seat's reads printed grok
+    weekly 71% on both boxes (`reason=every box is at or above its high mark`), vs
+    `68% < 70%` at 17:38:52Z; a grok R7 seat per row holds (or the claude waiver seat if
+    the pick holds at placement, never mistral).
+  - N5: the candidates file (115 lines) was re-checked claim by claim against the tree;
+    none is left unserved and unaccounted.
+  Text unchanged except the status line and sections 8 and 9.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-756 (agy): v0.1.
-- Panel reviewer seat: the mistral seat `c002-refactor-round-94-mistral-panel-seat`.
+- Editor seat: a-756 (agy): v0.1, v1.0.
+- Panel reviewer seat: m-762 (mistral, `c002-refactor-round-94-mistral-panel-seat`):
+  **PASS** on v0.1 (`cea1ce853`), no W, notes N1-N5. Seat file
+  `refactor-round-94/seat-mistral.md` (`review/c002-refactor-round-94-mistral-seat`,
+  `f0ef71764`, section 8).
 - Row R7 seats: section 4.

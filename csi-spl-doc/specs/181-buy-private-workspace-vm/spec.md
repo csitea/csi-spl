@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
-**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.6
-(Q-1..Q-19 answered; section 1.0; v0.6.1: row B2 implemented) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.7
+(Q-1..Q-19 answered; Q-20, how B14 reaches `IssueInvoice`, open; section 1.0; v0.6.1: row B2 implemented) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -88,8 +88,8 @@ only, compute, disk and traffic (Q-8 A).
 
 ## 1. Questions for the owner (forms)
 
-Each was posted as a poll; the first option is the recommended one. Every
-question, Q-1 to Q-19, is answered (1.0). From v0.3 sections
+Each was posted as a poll; the first option is the recommended one. Q-1
+to Q-19 are answered (1.0); Q-20, new in v0.7, is open. From v0.3 sections
 2 to 7 are written as the answers say; a **[Q-n]** there names the answer
 it comes from.
 
@@ -123,6 +123,7 @@ marks in sections 2 to 6 now read as that answer.
 | Q-17 | **B** (not the recommended A): a reminder only; the agents keep running, and the owner decides each case by hand | `43573325` | 2026-11-21 08:19:18Z |
 | Q-18 | **C** (not the recommended A): an order only, and the workspace is created at once on submit; the invoice is paid by bank transfer | `43573325` | 2026-11-21 08:19:18Z |
 | Q-19 | A: 14 days net from the invoice date; the reminder goes out on day 15 | `67b12564` | 2026-11-21 |
+| Q-20 | open: how the month-end invoice issuer (row B14) reaches `IssueInvoice` and reads each private workspace's human-member count (form below) | - | - |
 
 Q-15, Q-16 and the change of Q-9 to B, verbatim (owner HUM-10, t1
 `b12055b5`, 2026-11-20): Q-15, msg `09472141` (21:39Z), "The customers will
@@ -187,6 +188,29 @@ The question as it was asked (v0.5, posted as form `c9f3edb6`), kept as
 the record: Q-19. How long after the monthly invoice is it due (its
 payment term)? (A) 14 days net from the invoice date (Recommended). (B) 30
 days net. (C) 7 days net.
+
+Q-20 is new and open in v0.7 (gap G15, row B14). B12 (SPL-6327, not yet
+on `origin/master` at `ef80e6a01`; contract per msg `0c40cac3`) adds the
+store method `IssueInvoice(tenant, month, humans, vmCostMicros, issuedOn)`
+and the day-15 reminder tick, while the VM's cloud cost lives in GCP
+BigQuery and is read by B4 (`do_spl_vm_cost_per_day`, `bbdbbe4da`); the
+hub Go module has no BigQuery client (`grep -rni bigquery csi-spl-api/` ->
+nothing), and no operator route today lists private workspaces with their
+human-member counts (`tenant_memberships`, `store.Seats.CountMembers`).
+How the month-end issuer reaches `IssueInvoice` is an open choice between
+the two operator call paths on this tree (an `operatorAuth` hub endpoint
+called with `spl_hub_operator_call`, as `POST /v1/operator/cost/day` in
+`internal/hub/cost_ingest.go:41`, or a `spool` CLI subcommand over
+`spl_via_proxy`, as `do_spl_token_burn_reprice` /
+`cmd/spool/fleet_tokens_reprice.go:24`), or moving the BigQuery read into
+the hub itself:
+
+```poll
+Q-20. How does the month-end invoice issuer (row B14) reach B12's IssueInvoice and read each private workspace's human-member count?
+(A) New operator-scope hub endpoints (operatorAuth Google ID token via spl_hub_operator_call, store helpers in TestOperatorScopeCallers): the orc action reads each VM's month cost with B4 and posts to the hub, which reads the workspace's human-member count and calls IssueInvoice (Recommended: no Cloud SQL proxy or DB credentials on the box, matches POST /v1/operator/cost/day, keeps one hub write and audit path)
+(B) New spool CLI subcommand called by the orc action over the Cloud SQL Auth Proxy (spl_via_proxy + SPOOL_HUB_DB_DSN, as do_spl_token_burn_reprice / cmd/spool/fleet_tokens_reprice.go): reads private workspaces and human-member counts and calls IssueInvoice directly on Postgres (no new HTTP route on Cloud Run, dry run rolls back the same transaction, still in TestOperatorScopeCallers)
+(C) Move the BigQuery billing-export read into a hub monthly tick beside B12's reminder tick (no orc action; adds a BigQuery client to csi-spl-api and billing-export read IAM on the hub service account)
+```
 
 Q-13 is mapped by its answer text, which is form Q-13's option B word for
 word; its poll id `35df3e5f` could not be read from c-625's seat.
@@ -480,6 +504,7 @@ that order.
 | G8 | revoke (108 T012), a cancel action that deletes the VM at once, and the 30-day delete of the hub data | 4.5 | Q-12 C |
 | G9 | removal of 121's token pricing (`metered`, the x 1.20 buffer) and 159's metered fall-back; 127's byok margin to 33% | 2 | Q-10 A, Q-11 A |
 | G11 | the web-UI sign-in relay to the CLI's terminal login on the VM, one switch per vendor, nothing stored on the hub | 4.3 | Q-5, Q-14 A |
+| G15 | nobody issues the month's invoice: B12 (SPL-6327, not yet on `origin/master` at `ef80e6a01`; contract per msg `0c40cac3`) adds the invoice row, store `IssueInvoice(tenant, month, humans, vmCostMicros, issuedOn)` (one row per workspace per month, replay returns the same row), `MarkInvoicePaid` and the day-15 reminder tick, but no section 6 row calls `IssueInvoice` at month end. The VM's cost is in GCP BigQuery and read by B4's bash action `do_spl_vm_cost_per_day` (`csi-spl-iac/src/bash/run/spl-vm-cost-per-day.func.sh:41`, `bbdbbe4da`), which only reads the trailing `env.cost.reread_days` (`5` days, `csi-spl-cnf/csi-spl/all.env.yaml:1878`, `spl-vm-cost-per-day.func.sh:23,57`), not a full closed month; the hub never reads BigQuery (`grep -rni bigquery csi-spl-api/` -> nothing). Human members live in `tenant_memberships JOIN humans` (`csi-spl-rdb/src/sql/postgres/spool-hub/0006_users_and_memberships.sql:45-53`), counted per tenant in tenant scope by `store.Seats.CountMembers` (`internal/store/seats.go:24`, `internal/store/seats_postgres.go:56-62`: `NOT h.technical AND m.role <> rbac.ChannelGuest`); today `GET /v1/members` (`internal/hub/rbac.go:631`, `internal/hub/members_admin.go:103`) needs a member session of that workspace, `GET /v1/operator/workspaces` (`internal/hub/operator_workspaces.go:167,605`, `internal/store/operator_workspaces.go:122`) returns no member count and no `price_plans` filter, and `do_spl_hub_member_list` (`csi-spl-orc/src/bash/run/spl-hub-member-list.func.sh:25,62-72`) reads one tenant over `psql`. Nothing lists private workspaces (`price_plans.kind = 'private_vm'`, rdb `0302_private_workspace_price.sql:29`, `internal/store/price_plans.go:27`) with their month-end human-member counts and calls `IssueInvoice` | 4.4 | Q-9 B, Q-16 B, Q-19 A, Q-20 |
 
 G10 (a private hub per workspace) is gone: Q-2 A keeps the shared hub.
 
@@ -504,6 +529,7 @@ brackets.
 | B12 (v0.5) | rdb + hub (claude) | the monthly invoice row (gap G6) and the reminder (gap G13) [Q-17 B]: an invoice per private workspace per month (`QuoteMonth`'s sum, issue date, due date = issue date + 14 days [Q-19 A], paid_at NULL), and one reminder mail to the biz owner on day 15 when it is still unpaid; nothing stops. Files: a new rdb migration (number from `do_rdb_migration_next`), `internal/store/` (the invoice store, Memory and Postgres), a mail template under `internal/mail/templates/`, the tick that sends it. Done test: an invoice issued 14 days ago, unpaid -> no reminder; issued 15 days ago, unpaid -> one reminder, and a second tick -> still one | an unpaid invoice past due -> any lease refused or any seat stopped: the test fails; the reminder sent twice -> the test fails | B1 |
 | B13 (v0.5) | hub + wui (claude) | the owner's overdue list (gap G14) [Q-17 B, Q-18 C]: an operator-scope read of every invoice past its due date and unpaid, and the operator's action to mark one paid on the bank transfer (audited); no automatic decision. Files: an operator endpoint in `internal/hub/` named in `TestOperatorScopeCallers`, a page under `csi-spl-wui/src/pages/monitoring/`, locale texts, agy review last. Done test: two invoices, one paid -> the list shows one; mark it paid -> the list is empty | a workspace's own member reads the list -> 403; marking paid with no audit row -> the test fails | B12 |
 | B11 (new) | hub + wui + orc (claude) | the web-UI sign-in relay to the CLI's terminal login on `<vm>`, one switch per vendor, default off | a relayed input found in a hub table or log -> its test fails; the switch off -> the relay refuses | B8 |
+| B14 (v0.7) | orc + hub (claude) | the month-end invoice issuer (gap G15) [Q-9 B, Q-16 B, Q-19 A, Q-20]: a named orc action (`do_spl_private_ws_invoice_issue`, dry run by default, `DRY_RUN=0` to write) for a closed UTC month (`MONTH=YYYY-MM`; refuses an open/future month) and every private workspace (`price_plans.kind = 'private_vm'`, rdb `0302`, or one named `WORKSPACE`). Reads the month's VM cost from B4 (`csi-spl-iac/src/bash/run/spl-vm-cost-per-day.func.sh`, `bbdbbe4da`), stepping across the month in `env.cost.reread_days` (5-day) chunks or widening B4 with a full-month window option, summing `total_eur_micros` and refusing if any day is `missing` or `partial` (never 0). Human-member count comes from `tenant_memberships JOIN humans` (`rdb 0006`) via `store.Seats.CountMembers` (`internal/store/seats_postgres.go:56-62`: `NOT h.technical AND m.role <> rbac.ChannelGuest`; agents excluded, Q-6 A); because no endpoint today lists private workspaces with member counts, B14 adds the operator-scope store reader (listed in `TestOperatorScopeCallers`, `internal/store/operator_scope_test.go:187`). Calls B12's `IssueInvoice(tenant, month, humans, vmCostMicros, issuedOn)` (contract per SPL-6327; not yet on `origin/master` at `ef80e6a01`) over Q-20's chosen path: (A) new `operatorAuth` hub endpoint(s) in `internal/hub/` called via `spl_hub_operator_call`, (B) new `spool` CLI subcommand in `cmd/spool/` over `spl_via_proxy` (`SPOOL_HUB_DB_DSN`), or (C) hub monthly tick reading BigQuery directly (drops the orc action). Replay of the same month issues nothing new (`IssueInvoice` returns the existing row). Files: `csi-spl-orc/src/bash/run/spl-private-ws-invoice-issue.func.sh`, `csi-spl-orc/src/bash/tests/spl-private-ws-invoice-issue.tst.sh`, `internal/store/` (private-workspace list + member-count helper in `TestOperatorScopeCallers`), and per Q-20 either `internal/hub/operator_invoices.go` + test (A), `cmd/spool/invoice_issue.go` + test (B), or hub BigQuery reader + tick (C); optionally `spl-vm-cost-per-day.func.sh` + test if widening B4's window. Done test: two private workspaces and one non-private workspace for a closed month with stubbed full-month B4 rows: `DRY_RUN=1` prints both quotes and writes zero rows; `DRY_RUN=0` issues two invoices (zero for the non-private workspace) with the exact summed `vmCostMicros` and `CountMembers` human count; a second `DRY_RUN=0` run for the same month issues zero new rows and returns the same invoices | a month with any `missing` or `partial` B4 day, or an open/future month -> refused, zero invoices written; `DRY_RUN` unset -> zero write calls; a non-operator caller (Q-20 A) -> 403; a replay creating a second row for the same `(tenant, month)` -> test fails | B4, B12, Q-20 |
 
 Row status (v0.4.1):
 
@@ -650,8 +676,16 @@ Marketplace stays spec 156.
   invoice date, and the one reminder goes out on day 15. Status: every
   question answered. 1.0, 4.4, G6, G13, B12 and 7 follow; B12 no longer
   waits on Q-19.
-
 - v0.6.1 (2026-11-23, c-261, SPL-6322): row B2 implemented (section 6
   row status): the order submit, rdb 0314 `workspace_orders`.
+- v0.7 (2026-11-23, a-749, SPL-6328): month-end invoice issuer gap
+  (reported by B12 lane c-279, msg `0c40cac3`; v0.6 last commit
+  `0baac162d`, measured on `ef80e6a01`; B12 SPL-6327 not yet on
+  `origin/master`, `IssueInvoice` signature taken as contract). Adds gap
+  G15 (section 5: B4 `bbdbbe4da` reads BigQuery over 5-day
+  `reread_days`, hub has no BigQuery client, `tenant_memberships` /
+  `CountMembers` has no cross-workspace private-workspace reader), new
+  row B14 [after B4, B12, Q-20] (section 6), and open poll form Q-20
+  (section 1) for the call path to `IssueInvoice`.
 
-<!-- version: 0.6.1 · updated: 2026-11-23 · last-edit: 2026-11-23T17:30:00Z -->
+<!-- version: 0.7 · updated: 2026-11-23 · last-edit: 2026-11-23T17:33:49Z -->

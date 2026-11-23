@@ -87,13 +87,6 @@ _sgw_read_env() {
   )
 }
 
-# the current value, empty when the variable does not exist (gh prints the
-# 404 body on stdout, so the value counts only when gh exits 0)
-_sgw_get() {  # <repo> <name>
-  local v; v="$(gh api "repos/$1/actions/variables/$2" --jq .value 2>/dev/null)" && printf '%s\n' "$v"
-  return 0
-}
-
 # <repo> <env> <name> <want> <step> <output> <regex> <dry> - 0 = in place (or would be set)
 _sgw_apply() {
   local repo="$1" env="$2" name="$3" want="$4" step="$5" output="$6" re="$7" dry="$8" have
@@ -102,7 +95,10 @@ _sgw_apply() {
     return 1
   fi
   [[ "$want" =~ $re ]] || { do_log "ERROR $name: step $step output $output in $env is malformed: $want"; return 1; }
-  have="$(_sgw_get "$repo" "$name")"
+  # read one repo variable via _gscv_get of gh-set-ci-vars.func.sh, its one copy
+  # shellcheck source=gh-set-ci-vars.func.sh
+  declare -F _gscv_get >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/gh-set-ci-vars.func.sh"
+  have="$(_gscv_get "$repo" "$name")"
   if [[ "$have" == "$want" ]]; then do_log "OK $repo $name unchanged: $want"; return 0; fi
   if [[ "$dry" != 0 ]]; then
     if [[ -z "$have" ]]; then do_log "INFO DRY_RUN $repo $name would create: $want"
@@ -111,7 +107,7 @@ _sgw_apply() {
   fi
   gh variable set "$name" --repo "$repo" --body "$want" >/dev/null \
     || { do_log "ERROR cannot set $repo $name"; return 1; }
-  have="$(_sgw_get "$repo" "$name")"
+  have="$(_gscv_get "$repo" "$name")"
   [[ "$have" == "$want" ]] || { do_log "ERROR $repo $name reads back '$have', want '$want'"; return 1; }
   do_log "OK $repo $name set: $want"
 }

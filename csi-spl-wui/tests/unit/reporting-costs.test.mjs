@@ -183,6 +183,10 @@ describe('SPL-6300: a start month and an end month, both included, in the URL', 
     assert.equal(costsRangeOf('2026-09'), null)
     assert.equal(costsRangeOf('ytd'), null)
   })
+  it('the owner\'s link (msg 8f58db07): cloud?from=2026-01&to=2026-06 reads those six months', () => {
+    const q = Object.fromEntries(new URL('https://x.example.com/reporting/costs/cloud?from=2026-01&to=2026-06').searchParams)
+    assert.deepEqual(costsPeriodMonths(costsPeriodOf(q, NOW), NOW), ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'])
+  })
   it('from = to is that one month; no range is ?month= as before (the current month by default)', () => {
     assert.equal(costsPeriodOf({ from: '2026-09', to: '2026-09' }, NOW), '2026-09')
     assert.equal(costsPeriodOf({ month: 'ytd' }, NOW), 'ytd')

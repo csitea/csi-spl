@@ -261,6 +261,19 @@ async function monthRange(browser, base, size) {
   await ready(p)
   const again = await p.waitForFunction((w) => [...document.querySelectorAll('[data-test=costs-month-table] thead th')].map((e) => e.getAttribute('data-test').slice(8)).join(',') === w, { timeout: 20000 }, want).then(() => true, () => false)
   ok('range: the link alone draws the range on Cloud, the pickers set', again && await val('[data-test=costs-range-from]') === from && await val('[data-test=costs-range-to]') === cur, where(p))
+  /* the owner's link (msg 8f58db07): Cloud, 2026-01 to 2026-06, opened cold in a fresh signed-in page */
+  {
+    const { ctx: c2, p: p2 } = await costsPage(browser, base, size)
+    await open(p2, base, '/reporting/costs/cloud?from=2026-01&to=2026-06')
+    await ready(p2)
+    const six = 'name,0,1,2,3,4,5,total,pct'
+    const drawn = await p2.waitForFunction((w) => [...document.querySelectorAll('[data-test=costs-month-table] thead th')].map((e) => e.getAttribute('data-test').slice(8)).join(',') === w, { timeout: 20000 }, six).then(() => true, () => false)
+    const cols = await p2.$$eval('[data-test=costs-month-table] thead th', (els) => els.slice(1, 7).map((e) => e.textContent.trim())).catch(() => [])
+    const ends = [await p2.$eval('[data-test=costs-range-from]', (e) => e.value).catch(() => ''), await p2.$eval('[data-test=costs-range-to]', (e) => e.value).catch(() => '')]
+    ok('range: the link /reporting/costs/cloud?from=2026-01&to=2026-06 alone shows Cloud for 2026-01..2026-06, the pickers set, the URL kept',
+      drawn && cols[0] === '2026-01' && cols[5] === '2026-06' && ends.join(',') === '2026-01,2026-06' && where(p2) === '/reporting/costs/cloud?from=2026-01&to=2026-06', { cols, ends, at: where(p2) })
+    await c2.close()
+  }
   await open(p, base, `/reporting/costs/project?from=${from}&to=${cur}`)
   const cap = await p.waitForFunction((w) => (document.querySelector('[data-test=project-table] caption')?.textContent || '').includes(w), { timeout: 20000 }, `${from} – ${cur}`).then(() => true, () => false)
   ok('range: the project\'s cost reads the range', cap, await text(p, '[data-test=project-table] caption'))

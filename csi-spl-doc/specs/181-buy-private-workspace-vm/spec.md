@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
 **Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.7
-(Q-1..Q-20 answered; section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+(Q-1..Q-20 answered; Q-21, standard VM machine type + monthly list price cnf source and spec 122 RQ-3, open; section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -88,8 +88,8 @@ only, compute, disk and traffic (Q-8 A).
 
 ## 1. Questions for the owner (forms)
 
-Each was posted as a poll; the first option is the recommended one. Every
-question, Q-1 to Q-20, is answered (1.0). From v0.3 sections
+Each was posted as a poll; the first option is the recommended one. Q-1
+to Q-20 are answered (1.0); Q-21, added in v0.7, is open. From v0.3 sections
 2 to 7 are written as the answers say; a **[Q-n]** there names the answer
 it comes from.
 
@@ -125,6 +125,7 @@ by the dispatch holder (c-002, msg `5a24d943`). An answered question's
 | Q-18 | **C** (not the recommended A): an order only, and the workspace is created at once on submit; the invoice is paid by bank transfer | `43573325` | 2026-11-21 08:19:18Z |
 | Q-19 | A: 14 days net from the invoice date; the reminder goes out on day 15 | `67b12564` | 2026-11-21 |
 | Q-20 | A: new operator-scope hub endpoint(s): the orc action sends each private workspace's VM month cost, the hub counts human members and calls `IssueInvoice` (no DB password on the box, same path as the daily cost upload, one write and audit path) | `7b2f5cd3` | 2026-11-23 |
+| Q-21 | open: the one standard private-VM machine type (also closing spec 122 RQ-3) and where its monthly list price lives under step `062-gcp-workspace-vms` in cnf (form below) | - | - |
 
 Q-15, Q-16 and the change of Q-9 to B, verbatim (owner HUM-10, t1
 `b12055b5`, 2026-11-20): Q-15, msg `09472141` (21:39Z), "The customers will
@@ -226,6 +227,28 @@ reads private workspaces and human-member counts and calls `IssueInvoice`
 directly on Postgres.
 (C) Move the BigQuery billing-export read into a hub monthly tick beside
 B12's reminder tick.
+
+Q-21 is new and open in v0.7 (gap G16, row B15; added on c-001 GO
+`63d7a7e9` / c-002 msg `4e4ff199`). c-826 (SPL-6339, msg `4959d0cf`) found
+no honest source for section 4.1 step 2's VM monthly cost estimate: step
+`062-gcp-workspace-vms` (`csi-spl-cnf/csi-spl/all.env.yaml:302-318`,
+`csi-spl-iac/src/terraform/062-gcp-workspace-vms/02-variables.tf:38-49`)
+takes `<tenant> -> machine_type` only at runtime via `TF_VAR_workspace_vms`,
+neither code nor cnf holds a per-machine-type monthly list price
+(`internal/payments/handler.go:431` returns `currency`, `seat_member_cents`,
+`vm_margin_pct` only), and spec 122 RQ-3
+(`csi-spl-doc/specs/122-capacity-scale-out/spec.md:604-611`: A
+`e2-standard-16` / B smaller from M2, Recommended B) is still unanswered.
+Q-21 asks both in one form so one owner answer closes spec 122 RQ-3 and
+unblocks row B15; there is never a second question on the same standard
+machine type:
+
+```poll
+Q-21. Which one standard machine type does a private workspace VM use (also closing spec 122 RQ-3), and where does its monthly list price live for the checkout estimate (row B15)?
+(A) Pick a smaller standard type from spec 122 M2 (one-workspace measurement) before the first customer VM (closes spec 122 RQ-3 as B), and store both that machine type and its europe-north1 monthly list price in EUR (with source and date) in cnf under steps.062-gcp-workspace-vms in all.env.yaml (Recommended: keeps spec 122 RQ-3's recommendation so first customers are not priced on a 16-vCPU fleet box, and gives checkout one honest cnf source; checkout omits the VM estimate until M2 and cnf land)
+(B) Use e2-standard-16 (the satellite's type, prd.env.yaml:230) until M2 runs (closes spec 122 RQ-3 as A), and store e2-standard-16 and its europe-north1 monthly list price in EUR (from the GCP Cloud Billing Catalog, date-stamped) in cnf under steps.062-gcp-workspace-vms now so row B15 can show the estimate immediately
+(C) Pick a smaller fixed type now (e2-standard-2, matching dev.env.yaml:210; closes spec 122 RQ-3 without waiting for M2), and store it and its europe-north1 monthly list price in EUR (from the GCP Cloud Billing Catalog, date-stamped) in cnf under steps.062-gcp-workspace-vms now
+```
 
 Q-13 is mapped by its answer text, which is form Q-13's option B word for
 word; its poll id `35df3e5f` could not be read from c-625's seat.
@@ -520,6 +543,7 @@ that order.
 | G9 | removal of 121's token pricing (`metered`, the x 1.20 buffer) and 159's metered fall-back; 127's byok margin to 33% | 2 | Q-10 A, Q-11 A |
 | G11 | the web-UI sign-in relay to the CLI's terminal login on the VM, one switch per vendor, nothing stored on the hub | 4.3 | Q-5, Q-14 A |
 | G15 | nobody issues the month's invoice: B12 (SPL-6327, not yet on `origin/master` at `ef80e6a01`; contract per msg `0c40cac3`) adds the invoice row, store `IssueInvoice(tenant, month, humans, vmCostMicros, issuedOn)` (one row per workspace per month, replay returns the same row), `MarkInvoicePaid` and the day-15 reminder tick, but no section 6 row calls `IssueInvoice` at month end. The VM's cost is in GCP BigQuery and read by B4's bash action `do_spl_vm_cost_per_day` (`csi-spl-iac/src/bash/run/spl-vm-cost-per-day.func.sh:41`, `bbdbbe4da`), which only reads the trailing `env.cost.reread_days` (`5` days, `csi-spl-cnf/csi-spl/all.env.yaml:1878`, `spl-vm-cost-per-day.func.sh:23,57`), not a full closed month; the hub never reads BigQuery (`grep -rni bigquery csi-spl-api/` -> nothing). Human members live in `tenant_memberships JOIN humans` (`csi-spl-rdb/src/sql/postgres/spool-hub/0006_users_and_memberships.sql:45-53`), counted per tenant in tenant scope by `store.Seats.CountMembers` (`internal/store/seats.go:24`, `internal/store/seats_postgres.go:56-62`: `NOT h.technical AND m.role <> rbac.ChannelGuest`); today `GET /v1/members` (`internal/hub/rbac.go:631`, `internal/hub/members_admin.go:103`) needs a member session of that workspace, `GET /v1/operator/workspaces` (`internal/hub/operator_workspaces.go:167,605`, `internal/store/operator_workspaces.go:122`) returns no member count and no `price_plans` filter, and `do_spl_hub_member_list` (`csi-spl-orc/src/bash/run/spl-hub-member-list.func.sh:25,62-72`) reads one tenant over `psql`. Nothing lists private workspaces (`price_plans.kind = 'private_vm'`, rdb `0302_private_workspace_price.sql:29`, `internal/store/price_plans.go:27`) with their month-end human-member counts and calls `IssueInvoice` | 4.4 | Q-9 B, Q-16 B, Q-19 A, Q-20 A |
+| G16 | no honest source for the checkout VM monthly cost estimate (4.1 step 2): c-826 (SPL-6339, msg `4959d0cf`) measured that step `062-gcp-workspace-vms` (`csi-spl-cnf/csi-spl/all.env.yaml:302-318`, `csi-spl-iac/src/terraform/062-gcp-workspace-vms/02-variables.tf:38-49`) reads `<tenant> -> machine_type` only at runtime via `TF_VAR_workspace_vms` with no standard machine type and no per-type monthly list price in code or cnf (`internal/payments/handler.go:431` returns `currency`, `seat_member_cents`, `vm_margin_pct` only), while spec 122 RQ-3 (`csi-spl-doc/specs/122-capacity-scale-out/spec.md:604-611`) is unanswered | 4.1 | Q-8 A, Q-11 A, Q-21 |
 
 G10 (a private hub per workspace) is gone: Q-2 A keeps the shared hub.
 
@@ -545,6 +569,7 @@ brackets.
 | B13 (v0.5) | hub + wui (claude) | the owner's overdue list (gap G14) [Q-17 B, Q-18 C]: an operator-scope read of every invoice past its due date and unpaid, and the operator's action to mark one paid on the bank transfer (audited); no automatic decision. Files: an operator endpoint in `internal/hub/` named in `TestOperatorScopeCallers`, a page under `csi-spl-wui/src/pages/monitoring/`, locale texts, agy review last. Done test: two invoices, one paid -> the list shows one; mark it paid -> the list is empty | a workspace's own member reads the list -> 403; marking paid with no audit row -> the test fails | B12 |
 | B11 (new) | hub + wui + orc (claude) | the web-UI sign-in relay to the CLI's terminal login on `<vm>`, one switch per vendor, default off | a relayed input found in a hub table or log -> its test fails; the switch off -> the relay refuses | B8 |
 | B14 (v0.7) | orc + hub (claude) | the month-end invoice issuer (gap G15) [Q-9 B, Q-16 B, Q-19 A, Q-20 A]: a named orc action (`do_spl_private_ws_invoice_issue`, dry run by default, `DRY_RUN=0` to write) for a closed UTC month (`MONTH=YYYY-MM`; refuses an open/future month) and every private workspace (`price_plans.kind = 'private_vm'`, rdb `0302`, or one named `WORKSPACE`). Reads the month's VM cost from B4 (`csi-spl-iac/src/bash/run/spl-vm-cost-per-day.func.sh`, `bbdbbe4da`), stepping across the month in `env.cost.reread_days` (5-day) chunks or widening B4 with a full-month window option, summing `total_eur_micros` and refusing if any day is `missing` or `partial` (never 0). Reaches the hub over new `operatorAuth` endpoints under `/v1/operator/` called via `spl_hub_operator_call` (matching `POST /v1/operator/cost/day` in `internal/hub/cost_ingest.go:41`; no DB credentials or Cloud SQL proxy on the box) [Q-20 A]: an operator read lists private workspaces (`price_plans.kind = 'private_vm'`) with each workspace's human-member count from `tenant_memberships JOIN humans` (`rdb 0006`) via `store.Seats.CountMembers` (`internal/store/seats_postgres.go:56-62`: `NOT h.technical AND m.role <> rbac.ChannelGuest`; agents excluded, Q-6 A) so `DRY_RUN=1` prints quotes with zero write calls, and an operator `POST` endpoint receives `(tenant, month, vmCostMicros)`, reads the workspace's human-member count on the hub side via the operator-scope store helper (listed in `TestOperatorScopeCallers`, `internal/store/operator_scope_test.go:187`), and calls B12's `IssueInvoice(tenant, month, humans, vmCostMicros, issuedOn)` (contract per SPL-6327; not yet on `origin/master` at `ef80e6a01`) in one hub write and log/audit path. Replay of the same month issues nothing new (`IssueInvoice` returns the existing row). Files: `csi-spl-orc/src/bash/run/spl-private-ws-invoice-issue.func.sh`, `csi-spl-orc/src/bash/tests/spl-private-ws-invoice-issue.tst.sh`, `internal/store/` (private-workspace list + operator-scope member-count helper in `TestOperatorScopeCallers`), `internal/hub/operator_invoices.go` + test (`operatorAuth` endpoints); optionally `spl-vm-cost-per-day.func.sh` + test if widening B4's window. Done test: two private workspaces and one non-private workspace for a closed month with stubbed full-month B4 rows: `DRY_RUN=1` prints both quotes and writes zero rows (zero `POST` write calls); `DRY_RUN=0` issues two invoices (zero for the non-private workspace) with the exact summed `vmCostMicros` and `CountMembers` human count; a second `DRY_RUN=0` run for the same month issues zero new rows and returns the same invoices | a month with any `missing` or `partial` B4 day, or an open/future month -> refused, zero invoices written; `DRY_RUN` unset -> zero write calls; a non-operator caller -> 403; a replay creating a second row for the same `(tenant, month)` -> test fails | B4, B12 |
+| B15 (v0.7) | cnf + hub + wui (claude) | the checkout VM monthly cost estimate (gap G16) [Q-8 A, Q-11 A, Q-21]: once Q-21 sets the one standard private-VM machine type (also closing spec 122 RQ-3) and its monthly list price with named source under `steps.062-gcp-workspace-vms` in `csi-spl-cnf/csi-spl/all.env.yaml`, expose the cnf-backed VM monthly estimate (+ 33% margin) on the private-workspace pricing endpoint and render it on the checkout page (4.1 step 2; separate from B3 / the CORS + `seat_member_cents`/`vm_margin_pct` row, which ships with no estimate field). Files: `csi-spl-cnf/csi-spl/all.env.yaml` (under `062-gcp-workspace-vms`, with named price source and date) + rendered configs via `do_tpl_gen`, `internal/payments/` (reads estimate from cnf/env, never hardcoded), `csi-spl-wui/src/pages/checkout/` + locale texts + tests. Done test: pricing endpoint returns the cnf-backed VM monthly estimate + 33% for the configured standard machine type and checkout renders it beside the 9 EUR seat line | cnf monthly list price unset or zero -> pricing endpoint omits or refuses the estimate rather than fabricating a number; hardcoded VM price in Go or WUI -> test fails | B3, B5, Q-21 |
 
 Row status (v0.4.1):
 
@@ -568,6 +593,9 @@ Marketplace stays spec 156.
 
 - A go per VM apply and per VM delete in the first slice (repo CLAUDE.md:
   nothing mutates GCP without the owner).
+- Q-21: the one standard private-VM machine type (also closing spec 122
+  RQ-3) and its monthly list price source under step `062-gcp-workspace-vms`
+  in cnf (1.0).
 - Each overdue invoice: the owner decides the case by hand, and marks an
   invoice paid when its bank transfer arrives [Q-17 B, Q-18 C] (row B13).
 - 159's O1 (Anthropic), O2 (xAI) and O3 (Mistral): each vendor's written
@@ -633,7 +661,12 @@ Marketplace stays spec 156.
   (msg `7b2f5cd3`, verbatim in 1.0): new `operatorAuth` hub endpoint(s)
   called via `spl_hub_operator_call`, where the orc action sends each
   VM's month cost and the hub counts human members and calls
-  `IssueInvoice`. Status: every question answered (Q-1..Q-20); B14 no
-  longer waits on Q-20.
+  `IssueInvoice`; B14 no longer waits on Q-20. Also adds (on c-001 GO
+  `63d7a7e9`, c-002 msg `4e4ff199`, c-826 SPL-6339 msg `4959d0cf`) gap
+  G16 (section 5: no standard machine type or per-type monthly list price
+  under step `062-gcp-workspace-vms` in `all.env.yaml:302-318`), row B15
+  [waits on B3, B5, Q-21] for the checkout VM monthly estimate (section
+  6), and open poll form Q-21 (section 1, citing and closing spec 122
+  RQ-3).
 
-<!-- version: 0.7 · updated: 2026-11-23 · last-edit: 2026-11-23T20:38:00Z -->
+<!-- version: 0.7 · updated: 2026-11-23 · last-edit: 2026-11-23T20:43:00Z -->

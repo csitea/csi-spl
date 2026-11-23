@@ -4367,7 +4367,7 @@
     "contacts_elsewhere": "Çalışma alanlarınızdan birinde kişi senkronizasyonu açık. Önce orada kapatın.",
     "contacts_needs_grant": "Google henüz kişilerinize erişim vermedi.",
     "contacts_grant": "Google Kişiler'e erişim ver",
-    "contacts_load_failed": "Kişi senkronizasyonunun durumu okunamadı.",
+    "contacts_load_failed": "Kişi senkronizasyonu okunamadı.",
     "contacts_failed": "Kişi senkronizasyonu değiştirilemedi.",
     "contacts_started": "Kişi senkronizasyonu açık. İlk içe aktarma başladı.",
     "contacts_stopped": "Kişi senkronizasyonu kapalı."

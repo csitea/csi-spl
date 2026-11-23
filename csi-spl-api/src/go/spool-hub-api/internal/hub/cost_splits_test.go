@@ -196,3 +196,130 @@ func TestCostSplitRoutes(t *testing.T) {
 		t.Fatalf("S5 W's tokens share %d (estate %d), want floor of 30 %%, no plan: %s", share, paid, raw2)
 	}
 }
+
+// splitAIShare is W's ai_share money and share_bp of vendor in b.
+func splitAIShare(b splitMonth, vendor string) (int64, int) {
+	var m int64
+	bp := 0
+	for _, p := range b.Parts {
+		if p.Source == store.CostSourceAIShare && p.ProjectOrVendor == vendor {
+			m, bp = m+p.USDMicros, p.ShareBP
+		}
+	}
+	return m, bp
+}
+
+// splitPaidOf is the estate's ai_paid money of plan and its allocation.
+func splitPaidOf(b splitMonth, plan string) (int64, []store.CostAllocShare) {
+	for _, p := range b.Parts {
+		if p.Source == store.CostSourceAIPaid && p.Kind == plan {
+			return p.USDMicros, p.Allocation
+		}
+	}
+	return 0, nil
+}
+
+// SPL-6301 (owner HUM-10, topic f3203933 msg cfbd1832; spec 143
+// costs-allocation.md 7.7), made-up figures in 2002-02..04 (no other test
+// uses them): paid items of claude in 02 and 04, of grok in 02; the tokens
+// split op 7000 / W 3000. V1 a tokens_vendor split before any tokens split,
+// a bad subject and an unknown kind are 400; V2 W's answers of 02 and 04 are
+// read (the control); V3 tokens_vendor claude:2002-02:2002-03 op 6000 / W
+// 4000 is stored, one of claude 2002-03..05 (meets it) is 400, the GET
+// lists it; V4 W's claude share in 02 is 4000 bp and floor(40 %), its grok
+// share stays 3000 bp; V5 W's answer of 04 (outside the range) is byte for
+// byte the control; V6 the estate keeps the whole claude item and names the
+// 4000 bp split on it, the tokens split on grok's; V7 the removal brings
+// W's 02 answer back byte for byte. RED CONTROL: costSplitTokenShares
+// answering the tokens split only, V4 reads claude at 3000 bp (run
+// 2026-11-23, memory store); on origin/master V1's good PUT is a 400 (no
+// such kind).
+func TestCostSplitVendorShare(t *testing.T) {
+	r := newFleetTokensRig(t)
+	w := r.other
+	fp := r.e.st.(store.FleetPaidStore)
+	paid := func(vendor, month, end string) string {
+		plan := "plan-" + newTenantID("v")
+		it, err := fp.CreatePaidItem(context.Background(), store.FleetPaidItem{Vendor: vendor, Kind: "subscription",
+			PlanLabel: plan, Quantity: 1, Amount: 280, Currency: "USD", PeriodStart: month + "-01",
+			PeriodEnd: end, CreatedBy: "split-test"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = fp.DeletePaidItem(context.Background(), it.ID) })
+		return plan
+	}
+	claude2, grok2 := paid("claude", "2002-02", "2002-03-01"), paid("grok", "2002-02", "2002-03-01")
+	paid("claude", "2002-04", "2002-05-01")
+	const subject = "claude:2002-02:2002-03"
+	vendor := splitBody("tokens_vendor", subject, [2]any{r.op, 6000}, [2]any{w, 4000})
+	put := func(b map[string]any) (int, map[string]any) {
+		return call(t, r.e, r.op, http.MethodPut, costSplitPath, r.admin, b)
+	}
+	t.Cleanup(func() {
+		put(splitBody("tokens_vendor", subject))
+		put(splitBody("tokens", ""))
+	})
+	// V1
+	if c, got := put(vendor); c != http.StatusBadRequest {
+		t.Fatalf("V1 tokens_vendor with no tokens split: %d %v, want 400", c, got)
+	}
+	if c, got := put(splitBody("tokens", "", [2]any{r.op, 7000}, [2]any{w, 3000})); c != http.StatusOK {
+		t.Fatalf("tokens split: %d %v", c, got)
+	}
+	for _, bad := range []string{"claude:2002-03:2002-02", "openai:2002-02:2002-03", "claude:2002-02", ""} {
+		if c, got := put(splitBody("tokens_vendor", bad, [2]any{w, 10000})); c != http.StatusBadRequest {
+			t.Errorf("V1 subject %q: %d %v, want 400", bad, c, got)
+		}
+	}
+	// V2
+	ctl2, raw2 := splitMonthRead(t, r, w, r.otherA, "2002-02")
+	_, raw4 := splitMonthRead(t, r, w, r.otherA, "2002-04")
+	if _, bp := splitAIShare(ctl2, "claude"); bp != 3000 {
+		t.Fatalf("V2 the control reads claude at %d bp, want the tokens split's 3000: %s", bp, raw2)
+	}
+	// V3
+	if c, got := put(vendor); c != http.StatusOK {
+		t.Fatalf("V3 tokens_vendor: %d %v", c, got)
+	}
+	if c, got := put(splitBody("tokens_vendor", "claude:2002-03:2002-05", [2]any{w, 10000})); c != http.StatusBadRequest {
+		t.Errorf("V3 an overlapping range: %d %v, want 400", c, got)
+	}
+	if c, got := call(t, r.e, r.op, http.MethodGet, costSplitPath, r.admin, nil); c != http.StatusOK || !strings.Contains(fmtJSON(got), subject) {
+		t.Errorf("V3 GET: %d %v", c, got)
+	}
+	// V4, V6
+	est, _ := splitMonthRead(t, r, r.op, r.admin, "2002-02")
+	whole, alloc := splitPaidOf(est, claude2)
+	if whole <= 0 || store.ShareOf(alloc, w) != 4000 {
+		t.Errorf("V6 the estate's claude part: %d micros, allocation %+v, want whole and W 4000", whole, alloc)
+	}
+	if _, galloc := splitPaidOf(est, grok2); store.ShareOf(galloc, w) != 3000 {
+		t.Errorf("V6 the estate's grok part names %+v, want the tokens split", galloc)
+	}
+	b2, got2 := splitMonthRead(t, r, w, r.otherA, "2002-02")
+	m, bp := splitAIShare(b2, "claude")
+	_, onMemory := r.e.st.(*store.Memory)
+	if bp != 4000 || m <= 0 || (onMemory && m != store.CostAllocShareOf(whole, 4000)) {
+		t.Errorf("V4 W's claude share: %d micros at %d bp, want floor(40 %%) of %d at 4000: %s", m, bp, whole, got2)
+	}
+	if _, gbp := splitAIShare(b2, "grok"); gbp != 3000 {
+		t.Errorf("V4 W's grok share moved to %d bp, want the tokens split's 3000", gbp)
+	}
+	// V5
+	if _, now4 := splitMonthRead(t, r, w, r.otherA, "2002-04"); now4 != raw4 {
+		t.Errorf("V5 a month outside the range changed:\nwas %s\nnow %s", raw4, now4)
+	}
+	// V7
+	if c, got := put(splitBody("tokens_vendor", subject)); c != http.StatusOK {
+		t.Fatalf("V7 removal: %d %v", c, got)
+	}
+	if _, now2 := splitMonthRead(t, r, w, r.otherA, "2002-02"); now2 != raw2 {
+		t.Errorf("V7 after the removal 2002-02 differs:\nwas %s\nnow %s", raw2, now2)
+	}
+}
+
+func fmtJSON(v any) string {
+	raw, _ := json.Marshal(v)
+	return string(raw)
+}

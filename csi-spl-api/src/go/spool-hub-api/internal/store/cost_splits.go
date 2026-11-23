@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -16,13 +18,65 @@ import (
 // percentages for the division of the costs, both for the tokens and for
 // the personnel costs, on a percentage basis, divided for each workspace").
 // A split is a share per workspace in basis points that sum to 10000, for
-// every month. Operator scope only, like cost_allocations.
+// every month. Operator scope only, like cost_allocations. SPL-6301 adds
+// tokens_vendor: one vendor's paid items over a month range.
 
 // Split kinds of rdb 0293.
 const (
 	CostSplitTokens = "tokens" // every paid AI item; subject ""
 	CostSplitPerson = "person" // every hr entry of one person; subject the hr person id
+	// CostSplitTokensVendor is the paid AI items of one vendor over a month
+	// range, in place of the tokens split for those parts only (SPL-6301,
+	// costs-allocation.md 7.7); subject "<vendor>:<from>:<to>".
+	CostSplitTokensVendor = "tokens_vendor"
 )
+
+// CostSplitVendors are the vendors of rdb 0205 fleet_token_paid_items.
+var CostSplitVendors = []string{"claude", "mistral", "grok", "agy", "qwen"}
+
+// costSplitMonthRx is one month, YYYY-MM.
+var costSplitMonthRx = regexp.MustCompile(`^[0-9]{4}-(0[1-9]|1[0-2])$`)
+
+// CostSplitVendorRange is the vendor and the months from..to (both
+// included) of a tokens_vendor subject; ok false when it is not one.
+func CostSplitVendorRange(subject string) (vendor, from, to string, ok bool) {
+	f := strings.Split(subject, ":")
+	if len(f) != 3 || !slices.Contains(CostSplitVendors, f[0]) ||
+		!costSplitMonthRx.MatchString(f[1]) || !costSplitMonthRx.MatchString(f[2]) || f[1] > f[2] {
+		return "", "", "", false
+	}
+	return f[0], f[1], f[2], true
+}
+
+// CostSplitVendorShares is the shares of the tokens_vendor split of vendor
+// that covers month (YYYY-MM); nil when none does.
+func CostSplitVendorShares(splits []CostSplit, vendor, month string) []CostAllocShare {
+	for _, sp := range splits {
+		if sp.Kind != CostSplitTokensVendor {
+			continue
+		}
+		if v, from, to, ok := CostSplitVendorRange(sp.Subject); ok && v == vendor && from <= month && month <= to {
+			return sp.Shares
+		}
+	}
+	return nil
+}
+
+// CostSplitVendorOverlap is the subject of a stored tokens_vendor split
+// (other than sp's own) of sp's vendor whose months meet sp's ("" = none).
+func CostSplitVendorOverlap(splits []CostSplit, sp CostSplit) string {
+	v, from, to, ok := CostSplitVendorRange(sp.Subject)
+	if !ok {
+		return ""
+	}
+	for _, o := range splits {
+		ov, ofrom, oto, ook := CostSplitVendorRange(o.Subject)
+		if o.Kind == CostSplitTokensVendor && o.Subject != sp.Subject && ook && ov == v && ofrom <= to && from <= oto {
+			return o.Subject
+		}
+	}
+	return ""
+}
 
 // CostSplitKey names one split.
 type CostSplitKey struct {
@@ -42,16 +96,23 @@ type CostSplit struct {
 // the Go side of rdb 0293's CHECKs and the sum.
 func CheckCostSplit(sp CostSplit) string {
 	switch {
-	case sp.Kind != CostSplitTokens && sp.Kind != CostSplitPerson:
-		return "split_kind must be tokens or person"
+	case sp.Kind != CostSplitTokens && sp.Kind != CostSplitPerson && sp.Kind != CostSplitTokensVendor:
+		return "split_kind must be tokens, person or tokens_vendor"
 	case sp.Kind == CostSplitTokens && sp.Subject != "":
 		return "a tokens split has no subject"
 	case sp.Kind == CostSplitPerson && (strings.TrimSpace(sp.Subject) == "" || len(sp.Subject) > 200):
 		return "a person split's subject is the hr person id"
+	case sp.Kind == CostSplitTokensVendor && !costSplitVendorSubjectOK(sp.Subject):
+		return "a tokens_vendor split's subject is <vendor>:<from YYYY-MM>:<to YYYY-MM>, from <= to"
 	}
 	// the item key only carries the shares' check: any non-Tokens source
 	k := CostItemKey{Source: "split", ProjectOrVendor: sp.Kind, Kind: "split"}
 	return CheckCostAllocation(CostAllocation{CostItemKey: k, Shares: sp.Shares})
+}
+
+func costSplitVendorSubjectOK(subject string) bool {
+	_, _, _, ok := CostSplitVendorRange(subject)
+	return ok
 }
 
 // CostSplitStore is the store half of rdb 0293. Optional: the routes answer

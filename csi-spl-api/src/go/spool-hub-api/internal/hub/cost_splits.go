@@ -139,6 +139,9 @@ func (s *Server) costSplitRefs(ctx context.Context, sp store.CostSplit) string {
 	if why := s.checkCostAllocWorkspaces(ctx, store.CostAllocation{Shares: sp.Shares}); why != "" {
 		return why
 	}
+	if sp.Kind == store.CostSplitTokensVendor {
+		return s.costSplitVendorRefs(ctx, sp)
+	}
 	if sp.Kind != store.CostSplitPerson {
 		return ""
 	}
@@ -148,6 +151,23 @@ func (s *Server) costSplitRefs(ctx context.Context, sp store.CostSplit) string {
 	}
 	if !slices.ContainsFunc(people, func(p costSplitPerson) bool { return p.ID == sp.Subject }) {
 		return "no hr person " + sp.Subject
+	}
+	return ""
+}
+
+// costSplitVendorRefs names why a tokens_vendor split may not be stored
+// ("" = fine): it refines the tokens split, so one must be stored, and two
+// of one vendor never cover the same month (SPL-6301, section 7.7).
+func (s *Server) costSplitVendorRefs(ctx context.Context, sp store.CostSplit) string {
+	splits, err := s.costSplitsOf(ctx)
+	if err != nil {
+		return "the cost splits were not read"
+	}
+	if tokens, _ := store.CostSplitShares(splits); tokens == nil {
+		return "a tokens_vendor split refines the tokens split: set the tokens split first"
+	}
+	if o := store.CostSplitVendorOverlap(splits, sp); o != "" {
+		return "its months meet the tokens_vendor split " + o
 	}
 	return ""
 }
@@ -164,21 +184,27 @@ func (s *Server) costSplitsOf(ctx context.Context) ([]store.CostSplit, error) {
 // costSplitAIParts is customer workspace tenant's AI parts under the tokens
 // split shares (section 7.5): the estate's paid items at tenant's share,
 // one ai_share part per agent type (no plan, as the automatic share), each
-// amount floor(amount * share_bp / 10000) per estate part.
+// amount floor(amount * share_bp / 10000) per estate part. A part whose
+// vendor has a tokens_vendor split covering the month takes that split's
+// share instead (SPL-6301, section 7.7).
 func (s *Server) costSplitAIParts(ctx context.Context, op, tenant string, win costMonthWindow, cur string,
 	shares []store.CostAllocShare) (*store.AIPaidMonth, error) {
 	m, err := s.aiCostParts(ctx, op, true, tenant, win, cur)
 	if err != nil || m == nil {
 		return m, err
 	}
+	splits, err := s.costSplitsOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := &store.AIPaidMonth{Coverage: m.Coverage, ShareFrom: win.From}
 	out.Coverage.Source = store.CostSourceAIShare
-	bp := store.ShareOf(shares, tenant)
-	if bp == 0 {
-		return out, nil
-	}
 	byVendor := map[string]int{}
 	for _, p := range m.Parts {
+		bp := store.ShareOf(costSplitTokenShares(splits, shares, p.ProjectOrVendor, win.Month), tenant)
+		if bp == 0 {
+			continue
+		}
 		q := costAllocShare(p, bp)
 		q.Source, q.Kind, q.AllocatedSource = store.CostSourceAIShare, "share", store.CostSourceAIPaid
 		q.FXRate, q.FXRateDay, q.FXRateFirstDay = nil, nil, nil
@@ -191,6 +217,15 @@ func (s *Server) costSplitAIParts(ctx context.Context, op, tenant string, win co
 		out.Parts[i] = costSplitAddPart(out.Parts[i], q)
 	}
 	return out, nil
+}
+
+// costSplitTokenShares is the shares that attribute vendor's paid items in
+// month: its tokens_vendor split covering month, else tokens (section 7.7).
+func costSplitTokenShares(splits []store.CostSplit, tokens []store.CostAllocShare, vendor, month string) []store.CostAllocShare {
+	if v := store.CostSplitVendorShares(splits, vendor, month); v != nil {
+		return v
+	}
+	return tokens
 }
 
 // costPersonSplitParts is customer workspace q.tenant's share of the

@@ -417,7 +417,8 @@ func costAllocShare(p store.CostPart, bp int) store.CostPart {
 
 // costAllocAnnotate names, on the estate answer, each part's and Human
 // row's split (the amounts stay whole: a share is an attribution): its item
-// split, else (SPL-5768) the tokens split of a paid AI part. An hr row is a
+// split, else (SPL-5768) the tokens split of a paid AI part, or its
+// vendor's tokens_vendor split of the month (SPL-6301). An hr row is a
 // component's, never a person's (spec 123 13.6), so it names no person
 // split.
 func costAllocAnnotate(b *costMonthBody, splits []store.CostAllocation, costSplits []store.CostSplit) {
@@ -429,7 +430,8 @@ func costAllocAnnotate(b *costMonthBody, splits []store.CostAllocation, costSpli
 			if a, ok := byKey[costItemKeyOf(p)]; ok {
 				rows[i].Allocation = a.Shares
 			} else if p.Source == store.CostSourceAIPaid && tokens != nil {
-				rows[i].Allocation = tokens
+				// SPL-6301: a tokens_vendor split covering the month wins
+				rows[i].Allocation = costSplitTokenShares(costSplits, tokens, p.ProjectOrVendor, b.Month)
 			}
 		}
 	}

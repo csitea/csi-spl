@@ -1331,7 +1331,11 @@ jobs:
           set -euo pipefail
           # The three root-only SKIPs are allowed ONLY because the step above ran
           # those exact sections with sudo and passed; any other SKIP fails.
+          # run-path-bin.tst.sh's binary half (SPL-5985) is allowed ONLY because
+          # the rust job builds spl-run-path and runs that test with
+          # SPL_RUN_PATH_TEST_REQUIRE=1, where a missing binary is a failure.
           if grep -E '^SKIP:' "$RUNNER_TEMP/orc-suite.log" \
+             | grep -v '^SKIP: the binary half: no SPL_RUN_PATH_TEST_BIN and no ' \
              | grep -vxF -e 'SKIP: no passwordless sudo / setfacl' \
                          -e 'SKIP: no passwordless sudo / setfacl / nobody (or nobody is in ghrunner): sections 1-3' \
                          -e 'SKIP: part 3 needs passwordless sudo and useradd'; then

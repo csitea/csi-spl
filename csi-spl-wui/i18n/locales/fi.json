@@ -3585,7 +3585,8 @@
       "tokens": "Tokenit",
       "lanes": "Kaistat",
       "topics": "Aiheet",
-      "file_streams": "Tiedostovirrat"
+      "file_streams": "Tiedostovirrat",
+      "invoices": "Laskut"
     },
     "alloc": {
       "title": "Allokointi",
@@ -3894,6 +3895,27 @@
           "forbidden": "Vain työtilan omistaja ja ylläpitäjät voivat muuttaa tiedostoluetteloa."
         }
       }
+    },
+    "invoices": {
+      "hint": "Yksityisten työtilojen laskut, jotka ovat maksamatta eräpäivän jälkeen. Mikään ei pysähdy automaattisesti: päätät jokaisesta tapauksesta itse. Merkitse lasku maksetuksi, kun sen tilisiirto saapuu.",
+      "loading": "Ladataan erääntyneitä laskuja…",
+      "forbidden": "Vain operaattorityötilan ylläpitäjä näkee erääntyneet laskut.",
+      "error": "Erääntyneitä laskuja ei voitu ladata.",
+      "empty": "Yksikään lasku ei ole erääntynyt.",
+      "table_label": "Erääntyneet laskut",
+      "col_workspace": "Työtila",
+      "col_month": "Kuukausi",
+      "col_total": "Yhteensä",
+      "col_due": "Eräpäivä",
+      "col_overdue": "Päiviä myöhässä",
+      "col_reminded": "Muistutus lähetetty",
+      "col_action": "Toiminto",
+      "not_reminded": "Ei vielä",
+      "mark_paid": "Merkitse maksetuksi",
+      "confirm": "Merkitäänkö työtilan {workspace} lasku kuukaudelta {month} ({total}) maksetuksi? Tee tämä vain, kun tilisiirto on saapunut.",
+      "marked": "Työtilan {workspace} lasku kuukaudelta {month} on merkitty maksetuksi.",
+      "already_paid": "Tämä lasku oli jo merkitty maksetuksi.",
+      "mark_failed": "Laskua ei voitu merkitä maksetuksi. Yritä uudelleen."
     }
   },
   "takeover": {

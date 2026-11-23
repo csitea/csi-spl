@@ -2048,6 +2048,31 @@ async function getFleetTokens(ctx, window = '') {
 }
 
 /**
+ * Spec 181 row B13 (gap G14): GET /v1/operator/invoices/overdue, every
+ * private workspace's invoice unpaid past its due date (403
+ * operator.workspaces for anyone but an admin of the operator workspace, as
+ * getFleetTokens). The mock answers from monitoring-invoices.mjs, which loads
+ * only here and on the Invoices page.
+ */
+async function getOverdueInvoices(ctx) {
+  const { live, mock } = ctx
+  if (mock) return (await import('./monitoring-invoices.mjs')).mockOverdueInvoices()
+  return live('/v1/operator/invoices/overdue')
+}
+
+/**
+ * Spec 181 row B13: POST /v1/operator/invoices/{id}/{month}/paid, the owner
+ * marks one invoice paid when its bank transfer arrives (audited by the hub;
+ * 409 already_paid, 404 not_found).
+ */
+async function markInvoicePaid(ctx, workspace, month) {
+  const { live, mock } = ctx
+  const mi = await import('./monitoring-invoices.mjs')
+  if (mock) return mi.mockMarkInvoicePaid(String(workspace || ''), String(month || ''))
+  return live(mi.invoicePaidPath(workspace, month), { method: 'POST' })
+}
+
+/**
  * Spec 153 3.3 (SPL-3215, row B4): GET /v1/operator/fleet-lanes, the fleet's
  * active lanes, each with its discussion and issues (403 operator.workspaces
  * for anyone but an admin of the operator workspace, as getFleetTokens). With
@@ -2578,6 +2603,8 @@ export const lazySpoolMethods = {
   getTenantCostsProject,
   getCloudCostDays,
   getFleetTokens,
+  getOverdueInvoices,
+  markInvoicePaid,
   getFleetLanes,
   getFleetRoster,
   laneConsole,

@@ -571,7 +571,7 @@ async function tabRow(browser, base) {
     const phone = size.width < 600
     if (opts.operator) {
       const ids = await tabIds(p)
-      ok(`C3b ${label}: six tabs, Lanes then Topics last (SPL-4421), no Costs (SPL-3986)`, ids.join(',') === 'agents,boxes,events,tokens,lanes,topics', ids)
+      ok(`C3b ${label}: seven tabs, Lanes then Topics, Invoices last (spec 181 B13), no Costs (SPL-3986)`, ids.join(',') === 'agents,boxes,events,tokens,lanes,topics,invoices', ids)
     }
     ok(`C1 ${label}: the tab bar is inside the header`, Boolean(g && g.inHeader), g)
     if (phone) {

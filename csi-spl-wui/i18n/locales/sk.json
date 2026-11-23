@@ -3585,7 +3585,8 @@
       "tokens": "Tokeny",
       "lanes": "Linky",
       "topics": "Témy",
-      "file_streams": "Súborové toky"
+      "file_streams": "Súborové toky",
+      "invoices": "Faktúry"
     },
     "alloc": {
       "title": "Pridelenie",
@@ -3894,6 +3895,27 @@
           "forbidden": "Zoznam súborov môžu meniť iba vlastník a správcovia pracovného priestoru."
         }
       }
+    },
+    "invoices": {
+      "hint": "Faktúry súkromných pracovných priestorov nezaplatené po dátume splatnosti. Nič sa nezastaví automaticky: o každom prípade rozhodujete vy. Označte faktúru ako zaplatenú, keď príde jej bankový prevod.",
+      "loading": "Načítavajú sa faktúry po splatnosti…",
+      "forbidden": "Faktúry po splatnosti vidí iba správca pracovného priestoru operátora.",
+      "error": "Faktúry po splatnosti sa nepodarilo načítať.",
+      "empty": "Žiadna faktúra nie je po splatnosti.",
+      "table_label": "Faktúry po splatnosti",
+      "col_workspace": "Pracovný priestor",
+      "col_month": "Mesiac",
+      "col_total": "Spolu",
+      "col_due": "Splatná dňa",
+      "col_overdue": "Dni po splatnosti",
+      "col_reminded": "Pripomienka odoslaná",
+      "col_action": "Akcia",
+      "not_reminded": "Ešte nie",
+      "mark_paid": "Označiť ako zaplatenú",
+      "confirm": "Označiť faktúru za {month} pracovného priestoru {workspace} ({total}) ako zaplatenú? Urobte to iba vtedy, keď bankový prevod prišiel.",
+      "marked": "Faktúra za {month} pracovného priestoru {workspace} je označená ako zaplatená.",
+      "already_paid": "Táto faktúra už bola označená ako zaplatená.",
+      "mark_failed": "Faktúru sa nepodarilo označiť ako zaplatenú. Skúste to znova."
     }
   },
   "takeover": {

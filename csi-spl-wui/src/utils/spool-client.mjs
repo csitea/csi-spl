@@ -83,6 +83,8 @@ const LAZY_METHODS = [
   'getTenantCostsProject',
   'getCloudCostDays',
   'getFleetTokens',
+  'getOverdueInvoices',
+  'markInvoicePaid',
   'getFleetLanes',
   'getFleetRoster',
   'laneConsole',

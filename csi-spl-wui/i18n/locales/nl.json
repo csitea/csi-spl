@@ -3585,7 +3585,8 @@
       "tokens": "Tokens",
       "lanes": "Banen",
       "topics": "Onderwerpen",
-      "file_streams": "Bestandsstromen"
+      "file_streams": "Bestandsstromen",
+      "invoices": "Facturen"
     },
     "alloc": {
       "title": "Toewijzing",
@@ -3894,6 +3895,27 @@
           "forbidden": "Alleen de eigenaar en de beheerders van de werkruimte kunnen de bestandenlijst wijzigen."
         }
       }
+    },
+    "invoices": {
+      "hint": "Facturen van privéwerkruimten die na hun vervaldatum onbetaald zijn. Niets stopt automatisch: u beslist per geval. Markeer een factuur als betaald wanneer de bankoverschrijving binnen is.",
+      "loading": "Achterstallige facturen laden…",
+      "forbidden": "Alleen een beheerder van de operatorwerkruimte ziet de achterstallige facturen.",
+      "error": "De achterstallige facturen konden niet worden geladen.",
+      "empty": "Er is geen achterstallige factuur.",
+      "table_label": "Achterstallige facturen",
+      "col_workspace": "Werkruimte",
+      "col_month": "Maand",
+      "col_total": "Totaal",
+      "col_due": "Vervaldatum",
+      "col_overdue": "Dagen te laat",
+      "col_reminded": "Herinnering verzonden",
+      "col_action": "Actie",
+      "not_reminded": "Nog niet",
+      "mark_paid": "Markeren als betaald",
+      "confirm": "De factuur van {month} van {workspace} ({total}) als betaald markeren? Doe dit alleen wanneer de bankoverschrijving binnen is.",
+      "marked": "De factuur van {month} van {workspace} is gemarkeerd als betaald.",
+      "already_paid": "Deze factuur was al gemarkeerd als betaald.",
+      "mark_failed": "De factuur kon niet als betaald worden gemarkeerd. Probeer het opnieuw."
     }
   },
   "takeover": {

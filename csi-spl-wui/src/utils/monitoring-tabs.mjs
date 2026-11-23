@@ -34,6 +34,9 @@ export const MONITORING_TABS = Object.freeze([
   /* spec 160 3.5 (SPL-3888, row B5): the box file streams, live; `staffOnly`: the workspace's owner or an admin
      only, no operator bypass (the read routes' gate, 3.4: an operator who is neither gets 403) */
   Object.freeze({ id: 'file-streams', path: '/monitoring/file-streams', labelKey: 'monitoring.tab.file_streams', operatorsOnly: false, staff: true, staffOnly: true, ready: true }),
+  /* spec 181 row B13 (gap G14; Q-17 B, Q-18 C): the owner's overdue list, every private workspace's invoice
+     unpaid past its due date, and the mark paid on the bank transfer; operator admins only, as Tokens */
+  Object.freeze({ id: 'invoices', path: '/monitoring/invoices', labelKey: 'monitoring.tab.invoices', operatorsOnly: true, ready: true }),
 ])
 
 /** Where /monitoring itself goes (Q1 A: no Overview tab). */

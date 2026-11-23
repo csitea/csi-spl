@@ -11,6 +11,11 @@
 # @description           COST_SPLIT_CLOUD_PREFIX goes to COST_SPLIT_OPERATOR,
 # @description           every other line and every cloud cost entry to
 # @description           COST_SPLIT_OTHER
+# @description   route   COST_SPLIT_ROUTE='<prefix>:<ws>' (SPL-6301, 7.8): every
+# @description           Cloud cost line item of FROM..TO whose project starts
+# @description           with <prefix> goes to <ws> at 10000 bp; it wins over
+# @description           the cloud rules, and with COST_SPLIT_CLOUD_PREFIX
+# @description           unset only the routed items are planned
 # @description   tokens  COST_SPLIT_TOKENS, the split of every paid AI item
 # @description           (PUT /v1/operator/cost-splits)
 # @description   persons COST_SPLIT_PERSONS, one split per hr person code
@@ -20,19 +25,23 @@
 # @param ENV (required) - dev or prd
 # @param COST_SPLIT_OPERATOR (optional) - the operator workspace id; default t1
 # @param COST_SPLIT_OTHER (optional) - the workspace of every other cloud item; default csitea
-# @param COST_SPLIT_CLOUD_PREFIX (optional) - the operator's cost line projects; default csi-spl-; "" = no cloud step
+# @param COST_SPLIT_CLOUD_PREFIX (optional) - the operator's cost line projects; default csi-spl- (none with COST_SPLIT_ROUTE); "" = no cloud step
+# @param COST_SPLIT_ROUTE (optional) - "<prefix>:<ws>", the cost line projects routed to one workspace; "" = no route
 # @param COST_SPLIT_FROM (optional) - the first month read, YYYY-MM; default 2024-07
 # @param COST_SPLIT_TO (optional) - the last month read, YYYY-MM; default this month (UTC)
 # @param COST_SPLIT_TOKENS (optional) - "<ws>=<bp>,<ws>=<bp>", summing to 10000; "" = no tokens step
 # @param COST_SPLIT_PERSONS (optional) - "<code>:<ws>=<bp>,<ws>=<bp>;<code>:..."; "" = no person step
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd COST_SPLIT_TOKENS=t1=7000,csitea=3000 ./run -a do_spl_cost_split_apply
+# @example ENV=prd COST_SPLIT_ROUTE=cust-a-:ws-a COST_SPLIT_FROM=2026-01 ./run -a do_spl_cost_split_apply
 # @example ENV=prd COST_SPLIT_PERSONS='E-01:t1=7000,csitea=3000' DRY_RUN=0 ./run -a do_spl_cost_split_apply
 #------------------------------------------------------------------------------
 do_spl_cost_split_apply() {
   do_require_bin jq curl gcloud || return 1
   local op="${COST_SPLIT_OPERATOR:-t1}" other="${COST_SPLIT_OTHER:-csitea}" dry=1
   local prefix="${COST_SPLIT_CLOUD_PREFIX-csi-spl-}" from="${COST_SPLIT_FROM:-2024-07}" to="${COST_SPLIT_TO:-$(date -u +%Y-%m)}"
+  # SPL-6301: a route alone plans the routed items only
+  [[ -n "${COST_SPLIT_ROUTE:-}" && -z "${COST_SPLIT_CLOUD_PREFIX+set}" ]] && prefix=""
   _spl_cost_split_args "$op" "$other" "$from" "$to" || return 1
   if spl_dry_run; then dry=1; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   do_spl_cloud_cnf || return 1
@@ -51,10 +60,12 @@ _spl_cost_split_run() {
   local tmp="$1" op="$2" other="$3" prefix="$4" from="$5" to="$6" dry="$7"
   _spl_cost_split_get /v1/operator/cost-splits "$tmp/splits.json" || return 1
   local ws; for ws in "$op" "$other"; do _spl_cost_split_live "$tmp/splits.json" "$ws" || return 1; done
+  local route="${COST_SPLIT_ROUTE:-}"
+  [[ -z "$route" ]] || _spl_cost_split_live "$tmp/splits.json" "${route#*:}" || return 1
   : >"$tmp/puts"
-  if [[ -n "$prefix" ]]; then
+  if [[ -n "$prefix" || -n "$route" ]]; then
     _spl_cost_split_items "$tmp" "$from" "$to" || return 1
-    _spl_cost_split_cloud_plan "$tmp/items.json" "$op" "$other" "$prefix" >>"$tmp/puts" || return 1
+    _spl_cost_split_cloud_plan "$tmp/items.json" "$op" "$other" "$prefix" "$route" >>"$tmp/puts" || return 1
   fi
   if [[ -n "${COST_SPLIT_TOKENS:-}" ]]; then
     _spl_cost_split_body tokens "" "$COST_SPLIT_TOKENS" "$tmp/splits.json" >>"$tmp/puts" || return 1
@@ -83,6 +94,8 @@ _spl_cost_split_args() {
     [[ "$m" =~ ^[0-9]{4}-(0[1-9]|1[0-2])$ ]] || { do_log "FATAL COST_SPLIT_FROM and COST_SPLIT_TO must be months YYYY-MM"; return 1; }
   done
   [[ ! "$3" > "$4" ]] || { do_log "FATAL COST_SPLIT_FROM is after COST_SPLIT_TO"; return 1; }
+  [[ -z "${COST_SPLIT_ROUTE:-}" || "${COST_SPLIT_ROUTE}" =~ ^[a-z0-9][a-z0-9-]{0,59}:[A-Za-z0-9._-]{1,64}$ ]] \
+    || { do_log "FATAL COST_SPLIT_ROUTE is <prefix>:<ws>, the prefix [a-z0-9-] (a GCP project id start)"; return 1; }
   [[ -z "${COST_SPLIT_TOKENS:-}" ]] || _spl_cost_split_shares "${COST_SPLIT_TOKENS}" >/dev/null || return 1
   local p
   while IFS= read -r p; do
@@ -139,22 +152,38 @@ _spl_cost_split_items() {
   do_log "OK read $months month(s): $(jq length "$tmp/items.json") Cloud item(s)"
 }
 
-# _spl_cost_split_cloud_plan ITEMS OP OTHER PREFIX -> one PUT line per item
-# whose split is not already its rule's; logs the counts per rule
+# _spl_cost_split_cloud_plan ITEMS OP OTHER PREFIX [ROUTE] -> one PUT line
+# per item whose split is not already its rule's; logs the counts per rule.
+# ROUTE "<prefix>:<ws>" (SPL-6301) wins over the rules for a cost line; with
+# PREFIX "" only the routed items are planned; a route that matches no item
+# is FATAL.
 _spl_cost_split_cloud_plan() {
-  jq -r --arg op "$2" --arg other "$3" --arg pre "$4" '
+  local route="${5:-}" rp="" rw=""
+  [[ -n "$route" ]] && rp="${route%%:*}" rw="${route#*:}"
+  jq -r --arg op "$2" --arg other "$3" --arg pre "$4" --arg rp "$rp" --arg rw "$rw" '
     def rule: if .source == "cost_entry" then "cloud-entry"
+      elif ($rp != "" and (.project_or_vendor | startswith($rp))) then "line-route"
       elif (.project_or_vendor | startswith($pre)) then "line-prefix" else "line-other" end;
-    def ws: if rule == "line-prefix" then $op else $other end;
-    .[] | . as $i | ($i | rule) as $r | ($i | ws) as $w
+    def ws: if rule == "line-route" then $rw elif rule == "line-prefix" then $op else $other end;
+    .[] | . as $i | ($i | rule) as $r | select($pre != "" or $r == "line-route") | ($i | ws) as $w
     | if ($i.shares == [{workspace_id: $w, share_bp: 10000}]) then "SKIP\t\($r)"
       else "PUT\t\($r)\t" + ({source, project_or_vendor, kind, shares: [{workspace_id: $w, share_bp: 10000}]} | tojson) end
   ' "$1" >"$1.plan" || return 1
-  local r
-  for r in line-prefix line-other cloud-entry; do
-    do_log "PLAN cloud rule=$r -> $([[ $r == line-prefix ]] && echo "$2" || echo "$3"): items=$(grep -c "^PUT	$r	" "$1.plan") already=$(grep -c "^SKIP	$r$" "$1.plan")" >&2
+  local r rules=(line-prefix line-other cloud-entry)
+  [[ -n "$4" ]] || rules=()
+  [[ -z "$rp" ]] || rules=(line-route "${rules[@]}")
+  for r in "${rules[@]}"; do
+    do_log "PLAN cloud rule=$r -> $(_spl_cost_split_rule_ws "$r" "$2" "$3" "$rw"): items=$(grep -c "^PUT	$r	" "$1.plan") already=$(grep -c "^SKIP	$r$" "$1.plan")" >&2
   done
+  if [[ -n "$rp" ]] && ! grep -qE "^(PUT|SKIP)	line-route" "$1.plan"; then
+    do_log "FATAL COST_SPLIT_ROUTE prefix $rp matches no Cloud cost line item of the months read" >&2; return 1
+  fi
   awk -F'\t' '$1 == "PUT" { print "/v1/operator/cost-allocations\t" $3 }' "$1.plan"
+}
+
+# _spl_cost_split_rule_ws RULE OP OTHER ROUTE_WS -> the workspace of RULE
+_spl_cost_split_rule_ws() {
+  case "$1" in line-route) echo "$4" ;; line-prefix) echo "$2" ;; *) echo "$3" ;; esac
 }
 
 # _spl_cost_split_body KIND SUBJECT SHARES SPLITS_JSON [LABEL] -> the PUT line

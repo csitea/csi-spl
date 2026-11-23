@@ -14,8 +14,18 @@
 #      after the reads, before any PUT
 #   5. a refused PUT fails the run and names the HTTP and error code only
 #   6. a split already in force is not sent again
+#   7. SPL-6301 (costs-allocation.md 7.8) COST_SPLIT_ROUTE alone: only the
+#      routed cost lines are planned and sent, an item already routed is
+#      skipped, no other item is PUT (a cost entry with the prefix in its
+#      label is not a cost line)
+#   8. a route with COST_SPLIT_CLOUD_PREFIX: the full cloud step, the routed
+#      items take the route, not the other workspace
+#   9. a route prefix that matches nothing, a route workspace that is not
+#      live: FATAL after the reads, no PUT; a malformed route: no call
 # RED CONTROL: case 1 fails when the dry-run guard in _spl_cost_split_run is
-# dropped (the call file then holds PUTs).
+# dropped (the call file then holds PUTs). Case 7 fails on origin/master
+# de4090a46 (COST_SPLIT_ROUTE unknown: the full cloud step PUTs 3 items and
+# moves the routed cust-a-dev back to csitea).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -49,7 +59,7 @@ run() {
       echo "hub $1 $2 ${3:-}" >>"$CALLS"; SPL_HUB_OP_STATUS=200
       case "$1 $2" in
         "GET /v1/operator/cost-splits") SPL_HUB_OP_BODY="${STUB_SPLITS:-$SPLITS}" ;;
-        "GET /v1/operator/cost-allocations"*) SPL_HUB_OP_BODY="$MONTH" ;;
+        "GET /v1/operator/cost-allocations"*) SPL_HUB_OP_BODY="${STUB_MONTH:-$MONTH}" ;;
         "GET /v1/operator/cost-entries"*) SPL_HUB_OP_BODY="$HR" ;;
         PUT*) SPL_HUB_OP_STATUS="${STUB_PUT_CODE:-200}"; SPL_HUB_OP_BODY="{\"error\":\"bad_cost_split\",\"message\":\"SecretDetail\"}" ;;
       esac
@@ -109,6 +119,37 @@ IN_FORCE='{"splits":[{"split_kind":"tokens","subject":"","shares":[{"workspace_i
 run STUB_SPLITS="$IN_FORCE" COST_SPLIT_CLOUD_PREFIX= COST_SPLIT_TOKENS=t1=7000,csitea=3000 DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && ! grep -q '^hub PUT' "$T/calls" && ! grep -q 'cost-allocations' "$T/calls" && grep -qF 'PLAN split tokens: already in force' "$T/o" \
   && pass "6. a split in force and no cloud step: nothing sent" || fail "6. in force: rc=$rc $(cat "$T/calls" "$T/o")"
+
+# --- 7..9. SPL-6301: a project prefix routed to one workspace -------------------
+RSPLITS='{"splits":[],"people":[],"workspaces":[{"id":"t1"},{"id":"csitea"},{"id":"ws-a"}]}'
+RMONTH='{"month":"x","items":[
+ {"source":"gcp","project_or_vendor":"csi-spl-prd","kind":"run","label":"cloud","usd_micros":7,"shares":[]},
+ {"source":"gcp","project_or_vendor":"other-proj","kind":"run","label":"cloud","usd_micros":7,"shares":[{"workspace_id":"csitea","share_bp":10000}]},
+ {"source":"gcp","project_or_vendor":"cust-a-prd","kind":"run","label":"cloud","usd_micros":7,"shares":[{"workspace_id":"csitea","share_bp":10000}]},
+ {"source":"gcp","project_or_vendor":"cust-a-dev","kind":"run","label":"cloud","usd_micros":7,"shares":[{"workspace_id":"ws-a","share_bp":10000}]},
+ {"source":"cost_entry","project_or_vendor":"cust-a-invoice","kind":"cloud","label":"cloud","usd_micros":7,"shares":[]}],"workspaces":[]}'
+ROUTE_PUT='hub PUT /v1/operator/cost-allocations {"source":"gcp","project_or_vendor":"cust-a-prd","kind":"run","shares":[{"workspace_id":"ws-a","share_bp":10000}]}'
+run STUB_SPLITS="$RSPLITS" STUB_MONTH="$RMONTH" COST_SPLIT_ROUTE=cust-a-:ws-a DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && $(grep -c '^hub PUT' "$T/calls") -eq 1 ]] && grep -qxF "$ROUTE_PUT" "$T/calls" \
+  && grep -qF 'PLAN cloud rule=line-route -> ws-a: items=1 already=1' "$T/o" && ! grep -q 'rule=line-other' "$T/o" \
+  && grep -qF 'OK dev: PUT sent=1 ok=1 refused=0' "$T/o" \
+  && pass "7. a route alone: the one routed line sent, no other item" || fail "7. route: rc=$rc $(cat "$T/calls" "$T/o")"
+run STUB_SPLITS="$RSPLITS" STUB_MONTH="$RMONTH" COST_SPLIT_ROUTE=cust-a-:ws-a COST_SPLIT_CLOUD_PREFIX=csi-spl- DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && $(grep -c '^hub PUT' "$T/calls") -eq 3 ]] && grep -qxF "$ROUTE_PUT" "$T/calls" \
+  && grep -qF '"project_or_vendor":"csi-spl-prd","kind":"run","shares":[{"workspace_id":"t1"' "$T/calls" \
+  && grep -qF '"project_or_vendor":"cust-a-invoice","kind":"cloud","shares":[{"workspace_id":"csitea"' "$T/calls" \
+  && grep -qF 'PLAN cloud rule=line-other -> csitea: items=0 already=1' "$T/o" \
+  && pass "8. a route with the cloud step: routed lines to the route, the rest by the rules" || fail "8. route+cloud: rc=$rc $(cat "$T/calls" "$T/o")"
+run STUB_SPLITS="$RSPLITS" STUB_MONTH="$RMONTH" COST_SPLIT_ROUTE=zzz-:ws-a DRY_RUN=0; rc=$?
+[[ $rc -ne 0 ]] && ! grep -q '^hub PUT' "$T/calls" && grep -qF 'FATAL COST_SPLIT_ROUTE prefix zzz- matches no Cloud cost line item' "$T/o" \
+  && pass "9. a route prefix that matches nothing: FATAL, no PUT" || fail "9. no match: rc=$rc $(cat "$T/calls" "$T/o")"
+run STUB_SPLITS="$RSPLITS" STUB_MONTH="$RMONTH" COST_SPLIT_ROUTE=cust-a-:gone DRY_RUN=0; rc=$?
+[[ $rc -ne 0 ]] && ! grep -q '^hub PUT' "$T/calls" && grep -qF 'FATAL workspace gone is not a live workspace' "$T/o" \
+  && pass "9. a route workspace that is not live: FATAL, no PUT" || fail "9. route ws: rc=$rc $(cat "$T/calls" "$T/o")"
+for bad in COST_SPLIT_ROUTE=cust-a- COST_SPLIT_ROUTE=:ws-a 'COST_SPLIT_ROUTE=CUST*:ws-a'; do
+  run "$bad"; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'FATAL COST_SPLIT_ROUTE' "$T/o" && pass "9. $bad refused, no call" || fail "9. $bad: rc=$rc $(cat "$T/calls" "$T/o")"
+done
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

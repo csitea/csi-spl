@@ -1,6 +1,8 @@
 # Costs: a cost assigned or split to workspaces by hand (SPL-5291)
 
-Status: **v0.6 (SPL-6301, 2026-11-23): section 7.7 adds a tokens split
+Status: **v0.7 (SPL-6323, 2026-11-23): section 7.8, the route is safe by
+default: a plain cloud run keeps a cost line already routed.** v0.6
+(SPL-6301, 2026-11-23): section 7.7 adds a tokens split
 of one vendor over a month range (split kind `tokens_vendor`), and section
 7.8 routes one project prefix to one workspace without moving any other
 item.** v0.5 (SPL-5768, 2026-11-17): section 7 adds the instance's
@@ -390,9 +392,19 @@ the item split of section 2 (no new storage).
 - It refuses a prefix that matches no item of the range, a route whose
   workspace is not live, and a malformed spec. The dry run (the default)
   logs `PLAN cloud rule=line-route -> <ws>: items=<n> already=<n>`.
+- **Safe by default (v0.7, SPL-6323).** The route lives in no file, so a
+  later run without `COST_SPLIT_ROUTE` must not undo it. The cloud step
+  keeps a cost line whose split is wholly (10000) one workspace that is
+  neither `COST_SPLIT_OPERATOR` nor `COST_SPLIT_OTHER`: it was routed, and
+  no PUT moves it. The dry run logs
+  `PLAN cloud rule=line-kept: already routed=<n>`. The hub's split is the
+  memory of the route, so no cnf names a customer's project prefix. To
+  move such a line again, route it explicitly
+  (`COST_SPLIT_ROUTE='<prefix>:<ws>'`, which wins over the kept rule).
+  A cost entry is not a cost line and still goes by the cloud rules.
 
 A workspace with view rules ([costs-workspace-views.md](costs-workspace-views.md),
 SPL-6086, v0.1 draft) reads by its rules, and sections 2 and 7 are not
 applied to it (that page, 3.6).
 
-<!-- version: 0.6.0 · updated: 2026-11-23 -->
+<!-- version: 0.7.0 · updated: 2026-11-23 -->

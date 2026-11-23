@@ -22,10 +22,14 @@
 #      items take the route, not the other workspace
 #   9. a route prefix that matches nothing, a route workspace that is not
 #      live: FATAL after the reads, no PUT; a malformed route: no call
+#  10. SPL-6323 a plain cloud run (no COST_SPLIT_ROUTE) keeps a cost line
+#      already routed to a third workspace: no PUT moves it back to the
+#      other workspace; an explicit route still moves it
 # RED CONTROL: case 1 fails when the dry-run guard in _spl_cost_split_run is
 # dropped (the call file then holds PUTs). Case 7 fails on origin/master
 # de4090a46 (COST_SPLIT_ROUTE unknown: the full cloud step PUTs 3 items and
-# moves the routed cust-a-dev back to csitea).
+# moves the routed cust-a-dev back to csitea). Case 10 fails on origin/master
+# b09bdbeb6 (the plain run PUTs cust-a-dev to csitea).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -150,6 +154,19 @@ for bad in COST_SPLIT_ROUTE=cust-a- COST_SPLIT_ROUTE=:ws-a 'COST_SPLIT_ROUTE=CUS
   run "$bad"; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'FATAL COST_SPLIT_ROUTE' "$T/o" && pass "9. $bad refused, no call" || fail "9. $bad: rc=$rc $(cat "$T/calls" "$T/o")"
 done
+
+# --- 10. SPL-6323: a plain cloud run keeps a routed line ------------------------
+run STUB_SPLITS="$RSPLITS" STUB_MONTH="$RMONTH" DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && $(grep -c '^hub PUT' "$T/calls") -eq 2 ]] && ! grep -qF '"project_or_vendor":"cust-a-dev"' "$T/calls" \
+  && grep -qF '"project_or_vendor":"cust-a-invoice","kind":"cloud","shares":[{"workspace_id":"csitea"' "$T/calls" \
+  && grep -qF 'PLAN cloud rule=line-kept: already routed=1' "$T/o" \
+  && grep -qF 'PLAN cloud rule=line-other -> csitea: items=0 already=2' "$T/o" \
+  && ! grep -qF 'ws-a' "$T/o" \
+  && pass "10. a plain cloud run: the routed line kept, no PUT moves it" || fail "10. plain run: rc=$rc $(cat "$T/calls" "$T/o")"
+run STUB_SPLITS="$RSPLITS" STUB_MONTH="$RMONTH" COST_SPLIT_ROUTE=cust-a-dev:csitea DRY_RUN=0; rc=$?
+[[ $rc -eq 0 && $(grep -c '^hub PUT' "$T/calls") -eq 1 ]] \
+  && grep -qxF 'hub PUT /v1/operator/cost-allocations {"source":"gcp","project_or_vendor":"cust-a-dev","kind":"run","shares":[{"workspace_id":"csitea","share_bp":10000}]}' "$T/calls" \
+  && pass "10. an explicit route still moves a routed line" || fail "10. re-route: rc=$rc $(cat "$T/calls" "$T/o")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

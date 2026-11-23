@@ -16,6 +16,9 @@
 # @description           with <prefix> goes to <ws> at 10000 bp; it wins over
 # @description           the cloud rules, and with COST_SPLIT_CLOUD_PREFIX
 # @description           unset only the routed items are planned
+# @description           a plain cloud run keeps a cost line already wholly at
+# @description           a third workspace (routed earlier), never moves it
+# @description           back to COST_SPLIT_OTHER (SPL-6323, 7.8)
 # @description   tokens  COST_SPLIT_TOKENS, the split of every paid AI item
 # @description           (PUT /v1/operator/cost-splits)
 # @description   persons COST_SPLIT_PERSONS, one split per hr person code
@@ -156,23 +159,28 @@ _spl_cost_split_items() {
 # per item whose split is not already its rule's; logs the counts per rule.
 # ROUTE "<prefix>:<ws>" (SPL-6301) wins over the rules for a cost line; with
 # PREFIX "" only the routed items are planned; a route that matches no item
-# is FATAL.
+# is FATAL. A cost line wholly at a workspace that is neither OP nor OTHER
+# was routed: line-kept, never planned (SPL-6323).
 _spl_cost_split_cloud_plan() {
   local route="${5:-}" rp="" rw=""
   [[ -n "$route" ]] && rp="${route%%:*}" rw="${route#*:}"
   jq -r --arg op "$2" --arg other "$3" --arg pre "$4" --arg rp "$rp" --arg rw "$rw" '
     def rule: if .source == "cost_entry" then "cloud-entry"
       elif ($rp != "" and (.project_or_vendor | startswith($rp))) then "line-route"
+      elif ((.shares | length) == 1 and .shares[0].share_bp == 10000
+        and .shares[0].workspace_id != $op and .shares[0].workspace_id != $other) then "line-kept"
       elif (.project_or_vendor | startswith($pre)) then "line-prefix" else "line-other" end;
     def ws: if rule == "line-route" then $rw elif rule == "line-prefix" then $op else $other end;
     .[] | . as $i | ($i | rule) as $r | select($pre != "" or $r == "line-route") | ($i | ws) as $w
-    | if ($i.shares == [{workspace_id: $w, share_bp: 10000}]) then "SKIP\t\($r)"
+    | if $r == "line-kept" then "SKIP\t\($r)"
+      elif ($i.shares == [{workspace_id: $w, share_bp: 10000}]) then "SKIP\t\($r)"
       else "PUT\t\($r)\t" + ({source, project_or_vendor, kind, shares: [{workspace_id: $w, share_bp: 10000}]} | tojson) end
   ' "$1" >"$1.plan" || return 1
-  local r rules=(line-prefix line-other cloud-entry)
+  local r rules=(line-prefix line-other cloud-entry line-kept)
   [[ -n "$4" ]] || rules=()
   [[ -z "$rp" ]] || rules=(line-route "${rules[@]}")
   for r in "${rules[@]}"; do
+    [[ $r == line-kept ]] && { do_log "PLAN cloud rule=line-kept: already routed=$(grep -c "^SKIP	line-kept$" "$1.plan")" >&2; continue; }
     do_log "PLAN cloud rule=$r -> $(_spl_cost_split_rule_ws "$r" "$2" "$3" "$rw"): items=$(grep -c "^PUT	$r	" "$1.plan") already=$(grep -c "^SKIP	$r$" "$1.plan")" >&2
   done
   if [[ -n "$rp" ]] && ! grep -qE "^(PUT|SKIP)	line-route" "$1.plan"; then

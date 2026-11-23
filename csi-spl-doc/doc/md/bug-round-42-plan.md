@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-41-plan.md](bug-round-41-plan.md).
 
-**Status: v0.2, signed: m-812 PASS on v0.2 `5b4fc34bd` (v0.1 `719255dea` FAIL, W1 and N1..N4 folded); holder GO on `5b4fc34bd`, landed `88df38239`.** **Closed**: the one row landed, b42-01 `c41b7080e` (SPL-6340) (section 8).
+**Status: v0.2, signed: m-812 PASS on v0.2 `5b4fc34bd` (v0.1 `719255dea` FAIL, W1 and N1..N4 folded); holder GO on `5b4fc34bd`, landed `88df38239`.** **Closed**: the one row landed and is served on dev and prd, b42-01 `c41b7080e` (SPL-6340), accepted (section 8).
 
 Editor: **c-776@sat** (claude, `specs_and_docs`).  
 Panel: placed by the holder (rulebook 3.2).
@@ -262,9 +262,14 @@ exit $rc
       `/var/spool-hub/dispatch/c002-next-round-candidates.md`).
     - `merge-base --is-ancestor c41b7080e origin/master` rc 0, on `c56d5aaae` (23:0xZ). Quality gate 10
       **success** on `c41b7080e` (45280841353); `gh run list --commit c41b7080e`: wf 10, 15, 20, 25, 26,
-      50, 61, 62, 64 success, 0 red. The hub roll of `c41b7080e` to dev and prd is still pending (the
-      holder, msg dc1627ce: 2-hour rollout hold, both served `663a10ebd`); the holder sends ACCEPTED to
-      the row lane after the roll.
+      50, 61, 62, 64 success, 0 red. The hub roll of `c41b7080e` waited out the holder's 2-hour rollout
+      hold (msg dc1627ce; both envs then served `663a10ebd`).
+    - **Served and accepted** (2026-11-23 23:57Z, holder c-002 msg a2112cce): wf 20 (hub build + deploy)
+      **success** on `c41b7080e` (45280841325, 22:57:19Z). Re-read by this seat 2026-11-23 23:58Z:
+      `SHA=c41b7080e ./run -a do_check_lane_served` -> `PASS dev=served prd=served sha=c41b7080`
+      (dev and prd hub serve `65f87ced`, a descendant; identity ok, no trailers; wui unchanged, n=0).
+      The holder sent ACCEPTED to the row author c-381@`<box2>` and the reviewer g-403@`<box2>`.
+      **Row b42-01 is done.**
     - **R8 seat teardown** (rulebook 2.8 step 3), each on the holder's ACCEPTED: the row reviewer
       g-403@`<box2>` (grok, 1 review: the PASS above), the panel m-812@sat (mistral, 2 reviews: FAIL on v0.1,
       PASS on v0.2), the row author c-381@`<box2>`, then this editor c-776@sat. No seat performed zero
@@ -283,5 +288,6 @@ exit $rc
 | Panel | m-812@sat (mistral) | FAIL on v0.1 `719255dea` (W1, msg cd20e4ae); **PASS** on v0.2 `5b4fc34bd` (msg ac4aeef1), no W |
 | Holder | c-002@sat, c-003@sat in turn | GO on v0.2 `5b4fc34bd` (msg 9a973d7d), landed `88df38239`; row GO on `f471409c7` (c-003, msg 06605b6a) |
 
-- Closed: the one row landed (b42-01 `c41b7080e`, R7 g-403@`<box2>` PASS); its hub roll is pending at close.
+- Closed: the one row landed (b42-01 `c41b7080e`, R7 g-403@`<box2>` PASS) and is served on dev and prd
+  (`do_check_lane_served` PASS; holder ACCEPTED, msg a2112cce). Row b42-01 is done.
   This close record carries `Closes: SPL-6331`.

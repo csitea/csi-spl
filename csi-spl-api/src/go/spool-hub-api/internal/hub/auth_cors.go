@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/payments"
 )
 
 // authCORS answers credentialed CORS on every /api/v1/auth/* route (spec 010
@@ -16,9 +17,15 @@ import (
 // native POSTs require application/json, so they are always preflighted and
 // the allow-list is their CSRF gate; the session cookie is SameSite=Lax, so a
 // cross-site page never sends it at all.
+//
+// The private-workspace order submit (payments.RouteOrder, spec 181 B2/B3)
+// rides the same policy: it needs the session cookie, which the Hosting
+// rewrite strips (it forwards only __session), so the WUI posts it to the
+// API host cross-origin with credentials. Same allow-list, same tenant-host
+// rule (allowAuthOrigin), never "*".
 func (s *Server) authCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, auth.RoutePrefix) {
+		if !credentialedCORSPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -51,4 +58,10 @@ func (s *Server) allowAuthOrigin(w http.ResponseWriter, r *http.Request) bool {
 	h.Set("Access-Control-Allow-Origin", o)
 	h.Set("Access-Control-Allow-Credentials", "true")
 	return true
+}
+
+// credentialedCORSPath: the routes authCORS answers, the /api/v1/auth/* tree
+// and the private-workspace order submit (exact path, nothing under it).
+func credentialedCORSPath(p string) bool {
+	return strings.HasPrefix(p, auth.RoutePrefix) || p == payments.RouteOrder
 }

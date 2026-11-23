@@ -230,7 +230,18 @@ func (h *Handler) plan(w http.ResponseWriter, _ *http.Request) {
 	if h.cfg.Dedicated {
 		out["dedicated"] = true
 	}
+	out["private_workspace"] = privateWorkspacePrice()
 	writeJSON(w, http.StatusOK, out)
+}
+
+// privateWorkspacePrice is the private-workspace price (spec 181 4.1 step 2):
+// the plan read shows it before the order, and the order submit's reply
+// repeats it, both from this one map of the store constants (B1). It carries
+// no VM cost estimate: no machine type or monthly price for the private VM is
+// settled yet (spec 122 RQ-3 is open), so the field is absent, never a guessed number.
+func privateWorkspacePrice() map[string]any {
+	return map[string]any{"currency": store.PlanCurrency,
+		"seat_member_cents": store.PrivateVMSeatCents, "vm_margin_pct": store.PrivateVMMarginPct}
 }
 
 func newCheckoutID() (string, error) {
@@ -426,10 +437,13 @@ func (h *Handler) submitOrder(w http.ResponseWriter, r *http.Request) {
 		h.d.Log.Info().Str("order_id", o.ID).Str("tenant_id", o.TenantID).Str("to", mail.Digest(o.Email)).
 			Msg("order: private workspace created, no payment provider called")
 	}
-	writeJSON(w, status, map[string]any{"order_id": o.ID, "tenant_id": o.TenantID, "status": o.Status,
+	out := map[string]any{"order_id": o.ID, "tenant_id": o.TenantID, "status": o.Status,
 		"seats_users": o.SeatsUsers, "email": o.Email, "tenant_url": h.tenantURL(o.TenantID), "replayed": !created,
-		"currency": store.PlanCurrency, "seat_member_cents": store.PrivateVMSeatCents, "vm_margin_pct": store.PrivateVMMarginPct,
-		"invoice": "monthly_in_arrears", "payment": "bank_transfer"})
+		"invoice": "monthly_in_arrears", "payment": "bank_transfer"}
+	for k, v := range privateWorkspacePrice() {
+		out[k] = v
+	}
+	writeJSON(w, status, out)
 }
 
 // orderEmail is the order's owner email: the signed-in person's (spec 181

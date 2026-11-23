@@ -230,6 +230,28 @@ Only when cnf prices a seat kind (`SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` /
   (rdb 0016) and, dedicated, `project_id` = `{org}-{app}-{env}-{YYYYMMDDHHmm}`
   at the paid minute (a clash → the next minute, then a nonce).
 
+### 1.10 The private-workspace order (spec 181 B2, SPL-6339; additive)
+
+- `GET /plan` always adds `private_workspace`:
+  `{"currency": "EUR", "seat_member_cents": 900, "vm_margin_pct": 33}`, from
+  the store constants `store.PlanCurrency`, `store.PrivateVMSeatCents` and
+  `store.PrivateVMMarginPct` (B1, `internal/store/price_plans.go`). The order
+  submit's answer carries the same three keys from the same map
+  (`privateWorkspacePrice`, `internal/payments/handler.go`), so the price
+  shown before the order is the one it takes
+  (`TestPlanShowsPrivateWorkspacePrice`).
+- No VM cost estimate field: no machine type or monthly price for the
+  private VM is settled yet (spec 122 RQ-3 is open). The field is absent, not null.
+- `POST /private-workspace` needs the session cookie, which the Hosting
+  rewrite does not forward, so the WUI posts it to the API host
+  cross-origin with `credentials: 'include'`. That path (exact, and its
+  `OPTIONS` preflight) takes the credentialed CORS of `/api/v1/auth/*`
+  (`authCORS`, `internal/hub/auth_cors.go`): an allow-listed origin
+  (`SPOOL_HUB_VIEW_CORS_ORIGINS`) or a tenant host of this env gets the
+  origin echoed and `Access-Control-Allow-Credentials: true`; any other
+  origin gets no CORS header; never `*` (`TestOrderSubmitCredentialedCORS`).
+  The rest of `/api/v1/checkout` keeps its credential-less policy.
+
 ## 2. Success page flow (WUI)
 
 1. Plan page: `GET …/plan` → price; slug + email form → `POST …/checkout`.

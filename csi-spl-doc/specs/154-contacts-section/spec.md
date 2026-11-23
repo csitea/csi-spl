@@ -220,6 +220,20 @@ consent screen. Contacts adds one scope; it is not a second login:
    the 409. Never `INSERT … ON CONFLICT (human_id) DO UPDATE`: against a
    binding in another workspace, invisible from W, that raises an RLS
    error (42501), not 23505 (seat note N5).
+   **Off frees it (SPL-6279).** A binding that is off in W1 no longer
+   holds the person: on that 23505, one transaction under the operator
+   scope, keyed by the session's own person and workspace, deletes the
+   person's binding in another workspace only while it is off, then
+   inserts W's. A binding that is on stays and the answer is the 409; an
+   insert refused for want of a seat or a connection in W (23503) rolls
+   the delete back. Why this and not a delete on switch-off: off then on
+   in the same workspace keeps the binding's `sync_token` and
+   `out_cursor`, and the erase (C8e) still leaves the binding off. The
+   moved binding starts empty, so 2.5's first-sync rules re-link the list
+   (a full list, link by account and resource or email, no deletes). The
+   W1 binding's `sync_token`, `out_cursor`, `last_synced_at` and
+   `status_detail` go with it. Test: `TestContactsSyncOffFreesBinding`
+   (`store/contacts_sync_test.go`, memory and Postgres).
 4. Turning contacts off in settings stops the contacts sync and keeps the
    connection; disconnect (149 2.4) ends both.
 5. **Leaving W ends W's binding, never the list.** `contacts_sync`
@@ -776,7 +790,9 @@ Key choices:
   person" rule (2.2 step 3). A unique violation is not hidden by RLS, so a
   second binding in another workspace is refused even though that row is
   invisible, and the hub maps the violation to 409
-  `contacts_sync_elsewhere`.
+  `contacts_sync_elsewhere`, unless that binding is off: then the store
+  replaces it under the operator scope (2.2 step 3, SPL-6279; no
+  migration).
 - `contacts_sync` has two FKs on `(tenant_id, human_id)`: to
   `gcal_connections` (`UNIQUE (tenant_id, human_id)`, `0217:40`) and to
   `tenant_memberships` (its primary key, 1.2 row 31). Disconnect and leave

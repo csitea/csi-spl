@@ -60,9 +60,10 @@ func (s *Memory) SetContactsSync(_ context.Context, tenant, human string, enable
 	if !enabled {
 		return ContactsSync{}, ErrNotFound
 	}
-	// Postgres raises the unique violation before the foreign keys.
+	// Postgres raises the unique violation before the foreign keys; a
+	// binding elsewhere that is off is replaced, as takeContactsSyncOff.
 	binds := s.contactsLocked().binds
-	if binds[human] != nil {
+	if old := binds[human]; old != nil && old.Enabled {
 		return ContactsSync{}, ErrContactsSyncElsewhere
 	}
 	s.hum.init()

@@ -83,7 +83,54 @@ func TestContactsSyncBinding(t *testing.T) {
 	})
 }
 
-// TestContactsC2ePurgeThroughStore is C2e: PurgeDeletedContacts deletes
+// TestContactsSyncOffFreesBinding is spec 2.2 step 3's "must be turned off
+// there first" (SPL-6279): a binding that is off in W1 no longer blocks the
+// switch in W2, which takes a fresh binding (2.5's first-sync rules) and
+// ends W1's; one that is on still does (the twin, C7d). A switch-on that
+// fails for want of a seat keeps the binding that is off.
+func TestContactsSyncOffFreesBinding(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, _ := realmPersons()
+		f.addHuman(t, p1)
+		w1, w2, w3 := f.newTenant(t), f.newTenant(t), f.newTenant(t)
+		f.seat(t, w1, p1)
+		f.seat(t, w2, p1)
+		if _, err := f.st.SetContactsSync(ctx, w1, p1, true, now); err != nil {
+			t.Fatalf("on in W1: %v", err)
+		}
+		if _, err := f.st.SetContactsSync(ctx, w1, p1, false, now); err != nil {
+			t.Fatalf("off in W1: %v", err)
+		}
+		if _, err := f.st.SetContactsSync(ctx, w3, p1, true, now); !errors.Is(err, ErrNotFound) {
+			t.Errorf("on in W3, no seat there: %v, want ErrNotFound", err)
+		}
+		if got, err := f.st.ContactsSyncOf(ctx, p1); err != nil || got.Tenant != w1 || got.Enabled {
+			t.Errorf("W1's binding after the refusal in W3: %+v (%v), want W1's, off", got, err)
+		}
+		later := now.Add(time.Minute)
+		b, err := f.st.SetContactsSync(ctx, w2, p1, true, later)
+		if err != nil || !b.Enabled || b.Tenant != w2 || b.SyncToken != "" || b.OutCursor != nil {
+			t.Fatalf("on in W2 after off in W1: %+v (%v), want a fresh binding in W2", b, err)
+		}
+		if _, err := f.st.ContactsSyncIn(ctx, w1, p1); !errors.Is(err, ErrNotFound) {
+			t.Errorf("W1's binding after W2 took it: %v, want ErrNotFound", err)
+		}
+		if got, err := f.st.ContactsSyncOf(ctx, p1); err != nil || got.Tenant != w2 || !got.Enabled {
+			t.Errorf("P1's binding from anywhere: %+v (%v), want W2's, on", got, err)
+		}
+		// twin: W2's binding is on, so W1's switch-on is refused.
+		if _, err := f.st.SetContactsSync(ctx, w1, p1, true, later); !errors.Is(err, ErrContactsSyncElsewhere) {
+			t.Errorf("twin: on in W1 while on in W2: %v, want ErrContactsSyncElsewhere", err)
+		}
+		if got, err := f.st.ContactsSyncIn(ctx, w2, p1); err != nil || !got.Enabled {
+			t.Errorf("twin: W2's binding after the refusal: %+v (%v), want unchanged", got, err)
+		}
+	})
+}
+
+// TestContactsC2ePurgeThroughStore is C2e:PurgeDeletedContacts deletes
 // every person's rows soft-deleted more than 30 days ago and names each
 // person once, pending only for a member's delete of a linked contact; rows
 // 29 days old and live rows stay. MarkContactsPurgePending then sets the

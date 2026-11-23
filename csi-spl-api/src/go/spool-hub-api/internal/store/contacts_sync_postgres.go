@@ -50,10 +50,17 @@ func (s *Postgres) ContactsSyncIn(ctx context.Context, tenant, human string) (Co
 	return out, contactsSyncPGErr(err)
 }
 
+// contactsSyncInsert makes the person's binding in tenant, enabled and due
+// now; a plain INSERT, never ON CONFLICT (human_id) (seat note N5).
+const contactsSyncInsert = `INSERT INTO contacts_sync (human_id, tenant_id, due_at, created_at, updated_at)
+	VALUES ($2, $1, $3, $3, $3) RETURNING ` + contactsSyncCols
+
 // SetContactsSync is ContactsSyncs.SetContactsSync: an UPDATE, then a plain
 // INSERT whose unique violation is the binding elsewhere. Never INSERT ...
 // ON CONFLICT (human_id): against a row invisible from tenant that raises
-// an RLS error, not 23505 (spec 2.2 step 3, seat note N5).
+// an RLS error, not 23505 (spec 2.2 step 3, seat note N5). A binding
+// elsewhere that is off does not hold the person: takeContactsSyncOff
+// replaces it (SPL-6279).
 func (s *Postgres) SetContactsSync(ctx context.Context, tenant, human string, enabled bool, now time.Time) (ContactsSync, error) {
 	if err := checkPerson(human); err != nil {
 		return ContactsSync{}, err
@@ -67,8 +74,32 @@ func (s *Postgres) SetContactsSync(ctx context.Context, tenant, human string, en
 		if !errors.Is(err, pgx.ErrNoRows) || !enabled {
 			return err
 		}
-		out, err = scanContactsSync(tx.QueryRow(ctx, `INSERT INTO contacts_sync (human_id, tenant_id, due_at, created_at, updated_at)
-			VALUES ($2, $1, $3, $3, $3) RETURNING `+contactsSyncCols, tenant, human, now))
+		out, err = scanContactsSync(tx.QueryRow(ctx, contactsSyncInsert, tenant, human, now))
+		return err
+	})
+	if err = contactsSyncPGErr(err); errors.Is(err, ErrContactsSyncElsewhere) {
+		return s.takeContactsSyncOff(ctx, tenant, human, now)
+	}
+	return out, err
+}
+
+// takeContactsSyncOff is the switch-on in tenant when the person's binding
+// is in another workspace, invisible from tenant: under the operator scope,
+// one transaction deletes that binding only while it is off, then inserts
+// the new one. One that is on is ErrContactsSyncElsewhere, untouched; an
+// insert refused (no seat or Google connection in tenant, 23503) rolls the
+// delete back. Keyed by the session's own human and workspace.
+func (s *Postgres) takeContactsSyncOff(ctx context.Context, tenant, human string, now time.Time) (ContactsSync, error) {
+	var out ContactsSync
+	err := s.asOperator(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `DELETE FROM contacts_sync WHERE human_id = $1 AND tenant_id <> $2 AND NOT enabled`, human, tenant)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrContactsSyncElsewhere
+		}
+		out, err = scanContactsSync(tx.QueryRow(ctx, contactsSyncInsert, tenant, human, now))
 		return err
 	})
 	return out, contactsSyncPGErr(err)

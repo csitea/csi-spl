@@ -5,12 +5,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
+	"github.com/rs/zerolog"
 )
 
 // testDiscussion is the topic a store-level create in these tests links
@@ -201,5 +205,40 @@ func TestIssueBacklogPostedOnce(t *testing.T) {
 	st, err := e.st.(store.IssueDiscussions).DiscussionStates(ctx, tid, []string{store.IssueBacklogID(tid)})
 	if err != nil || st[store.IssueBacklogID(tid)].State != store.DiscussionLive || st[store.IssueBacklogID(tid)].Channel != store.ChannelLobby {
 		t.Fatalf("backlog topic = %v %v, want live in lobby", st, err)
+	}
+}
+
+// b40-01: two issues that link the backlog topic, created a clock second
+// apart, log no "issue backlog" error. The second post signs a newer
+// envelope, which the store answers with ErrConflict; the topic is already
+// there, so the post is a no-op. Red before the fix: 1 error line.
+func TestIssueBacklogSecondLinkLogsNoError(t *testing.T) {
+	logs := &logBuf{}
+	var clock atomic.Int64
+	clock.Store(fixtureAt().Unix())
+	e := rbacEnv(t, func(o *hub.Options) {
+		o.Log = zerolog.New(logs)
+		o.Now = func() time.Time { return time.Unix(clock.Load(), 0).UTC() }
+	})
+	tid, _ := e.tenant()
+	dev := seat(t, e, tid, rbac.Developer)
+	for i, title := range []string{"first", "second"} {
+		if code, out := call(t, e, tid, http.MethodPost, "/v1/issues", dev, map[string]any{"title": title}); code != http.StatusCreated {
+			t.Fatalf("create %d: %d %v", i, code, out)
+		}
+		clock.Add(1)
+	}
+	n := 0
+	for _, l := range strings.Split(logs.String(), "\n") {
+		if strings.Contains(l, `"level":"error"`) && strings.Contains(l, `"message":"issue backlog"`) {
+			n++
+		}
+	}
+	if n != 0 {
+		t.Fatalf("%d \"issue backlog\" error line(s) for a backlog topic already posted, want 0", n)
+	}
+	st, err := e.st.(store.IssueDiscussions).DiscussionStates(context.Background(), tid, []string{store.IssueBacklogID(tid)})
+	if err != nil || st[store.IssueBacklogID(tid)].State != store.DiscussionLive {
+		t.Fatalf("backlog topic = %v %v, want live", st, err)
 	}
 }

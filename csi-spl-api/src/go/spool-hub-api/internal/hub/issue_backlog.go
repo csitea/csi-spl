@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -48,8 +49,10 @@ func (s *Server) PostIssueBacklogs(ctx context.Context) int {
 }
 
 // postIssueBacklog stores tenant's backlog topic, signed as box-wui, in
-// #lobby. It reports whether this call wrote it; a second call is a no-op
-// insert.
+// #lobby. It reports whether this call wrote it; a second call is a no-op.
+// Its envelope is stamped now, so a later call differs from the stored one
+// and the store answers ErrConflict on the same msg_id: the topic is already
+// there, which is not an error (b40-01).
 func (s *Server) postIssueBacklog(ctx context.Context, tenant string) (bool, error) {
 	if len(s.o.WUIKey) == 0 {
 		return false, nil
@@ -74,6 +77,9 @@ func (s *Server) postIssueBacklog(ctx context.Context, tenant string) (bool, err
 		ReceivedAt: s.o.Now().Truncate(time.Microsecond), ExpiresAt: store.PublicNoticeExpires, IsParent: 1,
 	}
 	inserted, sentInOne, err := s.insertRow(ctx, row)
+	if errors.Is(err, store.ErrConflict) {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}

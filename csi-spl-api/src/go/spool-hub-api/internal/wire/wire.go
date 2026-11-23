@@ -161,6 +161,12 @@ const TBoxSamplePut = "box_sample_put"
 // binary gets no frame it would mis-route.
 const FeatureBoxSample = "box_sample"
 
+// FeatureBoxLiveV2 is the hello feature of a box client that answers
+// TBoxSample with spec 071 section 8's live snapshot: the htop header, df
+// per mount with its fstype and, from row T14, a fresh du (SPL-6318). A
+// FeatureBoxSample-only box still answers with its legacy sample.
+const FeatureBoxLiveV2 = "box_live_v2"
+
 // TAck is the box's live ack of one delivery to one agent (spec 053 §4.2):
 // MsgID the delivered message, Agent the local agent poked, Outcome what the
 // poke did. Fire and forget: the hub sends no reply. Not the spec 059 commit

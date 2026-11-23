@@ -51,8 +51,28 @@ func boxFixtures(t *testing.T) (dir string, s BoxSampler) {
 		}
 		return p
 	}
+	proc := filepath.Join(dir, "proc")
+	for _, e := range []string{"1", "42", "self"} {
+		if err := os.MkdirAll(filepath.Join(proc, e), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return dir, BoxSampler{Box: "sat", Loadavg: write("loadavg", boxFixLoadavg), Meminfo: write("meminfo", boxFixMeminfo),
-		CPUs: func() int { return 8 }, DF: func(context.Context) ([]byte, error) { return []byte(boxFixDF), nil }}
+		CPUs: func() int { return 8 }, DF: func(context.Context) ([]byte, error) { return []byte(boxFixDF), nil },
+		Stat: write("stat", boxFixStat1), Uptime: write("uptime", "12345.67 99.00\n"), Proc: proc,
+		CPUWait: func(context.Context, time.Duration) error { return nil }}
+}
+
+// boxFixStat1 is a /proc/stat; read twice unchanged it is 0 % busy.
+const boxFixStat1 = "cpu  1000 100 500 8000 200 50 50 100 40 0\n" +
+	"cpu0 500 50 250 4000 100 25 25 50 20 0\ncpu1 500 50 250 4000 100 25 25 50 20 0\n" +
+	"intr 12345 0 0\nctxt 999\n"
+
+// boxFixHeader adds the htop header that boxFixtures' files give to want.
+func boxFixHeader(want store.BoxStat) store.BoxStat {
+	cpu, swapTotal, uptime, total, running := 0.0, int64(1000), int64(12345), 2, 3
+	want.CPUPct, want.SwapTotalKB, want.UptimeS, want.TasksTotal, want.TasksRunning = &cpu, &swapTotal, &uptime, &total, &running
+	return want
 }
 
 func TestBoxSampleCollectFixture(t *testing.T) {
@@ -62,9 +82,9 @@ func TestBoxSampleCollectFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := store.BoxStat{Box: "sat", Load1: 2.5, Load5: 1.75, Load15: 0.47, CPUs: 8, MemTotalKB: 16000000,
+	want := boxFixHeader(store.BoxStat{Box: "sat", Load1: 2.5, Load5: 1.75, Load15: 0.47, CPUs: 8, MemTotalKB: 16000000,
 		MemAvailKB: 6000000, SwapUsedKB: 600, AgentsLive: 2, Disks: []store.BoxDisk{
-			{Mount: "/", TotalKB: 100, AvailKB: 40, UsedKB: 55}, {Mount: "/mnt/my data", TotalKB: 900, AvailKB: 500, UsedKB: 400}}}
+			{Mount: "/", TotalKB: 100, AvailKB: 40, UsedKB: 55}, {Mount: "/mnt/my data", TotalKB: 900, AvailKB: 500, UsedKB: 400}}})
 	if !reflect.DeepEqual(got.Stat, want) || !got.AgentsReported {
 		t.Fatalf("sample:\n got %+v reported=%v\nwant %+v reported=true", got.Stat, got.AgentsReported, want)
 	}
@@ -167,9 +187,15 @@ func TestBoxSampleLiveDefaults(t *testing.T) {
 	if why := store.CheckBoxStat(got.Stat); why != "" {
 		t.Fatalf("the hub would refuse the live sample: %s", why)
 	}
+	if got.Snapshot == nil || got.Stat.CPUPct == nil || got.Stat.UptimeS == nil || got.Stat.TasksTotal == nil || len(got.Snapshot.CPUCoresPct) == 0 {
+		t.Fatalf("live box: no htop header: %+v %+v", got.Stat, got.Snapshot)
+	}
+	if why := store.CheckBoxSnapshot(*got.Snapshot); why != "" {
+		t.Fatalf("the hub would refuse the live snapshot: %s", why)
+	}
 }
 
-// The default df run: the tick's argv, through exec, on a stub df.
+// The default df run: spec 8.3.1's argv, through exec, on a stub df.
 func TestBoxSampleRunDF(t *testing.T) {
 	dir := t.TempDir()
 	stub := filepath.Join(dir, "df")
@@ -182,15 +208,17 @@ func TestBoxSampleRunDF(t *testing.T) {
 		t.Fatalf("stub df: %q err %v", out, err)
 	}
 	argv, _ := os.ReadFile(filepath.Join(dir, "argv"))
-	if got := strings.TrimSpace(string(argv)); got != "-kP -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs" {
-		t.Fatalf("df argv %q, not the tick's", got)
+	if got := strings.TrimSpace(string(argv)); got != "-kPT" {
+		t.Fatalf("df argv %q, not spec 8.3.1's df -kPT", got)
 	}
 }
 
 // TestBoxSampleParityOut is the Go half of box-sample-parity.tst.sh: with
 // BOX_SAMPLE_PARITY_OUT set it collects from the tick's own fixture knobs
 // (LANE_LOADAVG, LANE_MEMINFO, LANE_NPROC, LANE_DF_CMD, LANE_BOX) and writes
-// the sample's JSON there. Without it there is nothing to compare: skipped.
+// the sample's JSON there, the tick's fields only: the htop header of row
+// T11 has no bash twin (the tick's collector is retired by row T12b).
+// Without it there is nothing to compare: skipped.
 func TestBoxSampleParityOut(t *testing.T) {
 	out := os.Getenv("BOX_SAMPLE_PARITY_OUT")
 	if out == "" {
@@ -210,7 +238,9 @@ func TestBoxSampleParityOut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := json.Marshal(got.Stat)
+	v1 := got.Stat
+	v1.CPUPct, v1.SwapTotalKB, v1.MemBuffersKB, v1.MemCachedKB, v1.TasksTotal, v1.TasksRunning, v1.UptimeS = nil, nil, nil, nil, nil, nil, nil
+	raw, err := json.Marshal(v1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,9 +406,9 @@ func TestBoxSampleFrameAnswers(t *testing.T) {
 	}
 	h.ask <- wire.Frame{Type: wire.TBoxSample, MsgID: "req-1"}
 	f := h.nextPut(t)
-	want := store.BoxStat{Box: "box-a", Load1: 2.5, Load5: 1.75, Load15: 0.47, CPUs: 8, MemTotalKB: 16000000,
+	want := boxFixHeader(store.BoxStat{Box: "box-a", Load1: 2.5, Load5: 1.75, Load15: 0.47, CPUs: 8, MemTotalKB: 16000000,
 		MemAvailKB: 6000000, SwapUsedKB: 600, AgentsLive: 1, Disks: []store.BoxDisk{
-			{Mount: "/", TotalKB: 100, AvailKB: 40, UsedKB: 55}, {Mount: "/mnt/my data", TotalKB: 900, AvailKB: 500, UsedKB: 400}}}
+			{Mount: "/", TotalKB: 100, AvailKB: 40, UsedKB: 55}, {Mount: "/mnt/my data", TotalKB: 900, AvailKB: 500, UsedKB: 400}}})
 	if got := boxPutStat(t, f); f.MsgID != "req-1" || !reflect.DeepEqual(got, want) {
 		t.Fatalf("box_sample_put msg_id %q lane\n got %+v\nwant msg_id req-1, %+v", f.MsgID, got, want)
 	}
@@ -466,5 +496,192 @@ func TestParseBoxSampleMin(t *testing.T) {
 		if _, err := ParseBoxSampleMin(in); err == nil {
 			t.Errorf("ParseBoxSampleMin(%q) took it", in)
 		}
+	}
+}
+
+// The 8.8.1 "htop header + df collector (T11)" test (spec 071, SPL-6318):
+// fixture /proc files read twice 250 ms apart give the exact CPU %, and a
+// `df -kPT` fixture with stub st_devs gives the mount rule of 8.3.1.
+
+// boxFixStat2 is boxFixStat1 one window later. Deltas, aggregate: user 300,
+// nice 100, system 150, idle 300, iowait 100, irq 25, softirq 25, steal 0,
+// guest 50 (not counted): total 1000, active 600; cpu0 total 500, active
+// 375; cpu1 total 500, active 225.
+const boxFixStat2 = "cpu  1300 200 650 8300 300 75 75 100 90 0\n" +
+	"cpu0 700 100 350 4100 125 38 37 50 45 0\ncpu1 600 100 300 4200 175 37 38 50 45 0\n" +
+	"intr 22345 0 0\nctxt 1999\n"
+
+// RED CONTROL: compute boxCPUPct from the second read alone (b instead of
+// b - a): cpu_pct and the cores leave 60 / 75 / 45 and the test fails.
+func TestBoxSampleHeaderFixture(t *testing.T) {
+	dir, s := boxFixtures(t)
+	s.Loadavg = filepath.Join(dir, "loadavg-h")
+	s.Meminfo = filepath.Join(dir, "meminfo-h")
+	s.Uptime = filepath.Join(dir, "uptime-h")
+	for p, body := range map[string]string{s.Loadavg: "1.00 0.50 0.25 4/1234 999\n", s.Uptime: "86400.99 1000.00\n",
+		s.Meminfo: "MemTotal: 16000000 kB\nMemAvailable: 6000000 kB\nBuffers: 120000 kB\nCached: 3000000 kB\n" +
+			"SwapTotal: 2000000 kB\nSwapFree: 1500000 kB\nShmem: 500000 kB\nSReclaimable: 400000 kB\n"} {
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var waited time.Duration
+	s.CPUWait = func(_ context.Context, d time.Duration) error {
+		waited = d
+		return os.WriteFile(s.Stat, []byte(boxFixStat2), 0o600)
+	}
+	got, err := s.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := got.Stat
+	if waited != 250*time.Millisecond {
+		t.Fatalf("CPU window %s, want 250ms", waited)
+	}
+	if st.CPUPct == nil || got.Snapshot == nil {
+		t.Fatalf("cpu_pct %v snapshot %v, want both", st.CPUPct, got.Snapshot)
+	}
+	if *st.CPUPct != 60 {
+		t.Fatalf("cpu_pct %.1f, want 60.0 (active 600 of 1000 in the window)", *st.CPUPct)
+	}
+	wantSnap := store.BoxSnapshot{CPUCoresPct: []float64{75, 45}, CPUUserPct: 40, CPUSysPct: 20, CPUIOWaitPct: 10, TasksThreads: 1234}
+	if !reflect.DeepEqual(*got.Snapshot, wantSnap) {
+		t.Fatalf("snapshot\n got %+v\nwant %+v", *got.Snapshot, wantSnap)
+	}
+	for name, kv := range map[string][2]int64{"mem_buffers_kb": {deref(st.MemBuffersKB), 120000},
+		"mem_cached_kb (Cached + SReclaimable - Shmem)": {deref(st.MemCachedKB), 2900000},
+		"swap_total_kb": {deref(st.SwapTotalKB), 2000000}, "swap_used_kb": {st.SwapUsedKB, 500000},
+		"uptime_s": {deref(st.UptimeS), 86400}, "tasks_running": {int64(derefInt(st.TasksRunning)), 4},
+		"tasks_total (numeric /proc entries)": {int64(derefInt(st.TasksTotal)), 2}} {
+		if kv[0] != kv[1] {
+			t.Errorf("%s = %d, want %d", name, kv[0], kv[1])
+		}
+	}
+	if why := store.CheckBoxStat(st); why != "" {
+		t.Fatalf("the hub would refuse it: %s", why)
+	}
+	if why := store.CheckBoxSnapshot(*got.Snapshot); why != "" {
+		t.Fatalf("the hub would refuse the snapshot: %s", why)
+	}
+}
+
+func deref(p *int64) int64 {
+	if p == nil {
+		return -1
+	}
+	return *p
+}
+
+func derefInt(p *int) int {
+	if p == nil {
+		return -1
+	}
+	return *p
+}
+
+// No /proc/stat: the sample still goes, without cpu_pct and snapshot; a
+// cancelled context during the window sends nothing.
+func TestBoxSampleHeaderUnreadable(t *testing.T) {
+	dir, s := boxFixtures(t)
+	s.Stat = filepath.Join(dir, "nosuch")
+	got, err := s.Collect(context.Background())
+	if err != nil || got.Stat.CPUPct != nil || got.Snapshot != nil || got.Stat.SwapTotalKB == nil {
+		t.Fatalf("no /proc/stat: cpu_pct %v snapshot %v swap_total %v err %v", got.Stat.CPUPct, got.Snapshot, got.Stat.SwapTotalKB, err)
+	}
+	_, s = boxFixtures(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	s.CPUWait = func(ctx context.Context, d time.Duration) error { cancel(); return boxSleep(ctx, d) }
+	if _, err := s.Collect(ctx); err == nil {
+		t.Fatal("a cancelled window gave a sample")
+	}
+}
+
+// boxFixDFT is `df -kPT` on a box whose /tmp is a 32 GiB tmpfs, whose spool
+// root lies on a tmpfs of its own, with a bind mount of the data disk, a
+// container overlay, and the /run, /run/user, /dev/shm tmpfs.
+const boxFixDFT = "Filesystem Type 1024-blocks Used Available Capacity Mounted on\n" +
+	"/dev/sda1 ext4 30000000 10000000 18000000 36% /\n" +
+	"udev devtmpfs 8000000 0 8000000 0% /dev\n" +
+	"tmpfs tmpfs 1600000 2000 1598000 1% /run\n" +
+	"tmpfs tmpfs 33554432 1048576 32505856 4% /tmp\n" +
+	"tmpfs tmpfs 8000000 0 8000000 0% /dev/shm\n" +
+	"tmpfs tmpfs 1600000 100 1599900 1% /run/user/1000\n" +
+	"/dev/sdb1 ext4 200000000 100000000 90000000 53% /data\n" +
+	"/dev/sdb1 ext4 200000000 100000000 90000000 53% /srv/agents/bind\n" +
+	"overlay overlay 200000000 100000000 90000000 53% /data/containers/overlay2/abc/merged\n" +
+	"tmpfs tmpfs 4194304 1000 4193304 1% /srv/spool\n" +
+	"/dev/sda15 vfat 126678 6182 120496 5% /boot/efi\n" +
+	"/dev/loop0 squashfs 50000 50000 0 100% /snap/core/1\n" +
+	"srv:/x nfs4 - - - - /net\n" +
+	"proc proc 0 0 0 - /proc\n"
+
+// boxFixDevs is the st_dev of each fixture path: the agent roots
+// /srv/spool/hub (on the spool tmpfs), /data/wt (on the data disk) and
+// /var/app (on /).
+var boxFixDevs = map[string]uint64{"/": 1, "/dev": 2, "/run": 3, "/tmp": 4, "/dev/shm": 5, "/run/user/1000": 6,
+	"/data": 7, "/srv/agents/bind": 7, "/data/containers/overlay2/abc/merged": 8, "/srv/spool": 9, "/boot/efi": 10,
+	"/snap/core/1": 11, "/srv/spool/hub": 9, "/data/wt": 7, "/var/app": 1}
+
+func boxFixDevFn(devs map[string]uint64) func(string) (uint64, bool) {
+	return func(p string) (uint64, bool) { d, ok := devs[p]; return d, ok }
+}
+
+// RED CONTROL: drop the agent-root st_dev check in parseDF (every tmpfs
+// and overlay dropped): /tmp and /srv/spool go missing and the test fails.
+func TestBoxSampleDFAgentRoot(t *testing.T) {
+	_, s := boxFixtures(t)
+	s.DF = func(context.Context) ([]byte, error) { return []byte(boxFixDFT), nil }
+	s.AgentRoots = []string{"/srv/spool/hub", "/data/wt", "/var/app"}
+	s.Dev = boxFixDevFn(boxFixDevs)
+	got, err := s.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []store.BoxDisk{
+		{Mount: "/", FSType: "ext4", TotalKB: 30000000, UsedKB: 10000000, AvailKB: 18000000},
+		{Mount: "/tmp", FSType: "tmpfs", TotalKB: 33554432, UsedKB: 1048576, AvailKB: 32505856},
+		{Mount: "/data", FSType: "ext4", TotalKB: 200000000, UsedKB: 100000000, AvailKB: 90000000},
+		{Mount: "/srv/spool", FSType: "tmpfs", TotalKB: 4194304, UsedKB: 1000, AvailKB: 4193304},
+		{Mount: "/boot/efi", FSType: "vfat", TotalKB: 126678, UsedKB: 6182, AvailKB: 120496}}
+	if !reflect.DeepEqual(got.Stat.Disks, want) {
+		t.Fatalf("disks\n got %+v\nwant %+v (an agent-root tmpfs in, /run tmpfs and the container overlay out)", got.Stat.Disks, want)
+	}
+	if why := store.CheckBoxStat(got.Stat); why != "" {
+		t.Fatalf("the hub would refuse it: %s", why)
+	}
+}
+
+// /tmp counts only as a dedicated mount of at least 1 GiB; an overlay that
+// holds an agent root (a box in a container) is kept; an unreadable st_dev
+// drops a tmpfs.
+func TestBoxSampleDFTmpAndOverlay(t *testing.T) {
+	_, s := boxFixtures(t)
+	df := "Filesystem Type 1024-blocks Used Available Capacity Mounted on\n" +
+		"overlay overlay 50000000 20000000 30000000 40% /\n" +
+		"tmpfs tmpfs 524288 10 524278 1% /tmp\n" +
+		"tmpfs tmpfs 4194304 1 4194303 1% /mnt/unknown\n"
+	s.DF = func(context.Context) ([]byte, error) { return []byte(df), nil }
+	s.AgentRoots = []string{"/opt/wt"}
+	s.Dev = boxFixDevFn(map[string]uint64{"/": 1, "/opt/wt": 1, "/tmp": 2})
+	got, err := s.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []store.BoxDisk{{Mount: "/", FSType: "overlay", TotalKB: 50000000, UsedKB: 20000000, AvailKB: 30000000}}
+	if !reflect.DeepEqual(got.Stat.Disks, want) {
+		t.Fatalf("disks\n got %+v\nwant %+v (a 512 MiB /tmp and an unknown tmpfs out)", got.Stat.Disks, want)
+	}
+}
+
+// The live st_dev of a path: two paths on one filesystem share it.
+func TestBoxStatDev(t *testing.T) {
+	dir := t.TempDir()
+	a, okA := boxStatDev(dir)
+	b, okB := boxStatDev(filepath.Join(dir, "."))
+	if !okA || !okB || a != b {
+		t.Fatalf("st_dev %d/%v and %d/%v, want one value", a, okA, b, okB)
+	}
+	if _, ok := boxStatDev(filepath.Join(dir, "nosuch")); ok {
+		t.Fatal("a missing path has an st_dev")
 	}
 }

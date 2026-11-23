@@ -1100,6 +1100,41 @@ choice is recorded here:
 - `BoxDisk.FSType` (8.6.1) is not in T10: no T10 test needs it. Row T11
   adds it with the collector.
 
+Built by row T11 (SPL-6318), `internal/hubclient/box_header.go` and
+`box_df.go` on `BoxSampler.Collect`; where 8.3.1 / 8.3.3 named no value, the
+choice is recorded here:
+
+- CPU breakdown: `cpu_user_pct` = user + nice, `cpu_sys_pct` = system + irq
+  + softirq, `cpu_iowait_pct` = iowait, each a share of the 8-column delta
+  at 1 decimal (htop's non-detailed meter groups them so). The guest columns
+  are not added: the kernel already counts them in user and nice.
+- `cpu_cores_pct`: one value per `cpuN` line present in both reads, in
+  `/proc/stat` order, at most 256. Its length is the kernel's online CPUs,
+  which can differ from `cpus` (the process's CPU affinity) on a pinned box.
+- `tasks_running` and `tasks_threads` are `/proc/loadavg` field 4;
+  `tasks_total` counts the numeric entries of `/proc`; `uptime_s` floors
+  `/proc/uptime` field 1.
+- A part that cannot be read stays nil (NULL in the row) and the sample is
+  still sent; without two `/proc/stat` reads there is no `cpu_pct` and no
+  snapshot. A context cancelled during the 250 ms window sends nothing.
+- `df -kPT` replaces the tick's argv. A df without the Type column (the
+  tick's `df -kP`) is parsed as the tick does, so
+  `csi-spl-orc/src/bash/tests/box-sample-parity.tst.sh` still compares the
+  tick's fields (the Go half writes those only) until row T12b retires the
+  bash collector.
+- `st_dev` is read only for `tmpfs` / `overlay` rows and for `/dev/*` rows
+  (the bind-mount rule of 8.3.1 step 3), never for a network mount, and
+  inside the 3 s df cap: a stat stuck on a hung mount gives `disks: []`, as
+  a hung df does.
+- The agent roots are the collecting process's `$SPOOL_ROOT`,
+  `$SPL_WT_ROOT` and `$SPL_VAR_APP_DIR`; an unset one is no root.
+- `BoxDisk.FSType` is `fstype,omitempty`, last in the struct;
+  `CheckBoxStat` takes `[a-z0-9._-]{1,24}`.
+- `wire.FeatureBoxLiveV2` exists; the hello carries it from row T14. The
+  row T3 handler sends `Stat` as before, now with the header scalars and
+  `fstype`; the hub reads `box_sample_put` only from row T5, which builds on
+  a hub that already takes both, so no deploy order is at stake.
+
 ### 8.7 Limits and privacy
 
 #### 8.7.1 Limits

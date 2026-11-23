@@ -32,8 +32,8 @@ func TestBoxStatsAppendListPrune(t *testing.T) {
 					CPUs: 8, MemTotalKB: 1000, MemAvailKB: avail, SwapUsedKB: 5, AgentsLive: agents}
 			}
 			for _, b := range []BoxStat{
-				withDisks(s("sat", t0.Add(5*time.Minute), 2.5, 600, 3), BoxDisk{"/", 100, 40, 55}, BoxDisk{"/mnt/data", 900, 500, 0}),
-				withDisks(s("sat", t0.Add(10*time.Minute), 4.5, 200, 5), BoxDisk{"/", 100, 30, 65}),
+				withDisks(s("sat", t0.Add(5*time.Minute), 2.5, 600, 3), BoxDisk{"/", 100, 40, 55, ""}, BoxDisk{"/mnt/data", 900, 500, 0, ""}),
+				withDisks(s("sat", t0.Add(10*time.Minute), 4.5, 200, 5), BoxDisk{"/", 100, 30, 65, ""}),
 				s("sat", t0.Add(65*time.Minute), 1.25, 900, 1),
 				s("tower", t0.Add(7*time.Minute), 0.47, 400, 2),
 			} {
@@ -46,7 +46,7 @@ func TestBoxStatsAppendListPrune(t *testing.T) {
 			}
 
 			rows, err := bs.ListBoxStats(ctx, tid, "sat", t0)
-			if err != nil || len(rows) != 3 || len(rows[0].Disks) != 2 || rows[0].Disks[0].UsedKB != 55 || rows[0].Disks[1] != (BoxDisk{"/mnt/data", 900, 500, 0}) ||
+			if err != nil || len(rows) != 3 || len(rows[0].Disks) != 2 || rows[0].Disks[0].UsedKB != 55 || rows[0].Disks[1] != (BoxDisk{"/mnt/data", 900, 500, 0, ""}) ||
 				rows[2].Disks == nil || len(rows[2].Disks) != 0 || rows[0].Load1 != 2.5 || rows[2].MemAvailKB != 900 || rows[0].WriterBox != "box-desk-sat" || !rows[0].At.Equal(t0.Add(5*time.Minute)) {
 				t.Fatalf("sat rows: %+v %v", rows, err)
 			}
@@ -106,10 +106,15 @@ func TestCheckBoxStat(t *testing.T) {
 	}
 	full := ok
 	for i := 0; i < BoxDisksMax; i++ {
-		full.Disks = append(full.Disks, BoxDisk{fmt.Sprintf("/m%d", i), 1, 1, 0})
+		full.Disks = append(full.Disks, BoxDisk{fmt.Sprintf("/m%d", i), 1, 1, 0, ""})
 	}
 	if why := CheckBoxStat(full); why != "" {
 		t.Fatalf("16 mounts: %s", why)
+	}
+	typed := ok
+	typed.Disks = []BoxDisk{{"/", 1, 1, 0, "ext4"}, {"/tmp", 1, 1, 0, "tmpfs"}, {"/net", 1, 1, 0, "fuse.sshfs"}}
+	if why := CheckBoxStat(typed); why != "" {
+		t.Fatalf("fstype (row T11): %s", why)
 	}
 	for _, f := range []func(*BoxStat){
 		func(b *BoxStat) { b.Box = "Sat" },
@@ -126,11 +131,13 @@ func TestCheckBoxStat(t *testing.T) {
 				b.Disks[i].Mount = fmt.Sprintf("/m%d", i)
 			}
 		},
-		func(b *BoxStat) { b.Disks = []BoxDisk{{"data", 1, 1, 0}} },
-		func(b *BoxStat) { b.Disks = []BoxDisk{{"/", 1, 1, 0}, {"/", 2, 2, 0}} },
-		func(b *BoxStat) { b.Disks = []BoxDisk{{"/a\nb", 1, 1, 0}} },
-		func(b *BoxStat) { b.Disks = []BoxDisk{{"/", -1, 1, 0}} },
-		func(b *BoxStat) { b.Disks = []BoxDisk{{"/", 1, 1, -1}} },
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"data", 1, 1, 0, ""}} },
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"/", 1, 1, 0, ""}, {"/", 2, 2, 0, ""}} },
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"/a\nb", 1, 1, 0, ""}} },
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"/", -1, 1, 0, ""}} },
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"/", 1, 1, -1, ""}} },
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"/", 1, 1, 0, "Ext4"}} },
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"/", 1, 1, 0, "a-type-name-of-25-bytes-x"}} },
 	} {
 		b := ok
 		f(&b)

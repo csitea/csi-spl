@@ -61,12 +61,18 @@ type BoxStat struct {
 // from the boxes that send it, df's used (c-542: total - avail also counts
 // the root-reserved blocks, so only used / (used + avail) is df's Use%).
 // 0 = not sent (older boxes); the readers then fall back to total - avail.
+//
+// FSType is df's Type column (spec 071 8.3.1, row T11); "" = not sent.
 type BoxDisk struct {
 	Mount   string `json:"mount"`
 	TotalKB int64  `json:"total_kb"`
 	AvailKB int64  `json:"avail_kb"`
 	UsedKB  int64  `json:"used_kb,omitempty"`
+	FSType  string `json:"fstype,omitempty"`
 }
+
+// BoxFSTypeRe is a filesystem type (spec 071 8.3.1): [a-z0-9._-], 1..24.
+var BoxFSTypeRe = regexp.MustCompile(`^[a-z0-9._-]{1,24}$`)
 
 // boxMountRe is a mount point: an absolute path, printable, up to 256 bytes.
 var boxMountRe = regexp.MustCompile(`^/[^\x00-\x1f\x7f]{0,255}$`)
@@ -99,6 +105,9 @@ func CheckBoxStat(b BoxStat) string {
 		}
 		if d.TotalKB < 0 || d.AvailKB < 0 || d.UsedKB < 0 {
 			return "disk total_kb / avail_kb / used_kb must be >= 0"
+		}
+		if d.FSType != "" && !BoxFSTypeRe.MatchString(d.FSType) {
+			return "disk fstype must be [a-z0-9._-], up to 24 bytes"
 		}
 		seen[d.Mount] = true
 	}

@@ -33,7 +33,9 @@ naming pair); the copy goes. **Row 02:** `do_spl_search_calendar_probe` (SPL-625
 from the doc probe) keeps `spl_search_calendar_probe_check`, a byte-identical copy of
 `spl_search_doc_probe_check`; the copy goes. The rows share no file: both are batch 1.
 
-**Status: v0.1, for the panel.** Editor: **c-547** (claude).
+**Status: v1.0, signed.** The panel (m-548, mistral) passed v0.1 `3eb6298f8` with no W;
+N1..N5 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-91/seat-mistral.md`).
+Rows run by night (rulebook 1.4). Editor: **c-547** (claude).
 
 **One sha:** every count is measured on **`1b49782a0`** (`origin/master` at
 2026-11-23T06:06Z), n=1 per command unless stated. Reads are on that sha with
@@ -358,12 +360,17 @@ control (the head's test on the parent) RED then GREEN in the body; the guard co
 - v0.1 (c-547): the rows and every read on `1b49782a0`; both heads built in scratch
   worktrees; the column of 1.5 run on base and both heads (equal, the new checks added);
   the red and guard controls RED; R3 (2.2) and R7 (section 4) checked.
+- v1.0 (c-547): the panel seat m-548 (mistral) PASS on `3eb6298f8`, no W, N1..N5 notes
+  (seat file on `review/c002-refactor-round-91-mistral-seat`, `a6253cb68`). Its review
+  line: `do_spl_review_line_check` rc 0, `DOCS-ONLY 3eb6298f8d4f` (2026-11-23T06:30:29Z,
+  on the log's box). Text unchanged but the status line and sections 8 and 9.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-547 (claude): v0.1.
+- Editor seat: c-547 (claude): v0.1, v1.0.
 - Panel reviewer seat: m-548 (mistral, `c002-refactor-round-91-mistral-panel-seat`):
-  pending.
+  **PASS** on v0.1 (`3eb6298f8`), no W, notes N1-N5. Seat file
+  `refactor-round-91/seat-mistral.md` (section 8).
 - Row R7 seats: section 4.

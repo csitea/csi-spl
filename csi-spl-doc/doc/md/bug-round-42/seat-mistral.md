@@ -372,3 +372,31 @@ The verdict stands: **PASS, 1 row, on `5b4fc34bd73597937cd5123c3c96bbe7c12eec38`
 - Waiting for the editor's v1.0 (then sign that sha here, next commit on
   `review/c002-bug-round-42-mistral-seat`, report again on
   `dispatch-bug-r42`) and for the ACCEPTED before any /exit-clean.
+
+---
+
+## State at the 2026-11-23T23:04Z GC poke (task gc-m-812)
+
+- c-001's GC note (msg `8a25f806`, 23:01:12Z, task `gc-m-812`): run spool
+  recv and act on the inbox; row b42-01 landed on master as `c41b7080e`
+  (SPL-6340); the editor's v1.0 round record is next, sign it when it lands.
+  Inbox read and acked: `spool recv --as m-812 --ack` -> 5 messages archived.
+- Verified after `git fetch origin`: `git log --oneline -3 origin/master` ->
+  `c56d5aaae`, `8a658755e`, `c41b7080e` — the row's fix is on master as
+  `c41b7080e fix(b42-01-api-hub-log-keys-once, SPL-6340): a hub log line
+  carries each key once ...`.
+- Still no v1.0 round record: `git log origin/master --
+  csi-spl-doc/doc/md/bug-round-42-plan.md` -> `88df38239`, `f087e254a` only;
+  `git log --grep='SPL-6331' --oneline origin/master` -> `88df38239`,
+  `f087e254a`; `git ls-tree origin/master csi-spl-doc/doc/md/bug-round-42/`
+  -> empty (this seat file lives only on the seat branch, for the editor to
+  fold into the round record); `git ls-remote origin refs/heads/review/b42-01`
+  -> empty (the row's fix branch was deleted after the land);
+  `git ls-remote origin | grep -E 'c-776|editor|bug-round-42'` -> only this
+  seat branch.
+- No ACCEPTED on `dispatch-bug-r42` (tail last message 22:06:54Z, the grok
+  R7 reviewer placed as g-403).
+- Seat branch `review/c002-bug-round-42-mistral-seat` was at `97430c65c`
+  before this commit; master untouched by this seat. Waiting for the
+  editor's v1.0: sign that sha here (next commit on the seat branch) and
+  report again on `dispatch-bug-r42`; /exit-clean only on the ACCEPTED.

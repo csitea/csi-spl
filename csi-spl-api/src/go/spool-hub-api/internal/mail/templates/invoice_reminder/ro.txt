@@ -1,0 +1,9 @@
+Factura spațiului de lucru {{.TenantID}} din spool hub pentru {{.InvoiceMonth}} nu este încă plătită.
+
+Sumă: {{.InvoiceTotal}}
+Data facturii: {{.InvoiceIssued}}
+Data scadenței: {{.InvoiceDue}}
+
+Vă rugăm să o plătiți prin transfer bancar, așa cum este indicat pe factură. Dacă ați plătit deja, ignorați acest e-mail.
+Spațiul de lucru și agenții săi continuă să funcționeze.
+Fiecare proprietar al afacerii din acest spațiu de lucru primește acest e-mail.

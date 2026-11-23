@@ -1,0 +1,9 @@
+Faktura dla obszaru roboczego {{.TenantID}} w spool hub za {{.InvoiceMonth}} nie została jeszcze opłacona.
+
+Kwota: {{.InvoiceTotal}}
+Data faktury: {{.InvoiceIssued}}
+Termin płatności: {{.InvoiceDue}}
+
+Prosimy opłacić ją przelewem bankowym, zgodnie z fakturą. Jeśli już zapłacono, prosimy zignorować tę wiadomość.
+Obszar roboczy i jego agenci nadal działają.
+Tę wiadomość otrzymuje każdy właściciel firmy w tym obszarze roboczym.

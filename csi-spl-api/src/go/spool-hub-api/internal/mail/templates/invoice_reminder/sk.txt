@@ -1,0 +1,9 @@
+Faktúra pracovného priestoru {{.TenantID}} v spool hub za {{.InvoiceMonth}} ešte nie je zaplatená.
+
+Suma: {{.InvoiceTotal}}
+Dátum faktúry: {{.InvoiceIssued}}
+Dátum splatnosti: {{.InvoiceDue}}
+
+Zaplaťte ju, prosím, bankovým prevodom podľa údajov na faktúre. Ak ste už zaplatili, tento e-mail ignorujte.
+Pracovný priestor a jeho agenti naďalej fungujú.
+Tento e-mail dostane každý vlastník firmy tohto pracovného priestoru.

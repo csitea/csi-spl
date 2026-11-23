@@ -38,6 +38,7 @@ var operatorCallers = map[string]string{
 	"backfillSearchSig":          "Sweep's search_sig backfill (rdb 0135): signs pre-trigger long rows of every tenant, global by design; no route",
 	"ConsumerLag":                "consumer lag report (spec 059 S4), fleet-wide by design; no route",
 	"SweepClones":                "act-as clone expiry (hub sweeper goroutine), global by design; no route",
+	"ClaimInvoiceReminders":      "monthly invoice reminder tick (spec 181 B12, hub goroutine): every workspace's unpaid invoice past its due date, claimed once; no route",
 	"SweepDemo":                  "demo stay sweep (specs/077 T009, hub sweeper goroutine): ended demo seats of the cnf demo workspace, then their humans only when no membership is left anywhere; no route",
 	"SweepMemberActivity":        "Activity-log auth-row retention sweep (hub sweeper goroutine), global by design; no route",
 	"RecordUseMinute":            "hours of use (rdb 0289, SPL-5709): hub_use_minutes is the person's row across every workspace, no tenant_id; the workspace row stays inTenant",

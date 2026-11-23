@@ -243,3 +243,35 @@ None. No W.
 `review: m-048@<box2> mistral PASS 699e09331c2cad79008a74b45431e6e45e3f7355 ran: git ls-remote origin refs/heads/review/c002-bug-round-40-planner; git log origin/master --since="2026-11-22T09:15:08+02:00" --oneline -E --grep='\(b40-' | wc -l; git ls-remote origin | grep -E 'b40-[0-9]{2}|bug-round-40'; ls /var/spool-hub/dispatch/briefs | grep -E 'b40-[0-9]{2}|bug-round-40'; git show 2286c85ce:<file> | sed -n <N>p (each cited line); sha256sum rc01-b40.sh rc02.sh; bash rc01-b40.sh 2286c85ce; RC01_SAME_SECOND=1 bash rc01-b40.sh 2286c85ce; bash rc02.sh 2286c85ce; ENV=prd do_spl_db_query (2 SELECTs); ENV=prd do_gcp_tail_logs | grep 'issue backlog'; lane-map.sh --check <paths> --agent m-048; cd csi-spl-iac && ./run -a do_check_dist_hygiene | read: csi-spl-doc/doc/md/bug-round-40-plan.md at 699e0933, csi-spl-doc/doc/md/bug-round-39-plan.md and bug-round-38-plan.md on origin/master, the cited api/orc files at 2286c85ce; seat-file review/c002-bug-round-40-mistral-seat <sha> | log: m-048@<box2>:~/.vibe/logs/session/unified/9c42903b-8478-5964-ae0e-e9f7a1a37068`
 
 The verdict stands: **PASS, 2 rows, on `699e09331c2cad79008a74b45431e6e45e3f7355` (v0.1).**
+
+## v1.0 signature
+
+Checks re-run by me on <box2>, 2026-11-23 10:0xZ:
+
+- v1.0 vs v0.1: `git log -1 --format='%H %P %s' ee176df5064551992a31de0c2788174d67bc8e97`
+  -> parent `699e09331c2cad79008a74b45431e6e45e3f7355`, on `origin/master`
+  `2286c85ce` (`git merge-base --is-ancestor origin/master ee176df50` -> rc 0),
+  no rebase; `git diff 699e0933 ee176df50 --stat` -> the plan `14 +-` and the
+  seat file `245 +`, 2 files, +253/-6.
+- The plan diff touches only the status line, the panel lines, the 3.3 N2 row
+  (my N2 folded: `store/repo_sync.go:311` does not exist on `2286c85ce`, the
+  numeric key is `store/release_note.go:205` `releaseVersionKey`, used by
+  `sortReleaseNotes` at `:250`), the review history and the consensus table —
+  `git diff 699e0933 ee176df50 -- csi-spl-doc/doc/md/bug-round-40-plan.md | grep -c '^[+-]|'`
+  -> 6 changed table lines (the 3.3 row pair and the consensus pair); the
+  section 5 rows table is untouched: no row changed, still 2 rows, both batch 1.
+- The folded seat file is blob-identical to my push:
+  `git rev-parse ee176df50:csi-spl-doc/doc/md/bug-round-40/seat-mistral.md` ->
+  `11107c81e81090eb632ca5809aed94b112a11ac7`;
+  `git rev-parse 89a3d8466:csi-spl-doc/doc/md/bug-round-40/seat-mistral.md` ->
+  `11107c81e81090eb632ca5809aed94b112a11ac7`. Equal.
+- Slug at v1.0: `git log origin/master --since="$W" --oneline -E --grep='\(b40-' | wc -l`
+  -> `0`; `git ls-remote origin | grep -E 'b40-[0-9]{2}|bug-round-40'` ->
+  `review/c002-bug-round-40-planner` `ee176df50...` and
+  `review/c002-bug-round-40-mistral-seat` `89a3d8466...` — both expected, nothing
+  else.
+- Hygiene and gate: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> clean,
+  exit 0; `./run -a do_check_pre_push` -> `INFO pre-push: all parts PASSED`.
+
+The verdict stands: **PASS, 2 rows, on both `699e09331c2cad79008a74b45431e6e45e3f7355`
+(v0.1) and `ee176df5064551992a31de0c2788174d67bc8e97` (v1.0).**

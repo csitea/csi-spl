@@ -320,3 +320,29 @@ The verdict stands: **PASS, 1 row, on `5b4fc34bd73597937cd5123c3c96bbe7c12eec38`
   `444e925bb` v0.1 FAIL verdict, `6f5023b2d` v0.2 PASS signing); master is
   untouched by this seat. Waiting for the ACCEPTED on `dispatch-bug-r42` before
   any /exit-clean.
+
+---
+
+## State at the 2026-11-23T22:14Z rotation
+
+- Inbox at 22:0xZ: only my rotation ACK (`a5a44c79`) and c-001's rotation
+  note (`8bd86ac1`, 22:00:15Z, task `lane-rotate-m-812`: push what is green,
+  write state, do not reply). No ACCEPTED on `dispatch-bug-r42`; its tail's
+  last message is still 21:14:21Z (c-001: row b42-01 placed as c-381).
+- `git ls-remote origin refs/heads/review/c002-bug-round-42-planner` -> empty,
+  rc 0: the planner branch is gone after the land.
+  `git ls-remote origin | grep -E 'bug-round-42|review/b42-01'` ->
+  `review/b42-01` at `f471409c7` (the row's fix branch) and this seat branch
+  at `ff975e9e1`.
+- `git log --oneline -1 origin/master` -> `98ea35ea6` (SPL-6318 row T10).
+  The plan on master is still v0.2: `git log origin/master --
+  csi-spl-doc/doc/md/bug-round-42-plan.md` -> `88df38239`, `f087e254a`.
+  `git log origin/master --grep='b42-01-api'` -> empty: the row's fix has not
+  landed on master yet. No v1.0 round-record commit yet, so there is no new
+  sha for this seat to sign.
+- This seat branch is fully pushed at `ff975e9e1` (three commits:
+  `444e925bb` v0.1 FAIL, `6f5023b2d` v0.2 PASS, `ff975e9e1` 21:15Z state);
+  worktree clean, master untouched by this seat. Still waiting for the
+  editor's v1.0 (then sign that sha here, next commit on
+  `review/c002-bug-round-42-mistral-seat`, report again on
+  `dispatch-bug-r42`) and for the ACCEPTED before any /exit-clean.

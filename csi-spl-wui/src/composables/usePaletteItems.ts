@@ -19,7 +19,7 @@ import { useAccessStore } from '~/stores/access'
 import { useNotesStore } from '~/stores/notes'
 import { NOTES_RAIL_ON, RAIL_TABS, settingsSectionListed } from '~/utils/rail-order'
 import { routeForTab } from '~/utils/sidebar-tabs.mjs'
-import { SETTINGS_QUERY, SETTINGS_SECTIONS, settingsSectionsShown } from '~/utils/settings-nav.mjs'
+import { SETTINGS_QUERY, SETTINGS_SECTIONS } from '~/utils/settings-nav.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav'
 import { docsRoute, validDocsPath } from '~/utils/docs.mjs'
@@ -108,8 +108,8 @@ function docRows(ws: readonly TreeFile[], repo: readonly TreeFile[]): PaletteGoI
 }
 
 /** The Settings modal opens over the current view (CLE-77853). */
-function settingsRows(t: Translate, here: { path: string, query: LocationQuery }, contactsOn: boolean): PaletteGoItem[] {
-  return settingsSectionsShown(SETTINGS_SECTIONS.filter((s) => settingsSectionListed(s.id)), contactsOn).map((s) => ({ id: 'settings:' + s.id, group: 'settings', label: t(s.label), icon: 'settings', to: { path: here.path, query: { ...here.query, [SETTINGS_QUERY]: s.id } } }))
+function settingsRows(t: Translate, here: { path: string, query: LocationQuery }): PaletteGoItem[] {
+  return SETTINGS_SECTIONS.filter((s) => settingsSectionListed(s.id)).map((s) => ({ id: 'settings:' + s.id, group: 'settings', label: t(s.label), icon: 'settings', to: { path: here.path, query: { ...here.query, [SETTINGS_QUERY]: s.id } } }))
 }
 
 /**
@@ -161,7 +161,7 @@ export function usePaletteItems() {
   const docs = computed(() => docRows(wsDocs.files.value, repoDocs.value))
   /* spec 155 2.5: off with the Notes tab (NOTES_RAIL_ON), as its Settings section is */
   const notes = computed<PaletteGoItem[]>(() => (NOTES_RAIL_ON ? noteRows(notesStore.notes, t('notes.untitled')) : []))
-  const settings = computed(() => settingsRows(t, { path: route.path, query: route.query }, access.contacts))
+  const settings = computed(() => settingsRows(t, { path: route.path, query: route.query }))
 
   /** Every go-to row, group by group; rankItems orders them for a query. */
   const items = computed<PaletteGoItem[]>(() => [

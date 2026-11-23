@@ -13,11 +13,11 @@
 // Run: node tests/unit/settings-nav.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  SETTINGS_SECTIONS, isSettingsPath, settingsModalTarget, settingsQuerySection, settingsSectionOf, settingsSectionsShown,
+  SETTINGS_SECTIONS, isSettingsPath, settingsModalTarget, settingsQuerySection, settingsSectionOf,
 } from '../../src/utils/settings-nav.mjs'
 import {
   MOCK_GCAL_KEY, gcalBannerKey, gcalConnect, gcalDisconnect, gcalReturnNotice, gcalStatus, gcalSync, gcalSyncFollower, gcalUrl, gcalView,
@@ -42,8 +42,8 @@ function mockStorage() {
 }
 
 describe('C25 the section list', () => {
-  it('has calendar-google after keys, with its catalogue label (spec 155 B10 appends notes, SPL-6284 contacts)', () => {
-    assert.equal(SETTINGS_SECTIONS.length, 10)
+  it('has calendar-google after keys, with its catalogue label (spec 155 B10 appends notes; SPL-6316 drops contacts)', () => {
+    assert.equal(SETTINGS_SECTIONS.length, 9)
     const at = SETTINGS_SECTIONS.findIndex((s) => s.id === 'calendar-google')
     assert.equal(SETTINGS_SECTIONS[at - 1].id, 'keys')
     assert.equal(SETTINGS_SECTIONS[at].label, 'settings.calendar_google')
@@ -54,17 +54,14 @@ describe('C25 the section list', () => {
     const [ns, leaf] = SETTINGS_SECTIONS[at].label.split('.')
     assert.equal(en[ns][leaf], 'Google Sync')
   })
-  it('SPL-6284: Contacts follows calendar-google, opens by its address, and is drawn only with contacts on', () => {
-    const at = SETTINGS_SECTIONS.findIndex((s) => s.id === 'contacts')
-    assert.equal(SETTINGS_SECTIONS[at - 1].id, 'calendar-google')
-    assert.equal(SETTINGS_SECTIONS[at].label, 'contacts.group')
-    assert.equal(en.contacts.group, 'Contacts')
-    assert.equal(settingsQuerySection({ settings: 'contacts' }), 'contacts')
-    assert.equal(settingsSectionOf('/settings/contacts'), 'contacts')
-    assert.deepEqual(settingsSectionsShown(SETTINGS_SECTIONS, true).map((s) => s.id), SETTINGS_SECTIONS.map((s) => s.id))
-    assert.deepEqual(settingsSectionsShown(SETTINGS_SECTIONS, false).map((s) => s.id), SETTINGS_SECTIONS.map((s) => s.id).filter((id) => id !== 'contacts'))
-    assert.match(read('src/components/SettingsDialog.vue'), /contacts: defineAsyncComponent\(\(\) => import\('~\/components\/settings\/contacts\.vue'\)\)/)
-    assert.match(read('src/components/settings/contacts.vue'), /<CalendarGoogle focus="contacts" \/>/)
+  it('SPL-6316: no Contacts section; its old addresses open Google Sync, the switch\'s one place', () => {
+    assert.equal(SETTINGS_SECTIONS.some((s) => s.id === 'contacts'), false)
+    assert.equal(settingsQuerySection({ settings: 'contacts' }), 'calendar-google')
+    assert.equal(settingsSectionOf('/settings/contacts'), 'calendar-google')
+    assert.equal(settingsModalTarget('/settings/contacts', null).query.settings, 'calendar-google')
+    assert.doesNotMatch(read('src/components/SettingsDialog.vue'), /settings\/contacts\.vue/)
+    assert.equal(existsSync(join(WUI, 'src/components/settings/contacts.vue')), false)
+    assert.doesNotMatch(section, /focus/)
   })
   it('reads the hyphened id from a query and an old address', () => {
     assert.equal(settingsQuerySection({ settings: 'calendar-google' }), 'calendar-google')

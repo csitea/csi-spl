@@ -13,9 +13,6 @@ export const SETTINGS_SECTIONS = [
   { id: 'keys', label: 'settings.keys_title' },
   /* spec 149 B8 (SPL-3227): the member's own Google Calendar connection */
   { id: 'calendar-google', label: 'settings.calendar_google' },
-  /* spec 154 (SPL-6284): the Google Contacts switch, findable in the list on
-     a phone; the same section as calendar-google, contacts only */
-  { id: 'contacts', label: 'contacts.group' },
   /* spec 155 B10 (SPL-4331): export and erase the person's own notes */
   { id: 'notes', label: 'notes.settings.title' },
 ]
@@ -23,16 +20,17 @@ export const SETTINGS_SECTIONS = [
 export const DEFAULT_SETTINGS_SECTION = 'profile'
 
 /**
- * The sections the nav and the palette draw: Contacts only where the
- * workspace has contacts on (the access store's `contacts`, spec 154 2.9).
- * ?settings=contacts still opens it.
- * @template {{ id: string }} S
- * @param {readonly S[]} sections
- * @param {boolean} contactsOn
- * @returns {S[]}
+ * Old section ids that now open another section. SPL-6316 (owner, t1
+ * b400601b msg 7d3d4464: "leave it only under the Google sync"): the Google
+ * Contacts switch lives in Google Sync only, so ?settings=contacts and
+ * /settings/contacts (SPL-6284 links in posts) open calendar-google.
  */
-export function settingsSectionsShown(sections, contactsOn) {
-  return sections.filter((s) => s.id !== 'contacts' || contactsOn)
+export const SETTINGS_SECTION_ALIASES = Object.freeze({ contacts: 'calendar-google' })
+
+/** A known section id, an alias resolved to its section, else ''. */
+function knownSection(id) {
+  const v = Object.prototype.hasOwnProperty.call(SETTINGS_SECTION_ALIASES, id) ? SETTINGS_SECTION_ALIASES[id] : id
+  return SETTINGS_SECTIONS.some((s) => s.id === v) ? v : ''
 }
 
 /**
@@ -41,7 +39,7 @@ export function settingsSectionsShown(sections, contactsOn) {
  */
 export function settingsSectionOf(path) {
   const m = /\/settings\/([a-z-]+)\/?$/.exec(String(path || '').split(/[?#]/)[0])
-  return m && SETTINGS_SECTIONS.some((s) => s.id === m[1]) ? m[1] : ''
+  return m ? knownSection(m[1]) : ''
 }
 
 /*
@@ -59,14 +57,14 @@ export const SETTINGS_QUERY = 'settings'
 /**
  * The open section from a route query: null = closed, '' = open on no
  * particular section (the list on a phone, the default section on a desktop),
- * else a known section id. An unknown value opens on '' rather than nothing.
+ * else a known section id (an alias opens its section). An unknown value opens
+ * on '' rather than nothing.
  */
 export function settingsQuerySection(query) {
   if (!query || !Object.prototype.hasOwnProperty.call(query, SETTINGS_QUERY)) return null
   let v = query[SETTINGS_QUERY]
   if (Array.isArray(v)) v = v[0]
-  v = String(v ?? '')
-  return SETTINGS_SECTIONS.some((s) => s.id === v) ? v : ''
+  return knownSection(String(v ?? ''))
 }
 
 /** The section shown for a query value: a desktop never shows the bare list. */

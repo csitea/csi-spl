@@ -63,7 +63,6 @@ import {
   SETTINGS_SECTIONS,
   settingsCloseStep,
   settingsQuerySection,
-  settingsSectionsShown,
   settingsShownSection,
   withoutSettings,
 } from '~/utils/settings-nav.mjs'
@@ -83,16 +82,16 @@ const SECTION_COMPONENTS: Record<string, Component> = {
   security: defineAsyncComponent(() => import('~/components/settings/security.vue')),
   keys: defineAsyncComponent(() => import('~/components/settings/keys.vue')),
   'calendar-google': defineAsyncComponent(() => import('~/components/settings/calendar-google.vue')),
-  contacts: defineAsyncComponent(() => import('~/components/settings/contacts.vue')),
   notes: defineAsyncComponent(() => import('~/components/settings/notes.vue')),
 }
 
 /* spec 155 B10: the list leaves out a section whose rail tab is switched off
    (Notes, NOTES_RAIL_ON); its address still opens it */
 const LISTED_SECTIONS = SETTINGS_SECTIONS.filter((s) => settingsSectionListed(s.id))
-/* spec 154 (SPL-6284): Contacts only where the workspace has contacts on */
+/* SPL-6316: no Contacts row; the Google Contacts switch is in Google Sync
+   only (?settings=contacts opens it, SETTINGS_SECTION_ALIASES) */
 const access = useAccessStore()
-const navSections = computed(() => settingsSectionsShown(LISTED_SECTIONS, access.contacts))
+const navSections = LISTED_SECTIONS
 
 const session = useSessionStore()
 const route = useRoute()

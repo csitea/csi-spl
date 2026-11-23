@@ -428,12 +428,12 @@ calendar.
 ---
 
 <a id="ws-doc-87e91ca0-a036-4a1b-b183-bf70412518f6"></a>
-## 11. Contacts (`/settings/contacts`)
+## 11. Google Contacts (in Google Sync)
 
-The switch that brings your Google contacts into your contact list. It is the
-Contacts part of Google Sync (section 10), on a line of its own in the
-Settings list, so you find it on a phone too. It is listed only in a
-workspace where contacts are switched on.
+The switch that brings your Google contacts into your contact list lives in
+one place: **Settings → Google Sync** (section 10), below the calendar part.
+It shows there only in a workspace where contacts are switched on. An old
+**Settings → Contacts** link (`/settings/contacts`) opens Google Sync.
 
 - **Not connected**: **Give access to Google Contacts** connects Google,
   asking for your calendar and your contacts at once. Google sends you back

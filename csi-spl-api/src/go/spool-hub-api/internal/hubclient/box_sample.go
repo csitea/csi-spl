@@ -32,8 +32,8 @@ import (
 //     no fresh report the sample says so (AgentsReported false) and the hub
 //     copies agents_live from the box's newest tick sample.
 //
-// The frame handler in readLoop, the 30 s box-side guard and the hello
-// feature are row T3, not this file.
+// The frame handler in readLoop, the 60 s box-side guard (spec 8.7.1) and
+// the hello feature are row T3: box_sample_frame.go.
 
 // boxSampleDFTimeout bounds the df run: a hung network mount must not hold
 // the answer past the hub's wait (spec 7.3, step 5).

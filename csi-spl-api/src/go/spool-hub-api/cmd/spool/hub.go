@@ -1288,6 +1288,10 @@ func boxClient(cfg *config.Config) (*hubclient.Client, error) {
 	}
 	c.DropAfter = drop
 	c.Keep = hubclient.ParseKeep(cfg.AgentKeep) // SPL-2803: desk service ids stay seated
+	// spec 071 8.7.1: the box answers at most one box_sample per this period
+	if c.BoxSampleMin, err = hubclient.ParseBoxSampleMin(os.Getenv("SPOOL_BOX_SAMPLE_MIN_S")); err != nil {
+		return nil, fmt.Errorf("$SPOOL_BOX_SAMPLE_MIN_S: %w", err)
+	}
 	if err := setQueueDurations(cfg, c); err != nil {
 		return nil, err
 	}

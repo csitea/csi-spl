@@ -163,8 +163,16 @@ type Client struct {
 	// hub-run holds the box (supersede.go, SPL-2712). 0 = the defaults.
 	SupersedeYield time.Duration
 	SupersedeFight time.Duration
-	dropMu         sync.Mutex
-	stopSince      map[string]time.Time // agent -> first report that it does not run
+	// BoxSampler collects the sample a box_sample frame asks for
+	// (box_sample_frame.go, spec 071 7.6.3); nil = the live box. Its Box is
+	// always the session's box. BoxSampleMin is the box-side guard
+	// (SPOOL_BOX_SAMPLE_MIN_S); 0 = DefaultBoxSampleMin.
+	BoxSampler   *BoxSampler
+	BoxSampleMin time.Duration
+	boxSample    boxSampleGuard
+
+	dropMu    sync.Mutex
+	stopSince map[string]time.Time // agent -> first report that it does not run
 
 	keysDirWarned sync.Once
 
@@ -480,8 +488,10 @@ func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string, 
 		return hello, nil
 	}
 	// SPL-987 backfill.go, SPL-997 fallback.go, spec 059 S2 commit (readLoop),
-	// spec 033 K.4.3 kinds13 (this binary's msg.Validate takes the 13 kinds)
-	hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback, wire.FeatureCommit, wire.FeatureKinds13}
+	// spec 033 K.4.3 kinds13 (this binary's msg.Validate takes the 13 kinds),
+	// spec 071 7.6.1 box_sample (box_sample_frame.go)
+	hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback, wire.FeatureCommit, wire.FeatureKinds13,
+		wire.FeatureBoxSample}
 	agents, run, err := c.rosterAgents() // t1 bc1a43e1 fix B: not a dead one
 	if err != nil {
 		return wire.Frame{}, err
@@ -631,6 +641,8 @@ func (s *Session) readLoop() {
 			s.backfillEnd(f)
 		case wire.TRoster:
 			s.c.saveRoster(f.Roster)
+		case wire.TBoxSample:
+			s.boxSampleFrame(f)
 		case wire.TQueueEnd:
 			select {
 			case s.queueEnd <- f.Count:

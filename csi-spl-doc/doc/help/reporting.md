@@ -63,11 +63,17 @@ five:
 
 - **Period**: the year to date (from 1 January), the last 12 months, the
   current month (marked "so far"), or one of the 11 months before it.
+- **From month** and **To month**: any start month and end month, both
+  included, at most 24 months apart. Every label then shows one column per
+  month and a total column that adds them up. They start on the current
+  month; a period picked above sets them to its first and last month, and
+  picking one of them replaces the period with your range.
 - **Currency**: USD, or your second currency (Settings -> Appearance, EUR
   unless you picked another). USD by default.
 
-Both ride in the address (`?month=2026-10&currency=EUR`, or `?month=ytd`), so
-a link, a label switch and the Back button keep them.
+Both ride in the address (`?month=2026-10&currency=EUR`, `?month=ytd`, or
+`?from=2026-01&to=2026-03` for a range), so a link, a label switch and the
+Back button keep them.
 
 An entry with no exchange rate shows a dash, and a total says how many entries
 it leaves out. Under Total, a single month also shows how many of its days
@@ -102,9 +108,9 @@ under it.
 
 The page first shows two figures, **this month so far** and **this year to
 date**, each the sum of its parts. Under them a table holds the parts for the
-header's period: a month, or the year to date. The project's cost reads one
-month or a year only, so the **last 12 months** are drawn as the year to
-date, and the page says so.
+header's period: a month, the year to date, or the range from the start
+month to the end month, both included. The project's cost reads no "last 12
+months", so that pick is drawn as the year to date, and the page says so.
 
 Each part shows its amount in the header's currency, its share of the
 total, and how complete it is:

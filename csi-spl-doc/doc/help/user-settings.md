@@ -426,6 +426,7 @@ calendar.
 
 ---
 
+<a id="ws-doc-87e91ca0-a036-4a1b-b183-bf70412518f6"></a>
 ## 11. Contacts (`/settings/contacts`)
 
 The switch that brings your Google contacts into your contact list. It is the

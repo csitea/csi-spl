@@ -4360,7 +4360,17 @@
     "disconnect_failed": "Deconectarea nu a reușit.",
     "notice_connected": "Calendarul Google este conectat.",
     "notice_error": "Calendarul Google nu a fost conectat. Încearcă din nou.",
-    "untitled_event": "(Fără titlu)"
+    "untitled_event": "(Fără titlu)",
+    "contacts_title": "Contacte Google",
+    "contacts_switch": "Sincronizează Contactele Google",
+    "contacts_intro": "Aduce contactele tale Google în lista ta de contacte și le menține actualizate.",
+    "contacts_elsewhere": "Sincronizarea contactelor este activă în alt spațiu de lucru al tău. Dezactiveaz-o mai întâi acolo.",
+    "contacts_needs_grant": "Google nu a dat încă acces la contactele tale.",
+    "contacts_grant": "Dă acces la Contactele Google",
+    "contacts_load_failed": "Nu s-a putut citi sincronizarea contactelor.",
+    "contacts_failed": "Nu s-a putut modifica sincronizarea contactelor.",
+    "contacts_started": "Sincronizarea contactelor este activă. Primul import a început.",
+    "contacts_stopped": "Sincronizarea contactelor este dezactivată."
   },
   "expenses": {
     "tabs_label": "File de cheltuieli",

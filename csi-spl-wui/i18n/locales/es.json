@@ -4360,7 +4360,17 @@
     "disconnect_failed": "No se pudo desconectar.",
     "notice_connected": "Calendario de Google está conectado.",
     "notice_error": "Calendario de Google no se conectó. Inténtalo de nuevo.",
-    "untitled_event": "(Sin título)"
+    "untitled_event": "(Sin título)",
+    "contacts_title": "Contactos de Google",
+    "contacts_switch": "Sincronizar Contactos de Google",
+    "contacts_intro": "Trae tus contactos de Google a tu lista de contactos y los mantiene al día.",
+    "contacts_elsewhere": "La sincronización de contactos está activada en otro de tus espacios de trabajo. Desactívala allí primero.",
+    "contacts_needs_grant": "Google aún no ha dado acceso a tus contactos.",
+    "contacts_grant": "Dar acceso a Contactos de Google",
+    "contacts_load_failed": "No se pudo leer la sincronización de contactos.",
+    "contacts_failed": "No se pudo cambiar la sincronización de contactos.",
+    "contacts_started": "La sincronización de contactos está activada. La primera importación ha comenzado.",
+    "contacts_stopped": "La sincronización de contactos está desactivada."
   },
   "expenses": {
     "tabs_label": "Pestañas de gastos",

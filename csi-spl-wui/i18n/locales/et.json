@@ -4360,7 +4360,17 @@
     "disconnect_failed": "Ühendust ei õnnestunud katkestada.",
     "notice_connected": "Google'i kalender on ühendatud.",
     "notice_error": "Google'i kalendrit ei ühendatud. Proovige uuesti.",
-    "untitled_event": "(Pealkirjata)"
+    "untitled_event": "(Pealkirjata)",
+    "contacts_title": "Google'i kontaktid",
+    "contacts_switch": "Sünkrooni Google'i kontaktid",
+    "contacts_intro": "Toob sinu Google'i kontaktid sinu kontaktide loendisse ja hoiab need ajakohasena.",
+    "contacts_elsewhere": "Kontaktide sünkroonimine on sisse lülitatud sinu teises tööruumis. Lülita see esmalt seal välja.",
+    "contacts_needs_grant": "Google pole veel sinu kontaktidele juurdepääsu andnud.",
+    "contacts_grant": "Anna juurdepääs Google'i kontaktidele",
+    "contacts_load_failed": "Kontaktide sünkroonimise olekut ei õnnestunud lugeda.",
+    "contacts_failed": "Kontaktide sünkroonimist ei õnnestunud muuta.",
+    "contacts_started": "Kontaktide sünkroonimine on sees. Esimene import on alanud.",
+    "contacts_stopped": "Kontaktide sünkroonimine on väljas."
   },
   "expenses": {
     "tabs_label": "Kulude vahelehed",

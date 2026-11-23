@@ -4360,7 +4360,17 @@
     "disconnect_failed": "Could not disconnect.",
     "notice_connected": "Google Calendar is connected.",
     "notice_error": "Google Calendar was not connected. Try again.",
-    "untitled_event": "(No title)"
+    "untitled_event": "(No title)",
+    "contacts_title": "Google Contacts",
+    "contacts_switch": "Sync Google Contacts",
+    "contacts_intro": "Brings your Google contacts into your contact list and keeps them up to date.",
+    "contacts_elsewhere": "Contacts sync is on in another of your workspaces. Turn it off there first.",
+    "contacts_needs_grant": "Google has not given access to your contacts yet.",
+    "contacts_grant": "Give access to Google Contacts",
+    "contacts_load_failed": "Could not read the contacts sync.",
+    "contacts_failed": "Could not change the contacts sync.",
+    "contacts_started": "Contacts sync is on. The first import has started.",
+    "contacts_stopped": "Contacts sync is off."
   },
   "expenses": {
     "tabs_label": "Expenses tabs",

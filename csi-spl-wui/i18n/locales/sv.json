@@ -4360,7 +4360,17 @@
     "disconnect_failed": "Det gick inte att koppla från.",
     "notice_connected": "Google Kalender är ansluten.",
     "notice_error": "Google Kalender anslöts inte. Försök igen.",
-    "untitled_event": "(Ingen titel)"
+    "untitled_event": "(Ingen titel)",
+    "contacts_title": "Google Kontakter",
+    "contacts_switch": "Synkronisera Google Kontakter",
+    "contacts_intro": "Hämtar dina Google-kontakter till din kontaktlista och håller dem uppdaterade.",
+    "contacts_elsewhere": "Kontaktsynkronisering är på i en annan av dina arbetsytor. Stäng av den där först.",
+    "contacts_needs_grant": "Google har ännu inte gett åtkomst till dina kontakter.",
+    "contacts_grant": "Ge åtkomst till Google Kontakter",
+    "contacts_load_failed": "Det gick inte att läsa kontaktsynkroniseringen.",
+    "contacts_failed": "Det gick inte att ändra kontaktsynkroniseringen.",
+    "contacts_started": "Kontaktsynkronisering är på. Den första importen har börjat.",
+    "contacts_stopped": "Kontaktsynkronisering är av."
   },
   "expenses": {
     "tabs_label": "Utgiftsflikar",

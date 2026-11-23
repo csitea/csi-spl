@@ -4360,7 +4360,17 @@
     "disconnect_failed": "Nepavyko atjungti.",
     "notice_connected": "Google kalendorius prijungtas.",
     "notice_error": "Google kalendorius nebuvo prijungtas. Bandykite dar kartą.",
-    "untitled_event": "(Be pavadinimo)"
+    "untitled_event": "(Be pavadinimo)",
+    "contacts_title": "Google kontaktai",
+    "contacts_switch": "Sinchronizuoti Google kontaktus",
+    "contacts_intro": "Perkelia jūsų Google kontaktus į jūsų kontaktų sąrašą ir nuolat juos atnaujina.",
+    "contacts_elsewhere": "Kontaktų sinchronizavimas įjungtas kitoje jūsų darbo erdvėje. Pirmiausia išjunkite jį ten.",
+    "contacts_needs_grant": "Google dar nesuteikė prieigos prie jūsų kontaktų.",
+    "contacts_grant": "Suteikti prieigą prie Google kontaktų",
+    "contacts_load_failed": "Nepavyko nuskaityti kontaktų sinchronizavimo būsenos.",
+    "contacts_failed": "Nepavyko pakeisti kontaktų sinchronizavimo.",
+    "contacts_started": "Kontaktų sinchronizavimas įjungtas. Pirmasis importas pradėtas.",
+    "contacts_stopped": "Kontaktų sinchronizavimas išjungtas."
   },
   "expenses": {
     "tabs_label": "Išlaidų skirtukai",

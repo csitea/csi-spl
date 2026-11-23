@@ -4360,7 +4360,17 @@
     "disconnect_failed": "Odpojenie zlyhalo.",
     "notice_connected": "Kalendár Google je pripojený.",
     "notice_error": "Kalendár Google nebol pripojený. Skúste to znova.",
-    "untitled_event": "(Bez názvu)"
+    "untitled_event": "(Bez názvu)",
+    "contacts_title": "Kontakty Google",
+    "contacts_switch": "Synchronizovať Kontakty Google",
+    "contacts_intro": "Prenesie vaše kontakty Google do vášho zoznamu kontaktov a udržiava ich aktuálne.",
+    "contacts_elsewhere": "Synchronizácia kontaktov je zapnutá v inom vašom pracovnom priestore. Najprv ju vypnite tam.",
+    "contacts_needs_grant": "Google zatiaľ neposkytol prístup k vašim kontaktom.",
+    "contacts_grant": "Poskytnúť prístup ku Kontaktom Google",
+    "contacts_load_failed": "Stav synchronizácie kontaktov sa nepodarilo načítať.",
+    "contacts_failed": "Synchronizáciu kontaktov sa nepodarilo zmeniť.",
+    "contacts_started": "Synchronizácia kontaktov je zapnutá. Prvý import sa začal.",
+    "contacts_stopped": "Synchronizácia kontaktov je vypnutá."
   },
   "expenses": {
     "tabs_label": "Karty výdavkov",

@@ -4360,7 +4360,17 @@
     "disconnect_failed": "Yhteyttä ei voitu katkaista.",
     "notice_connected": "Google-kalenteri on yhdistetty.",
     "notice_error": "Google-kalenteria ei yhdistetty. Yritä uudelleen.",
-    "untitled_event": "(Ei otsikkoa)"
+    "untitled_event": "(Ei otsikkoa)",
+    "contacts_title": "Google-yhteystiedot",
+    "contacts_switch": "Synkronoi Google-yhteystiedot",
+    "contacts_intro": "Tuo Google-yhteystietosi yhteystietoluetteloosi ja pitää ne ajan tasalla.",
+    "contacts_elsewhere": "Yhteystietojen synkronointi on käytössä toisessa työtilassasi. Poista se ensin käytöstä siellä.",
+    "contacts_needs_grant": "Google ei ole vielä antanut pääsyä yhteystietoihisi.",
+    "contacts_grant": "Anna pääsy Google-yhteystietoihin",
+    "contacts_load_failed": "Yhteystietojen synkronoinnin tilaa ei voitu lukea.",
+    "contacts_failed": "Yhteystietojen synkronointia ei voitu muuttaa.",
+    "contacts_started": "Yhteystietojen synkronointi on käytössä. Ensimmäinen tuonti on alkanut.",
+    "contacts_stopped": "Yhteystietojen synkronointi ei ole käytössä."
   },
   "expenses": {
     "tabs_label": "Kulujen välilehdet",

@@ -4360,7 +4360,17 @@
     "disconnect_failed": "Bağlantı kesilemedi.",
     "notice_connected": "Google Takvim bağlandı.",
     "notice_error": "Google Takvim bağlanmadı. Tekrar deneyin.",
-    "untitled_event": "(Başlıksız)"
+    "untitled_event": "(Başlıksız)",
+    "contacts_title": "Google Kişiler",
+    "contacts_switch": "Google Kişiler'i eşitle",
+    "contacts_intro": "Google kişilerinizi kişi listenize ekler ve güncel tutar.",
+    "contacts_elsewhere": "Çalışma alanlarınızdan birinde kişi senkronizasyonu açık. Önce orada kapatın.",
+    "contacts_needs_grant": "Google henüz kişilerinize erişim vermedi.",
+    "contacts_grant": "Google Kişiler'e erişim ver",
+    "contacts_load_failed": "Kişi senkronizasyonunun durumu okunamadı.",
+    "contacts_failed": "Kişi senkronizasyonu değiştirilemedi.",
+    "contacts_started": "Kişi senkronizasyonu açık. İlk içe aktarma başladı.",
+    "contacts_stopped": "Kişi senkronizasyonu kapalı."
   },
   "expenses": {
     "tabs_label": "Gider sekmeleri",

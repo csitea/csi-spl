@@ -338,6 +338,7 @@ tests/e2e/section-strip-scroll-hide.test.mjs 215
 tests/e2e/selected-topic-card.test.mjs 6
 tests/e2e/send-survives-max-life.test.mjs 3
 tests/e2e/settings-calendar-google.test.mjs 14
+tests/e2e/settings-contacts-switch.test.mjs 14
 tests/e2e/settings-lang-width.test.mjs 18
 tests/e2e/settings-modal.test.mjs 28
 tests/e2e/settings-notes.test.mjs 7

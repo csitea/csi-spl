@@ -8,7 +8,14 @@
      Connected: the Google email, the target calendar, the last sync and its
      status, Sync now, Disconnect (with "remove imported events"). A revoked or
      error status shows its reason and Reconnect. Its own chunk, with
-     utils/gcal-client.mjs: it never enters the initial download (C27). -->
+     utils/gcal-client.mjs: it never enters the initial download (C27).
+     Spec 154 B18 (SPL-6278): while connected, and only in a workspace inside
+     cnf contacts.workspaces (the access store's `contacts`, 2.9), the
+     Contacts switch: on starts the sync of the person's Google contacts
+     (its first cycle is the import, 11.2.2); a grant without the contacts
+     scope sends the person to Google once to add it; last sync, status,
+     Sync now; the binding in another workspace says so (409
+     contacts_sync_elsewhere). -->
 <template>
   <SettingsSection id="settings-calendar-google" :title="t('settings.calendar_google')" data-test="settings-calendar-google">
     <div data-test="gcal" :data-view="view">
@@ -56,6 +63,46 @@
           </button>
           <button v-else type="button" class="btn" data-test="gcal-sync" :disabled="busy" @click="sync()">{{ t('gcal.sync_now') }}</button>
         </div>
+        <section v-if="cview !== 'hidden'" class="gcal__contacts" data-test="gcal-contacts" :data-view="cview" :aria-label="t('gcal.contacts_title')">
+          <p v-if="cview === 'failed'" class="gcal__warn" role="alert" data-test="gcal-contacts-failed">{{ t('gcal.contacts_load_failed') }}</p>
+          <template v-else>
+            <label class="gcal__switch">
+              <span>
+                <span class="gcal__switch-title">{{ t('gcal.contacts_switch') }}</span>
+                <span class="muted gcal__switch-hint">{{ t('gcal.contacts_intro') }}</span>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                data-test="gcal-contacts-switch"
+                :checked="contactsChecked"
+                :aria-checked="contactsChecked ? 'true' : 'false'"
+                :disabled="busy || cview === 'elsewhere'"
+                @change="toggleContacts(($event.target as HTMLInputElement).checked)"
+              >
+            </label>
+            <p v-if="cview === 'elsewhere'" class="gcal__warn" role="status" data-test="gcal-contacts-elsewhere">{{ t('gcal.contacts_elsewhere') }}</p>
+            <template v-if="cview === 'grant'">
+              <p class="gcal__warn" role="status" data-test="gcal-contacts-grant-needed">{{ t('gcal.contacts_needs_grant') }}</p>
+              <div class="gcal__actions">
+                <button type="button" class="btn" data-test="gcal-contacts-grant" :disabled="busy" @click="grantContacts()">{{ t('gcal.contacts_grant') }}</button>
+              </div>
+            </template>
+            <template v-if="cview === 'on'">
+              <dl class="gcal__facts">
+                <div class="gcal__row">
+                  <dt>{{ t('gcal.last_sync') }}</dt>
+                  <dd data-test="gcal-contacts-last-sync">{{ contactsLastSync }}</dd>
+                </div>
+              </dl>
+              <p v-if="cstate?.status_detail" class="gcal__warn" role="status" data-test="gcal-contacts-detail">{{ cstate.status_detail }}</p>
+              <div class="gcal__actions">
+                <button type="button" class="btn" data-test="gcal-contacts-sync" :disabled="busy" @click="syncContacts()">{{ t('gcal.sync_now') }}</button>
+              </div>
+            </template>
+          </template>
+          <p v-if="contactsMsg" class="gcal__result" :class="{ 'gcal__warn': contactsWarn }" role="status" data-test="gcal-contacts-result">{{ t(contactsMsg) }}</p>
+        </section>
         <div class="gcal__disconnect">
           <label class="gcal__tick">
             <input v-model="removeImported" type="checkbox" data-test="gcal-remove-imported" :disabled="busy">
@@ -73,9 +120,14 @@
 import SettingsSection from '~/components/SettingsSection.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { gcalConnect, gcalDisconnect, gcalReturnNotice, gcalStatus, gcalSync, gcalSyncFollower, gcalView } from '~/utils/gcal-client.mjs'
+import { useAccessStore } from '~/stores/access'
+import {
+  GCAL_WANT_CONTACTS, contactsSyncNow, contactsSyncSet, contactsSyncState, contactsSyncView,
+  gcalConnect, gcalDisconnect, gcalReturnNotice, gcalStatus, gcalSync, gcalSyncFollower, gcalView,
+} from '~/utils/gcal-client.mjs'
 
 type GcalStatus = { connected?: boolean, google_email?: string, calendar_title?: string, status?: string, status_detail?: string, last_synced_at?: string }
+type ContactsSync = { enabled?: boolean, elsewhere?: boolean, scope_granted?: boolean, status_detail?: string, last_synced_at?: string | null }
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
@@ -87,6 +139,16 @@ const removeImported = ref(false)
 const actionMsg = ref('')
 const actionWarn = ref(false)
 const notice = computed(() => gcalReturnNotice(route.query as Record<string, unknown>, view.value))
+const access = useAccessStore()
+const cstate = ref<ContactsSync | null>(null)
+const cview = ref<string>('hidden')
+const contactsMsg = ref('')
+const contactsWarn = ref(false)
+const contactsChecked = computed(() => cview.value === 'on' || cview.value === 'grant')
+const contactsLastSync = computed(() => {
+  const at = cstate.value?.last_synced_at
+  return (at && isoDateTime(at)) || t('gcal.never')
+})
 
 const statusKey = computed(() => {
   const s = String(status.value?.status || 'connected')
@@ -106,6 +168,91 @@ async function load() {
   } catch (e) {
     status.value = null
     view.value = gcalView(null, e as { status?: number })
+  }
+  await loadContacts()
+}
+
+// spec 154 B18: the switch's state, read only while Google is connected and
+// the workspace is inside contacts.workspaces (no read to find that out, 2.9)
+async function loadContacts() {
+  if (view.value !== 'connected') {
+    cstate.value = null
+    cview.value = 'hidden'
+    return
+  }
+  await access.ensure()
+  if (!access.contacts) {
+    cview.value = 'hidden'
+    return
+  }
+  try {
+    cstate.value = await contactsSyncState(api) as ContactsSync
+    cview.value = contactsSyncView(cstate.value, null)
+  } catch (e) {
+    cstate.value = null
+    cview.value = contactsSyncView(null, e as { status?: number })
+  }
+}
+
+function saidContacts(key: string, warn = false) {
+  contactsMsg.value = key
+  contactsWarn.value = warn
+}
+
+// Google's consent page, once, for the contacts scope; the callback comes
+// back here and the binding, already on, starts its first cycle
+async function grantContacts() {
+  busy.value = true
+  saidContacts('')
+  try {
+    const url = await gcalConnect(api, GCAL_WANT_CONTACTS)
+    if (url) {
+      window.location.assign(url)
+      return
+    }
+    await loadContacts()
+  } catch (e) {
+    const err = e as { status?: number }
+    saidContacts(err.status === 503 ? 'gcal.not_configured' : 'gcal.connect_failed', true)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function toggleContacts(on: boolean) {
+  busy.value = true
+  saidContacts('')
+  let refused = false
+  try {
+    await contactsSyncSet(api, on)
+  } catch (e) {
+    refused = true
+    const err = e as { error?: string }
+    saidContacts(err.error === 'contacts_sync_elsewhere' ? 'gcal.contacts_elsewhere' : 'gcal.contacts_failed', true)
+  } finally {
+    busy.value = false
+  }
+  await loadContacts()
+  if (refused) return
+  /* on without the contacts scope: Google's consent page; with no page to
+     go to (the mock) the grant is already read back */
+  if (on && cview.value === 'grant') await grantContacts()
+  if (on && cview.value !== 'on') return
+  saidContacts(on ? 'gcal.contacts_started' : 'gcal.contacts_stopped')
+}
+
+async function syncContacts() {
+  busy.value = true
+  try {
+    await contactsSyncNow(api)
+    saidContacts('gcal.sync_started')
+    await loadContacts()
+  } catch (e) {
+    const err = e as { error?: string }
+    if (err.error === 'sync_in_progress') saidContacts('gcal.sync_busy')
+    else saidContacts('gcal.sync_failed', true)
+  } finally {
+    busy.value = false
   }
 }
 
@@ -211,4 +358,22 @@ onBeforeUnmount(() => follower.stop())
 }
 .gcal__tick { display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap, 44px); }
 .gcal__result { margin: 10px 0 0; font-size: 0.875rem; }
+.gcal__contacts {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+.gcal__switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--tap, 44px);
+  cursor: pointer;
+}
+.gcal__switch > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gcal__switch-title { font-weight: 600; }
+.gcal__switch-hint { font-size: 0.875rem; }
+.gcal__switch input { width: 44px; height: 24px; flex: none; margin: 0; cursor: pointer; }
+.gcal__contacts .gcal__warn { margin: 8px 0 0; }
 </style>

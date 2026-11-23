@@ -4360,7 +4360,17 @@
     "disconnect_failed": "לא ניתן היה לנתק.",
     "notice_connected": "יומן Google מחובר.",
     "notice_error": "יומן Google לא חובר. נסו שוב.",
-    "untitled_event": "(ללא כותרת)"
+    "untitled_event": "(ללא כותרת)",
+    "contacts_title": "אנשי הקשר של Google",
+    "contacts_switch": "סנכרון אנשי הקשר של Google",
+    "contacts_intro": "מביא את אנשי הקשר שלך מ-Google לרשימת אנשי הקשר שלך ושומר אותם מעודכנים.",
+    "contacts_elsewhere": "סנכרון אנשי הקשר פעיל בסביבת עבודה אחרת שלך. כבה אותו שם קודם.",
+    "contacts_needs_grant": "Google עדיין לא נתן גישה לאנשי הקשר שלך.",
+    "contacts_grant": "מתן גישה לאנשי הקשר של Google",
+    "contacts_load_failed": "לא ניתן לקרוא את מצב סנכרון אנשי הקשר.",
+    "contacts_failed": "לא ניתן לשנות את סנכרון אנשי הקשר.",
+    "contacts_started": "סנכרון אנשי הקשר פעיל. הייבוא הראשון התחיל.",
+    "contacts_stopped": "סנכרון אנשי הקשר כבוי."
   },
   "expenses": {
     "tabs_label": "כרטיסיות הוצאות",

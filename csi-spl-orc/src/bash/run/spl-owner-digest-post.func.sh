@@ -5,7 +5,11 @@
 # @description every open issue labelled `needs-owner` (do_spl_issue_needs_owner),
 # @description oldest first: its link, how long it has waited, and the exact
 # @description command or click from its "**Needs owner** since ..." line. An
-# @description item with no such line says so. Nothing waiting = no post.
+# @description item with no such line says so. When decided/signed specs on
+# @description origin/master have unqueued build rows (do_spl_spec_rows_unqueued),
+# @description one summary line for the dispatch holder is appended (and posted
+# @description even when 0 needs-owner issues wait). Nothing waiting and no
+# @description unqueued spec rows = no post.
 # @description Under the list ONE ```poll form asks each item with a step:
 # @description Go / Hold / No go (owner msg 03d0ef42, how-to-post.md rule 10).
 # @description It is a digest, never a page: a plain note in a channel, no
@@ -29,6 +33,7 @@
 # @param OWNER_DIGEST_NOW (optional, tests) - the time, epoch seconds
 # @param OWNER_DIGEST_POST_FN (optional, tests) - default do_spl_desk_post
 # @param OWNER_DIGEST_LIST_FN (optional, tests) - default spl_issue_list_fetch
+# @param OWNER_DIGEST_UNQUEUED_FN (optional, tests) - default spl_owner_digest_unqueued_line
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_owner_digest_post
@@ -78,15 +83,23 @@ do_spl_owner_digest_post() {
 
 # spl_owner_digest_run <work> <now> <channel> <dry>: list, render, post.
 spl_owner_digest_run() {
-  local work="$1" now="$2" chan="$3" dry="$4" n
+  local work="$1" now="$2" chan="$3" dry="$4" n unqueued=""
   local label="${SPL_NEEDS_OWNER_LABEL:-needs-owner}"
   "${OWNER_DIGEST_LIST_FN:-spl_issue_list_fetch}" --label "$label" \
     --status eval,todo,wip,blocked,onhold,qas --limit 500 >"$work/list.json" || return 1
   spl_owner_digest_render "$work/list.json" "$now" "$label" >"$work/body.md" || return 1
+  unqueued="$("${OWNER_DIGEST_UNQUEUED_FN:-spl_owner_digest_unqueued_line}" | awk 'NF { print; exit }')" || unqueued=""
+  if [[ -n "$unqueued" ]]; then
+    if [[ -s "$work/body.md" ]]; then
+      printf '\n%s\n' "$unqueued" >>"$work/body.md"
+    else
+      printf '%s\n' "$unqueued" >"$work/body.md"
+    fi
+  fi
   if [[ ! -s "$work/body.md" ]]; then
     echo "OK owner-digest: nothing waits for the owner: no post"; return 0
   fi
-  n="$(grep -c '^[0-9]*\. ' "$work/body.md")"
+  n="$(grep -c '^[0-9]*\. ' "$work/body.md" || true)"
   if ((dry)); then
     echo "PLAN owner-digest: $n item(s), as $DESK_AGENT into #$chan:"
     sed 's/^/  | /' "$work/body.md"
@@ -96,6 +109,16 @@ spl_owner_digest_run() {
   DESK_CHANNEL="$chan" DESK_KIND=note DESK_BODY='' DESK_BODY_FILE="$work/body.md" DRY_RUN=0 \
     "${OWNER_DIGEST_POST_FN:-do_spl_desk_post}" || { do_log "FATAL owner-digest: the post failed; the next hourly run retries"; return 1; }
   do_log "OK owner-digest: $n item(s) posted to #$chan as $DESK_AGENT"
+}
+
+# spl_owner_digest_unqueued_line: one-line summary of decided/signed specs with
+# unqueued build rows (best-effort; never blocks the needs-owner digest).
+spl_owner_digest_unqueued_line() {
+  local run_dir
+  run_dir="$(dirname "${BASH_SOURCE[0]}")"
+  declare -F do_spl_spec_rows_unqueued >/dev/null ||
+    source "$run_dir/spl-spec-rows-unqueued.func.sh"
+  SPEC_UNQUEUED_FORMAT=digest RUN_STDOUT_IS_DATA=1 do_spl_spec_rows_unqueued 2>/dev/null || true
 }
 
 # spl_owner_digest_render <list.json> <now> <label>: the post on stdout,

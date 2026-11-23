@@ -34,6 +34,10 @@
 #    19. the digest ends with ONE ```poll form: Go / Hold / No go per item with a step
 #    20. poll.mjs (the WUI's own parser, through node) accepts it as a radio form
 #    21. CONTROL: prose options and no poll block fail the same check
+#   unqueued decided/signed spec rows line (SPL-6337)
+#    26. unqueued line appended to the needs-owner digest; poll.mjs still accepts the form
+#    27. 0 needs-owner items + unqueued line -> still posts that one line and stamps
+#    28. CONTROL: empty unqueued line -> line absent from digest body
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -210,12 +214,15 @@ env:
 EOF
 do_spl_desk_cnf() { export SPL_CNF="$T/cnf.yaml"; }
 LIST="$T/list.json"
+UNQUEUED_LINE=""
 list_stub() { echo "list $*" >>"$CALLS"; cat "$LIST"; }
 post_stub() { echo "post $DESK_AGENT $DESK_CHANNEL $DESK_KIND $ENV $TENANT_ID" >>"$CALLS"; cp "$DESK_BODY_FILE" "$T/posted"; }
+unqueued_stub() { [[ -n "$UNQUEUED_LINE" ]] && printf '%s\n' "$UNQUEUED_LINE"; return 0; }
 digest() {
   : >"$CALLS"
   env -u ENV -u TENANT_ID -u DESK_AGENT SPOOL_ROOT="$ROOT" OWNER_DIGEST_STATE="$T/stamp" OWNER_DIGEST_LIST_FN=list_stub \
-    OWNER_DIGEST_POST_FN=post_stub OWNER_DIGEST_NOW="${2:-$NOW}" DRY_RUN="$1" bash -c "$(declare -f); $(declare -p T CALLS LIST); do_spl_owner_digest_post" 2>&1
+    OWNER_DIGEST_POST_FN=post_stub OWNER_DIGEST_UNQUEUED_FN=unqueued_stub OWNER_DIGEST_NOW="${2:-$NOW}" DRY_RUN="$1" \
+    bash -c "$(declare -f); $(declare -p T CALLS LIST UNQUEUED_LINE); do_spl_owner_digest_post" 2>&1
 }
 
 echo "c-002@box-b 1791827665" >"$ROOT/dispatch/lease"
@@ -280,6 +287,31 @@ eq "20. poll.mjs accepts the form: 2 radio questions, Go / Hold / No go" "2 GO,H
 # 21. CONTROL: the same check refuses prose options with no poll block
 prose="$(printf '%s\n' "## Waiting for you: 1 step(s)" "" "1. [SPL-595](/issues?issue=SPL-595) Azure app" "  Step: register the Azure app" "" "(a) go (b) hold - say 1 or 2")"
 eq "21. CONTROL: prose options, no poll block -> no form" "none" "$(poll_form "$prose")"
+
+# --- unqueued decided/signed spec rows line (SPL-6337) ---
+# 26. appended alongside needs-owner items; poll form still valid
+rm -f "$T/stamp" "$T/posted"
+LIST="$T/list.json"
+UNQUEUED_LINE="Unqueued decided/signed spec rows (dispatch holder): **901-widget** (B1) — run \`cd csi-spl-orc && ./run -a do_spl_spec_rows_unqueued\`"
+out="$(digest 0)"
+posted26="$(cat "$T/posted" 2>/dev/null)"
+has "26. unqueued spec line appended to morning digest" "**901-widget** (B1)" "$posted26"
+eq "26. poll.mjs still accepts the form with unqueued line" "2 GO,HLD,NO GO,HLD,NO" "$(poll_form "$posted26")"
+
+# 27. 0 needs-owner items + unqueued line -> still posts that one line and stamps
+rm -f "$T/stamp" "$T/posted"
+LIST="$T/empty.json"
+out="$(digest 0)"
+eq "27. 0 needs-owner + unqueued -> still posts" "list|post" "$(cut -d' ' -f1 "$CALLS" | paste -sd'|')"
+eq "27. posted body is the unqueued line" "$UNQUEUED_LINE" "$(cat "$T/posted" 2>/dev/null)"
+eq "27. day is stamped" "2026-10-12" "$(cat "$T/stamp" 2>/dev/null)"
+
+# 28. CONTROL: empty unqueued line -> absent from digest body
+rm -f "$T/stamp" "$T/posted"
+LIST="$T/list.json"
+UNQUEUED_LINE=""
+out="$(digest 0)"
+! grep -qF "Unqueued decided/signed spec rows" "$T/posted" && pass "28. CONTROL: empty unqueued line -> omitted" || fail "28. CONTROL" "$(cat "$T/posted")"
 
 echo
 [ "$fails" -eq 0 ] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAILED"; exit 1; }

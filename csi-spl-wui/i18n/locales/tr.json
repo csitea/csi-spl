@@ -460,6 +460,38 @@
       "link": "Çalışma alanı satın alın"
     }
   },
+  "checkout_private": {
+    "title": "Özel bir çalışma alanı sipariş edin",
+    "intro": "Kendi özel sanal makinenizde kendi çalışma alanınız. Ajanlarınız kendi yapay zekâ aboneliklerinizle veya API anahtarlarınızla çalışır.",
+    "lines_title": "Her ay ne ödersiniz",
+    "line_seat": "Koltuklar: {seats} × {price} (insan üye başına) = ayda {total}",
+    "line_seat_note": "Ajanlar koltuk değildir.",
+    "line_vm": "Özel sanal makineniz: Google Cloud maliyeti (işlem, disk ve trafik) + yüzde {pct}",
+    "invoice": "Şu anda hiçbir ücret alınmaz. Her ayın sonunda sanal makinenin Google Cloud maliyeti, ardından o ay için faturamız dönem sonunda gelir: koltuklar artı makine maliyeti + yüzde {pct}. Faturayı, fatura tarihinden itibaren 14 gün içinde banka havalesiyle ödersiniz.",
+    "root": "Makinede root erişimini yalnızca bakım için tutarız; orada bize ait başka hiçbir şey çalışmaz.",
+    "agents": "Başlangıçtaki ajanlar: kendi API anahtarınızla claude ve qwen.",
+    "tenant_name": "Çalışma alanı adı",
+    "seats": "Koltuklar (insan üyeler)",
+    "billing_name": "Fatura adı",
+    "billing_address": "Fatura adresi",
+    "billing_country": "Ülke (2 harfli kod, ör. FI)",
+    "billing_vat": "Vergi numarası (isteğe bağlı)",
+    "submit": "Siparişi ver",
+    "done": "{tenant} çalışma alanınız oluşturuldu. Fatura her ay dönem sonunda gelir ve banka havalesiyle ödenir.",
+    "done_replayed": "Bu sipariş zaten verildi: {tenant} çalışma alanınız.",
+    "done_open": "Çalışma alanınızı açın",
+    "sign_in": "Oturum aç",
+    "error": {
+      "unauthorized": "Önce oturum açın — çalışma alanı oturum açan kişiye aittir.",
+      "email_mismatch": "Sipariş, oturum açtığınız e-posta adresi için olmalıdır.",
+      "bad_tenant_id": "Bu ada izin verilmiyor — küçük harf, rakam ve tire kullanın.",
+      "tenant_taken": "Bu ad alınmış — başka bir ad seçin.",
+      "bad_seats": "En az bir koltuk girin.",
+      "bad_billing": "Fatura için bir ad, bir adres ve 2 harfli bir ülke kodu gerekir.",
+      "network": "Hub yanıt vermedi — tekrar deneyin.",
+      "generic": "Bir şeyler ters gitti — tekrar deneyin."
+    }
+  },
   "user_menu": {
     "account": "Hesap",
     "signed_in": "Giriş yapıldı",

@@ -460,6 +460,38 @@
       "link": "Įsigykite darbo sritį"
     }
   },
+  "checkout_private": {
+    "title": "Užsakykite privačią darbo sritį",
+    "intro": "Nuosava darbo sritis nuosavoje privačioje virtualioje mašinoje. Jūsų agentai veikia su jūsų pačių DI prenumeratomis arba API raktais.",
+    "lines_title": "Ką mokate kiekvieną mėnesį",
+    "line_seat": "Vietos: {seats} × {price} už žmogų narį = {total} per mėnesį",
+    "line_seat_note": "Agentai nėra vietos.",
+    "line_vm": "Jūsų privati virtuali mašina: jos Google Cloud kaina (skaičiavimai, diskas ir srautas) + {pct} %",
+    "invoice": "Dabar nieko nenuskaičiuojama. Kiekvieno mėnesio pabaigoje gaunate virtualios mašinos Google Cloud kainą, o tada mūsų sąskaitą už tą mėnesį, mokamą už praėjusį laikotarpį: vietos plius mašinos kaina + {pct} %. Ją apmokate banko pavedimu per 14 dienų nuo sąskaitos datos.",
+    "root": "Root teises mašinoje turime tik priežiūrai; ten neveikia niekas kita mūsų.",
+    "agents": "Agentai paleidimo metu: claude ir qwen su jūsų pačių API raktu.",
+    "tenant_name": "Darbo srities pavadinimas",
+    "seats": "Vietos (žmonės nariai)",
+    "billing_name": "Pavadinimas sąskaitai",
+    "billing_address": "Adresas sąskaitai",
+    "billing_country": "Šalis (2 raidžių kodas, pvz., FI)",
+    "billing_vat": "PVM mokėtojo kodas (neprivaloma)",
+    "submit": "Pateikti užsakymą",
+    "done": "Jūsų darbo sritis {tenant} sukurta. Sąskaita gaunama kas mėnesį už praėjusį laikotarpį ir apmokama banko pavedimu.",
+    "done_replayed": "Šis užsakymas jau pateiktas: jūsų darbo sritis {tenant}.",
+    "done_open": "Atidaryti darbo sritį",
+    "sign_in": "Prisijungti",
+    "error": {
+      "unauthorized": "Pirmiausia prisijunkite — darbo sritis priklauso prisijungusiam asmeniui.",
+      "email_mismatch": "Užsakymas turi būti tam el. pašto adresui, kuriuo esate prisijungę.",
+      "bad_tenant_id": "Toks pavadinimas neleidžiamas — naudokite mažąsias raides, skaitmenis ir brūkšnelius.",
+      "tenant_taken": "Šis pavadinimas užimtas — pasirinkite kitą.",
+      "bad_seats": "Įveskite bent vieną vietą.",
+      "bad_billing": "Sąskaitai reikia pavadinimo, adreso ir 2 raidžių šalies kodo.",
+      "network": "Centras neatsakė — bandykite dar kartą.",
+      "generic": "Kažkas nutiko ne taip — bandykite dar kartą."
+    }
+  },
   "user_menu": {
     "account": "Paskyra",
     "signed_in": "Prisijungta",

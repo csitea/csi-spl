@@ -460,6 +460,38 @@
       "link": "Iegādājieties darbvietu"
     }
   },
+  "checkout_private": {
+    "title": "Pasūtiet privātu darbvietu",
+    "intro": "Sava darbvieta savā privātā virtuālajā mašīnā. Jūsu aģenti darbojas ar jūsu pašu MI abonementiem vai API atslēgām.",
+    "lines_title": "Ko maksājat katru mēnesi",
+    "line_seat": "Vietas: {seats} × {price} par cilvēku dalībnieku = {total} mēnesī",
+    "line_seat_note": "Aģenti nav vietas.",
+    "line_vm": "Jūsu privātā virtuālā mašīna: tās Google Cloud izmaksas (skaitļošana, disks un datplūsma) + {pct}%",
+    "invoice": "Tagad nekas netiek iekasēts. Katra mēneša beigās jūs saņemat virtuālās mašīnas Google Cloud izmaksas un pēc tam mūsu rēķinu par šo mēnesi, par jau izmantoto: vietas plus mašīnas izmaksas + {pct}%. To apmaksājat ar bankas pārskaitījumu 14 dienu laikā no rēķina datuma.",
+    "root": "Root piekļuve mašīnai mums ir tikai uzturēšanai; tur nedarbojas nekas cits no mūsu puses.",
+    "agents": "Aģenti palaišanas brīdī: claude un qwen ar jūsu pašu API atslēgu.",
+    "tenant_name": "Darbvietas nosaukums",
+    "seats": "Vietas (cilvēki dalībnieki)",
+    "billing_name": "Nosaukums rēķinam",
+    "billing_address": "Adrese rēķinam",
+    "billing_country": "Valsts (2 burtu kods, piem., FI)",
+    "billing_vat": "PVN numurs (neobligāts)",
+    "submit": "Iesniegt pasūtījumu",
+    "done": "Jūsu darbvieta {tenant} ir izveidota. Rēķins pienāk katru mēnesi par jau izmantoto un tiek apmaksāts ar bankas pārskaitījumu.",
+    "done_replayed": "Šis pasūtījums jau ir iesniegts: jūsu darbvieta {tenant}.",
+    "done_open": "Atvērt darbvietu",
+    "sign_in": "Pieteikties",
+    "error": {
+      "unauthorized": "Vispirms piesakieties — darbvieta pieder pieteiktajai personai.",
+      "email_mismatch": "Pasūtījumam jābūt tai e-pasta adresei, ar kuru esat pieteicies.",
+      "bad_tenant_id": "Šāds nosaukums nav atļauts — izmantojiet mazos burtus, ciparus un domuzīmes.",
+      "tenant_taken": "Šis nosaukums jau ir aizņemts — izvēlieties citu.",
+      "bad_seats": "Ievadiet vismaz vienu vietu.",
+      "bad_billing": "Rēķinam nepieciešams nosaukums, adrese un 2 burtu valsts kods.",
+      "network": "Centrs neatbildēja — mēģiniet vēlreiz.",
+      "generic": "Kaut kas nogāja greizi — mēģiniet vēlreiz."
+    }
+  },
   "user_menu": {
     "account": "Konts",
     "signed_in": "Pieteicies",

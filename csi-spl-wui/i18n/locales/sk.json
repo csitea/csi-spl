@@ -460,6 +460,38 @@
       "link": "Kúpte si pracovný priestor"
     }
   },
+  "checkout_private": {
+    "title": "Objednajte si súkromný pracovný priestor",
+    "intro": "Vlastný pracovný priestor na vlastnom súkromnom virtuálnom stroji. Vaši agenti bežia na vašich vlastných predplatných AI alebo kľúčoch API.",
+    "lines_title": "Čo platíte každý mesiac",
+    "line_seat": "Miesta: {seats} × {price} za ľudského člena = {total} mesačne",
+    "line_seat_note": "Agenti nie sú miesta.",
+    "line_vm": "Váš súkromný virtuálny stroj: jeho náklady v Google Cloud (výpočty, disk a prenos) + {pct} %",
+    "invoice": "Teraz sa nič neúčtuje. Na konci každého mesiaca dostanete náklady virtuálneho stroja v Google Cloud a potom našu faktúru za ten mesiac, spätne: miesta plus náklady stroja + {pct} %. Zaplatíte ju bankovým prevodom do 14 dní od dátumu faktúry.",
+    "root": "Prístup root k stroju máme iba na údržbu; nič iné naše tam nebeží.",
+    "agents": "Agenti pri spustení: claude a qwen, s vaším vlastným kľúčom API.",
+    "tenant_name": "Názov pracovného priestoru",
+    "seats": "Miesta (ľudskí členovia)",
+    "billing_name": "Fakturačné meno",
+    "billing_address": "Fakturačná adresa",
+    "billing_country": "Krajina (2-písmenový kód, napr. FI)",
+    "billing_vat": "IČ DPH (nepovinné)",
+    "submit": "Odoslať objednávku",
+    "done": "Váš pracovný priestor {tenant} je vytvorený. Faktúra prichádza mesačne spätne a platí sa bankovým prevodom.",
+    "done_replayed": "Táto objednávka už bola odoslaná: váš pracovný priestor {tenant}.",
+    "done_open": "Otvoriť pracovný priestor",
+    "sign_in": "Prihlásiť sa",
+    "error": {
+      "unauthorized": "Najprv sa prihláste — pracovný priestor patrí prihlásenej osobe.",
+      "email_mismatch": "Objednávka musí byť na e-mail, ktorým ste prihlásení.",
+      "bad_tenant_id": "Tento názov nie je povolený — použite malé písmená, číslice a pomlčky.",
+      "tenant_taken": "Tento názov je obsadený — vyberte iný.",
+      "bad_seats": "Zadajte aspoň jedno miesto.",
+      "bad_billing": "Fakturácia potrebuje meno, adresu a 2-písmenový kód krajiny.",
+      "network": "Hub neodpovedal — skúste to znova.",
+      "generic": "Niečo sa pokazilo — skúste to znova."
+    }
+  },
   "user_menu": {
     "account": "Účet",
     "signed_in": "Prihlásený",

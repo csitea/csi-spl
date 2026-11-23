@@ -460,6 +460,38 @@
       "link": "Koop een werkruimte"
     }
   },
+  "checkout_private": {
+    "title": "Bestel een privéwerkruimte",
+    "intro": "Je eigen werkruimte op je eigen privé virtuele machine. Je agents draaien op je eigen AI-abonnementen of API-sleutels.",
+    "lines_title": "Wat je elke maand betaalt",
+    "line_seat": "Plaatsen: {seats} × {price} per menselijk lid = {total} per maand",
+    "line_seat_note": "Agents zijn geen plaatsen.",
+    "line_vm": "Je privé virtuele machine: de Google Cloud-kosten ervan (rekenkracht, schijf en verkeer) + {pct}%",
+    "invoice": "Er wordt nu niets in rekening gebracht. Aan het eind van elke maand krijg je de Google Cloud-kosten van de machine en daarna onze factuur voor die maand, achteraf: de plaatsen plus de kosten van de machine + {pct}%. Je betaalt die per bankoverschrijving binnen 14 dagen na de factuurdatum.",
+    "root": "We hebben root-toegang tot de machine alleen voor onderhoud; er draait daar verder niets van ons.",
+    "agents": "Agents bij de start: claude en qwen, met je eigen API-sleutel.",
+    "tenant_name": "Naam van de werkruimte",
+    "seats": "Plaatsen (menselijke leden)",
+    "billing_name": "Factuurnaam",
+    "billing_address": "Factuuradres",
+    "billing_country": "Land (code van 2 letters, bijv. FI)",
+    "billing_vat": "Btw-nummer (optioneel)",
+    "submit": "Bestelling plaatsen",
+    "done": "Je werkruimte {tenant} is aangemaakt. De factuur komt maandelijks achteraf en wordt per bankoverschrijving betaald.",
+    "done_replayed": "Deze bestelling is al geplaatst: je werkruimte {tenant}.",
+    "done_open": "Open je werkruimte",
+    "sign_in": "Inloggen",
+    "error": {
+      "unauthorized": "Log eerst in — de werkruimte is van de ingelogde persoon.",
+      "email_mismatch": "De bestelling moet voor het e-mailadres zijn waarmee je bent ingelogd.",
+      "bad_tenant_id": "Die naam is niet toegestaan — gebruik kleine letters, cijfers en streepjes.",
+      "tenant_taken": "Die naam is al in gebruik — kies een andere.",
+      "bad_seats": "Vul minstens één plaats in.",
+      "bad_billing": "Voor de factuur zijn een naam, een adres en een landcode van 2 letters nodig.",
+      "network": "De hub reageerde niet — probeer het opnieuw.",
+      "generic": "Er ging iets mis — probeer het opnieuw."
+    }
+  },
   "user_menu": {
     "account": "Mijn account",
     "signed_in": "Ingelogd",

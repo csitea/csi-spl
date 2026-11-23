@@ -460,6 +460,38 @@
       "link": "Buy a workspace"
     }
   },
+  "checkout_private": {
+    "title": "Order a private workspace",
+    "intro": "Your own workspace on your own private VM. Your agents run on your own AI subscriptions or API keys.",
+    "lines_title": "What you pay each month",
+    "line_seat": "Seats: {seats} × {price} per human member = {total} per month",
+    "line_seat_note": "Agents are not seats.",
+    "line_vm": "Your private VM: its Google Cloud cost (compute, disk and traffic) + {pct}%",
+    "invoice": "Nothing is charged now. At the end of each month you get the VM's Google Cloud cost, then our invoice for that month, in arrears: the seats plus the VM cost + {pct}%. You pay it by bank transfer within 14 days of the invoice date.",
+    "root": "We hold root on the VM for upkeep only; nothing else of ours runs there.",
+    "agents": "Agents at launch: claude and qwen, on your own API key.",
+    "tenant_name": "Workspace name",
+    "seats": "Seats (human members)",
+    "billing_name": "Billing name",
+    "billing_address": "Billing address",
+    "billing_country": "Country (2-letter code, e.g. FI)",
+    "billing_vat": "VAT ID (optional)",
+    "submit": "Place the order",
+    "done": "Your workspace {tenant} is created. The invoice comes monthly in arrears, paid by bank transfer.",
+    "done_replayed": "This order was already placed: your workspace {tenant}.",
+    "done_open": "Open your workspace",
+    "sign_in": "Sign in",
+    "error": {
+      "unauthorized": "Sign in first — the workspace belongs to the signed-in person.",
+      "email_mismatch": "The order must be for the email you are signed in with.",
+      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
+      "tenant_taken": "That name is taken — pick another one.",
+      "bad_seats": "Enter at least one seat.",
+      "bad_billing": "Billing needs a name, an address and a 2-letter country code.",
+      "network": "The hub did not answer — try again.",
+      "generic": "Something went wrong — try again."
+    }
+  },
   "user_menu": {
     "account": "Account",
     "signed_in": "Signed in",

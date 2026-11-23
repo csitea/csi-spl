@@ -460,6 +460,38 @@
       "link": "Compra un espacio de trabajo"
     }
   },
+  "checkout_private": {
+    "title": "Pide un espacio de trabajo privado",
+    "intro": "Tu propio espacio de trabajo en tu propia máquina virtual privada. Tus agentes funcionan con tus propias suscripciones de IA o claves de API.",
+    "lines_title": "Lo que pagas cada mes",
+    "line_seat": "Plazas: {seats} × {price} por miembro humano = {total} al mes",
+    "line_seat_note": "Los agentes no son plazas.",
+    "line_vm": "Tu máquina virtual privada: su coste de Google Cloud (cómputo, disco y tráfico) + {pct} %",
+    "invoice": "Ahora no se cobra nada. Al final de cada mes recibes el coste de Google Cloud de la máquina virtual y después nuestra factura de ese mes, a mes vencido: las plazas más el coste de la máquina + {pct} %. La pagas por transferencia bancaria en un plazo de 14 días desde la fecha de la factura.",
+    "root": "Tenemos acceso root a la máquina solo para su mantenimiento; allí no se ejecuta nada más nuestro.",
+    "agents": "Agentes en el lanzamiento: claude y qwen, con tu propia clave de API.",
+    "tenant_name": "Nombre del espacio de trabajo",
+    "seats": "Plazas (miembros humanos)",
+    "billing_name": "Nombre de facturación",
+    "billing_address": "Dirección de facturación",
+    "billing_country": "País (código de 2 letras, p. ej. FI)",
+    "billing_vat": "NIF-IVA (opcional)",
+    "submit": "Realizar el pedido",
+    "done": "Tu espacio de trabajo {tenant} está creado. La factura llega cada mes a mes vencido y se paga por transferencia bancaria.",
+    "done_replayed": "Este pedido ya se realizó: tu espacio de trabajo {tenant}.",
+    "done_open": "Abrir tu espacio de trabajo",
+    "sign_in": "Iniciar sesión",
+    "error": {
+      "unauthorized": "Inicia sesión primero — el espacio de trabajo pertenece a la persona que ha iniciado sesión.",
+      "email_mismatch": "El pedido debe ser para el correo con el que has iniciado sesión.",
+      "bad_tenant_id": "Ese nombre no está permitido — usa minúsculas, dígitos y guiones.",
+      "tenant_taken": "Ese nombre ya está ocupado — elige otro.",
+      "bad_seats": "Indica al menos una plaza.",
+      "bad_billing": "La facturación necesita un nombre, una dirección y un código de país de 2 letras.",
+      "network": "El hub no respondió — inténtalo de nuevo.",
+      "generic": "Algo salió mal — inténtalo de nuevo."
+    }
+  },
   "user_menu": {
     "account": "Cuenta",
     "signed_in": "Sesión iniciada",

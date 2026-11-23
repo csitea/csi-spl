@@ -460,6 +460,38 @@
       "link": "Osta työtila"
     }
   },
+  "checkout_private": {
+    "title": "Tilaa yksityinen työtila",
+    "intro": "Oma työtila omalla yksityisellä virtuaalikoneella. Agenttisi toimivat omilla tekoälytilauksillasi tai API-avaimillasi.",
+    "lines_title": "Mitä maksat kuukaudessa",
+    "line_seat": "Paikat: {seats} × {price} ihmisjäsentä kohden = {total} kuukaudessa",
+    "line_seat_note": "Agentit eivät ole paikkoja.",
+    "line_vm": "Yksityinen virtuaalikoneesi: sen Google Cloud -kustannus (laskenta, levy ja liikenne) + {pct} %",
+    "invoice": "Nyt ei veloiteta mitään. Jokaisen kuukauden lopussa saat virtuaalikoneen Google Cloud -kustannuksen ja sen jälkeen laskumme kyseiseltä kuukaudelta jälkikäteen: paikat sekä virtuaalikoneen kustannus + {pct} %. Maksat laskun tilisiirrolla 14 päivän kuluessa laskun päiväyksestä.",
+    "root": "Pidämme virtuaalikoneen pääkäyttäjäoikeudet vain ylläpitoa varten; siellä ei ajeta mitään muuta meidän omaamme.",
+    "agents": "Agentit käynnistyessä: claude ja qwen omalla API-avaimellasi.",
+    "tenant_name": "Työtilan nimi",
+    "seats": "Paikat (ihmisjäsenet)",
+    "billing_name": "Laskutusnimi",
+    "billing_address": "Laskutusosoite",
+    "billing_country": "Maa (2-kirjaiminen koodi, esim. FI)",
+    "billing_vat": "ALV-tunniste (valinnainen)",
+    "submit": "Tee tilaus",
+    "done": "Työtilasi {tenant} on luotu. Lasku tulee kuukausittain jälkikäteen, ja se maksetaan tilisiirrolla.",
+    "done_replayed": "Tämä tilaus on jo tehty: työtilasi {tenant}.",
+    "done_open": "Avaa työtilasi",
+    "sign_in": "Kirjaudu sisään",
+    "error": {
+      "unauthorized": "Kirjaudu ensin sisään — työtila kuuluu kirjautuneelle henkilölle.",
+      "email_mismatch": "Tilauksen on oltava sille sähköpostiosoitteelle, jolla olet kirjautunut.",
+      "bad_tenant_id": "Nimi ei kelpaa — käytä pieniä kirjaimia, numeroita ja väliviivoja.",
+      "tenant_taken": "Nimi on jo varattu — valitse toinen.",
+      "bad_seats": "Anna vähintään yksi paikka.",
+      "bad_billing": "Laskutukseen tarvitaan nimi, osoite ja 2-kirjaiminen maakoodi.",
+      "network": "Hub ei vastannut — yritä uudelleen.",
+      "generic": "Jokin meni pieleen — yritä uudelleen."
+    }
+  },
   "user_menu": {
     "account": "Tili",
     "signed_in": "Kirjautuneena",

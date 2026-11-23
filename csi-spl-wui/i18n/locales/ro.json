@@ -460,6 +460,38 @@
       "link": "Cumpărați un spațiu de lucru"
     }
   },
+  "checkout_private": {
+    "title": "Comandați un spațiu de lucru privat",
+    "intro": "Propriul spațiu de lucru pe propria mașină virtuală privată. Agenții dvs. rulează pe propriile abonamente AI sau chei API.",
+    "lines_title": "Ce plătiți în fiecare lună",
+    "line_seat": "Locuri: {seats} × {price} per membru uman = {total} pe lună",
+    "line_seat_note": "Agenții nu sunt locuri.",
+    "line_vm": "Mașina dvs. virtuală privată: costul ei Google Cloud (calcul, disc și trafic) + {pct}%",
+    "invoice": "Acum nu se încasează nimic. La sfârșitul fiecărei luni primiți costul Google Cloud al mașinii virtuale, apoi factura noastră pentru acea lună, la final de perioadă: locurile plus costul mașinii + {pct}%. O plătiți prin transfer bancar în 14 zile de la data facturii.",
+    "root": "Deținem accesul root la mașină doar pentru întreținere; acolo nu rulează nimic altceva de-al nostru.",
+    "agents": "Agenți la lansare: claude și qwen, cu propria dvs. cheie API.",
+    "tenant_name": "Numele spațiului de lucru",
+    "seats": "Locuri (membri umani)",
+    "billing_name": "Nume pentru facturare",
+    "billing_address": "Adresă de facturare",
+    "billing_country": "Țara (cod din 2 litere, de ex. FI)",
+    "billing_vat": "Cod de TVA (opțional)",
+    "submit": "Plasați comanda",
+    "done": "Spațiul dvs. de lucru {tenant} a fost creat. Factura vine lunar, la final de perioadă, și se plătește prin transfer bancar.",
+    "done_replayed": "Această comandă a fost deja plasată: spațiul dvs. de lucru {tenant}.",
+    "done_open": "Deschideți spațiul de lucru",
+    "sign_in": "Autentificare",
+    "error": {
+      "unauthorized": "Autentificați-vă mai întâi — spațiul de lucru aparține persoanei autentificate.",
+      "email_mismatch": "Comanda trebuie să fie pentru adresa de e-mail cu care sunteți autentificat.",
+      "bad_tenant_id": "Numele nu este permis — folosiți litere mici, cifre și cratime.",
+      "tenant_taken": "Numele este deja folosit — alegeți altul.",
+      "bad_seats": "Introduceți cel puțin un loc.",
+      "bad_billing": "Facturarea necesită un nume, o adresă și un cod de țară din 2 litere.",
+      "network": "Hubul nu a răspuns — încercați din nou.",
+      "generic": "Ceva nu a mers bine — încercați din nou."
+    }
+  },
   "user_menu": {
     "account": "Cont",
     "signed_in": "Autentificat",

@@ -566,6 +566,28 @@ Row status (v0.4.1):
   replay answered as a second order fails it; a submit with no session,
   or one naming a stranger's email, fails `TestOrderSubmitNeedsSession` /
   `TestOrderSubmitEmailIsTheSessions`).
+- **B3: Implemented in the WUI, its submit unproven on dev/prd** (SPL-6338):
+  `/checkout/private-workspace` (`csi-spl-wui/src/pages/checkout/private-workspace.vue`)
+  is an order form, no card field and no payment step [Q-18 C]: the
+  workspace name, the seats (human members) and the billing details (name,
+  address, 2-letter country, optional VAT id); it sends no email (B2 takes
+  the session's). Its price lines are the seats x 9 EUR per month and the
+  VM's Google Cloud cost (compute, disk, traffic) + 33 %, with no amount,
+  as no route gives a VM estimate yet; never a token line [Q-10 A]. It says
+  nothing is charged now and the invoice comes monthly in arrears, paid by
+  bank transfer within 14 days [Q-9 B, Q-19 A], that we hold root for
+  upkeep only [Q-3 A], and the agents at launch [Q-4 A]. The 9 EUR and
+  33 % are one WUI copy of B1's constants
+  (`csi-spl-wui/src/utils/private-workspace-order.mjs`), held to
+  `internal/store/price_plans.go` by `tests/unit/private-workspace-order.test.mjs`,
+  until a hub read of the private_vm plan and a VM estimate replaces it (an
+  api row, placed by the dispatch holder). The submit goes to the api host
+  with credentials, as the auth calls do (`useAuthBase`); on dev/prd it
+  works only once that api row adds credentialed CORS on the order route,
+  since the Hosting rewrite forwards no session cookie. Red control:
+  `tests/e2e/checkout-private-workspace.test.mjs` (a token on the page or a
+  card field fails it). Texts in all 19 locales, language-checked by
+  `do_spl_lang_review_gct`.
 
 Not in this spec: a private hub (Q-2 B, not chosen); listing on Cloud
 Marketplace stays spec 156.

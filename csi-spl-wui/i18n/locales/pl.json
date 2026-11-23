@@ -460,6 +460,38 @@
       "link": "Kup obszar roboczy"
     }
   },
+  "checkout_private": {
+    "title": "Zamów prywatny obszar roboczy",
+    "intro": "Własny obszar roboczy na własnej prywatnej maszynie wirtualnej. Twoi agenci działają na Twoich własnych subskrypcjach AI lub kluczach API.",
+    "lines_title": "Ile płacisz co miesiąc",
+    "line_seat": "Miejsca: {seats} × {price} za członka-człowieka = {total} miesięcznie",
+    "line_seat_note": "Agenci nie są miejscami.",
+    "line_vm": "Twoja prywatna maszyna wirtualna: jej koszt Google Cloud (obliczenia, dysk i transfer) + {pct}%",
+    "invoice": "Teraz nic nie jest pobierane. Na koniec każdego miesiąca otrzymujesz koszt Google Cloud maszyny wirtualnej, a następnie naszą fakturę za ten miesiąc, z dołu: miejsca plus koszt maszyny + {pct}%. Płacisz ją przelewem bankowym w ciągu 14 dni od daty faktury.",
+    "root": "Mamy dostęp root do maszyny wyłącznie w celach utrzymania; nic innego naszego tam nie działa.",
+    "agents": "Agenci na start: claude i qwen, na Twoim własnym kluczu API.",
+    "tenant_name": "Nazwa obszaru roboczego",
+    "seats": "Miejsca (członkowie-ludzie)",
+    "billing_name": "Nazwa do faktury",
+    "billing_address": "Adres do faktury",
+    "billing_country": "Kraj (kod 2-literowy, np. FI)",
+    "billing_vat": "Numer VAT (opcjonalnie)",
+    "submit": "Złóż zamówienie",
+    "done": "Twój obszar roboczy {tenant} został utworzony. Faktura przychodzi co miesiąc z dołu i jest płatna przelewem bankowym.",
+    "done_replayed": "To zamówienie zostało już złożone: Twój obszar roboczy {tenant}.",
+    "done_open": "Otwórz swój obszar roboczy",
+    "sign_in": "Zaloguj się",
+    "error": {
+      "unauthorized": "Najpierw się zaloguj — obszar roboczy należy do zalogowanej osoby.",
+      "email_mismatch": "Zamówienie musi dotyczyć adresu e-mail, którym jesteś zalogowany.",
+      "bad_tenant_id": "Ta nazwa jest niedozwolona — użyj małych liter, cyfr i myślników.",
+      "tenant_taken": "Ta nazwa jest zajęta — wybierz inną.",
+      "bad_seats": "Podaj co najmniej jedno miejsce.",
+      "bad_billing": "Do faktury potrzebne są nazwa, adres i 2-literowy kod kraju.",
+      "network": "Hub nie odpowiedział — spróbuj ponownie.",
+      "generic": "Coś poszło nie tak — spróbuj ponownie."
+    }
+  },
   "user_menu": {
     "account": "Konto",
     "signed_in": "Zalogowano",

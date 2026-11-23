@@ -460,6 +460,38 @@
       "link": "Köp en arbetsyta"
     }
   },
+  "checkout_private": {
+    "title": "Beställ en privat arbetsyta",
+    "intro": "En egen arbetsyta på en egen privat virtuell maskin. Dina agenter körs på dina egna AI-abonnemang eller API-nycklar.",
+    "lines_title": "Vad du betalar varje månad",
+    "line_seat": "Platser: {seats} × {price} per mänsklig medlem = {total} per månad",
+    "line_seat_note": "Agenter är inte platser.",
+    "line_vm": "Din privata virtuella maskin: dess Google Cloud-kostnad (beräkning, disk och trafik) + {pct} %",
+    "invoice": "Inget debiteras nu. I slutet av varje månad får du den virtuella maskinens Google Cloud-kostnad och sedan vår faktura för månaden, i efterskott: platserna plus maskinens kostnad + {pct} %. Du betalar den med banköverföring inom 14 dagar från fakturadatum.",
+    "root": "Vi har root-åtkomst till maskinen enbart för underhåll; inget annat av vårt körs där.",
+    "agents": "Agenter vid lanseringen: claude och qwen, med din egen API-nyckel.",
+    "tenant_name": "Arbetsytans namn",
+    "seats": "Platser (mänskliga medlemmar)",
+    "billing_name": "Faktureringsnamn",
+    "billing_address": "Faktureringsadress",
+    "billing_country": "Land (tvåbokstavskod, t.ex. FI)",
+    "billing_vat": "Momsregistreringsnummer (valfritt)",
+    "submit": "Lägg beställningen",
+    "done": "Din arbetsyta {tenant} är skapad. Fakturan kommer månadsvis i efterskott och betalas med banköverföring.",
+    "done_replayed": "Den här beställningen är redan lagd: din arbetsyta {tenant}.",
+    "done_open": "Öppna din arbetsyta",
+    "sign_in": "Logga in",
+    "error": {
+      "unauthorized": "Logga in först — arbetsytan tillhör den inloggade personen.",
+      "email_mismatch": "Beställningen måste gälla e-postadressen du är inloggad med.",
+      "bad_tenant_id": "Namnet är inte tillåtet — använd gemener, siffror och bindestreck.",
+      "tenant_taken": "Namnet är upptaget — välj ett annat.",
+      "bad_seats": "Ange minst en plats.",
+      "bad_billing": "Faktureringen kräver ett namn, en adress och en landskod med två bokstäver.",
+      "network": "Hubben svarade inte — försök igen.",
+      "generic": "Något gick fel — försök igen."
+    }
+  },
   "user_menu": {
     "account": "Konto",
     "signed_in": "Inloggad",

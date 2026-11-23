@@ -460,6 +460,38 @@
       "link": "Osta tööruum"
     }
   },
+  "checkout_private": {
+    "title": "Telli privaatne tööruum",
+    "intro": "Oma tööruum oma privaatses virtuaalmasinas. Sinu agendid töötavad sinu enda tehisintellekti tellimuste või API-võtmetega.",
+    "lines_title": "Mida maksad igas kuus",
+    "line_seat": "Kohad: {seats} × {price} inimliikme kohta = {total} kuus",
+    "line_seat_note": "Agendid ei ole kohad.",
+    "line_vm": "Sinu privaatne virtuaalmasin: selle Google Cloudi kulu (arvutus, ketas ja liiklus) + {pct}%",
+    "invoice": "Praegu ei võeta midagi. Iga kuu lõpus saad virtuaalmasina Google Cloudi kulu ja seejärel meie arve selle kuu eest tagantjärele: kohad pluss masina kulu + {pct}%. Tasud selle pangaülekandega 14 päeva jooksul arve kuupäevast.",
+    "root": "Meil on masinas juurõigused ainult hoolduseks; seal ei tööta midagi muud meie poolt.",
+    "agents": "Agendid käivitamisel: claude ja qwen sinu enda API-võtmega.",
+    "tenant_name": "Tööruumi nimi",
+    "seats": "Kohad (inimliikmed)",
+    "billing_name": "Arve saaja nimi",
+    "billing_address": "Arve aadress",
+    "billing_country": "Riik (kahetäheline kood, nt FI)",
+    "billing_vat": "KMKR number (valikuline)",
+    "submit": "Esita tellimus",
+    "done": "Sinu tööruum {tenant} on loodud. Arve tuleb igakuiselt tagantjärele ja tasutakse pangaülekandega.",
+    "done_replayed": "See tellimus on juba esitatud: sinu tööruum {tenant}.",
+    "done_open": "Ava oma tööruum",
+    "sign_in": "Logi sisse",
+    "error": {
+      "unauthorized": "Logi esmalt sisse — tööruum kuulub sisse loginud isikule.",
+      "email_mismatch": "Tellimus peab olema e-posti aadressile, millega oled sisse loginud.",
+      "bad_tenant_id": "See nimi pole lubatud — kasuta väiketähti, numbreid ja sidekriipse.",
+      "tenant_taken": "See nimi on juba võetud — vali mõni teine.",
+      "bad_seats": "Sisesta vähemalt üks koht.",
+      "bad_billing": "Arve jaoks on vaja nime, aadressi ja kahetähelist riigikoodi.",
+      "network": "Keskus ei vastanud — proovi uuesti.",
+      "generic": "Midagi läks valesti — proovi uuesti."
+    }
+  },
   "user_menu": {
     "account": "Konto",
     "signed_in": "Sisse logitud",

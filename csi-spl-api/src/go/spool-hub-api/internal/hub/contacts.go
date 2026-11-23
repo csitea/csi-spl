@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/gcal"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -25,6 +26,7 @@ import (
 //	PATCH  /v1/me/contacts/{id}         change its values
 //	DELETE /v1/me/contacts/{id}         erase it: soft while a Google delete is due (C7b)
 //	GET    /v1/me/contacts/{id}/photo   its picture's bytes, 404 for none (spec 11.4)
+//	GET    /v1/me/contacts/sync         the switch's state, read-only (B18)
 //	PUT    /v1/me/contacts/sync         the Contacts switch {enabled} (C7d)
 //	POST   /v1/me/contacts/sync         "Sync now", 202
 //
@@ -486,6 +488,59 @@ func (s *Server) contactsSyncStore(w http.ResponseWriter) (store.ContactsSyncs, 
 	return cs, ok
 }
 
+// contactsSyncState is the GET answer of the Contacts switch (B18): what
+// settings shows after a reload. elsewhere says only that the person's one
+// binding is in another of their workspaces, never which one: what a
+// switch-on here answers 409 contacts_sync_elsewhere to. scope_granted: the
+// Google connection here holds a scope of cnf contacts.scopes, so a cycle
+// reads Google (without it the binding waits, contacts_sync.go).
+type contactsSyncState struct {
+	Enabled      bool       `json:"enabled"`
+	Elsewhere    bool       `json:"elsewhere"`
+	ScopeGranted bool       `json:"scope_granted"`
+	StatusDetail string     `json:"status_detail"`
+	LastSyncedAt *time.Time `json:"last_synced_at"`
+}
+
+// GET /v1/me/contacts/sync: the Contacts switch's state in the session's
+// workspace, read-only: the person's binding (ContactsSyncOf, wherever it
+// is) and the granted scopes of the Google connection here.
+func (s *Server) handleGetContactsSync(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.contactsCaller(w, r)
+	if !ok {
+		return
+	}
+	cs, ok := s.contactsSyncStore(w)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	var out contactsSyncState
+	b, err := cs.ContactsSyncOf(ctx, c.person)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+	case err != nil:
+		s.contactsFail(w, "contacts_sync_get", c, "", err)
+		return
+	case b.Tenant != c.tenant:
+		out.Elsewhere = true
+	default:
+		out.Enabled, out.StatusDetail, out.LastSyncedAt = b.Enabled, b.StatusDetail, b.LastSyncedAt
+	}
+	if gs, has := s.o.Store.(store.Gcal); has && s.o.Gcal != nil && s.o.Gcal.ContactsScopes != "" {
+		conn, err := gs.GcalConnection(ctx, c.tenant, c.person)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+		case err != nil:
+			s.contactsFail(w, "contacts_sync_get", c, "", err)
+			return
+		default:
+			out.ScopeGranted = gcal.HoldsAny(s.o.Gcal.ContactsScopes, conn.GrantedScopes)
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 // PUT /v1/me/contacts/sync {enabled}: the Contacts switch of the Google
 // connection in the session's workspace (2.2 step 3): 204; 409
 // gcal_not_connected without a connection there, 409
@@ -594,9 +649,10 @@ func (s *Server) routeContacts(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/me/contacts/import", s.gcalPreflight("POST"))
 	mux.HandleFunc("GET /v1/me/contacts/{id}/photo", s.handleContactPhoto)
 	mux.HandleFunc("OPTIONS /v1/me/contacts/{id}/photo", s.gcalPreflight("GET"))
+	mux.HandleFunc("GET /v1/me/contacts/sync", s.handleGetContactsSync)
 	mux.HandleFunc("PUT /v1/me/contacts/sync", s.handlePutContactsSync)
 	mux.HandleFunc("POST /v1/me/contacts/sync", s.handleContactsSyncNow)
-	mux.HandleFunc("OPTIONS /v1/me/contacts/sync", s.gcalPreflight("PUT, POST"))
+	mux.HandleFunc("OPTIONS /v1/me/contacts/sync", s.gcalPreflight("GET, PUT, POST"))
 	mux.HandleFunc("GET /v1/me/contacts/{id}", s.handleGetContact)
 	mux.HandleFunc("PATCH /v1/me/contacts/{id}", s.handlePatchContact)
 	mux.HandleFunc("DELETE /v1/me/contacts/{id}", s.handleDeleteContact)

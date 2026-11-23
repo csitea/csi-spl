@@ -559,6 +559,83 @@ func TestContactsSyncElsewhere(t *testing.T) {
 	}
 }
 
+// B18: GET /v1/me/contacts/sync is the Contacts switch's state after a
+// reload, read-only, and agrees with what PUT answers: on here, off here,
+// the binding in another workspace (elsewhere, nothing more of it), and
+// whether the connection here holds the contacts scope. The OPTIONS line
+// lists GET. Red control: without the GET route the first read is not 200.
+func TestContactsSyncState(t *testing.T) {
+	c := newContactsRig(t, onAll, func(o *hub.Options, _, _ string) {
+		o.Gcal = &hub.GcalConnect{ContactsScopes: gcalContactsTestScope}
+	})
+	state := func(b *http.Client, label string) map[string]any {
+		t.Helper()
+		code, raw, out := c.do(t, b, http.MethodGet, contactsBase+"/sync", nil, nil)
+		if code != http.StatusOK {
+			t.Fatalf("%s: GET sync = %d %s, want 200", label, code, raw)
+		}
+		return out
+	}
+	want := func(out map[string]any, label string, enabled, elsewhere, granted bool) {
+		t.Helper()
+		if out["enabled"] != enabled || out["elsewhere"] != elsewhere || out["scope_granted"] != granted {
+			t.Errorf("%s: state = %v, want enabled=%v elsewhere=%v scope_granted=%v", label, out, enabled, elsewhere, granted)
+		}
+	}
+	want(state(c.b1, "no connection"), "no connection", false, false, false)
+	connect := func(tid, scopes string) {
+		t.Helper()
+		if _, err := c.r.e.st.(store.Gcal).ConnectGcal(context.Background(),
+			store.GcalConnection{Tenant: tid, Human: c.p1, GoogleEmail: "p1.google@example.com", GrantedScopes: scopes},
+			store.GcalTokens{AccessSealed: "sealed-access", RefreshSealed: "sealed-refresh", KMSKeyID: "k", AccessExpiry: time.Now().Add(time.Hour)},
+			time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	connect(c.w1, "openid email https://scope.example/calendar-only")
+	connect(c.w2, "openid email "+gcalContactsTestScope)
+	want(state(c.b1, "W1 calendar-only grant"), "W1 calendar-only grant", false, false, false)
+	want(state(c.b2, "W2 contacts grant"), "W2 contacts grant", false, false, true)
+
+	on := map[string]any{"enabled": true}
+	if code, _, out := c.do(t, c.b1, http.MethodPut, contactsBase+"/sync", on, nil); code != http.StatusNoContent {
+		t.Fatalf("PUT sync on in W1 = %d %v, want 204", code, out)
+	}
+	w1 := state(c.b1, "on in W1")
+	want(w1, "on in W1", true, false, false)
+	if _, has := w1["last_synced_at"]; !has || w1["last_synced_at"] != nil {
+		t.Errorf("on in W1: last_synced_at = %v, want present and null before a cycle", w1["last_synced_at"])
+	}
+	w2 := state(c.b2, "W2 while bound in W1")
+	want(w2, "W2 while bound in W1", false, true, true)
+	if w2["status_detail"] != "" || w2["last_synced_at"] != nil {
+		t.Errorf("W2 shows W1's binding: %v", w2)
+	}
+
+	if code, _, out := c.do(t, c.b1, http.MethodPut, contactsBase+"/sync", map[string]any{"enabled": false}, nil); code != http.StatusNoContent {
+		t.Fatalf("PUT sync off in W1 = %d %v, want 204", code, out)
+	}
+	want(state(c.b1, "off in W1"), "off in W1", false, false, false)
+	// the GET says what PUT answers: the row stays in W1 when off (C7d)
+	elsewhere := state(c.b2, "W2 after off in W1")["elsewhere"] == true
+	code, _, out := c.do(t, c.b2, http.MethodPut, contactsBase+"/sync", on, nil)
+	if put409 := code == http.StatusConflict && realmToken(out) == "contacts_sync_elsewhere"; put409 != elsewhere {
+		t.Errorf("W2: GET elsewhere=%v but PUT on = %d %v", elsewhere, code, out)
+	}
+
+	req, _ := http.NewRequest(http.MethodOptions, "http://api"+domain+contactsBase+"/sync", nil)
+	req.Header.Set("Origin", wuiOrigin)
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	resp, err := c.b1.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if m := resp.Header.Get("Access-Control-Allow-Methods"); !strings.Contains(m, "GET") || !strings.Contains(m, "PUT") || !strings.Contains(m, "POST") {
+		t.Errorf("OPTIONS sync Allow-Methods = %q, want GET, PUT, POST", m)
+	}
+}
+
 // C8e: DELETE ?scope=spool from W2 leaves 0 rows of P1's list from every
 // workspace, a soft-deleted one too, and P1's binding (in W1) disabled;
 // twin: another person's list stays.

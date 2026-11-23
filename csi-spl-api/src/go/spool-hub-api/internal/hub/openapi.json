@@ -7927,6 +7927,61 @@
       }
     },
     "/v1/me/contacts/sync": {
+      "get": {
+        "description": "The Contacts switch's state in the session's workspace, read-only, for the settings page after a reload: enabled, elsewhere (the person's one binding is in another of their workspaces, which a switch-on here answers 409 contacts_sync_elsewhere to; nothing more of it), scope_granted (the Google connection here holds a scope of cnf contacts.scopes), status_detail, last_synced_at. Spec 154 B18. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "getMeContactsSync",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "elsewhere": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "last_synced_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scope_granted": {
+                      "type": "boolean"
+                    },
+                    "status_detail": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "elsewhere",
+                    "scope_granted",
+                    "status_detail",
+                    "last_synced_at"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read my Google contacts sync switch",
+        "tags": [
+          "me"
+        ]
+      },
       "post": {
         "description": "Marks the person's contacts sync binding in this workspace due now. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
         "operationId": "syncMeContactsNow",

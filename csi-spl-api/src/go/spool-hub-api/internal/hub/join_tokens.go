@@ -72,6 +72,7 @@ func (s *Server) routeJoinTokens(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/tenant/agents/join-tokens/{id}", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/tenant/agents/pins/{box_id}", s.membersPreflight)
 	mux.HandleFunc("POST /v1/pins/join", s.handleJoinRedeem)
+	s.routeOperatorJoinMint(mux)
 }
 
 // newJoinToken answers the plain token and the hash the store keeps.

@@ -17203,6 +17203,46 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/workspaces/{id}/join-tokens": {
+      "post": {
+        "operationId": "postOperatorWorkspacesJoinTokens",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Spec 181 B7: body {box_id, label?}; a one-use spec 073 join token for the workspace, bound to box_id (the private VM). Answers {id, token, expires_at, box_id, workspace_id, join_line}; the token is shown once. One operator_audit row (mint_join_token). 400 box_id_required / bad_request / reserved_box, 403 box_join_disabled (the workspace's spec 108 switch is off), 409 vm_bound_elsewhere (the box id is seated or bound in another workspace), 429 rate_limited."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Mint a join token bound to a private workspace's VM",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/workspaces/{id}/projects/{project}": {
       "put": {
         "description": "Spec 143 releases-projects.md 4.5: create or rename a software project of workspace id. is_default moves the workspace's default to it; the workspace's first project becomes its default. Operator token only. Answers {workspace, project, name, is_default}.",

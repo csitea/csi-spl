@@ -38,6 +38,9 @@
 #    26. unqueued line appended to the needs-owner digest; poll.mjs still accepts the form
 #    27. 0 needs-owner items + unqueued line -> still posts that one line and stamps
 #    28. CONTROL: empty unqueued line -> line absent from digest body
+#    29. fail-closed unqueued action -> spl_owner_digest_unqueued_line returns non-zero;
+#        0 needs-owner digest logs WARN, surfaces failure line, never says "nothing waits"
+#    30. fail-closed unqueued action with needs-owner items -> WARN + failure line, poll valid
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -56,7 +59,7 @@ fail() { echo "FAIL: $1 -- ${2:-}"; fails=$((fails + 1)); }
 eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "want '$2' got '$3'"; }
 has() { grep -qF -- "$2" <<<"$3" && pass "$1" || fail "$1" "no '$2' in: $3"; }
 
-do_log() { echo "$*"; }
+do_log() { [[ "${RUN_STDOUT_IS_DATA:-0}" == "1" ]] && echo "$*" >&2 || echo "$*"; }
 # shellcheck source=../../../lib/bash/funcs/spl-desk-issue.func.sh
 . "$PROJ_ROOT/lib/bash/funcs/spl-desk-issue.func.sh"
 # shellcheck source=../run/spl-issue-update.func.sh
@@ -312,6 +315,46 @@ LIST="$T/list.json"
 UNQUEUED_LINE=""
 out="$(digest 0)"
 ! grep -qF "Unqueued decided/signed spec rows" "$T/posted" && pass "28. CONTROL: empty unqueued line -> omitted" || fail "28. CONTROL" "$(cat "$T/posted")"
+
+# 29. fail-closed unqueued action must not be swallowed or read as "nothing waits"
+mkdir -p "$T/specs-empty"
+echo '{"fleet":"test","hub":"ok","asks":[]}' >"$T/asks-ok.json"
+echo '{"hub":"unreachable","lanes":[]}' >"$T/lanes-bad.json"
+out29_line="$(PROJ_PATH="$PROJ_ROOT" SPEC_UNQUEUED_DIR="$T/specs-empty" \
+  SPEC_UNQUEUED_ASKS_FILE="$T/asks-ok.json" SPEC_UNQUEUED_LANES_FILE="$T/lanes-bad.json" \
+  spl_owner_digest_unqueued_line 2>"$T/line29.err")"; rc29_line=$?
+[ "$rc29_line" -ne 0 ] && [ -z "$out29_line" ] && grep -qF "fail closed" "$T/line29.err" \
+  && pass "29. spl_owner_digest_unqueued_line propagates fail-closed rc ($rc29_line)" \
+  || fail "29. unqueued_line rc" "rc=$rc29_line out='$out29_line' err='$(cat "$T/line29.err")'"
+
+digest_real_unqueued() {
+  : >"$CALLS"
+  env -u ENV -u TENANT_ID -u DESK_AGENT -u OWNER_DIGEST_UNQUEUED_FN \
+    SPOOL_ROOT="$ROOT" PROJ_PATH="$PROJ_ROOT" OWNER_DIGEST_STATE="$T/stamp" \
+    OWNER_DIGEST_LIST_FN=list_stub OWNER_DIGEST_POST_FN=post_stub OWNER_DIGEST_NOW="$NOW" DRY_RUN="$1" \
+    SPEC_UNQUEUED_DIR="$T/specs-empty" SPEC_UNQUEUED_ASKS_FILE="$T/asks-ok.json" \
+    SPEC_UNQUEUED_LANES_FILE="$T/lanes-bad.json" \
+    bash -c "$(declare -f); $(declare -p T CALLS LIST); do_spl_owner_digest_post" 2>&1
+}
+
+rm -f "$T/stamp" "$T/posted"
+LIST="$T/empty.json"
+out29="$(digest_real_unqueued 0)"
+! grep -qF "nothing waits for the owner" <<<"$out29" \
+  && pass "29. 0 needs-owner + fail-closed action does not say nothing waits" \
+  || fail "29. said nothing waits" "$out29"
+has "29. logs WARN on unqueued check failure" "WARN owner-digest: unqueued spec-rows check failed (rc=1)" "$out29"
+eq "29. posts failure notice line to digest channel" "list|post" "$(cut -d' ' -f1 "$CALLS" | paste -sd'|')"
+has "29. posted body surfaces fail-closed check failure" "check failed (rc=1, fail-closed)" "$(cat "$T/posted" 2>/dev/null)"
+
+# 30. fail-closed unqueued action alongside needs-owner items -> WARN + failure line, poll valid
+rm -f "$T/stamp" "$T/posted"
+LIST="$T/list.json"
+out30="$(digest_real_unqueued 0)"
+posted30="$(cat "$T/posted" 2>/dev/null)"
+has "30. logs WARN alongside needs-owner items" "WARN owner-digest: unqueued spec-rows check failed (rc=1)" "$out30"
+has "30. failure notice line appended to needs-owner digest" "check failed (rc=1, fail-closed)" "$posted30"
+eq "30. poll.mjs still accepts the form with failure line" "2 GO,HLD,NO GO,HLD,NO" "$(poll_form "$posted30")"
 
 echo
 [ "$fails" -eq 0 ] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAILED"; exit 1; }

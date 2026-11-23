@@ -8,8 +8,10 @@
 # @description item with no such line says so. When decided/signed specs on
 # @description origin/master have unqueued build rows (do_spl_spec_rows_unqueued),
 # @description one summary line for the dispatch holder is appended (and posted
-# @description even when 0 needs-owner issues wait). Nothing waiting and no
-# @description unqueued spec rows = no post.
+# @description even when 0 needs-owner issues wait). If do_spl_spec_rows_unqueued
+# @description fails closed, a WARN is logged and a check-failed line is surfaced
+# @description in the digest so the run never reports nothing waiting. Nothing
+# @description waiting and a clean zero-row check = no post.
 # @description Under the list ONE ```poll form asks each item with a step:
 # @description Go / Hold / No go (owner msg 03d0ef42, how-to-post.md rule 10).
 # @description It is a digest, never a page: a plain note in a channel, no
@@ -83,12 +85,19 @@ do_spl_owner_digest_post() {
 
 # spl_owner_digest_run <work> <now> <channel> <dry>: list, render, post.
 spl_owner_digest_run() {
-  local work="$1" now="$2" chan="$3" dry="$4" n unqueued=""
+  local work="$1" now="$2" chan="$3" dry="$4" n unqueued="" urc=0 uerr=""
   local label="${SPL_NEEDS_OWNER_LABEL:-needs-owner}"
   "${OWNER_DIGEST_LIST_FN:-spl_issue_list_fetch}" --label "$label" \
     --status eval,todo,wip,blocked,onhold,qas --limit 500 >"$work/list.json" || return 1
   spl_owner_digest_render "$work/list.json" "$now" "$label" >"$work/body.md" || return 1
-  unqueued="$("${OWNER_DIGEST_UNQUEUED_FN:-spl_owner_digest_unqueued_line}" | awk 'NF { print; exit }')" || unqueued=""
+  if "${OWNER_DIGEST_UNQUEUED_FN:-spl_owner_digest_unqueued_line}" >"$work/unqueued.out" 2>"$work/unqueued.err"; then
+    unqueued="$(awk 'NF { print; exit }' "$work/unqueued.out")"
+  else
+    urc=$?
+    uerr="$(awk 'NF { line = $0 } END { print line }' "$work/unqueued.err")"
+    do_log "WARN owner-digest: unqueued spec-rows check failed (rc=$urc)${uerr:+: $uerr}"
+    unqueued="Unqueued decided/signed spec rows (dispatch holder): check failed (rc=$urc, fail-closed) — run \`cd csi-spl-orc && ./run -a do_spl_spec_rows_unqueued\`"
+  fi
   if [[ -n "$unqueued" ]]; then
     if [[ -s "$work/body.md" ]]; then
       printf '\n%s\n' "$unqueued" >>"$work/body.md"
@@ -112,13 +121,14 @@ spl_owner_digest_run() {
 }
 
 # spl_owner_digest_unqueued_line: one-line summary of decided/signed specs with
-# unqueued build rows (best-effort; never blocks the needs-owner digest).
+# unqueued build rows; propagates non-zero rc when do_spl_spec_rows_unqueued fails closed.
 spl_owner_digest_unqueued_line() {
   local run_dir
-  run_dir="$(dirname "${BASH_SOURCE[0]}")"
+  run_dir="${PROJ_PATH:+$PROJ_PATH/src/bash/run}"
+  [[ -d "$run_dir" ]] || run_dir="$(dirname "${BASH_SOURCE[0]}")"
   declare -F do_spl_spec_rows_unqueued >/dev/null ||
-    source "$run_dir/spl-spec-rows-unqueued.func.sh"
-  SPEC_UNQUEUED_FORMAT=digest RUN_STDOUT_IS_DATA=1 do_spl_spec_rows_unqueued 2>/dev/null || true
+    source "$run_dir/spl-spec-rows-unqueued.func.sh" || return 1
+  SPEC_UNQUEUED_FORMAT=digest RUN_STDOUT_IS_DATA=1 do_spl_spec_rows_unqueued
 }
 
 # spl_owner_digest_render <list.json> <now> <label>: the post on stdout,

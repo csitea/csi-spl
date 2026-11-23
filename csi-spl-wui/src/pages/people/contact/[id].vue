@@ -86,11 +86,35 @@
 
     <!-- spec 154 B17: a new instance each opening, so nothing of the last file stays; async, so no first paint carries it (C47) -->
     <ContactsImportDialog v-if="importOpen" v-model:open="importOpen" />
-    <UiDialog :open="confirmOpen" size="md" :title="t('contacts.delete_title')" @update:open="confirmOpen = $event">
-      <p data-test="contact-delete-text">{{ t('contacts.delete_confirm', { name: shownName }) }}</p>
+    <UiDialog :open="confirmOpen" size="sm" :title="t('contacts.delete_title')" @update:open="confirmOpen = $event">
+      <div class="contact-delete__body" data-test="contact-delete-body">
+        <span class="contact-delete__icon" aria-hidden="true">
+          <UiIcon name="alert-triangle" :size="20" />
+        </span>
+        <i18n-t keypath="contacts.delete_confirm" tag="p" scope="global" class="contact-delete__text" data-test="contact-delete-text">
+          <template #name><strong class="contact-delete__name">{{ shownName }}</strong></template>
+        </i18n-t>
+      </div>
       <template #footer>
-        <button type="button" class="btn ghost" data-test="contact-delete-cancel" @click="confirmOpen = false">{{ t('common.cancel') }}</button>
-        <button type="button" class="btn danger" :disabled="busy" data-test="contact-delete-ok" @click="remove">{{ t('contacts.delete') }}</button>
+        <div class="contact-delete__actions" data-test="contact-delete-actions">
+          <button
+            type="button"
+            class="btn ghost"
+            data-autofocus
+            data-test="contact-delete-cancel"
+            @click="confirmOpen = false"
+          >{{ t('common.cancel') }}</button>
+          <button
+            type="button"
+            class="btn danger"
+            :disabled="busy"
+            data-test="contact-delete-ok"
+            @click="remove"
+          >
+            <UiIcon name="trash" :size="16" />
+            <span>{{ t('contacts.delete') }}</span>
+          </button>
+        </div>
       </template>
     </UiDialog>
   </div>
@@ -330,6 +354,55 @@ onMounted(() => {
 }
 .contact-card__actions--form { flex-wrap: nowrap; margin-top: 4px; }
 .contact-card__actions--form .btn { flex: 1 1 0; justify-content: center; min-width: 0; }
+/* SPL-6319: match UiConfirm's destructive dialog layout locally while keeping
+   contact-delete-* data-test hooks and primary danger Delete action. */
+.contact-delete__body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 24px 16px;
+  min-width: 0;
+}
+.contact-delete__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+.contact-delete__text {
+  margin: 0;
+  padding-top: 2px;
+  line-height: 1.5;
+  max-width: 46ch;
+  color: var(--color-fg);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.contact-delete__name { font-weight: 600; color: var(--color-heading); }
+.contact-delete__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.contact-delete__actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 104px;
+}
+@media (max-width: 600px) {
+  .contact-delete__body { padding: 20px 16px 12px; }
+  .contact-delete__actions { flex-direction: column-reverse; gap: 8px; }
+  .contact-delete__actions .btn { width: 100%; }
+}
 @media (max-width: 480px) {
   .contact-card__facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .contact-card__facts dd + dt { margin-top: 8px; }

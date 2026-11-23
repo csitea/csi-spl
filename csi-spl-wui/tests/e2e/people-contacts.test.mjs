@@ -48,6 +48,7 @@ async function launch() {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const DESKTOP = { name: '1440', width: 1440, height: 900 }
 const PHONE = { name: '390', width: 390, height: 664 }
+const PHONE_375 = { name: '375', width: 375, height: 667 }
 const INVITER = { role: 'admin', permissions: ['members.invite'], contacts: true }
 const READER = { role: 'regular_user', permissions: [], contacts: true }
 const OFF = { role: 'admin', permissions: ['members.invite'], contacts: false }
@@ -89,6 +90,53 @@ try {
   const railCount = () => p.$$eval('[id^="sidebar-tab-"]', (l) => l.length)
   const rowNames = () => p.$$eval('[data-test=people-contact-row] .label', (l) => l.map((e) => e.textContent.trim()))
   const shot = async (name) => { if (OUT) await p.screenshot({ path: `${OUT}/${name}.png` }) }
+  const measureDeleteDialog = () => p.evaluate(() => {
+    const panel = document.querySelector('[data-testid=ui-dialog]')
+    const body = panel?.querySelector('[data-testid=ui-dialog-body]')
+    const text = panel?.querySelector('[data-test=contact-delete-text]')
+    const wrap = text?.parentElement
+    const foot = panel?.querySelector('.ui-dialog__foot')
+    const cancel = panel?.querySelector('[data-test=contact-delete-cancel]')
+    const del = panel?.querySelector('[data-test=contact-delete-ok]')
+    const strong = text?.querySelector('strong')
+    if (!panel || !body || !text || !wrap || !foot || !cancel || !del) return null
+    const pr = panel.getBoundingClientRect()
+    const tr = text.getBoundingClientRect()
+    const fr = foot.getBoundingClientRect()
+    const cr = cancel.getBoundingClientRect()
+    const dr = del.getBoundingClientRect()
+    const bcs = getComputedStyle(body)
+    const wcs = getComputedStyle(wrap)
+    const fcs = getComputedStyle(foot)
+    const footInnerRight = fr.right - parseFloat(fcs.paddingRight)
+    return {
+      vw: window.innerWidth,
+      xScroll: document.documentElement.scrollWidth > window.innerWidth,
+      panelOverflow: panel.scrollWidth > panel.clientWidth,
+      panelLeft: Math.round(pr.left),
+      panelRight: Math.round(pr.right),
+      panelW: Math.round(pr.width),
+      padL: Math.round(parseFloat(wcs.paddingLeft) + (wrap === body ? 0 : parseFloat(bcs.paddingLeft))),
+      padR: Math.round(parseFloat(wcs.paddingRight) + (wrap === body ? 0 : parseFloat(bcs.paddingRight))),
+      padT: Math.round(parseFloat(wcs.paddingTop) + (wrap === body ? 0 : parseFloat(bcs.paddingTop))),
+      padB: Math.round(parseFloat(wcs.paddingBottom) + (wrap === body ? 0 : parseFloat(bcs.paddingBottom))),
+      textLeftInset: Math.round(tr.left - pr.left),
+      textRightInset: Math.round(pr.right - tr.right),
+      strongText: strong?.textContent?.trim() || '',
+      strongWeight: strong ? Number(getComputedStyle(strong).fontWeight) || 0 : 0,
+      hasIcon: Boolean(panel.querySelector('[data-icon="alert-triangle"], [data-icon="trash"], [data-icon="delete"]')),
+      sameRow: Math.abs(cr.top - dr.top) < 2,
+      cancelLeftOfDelete: cr.right <= dr.left,
+      buttonGap: Math.round(dr.left - cr.right),
+      deleteRightFromFootInner: Math.round(Math.abs(footInnerRight - dr.right)),
+      deleteRightFromFoot: Math.round(fr.right - dr.right),
+      cancelH: Math.round(cr.height),
+      deleteH: Math.round(dr.height),
+      cancelInPanel: cr.left >= pr.left && cr.right <= pr.right,
+      deleteInPanel: dr.left >= pr.left && dr.right <= pr.right,
+      focus: document.activeElement?.getAttribute('data-test') || '',
+    }
+  })
   const type = async (test, value) => {
     await p.click(`[data-test=contact-input-${test}]`)
     await p.type(`[data-test=contact-input-${test}]`, value)
@@ -209,6 +257,22 @@ try {
   ok('C24-22b Edit clears an emptied email', (await text('[data-test=contact-email]')) === '-', { email: await text('[data-test=contact-email]') })
   await p.click('[data-test=contact-delete]')
   await waitShown('[data-test=contact-delete-ok]')
+  /* SPL-6319: delete dialog body padding, bold name, warning icon, right-aligned footer */
+  const delDlg = await measureDeleteDialog()
+  ok('C24-23a delete dialog body has non-zero computed inner padding (>= 16 px horiz, > 0 vert)',
+    Boolean(delDlg) && delDlg.padL >= 16 && delDlg.padR >= 16 && delDlg.padT > 0 && delDlg.padB > 0, delDlg)
+  ok('C24-23b delete dialog body text is inset from panel edges (>= 16 px each side)',
+    Boolean(delDlg) && delDlg.textLeftInset >= 16 && delDlg.textRightInset >= 16, delDlg)
+  ok('C24-23c delete dialog emphasises contact name in bold and shows warning icon',
+    Boolean(delDlg) && delDlg.strongText === 'Olivex Outer' && delDlg.strongWeight >= 600 && delDlg.hasIcon, delDlg)
+  ok('C24-23d delete dialog footer buttons right-aligned with gap, Cancel left of Delete, Cancel focused',
+    Boolean(delDlg) && delDlg.sameRow && delDlg.cancelLeftOfDelete && delDlg.buttonGap >= 8 && delDlg.deleteRightFromFootInner <= 4 && delDlg.deleteRightFromFoot <= 32 && delDlg.focus === 'contact-delete-cancel', delDlg)
+  await shot('delete-dialog-1440')
+  await p.click('[data-test=contact-delete-cancel]')
+  ok('C24-23e Cancel closes delete dialog without deleting',
+    await p.waitForSelector('[data-testid=ui-dialog]', { hidden: true, timeout: 5000 }).then(() => true).catch(() => false))
+  await p.click('[data-test=contact-delete]')
+  await waitShown('[data-test=contact-delete-ok]')
   await p.click('[data-test=contact-delete-ok]')
   await p.waitForFunction(() => location.pathname.endsWith('/people'), { timeout: 8000 }).catch(() => null)
   await sleep(300)
@@ -280,6 +344,23 @@ try {
   const small = await p.$$eval('[data-test=contact-card] .btn', (l) => l.filter((b) => b.getBoundingClientRect().height < 44).length)
   ok('P-5 390 every card button >= 44 px tall', small === 0, { small })
   await shot('card-390x664')
+
+  /* SPL-6319: 375 px phone width delete dialog, no overflow even with a long unspaced name */
+  const longContact = { contact_id: 'k-long', first_name: 'Superlongcontactnamewithoutspaces', last_name: 'AlphaBetaGamma', email: null, phone: null, google: false, member_id: null }
+  await seed(INVITER, [stranger, longContact])
+  await load(PHONE_375, '/people/contact/k-long')
+  await waitShown('[data-test=contact-delete]')
+  await p.click('[data-test=contact-delete]')
+  await waitShown('[data-test=contact-delete-ok]')
+  const delPhone = await measureDeleteDialog()
+  ok('P-10 375 delete dialog has no horizontal overflow',
+    Boolean(delPhone) && !delPhone.xScroll && !delPhone.panelOverflow && delPhone.panelLeft >= 0 && delPhone.panelRight <= delPhone.vw, delPhone)
+  ok('P-11 375 delete dialog body has non-zero computed inner padding',
+    Boolean(delPhone) && delPhone.padL >= 12 && delPhone.padR >= 12 && delPhone.padT > 0 && delPhone.padB > 0, delPhone)
+  ok('P-12 375 delete dialog buttons fit panel, right edge aligned, >= 44 px tall',
+    Boolean(delPhone) && delPhone.cancelInPanel && delPhone.deleteInPanel && delPhone.deleteRightFromFootInner <= 4 && delPhone.cancelH >= 44 && delPhone.deleteH >= 44, delPhone)
+  await shot('delete-dialog-375')
+  await p.click('[data-test=contact-delete-cancel]')
 
   const real = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
   ok('no page errors', real.length === 0, real.slice(0, 3))

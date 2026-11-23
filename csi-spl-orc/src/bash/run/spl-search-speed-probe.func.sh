@@ -39,10 +39,11 @@ do_spl_search_speed_probe() {
 }
 
 # spl_search_speed_probe_check <tenant> <n> <terms> -> 0 when well formed;
-# refuses before any cnf or network call.
+# refuses before any cnf or network call. The ENV / TENANT_ID refusals are the
+# doc probe's spl_search_doc_probe_check, their one copy.
 spl_search_speed_probe_check() {
-  [[ "${ENV:-}" == dev || "${ENV:-}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got '${ENV:-}'"; return 1; }
-  [[ "$1" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got '$1'"; return 1; }
+  declare -F spl_search_doc_probe_check >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-search-doc-probe.func.sh"
+  spl_search_doc_probe_check "$1" || return 1
   [[ "$2" =~ ^[0-9]+$ ]] && (( $2 >= 1 && $2 <= 50 )) || { do_log "FATAL PROBE_N must be 1..50, got '$2'"; return 1; }
   [[ "$3" =~ ^[^,]+(,[^,]+)*$ ]] || { do_log "FATAL PROBE_TERMS must be a comma list of terms, got '$3'"; return 1; }
 }

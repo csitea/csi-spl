@@ -7,6 +7,7 @@
 # CONTROLS: a hub answering 503 (search_budget) on a term FAILS the probe and
 # names it; a refused sign-in is exit 2; the probe sends nothing but the login
 # POST; the action refuses bad knobs before any network call.
+# ONE COPY: the ENV / TENANT_ID refusals are the doc probe's spl_search_doc_probe_check.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY="$HERE/../scripts/search-speed-probe.py"
@@ -113,6 +114,17 @@ for bad in "stg t1 5 archive" "prd T1 5 archive" "prd t1 0 archive" "prd t1 51 a
   if chk $bad >/dev/null; then fail "bad knobs accepted: $bad"; else pass "bad knobs refused: $bad"; fi
 done
 if chk prd t1 5 "" >/dev/null; then fail "empty PROBE_TERMS accepted"; else pass "empty PROBE_TERMS refused"; fi
+
+# ---- one copy: the ENV / TENANT_ID refusals are the doc probe's ------------
+ACT="$HERE/../run/spl-search-speed-probe.func.sh"
+own=$(grep -nE 'FATAL (ENV must be dev or prd|TENANT_ID must be a tenant slug)' "$ACT")
+o1=$(chk stg t1 5 archive); o2=$(chk prd T1 5 archive)
+if [[ -z "$own" ]] && grep -q 'spl_search_doc_probe_check "\$1"' "$ACT" &&
+  grep -qx "FATAL ENV must be dev or prd, got 'stg'" <<<"$o1" && grep -qx "FATAL TENANT_ID must be a tenant slug, got 'T1'" <<<"$o2"; then
+  pass "one ENV / TENANT_ID check: the knobs check calls spl_search_doc_probe_check, defines no copy, same FATAL lines"
+else
+  fail "own ENV / TENANT_ID check left, or no call of spl_search_doc_probe_check: [$own] [$o1] [$o2]"
+fi
 
 echo "search-speed-probe: $fails failure(s)"
 [[ $fails -eq 0 ]]

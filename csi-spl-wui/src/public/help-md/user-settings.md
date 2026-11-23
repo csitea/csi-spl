@@ -372,9 +372,10 @@ permission. Its sections are:
 
 ---
 
-## 10. Google Calendar (`/settings/calendar-google`)
+## 10. Google Sync (`/settings/calendar-google`)
 
-Connect your own Google account so that your calendar events stay in step
+This section syncs your Google calendar and your Google contacts. Connect
+your own Google account so that your calendar events stay in step
 with a Google calendar. Each member connects their own account, per
 workspace. Spool Hub creates a separate calendar, **Spool Hub
 (workspace name)**, in your Google account and never writes into your main
@@ -401,13 +402,13 @@ calendar.
 ## 11. Contacts (`/settings/contacts`)
 
 The switch that brings your Google contacts into your contact list. It is the
-Contacts part of Google Calendar (section 10), on a line of its own in the
+Contacts part of Google Sync (section 10), on a line of its own in the
 Settings list, so you find it on a phone too. It is listed only in a
 workspace where contacts are switched on.
 
 - **Not connected**: **Give access to Google Contacts** connects Google,
   asking for your calendar and your contacts at once. Google sends you back
-  to Google Calendar; then turn on **Sync Google Contacts**.
+  to Google Sync; then turn on **Sync Google Contacts**.
 - **Connected**: **Sync Google Contacts** turns the sync on or off. On, it
   shows the last sync and **Sync now**.
 

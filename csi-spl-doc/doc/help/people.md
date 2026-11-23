@@ -89,7 +89,7 @@ is written until you press **Import**.
 <a id="ws-doc-2714f4a5-79bf-4a5a-86af-4f5b31c81942"></a>
 ## Sync with Google Contacts
 
-In **Settings → Google Calendar**, once your Google account is connected in
+In **Settings → Google Sync**, once your Google account is connected in
 this workspace, the **Sync Google Contacts** switch brings your Google
 contacts into your list and keeps them up to date. Turning it on starts the
 first import; after that Spool looks for changes about every 10 minutes,

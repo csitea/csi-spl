@@ -273,7 +273,7 @@
       "clock": "Pulkstenis",
       "wave": "Vilnis"
     },
-    "calendar_google": "Google kalendārs"
+    "calendar_google": "Google sinhronizācija"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "Neizdevās nolasīt kontaktu sinhronizācijas stāvokli.",
     "contacts_failed": "Neizdevās mainīt kontaktu sinhronizāciju.",
     "contacts_started": "Kontaktu sinhronizācija ir ieslēgta. Pirmā importēšana ir sākusies.",
-    "contacts_stopped": "Kontaktu sinhronizācija ir izslēgta."
+    "contacts_stopped": "Kontaktu sinhronizācija ir izslēgta.",
+    "title": "Google kalendārs"
   },
   "expenses": {
     "tabs_label": "Izdevumu cilnes",

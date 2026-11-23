@@ -273,7 +273,7 @@
       "clock": "Ceas",
       "wave": "Val"
     },
-    "calendar_google": "Calendarul Google"
+    "calendar_google": "Sincronizare Google"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "Nu s-a putut citi sincronizarea contactelor.",
     "contacts_failed": "Nu s-a putut modifica sincronizarea contactelor.",
     "contacts_started": "Sincronizarea contactelor este activă. Primul import a început.",
-    "contacts_stopped": "Sincronizarea contactelor este dezactivată."
+    "contacts_stopped": "Sincronizarea contactelor este dezactivată.",
+    "title": "Calendarul Google"
   },
   "expenses": {
     "tabs_label": "File de cheltuieli",

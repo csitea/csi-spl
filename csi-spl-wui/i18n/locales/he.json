@@ -273,7 +273,7 @@
       "clock": "שעון",
       "wave": "גל"
     },
-    "calendar_google": "יומן Google"
+    "calendar_google": "סנכרון Google"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "לא ניתן לקרוא את מצב סנכרון אנשי הקשר.",
     "contacts_failed": "לא ניתן לשנות את סנכרון אנשי הקשר.",
     "contacts_started": "סנכרון אנשי הקשר פעיל. הייבוא הראשון התחיל.",
-    "contacts_stopped": "סנכרון אנשי הקשר כבוי."
+    "contacts_stopped": "סנכרון אנשי הקשר כבוי.",
+    "title": "יומן Google"
   },
   "expenses": {
     "tabs_label": "כרטיסיות הוצאות",

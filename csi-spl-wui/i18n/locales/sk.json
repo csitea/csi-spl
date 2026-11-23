@@ -273,7 +273,7 @@
       "clock": "Hodiny",
       "wave": "Vlna"
     },
-    "calendar_google": "Kalendár Google"
+    "calendar_google": "Synchronizácia Google"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "Stav synchronizácie kontaktov sa nepodarilo načítať.",
     "contacts_failed": "Synchronizáciu kontaktov sa nepodarilo zmeniť.",
     "contacts_started": "Synchronizácia kontaktov je zapnutá. Prvý import sa začal.",
-    "contacts_stopped": "Synchronizácia kontaktov je vypnutá."
+    "contacts_stopped": "Synchronizácia kontaktov je vypnutá.",
+    "title": "Kalendár Google"
   },
   "expenses": {
     "tabs_label": "Karty výdavkov",

@@ -273,7 +273,7 @@
       "clock": "Saat",
       "wave": "Dalga"
     },
-    "calendar_google": "Google Takvim"
+    "calendar_google": "Google Eşitleme"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "Kişi senkronizasyonu okunamadı.",
     "contacts_failed": "Kişi senkronizasyonu değiştirilemedi.",
     "contacts_started": "Kişi senkronizasyonu açık. İlk içe aktarma başladı.",
-    "contacts_stopped": "Kişi senkronizasyonu kapalı."
+    "contacts_stopped": "Kişi senkronizasyonu kapalı.",
+    "title": "Google Takvim"
   },
   "expenses": {
     "tabs_label": "Gider sekmeleri",

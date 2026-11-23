@@ -273,7 +273,7 @@
       "clock": "Clock",
       "wave": "Wave"
     },
-    "calendar_google": "Google Calendar"
+    "calendar_google": "Google Sync"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "Could not read the contacts sync.",
     "contacts_failed": "Could not change the contacts sync.",
     "contacts_started": "Contacts sync is on. The first import has started.",
-    "contacts_stopped": "Contacts sync is off."
+    "contacts_stopped": "Contacts sync is off.",
+    "title": "Google Calendar"
   },
   "expenses": {
     "tabs_label": "Expenses tabs",

@@ -273,7 +273,7 @@
       "clock": "Zegar",
       "wave": "Fala"
     },
-    "calendar_google": "Kalendarz Google"
+    "calendar_google": "Synchronizacja Google"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "Nie udało się odczytać stanu synchronizacji kontaktów.",
     "contacts_failed": "Nie udało się zmienić synchronizacji kontaktów.",
     "contacts_started": "Synchronizacja kontaktów jest włączona. Pierwszy import się rozpoczął.",
-    "contacts_stopped": "Synchronizacja kontaktów jest wyłączona."
+    "contacts_stopped": "Synchronizacja kontaktów jest wyłączona.",
+    "title": "Kalendarz Google"
   },
   "expenses": {
     "tabs_label": "Karty wydatków",

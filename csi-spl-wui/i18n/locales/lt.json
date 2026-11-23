@@ -273,7 +273,7 @@
       "clock": "Laikrodis",
       "wave": "Banga"
     },
-    "calendar_google": "Google kalendorius"
+    "calendar_google": "Google sinchronizavimas"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "Nepavyko nuskaityti kontaktų sinchronizavimo būsenos.",
     "contacts_failed": "Nepavyko pakeisti kontaktų sinchronizavimo.",
     "contacts_started": "Kontaktų sinchronizavimas įjungtas. Pirmasis importas pradėtas.",
-    "contacts_stopped": "Kontaktų sinchronizavimas išjungtas."
+    "contacts_stopped": "Kontaktų sinchronizavimas išjungtas.",
+    "title": "Google kalendorius"
   },
   "expenses": {
     "tabs_label": "Išlaidų skirtukai",

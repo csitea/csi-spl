@@ -273,7 +273,7 @@
       "clock": "Reloj",
       "wave": "Onda"
     },
-    "calendar_google": "Calendario de Google"
+    "calendar_google": "Sincronización de Google"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "No se pudo leer la sincronización de contactos.",
     "contacts_failed": "No se pudo cambiar la sincronización de contactos.",
     "contacts_started": "La sincronización de contactos está activada. La primera importación ha comenzado.",
-    "contacts_stopped": "La sincronización de contactos está desactivada."
+    "contacts_stopped": "La sincronización de contactos está desactivada.",
+    "title": "Calendario de Google"
   },
   "expenses": {
     "tabs_label": "Pestañas de gastos",

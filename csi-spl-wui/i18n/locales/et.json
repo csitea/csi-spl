@@ -273,7 +273,7 @@
       "clock": "Kell",
       "wave": "Laine"
     },
-    "calendar_google": "Google'i kalender"
+    "calendar_google": "Google'i sünkroonimine"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "Kontaktide sünkroonimise olekut ei õnnestunud lugeda.",
     "contacts_failed": "Kontaktide sünkroonimist ei õnnestunud muuta.",
     "contacts_started": "Kontaktide sünkroonimine on sees. Esimene import on alanud.",
-    "contacts_stopped": "Kontaktide sünkroonimine on väljas."
+    "contacts_stopped": "Kontaktide sünkroonimine on väljas.",
+    "title": "Google'i kalender"
   },
   "expenses": {
     "tabs_label": "Kulude vahelehed",

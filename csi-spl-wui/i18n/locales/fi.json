@@ -273,7 +273,7 @@
       "clock": "Kello",
       "wave": "Aalto"
     },
-    "calendar_google": "Google-kalenteri"
+    "calendar_google": "Google-synkronointi"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "Yhteystietojen synkronoinnin tilaa ei voitu lukea.",
     "contacts_failed": "Yhteystietojen synkronointia ei voitu muuttaa.",
     "contacts_started": "Yhteystietojen synkronointi on käytössä. Ensimmäinen tuonti on alkanut.",
-    "contacts_stopped": "Yhteystietojen synkronointi ei ole käytössä."
+    "contacts_stopped": "Yhteystietojen synkronointi ei ole käytössä.",
+    "title": "Google-kalenteri"
   },
   "expenses": {
     "tabs_label": "Kulujen välilehdet",

@@ -273,7 +273,7 @@
       "clock": "Klocka",
       "wave": "Våg"
     },
-    "calendar_google": "Google Kalender"
+    "calendar_google": "Google-synkronisering"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "Det gick inte att läsa kontaktsynkroniseringen.",
     "contacts_failed": "Det gick inte att ändra kontaktsynkroniseringen.",
     "contacts_started": "Kontaktsynkronisering är på. Den första importen har börjat.",
-    "contacts_stopped": "Kontaktsynkronisering är av."
+    "contacts_stopped": "Kontaktsynkronisering är av.",
+    "title": "Google Kalender"
   },
   "expenses": {
     "tabs_label": "Utgiftsflikar",

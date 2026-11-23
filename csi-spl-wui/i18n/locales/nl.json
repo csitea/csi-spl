@@ -273,7 +273,7 @@
       "clock": "Klok",
       "wave": "Golf"
     },
-    "calendar_google": "Google Agenda"
+    "calendar_google": "Google-synchronisatie"
   },
   "auth": {
     "error": {
@@ -4370,7 +4370,8 @@
     "contacts_load_failed": "De contactsynchronisatie kon niet worden gelezen.",
     "contacts_failed": "De contactsynchronisatie kon niet worden gewijzigd.",
     "contacts_started": "Contactsynchronisatie staat aan. De eerste import is gestart.",
-    "contacts_stopped": "Contactsynchronisatie staat uit."
+    "contacts_stopped": "Contactsynchronisatie staat uit.",
+    "title": "Google Agenda"
   },
   "expenses": {
     "tabs_label": "Uitgaventabbladen",

@@ -186,3 +186,55 @@ describe('the day level and the burn per workspace', () => {
     assert.equal(burn.find((w) => w.key === 'ws-alpha|claude').listValueMicros, 2 * 13_890_000)
   })
 })
+
+/*
+ * SPL-6330: a workspace whose only cloud items come by a 10000 bp hand
+ * allocation of estate GCP lines (spec 143 costs-allocation.md). The hub
+ * answers each as source "allocated" with the item's own source in
+ * allocated_source; the month parse must keep it, or the part counts as
+ * "other" and Cloud shows nothing. RED CONTROL: costPartOf without
+ * allocatedSource -> Cloud has no rows and Total's cloud is empty.
+ */
+describe('a workspace whose cloud comes only by an allocation (SPL-6330)', () => {
+  const part = (pov, kind, usd) => ({
+    estate: false, source: 'allocated', allocated_source: 'gcp', share_bp: 10000,
+    project_or_vendor: pov, kind, origin: 'billing_export', units: 1, usd_micros: usd, eur_micros: usd, days: 30,
+  })
+  const body = (m, parts) => ({
+    month: m, status: 'ended', scope: 'workspace', second_currency: 'EUR', days: 30, days_ended: 30,
+    total: { usd_micros: parts.reduce((s, p) => s + p.usd_micros, 0), eur_micros: 0, second_micros: null }, parts, coverage: [],
+  })
+  const months = [
+    costMonthOf(body('2026-07', [])),
+    costMonthOf(body('2026-08', [part('proj-a', 'cloud_run', 2_000_000), part('proj-b', 'storage', 1_000_000)])),
+    costMonthOf(body('2026-09', [part('proj-a', 'cloud_run', 3_000_000)])),
+  ]
+  it('the month parse keeps the allocated part\'s own source and share', () => {
+    const p = months[1].parts[0]
+    assert.equal(p.source, 'allocated')
+    assert.equal(p.allocatedSource, 'gcp')
+    assert.equal(p.shareBP, 10000)
+  })
+  it('Cloud lists each allocated project with its amounts; Total counts them as cloud', () => {
+    const rows = costsLabelRows('cloud', months)
+    assert.deepEqual(keys(rows), ['proj-a', 'proj-b'])
+    assert.deepEqual(rows[0].cells.map((c) => c.v), [0, 2_000_000, 3_000_000])
+    assert.equal(rows[0].total.v, 5_000_000)
+    assert.equal(rows[1].total.v, 1_000_000)
+    assert.equal(rows[0].drill, 'project')
+    const total = costsLabelRows('total', months)
+    assert.equal(total.find((r) => r.key === 'cloud').total.v, 6_000_000)
+    assert.equal(total.find((r) => r.key === 'other'), undefined)
+  })
+  it('a project drills to its allocated services', () => {
+    const rows = costsLabelRows('cloud', months, { project: 'proj-a' })
+    assert.deepEqual(keys(rows), ['cloud_run'])
+    assert.equal(rows[0].total.v, 5_000_000)
+  })
+  it('an allocated hand-entered cloud cost stays an entry row, never a GCP project', () => {
+    const e = costMonthOf(body('2026-09', [{ ...part('shared bill', 'cloud', 4_000_000), allocated_source: 'cost_entry' }]))
+    const rows = costsLabelRows('cloud', [e])
+    assert.deepEqual(keys(rows), ['entry:shared bill'])
+    assert.equal(rows[0].drill, undefined)
+  })
+})

@@ -69,7 +69,7 @@ function personsItemOf(p) {
 
 /** Cloud: a GCP project (its box apart) or a hand-entered cost; inside a project, its services. */
 function cloudItemOf(p, project) {
-  const entry = p.source === ENTRY_SOURCE
+  const entry = (p.allocatedSource || p.source) === ENTRY_SOURCE
   if (project) return entry || p.projectOrVendor !== project ? null : { key: p.kind, name: p.kind, drill: 'kind' }
   if (entry) return { key: 'entry:' + p.projectOrVendor, name: p.label || p.projectOrVendor, entry: true }
   return { key: p.projectOrVendor, name: cloudProjectOf(p.projectOrVendor).project, box: cloudProjectOf(p.projectOrVendor).box, drill: 'project' }

@@ -105,6 +105,9 @@ function costPartOf(p) {
     /* SPL-5546: a hand-entered item's label in the reader's locale ('' = projectOrVendor, the master text and the key) */
     label: str(r.label),
     pct: typeof r.pct === 'number' && Number.isFinite(r.pct) ? r.pct : null,
+    /* SPL-6330: a hand allocation's part (source allocated) names its item's own source and the share; without them it counts as "other" */
+    allocatedSource: str(r.allocated_source),
+    shareBP: int(r.share_bp),
     ...costSecondOf(r),
   }
 }

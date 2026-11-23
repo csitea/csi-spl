@@ -15,6 +15,9 @@
 #          5. DRY_RUN unset and DRY_RUN=1: nothing changed, nothing
 #             downloaded, the exact DRY_RUN=0 re-run line
 #          6. GO_VERSION unset or not a version -> refused, nothing called
+#          7. one copy: the action holds no _bgs_sudo / _bgs_q of its own,
+#             box-pkg-install defines _bpi_q, and the re-run line quotes
+#             through _bpi_q "$GO_VERSION" (cases 1, 2, 5 prove the guard)
 #
 #          CONTROL: FUNC=<a file with a no-op do_box_go_switch> must turn
 #          cases 1, 2, 4, 5 and 6 red: a check that cannot fail proves nothing.
@@ -220,6 +223,14 @@ for spec in "-u GO_VERSION" "GO_VERSION=" "GO_VERSION=latest"; do
     pass "6. $spec: refused, nothing called"
   else fail "6. $spec: rc $rc, $out"; fi
 done
+
+# 7: one copy of the sudo and quote helpers, box-pkg-install's
+PKG="$TEST_DIR/../run/box-pkg-install.func.sh"
+own=$(grep -nE '\b_bgs_(sudo|q)\b' "$FUNC")
+# shellcheck disable=SC2016  # the literal call text, not an expansion
+if [[ -z "$own" ]] && grep -q '^_bpi_q() {' "$PKG" && grep -qF '$(_bpi_q "$GO_VERSION")' "$FUNC"; then
+  pass "7. one copy: no _bgs_sudo / _bgs_q, _bpi_q from box-pkg-install quotes the re-run line"
+else fail "7. own sudo / quote helper left, or no call of _bpi_q: ${own:0:40}..."; fi
 
 echo "box-go-switch: $fails failure(s)"
 [[ "$fails" == 0 ]]

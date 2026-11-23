@@ -29,6 +29,14 @@ Stdlib only; reuses m3-e2e.py (HTTP, native sign-in, WebSocket, box rig).
 Secrets (password files, cookies, tokens) never reach stdout or results.json.
 
 Usage: invite-e2e.py run
+       invite-e2e.py link   wait for the invite mail and print ONE JSON line:
+                            its link (the proof opens it), the tenant, whether
+                            login_hint is the invitee, the Message-ID and how
+                            long it took; exit 1 when none came in time. For
+                            do_spl_invite_native_e2e (SPL-6286): the caller
+                            keeps the link off its own output (it carries the
+                            invitee as login_hint). INVITE_MESSAGE_ID (optional)
+                            pins the hub's Message-ID.
 Env:   the M3_* names of m3-e2e.py (M3_HUB_URL, M3_AUTH_URL, M3_TENANT,
        M3_STATE, M3_HUMAN_EMAIL = the invitee, M3_IMAP_USER, M3_IMAP_PASS_FILE,
        M3_IMAP_HOST, M3_SPOOL and M3_ROOT_KEY for the agent leg), plus
@@ -430,10 +438,37 @@ def run():
     )
 
 
+def link():
+    """The `link` subcommand: the invite mail's link facts as one JSON line."""
+    m3.need("M3_HUMAN_EMAIL", "M3_TENANT")
+    if not MAILDIR:
+        m3.need("M3_IMAP_USER", "M3_IMAP_PASS_FILE")
+    mv = wait_invite_mail(m3.HUMAN, m3.TENANT, os.environ.get("INVITE_MESSAGE_ID", ""))
+    if not mv:
+        print(json.dumps({"error": "no invite mail within %ds" % TIMEOUT}))
+        return 1
+    keep = (
+        "link",
+        "link_page",
+        "link_tenant",
+        "link_redirect",
+        "link_login_hint_is_invitee",
+        "mail_subject",
+        "mail_message_id",
+        "mail_after_s",
+        "gmail_labels",
+    )
+    print(json.dumps({k: mv[k] for k in keep}, sort_keys=True))
+    return 0
+
+
 if __name__ == "__main__":
     os.umask(0o077)
-    if (sys.argv[1:] or [""])[0] != "run":
-        sys.exit("usage: invite-e2e.py run")
+    cmd = (sys.argv[1:] or [""])[0]
+    if cmd == "link":
+        sys.exit(link())
+    if cmd != "run":
+        sys.exit("usage: invite-e2e.py run|link")
     try:
         sys.exit(run())
     except Exception as e:  # noqa: BLE001 - report, keep results so far

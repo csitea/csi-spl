@@ -184,6 +184,23 @@ Already built: `POST /api/v1/auth/logout` (010).
   Chrome) and saves a screenshot of each human-visible step;
   `NAE_CRED_FILE` keeps the account's address and password in one 0600 file
   for a person to inspect it.
+  `do_spl_invite_native_e2e` (SPL-6286, owner HUM-10 msg 01649437) proves
+  an invite accepted with email + password, no Google, in the deployed WUI:
+  the hub invites a fresh relay plus-address to a test workspace (dev, or
+  prd `e2e` / `e2e-*` only; t1 refused) through `POST /v1/operator/invites`,
+  then headless Chrome opens the invite mail's link, signs up on that page
+  (Create account, the address pre-filled from `login_hint`), confirms from
+  the verify mail (signed in, landed in the invited workspace) and signs in
+  again from the link; a wrong password is refused. Step 9 reads the hub
+  rows back (`do_spl_hub_member_list`, read-only): the invite's
+  `accepted_at` and the membership in the invited role, for the human the
+  session named. The invitee stays a member; the run logs its plus tag and
+  address digest for the clean-up. The verify mail admits the invite with no
+  `?tenant=` (`registerLanding`, SPL-1230). A password sign-up on an address
+  that already has a verified Google, Facebook, LinkedIn, Microsoft or xAI
+  identity joins THAT human, not a new one: `findHuman` links a new
+  identity to the human of the same provider-verified address (CLE-3451
+  defect 2; `TestHumansAdmitLinksVerifiedAddress`).
 - **FR-012** Fail closed: with verification required and no way to deliver
   the link (transport `none`, and no debug tokens) `register` answers
   `503 email_delivery_unavailable` instead of creating an unusable credential.

@@ -28,7 +28,9 @@
 #   8. one id with a row on TWO boxes (an old box-desk row next to the renamed
 #      one): done writes ONE box id, this machine's (the "sat box-desk" defect)
 #   9. lane-map.sh: done for a role seat (c-001..c-003, a lease.conf id) is a
-#      no-op that never calls the action; a two-word box is refused client
+#      no-op that never calls the action; 9b: that check is send_role_seat
+#      of spool-caller.inc.sh, its one copy, not a copy in lane-map.sh
+#      (r93-01); a two-word box is refused client
 #      side; CONTROL: a normal lane id's done still calls it; --check runs
 #      the action --quiet (framework lines off stdout), a plain map does not
 #  10. the BOX-0 load row: a machine that reads its panes publishes
@@ -418,6 +420,9 @@ done
 out="$(lm bash "$LM" "done" --agent c-077 2>&1)"; rc=$?
 grep -qx "RUN -a do_spl_lane_put state=done agent=c-077" "$T/orc/calls" && [[ $rc -eq 0 ]] &&
   pass "control: done --agent c-077 (a lane) still calls do_spl_lane_put LANE_STATE=done" || fail "control done (rc=$rc): $out / $(cat "$T/orc/calls")"
+own="$(grep -nE '_is_role_seat|LEASE_(MASTER|FAILOVER|ORCH)' "$LM")"
+[[ -z "$own" ]] && grep -qF 'send_role_seat "$_lane_agent"' "$LM" && pass "9b. lane-map.sh calls send_role_seat of spool-caller.inc.sh, no copy of its own" ||
+  fail "9b. lane-map.sh keeps its own role-seat check, or no call of send_role_seat: $(echo "$own" | paste -sd' ')"
 : >"$T/orc/calls"
 out="$(lm bash "$LM" put --agent c-003 --branch b 2>&1)"; rc=$?
 grep -q "state=live agent=c-003" "$T/orc/calls" && pass "a role seat's put (the rotation spawn) still writes its lane" || fail "role put (rc=$rc): $out"

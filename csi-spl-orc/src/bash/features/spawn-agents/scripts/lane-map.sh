@@ -73,13 +73,11 @@ fi
 
 # A role seat's lane outlives the seat: the hourly rotation (spec 060) hands
 # the same id to the successor, so marking it done would hide a live lane.
-# The ids: 001-003 in any vendor letter (spl_is_role_seat), and whatever
-# lease.conf names.
-lane_is_role_seat() {  # ID
-  spl_is_role_seat "$1" && return 0
-  grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null
-}
-if [ "$verb" = "done" ] && lane_is_role_seat "$_lane_agent"; then
+# The ids (001-003 in any vendor letter, and whatever lease.conf names):
+# send_role_seat of spool-caller.inc.sh, their one copy.
+# shellcheck source=../lib/spool-caller.inc.sh
+. "$_here/../lib/spool-caller.inc.sh"
+if [ "$verb" = "done" ] && send_role_seat "$_lane_agent"; then
   echo "INFO lane-map.sh: $_lane_agent is a role seat; its successor keeps the lane, nothing to mark done"
   exit 0
 fi

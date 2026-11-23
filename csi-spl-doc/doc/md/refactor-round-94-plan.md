@@ -40,7 +40,7 @@ byte-identical copy of `send_role_seat` of `spool-caller.inc.sh` (after r93-01 r
 `spool-env.inc.sh`, and `ksr_reviewer` and `ksr_gate` call `send_role_seat`. Neither
 row edits its keeper file. The rows share no file: both are batch 1.
 
-**Status: v1.0, signed.** The panel (m-762, mistral) passed v0.1 `cea1ce853` with no W;
+**Status: v1.0, signed; round closed (section 8).** The panel (m-762, mistral) passed v0.1 `cea1ce853` with no W;
 N1..N5 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-94/seat-mistral.md`,
 branch `review/c002-refactor-round-94-mistral-seat`, `f0ef71764`). Rows run by night
 (rulebook 1.4). Editor: **a-756** (agy).
@@ -478,14 +478,52 @@ checks fail) RED. Gates: the row's tests (section 2, `SPOOL_TEST=1`, in the work
   - N5: the candidates file (115 lines) was re-checked claim by claim against the tree;
     none is left unserved and unaccounted.
   Text unchanged except the status line and sections 8 and 9.
+- Round closed (a-756 writes the record), no version bump: both rows landed, read on
+  `origin/master` `70f05ea48` (`2026-11-23T20:47Z`, n=1 each):
+  - r94-01 `ffe718a28` (`ffe718a28ab5caa0f40b224a181c7f9eb0991981`, SPL-6332, committed
+    `2026-11-23T19:31:22Z`): R7 `g-788` grok **PASS** on `17e7e065b`
+    (`17e7e065b489358622c8f13238d098ac3c3eaf66`); `git patch-id --stable` `20d06806a051`
+    on both. CI on `ffe718a28`: all push workflows **success** — gate 10 (`45249887441`),
+    15 (`45249887541`), 25 (`45249887194`), 26 (`45249887278`), 64 (`45249887423`),
+    67 (`45249887254`); 4 skipped workflow 12 runs. Diff (`git show --numstat`):
+    `spl-gh-wire.func.sh` `+5 -9`, `spl-gh-wire.tst.sh` `+7 -0`, matching plan 1.3 / 6.
+    R7 notes (`g-788`): N1 sha256 differs from plan head1 in comment and case-9 wording
+    only (146 / 196 lines match, parent matches `65b1bd21a`); `NOT RUN do_check_pre_push`
+    noted (brief named `do_check_dist_hygiene`; author ran `do_check_pre_push` rc 0).
+    None asks for a change.
+  - r94-02 `70f05ea48` (`70f05ea482a13997364a61268ea6d31759581424`, SPL-6334, committed
+    `2026-11-23T20:21:56Z`): R7 `g-811` grok **PASS** on `55809d4c0`
+    (`55809d4c0f0dcce69ce1afecb939b0362aea1c97`, `review/r94-02`); `git patch-id --stable`
+    `8ea69b4c99ee` on both. CI on `70f05ea48`: all push workflows **success** — gate 10
+    (`45258740911`), 15 (`45258740685`), 25 (`45258740558`), 26 (`45258740625`),
+    64 (`45258741141`), 67 (`45258740361`); scheduled 21 and 40 **success** (scheduled
+    gate 10 `45262655245` in progress at read time; 6 skipped workflow 12 runs). Diff
+    (`git show --numstat`): `kill-your-self-report.sh` `+5 -9` (sha256 `0b4355d6242a`,
+    plan head2), `test-kill-your-self-gate.sh` `+5 -0`, matching plan 1.4 / 6. No R7
+    change notes (`g-811`'s `ran:` covered `test-kill-your-self-gate.sh`,
+    `test-kill-your-self-report.sh`, the red control and `do_check_dist_hygiene`; author
+    and CI gate 10 `45258740911` ran the full column).
+  - `git merge-base --is-ancestor <row> origin/master` rc 0 and box checkout ancestry rc 0
+    for both; R6 (`git log origin/master --since="2026-11-23T18:16:45+02:00"
+    --format='%H %cI %s' -E --grep='\(r94-'`) returns both rows (`ffe718a28`, `70f05ea48`)
+    and the 2 plan commits (`decfcdf03`, `bd41a3890`). The dispatch holder c-002 confirmed
+    both rows landed and ACCEPTED (msg `6e14170d`). **R7 vendor:** both seats grok
+    (section 4: `g-788`, `g-811`); no claude waiver seat was needed. Post-land `git grep`
+    on `70f05ea48` (excluding `*.md`): GitHub Actions variable read body 2 -> 1
+    (`_gscv_get` at `gh-set-ci-vars.func.sh:36`, 0 `_sgw_get` defs, 4 `_gscv_get` calls);
+    role-seat check body 2 -> 1 (`send_role_seat` at `spool-caller.inc.sh:9`, 0
+    `ksr_is_seat` defs, `kill-your-self-report.sh` calls `send_role_seat` at `:152`,
+    `:174`). Neither row touches a path outside its brief's Files (`git show --stat`, 2
+    files each).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-756 (agy): v0.1, v1.0.
+- Editor seat: a-756 (agy): v0.1, v1.0, close record.
 - Panel reviewer seat: m-762 (mistral, `c002-refactor-round-94-mistral-panel-seat`):
   **PASS** on v0.1 (`cea1ce853`), no W, notes N1-N5. Seat file
   `refactor-round-94/seat-mistral.md` (`review/c002-refactor-round-94-mistral-seat`,
   `f0ef71764`, section 8).
-- Row R7 seats: section 4.
+- Row R7 seats: section 4; both grok: g-788 (r94-01), g-811 (r94-02) (section 8, round
+  closed).

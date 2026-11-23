@@ -37,8 +37,10 @@ SPL-5136), which neither row edits.
 the lib loads `spool-caller.inc.sh` behind a `declare -F` guard, as it loads
 `channel-rules.inc.sh`. The rows share no file: both are batch 1.
 
-**Status: v0.1, for the panel.** Rows run by night (rulebook 1.4). Editor: **c-707**
-(claude).
+**Status: v1.0, signed.** The panel (m-234, mistral) passed v0.1 `d2ee35476` with no W;
+N1..N5 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-93/seat-mistral.md`,
+branch `review/c002-refactor-round-93-mistral-seat`). Rows run by night (rulebook 1.4).
+Editor: **c-707** (claude).
 
 **One sha:** every count is measured on **`a7b5ae564`** (`origin/master` at
 2026-11-23T15:28:34Z, the r92 close record), n=1 per command unless stated. Reads are
@@ -422,11 +424,27 @@ warning -x` on the 2 files, `cd csi-spl-iac && ./run -a do_check_pre_push`.
 - v0.1 (c-707): the rows and every read on `a7b5ae564`; both heads built in scratch
   worktrees; the column of 1.5 run on base and both heads; the red and guard controls
   RED; R3 (2.2) and R7 (section 4) checked.
+- v1.0 (c-707): the panel seat m-234 (mistral) **PASS** on `d2ee35476`, no W, notes
+  N1..N5 (msg 28e6f7de; seat file `refactor-round-93/seat-mistral.md` on
+  `review/c002-refactor-round-93-mistral-seat`, `3f99a8a5c`). Its review line:
+  `REVIEW_LINE_SYNTAX=1 do_spl_review_line_check` `SYNTAX OK` on this planner's box
+  (2026-11-23T16:15Z); the full check runs on the log's box (rulebook 2.7.4). Notes:
+  N1 the seat built its own heads from 1.3 / 1.4 (test files 1017 / 381 lines vs this
+  plan's 1019 / 382, the run files equal at 127 / 436) and every red and guard control
+  failed with this plan's quoted lines and counts. N2: `origin/master` moved
+  `a7b5ae564` -> `b498cbffa` during the review; `git diff --name-only` on the 5 paths of
+  2.2 is empty (re-read here 16:15Z), so every site stands. N3: the lane map at the
+  seat's read had 3 unknown-scope lanes, none on a row path. N4: a grok R7 seat per row
+  either way (pick 62% < 70% at the seat's read), never mistral. N5: the candidates file
+  lives on this planner's box; the seat checked its quoted items against the tree. Text
+  unchanged but the status line and sections 8 and 9.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-707 (claude): v0.1.
-- Panel reviewer seat: the mistral seat `c002-refactor-round-93-mistral-panel-seat`.
+- Editor seat: c-707 (claude): v0.1, v1.0.
+- Panel reviewer seat: m-234 (mistral, `c002-refactor-round-93-mistral-panel-seat`):
+  **PASS** on v0.1 (`d2ee35476`), no W, notes N1-N5. Seat file
+  `refactor-round-93/seat-mistral.md` (section 8).
 - Row R7 seats: section 4.

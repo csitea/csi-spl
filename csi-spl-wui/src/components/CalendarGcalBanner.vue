@@ -6,12 +6,13 @@
      revoked by invalid_grant, each 7 days after its connect).
      It reads GET /v1/me/google-calendar once per page; a workspace without
      the feature (404), a hub without it (503), a failed read, no connection
-     or a healthy one show nothing. No new text: the words are the Settings
-     section's own keys. Its own chunk, with utils/gcal-client.mjs (C27). -->
+     or a healthy one show nothing. Its words are the gcal.* keys; the name
+     is gcal.title ("Google Calendar"), since the Settings section became
+     "Google Sync" (SPL-6285). Its own chunk, with utils/gcal-client.mjs (C27). -->
 <template>
   <div v-if="key" class="gcal-banner" role="alert" data-test="calendar-gcal-banner" :data-status="status?.status">
     <span class="gcal-banner__text">
-      <strong>{{ t('settings.calendar_google') }}</strong>: {{ t(key) }}<template v-if="status?.status_detail"> ({{ status.status_detail }})</template>
+      <strong>{{ t('gcal.title') }}</strong>: {{ t(key) }}<template v-if="status?.status_detail"> ({{ status.status_detail }})</template>
     </span>
     <button type="button" class="btn gcal-banner__btn" data-test="calendar-gcal-reconnect" :disabled="busy" @click="reconnect()">
       {{ busy ? t('gcal.connecting') : t('gcal.reconnect') }}

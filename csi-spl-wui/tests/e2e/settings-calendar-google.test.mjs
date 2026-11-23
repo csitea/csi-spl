@@ -90,7 +90,7 @@ try {
   await setMock(null)
   await load(DESKTOP, SETTINGS)
   ok('C26-1 the section opens on ?settings=calendar-google, not connected', await view('disconnected') && await has('gcal-connect'))
-  ok('C26-2 the nav lists it, active', await p.$eval('[data-test=settings-nav-calendar-google]', (a) => a.getAttribute('aria-current') === 'page' && a.textContent.trim() === 'Google Calendar').catch(() => false))
+  ok('C26-2 the nav lists it, active', await p.$eval('[data-test=settings-nav-calendar-google]', (a) => a.getAttribute('aria-current') === 'page' && a.textContent.trim() === 'Google Sync').catch(() => false))
   ok('C26-3 CONTROL: not connected has no Disconnect', !(await has('gcal-disconnect')))
   await shot('1440-disconnected')
 

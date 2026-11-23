@@ -59,7 +59,7 @@ A contact keeps these details:
 - company and job title;
 - a birthday, written `YYYY-MM-DD`, or `--MM-DD` with no year;
 - notes;
-- a picture, only when it comes from Google (see below).
+- a picture, from Google only, once pictures are on (see below).
 
 **Your list is yours alone.** It belongs to you, not to a workspace: it is
 the same list in every workspace you are in, and leaving one workspace does
@@ -105,12 +105,15 @@ any problem it met. If Google has not given access to your contacts yet,
 
 ## Pictures
 
-A contact's picture comes only from Google: the picture the contact has in
-your Google Contacts (not Google's lettered placeholder), brought in by the
-sync. Only you see it. A contact who is a member here shows with the
-member's own avatar, never with the picture you keep of them. To change a
-picture, change it in Google; the next sync brings it. Pictures are not in
-the export.
+Contact pictures are not brought in yet: the Google sync fetches no
+pictures until Spool's operators allow Google's picture host, so a contact
+shows no picture today.
+
+Once that is on, a contact's picture comes only from Google: the picture
+the contact has in your Google Contacts (not Google's lettered
+placeholder), brought in by the sync. Only you will see it. A contact who
+is a member here shows with the member's own avatar, never with the
+picture you keep of them. Pictures are not in the export.
 
 ## Export and erase
 

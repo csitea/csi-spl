@@ -630,6 +630,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeTopicExport(mux)    // spec 183 7.1.1: GET /v1/topics/{task_id}/export.pdf, topic_export.go
 	// spec 158 10.8 row V1: GET /v1/operator/workspaces/{id}/readiness, operator_readiness.go
 	s.routeOperatorReadiness(mux)
+	s.routeOperatorInvoices(mux) // spec 181 B13: the overdue invoices and mark paid, operator_invoices.go
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

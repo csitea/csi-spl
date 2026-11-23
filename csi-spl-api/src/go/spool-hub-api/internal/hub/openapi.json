@@ -16421,6 +16421,83 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/invoices/overdue": {
+      "get": {
+        "operationId": "getOperatorInvoicesOverdue",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Spec 181 row B13 (gap G14): the owner's overdue list, every private workspace's monthly invoice that is unpaid and past its due date (from day 15, Q-19 A), oldest due date first: {as_of, invoices: [{workspace, workspace_name, month (YYYY-MM), currency, humans, seat_cents, vm_cost_micros, vm_price_micros, total_micros, issued_on, due_on, days_overdue, reminded_at}]}. Read-only; nothing is decided automatically (Q-17 B). Writes one operator_audit list row. Only an admin of the operator workspace (403 operator.workspaces); 501 when the store keeps no invoices."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the private workspaces' overdue invoices",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/invoices/{id}/{month}/paid": {
+      "post": {
+        "operationId": "postOperatorInvoicePaid",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Spec 181 row B13: workspace id's invoice for month (YYYY-MM) is marked paid on its bank transfer (Q-18 C): {workspace, month, paid_at}. Writes one operator_audit update row in that workspace, detail {invoice_paid, total_micros, currency, due_on}. 400 bad_tenant or bad_month; 404 no such invoice; 409 already_paid. Only an admin of the operator workspace (403 operator.workspaces); an act-as clone is refused."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "already_paid: the invoice is already marked paid"
+          }
+        },
+        "summary": "Mark a private workspace's invoice paid",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/issues/{ref}/origin-discussion": {
       "post": {
         "operationId": "postOperatorIssuesRefOriginDiscussion",

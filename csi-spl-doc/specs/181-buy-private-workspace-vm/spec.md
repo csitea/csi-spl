@@ -574,6 +574,31 @@ brackets.
 
 Row status (v0.4.1):
 
+- **B13: Implemented** (SPL-6341): the owner's overdue list (G14).
+  `GET /v1/operator/invoices/overdue` (`internal/hub/operator_invoices.go`)
+  lists every private workspace's invoice that is unpaid and past its due
+  date (from day 15, the reminder's day, Q-19 A), oldest due date first,
+  with the workspace's name, the month, the total and whether the reminder
+  went out; `POST /v1/operator/invoices/{id}/{month}/paid` marks one paid
+  on the bank transfer (B12's `MarkInvoicePaid`; 409 when already paid).
+  Both are the operator workspace's admin's only (`operatorActor`): a
+  workspace's own members get 403, and an act-as clone reads the list but
+  marks nothing. Each call writes one `operator_audit` row: the list a
+  `list` row, a mark paid an `update` row in the invoice's workspace with
+  `{invoice_paid: <YYYY-MM>, total_micros, currency, due_on}` (rdb 0212's
+  action CHECK holds no invoice action, so no migration). B12's store had
+  no cross-workspace read, so the list is a new store call,
+  `OverdueInvoices` (`internal/store/invoices_overdue.go`, Memory and
+  Postgres, in `TestOperatorScopeCallers`). Nothing is decided
+  automatically [Q-17 B]. The page: Monitoring -> Invoices
+  (`csi-spl-wui/src/pages/monitoring/invoices/index.vue`, tab for operator
+  admins only), Mark paid after a confirm; 19 locales. Done test:
+  `TestOverdueInvoicesListAndMarkPaid` (`internal/hub/operator_invoices_test.go`,
+  both drivers) and `TestOverdueInvoicesUnpaidPastDue` (store, both
+  drivers): two invoices, one paid -> one listed; mark it paid -> none. Red
+  controls: a list gate that lets a workspace's own member read fails
+  `TestOverdueInvoicesOperatorAdminOnly` (200, want 403); a mark paid with
+  no audit row fails the done test.
 - **B12: Implemented** (SPL-6327): rdb
   `0315_private_workspace_invoices.sql`, one invoice per workspace per
   month (primary key), in arrears (issued on or after the month's end) and

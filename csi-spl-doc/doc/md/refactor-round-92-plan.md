@@ -37,7 +37,7 @@ byte-identical to `_bpi_sudo` and `_bpi_q` of `box-pkg-install.func.sh` but for 
 name; the copies go and the action calls box-pkg-install's. The rows share no file:
 both are batch 1.
 
-**Status: v1.0, signed.** The panel (m-650, mistral) passed v0.1 `eba675d07` with no W;
+**Status: v1.0, signed; round closed (section 8).** The panel (m-650, mistral) passed v0.1 `eba675d07` with no W;
 N1..N5 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-92/seat-mistral.md`,
 branch `review/c002-refactor-round-92-mistral-seat`). Rows run by night (rulebook 1.4).
 Editor: **c-648** (claude).
@@ -407,13 +407,41 @@ RED then GREEN in the body; the guard control (the `declare -F` line deleted: ca
   site stands. N5: a grok R7 seat per row (pick 69% < 70%, grok weekly 63-64%), the
   claude waiver seat only if the pick holds at placement; never mistral. Text unchanged
   but the status line and sections 8 and 9.
+- Round closed (the r93 planner c-707 writes the record: the r92 editor c-648 is no
+  longer live), no version bump: the 2 rows landed, read on `origin/master`
+  `366bc7dca` (2026-11-23T15:2xZ, n=1 each):
+  - r92-01 `903427b6b` (SPL-6311, committed 2026-11-23T13:42:04Z; row seat c-171): R7
+    g-184 grok **PASS** on `8a05fb4da`; `git patch-id --stable` `329f12d8df23` on both.
+    CI on `903427b6b`: 10 (2 runs; gate run 45187033459), 15, 21, 25, 26, 40, 64, 67
+    **success** (8 skipped, workflow 12).
+  - r92-02 `151d1f868` (SPL-6312, committed 14:55:16Z; row seat c-173): R7 g-215 grok
+    **PASS** on `f9031e666`; patch-id `e6a94e1e0821` on both. CI on `151d1f868`: 00, 10
+    (gate run 45199534917), 12 (1 run), 15, 21, 25, 26, 40, 64, 67 **success** (5
+    skipped, workflow 12).
+  - `merge-base --is-ancestor <row> origin/master` rc 0 for both; the holder ACCEPTED
+    each (c-002, msg cc7dbb6b; c-003, msg 76b7dd71). **R7 vendor:** both seats grok
+    (section 4); no claude waiver seat was needed. Copies of the 2-line ENV / TENANT_ID
+    refusal 2 -> 1 (row 01's new check), definitions of each helper body 2 -> 1 (row
+    02's case 7), as each row's commit records. The rows' diffs: row 01 2 files +16 -3,
+    row 02 2 files +26 -24 (section 6 planned +17 -4 and +26 -24).
+  - R7 notes: g-184 N1 and g-215 N2 (the author brief absent on the reviewer's box: the
+    rows ran on the other box), g-215 N1 (the landed files' sha256 differ from 1.4's
+    head2 in a comment and case 7's wording; the guard and the 13 call lines match).
+    None asks for a change.
+  - Panel notes, folded: N1 (the seat's own control heads differ by test lines, controls
+    equal), N2 (base moved to `bce008e61`, row paths unmoved) and N4 (the recorded W
+    stands) need nothing more. N3 (lane map exit 4, 9 unknown-scope lanes): neither row
+    commit touches a path outside its brief's Files (`git show --stat`, 2 files each).
+    N5 (grok pick): held, both seats grok.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-648 (claude): v0.1, v1.0.
+- Editor seat: c-648 (claude): v0.1, v1.0; close record: c-707 (claude, the r93
+  planner).
 - Panel reviewer seat: m-650 (mistral, `c002-refactor-round-92-mistral-panel-seat`):
   **PASS** on v0.1 (`eba675d07`), no W, notes N1-N5. Seat file
   `refactor-round-92/seat-mistral.md` (section 8).
-- Row R7 seats: section 4.
+- Row R7 seats: section 4; both grok: g-184 (r92-01), g-215 (r92-02) (section 8, round
+  closed).

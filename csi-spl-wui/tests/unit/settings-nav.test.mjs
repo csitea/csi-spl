@@ -49,6 +49,11 @@ describe('C25 the section list', () => {
     assert.equal(SETTINGS_SECTIONS[at].label, 'settings.calendar_google')
     assert.equal(typeof en.settings.calendar_google, 'string')
   })
+  it('its nav label and section title read "Google Sync" in en (SPL-6285, HUM-5)', () => {
+    const at = SETTINGS_SECTIONS.findIndex((s) => s.id === 'calendar-google')
+    const [ns, leaf] = SETTINGS_SECTIONS[at].label.split('.')
+    assert.equal(en[ns][leaf], 'Google Sync')
+  })
   it('SPL-6284: Contacts follows calendar-google, opens by its address, and is drawn only with contacts on', () => {
     const at = SETTINGS_SECTIONS.findIndex((s) => s.id === 'contacts')
     assert.equal(SETTINGS_SECTIONS[at - 1].id, 'calendar-google')
@@ -236,9 +241,11 @@ describe('SPL-5719 the Calendar page banner', () => {
     assert.ok(/<CalendarGcalBanner v-if="session\.state === 'in'" \/>/.test(page))
     assert.ok(!/from\s+'~\/utils\/gcal-client/.test(page))
   })
-  it('the banner reuses keys that exist: no new text', () => {
+  it('the banner names the calendar by gcal.title, not the Settings label (SPL-6285)', () => {
     const named = [...banner.matchAll(/t\('([a-z_]+\.[a-z_]+)'\)/g)].map((m) => m[1])
-    assert.ok(named.includes('gcal.reconnect') && named.includes('settings.calendar_google'), named.join(','))
+    assert.ok(named.includes('gcal.reconnect') && named.includes('gcal.title'), named.join(','))
+    assert.ok(!named.includes('settings.calendar_google'), named.join(','))
+    assert.equal(en.gcal.title, 'Google Calendar')
     for (const k of named) {
       const [ns, leaf] = k.split('.')
       assert.equal(typeof en[ns][leaf], 'string', k)

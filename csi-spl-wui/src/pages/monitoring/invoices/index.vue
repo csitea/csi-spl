@@ -51,7 +51,7 @@
                 <span v-if="inv.workspaceName" class="iv-id">{{ inv.workspace }}</span>
               </th>
               <td :data-label="t('monitoring.invoices.col_month')">{{ inv.month }}</td>
-              <td class="num" :data-label="t('monitoring.invoices.col_total')" data-test="invoices-total">{{ invoiceMoney(inv.totalMicros, inv.currency, locale) || DASH }}</td>
+              <td class="num" :data-label="t('monitoring.invoices.col_total')" data-test="invoices-total">{{ money(inv) }}</td>
               <td :data-label="t('monitoring.invoices.col_due')">{{ inv.dueOn || DASH }}</td>
               <td class="num" :data-label="t('monitoring.invoices.col_overdue')" data-test="invoices-days">{{ inv.daysOverdue }}</td>
               <td :data-label="t('monitoring.invoices.col_reminded')">{{ inv.remindedAt ? inv.remindedAt.slice(0, 10) : t('monitoring.invoices.not_reminded') }}</td>
@@ -72,7 +72,9 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
 import { gateMe, operatorReadable } from '~/utils/read-gates.mjs'
-import { invoiceMoney, overdueInvoicesOf } from '~/utils/monitoring-invoices.mjs'
+/* types only: the module itself loads in load(), so its chunk is the page's own dependency and not one
+   more name in the entry chunk's route table (ci_initial_gzip_kb, perf-budgets.json) */
+import type { invoiceMoney, overdueInvoicesOf } from '~/utils/monitoring-invoices.mjs'
 
 /* the lazy client's one paid method (spool-client-lazy.mjs fleetPaid): no new stub in the initial chunk */
 type InvoicesApi = {
@@ -89,6 +91,8 @@ const busy = ref(false)
 const marking = ref('')
 const notice = ref('')
 const api = () => useSpoolApi() as unknown as InvoicesApi
+const mi = shallowRef<{ invoiceMoney: typeof invoiceMoney, overdueInvoicesOf: typeof overdueInvoicesOf } | null>(null)
+const money = (inv: Row) => mi.value?.invoiceMoney(inv.totalMicros, inv.currency, locale.value) || DASH
 
 const access = useAccessStore()
 let seq = 0
@@ -102,9 +106,10 @@ async function load() {
       state.value = 'forbidden'
       return
     }
-    const body = await api().fleetPaid('invoices_overdue')
+    const [body, m] = await Promise.all([api().fleetPaid('invoices_overdue'), mi.value || import('~/utils/monitoring-invoices.mjs')])
     if (mine !== seq) return
-    view.value = overdueInvoicesOf(body)
+    mi.value = m
+    view.value = m.overdueInvoicesOf(body)
     state.value = 'ok'
   } catch (e) {
     if (mine !== seq) return
@@ -119,7 +124,7 @@ async function load() {
 
 async function markPaid(inv: Row) {
   const name = inv.workspaceName || inv.workspace
-  if (!confirm(t('monitoring.invoices.confirm', { workspace: name, month: inv.month, total: invoiceMoney(inv.totalMicros, inv.currency, locale.value) || DASH }))) return
+  if (!confirm(t('monitoring.invoices.confirm', { workspace: name, month: inv.month, total: money(inv) }))) return
   marking.value = inv.workspace + '/' + inv.month
   notice.value = ''
   try {

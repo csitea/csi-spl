@@ -448,6 +448,15 @@ time fire, the issue change for an issue fire). The hooks:
    `daily_at` and `issue_status_changed` go to the topic's agent.
 5. The box gets it as any `@agent` post (section 3, step 7): inbox plus pane
    poke. The desk needs no change.
+   A loop prompt is never mirrored as a DM (SPL-6309): it is `from` the
+   author on the topic uuid, the shape of that author's DM, so the box
+   notifier tells it apart by the body's first-line mark
+   (`spool_notify_is_loop_prompt`, `spool-notify.inc.sh`). Its typed line
+   gets the `task` trigger of spec 067 3.1 and sets no `.mirror/peer`; the
+   terminal mirror posts nothing for its turn, and the agent's real answer
+   reaches the topic as in 4.4. Measured on prd before the fix (n=2): each
+   fire gave the author the seat's post and, a minute later, its pane text
+   again as a seat -> author DM.
 
 ### 4.4 Reply
 

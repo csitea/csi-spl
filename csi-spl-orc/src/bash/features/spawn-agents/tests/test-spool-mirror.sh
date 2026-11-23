@@ -43,6 +43,9 @@
 #      stops every post, live sessions included
 #  11. two hook configs reaching one session (shared settings + a wrapper's
 #      --settings) record one prompt and post one answer once
+#  19. a Discussion loop prompt (spec 182, body starts "Loop prompt (background; ")
+#      from the human who set the loop is a task trigger, sets no peer and is
+#      never mirrored. CONTROL: a human DM that only mentions the mark stays dm
 #  18. one seat's failure (a dangling or unreadable .mirror) never costs
 #      another seat its DM answer or its prompt record, repeated 20 times to
 #      beat the race; CONTROL: two healthy seats both answer
@@ -273,6 +276,29 @@ SPOOL_POKE_LINE="[channel post from HUM-3] ship it" spool_notify_mark_peer CLE-7
 printf '{"hook_event_name":"UserPromptSubmit","session_id":"E","prompt":"[channel post from HUM-3] ship it"}' | hook
 printf '{"hook_event_name":"Stop","session_id":"E","last_assistant_message":"shipped"}' | hook
 eq "10. hook: a channel post's answer is not posted to the DM" "$n10" "$(nsends)"
+
+# --- 19. a Discussion loop prompt (spec 182) is no DM ---------------------------------------------
+# The hub stores the prompt as kind task FROM the human who set the loop, TO the
+# seat, on the topic uuid; the wire carries no loop field, so the body's mark is
+# the only sign. Measured on prd (SPL-6309): the pane's answer reached the owner
+# a second time as a mirror post.
+rm -f "$A/.mirror/peer"; rm -rf "$A/.mirror/trigger"
+printf '{"from":"HUM-3","to":"CLE-7","task_id":"%s","kind":"task","body":"Loop prompt (background; set by @HUM-3, fired by its timer)\\n\\nexport it"}' "$T1" \
+  >"$A/inbox/20260101T000003Z--HUM-3--e-eeeeeeee.json"
+SPOOL_POKE_LINE="loop prompt typed" spool_notify_mark_peer CLE-7 HUM-3 "$T1" eeeeeeee-0000-4000-8000-000000000000
+has "19. a loop prompt line: a task trigger, not dm" '"kind":"task","from":"HUM-3"' "$(cat "$A/.mirror/trigger/"* 2>/dev/null)"
+check "19. a loop prompt does not set the peer" test ! -e "$A/.mirror/peer"
+rm -rf "$A/.mirror/trigger"
+n19=$(nsends)
+SPOOL_POKE_LINE="loop prompt typed" spool_notify_mark_peer CLE-7 HUM-3 "$T1" eeeeeeee-0000-4000-8000-000000000000
+printf '{"hook_event_name":"UserPromptSubmit","session_id":"L","prompt":"loop prompt typed"}' | hook
+printf '{"hook_event_name":"Stop","session_id":"L","last_assistant_message":"exported, no post"}' | hook
+eq "19. hook: a loop prompt's answer is not mirrored" "$n19" "$(nsends)"
+printf '{"from":"HUM-3","to":"CLE-7","task_id":"%s","kind":"task","body":"about the Loop prompt (background; idea"}' "$T1" \
+  >"$A/inbox/20260101T000004Z--HUM-3--f-ffffffff.json"
+SPOOL_POKE_LINE="dm naming the mark" spool_notify_mark_peer CLE-7 HUM-3 "$T1" ffffffff-0000-4000-8000-000000000000
+has "19. CONTROL: a human DM that only mentions the mark stays dm" '"kind":"dm","from":"HUM-3"' "$(cat "$A/.mirror/trigger/"* 2>/dev/null)"
+rm -rf "$A/.mirror/trigger"
 
 # --- 11. two hook configs, one session ---------------------------------------------------------
 n4=$(nsends)

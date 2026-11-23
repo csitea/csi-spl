@@ -149,6 +149,10 @@ channel topic, so the answer is cut off from the discussion it is about.
   - turn triggered by a channel post, a peer agent's poke, a task
     notification or the terminal -> **post nothing to the DM**. The agent's
     real reply reaches the channel by `do_spl_desk_reply` / `spool send`.
+  - a Discussion loop prompt (spec 182 4.3) is a `task` trigger, never a
+    `dm` one, though the hub stores it `from` the human who set the loop on
+    the topic uuid: its body starts `Loop prompt (background; ` and the wire
+    carries no loop field (SPL-6309).
 - **Mirror echoes stop.** Kinds A (channel-post echo), B (typed-by poke),
   C (`[terminal]` prompt) and D (task-notification) are not posted to a DM at
   all (they are the agent's own pane traffic, not contact with a person).

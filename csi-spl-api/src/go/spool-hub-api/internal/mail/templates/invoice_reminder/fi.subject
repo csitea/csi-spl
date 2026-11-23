@@ -1,0 +1,1 @@
+Muistutus: spool hub -työtilan {{.TenantID}} lasku kaudelta {{.InvoiceMonth}} on maksamatta

@@ -1,0 +1,9 @@
+Spool hub -työtilan {{.TenantID}} lasku kaudelta {{.InvoiceMonth}} on vielä maksamatta.
+
+Summa: {{.InvoiceTotal}}
+Laskun päiväys: {{.InvoiceIssued}}
+Eräpäivä: {{.InvoiceDue}}
+
+Maksathan sen tilisiirrolla laskun ohjeiden mukaan. Jos olet jo maksanut, voit jättää tämän sähköpostin huomiotta.
+Työtila ja sen agentit toimivat edelleen.
+Jokainen tämän työtilan liiketoiminnan omistaja saa tämän sähköpostin.

@@ -1,0 +1,1 @@
+Pripomienka: faktúra za {{.InvoiceMonth}} pre pracovný priestor {{.TenantID}} v spool hub je nezaplatená

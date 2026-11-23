@@ -1,0 +1,9 @@
+Spool hubi tööruumi {{.TenantID}} arve perioodi {{.InvoiceMonth}} eest on veel tasumata.
+
+Summa: {{.InvoiceTotal}}
+Arve kuupäev: {{.InvoiceIssued}}
+Maksetähtaeg: {{.InvoiceDue}}
+
+Palun tasuge see pangaülekandega, nagu arvel on märgitud. Kui olete juba maksnud, jätke see e-kiri tähelepanuta.
+Tööruum ja selle agendid töötavad edasi.
+Selle e-kirja saab iga selle tööruumi ettevõtte omanik.

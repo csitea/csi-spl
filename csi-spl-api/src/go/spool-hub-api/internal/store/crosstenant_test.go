@@ -603,6 +603,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedWorkspaceOrder(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
+	// private_workspace_invoices (rdb 0315, spec 181 B12): one month's
+	// invoice through the store API (invoices_test.go).
+	if err := seedInvoice(ctx, pg, s.tenant); err != nil {
+		t.Fatal(err)
+	}
 	// workspace_vendor_keys, _boxes, _audit (rdb 0174, spec 127 D1): one fake
 	// key, one approved box, one audit row. No store API yet (H1, H2), so raw
 	// rows under inTenant (vendor_keys_rls_test.go).

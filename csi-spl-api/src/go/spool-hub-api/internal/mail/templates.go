@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"math/big"
 	"net/url"
 	"strings"
 	"text/template"
@@ -47,12 +48,17 @@ const (
 	// keys (out of credit, quota, or revoked: spec 159 9, T5) and how to go
 	// on. last4 only, no vendor text, no link.
 	TemplateVendorKeyExhausted = "vendor_key_exhausted"
+	// TemplateInvoiceReminder is the one reminder a private workspace's biz
+	// owners get on day 15 when its monthly invoice is unpaid (spec 181 row
+	// B12, Q-17 B, Q-19 A): workspace, month, amount, invoice and due dates.
+	// It says the workspace keeps running; no link.
+	TemplateInvoiceReminder = "invoice_reminder"
 )
 
 // Templates lists every template id (tests iterate it).
 var Templates = []string{TemplateEmailVerification, TemplatePasswordReset, TemplateTenantPaid,
 	TemplateTenantInvite, TemplateFederatedSignIn, TemplateEmbedRelink, TemplateVendorKeyChanged,
-	TemplateVendorKeyExhausted}
+	TemplateVendorKeyExhausted, TemplateInvoiceReminder}
 
 // FallbackLocale renders when a locale variant is missing (csi-rel G-02).
 const FallbackLocale = "en"
@@ -89,6 +95,13 @@ type TemplateData struct {
 	KeyLast4  string
 	ChangedBy string
 	ChangedAt string
+	// The invoice reminder (TemplateInvoiceReminder): the invoiced month
+	// ("2006-01"), the total with its currency ("40.30 EUR"), and the
+	// invoice and due dates ("2006-01-02"), all pre-formatted.
+	InvoiceMonth  string
+	InvoiceTotal  string
+	InvoiceIssued string
+	InvoiceDue    string
 }
 
 // providerNames words a provider slug for a mail. An unknown slug is title-cased
@@ -262,4 +275,28 @@ func VendorKeyChanged(to, locale string, n VendorKeyNotice) (Message, error) {
 func VendorKeyExhausted(to, locale string, n VendorKeyNotice) (Message, error) {
 	return build(TemplateVendorKeyExhausted, to, locale, TemplateData{TenantID: n.TenantID, KeyKind: n.Kind,
 		KeyLast4: n.Last4, ChangedAt: n.ChangedAt.UTC().Format("2006-01-02 15:04") + " UTC"})
+}
+
+// InvoiceReminderData is what the invoice reminder says (spec 181 B12).
+type InvoiceReminderData struct {
+	TenantID    string
+	Month       time.Time
+	Currency    string
+	TotalMicros string // exact decimal micros (store.Invoice.TotalMicros)
+	IssuedOn    time.Time
+	DueOn       time.Time
+}
+
+// InvoiceReminder renders the day-15 reminder of an unpaid monthly invoice
+// in locale. The total is worded in cents with its currency ("40.30 EUR")
+// and the dates as ISO dates, the same in every locale.
+func InvoiceReminder(to, locale string, d InvoiceReminderData) (Message, error) {
+	total, ok := new(big.Rat).SetString(d.TotalMicros)
+	if !ok {
+		return Message{}, fmt.Errorf("mail: invoice total %q is not a decimal", d.TotalMicros)
+	}
+	total.Quo(total, big.NewRat(1_000_000, 1))
+	return build(TemplateInvoiceReminder, to, locale, TemplateData{TenantID: d.TenantID,
+		InvoiceMonth: d.Month.UTC().Format("2006-01"), InvoiceTotal: total.FloatString(2) + " " + d.Currency,
+		InvoiceIssued: d.IssuedOn.UTC().Format(time.DateOnly), InvoiceDue: d.DueOn.UTC().Format(time.DateOnly)})
 }

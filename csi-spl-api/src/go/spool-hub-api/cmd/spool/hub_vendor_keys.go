@@ -82,3 +82,21 @@ func vendorKeyMailer(log zerolog.Logger, pmc *mail.Config) hub.VendorKeyMailer {
 		return sender.Send(ctx, msg)
 	}
 }
+
+// invoiceReminderMailer sends the day-15 reminder of an unpaid monthly
+// invoice (spec 181 B12, mail.TemplateInvoiceReminder) through the platform
+// relay; nil with no relay (the hub then claims no reminder).
+func invoiceReminderMailer(log zerolog.Logger, pmc *mail.Config) hub.InvoiceReminderMailer {
+	if pmc.Transport == mail.TransportNone {
+		return nil
+	}
+	sender := pmc.Sender(log)
+	return func(ctx context.Context, to, locale string, inv store.Invoice) error {
+		msg, err := mail.InvoiceReminder(to, locale, mail.InvoiceReminderData{TenantID: inv.Tenant, Month: inv.Month,
+			Currency: inv.Currency, TotalMicros: inv.TotalMicros, IssuedOn: inv.IssuedOn, DueOn: inv.DueOn})
+		if err != nil {
+			return err
+		}
+		return sender.Send(ctx, msg)
+	}
+}

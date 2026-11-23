@@ -322,7 +322,11 @@ type Options struct {
 	// VendorKeyMail mails each key set, replace and remove to every admin
 	// and biz owner (spec 159 3); nil = stored and audited, nobody mailed.
 	VendorKeyMail VendorKeyMailer
-	EmbedLimits   EmbedLimits // specs/121 T105: the section 6 limits (embed_abuse.go)
+	// InvoiceReminderMail mails the day-15 reminder of an unpaid monthly
+	// invoice to each biz owner (spec 181 B12, invoice_reminder.go); nil = no
+	// relay, no reminder is claimed.
+	InvoiceReminderMail InvoiceReminderMailer
+	EmbedLimits         EmbedLimits // specs/121 T105: the section 6 limits (embed_abuse.go)
 	// FileStreamLimits are spec 160 3.7's hub caps (file_streams.go); a zero
 	// field is its default (store.FileStreamLimits.Norm).
 	FileStreamLimits store.FileStreamLimits
@@ -725,11 +729,12 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	defer dt.Stop()
 	bt := time.NewTicker(backfillEvery)
 	defer bt.Stop()
-	s.PostPublicNotices(ctx)    // rdb 0173: the #public notice of every existing tenant
-	s.PostIssueBacklogs(ctx)    // rdb 0194: the "Issue backlog" topic the backfill linked
-	go s.runGcalSync(ctx)       // spec 149 B6a: the Google Calendar sync, its own ticker
-	go s.runContactsSync(ctx)   // spec 154 B8: the Google Contacts sync, its own ticker
-	go s.runTopicLoopTimer(ctx) // spec 182 4.2 step 5: the time loops, its own ticker
+	s.PostPublicNotices(ctx)      // rdb 0173: the #public notice of every existing tenant
+	s.PostIssueBacklogs(ctx)      // rdb 0194: the "Issue backlog" topic the backfill linked
+	go s.runGcalSync(ctx)         // spec 149 B6a: the Google Calendar sync, its own ticker
+	go s.runContactsSync(ctx)     // spec 154 B8: the Google Contacts sync, its own ticker
+	go s.runTopicLoopTimer(ctx)   // spec 182 4.2 step 5: the time loops, its own ticker
+	go s.runInvoiceReminders(ctx) // spec 181 B12: the day-15 invoice reminder, its own ticker
 	for {
 		select {
 		case <-ctx.Done():

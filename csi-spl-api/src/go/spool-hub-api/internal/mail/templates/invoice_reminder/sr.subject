@@ -1,0 +1,1 @@
+Podsetnik: faktura za {{.InvoiceMonth}} za radni prostor {{.TenantID}} na spool hub-u nije plaćena

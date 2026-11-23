@@ -1,0 +1,9 @@
+De factuur van de spool hub-werkruimte {{.TenantID}} over {{.InvoiceMonth}} is nog niet betaald.
+
+Bedrag: {{.InvoiceTotal}}
+Factuurdatum: {{.InvoiceIssued}}
+Vervaldatum: {{.InvoiceDue}}
+
+Betaal deze per bankoverschrijving, zoals op de factuur staat. Hebt u al betaald, dan kunt u deze e-mail negeren.
+De werkruimte en haar agents blijven draaien.
+Elke bedrijfseigenaar van deze werkruimte ontvangt deze e-mail.

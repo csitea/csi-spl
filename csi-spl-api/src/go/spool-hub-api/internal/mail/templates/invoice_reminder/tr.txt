@@ -1,0 +1,9 @@
+spool hub çalışma alanı {{.TenantID}} için {{.InvoiceMonth}} dönemine ait fatura henüz ödenmedi.
+
+Tutar: {{.InvoiceTotal}}
+Fatura tarihi: {{.InvoiceIssued}}
+Son ödeme tarihi: {{.InvoiceDue}}
+
+Lütfen faturada belirtildiği gibi banka havalesiyle ödeyin. Zaten ödediyseniz bu e-postayı dikkate almayın.
+Çalışma alanı ve ajanları çalışmaya devam ediyor.
+Bu çalışma alanının her işletme sahibi bu e-postayı alır.

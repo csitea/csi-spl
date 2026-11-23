@@ -507,6 +507,29 @@ brackets.
 
 Row status (v0.4.1):
 
+- **B12: Implemented** (SPL-6327): rdb
+  `0315_private_workspace_invoices.sql`, one invoice per workspace per
+  month (primary key), in arrears (issued on or after the month's end) and
+  due 14 days after its issue date, both held by CHECKs; no token column.
+  Store `internal/store/invoices.go` (Memory and Postgres): `IssueInvoice`
+  (the plan's `QuoteMonth` of the month's human members and VM cost; a
+  replay returns the first row), `Invoice`, `MarkInvoicePaid` (for B13's
+  operator action) and `ClaimInvoiceReminders` (operator scope, in
+  `TestOperatorScopeCallers`: every unpaid invoice past its due date with
+  no reminder yet, marked once). The hub tick (`internal/hub/invoice_reminder.go`,
+  hourly) mails each claimed invoice's biz owners the mail template
+  `invoice_reminder` (19 locales, checked with `do_spl_lang_review_gct`);
+  a reminder that reached nobody is released for the next tick, and with no
+  mail relay nothing is claimed. Nothing else happens: no lease is refused,
+  no seat stops [Q-17 B]. Done test: `TestInvoiceReminderDay15Once`
+  (`internal/hub/invoice_reminder_test.go`) and `TestInvoiceReminderOnce`
+  (`internal/store/invoices_test.go`, both drivers). Red controls: a tick
+  that marks the workspace's key exhausted fails the first (the lease after
+  the reminder is refused); a claim that does not record `reminded_at`
+  fails both (the reminder is sent twice). **Gap, not in B12**: no row
+  writes a month's invoice yet; that caller (fed by B4's
+  `do_spl_vm_cost_per_day` and the month's member count) is a separate row
+  (dispatch holder, 2026-11-23).
 - **B1: Implemented** (SPL-6095): rdb
   `0302_private_workspace_price.sql` makes `price_plans` (kind
   `private_vm`, currency `EUR` only) and `price_plan_lines` (exactly

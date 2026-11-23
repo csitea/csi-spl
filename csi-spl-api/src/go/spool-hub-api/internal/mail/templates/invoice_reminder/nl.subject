@@ -1,0 +1,1 @@
+Herinnering: de factuur van {{.InvoiceMonth}} van de spool hub-werkruimte {{.TenantID}} is onbetaald

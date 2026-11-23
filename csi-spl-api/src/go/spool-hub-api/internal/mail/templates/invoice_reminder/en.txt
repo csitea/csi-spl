@@ -1,0 +1,9 @@
+The invoice of the spool hub workspace {{.TenantID}} for {{.InvoiceMonth}} is not paid yet.
+
+Amount: {{.InvoiceTotal}}
+Invoice date: {{.InvoiceIssued}}
+Due date: {{.InvoiceDue}}
+
+Please pay it by bank transfer, as the invoice says. If you have already paid, ignore this email.
+The workspace and its agents keep running.
+Every business owner of this workspace gets this email.

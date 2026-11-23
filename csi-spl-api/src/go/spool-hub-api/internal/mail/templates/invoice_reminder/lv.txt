@@ -1,0 +1,9 @@
+Spool hub darbvietas {{.TenantID}} rēķins par {{.InvoiceMonth}} vēl nav apmaksāts.
+
+Summa: {{.InvoiceTotal}}
+Rēķina datums: {{.InvoiceIssued}}
+Apmaksas termiņš: {{.InvoiceDue}}
+
+Lūdzu, apmaksājiet to ar bankas pārskaitījumu, kā norādīts rēķinā. Ja jau esat samaksājis, neņemiet vērā šo e-pastu.
+Darbvieta un tās aģenti turpina darboties.
+Šo e-pastu saņem katrs šīs darbvietas uzņēmuma īpašnieks.

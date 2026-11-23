@@ -1,0 +1,9 @@
+Spool hub darbo srities {{.TenantID}} sąskaita už {{.InvoiceMonth}} dar neapmokėta.
+
+Suma: {{.InvoiceTotal}}
+Sąskaitos data: {{.InvoiceIssued}}
+Mokėjimo terminas: {{.InvoiceDue}}
+
+Prašome ją apmokėti banko pavedimu, kaip nurodyta sąskaitoje. Jei jau sumokėjote, šio laiško nepaisykite.
+Darbo sritis ir jos agentai toliau veikia.
+Šį laišką gauna kiekvienas šios darbo srities verslo savininkas.

@@ -1,0 +1,1 @@
+Memento: factura pentru {{.InvoiceMonth}} a spațiului de lucru {{.TenantID}} din spool hub este neplătită

@@ -1,0 +1,1 @@
+Przypomnienie: faktura za {{.InvoiceMonth}} dla obszaru roboczego {{.TenantID}} w spool hub jest nieopłacona

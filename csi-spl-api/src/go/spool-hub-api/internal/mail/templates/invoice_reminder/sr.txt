@@ -1,0 +1,9 @@
+Faktura radnog prostora {{.TenantID}} na spool hub-u za {{.InvoiceMonth}} još nije plaćena.
+
+Iznos: {{.InvoiceTotal}}
+Datum fakture: {{.InvoiceIssued}}
+Rok plaćanja: {{.InvoiceDue}}
+
+Molimo vas da je platite bankovnim prenosom, kako je navedeno na fakturi. Ako ste već platili, zanemarite ovaj e-mail.
+Radni prostor i njegovi agenti nastavljaju da rade.
+Ovaj e-mail dobija svaki vlasnik firme ovog radnog prostora.

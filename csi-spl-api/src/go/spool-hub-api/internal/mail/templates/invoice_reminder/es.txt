@@ -1,0 +1,9 @@
+La factura del espacio de trabajo {{.TenantID}} de spool hub correspondiente a {{.InvoiceMonth}} aún no está pagada.
+
+Importe: {{.InvoiceTotal}}
+Fecha de factura: {{.InvoiceIssued}}
+Fecha de vencimiento: {{.InvoiceDue}}
+
+Por favor, páguela por transferencia bancaria, como indica la factura. Si ya la ha pagado, ignore este correo.
+El espacio de trabajo y sus agentes siguen funcionando.
+Cada propietario del negocio de este espacio de trabajo recibe este correo.

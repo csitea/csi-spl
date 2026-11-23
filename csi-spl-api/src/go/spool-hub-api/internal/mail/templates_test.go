@@ -64,10 +64,11 @@ func TestEveryLocaleRendersItsLink(t *testing.T) {
 	const link = "https://app.example.com/fi/verify-email?token=0123abcd"
 	for _, id := range Templates {
 		if id == TemplateTenantInvite || id == TemplateFederatedSignIn || id == TemplateVendorKeyChanged ||
-			id == TemplateVendorKeyExhausted {
+			id == TemplateVendorKeyExhausted || id == TemplateInvoiceReminder {
 			// No bearer link and no TTL by design; their own per-locale tests
 			// are TestTenantInviteEveryLocale, TestFederatedSignInEveryLocale,
-			// TestVendorKeyChangedEveryLocale and TestVendorKeyExhaustedEveryLocale.
+			// TestVendorKeyChangedEveryLocale, TestVendorKeyExhaustedEveryLocale
+			// and TestInvoiceReminderEveryLocale.
 			continue
 		}
 		for _, loc := range i18n.Supported {

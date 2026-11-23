@@ -1,0 +1,1 @@
+Recordatorio: la factura de {{.InvoiceMonth}} del espacio de trabajo {{.TenantID}} de spool hub está sin pagar

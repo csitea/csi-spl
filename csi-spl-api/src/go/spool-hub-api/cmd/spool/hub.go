@@ -370,6 +370,8 @@ func mailOptions(ctx context.Context, opts *hub.Options, hc *config.Hub, log zer
 	opts.EmbedRelinkMail = embedRelinkMailer(log, pmc)                             // specs/121 T206
 	opts.VendorKeySealer = vendorKeySealer(ctx, hc, log)                           // spec 127 H1 + spec 159 T1: a workspace's own vendor keys
 	opts.VendorKeyMail = vendorKeyMailer(log, pmc)                                 // spec 159 3: every admin and biz owner is told
+	// spec 181 B12: the day-15 reminder of an unpaid invoice to each biz owner
+	opts.InvoiceReminderMail = invoiceReminderMailer(log, pmc)
 	log.Info().Bool("invite_mail", opts.InviteMail != nil).Msg("members api")
 }
 

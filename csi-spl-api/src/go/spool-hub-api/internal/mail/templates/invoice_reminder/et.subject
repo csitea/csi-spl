@@ -1,0 +1,1 @@
+Meeldetuletus: spool hubi tööruumi {{.TenantID}} arve perioodi {{.InvoiceMonth}} eest on tasumata

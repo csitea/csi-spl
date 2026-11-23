@@ -1,0 +1,9 @@
+Fakturan för spool hub-arbetsytan {{.TenantID}} för {{.InvoiceMonth}} är ännu inte betald.
+
+Belopp: {{.InvoiceTotal}}
+Fakturadatum: {{.InvoiceIssued}}
+Förfallodatum: {{.InvoiceDue}}
+
+Betala den med banköverföring enligt fakturan. Om du redan har betalat kan du bortse från det här mejlet.
+Arbetsytan och dess agenter fortsätter att köras.
+Varje företagsägare i den här arbetsytan får det här mejlet.

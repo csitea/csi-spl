@@ -10,6 +10,8 @@
 # hub that answers a calendar section to type:event FAILS it; a refused sign-in
 # is exit 2; the entry is deleted on every path that made one; the action
 # refuses bad knobs, and is a dry run without DRY_RUN=0.
+# ONE COPY: the action defines no knobs check of its own; it calls the doc
+# probe's spl_search_doc_probe_check, loaded when the file is sourced alone.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY="$HERE/../scripts/search-calendar-probe.py"
@@ -136,6 +138,14 @@ if grep -q 'FATAL ENV must be dev or prd' <<<"$o1" && grep -q 'FATAL TENANT_ID m
   pass "the action refuses a bad ENV and TENANT_ID, and is a dry run without DRY_RUN=0"
 else
   fail "the action's knobs: [$o1] [$o2] [$o3]"
+fi
+
+# ---- one copy: the knobs check is the doc probe's ---------------------------
+own=$(grep -nE '^spl_search_calendar_probe_check\(\)|FATAL TENANT_ID' "$ACT")
+if [[ -z "$own" ]] && grep -q 'spl_search_doc_probe_check "\$tenant"' "$ACT"; then
+  pass "one knobs check: the action calls spl_search_doc_probe_check and defines no copy"
+else
+  fail "own knobs check left, or no call of spl_search_doc_probe_check: $own"
 fi
 
 if (( fails )); then echo "FAILED: $fails"; exit 1; fi

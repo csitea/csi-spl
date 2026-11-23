@@ -22,7 +22,8 @@
 do_spl_search_calendar_probe() {
   do_require_bin yq python3 || return 1
   local tenant="${TENANT_ID:-}" api dry=1
-  spl_search_calendar_probe_check "$tenant" || return 1
+  declare -F spl_search_doc_probe_check >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-search-doc-probe.func.sh"
+  spl_search_doc_probe_check "$tenant" || return 1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   do_spl_cloud_cnf || return 1
   spl_cnf_api_fqdn api || return 1
@@ -42,11 +43,4 @@ do_spl_search_calendar_probe() {
   printf '%s\n' "$out"
   (( rc == 0 )) || { do_log "FATAL search calendar probe on $ENV/$tenant (exit $rc): the search box does not find the calendar entry as it should"; return 1; }
   do_log "OK search calendar probe on $ENV/$tenant: type:calendar and type:cal find the entry, type:event does not"
-}
-
-# spl_search_calendar_probe_check <tenant> -> 0 when well formed; refuses
-# before any cnf or network call.
-spl_search_calendar_probe_check() {
-  [[ "${ENV:-}" == dev || "${ENV:-}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got '${ENV:-}'"; return 1; }
-  [[ "$1" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got '$1'"; return 1; }
 }

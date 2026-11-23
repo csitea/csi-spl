@@ -597,6 +597,12 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedPricePlan(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
+	// workspace_orders (rdb 0314, spec 181 B2): one order row. The store
+	// API makes its own tenant, so a raw row under inTenant
+	// (payments_order_test.go).
+	if err := seedWorkspaceOrder(ctx, pg, s.tenant); err != nil {
+		t.Fatal(err)
+	}
 	// workspace_vendor_keys, _boxes, _audit (rdb 0174, spec 127 D1): one fake
 	// key, one approved box, one audit row. No store API yet (H1, H2), so raw
 	// rows under inTenant (vendor_keys_rls_test.go).

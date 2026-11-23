@@ -14,7 +14,8 @@ import (
 type memPayments struct {
 	checkouts map[string]*Checkout
 	seen      map[[2]string]bool
-	periods   map[string][]SeatPeriod // tenant -> seat months, oldest first
+	periods   map[string][]SeatPeriod   // tenant -> seat months, oldest first
+	orders    map[string]WorkspaceOrder // tenant -> its private-workspace order
 }
 
 func (p *memPayments) init() {
@@ -22,6 +23,7 @@ func (p *memPayments) init() {
 		p.checkouts = map[string]*Checkout{}
 		p.seen = map[[2]string]bool{}
 		p.periods = map[string][]SeatPeriod{}
+		p.orders = map[string]WorkspaceOrder{}
 	}
 }
 
@@ -269,4 +271,60 @@ func (s *Memory) putPaidInviteLocked(in Invite, now time.Time) {
 	if _, ok := s.hum.invites[k]; !ok {
 		s.hum.invites[k] = &memInvite{Invite: in, createdAt: now}
 	}
+}
+
+func cloneOrder(o WorkspaceOrder) WorkspaceOrder {
+	o.RootPubKey = append([]byte(nil), o.RootPubKey...)
+	return o
+}
+
+// SubmitWorkspaceOrder is the Memory side of the order submit (spec 181 B2):
+// the same tenant row as the paid transition, then 4.1 step 4, all under one
+// lock.
+func (s *Memory) SubmitWorkspaceOrder(_ context.Context, o WorkspaceOrder, now time.Time) (WorkspaceOrder, bool, error) {
+	if err := normalizeOrder(&o, now); err != nil {
+		return WorkspaceOrder{}, false, err
+	}
+	in, err := ownerInvite(o.TenantID, o.Email, now)
+	if err != nil {
+		return WorkspaceOrder{}, false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pay.init()
+	if old, ok := s.pay.orders[o.TenantID]; ok {
+		old, created, err := orderReplay(old, o)
+		return cloneOrder(old), created, err
+	}
+	if _, ok := s.tenants[o.TenantID]; ok {
+		return WorkspaceOrder{}, false, ErrConflict
+	}
+	o.CreatedAt = now.UTC()
+	o.RootPubKey = append([]byte(nil), o.RootPubKey...)
+	s.tenants[o.TenantID] = Tenant{ID: o.TenantID, RootPubKey: o.RootPubKey, BillingStatus: billing.StatusActive,
+		PlanID: PlanKindPrivateVM, SeatsUsers: o.SeatsUsers}
+	s.ch.seedLocked(o.TenantID, now.UTC())
+	if s.boxJoinOn == nil {
+		s.boxJoinOn = map[string]bool{}
+	}
+	s.boxJoinOn[o.TenantID] = true
+	if memPlans[s] == nil {
+		memPlans[s] = map[string]PricePlan{}
+	}
+	memPlans[s][o.TenantID] = PrivateVMPlan()
+	s.putPaidInviteLocked(in, now)
+	s.pay.orders[o.TenantID] = o
+	return cloneOrder(o), true, nil
+}
+
+// WorkspaceOrder reads the tenant's order (WorkspaceOrders).
+func (s *Memory) WorkspaceOrder(_ context.Context, tenant string) (WorkspaceOrder, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pay.init()
+	o, ok := s.pay.orders[tenant]
+	if !ok {
+		return WorkspaceOrder{}, ErrNotFound
+	}
+	return cloneOrder(o), nil
 }

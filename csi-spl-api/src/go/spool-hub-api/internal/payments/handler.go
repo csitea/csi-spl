@@ -29,6 +29,9 @@ const (
 	RoutePrefix        = "/api/v1/checkout"
 	RouteStripeWebhook = "/api/v1/webhooks/payment/stripe"
 	RoutePayPalWebhook = "/api/v1/webhooks/payment/paypal"
+	// RouteOrder is the private-workspace order submit (spec 181 B2, Q-18 C):
+	// no payment provider is called on it.
+	RouteOrder = RoutePrefix + "/private-workspace"
 )
 
 // TemplateTenantPaid is the one email (mail.Message.Template, logs): tenant
@@ -132,6 +135,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+RoutePrefix, h.checkout)
 	mux.HandleFunc("GET "+RoutePrefix+"/{checkout_id}", h.status)
 	mux.HandleFunc("POST "+RoutePrefix+"/claim", h.claim)
+	mux.HandleFunc("POST "+RouteOrder, h.submitOrder)
 	if h.cfg.FakePayMounted() {
 		mux.HandleFunc("POST "+RoutePrefix+"/fake-pay", h.fakePay)
 	}
@@ -350,6 +354,93 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 	h.d.Log.Info().Str("checkout_id", id).Str("tenant_id", in.tid).Str("provider", pay.provider).
 		Str("to", mail.Digest(in.email)).Msg("checkout: slug held")
 	writeJSON(w, http.StatusCreated, out)
+}
+
+type orderReq struct {
+	TenantID   string `json:"tenant_id"`
+	Email      string `json:"email"`
+	SeatsUsers int    `json:"seats_users"` // human members; agents are not seats (Q-6 A)
+	Billing    struct {
+		Name    string `json:"name"`
+		Address string `json:"address"`
+		Country string `json:"country"`
+		VATID   string `json:"vat_id"`
+	} `json:"billing"`
+	Locale string `json:"locale"`
+}
+
+func newOrderID() (string, error) {
+	id, err := newCheckoutID()
+	return "wo_" + strings.TrimPrefix(id, "co_"), err
+}
+
+// submitOrder is the private-workspace order (spec 181 4.1 step 4, B2,
+// Q-18 C): an order only, no card. It creates the workspace at once -- the
+// tenant, its biz_owner invite, the seat caps, box_join_enabled on, the
+// private_vm price plan and the provisioning order -- and calls NO payment
+// provider: the invoice comes monthly in arrears, paid by bank transfer. A
+// replay of the same order answers 200 with the order it made, not a second.
+func (h *Handler) submitOrder(w http.ResponseWriter, r *http.Request) {
+	var req orderReq
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxJSONBody)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", "body is not order JSON")
+		return
+	}
+	o, rf := h.orderInput(r, &req)
+	if rf != nil {
+		writeErr(w, rf.status, rf.token, rf.detail)
+		return
+	}
+	o, created, err := h.d.Store.SubmitWorkspaceOrder(r.Context(), o, h.d.Now().UTC())
+	switch {
+	case errors.Is(err, store.ErrConflict):
+		writeErr(w, http.StatusConflict, "tenant_taken", "that tenant exists")
+		return
+	case err != nil:
+		h.d.Log.Error().Err(err).Str("tenant_id", o.TenantID).Msg("order: not stored")
+		writeErr(w, http.StatusInternalServerError, "internal", "order not stored")
+		return
+	}
+	status := http.StatusOK
+	if created {
+		status = http.StatusCreated
+		h.d.Log.Info().Str("order_id", o.ID).Str("tenant_id", o.TenantID).Str("to", mail.Digest(o.Email)).
+			Msg("order: private workspace created, no payment provider called")
+	}
+	writeJSON(w, status, map[string]any{"order_id": o.ID, "tenant_id": o.TenantID, "status": o.Status,
+		"seats_users": o.SeatsUsers, "email": o.Email, "tenant_url": h.tenantURL(o.TenantID), "replayed": !created,
+		"currency": store.PlanCurrency, "seat_member_cents": store.PrivateVMSeatCents, "vm_margin_pct": store.PrivateVMMarginPct,
+		"invoice": "monthly_in_arrears", "payment": "bank_transfer"})
+}
+
+// orderInput checks an order request and builds the order: the slug, the
+// email, the seats (1..SeatsMax) and the billing details. The root key is a
+// PLACEHOLDER whose private half is dropped here, as a checkout's.
+func (h *Handler) orderInput(r *http.Request, req *orderReq) (store.WorkspaceOrder, *refusal) {
+	o := store.WorkspaceOrder{TenantID: strings.ToLower(strings.TrimSpace(req.TenantID)), Email: strings.TrimSpace(req.Email),
+		SeatsUsers: req.SeatsUsers, Locale: buyerLocale(r, req.Locale),
+		Billing: store.BillingDetails{Name: req.Billing.Name, Address: req.Billing.Address,
+			Country: req.Billing.Country, VATID: req.Billing.VATID}}
+	switch {
+	case !msg.ValidTenantID(o.TenantID):
+		return o, &refusal{http.StatusBadRequest, "bad_tenant_id", "tenant_id is not a valid, unreserved slug"}
+	case !validEmail(o.Email):
+		return o, &refusal{http.StatusBadRequest, "bad_request", "email is not an address"}
+	case o.SeatsUsers < 1 || o.SeatsUsers > h.cfg.SeatsMax:
+		return o, &refusal{http.StatusBadRequest, "bad_seats", fmt.Sprintf("seats_users is 1..%d", h.cfg.SeatsMax)}
+	}
+	pub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return o, &refusal{http.StatusInternalServerError, "internal", "keygen failed"}
+	}
+	if o.ID, err = newOrderID(); err != nil {
+		return o, &refusal{http.StatusInternalServerError, "internal", "order id failed"}
+	}
+	o.RootPubKey = pub
+	if err := store.CheckWorkspaceOrder(o); err != nil {
+		return o, &refusal{http.StatusBadRequest, "bad_billing", "billing needs name, address and a 2-letter country"}
+	}
+	return o, nil
 }
 
 // refusal is an error answer of the checkout: status, token and detail.

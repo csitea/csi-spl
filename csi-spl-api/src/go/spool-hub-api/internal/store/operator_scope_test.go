@@ -115,6 +115,7 @@ var operatorCallers = map[string]string{
 	"ApplyPayment":               "verified payment webhook (signature checked before the store)",
 	"SetClaimLink":               "paid webhook / claim mail, keyed by the checkout id",
 	"ClaimCheckout":              "POST /v1/checkout/claim: checkout id + the claim secret's hash",
+	"SubmitWorkspaceOrder":       "POST /v1/checkout/private-workspace (spec 181 B2): the tenant does not exist yet; the order creates it",
 	"ListWorkspaces":             "GET /v1/operator/workspaces (spec 074): every workspace by design; only an admin of the operator workspace reaches it",
 	"SetAgentCaps":               "PUT/DELETE /v1/operator/workspaces/{id}/agent-caps (spec 147, rdb 0212): writes ONE named workspace's caps + audit rows (WHERE tenant_id = $1); rdb 0212 lets only the operator scope write them; only an admin of the operator workspace reaches it",
 	"OperatorTenant":             "which workspace is the operator one (rdb 0116, spec 074): one flagged row of the instance, unknown until read; returns its id only",

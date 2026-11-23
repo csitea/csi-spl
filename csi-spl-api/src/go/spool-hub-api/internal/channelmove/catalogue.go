@@ -207,6 +207,8 @@ var notChannelTables = concat(
 	notChannel("the workspace's invoiced income, keyed by invoice number (rdb 0259)", "income_invoices"),
 	notChannel("the workspace's price plan and its lines (rdb 0302, spec 181 B1), names no channel",
 		"price_plan_lines", "price_plans"),
+	notChannel("the workspace's private-workspace order, its provisioning order (rdb 0314, spec 181 B2), names no channel",
+		"workspace_orders"),
 	notChannel("tombstones of deleted Qto docs for the media sweep (rdb 0306, spec 190); the Qto part of a move drops the ones its <SRC> doc delete writes",
 		"workspace_doc_gone"),
 )

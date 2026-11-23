@@ -181,13 +181,11 @@ func paidTx(ctx context.Context, tx pgx.Tx, c Checkout, ev PaymentEvent, now tim
 	if c.Status == CheckoutPaid {
 		return PayOutcomeAlreadyPaid, nil
 	}
-	tag, err := tx.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id)
-		VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id) DO NOTHING`,
-		c.TenantID, []byte(c.RootPubKey), billing.StatusActive, c.PlanID)
+	made, err := insertTenantTx(ctx, tx, c.TenantID, c.RootPubKey, c.PlanID)
 	if err != nil {
 		return "", err
 	}
-	if tag.RowsAffected() == 0 {
+	if !made {
 		var root []byte
 		if err := tx.QueryRow(ctx, `SELECT root_pubkey FROM tenants WHERE tenant_id = $1 FOR UPDATE`,
 			c.TenantID).Scan(&root); err != nil {
@@ -214,6 +212,19 @@ func paidTx(ctx context.Context, tx pgx.Tx, c Checkout, ev PaymentEvent, now tim
 	return PayOutcomePaid, nil
 }
 
+// insertTenantTx is the tenant creation shared by the paid transition and the
+// private-workspace order submit: the row, active, with root as its root key.
+// made is false when the tenant already existed (nothing written).
+func insertTenantTx(ctx context.Context, tx pgx.Tx, tenant string, root ed25519.PublicKey, plan string) (made bool, err error) {
+	tag, err := tx.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id)
+		VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id) DO NOTHING`,
+		tenant, []byte(root), billing.StatusActive, plan)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 // paidInviteTx seats the buyer (047 W1): a biz_owner invite for the checkout
 // email, unless the tenant already has a member or that address an invite.
 func paidInviteTx(ctx context.Context, tx pgx.Tx, c Checkout, now time.Time) error {
@@ -221,7 +232,13 @@ func paidInviteTx(ctx context.Context, tx pgx.Tx, c Checkout, now time.Time) err
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at)
+	return ownerInviteTx(ctx, tx, in, now)
+}
+
+// ownerInviteTx writes in unless the tenant has a member or the address an
+// invite.
+func ownerInviteTx(ctx context.Context, tx pgx.Tx, in Invite, now time.Time) error {
+	_, err := tx.Exec(ctx, `INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at)
 		SELECT $1, $2, $3, $4, $5, $6
 		WHERE NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = $1)
 		ON CONFLICT (tenant_id, email) DO NOTHING`,
@@ -317,8 +334,7 @@ func applySeatsTx(ctx context.Context, tx pgx.Tx, c Checkout, env string, now ti
 	if c.SeatsUsers == 0 && c.SeatsBots == 0 {
 		return nil
 	}
-	if _, err := tx.Exec(ctx, `UPDATE tenants SET seats_users = $2, seats_bots = $3 WHERE tenant_id = $1`,
-		c.TenantID, c.SeatsUsers, c.SeatsBots); err != nil {
+	if err := seatCapsTx(ctx, tx, c.TenantID, c.SeatsUsers, c.SeatsBots); err != nil {
 		return err
 	}
 	_, err := tx.Exec(ctx, `INSERT INTO tenant_seat_periods (tenant_id, period_start, seats_users, seats_bots,
@@ -349,4 +365,109 @@ func (s *Postgres) SeatPeriods(ctx context.Context, tenant string) ([]SeatPeriod
 		return err
 	})
 	return out, err
+}
+
+// seatCapsTx sets the tenant's seat caps (009 M4).
+func seatCapsTx(ctx context.Context, tx pgx.Tx, tenant string, users, bots int) error {
+	_, err := tx.Exec(ctx, `UPDATE tenants SET seats_users = $2, seats_bots = $3 WHERE tenant_id = $1`,
+		tenant, users, bots)
+	return err
+}
+
+const pgOrderCols = `order_id, tenant_id, status, seats_users, email, billing_name, billing_address,
+	billing_country, COALESCE(billing_vat_id, ''), COALESCE(buyer_locale, ''), created_at`
+
+func scanOrder(row pgx.Row) (WorkspaceOrder, error) {
+	var o WorkspaceOrder
+	err := row.Scan(&o.ID, &o.TenantID, &o.Status, &o.SeatsUsers, &o.Email, &o.Billing.Name, &o.Billing.Address,
+		&o.Billing.Country, &o.Billing.VATID, &o.Locale, &o.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return WorkspaceOrder{}, ErrNotFound
+	}
+	return o, err
+}
+
+// SubmitWorkspaceOrder (WorkspaceOrders, spec 181 B2): the tenant and its
+// order in one operator transaction, since the tenant does not exist yet.
+func (s *Postgres) SubmitWorkspaceOrder(ctx context.Context, o WorkspaceOrder, now time.Time) (WorkspaceOrder, bool, error) {
+	if err := normalizeOrder(&o, now); err != nil {
+		return WorkspaceOrder{}, false, err
+	}
+	defer s.hot.forget() // creates a tenant row
+	var out WorkspaceOrder
+	var created bool
+	err := s.asOperator(ctx, func(tx pgx.Tx) (err error) {
+		out, created, err = submitOrderTx(ctx, tx, o, now)
+		return err
+	})
+	return out, created, err
+}
+
+// submitOrderTx: a replay first (the stored order), then the tenant made
+// exactly as the paid transition makes it, then the rest of 4.1 step 4.
+func submitOrderTx(ctx context.Context, tx pgx.Tx, o WorkspaceOrder, now time.Time) (WorkspaceOrder, bool, error) {
+	old, err := scanOrder(tx.QueryRow(ctx, `SELECT `+pgOrderCols+` FROM workspace_orders WHERE tenant_id = $1`, o.TenantID))
+	if err == nil {
+		return orderReplay(old, o)
+	}
+	if !errors.Is(err, ErrNotFound) {
+		return WorkspaceOrder{}, false, err
+	}
+	made, err := insertTenantTx(ctx, tx, o.TenantID, o.RootPubKey, PlanKindPrivateVM)
+	if err != nil {
+		return WorkspaceOrder{}, false, err
+	}
+	if !made {
+		// a concurrent submit of the same order committed first: its row
+		// answers this one; anything else holding the slug is a conflict
+		old, err := scanOrder(tx.QueryRow(ctx, `SELECT `+pgOrderCols+` FROM workspace_orders WHERE tenant_id = $1`, o.TenantID))
+		if errors.Is(err, ErrNotFound) {
+			return WorkspaceOrder{}, false, ErrConflict
+		}
+		if err != nil {
+			return WorkspaceOrder{}, false, err
+		}
+		return orderReplay(old, o)
+	}
+	if err := orderTenantTx(ctx, tx, o, now); err != nil {
+		return WorkspaceOrder{}, false, err
+	}
+	err = tx.QueryRow(ctx, `INSERT INTO workspace_orders (order_id, tenant_id, status, seats_users, email,
+			billing_name, billing_address, billing_country, billing_vat_id, buyer_locale, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, ''), NULLIF($10, ''), $11)
+		RETURNING created_at`, o.ID, o.TenantID, o.Status, o.SeatsUsers, o.Email, o.Billing.Name, o.Billing.Address,
+		o.Billing.Country, o.Billing.VATID, o.Locale, now.UTC()).Scan(&o.CreatedAt)
+	if err != nil {
+		return WorkspaceOrder{}, false, err
+	}
+	return o, true, nil
+}
+
+// orderTenantTx is the new workspace's setup: seat caps (human members only),
+// box_join_enabled on, the private_vm price plan and the biz_owner invite.
+func orderTenantTx(ctx context.Context, tx pgx.Tx, o WorkspaceOrder, now time.Time) error {
+	if err := seatCapsTx(ctx, tx, o.TenantID, o.SeatsUsers, 0); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE tenants SET box_join_enabled = true WHERE tenant_id = $1`, o.TenantID); err != nil {
+		return err
+	}
+	if err := putPricePlanTx(ctx, tx, o.TenantID, PrivateVMPlan()); err != nil {
+		return err
+	}
+	in, err := ownerInvite(o.TenantID, o.Email, now)
+	if err != nil {
+		return err
+	}
+	return ownerInviteTx(ctx, tx, in, now)
+}
+
+// WorkspaceOrder (WorkspaceOrders) reads the tenant's order in its scope.
+func (s *Postgres) WorkspaceOrder(ctx context.Context, tenant string) (WorkspaceOrder, error) {
+	var o WorkspaceOrder
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) (err error) {
+		o, err = scanOrder(tx.QueryRow(ctx, `SELECT `+pgOrderCols+` FROM workspace_orders WHERE tenant_id = $1`, tenant))
+		return err
+	})
+	return o, err
 }

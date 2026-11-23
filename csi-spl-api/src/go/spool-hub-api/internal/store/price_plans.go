@@ -219,20 +219,24 @@ func (s *Postgres) PutPricePlan(ctx context.Context, tenant string, p PricePlan)
 	if err := checkPricePlan(p); err != nil {
 		return err
 	}
-	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, planPutSQL, tenant, p.Kind, p.Currency); err != nil {
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error { return putPricePlanTx(ctx, tx, tenant, p) })
+}
+
+// putPricePlanTx writes a checked plan in tx, lines replaced whole (also the
+// private-workspace order submit's, in its own transaction).
+func putPricePlanTx(ctx context.Context, tx pgx.Tx, tenant string, p PricePlan) error {
+	if _, err := tx.Exec(ctx, planPutSQL, tenant, p.Kind, p.Currency); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, planLinesDropSQL, tenant); err != nil {
+		return err
+	}
+	for _, l := range p.Lines {
+		if _, err := tx.Exec(ctx, planLinePutSQL, tenant, l.Line, l.CentsPerMonth, l.MarginPct); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, planLinesDropSQL, tenant); err != nil {
-			return err
-		}
-		for _, l := range p.Lines {
-			if _, err := tx.Exec(ctx, planLinePutSQL, tenant, l.Line, l.CentsPerMonth, l.MarginPct); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // PricePlan reads the workspace's plan (PricePlans).

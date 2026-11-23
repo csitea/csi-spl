@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
 **Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.6
-(Q-1..Q-19 answered; section 1.0) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+(Q-1..Q-19 answered; section 1.0; v0.6.1: row B2 implemented) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -519,6 +519,27 @@ Row status (v0.4.1):
   from a balance. Red control: `TestPricePlanTokenLineRefused`
   (`price_plans_test.go`). Writing the invoice (the month's VM cost from
   the billing export, `QuoteMonth`, an invoice row) is a later row, not B1.
+- **B2: Implemented** (SPL-6322): `POST /api/v1/checkout/private-workspace`
+  (`internal/payments/handler.go` `submitOrder`) takes an order only: the
+  slug, the email, `seats_users` (human members, 1..`SPOOL_HUB_PAYMENT_SEATS_MAX`)
+  and `billing` (name, address, 2-letter country, optional VAT id); no card.
+  One operator transaction (`SubmitWorkspaceOrder`, Memory and Postgres)
+  makes the tenant with the paid transition's own insert
+  (`insertTenantTx`, shared with `paidTx`), its biz_owner invite (the buyer
+  signs in with that email, 047 W1), the seat caps, `box_join_enabled` on,
+  the `private_vm` price plan (B1) and the provisioning order: new rdb
+  `0314_workspace_orders.sql`, table `workspace_orders` (one per tenant,
+  status `submitted` only; B8 adds its states; no machine type, B5's cnf
+  map owns it). No payment provider is called and the paid webhook is not
+  reached; nothing is mailed. 201 on the submit; the same order replayed
+  answers 200 with the first order (`replayed: true`); another email on
+  the slug, or a slug that is already a workspace, is 409 `tenant_taken`.
+  Tests: `internal/payments/order_submit_test.go` (zero provider calls,
+  red control: a submit that calls the provider stub fails it) and
+  `internal/store/payments_order_test.go` (both drivers; red control: the
+  replay answered as a second order fails it). Open for the holder: the
+  route is public like the checkout's, with no sign-in and no switch
+  (4.1 step 1 says a signed-in person); B3 decides how the page reaches it.
 
 Not in this spec: a private hub (Q-2 B, not chosen); listing on Cloud
 Marketplace stays spec 156.
@@ -582,4 +603,7 @@ Marketplace stays spec 156.
   question answered. 1.0, 4.4, G6, G13, B12 and 7 follow; B12 no longer
   waits on Q-19.
 
-<!-- version: 0.6 · updated: 2026-11-21 · last-edit: 2026-11-21T11:10:00Z -->
+- v0.6.1 (2026-11-23, c-261, SPL-6322): row B2 implemented (section 6
+  row status): the order submit, rdb 0314 `workspace_orders`.
+
+<!-- version: 0.6.1 · updated: 2026-11-23 · last-edit: 2026-11-23T17:30:00Z -->

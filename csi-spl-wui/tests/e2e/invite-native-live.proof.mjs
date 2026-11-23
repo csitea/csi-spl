@@ -24,7 +24,9 @@
 //   node tests/e2e/invite-native-live.proof.mjs
 //
 // Prints one JSON line per step and a verdict; exit 0 only when every step
-// held. No password, token, cookie, link or address is printed or saved.
+// held. No password, token, cookie, link or address is printed or saved in
+// a text file; the screenshots show what the page shows, the invited address
+// included (the sign-in and Create account forms).
 import { writeFileSync, readFileSync, mkdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'

@@ -187,7 +187,8 @@ Already built: `POST /api/v1/auth/logout` (010).
   `do_spl_invite_native_e2e` (SPL-6286, owner HUM-10 msg 01649437) proves
   an invite accepted with email + password, no Google, in the deployed WUI:
   the hub invites a fresh relay plus-address to a test workspace (dev, or
-  prd `e2e` / `e2e-*` only; t1 refused) through `POST /v1/operator/invites`,
+  prd `e2e` / `e2e-*` or a listed test workspace (`spl_test_workspaces`)
+  only; t1 refused) through `POST /v1/operator/invites`,
   then headless Chrome opens the invite mail's link, signs up on that page
   (Create account, the address pre-filled from `login_hint`), confirms from
   the verify mail (signed in, landed in the invited workspace) and signs in

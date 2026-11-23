@@ -59,7 +59,8 @@ spl_ine_guard() {
   [[ "${INE_ORDERED_BY:-}" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL INE_ORDERED_BY must be HUM-<n>, got: '${INE_ORDERED_BY:-}'"; return 1; }
   [[ "${INE_ORDER_MSG:-}" =~ ^[0-9a-f-]{8,36}$ ]] || { do_log "FATAL INE_ORDER_MSG must be the owner's message id (hex), got: '${INE_ORDER_MSG:-}'"; return 1; }
   [[ "${INE_ROLE:-regular_user}" =~ ^[a-z_]+$ ]] || { do_log "FATAL INE_ROLE must be a role id, got: '${INE_ROLE}'"; return 1; }
-  [[ "${INE_TTL_HOURS:-24}" =~ ^[1-9][0-9]{0,2}$ ]] || { do_log "FATAL INE_TTL_HOURS must be 1..720, got: '${INE_TTL_HOURS}'"; return 1; }
+  local ttl="${INE_TTL_HOURS:-24}"
+  [[ "$ttl" =~ ^[1-9][0-9]{0,2}$ ]] && (( ttl <= 720 )) || { do_log "FATAL INE_TTL_HOURS must be 1..720, got: '$ttl'"; return 1; }
   [[ "$t" != t1 ]] || { do_log "FATAL TENANT_ID t1 is refused: this proof joins a TEST workspace only"; return 1; }
   [[ "$ENV" == dev ]] && return 0
   declare -F spl_invite_e2e_test_workspace >/dev/null ||

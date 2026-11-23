@@ -79,6 +79,8 @@ out="$(act ENV=prd TENANT_ID=csitea)"
   pass "1. a prd tenant that is no test workspace is refused" || fail "1. prd csitea: $out"
 out="$(act INE_ORDERED_BY=)"; [[ $? -ne 0 ]] && grep -q 'INE_ORDERED_BY must be HUM-<n>' <<<"$out" && pass "1. no INE_ORDERED_BY is refused" || fail "1. ordered_by: $out"
 out="$(act INE_ORDER_MSG='x y')"; [[ $? -ne 0 ]] && grep -q "INE_ORDER_MSG must be the owner's message id" <<<"$out" && pass "1. a bad INE_ORDER_MSG is refused" || fail "1. order msg: $out"
+for h in 0 721 abc; do out="$(act INE_TTL_HOURS=$h)"; [[ $? -ne 0 ]] && grep -q 'INE_TTL_HOURS must be 1..720' <<<"$out" && pass "1. INE_TTL_HOURS=$h is refused" || fail "1. ttl $h: $out"; done
+out="$(act INE_TTL_HOURS=720)"; [[ $? -eq 0 ]] && pass "1. INE_TTL_HOURS=720 runs" || fail "1. ttl 720: $out"
 for a in someone+x@example.com relay@example.net relay+@example.net; do
   out="$(act INE_EMAIL="$a")"
   [[ $? -ne 0 ]] && grep -q 'is no plus-address of the relay mailbox' <<<"$out" && ! grep -q SECRET-READ <<<"$out" &&

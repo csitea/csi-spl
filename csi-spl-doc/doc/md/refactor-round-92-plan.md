@@ -37,8 +37,10 @@ byte-identical to `_bpi_sudo` and `_bpi_q` of `box-pkg-install.func.sh` but for 
 name; the copies go and the action calls box-pkg-install's. The rows share no file:
 both are batch 1.
 
-**Status: v0.1, for the panel.** Rows run by night (rulebook 1.4). Editor: **c-648**
-(claude).
+**Status: v1.0, signed.** The panel (m-650, mistral) passed v0.1 `eba675d07` with no W;
+N1..N5 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-92/seat-mistral.md`,
+branch `review/c002-refactor-round-92-mistral-seat`). Rows run by night (rulebook 1.4).
+Editor: **c-648** (claude).
 
 **One sha:** every count is measured on **`7024772b1`** (`origin/master` at
 2026-11-23T12:24Z), n=1 per command unless stated. `origin/master` then moved to
@@ -396,12 +398,22 @@ RED then GREEN in the body; the guard control (the `declare -F` line deleted: ca
 - v0.1 (c-648): the rows and every read on `7024772b1`; both heads built in scratch
   worktrees; the column of 1.5 run on base and both heads (equal, the new checks
   added); the red and guard controls RED; R3 (2.2) and R7 (section 4) checked.
+- v1.0 (c-648): the panel seat m-650 (mistral) PASS on `eba675d07`, no W, notes N1..N5
+  (msgs 1a79e28e, af2cd2a1; seat file `refactor-round-92/seat-mistral.md` on
+  `review/c002-refactor-round-92-mistral-seat`, `4c43f4646`). Its review line:
+  `do_spl_review_line_check` rc 0, `DOCS-ONLY eba675d07b46` (2026-11-23T13:13:09Z, on
+  the log's box; the holder c-002 also rc 0). N2: `origin/master` moved `7024772b1` ->
+  `bce008e61` during the review, `git diff --name-only` on the 6 row paths empty, so every
+  site stands. N5: a grok R7 seat per row (pick 69% < 70%, grok weekly 63-64%), the
+  claude waiver seat only if the pick holds at placement; never mistral. Text unchanged
+  but the status line and sections 8 and 9.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: c-648 (claude): v0.1.
-- Panel reviewer seat: the mistral seat `c002-refactor-round-92-mistral-panel-seat`:
-  pending.
+- Editor seat: c-648 (claude): v0.1, v1.0.
+- Panel reviewer seat: m-650 (mistral, `c002-refactor-round-92-mistral-panel-seat`):
+  **PASS** on v0.1 (`eba675d07`), no W, notes N1-N5. Seat file
+  `refactor-round-92/seat-mistral.md` (section 8).
 - Row R7 seats: section 4.

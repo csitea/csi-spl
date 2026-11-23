@@ -194,6 +194,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onCommit(ctx, x, f)
 		case wire.TAck: // spec 053 S1: the poke outcome of one delivery to one agent
 			s.onAck(ctx, x, f)
+		case wire.TBoxSamplePut: // spec 071 7.6.2: a box's answer to a box_sample frame
+			s.onBoxSamplePut(ctx, x, f)
 		case wire.TToken:
 			tok, exp := s.sessionToken(x)
 			x.write(ctx, wire.Frame{Type: wire.TToken, UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)}) //nolint:errcheck
@@ -260,6 +262,7 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 	cancel()
 	if f.Role == wire.RoleBox {
 		s.broadcastRoster(ctx, t.ID, x)
+		s.sendBoxSample(ctx, x) // spec 071 7.6.2: the hello catch-up of a pending box_sample
 		on, idle := splitRun(f.Agents, x.run)
 		s.presence(ctx, t.ID, f.BoxID, on, "online")
 		s.presence(ctx, t.ID, f.BoxID, idle, presenceNotRunning)

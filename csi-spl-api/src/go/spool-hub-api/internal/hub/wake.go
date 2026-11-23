@@ -22,12 +22,15 @@ const (
 )
 
 // RunWake listens until ctx ends, reconnecting with backoff: the box
-// wake-up (Options.Wake) and the browser fan-out of messages stored by
-// another process (Options.WakeWUI, wui_wake.go), on one connection. It does
-// nothing when both are off or the store cannot announce.
+// wake-up (Options.Wake), the browser fan-out of messages stored by
+// another process (Options.WakeWUI, wui_wake.go) and the box sample
+// requests of spec 071 (box_refresh.go, always on where the store carries
+// them), on one connection. It does nothing when all are off or the store
+// cannot announce.
 func (s *Server) RunWake(ctx context.Context) {
 	w, canBox := s.o.Store.(store.Waker)
 	ww, canWUI := s.o.Store.(store.WUIWaker)
+	bw, canSample := s.o.Store.(store.BoxSampleWaker)
 	var onBox, onWUI func(tenant, key string)
 	if s.o.Wake && canBox {
 		kick := make(chan [2]string, wakeQueue)
@@ -42,6 +45,9 @@ func (s *Server) RunWake(ctx context.Context) {
 	}
 	listen := func() error { return w.ListenWake(ctx, onBox) }
 	switch {
+	case canSample:
+		h := store.WakeHandlers{Box: onBox, WUI: onWUI, BoxSample: s.onBoxSampleReq}
+		listen = func() error { return bw.ListenAll(ctx, h) }
 	case onBox == nil && onWUI == nil:
 		return
 	case canWUI:

@@ -18,7 +18,7 @@ import (
 )
 
 // panicWakeStore makes the real wake loop (RunWake) panic: its listener
-// (ListenWakes, the one RunWake calls on a store that has it)
+// (ListenAll / ListenWakes, the one RunWake calls on a store that has it)
 // panics on the first `panics` calls, then listens until ctx ends.
 type panicWakeStore struct {
 	*store.Memory
@@ -29,6 +29,16 @@ type panicWakeStore struct {
 }
 
 func (p *panicWakeStore) ListenWakes(ctx context.Context, _ func(tenant, box string), _ func(tenant, msgID string)) error {
+	return p.listen(ctx)
+}
+
+// ListenAll is the listener RunWake calls since spec 071 T5 (the box sample
+// channel rides the same connection): it panics the same way.
+func (p *panicWakeStore) ListenAll(ctx context.Context, _ store.WakeHandlers) error {
+	return p.listen(ctx)
+}
+
+func (p *panicWakeStore) listen(ctx context.Context) error {
 	if p.calls.Add(1) <= p.panics {
 		panic("wake listener boom")
 	}

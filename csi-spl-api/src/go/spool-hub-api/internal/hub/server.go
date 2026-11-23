@@ -382,6 +382,7 @@ type Server struct {
 
 	statusSwept statusSweeps // human_status.go: last expiry sweep per tenant, its own lock
 	relayDue    relayCadence // relay.go: when the slow relay sweeps last ran, its own lock
+	samples     boxSamples   // box_refresh.go: the pending box_sample requests (spec 071 T5), its own lock
 
 	heads *headShadow // view.go: the topic-head shadow's sampler and counters (spec 099)
 }

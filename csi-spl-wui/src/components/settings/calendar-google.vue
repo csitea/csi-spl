@@ -15,9 +15,18 @@
      (its first cycle is the import, 11.2.2); a grant without the contacts
      scope sends the person to Google once to add it; last sync, status,
      Sync now; the binding in another workspace says so (409
-     contacts_sync_elsewhere). -->
+     contacts_sync_elsewhere).
+     SPL-6284 (owner: "Not visible in mobile"): Settings -> Contacts
+     (contacts.vue) is this section with focus="contacts": the contacts part
+     only. While Google is not connected the Contacts part is there too and
+     says how to start: its button connects Google asking for calendar and
+     contacts in one consent; the switch comes after the connection. -->
 <template>
-  <SettingsSection id="settings-calendar-google" :title="t('settings.calendar_google')" data-test="settings-calendar-google">
+  <SettingsSection
+    :id="only ? 'settings-contacts' : 'settings-calendar-google'"
+    :title="only ? t('gcal.contacts_title') : t('settings.calendar_google')"
+    :data-test="only ? 'settings-contacts' : 'settings-calendar-google'"
+  >
     <div data-test="gcal" :data-view="view">
       <p v-if="notice" class="gcal__notice" :class="{ 'gcal__notice--warn': notice === 'gcal.notice_error' }" role="status" data-test="gcal-notice">{{ t(notice) }}</p>
       <p v-if="view === 'loading'" class="muted">{{ t('common.loading') }}</p>
@@ -30,15 +39,26 @@
         </div>
       </template>
       <template v-else-if="view === 'disconnected'">
-        <p class="muted gcal__hint">{{ t('gcal.intro') }}</p>
-        <div class="gcal__actions">
-          <button type="button" class="btn" data-test="gcal-connect" :disabled="busy" @click="connect()">
-            {{ busy ? t('gcal.connecting') : t('gcal.connect') }}
-          </button>
-        </div>
+        <template v-if="!only">
+          <p class="muted gcal__hint">{{ t('gcal.intro') }}</p>
+          <div class="gcal__actions">
+            <button type="button" class="btn" data-test="gcal-connect" :disabled="busy" @click="connect()">
+              {{ busy ? t('gcal.connecting') : t('gcal.connect') }}
+            </button>
+          </div>
+        </template>
+        <section v-if="cview === 'connect'" class="gcal__contacts" :class="{ 'gcal__contacts--only': only }" data-test="gcal-contacts" data-view="connect" :aria-label="t('gcal.contacts_title')">
+          <span class="gcal__switch-title">{{ t('gcal.contacts_switch') }}</span>
+          <p class="muted gcal__switch-hint">{{ t('gcal.contacts_intro') }}</p>
+          <div class="gcal__actions">
+            <button type="button" class="btn" data-test="gcal-contacts-connect" :disabled="busy" @click="connect(GCAL_WANT_CONTACTS)">
+              {{ busy ? t('gcal.connecting') : t('gcal.contacts_grant') }}
+            </button>
+          </div>
+        </section>
       </template>
       <template v-else>
-        <dl class="gcal__facts" data-test="gcal-connected">
+        <dl v-if="!only" class="gcal__facts" data-test="gcal-connected">
           <div class="gcal__row">
             <dt>{{ t('gcal.account') }}</dt>
             <dd data-test="gcal-email">{{ status?.google_email }}</dd>
@@ -57,13 +77,13 @@
           </div>
         </dl>
         <p v-if="view === 'broken' && status?.status_detail" class="gcal__warn" role="alert" data-test="gcal-broken">{{ status.status_detail }}</p>
-        <div class="gcal__actions">
+        <div v-if="!only || view === 'broken'" class="gcal__actions">
           <button v-if="view === 'broken'" type="button" class="btn" data-test="gcal-reconnect" :disabled="busy" @click="connect()">
             {{ t('gcal.reconnect') }}
           </button>
           <button v-else type="button" class="btn" data-test="gcal-sync" :disabled="busy" @click="sync()">{{ t('gcal.sync_now') }}</button>
         </div>
-        <section v-if="cview !== 'hidden'" class="gcal__contacts" data-test="gcal-contacts" :data-view="cview" :aria-label="t('gcal.contacts_title')">
+        <section v-if="cview !== 'hidden'" class="gcal__contacts" :class="{ 'gcal__contacts--only': only }" data-test="gcal-contacts" :data-view="cview" :aria-label="t('gcal.contacts_title')">
           <p v-if="cview === 'failed'" class="gcal__warn" role="alert" data-test="gcal-contacts-failed">{{ t('gcal.contacts_load_failed') }}</p>
           <template v-else>
             <label class="gcal__switch">
@@ -103,7 +123,7 @@
           </template>
           <p v-if="contactsMsg" class="gcal__result" :class="{ 'gcal__warn': contactsWarn }" role="status" data-test="gcal-contacts-result">{{ t(contactsMsg) }}</p>
         </section>
-        <div class="gcal__disconnect">
+        <div v-if="!only" class="gcal__disconnect">
           <label class="gcal__tick">
             <input v-model="removeImported" type="checkbox" data-test="gcal-remove-imported" :disabled="busy">
             <span>{{ t('gcal.remove_imported') }}</span>
@@ -129,6 +149,9 @@ import {
 type GcalStatus = { connected?: boolean, google_email?: string, calendar_title?: string, status?: string, status_detail?: string, last_synced_at?: string }
 type ContactsSync = { enabled?: boolean, elsewhere?: boolean, scope_granted?: boolean, status_detail?: string, last_synced_at?: string | null }
 
+/* focus="contacts": Settings -> Contacts, the contacts part only (SPL-6284) */
+const props = defineProps<{ focus?: string }>()
+const only = computed(() => props.focus === 'contacts')
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const api = useSpoolApi()
@@ -173,16 +196,13 @@ async function load() {
 }
 
 // spec 154 B18: the switch's state, read only while Google is connected and
-// the workspace is inside contacts.workspaces (no read to find that out, 2.9)
+// the workspace is inside contacts.workspaces (no read to find that out, 2.9).
+// SPL-6284: not connected, in such a workspace, is 'connect' (how to start).
 async function loadContacts() {
-  if (view.value !== 'connected') {
-    cstate.value = null
-    cview.value = 'hidden'
-    return
-  }
   await access.ensure()
-  if (!access.contacts) {
-    cview.value = 'hidden'
+  if (!access.contacts || view.value !== 'connected') {
+    cstate.value = null
+    cview.value = access.contacts && view.value === 'disconnected' ? 'connect' : 'hidden'
     return
   }
   try {
@@ -261,11 +281,11 @@ function said(key: string, warn = false) {
   actionWarn.value = warn
 }
 
-async function connect() {
+async function connect(want?: string) {
   busy.value = true
   said('')
   try {
-    const url = await gcalConnect(api)
+    const url = await gcalConnect(api, want)
     if (url) {
       window.location.assign(url)
       return
@@ -376,4 +396,6 @@ onBeforeUnmount(() => follower.stop())
 .gcal__switch-hint { font-size: 0.875rem; }
 .gcal__switch input { width: 44px; height: 24px; flex: none; margin: 0; cursor: pointer; }
 .gcal__contacts .gcal__warn { margin: 8px 0 0; }
+.gcal__contacts--only { margin-top: 0; padding-top: 0; border-top: 0; }
+.gcal__contacts > .gcal__switch-hint { margin: 2px 0 0; }
 </style>

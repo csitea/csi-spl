@@ -26,7 +26,7 @@
       <div v-if="signedIn" class="settings-layout" :class="{ 'settings-layout--list': !active }">
         <nav class="settings-nav" :aria-label="t('settings.nav_label')" data-test="settings-nav">
           <ul>
-            <li v-for="s in LISTED_SECTIONS" :key="s.id">
+            <li v-for="s in navSections" :key="s.id">
               <NuxtLink
                 :to="sectionTo(s.id)"
                 replace
@@ -56,12 +56,14 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import { useSessionStore } from '~/stores/session'
+import { useAccessStore } from '~/stores/access'
 import { useMobileStack } from '~/composables/useMobileStack'
 import {
   SETTINGS_QUERY,
   SETTINGS_SECTIONS,
   settingsCloseStep,
   settingsQuerySection,
+  settingsSectionsShown,
   settingsShownSection,
   withoutSettings,
 } from '~/utils/settings-nav.mjs'
@@ -81,12 +83,16 @@ const SECTION_COMPONENTS: Record<string, Component> = {
   security: defineAsyncComponent(() => import('~/components/settings/security.vue')),
   keys: defineAsyncComponent(() => import('~/components/settings/keys.vue')),
   'calendar-google': defineAsyncComponent(() => import('~/components/settings/calendar-google.vue')),
+  contacts: defineAsyncComponent(() => import('~/components/settings/contacts.vue')),
   notes: defineAsyncComponent(() => import('~/components/settings/notes.vue')),
 }
 
 /* spec 155 B10: the list leaves out a section whose rail tab is switched off
    (Notes, NOTES_RAIL_ON); its address still opens it */
 const LISTED_SECTIONS = SETTINGS_SECTIONS.filter((s) => settingsSectionListed(s.id))
+/* spec 154 (SPL-6284): Contacts only where the workspace has contacts on */
+const access = useAccessStore()
+const navSections = computed(() => settingsSectionsShown(LISTED_SECTIONS, access.contacts))
 
 const session = useSessionStore()
 const route = useRoute()
@@ -124,6 +130,7 @@ let opener: HTMLElement | null = null
 watch(open, (isOpen) => {
   if (!import.meta.client) return
   if (isOpen) {
+    void access.ensure()
     const el = document.activeElement as HTMLElement | null
     opener = el && el !== document.body && !el.closest('[data-test="user-menu-panel"]') ? el : null
     return

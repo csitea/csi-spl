@@ -21,6 +21,8 @@
 # on a generated mock bundle (n=1, 2026-11-22), until a refresh measures CI.
 # palette-contacts (spec 154 row B10, SPL-6254) is new: 14 s, its one local run
 # on a generated mock bundle (n=1, 2026-11-22), until a refresh measures CI.
+# settings-contacts-mobile (spec 154, SPL-6284) is new: 12 s, its one local run
+# on a generated mock bundle (n=1, 2026-11-23), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -338,6 +340,7 @@ tests/e2e/section-strip-scroll-hide.test.mjs 215
 tests/e2e/selected-topic-card.test.mjs 6
 tests/e2e/send-survives-max-life.test.mjs 3
 tests/e2e/settings-calendar-google.test.mjs 14
+tests/e2e/settings-contacts-mobile.test.mjs 12
 tests/e2e/settings-contacts-switch.test.mjs 14
 tests/e2e/settings-lang-width.test.mjs 18
 tests/e2e/settings-modal.test.mjs 28

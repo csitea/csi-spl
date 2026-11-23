@@ -13,11 +13,27 @@ export const SETTINGS_SECTIONS = [
   { id: 'keys', label: 'settings.keys_title' },
   /* spec 149 B8 (SPL-3227): the member's own Google Calendar connection */
   { id: 'calendar-google', label: 'settings.calendar_google' },
+  /* spec 154 (SPL-6284): the Google Contacts switch, findable in the list on
+     a phone; the same section as calendar-google, contacts only */
+  { id: 'contacts', label: 'contacts.group' },
   /* spec 155 B10 (SPL-4331): export and erase the person's own notes */
   { id: 'notes', label: 'notes.settings.title' },
 ]
 
 export const DEFAULT_SETTINGS_SECTION = 'profile'
+
+/**
+ * The sections the nav and the palette draw: Contacts only where the
+ * workspace has contacts on (the access store's `contacts`, spec 154 2.9).
+ * ?settings=contacts still opens it.
+ * @template {{ id: string }} S
+ * @param {readonly S[]} sections
+ * @param {boolean} contactsOn
+ * @returns {S[]}
+ */
+export function settingsSectionsShown(sections, contactsOn) {
+  return sections.filter((s) => s.id !== 'contacts' || contactsOn)
+}
 
 /**
  * The section id of a route path ('/settings/keys', '/fi/settings/keys/'),

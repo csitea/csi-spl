@@ -398,7 +398,22 @@ calendar.
 
 ---
 
-## 11. Notes (`/settings/notes`)
+## 11. Contacts (`/settings/contacts`)
+
+The switch that brings your Google contacts into your contact list. It is the
+Contacts part of Google Calendar (section 10), on a line of its own in the
+Settings list, so you find it on a phone too. It is listed only in a
+workspace where contacts are switched on.
+
+- **Not connected**: **Give access to Google Contacts** connects Google,
+  asking for your calendar and your contacts at once. Google sends you back
+  to Google Calendar; then turn on **Sync Google Contacts**.
+- **Connected**: **Sync Google Contacts** turns the sync on or off. On, it
+  shows the last sync and **Sync now**.
+
+---
+
+## 12. Notes (`/settings/notes`)
 
 Your notes are your own: the same list shows in every workspace you belong
 to, so this section is the same in each of them.

@@ -218,9 +218,10 @@ async function checkDialog(browser, base, vp) {
 const shown = (p, sel) => p.$eval(sel, (e) => { const r = e.getBoundingClientRect(); return getComputedStyle(e).display !== 'none' && r.width > 0 && r.height > 0 }).catch(() => false)
 
 /* the nav has one row per listed section (spec 155 B10 added notes: 8 -> 9;
-   it is left out while its rail tab is off, settingsSectionListed) */
-import { SETTINGS_SECTIONS } from '../../src/utils/settings-nav.mjs'
-const LISTED_SECTIONS = SETTINGS_SECTIONS.filter((s) => settingsSectionListed(s.id))
+   it is left out while its rail tab is off, settingsSectionListed; SPL-6284
+   Contacts only with contacts on, which this mock tenant has off) */
+import { SETTINGS_SECTIONS, settingsSectionsShown } from '../../src/utils/settings-nav.mjs'
+const LISTED_SECTIONS = settingsSectionsShown(SETTINGS_SECTIONS.filter((s) => settingsSectionListed(s.id)), false)
 const settingsQ = (p) => new URL(p.url()).searchParams.get('settings')
 
 /** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;

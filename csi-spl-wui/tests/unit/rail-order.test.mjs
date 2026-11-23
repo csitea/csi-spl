@@ -363,8 +363,9 @@ describe('spec 155: the Notes rail tab, on as shipped (msg b75fb3d3), and the on
     assert.equal(settingsQuerySection({ settings: 'notes' }), 'notes', '?settings=notes still opens it')
     const dialog = read('src/components/SettingsDialog.vue')
     assert.match(dialog, /const LISTED_SECTIONS = SETTINGS_SECTIONS\.filter\(\(s\) => settingsSectionListed\(s\.id\)\)/)
-    assert.match(dialog, /<li v-for="s in LISTED_SECTIONS"/, 'the nav draws the listed sections')
-    assert.match(read('src/composables/usePaletteItems.ts'), /SETTINGS_SECTIONS\.filter\(\(s\) => settingsSectionListed\(s\.id\)\)\.map/, 'the palette rows too')
+    assert.match(dialog, /const navSections = computed\(\(\) => settingsSectionsShown\(LISTED_SECTIONS, access\.contacts\)\)/)
+    assert.match(dialog, /<li v-for="s in navSections"/, 'the nav draws the listed sections (SPL-6284: Contacts with contacts on)')
+    assert.match(read('src/composables/usePaletteItems.ts'), /settingsSectionsShown\(SETTINGS_SECTIONS\.filter\(\(s\) => settingsSectionListed\(s\.id\)\), contactsOn\)\.map/, 'the palette rows too')
   })
   it('the /notes route stays reachable by URL', async () => {
     const { tabForPath, routeForTab } = await import('../../src/utils/sidebar-tabs.mjs')

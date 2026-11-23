@@ -5,7 +5,8 @@
 // contacts kill switch, 2.9).
 //   CS1 connected, contacts on here: the switch shows, off
 //   CS2 CONTROL: the calendar section is connected but the kill switch is off
-//       (contacts: false): no switch; not connected: no switch
+//       (contacts: false): no switch; not connected: no switch, the Contacts
+//       part says how to start (SPL-6284)
 //   CS3 on with no contacts scope: the mock's Google grants it, the switch is
 //       on and says the first import started
 //   CS4 a reload keeps it on (the GET), Sync now moves the last sync
@@ -109,7 +110,7 @@ try {
   ok('CS2-1 CONTROL: the kill switch off: connected, no switch', await gview('connected') && !(await has('gcal-contacts')))
   await seed(null, ME_ON, null)
   await load(DESKTOP, SETTINGS)
-  ok('CS2-2 not connected: no switch', await gview('disconnected') && !(await has('gcal-contacts')))
+  ok('CS2-2 not connected: no switch, the Contacts part says how to start (SPL-6284)', await gview('disconnected') && await cview('connect') && !(await has('gcal-contacts-switch')) && await has('gcal-contacts-connect'))
 
   /* CS3 */
   await seed(CONNECTED, ME_ON, null)

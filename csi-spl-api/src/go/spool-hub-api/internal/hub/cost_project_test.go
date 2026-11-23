@@ -65,10 +65,7 @@ func TestCostProjectRead(t *testing.T) {
 	if stub != nil {
 		asks = len(stub.asks)
 	}
-	yearUSD := float64(6_000_000) // Postgres: the rows are March's
-	if stub != nil {
-		yearUSD *= 12 // the memory stand-in answers every month with the same rows
-	}
+	yearUSD := float64(6_000_000) // the rows are March's (the memory stand-in reads by day too, SPL-6300)
 	code, body = call(t, e, op, http.MethodGet, "/v1/tenant/costs/project?year=2011", who[rbac.Admin], nil)
 	if code != http.StatusOK || body["period"] != "year" || body["from"] != "2011-01-01" || body["to"] != "2011-12-31" ||
 		body["status"] != "ended" || body["days"] != float64(365) || projectTotalUSD(body) != yearUSD {

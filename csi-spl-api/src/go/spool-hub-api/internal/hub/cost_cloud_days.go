@@ -14,6 +14,7 @@ import (
 // route is the third, one project's month per day and service:
 //
 //	GET /v1/tenant/costs/cloud?month=YYYY-MM&project=<project_or_vendor>
+//	GET /v1/tenant/costs/cloud?from=YYYY-MM&to=YYYY-MM&project=<p>  (cost_range.go)
 //
 // The GCP projects are the ESTATE's: the operator workspace's admin reads
 // them, as in the month read; every other member reads 403, and so does a
@@ -25,10 +26,14 @@ import (
 // currency, null with no rate on or before the day, never a guess).
 
 type costCloudDaysBody struct {
-	Month    string               `json:"month"`
-	Project  string               `json:"project"`
-	Currency string               `json:"second_currency"`
-	Days     []store.CostCloudDay `json:"days"`
+	Month string `json:"month"`
+	// MonthFrom and MonthTo: a range read's first and last month
+	// (SPL-6300), absent for one month; Days holds every month's, in order.
+	MonthFrom string               `json:"month_from,omitempty"`
+	MonthTo   string               `json:"month_to,omitempty"`
+	Project   string               `json:"project"`
+	Currency  string               `json:"second_currency"`
+	Days      []store.CostCloudDay `json:"days"`
 }
 
 func (s *Server) routeCostCloudDays(mux *http.ServeMux) {
@@ -36,7 +41,7 @@ func (s *Server) routeCostCloudDays(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/tenant/costs/cloud", s.preflight)
 }
 
-// GET /v1/tenant/costs/cloud?month=YYYY-MM&project=<project_or_vendor>
+// GET /v1/tenant/costs/cloud?month=YYYY-MM | from=&to=, &project=<project_or_vendor>
 func (s *Server) handleCostCloudDays(w http.ResponseWriter, r *http.Request) {
 	t, a, _, _, ok := s.membersActor(w, r, rbac.CostsRead)
 	if !ok {
@@ -60,10 +65,12 @@ func (s *Server) handleCostCloudDays(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "person_only", "the estate's cloud costs are not shown under act-as")
 		return
 	}
-	win, why := costWindow(r.URL.Query().Get("month"), s.o.Now())
-	q := store.CostCloudDaysQuery{Project: r.URL.Query().Get("project"), From: win.From, To: win.To}
-	if why == "" {
-		why = store.CheckCostCloudDaysQuery(q)
+	wins, why := costRangeWindows(r.URL.Query(), s.o.Now())
+	q := store.CostCloudDaysQuery{Project: r.URL.Query().Get("project")}
+	for _, win := range wins {
+		if why == "" {
+			why = store.CheckCostCloudDaysQuery(store.CostCloudDaysQuery{Project: q.Project, From: win.From, To: win.To})
+		}
 	}
 	if why != "" {
 		writeErr(w, http.StatusBadRequest, "bad_query", why)
@@ -74,11 +81,18 @@ func (s *Server) handleCostCloudDays(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "unavailable", "your second currency was not read")
 		return
 	}
-	days, err := cr.CostCloudDays(r.Context(), q)
-	if err != nil {
-		s.o.Log.Error().Err(err).Str("month", win.Month).Msg("cost.cloud_days_failed")
-		writeErr(w, http.StatusInternalServerError, "internal", "cloud cost days unavailable")
-		return
+	days := []store.CostCloudDay{}
+	for _, win := range wins { // one store read per month (at most one month each), oldest first
+		q.From, q.To = win.From, win.To
+		got, err := cr.CostCloudDays(r.Context(), q)
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("month", win.Month).Msg("cost.cloud_days_failed")
+			writeErr(w, http.StatusInternalServerError, "internal", "cloud cost days unavailable")
+			return
+		}
+		days = append(days, got...)
 	}
-	writeJSON(w, http.StatusOK, costCloudDaysBody{Month: win.Month, Project: q.Project, Currency: q.Currency, Days: days})
+	b := costCloudDaysBody{Month: wins[0].Month, Project: q.Project, Currency: q.Currency, Days: days}
+	b.MonthFrom, b.MonthTo = costRangeEnds(wins)
+	writeJSON(w, http.StatusOK, b)
 }

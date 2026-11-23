@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 //
 //	GET /v1/tenant/costs/project?month=YYYY-MM   default: the current UTC month so far
 //	GET /v1/tenant/costs/project?year=YYYY       the year to date: its months so far
+//	GET /v1/tenant/costs/project?from=YYYY-MM&to=YYYY-MM   period range, both months included (cost_range.go)
 //
 // costs.read, the month read's scope (5.2): the operator workspace's estate
 // reader gets four parts, Cloud, Owned hardware, AI tokens and Human; any
@@ -51,19 +53,23 @@ import (
 // it (13.6).
 
 type costProjectBody struct {
-	Period   string                     `json:"period"` // month | year
-	Month    string                     `json:"month,omitempty"`
-	Year     string                     `json:"year,omitempty"`
-	From     string                     `json:"from"`
-	To       string                     `json:"to"` // last day, inclusive
-	Status   string                     `json:"status"`
-	Scope    string                     `json:"scope"` // estate | workspace
-	Currency string                     `json:"second_currency"`
-	Days     int                        `json:"days"`
-	Ended    int                        `json:"days_ended"`
-	Parts    []store.CostProjectPart    `json:"parts"`
-	Total    store.CostProjectTotal     `json:"total"`
-	LeftOut  []store.CostProjectLeftOut `json:"left_out"`
+	Period string `json:"period"` // month | year | range (from= to=, SPL-6300)
+	Month  string `json:"month,omitempty"`
+	// MonthFrom and MonthTo: the first and last month of a range (period
+	// range), both included.
+	MonthFrom string                     `json:"month_from,omitempty"`
+	MonthTo   string                     `json:"month_to,omitempty"`
+	Year      string                     `json:"year,omitempty"`
+	From      string                     `json:"from"`
+	To        string                     `json:"to"` // last day, inclusive
+	Status    string                     `json:"status"`
+	Scope     string                     `json:"scope"` // estate | workspace
+	Currency  string                     `json:"second_currency"`
+	Days      int                        `json:"days"`
+	Ended     int                        `json:"days_ended"`
+	Parts     []store.CostProjectPart    `json:"parts"`
+	Total     store.CostProjectTotal     `json:"total"`
+	LeftOut   []store.CostProjectLeftOut `json:"left_out"`
 	// HumanMask is what of the Human part this reader may not see (13.6):
 	// none | money | whole.
 	HumanMask string `json:"human_mask"`
@@ -75,17 +81,20 @@ func (s *Server) routeCostProject(mux *http.ServeMux) {
 }
 
 // costProjectWindows is the period's months as of now: month= (default the
-// current one) or year= (January to the current month, or to December of a
-// past year); both, a bad shape or a future period is refused.
-func costProjectWindows(month, year string, now time.Time) ([]costMonthWindow, string) {
+// current one), from= and to= (a month range, cost_range.go) or year=
+// (January to the current month, or to December of a past year); two
+// periods, a bad shape or a future period is refused.
+func costProjectWindows(q url.Values, now time.Time) ([]costMonthWindow, string) {
+	month, year := q.Get("month"), q.Get("year")
 	if year == "" {
-		w, why := costWindow(month, now)
-		return []costMonthWindow{w}, why
+		return costRangeWindows(q, now)
 	}
 	y, err := strconv.Atoi(year)
 	switch {
 	case month != "":
 		return nil, "month and year are one period: ask one"
+	case q.Get("from") != "" || q.Get("to") != "":
+		return nil, "from/to and year are one period: ask one"
 	case err != nil || len(year) != 4 || y < 2000:
 		return nil, "year must be YYYY"
 	case y > now.UTC().Year():
@@ -106,7 +115,7 @@ func costProjectWindows(month, year string, now time.Time) ([]costMonthWindow, s
 	return out, ""
 }
 
-// GET /v1/tenant/costs/project?month=YYYY-MM | year=YYYY
+// GET /v1/tenant/costs/project?month=YYYY-MM | year=YYYY | from=YYYY-MM&to=YYYY-MM
 func (s *Server) handleCostProject(w http.ResponseWriter, r *http.Request) {
 	t, a, _, _, ok := s.membersActor(w, r, rbac.CostsRead)
 	if !ok {
@@ -119,7 +128,7 @@ func (s *Server) handleCostProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	wins, why := costProjectWindows(q.Get("month"), q.Get("year"), s.o.Now())
+	wins, why := costProjectWindows(q, s.o.Now())
 	if why != "" {
 		writeErr(w, http.StatusBadRequest, "bad_query", why)
 		return
@@ -145,6 +154,11 @@ func (s *Server) handleCostProject(w http.ResponseWriter, r *http.Request) {
 	sight := costProjectSight{rates: a.Can(rbac.HoursRates), hours: a.Can(rbac.HoursRead) || (estate && operatorReadRole(op, t.ID, a))}
 	cp, mask := costProjectHumanMask(store.CostProjectParts(in), sight)
 	b := costProjectAnswer(q.Get("year"), wins, estate, cur, cp)
+	if b.Period == "month" {
+		if b.MonthFrom, b.MonthTo = costRangeEnds(wins); b.MonthFrom != "" {
+			b.Period = "range"
+		}
+	}
 	b.HumanMask = mask
 	writeJSON(w, http.StatusOK, b)
 }

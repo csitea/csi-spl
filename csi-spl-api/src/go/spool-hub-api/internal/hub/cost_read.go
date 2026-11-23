@@ -19,6 +19,7 @@ import (
 // infrastructure (from the GCP) and the costs of the tokens"):
 //
 //	GET /v1/tenant/costs?month=YYYY-MM   default: the current UTC month so far
+//	GET /v1/tenant/costs?from=YYYY-MM&to=YYYY-MM   the months summed (cost_range.go)
 //
 // costs.read (every member role since rdb 0229, spec 140 3.10). The ESTATE
 // (GCP projects, fleet tokens, agent-hours, beside the workspace's own rows,
@@ -129,17 +130,23 @@ type costCoverageOut struct {
 }
 
 type costMonthBody struct {
-	Month    string            `json:"month"`
-	From     string            `json:"from"`
-	To       string            `json:"to"` // last day, inclusive
-	Status   string            `json:"status"`
-	Scope    string            `json:"scope"` // estate | workspace
-	Currency string            `json:"second_currency"`
-	Days     int               `json:"days"`
-	Ended    int               `json:"days_ended"`
-	Total    costMoney         `json:"total"`
-	Parts    []costPartOut     `json:"parts"`
-	Coverage []costCoverageOut `json:"coverage"`
+	Month string `json:"month"`
+	// MonthFrom and MonthTo are a range read's first and last month, both
+	// included (SPL-6300, cost_range.go); absent from a one-month answer,
+	// whose month is Month. Over a range Month is the first month, from and
+	// to its first and last day, days and days_ended summed over its months.
+	MonthFrom string            `json:"month_from,omitempty"`
+	MonthTo   string            `json:"month_to,omitempty"`
+	From      string            `json:"from"`
+	To        string            `json:"to"` // last day, inclusive
+	Status    string            `json:"status"`
+	Scope     string            `json:"scope"` // estate | workspace
+	Currency  string            `json:"second_currency"`
+	Days      int               `json:"days"`
+	Ended     int               `json:"days_ended"`
+	Total     costMoney         `json:"total"`
+	Parts     []costPartOut     `json:"parts"`
+	Coverage  []costCoverageOut `json:"coverage"`
 	// Workspaces is every workspace's token burn of the month, the estate
 	// answer's only (absent from a workspace answer).
 	Workspaces []costWorkspaceOut `json:"workspaces,omitempty"`
@@ -157,19 +164,19 @@ func (s *Server) routeCostRead(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/tenant/costs", s.preflight)
 }
 
-// GET /v1/tenant/costs?month=YYYY-MM
+// GET /v1/tenant/costs?month=YYYY-MM | from=YYYY-MM&to=YYYY-MM (cost_range.go)
 func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 	t, a, _, _, ok := s.membersActor(w, r, rbac.CostsRead)
 	if !ok {
 		return
 	}
-	cr, ok := s.o.Store.(store.CostRead)
+	_, lines := s.o.Store.(store.CostRead)
 	_, burns := s.o.Store.(store.WorkspaceTokens)
-	if !ok && !burns {
+	if !lines && !burns {
 		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no cost lines")
 		return
 	}
-	win, why := costWindow(r.URL.Query().Get("month"), s.o.Now())
+	wins, why := costRangeWindows(r.URL.Query(), s.o.Now())
 	if why != "" {
 		writeErr(w, http.StatusBadRequest, "bad_query", why)
 		return
@@ -189,26 +196,43 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "unavailable", "your second currency was not read")
 		return
 	}
-	cm := store.CostMonth{Parts: []store.CostPart{}, Coverage: []store.CostSourceDays{}} // no cost lines kept: none
-	if ok {
-		cm, err = cr.CostMonthRead(r.Context(), store.CostMonthQuery{Tenant: t.ID, Estate: estate,
-			From: win.From, To: win.To, CoverTo: win.CoverTo, Currency: cur})
-	}
-	var d costReadParts
+	body, err := s.costReadRange(r.Context(), costProjectAsk{op: op, tenant: t.ID, estate: estate, cur: cur}, wins)
 	if err == nil {
-		d, err = s.costReadGather(r.Context(), op, t.ID, estate, win, cur)
-	}
-	var body costMonthBody
-	if err == nil {
-		body = costReadBody(win, estate, cur, cm, d)
 		err = s.costLocalizeParts(r.Context(), costLabelLocale(r), body.Parts, body.Human) // SPL-5546
 	}
 	if err != nil {
-		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("month", win.Month).Msg("cost.read_failed")
+		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("month", wins[0].Month).Msg("cost.read_failed")
 		writeErr(w, http.StatusInternalServerError, "internal", "cost report unavailable")
 		return
 	}
 	writeJSON(w, http.StatusOK, body)
+}
+
+// costReadRange is the month answer of every window, summed into one
+// (costMergeRange; one window is the month read as it was).
+func (s *Server) costReadRange(ctx context.Context, k costProjectAsk, wins []costMonthWindow) (costMonthBody, error) {
+	cr, lines := s.o.Store.(store.CostRead)
+	cms, ds := make([]store.CostMonth, 0, len(wins)), make([]costReadParts, 0, len(wins))
+	for _, win := range wins {
+		cm := store.CostMonth{Parts: []store.CostPart{}, Coverage: []store.CostSourceDays{}} // no cost lines kept: none
+		var err error
+		if lines {
+			cm, err = cr.CostMonthRead(ctx, store.CostMonthQuery{Tenant: k.tenant, Estate: k.estate,
+				From: win.From, To: win.To, CoverTo: win.CoverTo, Currency: k.cur})
+		}
+		if err != nil {
+			return costMonthBody{}, err
+		}
+		d, err := s.costReadGather(ctx, k.op, k.tenant, k.estate, win, k.cur)
+		if err != nil {
+			return costMonthBody{}, err
+		}
+		cms, ds = append(cms, cm), append(ds, d)
+	}
+	cm, d := costMergeRange(cms, ds)
+	b := costReadBody(costSpanWindow(wins), k.estate, k.cur, cm, d)
+	b.MonthFrom, b.MonthTo = costRangeEnds(wins)
+	return b, nil
 }
 
 // costReadParts is what the month answer adds to the cost lines: the token

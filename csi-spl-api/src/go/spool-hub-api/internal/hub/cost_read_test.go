@@ -26,6 +26,15 @@ type costSeedRow struct {
 	tenant string // "" = estate
 	pov    string
 	usd    int64
+	day    string // "" = 2011-03-04
+}
+
+// dayOf is r's cost day.
+func (r costSeedRow) dayOf() string {
+	if r.day == "" {
+		return "2011-03-04"
+	}
+	return r.day
 }
 
 // costReadStub is the memory store's stand-in: it answers seeded rows by the
@@ -43,6 +52,9 @@ func (c *costReadStub) CostMonthRead(_ context.Context, q store.CostMonthQuery) 
 	c.asks = append(c.asks, q)
 	out := store.CostMonth{Parts: []store.CostPart{}, Coverage: []store.CostSourceDays{}}
 	for _, r := range c.rows {
+		if d := r.dayOf(); d < q.From || d >= q.To {
+			continue
+		}
 		if r.tenant == q.Tenant || (r.tenant == "" && q.Estate) {
 			out.Parts = append(out.Parts, store.CostPart{Estate: r.tenant == "", Source: "gcp", ProjectOrVendor: r.pov,
 				Kind: "cloud_run", Origin: "billing_export", USDMicros: r.usd, EURMicros: r.usd, Days: 1})
@@ -75,18 +87,30 @@ func costReadEnv(t *testing.T) (e *env, op, other string, who, whoOther map[stri
 	for _, r := range rbac.RoleIDs {
 		who[r], whoOther[r] = seat(t, e, op, r), seat(t, e, other, r)
 	}
-	rows := []costSeedRow{{"", newTenantID("csi-spl-"), 5_000_000}, {op, "op-own", 1_000_000}, {other, "other-own", 2_000_000}}
+	rows := []costSeedRow{{"", newTenantID("csi-spl-"), 5_000_000, ""}, {op, "op-own", 1_000_000, ""}, {other, "other-own", 2_000_000, ""}}
+	costSeedRows(t, e, stub, "2011-03-01", "2011-04-01", rows)
+	return
+}
+
+// costSeedRows adds rows: to the stand-in on the memory store, else to
+// cost_lines on Postgres, after deleting the estate rows from <from> to
+// <to> (exclusive): estate rows are shared by every test on the database,
+// so those months are the caller's.
+func costSeedRows(t *testing.T, e *env, stub *costReadStub, from, to string, rows []costSeedRow) {
+	t.Helper()
 	if stub != nil {
-		stub.rows = rows
+		stub.mu.Lock()
+		stub.rows = append(stub.rows, rows...)
+		stub.mu.Unlock()
 		return
 	}
+	ctx := context.Background()
 	pg := e.st.(*store.Postgres)
 	err := pgx.BeginFunc(ctx, pg.Pool(), func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `SELECT set_config('app.rls_scope', 'operator', true)`); err != nil {
 			return err
 		}
-		// estate rows are shared by every test on the database: this month is ours
-		if _, err := tx.Exec(ctx, `DELETE FROM cost_lines WHERE day >= '2011-03-01' AND day < '2011-04-01' AND tenant_id IS NULL`); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM cost_lines WHERE day >= $1::date AND day < $2::date AND tenant_id IS NULL`, from, to); err != nil {
 			return err
 		}
 		for _, r := range rows {
@@ -96,8 +120,8 @@ func costReadEnv(t *testing.T) (e *env, op, other string, who, whoOther map[stri
 			}
 			if _, err := tx.Exec(ctx, `INSERT INTO cost_lines (day, source, project_or_vendor, tenant_id, kind, units,
 				amount_micros, currency, usd_micros, eur_micros, fx_rate_day, origin, run_id)
-				VALUES ('2011-03-04', 'gcp', $1, $2, 'cloud_run', 0, $3, 'USD', $3, $3, '2011-03-04', 'billing_export', 'run-1')`,
-				r.pov, tid, r.usd); err != nil {
+				VALUES ($4::date, 'gcp', $1, $2, 'cloud_run', 0, $3, 'USD', $3, $3, $4::date, 'billing_export', 'run-1')`,
+				r.pov, tid, r.usd, r.dayOf()); err != nil {
 				return err
 			}
 		}
@@ -106,7 +130,6 @@ func costReadEnv(t *testing.T) (e *env, op, other string, who, whoOther map[stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	return
 }
 
 // povs is project_or_vendor -> estate of each part of an answer.

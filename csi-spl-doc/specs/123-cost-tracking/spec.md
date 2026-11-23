@@ -1,6 +1,6 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.7 + 16.6 v1.0 (2026-11-22: 16.6 rewritten as built from rows L0-L6 on 49f34bef6, 16.5 states the write rule; open: the 030 apply of row L3w's wiring (SPL-6223), the L0 applies and price, the agy n = 20 measurement; SPL-6220) · v1.7 (2026-11-20: row P02 built, the Human part from 107's tables; SPL-6075) · v1.6 + 16.6 v0.4 (2026-11-20: every owner answer folded, the follow-ups 1 `a`, 2 `m`, 3 `g` included, msg baae5fb7: the hub drafts through Google Cloud Translation in its own project with names masked, readers see the draft at once, agy corrects it nightly; new row L0 for the API and its role; SPL-6057) · 16.6 v0.3 (2026-11-20: the owner's answers 3 `1d`, 4 `mc` and 5 `t` folded, msg e9f8e835; answers 1 and 2 wait for the holder's follow-ups, msg 5a82621d; SPL-6057) · 16.6 v0.2 (2026-11-20: the spec review's notes N1-N3 folded: L4 asserts agy sees the mask token, the machine write keys an hr component apart with its own guard, the PATCH's reach follows owner question 5; SPL-6057) · 16.6 v0.1 (2026-11-20: 16.6, every new or edited cost label translated into all 19 languages on save, design only, for review; SPL-6057) · v1.6 (2026-10-30: the owner's Q-8 A and Q-9 A folded into section 13, msg 4316d471: the project's cost is a fifth Costs page, first and the default; a customer workspace gets its own project cost, its AI share + its own people, no cloud part; SPL-4368) · v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+**Status:** v1.8 (2026-11-23: 5.2 and 5.5, the month range `from` / `to`, both months included; SPL-6300) · v1.7 + 16.6 v1.0 (2026-11-22: 16.6 rewritten as built from rows L0-L6 on 49f34bef6, 16.5 states the write rule; open: the 030 apply of row L3w's wiring (SPL-6223), the L0 applies and price, the agy n = 20 measurement; SPL-6220) · v1.7 (2026-11-20: row P02 built, the Human part from 107's tables; SPL-6075) · v1.6 + 16.6 v0.4 (2026-11-20: every owner answer folded, the follow-ups 1 `a`, 2 `m`, 3 `g` included, msg baae5fb7: the hub drafts through Google Cloud Translation in its own project with names masked, readers see the draft at once, agy corrects it nightly; new row L0 for the API and its role; SPL-6057) · 16.6 v0.3 (2026-11-20: the owner's answers 3 `1d`, 4 `mc` and 5 `t` folded, msg e9f8e835; answers 1 and 2 wait for the holder's follow-ups, msg 5a82621d; SPL-6057) · 16.6 v0.2 (2026-11-20: the spec review's notes N1-N3 folded: L4 asserts agy sees the mask token, the machine write keys an hr component apart with its own guard, the PATCH's reach follows owner question 5; SPL-6057) · 16.6 v0.1 (2026-11-20: 16.6, every new or edited cost label translated into all 19 languages on save, design only, for review; SPL-6057) · v1.6 (2026-10-30: the owner's Q-8 A and Q-9 A folded into section 13, msg 4316d471: the project's cost is a fifth Costs page, first and the default; a customer workspace gets its own project cost, its AI share + its own people, no cloud part; SPL-4368) · v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
 s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
 all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
@@ -113,6 +113,31 @@ one table. Its API, `csi-spl-api/.../internal/hub/cost_read.go` and
 
 - `GET /v1/tenant/costs?month=YYYY-MM` (default: the current UTC month so
   far; a month not started is 400). `costs.read` (403 naming it otherwise).
+- **A month range** (SPL-6300): `GET /v1/tenant/costs?from=YYYY-MM&to=YYYY-MM`,
+  both months included (`internal/hub/cost_range.go`). `?month=M` and
+  `from=M&to=M` answer the same, byte for byte. `from` and `to` come
+  together and neither goes with `month`; from after to, a bad shape, a
+  month not started or more than 24 months is 400 `bad_query` naming why.
+  Each month is read as a month read reads it, then the months are summed
+  per part (the key: every field but the amounts). Over a range: `units`,
+  `usd_micros`, `eur_micros`, `list_value_micros` (null while every month's
+  is) and `entry_micros` are sums; a part's `days` are its cost days over
+  the range; `second_micros` is the sum, null when any month's is;
+  `fx_rate` and `fx_rate_day` are the latest month's with a rate,
+  `fx_rate_first_day` the earliest's; `pct` is a share of the range's
+  total. The answer's `from` / `to` are the range's first and last day,
+  `days` and `days_ended` (N of "n of N") are summed over its months, each
+  source's coverage counts are summed, `status` is `so_far` while the last
+  month runs, and `month_from` / `month_to` name the two months (absent
+  from a one-month answer; `month` is then the first month). The token
+  burn per workspace and Human are summed the same way; a yearly hr line
+  stays out of every month, as in a month read. The same `from` / `to`
+  are taken by `GET /v1/tenant/costs/cloud` (5.5: every month's days, in
+  order) and `GET /v1/tenant/costs/project` (section 13: `period: range`;
+  `from`/`to` with `year` is 400). Tests: `TestCostReadRangeOneMonth`,
+  `TestCostReadRangeSums`, `TestCostReadRangeRefused`,
+  `TestCostCloudDaysRange`, `TestCostProjectRange` (hub, both stores),
+  `TestCostRangeWindows`, `TestCostMergeParts`, `TestCostMergeRange`.
 - Scope: in the operator workspace `scope=estate`, the estate rows (tenant_id
   NULL) beside the workspace's own, read under the operator scope; in any
   other workspace `scope=workspace`, its own rows under its tenant scope,
@@ -253,6 +278,8 @@ drill down by service etc."
   `box=<label>` shown apart), from the month read's `gcp` parts; level 2,
   a project's services (the line `kind`); level 3, a service per day, from
   `GET /v1/tenant/costs/cloud?month=YYYY-MM&project=<project_or_vendor>`
+  (or `from=YYYY-MM&to=YYYY-MM`, both months included, one store read per
+  month, SPL-6300, 5.2)
   (`internal/hub/cost_cloud_days.go`, `store.CostCloudDays`): the estate
   project's live lines per (day, kind), `usd_micros`, `eur_micros` and
   `second_micros` at each day's rate (null with no rate, never a guess);

@@ -21,8 +21,8 @@ func (c *costReadStub) CostCloudDays(_ context.Context, q store.CostCloudDaysQue
 	defer c.mu.Unlock()
 	out := []store.CostCloudDay{}
 	for _, r := range c.rows {
-		if r.tenant == "" && r.pov == q.Project {
-			out = append(out, store.CostCloudDay{Day: "2011-03-04", Kind: "cloud_run", USDMicros: r.usd, EURMicros: r.usd})
+		if d := r.dayOf(); r.tenant == "" && r.pov == q.Project && d >= q.From && d < q.To {
+			out = append(out, store.CostCloudDay{Day: d, Kind: "cloud_run", USDMicros: r.usd, EURMicros: r.usd})
 		}
 	}
 	return out, nil

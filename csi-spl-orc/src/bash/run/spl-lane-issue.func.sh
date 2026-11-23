@@ -302,8 +302,25 @@ spl_lane_issue_assign() {
   printf '%s\n' "$out"
 }
 
+# spl_lane_issue_reviews ID KEY BRIEF (SPL-6294, b40-02): rc 0 when the lane
+# only reviews KEY by li_review_lane's review heading + Author: line, read from
+# BRIEF with SLI_ORIGIN as its origin (lifetime/origin-issue is written after
+# the placement). An R7 seat is placed on a fix that landed first (rulebook
+# 2.11.3): the closer set the key done, and a wip here reopened it for good.
+# Such a placement leaves the status and the assignee alone. An `Issue-Role:
+# shared` row lane is not one here: it may reopen its shared key (SPL-6152).
+spl_lane_issue_reviews() {
+  local tmp rc=1
+  [[ -r "$3" && "$SLI_ORIGIN" == "$2" ]] || return 1
+  grep -qiE '^[-*_ >]*Issue[- ]Role[*_ ]*:[*_` ]*shared([^A-Za-z]|$)' "$3" && return 1
+  tmp="$(mktemp -d)" || return 1
+  mkdir -p "$tmp/$1/lifetime" && cp "$3" "$tmp/$1/lifetime/brief.md" && printf '%s\n' "$2" >"$tmp/$1/lifetime/origin-issue" &&
+    li_review_lane "$tmp" "$1" "$2" >/dev/null && rc=0
+  rm -rf "$tmp"; return "$rc"
+}
+
 spl_lane_issue_place() {
-  local root="$1" id="$2" life="$1/$2/lifetime" brief key topic topic0 title desc out rc=0
+  local root="$1" id="$2" life="$1/$2/lifetime" brief key topic topic0 title desc out rc=0 st=wip
   SLI_DRY="$3"
   brief="${BRIEF:-$life/brief.md}"
   key="${LANE_ISSUE_KEY:-$(li_key_from_brief "$brief")}"
@@ -311,8 +328,12 @@ spl_lane_issue_place() {
   SLI_ORIGIN="$(li_origin_from_brief "$brief" "$key")"
   if [[ -n "$key" ]]; then
     [[ "$key" =~ ^${LI_KEY_RE}$ ]] || { do_log "FATAL LANE_ISSUE_KEY must be an issue key like SPL-12, got: '$key'"; return 1; }
-    spl_lane_issue_assign update --ref "$key" --status wip >/dev/null || return 1
-    spl_lane_issue_hub comment --ref "$key" --body "Lane $id placed on $key, status wip.${topic:+ Topic: $(spl_lane_issue_link "$topic")}" >/dev/null || return 1
+    if spl_lane_issue_reviews "$id" "$key" "$brief"; then st='status and assignee left as they are'
+      spl_lane_issue_hub comment --ref "$key" --body "Review lane $id placed on $key, $st.${topic:+ Topic: $(spl_lane_issue_link "$topic")}" >/dev/null || return 1
+    else
+      spl_lane_issue_assign update --ref "$key" --status wip >/dev/null || return 1
+      spl_lane_issue_hub comment --ref "$key" --body "Lane $id placed on $key, status wip.${topic:+ Topic: $(spl_lane_issue_link "$topic")}" >/dev/null || return 1
+    fi
     spl_lane_issue_source_links "$key" "$topic"
   else
     [[ -r "$brief" ]] || { do_log "FATAL no issue key and no readable brief to file one from ($brief): pass LANE_ISSUE_KEY=<KEY> or BRIEF=<file>"; return 1; }
@@ -341,7 +362,7 @@ spl_lane_issue_place() {
     (( rc == 0 )) || return 1
   fi
   spl_lane_issue_more_topics "$key" "$brief" "$topic" "$topic0"
-  if (( SLI_DRY )); then do_log "OK DRY_RUN $id -> issue $key (wip); nothing written. Re-run with DRY_RUN=0."; return 0; fi
+  if (( SLI_DRY )); then do_log "OK DRY_RUN $id -> issue $key ($st); nothing written. Re-run with DRY_RUN=0."; return 0; fi
   mkdir -p "$life" && printf '%s\n' "$key" >"$life/issue" || { do_log "FATAL cannot write $life/issue"; return 1; }
   chmod 0664 "$life/issue" 2>/dev/null
   rm -f "$life/origin-issue"
@@ -351,7 +372,7 @@ spl_lane_issue_place() {
     chmod 0664 "$life/issue-tenant" 2>/dev/null
   fi
   if [[ -w "$life/brief.md" ]] && ! li_key_from_brief "$life/brief.md" >/dev/null; then printf '\nIssue: %s\n' "$key" >>"$life/brief.md"; fi
-  do_log "OK $id carries issue $key (wip)${SLI_WS:+ in workspace $SLI_WS}"
+  do_log "OK $id carries issue $key ($st)${SLI_WS:+ in workspace $SLI_WS}"
 }
 
 # spl_lane_issue_file STATUS TITLE DESC_FILE [BRIEF] -> "<key>\t<topic>" ("<new>"

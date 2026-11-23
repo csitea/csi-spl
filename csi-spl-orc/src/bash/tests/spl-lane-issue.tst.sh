@@ -920,5 +920,26 @@ run AGENT_ID=m-486 LANE_ISSUE_OP=end LANE_ISSUE_REASON='panel seat done' DRY_RUN
   pass "control: no origin-issue (the lane filed it): the end goes through" || fail "shared control (rc=$rc): $(cat "$T/o")"
 rm -rf "$S/m-486"
 
+# b40-02 (SPL-6294): an R7 reviewer lane (a review heading, an Author: line
+# naming the fixer) placed on a key the closer already set done leaves its
+# status and assignee alone: only the placement comment (the red control
+# rc02.sh of bug-round-40-plan.md section 4.2 saw `update ... --status wip`).
+mkdir -p "$S/g-777/lifetime"
+printf '%s\n' '# Lane brief: R7 reviewer for SPL-77 (the fix landed first, rulebook 2.11.3)' '' 'Issue: SPL-77' 'Spec: csi-spl-doc/specs/135-work-process' 'Epic: SPL-1' \
+  'Author: c-253@box-a (the fixer)' >"$S/g-777/lifetime/brief.md"
+GETD='{"result":{"issue":{"key":"SPL-77","status":"done","description":"## Source\n/t/5ea2e615-ca23-451f-9fea-e1b87c369476\n","discussions":[]}}}'
+run AGENT_ID=g-777 LANE_ISSUE_KEY=SPL-77 ISSUE_GET="$GETD" DRY_RUN=0
+[[ $rc -eq 0 ]] && ! grep -q '^update|--ref|SPL-77|--status|' "$T/calls.log" && ! grep -q -- '--assignee' "$T/calls.log" &&
+  grep -q '^comment|--ref|SPL-77|--body|Review lane g-777 placed on SPL-77, status and assignee left as they are.' "$T/calls.log" &&
+  [[ "$(cat "$S/g-777/lifetime/issue")" == SPL-77 && "$(cat "$S/g-777/lifetime/origin-issue")" == SPL-77 ]] &&
+  pass "b40-02: a reviewer placed on a done key: no status write, no assignee, a comment; issue + origin recorded" || fail "b40-02 review (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+# Control: the same brief with `Issue-Role: shared` (a row lane on a shared
+# key, SPL-6152) is placed as before: wip and the lane assigned.
+printf '%s\n' 'Issue-Role: shared' >>"$S/g-777/lifetime/brief.md"
+run AGENT_ID=g-777 LANE_ISSUE_KEY=SPL-77 ISSUE_GET="$GETD" DRY_RUN=0
+[[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-77|--status|wip|--assignee|g-777|' "$T/calls.log" &&
+  pass "... control: an Issue-Role: shared brief still sets wip and assigns the lane" || fail "b40-02 shared control (rc=$rc): $(cat "$T/calls.log")"
+rm -rf "$S/g-777"
+
 echo "spl-lane-issue: $fails failure(s)"
 exit "$fails"

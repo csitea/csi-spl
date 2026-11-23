@@ -43,6 +43,7 @@ A **Message** button on the card opens a direct message with that person.
 When one of your contacts is this member, the card says **In your contacts**
 and links to the contact's card.
 
+<a id="ws-doc-1e345c3b-3226-4d04-a04c-3ca9c1b5b134"></a>
 ## Your contacts
 
 The round **+** at the top right of the panel (**Add contact**) opens an
@@ -66,6 +67,7 @@ the same list in every workspace you are in, and leaving one workspace does
 not change it. No one else sees it, not a member, not an admin and not the
 workspace owner.
 
+<a id="ws-doc-b6cc6a5e-08e9-4a57-8762-b6ff0fd151b9"></a>
 ## Import from a file
 
 On the empty **Add contact** form, **Import from file** takes a CSV file
@@ -84,6 +86,7 @@ is written until you press **Import**.
   counted.
 - The file is at most 5 MB and 25,000 rows, in UTF-8.
 
+<a id="ws-doc-2714f4a5-79bf-4a5a-86af-4f5b31c81942"></a>
 ## Sync with Google Contacts
 
 In **Settings → Google Calendar**, once your Google account is connected in
@@ -103,6 +106,7 @@ any problem it met. If Google has not given access to your contacts yet,
 - Turning the switch off stops the sync; the contacts already brought in
   stay in your list.
 
+<a id="ws-doc-3355b52d-5c1f-4402-9986-7078a249eec4"></a>
 ## Pictures
 
 Contact pictures are not brought in yet: the Google sync fetches no
@@ -115,6 +119,7 @@ placeholder), brought in by the sync. Only you will see it. A contact who
 is a member here shows with the member's own avatar, never with the
 picture you keep of them. Pictures are not in the export.
 
+<a id="ws-doc-a7d28c0a-e85e-4801-9654-f4a17b69bc70"></a>
 ## Export and erase
 
 Your whole list can be exported as a CSV file (names, email, phone,

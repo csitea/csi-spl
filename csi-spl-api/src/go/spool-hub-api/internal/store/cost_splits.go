@@ -70,8 +70,8 @@ func CostSplitVendorOverlap(splits []CostSplit, sp CostSplit) string {
 		return ""
 	}
 	for _, o := range splits {
-		ov, ofrom, oto, ook := CostSplitVendorRange(o.Subject)
-		if o.Kind == CostSplitTokensVendor && o.Subject != sp.Subject && ook && ov == v && ofrom <= to && from <= oto {
+		otherV, otherFrom, otherTo, otherOK := CostSplitVendorRange(o.Subject)
+		if o.Kind == CostSplitTokensVendor && o.Subject != sp.Subject && otherOK && otherV == v && otherFrom <= to && from <= otherTo {
 			return o.Subject
 		}
 	}

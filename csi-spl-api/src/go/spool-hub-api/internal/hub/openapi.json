@@ -7928,7 +7928,7 @@
     },
     "/v1/me/contacts/sync": {
       "get": {
-        "description": "The Contacts switch's state in the session's workspace, read-only, for the settings page after a reload: enabled, elsewhere (the person's one binding is in another of their workspaces, which a switch-on here answers 409 contacts_sync_elsewhere to; nothing more of it), scope_granted (the Google connection here holds a scope of cnf contacts.scopes), status_detail, last_synced_at. Spec 154 B18. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "description": "The Contacts switch's state in the session's workspace, read-only, for the settings page after a reload: enabled, elsewhere (the person's one binding is on in another of their workspaces, which a switch-on here answers 409 contacts_sync_elsewhere to; nothing more of it; one that is off there is not elsewhere, a switch-on here replaces it), scope_granted (the Google connection here holds a scope of cnf contacts.scopes), status_detail, last_synced_at. Spec 154 B18. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
         "operationId": "getMeContactsSync",
         "responses": {
           "200": {

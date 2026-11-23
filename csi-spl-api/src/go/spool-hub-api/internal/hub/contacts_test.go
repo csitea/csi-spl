@@ -561,7 +561,8 @@ func TestContactsSyncElsewhere(t *testing.T) {
 
 // B18: GET /v1/me/contacts/sync is the Contacts switch's state after a
 // reload, read-only, and agrees with what PUT answers: on here, off here,
-// the binding in another workspace (elsewhere, nothing more of it), and
+// the binding on in another workspace (elsewhere, nothing more of it; one
+// that is off there is not elsewhere, SPL-6279), and
 // whether the connection here holds the contacts scope. The OPTIONS line
 // lists GET. Red control: without the GET route the first read is not 200.
 func TestContactsSyncState(t *testing.T) {
@@ -616,11 +617,17 @@ func TestContactsSyncState(t *testing.T) {
 		t.Fatalf("PUT sync off in W1 = %d %v, want 204", code, out)
 	}
 	want(state(c.b1, "off in W1"), "off in W1", false, false, false)
-	// the GET says what PUT answers: the row stays in W1 when off (C7d)
-	elsewhere := state(c.b2, "W2 after off in W1")["elsewhere"] == true
-	code, _, out := c.do(t, c.b2, http.MethodPut, contactsBase+"/sync", on, nil)
-	if put409 := code == http.StatusConflict && realmToken(out) == "contacts_sync_elsewhere"; put409 != elsewhere {
-		t.Errorf("W2: GET elsewhere=%v but PUT on = %d %v", elsewhere, code, out)
+	// the GET says what PUT answers: a binding that is off in W1 is not
+	// elsewhere, and a switch-on in W2 replaces it (SPL-6279)
+	want(state(c.b2, "W2 after off in W1"), "W2 after off in W1", false, false, true)
+	if code, _, out := c.do(t, c.b2, http.MethodPut, contactsBase+"/sync", on, nil); code != http.StatusNoContent {
+		t.Errorf("W2: GET elsewhere=false but PUT on = %d %v, want 204", code, out)
+	}
+	want(state(c.b2, "on in W2"), "on in W2", true, false, true)
+	want(state(c.b1, "W1 while on in W2"), "W1 while on in W2", false, true, false)
+	// twin: on in W1 while on in W2 is the 409 the GET announced
+	if code, _, out := c.do(t, c.b1, http.MethodPut, contactsBase+"/sync", on, nil); code != http.StatusConflict || realmToken(out) != "contacts_sync_elsewhere" {
+		t.Errorf("W1: GET elsewhere=true but PUT on = %d %v, want 409 contacts_sync_elsewhere", code, out)
 	}
 
 	req, _ := http.NewRequest(http.MethodOptions, "http://api"+domain+contactsBase+"/sync", nil)

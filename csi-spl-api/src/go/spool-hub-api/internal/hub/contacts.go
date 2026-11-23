@@ -490,10 +490,12 @@ func (s *Server) contactsSyncStore(w http.ResponseWriter) (store.ContactsSyncs, 
 
 // contactsSyncState is the GET answer of the Contacts switch (B18): what
 // settings shows after a reload. elsewhere says only that the person's one
-// binding is in another of their workspaces, never which one: what a
-// switch-on here answers 409 contacts_sync_elsewhere to. scope_granted: the
-// Google connection here holds a scope of cnf contacts.scopes, so a cycle
-// reads Google (without it the binding waits, contacts_sync.go).
+// binding is on in another of their workspaces, never which one: what a
+// switch-on here answers 409 contacts_sync_elsewhere to. A binding that is
+// off there is not elsewhere: a switch-on here replaces it (SPL-6279).
+// scope_granted: the Google connection here holds a scope of cnf
+// contacts.scopes, so a cycle reads Google (without it the binding waits,
+// contacts_sync.go).
 type contactsSyncState struct {
 	Enabled      bool       `json:"enabled"`
 	Elsewhere    bool       `json:"elsewhere"`
@@ -523,7 +525,7 @@ func (s *Server) handleGetContactsSync(w http.ResponseWriter, r *http.Request) {
 		s.contactsFail(w, "contacts_sync_get", c, "", err)
 		return
 	case b.Tenant != c.tenant:
-		out.Elsewhere = true
+		out.Elsewhere = b.Enabled
 	default:
 		out.Enabled, out.StatusDetail, out.LastSyncedAt = b.Enabled, b.StatusDetail, b.LastSyncedAt
 	}

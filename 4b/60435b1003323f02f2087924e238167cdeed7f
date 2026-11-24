@@ -1,0 +1,6 @@
+Lay-What: When a cancelled private workspace is finally deleted, its paid invoices are now kept.
+Lay-How: Deleting the workspace no longer takes its invoices with it; they stay on file on their own.
+Lay-Why: Paid invoices are needed for bookkeeping long after the workspace itself is gone.
+Tech-What: The purge of a cancelled private workspace keeps its private_workspace_invoices rows, in Postgres and the memory store.
+Tech-How: rdb migration drops the invoices' ON DELETE CASCADE FK to tenants; the memory store's dropTenant leaves invoices in place.
+Tech-Why: The FK cascade deleted every invoice with its tenant row, so the purge erased the paid invoices too.

@@ -485,6 +485,41 @@ func TestFleetAskCIFirst(t *testing.T) {
 	}
 }
 
+// R7 W1: a ci row is always priority 1 (askPrio), so a drag that drops it
+// at a slot of another priority (above a priority 3 feature: the moved row
+// takes the priority of the row below it) cannot place it there. It is
+// refused 409 ci_first and changes nothing; a drag between two priority 1
+// rows still works. RED on 49e47aa76: 200, the ci row
+// unmoved and the rank and rank_by written onto a feature nobody dragged.
+func TestFleetAskMoveCIOutOfItsPriority(t *testing.T) {
+	r := newOrderRig(t)
+	f1, f2 := r.queue(t, "feature", ""), r.queue(t, "feature", "")
+	ci := r.queue(t, "ci", "")
+	names := map[string]string{f1: "F1", f2: "F2", ci: "CI"}
+	before := r.snap(t)
+	code, out := r.move(t, r.admin, ci, f1, f2)
+	if code != http.StatusConflict || out["error"] != "ci_first" {
+		t.Fatalf("ci row between two priority 3 rows: %d %v, want 409 ci_first", code, out)
+	}
+	if after := r.snap(t); after != before {
+		t.Fatalf("a refused ci move changed the queue:\n%s\n%s", before, after)
+	}
+	for _, f := range []string{f1, f2} {
+		if code, out := r.prio(t, r.admin, f, map[string]any{"priority": 1}); code != http.StatusOK {
+			t.Fatalf("prio: %d %v", code, out)
+		}
+	}
+	if code, out := r.move(t, r.admin, ci, f1, f2); code != http.StatusOK {
+		t.Fatalf("ci row below a priority 1 row: %d %v, want 200", code, out)
+	}
+	if got := r.order(t, names); got != "F1 CI F2" {
+		t.Fatalf("order %q, want F1 CI F2", got)
+	}
+	if a := r.row(t, ci); a.QueueRank == 0 || a.RankBy == "" {
+		t.Fatalf("the moved ci row: rank %d by %q, want its own drag", a.QueueRank, a.RankBy)
+	}
+}
+
 // ask_op position: the dispatch holder's move on the owner's word records
 // "<by> msg <owner msg id>" in rank_by; with no owner msg it is refused.
 // RED: no op (the default branch refuses "position" as an unknown ask_op).

@@ -570,6 +570,10 @@ var (
 	// ErrStalePosition: a move's neighbours are no longer adjacent, or no
 	// longer queued; nothing changed.
 	ErrStalePosition = errors.New("stale position")
+	// ErrAskCIFirst: a ci row was dragged to a slot of a priority other than
+	// the ci rows' (askPrio: a ci row is always priority 1), where it cannot
+	// stand; nothing changed.
+	ErrAskCIFirst = errors.New("a ci row cannot leave the ci rows' priority")
 )
 
 // AskPrioritySet sets a queued ask's own priority (1..5) by By.
@@ -610,15 +614,21 @@ func askSetPriority(a *FleetAsk, p AskPrioritySet, now time.Time) {
 // between its neighbours, and every unranked row of that priority above it
 // gets one in its current order with no RankBy. A row whose rank changes
 // keeps its RankBy, except the moved row, which gets m.By.
+// ErrAskNotQueued: the moved row is not in queue (it left the queue before
+// the lock); ErrAskCIFirst: a ci row dropped at another priority's slot.
 func askPlanMove(queue []FleetAsk, m AskMove, now time.Time) ([]FleetAsk, error) {
 	var moved FleetAsk
+	found := false
 	rest := make([]FleetAsk, 0, len(queue))
 	for _, a := range queue {
 		if a.AskID == m.AskID {
-			moved = a
+			moved, found = a, true
 		} else {
 			rest = append(rest, a)
 		}
+	}
+	if !found {
+		return nil, ErrAskNotQueued
 	}
 	at, err := askMoveSlot(rest, m)
 	if err != nil {
@@ -633,6 +643,9 @@ func askPlanMove(queue []FleetAsk, m AskMove, now time.Time) ([]FleetAsk, error)
 	moved.OwnPriority, moved.PriorityBy, moved.PriorityAt = p, m.By, now
 	moved.Priority, moved.PrioritySource = p, AskPrioOwn
 	moved.QueueRank = 0
+	if askPrio(moved) != p {
+		return nil, ErrAskCIFirst
+	}
 	line := append(append(append([]FleetAsk{}, rest[:at]...), moved), rest[at:]...)
 	block, k := []FleetAsk{}, 0
 	for _, a := range line {

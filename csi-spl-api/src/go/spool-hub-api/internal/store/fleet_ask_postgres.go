@@ -204,7 +204,7 @@ func (s *Postgres) SetFleetAskPriority(ctx context.Context, tenant string, p Ask
 	var a FleetAsk
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var err error
-		if a, err = pgAskQueued(ctx, tx, tenant, p.Fleet, p.AskID, now); err != nil {
+		if a, err = pgAskQueued(ctx, tx, tenant, p.Fleet, p.AskID, true, now); err != nil {
 			return err
 		}
 		askSetPriority(&a, p, now)
@@ -222,7 +222,11 @@ func (s *Postgres) MoveFleetAsk(ctx context.Context, tenant string, m AskMove, n
 	var a FleetAsk
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var err error
-		if a, err = pgAskQueued(ctx, tx, tenant, m.Fleet, m.AskID, now); err != nil {
+		// Unlocked: the queue below is locked in ask_id order, and locking
+		// the moved row first could deadlock two moves. A row that leaves
+		// the queue in between is not in the locked queue: askPlanMove
+		// answers ErrAskNotQueued.
+		if a, err = pgAskQueued(ctx, tx, tenant, m.Fleet, m.AskID, false, now); err != nil {
 			return err
 		}
 		queue, err := pgAskLockQueue(ctx, tx, tenant, m.Fleet, a.Role, now)
@@ -247,10 +251,14 @@ func (s *Postgres) MoveFleetAsk(ctx context.Context, tenant string, m AskMove, n
 	return askFind(as, a, err)
 }
 
-// pgAskQueued reads one ask: ErrNotFound, or ErrAskNotQueued with the row.
-func pgAskQueued(ctx context.Context, tx pgx.Tx, tenant, fleet, askID string, now time.Time) (FleetAsk, error) {
-	a, err := scanAsk(tx.QueryRow(ctx, `SELECT `+askCols+` FROM fleet_asks
-		WHERE tenant_id = $1 AND fleet = $2 AND ask_id = $3`, tenant, fleet, askID), fleet, now)
+// pgAskQueued reads one ask, FOR UPDATE when lock (the state it answers on
+// then holds to the commit): ErrNotFound, or ErrAskNotQueued with the row.
+func pgAskQueued(ctx context.Context, tx pgx.Tx, tenant, fleet, askID string, lock bool, now time.Time) (FleetAsk, error) {
+	q := `SELECT ` + askCols + ` FROM fleet_asks WHERE tenant_id = $1 AND fleet = $2 AND ask_id = $3`
+	if lock {
+		q += ` FOR UPDATE`
+	}
+	a, err := scanAsk(tx.QueryRow(ctx, q, tenant, fleet, askID), fleet, now)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return a, ErrNotFound
@@ -292,12 +300,16 @@ func pgAskLockQueue(ctx context.Context, tx pgx.Tx, tenant, fleet, role string, 
 	return askRoleQueue(queue, role), nil
 }
 
-// pgAskWriteOrder writes a row's own priority and rank columns.
+// pgAskWriteOrder writes a queued row's own priority and rank columns;
+// ErrAskNotQueued when the row is no longer queued.
 func pgAskWriteOrder(ctx context.Context, tx pgx.Tx, tenant string, a FleetAsk) error {
-	_, err := tx.Exec(ctx, `UPDATE fleet_asks SET priority = NULLIF($4, 0)::smallint, priority_by = NULLIF($5, ''),
+	tag, err := tx.Exec(ctx, `UPDATE fleet_asks SET priority = NULLIF($4, 0)::smallint, priority_by = NULLIF($5, ''),
 		priority_at = $6, queue_rank = NULLIF($7, 0)::bigint, rank_by = NULLIF($8, ''), rank_at = $9
-		WHERE tenant_id = $1 AND fleet = $2 AND ask_id = $3`,
+		WHERE tenant_id = $1 AND fleet = $2 AND ask_id = $3 AND state = 'queued'`,
 		tenant, a.Fleet, a.AskID, a.OwnPriority, a.PriorityBy, nullTime(a.PriorityAt),
 		a.QueueRank, a.RankBy, nullTime(a.RankAt))
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrAskNotQueued
+	}
 	return err
 }

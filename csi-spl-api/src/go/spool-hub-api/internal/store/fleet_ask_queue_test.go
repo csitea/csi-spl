@@ -371,3 +371,106 @@ func TestCheckFleetAskDiscussion(t *testing.T) {
 		}
 	}
 }
+
+// R7 W2 (spec 153 Q2): a move plans over the role's locked queued rows; when
+// the moved row is not among them (it left the queue before the lock) the
+// plan is refused with ErrAskNotQueued and writes nothing. RED on 49e47aa76:
+// askPlanMove planned with a zero moved row and ranked the block's first row.
+func TestAskPlanMoveNotInQueue(t *testing.T) {
+	t0 := time.Date(2026, 11, 24, 18, 0, 0, 0, time.UTC)
+	queue := []FleetAsk{
+		{AskID: "b1", Class: "feature", State: "queued", EnqueuedAt: t0},
+		{AskID: "b2", Class: "feature", State: "queued", EnqueuedAt: t0.Add(time.Minute)},
+	}
+	w, err := askPlanMove(queue, AskMove{AskID: "gone", Before: "b1", After: "b2", By: "HUM-1"}, t0)
+	if !errors.Is(err, ErrAskNotQueued) || len(w) != 0 {
+		t.Fatalf("got %d writes, %v; want none, ErrAskNotQueued", len(w), err)
+	}
+}
+
+// R7 W2 on Postgres: the ask is placed (another transaction takes it off the
+// queue) while a priority PUT or a move waits for its row lock. Both answer
+// ErrAskNotQueued and write no priority, rank or rank_by on any row. RED on
+// 49e47aa76: the set read the row unlocked and its UPDATE had no state guard
+// (nil error, the placed row got a priority); the move planned without the
+// moved row and wrote a rank_by onto a row nobody dragged.
+func TestFleetAskOrderPlacedWhileWaiting(t *testing.T) {
+	ctx := context.Background()
+	t0 := time.Now().UTC().Add(-time.Hour)
+	pg, ok := drivers(t)["postgres"].(*Postgres)
+	if !ok {
+		t.Skip("Postgres only: Memory runs an order op under one mutex (SPOOL_TEST_PG_DSN unset)")
+	}
+	for _, op := range []string{"priority", "move"} {
+		t.Run(op, func(t *testing.T) {
+			tid := newTenant(t, pg)
+			ids := []string{"b1b1b1b1-0000-4000-8000-000000000001", "b2b2b2b2-0000-4000-8000-000000000002", "b3b3b3b3-0000-4000-8000-000000000003"}
+			for i, id := range ids {
+				at := t0.Add(time.Duration(i) * time.Minute)
+				if _, _, err := pg.PutFleetAsk(ctx, tid, FleetAsk{Fleet: "main", AskID: id, Role: "orch", Kind: "task",
+					From: "c-002@box-b", Summary: "SPAWN REQUEST " + id}, "box-b", at); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := pg.UpdateFleetAsk(ctx, tid, AskUpdate{Fleet: "main", AskID: id, Op: AskQueue, By: "c-001@sat",
+					Class: "feature"}, "sat", at.Add(time.Second)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			moved := ids[2]
+			tx, err := pg.pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback(ctx) }()
+			if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeTenant), tid); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := tx.Exec(ctx, `UPDATE fleet_asks SET state = 'acked' WHERE tenant_id = $1 AND fleet = 'main' AND ask_id = $2`,
+				tid, moved); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() {
+				var err error
+				if op == "priority" {
+					_, err = pg.SetFleetAskPriority(ctx, tid, AskPrioritySet{Fleet: "main", AskID: moved, By: "HUM-1", Priority: 1}, time.Now().UTC())
+				} else {
+					_, err = pg.MoveFleetAsk(ctx, tid, AskMove{Fleet: "main", AskID: moved, Before: ids[0], After: ids[1], By: "HUM-1"}, time.Now().UTC())
+				}
+				done <- err
+			}()
+			waitForAskLockWait(t, pg)
+			if err := tx.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := <-done; !errors.Is(err, ErrAskNotQueued) {
+				t.Fatalf("%s of an ask placed while it waited: %v, want ErrAskNotQueued", op, err)
+			}
+			as, err := pg.ListFleetAsks(ctx, tid, "main", "orch", true, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, a := range as {
+				if a.OwnPriority != 0 || a.QueueRank != 0 || a.RankBy != "" {
+					t.Errorf("%s: ask %s got priority %d rank %d by %q", op, a.AskID, a.OwnPriority, a.QueueRank, a.RankBy)
+				}
+			}
+		})
+	}
+}
+
+// waitForAskLockWait waits until a session waits for a fleet_asks row lock.
+func waitForAskLockWait(t *testing.T, pg *Postgres) {
+	t.Helper()
+	for end := time.Now().Add(10 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+		var n int
+		if err := pg.pool.QueryRow(context.Background(), `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%fleet_asks%'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			return
+		}
+	}
+	t.Fatal("no order op waited for the fleet_asks row lock within 10 s")
+}

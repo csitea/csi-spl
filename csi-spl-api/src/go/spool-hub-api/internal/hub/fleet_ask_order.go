@@ -192,6 +192,8 @@ func (s *Server) fleetAskOrderErr(w http.ResponseWriter, q fleetAskOrderReq, err
 		writeErr(w, http.StatusConflict, "not_queued", "the ask is no longer queued: it was placed or closed")
 	case errors.Is(err, store.ErrStalePosition):
 		writeErr(w, http.StatusConflict, "stale_position", "the queue changed: the neighbours are no longer adjacent or queued; re-read it")
+	case errors.Is(err, store.ErrAskCIFirst):
+		writeErr(w, http.StatusConflict, "ci_first", "a ci row stays among the priority 1 rows: drop it there")
 	default:
 		s.o.Log.Error().Err(err).Str("fleet", q.fleet).Str("ask", q.ask).Msg("fleet ask order")
 		writeErr(w, http.StatusInternalServerError, "internal", "asks unavailable")
@@ -253,6 +255,8 @@ func (s *Server) askPosition(ctx context.Context, x *session, f wire.Frame) (ask
 		return askAnswer{}, &issueErr{http.StatusConflict, "not_queued", "the ask is no longer queued"}
 	case errors.Is(err, store.ErrStalePosition):
 		return askAnswer{}, &issueErr{http.StatusConflict, "stale_position", "the neighbours are no longer adjacent or queued; re-read the queue"}
+	case errors.Is(err, store.ErrAskCIFirst):
+		return askAnswer{}, &issueErr{http.StatusConflict, "ci_first", "a ci row stays among the priority 1 rows: drop it there"}
 	case err != nil:
 		s.o.Log.Error().Err(err).Str("fleet", f.Fleet).Str("ask", in.AskID).Msg("fleet ask position")
 		return askAnswer{}, &issueErr{http.StatusInternalServerError, "internal", "asks unavailable"}

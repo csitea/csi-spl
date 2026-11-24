@@ -17,8 +17,11 @@
 -- hold_reason : why the placer passed the row over on its last tick (row Q3
 --     writes it, ask_op holds); NULL = waiting for room.
 --
--- Catalog-only: nullable columns, no rewrite, no backfill. No personal data,
--- no secret.
+-- Nullable columns, no rewrite, no backfill. The two inline CHECKs make
+-- Postgres scan fleet_asks once under ACCESS EXCLUSIVE to validate them (a
+-- small table); lock_timeout bounds the wait for that lock. No personal
+-- data, no secret.
+SET LOCAL lock_timeout = '5s';
 ALTER TABLE fleet_asks ADD COLUMN IF NOT EXISTS priority smallint
     CHECK (priority BETWEEN 1 AND 5);
 ALTER TABLE fleet_asks ADD COLUMN IF NOT EXISTS priority_by text;

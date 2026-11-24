@@ -14512,7 +14512,10 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "Conflict: not_queued, the ask was placed or closed; stale_position, the neighbours are no longer adjacent or queued, nothing changed"
+            "description": "Conflict: not_queued, the ask was placed or closed; stale_position, the neighbours are no longer adjacent or queued; ci_first, a ci row dropped at a slot of another priority than 1; nothing changed"
+          },
+          "501": {
+            "description": "unsupported: this hub's store keeps no queue order"
           }
         },
         "summary": "Move a queued spawn request between two neighbours (spec 153 3.22.7, row Q2)",
@@ -14587,6 +14590,9 @@
           },
           "409": {
             "description": "Conflict: not_queued, the ask was placed or closed"
+          },
+          "501": {
+            "description": "unsupported: this hub's store keeps no queue order"
           }
         },
         "summary": "Set a queued spawn request's own priority (spec 153 3.22.6, row Q2)",

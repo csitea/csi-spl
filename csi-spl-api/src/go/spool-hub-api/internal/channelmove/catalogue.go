@@ -211,6 +211,8 @@ var notChannelTables = concat(
 		"price_plan_lines", "price_plans"),
 	notChannel("the workspace's private-workspace order, its provisioning order (rdb 0314, spec 181 B2), names no channel",
 		"workspace_orders"),
+	notChannel("the workspace's cancel and its 30-day purge (rdb 0319, spec 181 B9), names no channel",
+		"workspace_cancellations"),
 	notChannel("tombstones of deleted Qto docs for the media sweep (rdb 0306, spec 190); the Qto part of a move drops the ones its <SRC> doc delete writes",
 		"workspace_doc_gone"),
 )

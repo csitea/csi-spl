@@ -610,6 +610,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedInvoice(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
+	// workspace_cancellations (rdb 0319, spec 181 B9): one row, raw in the
+	// operator scope: the store cancel would revoke the seeded pins.
+	if err := seedWorkspaceCancel(ctx, pg, s.tenant); err != nil {
+		t.Fatal(err)
+	}
 	// workspace_vendor_keys, _boxes, _audit (rdb 0174, spec 127 D1): one fake
 	// key, one approved box, one audit row. No store API yet (H1, H2), so raw
 	// rows under inTenant (vendor_keys_rls_test.go).
@@ -907,10 +912,11 @@ var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": 
 // tenantReadOnlyTables are read in a tenant's scope and written only in the
 // operator scope: their tenant_scope policy is FOR SELECT (rdb 0212
 // tenant_agent_caps, spec 147 P2; rdb 0266 software_projects, workspace_repos;
-// row B-3 release_notes, estate_deploys; rdb 0295 commit_human_time). A's unscoped UPDATE / DELETE reaches
+// row B-3 release_notes, estate_deploys; rdb 0295 commit_human_time; rdb 0319
+// workspace_cancellations). A's unscoped UPDATE / DELETE reaches
 // NONE of its own rows: stronger than reaching only A's.
 var tenantReadOnlyTables = map[string]bool{"tenant_agent_caps": true, "software_projects": true, "workspace_repos": true,
-	"release_notes": true, "estate_deploys": true, "commit_human_time": true}
+	"release_notes": true, "estate_deploys": true, "commit_human_time": true, "workspace_cancellations": true}
 
 // TestCrossTenantEveryTable: with A and B seeded in every tenant table, A's
 // scope sees none of B's rows in any of them, and A's unscoped UPDATE /

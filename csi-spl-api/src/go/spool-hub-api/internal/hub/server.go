@@ -636,6 +636,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeTopicExport(mux)    // spec 183 7.1.1: GET /v1/topics/{task_id}/export.pdf, topic_export.go
 	// spec 158 10.8 row V1: GET /v1/operator/workspaces/{id}/readiness, operator_readiness.go
 	s.routeOperatorReadiness(mux)
+	s.routeWorkspaceCancel(mux) // spec 181 B9: POST /v1/operator/workspaces/{id}/cancel, workspace_cancel.go
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),
@@ -741,6 +742,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	go s.runContactsSync(ctx)     // spec 154 B8: the Google Contacts sync, its own ticker
 	go s.runTopicLoopTimer(ctx)   // spec 182 4.2 step 5: the time loops, its own ticker
 	go s.runInvoiceReminders(ctx) // spec 181 B12: the day-15 invoice reminder, its own ticker
+	go s.runWorkspacePurge(ctx)   // spec 181 B9: a cancelled workspace's hub data, 30 days on
 	for {
 		select {
 		case <-ctx.Done():

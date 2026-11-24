@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
-**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.7
-(Q-1..Q-20 answered; Q-21, standard VM machine type + monthly list price cnf source and spec 122 RQ-3, open; section 1.0; v0.6.1: row B2 implemented) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.7.1
+(Q-1..Q-20 answered; Q-21, standard VM machine type + monthly list price cnf source and spec 122 RQ-3, open; section 1.0; v0.6.1: row B2 implemented; v0.7.1: row B9 implemented) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -690,6 +690,55 @@ Row status (v0.4.1):
   `FAIL: plan forward`. No orders on dev when measured (2026-11-24, n = 1:
   `workspace_orders` 0 rows), so no real plan was printed.
 
+- **B9: Implemented, never run on dev or prd** (SPL-6344): the cancel of
+  4.5 [Q-12 C]. Hub: `POST /v1/operator/workspaces/{id}/cancel`
+  (`internal/hub/workspace_cancel.go`), operatorAuth only (the env's
+  service account, as `POST /v1/operator/cost/day`), body
+  `{"workspace_id"}` naming the URL's workspace (else 400
+  `workspace_id_mismatch`). Store `CancelWorkspace`
+  (`internal/store/workspace_cancel.go`, Memory and Postgres, operator
+  scope, in `TestOperatorScopeCallers`) cancels only a workspace on the
+  `private_vm` plan (else 409 `not_private_workspace`), in one
+  transaction: new rdb `0319_workspace_cancellations.sql` row
+  (`purge_after` = `cancelled_at` + 30 days, a CHECK; no FK, so it is the
+  tombstone that outlives the purge), every live pin revoked with its
+  `pins_history` row and every open join token revoked (108 3.7, for this
+  path only), `box_join_enabled` off, one `operator_audit` row
+  `cancel_workspace`; the hub then closes the revoked boxes' sessions. A
+  replay answers 200 with the first row and changes nothing. The leases
+  end: from the cancel on, a vendor key lease of the workspace is 403
+  `workspace_cancelled` (`vendorKeyBox`, before every other lease check).
+  The hub data: an hourly tick (`runWorkspacePurge`, store
+  `PurgeDueWorkspaces`) deletes the workspace (`DELETE FROM tenants`, the
+  `ON DELETE CASCADE` tables) once `purge_after` has passed, sets
+  `purged_at` and writes `operator_audit` `purge_workspace`; a workspace
+  with an unpaid invoice is held, not purged, until the owner marks it
+  paid (a non-payment deletes nothing on its own, 4.4, Q-17 B). The VM:
+  `cd csi-spl-orc && ENV=<env> TENANT_ID=<tenant> ./run -a do_spl_private_ws_cancel`
+  (`csi-spl-orc/src/bash/run/spl-private-ws-cancel.func.sh`) reads the
+  order with B8's read, takes the tenant out of B8's runtime VM map and
+  prints the step 062 plan; its gate refuses an Error, any create,
+  replace or update, and any destroy not keyed by this tenant. A dry run
+  unless `DRY_RUN=0` with `OWNER_GO=<owner msg id>`; then the hub cancel
+  first, then `make do-provision` (the VM, its SA and its role bindings
+  destroyed), then the map. A tenant with no VM in the map gets the hub
+  cancel only. Not done here: the workspace admin's own revoke of one box
+  (108 T012's route, the upload-token drop, the Fleet page) and B8's order
+  status (`workspace_orders.status` stays `submitted`, so B8 itself does
+  not refuse a cancelled workspace). A paid invoice is purged with the
+  workspace (`private_workspace_invoices` cascades), so an invoice must be
+  kept outside the hub before the 30 days end. Tests:
+  `internal/store/workspace_cancel_test.go` (`TestCancelWorkspace`,
+  `TestPurgeCancelledWorkspace`, both drivers),
+  `internal/hub/workspace_cancel_test.go`,
+  `csi-spl-orc/src/bash/tests/spl-private-ws-cancel.tst.sh`. Red control
+  (the row's), `TestWorkspaceCancelLease403`: the parent `f7b35176e` ->
+  `cancel = 404 map[], want 201`; the lease check planted out -> `RED: the
+  cancelled workspace's seat asked a lease = 409 box_key_not_enrolled,
+  want 403 workspace_cancelled`. The orc dry-run return planted off ->
+  `FAIL: DRY_RUN unset called the hub cancel`, `FAIL: DRY_RUN unset ran
+  do-provision`.
+
 Not in this spec: a private hub (Q-2 B, not chosen); listing on Cloud
 Marketplace stays spec 156.
 
@@ -775,5 +824,8 @@ Marketplace stays spec 156.
   [waits on B3, B5, Q-21] for the checkout VM monthly estimate (section
   6), and open poll form Q-21 (section 1, citing and closing spec 122
   RQ-3).
+- v0.7.1 (2026-11-24, c-916, SPL-6344): row B9 implemented (section 6
+  row status): the operator cancel, rdb 0319 `workspace_cancellations`,
+  the 30-day purge tick, `do_spl_private_ws_cancel`.
 
-<!-- version: 0.7 · updated: 2026-11-23 · last-edit: 2026-11-23T21:55:00Z -->
+<!-- version: 0.7.1 · updated: 2026-11-24 · last-edit: 2026-11-24T05:10:00Z -->

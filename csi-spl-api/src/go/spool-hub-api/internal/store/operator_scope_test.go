@@ -178,6 +178,11 @@ var operatorCallers = map[string]string{
 
 	// spec 181 row B7 (SPL-6329): the operator join-token mint for a private VM.
 	"MintOperatorJoinToken": "POST /v1/operator/workspaces/{id}/join-tokens (spec 181 B7, 4.2): the box id check reads the pins and open join tokens of EVERY workspace (a private VM serves one workspace, Q-3 A); it writes ONE named workspace's token + its operator_audit row (tenant_id = the URL id); only an admin of the operator workspace reaches it",
+
+	// spec 181 row B9 (SPL-6344): a private workspace's cancel and its 30-day purge.
+	"CancelWorkspace":    "POST /v1/operator/workspaces/{id}/cancel (spec 181 B9, 4.5; operatorAuth, the env SA): writes the operator-only workspace_cancellations row and operator_audit for ONE named private workspace (the URL id), and revokes that workspace's own pins and open join tokens",
+	"PurgeDueWorkspaces": "workspace purge tick (spec 181 B9, Q-12 C, hub goroutine): lists the cancellations of EVERY workspace whose 30 days have passed; no route",
+	"purgeWorkspace":     "workspace purge tick (spec 181 B9, Q-12 C): DELETE FROM tenants for ONE cancelled workspace past purge_after with no unpaid invoice, its purged_at and its operator_audit row; no route",
 }
 
 // operatorEntries are the only functions that set the operator scope:

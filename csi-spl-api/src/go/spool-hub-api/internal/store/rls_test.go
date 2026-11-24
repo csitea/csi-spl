@@ -94,6 +94,8 @@ var rlsTables = []string{
 	"tenant_agent_model", "agent_model_reading",
 	// rdb 0317, spec 071 8.6.2 T10 (SPL-6318): a box's newest snapshot
 	"box_snapshots",
+	// rdb 0319, spec 181 B9 (SPL-6344): a private workspace's cancel
+	"workspace_cancellations",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

@@ -17203,6 +17203,49 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/workspaces/{id}/cancel": {
+      "post": {
+        "operationId": "postOperatorWorkspacesCancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Spec 181 B9: the workspace was already cancelled; the first cancel's row, replayed: true, nothing changed."
+          },
+          "201": {
+            "description": "Spec 181 B9 (section 4.5, Q-12 C): body {workspace_id} (must name the URL's workspace). Cancels a private workspace (price plan private_vm): every live pin and open join token revoked, box_join_enabled off, the revoked boxes' sessions closed, one operator_audit row (cancel_workspace). Answers {workspace_id, cancelled_at, purge_after (+30 days), revoked_boxes, revoked_join_tokens, replayed}. From then on a vendor key lease of the workspace is 403 workspace_cancelled; the hub data is purged after purge_after (held while an invoice is unpaid). operatorAuth: a Google id token of the env's service account. 400 workspace_id_mismatch / bad_request, 409 not_private_workspace."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "not_private_workspace: the workspace is not on the private_vm plan."
+          }
+        },
+        "summary": "Cancel a private workspace",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/workspaces/{id}/join-tokens": {
       "post": {
         "operationId": "postOperatorWorkspacesJoinTokens",
@@ -21296,7 +21339,7 @@
                 }
               }
             },
-            "description": "Forbidden: box_only (a member's token, not a box's), box_not_dedicated (the pin did not join as dedicated), or box_not_approved (no manager approved this box for keys, spec 127 5.1)"
+            "description": "Forbidden: box_only (a member's token, not a box's), workspace_cancelled (the workspace was cancelled, spec 181 B9), box_not_dedicated (the pin did not join as dedicated), or box_not_approved (no manager approved this box for keys, spec 127 5.1)"
           },
           "409": {
             "content": {
@@ -21382,7 +21425,7 @@
                 }
               }
             },
-            "description": "Forbidden: box_only (a member's token, not a box's), box_not_dedicated (the pin did not join as dedicated), or box_not_approved (no manager approved this box for keys, spec 127 5.1)"
+            "description": "Forbidden: box_only (a member's token, not a box's), workspace_cancelled (the workspace was cancelled, spec 181 B9), box_not_dedicated (the pin did not join as dedicated), or box_not_approved (no manager approved this box for keys, spec 127 5.1)"
           },
           "409": {
             "content": {

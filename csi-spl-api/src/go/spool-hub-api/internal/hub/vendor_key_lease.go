@@ -32,7 +32,8 @@ import (
 // a manager of the workspace approved for keys (127 5.1), a key of that kind
 // that is set and not exhausted; the row is read in the pin's own tenant
 // scope (127 L1). Refusals, in that order: 401 door, 403 box_only (a
-// member's token), 503 vendor_keys_off, 400 bad_kind, 409
+// member's token), 403 workspace_cancelled (spec 181 B9: the workspace was
+// cancelled, workspace_cancel.go), 503 vendor_keys_off, 400 bad_kind, 409
 // kind_not_available, 403 box_not_dedicated, 403 box_not_approved, 409
 // no_key, 409 key_exhausted. No refusal is a 404: the desk reads a 404 as
 // "this hub has no lease route" (keydesk.TokNoLeaseRoute). The answer is
@@ -67,6 +68,9 @@ func (s *Server) vendorKeyBox(w http.ResponseWriter, r *http.Request) (st store.
 	}
 	if box == WUIBox {
 		writeErr(w, http.StatusForbidden, "box_only", "a workspace key is leased only to a box's desk")
+		return nil, "", "", "", false
+	}
+	if s.workspaceCancelled(w, r, t.ID) {
 		return nil, "", "", "", false
 	}
 	st, ok = s.o.Store.(store.VendorKeyLeases)

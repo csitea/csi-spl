@@ -162,7 +162,12 @@ async function tapSwitch(p, base, width) {
     const loaded = p.waitForNavigation({ waitUntil: 'load', timeout: 5000 }).then(() => true, () => false)
     await p.tap('[data-testid=top-bar-tenant-option][data-tenant=t2]')
     const nav = await loaded
-    await sleep(500)
+    /* SPL-5070: the cold load of `/` drops the query while it hydrates and
+       puts it back later (pages/index.vue); under Nuxt 4 the restore lands
+       ~450..600 ms after the load starts (box, n=4), past a fixed 500 ms
+       sleep. Wait for the address to settle; a load that never carries
+       ?tenant=t2 still fails after 3 s. */
+    await p.waitForFunction(() => new URLSearchParams(window.location.search).get('tenant') === 't2', { timeout: 3000 }).catch(() => {})
     const after = p.url()
     check(`${tag}: a tap on the other workspace loads its page`, nav && new URL(after).searchParams.get('tenant') === 't2', { before, after, nav })
   } finally {

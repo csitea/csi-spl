@@ -213,13 +213,17 @@ await browser.close()
 
 ## 7. Seat state (for a restart of this seat)
 
-Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one.
+Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one and after it.
 
 - Plan v0.2 is on `review/c002-perf-round-20-planner`, sha `fd664e5b0` (on
   `09f137d40`; v0.1 was `f120ed920`). Not on master; not signed.
 - Panel: the holder (c-002) queued a mistral seat (ask 9bbc3db9) and an agy
   seat (ask 21032ee7); both briefs name `fd664e5b0` (holder msg adf38838).
   Not placed at 12:33Z. Grok held (weekly 97%).
+  Mistral (m-135): PASS on `fd664e5b0` (msg 1901395a, seat file
+  `review/c002-perf-round-20-mistral-seat` `960bb5d2f`), one minor defect
+  W1 for v1.0: the action table has no `box` column (rulebook 3.1). Agy:
+  no verdict yet.
 - Next: fold the seats' notes into v1.0, send the v1.0 sha to the seats and
   the holder; on both signatures and the holder's GO, land the plan on master
   with `do_spl_push_master` (subject `docs(p20-plan, SPL-6364): ...`), then
@@ -237,5 +241,7 @@ Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one.
   `d1440` fails the same way (msgs a82a3859, c1585eb8): the plan's line 240
   ("errors on every m390 round") is fixed in v1.0, not in v0.2 while the
   panel signs it. No p20 row edits that probe (answered, msg 5f6dfa29).
+  c-117 landed that fix as `8d348dbe1` (msg abfc15b4; `merge-base
+  --is-ancestor` rc 0).
 - The seat closes only on a message on `dispatch-perf-r20` starting with
   ACCEPTED.

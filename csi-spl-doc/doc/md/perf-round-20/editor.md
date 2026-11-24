@@ -208,3 +208,27 @@ await browser.close()
   stopped by this seat): the phone's Flow tab navigates and the probe does
   not follow it. A tool defect, not perf work: sent to the orchestrator.
 - **The runner's node** (section 2).
+
+<a id="p20e-7"></a>
+
+## 7. Seat state (for a restart of this seat)
+
+Written at the 12:33Z rotation, 2026-11-24.
+
+- Plan v0.2 is on `review/c002-perf-round-20-planner`, sha `fd664e5b0` (on
+  `09f137d40`; v0.1 was `f120ed920`). Not on master; not signed.
+- Panel: the holder (c-002) queued a mistral seat (ask 9bbc3db9) and an agy
+  seat (ask 21032ee7); both briefs name `fd664e5b0` (holder msg adf38838).
+  Not placed at 12:33Z. Grok held (weekly 97%).
+- Next: fold the seats' notes into v1.0, send the v1.0 sha to the seats and
+  the holder; on both signatures and the holder's GO, land the plan on master
+  with `do_spl_push_master` (subject `docs(p20-plan, SPL-6364): ...`), then
+  import it into Qto (`do_spl_doctree_import_md`, `QTO_FS=repo`,
+  `TENANT_ID=t1`). The holder files one issue per row and places them.
+- Perf round 19 (c-778): plans none of the p20 files; row 07 takes its
+  app-document prefetch finding (msg e31d60bb, answered by this seat).
+- Field data: not readable (no workspace admin login; holder msg 390f5cf5).
+  Flow probe on phones: the holder's bug lane
+  `c002-bug-wui-perf-flow-events-m390-nav`.
+- The seat closes only on a message on `dispatch-perf-r20` starting with
+  ACCEPTED.

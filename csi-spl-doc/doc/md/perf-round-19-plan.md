@@ -126,24 +126,6 @@ Every row is claude: rulebook R14 (an established vendor) and the owner's
   01-03 (R16: within 30 minutes of the last).
 - No row edits a file of perf round 20 or of c-980 (3.2).
 
-<a id="p19-ab"></a>
-
-### 3.3 Same-box A/B per row (W2)
-
-Each lane runs both arms on one box within one hour, the before-arm on its
-rebased `origin/master`, the after-arm on its commit, **n>=5 per arm**, and
-puts both arms' counts (min..max) in the commit body. A gain that is not
-outside the before-arm's range is no gain; the row is dropped.
-
-| row | count (primary) | how, per run |
-|---|---|---|
-| 01 | `LayoutCount` delta of 40 typed keys; forced layouts at `fitGlobalBox` | `perf-typing-layouts.test.mjs` x5 per arm; plus 1 trace per arm for the frame split |
-| 02 | the same, at the text-width measure | as 01, on row 01's tree as before-arm |
-| 03 | retained `Nodes` after the 30-hit + 0-hit sequence, forced GC | `perf-search-release.test.mjs` x5 per arm |
-| 06 | `GET /v1/wui/revision` per trigger | the unit test's fetch count (deterministic) + `do_spl_wui_perf_flow_events PF_N=5` on dev after deploy (R5) |
-| 05 | `permission` reads at store creation | the unit test (deterministic); in-page first-read ms x5 per arm, reported, not ranked |
-| 07 | the proof's per-step counts | the proof x5 on one bundle: same counts in 5 of 5 |
-
 <a id="p19-r3"></a>
 
 ### 3.2 Off every live lane, every queued row and every open round row (R3)
@@ -174,6 +156,24 @@ Read on 2026-11-24 (editor 3):
   queue.
 - `git log origin/master --since='3 days ago' -- <p19 files>`: 1 commit
   (landed) on `useLive.ts` / `live-ws.mjs`, none on the others.
+
+<a id="p19-ab"></a>
+
+### 3.3 Same-box A/B per row (W2)
+
+Each lane runs both arms on one box within one hour, the before-arm on its
+rebased `origin/master`, the after-arm on its commit, **n>=5 per arm**, and
+puts both arms' counts (min..max) in the commit body. A gain that is not
+outside the before-arm's range is no gain; the row is dropped.
+
+| row | count (primary) | how, per run |
+|---|---|---|
+| 01 | `LayoutCount` delta of 40 typed keys; forced layouts at `fitGlobalBox` | `perf-typing-layouts.test.mjs` x5 per arm; plus 1 trace per arm for the frame split |
+| 02 | the same, at the text-width measure | as 01, on row 01's tree as before-arm |
+| 03 | retained `Nodes` after the 30-hit + 0-hit sequence, forced GC | `perf-search-release.test.mjs` x5 per arm |
+| 06 | `GET /v1/wui/revision` per trigger | the unit test's fetch count (deterministic) + `do_spl_wui_perf_flow_events PF_N=5` on dev after deploy (R5) |
+| 05 | `permission` reads at store creation | the unit test (deterministic); in-page first-read ms x5 per arm, reported, not ranked |
+| 07 | the proof's per-step counts | the proof x5 on one bundle: same counts in 5 of 5 |
 
 <a id="p19-per-row"></a>
 

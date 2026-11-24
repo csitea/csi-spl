@@ -23,7 +23,7 @@
     >
     <span class="topic-select__n" data-test="topic-select-count" aria-live="polite" :title="countText">{{ countText }}</span>
     <span class="topic-select__acts">
-      <button type="button" class="btn ghost topic-select__btn" data-test="topic-select-by-title" :aria-expanded="patternsOpen ? 'true' : 'false'" :aria-label="t('topic_select.by_title')" :title="t('topic_select.by_title')" @click="patternsOpen = !patternsOpen">
+      <button v-if="byTitleOn" type="button" class="btn ghost topic-select__btn" data-test="topic-select-by-title" :aria-expanded="patternsOpen ? 'true' : 'false'" :aria-label="t('topic_select.by_title')" :title="t('topic_select.by_title')" @click="patternsOpen = !patternsOpen">
         <UiIcon name="search" :size="16" />
         <span v-if="!phone" class="topic-select__label">{{ t('topic_select.by_title') }}</span>
       </button>
@@ -47,7 +47,7 @@
       <span v-if="!phone" class="topic-select__label">{{ t('topic_select.clear') }}</span>
     </button>
     <div v-if="patternsOpen || canMatchAll || store.progress || store.result" class="topic-select__notes">
-      <LazyTopicSelectPatterns v-if="patternsOpen" @close="patternsOpen = false" @added="patternsOpen = false" />
+      <LazyTopicSelectPatterns v-if="byTitleOn && patternsOpen" @close="patternsOpen = false" @added="patternsOpen = false" />
       <p v-if="canMatchAll && !store.allMatching" class="topic-select__note muted" data-test="topic-select-matching-line">
         <button type="button" class="topic-select__link" data-test="topic-select-all-matching" :disabled="store.matching || store.busy" @click="selectAllMatching()">
           {{ t('topic_select.select_matching', { total: store.shown.length + '+' }) }}
@@ -67,7 +67,7 @@ import { useTopicSelect } from '~/composables/useTopicSelect'
 
 defineProps<{ phone?: boolean }>()
 const { t } = useI18n({ useScope: 'global' })
-const { store, runAction, canMatchAll, selectAllMatching, onKey } = useTopicSelect()
+const { store, runAction, canMatchAll, selectAllMatching, onKey, byTitleOn } = useTopicSelect()
 const patternsOpen = ref(false)
 const countText = computed(() => store.channels > 1
   ? `${t('topic_select.count', { count: store.count })} ${t('topic_select.in_channels', { n: store.channels })}`

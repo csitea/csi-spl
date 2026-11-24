@@ -16,6 +16,7 @@ import { nextTick, reactive } from 'vue'
 import { createPinia, defineStore, setActivePinia } from 'pinia'
 import { importTsStubbed } from './lib/load-ts-stubbed.mjs'
 import { mockTopicSelect } from '../../src/utils/spool-client-mock.mjs'
+import { createSpoolClient } from '../../src/utils/spool-client.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
@@ -271,5 +272,27 @@ describe('the card menu and the gestures while selecting (4.6, H4)', () => {
     assert.match(card, /if \(swipeOn\.value && !removing\.value && !sel\.selecting\.value\) swipe\.down\(ev\)/)
     assert.match(template('src/components/MessageCard.vue'), /v-if="movable && !sel\.selecting\.value"\s+class="msg-move-handle"/)
     assert.match(card, /function onCardClick\(ev: MouseEvent\) \{\s+if \(!sel\.onTap\(ev\)\) onClick\(ev\)/)
+  })
+})
+
+describe('Select by title shows only where topic_select can be sent (R7 W1)', () => {
+  it('a live client offers it only once the socket request half is set; the mock always', () => {
+    const live = createSpoolClient({ fetchFn: async () => { throw new Error('no fetch') }, mock: false })
+    assert.equal(live.canTopicSelect(), false)
+    live.setRequester(async () => ({ ok: true, topics: [] }))
+    assert.equal(live.canTopicSelect(), true)
+    live.setRequester(null)
+    assert.equal(live.canTopicSelect(), false)
+    assert.equal(createSpoolClient({ mock: true }).canTopicSelect(), true)
+  })
+  it('the header and the bar gate the button and the field on it', () => {
+    const head = template('src/components/FeedHeader.vue')
+    assert.match(head, /<button\s+v-if="byTitleOn"\s+type="button"\s+class="icon-btn feed-header__select"/)
+    assert.match(head, /<div v-if="byTitleOn && patternsOpen" class="feed-header__patterns">/)
+    assert.match(read('src/components/FeedHeader.vue'), /const byTitleOn = computed\(\(\) => selectOn\.value && canTopicSelect\)/)
+    const bar = template('src/components/TopicSelectBar.vue')
+    assert.match(bar, /<button v-if="byTitleOn" type="button" class="btn ghost topic-select__btn" data-test="topic-select-by-title"/)
+    assert.match(bar, /<LazyTopicSelectPatterns v-if="byTitleOn && patternsOpen"/)
+    assert.equal(sel.byTitleOn, false, 'the stub api has no canTopicSelect: nothing offered')
   })
 })

@@ -52,7 +52,7 @@
     <div class="feed-header__row2" data-test="feed-header-row2">
       <span class="topic-list-slot"><LazyTopicListControl /></span>
       <button
-        v-if="selectOn"
+        v-if="byTitleOn"
         type="button"
         class="icon-btn feed-header__select"
         data-test="topic-select-by-title"
@@ -65,7 +65,7 @@
       </button>
       <CardClipControl />
     </div>
-    <div v-if="selectOn && patternsOpen" class="feed-header__patterns">
+    <div v-if="byTitleOn && patternsOpen" class="feed-header__patterns">
       <LazyTopicSelectPatterns @close="patternsOpen = false" @added="patternsOpen = false" />
     </div>
   </header>
@@ -74,6 +74,7 @@
 <script setup lang="ts">
 import { useTopicSelectStore } from '~/stores/topicSelect'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 
 defineProps<{
   title: string
@@ -104,6 +105,9 @@ const selectOn = computed(() => /\/(?:channel\/[^/]+|lobby)\/?$/.test(route.path
 const topicSelect = useTopicSelectStore()
 const phone = useMobileStack().isMobile
 const patternsOpen = ref(false)
+/* R7 W1: Select by title only where the client can send topic_select (the mock; live once the socket's request half is wired) */
+const canTopicSelect = Boolean((useSpoolApi() as unknown as { canTopicSelect?: () => boolean }).canTopicSelect?.())
+const byTitleOn = computed(() => selectOn.value && canTopicSelect)
 </script>
 
 <style scoped>

@@ -79,7 +79,9 @@ function useWorkspaceSync(store: ReturnType<typeof useTopicSelectStore>) {
 }
 
 function useSelectByTitle(store: ReturnType<typeof useTopicSelectStore>) {
-  const api = useSpoolApi() as unknown as { topicSelect: (frame: Record<string, unknown>) => Promise<TopicSelectAnswer> }
+  const api = useSpoolApi() as unknown as { topicSelect: (frame: Record<string, unknown>) => Promise<TopicSelectAnswer>, canTopicSelect?: () => boolean }
+  /** Select by title is offered only where the client can send topic_select (never a field that always fails, R7 W1) */
+  const byTitleOn = Boolean(api.canTopicSelect?.())
   /** the action the frame names: the first registered button's, else Multicast (7.1.6) */
   const action = () => store.actions[0]?.id || TOPIC_SELECT_DEFAULT_ACTION
   /** one `topic_select` with the lines as typed; adds exactly the answer's task ids (a newer frame drops this answer) */
@@ -101,7 +103,7 @@ function useSelectByTitle(store: ReturnType<typeof useTopicSelectStore>) {
     store.add(read.topics)
     return { added: store.count - before, none: !read.bad && !read.error && read.topics.length === 0, bad: read.bad, error: read.error }
   }
-  return { selectByTitle }
+  return { selectByTitle, byTitleOn }
 }
 
 function useSelectRun(store: ReturnType<typeof useTopicSelectStore>) {

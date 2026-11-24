@@ -20,6 +20,14 @@
 # @description A spec whose spec.md pins its epic ('Epic SPL-n') and whose epic
 # @description the hub auto-closed (SPL-1729) gets it reopened, never a second
 # @description one (SPL-3060); a dry run says it would.
+# @description SPEC_IMPORT_PLAN=<file> SPEC_IMPORT_PLAN_TABLE=<heading> files
+# @description a signed plan's table instead (spec 153 3.22.5, row Q12): one
+# @description issue per row, status eval, under the plan's 'Epic:' line,
+# @description linking its 'Topic:' line (else ISSUE_DISCUSSIONS). A row that
+# @description names an SPL-n is not filed; an existing [NNN <row>] issue is
+# @description left as it is, so a second run files none. A plan with no epic
+# @description or no discussion is refused. The planner runs it as the last
+# @description step of signing (csi-spl-doc/doc/md/lane-issue-and-docs.md 0.4).
 # @param ENV - needed on a live run: dev or prd
 # @param TENANT_ID - needed on a live run
 # @param DESK_AGENT - needed on a live run: the seated agent id
@@ -41,8 +49,11 @@
 # @param SPEC_IMPORT_OUT   Unset, the report is copied out of the work directory
 # @param SPEC_IMPORT_OUT   before return, so the logged path still exists
 # @param SPEC_IMPORT_OFFLINE (optional) - 1 parses and prints only; no hub
+# @param SPEC_IMPORT_PLAN (optional) - a signed plan file: file its table's rows instead of the spec tree
+# @param SPEC_IMPORT_PLAN_TABLE (optional) - with SPEC_IMPORT_PLAN: text of the heading the table sits under, e.g. 'The rows'
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=GRK-00 SPEC_IMPORT_OUT=/tmp/spec-import.md ./run -a do_spl_spec_import_issues
+# @example ENV=prd TENANT_ID=t1 DESK_AGENT=<seat> SPEC_IMPORT_PLAN=<plan.md> SPEC_IMPORT_PLAN_TABLE='The rows' ./run -a do_spl_spec_import_issues
 #------------------------------------------------------------------------------
 do_spl_spec_import_issues() {
   local specs="${SPEC_DIR:-${APP_PATH:-}/csi-spl-doc/specs}"
@@ -54,7 +65,7 @@ do_spl_spec_import_issues() {
   _spl_spec_check_args "$py" "$specs" "$interval" "$limit" || return 1
 
   if [[ "${SPEC_IMPORT_OFFLINE:-0}" == 1 ]]; then
-    python3 "$py" report --specs "$specs" "${onlyarg[@]}"
+    _spl_spec_offline "$py" "$specs"
     return $?
   fi
 
@@ -70,7 +81,13 @@ do_spl_spec_import_issues() {
   # shellcheck disable=SC2064
   trap "rm -rf '$work'; trap - RETURN" RETURN
 
-  python3 "$py" parse --specs "$specs" "${parsearg[@]}" --out "$work/plan.json" || return 1
+  _spl_spec_make_plan "$py" "$specs" "$work/plan.json" || return 1
+  # A plan's rows link its discussion (the hub refuses an issue with none).
+  if [[ -n "${SPEC_IMPORT_PLAN:-}" ]]; then
+    local ISSUE_DISCUSSIONS
+    ISSUE_DISCUSSIONS="$(jq -r '.specs[0].discussion' "$work/plan.json")" || return 1
+    export ISSUE_DISCUSSIONS
+  fi
   _spl_spec_list_all "$py" "$work" "$dry" || return 1
 
   python3 "$py" reconcile --plan "$work/plan.json" --list "$work/list.out" --desc "$work/desc" --out "$work/ops.json" || return 1
@@ -94,6 +111,33 @@ _spl_spec_parse_args() {
   [[ -n "${SPEC_IMPORT_REDACT:-}" ]] && docarg+=(--redact "$SPEC_IMPORT_REDACT")
   _only+=("${docarg[@]}")
   _parse+=("${docarg[@]}")
+}
+
+# _spl_spec_make_plan <parser> <spec dir> <out>: the plan.json, from the
+# signed plan's table (SPEC_IMPORT_PLAN) or the spec tree; reads the caller's
+# parsearg. A refused plan (no epic, no discussion, no table) returns 1.
+_spl_spec_make_plan() {
+  if [[ -n "${SPEC_IMPORT_PLAN:-}" ]]; then
+    python3 "$1" plan --plan-file "$SPEC_IMPORT_PLAN" --table "$SPEC_IMPORT_PLAN_TABLE" \
+      --discussions "${ISSUE_DISCUSSIONS:-}" --root "${APP_PATH:-}" \
+      --redact "${SPEC_IMPORT_REDACT:-}" --out "$3" || return 1
+    return 0
+  fi
+  python3 "$1" parse --specs "$2" "${parsearg[@]}" --out "$3"
+}
+
+# _spl_spec_offline <parser> <spec dir>: the offline report (no hub), of the
+# signed plan's table or of the spec tree; the report's exit code.
+_spl_spec_offline() {
+  if [[ -z "${SPEC_IMPORT_PLAN:-}" ]]; then
+    python3 "$1" report --specs "$2" "${onlyarg[@]}"
+    return $?
+  fi
+  local tmp rc=0
+  tmp="$(mktemp)" || return 1
+  _spl_spec_make_plan "$1" "$2" "$tmp" && python3 "$1" report --from-plan "$tmp" || rc=$?
+  rm -f -- "$tmp"
+  return "$rc"
 }
 
 # _spl_spec_list_all <parser> <work dir> <dry 0|1>: every read-only list the
@@ -168,6 +212,9 @@ _spl_spec_check_args() {
   [[ -d "$2" ]] || { do_log "FATAL SPEC_DIR is not a directory: $2"; return 1; }
   [[ "$3" =~ ^[0-9]+([.][0-9]+)?$ ]] || { do_log "FATAL SPEC_IMPORT_INTERVAL must be seconds, got: '$3'"; return 1; }
   [[ "$4" =~ ^[0-9]+$ ]] || { do_log "FATAL SPEC_IMPORT_LIMIT must be a number, got: '$4'"; return 1; }
+  [[ -z "${SPEC_IMPORT_PLAN:-}" ]] && return 0
+  [[ -f "$SPEC_IMPORT_PLAN" ]] || { do_log "FATAL SPEC_IMPORT_PLAN is not a file: $SPEC_IMPORT_PLAN"; return 1; }
+  [[ -n "${SPEC_IMPORT_PLAN_TABLE:-}" ]] || { do_log "FATAL SPEC_IMPORT_PLAN needs SPEC_IMPORT_PLAN_TABLE: the heading its table sits under"; return 1; }
 }
 
 # _spl_spec_apply_rows <work dir> <pause secs> <limit>: every row of

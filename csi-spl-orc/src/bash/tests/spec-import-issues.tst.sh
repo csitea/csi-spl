@@ -646,5 +646,142 @@ rc=$?
   pass "import offline: the report's exit code is the action's" ||
   fail "import offline exit code: rc=$rc, want 3"
 
+# C126 (spec 153 3.22.5, row Q12): SPEC_IMPORT_PLAN files a signed plan's
+# table rows as issues. A fixture plan of two rows, one already naming an
+# SPL-n: a run files one issue, status eval, under the plan's epic, linking its
+# discussion; a second run files none (even after the lane moved it to wip); a
+# plan with no 'Epic:' line or no discussion is refused. RED on master: the
+# plan's rows are not read (SPEC_IMPORT_PLAN is ignored, the spec tree is filed).
+PLANFIX="$FIX_TMP/plan"
+mkdir -p "$PLANFIX"
+PLAN_TOPIC_ID=11111111-2222-4333-8444-555555555555
+cat >"$PLANFIX/round-plan.md" <<EOF
+# Sample build round (plan)
+
+Epic: SPL-50
+Spec: csi-spl-doc/specs/153-sample-tab
+Topic: $PLAN_TOPIC_ID
+
+## 3. The rows
+
+| row | what is left to build | kind |
+|---|---|---|
+| Q1 | the \`bypass.tsv\` line \\| a pipe | \`simple_coding\`, class bug |
+| Q2 | already filed as SPL-77 | \`complex_coding\` |
+
+## 4. Files
+
+| row | files |
+|---|---|
+| Q9 | not this table |
+EOF
+grep -v '^Epic:' "$PLANFIX/round-plan.md" >"$PLANFIX/no-epic.md"
+grep -v '^Topic:' "$PLANFIX/round-plan.md" >"$PLANFIX/no-topic.md"
+
+plj=$(python3 "$PY" plan --plan-file "$PLANFIX/round-plan.md" --table 'The rows' --root "$FIX_TMP")
+python3 - "$plj" "$PY" "$FIX_TMP" <<'PY'
+import importlib.util, json, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("imp", sys.argv[2])
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+plan = json.loads(sys.argv[1])
+ok = True
+def check(cond, good, bad):
+    global ok
+    print("PASS:" if cond else "FAIL:", good if cond else f"{good}: {bad}")
+    ok = ok and bool(cond)
+items = plan["items"]
+row = plan["specs"][0]
+check([i["id"] for i in items] == ["Q1"], "C126: one of two rows is filed, the row naming SPL-77 is not", [i["id"] for i in items])
+check(row["epic_fixed"] == "SPL-50" and row["already_filed"] == 1, "C126: the plan's epic and the already-filed count", row)
+q1 = items[0] if items else {}
+check(q1.get("status") == "eval" and q1.get("title", "").startswith("[153 Q1] the bypass.tsv line | a pipe"),
+      "C126: status eval, title [NNN row] <what>, an escaped pipe kept in its cell", q1)
+check(q1.get("labels") == ["task", "bug"], "C126: label task plus the row's stated class", q1.get("labels"))
+d = q1.get("description", "")
+check(d.startswith("## Source\n/t/11111111-2222-4333-8444-555555555555") and "Spec: csi-spl-doc/specs/153-sample-tab" in d
+      and "plan/round-plan.md, table 'The rows', row Q1" in d and "Q9" not in d,
+      "C126: the description links the discussion, names the spec and the row, reads only the named table", d)
+listed = {"result": {"epics": [{"key": "SPL-50", "title": "Sample round epic"}],
+    "issues": [{"key": "SPL-50", "title": "Sample round epic", "labels": ["epic"], "kind": "epic", "parent": "", "status": "wip"}],
+    "labels": [{"id": "epic"}, {"id": "task"}, {"id": "bug"}]}}
+check(mod.select_epic_refs(plan, listed) == ["SPL-50"], "C126: the child list is scoped to the plan's epic", mod.select_epic_refs(plan, listed))
+rec = mod.reconcile(plan, listed, Path(sys.argv[3]) / "pdesc")
+ops = rec["ops"]
+check([(o["action"], o["parent_key"]) for o in ops] == [("create", "SPL-50")] and not rec["missing_epics"],
+      "C126: the first run creates one, under the plan's epic", [(o["action"], o["parent_key"]) for o in ops])
+listed["result"]["issues"].append({"key": "SPL-90", "title": ops[0]["title"], "labels": ["task", "bug"], "kind": "issue",
+    "parent": "SPL-50", "status": "wip", "description": "the lane's own card"})
+rec2 = mod.reconcile(plan, listed, Path(sys.argv[3]) / "pdesc2")
+check([o["action"] for o in rec2["ops"]] == ["skip"], "C126: a second run files none and leaves the lane's wip issue as it is",
+      [(o["action"], o["changes"]) for o in rec2["ops"]])
+raise SystemExit(0 if ok else 1)
+PY
+[[ $? -eq 0 ]] && pass "plan import (C126)" || fail "plan import (C126)"
+
+out=$(python3 "$PY" plan --plan-file "$PLANFIX/no-epic.md" --table 'The rows' 2>&1); rc=$?
+[[ $rc == 2 ]] && grep -q "FATAL refused, nothing filed: .*no epic: add an 'Epic: SPL-<n>' line" <<<"$out" &&
+  pass "C126: a plan with no Epic: line is refused" || fail "C126 no epic: rc=$rc $out"
+out=$(python3 "$PY" plan --plan-file "$PLANFIX/no-topic.md" --table 'The rows' 2>&1); rc=$?
+[[ $rc == 2 ]] && grep -q 'no discussion' <<<"$out" &&
+  pass "C126: a plan with no discussion is refused" || fail "C126 no discussion: rc=$rc $out"
+out=$(python3 "$PY" plan --plan-file "$PLANFIX/no-topic.md" --table 'The rows' --discussions "/t/$PLAN_TOPIC_ID" 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q "/t/$PLAN_TOPIC_ID" <<<"$out" &&
+  pass "C126: ISSUE_DISCUSSIONS stands in for a plan with no Topic: line" || fail "C126 discussions arg: rc=$rc $out"
+out=$(python3 "$PY" plan --plan-file "$PLANFIX/round-plan.md" --table 'No such heading' 2>&1); rc=$?
+[[ $rc == 2 ]] && grep -q "no heading holds 'No such heading'" <<<"$out" &&
+  pass "C126: a heading the plan lacks is refused" || fail "C126 heading: rc=$rc $out"
+
+# The action end to end, live (DRY_RUN=0) on stubs: run 1 files one issue
+# with status eval, parent the plan's epic and the plan's discussion; run 2,
+# with that issue listed (moved to wip), files none.
+PLAN_CALLS="$FIX_TMP/plan.calls"
+PLAN_HUB="$FIX_TMP/plan.hub"
+: >"$PLAN_CALLS"
+: >"$PLAN_HUB"
+spl_dry_run() { [[ "${DRY_RUN:-1}" == 1 ]]; }
+spl_desk_issue() { return 0; }
+spl_desk_issue_run() { return 0; }
+do_spl_issue_list() {
+  local e='{"key":"SPL-50","title":"Sample round epic","labels":["epic"],"parent":"","status":"wip","kind":"epic"}'
+  if [[ "${ISSUE_KIND:-}" == epic ]]; then
+    printf '{"op":"list","result":{"epics":[%s],"issues":[%s],"labels":[{"id":"epic"},{"id":"task"},{"id":"bug"}]}}\n' "$e" "$e"
+  else
+    printf '{"op":"list","result":{"issues":[%s],"labels":[]}}\n' "$(paste -sd, "$PLAN_HUB")"
+  fi
+}
+do_spl_issue_create() {
+  printf 'create|%s|%s|%s|%s\n' "$ISSUE_TITLE" "$ISSUE_STATUS" "$ISSUE_PARENT" "${ISSUE_DISCUSSIONS:-}" >>"$PLAN_CALLS"
+  jq -cn --arg t "$ISSUE_TITLE" '{key:"SPL-90",title:$t,labels:["task","bug"],parent:"SPL-50",status:"wip",description:"card"}' >>"$PLAN_HUB"
+  printf '{"op":"create","result":{"issue":{"key":"SPL-90"}}}\n'
+}
+do_spl_issue_update() { echo "update|${ISSUE_REF:-}" >>"$PLAN_CALLS"; }
+plan_run() {
+  SPEC_IMPORT_PLAN="$PLANFIX/round-plan.md" SPEC_IMPORT_PLAN_TABLE='The rows' SPEC_IMPORT_INTERVAL=0 \
+    SPEC_IMPORT_OUT="$FIX_TMP/plan-report.md" SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" APP_PATH="$FIX_TMP" \
+    DRY_RUN=0 do_spl_spec_import_issues 2>&1
+}
+out1=$(plan_run); rc1=$?
+trap - RETURN
+calls1=$(cat "$PLAN_CALLS")
+out2=$(plan_run); rc2=$?
+trap - RETURN
+calls2=$(cat "$PLAN_CALLS")
+[[ $rc1 == 0 && "$calls1" == "create|[153 Q1] the bypass.tsv line | a pipe|eval|SPL-50|$PLAN_TOPIC_ID" ]] &&
+  pass "C126 action: run 1 files one issue, status eval, under the plan's epic, linking its discussion" ||
+  fail "C126 action run 1: rc=$rc1 calls=$calls1 | $(tail -n 3 <<<"$out1")"
+[[ $rc2 == 0 && "$calls2" == "$calls1" ]] && grep -q 'Plan rows that already name an SPL-n, not filed: 1' <<<"$out2" &&
+  pass "C126 action: run 2 files none" || fail "C126 action run 2: rc=$rc2 calls=$calls2 | $(tail -n 3 <<<"$out2")"
+out=$(SPEC_IMPORT_PLAN="$PLANFIX/no-epic.md" SPEC_IMPORT_PLAN_TABLE='The rows' SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" DRY_RUN=0 do_spl_spec_import_issues 2>&1); rc=$?
+trap - RETURN
+[[ $rc != 0 && "$(cat "$PLAN_CALLS")" == "$calls1" ]] && grep -q 'no epic' <<<"$out" &&
+  pass "C126 action: a plan with no epic is refused, nothing filed" || fail "C126 action no epic: rc=$rc $out"
+out=$(SPEC_IMPORT_PLAN="$PLANFIX/round-plan.md" SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" SPEC_IMPORT_OFFLINE=1 do_spl_spec_import_issues 2>&1); rc=$?
+[[ $rc == 1 ]] && grep -q 'SPEC_IMPORT_PLAN needs SPEC_IMPORT_PLAN_TABLE' <<<"$out" &&
+  pass "C126 action: SPEC_IMPORT_PLAN without a table heading is refused" || fail "C126 action no table: rc=$rc $out"
+out=$(SPEC_IMPORT_PLAN="$PLANFIX/round-plan.md" SPEC_IMPORT_PLAN_TABLE='The rows' SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" SPEC_IMPORT_OFFLINE=1 do_spl_spec_import_issues 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q '^| 153 | 1 | 1 | 0 | 0 | 1 |' <<<"$out" && grep -q '\[153 Q1\]' <<<"$out" &&
+  pass "C126 action: the offline report reads the plan's table" || fail "C126 action offline: rc=$rc $out"
+
 echo "=== $([[ $fails -eq 0 ]] && echo 'spec-import-issues: ALL PASS' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

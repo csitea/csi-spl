@@ -698,6 +698,11 @@ def select_epic_refs(plan: dict, list_doc: dict) -> list:
             seen.add(key)
             refs.append(key)
 
+    for row in plan.get("specs", []):
+        key = row.get("epic_fixed") or ""
+        if key and key not in seen:
+            seen.add(key)
+            refs.append(key)
     for e in _epics_of_list(list_doc):
         take(e.get("title") or "", e.get("key") or "")
     issues, _ = _issues_from_list(list_doc)
@@ -775,8 +780,13 @@ def _assign_epics(plan: dict, issues: list) -> dict:
     for row in plan["specs"]:
         dirs.setdefault(row["spec"], []).append(row["dir"])
         headings[row["dir"]] = row.get("heading") or row["dir"]
-    assigned: dict[str, str] = {}
+    assigned: dict[str, str] = {
+        row["dir"]: row["epic_fixed"] for row in plan["specs"] if row.get("epic_fixed")
+    }
     for spec, dir_names in dirs.items():
+        dir_names = [d for d in dir_names if d not in assigned]
+        if not dir_names:
+            continue
         cands = by_num.get(spec) or []
         if len(dir_names) == 1 and len(cands) == 1:
             assigned[dir_names[0]] = cands[0]["key"]
@@ -881,6 +891,8 @@ def reconcile(plan: dict, list_doc: dict, desc_dir: Path) -> dict:
             if parent_key and (existing.get("parent") or "") != parent_key:
                 changes.append("parent")
             action = "update" if changes else "skip"
+            if item.get("create_only"):
+                changes, action = [], "skip"
         else:
             changes = ["create"]
             action = "create"
@@ -997,6 +1009,12 @@ def report_md(doc: dict) -> str:
         f"| total | {t.get('parsed', 0)} | {t.get('t_parsed', 0)} | {t.get('subtasks', 0)} | {t.get('docs', 0)} "
         f"| {t.get('create', 0)} | {t.get('update', 0)} | {t.get('unchanged', 0)} | |"
     )
+    for row in doc.get("rows") or []:
+        if row.get("already_filed"):
+            lines.append("")
+            lines.append(
+                f"Plan rows that already name an SPL-n, not filed: {row['already_filed']}"
+            )
     lines.append("")
     lines.append("Sample titles:")
     for s in doc.get("samples") or []:
@@ -1094,6 +1112,149 @@ def add_labels(doc: dict, extra: str) -> dict:
     return doc
 
 
+# SPEC_IMPORT_PLAN (spec 153 3.22.5, row Q12): one issue per row of one table
+# of a signed plan (a round plan, a spec's section 5 table), status eval, under
+# the plan's epic, linking its discussion. A row that names an SPL-n already
+# has its issue and is not filed again. Create only: an existing "[NNN <id>]"
+# issue is left as it is (its status is the lane's), so a second run files none.
+PLAN_EPIC = re.compile(
+    r"^\W*epic\W*\s+([A-Z][A-Z0-9]*-\d+)\b", re.IGNORECASE | re.MULTILINE
+)
+PLAN_TOPIC = re.compile(
+    r"^\W*(?:topic|discussion)\b[^\n]*?"
+    r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
+    re.IGNORECASE | re.MULTILINE,
+)
+PLAN_SPEC = re.compile(r"(?:[\w.-]+/)?specs/(\d{3})-[\w.-]+")
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
+KEY_REF = re.compile(r"\bSPL-\d+\b")
+ROW_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]*")
+CLASS_CELL = re.compile(r"\bclass\s+(bug|feature|refactor)\b", re.IGNORECASE)
+
+
+class PlanError(Exception):
+    """A plan the import refuses; the message names what to add."""
+
+
+def _cells(line: str) -> list:
+    """The cells of a table line; an escaped pipe (backslash-pipe) stays in its cell."""
+    cells = re.split(r"(?<!\\)\|", line.strip().strip("|"))
+    return [c.strip().replace("\\|", "|") for c in cells]
+
+
+def _plain(cell: str) -> str:
+    return re.sub(r"[*`~]", "", cell).strip()
+
+
+def plan_table(text: str, heading: str) -> tuple:
+    """(header cells, rows) of the first table under the first heading whose
+    text holds <heading> (any case), before the next heading of the same or a
+    higher level."""
+    lines = text.splitlines()
+    want = heading.strip().lower()
+    start = level = None
+    for i, line in enumerate(lines):
+        m = HEADING.match(line)
+        if m and want and want in m.group(2).lower():
+            start, level = i + 1, len(m.group(1))
+            break
+    if start is None:
+        raise PlanError(f"no heading holds '{heading}'")
+    table = []
+    for line in lines[start:]:
+        m = HEADING.match(line)
+        if m and len(m.group(1)) <= level:
+            break
+        if ROW.match(line):
+            table.append(_cells(line))
+        elif table:
+            break
+    if len(table) < 3:
+        raise PlanError(f"no table with rows under the heading '{heading}'")
+    return table[0], [r for r in table[2:] if any(r)]
+
+
+def _plan_head(text: str, discussions: str) -> tuple:
+    """(epic, topic) from the plan's first 40 lines: its 'Epic:' line and its
+    'Topic:' (or 'Discussion:') line, else the first of <discussions>."""
+    head = "\n".join(text.splitlines()[:40])
+    em = PLAN_EPIC.search(head)
+    if not em:
+        raise PlanError("no epic: add an 'Epic: SPL-<n>' line to the plan's head")
+    tm = PLAN_TOPIC.search(head)
+    topic = tm.group(1) if tm else ""
+    if not topic:
+        given = [t for t in re.split(r"[,\s]+", discussions.strip()) if t]
+        topic = given[0].rsplit("/t/", 1)[-1] if given else ""
+    if not UUID.match(topic):
+        raise PlanError(
+            "no discussion: add a 'Topic: <topic uuid>' line, or set ISSUE_DISCUSSIONS"
+        )
+    tag = PLAN_SPEC.search(text)
+    if not tag:
+        raise PlanError(
+            "no spec number: add a 'Spec: csi-spl-doc/specs/<NNN-slug>' line"
+        )
+    return em.group(1), topic, tag
+
+
+def _plan_item(spec, rid, cells, names, topic, rel, heading, stem) -> dict:
+    what = _plain(cells[1]) if len(cells) > 1 else rid
+    body = "\n".join(f"- {n}: {c}" for n, c in zip(names, cells))
+    body = (
+        f"## Source\n/t/{topic}\n\nSpec: {spec.group(0)}\n\n"
+        f"Plan {rel}, table '{heading}', row {rid}:\n\n{body}"
+    )
+    it = Item(spec.group(1), rid, "task", "eval", what, body, rel, "", stem)
+    it.labels = ["task"]
+    cm = CLASS_CELL.search(" ".join(cells))
+    if cm:
+        it.labels.append(cm.group(1).lower())
+    return dict(it.as_dict(), create_only=True)
+
+
+def parse_plan(path: Path, heading: str, discussions: str = "", root: str = "") -> dict:
+    """The plan.json of one signed plan's table, the shape parse_tree gives."""
+    if not path.is_file():
+        raise PlanError(f"no plan file {path}")
+    text = path.read_text(encoding="utf-8")
+    epic, topic, spec = _plan_head(text, discussions)
+    rel = str(path.resolve())
+    base = str(Path(root).resolve()) + "/" if root else ""
+    if base and rel.startswith(base):
+        rel = rel[len(base) :]
+    header, rows = plan_table(text, heading)
+    names = [_plain(h) or f"col{i + 1}" for i, h in enumerate(header)]
+    items, filed = [], 0
+    for cells in rows:
+        m = ROW_ID.match(_plain(cells[0]))
+        if not m:
+            continue
+        if KEY_REF.search(" ".join(cells)):
+            filed += 1
+            continue
+        items.append(
+            _plan_item(spec, m.group(0), cells, names, topic, rel, heading, path.stem)
+        )
+    if not items and not filed:
+        raise PlanError(f"no row with an id under the heading '{heading}'")
+    row = {
+        "spec": spec.group(1),
+        "dir": path.stem,
+        "heading": heading,
+        "pinned": epic,
+        "epic_fixed": epic,
+        "discussion": topic,
+        "parsed": len(items),
+        "t_parsed": len(items),
+        "subtasks": 0,
+        "docs": 0,
+        "already_filed": filed,
+    }
+    return {"specs": [row], "items": items}
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="parse git-spec tasks into issue records")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1128,10 +1289,33 @@ def main(argv: list[str]) -> int:
     n = sub.add_parser("pinnedmissing")
     n.add_argument("--plan", type=Path, required=True)
     n.add_argument("--list", type=Path, required=True)
+    q = sub.add_parser("plan")
+    q.add_argument("--plan-file", type=Path, required=True)
+    q.add_argument("--table", required=True)
+    q.add_argument("--discussions", default="")
+    q.add_argument("--root", default="")
+    q.add_argument("--redact", default="")
+    q.add_argument("--out", type=Path)
+    c.add_argument("--from-plan", type=Path)
     args = p.parse_args(argv)
     REDACT[:] = [
         w for w in (x.strip() for x in getattr(args, "redact", "").split(",")) if w
     ]
+    if args.cmd == "plan":
+        try:
+            doc = parse_plan(args.plan_file, args.table, args.discussions, args.root)
+        except PlanError as err:
+            print(
+                f"FATAL refused, nothing filed: {args.plan_file}: {err}",
+                file=sys.stderr,
+            )
+            return 2
+        text = json.dumps(doc, ensure_ascii=False)
+        if args.out:
+            args.out.write_text(text, encoding="utf-8")
+        else:
+            print(text)
+        return 0
     if args.cmd == "missingepics":
         plan = json.loads(args.plan.read_text(encoding="utf-8"))
         listed = _json_line(args.list)
@@ -1171,7 +1355,9 @@ def main(argv: list[str]) -> int:
         doc = reconcile(plan, listed, args.desc)
         args.out.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return 0
-    if args.specs:
+    if args.from_plan:
+        doc = offline_doc(json.loads(args.from_plan.read_text(encoding="utf-8")))
+    elif args.specs:
         doc = offline_doc(filter_specs(parse_tree(args.specs, args.docs), args.only))
     else:
         doc = json.loads(args.ops.read_text(encoding="utf-8"))

@@ -152,6 +152,38 @@ lane, owner msg 52da8fbb). Code: `li_epic_spec`, `li_brief_epic_spec`,
 `spawn-agents/lib/lane-issue.inc.sh`; `spl_lane_issue_guard`;
 `spl_issue_create_epic_spec`.
 
+### 0.4 A signed plan files its rows (spec 153 3.22.5, row Q12)
+
+A round plan or a spec's section 5 table is work someone decided on, and a row
+needs a key before it lands. So the planner files the rows of the signed plan
+as the **last step of signing**, after the panel's PASS and the holder's GO:
+
+```bash
+cd csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<seat> SPEC_IMPORT_PLAN=<plan.md> SPEC_IMPORT_PLAN_TABLE='<heading of the rows table>' DRY_RUN=0 ./run -a do_spl_spec_import_issues
+```
+
+- One issue per row of the first table under that heading: title
+  `[NNN <row>] <second cell>` (NNN from the plan's `Spec:` path), status
+  `eval`, parent the plan's `Epic: SPL-<n>` line, the card's `Source` the
+  plan's `Topic:` (or `Discussion:`) uuid, else `ISSUE_DISCUSSIONS` (a spec
+  has no `Topic:` line). The row's cells are the description; a cell
+  `class bug|feature|refactor` adds that label, nothing else is guessed.
+- A row that names an `SPL-n` already has its issue and is not filed. An
+  existing `[NNN <row>]` issue under the epic is left as it is (its status
+  is its lane's), so a second run files none.
+- Refused, nothing filed: a plan with no `Epic:` line, no discussion, no
+  heading holding `SPEC_IMPORT_PLAN_TABLE` or no table under it. A dry run
+  (the default) prints the report: create, unchanged, and the rows that
+  already name a key.
+- Nothing detects a signed plan whose planner skipped this step: its rows
+  have no issue (spec 153 3.22.5 reads plans from open issues) until someone
+  runs it.
+
+Code: `csi-spl-orc/src/bash/run/spl-spec-import-issues.func.sh`
+(`_spl_spec_make_plan`), `csi-spl-orc/src/bash/scripts/spec-import-issues.py`
+(`parse_plan`); test `csi-spl-orc/src/bash/tests/spec-import-issues.tst.sh`
+(C126).
+
 <a id="ws-doc-33e2dfe3-ac34-4c97-a628-cbcb87906328"></a>
 ## 1. The life of a lane's issue
 

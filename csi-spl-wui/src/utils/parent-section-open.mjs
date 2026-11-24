@@ -125,36 +125,78 @@ const HOLD_MAX_MS = 2000
     tail under the list lands a frame late, and a card off screen is laid out
     at its content-visibility estimate until it is drawn: once the card is in
     view the rows beside it are drawn at their real height and move it, on a
-    slow machine after the first re-measure. Re-apply every frame until the
-    card has kept its place HOLD_STILL_FRAMES frames (at most HOLD_MAX_MS);
-    the reader's own wheel, touch, key or pointer lets go at once. */
+    slow machine after the first re-measure. Re-apply until the card has kept
+    its place HOLD_STILL_FRAMES frames (at most HOLD_MAX_MS); the reader's own
+    wheel, touch, key or pointer lets go at once.
+    p20-03: a per-frame read forced a layout each frame (~61 ms a topic open
+    on a 4x-slowed phone). Those moves are size changes, so the card is
+    re-applied in the scroller's ResizeObserver callback (as followTopicPane
+    does), after layout, where the read forces nothing; a frame with no
+    change counts as still without a read. A ResizeObserver cannot see a
+    script's scroll, a row's transform (the feed's move/enter transitions)
+    or rows swapped above the card while the list loads (aria-busy): the
+    frame after a scroll, and every frame while one of the others is
+    pending (HOLD_PENDING), still reads. */
 function holdCard(card, scroller, apply) {
   if (typeof requestAnimationFrame !== 'function') return
   const until = Date.now() + HOLD_MAX_MS
   const inputs = ['wheel', 'touchstart', 'keydown', 'pointerdown']
+  const watch = typeof ResizeObserver === 'function'
   let done = false
+  let ro = null
+  let last = NaN
+  let still = 0
+  /* no observer: read every frame, as before */
+  let scrolled = !watch
+  const onScroll = () => { scrolled = true }
   const stop = () => {
     done = true
+    if (ro) ro.disconnect()
+    scroller.removeEventListener('scroll', onScroll)
     for (const t of inputs) scroller.removeEventListener(t, stop)
   }
   for (const t of inputs) scroller.addEventListener(t, stop, { passive: true })
-  let last = NaN
-  let still = 0
+  /* apply, then read where the card is: true when it moved since the last read */
+  const place = () => {
+    apply()
+    const at = card.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+    const moved = !(Math.abs(at - last) < 1)
+    last = at
+    return moved
+  }
+  if (watch) {
+    ro = new ResizeObserver(() => {
+      if (done || !card.isConnected) return
+      if (place()) still = 0
+    })
+    for (const el of holdTargets(card, scroller)) ro.observe(el)
+    scroller.addEventListener('scroll', onScroll, { passive: true })
+  }
   const tick = () => {
     if (done) return
     if (!card.isConnected || Date.now() > until) return stop()
-    apply()
-    const at = card.getBoundingClientRect().top - scroller.getBoundingClientRect().top
-    still = Math.abs(at - last) < 1 ? still + 1 : 0
-    last = at
+    const read = scrolled || Boolean(scroller.querySelector(HOLD_PENDING))
+    scrolled = !watch
+    still = read && place() ? 0 : still + 1
     if (still >= HOLD_STILL_FRAMES) return stop()
     requestAnimationFrame(tick)
   }
   requestAnimationFrame(tick)
 }
 
+/** What can move the card while nothing changes size: a list loading, a row in its move or enter transition. */
+const HOLD_PENDING = '[aria-busy="true"], .append-move, .prepend-move, .append-enter-active, .prepend-enter-active'
+
+/** The boxes whose size moves the card: the scroller, its children (the list
+    and the tail under it), the card and each box between the two. */
+function holdTargets(card, scroller) {
+  const out = new Set([scroller, ...scroller.children])
+  for (let el = card; el && el !== scroller; el = el.parentElement) out.add(el)
+  return [...out]
+}
+
 /** Put the card at the reader's edge of its scroller and hold it there while the feed settles. */
-function landCard(card, scroller, newestLast) {
+export function landCard(card, scroller, newestLast) {
   const apply = () => {
     if (!card.isConnected) return
     const pad = parseFloat(getComputedStyle(scroller).paddingBottom) || 0

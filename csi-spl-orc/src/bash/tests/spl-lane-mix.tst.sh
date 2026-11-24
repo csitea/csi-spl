@@ -19,7 +19,9 @@
 #          real all.env.yaml with the section 2 table pinned, so a cnf change
 #          does not move these cases; it also pins mistral_coding_allowed
 #          true, and section 16 checks the coding rule (owner HUM-10 msg
-#          91bf8278: mistral does docs and reviews only) with it false.
+#          91bf8278: mistral does docs and reviews only) with it false; it
+#          pins mistral_review_allowed true, and section 20 checks the review
+#          rule (owner HUM-10 t1 91992830: mistral sits on no review) false.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -35,6 +37,7 @@ REAL_CNF="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
 CNF="$T/all.env.yaml"
 yq '.env.box.agent_split.tolerance = 5 | .env.box.agent_split.window = 20
   | .env.box.agent_split.mistral_coding_allowed = true
+  | .env.box.agent_split.mistral_review_allowed = true
   | .env.box.agent_split_by_kind = {
       "specs_and_docs": {"agy": 70, "mistral": 20, "claude": 10, "backup": "claude"},
       "tests": {"claude": 70, "mistral": 30, "backup": "mistral"},
@@ -939,6 +942,69 @@ mix LANE_MIX_CNF="$T/cnf.edit" LANE_MIX_KIND=simple_coding LANE_MIX_INSTANCE=0 P
 [[ "$a" == "main=mistral tolerance=5 " && "$(seen)" == "main=claude tolerance=7 " ]] \
   && pass "19. control: two picks with the cnf edited between them each read their own cnf ($a, then $(seen))" \
   || fail "19. cnf edit between picks: $a then $(seen)"
+
+# --- 20. no review seat goes to mistral (owner HUM-10, t1 91992830) ----------
+# Msgs 65a45673 + 591ca574 (2026-11-24): "remove mistral from the review for
+# all". A review kind (review, reviews, code_review) or a review brief (its
+# Kind:, or a -reviewer / -review / panel-seat slug) never picks mistral, as
+# main or backup, while cnf mistral_review_allowed is not true; its weight
+# goes to the heir. A docs-writing lane still may go to mistral. COUNTING:
+# every one of the review shapes below is tried; n counts mistral picks.
+# RED CONTROL: the same picks with the switch true give mistral every time.
+rm -rf "$T/dispatch"; : >"$T/registry.tsv"; hub '[]'
+mkdir -p "$T/rb"
+printf '# plan panel\nKind: specs_and_docs\n' >"$T/rb/s99-plan-panel-seat-mistral-2.md"
+printf '# r7\nKind: specs_and_docs\n' >"$T/rb/c9-spl9-mistral-reviewer.md"
+printf '# r1\nKind: specs_and_docs\n' >"$T/rb/g9-r1-2-mistral-review.md"
+printf '# panel\nKind: specs_and_docs\n' >"$T/rb/9-s9-panel-mistral.md"
+printf '# a review\nKind: code_review\n' >"$T/rb/x-check.md"
+printf '# docs\nKind: specs_and_docs\nWrite the guide.\n' >"$T/rb/c9-write-guide.md"
+row="claude=10 grok=0 agy=0 qwen=0 mistral=90 backup=claude"
+review_cases=("LANE_MIX_KIND=review" "LANE_MIX_KIND=reviews" "LANE_MIX_KIND=code_review"
+  "LANE_MIX_KIND=specs_and_docs LANE_MIX_BRIEF=$T/rb/s99-plan-panel-seat-mistral-2.md"
+  "LANE_MIX_KIND=specs_and_docs LANE_MIX_BRIEF=$T/rb/c9-spl9-mistral-reviewer.md"
+  "LANE_MIX_KIND=specs_and_docs LANE_MIX_BRIEF=$T/rb/g9-r1-2-mistral-review.md"
+  "LANE_MIX_KIND=specs_and_docs LANE_MIX_BRIEF=$T/rb/9-s9-panel-mistral.md"
+  "LANE_MIX_BRIEF=$T/rb/x-check.md LANE_MIX_KIND=specs_and_docs")
+review_count() {  # review_count <switch> -> mistral picks over the cases, main and backup
+  local c n=0
+  yq -i ".env.box.agent_split.mistral_review_allowed = $1" "$CNF"
+  for c in "${review_cases[@]}"; do
+    # shellcheck disable=SC2086 # one case = several VAR=value words
+    mix $c LANE_MIX_SPLIT_KIND="$row"
+    [[ "$(pick)" == mistral ]] && n=$((n + 1))
+    # shellcheck disable=SC2086
+    mix $c LANE_MIX_TASK=task-rv LANE_MIX_SPLIT_KIND="claude=90 grok=0 agy=0 qwen=0 mistral=10 backup=mistral"
+    [[ "$(pick)" == mistral ]] && n=$((n + 1))
+  done
+  echo "$n"
+}
+attempt task-rv claude fail:F2; attempt task-rv claude fail:F2
+n_off="$(review_count false)"; out_off="$(cat "$T/out")"
+n_on="$(review_count true)"
+[[ "$n_off" == 0 ]] && grep -q 'mistral is out (mistral sits on no review (Kind: code_review' <<<"$out_off" \
+  && pass "20. 0 of $(( ${#review_cases[@]} * 2 )) review picks (main and backup) go to mistral with mistral_review_allowed false" \
+  || fail "20. review picks to mistral: $n_off; $out_off"
+[[ "$n_on" == $(( ${#review_cases[@]} * 2 )) ]] \
+  && pass "20. control: mistral_review_allowed true gives all $n_on of the same picks to mistral" || fail "20. control: $n_on of $(( ${#review_cases[@]} * 2 ))"
+yq -i '.env.box.agent_split.mistral_review_allowed = false' "$CNF"
+rm -rf "$T/dispatch"
+mix LANE_MIX_KIND=review LANE_MIX_SPLIT_KIND="claude=10 grok=0 agy=0 qwen=0 mistral=90 backup=claude"
+[[ "$(pick)" == claude ]] && grep -qE '^mistral +90% +0% .* skip \(mistral sits on no review \(Kind: review; owner HUM-10 t1 91992830 msgs 65a45673, 591ca574: mistral sits on no review\)\); share to claude$' "$T/out" \
+  && pass "20. a review row with a mistral main: its weight goes to the backup claude" || fail "20. heir: $(cat "$T/out")"
+for c in "LANE_MIX_KIND=specs_and_docs" "LANE_MIX_KIND=specs_and_docs LANE_MIX_BRIEF=$T/rb/c9-write-guide.md"; do
+  # shellcheck disable=SC2086
+  mix $c LANE_MIX_SPLIT_KIND="claude=10 grok=0 agy=0 qwen=0 mistral=90 backup=claude"
+  [[ "$(pick)" == mistral ]] && pass "20. a docs-writing lane ($c) still goes to mistral" || fail "20. docs ($c): $(cat "$T/out")"
+done
+printf '# x\nKind: simple_coding\n' >"$T/rb/c9-panel-seat-no-ui-swap.md"
+MIX_BODY='spl_lane_mix_review_target "$T/rb/c9-panel-seat-no-ui-swap.md" simple_coding; echo "--"; spl_lane_mix_review_target "" specs_and_docs; echo "--"; spl_lane_mix_review_target "$T/rb/s99-plan-panel-seat-mistral-2.md" specs_and_docs' mix T="$T"
+[[ "$(cat "$T/out")" == $'--\n--\npanel seat s99-plan-panel-seat-mistral-2' ]] \
+  && pass "20. a coding slug holding the words (-panel-seat-no-ui-swap) and a bare docs kind are no review" || fail "20. target: $(cat "$T/out")"
+mix LANE_MIX_KIND=review LANE_MIX_CNF="$REAL_CNF" LANE_MIX_INSTANCE=0
+[[ "$(pick)" != mistral ]] && grep -q 'mistral sits on no review' "$T/out" \
+  && [[ "$(yq -r '.env.box.agent_split.mistral_review_allowed' "$REAL_CNF")" == false ]] \
+  && pass "20. the real cnf holds mistral_review_allowed: false, and a review there picks $(pick)" || fail "20. real cnf: $(cat "$T/out")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

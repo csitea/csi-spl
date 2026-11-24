@@ -7,7 +7,10 @@
 # @description   1. VENDORS - do_spl_lane_mix, kind secret (the data rule:
 # @description      claude, grok or mistral only). Seat 1 takes its pick; seat 2
 # @description      a different vendor when one is available (the row's backup
-# @description      first, then claude, grok, mistral), else the same one
+# @description      first, then claude, grok, mistral), else the same one.
+# @description      A seat is a review: mistral sits on neither while cnf
+# @description      env.box.agent_split.mistral_review_allowed is not true
+# @description      (owner HUM-10, t1 91992830, msgs 65a45673 and 591ca574)
 # @description   2. QUEUE - per seat: the brief <slug>.md rendered from the seat
 # @description      template (<N> and <YYYY-MM-DD> replaced) under
 # @description      SPAWN_PLACE_BRIEF_DIR, the ask (task security-round-<date>,
@@ -99,9 +102,11 @@ spl_security_round_switch() {
   if [[ "$v" == true ]]; then printf on; else printf off; fi
 }
 
-# "<seat 1 vendor> <seat 2 vendor>" from one kind-secret lane mix; nothing on hold.
+# "<seat 1 vendor> <seat 2 vendor>" from one kind-secret lane mix; nothing on
+# hold. Mistral takes no seat while the review switch is off.
 spl_security_round_vendors() {  # DAY
-  local out v1 backup v
+  local out v1 backup v ok="claude|grok|mistral" cnf="${SECURITY_ROUND_CNF:-${APP_PATH:-}/csi-spl-cnf/csi-spl/all.env.yaml}"
+  [[ "$(yq -r '.env.box.agent_split.mistral_review_allowed' "$cnf" 2>/dev/null)" == true ]] || ok="claude|grok"
   if [[ -n "${SECURITY_ROUND_MIX_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     out="$(LANE_MIX_KIND=secret LANE_MIX_TASK="security-round-$1" $SECURITY_ROUND_MIX_CMD 2>&1)"
@@ -111,9 +116,10 @@ spl_security_round_vendors() {  # DAY
   fi
   v1="$(sed -nE 's/^pick=([a-z]+)( .*)?$/\1/p' <<<"$out" | tail -1)"
   [[ "$v1" =~ ^(claude|grok|mistral)$ ]] || return 0
+  [[ "$v1" =~ ^($ok)$ ]] || v1=claude
   backup="$(sed -nE 's/^kind=secret .*backup=([a-z]+).*$/\1/p' <<<"$out" | tail -1)"
   for v in $backup claude grok mistral; do
-    [[ "$v" != "$v1" && "$v" =~ ^(claude|grok|mistral)$ ]] || continue
+    [[ "$v" != "$v1" && "$v" =~ ^($ok)$ ]] || continue
     # its table row "<vendor> <target> <effective> <actual> <count> <cli> <status>";
     # a vendor out (no CLI, no auth, a limit verdict, paused) reads "skip (...)"
     grep -qE "^$v +[0-9]+% " <<<"$out" || continue

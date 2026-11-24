@@ -36,6 +36,9 @@ listed line; it is not owned by any one task.
 - **Q3 = now (D4).** T013 follows T001 + T003 + T013a.
 - **D5** (msg c7970593): docs/spec and low-level coding go to mistral
   first; one mistral seat on every consensus/debate panel. Built in T013a.
+  The panel seat is superseded 2026-11-24 (owner HUM-10, t1 91992830, msgs
+  65a45673 and 591ca574): mistral sits on no review seat (`spec.md` D5,
+  SPL-6430).
 
 ## Order
 

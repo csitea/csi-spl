@@ -220,6 +220,8 @@ class AgentSplitByKindTest(unittest.TestCase):
     def test_all_env_yaml_keeps_coding_off_for_mistral(self):
         box = AllEnv.parse_raw(ALL_ENV.read_text()).env.box
         self.assertIs(box.agent_split["mistral_coding_allowed"], False)
+        # owner HUM-10, t1 91992830, msgs 65a45673 + 591ca574: no review seat
+        self.assertIs(box.agent_split["mistral_review_allowed"], False)
         self.assertGreater(box.agent_split_by_kind["specs_and_docs"].mistral, 0)
 
     def test_all_env_yaml_rows_hold_the_owner_weights(self):

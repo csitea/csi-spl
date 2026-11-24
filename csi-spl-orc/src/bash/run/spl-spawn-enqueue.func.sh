@@ -50,7 +50,7 @@
 # @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share. The owner's review-seat GO (SPL_SPAWN_REVIEW_SEAT_GO) also takes a review seat of class refactor or bug (SPL-3349), queued as a feature + bypass, the hub's one flag ahead of the bands (SPL-5638); unset on a review seat (a SPAWN_PLACE slug ending in -reviewer, no SPAWN_URGENT) it IS that GO (SPL-3762)
 # @param ASK_ID (required) - the ask id, or its first 8 hex digits (do_spl_asks_open prints them)
 # @param SPAWN_PLACE (optional) - <vendor>:<slug>: the placer launches it itself, `spawn-window.sh <vendor> auto <workdir> <brief> <slug>`, with the brief file <slug>.md under SPAWN_PLACE_BRIEF_DIR on the orch box. Unset: the placer hands it to the orchestrator when it is next
-# @param SPAWN_KIND (optional) - the lane's task kind (spec 115); unset reads the "Kind:" of the brief <slug>.md. A mistral placement of any kind but specs_and_docs or i18n is refused (owner HUM-10, t1 b61851fb, msg 91bf8278: mistral does docs and reviews only) while cnf env.box.agent_split.mistral_coding_allowed is not true
+# @param SPAWN_KIND (optional) - the lane's task kind (spec 115); unset reads the "Kind:" of the brief <slug>.md. A mistral placement of any kind but specs_and_docs or i18n is refused (owner HUM-10, t1 b61851fb, msg 91bf8278: mistral does docs and reviews only) while cnf env.box.agent_split.mistral_coding_allowed is not true; a mistral placement of a review seat (Kind: review, reviews or code_review, or a -reviewer, -review or panel-seat slug) is refused while env.box.agent_split.mistral_review_allowed is not true (owner HUM-10, t1 91992830, msgs 65a45673 and 591ca574)
 # @param ASK_DISCUSSION (optional) - the owner topic the ask works for, a lowercase UUID (spec 150 row B10b): the queue ranks by its priority. The hub fills it while the ask has none, never overwrites; unset, the hub's resolve of a topic dispatch-<topic8> stands
 # @param SPAWN_PARENT_LANE (optional) - the agent id (<ID> or <ID>@<box>) of the live lane this is a helper of (spec 153 3.22.9, row Q9): needs SPAWN_PLACE; the parent's priority (its issue's, 1..5) allows cnf env.box.prio_helpers helpers at once (queued or live, counted by the `Parent-Lane:` line of their briefs); at the allowance the ask is refused (one FATAL line, nothing queued), under it the brief gets `Parent-Lane: <ID>` and the ask the parent's discussion
 # @param SPAWN_PARENT_PRIO_CMD (optional) - test seam: <cmd> <issue key> prints that issue's priority; unset reads it from the hub through the desk
@@ -403,15 +403,23 @@ spl_spawn_q_enqueue_reopen() {  # BRIEF SLUG WHY
 }
 
 # spl_spawn_enqueue_mistral_ok <placement> -> refuses (one FATAL line) a
-# mistral placement whose kind (SPAWN_KIND, else the brief's "Kind:", none
-# counting as coding) is coding: the coding rule of spl-lane-mix.func.sh
+# mistral placement that is a review seat (spl_lane_mix_review_target: its
+# kind, SPAWN_KIND else the brief's "Kind:", or its slug; owner HUM-10 t1
+# 91992830, 2026-11-24) or whose kind (none counting as coding) is coding:
+# the review and coding rules of spl-lane-mix.func.sh
 spl_spawn_enqueue_mistral_ok() {
-  local why kind="${SPAWN_KIND:-}"
+  local why kind="${SPAWN_KIND:-}" brief cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
   [[ "$1" == mistral:* ]] || return 0
   declare -F spl_lane_mix_mistral_code_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
   declare -F spl_spawn_place_brief >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
-  [[ -n "$kind" ]] || kind="$(spl_lane_mix_brief_kind "$(spl_spawn_place_brief "${1#mistral:}")")"
-  why="$(spl_lane_mix_mistral_code_off "${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}" "$kind")"
+  brief="$(spl_spawn_place_brief "${1#mistral:}")"
+  [[ -n "$kind" ]] || kind="$(spl_lane_mix_brief_kind "$brief")"
+  why="$(spl_lane_mix_mistral_review_off "$cnf" "$brief" "$kind")"
+  if [[ -n "$why" ]]; then
+    do_log "FATAL SPAWN_PLACE=$1 refused: $why; place it as agy:${1#mistral:} (claude:${1#mistral:} for an agy author or a data-rule brief)"
+    return 1
+  fi
+  why="$(spl_lane_mix_mistral_code_off "$cnf" "$kind")"
   [[ -z "$why" ]] && return 0
   do_log "FATAL SPAWN_PLACE=$1 refused: $why; place it as claude:${1#mistral:}"
   return 1

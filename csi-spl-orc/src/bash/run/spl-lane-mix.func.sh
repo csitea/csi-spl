@@ -7,7 +7,7 @@
 # @description is the vendor with the highest weight. APPROXIMATE, never a quota.
 # @description Kinds: specs_and_docs, tests, simple_coding, complex_coding,
 # @description i18n, secret, orchestration. The old names stay as aliases: spec,
-# @description review and code_review are specs_and_docs, hard is complex_coding,
+# @description review, reviews and code_review are specs_and_docs, hard is complex_coding,
 # @description default is simple_coding. No kind: difficulty >= 60 is complex_coding,
 # @description else simple_coding. LANE_MIX_SENSITIVE=1 makes any kind secret.
 # @description The one rule (spec 115 section 5): the candidates are the main,
@@ -61,13 +61,22 @@
 # @description whatever the row (a hub row that still names it included); its
 # @description weight goes to the heir. cnf env.box.agent_split.mistral_coding_allowed
 # @description (default false) lifts it, on a new owner order only.
+# @description Review rule (owner HUM-10, t1 91992830, msgs 65a45673 and
+# @description 591ca574, 2026-11-24: "remove mistral from the review for
+# @description all"): a review seat never gets mistral, as main or backup: a
+# @description LANE_MIX_KIND review, code_review or reviews, or a brief
+# @description (LANE_MIX_BRIEF) whose Kind: is one of them, or whose slug ends
+# @description -reviewer, -review or a panel seat (spl_lane_mix_review_target);
+# @description its weight goes to the heir. cnf
+# @description env.box.agent_split.mistral_review_allowed (default false) lifts
+# @description it, on a new owner order only. Docs-writing lanes are no review.
 # @description Prints the kind's table, then `pick=<vendor> launcher=/<vendor>-spawn
 # @description kind=<k> reason=...`, or `pick=hold`.
 # @param LANE_MIX_KIND (optional) - a kind or an alias above; unset reads the difficulty
 # @param LANE_MIX_DIFFICULTY (optional) - 0..100, the task against your own capacity
 # @param LANE_MIX_SENSITIVE (optional) - 1: the work carries secrets/personal data
 # @param LANE_MIX_TASK (optional) - the task_id: its failed tries pick the backup
-# @param LANE_MIX_BRIEF (optional) - the lane's brief file: naming csi-spl-wui/ makes it UI work
+# @param LANE_MIX_BRIEF (optional) - the lane's brief file: naming csi-spl-wui/ makes it UI work; a review Kind: or slug makes it a review seat
 # @param LANE_MIX_PATHS (optional) - the lane's paths, comma or space separated: one under csi-spl-wui/ makes it UI work
 # @param LANE_MIX_SPLIT_KIND (optional) - "claude=N grok=N agy=N qwen=N mistral=N codex=N
 # @param   backup=<vendor>", the kind's row (do_spl_agent_split_show --kind);
@@ -102,6 +111,10 @@ LANE_MIX_VENDORS=(claude grok agy qwen mistral codex)
 # reviews only; every kind but these is coding (spl_lane_mix_mistral_code_off)
 LANE_MIX_MISTRAL_KINDS=(specs_and_docs i18n)
 LANE_MIX_NO_CODE_ORDER="owner HUM-10 t1 b61851fb msg 91bf8278: mistral does docs and reviews only, no coding"
+# owner HUM-10, t1 91992830, msgs 65a45673 + 591ca574 (2026-11-24): mistral
+# sits on no review seat (spl_lane_mix_mistral_review_off); supersedes the
+# "reviews" half of the order above and spec 110 D5
+LANE_MIX_NO_REVIEW_ORDER="owner HUM-10 t1 91992830 msgs 65a45673, 591ca574: mistral sits on no review"
 # spec 115 section 5 (owner t1 b1ab562b msg fb9e228c): the backup takes over
 # after two failed tries of the main on the same task
 LANE_MIX_TRIES_MAX=2
@@ -149,12 +162,12 @@ _spl_lane_mix_kind() {
   _LM_KIND_WHY="LANE_MIX_KIND=$1" _LM_KIND_WAS=""
   case "$1" in
     specs_and_docs|tests|simple_coding|complex_coding|i18n|secret|orchestration) _LM_KIND="$1" ;;
-    spec|review|code_review) _LM_KIND=specs_and_docs ;;
+    spec|review|reviews|code_review) _LM_KIND=specs_and_docs ;;
     hard) _LM_KIND=complex_coding ;;
     default) _LM_KIND=simple_coding ;;
     "") if [[ -n "$2" ]] && (( $2 >= 60 )); then _LM_KIND=complex_coding _LM_KIND_WHY="difficulty $2 >= 60"
         else _LM_KIND=simple_coding _LM_KIND_WHY="difficulty ${2:-unset} < 60"; fi ;;
-    *) do_log "FATAL LANE_MIX_KIND must be specs_and_docs, tests, simple_coding, complex_coding, i18n, secret or orchestration (or spec, review, code_review, hard, default), got '$1'"
+    *) do_log "FATAL LANE_MIX_KIND must be specs_and_docs, tests, simple_coding, complex_coding, i18n, secret or orchestration (or spec, review, reviews, code_review, hard, default), got '$1'"
        return 1 ;;
   esac
   [[ "$3" == 1 ]] || return 0
@@ -163,20 +176,21 @@ _spl_lane_mix_kind() {
 }
 
 # _spl_lane_mix_cnf <cnf> -> _LM_TOL, _LM_WIN, _LM_TGT, _LM_BACKUP, _LM_UI_OK,
-# _LM_CODE_OK (the two mistral_*_allowed flags) and _LM_MARKER (the auth
+# _LM_CODE_OK, _LM_REVIEW_OK (the three mistral_*_allowed flags) and _LM_MARKER (the auth
 # markers): every cnf value of one pick from ONE yq, one value a line, read
 # again on each pick (perf round 17 row 02: 13 yq at ~31 ms each before)
 _spl_lane_mix_cnf() {
   local v s=.env.box.agent_split r=".env.box.agent_split_by_kind.$_LM_KIND" q i=0 vals=()
   q="($s.tolerance // 5), ($s.window // 20)"
   for v in "${LANE_MIX_VENDORS[@]}"; do q+=", ($r.$v // 0)"; done
-  q+=", ($r.backup // \"\"), $s.mistral_ui_allowed, $s.mistral_coding_allowed"
+  q+=", ($r.backup // \"\"), $s.mistral_ui_allowed, $s.mistral_coding_allowed, $s.mistral_review_allowed"
   for v in "${LANE_MIX_VENDORS[@]}"; do q+=", ($s.auth_marker.$v // \"\")"; done
   mapfile -t vals < <(yq -r "$q" "$1")
   _LM_TOL="${vals[0]:-}" _LM_WIN="${vals[1]:-}"
   for v in "${LANE_MIX_VENDORS[@]}"; do _LM_TGT[$v]="${vals[2 + i]:-}" i=$((i + 1)); done
   _LM_BACKUP="${vals[2 + i]:-}" _LM_UI_OK="${vals[3 + i]:-}" _LM_CODE_OK="${vals[4 + i]:-}"
-  for v in "${LANE_MIX_VENDORS[@]}"; do _LM_MARKER[$v]="${vals[5 + i]:-}" i=$((i + 1)); done
+  _LM_REVIEW_OK="${vals[5 + i]:-}"
+  for v in "${LANE_MIX_VENDORS[@]}"; do _LM_MARKER[$v]="${vals[6 + i]:-}" i=$((i + 1)); done
 }
 
 # _spl_lane_mix_target <cnf> -> _LM_TGT, _LM_MAIN, _LM_BACKUP, _LM_ROW (where
@@ -250,6 +264,7 @@ _spl_lane_mix_avail() {
     _spl_lane_mix_report "$v" "${lim%%$'\t'*}" "${lim#*$'\t'}"
   done
   [[ -z "$_LM_CODE_WHY" ]] || _LM_AVAIL[mistral]="$_LM_CODE_WHY"
+  [[ -z "$_LM_REVIEW_WHY" ]] || _LM_AVAIL[mistral]="$_LM_REVIEW_WHY"
   [[ -z "$_LM_UI_WHY" ]] || _LM_AVAIL[mistral]="$_LM_UI_WHY"
   _spl_lane_mix_share
 }
@@ -286,11 +301,55 @@ _spl_lane_mix_ui_off_why() {
   echo "mistral takes no UI work until do_spl_vendor_ui_retest passes ($1)"
 }
 
-# _spl_lane_mix_ui -> _LM_UI_WHY, set when the UI rule keeps mistral out, and
-# _LM_CODE_WHY, set when the coding rule does (the flags of _spl_lane_mix_cnf)
+# _spl_lane_mix_ui -> _LM_UI_WHY, set when the UI rule keeps mistral out,
+# _LM_CODE_WHY, set when the coding rule does, and _LM_REVIEW_WHY, set when
+# the review rule does (the flags of _spl_lane_mix_cnf). The review kind is
+# LANE_MIX_KIND as given (its aliases all read specs_and_docs), else the
+# brief's Kind:.
 _spl_lane_mix_ui() {
+  local k="${LANE_MIX_KIND:-}"
   _LM_UI_WHY="$(_spl_lane_mix_ui_off_why "$(spl_lane_mix_ui_target "${LANE_MIX_BRIEF:-}" "${LANE_MIX_PATHS:-}")" "$_LM_UI_OK")"
   _LM_CODE_WHY="$(_spl_lane_mix_code_off_why "$_LM_KIND" "$_LM_CODE_OK")"
+  _spl_lane_mix_review_kind "$k" || k="$(spl_lane_mix_brief_kind "${LANE_MIX_BRIEF:-}")"
+  _LM_REVIEW_WHY="$(_spl_lane_mix_review_off_why "$(spl_lane_mix_review_target "${LANE_MIX_BRIEF:-}" "$k")" "$_LM_REVIEW_OK")"
+}
+
+# _spl_lane_mix_review_kind <kind> -> 0 when the kind word names a review
+_spl_lane_mix_review_kind() {
+  [[ "$1" =~ ^(review|reviews|code_review)$ ]]
+}
+
+# spl_lane_mix_review_target <brief-file> <kind> -> why the lane is a review
+# seat, else nothing: the kind (LANE_MIX_KIND or the brief's Kind:) is
+# review, reviews or code_review; or the brief's file name, the placement
+# slug, ends -reviewer or -review (the R7 and round reviewer seats), or is a
+# panel seat: -panel or -panel-seat, alone, numbered (-panel-seat-3) or with
+# a vendor and an optional suffix (-panel-seat-mistral-2, -panel-agy). A
+# coding lane whose slug only holds the words (-panel-seat-no-ui-swap) is
+# none. The placer and the enqueue read it too.
+spl_lane_mix_review_target() {
+  local s rx='-panel(-seat)?(-[0-9]+|-(agy|claude|grok|mistral|qwen|codex)(-[0-9a-z]+)?)?$'
+  _spl_lane_mix_review_kind "$2" && { echo "Kind: $2"; return 0; }
+  [[ -n "$1" ]] || return 0
+  s="$(basename "$1" .md)"
+  [[ "$s" == *-reviewer || "$s" == *-review ]] && { echo "review seat $s"; return 0; }
+  [[ "$s" =~ $rx ]] && echo "panel seat $s"
+  return 0
+}
+
+# spl_lane_mix_mistral_review_off <cnf> <brief-file> <kind> -> why mistral may
+# not take this lane (a review seat, and env.box.agent_split.mistral_review_allowed
+# is not true), else nothing
+spl_lane_mix_mistral_review_off() {
+  _spl_lane_mix_review_off_why "$(spl_lane_mix_review_target "$2" "$3")" \
+    "$(yq -r '.env.box.agent_split.mistral_review_allowed' "$1" 2>/dev/null)"
+}
+
+# _spl_lane_mix_review_off_why <review-why> <mistral_review_allowed> -> why
+# mistral may not take this review seat, else nothing
+_spl_lane_mix_review_off_why() {
+  [[ -n "$1" && "$2" != true ]] || return 0
+  echo "mistral sits on no review ($1; $LANE_MIX_NO_REVIEW_ORDER)"
 }
 
 # spl_lane_mix_brief_kind <brief-file> -> the kind word of the brief's first
@@ -314,7 +373,7 @@ spl_lane_mix_mistral_code_off() {
 # (specs_and_docs and i18n, aliases read as the picker does)
 _spl_lane_mix_mistral_kind() {
   local k="$1"
-  case "$k" in spec|review|code_review) k=specs_and_docs ;; esac
+  case "$k" in spec|review|reviews|code_review) k=specs_and_docs ;; esac
   [[ " ${LANE_MIX_MISTRAL_KINDS[*]} " == *" $k "* ]]
 }
 

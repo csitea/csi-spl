@@ -144,6 +144,10 @@
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
+#  42. owner HUM-10 t1 91992830 (mistral sits on no review): a mistral
+#      placement of any review shape is refused at enqueue, and a review row
+#      queued before launches agy, or claude for an agy author or a data-rule
+#      brief (CONTROL: mistral_review_allowed true queues every shape)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -1063,13 +1067,19 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=c-503 2>&1)"
   grep -q "placed as mistral, launched as agy: mistral takes no UI work until do_spl_vendor_ui_retest passes" <<<"$out" &&
   pass "a mistral placement with a Kind: i18n WUI brief launches agy" || fail "ui placement: $out | $(cat "$T/launch.log")"
 printf 'Kind: specs_and_docs\nR7 review of a claude row; files csi-spl-wui/src/pages/docs.vue\n%s\n' "$ES" >"$T/briefs/ui-review.md"
+# The review-seat cases below predate the review rule (owner HUM-10, t1
+# 91992830, 2026-11-24): they run with mistral_review_allowed true, the
+# branch they test; section 42 checks the rule itself. ui-review (a -review
+# slug, a review seat since that rule) is queued with it true and placed
+# under the rule: its heir is agy still.
+printf 'env:\n  box:\n    agent_split:\n      mistral_review_allowed: true\n' >"$T/review-on.yaml"
 put "$U3" c-002@box-desk dispatch-b61851fb-w "SPAWN REQUEST ui review"
-on pc do_spl_spawn_enqueue ASK_ID="$U3" SPAWN_CLASS=bug SPAWN_PLACE=mistral:ui-review >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$U3" SPAWN_CLASS=bug SPAWN_PLACE=mistral:ui-review SPAWN_PLACE_CNF="$T/review-on.yaml" >/dev/null 2>&1
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place LAUNCH_ID=a-507 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$U3")")" == "placed: a-507@box-desk" ]] &&
   grep -q "^agy auto $T $T/briefs/ui-review.md ui-review$" "$T/launch.log" &&
-  grep -q "placed as mistral, launched as agy: mistral takes no UI work" <<<"$out" &&
+  grep -q "placed as mistral, launched as agy: mistral sits on no review (review seat ui-review" <<<"$out" &&
   pass "SPL-2942: a mistral placement with a Kind: specs_and_docs WUI brief launches agy, not claude" || fail "ui review placement: $out | $(cat "$T/launch.log")"
 printf 'env:\n  box:\n    agent_split:\n      mistral_coding_allowed: true\n' >"$T/coding-on-13.yaml"
 printf 'Kind: complex_coding\nSplit csi-spl-wui/src/pages/docs.vue\n%s\n' "$ES" >"$T/briefs/ui-code.md"
@@ -1153,18 +1163,18 @@ for r in "$R1 sec-x-reviewer m-511 mistral" "$R2 sec-code c-512 claude" "$R4 sec
   "$R11 r94-spec-panel-seat-3 m-526 mistral" "$R12 r93-monitoring-panel-seat-12 m-527 mistral" "$R13 r92-orc-panel-seat-3-no-ui-swap c-528 claude"; do
   read -r rid rslug rlid rto <<<"$r"
   put "$rid" c-002@box-desk "dispatch-spl3776-$rslug" "SPAWN REQUEST $rslug"
-  on pc do_spl_spawn_enqueue ASK_ID="$rid" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE="mistral:$rslug" >/dev/null 2>&1
+  on pc do_spl_spawn_enqueue ASK_ID="$rid" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE="mistral:$rslug" SPAWN_PLACE_CNF="$T/review-on.yaml" >/dev/null 2>&1
   rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
-  out="$(on pc do_spl_spawn_place LAUNCH_ID="$rlid" 2>&1)"
+  out="$(on pc do_spl_spawn_place LAUNCH_ID="$rlid" SPAWN_PLACE_CNF="$T/review-on.yaml" 2>&1)"
   [[ "$(jq -r .reason <<<"$(hubrow "$rid")")" == "placed: $rlid@box-desk" ]] &&
     grep -q "^$rto auto $T $T/briefs/$rslug.md $rslug$" "$T/launch.log" && ! grep -qE '^(agy|qwen) ' "$T/launch.log" &&
     pass "SPL-3776/SPL-3954: mistral:$rslug launches $rto, never agy or qwen" ||
     fail "SPL-3776 $rslug: want $rto: $out | $(cat "$T/launch.log")"
 done
 put "$R3" c-002@box-desk dispatch-spl3776-sec-ui-reviewer "SPAWN REQUEST sec-ui-reviewer"
-on pc do_spl_spawn_enqueue ASK_ID="$R3" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE=mistral:sec-ui-reviewer >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$R3" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE=mistral:sec-ui-reviewer SPAWN_PLACE_CNF="$T/review-on.yaml" >/dev/null 2>&1
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"
-out="$(on pc do_spl_spawn_place LAUNCH_ID=c-513 2>&1)"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-513 SPAWN_PLACE_CNF="$T/review-on.yaml" 2>&1)"
 [[ "$(jq -r .state <<<"$(hubrow "$R3")")" == acked && ! -s "$T/launch.log" && ! -e "$T/pc/spool/asks/.place.last" ]] &&
   grep -q "place ask ${R3:0:8} now.*review seat on mistral would review its author's vendor (mistral: m-709)" "$T/send.log" &&
   grep -q "WARN ask ${R3:0:8}: placed as mistral, its swap is refused: .*review seat on mistral" <<<"$out" &&
@@ -1172,9 +1182,9 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=c-513 2>&1)"
   fail "SPL-3776 refusal: $out | launch: $(cat "$T/launch.log") | $(sends) | $(hubrow "$R3")"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$R3" --by c-001@box-desk --reason "placed: g-513@box-desk" >/dev/null
 put "$R7" c-002@box-desk dispatch-spl6028-r98-plan-panel-seat "SPAWN REQUEST r98-plan-panel-seat"
-on pc do_spl_spawn_enqueue ASK_ID="$R7" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE=mistral:r98-plan-panel-seat >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$R7" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE=mistral:r98-plan-panel-seat SPAWN_PLACE_CNF="$T/review-on.yaml" >/dev/null 2>&1
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"
-out="$(on pc do_spl_spawn_place LAUNCH_ID=m-519 2>&1)"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=m-519 SPAWN_PLACE_CNF="$T/review-on.yaml" 2>&1)"
 [[ "$(jq -r .state <<<"$(hubrow "$R7")")" == acked && ! -s "$T/launch.log" && ! -e "$T/pc/spool/asks/.place.last" ]] &&
   grep -q "place ask ${R7:0:8} now.*review seat on mistral would review its author's vendor (mistral: m-718)" "$T/send.log" &&
   pass "SPL-6028: a mistral panel seat on a mistral author is handed back, nothing launched" ||
@@ -2468,6 +2478,60 @@ b="$(b6181 nonl 0)"; out="$(q6181 nonl)" &&
 out="$(q6181 nonl)" && [[ "$(grep -ciE 'Issue[- ]Role' "$b")" == 1 ]] &&
   pass "SPL-6181 twice: a re-queue of the same brief appends no second Issue-Role: line" ||
   fail "SPL-6181 twice: $(tr '\n' '|' <"$b") | $out"
+
+
+# 42. no review seat goes to mistral (owner HUM-10, t1 91992830, msgs 65a45673
+# + 591ca574, 2026-11-24: "remove mistral from the review for all"). APP_PATH
+# has no cnf here, so mistral_review_allowed reads false, as on the real cnf.
+# COUNTING: every review shape (Kind: review / reviews / code_review, a
+# -reviewer / -review / -panel-seat-<vendor>-<n> / -panel-<vendor> slug) is
+# refused at enqueue, n = the shapes queued. RED CONTROL: the same placements
+# with mistral_review_allowed true all queue. A review row queued before the
+# rule launches its cross-vendor heir: agy for a claude author, claude for an
+# agy author or a data-rule brief, never mistral.
+jq '(.[] | select(.state == "queued")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+printf 'Kind: review\nAuthor: c-741@box-desk\nReview the plan.\n%s\n' "$ES" >"$T/briefs/rv42-kind-review.md"
+printf 'Kind: reviews\nAuthor: c-741@box-desk\nReview the plan.\n%s\n' "$ES" >"$T/briefs/rv42-kind-reviews.md"
+printf 'Kind: code_review\nAuthor: c-741@box-desk\nReview the diff.\n%s\n' "$ES" >"$T/briefs/rv42-kind-code.md"
+for sl in rv42-spl9-mistral-reviewer rv42-r1-2-mistral-review rv42-s9-plan-panel-seat-mistral-2 rv42-s9-panel-mistral; do
+  printf 'Kind: specs_and_docs\nAuthor: c-741@box-desk\nRead-only seat on the plan of c-741.\n%s\n' "$ES" >"$T/briefs/$sl.md"
+done
+printf 'Kind: specs_and_docs\nAuthor: a-742@box-desk\nR7 review of a-742.\n%s\n' "$ES" >"$T/briefs/rv42-agy-author-reviewer.md"
+printf 'Kind: secret\nAuthor: c-743@box-desk\nR7 review of c-743, the key handling.\n%s\n' "$ES" >"$T/briefs/rv42-sec-reviewer.md"
+printf 'Kind: specs_and_docs\nWrite the operator guide for the desk.\n%s\n' "$ES" >"$T/briefs/rv42-docs-guide.md"
+n42=0 ctl42="" i42=0
+for sl in rv42-kind-review rv42-kind-reviews rv42-kind-code rv42-spl9-mistral-reviewer rv42-r1-2-mistral-review rv42-s9-plan-panel-seat-mistral-2 rv42-s9-panel-mistral; do
+  i42=$((i42 + 1)); id="$(printf '42%06x-0000-4000-8000-%012d' "$i42" "$i42")"
+  put "$id" c-002@box-desk "dispatch-91992830-$sl" "SPAWN REQUEST $sl"
+  out="$(on pc do_spl_spawn_enqueue ASK_ID="$id" SPAWN_CLASS=bug SPAWN_PLACE="mistral:$sl" 2>&1)"; rc=$?
+  if [[ $rc -eq 0 || "$(jq -r .state <<<"$(hubrow "$id")")" != open ]] || ! grep -q "FATAL SPAWN_PLACE=mistral:$sl refused: mistral sits on no review (.*owner HUM-10 t1 91992830 msgs 65a45673, 591ca574: mistral sits on no review); place it as agy:$sl" <<<"$out"; then
+    n42=$((n42 + 1)); echo "  42 queued or wrong: $sl rc=$rc $out"
+  fi
+  out="$(on pc do_spl_spawn_enqueue ASK_ID="$id" SPAWN_CLASS=bug SPAWN_PLACE="mistral:$sl" SPAWN_PLACE_CNF="$T/review-on.yaml" 2>&1)"; rc=$?
+  [[ $rc -eq 0 && "$(jq -r .state <<<"$(hubrow "$id")")" == queued ]] || ctl42+=" $sl"
+done
+jq '(.[] | select(.state == "queued")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+[[ "$n42" == 0 ]] && pass "42. 0 of 7 review shapes queue as mistral: each enqueue is refused, naming the owner order and the heir" || fail "42. $n42 of 7 review shapes queued as mistral"
+[[ -z "$ctl42" ]] && pass "42. control: mistral_review_allowed true queues all 7 of the same placements" || fail "42. control:$ctl42"
+id=42ffff01-0000-4000-8000-000000000001
+put "$id" c-002@box-desk dispatch-91992830-docs "SPAWN REQUEST rv42-docs-guide"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$id" SPAWN_CLASS=bug SPAWN_PLACE=mistral:rv42-docs-guide 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r .state <<<"$(hubrow "$id")")" == queued ]] && pass "42. a mistral docs-writing lane (no review) still queues" || fail "42. docs lane: rc=$rc $out"
+jq '(.[] | select(.state == "queued")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+i42=16
+for r in "rv42-spl9-mistral-reviewer a-751 agy" "rv42-s9-plan-panel-seat-mistral-2 a-752 agy" "rv42-agy-author-reviewer c-753 claude" "rv42-sec-reviewer c-754 claude"; do
+  read -r sl lid want <<<"$r"
+  i42=$((i42 + 1)); id="$(printf '42%06x-0000-4000-8000-%012d' "$i42" "$i42")"
+  put "$id" c-002@box-desk "dispatch-91992830-$sl" "SPAWN REQUEST $sl"
+  on pc do_spl_spawn_enqueue ASK_ID="$id" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE="mistral:$sl" SPAWN_PLACE_CNF="$T/review-on.yaml" >/dev/null 2>&1
+  rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+  out="$(on pc do_spl_spawn_place LAUNCH_ID="$lid" 2>&1)"
+  [[ "$(jq -r .reason <<<"$(hubrow "$id")")" == "placed: $lid@box-desk" ]] &&
+    grep -q "^$want auto $T $T/briefs/$sl.md $sl$" "$T/launch.log" && ! grep -q '^mistral ' "$T/launch.log" &&
+    grep -q "placed as mistral, launched as $want: mistral sits on no review" <<<"$out" &&
+    pass "42. a mistral review row queued before the rule ($sl) launches $want, never mistral" ||
+    fail "42. heir $sl: want $want: $out | $(cat "$T/launch.log") | $(hubrow "$id")"
+done
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

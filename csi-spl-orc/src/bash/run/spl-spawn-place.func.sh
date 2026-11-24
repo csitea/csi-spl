@@ -112,7 +112,12 @@
 # @description         read-only, SPL-6028, SPL-6071, SPL-6093) stays mistral
 # @description         (SPL-3954, owner msg 594d77e1:
 # @description         mistral may review UI work read-only); on a mistral
-# @description         author it is refused, handed back to the holder (SPL-3776)
+# @description         author it is refused, handed back to the holder (SPL-3776).
+# @description         REVIEW RULE (owner HUM-10, t1 91992830, 2026-11-24): while
+# @description         cnf env.box.agent_split.mistral_review_allowed is not true
+# @description         no review or panel seat stays mistral: it launches as agy,
+# @description         claude for an agy author or a data-rule brief
+# @description         (spl_lane_mix_review_target, spl_spawn_place_review_heir)
 # @description      AGY OUT (SPL-3018): while agy is out on every box (this
 # @description         box: agy's banner in the watchdog's pane capture, or an
 # @description         S2 kind=limit verdict on an a- lane), a row swapped to agy
@@ -1059,13 +1064,19 @@ spl_spawn_place_reopen() {  # BRIEF SLUG WHY [COMMENT]
 # coding lane whose slug merely holds the words (-panel-seat-no-ui-swap,
 # -panel-seat-3-no-ui-swap) is no seat. A mistral review or panel seat on a
 # mistral author (spl_spawn_place_authors) prints "refuse\t<why>".
+# Since 2026-11-24 (owner HUM-10, t1 91992830, msgs 65a45673 and 591ca574:
+# "remove mistral from the review for all") no review or panel seat
+# (spl_lane_mix_review_target) stays mistral while cnf
+# env.box.agent_split.mistral_review_allowed is not true: it launches as its
+# cross-vendor heir (spl_spawn_place_review_heir).
 spl_spawn_place_swap() {  # VENDOR BRIEF
   local why kind to=claude dr au cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
   [[ "$1" == mistral ]] || { printf '%s\t\n' "$1"; return 0; }
   declare -F spl_lane_mix_mistral_ui_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
   kind="$(spl_lane_mix_brief_kind "$2")"
-  local seat_rx='-panel-seat(-[0-9]+|-(agy|claude|grok|mistral|qwen)(-[0-9a-z]+)?)?$'
-  if spl_spawn_place_review_seat "$2" "$kind" || [[ "$(basename "$2" .md)" =~ $seat_rx ]]; then
+  if spl_spawn_place_review_seat "$2" "$kind" || [[ -n "$(spl_lane_mix_review_target "$2" "$kind")" ]]; then
+    why="$(spl_lane_mix_mistral_review_off "$cnf" "$2" "$kind")"
+    [[ -z "$why" ]] || { spl_spawn_place_review_heir "$2" "$kind" "$why"; return 0; }
     au="$(spl_spawn_place_authors "$2" | awk -F'\t' '$1 == "mistral" { printf "%s%s", (n++ ? ", " : ""), $2 }')"
     [[ -z "$au" ]] || { printf 'refuse\ta review seat on mistral would review its author'"'"'s vendor (mistral: %s), so it is not placed (SPL-3776)\n' "$au"; return 0; }
     printf '%s\t\n' "$1"; return 0
@@ -1080,6 +1091,22 @@ spl_spawn_place_swap() {  # VENDOR BRIEF
     case "$kind" in specs_and_docs|i18n) to=agy ;; esac
   fi
   printf '%s\t%s\n' "$to" "$why"
+}
+
+# The cross-vendor heir of a review seat mistral may not take, "<vendor>\t<why>":
+# agy reviews claude, claude reviews agy (rounds-rulebook 2.7.2). claude when
+# an author lane (spl_spawn_place_authors) is agy or the brief is under the
+# data rule (spl_spawn_place_data_rule: never agy), else agy.
+spl_spawn_place_review_heir() {  # BRIEF KIND WHY
+  local dr why="$3"
+  dr="$(spl_spawn_place_data_rule "$1" "$2")"
+  if [[ -n "$dr" ]]; then
+    printf 'claude\t%s; the brief is under the data rule (%s): claude, never agy or qwen\n' "$why" "$dr"
+  elif [[ $'\n'"$(spl_spawn_place_authors "$1" | cut -f1)"$'\n' == *$'\n'agy$'\n'* ]]; then
+    printf 'claude\t%s; an author is agy, so claude reviews\n' "$why"
+  else
+    printf 'agy\t%s; agy reviews\n' "$why"
+  fi
 }
 
 # A review seat (SPL-3776): its brief's file name, the placement slug, ends in

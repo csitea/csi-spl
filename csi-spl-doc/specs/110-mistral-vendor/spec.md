@@ -59,9 +59,13 @@ Mistral is routed by KIND as well as by share:
   of every kind-first pick and restores agy for specs and grok for the
   default). The share drives only the easy-work nudge (difficulty < 60) and
   where a skipped vendor's points go.
-- **Panels.** Every consensus or debate panel gets **one mistral seat**, in
+- ~~**Panels.** Every consensus or debate panel gets **one mistral seat**, in
   addition to the seats it has today. Seating panels is the orchestrator's
-  job; no lane-mix or skill change.
+  job; no lane-mix or skill change.~~ **Superseded 2026-11-24** (owner
+  HUM-10, t1 91992830, msgs 65a45673 and 591ca574: "remove mistral from the
+  review for all"): mistral sits on no review seat, panels included; cnf
+  `env.box.agent_split.mistral_review_allowed: false`, enforced by
+  `do_spl_lane_mix`, `do_spl_spawn_enqueue` and the placer (SPL-6430).
 - **Timing.** Nothing reaches mistral before T014: with no auth marker (or
   a dead key, 2.5) mistral is skipped and its work falls to agy, then claude.
 

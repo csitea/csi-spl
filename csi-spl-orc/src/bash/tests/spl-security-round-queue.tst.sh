@@ -205,6 +205,20 @@ grep -q 'PLAN would queue seat 2 of round 2026-11-06 as grok:' <<<"$out" &&
 out="$(round SECURITY_ROUND_DATE=2026-11-06 MISTRAL_STATUS='skip (limit)' GROK_STATUS='skip (paused)')"
 grep -q 'PLAN would queue seat 2 of round 2026-11-06 as claude:' <<<"$out" &&
   pass "vendors: no other vendor free -> seat 2 on the same one" || fail "same: $out"
+# A seat is a review (owner HUM-10, t1 91992830, msgs 65a45673 + 591ca574):
+# mistral, free and the mix's own pick or backup, takes no seat while cnf
+# mistral_review_allowed is not true. CONTROL: with it true mistral sits.
+rv="$T/review-on.yaml"; printf 'env:\n  box:\n    agent_split:\n      mistral_review_allowed: true\n' >"$rv"
+n=0
+for c in "MIX_BACKUP=mistral MISTRAL_STATUS=ok" "MIX_PICK=mistral launcher=/mistral-spawn kind=secret reason=main MISTRAL_STATUS=ok"; do
+  out="$(round SECURITY_ROUND_DATE=2026-11-06 "${c%% MISTRAL_STATUS=ok}" MISTRAL_STATUS=ok)"
+  grep -q 'PLAN would queue seat [12] of round 2026-11-06 as mistral:' <<<"$out" && n=$((n + 1))
+  grep -q 'PLAN would queue seat 1 of round 2026-11-06 as claude:' <<<"$out" || n=$((n + 1))
+  out="$(round SECURITY_ROUND_DATE=2026-11-06 SECURITY_ROUND_CNF="$rv" "${c%% MISTRAL_STATUS=ok}" MISTRAL_STATUS=ok)"
+  grep -q 'PLAN would queue seat [12] of round 2026-11-06 as mistral:' <<<"$out" || ctl="$ctl $c"
+done
+[[ "$n" == 0 ]] && pass "vendors: 0 of 2 mixes seat mistral with mistral_review_allowed off (seat 1 claude)" || fail "review off: $n; $out"
+[[ -z "${ctl:-}" ]] && pass "vendors: control: mistral_review_allowed true seats mistral in both" || fail "review on:$ctl"
 out="$(round SECURITY_ROUND_DATE=2026-11-06 MIX_PICK='hold reason=none left')"; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'the lane mix holds kind secret' <<<"$out" && ! grep -q '^PLAN would queue' <<<"$out" &&
   pass "vendors: a held mix queues nothing" || fail "hold: $out"

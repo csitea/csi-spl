@@ -39,6 +39,8 @@ cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<specs_and_docs|tests|simple_cod
 
 Coding never goes to mistral, as main or backup (owner 2026-10-17, t1 b61851fb, msg 91bf8278: "Docs and reviews only, no coding"): every kind but `specs_and_docs` and `i18n`, whatever the row. `do_spl_spawn_enqueue` refuses a `SPAWN_PLACE=mistral:<slug>` of such a kind (`SPAWN_KIND`, else the brief's `Kind:`; a brief with none counts as coding), and the placer launches claude for one queued before. Grok is the backup of those rows only because a backup may not be the main; with grok off, claude takes the lane.
 
+No review seat goes to mistral, as main or backup (owner 2026-11-24, t1 91992830, msgs 65a45673 and 591ca574: "remove mistral from the review for all"; cnf `env.box.agent_split.mistral_review_allowed`, false): a kind `review`, `reviews` or `code_review`, or a brief whose slug ends `-reviewer`, `-review` or is a panel seat (`spl_lane_mix_review_target`). `do_spl_spawn_enqueue` refuses a `SPAWN_PLACE=mistral:<slug>` review seat; place it as `agy:<slug>`, or `claude:<slug>` for an agy author or a data-rule brief. The placer launches that heir for one queued before. Mistral docs-writing lanes are not reviews and stay as they are.
+
 Its last line, `pick=<vendor> launcher=/<vendor>-spawn reason=...`, is the
 launcher. The split is cnf `env.box.agent_split_by_kind` (all.env.yaml), which defines the per-kind main and backup vendors:
 

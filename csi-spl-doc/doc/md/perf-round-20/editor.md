@@ -213,7 +213,7 @@ await browser.close()
 
 ## 7. Seat state (for a restart of this seat)
 
-Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one and after it.
+Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one, after it, and at 15:31Z.
 
 - Plan v0.2 is on `review/c002-perf-round-20-planner`, sha `fd664e5b0` (on
   `09f137d40`; v0.1 was `f120ed920`). Not on master; not signed.
@@ -226,6 +226,15 @@ Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one and after 
   not placed yet. The holder (msg be24df21) asked for v1.0 with W1 and
   N1..N6 folded: v1.0 is the next commit on the review branch; the holder
   GOes the landing, not this seat.
+- State at the 15:31Z rotation: the review branch head is v1.0
+  `312380222` (`659875506` plus the read time fixed). m-135 PASS on
+  `312380222` (msg 367a86fc, seat file `3bfa6a954`; it reached only this
+  seat, forwarded to c-002). Agy (ask 21032ee7): no verdict. The holder
+  (msg 8dae88c1): keep the head. So THIS commit is local only, not pushed:
+  pushing it would move the branch past the signed sha. Next: on the agy
+  verdict fold or answer; on the holder's GO rebase onto origin/master, drop
+  or keep this commit as the holder says, land with `do_spl_push_master`,
+  then the Qto import.
 - Next: fold the seats' notes into v1.0, send the v1.0 sha to the seats and
   the holder; on both signatures and the holder's GO, land the plan on master
   with `do_spl_push_master` (subject `docs(p20-plan, SPL-6364): ...`), then

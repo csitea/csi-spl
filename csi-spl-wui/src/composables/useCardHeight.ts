@@ -69,20 +69,37 @@ function lineHeightOf(inner: HTMLElement): number {
 }
 
 /* p20-05: one ResizeObserver for every card. The browser hands all the cards
-   that changed to one callback, after layout, so their scrollHeight reads
-   force no layout and no card's write lands between two reads. */
+   that changed to one callback, after layout; their scrollHeight reads run in
+   the next frame, all together, so no card's write lands between two reads.
+   Measuring inside the callback resized the clip box in the same observer
+   step (vue flushes in its microtask), and the browser raised "ResizeObserver
+   loop completed with undelivered notifications" as a window error. */
 const sizeWatchers = new Map<Element, () => void>()
+const sizeDue = new Set<Element>()
 let sizeObserver: ResizeObserver | null = null
+let sizeFrame = false
+
+function measureDue() {
+  sizeFrame = false
+  const due = [...sizeDue]
+  sizeDue.clear()
+  for (const el of due) sizeWatchers.get(el)?.()
+}
 
 function watchSize(el: HTMLElement, onSize: () => void): () => void {
   sizeObserver ??= new ResizeObserver((entries) => {
-    for (const e of entries) sizeWatchers.get(e.target)?.()
+    for (const e of entries) sizeDue.add(e.target)
+    if (sizeFrame) return
+    sizeFrame = true
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(measureDue)
+    else measureDue()
   })
   sizeWatchers.set(el, onSize)
   sizeObserver.observe(el)
   return () => {
     sizeObserver?.unobserve(el)
     sizeWatchers.delete(el)
+    sizeDue.delete(el)
     if (!sizeWatchers.size) lineHeights.clear()
   }
 }

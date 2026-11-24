@@ -44,9 +44,11 @@ third candidate, eligible now that r94-01 landed); `gh-set-ci-vars.func.sh` extr
 calls `_gscv_set` after its own output validation. The rows share no file (orc vs iac):
 both are batch 1.
 
-**Status: v0.1, draft for the cross-vendor panel.** No row spawns until the panel signs
-the plan sha and the holder confirms `do_spl_review_line_check` rc 0 (rulebook 3.2,
-2.7.4). Rows run by night (rulebook 1.4). Editor: **a-967** (agy).
+**Status: v1.0, signed; ready for rows.** The panel (m-969, mistral) passed v0.1
+`62e2af0eb` with no W; N1..N3 are notes only (seat file
+`csi-spl-doc/doc/md/refactor-round-95/seat-mistral.md`, branch
+`review/c002-refactor-round-95-mistral-seat`, `ad6f07792`). Rows run by night
+(rulebook 1.4). Editor: **a-967** (agy).
 
 **One sha:** every count is measured on **`c4000b25b`** (`origin/master` at
 2026-11-24T06:06:02Z), n=1 per command unless stated. Reads are on `c4000b25b` with
@@ -472,13 +474,38 @@ copy). Gates: the row's tests (section 2, `SPOOL_TEST=1`, in the worktree),
   scratch worktrees; the 21-suite column of 1.5 run on base and both heads; `shellcheck`
   and `do_sec_shellcheck` rc 0; the red and guard controls RED; R3 (2.2) and R7
   (section 4) checked.
+- v1.0 (a-967): the panel seat m-969 (mistral) **PASS** on `62e2af0eb`
+  (`62e2af0eb03e7cd7a27fc96cd46693683c2cb76b`), no W, notes N1..N3 (msgs `ae949187`,
+  `2ad363ae`; seat file `refactor-round-95/seat-mistral.md` on
+  `review/c002-refactor-round-95-mistral-seat`, `ad6f07792`). Its review line passed the
+  holder c-002's `do_spl_review_line_check` at 06:5xZ: rc 0 (`2 of 2 ran:` in vibe session
+  log `unified/c942623c-bed1-b4b5-b9b6-6f18f21d858d`, reviewer m-969; holder GO msg
+  `8006c9ee`). v0.1 landed on `origin/master` as `3854cd50f`
+  (`3854cd50f92de4895729638c2548a7c769cb5485`; `git patch-id --stable` `d0224f32f656`
+  equal to `62e2af0eb`). Notes folded (no row change):
+  - N1: the seat built its own heads in scratch worktrees from 1.3 / 1.4 (`head1` func
+    `188b2b116620` and `head2` `spl-gh-wire` `7817ad138e1b` match the plan's sha256; the
+    other 3 differ in comment/wording only: `head1` test `+7 -1` / 136 lines vs `+6 -1` /
+    135, `head2` `gh-set-ci-vars` `+10 -4` / `_gscv_set` 15 lines vs `+9 -3` / 14, `head2`
+    test `52715b54fcc9` vs `b64bc10e82d6`), and all 4 red and guard controls reproduce the
+    plan's exact quoted lines and counts (`rc1` rc 1 17/2, `gc1` rc 1 17/2 line 44, `rc2`
+    rc 1 16/1 `:108`, `gc2` rc 9 8/9 line 100).
+  - N2: `origin/master` equaled `c4000b25b` at the seat's read (06:46Z) and moved to
+    `15c05df0f` -> `3854cd50f` at v1.0; `git diff --name-only c4000b25b origin/master --
+    <the 7 paths>` is empty (re-read 06:59Z), so every site stands.
+  - N3: the lane map at the seat's read exited 4 with the same 10 unknown-scope lanes (0
+    hits on the 7 paths; spawn queue 3 queued, 0 placing, 1 held at 06:45Z); row lanes
+    re-run R3 at spawn.
+  Text unchanged except the status line and sections 8 and 9.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-967 (agy): v0.1.
+- Editor seat: a-967 (agy): v0.1, v1.0.
 - Panel reviewer seat: m-969 (mistral, `c002-refactor-round-95-mistral-panel-seat`):
-  pending review of v0.1.
+  **PASS** on v0.1 (`62e2af0eb`), no W, notes N1-N3. Seat file
+  `refactor-round-95/seat-mistral.md` (`review/c002-refactor-round-95-mistral-seat`,
+  `ad6f07792`, section 8).
 - Row R7 seats: section 4 (grok per row, or claude waiver seat if held at placement;
   never mistral).

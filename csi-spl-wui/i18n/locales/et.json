@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Sisesta palgalehelt vähemalt üks väärtus."
       }
     }
+  },
+  "topic_select": {
+    "label": "Valitud teemad",
+    "count": "Valitud: {count}",
+    "in_channels": "{n} kanalis",
+    "select_page": "Vali kõik kuvatud teemad",
+    "select_row": "Vali {title}",
+    "select_matching": "Vali kõik {total} sobivat",
+    "select": "Vali",
+    "by_title": "Vali pealkirja järgi",
+    "patterns": "Teemade pealkirjade mustrid, üks rea kohta; * = iga teema",
+    "apply": "Lisa sobivad teemad",
+    "bad_pattern": "Muster {line} ei kehti: {reason}",
+    "none": "Ükski teema ei sobi",
+    "clear": "Tühjenda valik",
+    "other_workspace": "Teise tööruumi teema: seda ei saa siin valida"
   }
 }

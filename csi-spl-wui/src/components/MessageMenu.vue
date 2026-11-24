@@ -70,6 +70,8 @@ const props = defineProps<{
   pdf?: boolean
   /** SPL-6205: a topic card of a channel / lobby feed: Export topic to PDF (the whole topic), after Export to PDF */
   topicPdf?: boolean
+  /** spec 186 4.6 (H4): a topic card the select phase may tick: "Select" heads the menu */
+  topicSelect?: boolean
   /** spec 182 L3: a topic card the archive setting lets the viewer set loops on (Discussion loops…) */
   loops?: boolean
   /** CLE-77891: a topic card's entries the viewer may not use, shown disabled with the reason */
@@ -107,6 +109,7 @@ const emit = defineEmits<{
   'export-pdf': []
   'export-topic-pdf': []
   'topic-loops': []
+  'topic-select': []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -133,7 +136,18 @@ async function runAi(id: string) {
    menu mounts on open, so the one notes read happens here, never at boot */
 const note = useAddToNote()
 note.probe()
-const items = computed(() => withKeys(ai.items(topicItems.value)))
+const items = computed(() => withKeys(ai.items(withSelect(topicItems.value))))
+/* spec 186 4.6 (H4): "Select" ticks this topic card and starts the select
+   phase. It heads the desktop menu; on the phone sheet it follows Archive,
+   which the owner moved up to the sheet's sixth place (t1 7a6be5a3,
+   phone-card-menu.test.mjs: Archive at index <= 6) */
+const SELECT_ITEM = { id: 'topic-select', icon: 'check' as const, labelKey: 'topic_select.select' }
+function withSelect<T extends { id: string }>(list: T[]): (T | typeof SELECT_ITEM)[] {
+  if (!props.topicSelect) return list
+  if (!sheet.value) return [SELECT_ITEM, ...list]
+  const at = list.findIndex((it) => it.id === 'archive')
+  return at < 0 ? [...list, SELECT_ITEM] : [...list.slice(0, at + 1), SELECT_ITEM, ...list.slice(at + 1)]
+}
 const topicItems = computed(() => msgMenuItems({
   touch: sheet.value,
   kind: props.kind,
@@ -187,6 +201,7 @@ function choose(id: string) {
   else if (id === 'export-pdf') emit('export-pdf')
   else if (id === 'export-topic-pdf') emit('export-topic-pdf')
   else if (id === 'topic-loops') emit('topic-loops')
+  else if (id === 'topic-select') emit('topic-select')
   /* a topic card (its menu carries the topic locks) adds its topic, any other line the message */
   else if (id === 'add-to-note') note.open(msgNoteLink(props.aiMsg as SpoolMessage, { topic: Boolean(props.locks), workspace: note.workspace() }))
   else if (ai.more(id)) { /* the sheet now shows the seven actions */ }
@@ -219,5 +234,12 @@ function choose(id: string) {
   :root .msg-menu.touch-sheet.touch-sheet { padding-top: 6px; }
   :root .msg-menu.touch-sheet.touch-sheet::before { margin-bottom: 4px; }
   :root .msg-menu.touch-sheet.touch-sheet [role="menuitem"] { min-height: 40px; padding-block: 4px; }
+}
+/* spec 186 (row M3): a topic card's sheet carries one more row, "Select";
+   on a short phone (360x640, a locked card's reasons) the rows tighten
+   once more so the sheet still fits whole above a 44 px strip of dimmed
+   page (phone-card-menu.test.mjs) */
+@media (max-height: 700px) {
+  :root .msg-menu.touch-sheet.touch-sheet:has([data-testid="msg-menu-topic-select"]) [role="menuitem"] { min-height: 36px; padding-block: 2px; }
 }
 </style>

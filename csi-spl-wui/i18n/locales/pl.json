@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Wpisz co najmniej jedną wartość z paska płacowego."
       }
     }
+  },
+  "topic_select": {
+    "label": "Zaznaczone wątki",
+    "count": "Zaznaczono: {count}",
+    "in_channels": "w {n} kanałach",
+    "select_page": "Zaznacz wszystkie widoczne wątki",
+    "select_row": "Zaznacz {title}",
+    "select_matching": "Zaznacz wszystkie pasujące ({total})",
+    "select": "Zaznacz",
+    "by_title": "Zaznacz według tytułu",
+    "patterns": "Wzorce tytułów wątków, po jednym w wierszu; * = każdy wątek",
+    "apply": "Dodaj pasujące wątki",
+    "bad_pattern": "Wzorzec {line} jest nieprawidłowy: {reason}",
+    "none": "Żaden wątek nie pasuje",
+    "clear": "Wyczyść zaznaczenie",
+    "other_workspace": "Wątek z innego obszaru roboczego: nie można go tu zaznaczyć"
   }
 }

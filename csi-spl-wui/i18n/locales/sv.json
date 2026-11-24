@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Skriv minst ett värde från lönebeskedet."
       }
     }
+  },
+  "topic_select": {
+    "label": "Valda ämnen",
+    "count": "{count} valda",
+    "in_channels": "i {n} kanaler",
+    "select_page": "Välj alla visade ämnen",
+    "select_row": "Välj {title}",
+    "select_matching": "Välj alla {total} som matchar",
+    "select": "Välj",
+    "by_title": "Välj efter rubrik",
+    "patterns": "Mönster för ämnesrubriker, ett per rad; * = alla ämnen",
+    "apply": "Lägg till matchande ämnen",
+    "bad_pattern": "Mönster {line} är ogiltigt: {reason}",
+    "none": "Inget ämne matchar",
+    "clear": "Rensa markering",
+    "other_workspace": "Ämne i en annan arbetsyta: det kan inte väljas här"
   }
 }

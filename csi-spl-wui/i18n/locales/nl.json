@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Vul minstens één waarde van de loonstrook in."
       }
     }
+  },
+  "topic_select": {
+    "label": "Geselecteerde onderwerpen",
+    "count": "{count} geselecteerd",
+    "in_channels": "in {n} kanalen",
+    "select_page": "Alle getoonde onderwerpen selecteren",
+    "select_row": "{title} selecteren",
+    "select_matching": "Alle {total} overeenkomende selecteren",
+    "select": "Selecteren",
+    "by_title": "Selecteren op titel",
+    "patterns": "Patronen voor onderwerptitels, één per regel; * = elk onderwerp",
+    "apply": "Overeenkomende onderwerpen toevoegen",
+    "bad_pattern": "Patroon {line} is ongeldig: {reason}",
+    "none": "Geen onderwerp komt overeen",
+    "clear": "Selectie wissen",
+    "other_workspace": "Onderwerp van een andere werkruimte: kan hier niet worden geselecteerd"
   }
 }

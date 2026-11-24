@@ -2,7 +2,7 @@
   <article
     ref="rowEl"
     class="msg"
-    :class="{ selected, 'msg--ai': ai, 'msg--clickable': clickable, 'msg--movable': movable, 'msg--move-over': dropOver, 'msg--dragging': dragging, 'msg--swipe': swipeOn, 'msg--swiping': swipeDx !== 0, 'msg--swipe-armed': swipeArmed, 'msg--swipe-settle': swipeSettle }"
+    :class="{ selected, 'msg--ai': ai, 'msg--clickable': clickable, 'msg--movable': movable, 'msg--move-over': dropOver, 'msg--dragging': dragging, 'msg--swipe': swipeOn, 'msg--swiping': swipeDx !== 0, 'msg--swipe-armed': swipeArmed, 'msg--swipe-settle': swipeSettle, 'msg--selectable': topicSelect, 'msg--selecting': sel.selecting.value, 'msg--ticked': sel.ticked.value }"
     :style="swipeDx !== 0 ? { '--swipe-dx': `${swipeDx}px`, '--swipe-w': `${Math.abs(swipeDx)}px` } : undefined"
     :data-swipe-archive="swipeArchive ? 'true' : undefined"
     :data-swipe-hide="swipeLeft === 'hide' ? 'true' : undefined"
@@ -26,9 +26,9 @@
     :data-move-ok="topicMenu && move.drag.value ? String(dropTarget) : undefined"
     :data-move-title="dropTarget ? title : undefined"
     :data-last-msg-id="lastMsgId || undefined"
-    @click="onClick"
+    @click="onCardClick"
     @dblclick="onDblClick"
-    @keydown="onKey"
+    @keydown="onCardKey"
     @contextmenu="onContextMenu"
     @pointerdown="onRowDown"
     @pointermove="onRowMove"
@@ -55,7 +55,7 @@
          A move starts from here only; the rest of the card clicks, selects
          and long-presses as before. -->
     <span
-      v-if="movable"
+      v-if="movable && !sel.selecting.value"
       class="msg-move-handle"
       :class="{ 'msg-move-handle--denied': dragging && move.over.value && !move.over.value.ok }"
       data-testid="move-handle"
@@ -69,6 +69,22 @@
       @click.stop.prevent
       @contextmenu.stop.prevent
     />
+    <!-- spec 186 4.1 / 4.6 (row M3): the select phase's box, over the
+         avatar's place, on a channel's topic card only. A desktop shows it on
+         hover and focus until one topic is ticked (H3), then on every card;
+         a phone only once the selection is not empty (its menu's "Select"
+         starts it, H4). -->
+    <input
+      v-if="topicSelect && (!mobile || sel.selecting.value)"
+      type="checkbox"
+      class="msg-select-box"
+      data-test="topic-select-box"
+      :checked="sel.ticked.value"
+      :aria-label="t('topic_select.select_row', { title })"
+      :title="t('topic_select.select_row', { title })"
+      @click.stop="sel.toggle($event)"
+      @pointerdown.stop
+    >
     <SpoolAvatar class="avatar" :id="author.id" :box="author.box" />
     <div class="msg-main">
       <!--
@@ -432,6 +448,7 @@
       pdf
       :topic-pdf="topicPdf"
       :loops="showTopicLoops"
+      :topic-select="topicSelect"
       :locks="menuLocks"
       :ai-msg="msg"
       :ai-fail="onAiFail"
@@ -460,6 +477,7 @@
       @export-pdf="onExportPdf"
       @export-topic-pdf="onExportTopicPdf"
       @topic-loops="loopsOpen = true"
+      @topic-select="sel.toggle(null, true)"
     />
     <!-- spec 182 L3: Discussion loops…, mounted when picked -->
     <LazyTopicLoopsDialog
@@ -542,6 +560,7 @@ import { useCardKeys } from '~/composables/useCardKeys'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useChannelStore } from '~/stores/channel'
 import { TOPIC_PRIORITY_DEFAULT, topicPriority } from '~/utils/topic-list-order.mjs'
+import { useCardTopicSelect } from '~/composables/useTopicSelect'
 
 import type { FileRef, ReactionUpdate, SpoolMessage } from '~/types/spool'
 
@@ -591,6 +610,8 @@ const props = defineProps<{
   awaiting?: 'spin' | 'wait' | null
   /** spec 189 D4: the viewer's own new topic, pinned at the topic list's edge (the "new" badge). */
   pinnedNew?: boolean
+  /** spec 186 7.1.6 (row M3): a channel's topic card the select phase may tick (LiveFeed decides). */
+  topicSelect?: boolean
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -782,9 +803,12 @@ const { swipe, swipeDx, swipeDir, swipeArmed, swipeSettle, onMenuHide } = useCar
   stop: () => { longPress.cancel(); rowDrag.cancel() },
   archive: onMenuArchive,
 })
+/* spec 186 4.6 (row M3): while topics are ticked a tap toggles this card,
+   and the swipes and the move handle rest until the selection is empty */
+const sel = useCardTopicSelect({ on: () => Boolean(props.topicSelect), msg: () => props.msg, title: () => title.value, phone: () => mobile.value })
 /** a swipe may start on the row or on its move handle */
 function swipeDown(ev: PointerEvent) {
-  if (swipeOn.value && !removing.value) swipe.down(ev)
+  if (swipeOn.value && !removing.value && !sel.selecting.value) swipe.down(ev)
 }
 const moveFlags = useCardMoveFlags(props, editing, inTopicPane, editorId, access)
 const { move, canMoveTopic, canMoveMsg, canPromoteMsg, movable, menuLocks, dropTarget, dropOver } = moveFlags
@@ -808,6 +832,13 @@ const { onKey } = useCardKeys({
   },
 })
 
+function onCardClick(ev: MouseEvent) {
+  if (!sel.onTap(ev)) onClick(ev)
+}
+function onCardKey(ev: KeyboardEvent) {
+  if (!sel.onKey(ev)) onKey(ev)
+}
+
 onMounted(() => {
   if (typeof window === 'undefined') return
   const hash = decodeURIComponent(window.location.hash.replace(/^#/, ''))
@@ -817,6 +848,28 @@ onMounted(() => {
 
 <style scoped>
 .msg-edit-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px; }
+/* spec 186 (row M3): the select box sits over the avatar's 36 px place, so
+   ticking moves nothing. A desktop shows it on hover and focus until one
+   topic is ticked (H3), then on every card; a ticked card takes the
+   selection tint, as an issue row does. */
+.msg--selectable { position: relative; }
+.msg-select-box {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-start: 4px;
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+  opacity: 0;
+}
+.msg--selectable:hover .msg-select-box,
+.msg--selectable:focus-within .msg-select-box,
+.msg--selecting .msg-select-box { opacity: 1; }
+.msg-select-box:focus-visible { opacity: 1; outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.msg--ticked { background: var(--color-selected); }
 /* t1 b921518d: the selected topic card has no left bracket bar. A 1px
    soft-grey border frames all four sides, and a small grey drop shadow
    lifts it. The card is not translated: scroll-to-top reads the border

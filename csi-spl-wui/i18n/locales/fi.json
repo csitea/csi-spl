@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Kirjoita vähintään yksi arvo palkkalaskelmasta."
       }
     }
+  },
+  "topic_select": {
+    "label": "Valitut aiheet",
+    "count": "Valittu: {count}",
+    "in_channels": "{n} kanavalla",
+    "select_page": "Valitse kaikki näytetyt aiheet",
+    "select_row": "Valitse {title}",
+    "select_matching": "Valitse kaikki {total} vastaavaa",
+    "select": "Valitse",
+    "by_title": "Valitse otsikon mukaan",
+    "patterns": "Aiheiden otsikkomallit, yksi riville; * = kaikki aiheet",
+    "apply": "Lisää vastaavat aiheet",
+    "bad_pattern": "Malli {line} ei kelpaa: {reason}",
+    "none": "Mikään aihe ei vastaa",
+    "clear": "Tyhjennä valinta",
+    "other_workspace": "Toisen työtilan aihe: sitä ei voi valita täällä"
   }
 }

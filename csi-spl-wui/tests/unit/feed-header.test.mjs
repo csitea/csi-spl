@@ -49,7 +49,8 @@ describe('FeedHeader: one header for channel, DM and lobby', () => {
 
   it('the component: the pane label for screen readers, title, status text, the control', () => {
     const t = template('src/components/FeedHeader.vue')
-    assert.match(t, /<header class="feed-header feed-header--pane" data-test="feed-header" :aria-label="t\('pane\.msgs'\)">/)
+    /* spec 186 M3: the selection bar takes the header's place while topics are ticked (v-else) */
+    assert.match(t, /<header (?:v-else )?class="feed-header feed-header--pane" data-test="feed-header" :aria-label="t\('pane\.msgs'\)">/)
     assert.match(t, /<h2 class="feed-header__title" :title="titleTip \|\| title">\{\{ title \}\}<\/h2>/)
     assert.match(t, /v-if="status"[\s\S]*?class="dot"[\s\S]*?:title="statusText"/)
     assert.match(t, /<span v-if="statusText && statusShown" class="feed-header__status" data-test="feed-header-status-text">\{\{ statusText \}\}<\/span>/)

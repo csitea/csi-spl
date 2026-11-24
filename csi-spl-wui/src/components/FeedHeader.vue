@@ -17,9 +17,15 @@
      not grow and nothing jumps.
      SPL-5349 (owner HUM-10, t1 2fafde5c, option A): two rows - the full
      channel name on row 1 (it wraps, never cut); row 2 holds the filter and
-     sort at the left and the card height control at the right. -->
+     sort at the left and the card height control at the right.
+     Spec 186 4.1 step 1 items 4-5 (row M3): on a channel's or the lobby's
+     topic list, while topics are ticked the selection bar
+     (TopicSelectBar.vue, lazy) takes this header's place; while none is,
+     row 2 offers Select by title, so a selection can start from a pattern.
+     A DM page has neither (Q8 CHN). -->
 <template>
-  <header class="feed-header feed-header--pane" data-test="feed-header" :aria-label="t('pane.msgs')">
+  <LazyTopicSelectBar v-if="selectOn && topicSelect.active" :phone="phone" />
+  <header v-else class="feed-header feed-header--pane" data-test="feed-header" :aria-label="t('pane.msgs')">
     <MobileBack />
     <span
       v-if="status"
@@ -45,12 +51,30 @@
     </span>
     <div class="feed-header__row2" data-test="feed-header-row2">
       <span class="topic-list-slot"><LazyTopicListControl /></span>
+      <button
+        v-if="selectOn"
+        type="button"
+        class="icon-btn feed-header__select"
+        data-test="topic-select-by-title"
+        :aria-expanded="patternsOpen ? 'true' : 'false'"
+        :aria-label="t('topic_select.by_title')"
+        :title="t('topic_select.by_title')"
+        @click="patternsOpen = !patternsOpen"
+      >
+        <UiIcon name="check" :size="16" />
+      </button>
       <CardClipControl />
+    </div>
+    <div v-if="selectOn && patternsOpen" class="feed-header__patterns">
+      <LazyTopicSelectPatterns @close="patternsOpen = false" @added="patternsOpen = false" />
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
+import { useTopicSelectStore } from '~/stores/topicSelect'
+import { useMobileStack } from '~/composables/useMobileStack'
+
 defineProps<{
   title: string
   /** hover text for the title (a DM shows id@box behind the display name) */
@@ -74,6 +98,12 @@ defineProps<{
 /* SPL-1763: the badge unarchived the topic; the page drops its mark */
 const emit = defineEmits<{ unarchived: [] }>()
 const { t } = useI18n({ useScope: 'global' })
+/* spec 186 (row M3): a channel's or the lobby's topic list carries the select phase */
+const route = useRoute()
+const selectOn = computed(() => /\/(?:channel\/[^/]+|lobby)\/?$/.test(route.path))
+const topicSelect = useTopicSelectStore()
+const phone = useMobileStack().isMobile
+const patternsOpen = ref(false)
 </script>
 
 <style scoped>
@@ -101,6 +131,9 @@ const { t } = useI18n({ useScope: 'global' })
     min-height: 32px;
   }
 }
+/* spec 186: Select by title sits after the filter and sort; its field opens under row 2 */
+.feed-header__select { flex-shrink: 0; }
+.feed-header__patterns { flex: 0 0 100%; min-width: 0; }
 /* gives way (ellipsis) before the name does; the badge never shrinks */
 .feed-header__topic {
   display: inline-flex;

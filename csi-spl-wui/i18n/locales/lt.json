@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Įveskite bent vieną atlyginimo lapelio reikšmę."
       }
     }
+  },
+  "topic_select": {
+    "label": "Pasirinktos temos",
+    "count": "Pasirinkta: {count}",
+    "in_channels": "{n} kanaluose",
+    "select_page": "Pasirinkti visas rodomas temas",
+    "select_row": "Pasirinkti {title}",
+    "select_matching": "Pasirinkti visas {total} atitinkančias",
+    "select": "Pasirinkti",
+    "by_title": "Pasirinkti pagal pavadinimą",
+    "patterns": "Temų pavadinimų šablonai, po vieną eilutėje; * = kiekviena tema",
+    "apply": "Pridėti atitinkančias temas",
+    "bad_pattern": "Šablonas {line} netinkamas: {reason}",
+    "none": "Jokia tema neatitinka",
+    "clear": "Išvalyti pasirinkimą",
+    "other_workspace": "Kitos darbo srities tema: jos čia pasirinkti negalima"
   }
 }

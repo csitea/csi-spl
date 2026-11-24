@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Bordrodan en az bir değer girin."
       }
     }
+  },
+  "topic_select": {
+    "label": "Seçili konular",
+    "count": "{count} seçildi",
+    "in_channels": "{n} kanalda",
+    "select_page": "Gösterilen tüm konuları seç",
+    "select_row": "{title} konusunu seç",
+    "select_matching": "Eşleşen {total} konunun tümünü seç",
+    "select": "Seç",
+    "by_title": "Başlığa göre seç",
+    "patterns": "Konu başlığı kalıpları, her satıra bir tane; * = tüm konular",
+    "apply": "Eşleşen konuları ekle",
+    "bad_pattern": "{line}. kalıp geçersiz: {reason}",
+    "none": "Eşleşen konu yok",
+    "clear": "Seçimi temizle",
+    "other_workspace": "Başka bir çalışma alanının konusu: burada seçilemez"
   }
 }

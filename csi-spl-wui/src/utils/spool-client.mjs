@@ -344,13 +344,13 @@ export function createSpoolClient({
   const root = String(base || '').replace(/\/+$/, '')
   /* doorGuessed: a door set from a signed-in session probe, not yet proven
      by a read. withSessionRetry takes it back if the hub refuses credentials. */
-  const conn = { token: String(token || ''), door: String(door || ''), doorGuessed: false, send: sender }
+  const conn = { token: String(token || ''), door: String(door || ''), doorGuessed: false, send: sender, request: null }
   const hubFetch = stampedFetch(fetchFn)
   const live = liveReader({ conn, root, configError, hubFetch }, firstScreenMs, now)
   const api = sessionMethods({ tenant, mock, root, configError }, conn, live)
   const prio = topicPriorities(mock, mk, live)
   Object.assign(api, topicList(mock, mk, live, prio.note), topicReads(mock, mk, conn, live, prio.note), prio.methods, feedReads(api, mock, mk),
-    shellReads(mock, mk, live), sendMethods(mock, mk, conn), fileMethods(root))
+    shellReads(mock, mk, live), sendMethods(mock, mk, conn), selectMethods(mock, mk, conn), fileMethods(root))
   api.bindIssuesMock = mk.bindIssuesMock
   /* SPL-2115: uploadFile / downloadFile (lazy half) read these */
   Object.assign(mk, { live, root, configError, conn, hubFetch })
@@ -566,6 +566,10 @@ function sessionMethods({ tenant, mock, root, configError }, conn, live) {
     /** fn(frame) → ack: the live-ws client's `send` (wui-live-ws §4). */
     setSender(fn) {
       conn.send = typeof fn === 'function' ? fn : null
+    },
+    /** spec 186 7.1.2: fn(frame) → the answer frame of a read-only request (`topic_select` → `topic_selected`), matched by req_id. */
+    setRequester(fn) {
+      conn.request = typeof fn === 'function' ? fn : null
     },
     hasToken() {
       return Boolean(conn.token)
@@ -980,6 +984,27 @@ function sendMethods(mock, mk, conn) {
         cursor: ack.cursor,
         received_at: ack.received_at,
       }
+    },
+  }
+}
+
+/**
+ * Spec 186 7.1.2 (row M3): the select phase's resolver. `topic_select`
+ * names the ticked task ids and the title patterns exactly as typed; the hub
+ * alone trims, compiles (RE2) and matches them and answers `topic_selected`
+ * with the explicit topics. The WUI never evaluates a pattern (4.2). The mock
+ * resolves the frame in its own code (spool-client-mock.mjs), standing in for
+ * the hub; live, the socket's request half answers it (setRequester).
+ */
+function selectMethods(mock, mk, conn) {
+  return {
+    async topicSelect({ req_id, action, task_ids = [], patterns = [] } = {}) {
+      const frame = { type: 'topic_select', req_id: String(req_id || uuid()), action: String(action || ''), task_ids: [...task_ids], patterns: [...patterns] }
+      if (mock) return (await mk.answers()).mockTopicSelect(mk.state, frame)
+      if (typeof conn.request !== 'function') {
+        throw Object.assign(new Error('topic_select needs the WUI socket (setRequester)'), { status: 0, token: 'no_socket' })
+      }
+      return conn.request(frame)
     },
   }
 }

@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Introdu cel puțin o valoare din fluturaș."
       }
     }
+  },
+  "topic_select": {
+    "label": "Subiecte selectate",
+    "count": "Selectate: {count}",
+    "in_channels": "în {n} canale",
+    "select_page": "Selectează toate subiectele afișate",
+    "select_row": "Selectează {title}",
+    "select_matching": "Selectează toate cele {total} potrivite",
+    "select": "Selectează",
+    "by_title": "Selectează după titlu",
+    "patterns": "Modele pentru titlurile subiectelor, câte unul pe rând; * = orice subiect",
+    "apply": "Adaugă subiectele potrivite",
+    "bad_pattern": "Modelul {line} nu este valid: {reason}",
+    "none": "Niciun subiect nu se potrivește",
+    "clear": "Golește selecția",
+    "other_workspace": "Subiect din alt spațiu de lucru: nu poate fi selectat aici"
   }
 }

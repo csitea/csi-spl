@@ -47,7 +47,7 @@ loads `gh-set-ci-vars.func.sh` behind a `declare -F _gscv_repo` guard and calls
 `_gscv_repo "${GH_WIRE_REPO:-}"`, and `spl-gh-wire.tst.sh` guards both one-copy and
 `GH_CI_VARS_REPO` isolation. The rows share no file (orc vs iac): both are batch 1.
 
-**Status: v1.0, signed.** The panel (m-028, mistral) passed v0.1 `4daa11721` with no W;
+**Status: v1.0, signed; round closed (section 8).** The panel (m-028, mistral) passed v0.1 `4daa11721` with no W;
 N1..N4 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-96/seat-mistral.md`,
 branch `review/c002-refactor-round-96-mistral-seat`, `c33fb0b0a`). Rows queue once the
 holder places them (rulebook 1.4 / 5.2). Editor: **a-025** (agy).
@@ -525,14 +525,66 @@ files, `cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...)`. Kind
     script, not in the repo; the seat verified the two row candidates byte-identical
     directly and the section-7 items by direct grep.
   Text unchanged except the status line and sections 8 and 9.
+- Round closed (a-025 writes the record), no version bump: both rows landed, read on
+  `origin/master` `09f137d40` (`2026-11-24T12:14Z`, n=1 each; `r96-02` untouched between
+  `90a2c384f` and `09f137d40`):
+  - r96-01 `09f137d40` (`09f137d401de7cffa157bbc1d14d92e7b5a6d4fd`, SPL-6370, author
+    `c-051` claude, committed `2026-11-24T13:38:51+02:00`): R7 `g-071` grok **PASS** on
+    `34e7605dc` (`34e7605dcf8b4913ca279c1a11ed1884d1e1eba7`); `git patch-id --stable`
+    `801a39607ae7` equal on both. CI on `09f137d40`: all push workflows **success** —
+    gate 10 (`45386166770`), 15 (`45386166629`), 25 (`45386166598`), 26 (`45386166622`),
+    64 (`45386166780`), 67 (`45386166564`); scheduled gate 10 (`45387076873`), 21
+    (`45386193483`, `45388519552`) and 40 (`45388275971`) **success**; 7 skipped workflow
+    12 runs. Diff (`git show --numstat`): `sa:lib/spool-fleet.inc.sh` `+12 -0` (sha256
+    `9c1c4b591264`), `sa:scripts/asks.sh` `+1 -8` (sha256 `40973aba3527`, matches plan
+    head1), `sa:scripts/spool-send.sh` `+1 -9` (sha256 `53610547ef08`, matches plan
+    head1), `sa:tests/test-fleet-send.sh` `+11 -0` (sha256 `29065b5f04e0`), matching plan
+    1.3 / 6. R7 notes (`g-071`): N1 `orc:src/bash/run/spl-unanswered-sweep.func.sh:196`
+    still names `send_to_peers_on` (plan section 7 follow-up, seats awk only); N2 missing
+    `spool-fleet.inc.sh` is a broken tree both scripts already source. None asks for a
+    change.
+  - r96-02 `90a2c384f` (`90a2c384f7696360a729a4392ea760d2eae31227`, SPL-6373, author
+    `c-743` claude, committed `2026-11-24T12:00:46+01:00`): R7 `g-063` grok **PASS** on
+    `1be72c656` (`1be72c656b43828d64299e971294472142f5e528`); `git patch-id --stable`
+    `f3df7ee5469a` equal on both. CI on `90a2c384f`: all push workflows **success** —
+    gate 10 (`45380283485`), 15 (`45380283369`), 25 (`45380283394`), 26 (`45380283979`),
+    64 (`45380283324`), 67 (`45380283568`); 7 skipped workflow 12 runs. Diff
+    (`git show --numstat`): `iac:src/bash/run/gh-set-ci-vars.func.sh` `+3 -2` (sha256
+    `242b49a19125`), `iac:src/bash/run/spl-gh-wire.func.sh` `+4 -7` (sha256
+    `f558b6fc5035`), `iac:src/bash/tests/spl-gh-wire.tst.sh` `+10 -6` (sha256
+    `5afd4427ebe4`), matching plan 1.4 / 6 (func numstats equal plan; test `+10 -6` vs
+    `+8 -5` by comment wrapping/layout only). R7 notes (`g-063`): N1-N5 verification notes
+    (blob sha256s differ from plan head2 in comment/layout only; 7-origin equivalence
+    `PAIR_MATCH`; sibling lazy-source guard verified). None asks for a change.
+  - `git merge-base --is-ancestor <row> origin/master` rc 0 and box checkout ancestry rc 0
+    for both; R6 (`git log origin/master --since="2026-11-24T10:26:25+02:00"
+    --format='%H %cI %s' -E --grep='\(r96-'`) returns both rows (`09f137d40`, `90a2c384f`)
+    and the 2 plan commits (`817be0fa2`, `dbd127c96`). **R7 vendor:** both seats grok
+    (section 4: `g-071`, `g-063`); no claude waiver seat was needed. Post-land `git grep`
+    on `09f137d40` (excluding `*.md`): peers switch definitions 2 -> 1
+    (`spool_fleet_peers_on` at `sa:lib/spool-fleet.inc.sh:100`, called at `asks.sh:115`
+    and `spool-send.sh:393`, zero non-comment `asks_peers_on` / `send_to_peers_on` hits,
+    leaving only the section-7 comment at `orc:src/bash/run/spl-unanswered-sweep.func.sh:196`);
+    GitHub origin `<owner>/<repo>` parser in this pair 2 -> 1 (`_gscv_repo` at
+    `iac:src/bash/run/gh-set-ci-vars.func.sh:29`, sole `remote get-url origin` at `:31`,
+    called at `gh-set-ci-vars.func.sh:71` and `spl-gh-wire.func.sh:109` behind `declare -F
+    _gscv_repo` at `:108`). Neither row touches a path outside its brief's Files
+    (`git show --stat`: 4 files for r96-01, 3 files for r96-02).
+  - **Round close & teardown:** holder `c-002` closed topic `1884ed4c` (post `0a774dfd`,
+    archived), set `SPL-6358` done, and queued refactor round 97 (topic `44cd9885`,
+    `SPL-6384`; msg `d0f6ce2c`). Teardown list: `c-051` (r96-01 author), `c-743` (r96-02
+    author), `g-071` (r96-01 R7), `g-063` (r96-02 R7), `m-028` (panel seat), `a-025`
+    (editor). Remote branches: `review/r96-01` and `review/r96-02` are absent on `origin`;
+    `review/c002-refactor-round-96-mistral-seat` (`c33fb0b0a`) remains for R8 prune.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-025 (agy): v0.1, v1.0.
+- Editor seat: a-025 (agy): v0.1, v1.0, close record.
 - Panel reviewer seat: m-028 (mistral, `c002-refactor-round-96-mistral-panel-seat`):
   **PASS** on v0.1 (`4daa11721`), no W, notes N1-N4; seat file
   `refactor-round-96/seat-mistral.md` (`review/c002-refactor-round-96-mistral-seat`,
   `c33fb0b0a`, section 8).
-- Row R7 seats: section 4 (grok per row unless held at placement, else claude waiver).
+- Row R7 seats: section 4; both grok: g-071 (r96-01), g-063 (r96-02) (section 8, round
+  closed).

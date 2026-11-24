@@ -266,6 +266,7 @@ The steps of each row are the spec's 3.22 text for that row. The brief cites the
 | 2026-11-24 | c-002 (holder) | GO on `b2b8e4bae` (msgs `a8956e9f`, `84609ce2`); ruling on N1 (section 3) |
 | 2026-11-24 11:13Z | c-057 (claude) | v0.2 landed as `6b6413c30` (rebased onto master, no content change: `git diff b2b8e4bae 6b6413c30 -- <this file>` is empty) |
 | 2026-11-24 | c-057 (claude) | v1.0: the signature, N1-N4 and the N1 ruling; the rows are not changed |
+| 2026-11-24 11:34Z | c-002 (holder) | ACCEPTED (msg `a4667b5e`): `6b6413c30` and `7e31ade12` on master, quality gate run on `7e31ade12` green; the planner seat is done |
 
 The panel's findings, as m-072 stated them, with what v1.0 does about each:
 

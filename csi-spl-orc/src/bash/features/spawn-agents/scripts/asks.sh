@@ -42,13 +42,6 @@ SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
 usage() { sed -n '9,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
 
-# 0 when the lock of an ask is its message's (the send side's switch).
-asks_peers_on() {
-  case "${SPOOL_TO_PEERS:-}" in 1) return 0 ;; 0) return 1 ;; esac
-  [ -r "$SPOOL_ROOT/peer/seats" ] &&
-    sed 's/#.*//' "$SPOOL_ROOT/peer/seats" | awk '$1 ~ /^[acgmq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
-}
-
 # "<msg_id> <gen>" of the newest copy of <id> (full or 8-hex prefix) the
 # seat <ID> holds in its inbox or archive; nothing when it has none.
 asks_peer_msg() {  # ID MSG
@@ -119,7 +112,7 @@ while [ $# -gt 0 ]; do
     *) echo "asks.sh: unknown argument '$1'" >&2; usage ;;
   esac
 done
-if [ -n "$ID" ] && asks_peers_on; then
+if [ -n "$ID" ] && spool_fleet_peers_on; then
   ASK_MSG="$ID"
   asks_peer_lock "$verb" "$ID" "$BY" "$GEN" "$REASON"; rc=$?
   [ "$verb" = ack ] || [ "$rc" -ne 0 ] && exit "$rc"

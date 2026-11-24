@@ -358,4 +358,15 @@ done; wait
 eq "8. 4 seats, hub down: exactly 1 local lock on the report" 1 "$(grep -c . "$A/claims/$mid" 2>/dev/null)"
 eq "8. ... delivered into exactly 1 seat's inbox" 1 "$(grep -l "\"$mid\"" "$A"/[cg]-00[1-4]/inbox/*.json 2>/dev/null | wc -l)"
 
+# r96-01: the peers switch has ONE copy, spool_fleet_peers_on in spool-fleet.inc.sh
+pon() { env -u SPOOL_TO_PEERS SPOOL_ROOT="$1" "${@:2}" bash -c '. "$0"; spool_fleet_peers_on' "$T_SCRIPTS/../lib/spool-fleet.inc.sh"; echo $?; }
+eq "8. spool_fleet_peers_on: SPOOL_TO_PEERS=1 -> on (0)" 0 "$(pon "$B" SPOOL_TO_PEERS=1)"
+eq "8. spool_fleet_peers_on: SPOOL_TO_PEERS=0 -> off (1), seats present" 1 "$(pon "$A" SPOOL_TO_PEERS=0)"
+eq "8. spool_fleet_peers_on: unset, a seat line in peer/seats -> on (0)" 0 "$(pon "$A")"
+eq "8. spool_fleet_peers_on: unset, no peer/seats -> off (1)" 1 "$(pon "$B")"
+own="$(grep -hvE '^[[:space:]]*#' "$T_SCRIPTS/asks.sh" "$SS" | grep -E 'asks_peers_on|send_to_peers_on|awk.*\[acgmq\]')"
+eq "8. one copy: asks.sh and spool-send.sh keep no own peers switch" "" "$own"
+check "8. one copy: asks.sh calls spool_fleet_peers_on" grep -qE '^[^#]*spool_fleet_peers_on' "$T_SCRIPTS/asks.sh"
+check "8. one copy: spool-send.sh calls spool_fleet_peers_on" grep -qE '^[^#]*spool_fleet_peers_on' "$SS"
+
 t_done

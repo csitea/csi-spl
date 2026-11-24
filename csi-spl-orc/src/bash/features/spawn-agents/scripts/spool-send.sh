@@ -262,14 +262,6 @@ send_topic_kind() {  # TASK
   fi
 }
 
-# 0 when reports go to the peers (spec 068 L4): SPOOL_TO_PEERS=1|0, else a
-# seat line in <root>/peer/seats, parsed as do_spl_peer_poll parses it.
-send_to_peers_on() {
-  case "${SPOOL_TO_PEERS:-}" in 1) return 0 ;; 0) return 1 ;; esac
-  [ -r "$SPOOL_ROOT/peer/seats" ] &&
-    sed 's/#.*//' "$SPOOL_ROOT/peer/seats" | awk '$1 ~ /^[acgmq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
-}
-
 # The hub-down leg of a peers send: ONE v:1 object in <root>/peers/inbox (the
 # seats' local lock reads it) and the sender's outbox copy; prints spool's
 # result shape with delivery "peers-local". Its msg_id is PEERS_MSGID, the id
@@ -398,7 +390,7 @@ send_watcher_guard "$FROM" "$TO" "$KIND" "$POKE_ONLY" || exit 10
 send_lane_ask_warn "$FROM" "$TO" "$KIND" "$BODY"
 PEERS=0
 if [ "$TO" = orchestrator ] || [ "$TO" = peers ]; then
-  if send_to_peers_on; then
+  if spool_fleet_peers_on; then
     PEERS=1
     [ "$TO" = orchestrator ] && echo "to: orchestrator = peers (a seat in ${SPOOL_ROOT}/peer/seats)" >&2
     TO=peers

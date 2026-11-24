@@ -604,6 +604,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeFXRates(mux)         // SPL-2108, rdb 0200: the costs' second-currency rates, fx_rates.go
 	s.routeFleetTokens(mux)     // spec 140, rdb 0199: GET /v1/operator/fleet-tokens
 	s.routeFleetLanes(mux)      // spec 153 3.3, rdb 0221: GET /v1/operator/fleet-lanes, fleet_lanes_view.go
+	s.routeFleetAskOrder(mux)   // spec 153 3.22.6-7, rdb 0323: PUT /v1/operator/fleet-asks/{ask_id}/{priority,position}, fleet_ask_order.go
 	s.routeFleetRoster(mux)     // spec 153 3.18, SPL-4786: GET /v1/operator/fleet-roster, operator_roster_view.go
 	s.routeZombieTopics(mux)    // spec 166 3.2 row B5: GET /v1/operator/zombie-topics, zombie_topics.go
 	s.routeLanesView(mux)       // spec 153 3.6, B6: GET /v1/view/lanes, a workspace's own, workspace_lanes_view.go

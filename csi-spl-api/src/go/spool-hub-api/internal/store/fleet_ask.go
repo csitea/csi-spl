@@ -60,10 +60,22 @@ type FleetAsk struct {
 	FlagMsg     string    // bypass: the owner message id that asked for it
 	FlagBy      string    // who set Flag
 	FlagAt      time.Time // when Flag was set
-	Priority    int       // its Discussion's priority 1..5, TopicPriorityDefault without one (filled by ListFleetAsks)
-	Position    int       // 1 = next to place; 0 = not queued (filled by ListFleetAsks)
-	QueueLen    int       // the queued asks of its role (filled with Position)
-	WriterBox   string    // the box that last wrote it (from the authenticated hello)
+	Priority    int       // the effective priority 1..5 (filled by ListFleetAsks, askFillPriorities)
+	// PrioritySource is where Priority came from: own | discussion | default.
+	PrioritySource string
+	// The ask's own priority and its dragged place (rdb 0323, spec 153
+	// 3.22.6-3.22.7): OwnPriority 0 = never set; QueueRank 0 = unranked (a
+	// list reads a rank older than the effective priority as 0: a priority
+	// change clears it); RankBy "" = ranked only because a drag landed below.
+	OwnPriority int
+	PriorityBy  string
+	PriorityAt  time.Time
+	QueueRank   int64
+	RankBy      string
+	RankAt      time.Time
+	Position    int    // 1 = next to place; 0 = not queued (filled by ListFleetAsks)
+	QueueLen    int    // the queued asks of its role (filled with Position)
+	WriterBox   string // the box that last wrote it (from the authenticated hello)
 	// The OD pool's columns (rdb 0183, spec 134 3.2), set on role 'od' rows.
 	LockUntil   time.Time // the lock's end on the hub clock; zero = no lease (a book ack holds until released)
 	LeaseS      int       // the lease lock-next and renew grant, seconds
@@ -248,23 +260,51 @@ func sortAsks(as []FleetAsk) {
 	})
 }
 
-// askPrio is the priority the queue ranks by: the discussion's, the default
-// (3) when the list did not fill one.
+// The sources of an ask's effective priority (spec 153 3.22.6).
+const (
+	AskPrioOwn        = "own"
+	AskPrioDiscussion = "discussion"
+	AskPrioDefault    = "default"
+)
+
+// askPrio is the priority the queue ranks by: the effective one, the default
+// (3) when the list did not fill one; a ci row ranks as priority 1, so trunk
+// red never waits behind the owner's priority 1 rows (spec 153 3.22.8, H3 A,
+// C121; the placer already takes a ci row first).
 func askPrio(a FleetAsk) int {
+	if a.Class == "ci" {
+		return TopicPriorityMin
+	}
 	if a.Priority < TopicPriorityMin || a.Priority > TopicPriorityMax {
 		return TopicPriorityDefault
 	}
 	return a.Priority
 }
 
-// askFillPriorities sets each ask's Priority from its discussion's (prio:
-// discussion -> priority, as TopicPriorities answers), the default without
-// one. Both drivers call it on a list, before askPositions.
-func askFillPriorities(as []FleetAsk, prio map[string]int) {
+func validPrio(p int) bool { return p >= TopicPriorityMin && p <= TopicPriorityMax }
+
+// askFillPriorities sets each ask's effective Priority and PrioritySource
+// (spec 153 3.22.6): its own and its discussion's (prio: discussion -> the
+// topic_priorities row) both set, the newer write wins, own on a tie; one
+// set, that one; neither, the default. A rank older than the winning write
+// is read as none (QueueRank 0, RankBy ""): a priority change clears the
+// rank (3.22.7). Both drivers call it on a list, before askPositions.
+func askFillPriorities(as []FleetAsk, prio map[string]TopicPriority) {
 	for i := range as {
-		as[i].Priority = TopicPriorityDefault
-		if p, ok := prio[as[i].Discussion]; ok && as[i].Discussion != "" {
-			as[i].Priority = p
+		a := &as[i]
+		d, dok := prio[a.Discussion]
+		dok = dok && a.Discussion != "" && validPrio(d.Priority)
+		var at time.Time
+		switch {
+		case validPrio(a.OwnPriority) && (!dok || !d.SetAt.After(a.PriorityAt)):
+			a.Priority, a.PrioritySource, at = a.OwnPriority, AskPrioOwn, a.PriorityAt
+		case dok:
+			a.Priority, a.PrioritySource, at = d.Priority, AskPrioDiscussion, d.SetAt
+		default:
+			a.Priority, a.PrioritySource = TopicPriorityDefault, AskPrioDefault
+		}
+		if a.QueueRank > 0 && a.RankAt.Before(at) {
+			a.QueueRank, a.RankBy = 0, ""
 		}
 	}
 }
@@ -283,12 +323,13 @@ func askDiscussions(as []FleetAsk) []string {
 	return out
 }
 
-// askPositions numbers each role's queued asks by their discussion's
-// priority (spec 150 row B9, owner poll Q5 answer A: a priority 1 feature
-// before a priority 3 bug), then class rank (rdb 0195), then EnqueuedAt, then
-// AskID: position 1 is placed next unless the placer's bands pick another
-// class. An ask with no discussion ranks at TopicPriorityDefault (3: after a
-// set 1 or 2, before a set 4 or 5), so with no priority set the order is the
+// askPositions numbers each role's queued asks (spec 153 3.22.7): by the
+// effective priority (spec 150 row B9, owner poll Q5 answer A: a priority 1
+// feature before a priority 3 bug; a ci row ranks as 1, askPrio), then the
+// dragged rank (ranked rows first, lower first), then class rank (rdb 0195),
+// then EnqueuedAt, then AskID: position 1 is placed next unless the placer's
+// bands pick another class. An ask with neither priority ranks at
+// TopicPriorityDefault (3), so with no priority and no drag the order is the
 // class order. Both drivers call it on a list.
 func askPositions(as []FleetAsk) {
 	byRole := map[string][]int{}
@@ -298,23 +339,31 @@ func askPositions(as []FleetAsk) {
 		}
 	}
 	for _, ix := range byRole {
-		sort.SliceStable(ix, func(i, j int) bool {
-			a, b := as[ix[i]], as[ix[j]]
-			if pa, pb := askPrio(a), askPrio(b); pa != pb {
-				return pa < pb
-			}
-			if ra, rb := askQueueRank(a), askQueueRank(b); ra != rb {
-				return ra < rb
-			}
-			if !a.EnqueuedAt.Equal(b.EnqueuedAt) {
-				return a.EnqueuedAt.Before(b.EnqueuedAt)
-			}
-			return a.AskID < b.AskID
-		})
+		sort.SliceStable(ix, func(i, j int) bool { return askBefore(as[ix[i]], as[ix[j]]) })
 		for n, i := range ix {
 			as[i].Position, as[i].QueueLen = n+1, len(ix)
 		}
 	}
+}
+
+// askBefore is the queue's order of two queued asks of one role.
+func askBefore(a, b FleetAsk) bool {
+	if pa, pb := askPrio(a), askPrio(b); pa != pb {
+		return pa < pb
+	}
+	if (a.QueueRank > 0) != (b.QueueRank > 0) {
+		return a.QueueRank > 0
+	}
+	if a.QueueRank != b.QueueRank {
+		return a.QueueRank < b.QueueRank
+	}
+	if ra, rb := askQueueRank(a), askQueueRank(b); ra != rb {
+		return ra < rb
+	}
+	if !a.EnqueuedAt.Equal(b.EnqueuedAt) {
+		return a.EnqueuedAt.Before(b.EnqueuedAt)
+	}
+	return a.AskID < b.AskID
 }
 
 // askTimes fills the hub-clock durations.
@@ -451,6 +500,7 @@ func (s *Memory) PutFleetAsk(_ context.Context, tenant string, a FleetAsk, box s
 	a.State, a.AckedBy, a.ClosedBy, a.Reason, a.RaisedN = "open", "", "", "", 0
 	a.RaisedAt, a.EscalatedAt, a.EnqueuedAt, a.Placement = time.Time{}, time.Time{}, time.Time{}, ""
 	a.Class, a.Flag, a.FlagMsg, a.FlagBy, a.FlagAt = "", "", "", "", time.Time{}
+	a.OwnPriority, a.PriorityBy, a.PriorityAt, a.QueueRank, a.RankBy, a.RankAt = 0, "", time.Time{}, 0, "", time.Time{}
 	a.WriterBox, a.CreatedAt, a.UpdatedAt = box, now, now
 	s.asks[k] = a
 	askTimes(&a, now)
@@ -490,14 +540,291 @@ func (s *Memory) ListFleetAsks(_ context.Context, tenant, fleet, role string, al
 			out = append(out, r)
 		}
 	}
-	prio := map[string]int{}
-	for _, d := range askDiscussions(out) {
-		if p, ok := s.topicPrio[[2]string{tenant, d}]; ok {
-			prio[d] = p.Priority
-		}
-	}
-	askFillPriorities(out, prio)
+	s.memAskFill(tenant, out)
 	sortAsks(out)
 	askPositions(out)
 	return out, nil
+}
+
+// memAskFill is askListPriorities on the memory store; s.mu is held.
+func (s *Memory) memAskFill(tenant string, out []FleetAsk) {
+	prio := map[string]TopicPriority{}
+	for _, d := range askDiscussions(out) {
+		if p, ok := s.topicPrio[[2]string{tenant, d}]; ok {
+			prio[d] = p
+		}
+	}
+	askFillPriorities(out, prio)
+}
+
+// The order ops of a queued spawn request (spec 153 3.22.6-3.22.7, row Q2,
+// rdb 0323): an operator admin sets its own priority or drags it.
+
+// AskRankGap is the gap between two dragged ranks; a run out of room
+// renumbers that priority's ranks in the same transaction.
+const AskRankGap = 1024
+
+var (
+	// ErrAskNotQueued: the ask exists but is no longer queued (placed, closed).
+	ErrAskNotQueued = errors.New("ask not queued")
+	// ErrStalePosition: a move's neighbours are no longer adjacent, or no
+	// longer queued; nothing changed.
+	ErrStalePosition = errors.New("stale position")
+)
+
+// AskPrioritySet sets a queued ask's own priority (1..5) by By.
+type AskPrioritySet struct {
+	Fleet, AskID, By string
+	Priority         int
+}
+
+// AskMove drops a queued ask between two neighbours as the page saw them:
+// Before is the ask it now follows (directly above it), After the ask it now
+// precedes (directly below it); "" = the top or the bottom of the line.
+type AskMove struct {
+	Fleet, AskID, Before, After, By string
+}
+
+// FleetAskOrder is the order half of the ask store; Memory and Postgres
+// implement it. Both answer the moved or set row as a list reads it, with its
+// Position. ErrNotFound: no such ask; ErrAskNotQueued: not queued.
+type FleetAskOrder interface {
+	// SetFleetAskPriority writes the ask's own priority, who and when, and
+	// clears its rank (a new decision: it joins its new priority by class).
+	SetFleetAskPriority(ctx context.Context, tenantID string, p AskPrioritySet, now time.Time) (FleetAsk, error)
+	// MoveFleetAsk applies a drag in one transaction over the role's queued
+	// rows, locked (askPlanMove); ErrStalePosition changes nothing.
+	MoveFleetAsk(ctx context.Context, tenantID string, m AskMove, now time.Time) (FleetAsk, error)
+}
+
+// askSetPriority is the priority write both drivers share.
+func askSetPriority(a *FleetAsk, p AskPrioritySet, now time.Time) {
+	a.OwnPriority, a.PriorityBy, a.PriorityAt = p.Priority, p.By, now
+	a.QueueRank, a.RankBy, a.RankAt = 0, "", time.Time{}
+}
+
+// askPlanMove answers the rows a move writes (spec 153 3.22.7). queue is the
+// moved ask's role's queued rows in queue order, as a list fills them. The
+// moved row takes the priority of the row it now sits directly above (of
+// the row above it when it lands last) as its own, by m.By; it gets a rank
+// between its neighbours, and every unranked row of that priority above it
+// gets one in its current order with no RankBy. A row whose rank changes
+// keeps its RankBy, except the moved row, which gets m.By.
+func askPlanMove(queue []FleetAsk, m AskMove, now time.Time) ([]FleetAsk, error) {
+	var moved FleetAsk
+	rest := make([]FleetAsk, 0, len(queue))
+	for _, a := range queue {
+		if a.AskID == m.AskID {
+			moved = a
+		} else {
+			rest = append(rest, a)
+		}
+	}
+	at, err := askMoveSlot(rest, m)
+	if err != nil {
+		return nil, err
+	}
+	p := askPrio(moved)
+	if at < len(rest) {
+		p = askPrio(rest[at])
+	} else if at > 0 {
+		p = askPrio(rest[at-1])
+	}
+	moved.OwnPriority, moved.PriorityBy, moved.PriorityAt = p, m.By, now
+	moved.Priority, moved.PrioritySource = p, AskPrioOwn
+	moved.QueueRank = 0
+	line := append(append(append([]FleetAsk{}, rest[:at]...), moved), rest[at:]...)
+	block, k := []FleetAsk{}, 0
+	for _, a := range line {
+		if askPrio(a) != p {
+			continue
+		}
+		if a.AskID == m.AskID {
+			k = len(block)
+		}
+		block = append(block, a)
+	}
+	return askRankBlock(block, k, m.By, now), nil
+}
+
+// askMoveSlot is where the moved row goes in rest (the line without it):
+// its index, after checking Before and After are adjacent there.
+func askMoveSlot(rest []FleetAsk, m AskMove) (int, error) {
+	idx := func(id string) int {
+		for i, a := range rest {
+			if a.AskID == id {
+				return i
+			}
+		}
+		return -2
+	}
+	bi, ai := -1, len(rest)
+	if m.Before != "" {
+		bi = idx(m.Before)
+	}
+	if m.After != "" {
+		ai = idx(m.After)
+	}
+	if bi == -2 || ai == -2 || ai != bi+1 {
+		return 0, ErrStalePosition
+	}
+	return ai, nil
+}
+
+// askRankBlock ranks block (one priority's rows in their new order, the
+// moved row at k) so that rows 0..k and every ranked row below k are ranked
+// in strictly increasing order: kept ranks stay, the gaps between them are
+// filled; a gap with no room renumbers the whole run by AskRankGap. It
+// answers the rows whose rank changed, the moved row always.
+func askRankBlock(block []FleetAsk, k int, by string, now time.Time) []FleetAsk {
+	last := k
+	for i := k + 1; i < len(block); i++ {
+		if block[i].QueueRank > 0 {
+			last = i
+		}
+	}
+	ranks := make([]int64, last+1)
+	for i := range ranks {
+		if i != k && block[i].QueueRank > 0 {
+			ranks[i] = block[i].QueueRank
+		}
+	}
+	if !askFillGaps(ranks) {
+		for i := range ranks {
+			ranks[i] = int64(i+1) * AskRankGap
+		}
+	}
+	out := []FleetAsk{}
+	for i, r := range ranks {
+		a := block[i]
+		if i != k && a.QueueRank == r {
+			continue
+		}
+		if a.QueueRank == 0 {
+			a.RankBy = ""
+		}
+		if i == k {
+			a.RankBy = by
+		}
+		a.QueueRank, a.RankAt = r, now
+		out = append(out, a)
+	}
+	return out
+}
+
+// askFillGaps fills the zeros of ranks between the kept values, strictly
+// increasing; false = a kept value out of order or a gap without room.
+func askFillGaps(ranks []int64) bool {
+	lo, i := int64(0), 0
+	for i < len(ranks) {
+		if ranks[i] > 0 {
+			if ranks[i] <= lo {
+				return false
+			}
+			lo, i = ranks[i], i+1
+			continue
+		}
+		j := i
+		for j < len(ranks) && ranks[j] == 0 {
+			j++
+		}
+		n := int64(j - i)
+		step := int64(AskRankGap)
+		if j < len(ranks) {
+			step = (ranks[j] - lo) / (n + 1)
+		}
+		if step < 1 {
+			return false
+		}
+		for x := i; x < j; x++ {
+			lo += step
+			ranks[x] = lo
+		}
+		i = j
+	}
+	return true
+}
+
+// askRoleQueue is the role's queued rows of a filled, ordered list.
+func askRoleQueue(as []FleetAsk, role string) []FleetAsk {
+	out := []FleetAsk{}
+	for _, a := range as {
+		if a.State == "queued" && a.Role == role {
+			out = append(out, a)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Position < out[j].Position })
+	return out
+}
+
+// SetFleetAskPriority implements FleetAskOrder on the Memory store.
+func (s *Memory) SetFleetAskPriority(ctx context.Context, tenant string, p AskPrioritySet, now time.Time) (FleetAsk, error) {
+	s.mu.Lock()
+	k := [3]string{tenant, p.Fleet, p.AskID}
+	a, ok := s.asks[k]
+	switch {
+	case !ok:
+		s.mu.Unlock()
+		return FleetAsk{}, ErrNotFound
+	case a.State != "queued":
+		s.mu.Unlock()
+		return a, ErrAskNotQueued
+	}
+	askSetPriority(&a, p, now)
+	s.asks[k] = a
+	s.mu.Unlock()
+	return s.memListed(ctx, tenant, a, now)
+}
+
+// MoveFleetAsk implements FleetAskOrder on the Memory store.
+func (s *Memory) MoveFleetAsk(ctx context.Context, tenant string, m AskMove, now time.Time) (FleetAsk, error) {
+	s.mu.Lock()
+	k := [3]string{tenant, m.Fleet, m.AskID}
+	a, ok := s.asks[k]
+	if !ok || a.State != "queued" {
+		s.mu.Unlock()
+		if !ok {
+			return FleetAsk{}, ErrNotFound
+		}
+		return a, ErrAskNotQueued
+	}
+	queue := []FleetAsk{}
+	for kk, r := range s.asks {
+		if kk[0] == tenant && kk[1] == m.Fleet && r.Role == a.Role && r.State == "queued" {
+			queue = append(queue, r)
+		}
+	}
+	s.memAskFill(tenant, queue)
+	askPositions(queue)
+	writes, err := askPlanMove(askRoleQueue(queue, a.Role), m, now)
+	if err != nil {
+		s.mu.Unlock()
+		return a, err
+	}
+	for _, w := range writes {
+		kk := [3]string{tenant, m.Fleet, w.AskID}
+		r := s.asks[kk]
+		r.OwnPriority, r.PriorityBy, r.PriorityAt = w.OwnPriority, w.PriorityBy, w.PriorityAt
+		r.QueueRank, r.RankBy, r.RankAt = w.QueueRank, w.RankBy, w.RankAt
+		s.asks[kk] = r
+	}
+	s.mu.Unlock()
+	return s.memListed(ctx, tenant, a, now)
+}
+
+// memListed answers a as its role's list reads it now.
+func (s *Memory) memListed(ctx context.Context, tenant string, a FleetAsk, now time.Time) (FleetAsk, error) {
+	as, err := s.ListFleetAsks(ctx, tenant, a.Fleet, a.Role, false, now)
+	return askFind(as, a, err)
+}
+
+// askFind is a's row in a list (its Position, its effective priority); a
+// itself when the list failed or no longer holds it.
+func askFind(as []FleetAsk, a FleetAsk, err error) (FleetAsk, error) {
+	for _, r := range as {
+		if r.AskID == a.AskID {
+			return r, err
+		}
+	}
+	return a, err
 }

@@ -14442,6 +14442,160 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/fleet-asks/{ask_id}/position": {
+      "put": {
+        "operationId": "putOperatorFleetAsksPosition",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "ask_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the fleet, default main",
+            "in": "query",
+            "name": "fleet",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "after": {
+                    "description": "the ask it now precedes (directly below it); null = the bottom",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "before": {
+                    "description": "the ask it now follows (directly above it); null = the top",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {ask}, the moved row with its new position, rank_by and the priority of the row it now sits above as its own; one queue.position_set row in the operator workspace's log"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: not_queued, the ask was placed or closed; stale_position, the neighbours are no longer adjacent or queued, nothing changed"
+          }
+        },
+        "summary": "Move a queued spawn request between two neighbours (spec 153 3.22.7, row Q2)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/fleet-asks/{ask_id}/priority": {
+      "put": {
+        "operationId": "putOperatorFleetAsksPriority",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "ask_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the fleet, default main",
+            "in": "query",
+            "name": "fleet",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "priority": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "priority"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {ask}, the row as the queue reads it (priority, priority_source own, position); its rank is cleared; one queue.priority_set row in the operator workspace's log"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: not_queued, the ask was placed or closed"
+          }
+        },
+        "summary": "Set a queued spawn request's own priority (spec 153 3.22.6, row Q2)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/fleet-desks": {
       "get": {
         "operationId": "getOperatorFleetDesks",

@@ -235,9 +235,12 @@ func TestCheckFleetAskQueue(t *testing.T) {
 //   - C402: asks with no discussion, or a discussion nobody set, keep the
 //     class, then enqueued_at order at 3: after a priority 2 bug, before a
 //     priority 4 ci row. CONTROL: a default that ranks first, or the old 5.
-//   - C403: a priority 1 feature goes before a priority 2 bug, and both before
-//     a ci row nobody gave a priority. CONTROL: class first (poll Q5 B) puts
-//     the ci row, then the bug, first.
+//   - C403: a priority 1 feature goes before a priority 2 bug. CONTROL: class
+//     first (poll Q5 B) puts the bug first.
+//   - spec 153 C121 (H3 A, SPL-6396): a ci row ranks as priority 1, first by
+//     its class rank, whatever its own priority reads (ciNone 3, ciP4 4), so
+//     trunk red never waits behind priority 1 rows. CONTROL: askPrio without
+//     its ci line puts ciNone at 4 and ciP4 at 8.
 func TestFleetAskQueuePriority(t *testing.T) {
 	ctx := context.Background()
 	t0 := time.Date(2026, 10, 29, 8, 0, 0, 0, time.UTC)
@@ -288,10 +291,10 @@ func TestFleetAskQueuePriority(t *testing.T) {
 				}
 			}
 			want := map[string][2]int{ // position, priority
-				"bugP1": {1, 1}, "featP1": {2, 1}, // C401: the priority 1 bug before the older bugs; the class orders within 1
-				"bugP2":  {3, 2},                                                           // C403: a priority 2 bug after the priority 1 feature
-				"ciNone": {4, 3}, "refUnset": {5, 3}, "bugOld": {6, 3}, "featNone": {7, 3}, // C402: the class order at the unset 3, after a 2 (SPL-4367)
-				"ciP4": {8, 4}, // a priority 4 ci row after every unset ask: unset is 3, not 5 (msg f5ed1396)
+				"ciNone": {1, 3}, "ciP4": {2, 4}, // C121: a ci row ranks as priority 1, its own priority still reads
+				"bugP1": {3, 1}, "featP1": {4, 1}, // C401: the priority 1 bug before the older bugs; the class orders within 1
+				"bugP2":    {5, 2},                                       // C403: a priority 2 bug after the priority 1 feature
+				"refUnset": {6, 3}, "bugOld": {7, 3}, "featNone": {8, 3}, // C402: the class order at the unset 3, after a 2 (SPL-4367)
 			}
 			for k, w := range want {
 				if got[k].Position != w[0] || got[k].Priority != w[1] || got[k].QueueLen != len(rows) {
@@ -307,7 +310,7 @@ func TestFleetAskQueuePriority(t *testing.T) {
 				t.Fatal("empty list")
 			}
 			for _, a := range as {
-				if a.AskID == ids["refUnset"] && (a.Priority != unsetTopicPriority || a.Position != 5) {
+				if a.AskID == ids["refUnset"] && (a.Priority != unsetTopicPriority || a.Position != 6) {
 					t.Fatalf("another workspace's priority leaked: %+v", a)
 				}
 			}

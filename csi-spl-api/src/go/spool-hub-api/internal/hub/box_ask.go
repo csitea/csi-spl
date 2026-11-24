@@ -39,6 +39,9 @@ import (
 //	                  "<vendor>:<slug>" is optional; class (ci, refactor,
 //	                  bug, feature; rdb 0195) is required unless stored,
 //	                  flag urgent | bypass (+ flag_msg, the owner's msg id)
+//	ask_op position - {ask_id, by, before, after, owner_msg}: move a queued
+//	                  row between two neighbours on the owner's word (spec
+//	                  153 3.22.7, fleet_ask_order.go); rank_by records it
 //
 // The OD pool's jobs, role od (spec 134 3.3-3.4, rdb 0183; nothing calls them
 // before P3/P4, the lease keeps doing all OD work):
@@ -89,10 +92,16 @@ type AskRow struct {
 	FlagMsg     string `json:"flag_msg,omitempty"`
 	FlagBy      string `json:"flag_by,omitempty"`
 	FlagAt      string `json:"flag_at,omitempty"`
-	Priority    int    `json:"priority,omitempty"` // list: the discussion's priority 1..5 (3 without one)
-	Position    int    `json:"position,omitempty"`
-	QueueLen    int    `json:"queue_len,omitempty"`
-	WriterBox   string `json:"writer_box,omitempty"`
+	Priority    int    `json:"priority,omitempty"` // list: the effective priority 1..5 (spec 153 3.22.6)
+	// spec 153 3.22.6-3.22.7 (rdb 0323): own | discussion | default; who set
+	// the ask's own priority; its dragged rank (absent = none) and who dragged it
+	PrioritySource string `json:"priority_source,omitempty"`
+	PriorityBy     string `json:"priority_by,omitempty"`
+	QueueRank      int64  `json:"queue_rank,omitempty"`
+	RankBy         string `json:"rank_by,omitempty"`
+	Position       int    `json:"position,omitempty"`
+	QueueLen       int    `json:"queue_len,omitempty"`
+	WriterBox      string `json:"writer_box,omitempty"`
 	// role od (rdb 0183)
 	LockUntil   string   `json:"lock_until,omitempty"`
 	LeaseS      int      `json:"lease_s,omitempty"`
@@ -180,7 +189,8 @@ func askRow(a store.FleetAsk) AskRow {
 		DeadlineAt: askTime(a.DeadlineAt), AckedBy: a.AckedBy, ClosedBy: a.ClosedBy, Reason: a.Reason,
 		RaisedN: a.RaisedN, RaisedAt: askTime(a.RaisedAt), EscalatedAt: askTime(a.EscalatedAt),
 		EnqueuedAt: askTime(a.EnqueuedAt), Placement: a.Placement,
-		Class: a.Class, Flag: a.Flag, FlagMsg: a.FlagMsg, FlagBy: a.FlagBy, FlagAt: askTime(a.FlagAt), Priority: a.Priority, Position: a.Position, QueueLen: a.QueueLen, WriterBox: a.WriterBox,
+		Class: a.Class, Flag: a.Flag, FlagMsg: a.FlagMsg, FlagBy: a.FlagBy, FlagAt: askTime(a.FlagAt), Priority: a.Priority,
+		PrioritySource: a.PrioritySource, PriorityBy: a.PriorityBy, QueueRank: a.QueueRank, RankBy: a.RankBy, Position: a.Position, QueueLen: a.QueueLen, WriterBox: a.WriterBox,
 		LockUntil: askTime(a.LockUntil), LeaseS: a.LeaseS, Gen: a.Gen, DedupeKey: a.DedupeKey, IssueKey: a.IssueKey,
 		VendorAllow: a.VendorAllow, Needs: a.Needs, NotBy: a.NotBy,
 		CreatedAt: askTime(a.CreatedAt), UpdatedAt: askTime(a.UpdatedAt),
@@ -239,6 +249,8 @@ func (s *Server) boxAsk(ctx context.Context, x *session, f wire.Frame) (askAnswe
 		return s.askPool(ctx, x, f)
 	case "category":
 		return s.askCategory(ctx, x, f)
+	case "position":
+		return s.askPosition(ctx, x, f) // spec 153 3.22.7, fleet_ask_order.go
 	default:
 		return s.askUpdate(ctx, x, f)
 	}

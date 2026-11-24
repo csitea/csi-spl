@@ -16,15 +16,17 @@ import (
 const askCols = `ask_id, role, kind, from_agent, topic, summary, state, deadline_at, acked_by, closed_by, reason,
 	raised_n, raised_at, escalated_at, writer_box, created_at, updated_at, enqueued_at, placement,
 	class, flag, flag_msg, flag_by, flag_at,
-	lock_until, lease_s, gen, dedupe_key, issue_key, vendor_allow, needs, not_by, COALESCE(discussion::text, '')`
+	lock_until, lease_s, gen, dedupe_key, issue_key, vendor_allow, needs, not_by, COALESCE(discussion::text, ''),
+	COALESCE(priority, 0), COALESCE(priority_by, ''), priority_at, COALESCE(queue_rank, 0), COALESCE(rank_by, ''), rank_at`
 
 func scanAsk(row pgx.Row, fleet string, now time.Time) (FleetAsk, error) {
 	a := FleetAsk{Fleet: fleet}
-	var deadline, raised, escalated, enqueued, flagAt, lockUntil *time.Time
+	var deadline, raised, escalated, enqueued, flagAt, lockUntil, prioAt, rankAt *time.Time
 	if err := row.Scan(&a.AskID, &a.Role, &a.Kind, &a.From, &a.Topic, &a.Summary, &a.State, &deadline, &a.AckedBy, &a.ClosedBy,
 		&a.Reason, &a.RaisedN, &raised, &escalated, &a.WriterBox, &a.CreatedAt, &a.UpdatedAt, &enqueued, &a.Placement,
 		&a.Class, &a.Flag, &a.FlagMsg, &a.FlagBy, &flagAt,
-		&lockUntil, &a.LeaseS, &a.Gen, &a.DedupeKey, &a.IssueKey, &a.VendorAllow, &a.Needs, &a.NotBy, &a.Discussion); err != nil {
+		&lockUntil, &a.LeaseS, &a.Gen, &a.DedupeKey, &a.IssueKey, &a.VendorAllow, &a.Needs, &a.NotBy, &a.Discussion,
+		&a.OwnPriority, &a.PriorityBy, &prioAt, &a.QueueRank, &a.RankBy, &rankAt); err != nil {
 		return a, err
 	}
 	if a.NotBy == nil {
@@ -33,7 +35,8 @@ func scanAsk(row pgx.Row, fleet string, now time.Time) (FleetAsk, error) {
 	for _, p := range []struct {
 		src *time.Time
 		dst *time.Time
-	}{{deadline, &a.DeadlineAt}, {raised, &a.RaisedAt}, {escalated, &a.EscalatedAt}, {enqueued, &a.EnqueuedAt}, {flagAt, &a.FlagAt}, {lockUntil, &a.LockUntil}} {
+	}{{deadline, &a.DeadlineAt}, {raised, &a.RaisedAt}, {escalated, &a.EscalatedAt}, {enqueued, &a.EnqueuedAt}, {flagAt, &a.FlagAt}, {lockUntil, &a.LockUntil},
+		{prioAt, &a.PriorityAt}, {rankAt, &a.RankAt}} {
 		if p.src != nil {
 			*p.dst = p.src.UTC()
 		}
@@ -162,25 +165,26 @@ func (s *Postgres) ListFleetAsks(ctx context.Context, tenant, fleet, role string
 	return out, err
 }
 
-// askListPriorities fills each ask's Priority from its discussion's
-// topic_priorities row (rdb 0214, spec 150 row B9), one primary-key probe for
-// the list's distinct discussions, in the list's own transaction.
+// askListPriorities fills each ask's effective Priority from its own and
+// its discussion's topic_priorities row (rdb 0214, 0323; spec 153 3.22.6),
+// one primary-key probe for the list's distinct discussions, in the list's
+// own transaction.
 func askListPriorities(ctx context.Context, tx pgx.Tx, tenant string, as []FleetAsk) error {
-	prio := map[string]int{}
+	prio := map[string]TopicPriority{}
 	if ds := askDiscussions(as); len(ds) > 0 {
-		rows, err := tx.Query(ctx, `SELECT task_id::text, priority FROM topic_priorities
+		rows, err := tx.Query(ctx, `SELECT task_id::text, priority, set_at FROM topic_priorities
 			WHERE tenant_id = $1 AND task_id = ANY ($2::uuid[])`, tenant, ds)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
-			var k string
-			var p int
-			if err := rows.Scan(&k, &p); err != nil {
+			var p TopicPriority
+			if err := rows.Scan(&p.TaskID, &p.Priority, &p.SetAt); err != nil {
 				return err
 			}
-			prio[k] = p
+			p.SetAt = p.SetAt.UTC()
+			prio[p.TaskID] = p
 		}
 		if err := rows.Err(); err != nil {
 			return err
@@ -188,4 +192,112 @@ func askListPriorities(ctx context.Context, tx pgx.Tx, tenant string, as []Fleet
 	}
 	askFillPriorities(as, prio)
 	return nil
+}
+
+// The order ops (spec 153 3.22.6-3.22.7, rdb 0323). A move locks the role's
+// queued rows FOR UPDATE in ask_id order (two moves at once serialise and
+// never deadlock), plans it in Go (askPlanMove, shared with Memory) and
+// writes the changed rows in the same transaction.
+
+// SetFleetAskPriority implements FleetAskOrder on the Postgres store.
+func (s *Postgres) SetFleetAskPriority(ctx context.Context, tenant string, p AskPrioritySet, now time.Time) (FleetAsk, error) {
+	var a FleetAsk
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var err error
+		if a, err = pgAskQueued(ctx, tx, tenant, p.Fleet, p.AskID, now); err != nil {
+			return err
+		}
+		askSetPriority(&a, p, now)
+		return pgAskWriteOrder(ctx, tx, tenant, a)
+	})
+	if err != nil {
+		return a, err
+	}
+	as, err := s.ListFleetAsks(ctx, tenant, a.Fleet, a.Role, false, now)
+	return askFind(as, a, err)
+}
+
+// MoveFleetAsk implements FleetAskOrder on the Postgres store.
+func (s *Postgres) MoveFleetAsk(ctx context.Context, tenant string, m AskMove, now time.Time) (FleetAsk, error) {
+	var a FleetAsk
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var err error
+		if a, err = pgAskQueued(ctx, tx, tenant, m.Fleet, m.AskID, now); err != nil {
+			return err
+		}
+		queue, err := pgAskLockQueue(ctx, tx, tenant, m.Fleet, a.Role, now)
+		if err != nil {
+			return err
+		}
+		writes, err := askPlanMove(queue, m, now)
+		if err != nil {
+			return err
+		}
+		for _, w := range writes {
+			if err := pgAskWriteOrder(ctx, tx, tenant, w); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return a, err
+	}
+	as, err := s.ListFleetAsks(ctx, tenant, a.Fleet, a.Role, false, now)
+	return askFind(as, a, err)
+}
+
+// pgAskQueued reads one ask: ErrNotFound, or ErrAskNotQueued with the row.
+func pgAskQueued(ctx context.Context, tx pgx.Tx, tenant, fleet, askID string, now time.Time) (FleetAsk, error) {
+	a, err := scanAsk(tx.QueryRow(ctx, `SELECT `+askCols+` FROM fleet_asks
+		WHERE tenant_id = $1 AND fleet = $2 AND ask_id = $3`, tenant, fleet, askID), fleet, now)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return a, ErrNotFound
+	case err != nil:
+		return a, err
+	case a.State != "queued":
+		return a, ErrAskNotQueued
+	}
+	return a, nil
+}
+
+// pgAskLockQueue locks the role's queued rows and answers them filled and in
+// queue order. A row that left the queue before the lock is not among them,
+// so a move naming it is stale.
+func pgAskLockQueue(ctx context.Context, tx pgx.Tx, tenant, fleet, role string, now time.Time) ([]FleetAsk, error) {
+	rows, err := tx.Query(ctx, `SELECT `+askCols+` FROM fleet_asks
+		WHERE tenant_id = $1 AND fleet = $2 AND role = $3 AND state = 'queued'
+		ORDER BY ask_id FOR UPDATE`, tenant, fleet, role)
+	if err != nil {
+		return nil, err
+	}
+	queue := []FleetAsk{}
+	for rows.Next() {
+		a, err := scanAsk(rows, fleet, now)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		queue = append(queue, a)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := askListPriorities(ctx, tx, tenant, queue); err != nil {
+		return nil, err
+	}
+	askPositions(queue)
+	return askRoleQueue(queue, role), nil
+}
+
+// pgAskWriteOrder writes a row's own priority and rank columns.
+func pgAskWriteOrder(ctx context.Context, tx pgx.Tx, tenant string, a FleetAsk) error {
+	_, err := tx.Exec(ctx, `UPDATE fleet_asks SET priority = NULLIF($4, 0)::smallint, priority_by = NULLIF($5, ''),
+		priority_at = $6, queue_rank = NULLIF($7, 0)::bigint, rank_by = NULLIF($8, ''), rank_at = $9
+		WHERE tenant_id = $1 AND fleet = $2 AND ask_id = $3`,
+		tenant, a.Fleet, a.AskID, a.OwnPriority, a.PriorityBy, nullTime(a.PriorityAt),
+		a.QueueRank, a.RankBy, nullTime(a.RankAt))
+	return err
 }

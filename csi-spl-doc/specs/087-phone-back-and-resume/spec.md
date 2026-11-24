@@ -142,4 +142,4 @@ Restoring on a desktop. Syncing the last place across devices. Changing the 043 
 | v0.3 | §3.4 and FR-009: the top chevron at level 1 of Discussions, as browser Back (owner t1 90194aeb, poll 157965f2 A, SPL-5268) | c-455 |
 | v0.4 | §3.4 and FR-009: Back at the top of another section opened from a topic returns to that exact topic (owner t1 acfc125c, poll e70d1a05 A, SPL-6356) | c-680 |
 
-<!-- version: 0.3.0 · updated: 2026-11-11 · last-edit: 2026-11-11T06:00:00Z -->
+<!-- version: 0.4.0 · updated: 2026-11-24 · last-edit: 2026-11-24T10:45:00Z -->

@@ -5,7 +5,7 @@
  * thread cards, DM badges and channel badges are recomputed, and a feed's
  * frozen "New messages" boundary moves up to what the member already saw.
  */
-import { createReadSync, laterThan } from '~/utils/read-sync.mjs'
+import { channelMoves, createReadSync, laterThan } from '~/utils/read-sync.mjs'
 import { createSeedGate, seedWaitsForPull } from '~/utils/dm-seed.mjs'
 import { loadCursors } from '~/utils/read-cursor.mjs'
 import { useNotificationStore } from '~/stores/notification'
@@ -77,7 +77,7 @@ function onMoved(moved: string[], marks: Record<string, Mark>) {
   }
   if (raised) notes.boundary = frozen
   if (!moved.length) return
-  const cursors = loadCursors() as Record<string, { count?: number }>
+  const cursors = loadCursors() as Record<string, { ts?: string, id?: string, count?: number }>
   if (moved.some((k) => k.startsWith('t:'))) {
     const read = { ...notes.topicRead }
     for (const k of moved) {
@@ -97,6 +97,24 @@ function onMoved(moved: string[], marks: Record<string, Mark>) {
        A seed still held for this pull reads them itself (spec 109 FR-004). */
     void dmSeed.moved(() => channel.loadDmActivity(self))
   }
+  if (moved.some((k) => k.startsWith('ch:'))) channelsAfterMove(moved, cursors, notes, channel)
+}
+
+/**
+ * p20-06 (SPL-6428): a ch: key moved to or past its row's newest message, with
+ * no badge left here, has nothing to count: its row's unread goes to 0 in place
+ * and the list is not read again (a reload re-ran markChannelRead, which
+ * rewound the cursor for the next PUT: one GET per PUT, every 5 s). Any other
+ * ch: move reloads, as before (utils/read-sync.mjs channelMoves).
+ */
+function channelsAfterMove(moved: string[], cursors: Record<string, unknown>, notes: ReturnType<typeof useNotificationStore>, channel: ReturnType<typeof useChannelStore>) {
+  const counts: Record<string, number> = {}
+  for (const k of moved) counts[k] = Number(notes.unread[k] || 0) + Number(notes.mentions[k] || 0)
+  const { inPlace, reload } = channelMoves(moved, cursors, channel.channels, counts)
   // Best effort: a failed reload keeps the cached channel counts until the next load or live frame.
-  if (moved.some((k) => k.startsWith('ch:'))) void channel.loadChannels().catch(() => {})
+  if (reload) return void channel.loadChannels().catch(() => {})
+  for (const k of inPlace) {
+    const row = channel.channels.find((r) => r.channel_id === k.slice(3))
+    if (row && row.unread) row.unread = 0
+  }
 }

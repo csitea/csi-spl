@@ -79,6 +79,56 @@ export function mergeMarks(cursors, marks) {
   return { cursors: out, moved }
 }
 
+/** The msg id inside a view-v1 cursor (base64url "<ts>|<msg_id>"), or ''. */
+function cursorId(cur) {
+  try {
+    const s = atob(String(cur || '').replace(/-/g, '+').replace(/_/g, '/'))
+    const i = s.indexOf('|')
+    return i < 0 ? '' : s.slice(i + 1)
+  } catch {
+    return ''
+  }
+}
+
+/** The cursor is at or past the channel row's newest message; a same-ms tie counts only on the same msg id. */
+function coversRow(c, row) {
+  if (!c || !c.ts || !row || !row.last_ts) return false
+  const d = at(c.ts) - at(row.last_ts)
+  return d > 0 || (d === 0 && Boolean(c.id) && String(c.id) === cursorId(row.last_cursor))
+}
+
+/**
+ * p20-06 (SPL-6428): which moved ch: keys need the channel list read again.
+ * prd, n=1 session: a channel page re-sent its row cursor (the newest
+ * message, markChannelRead) every 5 s, the PUT's answer carried a later
+ * wall-clock mark of the same member, the key moved, and every move reloaded
+ * the whole list - whose watch ran markChannelRead and rewound it again. The
+ * answer cannot say which tab or device wrote that mark, so the rule does not
+ * ask: a moved key whose cursor is at or past its row's newest message has
+ * nothing unread, wherever the read came from. It stays in place (`inPlace`)
+ * when its local count is already 0. Anything else still reloads: a key with
+ * no row, a cursor before the row's newest message (read partway elsewhere),
+ * or a local count above 0 (a live message may be newer than the row).
+ *
+ * @param {string[]} moved
+ * @param {Record<string, any>} cursors the merged local cursors
+ * @param {Array<{ channel_id?: string, channel?: string, last_ts?: string | null, last_cursor?: string | null }>} rows
+ * @param {Record<string, number>} [counts] the key's local badge counts (unread + mentions)
+ * @returns {{ inPlace: string[], reload: boolean }}
+ */
+export function channelMoves(moved, cursors, rows, counts = {}) {
+  const inPlace = []
+  let reload = false
+  for (const k of moved || []) {
+    if (!k.startsWith('ch:')) continue
+    const id = k.slice(3)
+    const row = (rows || []).find((r) => r && (r.channel_id || r.channel) === id)
+    if (coversRow((cursors || {})[k], row) && !(Number(counts[k]) > 0)) inPlace.push(k)
+    else reload = true
+  }
+  return { inPlace, reload }
+}
+
 /** One local cursor on the wire (hub wireReadMark). */
 export function wireMark(c) {
   const w = { ts: String(c.ts) }

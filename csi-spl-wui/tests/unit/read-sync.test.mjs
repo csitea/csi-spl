@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { mergeMarks, pendingMarks, wireMark, laterThan, createReadSync } from '../../src/utils/read-sync.mjs'
+import { mergeMarks, pendingMarks, wireMark, laterThan, createReadSync, channelMoves } from '../../src/utils/read-sync.mjs'
 import { loadCursors, saveCursors } from '../../src/utils/read-cursor.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -120,5 +120,64 @@ describe('CLE-77930: hub read marks follow the member across devices', () => {
     } finally {
       sync.stop()
     }
+  })
+})
+
+// p20-06 (SPL-6428), prd n=1 session: a channel page re-sent its row cursor
+// (the channel's newest message) every 5 s; each PUT's answer carried a later
+// wall-clock mark with no id, the key moved, and each move reloaded the list.
+describe('p20-06: a ch: move that leaves nothing unread does not reload the channel list', () => {
+  const ROW_TS = '2026-10-14T09:53:52.845251Z'
+  const WALL = '2026-11-24T20:41:12.085Z'
+  const cur = (ts, id) => Buffer.from(`${ts}|${id}`).toString('base64url')
+  const row = { channel_id: 'lobby', last_ts: ROW_TS, last_cursor: cur(ROW_TS, 'm-last'), unread: 0 }
+
+  /** the read-sync-boot onMoved rule: count the list reloads a PUT's answer causes */
+  async function reloadsAfterPut(answer, rows, counts = {}) {
+    const store = memoryStore()
+    saveCursors({ 'ch:lobby': { ts: ROW_TS, id: '', hub: row.last_cursor } }, store)
+    const fetchFn = async (_url, opts) => ({ ok: true, json: async () => ({ marks: opts.method === 'PUT' ? { 'ch:lobby': answer } : {} }) })
+    let reloads = 0
+    const onMoved = (moved) => {
+      if (channelMoves(moved, loadCursors(store), rows, counts).reload) reloads++
+    }
+    const sync = createReadSync({ base: '', token: '', credentials: 'include' }, { fetchFn, store, onMoved })
+    try {
+      await sync.ready
+      await sync.push()
+    } finally {
+      sync.stop()
+    }
+    return { reloads, cursor: loadCursors(store)['ch:lobby'] }
+  }
+
+  it('the observed answer (sent: the row cursor; answer: a later wall-clock mark, id "") moves the key and reloads 0 times', async () => {
+    const { reloads, cursor } = await reloadsAfterPut({ ts: WALL }, [row])
+    assert.equal(cursor.ts, WALL, 'the later mark still moves the local cursor')
+    assert.equal(reloads, 0, 'nothing is unread in #lobby: no GET /v1/view/channels')
+  })
+
+  it('CONTROL: a mark from elsewhere before the row newest message (read partway) still reloads', async () => {
+    const { reloads, cursor } = await reloadsAfterPut({ ts: '2026-10-14T09:53:52.9Z', id: 'm-mid', cursor: cur('2026-10-14T09:53:52.9Z', 'm-mid') },
+      [{ ...row, last_ts: '2026-10-15T00:00:00Z', last_cursor: cur('2026-10-15T00:00:00Z', 'm-new') }])
+    assert.equal(cursor.id, 'm-mid')
+    assert.equal(reloads, 1)
+  })
+
+  it('CONTROL: a local badge above 0 (a live message may be newer than the row) still reloads', async () => {
+    assert.equal((await reloadsAfterPut({ ts: WALL }, [row], { 'ch:lobby': 1 })).reloads, 1)
+  })
+
+  it('CONTROL: a moved key with no row still reloads', async () => {
+    assert.equal((await reloadsAfterPut({ ts: WALL }, [])).reloads, 1)
+  })
+
+  it('channelMoves: at or past the newest message is in place; a same-ms tie needs the same msg id', () => {
+    const tie = { ts: '2026-10-14T09:53:52.845Z' }
+    assert.deepEqual(channelMoves(['ch:lobby', 't:x'], { 'ch:lobby': { ts: WALL, id: '' } }, [row]), { inPlace: ['ch:lobby'], reload: false })
+    assert.deepEqual(channelMoves(['ch:lobby'], { 'ch:lobby': { ...tie, id: 'm-last' } }, [row]), { inPlace: ['ch:lobby'], reload: false })
+    assert.deepEqual(channelMoves(['ch:lobby'], { 'ch:lobby': { ...tie, id: '' } }, [row]), { inPlace: [], reload: true })
+    assert.deepEqual(channelMoves(['ch:lobby'], { 'ch:lobby': { ts: WALL } }, [{ channel_id: 'lobby' }]), { inPlace: [], reload: true })
+    assert.deepEqual(channelMoves(['dm:HUM-1'], {}, []), { inPlace: [], reload: false })
   })
 })

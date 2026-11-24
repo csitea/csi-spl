@@ -145,6 +145,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `052-spool-auth-microsoft-study/` | Study (decision record, not a build spec) for the owner: free Office 365 / Entra ID sign-in like Google/Facebook — cost, `common` endpoint, the nOAuth email-trust rule (`xms_edov`, immutable `<tid>/<oid>`) vs Google/Facebook, and the finding that it is already coded (spec 018); go-live owner runbook | M3 | CLE-35115 |
 | `072-rapid-deployability/` | Rapid deployability of the whole system, for a client and for the open-source project: the from-zero path measured (compose, GCP estate, agent boxes), a gap table, 17 actions ranked by usability and DevEx (not cost), a lane plan and owner decisions | M3 | c-165 (HUM-10, topic `6410e374`) |
 | `099-topic-head/` | Topic head (perf plan ap-07, ap-09 folded in): one stored summary row per topic and per channel / DM part, kept by triggers on `messages`, so topic lists stop walking messages; the oracle, random, concurrency and RLS test set, the prd backfill and rollback, owner questions Q1..Q8 | M3 | c-407 (HUM-10, topic `ea9dc09a`) |
+| `191-a2ui-evaluation/` | Evaluation of Google A2UI v1.0 for spool-hub responsiveness, latency, and architecture: primary-source protocol/SDK audit, live prd RUM + Cloud Run + wire baselines, bottleneck fit, three architecture options, recommendation (Option A now; revisit Option B only after Nuxt 4) and red/green experiment | M3 | a-023 (SPL-6357, epic SPL-2402, topic `341b0f94`) |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -385,4 +386,4 @@ Code prevails. Live GCP was not re-queried. Citations are `git grep` / file read
 | 030 | no `tasks.md`; status lived only in `spec.md` §0.5–0.7 | `030/tasks.md` added as the status list |
 | 031 | no `tasks.md`; `cases.tsv` is the register (OA-10..14 and OA-40 are PENDING) | indexed; no tasks file invented |
 
-<!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->
+<!-- version: 0.7.1 · updated: 2026-11-24 · last-edit: 2026-11-24T08:50:39Z -->

@@ -227,6 +227,10 @@ Written at the 12:33Z rotation, 2026-11-24.
   `TENANT_ID=t1`). The holder files one issue per row and places them.
 - Perf round 19 (c-778): plans none of the p20 files; row 07 takes its
   app-document prefetch finding (msg e31d60bb, answered by this seat).
+  p19 v0.1 (`d86a2f880`, msg c6992303) lists its row files; `grep -c` of
+  each name in the v0.2 plan is 0 outside `useLiveFeedThreadEnds.ts` (not
+  `useLive.ts`) and the read-only `perf-baseline-live` command quote, so
+  R1 holds both ways (answered, msg 31129549).
 - Field data: not readable (no workspace admin login; holder msg 390f5cf5).
   Flow probe on phones: the holder's bug lane
   `c002-bug-wui-perf-flow-events-m390-nav`.

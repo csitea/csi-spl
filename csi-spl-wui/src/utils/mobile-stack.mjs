@@ -240,7 +240,7 @@ export function mobilePushPlan(href, state, next, tagged) {
  * @returns {Array<{ level: 1|2|3, below: 0|1|2, url: string }>|null} bottom first
  *   (the first replaces the current entry, the rest are pushed), or null when
  *   the entry is no discussion level, already sits on the level under it,
- *   or is level 2 on a topic's URL (the topic is opening)
+ *   or is level 2 on a topic's URL (the topic is opening), or carries ?settings=
  */
 export function mobileDiscussionStack(href, level, below, chat) {
   if (!chat || (level !== 2 && level !== 3) || below === level - 1) return null
@@ -248,6 +248,8 @@ export function mobileDiscussionStack(href, level, below, chat) {
   try { u = new URL(href) } catch { return null }
   /* a link to a topic lands on level 2 before the topic opens: its push to 3 builds them */
   if (level === 2 && (u.searchParams.has('topic') || u.searchParams.has('in'))) return null
+  /* a modal over the page (?settings=): its own entry closes it, nothing to build */
+  if (u.searchParams.has('settings')) return null
   const here = u.pathname + u.search + u.hash
   const list = mobileStaleTopicUrl(href, 1) ?? here
   const out = [{ level: 1, below: 0, url: list }, { level: 2, below: 1, url: list }]

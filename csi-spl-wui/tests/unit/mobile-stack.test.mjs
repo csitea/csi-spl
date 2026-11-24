@@ -267,6 +267,7 @@ describe('SPL-6379: a discussion entry gets its levels built under it', () => {
     assert.equal(mobileDiscussionStack(`${X}/issues`, 2, 2, false), null, 'not a discussion')
     assert.equal(mobileDiscussionStack(`${X}/channel/lobby`, 1, null, true), null, 'the channel list itself')
     assert.equal(mobileDiscussionStack(`${X}/channel/lobby?topic=${T}`, 2, 2, true), null, 'level 2 on a topic URL: the topic is opening')
+    assert.equal(mobileDiscussionStack(`${X}/channel/lobby?settings=notifications`, 2, null, true), null, 'a modal over the page (?settings=)')
     assert.equal(mobileDiscussionStack('not a url', 2, null, true), null)
   })
 })

@@ -459,7 +459,7 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   syncPrev()
 
   /* a route navigation: a fresh entry is a push from the level we were on */
-  router.afterEach((_to, _from, failure) => {
+  router.afterEach((to, from, failure) => {
     moved()
     const kind = failure ? (isNavigationFailure(failure, NavigationFailureType.duplicated) ? 'duplicated' : 'other') : null
     const step = mobileAfterNavStep(kind, isMobile.value, mobileTaggedLevel(window.history.state))
@@ -467,8 +467,9 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
     if (step !== 'tag') return
     const below = level.value
     home.value = false
-    /* SPL-6379: a discussion reached from anything but its channel list */
-    if (!buildUnder(level.value, below)) tag(level.value, below)
+    /* SPL-6379: a discussion reached from another page (a query-only step on
+     * the same page, e.g. ?settings= opening or closing, keeps its entries) */
+    if (to.path === from.path || !buildUnder(level.value, below)) tag(level.value, below)
   })
 
   listenPopState(router)

@@ -156,7 +156,7 @@ async function phone(browser, base, opts = {}) {
   return { ctx, page, mounted }
 }
 
-/* #alerts, then #lobby by a route push: Back returns to #alerts */
+/* #alerts, then #lobby by a route push: Back goes to the channel list, then to #alerts */
 async function twoChannels(page) {
   await go(page, '/channel/alerts')
   await waitFor(page, (s) => s.path === '/channel/alerts' && s.level === '2' && !s.busy)
@@ -170,14 +170,13 @@ async function slowBack(browser, base, how) {
     ok(`${how}: the dots region is on the page (390 px)`, mounted)
     const s0 = await twoChannels(page)
     ok(`${how}: setup, #lobby on level 2 after #alerts`, s0.path === '/channel/lobby' && s0.level === '2', s0)
-    let slow = how
-    if (how !== 'browser Back') {
-      await BACKS[how](page)
-      const l1 = await waitFor(page, (s) => s.level === '1')
-      ok(`${how}: Back from #lobby goes to the channel list (2 -> 1), not #alerts`, l1.level === '1' && l1.path === '/channel/lobby', l1)
-      await sleep(1200)
-      slow = 'dock'
-    }
+    /* SPL-6379 (owner t1 acfc125c): every Back, browser Back too, goes 2 -> 1 first */
+    await BACKS[how](page)
+    const l1 = await waitFor(page, (s) => s.level === '1')
+    ok(`${how}: Back from #lobby goes to the channel list (2 -> 1), not #alerts`, l1.level === '1' && l1.path === '/channel/lobby', l1)
+    await sleep(1200)
+    /* from the channel list: the dock's Back, or a second browser Back (the entry under it) */
+    const slow = how === 'browser Back' ? how : 'dock'
     await plantSlow(page, SLOW_MS, 'alerts')
     await watchDots(page)
     const t0 = Date.now()

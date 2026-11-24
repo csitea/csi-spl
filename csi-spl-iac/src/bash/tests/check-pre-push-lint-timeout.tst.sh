@@ -50,6 +50,7 @@ do_log() { echo "$*"; }
 do_check_dist_hygiene() { return 0; }
 # shellcheck source=../run/check-pre-push.func.sh
 . "$RUN_DIR/check-pre-push.func.sh"
+_pp_release_note() { return 0; }  # its fixture commits carry no release note; that part has its own suite (check-release-note.tst.sh)
 
 # The part calls this. A PATH stub that exits 127 is rewritten to 1 by the
 # scanner's control check, so the missing-command leg returns 127 from here.

@@ -117,6 +117,7 @@ do_log() { echo "$*"; }
 do_check_dist_hygiene() { return 0; }
 # shellcheck source=../run/check-pre-push.func.sh
 . "$RUN_DIR/check-pre-push.func.sh"
+_pp_release_note() { return 0; }  # its fixture commits carry no release note; that part has its own suite (check-release-note.tst.sh)
 R="$T/repo"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 rm -rf "$R"

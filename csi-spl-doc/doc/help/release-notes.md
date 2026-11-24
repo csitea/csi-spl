@@ -10,6 +10,9 @@ commit explains itself twice, first in plain words for a reader who never
 saw the code, then in technical terms. The note rides in the commit message
 as trailers; the hub reads them into the release notes table the WUI shows.
 
+The note is required: a push with a commit that lacks it is refused (owner,
+2026-11-24, topic 5a91349c: "Notes should be always required"; spec 065 L11).
+
 <a id="ws-doc-b39cd2f2-a665-4456-8fc0-5505d3fd1e28"></a>
 ## Reading them in the app
 
@@ -34,7 +37,8 @@ A version's own row sits above its changes and carries only the version.
 Closing the dialog (the X, Escape, or Back on a phone) returns to where you
 opened it, and **All versions** in a note returns to the row you clicked.
 **you are here** marks the version this tab is running. A change with no
-note says **no note**.
+note says **no note**: from before notes were required, or one that landed
+without its note anyway.
 
 On a phone the list is tighter and has no header row. Each version's row
 stays at the top while you scroll its changes, and shows the time of its
@@ -112,8 +116,8 @@ Lay-Why: Adds a test only; nothing a user sees changes.
 ## 4. A note that is wrong or missing after the push
 
 A pushed message cannot be edited and history is never rewritten. Attach a
-git note carrying the same trailers and push it; the ingest prefers the note
-over the message:
+git note carrying the same trailers and push it; the ingest and the CI check
+prefer the note over the message:
 
 ```text
 git notes --ref=release-notes add -m "Lay-What: ..." <sha>
@@ -125,8 +129,8 @@ git push origin refs/notes/release-notes
 
 | place | effect |
 |---|---|
-| pre-push gate, lint part `release-note` | checks every commit in the pushed range for the six trailers (or a form from section 3); it starts as a warning and starts refusing one week after it goes live (owner answer Q4 in the spec) |
-| CI, workflow 10 | the backstop for a push that bypassed the hook |
+| pre-push gate, part `release-note` | checks every commit in the pushed range for the six trailers (or a form from section 3) and REFUSES the push when one lacks them; the message names the commit and the trailers. Before the push, fix the message: the last commit with `git commit --amend`, an older one with `git rebase -i` and `reword` |
+| CI, workflow 10, job `release-note` | the backstop for a push that bypassed the hook: red while a commit since the switch to refusing lacks its note; a git note (section 4) makes it green |
 | deploy (20 / 30) | never blocked: a commit without a note is shown with `state=missing` |
 
 <a id="ws-doc-393e4721-7d9b-4ca8-a830-106faae76bd0"></a>

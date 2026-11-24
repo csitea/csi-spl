@@ -2078,3 +2078,45 @@ jobs:
       - name: Every locale key change since the anchor names its language review
         working-directory: csi-spl-iac
         run: ./run -a do_check_pre_push_lang_review
+
+  # ===========================================================================
+  # Every commit carries its release note (spec 065 L11; owner HUM-10, t1
+  # 5a91349c, 2026-11-24: "Notes should be always required"): the six
+  # trailers of csi-spl-doc/doc/help/release-notes.md, or a special form. The
+  # pre-push part release-note refuses a push without them; this job is the
+  # backstop for a push that skipped the hook (--no-verify, a tree with no
+  # hook). Compared from a fixed anchor, the commit that made the part refuse
+  # (RELEASE_NOTE_BASE=switch), not github.event.before: superseded push runs
+  # are cancelled, and a range check would let the skipped pushes through. A
+  # landed commit without its note is fixed by a git note on
+  # refs/notes/release-notes (release-notes.md section 4), which the check
+  # reads like the ingest does; history is never rewritten.
+  # fetch-depth 0: the anchor is in the history.
+  # CONTROL: csi-spl-iac/src/bash/tests/check-release-note.tst.sh
+  # ===========================================================================
+  release-note:
+    name: "every commit since the switch carries its release note"
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
+      - name: The release-note corrections (git notes), when the ref exists
+        run: |
+          if git ls-remote --exit-code origin refs/notes/release-notes >/dev/null; then
+            git fetch --no-tags origin '+refs/notes/release-notes:refs/notes/release-notes'
+          else
+            echo "no refs/notes/release-notes on origin: the messages alone are checked"
+          fi
+
+      - name: Every commit since the switch carries its release note
+        working-directory: csi-spl-iac
+        env:
+          RELEASE_NOTE_BASE: switch
+        run: ./run -a do_check_release_note

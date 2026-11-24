@@ -114,8 +114,9 @@ mkrepo() {  # <dir>
 # The lint parts (scanners) have their own test, check-pre-push-lint.tst.sh;
 # here the lint planner selects none, so only the suite routing is under test.
 gate() {  # <repo> [env...] -> rc; per-part log in $R.log
-  local R="$1" pre='_pp_missing_tools() { :; }; _ppl_plan() { _PPL_SELECTED=""; }'; shift
-  [ "${TOOLS:-stub}" = real ] && pre='_ppl_plan() { _PPL_SELECTED=""; }'
+  # _pp_release_note: the fixture commits carry no release note; that part has its own suite
+  local R="$1" pre='_pp_missing_tools() { :; }; _ppl_plan() { _PPL_SELECTED=""; }; _pp_release_note() { return 0; }'; shift
+  [ "${TOOLS:-stub}" = real ] && pre='_ppl_plan() { _PPL_SELECTED=""; }; _pp_release_note() { return 0; }'
   ( env "$@" PRE_PUSH_TREE="$R" PRE_PUSH_BASE=trunk PRE_PUSH_LOG="$R.log" PRE_PUSH_CACHE="$R.cache" \
       bash -c '. "$0"; '"$pre"'; '"$(declare -f do_log do_check_dist_hygiene _stub _pp_part_api _pp_part_iac _pp_part_wui _pp_part_wui_vendor _pp_part_cnf _pp_part_orc)"'; COUNT="'"$COUNT"'"; do_check_pre_push' "$FUNC" ) >/dev/null 2>&1
 }

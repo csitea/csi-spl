@@ -388,9 +388,10 @@ _pp_tree_key() {  # <tree> <tier> <parts> <base>
     local pn; pn="$(_pp_pnpm 2>/dev/null)" || pn=""
     ids="node=$(node -v 2>/dev/null || echo -) pnpm=$([[ -n "$pn" ]] && "$pn" -v 2>/dev/null || echo -)"
   fi
-  # wui-lang-review and hygiene (SPL-5613) read the commit messages, which the
-  # tree does not hold: a reword (a dropped Lang-review line, a banned literal
-  # added) must not re-use the pass
+  # wui-lang-review, hygiene (SPL-5613) and release-note (spec 065 L11) read
+  # the commit messages, which the tree does not hold: a reword (a dropped
+  # Lang-review line or release note, a banned literal added) must not re-use
+  # the pass
   [[ " $parts " == *" wui-lang-review "* || " $parts " == *" hygiene "* ]] \
     && ids+=" msgs=$(git -C "$tree" log --format=%B "$base..HEAD" 2>/dev/null | sha1sum | cut -c1-40)"
   printf '%s' "tree-pass v$_PP_CACHE_V gate=$(_pp_gate_id) tree=$t tier=$tier base=$mb parts=$parts $ids" \
@@ -1424,8 +1425,10 @@ _pp_run_parts() {  # <tree> <base> <only> <changed>
   _PP_CUR=""
 
   [[ -n "$changed" && "${PRE_PUSH_LINT:-1}" != 0 && "$only" != override ]] && _ppl_typos "$changed" "$tree"
-  # spec 065 L2: every pushed commit carries its release note -- WARN only, never blocks
-  [[ "${PRE_PUSH_LINT:-1}" != 0 && "$only" != override ]] && { declare -F _pp_release_note >/dev/null || . "$(dirname "${BASH_SOURCE[0]}")/check-release-note.func.sh"; } && _pp_release_note "$tree" "$base"
+  # spec 065 L11: every pushed commit carries its release note, or the push is
+  # refused; the override and PRE_PUSH_LINT=0 skip it like the lint parts, and
+  # the CI job release-note (workflow 10) is their backstop (spec 065 5.1)
+  [[ "${PRE_PUSH_LINT:-1}" != 0 && "$only" != override ]] && _pp_release_note_load && _pp_release_note "$tree" "$base"
 
   _pp_baseline_cleanup "$tree"
   _pp_pidfile_drop
@@ -1435,6 +1438,13 @@ _pp_run_parts() {  # <tree> <base> <only> <changed>
   _pp_summary
   return 0
 }
+# Sources check-release-note.func.sh unless _pp_release_note is already defined.
+_pp_release_note_load() {
+  declare -F _pp_release_note >/dev/null && return 0
+  # shellcheck source=check-release-note.func.sh
+  . "$(dirname "${BASH_SOURCE[0]}")/check-release-note.func.sh"
+}
+
 _pp_summary() {
   local i
   echo ""

@@ -112,6 +112,7 @@ do_check_dist_hygiene() { return 0; }
 . "$RUN_DIR/sec-scan.func.sh"
 # shellcheck source=../run/check-pre-push.func.sh
 . "$RUN_DIR/check-pre-push.func.sh"
+_pp_release_note() { return 0; }  # its fixture commits carry no release note; that part has its own suite (check-release-note.tst.sh)
 
 # A repo whose base carries an UNTOUCHED script with a finding.
 R="$T/repo"; SH="csi-spl-orc/src/bash/run"

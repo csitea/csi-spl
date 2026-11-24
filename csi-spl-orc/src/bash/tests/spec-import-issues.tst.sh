@@ -794,6 +794,13 @@ sed 's#^\# Sample build round (plan)#\# Sample build round, after csi-spl-doc/sp
 out=$(python3 "$PY" plan --plan-file "$PLANFIX/spec-line.md" --table 'The rows' 2>&1); rc=$?
 [[ $rc == 0 ]] && [[ "$(jq -r '.items[0].title' <<<"$out")" == "[153 Q1] "* ]] &&
   pass "C126 N1: the Spec: line names the spec, not an earlier specs/NNN- path" || fail "C126 N1: rc=$rc $out"
+# W1 (delta R7 on d3e1345c4): a title that starts with the word Spec is not
+# the 'Spec:' line; a specs/NNN- path cited before that line must not win.
+printf '# Spec 153 build round (plan)\n\nReuses csi-spl-doc/specs/186-other-spec row M3.\n\nEpic: SPL-50\nSpec: csi-spl-doc/specs/153-sample-tab\nTopic: %s\n\n## The rows\n\n| row | what |\n|---|---|\n| Q1 | x |\n' \
+  "$PLAN_TOPIC_ID" >"$PLANFIX/spec-title.md"
+out=$(python3 "$PY" plan --plan-file "$PLANFIX/spec-title.md" --table 'The rows' 2>&1); rc=$?
+[[ $rc == 0 ]] && [[ "$(jq -r '.items[0].title' <<<"$out")" == "[153 Q1] x" ]] &&
+  pass "C126 W1: a title starting with Spec does not stand in for the Spec: line" || fail "C126 W1: rc=$rc $out"
 printf '# P\n\nEpic: SPL-50\nSpec: csi-spl-doc/specs/153-sample-tab\nTopic: %s\n\n## The rows\n\nno table here\n\n## Later\n\n| row | what |\n|---|---|\n| Q1 | x |\n' \
   "$PLAN_TOPIC_ID" >"$PLANFIX/no-table.md"
 out=$(python3 "$PY" plan --plan-file "$PLANFIX/no-table.md" --table 'The rows' 2>&1); rc=$?

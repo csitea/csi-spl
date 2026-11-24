@@ -1126,7 +1126,7 @@ PLAN_TOPIC = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 PLAN_SPEC = re.compile(r"(?:[\w.-]+/)?specs/(\d{3})-[\w.-]+")
-PLAN_SPEC_LINE = re.compile(r"^\W*spec\b[^\n]*", re.IGNORECASE | re.MULTILINE)
+PLAN_SPEC_LINE = re.compile(r"^\W*spec\W*:[^\n]*", re.IGNORECASE | re.MULTILINE)
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 KEY_REF = re.compile(r"\bSPL-\d+\b")

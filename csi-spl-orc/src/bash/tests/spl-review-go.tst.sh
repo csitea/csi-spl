@@ -131,6 +131,11 @@
 #        a Never / Don't / Do not / Out of scope heading (and its
 #        subheadings) -> GO; controls: the keyword in a Steps section, a
 #        Steps section after the Never section -> rc 4
+#    29. a prohibition in a step (b44-01): RED CONTROLS "no terraform
+#        apply" under Do and "Run NO terraform plan or apply" under Steps
+#        -> GO; controls: "then apply", "apply the migration to prd",
+#        "do not skip, apply step 053", "no conflicts and apply", "no prd
+#        write" on one line and "apply" on the next -> rc 4
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -1161,6 +1166,26 @@ ENV=prd DRY_RUN=0 ./run -a do_x|ENV=prd'; do
   abrief c-222 "${text//$'\037'/$'\n'}"
   f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 28000000-0000-4000-8000-000000000002)
   run REVIEW_GO_MSG="$f"; refused "28. control: an instruction step ($name) still holds" $? 4 "owner-go keyword '$kw'"
+done
+
+# --- 29. a prohibition in a step is no instruction (b44-01) --------------------------------------------
+# spec 181 B7's brief line 32 (under `## Do`) and an R7 reviewer brief's numbered step; copied here
+for fx in 'Do|## Do
+3. Gates for the trees you touch. No GCP mutation, no prd write, no terraform apply.' \
+          'Steps|## Steps
+5. Hygiene. Run NO terraform plan or apply, nothing against dev, prd or GCP.'; do
+  reset; abrief c-222 "${fx#*|}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 29000000-0000-4000-8000-000000000001)
+  run REVIEW_GO_MSG="$f"; rc=$?
+  (( rc == 0 && $(gos) == 1 )) && pass "29. RED CONTROL: a prohibition in a ${fx%%|*} step passes [4] -> GO" ||
+    fail "29. ${fx%%|*} rc=$rc out=$(tail -2 "$T/out")"
+done
+for fx in '3. Then apply the migration to prd.' '3. apply the migration to prd' '3. do not skip, apply step 053' \
+          '3. Check there are no conflicts and apply the migration.' '3. No prd write.
+4. apply step 053.'; do
+  reset; abrief c-222 $'## Do\n\n'"$fx"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 29000000-0000-4000-8000-000000000002)
+  run REVIEW_GO_MSG="$f"; refused "29. control: '${fx//$'\n'/ \/ }' still holds" $? 4 "owner-go keyword 'apply'"
 done
 
 echo "spl-review-go: ${fails} failure(s)"

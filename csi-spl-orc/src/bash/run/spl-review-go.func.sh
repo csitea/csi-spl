@@ -55,7 +55,8 @@
 # @description       Symptom / Evidence / Background / Context / History /
 # @description       Trace / Observed / Measured section, a Never / Don't /
 # @description       Do not / Out of scope section, SPL-5915, a `>` quote, a
-# @description       fenced block or a negated `does not apply`, SPL-5670;
+# @description       fenced block or a negated `does not apply`, SPL-5670,
+# @description       or a prohibition `no [w [w [w]]] apply`, b44-01;
 # @description       not a `cmd` -> result measurement in a section whose
 # @description       heading says `verbatim`, SPL-5696),
 # @description       or it carries `Owner-go: <msg id>` and a message with
@@ -622,8 +623,10 @@ _spl_review_go_unplaced() {
 # (SPL-5915: they forbid an action, `## Never` + "no terraform"; their
 # subheadings too, up to the next heading at their level or higher), without
 # fenced blocks and `>` quote lines, and without a negated `apply`
-# (`does not apply`, `never apply`). Backticked spans stay: a command the lane
-# is told to run is written in backticks. A section whose heading names
+# (`does not apply`, `never apply`, and a prohibition: `no` and up to three
+# words on its line, none of them and / then / but / so, before it: `no
+# terraform apply`, `Run NO terraform plan or apply`; b44-01). Backticked
+# spans stay: a command the lane is told to run is written in backticks. A section whose heading names
 # `verbatim` (any case) quotes another document (SPL-5696): in it, and only
 # there, a measurement (a backticked command followed by `->`, its result)
 # is dropped; the rest of the quote is still scanned, since a quoted plan row
@@ -669,7 +672,7 @@ for l in lines:
     elif fence or skip or re.match(r"\s*>", l):
         continue
     out.append(l)
-neg = r"(?i)\b(?:(?:does|do|did|will|would|should|shall|may|might|can|could|must)\s+not|doesn't|don't|didn't|won't|cannot|can't|never)\s+apply\b"
+neg = r"(?i)\b(?:(?:(?:does|do|did|will|would|should|shall|may|might|can|could|must)\s+not|doesn't|don't|didn't|won't|cannot|can't|never)\s+|no(?:[^\S\n]+(?!(?:and|then|but|so)\b)\w[\w-]*){0,3}[^\S\n]+)apply\b"
 out += [re.sub(r"`[^`]*`\s*->", "", "\n".join(quote))]
 print(re.sub(neg, "", "\n".join(out)))
 EOF_PY

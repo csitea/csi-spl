@@ -3,12 +3,17 @@
      still being provisioned. The hub answers every read 403 not_member, so nothing of that tenant
      is shown; this says why, and offers their own tenant's host. Set by
      plugins/tenant-host.client.ts. The pending text never says "payment"
-     (c7b6e8db: a demo visitor got it too); it gives the ~30 min estimate. -->
+     (c7b6e8db: a demo visitor got it too). SPL-6439 (spec 158, owner t1
+     4a5911f1): it says creation takes time, the 15-60 min to expect (wf 40's
+     measured worst case), and, in a second line, what to do past 60 min. -->
 <template>
   <div v-if="state.tenant" class="tenant-not-member" role="alertdialog" aria-modal="true" data-test="tenant-not-member">
     <div class="tenant-not-member__card">
       <!-- 047 B5: a new tenant's host (paid or demo) is still being provisioned; the boot hop retries -->
-      <p v-if="state.pending" role="status" data-test="tenant-host-preparing" :data-host="state.pending">{{ t('tenant_host.preparing', { host: state.pending }) }}</p>
+      <template v-if="state.pending">
+        <p role="status" data-test="tenant-host-preparing" :data-host="state.pending">{{ t('tenant_host.preparing', { host: state.pending }) }}</p>
+        <p class="muted" data-test="tenant-host-not-ready-help">{{ t('tenant_host.not_ready_help', { host: state.pending }) }}</p>
+      </template>
       <p v-else>{{ t('tenant_host.not_member', { tenant: state.tenant }) }}</p>
       <a v-if="state.home && !state.pending" class="btn" :href="state.home" data-test="tenant-not-member-home">{{ t('tenant_host.open_mine') }}</a>
     </div>

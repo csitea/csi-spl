@@ -453,7 +453,7 @@
       "generic": "Niečo sa pokazilo — skúste to znova."
     },
     "host": {
-      "preparing": "Vaša adresa {host} sa pripravuje (zvyčajne 15–30 minút). Stránka sa aktualizuje, keď odpovie; medzitým si kľúč bezpečne uschovajte.",
+      "preparing": "Vaša adresa {host} sa pripravuje. Vytvorenie nového pracovného priestoru chvíľu trvá: zvyčajne 15 až 60 minút. Stránka sa aktualizuje, keď odpovie; medzitým si kľúč bezpečne uschovajte.",
       "ready": "Vaša adresa {host} je pripravená."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "Nie ste členom pracovného priestoru {tenant}.",
     "open_mine": "Otvoriť môj pracovný priestor",
-    "preparing": "Adresa {host} ešte nie je pripravená. Adresa nového pracovného priestoru zvyčajne začne fungovať asi do 30 minút od jeho vytvorenia. Táto stránka kontroluje každých 30 sekúnd a otvorí ju, hneď ako odpovie."
+    "preparing": "Adresa {host} ešte nie je pripravená. Vytvorenie nového pracovného priestoru chvíľu trvá: jeho adresa zvyčajne začne fungovať 15 až 60 minút po vytvorení. Táto stránka kontroluje každých 30 sekúnd a otvorí ju, hneď ako odpovie.",
+    "not_ready_help": "Ani po 60 minútach sa neotvára? Napíšte podpore alebo správcovi, ktorý vás pozval, a uveďte adresu {host}: vidia, čo ju zdržiava, a môžu ju spustiť znova. Kým čakáte, nič sa nestratí."
   },
   "picker": {
     "open": "Otvoriť kalendár",
@@ -2767,6 +2768,7 @@
     "create": "Vytvoriť",
     "cancel": "Zrušiť",
     "created": "Pracovný priestor {id} bol vytvorený.",
+    "created_host_wait": "Jeho vlastná adresa potrebuje čas, kým začne fungovať: zvyčajne 15 až 60 minút.",
     "root_key": "Súkromný koreňový kľúč: zobrazí sa iba raz, uložte si ho teraz.",
     "root_key_done": "Uložil som ho",
     "suspend": "Pozastaviť",

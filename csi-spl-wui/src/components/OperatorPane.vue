@@ -276,7 +276,7 @@ async function create() {
     return
   }
   rootKey.value = ''
-  const out = await write(body.id || '', () => api.createOperatorWorkspace(body), t('operator.created', { id: body.id }))
+  const out = await write(body.id || '', () => api.createOperatorWorkspace(body), `${t('operator.created', { id: body.id })} ${t('operator.created_host_wait')}`)
   if (!out) return
   rootKey.value = operatorRootKey(out)
   Object.assign(draft, { id: '', displayName: '', adminEmail: '', billingStatus: 'manual' })

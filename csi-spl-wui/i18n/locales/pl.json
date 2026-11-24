@@ -453,7 +453,7 @@
       "generic": "Coś poszło nie tak — spróbuj ponownie."
     },
     "host": {
-      "preparing": "Twój adres {host} jest przygotowywany (zwykle 15–30 minut). Ta strona odświeży się, gdy zacznie odpowiadać; w międzyczasie przechowuj klucz w bezpiecznym miejscu.",
+      "preparing": "Twój adres {host} jest przygotowywany. Tworzenie nowego obszaru roboczego wymaga czasu: zwykle 15–60 minut. Ta strona odświeży się, gdy zacznie odpowiadać; w międzyczasie przechowuj klucz w bezpiecznym miejscu.",
       "ready": "Twój adres {host} jest gotowy."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "Nie jesteś członkiem obszaru roboczego {tenant}.",
     "open_mine": "Otwórz mój obszar roboczy",
-    "preparing": "Adres {host} nie jest jeszcze gotowy. Adres nowego obszaru roboczego zwykle zaczyna działać w ciągu około 30 minut od jego utworzenia. Ta strona sprawdza co 30 sekund i otworzy go, gdy tylko zacznie odpowiadać."
+    "preparing": "Adres {host} nie jest jeszcze gotowy. Tworzenie nowego obszaru roboczego wymaga czasu: jego adres zwykle zaczyna działać 15–60 minut po utworzeniu. Ta strona sprawdza co 30 sekund i otworzy go, gdy tylko zacznie odpowiadać.",
+    "not_ready_help": "Nadal się nie otwiera po 60 minutach? Napisz do pomocy technicznej albo do administratora, który cię zaprosił, i podaj adres {host}: widzą, co go wstrzymuje, i mogą go uruchomić ponownie. Podczas czekania nic nie przepada."
   },
   "picker": {
     "open": "Otwórz kalendarz",
@@ -2767,6 +2768,7 @@
     "create": "Utwórz",
     "cancel": "Anuluj",
     "created": "Utworzono obszar roboczy {id}.",
+    "created_host_wait": "Jego własny adres potrzebuje czasu, aby zacząć działać: zwykle 15–60 minut.",
     "root_key": "Prywatny klucz główny: wyświetlany tylko raz, zapisz go teraz.",
     "root_key_done": "Zapisałem go",
     "suspend": "Zawieś",

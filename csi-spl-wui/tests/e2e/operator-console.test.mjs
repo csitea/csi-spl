@@ -149,6 +149,9 @@ try {
   await p.waitForSelector('[data-test=operator-row][data-ws="delta"]', { timeout: NAV_TIMEOUT })
   ok('12 create adds delta, active', (await rowStatus(p, 'delta')) === 'active')
   ok('12b the root key is shown once', Boolean(await p.$('[data-test=operator-root-key]')))
+  /* SPL-6439 (spec 158): the create notice says the new address takes time, and how long */
+  const createdNote = await p.$eval('[data-test=operator-notice]', (e) => e.textContent.trim()).catch(() => '')
+  ok('12c the create notice says the address takes 15 to 60 minutes', /created\..*takes time.*15 to 60 minutes/.test(createdNote), createdNote)
 
   await p.evaluate((k) => localStorage.setItem(k, 'dark'), THEME_KEY)
   await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

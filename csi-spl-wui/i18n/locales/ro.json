@@ -453,7 +453,7 @@
       "generic": "Ceva nu a mers bine — încercați din nou."
     },
     "host": {
-      "preparing": "Adresa dvs. {host} este în pregătire (de obicei 15–30 de minute). Pagina se actualizează când răspunde; între timp păstrați cheia în siguranță.",
+      "preparing": "Adresa dvs. {host} este în pregătire. Crearea unui spațiu de lucru nou durează: de obicei 15–60 de minute. Pagina se actualizează când răspunde; între timp păstrați cheia în siguranță.",
       "ready": "Adresa dvs. {host} este gata."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "Nu sunteți membru al spațiului de lucru {tenant}.",
     "open_mine": "Deschide spațiul meu de lucru",
-    "preparing": "Adresa {host} nu este încă pregătită. Adresa unui spațiu de lucru nou funcționează de obicei în aproximativ 30 de minute de la crearea lui. Această pagină verifică la fiecare 30 de secunde și o deschide imediat ce răspunde."
+    "preparing": "Adresa {host} nu este încă pregătită. Crearea unui spațiu de lucru nou durează: adresa lui funcționează de obicei la 15–60 de minute după creare. Această pagină verifică la fiecare 30 de secunde și o deschide imediat ce răspunde.",
+    "not_ready_help": "Tot nu se deschide după 60 de minute? Scrieți la asistență sau administratorului care v-a invitat și menționați adresa {host}: ei pot vedea ce o reține și o pot porni din nou. Nu se pierde nimic cât așteptați."
   },
   "picker": {
     "open": "Deschide calendarul",
@@ -2767,6 +2768,7 @@
     "create": "Creează",
     "cancel": "Anulează",
     "created": "Spațiul de lucru {id} a fost creat.",
+    "created_host_wait": "Adresa lui proprie are nevoie de timp ca să funcționeze: de obicei 15–60 de minute.",
     "root_key": "Cheie privată rădăcină: afișată o singură dată, salvați-o acum.",
     "root_key_done": "Am salvat-o",
     "suspend": "Suspendă",

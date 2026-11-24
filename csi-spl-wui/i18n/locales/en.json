@@ -453,7 +453,7 @@
       "generic": "Something went wrong — try again."
     },
     "host": {
-      "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
+      "preparing": "Your address {host} is being prepared. Creating a new workspace takes time: usually 15 to 60 minutes. This page updates when it answers; keep your key safe meanwhile.",
       "ready": "Your address {host} is ready."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "You are not a member of the workspace {tenant}.",
     "open_mine": "Open my workspace",
-    "preparing": "The address {host} is not ready yet. A new workspace's address usually works within about 30 minutes of its creation. This page checks every 30 seconds and opens it as soon as it answers."
+    "preparing": "The address {host} is not ready yet. Creating a new workspace takes time: its address usually works 15 to 60 minutes after it is created. This page checks every 30 seconds and opens it as soon as it answers.",
+    "not_ready_help": "Still not open after 60 minutes? Write to support, or to the admin who invited you, and name the address {host}: they can see what holds it and start it again. Nothing is lost while you wait."
   },
   "picker": {
     "open": "Open the calendar",
@@ -2767,6 +2768,7 @@
     "create": "Create",
     "cancel": "Cancel",
     "created": "Workspace {id} created.",
+    "created_host_wait": "Its own address takes time to come up: usually 15 to 60 minutes.",
     "root_key": "Root private key: shown only once, store it now.",
     "root_key_done": "I have stored it",
     "suspend": "Suspend",

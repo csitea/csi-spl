@@ -453,7 +453,7 @@
       "generic": "Er ging iets mis — probeer het opnieuw."
     },
     "host": {
-      "preparing": "Je adres {host} wordt voorbereid (meestal 15–30 minuten). Deze pagina wordt bijgewerkt zodra het antwoordt; bewaar je sleutel intussen veilig.",
+      "preparing": "Je adres {host} wordt voorbereid. Een nieuwe werkruimte aanmaken kost tijd: meestal 15 tot 60 minuten. Deze pagina wordt bijgewerkt zodra het antwoordt; bewaar je sleutel intussen veilig.",
       "ready": "Je adres {host} is klaar."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "U bent geen lid van de werkruimte {tenant}.",
     "open_mine": "Mijn werkruimte openen",
-    "preparing": "Het adres {host} is nog niet klaar. Het adres van een nieuwe werkruimte werkt meestal binnen ongeveer 30 minuten na het aanmaken. Deze pagina controleert elke 30 seconden en opent het zodra het antwoordt."
+    "preparing": "Het adres {host} is nog niet klaar. Een nieuwe werkruimte aanmaken kost tijd: het adres werkt meestal 15 tot 60 minuten na het aanmaken. Deze pagina controleert elke 30 seconden en opent het zodra het antwoordt.",
+    "not_ready_help": "Na 60 minuten nog steeds niet open? Schrijf naar support, of naar de beheerder die je heeft uitgenodigd, en noem het adres {host}: zij zien wat het tegenhoudt en kunnen het opnieuw starten. Terwijl je wacht, gaat er niets verloren."
   },
   "picker": {
     "open": "Kalender openen",
@@ -2767,6 +2768,7 @@
     "create": "Aanmaken",
     "cancel": "Annuleren",
     "created": "Werkruimte {id} aangemaakt.",
+    "created_host_wait": "Het eigen adres heeft tijd nodig om te gaan werken: meestal 15 tot 60 minuten.",
     "root_key": "Persoonlijke rootsleutel: wordt maar één keer getoond, bewaar hem nu.",
     "root_key_done": "Ik heb hem bewaard",
     "suspend": "Schorsen",

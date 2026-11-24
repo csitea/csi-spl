@@ -453,7 +453,7 @@
       "generic": "Något gick fel — försök igen."
     },
     "host": {
-      "preparing": "Din adress {host} förbereds (vanligtvis 15–30 minuter). Sidan uppdateras när den svarar; förvara din nyckel säkert under tiden.",
+      "preparing": "Din adress {host} förbereds. Att skapa en ny arbetsyta tar tid: vanligtvis 15 till 60 minuter. Sidan uppdateras när den svarar; förvara din nyckel säkert under tiden.",
       "ready": "Din adress {host} är klar."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "Du är inte medlem i arbetsytan {tenant}.",
     "open_mine": "Öppna min arbetsyta",
-    "preparing": "Adressen {host} är inte klar än. En ny arbetsytas adress fungerar oftast inom cirka 30 minuter efter att den skapats. Den här sidan kontrollerar var 30:e sekund och öppnar den så snart den svarar."
+    "preparing": "Adressen {host} är inte klar än. Att skapa en ny arbetsyta tar tid: dess adress fungerar oftast 15 till 60 minuter efter att den skapats. Den här sidan kontrollerar var 30:e sekund och öppnar den så snart den svarar.",
+    "not_ready_help": "Öppnas den fortfarande inte efter 60 minuter? Skriv till supporten, eller till administratören som bjöd in dig, och ange adressen {host}: de kan se vad som håller upp den och starta den igen. Inget går förlorat medan du väntar."
   },
   "picker": {
     "open": "Öppna kalendern",
@@ -2767,6 +2768,7 @@
     "create": "Skapa",
     "cancel": "Avbryt",
     "created": "Arbetsytan {id} har skapats.",
+    "created_host_wait": "Dess egen adress tar tid att komma igång: vanligtvis 15 till 60 minuter.",
     "root_key": "Privat rotnyckel: visas bara en gång, spara den nu.",
     "root_key_done": "Jag har sparat den",
     "suspend": "Stäng av",

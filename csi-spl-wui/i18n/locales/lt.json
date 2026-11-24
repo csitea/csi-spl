@@ -453,7 +453,7 @@
       "generic": "Kažkas nutiko ne taip — bandykite dar kartą."
     },
     "host": {
-      "preparing": "Jūsų adresas {host} ruošiamas (paprastai 15–30 minučių). Šis puslapis atsinaujins, kai jis atsakys; tuo metu saugokite savo raktą.",
+      "preparing": "Jūsų adresas {host} ruošiamas. Naujos darbo srities kūrimas užtrunka: paprastai 15–60 minučių. Šis puslapis atsinaujins, kai jis atsakys; tuo metu saugokite savo raktą.",
       "ready": "Jūsų adresas {host} paruoštas."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "Jūs nesate darbo srities {tenant} narys.",
     "open_mine": "Atidaryti mano darbo sritį",
-    "preparing": "Adresas {host} dar neparuoštas. Naujos darbo srities adresas paprastai pradeda veikti per maždaug 30 minučių nuo jos sukūrimo. Šis puslapis tikrina kas 30 sekundžių ir jį atvers, kai tik jis atsakys."
+    "preparing": "Adresas {host} dar neparuoštas. Naujos darbo srities kūrimas užtrunka: jos adresas paprastai pradeda veikti po 15–60 minučių nuo sukūrimo. Šis puslapis tikrina kas 30 sekundžių ir jį atvers, kai tik jis atsakys.",
+    "not_ready_help": "Vis dar neatsidaro po 60 minučių? Parašykite pagalbos tarnybai arba jus pakvietusiam administratoriui ir nurodykite adresą {host}: jie mato, kas jį sulaiko, ir gali jį paleisti iš naujo. Laukiant niekas neprarandama."
   },
   "picker": {
     "open": "Atverti kalendorių",
@@ -2767,6 +2768,7 @@
     "create": "Sukurti",
     "cancel": "Atšaukti",
     "created": "Darbo sritis {id} sukurta.",
+    "created_host_wait": "Jos adresui pradėti veikti reikia laiko: paprastai 15–60 minučių.",
     "root_key": "Privatus šakninis raktas: rodomas tik vieną kartą, išsaugokite jį dabar.",
     "root_key_done": "Išsaugojau",
     "suspend": "Sustabdyti",

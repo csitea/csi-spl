@@ -304,7 +304,7 @@ workspace>`, an older workspace with the same pin gap.
 |---|---|---|
 | U1 | The create answers 201 and the first admin's invite is stored and mailed. | The 201 body's `invite.status` is `invited` and its `invite.mail` is neither `not_sent`, `not_configured` nor `send_failed`. |
 | U2 | That person accepts the invite. | `tenant_invites.accepted_at` is set. |
-| U3 | They log in on the web address `https://<workspace>.<fqdn>`, with no hop to another host. | `tenant_hosts.status` = `ready`, and a browser signs in there. Target 60 min from the create (unmeasured: the WUI text says 15-30 min; row E1 measures it, then this target is set). |
+| U3 | They log in on the web address `https://<workspace>.<fqdn>`, with no hop to another host. | `tenant_hosts.status` = `ready`, and a browser signs in there. Target 60 min from the create. The WUI text says 15-60 min since SPL-6439 and, past 60 min, to write to support or the inviting admin with the address; the bound is read off wf 40's runs, 2026-11-25: the reserve's 1 min + the 5 min hold, then the next scheduled start (start gaps since 11-17: median 14.7, p95 24.3, p99 30.2, max 44 min, n=747; no reserve dispatch since 10-29), then the run (green runs over 4 min since 10-26: 4.3-24.7 min, median 9.3, n=15), so about 55 min at p95; not end to end: row E1 measures that, then this target is set. |
 | U4 | Docs works on that address. | The workspace's Docs answers 200, not 503 (its 052 bucket exists). |
 | U5 | They post, and the post is signed for the boxes. | The stored post has a non-empty `env_sig`, so a box can receive it. |
 | U6 | An agent answers. | An agent message lands in that topic within 180 s of the post (R4). Seats arrive within R1's 5 minutes of the create. |

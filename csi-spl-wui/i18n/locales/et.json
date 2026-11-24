@@ -453,7 +453,7 @@
       "generic": "Midagi läks valesti — proovi uuesti."
     },
     "host": {
-      "preparing": "Sinu aadressi {host} valmistatakse ette (tavaliselt 15–30 minutit). See leht uueneb, kui aadress vastab; hoia seni oma võti turvaliselt alles.",
+      "preparing": "Sinu aadressi {host} valmistatakse ette. Uue tööruumi loomine võtab aega: tavaliselt 15 kuni 60 minutit. See leht uueneb, kui aadress vastab; hoia seni oma võti turvaliselt alles.",
       "ready": "Sinu aadress {host} on valmis."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "Te ei ole tööruumi {tenant} liige.",
     "open_mine": "Ava minu tööruum",
-    "preparing": "Aadress {host} ei ole veel valmis. Uue tööruumi aadress hakkab tavaliselt tööle umbes 30 minuti jooksul pärast selle loomist. See leht kontrollib iga 30 sekundi järel ja avab selle kohe, kui see vastab."
+    "preparing": "Aadress {host} ei ole veel valmis. Uue tööruumi loomine võtab aega: selle aadress hakkab tavaliselt tööle 15 kuni 60 minutit pärast loomist. See leht kontrollib iga 30 sekundi järel ja avab selle kohe, kui see vastab.",
+    "not_ready_help": "Ei avane ka 60 minuti pärast? Kirjuta toele või administraatorile, kes sind kutsus, ja nimeta aadress {host}: nad näevad, mis seda kinni hoiab, ja saavad selle uuesti käivitada. Oodates ei lähe midagi kaotsi."
   },
   "picker": {
     "open": "Ava kalender",
@@ -2767,6 +2768,7 @@
     "create": "Loo",
     "cancel": "Loobu",
     "created": "Tööruum {id} on loodud.",
+    "created_host_wait": "Selle oma aadressi käivitamine võtab aega: tavaliselt 15 kuni 60 minutit.",
     "root_key": "Privaatne juurvõti: näidatakse ainult üks kord, salvestage see kohe.",
     "root_key_done": "Olen selle salvestanud",
     "suspend": "Peata",

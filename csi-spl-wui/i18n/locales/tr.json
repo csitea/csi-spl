@@ -453,7 +453,7 @@
       "generic": "Bir şeyler ters gitti — tekrar deneyin."
     },
     "host": {
-      "preparing": "{host} adresiniz hazırlanıyor (genellikle 15–30 dakika). Yanıt verdiğinde bu sayfa güncellenir; bu arada anahtarınızı güvende tutun.",
+      "preparing": "{host} adresiniz hazırlanıyor. Yeni bir çalışma alanı oluşturmak zaman alır: genellikle 15 ile 60 dakika. Yanıt verdiğinde bu sayfa güncellenir; bu arada anahtarınızı güvende tutun.",
       "ready": "{host} adresiniz hazır."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "{tenant} çalışma alanının üyesi değilsiniz.",
     "open_mine": "Çalışma alanımı aç",
-    "preparing": "{host} adresi henüz hazır değil. Yeni bir çalışma alanının adresi genellikle oluşturulmasından sonraki yaklaşık 30 dakika içinde çalışır. Bu sayfa her 30 saniyede bir kontrol eder ve adres yanıt verir vermez onu açar."
+    "preparing": "{host} adresi henüz hazır değil. Yeni bir çalışma alanı oluşturmak zaman alır: adresi genellikle oluşturulduktan 15 ile 60 dakika sonra çalışır. Bu sayfa her 30 saniyede bir kontrol eder ve adres yanıt verir vermez onu açar.",
+    "not_ready_help": "60 dakika sonra hâlâ açılmıyor mu? Desteğe ya da sizi davet eden yöneticiye yazın ve {host} adresini belirtin: onu neyin beklettiğini görebilir ve yeniden başlatabilirler. Beklerken hiçbir şey kaybolmaz."
   },
   "picker": {
     "open": "Takvimi aç",
@@ -2767,6 +2768,7 @@
     "create": "Oluştur",
     "cancel": "İptal",
     "created": "{id} çalışma alanı oluşturuldu.",
+    "created_host_wait": "Kendi adresinin çalışmaya başlaması zaman alır: genellikle 15 ile 60 dakika.",
     "root_key": "Özel kök anahtar: yalnızca bir kez gösterilir, şimdi saklayın.",
     "root_key_done": "Sakladım",
     "suspend": "Askıya al",

@@ -453,7 +453,7 @@
       "generic": "Jokin meni pieleen — yritä uudelleen."
     },
     "host": {
-      "preparing": "Osoitettasi {host} valmistellaan (yleensä 15–30 minuuttia). Tämä sivu päivittyy, kun se vastaa; säilytä avaimesi turvassa sillä välin.",
+      "preparing": "Osoitettasi {host} valmistellaan. Uuden työtilan luominen vie aikaa: yleensä 15–60 minuuttia. Tämä sivu päivittyy, kun se vastaa; säilytä avaimesi turvassa sillä välin.",
       "ready": "Osoitteesi {host} on valmis."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "Et ole työtilan {tenant} jäsen.",
     "open_mine": "Avaa oma työtila",
-    "preparing": "Osoite {host} ei ole vielä valmis. Uuden työtilan osoite toimii yleensä noin 30 minuutin kuluessa sen luomisesta. Tämä sivu tarkistaa 30 sekunnin välein ja avaa sen heti, kun se vastaa."
+    "preparing": "Osoite {host} ei ole vielä valmis. Uuden työtilan luominen vie aikaa: sen osoite toimii yleensä 15–60 minuutin kuluttua luomisesta. Tämä sivu tarkistaa 30 sekunnin välein ja avaa sen heti, kun se vastaa.",
+    "not_ready_help": "Eikö se vieläkään aukea 60 minuutin jälkeen? Kirjoita tukeen tai sinut kutsuneelle ylläpitäjälle ja mainitse osoite {host}: he näkevät, mikä sitä pidättää, ja voivat käynnistää sen uudelleen. Mitään ei menetetä odottaessa."
   },
   "picker": {
     "open": "Avaa kalenteri",
@@ -2767,6 +2768,7 @@
     "create": "Luo",
     "cancel": "Peruuta",
     "created": "Työtila {id} luotu.",
+    "created_host_wait": "Sen oman osoitteen käyttöönotto vie aikaa: yleensä 15–60 minuuttia.",
     "root_key": "Yksityinen juuriavain: näytetään vain kerran, tallenna se nyt.",
     "root_key_done": "Olen tallentanut sen",
     "suspend": "Keskeytä",

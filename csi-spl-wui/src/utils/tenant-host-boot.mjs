@@ -12,7 +12,7 @@
  *      the hub answers 403 not_member either way).
  * 047 B5 (SPL-1161): a hop goes only to a host that answers. A paid tenant's
  * host is provisioned after the payment (workflow 40: custom domain + DNS +
- * certificate, ~30 min), and a hop before that lands on NXDOMAIN. So each
+ * certificate, 15-60 min: SPL-6439), and a hop before that lands on NXDOMAIN. So each
  * hop to another host first reads <host>/build.json (no-cors: reaching it is
  * the answer). Not reachable: the sign-in return (1) stays where it is, and a
  * signed-in hop (2, 3) shows "the address is not ready yet" (no payment

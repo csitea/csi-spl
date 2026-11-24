@@ -367,7 +367,7 @@ export async function pollAndClaim(client: CheckoutClient, { id = '', token = ''
 /**
  * There is no wildcard host: the tenant's own address <tenant>.<fqdn> is
  * provisioned by a scheduled reconcile after the payment (mapping, DNS record,
- * certificate: typically 15-30 min). `host_status` on §1.3 / §1.4 reads
+ * certificate: 15-60 min, SPL-6439). `host_status` on §1.3 / §1.4 reads
  * 'pending' until it answers, then 'ready' ('unknown' = the hub cannot tell).
  * Polls §1.3 until the host is no longer pending and resolves to the last
  * host_status seen, or 'stopped' when `isStopped()` (page left). A failed

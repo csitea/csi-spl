@@ -453,7 +453,7 @@
       "generic": "Kaut kas nogāja greizi — mēģiniet vēlreiz."
     },
     "host": {
-      "preparing": "Jūsu adrese {host} tiek sagatavota (parasti 15–30 minūtes). Šī lapa atjaunosies, kad tā atbildēs; pa to laiku glabājiet savu atslēgu drošībā.",
+      "preparing": "Jūsu adrese {host} tiek sagatavota. Jaunas darbvietas izveide prasa laiku: parasti 15 līdz 60 minūtes. Šī lapa atjaunosies, kad tā atbildēs; pa to laiku glabājiet savu atslēgu drošībā.",
       "ready": "Jūsu adrese {host} ir gatava."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "Jūs neesat darbvietas {tenant} dalībnieks.",
     "open_mine": "Atvērt manu darbvietu",
-    "preparing": "Adrese {host} vēl nav gatava. Jaunas darbvietas adrese parasti sāk darboties apmēram 30 minūšu laikā pēc tās izveides. Šī lapa pārbauda ik pēc 30 sekundēm un to atvērs, tiklīdz tā atbildēs."
+    "preparing": "Adrese {host} vēl nav gatava. Jaunas darbvietas izveide prasa laiku: tās adrese parasti sāk darboties 15 līdz 60 minūtes pēc izveides. Šī lapa pārbauda ik pēc 30 sekundēm un to atvērs, tiklīdz tā atbildēs.",
+    "not_ready_help": "Joprojām neatveras pēc 60 minūtēm? Rakstiet atbalstam vai administratoram, kas jūs uzaicināja, un norādiet adresi {host}: viņi var redzēt, kas to aiztur, un palaist to atkārtoti. Gaidot nekas netiek zaudēts."
   },
   "picker": {
     "open": "Atvērt kalendāru",
@@ -2767,6 +2768,7 @@
     "create": "Izveidot",
     "cancel": "Atcelt",
     "created": "Darbvieta {id} izveidota.",
+    "created_host_wait": "Tās adresei vajadzīgs laiks, lai sāktu darboties: parasti 15 līdz 60 minūtes.",
     "root_key": "Privātā saknes atslēga: tiek parādīta tikai vienreiz, saglabājiet to tagad.",
     "root_key_done": "Esmu to saglabājis",
     "suspend": "Apturēt",

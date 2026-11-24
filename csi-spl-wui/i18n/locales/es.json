@@ -453,7 +453,7 @@
       "generic": "Algo salió mal — inténtalo de nuevo."
     },
     "host": {
-      "preparing": "Tu dirección {host} se está preparando (normalmente 15–30 minutos). Esta página se actualizará cuando responda; mientras tanto, guarda tu clave en un lugar seguro.",
+      "preparing": "Tu dirección {host} se está preparando. Crear un espacio de trabajo nuevo lleva tiempo: normalmente entre 15 y 60 minutos. Esta página se actualizará cuando responda; mientras tanto, guarda tu clave en un lugar seguro.",
       "ready": "Tu dirección {host} está lista."
     },
     "buy": {
@@ -1652,7 +1652,8 @@
   "tenant_host": {
     "not_member": "No eres miembro del espacio de trabajo {tenant}.",
     "open_mine": "Abrir mi espacio de trabajo",
-    "preparing": "La dirección {host} aún no está lista. La dirección de un espacio de trabajo nuevo suele funcionar unos 30 minutos después de crearlo. Esta página comprueba cada 30 segundos y la abre en cuanto responda."
+    "preparing": "La dirección {host} aún no está lista. Crear un espacio de trabajo nuevo lleva tiempo: su dirección suele funcionar entre 15 y 60 minutos después de crearlo. Esta página comprueba cada 30 segundos y la abre en cuanto responda.",
+    "not_ready_help": "¿Sigue sin abrirse después de 60 minutos? Escribe al soporte, o al administrador que te invitó, e indica la dirección {host}: pueden ver qué la retiene y ponerla en marcha de nuevo. No se pierde nada mientras esperas."
   },
   "picker": {
     "open": "Abrir el calendario",
@@ -2767,6 +2768,7 @@
     "create": "Crear",
     "cancel": "Cancelar",
     "created": "Espacio de trabajo {id} creado.",
+    "created_host_wait": "Su propia dirección tarda en estar disponible: normalmente entre 15 y 60 minutos.",
     "root_key": "Clave privada raíz: se muestra solo una vez, guárdela ahora.",
     "root_key_done": "Ya la he guardado",
     "suspend": "Suspender",

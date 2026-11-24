@@ -105,6 +105,7 @@
           :pane-opener="paneOpener"
           :awaiting="awaitingOf(it.msg)"
           :pinned-new="isPinned(it.msg)"
+          :topic-select="selectableOf(it.msg)"
           :class="{ pending: it.msg.pending, 'msg--new': isNew(it.msg) }"
           :data-key="it.msg.msg_id"
           :data-pending="it.msg.pending ? 'true' : undefined"
@@ -190,6 +191,7 @@ import { pinEdge } from '~/utils/topic-list-order.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { provideFeedEditing } from '~/composables/useFeedEditing'
 import { perfDelivered, perfFeed, perfFeedState, perfOn, perfWatchRouter } from '~/utils/perf-mark.mjs'
+import { selectableCard, useTopicSelectStore, type TopicSelectMatcher } from '~/stores/topicSelect'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
    button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
@@ -452,6 +454,35 @@ const paneLatestId = computed(() => (props.topicCardMenu ? props.lastMsgId || la
 const paneOpener = computed<SpoolMessage | null | undefined>(() => (props.topicCardMenu ? openerRow.value : undefined))
 /* the pane's move context names that opener, so a later level-1 row moves as a reply */
 const paneMoveCtx = computed(() => (props.moveCtx && openerId.value ? { ...props.moveCtx, opener: openerId.value } : props.moveCtx))
+
+/* Spec 186 7.1.6 (row M3): the middle pane's topic cards of a channel (the
+   lobby and general included) carry the select phase's box; a DM card, an
+   `issues` card and a thread's rows do not. The page's tickable topics, in
+   reading order, feed the bar's page box and shift-range; the feed's pager
+   feeds "Select all N matching" (it pages under the list's own filter). */
+const topicSelect = useTopicSelectStore()
+function selectableOf(m: SpoolMessage) {
+  return selectableCard(m, Boolean(props.openButton))
+}
+const cardTitleOf = (m: SpoolMessage) => String(m.body || '').split('\n')[0]!.trim().slice(0, 140)
+watchEffect(() => {
+  if (!props.openButton) return
+  topicSelect.setShown(shown.value.filter(selectableOf).map((m) => ({ task_id: String(m.task_id), channel: String(m.channel || ''), title: cardTitleOf(m) })))
+})
+/** one older page: asked for, then waited on until the feed is no longer loading */
+function loadOlderOnce(): Promise<void> {
+  emit('older')
+  return new Promise((resolve) => {
+    const stop = watch(() => props.loadingOlder, (busy) => { if (!busy) { stop(); resolve() } })
+    void nextTick(() => { if (!props.loadingOlder) { stop(); resolve() } })
+  })
+}
+const feedMatcher: TopicSelectMatcher = { more: () => props.hasOlder, load: loadOlderOnce }
+onMounted(() => { if (props.openButton) topicSelect.matcher = feedMatcher })
+onBeforeUnmount(() => {
+  if (topicSelect.matcher === feedMatcher) topicSelect.matcher = null
+  if (props.openButton) topicSelect.setShown([])
+})
 
 /* The row the open topic is rooted at stays selected. The title in the
    right pane is selected as well, so selecting that pane does not clear this row. */

@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Zadajte aspoň jednu hodnotu z výplatnej pásky."
       }
     }
+  },
+  "topic_select": {
+    "label": "Vybraté témy",
+    "count": "Vybraté: {count}",
+    "in_channels": "v {n} kanáloch",
+    "select_page": "Vybrať všetky zobrazené témy",
+    "select_row": "Vybrať {title}",
+    "select_matching": "Vybrať všetky zodpovedajúce ({total})",
+    "select": "Vybrať",
+    "by_title": "Vybrať podľa názvu",
+    "patterns": "Vzory názvov tém, jeden na riadok; * = každá téma",
+    "apply": "Pridať zodpovedajúce témy",
+    "bad_pattern": "Vzor {line} je neplatný: {reason}",
+    "none": "Žiadna téma nezodpovedá",
+    "clear": "Zrušiť výber",
+    "other_workspace": "Téma iného pracovného priestoru: tu ju nemožno vybrať"
   }
 }

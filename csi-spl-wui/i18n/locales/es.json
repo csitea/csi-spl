@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Escribe al menos un valor de la nómina."
       }
     }
+  },
+  "topic_select": {
+    "label": "Temas seleccionados",
+    "count": "{count} seleccionados",
+    "in_channels": "en {n} canales",
+    "select_page": "Seleccionar todos los temas mostrados",
+    "select_row": "Seleccionar {title}",
+    "select_matching": "Seleccionar los {total} que coinciden",
+    "select": "Seleccionar",
+    "by_title": "Seleccionar por título",
+    "patterns": "Patrones de título de tema, uno por línea; * = todos los temas",
+    "apply": "Añadir los temas que coinciden",
+    "bad_pattern": "El patrón {line} no es válido: {reason}",
+    "none": "Ningún tema coincide",
+    "clear": "Borrar selección",
+    "other_workspace": "Tema de otro espacio de trabajo: no se puede seleccionar aquí"
   }
 }

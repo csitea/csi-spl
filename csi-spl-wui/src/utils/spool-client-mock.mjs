@@ -382,3 +382,39 @@ export function mockOnTopicLoops(fn) {
   }
   return () => bc.close()
 }
+
+/* spec 186 7.1.2: the hub's limits on a topic_select frame */
+const SELECT_PATTERNS_MAX = 10
+const SELECT_PATTERN_BYTES = 256
+
+/**
+ * Spec 186 7.1.2 (row M3): the mock hub's `topic_select`. It stands in for
+ * the hub's resolver (internal/hub/topic_select.go): each line trimmed, an
+ * empty one dropped, `*` = every topic in scope, any other line a
+ * case-insensitive unanchored pattern on the topic's title; ticked task ids
+ * join; a line that does not compile answers `topic_select_bad_pattern`
+ * naming it ("line N: <pattern>: <why>"). Scope: the channel topics of the
+ * mock tenant, never a DM, never `issues`, never an archived topic. This is
+ * the mock's own code: the page and its components never read a pattern.
+ */
+export function mockTopicSelect(state, { req_id, action, task_ids = [], patterns = [] } = {}) {
+  const refuse = (error, detail) => ({ type: 'topic_selected', req_id, ok: false, error, detail, topics: [] })
+  if (action !== 'multicast') return refuse('bad_json', `unknown action "${action}"`)
+  if (!task_ids.length && !patterns.length) return refuse('bad_json', 'task_ids and patterns are both empty')
+  if (patterns.length > SELECT_PATTERNS_MAX) return refuse('bad_json', `at most ${SELECT_PATTERNS_MAX} patterns`)
+  let all = false
+  const res = []
+  for (const [i, raw] of patterns.entries()) {
+    if (new TextEncoder().encode(String(raw)).length > SELECT_PATTERN_BYTES) return refuse('bad_json', `pattern ${i + 1} is over ${SELECT_PATTERN_BYTES} bytes`)
+    const p = String(raw).trim()
+    if (p === '') continue
+    if (p === '*') { all = true; continue }
+    try { res.push(new RegExp(p, 'i')) } catch (e) { return refuse('topic_select_bad_pattern', `line ${i + 1}: ${p}: ${e && e.message ? e.message : 'invalid'}`) }
+  }
+  const ticks = new Set(task_ids.map((id) => String(id).toLowerCase()))
+  const inScope = topicsFromMessages(state.messages.filter((m) => m.channel && m.channel !== 'issues'))
+  const topics = inScope
+    .filter((t) => all || ticks.has(String(t.task_id).toLowerCase()) || res.some((re) => re.test(String(t.subject || ''))))
+    .map((t) => ({ task_id: t.task_id, channel: String(t.channel || ''), title: String(t.subject || '') }))
+  return { type: 'topic_selected', req_id, ok: true, topics }
+}

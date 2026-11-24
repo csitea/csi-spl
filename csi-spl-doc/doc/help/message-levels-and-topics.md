@@ -158,7 +158,8 @@ prompt to several topics at once (**Multicast**).
   select a range from the last ticked card, **`x`** on a focused card will
   toggle it, and **`Esc`** will clear the selection.
 - **Ticking topics (phone)**: long-pressing or swiping right on a topic card
-  will open its menu with a first item **Select** (in **Monitoring → Topics**,
+  will open its menu with a **Select** item right after **Archive** (on a
+  desktop, **Select** is the menu's first item; in **Monitoring → Topics**,
   each own-workspace card will show its checkbox directly). While at least one
   topic is selected, every card will show its checkbox, tapping a card will
   toggle it instead of opening the topic, and card swipes and drag-to-move will

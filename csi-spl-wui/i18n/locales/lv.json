@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Ievadiet vismaz vienu vērtību no algas lapiņas."
       }
     }
+  },
+  "topic_select": {
+    "label": "Atlasītās tēmas",
+    "count": "Atlasītas: {count}",
+    "in_channels": "{n} kanālos",
+    "select_page": "Atlasīt visas parādītās tēmas",
+    "select_row": "Atlasīt {title}",
+    "select_matching": "Atlasīt visas {total} atbilstošās",
+    "select": "Atlasīt",
+    "by_title": "Atlasīt pēc nosaukuma",
+    "patterns": "Tēmu nosaukumu paraugi, pa vienam rindā; * = katra tēma",
+    "apply": "Pievienot atbilstošās tēmas",
+    "bad_pattern": "Paraugs {line} nav derīgs: {reason}",
+    "none": "Neviena tēma neatbilst",
+    "clear": "Notīrīt atlasi",
+    "other_workspace": "Citas darbvietas tēma: to šeit nevar atlasīt"
   }
 }

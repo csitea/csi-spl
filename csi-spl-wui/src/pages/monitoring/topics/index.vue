@@ -24,7 +24,13 @@
      (composables/useSheetListUrl.ts) and survive the minute's refresh.
      Clear filters shows while a filter is on, before Refresh; Refresh is
      last on the tabs' row on a desktop and at the bottom centre above the
-     dock on a phone (components/PhoneDockButton.vue), as on Lanes. -->
+     dock on a phone (components/PhoneDockButton.vue), as on Lanes.
+     Spec 186 4.1 / 7.1.6 (row M3, H1, plan Q1 A): a row of this workspace's
+     channel topic carries the select phase's box (always, a phone card has
+     no menu, 4.6); another workspace's row has none, and its title says why
+     (a multicast cannot cross workspaces). The page box ticks the own rows
+     the column filters keep; the selection bar takes the place above the
+     table while topics are ticked. -->
 <template>
   <div class="monitoring-topics" data-test="topics-page">
     <!-- 3.16 (SPL-4730): the age, Clear filters and Refresh on the tabs' row,
@@ -53,56 +59,69 @@
 
     <template v-if="view && state !== 'forbidden'">
       <p v-if="topics.length === 0" class="muted" data-test="topics-empty">{{ t('monitoring.topics.empty') }}</p>
-      <div v-else class="tp-table-wrap">
-        <SheetPhoneBar
-          v-if="phone"
-          :columns="sheetColumns"
-          :sort="sort"
-          :filters="filters"
-          prefix="topics"
-          :sort-words="sortWords"
-          :filters-on="filtered"
-          @sort="toggleSort"
-          @filter="onFilter"
-          @clear="clearFilters"
-        />
-        <table class="tp-table" :aria-label="t('monitoring.topics.table_label')" data-test="topics-table">
-          <SheetHead :columns="sheetColumns" :sort="sort" :filters="filters" :phone="phone" prefix="topics" @sort="toggleSort" @filter="onFilter" />
-          <tbody>
-            <tr v-if="rows.length === 0">
-              <td :colspan="sheetColumns.length" class="muted" data-test="topics-no-match">{{ t('monitoring.topics.no_match') }}</td>
-            </tr>
-            <tr v-for="r in rows" :key="r.topicId || '-'" class="tp-row" data-test="topics-row" :data-topic="r.topicId">
-              <th scope="row" class="tp-cut" :title="r.topicTitle || r.topicId || undefined" data-test="topics-topic">
-                <NuxtLink v-if="topicTo(r).href" :to="toOf(topicTo(r))" data-test="topics-topic-link">{{ r.topicTitle || r.topicId }}</NuxtLink>
-                <span v-else-if="r.topicId" class="tp-mono">{{ r.topicId }}</span>
-                <span v-else class="muted" data-test="topics-none">{{ t('monitoring.topics.no_topic') }}</span>
-              </th>
-              <td class="tp-ws" :title="r.workspace || undefined" data-test="topics-workspace">{{ r.workspaceName || DASH }}</td>
-              <td class="tp-nw" data-test="topics-channel">{{ r.topicChannel ? '#' + r.topicChannel : DASH }}</td>
-              <td class="num" data-test="topics-active">{{ ago(r.lastAt) }}</td>
-              <td data-test="topics-lanes">
-                <NuxtLink
-                  v-for="l in r.lanes"
-                  :key="l.name"
-                  class="tp-chip"
-                  :to="localePath(laneDeepLink(l))"
-                  :data-state="l.state"
-                  :title="stateLabel(l.state)"
-                  data-test="topics-lane"
-                >{{ l.name }}<span class="tp-chip-state">{{ stateLabel(l.state) }}</span></NuxtLink>
-              </td>
-              <td data-test="topics-issues">
-                <span v-if="r.issues.length === 0" class="muted">{{ DASH }}</span>
-                <template v-for="i in r.issues" :key="i.key">
-                  <NuxtLink v-if="issueTo(i, r).href" class="tp-chip" :to="toOf(issueTo(i, r))" :data-status="i.status" data-test="topics-issue-link">{{ i.key }}<span class="tp-chip-state">{{ i.status }}</span></NuxtLink>
-                  <span v-else class="tp-chip" data-test="topics-issue">{{ i.key }}</span>
-                </template>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <template v-else>
+        <LazyTopicSelectBar v-if="topicSelect.active" :phone="phone" />
+        <div class="tp-table-wrap">
+          <SheetPhoneBar
+            v-if="phone"
+            :columns="sheetColumns"
+            :sort="sort"
+            :filters="filters"
+            prefix="topics"
+            :sort-words="sortWords"
+            :filters-on="filtered"
+            @sort="toggleSort"
+            @filter="onFilter"
+            @clear="clearFilters"
+          />
+          <table class="tp-table" :aria-label="t('monitoring.topics.table_label')" data-test="topics-table">
+            <SheetHead :columns="sheetColumns" :sort="sort" :filters="filters" :phone="phone" prefix="topics" @sort="toggleSort" @filter="onFilter" />
+            <tbody>
+              <tr v-if="rows.length === 0">
+                <td :colspan="sheetColumns.length" class="muted" data-test="topics-no-match">{{ t('monitoring.topics.no_match') }}</td>
+              </tr>
+              <tr v-for="r in rows" :key="r.topicId || '-'" class="tp-row" data-test="topics-row" :data-topic="r.topicId" :data-own="ownRow(r) ? 'true' : undefined" :title="otherWorkspace(r) ? t('topic_select.other_workspace') : undefined">
+                <th scope="row" class="tp-cut" :title="r.topicTitle || r.topicId || undefined" data-test="topics-topic">
+                  <input
+                    v-if="selectableRow(r)"
+                    type="checkbox"
+                    class="tp-select"
+                    data-test="topic-select-box"
+                    :checked="topicSelect.has(r.topicId)"
+                    :aria-label="t('topic_select.select_row', { title: r.topicTitle || r.topicId })"
+                    :title="t('topic_select.select_row', { title: r.topicTitle || r.topicId })"
+                    @click="tickRow(r, $event)"
+                  >
+                  <NuxtLink v-if="topicTo(r).href" :to="toOf(topicTo(r))" data-test="topics-topic-link">{{ r.topicTitle || r.topicId }}</NuxtLink>
+                  <span v-else-if="r.topicId" class="tp-mono">{{ r.topicId }}</span>
+                  <span v-else class="muted" data-test="topics-none">{{ t('monitoring.topics.no_topic') }}</span>
+                </th>
+                <td class="tp-ws" :title="r.workspace || undefined" data-test="topics-workspace">{{ r.workspaceName || DASH }}</td>
+                <td class="tp-nw" data-test="topics-channel">{{ r.topicChannel ? '#' + r.topicChannel : DASH }}</td>
+                <td class="num" data-test="topics-active">{{ ago(r.lastAt) }}</td>
+                <td data-test="topics-lanes">
+                  <NuxtLink
+                    v-for="l in r.lanes"
+                    :key="l.name"
+                    class="tp-chip"
+                    :to="localePath(laneDeepLink(l))"
+                    :data-state="l.state"
+                    :title="stateLabel(l.state)"
+                    data-test="topics-lane"
+                  >{{ l.name }}<span class="tp-chip-state">{{ stateLabel(l.state) }}</span></NuxtLink>
+                </td>
+                <td data-test="topics-issues">
+                  <span v-if="r.issues.length === 0" class="muted">{{ DASH }}</span>
+                  <template v-for="i in r.issues" :key="i.key">
+                    <NuxtLink v-if="issueTo(i, r).href" class="tp-chip" :to="toOf(issueTo(i, r))" :data-status="i.status" data-test="topics-issue-link">{{ i.key }}<span class="tp-chip-state">{{ i.status }}</span></NuxtLink>
+                    <span v-else class="tp-chip" data-test="topics-issue">{{ i.key }}</span>
+                  </template>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </template>
     <!-- the room the phone's Refresh needs under the last card -->
     <div v-if="phone" class="tp-dock-room" aria-hidden="true" />
@@ -124,11 +143,14 @@ import { nextSheetSort, sheetSortLabel } from '~/utils/column-sheet.mjs'
 import { usePhone } from '~/composables/useTouchUi'
 import { useSheetListUrl } from '~/composables/useSheetListUrl'
 import { useLaneLinks, type LaneLink } from '~/composables/useLaneLinks'
+import { useTopicSelect } from '~/composables/useTopicSelect'
+import { selectableCard, useTopicSelectStore, type TopicPick } from '~/stores/topicSelect'
 
 type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
 type LanesView = ReturnType<typeof fleetLanesOf>
 
 const DASH = '—'
+const topicSelect = useTopicSelectStore()
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const operator = useOperatorPane()
@@ -185,6 +207,20 @@ const sortWords = computed(() => {
   return t('issues_mobile.sort_now', { col: t(bits.colKey), dir: t(bits.dirKey) })
 })
 const rows = computed(() => sortTopics(filterTopics(topics.value, filters), sort.value))
+
+/* spec 186 (row M3, plan Q1 A): only this workspace's channel topics tick */
+useTopicSelect()
+const ownRow = (r: TopicRow) => Boolean(r.topicId) && String(r.workspace || '') === pageTenant.value
+const otherWorkspace = (r: TopicRow) => Boolean(r.topicId) && !ownRow(r)
+const selectableRow = (r: TopicRow) => ownRow(r) && selectableCard({ task_id: r.topicId, channel: r.topicChannel }, true)
+const pickOf = (r: TopicRow): TopicPick => ({ task_id: String(r.topicId), channel: String(r.topicChannel || ''), title: String(r.topicTitle || r.topicId) })
+watchEffect(() => topicSelect.setShown(rows.value.filter(selectableRow).map(pickOf)))
+onBeforeUnmount(() => topicSelect.setShown([]))
+function tickRow(r: TopicRow, ev: MouseEvent) {
+  const on = !topicSelect.has(String(r.topicId))
+  if (ev.shiftKey) topicSelect.range(pickOf(r), on)
+  else topicSelect.toggle(pickOf(r), on)
+}
 /* the sort and the filters follow the address and back, as on Lanes (3.15, 3.29) */
 useSheetListUrl({ spec: TOPICS_URL_SPEC, sort, filters, answer: view, choices: () => choices.value })
 
@@ -278,6 +314,8 @@ onBeforeUnmount(() => {
 /* a long title stays on one line, its full text in the title attribute */
 .tp-cut { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tp-nw { white-space: nowrap; }
+/* spec 186: the row's select box, before its title */
+.tp-select { margin: 0 6px 0 0; vertical-align: middle; accent-color: var(--color-accent); }
 .tp-ws { white-space: nowrap; }
 /* a lane or an issue as a chip: its id, then its state or status, small */
 .tp-chip { display: inline-flex; align-items: baseline; gap: 4px; margin: 0 6px 2px 0; padding: 0 6px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); white-space: nowrap; font-family: var(--font-mono); }
@@ -321,6 +359,7 @@ onBeforeUnmount(() => {
   .tp-row > [data-test=topics-lanes] { order: 11; flex: 1 1 auto; }
   .tp-row > [data-test=topics-issues] { order: 12; flex: 0 1 auto; max-width: 50%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tp-row .tp-chip { font-size: 0.75rem; }
+  .tp-select { width: 18px; height: 18px; }
   .tp-row > [data-test=topics-channel] { order: 21; color: var(--color-muted); }
   .tp-row > .tp-ws { order: 22; flex: 0 1 auto; min-width: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; color: var(--color-muted); }
 }

@@ -4638,5 +4638,21 @@
         "err_slip_empty": "Type at least one value from the payslip."
       }
     }
+  },
+  "topic_select": {
+    "label": "Selected topics",
+    "count": "{count} selected",
+    "in_channels": "in {n} channels",
+    "select_page": "Select all topics shown",
+    "select_row": "Select {title}",
+    "select_matching": "Select all {total} matching",
+    "select": "Select",
+    "by_title": "Select by title",
+    "patterns": "Topic title patterns, one per line; * = every topic",
+    "apply": "Add matching topics",
+    "bad_pattern": "Pattern {line} is not valid: {reason}",
+    "none": "No topic matches",
+    "clear": "Clear selection",
+    "other_workspace": "Another workspace's topic: it cannot be selected here"
   }
 }

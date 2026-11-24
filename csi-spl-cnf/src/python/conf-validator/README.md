@@ -38,6 +38,10 @@ Validating it exits `1`.
   - `gcp.gcp_project` is `<ORG_APP>-<ENV>`
   - `gcp.state_bucket` is `<gcp_project>-tfstate`
 - `EnvModels/all.py` covers `all.env.yaml` on its own: `dns.BASE_DOMAIN` plus the shared blocks.
+- `EnvModels/lde.py` covers `lde`, the local developer stack (SPL-451). It requires `ENV: lde`,
+  `ORG`, `APP`, `ORG_APP` (`<ORG>-<APP>`), `dns`, `i18n` and `box`; no `steps`, `versions` or GCP project.
+- The JSON schema `csi-spl-cnf/schema/env-schema.json` is GENERATED from these models
+  (`conf_validator/env_schema_export.py`), never edited by hand: see `csi-spl-cnf/schema/README.md`.
 
 <a id="ws-doc-6855d2ef-62f2-4fec-aec9-d0602286b4a3"></a>
 ## Usage
@@ -63,4 +67,4 @@ poetry run validate <path-to-yaml-file> <environment>
 <a id="ws-doc-9e906666-760d-4e65-98c0-a85336a443f4"></a>
 ## Which envs can be validated
 
-`dev`, `prd` and `all`, as listed in `Classes/EnvEnum.py`. `lde` has no model, so it exits `2`.
+`dev`, `prd`, `lde` and `all`, as listed in `Classes/EnvEnum.py`. Any other env exits `2`.

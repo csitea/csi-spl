@@ -1,0 +1,614 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "AgentModel": {
+      "additionalProperties": false,
+      "description": "env.box.agent_model: default (vendor -> model) and by_kind (kind -> vendor -> model).",
+      "properties": {
+        "by_kind": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "default": {},
+          "title": "By Kind",
+          "type": "object"
+        },
+        "default": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "title": "Default",
+          "type": "object"
+        }
+      },
+      "title": "AgentModel",
+      "type": "object"
+    },
+    "Box": {
+      "description": "env.box: agent_split_by_kind and agent_model (spec 184) are modelled; the other keys pass through.",
+      "properties": {
+        "agent_model": {
+          "$ref": "#/definitions/AgentModel"
+        },
+        "agent_split_by_kind": {
+          "additionalProperties": {
+            "$ref": "#/definitions/KindRow"
+          },
+          "title": "Agent Split By Kind",
+          "type": "object"
+        }
+      },
+      "title": "Box",
+      "type": "object"
+    },
+    "EnvModels__all__Cloud": {
+      "description": "spec 076: the cloud provider the env runs on; gcp unless the cnf says otherwise.",
+      "properties": {
+        "provider": {
+          "default": "gcp",
+          "enum": [
+            "gcp",
+            "none",
+            "aws"
+          ],
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "title": "Cloud",
+      "type": "object"
+    },
+    "EnvModels__all__CnfModel": {
+      "description": "`pydantic.BaseModel` class with built-in YAML support.\n\nYou can alternatively inherit from this to implement your model:\n`(pydantic_yaml.YamlModelMixin, pydantic.BaseModel)`\n\nSee Also\n--------\npydantic-yaml: https://github.com/NowanIlfideme/pydantic-yaml\npydantic: https://pydantic-docs.helpmanual.io/\npyyaml: https://pyyaml.org/\nruamel.yaml: https://yaml.readthedocs.io/en/latest/index.html",
+      "properties": {
+        "env": {
+          "$ref": "#/definitions/EnvModels__all__Env"
+        }
+      },
+      "required": [
+        "env"
+      ],
+      "title": "CnfModel",
+      "type": "object"
+    },
+    "EnvModels__all__Dns": {
+      "properties": {
+        "BASE_DOMAIN": {
+          "title": "Base Domain",
+          "type": "string"
+        }
+      },
+      "required": [
+        "BASE_DOMAIN"
+      ],
+      "title": "Dns",
+      "type": "object"
+    },
+    "EnvModels__all__Env": {
+      "description": "`pydantic.BaseModel` class with built-in YAML support.\n\nYou can alternatively inherit from this to implement your model:\n`(pydantic_yaml.YamlModelMixin, pydantic.BaseModel)`\n\nSee Also\n--------\npydantic-yaml: https://github.com/NowanIlfideme/pydantic-yaml\npydantic: https://pydantic-docs.helpmanual.io/\npyyaml: https://pyyaml.org/\nruamel.yaml: https://yaml.readthedocs.io/en/latest/index.html",
+      "properties": {
+        "auth": {
+          "title": "Auth"
+        },
+        "box": {
+          "$ref": "#/definitions/Box"
+        },
+        "cloud": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/EnvModels__all__Cloud"
+            }
+          ],
+          "default": {
+            "provider": "gcp"
+          },
+          "title": "Cloud"
+        },
+        "dns": {
+          "$ref": "#/definitions/EnvModels__all__Dns"
+        },
+        "hub": {
+          "title": "Hub"
+        },
+        "i18n": {
+          "$ref": "#/definitions/EnvModels__all__I18n"
+        },
+        "mail": {
+          "title": "Mail"
+        },
+        "rhythm": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/Rhythm"
+            }
+          ],
+          "default": {
+            "night_end": 7,
+            "night_start": 20,
+            "reflection_discussion": null,
+            "timezone": "Europe/Berlin",
+            "zombie_idle_days": 7,
+            "zombie_max": 500
+          },
+          "title": "Rhythm"
+        }
+      },
+      "required": [
+        "dns",
+        "i18n",
+        "box"
+      ],
+      "title": "Env",
+      "type": "object"
+    },
+    "EnvModels__all__I18n": {
+      "description": "spec 021: the WUI + hub-mail locale set and the unprefixed default.",
+      "properties": {
+        "default_locale": {
+          "title": "Default Locale",
+          "type": "string"
+        },
+        "locales": {
+          "items": {},
+          "title": "Locales",
+          "type": "array"
+        }
+      },
+      "required": [
+        "default_locale",
+        "locales"
+      ],
+      "title": "I18n",
+      "type": "object"
+    },
+    "EnvModels__cloud__Cloud": {
+      "description": "spec 076: the cloud provider the env runs on; gcp unless the cnf says otherwise.",
+      "properties": {
+        "provider": {
+          "default": "gcp",
+          "enum": [
+            "gcp",
+            "none",
+            "aws"
+          ],
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "title": "Cloud",
+      "type": "object"
+    },
+    "EnvModels__cloud__CnfModel": {
+      "description": "The base configuration model\n\nDescription:\n    This data model describes how the data in configuration files should look like",
+      "properties": {
+        "env": {
+          "$ref": "#/definitions/EnvModels__cloud__Env"
+        }
+      },
+      "required": [
+        "env"
+      ],
+      "title": "CnfModel",
+      "type": "object"
+    },
+    "EnvModels__cloud__Dns": {
+      "properties": {
+        "BASE_DOMAIN": {
+          "title": "Base Domain",
+          "type": "string"
+        },
+        "env_subdomain": {
+          "title": "Env Subdomain",
+          "type": "string"
+        },
+        "fqdn": {
+          "title": "Fqdn",
+          "type": "string"
+        }
+      },
+      "required": [
+        "BASE_DOMAIN",
+        "env_subdomain",
+        "fqdn"
+      ],
+      "title": "Dns",
+      "type": "object"
+    },
+    "EnvModels__cloud__Env": {
+      "description": "`pydantic.BaseModel` class with built-in YAML support.\n\nYou can alternatively inherit from this to implement your model:\n`(pydantic_yaml.YamlModelMixin, pydantic.BaseModel)`\n\nSee Also\n--------\npydantic-yaml: https://github.com/NowanIlfideme/pydantic-yaml\npydantic: https://pydantic-docs.helpmanual.io/\npyyaml: https://pyyaml.org/\nruamel.yaml: https://yaml.readthedocs.io/en/latest/index.html",
+      "properties": {
+        "APP": {
+          "title": "App",
+          "type": "string"
+        },
+        "ENV": {
+          "title": "Env",
+          "type": "string"
+        },
+        "ORG": {
+          "title": "Org",
+          "type": "string"
+        },
+        "ORG_APP": {
+          "title": "Org App",
+          "type": "string"
+        },
+        "auth": {
+          "title": "Auth"
+        },
+        "box": {
+          "$ref": "#/definitions/Box"
+        },
+        "cloud": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/EnvModels__cloud__Cloud"
+            }
+          ],
+          "default": {
+            "provider": "gcp"
+          },
+          "title": "Cloud"
+        },
+        "dns": {
+          "$ref": "#/definitions/EnvModels__cloud__Dns"
+        },
+        "gcp": {
+          "$ref": "#/definitions/Gcp"
+        },
+        "hub": {
+          "title": "Hub"
+        },
+        "i18n": {
+          "$ref": "#/definitions/EnvModels__cloud__I18n"
+        },
+        "mail": {
+          "title": "Mail"
+        },
+        "steps": {
+          "additionalProperties": {
+            "type": "object"
+          },
+          "title": "Steps",
+          "type": "object"
+        },
+        "versions": {
+          "$ref": "#/definitions/Versions"
+        }
+      },
+      "required": [
+        "ENV",
+        "ORG",
+        "APP",
+        "ORG_APP",
+        "dns",
+        "versions",
+        "gcp",
+        "steps",
+        "i18n",
+        "box"
+      ],
+      "title": "Env",
+      "type": "object"
+    },
+    "EnvModels__cloud__I18n": {
+      "description": "spec 021: the WUI + hub-mail locale set and the unprefixed default.",
+      "properties": {
+        "default_locale": {
+          "title": "Default Locale",
+          "type": "string"
+        },
+        "locales": {
+          "items": {},
+          "title": "Locales",
+          "type": "array"
+        }
+      },
+      "required": [
+        "default_locale",
+        "locales"
+      ],
+      "title": "I18n",
+      "type": "object"
+    },
+    "EnvModels__lde__CnfModel": {
+      "description": "`pydantic.BaseModel` class with built-in YAML support.\n\nYou can alternatively inherit from this to implement your model:\n`(pydantic_yaml.YamlModelMixin, pydantic.BaseModel)`\n\nSee Also\n--------\npydantic-yaml: https://github.com/NowanIlfideme/pydantic-yaml\npydantic: https://pydantic-docs.helpmanual.io/\npyyaml: https://pyyaml.org/\nruamel.yaml: https://yaml.readthedocs.io/en/latest/index.html",
+      "properties": {
+        "env": {
+          "$ref": "#/definitions/EnvModels__lde__Env"
+        }
+      },
+      "required": [
+        "env"
+      ],
+      "title": "CnfModel",
+      "type": "object"
+    },
+    "EnvModels__lde__Env": {
+      "description": "`pydantic.BaseModel` class with built-in YAML support.\n\nYou can alternatively inherit from this to implement your model:\n`(pydantic_yaml.YamlModelMixin, pydantic.BaseModel)`\n\nSee Also\n--------\npydantic-yaml: https://github.com/NowanIlfideme/pydantic-yaml\npydantic: https://pydantic-docs.helpmanual.io/\npyyaml: https://pyyaml.org/\nruamel.yaml: https://yaml.readthedocs.io/en/latest/index.html",
+      "properties": {
+        "APP": {
+          "title": "App",
+          "type": "string"
+        },
+        "ENV": {
+          "enum": [
+            "lde"
+          ],
+          "title": "Env",
+          "type": "string"
+        },
+        "ORG": {
+          "title": "Org",
+          "type": "string"
+        },
+        "ORG_APP": {
+          "title": "Org App",
+          "type": "string"
+        },
+        "auth": {
+          "title": "Auth"
+        },
+        "box": {
+          "$ref": "#/definitions/Box"
+        },
+        "cloud": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/EnvModels__cloud__Cloud"
+            }
+          ],
+          "default": {
+            "provider": "gcp"
+          },
+          "title": "Cloud"
+        },
+        "dns": {
+          "$ref": "#/definitions/EnvModels__cloud__Dns"
+        },
+        "hub": {
+          "title": "Hub"
+        },
+        "i18n": {
+          "$ref": "#/definitions/EnvModels__cloud__I18n"
+        },
+        "lde": {
+          "title": "Lde"
+        },
+        "mail": {
+          "title": "Mail"
+        },
+        "rhythm": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/Rhythm"
+            }
+          ],
+          "default": {
+            "night_end": 7,
+            "night_start": 20,
+            "reflection_discussion": null,
+            "timezone": "Europe/Berlin",
+            "zombie_idle_days": 7,
+            "zombie_max": 500
+          },
+          "title": "Rhythm"
+        }
+      },
+      "required": [
+        "ENV",
+        "ORG",
+        "APP",
+        "ORG_APP",
+        "dns",
+        "i18n",
+        "box"
+      ],
+      "title": "Env",
+      "type": "object"
+    },
+    "Gcp": {
+      "properties": {
+        "gcp_project": {
+          "title": "Gcp Project",
+          "type": "string"
+        },
+        "gcp_region": {
+          "title": "Gcp Region",
+          "type": "string"
+        },
+        "state_bucket": {
+          "title": "State Bucket",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gcp_project",
+        "gcp_region",
+        "state_bucket"
+      ],
+      "title": "Gcp",
+      "type": "object"
+    },
+    "KindRow": {
+      "additionalProperties": false,
+      "description": "One kind's weights out of 100 (a vendor left out is 0) and its backup.",
+      "properties": {
+        "agy": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Agy",
+          "type": "integer"
+        },
+        "backup": {
+          "enum": [
+            "agy",
+            "mistral",
+            "claude",
+            "grok",
+            "qwen",
+            "codex"
+          ],
+          "title": "Backup",
+          "type": "string"
+        },
+        "claude": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Claude",
+          "type": "integer"
+        },
+        "codex": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Codex",
+          "type": "integer"
+        },
+        "grok": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Grok",
+          "type": "integer"
+        },
+        "mistral": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Mistral",
+          "type": "integer"
+        },
+        "qwen": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Qwen",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "backup"
+      ],
+      "title": "KindRow",
+      "type": "object"
+    },
+    "Rhythm": {
+      "description": "spec 166 row B1: day and night for do_spl_rhythm_phase (night is\nnight_start:00 up to night_end:00 in timezone), and the zombie sweep's\nlimits (section 3.2), and the live topic the nightly reflection lane's\nbrief names (row B8, SPL-5646): a uuid, or absent (the action then stops\nwith one FATAL line).",
+      "properties": {
+        "night_end": {
+          "default": 7,
+          "maximum": 23,
+          "minimum": 0,
+          "title": "Night End",
+          "type": "integer"
+        },
+        "night_start": {
+          "default": 20,
+          "maximum": 23,
+          "minimum": 0,
+          "title": "Night Start",
+          "type": "integer"
+        },
+        "reflection_discussion": {
+          "pattern": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
+          "title": "Reflection Discussion",
+          "type": "string"
+        },
+        "timezone": {
+          "default": "Europe/Berlin",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "zombie_idle_days": {
+          "default": 7,
+          "minimum": 1,
+          "title": "Zombie Idle Days",
+          "type": "integer"
+        },
+        "zombie_max": {
+          "default": 500,
+          "minimum": 0,
+          "title": "Zombie Max",
+          "type": "integer"
+        }
+      },
+      "title": "Rhythm",
+      "type": "object"
+    },
+    "Versions": {
+      "properties": {
+        "google_provider_version": {
+          "title": "Google Provider Version",
+          "type": "string"
+        },
+        "infra_version": {
+          "title": "Infra Version",
+          "type": "string"
+        },
+        "terraform_version": {
+          "title": "Terraform Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "infra_version",
+        "terraform_version"
+      ],
+      "title": "Versions",
+      "type": "object"
+    }
+  },
+  "description": "GENERATED from csi-spl-cnf/src/python/conf-validator/EnvModels by conf_validator.env_schema_export; edit the models, never this file. env.ENV lde = the lde model, another ENV = the cloud model (dev, prd), no ENV = all.env.yaml. Checked by: cd csi-spl-iac && ./run -a do_check_env_schema",
+  "else": {
+    "else": {
+      "$ref": "#/definitions/EnvModels__all__CnfModel"
+    },
+    "if": {
+      "properties": {
+        "env": {
+          "properties": {
+            "ENV": {}
+          },
+          "required": [
+            "ENV"
+          ]
+        }
+      },
+      "required": [
+        "env"
+      ]
+    },
+    "then": {
+      "$ref": "#/definitions/EnvModels__cloud__CnfModel"
+    }
+  },
+  "if": {
+    "properties": {
+      "env": {
+        "properties": {
+          "ENV": {
+            "const": "lde"
+          }
+        },
+        "required": [
+          "ENV"
+        ]
+      }
+    },
+    "required": [
+      "env"
+    ]
+  },
+  "then": {
+    "$ref": "#/definitions/EnvModels__lde__CnfModel"
+  },
+  "title": "csi-spl cnf env file",
+  "type": "object"
+}

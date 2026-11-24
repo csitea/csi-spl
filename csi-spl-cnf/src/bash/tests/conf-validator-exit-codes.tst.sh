@@ -97,12 +97,15 @@ else
   bad "an unknown env must SAY nothing was validated, not just fail quietly"
 fi
 
-# --- 2: a real env of this repo that has no model ---------------------------
-# lde is a first-class env here (csi-spl-cnf/csi-spl/lde.env.yaml exists and the
-# api runs on it) and EnvModels/ has no lde.py, so it cannot be validated. It
-# must refuse, not pass. If somebody adds the model, THIS case flips to 0 and
-# the line below is what tells them to update it deliberately.
-expect_rc 2 "$(run_validate "${CNF_DIR}/lde.env.yaml" lde)" "lde, a real env with no model"
+# --- lde: a real env of this repo, with its own model since SPL-451 ----------
+# Until SPL-451 EnvModels/ had no lde.py and this case pinned exit 2 ("a real
+# env with no model"); the unknown-env case above still pins that code. Now the
+# lde EFFECTIVE config validates, and the raw lde.env.yaml alone (no all.env.yaml
+# merged under it: no i18n, no box) is checked and refused, exactly as a raw
+# dev file would be.
+do_spl_merged_cnf "${CNF_DIR}" lde "${TMP_DIR}/lde.env.yaml"
+expect_rc 0 "$(run_validate "${TMP_DIR}/lde.env.yaml" lde)" "a valid lde config (EnvModels/lde.py)"
+expect_rc 1 "$(run_validate "${CNF_DIR}/lde.env.yaml" lde)" "a raw lde.env.yaml, not merged"
 
 # --- 2: the file is not there -----------------------------------------------
 # The wrong-APP_PATH shape: the gate ran, the yaml it named did not exist.

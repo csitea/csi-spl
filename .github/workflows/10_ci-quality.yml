@@ -1588,6 +1588,12 @@ jobs:
         working-directory: csi-spl-cnf/src/python/conf-validator
         run: poetry run python -m unittest discover -v
 
+      # SPL-451 (spec 011 T025): the JSON schema csi-spl-cnf/schema/env-schema.json
+      # is the export of the pydantic models (no drift), every env file passes
+      # do_check_env_schema, broken fixtures are refused with the key's path.
+      - name: env-schema.tst.sh (JSON schema next to the pydantic models)
+        run: bash csi-spl-cnf/src/bash/tests/env-schema.tst.sh
+
   # ===========================================================================
   # Reference-hygiene gate (spec 002 T003): the spool Go source never
   # references ysg-box. Also part of run-all-tests.sh; its own job so a

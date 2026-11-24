@@ -25,7 +25,20 @@
 #      then on EDITS that same message in place (do_spl_desk_edit, the pattern
 #      of spl_asks_alert_clear in spl-asks-tick.func.sh): no new message row,
 #      the old text kept as a revision. An unchanged card calls the hub not
-#      at all.
+#      at all;
+#   4. per issue of such a topic that turned done inside the window and has
+#      landed, ONE new result post (SPL-6433): "<key> done: landed <sha> on
+#      master; live on dev / prd: yes or not yet", posted once
+#      (<topic>.done lists the keys posted). The card is an edit of an older
+#      message and tells the topic nothing new: a "Planned, not built yet"
+#      topic whose work landed heard nothing until the owner asked "Status ?!"
+#      (80e54ed8, 035cb09e, 11-24). An archived topic gets it too: the card
+#      never reads the archive flag, and the post is a new, unarchived row.
+# A spawn ask's row says "placed" only while its lane is live; an ended lane
+# reads "lane <state>": the desk reply refuses a post that names a lane
+# placed that the lane map does not show live (how-to-post.md rule 19), and
+# refused 80e54ed8's first card every tick from 11-17 to 11-24. A refused
+# post's WARN names the refusal (its first FATAL lines).
 # A DM topic gets no card (SPL-2584): the hub refuses the post (the desk
 # reply's exit 6) and <topic>.dm keeps the topic skipped from then on.
 # State: <CARD_STATE_DIR>/<topic>.card = msg id, author, sha256 of the card
@@ -85,7 +98,7 @@ _card_conf() { sed -n "s/^$1=\([A-Za-z0-9_.@-]*\)\$/\1/p" "$SPOOL_ROOT/dispatch/
 # _card_run VAR=VAL... ACTION: an orc action, its data on stdout.
 _card_run() {
   local a="${*: -1}"
-  (cd "$CARD_ORC" && env "${@:1:$#-1}" RUN_STDOUT_IS_DATA=1 ./run -a "$a" 2>/dev/null </dev/null)
+  (cd "$CARD_ORC" && env "${@:1:$#-1}" RUN_STDOUT_IS_DATA=1 ./run -a "$a" 2>>"${CARD_ERR:-/dev/null}" </dev/null)
 }
 
 # _card_desk -> ENV, TENANT_ID and DESK_BOX of every hub call, from the lease.
@@ -163,11 +176,14 @@ card_lane_issue() {
 card_ask_rows() {
   local st sum lane q key ls sha landed dev prd
   while IFS=$'\t' read -r st sum lane q; do
-    key=- landed=- dev=- prd=-
+    key=- ls=- landed=- dev=- prd=-
     if [ "$lane" != - ]; then
       IFS=$'\t' read -r key ls <<<"$(card_lane_issue "$lane")"
       [ "$ls" != - ] && lane="$lane ($ls)"
     fi
+    # SPL-6433: "placed" only while the lane is live (how-to-post.md rule 19):
+    # the desk reply refuses every post that names an ended lane placed.
+    [ "$st" = placed ] && [ "$ls" != live ] && st="lane ${ls/#-/unknown}"
     if [[ "$key" =~ ^[A-Z]+-[0-9]+$ ]]; then
       sha="$(card_landed "$key")"
       [ -n "$sha" ] && { landed="\`${sha:0:12}\`"; dev="$(card_served dev "$sha")"; prd="$(card_served prd "$sha")"; }
@@ -238,7 +254,7 @@ card_rows() {
        | {topic: .task_id, key: $i.key, status: $i.status, title: ($i.title // "" | gsub("[\t\n|]"; " ")),
           at: (($i.updated_at // "") | sub("\\.[0-9]+"; "") | (fromdateiso8601? // 0))}]
     | ([.[] | select(.at >= $since) | .topic] + $asked | unique) as $moved
-    | [.[] | select(.topic as $t | $moved | index($t)) | del(.at)]
+    | [.[] | select(.topic as $t | $moved | index($t))]
     | sort_by(.key | ltrimstr("SPL-") | tonumber? // 0)' <<<"$1"
 }
 
@@ -246,7 +262,7 @@ card_rows() {
 # on a failure (6: the hub refused it as a DM, SPL-2584).
 card_post() {
   local out
-  if [ -n "${CARD_POST_CMD:-}" ]; then out="$(DESK_AGENT="$CARD_AUTHOR" $CARD_POST_CMD "$1" "$2")" || return $?
+  if [ -n "${CARD_POST_CMD:-}" ]; then out="$(DESK_AGENT="$CARD_AUTHOR" $CARD_POST_CMD "$1" "$2" 2>>"${CARD_ERR:-/dev/stderr}")" || return $?
   else
     # shellcheck disable=SC2046 # the desk triple, split on purpose
     out="$(_card_run $(_card_desk) "DESK_AGENT=$CARD_AUTHOR" "DESK_TASK=$1" DESK_KIND=note \
@@ -267,13 +283,14 @@ card_edit() {
 # dm_not_blocker: a card is no blocker, SPL-2584) gets <topic>.dm and no card
 # from then on: a status card goes into channel topics only.
 _card_post_new() {
-  local msg rc=0
-  msg="$(card_post "$1" "$2")" || { rc=$?; msg=""; }
+  local msg rc=0 why
+  msg="$(CARD_ERR="$CARD_DIR/.err.$$" card_post "$1" "$2")" || { rc=$?; msg=""; }
+  why="$(grep -m2 FATAL "$CARD_DIR/.err.$$" 2>/dev/null | tr '\n' ' ')"; rm -f "$CARD_DIR/.err.$$"
   if [ "$rc" = 6 ]; then
     : >"$CARD_DIR/$1.dm"
     say "INFO card ${1:0:8} is a DM topic: no status card there (how-to-post.md rule 18)"; return 0
   fi
-  [[ "$msg" =~ $CARD_UUID ]] || { say "WARN card ${1:0:8} did not post; retried next tick"; return 1; }
+  [[ "$msg" =~ $CARD_UUID ]] || { say "WARN card ${1:0:8} did not post (rc $rc${why:+: $why}); retried next tick"; return 1; }
   printf '%s\n%s\n%s\n' "$msg" "$CARD_AUTHOR" "$3" >"$CARD_DIR/$1.card"
   say "OK card ${1:0:8} $4 as $msg"
 }
@@ -334,6 +351,59 @@ card_sources() {
   CARD_TOPICS="$(jq -r --argjson a "$asked" '[.[].topic] + $a | unique | .[]' <<<"$CARD_ROWS")"
 }
 
+# card_done_lines TOPIC -> "<key>\t<sha>" per issue of TOPIC that turned done
+# inside the window and has landed on trunk, and whose result line is not
+# posted yet (<topic>.done lists the keys already posted, SPL-6433).
+card_done_lines() {
+  local now="${CARD_NOW:-$(date +%s)}" win="${CARD_WINDOW_H:-24}" key sha
+  while IFS= read -r key; do
+    grep -qxF "$key" "$CARD_DIR/$1.done" 2>/dev/null && continue
+    sha="$(card_landed "$key")"
+    [ -n "$sha" ] && printf '%s\t%s\n' "$key" "$sha"
+  done < <(jq -r --arg t "$1" --argjson since "$(( now - win * 3600 ))" \
+    '.[] | select(.topic == $t and .status == "done" and (.at // 0) >= $since) | .key' <<<"$CARD_ROWS")
+}
+
+# _card_live ENV SHA -> yes, or "not yet (<the probe's word>)".
+_card_live() {
+  local w
+  w="$(card_served "$1" "$2")"
+  if [ "$w" = yes ]; then echo yes; else echo "not yet ($w)"; fi
+}
+
+# card_done_body LINES -> the result post: one line per issue, then how it
+# was checked (the desk reply's rule 22 wants it for a done claim).
+card_done_body() {
+  local key sha
+  while IFS=$'\t' read -r key sha; do
+    printf '**%s done**: landed `%s` on master; live on dev: %s, prd: %s.\n\n' \
+      "$key" "${sha:0:12}" "$(_card_live dev "$sha")" "$(_card_live prd "$sha")"
+  done <<<"$1"
+  printf 'checked: the issue is done in the hub, its closing commit is on origin/master (the landed-fix rule), dev and prd by do_check_deploy_lag; the status card of this topic keeps the rest.\n'
+}
+
+# card_done_sync TOPIC MODE: one result post (SPL-6433) for the issues of
+# TOPIC that turned done and landed since the last one, so a topic whose
+# planned work lands hears it without asking; the card alone is an edit of an
+# older message and posts nothing new. A failed post is retried next tick
+# while the issue is inside the window; a DM topic (exit 6) gets none.
+card_done_sync() {
+  local lines body msg rc=0 why
+  lines="$(card_done_lines "$1")"
+  [ -n "$lines" ] || return 0
+  body="$CARD_DIR/.done.$1.$$"
+  card_done_body "$lines" >"$body"
+  if [ "$2" = --print ]; then printf '### result post\n'; cat "$body"; rm -f "$body"; return 0; fi
+  msg="$(CARD_ERR="$CARD_DIR/.err.$$" card_post "$1" "$body")" || rc=$?
+  why="$(grep -m2 FATAL "$CARD_DIR/.err.$$" 2>/dev/null | tr '\n' ' ')"; rm -f "$CARD_DIR/.err.$$" "$body"
+  [ "$rc" = 6 ] && return 0
+  if ! [[ "$msg" =~ $CARD_UUID ]]; then
+    say "WARN result ${1:0:8} did not post (rc $rc${why:+: $why}); retried next tick"; return 1
+  fi
+  cut -f1 <<<"$lines" >>"$CARD_DIR/$1.done"
+  say "OK result ${1:0:8} posted as $msg: $(cut -f1 <<<"$lines" | tr '\n' ' ')"
+}
+
 card_main() {
   local mode="${1:---once}" holder topic rc=0 body
   case "$mode" in --once|--print) ;; *) echo "usage: topic-status-card.sh [--once | --print]" >&2; return 64 ;; esac
@@ -361,6 +431,7 @@ card_main() {
     else card_sync "$topic" "$body" || rc=1
     fi
     rm -f "$body"
+    card_done_sync "$topic" "$mode" || rc=1
   done
   return "$rc"
 }

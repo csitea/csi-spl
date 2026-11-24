@@ -16,7 +16,7 @@ set -uo pipefail
 t_sandbox
 R="$T_SCRIPTS/topic-status-card.sh"
 B="$T_TMP/bin"; H="$T_TMP/hub.tsv"; L="$T_TMP/calls.log"; G="$T_TMP/repo"
-mkdir -p "$B" "$T_TMP/src"; : >"$H"; : >"$L"
+mkdir -p "$B" "$T_TMP/src"; : >"$H"; : >"$L"; : >"$T_TMP/results.tsv"
 T1=11111111-1111-4111-8111-111111111111
 T2=22222222-2222-4222-8222-222222222222
 DEF=fcf09921-8f21-4518-a117-f8ddb41bfff5
@@ -28,6 +28,13 @@ cat >"$B/post" <<'EOF'
 [ -e "$CARD_T_DIR/post.fail" ] && exit 1
 # a DM topic: the desk reply's exit 6 (the hub's dm_not_blocker, SPL-2584)
 grep -qxs "$1" "$CARD_T_DIR/post.dm" && { echo "dm-refused $1" >>"$CARD_T_DIR/calls.log"; exit 6; }
+# a result post (SPL-6433) is kept apart from the cards: results.tsv, ids 9...
+if ! grep -q '^\*\*Status card\*\*' "$2"; then
+  [ -e "$CARD_T_DIR/result.fail" ] && { echo "FATAL planted refusal" >&2; exit 1; }
+  id="$(printf '9%07d-0000-4000-8000-%012d' "$(( $(wc -l <"$CARD_T_DIR/results.tsv") + 1 ))" 0)"
+  printf '%s\t%s\n' "$id" "$1" >>"$CARD_T_DIR/results.tsv"; cp "$2" "$CARD_T_DIR/last-result.md"
+  printf '{"msg_id":"%s","task_id":"%s"}\n' "$id" "$1"; exit 0
+fi
 id="$(printf '%08d-0000-4000-8000-%012d' "$(( $(wc -l <"$CARD_T_DIR/hub.tsv") + 1 ))" 0)"
 printf '%s\t%s\t%s\n' "$id" "$1" "$(sha256sum <"$2" | cut -c1-16)" >>"$CARD_T_DIR/hub.tsv"
 echo "post $1 by $DESK_AGENT" >>"$CARD_T_DIR/calls.log"
@@ -245,6 +252,56 @@ eq "ask landed, unchanged: no hub call" 0 "$(calls)"
 out="$(CARD_ASKS_CMD=false tick)"; rc=$?
 eq "asks book unreadable: exits 1" 1 "$rc"
 has "asks book unreadable: one WARN line" "WARN the asks book could not be read" "$out"
+
+# 13. SPL-6433, the replay of topics 80e54ed8 and 035cb09e (prd t1, 11-18 and
+#   11-23): an agent posted "Planned, not built yet. Tracked as SPL-21", the
+#   issue turned done once its fix landed, and nothing else was posted. The
+#   topic gets ONE result line (key, landed sha, live on dev / prd), never a
+#   second; a card whose spawn ask placed a lane that has ended says
+#   "lane done", never "placed" (the desk reply refuses that post, rule 19:
+#   80e54ed8's card was refused every tick from 11-17); a refused post names
+#   the refusal in its WARN.
+export CARD_STATE_DIR="$T_TMP/state13"; : >"$L"; : >"$T_TMP/results.tsv"
+T5=55555555-0000-4000-8000-555555555555
+put13() {  # STATUS UPDATED
+  printf '{"result":{"default_discussion":"%s","issues":[%s,%s]}}\n' "$DEF" \
+    "$(issue SPL-21 "$1" "$T5" "$2" 'Lane brief: bug - planned work')" \
+    "$(issue SPL-22 'done' "$T5" 2026-10-14T03:00:00Z 'done before the window')" >"$T_TMP/src/issues.json"
+}
+printf '{"lanes":[{"agent_id":"c-889","agent_box":"pc","scope":"x","issue_key":"SPL-21","state":"done","updated_at":"2026-10-16T03:40:00Z"}]}\n' >"$T_TMP/src/lanes.json"
+printf '{"asks":[%s]}\n' "$(ask aaaaaaaa-5555-4555-8555-555555555555 "$T5" 'done' 2026-10-16T03:30:00Z 'placed: c-889@pc')" >"$T_TMP/src/asks.json"
+printf '{"queue":[]}\n' >"$T_TMP/src/queue.json"
+put13 wip 2026-10-16T03:00:00Z
+tick >/dev/null
+eq "replay, still wip: no result post" 0 "$(wc -l <"$T_TMP/results.tsv" | tr -d ' ')"
+card="$(cat "$T_TMP/last-edit.md" 2>/dev/null; tick --print)"
+has "replay card: an ask whose lane ended says lane done" "| SPL-21 | carry over: row 11 | lane done | c-889@pc (done) |" "$card"
+hasnt "replay card: no row says placed for an ended lane" "| placed |" "$(tick --print)"
+gc "fix(orc, SPL-21): the planned work"; sha21="$(git -C "$G" rev-parse HEAD)"
+put13 'done' 2026-10-16T03:50:00Z
+out="$(tick)"; rc=$?
+eq "replay, done + landed: the tick exits 0" 0 "$rc"
+eq "replay: one result post, in the topic" "$T5" "$(cut -f2 "$T_TMP/results.tsv")"
+has "replay: says it posted the result" "OK result ${T5:0:8} posted as" "$out"
+res="$(cat "$T_TMP/last-result.md")"
+has "result: key, landed sha, live on dev and prd" "**SPL-21 done**: landed \`${sha21:0:12}\` on master; live on dev: yes, prd: yes." "$res"
+has "result: how it was checked (rule 22)" "checked: the issue is done in the hub" "$res"
+hasnt "result: a done issue outside the window is not announced" "SPL-22" "$res"
+tick >/dev/null; tick >/dev/null
+eq "replay: never a second result post" 1 "$(wc -l <"$T_TMP/results.tsv" | tr -d ' ')"
+
+# 13b. Not served yet: the line says so; a refused post names the refusal,
+#   is retried next tick and lands once.
+export CARD_STATE_DIR="$T_TMP/state13b"; : >"$T_TMP/results.tsv"
+printf '#!/usr/bin/env bash\necho "$1 hub pending served=x"\n' >"$B/lagp"; chmod +x "$B/lagp"
+touch "$T_TMP/result.fail"
+out="$(CARD_LAG_CMD="$B/lagp" tick)"; rc=$?
+eq "refused result: the tick exits 1" 1 "$rc"
+has "refused result: the WARN names the refusal" "WARN result ${T5:0:8} did not post (rc 1: FATAL planted refusal" "$out"
+rm -f "$T_TMP/result.fail"
+CARD_LAG_CMD="$B/lagp" tick >/dev/null
+eq "refused result: posted once on the retry" 1 "$(wc -l <"$T_TMP/results.tsv" | tr -d ' ')"
+has "not served yet: the line says not yet" "live on dev: not yet (pending), prd: not yet (pending)." "$(cat "$T_TMP/last-result.md")"
 
 eq "usage is refused" 64 "$(bash "$R" --bogus >/dev/null 2>&1; echo $?)"
 t_done

@@ -83,7 +83,9 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 | `subscribe` | `peer` (v0.5) | DM follow: `peer` = `<agent-id>` or `<agent-id>@<box-id>` (else `400 bad_frame`). The socket gets every message stored **with no channel** whose `from` or `to` is that peer (and its box, when given) — new DM roots included. A socket with a member session gets only the ones it is party to (`from` or `to` is its own id), the same rule as `view-v1` §4.3 `dm=true`. Reply `subscribed {peer}` |
 | `subscribe` | `all: true` (v0.5) | thread-list follow: every message stored in the tenant; a DM (no channel) only when the socket's own id is its `from` or `to`. Reply `subscribed {all:true}` |
 | `unsubscribe` | `task_id` \| `channel` \| `peer` \| `all` | idempotent. No reply |
-| `send` | `msg_id?`, `task_id`, `kind?`, `body`, `files?`, `to?`, `channel?`, `parent_task_id?` | §4 |
+| `send` | `msg_id?`, `task_id`, `kind?`, `body`, `files?`, `to?`, `channel?`, `parent_task_id?`, `is_parent?`, `mc_id?` | §4 (`mc_id` Planned, spec 186 M2) |
+| `topic_select` | `req_id`, `action`, `task_ids?`, `patterns?` | §4.1 (Planned, spec 186 M4): resolve ticked topics and title patterns on the hub |
+| `multicast_check` | `req_id`, `task_ids`, `files?`, `body` | §4.1 (Planned, spec 186 M4): read-only dry run for a multicast send |
 
 ### 3.2 hub -> browser
 
@@ -92,6 +94,8 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 | `welcome` | `as`, `name?`, `lobby_task_id?`, `upload_token`, `upload_token_expires_at` | after `hello`. `as` is the id the hub will stamp as `from`; `name` echoes the display name from `hello.as` when it was not already an id. The upload token is for `POST /v1/files` (§5), bound to (tenant, `box-wui`), TTL 5 min |
 | `subscribed` | `task_id` \| `channel` | after `subscribe`: `task_id` is always the UUID (also for `"LOBBY"`); `channel` is the stored slug (`general` answers `lobby`) |
 | `token` | `upload_token`, `upload_token_expires_at` | reply to a browser `{type:"token"}` (fresh upload token) |
+| `topic_selected` | `req_id`, `ok`, `error?`, `detail?`, `topics` | §4.1 (Planned, spec 186 M4): reply to `topic_select` |
+| `multicast_checked` | `req_id`, `ok`, `error?`, `detail?`, `targets` | §4.1 (Planned, spec 186 M4): reply to `multicast_check` |
 | `message` | `task_id`, `cursor`, `received_at`, `env`, `channel?`, `parent_task_id?` | **live fan-out**: every message stored for a subscribed `task_id`, a subscribed `channel`, a subscribed DM `peer`, or under `all` in this tenant (once per socket when several match) — from a browser, a box agent, or the hub — pushed to **every** subscribed socket (the sender's own included). `env` = the stored envelope `{from_box,to_box,msg,sig}` byte-for-byte, the same element shape as `view-v1` §4.4 (`msg` is the v:1 object; there is no separate `envelope` copy since 2026-10-02). `cursor` is the stored row's cursor (the same value as the sender's `ack` and as `view-v1`), so a client advances its read cursor from it. `channel` is the stored channel (absent for a DM), `parent_task_id` the hub-envelope link (absent for a root). For the sender, its own `message` echo arrives **before** its `ack` |
 | `ack` | `msg_id`, `task_id`, `cursor`, `received_at` | after a `send` is stored |
 | `presence` | `peer`, `status` | `peer` = `<agent>@<box>` (`CLE-07@box-a`) or `<HUM-n>@box-wui`; `status` ∈ `online`, `offline`. Pushed to every browser socket of the tenant when a `role=box` session is accepted (each announced agent `online`), closes (`offline`; a superseded socket emits nothing), or re-announces (the difference), and when a human's **first** browser socket opens / **last** one closes. Right after `welcome` the hub sends one `online` frame per peer online at that moment (snapshot; a live frame of another socket may interleave, so treat presence as last-writer-wins per peer) (`./channels-v1.md` §6) |
@@ -146,6 +150,102 @@ Presence example (v0.3):
   it through the **same store path as box sends** (`messages` row + a
   `deliveries` row, state `sent`: the fan-out is its delivery). Billing/quota
   rules of 006 apply (`402 unpaid`, `429 quota`).
+- `mc_id` (Planned, spec 186 §7.1.1 / §7.1.3, M2): optional client-minted UUID
+  shared by every copy of one multicast, sent on one ordinary `send` frame per
+  target (`is_parent: 0`, each copy carrying its own `msg_id`, the target's
+  `task_id` and `channel`, and shared `files` refs; patterns never travel on a
+  `send` frame). Stored on the `messages` row as a hub-only column — never
+  inside the v:1 object and absent from view rows and `message` frames. Absent
+  = an ordinary send, unchanged.
+  - **Refusals for `mc_id`**:
+    - Non-UUID value, `is_parent` != 0, or an `mc_id` already stored with a
+      different `from` -> `400 bad_json`.
+    - `task_id` must name an existing channel topic the author may read
+      (`canReadTopic`); an unknown `task_id`, a DM topic, or an existing topic
+      the author may not read all answer `404` with
+      `multicast_no_topic`
+      using the same token and detail (never reveals whether a topic exists).
+      Its `error` frame names only its own `msg_id`; other copies are untouched.
+    - No per-multicast copy cap (spec 186 R2 QTA): each copy counts as one
+      message in the tenant's monthly quota (`429 quota`), and every existing
+      `wuiSend` refusal (`topic_archived`, `unknown_channel`, `forbidden`,
+      `402 unpaid`, `missing_file`, token budget, demo checks) applies per copy
+      unchanged. Resending an already-stored `msg_id` re-acks and is never
+      refused by the quota or by `topic_archived`.
+
+### 4.1 Multicast select and pre-check frames (Planned, spec 186 §7.1.2, M4)
+
+Both frames are read-only: they store nothing, send nothing to any box, and
+echo `req_id` so the client drops answers to superseded requests. At most one
+frame of each kind may be in flight per connection; a newer frame of the same
+kind cancels the running one (which then sends no reply).
+
+**`topic_select` -> `topic_selected`** (shared resolver for bulk topic actions):
+
+```json
+{ "type": "topic_select", "req_id": "<uuid>", "action": "multicast",
+  "task_ids": ["<uuid>"], "patterns": ["*", "^release"] }
+```
+
+```json
+{ "type": "topic_selected", "req_id": "<same>",
+  "ok": true, "error": "<optional token>", "detail": "<optional text>",
+  "topics": [{ "task_id": "<uuid>", "channel": "<slug>", "title": "<subject>" }] }
+```
+
+- `patterns`: at most 10 entries, each at most 256 bytes. The hub trims each
+  line (`strings.TrimSpace`) and drops empty lines. A trimmed `*` matches every
+  in-scope topic; any other line is a Go RE2 regex matched case-insensitively
+  (`(?i)`) and unanchored (`MatchString`) against the topic's title (first line
+  of its opening message, trimmed, max 140 runes).
+- `task_ids`: no separate count cap (deduplicated; bounded by the socket's
+  512 KiB `maxFrameBytes` read limit). Both `task_ids` and `patterns` empty, or
+  an unknown `action`, answer `400 bad_json`. This contract defines
+  `action: "multicast"`; later bulk actions (such as spec 153) register their
+  own action names and permission filters.
+- **Scope**: pages `ViewTopics` for the author (`NoIssues`, `DM` false, 200 per
+  page until the end; `#lobby` and `general` included), filters out topics
+  hidden by the box owner lock (`hidesSeat`, lobby exempt) before reading
+  titles, and keeps only channels where the author holds the action's
+  permission (`multicast`: `notes.send`). Ticked `task_id`s outside that scope
+  are omitted from `topics` (never revealed as existing).
+- **Replies and errors**:
+  - A pattern that fails RE2 compilation answers `ok: false` with error token
+    `topic_select_bad_pattern`
+    (status `400`, `detail` naming the bad line) and adds nothing.
+  - `ok: true` with `topics: []` is a valid empty match.
+
+**`multicast_check` -> `multicast_checked`** (dry run before sending):
+
+```json
+{ "type": "multicast_check", "req_id": "<uuid>",
+  "task_ids": ["<uuid>"], "files": [], "body": "<text>" }
+```
+
+```json
+{ "type": "multicast_checked", "req_id": "<same>",
+  "ok": true, "error": "<optional token>", "detail": "<optional text>",
+  "targets": [{ "task_id": "<uuid>", "channel": "<slug>", "title": "<subject>",
+                "ok": true, "error": "<optional token>" }] }
+```
+
+- Accepts explicit `task_ids` only (no patterns; bounded by `maxFrameBytes`).
+  An empty `task_ids` list answers `ok: false` with error token
+  `multicast_none`
+  (no targets selected).
+- Each `task_id` is checked against the `multicast` scope (out-of-scope targets
+  return `ok: false` with `multicast_no_topic`) and the read-only `wuiSend`
+  checks for `body` and `files` (archived, moved, door, `notes.send` /
+  `agents.command`, billing, `missing_file`, and token budget when an agent
+  will act).
+- The tenant's monthly message quota is checked once for the whole target
+  count: if the count exceeds remaining messages (when the plan is capped), the
+  whole check answers `ok: false` with `error: "quota"` (status `429`, `detail`
+  giving the target count and remaining messages) and `targets` as far as the
+  check got. Otherwise top-level `ok` is `true` only when every target is
+  `ok: true`.
+- The check is point-in-time: each subsequent `send` frame is still validated
+  independently on arrival.
 
 ## 5. Files (browser)
 
@@ -189,6 +289,7 @@ list (first page), merged by `task_id` (v0.5).
 
 `lobby_disabled` (400), `unknown_channel` (404, v0.3), plus the existing `bad_frame`, `bad_json`,
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
-`unknown_tenant`.
+`unknown_tenant`, and Planned (spec 186 §7.1): `multicast_no_topic` (404),
+`topic_select_bad_pattern` (400), `multicast_none` (400).
 
-<!-- version: 0.9.0 · updated: 2026-10-06 · last-edit: 2026-10-06T20:00:00Z -->
+<!-- version: 0.10.0 · updated: 2026-11-24 · last-edit: 2026-11-24T11:58:00Z -->

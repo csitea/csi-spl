@@ -360,6 +360,56 @@ opening it.
   (its long case: 41 posts, more than a pane first reads, all print from the channel
   card menu on more than one page, each post's link in the PDF),
   `tests/e2e/phone-export-pdf.test.mjs`.
+- **FR-022** — Planned (spec 186 `../186-multicast-prompt/spec.md` v0.6, build plan
+  `../../doc/md/spec-186-build-plan.md` v1.0; FR-021 is reserved for spec 185 F7):
+  shared topic **select phase** and **Multicast** send, across channels of one
+  workspace, on desktop and phone. Owner HUM-10, t1 topic `032d8010`, msgs
+  `f7782824`, `5fdfff6c`, `656b2576`, `4b3833e7`, addendum `ae2caeb2` (t1 `906c1b28`),
+  poll `d4dcbd90` (H1–H5 A), poll `e486583e` (Q1–Q2 A).
+  1. **Shared select phase (M3; reused by spec 153 Set priority).** Topic checkboxes
+     appear on topic opener cards in channel feeds (`LiveFeed`, `#lobby` and `general`
+     included) and on own-workspace rows of **Monitoring → Topics** (another
+     workspace's row shows no box and explains why; never on DM cards, `issues` cards,
+     or replies inside an open topic). On desktop, boxes show on hover and focus until
+     one topic is ticked, then on every card; click toggles, shift-click selects a
+     range, `x` toggles the focused card, and `Esc` clears. On a phone, a topic card's
+     menu (long press or right swipe) gets a first item **Select** (Monitoring → Topics
+     phone cards show their box always); while the selection is non-empty, every card
+     shows its box, tapping a card toggles it instead of opening the topic, and swipes
+     and the move handle pause.
+  2. **Selection bar, criteria and title patterns.** While the selection is non-empty,
+     `TopicSelectBar.vue` (lazy, reusing `utils/issues-bulk.ts`) replaces the list
+     header with the page box, count (`n selected`, plus `in k channels` when `k > 1`),
+     **Select by title**, registered bulk actions in order (**Multicast**, and spec
+     153's **Set priority**), **Clear**, and progress/result lines (icon buttons with
+     `aria-label`/`title` on a phone). The page box and **Select all N matching** use
+     the list's active filters (on Monitoring → Topics, own-workspace matching rows
+     only). The selection (`stores/topicSelect.ts`) is kept in memory per workspace for
+     the browser session across filter changes and channel navigation, and is emptied
+     by **Clear**, a finished bulk action, a workspace switch, or a page reload.
+     **Select by title** (`TopicSelectPatterns.vue`, also reachable from the list
+     header when nothing is selected; a sheet on a phone) accepts up to 10 lines of up
+     to 256 bytes (`*` = every in-scope topic, else RE2 regex) and always resolves on
+     the hub via `topic_select` (never evaluated in JS), unioning returned `task_id`s
+     and dropping stale `req_id` replies.
+  3. **Multicast action and send (M11, M2, M4).** Clicking **Multicast** opens
+     `MulticastDialog.vue` (full-screen sheet on a phone) titled "Send to n topics",
+     showing selected topics grouped by channel (each with a remove cross) and its own
+     `MessageComposer` instance so the page composer, its draft and the phone dock row
+     (`Back | Attach | Send`) stay untouched. On open and on list/text/file changes
+     (debounced 300 ms), it sends `multicast_check` over `/v1/wui/ws`
+     (`../003-spool-message-bus/contracts/wui-live-ws.md` §4); **Send to n topics** is
+     enabled only when `n >= 1` and every target passes (`ok: true`, Q9 ALL), and
+     refused targets can be removed to re-check. Sending uploads attachments once
+     (`toFileRefs`), mints one `mc_id` UUID, and sends one ordinary `send` frame per
+     target (each with its own `msg_id`, `is_parent: 0`, at most 4 in flight); each
+     copy routes normally in its topic and counts as one message in the workspace's
+     monthly quota (no target cap). Per-target status tracks acks, reconnect resends
+     under the same `msg_id`, and send-time refusals with **Retry**; when every target
+     acks, the dialog closes and the selection clears. Composes with spec 182 loops
+     (M10) via a "Send to several topics" switch reusing the selection and pattern
+     field.
+  Check (planned): spec 186 rows M3, M11, M7 (`tests/e2e/multicast-prompt.test.mjs`).
 
 ## 3. Success criteria
 
@@ -433,4 +483,4 @@ Named here, not specified.
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.14.0 · updated: 2026-11-19 · last-edit: 2026-11-19T00:01:25Z -->
+<!-- version: 1.15.0 · updated: 2026-11-24 · last-edit: 2026-11-24T11:58:00Z -->

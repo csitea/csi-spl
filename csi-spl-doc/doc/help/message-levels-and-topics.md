@@ -138,6 +138,73 @@ in this browser.
   Only a topic you started yourself, in this tab, is held; a new topic from
   someone else keeps the unread edge.
 
+### 7.1 Selecting Topics and Multicasting
+
+You can select multiple topics across one or more channels of your workspace and
+act on them together — for example, to send one prompt to several topics at once
+(**Multicast**).
+
+- **Where selection works**: on any channel's topic list (`#lobby` included) and
+  on your own workspace's rows in **Monitoring → Topics** (rows from another
+  workspace cannot be selected). Direct messages and the `issues` channel do not
+  have topic selection boxes.
+- **Ticking topics (desktop)**: hover over or focus a topic card to reveal the
+  checkbox at its start; once one topic is ticked, checkboxes appear on every
+  card. Click to toggle a topic, **Shift-click** to select a range from the last
+  ticked card, press **`x`** on a focused card to toggle it, or press **`Esc`**
+  to clear the selection.
+- **Ticking topics (phone)**: long-press or swipe right on a topic card to open
+  its menu and tap **Select** (in **Monitoring → Topics**, each own-workspace
+  card shows its checkbox directly). While at least one topic is selected, every
+  card shows its checkbox, tapping a card toggles it instead of opening the
+  topic, and card swipes and drag-to-move are paused until the selection is
+  cleared.
+- **Keeping your selection across filters and channels**: changing the channel
+  filter (**All** / **New**, or column filters in **Monitoring → Topics**) or
+  switching to another channel in the same workspace keeps your selection, so
+  you can pick topics from several channels before acting. The page checkbox
+  selects every topic currently shown, and **Select all N matching** selects all
+  matching topics in that list (in **Monitoring → Topics**, only your current
+  workspace's matching rows). The selection stays in memory for your current
+  browser session and clears when you click **Clear**, finish an action, switch
+  workspaces, or reload the page.
+- **The selection bar**: while one or more topics are selected, the selection
+  bar replaces the list header. It shows the page checkbox, the selection count
+  (with `in k channels` when spanning multiple channels), **Select by title**,
+  the bulk action buttons (such as **Multicast**), and **Clear**. On a phone,
+  the bar uses icon buttons with tooltips and accessibility labels.
+- **Select by title (patterns and `*`)**: open **Select by title** from the
+  selection bar — or from the list header when nothing is selected — and enter
+  one pattern per line (up to 10 lines; opens as a sheet on a phone):
+  - Enter `*` on a line to select every active channel topic in your workspace
+    that you can read and act on (excluding archived topics, direct messages,
+    and issue discussions).
+  - Enter any other line as a case-insensitive regular expression (RE2) matched
+    anywhere in the topic title (use `^`, such as `^release`, to anchor to the
+    start).
+  - Click **Add matching topics** to have the hub resolve the patterns and add
+    the matching topics to your selection (deduplicated). If a pattern is
+    invalid, Spool names the line and adds nothing.
+- **Multicast**: click **Multicast** in the selection bar to open the **Send to
+  n topics** dialog (a full-screen sheet on a phone). It lists the selected
+  topics grouped by channel — each with a remove button (`×`) — above a composer
+  with `@mentions` and file attachments (your page composer and its draft are
+  not changed).
+  - Spool checks every target before sending (access, archived state, files, and
+    remaining workspace message quota). **Send to n topics** stays disabled
+    while any target is refused; remove refused targets with `×` to re-check.
+  - Sending uploads attached files once and posts one normal message into each
+    selected topic. Each copy routes normally to that topic's or channel's
+    agents and any leading `@mention`, and counts as one message toward your
+    workspace's monthly quota. Replies stay in each topic on its own.
+  - The dialog shows per-topic status as copies arrive. When every topic
+    succeeds, the dialog closes and the selection clears; if a copy is refused
+    at send time, the dialog stays open with your text and offers **Retry** for
+    the failed topics.
+  - In **Discussion loops**, the **Send to several topics** switch reuses your
+    current selection and title patterns so a loop can post to matching topics
+    on every fire (patterns are re-resolved at fire time).
+
 ---
 
 <a id="ws-doc-16c245c0-249c-41ad-8981-ce36c0692a1f"></a>
@@ -145,4 +212,4 @@ in this browser.
 
 To explore rich message interactions, code formatting, and attachments, see [Message Interactions & Formatting](./message-actions-and-formatting.md).
 
-<!-- version: 1.2.0 · updated: 2026-10-05 -->
+<!-- version: 1.3.0 · updated: 2026-11-24 -->

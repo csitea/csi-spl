@@ -170,6 +170,11 @@ type Client struct {
 	BoxSampler   *BoxSampler
 	BoxSampleMin time.Duration
 	boxSample    boxSampleGuard
+	// SigninRelay runs the signin_relay frames of spec 181 B11
+	// (signin_relay_frame.go) on a private VM; nil = this box does not say
+	// FeatureSigninRelay in its hello, so the hub never sends it one.
+	SigninRelay SigninRelayer
+	signinSeen  signinSeen
 
 	dropMu    sync.Mutex
 	stopSince map[string]time.Time // agent -> first report that it does not run
@@ -492,6 +497,9 @@ func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string, 
 	// spec 071 7.6.1 box_sample (box_sample_frame.go)
 	hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback, wire.FeatureCommit, wire.FeatureKinds13,
 		wire.FeatureBoxSample}
+	if c.SigninRelay != nil { // spec 181 B11: only a box that runs the relay is asked
+		hello.Features = append(hello.Features, wire.FeatureSigninRelay)
+	}
 	agents, run, err := c.rosterAgents() // t1 bc1a43e1 fix B: not a dead one
 	if err != nil {
 		return wire.Frame{}, err
@@ -643,6 +651,8 @@ func (s *Session) readLoop() {
 			s.c.saveRoster(f.Roster)
 		case wire.TBoxSample:
 			s.boxSampleFrame(f)
+		case wire.TSigninRelay:
+			s.signinRelayFrame(f)
 		case wire.TQueueEnd:
 			select {
 			case s.queueEnd <- f.Count:

@@ -317,6 +317,10 @@ type Hub struct {
 	// CalendarOutlookImportEnabled is the Outlook import switch (spec 180
 	// FR-11): off, PUT /v1/operator/calendar/import/outlook answers 404.
 	CalendarOutlookImportEnabled bool `env:"SPOOL_HUB_CALENDAR_OUTLOOK_IMPORT_ENABLED" envDefault:"false"`
+	// SigninRelayKinds are the vendor kinds whose web-UI sign-in relay is on
+	// (spec 181 B11, Q-14 A): one switch per vendor, each turned on only
+	// after that vendor's written OK. Unset = off for every vendor.
+	SigninRelayKinds []string `env:"SPOOL_HUB_SIGNIN_RELAY_KINDS" envSeparator:","`
 	// Editable Repo Docs (spec 075 repo-edit; cnf env.docs.repo_edit, which
 	// do_spl_merged_cnf derives into SPOOL_HUB_DOCS_EDIT_*). Enabled false is
 	// the kill switch: the edit routes 404 and no worker pushes. The App key

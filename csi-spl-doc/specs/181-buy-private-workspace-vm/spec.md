@@ -690,6 +690,48 @@ Row status (v0.4.1):
   `FAIL: plan forward`. No orders on dev when measured (2026-11-24, n = 1:
   `workspace_orders` 0 rows), so no real plan was printed.
 
+- **B11: Implemented, off for every vendor** (SPL-6345): the web-UI
+  sign-in relay [Q-5, Q-14 A]. Hub (`internal/hub/signin_relay.go`):
+  `POST /v1/signin-relay` `{kind, box?}`, `GET` and `DELETE
+  /v1/signin-relay/{relay}`, `POST /v1/signin-relay/{relay}/input`
+  `{input}`; a member with `vendor_keys.manage`, never under act-as; only
+  the starter reads or feeds a relay; the box is the workspace's
+  dedicated pin with a desk recipient (rdb 0235), else 409
+  `no_private_vm` / `box_key_not_enrolled`. **The switch**, one per
+  vendor, default off: hub env `SPOOL_HUB_SIGNIN_RELAY_KINDS` (unset in
+  every cnf) and, on the VM, cnf `env.box.signin_relay_kinds` (absent =
+  off); a kind it does not name is 403 `signin_relay_off` on the hub and
+  rc 3 on the VM. **Nothing stored**: the relay lives in each hub
+  instance's memory for 10 minutes, fed by the NOTIFY channel
+  `spool_signin_relay` (`internal/store/signin_relay_wake.go`; two
+  instances, the request on one, the VM's socket on the other); the input
+  is sealed with age to the VM's desk recipient inside the input handler,
+  so the event, the `signin_relay` frame (`internal/wire/signin_relay.go`)
+  and every log carry ciphertext only; no table is written. Box: the
+  sidecar says `signin_relay` in its hello only with
+  `SPOOL_SIGNIN_RELAY_CMD` set (`cmd/spool/signin_relay.go`), opens the
+  seal with its desk identity, drops a frame id seen before, and hands the
+  input to the command on stdin only. VM: `cd csi-spl-orc &&
+  TENANT_ID=<W> SIGNIN_RELAY_OP=start|input|end ./run -a
+  do_spl_ws_signin_relay` (`csi-spl-orc/src/bash/run/spl-ws-signin-relay.func.sh`),
+  run as W's OS user: start runs do_spl_ws_claude_signin's login in tmux
+  and reports its https URL; input pastes stdin's line through `tmux
+  load-buffer -` (never an argv), presses Enter, reports `signed_in` or
+  `delivered`; only claude has a login wired (grok, mistral: `no_login`).
+  WUI: the Agent keys page's claude, grok and mistral rows
+  (`csi-spl-wui/src/components/SigninRelayPanel.vue`), texts in 19
+  locales, checked with `do_spl_lang_review_gct`. Red controls:
+  `TestSigninRelayNeverStoresInput` (the input searched in both
+  instances' logs, the NOTIFY payloads, the answers, the frames and every
+  store table; planted: the input logged -> red; the input written to
+  `box_facts` -> red on Postgres, the table check of record, while the
+  Memory walk misses that package-level map), `TestSigninRelaySwitchOff`
+  (planted: the switch check skipped -> red), and
+  `csi-spl-orc/src/bash/tests/ws-signin-relay.tst.sh` section 1 (the VM's
+  switch). Not proven: a real CLI login on a real VM (no private VM
+  exists; the sidecar's `TENANT_ID` comes from its environment, as
+  `do_spl_desk_up` starts it, unchecked on a VM).
+
 Not in this spec: a private hub (Q-2 B, not chosen); listing on Cloud
 Marketplace stays spec 156.
 

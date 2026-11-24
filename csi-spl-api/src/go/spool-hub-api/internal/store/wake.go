@@ -39,6 +39,7 @@ type memWake struct {
 type memWakeSub struct {
 	box, wui func(tenant, key string)
 	sample   func(BoxSampleReq)
+	relay    func(string) // spec 181 B11 sign-in relay events
 }
 
 func (w *memWake) notify(tenant, box string) {
@@ -80,7 +81,7 @@ func (s *Memory) ListenAll(ctx context.Context, h WakeHandlers) error {
 	}
 	id := w.next
 	w.next++
-	w.subs[id] = memWakeSub{box: h.Box, wui: h.WUI, sample: h.BoxSample}
+	w.subs[id] = memWakeSub{box: h.Box, wui: h.WUI, sample: h.BoxSample, relay: h.SigninRelay}
 	w.mu.Unlock()
 	<-ctx.Done()
 	w.mu.Lock()
@@ -111,7 +112,8 @@ func (s *Postgres) ListenAll(ctx context.Context, h WakeHandlers) error {
 	}
 	defer conn.Close(context.Background()) //nolint:errcheck
 	fns := map[string]func(string, string){WakeChannel: h.Box, WUIWakeChannel: h.WUI}
-	for ch, on := range map[string]bool{WakeChannel: h.Box != nil, WUIWakeChannel: h.WUI != nil, BoxSampleChannel: h.BoxSample != nil} {
+	for ch, on := range map[string]bool{WakeChannel: h.Box != nil, WUIWakeChannel: h.WUI != nil, BoxSampleChannel: h.BoxSample != nil,
+		SigninRelayChannel: h.SigninRelay != nil} {
 		if !on {
 			continue
 		}
@@ -129,6 +131,12 @@ func (s *Postgres) ListenAll(ctx context.Context, h WakeHandlers) error {
 		}
 		if n.Channel == BoxSampleChannel {
 			deliverBoxSample(h.BoxSample, n.Payload)
+			continue
+		}
+		if n.Channel == SigninRelayChannel {
+			if h.SigninRelay != nil {
+				h.SigninRelay(n.Payload)
+			}
 			continue
 		}
 		fn := fns[n.Channel]

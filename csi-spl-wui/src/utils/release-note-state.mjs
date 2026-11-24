@@ -14,7 +14,7 @@
  * Pure: the i18n key only; the caller translates it.
  */
 
-export const NOTES_REQUIRED_SINCE = '2026-11-24T15:23:10Z'
+export const NOTES_REQUIRED_SINCE = '2026-11-24T17:05:36Z'
 
 const STATES = ['missing', 'backfill', 'skip', 'revert']
 

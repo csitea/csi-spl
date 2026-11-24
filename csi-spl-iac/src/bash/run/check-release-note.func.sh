@@ -162,7 +162,7 @@ _rn_check() {  # <tree> <base> [refuse|warn]
     do_log "WARN release-note: $_RN_WARN of $_RN_COMMITS commit(s) lack their release note (RELEASE_NOTE_MODE=warn, a measurement). The rule: $_RN_DOC"
     return 0
   fi
-  do_log "FAIL release-note: $_RN_WARN of $_RN_COMMITS commit(s) lack their release note -- the push is REFUSED (spec 065 L11). Add the trailers named above as the LAST paragraph of each message: the last commit with 'git commit --amend', an older one with 'git rebase -i $bsha' and 'reword' on its line; then push again. The six trailers and the special forms (doc-only, Release-Note: skip, revert): $_RN_DOC"
+  do_log "FAIL release-note: $_RN_WARN of $_RN_COMMITS commit(s) lack their release note -- the push is REFUSED (spec 065 L11). Add the trailers named above as the LAST paragraph of each message: the last commit with 'git commit --amend', an older one <sha> with its new message in <file>, no editor: GIT_SEQUENCE_EDITOR=\"sed -i 's/^pick <sha7>/reword <sha7>/'\" GIT_EDITOR='cp <file>' git rebase -i $bsha; then push again. The six trailers and the special forms (doc-only, Release-Note: skip, revert): $_RN_DOC"
   _rn_template
   return 1
 }

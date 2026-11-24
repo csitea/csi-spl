@@ -1551,7 +1551,7 @@ do_check_pre_push() {
     return 1
   fi
   # Record the whole-tree pass: every part PASS (a pre-existing red is not;
-  # the advisory typos / release-note WARNs are), and the tree unchanged since
+  # the advisory typos WARNs are), and the tree unchanged since
   # the plan (a part such as cnf can rewrite it).
   if [[ -n "$tkey" && "$_PP_PREEXIST" -eq 0 ]] \
      && [[ "$(_pp_tree_key "$tree" "$_PP_TIER" "$parts" "$base")" == "$tkey" ]]; then

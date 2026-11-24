@@ -127,7 +127,7 @@ push.
 
 | place | effect |
 |---|---|
-| pre-push gate, part `release-note` | checks every commit in the pushed range for the six trailers (or a form from section 3) and REFUSES the push when one lacks them; the message names the commit and the trailers, and ends with a copy-paste template of the six trailers. Before the push, fix the message: the last commit with `git commit --amend`, an older one with `git rebase -i` and `reword` |
+| pre-push gate, part `release-note` | checks every commit in the pushed range for the six trailers (or a form from section 3) and REFUSES the push when one lacks them; the message names the commit and the trailers, and ends with a copy-paste template of the six trailers. Before the push, fix the message: the last commit with `git commit --amend`, an older one with a scripted reword, no editor: its new message in a file, then `GIT_SEQUENCE_EDITOR="sed -i 's/^pick <sha7>/reword <sha7>/'" GIT_EDITOR='cp <file>' git rebase -i <base>`. A note for a commit that already landed: `do_release_note_attach`, run from a clean master checkout |
 | CI, workflow 10, job `release-note` | the backstop for a push that bypassed the hook: red while a commit since the switch to refusing lacks its note; a git note (section 4) makes it green |
 | deploy (20 / 30) | never blocked: a commit without a note is shown with `state=missing` |
 

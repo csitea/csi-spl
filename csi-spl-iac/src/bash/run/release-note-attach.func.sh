@@ -49,7 +49,7 @@ _rna_attach() {
     full="$(git -C "$tree" rev-parse -q --verify "$sha^{commit}")" \
       || { do_log "FATAL release-note-attach: $sha is not a commit in $tree"; return 1; }
     git -C "$tree" merge-base --is-ancestor "$full" "$master" 2>/dev/null \
-      || { do_log "FATAL release-note-attach: ${full:0:9} is not on $remote/master: fix its message before the push instead (git commit --amend / git rebase -i)"; return 1; }
+      || { do_log "FATAL release-note-attach: ${full:0:9} is not on $remote/master: fix its message before the push instead (git commit --amend, or the scripted reword the pre-push refusal prints)"; return 1; }
     base="$(git -C "$tree" rev-parse -q --verify "refs/notes/$_RNA_REF" || echo none)"
     git -C "$tree" notes --ref="$_RNA_REF" add -f -F "$file" "$full" \
       || { do_log "FATAL release-note-attach: git notes add failed"; return 1; }

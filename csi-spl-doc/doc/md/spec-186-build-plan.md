@@ -32,9 +32,11 @@ multicast loop. This plan orders them into four batches of disjoint files
 (R1), re-measures each row's sites on one sha, and proposes one brief per
 row. It writes no code.
 
-**Status: v0.1, for the panel.** Planner: c-053 (claude, the backup for
-`specs_and_docs`: agy on its usage limit). Panel: one cross-vendor seat
-(mistral or grok), asked of the dispatch holder.
+**Status: v1.0, signed.** Planner: c-053 (claude, the backup for
+`specs_and_docs`: agy on its usage limit). Panel: m-069 (mistral) PASS on
+v0.1 `bf6310284`, W none (section 4). The holder's GO on that sha; v0.1
+landed as `5906e1fe2` (section 5). The owner answered Q1 and Q2 (2.4). The
+holder queues the rows batch by batch (N1).
 
 **One sha.** Every read is on **`dbd127c96`** (`origin/master` at
 2026-11-24T10:00Z, after a fresh fetch), with `git show` / `git grep`, n=1
@@ -213,11 +215,17 @@ rows' "verbatim" and quota tests mirror on the mock.
   this spec's v0.6 lane and will plan Set priority on M3. The grok reviewer
   for SPL-6356 (c-680) and r96-02 (iac) are disjoint.
 
-### 2.4 Rows needing a decision (for the holder; ask the owner as a form)
+### 2.4 Rows needing a decision: decided
 
-H1-H5 are decided (poll d4dcbd90). Two readings the spec leaves open; the
-proposed briefs take the first reading named, so another answer changes
-only the cited spot:
+H1-H5 are decided (poll d4dcbd90). Q1 and Q2 are decided too: the owner
+answered A on both (poll e486583e, t1 032d8010 msg 9b521d63), the first
+reading below, which the briefs already take:
+
+- **Q1: A** - "Keep it: it counts and ticks only my own workspace's
+  topics".
+- **Q2: A** - "Emptied, as on the issues list".
+
+The two readings as the panel reviewed them:
 
 - **Q1. "Select all N matching" on Monitoring -> Topics.** 7.1.6 defines
   "all N matching" for a channel page only (page through `listTopics`).
@@ -296,8 +304,8 @@ issue at placement and cites it in its subject, e.g.
   is drawn as `IssuesBulkBar.vue` is.
 - Decided readings: H1 (channel topic list + Monitoring -> Topics), H2
   (survives channel changes), H3 (hover/focus boxes until the first tick),
-  H4 ("Select" in the card menu), and 2.4 Q1/Q2's first reading unless the
-  holder relays another answer.
+  H4 ("Select" in the card menu), Q1 A (own workspace's rows only) and Q2 A
+  (memory only, a reload empties it), section 2.4.
 - Done and red control: spec 186 M3's cells verbatim (the "channel B" test,
   the filter-keeps test, the verbatim-patterns test, the 390 px menu /
   tap / swipe test, DM and `issues` cards without a box, another
@@ -447,10 +455,24 @@ issue at placement and cites it in its subject, e.g.
 
 | seat | vendor | sha | verdict |
 |---|---|---|---|
-| (asked of the holder) | mistral or grok | (this plan's review sha) | pending |
+| m-069 | mistral | `bf6310284e2be07a4e803d41a5c368614a113f83` (v0.1) | PASS, W none (msgs e37fba9f, a35a56fd); `do_spl_review_line_check` rc 0 (holder; re-run by c-053 11:1xZ) |
+
+Panel notes, folded:
+
+- **N1 (drift, not a defect).** Since the plan's 10:05-10:10Z reads the
+  exit-4 no-files lanes grew from 12 to 16, the spawn queue holds 7 rows
+  (the spec 153 build planner first), and `BOX_PICK_KIND=grok` returns
+  `hold` (grok weekly 95% / 94%). Each row re-reads lane map, queue and
+  picks at its placement (2.3, R7).
+- **N2 (deliberate).** Spec section 6 lets M1, M2, M3, M4, M9 start
+  together; the plan puts M2 in batch 2 after M4 because both write
+  `api:hub/wui.go` (R1). An added edge, none missing.
+
+The holder c-002 sent GO on `bf6310284` (msg e391283f).
 
 ## 5. Versions
 
 | version | what |
 |---|---|
-| v0.1 | first plan for the panel, on `dbd127c96` |
+| v0.1 | first plan for the panel, on `dbd127c96`; reviewed as `bf6310284`, landed as `5906e1fe2` (origin/master had moved to `3314cc4e5`, so the GO'd commit was rebased onto it: same `git patch-id` 95d092ef, the plan file byte-identical) |
+| v1.0 | records the m-069 PASS (N1, N2), the holder's GO, the owner's Q1 A and Q2 A as decisions, and the landed sha |

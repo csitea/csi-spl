@@ -49,15 +49,49 @@ function notesOver(box: HTMLElement | null): number {
   return first ? Math.max(0, box.getBoundingClientRect().top - first.getBoundingClientRect().top) : 0
 }
 
+/* p20-05: the `.msg-body` line height is the same for every card of a feed,
+   so it is read once per distinct `.msg-body` class and font-size level (html
+   data-font-size), and kept while a card of the feed observes, not read per
+   card. A card with no `.msg-body` reads its own. */
+const lineHeights = new Map<string, number>()
+
+function lineHeightOf(inner: HTMLElement): number {
+  const body = inner.querySelector<HTMLElement>('.msg-body')
+  const key = body ? `${body.className}|${document.documentElement.getAttribute('data-font-size') || ''}` : ''
+  const known = key ? lineHeights.get(key) : undefined
+  if (known) return known
+  const style = getComputedStyle(body || inner)
+  const lh = parseFloat(style.lineHeight)
+  const fs = parseFloat(style.fontSize) || 14
+  const px = Number.isFinite(lh) && lh > 0 ? lh : fs * 1.45
+  if (key) lineHeights.set(key, px)
+  return px
+}
+
+/* p20-05: one ResizeObserver for every card. The browser hands all the cards
+   that changed to one callback, after layout, so their scrollHeight reads
+   force no layout and no card's write lands between two reads. */
+const sizeWatchers = new Map<Element, () => void>()
+let sizeObserver: ResizeObserver | null = null
+
+function watchSize(el: HTMLElement, onSize: () => void): () => void {
+  sizeObserver ??= new ResizeObserver((entries) => {
+    for (const e of entries) sizeWatchers.get(e.target)?.()
+  })
+  sizeWatchers.set(el, onSize)
+  sizeObserver.observe(el)
+  return () => {
+    sizeObserver?.unobserve(el)
+    sizeWatchers.delete(el)
+    if (!sizeWatchers.size) lineHeights.clear()
+  }
+}
+
 function measureBox(clipInner: Ref<HTMLElement | null>, m: Measured) {
   if (typeof window === 'undefined') return
   const inner = clipInner.value
   if (!inner) return
-  const body = inner.querySelector<HTMLElement>('.msg-body') || inner
-  const style = getComputedStyle(body)
-  const lh = parseFloat(style.lineHeight)
-  const fs = parseFloat(style.fontSize) || 14
-  m.lineHeightPx.value = Number.isFinite(lh) && lh > 0 ? lh : fs * 1.45
+  m.lineHeightPx.value = lineHeightOf(inner)
   m.contentPx.value = Math.ceil(inner.scrollHeight)
   m.notesPx.value = Math.round(notesOver(inner.parentElement))
 }
@@ -87,22 +121,21 @@ export function useCardHeight(props: ClipProps, editing: Ref<boolean>, clipEl: R
   const clipStyle = computed(() => cardClipStyle(clipPx.value))
   const measure = () => measureBox(clipInner, m)
 
-  let clipObserver: ResizeObserver | null = null
+  let offSize: (() => void) | null = null
   let offResize: (() => void) | null = null
   function stopObserving() {
-    clipObserver?.disconnect()
-    clipObserver = null
+    offSize?.()
+    offSize = null
     offResize?.()
     offResize = null
   }
   function startObserving() {
     stopObserving()
     if (typeof window === 'undefined' || !clipOn.value || !clipInner.value) return
-    measure()
-    if (typeof ResizeObserver !== 'undefined') {
-      clipObserver = new ResizeObserver(() => measure())
-      clipObserver.observe(clipInner.value)
-    }
+    /* p20-05: the observer's first delivery measures, after layout; a sync
+       measure here forced a style read and a layout per card as a feed mounted */
+    if (typeof ResizeObserver !== 'undefined') offSize = watchSize(clipInner.value, measure)
+    else measure()
     /* one shared window listener, once per frame (CLE-35075) */
     offResize = onViewportResize(measure)
   }

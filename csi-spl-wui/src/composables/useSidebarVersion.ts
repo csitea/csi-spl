@@ -83,27 +83,38 @@ function useFootClock(phone: Ref<boolean>, vsWrapEl: Ref<HTMLElement | null>) {
      resize catches the rail / collapse, a route change the hidden sidebar. */
   const clockHost = useClockHost()
   const footRow = () => vsWrapEl.value?.closest<HTMLElement>('.foot-row') || null
+  /* p20-02: on a phone the answer is always false, so it is given before any
+     layout read; the rect and the style are read on a desktop only */
   function measureFoot() {
+    if (phone.value) {
+      clockHost.foot.value = false
+      return
+    }
     const el = footRow()
     const r = el?.getBoundingClientRect()
-    clockHost.foot.value = Boolean(!phone.value && el && r && r.width > 0 && r.height > 0 && getComputedStyle(el).visibility === 'visible')
+    clockHost.foot.value = Boolean(el && r && r.width > 0 && r.height > 0 && getComputedStyle(el).visibility === 'visible')
   }
   let footObserver: ResizeObserver | null = null
+  /* on a phone nothing is observed: the row's size cannot change the answer */
   function observeFoot() {
     footObserver?.disconnect()
     footObserver = null
     measureFoot()
     const el = footRow()
-    if (typeof ResizeObserver !== 'undefined' && el) {
+    if (!phone.value && typeof ResizeObserver !== 'undefined' && el) {
       footObserver = new ResizeObserver(measureFoot)
       footObserver.observe(el)
     }
   }
+  const afterLayout = (fn: () => void) => nextTick(() => requestAnimationFrame(fn))
   onMounted(observeFoot)
   /* SPL-2435: a rail-only page does not mount the footer; observe the row
      that mounts when the reader leaves it, not only the first one */
   watch(vsWrapEl, observeFoot, { flush: 'post' })
-  watch([() => route.fullPath, phone], () => nextTick(() => requestAnimationFrame(measureFoot)))
+  /* a route change re-measures on a desktop only; crossing the phone width
+     attaches or drops the observer */
+  watch(() => route.fullPath, () => { if (!phone.value) afterLayout(measureFoot) })
+  watch(phone, () => afterLayout(observeFoot))
   onBeforeUnmount(() => {
     footObserver?.disconnect()
     clockHost.foot.value = false

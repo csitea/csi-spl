@@ -120,13 +120,36 @@ function openTarget(data: { url?: string } | null | undefined) {
 /** The browser's permission, the chime switch, its sound and the reader's bell switch. */
 type Prefs = readonly [Ref<string>, Ref<boolean>, Ref<string>, Ref<boolean>]
 
+/**
+ * p19-05 (SPL-6421): the store no longer reads the browser's permission while
+ * it is created (a 1..54 ms first read on the page's first paint). It reads it
+ * in an idle callback, or before that the first time it is needed: the bell,
+ * the test alert, the first gesture, a ping.
+ * @returns [read now, read once if never read, schedule the idle read]
+ */
+function permissionReads(permission: Ref<string>) {
+  let read = false
+  function readPermission() {
+    read = true
+    permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
+  }
+  /* a value already written (an ask's answer) stands */
+  function ensurePermission() {
+    if (!read && permission.value === 'unsupported') readPermission()
+    read = true
+  }
+  function readWhenIdle() {
+    const idle = (globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback
+    if (typeof idle === 'function') idle(ensurePermission, { timeout: 2000 })
+    else setTimeout(ensurePermission, 200)
+  }
+  return [readPermission, ensurePermission, readWhenIdle] as const
+}
+
 /** The browser's permission and this device's sound prefs, read and asked for. */
 function permissionSteps(prefs: Prefs) {
   const [permission, chime, sound, alertsEnabled] = prefs
-
-  function readPermission() {
-    permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
-  }
+  const [readPermission, ensurePermission, readWhenIdle] = permissionReads(permission)
 
   async function watchPermission() {
     try {
@@ -162,7 +185,6 @@ function permissionSteps(prefs: Prefs) {
 
   function hydrate() {
     if (!import.meta.client) return
-    readPermission()
     chime.value = loadChime()
     sound.value = loadChimeSound()
     alertsEnabled.value = loadAlerts()
@@ -170,6 +192,7 @@ function permissionSteps(prefs: Prefs) {
 
   if (import.meta.client) {
     hydrate()
+    readWhenIdle()
     /* SPL-998: a second tab kept the switch it loaded and went on beeping */
     window.addEventListener('storage', (e) => {
       if (isSoundPrefKey(e.key)) hydrate()
@@ -192,7 +215,7 @@ function permissionSteps(prefs: Prefs) {
   watch(alertsEnabled, (v) => {
     if (import.meta.client) saveAlerts(Boolean(v))
   })
-  return [readPermission, requestPush, hydrate] as const
+  return [ensurePermission, requestPush, hydrate, readPermission] as const
 }
 
 type Permission = ReturnType<typeof permissionSteps>
@@ -203,11 +226,12 @@ type AlertInputs = { alertsOn: ComputedRef<boolean>, nuxtApp: NuxtApp, i18n: I18
 /** The bell, the Settings test alert, and the ping a message raises. */
 function alertSteps(prefs: Prefs, steps: Permission, { alertsOn, nuxtApp, i18n, humanNames }: AlertInputs) {
   const [permission, chime, sound, alertsEnabled] = prefs
-  const [readPermission, requestPush] = steps
+  const [ensurePermission, requestPush, , readPermission] = steps
 
   /** The bell glyph follows the reader's switch. Messages popping do not
    *  move it. Turning it on also asks the browser, once, for permission. */
   async function toggleAlerts() {
+    ensurePermission()
     alertsEnabled.value = !alertsEnabled.value
     if (alertsEnabled.value && permission.value !== 'granted') await requestPush()
   }
@@ -220,6 +244,7 @@ function alertSteps(prefs: Prefs, steps: Permission, { alertsOn, nuxtApp, i18n, 
    * @returns 'shown' | 'failed' | the alertState that stops it
    */
   async function testAlert() {
+    ensurePermission()
     if (permission.value === 'default') await requestPush()
     readPermission()
     const blocker = alertState(permission.value, true, platform())
@@ -239,6 +264,7 @@ function alertSteps(prefs: Prefs, steps: Permission, { alertsOn, nuxtApp, i18n, 
       /* 051: the reader's chosen sound; its AudioContext closes when it ends (CLE-35075) */
       playSound(sound.value)
     }
+    ensurePermission()
     if (alertsOn.value && typeof Notification !== 'undefined') {
       /* bug A: Android takes it only through the service worker (showAlert) */
       const data = m ? notificationTarget(m, (p: string) => nuxtApp.$localePath(p)) : undefined

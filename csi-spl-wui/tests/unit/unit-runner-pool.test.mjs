@@ -30,6 +30,12 @@ console.log('unit-runner-pool (the runner runs its files N at a time, the log re
 
 // A stub: start marker, wait for `want` starts (fs.watch, 5 s cap), count the
 // running stubs, end marker. STUB_FAIL names a stub that exits 1.
+//
+// fs.watch takes one inotify instance of the user's box-wide budget
+// (fs.inotify.max_user_instances, 128 by default). When other processes have
+// spent it (SPL-6424: leaked test gpg-agents held 128/128), watch() threw
+// EMFILE and the stub died, failing a random set of fixtures. The stub then
+// waits on the same event, a new .start file, by re-reading the dir.
 const STUB = `
 import { writeFileSync, readdirSync, watch } from 'node:fs'
 import { join, basename } from 'node:path'
@@ -41,8 +47,17 @@ const started = () => names().filter((f) => f.endsWith('.start')).length
 writeFileSync(join(dir, me + '.start'), '')
 await new Promise((resolve) => {
   if (started() >= want) return resolve()
-  const w = watch(dir, () => { if (started() >= want) { w.close(); clearTimeout(t); resolve() } })
-  const t = setTimeout(() => { w.close(); resolve() }, 5000)
+  let w = null
+  let poll = null
+  const done = () => { w?.close(); clearInterval(poll); clearTimeout(t); resolve() }
+  const t = setTimeout(done, 5000)
+  try {
+    w = watch(dir, () => { if (started() >= want) done() })
+  } catch (e) {
+    if (e.code !== 'EMFILE' && e.code !== 'ENOSPC') throw e
+    poll = setInterval(() => { if (started() >= want) done() }, 20)
+  }
+  if (started() >= want) done()
 })
 const ended = new Set(names().filter((f) => f.endsWith('.end')).map((f) => f.slice(0, -4)))
 const running = names().filter((f) => f.endsWith('.start') && !ended.has(f.slice(0, -6))).length

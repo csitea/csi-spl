@@ -1,6 +1,6 @@
 # Spec 182: Topic Loop Prompt (Discussion Loops)
 
-Status: **Draft v0.8** (2026-11-20). Lane `c-301` (`claude`, backup for
+Status: **Draft v0.9** (2026-11-25). Lane `c-301` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `bc0353485`; v0.2 folds the
 owner's answers to form `2c1c3f5d` (msg `a198ae53`) and the two requirements
 in msgs `eae9e64f` and `19acb8f9`; v0.2 `d17f582cb`; v0.3 folds Q9 (msg
@@ -20,18 +20,24 @@ and `before_human_reply` is dropped, eleven triggers stay (8.3); v0.6
 CHECKs the L1 review found (c-382, msg `13956ae7`; 8.4); v0.7
 `55058f7c1`; v0.8 folds the owner's N4 B (msg `f854f268`, poll
 `be4ebf76`): an agent's answer to any loop prompt fires the "after each
-agent reply" box of no loop of the topic (1.6, 8.5).
-Epic: **SPL-2398**. Issue: **SPL-6022**. Class: `feature`. Kind: `specs_and_docs`.
-Discussion: `topic:f08c0c58-9228-4e2a-af00-dbbdbd328083` (`t1`).
+agent reply" box of no loop of the topic (1.6, 8.5); v0.8 `4c5633d84`
+(on master); v0.9 (lane `a-302`, `agy`, issue **SPL-6440**, topic
+`cbb1897b-4d35-44df-93c3-a2bbd2b6defa`) amends the spec with **Channel
+loops** (section 9): channel-level loops that run for each topic in a
+channel, with open owner choices CL1-CL4 held for poll (8.6, 9.1).
+Epic: **SPL-2398**. Issue: **SPL-6022** (v0.1-v0.8); **SPL-6440** (v0.9). Class: `feature`. Kind: `specs_and_docs`.
+Discussion: `topic:f08c0c58-9228-4e2a-af00-dbbdbd328083` (`t1`, v0.1-v0.8); `topic:cbb1897b-4d35-44df-93c3-a2bbd2b6defa` (`t1`, v0.9).
 Builds on: [179 pause the agents of a discussion](../179-pause-agents-of-a-discussion/spec.md)
 (per-topic hub state, the topic menu entry, who may act on a topic),
 [150 topic-list priority](../150-topic-list-priority/spec.md) (the
 `topic_priorities` table shape) and [099 topic head](../099-topic-head/spec.md)
 (per-topic state lives in its own table, not in `messages`).
 
-Line references were measured on `origin/master` `af8ca0ba7`. Between it and
-`412a44ab0` (the v0.2 base) no file this spec cites changed
-(`git diff --name-only af8ca0ba7 412a44ab0` lists none of them).
+Line references in sections 0-8 were measured on `origin/master` `af8ca0ba7`
+(and `e2883a6be` for v0.7); between `af8ca0ba7` and `412a44ab0` (the v0.2
+base) no file cited there changed (`git diff --name-only af8ca0ba7 412a44ab0`
+lists none of them). Line references in section 9 (v0.9) were measured on
+`origin/master` `b48786ce3` (exact commands in 9.10).
 
 ## 0. The owner's words (HUM-10, t1 #spool-hub-devel, topic f08c0c58)
 
@@ -1089,4 +1095,658 @@ trigger to its rows.
 - Unchanged: every name, route, column, key and store contract of v0.7. No
   migration.
 
-<!-- version: 0.8 · updated: 2026-11-20 · last-edit: 2026-11-20T23:30:00Z -->
+### 8.6 Changes from v0.8 (Channel loops, SPL-6440)
+
+- **New Section 9 (Channel loops):** adds channel-level loops behind a
+  **Channel loops…** entry in the channel right-click menu
+  (`sidebar-row-menu.mjs`), reusing the topic loop editor and eleven-trigger
+  set so a channel loop applies dynamically to each open topic in that
+  channel.
+- **Store and contracts:** two dedicated tables (`channel_loops` +
+  `channel_loop_state`) in a new forward-only migration
+  (`<NNNN>_channel_loops.sql`), `ChannelLoopStore`,
+  `/v1/channels/{channel}/loops` routes, `channel_loops` WS frame, and
+  build rows **C1-C5** (9.7-9.9).
+- **Open owner choices (CL1-CL4):** combination with topic loops, per-topic
+  opt-out, channel-loop write permission, and periodic time-trigger fan-out
+  on large channels are held open in 9.1 and sent to the dispatch holder as
+  one poll draft — none is asserted as decided here.
+- Unchanged: `topic_loops`, `messages.loop_id`, the nine hidden-row places
+  of 5.2, `TopicLoopStore`, `/v1/topics/{task_id}/loops`, and rows L1-L7.
+
+## 9. Channel loops (v0.9, SPL-6440)
+
+### 9.0 The owner's words (HUM-10, t1 topic `cbb1897b`, 2026-11-24)
+
+Verbatim in `topic:cbb1897b-4d35-44df-93c3-a2bbd2b6defa` (`t1`):
+
+- `15:49:06Z`, msg `1d74013c` (with a screenshot of the channel right-click
+  menu in `#spool-hub-ops`: *Open, Copy link, Add to note, Mute, Move up,
+  Move down, Properties, Archive channel, Delete channel*):
+  > "add the loops feature on the channel level as well"
+- `15:49:29Z`, msg `3e75de18`:
+  > "so that one could specifiy the similar kind of loops actions as they
+  > were defined on the topics level"
+- `15:49:36Z`, msg `3fb74ba3`:
+  > "for each topic in the channel"
+
+**Measured state on `origin/master` `b48786ce3`:** topic loops (rows L1, L2,
+L2b, L3, plus SPL-6309 DM-mirror skip) are on `origin/master`
+(`0301_topic_loops.sql`, `internal/store/topic_loop*.go`,
+`internal/hub/topic_loop*.go`, `TopicLoopsDialog.vue`,
+`utils/topic-loops.mjs`), and nothing exists for channel loops:
+
+- `git grep -n -iE "channel_loop|channel-loops|ChannelLoop" origin/master -- csi-spl-api csi-spl-rdb csi-spl-wui | wc -l`
+  -> `0`
+- `git grep -n -i "loop" origin/master -- csi-spl-wui/src/utils/sidebar-row-menu.mjs csi-spl-wui/src/components/SidebarRowMenu.vue | wc -l`
+  -> `0`
+
+### 9.1 Decided engineering design vs open owner choices
+
+Decisions that follow directly from existing spec 182 answers or system
+invariants are settled below; product choices that belong to the owner are
+listed as **CL1-CL4** and held open until the owner answers the poll draft
+sent to the dispatch holder. No build row starts until CL1-CL4 are answered
+and folded into v0.10.
+
+| item | status | rule / options | section |
+|---|---|---|---|
+| Menu entry and placement | **Decided** | **Channel loops…** (`id: 'channel-loops'`, icon `refresh`) in the channel right-click menu (`sidebar-row-menu.mjs:17-37`), right after **Properties** and before **Archive channel** / **Delete channel**; no row badge or channel notice (Q7 C, msg `eae9e64f`) | 9.2 |
+| Editor and triggers | **Decided** | Shared dialog (`TopicLoopsDialog.vue`) and the exact eleven triggers of 1.2 (`LOOP_TRIGGERS`) | 9.2 |
+| Existing, new and moved topics | **Decided** | Dynamic evaluation at fire/tick time (never copy-on-create): applies to existing open topics, future topics, and topics moved in; moved-out topics stop automatically; `#lobby` container task (`LobbyTaskID`) skipped | 9.3 |
+| No-refire (Q10 A, N4 B) | **Decided** | Unified pool per topic (`topicLoops(T) ∪ channelLoops(ch)`): per-`(loop_id, task_id)` 30-min `awaiting` clears on answer (Q10 A) and suppresses `after_agent_reply` across BOTH topic and channel loops on `T` (N4 B) | 9.3 |
+| Store layout | **Decided** | Dedicated `channel_loops` + `channel_loop_state` tables (not a nullable column on `topic_loops`); `messages.loop_id` reused as-is, zero changes to `messages` or `topic_loops` | 9.7 |
+| Channel delete / archive | **Decided** | Delete cascades via FK; archive deletes channel loops in `ArchiveChannel` (covering both creator and tenant-admin paths, matching 4.5 topic archive; unarchive restores none) | 9.5 |
+| **CL1** — Combine with topic loops | **Open (owner poll)** | **(A, recommended)** Both fire (additive) vs **(B)** A topic's own loops override channel loops on that topic | 9.3 |
+| **CL2** — Per-topic opt-out | **Open (owner poll)** | **(A)** Yes, per-topic skip toggle inside the topic's **Discussion loops…** dialog vs **(B, recommended)** No opt-out in v1 (pause/archive already stop all loops on a topic; opt-out can follow) | 9.3 |
+| **CL3** — Who may edit channel loops | **Open (owner poll)** | **(A, recommended)** Channel creator, workspace owner, or workspace admin (`mayChannelAIAgents` rule) vs **(B)** Follow workspace "Who can archive topics" policy (`mayArchiveByPolicy`, mapped to channel creator for `starter`) vs **(C)** Workspace owner or admin only (`tenant.settings`) | 9.4 |
+| **CL4** — Periodic time triggers on large channels | **Open (owner poll)** | **(A, recommended)** Fire on active topics only (activity in last 7 days, capped at 25 newest topics per tick, within 60 fires/h channel-loop budget) vs **(B)** Fire on all open topics up to the hourly cap vs **(C)** Event-driven triggers only on channels (disable `every_hour` / `every_n_minutes` / `daily_at` at channel level) | 9.6 |
+
+### 9.2 Menu entry and shared editor ("Channel loops…")
+
+1. **Menu home (verified on `b48786ce3`):** the channel right-click menu
+   shown in msg `1d74013c` is built by `rowMenuItems` in
+   `csi-spl-wui/src/utils/sidebar-row-menu.mjs:17-58` and rendered by
+   `csi-spl-wui/src/components/SidebarRowMenu.vue:50-66`, mounted per
+   channel row in `csi-spl-wui/src/components/ChannelSidebar.vue:352-375`
+   and opened on right-click via `@contextmenu.prevent="openChannelMenu('ch:' + c.channel_id)"`
+   (`ChannelSidebar.vue:325`, `openChannelMenu` `:765`).
+2. **Item and position:** add `loops?: boolean` to `rowMenuItems`'s options
+   (`sidebar-row-menu.mjs:14`). Inside `if (o.channel)` (`:24-37`), push
+   `{ id: 'channel-loops', icon: 'refresh', labelKey: 'sidebar.row_menu.channel_loops' }`
+   right after `properties` (`:32`) and before `archive-channel` (`:34`) and
+   `delete` (`:36`). The resulting channel menu order is:
+   *Open, Copy link, [Add to note], [Mark as read], Mute/Unmute, Move up,
+   Move down, Properties, **Channel loops…**, Archive channel, Delete channel.*
+   - The `refresh` icon is already registered in `csi-spl-wui/src/utils/uiIcons.ts:421`
+     and used by `topic-loops` (`csi-spl-wui/src/utils/msg-menu.mjs:155`).
+   - Visibility: `loops` is passed as `showProperties(c.channel_id)`
+     (`ChannelSidebar.vue:358`, `useSidebarChannelAdmin.ts:48-50` — every
+     signed-in member who can read the channel). Opening the dialog calls
+     `GET /v1/channels/{channel}/loops`, which returns `may_edit`; viewers
+     without write rights see the channel's active loops read-only with Add /
+     Edit / Pause / Delete disabled and the lock reason shown, matching
+     `Properties` and `TopicLoopsDialog.vue:102-105`.
+   - No badge on the channel row, no system post in the channel, and no mark
+     on any message (answer 7 C, msg `eae9e64f`).
+3. **Shared editor and eleven triggers:** reuse `TopicLoopsDialog.vue`
+   (extended with optional `channelId` / `channelName` props) and
+   `csi-spl-wui/src/utils/topic-loops.mjs` (`LOOP_TRIGGERS`, `emptyLoopForm`,
+   `loopForm`, `loopFormError`, `loopBody`, `loopTriggerLabels`,
+   `loopRowState`).
+   - Title: `Channel loops — #{name}` (`sidebar.channel_loops.title`), with
+     a short muted scope line under the title explaining that each loop runs
+     for every open topic in the channel (`sidebar.channel_loops.scope_note`).
+   - Same prompt ceiling (1..4000 chars), same eleven trigger checkboxes
+     (or eight if CL4 C is chosen), same per-trigger fields and validation,
+     and same per-row actions (**Edit**, **Pause** / **Resume**, **Delete**)
+     plus **Add loop**.
+   - Row state shows `on`, `paused`, `held until hh:mm` (when the
+     channel-loop hourly budget is reached), or the `idle` reason
+     (`author_left` / `author_no_right`).
+
+### 9.3 Scope, inheritance, combination with topic loops, and no-refire
+
+1. **Dynamic inheritance (existing, new, and moved topics):**
+   - A channel loop is **not** copied into `topic_loops` when created.
+     Instead, the hub evaluates a channel's `on` channel loops dynamically
+     for each open (unarchived, unpaused) topic in that channel.
+   - **Why:** (a) editing, pausing, resuming, or deleting a channel loop
+     takes effect at once on every topic in the channel with one row write;
+     (b) topics created after the loop is added — and topics moved into the
+     channel (`handleMove`, `internal/hub/message_move.go:197`) — inherit
+     the channel's loops automatically; (c) topics moved out of the channel
+     stop running the old channel's loops immediately and adopt the
+     destination channel's loops.
+   - **Excluded topics:** archived topics (`topicClosed`,
+     `internal/hub/topic_archived_input.go:32`), paused topics
+     (`AnyTopicPaused`, spec 179), DMs (`channel == ""`), and the shared
+     `#lobby` container task (`task == s.o.LobbyTaskID`, matching
+     `dropTopicLoops` at `internal/hub/topic_loop.go:135` and spec 179 3.1).
+     Individual topics created inside `#lobby` (with their own `task_id !=
+     LobbyTaskID`) ARE included.
+2. **Per-topic runtime isolation:**
+   - Although the loop definition lives once on the channel, runtime
+     execution state is tracked **per `(loop_id, task_id)`** in
+     `channel_loop_state` (9.7):
+     - `awaiting` / `awaiting_until` (Q10 A): an agent answering a channel
+       loop prompt in topic `T1` clears the wait on `T1` only, never on `T2`.
+     - `idle_due_at` / `idle_post` (`no_reply_after_human`): a human post in
+       `T1` arms `T1` only; an agent reply in `T2` never clears `T1`'s idle
+       timer.
+     - `fires_in_hour` / `hour_start`: each topic gets its own per-topic
+       cap (12/h, Q4 B) so one noisy topic cannot starve quieter topics, in
+       addition to the channel-loop hourly budget (9.6).
+     - `msg_id` seed includes `task_id` (9.8.1), so a single time tick or a
+       single issue linked to two topics in the same channel generates
+       distinct deterministic `msg_id`s per topic.
+3. **Combining channel loops with a topic's own loops (open: CL1):**
+   - **Recommended (CL1 A — additive):** on any post, kind-change, or issue
+     event in topic `T` of channel `C`, `topicLoopFireIf`
+     (`internal/hub/topic_loop_fire.go:300`) evaluates BOTH `TopicLoopsOn(T)`
+     and `ChannelLoopsOn(C)` independently. Each matching loop fires once
+     for that event.
+   - **Alternative (CL1 B — topic overrides channel):** if `TopicLoopsOn(T)`
+     is non-empty, channel loops are skipped for `T` (both on events and on
+     time/idle ticks). This is a single guard on the effective loop list if
+     the owner picks B.
+4. **No-refire rules (Q10 A and N4 B, decided):**
+   - Topic loops and channel loops on topic `T` share **one awaited-answer
+     pass** in `topicLoopFireIf` (`topic_loop_fire.go:311-318`):
+     1. First, check every `on` topic loop of `T` AND every `on` channel
+        loop of `C` (reading its `(loop_id, T)` state row) for a live
+        `awaiting == ev.post.From && now < awaiting_until`.
+     2. Every loop whose wait matches clears its `awaiting` slot and does
+        not fire on this post for **any** trigger (Q10 A).
+     3. If **any** loop (topic OR channel) matched its wait on `T`, set
+        `ev.answer = true` for `T`: the post then matches the
+        `after_agent_reply` box of **no** loop on `T` — neither topic loops
+        nor channel loops (N4 B). Other checked boxes (keyword, file,
+        blocker) on *other* loops still match, exactly as in 1.6.
+   - **Why unified:** without unifying both pools under N4 B, a channel
+     `after_agent_reply` loop and a topic `after_agent_reply` loop on the
+     same topic would fire each other in a ping-pong loop up to the hourly
+     cap — the exact failure N4 B eliminated.
+   - A loop prompt message (`messages.loop_id IS NOT NULL`, `topicLoopPromptMark`
+     at `topic_loop_fire.go:70`) is never a trigger for either scope.
+5. **Per-topic opt-out (open: CL2):**
+   - **Recommended (CL2 B — uniform in v1):** no per-topic opt-out control
+     in v1. Pausing a topic (spec 179) already pauses all loops on it, and
+     archiving stops them. Keeping v1 uniform avoids a third table and extra
+     dialog state before we know whether users need per-topic overrides.
+   - **Alternative (CL2 A — per-topic opt-out):** add a small join table
+     `channel_loop_opt_outs (tenant_id, task_id, loop_id)` (FK to
+     `channel_loops ON DELETE CASCADE`, RLS, `catalogue.go` `Moved` on
+     `task_id = ANY(@tasks)`), expose inherited channel loops read-only in
+     `TopicLoopsDialog.vue` with a per-topic **Skip on this topic** toggle
+     (`PUT`/`DELETE /v1/topics/{task_id}/channel-loop-opt-outs/{loop_id}`),
+     and filter opted-out `(loop_id, task_id)` pairs in `topicLoopFireIf`
+     and the ticker.
+6. **Target agent and `before_agent_reply`:**
+   - Identical to 4.3 steps 1 and 4 (`loopTarget`, `topic_loop_fire.go:438`):
+     an agent post targets that agent; a human post, idle fire, time fire,
+     or issue fire targets the topic's newest announced agent (`topicAgents`).
+     With no announced agent in that topic, nothing is sent and one info
+     line is logged.
+   - For `before_agent_reply`, `topicLoopBeforeAgent` (`wui.go:632`,
+     `topic_loop_fire.go:219`) runs for both topic and channel loops before
+     `commitRow`, so every matching loop prompt is enqueued ahead of the
+     human post. On a **brand-new topic** opened in a channel with a
+     channel `before_agent_reply` loop and an explicit `@agent` or channel
+     fan-out, `rt.channel` is already resolved (`wui.go:627`) and
+     `rt.signing.agent` names the target (or `topicAgents` when fan-out
+     has no prior agent in the new topic, in which case `before_agent_reply`
+     skips if no single target agent is named, while `after_human_reply`
+     runs after store if an agent is routed).
+   - For `issue_status_changed`, `topicLoopIssue` (`topic_loop_fire.go:270`)
+     already iterates every linked `d.TaskID` in `IssueDiscussionLinks`;
+     resolving each topic's channel via `s.channelOf(ctx, tenant, "", d.TaskID)`
+     (`channels.go:76`, only when `channelLoopsMaybe(tenant)` is true) fires
+     matching channel loops for each linked topic in that channel.
+
+### 9.4 Permissions (spec 179 / 182 and channel settings)
+
+1. **Read door (decided):** every route under `/v1/channels/{channel}/loops`
+   passes `s.channelDoor(w, r)` (`internal/hub/channel_members.go:123`).
+   - A member who can read the channel passes (`GET` returns `200` with
+     `may_edit: true|false` and the list).
+   - A non-member, a missing channel, or an archived channel gets
+     `404 unknown_channel` (never `403`, keeping private channels invisible,
+     `channel_members.go:25-28`).
+2. **Write door (open: CL3):** every `POST`, `PUT`, `DELETE` passes
+   `s.channelDoor` (which enforces `rbac.ChannelsEdit`, blocking `demo_user`,
+   `channel_members.go:132`), `billing.AllowsWrite`, and one of the three
+   options below for the owner to choose:
+   - **CL3 A (recommended) — Channel creator, workspace owner, or workspace
+     admin:** reuses `s.mayChannelAIAgents(ctx, tenant, row.CreatedBy, hum)`
+     (`internal/hub/channel_ai_agents.go:57`: `channelOwner(row.CreatedBy, hum) || s.allowed(ctx, hum, tenant, rbac.TenantSettings)`).
+     Default channels (`#lobby`, `#alerts`, `#feedback`, `#public`) have
+     `created_by = 'hub'`, so only workspace owners/admins (`tenant.settings`)
+     may configure loops on them. **Why recommended:** a single channel loop
+     can trigger agent work across dozens of topics, carrying real token
+     cost — the same blast radius as flipping a channel's AI agents switch.
+   - **CL3 B — Follow workspace "Who can archive topics" policy (spec 179 /
+     182 Q5 A):** `s.mayArchiveByPolicy(ctx, tenant, hum, s.archivePolicy(t), change)`
+     (`internal/hub/topic_archive.go:172`), where `change` for the `starter`
+     policy is `channelOwner(row.CreatedBy, hum) || a.TenantOwner || a.Has(rbac.Admin)`.
+     Under `everyone` (the default policy), any channel member may add
+     channel loops.
+   - **CL3 C — Workspace owner or admin only:** `s.allowed(ctx, hum, tenant, rbac.TenantSettings)`
+     (matching `channel_box_pins.go:76`).
+3. **Fire-time author re-check (decided, matching 4.2 step 7 and 4.5):**
+   - `SetBy` stores the author's member id (`hum`, 7.1.1 "The author's two
+     ids"). Before firing, `channelLoopIdle(ctx, l, chRow)` verifies:
+     1. `s.access(ctx, l.SetBy, l.TenantID)` succeeds and
+        `s.canReadChannel(ctx, l.TenantID, l.ChannelID, l.SetBy)` is true
+        (else `"author_left"`);
+     2. the author still satisfies the decided CL3 write check (else
+        `"author_no_right"`).
+   - An idle loop fires nothing and shows its reason in the dialog; any
+     authorized member may delete it or edit it (taking ownership as `SetBy`).
+
+### 9.5 Lifecycle: archive, delete, unarchive, and move
+
+| event | where on `origin/master` (`b48786ce3`) | effect on channel loops |
+|---|---|---|
+| **Channel deleted** | `handleDeleteChannel` (`channel_members.go:562`) -> `retireChannel` (`:663`) -> `DeleteChannel` (`channels_postgres.go:93`) | `FOREIGN KEY (tenant_id, channel_id) REFERENCES channels (tenant_id, channel_id) ON DELETE CASCADE` deletes every `channel_loops` row and cascades to `channel_loop_state` in the same transaction. Memory store deletes both maps inside `DeleteChannel`. |
+| **Channel archived** | `handleArchiveChannel` (`channel_members.go:572`) AND `handleArchiveTenantChannel` (`tenant_settings.go:493`) -> `ArchiveChannel` (`channels_postgres.go:136`) | `ArchiveChannel` deletes every `channel_loops` row for `(tenant_id, channel_id)` inside its transaction (cascading `channel_loop_state`), covering BOTH the creator route and the tenant-settings admin route in one place. Matches topic archive (4.5): zero stale rows, zero hidden triggers. |
+| **Channel unarchived** | `handleUnarchiveChannel` (`channel_members.go:583`) -> `UnarchiveChannel` (`channels_postgres.go:177`) | Restores no loops (matching 4.5 topic unarchive), preventing a sudden prompt burst on every revived topic. |
+| **Topic archived or deleted** | `handleArchiveTopic` (`topic_archive.go:197`), `handleDeleteTopic` (`:248`) -> `dropTopicLoops` (`topic_loop.go:129`) | Deletes `channel_loop_state` rows for that `task_id` (`DeleteChannelLoopTopicState`); the `channel_loops` definition stays intact for all other topics in the channel. |
+| **Topic moved between channels** | `handleMove` (`message_move.go:197`) | Calls `DeleteChannelLoopTopicState` for the moved `task_id` so old-channel `idle_due_at` / `awaiting` rows cannot fire after the move; future events in the topic evaluate the destination channel's loops. |
+| **Channel moved/copied across workspaces (spec 169)** | `internal/channelmove/catalogue.go:93` (`topic_loops`) | Register `channel_loops` (`Class: Moved`, `Set: "channel_id = @channel"`) and `channel_loop_state` (`Class: Moved`, `Set: "task_id = ANY(@tasks)"`, ordered after `channel_loops` for FK parent-before-child insert order, `catalogue.go:61`). |
+
+### 9.6 Limits, cost, quota, and rate (channels with hundreds of topics)
+
+A channel can hold hundreds of topics. Unbounded fan-out would burn LLM
+quota, flood box queues (`QueueMaxPerBox`, `internal/hub/server.go:88`),
+and stall the 60-second ticker. Five bounds govern channel loops:
+
+1. **Event-driven triggers are O(1) topics per event:**
+   `after_agent_reply`, `before_agent_reply`, `after_human_reply`,
+   `post_has_keyword`, `post_has_file`, `blocker_posted`,
+   `no_reply_after_human`, and `issue_status_changed` fire **only** on the
+   specific topic(s) where the event occurred — never across quiet topics in
+   the channel.
+2. **Dual hourly cap (atomic in one transaction, `CountChannelLoopFire`):**
+   - **Per-`(loop_id, task_id)` cap:** `SPOOL_HUB_TOPIC_LOOP_CAP` (default
+     **12** fires/hour per topic, Q4 B), so one active topic cannot starve
+     the rest of the channel.
+   - **Per-channel-loop hourly budget:** `SPOOL_HUB_CHANNEL_LOOP_CAP`
+     (default **60** fires/hour across ALL topics in the channel; new
+     `Options.ChannelLoopCap` beside `Options.TopicLoopCap` at
+     `internal/hub/server.go:121`). When hit, the loop shows
+     `held until hh:mm` in the dialog until its hour rolls over.
+3. **Per-channel loop count ceiling:**
+   - At most **`ChannelLoopsMax = 20`** loops per channel (`AddChannelLoop`
+     returns `ErrBadTopicLoop` -> `400 bad_loop` when a channel already has
+     20 loops). Prevents accidental combinatorial multiplication.
+4. **Periodic time triggers (`every_hour`, `every_n_minutes`, `daily_at`) on
+   large channels (open: CL4):**
+   - **CL4 A (recommended) — Active topics only, bounded per tick:** when
+     `ClaimDueChannelLoops` claims a due channel loop, the hub reads target
+     topics from `ChannelActiveTopics(ctx, tenant, channel, lobbyTaskID, now - activeWindow, maxTopics)`
+     using the existing covering index
+     `topic_head_parts_channel (tenant_id, channel, last_at DESC, task_id DESC)`
+     (`0144_topic_heads.sql:100`) joined to `topic_heads` where
+     `NOT card_archived`:
+     - `SPOOL_HUB_CHANNEL_LOOP_ACTIVE_DAYS` (default **7** days): only
+       topics with activity in the last 7 days receive periodic fires;
+       dormant topics are never poked.
+     - `SPOOL_HUB_CHANNEL_LOOP_MAX_TOPICS` (default **25** topics per
+       channel loop per tick, newest-activity first): caps single-tick
+       fan-out, and each topic still checks `loopTopicHeld` (not archived,
+       not paused), `loopTarget` (has an announced agent), per-topic cap
+       (12/h), and channel-loop budget (60/h).
+     - `no_reply_after_human` is unaffected by the 7-day window because it
+       is armed only when a human posts in a topic (`channel_loop_state_idle`).
+   - **CL4 B — All open topics in the channel, up to the hourly cap:** no
+     recency cutoff; every unarchived, unpaused topic with an announced
+     agent is eligible, newest-activity first, up to `ChannelLoopCap` (60/h).
+   - **CL4 C — Event-driven triggers only on channels:** disallow
+     `every_hour`, `every_n_minutes`, and `daily_at` on channel loops
+     (`400 bad_loop`, hide those 3 checkboxes in the channel dialog); keep
+     the 8 event/idle/issue triggers (`no_reply_after_human` stays because
+     it only fires on topics where a human actually posted).
+5. **Zero hot-path cost when unused:**
+   - Cached per-tenant bit `channelLoopBits` (30 s TTL,
+     `TenantHasChannelLoops`, mirroring `topicLoopBits` at
+     `internal/hub/topic_loop.go:63-93`). A workspace with no channel loops
+     adds **0** store round trips on every browser or box send
+     (`TestRoundTripsPerRequest` unchanged).
+   - A DM post (`channel == ""`) skips channel loops with **0** probes even
+     when the workspace has channel loops.
+   - Workspace billing write checks (`billing.AllowsWrite`) and per-box
+     queue caps (`QueueMaxPerBox`) apply to every stored prompt as today.
+
+### 9.7 Store and migration
+
+#### Why two dedicated tables instead of a scope column on `topic_loops`
+
+Adding a nullable `channel_id` / `scope` column to `topic_loops` is
+**rejected** for four concrete reasons measured on `origin/master`
+`b48786ce3`:
+
+1. **Per-topic runtime state is 1-to-N for a channel loop:** `topic_loops`
+   (`0301_topic_loops.sql:53-86`) stores `awaiting`, `awaiting_until`,
+   `idle_due_at`, `idle_post`, and `fires_in_hour` directly on the single
+   row (`task_id uuid NOT NULL`). A channel loop applies to *N* topics at
+   once and needs *N* independent `awaiting` and `idle_due_at` slots, so a
+   child state table is required regardless.
+2. **Hard-delete FK integrity:** `channel_loops` takes
+   `FOREIGN KEY (tenant_id, channel_id) REFERENCES channels (tenant_id, channel_id) ON DELETE CASCADE`
+   (matching `channel_subscriptions`, `0002_channels.sql:22`), giving atomic
+   cleanup on `DeleteChannel` without nullable-column FK workarounds.
+3. **Zero churn on existing queries, indexes, and spec 186:** keeping
+   `topic_loops` untouched preserves `topic_loops_task`, `topic_loops_due`,
+   `catalogue.go:93` (`Set: task_id = ANY(@tasks)`), and avoids colliding
+   with spec 186 row M10 (`ALTER TABLE topic_loops ADD COLUMN targets jsonb`,
+   `csi-spl-doc/doc/md/spec-186-build-plan.md:438`).
+4. **Zero changes to `messages`:** `messages.loop_id`
+   (`0301_topic_loops.sql:110`) is `uuid NULL` with no foreign key (7.1.3).
+   A channel-loop prompt writes `messages.loop_id = <channel_loop.loop_id>`,
+   so all nine hidden-row places of 5.2, L2b's sweep/auto-take, and
+   SPL-6309's DM-mirror skip work unchanged.
+
+#### Schema (`<NNNN>_channel_loops.sql`)
+
+New forward-only migration numbered by `do_rdb_migration_next` at build
+time (head on `origin/master` `b48786ce3`: `0323_fleet_ask_queue_order.sql`).
+Both tables carry `ENABLE` + `FORCE ROW LEVEL SECURITY` (`tenant_scope` +
+`operator_scope`, matching `0301_topic_loops.sql:95-104`) and the deferred
+`change_stamp` trigger (`tenant_change_bump()`, `:106-108`), and are added
+to `internal/store/rls_test.go` (beside `"topic_loops"` at `:92`).
+
+```sql
+CREATE TABLE IF NOT EXISTS channel_loops (
+    tenant_id      text        NOT NULL,
+    loop_id        uuid        NOT NULL,
+    channel_id     text        NOT NULL,
+    prompt         text        NOT NULL CHECK (prompt <> '' AND length(prompt) <= 4000),
+    triggers       text[]      NOT NULL CHECK (triggers <@ ARRAY['after_agent_reply', 'before_agent_reply', 'after_human_reply',
+                                                                 'every_hour', 'every_n_minutes',
+                                                                 'post_has_keyword', 'post_has_file', 'blocker_posted',
+                                                                 'no_reply_after_human', 'issue_status_changed', 'daily_at']
+                                               AND cardinality(triggers) >= 1),
+    interval_min   integer     CHECK (interval_min BETWEEN 5 AND 1440),
+    next_due_at    timestamptz,
+    keyword        text        CHECK (keyword <> '' AND length(keyword) <= 200),
+    idle_min       integer     CHECK (idle_min BETWEEN 5 AND 1440),
+    daily_at       time,
+    daily_tz       text        NOT NULL DEFAULT 'UTC' CHECK (daily_tz <> '' AND length(daily_tz) <= 64),
+    daily_due_at   timestamptz,
+    set_by         text        NOT NULL CHECK (set_by <> '' AND length(set_by) <= 64),
+    set_at         timestamptz NOT NULL,
+    state          text        NOT NULL DEFAULT 'on' CHECK (state IN ('on', 'paused')),
+    hour_start     timestamptz,
+    fires_in_hour  integer     NOT NULL DEFAULT 0 CHECK (fires_in_hour >= 0),
+    fires_total    integer     NOT NULL DEFAULT 0 CHECK (fires_total >= 0),
+    last_fired_at  timestamptz,
+    PRIMARY KEY (tenant_id, loop_id),
+    FOREIGN KEY (tenant_id, channel_id) REFERENCES channels (tenant_id, channel_id) ON DELETE CASCADE,
+    CHECK ((interval_min IS NOT NULL) = ('every_n_minutes' = ANY (triggers))),
+    CHECK ((keyword IS NOT NULL) = ('post_has_keyword' = ANY (triggers))),
+    CHECK ((idle_min IS NOT NULL) = ('no_reply_after_human' = ANY (triggers))),
+    CHECK ((daily_at IS NOT NULL) = ('daily_at' = ANY (triggers)))
+);
+
+CREATE INDEX IF NOT EXISTS channel_loops_channel ON channel_loops (tenant_id, channel_id);
+CREATE INDEX IF NOT EXISTS channel_loops_due ON channel_loops (least(next_due_at, daily_due_at)) WHERE state = 'on';
+
+CREATE TABLE IF NOT EXISTS channel_loop_state (
+    tenant_id      text        NOT NULL,
+    loop_id        uuid        NOT NULL,
+    task_id        uuid        NOT NULL,
+    hour_start     timestamptz,
+    fires_in_hour  integer     NOT NULL DEFAULT 0 CHECK (fires_in_hour >= 0),
+    fires_total    integer     NOT NULL DEFAULT 0 CHECK (fires_total >= 0),
+    last_fired_at  timestamptz,
+    awaiting       text        NOT NULL DEFAULT '' CHECK (length(awaiting) <= 64),
+    awaiting_until timestamptz,
+    idle_due_at    timestamptz,
+    idle_post      uuid,
+    PRIMARY KEY (tenant_id, loop_id, task_id),
+    FOREIGN KEY (tenant_id, loop_id) REFERENCES channel_loops (tenant_id, loop_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS channel_loop_state_task ON channel_loop_state (tenant_id, task_id);
+CREATE INDEX IF NOT EXISTS channel_loop_state_idle ON channel_loop_state (idle_due_at) WHERE idle_due_at IS NOT NULL;
+```
+
+Notes:
+- If **CL4 C** is chosen by the owner, `every_hour`, `every_n_minutes`, and
+  `daily_at` are omitted from `channel_loops.triggers`'s CHECK (and
+  `interval_min`, `next_due_at`, `daily_at`, `daily_tz`, `daily_due_at`,
+  `channel_loops_due` are dropped before C1 starts).
+- `channel_loop_state` rows are created lazily (`INSERT ... ON CONFLICT DO
+  UPDATE`) on the first idle arm, fire count, or awaiting write for
+  `(loop_id, task_id)`: quiet topics consume zero rows.
+- Pausing a channel loop zeroes `next_due_at` and `daily_due_at` on
+  `channel_loops` and clears `idle_due_at` / `idle_post` on its
+  `channel_loop_state` rows in the same edit transaction. Editing `prompt`
+  or `triggers` resets `hour_start` and `fires_in_hour` on `channel_loops`
+  and its `channel_loop_state` rows.
+
+### 9.8 Binding contracts for parallel rows
+
+#### 9.8.1 Go store (`ChannelLoopStore`, C1 builds, C2 calls)
+
+Package `store`, file `internal/store/channel_loop.go`, implemented by
+`Memory` and `Postgres` (`var _ ChannelLoopStore = (*Memory)(nil)` and
+`(*Postgres)(nil)`), read by the hub as an optional interface
+`s.o.Store.(store.ChannelLoopStore)` (`501 not_implemented` when absent,
+matching 7.1.1 point 4). Validation reuses `TopicLoopTriggers`,
+`TopicLoopOn`, `TopicLoopPaused`, `TopicLoopIntervalMin..Max`,
+`TopicLoopPromptMax`, `TopicLoopKeywordMax`, and `ErrBadTopicLoop`.
+
+```go
+const (
+	ChannelLoopsMax              = 20 // max loops per channel
+	ChannelLoopCapDefault        = 60 // SPOOL_HUB_CHANNEL_LOOP_CAP: fires per channel loop per hour across all topics
+	ChannelLoopActiveDaysDefault = 7  // SPOOL_HUB_CHANNEL_LOOP_ACTIVE_DAYS (CL4 A)
+	ChannelLoopMaxTopicsDefault  = 25 // SPOOL_HUB_CHANNEL_LOOP_MAX_TOPICS per tick (CL4 A)
+)
+
+type ChannelLoop struct {
+	TenantID    string
+	LoopID      string // uuid, lower case
+	ChannelID   string // normalized channel slug
+	Prompt      string
+	Triggers    []string // distinct, sorted
+	SetBy       string   // author's member id (hum), as 7.1.1
+	SetAt       time.Time
+	State       string // TopicLoopOn | TopicLoopPaused
+	HourStart   time.Time
+	FiresInHour int
+	FiresTotal  int
+	LastFiredAt time.Time
+	IntervalMin int
+	NextDueAt   time.Time
+	Keyword     string
+	IdleMin     int
+	DailyAt     string
+	DailyTZ     string
+	DailyDueAt  time.Time
+	Due         []string  // set only by ClaimDueChannelLoops
+	DueAt       time.Time // pre-move earliest due time, as 7.1.1
+}
+
+type ChannelLoopTopicState struct {
+	TenantID    string
+	LoopID      string
+	TaskID      string
+	HourStart   time.Time
+	FiresInHour int
+	FiresTotal  int
+	LastFiredAt time.Time
+	Awaiting    string
+	AwaitUntil  time.Time
+	IdleDueAt   time.Time
+	IdlePost    string
+}
+
+type ChannelLoopIdleDue struct {
+	Loop     ChannelLoop
+	TaskID   string
+	IdlePost string // pre-clear arming post msg_id
+}
+
+type ChannelLoopStore interface {
+	ChannelLoops(ctx context.Context, tenant, channel string) ([]ChannelLoop, error)
+	ChannelLoopsOn(ctx context.Context, tenant, channel string) ([]ChannelLoop, error)
+	AddChannelLoop(ctx context.Context, tenant string, l ChannelLoop) (ChannelLoop, error)
+	EditChannelLoop(ctx context.Context, tenant, channel, loopID string, e TopicLoopEdit) (ChannelLoop, error)
+	DeleteChannelLoop(ctx context.Context, tenant, channel, loopID string) (bool, error)
+	DeleteChannelLoops(ctx context.Context, tenant, channel string) (int, error)
+	ChannelLoopStates(ctx context.Context, tenant, taskID string, loopIDs []string) ([]ChannelLoopTopicState, error)
+	// CountChannelLoopFire atomically checks & increments BOTH the channel-loop
+	// hourly budget (channelCap) and the per-(loop_id, task_id) hourly cap
+	// (topicCap) in one transaction; false if paused, capped, or gone.
+	CountChannelLoopFire(ctx context.Context, tenant, loopID, taskID string, at time.Time, topicCap, channelCap int) (ChannelLoop, ChannelLoopTopicState, bool, error)
+	// ClaimDueChannelLoops claims state='on' non-archived channel loops whose
+	// next_due_at or daily_due_at <= at (FOR UPDATE SKIP LOCKED), moving due
+	// columns on and returning Due + pre-move DueAt.
+	ClaimDueChannelLoops(ctx context.Context, at time.Time, limit int) ([]ChannelLoop, error)
+	// ChannelActiveTopics returns unarchived task_ids in channel (excluding
+	// lobbyTaskID) with last_at >= since (zero since = no cutoff), ordered by
+	// last_at DESC, task_id DESC, up to limit, using topic_head_parts_channel.
+	ChannelActiveTopics(ctx context.Context, tenant, channel, lobbyTaskID string, since time.Time, limit int) ([]string, error)
+	ArmChannelLoopIdle(ctx context.Context, tenant, channel, taskID, postID string, at time.Time) (int, error)
+	ClearChannelLoopIdle(ctx context.Context, tenant, taskID string) (int, error)
+	ClaimDueChannelLoopIdles(ctx context.Context, at time.Time, limit int) ([]ChannelLoopIdleDue, error)
+	SetChannelLoopAwaiting(ctx context.Context, tenant, loopID, taskID, agent string, until time.Time) error
+	DeleteChannelLoopTopicState(ctx context.Context, tenant, taskID string) (int, error)
+	TenantHasChannelLoops(ctx context.Context, tenant string) (bool, error)
+}
+```
+
+- **Fired message id:** `uid.FromSeed("channel-loop:" + loopID + ":" + taskID + ":" + cause)`
+  where `cause` uses the exact 7.1.1 cause strings (`msg_id`, `"idle:" + IdlePost`,
+  `"due:" + DueAt`, `"issue:" + number + ":" + status + ":" + updatedAt`).
+  Including `taskID` guarantees distinct ids when one tick or one issue
+  fires multiple topics in the channel.
+- **Fired message body:**
+  ```text
+  Loop prompt (background; channel #<channel>, set by @HUM-n, fired by <cause>)
+
+  <prompt text>
+
+  > <the trigger post / issue / latest post, cut to 600 characters>
+  ```
+  Keeps the exact `topicLoopPromptMark` prefix (`"Loop prompt (background; "`,
+  `topic_loop_fire.go:70`), so `isLoopTrigger`, `latestPost`, and SPL-6309's
+  `spool_notify_is_loop_prompt` treat it identically to a topic loop prompt.
+- **L7 (`mail-file`) compatibility:** when row L7 is built, its `--cause`
+  lookup resolves `messages.loop_id` against `topic_loops` OR `channel_loops`
+  to verify the loop's `set_by` matches the recipient.
+
+#### 9.8.2 HTTP and WS (C2 serves, C3 calls)
+
+Channel loop JSON (same fields as 7.1.2, `"channel"` in place of `"task_id"`):
+
+```json
+{
+  "loop_id": "<uuid>", "channel": "<channel_id>", "prompt": "<text>",
+  "triggers": ["after_agent_reply", "every_n_minutes"], "interval_min": 30,
+  "next_due_at": "2026-11-25T10:00:00Z",
+  "state": "on", "set_by": "HUM-10", "set_at": "2026-11-25T09:30:00Z",
+  "fires_in_hour": 3, "held_until": "2026-11-25T10:12:00Z",
+  "idle": "",
+  "keyword": "pdf", "idle_min": 15,
+  "daily_at": "08:00", "daily_tz": "Europe/Helsinki",
+  "daily_due_at": "2026-11-26T06:00:00Z"
+}
+```
+
+| route | body | answer | refusals |
+|---|---|---|---|
+| `GET /v1/channels/{channel}/loops` | — | `200 {"channel": "<id>", "may_edit": true, "loops": [<loop>...]}` | `404 unknown_channel` (`channelDoor`), `501 not_implemented` |
+| `POST /v1/channels/{channel}/loops` | same body as `POST /v1/topics/{task_id}/loops` (7.1.2) | `201 <loop>` | `400 bad_loop` (incl. `> ChannelLoopsMax`), `403 not_allowed` / `demo_read_only` / `forbidden`, `404 unknown_channel`, `501 not_implemented` |
+| `PUT /v1/channels/{channel}/loops/{loop_id}` | same body as `PUT /v1/topics/{task_id}/loops/{loop_id}` (7.1.2) | `200 <loop>` | as POST, plus `404 not_found` (no such loop) |
+| `DELETE /v1/channels/{channel}/loops/{loop_id}` | — | `200 {"loop_id": "<uuid>", "deleted": true}` (`false` when gone) | `403 not_allowed`, `404 unknown_channel`, `501 not_implemented` |
+| `OPTIONS` on both paths | — | CORS preflight (`GET, POST, PUT, DELETE`), as `topicLoopsPreflight` (`topic_loop.go:45`) | — |
+
+- **Live WS frame:** after each write (`POST`, `PUT`, `DELETE`), the hub
+  sends `{"type": "channel_loops", "channel": "<id>", "loops": [<loop>...]}`
+  to every channel member's open browser socket via
+  `s.fanoutChannelFrame(ctx, tenant, s.channelMemberSet(ctx, tenant, ch), frame)`
+  (`internal/hub/wui.go:1352`).
+- **OpenAPI:** add `ChannelLoop` schema and both paths to
+  `internal/hub/openapi.json` beside `TopicLoop` (`:1113`).
+
+#### 9.8.3 WUI (C3 builds, C4 verifies in Chrome)
+
+- `csi-spl-wui/src/utils/sidebar-row-menu.mjs`: add `loops?: boolean` to
+  `rowMenuItems` (`:14`), emit `{ id: 'channel-loops', icon: 'refresh', labelKey: 'sidebar.row_menu.channel_loops' }`
+  between `properties` (`:32`) and `archive-channel` (`:34`); add `'refresh'`
+  to the icon return JSDoc union (`:16`).
+- `csi-spl-wui/src/components/SidebarRowMenu.vue`: add `loops?: boolean`
+  prop, `channelLoops: []` emit, pass `loops: props.loops` to `rowMenuItems`
+  (`:130-142`), and branch `id === 'channel-loops'` -> `emit('channelLoops')`
+  in `choose` (`:245-277`).
+- `csi-spl-wui/src/components/ChannelSidebar.vue` and
+  `csi-spl-wui/src/composables/useSidebarChannelAdmin.ts`: pass
+  `:loops="showProperties(c.channel_id)"` and
+  `@channel-loops="openChannelLoops(c.channel_id)"` on `<SidebarRowMenu>`
+  (`ChannelSidebar.vue:352-375`), lazily mount `<LazyTopicLoopsDialog>`
+  with `:channel-id` and `:channel-name` (gated on target, matching
+  `ChannelPropertiesDialog` at `ChannelSidebar.vue:641`).
+- `csi-spl-wui/src/components/TopicLoopsDialog.vue` and
+  `csi-spl-wui/src/utils/topic-loops.mjs`: support `channelId?: string` /
+  `channelName?: string` alongside `taskId?: string`, dispatch to
+  `listChannelLoops` / `addChannelLoop` / `editChannelLoop` /
+  `deleteChannelLoop`, add `channelLoopsFromFrame(frame, channelId)` in
+  `topic-loops.mjs`, and subscribe to `useLive().onChannel` (plus
+  `onMockChannelLoops` in mock mode).
+- `csi-spl-wui/src/utils/live-ws.mjs`: add `channelLoops: 'channel_loops'`
+  to `FRAMES` (beside `channelDeleted` at `:35`) and route it to
+  `onChannel(f)` (`:529-532`).
+- `csi-spl-wui/src/utils/spool-client.mjs`, `spool-client-lazy.mjs`,
+  `spool-client-mock.mjs`, `src/types/mjs-shims.d.ts`: add the five
+  `*ChannelLoop*` client methods and mock handlers.
+- `csi-spl-wui/i18n/locales/*.json` (all 19 locale files): new keys under
+  `sidebar.row_menu.channel_loops` and `sidebar.channel_loops.*` (title,
+  scope note, empty, locked, error keys), translated with
+  `do_spl_lang_review_gct` (language rule).
+
+### 9.9 Build order (channel loops, rows C1-C5)
+
+Each row is one small lane. Per `developer-guide.md` 5.1, rows touching
+`csi-spl-wui/` (C3, C4) never go to `mistral`.
+
+| row | depends on | vendor kind | scope | tests and red control |
+|---|---|---|---|---|
+| **C1 rdb + store** | — | `complex_coding` | `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_channel_loops.sql` (`channel_loops`, `channel_loop_state`, indexes, RLS, `change_stamp`, numbered by `do_rdb_migration_next`); `internal/store/{channel_loop.go,channel_loop_postgres.go,channel_loop_memory.go,channel_loop_test.go}`; `channels_postgres.go` and `channels_memory.go` (`ArchiveChannel` deletes channel loops, `DeleteChannel` cleans memory maps); `rls_test.go`; `internal/channelmove/catalogue.go` | `PRE_PUSH_TIER=full`: Postgres + Memory parity; all 11 triggers + field CHECKs + `ChannelLoopsMax` ceiling; `CountChannelLoopFire` enforces BOTH per-topic cap (12/h) and channel-loop budget (60/h) concurrently across two goroutines and rolls over after 1 h; `ClaimDueChannelLoops` skips archived channels, moves `next_due_at` / `daily_due_at` (incl. DST in `Europe/Helsinki`), and returns `Due` + pre-move `DueAt`; `ClaimDueChannelLoopIdles` claims only armed rows; `ChannelActiveTopics` uses `topic_head_parts_channel`, skips archived topics and `LobbyTaskID`, respects `since` and `limit`; `DeleteChannel` cascades both tables and `ArchiveChannel` deletes channel loops; RLS + `catalogue_test.go` pass. Red control: drop `notArchived` from `ClaimDueChannelLoops` and the archived-channel claim test fails. |
+| **C2 hub** | C1 | `complex_coding` | `internal/hub/{channel_loop.go,channel_loop_fire.go,channel_loop_test.go,channel_loop_fire_test.go}`; `server.go` (`ChannelLoopCap`, `ChannelLoopActiveDays`, `ChannelLoopMaxTopics`, `routeChannelLoops`); integrate channel loops into `topic_loop_fire.go` (`topicLoopFireIf` unified Q10 A + N4 B pass, `topicLoopBeforeAgent`, `topicLoopHuman`, `topicLoopAgent`, `topicLoopKindBlocker`, `topicLoopIssue`, `TopicLoopTickOnce`), `topic_loop.go` (`dropTopicLoops` clears `channel_loop_state`), `message_move.go` (`handleMove` clears `channel_loop_state`); `openapi.json` | Every trigger fires on existing, newly created, and moved-in topics in the channel, and never on moved-out, paused, archived, DM, or `LobbyTaskID` topics; unified Q10 A + N4 B stops ping-pong between a topic `after_agent_reply` loop and a channel `after_agent_reply` loop; CL1/CL2/CL3/CL4 rules enforced; `channelDoor` returns 404 to non-members; `channel_loops` WS frame reaches channel members only; time tick respects active-days window, max-topics cap, and dual hourly caps; `TestRoundTripsPerRequest` confirms 0 extra round trips on a tenant with no channel loops and on DM sends. Red control: drop the unified `ev.answer` flag across topic + channel pools and the cross-scope ping-pong test fails. |
+| **C3 wui + i18n** | C2 | `simple_coding`, then `i18n` (`do_spl_lang_review_gct`; never `mistral`) | `utils/sidebar-row-menu.mjs`, `SidebarRowMenu.vue`, `ChannelSidebar.vue`, `composables/useSidebarChannelAdmin.ts`, `TopicLoopsDialog.vue`, `utils/topic-loops.mjs`, `utils/live-ws.mjs`, `utils/spool-client*.mjs`, `types/mjs-shims.d.ts`, `i18n/locales/*.json` (19 files), `tests/unit/sidebar-row-menu.test.mjs`, `tests/unit/topic-loops.test.mjs` | `pnpm run typecheck`, `pnpm run test:unit` (`i18n-parity`, `i18n-untranslated`, `i18n-no-raw-text`, `cleancode`, `sidebar-row-menu` ordering and channel-loops item, `channelLoopsFromFrame`, form rules). Red control: drop `channel-loops` from `rowMenuItems` and the menu unit test fails; leave a raw string in the dialog and `i18n-no-raw-text` fails. |
+| **C4 e2e** | C3 | `tests` (never `mistral`) | `csi-spl-wui/tests/e2e/channel-loops.test.mjs` | `BASE_URL=<bundle> pnpm run test:e2e` on mock: right-click a channel row in the sidebar, open **Channel loops…**, add a loop, edit, pause/resume, delete; verify read-only lock when `may_edit: false`; verify other-tab `channel_loops` frame updates the list; verify no badge or prompt card appears in the channel. Red control: drop the `channelLoops` emit in `SidebarRowMenu.vue` and the e2e test fails to open the dialog. |
+| **C5 help/docs** | C2, C3 | `specs_and_docs` | this spec's row status (mark C1-C4 landed); user-facing help page covering Discussion loops and Channel loops (linked in `csi-spl-doc/doc/help/` or Qto export per `qto-docs.tsv`) | `do_check_dist_hygiene`, `do_check_fleet_rules_drift`, `do_check_pre_push` |
+
+#### 9.9.1 Trigger-to-row ownership (channel loops)
+
+| trigger | C1 (rdb + store) | C2 (hub) | C3 (wui) |
+|---|---|---|---|
+| `after_agent_reply`, `after_human_reply`, `before_agent_reply` | key in `channel_loops` CHECK; per-topic `awaiting` in `channel_loop_state` | unified `topicLoopFireIf` + `topicLoopBeforeAgent` (Q10 A, N4 B across both pools) | shared checkbox in `TopicLoopsDialog.vue` |
+| `every_hour`, `every_n_minutes` | `next_due_at`, `ClaimDueChannelLoops`, `ChannelActiveTopics` | `TopicLoopTickOnce` fans out over active topics up to `ChannelLoopMaxTopics` and dual cap | shared checkbox + n |
+| `post_has_keyword` | `keyword` + CHECK | `topicLoopKeyword` on post hooks | shared checkbox + text field |
+| `post_has_file` | key in CHECK | `Files` check on post hooks | shared checkbox |
+| `blocker_posted` | key in CHECK | `onSend`, `wuiAfterStore`, `handleSetMessageKind` | shared checkbox |
+| `no_reply_after_human` | `idle_min` on `channel_loops`, `idle_due_at`/`idle_post` on `channel_loop_state`, `ArmChannelLoopIdle`, `ClearChannelLoopIdle`, `ClaimDueChannelLoopIdles` | arm on human post, clear on agent reply, fire from `TopicLoopTickOnce` | shared checkbox + n |
+| `issue_status_changed` | key in CHECK | `topicLoopIssue` resolves each linked topic's channel via `channelOf` | shared checkbox |
+| `daily_at` | `daily_at`, `daily_tz`, `daily_due_at`, `ClaimDueChannelLoops`, `ChannelActiveTopics` | `TopicLoopTickOnce` | shared checkbox + time + zone |
+
+### 9.10 Verification commands (`origin/master` `b48786ce3`)
+
+Every file path and line number in section 9 was measured on `origin/master`
+`b48786ce3` with:
+
+```bash
+git rev-parse --short=9 origin/master
+git grep -n -iE "channel_loop|channel-loops|ChannelLoop" origin/master -- csi-spl-api csi-spl-rdb csi-spl-wui | wc -l
+git grep -n -i "loop" origin/master -- csi-spl-wui/src/utils/sidebar-row-menu.mjs csi-spl-wui/src/components/SidebarRowMenu.vue | wc -l
+git grep -n -E 'export function (rowMenuItems|topicMenuLocks|topicCardMenuOpts|msgMenuItems|mayArchiveTopic|canDeleteChannel)' origin/master -- csi-spl-wui/src/utils/
+git grep -n -E '^func (\(s \*Server\) )?(mayArchiveByPolicy|mayChangeTopic|mayChannelAIAgents|channelOwner|channelDoor|retireChannel|handleDeleteChannel|handleArchiveChannel|handleUnarchiveChannel|handleArchiveTenantChannel|fanoutChannelFrame|topicLoopFireIf|topicLoopHuman|topicLoopBeforeAgent|topicLoopAgent|topicLoopKindBlocker|topicLoopIssue|TopicLoopTickOnce|dropTopicLoops|routeTopicLoops|loopTarget|loopCause|loopPromptID|handleMove|topicClosed|channelOf|handleArchiveTopic|handleDeleteTopic|topicLoopsPreflight)\(' origin/master -- csi-spl-api/src/go/spool-hub-api/internal/hub/
+git grep -n -E 'func \(s \*Postgres\) (DeleteChannel|ArchiveChannel|UnarchiveChannel|ClaimDueTopicLoops|CountTopicLoopFire)' origin/master -- csi-spl-api/src/go/spool-hub-api/internal/store/
+git grep -n -E 'openChannelMenu|SidebarRowMenu|showProperties|deletableChannel|topicLoops:|channelDeleted:|topic_loops|CREATE INDEX.*topic_head_parts_channel|ChannelPropertiesDialog' origin/master -- csi-spl-wui/src/components/ChannelSidebar.vue csi-spl-wui/src/composables/useSidebarChannelAdmin.ts csi-spl-wui/src/utils/live-ws.mjs csi-spl-api/src/go/spool-hub-api/internal/channelmove/catalogue.go csi-spl-api/src/go/spool-hub-api/internal/store/rls_test.go csi-spl-rdb/src/sql/postgres/spool-hub/0144_topic_heads.sql csi-spl-rdb/src/sql/postgres/spool-hub/0301_topic_loops.sql
+```
+
+<!-- version: 0.9 · updated: 2026-11-25 · last-edit: 2026-11-25T01:32:00Z -->

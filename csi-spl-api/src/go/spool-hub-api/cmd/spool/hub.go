@@ -1224,10 +1224,17 @@ func (o inviteMailOpts) send(ctx context.Context, st *store.Postgres, tenant, em
 		res.Outcome = "skipped_no_relay"
 		return res, nil
 	}
-	log := logging.New(&config.Config{LogLevel: "info", LogFormat: "json"}).With().Str("component", "cli").Logger()
-	return invitemail.Send(ctx, invitemail.Deps{Store: st, Sender: mc.Sender(log), Delivers: mc.Delivers(), Log: log,
+	sender, log := cliInviteMailLoggers(mc, logging.New(&config.Config{LogLevel: "info", LogFormat: "json"}))
+	return invitemail.Send(ctx, invitemail.Deps{Store: st, Sender: sender, Delivers: mc.Delivers(), Log: log,
 		AppURL: *o.appURL, Locale: *o.locale, DefaultLocale: *o.defLocale,
 		Limits: store.InviteMailLimits{MinGap: *o.minGap, MaxSends: *o.maxSends}}, tenant, email)
+}
+
+// cliInviteMailLoggers pairs send's two loggers: the mail Sender gets base,
+// to which its log sink adds component=mail, and the CLI's own lines get
+// component=cli. One component key per line (the b42-01 rule).
+func cliInviteMailLoggers(mc *mail.Config, base zerolog.Logger) (mail.Sender, zerolog.Logger) {
+	return mc.Sender(base), base.With().Str("component", "cli").Logger()
 }
 
 // cmdRootKeygen creates a tenant ROOT keypair (the renter's key; it pins and

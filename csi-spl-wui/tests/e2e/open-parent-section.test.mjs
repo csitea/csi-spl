@@ -94,11 +94,15 @@ try {
 
   const card = `.spool-main [data-msg-id="${ROOT_MSG}"][data-selected="true"]`
   const selected = await p.waitForSelector(card, { visible: true, timeout: 10000 }).then(() => true).catch(() => false)
-  const inView = selected && await p.$eval(card, (el) => {
+  /* the land scrolls the card in once the feed has grown, ~400 ms after the
+     select; a single early read sees the pre-land layout, so poll */
+  const inView = selected && await p.waitForFunction((sel) => {
+    const el = document.querySelector(sel)
+    if (!el) return false
     const r = el.getBoundingClientRect()
     const s = el.closest('.feed-body').getBoundingClientRect()
     return r.top >= s.top - 1 && r.top < s.bottom
-  })
+  }, { timeout: 5000 }, card).then(() => true).catch(() => false)
   ok('6 the parent card is selected and in view in the middle', Boolean(selected && inView), { selected, inView })
 
   /* the channel's own topic pane, as a click on the parent card opens it */

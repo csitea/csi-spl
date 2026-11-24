@@ -213,7 +213,7 @@ await browser.close()
 
 ## 7. Seat state (for a restart of this seat)
 
-Written at the 12:33Z rotation, 2026-11-24.
+Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one.
 
 - Plan v0.2 is on `review/c002-perf-round-20-planner`, sha `fd664e5b0` (on
   `09f137d40`; v0.1 was `f120ed920`). Not on master; not signed.
@@ -233,6 +233,9 @@ Written at the 12:33Z rotation, 2026-11-24.
   R1 holds both ways (answered, msg 31129549).
 - Field data: not readable (no workspace admin login; holder msg 390f5cf5).
   Flow probe on phones: the holder's bug lane
-  `c002-bug-wui-perf-flow-events-m390-nav`.
+  `c002-bug-wui-perf-flow-events-m390-nav` (c-117, SPL-6386). It found
+  `d1440` fails the same way (msgs a82a3859, c1585eb8): the plan's line 240
+  ("errors on every m390 round") is fixed in v1.0, not in v0.2 while the
+  panel signs it. No p20 row edits that probe (answered, msg 5f6dfa29).
 - The seat closes only on a message on `dispatch-perf-r20` starting with
   ACCEPTED.

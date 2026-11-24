@@ -41,14 +41,17 @@
 #
 #   --unproven    (SPL-6431) the trees with no proof at all, directly under the
 #                 root, idle TMP_WT_IDLE_H (default 24) hours by the newest
-#                 mtime in the tree, two classes (on one box, 2026-11-24: 59
-#                 such id trees held 313931 inodes, 16 round dirs ~136k):
+#                 mtime AND ctime in the tree (a cp -a / rsync -a / tar -x
+#                 copy keeps old mtimes, its ctime is new), two classes (on
+#                 one box, 2026-11-24: 59 such id trees held 313931 inodes,
+#                 16 round dirs ~136k):
 #     agent-id    <prefix><id>-* (g164-r7, g-215-r92-02-red: a dash after the
 #                 id, so a mktemp hex name is no id) holding a git repo or
 #                 worktree anywhere in it (a plain clone, a worktree, nested
 #                 worktrees); kept while the id (or its spl-owner marker's id)
 #                 is live on any box. A dir with no git in it is not listed.
-#     round       r<N>-* / rc<N>-* (r86-base01, rc01-scratch, r93), git or a
+#     round       r<N>-* / rc<N>-* or a bare r<N> (r86-base01, rc01-scratch,
+#                 r93; r76lib is none), git or a
 #                 plain copy; kept while a live lane's branch or brief title,
 #                 or a window name, names round N (round-86, r86, b86, rc86).
 #   Kept, besides the --orphans guards (live sources answering, mount, a
@@ -56,7 +59,9 @@
 #   unpushed: a repo or worktree anywhere in the tree whose HEAD, branch,
 #   tag, stash or a worktree's detached HEAD is on no origin ref of the main
 #   checkout (`rev-list <tips> --not --remotes=origin`; by sha, so a
-#   rebased copy is kept too); a clone with a worktree outside the tree; a dirty repo unless its
+#   rebased copy is kept too); a bare repo anywhere in the tree (HEAD, objects/
+#   and refs/ outside any .git: remote.git, a bare dir of any name), whatever
+#   its refs; a clone with a worktree outside the tree; a dirty repo unless its
 #   path has a red / parent word. Removal: each linked worktree by `git
 #   worktree remove` from its own repo, then what is left of that ONE path,
 #   as its owner (rm -rf --one-file-system, never a glob). Top dirs that are
@@ -71,7 +76,8 @@
 #   (tests: the live ids, space separated; unset = registry.tsv + tmux + lane
 #   map), TMP_WT_LIVE_LANES (tests, with TMP_WT_LIVE_IDS: the live lanes'
 #   text, a line each), TMP_WT_LANE_MAP (default lane-map.sh here),
-#   SPOOL_ROOT.
+#   TMP_WT_NOW (tests, with TMP_WT_SUDO=0 only: the epoch --unproven's idle
+#   check counts back from; a test cannot age a ctime), SPOOL_ROOT.
 # One PLAN|DO remove / KEEP line per tree, a DONE line.
 # Exit 0 done (kept trees included); 2 usage or a refusal (nothing removed).
 set -uo pipefail
@@ -109,6 +115,11 @@ spool="${SPOOL_ROOT:-/var/spool-hub}"
 root="$(readlink -f "$root")"
 [[ "$idle_h" =~ ^[0-9]+$ ]] && (( idle_h >= 1 )) || refuse "TMP_WT_IDLE_H must be a whole number >= 1, got '$idle_h'"
 [[ "$use_sudo" == 0 || "$use_sudo" == 1 ]] || refuse "TMP_WT_SUDO must be 0 or 1, got '$use_sudo'"
+now="${TMP_WT_NOW:-}"
+if [ -n "$now" ]; then
+  [[ "$use_sudo" == 0 && "$now" =~ ^[0-9]+$ ]] || refuse "TMP_WT_NOW is for tests: an epoch, with TMP_WT_SUDO=0"
+else now="$(date +%s)"; fi
+idle_since="@$(( now - idle_h * 3600 ))"
 
 as_root() { if [[ "$use_sudo" == 1 && "$(id -u)" != 0 ]]; then sudo -n -- "$@"; else "$@"; fi; }
 repo_user="$(stat -c %U -- "$repo")"
@@ -190,7 +201,7 @@ mounts="$(findmnt -rn -o TARGET 2>/dev/null | grep "^$root/")"
 # id_of NAME: the id a <prefix><id>-* name starts with (g164-r7 -> g-164)
 id_of() { [[ "${1,,}" =~ ^([acgmoqu])-?([0-9]{3})- ]] && printf '%s-%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"; }
 # round_of NAME: the round an r<N>-* / rc<N>-* name carries (r086-x -> 86)
-round_of() { [[ "${1,,}" =~ ^rc?([0-9]+)([^0-9]|$) ]] && printf '%d' "$((10#${BASH_REMATCH[1]}))"; }
+round_of() { [[ "${1,,}" =~ ^rc?([0-9]+)(-|$) ]] && printf '%d' "$((10#${BASH_REMATCH[1]}))"; }
 # round_live N: a live lane's branch or title, or a window name, names round N
 round_live() { grep -Eiq "(^|[^a-z0-9])(round|rc|r|b)[-_ ]?0*$1([^0-9]|\$)" <<<"$lanes_txt"; }
 # git_as DIR ARGS...: git as DIR's owner (a seat's clone is its own user's)
@@ -264,7 +275,7 @@ rm_tree() {
   [ ! -e "$p" ]
 }
 # unproven_why P CLS KEY: why tree P is kept, `dirty-red` when it goes by
-# --force (a dirty red / parent copy), or nothing; reads $gits
+# --force (a dirty red / parent copy), or nothing; reads $gits and $bares
 unproven_why() {
   local p="$1" u mk w g1 young d=0
   u="$(stat -c %U -- "$p")" mk="$(marker_of "$p")"
@@ -277,9 +288,10 @@ unproven_why() {
   else
     # a .git or .git/worktrees DIR's own mtime is left out: removing a
     # worktree of a clone touches them, and every file in them still counts
-    young="$(as_root find "$p" -newermt "-${idle_h} hours" ! \( -type d \( -name .git -o -path '*/.git/worktrees' \) \) -print -quit 2>/dev/null)" \
+    young="$(as_root find "$p" \( -newermt "$idle_since" -o -newerct "$idle_since" \) ! \( -type d \( -name .git -o -path '*/.git/worktrees' \) \) -print -quit 2>/dev/null)" \
       || { echo unreadable; return; }
     [ -n "$young" ] && { echo "recent (changed in the last ${idle_h} h)"; return; }
+    [ -n "$bares" ] && { echo "bare-repo ${bares%%$'\n'*} (never removed)"; return; }
     while IFS= read -r g1; do
       [ -n "$g1" ] || continue
       w="$(repo_why "$p" "${g1%/.git}")"
@@ -291,12 +303,19 @@ unproven_why() {
 }
 # unproven_one P: one KEEP or PLAN|DO line for top dir P, if it is of a class
 unproven_one() {
-  local p="$1" name="${1##*/}" cls key why n kb dirty=0 what
+  local p="$1" name="${1##*/}" cls key why n kb dirty=0 what scan b
   if key="$(id_of "$name")"; then cls=agent-id
   elif key="$(round_of "$name")"; then cls=round
   else return 0; fi
-  gits="$(as_root find "$p" -name .git -prune -print 2>/dev/null)" || gits="?"
-  [ "$cls" = agent-id ] && [ -z "$gits" ] && return 0
+  # one walk: each .git (pruned), and each objects/ dir outside them whose
+  # parent has a HEAD file and a refs/ dir: a bare repo
+  scan="$(as_root find "$p" -name .git -prune -printf 'G %p\n' -o -type d -name objects -printf 'O %h\n' 2>/dev/null)" || scan="?"
+  gits="$(sed -n 's/^G //p' <<<"$scan")" bares=""
+  while IFS= read -r b; do
+    as_root test -f "$b/HEAD" && as_root test -d "$b/refs" && bares+="${bares:+$'\n'}${b#"$root"/}"
+  done < <(sed -n 's/^O //p' <<<"$scan")
+  [ "$scan" = "?" ] && gits="?"
+  [ "$cls" = agent-id ] && [ -z "$gits" ] && [ -z "$bares" ] && return 0
   n="$(as_root find "$p" -printf x 2>/dev/null | wc -c)"
   if [ "$gits" = "?" ]; then why=unreadable
   else why="$(unproven_why "$p" "$cls" "$key")"; fi

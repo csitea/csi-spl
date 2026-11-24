@@ -7,21 +7,24 @@
 # no origin ref. They go only when idle 24 h, unheld, unmounted, of no live id
 # or round, and holding no commit missing from origin.
 # A sandbox origin, main checkout, tmp root and spool; the real /tmp and the
-# real checkout are never touched.
+# real checkout are never touched. The script's clock is pinned 25 h ahead
+# (TMP_WT_NOW): a test cannot age a ctime, so every tree made here is 25 h
+# old by its ctime, and `ago` sets the mtime back from that clock.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
 REAP="$T_SCRIPTS/tmp-wt-reap.sh"
 UTL_RUN="$T_REPO/csi-spl-utl/src/bash/run/sweep-tmp-worktrees.func.sh"
 R="$SPOOL_ROOT" O="$T_TMP/origin.git" M="$T_TMP/main" TR="$T_TMP/tmp"
-export TMP_WT_REPO="$M" TMP_WT_ROOT="$TR" TMP_WT_SUDO=0 TMP_WT_LIVE_IDS="" TMP_WT_LIVE_LANES=""
+NOW=$(( $(date +%s) + 25 * 3600 ))
+export TMP_WT_REPO="$M" TMP_WT_ROOT="$TR" TMP_WT_SUDO=0 TMP_WT_LIVE_IDS="" TMP_WT_LIVE_LANES="" TMP_WT_NOW="$NOW"
 mkdir -p "$TR"
 G=(git -c user.name=t -c user.email=t@example.com -c advice.detachedHead=false)
 "${G[@]}" init -q --bare "$O" && "${G[@]}" clone -q "$O" "$M" 2>/dev/null
 echo a >"$M/f" && "${G[@]}" -C "$M" add f && "${G[@]}" -C "$M" commit -qm init && "${G[@]}" -C "$M" push -q origin HEAD:master 2>/dev/null
 "${G[@]}" -C "$M" fetch -q origin
 
-ago() { find "$2" -exec touch -h -d "@$(( $(date +%s) - $1 * 3600 ))" {} +; }  # HOURS PATH
+ago() { find "$2" -exec touch -h -d "@$(( NOW - $1 * 3600 ))" {} +; }  # HOURS PATH (by the pinned clock)
 clone() { "${G[@]}" clone -q "$M" "$1" 2>/dev/null; }
 commit() { echo "$2" >"$1/f" && "${G[@]}" -C "$1" commit -qam "$2"; }
 reap() { bash "$REAP" --unproven "$@" 2>&1; }
@@ -144,5 +147,40 @@ eq "10. (i) ...and nothing changed under the tmp root" "$before" "$(snap)"
 out="$(PROJ_PATH="$T_REPO/csi-spl-utl" TMP_WT_MODE=bogus bash -c ". '$UTL_RUN'; do_sweep_tmp_worktrees" 2>&1)"; eq "10. a bad TMP_WT_MODE: exit 2" 2 "$?"
 out="$(PROJ_PATH="$T_REPO/csi-spl-utl" TMP_WT_MODE=unproven DRY_RUN=0 bash -c ". '$UTL_RUN'; do_sweep_tmp_worktrees" 2>&1)"
 check "10. DRY_RUN=0 removes it" test ! -e "$TR/g614-x"
+
+# 11. a bare repo anywhere in a tree keeps the tree: find's `.git` prune never
+#     sees one (remote.git, or a bare dir of any name), so its commits would go
+#     unchecked; both classes, an id tree that holds a clean clone too.
+clone "$TR/g615-b"; "${G[@]}" clone -q --bare "$M" "$TR/g615-b/remote.git" 2>/dev/null
+clone "$T_TMP/w615"; commit "$T_TMP/w615" bare-only; "${G[@]}" -C "$T_TMP/w615" push -q "$TR/g615-b/remote.git" HEAD:side 2>/dev/null
+mkdir -p "$TR/r88-bare" && "${G[@]}" clone -q --bare "$M" "$TR/r88-bare/store" 2>/dev/null
+mkdir -p "$TR/g616-b" && "${G[@]}" clone -q --bare "$M" "$TR/g616-b/store" 2>/dev/null
+ago 25 "$TR/g615-b"; ago 25 "$TR/r88-bare"; ago 25 "$TR/g616-b"
+out="$(reap --apply)"
+check "11. an id tree holding a bare repo stays" test -d "$TR/g615-b/remote.git/objects"
+has "11. ...KEEP bare-repo, the repo named" "KEEP bare-repo g615-b/remote.git (never removed) class=agent-id id=g-615" "$out"
+check "11. a round dir holding a bare repo stays" test -d "$TR/r88-bare/store/objects"
+has "11. ...KEEP bare-repo" "KEEP bare-repo r88-bare/store (never removed) class=round round=88" "$out"
+has "11. an id dir with only a bare repo is listed, KEEP" "KEEP bare-repo g616-b/store (never removed) class=agent-id id=g-616" "$out"
+
+# 12. a fresh copy (cp -a, rsync -a, tar -x) keeps its old mtimes (48 h by
+#     the real clock: 73 by the pinned one): its ctime
+#     is now, so it is recent; the clock unpinned, the ctimes are seconds old.
+mkdir -p "$TR/r89-copy/sub"; echo x >"$TR/r89-copy/sub/f"; ago 73 "$TR/r89-copy"
+clone "$TR/g617-cp"; ago 73 "$TR/g617-cp"
+out="$(TMP_WT_NOW="$(date +%s)" reap --apply)"
+check "12. a round copy with old mtimes but a new ctime stays" test -f "$TR/r89-copy/sub/f"
+has "12. ...KEEP recent" "KEEP recent (changed in the last 24 h) class=round round=89" "$out"
+check "12. an id clone the same" test -d "$TR/g617-cp/.git"
+has "12. ...KEEP recent" "KEEP recent (changed in the last 24 h) class=agent-id id=g-617" "$out"
+out="$(TMP_WT_SUDO=1 TMP_WT_NOW="$NOW" bash "$REAP" --unproven 2>&1)"; eq "12. TMP_WT_NOW with sudo: exit 2" 2 "$?"
+has "12. ...REFUSE" "REFUSE TMP_WT_NOW is for tests" "$out"
+
+# 13. round scratch is r<N>-* / rc<N>-* or a bare r<N>: r76lib is no round.
+mkdir -p "$TR/r76lib" "$TR/r90"; ago 25 "$TR/r76lib"; ago 25 "$TR/r90"
+out="$(reap --apply)"
+hasnt "13. r76lib is not listed" "$TR/r76lib" "$out"
+check "13. ...and stays" test -d "$TR/r76lib"
+check "13. a bare r90 goes" test ! -e "$TR/r90"
 
 t_done

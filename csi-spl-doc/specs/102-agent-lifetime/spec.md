@@ -456,18 +456,22 @@ after the agent is done.
   `g-215-r92-02-red`; a dash after the id, so a mktemp hex name is no id)
   with a git repo or worktree anywhere in it, kept while that id, or the id
   of its `spl-owner` marker, is live on any box; **round**, `r<N>-*` /
-  `rc<N>-*` (git or a plain copy), kept while a live lane's branch or brief
+  `rc<N>-*` or a bare `r<N>` (git or a plain copy; `r76lib` is none), kept while a live lane's branch or brief
   title, or a window name, names round N (`round-86`, `r86`, `b86`). Both
   are kept unless ALL hold: the live sources answered (registry, tmux, the
   fleet lane map with the hub answering, else it refuses and removes
-  nothing), nothing under it changed in 24 h (`TMP_WT_IDLE_H`; the mtime of
-  a `.git` or `.git/worktrees` dir itself is left out), no process has its
+  nothing), nothing under it changed in 24 h by mtime or ctime
+  (`TMP_WT_IDLE_H`; a `cp -a`, `rsync -a` or `tar -x` copy keeps old
+  mtimes but its ctime is new; the times of a `.git` or `.git/worktrees`
+  dir itself are left out), no bare repo is in it (`HEAD`, `objects/` and
+  `refs/` outside any `.git`: `KEEP bare-repo`, whatever its refs), no process has its
   cwd or an open fd under it, nothing is mounted under it, its owner is the
   main checkout's user or the box's agent user, and **no commit is missing
   from origin**: every repo and worktree in it has its HEAD, branches, tags,
   stash and its worktrees' detached HEADs on an origin ref of the main
   checkout (`rev-list <tips> --not --remotes=origin`), else `KEEP
-  unpushed <sha>`. A dirty
+  unpushed <sha>`. A commit only a reflog holds (after `reset --hard`) is
+  not a tip and does not keep a tree. A dirty
   repo is kept unless its path has a `red` or `parent` word; a clone with a
   worktree outside the tree is kept until that worktree goes (worktree top
   dirs go first in a run). Removal: every linked worktree in it by `git

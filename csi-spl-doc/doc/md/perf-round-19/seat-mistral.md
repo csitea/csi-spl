@@ -160,3 +160,84 @@ and `37e0b241e` at 12:43Z — see N3).
 - N6: p20's plan v0.2 sha `fd664e5b0` is in `review/c002-perf-round-20-planner`'s
   history (3 commits match); the branch head is now `3123802` (the plan said
   `356cffc8c`).
+
+<a id="p19-seat-v10"></a>
+
+## v1.0 signature (second commit)
+
+**PASS on `a1f63000c23d4ddea12aaa69444e36027d340d70`** (plan v1.0 on
+`review/c002-perf-round-19-planner`; `git fetch origin
+review/c002-perf-round-19-planner && git rev-parse FETCH_HEAD` -> that sha,
+parent `0a1705f2c`, author and committer the csitea.net address; the editor
+named it in msg `216d249c` on task `dispatch-perf-r19`). v0.1's W1 is answered
+by plan section 3.3 (same-box A/B, n>=5 per arm, per row, lines 127-143);
+v0.1's N1 by row 01 naming `tests/unit/composer-grow.test.mjs`; v0.1's N5 by
+row 05's `:163-169` / `:165` / `:128` citation. Checks re-run on origin/master
+`6beb21c8c` (fresh fetch at review time):
+
+1. Slug: `git log origin/master --oneline -E --grep='\(p19-' | wc -l` -> `0`;
+   `git ls-remote origin | grep -E 'p19-[0-9]{2}|perf-round-19'` -> only
+   `review/c002-perf-round-19-planner` (`a1f63000`), the agy seat
+   (`24ff0bf2`) and this seat's branch (`d05e44b17`); no `p19-<NN>` row
+   branch.
+2. Trees and citations: `git merge-base --is-ancestor 0f872e92e origin/master`
+   -> yes; `295f426dd` (Nuxt 4) is on master;
+   `git log --oneline 7e31ade12..0f872e92e -- csi-spl-wui | wc -l` -> `19`;
+   on the 10 row files -> `0` (the 11th file, `csi-spl-wui/package.json`, has
+   2: `295f426dd`, `71d9941e3`, both package.json-only);
+   `git diff --stat 0f872e92e origin/master -- <the 11 files>` -> `0` lines.
+   Cited lines identical on `0f872e92e` and origin/master:
+   `useComposerSize.ts:39-79` (`omniboxMax` :39, `fitGlobalBox` :53),
+   `package.json:41` = `"puppeteer-core": "^25.13.0"`,
+   `notification.ts:128` (`Notification.permission`), `:163-169` (`hydrate`),
+   `:165` (`readPermission()`), `search.go:35` (`searchPageDefault = 30`),
+   `channel.ts:238`, `flow.ts:135`, `:239`, `:272`. Row files EXIST on both
+   refs; the two new test files are ABSENT on both; `tests/unit/composer-grow.test.mjs`
+   EXISTS on both.
+3. Rows (plan lines 100-106): 6 rows; row 04 is struck through and dropped
+   with its measurement (editor 2.11, dev 3.7.6, 6 reads in 6 first screens,
+   n=6). Sites per row <= 5; every row quotes its baseline on `0f872e92e`
+   first (command + number + n) with `7e31ade12` beside it; every row names
+   its counting test and red control; section 3.3 commits n>=5 per arm for
+   all six rows (lines 138-143); vendor `claude` on all; kinds simple_coding
+   (01, 02, 05, 06), complex_coding (03), tests (07); batches 1, 2, 1, 1, 1, 2.
+   Batch 1 (rows 01, 03, 06, 05) file sets are disjoint; row 02 shares
+   `perf-typing-layouts.test.mjs` with row 01 across batches only. R7:
+   non-claude seats, and no mistral R7 on WUI rows (fleet UI rule); no WUI
+   row is placed on mistral.
+4. Baselines backed by command and output: editor 2.11 carries the commands
+   (`git archive 0f872e92e ...`, `pnpm run generate`, the scratch probes,
+   `ENV=dev PF_N=6 PF_PROFILES=d1440 ./run -a do_spl_wui_perf_flow_events`) and
+   the output tables (type-40 172 in 5 of 5 on both bundles; traces 43 / 41 /
+   41, n=3; 30-hit retained +1,908 / +1,921 / +1,921 on `0f872e92e` vs
+   +1,922 x3 on `7e31ade12`; permission first read 1.0, 4.4, 5.6, 2.9, 7.3 ms,
+   n=5; revision 12 in 6, n=6). The expected gains follow from those numbers.
+5. R3 / R1 across rounds: `lane-map.sh --check <the 11 files> --agent m-006`
+   -> exit 4, 8 unknown lanes (c-074, c-084, c-087, c-148, c-159, c-164,
+   c-168, m-135), none owns a p19 file;
+   `git diff --name-only origin/master...3123802 -- <the 11 files>` (p20
+   branch) -> `0` lines;
+   `git diff --name-only origin/master...9761e0ea -- <the 11 files>` (c-980's
+   remaining branch) -> 1 file, `csi-spl-wui/package.json` only (the Nuxt 4
+   dependency pins; no p19 row edits package.json, so R1 holds).
+6. `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO
+   distribution-hygiene: clean`, exit 0 (re-run after this edit as well).
+
+Defects (v1.0): none.
+
+Notes (v1.0):
+
+- N7: on the 11-file list (the 10 row files + `csi-spl-wui/package.json`),
+  c-980's remaining branch `review/c002-spl5070-nuxt4-migration` (`9761e0ea`)
+  touches 1 file, `package.json` (dependency pins only); on the 10 row files
+  it is 0 lines. No p19 row edits `package.json` (row 01 cites `:41` only, "no
+  new dependency"), so R1 is not violated.
+- N8: the lane map at this read shows 8 live lanes with no files recorded
+  (c-087 joined since the 19:00Z read of 7); exit 4 either way, no owner.
+- N9: origin/master is still `6beb21c8c` at this read;
+  `git diff --stat 0f872e92e origin/master -- <the 11 files>` -> `0` lines, so
+  the v1.0 baselines did not move since the editor's 18:43Z read.
+- N10: not re-run by this seat: the dev harness actions behind editor 2.11's
+  dev 3.7.6 reads (`do_spl_wui_perf_flow_events` and the served-build claim
+  "dev 3.7.6, commit `0f872e92`") are the editor's evidence; this seat re-ran
+  only the tree checks above.

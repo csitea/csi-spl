@@ -52,3 +52,27 @@ One-tree note: `git log --oneline 6c741f5b0..09f137d40 -- csi-spl-wui | wc -l` -
 - N4: row 01's "~100 ms" expected is measured only on channel open (`fitStrip` 308.8 ms / 3 opens); channel switch (525 ms median, n=5) and rail tab change are extrapolations, labeled "computed, not measured" — consistent with the plan's upper-bound rule.
 - N5: row 07's desktop baseline is n=1 (p19's mock waterfall, times not quoted, box load/cores 4.3); the row's own timing rule (n>=5 per arm before the push, n=10 on dev) covers the A/B, so 4.1 holds.
 - N6: check 1's `ls-remote` shows only the planner's branch; this seat's `review/c002-perf-round-20-mistral-seat` appears once this file is pushed (expected per the brief).
+
+<a id="p20-seat-v10"></a>
+
+## v1.0 signature (2026-11-24 14:5xZ)
+
+Editor c-084 named v1.0 `65987550644182baafa3684e09b1c08166677d5d` on `review/c002-perf-round-20-planner` (holder msg a9a472b6, task `dispatch-perf-r20`). Verified: `git ls-remote origin | grep perf-round-20` -> branch head `65987550644182baafa3684e09b1c08166677d5d`; `git log -1 --format='%H %P %an %ae %cn %ce %s' 6598755...` -> parent `ca630d47374d9d1fe3474e88e000795d04743605` (fast-forward from `fd664e5b0`), author and committer both the repo CLAUDE.md Commits address, subject `docs(p20-plan, SPL-6364): perf round 20 plan v1.0, the rows table gets the box column and the mistral seat's notes are folded`; `git log -1 --format='%(trailers)' 6598755...` -> one `Docs: none (...)` line, 0 AI trailers.
+
+Delta read: `git diff fd664e5b0 65987550644182baafa3684e09b1c08166677d5d` -> 2 files, 69 insertions(+), 14 deletions(-): `perf-round-20-plan.md` +44/-14ish, `perf-round-20/editor.md` +39. Plan hunks, each judged:
+
+- Title/status v0.2 -> v1.0. Bookkeeping.
+- One-tree note added: prd `e2e` serves WUI 3.6.9 `8d348dbe1`, `origin/master` is `50dbdaa6d`, row-file diff empty. Folds N1. Re-verified: `git rev-parse origin/master` -> `50dbdaa6d1c2ca6f92af4f755a9feaadb88027fc`; `git diff --stat 09f137d40 origin/master -- <9 row files>` -> empty; `curl -s https://e2e.spool-hub.ai/build.json` earlier -> commit `8d348dbe1` v3.6.9.
+- Rows table: header gains the `box` column and every row gets `either fleet box`. Folds W1 (rulebook 3.1, p18 form line 104).
+- Row 01 expected reworded: "~100 ms off each channel open (the profiled step); channel switch and a rail tab change ... are extrapolated from it". Folds N4.
+- Row 04 practice reworded: "today's guard, `:34-38`, already runs before the reads; the gain is the batching". Folds N3. Re-verified: `git show 09f137d40:csi-spl-wui/src/composables/useLiveFeedThreadEnds.ts | sed -n '34,38p'` -> the `if (!phone.value || o.holdScroll() !== true) { ... return }` guard.
+- Row 06 baseline adds "quoted here only; the editor file keeps no raw output of it, so the lane re-takes it before the change". Folds N2.
+- Section 6 probe row updated with c-117's finding and fix `8d348dbe1` (SPL-6386). Not one of my notes; verified `git merge-base --is-ancestor 8d348dbe1 origin/master` -> rc 0.
+- Counts line ("Rows: 7"), the v1.0 entry in section 8 (folds W1, N1-N4 explicitly, N5/N6 need no change), and the consensus table (records this seat's PASS, msg 1901395a, seat file `960bb5d2f`; agy not placed). Bookkeeping.
+- Editor file: new section 7 "Seat state (for a restart of this seat)" — bookkeeping, no measurement changed.
+
+Nothing else moved: no row's sites, baseline numbers, tests, vendors, kinds or batches changed; the only site-text change is row 04's added `:34-38` reference, verified above.
+
+Re-checks on the new state: `git log origin/master --oneline -E --grep='\((p20-' | wc -l` -> `0`; rulebook 4.4 command on `origin/master` -> `perf 29 refactor 100 perf-share 22.5% floor-met`; `lane-map.sh --check <9 row files + this seat file> --agent m-135` -> exit 3, only `csi-spl-wui/nuxt.config.ts` owned by c-980@sat.
+
+**PASS on `65987550644182baafa3684e09b1c08166677d5d`** (plan v1.0): W1 and N1-N4 are folded correctly and nothing else moved.

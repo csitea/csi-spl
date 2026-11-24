@@ -11,6 +11,12 @@
  * calls that set it at once on a real client (connect, close), and onState
  * hears them, as it would.
  *
+ * A load that fails while a connect is kept reads `reconnecting`, as a real
+ * client reads after a dropped dial, and loads again on its own after the
+ * same equal-jitter backoff (0.5 s doubling to 30 s): useLive starts
+ * watchLive only once the module is there, so nothing else would ask again.
+ * A call made meanwhile loads at once. After close() a failure stays closed.
+ *
  * Only `lazyLiveClient` is exported: Nuxt auto-imports every utils/ export by
  * name. live-ws.mjs's names are read as members of the loaded module only: a
  * bare name here would make Nuxt add a static import of it.
@@ -27,6 +33,16 @@ const SYNC_CALLS = [
 ]
 
 /**
+ * live-ws reconnectDelayMs's wait, here: live-ws-lazy.mjs imports nothing statically.
+ * @param {number} attempt
+ * @param {() => number} random
+ */
+function loadRetryMs(attempt, random) {
+  const d = Math.min(30000, 500 * 2 ** attempt)
+  return Math.round(d / 2 + random() * (d / 2))
+}
+
+/**
  * @param {Record<string, any>} opts createLiveClient's options
  * @param {{ load?: () => Promise<any>, onLoad?: (mod: any, client: any) => void }} [hooks]
  *   load: the live-ws module (a test passes its own); onLoad: runs once, with the module and the real client
@@ -39,6 +55,12 @@ export function lazyLiveClient(opts, { load = () => import('./live-ws.mjs'), onL
   /** @type {Array<[string, unknown[]]>} */
   const queue = []
   let state = 'idle'
+  /** @type {any} */
+  let retryTimer = null
+  let attempt = 0
+  const setTimer = opts?.setTimer || ((/** @type {() => void} */ fn, /** @type {number} */ ms) => setTimeout(fn, ms))
+  const clearTimer = opts?.clearTimer || ((/** @type {any} */ t) => clearTimeout(t))
+  const random = opts?.random || Math.random
 
   function replay() {
     while (queue.length) {
@@ -54,15 +76,34 @@ export function lazyLiveClient(opts, { load = () => import('./live-ws.mjs'), onL
 
   function ready() {
     return (loading ||= load().then((mod) => {
+      stopRetry()
       real = mod.createLiveClient(opts)
       replay()
       if (onLoad) onLoad(mod, real)
       return real
     }, (err) => {
-      /* the next call tries again; the kept calls wait for it */
+      /* the next call, or the timed retry, loads again; the kept calls wait for it */
       loading = null
+      retryLater()
       throw err
     }))
+  }
+
+  /** A kept connect that cannot load yet reads reconnecting and is tried again, as a real client redials. */
+  function retryLater() {
+    if (real || (state !== 'connecting' && state !== 'reconnecting')) return
+    if (state !== 'reconnecting') setState('reconnecting')
+    if (retryTimer !== null) return
+    retryTimer = setTimer(() => {
+      retryTimer = null
+      if (!real && state === 'reconnecting') ready().catch(() => {}) // ready() handled it: reconnecting, the next retry set
+    }, loadRetryMs(attempt++, random))
+  }
+
+  function stopRetry() {
+    if (retryTimer !== null) clearTimer(retryTimer)
+    retryTimer = null
+    attempt = 0
   }
 
   /** @type {Record<string, any>} */
@@ -83,8 +124,11 @@ export function lazyLiveClient(opts, { load = () => import('./live-ws.mjs'), onL
       if (real) return real[name](...args)
       queue.push([name, args])
       if (name === 'connect' && state !== 'connecting') setState('connecting')
-      if (name === 'close' && state !== 'closed') setState('closed')
-      ready().catch(() => {}) // a failed load is retried by the next call; the kept calls wait for it
+      if (name === 'close') {
+        stopRetry()
+        if (state !== 'closed') setState('closed')
+      }
+      ready().catch(() => {}) // ready() handled it: reconnecting and a timed retry while a connect is kept
     }
   }
   for (const name of ASYNC_CALLS) {

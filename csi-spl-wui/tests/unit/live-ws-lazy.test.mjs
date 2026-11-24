@@ -136,6 +136,91 @@ describe('lazyLiveClient: calls before the load (SPL-6342)', () => {
     assert.equal(n, 2, 'the next call loaded again')
     assert.equal(sockets.length, 1, 'the kept connect ran on the second load')
   })
+
+  /** Timers the test fires by hand. */
+  function handTimers() {
+    const pending = []
+    return {
+      setTimer: (fn, ms) => { const t = { fn, ms }; pending.push(t); return t },
+      clearTimer: (t) => { const i = pending.indexOf(t); if (i >= 0) pending.splice(i, 1) },
+      fire: () => pending.splice(0).forEach((t) => t.fn()),
+      pending,
+    }
+  }
+
+  it('a failed load under a kept connect reads reconnecting and loads again on its own (R7 W1)', async () => {
+    const { FakeWS, sockets } = fakeWs()
+    const states = []
+    const timers = handTimers()
+    let n = 0
+    const load = () => (++n === 1 ? Promise.reject(new Error('chunk')) : Promise.resolve(liveWs))
+    const loaded = []
+    const c = lazyLiveClient(
+      { url: 'ws://h/v1/wui/ws', WebSocketImpl: FakeWS, onState: (s) => states.push(s), setTimer: timers.setTimer, clearTimer: timers.clearTimer, random: () => 0 },
+      { load, onLoad: (mod) => loaded.push(mod) },
+    )
+    c.connect()
+    await tick()
+    assert.equal(c.state, 'reconnecting', 'a failed chunk load does not stay connecting')
+    assert.deepEqual(states, ['connecting', 'reconnecting'])
+    assert.equal(timers.pending.length, 1, 'one timed retry')
+    assert.equal(timers.pending[0].ms, 250, 'the first wait is half of 500 ms with random 0')
+    assert.equal(loaded.length, 0)
+
+    timers.fire()
+    await tick()
+    assert.equal(n, 2, 'the timer loaded again with no other call')
+    assert.equal(loaded.length, 1, 'onLoad ran: useLive starts watchLive there')
+    assert.equal(sockets.length, 1, 'the kept connect dialled')
+    assert.equal(c.state, 'connecting', 'the real client has the state now')
+    assert.equal(timers.pending.length, 0)
+  })
+
+  it('each failed retry waits longer and stays reconnecting', async () => {
+    const timers = handTimers()
+    let n = 0
+    const c = lazyLiveClient(
+      { url: 'ws://h/v1/wui/ws', setTimer: timers.setTimer, clearTimer: timers.clearTimer, random: () => 0 },
+      { load: () => { n++; return Promise.reject(new Error('chunk')) } },
+    )
+    c.connect()
+    const waits = []
+    for (let i = 0; i < 3; i++) {
+      await tick()
+      assert.equal(c.state, 'reconnecting')
+      waits.push(timers.pending[0].ms)
+      timers.fire()
+    }
+    assert.deepEqual(waits, [250, 500, 1000])
+    assert.equal(n, 4, 'the first load and three timed retries')
+  })
+
+  it('a failed load after close stays closed and sets no retry', async () => {
+    const timers = handTimers()
+    const c = lazyLiveClient(
+      { url: 'ws://h/v1/wui/ws', setTimer: timers.setTimer, clearTimer: timers.clearTimer },
+      { load: () => Promise.reject(new Error('chunk')) },
+    )
+    c.connect()
+    c.close()
+    await tick()
+    assert.equal(c.state, 'closed')
+    assert.equal(timers.pending.length, 0)
+  })
+
+  it('close while a retry waits cancels it', async () => {
+    const timers = handTimers()
+    const c = lazyLiveClient(
+      { url: 'ws://h/v1/wui/ws', setTimer: timers.setTimer, clearTimer: timers.clearTimer, random: () => 0 },
+      { load: () => Promise.reject(new Error('chunk')) },
+    )
+    c.connect()
+    await tick()
+    assert.equal(timers.pending.length, 1)
+    c.close()
+    assert.equal(timers.pending.length, 0, 'the retry is cancelled')
+    assert.equal(c.state, 'closed')
+  })
 })
 
 describe('live-ws stays out of the entry chunk (SPL-6342)', () => {

@@ -32,6 +32,8 @@
 # login-no-workspace-dropdown (SPL-6413) is new: 12 s, its one local run
 # topic-select-phone (spec 186 row M3, SPL-6395) is new: 13 s, its one local run
 # on a generated mock bundle (n=1, 2026-11-24), until a refresh measures CI.
+# perf-typing-layouts (p19-01, SPL-6418) is new: 25 s, its one local run
+# on a generated mock bundle (n=1, 2026-11-24), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -285,6 +287,7 @@ tests/e2e/people-contacts.test.mjs 28
 tests/e2e/people-email.test.mjs 6
 tests/e2e/people-remove.test.mjs 4
 tests/e2e/perf-rum.test.mjs 10
+tests/e2e/perf-typing-layouts.test.mjs 25
 tests/e2e/person-hours-norm.test.mjs 12
 tests/e2e/phone-back-matrix.test.mjs 136
 tests/e2e/phone-back-section-top.test.mjs 182

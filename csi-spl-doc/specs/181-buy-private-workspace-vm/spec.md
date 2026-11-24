@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
-**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.7.1
-(Q-1..Q-20 answered; Q-21, standard VM machine type + monthly list price cnf source and spec 122 RQ-3, open; section 1.0; v0.6.1: row B2 implemented; v0.7.1: row B9 implemented) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.7.2
+(Q-1..Q-20 answered; Q-21, standard VM machine type + monthly list price cnf source and spec 122 RQ-3, open; section 1.0; v0.6.1: row B2 implemented; v0.7.1: row B9 implemented; v0.7.2: paid invoices outlive the purge) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -750,9 +750,17 @@ Row status (v0.4.1):
   cancel only. Not done here: the workspace admin's own revoke of one box
   (108 T012's route, the upload-token drop, the Fleet page) and B8's order
   status (`workspace_orders.status` stays `submitted`, so B8 itself does
-  not refuse a cancelled workspace). A paid invoice is purged with the
-  workspace (`private_workspace_invoices` cascades), so an invoice must be
-  kept outside the hub before the 30 days end. Tests:
+  not refuse a cancelled workspace). Paid invoices stay in the hub after
+  the purge (owner HUM-10, t1 b12055b5, msg `f872a556`, poll `48efd738`
+  answer A: "the workspace is deleted, its invoices stay", kept for years
+  for bookkeeping; SPL-6355): rdb `0320_invoices_outlive_purge.sql` drops
+  `private_workspace_invoices`' FK to `tenants`, so the row keeps its
+  `tenant_id` and amounts once the tenants row is gone, like the
+  cancellation tombstone. Its RLS is unchanged: the operator scope reads
+  a purged workspace's invoices, another workspace's scope reads none.
+  `TestPurgeCancelledWorkspace` checks it on both drivers; red control,
+  the parent's cascade -> `the purged workspace's paid invoice: ... not
+  found, want it kept`. Tests:
   `internal/store/workspace_cancel_test.go` (`TestCancelWorkspace`,
   `TestPurgeCancelledWorkspace`, both drivers),
   `internal/hub/workspace_cancel_test.go`,
@@ -894,5 +902,7 @@ Marketplace stays spec 156.
 - v0.7.1 (2026-11-24, c-916, SPL-6344): row B9 implemented (section 6
   row status): the operator cancel, rdb 0319 `workspace_cancellations`,
   the 30-day purge tick, `do_spl_private_ws_cancel`.
+- v0.7.2 (2026-11-24, c-678, SPL-6355): B9 follow-up, paid invoices stay
+  in the hub after the purge (owner msg `f872a556`), rdb 0320.
 
-<!-- version: 0.7.1 · updated: 2026-11-24 · last-edit: 2026-11-24T05:10:00Z -->
+<!-- version: 0.7.2 · updated: 2026-11-24 · last-edit: 2026-11-24T08:40:00Z -->

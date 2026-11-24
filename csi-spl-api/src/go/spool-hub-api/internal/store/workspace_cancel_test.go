@@ -110,7 +110,8 @@ func TestCancelWorkspace(t *testing.T) {
 
 // TestPurgeCancelledWorkspace: the hub data stays 30 days after the
 // cancel (Q-12 C), is held while an invoice is unpaid (Q-17 B), then goes;
-// the cancellation row and the audit outlive it. CONTROL: a day before
+// the cancellation row, the audit and the paid invoice outlive it (rdb
+// 0320, owner msg f872a556). CONTROL: a day before
 // purge_after nothing goes, and a workspace that is not cancelled stays.
 func TestPurgeCancelledWorkspace(t *testing.T) {
 	ctx := context.Background()
@@ -121,7 +122,8 @@ func TestPurgeCancelledWorkspace(t *testing.T) {
 			a, _ := privateWorkspace(t, s, now)
 			kept, _ := privateWorkspace(t, s, now)
 			month := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
-			if _, _, err := s.(Invoices).IssueInvoice(ctx, a, month, 1, 0, now); err != nil {
+			issued, _, err := s.(Invoices).IssueInvoice(ctx, a, month, 1, 0, now)
+			if err != nil {
 				t.Fatal(err)
 			}
 			if _, _, err := wc.CancelWorkspace(ctx, a, "ops", "op@example.com", now); err != nil {
@@ -158,6 +160,7 @@ func TestPurgeCancelledWorkspace(t *testing.T) {
 			if _, err := s.GetTenant(ctx, kept); err != nil {
 				t.Errorf("CONTROL: a workspace that is not cancelled: %v", err)
 			}
+			checkInvoiceKept(t, s, a, kept, issued)
 			r, err = wc.PurgeDueWorkspaces(ctx, at.Add(time.Hour))
 			if p, h := mine(r); err != nil || p || h {
 				t.Fatalf("second purge: %+v %v, want nothing", r, err)
@@ -170,5 +173,36 @@ func TestPurgeCancelledWorkspace(t *testing.T) {
 				t.Fatalf("audit after the purge: %+v, want a purge_workspace row", trail)
 			}
 		})
+	}
+}
+
+// checkInvoiceKept: the purged workspace a's paid invoice is still there,
+// with its tenant id and amount, in a's own scope; on Postgres the operator
+// scope reads it and the other workspace's scope does not (RLS, rdb 0315).
+func checkInvoiceKept(t *testing.T, s Store, a, other string, issued Invoice) {
+	t.Helper()
+	ctx := context.Background()
+	got, err := s.(Invoices).Invoice(ctx, a, issued.Month)
+	if err != nil || got.Tenant != a || got.TotalMicros != issued.TotalMicros || got.PaidAt == nil {
+		t.Fatalf("the purged workspace's paid invoice: %+v %v, want it kept (tenant %s, total %s, paid)",
+			got, err, a, issued.TotalMicros)
+	}
+	pg, ok := s.(*Postgres)
+	if !ok {
+		return
+	}
+	var op Invoice
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) (err error) {
+		op, err = scanInvoice(tx.QueryRow(ctx, invoiceReadSQL, a, issued.Month))
+		return err
+	}); err != nil || op.Tenant != a || op.TotalMicros != issued.TotalMicros {
+		t.Fatalf("operator read of the purged workspace's invoice: %+v %v", op, err)
+	}
+	err = pg.inTenant(ctx, other, func(tx pgx.Tx) error {
+		_, err := scanInvoice(tx.QueryRow(ctx, invoiceReadSQL, a, issued.Month))
+		return err
+	})
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("workspace %s read %s's invoice: %v, want no row (RLS)", other, a, err)
 	}
 }

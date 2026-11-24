@@ -32,8 +32,9 @@ import (
 // purge_after has passed and that is not purged yet. The workspace's hub
 // data goes with DELETE FROM tenants (every ON DELETE CASCADE table), the
 // row gets purged_at and one operator_audit row (purge_workspace) is
-// written; the cancellation row and operator_audit carry no FK, so both
-// outlive the purge. A workspace with an unpaid invoice is HELD, not
+// written; the cancellation row, operator_audit and the workspace's
+// invoices carry no FK (rdb 0320), so all three outlive the purge: the
+// invoices stay for bookkeeping (owner, msg f872a556). A workspace with an unpaid invoice is HELD, not
 // purged: a non-payment never deletes anything on its own (Q-17 B, 4.4);
 // the owner decides it by hand, and the next tick purges it once the
 // invoice is marked paid. The VM delete is not the hub's: the orc action
@@ -229,7 +230,7 @@ func (s *Memory) unpaidInvoice(tenant string) bool {
 }
 
 // dropTenant removes tenant and what the Memory store keys by it, as the
-// cascade does in Postgres. The caller holds mu.
+// cascade does in Postgres; its invoices stay (rdb 0320). The caller holds mu.
 func (s *Memory) dropTenant(tenant string) {
 	delete(s.tenants, tenant)
 	for k := range s.pins {
@@ -240,11 +241,6 @@ func (s *Memory) dropTenant(tenant string) {
 	for h, j := range s.joins {
 		if j.TenantID == tenant {
 			delete(s.joins, h)
-		}
-	}
-	for k, inv := range memInvoices[s] {
-		if inv.Tenant == tenant {
-			delete(memInvoices[s], k)
 		}
 	}
 	delete(memPlans[s], tenant)

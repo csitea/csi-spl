@@ -9,15 +9,21 @@
 //
 //   flow-cold    a fresh page (/, HTTP cache kept): click the Flow rail tab
 //                until the first Flow entry is painted - the store's first read.
+//                A list that settles on its empty line (not the loading line)
+//                is recorded as note 'flow empty', never as a number.
 //   flow-open    click the Nth Flow entry until the opened message is shown
 //                and marked in its original place (open-focus class);
 //                flow-open-shown = until it is first on screen, unmarked.
-//   flow-warm    Back, another rail tab, then Flow again: until the entries show.
-//   events-tab   click the Event log rail tab until its "Event log" link shows.
-//   events-paint click that link until the /events page shell is painted (a
-//                phone's rail tab opens /events itself: timed from the tab).
+//   flow-warm    Back (only when an entry was opened), another rail tab, then
+//                Flow again: until the entries show.
+//   events-tab   click the Monitoring rail tab until its Events tab shows
+//                (SPL-3250 made the Event log a tab of Monitoring, phone and
+//                desktop; the Event log rail tab is retired).
+//   events-paint click the Events tab until the /monitoring/events shell is painted.
 //   events-full  ... until its table, empty line or error is painted.
-//   events-warm  Back, then click the link again: until full.
+//   events-warm  Back to the Monitoring tab it came from, then Events again: until full.
+// Back is the browser's (page.goBack), never an evaluate of history.back(): a
+// Back that leaves the document destroys the context an evaluate runs in.
 //
 // Each step also records the API reads it fired (route, client ms, KB) and
 // its resource timeline relative to the click (start..end ms).
@@ -89,6 +95,19 @@ const whenSel = (p, sel, timeout = 30000) => p.waitForFunction((s) => {
   }
   return 0
 }, { timeout, polling: 'raf' }, sel).then((h) => h.jsonValue()).catch(() => -1)
+/** {at, empty}: a Flow entry painted (empty false), or the list's empty line
+ *  painted with its empty text, not its loading text (empty true); at -1 on timeout. */
+const whenFlow = (p, timeout = 30000) => p.waitForFunction((entry, emptySel) => {
+  const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  if ([...document.querySelectorAll(entry)].some(vis)) return { at: performance.now(), empty: false }
+  const el = [...document.querySelectorAll(emptySel)].find(vis)
+  const gp = document.querySelector('#__nuxt')?.__vue_app__?.config.globalProperties
+  const t = gp?.$t || gp?.$i18n?.t
+  if (el && typeof t === 'function' && el.textContent.trim() !== String(t('flow.loading')).trim()) return { at: performance.now(), empty: true }
+  return 0
+}, { timeout, polling: 'raf' }, FLOW_ENTRY, FLOW_EMPTY).then((h) => h.jsonValue()).catch(() => ({ at: -1, empty: false }))
+/** The browser's Back, waited on by puppeteer (same- or cross-document); false when it failed. */
+const back = (p) => p.goBack({ waitUntil: 'domcontentloaded', timeout: 10000 }).then(() => true).catch(() => false)
 /** Click the first visible match of `sel`; performance.now() at the click, -1 if none. */
 const clickAt = (p, sel) => p.evaluate((s) => {
   const el = [...document.querySelectorAll(s)].find((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 })
@@ -100,8 +119,12 @@ const clickAt = (p, sel) => p.evaluate((s) => {
 
 const FLOW_TAB = '[data-testid=sidebar-tab-flow]'
 const FLOW_ENTRY = '[data-testid=sidebar-panel-flow] [data-testid=left-entry]'
-const EVENTS_TAB = '[data-testid=sidebar-tab-events]'
-const EVENTS_LINK = '[data-testid=sidebar-events-open]'
+const FLOW_EMPTY = '[data-testid=sidebar-panel-flow] [data-testid=flow-empty]'
+/* src/utils/rail-order.ts: rail id 'monitoring' (RAIL_TABS), 'events' in
+   RAIL_RETIRED; src/pages/monitoring.vue: 'monitoring-tab-' + tab.id, and
+   src/utils/monitoring-tabs.mjs: tab id 'events', /monitoring/events */
+const MON_TAB = '[data-testid=sidebar-tab-monitoring]'
+const EVENTS_LINK = '[data-test=monitoring-tab-events]'
 const EVENTS_PAGE = '[data-test=events-page]'
 const EVENTS_DONE = '[data-test=events-table], [data-test=events-empty], [data-test=events-error], [data-test=events-signed-out]'
 /** a rail tab that is not Flow / Event log, to leave Flow and come back */
@@ -125,6 +148,20 @@ async function step(p, rec, s, name, clickSel, doneSel, midSel = '') {
   if (t0 < 0 || t1 < 0) await p.screenshot({ path: `${OUT}/${s.tag}-${name}.png` }).catch(() => {})
 }
 
+/** A Flow rail tab click until the list shows: entries (ms), or 'flow empty' (a note, ms null). */
+async function flowStep(p, rec, s, name) {
+  rec.take()
+  const t0 = await clickAt(p, FLOW_TAB)
+  const w = t0 < 0 ? { at: -1, empty: false } : await whenFlow(p)
+  s[name] = {
+    ms: w.empty ? null : t0 < 0 || w.at < 0 ? -1 : Math.round(w.at - t0),
+    ...(t0 < 0 ? { note: 'no ' + FLOW_TAB } : w.empty ? { note: 'flow empty' } : {}),
+    ...(t0 < 0 ? {} : { timeline: await timeline(p, t0) }),
+    ...net(rec.take()),
+  }
+  if (t0 < 0 || w.at < 0) await p.screenshot({ path: `${OUT}/${s.tag}-${name}.png` }).catch(() => {})
+}
+
 async function round(p, cdp, rec, i, tag) {
   const s = { tag }
   if (COLD_CACHE) await cdp.send('Network.clearBrowserCache')
@@ -138,7 +175,7 @@ async function round(p, cdp, rec, i, tag) {
   s['first-screen'] = { ms: Math.round(firstScreen), ...net(rec.take()) }
   await sleep(2500)
   // Flow, first open in this page
-  await step(p, rec, s, 'flow-cold', FLOW_TAB, FLOW_ENTRY)
+  await flowStep(p, rec, s, 'flow-cold')
   await sleep(800)
   // open the i-th entry (rotating over the first 8, so one cached place does not stand for all)
   const pick = await p.evaluate((sel, i) => {
@@ -149,40 +186,32 @@ async function round(p, cdp, rec, i, tag) {
   if (pick) {
     await step(p, rec, s, 'flow-open', `${FLOW_ENTRY}[data-msg-id="${pick}"]`,
       `.msg[data-msg-id="${pick}"].open-focus, .msg[data-msg-id="${pick}"].search-focus`, `.msg[data-msg-id="${pick}"]`)
-  } else s['flow-open'] = { ms: -1, note: 'no entry' }
+  } else s['flow-open'] = s['flow-cold'].note === 'flow empty' ? { ms: null, note: 'flow empty' } : { ms: -1, note: 'no entry' }
   await sleep(800)
   // Flow again after another tab. Back (one history entry over the list, as
-  // the reader would) returns a phone to the list level.
-  await p.evaluate(() => history.back())
+  // the reader would) returns a phone to the list level; nothing opened, no Back.
+  if (pick) await back(p)
   await sleep(600)
   await clickAt(p, OTHER_TAB)
   await sleep(600)
-  await step(p, rec, s, 'flow-warm', FLOW_TAB, FLOW_ENTRY)
+  await flowStep(p, rec, s, 'flow-warm')
   await sleep(600)
-  // Event log: rail tab, then its link, then the page. On a phone the rail
-  // tab opens /events itself (level 2): the page is timed from the tab click.
+  // Event log: the Monitoring rail tab until its tab row shows the Events tab,
+  // then that tab until the page and its rows are painted.
+  await step(p, rec, s, 'events-tab', MON_TAB, EVENTS_LINK)
   rec.take()
-  const tt = await clickAt(p, EVENTS_TAB)
-  const tl = tt < 0 ? -1 : await whenSel(p, `${EVENTS_LINK}, ${EVENTS_PAGE}`)
-  // the link paints first on a phone while the tab is already routing to
-  // /events: give the route 1.5 s to show the page before clicking the link
-  const direct = tl >= 0 && (await whenSel(p, EVENTS_PAGE, 1500)) >= 0
-  s['events-tab'] = { ms: tt < 0 || tl < 0 ? -1 : Math.round(tl - tt), direct, ...(tt < 0 ? {} : { timeline: await timeline(p, tt) }) }
-  const t0 = direct ? tt : await clickAt(p, EVENTS_LINK)
+  const t0 = s['events-tab'].ms < 0 ? -1 : await clickAt(p, EVENTS_LINK)
   const [tp, tf] = t0 < 0 ? [-1, -1] : await Promise.all([whenSel(p, EVENTS_PAGE), whenSel(p, EVENTS_DONE)])
   const n = net(rec.take())
   s['events-paint'] = { ms: tp < 0 || t0 < 0 ? -1 : Math.round(tp - t0), ...n }
   s['events-full'] = { ms: tf < 0 || t0 < 0 ? -1 : Math.round(tf - t0), rows: await p.evaluate(() => document.querySelectorAll('[data-test=events-row]').length), ...n }
   await sleep(600)
-  await p.evaluate(() => history.back())
+  // Back to the Monitoring tab the Events tab was opened from, then Events again
+  if (t0 >= 0) await back(p)
   await sleep(800)
-  if ((await whenSel(p, EVENTS_LINK, 2000)) < 0) {
-    // phone: back at level 1 the rail tab is the way in again
-    await step(p, rec, s, 'events-warm', EVENTS_TAB, EVENTS_DONE)
-  } else {
-    await sleep(300)
-    await step(p, rec, s, 'events-warm', EVENTS_LINK, EVENTS_DONE)
-  }
+  await whenSel(p, EVENTS_LINK, 5000)
+  await sleep(300)
+  await step(p, rec, s, 'events-warm', EVENTS_LINK, EVENTS_DONE)
   return s
 }
 
@@ -231,7 +260,7 @@ try {
     for (let i = 0; i < N; i++) {
       try { samples.push(await round(p, cdp, rec, i, `${name}-r${i}`)) } catch (e) { samples.push({ error: String(e?.message || e) }) }
       const s = samples.at(-1)
-      console.log(name, 'round', i, s.error ? 'ERROR ' + s.error : STEPS.map((k) => `${k}=${msOf(s, k) ?? '?'}`).join(' '))
+      console.log(name, 'round', i, s.error ? 'ERROR ' + s.error : STEPS.map((k) => `${k}=${msOf(s, k) ?? (s[k]?.note ? `(${s[k].note})` : '?')}`).join(' '))
     }
     res.profiles[name] = samples
   }

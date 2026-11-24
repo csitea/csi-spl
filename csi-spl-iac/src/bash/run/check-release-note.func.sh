@@ -24,8 +24,11 @@
 # @description   (commits excludes merges; warn = the commits that lack their
 # @description   note; compliance = (commits - warn) / commits)
 # @description A git note on refs/notes/release-notes (release-notes.md section 4,
-# @description the fix for a commit already on master) stands in for the
-# @description message's trailers, as it does for the ingest.
+# @description the fix for a commit already on master, pushed by
+# @description do_release_note_attach) stands in for the message's trailers in
+# @description CI and for the ingest. The pre-push part ignores notes: before the
+# @description push only the message counts, since no push of the lane carries a
+# @description local note to origin (R7 c-890 W1).
 # @description CI (workflow 10, job release-note) runs it with
 # @description RELEASE_NOTE_BASE=switch: every commit after the one that made the
 # @description part refuse (the commit that added _RN_SWITCH_MARK to this file).
@@ -41,6 +44,9 @@
 _RN_KEYS="Lay-What Lay-How Lay-Why Tech-What Tech-How Tech-Why"
 _RN_DOC="csi-spl-doc/doc/help/release-notes.md"
 _RN_NOTES_REF="release-notes"
+# 1: a git note on _RN_NOTES_REF stands in for the message (CI, by hand);
+# _pp_release_note sets it to 0 for its own call only.
+_RN_USE_NOTES=1
 # The commit that adds this line made the part refuse (spec 065 L11): the
 # anchor of RELEASE_NOTE_BASE=switch. Keep the line; renaming it moves the anchor.
 _RN_SWITCH_MARK="release notes required"
@@ -78,8 +84,9 @@ _rn_commit() {  # <tree> <sha>
     echo merge; return 0
   fi
   msg="$(git -C "$tree" log -1 --format=%B "$sha")"
-  # a note on refs/notes/release-notes (the fix after the push) wins
-  if ! tr="$(git -C "$tree" notes --ref="$_RN_NOTES_REF" show "$sha" 2>/dev/null | _rn_trailers)" || [[ -z "$tr" ]]; then
+  # a note on refs/notes/release-notes (the fix after the push) wins, unless
+  # this is the pre-push part (_RN_USE_NOTES=0): there only the message counts
+  if [[ "$_RN_USE_NOTES" != 1 ]] || ! tr="$(git -C "$tree" notes --ref="$_RN_NOTES_REF" show "$sha" 2>/dev/null | _rn_trailers)" || [[ -z "$tr" ]]; then
     tr="$(_rn_trailers <<<"$msg")"
   fi
   if grep -qE '^This reverts commit [0-9a-f]{7,}' <<<"$msg" || [[ "$msg" == 'Revert "'* ]]; then
@@ -164,7 +171,7 @@ _rn_check() {  # <tree> <base> [refuse|warn]
 # Called by do_check_pre_push; a commit without its note is a FAIL counted in
 # _PP_FAILED, so the push is refused. Returns 1 on that refusal.
 _pp_release_note() {  # <tree> <base>
-  local start="$SECONDS" el rc=0
+  local start="$SECONDS" el rc=0 _RN_USE_NOTES=0
   if [[ -z "$(git -C "$1" rev-list -n1 "$2..HEAD" 2>/dev/null)" ]]; then
     _pp_verdict release-note SKIP-untouched 0
     return 0
@@ -201,6 +208,10 @@ do_check_release_note() {
     [[ -n "$base" ]] \
       || { do_log "FATAL release-note: no commit adds _RN_SWITCH_MARK in $tree (a shallow clone? fetch-depth: 0)"; return 2; }
     do_log "INFO release-note: checking every commit since the switch ${base:0:9}"
+    # CI: the commits are on master, a reword is no longer possible
+    _rn_check "$tree" "$base" "$mode" && return 0
+    do_log "FAIL release-note: these commits are on master; attach each note with: SHA=<sha> RELEASE_NOTE_FILE=<the six trailers> DRY_RUN=0 ./run -a do_release_note_attach (csi-spl-iac; $_RN_DOC section 4)"
+    return 1
   fi
   _rn_check "$tree" "$base" "$mode"
 }

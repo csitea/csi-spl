@@ -116,13 +116,19 @@ Lay-Why: Adds a test only; nothing a user sees changes.
 ## 4. A note that is wrong or missing after the push
 
 A pushed message cannot be edited and history is never rewritten. Attach a
-git note carrying the same trailers and push it; the ingest and the CI check
-prefer the note over the message:
+git note carrying the same trailers; the ingest and the CI check prefer the
+note over the message. Write the trailers to a file, check them with a dry
+run, then push the note (from `csi-spl-iac`; the action refuses a commit that
+is not on master yet, and never force-pushes):
 
 ```text
-git notes --ref=release-notes add -m "Lay-What: ..." <sha>
-git push origin refs/notes/release-notes
+SHA=<sha> RELEASE_NOTE_FILE=<file> ./run -a do_release_note_attach
+SHA=<sha> RELEASE_NOTE_FILE=<file> DRY_RUN=0 ./run -a do_release_note_attach
 ```
+
+The note counts only once it is on origin: the pre-push gate reads the
+commit message alone, so a local note never stands in for it before the
+push.
 
 <a id="ws-doc-390ed6f6-9ad1-4386-81e7-6866ef8025a2"></a>
 ## 5. Where it is enforced

@@ -2089,8 +2089,9 @@ jobs:
   # (RELEASE_NOTE_BASE=switch), not github.event.before: superseded push runs
   # are cancelled, and a range check would let the skipped pushes through. A
   # landed commit without its note is fixed by a git note on
-  # refs/notes/release-notes (release-notes.md section 4), which the check
-  # reads like the ingest does; history is never rewritten.
+  # refs/notes/release-notes (release-notes.md section 4), pushed by
+  # do_release_note_attach, which the check reads like the ingest does;
+  # history is never rewritten.
   # fetch-depth 0: the anchor is in the history.
   # CONTROL: csi-spl-iac/src/bash/tests/check-release-note.tst.sh
   # ===========================================================================

@@ -16,7 +16,8 @@
 #  11. an empty range logs SKIP-untouched
 #  12. PRE_PUSH_LINT=0 and the override skip it, as before (CI is their backstop)
 #  13. the hook's PASS-tree shortcut still refuses an amend that dropped the note
-#  14. a git note on refs/notes/release-notes stands in for the message
+#  14. a git note on refs/notes/release-notes stands in for the message in CI,
+#      never in the pre-push part (only the message counts before the push)
 #  15. RELEASE_NOTE_BASE=switch checks every commit after the switch commit (CI)
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -194,6 +195,11 @@ git -C "$T" notes --ref=release-notes add -m "$FULL" HEAD
 check HEAD~1
 { [[ "$rc" -eq 0 && "$(field ok)" == 1 ]]; } \
   && pass "14. a git note on refs/notes/release-notes stands in for the message" || fail "14. git note" "rc=$rc $out"
+# R7 c-890 W1: no lane push carries a local note to origin, so the pre-push
+# part reads only the message: the same commit with the same local note refuses
+pp PRE_PUSH_BASE=HEAD~1
+{ [[ "$rc" -eq 1 ]] && grep -q 'PART release-note FAIL' "$log"; } \
+  && pass "14. the pre-push part ignores a local git note: only the message counts" || fail "14. pre-push ignores the note" "rc=$rc $(cat "$log") $out"
 git -C "$T" notes --ref=release-notes add -f -m "Lay-What: only one" HEAD
 check HEAD~1
 { [[ "$rc" -eq 1 ]] && grep -q "(full) missing Lay-How" <<<"$out"; } \
@@ -209,8 +215,9 @@ grep '^_RN_SWITCH_MARK=' "$PROJ_ROOT/src/bash/run/check-release-note.func.sh" >"
 git -C "$T" add -A; git -C "$T" commit -qm "feat: the switch"$'\n\n'"$FULL"
 commit a.sh "fix: after the switch, no note"
 rc=0; out="$(RELEASE_NOTE_TREE="$T" RELEASE_NOTE_BASE=switch do_check_release_note 2>&1)" || rc=$?
-{ [[ "$rc" -eq 1 && "$(field commits)" == 1 && "$(field warn)" == 1 ]] && grep -q 'after the switch, no note' <<<"$out"; } \
-  && pass "15. switch: only the commits after the switch are checked, a miss refuses" || fail "15. switch" "rc=$rc $out"
+{ [[ "$rc" -eq 1 && "$(field commits)" == 1 && "$(field warn)" == 1 ]] && grep -q 'after the switch, no note' <<<"$out" \
+  && grep -q 'on master; attach each note with: .*do_release_note_attach' <<<"$out"; } \
+  && pass "15. switch: only the commits after the switch are checked, a miss refuses and names do_release_note_attach" || fail "15. switch" "rc=$rc $out"
 git -C "$T" commit -q --amend -m "fix: after the switch"$'\n\n'"$FULL"
 rc=0; out="$(RELEASE_NOTE_TREE="$T" RELEASE_NOTE_BASE=switch do_check_release_note 2>&1)" || rc=$?
 [[ "$rc" -eq 0 && "$(field commits)" == 1 ]] \

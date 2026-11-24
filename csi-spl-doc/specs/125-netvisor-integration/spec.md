@@ -1,5 +1,11 @@
 # 125 Netvisor integration: test company first, then production
 
+Version v0.4 (2026-11-24, `SPL-6409`, `csitea` `CSI-102`): section 11,
+the monthly personnel cost read automatically from the production company
+(owner `msg:0f7db291`, rows in `csitea/csi-int-nvs`) and, after the owner's
+answer B (`msg:8ab39b9d`), the rows that turn csi-spl's Netvisor-named code
+into a generic finance connector; questions Q1..Q9 (section 11.9).
+
 Version v0.3 (2026-11-04, `SPL-4812`): every answer of `msg:91a1bc9a` as a
 decision with its msg id (section 1.5); what each card type gives (section
 4.3); the spec-123 check names where each workspace records a cost (section
@@ -606,3 +612,240 @@ written into a chat.
    numbers into the `0600` file on the main box yourself (D8, P5).
 6. Give the go for the first `--env prd` run and check its month-end figure
    against Netvisor's own cash-flow screen (P6).
+
+---
+
+## 11. Monthly personnel cost, read automatically, and the generic finance connector (v0.4, `SPL-6409`)
+
+Source: owner `HUM-10`, `csitea` #csi-fina, `topic:e2c54e32` (2026-11-24):
+`msg:e31ea3e7` "we need automatic mean to retrieve from producion the
+personnel's costs on monthly basis", pointing at `topic:ba50f507`; poll
+`d17ce479`, answer `msg:0f7db291`: **A**, the production Netvisor company,
+payroll and the two salary-cost accounts the poll named, through this spec.
+Then poll `b343220a`, answer `msg:8ab39b9d`: **B**, "Private csitea repo;
+csi-spl keeps only a generic finance connector", for the reasons of
+`msg:9c5d4a52` (the audience of csi-spl is "global startups which want to
+have a free argents harness") and `msg:eff79fbb` (Google Contacts and
+Calendar belong in csi-spl, Netvisor does not). The `csitea` issue is
+`CSI-102` (status `eval`, prd `issues`, read 2026-11-24).
+
+Two parts. 11.1 to 11.6 are the monthly personnel-cost read: every build
+row of it is a `csitea/csi-int-nvs` row (private, section 2.1), never a
+`csitea/csi-spl` row. 11.7 and 11.8 turn what csi-spl holds today under the
+Netvisor name into a provider-neutral finance connector that the private
+repo writes into. 11.9 holds the owner's questions.
+
+Hygiene, as in the header: no figure, salary, account balance, person name,
+key, key path, company id, box name or OS user here. The two salary-cost
+accounts are called the **wages account** and the **owner-salary account**
+below; their numbers are in the owner's answer `msg:0f7db291` and go into
+the main-box settings file of the private repo, never into csi-spl.
+
+### 11.1 What exists today, and the gap
+
+| what | state | evidence |
+|---|---|---|
+| Payroll resources in the build plan | listed for B1 only, as probes and parsers | section 2.1 row B1 (line 174); section 7 row B1 (line 531) |
+| Payroll in the cash forecast | **net pay as a cash outflow** of the current month, not a cost; employer contributions and withholding are read only as liability balances | section 3.1 (lines 220-221); B2 (line 532); rdb `0255_netvisor_finance.sql:92` (`payroll` is a forecast item category) |
+| Payroll in the test cases | C-NVS-1 reads `getpayrollpaycheckbatchlist.nv` for log hygiene only | section 6 (line 507) |
+| Production access to payroll | P3 allows `getpayrollpaycheckbatchlist.nv`, `getpayrollpaycheckbatch.nv`, `accountbalance.nv`, `accountingledger.nv` once the owner opens production | section 9 P3 (line 588); `csitea` `CSI-63` is `todo` (prd `issues`, read 2026-11-24) |
+| B4, B5, B7, B8, D2 | on `master` | [plan.md](plan.md) section 1 (`7dd357744`, `ea47ad1e4`, `3ae72a734`, `c94bbc7ae`, `0d0c3e5f3`, `b335ce3db`, `1842893c6`) |
+| B3b (spec-123 check), B11 (Qto `persons` mode), B10 | not on `master` | `git grep -n recorded_in origin/master -- csi-spl-rdb csi-spl-api` -> 0 lines; no persons mode on `workspace_doc` in `csi-spl-rdb` (the only `'persons'` there is a cost-view label, rdb `0304_cost_view_rules.sql:33`) |
+| B1, B2, B3, B6, B9 (private repo) | **not checked**: this lane does not read `csitea/csi-int-nvs` | section 2.1 records the baseline `837fe08` |
+| Personnel costs entered by hand (spec 123 sections 16.2 to 16.5, `SPL-5433`) | built: persons by code, components in 8 groups, the month lock on the 6th, the employer side computed, the payslip check | rdb `0280_hr_people_and_periods.sql:41-105`, `0284_hr_rates.sql:23`, `0286_hr_worker_side.sql:31-56`; routes `internal/hub/hr_costs.go:39-44`, `hr_payroll.go:28-32`, `cost_entries.go:65-68`; `store.CostCloseDay` = 6 (`internal/store/hr_costs.go:33`) |
+
+**The gap to "monthly personnel cost, automatic"**: nothing reads a
+month's gross pay, the employer's contributions and the ledger movement on
+the personnel accounts as a COST; nothing runs it on a schedule; nothing
+writes it where the cost report reads (the spec 123 `hr` lines); and
+production is closed (`CSI-63`). Today the figure reaches spool-hub only by
+hand: `topic:ba50f507` (`msg:f0c4c138` v1, `msg:8614cbe4` v2) read the
+payslips and two ledger extracts of one period into a report, and the
+accountant types `hr` lines on Expenses -> HR costs.
+
+### 11.2 The monthly figure
+
+**What one month's personnel cost is** (`msg:8939ad9f`, `topic:ba50f507`:
+not only gross pay but also the statutory insurances and the other costs
+without which a person could not work in the company):
+
+| part | from | Netvisor resource | spec 123 component group |
+|---|---|---|---|
+| gross pay: monthly salary, hourly pay, the owner's salary, allowances, bonuses, paid leave | payroll batches of the month | `getpayrollpaycheckbatchlist.nv`, then `getpayrollpaycheckbatch.nv` per batch (one line per person and wage type) | `salaries_wages`, `working_time_allowances`, `bonuses_incentives`, `leave_absence` |
+| employer's statutory contributions: pension (TyEL), unemployment, accident and group life insurance, health insurance | the batch's employer side, and the ledger | `getpayrollpaycheckbatch.nv`; `accountingledger.nv` on the social-cost accounts | `employer_contributions` |
+| booked personnel cost of the month | the general ledger | `accountingledger.nv` on the wages account, the owner-salary account and the social-cost accounts, voucher dates in the month | none: the check below ("how payroll and ledger agree") |
+
+**What each account holds** (as `topic:ba50f507` read the company's own
+books, `msg:f0c4c138`): the **owner-salary account** carries the owner's
+gross salary; the **wages account** carries the hourly workers' gross pay.
+Both are gross only: the employer's contributions are booked on separate
+social-cost expense accounts, and `msg:8614cbe4` found that the pension
+expense account also carries the employee's share, booked through it. So
+the two named accounts alone are NOT the personnel cost the owner asked
+for (`msg:8939ad9f`); the social-cost accounts are needed too (Q3).
+
+**How payroll and ledger agree or differ** (`msg:8614cbe4`):
+- **Accrual vs payment.** A payroll batch has a payment date; the ledger
+  books the pay to the pay period. A month's batch paid on the first days
+  of the next month is the earlier month's cost in the ledger and the
+  next month's in a payment-date read.
+- **Pay without a payslip.** In two months the ledger's wages account held
+  more than that month's payslips: an extra amount paid as hourly pay in
+  the same payroll run, with its contributions booked, but no payslip
+  behind it.
+- **Shares mixed on one account.** The pension expense account holds the
+  employee's share as well, so its movement is not the employer's cost
+  until that share is taken out.
+
+**The reported number** (recommended, Q2 A): the ledger's personnel cost of
+the pay period month (accrual), split by the payroll into persons and
+components. What the payroll does not explain is kept as an organisation
+line per account role ("booked, not on a payslip"), so the month's total
+always equals the books and nothing is hidden. The payroll alone (payment
+date) is the fallback before the ledger of the month is booked.
+
+**Per person or total** (Q4): personal pay is personal data. In a company
+with few employees the total of one employment type IS one person's pay,
+so the total cannot go where every person of `csitea` reads (the Finance
+screen, rule C7 as rewritten, section 1.4). The rule spec 123 already
+applies (section 16.2, `hr_person_names`; 13.6 "no report row is a
+person's") fits: per person by code only on Expenses -> HR costs, to the
+accountants (`costs.write` in the operator workspace), names only to them;
+the reports sum per component group. Agents never read a person's line
+(C8).
+
+### 11.3 Automatic: when, where, who
+
+- **The action** (private repo, row N2): `./run -a do_nvs_payroll_month
+  --env test|prd --month <YYYY-MM>` in `csi-int-nvs-utl`, on the main box
+  (C6). It reads the resources of 11.2 one at a time (section 3.2), maps
+  each wage type to a spec 123 component and each payroll employee to an
+  `hr_people` code (both maps in the main-box settings file; no name is
+  sent), and posts the month to the connector's payroll door (11.8 row
+  F3). Its log carries counts and status only (section 3.2).
+- **When**: nightly on the main box on days 1 to 5 of the next month, for
+  the month before, plus by hand. The hub closes a month at 00:00
+  Europe/Helsinki on the 6th (`store.CostCloseDay`,
+  `internal/store/hr_costs.go:33`). A change found after that lands as a
+  correction line in the open month (`corrects_period`, spec 123 16.2:
+  a closed month is never rewritten). Q5.
+- **Where it is stored**: as spec 123 `hr` lines in `cost_entries`
+  (rdb 0245 + 0280), `source` = `connector:<provider> payroll <YYYY-MM>`,
+  `account` = the ledger account role, one line per person code and
+  component, plus the organisation lines of 11.2. Not in the spec 125
+  snapshot tables: those are read by every person of `csitea` (rdb
+  `0260`), and the cost report already reads `cost_entries` (Q1).
+- **Idempotent**: the door replaces the month's `connector:` lines of that
+  provider as one set in one transaction (the booking rule of spec 123
+  16.4: stale lines removed, a hand-typed line and a `computed:` line never
+  touched). The same month posted twice writes nothing the second time. A
+  hand-typed line of the same person, component and month wins; the
+  connector line is skipped and counted (Q9).
+- **Who sees it**: Expenses -> HR costs per person code to the accountants;
+  Reporting -> Costs -> Persons per group, and Total with the rest, to the
+  estate's cost readers (`operatorReaders` = admin and product owner,
+  `internal/hub/operator_read.go:26`; the accountants, `:52`); never an
+  agent session, an act-as clone or another workspace. Not checked by this
+  lane: whether an agent seat can hold one of those roles in the operator
+  workspace; row F3 proves it cannot read a connector line.
+- **What `topic:ba50f507` needs it for**: the owner's goal is full costing
+  of every software project of spool-hub for the customer demo
+  (`msg:3522524f`), with the personnel costs in the cost report beside the
+  others (`msg:c5f312e8`); the member's personnel-cost report was made by
+  hand from payslips and ledger extracts (`msg:cb898d98`, v1
+  `msg:f0c4c138`, v2 `msg:8614cbe4`). Delivered there as data, not as a
+  post: each month the report fills by itself. After each run the action
+  sends one notice to the topic with no figure (C8, section 5.2 item 3):
+  the month, "personnel costs updated", the link to Reporting -> Costs, and
+  whether the books and the payslips agreed.
+
+### 11.4 Test company first, then production
+
+- N1 to N3 are built and proven against the Netvisor test company
+  (`--env test`) into the `dev` hub, with made-up payroll in the test
+  company and fixtures (section 1.1, owner order 1).
+- Production only after `CSI-63` (P1..P5) and with the owner's go for the
+  first `--env prd` run (section 9 P6). The payroll resources are already
+  on P3's list (line 588); nothing new is asked of Netvisor.
+- **Acceptance** (row N4): the last closed month in production. On the
+  `prd` hub, the month's connector lines summed per account role equal the
+  ledger movement of that month on those accounts in Netvisor production,
+  and the persons' gross and contributions equal the month's payroll
+  batches; any difference is an organisation line with its reason. The
+  accountant checks it on screen against Netvisor's own P&L for the month;
+  no figure goes into a chat.
+
+### 11.5 Rows: the monthly read (private repo `csitea/csi-int-nvs`)
+
+Kind `secret` (payroll is personal data): `claude` main, `grok` backup
+(the data rule; never `agy`, `qwen` or `mistral` for code). Each runs on
+the main box when it reads the keys (C6).
+
+| row | scope | tests | red control | docs |
+|---|---|---|---|---|
+| **N1** (B12) | parsers for the payroll batch list and batch (per person, wage type, employer side) and the ledger lines of configured account roles; extends B1 | fixture unit tests; live `--env test` probe `Status` = `OK` with zero figures in the log | plant an amount print in the batch parser: the log-hygiene test fails | `csi-int-nvs-doc` |
+| **N2** (B13) | `do_nvs_payroll_month --env test --month <YYYY-MM>`: the figure of 11.2, the wage-type and person-code maps, the organisation lines, the post to F3 on `dev` | fixtures: accrual month, pay without a payslip, a pension account carrying the employee's share; a second post writes 0 lines | leave out the employer contributions: the fixture month total misses and fails; post twice without the replace-set: duplicate lines fail the count | `csi-int-nvs-doc` |
+| **N3** (B14) | the nightly days-1-to-5 cron and the no-figure notice to `topic:ba50f507` | cron test with a mock hub: one run per night; the notice holds no amount | a notice carrying a figure: the notice test fails | `csi-int-nvs-doc` |
+| **N4** (P7) | first `--env prd` run for the last closed month, then the nightly prd schedule; after `CSI-63` and the owner's go | the acceptance of 11.4 | none planted (production) | this section |
+
+### 11.6 Order
+
+F1 -> F2 -> F3 (11.8) before N2 posts anything; N1 may start now. N1 -> N2
+-> N3 on `dev` against the test company; N4 after `CSI-63` and the owner's
+go. F4 and F5 follow F2 and do not hold up the payroll read.
+
+### 11.7 What csi-spl holds today under the Netvisor name
+
+`git ls-tree -r --name-only origin/master | grep -ic netvisor` -> 17 paths
+(read on `e7e0dd768`, 2026-11-24); beyond them, the files that name it:
+
+| part | paths (lines with the name: `grep -ic netvisor <file>`) |
+|---|---|
+| rdb | `0255_netvisor_finance.sql` (30; settings with the bank, VAT and tax bookkeeping accounts, lines 58-63; snapshots, forecast items, card cost lines, lines 54-125), `0257_netvisor_refresh.sql` (5), `0258_netvisor_card_line_account_optional.sql` (6), `0260_netvisor_member_read.sql` (15; `netvisor_person_seat()`, line 54) |
+| hub | `internal/hub/netvisor.go` (172; routes lines 72-87), `netvisor_test.go` (53), `netvisor_internal_test.go` (12); `server.go:242-245,638`; `operator.go:303`; `openapi.json` (45) |
+| store, wire | `internal/store/netvisor.go` (64), `netvisor_postgres.go` (81), `netvisor_test.go` (91); `internal/wire/netvisor.go` (45) |
+| other hub code | `internal/config/config.go:472-477,924-925` (`SPOOL_HUB_NETVISOR_WORKSPACE`); `cmd/spool/hub.go:435`; `internal/channelmove/catalogue.go:207-208`; `internal/store/reporting_sql.go:70`; tests `rls_test.go:77-78`, `crosstenant_test.go` (17), `label_length_test.go` (3) |
+| cnf | `csi-spl-cnf/csi-spl/all.env.yaml:662-666`; rendered `dev.env.json`, `prd.env.json`, `dev/tf/030-cloud-run-hub.vars.tfvars`, `prd/tf/030-cloud-run-hub.vars.tfvars` (1 each); `example.env.yaml:332-337` |
+| WUI | `pages/reporting/finance.vue` (11), `components/reporting/finance/FinanceSettings.vue` (6; the bookkeeping-account form), `pages/reporting.vue:53-76`, `utils/reporting-finance.mjs` (37), `utils/reporting-tabs.mjs:34-77` (`netvisorReader`), `public/help-md/reporting.md:20`; `i18n/locales/*.json` (19 files, e.g. `en.json:4203-4259`); tests `tests/unit/reporting-finance.test.mjs` (58), `tests/e2e/reporting.test.mjs` (6), `tests/e2e/rail-order-default.test.mjs` (1) |
+| orc | the credential-file guard `src/bash/scripts/box-state-pack.sh:13,40-41` (a regex naming the provider); comments in `lib/bash/funcs/spl-box-state-mounts.func.sh:93`, `src/bash/run/spl-box-state-backup.func.sh:15`, `spl-lane-handover-wip.func.sh:13`; tests `spl-box-state-backup.tst.sh` (4), `spl-box-state-mount.tst.sh` (2) |
+| docs | this spec folder (5 files), `doc/md/netvisor-finance-store.md`, `doc/help/reporting.md`, `doc/md/csi-spl.feature.md`, `doc/md/workspace-doc-lock.md`, `doc/md/box-state-backup.md`, `doc/md/box-state-mount.md`, `doc/md/lane-handover.md`, three round plans (`bug-round-42-plan.md`, `bug-round-44-plan.md`, `refactor-round-33-plan.md`), `sat-alone-panel-plan.md`, specs 143 (`incomes.md`), 171 and 181 |
+
+Two parts are tied to one country's books beyond the name: the settings'
+bookkeeping account columns (`0255:58-63`) with their form
+(`FinanceSettings.vue`), and the card routes and forecast categories as
+fixed enums (`0255:91-92`, the card `route`).
+
+### 11.8 Rows: the generic finance connector (`csitea/csi-spl`)
+
+Kind `complex_coding` for F1 to F3 and F5, `simple_coding` for F4; the data
+rule applies (finance schema): `claude` main, `grok` backup, never
+`mistral` (coding, and the WUI rule). Every rdb row is forward-only
+(developer guide 2.8.3; its number from `do_rdb_migration_next`) and runs
+`PRE_PUSH_TIER=full`. Every row lands with its `csi-spl-doc/` change.
+
+| row | scope | migration / config | tests | red control |
+|---|---|---|---|---|
+| **F1** | the provider-neutral tables, empty: `finance_settings` (tenant, `provider` text, owner, env, refresh request; NO bookkeeping account column), `finance_snapshots` (+ `provider`), `finance_forecast_items`, `finance_cost_lines` (card route as a bounded text, not an enum), `finance_person_seat()`; the same `FORCE ROW LEVEL SECURITY` policies as `0255` + `0260` | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_finance_connector.sql` | `TestRLSCoversEveryTenantTable`; `TestFinanceStoreMemberRead` | the `0255` `owner_scope` in place of the member read: a member reads empty, the test fails |
+| **F2** | store, wire and hub on the new tables: `internal/{store,wire,hub}/finance*.go`; routes `GET /v1/view/finance/forecast`, `GET /v1/view/finance/cost-lines`, `POST /v1/finance/refresh`, `GET` and `PUT /v1/finance/settings`, `PUT /v1/operator/finance/owner`, `POST /v1/operator/finance/snapshots`, `GET /v1/operator/finance/refresh`; `openapi.json`; the old routes still served for one release so the private sync can switch | cnf `SPOOL_HUB_FINANCE_WORKSPACE` beside the old name (the new one wins): `all.env.yaml`, the rendered tfvars, `example.env.yaml`; step `030` apply with the owner's go | `TestFinanceHubRBAC`, `TestFinanceCrossTenant` (from the Netvisor ones) | widen the reader check to `rbac.Admin`: an act-as clone reads 200, the test fails |
+| **F3** | the payroll door: `PUT /v1/operator/finance/payroll/{month}`, operator token, the finance workspace only; writes spec 123 `hr` lines with `source` `connector:<provider> payroll <YYYY-MM>`, person by `hr_people` code (an unknown code is refused), the component must exist; replace-set; 409 `month_closed`, or a correction line with `corrects_period`; a hand-typed line wins (skipped, counted) | none (rdb 0245 + 0280 suffice) | `TestFinancePayrollReplace` (twice = 0 writes), `TestFinancePayrollClosedMonth`, `TestFinancePayrollAgentReadsNothing` | drop the replace-set: the second post doubles the month, the test fails |
+| **F4** | WUI: Reporting -> Finance provider-neutral: `financeReader` for `netvisorReader`, the bookkeeping-account form removed (the accounts live in the private settings file, section 5.2 item 1), strings without the provider name in all 19 locales, the language check before it ships | none | `pnpm run typecheck`; `reporting-finance.test.mjs`, `i18n-parity`, `i18n-no-raw-text`; Chrome `test:e2e` `reporting.test.mjs` | a leftover provider-named string: the F5 hygiene word fails the sweep |
+| **F5** | contract: drop the `netvisor_*` tables and `netvisor_person_seat()`; stop the old routes; the provider name out of `channelmove/catalogue.go`, `rls_test.go`, `crosstenant_test.go`, `label_length_test.go`, `reporting_sql.go`, `config.go` and the cnf; the orc credential guard reads its name list from the cnf; the docs of 11.7 rewritten or moved (Q8); then the name joins the hygiene sweep's banned words | `<next>_finance_connector_drop_legacy.sql`; the old cnf key removed (step `030` apply, owner's go) | `run-all-tests.sh` of api, orc and iac; `do_check_dist_hygiene` | plant the name in a WUI file: `do_check_dist_hygiene` fails |
+
+The migrations `0255`, `0257`, `0258` and `0260` keep their file names for
+ever (forward-only), so the name stays in the migration history only.
+
+### 11.9 Questions for the owner
+
+The dispatcher asks them as one form. Each has a recommendation.
+
+| # | question | options | recommended |
+|---|---|---|---|
+| Q1 | Where is the monthly personnel cost stored? | **A** as spec 123 `hr` lines through the connector's payroll door (the cost report and the accountants' screen read them); **B** in the finance snapshot tables, on the Finance screen; **C** both | **A**: the report already reads them, and B shows pay to every person of `csitea` |
+| Q2 | Which number is the month's cost? | **A** the ledger of the pay period month, split by the payroll, the rest as an organisation line; **B** the payroll by payment date; **C** the ledger only, no split | **A**: it equals the books and still shows persons and components |
+| Q3 | Which accounts? | **A** the two salary-cost accounts plus the social-cost accounts the accountants name; **B** only the two named in the poll | **A**: the two hold gross pay only; `msg:8939ad9f` asks for the contributions too |
+| Q4 | Per person or total? | **A** per person by code to the accountants only, reports per group (as spec 123 today); **B** the month's total only | **A** |
+| Q5 | When does it run, and a late change? | **A** nightly on days 1 to 5 for the month before, a later change as a correction line in the open month; **B** once on the 5th; **C** until the accountant marks the books closed (needs a change of the month lock) | **A** |
+| Q6 | The connector's name in csi-spl? | **A** `finance` (`finance_*`, `/v1/*/finance/*`); **B** `accounting`; **C** `books` | **A**: the screen is already Reporting -> Finance |
+| Q7 | How do the tables change? | **A** new tables, filled again by the next sync, the old ones dropped after (F1, F5); **B** `ALTER TABLE ... RENAME` in place; **C** new tables plus a copy of the rows | **A**: the snapshots are derived and the source is Netvisor; B breaks the hub revision still serving during the rollout |
+| Q8 | Where does this spec go? | **A** spec 125 and the Netvisor docs move to `csi-int-nvs-doc`; csi-spl gets a short connector spec; **B** spec 125 stays in csi-spl | **A**: it follows `msg:8ab39b9d` |
+| Q9 | A hand-typed line and a connector line for the same person, component and month? | **A** the hand-typed line wins, the connector line is skipped and counted; **B** the connector line replaces it | **A**: nobody's typed work is overwritten (spec 123 16.4) |

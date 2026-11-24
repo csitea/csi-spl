@@ -71,3 +71,6 @@ csi-spl-iac/src/bash/scripts/run-ansible-*.sh
 
 # Cargo build output of the Rust crates (csi-spl-orc/src/rust/*), SPL-5392
 csi-spl-orc/src/rust/*/target/
+
+# a browser MCP seat's downloads and page snapshots, private documents included (SPL-6407)
+.playwright-mcp/

@@ -445,6 +445,18 @@ after the agent is done.
   run unless `DRY_RUN=0`, by hand only, no cron and no disk-sweep step;
   running it live is the orchestrator's call after a dry run on the box.
   Test: `test-tmp-wt-reap.sh`.
+- **A browser seat's downloads never reach git or outlive the seat in /tmp**
+  (SPL-6407, 2026-11-24): the firefox / playwright MCP writes every download
+  and page snapshot to `.playwright-mcp/` in the agent's cwd (its worktree)
+  and to `/tmp/playwright-artifacts-*`, private documents included. The root
+  `.gitignore` ignores `.playwright-mcp/` at any depth, so a broad add cannot
+  commit it. `cd csi-spl-utl && ./run -a do_sweep_playwright_artifacts`
+  removes a `/tmp/playwright-artifacts-*` dir (`PW_ART_ROOT`) only when
+  nothing in it changed for 24 h (`PW_ART_AGE_H`) and no process has its cwd
+  or an open file under it, as its owner; a symlink or a root-owned dir is
+  kept. One `PLAN|DO remove` / `KEEP <reason>` line per dir. **Default off**:
+  a dry run unless `DRY_RUN=0`, by hand only, no cron and no disk-sweep step
+  until the owner turns it on. Test: `playwright-artifacts-sweep.tst.sh`.
 - **A retired lane's leftover e2e test server is stopped at retire**
   (SPL-4762, 2026-11-04): on sat the retired c-810 left
   `node src/node/test/serve-generated.mjs --root /tmp/claude-<uid>/<slug>/<session>/scratchpad/bundle-head`

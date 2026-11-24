@@ -49,9 +49,9 @@ func TestMulticastCheckTargets(t *testing.T) {
 		}
 	}
 	unknown := uuidV4()
-	a = bulkCall(t, c, "multicast_checked", checkFrame(r.pub, r.arch, r.theirs, r.dm, r.issue, r.locked, unknown))
+	a = bulkCall(t, c, "multicast_checked", checkFrame(r.pub, r.arch, r.theirs, r.dm, r.issue, r.locked, unknown, "not-a-uuid"))
 	want := map[string]string{r.pub: "", r.arch: "topic_archived", r.theirs: "multicast_no_topic", r.dm: "multicast_no_topic",
-		r.issue: "multicast_no_topic", r.locked: "multicast_no_topic", unknown: "multicast_no_topic"}
+		r.issue: "multicast_no_topic", r.locked: "multicast_no_topic", unknown: "multicast_no_topic", "not-a-uuid": "multicast_no_topic"}
 	if a.OK || len(a.Targets) != len(want) {
 		t.Fatalf("mixed: %s, want not ok, %d targets", a.raw, len(want))
 	}
@@ -69,6 +69,35 @@ func TestMulticastCheckTargets(t *testing.T) {
 	bulkCall(t, c, "topic_selected", selectFrame([]string{"*"}))
 	if after := messageCount(t, r.e, r.tid); after != before {
 		t.Errorf("messages %d -> %d: a read-only frame stored something", before, after)
+	}
+}
+
+// A body that commands an agent needs agents.command per target, as the
+// send does (wuiMayPost): a Tester (notes.send only) gets forbidden, a plain
+// body is ok, a Developer may command. RED CONTROL: drop the check and the
+// Tester's @agent copy comes back ok.
+func TestMulticastCheckAgentsCommand(t *testing.T) {
+	r := newSelectRig(t)
+	tester := seat(t, r.e, r.tid, rbac.Tester)
+	at := func(hum, body string) bulkAnswer {
+		f := checkFrame(r.pub, r.lob)
+		f["body"] = body
+		return bulkCall(t, r.dial(t, hum), "multicast_checked", f)
+	}
+	a := at(tester, "@CLE-01 run the release check")
+	if a.OK || len(a.Targets) != 2 {
+		t.Fatalf("tester @agent: %s, want not ok with 2 targets", a.raw)
+	}
+	for _, x := range a.Targets {
+		if x.OK || x.Error != "forbidden" {
+			t.Errorf("tester @agent target %+v, want forbidden", x)
+		}
+	}
+	if a := at(tester, "a plain note"); !a.OK {
+		t.Errorf("tester plain note: %s, want ok", a.raw)
+	}
+	if a := at(r.author, "@CLE-01 run the release check"); !a.OK {
+		t.Errorf("developer @agent: %s, want ok", a.raw)
 	}
 }
 

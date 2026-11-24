@@ -191,11 +191,15 @@ func (s *Server) pageTopics(ctx context.Context, tenant string, q store.TopicQue
 }
 
 // tickedTopics reads only the ticked topics (TopicQuery.TaskIDs), q.Limit
-// ids a read; each passes every other filter of q or is left out.
+// ids a read; each passes every other filter of q or is left out. A tick
+// that is not a UUID names no topic and is never read: Postgres casts the
+// list to uuid[] and would fail the whole read.
 func (s *Server) tickedTopics(ctx context.Context, tenant string, q store.TopicQuery, ticks map[string]bool, keep func(store.TopicRow)) error {
 	ids := make([]string, 0, len(ticks))
 	for id := range ticks {
-		ids = append(ids, id)
+		if uuidRe.MatchString(id) {
+			ids = append(ids, id)
+		}
 	}
 	for len(ids) > 0 {
 		if err := ctx.Err(); err != nil {

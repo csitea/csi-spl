@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -173,7 +174,7 @@ func (s *Server) multicastCheckAnswer(ctx context.Context, c *wuiConn, f wuiIn) 
 		out.Error, out.Detail = "internal", "topics unavailable"
 		return out
 	}
-	out.Targets = s.multicastTargets(ctx, c, ids, topics, shared)
+	out.Targets = s.multicastTargets(ctx, c, ids, topics, shared, s.multicastCommands(ctx, c, f))
 	if ctx.Err() != nil {
 		return nil
 	}
@@ -249,11 +250,22 @@ func (s *Server) multicastShared(ctx context.Context, c *wuiConn, f wuiIn) strin
 	return ""
 }
 
+// multicastCommands is whether a copy of f's body commands an agent its
+// author may not command (wuiRecipient + wuiMayPost: an @agent dispatch
+// needs agents.command). Scope already holds notes.send for every target.
+func (s *Server) multicastCommands(ctx context.Context, c *wuiConn, f wuiIn) bool {
+	if !s.o.WUIDispatch || c.member == "" || dispatchAgent(f.To, f.Body) == "" {
+		return false
+	}
+	return !s.allowed(ctx, c.member, c.tenant, rbac.AgentsCommand)
+}
+
 // multicastTargets is one line per id: out of scope answers topic_archived
 // for an archived topic the member reads, else multicast_no_topic (the 404
 // rule: it never says the topic exists); in scope, the moved-topic check,
-// then the shared token.
-func (s *Server) multicastTargets(ctx context.Context, c *wuiConn, ids []string, topics []selectedTopic, shared string) []multicastTarget {
+// forbidden for an agent dispatch the author may not command (a humans-only
+// channel makes it a plain post, as wuiRoute does), then the shared token.
+func (s *Server) multicastTargets(ctx context.Context, c *wuiConn, ids []string, topics []selectedTopic, shared string, noCommand bool) []multicastTarget {
 	in := make(map[string]selectedTopic, len(topics))
 	for _, t := range topics {
 		in[t.TaskID] = t
@@ -266,6 +278,8 @@ func (s *Server) multicastTargets(ctx context.Context, c *wuiConn, ids []string,
 			line.Error = s.outOfScopeToken(ctx, c, id)
 		} else if rf := s.browserMovedRefusal(ctx, c.tenant, id, c.member); rf != nil {
 			line.Error = rf.token
+		} else if noCommand && !s.channelHumansOnly(ctx, c.tenant, t.Channel) {
+			line.Error = "forbidden"
 		}
 		line.OK = line.Error == ""
 		out = append(out, line)

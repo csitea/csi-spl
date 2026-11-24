@@ -101,7 +101,8 @@ async function withPolicy(p, policy, path, role = 'developer') {
   await sleep(800)
 }
 
-const SHAPE = ['msg-menu-open', 'msg-menu-copy', 'msg-menu-add-to-note', 'msg-menu-export-pdf', 'msg-menu-export-topic-pdf', 'msg-menu-edit', 'msg-menu-move-channel', 'msg-menu-merge-topic', 'msg-menu-topic-loops', 'msg-menu-archive', 'msg-menu-delete-topic']
+/* spec 186 M3 (H4): a channel's topic card menu starts with Select (the select phase) */
+const SHAPE = ['msg-menu-topic-select', 'msg-menu-open', 'msg-menu-copy', 'msg-menu-add-to-note', 'msg-menu-export-pdf', 'msg-menu-export-topic-pdf', 'msg-menu-edit', 'msg-menu-move-channel', 'msg-menu-merge-topic', 'msg-menu-topic-loops', 'msg-menu-archive', 'msg-menu-delete-topic']
 /* t1 b6c742f0: a PERSON's card also ends with the AI actions group (never an
    agent's, by the owner's order) - the topic entries are what stays the same */
 const bare = (ids) => ids.filter((i) => !i.startsWith('msg-menu-ai-')).map((i) => i.replace(/:off$/, ''))

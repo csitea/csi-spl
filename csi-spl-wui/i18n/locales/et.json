@@ -2148,6 +2148,26 @@
         "bad_key": "Võtmes ei tohi olla tühikuid ja see võib olla kuni 4096 märki.",
         "bad_base_url": "Qwen vajab baas-URL-i, mis algab https://.",
         "generic": "Võtit ei muudetud. Proovige uuesti."
+      },
+      "signin": {
+        "hint": "Või logi agent oma privaatses virtuaalmasinas sisse oma tellimusega. Kleebitud kood läheb otse sinu masinasse; jaotur ei salvesta seda kuhugi.",
+        "start": "Logi sisse minu tellimusega",
+        "starting": "Sisselogimise alustamine sinu masinas…",
+        "open_link": "Ava teenusepakkuja sisselogimisleht",
+        "code_label": "Kood teenusepakkuja lehelt",
+        "send": "Saada kood",
+        "sent": "Kood on teel sinu masinasse…",
+        "signed_in": "Sisse logitud sinu masinas.",
+        "delivered": "Kood jõudis sinu masina sisselogimiseni; sisselogimist pole veel kinnitatud.",
+        "cancel": "Tühista",
+        "error": {
+          "signin_relay_off": "Tellimusega sisselogimine pole selle teenusepakkuja jaoks veel sisse lülitatud. Seni kasuta API-võtit.",
+          "no_private_vm": "Sellel tööruumil pole privaatset virtuaalmasinat, kuhu sisse logida.",
+          "bad_input": "Kleebi kood ühele reale.",
+          "not_found": "See sisselogimine lõppes või aegus. Alusta uuesti.",
+          "failed": "Sisselogimine sinu masinas ei lõppenud edukalt ({reason}).",
+          "generic": "Sisselogimine ei vastanud. Proovi uuesti."
+        }
       }
     },
     "marketing_handover_open": "Postita käsitsi",

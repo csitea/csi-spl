@@ -2148,6 +2148,26 @@
         "bad_key": "Cheia nu trebuie să conțină spații și poate avea cel mult 4096 de caractere.",
         "bad_base_url": "Qwen are nevoie de un URL de bază care începe cu https://.",
         "generic": "Cheia nu a fost schimbată. Încercați din nou."
+      },
+      "signin": {
+        "hint": "Sau conectează agentul de pe VM-ul tău privat la propriul abonament. Codul pe care îl lipești ajunge direct pe VM-ul tău; hubul nu îl stochează nicăieri.",
+        "start": "Conectare cu abonamentul meu",
+        "starting": "Se pornește conectarea pe VM-ul tău…",
+        "open_link": "Deschide pagina de conectare a furnizorului",
+        "code_label": "Codul de pe pagina furnizorului",
+        "send": "Trimite codul",
+        "sent": "Codul este pe drum spre VM-ul tău…",
+        "signed_in": "Conectat pe VM-ul tău.",
+        "delivered": "Codul a ajuns la conectarea de pe VM-ul tău; conectarea nu a fost încă confirmată.",
+        "cancel": "Anulează",
+        "error": {
+          "signin_relay_off": "Conectarea cu abonament nu este încă activată pentru acest furnizor. Între timp folosește o cheie API.",
+          "no_private_vm": "Acest spațiu de lucru nu are o mașină virtuală privată pentru conectare.",
+          "bad_input": "Lipește codul pe un singur rând.",
+          "not_found": "Această conectare s-a încheiat sau a expirat. Începe din nou.",
+          "failed": "Conectarea pe VM-ul tău nu s-a finalizat ({reason}).",
+          "generic": "Conectarea nu a răspuns. Încearcă din nou."
+        }
       }
     },
     "marketing_handover_open": "Publică manual",

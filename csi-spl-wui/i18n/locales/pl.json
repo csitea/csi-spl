@@ -2148,6 +2148,26 @@
         "bad_key": "Klucz nie może zawierać spacji i może mieć najwyżej 4096 znaków.",
         "bad_base_url": "Qwen wymaga bazowego adresu URL zaczynającego się od https://.",
         "generic": "Klucz nie został zmieniony. Spróbuj ponownie."
+      },
+      "signin": {
+        "hint": "Albo zaloguj agenta na swojej prywatnej maszynie wirtualnej własną subskrypcją. Wklejony kod trafia prosto na twoją maszynę; hub nigdzie go nie przechowuje.",
+        "start": "Zaloguj się moją subskrypcją",
+        "starting": "Uruchamianie logowania na twojej maszynie…",
+        "open_link": "Otwórz stronę logowania dostawcy",
+        "code_label": "Kod ze strony dostawcy",
+        "send": "Wyślij kod",
+        "sent": "Kod jest w drodze na twoją maszynę…",
+        "signed_in": "Zalogowano na twojej maszynie.",
+        "delivered": "Kod dotarł do logowania na twojej maszynie; logowanie nie zostało jeszcze potwierdzone.",
+        "cancel": "Anuluj",
+        "error": {
+          "signin_relay_off": "Logowanie subskrypcją nie jest jeszcze włączone dla tego dostawcy. Do tego czasu użyj klucza API.",
+          "no_private_vm": "Ta przestrzeń robocza nie ma prywatnej maszyny wirtualnej do logowania.",
+          "bad_input": "Wklej kod w jednej linii.",
+          "not_found": "To logowanie zakończyło się lub wygasło. Zacznij od nowa.",
+          "failed": "Logowanie na twojej maszynie nie zakończyło się ({reason}).",
+          "generic": "Logowanie nie odpowiedziało. Spróbuj ponownie."
+        }
       }
     },
     "marketing_handover_open": "Opublikuj ręcznie",

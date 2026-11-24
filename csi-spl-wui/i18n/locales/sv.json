@@ -2148,6 +2148,26 @@
         "bad_key": "Nyckeln får inte innehålla mellanslag och får vara högst 4096 tecken.",
         "bad_base_url": "Qwen behöver en bas-URL som börjar med https://.",
         "generic": "Nyckeln ändrades inte. Försök igen."
+      },
+      "signin": {
+        "hint": "Eller logga in agenten på din privata VM med din egen prenumeration. Koden du klistrar in går direkt till din VM; navet sparar den ingenstans.",
+        "start": "Logga in med min prenumeration",
+        "starting": "Startar inloggningen på din VM…",
+        "open_link": "Öppna leverantörens inloggningssida",
+        "code_label": "Kod från leverantörens sida",
+        "send": "Skicka koden",
+        "sent": "Koden är på väg till din VM…",
+        "signed_in": "Inloggad på din VM.",
+        "delivered": "Koden nådde inloggningen på din VM; inloggningen är inte bekräftad än.",
+        "cancel": "Avbryt",
+        "error": {
+          "signin_relay_off": "Inloggning med prenumeration är inte påslagen för den här leverantören än. Använd en API-nyckel så länge.",
+          "no_private_vm": "Den här arbetsytan har ingen privat VM att logga in på.",
+          "bad_input": "Klistra in koden på en rad.",
+          "not_found": "Den här inloggningen har avslutats eller gått ut. Börja om.",
+          "failed": "Inloggningen på din VM slutfördes inte ({reason}).",
+          "generic": "Inloggningen svarade inte. Försök igen."
+        }
       }
     },
     "marketing_handover_open": "Publicera själv",

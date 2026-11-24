@@ -2148,6 +2148,26 @@
         "bad_key": "Anahtar boşluk içermemeli ve en fazla 4096 karakter olmalı.",
         "bad_base_url": "Qwen için https:// ile başlayan bir temel URL gerekir.",
         "generic": "Anahtar değiştirilmedi. Tekrar deneyin."
+      },
+      "signin": {
+        "hint": "Ya da özel sanal makinenizdeki aracıyı kendi aboneliğinizle oturum açtırın. Yapıştırdığınız kod doğrudan makinenize gider; merkez onu hiçbir yerde saklamaz.",
+        "start": "Aboneliğimle oturum aç",
+        "starting": "Makinenizde oturum açma başlatılıyor…",
+        "open_link": "Sağlayıcının oturum açma sayfasını aç",
+        "code_label": "Sağlayıcı sayfasındaki kod",
+        "send": "Kodu gönder",
+        "sent": "Kod makinenize gidiyor…",
+        "signed_in": "Makinenizde oturum açıldı.",
+        "delivered": "Kod makinenizdeki oturum açmaya ulaştı; oturum açma henüz onaylanmadı.",
+        "cancel": "İptal",
+        "error": {
+          "signin_relay_off": "Abonelikle oturum açma bu sağlayıcı için henüz açılmadı. Bu arada bir API anahtarı kullanın.",
+          "no_private_vm": "Bu çalışma alanında oturum açılacak özel bir sanal makine yok.",
+          "bad_input": "Kodu tek satır olarak yapıştırın.",
+          "not_found": "Bu oturum açma sona erdi ya da zaman aşımına uğradı. Yeniden başlayın.",
+          "failed": "Makinenizdeki oturum açma tamamlanmadı ({reason}).",
+          "generic": "Oturum açma yanıt vermedi. Yeniden deneyin."
+        }
       }
     },
     "marketing_handover_open": "Elle paylaş",

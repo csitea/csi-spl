@@ -2148,6 +2148,26 @@
         "bad_key": "Atslēgā nedrīkst būt atstarpju, un tā var būt līdz 4096 rakstzīmēm.",
         "bad_base_url": "Qwen nepieciešams bāzes URL, kas sākas ar https://.",
         "generic": "Atslēga netika mainīta. Mēģiniet vēlreiz."
+      },
+      "signin": {
+        "hint": "Vai pieslēdziet aģentu savā privātajā virtuālajā mašīnā ar savu abonementu. Ielīmētais kods nonāk tieši jūsu mašīnā; centrmezgls to nekur neglabā.",
+        "start": "Pieteikties ar manu abonementu",
+        "starting": "Sāk pieteikšanos jūsu mašīnā…",
+        "open_link": "Atvērt piegādātāja pieteikšanās lapu",
+        "code_label": "Kods no piegādātāja lapas",
+        "send": "Sūtīt kodu",
+        "sent": "Kods ir ceļā uz jūsu mašīnu…",
+        "signed_in": "Pieteicies jūsu mašīnā.",
+        "delivered": "Kods sasniedza pieteikšanos jūsu mašīnā; pieteikšanās vēl nav apstiprināta.",
+        "cancel": "Atcelt",
+        "error": {
+          "signin_relay_off": "Pieteikšanās ar abonementu šim piegādātājam vēl nav ieslēgta. Pagaidām izmantojiet API atslēgu.",
+          "no_private_vm": "Šai darbvietai nav privātas virtuālās mašīnas pieteikšanās veikšanai.",
+          "bad_input": "Ielīmējiet kodu vienā rindā.",
+          "not_found": "Šī pieteikšanās beidzās vai tai beidzās laiks. Sāciet vēlreiz.",
+          "failed": "Pieteikšanās jūsu mašīnā netika pabeigta ({reason}).",
+          "generic": "Pieteikšanās neatbildēja. Mēģiniet vēlreiz."
+        }
       }
     },
     "marketing_handover_open": "Publicēt manuāli",

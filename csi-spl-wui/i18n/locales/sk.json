@@ -2148,6 +2148,26 @@
         "bad_key": "Kľúč nesmie obsahovať medzery a môže mať najviac 4096 znakov.",
         "bad_base_url": "Qwen potrebuje základnú URL začínajúcu https://.",
         "generic": "Kľúč sa nezmenil. Skúste to znova."
+      },
+      "signin": {
+        "hint": "Alebo prihláste agenta na svojom súkromnom virtuálnom stroji vlastným predplatným. Vložený kód ide priamo do vášho stroja; centrum ho nikde neukladá.",
+        "start": "Prihlásiť sa mojím predplatným",
+        "starting": "Spúšťa sa prihlásenie na vašom stroji…",
+        "open_link": "Otvoriť prihlasovaciu stránku dodávateľa",
+        "code_label": "Kód zo stránky dodávateľa",
+        "send": "Odoslať kód",
+        "sent": "Kód je na ceste do vášho stroja…",
+        "signed_in": "Prihlásené na vašom stroji.",
+        "delivered": "Kód dorazil k prihláseniu na vašom stroji; prihlásenie ešte nie je potvrdené.",
+        "cancel": "Zrušiť",
+        "error": {
+          "signin_relay_off": "Prihlásenie predplatným ešte nie je pre tohto dodávateľa zapnuté. Zatiaľ použite kľúč API.",
+          "no_private_vm": "Tento pracovný priestor nemá súkromný virtuálny stroj na prihlásenie.",
+          "bad_input": "Vložte kód do jedného riadka.",
+          "not_found": "Toto prihlásenie skončilo alebo vypršalo. Začnite znova.",
+          "failed": "Prihlásenie na vašom stroji sa nedokončilo ({reason}).",
+          "generic": "Prihlásenie neodpovedalo. Skúste to znova."
+        }
       }
     },
     "marketing_handover_open": "Zverejniť ručne",

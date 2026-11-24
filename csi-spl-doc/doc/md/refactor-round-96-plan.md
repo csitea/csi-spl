@@ -47,10 +47,10 @@ loads `gh-set-ci-vars.func.sh` behind a `declare -F _gscv_repo` guard and calls
 `_gscv_repo "${GH_WIRE_REPO:-}"`, and `spl-gh-wire.tst.sh` guards both one-copy and
 `GH_CI_VARS_REPO` isolation. The rows share no file (orc vs iac): both are batch 1.
 
-**Status: v0.1, draft for panel review.** Panel seat m-028 (mistral,
-`c002-refactor-round-96-mistral-panel-seat`, live) reviews this draft on
-`review/c002-refactor-round-96-planner`. Rows queue once the panel signs and
-`do_spl_review_line_check` exits 0 (rulebook 1.4 / 5.2). Editor: **a-025** (agy).
+**Status: v1.0, signed.** The panel (m-028, mistral) passed v0.1 `4daa11721` with no W;
+N1..N4 are notes only (seat file `csi-spl-doc/doc/md/refactor-round-96/seat-mistral.md`,
+branch `review/c002-refactor-round-96-mistral-seat`, `c33fb0b0a`). Rows queue once the
+holder places them (rulebook 1.4 / 5.2). Editor: **a-025** (agy).
 
 **One sha:** every count is measured on **`48bc8bb6a`** (`origin/master` at
 2026-11-24T08:46:44Z), n=1 per command unless stated. Reads are on `48bc8bb6a` with
@@ -496,12 +496,43 @@ files, `cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...)`. Kind
   and `do_sec_shellcheck` rc 0 (with `_gscv_repo` parameterised via `$1` to stay
   SC2120-free and leak-free); the red and guard/wiring controls RED; R3 (2.2) and R7
   (section 4) checked.
+- v1.0 (a-025): the panel seat m-028 (mistral) **PASS** on `4daa11721`
+  (`4daa117212626dff5209a4d47abc1c2fa9b71893`), no W, notes N1..N4 (msgs `4d10a423`,
+  `8fe766ee`, `2cda1181`; seat file `refactor-round-96/seat-mistral.md` on
+  `review/c002-refactor-round-96-mistral-seat`, `c33fb0b0a`). Its review line passed the
+  holder c-002's `do_spl_review_line_check` at 09:43Z: rc 0 (docs-only, session log
+  `unified/4b785387-313c-769d-0f58-738a2a1d801f`, reviewer m-028; holder GO msgs
+  `2965c3d1`, `5f8385cd`). v0.1 landed on `origin/master` as `817be0fa2`
+  (`817be0fa2412d06c695a5edec6680e3e8fc54c11`; `git patch-id --stable` `c81459b5e72e`
+  equal to `4daa11721`). Notes folded (no row change):
+  - N1: the seat rebuilt both row heads in scratch worktrees from 1.3 / 1.4 (`asks.sh`
+    `40973aba3527` and `spool-send.sh` `53610547ef08` match the plan's sha256; the other
+    5 differ in comment/wording only: `spool-fleet.inc.sh` `29aacbbef0cf` vs
+    `616dba760b43`, `test-fleet-send.sh` `57cbade72f20` vs `2c9ced6b5022`,
+    `gh-set-ci-vars.func.sh` `5559d8d45d2d` vs `aefa845e2afc`, `spl-gh-wire.func.sh`
+    `fa7bece2f920` vs `3fda7f60db77`, `spl-gh-wire.tst.sh` `09d51f2e0e29` vs
+    `335537586b84`), and all 4 red and guard/wiring controls reproduce the plan's exact
+    quoted lines and counts (`rc1` rc 1 105/7, `gc1` rc 1 93/19, `rc2` rc 1 17/1
+    `:49/:51/:112`, `gc2` rc 13 5/13 line 108).
+  - N2: `origin/master` moved `48bc8bb6a` -> `ab87b6d8f` (3 docs-only commits) at the
+    seat's read and -> `09a147c24` -> `817be0fa2` at v0.1 land;
+    `git diff --name-only 48bc8bb6a origin/master -- <the 9 paths>` is empty (re-read
+    09:44Z), so every site stands.
+  - N3: the lane map at the seat's read exited 4 with 12 `unknown:` lanes (all on the
+    other box; 0 hits on the 9 paths; the only remote branches touching a row path are
+    stale, >24 h old, unlanded, lanes gone); row lanes re-run R3 at spawn.
+  - N4: the plan's 1.2 (e) byte-identical-body scan (11 groups) is the planner's scratch
+    script, not in the repo; the seat verified the two row candidates byte-identical
+    directly and the section-7 items by direct grep.
+  Text unchanged except the status line and sections 8 and 9.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-025 (agy): v0.1 (pending panel sign).
+- Editor seat: a-025 (agy): v0.1, v1.0.
 - Panel reviewer seat: m-028 (mistral, `c002-refactor-round-96-mistral-panel-seat`):
-  pending review of v0.1 on `review/c002-refactor-round-96-planner`.
+  **PASS** on v0.1 (`4daa11721`), no W, notes N1-N4; seat file
+  `refactor-round-96/seat-mistral.md` (`review/c002-refactor-round-96-mistral-seat`,
+  `c33fb0b0a`, section 8).
 - Row R7 seats: section 4 (grok per row unless held at placement, else claude waiver).

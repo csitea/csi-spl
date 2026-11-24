@@ -48,7 +48,7 @@ serves (WUI 3.6.7, commit `6c741f5b`, `<host>/build.json`) and the one CI
 bundled (wf 10 run `45377752048`, head `3314cc4e5`): `git log --oneline
 6c741f5b0..09f137d40 -- csi-spl-wui` and `3314cc4e5..09f137d40` -> 0 lines
 each. Raw commands and outputs: [perf-round-20/editor.md](perf-round-20/editor.md).
-Since then (read 2026-11-24 ~14:45Z): prd's `e2e` serves WUI 3.6.9, commit
+Since then (read 2026-11-24 ~14:37Z): prd's `e2e` serves WUI 3.6.9, commit
 `8d348dbe1` (`build.json`), and `origin/master` is `50dbdaa6d`; `git diff
 --stat 09f137d40 50dbdaa6d --` the 9 row files -> empty, so every baseline
 still describes the row code. Each lane re-measures on its own start sha

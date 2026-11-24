@@ -33,11 +33,17 @@ const now = () => (globalThis.performance ? globalThis.performance.now() : Date.
 /** RUM is on for this build (runtime config perfRum, read once). */
 export function perfOn() {
   if (onFlag === null) {
-    try {
-      onFlag = String(globalThis.__NUXT__?.config?.public?.perfRum) === '1'
-    } catch {
-      onFlag = false
+    /* SPL-5070: Nuxt 4's revive-payload plugin deletes window.__NUXT__
+       before the app mounts, and this module is in a lazy chunk (live-ws is
+       lazy), so the first call can come after it is gone: then read the
+       app's runtime config. window.useNuxtApp is set when the app is
+       created, before any plugin runs, so one of the two is always there. */
+    let pub
+    try { pub = globalThis.__NUXT__?.config?.public } catch { /* no payload */ }
+    if (!pub) {
+      try { pub = globalThis.useNuxtApp?.()?.$config?.public } catch { /* no app */ }
     }
+    onFlag = String(pub?.perfRum) === '1'
   }
   return onFlag
 }

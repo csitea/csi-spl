@@ -39,11 +39,8 @@ do_spl_desk_mirror_settings() {
 # repo): every CLI on the box reads this file, and a missing path must not
 # print a hook error on every prompt of every agent.
 spl_desk_mirror_settings_json() {
-  python3 - "$1" <<'EOF_PY'
-import json, shlex, sys
-p = shlex.quote(sys.argv[1])
-cmd = f"[ -r {p} ] && exec python3 {p} hook; exit 0"
-h = [{"hooks": [{"type": "command", "command": cmd, "timeout": 10}]}]
-print(json.dumps({"hooks": {"UserPromptSubmit": h, "Stop": h}}, indent=2, sort_keys=True))
-EOF_PY
+  # build the hooks object via smh_hooks_json of spool-mirror-hooks.inc.sh, its one copy
+  # shellcheck source=../features/spawn-agents/lib/spool-mirror-hooks.inc.sh
+  declare -F smh_hooks_json >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-mirror-hooks.inc.sh"
+  smh_hooks_json "$1"
 }

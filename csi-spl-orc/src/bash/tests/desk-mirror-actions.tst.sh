@@ -9,7 +9,8 @@
 #      reaches the file), into the mirror's topic, and the mirror adopts the
 #      topic the hub returned
 #   3. do_spl_desk_mirror_settings: both hook events call spool-mirror.py
-#      hook of THIS checkout, the file exists, SETTINGS_OUT is written
+#      hook of THIS checkout, the file exists, SETTINGS_OUT is written; the
+#      JSON comes from smh_hooks_json of spool-mirror-hooks.inc.sh, its one copy
 #   4. do_spl_desk_mirror_check: lists every seat, reads .no-mirror, and
 #      WARNs when the live sidecar runs a worktree's notifier
 # The fixture desk is box-desk, the id spl_desk_box_default returns when
@@ -117,6 +118,10 @@ cmd="$(SNIPPET='spl_desk_mirror_settings_json "$T/absent.py"' in_orc T="$T" | py
 # pipefail printf could take SIGPIPE and the pipeline read rc 141.
 bash -c "$cmd" <<<'{}' >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && ! -s "$T/o" ]] && pass "3. the hook is a silent no-op when the script is absent" || fail "3. absent script: rc $rc $(cat "$T/o")"
+own="$(grep -nE 'UserPromptSubmit|EOF_PY|shlex\.quote' "$PROJ_ROOT/src/bash/run/spl-desk-mirror-settings.func.sh" | grep -vE '^[0-9]+:[[:space:]]*#')"
+[[ -z "$own" ]] && grep -q 'smh_hooks_json "$1"' "$PROJ_ROOT/src/bash/run/spl-desk-mirror-settings.func.sh" &&
+  pass "3. one copy: spl-desk-mirror-settings.func.sh calls smh_hooks_json" ||
+  fail "3. one copy: spl-desk-mirror-settings.func.sh keeps its own hooks JSON builder, or no call of smh_hooks_json: $(echo $own)"
 
 # --- 4. the check ------------------------------------------------------------------------------
 env SPOOL_NOTIFY_CMD=/opt/x/app-wt/AGT-1/orc/spool-notify.sh sleep 300 &

@@ -160,7 +160,7 @@ func (s *Postgres) CreateTenant(ctx context.Context, t Tenant) error {
 		return err
 	}
 	// A purged workspace's id is retired: its paid invoices and its
-	// cancellation row outlive the purge (rdb 0320, 0319), and a new
+	// cancellation row outlive the purge (rdb 0322, 0319), and a new
 	// workspace under that id would read them as its own.
 	tag, err := s.execTenant(ctx, t.ID, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id,
 		org, app, project_id, bought_at, seats_users, seats_bots, fleet_seating)

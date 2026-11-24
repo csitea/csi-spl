@@ -231,7 +231,7 @@ type SweepResult struct {
 type Store interface {
 	// CreateTenant is idempotent: the same root key is a no-op, a different one
 	// is ErrConflict. A purged workspace's id is ErrConflict too: its invoices
-	// outlive the purge (rdb 0320), so the id is never re-created.
+	// outlive the purge (rdb 0322), so the id is never re-created.
 	CreateTenant(ctx context.Context, t Tenant) error
 	GetTenant(ctx context.Context, tenantID string) (Tenant, error)
 	// SetBillingStatus writes tenants.billing_status (payment.md mapping).

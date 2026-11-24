@@ -33,7 +33,7 @@ import (
 // data goes with DELETE FROM tenants (every ON DELETE CASCADE table), the
 // row gets purged_at and one operator_audit row (purge_workspace) is
 // written; the cancellation row, operator_audit and the workspace's
-// invoices carry no FK (rdb 0320), so all three outlive the purge: the
+// invoices carry no FK (rdb 0322), so all three outlive the purge: the
 // invoices stay for bookkeeping (owner, msg f872a556). A workspace with an unpaid invoice is HELD, not
 // purged: a non-payment never deletes anything on its own (Q-17 B, 4.4);
 // the owner decides it by hand, and the next tick purges it once the
@@ -127,7 +127,7 @@ func checkCancelActor(tenant, actorTenant, actorHum string) error {
 // Memory side: a map beside the Memory struct, guarded by s.mu.
 var memCancels = map[*Memory]map[string]WorkspaceCancel{}
 
-// purgedLocked: tenant's id was purged, so it is retired (rdb 0320); every
+// purgedLocked: tenant's id was purged, so it is retired (rdb 0322); every
 // path that makes a tenant row refuses it. The caller holds s.mu.
 func (s *Memory) purgedLocked(tenant string) bool {
 	c, ok := memCancels[s][tenant]
@@ -237,7 +237,7 @@ func (s *Memory) unpaidInvoice(tenant string) bool {
 }
 
 // dropTenant removes tenant and what the Memory store keys by it, as the
-// cascade does in Postgres; its invoices stay (rdb 0320). The caller holds mu.
+// cascade does in Postgres; its invoices stay (rdb 0322). The caller holds mu.
 func (s *Memory) dropTenant(tenant string) {
 	delete(s.tenants, tenant)
 	for k := range s.pins {

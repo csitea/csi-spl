@@ -112,7 +112,7 @@ func TestCancelWorkspace(t *testing.T) {
 // TestPurgeCancelledWorkspace: the hub data stays 30 days after the
 // cancel (Q-12 C), is held while an invoice is unpaid (Q-17 B), then goes;
 // the cancellation row, the audit and the paid invoice outlive it (rdb
-// 0320, owner msg f872a556). CONTROL: a day before
+// 0322, owner msg f872a556). CONTROL: a day before
 // purge_after nothing goes, and a workspace that is not cancelled stays.
 func TestPurgeCancelledWorkspace(t *testing.T) {
 	ctx := context.Background()

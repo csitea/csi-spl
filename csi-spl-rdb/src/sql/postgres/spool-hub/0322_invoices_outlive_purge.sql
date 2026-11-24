@@ -1,4 +1,4 @@
--- 0320_invoices_outlive_purge.sql - a private workspace's invoices outlive
+-- 0322_invoices_outlive_purge.sql - a private workspace's invoices outlive
 -- its purge (spec 181 row B9 follow-up, SPL-6355). Forward-only, idempotent.
 --
 -- Owner HUM-10, t1 b12055b5, msg f872a556 (poll 48efd738, answer A): "Keep

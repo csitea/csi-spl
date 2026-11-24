@@ -753,7 +753,7 @@ Row status (v0.4.1):
   not refuse a cancelled workspace). Paid invoices stay in the hub after
   the purge (owner HUM-10, t1 b12055b5, msg `f872a556`, poll `48efd738`
   answer A: "the workspace is deleted, its invoices stay", kept for years
-  for bookkeeping; SPL-6355): rdb `0320_invoices_outlive_purge.sql` drops
+  for bookkeeping; SPL-6355): rdb `0322_invoices_outlive_purge.sql` drops
   `private_workspace_invoices`' FK to `tenants`, so the row keeps its
   `tenant_id` and amounts once the tenants row is gone, like the
   cancellation tombstone. Its RLS is unchanged: the operator scope reads
@@ -909,7 +909,7 @@ Marketplace stays spec 156.
   row status): the operator cancel, rdb 0319 `workspace_cancellations`,
   the 30-day purge tick, `do_spl_private_ws_cancel`.
 - v0.7.2 (2026-11-24, c-678, SPL-6355): B9 follow-up, paid invoices stay
-  in the hub after the purge (owner msg `f872a556`), rdb 0320; a purged
+  in the hub after the purge (owner msg `f872a556`), rdb 0322; a purged
   workspace's id is never re-created.
 
 <!-- version: 0.7.2 · updated: 2026-11-24 · last-edit: 2026-11-24T12:10:00Z -->

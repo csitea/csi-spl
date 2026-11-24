@@ -219,7 +219,7 @@ func paidTx(ctx context.Context, tx pgx.Tx, c Checkout, ev PaymentEvent, now tim
 // insertTenantTx is the tenant creation shared by the paid transition and the
 // private-workspace order submit: the row, active, with root as its root key.
 // made is false when the tenant already existed or its id was purged (nothing
-// written): a purged id is retired, as in CreateTenant (rdb 0320).
+// written): a purged id is retired, as in CreateTenant (rdb 0322).
 func insertTenantTx(ctx context.Context, tx pgx.Tx, tenant string, root ed25519.PublicKey, plan string) (made bool, err error) {
 	tag, err := tx.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id)
 		SELECT $1, $2, $3, $4

@@ -188,7 +188,7 @@ func (s *Memory) CreateTenant(_ context.Context, t Tenant) error {
 		return nil
 	}
 	if s.purgedLocked(t.ID) {
-		return ErrConflict // a purged id is retired (rdb 0320)
+		return ErrConflict // a purged id is retired (rdb 0322)
 	}
 	if s.projectHeldLocked(t.ID, t.ProjectID) {
 		return ErrConflict

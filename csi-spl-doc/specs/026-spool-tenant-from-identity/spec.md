@@ -154,6 +154,27 @@ check* during the transition (§5).
   `tenant-switcher.test.mjs` (no visible caption, row <= 28 px, the hover
   text names the tenant, at 1280 and 390), `tests/unit/tenant-hint-i18n.test.mjs`.
 
+### 6.2 No drop box on the sign-in page (SPL-6413)
+
+> "the drop down of the workspaces MUST NOT BE VISIBLE in the login ... the
+> login would present either the workspace name to which the user tries to
+> login, or just the spool-hub workspace name and than it will be populated
+> according to the access of the user ONLY after the login has succeeded"
+> — owner HUM-10, 2026-11-24, t1 bedfacca msg 3c421dd7
+
+- The sign-in page (`/login`, every locale) shows no drop box in any
+  session state, desktop or phone. In its place the bar names the workspace
+  being signed into: the page host's tenant (`<t>.<apex>`), else a valid
+  `?tenant=`, else `spool-hub` (the apex, and the apex tenant). The label
+  never reads the session, so no other membership is named before sign-in.
+- The other pages of the sign-in frame (the error page, checkout,
+  verify-email) keep the SPL-1025 box for a signed-in visitor, and the app
+  shell's drop box lists the memberships as in section 6.
+- Checks: `csi-spl-wui/tests/unit/login-workspace.test.mjs`
+  (`loginWorkspaceLabel`, `isLoginRoute`, the layout contract), e2e
+  `login-no-workspace-dropdown.test.mjs` (390 and 1440 px, signed out and
+  with two memberships adopted on `/login`, plain and `?tenant=`).
+
 ## 7. RLS and RBAC (FR-008)
 
 - RLS (017, rdb 0014) is unchanged: every tenant statement runs under

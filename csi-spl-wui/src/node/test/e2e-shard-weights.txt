@@ -29,6 +29,8 @@
 # on a generated mock bundle (n=1, 2026-11-23), until a refresh measures CI.
 # phone-back-section-top (spec 087 FR-009, SPL-6356) is new: 182 s, its one local run
 # of the CI default on a generated mock bundle (n=1, 2026-11-24), until a refresh measures CI.
+# login-no-workspace-dropdown (SPL-6413) is new: 12 s, its one local run
+# on a generated mock bundle (n=1, 2026-11-24), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -195,6 +197,7 @@ tests/e2e/login-centred.test.mjs 30
 tests/e2e/login-demo-intro.test.mjs 16
 tests/e2e/login-env-hydration.test.mjs 2
 tests/e2e/login-invite-hint.test.mjs 14
+tests/e2e/login-no-workspace-dropdown.test.mjs 12
 tests/e2e/make-task.test.mjs 7
 tests/e2e/markdown-table.test.mjs 6
 tests/e2e/marketing-draft-handover.test.mjs 13

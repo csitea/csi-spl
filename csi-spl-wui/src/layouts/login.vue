@@ -38,7 +38,11 @@
           <span class="sr-only">{{ title }}</span>
         </span>
         <LazyLogoDialog v-if="logoOpen" v-model:open="logoOpen" />
-        <div v-if="tenantShown" class="login-bar__tenant" data-test="login-bar-tenant">
+        <!-- SPL-6413 (owner, t1 bedfacca): the sign-in page names the one
+             workspace being signed into, in every session state, never the
+             drop box; the user's workspaces list only after the sign-in. -->
+        <span v-if="loginPage && loginWorkspace" class="login-bar__workspace" data-test="login-bar-workspace">{{ loginWorkspace }}</span>
+        <div v-else-if="tenantShown" class="login-bar__tenant" data-test="login-bar-tenant">
           <TenantDropBox />
           <TopBarTenant class="login-bar__tenant-phone" />
         </div>
@@ -74,6 +78,8 @@ import { loginBarTitle } from '~/utils/login-title.mjs'
 import { useKeyboardInset } from '~/composables/useTouchUi'
 import { useSessionStore } from '~/stores/session'
 import { fixedTenantOption } from '~/utils/tenant-switcher.mjs'
+import { isLoginRoute, loginWorkspaceLabel } from '~/utils/login-workspace.mjs'
+import { hostTenant } from '~/composables/useSpoolApi'
 /* Async: only a signed-in visitor sees them, so the sign-in page's first
    download stays as it was. */
 const TenantDropBox = defineAsyncComponent(() => import('@/components/TenantDropBox.vue'))
@@ -93,7 +99,14 @@ const envTag = computed(() => title.value === 'spool-hub' ? '' : title.value.rep
 const logoOpen = ref(false)
 /* SPL-1025: signed in with a tenant named -> the tenant box; else the title */
 const session = useSessionStore()
-const tenantShown = computed(() => session.state === 'in' && fixedTenantOption(session.claims).id.length > 0)
+const tenantShown = computed(() => session.state === 'in' && fixedTenantOption(session.claims).id.length > 0 && !loginPage.value)
+/* SPL-6413: on /login the host's workspace (or ?tenant=, else spool-hub) in
+   its place; read once mounted, the prerendered /login knows no host */
+const route = useRoute()
+const loginPage = computed(() => isLoginRoute(route.name))
+const loginWorkspace = computed(() => mounted.value
+  ? loginWorkspaceLabel(hostTenant(), typeof route.query.tenant === 'string' ? route.query.tenant : '', String(config.public.tenant || ''))
+  : '')
 /* the error page renders outside the route middleware that probes */
 onMounted(() => { if (session.state === 'loading') void session.probe() })
 
@@ -156,9 +169,33 @@ watch(kb, async () => {
 .login-bar__logo img { display: block; width: 28px; height: 28px; border-radius: var(--radius-sm); }
 .login-bar__env { margin-inline-start: 6px; }
 .login-bar__tenant { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
+/* the name keeps its width (the language box gives way); a long one stops
+   at the cap and ends in an ellipsis */
+.login-bar__workspace {
+  flex: 0 0 auto;
+  max-width: min(12rem, 36vw);
+  margin-inline-start: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* SPL-995 split: the phone box only at <= 820 px (TenantDropBox hides itself
    there). Two classes: the box's own display rule loads later (async chunk). */
 .login-bar__tenant .login-bar__tenant-phone { display: none; }
+/* SPL-6413: a narrow phone (360 px) draws the whole name beside the theme
+   and language boxes */
+@media (max-width: 480px) {
+  .login-bar__workspace { margin-inline-start: 0; font-size: 0.8125rem; }
+  .login-bar__start:has(.login-bar__workspace) { flex-shrink: 0; }
+  /* the language box gives up the slack its longest locale name keeps; the
+     current name still shows, the list opens at its own width */
+  .login-bar :deep(.lang-switcher__combobox),
+  .login-bar :deep(.lang-switcher__control) { width: 100%; }
+  .login-bar :deep(.lang-switcher__field) { flex: 1 1 0; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
+}
 @media (max-width: 820px) {
   .login-bar__tenant .login-bar__tenant-phone { display: flex; flex: 0 1 auto; min-width: var(--tap, 44px); max-width: min(20rem, 100%); }
   .login-bar__logo { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }

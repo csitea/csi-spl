@@ -394,7 +394,9 @@ async function desktop(browser) {
   await p.mouse.click(gap ? gap.x : card.x, gap ? gap.y : card.y, { button: 'right' })
   const m = await until(() => sheetFacts(p, '[data-testid=msg-menu]'), Boolean)
   ok('1440px 9 right-click menu is the old popover: no sheet, no Reply; menu button 32 px',
-    Boolean(m && !m.sheet && !m.backdrop && !m.ids.includes('msg-menu-reply') && m.ids[0] === 'msg-menu-open'
+    Boolean(m && !m.sheet && !m.backdrop && !m.ids.includes('msg-menu-reply')
+      /* spec 186 M3 (H4): a channel topic card's menu starts with Select, then Open */
+      && m.ids[0] === 'msg-menu-topic-select' && m.ids[1] === 'msg-menu-open'
       && card.menuBtn && card.menuBtn.w === 32 && card.emojiBtn && card.emojiBtn.shown), { m, card })
   await p.close()
 }

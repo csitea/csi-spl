@@ -1,9 +1,13 @@
 // SPL-4900 (owner HUM-10, t1 4d1e60b5, msgs 402cb8df and b164e955: "too much
-// empty space ... the release cards should be better space utilizing"), on
-// /reporting/releases against the mock bundle, at 2560x1600 (the owner's
-// desktop), 1440x900 and 390x844:
-//   D1 desktop: the commits of a day are cards in a grid, at least 3
-//      columns at 2560 and 2 at 1440, every card the same width;
+// empty space") made the desktop a grid of commit cards; SPL-6397 (owner
+// HUM-10, t1 70e18a3d, msgs 8684ee68 and 9e3495df: "a single column list
+// ... but a stylie one", "on the Desktop version") takes it back to ONE
+// styled column. On /reporting/releases against the mock bundle, at
+// 2560x1600 (the owner's desktop), 1440x900 and 390x844:
+//   D1 desktop: every commit of every day starts at the same left x and
+//      has the same width (one column); the column is centred and at most
+//      72rem wide; within a row the times share one left x and the
+//      subjects share another (the time column);
 //   D2 desktop: the filter bar (range, kinds, areas, search) takes at most
 //      2 rows at 2560 and 3 at 1440 (it was 4), so the first commit sits higher;
 //   D3 every width: no card's text runs past its border, the body does not
@@ -12,8 +16,8 @@
 //   D5 an opened commit's notes span the whole row of its day.
 // Each size prints its measure (columns, filter rows, commits above the
 // fold, the first commit's top), so a before/after reads off the log.
-// CONTROL: origin/master e23bc5cb2 (one full-width row per commit, the
-// filter groups stacked, 4 rows) fails D1 and D2 at 2560 and 1440.
+// CONTROL: origin/master 6d81d4447 (the SPL-4900 grid) fails D1 at 2560
+// and 1440 (several left x per day).
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e releases-desktop-density
@@ -49,8 +53,8 @@ async function launch() {
 }
 
 const SIZES = [
-  { width: 2560, height: 1600, touch: false, minCols: 3, maxFilterRows: 2 },
-  { width: 1440, height: 900, touch: false, minCols: 2, maxFilterRows: 3 },
+  { width: 2560, height: 1600, touch: false, desktop: true, maxFilterRows: 2 },
+  { width: 1440, height: 900, touch: false, desktop: true, maxFilterRows: 3 },
   { width: 390, height: 844, touch: true },
 ]
 
@@ -83,8 +87,17 @@ function measure() {
   const days = [...document.querySelectorAll('[data-test=releases-day]')]
   const cellsOf = (d) => [...d.querySelectorAll('[data-test=releases-commit]')]
   const cells = days.map(cellsOf).sort((a, b) => b.length - a.length)[0] || []
+  const every = days.flatMap(cellsOf)
   const lefts = [...new Set(cells.map((c) => Math.round(rect(c).left)))]
   const widths = [...new Set(cells.map((c) => Math.round(rect(c).width)))]
+  const leftsAll = [...new Set(every.map((c) => Math.round(rect(c).left)))]
+  const widthsAll = [...new Set(every.map((c) => Math.round(rect(c).width)))]
+  const xOf = (sel) => [...new Set(every.map((c) => c.querySelector(sel)).filter(Boolean).map((e) => Math.round(rect(e).left)))]
+  const list = document.querySelector('[data-test=releases-days]')
+  const host = list?.parentElement
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+  const lr = list ? rect(list) : null
+  const hr = host ? rect(host) : null
   const groups = ['releases-range', 'releases-kinds', 'releases-areas', 'releases-search']
     .map((id) => document.querySelector(`[data-test=${id}]`)).filter(Boolean)
   const all = [...document.querySelectorAll('[data-test=releases-commit]')]
@@ -92,6 +105,13 @@ function measure() {
   return {
     cols: lefts.length,
     widths,
+    leftsAll,
+    widthsAll,
+    timeX: xOf('[data-test=releases-commit-time]'),
+    subjectX: xOf('[data-test=releases-commit-subject]'),
+    listWidth: lr ? Math.round(lr.width) : null,
+    maxWidth: Math.round(72 * rem),
+    gutters: lr && hr ? [Math.round(lr.left - hr.left), Math.round(hr.right - lr.right)] : null,
     filterRows: rowsOf(groups),
     filterGroups: groups.length,
     aboveFold: all.filter((c) => rect(c).bottom <= innerHeight).length,
@@ -111,9 +131,12 @@ try {
     const { ctx, p } = await page(browser, server.base, size)
     const m = await p.evaluate(measure)
     console.log(`  measure ${tag}: ${JSON.stringify(m)}`)
-    if (size.minCols) {
-      ok(`D1 ${tag}: the day's commits are a grid of >= ${size.minCols} columns`, m.cols >= size.minCols, m.cols)
-      ok(`D1 ${tag}: the cards share one width`, m.widths.length === 1, m.widths)
+    if (size.desktop) {
+      ok(`D1 ${tag}: every commit starts at one left x (one column)`, m.leftsAll.length === 1, m.leftsAll)
+      ok(`D1 ${tag}: every commit has one width`, m.widthsAll.length === 1, m.widthsAll)
+      ok(`D1 ${tag}: the column is at most 72rem wide`, m.listWidth !== null && m.listWidth <= m.maxWidth + 1, [m.listWidth, m.maxWidth])
+      ok(`D1 ${tag}: the column is centred`, m.gutters !== null && Math.abs(m.gutters[0] - m.gutters[1]) <= 2, m.gutters)
+      ok(`D1 ${tag}: the times and the subjects each share one left x`, m.timeX.length === 1 && m.subjectX.length === 1 && m.subjectX[0] > m.timeX[0], [m.timeX, m.subjectX])
       ok(`D2 ${tag}: the filter bar takes <= ${size.maxFilterRows} rows`, m.filterGroups === 4 && m.filterRows <= size.maxFilterRows, m.filterRows)
     } else {
       ok(`D4 ${tag}: one column of commits`, m.cols === 1, m.cols)
@@ -122,7 +145,7 @@ try {
     ok(`D3 ${tag}: no commit's text runs past its border`, m.overflow.length === 0, m.overflow)
     ok(`D3 ${tag}: no sideways scroll`, m.bodyWide <= 0 && m.docWide <= 0, [m.bodyWide, m.docWide])
     if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/releases-density-${size.width}.png` })
-    if (size.minCols) {
+    if (size.desktop) {
       const sel = '[data-test=releases-day] [data-test=releases-commit-toggle]'
       if (await p.$(sel)) {
         await p.click(sel)

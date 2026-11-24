@@ -12,7 +12,14 @@
      HUM-10, t1 4d1e60b5, msg b164e955: "too much empty space"): above the phone breakpoint
      a day's commits are cards in a grid that fills the width, the subject
      on its own line; an opened commit spans its day's row. A phone keeps
-     one row per commit. B-7 (spec 143 releases-projects.md 7.1, SPL-5853):
+     one row per commit. SPL-6397 (owner HUM-10, t1 70e18a3d, msgs 8684ee68
+     and 9e3495df: "a single column list ... but a stylie one", "on the
+     Desktop version"): the desktop grid is gone again; above the phone
+     breakpoint the days are ONE centred column of cards, each commit a row
+     aligned on a time column (time | subject over sha, version, area, kind
+     | issue links and the notes toggle), with a hover state. The meta and
+     links wrappers are display: contents on a phone, so its one wrapping
+     line per commit is unchanged. B-7 (spec 143 releases-projects.md 7.1, SPL-5853):
      with showRepo (a project of more than one repo) each commit row and
      deploy chip also names its repo's short name. -->
 <template>
@@ -43,6 +50,7 @@
               :title="t('reporting.releases.commit_time_title', { time: utcTime(n.committed_at) })"
               data-test="releases-commit-time"
             >{{ t('reporting.releases.commit_time', { time: utcTime(n.committed_at) }) }}</time>
+            <span class="rd-meta">
             <NuxtLink
               class="rd-sha"
               :to="localePath('/releases/' + n.sha)"
@@ -59,7 +67,9 @@
             >{{ displayVersion(n.version) }}</NuxtLink>
             <span v-if="areaOf(n.area)" class="rd-chip" data-test="releases-commit-area">{{ areaOf(n.area) }}</span>
             <span v-if="n.kind" class="rd-chip rd-chip--kind" data-test="releases-commit-kind">{{ n.kind }}</span>
+            </span>
             <span class="rd-subject" data-test="releases-commit-subject">{{ n.subject }}</span>
+            <span class="rd-links">
             <ReleaseIssueLinks v-if="Array.isArray(n.issues)" :issues="n.issues" />
             <button
               v-if="hasTrailers(n)"
@@ -69,6 +79,7 @@
               data-test="releases-commit-toggle"
               @click="toggle(n.sha)"
             >{{ open.has(n.sha) ? t('reporting.releases.notes_hide') : t('reporting.releases.notes_show') }}</button>
+            </span>
           </div>
           <div v-if="open.has(n.sha)" class="rd-notes" data-test="releases-commit-notes">
             <dl class="rd-trailers">
@@ -141,11 +152,30 @@ const areaOf = (a: string) => String(a || '').split(',')[0].trim().toLowerCase()
 .rd-trailers dt { font-size: 0.8125rem; font-weight: 600; color: var(--color-muted); margin-top: 4px; }
 .rd-trailers dd { margin: 0; }
 .rd-trailers p { margin: 2px 0; overflow-wrap: anywhere; }
-/* SPL-4900: the desktop grid of commit cards (a phone keeps its rows) */
+/* a phone: the wrappers vanish, so the line wraps as one flex row (as before SPL-6397) */
+.rd-meta, .rd-links { display: contents; }
+/* SPL-6397: the desktop is one centred column of styled day cards (a phone keeps its rows) */
 @media (min-width: 821px) {
-  .rd-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 8px; padding-top: 8px; }
-  .rd-row { border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px); padding: 6px 10px; min-width: 0; }
-  .rd-row--open { grid-column: 1 / -1; }
-  .rd-subject { flex-basis: 100%; }
+  .rd-days { gap: 20px; width: 100%; max-width: 72rem; margin-inline: auto; }
+  .rd-day { border: 1px solid var(--color-border); border-radius: var(--radius-md, 12px); background: var(--color-surface); overflow: hidden; }
+  .rd-head { gap: 6px 10px; padding: 10px 16px; border-bottom: 1px solid var(--color-border); border-left: 4px solid var(--color-accent); background: var(--color-bg-2); }
+  .rd-date { font-size: 1rem; font-weight: 700; color: var(--color-heading, var(--color-fg)); margin-right: 4px; }
+  .rd-row { padding: 10px 16px; border-bottom: 1px solid var(--color-border); transition: background-color 0.12s ease; }
+  .rd-row:last-child { border-bottom: 0; }
+  .rd-row:hover, .rd-row:focus-within, .rd-row--open { background: var(--color-surface-hover); }
+  .rd-line {
+    display: grid; grid-template-columns: 4.5rem minmax(0, 1fr) auto; grid-template-areas: "time subject subject" "time meta links";
+    align-items: baseline; gap: 6px 14px;
+  }
+  .rd-time { grid-area: time; font-size: 0.875rem; color: var(--color-muted); }
+  .rd-subject { grid-area: subject; flex: none; font-size: 0.9375rem; font-weight: 600; line-height: 1.35; }
+  .rd-meta, .rd-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+  .rd-meta { grid-area: meta; }
+  .rd-links { grid-area: links; justify-content: flex-end; }
+  .rd-chip--version { border-color: var(--color-accent); color: var(--color-accent); font-weight: 600; }
+  .rd-chip--version:hover { background: var(--color-accent); color: var(--color-on-accent, var(--color-bg)); }
+  .rd-toggle { border: 1px solid var(--color-border); border-radius: var(--radius-pill); padding: 0 10px; line-height: 1.5rem; }
+  .rd-toggle:hover { border-color: var(--color-accent); }
+  .rd-notes { margin: 10px 0 0 calc(4.5rem + 14px); border-radius: var(--radius-sm, 8px); }
 }
 </style>

@@ -44,6 +44,33 @@ resource "google_storage_bucket_iam_member" "publish_staging_object_viewer" {
   member = "serviceAccount:${google_service_account.publish.email}"
 }
 
+# Delete on staging, under the cnf prefixes only (SPL-5006 W3, owner go t1
+# 80e54ed8 msg 116787fe): after a publish the name lists leave
+# candidates/<cand>/names/, and a candidate past candidate_ttl_hours is dropped
+# with its verdicts/<sha>/. No predefined role is delete alone (objectUser also
+# creates and updates), so a custom role holds that one permission. The
+# condition keeps it off every other staging object; the public bucket gets no
+# delete at all (latest.json is overwritten through its own grant).
+resource "google_project_iam_custom_role" "publish_staging_delete" {
+  project     = var.gcp_project
+  role_id     = var.publish_delete_role_id
+  title       = "${var.org}-${var.app}-${var.env} public dataset staging delete"
+  description = "storage.objects.delete only; bound to the publish SA on ${var.staging_bucket_name} under ${join(", ", var.publish_delete_prefixes)}"
+  permissions = ["storage.objects.delete"]
+}
+
+resource "google_storage_bucket_iam_member" "publish_staging_prefix_delete" {
+  bucket = google_storage_bucket.staging.name
+  role   = google_project_iam_custom_role.publish_staging_delete.name
+  member = "serviceAccount:${google_service_account.publish.email}"
+
+  condition {
+    title       = "staging-delete-prefixes-only"
+    description = "Delete under ${join(", ", var.publish_delete_prefixes)} only"
+    expression  = join(" || ", [for p in var.publish_delete_prefixes : "resource.name.startsWith(\"${local.staging_objects}/${p}\")"])
+  }
+}
+
 # objectCreator: create only. An existing name cannot be overwritten (that
 # needs objects.delete), so a published file never changes.
 resource "google_storage_bucket_iam_member" "publish_public_object_creator" {

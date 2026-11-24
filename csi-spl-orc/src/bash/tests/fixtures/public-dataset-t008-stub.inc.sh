@@ -5,7 +5,10 @@
 # synthetic candidate. Not a test itself: run-all-tests.sh runs *.tst.sh only.
 # The fake enforces what step 053 grants the publish SA on a real bucket: an
 # existing public object is never overwritten but latest.json. With
-# STUB_IAM=t007 it also refuses every delete, as that SA's roles do today.
+# STUB_IAM=t007 it refuses every delete, as that SA's roles did before SPL-5006
+# W3. With STUB_IAM=053 it allows a delete only under STUB_DELETE_OK (the
+# gs:// prefixes W3_DELETE_OK below reads from the rendered tfvars step 053
+# binds the publish SA's delete to) and refuses every other one.
 # One failure injected: STUB_DESCRIBE=empty|fail (describe prints nothing, exit 0
 # or 1), STUB_RM_DENY=<uri prefix> (rm refused there), STUB_LS_DOWN=<uri prefix>
 # (ls answers an outage there).
@@ -15,6 +18,9 @@ CNF="$APP_ROOT/csi-spl-cnf/csi-spl"
 STAGING=$(yq -r '.env.steps."053-gcs-public-dataset".staging_bucket_name' "$CNF/dev.env.yaml")
 PUBLIC=$(yq -r '.env.steps."053-gcs-public-dataset".public_bucket_name' "$CNF/dev.env.yaml")
 PUBLISH_SA="$(yq -r '.env.steps."053-gcs-public-dataset".publish_sa_account_id' "$CNF/dev.env.yaml")@csi-spl-dev.iam.gserviceaccount.com"
+TFVARS_053="$CNF/dev/tf/053-gcs-public-dataset.vars.tfvars"
+# shellcheck disable=SC2034 # read by public-dataset-publish.tst.sh part 7, which sources this file
+W3_DELETE_OK="$(sed -n 's/^publish_delete_prefixes = //p' "$TFVARS_053" | jq -r --arg b "gs://$STAGING/" '.[] | $b + .' | tr '\n' ' ')"
 ENV_SA=csi-spl-dev@csi-spl-dev.iam.gserviceaccount.com
 GS="$T/gs"
 mkdir -p "$T/home/.gcp/.csi" "$T/stub" "$T/desk/spool/c-900"
@@ -59,6 +65,10 @@ case "$verb" in
     fi ;;
   rm)
     [[ "${STUB_IAM:-}" == t007 ]] && { echo "ERROR: 403 lacks storage.objects.delete" >&2; exit 1; }
+    if [[ "${STUB_IAM:-}" == 053 ]]; then
+      ok=0; for p in ${STUB_DELETE_OK:-}; do [[ "${uris[0]}" == "$p"* ]] && ok=1; done
+      (( ok )) || { echo "ERROR: 403 lacks storage.objects.delete" >&2; exit 1; }
+    fi
     [[ -n "${STUB_RM_DENY:-}" && "${uris[0]}" == "$STUB_RM_DENY"* ]] && { echo "ERROR: 403 lacks storage.objects.delete" >&2; exit 1; }
     d="$(path "${uris[0]}")"; [[ -e "$d" ]] || { echo "ERROR: One or more URLs matched no objects." >&2; exit 1; }
     rm -rf "$d"; find "$GS" -mindepth 1 -type d -empty -delete ;;

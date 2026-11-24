@@ -12,7 +12,10 @@
 #      says "not published" about a public file
 #   6. a planted name list, a taken name and a crc that cannot be read refuse
 #      before latest.json; a re-run is safe; a newer latest.json is kept
-#   7. under the IAM step 053 grants today, the name lists stay and it says so
+#   7. the IAM of step 053 (SPL-5006 W3): the publish SA deletes under
+#      candidates/ and verdicts/ of staging only; read in the config, then run;
+#      red controls: a delete anywhere else is refused, and without the grant
+#      the name lists stay and it says so
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -147,13 +150,40 @@ fresh; printf '{"v":1,"file":"spool-hub-public-2026-11-09-v1.6.0.sql.gz"}\n' >"$
 [[ $rc -ne 0 && "$(public_files)" == latest.json ]] && grep -q 'Missing: .*newer-published' "$T/out" && jq -e '.file | test("2026-11-09")' "$GS/$PUBLIC/latest.json" >/dev/null \
   && pass "6. latest.json already names a newer file: nothing published, it stays" || fail "6. newer: rc=$rc $(cat "$T/out")"
 
-# --- 7. the IAM of step 053 today ---------------------------------------------
+# --- 7. the IAM of step 053: delete under two staging prefixes (SPL-5006 W3)
+TF053="$APP_ROOT/csi-spl-iac/src/terraform/053-gcs-public-dataset"
+for e in dev prd; do
+  got="$(sed -n 's/^publish_delete_prefixes = //p' "$CNF/$e/tf/053-gcs-public-dataset.vars.tfvars" | jq -c .)"
+  [[ "$got" == '["candidates/","verdicts/"]' ]] && pass "7. config $e: the delete prefixes are candidates/ and verdicts/" || fail "7. config $e prefixes: [$got]"
+done
+role="$(awk '/^resource "google_project_iam_custom_role" "publish_staging_delete"/,/^}/' "$TF053/05-service-accounts.tf")"
+bind="$(awk '/^resource "google_storage_bucket_iam_member" "publish_staging_prefix_delete"/,/^}/' "$TF053/05-service-accounts.tf")"
+[[ "$(grep -c 'google_project_iam_custom_role"' "$TF053"/*.tf | awk -F: '{n+=$2} END {print n}')" == 1 ]] && grep -qxE '\s*permissions = \["storage\.objects\.delete"\]' <<<"$role" \
+  && pass "7. config: one custom role, storage.objects.delete and nothing else" || fail "7. config role: $role"
+grep -qxE '\s*bucket = google_storage_bucket\.staging\.name' <<<"$bind" && grep -q 'role   = google_project_iam_custom_role.publish_staging_delete.name' <<<"$bind" \
+  && grep -q 'google_service_account.publish.email' <<<"$bind" && grep -q 'for p in var.publish_delete_prefixes : "resource.name.startsWith(\\"${local.staging_objects}/${p}\\")"' <<<"$bind" \
+  && pass "7. config: bound to the publish SA on staging, conditioned on each prefix" || fail "7. config binding: $bind"
+[[ "$(grep -l 'publish_staging_delete' "$TF053"/*.tf | wc -l)" == 1 && "$(grep -c 'google_project_iam_custom_role.publish_staging_delete' "$TF053/05-service-accounts.tf")" == 1 ]] \
+  && pass "7. config: the role is bound nowhere else (the public bucket gets no delete)" || fail "7. config: the role is used more than once"
+W3=(STUB_IAM=053 STUB_DELETE_OK="$W3_DELETE_OK")
+fresh; pub "${GO[@]}" "${W3[@]}"; rc=$?
+[[ $rc -eq 0 && -f "$GS/$PUBLIC/latest.json" && ! -e "$GS/$STAGING/candidates/$CAND/names" && -f "$GS/$STAGING/candidates/$CAND/$NAME.sql.gz" ]] \
+  && pass "7. with the W3 grant: published, both name lists gone from staging, exit 0" || fail "7. w3: rc=$rc $(cat "$T/out")"
+reset_gs; stage 2026-11-01-v1.4.0 "$(date -u -d '25 hours ago' +%Y-%m-%dT%H:%M:%SZ)"; pub "${GO[@]}" "${W3[@]}"; rc=$?
+[[ $rc -eq 0 && -z "$(public_files)" && ! -e "$GS/$STAGING/candidates/$CAND" && ! -e "$GS/$STAGING/verdicts/$SHA" ]] \
+  && pass "7. with the W3 grant: the candidate past the ttl drops with its verdicts" || fail "7. w3 drop: rc=$rc $(cat "$T/out") $(find "$GS" -type f)"
+fresh; mkdir -p "$GS/$STAGING/other" "$GS/$PUBLIC/daily"; printf 'x\n' >"$GS/$STAGING/other/keep.txt"; printf 'x\n' >"$GS/$PUBLIC/daily/keep.sql.gz"
+for u in "gs://$STAGING/other/keep.txt" "gs://$PUBLIC/daily/keep.sql.gz"; do
+  run_orc 'gcloud storage rm "$U"' U="$u" "${W3[@]}"; rc=$?
+  [[ $rc -ne 0 && -f "$GS/${u#gs://}" ]] && grep -q 'lacks storage.objects.delete' "$T/out" \
+    && pass "7. red control: a delete outside the prefixes is refused ($u)" || fail "7. outside $u: rc=$rc $(cat "$T/out")"
+done
 fresh; pub "${GO[@]}" STUB_IAM=t007; rc=$?
 [[ $rc -ne 0 && -f "$GS/$PUBLIC/latest.json" && -f "$GS/$STAGING/candidates/$CAND/names/names.tsv" ]] && grep -q "IS published, but its name lists could not be proved gone" "$T/out" \
-  && pass "7. no objects.delete on staging: exit 1, and it says the file IS published and the lists remain" || fail "7. iam: rc=$rc $(cat "$T/out")"
+  && pass "7. red control: without the grant: exit 1, and it says the file IS published and the lists remain" || fail "7. iam: rc=$rc $(cat "$T/out")"
 reset_gs; stage 2026-11-01-v1.4.0 "$(date -u -d '25 hours ago' +%Y-%m-%dT%H:%M:%SZ)"; pub "${GO[@]}" STUB_IAM=t007; rc=$?
 [[ $rc -ne 0 && -z "$(public_files)" ]] && grep -q 'could NOT be dropped from staging' "$T/out" \
-  && pass "7. no objects.delete: the drop fails loud, exit 1, nothing published" || fail "7. iam drop: rc=$rc $(cat "$T/out")"
+  && pass "7. red control: without the grant the drop fails loud, exit 1, nothing published" || fail "7. iam drop: rc=$rc $(cat "$T/out")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s)"; exit 1

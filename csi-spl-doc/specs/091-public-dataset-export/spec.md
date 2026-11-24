@@ -317,6 +317,11 @@ topic (§8.3) is verifier output too: class and key only. The channel that topic
   proxy) and writes staging, and cannot write the public bucket; the **publish** SA reads staging and may only
   **create** objects in the public bucket (plus `latest.json`), and has no database access. Names are dated, a
   published file never changes. Removal is by lifecycle rule or by the take-down action (§10).
+- **The publish SA's delete on staging** (SPL-5006 W3, owner go t1 80e54ed8 msg 116787fe): a project custom role
+  (cnf `publish_delete_role_id`) holding `storage.objects.delete` alone, bound on the staging bucket with an IAM
+  condition on the cnf `publish_delete_prefixes` (`candidates/`, `verdicts/`), so the publish removes the name lists
+  and drops a candidate past its ttl; no other staging object and nothing in the public bucket. The step README
+  (`csi-spl-iac/src/terraform/053-gcs-public-dataset/README.md`) section 2.1.
 - **Retention** (a lifecycle rule in the step, numbers in cnf): daily files 30 days; the file a stable release
   links (§7) is copied under `stable/` and kept 365 days (§11 Q2).
 - `latest.json` (the one overwritten object, `Cache-Control: no-cache`) names the newest published file.

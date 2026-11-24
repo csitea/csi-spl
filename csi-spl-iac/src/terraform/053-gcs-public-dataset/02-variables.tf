@@ -100,6 +100,26 @@ variable "publish_sa_account_id" {
   }
 }
 
+variable "publish_delete_role_id" {
+  type        = string
+  description = "role_id of the project custom role holding storage.objects.delete alone, bound to the publish SA on staging (SPL-5006 W3)."
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9_.]{3,64}$", var.publish_delete_role_id))
+    error_message = "publish_delete_role_id must be a GCP custom role id: 3-64 letters, digits, _ or ."
+  }
+}
+
+variable "publish_delete_prefixes" {
+  type        = list(string)
+  description = "The staging prefixes under which the publish SA may delete (candidates/, verdicts/). Never empty, never the bucket root."
+
+  validation {
+    condition     = length(var.publish_delete_prefixes) > 0 && alltrue([for p in var.publish_delete_prefixes : can(regex("^[a-z0-9][a-z0-9_-]*/$", p))])
+    error_message = "publish_delete_prefixes must be one or more top-level prefixes such as candidates/: a name and a trailing slash, never empty (an empty prefix would grant delete on the whole bucket)."
+  }
+}
+
 variable "verifier_sa_account_id" {
   type        = string
   description = "account_id of the verifier SA: reads staging, creates under verdicts/ only."

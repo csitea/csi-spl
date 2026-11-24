@@ -44,7 +44,7 @@ third candidate, eligible now that r94-01 landed); `gh-set-ci-vars.func.sh` extr
 calls `_gscv_set` after its own output validation. The rows share no file (orc vs iac):
 both are batch 1.
 
-**Status: v1.0, signed; ready for rows.** The panel (m-969, mistral) passed v0.1
+**Status: v1.0, signed; round closed (section 8).** The panel (m-969, mistral) passed v0.1
 `62e2af0eb` with no W; N1..N3 are notes only (seat file
 `csi-spl-doc/doc/md/refactor-round-95/seat-mistral.md`, branch
 `review/c002-refactor-round-95-mistral-seat`, `ad6f07792`). Rows run by night
@@ -497,15 +497,62 @@ copy). Gates: the row's tests (section 2, `SPOOL_TEST=1`, in the worktree),
     hits on the 7 paths; spawn queue 3 queued, 0 placing, 1 held at 06:45Z); row lanes
     re-run R3 at spawn.
   Text unchanged except the status line and sections 8 and 9.
+- Round closed (a-967 writes the record), no version bump: both rows landed, read on
+  `origin/master` `c581dc43d` (`2026-11-24T08:24Z`, n=1 each; both rows already on
+  `aea828942` and untouched by `c581dc43d`):
+  - r95-01 `719d1415c` (`719d1415cf0018014abdfed0af9935e3fb169cef`, SPL-6352, committed
+    `2026-11-24T07:42:55Z`): R7 `g-658` grok **PASS** on `1e7fc77b8`
+    (`1e7fc77b8013b340b6ae94344b9920dec164296f`); `git patch-id --stable` `644bc216f304`
+    on both. CI on `719d1415c`: all push workflows **success** — gate 10 (`45350173078`),
+    15 (`45350172916`), 25 (`45350172993`), 26 (`45350172969`), 64 (`45350173081`),
+    67 (`45350173003`); scheduled gate 10 (`45350465299`) **success**; 5 skipped
+    workflow 12 runs. Diff (`git show --numstat`): `spl-desk-mirror-settings.func.sh`
+    `+4 -7` (sha256 `188b2b116620`, plan head1), `desk-mirror-actions.tst.sh` `+6 -1`
+    (sha256 `95c1a444fecc`), matching plan 1.3 / 6. R7 notes (`g-658`): N1 test sha256
+    `95c1a444fecc` differs from plan head1 `bc6effe980f2` in wording only (func sha256
+    matches plan); N2 y12 test file unchanged `c4000b25b` through head, full column not
+    re-run by reviewer (author and CI gate 10 `45350173078` ran it); N3 author brief path
+    absent on reviewer's box. None asks for a change.
+  - r95-02 `aea828942` (`aea828942f2cbd6caba45f7b433932f6f9b9cd2a`, SPL-6354, committed
+    `2026-11-24T07:53:35Z`): R7 `g-663` grok **PASS** on `0c9123c12`
+    (`0c9123c127c1778e08bea9e8b969b2d91732a403`, `review/r95-02`); `git patch-id --stable`
+    `3f3d00c688e3` on both. CI on `aea828942`: all push workflows **success** — gate 10
+    (`45351552381`), 15 (`45351552336`), 25 (`45351552318`), 26 (`45351552337`),
+    64 (`45351552304`), 67 (`45351552285`); scheduled 21 (`45351641242`, `45355015672`)
+    and 40 (`45351576311`, `45354975799`) **success**; 6 skipped workflow 12 runs. Diff
+    (`git show --numstat`): `gh-set-ci-vars.func.sh` `+10 -4` (sha256 `952dbb451da4`),
+    `spl-gh-wire.func.sh` `+4 -15` (sha256 `7817ad138e1b`, plan head2),
+    `spl-gh-wire.tst.sh` `+6 -6` (sha256 `97117a95cdf0`), matching plan 1.4 / 6
+    (`gh-set-ci-vars.func.sh` `+10 -4` vs `+9 -3` by comment and layout only, as panel
+    note N1 noted). R7 notes (`g-663`): N1 `gh-set-ci-vars.func.sh` and
+    `spl-gh-wire.tst.sh` sha256s differ from plan head2 (`26a373f902b6`, `b64bc10e82d6`)
+    by comment and layout only (`spl-gh-wire.func.sh` matches plan); author and CI gate 10
+    `45351552381` ran the full column. None asks for a change.
+  - `git merge-base --is-ancestor <row> origin/master` rc 0 and box checkout ancestry rc 0
+    for both; R6 (`git log origin/master --since="2026-11-23T22:49:00+02:00"
+    --format='%H %cI %s' -E --grep='\(r95-'`) returns both rows (`719d1415c`, `aea828942`)
+    and the 2 plan commits (`3854cd50f`, `afcf1649b`). Panel seat m-969 also signed v1.0
+    `afcf1649b` (PASS msg `9df0b5c5`, seat file `fbebfbf9a` on
+    `review/c002-refactor-round-95-mistral-seat`). **R7 vendor:** both seats grok
+    (section 4: `g-658`, `g-663`); no claude waiver seat was needed. Post-land `git grep`
+    on `c581dc43d` (excluding `*.md`): terminal mirror hooks JSON builder body 2 -> 1
+    (`smh_hooks_json` at `sa:lib/spool-mirror-hooks.inc.sh:30`, sole `UserPromptSubmit`
+    JSON build at `:36`; `spl-desk-mirror-settings.func.sh` calls `smh_hooks_json "$1"`
+    at `:45` behind `declare -F` at `:44`); GitHub Actions repo-variable apply body
+    2 -> 1 (`_gscv_set` at `iac:src/bash/run/gh-set-ci-vars.func.sh:42`, sole executable
+    `gh variable set` at `:51`; called by `_gscv_apply` at `:63` and `_sgw_apply` at
+    `spl-gh-wire.func.sh:101` behind `declare -F` at `:100`). Neither row touches a path
+    outside its brief's Files (`git show --stat`: 2 files for r95-01, 3 files for r95-02;
+    row 01's keeper `spool-mirror-hooks.inc.sh` untouched).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-967 (agy): v0.1, v1.0.
+- Editor seat: a-967 (agy): v0.1, v1.0, close record.
 - Panel reviewer seat: m-969 (mistral, `c002-refactor-round-95-mistral-panel-seat`):
-  **PASS** on v0.1 (`62e2af0eb`), no W, notes N1-N3. Seat file
-  `refactor-round-95/seat-mistral.md` (`review/c002-refactor-round-95-mistral-seat`,
-  `ad6f07792`, section 8).
-- Row R7 seats: section 4 (grok per row, or claude waiver seat if held at placement;
-  never mistral).
+  **PASS** on v0.1 (`62e2af0eb`), no W, notes N1-N3; **PASS** on v1.0 (`afcf1649b`). Seat
+  file `refactor-round-95/seat-mistral.md` (`review/c002-refactor-round-95-mistral-seat`,
+  `ad6f07792` -> `fbebfbf9a`, section 8).
+- Row R7 seats: section 4; both grok: g-658 (r95-01), g-663 (r95-02) (section 8, round
+  closed).

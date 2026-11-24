@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"slices"
 	"testing"
@@ -161,6 +162,7 @@ func TestPurgeCancelledWorkspace(t *testing.T) {
 				t.Errorf("CONTROL: a workspace that is not cancelled: %v", err)
 			}
 			checkInvoiceKept(t, s, a, kept, issued)
+			checkPurgedIDRetired(t, s, a, issued)
 			r, err = wc.PurgeDueWorkspaces(ctx, at.Add(time.Hour))
 			if p, h := mine(r); err != nil || p || h {
 				t.Fatalf("second purge: %+v %v, want nothing", r, err)
@@ -173,6 +175,26 @@ func TestPurgeCancelledWorkspace(t *testing.T) {
 				t.Fatalf("audit after the purge: %+v, want a purge_workspace row", trail)
 			}
 		})
+	}
+}
+
+// checkPurgedIDRetired: a re-create of the purged id a is refused, with any
+// root key, so no new workspace reads a's kept invoice as its own (R7 W1).
+func checkPurgedIDRetired(t *testing.T, s Store, a string, issued Invoice) {
+	t.Helper()
+	ctx := context.Background()
+	pub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateTenant(ctx, Tenant{ID: a, RootPubKey: pub}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("re-create of the purged id %s: %v, want ErrConflict", a, err)
+	}
+	if _, err := s.GetTenant(ctx, a); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("the purged id after a refused re-create: %v, want ErrNotFound", err)
+	}
+	if got, err := s.(Invoices).Invoice(ctx, a, issued.Month); err != nil || got.Tenant != a {
+		t.Fatalf("the kept invoice after a refused re-create: %+v %v", got, err)
 	}
 }
 

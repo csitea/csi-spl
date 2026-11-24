@@ -159,9 +159,13 @@ func (s *Postgres) CreateTenant(ctx context.Context, t Tenant) error {
 	if err := normalizeTenant(&t); err != nil {
 		return err
 	}
+	// A purged workspace's id is retired: its paid invoices and its
+	// cancellation row outlive the purge (rdb 0320, 0319), and a new
+	// workspace under that id would read them as its own.
 	tag, err := s.execTenant(ctx, t.ID, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id,
 		org, app, project_id, bought_at, seats_users, seats_bots, fleet_seating)
-		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11)
+		SELECT $1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11
+		WHERE NOT EXISTS (SELECT 1 FROM workspace_cancellations WHERE tenant_id = $1 AND purged_at IS NOT NULL)
 		ON CONFLICT (tenant_id) DO NOTHING`,
 		t.ID, []byte(t.RootPubKey), t.BillingStatus, t.PlanID,
 		t.Org, t.App, t.ProjectID, nullTime(t.BoughtAt), t.SeatsUsers, t.SeatsBots, !t.FleetSeatingOff)
@@ -175,6 +179,9 @@ func (s *Postgres) CreateTenant(ctx context.Context, t Tenant) error {
 		return nil
 	}
 	old, err := s.getTenant(ctx, t.ID) // fresh: the conflict check must not read the cache
+	if errors.Is(err, ErrNotFound) {
+		return ErrConflict // no row and none inserted: the id was purged
+	}
 	if err != nil {
 		return err
 	}

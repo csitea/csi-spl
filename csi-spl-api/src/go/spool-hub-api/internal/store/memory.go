@@ -187,6 +187,9 @@ func (s *Memory) CreateTenant(_ context.Context, t Tenant) error {
 		}
 		return nil
 	}
+	if c, ok := memCancels[s][t.ID]; ok && c.PurgedAt != nil {
+		return ErrConflict // a purged id is retired (rdb 0320)
+	}
 	if s.projectHeldLocked(t.ID, t.ProjectID) {
 		return ErrConflict
 	}

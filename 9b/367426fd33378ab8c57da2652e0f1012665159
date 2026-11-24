@@ -1,0 +1,6 @@
+Lay-What: A deleted private workspace's name can never be used again for a new workspace.
+Lay-How: Creating a workspace now checks whether that name belonged to a workspace that was deleted, and refuses it.
+Lay-Why: A new workspace with the old name would otherwise see the old workspace's kept invoices.
+Tech-What: CreateTenant refuses a purged private workspace id with a conflict, in both store drivers.
+Tech-How: The insert checks the workspace cancellation tombstone of a purged id first; the memory store keeps the same check.
+Tech-Why: Invoices now outlive the purge keyed by tenant id, so a re-created id would read them and inherit the cancelled state.

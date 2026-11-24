@@ -83,9 +83,11 @@ out="$(cron SPOOL_DESK_BOX=boxb PRIVATE_OVERLAY_CRON_ACTION=remove DRY_RUN=0)"; 
 
 # 6. refusals
 cp "$CT" "$T/ct.6"
-out="$(SNIPPET='do_spl_private_overlay_install_cron' in_orc PRIVATE_OVERLAY_CRONTAB="$T/fake-crontab" PRIVATE_OVERLAY_CRON_LOG_DIR="$T/log" \
-  PROJ_PATH="$APP_ROOT/csi-spl-orc" SPOOL_DESK_BOX=boxb DRY_RUN=0 2>&1)"; rc=$?
-if [[ "$(git -C "$PROJ_ROOT" rev-parse --git-dir)" != "$(git -C "$PROJ_ROOT" rev-parse --git-common-dir)" ]]; then
+# absolute, as the action reads them: from a subdir --git-dir is absolute and
+# --git-common-dir relative, so a main checkout would read as a worktree
+if [[ "$(git -C "$PROJ_ROOT" rev-parse --path-format=absolute --git-dir)" != "$(git -C "$PROJ_ROOT" rev-parse --path-format=absolute --git-common-dir)" ]]; then
+  out="$(SNIPPET='do_spl_private_overlay_install_cron' in_orc PRIVATE_OVERLAY_CRONTAB="$T/fake-crontab" PRIVATE_OVERLAY_CRON_LOG_DIR="$T/log" \
+    PROJ_PATH="$APP_ROOT/csi-spl-orc" SPOOL_DESK_BOX=boxb DRY_RUN=0 2>&1)"; rc=$?
   [[ $rc -ne 0 ]] && grep -q 'is a linked worktree' <<<"$out" && cmp -s "$CT" "$T/ct.6" &&
     pass "6. a linked worktree is refused, nothing written" || fail "6. worktree ($rc: $out)"
 else

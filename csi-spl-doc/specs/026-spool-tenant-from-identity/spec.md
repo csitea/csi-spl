@@ -164,16 +164,24 @@ check* during the transition (§5).
 
 - The sign-in page (`/login`, every locale) shows no drop box in any
   session state, desktop or phone. In its place the bar names the workspace
-  being signed into: the page host's tenant (`<t>.<apex>`), else a valid
-  `?tenant=`, else `spool-hub` (the apex, and the apex tenant). The label
-  never reads the session, so no other membership is named before sign-in.
+  being signed into: the page host's tenant (`<t>.<apex>`), else the tenant
+  the sign-in form sends (a valid `?tenant=`, else the one this browser tab
+  stored from an earlier `?tenant=`, `signInTenant`), else `spool-hub` (the
+  apex, and the apex tenant). The label never reads the session, so no other
+  membership is named before sign-in.
+- The browser tab's title on `/login` names the same workspace
+  (`<label>.spool-hub`, or `spool-hub`), never a membership of the session
+  (`loginTabName`; the other pages keep `tenantTabName`).
 - The other pages of the sign-in frame (the error page, checkout,
-  verify-email) keep the SPL-1025 box for a signed-in visitor, and the app
-  shell's drop box lists the memberships as in section 6.
+  verify-email, reset-password) keep the SPL-1025 box for a signed-in
+  visitor, and the app shell's drop box lists the memberships as in
+  section 6.
 - Checks: `csi-spl-wui/tests/unit/login-workspace.test.mjs`
-  (`loginWorkspaceLabel`, `isLoginRoute`, the layout contract), e2e
-  `login-no-workspace-dropdown.test.mjs` (390 and 1440 px, signed out and
-  with two memberships adopted on `/login`, plain and `?tenant=`).
+  (`loginWorkspaceLabel`, `loginTabName`, `isLoginRoute`, the layout and
+  `app.vue` contracts), e2e `login-no-workspace-dropdown.test.mjs` (360, 390
+  and 1440 px, signed out and with two memberships adopted on `/login`,
+  plain and `?tenant=`, the bar and `document.title`; a stored `?tenant=`
+  named on a later plain `/login`).
 
 ## 7. RLS and RBAC (FR-008)
 

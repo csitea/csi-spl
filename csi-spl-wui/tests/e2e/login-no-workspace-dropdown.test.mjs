@@ -6,10 +6,11 @@
 // On /login, at 360 and 390 px (phone) and 1440 px (desktop):
 //   - signed out: no tenant drop box (desktop or phone), the bar names
 //     spool-hub (this host is no tenant host)
-//   - ?tenant=globex: the bar names globex
+//   - ?tenant=globex: the bar names globex; a later plain /login in the same
+//     tab still names it (the tenant the sign-in form sends)
 //   - a session with two memberships adopted on the sign-in page: still no
 //     drop box, the bar still names the workspace being signed into, and no
-//     membership name shows in the bar
+//     membership name shows in the bar or the tab title (document.title)
 //   - the name is drawn whole (no ellipsis) and clear of the theme and
 //     language controls; no horizontal scroll
 // The drop box on the other pages of the sign-in frame: login-bar-tenant.test.mjs.
@@ -75,6 +76,7 @@ const bar = (p) => p.evaluate(() => {
       return el && end ? Math.round(end.getBoundingClientRect().left - el.getBoundingClientRect().right) : null
     })(),
     xscroll: document.scrollingElement.scrollWidth - window.innerWidth,
+    title: document.title,
   }
 })
 
@@ -105,10 +107,26 @@ try {
       check(`${tag} /login${query}: a session with two memberships, still no drop box`, seeded && noBox(m), { seeded, ...m })
       check(`${tag} /login${query}: signed in, the bar still names ${want}`, m.label === want, { label: m.label })
       check(`${tag} /login${query}: no membership name in the bar`, !/northwind|globex-corp/.test(m.barText), { barText: m.barText })
+      check(`${tag} /login${query}: no membership name in the tab title`, !/northwind|globex-corp/.test(m.title) && m.title.endsWith(want === 'spool-hub' ? 'spool-hub' : `${want}.spool-hub`), { title: m.title })
       check(`${tag} /login${query}: the name is whole and clear of the controls`, m.whole && m.gap >= 0, { whole: m.whole, gap: m.gap })
       check(`${tag} /login${query}: no horizontal scroll`, m.xscroll <= 0, { xscroll: m.xscroll })
       await ctx.close()
     }
+  }
+  /* R7 N3: a tab that opened /login?tenant=globex keeps it (sessionStorage)
+     and the form sends it on a later plain /login: the bar and tab say so */
+  {
+    const ctx = await browser.createBrowserContext()
+    const p = await ctx.newPage()
+    await p.setViewport({ width: 390, height: 800, isMobile: true, hasTouch: true })
+    await p.goto(`${server.base}/login?tenant=globex`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.goto(`${server.base}/login`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=login-bar-workspace]', { timeout: NAV_TIMEOUT }).catch(() => null)
+    await sleep(300)
+    const out = await bar(p)
+    check('390px /login after /login?tenant=globex: the bar names the stored globex', out.label === 'globex', { label: out.label })
+    check('390px /login after /login?tenant=globex: the tab names globex.spool-hub', out.title.endsWith('globex.spool-hub'), { title: out.title })
+    await ctx.close()
   }
 } catch (e) {
   console.error(e)

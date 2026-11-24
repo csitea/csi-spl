@@ -79,6 +79,16 @@ export function useSpoolApi() {
   return client
 }
 
+/**
+ * SPL-6413 (R7 N3): the tenant the sign-in form sends, as pages/login.vue
+ * picks it: ?tenant=, else the client's (the host, else this tab's stored
+ * one, else the apex). The sign-in bar and tab name read it, so they never
+ * name another workspace than the one being signed into. '' on the server.
+ */
+export function signInTenant(query: unknown): string {
+  return (typeof query === 'string' && query) || (import.meta.client ? useSpoolApi().tenant : '') || ''
+}
+
 export function setViewToken(token: string) {
   const t = token.trim()
   useSpoolApi().setToken(t)

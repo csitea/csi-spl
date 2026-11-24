@@ -17,8 +17,9 @@
 
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
-import { hostTenant } from '~/composables/useSpoolApi'
+import { hostTenant, signInTenant } from '~/composables/useSpoolApi'
 import { tabTitle, tenantTabName, withUnread } from '~/utils/tab-title.mjs'
+import { isLoginRoute, loginTabName, loginWorkspaceLabel } from '~/utils/login-workspace.mjs'
 import { useUnread } from '~/composables/useUnread'
 import { closeButtonsOf } from '~/utils/view-prefs-core.mjs'
 import { setZoneSource } from '~/utils/date-iso-core.mjs'
@@ -70,7 +71,11 @@ const session = useSessionStore()
    clock re-renders the moment the zone changes. */
 setZoneSource(() => String(session.claims?.time_zone || ''))
 const apexTenant = String(useRuntimeConfig().public.tenant || '')
-const tabName = computed(() => tenantTabName(session.claims, (import.meta.client && hostTenant()) || apexTenant, apexTenant))
+/* SPL-6413: on the sign-in page the tab names the workspace being signed
+   into, as the bar does, never one of the session's memberships */
+const tabName = computed(() => isLoginRoute(route.name)
+  ? loginTabName(loginWorkspaceLabel((import.meta.client && hostTenant()) || '', signInTenant(route.query.tenant), apexTenant))
+  : tenantTabName(session.claims, (import.meta.client && hostTenant()) || apexTenant, apexTenant))
 
 /* spec 079 FR-006 (Q1, Q2): the title's "(n)" is the sum of the row numbers
    the person can see, muted channels left out - one model with the rows and

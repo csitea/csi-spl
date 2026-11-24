@@ -79,7 +79,7 @@ import { useKeyboardInset } from '~/composables/useTouchUi'
 import { useSessionStore } from '~/stores/session'
 import { fixedTenantOption } from '~/utils/tenant-switcher.mjs'
 import { isLoginRoute, loginWorkspaceLabel } from '~/utils/login-workspace.mjs'
-import { hostTenant } from '~/composables/useSpoolApi'
+import { hostTenant, signInTenant } from '~/composables/useSpoolApi'
 /* Async: only a signed-in visitor sees them, so the sign-in page's first
    download stays as it was. */
 const TenantDropBox = defineAsyncComponent(() => import('@/components/TenantDropBox.vue'))
@@ -100,12 +100,13 @@ const logoOpen = ref(false)
 /* SPL-1025: signed in with a tenant named -> the tenant box; else the title */
 const session = useSessionStore()
 const tenantShown = computed(() => session.state === 'in' && fixedTenantOption(session.claims).id.length > 0 && !loginPage.value)
-/* SPL-6413: on /login the host's workspace (or ?tenant=, else spool-hub) in
-   its place; read once mounted, the prerendered /login knows no host */
+/* SPL-6413: on /login the workspace being signed into (the host's, else the
+   one the form sends, else spool-hub) in its place; read once mounted, the
+   prerendered /login knows no host */
 const route = useRoute()
 const loginPage = computed(() => isLoginRoute(route.name))
 const loginWorkspace = computed(() => mounted.value
-  ? loginWorkspaceLabel(hostTenant(), typeof route.query.tenant === 'string' ? route.query.tenant : '', String(config.public.tenant || ''))
+  ? loginWorkspaceLabel(hostTenant(), signInTenant(route.query.tenant), String(config.public.tenant || ''))
   : '')
 /* the error page renders outside the route middleware that probes */
 onMounted(() => { if (session.state === 'loading') void session.probe() })

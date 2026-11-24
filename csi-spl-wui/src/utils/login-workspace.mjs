@@ -31,3 +31,15 @@ export function loginWorkspaceLabel(hostTenant, queryTenant, apexTenant) {
   }
   return LOGIN_APEX_LABEL
 }
+
+/**
+ * The browser tab's workspace name on the sign-in page (R7 W1): the bar's
+ * label as "<label>.spool-hub", or plain "spool-hub" on the apex. Like the
+ * label, never a session's memberships.
+ *
+ * @param {string} label loginWorkspaceLabel's result
+ * @returns {string}
+ */
+export function loginTabName(label) {
+  return !label || label === LOGIN_APEX_LABEL ? LOGIN_APEX_LABEL : `${label}.${LOGIN_APEX_LABEL}`
+}

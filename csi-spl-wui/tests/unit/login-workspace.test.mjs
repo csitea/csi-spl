@@ -10,10 +10,11 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isLoginRoute, LOGIN_APEX_LABEL, loginWorkspaceLabel } from '../../src/utils/login-workspace.mjs'
+import { isLoginRoute, LOGIN_APEX_LABEL, loginTabName, loginWorkspaceLabel } from '../../src/utils/login-workspace.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const layout = readFileSync(join(WUI, 'src/layouts/login.vue'), 'utf8')
+const app = readFileSync(join(WUI, 'src/app.vue'), 'utf8')
 
 describe('isLoginRoute', () => {
   it('is the sign-in page in every locale', () => {
@@ -61,5 +62,16 @@ describe('layouts/login.vue: no drop box on the sign-in page', () => {
     assert.ok(line > 0)
     const body = layout.split('\n').slice(line, line + 3).join('\n')
     assert.doesNotMatch(body, /session|claims|tenants/)
+  })
+})
+
+describe('the sign-in tab title (R7 W1)', () => {
+  it('names the label, or plain spool-hub on the apex', () => {
+    assert.equal(loginTabName('acme'), 'acme.spool-hub')
+    assert.equal(loginTabName('spool-hub'), 'spool-hub')
+    assert.equal(loginTabName(''), 'spool-hub')
+  })
+  it('app.vue uses it on /login, never the session there', () => {
+    assert.match(app, /const tabName = computed\(\(\) => isLoginRoute\(route\.name\)\n\s+\? loginTabName\(loginWorkspaceLabel\([^\n]*\)\)\n\s+: tenantTabName\(session\.claims/)
   })
 })

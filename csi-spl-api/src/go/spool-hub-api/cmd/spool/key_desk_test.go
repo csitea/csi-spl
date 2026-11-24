@@ -46,15 +46,23 @@ func TestKeyDeskOnListensWithIdentity(t *testing.T) {
 	defer cancel()
 	startKeyDesk(ctx, cfg, c)
 	sock := keydesk.SockPath(cfg.HubDir())
-	for i := 0; i < 100; i++ {
-		if _, err := os.Lstat(sock); err == nil {
-			break
+	// Wait for the state asserted, the 0600 mode, not for the file: Listen
+	// binds the socket with the umask's bits and chmods it after, so the
+	// file exists before it is 0600 (b43-01). The 10 s budget is a cap.
+	last := "the socket never appeared"
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		st, err := os.Stat(sock)
+		if err == nil {
+			if st.Mode().Perm() == 0o600 {
+				break
+			}
+			last = "last mode " + st.Mode().Perm().String()
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("key socket %s not 0600 within 10s: %s", sock, last)
 		}
 		time.Sleep(10 * time.Millisecond)
-	}
-	st, err := os.Stat(sock)
-	if err != nil || st.Mode().Perm() != 0o600 {
-		t.Fatalf("key socket: %v %v", st, err)
 	}
 	idf, err := os.Stat(filepath.Join(cfg.HubDir(), "desk-x25519.key"))
 	if err != nil || idf.Mode().Perm() != 0o600 {

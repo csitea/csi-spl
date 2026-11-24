@@ -108,7 +108,25 @@ deltas per step. n=1, load1 80.9:
 | back-lobby | 175 | 10 | 13 | 1 | 1 | **18,083** | **3,194** |
 | type-40 | 1910 | **172** | **176** | 253 | 1 | 18,131 | 3,198 |
 
-Leads (to be re-run n=5 and attributed before any becomes a row):
+Re-run n=5 (13:1xZ, load1 86..95; medians; `/var/tmp/c-778-p19/probe-n5.json`):
+
+| step | wall ms | layouts | style recalcs | script ms | long tasks | nodes after | listeners after |
+|---|---|---|---|---|---|---|---|
+| cold-lobby | 3395 | 19 | 57 | 370 | 11 | 1,588 | 396 |
+| switch-alerts | 735 | 6 | 13 | 15 | 3 | 1,912 | 451 |
+| switch-lobby | 255 | 7 | 12 | 1 | 1 | 2,148 | 484 |
+| open-topic | 925 | 9 | 19 | 55 | 6 | 3,334 | 649 |
+| open-long-topic | 2136 | 19 | 30 | 5 | 7 | 7,288 | 1,529 |
+| scroll-long-topic | 665 | 0 | 2 | 2 | 1 | 7,290 | 1,529 |
+| search | 928 | 11 | 16 | 8 | 3 | 17,820 | 3,157 |
+| back-lobby | 304 | 10 | 13 | 1 | 1 | 18,058 | 3,193 |
+| type-40 | 1768 | **172** | **176** | 223 | 0 | 18,106 | 3,197 |
+
+The counts are the same in all 5 rounds (type-40: 172 / 176 in 5 of 5;
+nodes after back-lobby 17,932..18,072; listeners 3,193..3,194), so L1 and L2
+are deterministic, not load noise. Wall ms remain box readings.
+
+Leads (to be attributed before any becomes a row):
 
 - L1 nodes / listeners grow 1,587 -> 18,083 and 396 -> 3,194 over 8
   navigations and are not released on Back to `/lobby` (CDP `Nodes` counts

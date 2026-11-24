@@ -120,26 +120,66 @@ spl_private_token() {
   printf '%s\n' "${t:-$1}"
 }
 
-# spl_private_add <slug> -> hides a NEW slug: appends the next placeholder
-# line to the overlay's workspaces: section and prints the placeholder. An
-# already hidden slug prints its placeholder and changes nothing.
+# spl_private_add <slug> [comment] -> hides a NEW slug: appends the next
+# placeholder line to the overlay's workspaces: section (with `  # <comment>`
+# after it when given, e.g. the reserve's `reserved <ts>`) and prints the
+# placeholder. An already hidden slug prints its placeholder and changes
+# nothing. Under an exclusive lock on <overlay>.lock (spec 158 H4: the reserve
+# cron and a person both add here), waiting up to SPL_PRIVATE_LOCK_WAIT
+# seconds (default 30): two adds never take the same number or drop a line.
 spl_private_add() {
-  local slug="$1" f map n tok
+  local slug="$1" note="${2:-}" f
   [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "FATAL not a workspace slug: '$slug'" >&2; return 1; }
+  [[ "$note" =~ ^[A-Za-z0-9:._\ -]*$ ]] || { echo "FATAL an overlay line comment is letters, digits, spaces and :._- only" >&2; return 1; }
+  command -v flock >/dev/null || { echo "FATAL spl_private_add needs flock (the overlay lock)" >&2; return 1; }
+  spl_private_require || return 1
   f="$(spl_private_cnf_path)"
+  (
+    umask 077
+    exec {lk}>"$f.lock" || exit 1
+    flock -w "${SPL_PRIVATE_LOCK_WAIT:-30}" "$lk" ||
+      { echo "FATAL another writer holds $f.lock (waited ${SPL_PRIVATE_LOCK_WAIT:-30} s): nothing added" >&2; exit 1; }
+    _spl_private_add_locked "$slug" "$note" "$f"
+  )
+}
+
+# _spl_private_add_locked <slug> <comment> <file>: spl_private_add's body,
+# run while the caller holds the overlay lock
+_spl_private_add_locked() {
+  local slug="$1" note="$2" f="$3" map n tok
   map="$(spl_private_map)" || return 1
   tok="$(awk -F'\t' -v s="$slug" '$2 == s { print $1 }' <<<"$map")"
   [[ -n "$tok" ]] && { printf '%s\n' "$tok"; return 0; }
   n="$(awk -F'\t' '{ sub(/^ws-hidden-/, "", $1); if ($1 + 0 > m) m = $1 + 0 } END { print m + 1 }' <<<"$map")"
   tok="$(printf 'ws-hidden-%02d' "$n")"
   # after the last line of the workspaces: section
-  awk -v l="  $tok: $slug" '
+  awk -v l="  $tok: $slug${note:+  # $note}" '
     /^[^[:space:]#]/ { if (inw) { print l; done = 1 } inw = ($0 ~ /^workspaces:/) }
     { print }
     END { if (inw && !done) print l }
   ' "$f" >"$f.tmp.$$" && chmod 600 "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f" || { rm -f "$f.tmp.$$"; return 1; }
   [[ "$(spl_private_token "$slug")" == "$tok" ]] || { echo "FATAL $f: adding $slug did not take" >&2; return 1; }
   printf '%s\n' "$tok"
+}
+
+# spl_private_reserved_at <slug|placeholder> -> the <ts> of its workspaces:
+# line's `# reserved <ts>` comment (written by do_spl_tenant_host_reserve,
+# spec 158 H4); empty when the line has none (an add by hand), non-zero when
+# the overlay has no such line
+spl_private_reserved_at() {
+  spl_private_require || return 1
+  awk -v w="$1" '
+    /^[^[:space:]#]/ { sec = $0; sub(/:.*/, "", sec); next }
+    sec != "workspaces" { next }
+    match($0, /^  ws-hidden-[0-9][0-9]+: [a-z0-9][a-z0-9-]*/) {
+      split(substr($0, 3, RLENGTH - 2), kv, /: /)
+      if (kv[1] != w && kv[2] != w) next
+      found = 1
+      if (match($0, /#[[:space:]]*reserved [^[:space:]]+/)) { r = substr($0, RSTART, RLENGTH); sub(/^#[[:space:]]*reserved /, "", r); print r }
+      exit
+    }
+    END { exit !found }
+  ' "$(spl_private_cnf_path)"
 }
 
 # spl_private_gate_patterns [base_domain] -> one PCRE per line, every form of

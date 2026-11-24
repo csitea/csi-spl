@@ -443,6 +443,42 @@ out=$(SNIPPET='do_spl_tenant_host_reconcile' wait_rec DRY_RUN=0 HOST_WAIT_LIMIT=
   pass "5e. CONTROL: a HOST_WAIT_LIMIT that is not whole minutes is refused" || fail "5e. bad limit rc=$rc :: $out"
 rm -f "$T/tenant-host.lock"
 
+# --- 5f. spec 158 H5: a reserved placeholder is held HOST_RESERVE_HOLD minutes --
+# zq-res has a line the master box's reserve wrote (`# reserved <ts>`), so the
+# other boxes' pull cron has it before the cnf names ws-hidden-02
+res_ovl() { printf 'workspaces:\n  ws-hidden-01: zq-old\n  ws-hidden-02: zq-res%s\n' "$1" >"$T/ovl-r.yaml"; }
+res_ago() { res_ovl "  # reserved $(date -u -d "-$1 min" +%Y-%m-%dT%H:%M:%SZ)"; }
+res_rec() { in_orc TENANT_VISIBLE=0 SPL_PRIVATE_CNF="$T/ovl-r.yaml" "$@"; }
+reset; res_ago 3
+out=$(SNIPPET='do_spl_tenant_host_reconcile' res_rec STUB_ROWS=$'row zq-res pending active on 200' 2>&1); rc=$?
+[[ $rc == 0 && ! -s "$STUB_LOG" ]] && grep -q 'add \[\] remove \[\] wait \[zq-res\]' <<<"$out" && grep -q '^apply=0$' <<<"$out" &&
+  pass "5f. a placeholder reserved 3 min ago (default hold 5) waits, outside apply" || fail "5f. 3 min rc=$rc :: $out"
+reset; res_ago 6
+out=$(SNIPPET='do_spl_tenant_host_reconcile' res_rec STUB_ROWS=$'row zq-res pending active on 400' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q 'add \[zq-res\] remove \[\] wait \[\]' <<<"$out" && grep -q '^apply=1$' <<<"$out" &&
+  pass "5f. one reserved 6 min ago is an add" || fail "5f. 6 min rc=$rc :: $out"
+reset; res_ago 5
+out=$(SNIPPET='do_spl_tenant_host_reconcile' res_rec HOST_RESERVE_HOLD=10 STUB_ROWS=$'row zq-res pending active on 300' 2>&1); rc=$?
+grep -q 'wait \[zq-res\]' <<<"$out" && pass "5f. HOST_RESERVE_HOLD=10: a 5-minute-old reservation waits" || fail "5f. hold 10, 5 min :: $out"
+reset; res_ago 11
+out=$(SNIPPET='do_spl_tenant_host_reconcile' res_rec HOST_RESERVE_HOLD=10 STUB_ROWS=$'row zq-res pending active on 660' 2>&1); rc=$?
+grep -q 'add \[zq-res\]' <<<"$out" && pass "5f. HOST_RESERVE_HOLD=10: an 11-minute-old one is an add" || fail "5f. hold 10, 11 min :: $out"
+# CONTROL: the same line with no reservation stamp (added by hand) is never held
+reset; res_ovl ""
+out=$(SNIPPET='do_spl_tenant_host_reconcile' res_rec STUB_ROWS=$'row zq-res pending active on 60' 2>&1); rc=$?
+grep -q 'add \[zq-res\] remove \[\] wait \[\]' <<<"$out" && pass "5f. CONTROL: a hand-added line (no stamp) is an add at once" || fail "5f. no stamp :: $out"
+# the held row's detail names the placeholder and the hold, never the slug; no make
+reset; res_ago 2
+out=$(SNIPPET='do_spl_tenant_host_reconcile' res_rec DRY_RUN=0 REAL_MARK=1 STUB_ROWS=$'row zq-res pending active on 130' 2>&1); rc=$?
+det=$(grep -o 'pending -> pending (.*' <<<"$out")
+[[ $rc == 0 && ! -s "$STUB_LOG" ]] && grep -q 'ws-hidden-02 reserved .*, held 5 min so every box has pulled it (2 of 5 min)' <<<"$det" && ! grep -q zq-res <<<"$det" &&
+  ! grep -q ws-hidden-02 "$CNF" && pass "5f. DRY_RUN=0: the held row stays pending, its detail names the placeholder and the hold, not the slug; no make, no cnf edit" ||
+  fail "5f. held detail rc=$rc make=[$(cat "$STUB_LOG")] :: $out"
+reset; res_ovl "  # reserved not-a-time"
+out=$(SNIPPET='do_spl_tenant_host_reconcile' res_rec STUB_ROWS=$'row zq-res pending active on 60' 2>&1)
+grep -q 'wait \[zq-res\]' <<<"$out" && pass "5f. an unreadable stamp reads as held (HOST_WAIT_LIMIT still ends it)" || fail "5f. bad stamp :: $out"
+rm -f "$T/tenant-host.lock"
+
 # --- 5d. SPL-1811: a deleted tenant is never added; a failed push keeps removing --
 grep -q "WHEN t.tenant_id IS NULL THEN 'gone'" <<<"$rows_sql" && grep -q 'BEGIN TRANSACTION READ ONLY' <<<"$rows_sql" && ! grep -qE '^(INSERT|UPDATE|DELETE|COMMIT)' <<<"$rows_sql" &&
   pass "reconcile: the open-rows read marks a row with no tenants row 'gone', still read only" || fail "open-rows SQL: $rows_sql"

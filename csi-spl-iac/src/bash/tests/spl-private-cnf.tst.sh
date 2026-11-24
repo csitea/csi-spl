@@ -79,6 +79,27 @@ t1=$(spl_private_add zz-new); t2=$(spl_private_add zz-new)
 [[ "$t1" == ws-hidden-12 && "$t2" == ws-hidden-12 && "$(grep -c 'zz-new' "$SPL_PRIVATE_CNF")" == 1 ]] &&
   [[ "$(spl_private_list forms_only)" == zz-beta ]] && [[ "$(stat -c %a "$SPL_PRIVATE_CNF")" == 600 ]] &&
   pass "5. add: the next placeholder, once, inside workspaces:, file kept 600" || fail "5. add $t1 $t2: $(cat "$SPL_PRIVATE_CNF")"
+# 5b. spec 158 H4: the reserve's comment rides the line; the map ignores it
+t3=$(spl_private_add zz-res 'reserved 2026-11-24T14:00:00Z')
+grep -qxF '  ws-hidden-13: zz-res  # reserved 2026-11-24T14:00:00Z' "$SPL_PRIVATE_CNF" && [[ "$t3" == ws-hidden-13 ]] &&
+  [[ "$(spl_private_token zz-res)" == ws-hidden-13 ]] &&
+  pass "5b. add with a comment: the line carries '# reserved <ts>', the map reads it as a plain line" || fail "5b. comment add $t3: $(cat "$SPL_PRIVATE_CNF")"
+[[ "$(spl_private_reserved_at zz-res)" == 2026-11-24T14:00:00Z && "$(spl_private_reserved_at ws-hidden-13)" == 2026-11-24T14:00:00Z ]] &&
+  r=$(spl_private_reserved_at zz-new) && [[ -z "$r" ]] && ! spl_private_reserved_at zz-none >/dev/null &&
+  pass "5b. reserved_at: by slug or placeholder; a hand-added line reads empty; an unknown slug fails" || fail "5b. reserved_at"
+out=$(spl_private_add zz-bad 'x; rm -rf /' 2>&1); rc=$?
+[[ $rc -ne 0 ]] && ! grep -q zz-bad "$SPL_PRIVATE_CNF" && pass "5b. CONTROL: a comment with shell characters is refused, nothing added" || fail "5b. bad comment rc=$rc: $out"
+# 5c. the lock: two adds at once take two numbers, no line lost; a held lock
+# refuses after SPL_PRIVATE_LOCK_WAIT (the red control of the lock itself)
+for s in zz-p1 zz-p2 zz-p3 zz-p4; do spl_private_add "$s" >"$T/add-$s.out" & done; wait
+nums=$(cat "$T"/add-zz-p*.out | sort -u | wc -l)
+[[ "$nums" == 4 && "$(grep -cE '^  ws-hidden-[0-9]+: zz-p[1-4]$' "$SPL_PRIVATE_CNF")" == 4 ]] && spl_private_map >/dev/null &&
+  pass "5c. four concurrent adds: four placeholders, four lines, a valid map" || fail "5c. concurrent: $nums: $(cat "$SPL_PRIVATE_CNF")"
+exec {held}>"$SPL_PRIVATE_CNF.lock"; flock "$held"
+out=$(SPL_PRIVATE_LOCK_WAIT=1 spl_private_add zz-locked 2>&1); rc=$?
+exec {held}>&-
+[[ $rc -ne 0 && "$out" == *"another writer holds"* ]] && ! grep -q zz-locked "$SPL_PRIVATE_CNF" &&
+  pass "5c. CONTROL: a held lock -> the add waits, then refuses and adds nothing" || fail "5c. held lock rc=$rc: $out"
 cp "$T/keep.yaml" "$SPL_PRIVATE_CNF"
 
 # --- 6. gate patterns -----------------------------------------------------------

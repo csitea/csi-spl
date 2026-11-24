@@ -23,6 +23,10 @@
 # @description                      edit, no apply, the run stays green; stays
 # @description                      pending with detail saying what it waits
 # @description                      for; past HOST_WAIT_LIMIT -> failed (red)
+# @description   pending / failed, a placeholder the master box reserved (H5,
+# @description                      do_spl_tenant_host_reserve) under
+# @description                      HOST_RESERVE_HOLD minutes ago -> WAIT, so
+# @description                      every box has pulled it first
 # @description render 052 + 019 + 025, push that cnf change to the trunk from a
 # @description throwaway worktree BEFORE the apply (a run that dies mid-apply
 # @description leaves trunk declaring the host, and the next run completes it),
@@ -46,6 +50,8 @@
 # @param HOST_WAIT_LIMIT (optional) - minutes a wait row may wait since its
 # @param   requested_at, default 30; past it the row is marked failed with its
 # @param   reason and the run fails (the master box's cron is not working)
+# @param HOST_RESERVE_HOLD (optional) - minutes a reserved placeholder waits
+# @param   before its add, default 5 (the other boxes' pull cron runs every 2)
 # @param CNF_GIT_BRANCH (optional) - trunk branch, default master
 # @param TH_ISSUE (optional) - the issue key the cnf commit cites in its subject
 # @param   scope, 'cnf(024, SPL-123): ...' (SPL-5875: the pre-push part
@@ -128,14 +134,42 @@ do_spl_tenant_host_reconcile() {
 }
 
 # spl_th_waits <cnf> <tenant> -> 0 and the reason on stdout when the row
-# cannot proceed this run and must wait (spec 158 10.5, M18): a new hidden
-# slug that the cnf does not list and the private overlay has no placeholder
-# for. Its placeholder is made on the overlay's master box; until then an add
-# would FATAL (in CI) and hold up every other row of the run.
+# cannot proceed this run and must wait (spec 158 10.5, M18), one of:
+#   - a new hidden slug that the cnf does not list and the private overlay
+#     has no placeholder for. Its placeholder is made on the overlay's master
+#     box (do_spl_tenant_host_reserve); until then an add would FATAL (in CI)
+#     and hold up every other row of the run.
+#   - (H5) a placeholder that box reserved less than HOST_RESERVE_HOLD minutes
+#     ago (its overlay line's `# reserved <ts>`): every other box pulls the
+#     overlay on a cron, and a cnf that names the placeholder before a box has
+#     it FATALs there (M27). A line with no reservation (added by hand) is
+#     never held.
 spl_th_waits() {
   { spl_th_cnf_has "$1" "$2" || spl_th_docs_has "$1" "$2"; } && return 1
-  spl_th_new_hidden "$2" || return 1
-  echo "no placeholder in the private overlay yet (made on the overlay master box ${SPL_PRIVATE_MASTER_BOX:-sat}, or TENANT_VISIBLE=1)"
+  if spl_th_new_hidden "$2"; then
+    echo "no placeholder in the private overlay yet (made on the overlay master box ${SPL_PRIVATE_MASTER_BOX:-sat}, or TENANT_VISIBLE=1)"
+    return 0
+  fi
+  spl_th_reserve_held "$2"
+}
+
+# spl_th_reserve_held <tenant> -> 0 and the reason on stdout while the
+# tenant's overlay placeholder is younger than HOST_RESERVE_HOLD minutes
+# (default 5: two runs of the every-2-minute pull cron on the other boxes).
+# A reservation stamp that does not parse reads as held: a FATAL on every
+# box is worse than one more wait, and HOST_WAIT_LIMIT still ends it.
+spl_th_reserve_held() {
+  local hold="${HOST_RESERVE_HOLD:-5}" ts at now tok
+  [[ "$hold" =~ ^[0-9]+$ ]] || { echo "HOST_RESERVE_HOLD must be whole minutes, got '$hold'"; return 0; }
+  spl_th_private_lib || return 1
+  [[ -s "$(spl_private_cnf_path)" ]] || return 1
+  ts="$(spl_private_reserved_at "$1" 2>/dev/null)" || return 1
+  [[ -n "$ts" ]] || return 1
+  tok="$(spl_private_token "$1" 2>/dev/null)"
+  now="$(date -u +%s)"
+  at="$(date -u -d "$ts" +%s 2>/dev/null)" || { echo "$tok reserved at an unreadable time '$ts': held"; return 0; }
+  (( now - at < hold * 60 )) || return 1
+  echo "$tok reserved $ts, held $hold min so every box has pulled it ($(( (now - at) / 60 )) of $hold min)"
 }
 
 # spl_th_wait_mark <cnf>: each of the caller's wait rows stays pending with

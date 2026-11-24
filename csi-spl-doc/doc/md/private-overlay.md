@@ -104,6 +104,18 @@ the hub's migrate).
 - An update is made on the satellite, then copied to the other user, the
   other box and the secret
   (`gh secret set SPL_PRIVATE_CNF_YAML < <file>`).
+- A new hidden workspace needs no person (spec 158 H4, H5, section 10.11):
+  on the satellite `do_spl_tenant_host_reserve` runs every minute. It adds
+  the placeholder of each new hidden `tenant_hosts` row (the line stamped
+  `# reserved <ts>`, under the lock of `spl_private_add`), syncs the other
+  user, sets the secret from stdin with the owner's token
+  (`RESERVE_GH_TOKEN_FILE`, no default), reads its `updated_at` back and writes
+  the row's detail. Every other box pulls the overlay every 2 minutes. The
+  40 reconcile workflow takes the row once the stamp is `HOST_RESERVE_HOLD`
+  minutes old (default 5), and past that hold the reserve dispatches it.
+  Both crons are installed by
+  `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_private_overlay_install_cron`
+  (on the satellite with `RESERVE_GH_TOKEN_FILE=<the token file>`).
 - The satellite's two users stay equal by `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_private_overlay_sync` (SPL-2677): it copies the owner user's file to the agent user with the pull's checks (`SYNC_FROM_USER` picks the other way), refuses a differing target that is newer, and a new hidden tenant runs it at once.
 - Lost everywhere: the names are recoverable. Git history before SPL-1874
   still holds every slug in place (no history rewrite, CLAUDE.md 5.1): the

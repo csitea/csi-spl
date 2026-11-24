@@ -8,7 +8,7 @@
 #   1. refusals: a bad FROM_BOX, DRY_RUN=2 - before any ssh call
 #   2. DRY_RUN is the default: reads the source shas, writes nothing
 #   3. DRY_RUN=0: both users, bytes equal, mode 600, owner, verify lines
-#   4. a second run: "already-there"; a changed source: "replaced"; a
+#   4. a second run: "already-there", nothing written; a changed source: "replaced"; a
 #      shared ~/.gcp (symlink) is pulled once, owned by the owner
 #   4c. SPL-1924: a key dir shared by ACL (a default named entry) keeps the
 #      named user's read on the pulled file (r--, mask r--, mode 640), never
@@ -107,7 +107,13 @@ compgen -G "$T/local/ownr/.gcp/.csi/*.pull.*" >/dev/null && fail "a temp file is
 no_leak && pass "pull: no content in output or argv" || fail "pull leaks the content"
 
 # --- 4. idempotent; a changed source replaces ------------------------------------------------
+ino0="$(stat -c %i "$(dst ownr)") $(stat -c %i "$(dst agnt)")"
 run_pull DRY_RUN=0 && grep -q "INFO agnt: already-there" "$T/o" && pass "second run: already-there" || fail "rerun: $(cat "$T/o")"
+ino1="$(stat -c %i "$(dst ownr)") $(stat -c %i "$(dst agnt)")"
+# a put renames a temp file into place (a new inode); an equal copy keeps its own
+[[ "$ino0" == "$ino1" ]] && [[ "$(grep -c '^verify .*sha256_equal=yes' "$T/o")" == 2 ]] &&
+  pass "4. spec 158 H5: an equal, verified copy is not rewritten (same inode), its verify line still printed" ||
+  fail "4. an equal copy was written again (inodes $ino0 -> $ino1): $(cat "$T/o")"
 put_src agnt c
 run_pull DRY_RUN=0 && grep -q "INFO agnt: replaced" "$T/o" && cmp -s "$(dst agnt)" "$T/remote/agnt/.gcp/.csi/csi-spl-private.yaml" &&
   pass "a changed source replaces the local copy" || fail "replace: $(cat "$T/o")"

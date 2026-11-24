@@ -20,6 +20,9 @@
 # @description      never the content or its sha.
 # @description A user whose ~/.gcp here is a symlink to the other's shares that
 # @description one file: it is pulled once, owned by the first (the owner).
+# @description A local copy that is already equal and verified is not rewritten
+# @description (spec 158 H5: do_spl_private_overlay_install_cron runs it every
+# @description 2 minutes on every box but the master).
 # @description A local copy that differs is replaced: the satellite holds the
 # @description master copy. Dry run unless DRY_RUN=0 (it reads the source
 # @description shas over ssh, writes nothing).
@@ -69,6 +72,12 @@ do_spl_private_overlay_pull() {
       continue
     fi
     seen[$real]="$u"
+    # spec 158 H5: the pull runs from a cron every 2 minutes; an equal,
+    # verified copy is left as it is (no rewrite, its mtime kept)
+    local vline
+    if vline="$(spl_ppo_verify_one "$u" "${home[$u]}" "${src_sha[$u]}" 2>/dev/null)"; then
+      do_log "INFO $u: already-there (verified equal, not rewritten)"; echo "$vline"; continue
+    fi
     spl_ppo_pull_one "$dest" "$u" "${home[$u]}" "${src_sha[$u]}" || fails=1
   done
   (( fails == 0 )) || return 1

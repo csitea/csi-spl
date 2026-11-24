@@ -1,11 +1,13 @@
 # Spec 158: a new workspace works automatically
 
-**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.6 (for R7) ·
-**Epic**: SPL-2398 · **Issue**: SPL-3504, v0.6 SPL-4990 · **Created**: 2026-10-26 · **Lead**: c-456 ·
+**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.7 (for R7) ·
+**Epic**: SPL-2398 · **Issue**: SPL-3504, v0.6 SPL-4990, v0.7 SPL-6411 · **Created**: 2026-10-26 · **Lead**: c-456 ·
 **Placement slug**: `c002-s158-new-workspace-automatic`
 
 v0.6 adds section 10: a workspace created in the UI reaches usable with no
 agent step (the web address, the box-wui pin, the seats, the proof).
+v0.7 (10.11): the owner's scope change of 2026-11-24, the host starts from the
+create; rows H4 and H5 built that way.
 
 Related: [spec 074 operator workspace](../074-operator-workspace/),
 [spec 108 workspace-owned boxes](../108-workspace-owned-boxes/spec.md),
@@ -355,20 +357,25 @@ lane starts. `tasks.md` carries a status column.
 **Design: a small reserve action on the overlay's master box; wf 40 stays the
 only thing that applies.**
 
-1. `do_spl_tenant_host_reserve` (orc, new, cron every 5 minutes, refuses on any
-   other box through `spl_th_overlay_box_ok`). It reads the open `tenant_hosts`
+1. `do_spl_tenant_host_reserve` (orc, new, cron every minute since v0.7, refuses
+   on any other box, like `spl_th_overlay_box_ok`). It reads the open `tenant_hosts`
    rows of dev and prd, with the reconcile's own filters (not unpaid, not
    suspended or archived, not an `e2e*` slug). For each new hidden slug, under a
    lock, in this order: `spl_private_add`, `do_spl_private_overlay_sync`,
    `gh secret set SPL_PRIVATE_CNF_YAML`, read the secret's `updated_at` back, then
    write the row's `detail` as `placeholder reserved <ts>`. The master stays the
-   one writer, so no copy loses a line.
-2. A pull cron on every other box (`do_spl_private_overlay_pull`, every 5
-   minutes), so no box FATALs on a placeholder (M27).
+   one writer, so no copy loses a line. The overlay line carries the stamp
+   (`  ws-hidden-NN: <slug>  # reserved <ts>`), so wf 40 reads the age from the
+   secret's copy (v0.7).
+2. A pull cron on every other box (`do_spl_private_overlay_pull`, every 2
+   minutes since v0.7; an equal copy is not rewritten), so no box FATALs on a
+   placeholder (M27).
 3. wf 40 changes only in what it does with such a row (10.5). It takes a
-   reserved row once the reservation is 10 minutes old, so the pull has run
-   before the cnf names the placeholder. A box that was off longer FATALs until
-   its first pull, with today's message.
+   reserved row once the reservation is `HOST_RESERVE_HOLD` minutes old
+   (default 5 since v0.7, two pull runs), so the pull has run before the cnf
+   names the placeholder. A box that was off longer FATALs until its first
+   pull, with today's message. Past the hold the reserve dispatches wf 40 for
+   that env at once (10.11).
 
 Rejected: writing the line in CI (the copy is a secret: the master never gets
 it, which is the reason for the refusal today); `do_spl_tenant_host_provision`
@@ -403,7 +410,8 @@ Threat model:
 ### 10.5 One stuck workspace holds up no other
 
 Today it does (M18). It should not: the reconcile classifies a new hidden row
-with no placeholder, or one reserved under 10 minutes ago, into a new `wait` list
+with no placeholder, or one reserved under `HOST_RESERVE_HOLD` minutes ago
+(default 5, 10.4), into a new `wait` list
 before anything is edited.
 
 - A `wait` row is not an add: it stays `pending` with `detail` saying what it
@@ -539,4 +547,61 @@ desk box on dev and on prd, the sweep on prd, the seat backfill T12 on prd, T13.
 wf 40's applies keep the standing go they have. None of these rows touches the drill
 workspace by hand: after H2 its host should finish by itself, and after the prd
 sweep and S6 its pin and seats. That is the owner's own test.
+
+### 10.11 Amendment v0.7: the host starts from the create (H4, H5)
+
+Owner HUM-10, t1 topic 4a5911f1, 2026-11-24, relayed by the dispatch holder,
+verbatim: msg 671fdf87 "well that build should start automatically ..."; msg
+b5e9dbec "improve the code so that it will be triggered as soon as somebody
+click on the wui ...".
+
+**The trigger.** The create in the WUI inserts the `tenants` row, and rdb 0015's
+trigger queues its `tenant_hosts` row in the same transaction. The reserve on
+the master box reads the open rows every minute, so it sees the click at most
+one minute later. Its read is one read-only query per env through the proxy;
+nothing is written when nothing is new. The hub does not call out: it cannot
+reach the master box (only boxes reach the hub), and the placeholder can only be
+made where the master overlay is (10.4, "Rejected"). A dispatch from the hub to
+GitHub would need a new GitHub credential in Cloud Run (a GCP change, the
+owner's go), and wf 40 still could not make the placeholder, so it would only
+wait.
+
+**What runs, in order, with no person:**
+
+| step | what | when, worst case |
+|---|---|---|
+| 1 | the create (201) queues `tenant_hosts` `pending` | t0 |
+| 2 | `do_spl_tenant_host_reserve` sees it: the stamped overlay line, the box sync, `gh secret set SPL_PRIVATE_CNF_YAML`, the read back, the row's detail | t0 + 1 min (cron), + its run |
+| 3 | every other box pulls the overlay (`do_spl_private_overlay_pull`) | within 2 min of step 2 |
+| 4 | the hold (`HOST_RESERVE_HOLD`, 5 min) ends; the next reserve run dispatches wf 40 for that env (`gh workflow run`) | t0 + 7 min |
+| 5 | wf 40 adds the host: cnf push, 052 + 019 + 025 apply, the custom domain and the WUI probe, `tenant_hosts` `ready` | its run time: unmeasured here; row E1 measures it |
+
+Worst case from the click to a reachable host: about 7 minutes to the start of
+wf 40, plus wf 40's own run. Without the dispatch (the token lacks `actions:
+write`, or the dispatch fails) wf 40's 15-minute schedule picks the row up:
+about 22 minutes to its start. The schedule stays as the retry backstop, and so
+does the reserve's minute cron: a run that fails after the overlay add publishes
+on the next run (`<state>/unpublished`), and a refused dispatch is tried again.
+
+**The token (OD2, unchanged).** The reserve reads it from
+`RESERVE_GH_TOKEN_FILE`, no default; it fails fast without it and refuses a file
+other users can read. The owner mints it: a fine-grained token, this repo,
+`secrets: write`, plus `actions: write` for step 4. Nothing here asks for,
+mints or stores one.
+
+**Install, once the owner has minted the token** (the orchestrator, from the
+main checkout of each box, as the box owner user):
+
+- the master box: `cd csi-spl-orc && RESERVE_GH_TOKEN_FILE=<the token file> DRY_RUN=0 ./run -a do_spl_private_overlay_install_cron`
+- every other box: `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_private_overlay_install_cron`
+- check, any box: `cd csi-spl-orc && PRIVATE_OVERLAY_CRON_ACTION=check ./run -a do_spl_private_overlay_install_cron`
+
+The same action installs the line of the box's role (the master box: the
+reserve every minute; any other: the pull every 2 minutes) and drops the other
+role's line.
+
+**What changed against 10.4 / 10.5:** the reserve cron every minute (was 5), the
+pull every 2 minutes (was 5), the hold 5 minutes and configurable (was 10), the
+reservation's time in the overlay line (wf 40 reads only the secret's copy), the
+dispatch of wf 40 past the hold, and a lock in `spl_private_add` (N1).
 

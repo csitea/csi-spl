@@ -6,9 +6,11 @@
 // a dynamic import, which would over-fetch), a hinted file loses its prefetch,
 // nothing the document already names is added twice, the entry's own
 // modulepreloads stay first, and the wiring skips 200.html / 404.html.
+// perf round 20 p20-07: the signed-in home and 200.html hold their prefetch
+// like the sign-in screen (P3-04); 200.html still gets no first-screen hints.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -118,8 +120,8 @@ describe('first-screen hints: nuxt.config wiring', () => {
     assert.match(cfg, /\}, \{ server: false \}\)/)
   })
 
-  it('200.html and 404.html are never rewritten, and a miss fails the generate', () => {
-    assert.match(cfg, /\/\^\\\/\(200\|404\)\\\.html\$\/\.test\(name\)/)
+  it('200.html and 404.html get no first-screen hints, and a miss fails the generate', () => {
+    assert.match(cfg, /if \(\/\^\\\/\(200\|404\)\\\.html\$\/\.test\(name\)\) return/)
     assert.match(cfg, /"prerender:done", \(\) => \{\s*if \(failed\.length\) throw/)
   })
 })
@@ -141,10 +143,54 @@ describe('P3-04: a signed-out document holds its prefetch until ready', () => {
     assert.deepEqual(deferDocumentPrefetch('<head></head>'), { html: '<head></head>', moved: 0 })
   })
 
-  it('only login-layout documents defer, and the plugin puts the links back on ready', () => {
+  it('login-layout documents defer, and the plugin puts the links back on ready', () => {
     const cfg = readFileSync(join(WUI, 'nuxt.config.ts'), 'utf8')
-    assert.match(cfg, /if \(layout === "login"\) route\.contents = deferDocumentPrefetch\(route\.contents\)\.html/)
+    assert.match(cfg, /if \(layout === "login" \|\| hit\.file === homePage\) route\.contents = deferDocumentPrefetch\(route\.contents\)\.html/)
     const plugin = readFileSync(join(WUI, 'src/plugins/prefetch-on-ready.client.ts'), 'utf8')
     assert.match(plugin, /onNuxtReady\(\(\) => \{[\s\S]*getElementById\(DEFERRED_PREFETCH_ID\)[\s\S]*document\.head\.appendChild\(held\.content\)/)
+  })
+})
+
+// perf round 20 p20-07: on a cold phone ~0.3 MB of prefetch (chunks the rail
+// never uses) started before the rail on the signed-in / and on 200.html, which
+// every route that is not prerendered (/lobby) boots from.
+describe('p20-07: the signed-in home and 200.html hold their prefetch until ready', () => {
+  const cfg = readFileSync(join(WUI, 'nuxt.config.ts'), 'utf8')
+
+  it('the wiring: 200.html defers before its skip (no first-screen hints), the home page defers after its hints', () => {
+    const defer200 = cfg.indexOf('if (name === "/200.html") route.contents = deferDocumentPrefetch(route.contents).html')
+    const skip = cfg.indexOf('if (/^\\/(200|404)\\.html$/.test(name)) return')
+    assert.ok(defer200 > 0, '200.html defers its prefetch')
+    assert.ok(skip > defer200, '200.html then returns before any first-screen hint')
+    assert.match(cfg, /const homePage = join\(nuxt\.options\.srcDir, "pages", "index\.vue"\)/)
+    assert.match(cfg, /layout === "login" \|\| hit\.file === homePage/)
+  })
+
+  // A generated bundle, when one is on disk (pnpm run generate, or
+  // FIRST_SCREEN_BUNDLE=<dir>): the documents as the browser gets them.
+  const bundle = process.env.FIRST_SCREEN_BUNDLE || join(WUI, '.output/public')
+  const have = existsSync(join(bundle, '200.html')) && existsSync(join(bundle, 'index.html'))
+  const count = (html, re) => (html.match(re) || []).length
+  const headOf = (file) => {
+    const head = readFileSync(join(bundle, file), 'utf8').split('</head>')[0]
+    const held = new RegExp(`<template id="${DEFERRED_PREFETCH_ID}">([\\s\\S]*?)</template>`)
+    const m = held.exec(head)
+    const bare = m ? head.replace(m[0], '') : head
+    return {
+      prefetch: count(bare, /<link rel="prefetch"/g),
+      modulepreload: count(bare, /rel="modulepreload"/g),
+      held: m ? count(m[1], /<link rel="prefetch"/g) : 0,
+    }
+  }
+
+  it('index.html and 200.html: modulepreload kept in <head>, 0 prefetch there, all inside the template', { skip: !have && `no generated bundle at ${bundle}` }, () => {
+    for (const file of ['index.html', '200.html', 'login/index.html']) {
+      const h = headOf(file)
+      assert.equal(h.prefetch, 0, `${file}: ${h.prefetch} <link rel="prefetch"> still in <head>`)
+      assert.ok(h.held > 0, `${file}: the template holds the prefetch links`)
+      assert.ok(h.modulepreload > 0, `${file}: modulepreload stays in <head>`)
+    }
+    // 200.html cannot know its page: only the entry's own modulepreloads, no first-screen set
+    assert.ok(headOf('200.html').modulepreload < headOf('index.html').modulepreload, '200.html has no first-screen hints')
   })
 })

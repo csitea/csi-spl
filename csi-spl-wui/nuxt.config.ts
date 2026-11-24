@@ -610,10 +610,16 @@ function firstScreenHintsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
   nuxt.hook("nitro:init", (nitro) => {
     // Rollup's fileName already carries the assets dir ("_nuxt/x.js")
     const base = nuxt.options.app.baseURL.replace(/\/*$/, "/")
+    const homePage = join(nuxt.options.srcDir, "pages", "index.vue")
     const failed: string[] = []
     nitro.hooks.hook("prerender:generate", (route) => {
       const name = route.fileName || ""
-      if (!name.endsWith(".html") || /^\/(200|404)\.html$/.test(name) || typeof route.contents !== "string") return
+      if (!name.endsWith(".html") || typeof route.contents !== "string") return
+      // p20-07: 200.html, the shell every route that is not prerendered boots
+      // from, cannot know its page (no first-screen hints), but it holds its
+      // app prefetch until the app is ready, as the sign-in screen does
+      if (name === "/200.html") route.contents = deferDocumentPrefetch(route.contents).html
+      if (/^\/(200|404)\.html$/.test(name)) return
       // the blog is a read-only page with no app frame (blogDocumentsModule)
       if (BLOG_ROUTE_RE.test(route.route)) return
       const hit = firstScreenRoutePage(route.route, pages, LOCALE_CODES, DEFAULT_LOCALE)
@@ -635,8 +641,9 @@ function firstScreenHintsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
       }
       route.contents = addFirstScreenHints(route.contents, files, base).html
       // P3-04: a signed-out screen holds its app prefetch until it is ready
-      // (plugins/prefetch-on-ready.client.ts puts the links back)
-      if (layout === "login") route.contents = deferDocumentPrefetch(route.contents).html
+      // (plugins/prefetch-on-ready.client.ts puts the links back); p20-07:
+      // so does the signed-in home (index.html, in every locale)
+      if (layout === "login" || hit.file === homePage) route.contents = deferDocumentPrefetch(route.contents).html
     })
     // A throw inside prerender:generate only drops that document (and nitro
     // still exits 0), so collect and fail the whole generate here instead.

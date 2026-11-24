@@ -14,8 +14,9 @@
 // page's module, its layout's module and the document locale's catalogue, as
 // Rollup emitted them. nuxt.config.ts collects the graph (generateBundle) and
 // rewrites each prerendered .html (nitro prerender:generate). 200.html (the
-// SPA fallback for every route that is not prerendered) is left alone: it
-// cannot know its page. Build-time only (no client code imports this).
+// SPA fallback for every route that is not prerendered) gets no first-screen
+// hints: it cannot know its page. Only its prefetch is held (p20-07, below).
+// Build-time only, except DEFERRED_PREFETCH_ID (plugins/prefetch-on-ready).
 // Unit-tested by tests/unit/first-screen-hints.test.mjs.
 
 /** A module id without its query (`/x/en.json?hash=1&locale=en` -> `/x/en.json`). */
@@ -137,7 +138,7 @@ export function addFirstScreenHints(html, files, base = '/') {
   return { html: out.slice(0, i) + tags.join('') + out.slice(i), added: tags.length }
 }
 
-/** The id of the inert <template> that holds a signed-out document's prefetch links. */
+/** The id of the inert <template> that holds a document's deferred prefetch links. */
 export const DEFERRED_PREFETCH_ID = 'spl-prefetch'
 
 /**
@@ -146,6 +147,9 @@ export const DEFERRED_PREFETCH_ID = 'spl-prefetch'
  * every <link rel="prefetch"> into an inert <template> (neither the parser
  * nor the preload scanner fetches inside one); plugins/prefetch-on-ready
  * puts them back once the page is ready, so a sign-in still finds them cached.
+ * perf round 20 p20-07: the signed-in home (index.html) and 200.html hold
+ * theirs too, so ~0.3 MB of later chunks do not compete with the first
+ * screen on a cold phone (nuxt.config.ts firstScreenHintsModule).
  * @param {string} html
  */
 export function deferDocumentPrefetch(html) {

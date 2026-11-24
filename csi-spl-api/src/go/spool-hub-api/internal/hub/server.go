@@ -325,6 +325,12 @@ type Options struct {
 	// VendorKeyMail mails each key set, replace and remove to every admin
 	// and biz owner (spec 159 3); nil = stored and audited, nobody mailed.
 	VendorKeyMail VendorKeyMailer
+	// SigninRelayKinds is hub env SPOOL_HUB_SIGNIN_RELAY_KINDS (spec 181
+	// B11): the vendor kinds whose web-UI sign-in relay is on, one switch
+	// per vendor, each only after that vendor's written OK (Q-14 A). Empty,
+	// the default, = off for every vendor: the relay answers 403
+	// signin_relay_off (signin_relay.go).
+	SigninRelayKinds []string
 	// InvoiceReminderMail mails the day-15 reminder of an unpaid monthly
 	// invoice to each biz owner (spec 181 B12, invoice_reminder.go); nil = no
 	// relay, no reminder is claimed.
@@ -387,6 +393,7 @@ type Server struct {
 	relayDue    relayCadence // relay.go: when the slow relay sweeps last ran, its own lock
 	samples     boxSamples   // box_refresh.go: the pending box_sample requests (spec 071 T5), its own lock
 	refreshes   boxRefreshes // box_refresh.go: the Refresh runs in flight and the hour's starts per tenant (row T6)
+	relays      signinRelays // signin_relay.go: the live sign-in relays (spec 181 B11), its own lock
 
 	heads *headShadow // view.go: the topic-head shadow's sampler and counters (spec 099)
 }

@@ -46,7 +46,7 @@ func (s *Server) RunWake(ctx context.Context) {
 	listen := func() error { return w.ListenWake(ctx, onBox) }
 	switch {
 	case canSample:
-		h := store.WakeHandlers{Box: onBox, WUI: onWUI, BoxSample: s.onBoxSampleReq}
+		h := store.WakeHandlers{Box: onBox, WUI: onWUI, BoxSample: s.onBoxSampleReq, SigninRelay: s.onSigninRelayEvent}
 		listen = func() error { return bw.ListenAll(ctx, h) }
 	case onBox == nil && onWUI == nil:
 		return

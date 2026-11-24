@@ -77,6 +77,7 @@ func (s *Server) routeVendorKeys(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /v1/vendor-keys/settings", s.handlePutVendorKeySettings)        // 159 T5, vendor_key_lease.go
 	mux.HandleFunc("OPTIONS /v1/vendor-keys/{kind}/{action}", s.vendorKeysPreflight)
 	mux.HandleFunc("OPTIONS /v1/vendor-keys", s.vendorKeysPreflight)
+	s.routeSigninRelay(mux) // spec 181 B11: /v1/signin-relay*, signin_relay.go
 	mux.HandleFunc("OPTIONS /v1/vendor-keys/{kind}", s.vendorKeysPreflight)
 	mux.HandleFunc("OPTIONS /v1/vendor-keys/managers/{human_id}", s.vendorKeysPreflight)
 }

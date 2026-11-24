@@ -32,6 +32,8 @@ type WakeHandlers struct {
 	Box       func(tenant, box string)   // WakeChannel
 	WUI       func(tenant, msgID string) // WUIWakeChannel
 	BoxSample func(BoxSampleReq)         // BoxSampleChannel
+	// SigninRelay gets each spec 181 B11 relay event (SigninRelayChannel).
+	SigninRelay func(payload string)
 }
 
 // BoxSampleWaker is implemented by stores that carry the refresh request.

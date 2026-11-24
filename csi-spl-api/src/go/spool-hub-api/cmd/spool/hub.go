@@ -448,6 +448,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		NotesEnabled:                 hc.NotesEnabled,                 // spec 155 section 6
 		NotesAgentAddEnabled:         hc.NotesAgentAddEnabled,         // spec 155 2.11 (OQ-5)
 		CalendarOutlookImportEnabled: hc.CalendarOutlookImportEnabled, // spec 180 FR-11
+		SigninRelayKinds:             hc.SigninRelayKinds,             // spec 181 B11: one switch per vendor, default off
 		ContactsWorkspaces:           hc.ContactsWorkspaces,           // spec 154 2.9 B3
 		ContactsPhotos: hub.ContactsPhotoConfig{Hosts: hc.ContactsPhotoHosts, // spec 154 11.4 B16
 			MaxPerPerson: hc.ContactsPhotoMaxPerPerson},
@@ -1382,6 +1383,7 @@ func cmdHubRun(cfg *config.Config) int {
 	ctx, stop := interruptible()
 	defer stop()
 	startKeyDesk(ctx, cfg, c) // spec 127 X1: SPOOL_KEY_DESK=1 only
+	startSigninRelay(cfg, c)  // spec 181 B11: SPOOL_SIGNIN_RELAY_CMD set only
 	if err := c.Run(ctx); err != nil {
 		return fail(err)
 	}

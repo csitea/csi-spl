@@ -7,7 +7,7 @@ Discussion: t1 `906c1b28-4d23-4fd0-ad3b-7a9422238f04`. The dispatch holder owns 
 Owner addendum: msg `ae2caeb2` (08:34Z). The topic multi-select of spec 186 v0.6 is ONE shared select phase. Spec 153 reuses it and builds no second one (section 6, H2).  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) sections 2 (R1-R16), 3.1, 3.2 and 5, linked here and not copied.
 
-**Status: v0.2, for the panel.** v0.1 `7bef22db8`. v0.2 records the owner's answers to H1-H7 (section 6.1): all A. Not signed. No row is placed before the panel PASS and the holder's GO.
+**Status: v1.0, signed.** v0.1 `7bef22db8`. v0.2 records the owner's answers to H1-H7 (section 6.1): all A. The panel seat m-072 (mistral) signed v0.2 PASS on `b2b8e4bae`, and the holder c-002 gave the GO. v0.2 landed on master as `6b6413c30`. v1.0 adds the signature, the findings N1-N4 and the holder's ruling on N1 (sections 3, 8 and 9). The rows are not changed.
 
 Editor: **c-057** (claude, `specs_and_docs`, the backup vendor: agy is on its usage limit, per the brief).  
 Panel: one cross-vendor seat (mistral or grok), placed by the holder (rulebook 3.2).
@@ -60,6 +60,8 @@ Kind and vendor come from `do_spl_lane_mix`, read at 10:13:58Z-10:14:05Z on `<bo
 - `tests` -> `pick=claude`. No row is of this kind.
 
 R7 for a claude-authored row is **grok**. `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 10:14:09Z gave `pick=<box-b>` (grok weekly 93% on both boxes, load at or over the high mark on both). That is a pick, not a hold. If grok goes on hold on both boxes before a row's review, the holder rules on the reviewer then. This plan does not set a fallback. The backup seat is mistral if the owner's mistral-review pause no longer applies, which is the holder's call.
+
+**The holder's ruling on N1 (v1.0).** At the panel's re-read, `do_spl_box_pick` gave `pick=hold` for grok: weekly 95% on both boxes, held until 2026-11-28. The holder c-002 ruled (GO msg `a8956e9f`): while box_pick holds grok, each row's R7 seat goes to the claude waiver seat (`1a7c70da`), cross-vendor to the author where possible. An agy-written row is reviewed by claude. A claude-written row is reviewed by the claude waiver seat, per `1a7c70da`. Where the table below says "(grok)", read it as this seat for as long as the hold lasts. The holder re-reads box_pick at each placement.
 
 | row | what is left to build | kind | vendor (R7) | after | cases |
 |---|---|---|---|---|---|
@@ -260,10 +262,22 @@ The steps of each row are the spec's 3.22 text for that row. The brief cites the
 |---|---|---|
 | 2026-11-24 | c-057 (claude) | v0.1 on `review/c002-s153-queue-tab-build-planner`, `7bef22db8`, measured on `dbd127c96` |
 | 2026-11-24 | c-057 (claude) | v0.2 records the owner's answers H1-H7, all A (msg `5e11eca7`, forwarded in `7a57a706`); no re-measure |
+| 2026-11-24 11:12Z | m-072 (mistral) | **PASS** on v0.2 `b2b8e4bae` (msg `1597fe5f`), W none, findings N1-N4 below; `do_spl_review_line_check` rc 0 on its log |
+| 2026-11-24 | c-002 (holder) | GO on `b2b8e4bae` (msgs `a8956e9f`, `84609ce2`); ruling on N1 (section 3) |
+| 2026-11-24 11:13Z | c-057 (claude) | v0.2 landed as `6b6413c30` (rebased onto master, no content change: `git diff b2b8e4bae 6b6413c30 -- <this file>` is empty) |
+| 2026-11-24 | c-057 (claude) | v1.0: the signature, N1-N4 and the N1 ruling; the rows are not changed |
+
+The panel's findings, as m-072 stated them, with what v1.0 does about each:
+
+- **N1**: the R7 seat drifted. `BOX_PICK_KIND=grok` gives `pick=hold` now (95% on both boxes), where the plan recorded `pick=<box-b>` at 93%. v1.0 writes the holder's ruling into section 3.
+- **N2**: the queue drifted. ~10:12Z read 8 queued and 0 placing; at the panel's read it was 5 queued and 1 placing. Section 5 already says the holder re-checks at each placement. No change.
+- **N3**: section 7 does not state the per-brief "re-measure first" line. Sections 2 and 4 are pinned to `dbd127c96` by the "One sha" note. Minor. The holder's GO asked for no change, so v1.0 leaves the line out.
+- **N4**: the forward msg `7a57a706` was not found in prd `messages` from the panel's box. The answers themselves (msg `5e11eca7`) were verified on prd, so only the citation of the forward is unverified. No change.
 
 ## 9. Signatures
 
 | seat | on | verdict |
 |---|---|---|
-| editor c-057 (claude) | v0.1 | the plan commit |
-| cross-vendor seat (mistral or grok) | - | pending |
+| editor c-057 (claude) | v0.1, v0.2, v1.0 | the plan commits |
+| cross-vendor seat m-072 (mistral) | v0.2 `b2b8e4bae` | **PASS**, W none, N1-N4 (msg `1597fe5f`) |
+| holder c-002 | v0.2 `b2b8e4bae` | **GO** (msg `a8956e9f`) |

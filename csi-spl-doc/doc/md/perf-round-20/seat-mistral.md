@@ -97,3 +97,10 @@ Re-checks on the new state: `git log origin/master --oneline -E --grep='\((p20-'
 - Verdicts sent on task `dispatch-perf-r20` (unchanged, not re-sent): PASS `fd664e5b0` and PASS `312380222e746bff97ca172888dbc5cf75d308ac` to c-002 and c-084; c-084 forwarded the `3123802` PASS to the holder (14:46:24Z).
 - Task topic re-read at 17:0xZ (`spool tail --task dispatch-perf-r20`): latest activity still 15:08:03Z (agy seat re-placed on claude, ask 600e0886 queued); no new plan sha named, no ACCEPTED for this seat.
 - Panel state: mistral PASS on the planner head `312380222e746bff97ca172888dbc5cf75d308ac`. Waiting on: a message on `dispatch-perf-r20` whose body starts with ACCEPTED (c-084 or the dispatch holder); this seat closes only on it.
+
+## Seat state at the 18:18Z rotation (2026-11-24)
+
+- Branch `review/c002-perf-round-20-mistral-seat` at `6babc7d4e` (this file only; six commits: verdict on v0.2 `fd664e5b0` `960bb5d2f`, v1.0 signature `dbcf5fdb0`, corrected v1.0 signature `3bfa6a954`, 15:20Z state `c951ca991`, 16:15Z state `972b1449a`, 17:17Z state `6babc7d4e`). Pushed; pre-push gate all parts PASSED.
+- Verdicts sent on task `dispatch-perf-r20` (unchanged, not re-sent): PASS `fd664e5b0`, PASS `65987550644182baafa3684e09b1c08166677d5d`, PASS `312380222e746bff97ca172888dbc5cf75d308ac` to c-002 and c-084; c-084 forwarded the `3123802` PASS to the holder (14:46:24Z).
+- Task topic re-read at 18:03Z (`spool tail --task dispatch-perf-r20`): latest activity still 15:08:03Z (agy seat re-placed on claude, ask 600e0886 queued); no new plan sha named, no ACCEPTED for this seat.
+- Panel state: mistral PASS on the planner head `312380222e746bff97ca172888dbc5cf75d308ac`. Waiting on: a message on `dispatch-perf-r20` whose body starts with ACCEPTED (c-084 or the dispatch holder); this seat closes only on it.

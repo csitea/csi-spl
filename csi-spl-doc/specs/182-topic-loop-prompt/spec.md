@@ -1108,6 +1108,13 @@ trigger to its rows.
   (`<NNNN>_channel_loops.sql`), `ChannelLoopStore`,
   `/v1/channels/{channel}/loops` routes, `channel_loops` WS frame, and
   build rows **C1, C2a, C2b, C3, C4, C5** (9.7-9.9).
+- **Channel archive keeps channel loops (W1, holder ruling):** channel archive
+  is reversible (`handleUnarchiveChannel`, `channel_members.go:576-582`) and
+  already keeps `topic_loops` rows (`retireChannel` never calls
+  `dropTopicLoops`); keeping `channel_loops` silent while archived
+  (`notArchived`) and resuming them on unarchive (with recomputed due times
+  and cleared stale idle state) avoids unapproved data loss and surprise
+  bursts (9.5).
 - **Open owner choices (CL1-CL4):** combination with topic loops, per-topic
   opt-out, channel-loop write permission, and periodic time-trigger fan-out
   on large channels are held open in 9.1 and sent to the dispatch holder as

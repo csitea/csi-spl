@@ -7,7 +7,7 @@ Discussion: t1 `906c1b28-4d23-4fd0-ad3b-7a9422238f04`. The dispatch holder owns 
 Owner addendum: msg `ae2caeb2` (08:34Z). The topic multi-select of spec 186 v0.6 is ONE shared select phase. Spec 153 reuses it and builds no second one (section 6, H2).  
 Rules: [rounds-rulebook.md](rounds-rulebook.md) sections 2 (R1-R16), 3.1, 3.2 and 5, linked here and not copied.
 
-**Status: v0.1, for the panel.** Not signed. No row is placed before the panel PASS and the holder's GO.
+**Status: v0.2, for the panel.** v0.1 `7bef22db8`. v0.2 records the owner's answers to H1-H7 (section 6.1): all A. Not signed. No row is placed before the panel PASS and the holder's GO.
 
 Editor: **c-057** (claude, `specs_and_docs`, the backup vendor: agy is on its usage limit, per the brief).  
 Panel: one cross-vendor seat (mistral or grok), placed by the holder (rulebook 3.2).
@@ -21,7 +21,7 @@ Panel: one cross-vendor seat (mistral or grok), placed by the holder (rulebook 3
 - Paths are repo-relative. `<api>` = `csi-spl-api/src/go/spool-hub-api/internal`, `<orc>` = `csi-spl-orc/src/bash`, `<wui>` = `csi-spl-wui/src`. The spec writes `wui/...` for `csi-spl-wui/src/...` and `orc/...` for `csi-spl-orc/src/bash/...`.
 - "Built" means a grep on `dbd127c96` finds the behaviour. Every grep is quoted with its result.
 - Boxes have no names here: the repo is public. `<box-a>` is the box the holder runs on and `<box-b>` is the other fleet box.
-- This plan adds no design. Where the spec and the code disagree, or the spec leaves something open, section 6 asks the holder. The holder then asks the owner with a form.
+- This plan adds no design. Where the spec and the code disagree, or the spec leaves something open, section 6 asks the holder. The holder asked the owner with one form, and section 6.1 records the answers. Where an answer changes a row, the row says so.
 
 ---
 
@@ -64,21 +64,21 @@ R7 for a claude-authored row is **grok**. `BOX_PICK_KIND=grok ./run -a do_spl_bo
 | row | what is left to build | kind | vendor (R7) | after | cases |
 |---|---|---|---|---|---|
 | Q1 | the `bypass.tsv` line (`prio1:<priority_by>` / `drag:<rank_by>`) and the dragged-head early return, both in `spl_spawn_place_band`; the fleet-rules spawn-queue row. The priority 1 return is built (section 2) | `simple_coding`, class bug | claude (grok) | Q2 (the row carries `priority_by`, `rank_by`), Q3 (same placer file), Q8 (same rules file) | C119 (the bypass line), C120 |
-| Q2 | the rank columns, the effective priority, both PUTs, `ask_op position`, C121 in `askPositions` | `complex_coding` | claude (grok) | c-918's spec 181 B11 lands (R3, section 5) | C111-C113, C115-C118, C121 (C113 per H1) |
+| Q2 | the rank columns, the effective priority, both PUTs, `ask_op position`, C121 in `askPositions` | `complex_coding` | claude (grok) | c-918's spec 181 B11 lands (R3, section 5) | C111-C113, C115-C118, C121 (C113 as H1 A: the copy) |
 | Q3 | `GET /v1/operator/fleet-queue`, the `lane` field, `ask_op holds` | `complex_coding` | claude (grok) | Q2; Q9 (the shared test file) | C102-C104, C122 |
 | Q4 | the read-only Queue tab | `complex_coding` | claude (grok) + language check | Q3; c-918's B11 (`spool-client-lazy.mjs`) | C105-C107 |
 | Q5 | the 1..5 chooser on a request and in the Lanes Prio cell, `PUT .../fleet-lanes/{id}@{box}/priority` | `complex_coding` | claude (grok) + language check | Q4 | C114 |
 | Q6 | drag, Move up / down / to position | `complex_coding` | claude (grok) + language check | Q5 | C115 through the page |
 | Q7 | the Plans table and its route | `complex_coding` | claude (grok) + language check | Q6 (the page) | C108-C110 |
-| Q8 | an issue at priority 1 or 2 passes the filler's "queue empty" gate | `simple_coding` | claude (grok) | Q9 (the rules file); **H4** | - (the spec names no case; its test is in the spec's row) |
+| Q8 | an issue at priority 1 or 2 passes the filler's "queue empty" gate | `simple_coding` | claude (grok) | Q9 (the rules file); H4 A: a person-set priority only | - (the spec names no case; its test is in the spec's row) |
 | Q8b | the workspace readers' route and tab rule | `complex_coding` | claude (grok) | Q7 (the page) | - (as C25/C26) |
 | Q9 | helpers by priority in `do_spl_spawn_enqueue` | `complex_coding` | claude (grok) | - | C125 |
-| Q10 | the flow record and the daily rollup | `complex_coding` | claude (grok) | Q1 and Q3 (the placer file); **H5** | C123 |
+| Q10 | the flow record and the daily rollup | `complex_coding` | claude (grok) | Q1 and Q3 (the placer file); H5 A: PUT + GET | C123 |
 | Q11 | the flow table on the page | `simple_coding` | claude, agy if back (grok, or claude if agy wrote it) + language check | Q10, Q8b (the page) | C124 |
 | Q12 | `SPEC_IMPORT_PLAN` files a signed plan's rows as issues | `simple_coding` | claude, agy if back (grok, or claude if agy wrote it) | - | C126 |
-| Q13 (proposed) | the bulk **Set priority** action on spec 186's select phase | - | - | spec 186 M3 and M4, Q5, and a spec 153 section (**H2**) | none until the section exists |
+| Q13 (proposed) | the bulk **Set priority** action on spec 186's select phase | - | - | spec 186 M3 and M4, Q5, and spec 153 section 3.30 (H2 A) | none until 3.30 exists |
 
-**Language check (the WUI text rows Q4, Q5, Q6, Q7, Q11).** The spec's rows say "agy language review BEFORE land: push `review/<slug>`, ask the dispatch holder for the agy reviewer, land only after its PASS". The repo `CLAUDE.md` makes `do_spl_lang_review_gct` (Google Cloud Translation) the language check and agy optional (owner msg `36b3ff7f`). Each brief therefore names: `do_spl_lang_review_gct` on the new keys before the land, plus the agy review the spec row names while agy is available. agy is out until 11-30, so **H6** asks whether those rows wait for agy or land on the gct check. Q8b adds no text key. Q1-Q3, Q8-Q10 and Q12 have no UI text.
+**Language check (the WUI text rows Q4, Q5, Q6, Q7, Q11).** The spec's rows say "agy language review BEFORE land: push `review/<slug>`, ask the dispatch holder for the agy reviewer, land only after its PASS". The repo `CLAUDE.md` makes `do_spl_lang_review_gct` (Google Cloud Translation) the language check and agy optional (owner msg `36b3ff7f`). The owner answered H6 A ("Google Cloud Translation check, agy optional"): each brief names `do_spl_lang_review_gct` on the new keys before the land. An agy review is optional and no row waits for one. Q8b adds no text key. Q1-Q3, Q8-Q10 and Q12 have no UI text.
 
 ---
 
@@ -90,9 +90,9 @@ The file lists are the spec's 3.22.11, re-pointed to the lines on `dbd127c96`. *
   - Done: the priority 1 pick writes one `bypass.tsv` line (time, ask id, `prio1:<priority_by>`, the holder). A head with `rank_by` is taken past the bands, and a dragged row at position 3 under a plain head does not stop the band pick. Until Q2 lands, the test stubs `priority_by` and `rank_by` on the row JSON. Q2 first is the order proposed here.
   - Red controls: no `bypass.tsv` line on `dbd127c96`; the `rank_by` early return taken out (C120).
   - Why Q1 no longer goes "at once and alone": its urgent half landed on 11-15. What is left reads Q2's fields, and it shares the placer with Q3 and Q10.
-- **Q2.** Files: a new `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_fleet_ask_queue_order.sql` (`do_rdb_migration_next`, not 0320 written by hand); `<api>/store/fleet_ask.go` (`askPrio :253`, `askFillPriorities :263`, `askPositions :293`; the memory store's `ListFleetAsks :483` is in the same file); `<api>/store/fleet_ask_postgres.go` (`ListFleetAsks :138`, `askListPriorities :168`); `<api>/hub/box_ask.go` (`askDiscussion :292` per H1, the `ask_op position` case in the switch `:229-245`); a new `<api>/hub/fleet_ask_order.go` + `_test.go`; one line in `<api>/hub/server.go` (beside `:599`); `<api>/hub/openapi.json`. Run with `PRE_PUSH_TIER=full`.
+- **Q2.** Files: a new `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_fleet_ask_queue_order.sql` (`do_rdb_migration_next`, not 0320 written by hand); `<api>/store/fleet_ask.go` (`askPrio :253`, `askFillPriorities :263`, `askPositions :293`; the memory store's `ListFleetAsks :483` is in the same file); `<api>/store/fleet_ask_postgres.go` (`ListFleetAsks :138`, `askListPriorities :168`); `<api>/hub/box_ask.go` (`askDiscussion :292` stays as it is, H1 A, the `ask_op position` case in the switch `:229-245`); a new `<api>/hub/fleet_ask_order.go` + `_test.go`; one line in `<api>/hub/server.go` (beside `:599`); `<api>/hub/openapi.json`. Run with `PRE_PUSH_TIER=full`.
   - Done: C111-C118 and C121 on memory and Postgres.
-  - Red controls: as the spec states them. C113 depends on H1.
+  - Red controls: as the spec states them, except C113. H1 A keeps SPL-5905's copy and drops the cross-workspace read, so C113 tests the copy: an ask on another workspace's discussion that the operator owner set reads that priority from the operator workspace. Red control: `priorityToOperator` taken out. C121 ranks a ci row first (H3 A).
   - Name `queue_rank`'s Go accessor something other than `askQueueRank`, which already exists as the class rank.
 - **Q3.** Files: a new `<api>/hub/fleet_queue_view.go` + `_test.go`; one line in `server.go`; `openapi.json`; `box_ask.go` (`ask_op holds`); `<orc>/run/spl-spawn-place.func.sh` (the holds send only); `<orc>/tests/spl-spawn-queue.tst.sh` (C103 against `spl_spawn_q_rows`, `<orc>/run/spl-spawn-queue.func.sh:123`).
   - Done: C102-C104 and C122.
@@ -111,14 +111,15 @@ The file lists are the spec's 3.22.11, re-pointed to the lines on `dbd127c96`. *
   - Red control: C109's filter taken out.
 - **Q8.** Files: `<orc>/run/spl-spawn-fill.func.sh` (the gate `:79-80`); `<orc>/tests/spl-spawn-fill.tst.sh`; `csi-spl-doc/doc/md/fleet-rules-index.md:56` (the filler row).
   - Done: a priority 2 issue with a non-empty queue queues one; a priority 3 issue queues none.
-  - Red control: on master, none is queued. See H4 before placing.
+  - Red control: on master, none is queued.
+  - H4 A ("Only a priority a person set"): the gate passes an issue at 1 or 2 only when a person set that priority. A bug's class default of 2 (`issue_prio_default.go`) does not pass. A second case pins this: a bug issue at its default 2 with a non-empty queue queues none.
 - **Q8b.** Files: a new `<api>/hub/workspace_queue_view.go` + `_test.go`; **one line in `server.go` and `openapi.json`**; `monitoring-tabs.mjs`; the Queue page. No new text key.
   - Done: as C25/C26.
   - Red control: a member of w2 reads w1's row.
 - **Q9.** Files: `<orc>/run/spl-spawn-enqueue.func.sh` (a new `@param SPAWN_PARENT_LANE` beside `:48-58`); `<orc>/tests/spl-spawn-queue.tst.sh`; `csi-spl-cnf/csi-spl/all.env.yaml` (`env.box.prio_helpers`; then `ENV=<env> ./run -a do_tpl_gen` and `git diff --exit-code`, as the repo CLAUDE.md requires for a cnf change); `fleet-rules-index.md`. No UI text.
   - Done: C125.
   - Red control: no check.
-- **Q10.** Files: `<orc>/run/spl-spawn-place.func.sh` (one line per tick, `fleet_place_state`); `<orc>/run/spl-push-master.func.sh` (one line per push); a new `<orc>/run/spl-flow-daily.func.sh` + `<orc>/tests/spl-flow-daily.tst.sh`; a new `<next>_fleet_flow_daily.sql`; a new `<api>/hub/fleet_flow.go` + `_test.go`; **`server.go` + `openapi.json`** for its write and read routes (per H5); `csi-spl-orc/cnf/box-crons/box-crons.manifest`. Run with `PRE_PUSH_TIER=full`.
+- **Q10.** Files: `<orc>/run/spl-spawn-place.func.sh` (one line per tick, `fleet_place_state`); `<orc>/run/spl-push-master.func.sh` (one line per push); a new `<orc>/run/spl-flow-daily.func.sh` + `<orc>/tests/spl-flow-daily.tst.sh`; a new `<next>_fleet_flow_daily.sql`; a new `<api>/hub/fleet_flow.go` + `_test.go`; **`server.go` + `openapi.json`** for its write and read routes (H5 A: an operator `PUT` for the rollup and a `GET` for Q11, both in `fleet_flow.go`); `csi-spl-orc/cnf/box-crons/box-crons.manifest`. Run with `PRE_PUSH_TIER=full`.
   - Done: C123.
   - Red control: a tick counted twice.
 - **Q11.** Files: the Queue page or a new child component; `monitoring-queue.mjs`; locale keys.
@@ -157,18 +158,18 @@ The page rows Q4 -> Q5 -> Q6 -> Q7 -> Q8b -> Q11 run in a serial chain. The spec
   - The other 7 are spec and planner lanes (`c002-agent-login-from-wui-spec`, `c002-perf-round-19-planner`, `hand-sat-c002-s187-build-planner`, `c002-msg-card-revoke-spec`, `c002-perf-round-20-planner`, `hand-sat-c003-s149-delete-synced-in-google-spec`, `c002-s154-contacts-switch-synced-elsewhere`). Their scope is docs. Their briefs were not read here.
 - Spec 186's M1-M11 are not in the queue. The holder re-checks the lane map at each placement, because these numbers move.
 
-**Round size.** Rulebook 5.1 aims at 2-3 rows a round for bug and refactor rounds. This is a spec build round under one plan, as the brief asks, and 1.1's cap of 10 rows is exceeded by 13 rows (Q1-Q12 with Q8b). The batch table keeps at most 2 rows live at once. If the holder wants the round split, the cut is after batch 3 (Q1-Q4, Q8, Q9, Q12 = 7 rows), with Q5-Q11 as a second plan. That is **H7**.
+**Round size.** Rulebook 5.1 aims at 2-3 rows a round for bug and refactor rounds. This is a spec build round under one plan, as the brief asks, and 1.1's cap of 10 rows is exceeded by 13 rows (Q1-Q12 with Q8b). The batch table keeps at most 2 rows live at once. If the holder wants the round split, the cut is after batch 3 (Q1-Q4, Q8, Q9, Q12 = 7 rows), with Q5-Q11 as a second plan. The owner answered H7 A: one plan, 13 rows in 8 batches.
 
 ---
 
-## 6. Questions for the holder (to the owner as a form, where they need him)
+## 6. Questions for the holder (to the owner as a form, where they need the owner)
 
 - **H1 (Q2, C113): the cross-workspace priority.** Spec 3.22.6 says `askDiscussion` and `askListPriorities` read other workspaces' topics. `d3dc6f544` (SPL-5905, 11-18) rejected that read side: a non-operator owner's set would move the operator queue (its R7 W1), and it copies the operator owner's set into the operator workspace instead. Options:
   - (A) Drop the read side from Q2. C113 then tests the copy: an ask on another workspace's discussion gets the priority the operator owner set.
   - (B) Keep the spec and the read side, with SPL-5905's guard re-stated.
   - The planner recommends (A): it is what master does, and it keeps that guard.
 - **H2 (Q13): bulk Set priority on spec 186's select phase.** Spec 186 8.3 hands spec 153 the action, its route, its `topic_select` action value and its permission. Spec 153 has none of these, and no Q row builds it.
-  - Proposed: a spec 153 v-next section (3.30, written by a `specs_and_docs` lane) that defines it, then a row Q13 after M3, M4 and Q5.
+  - Proposed: a spec 153 v-next section (3.30, written by a `specs_and_docs` lane) that defines it, then a row Q13 after M3, M4 and Q5. Answered A: section 3.30 first, then Q13.
   - Q1-Q12 do not need it: the per-row chooser of Q5 is a single-row action.
   - Until that section exists, no Q row waits on M3.
 - **H3 (Q2, C121): a `ci` row ranks as priority 1 in `askPrio`.** The spec (3.22.8) calls this "a choice this spec adds; the holder may ask the owner". The placer already takes a ci row first (`:449-453`). Q2 makes the hub's order agree with it. The question is whether to ask the owner before Q2 lands.
@@ -180,6 +181,24 @@ The page rows Q4 -> Q5 -> Q6 -> Q7 -> Q8b -> Q11 run in a serial chain. The spec
 - **H5 (Q10): the rollup's write and read path.** The spec names `hub/fleet_flow.go` but no route or `ask_op`. Proposed: an operator `PUT` for the rollup and a `GET` for Q11, both in `fleet_flow.go`, registered in `server.go` (as section 4 lists).
 - **H6 (Q4-Q7, Q11): agy or gct.** These rows say "agy language review BEFORE land". The repo `CLAUDE.md` makes `do_spl_lang_review_gct` the check and agy optional (msg `36b3ff7f`). agy is out until 2026-11-30T21:31Z. The question is whether these rows land on the gct check or wait for agy.
 - **H7: the round size.** Is one plan of 13 rows in 8 batches right, or should it split after batch 3?
+
+### 6.1 The owner's answers
+
+Owner HUM-10, t1 `906c1b28`, msg `5e11eca7`, answering form `ced5bc93`. The dispatch holder c-002 forwarded it in msg `7a57a706`. Verbatim:
+
+> "Answer 1: A — Keep the copy, drop the cross-workspace read Answer 2: A — Spec 153 section 3.30 first, then row Q13 Answer 3: A — Yes, as the placer already does Answer 4: A — Only a priority a person set Answer 5: A — Operator PUT plus GET in fleet_flow.go Answer 6: A — Google Cloud Translation check, agy optional Answer 7: A — One plan, 13 rows in 8 batches"
+
+| question | answer | where it lands |
+|---|---|---|
+| H1 | A: keep SPL-5905's copy, drop the cross-workspace read | Q2; C113 tests the copy |
+| H2 | A: spec 153 section 3.30 first, then Q13 | a `specs_and_docs` lane writes 3.30; Q13 is planned after it |
+| H3 | A: a ci row ranks first, as the placer already does | Q2, C121 |
+| H4 | A: only a priority a person set passes the filler | Q8 |
+| H5 | A: an operator PUT and a GET in `fleet_flow.go` | Q10, Q11 |
+| H6 | A: the gct check, agy optional | Q4-Q7, Q11 |
+| H7 | A: one plan, 13 rows in 8 batches | section 5 |
+
+The spec's own text still reads as v1.x: 3.22.6 "Across workspaces", Q8's gate and the language line of 3.22.11 do not yet carry these answers. A spec addendum that records them is the 3.30 lane's to write, together with 3.30 itself. This plan does not edit the spec.
 
 ---
 
@@ -211,17 +230,17 @@ The steps of each row are the spec's 3.22 text for that row. The brief cites the
   - C103 compares the route with `spl_spawn_q_rows` on one seeded queue.
 - **Q4 the tab, read only** (`complex_coding`, after Q3). Read 3.22.3 and C105-C107.
   - Own chunk: C107's `perf-budget.py` check.
-  - Language check per H6: push `review/<slug>`, then land only after the check passes.
+  - Language check (H6 A: gct, agy optional): push `review/<slug>`, then land only after the check passes.
 - **Q5 the chooser** (`complex_coding`, after Q4). Read 3.22.6 "On a lane" and C114.
   - The Lanes Prio cell becomes the chooser for whoever may set it.
-  - Language check per H6.
+  - Language check (H6 A: gct, agy optional).
 - **Q6 drag** (`complex_coding`, after Q5). Read 3.22.7 "Not only a mouse" and C115 through the page, at 1440 and 390 px.
-  - Language check per H6.
+  - Language check (H6 A: gct, agy optional).
 - **Q7 Plans** (`complex_coding`, after Q6). Read 3.22.5 "How it shows" and C108-C110.
   - The route needs a `server.go` line.
-  - Language check per H6.
+  - Language check (H6 A: gct, agy optional).
 - **Q8 a set plan passes the filler** (`simple_coding`, after Q9). Read 3.22.5 "How a plan becomes a request".
-  - Placed only after H4 is answered.
+  - The gate as H4 A: a person-set priority only.
 - **Q8b workspace readers** (`complex_coding`, after Q7). Read 3.22.3 "Who reads it" and C25/C26's shape. No text key.
 - **Q9 helpers by priority** (`complex_coding`). Read 3.22.9 and C125.
   - cnf `env.box.prio_helpers`, then `do_tpl_gen` with `git diff --exit-code`.
@@ -229,7 +248,7 @@ The steps of each row are the spec's 3.22 text for that row. The brief cites the
   - Claim the migration number. `PRE_PUSH_TIER=full`. Add the cron row.
   - Its routes per H5.
 - **Q11 flow view** (`simple_coding`, after Q8b and Q10). Read 3.22.8 "The view" and C124: no sentence of cause.
-  - Language check per H6.
+  - Language check (H6 A: gct, agy optional).
 - **Q12 a signed plan files its issues** (`simple_coding`). Read 3.22.5 "Filing a signed plan" and C126.
   - The plan form it parses is this file's section 3 table.
 
@@ -239,7 +258,8 @@ The steps of each row are the spec's 3.22 text for that row. The brief cites the
 
 | when (UTC) | who | what |
 |---|---|---|
-| 2026-11-24 | c-057 (claude) | v0.1 on `review/c002-s153-queue-tab-build-planner`, measured on `dbd127c96` |
+| 2026-11-24 | c-057 (claude) | v0.1 on `review/c002-s153-queue-tab-build-planner`, `7bef22db8`, measured on `dbd127c96` |
+| 2026-11-24 | c-057 (claude) | v0.2 records the owner's answers H1-H7, all A (msg `5e11eca7`, forwarded in `7a57a706`); no re-measure |
 
 ## 9. Signatures
 

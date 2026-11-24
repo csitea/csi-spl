@@ -496,7 +496,8 @@ New file `internal/hub/box_refresh.go`:
   24 h, or none at all) is asked like any other, and its row fills on the
   answer (review W3 on `3a806f18c`). A pinned box with no socket anywhere
   reads `stale`, or `never` when it has no sample;
-- the pending map `(tenant, box) -> {req, deadline}` on every instance, fed
+- the pending map `req -> {tenant, box, deadline}` on every instance (keyed
+  by request id, row T5; review N1 on `aabb27ef2`), fed
   by the NOTIFY listener (a new channel on the listen connection that
   `RunWake` already holds; `store.BoxSampleWaker`, Memory and Postgres, so
   the tests run two hub servers on one Memory store as two instances, as
@@ -508,7 +509,20 @@ New file `internal/hub/box_refresh.go`:
   `case wire.TCommit` at `:193`): check the pending request id, decode with
   `DisallowUnknownFields`, `CheckBoxStat`, `AppendBoxStat`;
 - the answer: `{asked_at, wait_ms, boxes: [{box, state, row}]}`, `row` the
-  same `store.BoxStat` the GET returns, `state` one of 7.4.
+  same `store.BoxStat` the GET returns, `state` one of 7.4;
+- one request per box (row T6, review N1/N2): a click does not ask a box
+  that already has a pending request inside its deadline on this instance
+  (every instance's announce reaches every instance), it waits on that one.
+  Two requests for one box are outstanding only when two instances ask it
+  within one NOTIFY's latency; the request-id key then keeps both, each
+  gets its own frame and each answer is stored once (`box_sample_put` of an
+  id already taken stores nothing). Test: `TestBoxRefreshOneRequestPerBox`;
+- the per-tenant limits of 7.5 (one run in flight, `_PER_H` starts per
+  rolling hour) are held in each instance's memory, so with two instances a
+  workspace can start up to twice `_PER_H` in an hour; the per-box limit
+  (`_MIN_S`, read from `box_stats`) and the one-request-per-box rule hold
+  across instances. A joined click starts nothing and is not counted, and
+  gets the run's answer filtered to its own lock view.
 
 #### 7.6.3 Box
 

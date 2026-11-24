@@ -440,6 +440,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 			PostsPerMinute: hc.EmbedPostsPerMinute, PostsPerDay: hc.EmbedPostsPerDay, TurnsPerDay: hc.EmbedTurnsPerDay,
 			LiveVisitorsMax: hc.EmbedLiveVisitorsMax, ChallengeAfterHits: hc.EmbedChallengeAfterHits,
 			BanAfterHits: hc.EmbedBanAfterHits, HitsWindow: hc.EmbedHitsWindow, BanFor: hc.EmbedBanFor},
+		BoxRefresh:   hub.BoxRefreshLimits{Wait: hc.BoxRefreshWait, MinAge: time.Duration(hc.BoxRefreshMinS) * time.Second, PerHour: hc.BoxRefreshPerH}, // spec 071 7.5
 		PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout, WSMaxLife: hc.WSMaxLife,
 		TopicPDF:            topicpdf.HTTPRenderer{URL: hc.PDFURL, Timeout: hc.PDFTimeout},                      // spec 183 7.1.5, 7.1.6
 		CostLabelTranslator: costLabelTranslator(hc), CostLabelsTranslateTimeout: hc.CostLabelsTranslateTimeout, // spec 123 16.6.3

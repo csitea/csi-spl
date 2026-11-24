@@ -188,6 +188,9 @@ type Options struct {
 	// peer redials. It bounds how long a retired Cloud Run instance holds a
 	// max_instances slot. 0 = no cap.
 	WSMaxLife time.Duration
+	// BoxRefresh is the Refresh button's wait and limits (spec 071 7.5,
+	// box_refresh.go; cnf SPOOL_HUB_BOX_REFRESH_*); a zero field is its default.
+	BoxRefresh BoxRefreshLimits
 	// MsgVersion is the v of the messages the hub composes itself (WUI posts,
 	// dispatch), cnf SPOOL_HUB_MSG_VERSION (specs/020); 0 = msg.Version.
 	MsgVersion int
@@ -383,6 +386,7 @@ type Server struct {
 	statusSwept statusSweeps // human_status.go: last expiry sweep per tenant, its own lock
 	relayDue    relayCadence // relay.go: when the slow relay sweeps last ran, its own lock
 	samples     boxSamples   // box_refresh.go: the pending box_sample requests (spec 071 T5), its own lock
+	refreshes   boxRefreshes // box_refresh.go: the Refresh runs in flight and the hour's starts per tenant (row T6)
 
 	heads *headShadow // view.go: the topic-head shadow's sampler and counters (spec 099)
 }
@@ -585,6 +589,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeWorkspaceDocs(mux)   // specs/075 Phase 2: /v1/workspace/docs/{path...}
 	s.routeDocTree(mux)         // spec 113 T004: /v1/workspace/doctree (outline + grid)
 	s.routeBoxStats(mux)        // rdb 0117: GET /v1/tenant/box-stats
+	s.routeBoxRefresh(mux)      // spec 071 T6: POST /v1/tenant/box-stats/refresh
 	s.routeBoxLocks(mux)        // spec 025 box owner lock 6.2: /v1/boxes/{box}/lock, box_lock_routes.go
 	s.routeCostRead(mux)        // spec 123 lane 4b: GET /v1/tenant/costs, cost_read.go
 	s.routeCostCloudDays(mux)   // SPL-4187: GET /v1/tenant/costs/cloud, cost_cloud_days.go

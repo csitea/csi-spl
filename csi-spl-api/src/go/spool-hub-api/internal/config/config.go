@@ -668,6 +668,14 @@ type Hub struct {
 	// max_instances slot for at most this long, not the 3600 s request
 	// timeout. 0 = no cap.
 	WSMaxLife time.Duration `env:"SPOOL_HUB_WS_MAX_LIFE" envDefault:"5m"`
+	// The Refresh button of Monitoring > Boxes (spec 071 7.5, 8.7.1, row T6):
+	// the hub's wait for the asked boxes' answers (8.3.4: 45 s, a fresh du
+	// included), the age under which a box's newest sample is recent and the
+	// box is not asked, and the refreshes one workspace may start per rolling
+	// hour (the next answers 429). All positive.
+	BoxRefreshWait time.Duration `env:"SPOOL_HUB_BOX_REFRESH_WAIT" envDefault:"45s"`
+	BoxRefreshMinS int           `env:"SPOOL_HUB_BOX_REFRESH_MIN_S" envDefault:"60"`
+	BoxRefreshPerH int           `env:"SPOOL_HUB_BOX_REFRESH_PER_H" envDefault:"12"`
 	// PDFURL is the topic PDF renderer service (spec 183 7.1.6, cnf
 	// hub.pdf.url); "" = GET /v1/topics/{task_id}/export.pdf answers 503.
 	PDFURL string `env:"SPOOL_PDF_URL"`
@@ -851,6 +859,9 @@ func (h *Hub) checkLimits() error {
 	}
 	if h.EdgeWindow <= 0 || h.HelloTimeout <= 0 || h.WSPingTimeout <= 0 {
 		return errors.New("SPOOL_HUB_EDGE_WINDOW, SPOOL_HUB_HELLO_TIMEOUT and SPOOL_HUB_WS_PING_TIMEOUT must be positive")
+	}
+	if h.BoxRefreshWait <= 0 || h.BoxRefreshMinS <= 0 || h.BoxRefreshPerH <= 0 {
+		return errors.New("SPOOL_HUB_BOX_REFRESH_WAIT, SPOOL_HUB_BOX_REFRESH_MIN_S and SPOOL_HUB_BOX_REFRESH_PER_H must be positive (spec 071 7.5)")
 	}
 	if h.PDFTimeout <= 0 {
 		return errors.New("SPOOL_PDF_TIMEOUT must be positive (spec 183 7.1.6, e.g. 120s)")

@@ -19573,6 +19573,60 @@
         ]
       }
     },
+    "/v1/tenant/box-stats/refresh": {
+      "post": {
+        "operationId": "postTenantBoxStatsRefresh",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "box": {
+                    "description": "one pinned box; omitted = every box the page lists",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "description": "{asked_at, wait_ms, boxes: [{box, state (fresh | recent | stale | never), row}]}: each asked box's newest sample after a wait of at most SPOOL_HUB_BOX_REFRESH_WAIT (spec 071 7.4, 7.6.2)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "description": "rate_limited: SPOOL_HUB_BOX_REFRESH_PER_H refreshes this rolling hour; Retry-After says when the next may start"
+          },
+          "501": {
+            "description": "unsupported: this hub's store keeps no box stats or carries no box sample requests"
+          }
+        },
+        "summary": "Sample the workspace's boxes now and wait for their answers (tenant.settings; spec 071 7.5)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
     "/v1/tenant/channels": {
       "get": {
         "operationId": "getTenantChannels",

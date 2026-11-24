@@ -31,3 +31,9 @@ func (s *Server) PendingBoxSample(tenant, box, req string) bool {
 	r := s.samples.m[req]
 	return r != nil && r.tenant == tenant && r.box == box
 }
+
+// PendingBoxSampleFor is a test hook (spec 071 7.8, row T6): whether this
+// instance holds any request for (tenant, box) inside its deadline.
+func (s *Server) PendingBoxSampleFor(tenant, box string) bool {
+	return s.samples.pendingFor(tenant, box, s.o.Now())
+}

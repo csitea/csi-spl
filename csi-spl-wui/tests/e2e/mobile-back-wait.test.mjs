@@ -10,9 +10,10 @@
 // dots with a MutationObserver from the moment of the Back.
 //   1-3. a slow Back by each way in (the chevron, browser Back, a swipe
 //        right): dots seen, and gone once the feed has loaded. SPL-5232
-//        (owner, t1 90194aeb): the chevron and a swipe from #lobby's topics
-//        go to the channel list (2 -> 1), not to #alerts; the slow Back is
-//        then the dock's Back from the list, the browser's Back to #alerts
+//        (owner, t1 90194aeb) and SPL-6379 (owner, t1 acfc125c): every Back
+//        from #lobby's topics, browser Back too, goes to the channel list
+//        (2 -> 1), not to #alerts; the slow Back is then the dock's Back
+//        from the list, or a second browser Back to #alerts
 //   4.   the same Back with no plant (the mock answers at once): the dots
 //        show for ~0.7 s, then go
 //   5.   a Back that needs no load (level 3 -> 2, the feed is there) with

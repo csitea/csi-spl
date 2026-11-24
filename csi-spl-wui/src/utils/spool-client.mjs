@@ -998,6 +998,10 @@ function sendMethods(mock, mk, conn) {
  */
 function selectMethods(mock, mk, conn) {
   return {
+    /** Select by title can be offered: the mock answers topic_select itself; live needs the socket's request half (setRequester) */
+    canTopicSelect() {
+      return Boolean(mock) || typeof conn.request === 'function'
+    },
     async topicSelect({ req_id, action, task_ids = [], patterns = [] } = {}) {
       const frame = { type: 'topic_select', req_id: String(req_id || uuid()), action: String(action || ''), task_ids: [...task_ids], patterns: [...patterns] }
       if (mock) return (await mk.answers()).mockTopicSelect(mk.state, frame)

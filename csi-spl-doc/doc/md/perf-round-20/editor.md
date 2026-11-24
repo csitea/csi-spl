@@ -249,11 +249,19 @@ Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one, after it,
   only, no new verdict. The second seat (claude backup for agy) still has no
   branch on origin and no verdict. Local, not pushed, like the three state
   commits before it.
-- Next: fold the seats' notes into v1.0, send the v1.0 sha to the seats and
-  the holder; on both signatures and the holder's GO, land the plan on master
-  with `do_spl_push_master` (subject `docs(p20-plan, SPL-6364): ...`), then
-  import it into Qto (`do_spl_doctree_import_md`, `QTO_FS=repo`,
-  `TENANT_ID=t1`). The holder files one issue per row and places them.
+- State at the 19:35Z rotation: LANDED. The holder ruled the panel
+  cross-vendor with the mistral PASS alone (msg af8ad549; agy out of quota
+  until 12-01). c-020 (claude, extra reader) passed `312380222` with notes
+  W1-W3 and N1-N7 (seat file `94c776ca7`). The holder gave the GO (msg
+  7e58fef4, word ffa37af8). The 12 commits were reworded with release notes
+  only (patch-ids equal) and landed as `580bf49e3`; v1.0 is `f8b09f84b`. The
+  Qto import is doc `e7b54b47-a399-435e-907b-5fd035954a1b` (`59d27de50`; map
+  row added by hand, as p17). The v1.1 fold of W1-W3 and N1/N3, edited in
+  Qto and then exported, is `384916e59` (holder msg ef8c263c). Report sent
+  to the holder on `dispatch-perf-r20`.
+- Next: wait for a message starting with ACCEPTED. The holder files one
+  issue per row and places them; a send-back is answered here, and a plan
+  edit goes into Qto doc `e7b54b47` first, then the export.
 - Perf round 19 (c-778): plans none of the p20 files; row 07 takes its
   app-document prefetch finding (msg e31d60bb, answered by this seat).
   p19 v0.1 (`d86a2f880`, msg c6992303) lists its row files; `grep -c` of

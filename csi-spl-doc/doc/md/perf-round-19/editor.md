@@ -3,9 +3,9 @@
 Seat: c-778 (claude), issue SPL-6363, epic SPL-2402, spec
 `csi-spl-doc/specs/027-spool-performance`. Brief: desktop web UI speed,
 7 rows ranked by gain per cost (owner HUM-10, t1 4369bb74, msgs 20a0121d,
-6eb7d949, 2737efe6). Holder: c-002. The plan
-(`perf-round-19-plan.md`) is NOT drafted yet; this file is the raw evidence
-and the state at the rotation of 12:27Z.
+6eb7d949, 2737efe6). Holder: c-002. The plan is
+[perf-round-19-plan.md](../perf-round-19-plan.md) (v0.1); this file is the raw
+evidence behind it.
 
 ## 1. The tree
 
@@ -165,6 +165,82 @@ screen (spec 109 T004 keeps a settled roster / topic-list read for 10 s;
 first-screen read it; L8 `/v1/wui/revision` twice per step. The hub itself
 answers in 66..181 ms medians: the desktop wait is client work, not the hub.
 
+### 2.7 Typing: forced-layout stacks (Chrome trace, n=3)
+
+Scratch probe `/var/tmp/c-778-p19/probe2/attr.mjs` (not committed): one fresh
+context, the journey of 2.5, then `page.tracing.start` with
+`devtools.timeline` + `disabled-by-default-devtools.timeline.stack`, 41 keys
+typed into `form.composer.omnibox--global textarea` on `/lobby` (10 ms
+delay). Layout events per first stack frame, mapped by reading the mock chunk
+`CQJL2IE7.js` at that column:
+
+| frame (chunk:2:col) | source | trace 1 | trace 2 | trace 3 |
+|---|---|---|---|---|
+| `n:99285` | `useComposerWrap.ts` text width: hidden span, `getComputedStyle`, `getBoundingClientRect` | 43 | 43 | 43 |
+| `i:101644` | `useComposerSize.ts` `fitGlobalBox`: `scrollHeight > clientHeight` | 41 | 41 | 41 |
+| `i:101675` | `fitGlobalBox`: `scrollHeight` after `height = 'auto'` | 41 | 41 | 41 |
+| frame (no script stack) | the frame's own layout | 43 | 43 | 43 |
+| forced layout ms (sum) | | 239 | 163 | 172 |
+
+Load1 83..120. Keydown events: 41 in each trace. Trace 1 also: forced
+UpdateLayoutTree + Layout 314 ms over the 41 keys; `input` handler median
+10.5 / p90 27.7 ms.
+
+### 2.8 Search hits are never released (forced GC, heap snapshot)
+
+Scratch `/var/tmp/c-778-p19/probe2/heap.mjs`: CDP `HeapProfiler.collectGarbage`
+twice, then `Performance.getMetrics` `Nodes`; mock seeded with NLONG rows of
+`spool.mock.extra-messages`.
+
+| run | lobby | after search | after back to `/lobby` | after a 0-hit search + `/lobby` | retained | n |
+|---|---|---|---|---|---|---|
+| 30 hits | 1,783 | 2,661 | 3,181 | 3,705 | +1,922 | 3 (identical) |
+| 400 hits | 1,450 | 11,948 | 12,136 | 12,356 | +10,906 | 1 |
+| 0 hits (`q=zzzz`, 400 rows seeded) | 1,461 | 1,500 | 1,709 | - | +248 | 1 |
+
+After the 0-hit search the document holds 688 elements, so the +1,922 are not
+in the page. Journey form (`attr.mjs`, 400 rows, forced GC): search ->
+back -> search again -> back: nodes 17,597 / 17,772 / 28,244 / 28,419,
+17,799 / 17,974 / 28,446 / 28,621 and (2.5's run) 17,608 / 17,783 / 28,255 /
+28,430: a second search adds them again (n=3). Listeners 3,113 -> 4,740
+(n=1).
+
+On `/lobby` after ONE search (no second), the side panel still shows the 401
+hits (`[data-test=search-row]` 401, visible, inside `nav.sidebar` ->
+`[side-search]`): that part is the open panel, not a leak.
+
+Heap snapshot after the 400-hit + 0-hit sequence (`s2.heapsnapshot`, 51 MB,
+scratch; `job.js`, `ret2.js` walk it): 8,838 native objects with
+detachedness 2; retainer chains from detached `side-hit__text` / Text nodes
+end at a `native_bind` with an `i` edge, Vue's scheduler job of a component
+instance whose root is `<span data-v-c29224aa>` = `HumanName.vue` (scope id
+read from chunk `BcXV2UrL.js`). 410 such `HumanName` jobs; the first
+retainer of 57 of them (sample 400) is another instance's `component` /
+`vnode` chain: the old list's vnode tree is still reachable. The root holder
+is not named here: row 03 finds it.
+
+Real page size: `csi-spl-api/src/go/spool-hub-api/internal/hub/search.go:33-35`:
+`searchGroupedDefault = 5`, `searchGroupedMax = 20`, `searchPageDefault = 30`.
+
+### 2.9 `Notification.permission` read cost (n=5)
+
+Scratch `/var/tmp/c-778-p19/probe2/perm.mjs`: a fresh context per round, mock
+`/lobby`, `performance.now()` around two reads of `Notification.permission`:
+first read 39, 10.9, 1.1, 54, 1.4 ms; second 26, 0.4, 0.2, 19.8, 0.8 ms;
+value `default`. Load1 ~100, headless.
+
+### 2.10 Hub reads re-attributed (dev, same run as 2.6)
+
+- `/v1/view/me` and `/v1/view/topics`, per first screen, all 200: r0 1+1,
+  r1 1+1, r2..r5 2+2 (`timing.json` of the run, `first-screen.api`).
+- `/v1/view/topics` has two first-screen callers with different queries:
+  `stores/channel.ts:238` (`listTopics({ dm: true, ... })`) and
+  `stores/flow.ts:135`. Not shown to be a duplicate: dropped.
+- `/v1/view/flow`: the first-screen read is the badge (`readCounts`,
+  `flow.ts:272`, `countsOnly`), the Flow open reads the lines
+  (`readMine`, `flow.ts:239`; the run's timeline shows
+  `/v1/view/flow?limit=30&fold=day`). Different reads: L7 dropped.
+
 ## 3. Off-limits files (R1 / R3), read 2026-11-24
 
 - c-980 (SPL-5070, Nuxt 4), from `review/c002-spl5070-nuxt4-migration-r2`
@@ -188,12 +264,10 @@ answers in 66..181 ms medians: the desktop wait is client work, not the hub.
 - No sign-in of my own, no post on dev or prd, no key read. The dev harness
   runs went through their own actions (the action reads its test member).
 
-## 5. Next (for this seat or its successor)
+## 5. State
 
-1. Re-run the probe n=5 (`N=5`), then attribute L1 (heap snapshot: which
-   component keeps the nodes) and L2 (a trace with forced-layout stacks).
-2. Read `do_spl_wui_perf_flow_events` output (`/var/tmp/c-778-p19/flow-dev`,
-   running at rotation) for the hub reads per step.
-3. Draft 7 rows off section 3's files, each with baseline / gain / files /
-   counting test + red control; send c-084 and c-002 the file list; push
-   v0.1 to `review/c002-perf-round-19-planner`; ask c-002 for panel seats.
+- L1 attributed (2.8): row 03. L2 attributed (2.7): rows 01, 02. L3 and the
+  `useSidebarVersion` hotspot: p20. L4 (2.9): row 05. L6 `me` (2.10): row 04;
+  L6 `topics`: dropped. L7: dropped (2.10). L8: row 06.
+- Plan v0.1 pushed to `review/c002-perf-round-19-planner`; panel asked of
+  the holder (plan section 5).

@@ -239,6 +239,11 @@ Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one, after it,
   `312380222` (ls-remote). The mistral seat branch moved to `972b1449a`, its
   own state commits only, no new verdict. Agy: still no verdict, no agy seat
   branch on origin. This commit stays local beside the 15:31Z one.
+- State at the 17:33Z rotation: unchanged. Planner head still `312380222`
+  (ls-remote). Mistral seat branch at `6babc7d4e`, its 17:17Z state commit
+  only, no new verdict. The second seat (claude backup for agy, ask
+  600e0886, queued 15:08Z) has no branch on origin and no verdict yet.
+  Local, not pushed, like the two state commits before it.
 - Next: fold the seats' notes into v1.0, send the v1.0 sha to the seats and
   the holder; on both signatures and the holder's GO, land the plan on master
   with `do_spl_push_master` (subject `docs(p20-plan, SPL-6364): ...`), then

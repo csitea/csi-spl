@@ -332,13 +332,26 @@ export function alertsActive(permission, enabled) {
  *   blocked     wanted, the browser denies them (only its site settings undo it)
  *   install     wanted, iPhone / iPad Safari: only a Home Screen app may notify
  *   unsupported wanted, this browser has no notifications at all
+ *   pending     wanted, the permission is not read yet (p19-05, SPL-6421:
+ *               the store reads it in an idle callback); shown neutral
  */
 export function alertState(permission, enabled, env = {}) {
   if (!enabled) return 'off'
+  if (permission === 'pending') return 'pending'
   if (permission === 'granted') return 'on'
   if (permission === 'denied') return 'blocked'
   if (permission === 'default') return 'ask'
   return needsHomeScreen(env) ? 'install' : 'unsupported'
+}
+
+/** The bell and Settings mark these states as a warning; 'pending' is neutral. */
+export function alertWarns(status) {
+  return ['ask', 'blocked', 'install', 'unsupported'].includes(status)
+}
+
+/** Settings offers a test alert wherever the browser can still answer it. */
+export function alertCanTest(status) {
+  return ['on', 'off', 'ask'].includes(status)
 }
 
 /**

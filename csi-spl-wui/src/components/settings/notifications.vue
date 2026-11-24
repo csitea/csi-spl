@@ -25,7 +25,7 @@
       </button>
     </div>
     <div class="settings__state" data-test="settings-notify-state" :data-state="notes.alertStatus" role="status">
-      <p class="settings__state-text" :class="{ 'settings__state-text--warn': warn }">{{ t(`notify.state_${notes.alertStatus}`) }}</p>
+      <p v-if="notes.alertStatus !== 'pending'" class="settings__state-text" :class="{ 'settings__state-text--warn': warn }">{{ t(`notify.state_${notes.alertStatus}`) }}</p>
       <div class="settings__state-actions">
         <button
           v-if="notes.alertStatus === 'ask'"
@@ -110,6 +110,8 @@ import {
   loadMutedChannels,
   saveMutedChannels,
   toggleMutedChannel,
+  alertWarns,
+  alertCanTest,
 } from '~/utils/notify.mjs'
 import { playSound } from '~/utils/notify-sound.mjs'
 
@@ -117,9 +119,8 @@ const { t } = useI18n({ useScope: 'global' })
 const notes = useNotificationStore()
 const uid = useId()
 const alertsWanted = computed(() => notes.alertsEnabled)
-const warn = computed(() => ['ask', 'blocked', 'install', 'unsupported'].includes(notes.alertStatus))
-/* a test is worth offering wherever the browser can still answer it */
-const canTest = computed(() => ['on', 'off', 'ask'].includes(notes.alertStatus))
+const warn = computed(() => alertWarns(notes.alertStatus))
+const canTest = computed(() => alertCanTest(notes.alertStatus))
 const testResult = ref('')
 async function test() {
   testResult.value = ''

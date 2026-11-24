@@ -31,6 +31,7 @@
 
 <script setup lang="ts">
 import { useNotificationStore } from '~/stores/notification'
+import { alertWarns } from '~/utils/notify.mjs'
 
 /* SPL-990: 'rail' is the sidebar's copy (desktop); 'menu' is the one in the
    phone avatar sheet. At <= 820 px the rail copy steps aside for it.
@@ -43,7 +44,7 @@ const chimeLabel = computed(() => (notes.chime ? t('notify.chime_on') : t('notif
 /* the bell is the reader's switch; when the browser does not follow it (not
    asked, blocked, iOS tab) the hover text says so. HUM-10 (f4316e89): the bell
    draws no dot for it any more - Settings -> Notifications names the state */
-const warn = computed(() => ['ask', 'blocked', 'install', 'unsupported'].includes(notes.alertStatus))
+const warn = computed(() => alertWarns(notes.alertStatus))
 const alertsLabel = computed(() => (alertsWanted.value ? t('notify.alerts_on') : t('notify.enable_alerts')))
 const bellTitle = computed(() => (warn.value ? `${alertsLabel.value}: ${t(`notify.state_${notes.alertStatus}`)}` : alertsLabel.value))
 </script>

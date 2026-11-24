@@ -85,8 +85,11 @@ CI_KEYS = tuple(key for key, _doc in CI_DOCS)
 ROUTE_CHUNKS = (
     ("ci_roadmap_route_gzip_kb", ('"roadmap-page"', '"roadmap-spec-table"')),
     # spec 123 5 (SPL-2056): Monitoring -> Costs, its page, its pie and
-    # tenant-costs.mjs (the mock key is a literal only that module carries)
-    ("ci_costs_route_gzip_kb", ('"costs-page"', '"costs-pie"', '"spool.mock.costs"')),
+    # tenant-costs.mjs, marked by its share-note key, a literal only that
+    # module carries. Not the mock key "spool.mock.costs": vite 8 (rolldown)
+    # inlines that imported constant into utils/cost-project.mjs, the
+    # project page's chunk, which Monitoring -> Costs never loads (SPL-5070).
+    ("ci_costs_route_gzip_kb", ('"costs-page"', '"costs-pie"', '"ai_share_from"')),
     # spec 090 T036 (SPL-4804): the draft hand-over card, its own lazy chunk
     # (MarketingDraftHandover.vue with utils/marketing-handover.mjs)
     ("ci_marketing_handover_gzip_kb", ('"marketing-draft-handover"',)),

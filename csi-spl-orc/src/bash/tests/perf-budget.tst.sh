@@ -208,6 +208,16 @@ python3 "$PY" bundle --pub "$T/route" --budgets "$T/costslow.json" >"$T/bout" 2>
 rc=$?
 [[ $rc -eq 1 ]] && grep -q '^FAIL ci_costs_route_gzip_kb ' "$T/bout" \
   && pass "CONTROL: the costs route over its ceiling exits 1" || fail "CONTROL costs over: rc=$rc $(cat "$T/bout")"
+# 2d'. vite 8 inlines the imported mock key into the cost-project chunk (the
+# project page's, never loaded by Monitoring -> Costs): not the route's.
+# tenant-costs' own share-note key is.
+python3 -c 'import os,sys; open(sys.argv[1]+"/_nuxt/costproj.js","wb").write(b"r(\"spool.mock.costs\",\"\");"+os.urandom(4000))' "$T/route"
+python3 -c 'import os,sys; open(sys.argv[1]+"/_nuxt/tcosts.js","wb").write(b"k={key:\"ai_share_from\"};"+os.urandom(2000))' "$T/route"
+python3 "$PY" bundle --pub "$T/route" --budgets "$T/costs.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 0 ]] && grep -qE '^ROUTE ci_costs_route_gzip_kb 2 chunk\(s\) gzip [56](\.[0-9])? KB' "$T/bout" \
+  && pass "the costs route counts tenant-costs' chunk, not the cost-project chunk holding the inlined mock key" || fail "costs markers: rc=$rc $(cat "$T/bout")"
+rm "$T/route/_nuxt/costproj.js" "$T/route/_nuxt/tcosts.js"
 rm "$T/route/_nuxt/costs.js"
 python3 "$PY" bundle --pub "$T/route" --budgets "$T/costs.json" >"$T/bout" 2>&1
 rc=$?

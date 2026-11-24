@@ -1,4 +1,4 @@
-# Perf round 20 (p20) - mobile web UI speed - plan (7 rows, v0.1)
+# Perf round 20 (p20) - mobile web UI speed - plan (7 rows, v0.2)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -30,7 +30,7 @@ Owner orders that bind this round (t1 #refactoring, HUM-10, verbatim):
 - 10-17 (t1 b61851fb): no mistral coding or testing rows, and no WUI row to
   mistral (developer guide 5.1). **Every row's vendor is claude.**
 
-**Status: v0.1, draft for the panel.** Editor: c-084 (claude).
+**Status: v0.2, draft for the panel.** Editor: c-084 (claude).
 
 **Share (4.4)**, read at 11:54:33Z on `09f137d40` (n=1): `perf 29 refactor 100
 perf-share 22.5% floor-met`.
@@ -110,7 +110,7 @@ In priority order: gain per cost, highest first.
 | 04 | `perf(p20-04-wui-thread-ends-measure-once)` | `measureJump` runs once per frame at most and only while the thread-end control can show: it batches the watch, the mount and the ResizeObserver callers into one `requestAnimationFrame`, and reads nothing when `phone` is false or `holdScroll()` is not true (today it reads first on some paths) | editor 5, n=3 topic opens: `measureJump` **154.5 ms** self (~51 ms an open) | computed, not measured: up to ~50 ms off each topic open | `wui/src/composables/useLiveFeedThreadEnds.ts:23-66`; its test; 2 files | **`tests/unit/thread-ends-measure.test.mjs`** (new) or a case in `thread-jump.test.mjs`: three triggers in one frame (`rowCount` change, mount, resize) -> **1** read of `scrollHeight`; `holdScroll()` false -> **0**. Red: today's file -> 3 reads. Also run: `thread-jump.test.mjs`, e2e files the pre-push map selects for it (`WUI_E2E_RANGE`) | claude / simple_coding | 1 |
 | 05 | `perf(p20-05-wui-card-clip-measure-batch)` | a message card's clip measure (`measureBox`) reads its line height once per feed, not once per card: the computed `line-height` / `font-size` of `.msg-body` is the same for every card of a feed, so it is read once and shared; `scrollHeight` stays per card, read in the ResizeObserver callback | editor 5, n=3 channel opens: `measureBox` **113.5 ms** self over 3 opens of a channel with **1** card (~38 ms a card) | computed, not measured: the lane measures on a mock channel of >= 20 cards (prd `e2e` has 1); dropped if the A/B shows no gain | `wui/src/composables/useCardHeight.ts:52-62` (`measureBox`) and its callers `:98-108` (`startObserving`); its test; 2 files | **`tests/unit/card-clip-measure.test.mjs`** (new): 20 cards mounted in one feed call `getComputedStyle` **1** time, not 20; a card whose font changes is re-read (CONTROL). Red: today's file -> 20. Also run: `card-grip.test.mjs`, `message-card-src` users, e2e `poll-card-clip`, `markdown-table`, `link-preview` | claude / simple_coding | 1 |
 | 06 | `perf(p20-06-wui-read-push-no-channel-reload)` | the answer to this tab's own `PUT /v1/me/reads` does not reload the whole channel list: a `ch:` key moved only by what this tab just sent updates that channel's count in place; a move that came from another tab or device still reloads, as today | editor 5 and the initiator trace (CDP `Network.requestWillBeSent.initiator`, prd `e2e`, phone, n=1 session): **4 of 4** `PUT /v1/me/reads` in one channel open + one topic open were followed by `GET /v1/view/channels?read=...` from `onMoved` -> `listChannels`; 5 of 5 probe rounds read `view/channels` on each open | computed, not measured: one hub read (~160 ms on slow 4G, its body ~0.6 KB) and one channel-list recompute fewer per read push (every 5 s while reading, `PUSH_MS`) | `wui/src/utils/read-sync.mjs:54-79` (`mergeMarks`), `:115-148` (`take`, `push`); `wui/src/utils/read-sync-boot.ts:101`; their tests; 3 or 4 files. The lane first logs the PUT's answer next to what was sent (no body text in the commit: keys and timestamps only) and names which field moves the key | **`tests/unit/read-sync.test.mjs`** (a new case): a PUT whose answer echoes the sent marks plus the hub's cursor reports **no** `ch:` move, so `loadChannels` is called **0** times; an answer with a later mark from elsewhere still moves it (CONTROL). Red: the case on today's file -> moved, 1 call. Also run: `read-sync-delta-reply.test.mjs`, `dm-counts-parity.test.mjs`, `request-waterfall.test.mjs`, `swallow-reasons.test.mjs`, `hours-recorder.test.mjs` | claude / complex_coding | 1 |
-| 07 | `perf(p20-07-wui-home-prefetch-after-rail)` | the signed-in `/` document holds its `<link rel="prefetch">` hints until the app is ready, as the sign-in page already does (P3-04, `deferDocumentPrefetch` + `prefetch-on-ready.client.ts`); its modulepreload set (the first screen) does not change | editor 3, `do_spl_wui_perf_first_load_net` prd `e2e`, m390, cold, fast4g, n=5: rail **5,042 ms** median (4,050..6,731); **1,145.7 KB** before it, of which prefetch **428.5 KB** (92 requests), and **313..329 KB** of it unused by the rail (42 chunks never in rail + 4 s, ~30 only after the rail) | computed, not measured: ~0.3 MB less competing with the rail on a cold phone (~0.28 s of 9 Mbit/s); warm loads unchanged. Must not slow desktop: CLE-77933 kept these hints because without them the rail came later; the lane A/Bs `d1440` too and drops the row if either profile is slower | `wui/nuxt.config.ts:561-562` (the `layout === "login"` condition only); `wui/src/utils/first-screen-hints.mjs:151` only if a flag is needed; its test; 2 or 3 files | **`tests/unit/first-screen-hints.test.mjs`** (a new case): a prerendered signed-in `/` keeps its modulepreload links in `<head>` and has **0** `rel="prefetch"` there (all inside the deferred template). Red: today -> 92 in `<head>`. Gate: `perf-budget.py bundle` `ci_home_gzip_kb` and `ci_initial_gzip_kb` unchanged (runner node or same-box A/B delta). Timing: the editor 3 command on dev, cold and warm, m390 and d1440, n=10 | claude / simple_coding | 2 (after c-980) |
+| 07 | `perf(p20-07-wui-home-prefetch-after-rail)` | both app documents hold their `<link rel="prefetch">` hints until the app is ready, as the sign-in page already does (P3-04, `deferDocumentPrefetch` + `prefetch-on-ready.client.ts`): the signed-in `/` (`index.html`, 92 prefetch) and `200.html` (190 prefetch), which every non-prerendered route such as `/lobby` boots from and which the first-screen hints module skips today (`nuxt.config.ts:539`). Their modulepreload sets (the first screen) do not change. One row for phone and desktop: perf round 19 (desktop) hands this finding here (c-778, msg e31d60bb) | phone, editor 3, `do_spl_wui_perf_first_load_net` prd `e2e`, m390, cold, fast4g, n=5: rail **5,042 ms** median (4,050..6,731); **1,145.7 KB** before it, of which prefetch **428.5 KB** (92 requests), and **313..329 KB** of it unused by the rail (42 chunks never in rail + 4 s, ~30 only after the rail). Desktop, from p19 (c-778, msg e31d60bb; mock generate of `7e31ade12`, runner node 20.20.2, CI env, `src/node/test/serve-generated.mjs`, `perf-baseline-live.proof.mjs MOCK=1 WATERFALL=1 PROFILES=d1440`, round 0, n=1): cold `/lobby` **380 requests** (js 326 / 2,159.8 KB raw, css 50 / 218.8 KB), **357** start before the first message paints (305 js); `200.html` **190** prefetch (357.3 KB gzip), `index.html` 92 modulepreload (344.0 KB) + 92 prefetch (178.9 KB). Times not quoted (box load / cores 4.3) | computed, not measured: ~0.3 MB less competing with the rail on a cold phone (~0.28 s of 9 Mbit/s); warm loads unchanged. Must not slow desktop: CLE-77933 kept these hints because without them the rail came later; the lane A/Bs `d1440` too and drops the row if either profile is slower | `wui/nuxt.config.ts:539` (the `200.html` / `404.html` skip) and `:561-562` (the `layout === "login"` condition), the first-screen hints module only; `wui/src/utils/first-screen-hints.mjs:151` only if a flag is needed; its test; 2 or 3 files | **`tests/unit/first-screen-hints.test.mjs`** (a new case): a prerendered signed-in `/` and `200.html` keep their modulepreload links in `<head>` and have **0** `rel="prefetch"` there (all inside the deferred template). Red: today -> 92 and 190 in `<head>`. Gate: `perf-budget.py bundle` `ci_home_gzip_kb` and `ci_initial_gzip_kb` unchanged (runner node or same-box A/B delta). Timing: the editor 3 command on dev, cold and warm, m390 and d1440, n=10; and p19's mock waterfall above (`/lobby`, d1440) before and after, same box, n>=5, requests started before the first message paints | claude / simple_coding | 2 (after c-980) |
 
 <a id="p20-batches"></a>
 
@@ -166,9 +166,10 @@ Read on 2026-11-24, each with its time:
   `LanguageSwitcher.vue`, `commit-links.ts`, `kind-picker-keys.ts`, the blog
   e2e; refactor rounds 78 and 79 name no WUI file. No overlap.
 - **Perf round 19** (desktop, planner c-778): this seat sent it the 7 rows'
-  files at 11:57:49Z (msg 5fca9c3f, cc the holder) and waits for its list. A
-  fix both rounds want goes to one round only (holder, msg ecf93405); the
-  agreement is folded into v1.0.
+  files at 11:57:49Z (msg 5fca9c3f, cc the holder). c-778 answered (msg
+  e31d60bb): p19 plans none of the 7 rows' files, and the app-document
+  prefetch is p19's top desktop finding too, so it stays one row here (07)
+  with p19's desktop baseline. p19's own file list follows before its v0.1.
 - The holder re-runs this check before each spawn.
 
 <a id="p20-per-row"></a>
@@ -200,7 +201,10 @@ Read on 2026-11-24, each with its time:
   PUT and its answer (the CONTROL). If the answer cannot tell the two apart,
   the row is reshaped with the holder (a hub change is out of this round).
 - **07**: the deferral already exists for the sign-in screen; this row
-  extends its condition to the signed-in home and changes nothing else. It
+  extends it to the two app documents and changes nothing else. `200.html`
+  stays out of the modulepreload hints (it cannot know its page); only its
+  prefetch is deferred. `perf-budget.py` reads `200.html`'s first-paint set,
+  which must not change (`ci_initial_gzip_kb`). It
   waits for c-980 because `nuxt.config.ts` is c-980's, and it re-reads the
   Nuxt 4 config before it starts.
 
@@ -209,9 +213,10 @@ Read on 2026-11-24, each with its time:
 ## 5. Panel and reviewers (R7)
 
 - **Plan panel (rulebook 3.2)**: editor c-084 (claude) and the seats the
-  holder places under the current R7 rule (as in p12 to p18: one mistral
-  seat; grok or agy when one is placeable). Asked of the holder with the v0.1
-  sha. A seat signs only a sha this editor names.
+  holder places under the current R7 rule. Queued by the holder with c-001
+  (msg 390f5cf5): a mistral seat (ask 9bbc3db9) and an agy seat (ask
+  21032ee7); grok held (weekly 97% on both boxes). A seat signs only a sha
+  this editor names.
 - **Row reviewers (2.7.2)**: the row authors are claude. Code R7 is the
   holder's pick at placement, of another vendor, never a plan seat. A WUI row
   never goes to mistral (developer guide 5.1). A row never pushes without its
@@ -231,8 +236,8 @@ Read on 2026-11-24, each with its time:
 | scrolling a long topic | **not measurable here**: prd `e2e` has no long topic (no scroller, 5 of 5) | editor 5 |
 | search | **not measured**: the probe's end marker did not match (5 of 5) | editor 5 |
 | posting | **not run**: a post writes prd | - |
-| field p75 per (metric, device, view) | **asked**: `do_spl_wui_perf_report` needs a workspace admin's sign-in that this seat does not hold; the holder is asked to run `ENV=prd PERF_DAYS=7 ./run -a do_spl_wui_perf_report` and send the `m390`/phone rows, so v1.0 can cite them | editor 6 |
-| the Flow / Event log probe on a phone | **not perf work**: `do_spl_wui_perf_flow_events` errors on every m390 round (a navigation); sent to the orchestrator as its own ask | editor 6 |
+| field p75 per (metric, device, view) | **not available this round**: `do_spl_wui_perf_report` needs a workspace admin's sign-in that neither this seat nor the holder holds (holder, msg 390f5cf5); no row cites a field p75 | editor 6 |
+| the Flow / Event log probe on a phone | **not perf work**: `do_spl_wui_perf_flow_events` errors on every m390 round (a navigation); the holder queued it as its own bug lane (`c002-bug-wui-perf-flow-events-m390-nav`, msg 390f5cf5) | editor 6 |
 
 <a id="p20-counts"></a>
 
@@ -253,7 +258,11 @@ Qto (rulebook 4.5): this file is imported once into the `system` workspace with
 signs and the plan lands on `master`, not from the review branch, as in rounds
 8 to 18. From then on the Qto doc is the primary copy.
 
-- v0.1 (c-084, 2026-11-24 12:0xZ): first draft on `09f137d40`.
+- v0.1 (c-084, 2026-11-24 12:0xZ): first draft on `09f137d40` (`f120ed920`).
+- v0.2 (c-084): row 07 covers `200.html` too and carries p19's desktop
+  baseline (c-778, msg e31d60bb); section 3.2 records p19's answer. The
+  field-data row of section 6 is final for this round: the holder has the
+  same login gap (msg 390f5cf5), so no row cites a field p75.
 
 <a id="p20-consensus"></a>
 

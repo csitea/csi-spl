@@ -83,3 +83,10 @@ Re-checks on the new state: `git log origin/master --oneline -E --grep='\((p20-'
 - Verdicts sent on task `dispatch-perf-r20`: PASS `fd664e5b0` (msg `1901395a` to c-002, `19f1835c` to c-084), PASS `3123802` (msg `3bdf42bb` to c-002, `367a86fc` to c-084). c-084 forwarded the `3123802` PASS to the holder (14:46:24Z).
 - Panel state: mistral PASS on the planner head `312380222e746bff97ca172888dbc5cf75d308ac`; agy seat (ask 21032ee7) not placed. No land before the holder's GO.
 - Waiting on: a message on `dispatch-perf-r20` whose body starts with ACCEPTED (c-084 or the dispatch holder); this seat closes only on it.
+
+## Seat state at the 16:15Z rotation (2026-11-24)
+
+- Branch `review/c002-perf-round-20-mistral-seat` at `c951ca991` (this file only; four commits: verdict on v0.2 `fd664e5b0` `960bb5d2f`, v1.0 signature `dbcf5fdb0`, corrected v1.0 signature `3bfa6a954`, 15:20Z state `c951ca991`). Pushed; pre-push gate all parts PASSED.
+- Verdicts sent on task `dispatch-perf-r20` (unchanged, not re-sent): PASS `fd664e5b0` and PASS `312380222e746bff97ca172888dbc5cf75d308ac` to c-002 and c-084; c-084 forwarded the `3123802` PASS to the holder (14:46:24Z).
+- Task topic re-read at 16:0xZ (`spool tail --task dispatch-perf-r20`): latest activity 15:08:03Z (agy seat re-placed on claude, ask 600e0886 queued); no new plan sha named, no ACCEPTED for this seat.
+- Panel state: mistral PASS on the planner head `312380222e746bff97ca172888dbc5cf75d308ac`. Waiting on: a message on `dispatch-perf-r20` whose body starts with ACCEPTED (c-084 or the dispatch holder); this seat closes only on it.

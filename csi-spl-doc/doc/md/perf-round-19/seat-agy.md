@@ -204,3 +204,72 @@ re-read (rows 01, 02, 04, 06 and the row 03 journey) reproduce.
 - N8: the 30-hit retained count (+1,922, n=3) was not re-read: no saved
   output for those runs in the scratch dir (`ls probe2/` -> attr, heap,
   perm, trace and snapshot files only).
+
+<a id="p19-seat-agy-v1"></a>
+
+## v1.0 signature (2026-11-24 20:0xZ)
+
+Editor c-778 named v1.0 `a1f63000c23d4ddea12aaa69444e36027d340d70` on
+`review/c002-perf-round-19-planner` (msg 1d966ead, task dispatch-perf-r19;
+it replaces `0a1705f2c`, msg 1fe2f7dc). `git rev-parse
+origin/review/c002-perf-round-19-planner` -> `a1f63000c...`; `git log
+d86a2f88..a1f63000c` -> 2 commits (`0a1705f2c`, `a1f63000c`), both
+csitea.net; `git diff --stat d86a2f88 a1f63000c` -> only the plan and
+`editor.md`. `origin/master` at this read: `6beb21c8c`.
+
+**PASS on `a1f63000c23d4ddea12aaa69444e36027d340d70`** (plan v1.0, 6 rows:
+01, 02, 03, 06, 05, 07; row 04 dropped by measurement). The same caveat as
+above: this seat is claude (N1).
+
+Checks:
+
+1. W1 fixed. Plan 1 names both trees and re-reads one count per row on
+   `0f872e92e`. Re-read from the editor's new raw output:
+   - Layout events by first stack frame in
+     `/var/tmp/c-778-p19/probe3/type{1,2,3}.trace.json` -> in each of 3:
+     `C0udEsMn.js:2:94178` 43, `:2:93076` 41, `:2:93107` 41, no stack 43,
+     plus `:2:93435` 1 and `:2:92923` 1; keydown 41. Matches editor 2.11.
+     This seat did not re-map those columns to source (N11).
+   - `/var/tmp/c-778-p19/heap30-ab.log` -> new bundle retained 1908 / 1921 /
+     1921, old bundle 1922 x3. Matches row 03 and editor 2.11. This also
+     answers N8.
+   - `flow-dev2/timing.json` (read as its owner) -> build 3.7.6, commit
+     `0f872e92ea6b...`, n 6; `/v1/view/me` 1 in each of 6 first screens
+     (row 04's drop holds), `/v1/wui/revision` 2 in each of 6 flow-open
+     steps (row 06 holds).
+   - Row files: `git log --oneline 7e31ade12..origin/master -- <the 9 row
+     files>` -> `0`. The c-980 bullet now says it landed.
+2. W2 fixed: plan 3.3 gives every row a same-box A/B with n>=5 per arm,
+   counts as the primary metric, and drops the row when the gain is not
+   outside the before-arm's range.
+3. W3 fixed: row 01 names `puppeteer-core` (the WUI's e2e driver).
+4. W4 fixed: row 01 `:53-79`, row 05 `:163-169`. `git show
+   origin/master:csi-spl-wui/src/composables/useComposerSize.ts | sed -n 53p`
+   -> `  function fitGlobalBox() {`, `:79` -> `  }`; `notification.ts:128` ->
+   `permission.value = ... Notification.permission`, `:165` ->
+   `readPermission()`.
+5. Slug: `git log origin/master --oneline -E --grep='\(p19-' | wc -l` ->
+   `0`; `git ls-remote origin | grep -E 'p19-[0-9]{2}|perf-round-19'` ->
+   the planner branch, this seat's and `review/c003-perf-round-19-mistral-seat`.
+6. R3: `lane-map.sh --check <the 11 p19 files> --agent c-996` -> exit 4,
+   8 unknown lanes (c-074, c-084, c-087, c-148, c-159, c-164, c-168, m-135),
+   no owner (N10).
+7. `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> clean, after this
+   edit.
+
+Defects (v1.0): none.
+
+Notes (v1.0):
+
+- N9: plan line 18 still reads "**Row count: 7, the owner's**", while line
+  31-34 and the title say 6. The 6-row bullet names the conflict and leaves
+  the choice to the holder. Rewording line 18 would be enough; it is not a
+  defect against the rulebook.
+- N10: c-087 is new in the lane map. Its bug (phone Back from a channel's
+  topics) landed as `0f872e92e`: `git show --name-only 0f872e92e` -> 7
+  files (`useMobileStack.ts`, `mobile-stack.mjs`, phone e2e and unit tests),
+  none of them a p19 file.
+- N11: the new trace columns (`C0udEsMn.js:2:94178` etc.) are mapped to
+  source by the editor. This seat checked the counts, not the mapping. The
+  counts and their split (43 / 41 / 41) equal the v0.1 traces, whose mapping
+  matched the source.

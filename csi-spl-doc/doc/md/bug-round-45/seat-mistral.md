@@ -191,3 +191,24 @@ exit 0.
   paths are not free until the holder re-runs `--check` at placement.
 - N5: the hours-minutes 400 carry is judged correct (n=4, cause from a byte count
   only); its cited hub and WUI lines all match on `d9030330e`.
+
+## Signed v1.0 — `9f3c8a72eb1e7fff09485eacb4d6e8d44049fa32`
+
+The editor's v1.0 landed on `origin/master` (the dispatch holder's ACCEPTED,
+msg `c3fb6695`, 2026-11-24T20:19:11Z, names it). Verified by me at 20:2xZ:
+
+- `git fetch origin master && git merge-base --is-ancestor 9f3c8a72eb1e7fff09485eacb4d6e8d44049fa32 origin/master`
+  -> rc 0; `git log -1 --format='%H %s' origin/master` ->
+  `9f3c8a72eb1e7fff09485eacb4d6e8d44049fa32 docs(b45-plan, SPL-6416): bug round 45 plan v1.0, panel m-228 PASS on v0.1 folded, 1 row unchanged`.
+- The v1.0 commit's own diff touches only the plan file: my PASS is folded into
+  its section 8 review history and N2 into section 7's round-46 inputs; the row
+  table is unchanged (`git diff 5148267759 9f3c8a72e -- csi-spl-doc/doc/md/bug-round-45-plan.md`
+  adds no row line; the row at v1.0 `:167` is byte-identical to v0.1's).
+- The measurement sha is still `d9030330e` (v1.0 plan `:18` says so and records
+  the v1.0 re-measure); `git diff --stat d9030330e 9f3c8a72e -- <the three row files>`
+  -> empty, so every site and the red control hold at the v1.0 head.
+- Red control re-run at signing: `bash rc01-b45.sh d9030330e` -> `rc01 exit 1`;
+  `bash rc01-b45.sh d9030330e fix-shape` -> `rc01 exit 0`.
+
+**Verdict on v1.0 `9f3c8a72eb1e7fff09485eacb4d6e8d44049fa32`: PASS, unchanged —
+1 row, no W.** The fold changed no row, no site and no control.

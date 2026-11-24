@@ -15,10 +15,12 @@ This round follows section 4 of [rounds-rulebook.md](rounds-rulebook.md)
 - Sections 4.1 to 4.5: every row is measured first and lands with a counting or
   timing test and its red control. A candidate with no measured gain is
   dropped.
-- **Row count: 7, the owner's** (HUM-10, t1 4369bb74, msg 6eb7d949: "list 7
+- **Row count: 6; 04 dropped, measured.** The owner asked for 7 (HUM-10, t1 4369bb74, msg 6eb7d949: "list 7
   concrete tasks whic hwill bring most bang for the buck for improving the
   latency and speed of the UI on the desktop"). This overrides section 5.1
-  (aim at 2) for this round only; section 1.1 (at most 10) holds.
+  (aim at 2) for this round only; section 1.1 (at most 10) holds. Row 04's
+  gain was measured gone and no measured candidate replaces it, so the
+  dispatch holder ruled 6 rows (seat c-996 N9).
 
 Owner orders that bind this round:
 

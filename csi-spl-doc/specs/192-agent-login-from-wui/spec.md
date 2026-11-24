@@ -1,6 +1,6 @@
 # Spec 192: log in, log out and renew each agent vendor's login on a workspace's boxes, from Settings, admins only
 
-**Feature ID**: `192-agent-login-from-wui` · **Status**: Decided v0.2
+**Feature ID**: `192-agent-login-from-wui` · **Status**: Decided v0.3
 (Q-1..Q-5 answered by the owner, section 9) · **Epic**: SPL-2398 · **Issue**: SPL-6374 ·
 **Created**: 2026-11-24 · **Lead**: c-747 · **Placement slug**:
 `c002-agent-login-from-wui-spec` · **Class**: feature
@@ -40,8 +40,8 @@ Builds on, and does not repeat:
   API-key path (Agent keys page), unchanged here.
 
 `<W>` (a workspace), `<box>`, `<kind>` (claude, grok, agy, mistral, qwen)
-and `<agent user>` (the box's `SPOOL_AGENT_USER`, or `<W>`'s own OS user on
-a `dedicated` box) are placeholders. No credential, token, login input,
+and `<W>`'s OS user (the OS user that serves `<W>` on a box, section 2)
+are placeholders. No credential, token, login input,
 key path, account email or OS user name appears in this file.
 
 ## 1. The owner's words
@@ -88,12 +88,27 @@ So:
   `0235_pins_box_x25519.sql`). A pin with no recipient is listed as
   "re-join needed" and gets nothing. A box outside `<W>` is never offered
   and never reached (red control R3).
-- **Which OS user.** The box's agent user: on a fleet (`shared`) box the
-  `SPOOL_AGENT_USER` of its box.env, on a `dedicated` box `<W>`'s own OS user
-  (108 3.5). Never the human's own user: the fleet rule that every agent runs
-  as the agent user holds
-  (`csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/05-agents-run-as-agent-user.md`),
-  and the box side refuses any other user (R7).
+- **Which OS user: the one that serves `<W>` on that box, never another
+  workspace's.** An OS user never serves two workspaces (108 3.5), and a
+  workspace's seat on a fleet box runs as `<W>`'s own OS user, "never as the
+  fleet's agent user", with its own config dir, "not the fleet's login and
+  not a shared one" (159 4.3, 5.2, 5.3). So:
+  - the **operator workspace** (the fleet's own agents) on a fleet box: the
+    box's `SPOOL_AGENT_USER` (box.env), the one user its agents run as
+    (`csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/05-agents-run-as-agent-user.md`);
+  - **any other workspace** on a fleet (`shared`) box: `<W>`'s own OS user
+    there, made by 159 T3 (159 5.2); a fleet box with no such user for
+    `<W>` is not one of `<W>`'s boxes for this spec and gets nothing;
+  - a `dedicated` box: `<W>`'s own OS user (108 3.5).
+
+  The box resolves the user from its own binding of `<W>` (the desk that
+  enrolled for `<W>`, its spool root and state dir, 108 3.5), never from the
+  hub frame, and refuses an op for `<W>` that would write into a user bound
+  to another workspace, the fleet agent user included unless `<W>` is the
+  operator workspace (R7). Never the human's own user. Every login, logout,
+  copy (7.1), pause (6.2) and restart in this spec is per (`<W>`, kind,
+  box): two workspaces on one shared box never share a login file or a
+  pause row.
 
 ## 3. How the fleet logs in today (measured)
 
@@ -101,19 +116,19 @@ On origin/master `dbd127c96`, 2026-11-24, n = 1 per read.
 
 | piece | state | where |
 |---|---|---|
-| claude login of the agent user, checked every minute | Implemented | `csi-spl-orc/src/bash/run/spl-agent-login-check.func.sh:1-50` (cron row agent-login-check): scan panes for a dead login or a limit screen, `claude -p` probe (ok, expired, limited, unknown), repair stuck seats by stop + restore while the probe says ok |
+| claude login of the agent user, checked every minute | Implemented | `csi-spl-orc/src/bash/run/spl-agent-login-check.func.sh:1-50` (cron row agent-login-check): scan panes: a seat is STUCK only when its footer shows a dead login or a limit screen AND its transcript's last answer is an API error (lines 7-10); `claude -p` probe (ok, expired, limited, unknown), repair stuck seats by stop + restore while the probe says ok |
 | claude renewal | Implemented, by the CLI itself | the access token lives about 8 h and the CLI renews it only in its last minutes (060 add-on section 3: 56 renewals in 15 days on one box; 132 section 3); the check warns under 60 min to expiry, not renewed (`spl-agent-login-check.func.sh:44-48`) |
-| claude login copied between boxes | Implemented, one refresher | the box naming `SPOOL_LOGIN_PEERS` pushes (and pulls) the credential over ssh, temp + mv, mode 600 (`spl-agent-login-check.func.sh:13-30`); the file ops are `csi-spl-orc/src/bash/scripts/agent-login-cred.sh:9-28` (`stat`, `probe`, `get`, `put`, `acct`; sha12 and an `acct-<8 hex>` label only, never content) |
+| claude login copied between boxes | Implemented, one refresher | the box naming `SPOOL_LOGIN_PEERS` pushes (and pulls) the credential over ssh, temp + mv, mode 600 (`spl-agent-login-check.func.sh:13-30`); the file ops are `csi-spl-orc/src/bash/scripts/agent-login-cred.sh:8-28`: `stat`, `probe`, `acct` print a sha12, an `acct-<8 hex>` label or a short verdict; `get` (line 10) prints the credential itself and `acctget` (lines 17-18) the `oauthAccount` object, both "only ever into a pipe" to a `put` / `acctput`. So the content does leave the box on a copy, over ssh only; its line 30 ("never prints credential content") holds for the logs, not for those two ops |
 | a second claude account per box (failover) | Built, off | cnf `env.box.claude_login_pool.enabled: false` (`csi-spl-cnf/csi-spl/all.env.yaml:1310-1320`); its rule D4: "The code never signs in, never logs out and never changes an account" (060 add-on line 29) |
-| the claude sign-in action for a workspace user | Implemented, behind its switch | `csi-spl-orc/src/bash/run/spl-ws-claude-signin.func.sh`: `claude auth login --claudeai` in tmux (line 106), `auth logout` (line 141), status |
+| the claude sign-in action for a workspace user | Implemented, behind its switch | `csi-spl-orc/src/bash/run/spl-ws-claude-signin.func.sh`: `claude auth login --claudeai` (its argv, line 106) run in a tmux session (`new-session`, line 126), `auth logout` (line 141), status |
 | grok login | file only | `~/.grok/auth.json` of the agent user, empty or missing = no sign-in (`csi-spl-orc/src/bash/run/spl-agent-identity-restore.func.sh:332-345`); how it is made: by a person at the terminal, flow not recorded in the repo |
 | agy login | file only | the marker `.gemini/antigravity-cli/antigravity-oauth-token` (`csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh:556`); made by a person, flow not recorded |
 | mistral | API key, not a login | `<agent home>/.vibe/.env` `MISTRAL_API_KEY=`, read from a tty, a file or stdin, `TO_BOX=` over ssh stdin (`csi-spl-orc/src/bash/run/set-mistral-key.func.sh:3-20`) |
-| qwen | settings file | "Auth is set once by a human in the agent user's `~/.qwen/settings.json`" (`csi-spl-orc/src/bash/features/spawn-agents/assets/commands/qwen-spawn.md:94`); the qwen.ai login's free tier ended 2026-04-15 (159 4.1) |
+| qwen | settings files | "Auth is set once by a human in the agent user's `~/.qwen/settings.json`" and `~/.qwen/.env` (`csi-spl-orc/src/bash/features/spawn-agents/assets/commands/qwen-spawn.md:94-95`); the qwen.ai login's free tier ended 2026-04-15 (159 4.1) |
 | weekly limit read | Implemented | claude's banner "You've used N% of your weekly limit" and grok's "Weekly limit left: N%" (`csi-spl-orc/lib/bash/funcs/spl-box-quota.func.sh:64-85`), claude's cached % (`spl_box_quota_cache_read`, line 202); agy's "Individual quota reached ... Resets in 13h53m38s" (`csi-spl-orc/src/bash/features/watchdog/situations/lib.inc.sh:53-55`) |
-| per-vendor pause | Implemented | `lane_op fleet_load_pause {kind, until, reason}` pauses a kind for every box, at most `MaxKindPause` (8 days) ahead (`csi-spl-api/src/go/spool-hub-api/internal/hub/fleet_load.go:434-474`, `internal/store/fleet_load.go:60-68`); a nil entry lifts it (`mergePauses`, `internal/store/fleet_load.go:236-260`) |
+| per-vendor pause | Implemented, operator workspace only | `lane_op fleet_load_pause {kind, until, reason}` writes the operator workspace's row, keyed by kind alone (`Box` is the reporter), and pauses that kind for every box, at most `MaxKindPause` (8 days) ahead (`csi-spl-api/src/go/spool-hub-api/internal/hub/fleet_load.go:434-474`, `internal/store/fleet_load.go:60-68`); a nil entry lifts it (`mergePauses`, `internal/store/fleet_load.go:236-260`) |
 | the queue's vendor swap | Implemented | lane mix: main, then backup, then claude (`csi-spl-orc/src/bash/run/spl-lane-mix.func.sh:14`); the placer's AGY OUT and coding-rule swaps (`csi-spl-orc/src/bash/run/spl-spawn-place.func.sh:116-145`) |
-| the Settings sections | Implemented | `csi-spl-wui/src/utils/tenant-settings-nav.ts:28-40`: `split` (line 30, "vendor split", `tenant.settings`) then `agent-keys` (line 31, `vendor_keys.manage`) |
+| the Settings sections | Implemented | `csi-spl-wui/src/utils/tenant-settings-nav.ts:28-40`: `split` (line 31, "vendor split", `tenant.settings`) then `agent-keys` (line 32, `vendor_keys.manage`) |
 
 What is missing: no web path logs a fleet box's vendor CLI in or out; a
 dead or limited login needs a person at that box's terminal (132 section 5).
@@ -132,7 +147,7 @@ This spec adds:
 
 | # | addition |
 |---|---|
-| A1 | every enrolled box of `<W>`, shared fleet boxes included, not only a dedicated VM; the agent user of each (section 2) |
+| A1 | every enrolled box of `<W>`, shared fleet boxes included, not only a dedicated VM; on each, the OS user bound to `<W>` (section 2) |
 | A2 | log out and renew, not only log in (section 5) |
 | A3 | the login flows of grok and agy on the box side; mistral and qwen stay on Agent keys (section 5.2, Q-5 B) |
 | A4 | the fan-out to every box, its per-box state, and a box added later (section 7) |
@@ -161,10 +176,10 @@ Claude Code".
 
 ### 5.1 The ops
 
-| op | what the box does, as the agent user | when the admin uses it |
+| op | what the box does, as `<W>`'s OS user there (section 2) | when the admin uses it |
 |---|---|---|
 | **log in** | starts the unmodified CLI's own login (5.2) in a fresh tmux session; the relay shows its URL; the admin's input goes in by `tmux load-buffer -` (stdin, never argv, env or log, as B11) | a box with no login, or a switch to another account (6) |
-| **log out** | stops new seats of that kind on that box (a pause for that box, 6.2), runs the CLI's own logout, removes its login files | an account leaves the workspace |
+| **log out** | stops new seats of that kind for `<W>` on that box (a pause for (`<W>`, kind, box), 6.2), runs the CLI's own logout as `<W>`'s OS user there (section 2), removes that user's login files only | an account leaves the workspace |
 | **renew** | a log in to the **same** account (the box checks the label of 5.3 after it, and reports `other_account` when it differs) | the box's login is `expired`: the CLI's own refresh failed (132 section 1). A live login is never "renewed" by hand: the CLI renews itself |
 
 Every op is a dry run on the box unless the hub frame says otherwise, as
@@ -188,7 +203,9 @@ Per kind and box, read on the box and sent as a box fact (the shape of
 - **signed in**: yes, no, expired, limited (the probe of section 3);
 - **account**: the label `acct-<8 hex>` (sha256 of the CLI's own account
   id, 060 add-on 4.1), plus a name the admin may give that label in the page
-  (stored on the hub; it is not a secret and holds no email);
+  (stored on the hub; 1 to 40 letters, digits, spaces, `-` or `_`; a name
+  with `@`, or any other character, is refused with 400 `bad_label_name`, so
+  no email-shaped name reaches a table or the WUI; R1);
 - **plan kind** where the CLI's own status shows one; none is read from a
   token;
 - **expires**: the access token's `expiresAt` (claude); "renews itself" is
@@ -196,9 +213,13 @@ Per kind and box, read on the box and sent as a box fact (the shape of
 - **weekly limit**: used % and the reset time, from the readers of
   section 3; "unknown" when the box has none.
 
-Never shown, sent or stored: the token, the pasted code, the vendor URL
-after the relay ends, any email. The credential's sha12 stays on the box,
-as today.
+Never shown in the page, sent to the hub or stored on it: the token, the
+pasted code, the vendor URL after the relay ends, any email. The credential
+itself does leave the source box on a copy (7.1), by design and by the
+owner's choice [Q-2 B]: `agent-login-cred.sh get` (line 10) prints it and
+`acctget` (lines 17-18) prints the `oauthAccount` object, into a pipe to
+the peer's `put` / `acctput` over ssh, never into a log, a file of ours or
+the hub. Every output and log line carries a sha12 at most.
 
 ## 6. The weekly limit (N2)
 
@@ -219,8 +240,10 @@ into in the vendor's page.
    `agent-login-cred.sh put`, so a reader never sees half a file. Running
    seats are not touched until the new login works.
 3. **After**, when the new login probes `ok` on that box: the box lifts its
-   own pause entry for that kind (a nil entry, `mergePauses`), then
-   **restarts every seat of that kind on the box at once** on the new
+   own pause entry for (`<W>`, kind) (a nil entry, `mergePauses`), then
+   **restarts every seat of that kind that `<W>` runs on the box at once**
+   (the seats of `<W>`'s OS user, section 2; another workspace's seats on a
+   shared box are never touched) on the new
    account, stuck or not: each seat is stopped (its pane wrapper, then its
    own pid, as step 4 of `do_spl_agent_login_check` does) and brought back
    by `do_spl_agent_identity_restore`, which resumes its session from its
@@ -230,16 +253,19 @@ into in the vendor's page.
    The cost the owner accepted: a turn in flight in a working seat is cut
    and replayed from the transcript. Queued rows swapped to the backup
    vendor stay swapped; new rows go to the kind again.
-4. Today's pause is one entry per kind for every box (`fleet_load.go:434-441`).
-   Row L5 adds the box to it, so a box whose login was switched does not lift
-   a pause another box still needs: a kind is paused on a box until that box
-   lifts it.
-5. A **log out** sets that box's pause for the kind with reason
+4. Today's pause is the operator workspace's row, one entry per kind for
+   every box (`fleet_load.go:434-474`: it writes the operator workspace's
+   row, keys the map by kind, and `Box` is only the reporter). Row L5 keys
+   the pause by (`<W>`, kind, box): a box whose login was switched does not
+   lift a pause another box still needs, and one workspace's switch or log
+   out on a shared box never lifts or sets another workspace's pause there
+   (R8, R10).
+5. A **log out** sets (`<W>`, kind, box)'s pause with reason
    `logged out`, bounded by `MaxKindPause` (8 days); the box re-sets it on
    each check while there is no login, so it never runs out silently.
 
 The second-account failover of the 060 add-on (slot 2, off) is untouched:
-this spec writes slot 1 (the agent user's main login) only. Its rule D4
+this spec writes slot 1 (the main login of `<W>`'s OS user) only. Its rule D4
 ("the code never signs in ... never changes an account") still holds in its
 sense: a person signs in, in the vendor's own page, and the code relays the
 person's input. The place the owner swaps accounts moves from the terminal
@@ -260,19 +286,25 @@ path; per-box sign-in where no peer reaches.**
 2. **The copy.** When the new login probes `ok` on the source box, it copies
    the login to each peer of `<W>` it reaches, the way
    `do_spl_agent_login_check` does today: `agent-login-cred.sh get | ssh
-   <peer> ... put` (only ever a pipe; temp + mv; the old file kept as
-   `.bak-login-<UTC>`; mode 600; sha12 and label only in any output). The
-   peer probes it and answers `ok` or `failed`. A peer is copied to only
-   when the hub lists it as an enrolled pin of `<W>` (R3); a peer line naming
-   any other box is skipped and reported.
+   <peer> ... put` (temp + mv; the old file kept as `.bak-login-<UTC>`;
+   mode 600). The content moves through that pipe and nowhere else (5.3);
+   outputs and logs carry a sha12 and the label at most. It reads from
+   `<W>`'s OS user on the source box and writes to `<W>`'s OS user on the
+   peer, which the peer resolves from its own binding of `<W>` (section 2):
+   a `put` for `<W>` into a user bound to another workspace is refused
+   there (R7, R10). The peer probes it and answers `ok` or `failed`. A peer
+   is copied to only when the hub lists it as an enrolled pin of `<W>`
+   (R3); a peer line naming any other box is skipped and reported.
 3. **Boxes no peer reaches** (a customer's boxes have no ssh to each other;
    a box behind NAT is reached one way only,
-   `spl-agent-login-check.func.sh:28-29`): the page opens one per-box
+   `spl-agent-login-check.func.sh:30`): the page opens one per-box
    sign-in for each, as the relay does for the source box.
-4. **Today's copy is claude only** (`agent-login-cred.sh` reads and writes
-   claude's credential and `.claude.json`). Row L8 adds the grok and agy
-   login files to its ops before those kinds are copied; until then they get
-   per-box sign-in.
+4. **Today's copy is claude only, and for the fleet agent user only**
+   (`agent-login-cred.sh` reads and writes claude's credential and
+   `.claude.json` of `LOGIN_AGENT_USER`). Row L8 makes the user `<W>`'s OS
+   user (section 2) and adds the grok and agy login files to its ops; until
+   then those kinds, and every workspace but the operator's, get per-box
+   sign-in.
 
 Neither path copies a login through the hub: the hub carries the sealed
 code of the one sign-in and the per-box results, never a login file.
@@ -319,11 +351,14 @@ box's reason word: `no_relay`, `other_account`, `switch_off`, `timeout`,
 
 - A new entry in `TENANT_SETTINGS_SECTIONS`
   (`csi-spl-wui/src/utils/tenant-settings-nav.ts:28`), **between `split`
-  (line 30) and `agent-keys` (line 31)**:
+  (line 31) and `agent-keys` (line 32)**:
   `{ id: 'ai-vendors', label: 'tenant_settings.ai_vendors', perm: 'vendor_logins.manage' }`,
   page `csi-spl-wui/src/pages/tenant-settings/ai-vendors.vue`. A member
   without the permission sees no entry (the nav filters on `/v1/view/me`,
   `tenant-settings-nav.ts:58-72`), and the hub answers 403 on a direct call.
+  The mock build gates only the ids in `MOCK_GATED` (line 51, today
+  `agent-keys` alone): row L6 adds `ai-vendors` to it, so an e2e that plays
+  a role without the permission does not see the section.
 - The page: one card per kind (claude, grok, agy, mistral, qwen; a kind the
   workspace's split weighs at 0 is folded), each with a row per box (7.2)
   showing the state of 5.3 and the buttons **Log in**, **Switch account**
@@ -332,11 +367,15 @@ box's reason word: `no_relay`, `other_account`, `switch_off`, `timeout`,
   boxes and the running seats of that kind).
 - A kind whose switch is off (B11's per-vendor switch) shows "not switched
   on for this vendor" and no buttons, as Agent keys does on the review
-  branch.
+  branch. A kind whose box reports `no_relay` (5.2: its CLI's flow cannot
+  be relayed) shows "sign in at the terminal" on that box's row and no Log
+  in, Switch account or Renew button there; Log out stays.
 - B11's panel on Agent keys stays for the dedicated VM until this section
   is built; then Agent keys links here for sign-ins (row L6).
 - Every string is a translation key in every locale, checked with the
-  language check before it ships (repo CLAUDE.md, the language rule).
+  language check before it ships: the Google Cloud Translation check
+  `do_spl_lang_review_gct` (repo CLAUDE.md, the language rule; agy
+  optional).
 
 ## 9. The owner's decisions
 
@@ -356,25 +395,29 @@ and Q-4; the owner chose B on both.
 ## 10. Audit, with no secret
 
 A new table `workspace_vendor_login_audit` (tenant_id, kind, box, op
-`login|logout|renew|switch`, actor, at, result word, account label; RLS like
-every tenant table, developer guide 2.6.4). One row per box per op, written
-by the hub when the box answers. No column holds a token, code, URL or
-email; the label is a hash prefix. Shown in the section as "who did what,
+`login|logout|renew|switch|copy`, actor, at, result word, account label;
+RLS like every tenant table, developer guide 2.6.4). `actor` is the
+member's id (the hub's human id, a uuid), never an email or a display
+name; the page shows the member's name by a join at read time. One row per
+box per op, written by the hub when the box answers. No column holds a
+token, code, URL or email; the label is a hash prefix, and the admin-given
+label name (5.3) is refused when it is email-shaped. Shown in the section as "who did what,
 when".
 
 ## 11. Red controls
 
 | # | control | planted defect -> the test fails |
 |---|---|---|
-| R1 | a relayed input (code or key) found in any hub table, the audit table included, or any hub or box log | the input written to the audit row's result -> the table walk on Postgres finds it (B11's walk, extended to the new table) |
+| R1 | a relayed input (code or key), or an email, found in any hub table, the audit table and the label names included, or any hub or box log | the input written to the audit row's result -> the table walk on Postgres finds it (B11's walk, extended to the new tables); a label name `x@example.com` -> 400 `bad_label_name`, and with the check removed the walk finds the `@` row; an audit row whose `actor` is an email instead of the member's id -> fails |
 | R2 | a member without `vendor_logins.manage` | `GET` / `POST /v1/vendor-logins/...` -> 403; the section is absent from the nav; the permission check removed -> the test sees 200 |
-| R3 | a box outside `<W>` | a fan-out for `<W>` that reaches a pin of another workspace -> the test fails; a frame for `<W>` opened by another box's desk -> refused (sealed to another recipient) |
+| R3 | a box or desk outside `<W>` | a fan-out for `<W>` that reaches a pin of another workspace -> the test fails; a frame for `<W>` opened by another box's desk, or by another workspace's desk on the same shared box -> refused (sealed to another recipient) |
 | R4 | the switch off (hub or box) | a log in -> 403 `signin_relay_off` and the box reports `switch_off`; the switch check removed -> 201 and the test fails |
 | R5 | the copy stays inside `<W>` and off the hub [Q-2 B] | a source box whose peer list names a box that is not a pin of `<W>` -> 0 copies to it, reported; the pin check removed -> the copy reaches it and the test fails; a login file's bytes (or its sha beyond 12 hex) found in a hub table, frame or log -> fails |
 | R9 | every seat of the kind restarts after a switch [Q-4 B] | 3 seats of the kind on the box (1 stuck, 2 working), the new login probes ok -> 3 stops and 3 restores, other kinds' seats untouched; the restart limited to stuck seats -> 1 restore and the test fails; the new login probing `expired` -> 0 stops |
 | R6 | act-as | a log in under an act-as session -> 403; the check removed -> 201 |
-| R7 | the OS user | the box op run for a user other than the agent user -> refused; the refusal removed -> the test sees the op start |
-| R8 | the weekly switch lifts only its own box | box A switched, box B still at the limit -> B's pause stays; the lift written for every box -> the test fails |
+| R7 | the OS user is `<W>`'s | an op for a customer `<W>` aimed at the fleet agent user, or at another workspace's OS user -> refused; the operator workspace's op aimed at a customer's user -> refused; the refusal removed -> the test sees the op start |
+| R8 | the weekly switch lifts only its own (`<W>`, box) | `<W>` switched on box A, box B still at the limit -> (`<W>`, kind, B)'s pause stays, and another workspace's pause on A stays; the lift written for every box or every workspace -> the test fails |
+| R10 | two workspaces on one shared box | W1 and W2 each with an OS user on box S: W1 logs in, switches, logs out and copies -> W2's login file sha, its (W2, kind, S) pause and its seats are unchanged after each; a pause keyed without the workspace, or a `put` into W2's user -> the test fails |
 
 ## 12. Rows for the build
 
@@ -386,12 +429,12 @@ are in `csi-spl-api/src/go/spool-hub-api/`.
 | L0 | hub + orc + wui (claude) | land 181 B11 (SPL-6345) | B11's own | its R7 review |
 | L1 | rdb + hub (claude) | `vendor_logins.manage` (rdb migration, number from `do_rdb_migration_next`) to `admin` and `biz_owner` [Q-1 A]; act-as and operator-made refusals as `vendor_keys.manage`; the relay switch per workspace: the operator workspace on for every wired kind, customer workspaces on the per-vendor list (4.1) [Q-3 B] | R2, R4, R6 | L0 |
 | L2 | rdb + hub (claude) | the fan-out: `POST /v1/vendor-logins/{kind}` `{op}` picks the source box, opens its B11 relay, asks it to copy to the peers of `<W>` it reaches, and opens a per-box relay for each box no peer reaches (7.1); `GET /v1/vendor-logins` the state per kind and box (5.3, from box facts); the audit table (10); the offline and new-box copy or notice (7.3) | R1, R3, R5 | L0, L1 |
-| L3 | orc (claude) | box side: `do_spl_ws_signin_relay` runs for the agent user of a shared box too (section 2), ops in, out, renew, status; status as a box fact with the label, expiry, weekly % and reset (5.3), never content | R1, R7 | L0 |
+| L3 | orc (claude) | box side: `do_spl_ws_signin_relay` runs as the OS user bound to `<W>` on that box (section 2: the fleet agent user for the operator workspace only), ops in, out, renew, status; status as a box fact with the label, expiry, weekly % and reset (5.3), never content | R1, R7, R10 | L0 |
 | L4 | orc (claude) | grok and agy logins on the box side: measure each CLI's flow on a test account, wire it when it prints a URL and reads a pasted code or a device code, else `no_relay` | a `no_relay` kind offered a Log in button -> fails | L3 |
-| L5 | hub + orc (claude) | the pause per box: `KindPause` keyed by kind and box; the switch lifts its own box's entry; a log out sets one; after a switch, every seat of the kind on the box restarts at once through `do_spl_agent_identity_restore` (6.2) [Q-4 B] | R8, R9 | L3 |
-| L6 | wui (claude) | the AI vendors section (8), locale texts, language check last; Agent keys links here for sign-ins | the section shown to a member without the permission -> e2e fails; a code left in any input, page text, Pinia or storage after send -> e2e fails (B11's e2e step) | L2 |
+| L5 | hub + orc (claude) | the pause per workspace and box: `KindPause` keyed by (`<W>`, kind, box), for customer workspaces too; the switch lifts its own entry; a log out sets one; after a switch, every seat of the kind that `<W>` runs on the box restarts at once through `do_spl_agent_identity_restore` (6.2) [Q-4 B] | R8, R9, R10 | L3 |
+| L6 | wui (claude) | the AI vendors section (8), `ai-vendors` in `MOCK_GATED`, no Log in / Switch / Renew for a `no_relay` row, locale texts, language check last (`do_spl_lang_review_gct`); Agent keys links here for sign-ins | the section shown to a member without the permission -> e2e fails; a `no_relay` row with a Log in button -> e2e fails; a code left in any input, page text, Pinia or storage after send -> e2e fails (B11's e2e step) | L2, L4 |
 | L7 | doc (agy) | `csi-spl-wui/src/public/help-md/user-settings.md`: the AI vendors section; the 159 4.3, 132 section 2 and 060 add-on D4 notes as section 13 says | `grep -c 'ai-vendors' csi-spl-wui/src/public/help-md/user-settings.md` -> 0 fails | L6 |
-| L8 | orc (claude) | the box-to-box copy [Q-2 B]: the source box copies the new login to every peer of `<W>` it reaches (7.1, `agent-login-cred.sh get \| put`), checked against the hub's pin list; the grok and agy login files added to `agent-login-cred.sh`'s ops | R5 | L3, L4 |
+| L8 | orc (claude) | the box-to-box copy [Q-2 B]: the source box copies the new login from `<W>`'s OS user to `<W>`'s OS user on every peer of `<W>` it reaches (7.1, `agent-login-cred.sh get \| put` with the user resolved per workspace), checked against the hub's pin list; the grok and agy login files added to `agent-login-cred.sh`'s ops | R5, R10 | L3, L4 |
 
 ## 13. What this spec changes in other specs
 
@@ -405,8 +448,10 @@ are in `csi-spl-api/src/go/spool-hub-api/`.
 - **132 section 2** ("End copying a login between boxes"): **superseded**
   for logins made from the web UI: they are copied box-to-box over the peer
   path [Q-2 B] (7.1). Today's refresher copy stays and carries those
-  copies.
-- **181 B11**: reused, widened to every enrolled box and the agent user
+  copies for the fleet agent user; row L8 does the same per workspace OS
+  user.
+- **181 B11**: reused, widened to every enrolled box and the OS user bound
+  to `<W>` there
   (section 4).
 
 ## 14. History
@@ -420,3 +465,14 @@ are in `csi-spl-api/src/go/spool-hub-api/`.
   4.1 (the switch per workspace); 5.2 mistral and qwen on Agent keys; red
   controls R5 rewritten, R9 added; rows L1, L2, L5, L7, L8 updated; 13 marks
   132 section 2 superseded for web-UI logins.
+- v0.3 (2026-11-24, c-747, SPL-6374): R7 FAIL by g-065@sat on `591419fb6`
+  (msg `10a3f679`), send-back by c-002@sat (msg `85aeaed4`). W1: the login,
+  copy, pause and restart are per workspace OS user (section 2: the fleet
+  agent user for the operator workspace only, 108 3.5, 159 5.2-5.3), the
+  pause keyed by (`<W>`, kind, box), new R10 (two workspaces on one shared
+  box), R7, L3, L5, L8 re-keyed. W2: section 3 and 5.3 say `get` and
+  `acctget` print content and the Q-2 B copy moves it over ssh by design.
+  W3: the language check named (`do_spl_lang_review_gct`). W4: no Log in
+  for a `no_relay` row, L6 waits on L4. W5: an email-shaped label name
+  refused, the audit actor is the member's id, both planted in R1. N1, N2,
+  N3, N8, N9 line cites corrected.

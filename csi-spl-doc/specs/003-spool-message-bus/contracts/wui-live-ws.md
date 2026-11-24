@@ -158,11 +158,12 @@ Presence example (v0.3):
   inside the v:1 object and absent from view rows and `message` frames. Absent
   = an ordinary send, unchanged.
   - **Refusals for `mc_id`**:
-    - Non-UUID value, `is_parent` != 0, or an `mc_id` already stored with a
-      different `from` -> `400 bad_json`.
-    - `task_id` must name an existing channel topic the author may read
-      (`canReadTopic`); an unknown `task_id`, a DM topic, or an existing topic
-      the author may not read all answer `404` with
+    - Non-UUID value, or an `mc_id` already stored with a different `from` ->
+      `400 bad_json`.
+    - `is_parent` must be `0` and `task_id` must name an existing channel
+      topic the author may read (`canReadTopic`); `is_parent` != 0, an unknown
+      `task_id`, a DM topic, or an existing topic the author may not read all
+      answer `404` with
       `multicast_no_topic`
       using the same token and detail (never reveals whether a topic exists).
       Its `error` frame names only its own `msg_id`; other copies are untouched.
@@ -290,6 +291,7 @@ list (first page), merged by `task_id` (v0.5).
 `lobby_disabled` (400), `unknown_channel` (404, v0.3), plus the existing `bad_frame`, `bad_json`,
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
 `unknown_tenant`, and Planned (spec 186 §7.1): `multicast_no_topic` (404),
-`topic_select_bad_pattern` (400), `multicast_none` (400).
+`topic_select_bad_pattern` (400, reply token), `multicast_none` (reply token,
+`ok: false`).
 
-<!-- version: 0.10.0 · updated: 2026-11-24 · last-edit: 2026-11-24T11:58:00Z -->
+<!-- version: 0.10.1 · updated: 2026-11-24 · last-edit: 2026-11-24T12:44:00Z -->

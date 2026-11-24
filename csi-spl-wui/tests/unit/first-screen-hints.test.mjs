@@ -10,7 +10,7 @@
 // like the sign-in screen (P3-04); 200.html still gets no first-screen hints.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -168,8 +168,16 @@ describe('p20-07: the signed-in home and 200.html hold their prefetch until read
 
   // A generated bundle, when one is on disk (pnpm run generate, or
   // FIRST_SCREEN_BUNDLE=<dir>): the documents as the browser gets them.
+  const explicit = Boolean(process.env.FIRST_SCREEN_BUNDLE)
   const bundle = process.env.FIRST_SCREEN_BUNDLE || join(WUI, '.output/public')
+  const docs = ['index.html', '200.html', 'login/index.html']
   const have = existsSync(join(bundle, '200.html')) && existsSync(join(bundle, 'index.html'))
+  // SPL-6441: the bundle must be built from the tree under test. A local
+  // generate writes no build.json, so the signal is age: each document must
+  // be newer than the files that shape what this case reads, as they are on
+  // disk here (a pull, rebase or edit of one rewrites it, so its mtime moves).
+  const stale = have && bundleStaleness(bundle, docs, ['nuxt.config.ts', 'src/utils/first-screen-hints.mjs'].map((f) => join(WUI, f)))
+  const staleMsg = stale && `stale bundle at ${bundle}: ${stale}; run pnpm run generate`
   const count = (html, re) => (html.match(re) || []).length
   const headOf = (file) => {
     const head = readFileSync(join(bundle, file), 'utf8').split('</head>')[0]
@@ -183,8 +191,11 @@ describe('p20-07: the signed-in home and 200.html hold their prefetch until read
     }
   }
 
-  it('index.html and 200.html: modulepreload kept in <head>, 0 prefetch there, all inside the template', { skip: !have && `no generated bundle at ${bundle}` }, () => {
-    for (const file of ['index.html', '200.html', 'login/index.html']) {
+  // A stale default bundle skips; one the caller named fails (it asked for it).
+  const skip = !have ? `no generated bundle at ${bundle}` : (stale && !explicit ? staleMsg : false)
+  it('index.html and 200.html: modulepreload kept in <head>, 0 prefetch there, all inside the template', { skip }, () => {
+    if (stale) assert.fail(`FIRST_SCREEN_BUNDLE: ${staleMsg}`)
+    for (const file of docs) {
       const h = headOf(file)
       assert.equal(h.prefetch, 0, `${file}: ${h.prefetch} <link rel="prefetch"> still in <head>`)
       assert.ok(h.held > 0, `${file}: the template holds the prefetch links`)
@@ -194,3 +205,14 @@ describe('p20-07: the signed-in home and 200.html hold their prefetch until read
     assert.ok(headOf('200.html').modulepreload < headOf('index.html').modulepreload, '200.html has no first-screen hints')
   })
 })
+
+// '' when every document is newer than every input, else why not (SPL-6441).
+function bundleStaleness(dir, docs, inputs) {
+  const newest = inputs.reduce((a, f) => (statSync(f).mtimeMs > a.ms ? { ms: statSync(f).mtimeMs, f } : a), { ms: 0, f: '' })
+  for (const doc of docs) {
+    const p = join(dir, doc)
+    if (!existsSync(p)) return `${doc} missing`
+    if (statSync(p).mtimeMs < newest.ms) return `${doc} is older than ${newest.f.slice(WUI.length + 1)}`
+  }
+  return ''
+}

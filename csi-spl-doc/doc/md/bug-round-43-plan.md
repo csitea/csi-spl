@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-42-plan.md](bug-round-42-plan.md).
 
-**Status: v0.1, signed: m-625 (mistral) PASS on v0.1 `21010c205`, W none; holder GO (c-003@sat, msg 57a252e1) on `21010c205`, landed `21010c205`.** Row b43-01 is next (section 5).
+**Status: v0.1, signed: m-625 (mistral) PASS on v0.1 `21010c205`, W none; holder GO (c-003@sat, msg 57a252e1) on `21010c205`, landed `21010c205`.** **Closed**: the one row landed, b43-01 `c581dc43d` (SPL-6350) (section 8).
 
 Editor: **c-971@sat** (claude, `specs_and_docs`).  
 Panel: placed by the holder (rulebook 3.2).
@@ -204,3 +204,27 @@ The fix-shape is the shape, not the fix: the lane bounds the wait and names the 
   - 2026-11-24: panel m-625@`<box2>` (mistral) **PASS** on `21010c205`, W none (seat file `csi-spl-doc/doc/md/bug-round-43/seat-mistral.md` on `review/c002-bug-round-43-mistral-seat` `e0e7cb972`). Red control reproduced: exit 1 on `c4000b25b` (mode `0775`), exit 0 on the fix shape; the exposure reading agreed (a `connect(2)` of another uid to a `0755` socket -> `EACCES`). Notes: N1 the briefs grep of the slug proof reads only the briefs of the box it runs on; N2 the lane map's `unknown:` set was 4 lanes at the seat's read, not 10 (exit 4 either way, no lane lists the row's files); N3 a holder file read on sat only, not on the seat's box; N4 the CI job log read through `gh api`, the evidence matches; N5 source 9 said 9 items where section 3.4 has 10 rows: fixed here. None changes the row.
   - Review line checked: `do_spl_review_line_check` rc 0 on `<box2>` (c-001, msg 7cf36493, OK 3 of 3), syntax OK on sat (c-003).
   - GO: c-003@sat (dispatch holder), msg 57a252e1, on `21010c205`; landed as is, `21010c205` on `origin/master`.
+  - Round closed (c-032@sat, round 44's editor, for c-971, who has exited), no version bump: the one row landed.
+    - **b43-01** `c581dc43d` (SPL-6350, committed 2026-11-24T08:18:15Z, author c-986@sat): R7 g-675@`<box2>` grok
+      **PASS** on `1abc89230` (msg 0247ed36). The author's body-only amend `ecf012dc5` added that review line
+      (holder c-003 GO 1f65e494, conditions: the same tree, the same patch-id); it landed as `c581dc43d`, whose
+      tree is `ecf012dc5`'s (`git rev-parse ecf012dc5^{tree} c581dc43d^{tree}` -> both `ff4b2707bc6f`).
+      `git patch-id --stable` equal on the reviewed and the landed commit (`2d391d463176`, `ecf012dc5` too).
+      Its body carries `rc01-b43.sh`'s red on `c4000b25b` (rc01 exit 1, mode 16777725) and green on the fix
+      (rc01 exit 0, injection kept). `Docs: none (test-only change)`; one file, `<api>/cmd/spool/key_desk_test.go`
+      (`git diff --stat c581dc43d^ c581dc43d` -> 15 insertions, 7 deletions).
+    - g-675's notes N1 (the author brief's path absent on the reviewer's box) and N2 (hygiene scanned the lane
+      tree, not `1abc89230`; the one-file diff has no banned tokens) change nothing in the row.
+    - `git merge-base --is-ancestor c581dc43d origin/master` rc 0 (on `48bc8bb6a`). Quality gate 10 **success** on
+      `c581dc43d` (45355019786); `gh run list --commit c581dc43d`: wf 10, 15, 25, 26, 50, 61, 62, 64 success, wf 12
+      skipped, 0 red. Test only: no hub or WUI deploy (R5, unit tests).
+    - The holder sent ACCEPTED to c-986 and to g-675@`<box2>` and posted the landing in this round's discussion
+      (post 7fc37177; c-002@sat handover 08:55Z, item 9a).
+    - **R8 seat teardown** (rulebook 2.8 step 3), each on the holder's ACCEPTED: the row author c-986@sat (exited
+      clean), the row reviewer g-675@`<box2>` (grok, 1 review: the PASS above), the panel m-625@`<box2>` (mistral,
+      1 review: the PASS on v0.1), the editor c-971@sat (exited). No seat performed zero reviews. Branches
+      (R8 step 2, `git ls-remote origin` at 09:0xZ): `review/c002-bug-round-43-planner` is gone from origin;
+      `review/b43-01` (`1abc89230`) is left for `ROUND=b43 DRY_RUN=0 ./run -a do_git_prune_round_branches`;
+      `review/c002-bug-round-43-mistral-seat` (`e0e7cb972`) matches no round prefix of that action
+      (`prune_round_match`) and is left to the holder. The seat file stays on that branch (not folded here:
+      this close record touches this file only).

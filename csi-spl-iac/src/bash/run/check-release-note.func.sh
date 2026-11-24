@@ -106,6 +106,18 @@ _rn_commit() {  # <tree> <sha>
 }
 
 
+# The copy-paste template the refusal prints: the six trailers, one line each,
+# to fill in and paste as the LAST paragraph of the message.
+_rn_template() {
+  echo "release-note template (paste as the LAST paragraph of the message, one line each, none empty):"
+  echo "Lay-What: <what changed, in words a non-developer understands>"
+  echo "Lay-How: <how it works now, no code names, ids or jargon>"
+  echo "Lay-Why: <why it was needed>"
+  echo "Tech-What: <the module and what changed in it>"
+  echo "Tech-How: <the mechanism>"
+  echo "Tech-Why: <the root cause>"
+}
+
 # Check base..HEAD. Prints the per-commit verdicts and the RELEASE_NOTE_CHECK
 # line; sets _RN_COMMITS and _RN_WARN for the caller. Returns 1 when <mode> is
 # refuse and a commit lacks its note (or the base does not resolve), else 0.
@@ -144,6 +156,7 @@ _rn_check() {  # <tree> <base> [refuse|warn]
     return 0
   fi
   do_log "FAIL release-note: $_RN_WARN of $_RN_COMMITS commit(s) lack their release note -- the push is REFUSED (spec 065 L11). Add the trailers named above as the LAST paragraph of each message: the last commit with 'git commit --amend', an older one with 'git rebase -i $bsha' and 'reword' on its line; then push again. The six trailers and the special forms (doc-only, Release-Note: skip, revert): $_RN_DOC"
+  _rn_template
   return 1
 }
 

@@ -60,9 +60,10 @@ commit a.sh "fix: b"$'\n\n'"$(grep -v '^Tech-How' <<<"$FULL")"
 check HEAD~1
 sha="$(git -C "$T" rev-parse HEAD | cut -c1-8)"
 { [[ "$rc" -eq 1 && "$(field warn)" == 1 ]] && grep -q "FAIL release-note: $sha (full) missing Tech-How -- fix: b" <<<"$out" \
-  && grep -q "the push is REFUSED.*git commit --amend.*git rebase -i.*release-notes.md" <<<"$out"; } \
-  && pass "2. a missing trailer refuses (exit 1), names the commit, the key and the fix" \
-  || fail "2. a missing trailer refuses (exit 1), names the commit, the key and the fix" "rc=$rc $out"
+  && grep -q "the push is REFUSED.*git commit --amend.*git rebase -i.*release-notes.md" <<<"$out" \
+  && [[ "$(grep -cE '^(Lay|Tech)-(What|How|Why): <' <<<"$out")" == 6 ]]; } \
+  && pass "2. a missing trailer refuses (exit 1), names the commit, the key, the fix and prints the six-trailer template" \
+  || fail "2. a missing trailer refuses (exit 1), names the commit, the key, the fix and prints the six-trailer template" "rc=$rc $out"
 # red control: the same commit with its note added by an amend passes
 git -C "$T" commit -q --amend -m "fix: b"$'\n\n'"$FULL"
 check HEAD~1

@@ -242,6 +242,8 @@ out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-92 "$T_TMP/repo" "$T_TMP/brief-c47e
 has "C52e: a named dispatch-<topic8> beats the hash" "--topic '1be0e370' --issue ''" "$out"
 has "git: leak gate quotes the identity" "dev@example.com dev@example.com" "$prompt"
 has "git: red-run owners are told via spool-send" "tell them with spool-send.sh" "$prompt"
+# spec 065 L11: the seed says every commit carries its release note (the gate refuses one without it).
+has "git: seed asks for the release note" "Every commit message ends with its release note (csi-spl-doc/doc/help/release-notes.md); the gate refuses one without it." "$prompt"
 # spec 065 L8: the report carries sha + note link per released commit.
 has "git: report asks for sha + note link" "Report sha + note link per released commit ('SHA=<sha> ENV=<env> ./run -a do_release_note_link')" "$prompt"
 # SPL-1253: the deploy-gate footer rides every git-repo brief.

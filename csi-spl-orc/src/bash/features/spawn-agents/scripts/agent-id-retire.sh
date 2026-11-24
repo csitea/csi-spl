@@ -58,6 +58,12 @@
 #                  the sweep removes it once unheld and 24 h old (c-232 left
 #                  20 GB there, sat 2026-10-15; retired lanes' scratch held
 #                  12.85 GB of a full /tmp, 2026-10-31)
+#   tmp-wt      -> the git worktrees the agent left directly under /tmp (a
+#                  review seat's checkout, its red-control copy): removed at
+#                  once (tmp-wt-reap.sh --agent --apply) only when proven its
+#                  own (spl-owner marker, or a message it sent naming the
+#                  path), unheld and unmounted; a dirty one only when it is a
+#                  red / parent copy, by `worktree remove --force` (SPL-6347)
 #   var-tmp     -> top-level /var/tmp entries whose name carries the id
 #                  (c-272-base, c272-gocache): listed the same way
 #
@@ -81,8 +87,9 @@
 # set), DESK_STATE_ROOT / DESK_ENVS (desk-seat-drop.sh's; the root defaults
 # to the desk user's, spool_desk_state; SPOOL_BOX_HOME names that home instead),
 # RETIRE_WORKTREE=0|1 (default 1; 0 under SPOOL_TEST=1),
-# RETIRE_SCRATCH=0|1, RETIRE_SERVERS=0|1, RETIRE_VARTMP=0|1 (default 1; 0
-# under SPOOL_TEST=1), LANE_TEST_SERVER_* (lane-test-server-reap.sh's),
+# RETIRE_SCRATCH=0|1, RETIRE_SERVERS=0|1, RETIRE_VARTMP=0|1, RETIRE_TMPWT=0|1
+# (default 1; 0 under SPOOL_TEST=1), LANE_TEST_SERVER_* (lane-test-server-reap.sh's),
+# TMP_WT_* (tmp-wt-reap.sh's),
 # RETIRE_VARTMP_ROOT (default /var/tmp), LANE_SCRATCH_* (its), WORKDIR_TABLE
 # (workdir-register.sh's).
 # Exit 0 retired (or planned), 2 usage / not an agent id / a role id / a desk
@@ -396,6 +403,18 @@ elif on "${RETIRE_SCRATCH:-}" && [ -n "$WT" ]; then
   while IFS= read -r d; do [ -n "$d" ] && ! grep -qxF -e "$d" <<<"$gone" && listed scratch "$d"; done \
     < <(bash "$_here/lane-scratch-reap.sh" --list "$WT" \
       || echo "agent-id-retire: WARN the /tmp scratch of ${WT} was not all read (lane-scratch-reap.sh --list)" >&2)
+fi
+# ---- 8b. the git worktrees the agent left under /tmp ------------------------
+# A review seat's checkout and red-control copy (SPL-6347): removed at once
+# when proven its own (its spl-owner marker, or a message it sent naming the
+# path), unheld and unmounted; a dirty one only when it is a red / parent copy.
+if on "${RETIRE_TMPWT:-}"; then
+  TWR=(bash "$_here/tmp-wt-reap.sh" --agent "$ID"); [ "$APPLY" = 1 ] && TWR+=(--apply)
+  twr="$("${TWR[@]}" 2>&1)" || echo "agent-id-retire: WARN the /tmp worktrees of ${ID} were not reaped (tmp-wt-reap.sh rc $?): ${twr##*$'\n'}" >&2
+  while IFS= read -r l; do
+    l="${l#* tmp-wt-reap: }"
+    case "$l" in "$VERB "*|KEEP\ *) step tmp-wt "${l#"$VERB "}" ;; esac
+  done <<<"$twr"
 fi
 # ---- 9. the lane's /var/tmp leftovers ---------------------------------------
 # A top-level entry whose name carries the id (c-272-base, c272-gocache), not

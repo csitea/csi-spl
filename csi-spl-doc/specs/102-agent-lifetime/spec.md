@@ -416,6 +416,33 @@ after the agent is done.
   `/opt` or `/tmp` (rows that exist for c-001 and retired ids) made the slug a
   prefix of every lane's and planned the removal of every live lane's idle
   scratch (R7 W1). Test: `test-lane-scratch-reap.sh` (cases 2, 3, 3b, 7, 8).
+- **A retired seat's git worktrees under /tmp are removed at retire**
+  (SPL-6347, 2026-11-24): review seats (mostly grok) leave worktrees of the
+  main checkout directly under /tmp (a review checkout, a red-control or
+  parent copy), 11-32k inodes each; one box's /tmp tmpfs reached 80% inodes
+  three times in three days and 99% once, and 18 of its 31 such trees were
+  dirty red copies of seats already gone (no sweep takes a dirty tree, and a
+  red copy is dirty by design). `agent-id-retire.sh` step 8b runs
+  `tmp-wt-reap.sh --agent <ID> --apply`. A tree is removed only when it is a
+  linked worktree of the main checkout (`git worktree list --porcelain`),
+  directly under the tmp root, and **proven** the seat's own, never by its
+  name alone: its git dir holds an `spl-owner` marker naming the id (written
+  by `hooks/post-checkout` at `git worktree add` from the adding agent's
+  `SPOOL_AGENT_ID`, or its nearest ancestor's: a `sudo -u` hop drops it), or
+  its name carries the id AND a message the seat itself sent (its spool
+  outbox, live or under `.retired/`) names the exact path; a marker naming
+  another id wins over the name. It is kept when locked, mounted under
+  (`findmnt`), held by a process (cwd or open fd) or owned by another user
+  than the main checkout. A clean tree goes by `git worktree remove`; a dirty
+  one by `--force` only when its name has a `red` or `parent` word; any other
+  dirty tree is `KEEP dirty`. The branch stays; nothing is `rm -rf`.
+  **Orphans** of ids already retired (the backlog): `cd csi-spl-utl && ./run
+  -a do_sweep_tmp_worktrees`, the same proof, and only for an id retired on
+  this box that is live on no box (registry, tmux, the fleet lane map with
+  the hub answering, else it refuses) and idle 2 h. **Default off**: a dry
+  run unless `DRY_RUN=0`, by hand only, no cron and no disk-sweep step;
+  running it live is the orchestrator's call after a dry run on the box.
+  Test: `test-tmp-wt-reap.sh`.
 - **A retired lane's leftover e2e test server is stopped at retire**
   (SPL-4762, 2026-11-04): on sat the retired c-810 left
   `node src/node/test/serve-generated.mjs --root /tmp/claude-<uid>/<slug>/<session>/scratchpad/bundle-head`

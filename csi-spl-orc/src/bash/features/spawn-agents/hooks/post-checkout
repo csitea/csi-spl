@@ -14,9 +14,39 @@
 # flag 1. A new worktree that sits INSIDE another worktree of the same repo is
 # always this mistake (a ref or an empty variable read as a path), so it is
 # removed again and the add fails. Every other checkout passes untouched.
+#
+# Every other new worktree gets its owner marker (SPL-6347): `spl-owner` in
+# its own git dir, "<agent id><TAB><utc><TAB><path>", the id being the
+# SPOOL_AGENT_ID of the agent that ran the add (this process, else the
+# nearest ancestor that carries it: `sudo -u <box-user>` drops it from the
+# env). tmp-wt-reap.sh reads it to prove whose /tmp worktree it removes at
+# retire. No agent id found: no marker, the add still passes.
+# SPL_OWNER_WALK=0: this process's env only (tests).
 # git passes <old-head> <new-head> <branch-flag>.
 case "${1:-}" in *[!0]*|"") exit 0 ;; esac
 [ "${3:-}" = 1 ] || exit 0
+
+# owner_id: SPOOL_AGENT_ID of this process or its nearest ancestor
+owner_id() {
+  local p=$$ n=0 e
+  if [ -n "${SPOOL_AGENT_ID:-}" ]; then printf '%s\n' "$SPOOL_AGENT_ID"; return; fi
+  [ "${SPL_OWNER_WALK:-1}" = 1 ] || return 0
+  while [ "$n" -lt 40 ]; do
+    n=$((n + 1))
+    p="$(awk '/^PPid:/ { print $2 }' "/proc/$p/status" 2>/dev/null)"
+    [ -n "$p" ] && [ "$p" -gt 1 ] || return 0
+    e="$(tr '\0' '\n' <"/proc/$p/environ" 2>/dev/null)" || e="$(timeout 5 sudo -n cat "/proc/$p/environ" 2>/dev/null | tr '\0' '\n')"
+    e="$(printf '%s\n' "$e" | sed -n 's/^SPOOL_AGENT_ID=//p' | head -1)"
+    [ -n "$e" ] && { printf '%s\n' "$e"; return; }
+  done
+}
+mark_owner() {
+  local id gd
+  id="$(owner_id)"; id="${id%%@*}"
+  printf '%s' "$id" | grep -qE '^[acgmq]-[0-9]{3}$' || return 0
+  gd="$(git rev-parse --absolute-git-dir 2>/dev/null)" || return 0
+  printf '%s\t%s\t%s\n' "$id" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(pwd -P)" >"$gd/spl-owner" 2>/dev/null || true
+}
 
 new="$(pwd -P)"
 host=""
@@ -26,7 +56,7 @@ while IFS= read -r line; do
   [ "$wt" = "$new" ] && continue
   case "$new/" in "$wt"/*) [ "${#wt}" -gt "${#host}" ] && host="$wt" ;; esac
 done < <(git worktree list --porcelain 2>/dev/null)
-[ -n "$host" ] || exit 0
+[ -n "$host" ] || { mark_owner; exit 0; }
 
 rel="${new#"$host"/}"
 cd "$host" || exit 1

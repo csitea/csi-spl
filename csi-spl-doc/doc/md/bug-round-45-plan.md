@@ -10,12 +10,12 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-44-plan.md](bug-round-44-plan.md).
 
-**Status: v0.1, for the panel.** Not signed; no row lane starts before the panel signs the plan sha (rulebook 3.2).
+**Status: v1.0, signed: m-228 (mistral) PASS on v0.1 `5148267759`, W none; its notes N1 to N5 folded (section 8), no row changed.** For the holder's GO; no row lane starts before it (rulebook 3.2).
 
 Editor: **c-025@`<box2>`** (claude, `specs_and_docs`).  
 Panel: placed by the holder (rulebook 3.2).
 
-**One sha:** every site, line number and red control below is on **`d9030330e`** (`origin/master` at this seat's fetch, 2026-11-24T19:3xZ); the three files of the row are unchanged since `92caf63c2` (`git diff --stat 92caf63c2 d9030330e -- <the three files>` -> empty). The sources of section 2 were read on `<box2>`, 19:18Z..19:30Z on 2026-11-24. n=1 per command unless stated.  
+**One sha:** every site, line number and red control below is on **`d9030330e`** (`origin/master` at this seat's fetch, 2026-11-24T19:3xZ); the three files of the row are unchanged since `92caf63c2` (`git diff --stat 92caf63c2 d9030330e -- <the three files>` -> empty). At v1.0 (20:1xZ) `origin/master` is `93b03457a` and the three files are still unchanged (`git diff --stat d9030330e 93b03457a -- <the three files>` -> empty), so every site and the red control hold at that head. The sources of section 2 were read on `<box2>`, 19:18Z..19:30Z on 2026-11-24. n=1 per command unless stated.  
 **Window** (rulebook 5.3): `W=$(git log origin/master -1 --format=%cI -E --grep='^docs\(b44-plan')` read at 19:18:37Z (before this seat's close record landed) -> `Window: W=2026-11-24T11:46:36+02:00` (commit `4577630c5`, round 44's last plan commit then). The close record `2ec8927ba` (19:20Z) is a newer `docs(b44-plan` commit; the recorded W stays (5.3: the planner reads W once). Since W, `origin/master` took 85 commits to `64123998a` (`git log origin/master --since="$W" --oneline | wc -l`).
 
 ---
@@ -194,7 +194,7 @@ Output on `d9030330e` (`<box2>`, 19:3xZ):
 | inputs re-measured | 10 sources; 40 prd error entries since W (10 h read); 510 prd WARNING entries since W (401s left out, cap not reached); 9 alert policies (0 incidents); 12 open bug issues; 100 wf 10 runs (3 failures); 23 failed runs of other workflows since W (20 wf 40, 3 wf 10); 6 R7 lines since W; 0 owner posts; round 44's first inputs (8 + the carried N2s); `rc01-b45.sh` n=1 each way on `d9030330e` and once on `14b6055c2^`; 650 briefs through `_spl_review_go_instr` twice; the review-go suite twice (tree, fix shape) |
 | slug proof | `git log origin/master --since="$W" --oneline -E --grep='\(b45-'` -> 0; `git ls-remote origin 'refs/heads/review/b45-*' 'refs/heads/wip/*b45*' 'refs/heads/*-b45-*' 'refs/heads/*bug-round-45*'` -> nothing (rc 0), 19:18:37Z |
 | R7 seat | agy if quota, else the claude waiver seat (1a7c70da) |
-| first inputs for round 46 | the hours-minutes whole-batch 400 on a client clock ahead (section 3.3, with its first step); the non-instruction `apply` (a noun, a status); r96-01 N1 (`spl-unanswered-sweep.func.sh:196` names a removed function, refactor-shaped); the topic loop cap race; the store tests' fresh-DB need; the `unknown_token` box; the hub dir mode; the hermetic 2/4 timeout; the composed testids; SPL-6277 N2, SPL-6174, b34-01 N2, SPL-6212 N2, r87-01 N2, `run.sh:797`, g-162 N2 as carried |
+| first inputs for round 46 | the hours-minutes whole-batch 400 on a client clock ahead (section 3.3, with its first step); the non-instruction `apply` (a noun, a status); r96-01 N1 (`spl-unanswered-sweep.func.sh:196` names a removed function, refactor-shaped); the topic loop cap race; the store tests' fresh-DB need; the `unknown_token` box; the hub dir mode; the hermetic 2/4 timeout; the composed testids; SPL-6277 N2, SPL-6174, b34-01 N2, SPL-6212 N2, r87-01 N2, `run.sh:797`, g-162 N2 as carried; the release-transfer tool's `zip_dirs` offering `proj.zip` and a byte-identical `proj.<UTC>.zip` (SPL-6361 area, line 139 of the holder's candidate list, added after this plan's read; panel N2) |
 
 ---
 
@@ -204,4 +204,7 @@ Output on `d9030330e` (`<box2>`, 19:3xZ):
 - **Panel:** placed by the holder (cross-vendor).
 - **Row reviewer (R7):** section 5.
 - **Review history:**
-  - 2026-11-24: v0.1, pushed to `review/c002-bug-round-45-planner`: 1 row.
+  - 2026-11-24 19:42Z: v0.1 `5148267759`, pushed to `review/c002-bug-round-45-planner`: 1 row.
+  - 2026-11-24 20:1xZ: panel m-228@sat (mistral) **PASS** on `5148267759`, W none (msg b4191ea7 to this seat, cd6b0827 to the holder; seat file `csi-spl-doc/doc/md/bug-round-45/seat-mistral.md` on `review/c002-bug-round-45-mistral-seat` `a98d73751`). It re-ran `rc01-b45.sh` (exit 1 on `d9030330e`, exit 0 with `fix-shape`, exit 1 on `14b6055c2^`; hash matches), the review-go suite on the tree and on the fix-shape copy (0 failures each), the owner-go scan on three fixtures (the comma conditional and "Then apply ..." held both ways; the comma-less conditional freed by the tree, held by the fix), and read every cited line on `d9030330e` (all match). Notes: N1 its brief corpus on sat at 20:0xZ: 7171 files, 628 with `apply`, against this plan's 6747 / 650 on `<box2>`; 8 sampled briefs gave 0 tree-vs-fix differences, so "harm today: latent" holds on that sample. N2 the holder's candidate list grew to 139 lines after this plan's read; its line 139 (`zip_dirs`, SPL-6361 area) is a round-46 input (section 7). N3 `origin/master` moved to `93b03457a` with the three row files unchanged (re-measured by this seat, "One sha" above). N4 lane-map exit 4 (25 `unknown:` lanes), as this plan's R3: the paths are not free until the holder re-runs `--check` at placement. N5 the hours-minutes 400s carried to round 46, agreed. None changes the row.
+  - Review line checked: `do_spl_review_line_check` rc 0 on sat (the holder, msg f07cfa62: 1 of 1 named commands in the seat's one-session log).
+  - 2026-11-24 20:1xZ: v1.0, the panel notes folded, pushed to `review/c002-bug-round-45-planner`.

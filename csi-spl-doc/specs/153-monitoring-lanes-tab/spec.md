@@ -1,5 +1,31 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-24, SPL-6383): section 3.30 (bulk Set priority, the
+second action of spec 186's select phase: action value `priority`, the
+existing `PUT /v1/topics/{task_id}/priority` per topic, its permission
+unchanged), cases C146-C154, rows Q13a and Q13b. And the owner's answers to
+the build plan's H1-H7 (HUM-10, t1 `906c1b28`, msg `5e11eca7`, form
+`ced5bc93`; plan `doc/md/spec-153-build-plan.md` 6.1), all A. Where they
+change this spec's text, that text carries a note:
+
+- **H1 A**, keep the copy, drop the cross-workspace read: 3.22.6 "Across
+  workspaces" no longer adds a read of other workspaces' topics to
+  `askDiscussion` and `askListPriorities`. SPL-5905's copy of the operator
+  owner's set into the operator workspace (`priorityToOperator`,
+  `hub/topic_priority.go:97`) stands, and C113 tests that copy.
+- **H2 A**: section 3.30 first (this addendum), then row Q13.
+- **H3 A**: a `ci` row ranks first in the hub's order, as the placer
+  already takes it (C121, row Q2).
+- **H4 A**: Q8's filler gate passes only an issue whose priority 1 or 2 a
+  person set, not one at 1 or 2 by a default (bugs default to 2, SPL-5930).
+- **H5 A**: row Q10 writes the rollup with an operator PUT and Q11 reads it
+  with a GET, both in `hub/fleet_flow.go`, registered in `hub/server.go`.
+- **H6 A**: the WUI text rows (Q4, Q5, Q6, Q7, Q11, Q13b) land on the
+  Google Cloud Translation check, `do_spl_lang_review_gct`, on their new
+  keys; an agy review is optional and no row waits for one. This replaces
+  the "agy language review BEFORE land" line of 3.22.11.
+- **H7 A**: one plan, 13 rows in 8 batches (the plan's section 5).
+
 Addendum (2026-11-13, SPL-5467): `SectionClose.vue` is deleted; no section
 page has a close X (owner HUM-10 msg d93462e4). Where 3.1, 3.28 and the P/C
 rows below cite it or an end close X, they record the header as it was.
@@ -1764,7 +1790,8 @@ sets the discussion instead and says so.
 Today it cannot while the queue is non-empty (3.22.2). New in Q8: an issue the
 owner set to priority 1 or 2 passes the filler's "queue is empty" gate, still one
 per tick (`SPAWN_FILL_MAX`), still with the filler's brief and class rules, and
-still never one with no class label. A plan at 3..5 waits for an empty queue, as
+still never one with no class label. (H4 A, msg `5e11eca7`, addendum
+2026-11-24: only a priority a person set passes, never a default 1 or 2.) A plan at 3..5 waits for an empty queue, as
 today. No drag on a plan: answer 3 names a request, and a plan has no place in a
 line until it is a request.
 
@@ -1789,6 +1816,10 @@ own priority does not move its issue or discussion: it is about this request.
 operator admin only, else 403; 404 for no such ask; 409 `not_queued` once placed;
 400 outside 1..5. A change is logged in the hub's event log with who and the old
 and new value.
+
+> Answered (H1 A, msg `5e11eca7`, addendum 2026-11-24): this read is
+> dropped. The operator owner's set is copied into the operator workspace
+> (SPL-5905), and C113 tests the copy. The paragraph below is the v1.x text.
 
 **Across workspaces.** `askDiscussion` and `askListPriorities` also read the
 other workspaces' topics from the operator workspace, as `followTopicPriority`
@@ -2054,6 +2085,11 @@ named.
   are not read.
 
 #### 3.22.11 Rows Q1-Q12
+
+> Answered (H6 A, msg `5e11eca7`, addendum 2026-11-24): the language
+> check of these rows is `do_spl_lang_review_gct` on the new keys before
+> the land; agy is optional and no row waits for it. The quoted line below
+> is the v1.x text.
 
 Disjoint where the order allows. Every row with web UI text carries: "agy language
 review BEFORE land: push review/<slug>, ask the dispatch holder for the agy reviewer,
@@ -2437,6 +2473,147 @@ row), `monitoring-costs` C46, and the Lanes specs (`monitoring-lanes-url`,
 green); unit `monitoring-topics` (the per-column filters, the codec over
 Topics' columns, the page reuses the sheet), `monitoring-lanes-url`
 (unchanged).
+
+### 3.30 Bulk Set priority on spec 186's select phase (SPL-6383)
+
+Owner HUM-10, t1 `906c1b28`, msg `5e11eca7` (form `ced5bc93`), answer 2:
+"A — Spec 153 section 3.30 first, then row Q13". The build plan
+([spec-153-build-plan.md](../../doc/md/spec-153-build-plan.md) v1.0, H2 and
+row Q13) asked for this section. Design only: nothing here is built.
+
+Every `file:line` below was read on origin/master `09f137d40`.
+
+#### 3.30.1 What spec 186 hands over
+
+Spec 186 v0.6 section 8.3
+([186 8.3](../186-multicast-prompt/spec.md)) builds the topic multi-select
+once, as its row M3, and names this action as the select phase's second
+user. It leaves four things to spec 153: the action, its route, its
+`topic_select` action value and its permission. 186 fixes the rest:
+
+- the selection (`stores/topicSelect.ts`), the bar (`TopicSelectBar.vue`),
+  Select by title and "Select all N matching" (186 7.1.6);
+- the registration, `useTopicSelect().registerAction({ id, icon, labelKey,
+  run(selection) })`, and the rule that a finished action clears the
+  selection (186 7.1.6);
+- where the boxes show: topic opener cards of the reader's own channels and
+  Monitoring -> Topics rows of the reader's own workspace, never another
+  workspace's row, a DM card or an `issues` card (186 7.1.6);
+- the `topic_select` frame and its resolver `resolveTopicSelector` (186
+  7.1.2, row M4). An `action` the hub does not know answers `bad_json` 400.
+
+So this action never reaches another workspace's topic. The operator's
+cross-workspace door stays the one-row chooser of 3.22.6 "On a lane"
+(row Q5).
+
+#### 3.30.2 The action
+
+- **Registration.** One line registers `{ id: 'priority', icon,
+  labelKey: 'topic_priority_bulk.action', run }` with 186's
+  bar, after Multicast in registration order. It shows wherever the bar
+  shows.
+- **The chooser.** `run(selection)` opens `TopicPriorityBulkDialog.vue`
+  (new, lazy): the title "Set the priority of {n} topics", the same 1..5
+  radio row as the one-topic chooser (`components/TopicPriorityChooser.vue`:
+  one named radio group, its look, its hint `topic.priority.hint`) with
+  **no value checked**, because the selected topics may differ, and a
+  button "Set {n} topics to P{p}", disabled until a value is picked.
+  Cancel, Esc or a click outside closes it with nothing written: the
+  action is cancelled and the selection stays (186 7.1.6). On a phone it
+  is a full-screen sheet, as Multicast's dialog (186 M11).
+- **The write.** No bulk route: one `PUT /v1/topics/{task_id}/priority`,
+  body `{"priority": p}`, per selected topic, through the client's existing
+  `setTopicPriority(taskId, priority)` (`utils/spool-client.mjs:757`), run
+  by `runBulk` (`utils/issues-bulk.ts:80`) at `BULK_PARALLEL` = 4 at a time
+  (`:17`), as the issues bar runs its per-item calls (186 3.6). The bar's
+  progress line reads "{done} of {n}".
+- **Each write is a full single set.** The route
+  (`hub/topic_priority.go:37-40`, handler `:52`) does what it does for one
+  topic, nothing less: it stores the value with who and when, the topic's
+  issues and their lanes follow (`followTopicPriority`, `:83`; spec 150
+  3.4 item 4), the operator-workspace copy is written when the caller owns
+  the operator workspace (`priorityToOperator`, `:84` and `:97`, SPL-5905;
+  H1 A, addendum), and every open view gets the `topic_priority` frame.
+- **The result.** All written: the result line reads "Priority set to
+  {p} on {n} topics" and the action reports finished, so the selection
+  clears. Any refused: the topics that were written leave the selection,
+  the refused ones stay selected, the action reports not finished, and the
+  result line names each refused topic by title with its reason ("Not set
+  on {topic}: {reason}", the reason from the answer's token). A second run
+  on what is left is the retry.
+- **No cap.** A selection has no count limit (186 R2 QTA). 450 topics are
+  113 rounds of 4 PUTs.
+
+#### 3.30.3 The action value and the permission
+
+**`topic_select` action `priority`.** The resolver keeps what it keeps for
+any action (186 7.1.2: the reader's own scope, `NoIssues`, no DM, no
+archived topic, the box owner lock), then applies the PUT's own caller
+checks, which are per workspace, not per topic:
+
+| PUT check (`hub/topic_priority.go`) | in `topic_select` action `priority` |
+|---|---|
+| a signed-in member session (`priorityCaller`, `:111`) | the socket is already a member session (186 7.1.2) |
+| billing allows a write (`:121`) | not checked: the frame stores nothing. Each PUT answers 402, and the result line says so |
+| a demo visitor never (`:127`, 403 `demo_read_only`) | `ok: false`, `error` = `demo_read_only`, nothing added |
+| `notes.send` in the workspace (`s.permit(..., t.ID, ..., rbac.NotesSend)`, `:132`; tenant-wide, no channel) | no `notes.send`: `ok: true` with `topics` empty ("No topic matches") |
+| the read door, 404 (`priorityDoor`, `:138`) | the resolver's own scope is that door (186 3.3) |
+| the policy "Who can archive topics" (`priorityAllowed`, `:176`; `mayArchiveByPolicy`, `hub/topic_archive.go:172`) | `admins`: a reader who is neither owner nor admin gets `topics` empty. `everyone`: no filter. `starter`: no filter, see below |
+| archived, 409 `topic_archived` (`topicOpenDoor`, `:56`) | the resolver already leaves archived topics out (186 M4) |
+
+**The `starter` policy is not filtered in the select.** Under it a reader
+who is neither owner nor admin may set only the topics they started.
+`store.TopicRow` carries no opening author (`internal/store/view.go:70-84`:
+`Parties` and, on Postgres, only the first message's subject), so the
+filter would cost a read per topic. The select keeps those topics, and
+their PUT answers 403 `not_allowed`, which the result line names. Q13 adds
+no new store read for this.
+
+**The permission of the action** is the PUT's, unchanged: the workspace's
+members with `notes.send`, under the workspace's archive policy, never a
+demo visitor. This section adds no permission, role or cnf key.
+
+#### 3.30.4 Text
+
+New en keys, every key in all 19 locale files (`i18n-parity.test.mjs`):
+`topic_priority_bulk.action` "Set priority", `topic_priority_bulk.title`
+"Set the priority of {n} topics", `topic_priority_bulk.apply` "Set {n}
+topics to P{p}", `topic_priority_bulk.progress` "{done} of {n}",
+`topic_priority_bulk.done` "Priority set to {p} on {n} topics",
+`topic_priority_bulk.refused` "Not set on {topic}: {reason}". Reused:
+`topic.priority.hint`, `topic.priority.label`, the bar's
+`topic_select.*` (186 7.1.4). The language check is
+`do_spl_lang_review_gct` on these keys before the land; an agy review is
+optional (H6 A, addendum).
+
+#### 3.30.5 Cases
+
+All planned. A red control is the check that fails on master today, or the
+plant named.
+
+| # | case | expected | red control |
+|---|---|---|---|
+| C146 | Go, `topic_select` action `priority` as a member with `notes.send`, policy `everyone`: a public channel's topic, a members-only channel the reader is in, one the reader is not in, an archived topic, a DM | exactly the first two | master: `bad_json` (no action `priority`) |
+| C147 | the same tenant, policy `admins`: a plain member, then an admin | the member gets `ok: true`, `topics` empty; the admin gets the two | drop the policy filter: the member's answer has two topics |
+| C148 | the same tenant, policy `starter`: a plain member who started one of the two | both returned; a run of 2 PUTs stores 1 and the other answers 403 `not_allowed` | filter by author in the select: only one returned, the test fails |
+| C149 | a member without `notes.send`; a demo visitor | the first `ok: true`, `topics` empty; the second `ok: false`, `demo_read_only` | drop the `notes.send` check: the first gets the topics |
+| C150 | unit, mock client: 3 topics selected, open the action, pick 2, Set | 3 `setTopicPriority` calls with 2, at most 4 at a time; the line reads "Priority set to 2 on 3 topics"; the selection is empty | master: no action registered |
+| C151 | unit, mock: of 3, the middle PUT answers 403 `not_allowed` | 2 written; only the middle topic stays selected; the line names it with its reason | clear the selection on any end: the refused topic is no longer selected |
+| C152 | unit: open the dialog and close it with Esc; then with nothing picked | no call, the selection unchanged; Set is disabled with nothing picked | check a default value (3): Set is enabled with nothing picked |
+| C153 | Go: a bulk run's PUT on a topic with an open issue and a queued ask, by the operator workspace's owner on another workspace's topic | each PUT is a single set: the issue follows, and the operator copy is written (as `TestOwnerPrioWordOperatorQueue`, `hub/owner_prio_word_test.go`) | none new: `topic_priority_test.go` and `owner_prio_word_test.go` stay green |
+| C154 | e2e on the mock, 1440 and 390 px: tick 2 topics on Monitoring -> Topics and 1 on a channel page, Set priority, pick 1, Set | the bar shows Set priority after Multicast; each card's badge reads P1; on 390 the dialog is a full-screen sheet; no sideways scroll | master: no Set priority button |
+
+#### 3.30.6 Row Q13
+
+| row | kind | files (only these) | tests and red control | after | cases |
+|---|---|---|---|---|---|
+| Q13a the `priority` action value | `complex_coding` | `internal/hub/topic_select.go` (the action `priority` and its filter; 186 M4's new file) + `topic_select_test.go`; no `server.go` or `openapi.json` line: a frame's action value, no new route. No UI text | Go on Postgres, C146-C149, C153; red: master answers `bad_json` | 186 M4 | C146-C149, C153 |
+| Q13b the action and its dialog | `complex_coding` | new `components/TopicPriorityBulkDialog.vue`; new `composables/useTopicPriorityBulk.ts`; the one registration line next to Multicast's (186 M11's line); `i18n/locales/*.json` (new keys only); new `tests/unit/topic-priority-bulk.test.mjs`; new `tests/e2e/topic-priority-bulk.test.mjs`. `do_spl_lang_review_gct` on the new keys before the land (H6 A) | unit and e2e, C150-C152, C154; red: no button | 186 M3 and M11 (the bar and the registration line), Q13a | C150-C152, C154 |
+
+The plan's row Q13 named "after M3, M4 and Q5". This design needs no Q5
+part: it reuses the one-topic chooser's look, not Q5's lanes chooser, and
+the PUT it calls is on master today. The holder decides whether to keep
+Q5 in the order for the page's sake.
 
 ## 4. Cases
 

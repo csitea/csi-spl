@@ -82,4 +82,11 @@ T9, T10, T10b are S1, S2, S4, S5 above. T11 is replaced by E1. T3b is dropped on
 S3 lands, unless the holder objects.
 
 N1: `spl-private-cnf.func.sh` is at `csi-spl-iac/lib/bash/funcs/`, so row H4 touches iac too.
+N3 (open, from the H4/H5 R7 review): the hold is judged twice, on two clocks:
+  the reserve's `HOST_RESERVE_HOLD` on the master box and wf 40's in CI. If the
+  two values differ or the clocks skew, the one dispatch can land inside CI's
+  hold, and the 15-minute schedule then adds the row (worst case ~22 min, not ~7).
+N4 (open, from the same review): `<state>/dispatched` only grows, so a reused
+  `ws-hidden-NN` (the highest removed, then a new one added) is never
+  dispatched again; the 15-minute schedule still adds it.
 N2: rows H1 and H2 are bound to the queued asks c3f1f4c1 and 5d3eeae2: no duplicate lanes.

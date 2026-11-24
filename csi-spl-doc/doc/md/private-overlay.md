@@ -109,7 +109,7 @@ the hub's migrate).
   the placeholder of each new hidden `tenant_hosts` row (the line stamped
   `# reserved <ts>`, under the lock of `spl_private_add`), syncs the other
   user, sets the secret from stdin with the owner's token
-  (`RESERVE_GH_TOKEN_FILE`, no default), reads its `updated_at` back and writes
+  (`RESERVE_GH_TOKEN_FILE`, no default, mode 600 or 400), reads its `updated_at` back and writes
   the row's detail. Every other box pulls the overlay every 2 minutes. The
   40 reconcile workflow takes the row once the stamp is `HOST_RESERVE_HOLD`
   minutes old (default 5), and past that hold the reserve dispatches it.

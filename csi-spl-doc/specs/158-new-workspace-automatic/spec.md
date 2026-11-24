@@ -585,7 +585,9 @@ on the next run (`<state>/unpublished`), and a refused dispatch is tried again.
 
 **The token (OD2, unchanged).** The reserve reads it from
 `RESERVE_GH_TOKEN_FILE`, no default; it fails fast without it and refuses a file
-other users can read. The owner mints it: a fine-grained token, this repo,
+its group or other users can read (mode 600 or 400 only). A failed psql or proxy
+call logs a fixed line and its rc, never its output, which may name a hidden
+slug (the reserve runs from cron). The owner mints it: a fine-grained token, this repo,
 `secrets: write`, plus `actions: write` for step 4. Nothing here asks for,
 mints or stores one.
 

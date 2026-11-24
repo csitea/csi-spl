@@ -76,13 +76,13 @@ do_spl_tenant_host_reserve() {
 }
 
 # spl_thr_token_file -> RESERVE_GH_TOKEN_FILE when it is a readable, non-empty
-# file closed to other users; FATAL naming what is missing (spec 158 OD2: the
+# file closed to its group and other users (mode 600 or 400); FATAL naming what is missing (spec 158 OD2: the
 # owner mints the token, nothing here asks for or stores one)
 spl_thr_token_file() {
   local f="${RESERVE_GH_TOKEN_FILE:-}"
   [[ -n "$f" ]] || { do_log "FATAL RESERVE_GH_TOKEN_FILE is not set (no default): the owner's fine-grained token (this repo, secrets write) is read from it, spec 158 OD2. Nothing reserved" >&2; return 1; }
   [[ -r "$f" && -s "$f" && ! -L "$f" ]] || { do_log "FATAL RESERVE_GH_TOKEN_FILE $f is missing, empty, unreadable or a symlink. Nothing reserved" >&2; return 1; }
-  [[ "$(stat -c %a "$f")" =~ [0-7][0-7]0$ ]] || { do_log "FATAL RESERVE_GH_TOKEN_FILE $f is readable by other users (mode $(stat -c %a "$f")): chmod 600 it. Nothing reserved" >&2; return 1; }
+  [[ "$(stat -c %a "$f")" =~ ^[46]00$ ]] || { do_log "FATAL RESERVE_GH_TOKEN_FILE $f is open to its group or other users (mode $(stat -c %a "$f"), 600 or 400 only): chmod 600 it. Nothing reserved" >&2; return 1; }
   printf '%s\n' "$f"
 }
 
@@ -100,13 +100,16 @@ spl_thr_gh() {
 }
 
 # spl_thr_env_read <tmp> (in a subshell with ENV set): the env's open rows to
-# <tmp>/rows.<env>, and the slugs that need a placeholder to <tmp>/cand.<env>
+# <tmp>/rows.<env>, and the slugs that need a placeholder to <tmp>/cand.<env>.
+# A failed read logs a fixed line and its rc only: psql / proxy text may name a
+# hidden slug, and this runs from cron
 spl_thr_env_read() {
-  local tmp="$1" cnf rows tag t st bill act age
+  local tmp="$1" cnf rows tag t st bill act age rrc=0
   do_spl_cloud_cnf || return 1
   cnf="$(spl_th_cnf_file)" || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
-  rows="$(spl_via_proxy _spl_th_open_rows)" || return 1
+  rows="$(spl_via_proxy _spl_th_open_rows 2>/dev/null)" || rrc=$?
+  (( rrc == 0 )) || { do_log "WARN $ENV: the open rows read failed (rc $rrc; its output withheld, it may name a hidden slug)"; return 1; }
   : >"$tmp/cand.$ENV"
   while read -r tag t st bill act age; do
     [[ "$tag" == row && -n "$t" ]] || continue
@@ -172,16 +175,17 @@ spl_thr_publish() {
 
 # spl_thr_mark <tmp> (subshell, ENV set): every open row of the env whose
 # placeholder carries a reservation still in its hold gets the detail
-# `placeholder reserved <ts> (<tok>)`, after the publish that made it known
+# `placeholder reserved <ts> (<tok>)`, after the publish that made it known; a
+# failed write logs the placeholder and rc only (psql text may name the slug)
 spl_thr_mark() {
-  local tmp="$1" t st bill act age ts tok
+  local tmp="$1" t st bill act age ts tok mrc
   do_spl_cloud_cnf && do_gcp_pin_account "$SPL_CNF" || return 1
   while read -r t st bill act age; do
     spl_thr_open_paid "$st" "$bill" "$act" "$t" || continue
     spl_th_reserve_held "$t" >/dev/null || continue
     ts="$(spl_private_reserved_at "$t")"; tok="$(spl_private_token "$t")"
-    spl_via_proxy _spl_th_mark_sql "$t" pending "placeholder reserved $ts ($tok)" >/dev/null ||
-      { do_log "WARN $ENV: tenant_hosts $tok detail not written"; continue; }
+    mrc=0; spl_via_proxy _spl_th_mark_sql "$t" pending "placeholder reserved $ts ($tok)" >/dev/null 2>&1 || mrc=$?
+    (( mrc == 0 )) || { do_log "WARN $ENV: tenant_hosts $tok detail not written (rc $mrc; its output withheld)"; continue; }
     do_log "INFO $ENV: tenant_hosts $tok -> pending (placeholder reserved $ts)"
   done <"$tmp/rows.$ENV"
 }

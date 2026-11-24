@@ -6,7 +6,8 @@
 # keeps the secret's content and time.
 #   1. on another box it refuses before any read, naming the pull command
 #   2. DRY_RUN=0 with no RESERVE_GH_TOKEN_FILE fails fast (no default), and
-#      a token file readable by others is refused; nothing read or written
+#      a token file open to its group or others (640, 644) is refused;
+#      nothing read or written
 #   3. a new hidden pending row: the stamped overlay line, then the box sync,
 #      then the secret set from the overlay (stdin, content equal), then the
 #      read back, then the row's detail, in that order; the token never in
@@ -18,6 +19,8 @@
 #   6. past HOST_RESERVE_HOLD: workflow 40 is dispatched once for the env;
 #      inside the hold it is not; a refused dispatch only warns
 #   7. the dry run reads, counts and writes nothing
+#   8. a failing psql / proxy that prints the slug: the read and the detail
+#      write log a fixed line and the rc, never the slug
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -63,13 +66,15 @@ in_orc() {
     spl_via_proxy() {
       local v="STUB_ROWS_$ENV"
       case "$1" in
-        _spl_th_open_rows) [[ -e "$T_DIR/rows.deny.$ENV" ]] && return 1; printf "INFO Cloud SQL proxy up\n%s\n" "${!v:-}" ;;
-        _spl_th_mark_sql) echo "MARK $ENV $2 $3 :: $4" >>"$ORDER_LOG"; echo "prev pending 1" ;;
+        _spl_th_open_rows) [[ -e "$T_DIR/rows.leak.$ENV" ]] && { echo "ERROR: relation tenant_hosts: row zq-leak violates check"; echo "psql: zq-leak" >&2; return 3; }
+          [[ -e "$T_DIR/rows.deny.$ENV" ]] && return 1; printf "INFO Cloud SQL proxy up\n%s\n" "${!v:-}" ;;
+        _spl_th_mark_sql) [[ -e "$T_DIR/mark.leak" ]] && { echo "ERROR: update tenant_hosts where tenant=$2 failed"; echo "psql: $2" >&2; return 4; }
+          echo "MARK $ENV $2 $3 :: $4" >>"$ORDER_LOG"; echo "prev pending 1" ;;
       esac
     }
     eval "$SNIPPET"'
 }
-reset() { rm -rf "$T/state"; mkdir -p "$T/state"; : >"$GH_LOG"; : >"$ORDER_LOG"; rm -f "$T"/secret.* "$T"/gh.*.deny "$T"/rows.deny.*; printf 'workspaces:\n  ws-hidden-01: zq-old\n' >"$OVL"; chmod 600 "$OVL"; }
+reset() { rm -rf "$T/state"; mkdir -p "$T/state"; : >"$GH_LOG"; : >"$ORDER_LOG"; rm -f "$T"/secret.* "$T"/gh.*.deny "$T"/rows.deny.* "$T"/rows.leak.* "$T"/mark.leak; printf 'workspaces:\n  ws-hidden-01: zq-old\n' >"$OVL"; chmod 600 "$OVL"; }
 run() { SNIPPET='do_spl_tenant_host_reserve' in_orc "$@" 2>&1; }
 
 # --- 1. another box -----------------------------------------------------------
@@ -86,8 +91,15 @@ out=$(run DRY_RUN=0 STUB_ROWS_dev='row zq-new pending active on 60'); rc=$?
   pass "2. DRY_RUN=0 with no token file fails fast: nothing read, nothing added" || fail "2. no token rc=$rc :: $out"
 cp "$T/token" "$T/token-open"; chmod 644 "$T/token-open"
 out=$(run DRY_RUN=0 RESERVE_GH_TOKEN_FILE="$T/token-open" STUB_ROWS_dev='row zq-new pending active on 60'); rc=$?
-[[ $rc -ne 0 ]] && grep -q 'readable by other users (mode 644)' <<<"$out" && ! grep -q zq-new "$OVL" &&
+[[ $rc -ne 0 ]] && grep -q 'open to its group or other users (mode 644, 600 or 400 only)' <<<"$out" && ! grep -q zq-new "$OVL" &&
   pass "2. CONTROL: a token file readable by others is refused" || fail "2. open token rc=$rc :: $out"
+cp "$T/token" "$T/token-group"; chmod 640 "$T/token-group"
+out=$(run DRY_RUN=0 RESERVE_GH_TOKEN_FILE="$T/token-group" STUB_ROWS_dev='row zq-new pending active on 60'); rc=$?
+[[ $rc -ne 0 ]] && grep -q 'open to its group or other users (mode 640, 600 or 400 only)' <<<"$out" && ! grep -q zq-new "$OVL" && [[ ! -s "$GH_LOG" ]] &&
+  pass "2. CONTROL: a token file readable by its group (640) is refused" || fail "2. group token rc=$rc :: $out"
+cp "$T/token" "$T/token-ro"; chmod 400 "$T/token-ro"
+out=$(run DRY_RUN=0 RESERVE_GH_TOKEN_FILE="$T/token-ro" STUB_ROWS_dev='row zq-new pending active on 60'); rc=$?
+[[ $rc -eq 0 ]] && grep -q 'ws-hidden-02: zq-new' "$OVL" && pass "2. a 400 token file is accepted" || fail "2. 400 token rc=$rc :: $out"
 
 # --- 3. a new hidden row: order, content, no slug in a log -------------------
 reset
@@ -173,6 +185,16 @@ reset; touch "$T/rows.deny.dev"
 out=$(run DRY_RUN=0 RESERVE_GH_TOKEN_FILE="$T/token" STUB_ROWS_prd='row zq-two pending active on 60'); rc=$?
 [[ $rc -ne 0 ]] && grep -q 'ws-hidden-02: zq-two' "$OVL" && grep -q 'WARN dev: open rows not read' <<<"$out" &&
   pass "7. dev unreadable: prd still reserves, the run is red" || fail "7. one env rc=$rc :: $out"
+
+# --- 8. psql / proxy errors never reach the log with a slug --------------------
+reset; touch "$T/rows.leak.dev"
+out=$(run DRY_RUN=0 RESERVE_GH_TOKEN_FILE="$T/token" STUB_ROWS_prd=''); rc=$?
+[[ $rc -ne 0 ]] && grep -q 'WARN dev: the open rows read failed (rc 3; its output withheld' <<<"$out" && ! grep -q zq-leak <<<"$out" &&
+  pass "8. a failing rows read that prints a slug: fixed line + rc, no slug in the log" || fail "8. read leak rc=$rc :: $out"
+reset; touch "$T/mark.leak"
+out=$(run DRY_RUN=0 RESERVE_GH_TOKEN_FILE="$T/token" STUB_ROWS_dev='row zq-new pending active on 60' STUB_ROWS_prd=''); rc=$?
+grep -q 'WARN dev: tenant_hosts ws-hidden-02 detail not written (rc 4; its output withheld)' <<<"$out" && ! grep -q zq-new <<<"$out" &&
+  pass "8. a failing detail write that prints the slug: placeholder + rc only, no slug in the log" || fail "8. mark leak rc=$rc :: $out"
 
 [[ $fails == 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

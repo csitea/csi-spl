@@ -445,6 +445,39 @@ after the agent is done.
   run unless `DRY_RUN=0`, by hand only, no cron and no disk-sweep step;
   running it live is the orchestrator's call after a dry run on the box.
   Test: `test-tmp-wt-reap.sh`.
+- **The /tmp trees with no proof at all go by a second default-off mode**
+  (SPL-6431, 2026-11-24): on one box, after the SPL-6347 sweep, 59 trees
+  named for an agent id (plain clones, worktrees, dirs of nested worktrees,
+  313931 inodes) and 16 round scratch dirs (~136k inodes) sat idle over
+  24 h, and one of them held a commit that is on no origin ref.
+  `cd csi-spl-utl && TMP_WT_MODE=unproven ./run -a do_sweep_tmp_worktrees`
+  (`tmp-wt-reap.sh --unproven`) takes a top dir of the tmp root in one of
+  two classes: **agent-id**, `<prefix><id>-*` in either spelling (`g164-r7`,
+  `g-215-r92-02-red`; a dash after the id, so a mktemp hex name is no id)
+  with a git repo or worktree anywhere in it, kept while that id, or the id
+  of its `spl-owner` marker, is live on any box; **round**, `r<N>-*` /
+  `rc<N>-*` (git or a plain copy), kept while a live lane's branch or brief
+  title, or a window name, names round N (`round-86`, `r86`, `b86`). Both
+  are kept unless ALL hold: the live sources answered (registry, tmux, the
+  fleet lane map with the hub answering, else it refuses and removes
+  nothing), nothing under it changed in 24 h (`TMP_WT_IDLE_H`; the mtime of
+  a `.git` or `.git/worktrees` dir itself is left out), no process has its
+  cwd or an open fd under it, nothing is mounted under it, its owner is the
+  main checkout's user or the box's agent user, and **no commit is missing
+  from origin**: every repo and worktree in it has its HEAD, branches, tags,
+  stash and its worktrees' detached HEADs on an origin ref of the main
+  checkout (`rev-list <tips> --not --remotes=origin`), else `KEEP
+  unpushed <sha>`. A dirty
+  repo is kept unless its path has a `red` or `parent` word; a clone with a
+  worktree outside the tree is kept until that worktree goes (worktree top
+  dirs go first in a run). Removal: every linked worktree in it by `git
+  worktree remove` from its own repo, then that one path as its owner
+  (`rm -rf --one-file-system`, never a glob). `.pnpm-store` and any dot dir
+  are never listed, an id dir with no git in it neither. One `PLAN|DO
+  remove` / `KEEP <reason>` line per tree with its class and inodes, a
+  `DONE` line per class. **Default off**: a dry run unless `DRY_RUN=0`, by
+  hand only; turning it on is the orchestrator's call after a live dry run.
+  Test: `test-tmp-unproven-reap.sh`.
 - **A browser seat's downloads never reach git or outlive the seat in /tmp**
   (SPL-6407, 2026-11-24): the firefox / playwright MCP writes every download
   and page snapshot to `.playwright-mcp/` in the agent's cwd (its worktree)

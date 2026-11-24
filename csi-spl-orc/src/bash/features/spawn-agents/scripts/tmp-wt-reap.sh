@@ -39,11 +39,39 @@
 # any other dirty tree is KEEP dirty, never forced. The branch stays.
 # Never rm -rf: git removes the tree, and only a path git lists.
 #
-# Usage: tmp-wt-reap.sh [--apply] (--agent <ID> | --orphans)
+#   --unproven    (SPL-6431) the trees with no proof at all, directly under the
+#                 root, idle TMP_WT_IDLE_H (default 24) hours by the newest
+#                 mtime in the tree, two classes (on one box, 2026-11-24: 59
+#                 such id trees held 313931 inodes, 16 round dirs ~136k):
+#     agent-id    <prefix><id>-* (g164-r7, g-215-r92-02-red: a dash after the
+#                 id, so a mktemp hex name is no id) holding a git repo or
+#                 worktree anywhere in it (a plain clone, a worktree, nested
+#                 worktrees); kept while the id (or its spl-owner marker's id)
+#                 is live on any box. A dir with no git in it is not listed.
+#     round       r<N>-* / rc<N>-* (r86-base01, rc01-scratch, r93), git or a
+#                 plain copy; kept while a live lane's branch or brief title,
+#                 or a window name, names round N (round-86, r86, b86, rc86).
+#   Kept, besides the --orphans guards (live sources answering, mount, a
+#   process, owner = the main checkout's user or the box's agent user):
+#   unpushed: a repo or worktree anywhere in the tree whose HEAD, branch,
+#   tag, stash or a worktree's detached HEAD is on no origin ref of the main
+#   checkout (`rev-list <tips> --not --remotes=origin`; by sha, so a
+#   rebased copy is kept too); a clone with a worktree outside the tree; a dirty repo unless its
+#   path has a red / parent word. Removal: each linked worktree by `git
+#   worktree remove` from its own repo, then what is left of that ONE path,
+#   as its owner (rm -rf --one-file-system, never a glob). Top dirs that are
+#   worktrees go first, so a clone with a worktree in another top dir goes in
+#   the same run, after it (the idle check skips the mtime of a .git or
+#   .git/worktrees dir itself, not the files in it).
+#
+# Usage: tmp-wt-reap.sh [--apply] (--agent <ID> | --orphans | --unproven)
 # Env: TMP_WT_REPO (default: this script's main checkout), TMP_WT_ROOT
-#   (default /tmp), TMP_WT_IDLE_H (default 2, --orphans), TMP_WT_SUDO=1|0
-#   (0: this user's processes only; tests), TMP_WT_LIVE_IDS (tests: the live
-#   ids, space separated; unset = registry.tsv + tmux + lane map), SPOOL_ROOT.
+#   (default /tmp), TMP_WT_IDLE_H (default 2, --orphans; 24, --unproven),
+#   TMP_WT_SUDO=1|0 (0: this user's processes only; tests), TMP_WT_LIVE_IDS
+#   (tests: the live ids, space separated; unset = registry.tsv + tmux + lane
+#   map), TMP_WT_LIVE_LANES (tests, with TMP_WT_LIVE_IDS: the live lanes'
+#   text, a line each), TMP_WT_LANE_MAP (default lane-map.sh here),
+#   SPOOL_ROOT.
 # One PLAN|DO remove / KEEP line per tree, a DONE line.
 # Exit 0 done (kept trees included); 2 usage or a refusal (nothing removed).
 set -uo pipefail
@@ -58,11 +86,12 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1; shift ;;
     --orphans) MODE=orphans; shift ;;
+    --unproven) MODE=unproven; shift ;;
     --agent) [ "$#" -ge 2 ] || { echo "tmp-wt-reap: --agent needs an id" >&2; exit 2; }; MODE=agent; ID="${2%%@*}"; shift 2 ;;
     *) echo "tmp-wt-reap: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-[ -n "$MODE" ] || { echo "tmp-wt-reap: --agent <ID> or --orphans" >&2; exit 2; }
+[ -n "$MODE" ] || { echo "tmp-wt-reap: --agent <ID>, --orphans or --unproven" >&2; exit 2; }
 if [ "$MODE" = agent ]; then
   [[ "$ID" =~ ^${SPOOL_AGENT_ID_RX}$ ]] || { echo "tmp-wt-reap: '$ID' is not an agent id" >&2; exit 2; }
 fi
@@ -72,7 +101,7 @@ refuse() { say "REFUSE $*: nothing removed"; exit 2; }
 
 repo="${TMP_WT_REPO:-$(git -C "$_here" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||')}"
 root="${TMP_WT_ROOT:-/tmp}"
-idle_h="${TMP_WT_IDLE_H:-2}"
+idle_h="${TMP_WT_IDLE_H:-2}"; [ "$MODE" = unproven ] && idle_h="${TMP_WT_IDLE_H:-24}"
 use_sudo="${TMP_WT_SUDO:-1}"
 spool="${SPOOL_ROOT:-/var/spool-hub}"
 [[ -n "$repo" && -d "$repo/.git" ]] || refuse "TMP_WT_REPO '$repo' is not a main checkout"
@@ -91,7 +120,7 @@ g() {
 
 # lane_id NAME: the normalised agent id a dir name starts with (g273-x -> g-273)
 lane_id() {
-  [[ "${1,,}" =~ ^([acgmq])-?([0-9]{3})([^0-9]|$) ]] && printf '%s-%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  [[ "${1,,}" =~ ^([acgmoqu])-?([0-9]{3})([^0-9]|$) ]] && printf '%s-%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
 }
 # marker_of WT: the id in the spl-owner file of WT's git dir, or empty
 marker_of() {
@@ -115,13 +144,17 @@ retired_id() {
   compgen -G "$spool/.retired/$1.*" >/dev/null
 }
 
-# The live ids (--orphans): every source must answer, or nothing is removed.
+# The live ids (--orphans, --unproven) and, for --unproven's rounds, the live
+# lanes' text (branch, brief title, window names): every source must answer,
+# or nothing is removed.
 declare -A live=()
 add_live() { local w x; for w in "$@"; do x="$(lane_id "${w##*: }")"; [ -n "$x" ] && live["$x"]=1; done; return 0; }
-if [ "$MODE" = orphans ]; then
+lanes_txt=""
+if [ "$MODE" != agent ]; then
   if [[ -n "${TMP_WT_LIVE_IDS+set}" ]]; then
     # shellcheck disable=SC2086
     add_live $TMP_WT_LIVE_IDS
+    lanes_txt="${TMP_WT_LIVE_LANES:-}"
   else
     reg="$spool/registry.tsv"
     [ -r "$reg" ] || refuse "cannot read $reg: no live-lane guard"
@@ -131,16 +164,20 @@ if [ "$MODE" = orphans ]; then
       || refuse "cannot list the box's tmux windows: no live-lane guard"
     # shellcheck disable=SC2046
     add_live $(tr -c 'A-Za-z0-9-\n' ' ' <<<"$wins")
-    lm="$(timeout 120 bash "$_here/lane-map.sh" list --all --json 2>/dev/null)" || refuse "the fleet lane map did not answer: other boxes unread"
-    ids="$(python3 -c '
+    lm="$(timeout 120 bash "${TMP_WT_LANE_MAP:-$_here/lane-map.sh}" list --all --json 2>/dev/null)" || refuse "the fleet lane map did not answer: other boxes unread"
+    # line 1: the live ids; then one line per live lane: its branch and title
+    lmo="$(python3 -c '
 import json, sys
 d = json.loads(sys.stdin.read())
 if d.get("hub") != "ok": sys.exit(3)
-out = [l.get("agent_id", "") for l in d.get("lanes") or [] if l.get("state") == "live"]
+lanes = [l for l in d.get("lanes") or [] if l.get("state") == "live"]
+out = [l.get("agent_id", "") for l in lanes]
 for b in d.get("load") or []: out += (b.get("busy_ids") or []) + (b.get("seat_ids") or [])
-print(" ".join(out))' <<<"$lm")" || refuse "the hub did not answer the lane map: other boxes unread"
-    # shellcheck disable=SC2086
-    add_live $ids
+print(" ".join(out))
+for l in lanes: print(" ".join(str(l.get(k) or "") for k in ("branch", "scope")).replace("\n", " "))' <<<"$lm")" || refuse "the hub did not answer the lane map: other boxes unread"
+    # shellcheck disable=SC2046
+    add_live $(head -1 <<<"$lmo")
+    lanes_txt="$(tail -n +2 <<<"$lmo")"$'\n'"$wins"
   fi
 fi
 
@@ -148,6 +185,151 @@ fi
 [[ "$use_sudo" == 0 || "$(id -u)" == 0 ]] || sudo -n true 2>/dev/null || refuse "no sudo -n: cannot read every process's cwd and fds"
 held="$(as_root find /proc -mindepth 2 -maxdepth 3 \( -path '/proc/[0-9]*/cwd' -o -path '/proc/[0-9]*/fd/*' \) -printf '%l\n' 2>/dev/null | grep "^$root/" | sort -u)"
 mounts="$(findmnt -rn -o TARGET 2>/dev/null | grep "^$root/")"
+
+# --unproven (SPL-6431): the trees with no proof, see the header.
+# id_of NAME: the id a <prefix><id>-* name starts with (g164-r7 -> g-164)
+id_of() { [[ "${1,,}" =~ ^([acgmoqu])-?([0-9]{3})- ]] && printf '%s-%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"; }
+# round_of NAME: the round an r<N>-* / rc<N>-* name carries (r086-x -> 86)
+round_of() { [[ "${1,,}" =~ ^rc?([0-9]+)([^0-9]|$) ]] && printf '%d' "$((10#${BASH_REMATCH[1]}))"; }
+# round_live N: a live lane's branch or title, or a window name, names round N
+round_live() { grep -Eiq "(^|[^a-z0-9])(round|rc|r|b)[-_ ]?0*$1([^0-9]|\$)" <<<"$lanes_txt"; }
+# git_as DIR ARGS...: git as DIR's owner (a seat's clone is its own user's)
+git_as() {
+  local u; u="$(stat -c %U -- "$1")"; shift
+  if [[ "$u" == "$(id -un)" ]]; then GIT_TERMINAL_PROMPT=0 timeout 120 git -c safe.directory='*' "$@"
+  else timeout 120 sudo -n -u "$u" env GIT_TERMINAL_PROMPT=0 git -c safe.directory='*' "$@"; fi
+}
+# first_unpushed TIP...: the first commit reachable from the tips that no
+# origin ref of the main checkout holds (a tip it lacks counts), or nothing;
+# one rev-list walk (for-each-ref --contains took ~60 s a tree on a box)
+first_unpushed() {
+  local t
+  [ "$#" -gt 0 ] || return 0
+  for t in "$@"; do g -C "$repo" cat-file -e "$t^{commit}" 2>/dev/null || { echo "$t"; return; }; done
+  g -C "$repo" rev-list --max-count=1 "$@" --not --remotes=origin 2>/dev/null || echo "$1"
+}
+# clone_tips R: every commit a clone R holds outside its remote refs: HEAD,
+# branches, tags (peeled), the stash, each worktree's detached HEAD
+clone_tips() {
+  local h
+  git_as "$1" -C "$1" rev-parse -q --verify HEAD
+  git_as "$1" -C "$1" for-each-ref --format='%(if)%(*objectname)%(then)%(*objectname)%(else)%(objectname)%(end)' \
+    refs/heads refs/tags refs/stash || return 1
+  for h in "$1"/.git/worktrees/*/HEAD; do
+    [ -f "$h" ] && as_root sed -n '/^[0-9a-f]\{40,\}$/p' "$h"
+  done
+  return 0
+}
+# repo_why TREE R: why repo / worktree R (the dir of a .git) in TREE is
+# kept, or nothing; sets dirty=1 for a dirty red / parent copy
+repo_why() {
+  local t r="$2" rel="${2#"$root"/}" tips st w
+  if [ -f "$r/.git" ]; then
+    tips="$(git_as "$r" -C "$r" rev-parse -q --verify HEAD 2>/dev/null)" || { echo "git-failed $rel"; return; }
+    w="$(git_as "$r" -C "$r" rev-parse --absolute-git-dir 2>/dev/null)"
+    as_root test -f "$w/locked" && { echo "locked $rel"; return; }
+  else
+    tips="$(clone_tips "$r" 2>/dev/null)" || { echo "git-failed $rel"; return; }
+    for w in "$r"/.git/worktrees/*/gitdir; do
+      [ -f "$w" ] || continue
+      w="$(as_root cat "$w")"; w="${w%/.git}"
+      [[ "$w" == "$1"/* ]] || { echo "worktree-outside $w (of $rel)"; return; }
+    done
+  fi
+  # shellcheck disable=SC2046
+  t="$(first_unpushed $(sort -u <<<"$tips"))"
+  [ -n "$t" ] && { echo "unpushed ${t:0:9} in $rel (on no origin ref)"; return; }
+  st="$(git_as "$r" --no-optional-locks -C "$r" status --porcelain 2>/dev/null)" || { echo "git-status-failed $rel"; return; }
+  [ -z "$st" ] && return
+  [[ "${rel,,}" =~ (^|[-_./])(red|parent)([-_./]|$) ]] || { echo "dirty $rel (not a red-control or parent copy)"; return; }
+  echo dirty-red
+}
+# rm_tree P FORCE(0|1): each linked worktree in P by `git worktree remove`
+# from its own repo, then what is left of P, as its owner; 0 when P is gone
+rm_tree() {
+  local p="$1" g1 r cd u force=()
+  [ "$2" = 1 ] && force=(--force)
+  [[ "${p%/*}" == "$root" && ! -L "$p" && -d "$p" ]] || return 1
+  while IFS= read -r g1; do
+    [ -f "$g1" ] || continue
+    r="${g1%/.git}"
+    cd="$(git_as "$r" -C "$r" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+    git_as "$cd" --git-dir="$cd" worktree remove "${force[@]}" "$r" >/dev/null 2>&1 || return 1
+  done <<<"$gits"
+  [ -e "$p" ] || return 0
+  [ -z "$(as_root find "$p" -name .git -type f -print -quit 2>/dev/null)" ] || return 1
+  u="$(stat -c %U -- "$p")"
+  if [ "$u" = "$(id -un)" ]; then { chmod -R u+w -- "$p"; rm -rf --one-file-system -- "$p"; } 2>/dev/null
+  else { sudo -n -u "$u" chmod -R u+w -- "$p"; sudo -n -u "$u" rm -rf --one-file-system -- "$p"; } 2>/dev/null; fi
+  [ ! -e "$p" ]
+}
+# unproven_why P CLS KEY: why tree P is kept, `dirty-red` when it goes by
+# --force (a dirty red / parent copy), or nothing; reads $gits
+unproven_why() {
+  local p="$1" u mk w g1 young d=0
+  u="$(stat -c %U -- "$p")" mk="$(marker_of "$p")"
+  if [[ " $users " != *" $u "* ]]; then echo "owner-$u"
+  elif [ "$2" = agent-id ] && [ -n "${live[$3]:-}" ]; then echo "live-id $3"
+  elif [ -n "$mk" ] && [ -n "${live[$mk]:-}" ]; then echo "live-id $mk (its spl-owner marker)"
+  elif [ "$2" = round ] && round_live "$3"; then echo "live-round $3 (a live lane or window names it)"
+  elif grep -qxF -e "$p" <<<"$mounts" || grep -qF -e "$p/" <<<"$mounts"; then echo mounted
+  elif grep -qxF -e "$p" <<<"$held" || grep -qF -e "$p/" <<<"$held"; then echo "in-use (a process has its cwd or an open file under it)"
+  else
+    # a .git or .git/worktrees DIR's own mtime is left out: removing a
+    # worktree of a clone touches them, and every file in them still counts
+    young="$(as_root find "$p" -newermt "-${idle_h} hours" ! \( -type d \( -name .git -o -path '*/.git/worktrees' \) \) -print -quit 2>/dev/null)" \
+      || { echo unreadable; return; }
+    [ -n "$young" ] && { echo "recent (changed in the last ${idle_h} h)"; return; }
+    while IFS= read -r g1; do
+      [ -n "$g1" ] || continue
+      w="$(repo_why "$p" "${g1%/.git}")"
+      case "$w" in '') ;; dirty-red) d=1 ;; *) echo "$w"; return ;; esac
+    done <<<"$gits"
+    [ "$d" = 1 ] && echo dirty-red
+  fi
+  return 0
+}
+# unproven_one P: one KEEP or PLAN|DO line for top dir P, if it is of a class
+unproven_one() {
+  local p="$1" name="${1##*/}" cls key why n kb dirty=0 what
+  if key="$(id_of "$name")"; then cls=agent-id
+  elif key="$(round_of "$name")"; then cls=round
+  else return 0; fi
+  gits="$(as_root find "$p" -name .git -prune -print 2>/dev/null)" || gits="?"
+  [ "$cls" = agent-id ] && [ -z "$gits" ] && return 0
+  n="$(as_root find "$p" -printf x 2>/dev/null | wc -c)"
+  if [ "$gits" = "?" ]; then why=unreadable
+  else why="$(unproven_why "$p" "$cls" "$key")"; fi
+  [ "$why" = dirty-red ] && dirty=1 why=""
+  what="class=$cls $([ "$cls" = round ] && echo round || echo id)=$key inodes=$n $p"
+  if [ -n "$why" ]; then
+    say "KEEP $why $what"; ucnt["$cls.keep"]=$(( ${ucnt["$cls.keep"]:-0} + 1 )); ucnt["$cls.keep_i"]=$(( ${ucnt["$cls.keep_i"]:-0} + n ))
+    return 0
+  fi
+  kb="$(as_root du -sk -- "$p" 2>/dev/null | cut -f1)"
+  if [ "$APPLY" = 1 ] && ! rm_tree "$p" "$dirty"; then
+    say "KEEP remove-failed (git or rm left it) $what"; ucnt["$cls.keep"]=$(( ${ucnt["$cls.keep"]:-0} + 1 )); return 0
+  fi
+  say "$VERB remove ${kb:-0}KB$([ "$dirty" = 1 ] && echo ' dirty red-copy --force') $what"
+  ucnt["$cls.rm"]=$(( ${ucnt["$cls.rm"]:-0} + 1 )); ucnt["$cls.rm_i"]=$(( ${ucnt["$cls.rm_i"]:-0} + n ))
+}
+# unproven_sweep: every top dir, linked worktrees first (a clone in /tmp
+# keeps while a worktree of it is there), then a DONE line per class
+unproven_sweep() {
+  local p list c
+  SPOOL_ROOT="$spool" _spool_box_env_load
+  users="$repo_user ${SPOOL_AGENT_USER:-}"
+  declare -gA ucnt=()
+  list="$(find "$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print 2>/dev/null | LC_ALL=C sort)"
+  say "START mode=unproven repo=$repo root=$root apply=$APPLY live_ids=${#live[@]} idle_h=$idle_h users=$users"
+  while IFS= read -r p; do [ -n "$p" ] && [ -f "$p/.git" ] && unproven_one "$p"; done <<<"$list"
+  while IFS= read -r p; do [ -n "$p" ] && [ ! -f "$p/.git" ] && unproven_one "$p"; done <<<"$list"
+  for c in agent-id round; do
+    say "DONE class=$c $([ "$APPLY" = 1 ] && echo removed || echo would-remove)=${ucnt[$c.rm]:-0} inodes=${ucnt[$c.rm_i]:-0} kept=${ucnt[$c.keep]:-0} kept_inodes=${ucnt[$c.keep_i]:-0}"
+  done
+  return 0
+}
+[ "$MODE" = unproven ] && { unproven_sweep; exit $?; }
 
 # The linked worktrees directly under the root: "path<TAB>locked(0|1)"
 wts="$(g -C "$repo" worktree list --porcelain 2>/dev/null | awk '

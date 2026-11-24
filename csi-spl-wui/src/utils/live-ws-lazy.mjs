@@ -43,6 +43,51 @@ function loadRetryMs(attempt, random) {
 }
 
 /**
+ * The timed retry of a failed load: one timer at a time, each wait longer.
+ * @param {Record<string, any>} opts createLiveClient's options (setTimer, clearTimer, random)
+ */
+function loadRetry(opts) {
+  const setTimer = opts?.setTimer || ((/** @type {() => void} */ fn, /** @type {number} */ ms) => setTimeout(fn, ms))
+  const clearTimer = opts?.clearTimer || ((/** @type {any} */ t) => clearTimeout(t))
+  const random = opts?.random || Math.random
+  /** @type {any} */
+  let timer = null
+  let attempt = 0
+  return {
+    /** @param {() => void} fn */
+    later(fn) {
+      if (timer !== null) return
+      timer = setTimer(() => {
+        timer = null
+        fn()
+      }, loadRetryMs(attempt++, random))
+    },
+    stop() {
+      if (timer !== null) clearTimer(timer)
+      timer = null
+      attempt = 0
+    },
+  }
+}
+
+/**
+ * Run the kept calls in order on the real client.
+ * @param {Array<[string, unknown[]]>} queue
+ * @param {any} real
+ */
+function replay(queue, real) {
+  while (queue.length) {
+    const [name, args] = /** @type {[string, unknown[]]} */ (queue.shift())
+    try {
+      real[name](...args)
+    } catch (err) {
+      /* a real client would have thrown to its caller: surface it, go on with the rest */
+      queueMicrotask(() => { throw err })
+    }
+  }
+}
+
+/**
  * @param {Record<string, any>} opts createLiveClient's options
  * @param {{ load?: () => Promise<any>, onLoad?: (mod: any, client: any) => void }} [hooks]
  *   load: the live-ws module (a test passes its own); onLoad: runs once, with the module and the real client
@@ -55,30 +100,13 @@ export function lazyLiveClient(opts, { load = () => import('./live-ws.mjs'), onL
   /** @type {Array<[string, unknown[]]>} */
   const queue = []
   let state = 'idle'
-  /** @type {any} */
-  let retryTimer = null
-  let attempt = 0
-  const setTimer = opts?.setTimer || ((/** @type {() => void} */ fn, /** @type {number} */ ms) => setTimeout(fn, ms))
-  const clearTimer = opts?.clearTimer || ((/** @type {any} */ t) => clearTimeout(t))
-  const random = opts?.random || Math.random
-
-  function replay() {
-    while (queue.length) {
-      const [name, args] = /** @type {[string, unknown[]]} */ (queue.shift())
-      try {
-        real[name](...args)
-      } catch (err) {
-        /* a real client would have thrown to its caller: surface it, go on with the rest */
-        queueMicrotask(() => { throw err })
-      }
-    }
-  }
+  const retry = loadRetry(opts)
 
   function ready() {
     return (loading ||= load().then((mod) => {
-      stopRetry()
+      retry.stop()
       real = mod.createLiveClient(opts)
-      replay()
+      replay(queue, real)
       if (onLoad) onLoad(mod, real)
       return real
     }, (err) => {
@@ -93,17 +121,9 @@ export function lazyLiveClient(opts, { load = () => import('./live-ws.mjs'), onL
   function retryLater() {
     if (real || (state !== 'connecting' && state !== 'reconnecting')) return
     if (state !== 'reconnecting') setState('reconnecting')
-    if (retryTimer !== null) return
-    retryTimer = setTimer(() => {
-      retryTimer = null
+    retry.later(() => {
       if (!real && state === 'reconnecting') ready().catch(() => {}) // ready() handled it: reconnecting, the next retry set
-    }, loadRetryMs(attempt++, random))
-  }
-
-  function stopRetry() {
-    if (retryTimer !== null) clearTimer(retryTimer)
-    retryTimer = null
-    attempt = 0
+    })
   }
 
   /** @type {Record<string, any>} */
@@ -125,7 +145,7 @@ export function lazyLiveClient(opts, { load = () => import('./live-ws.mjs'), onL
       queue.push([name, args])
       if (name === 'connect' && state !== 'connecting') setState('connecting')
       if (name === 'close') {
-        stopRetry()
+        retry.stop()
         if (state !== 'closed') setState('closed')
       }
       ready().catch(() => {}) // ready() handled it: reconnecting and a timed retry while a connect is kept

@@ -141,3 +141,45 @@ func TestNoteToSelfLinkedAccount(t *testing.T) {
 		t.Fatalf("a post to one's own linked account got the non-member note: %s", n)
 	}
 }
+
+// SPL-6436: a poll answer whose picked option names its author (a workspace post
+// 126af707, "Answer: A — Now; @HUM-13 issues the https certificate", posted
+// by HUM-13) is an answer to the form, not a note to self: it reaches the
+// channel's agent and is stored without note_to_self. The same words without
+// the Poll line stay a note to self (CONTROL).
+func TestNoteToSelfNotAPollAnswer(t *testing.T) {
+	r, b := aiRig(t)
+	ctx := context.Background()
+	const me = "HUM-7"
+	if err := r.e.st.AddChannelHumans(ctx, r.tid, "drivers", []string{me}, r.human, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	ws := dialMember(t, r.e, r.tid, "FirstName LastName", me)
+	has := func(id string) bool { return strings.Contains(strings.Join(inboxIDs(t, b, "GRK-36"), ","), id) }
+
+	answer, note := uuidV4(), uuidV4()
+	answerTask, noteTask := uuidV4(), uuidV4()
+	words := "Answer: A — Now; @" + me + " issues the https certificate right after"
+	threadFrame(t, ws, answer, answerTask, "drivers", 1, "Poll: "+uuidV4()+"\n"+words)
+	threadFrame(t, ws, note, noteTask, "drivers", 1, words) // CONTROL
+	eventually(t, "GRK-36 got the poll answer", func() bool { return has(answer) })
+	if has(note) {
+		t.Fatalf("the control (same words, no Poll line) reached GRK-36: %v", inboxIDs(t, b, "GRK-36"))
+	}
+	flag := func(task, id string) bool {
+		t.Helper()
+		rows, err := r.e.st.(interface {
+			ViewTopic(context.Context, string, store.TopicMsgQuery) ([]store.ViewMsg, error)
+		}).ViewTopic(ctx, r.tid, store.TopicMsgQuery{TaskID: task, Now: time.Now(), Limit: 10})
+		if err != nil || len(rows) != 1 || rows[0].MsgID != id {
+			t.Fatalf("%s not stored in %s: %v %+v", id, task, err, rows)
+		}
+		return rows[0].NoteToSelf
+	}
+	if flag(answerTask, answer) {
+		t.Errorf("the poll answer is stored as a note to self")
+	}
+	if !flag(noteTask, note) {
+		t.Errorf("the control is stored without note_to_self")
+	}
+}

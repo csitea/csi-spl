@@ -31,8 +31,14 @@ import (
 // linked account of member (linked: the human_links of member), and nobody
 // else. Addressed is every @mention of body, plus to when it is a person: the
 // WUI sends a leading @tag as the addressee and strips it from the body.
+//
+// A poll answer or chat (a "Poll: <form msg id>" line, how-to-post section 7)
+// is never one (SPL-6436): its @tags are the picked option's words, not an
+// address, and the form's asker must hear it. workspace post 126af707 answered
+// "A — Now; @HUM-13 issues the https certificate" as HUM-13 and reached no
+// agent.
 func isNoteToSelf(member, to, body string, linked func() map[string]bool) bool {
-	if member == "" || !store.IsFlowMember(member) {
+	if member == "" || !store.IsFlowMember(member) || pollFormLine.MatchString(body) {
 		return false
 	}
 	ids := store.MentionedIDs(body)

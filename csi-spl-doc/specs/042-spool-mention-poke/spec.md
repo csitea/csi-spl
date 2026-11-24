@@ -107,7 +107,10 @@ The rule:
   accounts (N4), is a **note to self**. Addressed is every @mention of the body,
   plus the addressee (`to`) when it is a person: the WUI sends a leading @tag as the
   addressee and strips it from the body. A post that also tags anyone else, agent
-  or person, is a normal post.
+  or person, is a normal post. A poll answer or chat (a `Poll: <form msg id>` line,
+  `doc/help/how-to-post.md` section 7) is never a note to self: its @tags are the
+  picked option's words, not an address (SPL-6436; a workspace post, `126af707`, answered
+  "A — Now; @HUM-13 issues the https certificate" as HUM-13 and reached no agent).
 - N2 The hub decides it once, at the send (`wuiRoute`,
   `internal/hub/note_to_self.go`), and stores it as `messages.note_to_self`
   (rdb `0278`). No agent gets it: no dispatch (an explicit addressee is dropped, as

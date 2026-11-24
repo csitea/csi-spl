@@ -67,4 +67,18 @@ are not duplicated here.
 - [x] T014 [FR-006] Public deploy notes: allow unauthenticated in M2; rate-limit unsigned at the shield — **Implemented** as doc (`plan.md` "Public deploy notes"); the infra is 007's. The M1 IP allowlist / shield part is **Superseded** (no load balancer since 2026-09-19, `ingress: all`, edge limits in-app per 017 T010); spec FR-006 / OQ-006-4.
 - [x] T015 [FR-015] Hygiene tests: no payment-vendor name / product host in Go; no root private key in hub logs — **Implemented** (`no-baked-host.tst.sh`, `TestRootPrivateKeyNotLogged`, `3690211`).
 
-<!-- version: 1.4.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:23:33Z -->
+## Phase 7: Commercial Offer & Product Gaps (2026-11-24 amendment)
+
+- [ ] T024 [FR-019] Build row 1: Public pricing page `/pricing` (WUI) with plan comparison, seat calculator, and `/checkout` navigation links (smallest step to first paying workspace) — **Planned** (gated on Q1, Q2).
+- [ ] T025 [FR-020] Build row 2: Plan-specific quota limits (T012a) loaded from cnf plan definitions, replacing deploy-wide limits in `internal/hub/quota.go` — **Planned** (gated on OQ-006-1).
+- [ ] T026 [FR-021] Build row 3: Timed billing grace evaluation job (T013a) transitioning expired `grace` tenants to `unpaid` — **Planned** (gated on OQ-006-3).
+- [ ] T027 [FR-022] Build row 4: Stripe recurring subscription lifecycle webhooks (`customer.subscription.deleted`, `invoice.payment_failed`) wired to `SetBillingStatus` — **Planned**.
+- [ ] T028 [FR-023] Build row 5: Self-service billing portal session redirect (`/settings/tenant-settings`) and downloadable VAT invoice/receipt generation — **Planned**.
+- [ ] T029 [FR-024] Build row 6: Enable human seat pricing (`SPOOL_HUB_PAYMENT_SEAT_USER_CENTS`) in cnf and add interactive seat quantity selector on `/checkout` — **Planned** (gated on Q2).
+- [ ] T030 [FR-025] Build row 7: Self-service endpoint `POST /api/v1/workspace/seats` updating Stripe subscription quantity with proration and cap enforcement — **Planned**.
+- [ ] T031 [FR-026] Build row 8: Tenant Settings human seat management UI with allocation meter and self-service upgrade controls — **Planned**.
+- [ ] T032 [FR-027] Build row 9: Generic finance connector interface contract isolating customer-specific logic into private customer repos (Offer I) — **Planned** (gated on Q4).
+- [ ] T033 [FR-028] Build row 10: Support & SLA tier catalog, response time matrix, and support workspace onboarding flow (Offer P) — **Planned** (gated on Q3).
+- [ ] T034 [FR-029] Build row 11: Document store semantic retrieval and pgvector embedding worker (Offer K, build rows pointing to spec 075 section 7) — **Planned** (gated on Q5).
+
+<!-- version: 1.5.0 · updated: 2026-11-24 · last-edit: 2026-11-24T18:50:00Z -->

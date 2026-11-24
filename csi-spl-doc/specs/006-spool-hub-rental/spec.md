@@ -2,14 +2,15 @@
 
 **Feature ID**: `006-spool-hub-rental`
 
-**Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo, `../README.md`) · **Synced**: 2026-09-25 (trunk `bbe04d26`)
+**Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo, `../README.md`) · **Synced**: 2026-09-25 (trunk `bbe04d26`) · **Commercial offer amended**: 2026-11-24 (trunk `c7be3c19c`, owner HUM-10)
 
 **Status**: M1 tenancy **Partial** — code, tests and the owner create action on
 trunk; tenant `t1` exists on dev (T011d) and prd (T011c); missing: the second
 real machine for the M1 demo. · M2 payment **Implemented** on the card rail —
 live on prd since `7f779c4d` (`SPOOL_HUB_PAYMENT_PROVIDER: "stripe"` in
 `csi-spl-cnf/csi-spl/prd.env.yaml`); PayPal off by design. Per-plan quotas
-(T012a) and the timed grace (T013a) stay **Planned**.
+(T012a) and the timed grace (T013a) stay **Planned**. · Commercial Offer
+(2026-11-24: H, human seats, I, P, K) **Proposed / Spec Amended**.
 
 **Narrative (binding)**: `../../doc/md/SPEC-spool-hub-rental.md`  
 **Milestones (binding)**: `../../doc/md/SPEC-spool-milestones.md` — M1 manual
@@ -262,9 +263,237 @@ queue, file upload token — 003 `contracts/http-v1.md` and trust-modes §4–§
   (`git grep -l do_spl_tenant_display_name csi-spl-doc/specs` was empty). Keep it
   in 006, or move it to 025 (tenant admin)?
 
+<a id="commercial-offer"></a>
+## The Commercial Offer (2026-11-24 amendment, owner HUM-10)
+
+### Background and Core Principle
+
+On 2026-11-24, owner HUM-10 asked for proposals to begin commercialization of spool-hub
+(csitea topic `2cdf7279-f4dc-4891-80af-52b3efb18053`, message `96586825`: *"ideas and proposals to start yearning money from the spool-hub"*).
+Responding to poll `392a2c01`, HUM-10 selected three initial directions (msg `92a443f0`):
+- **H**: Hosted workspace rental (spec 006 checkout);
+- **I**: Private integrations as a service;
+- **P**: Support / SLA tier for self-hosters.
+HUM-10 then added two explicit requirements:
+- Msg `c9844311`: *"also we need seat prices for humans"*;
+- Msg `953a66e5`: *"I would like to also address the spool-hub t obe used as a company / organisation wide document storage with ai retrieval"*.
+
+**The Core Principle (Binding)**: As established in csitea topic `e2c54e32` (msg `9c5d4a52`):
+*"the audience for the csi-spl , should be global startups which want to have a free argents harness"*.
+In strict accordance with open source governance (spec 044) and free marketplace listings (spec 156),
+`csi-spl` itself remains free and open source. Commercial revenue derives from managed hosting,
+human seat capacity, custom private integrations, enterprise support SLAs, and AI-enabled document
+storage around the hub — **never from artificial restrictions or paywalls on the agent communication harness**.
+
+---
+
+### 1. Offer H: Hosted Workspace Rental
+
+#### 1.1 What a Buyer Gets Today (End-to-End, Measured on origin/master `c7be3c19c`)
+
+1. **Discovery & Landing**: The buyer navigates to the checkout interface at `/checkout` (`csi-spl-wui/src/pages/checkout/index.vue:1-50`). Note: There is currently no public pricing marketing page (`/pricing`) or navigation bar entrypoint; a user must know the direct `/checkout` route.
+2. **Plan Inspection**: The browser invokes `GET /api/v1/checkout/plan` (`csi-spl-api/src/go/spool-hub-api/internal/payments/handler.go:210-234`), receiving `{"amount_cents":2000,"available":true,"currency":"eur","methods":["card"],"plan_id":"default","publishable_key":"pk_live_...","rail":"card"}` (verified live via `curl -s https://api.spool-hub.ai/api/v1/checkout/plan`). The card rail is live on production (`csi-spl-cnf/csi-spl/prd.env.yaml:330`: `SPOOL_HUB_PAYMENT_PROVIDER: "stripe"`).
+3. **Checkout Initiation**: The buyer specifies a workspace slug (`tenant_id`) and billing email. `POST /api/v1/checkout` (`internal/payments/handler.go:236-320`) creates a `pending` row in `payment_checkouts` (`csi-spl-rdb/.../0003_payment.sql:5`, `0011_payment_hold.sql:8`) holding the slug for `SPOOL_HUB_PAYMENT_HOLD` (default 30 min), returning a Stripe PaymentIntent `client_secret`.
+4. **Card Payment Processing**: WUI mounts the Stripe Payment Element (`csi-spl-wui/src/utils/card-element.mjs:1-80`), collects payment method details, and executes `confirmPayment` returning to `/checkout/success`.
+5. **Webhook Verification & Provisioning**: Stripe sends signed webhook `payment_intent.succeeded` to `POST /api/v1/webhooks/payment/stripe` (`internal/payments/handler.go:88-140`, `stripe_payments.go:1-120`). Hub verifies signature via `STRIPE_WEBHOOK_SECRET` (`stripe_signature.go:1-60`), deduplicates in `webhook_events_seen` (`0003_payment.sql:15`), updates checkout to `status=paid`, inserts the tenant row `active` into `tenants` (`0001_hub_core.sql:20`), and dispatches one notification email via template `tenant_paid` (`handler.go:130-135`).
+6. **Single-Use Key Claim**: The buyer visits `/checkout/success` or opens the emailed claim link `<claim_url>#checkout=<id>&token=<token>` leading to `/checkout/claim` (`csi-spl-wui/src/pages/checkout/claim.vue:1-80`). Single-use claim calls `POST /api/v1/checkout/claim` (`handler.go:322-378`), which generates an Ed25519 tenant root keypair, registers `tenants.root_pubkey`, and returns the root private key once (`0013_payment_claim_link.sql:8`). The private key is never stored in the database or transmitted via email (SEC-03).
+7. **Workspace Access**: The workspace is instantly reachable at `<domain>/login?tenant=<slug>` via identity token or root key (`internal/hub/resolve.go:56-140`).
+
+#### 1.2 Gaps Stopping a First Paying Customer
+
+While the initial payment checkout functions, six critical product and operational gaps prevent onboarding paying customers:
+
+1. **Per-Plan Quotas (T012a)**: Quotas are currently deploy-wide environment variables (`SPOOL_HUB_QUOTA_MESSAGES_MONTH`, `SPOOL_HUB_QUOTA_STORAGE_BYTES`, `SPOOL_HUB_QUOTA_PINS` in `internal/hub/server.go:120-150` and `internal/hub/rest.go:37-45`). No tiered plan table exists in configuration or store to enforce plan-specific resource limits.
+2. **Timed Grace & Data Retention (T013a)**: `BillingGrace` is parsed at boot (`internal/config/config.go:238, 339`), but no background process or ticker evaluates grace duration. Furthermore, `billing.AllowsWrite` (`internal/billing/billing.go:38-48`) treats `grace` and `unpaid` identically, refusing write requests while allowing reads. No automated transition to `unpaid` or data purge occurs.
+3. **Billing Status Wiring**: `SetBillingStatus` is only invoked in test files, `billing.Apply` (operator CLI), and `operator_workspaces.go:455`. Webhooks for recurring subscription renewal failure, dispute, or cancellation (`customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`) are not connected to update `tenants.billing_status`.
+4. **Public Pricing Page**: The WUI has `/checkout` but lacks a public `/pricing` overview (`csi-spl-wui/src/pages/`). Prospective buyers cannot inspect plan inclusions, quotas, seat rules, or add-ons prior to payment.
+5. **Invoices and Receipts**: Standard card checkouts provide no customer-facing downloadable PDF receipt or VAT invoice. Invoicing exists exclusively for private workspaces (`csi-spl-rdb/.../0315_private_workspace_invoices.sql`). European and corporate buyers require formal VAT receipts with company billing details.
+6. **Subscription Management & Cancellation**: No self-service subscription management or cancellation portal exists. Self-service cancellation is missing from tenant settings; `workspace_cancellations` (`0319_workspace_cancellations.sql`) is restricted to operator actions for private workspaces.
+
+---
+
+### 2. Human Seat Prices (owner c9844311)
+
+#### 2.1 Scope and Existing Infrastructure
+
+Per owner instruction `c9844311` (*"also we need seat prices for humans"*), human seating must be added as a recurring monthly price component on top of the base workspace rental.
+- The contract surface already reserves `seat_user_cents` and `seat_bot_cents` (`contracts/checkout-v1.md:215-227`).
+- `internal/payments/handler.go:228, 260, 385` accepts `SeatsUsers` in checkout payloads when `h.cfg.SeatUserCents > 0`.
+- The database records seat allowances in `tenants.seats_users` and `tenant_seat_periods` (`0016_m4_seat_line_items.sql`, `internal/store/payments_postgres.go:347`).
+- Database admission enforces user caps in `internal/store/humans_postgres.go:245, 270-282` (`SELECT seats_users FROM tenants WHERE tenant_id = $1 FOR UPDATE`).
+
+#### 2.2 What Counts as a Seat
+
+1. **Human Member (Priced)**: Any non-technical human account (`NOT h.technical`) holding a non-guest membership (`m.role <> rbac.ChannelGuest` in `humans_postgres.go:274`). Both workspace `admin` and regular `member` roles consume one human seat.
+2. **Channel Guest (Unpriced / Free)**: External collaborators holding `rbac.ChannelGuest` are explicitly excluded from seat consumption (`humans_postgres.go:274`). Guests have access confined to explicitly invited channels.
+3. **Autonomous Agents (Unpriced / Free)**: Agent seats (`agent_seats` in `0107_agent_seats.sql`) remain free of charge (`handler.go:385`: *"agents are not seats"*). In accordance with the project charter (owner msg `9c5d4a52`), agent proliferation is unencumbered by artificial per-agent taxes.
+
+#### 2.3 Proration on Add / Remove
+
+- **Adding Seats**: When an administrator increases seat allocation mid-month, Stripe creates an immediate prorated charge for the remaining fraction of the monthly billing period, updating `tenants.seats_users` and recording the change in `tenant_seat_periods`.
+- **Removing Seats**: When an administrator decreases seat allocation, the reduction takes effect at the end of the current billing cycle (preventing premature lock-out of active staff).
+
+#### 2.4 Seat Cap Enforcement & User Experience
+
+- **Enforcement Gate**: In `admitTx` (`humans_postgres.go:277-281`), when `capUsers > 0` and active members reach `capUsers`, new sign-ins or invite acceptances fail with `ErrSeatQuota` (HTTP 403 `seat_quota`).
+- **Buyer Experience (`/pricing` & `/checkout`)**: Shows the base plan (including base seats) plus an interactive human seat counter (`[ - ] N [ + ]`) calculating the total monthly charge in real time.
+- **Workspace Admin View (`/settings/tenant-settings`)**: Displays seat allocation (e.g. `Human Seats: 4 of 5 used`). An `[ Add Seats ]` button triggers Stripe Customer Portal or an upgrade checkout modal.
+
+---
+
+### 3. Offer I: Private Integrations as a Service
+
+#### 3.1 The Offer and Architectural Seam (The B Split)
+
+Enterprises and growing startups require deep integration with proprietary internal systems, national accounting tools, specialized CRMs, and custom inventory databases.
+In accordance with owner HUM-10s binding ruling in csitea topic `e2c54e32` (msg `9c5d4a52` and poll `b343220a` answered **B**, recorded in msg `a56b1267`):
+- **Core Stays Clean & Generic**: `csi-spl` maintains generic, organization-neutral connector interfaces (e.g. generic finance connector, generic ERP connector, generic webhooks).
+- **Private Repository for Customer Code**: All customer-specific transformation rules, localized accounting mappings (such as Finnish Netvisor accounts), custom credentials, and proprietary workflows live in a **private repository owned by the customer**.
+- **Service Offering**: The csi-spl team designs, develops, tests, and maintains the custom connector code in the customer private repository, integrating cleanly into the hubs generic connector points.
+
+#### 3.2 Scoping, Delivery Model, and Fees
+
+1. **Scoping & Setup (One-Off Fee)**: Architecture assessment, data mapping, integration test suite construction against client sandbox environments, and deployment into customer infrastructure.
+2. **Monthly Upkeep & Monitoring (Recurring Subscription)**: Continuous maintenance covering upstream API version changes, schema updates, security patches, error triage, and uptime monitoring.
+
+#### 3.3 Code Ownership & Intellectual Property
+
+- The customer retains full, exclusive ownership of all code, mappings, schemas, and assets developed inside their private repository.
+- Generic interface contracts and enhancements contributed back to `csi-spl` core remain public under the Apache 2.0 open source license (spec 044).
+
+#### 3.4 Data Governance & Distribution Hygiene
+
+- **Zero Customer Secrets on Spool-Hub**: Client credentials, banking certificates, and private tokens remain in the customers own cloud infrastructure, Secret Manager, or local POSIX 0600 storage. The public spool-hub never stores third-party API credentials.
+- **Strict Hygiene (CLAUDE.md)**: Zero customer names, financial entities, or proprietary identifiers may appear in public repository code, test suites, commit messages, or documentation.
+
+---
+
+### 4. Offer P: Support / SLA Tier for Self-Hosters
+
+#### 4.1 The Offer
+
+Teams downloading and deploying `csi-spl` self-hosted (spec 044, spec 156) often operate mission-critical agent workflows requiring guaranteed response times, upgrade guidance, and emergency incident triage.
+
+#### 4.2 Service Levels & Response Times
+
+1. **Standard Business Support (Tier 1)**:
+   - Target: Production startups and business-hour operations.
+   - Response Times: < 8 business hours for Sev-1 critical blockers; < 24 business hours for general inquiries.
+   - Availability: Monday through Friday, 09:00 - 18:00 CET.
+2. **Enterprise Mission-Critical SLA (Tier 2)**:
+   - Target: 24/7 mission-critical production fleets.
+   - Response Times: < 2 hours for Sev-1 outages (hub unreachable, agent mesh partitioned); < 4 hours for Sev-2 issues.
+   - Availability: 24/7/365 emergency on-call rotation.
+
+#### 4.3 Support Channel: Dedicated Support Workspace
+
+- Subscribers are provisioned a dedicated, secure **Support Workspace on `spool-hub.ai`**.
+- Communication occurs natively through the spool protocol: human operators and autonomous support agents exchange `task`, `result`, and `note` messages.
+- Client agent fleets can securely post sanitized error payloads and diagnostic logs directly into the support channel for analysis.
+
+#### 4.4 Scope of Coverage
+
+- **Included**: Upstream upgrades, database migration safety (`spool migrate`), infrastructure orchestration (`csi-spl-iac` terraform steps), hub performance tuning, WebSocket mesh stability, and agent CLI/MCP debugging.
+- **Excluded**: Writing customer-specific application business logic or authoring custom multi-agent algorithms (covered under Offer I).
+
+#### 4.5 Sales & Billing Mechanism
+
+Available as an online subscription via `/checkout` or via formal commercial invoicing with 14-day net payment terms (SEPA/bank transfer).
+
+---
+
+### 5. Offer K: Organisation-Wide Document Store with AI Retrieval
+
+#### 5.1 The Offer & Target Audience
+
+Prompted by owner HUM-10 (msg `953a66e5`: *"I would like to also address the spool-hub t obe used as a company / organisation wide document storage with ai retrieval"*):
+Transforming `spool-hub` into a persistent, organization-wide knowledge repository where engineering specs, operational runbooks, and corporate documents are collaboratively authored, indexed, and retrieved semantically by both human team members and autonomous agents.
+
+#### 5.2 Measured Baseline on origin/master
+
+1. **Document Storage**: Markdown document management exists in Qto workspace docs (specs 113, 120, 137, 190 media).
+2. **Document Viewer UI**: The Docs section is functional in WUI (`csi-spl-wui/src/pages/docs.vue:1-120`, spec 075), supporting Explorer folder navigation and themed Markdown rendering.
+3. **Lexical Full-Text Search**: Full-text keyword search is implemented via PostgreSQL `tsvector` columns on `workspace_doc_item` and `workspace_doc` using the `spool_search` dictionary (`csi-spl-rdb/.../0227_workspace_doc_search.sql:1-41`, spec 100 section 14).
+4. **External Ingest**: A Google Drive upload specification is queued separately (csitea topic `32f85fd8`, ask `c21ebe9f-3046-4de6-8dd9-244759f441a8`, lane `c-171`, SPL-6398); referenced, not duplicated.
+
+#### 5.3 The Retrieval Gap & Architecture Seam
+
+1. **No Vector or Embedding Storage**: Zero vector extensions exist in the database schema (`grep -liE "create extension.*vector" csi-spl-rdb/src/sql/postgres/spool-hub/*.sql` returns 0 results).
+2. **No Embedding Ingest Pipeline**: No background worker or queue chunks documents into semantic embeddings on document save.
+3. **No Semantic Search**: Search in WUI Omnibox and API is restricted to exact lexical term matches; concept-based semantic questions cannot be answered.
+4. **Architecture Seam**: Spec 075 section 7 (*"Phase 5: Corporate Enterprise: Vector Database + Enterprise IAM"*) specifies the technical implementation of `pgvector`/Qdrant embedding generation, semantic retrieval workers, and SAML/OIDC enterprise IAM document ACLs.
+   - **Spec 006 Seam**: Spec 006 defines the commercial packaging, tier gating, quota allocations, and subscription checkout for the document store with AI retrieval. The underlying indexing engine and embedding pipelines belong strictly to spec 075 Phase 5 build lanes.
+
+---
+
+### 6. Build Rows
+
+The ordered build sequence across WUI, API, CNF, and documentation:
+
+| # | Slug | Summary | Repo Paths | Red Test Control | Kind / Vendor | Order |
+|---|---|---|---|---|---|---|
+| 1 | `wui-pricing-page` | Public `/pricing` page with tier comparison, seat calculator, and `/checkout` links (smallest step to first paying workspace) | `csi-spl-wui/src/pages/pricing.vue`, `src/pages/checkout/index.vue` | `tests/unit/pricing-page.test.mjs` (asserts route exists, renders 20 EUR plan, links to checkout) | wui / nuxt | 1 |
+| 2 | `api-quotas-per-plan` | Plan-specific quota limits (T012a) loaded from cnf plan definitions, replacing deploy-wide limits | `csi-spl-api/.../internal/hub/quota.go`, `internal/config/config.go` | `TestPlanQuotasEnforced429` (red control: plan quota exceeded returns 429 while default deploy limit has headroom) | api / go | 2 |
+| 3 | `api-grace-timer` | Timed grace evaluation job (T013a) transitioning expired `grace` tenants to `unpaid` | `csi-spl-api/.../internal/billing/grace.go`, `internal/hub/server.go` | `TestBillingGraceTimerTransition` (red control: grace older than SPOOL_HUB_BILLING_GRACE transitions to unpaid) | api / go | 3 |
+| 4 | `api-webhook-subscription-wiring` | Stripe recurring subscription lifecycle webhooks wired to `SetBillingStatus` | `csi-spl-api/.../internal/payments/stripe_payments.go`, `handler.go` | `TestStripeSubscriptionWebhooks` (red control: customer.subscription.deleted moves tenant to grace/unpaid) | api / go | 4 |
+| 5 | `wui-billing-portal-receipts` | Self-service billing portal session redirect and downloadable VAT receipt link in settings | `csi-spl-wui/src/pages/settings/tenant-settings.vue`, `internal/payments/handler.go` | `TestBillingPortalSessionCreated` (red control: clicking billing portal returns valid customer portal URL) | fullstack | 5 |
+| 6 | `api-human-seats-pricing` | Enable `SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` and expose human seat quantity in plan/checkout | `csi-spl-cnf/csi-spl/all.env.yaml`, `csi-spl-api/.../internal/payments/handler.go` | `TestCheckoutWithHumanSeats` (red control: POST /checkout with seats_users computes plan + seats*rate) | api / cnf | 6 |
+| 7 | `api-seats-add-remove` | Self-service endpoint `POST /api/v1/workspace/seats` updating Stripe quantity with proration | `csi-spl-api/.../internal/payments/seats.go`, `internal/store/seats_postgres.go` | `TestWorkspaceSeatCountAdjustment` (red control: adding seat prorates subscription and updates tenants.seats_users) | api / go | 7 |
+| 8 | `wui-seats-admin-view` | Admin seat allocation management UI in Tenant Settings with usage meter and upgrade modal | `csi-spl-wui/src/pages/settings/tenant-settings.vue` | `tests/unit/tenant-seats-admin.test.mjs` (red control: asserts seat usage bar and Add Seats button appear) | wui / vue | 8 |
+| 9 | `doc-generic-finance-connector` | Generic finance connector interface contract isolating customer-specific logic into private repos (Offer I) | `csi-spl-doc/specs/188-generic-finance-connector/spec.md` | Doc verification check (`do_check_dist_hygiene`) | doc | 9 |
+| 10 | `doc-support-sla-catalog` | Support & SLA tier catalog, response time matrix, and support workspace onboarding flow (Offer P) | `csi-spl-doc/specs/189-support-sla-tier/spec.md` | Doc verification check (`do_check_dist_hygiene`) | doc | 10 |
+| 11 | `api-doc-semantic-retrieval` | Document embedding worker and pgvector semantic retrieval integration (pointing to spec 075 section 7) | `csi-spl-doc/specs/075-docs-section/spec.md`, `csi-spl-api/.../internal/hub/docs_vector.go` | `TestDocumentSemanticRetrieval` (red control: query matches conceptual chunk via embedding distance) | api / rdb | 11 |
+
+---
+
+### 7. Open Questions for the Owner (Poll Form)
+
+The following structured questions are prepared for dispatch holder `c-002@sat` to present to owner HUM-10:
+
+```poll
+Q1: Base Plan Included Human Seats (Offer H & Human Seats)
+How many human seats should be included in the base 20 EUR/month hosted rental plan?
+(A) 1 seat (Solo / individual builder default; extra seats added individually)
+(B) (Recommended) 3 seats (Small startup founding team; enables initial human collaboration without immediate friction)
+(C) 5 seats (Small team standard)
+```
+
+```poll
+Q2: Additional Human Seat Monthly Price
+What should be the monthly price per additional human seat beyond the base inclusion?
+(A) 5 EUR / seat / month (Low friction, aggressive startup adoption)
+(B) (Recommended) 8 EUR / seat / month (Balanced market pricing; aligns with private workspace seat price of 9 EUR in store.PrivateVMSeatCents)
+(C) 12 EUR / seat / month (Standard collaboration SaaS tier)
+(D) 15 EUR / seat / month (Enterprise tier)
+```
+
+```poll
+Q3: Support / SLA Tier Pricing (Offer P)
+How should the Support / SLA tier for self-hosters be packaged and priced?
+(A) (Recommended) Two-tier flat fee: Standard Support at 199 EUR/month (< 8h Sev-1, business hours) and Enterprise SLA at 799 EUR/month (< 2h Sev-1, 24/7)
+(B) Single flat fee: 399 EUR/month for all commercial self-hosters
+(C) Usage-linked: Base fee 150 EUR/month + 50 EUR per active connected box
+```
+
+```poll
+Q4: Private Integration Scoping & Fee Structure (Offer I)
+How should custom private integrations (the B split) be structured commercially?
+(A) (Recommended) Fixed setup fee (starting at 2,500 EUR depending on API complexity) + recurring monthly maintenance fee (250 EUR/month per integration)
+(B) Time and materials: Hourly billing for initial development and monthly upkeep
+(C) Annual retainer: 5,000 EUR/year including initial setup and continuous maintenance
+```
+
+```poll
+Q5: Organisation-Wide Document Store & AI Retrieval Packaging (Offer K)
+How should organisation-wide document storage with AI retrieval be packaged?
+(A) (Recommended) Bundled into a new "Pro Workspace" tier (e.g. 49 EUR/month including 5 seats + AI retrieval + 10 GB doc storage)
+(B) Standalone workspace add-on: +29 EUR/month on top of the base plan
+(C) Metered consumption: Base search free, AI semantic queries billed per 1,000 queries
+```
+
 ## Out of Scope
 
 NATS, Kafka, ysg-box, customer GCP accounts, card storage, custom
 domains, seats (M4), WUI (005).
 
-<!-- version: 1.4.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:43:36Z -->
+<!-- version: 1.5.0 · updated: 2026-11-24 · last-edit: 2026-11-24T18:50:00Z -->

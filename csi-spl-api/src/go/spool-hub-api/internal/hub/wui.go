@@ -68,6 +68,7 @@ type wuiConn struct {
 	all    bool            // topic-list follow (v0.5), guarded by srv.mu
 	upload tokenSlot       // one live upload token per socket
 	locks  *lockSnaps      // the hub's box locks as last read (box_lock_view.go); nil = none
+	bulk   bulkRuns        // spec 186: the running topic_select / multicast_check, one per kind
 	wmu    sync.Mutex
 	once   sync.Once
 	// rotated: the hub closed this socket at its max life (ws_maxlife.go).
@@ -137,6 +138,11 @@ type wuiIn struct {
 	// Subscription targets beyond task_id / channel (wui-live-ws.md v0.5).
 	Peer string `json:"peer,omitempty"`
 	All  bool   `json:"all,omitempty"`
+	// Spec 186 7.1.2: topic_select and multicast_check (wui_multicast.go).
+	ReqID    string   `json:"req_id,omitempty"`
+	Action   string   `json:"action,omitempty"`
+	TaskIDs  []string `json:"task_ids,omitempty"`
+	Patterns []string `json:"patterns,omitempty"`
 }
 
 type wuiErr struct {
@@ -274,6 +280,7 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		s.humanOnline(ctx, t.ID, c.from, -1)
 	}()
 	defer s.maxLife(&c.rotated, c.close)()
+	defer c.bulk.stop()
 	for {
 		var f wuiIn
 		if err := wsjson.Read(ctx, conn, &f); err != nil {
@@ -378,6 +385,10 @@ func (s *Server) wuiFrame(ctx context.Context, c *wuiConn, f wuiIn) {
 		s.openMembersMemo(fctx)
 		s.wuiSend(fctx, c, f)
 		done()
+	case "topic_select": // spec 186 7.1.2, off the read loop
+		s.wuiBulk(ctx, c, f)
+	case "multicast_check":
+		s.wuiBulk(ctx, c, f)
 	case "token":
 		tok, exp := s.slotToken(&c.upload, c.tenant, WUIBox, c.member)
 		c.write(ctx, map[string]string{"type": "token", "upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}) //nolint:errcheck

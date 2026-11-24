@@ -20,12 +20,15 @@ do-tf-plan: demand_var-ENV demand_var-STEP
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
 	  export ENV=$(ENV); \
-	  # 061 only, and only when set: an empty string is not a list, and other steps stay unchanged. \
+	  # 061 and 062 (spec 181 B8: the private VM map) only, and only when set: an empty string is not a list, and other steps stay unchanged. \
 	  wine_tf=(); \
 	  case "$(STEP)" in \
 	    061-gcp-vm-wine-box) \
 	      [ -n "$${TF_VAR_iap_members:-}" ] && wine_tf+=(-e TF_VAR_iap_members); \
 	      [ -n "$${TF_VAR_desktop_user_ssh_public_keys:-}" ] && wine_tf+=(-e TF_VAR_desktop_user_ssh_public_keys); \
+	      ;; \
+	    062-gcp-workspace-vms) \
+	      [ -n "$${TF_VAR_workspace_vms:-}" ] && wine_tf+=(-e TF_VAR_workspace_vms); \
 	      ;; \
 	  esac; \
 	  docker exec \
@@ -94,12 +97,15 @@ do-provision: no-plan-ref demand_var-ENV demand_var-STEP
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
 	  export ENV=$(ENV); \
-	  # 061 only, and only when set: an empty string is not a list, and other steps stay unchanged. \
+	  # 061 and 062 (spec 181 B8: the private VM map) only, and only when set: an empty string is not a list, and other steps stay unchanged. \
 	  wine_tf=(); \
 	  case "$(STEP)" in \
 	    061-gcp-vm-wine-box) \
 	      [ -n "$${TF_VAR_iap_members:-}" ] && wine_tf+=(-e TF_VAR_iap_members); \
 	      [ -n "$${TF_VAR_desktop_user_ssh_public_keys:-}" ] && wine_tf+=(-e TF_VAR_desktop_user_ssh_public_keys); \
+	      ;; \
+	    062-gcp-workspace-vms) \
+	      [ -n "$${TF_VAR_workspace_vms:-}" ] && wine_tf+=(-e TF_VAR_workspace_vms); \
 	      ;; \
 	  esac; \
 	  docker exec \

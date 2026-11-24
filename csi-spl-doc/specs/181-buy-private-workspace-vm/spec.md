@@ -656,6 +656,40 @@ Row status (v0.4.1):
   card field fails it). Texts in all 19 locales, language-checked by
   `do_spl_lang_review_gct`.
 
+- **B8: Implemented, a dry run by default; never applied** (SPL-6343):
+  `cd csi-spl-orc && ENV=<env> TENANT_ID=<tenant> MACHINE_TYPE=<type> ./run -a do_spl_private_ws_vm_provision`
+  (`csi-spl-orc/src/bash/run/spl-private-ws-vm-provision.func.sh`) takes
+  one order to a printed plan of step `062-gcp-workspace-vms`: (1) the
+  tenant's `workspace_orders` row (status `submitted`) with its
+  `price_plans` kind `private_vm`, read with `do_spl_db_query` (read-only,
+  operator scope) from that env's hub; (2) the entry `<tenant>` ->
+  `MACHINE_TYPE` added to the box's runtime VM map
+  (`$SPL_VAR_APP_DIR/062-gcp-workspace-vms/<env>.workspace-vms.json`, or
+  `WS_VMS_MAP`), never the cnf: B5 as landed keeps tenant ids out of git,
+  so the row's "cnf entry" is this runtime map; an entry with another type
+  is refused (a resize is not this action's); (3) the rendered
+  `<env>/tf/062-gcp-workspace-vms.vars.tfvars` must declare
+  `# runtime-vars: workspace_vms` and carry no value for it; (4) `make
+  do-tf-plan` with the whole map as `TF_VAR_workspace_vms`, printed, then a
+  gate: an Error, a destroy, a replace, an in-place update, or a change
+  that does not create this tenant's VM refuses the run. `make do-tf-plan`
+  and `do-provision` did not hand `TF_VAR_workspace_vms` to the tf-runner
+  (`csi-spl-orc/src/make/tf-tasks.func.mk`, 061's vars only), so B5's
+  runtime map never reached terraform through make; they now forward it
+  for step 062 only, and only when set. `DRY_RUN` unset or `1`: nothing is
+  applied and the map file is not written. `DRY_RUN=0` also needs
+  `OWNER_GO=<owner msg id>` (section 7), runs `make do-provision` with the
+  same map, then writes the map (mode 0600). `MACHINE_TYPE` has no default
+  while Q-21 is open. Not done here: `workspace_orders.status` stays
+  `submitted` (no rdb or api change in this row), and `make
+  do-tf-plan-pending` (the dev-leads-prd check) does not forward the map.
+  Test: `csi-spl-orc/src/bash/tests/spl-private-ws-vm-provision.tst.sh`
+  (stubbed `do_spl_db_query`, `make` and `docker`). Red control: the
+  dry-run return planted off -> `FAIL: DRY_RUN unset ran do-provision`,
+  `FAIL: DRY_RUN unset wrote the map`; the parent's `tf-tasks.func.mk` ->
+  `FAIL: plan forward`. No orders on dev when measured (2026-11-24, n = 1:
+  `workspace_orders` 0 rows), so no real plan was printed.
+
 Not in this spec: a private hub (Q-2 B, not chosen); listing on Cloud
 Marketplace stays spec 156.
 

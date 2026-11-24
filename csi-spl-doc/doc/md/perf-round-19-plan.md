@@ -1,5 +1,7 @@
 # Perf round 19 (p19) - plan (6 rows, v1.0)
 
+> Generated from qto doc `84ee42e2-4dac-4a77-afe1-5b868751eb90`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
 Class: refactor  
@@ -40,6 +42,7 @@ W1-W4, N1-N8). Editor: c-778 (claude).
 
 <a id="p19-how-to-read"></a>
 
+<a id="ws-doc-8e7c0472-988a-42a8-9ab5-07f195c6efec"></a>
 ## 1. How to read this
 
 - A row is one logical change made by one lane, with the subject
@@ -77,6 +80,7 @@ W1-W4, N1-N8). Editor: c-778 (claude).
 
 <a id="p19-inputs"></a>
 
+<a id="ws-doc-7d38bd1f-876a-43a9-99fe-d0eb56b960e6"></a>
 ## 2. Where the rows come from
 
 | input | finding | here |
@@ -93,6 +97,7 @@ W1-W4, N1-N8). Editor: c-778 (claude).
 
 <a id="p19-rows"></a>
 
+<a id="ws-doc-396ad6d5-85f2-49ee-be0e-7fb39c62219b"></a>
 ## 3. The rows
 
 In priority order (gain per cost): 01, 02, 03, 06, 05, 07 (v1.0 ranks 05 below 06: its gain is ms only, N4). Row ids stay as in v0.1. Each row aims at 1 push; 3 at most.
@@ -112,6 +117,7 @@ Every row is claude: rulebook R14 (an established vendor) and the owner's
 
 <a id="p19-batches"></a>
 
+<a id="ws-doc-63cce285-9fb3-4de4-bfbe-65ab9720bc25"></a>
 ### 3.1 Batches and disjoint files (R1)
 
 - **Batch 1** (disjoint, may run at once; placed in priority order): rows
@@ -128,6 +134,7 @@ Every row is claude: rulebook R14 (an established vendor) and the owner's
 
 <a id="p19-r3"></a>
 
+<a id="ws-doc-14247610-d414-4e1d-93d7-1fcde2d2c46b"></a>
 ### 3.2 Off every live lane, every queued row and every open round row (R3)
 
 Read on 2026-11-24 (editor 3):
@@ -159,6 +166,7 @@ Read on 2026-11-24 (editor 3):
 
 <a id="p19-ab"></a>
 
+<a id="ws-doc-9c56e428-f648-454a-9303-e5dbeadacf58"></a>
 ### 3.3 Same-box A/B per row (W2)
 
 Each lane runs both arms on one box within one hour, the before-arm on its
@@ -177,6 +185,7 @@ outside the before-arm's range is no gain; the row is dropped.
 
 <a id="p19-per-row"></a>
 
+<a id="ws-doc-25c9d598-c112-427e-8599-0876ea5bfc6b"></a>
 ## 4. Per row: what the lane does
 
 - **01**: The `scrollHeight > clientHeight` branch already skips the collapse
@@ -204,6 +213,7 @@ outside the before-arm's range is no gain; the row is dropped.
 
 <a id="p19-panel"></a>
 
+<a id="ws-doc-9914b821-5cf2-4bac-9731-3ec7b40705c0"></a>
 ## 5. Panel and reviewers (R7)
 
 Read on 2026-11-24 12:39:41Z:
@@ -227,6 +237,7 @@ Read on 2026-11-24 12:39:41Z:
 
 <a id="p19-left-out"></a>
 
+<a id="ws-doc-858fb07c-6494-4d6b-9641-e1d451b92889"></a>
 ## 6. Left out, measured or not measurable here
 
 | candidate | why not a row | measurement |
@@ -245,6 +256,7 @@ Read on 2026-11-24 12:39:41Z:
 
 <a id="p19-slug"></a>
 
+<a id="ws-doc-eafeb241-2df7-43d3-b275-a9b0d3aca0ee"></a>
 ## 7. Slug and status (R4, R6)
 
 - Slug proof, read 2026-11-24 12:43:11Z on `origin/master` `37e0b241e`:
@@ -261,6 +273,7 @@ Read on 2026-11-24 12:39:41Z:
 
 <a id="p19-changes"></a>
 
+<a id="ws-doc-70873250-96b5-4bcf-b09b-2dd95ea0bd40"></a>
 ## 8. Changes
 
 Qto (rulebook 4.5): this file is imported once into the `system` workspace with

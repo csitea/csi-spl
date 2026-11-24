@@ -223,7 +223,9 @@ Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one and after 
   Mistral (m-135): PASS on `fd664e5b0` (msg 1901395a, seat file
   `review/c002-perf-round-20-mistral-seat` `960bb5d2f`), one minor defect
   W1 for v1.0: the action table has no `box` column (rulebook 3.1). Agy:
-  no verdict yet.
+  not placed yet. The holder (msg be24df21) asked for v1.0 with W1 and
+  N1..N6 folded: v1.0 is the next commit on the review branch; the holder
+  GOes the landing, not this seat.
 - Next: fold the seats' notes into v1.0, send the v1.0 sha to the seats and
   the holder; on both signatures and the holder's GO, land the plan on master
   with `do_spl_push_master` (subject `docs(p20-plan, SPL-6364): ...`), then

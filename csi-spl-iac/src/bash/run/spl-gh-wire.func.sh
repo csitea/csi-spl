@@ -89,27 +89,16 @@ _sgw_read_env() {
 
 # <repo> <env> <name> <want> <step> <output> <regex> <dry> - 0 = in place (or would be set)
 _sgw_apply() {
-  local repo="$1" env="$2" name="$3" want="$4" step="$5" output="$6" re="$7" dry="$8" have
+  local repo="$1" env="$2" name="$3" want="$4" step="$5" output="$6" re="$7" dry="$8"
   if [[ -z "$want" ]]; then
     do_log "ERROR $name: step $step has no output $output in $env; apply it first: ENV=$env STEP=$step make do-tf-plan, then make do-provision (owner go)"
     return 1
   fi
   [[ "$want" =~ $re ]] || { do_log "ERROR $name: step $step output $output in $env is malformed: $want"; return 1; }
-  # read one repo variable via _gscv_get of gh-set-ci-vars.func.sh, its one copy
+  # apply one repo variable via _gscv_set of gh-set-ci-vars.func.sh, its one copy
   # shellcheck source=gh-set-ci-vars.func.sh
-  declare -F _gscv_get >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/gh-set-ci-vars.func.sh"
-  have="$(_gscv_get "$repo" "$name")"
-  if [[ "$have" == "$want" ]]; then do_log "OK $repo $name unchanged: $want"; return 0; fi
-  if [[ "$dry" != 0 ]]; then
-    if [[ -z "$have" ]]; then do_log "INFO DRY_RUN $repo $name would create: $want"
-    else do_log "INFO DRY_RUN $repo $name would update: $have -> $want"; fi
-    return 0
-  fi
-  gh variable set "$name" --repo "$repo" --body "$want" >/dev/null \
-    || { do_log "ERROR cannot set $repo $name"; return 1; }
-  have="$(_gscv_get "$repo" "$name")"
-  [[ "$have" == "$want" ]] || { do_log "ERROR $repo $name reads back '$have', want '$want'"; return 1; }
-  do_log "OK $repo $name set: $want"
+  declare -F _gscv_set >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/gh-set-ci-vars.func.sh"
+  _gscv_set "$repo" "$name" "$want" "$dry"
 }
 
 do_spl_gh_wire() {

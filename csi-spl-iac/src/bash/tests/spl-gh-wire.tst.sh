@@ -18,7 +18,7 @@
 #        GH_WIRE_REPO, else refused
 #     8. ORG / APP come from the project dir's name, so a stale ORG / APP
 #        (an agent worktree's parent dirs) still finds the cnf
-#     9. one copy: the repo-variable read is _gscv_get of gh-set-ci-vars.func.sh
+#     9. one copy: the repo-variable apply is _gscv_set of gh-set-ci-vars.func.sh
 #   CONTROL: no SA key for an env -> refused, no state read for it; a value
 #   planted in the state outside the wired outputs never reaches the output.
 #------------------------------------------------------------------------------
@@ -177,11 +177,11 @@ act ORG=o-app-wt APP=c-001; rc=$?
 [[ $rc == 0 && $(grep -cE '_(DEV|PRD) (would create|would update|unchanged)' "$T/out") == 6 ]] \
   && pass "8. a stale ORG / APP (worktree parents) still resolves the cnf from the project dir" || fail "8. oap: rc=$rc $(cat "$T/out")"
 
-# --- 9. one copy of the repo-variable read ------------------------------------
-own="$(grep -nE '_sgw_get|actions/variables/' "$FUNC")"
-[[ -z "$own" ]] && grep -qF '_gscv_get "$repo" "$name"' "$FUNC" \
-  && pass "9. one copy: spl-gh-wire.func.sh reads a repo variable only via _gscv_get of gh-set-ci-vars.func.sh" \
-  || fail "9. one copy: spl-gh-wire.func.sh keeps its own variable read, or no call of _gscv_get: $(tr '\n' ' ' <<<"$own")"
+# --- 9. one copy of the repo-variable apply (comment lines do not count) -------
+own="$(grep -nE '_sgw_get|actions/variables/|variable set' "$FUNC" | grep -vE '^[0-9]+:[[:space:]]*#')"
+[[ -z "$own" ]] && grep -qF '_gscv_set "$repo" "$name" "$want" "$dry"' "$FUNC" \
+  && pass "9. one copy: spl-gh-wire.func.sh applies a repo variable only via _gscv_set of gh-set-ci-vars.func.sh" \
+  || fail "9. one copy: spl-gh-wire.func.sh keeps its own variable read/write, or no call of _gscv_set: $(tr '\n' ' ' <<<"$own")"
 
 # --- CONTROLs ---------------------------------------------------------------------
 act; ! grep -rqF "$MARK" "$T/out" && grep -qF "$MARK" "$T/gcs/o-app-dev-tfstate/terraform/017-github-wif-deploy/default.tfstate" \

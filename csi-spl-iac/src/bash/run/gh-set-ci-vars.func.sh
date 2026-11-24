@@ -38,11 +38,9 @@ _gscv_get() {  # <repo> <name>
   return 0
 }
 
-# <repo> <name> <want> <dry> - 0 = in place (or would be set), 1 = error
-_gscv_apply() {
+# <repo> <name> <want> <dry> - read, set, read back one variable; 0 = in place, 1 = error
+_gscv_set() {
   local repo="$1" name="$2" want="$3" dry="$4" have
-  jq -e 'type == "array" or type == "string"' <<<"$want" >/dev/null 2>&1 \
-    || { do_log "ERROR $name is not JSON (a label array or a quoted string): $want"; return 1; }
   have="$(_gscv_get "$repo" "$name")"
   if [[ "$have" == "$want" ]]; then do_log "OK $repo $name unchanged: $want"; return 0; fi
   if [[ "$dry" != 0 ]]; then
@@ -55,6 +53,14 @@ _gscv_apply() {
   have="$(_gscv_get "$repo" "$name")"
   [[ "$have" == "$want" ]] || { do_log "ERROR $repo $name reads back '$have', want '$want'"; return 1; }
   do_log "OK $repo $name set: $want"
+}
+
+# <repo> <name> <want> <dry> - 0 = in place (or would be set), 1 = error
+_gscv_apply() {
+  local repo="$1" name="$2" want="$3" dry="$4"
+  jq -e 'type == "array" or type == "string"' <<<"$want" >/dev/null 2>&1 \
+    || { do_log "ERROR $name is not JSON (a label array or a quoted string): $want"; return 1; }
+  _gscv_set "$repo" "$name" "$want" "$dry"
 }
 
 do_gh_set_ci_vars() {

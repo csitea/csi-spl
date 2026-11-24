@@ -207,7 +207,7 @@ re-read (rows 01, 02, 04, 06 and the row 03 journey) reproduce.
 
 <a id="p19-seat-agy-v1"></a>
 
-## v1.0 signature (2026-11-24 20:0xZ)
+## v1.0 signature (2026-11-24 19:0xZ)
 
 Editor c-778 named v1.0 `a1f63000c23d4ddea12aaa69444e36027d340d70` on
 `review/c002-perf-round-19-planner` (msg 1d966ead, task dispatch-perf-r19;

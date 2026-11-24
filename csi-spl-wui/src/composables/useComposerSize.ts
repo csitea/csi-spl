@@ -36,6 +36,9 @@ type BoxState = ReturnType<typeof useBoxState>
 
 function useFit(o: SizeOpts, st: BoxState) {
   const { props } = o
+  /* what the last fit sized: the text length, the cap, the field's width,
+     the height it wrote */
+  const last = { len: -1, cap: 0, width: 0, height: '' }
   function omniboxMax() {
     /* docked: 40% of what the keyboard leaves, so the page stays in view */
     if (o.docked.value) return Math.max(36, Math.floor((window.innerHeight - o.kbInset.value) * 0.4))
@@ -67,7 +70,21 @@ function useFit(o: SizeOpts, st: BoxState) {
        grew needs no collapse; after one, the scroll goes back, and a caret at
        the end stays in view. */
     const cap = Math.min(omniboxMax(), Math.floor(window.innerHeight * 0.4))
-    if (el.scrollHeight > el.clientHeight) {
+    const len = el.value.length
+    const width = el.clientWidth
+    /* p19-01: a key that only adds text to the box this fit sized last needs
+       one scrollHeight read, and a write only when the text outgrew it - not
+       the 'auto' collapse and its second forced layout on every key (82
+       forced layouts per 41 keys). Removed text, a new cap or width, or a
+       height set elsewhere (grip, focus, collapse) measure from 'auto' below. */
+    const grew = len >= last.len && cap === last.cap && width === last.width && el.style.height === last.height
+    if (grew) {
+      const sh = el.scrollHeight
+      if (sh > el.clientHeight) {
+        el.style.height = `${Math.min(sh, cap)}px`
+        if (sh > cap && document.activeElement === el && el.selectionEnd === len) el.scrollTop = sh
+      }
+    } else if (el.scrollHeight > el.clientHeight) {
       el.style.height = `${Math.min(el.scrollHeight, cap)}px`
     } else {
       const scrolled = el.scrollTop
@@ -75,7 +92,8 @@ function useFit(o: SizeOpts, st: BoxState) {
       el.style.height = `${Math.min(el.scrollHeight, cap)}px`
       el.scrollTop = scrolled
     }
-    if (document.activeElement === el && el.selectionEnd === el.value.length) el.scrollTop = el.scrollHeight
+    if (!grew && document.activeElement === el && el.selectionEnd === len) el.scrollTop = el.scrollHeight
+    Object.assign(last, { len, cap, width, height: el.style.height })
   }
   return { omniboxMax, fitGlobalBox }
 }

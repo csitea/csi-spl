@@ -235,6 +235,10 @@ Written at the 12:33Z rotation, 2026-11-24; updated at the 14:30Z one, after it,
   verdict fold or answer; on the holder's GO rebase onto origin/master, drop
   or keep this commit as the holder says, land with `do_spl_push_master`,
   then the Qto import.
+- State at the 16:32Z rotation: unchanged. The planner head is still
+  `312380222` (ls-remote). The mistral seat branch moved to `972b1449a`, its
+  own state commits only, no new verdict. Agy: still no verdict, no agy seat
+  branch on origin. This commit stays local beside the 15:31Z one.
 - Next: fold the seats' notes into v1.0, send the v1.0 sha to the seats and
   the holder; on both signatures and the holder's GO, land the plan on master
   with `do_spl_push_master` (subject `docs(p20-plan, SPL-6364): ...`), then

@@ -25,8 +25,9 @@ _gscv_wanted() {
   printf 'SPOOL_CI_RUNNER\t%s\n' "${SPOOL_CI_RUNNER:-[\"self-hosted\",\"spool-ci\"]}"
 }
 
+# [override] - <owner>/<repo>: the override if set, else parsed from the checkout's origin
 _gscv_repo() {
-  if [[ -n "${GH_CI_VARS_REPO:-}" ]]; then printf '%s\n' "$GH_CI_VARS_REPO"; return 0; fi
+  if [[ -n "${1:-}" ]]; then printf '%s\n' "$1"; return 0; fi
   local url; url="$(git -C "$APP_PATH" remote get-url origin 2>/dev/null)" || return 0
   sed -nE 's#^.*github\.com[:/]([^/]+/[^/]+)$#\1#p' <<<"${url%.git}"
 }
@@ -67,7 +68,7 @@ do_gh_set_ci_vars() {
   command -v gh >/dev/null 2>&1 || { do_log "FATAL gh not found"; return 1; }
   command -v jq >/dev/null 2>&1 || { do_log "FATAL jq not found"; return 1; }
   local repo re='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' dry="${DRY_RUN:-1}" name want bad=0
-  repo="$(_gscv_repo)"
+  repo="$(_gscv_repo "${GH_CI_VARS_REPO:-}")"
   [[ "$repo" =~ $re ]] || { do_log "FATAL no <owner>/<repo>: set GH_CI_VARS_REPO (no default); origin gave '$repo'"; return 1; }
   gh api "repos/$repo" --jq .full_name >/dev/null || { do_log "FATAL cannot read $repo with gh"; return 1; }
   while IFS=$'\t' read -r name want; do

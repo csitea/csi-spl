@@ -46,12 +46,6 @@ _sgw_envs() {
   return 0
 }
 
-_sgw_repo() {
-  if [[ -n "${GH_WIRE_REPO:-}" ]]; then printf '%s\n' "$GH_WIRE_REPO"; return 0; fi
-  local url; url="$(git -C "$APP_PATH" remote get-url origin 2>/dev/null)" || return 0
-  sed -nE 's#^.*github\.com[:/]([^/]+/[^/]+)$#\1#p' <<<"${url%.git}"
-}
-
 # <tfvars> <key> - the value of a `key = "value"` line of a rendered backend config
 _sgw_tfvar() { sed -nE "s/^[[:space:]]*$2[[:space:]]*=[[:space:]]*\"([^\"]*)\".*/\1/p" "$1" | awk 'NR==1'; }
 
@@ -109,7 +103,10 @@ do_spl_gh_wire() {
   local repo re='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' dry="${DRY_RUN:-1}" bad=0 n=0 env envs=() tmp
   # ORG / APP from the project dir's own name: right in an agent worktree too
   do_resolve_oap ORG && do_resolve_oap APP || return 1
-  repo="$(_sgw_repo)"
+  # the origin repo parse is _gscv_repo of gh-set-ci-vars.func.sh, its one copy
+  # shellcheck source=gh-set-ci-vars.func.sh
+  declare -F _gscv_repo >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/gh-set-ci-vars.func.sh"
+  repo="$(_gscv_repo "${GH_WIRE_REPO:-}")"
   [[ "$repo" =~ $re ]] || { do_log "FATAL no <owner>/<repo>: set GH_WIRE_REPO (no default); origin gave '$repo'"; return 1; }
   mapfile -t envs < <(_sgw_envs)
   ((${#envs[@]})) || { do_log "FATAL no env: no $(_sgw_cnf_dir)/<env>/tf/017-github-wif-deploy.backend-config.tfvars; render one or set GH_WIRE_ENVS"; return 1; }

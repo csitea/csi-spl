@@ -18,7 +18,8 @@
 #        GH_WIRE_REPO, else refused
 #     8. ORG / APP come from the project dir's name, so a stale ORG / APP
 #        (an agent worktree's parent dirs) still finds the cnf
-#     9. one copy: the repo-variable apply is _gscv_set of gh-set-ci-vars.func.sh
+#     9. one copy: the repo-variable apply is _gscv_set and the origin repo
+#        parse is _gscv_repo, both of gh-set-ci-vars.func.sh
 #   CONTROL: no SA key for an env -> refused, no state read for it; a value
 #   planted in the state outside the wired outputs never reaches the output.
 #------------------------------------------------------------------------------
@@ -171,17 +172,20 @@ act; rc=$?
   && pass "7. a non-GitHub origin with no GH_WIRE_REPO is refused before any read" || fail "7. non-GitHub: rc=$rc $(cat "$T/out")"
 act GH_WIRE_REPO=o3/app3; grep -qF "o3/app3 GCP_WIF_PROVIDER_DEV" "$T/out" && pass "7. GH_WIRE_REPO wins" || fail "7. GH_WIRE_REPO: $(cat "$T/out")"
 git -C "$T/app" remote set-url origin git@github.com:o/app.git
+act GH_CI_VARS_REPO=wrong/leak; rc=$?
+[[ $rc == 0 ]] && grep -qF "o/app GCP_WIF_PROVIDER_DEV" "$T/out" && ! grep -qF "wrong/leak" "$T/out" \
+  && pass "7. GH_CI_VARS_REPO does not leak into do_spl_gh_wire: the repo is origin's" || fail "7. GH_CI_VARS_REPO leak: rc=$rc $(cat "$T/out")"
 
 # --- 8. a worktree's stale ORG / APP -------------------------------------------
 act ORG=o-app-wt APP=c-001; rc=$?
 [[ $rc == 0 && $(grep -cE '_(DEV|PRD) (would create|would update|unchanged)' "$T/out") == 6 ]] \
   && pass "8. a stale ORG / APP (worktree parents) still resolves the cnf from the project dir" || fail "8. oap: rc=$rc $(cat "$T/out")"
 
-# --- 9. one copy of the repo-variable apply (comment lines do not count) -------
-own="$(grep -nE '_sgw_get|actions/variables/|variable set' "$FUNC" | grep -vE '^[0-9]+:[[:space:]]*#')"
-[[ -z "$own" ]] && grep -qF '_gscv_set "$repo" "$name" "$want" "$dry"' "$FUNC" \
-  && pass "9. one copy: spl-gh-wire.func.sh applies a repo variable only via _gscv_set of gh-set-ci-vars.func.sh" \
-  || fail "9. one copy: spl-gh-wire.func.sh keeps its own variable read/write, or no call of _gscv_set: $(tr '\n' ' ' <<<"$own")"
+# --- 9. one copy of the repo-variable apply and repo parse (comments do not count)
+own="$(grep -nE '_sgw_get|_sgw_repo|actions/variables/|variable set|remote get-url origin' "$FUNC" | grep -vE '^[0-9]+:[[:space:]]*#')"
+[[ -z "$own" ]] && grep -qF '_gscv_set "$repo" "$name" "$want" "$dry"' "$FUNC" && grep -qF '_gscv_repo "${GH_WIRE_REPO:-}"' "$FUNC" \
+  && pass "9. one copy: spl-gh-wire.func.sh applies a repo variable and parses the repo only via _gscv_set / _gscv_repo of gh-set-ci-vars.func.sh" \
+  || fail "9. one copy: spl-gh-wire.func.sh keeps its own variable apply or repo parse, or no call of _gscv_set/_gscv_repo: $(tr '\n' ' ' <<<"$own")"
 
 # --- CONTROLs ---------------------------------------------------------------------
 act; ! grep -rqF "$MARK" "$T/out" && grep -qF "$MARK" "$T/gcs/o-app-dev-tfstate/terraform/017-github-wif-deploy/default.tfstate" \

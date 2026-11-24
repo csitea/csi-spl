@@ -2148,6 +2148,26 @@
         "bad_key": "Rakte negali būti tarpų, o jo ilgis – ne daugiau kaip 4096 simboliai.",
         "bad_base_url": "Qwen reikia bazinio URL, prasidedančio https://.",
         "generic": "Raktas nepakeistas. Bandykite dar kartą."
+      },
+      "signin": {
+        "hint": "Arba prijunkite agentą savo privačioje virtualioje mašinoje su savo prenumerata. Įklijuotas kodas keliauja tiesiai į jūsų mašiną; centras jo niekur nesaugo.",
+        "start": "Prisijungti su mano prenumerata",
+        "starting": "Pradedamas prisijungimas jūsų mašinoje…",
+        "open_link": "Atidaryti tiekėjo prisijungimo puslapį",
+        "code_label": "Kodas iš tiekėjo puslapio",
+        "send": "Siųsti kodą",
+        "sent": "Kodas keliauja į jūsų mašiną…",
+        "signed_in": "Prisijungta jūsų mašinoje.",
+        "delivered": "Kodas pasiekė prisijungimą jūsų mašinoje; prisijungimas dar nepatvirtintas.",
+        "cancel": "Atšaukti",
+        "error": {
+          "signin_relay_off": "Prisijungimas su prenumerata šiam tiekėjui dar neįjungtas. Kol kas naudokite API raktą.",
+          "no_private_vm": "Ši darbo sritis neturi privačios virtualios mašinos prisijungimui.",
+          "bad_input": "Įklijuokite kodą viena eilute.",
+          "not_found": "Šis prisijungimas baigėsi arba nebegalioja. Pradėkite iš naujo.",
+          "failed": "Prisijungimas jūsų mašinoje nebaigtas ({reason}).",
+          "generic": "Prisijungimas neatsakė. Bandykite dar kartą."
+        }
       }
     },
     "marketing_handover_open": "Paskelbti rankiniu būdu",

@@ -2148,6 +2148,26 @@
         "bad_key": "The key must have no spaces and be at most 4096 characters.",
         "bad_base_url": "Qwen needs a base URL that starts with https://.",
         "generic": "The key was not changed. Try again."
+      },
+      "signin": {
+        "hint": "Or sign the agent on your private VM in to your own subscription. The code you paste goes straight to your VM; the hub stores it nowhere.",
+        "start": "Sign in with my subscription",
+        "starting": "Starting the sign-in on your VM…",
+        "open_link": "Open the vendor's sign-in page",
+        "code_label": "Code from the vendor's page",
+        "send": "Send the code",
+        "sent": "The code is on its way to your VM…",
+        "signed_in": "Signed in on your VM.",
+        "delivered": "The code reached the sign-in on your VM; it has not confirmed the sign-in yet.",
+        "cancel": "Cancel",
+        "error": {
+          "signin_relay_off": "Sign-in with a subscription is not switched on for this vendor yet. Use an API key meanwhile.",
+          "no_private_vm": "This workspace has no private VM to sign in on.",
+          "bad_input": "Paste the code as one line.",
+          "not_found": "This sign-in has ended or timed out. Start again.",
+          "failed": "The sign-in on your VM did not complete ({reason}).",
+          "generic": "The sign-in did not answer. Try again."
+        }
       }
     },
     "marketing_handover_open": "Post by hand",

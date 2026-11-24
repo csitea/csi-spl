@@ -2148,6 +2148,26 @@
         "bad_key": "Avaimessa ei saa olla välilyöntejä ja siinä saa olla enintään 4096 merkkiä.",
         "bad_base_url": "Qwen tarvitsee perus-URL:n, joka alkaa https://.",
         "generic": "Avainta ei muutettu. Yritä uudelleen."
+      },
+      "signin": {
+        "hint": "Tai kirjaa yksityisen virtuaalikoneesi agentti sisään omalla tilauksellasi. Liittämäsi koodi menee suoraan virtuaalikoneellesi; keskitin ei tallenna sitä mihinkään.",
+        "start": "Kirjaudu omalla tilauksellani",
+        "starting": "Kirjautuminen käynnistyy virtuaalikoneellasi…",
+        "open_link": "Avaa palveluntarjoajan kirjautumissivu",
+        "code_label": "Koodi palveluntarjoajan sivulta",
+        "send": "Lähetä koodi",
+        "sent": "Koodi on matkalla virtuaalikoneellesi…",
+        "signed_in": "Kirjautunut virtuaalikoneellasi.",
+        "delivered": "Koodi saapui virtuaalikoneesi kirjautumiseen; kirjautumista ei ole vielä vahvistettu.",
+        "cancel": "Peruuta",
+        "error": {
+          "signin_relay_off": "Tilauksella kirjautuminen ei ole vielä käytössä tälle palveluntarjoajalle. Käytä sillä välin API-avainta.",
+          "no_private_vm": "Tällä työtilalla ei ole yksityistä virtuaalikonetta, jolle kirjautua.",
+          "bad_input": "Liitä koodi yhdelle riville.",
+          "not_found": "Tämä kirjautuminen päättyi tai vanheni. Aloita uudelleen.",
+          "failed": "Kirjautuminen virtuaalikoneellasi ei valmistunut ({reason}).",
+          "generic": "Kirjautuminen ei vastannut. Yritä uudelleen."
+        }
       }
     },
     "marketing_handover_open": "Julkaise itse",

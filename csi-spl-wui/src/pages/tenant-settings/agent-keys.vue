@@ -6,7 +6,9 @@
      for its check, 127 R5.2). An unconfirmed (operator-made) manager reads
      the rows and changes nothing (127 5.1). The typed key lives in one
      password field, goes out once and is cleared (127 L12); no route ever
-     answers it back. The hub re-checks every call. -->
+     answers it back. The hub re-checks every call. Below the key, for the
+     kinds with a subscription login, the sign-in relay of spec 181 B11
+     (components/SigninRelayPanel.vue). -->
 <template>
   <SettingsSection id="tenant-agent-keys" :title="t('tenant_settings.agent_keys.title')" data-test="tenant-settings-agent-keys">
     <p v-if="forbidden" class="muted" role="alert" data-test="vk-forbidden">{{ t('tenant_settings.agent_keys.forbidden') }}</p>
@@ -31,6 +33,7 @@
             <p v-if="stateOf(row) === 'exhausted'" class="vk-error vk-line" data-test="vk-exhausted">{{ t('tenant_settings.agent_keys.exhausted') }}</p>
             <VendorKeyControls v-if="confirmed" :row="row" :busy="busy === row.kind" @save="save" @remove="remove" @retry="retry" />
           </template>
+          <SigninRelayPanel v-if="confirmed && SIGNIN_RELAY_KINDS.includes(row.kind)" :kind="row.kind" />
           <p v-if="errors[row.kind]" class="vk-error vk-line" role="alert" data-test="vk-error">{{ errors[row.kind] }}</p>
           <p v-if="notices[row.kind]" class="vk-notice vk-line" role="status" data-test="vk-notice">{{ notices[row.kind] }}</p>
         </li>
@@ -42,10 +45,12 @@
 <script setup lang="ts">
 import SettingsSection from '~/components/SettingsSection.vue'
 import VendorKeyControls from '~/components/VendorKeyControls.vue'
+import SigninRelayPanel from '~/components/SigninRelayPanel.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useTenantSectionGate } from '~/composables/useTenantSectionGate'
 import { normalizeVendorKeys, vendorKeyState, vendorKeysErrorKey } from '~/utils/vendor-keys.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
+import { SIGNIN_RELAY_KINDS } from '~/utils/signin-relay.mjs'
 
 type VendorKeyRow = ReturnType<typeof normalizeVendorKeys>['rows'][number]
 

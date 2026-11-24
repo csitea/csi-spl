@@ -99,6 +99,7 @@ const LAZY_METHODS = [
   'archiveOperatorWorkspace',
   'agentCaps',
   'vendorKeys',
+  'signinRelay',
   'editMessage',
   'deleteMessage',
   'mergeMessage',

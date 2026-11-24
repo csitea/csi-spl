@@ -2475,6 +2475,29 @@ async function vendorKeys(ctx, op, kind, body) {
   throw new Error('vendorKeys: unknown op ' + op)
 }
 
+/**
+ * Spec 181 B11: the web-UI sign-in relay to the CLI's login on the
+ * workspace's private VM (utils/signin-relay.mjs).
+ *   'start', null, {kind}   POST   /v1/signin-relay
+ *   'get', id               GET    /v1/signin-relay/{relay}
+ *   'input', id, {input}    POST   /v1/signin-relay/{relay}/input
+ *   'end', id               DELETE /v1/signin-relay/{relay}
+ */
+async function signinRelay(ctx, op, id, body) {
+  const { live, mock } = ctx
+  if (mock) {
+    const m = await import('./signin-relay.mjs')
+    return m.mockSigninRelay(op, id, body)
+  }
+  const json = (method, path, b) => live(path, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) })
+  if (op === 'start') return json('POST', '/v1/signin-relay', body)
+  const path = '/v1/signin-relay/' + encodeURIComponent(id)
+  if (op === 'get') return live(path)
+  if (op === 'input') return json('POST', path + '/input', body)
+  if (op === 'end') return live(path, { method: 'DELETE' })
+  throw new Error('signinRelay: unknown op ' + op)
+}
+
 /* the mock's uploaded bytes, per client (ctx) */
 const mockBlobs = new WeakMap()
 const blobsOf = (ctx) => {
@@ -2589,6 +2612,7 @@ export const lazySpoolMethods = {
   fleetPaid,
   agentCaps,
   vendorKeys,
+  signinRelay,
   listOperatorWorkspaces,
   createOperatorWorkspace,
   patchOperatorWorkspace,

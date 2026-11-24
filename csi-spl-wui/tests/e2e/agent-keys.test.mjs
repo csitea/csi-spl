@@ -12,7 +12,8 @@
 //     to the hub, so any request with it is a beacon or a leak).
 // Also: grok and mistral read "waiting for the vendor's terms", agy "not
 // supported" (127 R5.2), an unconfirmed manager sees the rows read-only, and
-// Remove asks first.
+// Remove asks first. Step 9 (spec 181 B11): the subscription sign-in relay
+// refuses with the switch off, and with it on the code is cleared once sent.
 //
 // Plant the defect and watch it go red: drop the clear after save in
 // pages/tenant-settings/agent-keys.vue (step 4 goes red), show the section
@@ -152,6 +153,28 @@ try {
   if (asked) await p.click('[data-test=vk-remove-confirm]')
   await p.waitForFunction(() => document.querySelector('[data-test=vk-row][data-kind=claude]')?.dataset.state === 'not_set', { timeout: 5000 }).catch(() => null)
   ok('7 Remove asks, then the claude row is not set', asked && (await rowState(p, 'claude')) === 'not_set')
+
+  // 9. spec 181 B11: the subscription sign-in relay on the claude row. The
+  // mock hub ships the switch off, as the hub does: Start shows the refusal.
+  // Switched on: the vendor's link, the code sent once and cleared, signed in,
+  // and the code nowhere in the browser after.
+  const RELAY_CODE = 'relay-input-0000-fake'
+  await p.click('[data-test=vk-row][data-kind=claude] [data-test=sr-start]').catch(() => null)
+  await p.waitForSelector('[data-test=vk-row][data-kind=claude] [data-test=sr-error]', { visible: true, timeout: 5000 }).catch(() => null)
+  ok('9 sign-in relay, switch off: Start shows the refusal and no link', Boolean(await p.$('[data-test=vk-row][data-kind=claude] [data-test=sr-error]')) &&
+    !(await p.$('[data-test=sr-link]')))
+  await p.evaluate(() => localStorage.setItem('spool.mock.signin_relay_kinds', 'claude'))
+  await p.click('[data-test=vk-row][data-kind=claude] [data-test=sr-start]').catch(() => null)
+  await p.waitForSelector('[data-test=sr-link]', { visible: true, timeout: 8000 }).catch(() => null)
+  const href = await p.$eval('[data-test=sr-link]', (a) => a.getAttribute('href')).catch(() => '')
+  ok('9 switch on: the vendor link shows, https only', href.startsWith('https://'), { href })
+  await p.type('[data-test=sr-code]', RELAY_CODE).catch(() => null)
+  await p.click('[data-test=sr-send]').catch(() => null)
+  await p.waitForSelector('[data-test=sr-signed-in]', { visible: true, timeout: 8000 }).catch(() => null)
+  ok('9 the code sent: signed in', Boolean(await p.$('[data-test=sr-signed-in]')))
+  const relayTraces = await keyTraces(p, RELAY_CODE)
+  ok('9 the code is nowhere in the browser after the send', relayTraces.where.length === 0, relayTraces)
+  await p.evaluate(() => localStorage.removeItem('spool.mock.signin_relay_kinds'))
 
   // 8. an unconfirmed (operator-made) manager: rows read, nothing changes
   await p.evaluate(() => localStorage.setItem('spool.mock.vendor_keys_unconfirmed', '1'))

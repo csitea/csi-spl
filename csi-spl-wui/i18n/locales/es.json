@@ -2148,6 +2148,26 @@
         "bad_key": "La clave no debe tener espacios y debe tener como máximo 4096 caracteres.",
         "bad_base_url": "Qwen necesita una URL base que empiece por https://.",
         "generic": "La clave no se cambió. Inténtalo de nuevo."
+      },
+      "signin": {
+        "hint": "O inicia la sesión del agente en tu VM privada con tu propia suscripción. El código que pegas va directo a tu VM; el hub no lo guarda en ningún sitio.",
+        "start": "Iniciar sesión con mi suscripción",
+        "starting": "Iniciando la sesión en tu VM…",
+        "open_link": "Abrir la página de inicio de sesión del proveedor",
+        "code_label": "Código de la página del proveedor",
+        "send": "Enviar el código",
+        "sent": "El código va de camino a tu VM…",
+        "signed_in": "Sesión iniciada en tu VM.",
+        "delivered": "El código llegó al inicio de sesión de tu VM; el inicio de sesión aún no está confirmado.",
+        "cancel": "Cancelar",
+        "error": {
+          "signin_relay_off": "El inicio de sesión con suscripción aún no está activado para este proveedor. Mientras tanto, usa una clave de API.",
+          "no_private_vm": "Este espacio de trabajo no tiene una VM privada donde iniciar sesión.",
+          "bad_input": "Pega el código en una sola línea.",
+          "not_found": "Este inicio de sesión terminó o caducó. Empieza de nuevo.",
+          "failed": "El inicio de sesión en tu VM no se completó ({reason}).",
+          "generic": "El inicio de sesión no respondió. Inténtalo de nuevo."
+        }
       }
     },
     "marketing_handover_open": "Publicar a mano",

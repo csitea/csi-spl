@@ -2148,6 +2148,26 @@
         "bad_key": "De sleutel mag geen spaties bevatten en hoogstens 4096 tekens lang zijn.",
         "bad_base_url": "Qwen heeft een basis-URL nodig die met https:// begint.",
         "generic": "De sleutel is niet gewijzigd. Probeer het opnieuw."
+      },
+      "signin": {
+        "hint": "Of meld de agent op je privé-VM aan met je eigen abonnement. De code die je plakt gaat rechtstreeks naar je VM; de hub bewaart hem nergens.",
+        "start": "Aanmelden met mijn abonnement",
+        "starting": "Aanmelding op je VM wordt gestart…",
+        "open_link": "Aanmeldpagina van de leverancier openen",
+        "code_label": "Code van de pagina van de leverancier",
+        "send": "Code versturen",
+        "sent": "De code is onderweg naar je VM…",
+        "signed_in": "Aangemeld op je VM.",
+        "delivered": "De code heeft de aanmelding op je VM bereikt; de aanmelding is nog niet bevestigd.",
+        "cancel": "Annuleren",
+        "error": {
+          "signin_relay_off": "Aanmelden met een abonnement is voor deze leverancier nog niet ingeschakeld. Gebruik intussen een API-sleutel.",
+          "no_private_vm": "Deze werkruimte heeft geen privé-VM om op aan te melden.",
+          "bad_input": "Plak de code op één regel.",
+          "not_found": "Deze aanmelding is beëindigd of verlopen. Begin opnieuw.",
+          "failed": "De aanmelding op je VM is niet voltooid ({reason}).",
+          "generic": "De aanmelding reageerde niet. Probeer het opnieuw."
+        }
       }
     },
     "marketing_handover_open": "Zelf plaatsen",

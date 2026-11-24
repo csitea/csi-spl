@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-43-plan.md](bug-round-43-plan.md).
 
-**Status: v0.1, signed: m-718 (mistral) PASS on v0.1 `dafdceeb2`, W none; holder GO (c-002@sat, msg 02175a35) on `dafdceeb2`, landed `acb1ca5d8`.** Row b44-01 is next; b44-02 after spec 181 B11 lands (section 5).
+**Status: v0.1, signed: m-718 (mistral) PASS on v0.1 `dafdceeb2`, W none; holder GO (c-002@sat, msg 02175a35) on `dafdceeb2`, landed `acb1ca5d8`.** **Closed**: both rows landed, b44-01 `14b6055c2` (SPL-6369) and b44-02 `158664186` (SPL-6388), b44-02 served on dev and prd (section 8).
 
 Editor: **c-032@sat** (claude, `specs_and_docs`).  
 Panel: placed by the holder (rulebook 3.2).
@@ -303,3 +303,41 @@ Output on `387370a79` (sat, 09:05Z):
   - 2026-11-24 09:42Z: panel m-718@`<box2>` (mistral) **PASS** on `dafdceeb2`, W none (msg 90be0228 to this seat, 47a03093 to the holder; seat file on `review/c003-bug-round-44-mistral-seat` `95cb86fe3`). It re-ran both red controls (exit 1 on `387370a79`, exit 0 with `fix-shape`, `then apply` still rc 1), read every cited line on `387370a79` (all match) and the two script hashes (match). Notes: N1 its `<box2>` recount of rule [4]: 321 briefs with `apply`, 293 held, 7 freed by the fix shape, all 7 prohibitions (this plan's sat count: 600, 521, 17); N2 lane-map exit 4, c-918@sat among the `unknown:` lanes, matching R3 for b44-02; N3 go1.26.10, nothing installed; N4 `origin/master` moved docs-only after `387370a79`, no row file; N5 the slug grep clean on its box. None changes a row.
   - Review line checked: `do_spl_review_line_check` rc 0 on `<box2>` (c-001, msg 641cc7c0, 2 of 2 named commands in the log). `do_spl_review_go` also held rc 4 on `apply` in this planner's brief (line 29, another lane's status): a false positive by the holder's reading (msg 294da317), the 4th candidate of section 3.6.
   - GO: c-002@sat (dispatch holder), msgs 02175a35 and 5881d45a, on `dafdceeb2`; rebased onto `817be0fa2` (the plan file unchanged, `git patch-id --stable` `2f28a5bb71df` on both) and landed as `acb1ca5d8` (`git-fetch-fresh.sh --landed` rc 0).
+  - Round closed (c-025@`<box2>`, round 45's editor, for c-032, round 44's editor), no version bump: both rows landed and are served. Read on `origin/master` `64123998a`, 2026-11-24T19:18Z..19:25Z, n=1 per command.
+    - **b44-01** `14b6055c2` (SPL-6369, committed 2026-11-24T11:11:13Z, author c-049): R7 g-750@`<box2>` grok
+      **PASS** on `8088c0c41` (its spool result to c-001, 10:52:31Z, the only message of task `dispatch-bug-r44` the
+      hub tail shows on `<box2>`; the holder's GO is in the sat spool, not read from this box). `git patch-id --stable`
+      equal on the reviewed and the landed commit (`34886e037c43`); the trees differ (`f6b2bc835e0f`, `8cb9a680fec0`):
+      a rebase onto a newer master. Its body carries `rc01-b44.sh` red on `387370a79` (rc01 exit 1) and green on its
+      tree (rc01 exit 0), and case 29 of `spl-review-go.tst.sh` red on `387370a79`'s action, green on its own. Docs in
+      the same commit: `csi-spl-doc/specs/157-dispatch-automation/spec.md` (`git diff --stat 14b6055c2^ 14b6055c2` ->
+      3 files, 33 insertions, 5 deletions).
+    - g-750's notes N1 (its box's brief count: 258 with `apply`, 7 freed, all prohibitions), N2 (an unpunctuated
+      "if no errors apply" is stripped; none of the freed briefs has that form) and N3 (31 still-held briefs lost a
+      prohibition span and stay held on another keyword) change nothing in the row. N2 is an input for round 45.
+    - R5 (tooling): `git merge-base --is-ancestor 14b6055c2 origin/master` rc 0; the box checkouts of `<box2>`
+      (the main checkout and the desk checkout, both at `64123998a`) hold it, rc 0. R11: wf 10 on its own sha was
+      cancelled (45381942039, superseded); the first completed wf 10 run whose head contains it, 45382520931
+      (`7e31ade12`, 11:15:33Z), **success**. `gh run list --commit 14b6055c2`: wf 15, 25, 26, 32, 40, 64, 67 and 21
+      success, wf 12 skipped, 0 red.
+    - **b44-02** `158664186` (SPL-6388, committed 2026-11-24T17:28:16Z, author c-148): R7 a-166 agy **PASS** on
+      `99019024f` (the line in the commit body; the holder's ACCEPTED, c-002@sat 17:56Z, is as the planner brief
+      says, not read from this box). `git patch-id --stable` equal on the reviewed and the landed commit
+      (`0730c44ba08e`). Its body carries `rc02-b44.sh` red on `387370a79` (`repeated=[component]`, rc02 exit 1) and
+      green with `fix-shape`, and the new `TestCLIInviteMailLogKeysOnce` red on the planted old shape, green on its
+      tree. `Docs: none` (no doc names that CLI line); 2 files, 58 insertions, 2 deletions.
+    - a-166's notes N1 (`rc02-b44.sh` on the fix sha exits 2: its site grep finds `Sender(log)` 0 times once fixed,
+      as expected) and N2 (the test builds `zerolog.New`, safe because `logging.New` sets no `component`) change
+      nothing in the row.
+    - R5 (hub change): `SHA=158664186 ENV=dev ./run -a do_check_deploy_lag` and `ENV=prd` (19:18:43Z) -> hub
+      served `c7be3c19`, WUI served `6beb21c8`, "the env serves this commit or a later one", both envs. R11: wf 10 on
+      its own sha was cancelled (45449522171); the first completed wf 10 run whose head contains it, 45451195664
+      (`c7be3c19c`, 17:40:40Z), **success**. `gh run list --commit 158664186`: wf 15, 20 (hub build + deploy), 25,
+      26, 50, 61, 62, 64 success, wf 12 skipped, 0 red.
+    - **R8 seat teardown** (rulebook 2.8 step 3), each on the holder's ACCEPTED: the row authors c-049 and c-148, the
+      row reviewers g-750@`<box2>` (grok, 1 review: b44-01) and a-166 (agy, 1 review: b44-02), the panel
+      m-718@`<box2>` (mistral, 1 review: the PASS on v0.1), the editor c-032@sat. No seat performed zero reviews.
+      Branches (R8 step 2, `git ls-remote origin` at 19:2xZ): `review/b44-01`, `review/b44-02` and
+      `review/c003-bug-round-44-planner` are gone from origin; `review/c003-bug-round-44-mistral-seat` (`95cb86fe3`)
+      matches no round prefix of `do_git_prune_round_branches` and is left to the holder. The seat file stays on
+      that branch (not folded here: this close record touches this file only).

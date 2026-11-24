@@ -195,6 +195,10 @@ describe('SPL-5232: Back in a discussion is one level, never another section', (
     assert.equal(mobileBackStep(s({ chat: false, level: 2, below: 2 })), 'history')
     assert.equal(mobileBackStep(s({ chat: false, level: 3, below: 3 })), 'history')
   })
+  it('SPL-6356 (owner t1 acfc125c, poll e70d1a05 A): the top of another section opened from a topic (below 3) is browser Back, to that topic', () => {
+    assert.equal(mobileBackStep(s({ chat: false, level: 2, below: 3 })), 'history')
+    assert.equal(mobileBackStep(s({ chat: false, level: 2, below: 3, up: () => true })), 'history', 'Docs top: no level of its own to step up')
+  })
   it('level 1 with an app entry before is the browser Back; with none, nothing', () => {
     assert.equal(mobileBackStep(s({ level: 1, prev: true })), 'history')
     assert.equal(mobileBackStep(s({ level: 1, prev: false })), 'none')

@@ -69,6 +69,8 @@ Owner HUM-10, t1 `90194aeb` (msg `1966d7e6`, 2026-11-10, SPL-5232): "Regardless 
 
 Measured on origin/master `b52b7838d`, mock bundle, n = 1 per cell at 360 and 390: a channel opened by a link from another section's page (an issue's discussion link, Notes) left its entry tagged with that page's level (`splBelow` 2), and `mobileBackStep` took any entry below as `history.back()`, so Back at the channel's topics went to the Issues list (2 -> 2), 8 of 8 cells (chevron, dock, edge and mid swipe). The tap path, the rail tap from another section, deep links and a reload already walked 3 -> 2 -> 1. The rule: in a discussion `history.back()` is taken only when the entry below is a LOWER level of ours; otherwise Back steps down in place. A lower level keeps CLE-77882 (a message opened in place from a list returns to the list). Browser Back keeps the browser's history (the page the link was on). The gate: `phone-back-matrix` entries `link` and `rail`.
 
+**The top of another section opened from a topic.** Owner HUM-10, t1 `acfc125c` (poll `e70d1a05`, answer A, 2026-11-24, SPL-6356): "Back to that exact topic, like the browser's Back". A section reached from inside a topic (its control in the strip, which stays on top at level 3: Docs, Help, Workspace settings, Issues, Notes, Archive, Calendar, Monitoring, Reporting) and Back pressed at that section's top lands on that exact topic (the channel and the topic, level 3), by every in-app Back the section draws (the head's chevron, the dock's Back, a swipe) and by browser Back. In code it is the section rule above: outside a discussion an entry of ours below is `history.back()` (`mobileBackStep`, the section page's entry has the topic's level-3 entry below it). Docs keeps it after a walk down and back up its own levels (a folder, a document). Measured on origin/master `aea828942` (the tree prd serves for the WUI), mock bundle, n = 1 per cell at 360 and 390: every cell already lands on the topic, entries the store open, a tap on the topic's card, a fresh tab at `?topic=` and a notification open. The gate: `phone-back-section-top`.
+
 ## 4. User stories
 
 | ID | Priority | Role | Story | Benefit |
@@ -89,7 +91,7 @@ Measured on origin/master `b52b7838d`, mock bundle, n = 1 per cell at 360 and 39
 | **FR-005** | A deep link, a query or hash, a notification open (`/m/<id>`, `notify-open`) or a `?settings=` route skips the restore | Planned |
 | **FR-006** | Sign-out deletes the member's `spool.lastPlace` entry; a stored place that fails to load falls back to level 1 with no error notice | Planned |
 | **FR-007** | Above 820 px no restore runs and Back is unchanged | Planned |
-| **FR-009** | In a discussion every in-app Back (chevron, dock, swipe) moves one level (§3.4): the topic to its topics, the topics to the channel list, never to an entry of another section; at level 1 the dock's Back and the top chevron (drawn only then, SPL-5268) are browser Back while an app entry is before it | Done (SPL-5232, SPL-5268) |
+| **FR-009** | In a discussion every in-app Back (chevron, dock, swipe) moves one level (§3.4): the topic to its topics, the topics to the channel list, never to an entry of another section; at level 1 the dock's Back and the top chevron (drawn only then, SPL-5268) are browser Back while an app entry is before it. At the top of another section opened from inside a topic, every in-app Back returns to that exact topic, as browser Back does (SPL-6356) | Done (SPL-5232, SPL-5268, SPL-6356) |
 | **FR-008** | Help `interface-overview.md` §8 says the app reopens where you left off on a phone, and how to start fresh (the section chooser) | Planned |
 
 ## 6. Acceptance scenarios
@@ -138,5 +140,6 @@ Restoring on a desktop. Syncing the last place across devices. Changing the 043 
 | v0.1 | First spec from the mobile consensus, build item 4 (D7 + U1) | c-246 |
 | v0.2 | §3.4 and FR-009: Back in a discussion per level (owner t1 90194aeb, SPL-5232) | c-498 |
 | v0.3 | §3.4 and FR-009: the top chevron at level 1 of Discussions, as browser Back (owner t1 90194aeb, poll 157965f2 A, SPL-5268) | c-455 |
+| v0.4 | §3.4 and FR-009: Back at the top of another section opened from a topic returns to that exact topic (owner t1 acfc125c, poll e70d1a05 A, SPL-6356) | c-680 |
 
 <!-- version: 0.3.0 · updated: 2026-11-11 · last-edit: 2026-11-11T06:00:00Z -->

@@ -264,3 +264,32 @@ lanes then). The row lanes re-run R3 at spawn.
   groups) is the planner's own scratch script, not in the repo, so I did not re-run the full scan; I
   verified the two row candidates byte-identical directly (check 2) and the section-7 items by direct
   grep (check 7).
+
+## 10. v1.0 signature
+
+The editor (a-158) pushed v1.0 as
+**`255b73526976e3d3e23e60d97d56d958301ecbb1`** on `review/c002-refactor-round-97-planner`
+(subject `docs(r97-plan, SPL-6384): refactor round 97 plan v1.0, signed by m-161 (mistral) PASS on
+dc07c2ee4, W1 and N1-N3 folded`, dated 2026-11-24T19:27:08+02:00 = 17:27:08Z; observed by
+`git ls-remote origin refs/heads/review/c002-refactor-round-97-planner` at 17:29Z).
+
+- `git diff dc07c2ee455dfbc4d4efa22351448d6f74d78395 255b73526976e3d3e23e60d97d56d958301ecbb1 --stat`
+  -> the plan file only, 54 insertions / 21 deletions, **5 hunks**, all in the status line and
+  sections 4, 5 (the R7 lines only), 8 and 9. Sections 2, 3, 5 (row bodies), 6 and 7 are untouched,
+  so the rows, their sites and their controls are unchanged from v0.1.
+- **W1 folded:** `git show 255b7352:csi-spl-doc/doc/md/refactor-round-97-plan.md | grep -n -i waiver`
+  -> only historical mentions remain (line 476 "no longer the claude waiver seat", lines 573-575
+  and 603 the W1 fold record); the R7 lines now read **agy seat** (v1.0 lines 474, 513, 534, 567,
+  602: "R7 review of a claude coding row goes to an **agy seat** per row (claude backup only while
+  agy is out of quota) ... never mistral"), per the 2026-11-24T15:52:44Z ruling (`c-001` msg
+  `dc84300a`). W1 is resolved.
+- Re-verified on v1.0: the plan still measures every count on base `6d81d4447`; `origin/master` is
+  now `e7e0dd76863fb33a79b04b3ddf9c75fcf0ff43cd` and
+  `git diff --name-only 6d81d4447 origin/master -- <the 9 row paths>` -> **empty**, so every site
+  still stands on trunk. `git log origin/master --format='%s' | grep -c 'r97-'` -> **0** (the only
+  `r97-` match in any master commit body is the test fixture string `r97-spec-panel-seat-mistral`
+  in `2547249ec`, not a round record).
+
+**Verdict: PASS on `255b73526976e3d3e23e60d97d56d958301ecbb1` (v1.0).** No new defects; W1 folded as
+reported. Reported again on task `dispatch-refactor-r97` in the same form (msgs to a-158@sat and the
+current dispatch holder).

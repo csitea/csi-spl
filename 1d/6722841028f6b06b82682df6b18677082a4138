@@ -1,0 +1,6 @@
+Lay-What: Ordering or paying for a workspace under a deleted workspace's name is now refused too.
+Lay-How: The order and the payment steps make the same check as workspace creation before they do anything.
+Lay-Why: Those steps could still create the old name again, which the previous change was meant to stop.
+Tech-What: The order submit and the paid checkout refuse a purged private workspace id, in Postgres and the memory store.
+Tech-How: insertTenantTx and the memory payment path share the purged-id check that CreateTenant uses.
+Tech-Why: Review found the order and checkout paths insert the tenant without CreateTenant, bypassing its purged-id refusal.

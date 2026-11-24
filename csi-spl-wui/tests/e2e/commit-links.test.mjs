@@ -89,7 +89,7 @@ try {
   await p.waitForSelector(`article.msg[data-msg-id="${carrier.msg_id}"]`, { timeout: NAV_TIMEOUT })
 
   const cfg = await p.evaluate(() => {
-    const pub = (window.__NUXT__ && window.__NUXT__.config && window.__NUXT__.config.public) || {}
+    const pub = (() => { try { return window.useNuxtApp().$config.public } catch { return window.__NUXT__?.config?.public } })() || {} // Nuxt 4 drops window.__NUXT__ once hydrated
     return { web: String(pub.repoWebUrl || ''), path: String(pub.repoCommitPath || '') }
   })
   ok('the bundle names a repository (NUXT_PUBLIC_REPO_* baked for e2e)', Boolean(cfg.web && cfg.path), cfg)

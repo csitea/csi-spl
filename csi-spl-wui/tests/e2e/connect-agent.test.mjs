@@ -72,7 +72,9 @@ try {
     await p.waitForSelector('[data-test=connect-agent-script]', { visible: true, timeout: 5000 }).catch(() => {})
     const s = await scriptText(p)
     /* the clone url is cnf env.wui.repo_clone_url; the e2e bundle bakes an example (wf 10) */
-    const clone = await p.evaluate(() => String((window.__NUXT__?.config?.public?.repoCloneUrl) || ''))
+    const clone = await p.evaluate(() => { /* Nuxt 4 drops window.__NUXT__ once hydrated */
+      try { return String(window.useNuxtApp().$config.public.repoCloneUrl || '') } catch { return String(window.__NUXT__?.config?.public?.repoCloneUrl || '') }
+    })
     ok('the bundle names a clone url (NUXT_PUBLIC_REPO_CLONE_URL baked for e2e)', Boolean(clone), clone)
     ok('the block builds, seats, connects and adds the MCP', Boolean(clone) && s.includes(`git clone --depth 1 '${clone}' ~/.spool/src`) &&
       /spool hub-pin --box "\$SPOOL_BOX_ID" --pubkey "\$\(spool keygen\)" --root-key "\$HOME\/Downloads\/mock\.root\.key"/.test(s) &&

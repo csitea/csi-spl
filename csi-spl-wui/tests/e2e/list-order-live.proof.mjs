@@ -66,7 +66,7 @@ async function open(p, path) {
 
 /** The hub base this tab reads (runtime config template + the tab's tenant). */
 const apiOf = (p) => p.evaluate(() => {
-  const cfg = (window.__NUXT__ && window.__NUXT__.config && window.__NUXT__.config.public) || {}
+  const cfg = (() => { try { return window.useNuxtApp().$config.public } catch { return window.__NUXT__?.config?.public } })() || {} // Nuxt 4 drops window.__NUXT__ once hydrated
   let tenant = ''
   try { tenant = sessionStorage.getItem('spool.tenant') || '' } catch { /* memory only */ }
   return String(cfg.apiBase || '').replace('{tenant}', tenant || String(cfg.tenant || '')).replace(/\/+$/, '')

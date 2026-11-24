@@ -1,0 +1,6 @@
+Lay-What: each message can now carry an optional reference that links it to the matching record in the messaging layer
+Lay-How: a new empty-by-default field on every message, plus a quick lookup that only covers messages where it is filled in
+Lay-Why: later steps need to find a message by that reference fast, without slowing down the messages that do not have one
+Tech-What: rdb migration 0321 adds messages.mc_id uuid NULL and the partial index messages_mc_id (tenant_id, mc_id) WHERE mc_id IS NOT NULL
+Tech-How: forward-only, IF NOT EXISTS on both statements, SET LOCAL lock_timeout 5s; catalogue-only ADD COLUMN, plain CREATE INDEX in the runner transaction
+Tech-Why: spec 186 M1; the partial index keeps the per-tenant mc_id lookup cheap while legacy rows stay NULL and unindexed

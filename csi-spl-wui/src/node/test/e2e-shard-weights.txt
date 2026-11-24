@@ -29,6 +29,8 @@
 # on a generated mock bundle (n=1, 2026-11-23), until a refresh measures CI.
 # phone-back-section-top (spec 087 FR-009, SPL-6356) is new: 182 s, its one local run
 # of the CI default on a generated mock bundle (n=1, 2026-11-24), until a refresh measures CI.
+# topic-select-phone (spec 186 row M3, SPL-6395) is new: 13 s, its one local run
+# on a generated mock bundle (n=1, 2026-11-24), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -394,6 +396,7 @@ tests/e2e/topic-pane-title-fits.test.mjs 18
 tests/e2e/topic-priority-badge.test.mjs 4
 tests/e2e/topic-priority-phone.test.mjs 22
 tests/e2e/topic-priority.test.mjs 6
+tests/e2e/topic-select-phone.test.mjs 13
 tests/e2e/topic-send-target.test.mjs 57
 tests/e2e/topic-unread-count.test.mjs 7
 tests/e2e/topic-unread-live.test.mjs 28

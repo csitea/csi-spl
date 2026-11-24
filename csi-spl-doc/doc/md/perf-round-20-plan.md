@@ -1,5 +1,7 @@
 # Perf round 20 (p20) - mobile web UI speed - plan (7 rows, v1.0)
 
+> Generated from qto doc `e7b54b47-a399-435e-907b-5fd035954a1b`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
 Class: refactor  
@@ -61,6 +63,7 @@ the probes); nothing was posted or written.
 
 <a id="p20-how-to-read"></a>
 
+<a id="ws-doc-3f503125-0a3a-4f52-9468-12d939692b1c"></a>
 ## 1. How to read this
 
 - A row is one logical change made by one lane, subject
@@ -85,6 +88,7 @@ the probes); nothing was posted or written.
 
 <a id="p20-inputs"></a>
 
+<a id="ws-doc-03185729-6e0e-4290-9a23-dea7ddebc83e"></a>
 ## 2. Where the rows come from
 
 | input | finding | here |
@@ -103,6 +107,7 @@ the probes); nothing was posted or written.
 
 <a id="p20-rows"></a>
 
+<a id="ws-doc-d4463bf6-ee8c-4ee2-8706-65ec8d19b264"></a>
 ## 3. The rows
 
 In priority order: gain per cost, highest first.
@@ -119,6 +124,7 @@ In priority order: gain per cost, highest first.
 
 <a id="p20-batches"></a>
 
+<a id="ws-doc-dc5a770c-fc58-46a3-88ee-3b816ef814f8"></a>
 ### 3.1 Batches and disjoint files (R1)
 
 - **Batch 1**: rows 01 to 06, each on its own files (below); they may run at
@@ -142,6 +148,7 @@ In priority order: gain per cost, highest first.
 
 <a id="p20-r3"></a>
 
+<a id="ws-doc-fbf2c85c-4811-4ae2-980a-ba107e17a0fa"></a>
 ### 3.2 Off every live lane, every queued row and every open round row (R3)
 
 Read on 2026-11-24, each with its time:
@@ -179,6 +186,7 @@ Read on 2026-11-24, each with its time:
 
 <a id="p20-per-row"></a>
 
+<a id="ws-doc-09c59dce-4198-4711-80fb-67bf6b6a5213"></a>
 ## 4. Per row: what the lane does
 
 - **Every row**: read the editor's section for its numbers first; re-measure
@@ -215,6 +223,7 @@ Read on 2026-11-24, each with its time:
 
 <a id="p20-panel"></a>
 
+<a id="ws-doc-1cd04d23-11d7-4b5d-b1cd-e5ed777469da"></a>
 ## 5. Panel and reviewers (R7)
 
 - **Plan panel (rulebook 3.2)**: editor c-084 (claude) and the seats the
@@ -230,6 +239,7 @@ Read on 2026-11-24, each with its time:
 
 <a id="p20-left-out"></a>
 
+<a id="ws-doc-50af76ad-b4d3-486f-85f5-e761ff6a9c3d"></a>
 ## 6. Left out, measured or not measurable here
 
 | candidate | why not a row | measurement |
@@ -246,6 +256,7 @@ Read on 2026-11-24, each with its time:
 
 <a id="p20-counts"></a>
 
+<a id="ws-doc-77926710-3626-4471-97f7-88473e28b80e"></a>
 ## 7. Counts
 
 - Rows: 7, the owner's count (rulebook 1.1: at most 10).
@@ -256,6 +267,7 @@ Read on 2026-11-24, each with its time:
 
 <a id="p20-changes"></a>
 
+<a id="ws-doc-e9459dc5-a34e-450b-b4ed-33300e51cfbb"></a>
 ## 8. Changes
 
 Qto (rulebook 4.5): this file is imported once into the `system` workspace with
@@ -280,6 +292,7 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 
 <a id="p20-consensus"></a>
 
+<a id="ws-doc-e1f19dfc-4584-4b8e-baac-5e1a271cda75"></a>
 ## 9. Consensus
 
 | seat | vendor | plan sha | verdict |

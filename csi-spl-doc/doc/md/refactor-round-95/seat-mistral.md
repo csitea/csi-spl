@@ -256,3 +256,47 @@ None (no W1...).
 - **N3** the lane map at my read exits 4 with the same 10 unknown-scope lanes the plan saw at
   06:10Z (the 8 `*-rotate` seats on the other box plus c-384 and the two R7 reviewers g-554/g-565).
   0 hits on the row paths either way; the row lanes re-run R3 at spawn.
+
+## v1.0 signature
+
+**PASS on `afcf1649b655837d5bf12046a5a10495b6260362` (v1.0).** The sha is named by the editor
+a-967@`<box>` (result on `dispatch-refactor-r95` 2026-11-24T07:05:26Z: "v1.0 landed sha (plan
+head): `afcf1649b655837d5bf12046a5a10495b6260362`") and by the dispatch holder c-002@`<box>`
+(queue note 07:06:29Z: "Plan v1.0 afcf1649b (v0.1 3854cd50f = PASS head)").
+
+Checks re-run by me on `<box>`, 2026-11-24T07:0xZ (this session):
+
+- On trunk: `git merge-base --is-ancestor afcf1649b655837d5bf12046a5a10495b6260362 origin/master`
+  -> rc **0** (after `git fetch origin master`; origin/master `3eec1eb89`).
+- Identity and subject: `git log -1 --format='%an <%ae> %cn <%ce> | %s' afcf1649b` ->
+  author and committer both the repo-canonical csitea.net address (same form as line 15
+  above), subject `docs(r95-plan, SPL-6348): refactor round 95 plan v1.0, signed by m-969
+  (mistral) PASS on 62e2af0eb, N1-N3 folded` — canonical identity, no AI trailer.
+- v0.1 patch-equal to what I reviewed: `git diff c4000b25b 62e2af0eb03e7cd7a27fc96cd46693683c2cb76b
+  -- csi-spl-doc/doc/md/refactor-round-95-plan.md | git patch-id --stable` ->
+  `d0224f32f6563efd819324a94201f091fccfba9e`; `git diff 15c05df0f 3854cd50f92de4895729638c2548a7c769cb5485
+  -- csi-spl-doc/doc/md/refactor-round-95-plan.md | git patch-id --stable` -> the same
+  `d0224f32f6563efd819324a94201f091fccfba9e`. The landed v0.1 `3854cd50f` is patch-equal to the
+  reviewed `62e2af0eb`.
+- v1.0 vs v0.1: `git diff --stat 3854cd50f afcf1649b` -> 1 file
+  (`csi-spl-doc/doc/md/refactor-round-95-plan.md`), +32 -5;
+  `git diff 3854cd50f afcf1649b -- <plan> | grep -c '^@@'` -> **2** hunks (the status line at
+  `:44-52` and sections 8/9 at `:474+`); the row table (section 2, `:310-311`: r95-01, r95-02,
+  both batch 1, claude, simple_coding) is untouched — **rows unchanged**.
+- Plan at v1.0: `git show afcf1649b:<plan> | sha256sum` ->
+  `cad2c23fd5850cf937b206b7a6b94f3c1fcb8b8bc8a4e2ef3867ed81a8a0a122`, 511 lines.
+- My signature is recorded in the plan: status line at v1.0 (`:47-51`) reads "v1.0, signed;
+  ready for rows. The panel (m-969, mistral) passed v0.1 `62e2af0eb` with no W; N1..N3 are notes
+  only (seat file ... `ad6f07792`)"; section 9 consensus (`:506`) names "Panel reviewer seat:
+  m-969 (mistral ...): **PASS** on v0.1 (`62e2af0eb`), no W, notes N1-N3"; section 8 folds N1-N3
+  with no row change.
+- My seat file blob is unchanged on my branch and pushed:
+  `git rev-parse HEAD:csi-spl-doc/doc/md/refactor-round-95/seat-mistral.md` ->
+  `989e19e57198486d4048e383bd82c15328806b1e`;
+  `git rev-parse origin/review/c002-refactor-round-95-mistral-seat:csi-spl-doc/doc/md/refactor-round-95/seat-mistral.md`
+  -> the same `989e19e57198486d4048e383bd82c15328806b1e`.
+- Slug at v1.0: `git log origin/master --since="2026-11-23T22:49:00+02:00" --oneline -E
+  --grep='\(r95-'` -> exactly 2, the plan's own landings `3854cd50f` (v0.1) and `afcf1649b`
+  (v1.0); `git ls-remote origin | grep -E 'r95-[0-9]{2}|refactor-round-95'` -> only
+  `62e2af0eb... refs/heads/review/c002-refactor-round-95-planner` (the planner's) and
+  `ad6f07792... refs/heads/review/c002-refactor-round-95-mistral-seat` (mine). Nothing else.

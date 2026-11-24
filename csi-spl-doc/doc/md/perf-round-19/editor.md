@@ -241,6 +241,55 @@ value `default`. Load1 ~100, headless.
   (`readMine`, `flow.ts:239`; the run's timeline shows
   `/v1/view/flow?limit=30&fold=day`). Different reads: L7 dropped.
 
+### 2.11 v1.0 re-reads on `0f872e92e` (Nuxt 4), the old bundle beside it
+
+Send-back of v0.1 (seat c-996, W1): `295f426dd` (Nuxt 3 -> 4) and
+`71d9941e3` (CI node 22) landed after `7e31ade12`. One count per row,
+2026-11-24 18:5x..19:0xZ, same box, load1 16..27.
+
+- Mock bundle: `git archive 0f872e92e csi-spl-wui csi-spl-cnf csi-spl-doc
+  csi-spl-orc/src/bash/scripts` into a scratch tree, `node_modules` of a
+  worktree whose `pnpm-lock.yaml` equals `origin/master`'s (nuxt 4.6.4),
+  node 20.20.2 (the box has no node 22), wf 10's mock env, `pnpm run
+  generate` 1 m 24 s. Served on one port, the `7e31ade12` bundle on another.
+- Journey probe (2.5), N=5 per bundle: type-40 **172 layouts** in 5 of 5 on
+  both; recalcs 175..176 on both.
+- Typing traces (2.7's probe), n=3 on `0f872e92e`, 41 keydowns each, Layout
+  by first stack frame: text-width measure (chunk `C0udEsMn.js:2:94178`,
+  the hidden span's `getBoundingClientRect().width`) **43**; `fitGlobalBox`
+  `:2:93076` (`scrollHeight > clientHeight`) **41**; `fitGlobalBox`
+  `:2:93107` (after `height = "auto"`) **41**; no stack 43; plus one each at
+  `:2:93435` and `fitGlobalBox :2:92923` (also in v0.1's traces, N5). Columns
+  mapped by reading the chunk at that column. Forced ms 42 / 44 / 22.
+- 30-hit search sequence (2.8's `heap.mjs`, `NLONG=30 TWICE=1`), forced GC,
+  n=3 per bundle; output kept in the scratch dir (`heap30-ab.log`):
+
+  | bundle | lobby | search | back (after 0-hit) | retained |
+  |---|---|---|---|---|
+  | `0f872e92e` | 1,594 / 1,581 / 1,581 | 2,471 / 2,458 / 2,458 | 3,502 x3 | **+1,908 / +1,921 / +1,921** |
+  | `7e31ade12` | 1,783 x3 | 2,661 x3 | 3,705 x3 | +1,922 x3 |
+
+- `Notification.permission` (2.9's `perm.mjs`), `0f872e92e`, n=5: first read
+  1.0, 4.4, 5.6, 2.9, 7.3 ms; second 0.1..0.6 ms; `default`. Load ~22 (v0.1:
+  ~100).
+- Dev hub reads, `ENV=dev PF_N=6 PF_PROFILES=d1440 ./run -a
+  do_spl_wui_perf_flow_events`, dev build 3.7.6 commit `0f872e92`:
+  first-screen median 316 / p90 783 ms (v0.1 on 3.6.7: 3,809 / 5,312);
+  `/v1/view/me` **n=6 in 6 first screens** (v0.1: 10) -> row 04 dropped;
+  `/v1/view/topics` 5; `/v1/wui/revision` **12 in 6 flow-open steps** (69 /
+  135 ms) -> row 06 holds; flow-open and flow-open-shown -1 in all 6 rounds
+  (the step's Flow selector still did not match, N3).
+- Cold `/lobby` traces (scratch `probe3/cold.mjs`), n=3 on `0f872e92e`: 44
+  Layout events per load, 29..30 with no stack; forced from script:
+  `ClHnYXMo.js:2:29620` 6 (`useCardHeight`: `.msg-body` `getComputedStyle`,
+  `scrollHeight`), `C0udEsMn.js:2:47065` 3 (`useSidebarVersion`'s foot-row
+  `getBoundingClientRect`), 6 single frames. Both are p20 files: L5 gives
+  p19 no row.
+- Lane map, 19:00Z: `--check` of the 11 p19 files -> exit 4, 7 unknown
+  lanes (c-074, c-084, c-148, c-159, c-164, c-168, m-135);
+  `git log --oneline 7e31ade12..origin/master -- <the 11 files> | wc -l` ->
+  `0`.
+
 ## 3. Off-limits files (R1 / R3), read 2026-11-24
 
 - c-980 (SPL-5070, Nuxt 4), from `review/c002-spl5070-nuxt4-migration-r2`

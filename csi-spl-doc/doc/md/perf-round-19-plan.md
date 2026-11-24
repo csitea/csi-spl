@@ -1,4 +1,4 @@
-# Perf round 19 (p19) - plan (7 rows, v0.1)
+# Perf round 19 (p19) - plan (6 rows, v1.0)
 
 Epic: SPL-2402  
 Spec: csi-spl-doc/specs/027-spool-performance  
@@ -28,8 +28,13 @@ Owner orders that bind this round:
 - HUM-10 msg 3d22fcea: rounds need no owner go (rulebook 1.4, 4.2).
 - Owner 10-17 (t1 b61851fb): no mistral coding or testing rows. **Every row's
   vendor is claude.**
+- **6 rows, not 7.** Row 04 is dropped by its measurement on today's tree
+  (section 6), and no measured candidate takes its place: the one lead left
+  (L5, the cold `/lobby` forced layouts) is in perf round 20's files
+  (section 6). The holder decides whether the round runs with 6.
 
-**Status: v0.1, draft for the panel.** Editor: c-778 (claude).
+**Status: v1.0, for the panel** (send-back of v0.1 `d86a2f880`: seat c-996,
+W1-W4, N1-N8). Editor: c-778 (claude).
 
 <a id="p19-how-to-read"></a>
 
@@ -38,15 +43,24 @@ Owner orders that bind this round:
 - A row is one logical change made by one lane, with the subject
   `perf(p19-<NN>-<slug>, SPL-<n>): ...` and the review branch `review/p19-<NN>`
   (rulebook 4.5).
-- **One sha.** Every baseline is on **`7e31ade12`**. `origin/master` at
-  12:36Z 2026-11-24 is `9a85c02b5`, and `git log --oneline
-  7e31ade12..9a85c02b5 -- csi-spl-wui | wc -l` -> `0`, so every number holds
-  on both. The dev live reads ran on the served dev build 3.6.7 (commit
-  `6c741f5b0`; `git diff --stat 6c741f5b0 7e31ade12 -- csi-spl-wui` -> 0
-  files).
-- **Mock** = a `nuxt generate` of `7e31ade12` with wf 10's mock env, node
-  20.20.2 (the CI runner's), served locally, desktop viewport 1440 x 900,
-  headless Chrome. **Dev** = the dev host's own harness actions, read only.
+- **Two trees, and today's is the one that counts.** v0.1 measured on
+  `7e31ade12` (Nuxt 3). Since then `295f426dd` (Nuxt 3 -> 4, vue-router 5,
+  vite 8) and `71d9941e3` (CI node 22) landed: `git log --oneline
+  7e31ade12..0f872e92e -- csi-spl-wui | wc -l` -> `19`, and on the row files
+  -> `0`. v1.0 re-read **one count per row on `0f872e92e`** (`origin/master`
+  at 18:43Z 2026-11-24), same box, same hour, the old bundle beside it
+  (editor 2.11). Every row below quotes the `0f872e92e` number first.
+- **Mock** = a `nuxt generate` with wf 10's mock env, served locally
+  (`serve-generated.mjs`), desktop viewport 1440 x 900, headless Chrome.
+  `0f872e92e`: node 20.20.2, the only node on this box; CI now uses node 22,
+  so each lane's red control re-reads its before-number on its own rebased
+  tree with the CI node, quotes it in the commit body, and **drops the row
+  if the gain is gone** (rulebook 4.3). **Dev** = the dev host's own harness
+  actions, read only; v1.0's dev read is build 3.7.6, commit `0f872e92`.
+- **Same-box A/B, n>=5 per arm** (section 3.3): every row measures its count
+  before and after on one box in one hour, at least 5 runs per arm, and puts
+  both arms in the commit body. The count is the primary metric; ms are
+  reported, never ranked.
 - **Counts rank the rows; ms do not.** The box ran at 1-min load 35..124 (16
   cores) during every measurement, so a wall or script ms below is a box
   reading. Layouts, style recalcs, DOM nodes, listeners and request counts do
@@ -68,7 +82,7 @@ Owner orders that bind this round:
 | this seat: desktop journey probe on the mock, n=5 (editor 2.5) | 40 typed characters in the top-bar field cost **172 layouts and 176 style recalcs** in 5 of 5 rounds | rows 01, 02 |
 | this seat: Chrome traces of 41 typed keys, with forced-layout stacks, n=3 (editor 2.7) | per key, **3 layouts forced from script**: 1 in `useComposerWrap`'s text-width measure, 2 in `useComposerSize.fitGlobalBox` | rows 01, 02 |
 | this seat: journey with forced GC + heap snapshots (editor 2.8) | a search's hit list is **never released**: its DOM and its `HumanName` instances stay reachable after the next search and after leaving `/search` | row 03 |
-| this seat: dev first screen, `do_spl_wui_perf_flow_events`, n=6 (editor 2.6) | `GET /v1/view/me` read **twice** in 4 of 6 first screens, both 200 | row 04 |
+| this seat: dev first screen, `do_spl_wui_perf_flow_events`, n=6 (editor 2.6) | `GET /v1/view/me` read **twice** in 4 of 6 first screens, both 200; on dev 3.7.6 (`0f872e92`, editor 2.11): 1 in each of 6 | row 04, **dropped in v1.0** |
 | this seat: `Notification.permission` timed in the page, n=5 (editor 2.9) | the first read takes **1.1..54 ms** (median 10.9) and runs while the notification store hydrates | row 05 |
 | this seat: dev Flow open, n=6 (editor 2.6) | `GET /v1/wui/revision` **12 times in 6 Flow-open steps** | row 06 |
 | this seat: dev first load, `do_spl_wui_perf_first_load`, n=8, and the dev CPU profile, n=1 (editor 2.3, 2.4) | `useSidebarVersion` foot-row check and the Vite preload helper link walk are hot at first load | p20 rows (section 6) |
@@ -79,17 +93,17 @@ Owner orders that bind this round:
 
 ## 3. The rows
 
-In priority order (gain per cost). Each row aims at 1 push; 3 at most.
+In priority order (gain per cost): 01, 02, 03, 06, 05, 07 (v1.0 ranks 05 below 06: its gain is ms only, N4). Row ids stay as in v0.1. Each row aims at 1 push; 3 at most.
 
 | # | id | change | baseline (command, number, n, sha) | expected gain | files | test + red control (C2) | vendor / kind | batch |
 |---|---|---|---|---|---|---|---|---|
-| 01 | `perf(p19-01-wui-composer-fit-no-collapse)` | `fitGlobalBox` stops collapsing the field to `height: auto` and re-reading `scrollHeight` on every key while the draft still fits its height: read `scrollHeight` once, write the height only when it changes, collapse only when text was removed. The owner's caret rules in the same function (t1 d3bbe2c2: the caret at the end stays in view, the scroll is kept) do not change | editor 2.7, Chrome trace of 41 keys typed into `form.composer.omnibox--global textarea` on the mock `/lobby`: **82 forced layouts** from `fitGlobalBox` (41 at the `scrollHeight > clientHeight` read, 41 at the read after `height = 'auto'`), same in 3 of 3 traces, `7e31ade12`; journey total 172 layouts / 40 keys, n=5 | -41 to -82 forced layouts per 40 keys (at most one read per key, none when nothing changed); computed, not measured: about 2/3 of typing's forced layout time (all forced layouts of the 41 keys: 163..239 ms, n=3, load 83..120). The lane measures both arms | `src/composables/useComposerSize.ts` (`useFit.fitGlobalBox`, :47-78); `wui/tests/e2e/perf-typing-layouts.test.mjs` (new; row 02 extends it) | **`perf-typing-layouts.test.mjs`** (new e2e on the generated mock bundle, Playwright + CDP `Performance.getMetrics`): type 40 characters into the top-bar field on `/lobby`, assert the `LayoutCount` delta <= a ceiling the lane sets from its after-arm (+10%), and that the field still grows on a second line and shrinks on delete. Red: the ceiling on `7e31ade12` reads 172 -> RED; after the fix GREEN. Also run and green: `composer-grow.test.mjs`, `composer-long-msg.test.mjs`, `composer-buttons-bottom.test.mjs`, the e2e files the pre-push map selects (`WUI_E2E_RANGE=<sha>^..<sha> ./run -a do_check_pre_push_e2e`), `pnpm run typecheck` | claude / simple_coding | 1 |
-| 02 | `perf(p19-02-wui-composer-wrap-measure-text)` | `useComposerWrap`'s one-line test measures the draft's width with a canvas `measureText` and the field's font, read once per focus (and on a font-size change), instead of styling a hidden span and reading its `getBoundingClientRect` on every key | editor 2.7, the same traces: **43 forced layouts** per 41 keys from the text-width measure (called from `syncMultiline` on every `text` change), 3 of 3 traces, `7e31ade12` | -41 forced layouts per 40 keys; computed, not measured: about 1/3 of typing's forced layout time | `src/composables/useComposerWrap.ts` (the text-width measure); `wui/tests/e2e/perf-typing-layouts.test.mjs` (row 01's: its ceiling) | the row 01 test with its ceiling lowered to row 02's after-arm. Red: the lowered ceiling on row 01's tree -> RED. Plus a unit test that the canvas width of sample strings is within 1 px of the span width the old code read (fixture font), so the lifted-row decision does not change (owner t1 26282b6e). Also run and green: the row 01 list | claude / simple_coding | 2 (after 01: same e2e file) |
-| 03 | `perf(p19-03-wui-search-hits-release)` | the search hit list releases its DOM and its `HumanName` instances when a new search replaces it and when the side panel closes. The lane finds the holder first: the snapshot shows the old hits' `HumanName` instances reachable from their scheduler jobs through a component vnode tree (editor 2.8) | editor 2.8, mock journey with forced GC (`HeapProfiler.collectGarbage` x2, CDP `Nodes`): `/lobby` **1,783** nodes -> search `q=line` with **30 hits** -> a search with 0 hits -> `/lobby`: **3,705** (+1,922 retained), same in 3 of 3; with 400 hits a second search adds them again: 17,597..17,799 -> 28,244..28,446 nodes, n=3; a 0-hit search alone retains +248 (n=1). `7e31ade12` | -1,600..-1,900 retained nodes per 30-hit search (the hub's one-section page is 30, `csi-spl-api/src/go/spool-hub-api/internal/hub/search.go:35`): the heap and every full GC stop growing with the searches a session makes | `src/components/SideHitList.vue`, `src/components/SearchSidePanel.vue`; `src/components/HumanName.vue` only if the holder is there (the lane names it; R3 re-check before that push); `wui/tests/e2e/perf-search-release.test.mjs` (new) | **`perf-search-release.test.mjs`** (new e2e, mock, CDP): seed 30 hits, run the 3-step sequence above with forced GC, assert retained `Nodes` <= the 0-hit run + 300 and `JSEventListeners` within +50. Red: on `7e31ade12` it reads +1,922 -> RED. Also run and green: `flow-search-acceptance.test.mjs`, `issue-parent-search.test.mjs`, the pre-push map's e2e, `pnpm run typecheck` | claude / complex_coding | 1 |
-| 04 | `perf(p19-04-wui-me-read-once)` | the first screen reads `GET /v1/view/me` once. The lane first finds the second caller (a `load(true)`, a second store, a sign-in flip; `stores/access.ts` dedupes only a read in flight). **Drop rule:** if the second read is a forced refresh the page needs, the row is dropped with that finding | editor 2.6, `ENV=dev PF_N=6 PF_PROFILES=d1440 ./run -a do_spl_wui_perf_flow_events` (dev 3.6.7): `/v1/view/me` **10 reads in 6 first screens**, 2 in 4 of 6, each 200, client median 66 / p90 149 ms | -1 hub read in 2 of 3 first screens (-66 ms median client wait where it is on the path; the lane says whether it is) | `src/stores/access.ts`; the second caller's file if it is elsewhere (named in the push; R3 re-check) | a unit test counting `api.me()` calls across the first-screen callers, asserting 1. Red: today's code -> 2. Live: the same flow-events run on dev after the deploy (R5), its count in the issue | claude / simple_coding | 1 |
-| 05 | `perf(p19-05-wui-notification-permission-lazy)` | the notification store stops reading `Notification.permission` at hydrate: it reads it when first needed (the bell, the first gesture, a push) or in an idle callback. The visibility-change and permission-status reads stay | editor 2.9, in-page `performance.now()` around `Notification.permission` on the mock `/lobby`, a fresh context each: first read **39, 10.9, 1.1, 54, 1.4 ms** (median 10.9), n=5, load ~100; editor 2.4, dev CPU profile: `readPermission` 80 ms self at hydrate (n=1) | -1..-54 ms (median -10.9) of main-thread work at first paint, computed from the n=5 reads, not measured on a fix | `src/stores/notification.ts` (`permissionSteps.hydrate`, :162-168) | a unit test with a counting `Notification` stub: creating the store reads `permission` 0 times; the bell and `askOnFirstGesture` still read it before they ask. Red: today's store -> 1 read at creation. Also run and green: the notification unit tests (`grep -l notification wui/tests/unit/*`), `pnpm run typecheck` | claude / simple_coding | 1 |
-| 06 | `perf(p19-06-wui-revision-check-once)` | one `GET /v1/wui/revision` per trigger: the lane finds why a Flow-open step reads it twice (the interval and the visibility check together, or two `watchLive` hooks) and makes concurrent checks share one fetch. **Drop rule:** if the two reads have triggers that each must run, the row is dropped with that finding | editor 2.6, the same dev run: `/v1/wui/revision` **12 reads in 6 Flow-open steps** (2 per step), client median 70 / p90 85 ms | -1 request per step; off the paint path (the check never blocks a view), so the gain is network and hub load, not a wait | `src/utils/live-ws.mjs` (`checkRevision`, `watchLive`), `src/composables/useLive.ts` (`fetchRevision`) | a unit test on `watchLive` / `checkRevision` with a counting `fetchRevision`: two triggers in one tick -> 1 fetch. Red: today's code -> 2. Also run and green: the live-ws unit tests, `pnpm run typecheck` | claude / simple_coding | 1 |
-| 07 | `perf(p19-07-wui-perf-journey-counters)` | the desktop journey counters become a committed proof: the probe of editor 2.5 (cold `/lobby`, channel switch, topic, 400-reply topic, scroll, search, back, type 40) becomes a `JOURNEY=1` mode of `perf-baseline-live.proof.mjs`, printing per step layouts, style recalcs, and nodes and listeners after a forced GC, so round 20+ starts from one command, not a scratch script | editor 2.5: the scratch probe gave the same counts in 5 of 5 rounds; no committed command prints them (the probe lives outside the repo) | no runtime gain: it makes rows 01-03's gains, and a regression of them, readable in one run. Ranked last for that reason | `wui/tests/e2e/perf-baseline-live.proof.mjs` | the proof on the mock bundle twice: same counts in both runs. Red control: a plant (one extra forced layout per key in a throwaway copy of `useComposerSize.ts`) moves the type-40 count by about +40 | claude / tests | 2 (after 01-03: its first output shows their gains) |
+| 01 | `perf(p19-01-wui-composer-fit-no-collapse)` | `fitGlobalBox` stops collapsing the field to `height: auto` and re-reading `scrollHeight` on every key while the draft still fits its height: read `scrollHeight` once, write the height only when it changes, collapse only when text was removed. The owner's caret rules in the same function (t1 d3bbe2c2: the caret at the end stays in view, the scroll is kept) do not change | **`0f872e92e`** (editor 2.11): Chrome trace of 41 keys typed into `form.composer.omnibox--global textarea` on the mock `/lobby`: **82 forced layouts** from `fitGlobalBox` (41 at the `scrollHeight > clientHeight` read, 41 at the read after `height = 'auto'`), 3 of 3 traces; journey type-40 **172 layouts / 176 recalcs** in 5 of 5. Same on `7e31ade12` (editor 2.5, 2.7) | -41 to -82 forced layouts per 40 keys (at most one read per key, none when nothing changed); computed, not measured: about 2/3 of typing's forced layout time (all forced layouts of the 41 keys: 163..239 ms, n=3, load 83..120). The lane measures both arms | `src/composables/useComposerSize.ts` (`useFit.fitGlobalBox`, :53-79; with the `omniboxMax` reads of section 4, :39-79); `wui/tests/e2e/perf-typing-layouts.test.mjs` (new; row 02 extends it) | **`perf-typing-layouts.test.mjs`** (new e2e on the generated mock bundle, `puppeteer-core` (the WUI's e2e driver, `package.json:41`, no new dependency) + CDP `Performance.getMetrics`): type 40 characters into the top-bar field on `/lobby`, assert the `LayoutCount` delta <= a ceiling the lane sets from its after-arm (+10%), and that the field still grows on a second line and shrinks on delete. Red: the ceiling on `7e31ade12` reads 172 -> RED; after the fix GREEN. Also run and green: `composer-grow.test.mjs`, `composer-long-msg.test.mjs`, `composer-buttons-bottom.test.mjs`, the e2e files the pre-push map selects (`WUI_E2E_RANGE=<sha>^..<sha> ./run -a do_check_pre_push_e2e`), `pnpm run typecheck` | claude / simple_coding | 1 |
+| 02 | `perf(p19-02-wui-composer-wrap-measure-text)` | `useComposerWrap`'s one-line test measures the draft's width with a canvas `measureText` and the field's font, read once per focus (and on a font-size change), instead of styling a hidden span and reading its `getBoundingClientRect` on every key | **`0f872e92e`** (editor 2.11), the same traces: **43 forced layouts** per 41 keys from the text-width measure (called from `syncMultiline` on every `text` change), 3 of 3 traces. Same on `7e31ade12` (editor 2.7) | -43 forced layouts per 41 keys; computed, not measured: about 1/3 of typing's forced layout time | `src/composables/useComposerWrap.ts` (the text-width measure); `wui/tests/e2e/perf-typing-layouts.test.mjs` (row 01's: its ceiling) | the row 01 test with its ceiling lowered to row 02's after-arm. Red: the lowered ceiling on row 01's tree -> RED. Plus a unit test that the canvas width of sample strings is within 1 px of the span width the old code read (fixture font), so the lifted-row decision does not change (owner t1 26282b6e). Also run and green: the row 01 list | claude / simple_coding | 2 (after 01: same e2e file) |
+| 03 | `perf(p19-03-wui-search-hits-release)` | the search hit list releases its DOM and its `HumanName` instances when a new search replaces it and when the side panel closes. The lane finds the holder first: the snapshot shows the old hits' `HumanName` instances reachable from their scheduler jobs through a component vnode tree (editor 2.8) | **`0f872e92e`** (editor 2.11), the 3-step sequence below: **+1,908, +1,921, +1,921** retained (n=3); `7e31ade12` beside it, same hour: +1,922 x3. v0.1's read, editor 2.8, mock journey with forced GC (`HeapProfiler.collectGarbage` x2, CDP `Nodes`): `/lobby` **1,783** nodes -> search `q=line` with **30 hits** -> a search with 0 hits -> `/lobby`: **3,705** (+1,922 retained), same in 3 of 3; with 400 hits a second search adds them again: 17,597..17,799 -> 28,244..28,446 nodes, n=3; a 0-hit search alone retains +248 (n=1). `7e31ade12` | -1,600..-1,900 retained nodes per 30-hit search (the hub's one-section page is 30, `csi-spl-api/src/go/spool-hub-api/internal/hub/search.go:35`): the heap and every full GC stop growing with the searches a session makes | `src/components/SideHitList.vue`, `src/components/SearchSidePanel.vue`; `src/components/HumanName.vue` only if the holder is there (the lane names it; R3 re-check before that push); `wui/tests/e2e/perf-search-release.test.mjs` (new) | **`perf-search-release.test.mjs`** (new e2e, mock, CDP): seed 30 hits, run the 3-step sequence above with forced GC, assert retained `Nodes` <= the 0-hit run + 300 and `JSEventListeners` within +50. Red: on `7e31ade12` it reads +1,922 -> RED. Also run and green: `flow-search-acceptance.test.mjs`, `issue-parent-search.test.mjs`, the pre-push map's e2e, `pnpm run typecheck` | claude / complex_coding | 1 |
+| ~~04~~ | **dropped in v1.0** (section 6): `perf(p19-04-wui-me-read-once)` | the first screen reads `GET /v1/view/me` once. The lane first finds the second caller (a `load(true)`, a second store, a sign-in flip; `stores/access.ts` dedupes only a read in flight). **Drop rule:** if the second read is a forced refresh the page needs, the row is dropped with that finding | v0.1, editor 2.6 (dev 3.6.7): `/v1/view/me` 10 reads in 6 first screens. **v1.0, editor 2.11, the same action on dev 3.7.6 (`0f872e92`): 6 reads in 6 first screens** (1 each): the duplicate is gone | -1 hub read in 2 of 3 first screens (-66 ms median client wait where it is on the path; the lane says whether it is) | `src/stores/access.ts`; the second caller's file if it is elsewhere (named in the push; R3 re-check) | a unit test counting `api.me()` calls across the first-screen callers, asserting 1. Red: today's code -> 2. Live: the same flow-events run on dev after the deploy (R5), its count in the issue | claude / simple_coding | 1 |
+| 06 | `perf(p19-06-wui-revision-check-once)` | one `GET /v1/wui/revision` per trigger: the lane finds why a Flow-open step reads it twice (the interval and the visibility check together, or two `watchLive` hooks) and makes concurrent checks share one fetch. **Drop rule:** if the two reads have triggers that each must run, the row is dropped with that finding | **dev 3.7.6, `0f872e92`** (editor 2.11), `ENV=dev PF_N=6 PF_PROFILES=d1440 ./run -a do_spl_wui_perf_flow_events`: `/v1/wui/revision` **12 reads in 6 flow-open steps**, client median 69 / p90 135 ms; v0.1 (3.6.7): 12 in 6. The step's Flow selector matched in neither run (flow-open -1), so the trigger is not yet tied to opening Flow (N3): the lane attributes it first, the drop rule covers it | -1 request per step; off the paint path (the check never blocks a view), so the gain is network and hub load, not a wait | `src/utils/live-ws.mjs` (`checkRevision`, `watchLive`), `src/composables/useLive.ts` (`fetchRevision`) | a unit test on `watchLive` / `checkRevision` with a counting `fetchRevision`: two triggers in one tick -> 1 fetch. Red: today's code -> 2. Also run and green: the live-ws unit tests, `pnpm run typecheck` | claude / simple_coding | 1 |
+| 05 | `perf(p19-05-wui-notification-permission-lazy)` | the notification store stops reading `Notification.permission` at hydrate: it reads it when first needed (the bell, the first gesture, a push) or in an idle callback. The visibility-change and permission-status reads stay | count: **1 `permission` read at store creation** (the unit test's red). **`0f872e92e`** (editor 2.11), in-page `performance.now()` around the first `Notification.permission` read on the mock `/lobby`, a fresh context each: **1.0, 4.4, 5.6, 2.9, 7.3 ms** (median 4.4), n=5, load ~22; v0.1 on `7e31ade12`: 39, 10.9, 1.1, 54, 1.4 ms (median 10.9), load ~100; editor 2.4, dev CPU profile: `readPermission` 80 ms self at hydrate (n=1) | -1 read at creation; -1..-7 ms (median -4.4) of main-thread work at first paint, computed from the reads, not measured on a fix. The one ms-only gain of the round, so it ranks below 06 (N4) | `src/stores/notification.ts` (`permissionSteps.hydrate`, :163-169) | a unit test with a counting `Notification` stub: creating the store reads `permission` 0 times; the bell and `askOnFirstGesture` still read it before they ask. Red: today's store -> 1 read at creation. Also run and green: the notification unit tests (`grep -l notification wui/tests/unit/*`), `pnpm run typecheck` | claude / simple_coding | 1 |
+| 07 | `perf(p19-07-wui-perf-journey-counters)` | the desktop journey counters become a committed proof: the probe of editor 2.5 (cold `/lobby`, channel switch, topic, 400-reply topic, scroll, search, back, type 40) becomes a `JOURNEY=1` mode of `perf-baseline-live.proof.mjs`, printing per step layouts, style recalcs, and nodes and listeners after a forced GC, so round 20+ starts from one command, not a scratch script | **`0f872e92e`** (editor 2.11): the scratch probe, type-40 172 layouts in 5 of 5, same as `7e31ade12` 5 of 5 beside it; no committed command prints them (the probe lives outside the repo, N6) | no runtime gain: it makes rows 01-03's gains, and a regression of them, readable in one run. Ranked last for that reason | `wui/tests/e2e/perf-baseline-live.proof.mjs` | the proof on the mock bundle twice: same counts in both runs. Red control: a plant (one extra forced layout per key in a throwaway copy of `useComposerSize.ts`) moves the type-40 count by about +40 | claude / tests | 2 (after 01-03: its first output shows their gains) |
 
 Every row is claude: rulebook R14 (an established vendor) and the owner's
 10-17 rule (no mistral coding or testing).
@@ -98,18 +112,35 @@ Every row is claude: rulebook R14 (an established vendor) and the owner's
 
 ### 3.1 Batches and disjoint files (R1)
 
-- **Batch 1** (disjoint, may run at once; placed in row order): rows 01, 03,
-  04, 05, 06.
+- **Batch 1** (disjoint, may run at once; placed in priority order): rows
+  01, 03, 06, 05.
   - 01: `useComposerSize.ts`, `perf-typing-layouts.test.mjs` (new).
   - 03: `SideHitList.vue`, `SearchSidePanel.vue`, maybe `HumanName.vue`,
     `perf-search-release.test.mjs` (new).
-  - 04: `access.ts` (+ the second caller's file, named before its push).
   - 05: `notification.ts` and its unit test.
   - 06: `live-ws.mjs`, `useLive.ts` and their unit test.
 - **Batch 2**: row 02 after row 01 (both edit `perf-typing-layouts.test.mjs`,
   and `useComposerSize.ts` calls `useComposerWrap.ts`); row 07 after rows
   01-03 (R16: within 30 minutes of the last).
 - No row edits a file of perf round 20 or of c-980 (3.2).
+
+<a id="p19-ab"></a>
+
+### 3.3 Same-box A/B per row (W2)
+
+Each lane runs both arms on one box within one hour, the before-arm on its
+rebased `origin/master`, the after-arm on its commit, **n>=5 per arm**, and
+puts both arms' counts (min..max) in the commit body. A gain that is not
+outside the before-arm's range is no gain; the row is dropped.
+
+| row | count (primary) | how, per run |
+|---|---|---|
+| 01 | `LayoutCount` delta of 40 typed keys; forced layouts at `fitGlobalBox` | `perf-typing-layouts.test.mjs` x5 per arm; plus 1 trace per arm for the frame split |
+| 02 | the same, at the text-width measure | as 01, on row 01's tree as before-arm |
+| 03 | retained `Nodes` after the 30-hit + 0-hit sequence, forced GC | `perf-search-release.test.mjs` x5 per arm |
+| 06 | `GET /v1/wui/revision` per trigger | the unit test's fetch count (deterministic) + `do_spl_wui_perf_flow_events PF_N=5` on dev after deploy (R5) |
+| 05 | `permission` reads at store creation | the unit test (deterministic); in-page first-read ms x5 per arm, reported, not ranked |
+| 07 | the proof's per-step counts | the proof x5 on one bundle: same counts in 5 of 5 |
 
 <a id="p19-r3"></a>
 
@@ -125,10 +156,15 @@ Read on 2026-11-24 (editor 3):
   `prefetch-on-ready.client.ts`, `serve-generated.mjs`. None is a p19 file.
   Agreed with c-084 (msgs e31d60bb, 784bbd4b): the prefetch fix for app
   documents is one row, p20-07, which quotes this seat's desktop waterfall.
-- **c-980** (SPL-5070, Nuxt 4), `review/c002-spl5070-nuxt4-migration-r2`:
-  `git diff --name-only origin/master...origin/review/c002-spl5070-nuxt4-migration-r2
-  -- <the p19 files>` -> 0 lines (12:3xZ).
-- **Lane map, every machine**, 12:3xZ: `--check` of the p19 files -> exit 4:
+- **c-980** (SPL-5070, Nuxt 4): **landed** as `295f426dd`; no p19 row waits
+  for it. Its remaining branch `review/c002-spl5070-nuxt4-migration`
+  (`9761e0eab`) touches 0 p19 files (seat c-996, check 5).
+- **Lane map, every machine**, re-read 19:00Z 2026-11-24 (v1.0): `--check`
+  of the 11 p19 files -> exit 4, no lane lists them; 7 live lanes record no
+  files (c-074, c-084, c-148, c-159, c-164, c-168, m-135). c-168's branch
+  touches 0 p19 files (seat c-996); the others are not WUI-row lanes by their
+  slugs, which is not proof: the R3 check before each spawn asks them. v0.1's
+  read, 12:3xZ: `--check` of the p19 files -> exit 4:
   no lane lists them; 9 live lanes record no files (a-089, c-074, c-084,
   c-087, c-091, c-094, c-096, c-918, c-980). Their 19 pushed branches
   (`review/*`, `wip/*`, `tmp/*` of those lanes) touch none of the p19 files
@@ -158,7 +194,7 @@ Read on 2026-11-24 (editor 3):
   read the retainer chain of one old `side-hit` element up to a root. Fix the
   holder, not the symptom. If the holder is in Vue itself, the row reports it
   and keys the list so the old tree unmounts.
-- **04**, **06**: attribute first, then fix; the drop rule is in the row.
+- **06**: attribute first, then fix; the drop rule is in the row.
 - **05**: the HUM-24 behaviour (311427c6: the first gesture asks once; a
   permission changed in site settings shows on return) holds: the unit test
   covers both.
@@ -181,7 +217,11 @@ Read on 2026-11-24 12:39:41Z:
   names.
 - **Row reviewers (2.7.2)**: the row authors are claude, so code R7 is a
   non-claude seat, the holder's pick at placement under the current R7 rule.
-  A row never pushes without its R7 PASS.
+  Every row is WUI and its R7 runs the mapped e2e, so **no mistral R7 seat**
+  (fleet UI rule: never mistral on UI work until `do_spl_vendor_ui_retest`
+  passes; N7). A row never pushes without its R7 PASS.
+- v0.1's panel: seat c-996 (claude, not agy: N1) FAIL on `d86a2f880`, W1-W4
+  fixed here; the holder asked c-001 for a cross-vendor seat.
 
 <a id="p19-left-out"></a>
 
@@ -197,6 +237,8 @@ Read on 2026-11-24 12:39:41Z:
 | `GET /v1/view/flow` again on the first Flow open | **dropped: different reads.** The first screen's is the counts-only badge read (`flow.ts:272`), the open reads the lines page (`flow.ts:239`) | editor 2.6 |
 | the document's inline locale script (117 ms self in the profile) | **dropped: unexplained.** It is 2,574 bytes (`200.html`); the self time is the profiler's attribution of the document's top level, not shown to be this script's work | editor 2.4, n=1 |
 | 400-reply topic: +3,954 nodes, +880 listeners (~2.2 per card) | not a row now: the per-card listeners sit near the card files p20 rows edit (`useCardHeight.ts`, `useLiveFeedThreadEnds.ts`); a round after p20 | editor 2.5, n=5 |
+| **row 04, `/v1/view/me` read once** | **dropped by measurement (v1.0).** Dev 3.7.6 (`0f872e92`): 6 reads in 6 first screens, 1 each (v0.1, dev 3.6.7: 10 in 6). No duplicate to remove | editor 2.11, n=6 |
+| cold `/lobby` forced layouts (L5), the candidate for row 04's place | **not a p19 row: p20 files.** 44 layouts per cold load, 15 forced from script: 6 in `useCardHeight` (the `.msg-body` `getComputedStyle` + `scrollHeight` read), 3 in `useSidebarVersion`'s foot-row `getBoundingClientRect`, 6 single frames. Both files are p20 rows' | editor 2.11, n=3 traces, `0f872e92e` |
 | field (RUM) numbers, `do_spl_wui_perf_report` | not readable by this seat (403: the dev test member is no workspace admin) | - |
 
 <a id="p19-slug"></a>
@@ -213,7 +255,7 @@ Read on 2026-11-24 12:39:41Z:
   --since=2026-11-24 --grep='(p19-' --format='%h %cI %s'`.
 - Review count (2.7.5): `git log origin/master --since=2026-11-24
   --grep='p19-' --format=%B | grep -c '^review: '` must reach the row count
-  (7, less any row dropped by its drop rule).
+  (6, less any row dropped by its drop rule).
 
 <a id="p19-changes"></a>
 
@@ -225,3 +267,10 @@ signs and the plan lands on `master`, not from the review branch, as in rounds
 8 to 18. From then on the Qto doc is the primary copy.
 
 - v0.1 (c-778, 2026-11-24 12:4xZ): first draft on `7e31ade12`.
+- v1.0 (c-778, 2026-11-24 19:0xZ): send-back of seat c-996 (FAIL on
+  `d86a2f880`). W1: re-read one count per row on `0f872e92e` (Nuxt 4) beside
+  `7e31ade12`, row 04 dropped by that read, lanes re-read their before-number
+  with the CI node; c-980 bullet updated (landed). W2: section 3.3. W3: row
+  01 names puppeteer-core. W4: `fitGlobalBox :53-79`, `hydrate :163-169`.
+  N3 in row 06, N4 row 05 below 06, N6/N8 the 30-hit output now saved
+  (editor 2.11), N7 no mistral R7 on WUI rows, N2 lane map re-read.

@@ -52,6 +52,8 @@
 # @param SPAWN_PLACE (optional) - <vendor>:<slug>: the placer launches it itself, `spawn-window.sh <vendor> auto <workdir> <brief> <slug>`, with the brief file <slug>.md under SPAWN_PLACE_BRIEF_DIR on the orch box. Unset: the placer hands it to the orchestrator when it is next
 # @param SPAWN_KIND (optional) - the lane's task kind (spec 115); unset reads the "Kind:" of the brief <slug>.md. A mistral placement of any kind but specs_and_docs or i18n is refused (owner HUM-10, t1 b61851fb, msg 91bf8278: mistral does docs and reviews only) while cnf env.box.agent_split.mistral_coding_allowed is not true
 # @param ASK_DISCUSSION (optional) - the owner topic the ask works for, a lowercase UUID (spec 150 row B10b): the queue ranks by its priority. The hub fills it while the ask has none, never overwrites; unset, the hub's resolve of a topic dispatch-<topic8> stands
+# @param SPAWN_PARENT_LANE (optional) - the agent id (<ID> or <ID>@<box>) of the live lane this is a helper of (spec 153 3.22.9, row Q9): needs SPAWN_PLACE; the parent's priority (its issue's, 1..5) allows cnf env.box.prio_helpers helpers at once (queued or live, counted by the `Parent-Lane:` line of their briefs); at the allowance the ask is refused (one FATAL line, nothing queued), under it the brief gets `Parent-Lane: <ID>` and the ask the parent's discussion
+# @param SPAWN_PARENT_PRIO_CMD (optional) - test seam: <cmd> <issue key> prints that issue's priority; unset reads it from the hub through the desk
 # @param SPAWN_AFTER (optional) - an issue key (SPL-123) or a row slug the row waits on: placed only once it has landed on origin/master (an issue key: a commit closing it by the close rule; a slug: its lane's issue so); needs SPAWN_PLACE and its brief here
 # @param SPAWN_AFTER_DELAY (optional) - whole minutes after that landing before the row is placed, default 0 (none); the rounds rulebook R16 allows 30
 # @param ASK_BY (optional) - the acting agent, <ID>@<box>; default this machine's orchestrator
@@ -59,6 +61,7 @@
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=refactor ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=bug SPAWN_PLACE=claude:hub-pg-split ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=9d54a51b SPAWN_CLASS=feature SPAWN_PLACE=claude:c002-spec170-b3 SPAWN_AFTER=SPL-5001 SPAWN_AFTER_DELAY=30 ./run -a do_spl_spawn_enqueue
+# @example ASK_ID=8a70dfd7 SPAWN_CLASS=feature SPAWN_PLACE=claude:c091-helper-tests SPAWN_PARENT_LANE=c-091 ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=bug ASK_DISCUSSION=59f725e4-08ca-4e6e-8490-1902a708eba3 ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=feature SPAWN_BYPASS=8cb6cc7d-7628-4ac3-be00-86e427bb3487 ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=de5714db SPAWN_CLASS=bug SPAWN_BYPASS=994f2257-8ad1-4010-88c8-4f0a16230937 SPAWN_PLACE=agy:c002-ar1-05-agy-r7-reviewer ./run -a do_spl_spawn_enqueue
@@ -69,6 +72,8 @@ do_spl_spawn_enqueue() {
   spl_asks_discussion_ok || return 1
   by="$(spl_asks_by)" || return 1
   id="$(spl_spawn_q_resolve)" || return 1
+  # before the archive read: a helper takes its parent's discussion (spec 153 3.22.9)
+  spl_spawn_q_parent "$id" || return 1
   spl_spawn_q_enqueue_archived "$id" || return 1
   # before the queue op: the position it answers ranks by this discussion's priority
   spl_spawn_q_discussion "$id"
@@ -104,6 +109,105 @@ spl_spawn_q_discussion() {  # ID
     do_log "WARN ask ${1:0:8} keeps its discussion ${got:0:8}: a set one is never overwritten" >&2
   fi
   return 0
+}
+
+# Spec 153 3.22.9 (row Q9, case C125; decided O3 = A: a lower number gets
+# more): a lane may queue helper lanes up to an allowance by its priority,
+# cnf env.box.prio_helpers. SPAWN_PARENT_LANE=<ID>[@<box>] names the parent,
+# a live lane of the lane map; its issue's priority (1..5, the hub's 5 when
+# unset) picks the allowance, and its open helpers are the briefs whose
+# `Parent-Lane: <ID>` line names it and whose row is queued or placing, or
+# whose lane is live. At the allowance the ask is refused with the numbers;
+# under it the brief gets that line and the ask the parent's discussion, so
+# the helper follows the parent's priority. A helper is a normal request: its
+# own brief, issue and lane. Every read that fails refuses (if-else, never a
+# guess): a helper that cannot be counted is not queued.
+spl_spawn_q_parent() {  # ID
+  [[ -n "${SPAWN_PARENT_LANE:-}" ]] || return 0
+  local id="$1" par="${SPAWN_PARENT_LANE%@*}" box="" brief lanes row topic key prio allow open n
+  [[ "$SPAWN_PARENT_LANE" != *@* ]] || box="${SPAWN_PARENT_LANE#*@}"
+  [[ "$par" =~ ^[acgmoqu]-[0-9]{3}$ ]] || { spl_spawn_q_parent_no "$id" "SPAWN_PARENT_LANE must be an agent id <ID> or <ID>@<box>"; return 1; }
+  [[ -n "${SPAWN_PLACE:-}" ]] || { spl_spawn_q_parent_no "$id" "a helper needs SPAWN_PLACE (its own brief and lane)"; return 1; }
+  declare -F spl_spawn_place_brief >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
+  brief="$(SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" spl_spawn_place_brief "${SPAWN_PLACE#*:}")"
+  [[ -n "$brief" ]] || { spl_spawn_q_parent_no "$id" "no brief for placement $SPAWN_PLACE"; return 1; }
+  ! grep -qiE '^Parent-Lane: *' "$brief" || grep -qixE "Parent-Lane: *$par *" "$brief" ||
+    { spl_spawn_q_parent_no "$id" "brief $brief names another parent ($(grep -m1 -iE '^Parent-Lane:' "$brief"))"; return 1; }
+  lanes="$(spl_spawn_q_parent_lanes)" || { spl_spawn_q_parent_no "$id" "the lane map could not be read from the hub"; return 1; }
+  row="$(jq -c --arg p "$par" --arg b "$box" 'first(.[] | select(.agent_id == $p and ($b == "" or .agent_box == $b))) // empty' <<<"$lanes")"
+  [[ -n "$row" ]] || { spl_spawn_q_parent_no "$id" "no live lane $SPAWN_PARENT_LANE in the lane map"; return 1; }
+  topic="$(jq -r '.topic // ""' <<<"$row")"; key="$(jq -r '.issue_key // ""' <<<"$row")"
+  [[ "$key" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] || { spl_spawn_q_parent_no "$id" "the parent lane has no issue (issue_key '${key}'), so no priority"; return 1; }
+  prio="$(spl_spawn_q_parent_prio "$key")" || { spl_spawn_q_parent_no "$id" "the priority of its issue $key could not be read"; return 1; }
+  allow="$(P="$prio" yq -r '.env.box.prio_helpers[env(P)] // ""' "${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}" 2>/dev/null)"
+  [[ "$allow" =~ ^[0-9]+$ ]] || { spl_spawn_q_parent_no "$id" "cnf env.box.prio_helpers has no number for priority $prio"; return 1; }
+  open="$(set -o pipefail; spl_spawn_q_parent_open "$par" "$brief" "$lanes" | sort)" || { spl_spawn_q_parent_no "$id" "the spawn queue could not be read from the hub"; return 1; }
+  n="$(grep -c . <<<"$open")"
+  (( n < allow )) || { spl_spawn_q_parent_no "$id" "the parent is at priority $prio, which allows $allow helper(s) at once (cnf env.box.prio_helpers), and has $n open${open:+: $(tr '\n' ' ' <<<"$open" | sed 's/ $//')}"; return 1; }
+  if [[ "$topic" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+    [[ -z "${ASK_DISCUSSION:-}" || "$ASK_DISCUSSION" == "$topic" ]] ||
+      { spl_spawn_q_parent_no "$id" "ASK_DISCUSSION $ASK_DISCUSSION is not the parent's discussion $topic: a helper works for its parent's"; return 1; }
+    ASK_DISCUSSION="$topic"
+  fi
+  grep -qixE "Parent-Lane: *$par *" "$brief" ||
+    { { [[ ! -s "$brief" || -z "$(tail -c1 "$brief")" ]] || printf '\n'; printf 'Parent-Lane: %s\n' "$par"; } >>"$brief"; } ||
+    { spl_spawn_q_parent_no "$id" "cannot write Parent-Lane: $par into $brief"; return 1; }
+  do_log "INFO ask ${id:0:8} is helper $((n + 1)) of $allow of lane $par (priority $prio, cnf env.box.prio_helpers)${ASK_DISCUSSION:+, with its discussion ${ASK_DISCUSSION:0:8}}: Parent-Lane: $par in $brief" >&2
+}
+
+# One FATAL line: ask ID is not queued as a helper, and WHY.
+spl_spawn_q_parent_no() {  # ID WHY
+  do_log "FATAL ask ${1:0:8} not queued: helper of $SPAWN_PARENT_LANE: $2 (spec 153 3.22.9)" >&2
+}
+
+# The live lanes of the lane map, as a JSON array; rc 1 when the hub did not
+# answer (a local-only map would miss a parent or a helper on another box).
+# SPAWN_SHARE_LANES_CMD is the share's lane map seam (spl_spawn_share_lanes).
+spl_spawn_q_parent_lanes() {
+  local out
+  if [[ -n "${SPAWN_SHARE_LANES_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    out="$($SPAWN_SHARE_LANES_CMD 2>/dev/null)"
+  else
+    out="$(LANE_FORMAT=json timeout "${SPAWN_SHARE_TIMEOUT:-90}" bash "$PROJ_PATH/run" -a do_spl_lane_map 2>/dev/null | grep -E '^\{' | tail -1)"
+  fi
+  jq -e -c 'select((.hub // "ok") == "ok") | [.lanes[] | select(.state == "live")]' <<<"$out" 2>/dev/null
+}
+
+# The priority 1..5 of issue KEY: SPAWN_PARENT_PRIO_CMD <key> (tests), else
+# the hub's issue get (0 or none = the hub's default 5); rc 1 when unread.
+spl_spawn_q_parent_prio() {  # KEY
+  local p
+  if [[ -n "${SPAWN_PARENT_PRIO_CMD:-}" ]]; then
+    p="$(timeout "${LI_HUB_TIMEOUT:-20}" "$SPAWN_PARENT_PRIO_CMD" "$1" 2>/dev/null </dev/null)" || return 1
+  else
+    p="$(spl_spawn_q_issue_get "$1" | jq -r '.priority // 0' 2>/dev/null)" || return 1
+  fi
+  [[ "$p" =~ ^[0-5]$ ]] || return 1
+  (( p > 0 )) || p=5
+  printf '%s\n' "$p"
+}
+
+# The open helpers of lane PARENT, one brief name per line: each brief of the
+# briefs dir with `Parent-Lane: PARENT`, but OWN (the brief being queued),
+# whose row is queued or placing (its placement names that brief) or whose
+# lane is live (its branch is <ID>-<slug of that brief>). A placed row and its
+# live lane are one helper. rc 1 when the queue could not be read.
+spl_spawn_q_parent_open() {  # PARENT OWN LANES
+  local d="${SPAWN_PLACE_BRIEF_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch/briefs}" rows f slug
+  local -A kid=() one=()
+  while IFS= read -r f; do
+    [[ -n "$f" && "$f" != "$2" ]] && kid["$f"]=1
+  done < <(grep -lixE "Parent-Lane: *$1 *" "$d"/*.md 2>/dev/null)
+  (( ${#kid[@]} )) || return 0
+  rows="$(spl_spawn_q_rows)" || return 1
+  while IFS= read -r slug; do
+    [[ -n "$slug" ]] || continue
+    f="$(spl_spawn_place_brief "$slug")"
+    [[ -n "$f" && -n "${kid[$f]:-}" && -z "${one[$f]:-}" ]] || continue
+    one["$f"]=1; basename "$f" .md
+  done < <(jq -r '.[] | .placement // "" | sub("^[^:]*:"; "")' <<<"$rows" 2>/dev/null
+    jq -r '.[] | (.branch // "") as $b | (.agent_id + "-") as $p | if ($b | startswith($p)) then $b[($p | length):] else "" end' <<<"$3" 2>/dev/null)
 }
 
 # One ask into the queue: the checks, the hub's queue op, the bypass record;
@@ -205,16 +309,23 @@ spl_spawn_q_issue_card() {  # KEY
   if [[ -n "${LI_HUB_CARD_CMD:-}" ]]; then
     out="$(timeout "${LI_HUB_TIMEOUT:-20}" "$LI_HUB_CARD_CMD" "$1" 2>/dev/null </dev/null)" || return 1
   else
-    [[ "${SPOOL_TEST:-}" != 1 ]] || return 1
-    out="$(
-      declare -F spl_lane_issue_desk >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-issue.func.sh"
-      spl_lane_issue_desk "${SPOOL_ROOT:-/var/spool-hub}" 0 >&2 || exit 1
-      spl_desk_issue_run get --ref "$1" 2>/dev/null </dev/null | tail -n 1 |
-        jq -er '(.result.issue // .result).description // empty' 2>/dev/null
-    )" || return 1
+    out="$(spl_spawn_q_issue_get "$1" | jq -er '.description // empty' 2>/dev/null)" || return 1
   fi
   [[ -n "$out" ]] || return 1
   printf '%s\n' "$out"
+}
+
+# spl_spawn_q_issue_get KEY -> issue KEY as the hub's agent issue get answers
+# it (one JSON object), through the lease's desk; rc 1 when the read fails.
+# Under SPOOL_TEST=1 nothing is read (rc 1): a test sets its command seam.
+spl_spawn_q_issue_get() {  # KEY
+  [[ "${SPOOL_TEST:-}" != 1 ]] || return 1
+  (
+    declare -F spl_lane_issue_desk >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-issue.func.sh"
+    spl_lane_issue_desk "${SPOOL_ROOT:-/var/spool-hub}" 0 >&2 || exit 1
+    spl_desk_issue_run get --ref "$1" 2>/dev/null </dev/null | tail -n 1 |
+      jq -ec '(.result.issue // .result) | select(type == "object")' 2>/dev/null
+  )
 }
 
 # The placer's links check (spl_spawn_place_no_links, SPL-4797) at the enqueue

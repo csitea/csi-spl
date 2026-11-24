@@ -132,6 +132,12 @@
 #      the hub as feature + bypass, one INFO line names the class change
 #      (RED CONTROL: the old unflagged queue of the seat); a feature seat
 #      logs its bypass as before (CONTROL)
+#  22. spec 153 3.22.9 C125 (row Q9): SPAWN_PARENT_LANE at the allowance of
+#      cnf env.box.prio_helpers is refused with a named reason; one under is
+#      queued with the parent's discussion and a Parent-Lane: line; a lane
+#      raised from 4 to 1 may then queue 3; a placed helper's live lane still
+#      counts; every failed read refuses (RED CONTROL: before Q9 no check, the
+#      helper at the allowance is queued; CONTROL: no SPAWN_PARENT_LANE queues)
 #  20. spec 150 C405: do_spl_spawn_queue prints PRIO, the hub's discussion
 #      priority 1..5 (3 without one), next to POS; the json view carries it
 #      (RED CONTROL: the column dropped)
@@ -2004,6 +2010,70 @@ rc=0; out="$(on pc do_spl_spawn_enqueue ASK_ID="$K3" SPAWN_CLASS=bug ASK_DISCUSS
 on pc do_spl_spawn_enqueue ASK_ID="$K3" SPAWN_CLASS=bug >/dev/null 2>&1
 [[ "$(kdisc "$K3")" == /queued ]] && pass "21. B10b CONTROL: no ASK_DISCUSSION leaves the row's empty" || fail "21. B10b control: $(kdisc "$K3")"
 for id in "$K1" "$K2" "$K3"; do HUB_DIR="$T/hub" "$T/bin/hub" ask dead --fleet main --id "$id" --by c-001@box-desk --reason b10b >/dev/null; done
+
+# 22. spec 153 3.22.9 (row Q9, C125): helpers by priority ---------------------------
+# SPAWN_PARENT_LANE=<ID>: the parent's issue priority (seam SPAWN_PARENT_PRIO_CMD)
+# picks the allowance in cnf env.box.prio_helpers; open helpers are briefs with
+# `Parent-Lane: <ID>` whose row is queued or whose lane is live. RED CONTROL (on
+# origin/master before Q9): no check, the helper at the allowance is queued.
+QP=7c0de125-0000-4000-8000-000000000125
+printf 'env:\n  box:\n    prio_helpers: {1: 3, 2: 2, 3: 1, 4: 0, 5: 0}\n' >"$T/prio-helpers.yaml"
+# shellcheck disable=SC2016 # expanded by the stub, not here
+printf '#!/usr/bin/env bash\n[ "$1" = SPL-9125 ] || exit 1\necho "${PARENT_PRIO:-}"\n' >"$T/bin/prio"; chmod +x "$T/bin/prio"
+QL="[{\"agent_id\": \"c-125\", \"agent_box\": \"box-desk\", \"state\": \"live\", \"topic\": \"$QP\", \"issue_key\": \"SPL-9125\", \"branch\": \"c-125-c002-q9-parent\"}]"
+for n in 1 2 3 4 5; do printf 'brief text\n%s\n' "$ES" >"$T/briefs/q9-help-$n.md"; put "c125000$n-0000-4000-8000-00000000000$n" c-125@box-desk dispatch-7c0de125 "SPAWN REQUEST q9-help-$n"; done
+qhelp() {  # N PRIO [env...] -> the enqueue's output; rc its rc
+  local n="$1" p="$2"; shift 2
+  on pc do_spl_spawn_enqueue ASK_ID="c125000$n" SPAWN_CLASS=feature SPAWN_PLACE="claude:q9-help-$n" SPAWN_PARENT_LANE=c-125 \
+    SPAWN_PARENT_PRIO_CMD="$T/bin/prio" PARENT_PRIO="$p" SPAWN_PLACE_CNF="$T/prio-helpers.yaml" LANES="$QL" "$@" 2>&1
+}
+qst() { jq -r --arg i "c125000$1-0000-4000-8000-00000000000$1" '.[] | select(.ask_id == $i) | "\(.state)/\(.discussion // "")"' "$T/hub/main.json"; }
+plines() { grep -ciE '^Parent-Lane: *c-125 *$' "$T/briefs/q9-help-$1.md"; }
+rc=0; out="$(qhelp 1 4)" || rc=$?
+[[ $rc != 0 && "$out" == *"FATAL ask c1250001 not queued: helper of c-125: the parent is at priority 4, which allows 0 helper(s) at once"* && "$(qst 1)" == open/ && "$(plines 1)" == 0 ]] &&
+  pass "22. C125: at priority 4 (allowance 0) a helper is refused with a named reason, nothing queued, its brief untouched" ||
+  fail "22. C125 prio 4: rc $rc $(qst 1) $(plines 1): $out"
+for n in 1 2 3; do out="$(qhelp "$n" 1)"; done
+[[ "$(qst 1)" == "queued/$QP" && "$(qst 2)" == "queued/$QP" && "$(qst 3)" == "queued/$QP" && "$(plines 1)$(plines 2)$(plines 3)" == 111 &&
+  "$out" == *"INFO ask c1250003 is helper 3 of 3 of lane c-125 (priority 1"* ]] &&
+  pass "22. C125: the lane raised from 4 to 1 then queues 3 helpers, each with the parent's discussion and a Parent-Lane: line" ||
+  fail "22. C125 raised to 1: $(qst 1) $(qst 2) $(qst 3) $(plines 1)$(plines 2)$(plines 3): $out"
+rc=0; out="$(qhelp 4 1)" || rc=$?
+[[ $rc != 0 && "$out" == *"allows 3 helper(s) at once (cnf env.box.prio_helpers), and has 3 open: q9-help-1 q9-help-2 q9-help-3"* && "$(qst 4)" == open/ ]] &&
+  pass "22. C125: a 4th helper at priority 1 is refused, the reason names the 3 open ones" || fail "22. C125 at allowance: rc $rc $(qst 4): $out"
+out="$(qhelp 3 1)"
+[[ "$out" == *"OK ask c1250003 queued"* && "$(plines 3)" == 1 ]] &&
+  pass "22. C125: re-queueing an open helper does not count itself, and writes no second Parent-Lane: line" || fail "22. C125 requeue: $(plines 3): $out"
+# helper 1 placed: its ask closed, its lane live (branch <ID>-<slug>): still one of the 3
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id c1250001-0000-4000-8000-000000000001 --by c-001@box-desk --reason "placed: c-601@box-desk" >/dev/null
+QL2="${QL%]}, {\"agent_id\": \"c-601\", \"agent_box\": \"box-desk\", \"state\": \"live\", \"topic\": \"$QP\", \"issue_key\": \"SPL-9601\", \"branch\": \"c-601-q9-help-1\"}]"
+rc=0; out="$(qhelp 4 1 LANES="$QL2")" || rc=$?
+[[ $rc != 0 && "$out" == *"has 3 open: q9-help-1 q9-help-2 q9-help-3"* ]] &&
+  pass "22. C125: a placed helper's live lane still counts against the allowance" || fail "22. C125 live helper: rc $rc: $out"
+out="$(qhelp 4 1)"
+[[ "$(qst 4)" == "queued/$QP" ]] &&
+  pass "22. C125: helper 1's lane gone, one under the allowance: the 4th is queued" || fail "22. C125 one under: $(qst 4): $out"
+rc=0; out="$(qhelp 5 2)" || rc=$?
+[[ $rc != 0 && "$out" == *"priority 2, which allows 2 helper(s) at once"* && "$(qst 5)" == open/ ]] &&
+  pass "22. C125: lowered to 2 with 3 open, a new helper is refused (the running ones stay queued)" || fail "22. C125 lowered: rc $rc $(qst 5): $out"
+# helper 4 gone: 2 open, room for one more, so each refusal below is its own reason
+HUB_DIR="$T/hub" "$T/bin/hub" ask dead --fleet main --id c1250004-0000-4000-8000-000000000004 --by c-001@box-desk --reason c125 >/dev/null
+for c in "PARENT_PRIO=|the priority of its issue SPL-9125 could not be read" "LANES=[]|no live lane c-125 in the lane map" \
+  "SPAWN_PLACE_CNF=$T/none.yaml|cnf env.box.prio_helpers has no number for priority 1" \
+  "ASK_DISCUSSION=59f725e4-08ca-4e6e-8490-1902a708eba3|is not the parent's discussion $QP" "SPAWN_PARENT_LANE=c-12|must be an agent id"; do
+  why="${c#*|}"; c="${c%%|*}"
+  rc=0; out="$(qhelp 5 1 "$c")" || rc=$?
+  [[ $rc != 0 && "$out" == *"FATAL ask c1250005 not queued: helper of"*"$why"* && "$(qst 5)" == open/ && "$(plines 5)" == 0 ]] &&
+    pass "22. C125: refused, nothing queued, when ${c%%=*} is ${c#*=} ($(grep -o 'helper of [^:]*: [^(]*' <<<"$out" | sed -n 1p | cut -c1-80))" ||
+    fail "22. C125 refusal $c: rc $rc $(qst 5): $out"
+done
+rc=0; out="$(on pc do_spl_spawn_enqueue ASK_ID=c1250005 SPAWN_CLASS=feature SPAWN_PARENT_LANE=c-125 2>&1)" || rc=$?
+[[ $rc != 0 && "$out" == *"a helper needs SPAWN_PLACE"* && "$(qst 5)" == open/ ]] &&
+  pass "22. C125: a helper with no SPAWN_PLACE is refused" || fail "22. C125 no place: rc $rc: $out"
+out="$(on pc do_spl_spawn_enqueue ASK_ID=c1250005 SPAWN_CLASS=feature SPAWN_PLACE=claude:q9-help-5 2>&1)"
+[[ "$(qst 5)" == queued/ && "$(plines 5)" == 0 ]] &&
+  pass "22. C125 CONTROL: with no SPAWN_PARENT_LANE the same ask queues as before, unchecked, no Parent-Lane: line" || fail "22. C125 control: $(qst 5): $out"
+for n in 1 2 3 4 5; do HUB_DIR="$T/hub" "$T/bin/hub" ask dead --fleet main --id "c125000$n-0000-4000-8000-00000000000$n" --by c-001@box-desk --reason c125 >/dev/null 2>&1; done
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

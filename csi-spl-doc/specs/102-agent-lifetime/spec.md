@@ -430,7 +430,9 @@ after the agent is done.
   by `hooks/post-checkout` at `git worktree add` from the adding agent's
   `SPOOL_AGENT_ID`, or its nearest ancestor's: a `sudo -u` hop drops it), or
   its name carries the id AND a message the seat itself sent (its spool
-  outbox, live or under `.retired/`) names the exact path; a marker naming
+  outbox, live or under `.retired/`) names the exact path, with no path
+  character on either side (`/var/tmp/x` and `/tmp/x-old` do not prove
+  `/tmp/x`, R7 W1); a marker naming
   another id wins over the name. It is kept when locked, mounted under
   (`findmnt`), held by a process (cwd or open fd) or owned by another user
   than the main checkout. A clean tree goes by `git worktree remove`; a dirty

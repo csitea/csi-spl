@@ -99,10 +99,11 @@ marker_of() {
   gd="$(as_root sed -n 's/^gitdir: //p;T;q' "$1/.git" 2>/dev/null)"
   [ -n "$gd" ] && as_root head -1 "$gd/spl-owner" 2>/dev/null | cut -f1
 }
-# sent_names ID WT: a message ID itself sent names WT exactly
+# sent_names ID WT: a message ID itself sent names WT exactly: no path
+# character on either side (/var/tmp/x and /tmp/x-old are not /tmp/x)
 sent_names() {
   local re d dirs=()
-  re="$(printf '%s' "$2" | sed 's/[.[\*^$()+?{}|]/\\&/g')([^A-Za-z0-9._/-]|\$)"
+  re="(^|[^A-Za-z0-9._/-])$(printf '%s' "$2" | sed 's/[.[\*^$()+?{}|]/\\&/g')([^A-Za-z0-9._/-]|\$)"
   for d in "$spool/$1/outbox" "$spool/$1"@*/outbox "$spool/.retired/$1".*/outbox; do
     [ -d "$d" ] && dirs+=("$d")
   done

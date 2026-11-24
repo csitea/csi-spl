@@ -87,6 +87,13 @@ mkdir -p "$R/.retired/g-506.20261101T000000Z/outbox"
 printf '{"body":"ran in %s-old and %s/x"}\n' "$TR/g-506-red" "$TR/g-506-redx" >"$R/.retired/g-506.20261101T000000Z/outbox/m2.json"
 out="$(TMP_WT_LIVE_IDS="" bash "$REAP" --orphans --apply 2>&1)"
 check "4. (f) a longer path in its message is no proof" test -f "$TR/g-506-red/f"
+for pre in /var x _ . -; do  # R7 W1: a path character BEFORE the path
+  printf '{"body":"copy at %s%s"}\n' "$pre" "$TR/g-506-red" >"$R/.retired/g-506.20261101T000000Z/outbox/m-pre.json"
+  out="$(TMP_WT_LIVE_IDS="" bash "$REAP" --orphans --apply 2>&1)"
+  check "4. (f) a path with '$pre' before it is no proof" test -f "$TR/g-506-red/f"
+  has "4. (f) ...KEEP name-only" "KEEP name-only (no spl-owner marker, no message of g-506 names it) $TR/g-506-red" "$out"
+done
+rm -f "$R/.retired/g-506.20261101T000000Z/outbox/m-pre.json"
 printf '{"body":"red control in %s: exit 1"}\n' "$TR/g-506-red" >"$R/.retired/g-506.20261101T000000Z/outbox/m3.json"
 out="$(TMP_WT_LIVE_IDS="" bash "$REAP" --orphans --apply 2>&1)"
 check "4. its own sent message naming the path proves it: removed" test ! -e "$TR/g-506-red"

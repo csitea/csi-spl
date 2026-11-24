@@ -33,6 +33,9 @@ set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=test-lib.inc.sh
 source "$TEST_DIR/test-lib.inc.sh"
+# SPL-6412: stop the C22/C24 signing key's gpg-agent before $T goes, also on a
+# failed or interrupted run
+trap 'gpgconf --homedir "$T/gpg" --kill all >/dev/null 2>&1; rm -rf "$T"' EXIT
 fails=0
 ME="$(id -un)"
 A="$T/a"; B="$T/b"; W="$T/wt"; P="$T/proc"

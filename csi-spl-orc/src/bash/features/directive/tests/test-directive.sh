@@ -17,7 +17,10 @@ fails=0 n=0
 pass() { n=$((n + 1)); echo "PASS: $1"; }
 fail() { n=$((n + 1)); echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d)
-trap 'rm -rf "$T"' EXIT
+# SPL-6412: stop the test keyring's gpg-agent before its homedir goes, also on
+# a failed or interrupted run (the kill at the end of section 3 runs only when
+# the run gets there)
+trap 'gpgconf --homedir "$T/gpg" --kill all >/dev/null 2>&1; rm -rf "$T"' EXIT
 export SPOOL_BOX_ENV="$T/no-box.env" TMPDIR="$T"
 unset DIRECTIVE_FPR DIRECTIVE_BOX DIRECTIVE_LEDGER DIRECTIVE_GNUPGHOME SPOOL_BOX_TAG BOX_TAG
 

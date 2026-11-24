@@ -238,7 +238,8 @@ bash csi-spl-orc/src/bash/features/directive/scripts/selftest-anyany.sh
 ```
 
 13 assertions over two suites, each generating throwaway keys in a temporary
-`GNUPGHOME` and removing them.
+`GNUPGHOME` and removing them; their EXIT trap stops the keyring's gpg-agent
+first, also on an interrupted run (SPL-6412).
 
 | suite | asserts |
 |---|---|

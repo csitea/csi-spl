@@ -30,7 +30,11 @@ esac
 # it, and only because it ran the suites while the owner had one open.
 export DIRECTIVE_SESSION_STATE="${DIRECTIVE_SESSION_STATE:-/nonexistent/no-session-during-tests}"
 
-G=$(mktemp -d "${TMPDIR:-/tmp}/dtest-XXXXXX"); chmod 700 "$G"
+G=$(mktemp -d "${TMPDIR:-/tmp}/dtest-XXXXXX"); chmod 700 "$G"; G2=""
+# SPL-6412: a gpg-agent lives while its homedir does; an interrupted run must
+# not leave either behind
+reap() { local g; for g in "$G" $G2; do gpgconf --homedir "$g" --kill all >/dev/null 2>&1; done; rm -rf "$G" $G2; }
+trap reap EXIT
 export DIRECTIVE_GNUPGHOME="$G" DIRECTIVE_LEDGER="$G/nonces" DIRECTIVE_BOX=bx1
 PASS=testpass
 pass=0; fail=0
@@ -96,5 +100,4 @@ gpg --homedir "$G" --export --armor "$FPR" 2>/dev/null | gpg --homedir "$G2" --i
 DIRECTIVE_GNUPGHOME="$G2" bash "$D/directive-verify.sh" --check-key >/dev/null 2>&1 && ok "check-key passes with public half only" || no "check-key passes with public half only"
 
 echo; echo "  == $pass passed, $fail failed =="
-rm -rf "$G" "$G2"
 [ "$fail" -eq 0 ]

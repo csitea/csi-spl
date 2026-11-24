@@ -10,7 +10,7 @@ for f in "$V" "$S"; do
   bash "$f" --nonsense >/dev/null 2>&1; [ $? -ne 127 ] || { echo "ABORT: $f exits 127"; exit 3; }
 done
 
-G=$(mktemp -d "${TMPDIR:-/tmp}/dtS-XXXXXX"); chmod 700 "$G"; trap 'rm -rf "$G"' EXIT
+G=$(mktemp -d "${TMPDIR:-/tmp}/dtS-XXXXXX"); chmod 700 "$G"; trap 'gpgconf --homedir "$G" --kill all >/dev/null 2>&1; rm -rf "$G"' EXIT
 export GNUPGHOME="$G"
 mk(){ gpg --batch --pinentry-mode loopback --passphrase "$2" \
         --quick-generate-key "$1" ed25519 sign never >/dev/null 2>&1

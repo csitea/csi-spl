@@ -25,7 +25,7 @@ bash "$V" --help >/dev/null 2>&1; [ $? -ne 127 ] || { echo "ABORT: verifier exit
 # it, and only because it ran the suites while the owner had one open.
 export DIRECTIVE_SESSION_STATE="${DIRECTIVE_SESSION_STATE:-/nonexistent/no-session-during-tests}"
 
-G=$(mktemp -d "${TMPDIR:-/tmp}/dtL-XXXXXX"); chmod 700 "$G"; trap 'rm -rf "$G"' EXIT
+G=$(mktemp -d "${TMPDIR:-/tmp}/dtL-XXXXXX"); chmod 700 "$G"; trap 'gpgconf --homedir "$G" --kill all >/dev/null 2>&1; rm -rf "$G"' EXIT
 mk(){ gpg --homedir "$G" --batch --pinentry-mode loopback --passphrase "$2" \
         --quick-generate-key "$1" ed25519 sign never >/dev/null 2>&1
       gpg --homedir "$G" --list-keys --with-colons "$1" 2>/dev/null | awk -F: '/^fpr/{print $10; exit}'; }

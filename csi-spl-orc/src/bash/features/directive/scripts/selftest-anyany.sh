@@ -36,7 +36,11 @@ no(){ printf '  FAIL  %s\n' "$1"; fail=$((fail+1)); }
 # it, and only because it ran the suites while the owner had one open.
 export DIRECTIVE_SESSION_STATE="${DIRECTIVE_SESSION_STATE:-/nonexistent/no-session-during-tests}"
 
-GA=$(mktemp -d "${TMPDIR:-/tmp}/dtA-XXXXXX"); chmod 700 "$GA"
+GA=$(mktemp -d "${TMPDIR:-/tmp}/dtA-XXXXXX"); chmod 700 "$GA"; GB="" GC=""
+# SPL-6412: a gpg-agent lives while its homedir does; an interrupted run must
+# not leave either behind
+reap() { local g; for g in "$GA" $GB $GC; do gpgconf --homedir "$g" --kill all >/dev/null 2>&1; done; rm -rf "$GA" $GB $GC; }
+trap reap EXIT
 gpg --homedir "$GA" --batch --pinentry-mode loopback --passphrase 'realpass' \
     --quick-generate-key "owner with passphrase" ed25519 sign never >/dev/null 2>&1
 FA=$(gpg --homedir "$GA" --list-keys --with-colons 2>/dev/null | awk -F: '/^fpr/{print $10; exit}')
@@ -89,5 +93,4 @@ else
 fi
 
 echo; echo "  == $pass passed, $fail failed =="
-rm -rf "$GA" "$GB" "$GC"
 [ "$fail" -eq 0 ]

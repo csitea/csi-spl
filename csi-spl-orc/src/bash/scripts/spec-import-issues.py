@@ -1126,6 +1126,7 @@ PLAN_TOPIC = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 PLAN_SPEC = re.compile(r"(?:[\w.-]+/)?specs/(\d{3})-[\w.-]+")
+PLAN_SPEC_LINE = re.compile(r"^\W*spec\b[^\n]*", re.IGNORECASE | re.MULTILINE)
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 KEY_REF = re.compile(r"\bSPL-\d+\b")
@@ -1176,8 +1177,10 @@ def plan_table(text: str, heading: str) -> tuple:
 
 
 def _plan_head(text: str, discussions: str) -> tuple:
-    """(epic, topic) from the plan's first 40 lines: its 'Epic:' line and its
-    'Topic:' (or 'Discussion:') line, else the first of <discussions>."""
+    """(epic, topic, spec match) from the plan's first 40 lines: its 'Epic:'
+    line, its 'Topic:' (or 'Discussion:') line, else the first of
+    <discussions>, and the specs/NNN-slug path of its 'Spec:' line, else the
+    first such path in the plan."""
     head = "\n".join(text.splitlines()[:40])
     em = PLAN_EPIC.search(head)
     if not em:
@@ -1191,7 +1194,8 @@ def _plan_head(text: str, discussions: str) -> tuple:
         raise PlanError(
             "no discussion: add a 'Topic: <topic uuid>' line, or set ISSUE_DISCUSSIONS"
         )
-    tag = PLAN_SPEC.search(text)
+    line = PLAN_SPEC_LINE.search(head)
+    tag = (line and PLAN_SPEC.search(line.group(0))) or PLAN_SPEC.search(text)
     if not tag:
         raise PlanError(
             "no spec number: add a 'Spec: csi-spl-doc/specs/<NNN-slug>' line"

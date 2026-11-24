@@ -783,5 +783,32 @@ out=$(SPEC_IMPORT_PLAN="$PLANFIX/round-plan.md" SPEC_IMPORT_PLAN_TABLE='The rows
 [[ $rc == 0 ]] && grep -q '^| 153 | 1 | 1 | 0 | 0 | 1 |' <<<"$out" && grep -q '\[153 Q1\]' <<<"$out" &&
   pass "C126 action: the offline report reads the plan's table" || fail "C126 action offline: rc=$rc $out"
 
+# C126 follow-up (R7 notes N1, N3 on a1a16ddd7). N1: the spec number comes
+# from the plan's 'Spec:' line, not from the first specs/NNN- path in the
+# text. N3: a heading with no table under it, a heading that appears twice
+# (the first wins, and with no table there it is refused, never a fall-through
+# to the second), and an action run with no discussion are all refused,
+# nothing filed.
+sed 's#^\# Sample build round (plan)#\# Sample build round, after csi-spl-doc/specs/186-other-spec (plan)#' \
+  "$PLANFIX/round-plan.md" >"$PLANFIX/spec-line.md"
+out=$(python3 "$PY" plan --plan-file "$PLANFIX/spec-line.md" --table 'The rows' 2>&1); rc=$?
+[[ $rc == 0 ]] && [[ "$(jq -r '.items[0].title' <<<"$out")" == "[153 Q1] "* ]] &&
+  pass "C126 N1: the Spec: line names the spec, not an earlier specs/NNN- path" || fail "C126 N1: rc=$rc $out"
+printf '# P\n\nEpic: SPL-50\nSpec: csi-spl-doc/specs/153-sample-tab\nTopic: %s\n\n## The rows\n\nno table here\n\n## Later\n\n| row | what |\n|---|---|\n| Q1 | x |\n' \
+  "$PLAN_TOPIC_ID" >"$PLANFIX/no-table.md"
+out=$(python3 "$PY" plan --plan-file "$PLANFIX/no-table.md" --table 'The rows' 2>&1); rc=$?
+[[ $rc == 2 ]] && grep -q "no table with rows under the heading 'The rows'" <<<"$out" &&
+  pass "C126 N3: a heading with no table under it is refused" || fail "C126 N3 no table: rc=$rc $out"
+printf '# P\n\nEpic: SPL-50\nSpec: csi-spl-doc/specs/153-sample-tab\nTopic: %s\n\n## The rows\n\nnone yet\n\n## The rows\n\n| row | what |\n|---|---|\n| Q1 | x |\n' \
+  "$PLAN_TOPIC_ID" >"$PLANFIX/twice.md"
+out=$(python3 "$PY" plan --plan-file "$PLANFIX/twice.md" --table 'The rows' 2>&1); rc=$?
+[[ $rc == 2 ]] && grep -q 'no table with rows' <<<"$out" &&
+  pass "C126 N3: a heading twice: the first wins, no table there is refused, no fall-through" || fail "C126 N3 twice: rc=$rc $out"
+: >"$PLAN_CALLS"
+out=$(unset ISSUE_DISCUSSIONS; SPEC_IMPORT_PLAN="$PLANFIX/no-topic.md" SPEC_IMPORT_PLAN_TABLE='The rows' SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" DRY_RUN=0 do_spl_spec_import_issues 2>&1); rc=$?
+trap - RETURN
+[[ $rc != 0 && ! -s "$PLAN_CALLS" ]] && grep -q 'no discussion' <<<"$out" &&
+  pass "C126 N3 action: a plan with no discussion is refused, nothing filed" || fail "C126 N3 action no discussion: rc=$rc $out | $(cat "$PLAN_CALLS")"
+
 echo "=== $([[ $fails -eq 0 ]] && echo 'spec-import-issues: ALL PASS' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

@@ -1,21 +1,28 @@
 # Spec 186: Multicast Prompt
 
-Status: **Draft v0.5, every question answered** (2026-11-20). v0.1
+Status: **Draft v0.6, every question answered** (2026-11-24). v0.1
 `83295f6d1`; v0.2
 `b53947cee` folded the spec review's W1-W6 and N1; v0.3 (`a86daa6c5`) folds
 the owner's answers to form `e864b1cb` (Q1-Q5, Q7-Q11, msg `dcf298b8`) and
 the Q6 chat answer (msg `1b95d0ec`), and drops every part only an unchosen
 answer needed; v0.4 (`cbbc11996`) folds the v0.3 delta review (c-240, msg
 `9598398d`: W1-W5, N1-N6) and put R2 (the cap) and R3 (the phone entry) to
-the owner as form `a07226d8` (t1 `032d8010`); v0.5 folds the owner's answers
-(msg `ee9b2558`: R2 **QTA**, R3 **ATT**), drops the target cap with every
-part only it needed (`hub.multicast.max_targets`, `multicast_too_many`,
-`multicast_max`), and folds the v0.4 review's notes (c-240, msg
-`d12953b2`: N1 the R2/R3-dependent spots, N2 the box-lock filter's row
-type, 7.1.2).
-Lane `c-098` (`claude`, backup for `specs_and_docs`: no agy cli on
-this box). Placement `c002-s-multicast-prompt-spec`.
-Epic: **SPL-2403**. Issue: **SPL-6058**. Class: `feature`. Kind: `specs_and_docs`.
+the owner as form `a07226d8` (t1 `032d8010`); v0.5 (`31b583afe`) folds the
+owner's answers (msg `ee9b2558`: R2 **QTA**, R3 **ATT**), drops the target
+cap with every part only it needed, and folds the v0.4 review's notes; v0.6
+replaces R3 ATT with the owner's re-decided phone entry (HUM-10, t1 `032d8010`,
+2026-11-24: 07:04Z msg `fe3ced5e`, 07:05Z msg `afc6f1d7`, 07:05Z poll
+`e722e403` answer A msg `a158a4fd` to build round M1-M9): a long press on
+the docked composer's Send button opens "Send to several topics"; a tap sends
+to this topic only; the dock row stays Back | Attach | Send; Attach stays the
+direct OS picker (Attach sheet dropped); desktop entry stays beside Attach
+answering msg `afc6f1d7`; defines the long press (duration, haptic/visual cue,
+tap vs long press, keyboard/screen-reader accessibility, coexistence with
+composer gestures citing origin/master lines); updates rows M1-M9 and e2e test
+requirements.
+Lane `a-641` (`agy`, main for `specs_and_docs`). Placement
+`c002-s186-v06-phone-longpress-send`.
+Epic: **SPL-2403**. Issue: **SPL-6351**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:032d8010-f150-4125-b1c2-70e503b1a450` (`t1`).
 Builds on: [005 spool WUI](../005-spool-wui/spec.md) (the composer),
 [185 forward a message card](../185-message-forward/spec.md) (one card into
@@ -30,7 +37,9 @@ files cited here is `csi-spl-wui/src/public/help-md/how-to-post.md`. The
 references v0.4 adds (the box lock, the phone dock, the rdb head) were read
 on `7df5cecfc`; the ones v0.5 adds (the quota, the Attach button, the
 phone e2e tests that tap it, `keepTopics`, `TopicRow.Parties`) on
-`2500f49fc`.
+`2500f49fc`; the ones v0.6 adds (the Send button and composer pointer
+listeners, long-press timing and slop in `touch-ui.ts`, haptic feedback in
+composables, and the phone e2e tests) on `3eec1eb89`.
 
 ## 0. The owner's words (HUM-10, t1 topic 032d8010)
 
@@ -47,6 +56,14 @@ Msg `ee9b2558` (20:51:09Z, form `a07226d8`), as the dispatch holder
 c-003@sat relayed it (msg `37cdfda8`): "Answer 1: ATT — Inside the Attach
 sheet; the dock row stays Back | Attach | Send" and "Answer 2: QTA — No cap:
 only the existing per-sender quota counts each copy".
+
+Owner re-decision on mobile entry and desktop control (2026-11-24, t1 `032d8010`):
+- 07:04Z msg `fe3ced5e`: "Actually, I changed my mind. It should be better to
+  trigger it by keeping the play button pressed longer on mobile."
+- 07:05Z msg `afc6f1d7`: "And on desktop, there should be a separate control
+  for it."
+- 07:05Z poll `e722e403` answer A (msg `a158a4fd`): build round for M1-M9
+  (a planner follows you).
 
 Read as: in the composer, the author writes ONE text (with files, if any),
 picks SEVERAL topics, from any channels of the same workspace, by ticking
@@ -70,14 +87,15 @@ of them. Nothing named multicast exists today:
 | Q10 | Does it compose with loops (spec 182)? | **CMP** — also a "multicast loop": one loop whose prompt goes to several topics |
 | Q11 | Where is it offered? | **BTH** — desktop and the phone dock |
 | R2 | A target cap? (form `a07226d8`, msg `ee9b2558`) | **QTA** — no cap: only the existing quota counts each copy |
-| R3 | The phone entry? (form `a07226d8`, msg `ee9b2558`) | **ATT** — inside the Attach sheet; the dock row stays Back \| Attach \| Send |
+| R3 | The phone entry? (form `a07226d8`, msg `ee9b2558`; re-decided 2026-11-24 msgs `fe3ced5e` and `afc6f1d7`) | **LNG** — long press on the docked Send button (the "play" button); a tap still sends to this topic only; the dock row stays Back \| Attach \| Send; on desktop, a separate button beside Attach (re-affirmed) |
 
 Dropped with the unchosen answers: saved target groups (Q1 GRP/BTH), the
 "new topic in #channel" row (Q2 NEW), unlinked copies (Q3 IND), the gathered
 "Multicast" view (Q4 GTH), the MEN/NON agent rules (Q5), DM targets (Q8),
 the send-what-passes path (Q9 SND), the fixed caps 10/25/50 (Q6), the cnf
 guard and the confirm above N (R2 CNF/ASK), the topic-header button and the
-fourth dock button (R3 HDR/DCK).
+fourth dock button (R3 HDR/DCK), and the superseded Attach sheet entry
+(R3 ATT, superseded in v0.6).
 
 One reading this spec decides (the v0.3 review confirmed it), and the two
 owner answers to the v0.4 questions:
@@ -102,18 +120,59 @@ owner answers to the v0.4 questions:
   multicast loop with `daily_at` sends one `kind: task` per target per
   fire, each counted in that quota, while 182's stop cap counts fires (4.8
   step 4).
-- **R3, decided: ATT, the Attach sheet** (v0.3 review W2). The phone dock
-  row stays Back | Attach | Send by owner order (topic `d4bc9db4`,
-  `MessageComposer.vue:270-275`), and
+- **R3, re-decided: LNG, long press on the docked Send button** (re-decided by
+  owner 2026-11-24: 07:04Z msg `fe3ced5e` "Actually, I changed my mind. It
+  should be better to trigger it by keeping the play button pressed longer on
+  mobile", 07:05Z msg `afc6f1d7` "And on desktop, there should be a separate
+  control for it", and 07:05Z poll `e722e403` answer A msg `a158a4fd` to build
+  round M1-M9; supersedes the v0.5 R3 ATT decision, msg `ee9b2558`).
+  The dock row strictly remains Back | Attach | Send by owner order (topic
+  `d4bc9db4`, `MessageComposer.vue:270-275`), asserted by
   `csi-spl-wui/tests/e2e/dock-buttons.test.mjs:158` and
-  `tests/unit/touch-ui.test.mjs:235-238` keep asserting that order. When
-  the composer is docked, Attach opens a small sheet of two rows, "Files"
-  and "Send to several topics", instead of the OS picker at once: "Files"
-  opens the OS picker as Attach does today (the tap on the row is the user
-  gesture the file input needs), so a photo costs one tap more. Off the
-  dock (desktop) Attach is unchanged and the multicast button sits beside
-  it (4.1). Three phone e2e tests that tap Attach and wait for the OS
-  picker then tap "Files" too (M3).
+  `tests/unit/touch-ui.test.mjs:235-238`.
+  Attach is completely untouched: a tap on Attach calls `openFiles`
+  (`MessageComposer.vue:297`) and opens the OS file picker directly as it does
+  today, docked or not (no intermediate sheet, no extra tap for photos,
+  `AttachSheet.vue` and `composer.attach_files` dropped; the three phone e2e
+  tests `composer-buttons-bottom.test.mjs:121-128`,
+  `mobile-rail-whole-icons.test.mjs:254-259`, and
+  `snackbar-top-mobile.test.mjs:137-140` continue passing without changes).
+  Off the dock (desktop), a dedicated button "Send to several topics" sits
+  beside Attach (`MessageComposer.vue:288-300`, section 4.1 step 1), answering
+  msg `afc6f1d7`.
+  On the phone dock, the entry is a long press on the Send button
+  (`data-testid=send`, `MessageComposer.vue:323-333`):
+  * **Duration & slop**: `LONG_PRESS_MS = 500` ms, `LONG_PRESS_SLOP_PX = 10` px
+    (`csi-spl-wui/src/utils/touch-ui.ts:17-19`, `createLongPress:94-134`). A
+    touch pointer (`isTouchPointer`, `touch-ui.ts:76-78`) starting on docked
+    Send arms a 500 ms timer.
+  * **Short tap (< 500 ms)**: Releasing before 500 ms cancels the timer
+    (`createLongPress.up()`), `takeClick()` returns false, and the standard
+    form submit / click triggers `onSend()` (`MessageComposer.vue:15,606`),
+    sending the post to the current topic only.
+  * **Long press (>= 500 ms)**: Holding Send for 500 ms without moving more
+    than 10 px fires the long-press action: triggers haptic feedback
+    (`navigator.vibrate(10)` where supported, matching `SearchSidePanel.vue:185`,
+    `useCardSwipe.ts:38`, `useFlowLineMenu.ts:65`) and visual feedback (a pulse
+    cue on the button), opens `MulticastPickerDialog` as a sheet over the dock,
+    and sets `takeClick() = true` so the subsequent click on pointer release is
+    swallowed and does not send to the single topic.
+  * **Accessibility (keyboard and screen-reader)**: On desktop, the dedicated
+    multicast button is in the tab order with `:aria-label="t('composer.multicast')"`.
+    On the phone dock, the Send button carries `:aria-haspopup="'dialog'"` and
+    handles `@contextmenu.prevent` to open the picker, allowing screen readers
+    (iOS VoiceOver, Android TalkBack custom actions) and keyboard navigation to
+    trigger "Send to several topics" without physical touch holding.
+  * **Coexistence with composer gestures**: On `origin/master` (`3eec1eb89`),
+    the `<textarea ref="inputEl">` (`MessageComposer.vue:162-183`) handles typing
+    and text selection natively. Send is a separate `<button type="submit"
+    class="composer-send composer-go" data-testid="send">` in `.composer-row`
+    (`MessageComposer.vue:323-333`). Send has `@mousedown.prevent` (line 329,
+    preventing desktop focus blur) and `v-tap-anim="'nudge'"` (line 327); it has
+    no existing long-press or pointer listener (`git grep` shows 0 on Send).
+    Attaching pointer listeners to Send when docked does not interfere with
+    textarea selection, caret movement, or omnibox resize
+    (`@pointerdown="startResize"`, line 263).
 
 ## 2. Terms
 
@@ -246,10 +305,10 @@ carries. Limits: body 64 KiB, 16 files (`internal/msg/msg.go:42-43`).
 ### 4.1 Composer and picker
 
 1. **Composer.** On the desktop, a "Send to several topics" button beside
-   the attach button (`MessageComposer.vue:288-300`) opens the picker; it
-   is not rendered when the composer is docked. On a phone the entry is
-   the Attach sheet's "Send to several topics" row (R3 ATT, 4.6). The text
-   and the picked files stay in the composer.
+   the attach button (`MessageComposer.vue:288-300`) opens the picker,
+   answering the owner's 07:05Z post (`afc6f1d7`); it is not rendered when the
+   composer is docked. On a phone the entry is a long press on the docked Send
+   button (R3 LNG, 4.6). The text and the picked files stay in the composer.
 2. **Picker** (Q1 MSL, Q8 CHN, 7.1.6). One dialog: a filtered list of the
    topics in scope (4.2: every channel the author may read and post in),
    grouped by channel,
@@ -336,13 +395,25 @@ replies; `mc_id` is on neither the view row nor the `message` frame.
 
 ### 4.6 Phone (Q11 BTH)
 
-R3 ATT. The dock row stays Back | Attach | Send. When the composer is
-docked, a tap on Attach opens the Attach sheet (anchored above the dock,
-closed by a tap outside it or Back) with two rows: "Files", which opens the
-OS picker as Attach does today, and "Send to several topics", which opens
-the picker. No camera row: a photo is still taken through the OS picker
-(topic `d4bc9db4`; `touch-ui.test.mjs:230-231` bans a capture input). On a
-phone the picker opens as a full-screen sheet over the dock, the Patterns
+R3 LNG. The dock row stays Back | Attach | Send (topic `d4bc9db4`,
+`MessageComposer.vue:270-275`). Attach is unchanged: a tap on Attach calls
+`openFiles` (`:297`) and opens the OS picker directly, docked or not (no
+intermediate sheet; photos use the OS picker; `touch-ui.test.mjs:230-231` bans
+a capture input).
+When the composer is docked, the entry to multicast is a long press on the Send
+button (`data-testid=send`, `MessageComposer.vue:323-333`):
+- Duration & slop: `LONG_PRESS_MS = 500` ms, `LONG_PRESS_SLOP_PX = 10` px
+  (`src/utils/touch-ui.ts:17-19`, `createLongPress:94-134`).
+- Short tap (< 500 ms): sends to the current topic only (`onSend`,
+  `MessageComposer.vue:15,606`), animating with `v-tap-anim="'nudge'"`.
+- Long press (>= 500 ms): triggers haptic feedback (`navigator.vibrate(10)`
+  where supported) and visual cue, and opens `MulticastPickerDialog` as a
+  full-screen sheet over the dock; `takeClick()` swallows the release click so
+  no single-topic send occurs.
+- Accessibility: Send carries `:aria-haspopup="'dialog'"` and handles
+  `@contextmenu.prevent` so assistive technologies (VoiceOver, TalkBack) and
+  keyboard users can open the picker dialog without touch holding.
+On a phone the picker opens as a full-screen sheet over the dock, the Patterns
 field above the list, the Send button fixed at its foot; the result lines
 replace the list.
 
@@ -397,7 +468,7 @@ nothing, and is where patterns become task ids.
 | G1 | the column that links the copies | M1 |
 | G2 | `mc_id` on the frame, the existing-channel-topic check, the author check, the store write | M2 |
 | G3 | the check frame: selector resolution (patterns, `*`), the per-target dry run, the quota for the whole count | M4 |
-| G4 | the desktop button, the phone Attach sheet, the picker with the Patterns field, the N sends, the result list with Retry | M3 |
+| G4 | the desktop button, the docked Send long-press gesture, the picker with the Patterns field, the N sends, the result list with Retry | M3 |
 | G5 | e2e | M7 |
 | G6 | translations, agy's review | M8 |
 | G7 | contract and user docs | M9 |
@@ -416,11 +487,11 @@ dropped with Q4 GTH and Q1 GRP; the numbers are not reused.)
 |---|---|---|---|---|---|
 | M1 | rdb: `mc_id` and its index | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_messages_mc_id.sql` (head `0301_topic_loops.sql` on `2500f49fc`, spec 182's L1; spec 185's F1 plans one more, so 0302 or later: re-check) | none | applies twice on a throwaway postgres; `\d messages` lists `mc_id uuid` nullable and the partial index | a migration test asserting `mc_id` fails before the file exists |
 | M2 | hub: the send-time multicast checks and store | `internal/hub/wui.go` (`wuiIn.McID`, one `wuiMulticast` step after `wuiIDs`), new `internal/hub/wui_multicast.go` + `wui_multicast_test.go`, `internal/store` (postgres + memory: write `mc_id`, `MulticastAuthor`); no cnf key (R2 QTA) | 7.1.1, 7.1.3; M1's file for the postgres test | Go tests on postgres: N frames with one `mc_id` into N readable topics of different channels store N rows with that `mc_id`; each copy routes as 3.2 step 4 (Q5 NRM); an @agent copy into a humans-only channel is a plain post; 1200 copies of one `mc_id` with an unlimited quota all store (no cap, R2 QTA); a resend of a stored copy re-acks, also with the quota spent (`messageQuota` exempts a stored `msg_id`); with the monthly quota set to the stored count + 2, 4 copies store 2 and the other 2 answer the quota token 429; an unpaid tenant answers 402 on every copy; of 3 targets where the middle one is an existing topic of a members-only channel the author is not in, or a DM topic, the first and third are stored and the middle one answers `multicast_no_topic` 404, the same token and detail as an unknown `task_id`, and its error frame names only its own `msg_id` | an unknown `task_id` with `mc_id` must answer `multicast_no_topic` (without the check it opens a topic); a DM topic the author is an end of must answer `multicast_no_topic` (Q8 CHN); a second author reusing the `mc_id` must answer `bad_json`; add any count of the copies of one `mc_id`: the 1200 test fails; answer `forbidden` for an unreadable topic: the members-only test fails (it must not say the topic exists) |
-| M3 | WUI: button, Attach sheet, picker, N sends, results | `components/MessageComposer.vue` (the desktop button, not rendered when docked; docked, Attach opens the Attach sheet, R3 ATT), new `components/AttachSheet.vue`, new `components/MulticastPickerDialog.vue`, new `composables/useMulticastSend.ts`, `stores/channel.ts` (`sendMulticast`, one `sendLive` per target), `utils/spool-client.mjs` + `spool-client-mock.mjs` (`mc_id`, `multicastCheck`), `i18n/locales/*.json` (en + machine drafts); the three phone e2e tests that tap Attach and wait for the OS picker tap "Files" next (`tests/e2e/composer-buttons-bottom.test.mjs:121-128`, `mobile-rail-whole-icons.test.mjs:254-259`, `snackbar-top-mobile.test.mjs:137-140`, all on a 390 px touch viewport) | 7.1.1, 7.1.2, 7.1.4, 7.1.6 | a unit test of the picker rows (channel topics grouped, the lobby and `general` present, `issues` and DM topics absent); a unit test of `useMulticastSend` on the mock: the patterns go to the check verbatim and the WUI evaluates none, Send is disabled while any checked target is not ok, files uploaded once, N frames with one `mc_id` and N `msg_id`s, exactly the check's `task_id`s; the mock socket drops after 2 of 5 frames are acked: the 2 show sent, the 3 others show "waiting for network" (`sendLive` returns `waitForNetwork`, `channel.ts:681,686`), the composer keeps the text until all 5 are acked, and on reconnect the 3 go again under their own `msg_id`s; a send-time refusal lists that target with Retry under the same `msg_id`; a component test at a 390 px viewport: a tap on Attach opens the Attach sheet, "Files" opens the OS picker, "Send to several topics" opens the picker, a tap outside closes the sheet; off the dock a click on Attach opens the OS picker at once (no sheet); `dock-buttons.test.mjs` and `touch-ui.test.mjs` stay green unchanged (the dock row is Back \| Attach \| Send, no capture input); an answer with an older `req_id` than the newest sent is dropped; `pnpm run typecheck`; i18n gates | make the mock check refuse one target: Send must stay disabled; evaluate a pattern in JS: the "verbatim" test sees a filtered list and fails; clear the composer on the first ack: the socket-drop test fails; mint a new `msg_id` on the reconnect resend: 7 frames stored, not 5, and the test fails; render the button in the dock: `dock-buttons.test.mjs:158` fails; open the sheet off the dock: the desktop Attach test sees no OS picker and fails |
+| M3 | WUI: desktop button, Send long press, picker, N sends, results | `components/MessageComposer.vue` (the desktop button beside Attach answering 07:05Z `afc6f1d7`, not rendered when docked; when docked, Send handles long press via `createLongPress`, R3 LNG; Attach is untouched), new `components/MulticastPickerDialog.vue` (no `AttachSheet.vue`), new `composables/useMulticastSend.ts`, `stores/channel.ts` (`sendMulticast`, one `sendLive` per target), `utils/spool-client.mjs` + `spool-client-mock.mjs` (`mc_id`, `multicastCheck`), `i18n/locales/*.json` (en + machine drafts; no `composer.attach_files`); the three phone e2e tests that tap Attach (`tests/e2e/composer-buttons-bottom.test.mjs:121-128`, `mobile-rail-whole-icons.test.mjs:254-259`, `snackbar-top-mobile.test.mjs:137-140`) remain untouched and continue testing the direct OS picker | 7.1.1, 7.1.2, 7.1.4, 7.1.6 | a unit test of the picker rows (channel topics grouped, the lobby and `general` present, `issues` and DM topics absent); a unit test of `useMulticastSend` on the mock: the patterns go to the check verbatim and the WUI evaluates none, Send is disabled while any checked target is not ok, files uploaded once, N frames with one `mc_id` and N `msg_id`s, exactly the check's `task_id`s; the mock socket drops after 2 of 5 frames are acked: the 2 show sent, the 3 others show "waiting for network" (`sendLive` returns `waitForNetwork`, `channel.ts:681,686`), the composer keeps the text until all 5 are acked, and on reconnect the 3 go again under their own `msg_id`s; a send-time refusal lists that target with Retry under the same `msg_id`; a component test at a 390 px viewport: a short tap (< 500 ms) on docked Send calls `onSend` and does not open the picker; a long press (>= 500 ms) on docked Send triggers haptic feedback (`navigator.vibrate(10)`) and visual cue, opens the picker dialog, and swallows the lift click (`takeClick()`); a tap on Attach opens the OS picker directly (`openFiles`); off the dock a click on the dedicated multicast button opens the picker dialog; `dock-buttons.test.mjs:158` and `touch-ui.test.mjs:235-238` stay green unchanged (the dock row is Back \| Attach \| Send, no capture input); screen-reader / contextmenu invocation opens the picker dialog; an answer with an older `req_id` than the newest sent is dropped; `pnpm run typecheck`; i18n gates | make the mock check refuse one target: Send must stay disabled; evaluate a pattern in JS: the "verbatim" test sees a filtered list and fails; clear the composer on the first ack: the socket-drop test fails; mint a new `msg_id` on the reconnect resend: 7 frames stored, not 5, and the test fails; render the multicast button in the dock: `dock-buttons.test.mjs:158` fails; send single-topic on long press: long-press test fails; lift click on long press triggers single send: single-send test fails |
 | M4 | hub: the check frame | `internal/hub/wui_multicast.go` (`multicast_check` handler, `resolveMulticast`), `wui_multicast_check_test.go` | 7.1.2; `ViewTopics` (3.4) | Go tests on postgres: `*` in a tenant with topics in a public channel, a members-only channel the author is in, one the author is not in, the lobby, `issues`, an archived topic and a DM returns exactly the first two and the lobby one; a topic in a channel the author reads but which touches a box locked to someone else (row B5) is absent under `*` and under `.`, and its title is in no answer; ` * ` (spaces round the star) resolves as `*`; a line of spaces is dropped; `^rel` matches "Release 2.0" and not "pre-release"; two patterns and a tick are unioned and deduplicated; a tenant with 450 topics (more than two pages of 200) resolves all 450 under `*`; a bad pattern answers `multicast_bad_pattern` naming its line; 1200 targets with an unlimited quota are all `ok` (no cap, R2 QTA); one target more than the remaining quota answers the whole check refused with the quota token, the count and the remaining messages; an archived ticked topic comes back `ok: false` `topic_archived`; no check stores anything (`messages` count unchanged); with one check in flight on a connection, a newer `req_id` cancels it: the older gets no answer, the newer one answer | stop paging: the 450 test fails; drop `(?i)`: "release" does not match "Release" and the test fails; drop `NoIssues`: the `*` test sees the issue topic and fails; drop the box-lock filter (7.1.2): the box-lock test sees the hidden topic's title and fails; count the quota per target instead of once: the quota test refuses at the first target past it, not the whole check, and fails; drop the trim: ` * ` compiles as a regex, misses the titles without a space, and the test fails |
-| M7 | e2e | new `csi-spl-wui/tests/e2e/multicast-prompt.test.mjs` | M3, M4 (mock) | on the generated bundle, mock-served: tick one topic and type `^release` matching two topics in another channel, see "Send to 3 topics", send once, the card appears in all three; a check that refuses one target keeps Send disabled with the reason shown; the same flow at a 390x844 viewport through Attach, then the sheet's "Send to several topics", the dock row still `dock-back,attach,send` | the e2e fails when the desktop button or the sheet row is absent |
+| M7 | e2e | new `csi-spl-wui/tests/e2e/multicast-prompt.test.mjs` | M3, M4 (mock) | on the generated bundle, mock-served: tick one topic and type `^release` matching two topics in another channel, see "Send to 3 topics", send once, the card appears in all three; a check that refuses one target keeps Send disabled with the reason shown; the same flow at a 390x844 viewport via long press on the docked Send button (holding Send >= 500 ms), the dock row still `dock-back,attach,send`; a short tap on Send still sends single-topic | the e2e fails when the desktop button or the Send long-press handler is absent |
 | M8 | i18n: agy's final review | the 18 non-en locale files, the keys of 7.1.4 | M3 landed | agy review per the language rule; gates green | the untranslated-count gate (`i18n-untranslated.test.mjs`) |
-| M9 | docs | `csi-spl-doc/specs/005-spool-wui/spec.md` (an FR for the multicast send: FR-022: FR-020 is the last on `4c4e97f75` and spec 185 row F7 plans FR-021; re-check), `csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` (section 4: `mc_id` and its refusals; the `multicast_check` / `multicast_checked` frames), the user help for the composer (patterns and `*`, the phone's Attach sheet) | 7.1 | `grep -c -e mc_id -e multicast_no_topic -e multicast_bad_pattern -e multicast_check -e multicast_none csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` -> at least 5 (0 on `4c4e97f75`) | none automatic: no test parses the fields of `wui-live-ws.md`; the reviewer re-runs the grep with one name removed and must see the count drop |
+| M9 | docs | `csi-spl-doc/specs/005-spool-wui/spec.md` (an FR for the multicast send: FR-022: FR-020 is the last on `4c4e97f75` and spec 185 row F7 plans FR-021; re-check), `csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` (section 4: `mc_id` and its refusals; the `multicast_check` / `multicast_checked` frames), the user help for the composer (patterns and `*`, the desktop button, and the phone's long press on Send) | 7.1 | `grep -c -e mc_id -e multicast_no_topic -e multicast_bad_pattern -e multicast_check -e multicast_none csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` -> at least 5 (0 on `4c4e97f75`) | none automatic: no test parses the fields of `wui-live-ws.md`; the reviewer re-runs the grep with one name removed and must see the count drop |
 | M10 | rdb + hub + WUI: the multicast loop (Q10 CMP) | `<next>_topic_loops_targets.sql` (7.1.7), the 182 fire path (`resolveMulticast` from M4 per fire), the 182 loop dialog (the switch and the selector), its tests | 4.8, 7.1.7; 182 L1, L2; M2, M4 | Go tests: a loop with `targets` `{"patterns": ["^ops"]}` fires once and stores one hidden `kind: task` per matching topic with one shared `mc_id`; a topic created after the loop was saved whose title matches gets the next fire; a target archived since makes the whole fire send nothing and logs one line; a target topic with no announced agent makes the whole fire send nothing and logs `loop_no_agent`; a refire for the same seed is a no-op (UUIDv5 ids) | resolve the targets at save time instead of fire time: the new-topic test fails; send what passes: the archived-target test sees N-1 rows and fails; skip the agentless target and send the rest: the no-agent test sees N-1 rows and fails |
 
 ## 7. Contracts
@@ -532,9 +603,7 @@ New i18n keys (en text): `composer.multicast` "Send to several topics",
 `composer.multicast_title` "Send to topics", `composer.multicast_patterns`
 "Topic title patterns, one per line; * = every topic",
 `composer.multicast_count` "{n} topics", `composer.multicast_send` "Send to
-{n} topics", `composer.attach_files` "Files" (the Attach sheet's first row;
-its second is `composer.multicast`),
-`composer.multicast_bad_pattern` "Pattern {line} is not valid: {reason}",
+{n} topics", `composer.multicast_bad_pattern` "Pattern {line} is not valid: {reason}",
 `composer.multicast_sent` "Sent to {n} topics",
 `composer.multicast_refused` "Not sent to {topic}: {reason}",
 `composer.multicast_retry` "Retry", `composer.multicast_none` "No topic

@@ -18,7 +18,11 @@ A fixed rule, no judgement per item: an issue is ended only when ALL hold:
   c8 no open ask names the key
   c9 last update IDLE_DAYS or more days ago
   c10 the title does not start "Seat brief:" (a standing seat's brief issue,
-      ended by the closer or LANE_ISSUE_OP=end, never by this sweep; SPL-5940)
+      ended by the closer or LANE_ISSUE_OP=end, never by this sweep; SPL-5940),
+      unless it is a one-shot seat that ends with its verdict (SPL-6432): the
+      title starts "Seat brief: R7 review" or "Seat brief: spec panel", or
+      names "panel reviewer" or "REVIEW SEAT" (any case); such an issue is
+      judged by c1-c9 like a lane issue
 """
 
 import datetime as dt, json, re, sys
@@ -29,6 +33,9 @@ AGENT = re.compile(r"^([a-z]-[0-9]+|(CLE|GRK|AGY|QWN)-[0-9]+)(@[A-Za-z0-9.-]+)?$
 LIVE_ASK = {"open", "acked", "queued", "placing", "needs_owner"}
 DISCUSSION = ("next: the first answer in the topic", "\n- Taken by: ")
 SEAT_BRIEF = "Seat brief:"
+ONE_SHOT = re.compile(
+    r"^Seat brief:\s*(R7 review|spec panel)|panel reviewer|REVIEW SEAT", re.IGNORECASE
+)
 
 
 def load(name):
@@ -119,7 +126,8 @@ def why_kept(i):
             return "c8", f"open ask {a.get('ask_id', '?')}"
     if ts(i.get("updated_at")) > now - idle * 86400:
         return "c9", f"updated {i.get('updated_at', '')[:19]}, under {idle} d"
-    if (i.get("title") or "").lstrip().startswith(SEAT_BRIEF):
+    title = (i.get("title") or "").lstrip()
+    if title.startswith(SEAT_BRIEF) and not ONE_SHOT.search(title):
         return "c10", "a standing seat's brief (Seat brief:)"
     return None
 

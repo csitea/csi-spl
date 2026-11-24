@@ -350,7 +350,12 @@ Order: B1 first; then B2, B4, B5, B7 in parallel (disjoint files); then B3
   standing seat's brief issue is ended by the closer or `LANE_ISSUE_OP=end`,
   never by this sweep; the first dry run on prd would have ended 7 of them,
   ruled a defect by c-001, msg 3bfe1569; a `Lane brief: ... reviewer seat`
-  issue stays sweepable). Oldest first, at most `STALE_MAX` a run (1..50,
+  issue stays sweepable). c10 is for standing seats only (SPL-6432): a
+  one-shot seat that ends with its verdict, a title starting
+  `Seat brief: R7 review` or `Seat brief: spec panel`, or naming
+  `panel reviewer` or `REVIEW SEAT` (any case), is judged by the other nine
+  like a lane issue (the 2026-11-24 reflection found 13 such issues wip
+  forever). Oldest first, at most `STALE_MAX` a run (1..50,
   default 50: the brief's ceiling). A lane
   map read only on this machine, or any list it cannot read, stops it with
   nothing written. `DRY_RUN=1` (the default) prints the would-end list and

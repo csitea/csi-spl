@@ -19,7 +19,9 @@
 # @description   8. no ask in state open, acked, queued, placing or needs_owner names it
 # @description   9. its last update is STALE_IDLE_DAYS or more days ago
 # @description  10. its title does not start "Seat brief:" (a standing seat's brief
-# @description      issue: the closer or LANE_ISSUE_OP=end ends it, never this sweep; SPL-5940)
+# @description      issue: the closer or LANE_ISSUE_OP=end ends it, never this sweep; SPL-5940),
+# @description      unless a one-shot seat (SPL-6432): "Seat brief: R7 review",
+# @description      "Seat brief: spec panel", or naming "panel reviewer" / "REVIEW SEAT"
 # @description Oldest first, at most STALE_MAX a run. A lane map read only on
 # @description this machine (LOCAL-ONLY), or any list that cannot be read, stops
 # @description the sweep: nothing written, one FATAL line says why.

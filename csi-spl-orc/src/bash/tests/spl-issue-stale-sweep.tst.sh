@@ -23,6 +23,12 @@
 #  10. one copy of the lease.conf reader (r89-02): the action keeps no reader of
 #      its own and reads LEASE_TENANT through spl_owner_digest_lease_conf, the
 #      owner digest's, which it loads itself when sourced alone (case 1)
+#  11. c10 is for standing seats only (SPL-6432): a one-shot "Seat brief: R7
+#      review of SPL-1" issue meeting c1-c9 is ended, as are "Seat brief: spec
+#      panel ...", "... panel reviewer ..." and "... REVIEW SEAT ..." ones; a
+#      standing "Seat brief: the ops workspace, channel #lobby" is still kept
+#      as c10; red control: origin/master's judge before SPL-6432 keeps the
+#      R7 one (the case fails on it)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -189,7 +195,7 @@ kept SPL-122 c6 && grep -q 'live lane c-302@box-b' "$T/verdict" && pass "9. a li
 seat_case; sweep DRY_RUN=0; rc=$?
 [[ $rc == 0 && "$(ended)" == SPL-121 ]] && grep -q 'kept by the first failed condition: .*c10 1' "$T/out" &&
   pass "9. DRY_RUN=0 ends only SPL-121; the summary counts c10 on its own" || fail "9. sweep rc=$rc ended '$(ended)': $(cat "$T/out")"
-mkdir -p "$T/v10/src/bash/scripts"; sed 's/if (i.get("title") or "").lstrip().startswith(SEAT_BRIEF):/if False:/' "$JUDGE" >"$T/v10/src/bash/scripts/issue-stale-sweep-judge.py"
+mkdir -p "$T/v10/src/bash/scripts"; sed 's/if title.startswith(SEAT_BRIEF) and/if False and/' "$JUDGE" >"$T/v10/src/bash/scripts/issue-stale-sweep-judge.py"
 seat_case; PROJ_OVERRIDE="$T/v10" sweep DRY_RUN=0
 [[ "$(ended)" == "SPL-120 SPL-121" ]] && pass "9. red control: without the c10 check the Seat brief: SPL-120 is ended, and the test sees it" || fail "9. c10 red: '$(ended)'"
 
@@ -198,6 +204,27 @@ own="$(grep -nE 'spl_stale_lease_conf\(\)|sed -n .*dispatch/lease\.conf' "$FUNC"
 [[ -z "$own" ]] && pass "10. the sweep keeps no lease.conf reader of its own" || fail "10. the sweep still reads lease.conf itself: $own"
 grep -q 'TENANT_ID:-$(spl_owner_digest_lease_conf "$root" LEASE_TENANT' "$FUNC" &&
   pass "10. LEASE_TENANT is read through spl_owner_digest_lease_conf" || fail "10. LEASE_TENANT is not read through spl_owner_digest_lease_conf"
+
+# --- 11. c10 keeps standing seats only, not one-shot review / panel seats (SPL-6432) --
+oneshot_case() {
+  reset
+  fixtures "[$(iss SPL-130 'title=Seat brief: R7 review of SPL-1'), $(iss SPL-131 'title=Seat brief: the ops workspace, channel #lobby'),
+ $(iss SPL-132 'title=Seat brief: spec panel for the reminder - EDITOR (claude, doc only)'),
+ $(iss SPL-133 'title=Seat brief: spec 9 - mistral panel reviewer, read-only'), $(iss SPL-134 'title=Seat brief: REVIEW SEAT for row 5')]" '[]' '[]' ''
+}
+oneshot_case; judge_in
+grep -q '^end	SPL-130	' "$T/verdict" && pass "11. a one-shot Seat brief: R7 review of SPL-1 meeting c1-c9 is ended" || fail "11. R7 seat not ended: $(cat "$T/verdict")"
+kept SPL-131 c10 && pass "11. a standing Seat brief: the ops workspace, channel #lobby is still kept as c10" || fail "11. standing seat not kept c10: $(cat "$T/verdict")"
+for k in 132 133 134; do
+  grep -q "^end	SPL-$k	" "$T/verdict" && pass "11. SPL-$k (spec panel / panel reviewer / REVIEW SEAT) is ended" || fail "11. SPL-$k not ended: $(cat "$T/verdict")"
+done
+oneshot_case; sweep DRY_RUN=0; rc=$?
+[[ $rc == 0 && "$(ended)" == "SPL-130 SPL-132 SPL-133 SPL-134" ]] && grep -q 'kept by the first failed condition: c10 1$' "$T/out" &&
+  pass "11. DRY_RUN=0 ends the four one-shot seats, keeps the standing one (c10 1)" || fail "11. sweep rc=$rc ended '$(ended)': $(cat "$T/out")"
+mkdir -p "$T/v11/src/bash/scripts"
+sed 's/ONE_SHOT.search(title)/False/' "$JUDGE" | sed 's/and not False//' >"$T/v11/src/bash/scripts/issue-stale-sweep-judge.py"
+oneshot_case; PROJ_OVERRIDE="$T/v11" sweep DRY_RUN=0
+[[ "$(ended)" == "" ]] && pass "11. red control: the judge before SPL-6432 (c10 on every Seat brief:) keeps the R7 one, and the test sees it" || fail "11. red: '$(ended)'"
 
 echo "---"
 [[ $fails == 0 ]] && echo "spl-issue-stale-sweep: all passed" || echo "spl-issue-stale-sweep: $fails FAILED"

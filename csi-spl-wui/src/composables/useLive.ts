@@ -1,4 +1,5 @@
-import { cleanAs, createLiveClient, tokenStale, watchLive, wsUrl } from '~/utils/live-ws.mjs'
+import { cleanAs, tokenStale, wsUrl } from '~/utils/live-ws-core.mjs'
+import { lazyLiveClient } from '~/utils/live-ws-lazy.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { authOrigin, createAuthClient } from '~/utils/auth-client-core.mjs'
@@ -32,7 +33,11 @@ function readAs(): string {
 
 type Listener = (m: Record<string, unknown>) => void
 
-let live: ReturnType<typeof createLiveClient> | null = null
+/* SPL-6342: the socket code (live-ws.mjs) loads with the first dial, not in
+   the entry chunk; lazyLiveClient keeps the calls made before it arrives. */
+type LiveClient = ReturnType<typeof import('~/utils/live-ws.mjs')['createLiveClient']>
+type LiveOptions = Parameters<typeof import('~/utils/live-ws.mjs')['createLiveClient']>[0]
+let live: LiveClient | null = null
 const listeners = new Set<Listener>()
 /** wui-live-ws §7: fired once per reconnect (an open after a drop), after the re-subscribes. */
 const reconnectListeners = new Set<() => void>()
@@ -69,7 +74,7 @@ const welcomed = ref(false)
  */
 function dial(api: ReturnType<typeof useSpoolApi>, authBase: string) {
   const auth = createAuthClient({ base: authOrigin(authBase) })
-  return createLiveClient({
+  return lazyLiveClient({
     url: wsUrl(api.base),
     token: api.token || '',
     as: identity.value,
@@ -132,7 +137,10 @@ function dial(api: ReturnType<typeof useSpoolApi>, authBase: string) {
     onFlow: (f: Record<string, unknown>) => {
       for (const fn of flowListeners) fn(f)
     },
-  })
+  } as LiveOptions, {
+    // bug B: off a retired hub revision, and awake after the tab sleeps
+    onLoad: (mod: typeof import('~/utils/live-ws.mjs'), client: LiveClient) => { mod.watchLive(client) },
+  }) as LiveClient
 }
 
 /** A listener set's `onX(fn)`: adds fn, and returns the call that removes it again. */
@@ -188,8 +196,6 @@ export function useLive() {
     }
     live = dial(api, String(config.public.authBase || ''))
     live.connect()
-    // bug B: off a retired hub revision, and awake after the tab sleeps
-    watchLive(live)
     return live
   }
 

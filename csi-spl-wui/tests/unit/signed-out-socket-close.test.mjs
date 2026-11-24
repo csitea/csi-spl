@@ -15,11 +15,13 @@ import { stopHubSocket } from '../../src/utils/shell-bootstrap.mjs'
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 const STUBS = {
-  '~/utils/live-ws.mjs': `
+  '~/utils/live-ws-core.mjs': `
     export const cleanAs = (s) => String(s || '')
     export const tokenStale = () => false
+    export const wsUrl = (b) => b`,
+  // reached through live-ws-lazy.mjs's import('./live-ws.mjs') (SPL-6342)
+  '~/utils/live-ws.mjs': `
     export const watchLive = () => {}
-    export const wsUrl = (b) => b
     export function createLiveClient(opts) {
       const client = {
         state: 'idle', connectCalls: 0, closeCalls: 0,
@@ -61,6 +63,7 @@ async function freshUseLive() {
       plugins: [{
         name: 'stubs',
         setup(b) {
+          b.onResolve({ filter: /^\.\/live-ws\.mjs$/ }, () => ({ path: '~/utils/live-ws.mjs', namespace: 'stub' }))
           b.onResolve({ filter: /^~\// }, (a) => (STUBS[a.path]
             ? { path: a.path, namespace: 'stub' }
             : { path: join(WUI, 'src', a.path.slice(2)) + (/\.\w+$/.test(a.path) ? '' : '.ts') }))
@@ -75,6 +78,10 @@ async function freshUseLive() {
   return (await import(url)).useLive
 }
 
+// SPL-6342: ensure() hands back the lazy client at once; the stub client is
+// made once live-ws has loaded, a few microtasks later
+const loaded = () => new Promise((resolve) => setImmediate(resolve))
+
 function harness(state) {
   globalThis.__liveTest = { clients: [], api: { mock: false, base: 'https://hub.example.com', token: '' }, session: { state } }
   return globalThis.__liveTest
@@ -84,8 +91,9 @@ describe('useLive: a sign-out closes the hub socket (SPL-4513 W1)', () => {
   it('a socket opened signed in is closed by stopHubSocket once the session is out', async () => {
     const t = harness('in')
     const live = (await freshUseLive())()
-    const client = live.ensure()
-    assert.ok(client, 'a member gets a socket')
+    assert.ok(live.ensure(), 'a member gets a socket')
+    await loaded()
+    const client = t.clients[0]
     assert.equal(client.connectCalls, 1)
     t.session.state = 'out'
     stopHubSocket(live)
@@ -98,10 +106,12 @@ describe('useLive: a sign-out closes the hub socket (SPL-4513 W1)', () => {
   it('ensure() while out hands back the open client without re-dialling it', async () => {
     const t = harness('in')
     const live = (await freshUseLive())()
-    const client = live.ensure()
+    const lazy = live.ensure()
+    await loaded()
+    const client = t.clients[0]
     t.session.state = 'out'
     client.state = 'signed_out'
-    assert.equal(live.ensure(), client)
+    assert.equal(live.ensure(), lazy)
     assert.equal(client.connectCalls, 1, 'a parked client is not re-dialled while out')
   })
 
@@ -123,7 +133,9 @@ describe('useLive: freshUploadToken while signed out (SPL-4775)', () => {
   it('a signed-out force refresh re-dials nothing and returns empty', async () => {
     const t = harness('in')
     const live = (await freshUseLive())()
-    const client = live.ensure()
+    live.ensure()
+    await loaded()
+    const client = t.clients[0]
     t.session.state = 'out'
     stopHubSocket(live)
     assert.equal(await live.freshUploadToken(true), '')
@@ -132,9 +144,11 @@ describe('useLive: freshUploadToken while signed out (SPL-4775)', () => {
   })
 
   it('a signed-in force refresh still re-dials for a fresh token (control)', async () => {
-    harness('in')
+    const t = harness('in')
     const live = (await freshUseLive())()
-    const client = live.ensure()
+    live.ensure()
+    await loaded()
+    const client = t.clients[0]
     assert.equal(await live.freshUploadToken(true), 'up-new')
     assert.equal(client.redialCalls, 1)
     assert.equal(client.connectCalls, 2, 'the redial dials again')

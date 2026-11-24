@@ -10,7 +10,7 @@
  * in a queue.
  */
 
-import { normalizeId, PARTICIPANT_ID_SRC } from './agent-id.mjs'
+import { AGENT_ID_RE, cleanAs, tokenStale, WS_PATH, wsUrl } from './live-ws-core.mjs'
 
 import { copyEditFields } from './view-api-core.mjs'
 
@@ -89,27 +89,7 @@ export function awayBucket(ms) {
 
 const perfNow = () => (globalThis.performance ? globalThis.performance.now() : Date.now())
 
-/** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2, c-004); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
-export const AGENT_ID_RE = new RegExp(`^${PARTICIPANT_ID_SRC}$`)
-
-export function cleanAs(s) {
-  return normalizeId(s)
-}
-
-/** true when the upload token is missing or expires within `skewMs`. */
-export function tokenStale(expiresAt, now = Date.now(), skewMs = 15000) {
-  const t = Date.parse(String(expiresAt || ''))
-  return !Number.isFinite(t) || t - now <= skewMs
-}
-
-export const WS_PATH = '/v1/wui/ws'
-
-/** http(s)://host → ws(s)://host + path */
-export function wsUrl(base, path = WS_PATH) {
-  const b = String(base || '').replace(/\/+$/, '')
-  if (!/^https?:\/\//.test(b)) throw new Error('ws base must be http(s)')
-  return b.replace(/^http/, 'ws') + path
-}
+export { AGENT_ID_RE, cleanAs, tokenStale, WS_PATH, wsUrl }
 
 export function backoffMs(attempt, { base = 500, cap = 30000 } = {}) {
   return Math.min(cap, base * 2 ** Math.max(0, attempt))

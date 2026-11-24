@@ -1,7 +1,7 @@
 # Spec 192: log in, log out and renew each agent vendor's login on a workspace's boxes, from Settings, admins only
 
-**Feature ID**: `192-agent-login-from-wui` · **Status**: Draft v0.1
-(Q-1..Q-5 open, section 9) · **Epic**: SPL-2398 · **Issue**: SPL-6374 ·
+**Feature ID**: `192-agent-login-from-wui` · **Status**: Decided v0.2
+(Q-1..Q-5 answered by the owner, section 9) · **Epic**: SPL-2398 · **Issue**: SPL-6374 ·
 **Created**: 2026-11-24 · **Lead**: c-747 · **Placement slug**:
 `c002-agent-login-from-wui-spec` · **Class**: feature
 **Discussion**: t1 topic `4781ca4e-f43b-43f0-a86d-0dc37ea19d0a`
@@ -75,8 +75,8 @@ So:
 ## 2. Who and where (N3)
 
 - **Who.** A new permission `vendor_logins.manage`, given by rdb migration
-  to the roles Q-1 picks (default built: `admin` and `biz_owner`, the two
-  roles that hold `vendor_keys.manage` today,
+  to `admin` and `biz_owner` [Q-1 A], the two roles that hold
+  `vendor_keys.manage` today (
   `csi-spl-api/src/go/spool-hub-api/internal/rbac/rbac.go:272-281`). The hub
   checks it on every route of section 5; the WUI shows the section only when
   `/v1/view/me` lists it. Refused under an act-as session, and for an
@@ -134,12 +134,28 @@ This spec adds:
 |---|---|
 | A1 | every enrolled box of `<W>`, shared fleet boxes included, not only a dedicated VM; the agent user of each (section 2) |
 | A2 | log out and renew, not only log in (section 5) |
-| A3 | the login flows of grok and agy on the box side, and the key setup of mistral and qwen (section 5.2, Q-5) |
+| A3 | the login flows of grok and agy on the box side; mistral and qwen stay on Agent keys (section 5.2, Q-5 B) |
 | A4 | the fan-out to every box, its per-box state, and a box added later (section 7) |
 | A5 | the state per kind and box, with no secret: signed in or not, account label, expiry, weekly % and reset (section 5.3) |
-| A6 | the weekly-limit switch: lift the pause, restore the stuck seats (section 6) |
+| A6 | the weekly-limit switch: lift the pause, restart every seat of the kind on the new account (section 6) |
+| A9 | the login copied box-to-box over the ssh peer path, per-box sign-in where no peer reaches (section 7) |
+| A10 | the relay on for the operator workspace now, every wired vendor; customer workspaces keep the per-vendor gate (section 4.1) |
 | A7 | a new permission and the **AI vendors** section of Settings (sections 2, 8) |
 | A8 | an audit table for every op (section 10) |
+
+### 4.1 The switch per workspace [Q-3 B]
+
+B11's hub switch `SPOOL_HUB_SIGNIN_RELAY_KINDS` is one list for the whole
+instance. This spec splits it: the **operator workspace** (the owner's own
+fleet, his own accounts on his own boxes, through the unmodified CLI) is on
+now for every kind with a wired login (claude; grok and agy once row L4
+wires them); every **customer workspace** keeps the per-vendor gate, on only
+after that vendor's written OK (O1 Anthropic, O2 xAI, O3 Mistral; 159 4.3,
+181 Q-14 A). The box switch `env.box.signin_relay_kinds` is set on the fleet
+boxes for the same kinds. The owner's reading of the 159 4.1 quote: "Nor
+does it prevent an end user from signing in to the unmodified Claude Code
+binary with their own Claude subscription, including where a platform hosts
+Claude Code".
 
 ## 5. Log in, log out, renew (N1)
 
@@ -161,8 +177,8 @@ B11's sidecar passes `DRY_RUN=0`.
 | claude | `claude auth login --claudeai` prints an https URL and waits for a code the person pastes (`spl-ws-claude-signin.func.sh:106`) | the box reports the URL, the WUI shows it as a link (https only, B11's `signinSafeUrl`), the admin pastes the code once, the box types it in | built on the review branch (B11) |
 | grok | a sign-in that writes `~/.grok/auth.json` | **unchecked**: whether it prints a URL + code, a device code, or needs a local browser redirect is not recorded in the repo. Row L4 measures it on a test account first and drives it the same way only if it prints a URL and reads a pasted code or completes on a device code; a local-redirect-only flow is reported `no_relay` and stays at the terminal | open |
 | agy | an OAuth sign-in that writes the marker file of section 3 | **unchecked**, as grok; the same rule | open |
-| mistral | no login: an API key | the key is typed into the box's own setup the way a code is (Q-5 A), or stays on Agent keys (Q-5 B) | Q-5 |
-| qwen | no login since 2026-04-15: a provider key in its settings | as mistral | Q-5 |
+| mistral | no login: an API key | not relayed: the key is set on Agent keys (spec 127, as today: the hub keeps it sealed and leases it to the boxes); AI vendors shows its state per box and links there [Q-5 B] | decided |
+| qwen | no login since 2026-04-15: a provider key in its settings | as mistral [Q-5 B] | decided |
 
 ### 5.3 The state shown, with no secret
 
@@ -194,21 +210,26 @@ presses **Switch account** for that kind: it is a log in (5.1) on every box
 of the workspace (section 7) with the other account, which the admin signs
 into in the vendor's page.
 
-### 6.2 What happens to seats and the queue (default built; Q-4)
+### 6.2 What happens to seats and the queue [Q-4 B]
 
 1. **Before**: the kind's pause (section 3) already holds new seats of that
    kind; the lane mix and the placer already swap them to the backup vendor
    (section 3). Nothing changes there.
 2. **During**: the box writes the new login through the same temp + mv as
-   `agent-login-cred.sh put`, so a reader never sees half a file. Seats
-   running on the old account are left alone: they are stuck at the limit
-   anyway.
+   `agent-login-cred.sh put`, so a reader never sees half a file. Running
+   seats are not touched until the new login works.
 3. **After**, when the new login probes `ok` on that box: the box lifts its
-   own pause entry for that kind (a nil entry, `mergePauses`), and the next
-   tick of `do_spl_agent_login_check` stops and restores each seat stuck on
-   the limit screen, seat by seat, under its cool-down (its step 4 already
-   repairs a limit-stuck seat while the probe says ok). Queued rows swapped
-   to the backup vendor stay swapped; new rows go to the kind again.
+   own pause entry for that kind (a nil entry, `mergePauses`), then
+   **restarts every seat of that kind on the box at once** on the new
+   account, stuck or not: each seat is stopped (its pane wrapper, then its
+   own pid, as step 4 of `do_spl_agent_login_check` does) and brought back
+   by `do_spl_agent_identity_restore`, which resumes its session from its
+   transcript. The self-heal's cool-down does not hold these restarts back.
+   A seat the restore cannot bring back (no session, worktree, adapter or
+   transcript) is not stopped and is reported by id in the box's answer.
+   The cost the owner accepted: a turn in flight in a working seat is cut
+   and replayed from the transcript. Queued rows swapped to the backup
+   vendor stay swapped; new rows go to the kind again.
 4. Today's pause is one entry per kind for every box (`fleet_load.go:434-441`).
    Row L5 adds the box to it, so a box whose login was switched does not lift
    a pause another box still needs: a kind is paused on a box until that box
@@ -226,58 +247,69 @@ to the web UI.
 
 ## 7. One login, every box (N4)
 
-### 7.1 How each box gets it (default built: per-box sign-in; Q-2)
+### 7.1 How each box gets it [Q-2 B]
 
-**The relay drives each box's own terminal login, one after the other.** A
-"log in" on the page starts one B11 relay per enrolled box (section 2); the
-page shows them as a list, the first one open. For each box the admin opens
-the vendor's URL (already signed in to the vendor, one click to authorise)
-and pastes the code the vendor shows; the next box opens. No login file
-ever leaves a box, the hub carries the sealed code only, and every box
-holds its own independent sign-in.
+**Sign in once, then copy the login box-to-box over the existing ssh peer
+path; per-box sign-in where no peer reaches.**
 
-Why this is the default:
+1. **One sign-in.** A "log in" on the page starts ONE B11 relay, on the
+   source box: the enrolled box of `<W>` that reaches the most of the
+   others over its peer path (its `SPOOL_LOGIN_PEERS` in box.env), else the
+   first one online. The admin opens the vendor's URL and pastes the code
+   once.
+2. **The copy.** When the new login probes `ok` on the source box, it copies
+   the login to each peer of `<W>` it reaches, the way
+   `do_spl_agent_login_check` does today: `agent-login-cred.sh get | ssh
+   <peer> ... put` (only ever a pipe; temp + mv; the old file kept as
+   `.bak-login-<UTC>`; mode 600; sha12 and label only in any output). The
+   peer probes it and answers `ok` or `failed`. A peer is copied to only
+   when the hub lists it as an enrolled pin of `<W>` (R3); a peer line naming
+   any other box is skipped and reported.
+3. **Boxes no peer reaches** (a customer's boxes have no ssh to each other;
+   a box behind NAT is reached one way only,
+   `spl-agent-login-check.func.sh:28-29`): the page opens one per-box
+   sign-in for each, as the relay does for the source box.
+4. **Today's copy is claude only** (`agent-login-cred.sh` reads and writes
+   claude's credential and `.claude.json`). Row L8 adds the grok and agy
+   login files to its ops before those kinds are copied; until then they get
+   per-box sign-in.
 
-- **claude's terms**: "sign-in to a Claude account must complete through
-  Anthropic's own flow", and developers "may not collect, store, or
-  intermediate" its session tokens (159 4.1). A per-box sign-in is that flow
-  on each box; a copied file is not.
-- **the shared-renewal risk**: the one measurement there is, 19 of 19
-  stuck-login episodes within 15 min of a renewal of a credential shared by
-  two boxes (060 add-on section 3, n = 19, one box), and the 2026-10-25 case
-  where a peer's renewal killed the older copy (n = 1). Independent sign-ins
-  per box are what spec 132 section 2 aims at ("End copying a login between
-  boxes").
-- **no box-to-box path is needed**: a customer's boxes have no ssh to each
-  other, and today's peer copy works one way only (NAT,
-  `spl-agent-login-check.func.sh:28-29`).
+Neither path copies a login through the hub: the hub carries the sealed
+code of the one sign-in and the per-box results, never a login file.
 
-Its cost: one paste per box. With 3 boxes, 3 codes in a row.
+**Risks the owner accepted with Q-2 B**, kept here so the build guards them:
 
-The other choice, put to the owner in Q-2 (B): sign in once, then copy the
-login file box-to-box over the existing peer path (`SPOOL_LOGIN_PEERS`,
-ssh, temp + mv, mode 600) on the boxes that reach each other, per-box
-sign-in on the rest. Fully automatic where it works; its risks are the
-first two bullets above, and that the copy is our act, not the person's.
-
-Neither path copies a login through the hub: the hub never holds one.
+- **claude's terms**: "developers may not collect, store, or intermediate
+  Claude.ai credentials or session tokens" (159 4.1). The copy moves the
+  owner's own login between the owner's own boxes; for a customer workspace
+  the copy stays behind the per-vendor gate of 4.1.
+- **the shared-renewal risk**: 19 of 19 stuck-login episodes fell within
+  15 min of a renewal of a credential shared by two boxes (060 add-on
+  section 3, n = 19, one box), and on 2026-10-25 a peer's renewal killed
+  the older copy (n = 1). The guard is today's: the source box is the one
+  refresher for that login and keeps the copies converged on each renewal
+  (`spl-agent-login-check.func.sh:13-30`); the expiry warning of
+  section 3 tells the admins when it is silent.
+- **spec 132 section 2** ("End copying a login between boxes") is
+  superseded for logins made from the web UI (section 13).
 
 ### 7.2 Per-box status in the page
 
-Each box's row reads one of: `done` (signed in, label shown), `waiting for
-code`, `failed` (with the box's reason word: `no_relay`, `other_account`,
-`switch_off`, `timeout`), `offline`, `re-join needed` (no recipient).
+Each box's row reads one of: `done` (signed in, label shown, and `copied
+from <box>` or `signed in here`), `waiting for code`, `failed` (with the
+box's reason word: `no_relay`, `other_account`, `switch_off`, `timeout`,
+`copy_failed`), `offline`, `re-join needed` (no recipient).
 
 ### 7.3 A box offline, or added later
 
 - A box **offline** when the op starts: its row stays `offline`. When its
-  desk is back (its hello), the hub posts **one** notice to the workspace's
-  `vendor_logins.manage` holders: "`<box>` is back: `<kind>` needs a sign-in
-  there", with a link to the section. With Q-2 B, a reachable peer copies
-  instead, and the notice goes only when none can.
-- A box **added later** (a new pin): the same notice for every kind that
-  another box of `<W>` has signed in, so the new box gets the current login
-  the same way.
+  desk is back (its hello), a box of `<W>` that reaches it copies the
+  current login to it, with no person needed. Only when no peer reaches it
+  does the hub post **one** notice to the workspace's
+  `vendor_logins.manage` holders: "`<box>` is back: `<kind>` needs a
+  sign-in there", with a link to the section.
+- A box **added later** (a new pin): the same, for every kind another box
+  of `<W>` has signed in: a peer copy, else the one notice.
 - **Log out and renew fan out the same way**: one relay per box, the per-box
   rows above. A log out needs no input, so it runs at once on every box
   online, and on an offline box when it is back, with no person needed (the
@@ -294,7 +326,8 @@ code`, `failed` (with the box's reason word: `no_relay`, `other_account`,
   `tenant-settings-nav.ts:58-72`), and the hub answers 403 on a direct call.
 - The page: one card per kind (claude, grok, agy, mistral, qwen; a kind the
   workspace's split weighs at 0 is folded), each with a row per box (7.2)
-  showing the state of 5.3 and the buttons **Log in**, **Switch account**,
+  showing the state of 5.3 and the buttons **Log in**, **Switch account**
+  (with a confirm that names the running seats it restarts, 6.2),
   **Renew** (only on `expired`), **Log out** (with a confirm that names the
   boxes and the running seats of that kind).
 - A kind whose switch is off (B11's per-vendor switch) shows "not switched
@@ -305,28 +338,20 @@ code`, `failed` (with the box's reason word: `no_relay`, `other_account`,
 - Every string is a translation key in every locale, checked with the
   language check before it ships (repo CLAUDE.md, the language rule).
 
-## 9. Open questions for the owner
+## 9. The owner's decisions
 
-Defaults built until answered are marked (Recommended).
+Owner HUM-10 answered form `2728652b` in t1 `4781ca4e`, msg
+`4379dd90-b3f7-4ac9-80af-611c70f5549b` (2026-11-24), relayed verbatim by
+the dispatch holder c-002@sat (msg `7cd4319b`). v0.1 recommended A on Q-2
+and Q-4; the owner chose B on both.
 
-```poll
-Q-1. Who may log the vendors in and out from AI vendors?
-(A) Workspace admins and the business owner (Recommended: the business owner already manages Agent keys)
-(B) Workspace admins only; the business owner too only when also an admin
-Q-2. How does a login made once reach every box of the workspace?
-(A) The relay drives each box's own sign-in in turn: one paste per box, no login file ever leaves a box, every box its own independent login; an offline or later box gets a notice to sign in there (Recommended: claude's terms, and the shared-renewal risk measured 19 of 19)
-(B) Sign in once, then copy the login file box-to-box over the existing ssh peer path where boxes reach each other; per-box sign-in elsewhere; fully automatic where it works
-Q-3. Spec 159 keeps claude's web sign-in off until Anthropic's written OK (O1). Does that gate also hold the operator's own fleet, where you sign your own accounts into your own boxes?
-(A) Off for the operator workspace too, until each vendor's written OK, like every workspace
-(B) On for the operator workspace now (your own subscription, on your own boxes, through the unmodified CLI); customer workspaces keep the per-vendor gate (Recommended: the 159 4.1 quote "Nor does it prevent an end user from signing in to the unmodified Claude Code binary with their own Claude subscription, including where a platform hosts Claude Code")
-Q-4. After Switch account, what happens to the running seats of that vendor on the box?
-(A) Seats stuck at the limit are restored by the existing login self-heal once the new login works; seats still running are left alone; queued rows already swapped stay swapped (Recommended)
-(B) Every seat of that vendor on the box is restarted on the new account at once
-(C) Only new seats use the new account; nothing running is touched
-Q-5. Mistral and qwen have no terminal login, only an API key. Where are they set?
-(A) In AI vendors too: the key is typed into each box's own setup through the same relay, sealed to the box and stored nowhere on the hub
-(B) On Agent keys (spec 127): the hub keeps the key sealed and leases it to the boxes; AI vendors shows their state and links there (Recommended: built, one place for keys)
-```
+| # | question | decision | where |
+|---|---|---|---|
+| Q-1 | who may log the vendors in and out | **A**: workspace admins and the business owner | 2 |
+| Q-2 | how a login made once reaches every box | **B**: sign in once, then copy the login file box-to-box over the existing ssh peer path where boxes reach each other; per-box sign-in elsewhere; fully automatic where it works | 7 |
+| Q-3 | does 159's per-vendor gate hold the operator's own fleet | **B**: on for the operator workspace now, through the unmodified CLI; customer workspaces keep the per-vendor gate | 4.1 |
+| Q-4 | running seats after Switch account | **B**: every seat of that vendor on the box restarts on the new account at once | 6.2 |
+| Q-5 | where mistral and qwen keys are set | **B**: on Agent keys, as today; the hub keeps the key sealed; AI vendors shows their state and links there | 5.2 |
 
 ## 10. Audit, with no secret
 
@@ -345,7 +370,8 @@ when".
 | R2 | a member without `vendor_logins.manage` | `GET` / `POST /v1/vendor-logins/...` -> 403; the section is absent from the nav; the permission check removed -> the test sees 200 |
 | R3 | a box outside `<W>` | a fan-out for `<W>` that reaches a pin of another workspace -> the test fails; a frame for `<W>` opened by another box's desk -> refused (sealed to another recipient) |
 | R4 | the switch off (hub or box) | a log in -> 403 `signin_relay_off` and the box reports `switch_off`; the switch check removed -> 201 and the test fails |
-| R5 | the login file leaves the box (Q-2 A) | a fan-out of N boxes -> N separate sign-ins and 0 file copies (a `put` counter on the box side); a copy planted -> the counter is 1 |
+| R5 | the copy stays inside `<W>` and off the hub [Q-2 B] | a source box whose peer list names a box that is not a pin of `<W>` -> 0 copies to it, reported; the pin check removed -> the copy reaches it and the test fails; a login file's bytes (or its sha beyond 12 hex) found in a hub table, frame or log -> fails |
+| R9 | every seat of the kind restarts after a switch [Q-4 B] | 3 seats of the kind on the box (1 stuck, 2 working), the new login probes ok -> 3 stops and 3 restores, other kinds' seats untouched; the restart limited to stuck seats -> 1 restore and the test fails; the new login probing `expired` -> 0 stops |
 | R6 | act-as | a log in under an act-as session -> 403; the check removed -> 201 |
 | R7 | the OS user | the box op run for a user other than the agent user -> refused; the refusal removed -> the test sees the op start |
 | R8 | the weekly switch lifts only its own box | box A switched, box B still at the limit -> B's pause stays; the lift written for every box -> the test fails |
@@ -358,26 +384,28 @@ are in `csi-spl-api/src/go/spool-hub-api/`.
 | # | lane | task | red control | waits on |
 |---|---|---|---|---|
 | L0 | hub + orc + wui (claude) | land 181 B11 (SPL-6345) | B11's own | its R7 review |
-| L1 | rdb + hub (claude) | `vendor_logins.manage` (rdb migration, number from `do_rdb_migration_next`) to the Q-1 roles; act-as and operator-made refusals as `vendor_keys.manage` | R2, R6 | Q-1 |
-| L2 | rdb + hub (claude) | the fan-out: `POST /v1/vendor-logins/{kind}` `{op}` opens one B11 relay per enrolled pin of `<W>`; `GET /v1/vendor-logins` the state per kind and box (5.3, from box facts); the audit table (10); the offline and new-box notice (7.3) | R1, R3, R5 | L0, L1 |
+| L1 | rdb + hub (claude) | `vendor_logins.manage` (rdb migration, number from `do_rdb_migration_next`) to `admin` and `biz_owner` [Q-1 A]; act-as and operator-made refusals as `vendor_keys.manage`; the relay switch per workspace: the operator workspace on for every wired kind, customer workspaces on the per-vendor list (4.1) [Q-3 B] | R2, R4, R6 | L0 |
+| L2 | rdb + hub (claude) | the fan-out: `POST /v1/vendor-logins/{kind}` `{op}` picks the source box, opens its B11 relay, asks it to copy to the peers of `<W>` it reaches, and opens a per-box relay for each box no peer reaches (7.1); `GET /v1/vendor-logins` the state per kind and box (5.3, from box facts); the audit table (10); the offline and new-box copy or notice (7.3) | R1, R3, R5 | L0, L1 |
 | L3 | orc (claude) | box side: `do_spl_ws_signin_relay` runs for the agent user of a shared box too (section 2), ops in, out, renew, status; status as a box fact with the label, expiry, weekly % and reset (5.3), never content | R1, R7 | L0 |
 | L4 | orc (claude) | grok and agy logins on the box side: measure each CLI's flow on a test account, wire it when it prints a URL and reads a pasted code or a device code, else `no_relay` | a `no_relay` kind offered a Log in button -> fails | L3 |
-| L5 | hub + orc (claude) | the pause per box: `KindPause` keyed by kind and box; the switch lifts its own box's entry; a log out sets one (6.2) | R8 | L3 |
+| L5 | hub + orc (claude) | the pause per box: `KindPause` keyed by kind and box; the switch lifts its own box's entry; a log out sets one; after a switch, every seat of the kind on the box restarts at once through `do_spl_agent_identity_restore` (6.2) [Q-4 B] | R8, R9 | L3 |
 | L6 | wui (claude) | the AI vendors section (8), locale texts, language check last; Agent keys links here for sign-ins | the section shown to a member without the permission -> e2e fails; a code left in any input, page text, Pinia or storage after send -> e2e fails (B11's e2e step) | L2 |
-| L7 | doc (agy) | `csi-spl-wui/src/public/help-md/user-settings.md`: the AI vendors section; the 159 4.3 and 060 add-on D4 notes as section 13 says | `grep -c 'ai-vendors' csi-spl-wui/src/public/help-md/user-settings.md` -> 0 fails | L6 |
-| L8 | (Q-2 B only) orc (claude) | the box-to-box copy over the peer path for the boxes that reach each other | a copy to a box outside `<W>` -> fails | Q-2 |
+| L7 | doc (agy) | `csi-spl-wui/src/public/help-md/user-settings.md`: the AI vendors section; the 159 4.3, 132 section 2 and 060 add-on D4 notes as section 13 says | `grep -c 'ai-vendors' csi-spl-wui/src/public/help-md/user-settings.md` -> 0 fails | L6 |
+| L8 | orc (claude) | the box-to-box copy [Q-2 B]: the source box copies the new login to every peer of `<W>` it reaches (7.1, `agent-login-cred.sh get \| put`), checked against the hub's pin list; the grok and agy login files added to `agent-login-cred.sh`'s ops | R5 | L3, L4 |
 
 ## 13. What this spec changes in other specs
 
 - **159 4.3** ("the hub, the WUI and the desk never see the token"):
   **kept**. The relay carries the person's code sealed to one box; no token
   reaches the hub or the WUI. 159's per-vendor gate (O1, O2, O3) is kept for
-  customer workspaces; whether it holds the operator's own fleet is Q-3.
+  customer workspaces; it does not hold the operator workspace, which is on
+  now [Q-3 B] (4.1). Row L7 records this in 159 4.3.
 - **060 add-on D4**: kept in its sense (a person signs in, never the code);
   the place moves to the web UI (6.2).
-- **132 section 2** ("End copying a login between boxes"): Q-2 A follows it
-  for logins made from the web UI; today's refresher copy is unchanged by
-  this spec.
+- **132 section 2** ("End copying a login between boxes"): **superseded**
+  for logins made from the web UI: they are copied box-to-box over the peer
+  path [Q-2 B] (7.1). Today's refresher copy stays and carries those
+  copies.
 - **181 B11**: reused, widened to every enrolled box and the agent user
   (section 4).
 
@@ -385,3 +413,10 @@ are in `csi-spl-api/src/go/spool-hub-api/`.
 
 - v0.1 (2026-11-24, c-747, SPL-6374): first draft for the panel, from the
   owner's three messages in t1 `4781ca4e`; Q-1..Q-5 open.
+- v0.2 (2026-11-24, c-747, SPL-6374): Q-1..Q-5 decided by the owner (msg
+  `4379dd90`): Q-1 A, Q-2 B, Q-3 B, Q-4 B, Q-5 B. Section 7 now copies the
+  login box-to-box over the peer path (per-box sign-in only where no peer
+  reaches); 6.2 restarts every seat of the kind at once after a switch; new
+  4.1 (the switch per workspace); 5.2 mistral and qwen on Agent keys; red
+  controls R5 rewritten, R9 added; rows L1, L2, L5, L7, L8 updated; 13 marks
+  132 section 2 superseded for web-UI logins.

@@ -1001,6 +1001,13 @@ printf '# x\nKind: simple_coding\n' >"$T/rb/c9-panel-seat-no-ui-swap.md"
 MIX_BODY='spl_lane_mix_review_target "$T/rb/c9-panel-seat-no-ui-swap.md" simple_coding; echo "--"; spl_lane_mix_review_target "" specs_and_docs; echo "--"; spl_lane_mix_review_target "$T/rb/s99-plan-panel-seat-mistral-2.md" specs_and_docs' mix T="$T"
 [[ "$(cat "$T/out")" == $'--\n--\npanel seat s99-plan-panel-seat-mistral-2' ]] \
   && pass "20. a coding slug holding the words (-panel-seat-no-ui-swap) and a bare docs kind are no review" || fail "20. target: $(cat "$T/out")"
+printf '# x\nKind: simple_coding\nEdit csi-spl-wui/components/Share.vue\n' >"$T/rb/c9-blog-share-panel.md"
+printf '# x\nEdit csi-spl-wui/pages/qto.vue\n' >"$T/rb/c9-file-tree-left-panel.md"
+printf '# x\nKind: specs_and_docs\nReview the csi-spl-wui/pages spec\n' >"$T/rb/c9-costs-panel-mistral.md"
+printf '# x\nKind: complex_coding\n' >"$T/rb/c9-spl1-claude-waiver-reviewer.md"
+MIX_BODY='spl_lane_mix_review_target "$T/rb/c9-blog-share-panel.md" simple_coding; echo "--"; spl_lane_mix_review_target "$T/rb/c9-file-tree-left-panel.md" ""; echo "--"; spl_lane_mix_review_target "$T/rb/c9-costs-panel-mistral.md" specs_and_docs; echo "--"; spl_lane_mix_review_target "$T/rb/c9-spl1-claude-waiver-reviewer.md" complex_coding' mix T="$T"
+[[ "$(cat "$T/out")" == $'--\n--\npanel seat c9-costs-panel-mistral\n--\nreview seat c9-spl1-claude-waiver-reviewer' ]] \
+  && pass "20. a -panel slug of a coding kind, or of no kind naming csi-spl-wui/, is no review; a docs panel and a coding-kind -reviewer are" || fail "20. panel slug kinds: $(cat "$T/out")"
 mix LANE_MIX_KIND=review LANE_MIX_CNF="$REAL_CNF" LANE_MIX_INSTANCE=0
 [[ "$(pick)" != mistral ]] && grep -q 'mistral sits on no review' "$T/out" \
   && [[ "$(yq -r '.env.box.agent_split.mistral_review_allowed' "$REAL_CNF")" == false ]] \

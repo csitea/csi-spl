@@ -326,15 +326,21 @@ _spl_lane_mix_review_kind() {
 # panel seat: -panel or -panel-seat, alone, numbered (-panel-seat-3) or with
 # a vendor and an optional suffix (-panel-seat-mistral-2, -panel-agy). A
 # coding lane whose slug only holds the words (-panel-seat-no-ui-swap) is
-# none. The placer and the enqueue read it too.
+# none, and so is a panel slug of a coding kind (tests, simple_coding,
+# complex_coding: a WUI share panel, c001tnk-blog-share-panel) or of no kind
+# with a brief that names csi-spl-wui/ (20261010-qto-file-tree-left-panel).
+# A -reviewer slug stays a review whatever its kind (an R7 code review
+# carries Kind: complex_coding). The placer and the enqueue read it too.
 spl_lane_mix_review_target() {
   local s rx='-panel(-seat)?(-[0-9]+|-(agy|claude|grok|mistral|qwen|codex)(-[0-9a-z]+)?)?$'
   _spl_lane_mix_review_kind "$2" && { echo "Kind: $2"; return 0; }
   [[ -n "$1" ]] || return 0
   s="$(basename "$1" .md)"
   [[ "$s" == *-reviewer || "$s" == *-review ]] && { echo "review seat $s"; return 0; }
-  [[ "$s" =~ $rx ]] && echo "panel seat $s"
-  return 0
+  [[ "$s" =~ $rx ]] || return 0
+  [[ "$2" =~ ^(tests|simple_coding|complex_coding)$ ]] && return 0
+  [[ -z "$2" && -n "$(spl_lane_mix_ui_target "$1" "")" ]] && return 0
+  echo "panel seat $s"
 }
 
 # spl_lane_mix_mistral_review_off <cnf> <brief-file> <kind> -> why mistral may

@@ -7,6 +7,7 @@ import {
   mobileAfterNavStep,
   mobileBackStep,
   mobileBelowLevel,
+  mobileDiscussionStack,
   mobileHasPrev,
   mobileInitialLevel,
   mobileLevelOf,
@@ -84,8 +85,27 @@ function tag(lv: MobileLevel, below?: number) {
   window.history.replaceState(mobileTagState(window.history.state, lv, below), '')
 }
 
+/*
+ * SPL-6379 (utils mobileDiscussionStack): a discussion entry with no level of
+ * ours under it becomes the channel list, and the topics (and the topic) are
+ * pushed on it, so browser Back walks 3 -> 2 -> 1 before it leaves. True when
+ * it built them (the entries are tagged); false: nothing to build, tag as before.
+ */
+function buildUnder(lv: MobileLevel, below: MobileLevel | null): boolean {
+  if (!isMobile.value) return false
+  const plan = mobileDiscussionStack(window.location.href, lv, below, chatKind(window.location.pathname) !== '')
+  if (!plan) return false
+  const state = mobileOverlayState(window.history.state, null)
+  const [first, ...rest] = plan
+  window.history.replaceState(mobileTagState(state, first.level, 0), '', first.url)
+  for (const e of rest) window.history.pushState(mobileTagState(state, e.level, e.below), '', e.url)
+  return true
+}
+
 /** The level went UP on the same entry: add one (utils mobilePushPlan, c78fb3ec). */
 function pushLevel(next: MobileLevel, tagged: MobileLevel | null) {
+  /* SPL-6379: a topic opened on topics that have no channel list under them */
+  if (next === 3 && tagged === 2 && mobileBelowLevel(window.history.state) !== 1 && buildUnder(3, null)) return
   const plan = mobilePushPlan(window.location.href, window.history.state, next, tagged)
   if (plan.under) window.history.replaceState(window.history.state, '', plan.under)
   window.history.pushState(plan.state, '', plan.url)
@@ -431,9 +451,11 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   }) as typeof router.push
 
   /* the entry the app was loaded on */
-  const first = mobileTaggedLevel(window.history.state) ?? mobileInitialLevel(route.path, route.query as Record<string, unknown>)
+  const tagged0 = mobileTaggedLevel(window.history.state)
+  const first = tagged0 ?? mobileInitialLevel(route.path, route.query as Record<string, unknown>)
   home.value = first === 1
-  tag(first)
+  /* SPL-6379: a fresh deep link into a discussion gets its levels built under it */
+  if (tagged0 !== null || !buildUnder(first, null)) tag(first)
   syncPrev()
 
   /* a route navigation: a fresh entry is a push from the level we were on */
@@ -445,7 +467,8 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
     if (step !== 'tag') return
     const below = level.value
     home.value = false
-    tag(level.value, below)
+    /* SPL-6379: a discussion reached from anything but its channel list */
+    if (!buildUnder(level.value, below)) tag(level.value, below)
   })
 
   listenPopState(router)

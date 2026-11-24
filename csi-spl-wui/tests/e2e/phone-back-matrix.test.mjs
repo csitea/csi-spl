@@ -32,18 +32,21 @@
 // SPL-5232 (owner HUM-10, t1 90194aeb msg 1966d7e6): a channel opened by a
 // link from another section's page was tagged with that page's level (2), so
 // the chevron and the dock's Back at the channel's topics went back to the
-// Issues list (2 -> 2), not the channel list. Browser Back follows the
-// browser's own history there (the page the link was on): KNOWN_RED below.
+// Issues list (2 -> 2), not the channel list.
 //
-// Known red, by design (the control). The `login` cells failed until 087
-// T003 (spec §2 row 2: Back from level 1 landed on the stale `/login` entry
-// and painted "Signed in as ... Continue"). Measured while
-// building this file (n = 3, both widths): browser Back from every deep-link
-// entry skips levels or leaves the app, because a deep link builds no history
-// entries under itself (087 T007). Those cells print KNOWN-RED and do not
-// fail the run; a KNOWN_RED cell that PASSES fails it, so the fixing task
-// removes its lines in the same commit. KNOWN_RED=strict counts the
-// known-red cells as failures (shows the control biting).
+// SPL-6379 (owner HUM-10, t1 acfc125c msgs 6d7f4f27, 64154494, d911deb2):
+// browser Back walks the levels too. Until then the browser and sheet
+// columns of topic, channel, deep, login, notify and link were KNOWN_RED
+// (087 T007): a deep link built no history entries under itself, so browser
+// Back skipped levels or left the app, and from the `link` entry it went to
+// the /issues page. utils/mobile-stack.mjs mobileDiscussionStack now builds
+// the channel list and the topics under such an entry; all 24 pass (n = 1,
+// mock bundle of the SPL-6379 tree), so their KNOWN_RED lines are gone.
+//
+// Known red, by design (the control): a cell listed in KNOWN_RED prints
+// KNOWN-RED and does not fail the run; one that PASSES fails it, so the
+// fixing task removes its line in the same commit. KNOWN_RED=strict counts
+// the known-red cells as failures (shows the control biting).
 //
 // Run: BASE_URL=<generated mock bundle> node tests/e2e/phone-back-matrix.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
@@ -82,20 +85,7 @@ const WIDTHS = (process.env.WIDTHS || '360,390').split(',').map(Number).filter((
 const CELL_JOBS = Math.max(1, Number(process.env.CELL_JOBS) || 3)
 /* The cells red on today's build by design: `entry/method`, `*` for any.
    The task named in each reason removes its line when it lands. */
-const KNOWN_RED = {
-  'login/browser': 'as deep/browser (3 -> 1 before /login is reached); 087 T007',
-  'login/sheet': 'as login/browser; 087 T007',
-  'topic/browser': 'a deep link builds no entries under it: browser Back leaves the app; 087 T007',
-  'topic/sheet': 'as topic/browser (the sheet column walks with browser Back); 087 T007',
-  'channel/browser': 'as topic/browser, from level 2; 087 T007',
-  'channel/sheet': 'as channel/browser; 087 T007',
-  'deep/browser': 'browser Back from the deep link returns to the `/` document (3 -> 1); 087 T007',
-  'deep/sheet': 'as deep/browser; 087 T007',
-  'notify/browser': '/m/<id> builds level 2 only: browser Back from it leaves the app; 087 T007',
-  'notify/sheet': 'as notify/browser; 087 T007',
-  'link/browser': 'browser Back is the browser history: 2 -> the /issues page the link was on (2); SPL-5232 fixes the in-app Backs',
-  'link/sheet': 'as link/browser',
-}
+const KNOWN_RED = {}
 const knownRed = (entry, method) => KNOWN_RED[`${entry}/${method}`] || KNOWN_RED[`${entry}/*`] || ''
 const STRICT = process.env.KNOWN_RED === 'strict'
 const MEMBER = { hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' }
@@ -440,7 +430,7 @@ for (const width of WIDTHS) {
     console.log(`         ${entry.padEnd(8)}${row.map((v) => v.padEnd(8)).join('')}`)
   }
 }
-console.log('red* = known red by design, see KNOWN_RED (deep-link browser Back: 087 T007)')
+console.log('red* = known red by design, see KNOWN_RED')
 
 const n = (v) => cells.filter((c) => c.verdict === v).length
 const failed = cells.filter((c) => c.verdict === 'FAIL' || c.verdict === 'XPASS')

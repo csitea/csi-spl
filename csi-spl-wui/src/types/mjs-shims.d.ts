@@ -2025,6 +2025,7 @@ declare module '~/utils/mobile-stack.mjs' {
   export function mobileStatePosition(state: unknown): number | null
   export function mobileRecordStep(tagged: MobileLevel | null, next: MobileLevel, inPlace: boolean): { step: 'tag' | 'push' | 'none', clearInPlace: boolean }
   export function mobilePushPlan(href: string, state: unknown, next: MobileLevel, tagged: MobileLevel | null): { under: string | null, state: Record<string, unknown>, url: string | undefined }
+  export function mobileDiscussionStack(href: string, level: MobileLevel, below: MobileLevel | null, chat: boolean): Array<{ level: MobileLevel, below: 0 | 1 | 2, url: string }> | null
   export function mobileBackStep(s: { mobile: boolean, overlays: number, level: MobileLevel, below: MobileLevel | null, prev?: boolean, chat?: boolean, up: () => boolean }): 'overlay' | 'history' | 'down' | 'none'
   export function mobileAfterNavStep(failure: 'duplicated' | 'other' | null, mobile: boolean, tagged: MobileLevel | null): 'push' | 'tag' | 'none'
   export function mobileSwipeStart(active: boolean, touches: ArrayLike<{ clientX: number, clientY: number }> | null | undefined): { x: number, y: number } | null

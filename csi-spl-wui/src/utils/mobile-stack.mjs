@@ -224,6 +224,38 @@ export function mobilePushPlan(href, state, next, tagged) {
 }
 
 /**
+ * SPL-6379 (owner HUM-10, t1 acfc125c msgs 6d7f4f27, 64154494, d911deb2):
+ * in a discussion browser Back walks the levels too: a topic to its channel's
+ * topics, the topics to the channel list, and only the channel list leaves
+ * Discussions. An entry with no level of ours under it (a deep link, a fresh
+ * tab, a link from another section's page or another channel) left browser
+ * Back to the page before it, or out of the app. Such an entry gets the
+ * levels under it built: it becomes the channel list (1, the same page, no
+ * topic), and the topics (2) and, on a topic, the topic (3) are pushed on
+ * top, each tagged with the level below it.
+ * @param {string} href the current URL
+ * @param {1|2|3} level the level the entry shows
+ * @param {1|2|3|null} below the level of ours under the entry (null: none)
+ * @param {boolean} chat the page is a discussion (section-strip chatKind)
+ * @returns {Array<{ level: 1|2|3, below: 0|1|2, url: string }>|null} bottom first
+ *   (the first replaces the current entry, the rest are pushed), or null when
+ *   the entry is no discussion level, already sits on the level under it,
+ *   or is level 2 on a topic's URL (the topic is opening)
+ */
+export function mobileDiscussionStack(href, level, below, chat) {
+  if (!chat || (level !== 2 && level !== 3) || below === level - 1) return null
+  let u
+  try { u = new URL(href) } catch { return null }
+  /* a link to a topic lands on level 2 before the topic opens: its push to 3 builds them */
+  if (level === 2 && (u.searchParams.has('topic') || u.searchParams.has('in'))) return null
+  const here = u.pathname + u.search + u.hash
+  const list = mobileStaleTopicUrl(href, 1) ?? here
+  const out = [{ level: 1, below: 0, url: list }, { level: 2, below: 1, url: list }]
+  if (level === 3) out.push({ level: 3, below: 2, url: here })
+  return out
+}
+
+/**
  * Back by the chevron, the dock's Back or a swipe (pop()):
  *   'overlay' - SPL-994: the top overlay goes first (its entry is stepped over)
  *   'history' - an entry of ours is below: history.back(); at level 1, an app

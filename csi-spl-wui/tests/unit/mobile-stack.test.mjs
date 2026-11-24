@@ -13,6 +13,7 @@ import {
   mobileBackStep,
   mobileHasBelow,
   mobileBelowLevel,
+  mobileDiscussionStack,
   mobileHasPrev,
   mobileHistoryStep,
   mobileInPlaceStep,
@@ -241,6 +242,32 @@ describe('r14-07: recording a level that moved without a popstate', () => {
     assert.equal(p.under, null)
     assert.equal(p.url, undefined)
     assert.equal(p.state[MOBILE_BELOW_KEY], 1)
+  })
+})
+
+describe('SPL-6379: a discussion entry gets its levels built under it', () => {
+  const T = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const X = 'https://x.example.com'
+  it("a channel's topics with nothing of ours under them: the channel list, then the topics", () => {
+    const want = [{ level: 1, below: 0, url: '/channel/lobby' }, { level: 2, below: 1, url: '/channel/lobby' }]
+    assert.deepEqual(mobileDiscussionStack(`${X}/channel/lobby`, 2, null, true), want, 'a fresh tab, a deep link')
+    assert.deepEqual(mobileDiscussionStack(`${X}/channel/lobby`, 2, 2, true), want, "a link from another section's page")
+    assert.deepEqual(mobileDiscussionStack(`${X}/channel/lobby`, 2, 3, true), want, 'a link from a topic')
+  })
+  it('a topic: the channel list and its topics (no topic in their URL), then the topic', () => {
+    assert.deepEqual(mobileDiscussionStack(`${X}/fi/dm/HUM-2?topic=${T}#m`, 3, null, true), [
+      { level: 1, below: 0, url: '/fi/dm/HUM-2#m' },
+      { level: 2, below: 1, url: '/fi/dm/HUM-2#m' },
+      { level: 3, below: 2, url: `/fi/dm/HUM-2?topic=${T}#m` },
+    ])
+  })
+  it('CONTROL: nothing to build', () => {
+    assert.equal(mobileDiscussionStack(`${X}/channel/lobby`, 2, 1, true), null, 'the channel list is under it already')
+    assert.equal(mobileDiscussionStack(`${X}/channel/lobby?topic=${T}`, 3, 2, true), null, 'its topics are under it already')
+    assert.equal(mobileDiscussionStack(`${X}/issues`, 2, 2, false), null, 'not a discussion')
+    assert.equal(mobileDiscussionStack(`${X}/channel/lobby`, 1, null, true), null, 'the channel list itself')
+    assert.equal(mobileDiscussionStack(`${X}/channel/lobby?topic=${T}`, 2, 2, true), null, 'level 2 on a topic URL: the topic is opening')
+    assert.equal(mobileDiscussionStack('not a url', 2, null, true), null)
   })
 })
 

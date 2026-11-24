@@ -297,6 +297,7 @@ tests/e2e/phone-tab-panels.test.mjs 8
 tests/e2e/phone-top-chevron.test.mjs 29
 tests/e2e/phone-topic-header-width.test.mjs 33
 tests/e2e/phone-topic-link.test.mjs 7
+tests/e2e/phone-topics-back-to-channels.test.mjs 30
 tests/e2e/plain-error-screens.test.mjs 18
 tests/e2e/poll-answer-no-scroll.test.mjs 55
 tests/e2e/poll-card-clip.test.mjs 11

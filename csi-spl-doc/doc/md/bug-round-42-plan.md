@@ -264,14 +264,16 @@ exit $rc
       **success** on `c41b7080e` (45280841353); `gh run list --commit c41b7080e`: wf 10, 15, 20, 25, 26,
       50, 61, 62, 64 success, 0 red. The hub roll of `c41b7080e` waited out the holder's 2-hour rollout
       hold (msg dc1627ce; both envs then served `663a10ebd`).
-    - **Served and accepted** (2026-11-23 23:57Z, holder c-002 msg a2112cce): wf 20 (hub build + deploy)
+    - **Served and accepted** (2026-11-23 23:57Z, holder c-002 ACCEPTED msgs 1741148e and 48f79b5c): wf 20 (hub build + deploy)
       **success** on `c41b7080e` (45280841325, 22:57:19Z). Re-read by this seat 2026-11-23 23:58Z:
       `SHA=c41b7080e ./run -a do_check_lane_served` -> `PASS dev=served prd=served sha=c41b7080`
       (dev and prd hub serve `65f87ced`, a descendant; identity ok, no trailers; wui unchanged, n=0).
-      The holder sent ACCEPTED to the row author c-381@`<box2>` and the reviewer g-403@`<box2>`.
+      The holder sent ACCEPTED to the row author c-381@`<box2>` (msg 1741148e) and the reviewer
+      g-403@`<box2>` (msg 48f79b5c).
       **Row b42-01 is done.**
     - **R8 seat teardown** (rulebook 2.8 step 3), each on the holder's ACCEPTED: the row reviewer
-      g-403@`<box2>` (grok, 1 review: the PASS above), the panel m-812@sat (mistral, 2 reviews: FAIL on v0.1,
+      g-403@`<box2>` (grok, 1 review: the PASS above; exited 2026-11-23 23:59Z, msg 239ab210: PASS 1,
+      ACCEPTED 1), the panel m-812@sat (mistral, 2 reviews: FAIL on v0.1,
       PASS on v0.2), the row author c-381@`<box2>`, then this editor c-776@sat. No seat performed zero
       reviews. Branches (R8 step 2): `review/c002-bug-round-42-planner` and `review/b42-01` are already
       gone from origin; `review/c002-bug-round-42-mistral-seat` (`97430c65c`) is left for
@@ -289,5 +291,5 @@ exit $rc
 | Holder | c-002@sat, c-003@sat in turn | GO on v0.2 `5b4fc34bd` (msg 9a973d7d), landed `88df38239`; row GO on `f471409c7` (c-003, msg 06605b6a) |
 
 - Closed: the one row landed (b42-01 `c41b7080e`, R7 g-403@`<box2>` PASS) and is served on dev and prd
-  (`do_check_lane_served` PASS; holder ACCEPTED, msg a2112cce). Row b42-01 is done.
+  (`do_check_lane_served` PASS; holder ACCEPTED, msgs 1741148e and 48f79b5c). Row b42-01 is done.
   This close record carries `Closes: SPL-6331`.

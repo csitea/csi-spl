@@ -24,6 +24,9 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 30000)
 // The deliberate unknown route: Nuxt reports its own 404 (the document status
 // in lde, `Page not found: <path>` from the client router on Hosting). Those
 // two lines, on this one route, are the error page working, not a defect.
+// Nuxt 4 (SPL-5070) reports that client 404 through app:error as the bare
+// diagnostic `[NUXT_E1005]` (error during app initialization) from the entry
+// chunk; on this one route that line is the same error page working.
 const NOT_FOUND_PATH = '/no-such-page'
 
 // The mock tenant's fixture topic (utils/mock-data.mjs).
@@ -90,7 +93,7 @@ async function auditPage(browser, base, path) {
     const text = msg.text()
     if (type === 'error') {
       const loc = msg.location()?.url || ''
-      if (path === NOT_FOUND_PATH && (text.includes(`Page not found: ${NOT_FOUND_PATH}`) || loc.endsWith(NOT_FOUND_PATH))) return
+      if (path === NOT_FOUND_PATH && (text.includes(`Page not found: ${NOT_FOUND_PATH}`) || text === '[NUXT_E1005]' || loc.endsWith(NOT_FOUND_PATH))) return
       const why = expectedFailure(text, loc)
       if (why) { notes.push(`${scope}: ${why} (${loc})`); return }
       record(scope, 'console.error', `${text}${loc ? ` @ ${loc}` : ''}`)

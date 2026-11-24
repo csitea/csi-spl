@@ -1,0 +1,6 @@
+Lay-What: The database change that keeps invoices was given a later sequence number.
+Lay-How: The file was renamed so it runs after another database change that was added first.
+Lay-Why: Database changes must run in order, and the old number would have run out of order.
+Tech-What: rdb migration 0320_invoices_outlive_purge.sql becomes 0322; comments and spec 181 follow.
+Tech-How: git mv to the number claimed with do_rdb_migration_next; only the header line of the SQL changes.
+Tech-Why: 0321_messages_mc_id.sql landed after 0320 was claimed, so the pre-push migration lint refused 0320.

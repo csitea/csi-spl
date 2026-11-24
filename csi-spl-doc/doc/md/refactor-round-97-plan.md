@@ -52,9 +52,12 @@ actions drop their local helper, lazy-source `gh-set-ci-vars.func.sh` behind a
 edits to `gh-set-ci-vars.func.sh`, zero secret-class sites touched). The rows share no
 file (orc vs iac): both are batch 1.
 
-**Status: v0.1, for the panel (section 4).** Rows queue once the panel signs the plan sha
-and its review line passes `do_spl_review_line_check` (rc 0, rulebook 1.4 / 3.2 / 5.2).
-Editor: **a-158** (agy).
+**Status: v1.0, signed.** The panel (m-161, mistral) passed v0.1 `dc07c2ee4` with one
+defect W1 (folded in v1.0: code R7 = agy seat per ruling `dc84300a`) and notes N1..N3
+(seat file `csi-spl-doc/doc/md/refactor-round-97/seat-mistral.md`, branch
+`review/c002-refactor-round-97-mistral-seat`, `e81302fb9`). Rows queue once the holder
+confirms `do_spl_review_line_check` rc 0 and places them (rulebook 1.4 / 5.2). Editor:
+**a-158** (agy).
 
 **One sha:** every count is measured on **`6d81d4447`** (`6d81d444748398c86657a582efd57db89ed1d715`,
 `origin/master` at 2026-11-24T15:50:31Z), n=1 per command unless stated. Reads are on
@@ -462,15 +465,18 @@ Paths (9, the 8 edited + `iac:src/bash/run/gh-set-ci-vars.func.sh` read by row 0
 
 - Editor: a-158 (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; the
-  brief's step 5): the mistral seat `c002-refactor-round-97-mistral-panel-seat` (queued
-  1/25 at 15:50:52Z). The seat reviews this plan only.
-- **Row reviewers (code R7):** cross-vendor first (2.7.2).
-  `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-24T15:50:47Z printed
-  `pick=hold reason=waiting: grok weekly >= 95% on <box1>, <box2> [<box1> 99% billing read 16m ago; <box2> 99% banner read 5m ago]: queue the lane, spawn nothing`
-  (grok weekly is held at 99% on both boxes): **a claude waiver seat per row** while the
-  grok hold stands. The holder re-runs `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` when
-  it places the rows, using grok if the hold has lifted, else the claude waiver seat.
-  Never mistral on a coding kind or code R7.
+  brief's step 5): m-161 (mistral, `c002-refactor-round-97-mistral-panel-seat`): **PASS**
+  on v0.1 `dc07c2ee4` (W1 folded in v1.0, notes N1..N3; seat file
+  `refactor-round-97/seat-mistral.md`, `review/c002-refactor-round-97-mistral-seat`,
+  `e81302fb9`). The seat reviews this plan only.
+- **Row reviewers (code R7):** cross-vendor first (2.7.2). Per the 2026-11-24T15:52:44Z
+  ruling (`c-001` msg `dc84300a`, re owner `c8ae22e5` in t1 `2d0270fe`, post `4e432858`,
+  replacing `5fb1bdab`), R7 review of a claude coding row goes to an **agy seat** per
+  row (claude backup only while agy is out of quota), no longer grok and no longer the
+  claude waiver seat. `BOX_PICK_KIND=agy ./run -a do_spl_box_pick` at
+  2026-11-24T17:24:45Z picked an available box; the holder re-checks agy capacity at row
+  placement and uses the claude backup only if agy is out of quota. Never mistral on a
+  coding kind or code R7.
 - A row with no reviewer for 15 minutes reports a blocker (2.7.3).
 
 ## 5. Proposed row briefs
@@ -504,7 +510,8 @@ body; guard control (`gc1`, `declare -F spool_fleet_has_seats` guard deleted in
 `spl-unanswered-sweep.func.sh`, built in a worktree). Gates: the row's tests (section 2,
 `SPOOL_TEST=1`, in the worktree), `shellcheck -S warning -x` on the 4 files,
 `cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...)`. Kind `simple_coding`,
-vendor claude; R7 claude waiver seat while grok weekly >= 95% (re-checked at placement).
+vendor claude; R7 **agy seat** (claude backup only while agy is out of quota; never
+mistral; re-checked at placement).
 
 **r97-02 brief, Files: ONLY**
 `csi-spl-iac/src/bash/run/gh-prune-actions-caches.func.sh` (delete `_gpac_repo` `:26-31`;
@@ -524,8 +531,8 @@ tests on parent) RED then GREEN in the body; guard controls (`gc2a` + `gc2b`,
 `declare -F _gscv_repo` deleted in each `.func.sh`, built in a worktree, not a temp-dir
 copy). Gates: the row's tests (section 2, `SPOOL_TEST=1`, in the worktree),
 `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`.
-`Docs: none (...)`. Kind `simple_coding`, vendor claude; R7 claude waiver seat while grok
-weekly >= 95% (re-checked at placement).
+`Docs: none (...)`. Kind `simple_coding`, vendor claude; R7 **agy seat** (claude backup
+only while agy is out of quota; never mistral; re-checked at placement).
 
 ## 6. Counts
 
@@ -557,14 +564,40 @@ weekly >= 95% (re-checked at placement).
   scratch worktrees; the 25-suite column of 1.5 run on base and each row's head;
   `shellcheck -S warning -x` and `do_sec_shellcheck` rc 0; the red and guard controls
   (`rc1a`, `rc1b`, `gc1`, `rc2a`, `rc2b`, `gc2a`, `gc2b`) RED then GREEN; R3 (2.2) and R7
-  (section 4, claude waiver seat while grok weekly >= 95% on both boxes) checked.
+  (section 4; updated to agy seat in v1.0) checked.
+- v1.0 (a-158): the panel seat m-161 (mistral) **PASS** on v0.1 `dc07c2ee4`
+  (`dc07c2ee455dfbc4d4efa22351448d6f74d78395`), W1 + notes N1..N3 (msgs `cd36b85a` to
+  a-158, `869f2098` to c-002; holder forward `5ac8daf4`; seat file
+  `refactor-round-97/seat-mistral.md` on `review/c002-refactor-round-97-mistral-seat`,
+  `e81302fb9`). Folded (no row, site, or control change):
+  - W1: replaced the stale claude waiver R7 wording at lines 470, 472, 507, 527, 560 and
+    569 with **agy seat** per row (claude backup only while agy is out of quota; never
+    the waiver, never mistral) per the 2026-11-24T15:52:44Z ruling (`c-001` msg
+    `dc84300a`, re owner `c8ae22e5` in t1 `2d0270fe`, post `4e432858`, replacing
+    `5fb1bdab`).
+  - N1: the seat rebuilt both row heads in scratch worktrees of `6d81d4447` (head file
+    sha256s differ in comment/wording only); every red and guard control reproduced the
+    plan's exact quoted lines and counts. Useful note for row 02's author: the ruleset
+    test (`spl-gh-master-ruleset.tst.sh`) defines `$RUN`, not `$FUNC`, so case 7 reads
+    `"$RUN/spl-gh-master-ruleset.func.sh"`.
+  - N2: `origin/master` moved `6d81d4447` -> `1aa56088c` at the seat's read and ->
+    `e7e0dd768` at v1.0 (2026-11-24T17:24Z);
+    `git diff --name-only 6d81d4447 origin/master -- <the 9 paths>` remains empty, so
+    every site stands.
+  - N3: the candidates file's `:113` e2e-selector item is gate-design shaped, not a
+    refactor row; the seat verified both row candidates byte-identical directly and the
+    section-7 items by direct grep (the planner's 1.2 (e) scratch scan script is not in
+    the repo).
+  Text unchanged except the status line and sections 4, 5 (R7 line only), 8 and 9.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-158 (agy): v0.1.
-- Panel reviewer seat: `c002-refactor-round-97-mistral-panel-seat` (mistral, queued 1/25 at
-  15:50:52Z): **pending** review of v0.1 on `review/c002-refactor-round-97-planner`.
-- Row R7 seats: section 4; claude waiver seat per row while grok weekly is held at 99%
-  (re-checked with `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at placement).
+- Editor seat: a-158 (agy): v0.1, v1.0.
+- Panel reviewer seat: m-161 (mistral, `c002-refactor-round-97-mistral-panel-seat`):
+  **PASS** on v0.1 (`dc07c2ee4`), W1 (folded in v1.0), notes N1-N3; seat file
+  `refactor-round-97/seat-mistral.md` (`review/c002-refactor-round-97-mistral-seat`,
+  `e81302fb9`, section 8).
+- Row R7 seats: section 4; **agy seat** per row (claude backup only while agy is out of
+  quota; never the waiver, never mistral; re-checked at placement).

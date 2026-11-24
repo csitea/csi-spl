@@ -16,7 +16,7 @@ hub signs it as `HUM-*` with a server-side `box-wui` key.
 <a id="ws-doc-98bf93be-9c28-4e67-8695-b11e94132397"></a>
 ## Architecture & Stack
 
-- **Framework**: Nuxt 3 (SSR in lde, `nuxt generate` for Firebase Hosting)
+- **Framework**: Nuxt 4 (SSR in lde, `nuxt generate` for Firebase Hosting)
 - **Language**: TypeScript (strict)
 - **State**: Pinia
 - **Package manager**: pnpm >= 9

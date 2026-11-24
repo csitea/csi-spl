@@ -1,6 +1,6 @@
 # Spec 178: move the WUI from Nuxt 3 to Nuxt 4
 
-Version **0.2.0** (2026-11-16; 0.2.0 folds R7 grok g-390 W1, N1..N3). Lane `c-385`, placement slug
+Version **0.3.0** (2026-11-24; 0.3.0 adds section 6, the move as built by SPL-5070; 0.2.1 the 30-day renewal; 0.2.0 folds R7 grok g-390 W1, N1..N3). Lane `c-385`, placement slug
 `ci50-05-nuxt4-migration-spec`. Epic **SPL-2402**, issue **SPL-5661**, kind
 `specs_and_docs`. Parent spec: `csi-spl-doc/specs/011-spool-project-refactor`.
 Source: `csi-spl-doc/doc/md/ci-failures-50-2026-11-15.md` (SPL-5587) section 7
@@ -132,4 +132,39 @@ move has not landed, the re-check lane ran.
 - A6. The WUI README (line 19 says `Nuxt 3` today) and the
   `csi-spl-wui/package.json` `description` both say Nuxt 4.
 
-<!-- version: 0.2.1 · updated: 2026-11-24 -->
+## 6. The move as built (SPL-5070, 2026-11-24)
+
+Lanes c-137, then c-980. Measured on the bump's tree, rebased on origin/master
+`3eec1eb89`, unless a line says otherwise.
+
+- Versions: nuxt 4.6.4, vue-router 5, @nuxtjs/i18n 10.6.0, vite 8 (rolldown).
+  P3 and P4 landed as one bump: the vite 8 chunking, the i18n settings and
+  the nuxt 4 types do not build on nuxt 3. P2 (node 22) is its own commit
+  ahead of it.
+- Chunking: `manualChunks` became rolldown `codeSplitting` groups, and
+  `checks.circularDependency` is on, so the app-cycle guard still fires
+  (c-137, a planted cycle failed the build, n=1). Component islands are off
+  (nuxt 4 `auto` registered the island plugin).
+- i18n 10.6 turns `experimental.optimizeMessageBundling` on by default; it is
+  off, or the prerendered pages show raw `{placeholders}`
+  (`tests/unit/i18n-runtime-only.test.mjs` pins it).
+- Budgets (box generate, node 22.23.5, n=1): `ci_initial_gzip_kb` 153.1
+  (ceiling 155; master's CI on `c4000b25b`: 151.9), home 334.4, costs route
+  11.5. Rolldown inlines imported constants, so the costs route marker moved
+  from the mock key to `"ai_share_from"`
+  (`csi-spl-orc/src/bash/scripts/perf-budget.py`).
+- Node 20: the nuxt 4 tree still installs (an engines warning), typechecks
+  and generates on the box's node 20.19.2. CI runs 22.
+- A4 holds only in part. Of the 8 nuxt 3 ignores, osv-scanner 2.6.0 with no
+  ignores lists none of xfq5, jjm6, 648h and mjrq on the 4.6.4 lockfile, so
+  they left the toml. vjh5, f3x9, hf59 and 96x6 still match 4.6.4. This is a
+  false positive. GitHub's record (`gh api /advisories/<id>`) bounds the
+  unpatched 3.x range at `< 4.0.0`. The OSV record keeps only
+  `introduced: 3.0.0` and drops that bound. The 4 entries therefore stay with
+  that reason and their renewed dates, until osv-scanner names them unused.
+  `pnpm audit` lists none of the 8 nuxt ids, nor braces (vfj7), so
+  `ignoreGhsas` now holds only the 2 tooling ids, g3hv and 3g3m.
+  osv-scanner also named picomatch (fc5q) unused on this lockfile, so it left
+  the toml.
+
+<!-- version: 0.3.0 · updated: 2026-11-24 -->

@@ -17,7 +17,9 @@
 #  - braces 3.0.3 (npm, GHSA-vfj7-8cjw-p6xm): dropped 2026-10-25, osv-scanner
 #    named the ignore unused (workflow 70 run 40209390726). The pnpm audit leg
 #    (workflow 15) still lists it in csi-spl-wui/package.json
-#    pnpm.auditConfig.ignoreGhsas: re-check that one by its own run.
+#    pnpm.auditConfig.ignoreGhsas: re-check that one by its own run. Dropped
+#    there too 2026-11-24 (SPL-5070): pnpm audit with no ignores no longer
+#    lists it.
 #  - nuxt + @nuxt/nitro-server 3.21.11 (npm, GHSA-vjh5-4x84-xrqp,
 #    GHSA-xfq5-w38q-pc2x, GHSA-jjm6-p2m9-9w4x; published 2026-10-22 16:51-17:00Z,
 #    reddened workflow 70 with no lockfile change): fixed only in nuxt 4.6.x,
@@ -34,6 +36,16 @@
 #    reasons hold on the current tree. Re-checked 2026-11-24 (owner t1 80e54ed8
 #    answer C, renewed 30 days); the real fix is SPL-5070. Re-check by
 #    2026-12-27 (SPL-2908).
+#  - The nuxt 4 move (SPL-5070, spec 178, nuxt 4.6.4) dropped xfq5, jjm6,
+#    648h (@nuxt/vite-builder) and mjrq (@nuxt/schema): osv-scanner 2.6.0 with
+#    no ignores lists none of them on the 4.6.4 lockfile. vjh5, f3x9, hf59 and
+#    96x6 stay, as false positives: GitHub's records bound their unpatched 3.x
+#    range at < 4.0.0, the OSV records lose that bound and match 4.6.4 too.
+#    pnpm audit lists none of the 8, so package.json
+#    pnpm.auditConfig.ignoreGhsas no longer carries any of them.
+#  - picomatch 2.3.2 + 4.0.7 (npm, GHSA-fc5q-39xc-vjpf, SPL-5816): dropped
+#    2026-11-24 (SPL-5070), osv-scanner 2.6.0 named the ignore unused on the
+#    nuxt 4 lockfile.
 #  - serialize-javascript (npm): GHSA-gfhx-hw2g-v5hg dropped 2026-11-08
 #    (SPL-5069), it affects 7.1.1 only, the lockfile has 7.1.4 and osv-scanner
 #    2.6.0 named the ignore unused. GHSA-m5mm-p8h7-m29v (7.1.1, fixed 7.1.3) was fixed by the lockfile
@@ -61,17 +73,7 @@
 [[IgnoredVulns]]
 id = "GHSA-vjh5-4x84-xrqp" # SPL-2908
 ignoreUntil = 2026-12-27
-reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.2, no fixed 3.x; needs a running Nitro server with case-insensitive route rules, the WUI ships as nuxt generate static output on Firebase Hosting. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
-
-[[IgnoredVulns]]
-id = "GHSA-xfq5-w38q-pc2x" # SPL-2908
-ignoreUntil = 2026-12-27
-reason = "nuxt 3.21.11: fixed only in 4.6.2, no fixed 3.x; needs server islands, the WUI has no .server.vue/.island.vue, NuxtIsland or useHeadSafe. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
-
-[[IgnoredVulns]]
-id = "GHSA-jjm6-p2m9-9w4x" # SPL-2908
-ignoreUntil = 2026-12-27
-reason = "nuxt 3.21.11: fixed only in 4.6.0, no fixed 3.x; needs pages disabled, the WUI uses pages (src/pages). Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
+reason = "nuxt + @nuxt/nitro-server 4.6.4 since SPL-5070, outside the advisory: GitHub's own record (gh api /advisories/GHSA-vjh5-4x84-xrqp) bounds the unpatched 3.x range at < 4.0.0 and lists 4.x fixed in 4.6.2, but the OSV record drops that 3.x upper bound (introduced 3.0.0, no fixed), so osv-scanner 2.6.0 matches every later version. A false positive of the OSV data, pnpm audit (workflow 15) does not list it. Remove when osv-scanner names the ignore unused."
 
 # SPL-4508: three moderate npm advisories that reddened workflows 15 and 70 on
 # 2026-10-31 (run 41207686407) with no lockfile change. Each is fixed only in a
@@ -90,17 +92,6 @@ id = "GHSA-3g3m-2fjr-6pw4" # SPL-4508
 ignoreUntil = 2026-11-30
 reason = "glob 10.5.0/13.0.6: fixed only in 14.0.2, no fixed 10.x/13.x; pulled only at build time by nitropack (@vercel/nft, archiver), and the bug needs a caller that bounds an untrusted walk with an AbortSignal; not in the generated WUI bundle."
 
-[[IgnoredVulns]]
-id = "GHSA-648h-gw55-m2g7" # SPL-4508
-ignoreUntil = 2026-12-30
-reason = "@nuxt/vite-builder 3.21.11: fixed only in 4.6.3, no fixed 3.x; affects only `nuxt dev`, whose Nitro dev bundle inlines private runtimeConfig, and csi-spl-wui/nuxt.config.ts runtimeConfig has public keys only; we ship nuxt generate output. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
-
-# SPL-5474: @nuxt/schema 3.21.11, reddened workflows 15 and 70 on 2026-11-13.
-[[IgnoredVulns]]
-id = "GHSA-mjrq-cffv-q4qc" # SPL-5474
-ignoreUntil = 2026-12-30
-reason = "@nuxt/schema 3.21.11: fixed only in 4.6.4, nuxt 3 is end of life with no fixed 3.x; affects only the `nuxt dev` server (/_nuxt/@fs/ under a parent workspaceDir), we ship nuxt generate output on Firebase Hosting. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
-
 # SPL-5804: three nuxt 3.21.11 advisories published 2026-11-16 that reddened
 # workflows 15 (run 44103906446) and 70 (run 44103906824) on 013cb71bf with no
 # lockfile change. Fixed only in nuxt / @nuxt/nitro-server 4.6.4; 3.21.11 is
@@ -110,24 +101,14 @@ reason = "@nuxt/schema 3.21.11: fixed only in 4.6.4, nuxt 3 is end of life with 
 [[IgnoredVulns]]
 id = "GHSA-f3x9-2chm-73c8" # SPL-5804
 ignoreUntil = 2026-12-30
-reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.4, no fixed 3.x; a %2F in the path skips route rules on a catch-all page. Our only routeRules are headers on /** (matches any path) and /_nuxt/**, plus prerender:false; no redirect, appMiddleware or proxy rule, and the route middleware is global. Prd is nuxt generate output on Firebase Hosting, headers from firebase.json, no Nitro server. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
+reason = "nuxt + @nuxt/nitro-server 4.6.4 since SPL-5070, outside the advisory: GitHub's own record (gh api /advisories/GHSA-f3x9-2chm-73c8) bounds the unpatched 3.x range at < 4.0.0 and lists 4.x fixed in 4.6.4, but the OSV record drops that 3.x upper bound (introduced 3.0.0, no fixed), so osv-scanner 2.6.0 matches every later version. A false positive of the OSV data, pnpm audit (workflow 15) does not list it. Remove when osv-scanner names the ignore unused."
 
 [[IgnoredVulns]]
 id = "GHSA-hf59-9xwc-2g4p" # SPL-5804
 ignoreUntil = 2026-12-30
-reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.4, no fixed 3.x; colliding props share one /__nuxt_island path. Needs server components or <NuxtIsland>: the WUI has no .server.vue/.island.vue and no NuxtIsland. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
+reason = "nuxt + @nuxt/nitro-server 4.6.4 since SPL-5070, outside the advisory: GitHub's own record (gh api /advisories/GHSA-hf59-9xwc-2g4p) bounds the unpatched 3.x range at < 4.0.0 and lists 4.x fixed in 4.6.4, but the OSV record drops that 3.x upper bound (introduced 3.0.0, no fixed), so osv-scanner 2.6.0 matches every later version. A false positive of the OSV data, pnpm audit (workflow 15) does not list it. Remove when osv-scanner names the ignore unused."
 
 [[IgnoredVulns]]
 id = "GHSA-96x6-fvhx-49hg" # SPL-5804
 ignoreUntil = 2026-12-30
-reason = "nuxt 3.21.11: fixed only in 4.6.4, no fixed 3.x; an unhandled error thrown during server rendering sends its message and data to the client. Prd renders nothing on request: nuxt generate prerenders at build time and every other route boots from the 200.html SPA fallback on Firebase Hosting. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
-
-# SPL-5816: picomatch 2.3.2 + 4.0.7 (CVSS 8.7), published 2026-11-17, reddened
-# workflow 70 (run 44126816251) on 78d121fe3 with no lockfile change. osv.dev
-# lists last_affected 4.0.7 and no fixed release, so no bump or override exists.
-# pnpm audit (workflow 15) does not list it yet (green, run 44130441215): if it
-# reddens, add the same id to package.json pnpm.auditConfig.ignoreGhsas.
-[[IgnoredVulns]]
-id = "GHSA-fc5q-39xc-vjpf" # SPL-5816
-ignoreUntil = 2026-12-17
-reason = "picomatch 2.3.2/4.0.7: no fixed version upstream (last_affected 4.0.7); the ReDoS needs an attacker-chosen glob with repeated extglobs. Not reachable from input we do not control: only build and dev tooling pulls it (vite, rollup plugins, unplugin*, @vercel/nft, vite-plugin-checker, @vue/language-core, tinyglobby/fdir, micromatch/anymatch), matching globs from our own config; not in the generated WUI bundle, prd is static output on Firebase Hosting. Re-check for a fixed release by the expiry."
+reason = "nuxt 4.6.4 since SPL-5070, outside the advisory: GitHub's own record (gh api /advisories/GHSA-96x6-fvhx-49hg) bounds the unpatched 3.x range at < 4.0.0 and lists 4.x fixed in 4.6.4, but the OSV record drops that 3.x upper bound (introduced 3.0.0, no fixed), so osv-scanner 2.6.0 matches every later version. A false positive of the OSV data, pnpm audit (workflow 15) does not list it. Remove when osv-scanner names the ignore unused."

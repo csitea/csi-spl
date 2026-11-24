@@ -9,7 +9,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Rollup } from "vite"
 import type { NuxtPage } from "@nuxt/schema"
-import { addTemplate, addTypeTemplate, addVitePlugin, extendViteConfig } from "@nuxt/kit"
+import { addTemplate, addTypeTemplate, addVitePlugin } from "@nuxt/kit"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
 import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
 import { buildEarlyConfigScript } from "./src/utils/runtime-config.mjs"
@@ -107,7 +107,7 @@ function preconnectLinks(bases: string[]) {
     const m = /^(https:\/\/[^/{}]+)/i.exec(b)
     if (m) origins.add(m[1].toLowerCase())
   }
-  return [...origins].map((href) => ({ rel: "preconnect", href, crossorigin: "use-credentials" as const }))
+  return [...origins].map((href) => ({ rel: "preconnect" as const, href, crossorigin: "use-credentials" as const }))
 }
 
 // ── Content-Security-Policy ───────────────────────────────────────────────
@@ -220,6 +220,14 @@ function vendorChunk(id: string): string | undefined {
   return undefined
 }
 
+// Rolldown tags a module "$initial" from the entry's static import graph
+// BEFORE tree-shaking, so modules the entry reaches only through a barrel
+// (#imports -> nuxt/dist/app/composables/index.js, components/index.js) and
+// that only lazy pages use would land in the "app-initial" chunk: NuxtLink
+// and useAsyncData, ~13 KB raw (SPL-5070). Left out, rolldown splits them
+// like Rollup did under Nuxt 3; anything the entry really uses stays in it.
+const BARREL_ONLY_INITIAL = /\/nuxt\/dist\/app\/(components\/nuxt-link|composables\/asyncData)\.js$/
+
 // ── i18n locale set ───────────────────────────────────────────────────────
 // Shared by the i18n module config and the root redirect script (app.head)
 // so the two can never disagree on what ships. Default from cnf
@@ -265,9 +273,39 @@ const DEFAULT_LOCALE = _envDefaultLocale as SpoolLocaleCode
 // and so does a build with NUXT_I18N_SPLIT=0 (the A/B and rollback switch).
 const I18N_SPLIT = !isDev && process.env.NUXT_I18N_SPLIT !== "0"
 if (I18N_SPLIT) writeSplitCatalogues(I18N_LOCALES.map((l) => l.file))
-const I18N_MODULE_LOCALES = I18N_SPLIT
-  ? I18N_LOCALES.map((l) => ({ ...l, file: `../.split/${l.file}` }))
-  : I18N_LOCALES
+const I18N_CATALOGUE_FILES = I18N_SPLIT
+  ? I18N_LOCALES.map((l) => ({ code: l.code, file: `../.split/${l.file}` }))
+  : I18N_LOCALES.map((l) => ({ code: l.code, file: l.file }))
+// i18n/client-loaders.ts, second and uncached: it makes every locale
+// "dynamic" for @nuxtjs/i18n 10.6, so the client loads the precompiled
+// catalogues, never the raw /_i18n/.../messages.json (SPL-5070; that file says why)
+const I18N_MODULE_LOCALES = I18N_LOCALES.map(({ file: _file, ...l }, i) => ({
+  ...l,
+  files: [I18N_CATALOGUE_FILES[i]!.file, { path: "../client-loaders.ts", cache: false }],
+}))
+/**
+ * The client copy of #internal/i18n-options lists i18n/client-loaders.ts once
+ * per locale: 19 loader rows in the entry chunk (+0.4 KB gzip) and one more
+ * chunk request per locale load, for a loader that returns {} (SPL-5070).
+ * The locale stays "dynamic" through the module's build-time defines, so the
+ * client still takes its loaders without the rows; drop them there. The
+ * server copy keeps them. A build that finds none fails: the file the rows
+ * come from changed shape and this needs a look.
+ */
+const CLIENT_LOADER_ROW_RE = /,?\s*\{\s*key:\s*"locale_client_45loaders_46ts_[0-9a-f]+",\s*load:[^\n]*?,\s*cache:\s*false\s*\}/g
+function i18nClientLoaderRowsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
+  if (nuxt.options.dev) return
+  addVitePlugin({
+    name: "spool:i18n-client-loader-rows",
+    enforce: "post",
+    transform(code: string, id: string) {
+      if (!id.split("?")[0]!.endsWith("i18n-options.mjs")) return null
+      const out = code.replace(CLIENT_LOADER_ROW_RE, "")
+      if (out === code) this.error("spool:i18n-client-loader-rows: no client-loaders.ts row in " + id)
+      return { code: out, map: null }
+    },
+  }, { server: false })
+}
 const I18N_SPLIT_CORE = join(dirname(fileURLToPath(import.meta.url)), "i18n/.split/")
 /**
  * Never hint the second catalogues as prefetch: a page needs one of the 19,
@@ -290,24 +328,6 @@ function i18nSplitModule(_options: unknown, nuxt: { hook: (name: "build:manifest
     for (const [src, chunk] of Object.entries(manifest)) {
       if (src.includes("i18n/.split/more/")) chunk.prefetch = false
     }
-  })
-}
-/**
- * The app loads its catalogues from its own precompiled chunks, never from the
- * i18n module's /_i18n/<hash>/<locale>/messages.json (SPL-4356). @nuxtjs/i18n
- * 10 fetches that route whenever every locale file is static JSON
- * (`__I18N_FULL_STATIC__`), and the route serves the raw source strings,
- * which only a message compiler turns into text: this vue-i18n has none
- * (bundle.dropMessageCompiler), so "#{name}" reached the screen. With the
- * flag false a generated build takes the module's client loaders, as v9 did.
- * The module adds its defines in its modules:done hook; this module is listed
- * after it, so its own modules:done hook runs later and this define wins.
- */
-function i18nClientMessagesModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
-  nuxt.hook("modules:done", () => {
-    extendViteConfig((config) => {
-      config.define = { ...config.define, __I18N_FULL_STATIC__: "false" }
-    })
   })
 }
 // Locale preference cookie (strictly necessary). Written by
@@ -369,7 +389,9 @@ function localeRouteCopiesModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) 
     filename: "types/locale-route-codes.d.ts",
     getContents: () => `declare module "#build/locale-route-codes.mjs" {\n  export const localeCodes: string[]\n  export const defaultLocale: string\n}\n`,
   })
-  nuxt.hook("pages:resolved", (pages) => {
+  // i18n localizes in pages:resolved on nuxt 4 (scanPageMeta "after-resolve"),
+  // a hook it adds in its own modules:done: hook ours there too, so it runs after.
+  nuxt.hook("modules:done", () => void nuxt.hook("pages:resolved", (pages) => {
     const kept = pages.filter((p) => !isLocaleRouteCopy(p, LOCALE_CODES, DEFAULT_LOCALE))
     if (kept.length === pages.length) {
       throw new Error("locale route copies (CLE-77925): i18n made no locale copies; is the module order still i18n first?")
@@ -381,7 +403,7 @@ function localeRouteCopiesModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) 
     }
     pages.length = 0
     pages.push(...kept)
-  })
+  }))
 }
 
 // The app.head scripts a blog document must not run: the signed-out redirect,
@@ -408,12 +430,12 @@ function blogDocumentsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
   // (after localeRouteCopiesModule kept the default-locale records; the
   // router derives the /<lang> copies from it) rather than in the page's
   // definePageMeta, whose meta object ships in the initial JS.
-  nuxt.hook("pages:resolved", (pages) => {
+  nuxt.hook("modules:done", () => void nuxt.hook("pages:resolved", (pages) => {
     const blog = pages.find((p) => p.path === "/blog" && (p.file || "").endsWith("/pages/blog.vue"))
     if (!blog) throw new Error("blog (spec 111 T003): no /blog record for pages/blog.vue")
     blog.path = "/blog/:slug(.*)*"
     for (const code of BLOG_EXTRA_LOCALES) pages.push({ ...blog, name: `blog-${code}`, path: `/${code}/blog/:slug(.*)*` })
-  })
+  }))
   nuxt.hook("nitro:init", (nitro) => {
     nitro.hooks.hook("prerender:generate", (route) => {
       if (!BLOG_ROUTE_RE.test(route.route) || typeof route.contents !== "string" || !(route.fileName || "").endsWith(".html")) return
@@ -516,13 +538,68 @@ function publicSeoModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
 // document perf-budget's ci_initial_gzip_kb reads).
 // the catalogue file i18n loads per locale (P3-06: the split first-screen one),
 // read at config load: @nuxtjs/i18n later rewrites each locale's `file` in place
-const LOCALE_FILES: Record<string, string> = Object.fromEntries(I18N_MODULE_LOCALES.map((l) => [l.code, l.file]))
+const LOCALE_FILES: Record<string, string> = Object.fromEntries(I18N_CATALOGUE_FILES.map((l) => [l.code, l.file]))
+// Rolldown puts every module the entry reaches through a static import into
+// the entry's chunk, used or not, BEFORE tree-shaking (Rollup decided after).
+// @nuxtjs/i18n and @pinia/nuxt import from the "#app" barrel, which re-exports
+// NuxtLink and useAsyncData, so both (~13 KB raw) moved into the first-screen
+// JS under Nuxt 4 although only lazy pages use them (SPL-5070). Rewrite those
+// imports to the file each name lives in, from the map Nuxt writes to
+// imports.d.ts; a name the map lacks keeps the barrel.
+const APP_BARREL_IMPORT = /import\s*\{([^}]*)\}\s*from\s*["']#app["'];?/g
+const APP_BARREL_IMPORTERS = /\/node_modules\/(?:@nuxtjs\/i18n|@pinia\/nuxt)\/dist\/runtime\//
+function directAppImportsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
+  let where: Map<string, string> | null = null
+  const sourceOf = () => {
+    if (where) return where
+    where = new Map()
+    const dts = readFileSync(join(nuxt.options.buildDir, "imports.d.ts"), "utf8")
+    for (const m of dts.matchAll(/export \{([^}]*)\} from '(#app\/[^']+)'/g)) {
+      for (const name of m[1]!.split(",").map((n) => n.trim()).filter(Boolean)) where.set(name, m[2]!)
+    }
+    return where
+  }
+  addVitePlugin({
+    name: "spool:direct-app-imports",
+    enforce: "pre",
+    transform(code, id) {
+      if (!APP_BARREL_IMPORTERS.test(id) || !code.includes("#app")) return null
+      const map = sourceOf()
+      const out = code.replace(APP_BARREL_IMPORT, (whole, list: string) => {
+        const names = list.split(",").map((n) => n.trim()).filter(Boolean)
+        if (!names.length || names.some((n) => !map.has(n))) return whole
+        const byFile = new Map<string, string[]>()
+        for (const n of names) byFile.set(map.get(n)!, [...(byFile.get(map.get(n)!) || []), n])
+        return [...byFile].map(([file, ns]) => `import { ${ns.join(", ")} } from "${file}";`).join(" ")
+      })
+      return out === code ? null : { code: out, map: null }
+    },
+  })
+}
+
+// Nuxt 3 generated #build/error-component.mjs as defineAsyncComponent; Nuxt 4
+// exports src/error.vue statically, so the error page (and what it imports)
+// joined the entry chunk of every page (SPL-5070). Load it on demand again:
+// it only renders after an error.
+function asyncErrorComponentModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
+  let page = ""
+  const wrapper = addTemplate({
+    filename: "spool-error-component.mjs",
+    getContents: () => `import { defineAsyncComponent } from "vue"\nexport default defineAsyncComponent(() => import(${JSON.stringify(page)}).then((r) => r.default || r))\n`,
+  })
+  nuxt.hook("app:resolve", (app) => {
+    if (!app.errorComponent || app.errorComponent === wrapper.dst) return
+    page = app.errorComponent
+    app.errorComponent = wrapper.dst
+  })
+}
+
 function firstScreenHintsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
   let graph: ReturnType<typeof firstScreenChunkGraph> | null = null
   let pages: NuxtPage[] = []
-  nuxt.hook("pages:resolved", (resolved) => {
+  nuxt.hook("modules:done", () => void nuxt.hook("pages:resolved", (resolved) => {
     pages = resolved.filter((p) => !isLocaleRouteCopy(p, LOCALE_CODES, DEFAULT_LOCALE))
-  })
+  }))
   addVitePlugin({
     name: "spool:first-screen-graph",
     apply: "build",
@@ -592,6 +669,11 @@ export default defineNuxtConfig({
   // workspace (its node_modules joined modulesDir, the build cache went
   // there). tests/unit/workspace-dir.test.mjs builds that case.
   workspaceDir: ".",
+  // nuxt 4 moved two defaults: the public dir to <rootDir>/public (ours is
+  // src/public, nuxt 3's <srcDir>/public; absolute, so both read it) and, with
+  // a custom srcDir, the app dir to srcDir itself, which hid
+  // src/app/router.options.ts (the locale route copies, CLE-77925).
+  dir: { app: "app", public: fileURLToPath(new URL("./src/public", import.meta.url)) },
   compatibilityDate: "2026-09-18",
   devtools: { enabled: isDev },
   ssr: true,
@@ -600,12 +682,21 @@ export default defineNuxtConfig({
   spaLoadingTemplate: "spa-loading-template.html",
 
   experimental: {
-    // no page uses useAsyncData/useFetch, so every prerendered
-    // route's _payload.json is `data: {}` - yet a client-side move to one
-    // (/, /login, /channel/general) waited for that fetch before the page's
-    // own read started: one more round trip per click (~150-300 ms on 4G).
-    // Off = the (empty) payload is inlined in the prerendered document.
+    // only pages/blog.vue and components/LoginFeatures.vue call
+    // useAsyncData (no useFetch), so most prerendered routes' _payload.json
+    // is `data: {}` - yet a client-side move to one (/, /login,
+    // /channel/general) waited for that fetch before the page's own read
+    // started: one more round trip per click (~150-300 ms on 4G).
+    // Off = the payload is inlined in the prerendered document.
     payloadExtraction: false,
+    // No .server/.island component exists. Nuxt 4's default "auto" is truthy,
+    // so it registers the island-link-navigation client plugin anyway, and
+    // that plugin pulls NuxtLink into the entry chunk (SPL-5070).
+    componentIslands: false,
+    // The app never calls useCookie (only @nuxtjs/i18n detection does, and it
+    // does not need cookie-change events). Nuxt 4 defaults this on, which
+    // ships a CookieStore listener in the first-screen JS (SPL-5070).
+    cookieStore: false,
   },
 
   typescript: {
@@ -620,7 +711,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css", "@/assets/css/tap-anim.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nClientMessagesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule, publicSeoModule],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nClientLoaderRowsModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule, publicSeoModule, asyncErrorComponentModule, directAppImportsModule],
 
   hooks: {
     // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches
@@ -655,6 +746,12 @@ export default defineNuxtConfig({
     // @nuxtjs/i18n 10 always sets optimizeTranslationDirective: false and
     // dropped experimental.generatedLocaleFilePathFormat, so neither is set.
     bundle: { runtimeOnly: true, dropMessageCompiler: true },
+    // @nuxtjs/i18n 10.6 defaults this on: the server build then takes each
+    // catalogue as JSON.parse(<raw source>) and expects a message compiler,
+    // which dropMessageCompiler removes, so every prerendered page printed
+    // "Powered by {link}" and "{n} online" (SPL-5070). Off, the build
+    // precompiles the server's catalogues as it does the client's.
+    experimental: { optimizeMessageBundling: false },
   },
 
   runtimeConfig: {
@@ -779,10 +876,35 @@ export default defineNuxtConfig({
     vue: { features: { optionsAPI: false } },
     $client: {
       build: {
-        rollupOptions: {
-          output: { manualChunks: vendorChunk },
+        rolldownOptions: {
+          // Rolldown reports CIRCULAR_DEPENDENCY only with this check on
+          // (default off); without it the guard above never fires.
+          checks: { circularDependency: true },
+          // asyncData.js runs `const useAsyncData = _createUseAsyncData()` at
+          // top level with no @__PURE__ mark, so rolldown keeps the module
+          // wherever the barrel reaches it. Both modules only define things.
+          treeshake: { moduleSideEffects: [{ test: BARREL_ONLY_INITIAL, sideEffects: false }] },
           onwarn: onwarnFailAppCycles,
+          output: {
+            // Vite 8 (rolldown) splits the first screen into ~36 small shared
+            // chunks that each gzip worse on their own (+23 KB initial JS,
+            // SPL-5070). Keep the two vendor chunks, and put every other
+            // module the entry loads statically into one chunk, like Rollup's
+            // entry chunk under Nuxt 3. Lazy chunks keep automatic splitting.
+            codeSplitting: {
+              groups: [
+                { name: (id: string) => vendorChunk(id) ?? null, priority: 2 },
+                { name: "app-initial", tags: ["$initial"], test: (id: string) => !BARREL_ONLY_INITIAL.test(id), priority: 1 },
+              ],
+            },
+          },
         },
+        // Oxc (Vite 8's default) minifies the first-screen chunks to 157.0 KB
+        // gzip, terser to 153.2 and esbuild to 161.5 (same input, n=1,
+        // SPL-5070); the ci_initial_gzip_kb budget is 155 (spec 178 A3).
+        // ecma 2020 (Vite 8's default target is newer) and 3 passes: -0.5 KB.
+        minify: "terser",
+        terserOptions: { ecma: 2020, compress: { passes: 3 } },
         sourcemap: process.env.NUXT_CLIENT_SOURCEMAP === "true",
       },
     },

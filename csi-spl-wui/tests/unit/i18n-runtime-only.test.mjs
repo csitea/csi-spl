@@ -37,18 +37,26 @@ describe('vue-i18n runtime-only', () => {
     assert.match(bundle[1], /\bdropMessageCompiler:\s*true\b/)
   })
 
-  // SPL-4356: @nuxtjs/i18n 10 fetches /_i18n/<hash>/<locale>/messages.json
-  // (raw source strings) when every locale file is static JSON; without a
-  // compiler "#{name}" reached the screen. The app takes its precompiled
-  // chunks instead, through this define, set after the module's own.
-  it('nuxt.config keeps the client on its precompiled catalogues, not the messages.json route', () => {
+  // SPL-4356 / SPL-5070: @nuxtjs/i18n 10 fetches /_i18n/<hash>/<locale>/messages.json
+  // (raw source strings) for a locale whose files are all static JSON; without
+  // a compiler "Acting as {name}" reached the screen. 10.2 had a define for it
+  // (__I18N_FULL_STATIC__); 10.6 keeps the client loaders only for a "dynamic"
+  // locale, so every locale lists i18n/client-loaders.ts second, uncached.
+  it('every locale lists the uncached client-loaders file, so the client keeps its precompiled catalogues', () => {
     const cfg = readFileSync(join(WUI, 'nuxt.config.ts'), 'utf8')
-    const mod = /function i18nClientMessagesModule\b[^{]*\{\n  nuxt\.hook\("modules:done", \(\) => \{\n    extendViteConfig\(\(config\) => \{\n      config\.define = \{ \.\.\.config\.define, __I18N_FULL_STATIC__: "false" \}/
-    assert.match(cfg, mod)
-    const modules = /\bmodules: \[([^\]]*)\]/.exec(cfg)
-    assert.ok(modules, 'modules list not found in nuxt.config.ts')
-    const list = modules[1].split(',').map((m) => m.trim())
-    assert.ok(list.indexOf('i18nClientMessagesModule') > list.indexOf('"@nuxtjs/i18n"'), 'i18nClientMessagesModule must follow @nuxtjs/i18n')
+    assert.match(cfg, /files: \[I18N_CATALOGUE_FILES\[i\]!\.file, \{ path: "\.\.\/client-loaders\.ts", cache: false \}\]/)
+    assert.match(cfg, /\blocales: I18N_MODULE_LOCALES\b/)
+    const loader = readFileSync(join(WUI, 'i18n/client-loaders.ts'), 'utf8')
+    assert.match(loader, /^export default defineI18nLocale\(\(\) => \(\{\}\)\)$/m)
+  })
+
+  // SPL-5070: @nuxtjs/i18n 10.6's optimizeMessageBundling (default on) hands
+  // the server raw catalogue JSON to compile at runtime; with no compiler the
+  // prerendered /login showed "Powered by {link}". Off, the server's are
+  // precompiled too (tests/e2e/login-centred.test.mjs is the browser check).
+  it('the server catalogues are precompiled too (optimizeMessageBundling off)', () => {
+    const cfg = readFileSync(join(WUI, 'nuxt.config.ts'), 'utf8')
+    assert.match(cfg, /^\s*experimental: \{ optimizeMessageBundling: false \},$/m)
   })
 
   it('no source adds a message at runtime (it would need the compiler)', () => {

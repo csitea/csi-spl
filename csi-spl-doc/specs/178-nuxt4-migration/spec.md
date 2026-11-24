@@ -101,8 +101,17 @@ The lane owns `osv-scanner.toml` and `csi-spl-wui/package.json`
 |---|---|---|---|
 | `osv-recheck-20261127` | 2026-11-25 | vjh5, xfq5, jjm6, gcqx | SPL-2908, SPL-3972 |
 | `osv-recheck-20261130` | 2026-11-28 | g3hv, 3g3m, 648h, mjrq | SPL-4508, SPL-5474 |
+| `osv-recheck-20261227` | 2026-12-25 | vjh5, xfq5, jjm6 | SPL-2908, SPL-5070 |
+| `osv-recheck-20261230` | 2026-12-28 | 648h, mjrq, f3x9, hf59, 96x6 | SPL-4508, SPL-5474, SPL-5804, SPL-5070 |
 
 The commit that sets any later expiry adds its row to this table.
+
+On 2026-11-24 the owner chose a 30-day renewal over the 14-day cap above
+(HUM-10, t1 80e54ed8, msg 8fca4dfc, answer C: "renew the ignores now, and
+resume SPL-5070"). Lane `c002-nuxt3-ignores-renew-30d` re-checked the 8 nuxt 3
+ignores and moved 2026-11-27 to 2026-12-27 and 2026-11-30 to 2026-12-30; the
+two tooling ignores (g3hv, 3g3m) keep 2026-11-30. The deepmerge ignore (gcqx)
+left the toml on 2026-11-17 (SPL-5816).
 
 The date is the control. With today's tree, workflow 70 reads 4 expired ids
 on 2026-11-27 and 8 on 2026-11-30. If wf 70 is green on those dates and the
@@ -123,4 +132,4 @@ move has not landed, the re-check lane ran.
 - A6. The WUI README (line 19 says `Nuxt 3` today) and the
   `csi-spl-wui/package.json` `description` both say Nuxt 4.
 
-<!-- version: 0.2.0 · updated: 2026-11-16 -->
+<!-- version: 0.2.1 · updated: 2026-11-24 -->

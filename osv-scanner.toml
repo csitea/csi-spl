@@ -31,7 +31,9 @@
 #    (moderate vjh5 + xfq5; jjm6 is low, below its gate), so package.json
 #    pnpm.auditConfig.ignoreGhsas carries vjh5 + xfq5 with the same reasons and
 #    the same expiry: remove them together. Re-checked 2026-11-08 (SPL-5069), same
-#    reasons hold on the current tree. Re-check by 2026-11-27 (SPL-2908).
+#    reasons hold on the current tree. Re-checked 2026-11-24 (owner t1 80e54ed8
+#    answer C, renewed 30 days); the real fix is SPL-5070. Re-check by
+#    2026-12-27 (SPL-2908).
 #  - serialize-javascript (npm): GHSA-gfhx-hw2g-v5hg dropped 2026-11-08
 #    (SPL-5069), it affects 7.1.1 only, the lockfile has 7.1.4 and osv-scanner
 #    2.6.0 named the ignore unused. GHSA-m5mm-p8h7-m29v (7.1.1, fixed 7.1.3) was fixed by the lockfile
@@ -51,24 +53,25 @@
 #    lockfile above a worktree is served. Setting workspaceDir in
 #    csi-spl-wui/nuxt.config.ts closes it. package.json
 #    pnpm.auditConfig.ignoreGhsas carries the same id: remove them together.
-#    Re-check by 2026-11-30 (SPL-5474).
-# Review / re-check by 2026-11-27.
+#    Re-checked 2026-11-24 (owner t1 80e54ed8 answer C, renewed 30 days); the
+#    real fix is SPL-5070. Re-check by 2026-12-30 (SPL-5474).
+# Review / re-check by 2026-11-30 (the two tooling ignores, SPL-4508).
 
 # SPL-2908: the three nuxt 3.21.11 advisories that reddened workflow 70 on 2026-10-22.
 [[IgnoredVulns]]
 id = "GHSA-vjh5-4x84-xrqp" # SPL-2908
-ignoreUntil = 2026-11-27
-reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.2, no fixed 3.x; needs a running Nitro server with case-insensitive route rules, the WUI ships as nuxt generate static output on Firebase Hosting. Real fix: nuxt 4 migration."
+ignoreUntil = 2026-12-27
+reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.2, no fixed 3.x; needs a running Nitro server with case-insensitive route rules, the WUI ships as nuxt generate static output on Firebase Hosting. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
 
 [[IgnoredVulns]]
 id = "GHSA-xfq5-w38q-pc2x" # SPL-2908
-ignoreUntil = 2026-11-27
-reason = "nuxt 3.21.11: fixed only in 4.6.2, no fixed 3.x; needs server islands, the WUI has no .server.vue/.island.vue, NuxtIsland or useHeadSafe. Real fix: nuxt 4 migration."
+ignoreUntil = 2026-12-27
+reason = "nuxt 3.21.11: fixed only in 4.6.2, no fixed 3.x; needs server islands, the WUI has no .server.vue/.island.vue, NuxtIsland or useHeadSafe. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
 
 [[IgnoredVulns]]
 id = "GHSA-jjm6-p2m9-9w4x" # SPL-2908
-ignoreUntil = 2026-11-27
-reason = "nuxt 3.21.11: fixed only in 4.6.0, no fixed 3.x; needs pages disabled, the WUI uses pages (src/pages). Real fix: nuxt 4 migration."
+ignoreUntil = 2026-12-27
+reason = "nuxt 3.21.11: fixed only in 4.6.0, no fixed 3.x; needs pages disabled, the WUI uses pages (src/pages). Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
 
 # SPL-4508: three moderate npm advisories that reddened workflows 15 and 70 on
 # 2026-10-31 (run 41207686407) with no lockfile change. Each is fixed only in a
@@ -89,14 +92,14 @@ reason = "glob 10.5.0/13.0.6: fixed only in 14.0.2, no fixed 10.x/13.x; pulled o
 
 [[IgnoredVulns]]
 id = "GHSA-648h-gw55-m2g7" # SPL-4508
-ignoreUntil = 2026-11-30
-reason = "@nuxt/vite-builder 3.21.11: fixed only in 4.6.3, no fixed 3.x; affects only `nuxt dev`, whose Nitro dev bundle inlines private runtimeConfig, and csi-spl-wui/nuxt.config.ts runtimeConfig has public keys only; we ship nuxt generate output. Real fix: nuxt 4 migration."
+ignoreUntil = 2026-12-30
+reason = "@nuxt/vite-builder 3.21.11: fixed only in 4.6.3, no fixed 3.x; affects only `nuxt dev`, whose Nitro dev bundle inlines private runtimeConfig, and csi-spl-wui/nuxt.config.ts runtimeConfig has public keys only; we ship nuxt generate output. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
 
 # SPL-5474: @nuxt/schema 3.21.11, reddened workflows 15 and 70 on 2026-11-13.
 [[IgnoredVulns]]
 id = "GHSA-mjrq-cffv-q4qc" # SPL-5474
-ignoreUntil = 2026-11-30
-reason = "@nuxt/schema 3.21.11: fixed only in 4.6.4, nuxt 3 is end of life with no fixed 3.x; affects only the `nuxt dev` server (/_nuxt/@fs/ under a parent workspaceDir), we ship nuxt generate output on Firebase Hosting. Real fix: nuxt 4 migration."
+ignoreUntil = 2026-12-30
+reason = "@nuxt/schema 3.21.11: fixed only in 4.6.4, nuxt 3 is end of life with no fixed 3.x; affects only the `nuxt dev` server (/_nuxt/@fs/ under a parent workspaceDir), we ship nuxt generate output on Firebase Hosting. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
 
 # SPL-5804: three nuxt 3.21.11 advisories published 2026-11-16 that reddened
 # workflows 15 (run 44103906446) and 70 (run 44103906824) on 013cb71bf with no
@@ -106,18 +109,18 @@ reason = "@nuxt/schema 3.21.11: fixed only in 4.6.4, nuxt 3 is end of life with 
 # csi-spl-wui/package.json pnpm.auditConfig.ignoreGhsas: remove them together.
 [[IgnoredVulns]]
 id = "GHSA-f3x9-2chm-73c8" # SPL-5804
-ignoreUntil = 2026-11-30
-reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.4, no fixed 3.x; a %2F in the path skips route rules on a catch-all page. Our only routeRules are headers on /** (matches any path) and /_nuxt/**, plus prerender:false; no redirect, appMiddleware or proxy rule, and the route middleware is global. Prd is nuxt generate output on Firebase Hosting, headers from firebase.json, no Nitro server. Real fix: nuxt 4 migration."
+ignoreUntil = 2026-12-30
+reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.4, no fixed 3.x; a %2F in the path skips route rules on a catch-all page. Our only routeRules are headers on /** (matches any path) and /_nuxt/**, plus prerender:false; no redirect, appMiddleware or proxy rule, and the route middleware is global. Prd is nuxt generate output on Firebase Hosting, headers from firebase.json, no Nitro server. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
 
 [[IgnoredVulns]]
 id = "GHSA-hf59-9xwc-2g4p" # SPL-5804
-ignoreUntil = 2026-11-30
-reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.4, no fixed 3.x; colliding props share one /__nuxt_island path. Needs server components or <NuxtIsland>: the WUI has no .server.vue/.island.vue and no NuxtIsland. Real fix: nuxt 4 migration."
+ignoreUntil = 2026-12-30
+reason = "nuxt/@nuxt/nitro-server 3.21.11: fixed only in 4.6.4, no fixed 3.x; colliding props share one /__nuxt_island path. Needs server components or <NuxtIsland>: the WUI has no .server.vue/.island.vue and no NuxtIsland. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
 
 [[IgnoredVulns]]
 id = "GHSA-96x6-fvhx-49hg" # SPL-5804
-ignoreUntil = 2026-11-30
-reason = "nuxt 3.21.11: fixed only in 4.6.4, no fixed 3.x; an unhandled error thrown during server rendering sends its message and data to the client. Prd renders nothing on request: nuxt generate prerenders at build time and every other route boots from the 200.html SPA fallback on Firebase Hosting. Real fix: nuxt 4 migration."
+ignoreUntil = 2026-12-30
+reason = "nuxt 3.21.11: fixed only in 4.6.4, no fixed 3.x; an unhandled error thrown during server rendering sends its message and data to the client. Prd renders nothing on request: nuxt generate prerenders at build time and every other route boots from the 200.html SPA fallback on Firebase Hosting. Real fix: nuxt 4 migration. Re-checked 2026-11-24 (owner t1 80e54ed8 answer C); the real fix is SPL-5070."
 
 # SPL-5816: picomatch 2.3.2 + 4.0.7 (CVSS 8.7), published 2026-11-17, reddened
 # workflow 70 (run 44126816251) on 78d121fe3 with no lockfile change. osv.dev

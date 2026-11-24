@@ -1755,12 +1755,25 @@ Status on `49f34bef6`: 16.6.1.
 | L3 | the hub: the Go mask and its shared fixture, the translate client, the draft on save, the three routes, `label_origins` and `stale_locales`. First commit: the dev measurement | `internal/hub/cost_labels.go`, `internal/hub/cost_labels_machine.go`, `internal/i18nmask/`, `internal/translate/`, their tests, `csi-spl-orc/src/bash/tests/fixtures/i18n-mask/` | L0 for the live call, L2 | API stubbed: `TestCostLabelsDraftOnSave`, `TestCostLabelsStubErrorThenFill`, `TestCostLabelsReviewRoundTrip`, `TestCostLabelsMachineDoors`; the mask fixture | the unreviewed answer carrying an amount field; the stub receiving the planted name | landed `3d1d453e2`..`267bd3bbd`; served dev and prd |
 | L3w | the hub's environment: cnf rows, step 030's env vars, the tpl-gen template; then a dev plan | `csi-spl-cnf`, `csi-spl-iac/src/terraform/030-cloud-run-hub/`, the template, `csi-spl-iac/src/bash/tests/hub-translate-env-030.tst.sh` | L3 | `do_tpl_gen` + diff; the iac test | 030 drops a var, hub_env leaves it out, the hash misses it, the template misses a line | wired on master (SPL-6223); 030 applies not recorded here |
 | L4 | `do_spl_cost_labels_translate`. First step: the agy schema measurement (n = 20) | `csi-spl-orc/src/bash/run/spl-cost-labels-translate.func.sh`, `assets/spl-cost-labels-translate/`, `csi-spl-orc/src/bash/tests/spl-cost-labels-translate.tst.sh` | L3 | stubs: agy's correction is the one written, an `ok` writes the draft as reviewed; the log has no label | agy stub answers `refuse` -> zero writes; 101 characters -> that locale refused | landed `c25211556`; the measurement not run |
-| L5 | the cron line, once a night at cnf `env.cost.labels_translate_utc` (`03:00`, an hour after the rollup), turned into box local time at install; `flock -n`, tag `csi-spl:cost-labels-translate[-<env>]`, install / remove / check, refused from a linked worktree | `csi-spl-orc/src/bash/run/spl-cost-labels-translate-install-cron.func.sh` and its test | L4 | install twice = one line; check names the schedule | a second install that adds a line fails the test | landed `9de071fa0`; no install by the lane |
+| L5 | the cron line, once a night at cnf `env.cost.labels_translate_utc` (`03:00`, an hour after the rollup), turned into box local time at install; `flock -n`, tag `csi-spl:cost-labels-translate[-<env>]`, install / remove / check, refused from a linked worktree; in the AGENT user's crontab (SPL-6346, below) | `csi-spl-orc/src/bash/run/spl-cost-labels-translate-install-cron.func.sh` and its test | L4 | install twice = one line; check names the schedule; the line lands in the agent user's crontab and a stale one leaves the running user's | a second install that adds a line fails the test; the installer without SPL-6346 fails case 8 | landed `9de071fa0`; no install by the lane |
 | L6 | the WUI: Expenses shows per row "machine translated, not yet reviewed", "reviewed" or "corrected by hand", the stale hand rows, the languages still waiting; removing a row says it will be made again | `csi-spl-wui/src/components/expenses/CostEntryLabels.vue`, `src/utils/cost-entries.mjs`, `i18n/locales/*.json`, the unit and e2e tests | L3 | e2e on the generated bundle: a machine row shows its mark, a hand edit flips it | a locale file missing the new key fails `i18n-parity` | landed `743f68e90`; served dev and prd |
 | L7 | the docs: this section's v1.0 and 16.5's write rule | `csi-spl-doc/specs/123-cost-tracking/spec.md` | L2..L6 | - | - | this text |
 
 The first prd fill and night run (L4, `DRY_RUN=0`) and the prd cron install (L5)
 each wait for the owner's go; dev runs first (dev leads prd).
+
+**Whose crontab (SPL-6346).** The L5 line goes into the crontab of the agent
+user, the one agy is installed and signed in for: `SPOOL_AGENT_USER`, else
+the box config's `SPOOL_AGENT_USER=` line, else the running user; another
+user's crontab is written with `sudo -n crontab -u <user>`, the shape of the
+scratch sweep's installer (SPL-4463). The line's `PATH` ends in that user's
+`<home>/.local/bin`, resolved at install. The same install (and remove)
+drops a line with the tag from the running user's own crontab, so the job
+never runs twice, and `check` fails while one is left there. Why: the first
+three prd night runs (2026-11-22..24) ran from the box user's crontab, where
+agy is not on the PATH, and each ended `FATAL prd agy review failed (no_agy):
+texts=40 written=0`. That FATAL now also names the user it ran as and the
+PATH it searched, on the same line.
 
 #### 16.6.8 The owner's answers (all folded since v0.4)
 

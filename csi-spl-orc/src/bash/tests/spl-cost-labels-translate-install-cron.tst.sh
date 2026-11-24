@@ -14,6 +14,13 @@
 #   6. no ENV, a bad cnf time, a bad schedule and a linked worktree are refused
 #   7. no override: the log dir is spl_var_app_subdir's
 #      $SPL_VAR_APP_DIR/cost-labels-translate
+#   8. SPL-6346: the line goes to the AGENT user's crontab (sudo -n crontab
+#      -u, a fake sudo here), its PATH holds THAT user's ~/.local/bin; a
+#      stale line with the tag in the running user's crontab is removed in
+#      the same install; a reinstall is one line; the dry run writes nothing;
+#      check fails while the stale line is there; the box config names the
+#      agent user when SPOOL_AGENT_USER is unset
+# Cases 1-7 run with SPOOL_AGENT_USER = the running user (one crontab).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -28,6 +35,7 @@ cnf_time "03:00"
 cron() {
   SNIPPET='do_spl_cloud_cnf() { spl_require_cloud_env && SPL_CNF="$CNF"; }; do_spl_cost_labels_translate_install_cron' \
     in_orc TZ=Europe/Helsinki CNF="$T/cnf.yaml" COST_LABELS_TRANSLATE_CRONTAB="$T/fake-crontab" COST_LABELS_TRANSLATE_ALLOW_WORKTREE=1 \
+    SPOOL_AGENT_USER="$(id -un)" COST_LABELS_TRANSLATE_SUDO=false \
     COST_LABELS_TRANSLATE_CRON_LOG_DIR="$T/log" "$@" 2>&1
 }
 tagged() { grep -c " # csi-spl:cost-labels-translate${1-"-dev"}\$" "$CT"; }
@@ -101,6 +109,53 @@ fi
 out="$(cron COST_LABELS_TRANSLATE_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var")"; rc=$?
 [ "$rc" -eq 0 ] && grep -qF "flock -n $T/var/cost-labels-translate/cost-labels-translate-dev.lock " <<<"$out" && grep -qF ">> $T/var/cost-labels-translate/cron-dev.out 2>&1" <<<"$out" && [ ! -e "$T/var" ] \
   && pass "7. no log dir override: the lock and cron-dev.out under \$SPL_VAR_APP_DIR/cost-labels-translate, a dry run creates nothing" || fail "7. default log dir ($rc: $out)"
+
+# 8. the agent user's crontab. The fake sudo records its arguments and runs
+# the command as us, emulating crontab -u <user> over a fixture crontab.
+other=nobody o_home="$(getent passwd nobody | cut -d: -f6)"
+CT2="$T/crontab-agent"; printf '%s\n' '@reboot /usr/bin/true' >"$CT2"
+cat >"$T/fake-sudo" <<EOF
+#!/bin/bash
+echo "\$*" >>"$T/sudo.log"
+while :; do case "\$1" in -n|--) shift ;; -u) shift 2 ;; *) break ;; esac; done
+if [ "\$1" = crontab ]; then
+  shift 3; if [ "\$1" = -l ]; then cat "$CT2"; else cp "\$1" "$CT2"; fi; exit
+fi
+exec "\$@"
+EOF
+chmod +x "$T/fake-sudo"; : >"$T/sudo.log"
+printf '0 8 * * * /opt/other/run-me.sh # other:job\n0 1 * * * stale # csi-spl:cost-labels-translate-dev\n' >"$CT"
+ocron() { cron SPOOL_AGENT_USER="$other" COST_LABELS_TRANSLATE_SUDO="$T/fake-sudo" COST_LABELS_TRANSLATE_CRON_LOG_DIR="$T/log-o" "$@"; }
+ctag() { grep -c " # csi-spl:cost-labels-translate-dev\$" "$1"; }
+cp "$CT" "$T/ct.3"; cp "$CT2" "$T/ct2.0"
+out="$(ocron)"; rc=$?
+[ "$rc" -eq 0 ] && cmp -s "$CT" "$T/ct.3" && cmp -s "$CT2" "$T/ct2.0" && [ ! -e "$T/log-o" ] && grep -q "INFO the crontab of the agent user $other" <<<"$out" \
+  && grep -qF "  +$local_sched cd " <<<"$out" && grep -qF -- "  -0 1 * * * stale # csi-spl:cost-labels-translate-dev" <<<"$out" \
+  && pass "8(d). the dry run prints both diffs (the agent's + line, the running user's - line) and writes nothing" || fail "8(d). ($rc: $out)"
+out="$(ocron COST_LABELS_TRANSLATE_CRON_ACTION=check)"; rc=$?
+[ "$rc" -ne 0 ] && grep -q 'also in the running user' <<<"$out" \
+  && pass "8. check fails while a stale line is in the running user's crontab" || fail "8. check stale ($rc: $out)"
+out="$(ocron DRY_RUN=0)"; rc=$?
+line="$(grep ' # csi-spl:cost-labels-translate-dev$' "$CT2")"
+[ "$rc" -eq 0 ] && [ "$(ctag "$CT2")" = 1 ] && grep -q '^@reboot /usr/bin/true$' "$CT2" && grep -q "^crontab -u $other /" "$T/sudo.log" \
+  && [[ "$line" == *":/bin:$o_home/.local/bin flock -n $T/log-o/"* ]] && [[ "$line" != *'$HOME'* ]] \
+  && pass "8(a). the line is in the agent user's crontab (crontab -u $other), PATH ends in $o_home/.local/bin" || fail "8(a). ($rc: $(cat "$T/sudo.log"): $out; agent crontab: $(cat "$CT2"))"
+[ "$(ctag "$CT")" = 0 ] && grep -q 'other:job$' "$CT" && [ -d "$T/log-o" ] && grep -q "^-u $other -- mkdir -p $T/log-o\$" "$T/sudo.log" \
+  && pass "8(b). the stale line left the running user's crontab, its other line kept; the log dir made as $other" || fail "8(b). (running user's crontab: $(cat "$CT"); $(cat "$T/sudo.log"))"
+cp "$CT" "$T/ct.4"; cp "$CT2" "$T/ct2.1"
+out="$(ocron DRY_RUN=0)"; rc=$?
+[ "$rc" -eq 0 ] && [ "$(ctag "$CT2")" = 1 ] && cmp -s "$CT2" "$T/ct2.1" && cmp -s "$CT" "$T/ct.4" && [ "$(grep -c 'OK cron: nothing to change' <<<"$out")" = 2 ] \
+  && pass "8(c). reinstall: one line, both crontabs unchanged" || fail "8(c). ($rc: $out)"
+out="$(ocron COST_LABELS_TRANSLATE_CRON_ACTION=check)"; rc=$?
+[ "$rc" -eq 0 ] && grep -q 'OK the cost labels translate cron is installed' <<<"$out" \
+  && pass "8. check passes once only the agent user's line is left" || fail "8. check ($rc: $out)"
+printf 'SPOOL_AGENT_USER="%s"\n' "$other" >"$T/box.env"
+out="$(cron SPOOL_AGENT_USER= SPOOL_BOX_ENV="$T/box.env" COST_LABELS_TRANSLATE_SUDO="$T/fake-sudo" COST_LABELS_TRANSLATE_CRON_LOG_DIR="$T/log-o")"
+grep -q "INFO the crontab of the agent user $other" <<<"$out" && grep -q 'OK cron: nothing to change' <<<"$out" \
+  && pass "8. SPOOL_AGENT_USER unset: the box config's SPOOL_AGENT_USER= line names the agent user" || fail "8. box.env ($out)"
+out="$(ocron DRY_RUN=0 COST_LABELS_TRANSLATE_CRON_ACTION=remove)"; rc=$?
+[ "$rc" -eq 0 ] && [ "$(ctag "$CT2")" = 0 ] && grep -q '^@reboot /usr/bin/true$' "$CT2" \
+  && pass "8. remove takes the line out of the agent user's crontab" || fail "8. remove ($rc: $(cat "$CT2"))"
 
 echo "spl-cost-labels-translate-install-cron: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

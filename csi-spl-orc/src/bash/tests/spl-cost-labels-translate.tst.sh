@@ -21,6 +21,9 @@
 #  10. TRANSLATE_CMD=measure: n agy calls on the same prompt, no hub call;
 #      schema_ok=<k>/<n> n=<n>
 #  11. a held lock -> FATAL, no hub call
+#  12. SPL-6346: agy not on PATH -> the no_agy FATAL is one line naming the
+#      user it ran as and the PATH it searched; control: an agy that fails
+#      otherwise carries no such tail
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -172,6 +175,18 @@ answer '{"items":[{"i":0,"labels":{"fi":"ok"}},{"i":1,"labels":{"fi":"ok"}}]}'
 runa s7 DRY_RUN=0 AGY_ANSWER="$T/answer"
 if [[ ! -s "$T/s7/cost-labels-translate/fails.tsv" ]]; then pass "7. a success clears the count"
 else fail "7. fails.tsv: $(cat "$T/s7/cost-labels-translate/fails.tsv")"; fi
+
+# 12. no agy: the FATAL names the user and the PATH searched, on one line
+runa s12 DRY_RUN=0 AGY_BIN=no-such-agy-bin PATH="$T/emptybin:$PATH"
+fl="$(grep 'FATAL dev agy review failed' "$T/out")"
+if [[ "$(cat "$T/rc")" == 2 && "$(grep -c 'FATAL' "$T/out")" == 1 ]] && [[ "$fl" == *"(no_agy)"* ]] &&
+  [[ "$fl" == *"'no-such-agy-bin' not found as user $(id -un) on PATH=$T/emptybin:"* ]]; then
+  pass "12. no_agy: one FATAL line naming the user ($(id -un)) and the PATH it searched"
+else fail "12. rc=$(cat "$T/rc"): $(cat "$T/out")"; fi
+runa s12b DRY_RUN=0 AGY_MODE=fail
+if grep -q 'agy review failed (exit_1)' "$T/out" && ! grep -q 'not found as user' "$T/out"; then
+  pass "12. control: an agy that exits 1 carries no user/PATH tail"
+else fail "12. control: $(cat "$T/out")"; fi
 
 # 8. vendor limit -> one note per day
 : >"$T/notes"

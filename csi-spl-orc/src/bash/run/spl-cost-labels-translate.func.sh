@@ -109,7 +109,7 @@ _spl_clt_run() {
     why="$SPL_CLT_WHY"
     _spl_clt_fail_all "$dir" "$tmp/work.json"
     [[ "$why" == vendor_limit ]] && _spl_clt_vendor_note "$dir"
-    do_log "FATAL $ENV agy review failed ($why): texts=$n written=0; the drafts stay unreviewed until the next run"
+    do_log "FATAL $ENV agy review failed ($why): texts=$n written=0; the drafts stay unreviewed until the next run${SPL_CLT_WHY_AT:-}"
     rm -rf "$tmp"; return 2
   fi
   _spl_clt_write "$tmp/work.json" "$tmp/answer.json" "$dir" || rc=3
@@ -174,12 +174,13 @@ _spl_clt_prompt() {
 # _spl_clt_agy <work> <answer out> <tmp> <lock fd or ""> -> 0 and the
 # answer's JSON in out when agy answered on the schema; else 1 and
 # SPL_CLT_WHY = no_agy | too_large | vendor_limit | timeout | exit_<rc> |
-# off_schema. agy's output is never printed.
+# off_schema (no_agy also sets SPL_CLT_WHY_AT: the user and the PATH
+# searched). agy's output is never printed.
 _spl_clt_agy() {
   local work="$1" out="$2" tmp="$3" lk="$4" bin="${AGY_BIN:-agy}" t prompt rc
-  SPL_CLT_WHY=""
+  SPL_CLT_WHY="" SPL_CLT_WHY_AT=""
   t="$(_spl_clt_num TRANSLATE_AGY_TIMEOUT_S 600)" || { SPL_CLT_WHY=bad_timeout; return 1; }
-  command -v "$bin" >/dev/null 2>&1 || { SPL_CLT_WHY=no_agy; return 1; }
+  command -v "$bin" >/dev/null 2>&1 || { SPL_CLT_WHY=no_agy; SPL_CLT_WHY_AT="; '$bin' not found as user $(id -un) on PATH=$PATH"; return 1; }
   prompt="$(_spl_clt_prompt "$work")" || { SPL_CLT_WHY=no_prompt; return 1; }
   (( ${#prompt} <= 120000 )) || { SPL_CLT_WHY=too_large; return 1; }
   mkdir -p "$tmp/agy-wd" || return 1

@@ -74,11 +74,14 @@ const signIn = (p) => p.evaluate(() => {
    resource entry. The link is the proof that holds: Chrome keeps 250 resource
    entries, and a shell whose lazy panes add prefetch hints (SPL-2363: 69) fills
    that buffer before the dropdown opens, so the entry of a CSS file that DID
-   load is dropped. */
+   load is dropped. Nuxt 4 (SPL-5070) adds <link rel=prefetch as=style> for
+   lazy CSS: that idle-time hint applies nothing, but leaves a resource entry,
+   so an entry whose URL a prefetch hint names does not count. */
 const langCssLoaded = (page) => page.evaluate(() => {
   const re = /\/LanguageSwitcher\.[^/]*\.css$/
+  const hinted = new Set([...document.querySelectorAll('link[rel=prefetch]')].map((l) => l.href))
   return [...document.querySelectorAll('link[rel=stylesheet]')].some((l) => re.test(l.href)) ||
-    performance.getEntriesByType('resource').some((e) => re.test(e.name))
+    performance.getEntriesByType('resource').some((e) => re.test(e.name) && !hinted.has(e.name))
 })
 
 /** Open the picker in `scope` with ArrowDown, then pick the other theme with the keyboard. */

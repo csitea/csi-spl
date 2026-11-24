@@ -2724,6 +2724,7 @@
     "how": "Hoe",
     "why": "Waarom",
     "state_missing": "Geen opmerking: gecommit voordat opmerkingen verplicht waren.",
+    "state_missing_required": "Geen opmerking: deze commit is zonder opmerking binnengekomen.",
     "state_backfill": "Achteraf geschreven",
     "state_skip": "Geen zichtbare wijziging",
     "state_revert": "Terugdraaiing",

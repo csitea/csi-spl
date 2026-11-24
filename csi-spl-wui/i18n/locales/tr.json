@@ -2724,6 +2724,7 @@
     "how": "Nasıl",
     "why": "Neden",
     "state_missing": "Not yok: notlar zorunlu olmadan önce commit edildi.",
+    "state_missing_required": "Not yok: bu commit notsuz olarak eklendi.",
     "state_backfill": "Sonradan yazıldı",
     "state_skip": "Görünür bir değişiklik yok",
     "state_revert": "Geri alma",

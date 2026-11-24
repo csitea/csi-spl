@@ -2724,6 +2724,7 @@
     "how": "Ako",
     "why": "Prečo",
     "state_missing": "Bez poznámky: odoslané pred zavedením povinných poznámok.",
+    "state_missing_required": "Bez poznámky: táto zmena bola začlenená bez nej.",
     "state_backfill": "Napísané dodatočne",
     "state_skip": "Žiadna viditeľná zmena",
     "state_revert": "Vrátenie zmien",

@@ -2724,6 +2724,7 @@
     "how": "Kuidas",
     "why": "Miks",
     "state_missing": "Märge puudub: kinnitatud enne märkmete nõudmist.",
+    "state_missing_required": "Märge puudub: see muudatus lisati ilma märkmeta.",
     "state_backfill": "Kirjutatud tagantjärele",
     "state_skip": "Nähtavat muutust pole",
     "state_revert": "Tagasivõtmine",

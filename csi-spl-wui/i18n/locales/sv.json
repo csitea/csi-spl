@@ -2724,6 +2724,7 @@
     "how": "Hur",
     "why": "Varför",
     "state_missing": "Ingen anteckning: skapades innan anteckningar krävdes.",
+    "state_missing_required": "Ingen anteckning: den här ändringen kom in utan anteckning.",
     "state_backfill": "Skriven i efterhand",
     "state_skip": "Ingen synlig ändring",
     "state_revert": "Återställning",

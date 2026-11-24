@@ -2724,6 +2724,7 @@
     "how": "Miten",
     "why": "Miksi",
     "state_missing": "Ei tiedotetta: tehty ennen kuin tiedotteita vaadittiin.",
+    "state_missing_required": "Ei tiedotetta: tämä muutos vietiin sisään ilman sitä.",
     "state_backfill": "Kirjoitettu jälkikäteen",
     "state_skip": "Ei näkyvää muutosta",
     "state_revert": "Kumoaminen",

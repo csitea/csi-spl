@@ -2724,6 +2724,7 @@
     "how": "Cum",
     "why": "De ce",
     "state_missing": "Fără notă: salvat înainte ca notele să fie obligatorii.",
+    "state_missing_required": "Fără notă: această modificare a fost integrată fără notă.",
     "state_backfill": "Scris ulterior",
     "state_skip": "Nicio modificare vizibilă",
     "state_revert": "Revenire",

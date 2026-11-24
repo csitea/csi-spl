@@ -2724,6 +2724,7 @@
     "how": "Kā",
     "why": "Kāpēc",
     "state_missing": "Nav piezīmes: iesniegts pirms piezīmju ieviešanas kā obligātas.",
+    "state_missing_required": "Nav piezīmes: šīs izmaiņas tika iesniegtas bez tās.",
     "state_backfill": "Uzrakstīts pēc fakta",
     "state_skip": "Nav redzamu izmaiņu",
     "state_revert": "Atsaukšana",

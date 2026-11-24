@@ -2724,6 +2724,7 @@
     "how": "Cómo",
     "why": "Por qué",
     "state_missing": "Sin nota: confirmado antes de que se requirieran notas.",
+    "state_missing_required": "Sin nota: este commit se integró sin ella.",
     "state_backfill": "Escrito a posteriori",
     "state_skip": "Sin cambios visibles",
     "state_revert": "Reversión",

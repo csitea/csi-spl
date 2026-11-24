@@ -2724,6 +2724,7 @@
     "how": "Jak",
     "why": "Dlaczego",
     "state_missing": "Brak notatki: zatwierdzone, zanim notatki były wymagane.",
+    "state_missing_required": "Brak notatki: ta zmiana trafiła bez notatki.",
     "state_backfill": "Napisane po fakcie",
     "state_skip": "Brak widocznych zmian",
     "state_revert": "Wycofanie",

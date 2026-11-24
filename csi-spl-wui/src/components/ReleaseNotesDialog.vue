@@ -74,7 +74,7 @@
               <time v-if="note.committed_at" class="rn-note__time" :datetime="note.committed_at" :title="fullTime(note.committed_at)" data-test="release-note-time">{{ t('release_notes.col_time') }} {{ isoDateTime(note.committed_at) }}</time>
             </p>
             <p v-if="Array.isArray(note.issues)" class="rn-note__issues" data-test="release-note-issues"><ReleaseIssueLinks :issues="note.issues" /></p>
-            <p v-if="stateText(note.state)" class="rn-note__state" :class="'is-' + note.state" data-test="release-note-state">{{ stateText(note.state) }}</p>
+            <p v-if="stateText(note.state, note.committed_at)" class="rn-note__state" :class="'is-' + note.state" data-test="release-note-state">{{ stateText(note.state, note.committed_at) }}</p>
           </header>
           <!-- plain words first, technical beside it (below it on a narrow screen) -->
           <div v-if="sidesOf(note).length" class="rn-note__parts">
@@ -228,6 +228,7 @@ import { useCopyText } from '~/composables/useCopyText'
 import { useBuildWatch } from '~/composables/useBuildWatch'
 import { isNewer } from '~/utils/build-watch.mjs'
 import { displayVersion } from '~/utils/display-version.mjs'
+import { noteStateKey } from '~/utils/release-note-state.mjs'
 import { browserTimeZone, isoDateTime, isoDateTimeSec, viewerTimeZone } from '~/utils/date-iso.mjs'
 import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
 import { commitPrefix, linkifyCommitText, shaHref } from '~/utils/commit-links'
@@ -310,8 +311,10 @@ function versionAt(v: ReleaseVersion) {
 }
 const hasAny = (n: ReleaseNote, side: 'lay' | 'tech') => PARTS.some((k) => n[`${side}_${k}`])
 const sidesOf = (n: ReleaseNote) => SIDES.filter((side) => hasAny(n, side))
-function stateText(state: string) {
-  return ['missing', 'backfill', 'skip', 'revert'].includes(state) ? t('release_notes.state_' + state) : ''
+/* a missing note after the push gate began refusing says it landed without one */
+function stateText(state: string, committedAt?: string) {
+  const key = noteStateKey(state, committedAt)
+  return key ? t('release_notes.' + key) : ''
 }
 function badge(state: string) {
   if (state === 'missing') return t('release_notes.badge_missing')

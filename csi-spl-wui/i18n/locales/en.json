@@ -2724,6 +2724,7 @@
     "how": "How",
     "why": "Why",
     "state_missing": "No note: committed before notes were required.",
+    "state_missing_required": "No note: this commit landed without one.",
     "state_backfill": "Written after the fact",
     "state_skip": "No visible change",
     "state_revert": "Revert",

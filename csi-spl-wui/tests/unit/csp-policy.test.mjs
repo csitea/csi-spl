@@ -226,6 +226,17 @@ describe('CSP: the render refuses what a hash cannot allow (CONTROLS)', () => {
     const b = hostingPolicy('dev', bundle(PAGE.replace(INLINE_JS, `${INLINE_JS};1`))).get('script-src')
     assert.notEqual(a, b)
   })
+
+  // SPL-5070: Nuxt 4 (vite 8) writes <script type="importmap"> mapping #entry
+  // into every page. Chrome applies script-src to an inline import map, so an
+  // unhashed one is blocked and the app never boots under the Hosting CSP.
+  it('a Nuxt 4 import map is hashed like an executable inline script', () => {
+    const MAP = '{"imports":{"#entry":"/_nuxt/entry.js"}}'
+    const page = PAGE.replace('<script type="module"', `<script type="importmap">${MAP}</script><script type="module"`)
+    const s = hostingPolicy('dev', bundle(page)).get('script-src').split(' ')
+    assert.ok(s.includes(sha(MAP)), 'import map hash in script-src')
+    assert.ok(s.includes(sha(INLINE_JS)), 'config script hash still there')
+  })
 })
 
 describe('CSP: nuxt.config CSP_PROD (nuxt preview) matches the Hosting policy', () => {

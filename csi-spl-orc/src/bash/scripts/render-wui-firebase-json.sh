@@ -64,7 +64,10 @@ out, site_id, service, region, fqdn, cnf, public_dir = sys.argv[1:8]
 # Scripts with a non-JavaScript type (`application/json` payload / unhead data
 # blocks) are not executed, so they need no hash. <style> blocks are Vue SFC
 # styles Nuxt inlines into the prerendered html; they are hashed the same way.
-JS_TYPES = {"", "module", "text/javascript", "application/javascript", "text/ecmascript", "application/ecmascript"}
+# `importmap` is not executed either, but browsers apply script-src to an
+# inline import map: Nuxt 4 (vite 8) writes one into every page mapping
+# `#entry`, and unhashed it is blocked and the app never boots (SPL-5070).
+JS_TYPES = {"", "module", "importmap", "text/javascript", "application/javascript", "text/ecmascript", "application/ecmascript"}
 SCRIPT_RE = re.compile(r"<script\b([^>]*)>(.*?)</script>", re.S | re.I)
 STYLE_RE = re.compile(r"<style\b[^>]*>(.*?)</style>", re.S | re.I)
 TYPE_RE = re.compile(r"""\btype\s*=\s*["']?([^"'\s>]+)""", re.I)

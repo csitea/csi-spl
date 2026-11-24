@@ -96,6 +96,9 @@ func (s *Memory) ApplyPayment(_ context.Context, ev PaymentEvent, now time.Time)
 		if c.Status == CheckoutPaid {
 			return PayOutcomeAlreadyPaid, nil
 		}
+		if s.purgedLocked(c.TenantID) {
+			return PayOutcomeConflict, nil
+		}
 		t, existed := s.tenants[c.TenantID]
 		if existed {
 			if !bytes.Equal(t.RootPubKey, c.RootPubKey) {
@@ -296,7 +299,7 @@ func (s *Memory) SubmitWorkspaceOrder(_ context.Context, o WorkspaceOrder, now t
 		old, created, err := orderReplay(old, o)
 		return cloneOrder(old), created, err
 	}
-	if _, ok := s.tenants[o.TenantID]; ok {
+	if _, ok := s.tenants[o.TenantID]; ok || s.purgedLocked(o.TenantID) {
 		return WorkspaceOrder{}, false, ErrConflict
 	}
 	o.CreatedAt = now.UTC()

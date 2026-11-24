@@ -127,6 +127,13 @@ func checkCancelActor(tenant, actorTenant, actorHum string) error {
 // Memory side: a map beside the Memory struct, guarded by s.mu.
 var memCancels = map[*Memory]map[string]WorkspaceCancel{}
 
+// purgedLocked: tenant's id was purged, so it is retired (rdb 0320); every
+// path that makes a tenant row refuses it. The caller holds s.mu.
+func (s *Memory) purgedLocked(tenant string) bool {
+	c, ok := memCancels[s][tenant]
+	return ok && c.PurgedAt != nil
+}
+
 // CancelWorkspace is the Memory twin of the Postgres cancel (WorkspaceCancels).
 func (s *Memory) CancelWorkspace(_ context.Context, tenant, actorTenant, actorHum string, now time.Time) (WorkspaceCancel, bool, error) {
 	if err := checkCancelActor(tenant, actorTenant, actorHum); err != nil {

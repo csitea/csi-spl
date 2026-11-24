@@ -162,7 +162,7 @@ func TestPurgeCancelledWorkspace(t *testing.T) {
 				t.Errorf("CONTROL: a workspace that is not cancelled: %v", err)
 			}
 			checkInvoiceKept(t, s, a, kept, issued)
-			checkPurgedIDRetired(t, s, a, issued)
+			checkPurgedIDRetired(t, s, a, issued, at)
 			r, err = wc.PurgeDueWorkspaces(ctx, at.Add(time.Hour))
 			if p, h := mine(r); err != nil || p || h {
 				t.Fatalf("second purge: %+v %v, want nothing", r, err)
@@ -179,8 +179,10 @@ func TestPurgeCancelledWorkspace(t *testing.T) {
 }
 
 // checkPurgedIDRetired: a re-create of the purged id a is refused, with any
-// root key, so no new workspace reads a's kept invoice as its own (R7 W1).
-func checkPurgedIDRetired(t *testing.T, s Store, a string, issued Invoice) {
+// root key and on every path that makes a tenant row (CreateTenant, the
+// order submit, the paid transition), so no new workspace reads a's kept
+// invoice as its own (R7 W1, both rounds).
+func checkPurgedIDRetired(t *testing.T, s Store, a string, issued Invoice, now time.Time) {
 	t.Helper()
 	ctx := context.Background()
 	pub, _, err := ed25519.GenerateKey(nil)
@@ -189,6 +191,17 @@ func checkPurgedIDRetired(t *testing.T, s Store, a string, issued Invoice) {
 	}
 	if err := s.CreateTenant(ctx, Tenant{ID: a, RootPubKey: pub}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("re-create of the purged id %s: %v, want ErrConflict", a, err)
+	}
+	c := testCheckout(t, a)
+	if err := s.HoldCheckout(ctx, c, now, time.Hour); err != nil {
+		t.Fatalf("hold on the purged id: %v", err)
+	}
+	ev := PaymentEvent{Provider: "fake", EventID: "ev-" + c.ID, CheckoutID: c.ID, Kind: PayEventPaid}
+	if out, err := s.ApplyPayment(ctx, ev, now); err != nil || out != PayOutcomeConflict {
+		t.Fatalf("paid checkout on the purged id %s: %q %v, want %q", a, out, err, PayOutcomeConflict)
+	}
+	if o, created, err := s.(WorkspaceOrders).SubmitWorkspaceOrder(ctx, testOrder(a), now); !errors.Is(err, ErrConflict) {
+		t.Fatalf("order submit on the purged id %s: %+v created=%v %v, want ErrConflict", a, o, created, err)
 	}
 	if _, err := s.GetTenant(ctx, a); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("the purged id after a refused re-create: %v, want ErrNotFound", err)

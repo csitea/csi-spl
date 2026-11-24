@@ -758,10 +758,12 @@ Row status (v0.4.1):
   `tenant_id` and amounts once the tenants row is gone, like the
   cancellation tombstone. Its RLS is unchanged: the operator scope reads
   a purged workspace's invoices, another workspace's scope reads none.
-  A purged workspace's id is retired: `CreateTenant` refuses it
-  (`ErrConflict`, the operator create's 409 `exists`), so no new
-  workspace under that id reads the kept invoices or the cancellation
-  row as its own (R7 W1 on SPL-6355).
+  A purged workspace's id is retired: every path that makes a tenant
+  row refuses it, `CreateTenant` (`ErrConflict`, the operator create's
+  409 `exists`), the order submit (`ErrConflict`) and the paid checkout
+  (outcome `conflict`), so no new workspace under that id reads the
+  kept invoices or the cancellation row as its own (R7 W1 on SPL-6355,
+  both rounds).
   `TestPurgeCancelledWorkspace` checks it on both drivers; red control,
   the parent's cascade -> `the purged workspace's paid invoice: ... not
   found, want it kept`. Tests:
@@ -910,4 +912,4 @@ Marketplace stays spec 156.
   in the hub after the purge (owner msg `f872a556`), rdb 0320; a purged
   workspace's id is never re-created.
 
-<!-- version: 0.7.2 · updated: 2026-11-24 · last-edit: 2026-11-24T10:30:00Z -->
+<!-- version: 0.7.2 · updated: 2026-11-24 · last-edit: 2026-11-24T12:10:00Z -->

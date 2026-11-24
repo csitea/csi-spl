@@ -187,8 +187,12 @@ func paidTx(ctx context.Context, tx pgx.Tx, c Checkout, ev PaymentEvent, now tim
 	}
 	if !made {
 		var root []byte
-		if err := tx.QueryRow(ctx, `SELECT root_pubkey FROM tenants WHERE tenant_id = $1 FOR UPDATE`,
-			c.TenantID).Scan(&root); err != nil {
+		err := tx.QueryRow(ctx, `SELECT root_pubkey FROM tenants WHERE tenant_id = $1 FOR UPDATE`,
+			c.TenantID).Scan(&root)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return PayOutcomeConflict, nil // no row and none inserted: the id was purged
+		}
+		if err != nil {
 			return "", err
 		}
 		if !bytes.Equal(root, c.RootPubKey) {
@@ -214,10 +218,13 @@ func paidTx(ctx context.Context, tx pgx.Tx, c Checkout, ev PaymentEvent, now tim
 
 // insertTenantTx is the tenant creation shared by the paid transition and the
 // private-workspace order submit: the row, active, with root as its root key.
-// made is false when the tenant already existed (nothing written).
+// made is false when the tenant already existed or its id was purged (nothing
+// written): a purged id is retired, as in CreateTenant (rdb 0320).
 func insertTenantTx(ctx context.Context, tx pgx.Tx, tenant string, root ed25519.PublicKey, plan string) (made bool, err error) {
 	tag, err := tx.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id)
-		VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id) DO NOTHING`,
+		SELECT $1, $2, $3, $4
+		WHERE NOT EXISTS (SELECT 1 FROM workspace_cancellations WHERE tenant_id = $1 AND purged_at IS NOT NULL)
+		ON CONFLICT (tenant_id) DO NOTHING`,
 		tenant, []byte(root), billing.StatusActive, plan)
 	if err != nil {
 		return false, err

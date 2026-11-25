@@ -23098,7 +23098,7 @@
                             "type": "string"
                           },
                           "event": {
-                            "description": "created, changed, commented, deleted, restored, archived, unarchived",
+                            "description": "created, changed, commented, comment_edited, deleted, restored, archived, unarchived",
                             "type": "string"
                           },
                           "field": {
@@ -23106,7 +23106,7 @@
                             "type": "string"
                           },
                           "msg_id": {
-                            "description": "the comment's message id, for a comment event",
+                            "description": "the comment's message id, for a commented or comment_edited event",
                             "type": "string"
                           },
                           "new": {

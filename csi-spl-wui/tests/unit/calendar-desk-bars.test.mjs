@@ -82,6 +82,15 @@ describe('calDeskBars: one bar per event across the shown days (SPL-6491)', () =
     /* TRIP starts Friday, after LONG ends Thursday: back in lane 0 */
     assert.equal(pick(r, 'trip').lane, 0)
   })
+  it('three bars over the same days take three lanes; a later one takes the first free lane (R7 N5)', () => {
+    const a = ev('a', '2026-12-01T08:00:00Z', '2026-12-03T08:00:00Z')
+    const b = ev('b', '2026-12-01T09:00:00Z', '2026-12-03T09:00:00Z')
+    const c = ev('c', '2026-12-01T10:00:00Z', '2026-12-03T10:00:00Z')
+    const d = ev('d', '2026-12-04T10:00:00Z', '2026-12-05T10:00:00Z')
+    const r = calDeskBars([a, b, c, d], WEEK, Z)
+    assert.equal(r.lanes, 3)
+    assert.deepEqual(['a', 'b', 'c', 'd'].map((id) => pick(r, id).lane), [0, 1, 2, 0])
+  })
   it('control: short events, single all-day ones and events outside the range make no bar', () => {
     const r = calDeskBars([
       ev('short', '2026-12-01T10:00:00Z', '2026-12-01T11:00:00Z'),

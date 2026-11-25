@@ -827,11 +827,16 @@ block cut at 24:00 of its first day.
   the day it ends on. A 25 h day of a DST change spans; a 23 h one does not.
 - Desktop Day, 3 days and Week: a spanning event is one bar in the all-day
   strip, at the foot of the day heads, over every shown day it covers, cut at
-  the range (`calDeskBars`). A cut end is square with a `‹` / `›` mark; a real
-  start or end is rounded. Bars that overlap take separate lanes. The first
-  shown day carries the start time (when it starts there) and the title; the
-  hover shows the start and the end, a click opens the pop-over. It is not on
-  the hour grid and it does not drag (open it and edit the times).
+  the range (`calDeskBars`). Each bar is ONE element across its columns, in
+  a strip over the heads' row that stays at the top with them, so its title
+  runs the bar's whole width (R7 W1: a bar cut per column showed one letter).
+  A cut end is square with a `‹` / `›` mark; a real start or end is rounded.
+  Every bar carries its event colour as a 4 px start band, also one going
+  on from before the shown days (R7 W2). Bars that overlap take separate
+  lanes. The bar shows the start time (when it starts on a shown day), the
+  title and the release / private labels; the hover shows the start and the
+  end, a click opens the pop-over. It is not on the hour grid and it does not
+  drag (open it and edit the times).
 - A timed event under 24 h that crosses midnight is a bar too, not a block
   split over two columns: the hour grid has no split block, and one rule for
   every event that leaves its day is what Google's all-day strip shows.

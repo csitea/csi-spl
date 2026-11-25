@@ -92,6 +92,7 @@
         :key="day"
         class="cal-week__day"
         :class="{ 'cal-week__day--today': day === today }"
+        :style="{ gridColumn: di + 2 }"
         data-test="calendar-week-day"
         :data-day="day"
         @click="onDayClick($event, day)"
@@ -120,27 +121,9 @@
               <span class="cal-week__title">{{ dropped.title }}</span>
             </li>
           </ul>
-          <!-- SPL-6491: an event over several days (or 24 h and more) is one
-               bar across its shown days, a segment per column in one lane -->
-          <div v-if="bars.lanes" class="cal-week__bars" data-test="calendar-week-bars" :style="{ '--cal-lanes': bars.lanes }">
-            <template v-for="(seg, lane) in barsOn(di)" :key="lane">
-              <div
-                v-if="seg"
-                v-bind="barAttrs(seg, di)"
-                @click.stop="onItemClick($event, seg.ev)"
-                @keydown.enter.prevent.stop="openPeek(seg.ev)"
-                @contextmenu.stop="onItemMenu($event, seg.ev)"
-              >
-                <template v-if="di === seg.from">
-                  <span v-if="seg.before" class="cal-week__bar-more" aria-hidden="true">‹</span>
-                  <span v-if="!seg.ev.all_day && !seg.before" class="cal-week__time" dir="ltr">{{ isoClock(seg.ev.starts_at) }}</span>
-                  <span class="cal-week__title">{{ seg.ev.title }}</span>
-                </template>
-                <span v-if="di === seg.to && seg.after" class="cal-week__bar-more cal-week__bar-more--end" aria-hidden="true">›</span>
-              </div>
-              <div v-else class="cal-week__bar-gap" aria-hidden="true" />
-            </template>
-          </div>
+          <!-- SPL-6491: room for the bars at the foot of the head; the bars
+               themselves are drawn once each, across the days, below -->
+          <div v-if="bars.lanes" class="cal-week__bars-room" aria-hidden="true" :style="{ '--cal-lanes': bars.lanes }" />
         </div>
         <div
           class="cal-grid"
@@ -193,6 +176,26 @@
             data-test="calendar-create-ghost"
             :style="{ top: pct(Math.min(ghost.a, ghost.b)), height: pct(Math.max(CAL_SNAP_MIN, Math.abs(ghost.b - ghost.a))) }"
           />
+        </div>
+      </div>
+      <!-- SPL-6491: an event over several days (or 24 h and more) is ONE bar
+           across its shown days, in its lane, over the heads' row; its title
+           runs the bar's whole width -->
+      <div v-if="bars.lanes" class="cal-week__bars" data-test="calendar-week-bars" :style="{ '--cal-lanes': bars.lanes }">
+        <div
+          v-for="b in bars.bars"
+          :key="b.ev.id"
+          v-bind="barAttrs(b)"
+          @click.stop="onItemClick($event, b.ev)"
+          @keydown.enter.prevent.stop="openPeek(b.ev)"
+          @contextmenu.stop="onItemMenu($event, b.ev)"
+        >
+          <span v-if="b.before" class="cal-week__bar-more" aria-hidden="true">‹</span>
+          <span v-if="!b.ev.all_day && !b.before" class="cal-week__time" dir="ltr">{{ isoClock(b.ev.starts_at) }}</span>
+          <span class="cal-week__title">{{ b.ev.title }}</span>
+          <span v-if="b.ev.release_version" class="cal-week__badge" dir="ltr">{{ b.ev.release_version }}</span>
+          <span v-if="b.ev.audience === 'private'" class="cal-week__badge" data-test="calendar-item-private">{{ t('calendar_event.private_badge') }}</span>
+          <span v-if="b.after" class="cal-week__bar-more cal-week__bar-more--end" aria-hidden="true">›</span>
         </div>
       </div>
     </div>
@@ -314,41 +317,34 @@ const layouts = computed(() => {
 const allDayOf = (day: string) => (byDay.value.get(day) || []).filter((ev) => ev.all_day && !spans.value.has(ev.id))
 const timedOf = (day: string) => layouts.value.get(day) || []
 
-/* SPL-6491: the all-day strip's bars over the shown days; per column, one
-   slot per lane: the bar crossing that day, or a gap that keeps the lanes
-   level from column to column */
+/* SPL-6491: the all-day strip's bars over the shown days, each one element
+   placed on the shown columns from .. to in its lane */
 type Bar = ReturnType<typeof calDeskBars<CalendarItem>>['bars'][number]
 const bars = computed(() => calDeskBars(items.value, shown.value))
-function barsOn(di: number): (Bar | null)[] {
-  const out: (Bar | null)[] = Array.from({ length: bars.value.lanes }, () => null)
-  for (const b of bars.value.bars) if (b.from <= di && di <= b.to) out[b.lane] = b
-  return out
-}
 /* the bar's times on hover (the pop-over has them too) */
 function barSpan(ev: CalendarItem): string {
   if (!ev.all_day) return `${isoDateTime(ev.starts_at)} – ${isoDateTime(ev.ends_at)}`
   const end = new Date(Date.parse(ev.ends_at) - 1).toISOString().slice(0, 10)
   return `${String(ev.starts_at).slice(0, 10)} – ${end}`
 }
-function barAttrs(b: Bar, di: number) {
+function barAttrs(b: Bar) {
   const a = itemAttrs(b.ev)
-  const head = di === b.from
   return {
     ...a,
     class: ['cal-week__bar', {
-      'cal-week__bar--start': head && !b.before,
-      'cal-week__bar--end': di === b.to && !b.after,
+      'cal-week__bar--start': !b.before,
+      'cal-week__bar--end': !b.after,
       'cal-week__item--edit': calEditable(b.ev),
       'cal-week__item--synced': calSynced(b.ev),
     }],
+    style: { ...a.style, gridColumn: `${b.from + 1} / ${b.to + 2}`, gridRow: `${b.lane + 2}` },
     'data-test': 'calendar-bar',
-    'data-day': shown.value[di],
-    'data-seg': head ? 'head' : 'tail',
+    'data-day': shown.value[b.from],
+    'data-to': shown.value[b.to],
     'data-lane': b.lane,
     'data-before': b.before ? 'true' : undefined,
     'data-after': b.after ? 'true' : undefined,
     title: `${b.ev.title}\n${barSpan(b.ev)}`,
-    tabindex: head ? a.tabindex : undefined,
   }
 }
 
@@ -720,6 +716,9 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 }
 .cal-week--grid .cal-week__day,
 .cal-week__gutter {
+  /* SPL-6491: placed by hand (the gutter column 1, a day its own column,
+     inline): the bars' strip takes row 1 over the day columns, and auto
+     placement would push the days past it into new columns */
   grid-row: 1 / span 2;
   display: grid;
   grid-template-rows: subgrid;
@@ -728,6 +727,7 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   grid-template-columns: minmax(0, 1fr);
   padding: 0;
 }
+.cal-week__gutter { grid-column: 1; }
 .cal-week--grid .cal-week__day:first-child { border-inline-start: 1px solid var(--color-border); }
 .cal-week--grid .cal-week__top {
   position: sticky;
@@ -737,44 +737,58 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
 }
-/* SPL-6491: the bars sit at the foot of each day's head, lane by lane, so
-   a bar's segments line up across the columns (the heads share one row) */
+/* SPL-6491: each head keeps room at its foot for the bars' lanes; the bars
+   are one strip over the heads' row (its columns are the day columns), stuck
+   to the top with the heads, each bar one element from its first shown day
+   to its last, so its title runs the bar's width. Clicks between the bars
+   reach the heads below. */
 .cal-week--grid .cal-week__top { display: flex; flex-direction: column; }
-.cal-week__bars {
-  display: grid;
-  grid-template-rows: repeat(var(--cal-lanes), 1.375rem);
-  gap: 2px;
+.cal-week__bars-room {
+  flex: none;
   margin-top: auto;
   padding-top: 4px;
+  height: calc(var(--cal-lanes) * 1.375rem + (var(--cal-lanes) - 1) * 2px);
+  box-sizing: content-box;
+}
+.cal-week__bars {
+  grid-row: 1;
+  grid-column: 2 / -1;
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-template-rows: 1fr repeat(var(--cal-lanes), 1.375rem);
+  row-gap: 2px;
+  /* the head's 4 px padding and 1 px bottom border */
+  padding-bottom: 5px;
+  pointer-events: none;
 }
 .cal-week__bar {
   display: flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
-  /* reach the column's edges (its 6 px padding, the 1 px border before it)
-     so the segments read as one bar; a start or an end is rounded and inset */
-  margin-inline: -7px -6px;
   padding: 0 6px;
   overflow: hidden;
+  pointer-events: auto;
   border-block: var(--cal-card-border);
-  /* SPL-5908: no tint; the start bar carries the event colour */
+  /* SPL-5908: no tint; the bar's start carries the event colour, also when
+     it goes on from before the shown days */
+  border-inline-start: 4px solid var(--cal-ev-color, var(--color-accent));
   background: var(--color-surface);
   color: var(--color-fg);
   font-size: 0.75rem;
   white-space: nowrap;
   cursor: pointer;
 }
-.cal-week__bar--start {
-  margin-inline-start: 0;
-  border-inline-start: 4px solid var(--cal-ev-color, var(--color-accent));
-  border-start-start-radius: var(--radius-sm);
-  border-end-start-radius: var(--radius-sm);
-}
-.cal-week__bar--end { margin-inline-end: 0; border-inline-end: var(--cal-card-border); border-start-end-radius: var(--radius-sm); border-end-end-radius: var(--radius-sm); }
+/* a real start or end is rounded and inset from the column's edge */
+.cal-week__bar--start { margin-inline-start: 2px; border-start-start-radius: var(--radius-sm); border-end-start-radius: var(--radius-sm); }
+.cal-week__bar--end { margin-inline-end: 3px; border-inline-end: var(--cal-card-border); border-start-end-radius: var(--radius-sm); border-end-end-radius: var(--radius-sm); }
 .cal-week__bar .cal-week__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .cal-week__bar .cal-week__time { color: inherit; font-variant-numeric: tabular-nums; }
-.cal-week__bar-more { font-weight: 700; }
+.cal-week__bar .cal-week__badge { flex: none; }
+.cal-week__bar-more { flex: none; font-weight: 700; }
 .cal-week__bar-more--end { margin-inline-start: auto; }
 .cal-week__bar:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .cal-grid {

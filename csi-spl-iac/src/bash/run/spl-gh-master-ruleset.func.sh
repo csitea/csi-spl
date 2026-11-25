@@ -26,7 +26,10 @@ do_spl_gh_master_ruleset() {
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $dry"; return 2; }
   [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || { do_log "FATAL GH_MASTER_RULESET_NAME must be [A-Za-z0-9._-]+"; return 2; }
   do_require_bin gh jq || return 1
-  local repo; repo="$(_sgmr_repo)"
+  # the origin repo parse is _gscv_repo of gh-set-ci-vars.func.sh, its one copy
+  # shellcheck source=gh-set-ci-vars.func.sh
+  declare -F _gscv_repo >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/gh-set-ci-vars.func.sh"
+  local repo; repo="$(_gscv_repo "${GH_RULESET_REPO:-}")"
   [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] ||
     { do_log "FATAL no GitHub repo: set GH_RULESET_REPO=<owner>/<repo>"; return 1; }
   local want id live=""
@@ -56,12 +59,6 @@ do_spl_gh_master_ruleset() {
   fi
   [[ "$id" =~ ^[0-9]+$ ]] || { do_log "ERROR ruleset $name not found after the write"; return 1; }
   _sgmr_check "$repo" "$id"
-}
-
-_sgmr_repo() {
-  if [[ -n "${GH_RULESET_REPO:-}" ]]; then printf '%s\n' "$GH_RULESET_REPO"; return 0; fi
-  local url; url="$(git -C "$APP_PATH" remote get-url origin 2>/dev/null)" || return 0
-  sed -nE 's#^.*github\.com[:/]([^/]+/[^/]+)$#\1#p' <<<"${url%.git}"
 }
 
 # <repo> <name> - the id of the repo ruleset of that name, empty when none

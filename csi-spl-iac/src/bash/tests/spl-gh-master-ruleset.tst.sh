@@ -11,6 +11,10 @@
 #   5. CONTROL: a write that does not stick (live keeps the bypass) -> rc 1,
 #      the read-back says it does not hold
 #   6. no repo (no GH_RULESET_REPO, no origin) -> FATAL, no gh write
+#  6b. no GH_RULESET_REPO: the repo from an https origin; a GH_CI_VARS_REPO
+#      of the caller never names it
+#  6c. the repo from an ssh origin
+#   7. one copy: the origin parse is _gscv_repo of gh-set-ci-vars.func.sh
 #------------------------------------------------------------------------------
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
@@ -95,6 +99,25 @@ act DRY_RUN=0 STUB_IGNORE_PUT=1; rc=$?
 act GH_RULESET_REPO=; rc=$?
 [[ $rc == 1 && ! -s "$T/calls.log" ]] && grep -q 'FATAL no GitHub repo' "$T/out" \
   && pass "6. no repo -> FATAL, no gh call" || fail "6. rc=$rc $(cat "$T/out")"
+
+# --- 6b/6c. the repo from the origin remote -----------------------------------
+mkdir -p "$T/app"; git -C "$T/app" init -q
+[[ "$(git -C "$T/app" rev-parse --absolute-git-dir)" == "$T/app/.git" ]] || { echo "FAIL: fixture repo is not isolated"; exit 1; }
+git -C "$T/app" remote add origin https://github.com/o/r.git
+act GH_RULESET_REPO= APP_PATH="$T/app" GH_CI_VARS_REPO=wrong/leak; rc=$?
+[[ $rc == 0 ]] && grep -q 'INFO wanted ruleset master-no-force on o/r:' "$T/out" && ! grep -q 'wrong/leak' "$T/out" "$T/calls.log" \
+  && pass "6b. no GH_RULESET_REPO: o/r from an https origin, GH_CI_VARS_REPO does not leak" || fail "6b. rc=$rc $(cat "$T/out")"
+git -C "$T/app" remote set-url origin git@github.com:o/r.git
+act GH_RULESET_REPO= APP_PATH="$T/app"; rc=$?
+[[ $rc == 0 ]] && grep -q 'INFO wanted ruleset master-no-force on o/r:' "$T/out" \
+  && pass "6c. no GH_RULESET_REPO: o/r from an ssh origin" || fail "6c. rc=$rc $(cat "$T/out")"
+
+# --- 7. one copy --------------------------------------------------------------
+F7="$RUN/spl-gh-master-ruleset.func.sh"
+own=$(grep -nE '_sgmr_repo|remote get-url origin' "$F7" | grep -vE '^[0-9]+:\s*#')
+[[ -z "$own" ]] && grep -qF '_gscv_repo "${GH_RULESET_REPO:-}"' "$F7" \
+  && pass "7. one copy: spl-gh-master-ruleset.func.sh parses the repo only via _gscv_repo of gh-set-ci-vars.func.sh" \
+  || fail "7. one copy: spl-gh-master-ruleset.func.sh keeps its own repo parse, or no _gscv_repo call: $(tr '\n' ' ' <<<"$own")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

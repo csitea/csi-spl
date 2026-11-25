@@ -13,12 +13,14 @@
 #   2. DRY_RUN=0: exactly two DELETEs, 1 then 4; the rest fit under 8 GB
 #   3. nothing old, the store under the limit: 0 deleted, no DELETE
 #   4. a DELETE that fails: exit 1 and the ERROR line, the others still go
-#   5. the repo comes from the origin remote, else refused (no default)
+#   5. the repo comes from the origin remote, else refused (no default);
+#      5d. a GH_CI_VARS_REPO of the caller never names the repo
 #   6. a lower limit (6 GB) deletes least recently used first: 4, 3, then 2
 #   7. static, 14_ci-cache-prune.yml: a weekly schedule runs the action and
 #      deletes (DRY_RUN=0); a dispatch is a dry run by default; any other
 #      event (a push, where inputs.dry_run is null and null == false) is a
 #      dry run too; actions: write
+#   8. one copy: the origin parse is _gscv_repo of gh-set-ci-vars.func.sh
 #   CONTROL: the stub serves both pages (a lost page would hide a cache).
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -111,6 +113,9 @@ act; rc=$?
   || fail "5b. rc=$rc $(cat "$T/out")"
 act GH_CACHE_PRUNE_REPO=o/app; rc=$?
 [[ $rc == 0 ]] && pass "5c. GH_CACHE_PRUNE_REPO names the repo" || fail "5c. rc=$rc $(cat "$T/out")"
+act GH_CI_VARS_REPO=wrong/leak; rc=$?
+[[ $rc == 1 ]] && grep -qF "origin gave ''" "$T/out" && ! grep -q 'wrong/leak' "$T/out" \
+  && pass "5d. GH_CI_VARS_REPO does not leak into the repo: refused" || fail "5d. rc=$rc $(cat "$T/out")"
 
 # 6
 act DRY_RUN=0 GH_CACHE_PRUNE_REPO=o/app CACHE_PRUNE_MAX_GB=6; rc=$?
@@ -133,6 +138,12 @@ grep -qE '^\s+actions: write' <<<"$wf" || miss+=" actions-write"
 # CONTROL
 n=$(env GH_STUB_CACHES="$T/caches.json" "$T/bin/gh" api --paginate 'repos/o/app/actions/caches?per_page=100' | jq -r '.actions_caches[].id' | sort | tr '\n' ' ')
 [[ "$n" == "1 2 3 4 " ]] && pass "CONTROL: the stub serves both pages (ids 1 2 3 4)" || fail "CONTROL: stub ids '$n'"
+
+# 8
+own=$(grep -nE '_gpac_repo|remote get-url origin' "$FUNC" | grep -vE '^[0-9]+:\s*#')
+[[ -z "$own" ]] && grep -qF '_gscv_repo "${GH_CACHE_PRUNE_REPO:-}"' "$FUNC" \
+  && pass "8. one copy: gh-prune-actions-caches.func.sh parses the repo only via _gscv_repo of gh-set-ci-vars.func.sh" \
+  || fail "8. one copy: gh-prune-actions-caches.func.sh keeps its own repo parse, or no _gscv_repo call: $(tr '\n' ' ' <<<"$own")"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all gh-prune-actions-caches.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

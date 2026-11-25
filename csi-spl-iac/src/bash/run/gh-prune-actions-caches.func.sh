@@ -23,12 +23,6 @@
 # @example DRY_RUN=0 CACHE_PRUNE_MAX_GB=6 ./run -a do_gh_prune_actions_caches
 #------------------------------------------------------------------------------
 
-_gpac_repo() {
-  if [[ -n "${GH_CACHE_PRUNE_REPO:-}" ]]; then printf '%s\n' "$GH_CACHE_PRUNE_REPO"; return 0; fi
-  local url; url="$(git -C "$APP_PATH" remote get-url origin 2>/dev/null)" || return 0
-  sed -nE 's#^.*github\.com[:/]([^/]+/[^/]+)$#\1#p' <<<"${url%.git}"
-}
-
 # every cache, least recently used first: id<TAB>key<TAB>bytes<TAB>last<TAB>ref
 _gpac_list() {  # <repo>
   local json
@@ -54,7 +48,10 @@ do_gh_prune_actions_caches() {
   local days="${CACHE_PRUNE_DAYS:-7}" max_gb="${CACHE_PRUNE_MAX_GB:-8}" now="${CACHE_PRUNE_NOW:-$(date +%s)}"
   [[ "$days" =~ ^[0-9]+$ && "$max_gb" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ ]] \
     || { do_log "FATAL CACHE_PRUNE_DAYS, CACHE_PRUNE_MAX_GB and CACHE_PRUNE_NOW are whole numbers"; return 1; }
-  repo="$(_gpac_repo)"
+  # the origin repo parse is _gscv_repo of gh-set-ci-vars.func.sh, its one copy
+  # shellcheck source=gh-set-ci-vars.func.sh
+  declare -F _gscv_repo >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/gh-set-ci-vars.func.sh"
+  repo="$(_gscv_repo "${GH_CACHE_PRUNE_REPO:-}")"
   [[ "$repo" =~ $re ]] || { do_log "FATAL no <owner>/<repo>: set GH_CACHE_PRUNE_REPO (no default); origin gave '$repo'"; return 1; }
   local rows; rows="$(_gpac_list "$repo")" || { do_log "FATAL cannot list the caches of $repo with gh"; return 1; }
 

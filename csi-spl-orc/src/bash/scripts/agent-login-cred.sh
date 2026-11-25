@@ -72,6 +72,7 @@ if [ -n "${LOGIN_SUDO+x}" ]; then LC_SU="$LOGIN_SUDO"
 elif [ "$LC_USER" = "$(id -un)" ]; then LC_SU=""
 else LC_SU="sudo -n -u $LC_USER"; fi
 LC_HOME="${LOGIN_AGENT_HOME:-$(getent passwd "$LC_USER" | cut -d: -f6)}"
+[ -n "$LC_HOME" ] || { echo "no home for the agent user $LC_USER" >&2; exit 1; }
 # an f-op's second argument is a file, not a slot
 if [[ "${1:-}" == f* ]]; then LC_SLOT=1; else LC_SLOT="${2:-1}"; fi
 case "$LC_SLOT" in
@@ -117,10 +118,13 @@ lc_write() {
   lc_as chmod 600 "$tmp" || { lc_as rm -f "$tmp"; return 1; }
   if lc_as test -e "$file"; then lc_as cp -p "$file" "$file.$bak-$ts" || { lc_as rm -f "$tmp"; return 1; }; fi
   lc_as mv -f "$tmp" "$file" || { lc_as rm -f "$tmp"; return 1; }
-  # shellcheck disable=SC2016
-  lc_as bash -c 'ls -1 "$1".$3-* 2>/dev/null | sort -r | tail -n +$(( $2 + 1 )) | xargs -r rm -f' _ "$file" "${LOGIN_BAK_KEEP:-5}" "$bak"
+  lc_prune "$file" "$bak"
   lc_as sha256sum "$file" | cut -c1-12
 }
+
+# lc_prune FILE BAK: keep the newest LOGIN_BAK_KEEP (default 5) FILE.BAK-*
+# shellcheck disable=SC2016
+lc_prune() { lc_as bash -c 'ls -1 "$1".$3-* 2>/dev/null | sort -r | tail -n +$(( $2 + 1 )) | xargs -r rm -f' _ "$1" "${LOGIN_BAK_KEEP:-5}" "$2"; }
 
 # The second folder, made 700 when a slot 2 write needs it; slot 1: nothing.
 lc_mkdir2() {
@@ -208,7 +212,7 @@ lc_fprobe() {
   local bin="$1" ev="$2" a; shift 2
   [[ "$bin" =~ ^[a-z0-9-]+$ ]] || { echo "usage: BIN is a CLI name, got: '$bin'" >&2; exit 2; }
   for a in "$@"; do [[ "$a" =~ ^[A-Za-z0-9._=-]+$ ]] || { echo "usage: a probe arg, got: '$a'" >&2; exit 2; }; done
-  [ -x "$LC_HOME/.local/bin/$bin" ] && bin="$LC_HOME/.local/bin/$bin"
+  lc_as test -x "$LC_HOME/.local/bin/$bin" && bin="$LC_HOME/.local/bin/$bin"
   case "$ev" in
     -) ev="" ;;
     *) [[ "$ev" =~ ^[A-Z_][A-Z0-9_]*=[A-Za-z0-9._/-]+$ ]] || { echo "usage: ENV is NAME=<dir> or -, got: '$ev'" >&2; exit 2; }
@@ -226,7 +230,7 @@ case "${1:-}" in
   facctget) lc_as jq -c '{oauthAccount, hasCompletedOnboarding}' "$(lc_rel "${2:-}")" ;;
   facctput) lc_ts "${3:-}"; LC_JSON="$(lc_rel "${2:-}")"
             if lc_as test -e "$LC_JSON"; then lc_as cp -p "$LC_JSON" "$LC_JSON.bak-cred-$3" || exit 1; fi
-            lc_mkparent "$LC_JSON" && lc_acctput ;;
+            lc_mkparent "$LC_JSON" && lc_acctput && lc_prune "$LC_JSON" bak-cred ;;
   frestore) lc_ts "${3:-}"; lc_frestore "$(lc_rel "${2:-}")" "$3" "${4:-}" ;;
   fprobe) shift; lc_fprobe "${1:-}" "${2:--}" "${@:3}" ;;
   stat)  lc_stat ;;

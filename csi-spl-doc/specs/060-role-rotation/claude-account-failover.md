@@ -157,8 +157,10 @@ are cnf (`env.box.agent_cred_sync.<vendor>.<slot>`), each under the agent
 user's home as `getent` reads it on its own box. The guards are this
 section's, through the same `agent-login-cred.sh` (its f-ops): newer only
 (claude `claudeAiOauth.expiresAt`, agy `token.expiry`), a missing source
-file is refused, a claude main login is never written with another account
-label and a stale second folder is replaced, temp file + `mv` as the agent
+file, an expiry that cannot be read (at the source, or at an existing
+target) and a target that cannot be read are refused (exit 2), a claude
+main login is never written with another account label nor over a target
+credential whose account is unknown, a stale second folder is replaced, temp file + `mv` as the agent
 user, mode 600, the old file kept as `.bak-cred-<UTC>`, and only sha
 prefixes, the label and the expiry printed. After the copy it runs one
 headless prompt as the agent user on the target (`agy -p` / `claude -p`);
@@ -282,5 +284,6 @@ What the build changed from the design:
 | 0.2 | 2026-11-16 | section 7: Q1 decided by the owner (msg 5ff9dea1), Q2 and Q3 by the holder (msg f4ec1294) |
 | 0.3 | 2026-11-16 | built, default-off (holder GO msg d8c3c9e7): section 8, the login-mode line format, `max_copy_age_s` dropped |
 | 0.4 | 2026-11-25 | section 4.3: `do_spl_agent_cred_sync`, the box-to-box login copy of any vendor; the login2 sync is its wrapper (SPL-6487) |
+| 0.5 | 2026-11-25 | section 4.3: R7 a-546 W1-W2: unreadable expiry, unreadable target and an unknown main label refused |
 
 <!-- last-edit: 2026-11-16T10:30:00Z — c-560 SPL-5695 -->

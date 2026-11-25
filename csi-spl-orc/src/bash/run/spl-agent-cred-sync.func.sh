@@ -82,7 +82,7 @@ _cs_cnf() {
   CS_EXP="$(jq -r '.expiry // ""' <<<"$j")"; CS_ACCT="$(jq -r '.account // ""' <<<"$j")"
   CS_PROOF="$(jq -r '.proof // ""' <<<"$j")"; CS_PENV="$(jq -r '.proof_env // "-"' <<<"$j")"
   mapfile -t CS_PARGS < <(jq -r '.proof_args // [] | .[]' <<<"$j")
-  [[ -n "$CS_PROOF" ]] || { _cs_say "REFUSED no cnf proof CLI for $vendor $slot"; return 1; }
+  [[ -n "$CS_PROOF" && -n "$CS_EXP" ]] || { _cs_say "REFUSED no cnf proof CLI or expiry for $vendor $slot"; return 1; }
   [[ ${#CS_SFILES[@]} == "${#CS_FILES[@]}" && "${CS_SACCT:+a}" == "${CS_ACCT:+a}" ]] ||
     { _cs_say "REFUSED cnf $vendor main and $slot differ in their files or account"; return 1; }
 }
@@ -104,7 +104,7 @@ _cs_dest() {
   [[ "$1" == "$2" ]] && { echo here; return; }
   if [[ -n "${CRED_PEERS+x}" ]]; then p="$CRED_PEERS"
   else p="$(sed -n 's/^SPOOL_LOGIN_PEERS=//p; s/^SPOOL_LOGIN2_PEER=//p' "$(_l2_box_env)" 2>/dev/null | tr -d "\"'")"; fi
-  awk -F= -v t="$1" '$1 == t && $2 != "" && !d { print substr($0, length(t) + 2); d = 1 }' <<<"${p//[, ]/$'\n'}"
+  awk -F= -v t="$1" '$1 == t { v = substr($0, length(t) + 2) } END { if (v != "") print v }' <<<"${p//[, ]/$'\n'}"
 }
 
 _cs_user() {
@@ -126,34 +126,53 @@ _cs_at() {
   fi
   if [[ -n "${CRED_PEER_CMD:-}" ]]; then bash -c "$CRED_PEER_CMD \"\$@\"" _ "$at" "$@"; return; fi
   a="$(printf ' %q' "$@")"
+  # the peer reads its own agent user from its box.env unless CRED_AGENT_USER names one
   ssh -o BatchMode=yes -o ConnectTimeout="${LOGIN_SSH_TIMEOUT:-30}" "$at" \
-    "LOGIN_AGENT_USER=$(printf '%q' "$CS_USER") bash -c $(printf '%q' "$(cat "$helper")") _$a"
+    "${CRED_AGENT_USER:+LOGIN_AGENT_USER=$(printf '%q' "$CRED_AGENT_USER") }bash -c $(printf '%q' "$(cat "$helper")") _$a"
 }
 
-# Read both sides, decide (guards 1 and 2), then copy and prove.
-_cs_sync() {
-  local i f sst dst sexp=0 dexp=0 same=1 slab="" dlab="" what
-  CS_SSHA=(); CS_DNEW=()
+# Read both sides (CS_SSHA CS_DNEW CS_SEXP CS_DEXP CS_SAME CS_SLAB CS_DLAB
+# CS_ANEW); what cannot be read, or names no expiry at the source, is REFUSED.
+_cs_read() {
+  local i f sst dst ast
+  CS_SSHA=(); CS_DNEW=(); CS_SEXP=0; CS_DEXP=0; CS_SAME=1; CS_SLAB=""; CS_DLAB=""; CS_ANEW=0
   for i in "${!CS_FILES[@]}"; do
     f="${CS_FILES[$i]}"
     sst="$(_cs_at "$CS_SRC" fstat "${CS_SFILES[$i]}" "$( ((i == 0)) && echo "$CS_EXP")" 2>/dev/null)"
     dst="$(_cs_at "$CS_DST" fstat "$f" "$( ((i == 0)) && echo "$CS_EXP")" 2>/dev/null)"
     [[ "$sst" =~ ^[0-9a-f]{12}\ [0-9]+$ ]] || { _cs_say "REFUSED the source has no file $((i + 1)) of ${#CS_FILES[@]} of the login (${sst:-unreachable}): nothing copied"; return 2; }
+    [[ "$dst" == none || "$dst" =~ ^[0-9a-f]{12}\ [0-9]+$ ]] || { _cs_say "REFUSED the target's file $((i + 1)) cannot be read (${dst:-unreachable}): nothing copied"; return 2; }
     CS_SSHA+=("${sst%% *}"); CS_DNEW+=("$([[ "$dst" == none ]] && echo 1 || echo 0)")
-    [[ "${sst%% *}" == "${dst%% *}" ]] || same=0
-    ((i == 0)) && { sexp="${sst##* }"; [[ "$dst" =~ \ ([0-9]+)$ ]] && dexp="${BASH_REMATCH[1]}"; }
+    [[ "${sst%% *}" == "${dst%% *}" ]] || CS_SAME=0
+    ((i == 0)) && { CS_SEXP="${sst##* }"; [[ "$dst" == none ]] || CS_DEXP="${dst##* }"; }
   done
-  if [[ -n "$CS_ACCT" ]]; then
-    slab="$(_cs_at "$CS_SRC" facct "$CS_SACCT" 2>/dev/null)"; dlab="$(_cs_at "$CS_DST" facct "$CS_ACCT" 2>/dev/null)"
-    [[ "$slab" =~ ^acct-[0-9a-f]{8}$ ]] || { _cs_say "REFUSED the source login names no account (${slab:-unreachable}): nothing copied"; return 2; }
-    [[ "$(_cs_at "$CS_DST" fstat "$CS_ACCT" 2>/dev/null)" == none ]] && CS_ANEW=1 || CS_ANEW=0
+  ((CS_SEXP > 0)) || { _cs_say "REFUSED the source token names no expiry (cnf expiry $CS_EXP): nothing copied"; return 2; }
+  [[ -n "$CS_ACCT" ]] || return 0
+  CS_SLAB="$(_cs_at "$CS_SRC" facct "$CS_SACCT" 2>/dev/null)"; CS_DLAB="$(_cs_at "$CS_DST" facct "$CS_ACCT" 2>/dev/null)"
+  ast="$(_cs_at "$CS_DST" fstat "$CS_ACCT" 2>/dev/null)"
+  [[ "$CS_SLAB" =~ ^acct-[0-9a-f]{8}$ ]] || { _cs_say "REFUSED the source login names no account (${CS_SLAB:-unreachable}): nothing copied"; return 2; }
+  [[ "$CS_DLAB" =~ ^(none|acct-[0-9a-f]{8})$ && ( "$ast" == none || "$ast" =~ ^[0-9a-f]{12}\ [0-9]+$ ) ]] ||
+    { _cs_say "REFUSED the target's account cannot be read (${CS_DLAB:-unreachable}): nothing copied"; return 2; }
+  [[ "$ast" == none ]] && CS_ANEW=1
+  return 0
+}
+
+# Decide (guards 1 and 2), then copy and prove.
+_cs_sync() {
+  local what main=0 u
+  [[ "${CRED_SLOT:-main}" == main ]] && main=1
+  _cs_read || return
+  u="$(_l2_utc $((CS_SEXP * 1000)))"
+  if ((main)) && [[ -n "$CS_SLAB" && "$CS_DLAB" != "$CS_SLAB" ]]; then
+    [[ "$CS_DLAB" != none ]] && { _cs_say "REFUSED the target's main login is another account ($CS_DLAB, the source $CS_SLAB): a main login is never written with another label"; return 2; }
+    [[ "${CS_DNEW[0]}" == 1 ]] || { _cs_say "REFUSED the target's main login names no account: its label is unknown, nothing copied"; return 2; }
   fi
-  if [[ -n "$slab" && "$dlab" != "$slab" && "$dlab" != none && "${CRED_SLOT:-main}" == main ]]; then
-    _cs_say "REFUSED the target's main login is another account ($dlab, the source $slab): a main login is never written with another label"; return 2
-  elif [[ -n "$slab" && "$dlab" != "$slab" ]]; then what="replaced the stale account ${dlab:-none} with $slab"
-  elif ((same)); then _cs_say "up to date (${slab:+$slab, }${CS_SSHA[*]})"; return 0
-  elif [[ "${CS_DNEW[0]}" == 1 ]] || ((sexp > dexp)); then what="copied ${slab:+$slab }${CS_SSHA[*]}, expires $(_l2_utc $((sexp * 1000)))"
-  else _cs_say "the source is not newer (expires $(_l2_utc $((sexp * 1000))), the target $(_l2_utc $((dexp * 1000)))): nothing copied"; return 0
+  if ! ((main)) && [[ -n "$CS_SLAB" && "$CS_DLAB" != "$CS_SLAB" ]]; then what="replaced the stale account $CS_DLAB with $CS_SLAB"
+  elif ((CS_SAME)); then _cs_say "up to date (${CS_SLAB:+$CS_SLAB, }${CS_SSHA[*]})"; return 0
+  elif [[ "${CS_DNEW[0]}" == 1 ]]; then what="copied ${CS_SLAB:+$CS_SLAB }${CS_SSHA[*]}, expires $u"
+  elif ((CS_DEXP <= 0)); then _cs_say "REFUSED the target's token names no expiry: newer cannot be told, nothing copied"; return 2
+  elif ((CS_SEXP > CS_DEXP)); then what="copied ${CS_SLAB:+$CS_SLAB }${CS_SSHA[*]}, expires $u"
+  else _cs_say "the source is not newer (expires $u, the target $(_l2_utc $((CS_DEXP * 1000)))): nothing copied"; return 0
   fi
   [[ "$CS_DRY" == 1 ]] && { _cs_say "PLAN $what, then the $CS_PROOF -p proof (DRY_RUN)"; return 0; }
   _cs_copy "$what"
@@ -178,16 +197,20 @@ _cs_copy() {
   _cs_say "$what; the $CS_PROOF -p proof is ok"
 }
 
-# _cs_restore TS N [acct]: files 0..N (and the account file) back from .bak-cred-TS.
+# _cs_restore TS N [acct]: files 0..N (and the account file) back from
+# .bak-cred-TS; a put-back that did not answer restored|removed|kept is named.
 _cs_restore() {
-  local ts="$1" n="$2" i new out=()
+  local ts="$1" n="$2" i new got out=() bad=()
   for ((i = 0; i <= n && i < ${#CS_FILES[@]}; i++)); do
     new=(); [[ "${CS_DNEW[$i]}" == 1 ]] && new=(new)
-    out+=("$(_cs_at "$CS_DST" frestore "${CS_FILES[$i]}" "$ts" "${new[@]}" 2>/dev/null)")
+    got="$(_cs_at "$CS_DST" frestore "${CS_FILES[$i]}" "$ts" "${new[@]}" 2>/dev/null)"
+    out+=("${got:-?}"); [[ "$got" =~ ^(restored|removed|kept)$ ]] || bad+=("file $((i + 1))")
   done
   if [[ -n "${3:-}" && -n "$CS_ACCT" ]]; then
-    new=(); [[ "${CS_ANEW:-0}" == 1 ]] && new=(new)
-    out+=("$(_cs_at "$CS_DST" frestore "$CS_ACCT" "$ts" "${new[@]}" 2>/dev/null)")
+    new=(); [[ "$CS_ANEW" == 1 ]] && new=(new)
+    got="$(_cs_at "$CS_DST" frestore "$CS_ACCT" "$ts" "${new[@]}" 2>/dev/null)"
+    out+=("${got:-?}"); [[ "$got" =~ ^(restored|removed|kept)$ ]] || bad+=(account)
   fi
-  echo "the target put back from its .bak (${out[*]})"
+  if ((${#bad[@]})); then echo "the put-back FAILED for ${bad[*]} (${out[*]}): fix the target by hand from its .bak-cred-$ts"
+  else echo "the target put back from its .bak (${out[*]})"; fi
 }

@@ -103,7 +103,7 @@ spl_lane_rotate_conf() {
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   (( ROTATE_LANE_CAP > 0 )) || { do_log "FATAL ROTATE_LANE_CAP must be at least 1"; return 1; }
-  : "${ROTATE_LANE_BUSY_RE:=git (push|rebase|commit|fetch|pull)|terraform|tf-(plan|apply)|do[_-]provision|do_check_pre_push|run-all-tests|\.tst\.sh|go test|playwright|pnpm|npm (run|test)|pytest|docker (build|compose)|gh run watch|make do-}"
+  : "${ROTATE_LANE_BUSY_RE:=git (push|rebase|commit|fetch|pull)|terraform|tf-(plan|apply)|do[_-]provision|do_check_pre_push|run-all-tests|\.tst\.sh|go test|playwright|pnpm|npm (run|test)|pytest|docker (build|compose)|gh run watch|do_ci_wait_sha|make do-}"
   # a subset of ROTATE_LANE_BUSY_RE: the runs the deadline never cuts (SPL-4820)
   : "${ROTATE_LANE_GATE_RE:=do_check_pre_push|git push}"
   ROTATE_LANE_DIR="$LEASE_DIR/lane-rotate"

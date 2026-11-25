@@ -130,6 +130,70 @@ func TestContactsSyncOffFreesBinding(t *testing.T) {
 	})
 }
 
+// TestContactsSyncMove is spec 2.2 step 6, "Sync from here instead"
+// (SPL-6454): the person's binding that is ON in W1 moves to W2 in one call,
+// a fresh binding (2.5's first-sync rules), W1's gone, the contacts as they
+// were. Refused and unchanged: W3 holds no seat (ErrNotFound), and a sync
+// holds the lease (ErrContactsSyncBusy, 2.5). A move where the binding
+// already is switches it on; a person with none gets one.
+func TestContactsSyncMove(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		now := time.Now()
+		p1, p2 := realmPersons()
+		f.addHuman(t, p1)
+		f.addHuman(t, p2)
+		w1, w2, w3 := f.newTenant(t), f.newTenant(t), f.newTenant(t)
+		f.seat(t, w1, p1)
+		f.seat(t, w2, p1)
+		f.seat(t, w2, p2)
+		if _, err := f.st.CreateContact(ctx, p1, ffContact(), now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.st.SetContactsSync(ctx, w1, p1, true, now); err != nil {
+			t.Fatalf("on in W1: %v", err)
+		}
+		unchanged := func(why string) {
+			t.Helper()
+			if got, err := f.st.ContactsSyncOf(ctx, p1); err != nil || got.Tenant != w1 || !got.Enabled {
+				t.Errorf("%s: P1's binding %+v (%v), want W1's, on", why, got, err)
+			}
+		}
+		if _, err := f.st.MoveContactsSync(ctx, w3, p1, now); !errors.Is(err, ErrNotFound) {
+			t.Errorf("move to W3, no seat there: %v, want ErrNotFound", err)
+		}
+		unchanged("after the refusal in W3")
+		f.lease(t, w1, p1, now.Add(time.Minute))
+		if _, err := f.st.MoveContactsSync(ctx, w2, p1, now); !errors.Is(err, ErrContactsSyncBusy) {
+			t.Errorf("move while a sync holds the lease: %v, want ErrContactsSyncBusy", err)
+		}
+		unchanged("after the refusal under the lease")
+		later := now.Add(2 * time.Minute)
+		b, err := f.st.MoveContactsSync(ctx, w2, p1, later)
+		if err != nil || !b.Enabled || b.Tenant != w2 || b.SyncToken != "" || b.OutCursor != nil || b.SyncLeaseUntil != nil {
+			t.Fatalf("move to W2 after the lease ran out: %+v (%v), want a fresh binding in W2", b, err)
+		}
+		if _, err := f.st.ContactsSyncIn(ctx, w1, p1); !errors.Is(err, ErrNotFound) {
+			t.Errorf("W1's binding after the move: %v, want ErrNotFound", err)
+		}
+		if got := listAll(t, f.st, p1, ""); len(got) != 1 {
+			t.Errorf("P1's contacts after the move: %d, want the 1 kept", len(got))
+		}
+		if got, err := f.st.MoveContactsSync(ctx, w2, p1, later); err != nil || got.Tenant != w2 || !got.Enabled {
+			t.Errorf("move where the binding already is: %+v (%v), want W2's, on", got, err)
+		}
+		if _, err := f.st.SetContactsSync(ctx, w2, p1, false, later); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := f.st.MoveContactsSync(ctx, w2, p1, later); err != nil || !got.Enabled {
+			t.Errorf("move here while off: %+v (%v), want on", got, err)
+		}
+		if got, err := f.st.MoveContactsSync(ctx, w2, p2, later); err != nil || got.Tenant != w2 || !got.Enabled {
+			t.Errorf("move for P2, no binding anywhere: %+v (%v), want a new one in W2", got, err)
+		}
+	})
+}
+
 // TestContactsC2ePurgeThroughStore is C2e:PurgeDeletedContacts deletes
 // every person's rows soft-deleted more than 30 days ago and names each
 // person once, pending only for a member's delete of a linked contact; rows

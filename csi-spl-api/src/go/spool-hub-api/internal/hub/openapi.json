@@ -7928,7 +7928,7 @@
     },
     "/v1/me/contacts/sync": {
       "get": {
-        "description": "The Contacts switch's state in the session's workspace, read-only, for the settings page after a reload: enabled, elsewhere (the person's one binding is on in another of their workspaces, which a switch-on here answers 409 contacts_sync_elsewhere to; nothing more of it; one that is off there is not elsewhere, a switch-on here replaces it), scope_granted (the Google connection here holds a scope of cnf contacts.scopes), status_detail, last_synced_at. Spec 154 B18. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "description": "The Contacts switch's state in the session's workspace, read-only, for the settings page after a reload: state (here = the person's one binding is in this workspace, on or off as enabled says; elsewhere = it is on in another of their workspaces; off = no binding, or one that is off elsewhere, which a switch-on here replaces), enabled, elsewhere (state == elsewhere, kept for older clients), workspace (only for elsewhere: the display name, else the id, of the person's own workspace the binding is on in; POST /v1/me/contacts/sync/move moves it here), scope_granted (the Google connection here holds a scope of cnf contacts.scopes), status_detail, last_synced_at. Spec 154 B18 and 2.2 step 6. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
         "operationId": "getMeContactsSync",
         "responses": {
           "200": {
@@ -7950,11 +7950,23 @@
                     "scope_granted": {
                       "type": "boolean"
                     },
+                    "state": {
+                      "enum": [
+                        "here",
+                        "elsewhere",
+                        "off"
+                      ],
+                      "type": "string"
+                    },
                     "status_detail": {
+                      "type": "string"
+                    },
+                    "workspace": {
                       "type": "string"
                     }
                   },
                   "required": [
+                    "state",
                     "enabled",
                     "elsewhere",
                     "scope_granted",
@@ -8053,6 +8065,78 @@
           }
         },
         "summary": "Switch the Google contacts sync",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/contacts/sync/move": {
+      "post": {
+        "description": "Sync from here instead: one transaction ends the person's contacts sync binding in another of their workspaces (on or off) and starts it in the session's workspace, enabled and due now; a binding already here is switched on. The person's contacts stay as they are: the fresh binding's first sync links them by Google account and resource, or email, so nothing is imported twice. Answers the switch's new state, as GET /v1/me/contacts/sync. Spec 154 2.2 step 6 (SPL-6454). Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "moveMeContactsSync",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "elsewhere": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "last_synced_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scope_granted": {
+                      "type": "boolean"
+                    },
+                    "state": {
+                      "enum": [
+                        "here",
+                        "elsewhere",
+                        "off"
+                      ],
+                      "type": "string"
+                    },
+                    "status_detail": {
+                      "type": "string"
+                    },
+                    "workspace": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "enabled",
+                    "elsewhere",
+                    "scope_granted",
+                    "status_detail",
+                    "last_synced_at"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK, state here. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: gcal_not_connected (no connected Google connection here), sync_in_progress (a cycle holds the binding's lease; try again). Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          }
+        },
+        "summary": "Move my Google contacts sync to this workspace",
         "tags": [
           "me"
         ]

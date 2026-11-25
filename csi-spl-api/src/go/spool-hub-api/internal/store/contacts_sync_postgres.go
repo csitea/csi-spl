@@ -105,6 +105,42 @@ func (s *Postgres) takeContactsSyncOff(ctx context.Context, tenant, human string
 	return out, contactsSyncPGErr(err)
 }
 
+// MoveContactsSync is ContactsSyncs.MoveContactsSync: under the operator
+// scope, as takeContactsSyncOff, because the binding to end is invisible
+// from tenant. The row is locked first, so a cycle cannot claim it between
+// the lease check and the delete; an insert refused for want of a seat or a
+// Google connection in tenant (23503) rolls the delete back.
+func (s *Postgres) MoveContactsSync(ctx context.Context, tenant, human string, now time.Time) (ContactsSync, error) {
+	if err := checkPerson(human); err != nil {
+		return ContactsSync{}, err
+	}
+	var out ContactsSync
+	err := s.asOperator(ctx, func(tx pgx.Tx) error {
+		var at string
+		var lease *time.Time
+		err := tx.QueryRow(ctx, `SELECT tenant_id, sync_lease_until FROM contacts_sync
+			WHERE human_id = $1 FOR UPDATE`, human).Scan(&at, &lease)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+		case err != nil:
+			return err
+		case lease != nil && lease.After(now):
+			return ErrContactsSyncBusy
+		case at == tenant:
+			out, err = scanContactsSync(tx.QueryRow(ctx, `UPDATE contacts_sync SET enabled = true, due_at = $3, updated_at = $3
+				WHERE tenant_id = $1 AND human_id = $2 RETURNING `+contactsSyncCols, tenant, human, now))
+			return err
+		default:
+			if _, err := tx.Exec(ctx, `DELETE FROM contacts_sync WHERE human_id = $1`, human); err != nil {
+				return err
+			}
+		}
+		out, err = scanContactsSync(tx.QueryRow(ctx, contactsSyncInsert, tenant, human, now))
+		return err
+	})
+	return out, contactsSyncPGErr(err)
+}
+
 // MarkContactsSyncDue is ContactsSyncs.MarkContactsSyncDue.
 func (s *Postgres) MarkContactsSyncDue(ctx context.Context, tenant, human string, now time.Time) error {
 	if err := checkPerson(human); err != nil {

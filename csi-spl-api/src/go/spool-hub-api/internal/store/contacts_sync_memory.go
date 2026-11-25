@@ -75,6 +75,31 @@ func (s *Memory) SetContactsSync(_ context.Context, tenant, human string, enable
 	return *b, nil
 }
 
+// MoveContactsSync is ContactsSyncs.MoveContactsSync.
+func (s *Memory) MoveContactsSync(_ context.Context, tenant, human string, now time.Time) (ContactsSync, error) {
+	if err := checkPerson(human); err != nil {
+		return ContactsSync{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	binds := s.contactsLocked().binds
+	old := binds[human]
+	if old != nil && old.SyncLeaseUntil != nil && old.SyncLeaseUntil.After(now) {
+		return ContactsSync{}, ErrContactsSyncBusy
+	}
+	if old != nil && old.Tenant == tenant {
+		old.Enabled, old.DueAt, old.UpdatedAt = true, now, now
+		return *old, nil
+	}
+	s.hum.init()
+	if _, seat := s.hum.members[[2]string{tenant, human}]; !seat || s.gcalLocked().member(tenant, human) == nil {
+		return ContactsSync{}, ErrNotFound
+	}
+	b := &ContactsSync{Human: human, Tenant: tenant, Enabled: true, DueAt: now, CreatedAt: now, UpdatedAt: now}
+	binds[human] = b
+	return *b, nil
+}
+
 // MarkContactsSyncDue is ContactsSyncs.MarkContactsSyncDue.
 func (s *Memory) MarkContactsSyncDue(_ context.Context, tenant, human string, now time.Time) error {
 	if err := checkPerson(human); err != nil {

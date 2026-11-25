@@ -99,6 +99,14 @@ type ContactsSyncs interface {
 	// MarkContactsSyncDue is "Sync now": the enabled binding in tenant is
 	// due at now. ErrContactsSyncBusy while a sync holds its lease.
 	MarkContactsSyncDue(ctx context.Context, tenant, human string, now time.Time) error
+	// MoveContactsSync is "Sync from here instead" (spec 154 2.2 step 6,
+	// SPL-6454): one transaction ends the human's binding in another
+	// workspace, on or off, and starts a fresh one in tenant, enabled and due
+	// now; a binding already in tenant is switched on. ErrContactsSyncBusy
+	// while a sync holds the binding's lease; ErrNotFound when tenant holds no
+	// Google connection or no seat of the human, and then nothing changes.
+	// The person's contacts are never touched.
+	MoveContactsSync(ctx context.Context, tenant, human string, now time.Time) (ContactsSync, error)
 	// ContactsSyncOf is the human's binding in whichever workspace it is
 	// (operator scope, N4): the hub's "Erase one" asks whether a Google
 	// delete must be sent (spec 2.6).

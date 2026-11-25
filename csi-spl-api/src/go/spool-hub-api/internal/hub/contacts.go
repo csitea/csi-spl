@@ -29,6 +29,7 @@ import (
 //	GET    /v1/me/contacts/sync         the switch's state, read-only (B18)
 //	PUT    /v1/me/contacts/sync         the Contacts switch {enabled} (C7d)
 //	POST   /v1/me/contacts/sync         "Sync now", 202
+//	POST   /v1/me/contacts/sync/move    "Sync from here instead" (contacts_sync_move.go)
 //
 // Who: a signed-in person in a workspace session. The person is the
 // session's HUM-*, never a path, query or body value; realmRefuses answers
@@ -489,24 +490,28 @@ func (s *Server) contactsSyncStore(w http.ResponseWriter) (store.ContactsSyncs, 
 }
 
 // contactsSyncState is the GET answer of the Contacts switch (B18): what
-// settings shows after a reload. elsewhere says only that the person's one
-// binding is on in another of their workspaces, never which one: what a
-// switch-on here answers 409 contacts_sync_elsewhere to. A binding that is
-// off there is not elsewhere: a switch-on here replaces it (SPL-6279).
-// scope_granted: the Google connection here holds a scope of cnf
-// contacts.scopes, so a cycle reads Google (without it the binding waits,
-// contacts_sync.go).
+// settings shows after a reload. State is "here" (the person's one binding
+// is in this workspace, on or off: Enabled says which), "elsewhere" (it is
+// on in another of their workspaces) or "off" (no binding, or one that is
+// off elsewhere: a switch-on here replaces it, SPL-6279). Elsewhere repeats
+// state == "elsewhere" for the WUI before SPL-6454. Workspace is the display
+// name (else the id) of the workspace the binding is on in, only for
+// "elsewhere": the person's own membership, never another person's binding
+// (spec 2.2 step 6). scope_granted: the Google connection here holds a scope
+// of cnf contacts.scopes, so a cycle reads Google (without it the binding
+// waits, contacts_sync.go).
 type contactsSyncState struct {
+	State        string     `json:"state"`
 	Enabled      bool       `json:"enabled"`
 	Elsewhere    bool       `json:"elsewhere"`
+	Workspace    string     `json:"workspace,omitempty"`
 	ScopeGranted bool       `json:"scope_granted"`
 	StatusDetail string     `json:"status_detail"`
 	LastSyncedAt *time.Time `json:"last_synced_at"`
 }
 
 // GET /v1/me/contacts/sync: the Contacts switch's state in the session's
-// workspace, read-only: the person's binding (ContactsSyncOf, wherever it
-// is) and the granted scopes of the Google connection here.
+// workspace, read-only.
 func (s *Server) handleGetContactsSync(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.contactsCaller(w, r)
 	if !ok {
@@ -516,31 +521,63 @@ func (s *Server) handleGetContactsSync(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ctx := r.Context()
-	var out contactsSyncState
+	out, err := s.contactsSyncStateOf(r.Context(), cs, c)
+	if err != nil {
+		s.contactsFail(w, "contacts_sync_get", c, "", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// contactsSyncStateOf is the switch's state for c: the person's binding
+// (ContactsSyncOf, wherever it is) and the granted scopes of the Google
+// connection here.
+func (s *Server) contactsSyncStateOf(ctx context.Context, cs store.ContactsSyncs, c contactsMe) (contactsSyncState, error) {
+	out := contactsSyncState{State: "off"}
 	b, err := cs.ContactsSyncOf(ctx, c.person)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 	case err != nil:
-		s.contactsFail(w, "contacts_sync_get", c, "", err)
-		return
+		return out, err
 	case b.Tenant != c.tenant:
-		out.Elsewhere = b.Enabled
+		if b.Enabled {
+			out.State, out.Elsewhere, out.Workspace = "elsewhere", true, s.contactsWorkspaceName(ctx, c.person, b.Tenant)
+		}
 	default:
-		out.Enabled, out.StatusDetail, out.LastSyncedAt = b.Enabled, b.StatusDetail, b.LastSyncedAt
+		out.State, out.Enabled, out.StatusDetail, out.LastSyncedAt = "here", b.Enabled, b.StatusDetail, b.LastSyncedAt
 	}
 	if gs, has := s.o.Store.(store.Gcal); has && s.o.Gcal != nil && s.o.Gcal.ContactsScopes != "" {
 		conn, err := gs.GcalConnection(ctx, c.tenant, c.person)
 		switch {
 		case errors.Is(err, store.ErrNotFound):
 		case err != nil:
-			s.contactsFail(w, "contacts_sync_get", c, "", err)
-			return
+			return out, err
 		default:
 			out.ScopeGranted = gcal.HoldsAny(s.o.Gcal.ContactsScopes, conn.GrantedScopes)
 		}
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out, nil
+}
+
+// contactsWorkspaceName is the display name of tenant from the person's own
+// memberships, else the tenant id (what the workspace switcher shows for a
+// workspace without a name). The binding references the person's
+// membership there (rdb 0226), so the person always belongs to it.
+func (s *Server) contactsWorkspaceName(ctx context.Context, person, tenant string) string {
+	ml, ok := s.o.Store.(store.MembershipLister)
+	if !ok {
+		return tenant
+	}
+	ms, err := ml.Memberships(ctx, person)
+	if err != nil {
+		return tenant
+	}
+	for _, m := range ms {
+		if m.TenantID == tenant && m.DisplayName != "" {
+			return m.DisplayName
+		}
+	}
+	return tenant
 }
 
 // PUT /v1/me/contacts/sync {enabled}: the Contacts switch of the Google
@@ -655,6 +692,8 @@ func (s *Server) routeContacts(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /v1/me/contacts/sync", s.handlePutContactsSync)
 	mux.HandleFunc("POST /v1/me/contacts/sync", s.handleContactsSyncNow)
 	mux.HandleFunc("OPTIONS /v1/me/contacts/sync", s.gcalPreflight("GET, PUT, POST"))
+	mux.HandleFunc("POST /v1/me/contacts/sync/move", s.handleContactsSyncMove)
+	mux.HandleFunc("OPTIONS /v1/me/contacts/sync/move", s.gcalPreflight("POST"))
 	mux.HandleFunc("GET /v1/me/contacts/{id}", s.handleGetContact)
 	mux.HandleFunc("PATCH /v1/me/contacts/{id}", s.handlePatchContact)
 	mux.HandleFunc("DELETE /v1/me/contacts/{id}", s.handleDeleteContact)

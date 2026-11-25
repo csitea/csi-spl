@@ -45,6 +45,9 @@
 #      never an add; a failed cnf push / apply keeps a removing row removing
 #   6a. SPL-1811: the cnf push hands AGENT_ID to the pre-push hook; with a
 #      hook and no id it fails before any worktree or commit
+#   6b. SPL-6500: the pushed cnf commit carries the six release-note trailers
+#      and passes CI's own check (_rn_commit of check-release-note); the log
+#      line stays the subject only
 #   7. deprovision refuses while the tenant row exists; the proxy's log line
 #      on stdout never reads as "still exists" (SPL-1811)
 #   8. do_spl_tenant_create chains the host only when cnf wui_tenant_hosts is on
@@ -653,7 +656,13 @@ body=$(git -C "$G/origin.git" log -1 --format=%B master)
   pass "cnf push replays the 052 docs workspaces edit onto the trunk" || fail "pushed docs list: $(git -C "$G/origin.git" show master:csi-spl-cnf/csi-spl/dev.env.yaml | grep -n 'workspaces:')"
 [[ "$files" == "csi-spl-cnf/csi-spl/dev.env.yaml" ]] && pass "cnf push commits only the env's cnf paths (the dirty other.txt is not in it)" || fail "pushed files: $files"
 grep -qiE '^(Co-Authored-By|Claude-Session|Generated with)' <<<"$body" && fail "AI trailer in the cnf commit" || pass "no AI trailer in the cnf commit"
-[[ "$body" == "cnf(024): dev tenant hosts +newt" ]] && pass "the cnf commit carries the caller's message (do_log's global msg does not leak in)" || fail "commit message: $body"
+[[ "$(head -1 <<<"$body")" == "cnf(024): dev tenant hosts +newt" ]] && pass "the cnf commit's subject is the caller's message (do_log's global msg does not leak in)" || fail "commit message: $body"
+# 6b. SPL-6500: the pushed cnf commit carries its release note; the verdict is
+# the one CI's release-note job reads (_rn_commit), on the scratch trunk
+rn=$(bash -c 'source "$1"; _rn_commit "$2" master' _ "$PROJ_ROOT/../csi-spl-iac/src/bash/run/check-release-note.func.sh" "$G/origin.git")
+[[ "$rn" == full ]] && pass "6b. the cnf commit passes the CI release-note check (six trailers, kind full)" || fail "6b. release-note verdict: [$rn] :: $body"
+grep -q 'newt' <<<"$(git -C "$G/origin.git" log -1 --format=%b master)" && fail "6b. the release note names the tenant slug" || pass "6b. the release note names no tenant slug (the row is public)"
+grep -q 'OK cnf pushed: [0-9a-f]\{9\} cnf(024): dev tenant hosts +newt$' <<<"$out" && pass "6b. the OK cnf pushed log line is one line, the subject only" || fail "6b. pushed line: $(grep 'cnf pushed' <<<"$out")"
 [[ $(git -C "$G/wc" worktree list | wc -l) == 1 ]] && pass "the throwaway worktree is gone" || fail "worktree left: $(git -C "$G/wc" worktree list)"
 grep -q "throwaway worktree $G/\.wc-cnf-push\.[A-Za-z0-9]*/wt" <<<"$out" && ! compgen -G "$G/.wc-cnf-push.*" >/dev/null &&
   pass "the throwaway worktree sat beside the checkout (its filesystem, not /tmp: pnpm store EACCES) and is removed" || fail "throwaway dir: $(ls -a "$G") :: $out"

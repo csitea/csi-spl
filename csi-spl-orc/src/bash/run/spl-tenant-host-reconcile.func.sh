@@ -398,9 +398,25 @@ spl_th_push_agent() {
   return 1
 }
 
+# spl_th_cnf_note: the release note of the cnf commit, the six trailers of
+# csi-spl-doc/doc/help/release-notes.md as its LAST paragraph, fixed text (no
+# tenant slug: the row is public). Without it workflow 10's release-note job
+# went red on every reconcile push (222f6efe9, SPL-6500).
+spl_th_cnf_note() {
+  cat <<NOTE
+Lay-What: The list of workspace addresses the platform serves in ${ENV} changed.
+Lay-How: The automatic host check wrote the added or removed addresses into the settings file.
+Lay-Why: A workspace was set up or removed, and its own address has to follow it.
+Tech-What: csi-spl-cnf ${ENV} mapped_tenants and the rendered tfvars of steps 019, 025 and 052 (spec 024).
+Tech-How: Written and pushed by the tenant host actions (reconcile or provision) from a throwaway worktree.
+Tech-Why: A tenant host was added or removed; the cnf is the source the terraform steps render from.
+NOTE
+}
+
 # _spl_th_push_in <tmp> <br> <message> <root> [agent]: commit + push from
 # <tmp>/wt as AGENT_ID=<agent>, up to 5 tries; the push's own output is shown
-# when the last one fails.
+# when the last one fails. <message> is the subject; the body is the release
+# note (spl_th_cnf_note); the log line names the subject only.
 _spl_th_push_in() {
   local tmp="$1" br="$2" th_msg="$3" root="$4" agent="${5:-}" wt="$1/wt" name email i
   local -a penv=(env)
@@ -415,7 +431,7 @@ _spl_th_push_in() {
     if git -C "$wt" diff --cached --quiet; then
       do_log "OK cnf already on origin/$br: nothing to push"; return 0
     fi
-    git -C "$wt" "${id[@]}" commit -q -m "$th_msg" || { do_log "FATAL CNF push: commit failed"; return 1; }
+    git -C "$wt" "${id[@]}" commit -q -m "$th_msg" -m "$(spl_th_cnf_note)" || { do_log "FATAL CNF push: commit failed"; return 1; }
     "${penv[@]}" git -C "$wt" push origin "HEAD:$br" >"$tmp/push.out" 2>&1
     git -C "$wt" fetch -q origin "$br"
     if git -C "$wt" merge-base --is-ancestor HEAD "origin/$br"; then

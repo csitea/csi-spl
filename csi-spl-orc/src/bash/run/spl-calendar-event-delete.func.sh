@@ -32,8 +32,9 @@ _spl_calendar_event_each() {
   local -a ids=()
   spl_require_cloud_env || return 1
   spl_require_tenant_slug "$tenant" || return 1
-  [[ "$agent" =~ ^[acgmq]-[0-9]{3,}$ || "$agent" =~ ^(CLE|AGY|GRK|QWN)-[0-9]+$ ]] || { do_log "FATAL AGENT_ID must be an agent id like c-042, got: '$agent'"; return 1; }
-  [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
+  # shellcheck source=spl-calendar-event-add.func.sh
+  declare -F _spl_calendar_require_actor >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-calendar-event-add.func.sh"
+  _spl_calendar_require_actor "$agent" "$ordby" || return 1
   [[ "$verb" != pin || "$pinned" == 0 || "$pinned" == 1 ]] || { do_log "FATAL PINNED must be 1 or 0, got: '$pinned'"; return 1; }
   read -r -a ids <<<"${EVENT_IDS//,/ }"
   (( ${#ids[@]} >= 1 && ${#ids[@]} <= 200 )) || { do_log "FATAL EVENT_IDS must name 1..200 event ids, got ${#ids[@]}"; return 1; }

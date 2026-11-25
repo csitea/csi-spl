@@ -100,8 +100,9 @@ _spl_calendar_update_body() {
   local tenant="${TENANT_ID:-}" agent="${AGENT_ID:-}" ordby="${ORDERED_BY:-}" id="${EVENT_ID:-}" times rems=""
   spl_require_cloud_env || return 1
   spl_require_tenant_slug "$tenant" || return 1
-  [[ "$agent" =~ ^[acgmq]-[0-9]{3,}$ || "$agent" =~ ^(CLE|AGY|GRK|QWN)-[0-9]+$ ]] || { do_log "FATAL AGENT_ID must be an agent id like c-042, got: '$agent'"; return 1; }
-  [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
+  # shellcheck source=spl-calendar-event-add.func.sh
+  declare -F _spl_calendar_require_actor >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-calendar-event-add.func.sh"
+  _spl_calendar_require_actor "$agent" "$ordby" || return 1
   [[ "$id" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || { do_log "FATAL EVENT_ID must be an event id (uuid), got: '$id'"; return 1; }
   [[ ! -v TITLE || -n "${TITLE// /}" ]] || { do_log "FATAL TITLE is set but empty: unset it to keep the title"; return 1; }
   [[ -z "${AUDIENCE:-}" || ( "$AUDIENCE" == private && -n "$ordby" ) ]] \

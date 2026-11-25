@@ -155,4 +155,15 @@ run "${SET[@]}" DRY_RUN=0 REMINDERS=15m STUB_BODY="$EV_R"; rc=$?
   && grep -qF '"reminders":['"$R15"'],"link":' "$T/o" \
   && pass "7. DRY_RUN=0 POSTs the reminders, the read-back line prints them" || fail "7. write: rc=$rc $(cat "$T/calls" "$T/o")"
 
+# --- 8. _spl_calendar_require_actor (r98-01 one copy) --------------------------
+out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-calendar-event-add.func.sh"; _spl_calendar_require_actor c-840 HUM-10 && _spl_calendar_require_actor CLE-1 ""' 2>&1); rc=$?
+[[ $rc -eq 0 && -z "$out" ]] && pass "8. _spl_calendar_require_actor accepts new/legacy agent and optional HUM-*" || fail "8. actor ok: rc=$rc $out"
+out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-calendar-event-add.func.sh"; _spl_calendar_require_actor HUM-10 ""' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENT_ID must be an agent id like c-042, got: 'HUM-10'"* ]] && pass "8. _spl_calendar_require_actor refuses bad AGENT_ID" || fail "8. bad agent: rc=$rc $out"
+out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-calendar-event-add.func.sh"; _spl_calendar_require_actor c-840 bob' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL ORDERED_BY must be a HUM-* id, got: 'bob'"* ]] && pass "8. _spl_calendar_require_actor refuses bad ORDERED_BY" || fail "8. bad ordby: rc=$rc $out"
+add_f="$PROJ_ROOT/src/bash/run/spl-calendar-event-add.func.sh"
+[[ "$(grep -c "AGENT_ID must be an agent id" "$add_f")" -eq 1 && "$(grep -c "ORDERED_BY must be a HUM-\* id" "$add_f")" -eq 1 && "$(grep -c "_spl_calendar_require_actor " "$add_f")" -ge 1 ]] \
+  && pass "8. one copy: spl-calendar-event-add.func.sh defines and calls _spl_calendar_require_actor once" || fail "8. add one copy"
+
 (( fails == 0 )) && echo "ALL PASS: spl-calendar-event-add" || { echo "FAILED: $fails"; exit 1; }

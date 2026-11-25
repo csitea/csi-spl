@@ -190,6 +190,15 @@ _spl_calendar_reminders() {
     || { do_log "FATAL could not encode REMINDERS"; return 1; }
 }
 
+# _spl_calendar_require_actor <agent> <ordered_by>: validate AGENT_ID and
+# optional ORDERED_BY for the calendar event write actions (add, delete/pin,
+# update); logs FATAL and returns 1 on mismatch.
+_spl_calendar_require_actor() {
+  local agent="$1" ordby="$2"
+  [[ "$agent" =~ ^[acgmq]-[0-9]{3,}$ || "$agent" =~ ^(CLE|AGY|GRK|QWN)-[0-9]+$ ]] || { do_log "FATAL AGENT_ID must be an agent id like c-042, got: '$agent'"; return 1; }
+  [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
+}
+
 # _spl_calendar_event_body: set the caller's local body to the request body
 # (compact JSON) from the env vars; every refusal is made here, before cnf,
 # gcloud or the hub.
@@ -200,8 +209,7 @@ _spl_calendar_event_body() {
   spl_require_cloud_env || return 1
   spl_require_tenant_slug "$tenant" || return 1
   [[ -n "${title// /}" ]] || { do_log "FATAL TITLE is required"; return 1; }
-  [[ "$agent" =~ ^[acgmq]-[0-9]{3,}$ || "$agent" =~ ^(CLE|AGY|GRK|QWN)-[0-9]+$ ]] || { do_log "FATAL AGENT_ID must be an agent id like c-042, got: '$agent'"; return 1; }
-  [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
+  _spl_calendar_require_actor "$agent" "$ordby" || return 1
   [[ -z "$topic" || "$topic" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL TOPIC_ID is not a task id: '$topic'"; return 1; }
   case "$all" in
     1)

@@ -108,4 +108,26 @@ run $PIN "${SET[@]}" DRY_RUN=0 STUB_UNPINNED=1; rc=$?
 [[ $rc -ne 0 ]] && grep -q "FAIL pin $A: read back http 200 pinned=false, want true" "$T/o" \
   && pass "5. a pin that does not read back pinned fails" || fail "5. unpinned: rc=$rc $(cat "$T/o")"
 
+# --- 6. r98-01 one copy and standalone lazy-source -----------------------------
+for f in spl-calendar-event-delete.func.sh spl-calendar-event-update.func.sh; do
+  fp="$PROJ_ROOT/src/bash/run/$f"
+  own="$(grep -nE "AGENT_ID must be an agent id|ORDERED_BY must be a HUM-\* id" "$fp" || true)"
+  [[ -z "$own" ]] && grep -q "_spl_calendar_require_actor " "$fp" \
+    && pass "6. one copy: $f delegates to _spl_calendar_require_actor" || fail "6. one copy $f: own=[$own]"
+done
+out=$(env PROJ_PATH="$PROJ_ROOT" ENV=dev TENANT_ID=wa EVENT_IDS="$A" AGENT_ID=HUM-10 bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ :; }
+  source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-calendar-event-delete.func.sh"
+  do_spl_calendar_event_delete' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENT_ID must be an agent id"* && "$out" != *"command not found"* ]] \
+  && pass "6. lazy load: spl-calendar-event-delete.func.sh loads _spl_calendar_require_actor standalone" || fail "6. lazy delete: rc=$rc $out"
+out=$(env PROJ_PATH="$PROJ_ROOT" ENV=dev TENANT_ID=wa EVENT_ID="$A" AGENT_ID=HUM-10 TITLE=x bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ :; }
+  source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-calendar-event-update.func.sh"
+  do_spl_calendar_event_update' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENT_ID must be an agent id"* && "$out" != *"command not found"* ]] \
+  && pass "6. lazy load: spl-calendar-event-update.func.sh loads _spl_calendar_require_actor standalone" || fail "6. lazy update: rc=$rc $out"
+
 (( fails == 0 )) && echo "ALL PASS: spl-calendar-event-change" || { echo "FAILED: $fails"; exit 1; }

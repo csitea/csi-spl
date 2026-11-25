@@ -47,7 +47,8 @@ topic_kind_index_get() {  # TASK
 }
 
 # Write TASK's KIND (owner|agent) into the index, replacing its old line;
-# atomic (tmp + mv), under the index lock.
+# atomic (tmp + mv), under the index lock. An owner line stays owner (final),
+# and an index that exists but cannot be read is left alone, not truncated.
 topic_kind_index_put() {  # TASK KIND
   local f tmp
   f="$(_topic_kind_idx)"
@@ -57,6 +58,8 @@ topic_kind_index_put() {  # TASK KIND
     exec 8>>"$f.wlock" || exit 1
     chmod 0664 "$f.wlock" 2>/dev/null
     flock -w 5 8 || exit 1
+    [ ! -e "$f" ] || [ -r "$f" ] || exit 1
+    [ "$2" = agent ] && awk -F'\t' -v t="$1" '$1 == t && $2 == "owner" { f = 1 } END { exit !f }' "$f" 2>/dev/null && exit 0
     tmp="$(mktemp "${f%/*}/.topic-kind.XXXXXX")" || exit 1
     { awk -F'\t' -v t="$1" '$1 != t' "$f" 2>/dev/null; printf '%s\t%s\t%s\n' "$1" "$2" "$(date +%s)"; } >"$tmp" &&
       chmod 0664 "$tmp" 2>/dev/null && mv -f "$tmp" "$f" || { rm -f "$tmp"; exit 1; }

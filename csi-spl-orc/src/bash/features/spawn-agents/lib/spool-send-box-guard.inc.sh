@@ -25,7 +25,8 @@
 # p50 9,850 ms on a send past the TTL (lat-hub a-600, n=3, 2026-11-25). Two
 # cases still read on the send path: no usable cache at all (a box's first
 # send), and a refusal from a stale cache, re-read before it refuses, so a
-# refusal always rests on a map younger than the TTL. An id the stale cache
+# refusal always rests on a map younger than the TTL; a re-read that fails
+# sends with the WARN. An id the stale cache
 # does not know (a lane spawned since) sends as before: no evidence.
 #
 # lane-map.sh runs ./run without --json, so its stdout can carry do_log lines
@@ -134,7 +135,12 @@ send_box_guard() {  # ID BOX
   [ -n "$boxes" ] || { _send_box_allow; return 0; }
   grep -qxF -- "$box" <<<"$boxes" && { _send_box_allow; return 0; }
   # A refusal rests on a map younger than the TTL: re-read a stale one first.
-  if ! _send_box_cache_fresh && map="$(send_box_map_read)"; then
+  # A stale map that cannot be re-read never blocks (R7 W3, a-653 msg 583ac4a1).
+  if ! _send_box_cache_fresh; then
+    if ! map="$(send_box_map_read)"; then
+      echo "to: WARN cannot read the fleet lane map; sent to ${id}@${box} unchecked" >&2
+      return 0
+    fi
     boxes="$(_send_box_live "$id" "$map")"
     [ -n "$boxes" ] || return 0
     grep -qxF -- "$box" <<<"$boxes" && return 0

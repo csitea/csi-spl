@@ -288,12 +288,16 @@ What they do now:
   age. Past `SPOOL_LANE_MAP_TTL` (120 s) an allowed send starts ONE detached
   refresh (`flock -n` on `dispatch/lane-map-send.cache.json.lock`) and does
   not wait for it. A refusal from a stale cache re-reads the map first, so a
-  refusal always rests on a map younger than the TTL; an id the stale cache
-  does not know (a lane spawned since) sends, as before. Only a box with no
-  usable cache at all reads on the send path.
+  refusal always rests on a map younger than the TTL; when that re-read fails
+  (hub down, timeout) the send goes with the one WARN line, as with no map at
+  all, never refused on the stale map. An id the stale cache does not know (a
+  lane spawned since) sends, as before. Only a box with no usable cache at all
+  reads on the send path.
 - **Owner-topic guard, a local index.** `dispatch/topic-kind.idx`
   (`lib/spool-topic-kind-index.inc.sh`) holds the probe's own answers, one line
-  per topic: `uuid TAB owner|agent TAB epoch`. `owner` is final; `agent` is
+  per topic: `uuid TAB owner|agent TAB epoch`. `owner` is final (a later
+  `agent` answer never replaces it; a wrong `owner` line is fixed by hand or
+  `SPOOL_TOPIC_KIND_INDEX=0`, the fail-closed side); `agent` is
   the answer at any age, and past `SPOOL_TOPIC_KIND_TTL` (600 s) the send
   starts ONE detached re-probe. A topic the index does not hold (or no index)
   is probed on the send path as before and written in. The same detached run
@@ -307,8 +311,10 @@ What they do now:
 Measured by `spawn-agents/tests/test-spool-send-guard-latency.sh` (stub map and
 probe that block until released): with an expired cache and a stale index
 entry a send makes 0 lane-map reads and 0 probes on the path, and n=20
-same-box sends run at p95 under 300 ms. On the parent commit the same test
-waits on both stubs.
+same-box sends run at p95 under 300 ms, or under the guard-free control's
+p95 + 500 ms on a loaded box (an additive allowance: a synchronous probe of
+~1.4 s still fails it). On the parent commit the same test waits on both
+stubs.
 
 Not fixed here, found on the way: `spool-topic-kind.sh` answers `agent` for
 the owner's t1 topic `e3b16fea` (the t1 desk's `hub-tail` returns no rows for

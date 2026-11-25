@@ -4,7 +4,7 @@
 # makes 0 lane-map reads and 0 topic probes on the path (both stubs block
 # until the test releases them, so a send that waited on one would hang),
 # starts at most ONE detached refresh of each, and n=20 same-box sends keep
-# p95 under 300 ms (or twice the guard-free control's p95 on a loaded box).
+# p95 under 300 ms, or the guard-free control's p95 + 500 ms on a loaded box.
 # The refusals stay: an owner topic in the index, a wrong
 # box (re-read once, on a stale cache only). A FAKE lane map, a FAKE probe,
 # no hub. Red control: the parent commit's scripts wait on both stubs.
@@ -61,7 +61,9 @@ dt=$(( $(ms) - t0 ))
 released="$(test -e "$T_TMP/release" && echo yes || echo no)"
 eq "1. sent, exit 0" 0 "$rc"
 eq "1. it returned while both stubs still blocked" no "$released"
-check "1. in under 1 s (took ${dt} ms)" test "$dt" -lt 1000
+# The stubs block 90 s: "still blocked" above is the proof; 3 s only bounds a
+# loaded box (2,096 ms seen at load ~46, R7 N1; the parent took 6,233 ms).
+check "1. in under 3 s (took ${dt} ms)" test "$dt" -lt 3000
 hasnt "1. no WARN (nothing timed out)" "WARN" "$(cat "$T_TMP/err")"
 eq "1. one message in the inbox" 1 "$(find "$SPOOL_ROOT/c-346/inbox" -name '*.json' | wc -l)"
 wait_event 5 test -s "$T_TMP/map.calls"
@@ -87,11 +89,12 @@ p95g="$(p95 "${lat[@]}")" p95b="$(p95 "${base[@]}")"
 echo "    n=20 same-box sends, expired cache + stale index: p50 $(p50 "${lat[@]}") ms, p95 ${p95g} ms"
 echo "    n=20 same-box sends, no guard run (control):     p50 $(p50 "${base[@]}") ms, p95 ${p95b} ms"
 # The 300 ms bound holds on an idle runner; on a loaded one the bare send
-# alone can pass it, so the bound is twice the control's p95 when higher.
-# Measured at load ~60 on 16 cores: control p95 513..1810 ms, guards up to
-# +356 ms over it (the pre-push suite, n=20). A send that waited on either
-# stub would wait seconds (the parent: guards p95 4140 ms, control 757 ms).
-lim=$(( 2 * p95b > 300 ? 2 * p95b : 300 ))
+# alone can pass it, so the bound is the control's p95 + 500 ms when higher:
+# the guards' own share, never a multiple of the load (R7 W1: 2x let a
+# 1.4 s probe through). Measured at load ~60 on 16 cores: control p95
+# 513..1810 ms, guards +27..+356 ms over it (n=20 each). A send that waited on
+# either stub would wait seconds (the parent: guards p95 4140, control 757 ms).
+lim=$(( p95b + 500 > 300 ? p95b + 500 : 300 ))
 check "2. p95 under ${lim} ms (guards ${p95g} ms, control ${p95b} ms)" test "$p95g" -lt "$lim"
 eq "2. still one lane-map read: one refresh at a time" 1 "$(n_map)"
 eq "2. still one probe: one refresh at a time" 1 "$(n_probe)"
@@ -110,15 +113,31 @@ err="$(bash "$SS" --from c-370 --to c-346@box-a --kind note --task "$O" --body g
 eq "4. an owner topic in the index (stale): refused, exit 3" 3 "$rc"
 has "4. ... names the replacement" "--task dispatch-${O:0:8}" "$err"
 eq "4. ... with no probe at all (owner is final)" 0 "$(n_probe)"
-: >"$T_TMP/map.calls"
+# that send's own detached refresh must not count as the re-read (R7 W2)
+wait_event 10 env_idle "SPOOL_ROOT=$SPOOL_ROOT"
+expire; : >"$T_TMP/map.calls"
 err="$(bash "$SS" --from c-370 --to c-346@box-far --kind note --body go --no-poke 2>&1 >/dev/null)"; rc=$?
 eq "4. a wrong box from a stale cache: refused, exit 8" 8 "$rc"
 has "4. ... the corrected --to" "send it with --to c-346." "$err"
 eq "4. ... after one re-read on the send path" 1 "$(n_map)"
+check "4. ... and the cache is fresh again" test "$(( $(date +%s) - $(stat -c %Y "$D/lane-map-send.cache.json") ))" -lt 100
+expire
+err="$(SPOOL_LANE_MAP_CMD=false bash "$SS" --from c-370 --to c-346@box-far --kind note --body go --no-poke 2>&1 >/dev/null)"; rc=$?
+# past the guard: not refused (8); with no relay stub the cross-box send then
+# exits 13 (nothing to place it with), which is not the guard's
+check "4. a wrong box from a stale cache that cannot be re-read: not refused, exit ${rc} (R7 W3)" test "$rc" -ne 8
+hasnt "4. ... no wrong-box ERROR" "is live on" "$err"
+has "4. ... with the WARN" "WARN cannot read the fleet lane map" "$err"
+topic_kind_put_owner_then_agent() {
+  ( . "$T_FEAT/lib/spool-topic-kind-index.inc.sh"
+    topic_kind_index_put "$B" owner && topic_kind_index_put "$B" agent
+    topic_kind_index_get "$B" | cut -d' ' -f1 )
+}
 B=33333333-4444-4555-8666-777777777777
 bash "$SS" --from c-370 --to c-346@box-a --kind note --task "$B" --body go --no-poke >/dev/null 2>&1; rc=$?
 eq "4. a topic the index does not hold: probed on the path, sent" "0 1" "$rc $(grep -c "$B" "$T_TMP/probe.calls")"
 eq "4. ... and its answer is in the index" agent "$(awk -F'\t' -v t="$B" '$1 == t { print $2 }' "$D/topic-kind.idx")"
+eq "4. an agent answer never overwrites an owner line (R7 N2)" owner "$(topic_kind_put_owner_then_agent)"
 wait_event 10 env_idle "SPOOL_ROOT=$SPOOL_ROOT"
 
 t_done

@@ -1429,21 +1429,39 @@ spl_spawn_place_away_hold() {  # MARKED ROWS
 # line say why. Before, the hold was judged on the head only, and one row
 # pinned to a full box stopped every row behind it (27 queued, none placed,
 # 2026-10-28). do_spl_box_pick runs once per tick, only when a row is pinned;
-# the line of a row no longer held is dropped. Prints ROWS minus the held ones.
+# the line of a row no longer held is dropped. A logged review seat
+# (spl_spawn_place_pin_seat_ovf) is judged at the seats' own overflow mark,
+# as an unpinned one is (spl_spawn_place_seat_past, SPL-6521): before, a
+# hand-<box>- seat held at 200% of the box's high and never reached that pass.
+# Prints ROWS minus the held ones.
 spl_spawn_place_pin_hold() {  # MARKED ROWS
-  local id slug box why out="" held=() ps=()
+  local id slug box why out="" held=() ps=() seats ovf
+  seats="$(spl_spawn_place_seats "$1" | jq -r '.[].ask_id')"
   while IFS=$'\t' read -r id slug; do
     mapfile -t ps < <(spl_spawn_place_slug "$slug")
     box="${ps[0]}"
     [[ -n "$box" ]] || continue
     [[ -n "$out" ]] || out="$(spl_spawn_place_pick_out)"
-    why="$(spl_spawn_place_pin_full "$box" "$out")" || continue
+    ovf="$(spl_spawn_place_pin_seat_ovf "$seats" "$id" "$slug")" || ovf="${BOX_PICK_OVERFLOW:-200}"
+    why="$(BOX_PICK_OVERFLOW="$ovf" spl_spawn_place_pin_full "$box" "$out")" || continue
     spl_spawn_place_wait "$id" "pinned to $box: $why"
     do_log "INFO hold: ask ${id:0:8} is pinned to $box: $why; it stays queued" >&2
     held+=("$id")
   done < <(jq -r '.[] | select(.state == "queued" and ._l) | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
   spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "^pinned to [a-z0-9]+: "
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
+}
+
+# The review seats' overflow mark (spl_spawn_place_seat_overflow) when the row
+# ID (pinned SLUG) is a logged review seat: its ask id is one of SEAT_IDS
+# (spl_spawn_place_seats) and its brief's heading says review
+# (spl_spawn_place_seat_pass). Else returns 1: the row keeps the overflow mark.
+spl_spawn_place_pin_seat_ovf() {  # SEAT_IDS ID SLUG
+  local brief
+  grep -qxF -e "$2" <<<"$1" || return 1
+  brief="$(spl_spawn_place_brief "$3")"
+  [[ -n "$brief" ]] && spl_spawn_place_seat_pass "$brief" || return 1
+  spl_spawn_place_seat_overflow
 }
 
 # 2f. A queued row the placer would launch as agy (placed as agy, or swapped

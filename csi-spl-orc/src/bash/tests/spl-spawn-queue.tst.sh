@@ -148,6 +148,11 @@
 #      placement of any review shape is refused at enqueue, and a review row
 #      queued before launches agy, or claude for an agy author or a data-rule
 #      brief (CONTROL: mistral_review_allowed true queues every shape)
+#  43. SPL-6521: a logged review seat pinned to a box (hand-<box>-) is judged
+#      at the seats' own overflow mark: at 247% of a 90% high it places,
+#      with the fleet pick holding too (CONTROLS: at 310% it holds; a
+#      non-review pinned row, a -reviewer slug with no review heading and a
+#      seat with no mark set hold at 180%)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -2532,6 +2537,64 @@ for r in "rv42-spl9-mistral-reviewer a-751 agy" "rv42-s9-plan-panel-seat-mistral
     pass "42. a mistral review row queued before the rule ($sl) launches $want, never mistral" ||
     fail "42. heir $sl: want $want: $out | $(cat "$T/launch.log") | $(hubrow "$id")"
 done
+
+# 43. SPL-6521 (c-001 msg c8f572be): a logged review seat PINNED to a box
+# (hand-<box>-...-reviewer) held at the box's overflow mark (200% of its high)
+# in spl_spawn_place_pin_hold and never reached the seats' own mark (SPL-5686),
+# so four seats on sat at 236..247% needed a hand placement. Now a pinned seat
+# is judged at its own mark too. sat's high is 90: 200% = 180%, 300% = 270%.
+# RED CONTROL: on the parent 43a holds with "pinned to sat ... (180%".
+cat >"$T/bin/pick-pin" <<'STUB'
+#!/usr/bin/env bash
+[ -z "${PICK_BOXES:-}" ] || echo "$PICK_BOXES"
+o="${BOX_PICK_OVERFLOW:-200}"
+if [ "$o" -ge "${PICK_ROOM_AT:-0}" ]; then echo "pick=sat reason=sat is the least past its band"
+else echo "pick=hold reason=no box with a sample is below its overflow mark (${o}% of its high): queue the lane, spawn nothing"; fi
+STUB
+chmod +x "$T/bin/pick-pin"
+SAT247="BOX sat  load5 39.57  cpus 16  247%  full  band 50..90 (box)"
+SAT310="BOX sat  load5 49.6  cpus 16  310%  full  band 50..90 (box)"
+pin_q() {  # ASK SLUG HEADING: brief SLUG, queued pinned as claude:hand-sat-SLUG
+  printf '# Lane brief: %s\nClass: bug\n%s\n' "$3" "$ES" >"$T/briefs/$2.md"
+  put "$1" c-002@box-desk "dispatch-$2" "SPAWN REQUEST hand-sat-$2"
+  on pc do_spl_spawn_enqueue ASK_ID="$1" SPAWN_CLASS=bug SPAWN_PLACE="claude:hand-sat-$2" >/dev/null 2>&1
+}
+tick43() { rm -f "$T/launch.log.ovf"; : >"$T/launch.log"; tick40 SPAWN_PLACE_PICK_CMD="$T/bin/pick-pin" SPAWN_PLACE_SEAT_OVERFLOW=300 "$@"; }
+seat_clear; pin_q "$K1" p43-reviewer "R7 reviewer for SPL-6521, review only"
+out="$(tick43 "PICK_BOXES=$SAT247" LAUNCH_ID=c-571)"
+grep -qx "claude auto $T $T/briefs/p43-reviewer.md p43-reviewer SPAWN_BOX=sat" "$T/launch.log" && grep -q '^p43-reviewer BOX_PICK_OVERFLOW=300$' "$T/launch.log.ovf" &&
+  [[ "$(jq -r .reason <<<"$(hubrow "$K1")")" == "placed: c-571@box-desk" ]] && ! grep -q "pinned to sat" <<<"$out" &&
+  pass "43a. PROOF a logged review seat pinned to sat at 247% (past 180%, under its own 270%) places on sat, its launch carries the seats' mark 300" ||
+  fail "43a. pinned seat 247%: launch=$(cat "$T/launch.log") ovf=$(cat "$T/launch.log.ovf" 2>/dev/null) | $(hubrow "$K1") | $out"
+seat_clear; pin_q "$K1" p43-reviewer "R7 reviewer for SPL-6521, review only"
+out="$(tick43 "PICK_BOXES=$SAT247" PICK_ROOM_AT=300 LAUNCH_ID=c-572)"
+grep -qx "claude auto $T $T/briefs/p43-reviewer.md p43-reviewer SPAWN_BOX=sat" "$T/launch.log" &&
+  grep -q "review seat past the CPU overflow hold: ask ${K1:0:8} launches on the review seats' overflow mark 300%" <<<"$out" &&
+  pass "43a. the same seat with the fleet pick holding at 200% too (c-001's 15:02Z state): passed at its own mark, placed on sat" ||
+  fail "43a. fleet hold: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
+seat_clear; pin_q "$K1" p43-reviewer "R7 reviewer for SPL-6521, review only"
+out="$(tick43 "PICK_BOXES=$SAT310")"
+[[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$K1")")" == queued ]] &&
+  grep -q "ask ${K1:0:8} is pinned to sat: box sat at 310% is past its overflow mark (270%, 300% of its high 90%)" <<<"$out" &&
+  pass "43b. CONTROL the same pinned seat at 310% (past its own 270%): held, the line names the seats' mark" ||
+  fail "43b. pinned seat 310%: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
+seat_clear; pin_q "$K2" p43-plain-fix "fix the parser, commit and push"
+out="$(tick43 "PICK_BOXES=$SAT247")"
+[[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$K2")")" == queued ]] &&
+  grep -q "ask ${K2:0:8} is pinned to sat: box sat at 247% is past its overflow mark (180%, 200% of its high 90%)" <<<"$out" &&
+  pass "43c. CONTROL a non-review row pinned to sat at 247%: held at the overflow mark 180%" ||
+  fail "43c. plain pinned 247%: launch=$(cat "$T/launch.log") | $(hubrow "$K2") | $out"
+seat_clear; pin_q "$K1" p43c-reviewer "fix the parser, commit and push"
+out="$(tick43 "PICK_BOXES=$SAT247")"
+[[ ! -s "$T/launch.log" ]] && grep -q "ask ${K1:0:8} is pinned to sat: box sat at 247% is past its overflow mark (180%" <<<"$out" &&
+  pass "43c. CONTROL a coding lane named -reviewer (no review heading) pinned to sat at 247%: held at 180%" ||
+  fail "43c. named reviewer: launch=$(cat "$T/launch.log") | $out"
+seat_clear; pin_q "$K1" p43-reviewer "R7 reviewer for SPL-6521, review only"
+out="$(tick43 "PICK_BOXES=$SAT247" SPAWN_PLACE_SEAT_OVERFLOW=)"
+[[ ! -s "$T/launch.log" ]] && grep -q "ask ${K1:0:8} is pinned to sat: box sat at 247% is past its overflow mark (180%" <<<"$out" &&
+  pass "43d. CONTROL no seat mark (no env, no cnf): the pinned seat holds at 180% as before" ||
+  fail "43d. no mark: launch=$(cat "$T/launch.log") | $out"
+seat_clear
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

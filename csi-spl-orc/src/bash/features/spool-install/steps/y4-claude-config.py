@@ -217,12 +217,16 @@ else:
 
 # ── settings.json ────────────────────────────────────────────────────────────
 def merge(a, b):
+    """Dicts deep-merged, ours win; a list on both sides is a union (theirs
+    first, ours appended once), so y13's permissions.deny globs and ours
+    survive each other's re-run."""
     for k, v in b.items():
-        a[k] = (
-            merge(a.get(k) if isinstance(a.get(k), dict) else {}, v)
-            if isinstance(v, dict)
-            else v
-        )
+        if isinstance(v, dict):
+            a[k] = merge(a.get(k) if isinstance(a.get(k), dict) else {}, v)
+        elif isinstance(v, list) and isinstance(a.get(k), list):
+            a[k] = a[k] + [x for x in v if x not in a[k]]
+        else:
+            a[k] = v
     return a
 
 

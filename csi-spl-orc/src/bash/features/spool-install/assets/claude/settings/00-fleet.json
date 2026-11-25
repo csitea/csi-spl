@@ -9,6 +9,7 @@
   },
   "permissions": {
     "defaultMode": "bypassPermissions",
-    "disableAutoMode": "disable"
+    "disableAutoMode": "disable",
+    "deny": ["AskUserQuestion"]
   }
 }

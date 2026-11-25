@@ -33,6 +33,13 @@
 #     mode"). Reproduced 2026-10-07 on 2.1.292: 4/4 fresh seats stopped on
 #     it without the key, 0/3 with it, bypass still on. It turns auto mode
 #     off, never bypass (that is disableBypassPermissionsMode).
+#     00-fleet.json also puts "AskUserQuestion" in permissions.deny: an
+#     unattended seat that calls it waits on a pane dialog nobody answers
+#     until the watchdog's S9 kill (SPL-6499; vibe's twin is install.sh's
+#     ask_user_question). Checked 2026-11-25 on 2.1.311, two hermetic panes
+#     under bypass: without the entry the dialog opened, with it the tool
+#     was absent. A list merges as a union (theirs first, ours once), so
+#     y13's deny globs and ours survive each other's re-run.
 #   the BOX_USER's settings.json (the human's, when it is another file):
 #     ONLY permissions.defaultMode, permissions.disableAutoMode,
 #     skipDangerousModePermissionPrompt, skillOverrides.auto-mode-setup and

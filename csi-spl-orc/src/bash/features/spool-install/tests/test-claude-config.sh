@@ -26,6 +26,10 @@
 #      are left alone and the step still exits 0; the box path equal to the
 #      agent's is the agent merge only; the marker exported in the
 #      environment (a seat does that) does not move the path
+#   9. permissions.deny carries AskUserQuestion once (SPL-6499: an unattended
+#      seat never parks in its pane dialog); y13's deny globs already there
+#      are kept, first, and y13 run after it keeps ours; a re-run of either
+#      rewrites nothing; the box user's file gets no deny
 #   7. the diff against a CLAUDE.md of today = only the personal fragments:
 #      the control (an asset changed by one word) FAILS it; with
 #      SPOOL_CLAUDE_MD_LIVE=<an agent's live CLAUDE.md> it runs against that
@@ -164,7 +168,8 @@ assert s["theme"] == "light" and s["env"]["KEEP"] == "1", s
 assert "spool-mirror.py" in json.dumps(s["hooks"]["Stop"]), s
 assert s["skipDangerousModePermissionPrompt"] is True and "SPOOL_INSTALL_SETTINGS" in s["env"], s
 assert s["skillOverrides"]["auto-mode-setup"] == "off", s
-assert s["permissions"] == {"defaultMode": "bypassPermissions", "disableAutoMode": "disable"}, s
+assert s["permissions"] == {"defaultMode": "bypassPermissions", "disableAutoMode": "disable",
+                            "deny": ["AskUserQuestion"]}, s
 EOF
 H=$(fresh h4b); echo '{not json' >"$H/.claude/settings.json"
 step "$H" 2>"$T/err4"; rc=$?
@@ -300,6 +305,36 @@ else [ "$rc" = 0 ] && grep -q "(as $SPOOL_BOX_USER) .*box user's fleet keys set,
 H=$(fresh h8s); step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$H/.claude/settings.json" 2>"$T/err8f"
 grep -q "the box user's file is the agent's" "$T/err8f" && ! grep -q SPOOL_INSTALL_BOX_SETTINGS "$H/.claude/settings.json" &&
   pass "8: box file = agent file: the agent merge only" || fail "8: same file"
+
+# ── 9. permissions.deny: AskUserQuestion, y13's globs kept ──────────────────
+H=$(fresh h9)
+cat >"$H/.claude/settings.json" <<'EOF'
+{"permissions": {"defaultMode": "bypassPermissions", "allow": ["Bash(ls*)"],
+ "deny": ["Bash(git push --force*)", "Bash(git push -f*)"]}}
+EOF
+step "$H" 2>/dev/null
+deny9() {
+  python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["permissions"].get("deny", [])))' "$1"
+}
+[ "$(deny9 "$H/.claude/settings.json")" = "Bash(git push --force*) Bash(git push -f*) AskUserQuestion" ] &&
+  grep -q '"Bash(ls\*)"' "$H/.claude/settings.json" &&
+  pass "9: deny = the existing globs first, AskUserQuestion once; allow kept" || fail "9: deny $(deny9 "$H/.claude/settings.json")"
+cp "$H/.claude/settings.json" "$T/s9"; step "$H" 2>"$T/err9"
+cmp -s "$T/s9" "$H/.claude/settings.json" && grep -q 'already current' "$T/err9" &&
+  pass "9: a re-run rewrites nothing" || fail "9: a re-run changed settings.json"
+# y13 itself after y4, then y4 again: both sets survive, the second y4 run is a no-op
+( source "$TEST_DIR/../steps/y13-force-push-guard.sh" &&
+  HOME="$H" spool_install_force_push_guard "$H" "$T/d9" 0 1 ) >/dev/null 2>&1
+d=$(deny9 "$H/.claude/settings.json")
+[ "$(grep -o AskUserQuestion <<<"$d" | wc -l)" = 1 ] && grep -qF 'Bash(git push * --mirror*)' <<<"$d" &&
+  pass "9: y13 after y4 keeps AskUserQuestion and adds its globs" || fail "9: after y13: $d"
+cp "$H/.claude/settings.json" "$T/s9b"; step "$H" 2>"$T/err9b"
+cmp -s "$T/s9b" "$H/.claude/settings.json" && grep -q 'already current' "$T/err9b" &&
+  pass "9: y4 after y13 rewrites nothing (no duplicate, no glob dropped)" || fail "9: y4 after y13 changed the file: $(deny9 "$H/.claude/settings.json")"
+B9="$T/box9/.claude"; mkdir -p "$B9"; cp "$TEST_DIR/box-settings.fixture.json" "$B9/settings.json"
+step "$(fresh h9b)" SPOOL_INSTALL_BOX_SETTINGS_FILE="$B9/settings.json" 2>/dev/null
+! grep -q AskUserQuestion "$B9/settings.json" && grep -q SPOOL_INSTALL_BOX_SETTINGS "$B9/settings.json" &&
+  pass "9: the box user's file gets no deny entry" || fail "9: the box user's file carries AskUserQuestion"
 
 echo "== $((n - fails))/$n passed"
 [ "$fails" = 0 ]

@@ -22,7 +22,10 @@
 # @description made - a `commit` entry of its reflog, or one of the commits a
 # @description `rebase (finish) ... onto <base>` entry put on it - sends that
 # @description lane ONE note: the job, the first FAIL line, the run link and
-# @description its commits in the range. Once per red: keyed by job + first
+# @description its commits in the range. A lane the spool would refuse (retired
+# @description on this box inside its quarantine) is skipped with one `skip
+# @description retired <id>` line; when every suspect lane is retired the
+# @description holder note says so. Once per red: keyed by job + first
 # @description red sha in CI_RED_NOTE_LANE_STATE, dropped when the job is
 # @description green. A lane whose worktree was torn down has no branch left;
 # @description the holder's note still names its commits.
@@ -180,7 +183,7 @@ _crn_open() {
 # suspect commits of the job's tree in <last green>..<first red>.
 _crn_body() {
   local tmp="$1" top="$2" job="$3" fr_rid="$4" fr_sha="$5" fr_t="$6" fr_jid="$7" lg_rid="$8" lg_sha="$9"
-  local dir sig range commits green scope
+  local dir sig range commits green scope dead
   dir=$(_crn_dir "$job")
   sig=$(_crn_sig "$tmp" "$fr_jid")
   if [[ -n "$lg_sha" ]]; then
@@ -189,11 +192,13 @@ _crn_body() {
     range="$fr_sha" green="none in the window" scope="up to $fr_sha (no last green: the 15 newest)"
   fi
   commits=$(git -C "$top" log --format='- %h %s' -n 15 "$range" -- "$dir" .github 2>/dev/null)
+  dead=$(_crn_dead_lanes "$tmp" "$top" "$job" "$fr_sha" "$lg_sha")
   printf '## CI red on master: %s\n\n' "$job"
   printf 'Red since run %s (sha %s, %s). Last green: %s.\n' "$fr_rid" "$fr_sha" "$fr_t" "$green"
   printf 'Signature: %s\n\n' "${sig:0:200}"
   printf 'Suspect commits touching %s or .github %s (the first red run ends the range; superseded runs hide where it starts):\n%s\n\n' \
     "$dir" "$scope" "${commits:-- (none found in this clone: git fetch, or the range is outside $dir)}"
+  [[ -n "$dead" ]] && printf 'Suspect lane(s) %s retired: no live lane of this box was told.\n\n' "$dead"
   printf 'One note per red streak (spec 131 C2); a green line follows when the job passes.'
 }
 
@@ -228,25 +233,19 @@ _crn_send() {
 # Prints how many lanes were told.
 _crn_lane() {
   local tmp="$1" top="$2" lstate="$3" to="$4" job="$5"
-  local fr_rid fr_sha fr_t fr_jid lg_rid lg_sha dir told=0 id
+  local fr_rid fr_sha fr_t fr_jid lg_rid lg_sha told=0 id
   IFS=$'\t' read -r fr_rid fr_sha fr_t fr_jid lg_rid lg_sha < <(_crn_streak "$tmp" "$job")
   [[ -n "$fr_rid" ]] || { echo 0; return 0; }
   if awk -F'\t' -v j="$job" -v s="$fr_sha" '$1 == j && $2 == s { f = 1 } END { exit !f }' "$lstate"; then
     echo 0; return 0
   fi
-  local -a range=("$fr_sha" -n 15)
-  [[ -n "$lg_sha" ]] && range=("$lg_sha..$fr_sha")
-  dir=$(_crn_dir "$job")
-  git -C "$top" log --format=%H -n 30 "${range[@]}" -- "$dir" .github >"$tmp/suspects" 2>/dev/null
-  [[ -s "$tmp/suspects" ]] || git -C "$top" log --format=%H -n 30 "${range[@]}" -- >"$tmp/suspects" 2>/dev/null
-  [[ -f "$tmp/lane-shas" ]] || _crn_lane_shas "$top" >"$tmp/lane-shas"
-  awk -F'\t' 'NR == FNR { s[$1] = 1; next } ($1 in s) { print $2 "\t" $1 }' "$tmp/suspects" "$tmp/lane-shas" \
-    | sort -u >"$tmp/hits"
+  _crn_hits "$tmp" "$top" "$job" "$fr_sha" "$lg_sha" >"$tmp/hits"
   local run sig mine body green="none in the window"
   [[ -n "$lg_sha" ]] && green="run $lg_rid (sha $lg_sha)"
   run=$(gh api "repos/{owner}/{repo}/actions/jobs/$fr_jid" --jq '.html_url' 2>/dev/null)
   sig=$(_crn_sig "$tmp" "$fr_jid")
   for id in $(cut -f1 "$tmp/hits" | sort -u); do
+    if _crn_retired "$id"; then echo "skip retired $id: no lane note for $job (spool quarantine)" >&2; continue; fi
     mine=$(awk -F'\t' -v i="$id" '$1 == i { print $2 }' "$tmp/hits" |
            while read -r h; do git -C "$top" log -1 --format='- %h %s' "$h"; done)
     body=$(printf '## CI red on master: %s\n\nA job on master is red since run %s (sha %s), and your lane made a commit in its suspect range.\n\n- Job: %s\n- First FAIL line: %s\n- Run: %s\n- Last green: %s\n\nYour commits in the range:\n%s\n\nIf it is yours: fix it, rebase, push. If not: tell %s. One note per red (spec 133 action 7).' \
@@ -256,6 +255,47 @@ _crn_lane() {
   done
   printf '%s\t%s\t%s\n' "$job" "$fr_sha" "$fr_rid" >>"$lstate"
   echo "$told"
+}
+
+# _crn_hits <tmp> <top> <job> <first red sha> <last green sha> - "<lane
+# id>\t<sha>" for each suspect commit of the job a lane branch of this box
+# made: the commits of the job's tree in <last green>..<first red>, else the
+# whole range.
+_crn_hits() {
+  local tmp="$1" top="$2" dir
+  local -a range=("$4" -n 15)
+  [[ -n "$5" ]] && range=("$5..$4")
+  dir=$(_crn_dir "$3")
+  git -C "$top" log --format=%H -n 30 "${range[@]}" -- "$dir" .github >"$tmp/suspects" 2>/dev/null
+  [[ -s "$tmp/suspects" ]] || git -C "$top" log --format=%H -n 30 "${range[@]}" -- >"$tmp/suspects" 2>/dev/null
+  [[ -f "$tmp/lane-shas" ]] || _crn_lane_shas "$top" >"$tmp/lane-shas"
+  awk -F'\t' 'NR == FNR { s[$1] = 1; next } ($1 in s) { print $2 "\t" $1 }' "$tmp/suspects" "$tmp/lane-shas" | sort -u
+}
+
+# _crn_retired <id> - 0 when the spool bounces a send to <id>: the check
+# spool-send.sh makes, from the same code (orc's spool-fleet.inc.sh: not an
+# agent of this machine, and retired HERE inside SPOOL_ID_QUARANTINE_H, in
+# <SPOOL_ROOT>/registry.retired.tsv). That file is this box's, so the id is
+# <id>@<this box>: a live lane of the same number on another box is never
+# skipped. No lib (CI_RED_NOTE_FLEET_LIB) -> 1, the note is sent as before.
+_crn_retired() {
+  local lib="${CI_RED_NOTE_FLEET_LIB:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)/csi-spl-orc/src/bash/features/spawn-agents/lib/spool-fleet.inc.sh}"
+  [[ -r "$lib" ]] || return 1
+  # shellcheck source=/dev/null
+  ( export SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"; source "$lib" || exit 1
+    ! spool_fleet_local "$1" && spool_fleet_retired "$1" )
+}
+
+# _crn_dead_lanes <tmp> <top> <job> <first red sha> <last green sha> - the
+# suspect lanes of the job, comma-separated, when EVERY one of them is
+# retired (no live lane is told); else nothing.
+_crn_dead_lanes() {
+  local id dead=""
+  for id in $(_crn_hits "$@" | cut -f1 | sort -u); do
+    _crn_retired "$id" || return 0
+    dead="${dead:+$dead, }$id"
+  done
+  printf '%s' "$dead"
 }
 
 # _crn_lane_shas <top> - "<sha>\t<agent id>" for every commit a lane branch of

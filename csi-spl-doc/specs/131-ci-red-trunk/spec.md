@@ -119,6 +119,10 @@ cancelled, cannot re-open a closed streak from the older run below it
 (2026-10-28: run 40735010375 re-run, then notes from run 40731891879). A red that is still red on the next tick sends nothing. A job that turns green sends one `green` line on the same key. The
 dispatcher routes the note to the lane that landed the suspect commit. The
 dispatch sweep cron runs the action every 10 min.
+The lane note (spec 133 action 7) skips a suspect lane the spool would refuse,
+one retired on this box inside its 24 h quarantine (`spool_fleet_retired`, what
+`spool-send.sh` checks; SPL-6447), with one `skip retired <id>` log line; when
+every suspect lane is retired, the holder's blocker says so in one line.
 
 - Files: `csi-spl-iac/src/bash/run/report-ci-red-note.func.sh` and its test;
   the box cron row `ci-red-note` (`csi-spl-orc/cnf/box-crons/box-crons.manifest`,

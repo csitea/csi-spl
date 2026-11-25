@@ -32,6 +32,14 @@
 #  14. no mark file (the first tick on a box) -> read as today, the mark written
 #  15. the lane path: the same re-run on the R2 lane tree -> 0 lane notes, the
 #      lane state unchanged
+#  16. a retired lane (this box's registry.retired.tsv, inside the 24 h
+#      quarantine: what spool-send.sh bounces) gets no lane note and one
+#      `skip retired <id>` line; a live lane of the same red is still told
+#      (the control: the skip is per id, not per red)
+#  17. every suspect lane retired -> 0 lane notes, and the holder's one
+#      blocker says "Suspect lane(s) <ids> retired" once over two ticks
+#  18. retired 30 h ago (quarantine over), or retired but registered on this
+#      box again -> told: the skip keys on what the spool refuses, nothing more
 #   CONTROL a. the state file wiped before every tick -> 3 sends for 3 ticks
 #              of the same red, so check 1 FAILS without the streak key
 #   CONTROL b. the annotation hidden -> "no FAIL line", so check 7 FAILS
@@ -114,10 +122,12 @@ printf '2026-01-05T10:00:01Z PASS: 1. something FAIL (never OK)\n2026-01-05T10:0
 runs "$(row 962 failure 20 "$RED2")" "$(row 961 failure 10 "$RED1")" "$(row 960 success 0 "$GREEN")"
 
 export CRN_SENT="$T/sent"; : >"$CRN_SENT"
+mkdir -p "$T/spool"
 STATE="$T/state.tsv"
 tick() {
   ( cd "${TREE:-$R}" && env PATH="$T/stub:$PATH" GH_STUB_DIR="$T/api" CI_RED_NOTE_STATE="$STATE" CI_RED_NOTE_HWM="${HWM:-$T/hwm}" \
       CI_RED_NOTE_LANE_STATE="${LSTATE:-$T/lane.tsv}" CI_RED_NOTE_TO="${TO:-c-900@b1}" CI_RED_NOTE_BOX=b1 CI_RED_NOTE_SEND="$T/stub/send" \
+      SPOOL_ROOT="$T/spool" SPOOL_ID_QUARANTINE_H=24 \
       bash -c 'do_log() { echo "$*"; }; source "'"$GATE"'"; source "'"$FUNC"'"; do_report_ci_red_note' ) >"$T/out" 2>&1
 }
 sends() { grep -c '^SEND .*kind=blocker' "$CRN_SENT"; }
@@ -324,6 +334,52 @@ g2 branch -qD c-777-orc-fix
 [[ "$(lanes)" == 0 ]] \
   && pass "CONTROL d. the c-777 branch deleted: no lane note, so the lane comes from its branch reflog" \
   || { fail "CONTROL d. a lane was told without its branch ($(lanes))"; sed 's/^/    | /' "$CRN_SENT"; }
+
+# --- 16..18. retired lanes (SPL-6447) ----------------------------------------------
+# R4: c-555 and c-666 each land an orc commit; both are suspects of run 991.
+R4="$T/repo4"; mkdir -p "$R4/csi-spl-orc"
+g4() { git -c user.name=t -c user.email=t@example.com -C "$R4" "$@"; }
+g4 init -q -b master
+echo 0 >"$R4/csi-spl-orc/a"; g4 add -A; g4 commit -qm "base"
+G4=$(g4 rev-parse HEAD)
+g4 checkout -qb c-555-old; echo 1 >"$R4/csi-spl-orc/a"; g4 commit -qam "orc: retired lane change"
+g4 checkout -q master; g4 merge -q --ff-only c-555-old
+g4 checkout -qb c-666-live; echo 2 >"$R4/csi-spl-orc/a"; g4 commit -qam "orc: live lane change"
+g4 checkout -q master; g4 merge -q --ff-only c-666-live
+H4=$(g4 rev-parse HEAD)
+jobs 990 "$(job 9900 "$ORC" success)"
+jobs 991 "$(job 9910 "$ORC" failure)"
+printf '2026-01-05T10:00:02Z FAIL: retired case broke\n' >"$T/api/log-9910.txt"
+echo '{"html_url":"https://ci.example.org/run/991/job/9910"}' >"$T/api/job-9910.json"
+runs "$(row 991 failure 10 "$H4")" "$(row 990 success 0 "$G4")"
+RET="$T/spool/registry.retired.tsv"
+ret() { printf '%s\tclaude\t%%1\t/wt/%s\t20260101T000000Z\t%s\tc-001\n' "$1" "$1" "$(date -u -d "-$2 hours" +%Y%m%dT%H%M%SZ)" >>"$RET"; }
+t4() { : >"$STATE"; : >"$T/hwm"; : >"$CRN_SENT"; : >"$LS"; TREE="$R4" LSTATE="$LS" tick; }
+: >"$RET"; ret c-555 1
+t4
+if [[ "$(lanes)" == 1 ]] && grep -q 'to=c-666 kind=note' "$CRN_SENT" && ! grep -q 'to=c-555' "$CRN_SENT" \
+   && grep -q '^skip retired c-555: ' "$T/out" && ! grep -q 'skip retired c-666' "$T/out" \
+   && ! grep -q 'Suspect lane(s)' "$CRN_SENT"; then
+  pass "16. c-555 retired 1 h ago: no lane note, one 'skip retired c-555' line; live c-666 still told; no dead-lanes line"
+else
+  fail "16. retired lane: $(lanes) lane notes"; sed 's/^/    | /' "$CRN_SENT" "$T/out"
+fi
+ret c-666 2
+t4; TREE="$R4" LSTATE="$LS" tick
+if [[ "$(lanes)" == 0 && "$(sends)" == 1 && "$(grep -c '^Suspect lane(s) c-555, c-666 retired' "$CRN_SENT")" == 1 ]]; then
+  pass "17. every suspect lane retired: 0 lane notes, the one holder blocker says 'Suspect lane(s) c-555, c-666 retired' once over 2 ticks"
+else
+  fail "17. all retired: $(lanes) lane notes, $(sends) blockers"; sed 's/^/    | /' "$CRN_SENT" "$T/out"
+fi
+: >"$RET"; ret c-555 30; ret c-666 1
+printf 'b1: c-666@b1\tclaude\n' >"$T/spool/registry.tsv"
+t4
+if [[ "$(lanes)" == 2 ]] && ! grep -q 'skip retired' "$T/out" && ! grep -q 'Suspect lane(s)' "$CRN_SENT"; then
+  pass "18. retired 30 h ago, and retired but registered here again: both told, no skip line"
+else
+  fail "18. quarantine over / registered again: $(lanes) lane notes"; sed 's/^/    | /' "$CRN_SENT" "$T/out"
+fi
+rm -f "$T/spool/registry.tsv"; : >"$RET"
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all report-ci-red-note.tst.sh assertions"

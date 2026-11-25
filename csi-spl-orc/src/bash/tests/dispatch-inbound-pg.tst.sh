@@ -19,6 +19,10 @@
 #      post: a window of loop prompts only is hum|0|0 and no SILENT; two
 #      channel posts (an @mention reply to one seat included) with 0 desk
 #      files still are SILENT
+#   8. b47-02: a note to self (rdb 0278) and a signed post in a humans-only
+#      channel (SPL-2423) never fan out: each alone is hum|0|0 and no
+#      UNSIGNED or SILENT; next to two ordinary channel posts (SILENT's
+#      floor, DISPATCH_SILENCE_MIN) it is hum|2|2 and still SILENT
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -189,6 +193,38 @@ h="$(read_hum wc | grep '^hum|')"
 o="$(inbound wc "$h")"
 [[ "$o" == *"SILENT wc 2 human posts in 120 min, 0 inbound files"* ]] && pass "7. two channel posts, 0 desk files: still SILENT" ||
   fail "7. wc inbound: $o"
+
+# b47-02 (a-683 R7 N1 + N2 on SPL-6523): a note to self is stored unsigned
+# and reaches no box; a humans-only channel's post is signed (wui fanOut) but
+# no agent is seated there. Neither reaches the desk, so neither may alert.
+psql_owner <<'PSQL' >/dev/null || fail "seed b47-02 tenants"
+INSERT INTO tenants (tenant_id, root_pubkey) VALUES ('xn', decode(repeat('b1', 32), 'hex')),
+  ('xh', decode(repeat('b2', 32), 'hex')), ('xm', decode(repeat('b3', 32), 'hex'));
+INSERT INTO channels (tenant_id, channel_id, name, created_by) VALUES ('xn', 'ops', 'ops', 'HUM-1'), ('xm', 'ops', 'ops', 'HUM-1');
+INSERT INTO channels (tenant_id, channel_id, name, created_by, humans_only_at) VALUES
+  ('xh', 'quiet', 'quiet', 'HUM-1', now()), ('xm', 'quiet', 'quiet', 'HUM-1', now());
+PSQL
+# nts <tenant> <minutes ago>: a note to self in #ops (unsigned, no fan-out)
+nts() {
+  m "$1" ops HUM-10 '' "$2"
+  psql_owner -c "UPDATE messages SET note_to_self = true WHERE msg_id = '$LAST_ID'" >/dev/null || fail "seed note to self $*"
+}
+nts xn 25; nts xn 15
+m xh quiet HUM-10 sig 25; m xh quiet HUM-10 sig 15
+nts xm 25; m xm quiet HUM-10 sig 20; m xm ops HUM-10 '' 15; m xm ops HUM-10 '' 10
+h="$(read_hum xn | grep '^hum|')"
+[[ "$h" == 'hum|0|0' ]] && pass "8a. notes to self only: no human post counted" || fail "8a. xn: $h"
+o="$(inbound xn "$h")"
+[[ "$o" != *SILENT* && "$o" != *UNSIGNED* ]] && pass "8a. notes to self only, 0 desk files: no UNSIGNED, no SILENT" || fail "8a. xn inbound: $o"
+h="$(read_hum xh | grep '^hum|')"
+[[ "$h" == 'hum|0|0' ]] && pass "8b. signed posts in a humans-only channel only: no human post counted" || fail "8b. xh: $h"
+o="$(inbound xh "$h")"
+[[ "$o" != *SILENT* && "$o" != *UNSIGNED* ]] && pass "8b. humans-only posts only, 0 desk files: no SILENT" || fail "8b. xh inbound: $o"
+h="$(read_hum xm | grep '^hum|')"
+[[ "$h" == 'hum|2|2' ]] && pass "8c. two ordinary channel posts count, the note to self and the humans-only post do not" || fail "8c. xm: $h"
+o="$(inbound xm "$h")"
+[[ "$o" == *"SILENT xm 2 human posts in 120 min, 0 inbound files"* ]] && pass "8c. two ordinary channel posts, 0 desk files: still SILENT" ||
+  fail "8c. xm inbound: $o"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

@@ -162,13 +162,19 @@ SELECT 'ros|' || r.box_id || '|' || r.agent_id FROM roster r
 -- so the desk never gets it: counting it raised a false SILENT (SPL-6523,
 -- prd csitea 2026-11-25 16:30Z). Not a to_id filter: a person's @mention
 -- reply carries the channel tag and reaches every member box, the desk too.
+-- A note to self (rdb 0278 messages.note_to_self) and a post in a humans-only
+-- channel (SPL-2423 channels.humans_only_at) never fan out to the desk
+-- either (the hub's channel fan-out skips both), so counting them raised a
+-- false UNSIGNED or SILENT (b47-02).
 SELECT 'hum|' || count(*) || '|' || count(*) FILTER (WHERE m.env_sig = '' AND NOT EXISTS (
          SELECT 1 FROM pins p WHERE p.tenant_id = m.tenant_id AND p.box_id = 'box-wui'
             AND p.revoked_at IS NULL AND p.updated_at > m.received_at))
   FROM messages m
  WHERE m.tenant_id = :'tenant' AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%'
    AND m.channel IS NOT NULL AND m.channel NOT IN ('issues', 'tasks', 'probe') AND m.typed_by IS NULL
-   AND m.loop_id IS NULL
+   AND m.loop_id IS NULL AND NOT m.note_to_self
+   AND NOT EXISTS (SELECT 1 FROM channels c WHERE c.tenant_id = m.tenant_id
+                      AND c.channel_id = m.channel AND c.humans_only_at IS NOT NULL)
    AND m.received_at > now() - make_interval(mins => :win)
    AND m.received_at <= now() - make_interval(mins => :grace);
 COMMIT;

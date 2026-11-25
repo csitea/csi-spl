@@ -72,9 +72,14 @@ func newHarness(t *testing.T) *harness {
 func (h *harness) run(args ...string) (string, string, int) {
 	h.t.Helper()
 	cmd := exec.Command(h.bin, args...)
+	// SPOOL_NOTIFY_CMD=off: the MCP side (testkit config) has no terminal leg,
+	// so the CLI must not inherit the box's notifier either. On an agent box the
+	// caller's shell sets it, and the notifier rings a real pane and writes
+	// <agent>/lifetime/poke-ledger.tsv into this test's root (SPL-6511).
 	cmd.Env = append(os.Environ(),
 		"SPOOL_ROOT="+h.cli.cfg.SpoolRoot, "SPOOL_KEYS_DIR="+h.cli.cfg.KeysDir,
-		"SPOOL_PINS_DIR="+h.cli.cfg.PinsDir, "SPOOL_LOG_LEVEL=error")
+		"SPOOL_PINS_DIR="+h.cli.cfg.PinsDir, "SPOOL_LOG_LEVEL=error",
+		"SPOOL_NOTIFY_CMD=off")
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err := cmd.Run()

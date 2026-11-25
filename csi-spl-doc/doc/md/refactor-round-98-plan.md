@@ -20,10 +20,10 @@ Owner HUM-10 directives and fleet rules, by pointer:
 
 **What this round is.** Round 97 ([refactor-round-97-plan.md](refactor-round-97-plan.md))
 landed both of its rows on trunk (r97-01 `2924c633f`, SPL-6449; r97-02 `529f837ef`,
-SPL-6450), and its close record (`c002-r97-close-record`) is queued separately. This
-planner writes no r97 close record and touches no r97 file. The perf floor (rulebook 4.4),
-measured on `7084439f1` at 2026-11-25T05:38:51Z (14 days): perf 36, refactor 101, 26.3%,
-5 x 36 = 180 >= 137, floor-met, so this is a refactor round.
+SPL-6450), and its close record (`5855e3ca3`, SPL-6458) landed separately after this
+plan's base `7084439f1`. This planner writes no r97 close record and touches no r97 file.
+The perf floor (rulebook 4.4), measured on `7084439f1` at 2026-11-25T05:38:51Z (14 days):
+perf 36, refactor 101, 26.3%, 5 x 36 = 180 >= 137, floor-met, so this is a refactor round.
 
 Both rows are **one fact, one copy** (developer guide 2.2.4), the shape of r91..r97: a
 duplicated validation/preparation block that exists in multiple places moves to a single
@@ -48,16 +48,18 @@ and call `_spl_calendar_require_actor "$agent" "$ordby" || return 1`.
 calendar round-trip), `do_resolve_oap ORG`, `do_resolve_oap APP`,
 `do_spl_cost_gcp_cnf || return 1`, and trailing `COST_REREAD_DAYS` UTC day window loop.
 Extracting `do_spl_cost_gcp_window` into `iac:lib/bash/funcs/spl-cost-gcp.func.sh`
-(which both actions and their tests already source) sets `COST_WINDOW_DAY` and
-`COST_WINDOW_DAYS=()`, and both actions replace the 11-line block with
-`do_spl_cost_gcp_window || return 1`, `local day="${COST_WINDOW_DAY}"` (plus `tmp` in
-`spl-vm-cost-per-day.func.sh`), and `local -a days=("${COST_WINDOW_DAYS[@]}")`. The rows
-share no file (orc vs iac): both are batch 1.
+(lazily stub-loaded by `csi-spl-iac/run` and sourced directly by both tests) sets process
+globals `COST_WINDOW_DAY` and `COST_WINDOW_DAYS=()`, and both actions replace the 11-line
+block with `do_spl_cost_gcp_window || return 1`, `local day="${COST_WINDOW_DAY}"` (plus
+`tmp` in `spl-vm-cost-per-day.func.sh`), and `local -a days=("${COST_WINDOW_DAYS[@]}")`.
+The rows share no file (orc vs iac): both are batch 1.
 
-**Status: v0.1, draft for panel review.** Panel seat **c-429** (claude, cross-vendor;
-`c002-refactor-round-98-claude-panel-seat`) reviews this draft on branch
-`review/c002-refactor-round-98-planner`. Rows queue only after the panel signs v1.0 and
-the holder confirms `do_spl_review_line_check` rc 0 and places them (rulebook 1.4 / 5.2).
+**Status: v0.2, revised draft for panel re-review.** Panel seat **c-429** (claude,
+cross-vendor; `c002-refactor-round-98-claude-panel-seat`) reviewed v0.1 (`caf5a790e`) on
+branch `review/c002-refactor-round-98-planner` and returned FAIL (`348c10658`, W1 and W2,
+plus notes N1-N5; both rows confirmed behaviour-preserving). This v0.2 folds W1, W2, and
+N1-N5 and awaits c-429's re-review. Rows queue only after the panel signs v1.0 and the
+holder confirms `do_spl_review_line_check` rc 0 and places them (rulebook 1.4 / 5.2).
 Editor: **a-427** (agy).
 
 **One sha:** every count is measured on **`7084439f1`** (`7084439f15cfdc93915fa52161c3f8c58e1483ae`,
@@ -65,8 +67,11 @@ Editor: **a-427** (agy).
 `7084439f1` with `git show` / `git grep`. The tests of 1.5 ran in detached scratch
 worktrees of `7084439f1` (not committed, removed on exit): "base" unmodified, "head1" =
 base with row 01 applied in 1.3's shape, "head2" = base with row 02 applied in 1.4's
-shape; each red and guard control (1.5) ran in a detached worktree of its own. Queue,
-lane map, brief and branch reads are live state and carry their own time.
+shape; each red and guard control (1.5) ran in a detached worktree of its own. Both helper
+definitions and all four test hunks are reproduced verbatim in 1.3 and 1.4 so any panel or
+R7 seat can reconstruct head1, head2, and all 7 controls byte-for-byte on `7084439f1` and
+verify every sha256. Queue, lane map, brief and branch reads are live state and carry
+their own time.
 
 ## 1. Baseline
 
@@ -77,7 +82,11 @@ lane map, brief and branch reads are live state and carry their own time.
 - **Window: W=2026-11-24T19:33:57+02:00**, from
   `git log origin/master -1 --format='%H %cI %s' -E --grep='^docs\(r97-plan'`:
   `3364c37cf` (`docs(r97-plan, SPL-6384): refactor round 97 plan v1.0, signed by m-161 (mistral) PASS on dc07c2ee4, W1 and N1-N3 folded`),
-  read once at the start as 5.3 says.
+  read once at the start as 5.3 says. Note (N1): after base `7084439f1`, the r97 close
+  record `5855e3ca3` (`docs(r97-plan, SPL-6458)`, `2026-11-25T07:50:08+02:00`) landed on
+  `origin/master`. Per rulebook 5.3, `W` stays fixed at this recorded date
+  (`2026-11-24T19:33:57+02:00`); all later R4, R6, 2.7.5, and `PRUNE_SINCE` reads for
+  r98 must use `W=2026-11-24T19:33:57+02:00`, not a fresh derivation.
 - `git log origin/master --since="$W" --oneline -E --grep='\(r98-' | wc -l` -> **0**
   (over all history -> **0**).
 - `git ls-remote origin 'refs/heads/review/r98-*' 'refs/heads/*-r98-*' 'refs/heads/*refactor-round-98*' 'refs/heads/wip/*r98*'`
@@ -122,6 +131,15 @@ lane map, brief and branch reads are live state and carry their own time.
   - Earlier refactor-shaped entries verified on `7084439f1`:
     - `for refactor round 97` (`spl-unanswered-sweep.func.sh:196`): served by r97-01
       (`2924c633f`).
+    - `for refactor round 95` (`c002-next-round-candidates.md:124-125`, WUI entry-chunk
+      gzip headroom `ci_initial_gzip_kb` 154.7 on `c41b7080e`, ceiling 155, blocker on
+      SPL-6341 B13 / eager-core split): verified **served on `7084439f1`** by `c68cca820`
+      (`refactor(wui, SPL-6342): the hub socket's code leaves the entry chunk, -3.0 KB
+      first-load gzip`) and `69dc02d2f` (`docs(perf, SPL-6342)`), both ancestors of
+      `7084439f1`, which lowered `metrics.ci_initial_gzip_kb` in
+      `csi-spl-doc/specs/027-ui-performance-budget/contracts/perf-budgets.json` from
+      154.7 KB to 151.9 KB (~3.1 KB headroom under the 155.0 KB ceiling; SPL-6341 B13 also
+      landed in `76471cb9e`, ancestor of `7084439f1`). Recorded in section 7 too (W2).
     - `LOGIN_STATE_DIR` (`orc:src/bash/run/spl-watchdog.func.sh:72,1323`): already uses
       `spl_claude_login_state_dir` from `spl-claude-login.func.sh`.
     - `spl-desk-reply.sh:9,19`: already lists all 12 kinds.
@@ -215,9 +233,73 @@ Shape (built as head1 of 1.5):
   `spl-calendar-event-update.func.sh` `9331b997770a`,
   `spl-calendar-event-add.tst.sh` `2ec18079688e`,
   `spl-calendar-event-change.tst.sh` `6ceaed529f18`.
-- Note for the row and its reviewer: build any guard control (`gc1a`/`gc1b`) in a
-  worktree, not a temp-dir copy of a single `.func.sh`: the guard loads its sibling
+- Note for the row and its reviewer (N4): under `./run`, `run.sh`'s lazy stub loader
+  always defines a stub for `_spl_calendar_require_actor`, so the
+  `declare -F _spl_calendar_require_actor >/dev/null || source ...` guard acts only on
+  the standalone-source path outside `./run` (`spl-calendar-event-update.func.sh:62,111`
+  already calls `_spl_calendar_event_link` and `_spl_calendar_reminders` from
+  `spl-calendar-event-add.func.sh` unguarded). Thus `gc1a` and `gc1b` prove the
+  standalone-source path. Build any guard control (`gc1a`/`gc1b`) in a worktree, not a
+  temp-dir copy of a single `.func.sh`: the guard loads its sibling
   `spl-calendar-event-add.func.sh` by `dirname "${BASH_SOURCE[0]}"`.
+
+Verbatim helper and test hunks (head1 on `7084439f1`, W1):
+
+`orc:src/bash/run/spl-calendar-event-add.func.sh` (inserted immediately above
+`# _spl_calendar_event_body:` at `:193`, followed by one blank line):
+```bash
+# _spl_calendar_require_actor <agent> <ordered_by>: validate AGENT_ID and
+# optional ORDERED_BY for the calendar event write actions (add, delete/pin,
+# update); logs FATAL and returns 1 on mismatch.
+_spl_calendar_require_actor() {
+  local agent="$1" ordby="$2"
+  [[ "$agent" =~ ^[acgmq]-[0-9]{3,}$ || "$agent" =~ ^(CLE|AGY|GRK|QWN)-[0-9]+$ ]] || { do_log "FATAL AGENT_ID must be an agent id like c-042, got: '$agent'"; return 1; }
+  [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
+}
+```
+
+`orc:src/bash/tests/spl-calendar-event-add.tst.sh` section 8 (inserted immediately before
+`(( fails == 0 )) && echo "ALL PASS: spl-calendar-event-add" || { echo "FAILED: $fails"; exit 1; }`
+at `:158`, followed by one blank line):
+```bash
+# --- 8. _spl_calendar_require_actor (r98-01 one copy) --------------------------
+out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-calendar-event-add.func.sh"; _spl_calendar_require_actor c-840 HUM-10 && _spl_calendar_require_actor CLE-1 ""' 2>&1); rc=$?
+[[ $rc -eq 0 && -z "$out" ]] && pass "8. _spl_calendar_require_actor accepts new/legacy agent and optional HUM-*" || fail "8. actor ok: rc=$rc $out"
+out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-calendar-event-add.func.sh"; _spl_calendar_require_actor HUM-10 ""' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENT_ID must be an agent id like c-042, got: 'HUM-10'"* ]] && pass "8. _spl_calendar_require_actor refuses bad AGENT_ID" || fail "8. bad agent: rc=$rc $out"
+out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-calendar-event-add.func.sh"; _spl_calendar_require_actor c-840 bob' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL ORDERED_BY must be a HUM-* id, got: 'bob'"* ]] && pass "8. _spl_calendar_require_actor refuses bad ORDERED_BY" || fail "8. bad ordby: rc=$rc $out"
+add_f="$PROJ_ROOT/src/bash/run/spl-calendar-event-add.func.sh"
+[[ "$(grep -c "AGENT_ID must be an agent id" "$add_f")" -eq 1 && "$(grep -c "ORDERED_BY must be a HUM-\* id" "$add_f")" -eq 1 && "$(grep -c "_spl_calendar_require_actor " "$add_f")" -ge 1 ]] \
+  && pass "8. one copy: spl-calendar-event-add.func.sh defines and calls _spl_calendar_require_actor once" || fail "8. add one copy"
+```
+
+`orc:src/bash/tests/spl-calendar-event-change.tst.sh` section 6 (inserted immediately
+before `(( fails == 0 )) && echo "ALL PASS: spl-calendar-event-change" || { echo "FAILED: $fails"; exit 1; }`
+at `:111`, followed by one blank line):
+```bash
+# --- 6. r98-01 one copy and standalone lazy-source -----------------------------
+for f in spl-calendar-event-delete.func.sh spl-calendar-event-update.func.sh; do
+  fp="$PROJ_ROOT/src/bash/run/$f"
+  own="$(grep -nE "AGENT_ID must be an agent id|ORDERED_BY must be a HUM-\* id" "$fp" || true)"
+  [[ -z "$own" ]] && grep -q "_spl_calendar_require_actor " "$fp" \
+    && pass "6. one copy: $f delegates to _spl_calendar_require_actor" || fail "6. one copy $f: own=[$own]"
+done
+out=$(env PROJ_PATH="$PROJ_ROOT" ENV=dev TENANT_ID=wa EVENT_IDS="$A" AGENT_ID=HUM-10 bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ :; }
+  source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-calendar-event-delete.func.sh"
+  do_spl_calendar_event_delete' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENT_ID must be an agent id"* && "$out" != *"command not found"* ]] \
+  && pass "6. lazy load: spl-calendar-event-delete.func.sh loads _spl_calendar_require_actor standalone" || fail "6. lazy delete: rc=$rc $out"
+out=$(env PROJ_PATH="$PROJ_ROOT" ENV=dev TENANT_ID=wa EVENT_ID="$A" AGENT_ID=HUM-10 TITLE=x bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ :; }
+  source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-calendar-event-update.func.sh"
+  do_spl_calendar_event_update' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENT_ID must be an agent id"* && "$out" != *"command not found"* ]] \
+  && pass "6. lazy load: spl-calendar-event-update.func.sh loads _spl_calendar_require_actor standalone" || fail "6. lazy update: rc=$rc $out"
+```
 
 **Behaviour:** `_spl_calendar_require_actor "$agent" "$ordby"` executes the exact two
 regex tests and `do_log "FATAL ..."; return 1` messages removed from all three actions;
@@ -252,9 +334,12 @@ new checks (1.5).
   `tmp` local declaration.
 - `do_spl_cost_gcp_window` has **0 collisions** anywhere in the repo (`git grep` -> 0).
   `iac:lib/bash/funcs/spl-cost-gcp.func.sh` is already the shared library for GCP cost
-  actions (`do_spl_cost_gcp_cnf`, `do_gcp_bq_api`, `do_gcp_bq_error`) and is already
-  sourced by `csi-spl-iac/run` and both tests (`spl-estate-cost-read.tst.sh` and
-  `spl-vm-cost-per-day.tst.sh`), so neither action needs an extra `source` line.
+  actions (`do_spl_cost_gcp_cnf`, `do_gcp_bq_api`, `do_gcp_bq_error`): in `csi-spl-iac/run`
+  it is lazily stub-loaded (`csi-spl-iac/src/bash/run/run.sh:883-891`, `_RUN_INDEX_AWK`: a
+  functions-only file is not sourced at start; each of its functions gets a stub that
+  sources the file on first call, N2), and both tests (`spl-estate-cost-read.tst.sh` and
+  `spl-vm-cost-per-day.tst.sh`) source it directly, so neither action needs an extra
+  `source` line.
 - Shellcheck detail verified on head2: because `do_spl_cost_gcp_cnf` (`spl-cost-gcp.func.sh:29`)
   takes an optional `$1` cnf dir used only by tests (`@param $1 (optional)`), calling
   `do_spl_cost_gcp_cnf || return 1` with zero arguments inside the same file triggers
@@ -272,7 +357,8 @@ new checks (1.5).
 Shape (built as head2 of 1.5):
 - `iac:lib/bash/funcs/spl-cost-gcp.func.sh`: update `:28` to
   `# shellcheck disable=SC2034,SC2120 # COST_* globals read by callers; optional $1 cnf dir used by tests`,
-  and insert `do_spl_cost_gcp_window()` (with `@description` / `@example` header and
+  and insert `do_spl_cost_gcp_window()` (with `@description` / `@example` header
+  documenting process globals `COST_WINDOW_DAY` and `COST_WINDOW_DAYS`, N3, and
   `# shellcheck disable=SC2034`) above `do_gcp_bq_api` (`:64`), setting
   `COST_WINDOW_DAY="${day}"` and populating `COST_WINDOW_DAYS=()` across
   `COST_REREAD_DAYS - 1 .. 0`. 101 -> 124 lines (`+24 -1`).
@@ -293,17 +379,79 @@ Shape (built as head2 of 1.5):
   (`PASS: all ...`): 1 one-copy check (`$F` contains neither `FATAL DAY must be a UTC day`
   nor `COST_REREAD_DAYS - 1`, and calls `do_spl_cost_gcp_window`). 189 -> 194 lines
   (`+5 -0`).
-- head2's files, sha256 (12 chars): `spl-cost-gcp.func.sh` `134d818df253`,
+- head2's files, sha256 (12 chars): `spl-cost-gcp.func.sh` `b1ddd1ea1c94`,
   `spl-estate-cost-read.func.sh` `c8e2c0b78ffd`,
   `spl-vm-cost-per-day.func.sh` `a8f4dae10e4d`,
   `spl-estate-cost-read.tst.sh` `21782c35e31e`,
   `spl-vm-cost-per-day.tst.sh` `d81229828708`.
 
+Verbatim helper and test hunks (head2 on `7084439f1`, W1, N3):
+
+`iac:lib/bash/funcs/spl-cost-gcp.func.sh` (inserted immediately above the `#---...`
+separator of `do_gcp_bq_api` at `:64`, followed by one blank line):
+```bash
+#------------------------------------------------------------------------------
+# @description Validate DAY (default yesterday UTC), resolve ORG/APP, load cnf
+# @description env.cost (do_spl_cost_gcp_cnf), and build the trailing
+# @description COST_REREAD_DAYS UTC day window, setting process globals
+# @description COST_WINDOW_DAY and COST_WINDOW_DAYS.
+# @example do_spl_cost_gcp_window || return 1
+#------------------------------------------------------------------------------
+# shellcheck disable=SC2034 # COST_WINDOW_DAY / COST_WINDOW_DAYS are read by callers
+do_spl_cost_gcp_window() {
+  local day="${DAY:-$(date -u -d yesterday +%F)}" i
+  if [[ ! "${day}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ || "$(date -u -d "${day}" +%F 2>/dev/null)" != "${day}" ]]; then
+    do_log "FATAL DAY must be a UTC day YYYY-MM-DD, got: ${day}"; return 1
+  fi
+  do_resolve_oap ORG
+  do_resolve_oap APP
+  do_spl_cost_gcp_cnf || return 1
+  COST_WINDOW_DAY="${day}"
+  COST_WINDOW_DAYS=()
+  for ((i = COST_REREAD_DAYS - 1; i >= 0; i--)); do
+    COST_WINDOW_DAYS+=("$(date -u -d "${day} -${i} day" +%F)")
+  done
+}
+```
+
+`iac:src/bash/tests/spl-estate-cost-read.tst.sh` section 8 (inserted immediately before
+`[[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }` at
+`:247`, followed by one blank line):
+```bash
+# --- 8. do_spl_cost_gcp_window (r98-02 one copy) -----------------------------------
+out=$(env APP_PATH="$APP_ROOT" ENV=prd DAY=2026-10-09 LIB="$LIB" bash -c '
+  do_log(){ echo "$*"; }; do_resolve_oap(){ case "$1" in ORG) ORG=csi ;; APP) APP=spl ;; esac; }
+  source "$LIB"; do_spl_cost_gcp_window || exit 1
+  printf "%s|%s\n" "$COST_WINDOW_DAY" "${COST_WINDOW_DAYS[*]}"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == "2026-10-09|2026-10-05 2026-10-06 2026-10-07 2026-10-08 2026-10-09" ]] \
+  && pass "8. do_spl_cost_gcp_window sets COST_WINDOW_DAY and trailing COST_WINDOW_DAYS" || fail "8. window ok: rc=$rc $out"
+out=$(env APP_PATH="$APP_ROOT" ENV=prd DAY=2026-02-30 LIB="$LIB" bash -c '
+  do_log(){ echo "$*"; }; do_resolve_oap(){ case "$1" in ORG) ORG=csi ;; APP) APP=spl ;; esac; }
+  source "$LIB"; do_spl_cost_gcp_window' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL DAY must be a UTC day YYYY-MM-DD, got: 2026-02-30"* ]] \
+  && pass "8. do_spl_cost_gcp_window refuses bad DAY" || fail "8. window bad day: rc=$rc $out"
+own="$(grep -nE "FATAL DAY must be a UTC day|COST_REREAD_DAYS - 1" "$F" || true)"
+[[ -z "$own" ]] && grep -q "do_spl_cost_gcp_window" "$F" \
+  && pass "8. one copy: spl-estate-cost-read.func.sh delegates window prep to do_spl_cost_gcp_window" || fail "8. estate one copy: own=[$own]"
+```
+
+`iac:src/bash/tests/spl-vm-cost-per-day.tst.sh` section 6 (inserted immediately before
+`[[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }` at
+`:188`, followed by one blank line):
+```bash
+# --- 6. r98-02 one copy ------------------------------------------------------------
+own="$(grep -nE "FATAL DAY must be a UTC day|COST_REREAD_DAYS - 1" "$F" || true)"
+[[ -z "$own" ]] && grep -q "do_spl_cost_gcp_window" "$F" \
+  && pass "6. one copy: spl-vm-cost-per-day.func.sh delegates window prep to do_spl_cost_gcp_window" || fail "6. vm one copy: own=[$own]"
+```
+
 **Behaviour:** `do_spl_cost_gcp_window` executes the exact UTC `DAY` validation,
 `do_resolve_oap ORG`/`APP`, `do_spl_cost_gcp_cnf || return 1`, and `COST_REREAD_DAYS`
-loop removed from both actions; `gcp-billing-export-setup.func.sh` and
-`gcp-billing-invoices-fetch.func.sh` remain untouched and green; all row-02 and shared
-suites pass on base and head2 with identical counts plus the 3 + 1 new checks (1.5).
+loop removed from both actions; its only new state is the two process globals
+`COST_WINDOW_DAY` and `COST_WINDOW_DAYS` documented in its header (N3);
+`gcp-billing-export-setup.func.sh` and `gcp-billing-invoices-fetch.func.sh` remain
+untouched and green; all row-02 and shared suites pass on base and head2 with identical
+counts plus the 3 + 1 new checks (1.5).
 
 ### 1.5 Before and on the rows' heads
 
@@ -347,7 +495,10 @@ findings (n=1 each). `do_sec_shellcheck` with newline-separated `SEC_SHELLCHECK_
 set to each row's 5 touched files (head1 and head2): **rc 0**, `no error-level findings`,
 `no new findings (baseline holds)` (n=1 each).
 
-**Red and guard controls** (n=1 each, each in its own detached worktree of `7084439f1`):
+**Red and guard controls** (n=1 each, each in its own detached worktree of `7084439f1`,
+reconstructed from the verbatim blocks in 1.3 and 1.4; `gc1a`/`gc1b` prove the
+standalone-source path outside `./run`, N4; head2 `b1ddd1ea1c94` and controls `rc2a`,
+`rc2b`, `gc2` re-verified 2026-11-25T06:37:55Z-06:38:53Z after N3's header line update):
 - Row 01 red control a (`rc1a`, head1's `spl-calendar-event-add.tst.sh` on base): rc 1,
   66 pass, 5 fail lines (4 assertions: `FAIL: 8. actor ok: rc=127 ... _spl_calendar_require_actor: command not found`,
   `bad agent` rc 127, `bad ordby` rc 127, `FAIL: 8. add one copy`, plus summary
@@ -395,8 +546,8 @@ needs no line.
 
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 `refactor(r98-01-orc-calendar-actor)` | one fact, one copy (developer guide 2.2.4) | `spl-calendar-event-add.func.sh:203-204`, `spl-calendar-event-delete.func.sh:35-36`, and `spl-calendar-event-update.func.sh:103-104` duplicate the exact 2-line `AGENT_ID` + optional `ORDERED_BY` check (1.3, r97 section 7) | `orc:src/bash/run/spl-calendar-event-add.func.sh:193,203-204`<br>`orc:src/bash/run/spl-calendar-event-delete.func.sh:35-36`<br>`orc:src/bash/run/spl-calendar-event-update.func.sh:103-104`<br>`orc:src/bash/tests/spl-calendar-event-add.tst.sh:158`<br>`orc:src/bash/tests/spl-calendar-event-change.tst.sh:111` | copies of the calendar write `AGENT_ID` + optional `ORDERED_BY` guard 3 -> 1 (`_spl_calendar_require_actor` in `spl-calendar-event-add.func.sh`) | 1.3's shape. **Red control:** head's `spl-calendar-event-add.tst.sh` on parent FAILs 4 checks (`rc1a`, rc 1, 66 pass, 5 fail lines, `_spl_calendar_require_actor: command not found` + one-copy) and head's `spl-calendar-event-change.tst.sh` on parent FAILs both one-copy checks naming `:35` and `:103` (`rc1b`, rc 1, 35 pass, 3 fail lines), then GREEN (70/0 and 37/0); guard controls (`gc1a`/`gc1b`, `declare -F _spl_calendar_require_actor` deleted in delete/update: rc 1, 36 pass, 2 fail lines each with `_spl_calendar_require_actor: command not found`), built in a worktree; outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 4 + 4 new checks. Tests: `orc:.../spl-calendar-event-add.tst.sh`, `spl-calendar-event-change.tst.sh`, `spl-calendar-event-update.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
-| 02 `refactor(r98-02-iac-cost-window-prep)` | one fact, one copy (developer guide 2.2.4) | `spl-estate-cost-read.func.sh:56-66` and `spl-vm-cost-per-day.func.sh:47-57` duplicate the exact 11-line UTC `DAY` validation, `do_resolve_oap ORG`/`APP`, `do_spl_cost_gcp_cnf`, and trailing `COST_REREAD_DAYS` day-window loop (1.4) | `iac:lib/bash/funcs/spl-cost-gcp.func.sh:28,64`<br>`iac:src/bash/run/spl-estate-cost-read.func.sh:56-66`<br>`iac:src/bash/run/spl-vm-cost-per-day.func.sh:47-57`<br>`iac:src/bash/tests/spl-estate-cost-read.tst.sh:247`<br>`iac:src/bash/tests/spl-vm-cost-per-day.tst.sh:188` | copies of the UTC `DAY` + OAP + `do_spl_cost_gcp_cnf` + `COST_REREAD_DAYS` window prep 2 -> 1 (`do_spl_cost_gcp_window` in `spl-cost-gcp.func.sh`) | 1.4's shape. **Red control:** head's `spl-estate-cost-read.tst.sh` on parent FAILs 3 checks (`rc2a`, rc 1, 32 pass, 4 fail lines, `do_spl_cost_gcp_window: command not found` + one-copy `:58`) and head's `spl-vm-cost-per-day.tst.sh` on parent FAILs one-copy naming `:49` (`rc2b`, rc 1, 29 pass, 2 fail lines), then GREEN (36/0 and 31/0); guard control (`gc2`, `do_spl_cost_gcp_window` renamed in `spl-cost-gcp.func.sh`: `spl-estate-cost-read.tst.sh` rc 1 7/29 and `spl-vm-cost-per-day.tst.sh` rc 1 10/21 with `do_spl_cost_gcp_window: command not found`), built in a worktree; outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 3 + 1 new checks. Tests: `iac:.../spl-estate-cost-read.tst.sh`, `spl-vm-cost-per-day.tst.sh`, `gcp-billing-export-setup.tst.sh`, `gcp-billing-invoices.tst.sh` (`</dev/null`), `no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 01 `refactor(r98-01-orc-calendar-actor)` | one fact, one copy (developer guide 2.2.4) | `spl-calendar-event-add.func.sh:203-204`, `spl-calendar-event-delete.func.sh:35-36`, and `spl-calendar-event-update.func.sh:103-104` duplicate the exact 2-line `AGENT_ID` + optional `ORDERED_BY` check (1.3, r97 section 7) | `orc:src/bash/run/spl-calendar-event-add.func.sh:193,203-204`<br>`orc:src/bash/run/spl-calendar-event-delete.func.sh:35-36`<br>`orc:src/bash/run/spl-calendar-event-update.func.sh:103-104`<br>`orc:src/bash/tests/spl-calendar-event-add.tst.sh:158`<br>`orc:src/bash/tests/spl-calendar-event-change.tst.sh:111` | copies of the calendar write `AGENT_ID` + optional `ORDERED_BY` guard 3 -> 1 (`_spl_calendar_require_actor` in `spl-calendar-event-add.func.sh`) | 1.3's shape (verbatim blocks in 1.3). **Red control:** head's `spl-calendar-event-add.tst.sh` on parent FAILs 4 checks (`rc1a`, rc 1, 66 pass, 5 fail lines, `_spl_calendar_require_actor: command not found` + one-copy) and head's `spl-calendar-event-change.tst.sh` on parent FAILs both one-copy checks naming `:35` and `:103` (`rc1b`, rc 1, 35 pass, 3 fail lines), then GREEN (70/0 and 37/0); guard controls (`gc1a`/`gc1b`, `declare -F _spl_calendar_require_actor` deleted in delete/update: rc 1, 36 pass, 2 fail lines each with `_spl_calendar_require_actor: command not found`; proves standalone-source path outside `./run`, N4), built in a worktree; outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 4 + 4 new checks. Tests: `orc:.../spl-calendar-event-add.tst.sh`, `spl-calendar-event-change.tst.sh`, `spl-calendar-event-update.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 02 `refactor(r98-02-iac-cost-window-prep)` | one fact, one copy (developer guide 2.2.4) | `spl-estate-cost-read.func.sh:56-66` and `spl-vm-cost-per-day.func.sh:47-57` duplicate the exact 11-line UTC `DAY` validation, `do_resolve_oap ORG`/`APP`, `do_spl_cost_gcp_cnf`, and trailing `COST_REREAD_DAYS` day-window loop (1.4) | `iac:lib/bash/funcs/spl-cost-gcp.func.sh:28,64`<br>`iac:src/bash/run/spl-estate-cost-read.func.sh:56-66`<br>`iac:src/bash/run/spl-vm-cost-per-day.func.sh:47-57`<br>`iac:src/bash/tests/spl-estate-cost-read.tst.sh:247`<br>`iac:src/bash/tests/spl-vm-cost-per-day.tst.sh:188` | copies of the UTC `DAY` + OAP + `do_spl_cost_gcp_cnf` + `COST_REREAD_DAYS` window prep 2 -> 1 (`do_spl_cost_gcp_window` in `spl-cost-gcp.func.sh`) | 1.4's shape (verbatim blocks in 1.4; header documents process globals `COST_WINDOW_DAY` / `COST_WINDOW_DAYS`, N3). **Red control:** head's `spl-estate-cost-read.tst.sh` on parent FAILs 3 checks (`rc2a`, rc 1, 32 pass, 4 fail lines, `do_spl_cost_gcp_window: command not found` + one-copy `:58`) and head's `spl-vm-cost-per-day.tst.sh` on parent FAILs one-copy naming `:49` (`rc2b`, rc 1, 29 pass, 2 fail lines), then GREEN (36/0 and 31/0); guard control (`gc2`, `do_spl_cost_gcp_window` renamed in `spl-cost-gcp.func.sh`: `spl-estate-cost-read.tst.sh` rc 1 7/29 and `spl-vm-cost-per-day.tst.sh` rc 1 10/21 with `do_spl_cost_gcp_window: command not found`), built in a worktree; outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 3 + 1 new checks. Tests: `iac:.../spl-estate-cost-read.tst.sh`, `spl-vm-cost-per-day.tst.sh`, `gcp-billing-export-setup.tst.sh`, `gcp-billing-invoices.tst.sh` (`</dev/null`), `no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 `iac:` = `csi-spl-iac/`, `orc:` = `csi-spl-orc/`.
 
@@ -485,7 +636,8 @@ Paths (10, the 5 edited by row 01 + the 5 edited by row 02):
   standalone lazy-load checks for delete and update.
 - **r98-02:** `iac:lib/bash/funcs/spl-cost-gcp.func.sh` updates `:28` to
   `# shellcheck disable=SC2034,SC2120` and gains `do_spl_cost_gcp_window` above
-  `do_gcp_bq_api` (`:64`), setting `COST_WINDOW_DAY` and `COST_WINDOW_DAYS=()`;
+  `do_gcp_bq_api` (`:64`), documenting and setting process globals `COST_WINDOW_DAY` and
+  `COST_WINDOW_DAYS=()` (N3);
   `iac:src/bash/run/spl-estate-cost-read.func.sh` (`:56-66`) and
   `iac:src/bash/run/spl-vm-cost-per-day.func.sh` (`:47-57`) replace their 11-line UTC
   `DAY` validation + OAP resolve + `do_spl_cost_gcp_cnf` + `COST_REREAD_DAYS` window
@@ -543,18 +695,24 @@ same 3 lines), `csi-spl-orc/src/bash/tests/spl-calendar-event-add.tst.sh` (appen
 one-copy checks + 2 standalone lazy-load checks for delete and update before `:111`). NOT
 `spl-human-email-add.func.sh`, NOT `spl-human-link.func.sh`, NOT
 `spl-calendar-event-update.tst.sh`, NOT `.shellcheck-warning-baseline.txt`, or any other
-file. Do: plan section 2 row 01 verbatim, 1.3's shape; red controls (`rc1a` + `rc1b`,
-head's tests on parent) RED then GREEN in the body; guard controls (`gc1a` + `gc1b`,
-`declare -F _spl_calendar_require_actor` deleted in delete/update, built in a worktree,
-not a temp-dir copy). Gates: the row's tests (section 2, `SPOOL_TEST=1`, in the worktree),
-`shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`.
-`Docs: none (...)`. Kind `simple_coding`, vendor claude; R7 **agy seat** (claude backup
-only while agy is out of quota; never mistral; re-checked at placement).
+file. Do: plan section 2 row 01 verbatim, 1.3's shape (verbatim blocks in 1.3); red
+controls (`rc1a` + `rc1b`, head's tests on parent) RED then GREEN in the body; guard
+controls (`gc1a` + `gc1b`, `declare -F _spl_calendar_require_actor` deleted in
+delete/update, built in a worktree, not a temp-dir copy; note `declare -F` acts only on
+the standalone-source path outside `./run`, as `spl-calendar-event-update.func.sh:62,111`
+already calls `add`'s helpers unguarded under `./run`, N4). Gates: the row's tests
+(section 2, `SPOOL_TEST=1`, in the worktree), `shellcheck -S warning -x` on the 5 files,
+`cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...)`. Kind `simple_coding`,
+vendor claude; R7 **agy seat** (claude backup only while agy is out of quota, which is
+same-vendor to the claude author under rulebook 2.7.2 and valid only under ruling
+`dc84300a` — cite ruling `dc84300a` in the row brief if the claude backup is used, N5;
+never mistral; re-checked at placement).
 
 **r98-02 brief, Files: ONLY**
 `csi-spl-iac/lib/bash/funcs/spl-cost-gcp.func.sh` (update `:28` to
 `# shellcheck disable=SC2034,SC2120`, add `do_spl_cost_gcp_window` above `do_gcp_bq_api`
-`:64` setting `COST_WINDOW_DAY` and `COST_WINDOW_DAYS=()`),
+`:64`, documenting in its header that it sets process globals `COST_WINDOW_DAY` and
+`COST_WINDOW_DAYS=()`, N3),
 `csi-spl-iac/src/bash/run/spl-estate-cost-read.func.sh` (replace `:56-66` with
 `do_spl_cost_gcp_window || return 1`, `local day="${COST_WINDOW_DAY}"`,
 `local -a days=("${COST_WINDOW_DAYS[@]}")`),
@@ -566,14 +724,16 @@ only while agy is out of quota; never mistral; re-checked at placement).
 `csi-spl-iac/src/bash/tests/spl-vm-cost-per-day.tst.sh` (append section 6: 1 one-copy
 check before `:188`). NOT `gcp-billing-export-setup.func.sh`, NOT
 `gcp-billing-invoices-fetch.func.sh`, NOT `.shellcheck-warning-baseline.txt`, or any
-other file. Do: plan section 2 row 02 verbatim, 1.4's shape; red controls (`rc2a` +
-`rc2b`, head's tests on parent) RED then GREEN in the body; guard control (`gc2`,
-`do_spl_cost_gcp_window` renamed in `spl-cost-gcp.func.sh`, built in a worktree). Gates:
-the row's tests (section 2, `SPOOL_TEST=1`, `</dev/null` on `gcp-billing-invoices.tst.sh`,
-in the worktree), `shellcheck -S warning -x` on the 5 files,
-`cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...)`. Kind `simple_coding`,
-vendor claude; R7 **agy seat** (claude backup only while agy is out of quota; never
-mistral; re-checked at placement).
+other file. Do: plan section 2 row 02 verbatim, 1.4's shape (verbatim blocks in 1.4); red
+controls (`rc2a` + `rc2b`, head's tests on parent) RED then GREEN in the body; guard
+control (`gc2`, `do_spl_cost_gcp_window` renamed in `spl-cost-gcp.func.sh`, built in a
+worktree). Gates: the row's tests (section 2, `SPOOL_TEST=1`, `</dev/null` on
+`gcp-billing-invoices.tst.sh`, in the worktree), `shellcheck -S warning -x` on the 5
+files, `cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...)`. Kind
+`simple_coding`, vendor claude; R7 **agy seat** (claude backup only while agy is out of
+quota, which is same-vendor to the claude author under rulebook 2.7.2 and valid only
+under ruling `dc84300a` — cite ruling `dc84300a` in the row brief if the claude backup is
+used, N5; never mistral; re-checked at placement).
 
 ## 6. Counts
 
@@ -601,6 +761,7 @@ mistral; re-checked at placement).
 | other `peer/seats` readers (`spl_peer_seats`, `spl-watchdog.func.sh`, `spl-wd-ensure.func.sh`, `spawn-window.sh`) and `sa:lib/spool-fleet.inc.sh:29,100` `[root]` comment (r97-01 R7 N1) | different semantics from boolean existence (and `:29,100` `[root]` is a non-blocking doc nit, not a duplicate-code row); unchanged since r97 | r97 7; 1.2 (a), (b) |
 | other `LEASE_(MASTER|FAILOVER|ORCH)` sites, `specs/172` prose (`:173`), `i18n-lang-review-exempt.json:2` `_doc` | non-identical path vars or prose/doc strings; unchanged since r94..r97 | r97 7; 1.2 (a) |
 | Go duplicate helpers in `csi-spl-api/src/go/spool-hub-api` (`internal/hub`, `internal/hubclient`, `internal/store`, `keyd`/`lockkey`) and TS helpers in `csi-spl-wui` (`issueQuery`, `moveIndex`/`cycleIndex`, `capsError`, `browserStore`) | `csi-spl-api` hub/store requires `PRE_PUSH_TIER=full` Postgres gate and dev/prd deploy lag; `csi-spl-wui` requires Chrome e2e, Firebase deploy lag, and overlaps active WUI lanes (`c-298` Taxes tab, `c-296` blog) | r97 7; 1.2 (a), (e) |
+| `for refactor round 95` (`c002-next-round-candidates.md:124-125`, WUI entry-chunk gzip headroom / eager-core split, `ci_initial_gzip_kb` 154.7 on `c41b7080e`, ceiling 155, blocker on SPL-6341 B13) | already served on `7084439f1` by SPL-6342 (`c68cca820` + `69dc02d2f`: `live-ws.mjs` lazy-loaded, `perf-budgets.json` `ci_initial_gzip_kb` 154.7 -> 151.9 KB, ~3.1 KB under the 155.0 KB ceiling; SPL-6341 B13 also landed in `76471cb9e`); any further WUI entry-chunk cut requires Chrome e2e + CI-node budget measurement and overlaps live WUI lanes (W2) | `git merge-base --is-ancestor c68cca820 7084439f1`, `git show 7084439f1:csi-spl-doc/specs/027-ui-performance-budget/contracts/perf-budgets.json` |
 | the 10 remaining non-framework 2+ line / >=40-char Bash groups (`do_gcp_*_apis_disable`, `spl_uplink_trim`/`ext_api_trim`, `spl_secrets_none_get`/`spl_self_host_env_get`, `tf_get`, `ndf_link`/`ndp_link`, 7 `_sec_*_need`, `spl_brx_gh_auth`/`ghrh_gh_auth`, `ghr_in` family, `spl_asks_dur`/`spl_fleet_dur`, `_lc_deps`/`_spl_box_leave_deps`) | unchanged on `7084439f1`, each stays out for its r91..r97 section 7 reason | r97 7..r91 7; 1.2 (a), (e) |
 
 ## 8. Changes
@@ -610,13 +771,29 @@ mistral; re-checked at placement).
   `shellcheck -S warning -x` and `do_sec_shellcheck` rc 0; the red and guard controls
   (`rc1a`, `rc1b`, `gc1a`, `gc1b`, `rc2a`, `rc2b`, `gc2`) RED then GREEN; R3 (2.2) and
   R7 (section 4) checked.
+- v0.2 (a-427): folded panel seat `c-429` (claude) FAIL on v0.1 `caf5a790e` (seat file
+  `348c10658`): W1 (added verbatim helper definitions and all 4 test hunks as code blocks
+  in 1.3 and 1.4 so every head1/head2 sha256 and all 7 red/guard controls are directly
+  reproducible on `7084439f1`), W2 (accounted for candidates-file `for refactor round 95`
+  WUI entry-chunk item in 1.2 (c) and section 7, verified served on `7084439f1` by
+  SPL-6342 `c68cca820`/`69dc02d2f` and SPL-6341 `76471cb9e`), N1 (noted `5855e3ca3` r97
+  close record landed after base while `W` stays fixed at `2026-11-24T19:33:57+02:00` for
+  all R4/R6/prune reads), N2 (`spl-cost-gcp.func.sh` is lazily stub-loaded by
+  `csi-spl-iac/run` via `_RUN_INDEX_AWK` at `run.sh:883-891`), N3 (documented process
+  globals `COST_WINDOW_DAY` and `COST_WINDOW_DAYS` in `do_spl_cost_gcp_window`'s header
+  and re-verified head2 `b1ddd1ea1c94` + suites + `rc2a`/`rc2b`/`gc2`), N4 (`declare -F`
+  guard and `gc1a`/`gc1b` prove the standalone-source path outside `./run`; `update` calls
+  `add`'s helpers unguarded at `:62,:111`), N5 (cited ruling `dc84300a` in both row briefs
+  for any same-vendor claude R7 backup).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-427 (agy): v0.1.
+- Editor seat: a-427 (agy): v0.1 (`caf5a790e`), v0.2 (folding c-429 W1, W2, N1-N5).
 - Panel reviewer seat: c-429 (claude, `c002-refactor-round-98-claude-panel-seat`):
-  pending review of v0.1 on `review/c002-refactor-round-98-planner`.
+  FAIL on v0.1 (`caf5a790e`, seat file `348c10658`, W1 + W2 + N1-N5; rows confirmed
+  behaviour-preserving); pending re-review of v0.2 on
+  `review/c002-refactor-round-98-planner`.
 - Row R7 seats: section 4; **agy seat** per row (claude backup only while agy is out of
-  quota; never mistral; re-checked at placement).
+  quota, under ruling `dc84300a`; never mistral; re-checked at placement).

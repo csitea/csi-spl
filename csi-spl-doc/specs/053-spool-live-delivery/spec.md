@@ -52,7 +52,7 @@ The wire, as built (S1, `internal/wire/wire.go`): hello feature `live_ack` (`wir
 | continuously | `do_spl_report_unheard` counts drops; a non-zero recent count is an alert |
 
 ### 4.4 SLO and how it is measured
-p95 human-post → live-agent-poke ≤ **3 s**, end to end. Measured by `do_spl_latency_probe` (per-hop) and the deployed-state checks; the `#spool-hub-ops` alert and `do_spl_report_unheard` catch regressions. Baseline (2026-09-30): hub→box p50 6 ms / p95 0.72 s / max 4.7 s (n=149 real prd); on-box ~0.2 s to a live pane (n=24). Transport already meets 3 s; the fix is liveness, not speed.
+p95 human-post → live-agent-poke ≤ **3 s**, end to end. Measured by `do_spl_latency_probe` (per-hop, live DM) and `do_spl_latency_hops` (every poke, read-only, section 8) and the deployed-state checks; the `#spool-hub-ops` alert and `do_spl_report_unheard` catch regressions. Baseline (2026-09-30): hub→box p50 6 ms / p95 0.72 s / max 4.7 s (n=149 real prd); on-box ~0.2 s to a live pane (n=24). Transport already meets 3 s; the fix is liveness, not speed.
 
 ## 5. Backwards compatibility (mandatory — running sidecars during the roll)
 
@@ -75,4 +75,44 @@ Each step: `run-all-tests.sh` + `hub-pg.tst.sh` (Postgres) + `gofmt -l` green be
 
 The relay/queue for cross-revision delivery (SPL-1004) and the WUI live stream (specs/014) stay as they are; this spec only makes "an agent heard it" mean a *live* agent, and adds the escalation tail. Options B (hub-side per-agent queues) and C (event wake-ups only) were considered and rejected in `9869051b`: B is a larger build for a guarantee the ack already gives; C leaves the root cause (the folder roster) in place.
 
-<!-- version: 0.2.0 · updated: 2026-10-13 · last-edit: 2026-10-13T00:00:00Z -->
+## 8. The poke ledger and the hop probe (SPL-6511, latency action 1)
+
+The owner's latency targets (t1 e3b16fea, form ae452613): under 1 s on one box, under 3 s across boxes. Every "faster" claim is held against one named measurement (`csi-spl-doc/doc/md/lesson-speed-up-measure-first.md`), and before this section the box hops could not be split. Only `spool-send.sh` wrote `input.log`, at 1 s resolution. The sidecar path, which carries every cross-box message, logged no poke time, and `notices.log` has no timestamp.
+
+### 8.1 The ledger
+
+`<spool root>/<id>/lifetime/poke-ledger.tsv`: append-only, one tab-separated row per event, times in epoch milliseconds, `-` = not known.
+
+| col | field | `poke` row | `surfaced` row | `prompt` row |
+|---|---|---|---|---|
+| 1 | event | `poke` | `surfaced` | `prompt` |
+| 2 | ts_ms | poke end (Enter sent, or the refusal) | hook time | hook time |
+| 3 | to | the addressed id | the agent | the agent |
+| 4 | msg_id | the message | the injected message | `-` |
+| 5 | written_ms | inbox file mtime | inbox file mtime | `-` |
+| 6 | start_ms | poke start | `-` | `-` |
+| 7 | rc | `spool_notify_poke` exit code: 0 rung, 5 no window, 6 refused (unsent text), 7 only shells | `-` | `-` |
+| 8 | via | `send` (spool-send.sh), `sidecar` (spool-notify.sh), `retry` (spool-poke-retry.sh) | the hook event: `UserPromptSubmit` (idle: the poke started a turn), `PostToolUse` (busy), `SessionStart` | `UserPromptSubmit` |
+| 9 | send_ms | when spool-send.sh started (via `send` only) | `-` | `-` |
+
+- **Writers.** `spool_notify_poke` (`csi-spl-orc/src/bash/features/spawn-agents/lib/spool-notify.inc.sh`) wraps the ring (`spool_notify_poke_ring`), so every path that types into a pane writes its row on every exit code. The msg_id comes from `SPOOL_POKE_MSG_ID`, which `spool_notify` and `spool-notify.sh` set; the retry daemon falls back to the poke line's `msg <id>`. The clock is bash's `EPOCHREALTIME`, so the poke does not fork. `spool-agent-hook.sh` writes a `surfaced` row per injected message (claude) and a `prompt` row per UserPromptSubmit.
+- **Bounds.** A row is written only into an agent dir that exists. Past `SPOOL_LEDGER_MAX` bytes (default 1 MiB) the file moves to `.1` and a new one starts, so a reader never sees a row rewritten. A write error never fails the poke or the hook.
+- **Clock.** On one box every column reads the same clock. `written_ms` is a file mtime, which the kernel stamps from a coarse clock (a few ms of granularity). Across boxes, the hub hops (8.2) are the cross-clock leg.
+
+### 8.2 The probe action
+
+`cd csi-spl-orc && ./run -a do_spl_latency_hops` (`src/bash/run/spl-latency-hops.func.sh`, `src/bash/scripts/latency-hops.py`) is read-only. It prints `hop, n, p50_ms, p90_ms, max_ms` (nearest-rank percentiles) over the last `LAT_HOURS` (default 24) of every ledger under `LAT_SPOOL_ROOT`:
+
+| hop | from the ledger |
+|---|---|
+| send script (start -> inbox file) | `send_ms` -> `written_ms`, via `send` |
+| inbox file -> poke start (send / sidecar) | `written_ms` -> `start_ms` |
+| poke (start -> Enter) | `start_ms` -> `ts_ms`, rc 0 |
+| poke -> next prompt | a rung poke -> the agent's next `prompt` row |
+| inbox file -> seen, idle / busy | `written_ms` -> the message's first `surfaced` row, by its via |
+
+It also prints the count of each poke exit code. With `ENV=<dev|prd> TENANT_ID=<t>` it adds the hub hops of the latency panel (lat-measure, c-458) through `do_spl_db_query`, which reads ids and timestamps only, never a body. P-A covers sender ts -> hub received -> sent -> box ack, per sender vendor. P-B covers hub received -> sent, per receiving box. `do_spl_latency_probe` (4.4) stays the live write probe, which DMs a seated desk. This one sends nothing.
+
+Checks: `csi-spl-orc/src/bash/features/spawn-agents/tests/test-poke-ledger.sh` covers a same-box send and a relayed (sidecar) delivery, each leaving one row with monotonic stamps, a refused poke leaving rc 6, the hook's rows, and the rotation. `csi-spl-orc/src/bash/tests/latency-hops.tst.sh` checks the exact table from a fixture tree, the window, and the hub SQL.
+
+<!-- version: 0.3.0 · updated: 2026-11-25 · last-edit: 2026-11-25T00:00:00Z -->

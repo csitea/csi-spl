@@ -117,6 +117,8 @@
 #   10+ `spool send` failed: 10 + its exit code (nothing delivered); 13 = <to>
 #       is on neither this machine nor any box the hub knows (or no fleet desk)
 set -uo pipefail
+# The poke ledger's send_ms (spec 053 section 8): when this script started, in us.
+SPOOL_SEND_T0="${EPOCHREALTIME//[!0-9]/}"
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
@@ -633,7 +635,7 @@ if spool_notify_is_probe "$BODY"; then
   echo "poke: probe line (${SPOOL_PROBE_MARK}) - ${TO}'s prompt was not touched; it waits in ${SPOOL_ROOT}/${TO}/inbox/"
   exit 0
 fi
-spool_notify "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
+SPOOL_POKE_VIA=send SPOOL_POKE_SENT0="${SPOOL_SEND_T0:0:${#SPOOL_SEND_T0}-3}" spool_notify "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
 rc=$?
 # spec 102 8.1 (S9): a keystroke that reached <to>'s pane is "<ts> <kind>" in
 # <to>/lifetime/input.log; S9 asks whether a UserPromptSubmit followed it. A

@@ -22,6 +22,10 @@
 #               returned as additionalContext on SessionStart (every unread
 #               file), UserPromptSubmit and PostToolUse. It never archives and
 #               never accepts. A stub is an inbox object with a "round".
+#   ledger      <id>/lifetime/poke-ledger.tsv (spec 053 section 8): a
+#               "surfaced" row per injected message (msg_id, inbox mtime) and
+#               a "prompt" row per UserPromptSubmit, beside the "poke" rows
+#               spool_notify_poke writes.
 #   S5          PostToolUse: the same call with the same result WD_LOOP_N (5)
 #               times in the last 8 of the current turn -> one warning
 #               injected. A call older than turn_since is not counted: 8 pokes
@@ -531,9 +535,23 @@ def render(path, m):
         body = "\n".join(notes) + ("\n" + body if body else "")
     return "%s\n  %s" % (head, body.replace("\n", "\n  "))
 
+def ledger(kind, msg_id="-", written="-", via=None):
+    # spec 053 section 8 (SPL-6511): one row of the poke ledger that
+    # spool_notify_poke writes. Epoch ms, "-" = unknown; never fails the hook.
+    mid = "".join(c for c in str(msg_id or "-") if c.isalnum() or c in "._:-") or "-"
+    row = "\t".join((kind, "%d" % int(now * 1000), aid, mid, str(written), "-", "-", via or event, "-"))
+    try:
+        lt = os.path.join(d, "lifetime")
+        if not os.path.isdir(lt):
+            os.mkdir(lt)
+        with open(os.path.join(lt, "poke-ledger.tsv"), "a") as f:
+            f.write(row + "\n")
+    except OSError:
+        pass
+
 def inject(all_unread):
     keys = inbox(all_unread)
-    parts, size, last = [], 0, None
+    parts, size, last, shown = [], 0, None, []
     for k in keys:
         p = os.path.join(d, "inbox", k[1])
         try:
@@ -549,6 +567,9 @@ def inject(all_unread):
         parts.append(block)
         size += n
         last = k
+        shown.append(((m or {}).get("msg_id") if isinstance(m, dict) else None, int(k[0]) // 1000000))
+    for mid, written in shown:
+        ledger("surfaced", mid, written)
     if last is not None:
         put(os.path.join(d, ".hook-seen"), "%s %s\n" % last)
     if not parts:
@@ -631,6 +652,7 @@ def main():
             ctx.append(inject(True))
     elif event == "UserPromptSubmit":
         hb.update(state="working", turn_since=iso(now))
+        ledger("prompt")
         if claude:
             api_err(hb, last_assistant(payload.get("transcript_path")))
             ctx.append(inject(False))

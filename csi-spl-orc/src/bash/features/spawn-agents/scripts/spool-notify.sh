@@ -98,7 +98,7 @@ spool_notify_orch_quiet "$TO" "$FROM" "$MSGID" "$BODY" && quiet=1
 if [ "$probe" = 0 ] && [ "$quiet" = 0 ] && [ "$seatq" = 0 ] && [ "${SPOOL_POKE:-1}" != 0 ] && ! spool_poke_muted "$TO"; then
   spool_notify_frame _frame "$TO" "$FROM" "$TASK" "$MSGID"
   spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "${_frame}${BODY}"
-  spool_notify_poke "$TO" "$_line" "${_frame}${BODY}" "$FROM"
+  SPOOL_POKE_VIA=sidecar SPOOL_POKE_MSG_ID="$MSGID" spool_notify_poke "$TO" "$_line" "${_frame}${BODY}" "$FROM"
   rc=$?
 fi
 

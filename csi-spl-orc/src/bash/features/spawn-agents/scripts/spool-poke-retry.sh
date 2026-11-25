@@ -106,7 +106,7 @@ while :; do
     fi
     line="$(cat "$f" 2>/dev/null)" || continue
     [ -n "$line" ] || { rm -f "$f"; continue; }
-    spool_notify_poke "$TO" "$line"; rc=$?
+    SPOOL_POKE_VIA=retry spool_notify_poke "$TO" "$line"; rc=$?
     case "$rc" in
       0) rm -f "$f"; sleep "$gap" ;;
       # 6 unsent text, 5 no window, 7 only shells: all "not now", not "never".

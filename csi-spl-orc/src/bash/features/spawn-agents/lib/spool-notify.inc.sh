@@ -623,7 +623,64 @@ spool_notify_refuse_unsent() {  # TO PANE
   return 1
 }
 
+# ── the poke ledger (spec 053 section 8, SPL-6511) ─────────────────────────
+# One append-only TSV row per event in <root>/<to>/lifetime/poke-ledger.tsv:
+#   event ts_ms to msg_id written_ms start_ms rc via send_ms
+# `poke` rows come from here, on EVERY path that rings a pane: spool-send.sh
+# (via=send), spool-notify.sh (via=sidecar, all cross-box traffic) and the
+# retry daemon (via=retry). `surfaced` and `prompt` rows come from
+# spool-agent-hook.sh. send_ms is when spool-send.sh started (via=send only,
+# SPOOL_POKE_SENT0). Times are epoch milliseconds; "-" = not known. A row
+# is written only into an agent dir that exists. Never fails the poke.
+
+# Epoch milliseconds into VAR, from bash's own clock: no fork on the poke.
+spool_ledger_now_var() {  # VAR
+  local _us="${EPOCHREALTIME//[!0-9]/}"
+  printf -v "$1" '%s' "${_us:0:${#_us}-3}"
+}
+
+# The inbox file's mtime in ms (the hub sidecar or `spool send` wrote it), or -.
+spool_ledger_written_var() {  # VAR TO MSGID
+  local __v="$1" f t="-"
+  if [ -n "${3:-}" ] && [ "${3:-}" != - ]; then
+    for f in "${SPOOL_ROOT:-}/$2/inbox/"*"-${3:0:8}.json"; do
+      [ -e "$f" ] || continue
+      t="$(stat -c %.3Y "$f" 2>/dev/null)" && t="${t//[!0-9]/}" || t="-"
+      break
+    done
+  fi
+  printf -v "$__v" '%s' "${t:--}"
+}
+
+# Append one row; past SPOOL_LEDGER_MAX bytes (default 1 MiB) the file moves
+# to .1 first, so a reader never sees a row rewritten.
+spool_ledger_row() {  # TO EVENT TS MSGID WRITTEN START RC VIA [SENT0]
+  local f="${SPOOL_ROOT:-}/$1/lifetime/poke-ledger.tsv" id="${4:--}"
+  [ -n "${SPOOL_ROOT:-}" ] && [ -n "$1" ] && [ -d "$SPOOL_ROOT/$1" ] || return 0
+  [ -d "${f%/*}" ] || mkdir -p "${f%/*}" 2>/dev/null || return 0
+  if [ "$(stat -c %s "$f" 2>/dev/null || echo 0)" -gt "${SPOOL_LEDGER_MAX:-1048576}" ]; then
+    mv -f "$f" "$f.1" 2>/dev/null || :
+  fi
+  id="${id//[^A-Za-z0-9._:-]/}"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$2" "$3" "$1" "${id:--}" "$5" "$6" "$7" "${8:--}" "${9:--}" >>"$f" 2>/dev/null || :
+  return 0
+}
+
+# The doorbell, with its ledger row. SPOOL_POKE_MSG_ID names the message
+# (spool_notify sets it; else a `: 'SPOOL` poke line's "msg <id>") and
+# SPOOL_POKE_VIA the path. Same exit codes as spool_notify_poke_ring.
 spool_notify_poke() {  # TO LINE [BODY] [FROM]
+  local _ls _le _lw _lid="${SPOOL_POKE_MSG_ID:-}" _lrc _rx=' msg ([A-Za-z0-9._:-]+)'
+  spool_ledger_now_var _ls
+  spool_notify_poke_ring "$@"; _lrc=$?
+  spool_ledger_now_var _le
+  [ -z "$_lid" ] && [ "${2#: \'SPOOL }" != "${2:-}" ] && [[ "$2" =~ $_rx ]] && _lid="${BASH_REMATCH[1]}"
+  spool_ledger_written_var _lw "$1" "$_lid"
+  spool_ledger_row "$1" poke "$_le" "$_lid" "$_lw" "$_ls" "$_lrc" "${SPOOL_POKE_VIA:-}" "${SPOOL_POKE_SENT0:-}"
+  return "$_lrc"
+}
+
+spool_notify_poke_ring() {  # TO LINE [BODY] [FROM]
   local to="$1" line="$2" body="${3:-}" from="${4:-}"
   local pane seat esc=$'\033'
   SPOOL_POKE_LINE="$line"
@@ -781,5 +838,5 @@ spool_notify_paste() {  # PANE TEXT
 spool_notify() {  # TO KIND FROM TASK MSGID BODY
   local _line
   spool_notify_render _line "$@"
-  spool_notify_poke "$1" "$_line" "${6:-}" "${3:-}"
+  SPOOL_POKE_MSG_ID="${5:-}" spool_notify_poke "$1" "$_line" "${6:-}" "${3:-}"
 }

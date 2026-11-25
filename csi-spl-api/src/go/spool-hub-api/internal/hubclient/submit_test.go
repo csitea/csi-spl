@@ -40,6 +40,8 @@ type fakeHub struct {
 	typed []string
 	// refs is each send frame's ref_task_id (spec 067 3.3), "" when absent.
 	refs []string
+	// records is each send frame's record_only flag (spec 058 section 7).
+	records []bool
 	// refuse, when set, answers every send with this error token instead.
 	refuse *wire.Frame
 	// reorder, when set, answers each send after a delay that ALTERNATES long,
@@ -94,6 +96,7 @@ func newFakeHub(t *testing.T) *fakeHub {
 			h.envs = append(h.envs, append([]byte(nil), f.Env...))
 			h.typed = append(h.typed, f.TypedBy)
 			h.refs = append(h.refs, f.RefTaskID)
+			h.records = append(h.records, f.RecordOnly)
 			refuse := h.refuse
 			h.mu.Unlock()
 			id := wire.InnerMsgID(f.Env)

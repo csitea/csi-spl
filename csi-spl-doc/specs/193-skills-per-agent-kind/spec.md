@@ -1,31 +1,43 @@
 # Spec 193: the three most essential skills per agent kind
 
-Status: **v1.2** (2026-11-25; editor c-774, claude). Panel: **same-vendor panel, waiver**: two claude seats, c-343 and c-202 (agy is out of quota until 12-01, grok and mistral are off). Both FAILed v0.1 (`99cc31e3c`) and v1.0 (`32c584732`) and PASSed v1.1 (`585691f6e`, landed as `89ac9e740`); v1.2 folds their two v1.1 notes. Appendix C maps each item to its change. Doc only: no skill, code, cnf or workflow changes here. The build is a later lane, after the owner picks (section 6).
-Epic: **SPL-2402**. Issue: **SPL-6375** (label `answer`). Class: `feature`. Kind: `specs_and_docs`.
-Discussion: t1 topic `b1ec7ce2`, task `dispatch-b1ec7ce2`.
+Status: **v1.3 — decided** (2026-11-25; editor a-506, agy; issue **SPL-6478**). Panel: **same-vendor panel, waiver**: two claude seats, c-343 and c-202 (agy was out of quota until 12-01, grok and mistral were off). Both FAILed v0.1 (`99cc31e3c`) and v1.0 (`32c584732`) and PASSed v1.1 (`585691f6e`, landed as `89ac9e740`); v1.2 (`9af22344e`, SPL-6375) folded their two v1.1 notes. v1.3 folds the owner's Q1-Q7 answers (HUM-10, t1 `b1ec7ce2`, msg `70b8c145`, form `43ebb003`, `2026-11-25T07:36Z`), replaces the shared-skills-first order with 7 parallel build rows (`B1..B7`, disjoint files, one lane per kind), turns O1..O3 into `./run` actions, adds refusing gate actions for S1/S2/T1/C3/O3, and sets the re-measure window to 14 days. Appendix C maps each revision to its changes. Doc only: no skill, code, cnf or workflow changes here. Build rows `B1..B7` (section 5.2) are ready to queue.
+Epic: **SPL-2402**. Issues: **SPL-6375** (v0.1..v1.2, label `answer`, done), **SPL-6478** (v1.3, owner Q1-Q7 answers). Class: `feature`. Kind: `specs_and_docs`.
+Discussion: t1 topic `b1ec7ce2-9263-465a-aeac-232be97b8864`, task `dispatch-b1ec7ce2`.
 Related: [115 vendor split by task kind](../115-vendor-split-by-task-kind/spec.md), [lane issue and docs](../../doc/md/lane-issue-and-docs.md), [developer guide](../../doc/md/developer-guide.md) section 2.
 
-Baseline tree: the git counts ran on `origin/master` `7e31ade12fd86797b337cab9f55a3f654e5a0c4c`. v1.0 re-ran every count with [`join.py`](join.py) on raw files pinned to the window end (Appendix A); v1.1 fixed how `join.py` credits a FAIL to an issue, which moved section 3.2.
+Baseline tree: the git counts ran on `origin/master` `7e31ade12fd86797b337cab9f55a3f654e5a0c4c`. v1.0 re-ran every count with [`join.py`](join.py) on raw files pinned to the window end (Appendix A); v1.1 fixed how `join.py` credits a FAIL to an issue, which moved section 3.2; v1.2 pinned key order in `fails-order.txt` and matched the spawn's `Kind:` pattern. **v1.3 `file:line` citations** were verified on `origin/master` `208e5f757b7f6678df9753bfa8e6a97367f8fa27`.
 Window: **2026-09-24T00:00Z .. 2026-11-24T11:25Z** (the last 2 months) for commits, issues and messages. **Lanes cover only 2026-10-03T03:06Z .. 2026-11-24T11:25Z**: the spawn log's first line is 2026-10-03T03:05Z and there is no rotated copy (section 7).
 Numbering: `git ls-tree --name-only origin/master csi-spl-doc/specs/ | grep -c /193` -> 0 (2026-11-25). 194 is taken by `194-workspace-google-drive-upload`, so 193 fills a gap.
 
-## Owner's words (HUM-10, t1 `b1ec7ce2`, 2026-11-24)
+## Owner's words (HUM-10, t1 `b1ec7ce2`)
+
+Original ask (2026-11-24):
 
 > "Create a panel discussion to create the three most essential skills per agent kind, based on the vendor split settings for each of the agent kinds (based on the last 2 months of discussions and the type of work which has been done). By analyzing the database, the discussions, and the actual results, make how fast the feature has arrived." (msg `75bace2f`)
 
 > "Note: the skills must be short, descriptive, and not overly generic. Create the topmost skills which give the most back for the buck." (msg `16f273e3`)
+
+Owner answers to section 6 poll (msg `70b8c145`, form `43ebb003`, `2026-11-25T07:36Z`):
+
+- **Answer 1: C** — All 7 kinds at once
+- **Answer 2: A** — In the repo, rendered for each vendor by the existing skills refresh action
+- **Answer 3: A** — The skill plus a gate action that refuses
+- **Answer 4: A** — Build them as `./run` actions (code), not skills
+- **Answer 5: A** — Keep it and re-measure it with the others (Q6)
+- **Answer 6: B** — 14 days after landing
+- **Answer 7: A** — One lane per kind, its vendor taken from the kind table
 
 ## 0. Answer in five lines
 
 1. The time from the owner's ask to the result is spent **before the lane starts**, not in it: owner's last message -> lane placed has a median of 4.5 h (complex_coding) to 26.8 h (i18n), p90 34 h to 222 h. Lane placed -> landed has a median of 0.5 h to 1.8 h. Landed -> next release tag has a median of 0.3 h or less (section 3.4).
 2. Inside the lane, the review rounds are the likely main cost (an inference: placed -> landed is not split into review time). 26 of the 83 complex_coding issues that got an R7 FAIL failed again on a second head (section 3.2).
 3. The most common blocking findings in a hand-labelled sample of 45 are: **a failure path that fails open or is swallowed** (7), **a doc or claim that does not match the tree** (6), **a secret or authorisation leak** (6), and **a test that cannot go red** (5) (section 3.3).
-4. Section 4 gives 21 skill slots (3 per kind), which come to **18 distinct skills** because 3 of them serve two kinds (section 5). None of them is a skill that already exists; S2 leaves migration numbers to the existing `do_rdb_migration_next` (section 4.0).
-5. The owner picks in section 6: which kinds first, where the skills live, and whether the orchestration skills become code instead.
+4. Section 4 defines 21 slots (3 per kind), which come to **18 distinct deliverables**: **15 skills** under `assets/skills/` (3 shared across two kinds, filling 18 skill slots) plus **3 orchestration `./run` actions** (O1..O3, code not skills per Q4 A), plus **4 refusing gate actions** for checkable skills (S1, S2, T1, C3 per Q3 A; O3 is itself a refusing action). None of the 15 skill names or 7 action files is taken on `origin/master` `208e5f757`; S2 leaves migration numbers to `do_rdb_migration_next` (section 4.0).
+5. Owner decided Q1-Q7 (msg `70b8c145`, form `43ebb003`, section 6): all 7 kinds build in parallel (`B1..B7`, one lane per kind with disjoint files, vendor from section 1, section 5.2), skills live in the repo and render via `do_spl_skills_refresh`, L2 stays, and gains re-measure 14 days after the last build row lands (with the sample-size cost of 14 vs 52-61 days noted in sections 6 and 7).
 
 ## 1. The kinds, as the vendor split defines them today
 
-Source: `csi-spl-cnf/csi-spl/all.env.yaml` key `env.box.agent_split_by_kind` (`grep -n -A8 'agent_split_by_kind:' csi-spl-cnf/csi-spl/all.env.yaml`; no env file overrides it, `grep -l agent_split_by_kind csi-spl-cnf/csi-spl/*.env.yaml` -> only `all.env.yaml`). The main vendor is the one with the biggest share.
+Source: `csi-spl-cnf/csi-spl/all.env.yaml:1567-1574` (`origin/master` `208e5f757`, key `env.box.agent_split_by_kind`; no env file overrides it, `grep -l agent_split_by_kind csi-spl-cnf/csi-spl/*.env.yaml` -> only `all.env.yaml`). The main vendor is the one with the biggest share.
 
 | kind | split (cnf) | main | backup |
 |---|---|---|---|
@@ -37,7 +49,7 @@ Source: `csi-spl-cnf/csi-spl/all.env.yaml` key `env.box.agent_split_by_kind` (`g
 | secret | claude 100 | claude | grok |
 | orchestration | claude 100 | claude | grok |
 
-The skills must work for the main vendor and the backup. For simple_coding that means agy as well as claude (41 against 44). codex holds 15 in tests and in simple_coding but is neither main nor backup; it took 3 lanes in the window (3.1), and `do_spl_skills_refresh` renders no codex skill dir. In scope: the 5 vendors that `do_spl_skills_refresh` renders skills for (claude, qwen, agy, mistral, grok); codex gets them only if the build lane adds its dir (Q2).
+The skills must work for the main vendor and the backup. For simple_coding that means agy as well as claude (41 against 44). codex holds 15 in tests and in simple_coding but is neither main nor backup; it took 3 lanes in the window (3.1), and `do_spl_skills_refresh` (`csi-spl-orc/src/bash/run/spl-skills-refresh.func.sh:98-118`, `csi-spl-orc/src/bash/features/spool-install/install.sh:1050-1060`, `origin/master` `208e5f757`) renders no codex skill dir. In scope for `B1..B7` (Q2 A): the 5 vendors that `do_spl_skills_refresh` already renders (`claude`, `qwen`, `agy`, `mistral`, `grok`). Adding a codex skill dir touches the shared `install.sh` and `spl-skills-refresh.func.sh` files and is explicitly out of scope for `B1..B7` (separate follow-up if needed), so no build lane collides on installer code.
 
 ## 2. How it was measured
 
@@ -135,209 +147,261 @@ Hours, median / p90 (n), from `join.py`. Each segment is measured on the issues 
 - "First commit" is the earliest author date of a citing commit. It stands in for the first review head, because review branches are deleted after landing.
 - **The biggest waits** (owner ask -> landed, `join.py` `longest_ask_to_landed`): SPL-5027 370 h (a spec 158 row); SPL-4835 293 h; SPL-6225 256 h; SPL-6204, SPL-6207, SPL-6208, SPL-6203 and SPL-6201 249 h to 252 h; SPL-6141 239 h; SPL-6133 236 h. SPL-6201, -6203 and -6207 are rows L4, L6 and L5 of spec 123 section 16.6. Each landed 0.4 h to 1.6 h after placement, so each was placed about 10 days after the owner's last message in that topic: **build-plan rows placed one after another**. Whether a real dependency held them was **not checked**.
 
-## 4. The skills: three per kind
+## 4. The skills and actions: three per kind
 
 ### 4.0 Not already a skill or an enforced rule
 
-Checked on this box on 2026-11-24, and in the repo on 2026-11-25:
+Checked on this box on 2026-11-24, and on `origin/master` `208e5f757b7f6678df9753bfa8e6a97367f8fa27` on 2026-11-25:
 - `ls ~/.claude/skills` -> agent-msg, exit-clean, graft, kill-your-self, paste-html-into-chrome, scrum-file-update, spec-kit-tasks, synced, tmux-color.
-- `ls .claude/skills` in the repo -> none. But the repo has a skill home: `git ls-tree -r --name-only origin/master | grep -E '/SKILL\.md$'` -> 7 files: `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/{agent-msg,exit-clean,kill-your-self,paste-html-into-chrome,spec-kit-tasks,tmux-color}/SKILL.md` and `csi-spl-orc/src/bash/features/graft/assets/skills/graft/SKILL.md`. `do_spl_skills_refresh` (`csi-spl-orc/src/bash/run/spl-skills-refresh.func.sh`) renders `spawn-agents/assets` into `~/.claude` and, where the dirs exist, `~/.qwen/skills`, `~/.gemini/config/skills`, `~/.vibe/skills` and `~/.grok/skills`. None of the 18 skill names below is taken.
+- `ls .claude/skills` in the repo -> none. The repo's skill home (decided by **Q2 A**, msg `70b8c145`) is `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/<name>/SKILL.md`: `git ls-tree -r --name-only origin/master | grep -E '/SKILL\.md$'` -> 7 files: `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/{agent-msg,exit-clean,kill-your-self,paste-html-into-chrome,spec-kit-tasks,tmux-color}/SKILL.md` and `csi-spl-orc/src/bash/features/graft/assets/skills/graft/SKILL.md`.
+- **Renderer and auto-discovery**: `csi-spl-orc/src/bash/features/spool-install/install.sh:1038-1060` (`origin/master` `208e5f757`) walks `os.listdir(os.path.join(assets, "skills"))` dynamically, substitutes `{{HARNESS_DIR}}`, `{{SPOOL_ROOT}}`, `{{AGENT_CEILING}}`, and `{{ORCHESTRATOR_ID}}`, appends the `<!-- spool-install: sha256=... -->` marker, and writes `~/.claude/skills/<name>/SKILL.md` plus (where the vendor dir exists) `~/.qwen/skills`, `~/.gemini/config/skills`, `~/.vibe/skills`, and `~/.grok/skills`. `do_spl_skills_refresh` (`csi-spl-orc/src/bash/run/spl-skills-refresh.func.sh:31-76,88-91,96-118`) extracts that same `EOF_PY` renderer from `install.sh` and runs it for every box user. `csi-spl-orc/src/bash/features/spool-install/tests/test-y5-adopt.sh:70,116` computes its expected count dynamically from `ls "$HARNESS/assets/skills"`. Adding a new `<name>/SKILL.md` therefore edits zero shared manifests.
+- **`./run` action and test auto-discovery** (used by **Q3 A** gate actions and **Q4 A** orchestration actions): `csi-spl-orc/src/bash/run/run.sh:347-357,389-390,879-896` auto-discovers `src/bash/run/<kebab-name>.func.sh` -> `do_<snake_name>`, and `csi-spl-orc/src/bash/tests/run-all-tests.sh:116` auto-discovers every `csi-spl-orc/src/bash/tests/*.tst.sh`. Parallel lanes adding distinct actions and tests touch zero shared registry files. None of the 15 skill names or 7 action files (`spl-{claim-reruns-check,numbered-id-check,red-control-check,docs-none-check,plan-rows-parallel-place,owner-ask-sweep-enqueue,brief-header-check}.func.sh`) exists on `origin/master` `208e5f757`.
 - `csi-spl-orc/src/bash/features/spool-install/assets/` -> claude (settings, claude-md), agy/rules (`30-exit-after-accepted.md`, `40-git-no-pager.md`), kill-guard, rm-guard, vibe-output-cap, vibe-push-guard.
 
-These existing gates leave a gap that each pick below fills:
-- Migration numbers are already covered: `do_rdb_migration_next` claims the next number on the remote (`refs/rdb-claims/NNNN`) before the file is written (`csi-spl-orc/src/bash/run/rdb-migration-next.func.sh`, SPL-5515, landed 2026-11-14; developer guide 2.8.3), and `lint-migration` refuses a taken number at push time. Nothing claims spec folders, spec sections, case ids or plan row ids. S2 is cut to those.
-- `do_spl_review_line_check` proves that the reviewer ran the named tests (developer guide 2.12.1, which names review as the only enforcement). Nothing proves on the author's side that a new test went red on the planted defect.
-- `kill-your-self-report.sh --gate` checks that a `Docs: none (...)` line is **present**, not that it is true.
+These existing gates (verified on `origin/master` `208e5f757`) leave a gap that each pick below fills:
+- Migration numbers are already covered: `do_rdb_migration_next` claims the next number on the remote (`refs/rdb-claims/NNNN`) before the file is written (`csi-spl-orc/src/bash/run/rdb-migration-next.func.sh:1-20`, SPL-5515, landed 2026-11-14; developer guide 2.8.3), and `lint-migration` refuses a taken number at push time. Nothing claims spec folders, spec sections, case ids or plan row ids. S2 is cut to those.
+- `do_spl_review_line_check` (`csi-spl-orc/src/bash/run/spl-review-line-check.func.sh:1-25`) proves that the reviewer ran the named tests (developer guide 2.12.1, which names review as the only enforcement). Nothing proves on the author's side that a new test went red on the planted defect.
+- `kill-your-self-report.sh --gate` (`csi-spl-orc/src/bash/features/spawn-agents/scripts/kill-your-self-report.sh:55` via `csi-spl-orc/src/bash/features/spawn-agents/lib/lane-issue.inc.sh:249-262,610,652`) checks that a `Docs: none (<why>)` line is **present**, not that it is true.
 - `TestRLSCoversEveryTenantTable` works at the table level, not per route.
 - `lint-gitleaks` and `lint-trufflehog` find secrets in files, not on argv or in a child's environment.
-- `do_spl_spec_rows_unqueued` (daily digest) finds rows that are unqueued, not rows queued one at a time.
-- `do_spl_unanswered_sweep` finds owner posts with no answer, not answered asks that were never enqueued.
+- `do_spl_spec_rows_unqueued` (`csi-spl-orc/src/bash/run/spl-spec-rows-unqueued.func.sh:28-63`, read-only daily digest) finds rows that are unqueued, not rows queued one at a time.
+- `do_spl_unanswered_sweep` (`csi-spl-orc/src/bash/run/spl-unanswered-sweep.func.sh:120-154`) finds owner posts with no answer, not answered asks that were never enqueued.
+- `do_spl_spawn_enqueue` (`csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh:246-256`) checks `Epic:` + `Spec:` via `li_brief_epic_spec` (`lane-issue.inc.sh:183`) and discussion links via `spl_spawn_q_enqueue_links` (`spl-spawn-enqueue.func.sh:337-343`), but does not refuse a brief missing a valid `Kind:` from the 7 cnf kinds or an explicit `Issue:` / spawn-files-it declaration.
 
-Each skill below gives: name, trigger, what it does (5 lines or fewer), the evidence, **the kinds its evidence came from** (the issue's first-lane kind, Appendix B), and the expected gain (a target the build lane re-measures with Appendix A).
+Each item below gives: name, trigger, what it does (5 lines or fewer; including its refusing gate action where **Q3 A** applies, or its `./run` action where **Q4 A** applies), the evidence, **the kinds its evidence came from** (the issue's first-lane kind, Appendix B), and the expected gain (re-measured **14 days after the last build row of `B1..B7` lands on `origin/master`** per **Q6 B**, using `join.py` and Appendix A; see sections 6 and 7 for the 14-day sample-size cost).
 
-### 4.1 specs_and_docs (main agy, backup claude)
+### 4.1 specs_and_docs (main agy, backup claude) — build row B1
 
-**S1 `claim-reruns-before-push`**
+**S1 `claim-reruns-before-push`** (skill + refusing gate action, Q3 A; owned by B1)
 - Trigger: a doc or spec diff that contains a number, count, path or "command -> result" claim.
-- Does: (1) finds every claim line in the diff that carries a command (backticked command, then `->`, then a result). (2) Re-runs each one read-only on the tree it names. (3) Prints MATCH or DIFF per line. (4) Refuses the push on a DIFF. (5) Flags a bare number with no command as "unchecked".
+- Does: (1) finds every claim line in the diff that carries a command (backticked command, then `->`, then a result). (2) Re-runs each one read-only on the tree it names. (3) Prints MATCH or DIFF per line. (4) Refuses the push on a DIFF. (5) Flags a bare number with no command as "unchecked". **Gate action (Q3 A)**: `cd csi-spl-orc && ./run -a do_spl_claim_reruns_check` (`csi-spl-orc/src/bash/run/spl-claim-reruns-check.func.sh`, test `spl-claim-reruns-check.tst.sh`) implements steps 1-5 and exits non-zero on any DIFF; the skill calls it before every push.
 - Evidence: "doc or claim does not match the tree" is 6 of 45 sampled findings (3.3), including wrong coverage numbers (`ece509e7`) and a false sentence about what deploys (`a5e1921c`).
 - Evidence kinds: specs_and_docs 4 of the 6 (`53b09832` is complex_coding, `c5183570` simple_coding).
-- Gain: specs_and_docs issues that FAIL again on a 2nd head, 17 of 32 -> under 8.
+- Gain (re-measure at +14 d, Q6 B): specs_and_docs issues that FAIL again on a 2nd head, 17 of 32 -> under 8 (proportionally under 25 %; at 14 d expected `n ≈ 9`).
 
-**S2 `numbered-id-claim`** (shared with complex_coding)
+**S2 `numbered-id-claim`** (shared with complex_coding; skill + refusing gate action, Q3 A; **owned by B4**)
 - Trigger: a new spec folder, spec section number, case id (`C71`) or plan row id. Migration numbers are out: `do_rdb_migration_next` claims them (4.0).
-- Does: (1) lists the ids already taken on `origin/master`, every `review/*` and `wip/*` branch and every live worktree. (2) Prints the next free id. (3) Before each review head, runs `git merge-tree --write-tree origin/master HEAD` and flags an id this diff adds that another ref also adds.
+- Does: (1) lists the ids already taken on `origin/master`, every `review/*` and `wip/*` branch and every live worktree. (2) Prints the next free id. (3) Before each review head, runs `git merge-tree --write-tree origin/master HEAD` and flags an id this diff adds that another ref also adds. **Gate action (Q3 A)**: `cd csi-spl-orc && ./run -a do_spl_numbered_id_check` (`csi-spl-orc/src/bash/run/spl-numbered-id-check.func.sh`, test `spl-numbered-id-check.tst.sh`) runs steps 1-3 and exits non-zero on any collision; the skill calls it before every review push.
 - Evidence: numbered-id collisions are 3 of 45 (3.3). Two remain in scope after the cut: spec section 3.17 / cases C71-C72 (`5980f95c`) and the spec section half of `198445a6`. The third, migration 0276 on 3 branches (`5ef4a572`, SPL-5372, 2026-11-12/13), predates `do_rdb_migration_next` (2026-11-14). In this spec's own v0.1, the specs README row collided with spec 194 (c-343 W2).
-- Evidence kinds: complex_coding 2 of 2. From specs_and_docs lanes: none in the sample; only this lane (n = 1). The specs_and_docs slot is therefore thin; the complex_coding slot (X1) carries the evidence.
-- Gain: spec-section and case-id collision FAILs, 2 in the sample -> 0.
+- Evidence kinds: complex_coding 2 of 2. From specs_and_docs lanes: none in the sample; only this lane (n = 1). The specs_and_docs slot is therefore thin; the complex_coding slot (X1) carries the evidence, so B4 owns both the skill and gate action.
+- Gain (re-measure at +14 d, Q6 B): spec-section and case-id collision FAILs, 2 in the sample -> 0.
 
-**S3 `fold-ledger-delta`**
+**S3 `fold-ledger-delta`** (skill; owned by B1)
 - Trigger: the editor or author receives a FAIL or SEND-BACK with W/N lines.
 - Does: (1) writes one table, `W/N id | file:line changed | commit | check command -> result`. (2) Requires a check per W (e.g. `grep -c '25 posts' spec.md -> 0`). (3) Pushes ONE new head and sends the table, so the reviewer reviews a delta.
 - Evidence: of the specs_and_docs issues with a FAILed head, 17 of 32 failed again on a later head, and one went to 11 FAILed heads (3.2). In the sample, the same issues come back with W-lines on the same code (SPL-5698, SPL-4629, SPL-4881).
 - Evidence kinds: the 17 of 32 are specs_and_docs; the three sample issues are complex_coding, simple_coding and secret.
-- Gain: maximum FAILed heads per specs_and_docs issue 11 -> 3 or fewer; repeat-FAIL share 17 of 32 (53 %) -> under 20 %.
+- Gain (re-measure at +14 d, Q6 B): maximum FAILed heads per specs_and_docs issue 11 -> 3 or fewer; repeat-FAIL share 17 of 32 (53 %) -> under 20 %.
 
-### 4.2 tests (main claude, backup agy)
+### 4.2 tests (main claude, backup agy) — build row B2
 
-**T1 `red-control-in-commit`**
+**T1 `red-control-in-commit`** (skill + refusing gate action, Q3 A; owned by B2)
 - Trigger: a commit that adds or changes a test.
-- Does: (1) reverts the fix, or plants the bug, in a throwaway copy. (2) Runs only the new cases and records `rc` and the failing count. (3) Re-applies the fix and records the green run. (4) Writes both lines into the commit body. (5) Refuses when the new case did not run (it was skipped or 0 cases matched).
+- Does: (1) reverts the fix, or plants the bug, in a throwaway copy. (2) Runs only the new cases and records `rc` and the failing count. (3) Re-applies the fix and records the green run. (4) Writes both lines into the commit body. (5) Refuses when the new case did not run (it was skipped or 0 cases matched). **Gate action (Q3 A)**: `cd csi-spl-orc && ./run -a do_spl_red_control_check` (`csi-spl-orc/src/bash/run/spl-red-control-check.func.sh`, test `spl-red-control-check.tst.sh`) verifies that outgoing commits adding/changing tests carry the red-control (`rc != 0` / failing count) and green-run evidence with zero skips and exits non-zero when absent or vacuous; the skill calls it before push.
 - Evidence: "a test that cannot go red" is 5 of 45 (3.3): a test that checks the mock instead of the contract (`a4433661`), controls that stay green (`b53cd5c6`), e2e that runs on after an error (`b8d356f9`). One of 7 recent CI reds was an orc test that printed SKIP (3.2).
 - Evidence kinds: tests 2 of 3 (`b53cd5c6`, `b8d356f9`); `a4433661` is complex_coding.
-- Gain: vacuous-test findings, 5 in 45 -> 1 or fewer; tests issues with an R7 FAIL, 15 of 142 -> under 8.
+- Gain (re-measure at +14 d, Q6 B): vacuous-test findings, 5 in 45 -> 1 or fewer (under 3 % of findings); tests issues with an R7 FAIL, 15 of 142 (10.6 %) -> under 6 % (at 14 d expected `n ≈ 4` FAILed issues).
 
-**T2 `failure-path-cases`** (shared with simple_coding)
+**T2 `failure-path-cases`** (shared with simple_coding; skill; **owned by B3**)
 - Trigger: a diff that calls something that can be missing or fail: a binary, file, OS user, hub read, network or child process.
 - Does: (1) lists each such call site. (2) For each one, writes the case where it is missing or fails. (3) Asserts the documented outcome: fail fast (`rc != 0`, FATAL on stderr) or a **named** fail-open. (4) Refuses `|| true`, `.catch(() => null)` or `2>/dev/null` without a comment that names the decision.
 - Evidence: the largest class, 7 of 45 (3.3): a FATAL text captured as a unit name (SPL-5698), a match that fails open (`21a21369`, SPL-1910), a source status discarded (`5b1e8b4b`), a failed hub read that goes on (`ebadef55`), an uncaught missing tool (`fc46d63c`).
-- Evidence kinds: complex_coding 4 (`a7ebbac7`, `ebadef55`, `0c77b97f`, `a93e795a`), simple_coding 1 (`21a21369`), specs_and_docs 1, secret 1. **From tests lanes: 0 of 7.** It sits under tests because each failure path becomes a test case; the simple_coding slot (C1) has its own items (`21a21369`; `a93e795a`, SPL-5698, also had a simple_coding lane).
-- Gain: failure-path findings, 7 in 45 -> 2 or fewer.
+- Evidence kinds: complex_coding 4 (`a7ebbac7`, `ebadef55`, `0c77b97f`, `a93e795a`), simple_coding 1 (`21a21369`), specs_and_docs 1, secret 1. **From tests lanes: 0 of 7.** It sits under tests because each failure path becomes a test case; the simple_coding slot (C1) has its own items (`21a21369`; `a93e795a`, SPL-5698, also had a simple_coding lane), so B3 owns the file.
+- Gain (re-measure at +14 d, Q6 B): failure-path findings, 7 in 45 (16 %) -> under 5 %.
 
-**T3 `e2e-no-swallowed-waits`** (shared with i18n)
+**T3 `e2e-no-swallowed-waits`** (shared with i18n; skill; **owned by B2**)
 - Trigger: a WUI e2e test is added or changed.
 - Does: (1) refuses `.catch(() => null)` on `waitFor*`. (2) Stops the case at the first navigation error. (3) Runs against the generated bundle (`nuxt generate` + mock serve), never `nuxi dev`. (4) Repeats a new case 3 times (n = 3) before it is called green.
 - Evidence: SPL-5372 (FAIL W1 twice: a swallowed 8 s wait, then a pick that fails on `nuxi dev`), SPL-5441 (`b8d356f9`: the test runs on after `nav()` fails). The WUI e2e shards are 8 of the gate's jobs (`do_report_ci_gate`).
-- Evidence kinds: tests 1 (`b8d356f9`); SPL-5372 2 (`4ed63dca`, `72b35ee8`), whose first lane is complex_coding and which an i18n lane also carried.
-- Gain: e2e findings of this shape, 3 in 45 -> 0. These 3 are inside the 5 of "a test that cannot go red" (3.3), not a class of their own.
+- Evidence kinds: tests 1 (`b8d356f9`); SPL-5372 2 (`4ed63dca`, `72b35ee8`), whose first lane is complex_coding and which an i18n lane also carried. B2 (`tests`, claude) owns the file.
+- Gain (re-measure at +14 d, Q6 B): e2e findings of this shape, 3 in 45 -> 0. These 3 are inside the 5 of "a test that cannot go red" (3.3), not a class of their own.
 
-### 4.3 simple_coding (main claude, backup agy)
+### 4.3 simple_coding (main claude, backup agy) — build row B3
 
-**C1 `failure-path-cases`**: see T2. It is counted once. simple_coding evidence: `21a21369` (a match that fails open, SPL-1910 lane) and `a93e795a` (SPL-5698, which a simple_coding lane carried).
+**C1 `failure-path-cases`**: see T2. It is counted once and **owned by B3**. simple_coding evidence: `21a21369` (a match that fails open, SPL-1910 lane) and `a93e795a` (SPL-5698, which a simple_coding lane carried).
 
-**C2 `sweep-bug-class`**
+**C2 `sweep-bug-class`** (skill; owned by B3)
 - Trigger: a reviewer W names a bug, or the lane fixes one.
 - Does: (1) turns the bug into a search pattern (the bad call, the unanchored regex, the unset env knob). (2) Greps the whole repo for siblings. (3) Fixes them in the same head, or lists them with a reason. (4) Adds one test per sibling fixed.
 - Evidence: `5577c422` ("six more caller knobs still reach the hook, same bug class as your knob fix"); SPL-5698 and SPL-4629, which each came back with several FAIL messages on the same function. 7 of the 24 simple_coding issues with a FAILed head failed again on a 2nd head (3.2).
 - Evidence kinds: complex_coding (`5577c422`, SPL-5698) and simple_coding (SPL-4629).
-- Gain: simple_coding repeat FAILs, 7 of 24 -> 3 or fewer.
+- Gain (re-measure at +14 d, Q6 B): simple_coding repeat FAILs, 7 of 24 (29 %) -> under 15 % (at 14 d expected `n ≈ 6` FAILed issues).
 
-**C3 `docs-none-proof`**
+**C3 `docs-none-proof`** (skill + refusing gate action, Q3 A; owned by B3)
 - Trigger: a commit message with `Docs: none (...)`, or a behaviour change with no `csi-spl-doc/` path.
-- Does: (1) takes the changed identifiers (action names, env vars, function names, event kinds, file names) from the diff. (2) Greps `csi-spl-doc/` and the root `*.md` for each one. (3) Prints every hit with `file:line`. (4) A hit means a doc to update, or a written reason why it still holds.
+- Does: (1) takes the changed identifiers (action names, env vars, function names, event kinds, file names) from the diff. (2) Greps `csi-spl-doc/` and the root `*.md` for each one. (3) Prints every hit with `file:line`. (4) A hit means a doc to update, or a written reason why it still holds. **Gate action (Q3 A)**: `cd csi-spl-orc && ./run -a do_spl_docs_none_check` (`csi-spl-orc/src/bash/run/spl-docs-none-check.func.sh`, test `spl-docs-none-check.tst.sh`) extracts changed identifiers from a behaviour-changing diff carrying `Docs: none (...)`, greps `csi-spl-doc/` and root `*.md`, prints hits, and exits non-zero when an unaddressed doc hit exists; the skill calls it before push.
 - Evidence: SPL-5740, where the W1 was "the Docs: none reason is wrong, two docs go false with this commit". `6ed5c1a1` (fleet-rules-index row stale after the code moved). "Doc does not match tree" is 6 of 45.
 - Evidence kinds: simple_coding 1 (`c5183570`), complex_coding 1 (`53b09832`), specs_and_docs 1 (`6ed5c1a1`).
-- Gain: doc-drift findings on coding lanes, 2 in 45 (`c5183570`, `53b09832`) -> 0.
+- Gain (re-measure at +14 d, Q6 B): doc-drift findings on coding lanes, 2 in 45 (`c5183570`, `53b09832`) -> 0.
 
-### 4.4 complex_coding (main claude, backup agy)
+### 4.4 complex_coding (main claude, backup agy) — build row B4
 
-**X1 `numbered-id-claim`**: see S2. It is counted once. complex_coding evidence: `5980f95c` and `198445a6` (both SPL-4798, a complex_coding lane).
+**X1 `numbered-id-claim`**: see S2. It is counted once and **owned by B4** (both skill and refusing gate action `do_spl_numbered_id_check`). complex_coding evidence: `5980f95c` and `198445a6` (both SPL-4798, a complex_coding lane).
 
-**X2 `shared-state-two-writer-test`**
+**X2 `shared-state-two-writer-test`** (skill; owned by B4)
 - Trigger: a diff that reads, then writes, shared state: a Postgres row or counter, a file under the spool root, a ledger or a cron-trimmed log.
 - Does: (1) names each read-modify-write. (2) Puts it in one transaction (`SELECT ... FOR UPDATE`) or under one `flock`. (3) Adds a test with two writers started together (`&` + `wait`, or two goroutines) that fails without the lock.
 - Evidence: "race or two writers" is 3 of 45: a login lockout counted before it is recorded, with no transaction (`c3fcfe47`), a trim that loses another mount's record (SPL-4629), a mirror key that does not move `updated_at` (`388e3d15`).
 - Evidence kinds: complex_coding 2 (`c3fcfe47`, `388e3d15`), simple_coding 1 (`15e33699`).
-- Gain: race findings, 3 in 45 -> 0.
+- Gain (re-measure at +14 d, Q6 B): race findings, 3 in 45 -> 0.
 
-**X3 `route-authz-matrix`**
+**X3 `route-authz-matrix`** (skill; owned by B4)
 - Trigger: a new or changed hub route or read that returns workspace data, or a WUI view over one.
 - Does: runs a table-driven test over caller = {owner, member, guest/demo role, another workspace's owner, a box locked to someone else} x action = {read, list, counts, write}. It expects 403 or an empty, counted result where the spec says so. It checks the credential **type** (view token vs upload token), not only that a mock answered.
 - Evidence: `15040649` (any workspace's channel owner could make the operator fleet spawn), SPL-4895 (counts and unread of a locked box leak), `a4433661` (the WUI sends the view token where the hub accepts only an upload token).
 - Evidence kinds: complex_coding 3 of 3.
-- Gain: authorisation-shaped findings, 3 in 45 -> 0; complex_coding issues with a FAILed head, 83 of 599 -> under 60. The 3 cut across the 3.3 classes: 2 (`15040649`, `dd8af748`) are in the leak class, and `a4433661` is labelled "a test that cannot go red".
+- Gain (re-measure at +14 d, Q6 B): authorisation-shaped findings, 3 in 45 -> 0; complex_coding issues with a FAILed head, 83 of 599 (13.9 %) -> under 10 % (at 14 d expected `n ≈ 22` FAILed issues). The 3 cut across the 3.3 classes: 2 (`15040649`, `dd8af748`) are in the leak class, and `a4433661` is labelled "a test that cannot go red".
 
-### 4.5 i18n (main agy, backup claude)
+### 4.5 i18n (main agy, backup claude) — build row B5
 
-**L1 `locale-fit-at-360`**
+**L1 `locale-fit-at-360`** (skill; owned by B5)
 - Trigger: a new or changed WUI string in any locale.
 - Does: (1) for each changed key, picks the longest of the 19 locale values. (2) Renders the view in Chrome at 360 px and 412 px with that value. (3) Fails on overlap with a neighbouring control, clipping without an ellipsis, or a horizontal scroll.
 - Evidence: SPL-5349 W1 (`b3ab8726`, the `✓ N` badge drawn over the card-size control at 360 px).
 - Evidence kinds: SPL-5349's first lane is complex_coding; an i18n lane and a specs_and_docs lane also carried it. n = 1: **thin**.
-- Gain: layout FAILs on i18n rows, 1 in 45 -> 0, and no locale-only follow-up lane.
+- Gain (re-measure at +14 d, Q6 B): layout FAILs on i18n rows, 1 in 45 -> 0, and no locale-only follow-up lane (at 14 d expected `n = 0..1`; flag underpowered).
 
-**L2 `native-word-order-pass`**
+**L2 `native-word-order-pass`** (skill; kept per Q5 A; owned by B5)
 - Trigger: user-facing copy in several languages (WUI, blog, help), before the GCT check.
 - Does: a per-language checklist, run before the machine check: (1) word order of time and frequency phrases ("24/7"). (2) Anglicisms with a native form. (3) Quote marks, number and date formats. (4) Formal vs informal address kept the same per locale. It prints each change as `locale key: old -> new`.
 - Evidence: SPL-5480 W1/W2 (German "In Produktion 24/7." in English word order; French bare "24/7"). These are not translation-meaning errors, so a back-translation check does not catch them.
 - Evidence kinds: SPL-5480's first lane is i18n (a later simple_coding lane carried its `Issue:` line). n = 1: **thin**.
-- Gain: language W-lines per multilingual lane, measured as 2 in SPL-5480 -> 0. The panel may drop this one (Q5).
+- Gain (re-measure at +14 d, Q6 B): language W-lines per multilingual lane, measured as 2 in SPL-5480 -> 0. **Kept per Q5 A** (msg `70b8c145`) and re-measured with the others at 14 days (expected `n = 0..1`; flag underpowered rather than dropping on zero sample).
 
-**L3 `e2e-no-swallowed-waits`**: see T3. It is counted once. i18n evidence: SPL-5372 (`4ed63dca`, `72b35ee8`), which an i18n lane carried; its first lane is complex_coding. One issue: **thin**.
+**L3 `e2e-no-swallowed-waits`**: see T3. It is counted once and **owned by B2**. i18n evidence: SPL-5372 (`4ed63dca`, `72b35ee8`), which an i18n lane carried; its first lane is complex_coding. One issue: **thin**.
 
 All three i18n skills rest on one issue each. i18n has 6 issues with a FAIL message and 1 with a FAILed head (3.2), so a thicker baseline does not exist yet.
 
-### 4.6 secret (main claude, backup grok)
+### 4.6 secret (main claude, backup grok) — build row B6
 
-**K1 `secret-off-argv-and-env`**
+**K1 `secret-off-argv-and-env`** (skill; owned by B6)
 - Trigger: a diff that passes a token, key or password to a child process, a TUI or a log.
 - Does: (1) refuses a secret on argv (it is readable in `/proc/<pid>/cmdline`). Pass it by file descriptor, stdin or a 0600 file. (2) Unsets **every alias** of the variable before exec, not only the canonical name. (3) Masks the whole value after wrapping, not per line. (4) A test reads the child's `/proc/<pid>/cmdline` and `environ`.
 - Evidence: `ab83fbd3` (a bearer token on curl argv), SPL-5495 (an alias of the token variable left exported in 18 actions), SPL-4810 (a masked value's tail leaks on a hard wrap).
 - Evidence kinds: secret 1 (`e5bd3a3f`), specs_and_docs 1 (`ab83fbd3`), complex_coding 1 (`daa93e52`).
-- Gain: secret-leak findings, 3 in 45 -> 0.
+- Gain (re-measure at +14 d, Q6 B): secret-leak findings, 3 in 45 -> 0.
 
-**K2 `secret-teardown-on-disable`**
+**K2 `secret-teardown-on-disable`** (skill; owned by B6)
 - Trigger: a feature that stores a credential, token file, cron line or saved option, and has an off switch.
 - Does: (1) lists everything the "on" path writes. (2) A test turns the feature on, then off, and asserts that each item is gone and that nothing restarts.
 - Evidence: SPL-4881, with 3 FAIL or SEND-BACK messages for the same W1 (turning the watchdog off left the token on disk and the loop restarting).
 - Evidence kinds: secret (SPL-4881).
-- Gain: repeat FAILs on secret lanes, 4 of 14 -> 1 or fewer.
+- Gain (re-measure at +14 d, Q6 B): repeat FAILs on secret lanes, 4 of 14 (29 %) -> under 10 % (at 14 d expected `n ≈ 4` FAILed issues).
 
-**K3 `parse-boundary-cases`**
+**K3 `parse-boundary-cases`** (skill; owned by B6)
 - Trigger: a diff that adds or changes a regex or a hand parser (bash `[[ =~ ]]`, Python `re`, Go `regexp`, jq).
 - Does: (1) the regex is anchored at both ends, or carries a comment that says why not. (2) Adds table cases: prefix and suffix neighbours, digits next to words ("fourteen years" vs "4"), an empty value, quotes inside quotes, a trailing newline (`\z` vs `$`).
 - Evidence: regex or parse edge cases are 4 of 45: `0ddab07c` (an unanchored, shortest-first `YEARS_RX` matched "fourteen" as 4), `fc46d63c` W2 ("five years" marked backed), `a70feab4` (a count read as a verdict), `66fea976` (a path resolved through a symlink).
 - Evidence kinds: secret 2 (`0ddab07c`, `fc46d63c`, both SPL-5555, a secret-kind lane), tests 1, simple_coding 1.
-- Gain: parse findings, 4 in 45 -> 1 or fewer.
+- Gain (re-measure at +14 d, Q6 B): parse findings, 4 in 45 -> 1 or fewer.
 
-### 4.7 orchestration (main claude, backup grok)
+### 4.7 orchestration (main claude, backup grok) — build row B7 (`./run` actions, not skills — Q4 A)
 
-No lane in the window carried `Kind: orchestration`: the role seats (dispatch and orch lease holders) do this work. The evidence is the lead time in 3.4. Owner rule: "orchestration = code, not intelligence", so an if-else rule belongs in code. Question Q4 in section 6 therefore asks whether these three become actions instead of skills.
+No lane in the window carried `Kind: orchestration`: the role seats (dispatch and orch lease holders) do this work. The evidence is the lead time in 3.4. Per **Q4 A** (msg `70b8c145`, enforcing owner rule "orchestration = code, not intelligence"), O1, O2 and O3 are built as **`./run` actions in `csi-spl-orc/src/bash/run/`**, not `SKILL.md` files; each ships with its test in `csi-spl-orc/src/bash/tests/` (developer guide 2.4.5, 2.12.1) and defaults to `DRY_RUN=1`.
 
-**O1 `plan-rows-parallel-place`**
+**O1 `do_spl_plan_rows_parallel_place`** (`csi-spl-orc/src/bash/run/spl-plan-rows-parallel-place.func.sh`, test `spl-plan-rows-parallel-place.tst.sh`; owned by B7)
 - Trigger: a build plan gets its GO, or a plan row lands.
-- Does: (1) reads the plan's rows and their paths. (2) Runs `lane-map.sh --check` on each row against the others. (3) Enqueues every row whose paths are disjoint and whose `SPAWN_AFTER` prerequisite is met, all in one sweep. (4) Prints each held row with the row it waits on.
+- Does: (1) reads the plan's rows and their owned paths. (2) Runs `lane-map.sh --check` on each row against live lanes and checks pairwise disjointness across rows. (3) Enqueues every row whose paths are disjoint and whose `SPAWN_AFTER` prerequisite (`csi-spl-orc/src/bash/run/spl-spawn-after.func.sh:49-70`, `origin/master` `208e5f757`) is met, all in one sweep (`DRY_RUN=0` enqueues; default `DRY_RUN=1` prints the plan). (4) Prints each held row with the row or lane it waits on. Companion to read-only `do_spl_spec_rows_unqueued` (`csi-spl-orc/src/bash/run/spl-spec-rows-unqueued.func.sh:28-63`).
 - Evidence: SPL-6201, SPL-6203 and SPL-6207 (spec 123 rows L4, L6, L5) took 249 h to 252 h from the owner's last message to landing, while placed -> landed was about 1 h each (3.4).
-- Gain: owner ask -> placed p90 -> under 24 h for plan rows. Plan rows were not measured apart: the baseline is a **proxy**, the all-row p90 of complex_coding (34.3 h) and simple_coding (128.8 h).
+- Gain (re-measure at +14 d, Q6 B): owner ask -> placed p90 -> under 24 h for plan rows. Plan rows were not measured apart: the baseline is a **proxy**, the all-row p90 of complex_coding (34.3 h) and simple_coding (128.8 h).
 
-**O2 `owner-ask-same-sweep-enqueue`**
-- Trigger: a dispatcher sweep finds an owner message that it has answered, but with no ask in the queue and no issue.
-- Does: (1) when the ask is a clear order (no open question, and no panel needed by the work-process rules), drafts the brief and enqueues it in the **same** sweep. (2) Otherwise it writes the one blocking question as a poll form and marks the issue `needs-owner`. (3) It never leaves an answered owner ask with neither.
+**O2 `do_spl_owner_ask_sweep_enqueue`** (`csi-spl-orc/src/bash/run/spl-owner-ask-sweep-enqueue.func.sh`, test `spl-owner-ask-sweep-enqueue.tst.sh`; owned by B7)
+- Trigger: a dispatcher sweep finds an owner message that it has answered, but with no ask in the queue and no issue (or an open issue not `needs-owner`). Companion to `do_spl_unanswered_sweep` (`csi-spl-orc/src/bash/run/spl-unanswered-sweep.func.sh:120-154`, `origin/master` `208e5f757`).
+- Does: (1) when the ask is a clear order (no open question, and no panel needed by the work-process rules), drafts/emits the brief enqueue call in the **same** sweep (`DRY_RUN=0` enqueues; default `DRY_RUN=1` prints the action). (2) Otherwise it emits the one blocking question as a poll form and marks the issue `needs-owner`. (3) It never leaves an answered owner ask with neither.
 - Evidence: owner ask -> issue, median 2.6 h to 22.4 h, p90 33 h to 217 h, against a queue of 0.1 h to 0.5 h (3.4). On owner ask -> issue, tests waits the longest (median 22.4 h, n = 41); on owner ask -> placed, i18n does (26.8 h, n = 8).
-- Gain: median owner ask -> placed for tests 23.5 h -> under 4 h; for all kinds, under 4 h.
+- Gain (re-measure at +14 d, Q6 B): median owner ask -> placed for tests 23.5 h -> under 4 h; for all kinds, under 4 h.
 
-**O3 `brief-header-complete`**
-- Trigger: before a brief is enqueued.
-- Does: refuses a brief whose header lacks any of `Issue:` (or "spawn files it"), `Epic:`, `Spec:`, `Kind:` (one of the 7 cnf kinds) and `Topic:`, each in its machine-readable form.
+**O3 `do_spl_brief_header_check`** (`csi-spl-orc/src/bash/run/spl-brief-header-check.func.sh`, test `spl-brief-header-check.tst.sh`; refusing gate action per Q3 A + Q4 A; owned by B7)
+- Trigger: before a brief is enqueued (run standalone and called from `do_spl_spawn_enqueue` at `csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh:246-256`, `origin/master` `208e5f757`, right beside `li_brief_epic_spec` at `lane-issue.inc.sh:183` and `spl_spawn_q_enqueue_links` at `spl-spawn-enqueue.func.sh:337-343`).
+- Does: refuses (exit non-zero, FATAL naming every missing/malformed field) a brief whose header lacks any of `Issue:` (or an explicit `Issue-Note:` / "spawn files it" line), `Epic:`, `Spec:`, `Kind:` (one of the 7 keys under `env.box.agent_split_by_kind` in `csi-spl-cnf/csi-spl/all.env.yaml:1567-1574`), and `Topic:` (or `Discussion:`), each in its machine-readable form.
 - Evidence: 618 of 3293 briefs (616 in October, 2 in November) have no `Kind:` line. Only 1000 carry an `Issue:` line, so 1727 lanes in this spec could be tied to their issue only by title, 65 of them ambiguously. A lane without these lines is invisible to every per-kind measurement, including this one.
-- Gain: briefs with both `Kind:` and `Issue:` lines, 990 of 3293 (30 %; `join.py` `lanes_with_kind_and_issue_line`) -> 95 % or more.
+- Gain (re-measure at +14 d, Q6 B): briefs with both `Kind:` and `Issue:` (or explicit spawn-files-it) lines, 990 of 3293 (30 %; `join.py` `lanes_with_kind_and_issue_line`) -> 95 % or more (high-volume check: ~700 briefs in 14 d).
 
-## 5. Cross-kind overlap: 21 slots, 18 skills
+## 5. Cross-kind overlap and parallel build rows
 
-| skill | kinds | counted |
-|---|---|---|
-| `numbered-id-claim` | specs_and_docs, complex_coding | once |
-| `failure-path-cases` | tests, simple_coding | once |
-| `e2e-no-swallowed-waits` | tests, i18n | once |
+### 5.1 Cross-kind overlap: 21 slots, 18 deliverables (15 skills + 3 `./run` actions)
 
-The other 15 are each used by one kind. `sweep-bug-class` would also help complex_coding (`5577c422`), and `fold-ledger-delta` would help every author lane. They are listed under one kind each, to keep exactly three per kind.
+Each of the 3 shared skills is owned by **exactly one** build lane (the lane whose kind carries the stronger evidence in section 3.3 / Appendix B), so the 7 lanes edit zero overlapping files:
 
-| # | kind | skill 1 | skill 2 | skill 3 |
+| shared skill | kinds served | counted | owning lane | why that owner |
 |---|---|---|---|---|
-| 1 | specs_and_docs | claim-reruns-before-push | numbered-id-claim | fold-ledger-delta |
-| 2 | tests | red-control-in-commit | failure-path-cases | e2e-no-swallowed-waits |
-| 3 | simple_coding | failure-path-cases | sweep-bug-class | docs-none-proof |
-| 4 | complex_coding | numbered-id-claim | shared-state-two-writer-test | route-authz-matrix |
-| 5 | i18n | locale-fit-at-360 | native-word-order-pass | e2e-no-swallowed-waits |
-| 6 | secret | secret-off-argv-and-env | secret-teardown-on-disable | parse-boundary-cases |
-| 7 | orchestration | plan-rows-parallel-place | owner-ask-same-sweep-enqueue | brief-header-complete |
+| `numbered-id-claim` (+ gate `do_spl_numbered_id_check`) | specs_and_docs, complex_coding | once | **B4** (`complex_coding`, claude) | complex_coding holds 2 of 2 sample findings (`5980f95c`, `198445a6`); specs_and_docs had 0 in sample (4.1, 4.4) |
+| `failure-path-cases` | tests, simple_coding | once | **B3** (`simple_coding`, claude) | simple_coding holds direct evidence (`21a21369`, SPL-5698); tests had 0 of 7 in sample (4.2, 4.3) |
+| `e2e-no-swallowed-waits` | tests, i18n | once | **B2** (`tests`, claude) | tests holds direct evidence (`b8d356f9`) and owns test-suite hygiene; i18n is `agy 100` focused on locale/copy (4.2, 4.5) |
 
-## 6. The owner's choices (for a poll form)
+The other 12 skills are each used by one kind; the 3 orchestration items (O1..O3) are `./run` actions rather than skills (Q4 A). `sweep-bug-class` would also help complex_coding (`5577c422`), and `fold-ledger-delta` would help every author lane; they stay listed under one kind each to keep three slots per kind.
 
-Each question puts the recommended option first, says why in one line, and names the part of this spec its answer changes. The questions are Q1..Q7; O1..O3 stay the names of the orchestration skills (4.7).
+| # | kind | slot 1 | slot 2 | slot 3 | form |
+|---|---|---|---|---|---|
+| 1 | specs_and_docs | `claim-reruns-before-push` (+ gate) | `numbered-id-claim` *(B4)* | `fold-ledger-delta` | 2 skills + 1 gate (B1); 1 shared (B4) |
+| 2 | tests | `red-control-in-commit` (+ gate) | `failure-path-cases` *(B3)* | `e2e-no-swallowed-waits` | 2 skills + 1 gate (B2); 1 shared (B3) |
+| 3 | simple_coding | `failure-path-cases` | `sweep-bug-class` | `docs-none-proof` (+ gate) | 3 skills + 1 gate (B3) |
+| 4 | complex_coding | `numbered-id-claim` (+ gate) | `shared-state-two-writer-test` | `route-authz-matrix` | 3 skills + 1 gate (B4) |
+| 5 | i18n | `locale-fit-at-360` | `native-word-order-pass` | `e2e-no-swallowed-waits` *(B2)* | 2 skills (B5); 1 shared (B2) |
+| 6 | secret | `secret-off-argv-and-env` | `secret-teardown-on-disable` | `parse-boundary-cases` | 3 skills (B6) |
+| 7 | orchestration | `do_spl_plan_rows_parallel_place` | `do_spl_owner_ask_sweep_enqueue` | `do_spl_brief_header_check` | 3 `./run` actions, no skills (B7) |
 
-- **Q1. Which kinds are built first?** (A, recommended) the 3 shared skills first (`failure-path-cases`, `numbered-id-claim`, `e2e-no-swallowed-waits`): they fill 6 of the 21 slots with 3 builds; (B) the coding kinds first (tests, simple_coding, complex_coding: the most FAILed heads, 3.2); (C) all 7 kinds at once. -> Changes the order of the section 5 table and the build lanes' briefs.
-- **Q2. Where do the skills live?** (A, recommended) in the repo under `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/`, rendered per vendor by the existing `do_spl_skills_refresh` (4.0): no new mechanism; (B) in the repo, read by the brief; (C) only in each agent user's home. -> Changes the paths in section 4.0 and the build lanes' scope; under A, a codex dir is a small add: a flag block and a term in the `plan` line, as each vendor has (section 1).
-- **Q3. Skills that a script can check (S1, S2, T1, C3, O3)?** (A, recommended) the skill plus a gate action that refuses: 3.2 shows repeat FAILs on rules the authors already knew, so advice alone is not enough; (B) the skill only; (C) the gate only. -> Changes the "Does" lines of S1, S2, T1, C3 and O3 (each gains its gate action).
-- **Q4. The orchestration three (O1, O2, O3)?** (A, recommended) build them as `./run` actions (code), not skills: owner rule "orchestration = code, not intelligence"; (B) skills for the role seats; (C) drop them. -> Changes section 4.7 and the orchestration row of the section 5 table.
-- **Q5. `native-word-order-pass` (n = 1 issue)?** (A, recommended) keep it and re-measure under Q6: the i18n kind has no thicker baseline (4.5); (B) replace it with the panel's next pick. -> Changes 4.5 L2 and the i18n row of the section 5 table.
-- **Q6. Re-measure the gains?** (A, recommended) 30 days after landing, with `join.py` and Appendix A: the window here is 52 to 61 days, so 30 days gives about half the n; (B) 14 days; (C) no re-measure. -> Changes every "Gain" line in section 4 (its date) and Appendix A.
-- **Q7. Who builds?** (A, recommended) one lane per kind, its vendor from the cnf table: the skills must work for that kind's main and backup (section 1); (B) one claude lane for all. -> Changes no section here; it sets the build lanes' `Kind:` and vendor.
+### 5.2 Build rows (parallel, one lane per kind — Q1 C, Q7 A)
+
+Per **Q1 C** (drop the shared-skills-first staging) and **Q7 A** (one lane per kind, vendor from `csi-spl-cnf/csi-spl/all.env.yaml:1567-1574`), all 7 rows queue **in parallel** with no `SPAWN_AFTER` chain and strictly disjoint files:
+
+| row | kind (vendor / backup) | deliverables | owned files (disjoint) | verify |
+|---|---|---|---|---|
+| B1 | `specs_and_docs` (`agy` / `claude`) | S1 `claim-reruns-before-push` + gate `do_spl_claim_reruns_check`; S3 `fold-ledger-delta` *(S2 owned by B4)* | `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/{claim-reruns-before-push,fold-ledger-delta}/SKILL.md`, `csi-spl-orc/src/bash/run/spl-claim-reruns-check.func.sh`, `csi-spl-orc/src/bash/tests/spl-claim-reruns-check.tst.sh` | `spl-claim-reruns-check.tst.sh` (with red control) + `do_spl_skills_refresh` dry-run |
+| B2 | `tests` (`claude` / `agy`) | T1 `red-control-in-commit` + gate `do_spl_red_control_check`; T3 `e2e-no-swallowed-waits` *(shared with i18n; T2 owned by B3)* | `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/{red-control-in-commit,e2e-no-swallowed-waits}/SKILL.md`, `csi-spl-orc/src/bash/run/spl-red-control-check.func.sh`, `csi-spl-orc/src/bash/tests/spl-red-control-check.tst.sh` | `spl-red-control-check.tst.sh` (with red control) + `do_spl_skills_refresh` dry-run |
+| B3 | `simple_coding` (`claude` / `agy`) | C1 `failure-path-cases` *(shared with tests)*; C2 `sweep-bug-class`; C3 `docs-none-proof` + gate `do_spl_docs_none_check` | `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/{failure-path-cases,sweep-bug-class,docs-none-proof}/SKILL.md`, `csi-spl-orc/src/bash/run/spl-docs-none-check.func.sh`, `csi-spl-orc/src/bash/tests/spl-docs-none-check.tst.sh` | `spl-docs-none-check.tst.sh` (with red control) + `do_spl_skills_refresh` dry-run |
+| B4 | `complex_coding` (`claude` / `agy`) | X1 `numbered-id-claim` + gate `do_spl_numbered_id_check` *(shared with specs_and_docs)*; X2 `shared-state-two-writer-test`; X3 `route-authz-matrix` | `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/{numbered-id-claim,shared-state-two-writer-test,route-authz-matrix}/SKILL.md`, `csi-spl-orc/src/bash/run/spl-numbered-id-check.func.sh`, `csi-spl-orc/src/bash/tests/spl-numbered-id-check.tst.sh` | `spl-numbered-id-check.tst.sh` (with red control) + `do_spl_skills_refresh` dry-run |
+| B5 | `i18n` (`agy` / `claude`) | L1 `locale-fit-at-360`; L2 `native-word-order-pass` *(kept per Q5 A; L3 owned by B2)* | `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/{locale-fit-at-360,native-word-order-pass}/SKILL.md`, `csi-spl-orc/src/bash/tests/spl-skills-i18n-render.tst.sh` | `spl-skills-i18n-render.tst.sh` + `do_spl_skills_refresh` dry-run |
+| B6 | `secret` (`claude` / `grok`) | K1 `secret-off-argv-and-env`; K2 `secret-teardown-on-disable`; K3 `parse-boundary-cases` | `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/{secret-off-argv-and-env,secret-teardown-on-disable,parse-boundary-cases}/SKILL.md`, `csi-spl-orc/src/bash/tests/spl-skills-secret-render.tst.sh` | `spl-skills-secret-render.tst.sh` + `do_spl_skills_refresh` dry-run |
+| B7 | `orchestration` (`claude` / `grok`) | O1 `do_spl_plan_rows_parallel_place`; O2 `do_spl_owner_ask_sweep_enqueue`; O3 `do_spl_brief_header_check` *(code, not skills, Q4 A; O3 refusing gate wired into `do_spl_spawn_enqueue`)* | `csi-spl-orc/src/bash/run/{spl-plan-rows-parallel-place,spl-owner-ask-sweep-enqueue,spl-brief-header-check}.func.sh`, `csi-spl-orc/src/bash/tests/{spl-plan-rows-parallel-place,spl-owner-ask-sweep-enqueue,spl-brief-header-check}.tst.sh`, `csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh` | all 3 `.tst.sh` files (with red controls) + existing `spl-spawn-enqueue` tests green |
+
+### 5.3 Disjointness, wiring, and post-land rollout
+
+- **Zero file overlap across `B1..B7`** (verified on `origin/master` `208e5f757`):
+  - Skill files auto-discover via `os.listdir` in `csi-spl-orc/src/bash/features/spool-install/install.sh:1050-1060` (and `test-y5-adopt.sh:70,116`), so no lane edits `install.sh` or `spl-skills-refresh.func.sh`.
+  - `./run` actions auto-discover via `csi-spl-orc/src/bash/run/run.sh:347-357,389-390,879-896`, and orc tests auto-discover via `csi-spl-orc/src/bash/tests/run-all-tests.sh:116`, so no lane edits `run.sh` or `run-all-tests.sh`.
+  - The 4 skill gate actions (`do_spl_claim_reruns_check`, `do_spl_red_control_check`, `do_spl_docs_none_check`, `do_spl_numbered_id_check`) ship as standalone refusing `./run` actions invoked by their skills; **none of `B1..B4` edits `csi-spl-iac/src/bash/run/check-pre-push.func.sh`**. Promoting any of them into the pre-push hook is a separate follow-up after the 14-day re-measure proves signal-to-noise.
+  - Only **B7** touches `csi-spl-orc/src/bash/run/spl-spawn-enqueue.func.sh` (lines `246-256`, to hook O3 `do_spl_brief_header_check`).
+  - None of `B1..B7` edits `csi-spl-doc/specs/193-skills-per-agent-kind/spec.md` in parallel (each lane cites its row issue under epic `SPL-2402` and carries `Docs: none (contract specified in spec 193 v1.3; skill text lives in SKILL.md)` per developer guide 2.10.2, or adds a distinct doc file if needed).
+- **Skill conciseness**: every `SKILL.md` must stay short, descriptive, and actionable per owner msg `16f273e3`, carry YAML `name:` + `description:` frontmatter (as `exit-clean/SKILL.md:1-7`), and use only the renderer's known tokens (`{{HARNESS_DIR}}`, `{{SPOOL_ROOT}}`, `{{AGENT_CEILING}}`, `{{ORCHESTRATOR_ID}}` at `install.sh:1038`) if any token is needed.
+- **Post-land rollout and re-measure clock (`T0`)**: once all 7 rows land on `origin/master`, run `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_skills_refresh` on each fleet box to render all 15 skills into every user's vendor dirs. `T0` is the commit timestamp of the last row of `B1..B7` to land on `origin/master`; the **Q6 B** re-measure runs at `T0 + 14 days`.
+
+## 6. Owner decisions (Q1-Q7, decided 2026-11-25)
+
+Owner HUM-10 answered poll form `43ebb003` in t1 `b1ec7ce2`, msg `70b8c145` (`2026-11-25T07:36Z`). Five answers matched the v1.1 recommendation (`A`); two changed the plan (**Q1 C** and **Q6 B**):
+
+| Q | owner answer (msg `70b8c145`) | vs v1.1 rec | effect in v1.3 |
+|---|---|---|---|
+| **Q1** | **C** — All 7 kinds at once | changed (was A) | Dropped shared-skills-first staging; section 5.2 schedules all 7 rows `B1..B7` in parallel with disjoint files and explicit single-lane ownership of the 3 shared skills. |
+| **Q2** | **A** — In the repo, rendered for each vendor by `do_spl_skills_refresh` | same | Confirmed `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/<name>/SKILL.md` (4.0, 5.2); codex skill dir stays out of scope for `B1..B7` (section 1). |
+| **Q3** | **A** — The skill plus a gate action that refuses | same | S1, S2, T1 and C3 each gain a refusing `./run` gate action in `csi-spl-orc` (4.1-4.4, 5.2); O3 is a refusing `./run` action wired into `do_spl_spawn_enqueue` (4.7). |
+| **Q4** | **A** — Build them as `./run` actions (code), not skills | same | O1..O3 converted to `./run` actions in B7 (`spl-plan-rows-parallel-place`, `spl-owner-ask-sweep-enqueue`, `spl-brief-header-check`), 0 orchestration `SKILL.md` files (4.7, 5.1, 5.2). |
+| **Q5** | **A** — Keep `native-word-order-pass` and re-measure with the others (Q6) | same | L2 stays in B5 (4.5, 5.2) and re-measures at 14 days with its low-`n` caveat noted. |
+| **Q6** | **B** — 14 days after landing | changed (was A, 30 d) | Every Gain target in section 4 and Appendix A sets the re-measure to `T0 + 14 days`. **Sample-size cost** (below and section 7): 14 days is 27 % of the 52-day lane window and 23 % of the 61-day commit/issue/FAIL window. |
+| **Q7** | **A** — One lane per kind, its vendor taken from the kind table | same | `B1..B7` map 1:1 to the 7 rows of `all.env.yaml:1567-1574` (`agy` for B1, B5; `claude` for B2, B3, B4, B6, B7). |
+
+### Sample-size cost of Q6 B (14 days vs 52-61 days)
+
+The baseline in section 3 spans **52 days** for lanes (`2026-10-03T03:06Z .. 2026-11-24T11:25Z`, 2615 lanes in the 7 kinds) and **61 days** for commits, issues and FAIL messages (`2026-09-24T00:00Z .. 2026-11-24T11:25Z`). A **14-day** re-measure captures roughly **27 %** (`14 / 52`) of the lane volume and **23 %** (`14 / 61`) of the 61-day volume:
+
+- **Well-powered at 14 days**: header completeness (`O3`, ~700 briefs expected vs 3293 in 52 d), lead time (`O1`/`O2` `owner ask -> placed` for `complex_coding`, `specs_and_docs`, `simple_coding`), and `complex_coding` FAILed heads (~22 expected vs 83 in 52 d).
+- **Single-digit at 14 days (wide noise)**: `specs_and_docs` (~9 FAILed issues vs 32), `simple_coding` (~6 vs 24), `tests` (~4 vs 15), `secret` (~4 vs 14). One or two outlier issues swing repeat-FAIL percentages by 15-25 points.
+- **Underpowered at 14 days (`n = 0..2`)**: `i18n` had 1 FAILed head and 8 `owner ask -> deployed` issues across 52 days (expected **0 to 1** FAILed head and ~2 deploys in 14 days), and individual section 3.3 finding classes (`n = 1..7` in 61 days) yield 0 to 2 findings per class unless every FAIL in the 14-day window is hand-labelled rather than sub-sampled. The 14-day re-measure report must therefore print `n` beside every metric, label every FAIL in the 14-day window where total FAILs are small, and mark cells with `n < 10` as underpowered (do not drop L1/L2/L3 or small-class skills on `n = 0..2`; carry them to a second read at +30 d if inconclusive).
+
+Original poll questions (kept verbatim for traceability):
+- **Q1. Which kinds are built first?** (A, v1.1 rec) the 3 shared skills first; (B) the coding kinds first; **(C, chosen)** all 7 kinds at once.
+- **Q2. Where do the skills live?** **(A, chosen)** in the repo under `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/`, rendered per vendor by `do_spl_skills_refresh`; (B) in the repo, read by the brief; (C) only in each agent user's home.
+- **Q3. Skills that a script can check (S1, S2, T1, C3, O3)?** **(A, chosen)** the skill plus a gate action that refuses; (B) the skill only; (C) the gate only.
+- **Q4. The orchestration three (O1, O2, O3)?** **(A, chosen)** build them as `./run` actions (code), not skills; (B) skills for the role seats; (C) drop them.
+- **Q5. `native-word-order-pass` (n = 1 issue)?** **(A, chosen)** keep it and re-measure under Q6; (B) replace it with the panel's next pick.
+- **Q6. Re-measure the gains?** (A, v1.1 rec) 30 days after landing; **(B, chosen)** 14 days; (C) no re-measure.
+- **Q7. Who builds?** **(A, chosen)** one lane per kind, its vendor from the cnf table; (B) one claude lane for all.
 
 ## 7. Limits
 
 - This box's spawn log only. The other machine's lanes and reviews that never reached the hub are missing, so every n is a lower bound.
 - **The spawn log starts 2026-10-03T03:05Z** (no rotated copy), so lanes cover 52 days while commits, issues and messages cover 61. A commit from 2026-09-24 .. 2026-10-03 maps to a kind only when it cites an issue that a later lane carries.
+- **14-day re-measure sample size (Q6 B)**: re-measuring at `T0 + 14 days` gives ~27 % of the 52-day lane window and ~23 % of the 61-day commit/issue/FAIL window. High-volume metrics (`O3` brief headers, `complex_coding` FAILed heads) have usable `n`, while `specs_and_docs` (~9), `simple_coding` (~6), `tests` (~4), `secret` (~4), and `i18n` (0..1) have single-digit or zero expected FAILed issues (section 6). Cells with `n < 10` are directional only.
 - 618 lanes (19 %) have no `Kind:` line and 60 carry another value: they are outside every per-kind number.
 - The owner-ask time is the last owner message in the source topic before the issue (a lower bound on the wait).
 - The issue for 1727 lanes comes from a title match; 65 were ambiguous (the lowest number was taken).
@@ -348,9 +412,9 @@ Each question puts the recommended option first, says why in one line, and names
 - The release-tag time stands for both dev and prd (inferred, section 2). `do_check_deploy_lag` gives only the current lag, not history.
 - The CI column, the author-issue status column and the rework counts come from v0.1's scratch join and are not in `join.py`.
 
-## Appendix A. Commands (v1.0 run 2026-11-25, read-only)
+## Appendix A. Commands (v1.0 run 2026-11-25, read-only; Q6 B re-measure at `T0 + 14 days`)
 
-Raw files go in one directory (`<raw>`); `join.py` joins them. Window end `E=2026-11-24T11:25:00Z`.
+Raw files go in one directory (`<raw>`); `join.py` joins them. Baseline window end `E=2026-11-24T11:25:00Z`. For the **Q6 B 14-day re-measure**, substitute window `[T0, T0 + 14 days]` (where `T0` is the commit timestamp of the last row of `B1..B7` landed on `origin/master`), run the same queries against `origin/master`, pass `T0 + 14d` as `join.py`'s window-end argument, report `n` beside every rate, and flag cells with `n < 10` as underpowered (section 6).
 
 1. Kinds: `grep -n -A8 'agent_split_by_kind:' csi-spl-cnf/csi-spl/all.env.yaml`
 2. Lanes (read by `join.py` itself from `$SPAWN_DIR/serve.log` and `$SPAWN_DIR/briefs/<id>.md`): `awk -F'\t' '$2=="SPAWNED" && $1>="2026-09-24" && $1<"2026-11-24T11:25:00Z"' /var/spool-hub/spawn-remote/serve.log | wc -l` -> 3293
@@ -500,4 +564,17 @@ Both seats PASSed v1.1 (c-343 msg 452d9df0, c-202 msg 38adb88d); the holder's GO
 | 2-N1, key order in a row | `fails-order.txt` now also holds each message's SPL keys in the v1.0 dump's order (`<msg id> <keys>`, `-` for none); `fail_rows` uses that order, and number order for a message it lacks. | 72 of the 159 rows with 2+ keys are in text order, so the dump's key order is not reproducible from SQL; rows and keys within rows shuffled -> `join.py` output identical |
 | 1-N1, `Kind:` pattern | `join.py` uses the spawn's pattern, `Kind:[*_ ]*([A-Za-z0-9_]+)`, lowercased. 4 October lanes with no issue move from no `Kind:` to `wui` (3) and `spec` (1): section 2, 3.1, O3 and section 7 read 618 and 60. Section 2's 2615 and every issue, commit and 3.2 number are unchanged. | v1.1 vs v1.2 `join.py` output diff -> only `lanes_by_kind` |
 
-<!-- last-edit: 2026-11-25T03:10:00Z -->
+### C.4 v1.2 (`9af22344e`) -> v1.3: owner Q1-Q7 answers folded (`SPL-6478`)
+
+Owner HUM-10 answered form `43ebb003` in t1 `b1ec7ce2`, msg `70b8c145` (`2026-11-25T07:36Z`). Because v1.2 had already landed on `origin/master` as `9af22344e` (folding the two v1.1 panel notes), folding Q1-Q7 becomes **v1.3 — decided** without regressing v1.2. Every `file:line` citation was verified on `origin/master` `208e5f757b7f6678df9753bfa8e6a97367f8fa27`.
+
+| Q / requirement | change in v1.3 | verified on `origin/master` `208e5f757` |
+|---|---|---|
+| Q1 C (all 7 kinds at once) + Q7 A (one lane per kind, cnf vendor) | Section 5.1 assigns each of the 3 shared skills to exactly one lane (`numbered-id-claim` -> B4, `failure-path-cases` -> B3, `e2e-no-swallowed-waits` -> B2); section 5.2 adds 7 parallel build rows `B1..B7` with disjoint files and no `SPAWN_AFTER`; section 5.3 proves zero shared-file edits. | `all.env.yaml:1567-1574` (`agent_split_by_kind`), `install.sh:1050-1060` (`os.listdir`), `run.sh:347-357,389-390`, `run-all-tests.sh:116`, `test-y5-adopt.sh:70,116` -> all auto-discovered; all 15 skill dirs and 7 action files free |
+| Q2 A (repo + `do_spl_skills_refresh`) | Sections 1 and 4.0 pin `assets/skills/<name>/SKILL.md` and `do_spl_skills_refresh`; codex skill dir explicitly out of scope for `B1..B7`. | `spl-skills-refresh.func.sh:31-76,88-91,96-118`, `install.sh:1038-1060` |
+| Q3 A (skill + refusing gate action) | Sections 4.1-4.4 and 5.2 add standalone refusing `./run` gate actions for S1, S2, T1, C3 (none touching `check-pre-push.func.sh`), plus O3 in B7. | `run.sh:347-357`; 4 new `spl-*-check.func.sh` paths free |
+| Q4 A (O1..O3 as `./run` actions, not skills) | Sections 0, 4.7, 5.1 and 5.2 convert O1..O3 to `./run` actions in B7; B7 is the sole editor of `spl-spawn-enqueue.func.sh:246-256` for O3. | `spl-spawn-enqueue.func.sh:246-256,337-343`, `lane-issue.inc.sh:183`, `spl-spawn-after.func.sh:49-70`, `spl-spec-rows-unqueued.func.sh:28-63`, `spl-unanswered-sweep.func.sh:120-154` |
+| Q5 A (keep `native-word-order-pass`) | Section 4.5 L2 and section 5.2 B5 keep L2 and schedule its re-measure under Q6 B with low-`n` guard. | `grep -n 'native-word-order-pass' spec.md` -> in 4.5, 5.1, 5.2, 6 |
+| Q6 B (14 days after landing) | Section 4 Gain lines, section 6, section 7 and Appendix A switch to `T0 + 14 days` and state the sample-size cost (27 % of 52-day lane window, 23 % of 61-day commit/issue/FAIL window, expected per-kind `n`). | `spec-rows-unqueued.py` parses Status `decided` + `B1..B7` |
+
+<!-- last-edit: 2026-11-25T09:22:00Z -->

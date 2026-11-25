@@ -16,10 +16,11 @@ it raises ONE incident when one of these lasts longer than GW_LIMIT_MIN:
      success of its kind (`box: deploy: APPLIED`, an exec `-> exit 0`); a
      request that `expired ...; nothing ran` is no refusal (the link
      delivered it and its result), so it is no b and plans no restart
-  c  the box log not advancing: no <x>-log.box.* received for more than
-     GW_QUIET_S, while a, b or d holds or a command runs on the box (a box
-     quiet at night with nothing in flight is no incident); it counts from the
-     later of the last box log received and the oldest of those
+  c  the box log not advancing: no <x>-log.box.* or <x>-log.*.rc<N>.log
+     received for more than GW_QUIET_S, while a, b or d holds or a command
+     runs on the box (a box quiet at night with nothing in flight is no
+     incident); it counts from the later of the last box log received and the
+     oldest of those
   d  the link down: no radiate process, or the hub log ended the session
 ONE incident per box: one spool message (kind blocker) to the seat of the
 topic that owns the box, listing every condition over the limit, and one more
@@ -259,10 +260,17 @@ def refusals(rows, results):
     return out
 
 
+# The box's logs, both name forms: <x>-log.box.* and the box's own
+# <x>-log.<action>.<host>.<ts>.rc<N>.log (SPL-6490).
+BOX_LOG_RX = r"\S+-log\.(box\.\S*|\S+\.rc\d+\.log)"
+
+
 def box_log_seen(root, box, rows):
     """Condition c input: the newest received box log, (epoch, evidence)."""
     best, ev = 0, ""
-    for f in glob.glob(os.path.join(root, box, "inbound", "*", "*-log.box.*")):
+    for f in glob.glob(os.path.join(root, box, "inbound", "*", "*-log.*")):
+        if not re.fullmatch(BOX_LOG_RX, os.path.basename(f)):
+            continue
         try:
             mt = int(os.path.getmtime(f))
         except OSError:
@@ -274,7 +282,7 @@ def box_log_seen(root, box, rows):
                 % os.path.relpath(f, os.path.join(root, box, "inbound")),
             )
     for t, text, raw in rows:
-        if t > best and re.search(r"^received \S+-log\.box\.", text):
+        if t > best and re.match(r"received %s(\s|$)" % BOX_LOG_RX, text):
             best, ev = t, clean(raw)
     return best, ev
 
@@ -311,7 +319,7 @@ def conditions(box, now, inc=None):
         cur["c:box-log"] = (
             None,
             "no box log received in the last %s h" % env("GW_WINDOW_H", "6"),
-            "no <x>-log.box.* under inbound/",
+            "no <x>-log.box.* or <x>-log.*.rc<N>.log under inbound/",
         )
     elif now - seen > int(env("GW_QUIET_S", "180")):
         cur["c:box-log"] = (

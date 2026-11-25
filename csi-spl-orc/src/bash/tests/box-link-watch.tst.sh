@@ -51,6 +51,12 @@
 #      within 30 min -> no second restart; no action / DRY_RUN -> none; an
 #      unwritable state dir -> no restart (it is recorded first), rc 1; an
 #      uncreatable lock -> FATAL; after: uses the incident's own filter
+#  23. SPL-6490: the box's own log form <x>-log.<action>.<host>.<ts>.rc<N>.log
+#      (no .box.) counts for c: received 1 min ago, no *-log.box.*, a bundle
+#      unreceipted 8 min -> the blocker names the bundle, not the box log;
+#      that log 8 min old -> c fires with it as the evidence; no box log of
+#      either kind -> c fires "no box log received"; the hub's `received`
+#      line for an rc0 log counts as one
 #   RED CONTROL: case 2 with the state file gone sends a second blocker, so
 #   case 2's silence is the state's doing. Case 22 on the watcher before
 #   SPL-5522: no restart at 11 min. On 03643ed75: 3 restarts in 3 min with
@@ -59,6 +65,9 @@
 #   LINK STUCK and PLAN restart (2 fail).
 #   Case 7c before b19-01 (rc01.sh on 0268cbab8 and 87d56eaae): one blocker
 #   "bundle w.v1.zip sent, no receipt", still open 3 h later (2 fail).
+#   Case 23 before SPL-6490 (box_log_seen globbed *-log.box.* only): the
+#   blocker says "no box log received" beside a fresh rc0 log, a quiet rc0
+#   log or its received line (3 fail).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -409,5 +418,32 @@ touch -d "@$(( NOW - 300 ))" "$R/box/inbound/archived/<x>-log.box.h1.20261104.lo
 effect "delivered r5.zip to box1: marked sent; relay blob deleted"; out="$(rrun)"
 [ "$(rs)" = 1 ] && grep -q -- '- after: no condition left' <<<"$(last)" && ! grep -q -- '- after: the box log' <<<"$(last)" \
   && pass "22. after the restart a quiet box log with nothing in flight is no condition -> after: no condition left" || fail "22. after filter ($(rs): $(last); $out)"
+
+# 23. SPL-6490: the box's own logs are named <x>-log.<action>.<host>.<ts>.rc<N>.log
+# (no .box.); they count for condition c, and a box log of neither form fires it.
+# A bundle stays unreceipted; the watch runs now and 8 min later (c with no box
+# log at all counts from the first run that saw it, as in case 6).
+DH="$R/box/inbound/archived/<x>-log.<action>.<host>.20261104T100000Z.rc0.log"
+c23() {
+  fresh; rm -f "$R/box/inbound/archived/"*-log.box.*
+  [ "$1" = none ] || touch -d "@$(( NOW - $1 ))" "$DH"
+  logl 2 "sent b23.zip hub -> box (10 B, sha256 aa) as b-23 in 1 s, waiting for the box's receipt"
+  run >/dev/null; NOW=$(( NOW + 8 * 60 ))
+  [ "$1" = 60 ] && touch -d "@$(( NOW - 60 ))" "$DH"
+  [ "$1" = none ] && [ "${2:-}" = line ] && logl 1 "received ${DH##*/} (10 B)"
+  out="$(run)"
+}
+c23 60
+[ "$(n)" = 1 ] && grep -q 'bundle b23.zip sent, no receipt' "$T/sent" && ! grep -q 'box log' "$T/sent" \
+  && pass "23. an rc0 box log received 1 min ago, no *-log.box.* -> the blocker names the bundle, not the box log" || fail "23. rc0 fresh ($(n): $(cat "$T/sent"); $out)"
+c23 0
+[ "$(n)" = 1 ] && grep -q 'the box log is not advancing (last received .*), since .* (8 min). Evidence: `newest box log file inbound/archived/<x>-log.<action>.<host>.20261104T100000Z.rc0.log`' "$T/sent" \
+  && pass "23. ...that log 8 min old -> c fires, its evidence names the file" || fail "23. rc0 quiet ($(n): $(cat "$T/sent"); $out)"
+c23 none
+[ "$(n)" = 1 ] && grep -q 'no box log received in the last 6 h, since .* (8 min)' "$T/sent" \
+  && pass "23. no box log of either form -> c fires: no box log received" || fail "23. none ($(n): $(cat "$T/sent"); $out)"
+c23 none line
+[ "$(n)" = 1 ] && ! grep -q 'box log' "$T/sent" \
+  && pass "23. no file, but the hub's received line for an rc0 box log 1 min ago -> no c" || fail "23. line ($(n): $(cat "$T/sent"); $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

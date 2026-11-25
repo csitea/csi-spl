@@ -56,15 +56,16 @@ three delegate directly to the existing `_spl_simple_cron_apply` (zero edits to
 `declare -F _spl_simple_cron_apply` guard inside their action functions.
 The rows share no file: both are batch 1.
 
-**Status: v1.0, awaiting cross-vendor panel signature on v1.0 sha.** Editor: **a-808**
-(agy). Cross-vendor panel seat **c-726** (claude, seat file
-`cc9a93f2e74b99c0ee11dc010e56ee421b8d5375` on `review/c002-refactor-round-03-claude-seat`)
-returned **PASS** on v0.1 `7103bcac49235686302754839717971f5aadcbb0` (msg `4d08dd05` /
-editor copy `587381f7`, 8/8 head sha256s verified, differential harness byte-identical
-across 40 row-01 cases and 180 row-02 cases) with W1 and N1-N6 folded into this v1.0
-(zero row, site, batch, test hunk, sha256, or vendor change from v0.1). No row lane starts
-and v1.0 does not land on master before c-726 signs this v1.0 sha AND its review line
-passes `do_spl_review_line_check` (rc 0) and the current dispatch holder gives GO.
+**Status: v1.0 signed** (ready for row execution). Editor: **a-808** (agy). Signed by
+cross-vendor panel seat **c-726** (claude, `PASS` on v1.0
+`5ebecd6752c7debf085598eef8e33a382766e4a7`, msg `a215cc4e` / holder copy `ffb46a6b`, seat
+file `e02ff9e17019f54c691e7662da69f5e6d3a4a340` on
+`review/c002-refactor-round-03-claude-seat`; `do_spl_review_line_check` rc 0, `OK 1 of 1`,
+msg `608b1354`; holder GO `2d65a1c5` / `a4034b8c`). W1 and N1-N6 from v0.1 PASS
+(`7103bcac49235686302754839717971f5aadcbb0`, msg `4d08dd05` / `587381f7`, 8/8 head sha256s
+verified, differential harness byte-identical across 40 row-01 cases and 180 row-02 cases)
+folded with zero open W; no row, site, batch, test hunk, sha256, or vendor changed between
+signed v1.0 `5ebecd675` and this landed sign-off commit.
 
 **One sha:** every count is measured on **`bfdbd57d5`** (`bfdbd57d515fbac4ec5f0cfdf44384ef2f47d9cf`,
 `origin/master` at 2026-11-25T22:25:55Z; zero drift on all 11 row/test files to
@@ -732,13 +733,13 @@ read-only):
 
 - Editor: **a-808** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
-  step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-726** (seat
-  file `csi-spl-doc/doc/md/refactor-round-03/seat-claude.md` at
-  `cc9a93f2e74b99c0ee11dc010e56ee421b8d5375` on `review/c002-refactor-round-03-claude-seat`),
-  returned **PASS** on v0.1 `7103bcac49235686302754839717971f5aadcbb0` (msg `4d08dd05` /
-  editor copy `587381f7`, W1 and N1-N6 folded into v1.0). Plan v1.0 lands on master only
-  after c-726 signs this v1.0 sha AND `do_spl_review_line_check` passes (rc 0) and the
-  current dispatch holder gives GO.
+  step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-726**,
+  signed **PASS** on v1.0 `5ebecd6752c7debf085598eef8e33a382766e4a7` (msg `a215cc4e` /
+  holder copy `ffb46a6b`, seat file `csi-spl-doc/doc/md/refactor-round-03/seat-claude.md`
+  at `e02ff9e17019f54c691e7662da69f5e6d3a4a340` on
+  `review/c002-refactor-round-03-claude-seat`; `do_spl_review_line_check` rc 0, `OK 1 of 1`,
+  msg `608b1354`; holder GO `2d65a1c5` / `a4034b8c`; W1 and N1-N6 folded, zero open W).
+  The seat reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-25T22:26:44Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -869,17 +870,26 @@ if the claude backup is used; never mistral; re-checked at placement).
   - **N6** (intro, 2.2, 6): refreshed drift check on `origin/master` `83554762f` (0 drift
     on all 11 row/test files) and verified live lane `a-823` (SPL-6516 latency action 6
     commits 2+3, 0 overlap).
+  Pushed as `5ebecd675` on `review/c002-refactor-round-03-planner`.
+- v1.0 signed (a-808): recorded final cross-vendor panel signature (`c-726` claude
+  **PASS** on v1.0 `5ebecd6752c7debf085598eef8e33a382766e4a7`, msg `a215cc4e` / holder
+  copy `ffb46a6b`, seat file `e02ff9e17019f54c691e7662da69f5e6d3a4a340` on
+  `review/c002-refactor-round-03-claude-seat`; `do_spl_review_line_check` rc 0, `OK 1 of 1`,
+  msg `608b1354`; holder GO `2d65a1c5` / `a4034b8c`; zero drift on all 11 row/test files
+  to `83554762f`). No row, site, batch, test hunk, sha256, or vendor changed from signed
+  v1.0 `5ebecd675`.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
 - Editor seat: a-808 (agy): v0.1, v1.0.
-- Panel reviewer seat: c-726 (claude, seat `cc9a93f2e74b99c0ee11dc010e56ee421b8d5375` on
-  `review/c002-refactor-round-03-claude-seat`): **PASS** on v0.1
-  (`7103bcac49235686302754839717971f5aadcbb0`, msg `4d08dd05` / editor copy `587381f7`;
-  8/8 head sha256s, 16 suites, 7 red/guard controls, 5 mutations, `shellcheck`, and
-  differential harness 40 + 180 cases verified); awaiting final signature on v1.0 sha
-  (W1 and N1-N6 folded, zero code/test hunk change).
+- Panel reviewer seat: c-726 (claude, seat `e02ff9e17019f54c691e7662da69f5e6d3a4a340` on
+  `review/c002-refactor-round-03-claude-seat`): **PASS** on v1.0
+  (`5ebecd6752c7debf085598eef8e33a382766e4a7`, msg `a215cc4e` / holder copy `ffb46a6b`;
+  `do_spl_review_line_check` rc 0, `OK 1 of 1`, msg `608b1354`; holder GO `2d65a1c5` /
+  `a4034b8c`; all 161 lines of `bash` fenced code blocks byte-identical to v0.1, 8/8 head
+  sha256s, 16 suites, 7 red/guard controls, 5 mutations, `shellcheck`, and differential
+  harness 40 + 180 cases verified; W1 and N1-N6 folded, zero open W).
 - Row R7 seats: section 4 (agy primary; claude waiver backup only if agy is out of quota,
   citing ruling `dc84300a`; never mistral).

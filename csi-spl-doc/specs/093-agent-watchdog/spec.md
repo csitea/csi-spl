@@ -462,6 +462,18 @@ so the model can act on it" (the binary's schema text).
   so no turn is spent on an API that just failed.
 - **Beside, never instead**: on a `PreToolUse` deny or a `Stop` block the
   context is added to that output; the deny or the block stands.
+- **Never a lost deny** (R7 W1): an unreadable inbox dir, inbox file or
+  `.hook-seen` never raises. An unreadable file is shown as "unreadable inbox
+  file: <path>"; a marker that cannot be written shows nothing (so a `Stop`
+  cannot loop on it). The deny, the `Stop` block and `heartbeat.json` stand.
+- **Parallel tool calls** (R7 W2): `inject()` holds an flock on
+  `<id>/.hook-seen.lock` (waits at most 2 s, then shows nothing this time),
+  so parallel `PreToolUse` hooks show each message once.
+- **A `Stop` that injects leaves `state: working`** (R7 N1): the turn goes
+  on, so the watchdog and peer poll do not read the seat as idle.
+- More than 3 waiting messages span consecutive `Stop` continuations (3 per
+  injection); claude caps those at `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` (8) and
+  the rest wait for the next hook (R7 N2).
 - Install: `do_spl_agent_hooks_install` already registers all six events
   (`PreToolUse` and `Stop` included), so no settings change was needed.
 - Tests: `spawn-agents/tests/test-agent-hook.sh` section 12; red control: the

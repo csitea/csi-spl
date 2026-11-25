@@ -31,7 +31,12 @@
 #               with nothing new prints nothing and the turn ends; no Stop
 #               loops. An API-error Stop injects nothing (the next prompt
 #               does). The context is added beside a deny or a block, never
-#               in place of it.
+#               in place of it. An unreadable inbox, inbox file or
+#               .hook-seen never raises (an unreadable file is shown as one;
+#               a failed marker write shows nothing), so the deny, the Stop
+#               block and heartbeat.json always stand. inject() holds an
+#               flock on <id>/.hook-seen.lock: parallel PreToolUse hooks
+#               (parallel tool calls) show each message once.
 #   ledger      <id>/lifetime/poke-ledger.tsv (spec 053 section 8): a
 #               "surfaced" row per injected message (msg_id, inbox mtime) and
 #               a "prompt" row per UserPromptSubmit, beside the "poke" rows
@@ -119,7 +124,7 @@ s = open(sys.argv[2]).read()
 i = s.index("\nimport _json") + 1
 exec(compile(s[i:s.index("\nEOF_PY", i)], sys.argv[2], "exec"))' "$1" "${BASH_SOURCE[0]}"
 : <<'EOF_PY'
-import _json, os, sys, time, zlib
+import _json, fcntl, os, sys, time, zlib
 
 EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "StopFailure")
 MAX_MSGS, MAX_BYTES, BODY_CUT = 3, 12 * 1024, 4 * 1024
@@ -469,12 +474,12 @@ def inbox(all_unread):
     try:
         a, _, b = open(os.path.join(d, ".hook-seen")).read().strip().partition(" ")
         seen = (a, b)
-    except FileNotFoundError:
+    except OSError:
         pass
     ib = os.path.join(d, "inbox")
     try:
         names = os.listdir(ib)
-    except FileNotFoundError:
+    except OSError:
         return []
     out = []
     for n in names:
@@ -482,7 +487,7 @@ def inbox(all_unread):
             continue
         try:
             k = ("%020d" % os.stat(os.path.join(ib, n)).st_mtime_ns, n)
-        except FileNotFoundError:
+        except OSError:
             continue
         if all_unread or k > seen:
             out.append(k)
@@ -560,6 +565,24 @@ def ledger(kind, msg_id="-", written="-", via=None):
         pass
 
 def inject(all_unread):
+    # SPL-6515 R7 W2: parallel tool calls run PreToolUse hooks at once; the
+    # lock makes read-marker, show, write-marker one step. W1: no OSError
+    # here may drop a deny, a Stop block or heartbeat.json: it shows nothing.
+    try:
+        with open(os.path.join(d, ".hook-seen.lock"), "a") as lk:
+            for _ in range(400):
+                try:
+                    fcntl.flock(lk.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    time.sleep(0.005)
+            else:
+                return ""
+            return inject_locked(all_unread)
+    except OSError:
+        return ""
+
+def inject_locked(all_unread):
     keys = inbox(all_unread)
     parts, size, last, shown = [], 0, None, []
     for k in keys:
@@ -568,7 +591,7 @@ def inject(all_unread):
             m = readj(p)
         except FileNotFoundError:
             continue
-        except ValueError:
+        except (OSError, ValueError):
             m = None
         block = render(p, m)
         n = len(block.encode())
@@ -578,10 +601,10 @@ def inject(all_unread):
         size += n
         last = k
         shown.append(((m or {}).get("msg_id") if isinstance(m, dict) else None, int(k[0]) // 1000000))
-    for mid, written in shown:
-        ledger("surfaced", mid, written)
     if last is not None:
         put(os.path.join(d, ".hook-seen"), "%s %s\n" % last)
+    for mid, written in shown:
+        ledger("surfaced", mid, written)
     if not parts:
         return ""
     rest = len(keys) - len(parts)
@@ -720,6 +743,9 @@ def main():
             hb.update(progress_ts=iso(now), api_error=None)
         if claude and not (e is not None and e.get("isApiErrorMessage")):
             ctx.append(inject(False))
+            if ctx[-1]:
+                # R7 N1: Stop context continues the turn: not idle
+                hb["state"] = "working"
         if claude and not payload.get("stop_hook_active"):
             stubs, stale = open_stubs(), untouched(held())
             if stubs or stale:

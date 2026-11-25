@@ -36,6 +36,9 @@
 #      injects nothing (the next prompt does); a Stop block keeps its
 #      decision and carries the context; grok / vibe get none. Red control:
 #      the parent commit's hook fails 12's tool-start and Stop checks.
+#      R7 (a-680): an unreadable inbox / file / marker keeps the deny, the
+#      Stop block and heartbeat.json (W1); 4 parallel PreToolUse hooks show
+#      a message once (W2); a Stop that injects leaves state working (N1).
 set -uo pipefail
 . "$(dirname "$0")/lib.inc.sh"
 t_sandbox
@@ -429,5 +432,66 @@ eq "12. grok: no injection at PreToolUse" "" "$(SPOOL_HARNESS=grok hook PreToolU
 eq "12. grok: no injection at Stop" "" "$(SPOOL_HARNESS=grok hook Stop $((T2 + 20)) '{}')"
 eq "12. vibe: no injection at Stop" "" "$(SPOOL_HARNESS=vibe hook Stop $((T2 + 21)) '{}')"
 has "12. CONTROL: the same message still reaches claude at its next tool start" "msg_id: mid-6" "$(hook PreToolUse $((T2 + 22)) '{"tool_name":"Read"}' | ctx)"
+
+# R7 W1 (a-680 on 7c0f36a08): an unreadable inbox, inbox file or marker never
+# drops a PreToolUse deny, a Stop block or heartbeat.json. Root reads mode 000
+# files, so these checks need a non-root runner.
+if [ "$(id -u)" = 0 ]; then
+  ok "12. W1 SKIP: run as root, mode 000 does not deny root"
+else
+  R12="$(realpath "$T_TMP")/repo12"
+  git init -q -b master "$R12" && git -C "$R12" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+  git -C "$R12" worktree add -q -b "$ID-x" "$R12-wt/$ID"
+  EP="{\"tool_name\":\"Edit\",\"cwd\":\"$R12-wt/$ID\",\"tool_input\":{\"file_path\":\"$R12/a.txt\"}}"
+  dec() { python3 -c 'import json,sys; t=sys.stdin.read().strip(); print((json.loads(t).get("hookSpecificOutput") or {}).get("permissionDecision","") if t else "")'; }
+  rm -f "$D/hook.err"
+  msg w1 $((T2 + 30)) mid-w1 "beside a deny"
+  o12="$(hook PreToolUse $((T2 + 31)) "$EP")"
+  eq "12. W1 CONTROL: a readable inbox, the Edit into main is denied" deny "$(dec <<<"$o12")"
+  has "12. W1 CONTROL: ... and the deny carries the message" "msg_id: mid-w1" "$(ctx <<<"$o12")"
+  chmod 000 "$D/inbox"
+  o12="$(hook PreToolUse $((T2 + 32)) "$EP")"
+  chmod 755 "$D/inbox"
+  eq "12. W1 an unreadable inbox dir: the deny stands (RED on 7c0f36a08)" deny "$(dec <<<"$o12")"
+  eq "12. W1 ... heartbeat.json written" "$(iso $((T2 + 32)))" "$(hb ts)"
+  check "12. W1 ... no hook.err" test ! -e "$D/hook.err"
+  msg w2 $((T2 + 33)) mid-w2 "made unreadable"; chmod 000 "$D/inbox/w2.json"
+  o12="$(hook PreToolUse $((T2 + 34)) "$EP")"
+  eq "12. W1 an unreadable inbox file: the deny stands (RED on 7c0f36a08)" deny "$(dec <<<"$o12")"
+  has "12. W1 ... the file is named as unreadable" "unreadable inbox file: $D/inbox/w2.json" "$(ctx <<<"$o12")"
+  msg st7 $((T2 + 35)) job-77 "" 2; msg w3 $((T2 + 36)) mid-w3 "unreadable beside a job"; chmod 000 "$D/inbox/w3.json"
+  o12="$(hook Stop $((T2 + 37)) "{\"transcript_path\":\"$TRG\"}")"
+  has "12. W1 an unreadable file at Stop: the block stands (RED on 7c0f36a08)" '"decision": "block"' "$o12"
+  eq "12. W1 ... heartbeat.json written" "$(iso $((T2 + 37)))" "$(hb ts)"
+  chmod 644 "$D/inbox/w2.json" "$D/inbox/w3.json"; rm -f "$D/inbox/st7.json"
+  msg w4 $((T2 + 38)) mid-w4 "the marker cannot be written"
+  rm -f "$D/.hook-seen"; mkdir "$D/.hook-seen"
+  o12="$(hook PreToolUse $((T2 + 39)) "$EP")"
+  eq "12. W1 a .hook-seen that cannot be read or written: the deny stands" deny "$(dec <<<"$o12")"
+  hasnt "12. W1 ... and shows nothing it could not mark (no Stop loop)" "msg_id: mid-w4" "$o12"
+  eq "12. W1 ... heartbeat.json written" "$(iso $((T2 + 39)))" "$(hb ts)"
+  rmdir "$D/.hook-seen"
+  check "12. W1 no hook.err over all of it" test ! -e "$D/hook.err"
+  git -C "$R12" worktree remove --force "$R12-wt/$ID"
+fi
+
+# R7 W2: parallel tool calls run PreToolUse hooks at once; each message is
+# still shown once (flock on .hook-seen.lock). 10 rounds x 4 hooks.
+rm -f "$D/inbox"/*.json; hook PreToolUse $((T2 + 40)) '{"tool_name":"Read"}' >/dev/null
+P12="$T_TMP/par12"; mkdir -p "$P12"; dup=0
+for r in $(seq 1 10); do
+  msg "p$r" $((T2 + 40 + r)) "mid-p$r" "parallel round $r"
+  for j in 1 2 3 4; do hook PreToolUse $((T2 + 41 + r)) '{"tool_name":"Read"}' >"$P12/$r.$j" & done
+  wait
+  [ "$(cat "$P12/$r".* | grep -c "msg_id: mid-p$r")" = 1 ] || dup=$((dup + 1))
+done
+eq "12. W2 4 parallel PreToolUse hooks x 10 rounds: every message shown once (RED on 7c0f36a08 when the race hits)" 0 "$dup"
+eq "12. W2 ... one surfaced ledger row per message" 10 "$(awk -F'\t' '$1=="surfaced" && $4 ~ /^mid-p/' "$L12" | wc -l)"
+o12="$(hook Stop $((T2 + 60)) "{\"transcript_path\":\"$TRG\"}")"
+msg n1 $((T2 + 61)) mid-n1 "after the last tool"
+hook Stop $((T2 + 62)) "{\"transcript_path\":\"$TRG\"}" >/dev/null
+eq "12. N1 a Stop that injects: the turn goes on, state working" working "$(hb state)"
+hook Stop $((T2 + 63)) "{\"transcript_path\":\"$TRG\",\"stop_hook_active\":true}" >/dev/null
+eq "12. N1 CONTROL: a Stop with nothing new: idle" idle "$(hb state)"
 
 t_done

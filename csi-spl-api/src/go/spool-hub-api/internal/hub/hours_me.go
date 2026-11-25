@@ -561,6 +561,7 @@ func (s *Server) handlePutMyHoursMinutes(w http.ResponseWriter, r *http.Request)
 	now := s.o.Now()
 	ms, loc, bad := parseHoursMinutes(body, now)
 	if bad != "" {
+		s.logHoursMinutesRefused(c, body, now, bad)
 		writeErr(w, http.StatusBadRequest, "bad_minutes", bad)
 		return
 	}
@@ -588,6 +589,24 @@ func (s *Server) handlePutMyHoursMinutes(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"stored": len(ms)})
+}
+
+// logHoursMinutesRefused logs a bad_minutes 400 with its reason, since the
+// WUI drops a 400 batch as final; max_skew_s, the whole seconds the batch's
+// latest minute runs ahead of now (a fast device clock), is set only then.
+func (s *Server) logHoursMinutesRefused(c hoursMe, b hoursMinuteBody, now time.Time, reason string) {
+	var skew time.Duration
+	for _, m := range b.Minutes {
+		if at, err := time.Parse(time.RFC3339, m.At); err == nil && at.Sub(now) > skew {
+			skew = at.Sub(now)
+		}
+	}
+	ev := s.o.Log.Warn().Str("tenant", c.tenant.ID).Str("member", c.hum).Str("reason", reason).
+		Int("count", len(b.Minutes))
+	if skew > 0 {
+		ev = ev.Int64("max_skew_s", int64(skew/time.Second))
+	}
+	ev.Msg("hours: minutes refused")
 }
 
 func decodeHoursBody(w http.ResponseWriter, r *http.Request, v any, shape string) bool {

@@ -1,10 +1,15 @@
 package hub_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -172,6 +177,85 @@ func TestMyHoursMinutesRefusals(t *testing.T) {
 	if code, out := call(t, e, tid, http.MethodPut, "/v1/me/hours/minutes", a, tabMinutes(mon, 60, "t:x")); code != http.StatusOK {
 		t.Fatalf("CONTROL 60 rows: %d %v", code, out)
 	}
+}
+
+// b46-01: a bad_minutes 400 logs one structured warn line with its reason, so
+// a refused tab batch (dropped by the WUI as final) is visible in the hub log;
+// max_skew_s only when a minute runs ahead of the hub clock. A 200 logs none.
+func TestMyHoursMinutes400LogsWarn(t *testing.T) {
+	var buf bytes.Buffer
+	sw := &syncWriter{w: &buf}
+	e := hoursEnvWith(t, func(o *hub.Options) { o.Log = zerolog.New(sw) })
+	tid, _ := e.tenant()
+	a := seat(t, e, tid, rbac.Developer)
+	put := func(body map[string]any) (int, []map[string]any) {
+		t.Helper()
+		buf.Reset()
+		code, _ := call(t, e, tid, http.MethodPut, "/v1/me/hours/minutes", a, body)
+		return code, warnLines(t, sw.String())
+	}
+	if code, warns := put(tabMinutes(hoursNow.Add(-5*time.Minute), 1, "t:x")); code != http.StatusOK || len(warns) != 0 {
+		t.Fatalf("CONTROL valid PUT: %d, warn lines %v (want 200, none)", code, warns)
+	}
+	mon := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name, reason string
+		body         map[string]any
+		count        float64
+		skew         bool
+	}{
+		{"future", "not in the future", tabMinutes(hoursNow.Add(5*time.Minute), 2, "t:x"), 2, true},
+		{"bad tz", "IANA zone", map[string]any{"tz": "Mars/Base", "minutes": tabMinutes(mon, 3, "t:x")["minutes"]}, 3, false},
+	} {
+		code, warns := put(tc.body)
+		if code != http.StatusBadRequest || len(warns) != 1 {
+			t.Fatalf("%s: %d, warn lines %v (want 400, one)", tc.name, code, warns)
+		}
+		w := warns[0]
+		reason, _ := w["reason"].(string)
+		if !strings.Contains(reason, tc.reason) || w["tenant"] != tid || w["member"] != a || w["count"] != tc.count {
+			t.Errorf("%s: warn line %v", tc.name, w)
+		}
+		skew, has := w["max_skew_s"].(float64)
+		if tc.skew != has || (has && skew < 5*60) {
+			t.Errorf("%s: max_skew_s %v (present %v, want present %v and >= 300)", tc.name, w["max_skew_s"], has, tc.skew)
+		}
+	}
+}
+
+// warnLines parses every warn JSON line of a zerolog output, failing on a
+// line that repeats a key (zerolog writes a repeated field twice).
+func warnLines(t *testing.T, out string) []map[string]any {
+	t.Helper()
+	var warns []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if line == "" {
+			continue
+		}
+		dec := json.NewDecoder(strings.NewReader(line))
+		seen := map[string]bool{}
+		obj := map[string]any{}
+		if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+			t.Fatalf("log line not a JSON object: %s", line)
+		}
+		for dec.More() {
+			tok, _ := dec.Token()
+			k, _ := tok.(string)
+			if seen[k] {
+				t.Fatalf("duplicate key %q in log line %s", k, line)
+			}
+			seen[k] = true
+			var v any
+			if err := dec.Decode(&v); err != nil {
+				t.Fatalf("log line %s: %v", line, err)
+			}
+			obj[k] = v
+		}
+		if obj["level"] == "warn" {
+			warns = append(warns, obj)
+		}
+	}
+	return warns
 }
 
 // A frozen day is 409 period_frozen, with and without a sweep row.

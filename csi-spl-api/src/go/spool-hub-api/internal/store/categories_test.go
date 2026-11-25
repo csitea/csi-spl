@@ -3,6 +3,9 @@ package store
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -61,7 +64,7 @@ func TestCategoriesStoreCRUD(t *testing.T) {
 			if roots < 5 {
 				t.Errorf("roots %d, want the 5 seeded areas", roots)
 			}
-			leaf := "coding/hard/go_" + strings.ToLower(uid(""))
+			leaf := "coding/hard/zzgo_" + strings.ToLower(uid(""))
 			dropCategories(t, st, leaf)
 			c, err := cs.CreateCategory(ctx, Category{Path: leaf, ParentPath: "coding/hard", Title: "Go", Dimensions: map[string]any{"kind": "complex_coding"}, IsActive: true})
 			if err != nil || c.Path != leaf || c.ParentPath != "coding/hard" || c.CreatedAt.IsZero() {
@@ -110,7 +113,7 @@ func TestCategoryDeleteInUseRefused(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
 	tid := newTenant(t, pg)
-	root := "t_" + strings.ToLower(uid(""))
+	root := "zzt_" + strings.ToLower(uid(""))
 	child := root + "/used"
 	dropCategories(t, pg, child, root)
 	for _, c := range []Category{{Path: root, Title: "root", IsActive: true}, {Path: child, ParentPath: root, Title: "used", IsActive: true}} {
@@ -370,6 +373,49 @@ func TestCheckAskCategory(t *testing.T) {
 	for _, bad := range [][2]string{{"coding", ""}, {"", "Coding"}, {"", "a//b"}, {"", "/a"}, {"", "a b"}, {"", strings.Repeat("a", 201)}} {
 		if why := CheckAskCategory(bad[0], bad[1]); why == "" {
 			t.Errorf("%v accepted", bad)
+		}
+	}
+}
+
+// Every activity_categories row a test creates is a (^|/)zz path, and every
+// seed count in TestActivityCategoriesSchema skips such paths: a row a killed
+// run or a concurrent package left behind on a reused Postgres DB never turns
+// the seed assertions red (bug round 46 row 02). The guard reads the test
+// sources: the string prefix of each leaf or root category path built from a
+// literal plus a uid, and each parent_path IS NULL query of the schema test.
+// RED CONTROL: "coding/hard/go_", "t_", or the top-level query without the
+// zz filter fails it.
+func TestCategoryTestPathsZZIsolated(t *testing.T) {
+	zz := regexp.MustCompile(`(^|/)zz`)
+	lit := regexp.MustCompile(`\b(?:leaf|root)\s*:=\s*"([^"]+)"\s*\+`)
+	sites := 0
+	for _, f := range []string{"categories_test.go", "reporting_schema_test.go", filepath.Join("..", "hub", "categories_test.go")} {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatalf("read %s: %v", f, err)
+		}
+		for _, m := range lit.FindAllSubmatch(raw, -1) {
+			sites++
+			if p := string(m[1]) + "x"; !zz.MatchString(p) {
+				t.Errorf("%s: test category path %q is not under (^|/)zz", f, p)
+			}
+		}
+	}
+	if sites < 4 {
+		t.Errorf("found %d test category paths, want at least 4 (store leaf+root, hub leaf, schema leaf)", sites)
+	}
+	raw, err := os.ReadFile("reporting_schema_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := regexp.MustCompile("`[^`]*parent_path IS NULL[^`]*`")
+	qs := q.FindAll(raw, -1)
+	if len(qs) == 0 {
+		t.Fatal("reporting_schema_test.go: no parent_path IS NULL query found")
+	}
+	for _, m := range qs {
+		if !strings.Contains(string(m), "category_path !~ '(^|/)zz'") {
+			t.Errorf("reporting_schema_test.go: %s counts top-level areas without the (^|/)zz filter", m)
 		}
 	}
 }

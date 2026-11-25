@@ -41,7 +41,7 @@ func treeNode(nodes []any, path string) map[string]any {
 // path are refused.
 func TestCategoryRoutes(t *testing.T) {
 	r := newFleetTokensRig(t)
-	leaf := "coding/hard/go_" + strings.ToLower(newTenantID(""))
+	leaf := "coding/hard/zzgo_" + strings.ToLower(newTenantID(""))
 	node := map[string]any{"category_path": leaf, "title": "Go", "dimensions": map[string]any{"kind": "complex_coding"}}
 	for name, who := range map[string][2]string{"operator developer": {r.op, r.dev}, "other workspace admin": {r.other, r.otherA}, "anonymous": {r.op, ""}} {
 		for _, rt := range [][2]string{{http.MethodPost, opCategoriesPath}, {http.MethodPut, opCategoriesPath + "/coding/hard"}, {http.MethodGet, byCategoryPath}} {

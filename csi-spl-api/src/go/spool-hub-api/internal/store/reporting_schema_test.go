@@ -193,7 +193,7 @@ func TestActivityCategoriesSchema(t *testing.T) {
 			t.Errorf("%s scope insert: %v, want the RLS refusal", scope, err)
 		}
 	}
-	if n, err := pg.asOperator2(ctx, `SELECT 1 FROM activity_categories WHERE parent_path IS NULL`); err != nil || n != 5 {
+	if n, err := pg.asOperator2(ctx, `SELECT 1 FROM activity_categories WHERE parent_path IS NULL AND category_path !~ '(^|/)zz'`); err != nil || n != 5 {
 		t.Fatalf("top-level areas: %d %v, want 5", n, err)
 	}
 	leaf := "zz" + strings.ToLower(strings.ReplaceAll(uid(""), "-", ""))

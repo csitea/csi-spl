@@ -1814,6 +1814,7 @@
     "created": "skapade ärendet",
     "changed": "ändrade {field}",
     "commented": "kommenterade",
+    "comment_edited": "redigerade en kommentar",
     "deleted": "tog bort ärendet",
     "restored": "återställde ärendet",
     "archived": "arkiverade ärendet",

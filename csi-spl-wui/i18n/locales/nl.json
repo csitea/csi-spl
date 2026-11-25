@@ -1814,6 +1814,7 @@
     "created": "heeft het issue aangemaakt",
     "changed": "heeft {field} gewijzigd",
     "commented": "heeft gereageerd",
+    "comment_edited": "heeft een reactie bewerkt",
     "deleted": "heeft het issue verwijderd",
     "restored": "heeft het issue hersteld",
     "archived": "heeft het issue gearchiveerd",

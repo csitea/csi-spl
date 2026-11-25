@@ -9,6 +9,7 @@
     :x="x"
     :y="y"
     :items="items"
+    :over-modal="overModal"
     :label="t('feed.msg_menu.label')"
     block="msg-menu"
     testid="msg-menu"
@@ -27,6 +28,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import type { TopicMenuLocks } from '~/utils/topic-menu.mjs'
 import type { SpoolMessage } from '~/types/spool'
 import { useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
+import { useInModal } from '~/composables/useInModal'
 import { shortcutHint } from '~/utils/msg-shortcuts.mjs'
 import { useAddToNote } from '~/composables/useAddToNote'
 import { msgNoteLink } from '~/utils/add-to-note.mjs'
@@ -113,6 +115,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
+/* SPL-6480: inside a UiDialog (an issue's comment) the panel sits over the modal, not behind it */
+const overModal = useInModal()
 /* HUM-10 ae2e5093: each entry's Shift + letter on its right, while the setting is on */
 const keysOn = useMsgShortcutsOn()
 /* t1 b6c742f0: the AI actions group closes the list, on a person's message

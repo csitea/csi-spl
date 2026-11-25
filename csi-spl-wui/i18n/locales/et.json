@@ -1814,6 +1814,7 @@
     "created": "lõi ülesande",
     "changed": "muutis välja {field}",
     "commented": "kommenteeris",
+    "comment_edited": "muutis kommentaari",
     "deleted": "kustutas ülesande",
     "restored": "taastas ülesande",
     "archived": "arhiveeris ülesande",

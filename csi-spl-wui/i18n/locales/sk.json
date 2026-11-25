@@ -1814,6 +1814,7 @@
     "created": "vytvoril(a) úlohu",
     "changed": "zmenil(a) {field}",
     "commented": "okomentoval(a)",
+    "comment_edited": "upravil(a) komentár",
     "deleted": "odstránil(a) úlohu",
     "restored": "obnovil(a) úlohu",
     "archived": "archivoval(a) úlohu",

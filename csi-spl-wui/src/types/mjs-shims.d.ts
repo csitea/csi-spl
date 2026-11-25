@@ -1804,7 +1804,7 @@ declare module '~/utils/issues.mjs' {
   export interface IssueEvent {
     at: string
     actor: string
-    event: 'created' | 'changed' | 'commented' | 'deleted' | 'restored' | 'archived' | 'unarchived'
+    event: 'created' | 'changed' | 'commented' | 'comment_edited' | 'deleted' | 'restored' | 'archived' | 'unarchived'
     field?: string
     old: string | null
     new: string | null

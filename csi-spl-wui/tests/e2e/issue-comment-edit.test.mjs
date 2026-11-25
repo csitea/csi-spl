@@ -19,6 +19,15 @@
 //   CONTROL: with the fix reverted the boxes have no attach button and a paste
 //   attaches nothing, so B1, B2, D1 and D2 fail.
 //
+// SPL-6480 (HUM-24, csitea 5c9dcfe7: "the menu is inactive"): the issue is a
+// modal above 820 px and the card menu is teleported to <body> under it, so
+// its entries were in the DOM (A3 passed) but nothing could be clicked:
+//   - A5 the menu's Edit is the topmost element at its own centre, and a
+//     click there opens the comment's editor
+//   - A6 the edit saves on Enter and the comment shows the "edited" mark
+//   CONTROL: without useInModal in MessageMenu.vue the dialog covers the menu,
+//   elementFromPoint hits the dialog, and A5 and A6 fail.
+//
 // CONTROL: on the build before this change the comment MessageCard got no
 // :editable, so the menu had no Edit item and double-click did nothing; and the
 // box saved only on Enter, so the blur check posted nothing. All three fail.
@@ -212,8 +221,40 @@ try {
   ok('A3 right-click opens the shared card menu', menuUp)
   ok('A3 the menu offers Edit on the author\'s own comment', hasEdit, { hasEdit })
   ok('A2/A3 the menu offers Delete too', hasDelete, { hasDelete })
-  await p.keyboard.press('Escape')
-  await sleep(200)
+
+  /* ---- A5: the menu sits OVER the issue modal: Edit is clickable ---- */
+  const editAt = await p.evaluate(() => {
+    const item = document.querySelector('[data-testid=msg-menu-edit]')
+    if (!item) return null
+    const r = item.getBoundingClientRect()
+    const x = r.left + r.width / 2, y = r.top + r.height / 2
+    const top = document.elementFromPoint(x, y)
+    return { x, y, onTop: Boolean(top && (item.contains(top) || top === item)), hit: top ? top.className || top.tagName : '' }
+  })
+  ok('A5 the menu\'s Edit is on top of the issue dialog', Boolean(editAt && editAt.onTop), editAt)
+  if (editAt) await p.mouse.click(editAt.x, editAt.y)
+  const editor1 = await p.waitForFunction(
+    (sel) => document.querySelectorAll(sel)[1]?.querySelector('[data-test=msg-edit-box]'),
+    { timeout: 5000 }, COMMENT,
+  ).then(() => true).catch(() => false)
+  ok('A5 a click on Edit opens the comment editor', editor1)
+
+  /* ---- A6: Enter saves the edit, the comment shows the edited mark ---- */
+  const edited = `edited comment ${Date.now()}`
+  if (editor1) {
+    await p.evaluate((sel, text) => {
+      const el = document.querySelectorAll(sel)[1].querySelector('[data-test=msg-edit-box]')
+      el.focus()
+      el.value = text
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    }, COMMENT, edited)
+    await p.keyboard.press('Enter')
+  }
+  const marked = await p.waitForFunction((sel, text) => {
+    const c = document.querySelectorAll(sel)[1]
+    return Boolean(c && c.innerText.includes(text) && c.querySelector('[data-test=msg-edited]') && !c.querySelector('[data-test=msg-edit-box]'))
+  }, { timeout: 8000 }, COMMENT, edited).then(() => true).catch(() => false)
+  ok('A6 the saved comment shows its new text and the edited mark', marked)
 
   /* ---- B/D: files, on a fresh issue (A3's Escape may have closed the pane) ---- */
   await p.goto(`${server.base}/issues`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

@@ -1814,6 +1814,7 @@
     "created": "izveidoja uzdevumu",
     "changed": "mainīja {field}",
     "commented": "komentēja",
+    "comment_edited": "rediģēja komentāru",
     "deleted": "izdzēsa uzdevumu",
     "restored": "atjaunoja uzdevumu",
     "archived": "arhivēja uzdevumu",

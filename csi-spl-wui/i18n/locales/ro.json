@@ -1814,6 +1814,7 @@
     "created": "a creat problema",
     "changed": "a schimbat {field}",
     "commented": "a comentat",
+    "comment_edited": "a editat un comentariu",
     "deleted": "a șters problema",
     "restored": "a restaurat problema",
     "archived": "a arhivat problema",

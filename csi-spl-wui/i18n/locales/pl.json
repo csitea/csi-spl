@@ -1814,6 +1814,7 @@
     "created": "utworzył(a) zadanie",
     "changed": "zmienił(a) {field}",
     "commented": "skomentował(a)",
+    "comment_edited": "edytował(a) komentarz",
     "deleted": "usunął(a) zadanie",
     "restored": "przywrócił(a) zadanie",
     "archived": "zarchiwizował(a) zadanie",

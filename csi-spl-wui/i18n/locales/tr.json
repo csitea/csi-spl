@@ -1814,6 +1814,7 @@
     "created": "işi oluşturdu",
     "changed": "{field} alanını değiştirdi",
     "commented": "yorum yaptı",
+    "comment_edited": "bir yorumu düzenledi",
     "deleted": "işi sildi",
     "restored": "işi geri yükledi",
     "archived": "işi arşivledi",

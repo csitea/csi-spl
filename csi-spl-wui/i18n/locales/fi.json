@@ -1814,6 +1814,7 @@
     "created": "loi tiketin",
     "changed": "muutti kenttää {field}",
     "commented": "kommentoi",
+    "comment_edited": "muokkasi kommenttia",
     "deleted": "poisti tiketin",
     "restored": "palautti tiketin",
     "archived": "arkistoi tiketin",

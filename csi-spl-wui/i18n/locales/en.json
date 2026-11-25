@@ -1814,6 +1814,7 @@
     "created": "created the issue",
     "changed": "changed {field}",
     "commented": "commented",
+    "comment_edited": "edited a comment",
     "deleted": "deleted the issue",
     "restored": "restored the issue",
     "archived": "archived the issue",

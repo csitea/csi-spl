@@ -1814,6 +1814,7 @@
     "created": "creó la incidencia",
     "changed": "cambió {field}",
     "commented": "comentó",
+    "comment_edited": "editó un comentario",
     "deleted": "eliminó la incidencia",
     "restored": "restauró la incidencia",
     "archived": "archivó la incidencia",

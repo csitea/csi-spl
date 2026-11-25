@@ -116,6 +116,9 @@ function close() {
    Android gesture closes it, and the page and level under it stay put */
 useMobileStack().overlay(() => props.open, close, { history: !props.routed })
 
+/* SPL-6480: a point menu opened from inside (an issue comment's) lifts over the modal */
+provideInModal()
+
 function onBackdrop() {
   close()
 }

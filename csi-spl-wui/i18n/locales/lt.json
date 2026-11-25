@@ -1814,6 +1814,7 @@
     "created": "sukūrė užduotį",
     "changed": "pakeitė {field}",
     "commented": "pakomentavo",
+    "comment_edited": "redagavo komentarą",
     "deleted": "ištrynė užduotį",
     "restored": "atkūrė užduotį",
     "archived": "suarchyvavo užduotį",

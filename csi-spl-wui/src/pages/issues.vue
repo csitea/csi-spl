@@ -1316,8 +1316,9 @@ const commentFileEl = ref<HTMLInputElement | null>(null)
 const pageBoxEl = ref<HTMLInputElement | null>(null)
 /* rdb 0181 + SPL-2784: Discussion | History, and their keys */
 const { talkTab, onTalkTabKey } = useIssueTalkTabs(openKey)
-/* the History tab reads again when the issue or its discussion moved */
-const historyStamp = computed(() => `${detail.value?.updated_at || ''}|${comments.value.length}`)
+/* the History tab reads again when the issue or its discussion moved, a
+   comment edit included (SPL-6480: each edit is a History row) */
+const historyStamp = computed(() => `${detail.value?.updated_at || ''}|${comments.value.length}|${comments.value.map((c) => c.edited_at || '').join()}`)
 const titleEl = ref<HTMLInputElement | null>(null)
 const newTitleEl = ref<HTMLInputElement | null>(null)
 const descEl = ref<{ edit: () => Promise<void> } | null>(null)

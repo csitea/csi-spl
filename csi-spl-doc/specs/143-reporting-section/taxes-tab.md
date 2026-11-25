@@ -1,9 +1,10 @@
 # Costs: a Taxes page, shown only in the tax workspace (SPL-6438)
 
-Status: **v0.1 (2026-11-25), design only, on a review branch; nothing is
-built.** Issue: SPL-6438 (epic SPL-2400). Discussion: csitea topic
-`dc7c9c9a` (owner HUM-10). The owner's questions are the form of section 9;
-the build waits for the answers and the holder's go.
+Status: **v0.2 (2026-11-25), built (S1-S4) on a review branch, waiting
+for R7 and the holder's GO.** Issue: SPL-6438 (epic SPL-2400). Discussion:
+csitea topic `dc7c9c9a` (owner HUM-10). The owner answered section 9 (msg
+`fc8f964e`): Q1 **A**, every person of csitea, agents never; Q2 **A**,
+weekly, after the weekly tax check. Section 10 is what was built.
 
 It adds one page to the Costs bar of [costs-redesign.md](costs-redesign.md)
 (3.2, 3.9) and copies, on purpose, the shape of the one Reporting page that
@@ -74,8 +75,8 @@ browser of an allowed person of that workspace --GET /v1/view/tax/overview--> Co
 4. **Read.** `GET /v1/view/tax/overview`, from a person's own browser
    session, the doors of `netvisorReader`: 403 for any `Authorization`
    header, an act-as clone, an agent seat, a time accountant or a channel
-   guest, and (Q1 B) for anyone but HUM-10 by id; 404 in every workspace but
-   the cnf one. The answer holds the report's six sections, computed by the
+   guest (Q1 A: every other person of the workspace reads); in every
+   workspace but the cnf one the 404 of an unknown `/v1/view/*` route. The answer holds the report's six sections, computed by the
    hub from the two newest snapshots.
 
 ## 4. What is stored
@@ -110,12 +111,14 @@ box. "Open the document" is not offered.
 | layer | rule | test (red first) |
 |---|---|---|
 | WUI bar | `COSTS_PAGES` gets `taxes` with `taxOnly: true`; `visibleCostsPages` draws it only when `who.taxReader` holds; `pages/reporting/costs.vue` sets it after one `GET /v1/view/tax/overview` answered 2xx (the Finance probe) | unit: no `taxReader` -> no `taxes`; e2e mock: the csitea reader sees `costs-page-taxes`, a reader of another workspace does not, and `/reporting/costs/taxes` there shows the empty "not in this workspace" state, never data |
-| hub | 404 unless the session's workspace = `SPOOL_HUB_TAX_WORKSPACE`; 403 for token, act-as, agent, time accountant, guest (and non-HUM-10 under Q1 B) | hub tests, one per door; red control: the door removed |
+| hub | 404 unless the session's workspace = `SPOOL_HUB_TAX_WORKSPACE`; 403 for token, act-as, agent, time accountant, guest | hub tests, one per door (`tax_test.go`) |
 | store | RLS: another workspace's transaction reads 0 tax rows; the operator scope reads 0 | `TestRLSCoversEveryTenantTable` takes both tables; a PostgreSQL test reads csitea's rows as another workspace and gets 0 (`PRE_PUSH_TIER=full`) |
 | cnf | `SPOOL_HUB_TAX_WORKSPACE: "csitea"` in `all.env.yaml`; empty = off | tpl-gen parity |
 
 Another workspace never gets the label, the data, a count, or an error that
-says the data exists: the 404 body is the same as an unknown route's.
+says the data exists: the 404 body is byte for byte the one `view.go`
+answers an unknown `/v1/view/*` route (`{"error":"not_found","detail":"no
+such view"}`), tested in `TestTaxHubOtherWorkspaces`.
 
 ## 7. Never
 
@@ -149,3 +152,40 @@ How often does the page refresh?
 (A) Weekly, after the weekly tax check
 (B) Daily
 ```
+
+## 10. As built (v0.2)
+
+| slice | where | tests (n=1, this tree) |
+|---|---|---|
+| S1 | rdb `0324_tax_documents.sql`; store `tax.go`, `tax_postgres.go` | `tax_test.go` (read by every door, red control: `tax_read` dropped, writes, prune); the census, RLS and SQL-tab registries; Postgres 16 |
+| S2 | hub `tax.go`, wire `tax.go`, `openapi.json`; cnf `SPOOL_HUB_TAX_WORKSPACE: "csitea"` | hub `tax_test.go` (doors, other workspaces, ingest, cnf off) on Postgres; `tax_internal_test.go` |
+| S3 | WUI `utils/reporting-tax.mjs`, `pages/reporting/costs/taxes.vue`, the label in `utils/reporting-costs.mjs` (`taxOnly`), 19 locales | `tests/unit/reporting-tax.test.mjs`, `reporting-costs.test.mjs`; e2e `reporting-costs-taxes.test.mjs` |
+| S4 | orc `do_spl_tax_sync` | `spl-tax-sync.tst.sh` (an invented index) |
+
+What the hub computes for the page, from the newest snapshot of the year
+and the one before it (`taxOverview`):
+
+- **status**: `new` when the row's content hash was not in the snapshot
+  before and its key (kind, type, tax type, period) was not either;
+  `changed` when the key was there with another hash; empty when the hash
+  was there, or when there is no snapshot before (the first sync marks
+  nothing).
+- **due_soon**: the due date is within 30 days of today, either way, so an
+  overdue document stays in "Due" for 30 days; **overdue**: before today.
+- **open_question**: a `decisions` row with no due date.
+- Documents newest arrival first; `?year=YYYY` reads another filed year,
+  `years` lists them.
+
+The ingest: an unknown field (a file name, an amount) is 400; the same
+snapshot id twice is 409; snapshots of a year older than 26 weeks before
+the newest are pruned, the two newest always kept.
+
+The sync (S4): `ENV=prd TAX_INDEX_FILE=<tax project>/<year>/index.tsv
+DRY_RUN=0 ./run -a do_spl_tax_sync`, from the main box's checkout, after
+the private project's weekly check; the cron line is S5, the holder's.
+Dates in the index may be `YYYY-MM-DD` or `D.M.YYYY`.
+
+The WUI mock plays the tax workspace only while the browser's
+`spool.mock.tax_workspace` holds `here`; otherwise it plays any other
+workspace (no label, the neutral line), so the other mock pages keep their
+five labels.

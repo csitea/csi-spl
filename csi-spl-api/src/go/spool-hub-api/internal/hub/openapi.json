@@ -23085,7 +23085,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "The History tab of one issue, oldest first (rdb 0181 issue_events plus the comments of its topic).",
+                  "description": "The History tab of one issue, oldest first (rdb 0181 issue_events, the comments of its topic and each saved comment edit from message_revisions).",
                   "properties": {
                     "events": {
                       "items": {

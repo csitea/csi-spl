@@ -58,9 +58,13 @@
 // off, as when Chrome evicts a page: Back onto /login reloads it and the card
 // must not paint (stale-login-hide-script.mjs): the document must already be
 // hidden when its <body> appears, and a walk that never re-parsed /login fails
-// too, because it proved nothing. `detached`: The node under the finger
-// leaves the DOM mid-swipe, as TopicPaneWait does when TopicPane replaces it:
-// touchend fires on the detached node, and the swipe must still step Back.
+// too, because it proved nothing. SPL-6531: it runs in its own browser launched
+// with bfcache off. It used an unload handler to keep pages out of bfcache; on
+// the runner's Chrome 158 Back no longer re-parsed /login, and with no unload
+// handler Chrome 156 restores /login from bfcache too (3 of 5 runs here).
+// `detached`: The node under the finger leaves the DOM mid-swipe, as
+// TopicPaneWait does when TopicPane replaces it: touchend fires on the
+// detached node, and the swipe must still step Back.
 //
 // Cells run CELL_JOBS at a time (default 3), each in its own browser context,
 // so no cell sees another's storage; the lines still print in matrix order.
@@ -107,7 +111,7 @@ async function slowDown(p) {
   })
 }
 
-async function launch() {
+async function launch(extraArgs = []) {
   const require = createRequire(import.meta.url)
   for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
     try {
@@ -118,7 +122,7 @@ async function launch() {
         executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
         headless: true,
         defaultViewport: null,
-        args: CHROME_LAUNCH_ARGS,
+        args: [...CHROME_LAUNCH_ARGS, ...extraArgs],
       })
     } catch { /* try the next spec */ }
   }
@@ -142,13 +146,20 @@ function boot(member) {
   mark()
 }
 
-/* The no-bfcache cell, on every document: an unload handler keeps it out of
-   bfcache, and each /login that Back re-parses reports what its head script
-   left at the moment <body> appears. DOMContentLoaded would be too late: the
-   guard's module scripts run before it and hide the page themselves. */
+/* The no-bfcache cell's browser: bfcache off for every page (SPL-6531). */
+const NO_BFCACHE_ARGS = ['--disable-back-forward-cache']
+
+/* The no-bfcache cell, on every document: each /login that Back re-parses
+   reports what its head script left at the moment <body> appears, and a
+   /login that bfcache restores says so (then the cell proved nothing).
+   DOMContentLoaded would be too late: the guard's module scripts run before
+   it and hide the page themselves. */
 const LOGIN_REPARSE = 'e2e.loginReparse:'
-function noBfcacheProbe(prefix) {
-  addEventListener('unload', () => {})
+const LOGIN_RESTORED = 'e2e.loginRestored'
+function noBfcacheProbe(prefix, restored) {
+  addEventListener('pageshow', (e) => {
+    if (e.persisted && /(^|\/)login\/?$/.test(location.pathname)) console.log(restored)
+  })
   const watch = new MutationObserver(() => {
     if (!document.body) return
     watch.disconnect()
@@ -290,11 +301,15 @@ async function cell(browser, base, width, entry, method, noBfcache = false) {
   const steps = []
   const fails = []
   const reparsed = []
-  p.on('console', (m) => { if (m.text().startsWith(LOGIN_REPARSE)) reparsed.push(m.text().slice(LOGIN_REPARSE.length)) })
+  let restored = 0
+  p.on('console', (m) => {
+    if (m.text().startsWith(LOGIN_REPARSE)) reparsed.push(m.text().slice(LOGIN_REPARSE.length))
+    else if (m.text() === LOGIN_RESTORED) restored++
+  })
   try {
     await p.setViewport({ width, height: SIZES[width], isMobile: true, hasTouch: true })
     await p.evaluateOnNewDocument(boot, MEMBER)
-    if (noBfcache) await p.evaluateOnNewDocument(noBfcacheProbe, LOGIN_REPARSE)
+    if (noBfcache) await p.evaluateOnNewDocument(noBfcacheProbe, LOGIN_REPARSE, LOGIN_RESTORED)
     await slowDown(p)
     const want = entry === 'channel' ? 2 : 3
     const start = await enter(p, base, entry)
@@ -346,7 +361,7 @@ async function cell(browser, base, width, entry, method, noBfcache = false) {
       else if (i === 3) fails.push(`still in the app after 4 Backs from level 1 (${s.path})`)
     }
     if (noBfcache && !fails.length) {
-      if (!reparsed.length) fails.push('Back never re-parsed /login: this cell proved nothing')
+      if (!reparsed.length) fails.push(`Back never re-parsed /login (bfcache restores of /login: ${restored}): this cell proved nothing`)
       else if (reparsed.some((v) => v !== 'hidden')) fails.push(`/login was not hidden when its <body> appeared: ${reparsed.join(',')}`)
       else steps.push(`login:${reparsed.join(',')}`)
     }
@@ -411,7 +426,8 @@ try {
   await Promise.all(Array.from({ length: Math.min(CELL_JOBS, todo.length) }, worker))
   const d = await detachedCell(browser, srv.base)
   cells.push({ entry: 'topic', method: 'detached', verdict: d.fails.length ? 'FAIL' : 'OK', ...d })
-  const nb = await cell(browser, srv.base, 360, 'login', 'chevron', true)
+  const nbBrowser = await launch(NO_BFCACHE_ARGS)
+  const nb = await cell(nbBrowser, srv.base, 360, 'login', 'chevron', true).finally(() => nbBrowser.close())
   cells.push({ width: 360, entry: 'login', method: 'no-bfcache', verdict: nb.fails.length ? 'FAIL' : 'OK', ...nb })
   for (const c of cells) {
     console.log(`  ${c.verdict.padEnd(9)} ${c.width} ${c.entry.padEnd(7)} ${c.method.padEnd(7)} ${c.steps.join('>')}${c.fails.length ? '  ' + c.fails.join('; ') : ''}`)

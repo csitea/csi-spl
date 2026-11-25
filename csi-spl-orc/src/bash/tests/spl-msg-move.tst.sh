@@ -71,5 +71,55 @@ for tok in "not_allowed:moves only for a bound owner" "not_found:never delivered
   [[ $rc -ne 0 && "$out" == *"${tok#*:}"* ]] && pass "a ${tok%%:*} refusal is named" || fail "${tok%%:*} refusal (rc=$rc): $out"
 done
 
+# --- 6. _spl_desk_move_prep / _spl_desk_move_json (r02-01 one copy) -----------
+out=$(env PROJ_ROOT="$PROJ_ROOT" T="$T" SPL_HUB_URL="https://hub.test" bash -c '
+  do_log(){ echo "$*"; }
+  spl_desk_dir(){ echo "$T/state/dev/desk/$1/$2"; }
+  spl_host_spool(){ echo "SPOOL-CALLED"; }
+  source "$PROJ_ROOT/src/bash/run/spl-msg-move.func.sh"
+  _spl_desk_move_prep 1 t1 box-desk CLE-00 HUM-1 "message m1 to topic t2" || exit 1
+  printf "DONE=%s DIR=%s\n" "$SPL_MOVE_DRY_DONE" "$SPL_MOVE_DIR"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"INFO DRY_RUN would: move message m1 to topic t2 as CLE-00 for HUM-1 on box-desk in t1 (https://hub.test)"* && "$out" == *"DONE=1 DIR="* && "$out" != *"there is no desk"* && "$out" != *"SPOOL-CALLED"* ]] \
+  && pass "6. _spl_desk_move_prep dry run with existing desk sets SPL_MOVE_DRY_DONE=1 and skips spool" || fail "6. prep dry ok: rc=$rc $out"
+out=$(env PROJ_ROOT="$PROJ_ROOT" T="$T" SPL_HUB_URL="https://hub.test" bash -c '
+  do_log(){ echo "$*"; }
+  spl_desk_dir(){ echo "$T/no-desk"; }
+  spl_host_spool(){ echo "SPOOL-CALLED"; }
+  source "$PROJ_ROOT/src/bash/run/spl-msg-move.func.sh"
+  _spl_desk_move_prep 1 t1 box-desk CLE-00 "" "message m1 to topic t2" || exit 1
+  printf "DONE=%s\n" "$SPL_MOVE_DRY_DONE"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"INFO DRY_RUN there is no desk for CLE-00 on box-desk in t1 yet ($T/no-desk)"* && "$out" == *"DONE=1"* ]] \
+  && pass "6. _spl_desk_move_prep dry run notes missing desk" || fail "6. prep dry nodesk: rc=$rc $out"
+out=$(env PROJ_ROOT="$PROJ_ROOT" T="$T" SPL_HUB_URL="https://hub.test" bash -c '
+  do_log(){ echo "$*"; }
+  spl_desk_dir(){ echo "$T/no-desk"; }
+  spl_host_spool(){ echo "SPOOL-CALLED"; }
+  source "$PROJ_ROOT/src/bash/run/spl-msg-move.func.sh"
+  _spl_desk_move_prep 0 t1 box-desk CLE-00 "" "message m1 to topic t2"' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no desk for CLE-00 on box-desk in t1: run do_spl_desk_up first ($T/no-desk)"* && "$out" != *"SPOOL-CALLED"* ]] \
+  && pass "6. _spl_desk_move_prep refuses missing desk on DRY_RUN=0 before host spool" || fail "6. prep nodesk: rc=$rc $out"
+out=$(env PROJ_ROOT="$PROJ_ROOT" T="$T" SPL_HUB_URL="https://hub.test" bash -c '
+  do_log(){ echo "$*"; }
+  spl_desk_dir(){ echo "$T/state/dev/desk/$1/$2"; }
+  spl_host_spool(){ echo "SPOOL-CALLED"; }
+  source "$PROJ_ROOT/src/bash/run/spl-msg-move.func.sh"
+  _spl_desk_move_prep 0 t1 box-desk CLE-00 "" "message m1 to topic t2" || exit 1
+  printf "DONE=%s DIR=%s\n" "$SPL_MOVE_DRY_DONE" "$SPL_MOVE_DIR"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"SPOOL-CALLED"* && "$out" == *"DONE=0 DIR=$T/state/dev/desk/t1/box-desk"* ]] \
+  && pass "6. _spl_desk_move_prep sets SPL_MOVE_DIR and calls spl_host_spool on DRY_RUN=0" || fail "6. prep live: rc=$rc $out"
+out=$(env PROJ_ROOT="$PROJ_ROOT" ENV=dev PAYLOAD='{"ok":true}' bash -c '
+  source "$PROJ_ROOT/src/bash/run/spl-msg-move.func.sh"
+  _spl_desk_move_json t1 box-desk CLE-00 to_task t2 "$PAYLOAD"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == '{"agent": "CLE-00", "box": "box-desk", "env": "dev", "move": {"ok": true}, "tenant": "t1", "to_task": "t2"}' ]] \
+  && pass "6. _spl_desk_move_json embeds parsed JSON move payload" || fail "6. json obj: rc=$rc $out"
+out=$(env PROJ_ROOT="$PROJ_ROOT" ENV=prd bash -c '
+  source "$PROJ_ROOT/src/bash/run/spl-msg-move.func.sh"
+  _spl_desk_move_json t1 box-desk CLE-00 channel dev "plain-text"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == '{"agent": "CLE-00", "box": "box-desk", "channel": "dev", "env": "prd", "move": "plain-text", "tenant": "t1"}' ]] \
+  && pass "6. _spl_desk_move_json falls back to raw string when move output is non-JSON" || fail "6. json str: rc=$rc $out"
+mm_f="$PROJ_ROOT/src/bash/run/spl-msg-move.func.sh"
+[[ "$(grep -c "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to move." "$mm_f")" -eq 1 && "$(grep -c "EOF_PY" "$mm_f")" -eq 2 && "$(grep -c "_spl_desk_move_prep " "$mm_f")" -ge 1 && "$(grep -c "_spl_desk_move_json " "$mm_f")" -ge 1 ]] \
+  && pass "6. one copy: spl-msg-move.func.sh defines and calls _spl_desk_move_prep and _spl_desk_move_json once" || fail "6. msg one copy"
+
 echo "fails=$fails"
 exit $(( fails > 0 ))

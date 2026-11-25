@@ -44,17 +44,12 @@ do_spl_topic_move() {
   [[ -z "$act_for" || "$act_for" =~ ^HUM-[0-9]+$ ]] ||
     { do_log "FATAL ACT_FOR must be a HUM-* id, got: '$act_for'"; return 1; }
 
-  local hub d
-  hub="$SPL_HUB_URL"
-  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
-  if (( dry )); then
-    do_log "INFO DRY_RUN would: move topic $topic to #$channel as $agent${act_for:+ for $act_for} on $box in $tenant ($hub)"
-    [[ -d "$d/spool/$agent" ]] || do_log "INFO DRY_RUN there is no desk for $agent on $box in $tenant yet ($d): do_spl_desk_up seats one"
-    do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to move."
-    return 0
-  fi
-  [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
-  spl_host_spool || return 1
+  local hub="$SPL_HUB_URL" d
+  # shellcheck source=spl-msg-move.func.sh
+  declare -F _spl_desk_move_prep >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-msg-move.func.sh"
+  _spl_desk_move_prep "$dry" "$tenant" "$box" "$agent" "$act_for" "topic $topic to #$channel" || return 1
+  (( SPL_MOVE_DRY_DONE )) && return 0
+  d="$SPL_MOVE_DIR"
 
   local args=(move --task "$topic" --channel "$channel" --as "$agent") out rc=0
   [[ -n "$act_for" ]] && args+=(--acting-for "$act_for")
@@ -73,14 +68,6 @@ do_spl_topic_move() {
     do_log "FATAL move $topic to #$channel as $agent: $out"
     return 1
   fi
-  python3 - "$ENV" "$tenant" "$box" "$agent" "$channel" "$out" <<'EOF_PY'
-import json, sys
-env, tenant, box, agent, channel, out = sys.argv[1:]
-try:
-    out = json.loads(out)
-except ValueError:
-    pass
-print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent, "channel": channel, "move": out}, sort_keys=True))
-EOF_PY
+  _spl_desk_move_json "$tenant" "$box" "$agent" channel "$channel" "$out"
   do_log "OK $agent moved topic $topic to #$channel on $box in $tenant"
 }

@@ -68,5 +68,23 @@ for tok in "not_allowed:only the agent that started it" "not_found:never deliver
   [[ $rc -ne 0 && "$out" == *"${tok#*:}"* ]] && pass "a ${tok%%:*} refusal is named" || fail "${tok%%:*} refusal (rc=$rc): $out"
 done
 
+# --- 6. r02-01 one copy and standalone lazy-source -----------------------------
+jline="$(run_mv TOPIC_ID=$TOPIC CHANNEL='#dev' DRY_RUN=0 2>&1 | grep '^{')"
+python3 -c 'import json, sys; d = json.loads(sys.argv[1]); assert d.get("channel") == "dev" and "to_task" not in d' "$jline" \
+  && pass "6. topic move emits top-level channel key (not to_task)" || fail "6. topic json key: $jline"
+tm_f="$PROJ_ROOT/src/bash/run/spl-topic-move.func.sh"
+own="$(grep -nE "OK DRY_RUN nothing was sent\. Re-run with DRY_RUN=0 to move\.|EOF_PY" "$tm_f" || true)"
+[[ -z "$own" ]] && grep -q "_spl_desk_move_prep " "$tm_f" && grep -q "_spl_desk_move_json " "$tm_f" \
+  && pass "6. one copy: spl-topic-move.func.sh delegates prep and JSON output to shared helpers" || fail "6. topic one copy: own=[$own]"
+out=$(env PROJ_ROOT="$PROJ_ROOT" T="$T" ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BOX=box-desk TOPIC_ID="$TOPIC" CHANNEL=dev bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ return 0; }
+  do_spl_desk_cnf(){ SPL_HUB_URL="https://hub.test"; }; spl_dry_run(){ return 0; }
+  spl_desk_box_default(){ echo box-desk; }; spl_desk_validate(){ return 0; }
+  spl_desk_dir(){ echo "$T/state/dev/desk/$1/$2"; }
+  source "$PROJ_ROOT/src/bash/run/spl-topic-move.func.sh"
+  do_spl_topic_move' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"INFO DRY_RUN would: move topic $TOPIC to #dev as CLE-00 on box-desk in t1 (https://hub.test)"* && "$out" != *"command not found"* ]] \
+  && pass "6. lazy load: spl-topic-move.func.sh loads _spl_desk_move_prep standalone" || fail "6. lazy topic: rc=$rc $out"
+
 echo "fails=$fails"
 exit $(( fails > 0 ))

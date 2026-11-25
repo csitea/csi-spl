@@ -216,6 +216,60 @@ for bad in BOX_STATS_CRON_EVERY=0 BOX_STATS_CRON_EVERY=60 BOX_STATS_CRON_OFFSET=
 done
 cmp -s "$T/crontab" "$T/crontab.orig" && pass "bad EVERY / OFFSET / ACTION / DRY_RUN are refused, nothing written" || fail "bad settings wrote"
 
+# 4. _spl_simple_cron_apply (r02-02 one copy) ----------------------------------
+out="$(setup BOX_STATS_CRON_ACTION=check)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the box-stats cron is NOT installed (no line tagged csi-spl:box-stats): the hub gets no regular samples of this box"* ]] &&
+  pass "4. box-stats check-missing keeps exact label and suffix" || fail "4. box miss (rc=$rc): $out"
+out="$(setup DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the box-stats cron posts a sample every 5m as the box user:"* ]] &&
+  pass "4. box-stats install keeps exact ok_msg" || fail "4. box ok (rc=$rc): $out"
+setup DRY_RUN=0 BOX_STATS_CRON_ACTION=remove >/dev/null
+printf '#!/bin/sh\n' >"$T/demo.sh"; chmod +x "$T/demo.sh"
+out="$(env PROJ_ROOT="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" T="$T" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }
+  source "$PROJ_ROOT/src/bash/run/setup-box-stats-cron.func.sh"
+  _spl_simple_cron_apply check "csi-spl:demo" "$T" master "$T/demo.sh" "$T/dlog" "* * * * * $T/demo.sh # csi-spl:demo" "demo" "ticks every 1m" ": no demo"
+  echo "rc1=$?"
+  _spl_simple_cron_apply install "csi-spl:demo" "$T" master "$T/demo.sh" "$T/dlog" "* * * * * $T/demo.sh # csi-spl:demo" "demo" "ticks every 1m" ": no demo"
+  echo "rc2=$?"
+  _spl_simple_cron_apply check "csi-spl:demo" "$T" master "$T/demo.sh" "$T/dlog" "* * * * * $T/demo.sh # csi-spl:demo" "demo" "ticks every 1m" ": no demo"
+  echo "rc3=$?"
+  _spl_simple_cron_apply remove "csi-spl:demo" "$T" master "$T/demo.sh" "$T/dlog" "* * * * * $T/demo.sh # csi-spl:demo" "demo" "ticks every 1m" ": no demo"
+  echo "rc4=$?"' 2>&1)"
+[[ "$out" == *"FAIL the demo cron is NOT installed (no line tagged csi-spl:demo): no demo"* && "$out" == *"rc1=1"* \
+  && "$out" == *"OK the demo cron ticks every 1m:"* && "$out" == *"rc2=0"* \
+  && "$out" == *"OK the demo cron is installed and its script is executable"* && "$out" == *"rc3=0"* \
+  && "$out" == *"OK the demo cron is out of the crontab"* && "$out" == *"rc4=0"* ]] &&
+  cmp -s "$T/crontab" "$T/crontab.orig" &&
+  pass "4. _spl_simple_cron_apply handles check-missing, install, check-ok and remove directly" || fail "4. apply direct: $out"
+bs_f="$PROJ_ROOT/src/bash/run/setup-box-stats-cron.func.sh"
+dh_f="$PROJ_ROOT/src/bash/run/check-disk-headroom-install-cron.func.sh"
+gc_f="$PROJ_ROOT/src/bash/run/setup-go-cache-prune-cron.func.sh"
+[[ "$(grep -c "the crontab does not read back what was written" "$bs_f")" -eq 1 && "$(grep -c "_spl_simple_cron_apply " "$bs_f")" -ge 1 ]] &&
+  pass "4. one copy: setup-box-stats-cron.func.sh defines and calls _spl_simple_cron_apply once" || fail "4. box one copy"
+for sib in "$dh_f" "$gc_f"; do
+  own="$(grep -nE "the crontab does not read back what was written|is installed and its script is executable|OK DRY_RUN nothing was touched" "$sib" || true)"
+  [[ -z "$own" ]] && grep -q "_spl_simple_cron_apply " "$sib" &&
+    pass "4. one copy: $(basename "$sib") delegates apply to _spl_simple_cron_apply" || fail "4. one copy $(basename "$sib"): own=[$own]"
+done
+printf '#!/bin/sh\n' >"$SH/csi-spl-orc/src/bash/scripts/check-disk-headroom.sh"
+printf '#!/bin/sh\n' >"$SH/csi-spl-orc/src/bash/scripts/prune-go-build-cache-cron.sh"
+chmod +x "$SH/csi-spl-orc/src/bash/scripts/check-disk-headroom.sh" "$SH/csi-spl-orc/src/bash/scripts/prune-go-build-cache-cron.sh"
+out="$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" DISK_HEADROOM_CRON_LOG_DIR="$T/log-dh" DISK_HEADROOM_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/check-disk-headroom-install-cron.func.sh"
+  do_check_disk_headroom_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the disk headroom cron is NOT installed (no line tagged csi-spl:disk-headroom): a filling disk warns nobody"* && "$out" != *"command not found"* ]] &&
+  pass "4. lazy load: check-disk-headroom-install-cron.func.sh loads _spl_simple_cron_apply standalone" || fail "4. lazy dh (rc=$rc): $out"
+out="$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" GO_CACHE_CRON_LOG_DIR="$T/log-gc" GO_CACHE_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/setup-go-cache-prune-cron.func.sh"
+  do_setup_go_cache_prune_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the go-cache prune cron is NOT installed (no line tagged csi-spl:go-cache-prune)"* && "$out" != *"command not found"* ]] &&
+  pass "4. lazy load: setup-go-cache-prune-cron.func.sh loads _spl_simple_cron_apply standalone" || fail "4. lazy gc (rc=$rc): $out"
+
 echo
 if [ "$fails" -eq 0 ]; then echo "box-stats-cron: all passed"; exit 0; fi
 echo "box-stats-cron: $fails FAILED"; exit 1

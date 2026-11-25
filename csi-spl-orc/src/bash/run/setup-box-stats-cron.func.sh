@@ -40,7 +40,7 @@ do_setup_box_stats_cron() {
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   SPL_ORG_APP="${SPL_ORG_APP:-$(basename "$PROJ_PATH")}"; SPL_ORG_APP="${SPL_ORG_APP%-orc}"
 
-  local tag src script logdir line ns current sched pre="" trunk="${DESK_CRON_TRUNK:-master}"
+  local tag src script logdir line ns sched pre="" trunk="${DESK_CRON_TRUNK:-master}"
   tag="$SPL_ORG_APP:box-stats"
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
@@ -56,11 +56,22 @@ do_setup_box_stats_cron() {
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/cron.lock")" || return 1
   line="$(printf '%s * * * * %s%s%s >> %s/cron.out 2>&1 # %s' "$sched" "$pre" "$ns" "$script" "$logdir" "$tag")"
+  _spl_simple_cron_apply "$act" "$tag" "$src" "$trunk" "$script" "$logdir" "$line" \
+    "box-stats" "posts a sample every ${every}m as the box user" \
+    ": the hub gets no regular samples of this box"
+}
+
+# _spl_simple_cron_apply <act> <tag> <src> <trunk> <script> <logdir> <line>
+#   <label> <ok_msg> [miss_why] -> run check, dry-run, remove, or install for
+#   a single-line tagged crontab action.
+_spl_simple_cron_apply() {
+  local act="$1" tag="$2" src="$3" trunk="$4" script="$5" logdir="$6" line="$7"
+  local label="$8" ok_msg="$9" miss_why="${10:-}" current
   current="$(spl_desk_cron_line "$tag")"
 
   if [[ "$act" == check ]]; then
     if [[ -z "$current" ]]; then
-      do_log "FAIL the box-stats cron is NOT installed (no line tagged $tag): the hub gets no regular samples of this box"
+      do_log "FAIL the $label cron is NOT installed (no line tagged $tag)$miss_why"
       return 1
     fi
     spl_desk_cron_say "$current"
@@ -68,7 +79,7 @@ do_setup_box_stats_cron() {
     [[ -n "$ran" && -x "$ran" ]] ||
       { do_log "FAIL the line names a script that is gone or not executable: ${ran:-<none>}"; return 1; }
     [[ "$current" == "$line" ]] || do_log "INFO installed with other settings than this call would write - working"
-    do_log "OK the box-stats cron is installed and its script is executable"
+    do_log "OK the $label cron is installed and its script is executable"
     return 0
   fi
 
@@ -80,7 +91,7 @@ do_setup_box_stats_cron() {
   fi
   if [[ "$act" == remove ]]; then
     spl_desk_cron_write "$tag" "" || return 1
-    do_log "OK the box-stats cron is out of the crontab"
+    do_log "OK the $label cron is out of the crontab"
     return 0
   fi
   spl_desk_cron_checkout "$src" "$trunk" || return 1
@@ -89,6 +100,6 @@ do_setup_box_stats_cron() {
   spl_desk_cron_write "$tag" "$line" || return 1
   current="$(spl_desk_cron_line "$tag")"
   [[ "$current" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written. Got: ${current:-<nothing>}"; return 1; }
-  do_log "OK the box-stats cron posts a sample every ${every}m as the box user:"
+  do_log "OK the $label cron $ok_msg:"
   spl_desk_cron_say "$line"
 }

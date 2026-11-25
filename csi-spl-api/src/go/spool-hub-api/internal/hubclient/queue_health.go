@@ -47,6 +47,10 @@ type QueueHealth struct {
 	OldestAgeS int64  `json:"oldest_age_s"`
 	// Rejected counts the envelopes moved to rejected/: never delivered.
 	Rejected int `json:"rejected"`
+	// Records is the record queue (pending-record/, spec 058 section 7):
+	// record-only copies no hub has taken yet, at most recordQueueCap.
+	Records           int   `json:"records"`
+	RecordsOldestAgeS int64 `json:"records_oldest_age_s"`
 	// WarnAfterS is the cnf threshold in seconds, 0 = no WARN configured.
 	WarnAfterS int64        `json:"warn_after_s"`
 	Warn       bool         `json:"warn"`
@@ -113,6 +117,18 @@ func (c *Client) QueueHealth() (QueueHealth, error) {
 			}
 		}
 	}
+	recs, err := c.Records()
+	if err != nil {
+		return h, err
+	}
+	h.Records = len(recs)
+	if len(recs) > 0 {
+		if fi, err := os.Stat(recs[0]); err == nil {
+			if age := now.Sub(fi.ModTime()); age > 0 {
+				h.RecordsOldestAgeS = int64(age / time.Second)
+			}
+		}
+	}
 	if ents, err := os.ReadDir(c.rejectedDir()); err == nil {
 		for _, e := range ents {
 			if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
@@ -144,7 +160,8 @@ func (c *Client) logQueue() {
 		msg = "fallback queue: the oldest pending envelope is older than the cnf threshold; the hub has not taken it"
 	}
 	ev = ev.Str("box", h.Box).Int("depth", h.Depth).Int64("oldest_age_s", h.OldestAgeS).
-		Int("rejected", h.Rejected).Int64("warn_after_s", h.WarnAfterS)
+		Int("rejected", h.Rejected).Int("records", h.Records).Int64("records_oldest_age_s", h.RecordsOldestAgeS).
+		Int64("warn_after_s", h.WarnAfterS)
 	if f := h.LastFlush; f != nil {
 		ev = ev.Str("last_flush_at", f.At).Int("last_flush_flushed", f.Flushed).Str("last_flush_error", f.Error)
 	}

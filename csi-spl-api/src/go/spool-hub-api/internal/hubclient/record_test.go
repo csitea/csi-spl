@@ -6,9 +6,11 @@ package hubclient
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -57,8 +59,8 @@ func TestRecordSendsRecordOnlyToOwnBox(t *testing.T) {
 	if q := recQueue(t, c); len(q) != 0 {
 		t.Fatalf("record queue after the send: %v", q)
 	}
-	if p, _ := c.Pending(); len(p) != 0 || c.queued() {
-		t.Fatalf("pending %v / queued %v after a record send", p, c.queued())
+	if p, _ := c.Pending(); len(p) != 0 || c.queued(true) {
+		t.Fatalf("pending %v / queued %v after a record send", p, c.queued(true))
 	}
 	// The session's welcome writes .hub/roster.json; nothing else may exist.
 	for _, f := range srFiles(t, c.Cfg.SpoolRoot) {
@@ -88,8 +90,8 @@ func TestRecordHubDownQueuesThenFlushes(t *testing.T) {
 	if err != nil || d != wire.DeliveryPending {
 		t.Fatalf("hub down: delivery %q err %v, want pending", d, err)
 	}
-	if q := recQueue(t, c); len(q) != 1 || !c.queued() {
-		t.Fatalf("record queue %v, queued %v", q, c.queued())
+	if q := recQueue(t, c); len(q) != 1 || !c.queued(true) {
+		t.Fatalf("record queue %v, queued %v", q, c.queued(true))
 	}
 	c.Cfg.HubURL = h.srv.URL
 	s := srSession(t, c, wire.RoleBox)
@@ -102,7 +104,7 @@ func TestRecordHubDownQueuesThenFlushes(t *testing.T) {
 	if len(recs) != 1 || !recs[0] {
 		t.Fatalf("flushed frames record_only %v, want [true]", recs)
 	}
-	if c.queued() {
+	if c.queued(true) {
 		t.Fatal("the record queue is not empty after the flush")
 	}
 }
@@ -171,7 +173,7 @@ func TestRecordNeedsTheBoxKey(t *testing.T) {
 	if _, err := c.SendRecord(context.Background(), recMsg(t, c, "no key")); err == nil {
 		t.Fatal("a record without the box key was sent")
 	}
-	if c.queued() {
+	if c.queued(true) {
 		t.Fatal("a record without the box key was queued")
 	}
 }
@@ -202,6 +204,9 @@ func TestRecordNeverSentToAnOldHub(t *testing.T) {
 	if q := recQueue(t, c); len(q) != 1 {
 		t.Fatalf("record queue %v, want the one copy", q)
 	}
+	if c.queued(s.takesRecords()) {
+		t.Fatal("a session on an old hub counts the record queue: the 10 s scan would flush it every tick")
+	}
 	s2 := srSession(t, c, wire.RoleBox)
 	if n, err := s2.Flush(context.Background()); err != nil || n != 1 {
 		t.Fatalf("flush on a new hub: %d %v, want 1", n, err)
@@ -211,5 +216,54 @@ func TestRecordNeverSentToAnOldHub(t *testing.T) {
 	h.mu.Unlock()
 	if len(recs) != 1 || !recs[0] || len(recQueue(t, c)) != 0 {
 		t.Fatalf("new hub: frames %v queue %v, want one record_only and none left", recs, recQueue(t, c))
+	}
+}
+
+// The other way round (a box that reconnects from a new hub to an old one,
+// a hub rollback): the old session does not inherit the new hub's feature,
+// so the next copy is not sent and waits in the queue.
+func TestRecordNotSentAfterARollbackToAnOldHub(t *testing.T) {
+	h := newFakeHub(t)
+	c := hubClient(t, h)
+	if d, err := c.SendRecord(context.Background(), recMsg(t, c, "new hub")); err != nil || d != wire.DeliverySent {
+		t.Fatalf("new hub: delivery %q err %v, want sent", d, err)
+	}
+	h.mu.Lock()
+	h.oldHub = true
+	h.mu.Unlock()
+	if d, err := c.SendRecord(context.Background(), recMsg(t, c, "old hub")); err != nil || d != wire.DeliveryPending {
+		t.Fatalf("old hub after a new one: delivery %q err %v, want pending", d, err)
+	}
+	h.mu.Lock()
+	sent := len(h.records)
+	h.mu.Unlock()
+	if sent != 1 || len(recQueue(t, c)) != 1 {
+		t.Fatalf("frames %d queue %v, want 1 frame (the new hub's) and the second copy queued", sent, recQueue(t, c))
+	}
+}
+
+// On a box that only ever sees an old hub the record queue keeps the newest
+// recordQueueCap copies and evicts the oldest; spool hub-queue shows it. The
+// red control: without trimRecords the queue holds all of them.
+func TestRecordQueueIsBounded(t *testing.T) {
+	h := newFakeHub(t)
+	h.oldHub = true
+	c := hubClient(t, h)
+	defer func(n int) { recordQueueCap = n }(recordQueueCap)
+	recordQueueCap = 3
+	for i := range 5 {
+		m := recMsg(t, c, "old hub")
+		m.TS = fmt.Sprintf("2026-11-25T21:00:0%dZ", i)
+		if d, err := c.SendRecord(context.Background(), m); err != nil || d != wire.DeliveryPending {
+			t.Fatalf("send %d: delivery %q err %v, want pending", i, d, err)
+		}
+	}
+	q := recQueue(t, c)
+	if len(q) != 3 || !strings.HasPrefix(filepath.Base(q[0]), "20261125T210002Z--") {
+		t.Fatalf("record queue %v, want the 3 newest (from 21:00:02)", q)
+	}
+	qh, err := c.QueueHealth()
+	if err != nil || qh.Records != 3 {
+		t.Fatalf("queue health records %d err %v, want 3", qh.Records, err)
 	}
 }

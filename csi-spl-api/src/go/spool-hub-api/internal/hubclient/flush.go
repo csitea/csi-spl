@@ -697,7 +697,7 @@ func (c *Client) scanTick(ctx context.Context, sess *Session, last *string) {
 		*last = k
 		sess.Announce(ctx) //nolint:errcheck
 	}
-	if c.queued() {
+	if c.queued(sess.takesRecords()) {
 		sess.Flush(ctx) //nolint:errcheck
 	}
 }
@@ -726,12 +726,19 @@ func (c *Client) stranded(what string, err error) bool {
 	return true
 }
 
-// queued reports a pending envelope or a queued record-only copy (spec 058
-// section 7) for the next flush.
-func (c *Client) queued() bool {
-	left, _ := c.Pending()
+// queued reports a pending envelope, or, when records is set (a session
+// whose hub takes records), a queued record-only copy (spec 058 section 7)
+// for the next flush. On a hub without the feature the record queue is not
+// read, so a waiting record fires no flush every 10 s.
+func (c *Client) queued(records bool) bool {
+	if left, _ := c.Pending(); len(left) > 0 {
+		return true
+	}
+	if !records {
+		return false
+	}
 	recs, _ := c.Records()
-	return len(left)+len(recs) > 0
+	return len(recs) > 0
 }
 
 // serveSubmit opens the box-local submit socket for as long as ctx lives,

@@ -367,7 +367,8 @@ owner saw none of them.
 |---|---|
 | a msg_id the hub already holds (a retry, a replay with a new ts, a cross-box message) | `recorded`, nothing stored, nothing delivered |
 | a `record_only` frame whose `to_box` is not the sending box | refused, `record_not_local` |
-| a hub whose welcome does not announce `record_only` (one deployed before SPL-6513) | sent nothing; the copy waits in `.hub/pending-record/` until a hub that announces it takes it |
+| a hub whose welcome does not announce `record_only` (one deployed before SPL-6513) | sent nothing; the copy waits in `.hub/pending-record/` until a hub that announces it takes it, and the 10 s scan of that session neither reads that queue nor flushes for it |
+| the record queue past 5000 copies (no hub has taken records for about a day and a third at ~3,700 same-box sends a day) | the oldest copy is deleted, one WARN line each: the hub then lacks the record of a message its receivers already have; no delivery is lost |
 | hub down | the signed copy waits in the desk's `.hub/pending-record/`, and the sidecar flushes it on its 10 s scan |
 | no fleet desk, or no live sidecar | not recorded; one line in `$SPOOL_ROOT/.record/forward.log` |
 | attachments | the copy carries the body only |
@@ -400,6 +401,12 @@ the local one.
   whose welcome lacks the feature gets no send frame; the copy stays queued,
   and the first session on a hub that announces it sends it once. With the
   check forced open, it fails with `delivery "sent"` (the red control).
+  The scan of a session on such a hub does not count the queue (red control:
+  counted, it fails). `TestRecordNotSentAfterARollbackToAnOldHub`: a box that
+  reconnects from a new hub to an old one sends the old one nothing.
+  `TestRecordQueueIsBounded`: with the cap at 3, five copies to an old hub
+  leave the three newest, and `spool hub-queue` shows `records: 3` (red
+  control: without the trim all five stay).
 - `spawn-agents/tests/test-spool-record-forward.sh`: one inbox file, one
   poke and one forward per send (n = 20), each forward with its msg_id. A
   probe line starts no forward. A hub leg that hangs for 8 s does not delay

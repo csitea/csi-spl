@@ -49,6 +49,7 @@ func (c *Client) SendRecord(ctx context.Context, m *msg.Message) (string, error)
 	if err := writeAtomic(p, raw); err != nil {
 		return "", err
 	}
+	c.trimRecords()
 	sess, err := c.Dial(ctx, wire.RoleCLI)
 	if errors.Is(err, ErrUnreachable) {
 		return wire.DeliveryPending, nil
@@ -91,6 +92,31 @@ func (s *Session) sendRecord(ctx context.Context, env *wire.Envelope, p string) 
 // recordDir is the record queue: signed record-only envelopes the hub has
 // not taken yet. Beside pending/, never inside it (see SendRecord).
 func (c *Client) recordDir() string { return filepath.Join(c.Cfg.HubDir(), "pending-record") }
+
+// recordQueueCap bounds the record queue. A hub that never announces
+// wire.FeatureRecordOnly would otherwise leave every same-box send queued for
+// good. 5000 is about a day and a third of same-box sends (spec 058 section
+// 7: ~3,700 a day on the busiest box), longer than a hub deploy lags the box
+// scripts, and about 10 MB of signed envelopes. A var so the tests can lower it.
+var recordQueueCap = 5000
+
+// trimRecords evicts the oldest queued records beyond recordQueueCap, one
+// log line each. An evicted copy only leaves the hub's record of a message
+// its receivers already have: it never loses a delivery.
+func (c *Client) trimRecords() {
+	list, err := c.Records()
+	if err != nil || len(list) <= recordQueueCap {
+		return
+	}
+	for _, p := range list[:len(list)-recordQueueCap] {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			c.Log.Warn().Err(err).Str("file", filepath.Base(p)).Msg("record queue: oldest record not evicted")
+			continue
+		}
+		c.Log.Warn().Str("file", filepath.Base(p)).Int("cap", recordQueueCap).
+			Msg("record queue full (no hub has taken records); oldest record-only copy evicted, the hub will not show it")
+	}
+}
 
 // Records lists the queued record envelopes, oldest first.
 func (c *Client) Records() ([]string, error) {

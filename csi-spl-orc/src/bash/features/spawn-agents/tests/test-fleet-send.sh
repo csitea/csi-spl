@@ -368,5 +368,13 @@ own="$(grep -hvE '^[[:space:]]*#' "$T_SCRIPTS/asks.sh" "$SS" | grep -E 'asks_pee
 eq "8. one copy: asks.sh and spool-send.sh keep no own peers switch" "" "$own"
 check "8. one copy: asks.sh calls spool_fleet_peers_on" grep -qE '^[^#]*spool_fleet_peers_on' "$T_SCRIPTS/asks.sh"
 check "8. one copy: spool-send.sh calls spool_fleet_peers_on" grep -qE '^[^#]*spool_fleet_peers_on' "$SS"
+# r97-01: the seat-line parser has ONE copy, spool_fleet_has_seats [root]
+hs() { env -u SPOOL_TO_PEERS SPOOL_ROOT="$1" bash -c '. "$0"; spool_fleet_has_seats "$1"' "$T_SCRIPTS/../lib/spool-fleet.inc.sh" "$2"; echo $?; }
+eq "8. spool_fleet_has_seats: a seat line in <root>/peer/seats -> 0" 0 "$(hs "$A" "$A")"
+eq "8. spool_fleet_has_seats: no <root>/peer/seats -> 1" 1 "$(hs "$B" "$B")"
+eq "8. spool_fleet_has_seats: the root arg beats SPOOL_ROOT (on)" 0 "$(hs "$B" "$A")"
+eq "8. spool_fleet_has_seats: the root arg beats SPOOL_ROOT (off)" 1 "$(hs "$A" "$B")"
+eq "8. one copy: spool-fleet.inc.sh parses peer/seats once" 1 "$(grep -cE 'awk.*\[acgmq\]' "$T_SCRIPTS/../lib/spool-fleet.inc.sh")"
+check "8. one copy: spool_fleet_peers_on calls spool_fleet_has_seats" bash -c "sed -n '/^spool_fleet_peers_on()/,/^}/p' \"\$0\" | grep -qE '^[^#]*spool_fleet_has_seats'" "$T_SCRIPTS/../lib/spool-fleet.inc.sh"
 
 t_done

@@ -445,6 +445,17 @@ rm -f "$S/peer/seats"
 s11 DELIVER=1 LEASE_MACHINE=box-b >"$T/o" 2>&1
 [[ "$(notes)" == "c-002 3" ]] && ! grep -q '^TO peers' "$T/sent" &&
   pass "11. control: no seats file + a local lease: ONE note with 3 items to the lease holder (today)" || fail "11. control local: notes=$(notes) $(cat "$T/o")"
+# r97-01: spl_sweep_seated reads peer/seats through spool_fleet_has_seats, not
+# spool_fleet_peers_on: SPOOL_TO_PEERS=0 leaves a seated box sending to peers
+rm -f "$T/sent" "$S/dispatch/unanswered.state"
+printf 'c-001 claude\n' >"$S/peer/seats"
+s11 DELIVER=1 SPOOL_TO_PEERS=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(notes | sort | uniq -c | sed 's/^ *//')" == "3 peers 1" ]] &&
+  pass "11. r97-01: SPOOL_TO_PEERS=0 + a seat line: still 3 notes to peers" || fail "11. r97-01 SPOOL_TO_PEERS=0: rc=$rc notes=$(notes) $(cat "$T/o")"
+rm -f "$S/peer/seats"
+sw_own="$(grep -nE 'send_to_peers_on|awk.*\[acgmq\]' "$PROJ_ROOT/src/bash/run/spl-unanswered-sweep.func.sh")"
+[[ -z "$sw_own" ]] && grep -qE '^[^#]*spool_fleet_has_seats "\$\{SPOOL_ROOT:-/var/spool-hub\}"' "$PROJ_ROOT/src/bash/run/spl-unanswered-sweep.func.sh" &&
+  pass "11. r97-01 one copy: spl_sweep_seated calls spool_fleet_has_seats, no own parser" || fail "11. r97-01 one copy: sw_own=[$sw_own]"
 
 # --- 14. spec 042: a note to self is no ask --------------------------------------------------------
 S="$T/spool14"; mkdir -p "$S/dispatch"; rm -f "$T/sent"

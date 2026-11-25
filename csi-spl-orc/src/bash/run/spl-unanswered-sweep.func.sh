@@ -193,10 +193,12 @@ spl_sweep_run() {
 }
 
 # 0 when this machine has a seat (spec 068 L3 / 101 D7): a seat line in
-# <spool root>/peer/seats, parsed as spool-send.sh's send_to_peers_on does.
+# <spool root>/peer/seats, by spool-fleet.inc.sh's spool_fleet_has_seats.
+# SPOOL_TO_PEERS does not apply here (that is spool_fleet_peers_on's switch).
 spl_sweep_seated() {
-  local f="${SPOOL_ROOT:-/var/spool-hub}/peer/seats"
-  [[ -r "$f" ]] && sed 's/#.*//' "$f" | awk '$1 ~ /^[acgmq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
+  # shellcheck source=../features/spawn-agents/lib/spool-fleet.inc.sh
+  declare -F spool_fleet_has_seats >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-fleet.inc.sh"
+  spool_fleet_has_seats "${SPOOL_ROOT:-/var/spool-hub}"
 }
 
 # spl_sweep_items <note>: the item rows of a holder.md / orch.md table.

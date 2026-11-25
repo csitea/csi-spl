@@ -26,9 +26,12 @@
 #                                 remote holder because the role ids 001-003
 #                                 exist on EVERY machine: a bare CLE-001 is
 #                                 ambiguous on the hub
+#   spool_fleet_has_seats [root]  0 when <root>/peer/seats holds a seat line
+#                                 (the one parser; spool_fleet_peers_on and
+#                                 do_spl_unanswered_sweep's spl_sweep_seated)
 #   spool_fleet_peers_on          0 when reports go to the peers (spec 068 L4):
-#                                 SPOOL_TO_PEERS=1|0, else a seat line in
-#                                 <root>/peer/seats (asks.sh, spool-send.sh)
+#                                 SPOOL_TO_PEERS=1|0, else spool_fleet_has_seats
+#                                 on $SPOOL_ROOT (asks.sh, spool-send.sh)
 #   spool_fleet_relay <send args> hand the message to the hub through THIS
 #                                 machine's desk sidecar (scripts/spool-fleet-
 #                                 relay.sh, run as the box user); the hub's
@@ -94,13 +97,21 @@ spool_fleet_orchestrator() {
   printf '%s' "$id"
 }
 
-# 0 when reports go to the peers (spec 068 L4): SPOOL_TO_PEERS=1|0, else a
-# seat line in <root>/peer/seats, parsed as do_spl_peer_poll parses it. The
-# one copy: asks.sh (the lock of an ask) and spool-send.sh (--to orchestrator).
+# spool_fleet_has_seats [root]: 0 when <root>/peer/seats holds a seat line
+# (spec 068 L3 / 101 D7), parsed as do_spl_peer_poll parses it. The one copy:
+# spool_fleet_peers_on below and spl-unanswered-sweep.func.sh's spl_sweep_seated.
+spool_fleet_has_seats() {
+  local f="${1:-}/peer/seats"
+  [ -r "$f" ] &&
+    sed 's/#.*//' "$f" | awk '$1 ~ /^[acgmq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
+}
+
+# 0 when reports go to the peers (spec 068 L4): SPOOL_TO_PEERS=1|0, else
+# spool_fleet_has_seats on $SPOOL_ROOT. The one copy: asks.sh (the lock of an
+# ask) and spool-send.sh (--to orchestrator).
 spool_fleet_peers_on() {
   case "${SPOOL_TO_PEERS:-}" in 1) return 0 ;; 0) return 1 ;; esac
-  [ -r "$SPOOL_ROOT/peer/seats" ] &&
-    sed 's/#.*//' "$SPOOL_ROOT/peer/seats" | awk '$1 ~ /^[acgmq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
+  spool_fleet_has_seats "${SPOOL_ROOT:-}"
 }
 
 # 0 when this machine can relay: a fleet desk env + tenant is configured (the

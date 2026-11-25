@@ -7,7 +7,9 @@
 #                                + Stop), each running `PY hook`; a no-op when PY
 #                                is gone (a moved checkout must not print a hook
 #                                error on every prompt)
-#   smh_agy_merge FILE PY        merge the named hook "spool-mirror" into agy's
+#   smh_agy_merge FILE PY        merge the named hooks "spool-mirror" and
+#                                "spool-inbox" (PY's sibling spool-agent-hook.sh,
+#                                PreInvocation) into agy's
 #                                ~/.gemini/config/hooks.json; others kept
 #   smh_qwen_merge FILE PY       merge the mirror entries into ~/.qwen/settings.json;
 #                                an older spool-mirror entry replaced, all else kept
@@ -40,11 +42,14 @@ EOF_PY
 # agy (antigravity) reads ~/.gemini/config/hooks.json: named hooks, each with
 # its event lists (measured, agy 1.2.11). Its payloads carry no text and no
 # event name, so the command names the event; spool-mirror.py reads the
-# transcript.
+# transcript. "spool-inbox" (SPL-6516, latency action 6): before each model
+# call agy runs spool-agent-hook.sh PreInvocation, which returns waiting
+# spool messages as injectSteps; agy blocks on a hook and reads JSON, so the
+# command prints {} whenever the hook printed nothing.
 smh_agy_merge() {  # FILE PY
-  mkdir -p "$(dirname "$1")" && python3 - "$1" "$2" <<'EOF_PY'
+  mkdir -p "$(dirname "$1")" && python3 - "$1" "$2" "$(dirname "$2")/spool-agent-hook.sh" <<'EOF_PY'
 import json, os, shlex, sys, time
-path, py = sys.argv[1], shlex.quote(sys.argv[2])
+path, py, hk = sys.argv[1], shlex.quote(sys.argv[2]), shlex.quote(sys.argv[3])
 try:
     d = json.load(open(path))
     if not isinstance(d, dict):
@@ -59,6 +64,8 @@ except ValueError:
 def h(ev):
     return [{"type": "command", "command": f"[ -r {py} ] && exec python3 {py} hook --agy {ev}; echo '{{}}'", "timeout": 10}]
 d["spool-mirror"] = {"PreInvocation": h("pre"), "Stop": h("stop")}
+d["spool-inbox"] = {"PreInvocation": [{"type": "command", "timeout": 5, "command":
+    f"o=$([ -r {hk} ] && SPOOL_HARNESS=agy bash {hk} PreInvocation 2>/dev/null); [ -n \"$o\" ] && printf '%s\\n' \"$o\" || echo '{{}}'"}]}
 tmp = path + ".tmp.%d" % os.getpid()
 open(tmp, "w").write(json.dumps(d, indent=2) + "\n")
 os.replace(tmp, path)

@@ -34,7 +34,8 @@
 #      tool, before the turn ends (Stop); each message once, ever; a second
 #      Stop with nothing new prints nothing (no loop); an API-error Stop
 #      injects nothing (the next prompt does); a Stop block keeps its
-#      decision and carries the context; grok none there (vibe: 13, grok: 14). Red control:
+#      decision and carries the context; grok none there (vibe: 13, grok: 14,
+#      agy: 15). Red control:
 #      the parent commit's hook fails 12's tool-start and Stop checks.
 #      R7 (a-680): an unreadable inbox / file / marker keeps the deny, the
 #      Stop block and heartbeat.json (W1); 4 parallel PreToolUse hooks show
@@ -595,5 +596,33 @@ eq "14. heartbeat harness grok" grok "$(hb harness)"
 msg g3 $((T4 + 10)) mid-g3 "one marker for every vendor"
 has "14. CONTROL: a message grok has not seen reaches claude" "msg_id: mid-g3" "$(hook PreToolUse $((T4 + 11)) '{"tool_name":"Read"}' | ctx)"
 eq "14. ... and is not shown again to grok (one .hook-seen)" "" "$(gh PostToolUse $((T4 + 12)) "$GP")"
+
+# ---- 15. SPL-6516: an agy seat gets it before its next model call -----------
+echo "# 15. agy in-turn delivery (SPL-6516)"
+rm -f "$D/inbox"/*.json "$D/.hook-seen" "$L12"
+T5=$((T0 + 5000)); A15="$T_TMP/all15.out"; : >"$A15"
+ah() { SPOOL_HARNESS=agy hook "$@" | tee -a "$A15"; }
+eph() { python3 -c 'import json,sys; t=sys.stdin.read().strip(); s=(json.loads(t).get("injectSteps") or [{}]) if t else [{}]; print(s[0].get("ephemeralMessage",""))'; }
+AP='{"invocationNum":2,"initialNumSteps":3}'
+cp "$D/heartbeat.json" "$T_TMP/hb15"
+eq "15. CONTROL: an empty inbox, PreInvocation prints {} (agy reads JSON)" "{}" "$(ah PreInvocation $((T5 + 1)) "$AP")"
+msg y1 $((T5 + 2)) mid-y1 "written while agy runs a tool"
+eq "15. PostToolUse prints {} and shows nothing" "{}" "$(ah PostToolUse $((T5 + 3)) '{"stepIdx":4,"toolCall":{}}')"
+check "15. ... and the marker did not move past it" test ! -e "$D/.hook-seen"
+o15="$(ah PreInvocation $((T5 + 4)) "$AP")"
+has "15. PreInvocation shows it as injectSteps[0].ephemeralMessage" "msg_id: mid-y1" "$(eph <<<"$o15")"
+has "15. ... under the same head as claude's" "spool messages from other agents" "$(eph <<<"$o15")"
+hasnt "15. ... never a claude or vibe key" "pecific" "$o15"
+eq "15. the next PreInvocation: nothing new, {}" "{}" "$(ah PreInvocation $((T5 + 5)) "$AP")"
+msg y2 $((T5 + 6)) mid-y2 "a second message"
+has "15. a later message at the next PreInvocation" "msg_id: mid-y2" "$(ah PreInvocation $((T5 + 7)) "$AP" | eph)"
+for m in mid-y1 mid-y2; do
+  eq "15. $m shown exactly once" 1 "$(grep -c "msg_id: $m" "$A15")"
+done
+eq "15. ledger: one surfaced row each, at PreInvocation" "mid-y1 PreInvocation|mid-y2 PreInvocation" "$(awk -F'\t' '$1=="surfaced"{printf "%s%s %s", s, $4, $8; s="|"}' "$L12")"
+check "15. no heartbeat.json write for agy (its progress stays on S8)" cmp -s "$D/heartbeat.json" "$T_TMP/hb15"
+msg y3 $((T5 + 8)) mid-y3 "one marker for every vendor"
+has "15. CONTROL: a message agy has not seen reaches claude" "msg_id: mid-y3" "$(hook PreToolUse $((T5 + 9)) '{"tool_name":"Read"}' | ctx)"
+eq "15. ... and is not shown again to agy (one .hook-seen)" "{}" "$(ah PreInvocation $((T5 + 10)) "$AP")"
 
 t_done

@@ -53,7 +53,8 @@
 # $HOOK_ERR_FALLBACK) and the hook exits 0. No SPOOL_AGENT_ID = not a spool
 # agent: exit 0 at once. Neither file holds a tool's input or output, a body
 # or a secret: hashes and names only. grok (SPL-6516) gets the same block at
-# PostToolUse only; other non-claude harnesses get the heartbeat only (spec
+# PostToolUse only; agy (SPL-6516) at PreInvocation, as
+# {"injectSteps": [{"ephemeralMessage": ...}]}, and writes no heartbeat; other non-claude harnesses get the heartbeat only (spec
 # 7.3: injection waits for their ping test). mistral's
 # vibe runs it from ~/.vibe/hooks.toml (spool-mirror-hooks.inc.sh) with
 # SPOOL_HARNESS=vibe: pre_tool -> PreToolUse, post_tool -> PostToolUse
@@ -135,7 +136,8 @@ exec(compile(s[i:s.index("\nEOF_PY", i)], sys.argv[2], "exec"))' "$1" "${BASH_SO
 : <<'EOF_PY'
 import _json, fcntl, os, sys, time, zlib
 
-EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "StopFailure")
+EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "StopFailure",
+          "PreInvocation")
 MAX_MSGS, MAX_BYTES, BODY_CUT = 3, 12 * 1024, 4 * 1024
 CALLS_KEEP, LOG_KEEP, UNTOUCHED = 8, 200, 600
 LOOP_N = int(os.environ.get("WD_LOOP_N") or 5)
@@ -675,6 +677,15 @@ def main():
         payload = {}
     if not isinstance(payload, dict):
         payload = {}
+    if harness() == "agy":
+        # SPL-6516 (latency action 6): agy's PreInvocation runs before each
+        # model call, a tool's result included; injectSteps[].ephemeralMessage
+        # reaches the model (ping 3/3, agy 1.5.17). agy blocks on the hook
+        # and reads JSON, so it always gets an object. No heartbeat.json: an
+        # agy seat's progress stays on the S8 transcript path (spec 093 7.3).
+        text = inject(False) if event == "PreInvocation" else ""
+        sys.stdout.write(dumps({"injectSteps": [{"ephemeralMessage": text}]} if text else {}) + "\n")
+        return
     hp = os.path.join(d, "heartbeat.json")
     hb = load(hp)
     for k, v in (("progress_ts", None), ("turn_since", None), ("tool", None),

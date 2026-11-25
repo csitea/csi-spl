@@ -493,7 +493,7 @@ so the model can act on it" (the binary's schema text).
 | harness | hook mechanism (claimed, from the binary or the docs) | until its ping test passes | after |
 |---|---|---|---|
 | claude | `additionalContext` on SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Stop; Stop block | - | everything in 7.1 |
-| agy | `hooks.json`: PreToolUse, PostToolUse, SessionStart; `PreInvocation` returning `injectSteps` (`ephemeralMessage`) for injection; `Stop` returning `decision: "continue"` (agy-1, agy-2) | the S8 path: progress from its transcript's non-error writes; inbox by poke + `spool recv` | heartbeat from PreToolUse / PostToolUse; injection through `PreInvocation`; its long-turn grace from `PreInvocation`'s `turn_since` and transcript appends (agy-2), not a claude spinner |
+| agy | `hooks.json`: PreToolUse, PostToolUse, SessionStart; `PreInvocation` returning `injectSteps` (`ephemeralMessage`) for injection; `Stop` returning `decision: "continue"` (agy-1, agy-2) | the S8 path: progress from its transcript's non-error writes; inbox by poke + `spool recv` | injection through `PreInvocation` since SPL-6516 (7.3.2); still to do: heartbeat from PreToolUse / PostToolUse; its long-turn grace from `PreInvocation`'s `turn_since` and transcript appends (agy-2), not a claude spinner |
 | grok | PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, `additionalContext` (c-002 msg 9f8bc88e, read from the binary) | same as agy | the claude script; in-turn delivery at `PostToolUse` since SPL-6516 (7.3.2) |
 | qwen | `qwen hooks` (documented) | same | same |
 | mistral (vibe) | `~/.vibe/hooks.toml`: `pre_tool`, `post_tool`, `post_agent`; context only on `post_tool` (`hook_specific_output.additional_context`, appended to the tool output); a `post_agent` `decision: "deny"` + `reason` goes back as a user message, at most 3 per hook per turn (vibe 2.26.0, `core/hooks/`) | - | in-turn delivery since SPL-6516 (7.3.2) |
@@ -538,9 +538,9 @@ marker and the same poke-ledger `surfaced` row, from the one
 |---|---|---|
 | claude | delivered | SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop (7.1, 7.2.1) |
 | mistral (vibe) | delivered (SPL-6516) | `post_tool`: `hook_specific_output.additional_context`, beside the main-checkout warning; `post_agent`: `decision: "deny"` + `reason` (the turn goes on, state `working`), at most 3 denies in a row (vibe drops a 4th unseen and ends the turn): the 4th `post_agent` prints nothing, the marker stays and the rest wait for the next turn (count `stop_denies` in `heartbeat.json`, reset by a `post_agent` that does not deny and by a new `session_id`; R7 W1); never `pre_tool` (vibe drops that context, so the marker must not move) |
-| agy | ping passes; not wired yet | next: the `PreInvocation` `injectSteps` path |
+| agy | delivered (SPL-6516) | `PreInvocation` (before each model call, a tool's result included): `{"injectSteps": [{"ephemeralMessage": ...}]}`, from the named hook `spool-inbox` that `smh_agy_merge` writes into `~/.gemini/config/hooks.json` beside `spool-mirror`. agy blocks on a hook and reads JSON, so the entry prints `{}` whenever the hook printed nothing. No `heartbeat.json` for agy: its progress stays on the S8 transcript path, so the watchdog reads an agy seat as before |
 | grok | delivered (SPL-6516) | `PostToolUse` only: `hookSpecificOutput.additionalContext` (the claude shape). Not `PreToolUse` or `Stop` (not ping-proven), not `UserPromptSubmit` (grok discards its context): the marker never moves past a message the model did not see. A grok seat runs the hook from `~/.claude/settings.json`, which grok reads; its heartbeat says `harness: grok` |
-| qwen | not measured (not installed on sat) | heartbeat only until its ping passes |
+| qwen | not delivered: finding | not installed on sat, so not measured there (n = 0); its last ping (7.3.1, qwen 0.24.6) failed 0 / 3 before any tool call (no auth type selected in the headless run). What blocks it: an installed, signed-in qwen on a box to ping. Until a ping passes it keeps the mirror entries only (no heartbeat, no injection) |
 
 The vibe entries are the existing `spool-heartbeat-*` ones
 (`smh_vibe_merge`), so a seat respawned after the deploy needs no install
@@ -548,7 +548,9 @@ step. Tests: `spawn-agents/tests/test-agent-hook.sh` section 13 (red
 control: the parent commit's hook fails 9 of its checks);
 `tests/spl-hook-ping.tst.sh` (the `post_agent` ping point). grok:
 section 14 of the same test (red control: the parent commit's hook fails 7
-of its checks).
+of its checks). agy: section 15 (red control: 11 of its checks) and
+`tests/test-spool-agent.sh` section 9, the `spool-inbox` entry (red
+control: 5 checks).
 
 Measured live, 2026-11-25, box sat, vibe 2.26.0, the real hook on a
 throwaway spool root: the model's one tool call writes an inbox message;
@@ -566,6 +568,16 @@ isolated `~/.claude/settings.json`, as a grok seat has it):
 |---|---|---|---|
 | parent commit | 3 | 0 / 3 (reply `NONE`) | - |
 | SPL-6516 | 3 | 3 / 3 | 54, 76, 63 ms (the `PostToolUse` of that same call) |
+
+The same run for agy 1.5.17 (`--print`, the `spool-inbox` entry as
+`smh_agy_merge` writes it, in the trial's workspace `.agents/hooks.json`; the
+box's own `spool-mirror` and `force-push-guard` hooks ran beside it, the
+mirror switched off by the throwaway root's `.mirror-off`):
+
+| hook | n | in-turn | inbox write -> surfaced |
+|---|---|---|---|
+| parent commit | 3 | 0 / 3 (reply `NONE`) | - |
+| SPL-6516 | 3 | 3 / 3 | 51, 74, 73 ms (the `PreInvocation` after that call) |
 
 ## 8. The takeover, built from spec 060's code
 

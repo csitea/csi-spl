@@ -404,7 +404,7 @@ func (s *Server) welcome(ctx context.Context, x *session) bool {
 	x.agents = roster[x.box] // Roster sorts each box's list
 	tok, exp := s.sessionToken(x)
 	err = x.write(ctx, wire.Frame{Type: wire.TWelcome, BoxID: x.box, Roster: roster, SpoolEnc: enc,
-		UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339), UnlockTicket: x.unlockTicket})
+		Features: hubFeatures, UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339), UnlockTicket: x.unlockTicket})
 	x.markWelcomed()
 	if err != nil {
 		s.drop(x)

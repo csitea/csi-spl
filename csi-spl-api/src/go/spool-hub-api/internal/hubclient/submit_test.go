@@ -42,6 +42,9 @@ type fakeHub struct {
 	refs []string
 	// records is each send frame's record_only flag (spec 058 section 7).
 	records []bool
+	// oldHub, when set, leaves wire.FeatureRecordOnly off the welcome, as
+	// the hub before SPL-6513 did.
+	oldHub bool
 	// refuse, when set, answers every send with this error token instead.
 	refuse *wire.Frame
 	// reorder, when set, answers each send after a delay that ALTERNATES long,
@@ -75,7 +78,13 @@ func newFakeHub(t *testing.T) *fakeHub {
 		if err := wsjson.Read(ctx, conn, &hello); err != nil {
 			return
 		}
-		if err := wsjson.Write(ctx, conn, wire.Frame{Type: wire.TWelcome, BoxID: hello.BoxID,
+		h.mu.Lock()
+		feats := []string{wire.FeatureRecordOnly}
+		if h.oldHub {
+			feats = nil
+		}
+		h.mu.Unlock()
+		if err := wsjson.Write(ctx, conn, wire.Frame{Type: wire.TWelcome, BoxID: hello.BoxID, Features: feats,
 			UploadToken: "tok", UploadTokenExpiresAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}); err != nil {
 			return
 		}

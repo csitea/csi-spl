@@ -175,3 +175,41 @@ func TestRecordNeedsTheBoxKey(t *testing.T) {
 		t.Fatal("a record without the box key was queued")
 	}
 }
+
+// A hub whose welcome lacks record_only (the hub before SPL-6513) is sent no
+// record: it would deliver the copy as a second message. The copy stays
+// queued, a flush on that hub sends nothing and is no error, and the first
+// session on a hub that announces the feature sends it once.
+func TestRecordNeverSentToAnOldHub(t *testing.T) {
+	h := newFakeHub(t)
+	h.oldHub = true
+	c := hubClient(t, h)
+	d, err := c.SendRecord(context.Background(), recMsg(t, c, "old hub"))
+	if err != nil || d != wire.DeliveryPending {
+		t.Fatalf("old hub: delivery %q err %v, want pending", d, err)
+	}
+	s := srSession(t, c, wire.RoleBox)
+	if n, err := s.Flush(context.Background()); err != nil || n != 0 {
+		t.Fatalf("flush on an old hub: %d %v, want 0 nil", n, err)
+	}
+	h.mu.Lock()
+	sent := len(h.records)
+	h.oldHub = false
+	h.mu.Unlock()
+	if sent != 0 {
+		t.Fatalf("an old hub got %d send frames, want 0", sent)
+	}
+	if q := recQueue(t, c); len(q) != 1 {
+		t.Fatalf("record queue %v, want the one copy", q)
+	}
+	s2 := srSession(t, c, wire.RoleBox)
+	if n, err := s2.Flush(context.Background()); err != nil || n != 1 {
+		t.Fatalf("flush on a new hub: %d %v, want 1", n, err)
+	}
+	h.mu.Lock()
+	recs := append([]bool(nil), h.records...)
+	h.mu.Unlock()
+	if len(recs) != 1 || !recs[0] || len(recQueue(t, c)) != 0 {
+		t.Fatalf("new hub: frames %v queue %v, want one record_only and none left", recs, recQueue(t, c))
+	}
+}

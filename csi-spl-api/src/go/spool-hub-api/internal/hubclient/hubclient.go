@@ -349,6 +349,9 @@ type Session struct {
 	box  string
 	priv ed25519.PrivateKey
 	role string
+	// hubFeatures is the welcome's feature list: what this hub serves beyond
+	// the base protocol (wire.FeatureRecordOnly, record.go).
+	hubFeatures []string
 
 	mu       sync.Mutex
 	token    string
@@ -436,7 +439,7 @@ func (c *Client) dialAs(ctx context.Context, role string, retries int, rotating 
 	}
 	c.keepTicket(box, wel.UnlockTicket)
 	s := &Session{
-		c: c, conn: conn, box: box, priv: priv, role: role,
+		c: c, conn: conn, box: box, priv: priv, role: role, hubFeatures: wel.Features,
 		token: wel.UploadToken, replies: make(chan wire.Frame, 64), queueEnd: make(chan int, 1),
 		done: make(chan struct{}), dialCtx: ctx,
 	}

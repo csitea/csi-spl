@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -20,7 +21,8 @@ import (
 //
 // The signed envelope (to_box = this box) is written to the record queue
 // FIRST, then sent on a one-shot cli session; a hub that is down leaves it
-// queued (delivery pending) and the sidecar's flush sends it later. It never
+// queued (delivery pending) and the sidecar's flush sends it later; so does a
+// hub whose welcome lacks wire.FeatureRecordOnly (takesRecords). It never
 // goes through the submit socket or pending/: an older sidecar would send it
 // as a plain message, and the hub would then deliver it a second time.
 func (c *Client) SendRecord(ctx context.Context, m *msg.Message) (string, error) {
@@ -58,9 +60,19 @@ func (c *Client) SendRecord(ctx context.Context, m *msg.Message) (string, error)
 	return sess.sendRecord(ctx, env, p)
 }
 
+// takesRecords reports a hub that announced wire.FeatureRecordOnly. An older
+// hub ignores the record_only flag and delivers the copy as a second message
+// (2026-11-25, 21 of 21 answered sent), so it is never sent one: the copy
+// stays queued until a hub that announces the feature takes it.
+func (s *Session) takesRecords() bool { return slices.Contains(s.hubFeatures, wire.FeatureRecordOnly) }
+
 // sendRecord sends one queued record and settles its file: removed once the
-// hub took it, moved to rejected/ on a 4xx, kept (pending) otherwise.
+// hub took it, moved to rejected/ on a 4xx, kept (pending) otherwise, and
+// kept unsent on a hub that does not take records.
 func (s *Session) sendRecord(ctx context.Context, env *wire.Envelope, p string) (string, error) {
+	if !s.takesRecords() {
+		return wire.DeliveryPending, nil
+	}
 	f, err := s.sendFrame(ctx, env, wire.Frame{RecordOnly: true})
 	var he *HubError
 	switch {
@@ -101,8 +113,12 @@ func (c *Client) Records() ([]string, error) {
 
 // flushRecords sends every queued record on s; it stops when the hub drops
 // (the rest stay queued). A refused record is moved to rejected/ and the
-// flush goes on: a record never holds back the next one.
+// flush goes on: a record never holds back the next one. A hub that does not
+// take records is sent none, and that is no error.
 func (s *Session) flushRecords(ctx context.Context) (int, error) {
+	if !s.takesRecords() {
+		return 0, nil
+	}
 	list, err := s.c.Records()
 	if err != nil {
 		return 0, err

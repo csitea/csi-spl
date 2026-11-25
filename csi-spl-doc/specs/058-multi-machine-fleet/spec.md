@@ -367,14 +367,22 @@ owner saw none of them.
 |---|---|
 | a msg_id the hub already holds (a retry, a replay with a new ts, a cross-box message) | `recorded`, nothing stored, nothing delivered |
 | a `record_only` frame whose `to_box` is not the sending box | refused, `record_not_local` |
+| a hub whose welcome does not announce `record_only` (one deployed before SPL-6513) | sent nothing; the copy waits in `.hub/pending-record/` until a hub that announces it takes it |
 | hub down | the signed copy waits in the desk's `.hub/pending-record/`, and the sidecar flushes it on its 10 s scan |
 | no fleet desk, or no live sidecar | not recorded; one line in `$SPOOL_ROOT/.record/forward.log` |
 | attachments | the copy carries the body only |
 
 The record queue is its own directory, beside `pending/`. An older sidecar
 flushes only `pending/`, and an older hub ignores `record_only`, so either
-one would deliver a record as a normal message. Roll-out order: the hub
-deploys on the push (workflow 20), then each desk binary is rebuilt.
+one would deliver a record as a normal message.
+
+So the box sends a record only to a hub whose `welcome` frame lists the
+feature `record_only` (`wire.FeatureRecordOnly`); the roll-out order no
+longer matters. It did matter before this check: on 2026-11-25 the box
+scripts went live at 20:12Z while both hubs still ran `20a235b7`. On one box,
+21 of 21 copies (20:13Z to 20:23Z) were answered `sent`, not `recorded`,
+and the receivers got such messages twice under one msg_id: 7 on a second box from
+20:14Z (counted in one inbox archive), and one on the first.
 
 Each record is a row of the 006 message quota, like any stored message.
 The ts of the record is the time of the copy, at most a few seconds after
@@ -386,7 +394,12 @@ the local one.
   (`SPOOL_TEST_PG_DSN`). n = 20 same-box sends give 20 inbox files, 20 hub
   rows and no deliveries row. A replay and a cross-box msg_id store
   nothing. With the hub down the copy waits in the record queue, and the
-  flush sends it once.
+  flush sends it once. With the hub's `record_only` feature taken off the
+  welcome, all three fail (the red control).
+- `internal/hubclient/record_test.go` `TestRecordNeverSentToAnOldHub`: a hub
+  whose welcome lacks the feature gets no send frame; the copy stays queued,
+  and the first session on a hub that announces it sends it once. With the
+  check forced open, it fails with `delivery "sent"` (the red control).
 - `spawn-agents/tests/test-spool-record-forward.sh`: one inbox file, one
   poke and one forward per send (n = 20), each forward with its msg_id. A
   probe line starts no forward. A hub leg that hangs for 8 s does not delay

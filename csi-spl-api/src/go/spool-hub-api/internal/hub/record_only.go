@@ -29,6 +29,12 @@ import (
 // other to_box is refused, so the frame is never a way to place a message
 // in another box's view without delivering it.
 
+// hubFeatures is what every welcome announces. A box sends a record only to
+// a hub that announces wire.FeatureRecordOnly: the hub before it ignored the
+// flag and delivered the copy as a second message (2026-11-25 20:12Z, both
+// hubs on 20a235b7 while the boxes already forwarded, 21 of 21 answered sent).
+var hubFeatures = []string{wire.FeatureRecordOnly}
+
 // tokenRecordNotLocal refuses a record_only frame whose to_box is not the
 // sending box.
 const tokenRecordNotLocal = "record_not_local"

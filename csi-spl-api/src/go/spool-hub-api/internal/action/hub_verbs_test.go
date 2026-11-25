@@ -58,6 +58,7 @@ func newVerbHub(t *testing.T) *verbHub {
 			return
 		}
 		if wsjson.Write(ctx, conn, wire.Frame{Type: wire.TWelcome, BoxID: hello.BoxID, UploadToken: "tok",
+			Features:             []string{wire.FeatureRecordOnly}, // as the hub announces (spec 058 section 7)
 			UploadTokenExpiresAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}) != nil {
 			return
 		}

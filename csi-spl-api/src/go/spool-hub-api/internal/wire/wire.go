@@ -167,6 +167,12 @@ const FeatureBoxSample = "box_sample"
 // FeatureBoxSample-only box still answers with its legacy sample.
 const FeatureBoxLiveV2 = "box_live_v2"
 
+// FeatureRecordOnly is the WELCOME feature of a hub that stores a send frame
+// with RecordOnly and delivers it to no box (spec 058 section 7, SPL-6513).
+// A box sends a record only to a hub that announces it: an older hub ignores
+// the flag and would deliver the copy a second time.
+const FeatureRecordOnly = "record_only"
+
 // TAck is the box's live ack of one delivery to one agent (spec 053 §4.2):
 // MsgID the delivered message, Agent the local agent poked, Outcome what the
 // poke did. Fire and forget: the hub sends no reply. Not the spec 059 commit
@@ -301,7 +307,8 @@ type Frame struct {
 	// hello (SPL-987): what this box's client understands beyond the base
 	// protocol. Not signed; absent = none, and the hub then sends it no frame
 	// that needs one. FeatureBackfill = recv frames carrying Backfill, and
-	// the backfill_end frame.
+	// the backfill_end frame. welcome: what the hub serves beyond the base
+	// protocol (FeatureRecordOnly); an older box ignores it.
 	Features []string `json:"features,omitempty"`
 
 	// hello (t1 f77c9f87, d1d9bcd3): the box's fact sheet (OS, run-times,
@@ -377,7 +384,8 @@ type Frame struct {
 	// its own box already delivered locally. The hub stores it once (by
 	// msg_id) and delivers it to no box. Outside the signed envelope like
 	// TypedBy; a box sends it only from its own record queue, which an
-	// older sidecar never flushes.
+	// older sidecar never flushes, and only to a hub whose welcome carries
+	// FeatureRecordOnly.
 	RecordOnly bool `json:"record_only,omitempty"`
 
 	// sent

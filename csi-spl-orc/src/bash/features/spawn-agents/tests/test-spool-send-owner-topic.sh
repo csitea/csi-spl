@@ -98,6 +98,10 @@ eq "kind: not a uuid -> exit 2" 2 "$?"
 W=44444444-5555-4666-8777-888888888888   # owner in w2, agent rows in t9
 S=55555555-6666-4777-8888-999999999999   # w2 is slow, t9 answers agent
 L=66666666-7777-4888-8999-aaaaaaaaaaaa   # w2 answers owner, but only after 2 s
+E=77777777-8888-4999-8aaa-bbbbbbbbbbbb   # 0 rows rc 0 on every desk (blind probe)
+P=88888888-9999-4aaa-8bbb-cccccccccccc   # agent rows in t9, 0 rows in w2
+H=99999999-aaaa-4bbb-8ccc-dddddddddddd   # e3b16fea-like owner topic in t9, 0 rows in w2
+D=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee   # agent -> HUM-10 DM only in t9, 0 rows in w2
 cat >"$fake" <<FAKE
 #!/usr/bin/env bash
 case "\$SPOOL_TENANT:\$3" in
@@ -106,6 +110,13 @@ case "\$SPOOL_TENANT:\$3" in
   w2:$W) echo '{"from":"HUM-9","to":"c-001","body":"b"}' ;;
   w2:$S) sleep 5 ;;
   w2:$L) sleep 2; echo '{"from":"HUM-9","to":"c-001","body":"b"}' ;;
+  *:$E)  exit 0 ;;
+  t9:$P) echo '{"from":"c-001","to":"c-002","body":"a"}' ;;
+  w2:$P) exit 0 ;;
+  t9:$H) echo '{"from":"HUM-10","to":"ALL-0","kind":"note","body":"owner"}'; echo '{"from":"c-002","to":"HUM-10","kind":"note","body":"reply"}' ;;
+  w2:$H) exit 0 ;;
+  t9:$D) echo '{"from":"c-002","to":"HUM-10","kind":"note","body":"dm"}' ;;
+  w2:$D) exit 0 ;;
   *) echo '{"from":"c-001","to":"c-002","body":"a"}' ;;
 esac
 FAKE
@@ -151,6 +162,24 @@ eq "CONTROL: the old 1 s timeout cannot tell -> exit 3" 3 "$?"
 err="$(env "${kenv[@]}" SPOOL_TOPIC_KIND_INDEX=0 SPOOL_TOPIC_KIND_TIMEOUT=1 bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$L" --body x --no-poke 2>&1 >/dev/null)"; rc=$?
 eq "CONTROL: …so that send fails open, exit 0" 0 "$rc"
 has "…with the WARN" "cannot tell whether ${L} is an owner topic" "$err"
+# ---- SPL-6527: blind hub-tail (0 rows, rc 0) is unknown, never agent -------
+out="$(env "${kenv[@]}" bash "$K" "$E")"; rc=$?
+eq "kind: 0 rows on every desk (rc 0) -> unknown" unknown "$out"
+eq "…and exits 3 (cannot tell)" 3 "$rc"
+err="$(env "${kenv[@]}" bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$E" --body x --no-poke 2>&1 >/dev/null)"; rc=$?
+eq "send: blind 0-row probe keeps fail-open, exit 0" 0 "$rc"
+has "…with the WARN" "cannot tell whether ${E} is an owner topic" "$err"
+hasnt "…and writes no agent line into topic-kind.idx" "$E" "$(cat "$SPOOL_ROOT/dispatch/topic-kind.idx" 2>/dev/null || true)"
+out="$(env "${kenv[@]}" bash "$K" "$P")"; rc=$?
+eq "kind: agent rows in one desk, 0 rows in another -> agent" agent "$out"
+eq "…exits 0" 0 "$rc"
+eq "kind: e3b16fea-like owner topic (HUM-10/ALL-0 in t9, 0 rows in w2) -> owner" owner "$(env "${kenv[@]}" bash "$K" "$H")"
+n0="$(n_json "$SPOOL_ROOT/CLE-84/inbox")"
+err="$(env "${kenv[@]}" bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$H" --body x --no-poke 2>&1 >/dev/null)"; rc=$?
+eq "send: e3b16fea-like owner topic to an agent: refused, exit 3" 3 "$rc"
+has "…names the replacement" "--task dispatch-${H:0:8}" "$err"
+eq "…nothing new in the inbox" "$n0" "$(n_json "$SPOOL_ROOT/CLE-84/inbox")"
+eq "kind: agent-to-HUM DM only (to HUM-*) -> owner" owner "$(env "${kenv[@]}" bash "$K" "$D")"
 unset SPOOL_OWNER_TOPIC_CMD
 kill "$sc9" "$scw" 2>/dev/null
 

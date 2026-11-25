@@ -294,17 +294,31 @@ What they do now:
   lane spawned since) sends, as before. Only a box with no usable cache at all
   reads on the send path.
 - **Owner-topic guard, a local index.** `dispatch/topic-kind.idx`
-  (`lib/spool-topic-kind-index.inc.sh`) holds the probe's own answers, one line
-  per topic: `uuid TAB owner|agent TAB epoch`. `owner` is final (a later
-  `agent` answer never replaces it; a wrong `owner` line is fixed by hand or
-  `SPOOL_TOPIC_KIND_INDEX=0`, the fail-closed side); `agent` is
-  the answer at any age, and past `SPOOL_TOPIC_KIND_TTL` (600 s) the send
-  starts ONE detached re-probe. A topic the index does not hold (or no index)
-  is probed on the send path as before and written in. The same detached run
-  warms the index with the uuid topics of this box's inbox messages of the
-  last 24 h (at most 40 per run): 430 of 2157 uuid sends (one fleet box, 2
-  days to 2026-11-25) were the first on their topic from that box.
-  `SPOOL_TOPIC_KIND_INDEX=0` turns the index off.
+  (`lib/spool-topic-kind-index.inc.sh`) holds only definitive answers of
+  `spool-topic-kind.sh` (rc 0), one line per topic: `uuid TAB owner TAB epoch`
+  or `uuid TAB agent TAB epoch TAB seen`. `owner` is final (a later `agent` or
+  `unknown` answer never replaces or removes it; a wrong `owner` line is fixed
+  by hand or `SPOOL_TOPIC_KIND_INDEX=0`, the fail-closed side); `agent` is
+  recorded only when at least one live desk saw at least one row of the topic
+  and no desk saw a human (`from` or `to` `HUM-*`) or channel (`to: ALL-0`)
+  post, answers at any age, and past `SPOOL_TOPIC_KIND_TTL` (600 s) starts ONE
+  detached re-probe. A topic the index does not hold (or no index) is probed on
+  the send path as before and written in only on a definitive `owner` or
+  `agent` verdict. The same detached run warms the index with the uuid topics
+  of this box's inbox messages of the last 24 h (at most 40 per run): 430 of
+  2157 uuid sends (one fleet box, 2 days to 2026-11-25) were the first on their
+  topic from that box. `SPOOL_TOPIC_KIND_INDEX=0` turns the index off.
+- **Blind probe rule (SPL-6527).** Hub `onTail` uses `BoxTaskEnvelopes`
+  (party-filtered per box), so a box that was never a party to a topic sees
+  `hub-tail` return 0 rows with rc 0. `spool-topic-kind.sh` never answers
+  `agent` when every live desk returns 0 rows: it prints `unknown` and exits 3,
+  so `spool-send.sh` writes nothing to `topic-kind.idx` and keeps today's
+  fail-open WARN-and-send behaviour. Any legacy 3-column `agent` entry already
+  in `topic-kind.idx` (lacking the 4th column `seen`, possibly written by a
+  pre-fix blind probe) is treated as immediately stale (epoch 0), and a
+  detached refresh that gets `unknown` evicts the `agent` entry via
+  `topic_kind_index_del` (leaving entries intact on transient hub timeouts and
+  never touching `owner`).
 - Refusals and their messages are unchanged (the existing guard tests,
   `test-spool-send-wrong-box.sh` and `test-spool-send-owner-topic.sh`).
 
@@ -315,10 +329,6 @@ same-box sends run at p95 under 300 ms, or under the guard-free control's
 p95 + 500 ms on a loaded box (an additive allowance: a synchronous probe of
 ~1.4 s still fails it). On the parent commit the same test waits on both
 stubs.
-
-Not fixed here, found on the way: `spool-topic-kind.sh` answers `agent` for
-the owner's t1 topic `e3b16fea` (the t1 desk's `hub-tail` returns no rows for
-it, rc 0). The index keeps the probe's verdicts, so it keeps that one too.
 
 ## 1. Requirements
 

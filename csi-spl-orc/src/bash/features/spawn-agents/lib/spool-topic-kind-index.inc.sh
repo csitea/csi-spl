@@ -9,14 +9,18 @@
 # (lat-box c-456, n=5).
 #
 # The index is <spool root>/dispatch/topic-kind.idx, one line per topic:
-#   <task uuid> TAB <owner|agent> TAB <epoch s of the probe>
-# It holds only answers of that same probe (rc 0), so the guard's verdicts
-# are the probe's:
+#   <task uuid> TAB owner TAB <epoch s of the probe>
+#   <task uuid> TAB agent TAB <epoch s of the probe> TAB seen
+# It holds only definitive answers of that same probe (rc 0: owner or agent
+# with >=1 row seen), never a blind 0-row probe ("unknown", SPL-6527):
 #   owner   final: a topic does not lose its human post.
 #   agent   the answer at any age; past SPOOL_TOPIC_KIND_TTL s (default 600)
 #           the send starts ONE detached refresh and does not wait for it.
+#           A legacy 3-column agent line (no 4th column "seen", possibly from
+#           a pre-SPL-6527 blind probe) is immediately stale (epoch 0), and
+#           any refresh that gets "unknown" evicts the agent line.
 #   absent  (no entry, no index) the probe runs on the send path as before,
-#           and its answer is written to the index.
+#           and its definitive answer is written to the index.
 # The detached refresh (flock on <index>.lock) re-probes the stale agent
 # entries, then warms the index with the uuid topics of this box's inbox
 # messages from the last SPOOL_TOPIC_KIND_WARM_MIN minutes (default 1440),
@@ -39,21 +43,26 @@ _topic_kind_ttl() {
 }
 
 # "<kind> <epoch>" of TASK's entry on stdout; rc 1 when there is none.
+# A legacy 3-column agent entry (missing 4th column "seen") returns epoch 0
+# so the caller triggers an immediate detached re-probe without blocking.
 topic_kind_index_get() {  # TASK
   local f
   f="$(_topic_kind_idx)"
   [ -r "$f" ] || return 1
-  awk -F'\t' -v t="$1" '$1 == t && ($2 == "owner" || $2 == "agent") { k = $2; e = $3 } END { if (k == "") exit 1; print k, e + 0 }' "$f" 2>/dev/null
+  awk -F'\t' -v t="$1" '$1 == t && ($2 == "owner" || $2 == "agent") { k = $2; e = $3; s = $4 } END { if (k == "") exit 1; if (k == "agent" && s != "seen") e = 0; print k, e + 0 }' "$f" 2>/dev/null
 }
 
 # Write TASK's KIND (owner|agent) into the index, replacing its old line;
 # atomic (tmp + mv), under the index lock. An owner line stays owner (final),
+# an agent line carries the 4th column "seen" (verified by a non-blind probe),
 # and an index that exists but cannot be read is left alone, not truncated.
 topic_kind_index_put() {  # TASK KIND
-  local f tmp
+  local f tmp row
   f="$(_topic_kind_idx)"
   if ! [[ "$1" =~ $_TOPIC_KIND_UUID_RX && "$2" =~ ^(owner|agent)$ ]]; then return 1; fi
   mkdir -p "${f%/*}" 2>/dev/null || return 1
+  row="$(printf '%s\t%s\t%s' "$1" "$2" "$(date +%s)")"
+  [ "$2" = agent ] && row+=$'\tseen'
   (
     exec 8>>"$f.wlock" || exit 1
     chmod 0664 "$f.wlock" 2>/dev/null
@@ -61,14 +70,35 @@ topic_kind_index_put() {  # TASK KIND
     [ ! -e "$f" ] || [ -r "$f" ] || exit 1
     [ "$2" = agent ] && awk -F'\t' -v t="$1" '$1 == t && $2 == "owner" { f = 1 } END { exit !f }' "$f" 2>/dev/null && exit 0
     tmp="$(mktemp "${f%/*}/.topic-kind.XXXXXX")" || exit 1
-    { awk -F'\t' -v t="$1" '$1 != t' "$f" 2>/dev/null; printf '%s\t%s\t%s\n' "$1" "$2" "$(date +%s)"; } >"$tmp" &&
+    { awk -F'\t' -v t="$1" '$1 != t' "$f" 2>/dev/null; printf '%s\n' "$row"; } >"$tmp" &&
       chmod 0664 "$tmp" 2>/dev/null && mv -f "$tmp" "$f" || { rm -f "$tmp"; exit 1; }
   )
 }
 
-# The stale agent entries, one uuid per line.
+# Remove a non-owner (agent) entry for TASK from the index, atomic under the
+# same write lock (SPL-6527: a blind probe returning "unknown" must evict a
+# poisoned agent entry). An owner line is final and never removed.
+topic_kind_index_del() {  # TASK
+  local f tmp
+  f="$(_topic_kind_idx)"
+  [[ "$1" =~ $_TOPIC_KIND_UUID_RX ]] || return 1
+  [ -e "$f" ] || return 0
+  (
+    exec 8>>"$f.wlock" || exit 1
+    chmod 0664 "$f.wlock" 2>/dev/null
+    flock -w 5 8 || exit 1
+    [ -e "$f" ] || exit 0
+    [ -r "$f" ] || exit 1
+    awk -F'\t' -v t="$1" '$1 == t && $2 != "owner" { f = 1 } END { exit !f }' "$f" 2>/dev/null || exit 0
+    tmp="$(mktemp "${f%/*}/.topic-kind.XXXXXX")" || exit 1
+    awk -F'\t' -v t="$1" '$1 != t || $2 == "owner"' "$f" 2>/dev/null >"$tmp" &&
+      chmod 0664 "$tmp" 2>/dev/null && mv -f "$tmp" "$f" || { rm -f "$tmp"; exit 1; }
+  )
+}
+
+# The stale agent entries (past TTL or legacy 3-column without "seen"), one uuid per line.
 _topic_kind_stale() {
-  awk -F'\t' -v now="$(date +%s)" -v ttl="$(_topic_kind_ttl)" '$2 == "agent" && now - $3 >= ttl { print $1 }' "$(_topic_kind_idx)" 2>/dev/null
+  awk -F'\t' -v now="$(date +%s)" -v ttl="$(_topic_kind_ttl)" '$2 == "agent" && ($4 != "seen" || now - $3 >= ttl) { print $1 }' "$(_topic_kind_idx)" 2>/dev/null
 }
 
 # At most SPOOL_TOPIC_KIND_WARM_MAX uuid topics of the recent inbox messages
@@ -85,10 +115,12 @@ _topic_kind_warm_list() {
 }
 
 # ONE detached refresh run (flock -n on <index>.lock): PROBE_FN TASK prints
-# owner|agent, rc 0 when the probe answered. Every fd is redirected: a
-# caller's $(...) never waits for it.
+# owner|agent (rc 0), or unknown (0 rows on every live desk; evicts a stale
+# agent entry, never an owner one). Empty output on non-zero rc (hub down,
+# timeout) leaves existing entries alone. Every fd is redirected: a caller's
+# $(...) never waits for it.
 topic_kind_index_refresh_bg() {  # PROBE_FN
-  local f probe="$1"
+  local f probe="$1" k rc t
   f="$(_topic_kind_idx)"
   [ -d "${f%/*}" ] || return 0
   (
@@ -96,7 +128,12 @@ topic_kind_index_refresh_bg() {  # PROBE_FN
     chmod 0664 "$f.lock" 2>/dev/null
     flock -n 9 || exit 0
     while IFS= read -r t; do
-      k="$("$probe" "$t" 2>/dev/null)" && topic_kind_index_put "$t" "$k"
+      k="$("$probe" "$t" 2>/dev/null)"; rc=$?
+      if [ "$rc" -eq 0 ] && { [ "$k" = owner ] || [ "$k" = agent ]; }; then
+        topic_kind_index_put "$t" "$k"
+      elif [ "$k" = unknown ]; then
+        topic_kind_index_del "$t"
+      fi
     done < <({ _topic_kind_stale; _topic_kind_warm_list; } | awk '!seen[$0]++')
   ) </dev/null >/dev/null 2>&1 &
   disown 2>/dev/null || true

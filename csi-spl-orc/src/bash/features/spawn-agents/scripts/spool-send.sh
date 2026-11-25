@@ -255,7 +255,7 @@ send_lane_topic() {  # ID
 # SPL-6512): the probe runs on the send path only for a topic the index does
 # not hold; a stale agent entry is re-probed by a detached refresh.
 send_topic_kind() {  # TASK
-  local e k
+  local e k rc
   if [ -z "${SPOOL_OWNER_TOPIC_CMD:-}" ] && [ "${SPOOL_TEST:-}" = 1 ]; then return 100; fi
   topic_kind_index_on || { _send_topic_probe "$1"; return; }
   if e="$(topic_kind_index_get "$1")"; then
@@ -264,7 +264,11 @@ send_topic_kind() {  # TASK
       topic_kind_index_refresh_bg _send_topic_probe
     echo "$k"; return 0
   fi
-  k="$(_send_topic_probe "$1")" || return
+  k="$(_send_topic_probe "$1")" || { rc=$?; [ -n "$k" ] && echo "$k"; return "$rc"; }
+  if [ "$k" != owner ] && [ "$k" != agent ]; then
+    [ -n "$k" ] && echo "$k"
+    return 3
+  fi
   topic_kind_index_put "$1" "$k" 2>/dev/null
   topic_kind_index_refresh_bg _send_topic_probe
   echo "$k"
@@ -459,8 +463,8 @@ if [ "$POKE_ONLY" -eq 0 ]; then
     if [ "$_tkrc" -eq 0 ] && [ "$_tk" = owner ]; then
       echo "ERROR: ${TASK} is an owner topic (the owner reads it in the WUI); agents talk about it on --task dispatch-${TASK:0:8}. Nothing was sent." >&2
       exit 3
-    elif [ "$_tkrc" -ne 0 ] && [ "$_tkrc" -ne 100 ]; then
-      echo "topic: WARN cannot tell whether ${TASK} is an owner topic (no hub answer); sent anyway" >&2
+    elif [ "$_tkrc" -ne 100 ] && { [ "$_tkrc" -ne 0 ] || [ "$_tk" != agent ]; }; then
+      echo "topic: WARN cannot tell whether ${TASK} is an owner topic (${_tk:-no hub answer}); sent anyway" >&2
     fi
   fi
 

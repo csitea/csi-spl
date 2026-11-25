@@ -4,10 +4,14 @@
 #
 #   spool-topic-kind.sh [--spool-root <dir>] <task uuid>
 #
-# stdout: "owner" when the hub holds a message of the topic from a human seat
-# (HUM-*) or posted to the channel (to ALL-0) in ANY workspace this box has a
-# live desk in: a topic a human reads in the WUI. "agent" otherwise, also for
-# a topic the hub does not hold.
+# stdout: "owner" when the hub holds a message of the topic with a human seat
+# (from or to HUM-*) or posted to the channel (to ALL-0) in ANY workspace this
+# box has a live desk in: a topic a human reads in the WUI. "agent" when every
+# live desk answered rc 0, none saw an owner post, and AT LEAST ONE desk saw
+# >=1 row of the topic (all agent-only). "unknown" (exit 3) when every live
+# desk answered rc 0 with 0 rows: hub-tail uses BoxTaskEnvelopes, so a box
+# that was never a party to a topic sees 0 rows with rc 0 and must never call
+# it "agent" (SPL-6527).
 # Measured 2026-10-10 on sat's prd desk, n=1313 task uuids of the local spool:
 # 156 owner (148 with a HUM-* post, 8 channel-only), 936 agent, 221 not on
 # the hub; 0.108 s per lookup. The uuid shape cannot tell them apart: all 156
@@ -35,9 +39,10 @@
 # so the default is 12 s: the max seen plus a margin, above hub-tail's own ~10
 # s. The desks run in parallel, so one lookup waits at most about that long.
 #
-# Exit codes: 0 answered; 2 usage; 3 cannot tell, unless a desk said owner:
-# no desk or no live sidecar for the fleet tenant, or a live desk gave no hub
-# answer within SPOOL_TOPIC_KIND_TIMEOUT s (default 12).
+# Exit codes: 0 answered (owner or agent); 2 usage; 3 cannot tell, unless a
+# desk said owner: no desk or no live sidecar for the fleet tenant, a live
+# desk gave no hub answer within SPOOL_TOPIC_KIND_TIMEOUT s (default 12), or
+# every live desk returned 0 rows (stdout: "unknown").
 set -uo pipefail
 
 ROOT="${SPOOL_ROOT:-/var/spool-hub}" TASK=""
@@ -77,9 +82,10 @@ live_sidecar() {  # TENANT
   return 1
 }
 
-# The topic's kind in one sidecar's workspace: owner | agent; 3 = no answer.
+# The topic's kind in one sidecar's workspace: owner | agent | unknown (0 rows);
+# 3 = no answer (timeout, hub error, corrupt JSON).
 ask_desk() {  # PID
-  local e out
+  local e out kind
   local -a envv=()
   while IFS= read -r -d '' e; do
     case "${e%%=*}" in
@@ -89,11 +95,11 @@ ask_desk() {  # PID
   [ "${#envv[@]}" -ge 5 ] || return 3
   out="$(env -i HOME="$HOME" PATH=/usr/bin:/bin SPOOL_LOG_LEVEL=error "${envv[@]}" \
     timeout "${SPOOL_TOPIC_KIND_TIMEOUT:-12}" "$BIN" hub-tail --task "$TASK" --json 2>/dev/null)" || return 3
-  if grep '^{' <<<"$out" | jq -e -s 'any(.[]; ((.from // "") | tostring | startswith("HUM-")) or .to == "ALL-0")' >/dev/null 2>&1; then
-    echo owner
-  else
-    echo agent
-  fi
+  kind="$(awk '/^\{/' <<<"$out" | jq -r -s 'if length == 0 then "unknown" elif any(.[]; ((.from // "") | tostring | startswith("HUM-")) or ((.to // "") | tostring | startswith("HUM-")) or .to == "ALL-0") then "owner" else "agent" end' 2>/dev/null)"
+  case "$kind" in
+    owner|agent|unknown) echo "$kind" ;;
+    *) return 3 ;;
+  esac
 }
 
 # The fleet tenant first (it must answer), then every other seated tenant.
@@ -116,4 +122,6 @@ grep -qx owner "$tmp"/*.out 2>/dev/null && { echo owner; exit 0; }
 for f in "$tmp"/*.rc; do
   [ "$(cat "$f")" = 0 ] || exit 3
 done
-echo agent
+grep -qx agent "$tmp"/*.out 2>/dev/null && { echo agent; exit 0; }
+echo unknown
+exit 3

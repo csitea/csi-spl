@@ -141,4 +141,39 @@ eq "4. ... and its answer is in the index" agent "$(awk -F'\t' -v t="$B" '$1 == 
 eq "4. an agent answer never overwrites an owner line (R7 N2)" owner "$(topic_kind_put_owner_then_agent)"
 wait_event 10 env_idle "SPOOL_ROOT=$SPOOL_ROOT"
 
+# ---- 5. blind-probe agent entry in topic-kind.idx is evicted (SPL-6527) ----
+Z=44444444-5555-4666-8777-888888888888   # blind probe: prints unknown, exits 3
+T=55555555-6666-4777-8888-999999999999   # transient outage: empty stdout, exits 3
+cat >"$T_TMP/probe-blind" <<SH
+#!/usr/bin/env bash
+case "\$1" in
+  $O) echo owner ;;
+  $Z) echo unknown; exit 3 ;;
+  $T) exit 3 ;;
+  *) echo agent ;;
+esac
+SH
+chmod +x "$T_TMP/probe-blind"
+# Plant a FRESH legacy 3-column agent entry for Z (no "seen" tag, age 0 s)
+# plus a verified "seen" stale agent entry for T and an owner entry for O.
+now_s="$(date +%s)"
+printf '%s\tagent\t%s\n%s\tagent\t%s\tseen\n%s\towner\t%s\n' \
+  "$Z" "$now_s" "$T" $(( now_s - 900 )) "$O" "$now_s" >"$D/topic-kind.idx"
+SPOOL_OWNER_TOPIC_CMD="$T_TMP/probe-blind" \
+  bash "$SS" --from c-370 --to c-346@box-a --kind note --task "$Z" --body go --no-poke >/dev/null 2>&1
+wait_event 10 env_idle "SPOOL_ROOT=$SPOOL_ROOT"
+hasnt "5. fresh legacy agent entry from a blind probe is evicted on refresh" "$Z" "$(cat "$D/topic-kind.idx")"
+eq "5. transient hub outage keeps a verified agent entry" agent "$(awk -F'\t' -v t="$T" '$1 == t { print $2 }' "$D/topic-kind.idx")"
+eq "5. owner entry stays final" owner "$(awk -F'\t' -v t="$O" '$1 == t { print $2 }' "$D/topic-kind.idx")"
+err="$(SPOOL_OWNER_TOPIC_CMD="$T_TMP/probe-blind" \
+  bash "$SS" --from c-370 --to c-346@box-a --kind note --task "$Z" --body go --no-poke 2>&1 >/dev/null)"; rc=$?
+eq "5. next send on evicted blind topic fails open, exit 0" 0 "$rc"
+has "5. ... with the WARN" "cannot tell whether ${Z} is an owner topic" "$err"
+hasnt "5. ... and does not re-add it as agent" "$Z" "$(cat "$D/topic-kind.idx")"
+eq "5. topic_kind_index_del never removes an owner line" owner "$(
+  . "$T_FEAT/lib/spool-topic-kind-index.inc.sh"
+  topic_kind_index_del "$O" && topic_kind_index_get "$O" | cut -d' ' -f1
+)"
+wait_event 10 env_idle "SPOOL_ROOT=$SPOOL_ROOT"
+
 t_done

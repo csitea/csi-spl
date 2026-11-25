@@ -330,11 +330,11 @@ ENV=prd, 2026-11-25). No stranger has ever paid.
 
 | # | gap | evidence |
 |---|---|---|
-| G-H1 | **nothing charges month 2.** The card rail is a one-off payment intent, yet the payment's description says "(monthly)". The decided model, a prepaid top-up drawn down (D3), is not built | `stripe_payments.go:99` (`" (monthly)"`), `:110`; `git grep -niE 'top.?up' -- csi-spl-api/src/go/spool-hub-api/internal/payments` -> nothing |
+| G-H1 | **nothing charges month 2.** The card rail is a one-off payment intent, yet the payment's description says "(monthly)". The renewal is decided: a prepaid card top-up drawn down (D3, "for everyone"), not re-asked; it is not built | `stripe_payments.go:99` (`" (monthly)"`), `:110`; `git grep -niE 'top.?up' -- csi-spl-api/src/go/spool-hub-api/internal/payments` -> nothing |
 | G-H2 | no public price page: a visitor who is not on the signed-out shell never sees a price | CO-1.1 step 1 |
 | G-H3 | quotas are one deploy-wide set, not per plan (T012a, OQ-006-1) | `internal/config/config.go:424-426`; `csi-spl-cnf/csi-spl/all.env.yaml:609-611` |
 | G-H4 | grace is not timed (T013a, OQ-006-3): `BillingGrace` is only validated, and `grace` and `unpaid` both refuse writes alike | `config.go:427`, `:857`; `internal/billing/billing.go:87` `AllowsWrite` |
-| G-H5 | billing status moves only on a refund (and the operator verbs); no event moves a tenant to `grace` when its money runs out, because no balance exists (G-H1) | `payments_postgres.go:163-172` (refund -> `billing.MapEvent`); `git grep -n 'SetBillingStatus(' -- '*.go' \| grep -v _test` -> `billing.go:70`, `internal/hub/operator_workspaces.go:455` and the store |
+| G-H5 | billing status moves only on a refund or cancel event (and the operator verbs); no event moves a tenant to `grace` when its money runs out, because no balance exists (G-H1) | `payments_postgres.go:163-172` (refund, cancel -> `billing.MapEvent`; `internal/billing/billing.go:50` -> `unpaid`); `git grep -n 'SetBillingStatus(' -- '*.go' \| grep -v _test` -> `billing.go:70`, `internal/hub/operator_workspaces.go:455` and the store |
 | G-H6 | no receipt or invoice from the hub for a card payment; the invoice tables are the private workspace's (D4). Whether the card provider's own receipt mail is on is a dashboard setting, not measured | `grep -n receipt internal/payments/*.go \| grep -v _test` -> one comment (`stripe_payments.go:81`); rdb `0315_private_workspace_invoices.sql` header |
 | G-H7 | no self-service cancel: the cancel route is the operator's, for a private workspace | rdb `0319_workspace_cancellations.sql` header (`POST /v1/operator/workspaces/{id}/cancel`) |
 
@@ -345,8 +345,9 @@ ENV=prd, 2026-11-25). No stranger has ever paid.
 for every workspace (D1). The live plan already shows it, for the private
 workspace only (`seat_member_cents: 900`, CO-1.1 step 2;
 `internal/store/price_plans.go:32`). What is missing is selling it on the
-hosted (shared) checkout. Whether 9 applies there too is Q3 (recommended:
-yes).
+hosted (shared) checkout: D1 covers it ("for every workspace", form
+`b97a036d` "Everywhere"), so the hosted seat price is EUR 9, decided and not
+re-asked.
 
 | part | today | evidence |
 |---|---|---|
@@ -360,11 +361,11 @@ yes).
 a non-technical human whose membership has any role but channel guest
 takes one seat. A channel guest takes none. An agent
 takes none (D1; `handler.go:385` "agents are not seats"). The bot-seat price
-stays `"0"` (D1), so nothing in the agent harness is priced. Q5 asks only
+stays `"0"` (D1), so nothing in the agent harness is priced. Q3 asks only
 whether guests stay free.
 
 **Proration.** Today seats are set only at checkout; there is no route to
-add or remove one later (CO-6 row C6). The proposal, Q6: adding a seat takes
+add or remove one later (CO-6 row C6). The proposal, Q4: adding a seat takes
 effect at once and is drawn from the balance pro rata for the rest of the
 month; removing one takes effect at the month's end, and existing members
 are never locked out (`SetSeatCaps` "never lowers occupancy",
@@ -393,8 +394,8 @@ it.
 | part | proposal |
 |---|---|
 | scoping | a short written scope per integration: the source system, the data read or written, the connector it writes into, the test sandbox the customer provides, the acceptance test |
-| price | a fixed setup fee per integration plus a monthly upkeep fee (upstream API changes, failures, monitoring); the amounts are per quote, by the owner (Q8) |
-| code ownership | the customer owns the private repo and its code. A change to the generic connector goes into csi-spl under its licence (AGPL-3.0). Where the boundary between the two sits under AGPL is a licence question to settle before the first contract (Q9) |
+| price | a fixed setup fee per integration plus a monthly upkeep fee (upstream API changes, failures, monitoring); the amounts are per quote, by the owner (Q6) |
+| code ownership | the customer owns the private repo and its code. A change to the generic connector goes into csi-spl under its licence (AGPL-3.0). Where the boundary between the two sits under AGPL is a licence question to settle before the first contract (Q7) |
 | data | the customer's credentials stay in the customer's own secret store or private repo deployment, never in csi-spl and never in a public commit; no customer name, account or identifier in csi-spl (distribution hygiene, repo CLAUDE.md); a brief for a non-claude lane never carries one (fleet data rule) |
 | sold by | a quote and an invoice; not the card checkout |
 
@@ -409,8 +410,8 @@ spec 156 marketplace VM) and wants someone to answer when it breaks.
 | channel | one support workspace per customer on spool-hub, bought like any hosted workspace (CO-1); its members post, our seats answer. Nothing runs inside the customer's estate |
 | covered | upgrades between released versions (`v<X.Y.Z>` tags), database migrations, the install and its terraform steps, incidents in csi-spl itself (hub, WUI, box CLI, MCP) |
 | not covered | the customer's own integrations (that is CO-3), their cloud bill, their AI vendor accounts |
-| response times | proposed as targets, not yet promised: severity 1 (the hub is down) and severity 2 (a part is broken) in business hours, 1 and 2 business days respectively for the first answer; levels and hours are Q10 |
-| sold by | an invoice, monthly or yearly, bank transfer, like D4 (Q11); a card checkout would need the renewal of G-H1 first |
+| response times | proposed as targets, not yet promised: severity 1 (the hub is down) and severity 2 (a part is broken) in business hours, 1 and 2 business days respectively for the first answer; levels and hours are Q8 |
+| sold by | an invoice, monthly or yearly, bank transfer, like D4 (Q9); a card checkout would need the renewal of G-H1 first |
 
 Nothing of P exists in code today, and nothing needs to before a first
 contract: it is a written offer, a support workspace and an invoice.
@@ -436,7 +437,7 @@ Measured baseline:
 workspace now (they exist). AI retrieval is added when spec 075 section 7 is
 built. Under D2 it can sell no tokens: the embeddings run on the customer's
 own AI key (as spec 159 does for agents) or on a model we host, priced at its
-cloud cost + 33% (D1). Packaging and storage pricing are Q12 and Q13.
+cloud cost + 33% (D1). Packaging and storage pricing are Q10 and Q11.
 
 **The gaps** (each a spec 075 lane, not this spec's): an embedding store and
 its migration; an embedding worker on document save; a semantic query in
@@ -451,21 +452,22 @@ Row C1 is the smallest step to a first paying workspace: the live plan is
 already for sale; strangers cannot find it. Kind and vendor follow the
 fleet split (`specs_and_docs` and `i18n`: agy, backup claude; coding: claude,
 backup agy). Each row is one lane with its red control. `C<n>` rows are
-tasks T024..T034 in `tasks.md`.
+tasks T024..T035 in `tasks.md` (C3b is T035).
 
 | row | kind / vendor | what | paths | test and red control | waits on |
 |---|---|---|---|---|---|
 | C1 | simple_coding / claude, then i18n / agy | a public price page `/pricing` that renders `GET /api/v1/checkout/plan` (no price typed into the page) and links to `/checkout`; linked from `about.html` and the sign-in page; every locale | `csi-spl-wui/src/pages/pricing.vue`, `csi-spl-wui/src/public/about.html`, locale files | e2e with the plan mocked: `available:false` -> no buy button; red control: a literal `2000` or `20` typed into `pricing.vue` fails a grep test | - |
 | C2 | simple_coding / claude | the payment description stops saying "(monthly)" while nothing renews | `internal/payments/stripe_payments.go:99`, its test | a test asserts the description; red: the old string fails it | - |
-| C3 | complex_coding / claude | the renewal (G-H1) as D3 says: a top-up of an existing workspace's balance by card, drawn down monthly by the plan and its seats; at zero the workspace goes `grace` | `internal/payments/handler.go`, `internal/store/payments_postgres.go`, a new rdb migration, `csi-spl-wui/src/pages/checkout/` | a top-up webhook credits once (replay -> one credit); red: a balance at zero that stays `active` fails it | Q1, Q2 |
+| C3a | complex_coding / claude | the renewal (G-H1) as D3 says, store side: a workspace balance, drawn down monthly by the plan and its seats; at zero the workspace goes `grace` | `internal/store/` (a balance store), a new rdb migration, `internal/billing/` | a month's draw-down lowers the balance by plan + seats; red: a balance at zero that stays `active` fails it | Q1 |
+| C3b | complex_coding / claude | the renewal, checkout side: a card top-up of an existing workspace's balance | `internal/payments/handler.go`, `internal/store/payments_postgres.go`, `csi-spl-wui/src/pages/checkout/` | a top-up webhook credits once; red: a replayed webhook that credits twice fails it | C3a |
 | C4 | simple_coding / claude | per-plan quotas (T012a) | `internal/config/config.go`, `internal/hub/server.go:922-924`, cnf | a plan with a lower quota -> `429` while the deploy-wide value has room; red: the deploy-wide value wins | OQ-006-1 |
-| C5 | simple_coding / claude | timed grace (T013a): grace start recorded, `unpaid` after `SPOOL_HUB_BILLING_GRACE` | `internal/billing/`, a rdb migration | fake clock past grace -> `unpaid`; red: one second before -> still `grace` | OQ-006-3, C3 |
-| C6 | simple_coding / claude, cnf with the owner's go | human seats on the hosted checkout: the price in cnf, a seat count in the checkout page, the month's total | `csi-spl-cnf/csi-spl/all.env.yaml:644`, `csi-spl-wui/src/pages/checkout/index.vue` | checkout with 3 seats -> amount = plan + 3 x seat; red: `seats_users` 0 accepted while priced | Q3, Q4, Q5 |
-| C7 | complex_coding / claude | seats after purchase: an admin adds or removes seats; add at once, pro rata from the balance, remove at month end; "N of M seats used" in workspace settings | `internal/payments/`, `internal/store/seats_postgres.go`, `csi-spl-wui/src/pages/tenant-settings/members.vue` | add 1 seat mid-month -> cap +1 and the pro-rata draw; red: a remove that drops the cap below occupancy | Q6, C3 |
-| C8 | simple_coding / claude | a receipt per card payment, from the hub, with the buyer's billing details (VAT id) | `internal/payments/`, `internal/mail/templates/` | paid webhook -> one receipt mail; replay -> still one | Q7 |
-| C9 | simple_coding / claude | self-service cancel of a hosted workspace by its owner: no renewal, data kept as the private-workspace cancel does | `internal/hub/`, `csi-spl-wui/src/pages/tenant-settings/general.vue` | cancel -> no further draw; red: a member (not owner) can cancel | C3 |
-| C10 | specs_and_docs / agy | the written offers I and P: a help page with scope, what is covered, response targets, how to buy | `csi-spl-doc/doc/help/` (new page) | `do_check_dist_hygiene` green; red: a customer name in the page fails it | Q8..Q11 |
-| C11 | specs_and_docs / agy | spec 075 section 7 broken into build rows (embedding store, worker, semantic search, ACLs), D2-compliant | `csi-spl-doc/specs/075-docs-section/` | a spec review panel | Q12 |
+| C5 | simple_coding / claude | timed grace (T013a): grace start recorded, `unpaid` after `SPOOL_HUB_BILLING_GRACE` | `internal/billing/`, a rdb migration | fake clock past grace -> `unpaid`; red: one second before -> still `grace` | OQ-006-3, C3a |
+| C6 | simple_coding / claude, cnf with the owner's go | human seats on the hosted checkout: the price in cnf, a seat count in the checkout page, the month's total | `csi-spl-cnf/csi-spl/all.env.yaml:644`, `csi-spl-wui/src/pages/checkout/index.vue` | checkout with 3 seats -> amount = plan + 3 x seat; red: `seats_users` 0 accepted while priced | Q2, Q3 |
+| C7 | complex_coding / claude | seats after purchase: an admin adds or removes seats; add at once, pro rata from the balance, remove at month end; "N of M seats used" in workspace settings | `internal/payments/`, `internal/store/seats_postgres.go`, `csi-spl-wui/src/pages/tenant-settings/members.vue` | add 1 seat mid-month -> cap +1 and the pro-rata draw; red: a remove that drops the cap below occupancy | Q4, C3a |
+| C8 | simple_coding / claude | a receipt per card payment, from the hub, with the buyer's billing details (VAT id) | `internal/payments/`, `internal/mail/templates/` | paid webhook -> one receipt mail; red: a replayed webhook that sends a second mail fails it | Q5 |
+| C9 | simple_coding / claude | self-service cancel of a hosted workspace by its owner: no renewal, data kept as the private-workspace cancel does | `internal/hub/`, `csi-spl-wui/src/pages/tenant-settings/general.vue` | cancel -> no further draw; red: a member (not owner) can cancel | C3a |
+| C10 | specs_and_docs / agy | the written offers I and P: a help page with scope, what is covered, response targets, how to buy | `csi-spl-doc/doc/help/` (new page) | `do_check_dist_hygiene` green; red: a customer name in the page fails it | Q6..Q9 |
+| C11 | specs_and_docs / agy | spec 075 section 7 broken into build rows (embedding store, worker, semantic search, ACLs), D2-compliant | `csi-spl-doc/specs/075-docs-section/` | a spec review panel; red: a row whose embeddings run on our AI key (D2) or that names no red control fails the review | Q10 |
 
 Not a row here: the generic finance connector (its own lane, CO-3), the
 cloud-drive upload (spec 194), the private-workspace invoice (spec 181).
@@ -473,44 +475,37 @@ cloud-drive upload (spec 194), the private-workspace invoice (spec 181).
 <a id="co-7"></a>
 ### CO-7 Open questions for the owner (one form)
 
-- **Q1 Renewal of a hosted workspace.** Today it is charged once.
-  (A) prepaid card top-up drawn down, as D3 already decided, *recommended*;
-  (B) a monthly invoice in arrears, as the private workspace (D4);
-  (C) a recurring card subscription at the card provider.
-- **Q2 The base price.** D1 says cloud cost + 33%, but the shared hub's cost
+- **Q1 The base price.** D1 says cloud cost + 33%, but the shared hub's cost
   per workspace is not measured yet (spec 121 section 7 gate).
   (A) keep the live EUR 20 / month as the hosting share until a closed month
   measures it, then replace it, *recommended*; (B) drop the base, sell seats
   only; (C) wait: sell nothing until the cost is measured.
-- **Q3 The human seat price on a hosted workspace.** (A) EUR 9 per human
-  member per month, the price D1 already set for every workspace,
-  *recommended*; (B) another price, which you name.
-- **Q4 Seats in the base.** (A) none: the buyer buys 1..N seats, as the code
+- **Q2 Seats in the base.** (A) none: the buyer buys 1..N seats, as the code
   already requires (`handler.go:287`), *recommended*; (B) the base includes
   1 seat; (C) the base includes 3 seats.
-- **Q5 Guests.** (A) channel guests stay free, as the cap counts today,
+- **Q3 Guests.** (A) channel guests stay free, as the cap counts today,
   *recommended*; (B) a guest takes a seat.
-- **Q6 Proration.** (A) add at once, pro rata from the balance; remove at the
+- **Q4 Proration.** (A) add at once, pro rata from the balance; remove at the
   month's end, *recommended*; (B) a whole month on add, nothing back on
   remove; (C) seat changes only at the month's turn.
-- **Q7 Receipt.** (A) the hub sends its own receipt with the buyer's billing
+- **Q5 Receipt.** (A) the hub sends its own receipt with the buyer's billing
   details, *recommended*; (B) the card provider's receipt mail is enough.
-- **Q8 Offer I price model.** (A) a fixed setup fee plus a monthly upkeep
+- **Q6 Offer I price model.** (A) a fixed setup fee plus a monthly upkeep
   fee, both quoted by you per integration, *recommended*; (B) time and
   materials; (C) a yearly retainer.
-- **Q9 Offer I licence boundary.** (A) have the AGPL-3.0 boundary between
+- **Q7 Offer I licence boundary.** (A) have the AGPL-3.0 boundary between
   csi-spl and a customer's private connector code checked before the first
   contract, *recommended*; (B) sell first, check later.
-- **Q10 Offer P levels.** (A) one business-hours tier first (severity 1:
+- **Q8 Offer P levels.** (A) one business-hours tier first (severity 1:
   first answer within 1 business day, severity 2: within 2), *recommended*,
   because round-the-clock needs a person on call; (B) two tiers, business
   hours and 24/7; (C) best effort only, no response targets.
-- **Q11 Offer P billing.** (A) an invoice, monthly or yearly, bank transfer,
+- **Q9 Offer P billing.** (A) an invoice, monthly or yearly, bank transfer,
   *recommended*; (B) the card checkout (needs C3 first).
-- **Q12 Offer K packaging.** (A) storage and word search in every hosted
+- **Q10 Offer K packaging.** (A) storage and word search in every hosted
   workspace now; AI retrieval an add-on priced when spec 075 section 7 is
   built, *recommended*; (B) a separate higher plan; (C) per GB stored.
-- **Q13 Offer K embeddings.** (A) on the customer's own AI key, as spec 159
+- **Q11 Offer K embeddings.** (A) on the customer's own AI key, as spec 159
   does for agents, *recommended*; (B) a model we host, at cloud cost + 33%.
 
 ## Out of Scope
@@ -518,4 +513,4 @@ cloud-drive upload (spec 194), the private-workspace invoice (spec 181).
 NATS, Kafka, ysg-box, customer GCP accounts, card storage, custom
 domains, seats (M4), WUI (005).
 
-<!-- version: 1.5.0 · updated: 2026-11-25 · last-edit: 2026-11-25T00:12:00Z -->
+<!-- version: 1.5.0 · updated: 2026-11-25 · last-edit: 2026-11-25T00:40:00Z -->

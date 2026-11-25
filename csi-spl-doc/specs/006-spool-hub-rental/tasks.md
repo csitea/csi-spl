@@ -74,14 +74,15 @@ questions it names (section CO-7). None is built.
 
 - [ ] T024 [C1] Public price page `/pricing` rendering `GET /api/v1/checkout/plan`, linked from `about.html` and sign-in; every locale — **Planned**.
 - [ ] T025 [C2] Payment description stops saying "(monthly)" while nothing renews (`stripe_payments.go:99`) — **Planned**.
-- [ ] T026 [C3] Renewal as a prepaid card top-up drawn down (spec 121 R7 / section 8); at zero the workspace goes `grace` — **Planned**, gated on Q1, Q2.
+- [ ] T026 [C3a] Renewal, store side (decided, spec 121 R7 / section 8): a workspace balance drawn down monthly by the plan and its seats; at zero the workspace goes `grace` — **Planned**, gated on Q1.
 - [ ] T027 [C4] = T012a, per-plan quotas — **Planned**, gated on OQ-006-1.
 - [ ] T028 [C5] = T013a, timed grace — **Planned**, gated on OQ-006-3 and T026.
-- [ ] T029 [C6] Human seats on the hosted checkout: cnf price (owner's go), seat count and total in the checkout page — **Planned**, gated on Q3, Q4, Q5.
-- [ ] T030 [C7] Seats after purchase: add at once pro rata, remove at month end, "N of M seats used" in workspace settings — **Planned**, gated on Q6 and T026.
-- [ ] T031 [C8] A hub receipt per card payment with the buyer's billing details — **Planned**, gated on Q7.
+- [ ] T029 [C6] Human seats on the hosted checkout: cnf price (owner's go), seat count and total in the checkout page — **Planned**, gated on Q2, Q3.
+- [ ] T030 [C7] Seats after purchase: add at once pro rata, remove at month end, "N of M seats used" in workspace settings — **Planned**, gated on Q4 and T026.
+- [ ] T031 [C8] A hub receipt per card payment with the buyer's billing details — **Planned**, gated on Q5.
 - [ ] T032 [C9] Self-service cancel of a hosted workspace by its owner — **Planned**, gated on T026.
-- [ ] T033 [C10] Help page for offers I and P (scope, coverage, response targets, how to buy) — **Planned**, gated on Q8..Q11.
-- [ ] T034 [C11] Spec 075 section 7 broken into build rows (embedding store, worker, semantic search, ACLs), no token sold — **Planned**, gated on Q12, Q13.
+- [ ] T033 [C10] Help page for offers I and P (scope, coverage, response targets, how to buy) — **Planned**, gated on Q6..Q9.
+- [ ] T035 [C3b] Renewal, checkout side: a card top-up of an existing workspace's balance — **Planned**, after T026.
+- [ ] T034 [C11] Spec 075 section 7 broken into build rows (embedding store, worker, semantic search, ACLs), no token sold — **Planned**, gated on Q10, Q11.
 
-<!-- version: 1.5.0 · updated: 2026-11-25 · last-edit: 2026-11-25T00:15:00Z -->
+<!-- version: 1.5.0 · updated: 2026-11-25 · last-edit: 2026-11-25T00:40:00Z -->

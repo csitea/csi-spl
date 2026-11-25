@@ -73,5 +73,5 @@ _spl_tax_body() {
          category: $c[6], content_sha256: ($c[7] | ascii_downcase)}] as $docs
     | if ($docs | length) > 10000 then error("more than 10000 rows") else . end
     | {snapshot_id: $id, tax_year: $y, taken_at: $at, documents: $docs}' >"$out" 2>"$out.err" ||
-    { do_log "FATAL the index was refused, nothing sent: $(sed -n 's/^jq: error (at [^)]*): //p' "$out.err" | head -1 | cut -c1-80)"; return 1; }
+    { do_log "FATAL the index was refused, nothing sent: $(sed -n '/^jq: error (at [^)]*): /{s///;s/^\(.\{1,80\}\).*/\1/p;q;}' "$out.err")"; return 1; }
 }

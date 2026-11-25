@@ -22,11 +22,10 @@ Owner HUM-10 directives and fleet rules, by pointer:
   rulebook wins over this plan.
 
 **What this round is.** Round 01 ([refactor-round-01-plan.md](refactor-round-01-plan.md)
-v1.0 `43a4b3949`) is still serving: `r01-01` (`e108142e8`, SPL-6525) has landed, while
-`r01-02` (`spl-hub-agent-kinds.func.sh`, `spl-hub-runner-cpu.func.sh`) is live and
-unlanded, so round 02 stays off all `r01-02` files per R3. The perf floor (rulebook 4.4),
-measured on `c567245fa` at 2026-11-25T19:04:13Z (14 days): perf 36, refactor 106, 25.4%,
-5 x 36 = 180 >= 142, floor-met, so this is a refactor round.
+v1.0 `43a4b3949`) is now closed (`cd8cd4cec`): both `r01-01` (`e108142e8`, SPL-6525) and
+`r01-02` (`3582fc44b`, SPL-6530, landed 2026-11-25T19:09:45Z) are on `origin/master`.
+The perf floor (rulebook 4.4), measured on `c567245fa` at 2026-11-25T19:04:13Z (14 days):
+perf 36, refactor 106, 25.4%, 5 x 36 = 180 >= 142, floor-met, so this is a refactor round.
 
 Both rows are **one fact, one copy** (developer guide 2.2.4), the shape of r91..r01: a
 duplicated setup, output, or execution block that lives in multiple `orc:src/bash/run/`
@@ -56,14 +55,14 @@ guard inside their action functions and delegate all crontab check/dry-run/remov
 handling to one home.
 The rows share no file: both are batch 1.
 
-**Status: v0.1 draft** (pending cross-vendor panel signing on
-`review/c002-refactor-round-02-planner`, never master before the GO). Editor: **a-712**
-(agy). Cross-vendor panel seat queued/live: **c-646** (claude).
+**Status: v0.2 draft** (panel W1, W2, N1, N2, N4 folded; pending cross-vendor panel
+re-review and signing on `review/c002-refactor-round-02-planner`, never master before the
+GO). Editor: **a-712** (agy). Cross-vendor panel seat live: **c-646** (claude).
 
 **One sha:** every count is measured on **`c567245fa`** (`c567245fa3b0eb149ea4eff9412a60fe193a2d31`,
 `origin/master` at 2026-11-25T19:02:15Z; zero drift on all 10 row/test files to
-`origin/master` `1a8c1ce1c` at 2026-11-25T19:16:48Z,
-`git diff --name-only c567245fa 1a8c1ce1c -- <10 files>` -> empty), n=1 per command unless
+`origin/master` `5fdfae32b` at 2026-11-25T20:00:22Z,
+`git diff --name-only c567245fa origin/master -- <10 files>` -> empty), n=1 per command unless
 stated. Reads are on `c567245fa` with `git show` / `git grep`. The tests of 1.5 ran in
 detached scratch worktrees of `c567245fa` (not committed, removed on exit): "base"
 unmodified, "head1" = base with row 01 applied in 1.3's shape, "head2" = base with row
@@ -78,16 +77,17 @@ their own time.
 
 ### 1.1 Window and slug proof (rulebook 5.3)
 
-2026-11-25T19:02:38Z (re-checked on `1a8c1ce1c` at 19:16:48Z), n=1, after a fresh fetch
+2026-11-25T19:02:38Z (re-checked on `5fdfae32b` at 20:03:23Z), n=1, after a fresh fetch
 (`git-fetch-fresh.sh`):
 
 - **Window: W=2026-11-25T18:51:33+02:00**, from
   `git log origin/master -1 --format='%H %cI %s' -E --grep='^docs\(r01-plan'`:
   `43a4b3949bb37c9c4bec3fdbeac5b0d556458fe5`
   (`docs(r01-plan, SPL-6520): refactor round 01 plan v1.0, signed by c-650 (claude) PASS on 78277dc10, N1-N6 folded`),
-  read once at the start as 5.3 says (round 01 has no close record yet). Per rulebook 5.3,
-  `W` stays fixed at this recorded date (`2026-11-25T18:51:33+02:00`); all later R4, R6,
-  2.7.5, and `PRUNE_SINCE` reads for r02 must use `W=2026-11-25T18:51:33+02:00`.
+  read once at the start as 5.3 says (round 01 had no close record yet when r02 started;
+  its close record `cd8cd4cec` landed later at 2026-11-25T21:35:25+02:00). Per rulebook
+  5.3, `W` stays fixed at this recorded date (`2026-11-25T18:51:33+02:00`); all later R4,
+  R6, 2.7.5, and `PRUNE_SINCE` reads for r02 must use `W=2026-11-25T18:51:33+02:00`.
 - `git log origin/master --since="$W" --oneline -E --grep='\(r02-' | wc -l` -> **0**.
 - `git ls-remote origin 'refs/heads/review/r02-*' 'refs/heads/*-r02-*' 'refs/heads/*refactor-round-02*' 'refs/heads/wip/*r02*'`
   -> nothing (before this plan's review branch and the panel seat branch push).
@@ -108,17 +108,22 @@ their own time.
     (check / dry-run / remove / install crontab execution block): clean 3-file duplicate
     with fast pure-bash tests -> measured here as **row 02** (1.4).
   - `orc:src/bash/run/spl-hub-{agent-kinds,runner-cpu}.func.sh` (`ORDERED_BY`/`ORDERED_VIA`
-    guard): still blocked because `r01-02` (`c-639`) is live and unlanded on `1a8c1ce1c`;
-    kept in section 7 for `r03`.
+    guard): `r01-02` (`3582fc44b`, SPL-6530) landed at 19:09:45Z (after `c567245fa`, and
+    round 01 closed at `cd8cd4cec`), leaving the write-mode guard intact on `origin/master`
+    `5fdfae32b` (`:30-32,40` vs `:29-31,39`); kept in section 7 for `r03` because r02
+    already carries 2 full, verified rows on `c567245fa` (rulebook 5.1).
   - `git diff --name-only fe1f82671 c567245fa` (54 files): among r01 section 7's items,
     only `spl-hub-request-minutes.func.sh` and `spl-hub-run-metrics.func.sh` changed
-    (`r01-01` `e108142e8`); none of the remaining section 7 candidates changed, and each
-    stays accounted for in section 7.
+    (`r01-01` `e108142e8`); none of the remaining section 7 candidates changed on
+    `c567245fa`, and `r01-02` (`3582fc44b`) later touched `spl-hub-{agent-kinds,runner-cpu}.func.sh`
+    without removing the write-mode guard; each stays accounted for in section 7.
 - **(b) R7 and panel notes:**
   - `r01-01` R7 (`a-697`, agy, PASS on `934b7c371`, landed `e108142e8`): N1 noted rebase
     onto `bbc2adb26` with zero drift on the 3 row files (already folded in `e108142e8`).
     No refactor row.
-  - `r01-02`: still live (`c-639`, R7 `a-705`), not landed on `1a8c1ce1c`.
+  - `r01-02` (`3582fc44b`, SPL-6530, R7 `a-705`, agy, PASS on `043e458ed`, recorded in
+    round 01 close `cd8cd4cec`): landed at 19:09:45Z with all 4 files matching r01 plan
+    1.4 head2 verbatim. No refactor row.
   - `r99-01` (`05129cff9`, R7 `a-565`) and `r99-02` (`83a6b0d7d`, R7 `a-562`): verification
     notes only, already checked in r01 1.2 (b). No refactor row.
   - r01 panel (`c-650`, claude, recorded in r01 plan v1.0 `43a4b3949`): PASS on
@@ -187,16 +192,16 @@ Shape (built as head1 of 1.5):
   dry-run missing desk, `DRY_RUN=0` missing desk before `spl_host_spool`, `DRY_RUN=0`
   with desk setting `SPL_MOVE_DIR` and calling `spl_host_spool`), 2 direct
   `_spl_desk_move_json` checks (parsed JSON payload and non-JSON string fallback), and
-  1 one-copy check. 75 -> 118 lines (`+43 -0`).
+  1 one-copy check. 75 -> 125 lines (`+50 -0`: 49-line hunk + 1 trailing blank line).
 - `orc:src/bash/tests/spl-topic-move.tst.sh`: append section 6 before `:71`
   (`echo "fails=$fails"`): 1 top-level JSON key assertion (`channel == "dev"` and
   `"to_task"` absent, catching `m1b` which section 4's substring match misses because
   the stub's nested `.move` object also contains `"channel": "dev"`), 1 one-copy check,
-  and 1 standalone lazy-load check (sourcing only `spl-topic-move.func.sh`). 72 -> 87
-  lines (`+15 -0`).
+  and 1 standalone lazy-load check (sourcing only `spl-topic-move.func.sh`). 72 -> 90
+  lines (`+18 -0`: 17-line hunk + 1 trailing blank line).
 - head1's files, sha256 (12 chars): `spl-msg-move.func.sh` `4a442ccdc5ef`,
-  `spl-topic-move.func.sh` `66ee11218bed`, `spl-msg-move.tst.sh` `78add1dd5cf8`,
-  `spl-topic-move.tst.sh` `252ebe52f341`.
+  `spl-topic-move.func.sh` `66ee11218bed`, `spl-msg-move.tst.sh` `5b907bd5d703`,
+  `spl-topic-move.tst.sh` `1a42b8064d83`.
 - Note for the row and its reviewer: under `./run`, `run.sh`'s lazy stub loader defines
   stubs for `_spl_desk_move_prep` and `_spl_desk_move_json`, so the
   `declare -F _spl_desk_move_prep` guard acts on the standalone-source path outside
@@ -377,13 +382,14 @@ Shape (built as head2 of 1.5):
   check (`check` missing -> `install` -> `check` ok -> `remove`), 3 one-copy checks (host
   + both siblings), and 2 standalone lazy-load checks (sourcing only
   `check-disk-headroom-install-cron.func.sh` and only `setup-go-cache-prune-cron.func.sh`,
-  each verifying exact label and missing-line text). 221 -> 270 lines (`+49 -0`). Total
+  each verifying exact label and missing-line text). 221 -> 275 lines (`+54 -0`: 53-line
+  hunk + 1 trailing blank line). Total
   edited files: **4** (within rulebook 3.1's max 5; `check-disk-headroom.tst.sh` and
   `prune-go-build-cache.tst.sh` run unmodified in the test column).
 - head2's files, sha256 (12 chars): `setup-box-stats-cron.func.sh` `2b1f19013437`,
   `check-disk-headroom-install-cron.func.sh` `6106f57f2059`,
   `setup-go-cache-prune-cron.func.sh` `7e4e89ea9bd4`,
-  `box-stats-cron.tst.sh` `a4821f702627`.
+  `box-stats-cron.tst.sh` `c880d0a28021`.
 - Note for the row and its reviewer: `check-disk-headroom-install-cron.func.sh` and
   `setup-go-cache-prune-cron.func.sh` now depend on sibling
   `setup-box-stats-cron.func.sh` (held by the one-copy and lazy-load checks; if
@@ -393,8 +399,9 @@ Shape (built as head2 of 1.5):
 
 Verbatim helper and test hunks (head2 on `c567245fa`):
 
-`orc:src/bash/run/setup-box-stats-cron.func.sh` (replaces `:59-94`; also remove `current`
-from `local` at `:43`):
+`orc:src/bash/run/setup-box-stats-cron.func.sh` (replaces `:59-93`, keeping the closing
+`}` of `do_setup_box_stats_cron`, and appends `_spl_simple_cron_apply` after it; also
+remove `current` from `local` at `:43`):
 ```bash
   _spl_simple_cron_apply "$act" "$tag" "$src" "$trunk" "$script" "$logdir" "$line" \
     "box-stats" "posts a sample every ${every}m as the box user" \
@@ -445,25 +452,23 @@ _spl_simple_cron_apply() {
 }
 ```
 
-`orc:src/bash/run/check-disk-headroom-install-cron.func.sh` (replaces `:57-92`; also
-remove `current` from `local` at `:41`):
+`orc:src/bash/run/check-disk-headroom-install-cron.func.sh` (replaces `:57-91`, keeping
+the closing `}`; also remove `current` from `local` at `:41`):
 ```bash
   # shellcheck source=setup-box-stats-cron.func.sh
   declare -F _spl_simple_cron_apply >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/setup-box-stats-cron.func.sh"
   _spl_simple_cron_apply "$act" "$tag" "$src" "$trunk" "$script" "$logdir" "$line" \
     "disk headroom" "ticks every ${every}m as the box user" \
     ": a filling disk warns nobody"
-}
 ```
 
-`orc:src/bash/run/setup-go-cache-prune-cron.func.sh` (replaces `:57-92`; also remove
-`current` from `local` at `:41`):
+`orc:src/bash/run/setup-go-cache-prune-cron.func.sh` (replaces `:57-91`, keeping the
+closing `}`; also remove `current` from `local` at `:41`):
 ```bash
   # shellcheck source=setup-box-stats-cron.func.sh
   declare -F _spl_simple_cron_apply >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/setup-box-stats-cron.func.sh"
   _spl_simple_cron_apply "$act" "$tag" "$src" "$trunk" "$script" "$logdir" "$line" \
     "go-cache prune" "ticks every ${every}m as the box user"
-}
 ```
 
 `orc:src/bash/tests/box-stats-cron.tst.sh` section 4 (inserted immediately before the
@@ -559,6 +564,9 @@ summary line on rc 0 (matched by `grep -ciE '^ *(not ok|fail)'`), so `fail=1` wi
 represents 0 failed assertions + 1 `fails=0` summary line; on failure `fails=k` adds 1 to
 the `FAIL:` line count. `box-stats-cron.tst.sh`, `check-disk-headroom.tst.sh`, and
 `prune-go-build-cache.tst.sh` print `all passed` / `0 failure(s)` on rc 0 (0 fail lines).
+Run every suite and control in a git worktree (not a plain `git archive` export): outside
+a git tree, `no-literal-paths.tst.sh` reads `1/13/2` (`STALE` baseline) on base and heads
+alike (`0/15/0` in a git worktree; panel N2).
 
 `shellcheck -S warning -x` on all 8 edited files (head1: 4 files, head2: 4 files):
 **rc 0**, no findings (n=1 each). `do_sec_shellcheck` with newline-separated
@@ -619,7 +627,7 @@ files, 0 test hits). No new test file is added, so `orc-shard-weights.txt` needs
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `refactor(r02-01-orc-desk-move-common)` | one fact, one copy (developer guide 2.2.4) | `spl-msg-move.func.sh:50-60,70-78` and `spl-topic-move.func.sh:47-57,76-84` duplicate both the 11-line desk-dir / dry-run / desk-exists / `spl_host_spool` setup and the 9-line `python3` JSON summary block (1.3, r01 section 7) | `orc:src/bash/run/spl-msg-move.func.sh:50-60,70-78,82`<br>`orc:src/bash/run/spl-topic-move.func.sh:47-57,76-84`<br>`orc:src/bash/tests/spl-msg-move.tst.sh:74`<br>`orc:src/bash/tests/spl-topic-move.tst.sh:71` | copies of desk-move prep and JSON summary blocks 2 -> 1 (`_spl_desk_move_prep` and `_spl_desk_move_json` in `spl-msg-move.func.sh`) | 1.3's shape (verbatim blocks in 1.3; header documents process globals `SPL_MOVE_DIR`, `SPL_MOVE_DRY_DONE`). **Red control:** head's `spl-msg-move.tst.sh` on parent FAILs 7 checks (`rc1a`, rc 1, 19 pass, 8 fail lines incl. `fails=7`, `_spl_desk_move_prep` / `_spl_desk_move_json` command not found + one-copy) and head's `spl-topic-move.tst.sh` on parent FAILs one-copy naming `:53` (`rc1b`, rc 1, 20 pass, 2 fail lines incl. `fails=1`), then GREEN (26/1* and 21/1*, `fails=0`); guard control (`gc1`, `declare -F _spl_desk_move_prep` deleted in `spl-topic-move.func.sh`: rc 1, 20 pass, 2 fail lines with `_spl_desk_move_prep: command not found`; proves standalone-source path outside `./run`), built in a worktree; JSON key checks catch `m1a`/`m1b` (1.5); outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 7 + 3 new checks. Tests: **`orc:.../spl-msg-move.tst.sh`**, **`orc:.../spl-topic-move.tst.sh`**, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
-| 02 `refactor(r02-02-orc-simple-cron-install)` | one fact, one copy (developer guide 2.2.4) | `setup-box-stats-cron.func.sh:59-93`, `check-disk-headroom-install-cron.func.sh:57-91`, and `setup-go-cache-prune-cron.func.sh:57-91` duplicate the exact 35-line `check` / `DRY_RUN=1` / `remove` / `install` crontab state machine differing only in label, optional missing-line suffix, and install OK verb (1.4, r01 section 7) | `orc:src/bash/run/setup-box-stats-cron.func.sh:43,59-94`<br>`orc:src/bash/run/check-disk-headroom-install-cron.func.sh:41,57-92`<br>`orc:src/bash/run/setup-go-cache-prune-cron.func.sh:41,57-92`<br>`orc:src/bash/tests/box-stats-cron.tst.sh:219` | copies of the single-line periodic cron check/dry-run/remove/install state machine 3 -> 1 (`_spl_simple_cron_apply` in `setup-box-stats-cron.func.sh`) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head's `box-stats-cron.tst.sh` on parent FAILs 4 checks (`rc2`, rc 1, 40 pass, 4 fail: `_spl_simple_cron_apply: command not found` + 3 one-copy checks naming `:69`), then GREEN (44/0); guard controls (`gc2a`, `declare -F _spl_simple_cron_apply` deleted in `check-disk-headroom-install-cron.func.sh`: rc 1, 43/1; `gc2b`, deleted in `setup-go-cache-prune-cron.func.sh`: rc 1, 43/1; prove standalone-source path), built in worktrees; label/suffix checks catch `m2a`/`m2b`/`m2c` (1.5); outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 8 new checks in `box-stats-cron.tst.sh`. Tests: **`orc:.../box-stats-cron.tst.sh`**, `orc:.../check-disk-headroom.tst.sh`, `orc:.../prune-go-build-cache.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 02 `refactor(r02-02-orc-simple-cron-install)` | one fact, one copy (developer guide 2.2.4) | `setup-box-stats-cron.func.sh:59-93`, `check-disk-headroom-install-cron.func.sh:57-91`, and `setup-go-cache-prune-cron.func.sh:57-91` duplicate the exact 35-line `check` / `DRY_RUN=1` / `remove` / `install` crontab state machine differing only in label, optional missing-line suffix, and install OK verb (1.4, r01 section 7) | `orc:src/bash/run/setup-box-stats-cron.func.sh:43,59-93`<br>`orc:src/bash/run/check-disk-headroom-install-cron.func.sh:41,57-91`<br>`orc:src/bash/run/setup-go-cache-prune-cron.func.sh:41,57-91`<br>`orc:src/bash/tests/box-stats-cron.tst.sh:219` | copies of the single-line periodic cron check/dry-run/remove/install state machine 3 -> 1 (`_spl_simple_cron_apply` in `setup-box-stats-cron.func.sh`) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head's `box-stats-cron.tst.sh` on parent FAILs 4 checks (`rc2`, rc 1, 40 pass, 4 fail: `_spl_simple_cron_apply: command not found` + 3 one-copy checks naming `:69`), then GREEN (44/0); guard controls (`gc2a`, `declare -F _spl_simple_cron_apply` deleted in `check-disk-headroom-install-cron.func.sh`: rc 1, 43/1; `gc2b`, deleted in `setup-go-cache-prune-cron.func.sh`: rc 1, 43/1; prove standalone-source path), built in worktrees; label/suffix checks catch `m2a`/`m2b`/`m2c` (1.5); outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 8 new checks in `box-stats-cron.tst.sh`. Tests: **`orc:.../box-stats-cron.tst.sh`**, `orc:.../check-disk-headroom.tst.sh`, `orc:.../prune-go-build-cache.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 `iac:` = `csi-spl-iac/`, `orc:` = `csi-spl-orc/`.
 
@@ -667,32 +675,43 @@ Paths (8 edited + 2 regression-run test files = 10 checked):
 `orc:src/bash/tests/prune-go-build-cache.tst.sh`.
 
 - **Lane map, every machine:** `lane-map.sh --check <all 10 paths> --agent a-712`, n=1,
-  at 2026-11-25T19:03:57Z: **exit 4** ("no live lane lists <the 10 paths>, but 19 live
-  lane(s) record no files"). Verified via `do_spl_lane_map --all` at 19:04:56Z — the 19
-  `unknown:` lanes, all on the other box: 13 channel/workspace/other-repo seats (`c-029`,
-  `c-041`, `c-086`, `c-146`, `c-187`, `c-398`, `c-407`, `c-416`, `c-474`, `c-535`,
-  `c-728`, `c-927`, `c-936`), latency action 3 (`c-569`), dispatch-check bug (`c-614`),
-  r01-02 (`c-639` on `spl-hub-agent-kinds` / `spl-hub-runner-cpu`), WUI e2e bfcache red
-  (`c-645`), and spec 125 doc/R7 seats (`c-957`, `c-965`). Live lanes on this box
-  (`a-712`, `a-709` b47 planner, `c-688`/`a-697` r01-01, `a-705` r01-02 R7,
-  `c-692`/`a-704` SPL-6528 tf-plan env-order, `a-690`/`c-708` SPL-6527 topic-kind,
-  `a-678`/`a-680`/`c-657` latency actions 4/5, `c-298`/`c-625` Reporting Taxes tab,
-  `a-649` r01 editor) touch none of the 10 paths. No live lane owns any of the 10 paths;
-  the holder re-reads at placement per R3.
-- **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, 19:02:43Z): 7 queued,
-  0 placing: `c001-s186-m9-n2-qto-sync`, latency actions 6/7 (`22511683`, `5095c1c5`),
-  `c002-orc-y9-agy-qwen-render-all-rule-parts`, a queued topic-tags spec lane
-  (`4db7f7e9`), a blog edit lane (`bf4cec9a`), and `c002-wui-notes-delete-key-selected`.
+  re-checked at 2026-11-25T20:01:50Z: **exit 4** ("no live lane lists <the 10 paths>, but
+  18 live lane(s) record no files"). Verified via `do_spl_lane_map --all` at 20:01:03Z —
+  the 18 `unknown:` lanes, all on the other box: 13 channel/workspace/other-repo seats
+  (`c-029`, `c-041`, `c-086`, `c-146`, `c-187`, `c-398`, `c-407`, `c-416`, `c-474`,
+  `c-535`, `c-728`, `c-927`, `c-936`), latency action 3 (`c-569`), WUI e2e bfcache red
+  (`c-645`), r02 panel seat (`c-646`), and spec 125 doc/R7 seats (`c-957`, `c-965`). Live
+  lanes on this box (`a-712`, `a-709` b47 editor, `a-748`/`c-737` SPL-6533 y9 rules,
+  `a-678`/`a-746`/`c-722`/`c-718` latency actions 3/4/6/7, `a-743` topic-tags spec,
+  `c-716` nightly reflection, `c-298`/`c-625` Reporting Taxes tab) touch none of the 10
+  paths (panel N3 also found 0 owning lanes at 19:44:40Z). No live lane owns any of the
+  10 paths; the holder re-reads at placement per R3.
+- **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, re-checked at
+  2026-11-25T20:00:32Z): 7 queued, 0 placing:
+  - `6b14cdc6` (`c002-refactor-reserve-reads-box-gh-credential`, refactor, reflection
+    2026-11-25 SPL-6532; panel N4): brief read on this box — touches
+    `orc:src/bash/run/spl-tenant-host-reserve.func.sh`, `do_spl_private_overlay_install_cron`,
+    and spec 158 / reserve doc; 0 overlap with r02's 10 paths.
+  - `deb08462` (`c002-b47-01-api-mcp-harness-scrub-spool-env`, bug): `csi-spl-api`
+    `internal/mcp/{mcp_test.go,topic_pdf_test.go}`; 0 overlap.
+  - `8dc4c754` (`c002-b47-02-orc-dispatch-hum-skip-note-to-self`, bug):
+    `orc:src/bash/run/spl-dispatch-subscribe.func.sh` and
+    `orc:src/bash/tests/dispatch-inbound-pg.tst.sh`; 0 overlap.
+  - `8a1d4064` (`c002-b47-03-orc-pin-hold-weekly-quota`, bug):
+    `orc:src/bash/run/spl-spawn-place.func.sh` and
+    `orc:src/bash/tests/spl-spawn-queue.tst.sh`; 0 overlap.
+  - `5b1b7d82` (`c001-s186-m9-n2-qto-sync`, feature), `bf4cec9a` (blog edit, feature),
+    and `ec5462db` (`c002-wui-notes-delete-key-selected`, feature); 0 overlap.
   None touches any of the 10 paths.
-- **Unlanded rows from r01:** `r01-02` (`c-639` / R7 `a-705`, `spl-hub-agent-kinds.func.sh`,
-  `spl-hub-runner-cpu.func.sh`, `hub-agent-kinds.tst.sh`, `hub-runner-cpu.tst.sh`) is
-  still unlanded; round 02 stays completely off those files (`r01-01` landed `e108142e8`).
-- **Briefs on this box** changed in the last 24 h matching any of the 10 paths (19:04:13Z):
-  **0 briefs**.
-- **Remote branches committed in the last 24 h** (`git for-each-ref`, 19:04:13Z):
+- **Unlanded rows from r01:** **0** (`r01-01` landed `e108142e8`, `r01-02` landed
+  `3582fc44b` at 2026-11-25T19:09:45Z, and round 01 closed at `cd8cd4cec`).
+- **Briefs on this box** changed in the last 24 h matching any of the 10 paths (re-checked
+  at 20:03:23Z): **0 briefs**.
+- **Remote branches committed in the last 24 h** (`git for-each-ref`, re-checked at
+  20:02:23Z across 72 refs):
   `git diff --name-only $(git merge-base c567245fa <b>) <b> -- <the 10 paths>` -> **0 hits**.
-- **Commits in the last 24 h** on the 5 `.func.sh` paths (`git log c567245fa --since='24 hours ago'`)
-  -> **0**.
+- **Commits in the last 24 h** on the 5 `.func.sh` paths (`git log origin/master --since='24 hours ago'`,
+  re-checked on `5fdfae32b` at 20:03:23Z) -> **0**.
 
 ## 3. Per row: what the lane does
 
@@ -723,9 +742,11 @@ Paths (8 edited + 2 regression-run test files = 10 checked):
 - Editor: **a-712** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
   step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-646**
-  (live on the other box; seat file `csi-spl-doc/doc/md/refactor-round-02/seat-claude.md`,
-  pending review of v0.1 on `review/c002-refactor-round-02-planner`). The seat reviews
-  this plan only.
+  (live on the other box; seat file `csi-spl-doc/doc/md/refactor-round-02/seat-claude.md`
+  on `review/c002-refactor-round-02-claude-seat` @ `a31cf4054`; returned FAIL on v0.1
+  `16c335852` for two doc defects W1/W2 while confirming both rows hold; now pending
+  re-review of v0.2 on `review/c002-refactor-round-02-planner`). The seat reviews this
+  plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-25T19:03:19Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -811,14 +832,14 @@ backup is used; never mistral; re-checked at placement).
 | batches | batch 1: rows 01 and 02 |
 | copies of the desk-move prep and JSON summary blocks (1.3) | 2 on `c567245fa` (`spl-msg-move`, `spl-topic-move`) -> 1 (`_spl_desk_move_prep`, `_spl_desk_move_json`) after row 01 |
 | copies of the periodic cron check/dry-run/remove/install block (1.4) | 3 on `c567245fa` (`setup-box-stats-cron`, `check-disk-headroom-install-cron`, `setup-go-cache-prune-cron`) -> 1 (`_spl_simple_cron_apply`) after row 02 |
-| lines (`git diff --numstat` of each head) | row 01: `spl-msg-move.func.sh` +35 -15, `spl-topic-move.func.sh` +7 -20, `spl-msg-move.tst.sh` +43 -0, `spl-topic-move.tst.sh` +15 -0; row 02: `setup-box-stats-cron.func.sh` +16 -5, `check-disk-headroom-install-cron.func.sh` +6 -36, `setup-go-cache-prune-cron.func.sh` +5 -36, `box-stats-cron.tst.sh` +49 -0 |
-| measured on | `c567245fa` (zero drift on all 10 row/test files to `1a8c1ce1c`); n=1 per command unless stated |
+| lines (`git diff --numstat` of each head) | row 01: `spl-msg-move.func.sh` +35 -15, `spl-topic-move.func.sh` +7 -20, `spl-msg-move.tst.sh` +50 -0 (49-line hunk + 1 trailing blank line), `spl-topic-move.tst.sh` +18 -0 (17-line hunk + 1 trailing blank line); row 02: `setup-box-stats-cron.func.sh` +16 -5, `check-disk-headroom-install-cron.func.sh` +6 -36, `setup-go-cache-prune-cron.func.sh` +5 -36, `box-stats-cron.tst.sh` +54 -0 (53-line hunk + 1 trailing blank line) |
+| measured on | `c567245fa` (zero drift on all 10 row/test files to `5fdfae32b`); n=1 per command unless stated |
 
 ## 7. Left out, measured
 
 | what | why | measured by |
 |---|---|---|
-| `orc:src/bash/run/spl-hub-{agent-kinds,runner-cpu}.func.sh` (`ORDERED_BY`/`ORDERED_VIA`/`spl_dry_run` write-mode guard, `:30-32,40-42` vs `:29-31,39-41`) | candidate for `r03` once `r01-02` lands (`c-639` is live on these two files on `1a8c1ce1c`; R3 forbids overlap) | `do_spl_lane_map`, `git show c567245fa` (1.2 (a), 2.2) |
+| `orc:src/bash/run/spl-hub-{agent-kinds,runner-cpu}.func.sh` (`ORDERED_BY`/`ORDERED_VIA`/`spl_dry_run` write-mode guard, `:30-32,40` vs `:29-31,39` on `5fdfae32b`) | candidate for `r03`: `r01-02` (`3582fc44b`) landed at 19:09:45Z (after r02's `c567245fa` baseline; round 01 closed `cd8cd4cec`), leaving the write-mode guard intact on `origin/master`; deferred to `r03` because r02 already carries 2 full, verified rows on `c567245fa` (rulebook 5.1) | `git show 5fdfae32b`, `git show --stat 3582fc44b` (1.2 (a), 2.2) |
 | `orc:src/bash/run/spl-msg-dedup.func.sh:46-65` and `spl-msg-wipe.func.sh:36-55` (20-line tenant/dry-run/confirm/pin/backup preflight) | strong candidate for `r03`, unchanged since r01 (`138` / `100` lines), but `msg-dedup.tst.sh` and `msg-wipe.tst.sh` build `cmd/spool` and run against throwaway `postgres:16-alpine` containers (heavy PG R2 gate) | `git diff fe1f82671 c567245fa` (empty), r01 7 |
 | `orc:src/bash/run/spl-box-restart-install-cron.func.sh` / `spl-peer-crons.func.sh` and `spl-{backfill,fallback,reply,reply-count,topic-reply}-probe.func.sh` | candidates for `r03`+ (the 5 probe actions touch 5+ files); unchanged since r01 | `git diff fe1f82671 c567245fa` (empty), r01 7 |
 | `iac:src/bash/run/gcp-{get-alert-incident,list-alert-incidents}.func.sh` (paged Monitoring v3 `timeSeries` curl loop, `:71-82`, `:89-100`) | passes `-K "${cfg}/auth.curl"` (Bearer access token file); kept out while non-secret `orc` duplicates remain; unchanged since r01 | `git diff fe1f82671 c567245fa` (empty), r01 7 |
@@ -834,5 +855,29 @@ backup is used; never mistral; re-checked at placement).
   `do_sec_shellcheck` rc 0; all 6 red and guard controls (`rc1a`, `rc1b`, `gc1`, `rc2`,
   `gc2a`, `gc2b`) and all 5 mutation checks (`m1a`, `m1b`, `m2a`, `m2b`, `m2c`) run on
   detached worktrees and verified RED; both helper blocks and all three test hunks
-  included verbatim in 1.3 and 1.4. Pending cross-vendor panel review on
+  included verbatim in 1.3 and 1.4. Pushed as `16c335852` on
   `review/c002-refactor-round-02-planner`.
+- v0.2 (a-712): folded panel `c-646` (claude) FAIL findings (`1f6bbf51`, seat file
+  `a31cf4054`) and holder `c-002` send-back (`19038e62`) on `16c335852`:
+  - **W1** (1.3, 1.4, 6): re-measured all 8 head files on `c567245fa` directly from the
+    verbatim hunks; fixed the 3 test-file line counts, numstats (including the trailing
+    blank line), and sha256s: `spl-msg-move.tst.sh` 75 -> 125 (`+50 -0`: 49-line hunk + 1
+    blank) `5b907bd5d703`, `spl-topic-move.tst.sh` 72 -> 90 (`+18 -0`: 17-line hunk + 1
+    blank) `1a42b8064d83`, `box-stats-cron.tst.sh` 221 -> 275 (`+54 -0`: 53-line hunk + 1
+    blank) `c880d0a28021`. All 5 `.func.sh` sha256s and numstats re-verified identical.
+  - **W2** (intro, 1.1, 1.2, 2.2, 7): recorded `r01-02` `3582fc44b` landed at 19:09:45Z
+    and round 01 closed at `cd8cd4cec`; restated section 7's `r03` deferral reason for
+    `spl-hub-{agent-kinds,runner-cpu}.func.sh` with line numbers re-verified on `5fdfae32b`
+    (keeping `Window: W=2026-11-25T18:51:33+02:00` fixed per rulebook 5.3).
+  - **N1** (1.4, 2): unified every row 02 cron line range to the 35-line body form
+    `:59-93` / `:57-91` (dropping `:59-94` / `:57-92` and the trailing unchanged `}` from
+    the two sibling hunks).
+  - **N2** (1.5): noted that suites and controls belong in a git worktree because
+    `no-literal-paths.tst.sh` reads `1/13/2` (`STALE`) in a plain `git archive` export.
+  - **N3/N4** (2.2): refreshed R3 on `origin/master` `5fdfae32b` (0 drift on all 10
+    row/test files, 0 hits across 72 remote refs of the last 24 h, fresh 20:01Z lane map)
+    and added all 7 currently queued rows including `6b14cdc6`
+    (`c002-refactor-reserve-reads-box-gh-credential`, brief read on this box, 0 overlap).
+  - **N5**: noted panel's check of all 10 r01 section 7 items (`c002-next-round-candidates.md`
+    lives on the planner's box; no `r02` block).
+  Pending panel `c-646` re-review on `review/c002-refactor-round-02-planner`.

@@ -104,6 +104,7 @@ The backup vendor takes over after 2 failed tries of the main on the same task.
 
 UI work: never mistral until do_spl_vendor_ui_retest passes (owner 2026-10-16, t1 b61851fb).
 Coding: never mistral, as main or backup, in tests, simple_coding, complex_coding, secret or orchestration (owner 2026-10-17, t1 b61851fb, msg 91bf8278: "Docs and reviews only, no coding"); a `SPAWN_PLACE=mistral:` placement of those kinds, or of a brief with no `Kind:` line, is refused.
+Reviews: never mistral, as main or backup, on any review seat: plan or spec panel, R7 code review, doc review, consensus or debate seat (owner 2026-11-24, t1 91992830, msgs 65a45673 and 591ca574: "remove mistral from the review for all"); agy reviews claude, claude reviews agy. A `SPAWN_PLACE=mistral:` review seat is refused. Docs-writing lanes may still go to mistral.
 
 <!-- fleet-pin data-rule-vendors: claude grok mistral -->
 **Data rule, overrides kind** (owner, 2026-10-08, msg 803c3b38, spec 110
@@ -284,7 +285,7 @@ absence**. Any confident claim that something is NOT happening has to come from
 somewhere other than such a control.
 
 <!-- /fragment -->
-<!-- spool-install: end claude-md sha256=69b746cf29be48e125af3860850c627c52b1dbe70281474bfbb70d36d894b56c -->
+<!-- spool-install: end claude-md sha256=d20c58da9a38510eb7c5d5ea2be9e162504a34f638ff1d8cb826c9e0de249188 -->
 <!-- fragment org/55-personal -->
 ## Personal rule
 

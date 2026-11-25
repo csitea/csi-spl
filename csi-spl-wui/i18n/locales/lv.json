@@ -4373,6 +4373,7 @@
     "unarchive": "Atjaunot no arhīva",
     "delete": "Dzēst",
     "deleted": "Piezīme izdzēsta",
+    "deleted_n": "Piezīmes dzēstas: {n}",
     "archived_toast": "Piezīme arhivēta",
     "undo": "Atsaukt",
     "saving": "Saglabā…",

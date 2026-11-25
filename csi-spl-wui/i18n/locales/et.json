@@ -4373,6 +4373,7 @@
     "unarchive": "Taasta arhiivist",
     "delete": "Kustuta",
     "deleted": "Märge kustutatud",
+    "deleted_n": "Märkmed kustutatud: {n}",
     "archived_toast": "Märge arhiveeritud",
     "undo": "Võta tagasi",
     "saving": "Salvestamine…",

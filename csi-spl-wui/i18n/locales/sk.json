@@ -4373,6 +4373,7 @@
     "unarchive": "Obnoviť z archívu",
     "delete": "Odstrániť",
     "deleted": "Poznámka odstránená",
+    "deleted_n": "Poznámky odstránené: {n}",
     "archived_toast": "Poznámka archivovaná",
     "undo": "Späť",
     "saving": "Ukladá sa…",

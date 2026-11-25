@@ -4373,6 +4373,7 @@
     "unarchive": "Grąžinti iš archyvo",
     "delete": "Ištrinti",
     "deleted": "Užrašas ištrintas",
+    "deleted_n": "Ištrinta užrašų: {n}",
     "archived_toast": "Užrašas suarchyvuotas",
     "undo": "Atšaukti",
     "saving": "Įrašoma…",

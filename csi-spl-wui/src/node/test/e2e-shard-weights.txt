@@ -39,6 +39,8 @@
 # on a generated mock bundle (n=1, 2026-11-24), until a refresh measures CI.
 # calendar-desk-bars (SPL-6491) is new: 14 s, its local run (20 s alone) scaled by
 # calendar-desk-views on the same box (27..30 s local, 12 s here), until a refresh measures CI.
+# notes-delete-key (spec 155 2.10, SPL-6542) is new: 11 s, its one local run
+# on a generated mock bundle (n=1, 2026-11-25), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -256,6 +258,7 @@ tests/e2e/msg-shortcuts.test.mjs 16
 tests/e2e/names-not-ids.test.mjs 7
 tests/e2e/no-x-scroll.test.mjs 50
 tests/e2e/note-to-self.test.mjs 6
+tests/e2e/notes-delete-key.test.mjs 11
 tests/e2e/notes-design.test.mjs 13
 tests/e2e/notes-link-click.test.mjs 4
 tests/e2e/notes-link-left.test.mjs 3

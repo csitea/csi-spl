@@ -104,6 +104,26 @@ Archive and Delete ask no question. The small message with **Undo** shows at
 the top of the window on a wide screen, and at the bottom of the screen on a
 phone. The archived notes in the **Archive** section have the same menu.
 
+## Delete notes with the keyboard
+
+On a wide screen, the **Delete** key (or **Backspace**) deletes the note whose
+row has the focus, the same as **Delete** in its menu: at once, with no
+question, and with **Undo** for 10 seconds.
+
+To delete several notes at once, check their rows first. A checked row is
+filled darker.
+
+- **Ctrl + click** (**Cmd + click** on a Mac) checks a row, or unchecks it.
+- **Shift + click** checks every row from the last one you checked to this one.
+- **Shift + J** / **Shift + K** (or **Shift + Down** / **Shift + Up**) checks
+  the row and the next (or the previous) one, and moves the focus there.
+- **Esc** unchecks them all.
+
+Then press **Delete**: every checked note goes, and one **Undo** brings them
+all back. A plain click on a row opens the note and unchecks the others. The
+keys do nothing while you type in the filter box or in a note, and nothing on
+a phone.
+
 ## From the top bar and the command palette
 
 - Type `/note <text>` (or `/n <text>`) in the top bar and send it: it makes a

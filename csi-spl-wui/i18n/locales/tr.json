@@ -4373,6 +4373,7 @@
     "unarchive": "Arşivden çıkar",
     "delete": "Sil",
     "deleted": "Not silindi",
+    "deleted_n": "Silinen notlar: {n}",
     "archived_toast": "Not arşivlendi",
     "undo": "Geri al",
     "saving": "Kaydediliyor…",

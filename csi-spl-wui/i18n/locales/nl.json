@@ -4373,6 +4373,7 @@
     "unarchive": "Uit archief halen",
     "delete": "Verwijderen",
     "deleted": "Notitie verwijderd",
+    "deleted_n": "Notities verwijderd: {n}",
     "archived_toast": "Notitie gearchiveerd",
     "undo": "Ongedaan maken",
     "saving": "Opslaan…",

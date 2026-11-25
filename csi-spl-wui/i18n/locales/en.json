@@ -4373,6 +4373,7 @@
     "unarchive": "Unarchive",
     "delete": "Delete",
     "deleted": "Note deleted",
+    "deleted_n": "Notes deleted: {n}",
     "archived_toast": "Note archived",
     "undo": "Undo",
     "saving": "Saving…",

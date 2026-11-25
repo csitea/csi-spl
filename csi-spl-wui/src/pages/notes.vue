@@ -16,7 +16,13 @@
      button (a phone has no right-click), with Archive, Turn into a discussion
      and Delete (components/NoteMenu.vue, composables/useNoteActions.ts). Archive and
      Delete (D2) act at once, no confirm, and show a 10 s Undo snackbar, at the
-     bottom on a phone and at the top on a desktop; the DELETE goes when it ends. -->
+     bottom on a phone and at the top on a desktop; the DELETE goes when it ends.
+     On a desktop the Delete key (or Backspace) deletes the focused row, or
+     every checked row, through that same Delete with one Undo (SPL-6542,
+     owner t1 7a01494a): Ctrl / Cmd + click checks a row, Shift + click the
+     run to it, Shift + J / K (or the arrows) the next row; Esc clears. The
+     check is the issues list's (utils/issues-bulk.ts), marked with the
+     selected fill and bar. -->
 <template>
   <div class="feed-col notes-page" data-test="notes-page">
     <header class="feed-header">
@@ -75,6 +81,7 @@
                 class="notes-row"
                 :class="{ 'notes-row--over': dragOver === n.id, 'notes-row--lifted': lifted === n.id }"
                 data-test="notes-row"
+                :data-checked="selSet.has(n.id) ? 'true' : undefined"
                 :data-note-id="n.id"
                 :data-reorder-id="n.id"
                 :draggable="phone ? undefined : 'true'"
@@ -95,7 +102,8 @@
                   data-vim-item
                   :draggable="phone ? 'false' : undefined"
                   @pointerdown="phone && holdRow(g.id, n.id, $event)"
-                  @click.exact.prevent="open(n.id)"
+                  @click="onRowClick(n.id, $event)"
+                  @keydown="onRowKey(n.id, $event)"
                   @keydown.alt.up.prevent="move(n.id, -1)"
                   @keydown.alt.down.prevent="move(n.id, 1)"
                 >
@@ -145,7 +153,7 @@
       :icon="toastView.icon"
       :testid="toastView.testid"
       :data-id="acts.toast.value.id"
-      :text="t(toastView.text)"
+      :text="t(toastView.text, { n: toastView.n })"
       :show-undo="Boolean(toastView.button)"
       :undo-label="toastView.button ? t(toastView.button) : ''"
       :close-label="t('common.close')"
@@ -166,6 +174,8 @@ import { useDragReorder } from '~/composables/useDragReorder'
 import { useNoteOpen } from '~/composables/useNoteOpen'
 import { NOTE_UNDO_MS, noteToastView, useNoteActions } from '~/composables/useNoteActions'
 import { NOTE_MENU_ARCHIVE, NOTE_MENU_DELETE, NOTE_MENU_DISCUSS, NOTE_MENU_UNARCHIVE } from '~/utils/note-menu.mjs'
+import { DELETE_KEYS } from '~/utils/msg-edit.mjs'
+import { rangeSelect, toggleKey } from '~/utils/issues-bulk'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
@@ -281,13 +291,74 @@ function onContextMenu(id: string, e: MouseEvent) {
    snackbar ends. Turn into a discussion: its snackbar's Open goes to the topic. */
 const acts = useNoteActions({ onOpenTopic: (taskId) => { void router.push(localePath('/t/' + taskId)) } })
 const toastView = computed(() => (acts.toast.value ? noteToastView(acts.toast.value) : noteToastView({ kind: 'failed', id: '', seq: 0 })))
-function onDelete(id: string) {
-  if (openId.value === id) close()
-  acts.remove(id)
+function onDelete(id: string | string[]) {
+  const ids = typeof id === 'string' ? [id] : id
+  if (ids.includes(openId.value)) close()
+  acts.remove(ids)
 }
 function onArchive(id: string) {
   if (openId.value === id) close()
   void acts.archive(id)
+}
+
+/* SPL-6542 (owner HUM-10, t1 7a01494a, msg 3ece009b): "delete notes by
+   having them selected and clicking the delete button the keyboard on the
+   desktop wui". The checked rows, in the order they were checked; a row that
+   leaves the list leaves them. Desktop only: a phone has no keyboard keys. */
+const selected = ref<string[]>([])
+const selSet = computed(() => new Set(selected.value))
+const shownIds = computed(() => groups.value.flatMap((g) => g.rows.map((n) => n.id)))
+let checkAnchor = ''
+watch(shownIds, (ids) => {
+  const keep = selected.value.filter((id) => ids.includes(id))
+  if (keep.length !== selected.value.length) selected.value = keep
+})
+function clearChecked() {
+  selected.value = []
+  checkAnchor = ''
+}
+/* a plain click opens the note; Ctrl / Cmd checks the row, Shift the run to it */
+function onRowClick(id: string, e: MouseEvent) {
+  const mod = e.ctrlKey || e.metaKey || e.shiftKey || e.altKey
+  if (!mod) {
+    e.preventDefault()
+    clearChecked()
+    open(id)
+    return
+  }
+  if (phone.value || e.altKey) return
+  e.preventDefault()
+  selected.value = e.shiftKey && checkAnchor
+    ? rangeSelect(selected.value, shownIds.value, checkAnchor, id, true)
+    : toggleKey(selected.value, id)
+  checkAnchor = id
+}
+/* Shift + J / K (or the arrows): this row and the next one are checked, the focus moves on */
+function checkStep(id: string, dir: number) {
+  const next = shownIds.value[shownIds.value.indexOf(id) + dir]
+  if (!next) return
+  selected.value = toggleKey(toggleKey(selected.value, id, true), next, true)
+  checkAnchor = next
+  focusRow(next)
+}
+const STEP_KEYS: Record<string, number> = { J: 1, ArrowDown: 1, K: -1, ArrowUp: -1 }
+function onRowKey(id: string, e: KeyboardEvent) {
+  if (phone.value || e.isComposing || e.target !== e.currentTarget) return
+  if (e.ctrlKey || e.metaKey || e.altKey) return
+  const step = e.shiftKey ? STEP_KEYS[e.key] : undefined
+  if (step) {
+    e.preventDefault()
+    checkStep(id, step)
+  } else if (e.key === 'Escape' && selected.value.length) {
+    e.preventDefault()
+    e.stopPropagation()
+    clearChecked()
+  } else if (!e.shiftKey && DELETE_KEYS.includes(e.key)) {
+    e.preventDefault()
+    const ids = selected.value.length ? [...selected.value] : [id]
+    clearChecked()
+    onDelete(ids)
+  }
 }
 
 /* SPL-6063 (owner HUM-10, t1 3858d264, msg 7bd1c224): Esc, the X or a click
@@ -427,6 +498,8 @@ onUnmounted(() => {
   min-width: 0;
 }
 .notes-row__open--current { border-color: var(--color-accent); }
+/* SPL-6542: a checked row: the selected fill and marker bar (SideHitList .side-hit.active) */
+.notes-row[data-checked='true'] .notes-row__open { background: var(--color-selected); box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
 .notes-row--over .notes-row__open { border-top: 2px solid var(--color-accent); }
 /* SPL-6175: the row a held press lifted, while the finger drags it */
 .notes-row--lifted .notes-row__open { border-color: var(--color-accent); background: var(--color-surface); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25); }

@@ -4373,6 +4373,7 @@
     "unarchive": "Palauta arkistosta",
     "delete": "Poista",
     "deleted": "Muistiinpano poistettu",
+    "deleted_n": "Muistiinpanoja poistettu: {n}",
     "archived_toast": "Muistiinpano arkistoitu",
     "undo": "Kumoa",
     "saving": "Tallennetaan…",

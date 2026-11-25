@@ -6,9 +6,11 @@
  *   archive(id)   PATCH archived=true at once, no confirm; the Undo snackbar
  *                 PATCHes it back (owner msgs 79092e0b + ac509205)
  *   unarchive(id) PATCH archived=false (the Archive part's own action)
- *   remove(id)    D2: the note leaves the list at once, no confirm; the
- *                 DELETE (hard: the hub keeps no trash) goes when the 10 s
- *                 Undo snackbar ends or the page goes; Undo sends nothing
+ *   remove(ids)   D2: the notes leave the list at once, no confirm; the
+ *                 DELETEs (hard: the hub keeps no trash) go when the 10 s
+ *                 Undo snackbar ends or the page goes; Undo sends nothing.
+ *                 Several (the Delete key on checked rows, SPL-6542) share
+ *                 ONE snackbar, whose Undo brings them all back
  *   discuss(id)   a new topic in the workspace's lobby whose first post is the
  *                 note's text (utils/note-menu.mjs noteDiscussionBody); the
  *                 note stays as it is and gains a `topic` link to it, and the
@@ -30,7 +32,7 @@ export const NOTE_UNDO_MS = 10_000
 
 export type NoteToast =
   | { kind: 'archive', id: string, seq: number }
-  | { kind: 'delete', id: string, row: NoteSummary, seq: number }
+  | { kind: 'delete', id: string, rows: NoteSummary[], seq: number }
   | { kind: 'discuss', id: string, taskId: string, seq: number }
   | { kind: 'failed', id: string, seq: number }
 
@@ -40,15 +42,16 @@ function newTaskId() {
   return globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : ''
 }
 
-/** The snackbar's look for a toast: icon, text key, test id, button. */
+/** The snackbar's look for a toast: icon, text key (and its `n`), test id, button. */
 export function noteToastView(t: NoteToast) {
+  const n = t.kind === 'delete' ? t.rows.length : 1
   const by: Record<NoteToast['kind'], { icon: UiIconName, text: string, testid: string, button: string }> = {
     archive: { icon: 'archive', text: 'notes.archived_toast', testid: 'notes-archive-toast', button: 'notes.undo' },
     delete: { icon: 'trash', text: 'notes.deleted', testid: 'notes-delete-toast', button: 'notes.undo' },
     discuss: { icon: 'messages', text: 'notes.menu.discussed', testid: 'notes-discuss-toast', button: 'notes.open' },
     failed: { icon: 'x', text: 'notes.not_saved', testid: 'notes-action-failed', button: '' },
   }
-  return by[t.kind]
+  return { ...by[t.kind], ...(n > 1 ? { text: 'notes.deleted_n' } : {}), n }
 }
 
 type DiscussDeps = { store: ReturnType<typeof useNotesStore>, api: SendApi, live: ReturnType<typeof useLive>, workspace: string }
@@ -77,6 +80,17 @@ async function startDiscussion(id: string, d: DiscussDeps): Promise<string> {
   return taskId
 }
 
+/** D2: the notes leave the list; the rows the store held, for Undo (one it did not hold is deleted at once). */
+function hideAll(store: ReturnType<typeof useNotesStore>, ids: string[]): NoteSummary[] {
+  const rows: NoteSummary[] = []
+  for (const id of ids) {
+    const row = store.hide(id)
+    if (row) rows.push(row)
+    else void store.remove(id)
+  }
+  return rows
+}
+
 /* the page goes (reload, tab closed) or unmounts: a pending DELETE still goes */
 function settleOnLeave(settle: (keepalive?: boolean) => void) {
   const onPageHide = () => settle(true)
@@ -96,11 +110,12 @@ export function useNoteActions(opts: { onOpenTopic: (taskId: string) => void }) 
   const busy = ref('')
   let seq = 0
 
-  /** The last snackbar ends: a pending DELETE goes (only while the store still holds it: Erase may have sent it). */
+  /** The last snackbar ends: each pending DELETE goes (only while the store still holds it: Erase may have sent it). */
   function settle(keepalive = false) {
     const last = toast.value
     toast.value = null
-    if (last?.kind === 'delete' && store.hidden.includes(last.id)) void store.remove(last.id, keepalive)
+    if (last?.kind !== 'delete') return
+    for (const r of last.rows) if (store.hidden.includes(r.id)) void store.remove(r.id, keepalive)
   }
   type ToastIn = NoteToast extends infer T ? (T extends NoteToast ? Omit<T, 'seq'> : never) : never
   const show = (next: ToastIn) => { toast.value = { ...next, seq: ++seq } as NoteToast }
@@ -125,11 +140,11 @@ export function useNoteActions(opts: { onOpenTopic: (taskId: string) => void }) 
     await setArchived(id, false)
   }
 
-  function remove(id: string) {
+  function remove(ids: string | string[]) {
     settle()
-    const row = store.hide(id)
-    if (row) show({ kind: 'delete', id, row })
-    else void store.remove(id)
+    const rows = hideAll(store, typeof ids === 'string' ? [ids] : ids)
+    const [first] = rows
+    if (first) show({ kind: 'delete', id: first.id, rows })
   }
 
   async function discuss(id: string) {
@@ -151,7 +166,7 @@ export function useNoteActions(opts: { onOpenTopic: (taskId: string) => void }) 
     toast.value = null
     if (!last) return
     if (last.kind === 'archive') await setArchived(last.id, false)
-    else if (last.kind === 'delete') store.unhide(last.row)
+    else if (last.kind === 'delete') for (const r of last.rows) store.unhide(r)
     else if (last.kind === 'discuss') opts.onOpenTopic(last.taskId)
   }
 

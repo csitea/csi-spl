@@ -1,6 +1,8 @@
 # 155 Notes section, with quick links to anything
 
-Version v1.7, 2026-11-21, by c-749 (claude): a phone drags a row by a held
+Version v1.8, 2026-11-25, by c-741 (claude): on a desktop the Delete key
+deletes the focused row or the checked rows, with one Undo (2.10, SPL-6542).
+v1.7, 2026-11-21, by c-749 (claude): a phone drags a row by a held
 press (2.9, SPL-6175). v1.6, 2026-11-17, by c-889 (claude): adds section 2.12, the issue
 dialog lists the person's own notes that link that issue (SPL-5769), with its
 route in section 5. v1.5, 2026-11-11, by a-624 (agy): adds section 2.11, an agent adds a
@@ -421,6 +423,23 @@ bar at the bottom of mobile and at the top of the desktop".
   phone, owner t1 `e3e9ca61`). One at a time: a new action settles the last
   one first (a pending `DELETE` is sent). The actions and the snackbar's
   state are `wui/composables/useNoteActions.ts`.
+- **The Delete key** (SPL-6542, owner HUM-10, t1 `7a01494a`, msg
+  `3ece009b`: "it should be possible to delete notes by having them selected
+  and clicking the delete button the keyboard on the desktop wui"). On a
+  desktop, Delete (and Backspace, as the message rows treat them,
+  `msg-edit.mjs` `DELETE_KEYS`) on a focused list row is the menu's Delete,
+  D2 unchanged. Rows are checked the issues list's way (`wui/utils/issues-bulk.ts`
+  `toggleKey` / `rangeSelect`, the same `--color-selected` fill on
+  `data-checked`): Ctrl / Cmd + click toggles a row, Shift + click checks the
+  run from the last checked row, Shift + J / K (and Shift + the arrows) checks
+  the row and the next one and moves the focus there, Esc clears. A plain
+  click opens the note and clears the checks; a row that leaves the list
+  leaves them. Delete with rows checked deletes them all (the focused row
+  only when none is checked) with ONE snackbar, `notes.deleted_n` ("Notes
+  deleted: {n}"), whose Undo brings them all back; each `DELETE` goes when
+  it ends. The keys act only on the row link itself: never in the filter
+  box or the open note, never on a phone. Ctrl / Cmd + click no longer opens
+  the row's address in a new tab (a middle click still does).
 - **Hub**: no change; archive, unarchive, delete and the link were all
   served (section 5).
 - **i18n**: `notes.archived_toast` and `notes.menu.{label, discuss,
@@ -431,6 +450,9 @@ bar at the bottom of mobile and at the top of the desktop".
   the menu button, each action, no confirm on Archive or Delete, the
   snackbar at the top (1440) and the bottom (390), Undo restores, the
   discussion's link and Open.
+  `wui-tests/e2e/notes-delete-key.test.mjs` (SPL-6542): Delete on a focused
+  row and its Undo, Ctrl / Shift + click and Shift + J checking 3 rows, one
+  Undo for 3, Delete in the filter box deletes nothing, nothing at 390 px.
 
 ### 2.11 An agent adds a note on the owner's ask (SPL-5295)
 

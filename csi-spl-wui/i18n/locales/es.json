@@ -4373,6 +4373,7 @@
     "unarchive": "Desarchivar",
     "delete": "Eliminar",
     "deleted": "Nota eliminada",
+    "deleted_n": "Notas eliminadas: {n}",
     "archived_toast": "Nota archivada",
     "undo": "Deshacer",
     "saving": "Guardando…",

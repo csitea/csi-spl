@@ -4373,6 +4373,7 @@
     "unarchive": "Scoate din arhivă",
     "delete": "Șterge",
     "deleted": "Notița a fost ștearsă",
+    "deleted_n": "Notițe șterse: {n}",
     "archived_toast": "Notița a fost arhivată",
     "undo": "Anulează",
     "saving": "Se salvează…",

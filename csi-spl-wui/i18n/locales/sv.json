@@ -4373,6 +4373,7 @@
     "unarchive": "Återställ från arkiv",
     "delete": "Ta bort",
     "deleted": "Anteckningen togs bort",
+    "deleted_n": "Anteckningar borttagna: {n}",
     "archived_toast": "Anteckningen arkiverades",
     "undo": "Ångra",
     "saving": "Sparar…",

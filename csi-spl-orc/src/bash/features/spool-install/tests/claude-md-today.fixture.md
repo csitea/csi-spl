@@ -233,6 +233,27 @@ is kept up to date as well, just like a regular software project."
 
 How it is enforced: `csi-spl-doc/doc/md/lane-issue-and-docs.md`.
 <!-- /fragment -->
+<!-- fragment spool-install/28-wiki-designated-team-branch -->
+## Never add or move a wiki page outside the owner's designated team branch
+
+Standing order from the human, 2026-11-25 (msg 3d870d38): every agent on every
+box MUST NOT create, add or move any wiki (Confluence) page outside the owner's
+designated team branch of the wiki space unless the owner explicitly says so
+for that page.
+
+- **Designated branch only**: create and add wiki (Confluence) pages exclusively
+  under the owner's designated team branch of the wiki space. Never create a
+  page at the space root, under another team's branch, or anywhere outside that
+  branch tree, and never move an existing page out of it.
+- **Explicit owner override only**: the sole exception is when the owner
+  explicitly instructs you to place or move that specific page outside the
+  owner's designated team branch. A general request to document or publish
+  content is never permission to write outside that branch.
+- **Where the branch is named**: the real branch name and wiki space live only
+  in box-local configuration or the seat brief, never in this public repository.
+  If neither names the owner's designated team branch, stop and ask before
+  creating or moving any wiki page.
+<!-- /fragment -->
 <!-- fragment spool-install/30-cross-lane-findings -->
 ## A cross-lane finding states three fields
 
@@ -285,7 +306,7 @@ absence**. Any confident claim that something is NOT happening has to come from
 somewhere other than such a control.
 
 <!-- /fragment -->
-<!-- spool-install: end claude-md sha256=d20c58da9a38510eb7c5d5ea2be9e162504a34f638ff1d8cb826c9e0de249188 -->
+<!-- spool-install: end claude-md sha256=1fe07ed72ddb31246bf11f73099439348814b544e7c014aa45d30ec8c2cc9174 -->
 <!-- fragment org/55-personal -->
 ## Personal rule
 

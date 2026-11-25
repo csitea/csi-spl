@@ -145,6 +145,28 @@ is made shorter and rarer, not impossible. Sharing happens only while a box
 is on backup, and no longer all the time. The step 2 proof counts it
 (section 5, case L9).
 
+**One copy for any vendor, on demand: `do_spl_agent_cred_sync`** (SPL-6487,
+owner HUM-10 t1 2d0a9f79 msg 72a9aaee: answer A, a generic action with this
+sync as its wrapper; answer N, on demand only, so no cron row). It copies
+one agent CLI login (`CRED_VENDOR=agy|claude`) in ONE direction,
+`CRED_SRC_BOX` -> `CRED_DST_BOX`: box tags, one of them this box, the other
+a peer of box.env reached over ssh. The source is always the main login; the
+target is `CRED_SLOT` (`main`, or `2` for claude's second folder). A login's
+files, the jq path of its expiry, its account file and the CLI of its proof
+are cnf (`env.box.agent_cred_sync.<vendor>.<slot>`), each under the agent
+user's home as `getent` reads it on its own box. The guards are this
+section's, through the same `agent-login-cred.sh` (its f-ops): newer only
+(claude `claudeAiOauth.expiresAt`, agy `token.expiry`), a missing source
+file is refused, a claude main login is never written with another account
+label and a stale second folder is replaced, temp file + `mv` as the agent
+user, mode 600, the old file kept as `.bak-cred-<UTC>`, and only sha
+prefixes, the label and the expiry printed. After the copy it runs one
+headless prompt as the agent user on the target (`agy -p` / `claude -p`);
+any answer but ok puts every file back from its `.bak` and exits 1.
+`DRY_RUN=1` by default. `do_spl_agent_login2_sync` is now
+`CRED_VENDOR=claude CRED_SLOT=2` of it with no box, which runs the sync of
+this section unchanged. Test: `csi-spl-orc/src/bash/tests/spl-agent-cred-sync.tst.sh`.
+
 ### 4.4 New seats and rotations start under the backup
 
 - **spawn**: when `login-mode` says `backup`, a claude spawn gets
@@ -259,5 +281,6 @@ What the build changed from the design:
 | 0.1 | 2026-11-16 | design for the holder's review (c-560, SPL-5695) |
 | 0.2 | 2026-11-16 | section 7: Q1 decided by the owner (msg 5ff9dea1), Q2 and Q3 by the holder (msg f4ec1294) |
 | 0.3 | 2026-11-16 | built, default-off (holder GO msg d8c3c9e7): section 8, the login-mode line format, `max_copy_age_s` dropped |
+| 0.4 | 2026-11-25 | section 4.3: `do_spl_agent_cred_sync`, the box-to-box login copy of any vendor; the login2 sync is its wrapper (SPL-6487) |
 
 <!-- last-edit: 2026-11-16T10:30:00Z — c-560 SPL-5695 -->

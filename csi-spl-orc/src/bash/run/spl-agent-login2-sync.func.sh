@@ -42,6 +42,10 @@
 # @description that main-to-main push would overwrite the peer's own account
 # @description (the owner's step 0 empties it first).
 # @description Dry run unless DRY_RUN=0.
+# @description A thin wrapper (SPL-6487, owner t1 2d0a9f79 msg 72a9aaee): it is
+# @description CRED_VENDOR=claude CRED_SLOT=2 of do_spl_agent_cred_sync with no
+# @description box, which runs the sync below; the box-to-box copy of any
+# @description vendor's login is that action's.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param LOGIN2_SYNC_SRC (optional) - the backup config folder, the box user's own Claude config folder, or peer:<tag> (default: SPOOL_LOGIN2_PEER of box.env as peer:<tag>, else SPOOL_LOGIN2_SRC; none = WARN, no-op)
 # @param LOGIN2_PEER_DEST (optional) - the ssh destination of the peer, default the <ssh dest> of SPOOL_LOGIN2_PEER in box.env
@@ -63,6 +67,12 @@ _l2_deps() {
 }
 
 do_spl_agent_login2_sync() {
+  declare -F do_spl_agent_cred_sync >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/spl-agent-cred-sync.func.sh"
+  CRED_VENDOR=claude CRED_SLOT=2 CRED_SRC_BOX='' CRED_DST_BOX='' do_spl_agent_cred_sync
+}
+
+# The second-folder sync itself: do_spl_agent_cred_sync's claude slot 2 with no box.
+_l2_sync() {
   local dry="${DRY_RUN:-1}" src dst user home sexp dexp
   _l2_deps
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }

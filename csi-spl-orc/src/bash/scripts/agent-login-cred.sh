@@ -27,6 +27,23 @@
 # inside it, the probe under CLAUDE_CONFIG_DIR=<that folder>). A slot 2 put
 # keeps the old one as .bak-login2-<UTC>.
 #
+# The f-ops (SPL-6487, do_spl_agent_cred_sync) take a FILE under the agent
+# user's home, from the cnf file list of a vendor (agy, claude), in place of
+# a slot; each reuses the guard of its slot op above:
+#   agent-login-cred.sh fstat    FILE [JQ]  "<sha12> <expiry epoch s>" (JQ reads
+#                                the expiry: ms, s or an ISO time; 0 = none), or "none"
+#   agent-login-cred.sh fget     FILE       the file on stdout (only into a pipe)
+#   agent-login-cred.sh fput     FILE TS    stdin -> FILE as put does (temp + mv,
+#                                600, the old one kept as FILE.bak-cred-TS); "<sha12>"
+#   agent-login-cred.sh facct    FILE       the account label of a .claude.json FILE
+#   agent-login-cred.sh facctget FILE       its {oauthAccount, hasCompletedOnboarding}
+#   agent-login-cred.sh facctput FILE TS    acctput into FILE, kept first as .bak-cred-TS
+#   agent-login-cred.sh frestore FILE TS [new]  FILE.bak-cred-TS back to FILE; with
+#                                no .bak and "new" (the copy made FILE) it is removed,
+#                                else kept; prints "restored|removed|kept"
+#   agent-login-cred.sh fprobe   BIN ENV ARG...  the probe with <home>/.local/bin/BIN
+#                                (else BIN on PATH), ENV "NAME=<dir under home>" or "-"
+#
 # It never prints credential content: a sha256 prefix (12 chars) at most.
 # Settings: SPOOL_ROOT (box.env: SPOOL_AGENT_USER), LOGIN_AGENT_USER,
 # LOGIN_CLAUDE_BIN. Test seams: LOGIN_CRED_FILE (the slot 1 file),
@@ -55,12 +72,13 @@ if [ -n "${LOGIN_SUDO+x}" ]; then LC_SU="$LOGIN_SUDO"
 elif [ "$LC_USER" = "$(id -un)" ]; then LC_SU=""
 else LC_SU="sudo -n -u $LC_USER"; fi
 LC_HOME="${LOGIN_AGENT_HOME:-$(getent passwd "$LC_USER" | cut -d: -f6)}"
-LC_SLOT="${2:-1}"
+# an f-op's second argument is a file, not a slot
+if [[ "${1:-}" == f* ]]; then LC_SLOT=1; else LC_SLOT="${2:-1}"; fi
 case "$LC_SLOT" in
   1) LC_DIR2=""; LC_FILE="${LOGIN_CRED_FILE:-$LC_HOME/.claude/.credentials.json}"
-     LC_JSON="${LOGIN_JSON_FILE:-$LC_HOME/.claude.json}"; LC_BAK=bak-login ;;
+     LC_JSON="${LOGIN_JSON_FILE:-$LC_HOME/.claude.json}"; LC_BAK="bak-login" ;;
   2) LC_DIR2="${LOGIN_CRED_DIR2:-$LC_HOME/.claude-2}"; LC_FILE="$LC_DIR2/.credentials.json"
-     LC_JSON="$LC_DIR2/.claude.json"; LC_BAK=bak-login2 ;;
+     LC_JSON="$LC_DIR2/.claude.json"; LC_BAK="bak-login2" ;;
   *) echo "usage: the slot is 1 or 2, got: '$LC_SLOT'" >&2; exit 2 ;;
 esac
 
@@ -78,21 +96,30 @@ lc_stat() {
 }
 
 lc_put() {
-  local tmp ts
-  ts="$(date -u +%Y%m%dT%H%M%SZ)"
   lc_mkdir2 || { echo "put: cannot make ${LC_FILE%/*}" >&2; return 1; }
-  tmp="$(lc_as mktemp "${LC_FILE%/*}/.cred-in.XXXXXX")" || { echo "put: cannot make a temp file" >&2; return 1; }
+  lc_write "$LC_FILE" "$LC_BAK" "$(date -u +%Y%m%dT%H%M%SZ)" lc_is_claude_login
+}
+
+lc_is_claude_login() {
+  lc_as jq -e '.claudeAiOauth.refreshToken | strings | length > 0' "$1" >/dev/null 2>&1 && return 0
+  echo "put: refused: the input is no Claude login" >&2; return 1
+}
+
+# lc_write FILE BAK TS [CHECK]: stdin -> a temp file next to FILE; CHECK <temp>
+# must pass; mode 600; the old FILE kept as FILE.BAK-TS (the newest
+# LOGIN_BAK_KEEP); then mv. Prints "<sha12>".
+lc_write() {
+  local file="$1" bak="$2" ts="$3" check="${4:-}" tmp
+  tmp="$(lc_as mktemp "${file%/*}/.cred-in.XXXXXX")" || { echo "put: cannot make a temp file" >&2; return 1; }
   # shellcheck disable=SC2016  # expanded by the inner shell
   lc_as bash -c 'umask 077; cat > "$1"' _ "$tmp" || { lc_as rm -f "$tmp"; return 1; }
-  if ! lc_as jq -e '.claudeAiOauth.refreshToken | strings | length > 0' "$tmp" >/dev/null 2>&1; then
-    lc_as rm -f "$tmp"; echo "put: refused: the input is no Claude login" >&2; return 1
-  fi
+  if [ -n "$check" ] && ! "$check" "$tmp"; then lc_as rm -f "$tmp"; return 1; fi
   lc_as chmod 600 "$tmp" || { lc_as rm -f "$tmp"; return 1; }
-  if lc_as test -e "$LC_FILE"; then lc_as cp -p "$LC_FILE" "$LC_FILE.$LC_BAK-$ts" || { lc_as rm -f "$tmp"; return 1; }; fi
-  lc_as mv -f "$tmp" "$LC_FILE" || { lc_as rm -f "$tmp"; return 1; }
+  if lc_as test -e "$file"; then lc_as cp -p "$file" "$file.$bak-$ts" || { lc_as rm -f "$tmp"; return 1; }; fi
+  lc_as mv -f "$tmp" "$file" || { lc_as rm -f "$tmp"; return 1; }
   # shellcheck disable=SC2016
-  lc_as bash -c 'ls -1 "$1".$3-* 2>/dev/null | sort -r | tail -n +$(( $2 + 1 )) | xargs -r rm -f' _ "$LC_FILE" "${LOGIN_BAK_KEEP:-5}" "$LC_BAK"
-  lc_as sha256sum "$LC_FILE" | cut -c1-12
+  lc_as bash -c 'ls -1 "$1".$3-* 2>/dev/null | sort -r | tail -n +$(( $2 + 1 )) | xargs -r rm -f' _ "$file" "${LOGIN_BAK_KEEP:-5}" "$bak"
+  lc_as sha256sum "$file" | cut -c1-12
 }
 
 # The second folder, made 700 when a slot 2 write needs it; slot 1: nothing.
@@ -128,6 +155,7 @@ lc_acctput() {
 lc_probe() {
   local out rc cmd bin
   if [ -n "${LOGIN_PROBE_CMD:-}" ]; then cmd="$LOGIN_PROBE_CMD"
+  elif [ -n "${LC_PROBE_LINE:-}" ]; then cmd="$LC_PROBE_LINE"
   else
     bin="${LOGIN_CLAUDE_BIN:-$LC_HOME/.local/bin/claude}"
     cmd="$LC_SU env HOME=$LC_HOME${LC_DIR2:+ CLAUDE_CONFIG_DIR=$LC_DIR2} timeout ${LOGIN_PROBE_TIMEOUT:-120} $bin -p 'Reply with the single word ok.' --model haiku"
@@ -140,7 +168,67 @@ lc_probe() {
   else echo "unknown rc=$rc $out"; fi
 }
 
+# ---- the f-ops (SPL-6487) ----------------------------------------------------
+# lc_rel FILE: <home>/FILE for a relative path with no ".."; else usage, exit 2
+lc_rel() {
+  case "$1" in "" | /* | *..*) echo "usage: a file under the agent home, got: '$1'" >&2; exit 2 ;; esac
+  [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "usage: a file under the agent home, got: '$1'" >&2; exit 2; }
+  printf '%s/%s' "$LC_HOME" "$1"
+}
+
+lc_ts() { [[ "${1:-}" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || { echo "usage: TS is <yyyymmdd>T<hhmmss>Z, got: '${1:-}'" >&2; exit 2; }; }
+
+# The folder of FILE, made as the agent user (a new one 700); an old one keeps its mode.
+# shellcheck disable=SC2016  # expanded by the inner shell
+lc_mkparent() { lc_as bash -c 'umask 077; mkdir -p "$1"' _ "${1%/*}"; }
+
+# lc_fstat FILE [JQ]: "<sha12> <expiry epoch s>" or "none"
+lc_fstat() {
+  local f="$1" jqx="${2:-}" sha exp=""
+  lc_as test -s "$f" || { echo none; return 0; }
+  sha="$(lc_as sha256sum "$f" | cut -c1-12)"
+  [ -n "$jqx" ] && exp="$(lc_as jq -r "($jqx) // empty" "$f" 2>/dev/null)"
+  if [[ "$exp" =~ ^[0-9]+$ ]]; then (( exp > 100000000000 )) && exp=$(( exp / 1000 ))
+  elif [ -n "$exp" ]; then exp="$(date -u -d "$exp" +%s 2>/dev/null)"; fi
+  [[ "$exp" =~ ^[0-9]+$ ]] || exp=0
+  printf '%s %s\n' "$sha" "$exp"
+}
+
+# lc_frestore FILE TS [new]: FILE.bak-cred-TS back; with none, "new" (the
+# copy made FILE) removes it, else FILE is left as it is
+lc_frestore() {
+  local f="$1" ts="$2" new="${3:-}"
+  if lc_as test -e "$f.bak-cred-$ts"; then lc_as mv -f "$f.bak-cred-$ts" "$f" && echo restored
+  elif [ "$new" = new ]; then lc_as rm -f "$f" && echo removed
+  else echo kept; fi
+}
+
+# lc_fprobe BIN ENV ARG...: the probe line with that CLI, as the agent user
+lc_fprobe() {
+  local bin="$1" ev="$2" a; shift 2
+  [[ "$bin" =~ ^[a-z0-9-]+$ ]] || { echo "usage: BIN is a CLI name, got: '$bin'" >&2; exit 2; }
+  for a in "$@"; do [[ "$a" =~ ^[A-Za-z0-9._=-]+$ ]] || { echo "usage: a probe arg, got: '$a'" >&2; exit 2; }; done
+  [ -x "$LC_HOME/.local/bin/$bin" ] && bin="$LC_HOME/.local/bin/$bin"
+  case "$ev" in
+    -) ev="" ;;
+    *) [[ "$ev" =~ ^[A-Z_][A-Z0-9_]*=[A-Za-z0-9._/-]+$ ]] || { echo "usage: ENV is NAME=<dir> or -, got: '$ev'" >&2; exit 2; }
+       ev=" ${ev%%=*}=$(lc_rel "${ev#*=}")" ;;
+  esac
+  LC_PROBE_LINE="$LC_SU env HOME=$LC_HOME$ev timeout ${LOGIN_PROBE_TIMEOUT:-120} $bin -p 'Reply with the single word ok.'${*:+ $*}"
+  lc_probe
+}
+
 case "${1:-}" in
+  fstat) lc_fstat "$(lc_rel "${2:-}")" "${3:-}" ;;
+  fget)  lc_as cat "$(lc_rel "${2:-}")" ;;
+  fput)  lc_ts "${3:-}"; f="$(lc_rel "${2:-}")"; lc_mkparent "$f" && lc_write "$f" bak-cred "$3" ;;
+  facct) LC_JSON="$(lc_rel "${2:-}")"; lc_acct ;;
+  facctget) lc_as jq -c '{oauthAccount, hasCompletedOnboarding}' "$(lc_rel "${2:-}")" ;;
+  facctput) lc_ts "${3:-}"; LC_JSON="$(lc_rel "${2:-}")"
+            if lc_as test -e "$LC_JSON"; then lc_as cp -p "$LC_JSON" "$LC_JSON.bak-cred-$3" || exit 1; fi
+            lc_mkparent "$LC_JSON" && lc_acctput ;;
+  frestore) lc_ts "${3:-}"; lc_frestore "$(lc_rel "${2:-}")" "$3" "${4:-}" ;;
+  fprobe) shift; lc_fprobe "${1:-}" "${2:--}" "${@:3}" ;;
   stat)  lc_stat ;;
   probe) lc_probe ;;
   get)   lc_as cat "$LC_FILE" ;;
@@ -148,5 +236,5 @@ case "${1:-}" in
   acct)  lc_acct ;;
   acctget) lc_as jq -c '{oauthAccount, hasCompletedOnboarding}' "$LC_JSON" ;;
   acctput) lc_acctput ;;
-  *) echo "usage: agent-login-cred.sh stat|probe|get|put|acct|acctget|acctput [1|2]" >&2; exit 2 ;;
+  *) echo "usage: agent-login-cred.sh stat|probe|get|put|acct|acctget|acctput [1|2], or an f-op (see the header)" >&2; exit 2 ;;
 esac

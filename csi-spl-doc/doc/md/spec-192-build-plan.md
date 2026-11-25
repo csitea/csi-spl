@@ -1,4 +1,4 @@
-# Spec 192 build round - plan v0.1 (8 rows, 5 batches)
+# Spec 192 build round - plan v0.2 (8 rows, 5 batches)
 
 Epic: SPL-2398  
 Spec: csi-spl-doc/specs/192-agent-login-from-wui (v0.3)  
@@ -34,9 +34,9 @@ files, tokens, and box-to-box copy), author vendor, cross-vendor R7 reviewer,
 red control, and test column (R2), and proposes one brief per row. It writes no
 code and edits no spec file.
 
-**Status: v0.1, draft for cross-vendor review and dispatch holder GO.** Planner:
-a-486 (`agy`, main for `specs_and_docs`). Cross-vendor reviewer: one `claude`
-seat (the holder places it; `mistral` sits on no review seat and `grok` is off
+**Status: v0.2, revised after cross-vendor review (`c-385`, `claude`, FAIL W1-W3, N1-N4 on v0.1 `6b7e47b1d`).**
+Planner: `a-486` (`agy`, main for `specs_and_docs`). Cross-vendor reviewer:
+`c-385` (`claude`; `mistral` sits on no review seat and `grok` is off
 fleet-wide). Nothing lands on master until the panel signs PASS and the
 dispatch holder gives GO.
 
@@ -69,7 +69,7 @@ shorthand, or customer name appears in this plan or in any proposed row brief.
   `SPOOL_HUB_SIGNIN_RELAY_KINDS: ""`.
 - **Sidecar command not yet wired in `do_spl_desk_up`.**
   `git grep -n 'SPOOL_SIGNIN_RELAY_CMD' f2cb19298 -- csi-spl-orc/` -> **0**
-  lines (owner Q2, section 2.4).
+  lines (owner Q1, section 2.4).
 
 ### 1.2 What L0 (spec 181 B11, SPL-6345) already built on `f2cb19298`
 
@@ -77,9 +77,9 @@ Spec 192 builds on these three landed commits and does not re-plan them:
 
 | layer | commit | what is on `f2cb19298` | what spec 192 extends |
 |---|---|---|---|
-| api (`61869b56f`) | 20 files | `POST /v1/signin-relay`, `GET /v1/signin-relay/{relay}`, `POST /v1/signin-relay/{relay}/input`, `DELETE /v1/signin-relay/{relay}` (`hub/signin_relay.go:211-219`); in-memory 10-min `signinRelays` map (`:58,:107`); age-sealed input to `pins.box_x25519` (`:347-358,:473-490`); `SPOOL_HUB_SIGNIN_RELAY_KINDS` (`config/config.go:323`, `hub/server.go:333`); `wire.SigninRelayLane` / `SigninRelayOutLane` (`wire/signin_relay.go:49-69`); `hubclient/signin_relay_frame.go` dedup + serial run; `cmd/spool/signin_relay.go` `SPOOL_SIGNIN_RELAY_CMD` stdin-only runner; `TestSigninRelayNeverStoresInput` Postgres base-table walk (`hub/signin_relay_test.go:287,:474`) | L1 switches auth to `vendor_logins.manage` + unconfirmed-manager refusal, splits the switch per workspace (operator vs customer), and widens box selection from `dedicatedBoxes` to all enrolled pins; L2 adds `/v1/vendor-logins*` fan-out, audit + label tables, box facts, offline/new-box catch-up, and extends `wire` + `cmd/spool/signin_relay.go` ops (`out`, `renew`, `status`, `copy`) and report fields |
+| api (`61869b56f`) | 20 files | `POST /v1/signin-relay`, `GET /v1/signin-relay/{relay}`, `POST /v1/signin-relay/{relay}/input`, `DELETE /v1/signin-relay/{relay}` (`hub/signin_relay.go:211-219`); in-memory 10-min `signinRelays` map (`:58,:107`); age-sealed input to `pins.box_x25519` (`:347-358,:473-490`); `SPOOL_HUB_SIGNIN_RELAY_KINDS` (`config/config.go:323`, `hub/server.go:333`); `wire.SigninRelayLane` / `SigninRelayOutLane` (`wire/signin_relay.go:49-69`); `hubclient/signin_relay_frame.go` dedup + serial run; `cmd/spool/signin_relay.go` `SPOOL_SIGNIN_RELAY_CMD` stdin-only runner; `TestSigninRelayNeverStoresInput` Postgres base-table walk (`hub/signin_relay_test.go:287,:474`) | L1 switches auth to `vendor_logins.manage` + unconfirmed-manager refusal, updates `/v1/signin-relay*` 403 descriptions in `openapi.json`, splits the switch per workspace (operator vs customer), and widens box selection from `dedicatedBoxes` to all enrolled pins; L2 adds `/v1/vendor-logins*` fan-out, audit + label tables, box facts, offline/new-box catch-up, and extends `wire` + `cmd/spool/signin_relay.go` ops (`out`, `renew`, `status`, `copy`) and report fields |
 | orc (`a51a7f1da`) | 2 files | `do_spl_ws_signin_relay` (`spl-ws-signin-relay.func.sh:33-143`): ops `start|input|end`, `claude` only (`:45`), `tmux load-buffer -` stdin paste (`:121-123`), `SIGNIN_RELAY state=<s> [url=<u>] [reason=<r>]` report (`:53-58`), `ws-signin-relay.tst.sh` | L3 widens OS-user binding to every enrolled box (operator agent user for operator workspace; `<W>`'s own user elsewhere, refusing cross-workspace writes), adds `out`/`renew`/`status` + box fact output + seams for L4/L5/L8, and sets `env.box.signin_relay_kinds`; L4 wires `grok` and `agy` or reports `no_relay`; L8 adds workspace-scoped box-to-box copy |
-| wui (`50dbdaa6d`) | 27 files | `SigninRelayPanel.vue`, `utils/signin-relay.mjs`, `agent-keys.vue:36` embedding the panel, `spool-client-lazy.mjs:2509` `signinRelay`, `agent-keys.test.mjs`, `signin-relay.test.mjs`, 19 locales + GCT report | L6 adds the **AI vendors** Settings section (`ai-vendors`), adds `ai-vendors` to `MOCK_GATED`, moves subscription sign-ins from Agent keys (replacing the inline panel with a link), adds full multi-box/fan-out/confirm/audit/label UI + 19 locales + GCT check + e2e |
+| wui (`50dbdaa6d`) | 27 files | `SigninRelayPanel.vue`, `utils/signin-relay.mjs`, `agent-keys.vue:36` embedding the panel, `spool-client-lazy.mjs:2509` `signinRelay`, `agent-keys.test.mjs`, `signin-relay.test.mjs`, 19 locales + GCT report | L6 adds the **AI vendors** Settings section (`ai-vendors`), adds `ai-vendors` to `MOCK_GATED`, moves subscription sign-ins from Agent keys (replacing the inline panel with a link), reuses `SigninRelayPanel.vue` and updates `SIGNIN_RELAY_KINDS` in `signin-relay.mjs`, adds full multi-box/fan-out/confirm/audit/label UI + 19 locales + GCT check + e2e |
 
 ### 1.3 Sites, re-measured on `f2cb19298`
 
@@ -112,13 +112,13 @@ Spec 192 builds on these three landed commits and does not re-plan them:
 | `api:hub/box_facts.go` | `boxFacts` `:55-61`, `keepHostFacts` `:114-133`, `cleanHost` `:178-192`, `cleanFact` `:318-329` | L2 |
 | `api:hub/ws.go` | `onBoxAnswer` `:197-198`, `keepHostFacts` `:253`, `sendSigninRelay` `:266` | L2 |
 | `api:hub/fleet_load.go` | `routeFleetLoad` `:73-77`, `onFleetLoadLane` `:381-408`, `fleetLoadInForce` `:413-432`, `fleetLoadPause` `:440-476` | L5 |
-| `api:hub/openapi.json` & `openapi_routes_test.go` | `TestOpenAPIRoutes` `:314` (every new route in L2 must be in `openapi.json`) | L2 |
+| `api:hub/openapi.json` & `openapi_routes_test.go` | `/v1/signin-relay*` 403 descriptions naming `vendor_keys.manage` (`openapi.json:19227,19287,19375`); `TestOpenAPIRoutes` `:314` | L1, L2 |
 | `cmd:hub.go`, `cmd:signin_relay.go` | `SigninRelayKinds` pass-through `hub.go:451`, `startSigninRelay` `hub.go:1393`, `cmdSigninRelayer.Run` `signin_relay.go:83-111` (currently allows `start|input|end` only), `parseRelayReport` `:138-162` | L1, L2 |
 | `cmd:fleet_load.go` | `cmdFleetLoad` `:34-57` (`fleet-load get`, `fleet-load pause`) | L5 |
 | `orc:lib/bash/funcs/spl-box-workspace.func.sh` | `spl_box_ws_cnf` `:31`, `spl_box_ws_claim` `:55`, `spl_box_ws_user` `:67`, `spl_box_ws_guard` `:80` | L3, L8 |
 | `orc:src/bash/run/spl-ws-claude-signin.func.sh` | `SPL_WCS_SUBDIR`/`SPL_WCS_SOCKET` `:38`, `spl_wcs_caller_ok` `:58-67` (refuses `SPOOL_AGENT_USER` `:60`), `spl_wcs_runtime` `:71-81`, `spl_wcs_login_argv` `:104-107`, `spl_wcs_in` `:109-129`, `spl_wcs_out` `:131-146` | L3 |
 | `orc:src/bash/run/spl-ws-signin-relay.func.sh` | `do_spl_ws_signin_relay` `:33-50`, `spl_wsr_report` `:53-58`, `spl_wsr_switch_on` `:62-70`, `spl_wsr_start` `:88-105`, `spl_wsr_input` `:111-132`, `spl_wsr_end` `:134-143` | L3, L4 |
-| `orc:src/bash/run/spl-desk-up.func.sh` | `hub-run` sidecar launch `:389-431` (does not set `SPOOL_SIGNIN_RELAY_CMD` yet; owner Q2) | L3 |
+| `orc:src/bash/run/spl-desk-up.func.sh` | `hub-run` sidecar launch `:389-431` (does not set `SPOOL_SIGNIN_RELAY_CMD` yet; owner Q1) | L3 |
 | `orc:src/bash/scripts/agent-login-cred.sh` | `lc_user` `:43-51`, slot 1/2 setup `:58-65`, `lc_stat` `:70-78`, `lc_put` `:80-96`, `lc_acct` `:105-109`, `lc_acctput` `:113-126`, `lc_probe` `:128-141`, dispatch `:143-152` | L8 |
 | `orc:src/bash/run/spl-agent-login-check.func.sh` | `_lc_cred_at` `:264-270`, `_lc_peer_list` `:274-277`, `_lc_peers` `:281-289`, `_lc_peer_one` `:297-319`, `_lc_repair` `:372-403` | L5, L8 |
 | `orc:src/bash/run/spl-agent-identity-restore.func.sh` | `_ai_grok_why` `:335-350` (grok sign-in check `:344`), seat restore entry point | L4, L5 |
@@ -126,10 +126,11 @@ Spec 192 builds on these three landed commits and does not re-plan them:
 | `orc:src/bash/features/spawn-agents/lib/spool-env.inc.sh` | `spool_agy_auth_marker` `:556` | L3, L4, L8 |
 | `orc:src/bash/features/watchdog/situations/lib.inc.sh` | agy quota banner comment `:53-55` | L3 |
 | `orc:src/bash/run/spl-lane-mix.func.sh` & `spl-gc.func.sh` | `agent_kinds_paused` reads (`spl-lane-mix.func.sh:506-536`, `spl-gc.func.sh:272-277`) | L5 |
-| `csi-spl-cnf/csi-spl/all.env.yaml` | `claude_login_pool` `:1317-1320`, `claude_self_signin_tenants` `:1457`, `agent_split` `:1491-1530`, `agent_split_by_kind` `:1567-1574` | L3, L4 |
+| `csi-spl-cnf/csi-spl/all.env.yaml` | `hub:` `:433`, `hub.env:` `:497` (published `SPOOL_HUB_*` vars), `claude_login_pool` `:1317-1320`, `claude_self_signin_tenants` `:1457`, `agent_split` `:1491-1530`, `agent_split_by_kind` `:1567-1574` | L3, L4 |
+| `csi-spl-iac/src/terraform/030-cloud-run-hub/02-variables.tf` & `.github/workflows/20_hub-build-deploy.yml` | `environment_variables` rendered from `hub.env` (`02-variables.tf:123`) into `csi-spl-cnf/csi-spl/{dev,prd}/tf/030-cloud-run-hub.vars.tfvars`; CI deploy rolls `--image` only (`20_hub-build-deploy.yml:713`) and never applies tfvars | L4 (owner-go `030` apply if grok/agy wired) |
 | `wui:utils/tenant-settings-nav.ts` | `TENANT_SETTINGS_SECTIONS` `:28-40` (`split` `:31`, `agent-keys` `:32`), `MOCK_GATED` `:51`, `tenantSettingsSections` `:58-67`, `filterByPerm` `:69-72` | L6 |
 | `wui:pages/tenant-settings/agent-keys.vue` | inline `SigninRelayPanel` `:36` | L6 |
-| `wui:components/SigninRelayPanel.vue` & `wui:utils/signin-relay.mjs` | B11 relay panel & mock (`SIGNIN_RELAY_KINDS` `:17`, `signinSafeUrl` `:34`, `mockSigninRelay` `:82`) | L6 |
+| `wui:components/SigninRelayPanel.vue` & `wui:utils/signin-relay.mjs` | B11 relay panel & mock (`SIGNIN_RELAY_KINDS` `:17` currently `['claude','grok','mistral']`, `signinSafeUrl` `:34`, `mockSigninRelay` `:82`) | L6 |
 | `wui:utils/spool-client.mjs` & `spool-client-lazy.mjs` | `vendorKeys` / `signinRelay` dispatch (`spool-client.mjs:101-102`, `spool-client-lazy.mjs:2478-2521,2637-2638`) | L6 |
 | `wui:utils/fleet-load.mjs` | `fleetPauseList` `:153-162`, `normalizeFleetLoad` `:202` (must stay backward-compatible during L5 rollout) | L5 (read-only guard) |
 | `csi-spl-wui/i18n/locales/` | 19 locale JSON files (`ls-tree \| wc -l` -> 19) | L6 |
@@ -142,7 +143,8 @@ Spec 192 builds on these three landed commits and does not re-plan them:
 Kinds follow the fleet kind table
 (`csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/20-spawn-an-agent.md`)
 and `csi-spl-cnf/csi-spl/all.env.yaml:1567-1574`. Live
-`LANE_MIX_KIND=<kind> ./run -a do_spl_lane_mix` (`csi-spl-orc`, 2026-11-25T08:26Z):
+`LANE_MIX_KIND=<kind> ./run -a do_spl_lane_mix` (`csi-spl-orc`, 2026-11-25T08:26Z)
+and `ENV=prd ./run -a do_spl_hub_agent_kinds` (08:56Z: `off [grok,qwen], paused [agy until 2026-11-25T14:03:42Z]`):
 
 | kind | pick at 08:26Z | main / backup | notes |
 |---|---|---|---|
@@ -151,37 +153,47 @@ and `csi-spl-cnf/csi-spl/all.env.yaml:1567-1574`. Live
 | `tests` | `claude` | `claude` / `agy` | no `mistral` |
 | `specs_and_docs` | `agy` | `agy` / `claude` | L7 writes `wui:public/help-md/` via `sync-help.mjs`, so never `mistral` |
 | `i18n` | `agy` | `agy` / `claude` | required language check is Google Cloud Translation (`do_spl_lang_review_gct`); agy optional |
-| `secret` | `claude` | `claude` / `grok` | data rule (`20-spawn-an-agent.md:28-35`): `claude` or `grok` only, never `agy`, `qwen`, `mistral`, or `codex`; brief names no credential path; `grok` is off fleet-wide (`all.env.yaml:1493,1539`) |
+| `secret` | `claude` | `claude` / `grok` | data rule (`20-spawn-an-agent.md:28-35`): `claude`, `grok`, or `mistral` only (never `agy`, `qwen`, or `codex`); coding rule (`mistral_coding_allowed: false`, owner msg `91bf8278`) excludes `mistral` on every coding kind including `secret`; `grok` is off in instance settings (`all.env.yaml:1493,1539`), leaving `claude` as the sole live author; brief names no credential path |
 
 **Secret-class rows (L3, L4, L8).** Every row whose code handles login files,
 auth codes, tokens, CLI login flows, or box-to-box credential copy is
-`Kind: secret`: **L3**, **L4**, and **L8**. Author is `claude` only (`grok` is
-the sole legal backup and is off fleet-wide); never `agy`, `qwen`, `mistral`,
-or `codex`. None of their briefs names any credential file path.
+`Kind: secret`: **L3**, **L4**, and **L8**. By the data rule (`claude`, `grok`,
+or `mistral`; never `agy`, `qwen`, or `codex`) combined with the coding rule
+(never `mistral` on coding kinds) and `grok` being off fleet-wide, the live
+author is `claude` only (`grok` is the backup if re-enabled). None of their
+briefs names any credential file path.
 
-**R7 cross-vendor review (rulebook 2.7.2).** `agy` reviews `claude`, `claude`
-reviews `agy`. `mistral` sits on no review seat (`mistral_review_allowed: false`,
-`all.env.yaml:1530`, owner msgs `65a45673` and `591ca574`); `grok` is off
-fleet-wide (`all.env.yaml:1493,1539`). For `L1`, `L2`, `L5`, `L6`, and `L7`
-this gives strict cross-vendor review (`agy` on `claude`-authored rows;
-`claude` on `agy`-authored L7, or `agy` if backup `claude` authors L7). For
-`Kind: secret` rows (`L3`, `L4`, `L8`), whether `agy` may sit on the R7 seat
-reading only the public git diff and synthetic `SPOOL_TEST=1` fixtures (never
-live credentials) is **owner question Q1** (section 2.4 & section 6; first
-option recommended: `agy` on public diff + synthetic tests only).
+**R7 review (rulebook 2.7.2 & fleet waiver precedent).** `agy` reviews
+`claude`, `claude` reviews `agy`. `mistral` sits on no review seat
+(`mistral_review_allowed: false`, `all.env.yaml:1530`, owner msgs `65a45673`
+and `591ca574`); `grok` is off fleet-wide (`all.env.yaml:1493,1539`).
+
+- For **non-secret rows (`L1`, `L2`, `L5`, `L6`, `L7`)**: cross-vendor R7
+  (`agy` on `claude`-authored rows; `claude` on `agy`-authored L7, or `agy` if
+  backup `claude` authors L7). Live note (08:56Z): `agy` is paused until
+  `2026-11-25T14:03:42Z` (`do_spl_hub_agent_kinds`); if any of `L1`, `L2`,
+  `L5`, `L6`, or `L7` places while `agy` is paused, the holder uses a fresh
+  `claude` waiver seat (for R7) or backup `claude` (for L7) until `agy`
+  resumes (`bug-round-14-plan.md:50`, `bug-round-17-plan.md:114`).
+- For **`Kind: secret` rows (`L3`, `L4`, `L8`)**: the data rule bars `agy` and
+  `qwen`, the review rule bars `mistral`, and `grok` is off in instance
+  settings (`do_spl_hub_agent_kinds`), so no cross-vendor secret reviewer can
+  place today. Their R7 seat is a fresh **`claude` waiver seat** (`bug-round-14-plan.md:50`,
+  `bug-round-17-plan.md:114`: the holder decides at placement and sends the GO
+  for a waiver review; a cross-vendor `grok` seat takes over if `grok` returns).
 
 ### 2.1 Action table
 
 | row | what | kind | vendor | R7 reviewer | red control | depends on | batch |
 |---|---|---|---|---|---|---|---|
-| L1 | rdb + hub: `vendor_logins.manage` to `admin` & `biz_owner`, act-as & unconfirmed-manager refusals, per-workspace relay switch (operator on; customer per-vendor), widen box check to all enrolled pins | `complex_coding` | `claude` | `agy` | R2, R4, R6 | L0 (on master) | 1 |
-| L3 | orc + cnf: `do_spl_ws_signin_relay` per workspace OS user on every enrolled box, ops `out`/`renew`/`status`, non-secret box fact output, seams for L4/L5/L8, `env.box.signin_relay_kinds` | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`) | `agy` on public diff + synthetic tests (Q1 A; else `claude` waiver, Q1 B) | R1, R7, R10 | L0 (on master) | 1 |
-| L2 | rdb + hub + wire + cmd: `/v1/vendor-logins*` fan-out & status, audit + label + pending tables, box facts ingestion, offline/new-box catch-up & notice, `cmd/spool/signin_relay.go` new ops & report fields | `complex_coding` | `claude` | `agy` | R1, R3, R5 | L1, L3 | 2 |
-| L4 | orc + cnf: measure `grok` and `agy` CLI terminal login flows (Q3), wire URL+code or device-code login else report `no_relay`, update `env.box.signin_relay_kinds` & `operator_signin_relay_kinds` if wired | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`) | `agy` on public diff + synthetic tests (Q1 A; else `claude` waiver, Q1 B) | a `no_relay` kind offered start/Log in -> fails | L3 | 2 |
-| L5 | rdb + hub + cmd + orc: `KindPause` keyed by (`<W>`, kind, box) for all workspaces, switch lifts own entry, logout sets entry, post-switch restart of every `<W>` seat via `do_spl_agent_identity_restore` | `complex_coding` | `claude` | `agy` | R8, R9, R10 | L2, L3 | 3 |
-| L8 | orc: box-to-box copy [Q-2 B] (`agent-login-cred.sh` per workspace OS user + `grok`/`agy` login files; new `do_spl_ws_login_copy` checked against hub pin list) | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`) | `agy` on public diff + synthetic tests (Q1 A; else `claude` waiver, Q1 B) | R5, R10 | L3, L4 | 3 |
-| L6 | wui + help stub: **AI vendors** Settings section (`ai-vendors` after `split`, in `MOCK_GATED`), multi-box status/actions/confirms/labels/audit, Agent keys link, 19 locales + `do_spl_lang_review_gct`, e2e | `complex_coding` | `claude` (never `mistral`) | `agy` | member without perm sees section -> e2e fails; `no_relay` row with Log in -> e2e fails; code left in input/DOM/Pinia/storage -> e2e fails | L2, L4, L5, L8 | 4 |
-| L7 | doc: full **AI vendors** section in `csi-spl-doc/doc/help/user-settings.md` + `sync-help.mjs` copy, spec 159 4.3 / 132 s2 / 060 D4 notes, spec 192 s12 row status | `specs_and_docs` | `agy`, backup `claude` (never `mistral`) | `claude` if `agy` (cross-vendor); `agy` if `claude` | `grep -c 'ai-vendors' csi-spl-wui/src/public/help-md/user-settings.md` -> 0 fails; `sync-help.mjs --check` fails on drift | L6 | 5 |
+| L1 | rdb + hub: `vendor_logins.manage` to `admin` & `biz_owner`, act-as & unconfirmed-manager refusals, `openapi.json` 403 descriptions, per-workspace relay switch (operator on; customer per-vendor), widen box check to all enrolled pins | `complex_coding` | `claude` | `agy` (`claude` waiver while `agy` paused) | R2, R4, R6 | L0 (on master) | 1 |
+| L3 | orc + cnf: `do_spl_ws_signin_relay` per workspace OS user on every enrolled box, ops `out`/`renew`/`status`, non-secret box fact output, seams for L4/L5/L8, `env.box.signin_relay_kinds` | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`/`codex`) | `claude` waiver seat (no cross-vendor secret seat while `grok` is off); holder decides at placement | R1, R7, R10 | L0 (on master) | 1 |
+| L2 | rdb + hub + wire + cmd: `/v1/vendor-logins*` fan-out & status, audit + label + pending tables, box facts ingestion, offline/new-box catch-up & notice, `cmd/spool/signin_relay.go` new ops & report fields | `complex_coding` | `claude` | `agy` (`claude` waiver while `agy` paused) | R1, R3, R5 | L1, L3 | 2 |
+| L4 | orc + cnf: measure `grok` and `agy` CLI terminal login flows (Q2), wire URL+code or device-code login else report `no_relay`; if wired, update `env.box.signin_relay_kinds` & `env.hub.env.SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS` + tfvars (live hub activation needs owner-go terraform `030` apply) | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`/`codex`) | `claude` waiver seat (no cross-vendor secret seat while `grok` is off); holder decides at placement | a `no_relay` kind offered start/Log in -> fails | L3 | 2 |
+| L5 | rdb + hub + cmd + orc: `KindPause` keyed by (`<W>`, kind, box) for all workspaces, switch lifts own entry, logout sets entry, post-switch restart of every `<W>` seat via `do_spl_agent_identity_restore` | `complex_coding` | `claude` | `agy` (`claude` waiver while `agy` paused) | R8, R9, R10 | L2, L3 | 3 |
+| L8 | orc: box-to-box copy [Q-2 B] (`agent-login-cred.sh` per workspace OS user + `grok`/`agy` login files; new `do_spl_ws_login_copy` checked against hub pin list) | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`/`codex`) | `claude` waiver seat (no cross-vendor secret seat while `grok` is off); holder decides at placement | R5, R10 | L3, L4 | 3 |
+| L6 | wui + help stub: **AI vendors** Settings section (`ai-vendors` after `split`, in `MOCK_GATED`), reuse `SigninRelayPanel.vue` & update `signin-relay.mjs` kinds, multi-box status/actions/confirms/labels/audit, Agent keys link, 19 locales + `do_spl_lang_review_gct`, e2e | `complex_coding` | `claude` (never `mistral`) | `agy` (`claude` waiver while `agy` paused) | member without perm sees section -> e2e fails; `no_relay` row with Log in -> e2e fails; code left in input/DOM/Pinia/storage -> e2e fails | L2, L4, L5, L8 | 4 |
+| L7 | doc: full **AI vendors** section in `csi-spl-doc/doc/help/user-settings.md` + `sync-help.mjs` copy, spec 159 4.3 / 132 s2 / 060 D4 notes, spec 192 s12 row status | `specs_and_docs` | `agy`, backup `claude` (never `mistral`) | `claude` if `agy` (cross-vendor); `agy` (or `claude` waiver while paused) if `claude` | `grep -c 'ai-vendors' csi-spl-wui/src/public/help-md/user-settings.md` -> 0 fails; `sync-help.mjs --check` fails on drift | L6 | 5 |
 
 Row count: **8** (within rulebook 1.1's hard cap of 10). Max rows live in any
 batch: **2** (batches 1, 2, and 3).
@@ -192,19 +204,21 @@ No file path appears in two rows of any batch. Dependent batches place within
 30 minutes of their prerequisites landing (R16).
 
 - **Batch 1: L1, L3.**
-  - **L1** (`csi-spl-rdb/` + `csi-spl-api/` only): new
+  - **L1** (`csi-spl-rdb/` + `csi-spl-api/` + `example.env.yaml` only): new
     `rdb:<NNNN>_vendor_logins_manage.sql`; `api:rbac/rbac.go`;
     `api:config/config.go`; `api:hub/server.go` (`OperatorSigninRelayKinds`
     field); `cmd:hub.go` (pass-through of `OperatorSigninRelayKinds`);
     `api:hub/signin_relay.go`; `api:hub/signin_relay_test.go`;
+    `api:hub/openapi.json` (update `/v1/signin-relay*` 403 descriptions at
+    `:19227,19287,19375` to `vendor_logins.manage`);
     `api:store/humans_rbac_test.go`; `example.env.yaml`.
   - **L3** (`csi-spl-orc/` + `csi-spl-cnf/` only):
     `orc:src/bash/run/spl-ws-signin-relay.func.sh`;
-    `orc:src/bash/run/spl-desk-up.func.sh` (only if Q2 A; omitted under Q2 B);
+    `orc:src/bash/run/spl-desk-up.func.sh` (only if Q1 A; omitted under Q1 B);
     `orc:src/bash/tests/ws-signin-relay.tst.sh`;
     `csi-spl-cnf/csi-spl/all.env.yaml` (add `env.box.signin_relay_kinds: "claude"`
-    and `env.hub.operator_signin_relay_kinds: "claude"` if templated, plus
-    rendered outputs via `do_tpl_gen`).
+    only — claude needs no hub tfvars edit because L1's Go default is `"claude"`),
+    plus rendered `csi-spl-cnf/csi-spl/{dev,prd}.env.json` via `do_tpl_gen`.
   - **Disjoint check:** L1 touches `csi-spl-rdb/`, `csi-spl-api/`,
     `example.env.yaml`; L3 touches `csi-spl-orc/`, `csi-spl-cnf/`. Zero
     overlap.
@@ -223,9 +237,14 @@ No file path appears in two rows of any batch. Dependent batches place within
     `orc:lib/bash/funcs/spl-ws-signin-kinds.func.sh` (grok/agy handlers or
     `no_relay`); `orc:src/bash/run/spl-ws-signin-relay.func.sh` (wire L3's kind
     seam); new `orc:src/bash/tests/ws-signin-relay-kinds.tst.sh`;
-    `csi-spl-cnf/csi-spl/all.env.yaml` (+ `do_tpl_gen`, only if grok or agy is
-    wired, updating `signin_relay_kinds` and `operator_signin_relay_kinds`,
-    2.4 N5).
+    `csi-spl-cnf/csi-spl/all.env.yaml`,
+    `csi-spl-cnf/csi-spl/dev/tf/030-cloud-run-hub.vars.tfvars`,
+    `csi-spl-cnf/csi-spl/prd/tf/030-cloud-run-hub.vars.tfvars`, and
+    `csi-spl-cnf/csi-spl/{dev,prd}.env.json` via `do_tpl_gen` (ONLY if `grok`
+    or `agy` proves relayable: updates `env.box.signin_relay_kinds` and
+    `env.hub.env.SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS`, 2.4 N5; live hub
+    activation requires an explicit owner-go terraform `030-cloud-run-hub`
+    apply).
   - **Disjoint check:** L2 touches `csi-spl-rdb/` and `csi-spl-api/`; L4
     touches `csi-spl-orc/` and `csi-spl-cnf/`. Zero overlap.
 - **Batch 3: L5, L8** (after Batch 2 lands).
@@ -252,8 +271,11 @@ No file path appears in two rows of any batch. Dependent batches place within
 - **Batch 4: L6** (after Batch 3 lands).
   - `wui:utils/tenant-settings-nav.ts`; new
     `wui:pages/tenant-settings/ai-vendors.vue`; new
-    `wui:components/AiVendorCard.vue` (and helper sub-components if needed to
-    keep every function <= 75 lines, developer guide 2.2.1); new
+    `wui:components/AiVendorCard.vue` (and helper sub-components <= 75
+    lines/func, developer guide 2.2.1); `wui:components/SigninRelayPanel.vue`
+    (reused by `AiVendorCard.vue` so no component is orphaned);
+    `wui:utils/signin-relay.mjs` (update `SIGNIN_RELAY_KINDS` `:17` to
+    `['claude', 'grok', 'agy']` per spec 5.2 & Q-5 B); new
     `wui:utils/vendor-logins.mjs`; `wui:pages/tenant-settings/agent-keys.vue`;
     `wui:utils/spool-client.mjs`, `spool-client-lazy.mjs`; all 19
     `csi-spl-wui/i18n/locales/*.json`; new
@@ -262,8 +284,8 @@ No file path appears in two rows of any batch. Dependent batches place within
     `wui:public/help-md/user-settings.md` via `sync-help.mjs` (2.4 N2); new
     `csi-spl-wui/tests/unit/vendor-logins.test.mjs`, new
     `csi-spl-wui/tests/e2e/ai-vendors.test.mjs`, and updates to
-    `tests/unit/tenant-settings.test.mjs`, `tests/e2e/tenant-settings.test.mjs`,
-    `tests/e2e/agent-keys.test.mjs`,
+    `tests/unit/signin-relay.test.mjs`, `tests/unit/tenant-settings.test.mjs`,
+    `tests/e2e/tenant-settings.test.mjs`, `tests/e2e/agent-keys.test.mjs`,
     `tests/unit/signed-out-member-pages.test.mjs`.
 - **Batch 5: L7** (after Batch 4 lands).
   - `csi-spl-doc/doc/help/user-settings.md` (replace L6's stub with the full
@@ -277,49 +299,35 @@ No file path appears in two rows of any batch. Dependent batches place within
 
 ### 2.3 R3: live and queued lanes, read 2026-11-25T08:26-08:31Z
 
-`lane-map.sh --check <row paths> --agent a-486`, run per row L1-L8:
+`lane-map.sh --check <row paths> --agent a-486`, run per row L1-L8 (re-checked
+by reviewer `c-385` at 08:52Z across all 48 existing plan paths -> rc 4, 0
+exit-3):
 
 - **Direct ownership collisions (exit 3):** **0** across all eight rows. No
   live lane on any box records a file belonging to L1-L8.
 - **Lanes with no files recorded (exit 4):** 14 live lanes on another fleet
-  box (`c-029`, `c-041`, `c-086`, `c-146`, `c-165`, `c-187`, `c-249`, `c-341`,
-  `c-728`, `c-774`, `c-927`, `c-936`, `c-957`, `c-965` — rotation/customer
-  seats, external-repo bug lanes, skills, and a finance spec amendment + review).
-  By rule, exit 4 is not free: the placer re-runs `lane-map.sh --check` per row
-  at placement (R3) and asks any lane still returning exit 4.
+  box at 08:31Z (`c-029`, `c-041`, `c-086`, `c-146`, `c-165`, `c-187`, `c-249`,
+  `c-341`, `c-728`, `c-774`, `c-927`, `c-936`, `c-957`, `c-965` —
+  rotation/customer seats, external-repo bug lanes, skills, and a finance spec
+  amendment + review). By rule, exit 4 is not free: live state changes hourly,
+  so the placer re-runs `lane-map.sh --check` per row at placement (R3) and
+  asks any lane still returning exit 4.
 - **Spawn queue (`do_spl_spawn_queue`, 08:26Z, 12 rows):** r99 panel seat, 3
-  bug lanes (hr-code-collision flake, issue-comment-edit-mark, external-repo archive warn
-  log), s186 M9 qto-sync, 6 spec/answer/debate lanes (specs 006, 182, 193, 112,
-  149, and a debate panel), and spec 039 FR-014 build planner. None names any file of
-  spec 192. The placer re-checks at placement.
+  bug lanes (hr-code-collision flake, issue-comment-edit-mark, external-repo
+  archive warn log), s186 M9 qto-sync, 6 spec/answer/debate lanes (specs 006,
+  182, 193, 112, 149, and a debate panel), and spec 039 FR-014 build planner.
+  None names any file of spec 192. The placer re-checks at placement.
 
 ### 2.4 Rows needing a decision
 
 **For the owner (asked as ONE poll block in section 6, first option
 recommended).**
 
-- **Q1. R7 reviewer for `Kind: secret` rows (L3, L4, L8) while `grok` is off.**
-  The data rule (`20-spawn-an-agent.md:28-35`, `all.env.yaml:1540-1573`) keeps
-  `Kind: secret` work on `claude`, `grok`, or `mistral` (never `agy` or
-  `qwen`). Today `grok` is off fleet-wide (`all.env.yaml:1493,1539`) and
-  `mistral` sits on no review seat (`mistral_review_allowed: false`,
-  `all.env.yaml:1530`), while rulebook 2.7.2 requires cross-vendor R7 review.
-  L3, L4, and L8's git diffs and `SPOOL_TEST=1` tests in this public repository
-  carry zero real credentials, tokens, or personal data (synthetic fixtures
-  only; live credential/account probes happen only inside the `claude` author
-  lane).
-  - **(A) (Recommended):** `agy` sits as the cross-vendor R7 reviewer on L3,
-    L4, and L8's public git diffs and synthetic `SPOOL_TEST=1` unit tests only
-    (never reading any box credential or live account); the `claude` author
-    alone runs any live test-account probe.
-  - **(B):** Keep `agy` off R7 on `Kind: secret` rows too: with `grok` off and
-    `mistral` off reviews, L3, L4, and L8 take a fresh-session `claude`
-    same-vendor R7 reviewer under waiver until `grok` returns.
-  - Spot: R7 seat assignment for L3, L4, L8 only (does not block L1 or L2).
-- **Q2. Wiring `SPOOL_SIGNIN_RELAY_CMD` on the fleet boxes' `hub-run` sidecars.**
+- **Q1. Wiring `SPOOL_SIGNIN_RELAY_CMD` on the fleet boxes' `hub-run` sidecars.**
   On `f2cb19298`, `spl-desk-up.func.sh` starts `spool hub-run` without setting
   `SPOOL_SIGNIN_RELAY_CMD`, so no fleet box advertises `FeatureSigninRelay` on
-  its hello (`cmd:signin_relay.go:55`, `hub:signin_relay.go:510`).
+  its hello (`cmd:signin_relay.go:55`, `hub:signin_relay.go:510`), whereas spec
+  192 4.1 (`:169-170`) states the box switch is set on the fleet boxes.
   - **(A) (Recommended):** L3 wires `SPOOL_SIGNIN_RELAY_CMD` into
     `do_spl_desk_up` when `env.box.signin_relay_kinds` is non-empty (off when
     empty); the actual sidecar restart on fleet boxes still waits for an
@@ -328,20 +336,21 @@ recommended).**
   - **(B):** Keep `SPOOL_SIGNIN_RELAY_CMD` opt-in via `box.env` only, never
     wired in `do_spl_desk_up`, so each box opts in by hand.
   - Spot: L3 only (whether `spl-desk-up.func.sh` is edited in L3).
-- **Q3. How L4 measures the `grok` and `agy` CLI terminal login flows.**
-  Spec 192 5.2 says L4 measures each CLI's login flow on a test account first
-  and wires it if it prints an https URL + pasted code or device code, else
-  reports `no_relay`. Fleet boxes hold the production agent login only, not a
-  spare test account.
+- **Q2. How L4 measures the `grok` and `agy` CLI terminal login flows.**
+  Spec 192 5.2 (`:193`) and section 12 (`:433`) say L4 measures each CLI's
+  login flow on a test account first and wires it if it prints an https URL +
+  pasted code or device code, else reports `no_relay`. Fleet boxes hold the
+  production agent login only, not a spare test account.
   - **(A) (Recommended):** L4 runs each CLI's login command in an isolated
     throwaway `HOME` (no production login touched, no logout of the live agent
     user) up to its first prompt to prove whether it prints a relayable https
     URL + code / device code or requires a local-browser redirect (`no_relay`),
     and only completes an end-to-end test login if a dedicated test account is
     provided.
-  - **(B):** Hold L4 until a dedicated test account for `grok` and `agy` is
+  - **(B):** Hold L4 until dedicated test accounts for `grok` and `agy` are
     provided to the `claude` lane for full end-to-end login testing.
-  - Spot: L4 only (does not block Batch 1 or L2).
+  - Spot: **L4, L8** (waits on L4), **L6** (waits on L4, L8), and **L7**
+    (waits on L6). Batches 1 (`L1`, `L3`), `L2`, and `L5` do not wait on it.
 
 **For the holder (no owner question).**
 
@@ -385,13 +394,23 @@ recommended).**
      `SIGNIN_RELAY state=failed reason=no_copy` (L8 supplies
      `spl-ws-login-copy.func.sh`).
   With these seams, L5 and L8 touch zero shared files in Batch 3.
-- **N5. Hub operator-workspace wired-kind switch (`SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS`).**
+- **N5. Hub operator-workspace wired-kind switch (`env.hub.env.SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS` + `030` apply).**
   Spec 4.1 enables the operator workspace for `claude` now, and `grok` / `agy`
   once L4 wires them. L1 introduces `SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS`
-  (default `"claude"`, fed from cnf `env.hub.operator_signin_relay_kinds`), so
-  if L4 wires `grok` or `agy`, L4 updates only `csi-spl-cnf/` (`env.box.signin_relay_kinds`
-  and `env.hub.operator_signin_relay_kinds` + `do_tpl_gen`) with zero Go file
-  overlap against L2 in Batch 2.
+  with Go default `"claude"`, so `claude` works on the operator workspace the
+  moment L1 deploys via CI with no terraform apply. On `f2cb19298`, the hub's
+  runtime env is authored in `csi-spl-cnf/csi-spl/all.env.yaml` under
+  `env.hub.env` (`:433,:497`), which `do_tpl_gen` renders into
+  `csi-spl-cnf/csi-spl/{dev,prd}/tf/030-cloud-run-hub.vars.tfvars`
+  (`030-cloud-run-hub/02-variables.tf:123` `environment_variables`). CI
+  (`20_hub-build-deploy.yml:713`) runs `gcloud run services update --image`
+  only and never applies tfvars. Therefore, if L4 wires `grok` and/or `agy`,
+  L4 adds `env.hub.env.SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS` in
+  `all.env.yaml`, re-renders both `030-cloud-run-hub.vars.tfvars` files via
+  `do_tpl_gen` (still zero Go overlap with L2 in Batch 2), and turning `grok`
+  or `agy` on in the running Cloud Run hub is an explicit **owner-go
+  terraform `030-cloud-run-hub` apply** (dev first, then prd, per rulebook
+  1.4 `:56` and repo `CLAUDE.md`).
 - **N6. Workspace login storage binding (operator vs customer workspace).** On
   `f2cb19298`, customer workspaces use the tmpfs login dir of
   `spl-ws-claude-signin.func.sh:38,71-81` (spec 159 4.3), whereas the operator
@@ -417,13 +436,14 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 
 ### 3.1 L1 - `vendor_logins.manage` permission, refusals, per-workspace relay switch
 
-- **Kind:** `complex_coding`. **Vendor:** `claude`. **R7:** `agy`. **Batch:** 1
-  (after L0, already on master). `PRE_PUSH_TIER=full` (rdb migration).
+- **Kind:** `complex_coding`. **Vendor:** `claude`. **R7:** `agy` (`claude`
+  waiver while `agy` paused). **Batch:** 1 (after L0, already on master).
+  `PRE_PUSH_TIER=full` (rdb migration).
 - **Files:** new `rdb:<NNNN>_vendor_logins_manage.sql` (number from
   `cd csi-spl-orc && DRY_RUN=0 ./run -a do_rdb_migration_next`);
   `api:rbac/rbac.go`; `api:config/config.go`; `api:hub/server.go`;
   `cmd:hub.go`; `api:hub/signin_relay.go`; `api:hub/signin_relay_test.go`;
-  `api:store/humans_rbac_test.go`; `example.env.yaml`.
+  `api:hub/openapi.json`; `api:store/humans_rbac_test.go`; `example.env.yaml`.
 - **Work:**
   1. Add permission `vendor_logins.manage` in the new forward-only migration
      (mirroring `rdb:0232_vendor_keys_manage.sql:33-37`), granted to `biz_owner`
@@ -434,7 +454,9 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
      `rbac.VendorLoginsManage`, keep the `vendorKeyActAs` 403 refusal, and add
      the `VendorKeyManagerConfirmed` 403 `admin_unconfirmed` refusal for
      operator-made unconfirmed managers (mirroring
-     `api:hub/vendor_keys.go:122-131`, spec section 2).
+     `api:hub/vendor_keys.go:122-131`, spec section 2). Update the three
+     `/v1/signin-relay*` 403 descriptions in `api:hub/openapi.json`
+     (`:19227,19287,19375`) from `vendor_keys.manage` to `vendor_logins.manage`.
   3. Split `signinRelayKindOn` (`api:hub/signin_relay.go:242-253`) by workspace
      [Q-3 B, spec 4.1]: add `OperatorSigninRelayKinds` (`config.go`,
      `SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS`, default `"claude"`, passed
@@ -456,24 +478,26 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
     manager gets 403 `admin_unconfirmed`); planted defect removing the check
     sees 201 and fails.
 - **Test column (R2):** `api:hub/signin_relay_test.go`,
-  `api:hub/vendor_keys_test.go`, `api:store/humans_rbac_test.go`,
+  `api:hub/vendor_keys_test.go`, `api:hub/openapi_routes_test.go`,
+  `api:hub/openapi_serve_test.go`, `api:store/humans_rbac_test.go`,
   `api:rbac/...`, `api:config/...`, `bash csi-spl-api/src/bash/tests/run-all-tests.sh`,
   `PRE_PUSH_TIER=full ./run -a do_check_pre_push`.
 - **Not touched:** `csi-spl-orc/`, `csi-spl-wui/`, `csi-spl-cnf/`,
-  `api:wire/`, `api:hub/box_facts.go`, `api:hub/ws.go`, `api:hub/openapi.json`.
+  `api:wire/`, `api:hub/box_facts.go`, `api:hub/ws.go`.
 
 ### 3.2 L3 - Box side: `do_spl_ws_signin_relay` per workspace OS user, ops, box facts
 
 - **Kind:** `secret`. **Vendor:** `claude` (backup `grok` [off]; never `agy`,
-  `qwen`, `mistral`, or `codex`). **R7:** `agy` on public diff + synthetic
-  `SPOOL_TEST=1` tests only (Q1 A; else `claude` waiver, Q1 B). **Batch:** 1
+  `qwen`, `mistral`, or `codex`). **R7:** `claude` waiver seat (no cross-vendor
+  secret seat while `grok` is off; holder decides at placement). **Batch:** 1
   (after L0, already on master).
 - **Brief hygiene:** names NO credential path.
 - **Files:** `orc:src/bash/run/spl-ws-signin-relay.func.sh`;
-  `orc:src/bash/run/spl-desk-up.func.sh` (only under Q2 A; omit under Q2 B);
+  `orc:src/bash/run/spl-desk-up.func.sh` (only under Q1 A; omit under Q1 B);
   `orc:src/bash/tests/ws-signin-relay.tst.sh`;
-  `csi-spl-cnf/csi-spl/all.env.yaml` (+ rendered files from
-  `ENV=dev ./run -a do_tpl_gen` and `ENV=prd ./run -a do_tpl_gen`).
+  `csi-spl-cnf/csi-spl/all.env.yaml` (`env.box.signin_relay_kinds: "claude"`
+  only) + rendered `csi-spl-cnf/csi-spl/{dev,prd}.env.json` via
+  `ENV=dev ./run -a do_tpl_gen` and `ENV=prd ./run -a do_tpl_gen`.
 - **Work:**
   1. Resolve `<W>`'s OS user from the box's own workspace binding (spec
      section 2; `spl-box-workspace.func.sh`): on an unclaimed operator box for
@@ -500,7 +524,7 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
      (for L8).
   4. Add `env.box.signin_relay_kinds: "claude"` in
      `csi-spl-cnf/csi-spl/all.env.yaml` and re-render with `do_tpl_gen`
-     (developer guide 2.3.3). Under Q2 A, wire `SPOOL_SIGNIN_RELAY_CMD` in
+     (developer guide 2.3.3). Under Q1 A, wire `SPOOL_SIGNIN_RELAY_CMD` in
      `spl-desk-up.func.sh` when `env.box.signin_relay_kinds` is non-empty (do
      NOT run `do_spl_desk_up` on live boxes).
 - **Done and red controls (R1, R7, R10):**
@@ -522,9 +546,9 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 
 ### 3.3 L2 - Hub fan-out, `/v1/vendor-logins`, audit & label tables, box facts, offline catch-up
 
-- **Kind:** `complex_coding`. **Vendor:** `claude`. **R7:** `agy`. **Batch:** 2
-  (after L1 and L3 land). `PRE_PUSH_TIER=full` (rdb migration + store + Postgres
-  table walk).
+- **Kind:** `complex_coding`. **Vendor:** `claude`. **R7:** `agy` (`claude`
+  waiver while `agy` paused). **Batch:** 2 (after L1 and L3 land).
+  `PRE_PUSH_TIER=full` (rdb migration + store + Postgres table walk).
 - **Files:** new `rdb:<NNNN>_vendor_login_audit.sql` (number from
   `do_rdb_migration_next`); new `api:store/vendor_logins.go`,
   `vendor_logins_postgres.go`, `vendor_logins_memory.go`,
@@ -598,19 +622,22 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 ### 3.4 L4 - Box side: `grok` and `agy` terminal login flows (or `no_relay`)
 
 - **Kind:** `secret`. **Vendor:** `claude` (backup `grok` [off]; never `agy`,
-  `qwen`, `mistral`, or `codex`). **R7:** `agy` on public diff + synthetic
-  `SPOOL_TEST=1` tests only (Q1 A; else `claude` waiver, Q1 B). **Batch:** 2
+  `qwen`, `mistral`, or `codex`). **R7:** `claude` waiver seat (no cross-vendor
+  secret seat while `grok` is off; holder decides at placement). **Batch:** 2
   (after L3 lands).
 - **Brief hygiene:** names NO credential path.
 - **Files:** new `orc:lib/bash/funcs/spl-ws-signin-kinds.func.sh`;
   `orc:src/bash/run/spl-ws-signin-relay.func.sh` (wire L3's per-kind seam); new
-  `orc:src/bash/tests/ws-signin-relay-kinds.tst.sh`;
-  `csi-spl-cnf/csi-spl/all.env.yaml` (+ `do_tpl_gen` outputs, ONLY if `grok`
-  and/or `agy` proves relayable, updating `env.box.signin_relay_kinds` and
-  `env.hub.operator_signin_relay_kinds`, 2.4 N5).
+  `orc:src/bash/tests/ws-signin-relay-kinds.tst.sh`; and ONLY if `grok` and/or
+  `agy` proves relayable: `csi-spl-cnf/csi-spl/all.env.yaml`
+  (`env.box.signin_relay_kinds` and
+  `env.hub.env.SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS`),
+  `csi-spl-cnf/csi-spl/dev/tf/030-cloud-run-hub.vars.tfvars`,
+  `csi-spl-cnf/csi-spl/prd/tf/030-cloud-run-hub.vars.tfvars`, and
+  `csi-spl-cnf/csi-spl/{dev,prd}.env.json` via `do_tpl_gen` (2.4 N5).
 - **Work:**
-  1. Empirically measure `grok` and `agy` CLI terminal login behaviour per Q3's
-     answer (default Q3 A: isolated throwaway `HOME`, never touching any
+  1. Empirically measure `grok` and `agy` CLI terminal login behaviour per Q2's
+     answer (default Q2 A: isolated throwaway `HOME`, never touching any
      production login or logging out live agents) and record the exact command
      + observation in the commit body.
   2. For each of `grok` and `agy`:
@@ -621,6 +648,14 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
      - If the CLI requires a local browser redirect or cannot be relayed,
        return `SIGNIN_RELAY state=failed reason=no_relay` on `start`/`input`/`renew`,
        report `relayable=no` in `status`, and keep `out` working (spec 5.2, 8).
+  3. If `grok` and/or `agy` is wired, update `env.box.signin_relay_kinds` and
+     `env.hub.env.SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS` in `all.env.yaml` and
+     re-render both `030-cloud-run-hub.vars.tfvars` and `{dev,prd}.env.json`
+     via `do_tpl_gen`. Do NOT run `terraform apply`: turning `grok` or `agy` on
+     in the live Cloud Run hub requires an explicit **owner-go terraform
+     `030-cloud-run-hub` apply** (dev first, then prd; CI rolls `--image` only,
+     `20_hub-build-deploy.yml:713`). Report that pending apply to the dispatch
+     holder in the result.
 - **Done and red control:**
   - Measured output for both `grok` and `agy` recorded in commit body.
   - Red control (spec 192 L4): a `no_relay` kind reporting `relayable=yes` or
@@ -637,8 +672,9 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 
 ### 3.5 L5 - Per-(`workspace`, `kind`, `box`) pause and immediate post-switch seat restart
 
-- **Kind:** `complex_coding`. **Vendor:** `claude`. **R7:** `agy`. **Batch:** 3
-  (after L2 and L3 land). `PRE_PUSH_TIER=full` (rdb migration + store).
+- **Kind:** `complex_coding`. **Vendor:** `claude`. **R7:** `agy` (`claude`
+  waiver while `agy` paused). **Batch:** 3 (after L2 and L3 land).
+  `PRE_PUSH_TIER=full` (rdb migration + store).
 - **Files:** new `rdb:<NNNN>_workspace_kind_pauses.sql` (number from
   `do_rdb_migration_next`); `api:store/fleet_load.go`, `fleet_load_test.go`;
   `api:hub/fleet_load.go`, `fleet_load_test.go`; `api:hub/vendor_logins.go`
@@ -701,8 +737,8 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 ### 3.6 L8 - Box-to-box login copy per workspace OS user (`agent-login-cred.sh` + `do_spl_ws_login_copy`)
 
 - **Kind:** `secret`. **Vendor:** `claude` (backup `grok` [off]; never `agy`,
-  `qwen`, `mistral`, or `codex`). **R7:** `agy` on public diff + synthetic
-  `SPOOL_TEST=1` tests only (Q1 A; else `claude` waiver, Q1 B). **Batch:** 3
+  `qwen`, `mistral`, or `codex`). **R7:** `claude` waiver seat (no cross-vendor
+  secret seat while `grok` is off; holder decides at placement). **Batch:** 3
   (after L3 and L4 land).
 - **Brief hygiene:** names NO credential path.
 - **Files:** `orc:src/bash/scripts/agent-login-cred.sh`; new
@@ -749,25 +785,34 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 ### 3.7 L6 - Web UI: AI vendors section in Settings, Agent keys link, 19 locales, e2e
 
 - **Kind:** `complex_coding`. **Vendor:** `claude` (never `mistral`, developer
-  guide 5.1). **R7:** `agy`. **Batch:** 4 (after Batch 3 lands).
+  guide 5.1). **R7:** `agy` (`claude` waiver while `agy` paused). **Batch:** 4
+  (after Batch 3 lands).
 - **Files:** `wui:utils/tenant-settings-nav.ts`; new
   `wui:pages/tenant-settings/ai-vendors.vue`; new
   `wui:components/AiVendorCard.vue` (and helper components <= 75 lines/func);
-  new `wui:utils/vendor-logins.mjs`; `wui:pages/tenant-settings/agent-keys.vue`;
+  `wui:components/SigninRelayPanel.vue`; `wui:utils/signin-relay.mjs`; new
+  `wui:utils/vendor-logins.mjs`; `wui:pages/tenant-settings/agent-keys.vue`;
   `wui:utils/spool-client.mjs`, `spool-client-lazy.mjs`; all 19
   `csi-spl-wui/i18n/locales/*.json`; new `csi-spl-doc/lang-review/<run>.json`;
   minimal stub in `csi-spl-doc/doc/help/user-settings.md` + regenerated
   `wui:public/help-md/user-settings.md` (`sync-help.mjs`, 2.4 N2); new
   `csi-spl-wui/tests/unit/vendor-logins.test.mjs`; new
   `csi-spl-wui/tests/e2e/ai-vendors.test.mjs`; updates to
-  `tests/unit/tenant-settings.test.mjs`, `tests/e2e/tenant-settings.test.mjs`,
-  `tests/e2e/agent-keys.test.mjs`,
+  `tests/unit/signin-relay.test.mjs`, `tests/unit/tenant-settings.test.mjs`,
+  `tests/e2e/tenant-settings.test.mjs`, `tests/e2e/agent-keys.test.mjs`,
   `tests/unit/signed-out-member-pages.test.mjs`.
 - **Work:**
   1. Insert `{ id: 'ai-vendors', label: 'tenant_settings.ai_vendors', perm: 'vendor_logins.manage' }`
      into `TENANT_SETTINGS_SECTIONS` between `split` (`:31`) and `agent-keys`
      (`:32`) and add `'ai-vendors'` to `MOCK_GATED` (`:51`).
-  2. Build `pages/tenant-settings/ai-vendors.vue` behind `useTenantSectionGate('ai-vendors', ...)`:
+  2. Update `wui:utils/signin-relay.mjs:17` `SIGNIN_RELAY_KINDS` from
+     `['claude', 'grok', 'mistral']` to `['claude', 'grok', 'agy']` (spec 5.2
+     & Q-5 B: `mistral` and `qwen` stay on Agent keys; `agy` is relayed), and
+     reuse `wui:components/SigninRelayPanel.vue` inside `AiVendorCard.vue` for
+     the active relay URL link and password-input code submit (so
+     `SigninRelayPanel.vue` is not orphaned and `unused-exports.test.mjs` stays
+     green).
+  3. Build `pages/tenant-settings/ai-vendors.vue` behind `useTenantSectionGate('ai-vendors', ...)`:
      - one card per kind (`claude`, `grok`, `agy`, `mistral`, `qwen`; fold any
        kind whose workspace split weight is 0);
      - per-box rows (`done` with label + `copied from <box>` or `signed in here`,
@@ -786,14 +831,14 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
        box, kind, op, result word, account label;
      - code input is `type="password"`, cleared immediately on send, never
        stored in Pinia, `localStorage`, or `sessionStorage`.
-  3. On `pages/tenant-settings/agent-keys.vue:36`, replace inline
+  4. On `pages/tenant-settings/agent-keys.vue:36`, replace inline
      `SigninRelayPanel` with a link to `/tenant-settings/ai-vendors` for
      subscription sign-ins (spec 8).
-  4. Add minimal `ai-vendors` stub in `csi-spl-doc/doc/help/user-settings.md`
+  5. Add minimal `ai-vendors` stub in `csi-spl-doc/doc/help/user-settings.md`
      and run `cd csi-spl-wui && node src/node/help/sync-help.mjs` so
      `help-settings-coverage.test.mjs` and `help-sync.test.mjs` stay green
      (2.4 N2).
-  5. Every visible string is a translation key across all 19 locales (developer
+  6. Every visible string is a translation key across all 19 locales (developer
      guide 2.7); run `cd csi-spl-orc && ENV=dev ./run -a do_spl_lang_review_gct`
      over new keys, fold references, re-run, commit the report, and include
      `Lang-review: gct <run id>` in the commit body.
@@ -812,9 +857,10 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
   `tests/unit/signed-out-member-pages.test.mjs`,
   `tests/unit/help-settings-coverage.test.mjs`, `tests/unit/help-sync.test.mjs`,
   `tests/unit/i18n-*`, `tests/unit/cleancode.test.mjs`,
-  `tests/unit/font-size.test.mjs`, `tests/unit/focus-tokens.test.mjs`,
-  `tests/e2e/ai-vendors.test.mjs`, `tests/e2e/tenant-settings.test.mjs`,
-  `tests/e2e/agent-keys.test.mjs`, plus every e2e file selected by
+  `tests/unit/unused-exports.test.mjs`, `tests/unit/font-size.test.mjs`,
+  `tests/unit/focus-tokens.test.mjs`, `tests/e2e/ai-vendors.test.mjs`,
+  `tests/e2e/tenant-settings.test.mjs`, `tests/e2e/agent-keys.test.mjs`, plus
+  every e2e file selected by
   `cd csi-spl-iac && WUI_E2E_RANGE=<sha>^..<sha> ./run -a do_check_pre_push_e2e`
   (reviewer runs that full selection, rulebook 2.7.4).
 - **Not touched:** `csi-spl-api/`, `csi-spl-rdb/`, `csi-spl-orc/`.
@@ -823,8 +869,8 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 
 - **Kind:** `specs_and_docs`. **Vendor:** `agy`, backup `claude` (never
   `mistral`: `sync-help.mjs` writes under `csi-spl-wui/`, developer guide 5.1).
-  **R7:** cross-vendor (`claude` if `agy` authored; `agy` if `claude` authored).
-  **Batch:** 5 (after L6 lands).
+  **R7:** cross-vendor (`claude` if `agy` authored; `agy`, or `claude` waiver
+  while paused, if `claude` authored). **Batch:** 5 (after L6 lands).
 - **Files:** `csi-spl-doc/doc/help/user-settings.md`;
   `wui:public/help-md/user-settings.md` (ONLY via `sync-help.mjs`);
   `csi-spl-doc/specs/159-byo-ai-keys/spec.md` (`4.3`, `:127`);
@@ -858,7 +904,8 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 
 | seat | vendor | sha | verdict |
 |---|---|---|---|
-| panel (tbd) | `claude` (cross-vendor to `agy` planner a-486) | pending | pending |
+| `c-385` | `claude` (cross-vendor to `agy` planner `a-486`) | `6b7e47b1d` (v0.1) | FAIL (`W1`-`W3`, `N1`-`N4`) |
+| `c-385` | `claude` (cross-vendor to `agy` planner `a-486`) | v0.2 (pending) | pending |
 | holder | dispatch holder (`c-002`) | pending | pending |
 
 ## 5. Versions
@@ -866,22 +913,19 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 | version | what |
 |---|---|
 | v0.1 | first plan for cross-vendor review, on `f2cb19298` (`origin/master`), 8 rows (L1-L8) in 5 batches on top of landed L0 (SPL-6345) |
+| v0.2 | `c-385` FAIL on `6b7e47b1d` fixed: **W1** hub switch cnf key fixed to `env.hub.env.SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS` (`all.env.yaml:433,497`), rendered `dev/prd/tf/030-cloud-run-hub.vars.tfvars` added to L4 Files (L3 no longer touches hub cnf), explicit owner-go terraform `030` apply noted (`20_hub-build-deploy.yml:713` rolls `--image` only); **W2** dropped Q1 from the owner poll and set L3/L4/L8 R7 to `claude` waiver seat (`bug-round-14-plan.md:50`, `bug-round-17-plan.md:114`); **W3** Q2 (was Q3) Spot widened to L4, L8, L6, and L7; **N1** separated data rule vs coding rule for `mistral`; **N2** added `api:hub/openapi.json` (`:19227,19287,19375`) to L1 Files; **N3** added `SigninRelayPanel.vue` (reused in `AiVendorCard.vue`) and `signin-relay.mjs` (`SIGNIN_RELAY_KINDS` -> `claude,grok,agy`) to L6 Files; **N4** recorded live `agy` pause until `2026-11-25T14:03:42Z` |
 
 ## 6. Open points for the owner
 
-Three small build-plan points need your pick (recommended first on each).
-Batches 1 (`L1`) and 2 (`L2`) do not wait on Q1-Q3.
+Two small build-plan points need your pick (recommended first on each).
+Batches 1 (`L1`), `L2`, and `L5` do not wait on Q1-Q2.
 
 ```poll
-1. R7 code reviewer for Kind: secret rows (L3, L4, L8) while grok is off (their git diffs and SPOOL_TEST=1 fixtures carry zero real credentials)?
-(A) agy reviews the public git diff and synthetic unit tests only (cross-vendor; claude author alone runs live box/account probes)
-(B) claude same-vendor R7 reviewer under waiver (keep agy off Kind: secret reviews too until grok returns)
-
-2. How should fleet boxes turn on SPOOL_SIGNIN_RELAY_CMD so hub-run advertises the sign-in relay?
+1. How should fleet boxes turn on SPOOL_SIGNIN_RELAY_CMD so hub-run advertises the sign-in relay?
 (A) L3 wires SPOOL_SIGNIN_RELAY_CMD in do_spl_desk_up when env.box.signin_relay_kinds is non-empty (live sidecar restart waits for your explicit go)
 (B) Keep SPOOL_SIGNIN_RELAY_CMD manual opt-in via box.env only (do_spl_desk_up unchanged)
 
-3. How should L4 measure grok and agy CLI terminal login flows without risking a production login?
+2. How should L4 measure grok and agy CLI terminal login flows without risking a production login?
 (A) Run each CLI login in an isolated throwaway HOME up to its first prompt to prove URL+code / device-code vs local-redirect no_relay (no production login touched)
-(B) Hold L4 until dedicated test accounts for grok and agy are provided for full end-to-end login testing
+(B) Hold L4 (and dependent L8, L6, L7) until dedicated test accounts for grok and agy are provided for full end-to-end login testing
 ```

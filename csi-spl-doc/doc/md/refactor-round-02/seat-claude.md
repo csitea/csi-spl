@@ -240,3 +240,26 @@ origin/master `6374a6992`.
 - Unchanged from v0.1 and not re-run: the 11 controls and the suites (no test
   block and no `.func.sh` head byte changed: the 5 `.func.sh` sha256s above
   match v0.1's).
+
+## v0.3 re-review: `8a10db57b09f9b5e019b49069af75419bee969bc`
+
+**Verdict on `8a10db57b`: PASS** - this seat signs `8a10db57b09f9b5e019b49069af75419bee969bc`.
+Measured 2026-11-25 20:2xZ, n=1 each, origin/master `3f74095fd`.
+
+- `git ls-remote origin refs/heads/review/c002-refactor-round-02-planner` ->
+  `8a10db57b...`; `git diff --stat 74b11a3b5 8a10db57b` -> 1 file, `+36 -19`;
+  plan 900 lines.
+- The 7 `bash` blocks, v0.2 vs v0.3: all 7 byte-identical.
+- **W3 fixed.** Every replace instruction for box-stats now reads `:59-94`
+  (:370, :404, :732, :804); the siblings `:57-91` keeping `:92` (:374, :378,
+  :457, :467, :738, :809, :813). The `:59-93` left at :45, :342, :348, :632 names
+  the 35-line duplicated body (the site), which is right. Literal rebuild on
+  `c567245fa` from the v0.3 blocks: `setup-box-stats-cron.func.sh` 105 lines
+  `2b1f19013437`, `check-disk-headroom-install-cron.func.sh` 62 `6106f57f2059`,
+  `setup-go-cache-prune-cron.func.sh` 61 `7e4e89ea9bd4`, `bash -n` rc 0 each =
+  the plan.
+- **N6 folded** (:882 no longer gives a count).
+- Drift `c567245fa` -> `3f74095fd` on the 10 paths: `0`.
+  `git log origin/master --since='2026-11-25T18:51:33+02:00' --oneline -E --grep='\(r02-' | wc -l` -> `0`.
+- The controls, suites and test heads stand as measured on v0.1 (sections 3-5):
+  no block byte changed since.

@@ -76,4 +76,17 @@ run "${SET[@]}" STUB_GET_CODE=404 STUB_GET_BODY='{"error":"not_found","detail":"
 [[ $rc -ne 0 ]] && grep -q "FATAL the read-back of HUM-10 (now) answered http 404" "$T/o" \
   && pass "4. a dry run against an old hub (404) fails" || fail "4. dry 404: rc=$rc $(cat "$T/o")"
 
+# --- 5. _spl_human_require_order (r99-01 one copy) ----------------------------
+out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-human-link.func.sh"; _spl_human_require_order HUM-10 c-308' 2>&1); rc=$?
+[[ $rc -eq 0 && -z "$out" ]] && pass "5. _spl_human_require_order accepts HUM-* and 3-digit agent id" || fail "5. order ok: rc=$rc $out"
+out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-human-link.func.sh"; _spl_human_require_order "" c-308' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL ORDERED_BY must be the HUM-* id of the human who ordered it, got: ''"* ]] && pass "5. _spl_human_require_order refuses empty ORDERED_BY" || fail "5. empty ordby: rc=$rc $out"
+out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-human-link.func.sh"; _spl_human_require_order HUM-10 CLE-1' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENT_ID must be an agent id like c-042, got: 'CLE-1'"* ]] && pass "5. _spl_human_require_order refuses legacy AGENT_ID" || fail "5. legacy agent: rc=$rc $out"
+out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$PROJ_ROOT"'/src/bash/run/spl-human-link.func.sh"; _spl_human_require_order HUM-10 c-1234' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENT_ID must be an agent id like c-042, got: 'c-1234'"* ]] && pass "5. _spl_human_require_order refuses 4-digit AGENT_ID" || fail "5. 4-digit agent: rc=$rc $out"
+link_f="$PROJ_ROOT/src/bash/run/spl-human-link.func.sh"
+[[ "$(grep -c "ORDERED_BY must be the HUM-\* id of the human who ordered it" "$link_f")" -eq 1 && "$(grep -c "AGENT_ID must be an agent id like c-042" "$link_f")" -eq 1 && "$(grep -c "_spl_human_require_order " "$link_f")" -ge 1 ]] \
+  && pass "5. one copy: spl-human-link.func.sh defines and calls _spl_human_require_order once" || fail "5. link one copy"
+
 (( fails == 0 )) && echo "ALL PASS: spl-human-link" || { echo "FAILED: $fails"; exit 1; }

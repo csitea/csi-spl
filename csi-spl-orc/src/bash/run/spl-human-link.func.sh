@@ -71,6 +71,15 @@ _spl_human_link_status() {
   return 1
 }
 
+# _spl_human_require_order <ordered_by> <agent>: validate required ORDERED_BY
+# (HUM-*) and strict 3-digit AGENT_ID for operator human-account write actions
+# (human-email-add, human-link); logs FATAL and returns 1 on mismatch.
+_spl_human_require_order() {
+  local ordby="$1" agent="$2"
+  [[ "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be the HUM-* id of the human who ordered it, got: '$ordby'"; return 1; }
+  [[ "$agent" =~ ^[acgmq]-[0-9]{3}$ ]] || { do_log "FATAL AGENT_ID must be an agent id like c-042, got: '$agent'"; return 1; }
+}
+
 # _spl_human_link_body: set the caller's local body to the request body
 # (compact JSON) from the env vars; every refusal is made here, before cnf,
 # gcloud or the hub.
@@ -80,8 +89,7 @@ _spl_human_link_body() {
   [[ "$hum" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL HUMAN_ID must be a HUM-* id, got: '$hum'"; return 1; }
   [[ "$linked" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL LINKED_HUMAN_ID must be a HUM-* id, got: '$linked'"; return 1; }
   [[ "$linked" != "$hum" ]] || { do_log "FATAL LINKED_HUMAN_ID is HUMAN_ID: a person's OTHER account is linked, never the same one"; return 1; }
-  [[ "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be the HUM-* id of the human who ordered it, got: '$ordby'"; return 1; }
-  [[ "$agent" =~ ^[acgmq]-[0-9]{3}$ ]] || { do_log "FATAL AGENT_ID must be an agent id like c-042, got: '$agent'"; return 1; }
+  _spl_human_require_order "$ordby" "$agent" || return 1
   body="$(jq -cn --arg linked "$linked" --arg agent "$agent" --arg ordby "$ordby" \
       '{linked_human_id: $linked, agent_id: $agent, ordered_by: $ordby}')" \
     || { do_log "FATAL could not build the request body"; return 1; }

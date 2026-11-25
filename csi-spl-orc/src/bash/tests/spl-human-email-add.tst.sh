@@ -85,4 +85,17 @@ run "${SET[@]}" STUB_GET_CODE=404 STUB_GET_BODY='{"error":"not_found","detail":"
 run "${SET[@]}" DRY_RUN=0 STUB_BODY="$ADDED" STUB_GET_BODY="$AFTER"
 ! grep -qiF -e "$SECOND" -e "$MAIN" "$T/o" && pass "5. the output carries masked addresses only" || fail "5. a full address leaked: $(cat "$T/o")"
 
+# --- 6. r99-01 one copy and standalone lazy-source ----------------------------
+add_f="$PROJ_ROOT/src/bash/run/spl-human-email-add.func.sh"
+own="$(grep -nE "ORDERED_BY must be the HUM-\* id of the human who ordered it|AGENT_ID must be an agent id like c-042" "$add_f" || true)"
+[[ -z "$own" ]] && grep -q "_spl_human_require_order " "$add_f" \
+  && pass "6. one copy: spl-human-email-add.func.sh delegates to _spl_human_require_order" || fail "6. one copy add: own=[$own]"
+out=$(env PROJ_PATH="$PROJ_ROOT" ENV=dev HUMAN_ID=HUM-26 EMAIL=a@example.org ORDERED_BY=HUM-10 AGENT_ID=HUM-10 bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ :; }
+  source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-human-email-add.func.sh"
+  do_spl_human_email_add' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENT_ID must be an agent id like c-042"* && "$out" != *"command not found"* ]] \
+  && pass "6. lazy load: spl-human-email-add.func.sh loads _spl_human_require_order standalone" || fail "6. lazy add: rc=$rc $out"
+
 (( fails == 0 )) && echo "ALL PASS: spl-human-email-add" || { echo "FAILED: $fails"; exit 1; }

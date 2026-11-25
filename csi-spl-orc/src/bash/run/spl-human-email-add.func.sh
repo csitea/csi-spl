@@ -100,8 +100,9 @@ _spl_human_email_add_body() {
   if [[ ! "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || (( ${#email} > 320 )); then
     do_log "FATAL EMAIL must be one address"; return 1
   fi
-  [[ "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be the HUM-* id of the human who ordered it, got: '$ordby'"; return 1; }
-  [[ "$agent" =~ ^[acgmq]-[0-9]{3}$ ]] || { do_log "FATAL AGENT_ID must be an agent id like c-042, got: '$agent'"; return 1; }
+  # shellcheck source=spl-human-link.func.sh
+  declare -F _spl_human_require_order >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-human-link.func.sh"
+  _spl_human_require_order "$ordby" "$agent" || return 1
   body="$(jq -cn --arg email "$email" --arg agent "$agent" --arg ordby "$ordby" \
       '{email: $email, agent_id: $agent, ordered_by: $ordby}')" \
     || { do_log "FATAL could not build the request body"; return 1; }

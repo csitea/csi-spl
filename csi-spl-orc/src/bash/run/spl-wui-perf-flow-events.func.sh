@@ -33,19 +33,8 @@ do_spl_wui_perf_flow_events() {
   [[ -n "$tenant" ]] || { [[ "$ENV" == prd ]] && tenant=e2e || tenant=t1; }
   spl_pf_validate "$tenant" "$n" "$profiles" "$cold" || return 1
 
-  local wui="${PF_WUI_URL:-}"
-  if [[ -z "$wui" ]]; then
-    [[ "$tenant" == t1 ]] && wui="https://$SPL_FQDN" || wui="https://$tenant.$SPL_FQDN"
-  fi
-  local st="$SPL_STATE_DIR/m3-e2e/$tenant" email="${PF_EMAIL:-}"
-  [[ -n "$email" ]] || { [[ -s "$st/human-email" ]] && email="$(<"$st/human-email")"; }
-  [[ -n "$email" ]] || email=m3-e2e-human@example.com
-  local pwf="$st/pw-human"
-  [[ -s "$pwf" ]] || { do_log "FATAL no password for $email at $pwf: run do_spl_m3_e2e once for $ENV/$tenant"; return 1; }
-  local proof_js="$APP_PATH/$SPL_ORG_APP-wui/tests/e2e/perf-flow-events.timing.mjs"
-  [[ -f "$proof_js" ]] || { do_log "FATAL no timing e2e at $proof_js"; return 1; }
-  local chrome="${CHROME_PATH:-/usr/bin/google-chrome}"
-  [[ -x "$chrome" ]] || { do_log "FATAL no Chrome at $chrome (set CHROME_PATH)"; return 1; }
+  spl_pf_env "$tenant" "${PF_WUI_URL:-}" "${PF_EMAIL:-}" "perf-flow-events.timing.mjs" || return 1
+  local wui="$SPL_PF_WUI" email="$SPL_PF_EMAIL" pwf="$SPL_PF_PW_FILE" proof_js="$SPL_PF_PROOF_JS" chrome="$SPL_PF_CHROME"
 
   local out="${PF_OUT:-$SPL_STATE_DIR/perf-flow-events/$tenant/$(date -u +%Y%m%dT%H%M%SZ)}"
   # one browser profile per env + tenant: the session is kept between runs, so
@@ -73,4 +62,26 @@ spl_pf_validate() {
   [[ "$2" =~ ^[0-9]+$ ]] && (( $2 >= 1 && $2 <= 50 )) || { do_log "FATAL PF_N must be 1..50, got: '$2'"; return 1; }
   [[ "$3" =~ ^(d1440|m390)(,(d1440|m390))?$ ]] || { do_log "FATAL PF_PROFILES must be d1440 and/or m390, got: '$3'"; return 1; }
   [[ "$4" == 0 || "$4" == 1 ]] || { do_log "FATAL PF_COLD_CACHE must be 0 or 1, got: '$4'"; return 1; }
+}
+
+# spl_pf_env <tenant> <wui_override> <email_override> <script> [label] ->
+# resolve WUI origin, member email, password file, timing script and Chrome
+# binary for the WUI perf timing actions, setting process globals
+# SPL_PF_WUI, SPL_PF_EMAIL, SPL_PF_PW_FILE, SPL_PF_PROOF_JS and SPL_PF_CHROME.
+# shellcheck disable=SC2034 # SPL_PF_* globals are read by callers
+spl_pf_env() {
+  local tenant="$1" wui="$2" email="$3" script="$4" label="${5:-timing}"
+  if [[ -z "$wui" ]]; then
+    [[ "$tenant" == t1 ]] && wui="https://$SPL_FQDN" || wui="https://$tenant.$SPL_FQDN"
+  fi
+  local st="$SPL_STATE_DIR/m3-e2e/$tenant"
+  [[ -n "$email" ]] || { [[ -s "$st/human-email" ]] && email="$(<"$st/human-email")"; }
+  [[ -n "$email" ]] || email=m3-e2e-human@example.com
+  local pwf="$st/pw-human"
+  [[ -s "$pwf" ]] || { do_log "FATAL no password for $email at $pwf: run do_spl_m3_e2e once for $ENV/$tenant"; return 1; }
+  local proof_js="$APP_PATH/$SPL_ORG_APP-wui/tests/e2e/$script"
+  [[ -f "$proof_js" ]] || { do_log "FATAL no $label e2e at $proof_js"; return 1; }
+  local chrome="${CHROME_PATH:-/usr/bin/google-chrome}"
+  [[ -x "$chrome" ]] || { do_log "FATAL no Chrome at $chrome (set CHROME_PATH)"; return 1; }
+  SPL_PF_WUI="$wui" SPL_PF_EMAIL="$email" SPL_PF_PW_FILE="$pwf" SPL_PF_PROOF_JS="$proof_js" SPL_PF_CHROME="$chrome"
 }

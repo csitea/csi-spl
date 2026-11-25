@@ -66,4 +66,37 @@ out=$(in_orc ENV=dev TENANT_ID=nopw 2>&1) && fail "no pw: ran" || pass "no pw: r
 grep -q do_spl_m3_e2e <<<"$out" && pass "no pw: names do_spl_m3_e2e" || fail "no pw text: $out"
 [[ ! -s "$T/calls.log" ]] && pass "no pw: node never ran" || fail "no pw: called"
 
+# --- 4. spl_pf_env (r99-02 one copy) ----------------------------------------------
+out=$(env APP_PATH="$APP_ROOT" SPL_ORG_APP=csi-spl ENV=dev SPL_FQDN=dev.example.test SPL_STATE_DIR="$T/state/dev" CHROME_PATH="$T/stub/chrome" PROJ_ROOT="$PROJ_ROOT" bash -c '
+  do_log(){ echo "$*"; }; source "$PROJ_ROOT/src/bash/run/spl-wui-perf-flow-events.func.sh"
+  spl_pf_env t1 "" "" perf-flow-events.timing.mjs || exit 1
+  printf "%s|%s|%s|%s|%s\n" "$SPL_PF_WUI" "$SPL_PF_EMAIL" "$SPL_PF_PW_FILE" "$(basename "$SPL_PF_PROOF_JS")" "$SPL_PF_CHROME"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == "https://dev.example.test|m3-e2e-human@example.com|$T/state/dev/m3-e2e/t1/pw-human|perf-flow-events.timing.mjs|$T/stub/chrome" ]] \
+  && pass "4. spl_pf_env resolves dev t1 defaults and sets SPL_PF_* globals" || fail "4. env dev: rc=$rc $out"
+out=$(env APP_PATH="$APP_ROOT" SPL_ORG_APP=csi-spl ENV=prd SPL_FQDN=example.test SPL_STATE_DIR="$T/state/prd" CHROME_PATH="$T/stub/chrome" PROJ_ROOT="$PROJ_ROOT" bash -c '
+  do_log(){ echo "$*"; }; source "$PROJ_ROOT/src/bash/run/spl-wui-perf-flow-events.func.sh"
+  spl_pf_env e2e "" "" perf-first-load-net.timing.mjs first-load || exit 1
+  printf "%s|%s\n" "$SPL_PF_WUI" "$SPL_PF_EMAIL"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == "https://e2e.example.test|sys+e2e@example.test" ]] \
+  && pass "4. spl_pf_env resolves prd tenant host and human-email" || fail "4. env prd: rc=$rc $out"
+out=$(env APP_PATH="$APP_ROOT" SPL_ORG_APP=csi-spl ENV=dev SPL_FQDN=dev.example.test SPL_STATE_DIR="$T/state/dev" CHROME_PATH="$T/stub/chrome" PROJ_ROOT="$PROJ_ROOT" bash -c '
+  do_log(){ echo "$*"; }; source "$PROJ_ROOT/src/bash/run/spl-wui-perf-flow-events.func.sh"
+  spl_pf_env t1 "" "" missing.timing.mjs first-load' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no first-load e2e at "*"missing.timing.mjs" ]] \
+  && pass "4. spl_pf_env refuses missing timing script with label" || fail "4. env script: rc=$rc $out"
+out=$(env APP_PATH="$APP_ROOT" SPL_ORG_APP=csi-spl ENV=dev SPL_FQDN=dev.example.test SPL_STATE_DIR="$T/state/dev" CHROME_PATH="$T/no-chrome" PROJ_ROOT="$PROJ_ROOT" bash -c '
+  do_log(){ echo "$*"; }; source "$PROJ_ROOT/src/bash/run/spl-wui-perf-flow-events.func.sh"
+  spl_pf_env t1 "" "" perf-flow-events.timing.mjs' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no Chrome at $T/no-chrome (set CHROME_PATH)"* ]] \
+  && pass "4. spl_pf_env refuses missing Chrome" || fail "4. env chrome: rc=$rc $out"
+flow_f="$PROJ_ROOT/src/bash/run/spl-wui-perf-flow-events.func.sh"
+[[ "$(grep -c "FATAL no password for " "$flow_f")" -eq 1 && "$(grep -c "FATAL no Chrome at " "$flow_f")" -eq 1 && "$(grep -c "spl_pf_env " "$flow_f")" -ge 1 ]] \
+  && pass "4. one copy: spl-wui-perf-flow-events.func.sh defines and calls spl_pf_env once" || fail "4. flow one copy"
+in_orc ENV=dev PF_WUI_URL=https://o.example.test PF_EMAIL=o@example.test >/dev/null 2>&1; c=$(cat "$T/calls.log")
+grep -q 'BASE=https://o.example.test .*EMAIL=o@example.test' <<<"$c" \
+  && pass "4. flow-events honors PF_WUI_URL and PF_EMAIL overrides" || fail "4. flow overrides: $c"
+out=$(in_orc APP_PATH="$T/no-wui" ENV=dev 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no timing e2e at $T/no-wui/csi-spl-wui/tests/e2e/perf-flow-events.timing.mjs"* && ! -s "$T/calls.log" ]] \
+  && pass "4. flow-events missing script prints timing label and never calls node" || fail "4. flow script label: rc=$rc $out"
+
 ((fails == 0)) && echo "OK spl-wui-perf-flow-events: all checks passed" || { echo "FAIL spl-wui-perf-flow-events: $fails check(s)"; exit 1; }

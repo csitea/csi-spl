@@ -32,22 +32,13 @@ do_spl_wui_perf_first_load() {
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" n="${PF_N:-10}" profiles="${PF_PROFILES:-d1440,m390}" cold="${PF_COLD_CACHE:-0}" cpu="${FL_CPU_PROFILE:-0}"
   [[ -n "$tenant" ]] || { [[ "$ENV" == prd ]] && tenant=e2e || tenant=t1; }
+  # shellcheck source=spl-wui-perf-flow-events.func.sh
+  declare -F spl_pf_env >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-wui-perf-flow-events.func.sh"
   spl_pf_validate "$tenant" "$n" "$profiles" "$cold" || return 1
   [[ "$cpu" == 0 || "$cpu" == 1 ]] || { do_log "FATAL FL_CPU_PROFILE must be 0 or 1, got: '$cpu'"; return 1; }
 
-  local wui="${PF_WUI_URL:-}"
-  if [[ -z "$wui" ]]; then
-    [[ "$tenant" == t1 ]] && wui="https://$SPL_FQDN" || wui="https://$tenant.$SPL_FQDN"
-  fi
-  local st="$SPL_STATE_DIR/m3-e2e/$tenant" email="${PF_EMAIL:-}"
-  [[ -n "$email" ]] || { [[ -s "$st/human-email" ]] && email="$(<"$st/human-email")"; }
-  [[ -n "$email" ]] || email=m3-e2e-human@example.com
-  local pwf="$st/pw-human"
-  [[ -s "$pwf" ]] || { do_log "FATAL no password for $email at $pwf: run do_spl_m3_e2e once for $ENV/$tenant"; return 1; }
-  local proof_js="$APP_PATH/$SPL_ORG_APP-wui/tests/e2e/perf-first-load.timing.mjs"
-  [[ -f "$proof_js" ]] || { do_log "FATAL no timing e2e at $proof_js"; return 1; }
-  local chrome="${CHROME_PATH:-/usr/bin/google-chrome}"
-  [[ -x "$chrome" ]] || { do_log "FATAL no Chrome at $chrome (set CHROME_PATH)"; return 1; }
+  spl_pf_env "$tenant" "${PF_WUI_URL:-}" "${PF_EMAIL:-}" "perf-first-load.timing.mjs" || return 1
+  local wui="$SPL_PF_WUI" email="$SPL_PF_EMAIL" pwf="$SPL_PF_PW_FILE" proof_js="$SPL_PF_PROOF_JS" chrome="$SPL_PF_CHROME"
 
   local out="${PF_OUT:-$SPL_STATE_DIR/perf-first-load/$tenant/$(date -u +%Y%m%dT%H%M%SZ)}"
   # one browser profile per env + tenant: repeated before/after runs keep the

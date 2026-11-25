@@ -68,4 +68,49 @@ out=$(in_orc ENV=dev TENANT_ID=nopw 2>&1) && fail "no pw: ran" || pass "no pw: r
 grep -q do_spl_m3_e2e <<<"$out" && pass "no pw: names do_spl_m3_e2e" || fail "no pw text: $out"
 [[ ! -s "$T/calls.log" ]] && pass "no pw: node never ran" || fail "no pw: called"
 
+# --- 4. r99-02 one copy and standalone lazy-source --------------------------------
+for f in spl-wui-perf-first-load.func.sh spl-wui-perf-first-load-net.func.sh; do
+  fp="$PROJ_ROOT/src/bash/run/$f"
+  own="$(grep -nE "FATAL no password for |FATAL no Chrome at |FATAL no (timing|first-load) e2e at " "$fp" || true)"
+  [[ -z "$own" ]] && grep -q "spl_pf_env " "$fp" \
+    && pass "4. one copy: $f delegates env setup to spl_pf_env" || fail "4. one copy $f: own=[$own]"
+done
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" T="$T" ENV=dev TENANT_ID=nopw CHROME_PATH="$T/stub/chrome" bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ return 0; }
+  do_spl_cloud_cnf(){ SPL_ORG_APP=csi-spl; SPL_STATE_DIR="$T/state/$ENV"; SPL_FQDN=dev.example.test; mkdir -p "$SPL_STATE_DIR"; }
+  source "$PROJ_PATH/src/bash/run/spl-wui-perf-first-load.func.sh"
+  do_spl_wui_perf_first_load' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no password for "* && "$out" != *"command not found"* ]] \
+  && pass "4. lazy load: spl-wui-perf-first-load.func.sh loads spl_pf_env standalone" || fail "4. lazy first-load: rc=$rc $out"
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" T="$T" ENV=dev TENANT_ID=nopw CHROME_PATH="$T/stub/chrome" bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ return 0; }
+  do_spl_cloud_cnf(){ SPL_ORG_APP=csi-spl; SPL_STATE_DIR="$T/state/$ENV"; SPL_FQDN=dev.example.test; mkdir -p "$SPL_STATE_DIR"; }
+  source "$PROJ_PATH/src/bash/run/spl-wui-perf-first-load-net.func.sh"
+  do_spl_wui_perf_first_load_net' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no password for "* && "$out" != *"command not found"* ]] \
+  && pass "4. lazy load: spl-wui-perf-first-load-net.func.sh loads spl_pf_env standalone" || fail "4. lazy first-load-net: rc=$rc $out"
+in_orc ENV=dev PF_WUI_URL=https://o.example.test PF_EMAIL=o@example.test >/dev/null 2>&1; c=$(cat "$T/calls.log")
+grep -q 'BASE=https://o.example.test .*EMAIL=o@example.test' <<<"$c" \
+  && pass "4. first-load honors PF_WUI_URL and PF_EMAIL overrides" || fail "4. first-load overrides: $c"
+out=$(in_orc APP_PATH="$T/no-wui" ENV=dev 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no timing e2e at $T/no-wui/csi-spl-wui/tests/e2e/perf-first-load.timing.mjs"* && ! -s "$T/calls.log" ]] \
+  && pass "4. first-load missing script prints timing label and never calls node" || fail "4. first-load script label: rc=$rc $out"
+: >"$T/calls.log"
+env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" STUB_LOG="$T/calls.log" T="$T" PATH="$T/stub:$PATH" CHROME_PATH="$T/stub/chrome" \
+  ENV=dev PF_WUI_URL=https://wrong.example.test PF_EMAIL=wrong@example.test PFL_WUI_URL=https://o.example.test PFL_EMAIL=o@example.test bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ return 0; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+  do_spl_cloud_cnf(){ SPL_ORG_APP=csi-spl; SPL_STATE_DIR="$T/state/$ENV"; SPL_FQDN=dev.example.test; mkdir -p "$SPL_STATE_DIR"; }
+  do_spl_wui_perf_first_load_net' >/dev/null 2>&1; c=$(cat "$T/calls.log")
+grep -q 'BASE=https://o.example.test .*EMAIL=o@example.test' <<<"$c" \
+  && pass "4. first-load-net honors PFL_WUI_URL and PFL_EMAIL overrides" || fail "4. first-load-net overrides: $c"
+: >"$T/calls.log"
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$T/no-wui" STUB_LOG="$T/calls.log" T="$T" PATH="$T/stub:$PATH" CHROME_PATH="$T/stub/chrome" ENV=dev bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ return 0; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+  do_spl_cloud_cnf(){ SPL_ORG_APP=csi-spl; SPL_STATE_DIR="$T/state/$ENV"; SPL_FQDN=dev.example.test; mkdir -p "$SPL_STATE_DIR"; }
+  do_spl_wui_perf_first_load_net' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no first-load e2e at $T/no-wui/csi-spl-wui/tests/e2e/perf-first-load-net.timing.mjs"* && ! -s "$T/calls.log" ]] \
+  && pass "4. first-load-net missing script prints first-load label and never calls node" || fail "4. first-load-net script label: rc=$rc $out"
+
 ((fails == 0)) && echo "OK spl-wui-perf-first-load: all checks passed" || { echo "FAIL spl-wui-perf-first-load: $fails check(s)"; exit 1; }

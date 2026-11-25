@@ -58,6 +58,9 @@ type submitRequest struct {
 	Env       json.RawMessage `json:"env"`
 	TypedBy   string          `json:"typed_by,omitempty"`
 	RefTaskID string          `json:"ref_task_id,omitempty"`
+	// LiveAck (spec 053 S1, SPL-6517, live_ack.go) is a shown ack instead of
+	// an envelope: the sidecar writes TAck frames and answers {acked}.
+	LiveAck *submitLiveAck `json:"live_ack,omitempty"`
 }
 
 // submitResponse is one line out. Delivery is the hub's `sent` frame value on
@@ -296,6 +299,10 @@ func (s *SubmitServer) handle(ctx context.Context, conn net.Conn) {
 	var req submitRequest
 	if err := json.NewDecoder(bufio.NewReader(conn)).Decode(&req); err != nil {
 		reply(submitResponse{Error: "submit request does not parse"})
+		return
+	}
+	if req.LiveAck != nil {
+		s.handleLiveAck(ctx, conn, req.LiveAck)
 		return
 	}
 	env, err := wire.ParseEnvelope(req.Env)

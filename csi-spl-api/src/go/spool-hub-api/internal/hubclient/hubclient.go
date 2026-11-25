@@ -508,9 +508,10 @@ func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string, 
 	}
 	// SPL-987 backfill.go, SPL-997 fallback.go, spec 059 S2 commit (readLoop),
 	// spec 033 K.4.3 kinds13 (this binary's msg.Validate takes the 13 kinds),
-	// spec 071 7.6.1 box_sample (box_sample_frame.go)
+	// spec 071 7.6.1 box_sample (box_sample_frame.go), spec 053 S1 live_ack
+	// (live_ack.go: shown acks from the agent hook, SPL-6517)
 	hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback, wire.FeatureCommit, wire.FeatureKinds13,
-		wire.FeatureBoxSample}
+		wire.FeatureBoxSample, wire.FeatureLiveAck}
 	if c.SigninRelay != nil { // spec 181 B11: only a box that runs the relay is asked
 		hello.Features = append(hello.Features, wire.FeatureSigninRelay)
 	}

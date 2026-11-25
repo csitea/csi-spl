@@ -31,7 +31,9 @@ type LiveAck struct {
 // LiveAcks is implemented by stores that keep the live acks.
 type LiveAcks interface {
 	// RecordLiveAck stores a, or replaces the outcome of an earlier ack of the
-	// same (message, agent): the latest poke is the one that counts. It writes
+	// same (message, agent): the latest poke is the one that counts. A shown
+	// ack over a shown ack writes nothing (SPL-6517: the agent hook acks each
+	// message it shows; the first sight's acked_at stands). It writes
 	// only when the hub sent the message to a.Box (a sent deliveries row), so a
 	// box cannot ack a message it never got; ok = it wrote.
 	RecordLiveAck(ctx context.Context, a LiveAck) (ok bool, err error)
@@ -51,7 +53,8 @@ func (s *Postgres) RecordLiveAck(ctx context.Context, a LiveAck) (bool, error) {
 		SELECT $1, $2, $3, $4, $5, $6 WHERE EXISTS (SELECT 1 FROM deliveries d
 		    WHERE d.tenant_id = $1 AND d.msg_id = $2 AND d.to_box = $4 AND d.state = 'sent')
 		ON CONFLICT (tenant_id, msg_id, agent_id)
-		DO UPDATE SET box_id = EXCLUDED.box_id, outcome = EXCLUDED.outcome, acked_at = EXCLUDED.acked_at`,
+		DO UPDATE SET box_id = EXCLUDED.box_id, outcome = EXCLUDED.outcome, acked_at = EXCLUDED.acked_at
+		WHERE NOT (delivery_live_acks.outcome = 'shown' AND EXCLUDED.outcome = 'shown')`,
 		a.TenantID, a.MsgID, a.Agent, a.Box, a.Outcome, a.AckedAt)
 	if err != nil {
 		return false, err
@@ -121,8 +124,12 @@ func (s *Memory) RecordLiveAck(_ context.Context, a LiveAck) (bool, error) {
 	if s.liveAcks == nil {
 		s.liveAcks = map[[3]string]LiveAck{}
 	}
+	k := [3]string{a.TenantID, a.MsgID, a.Agent}
+	if old, ok := s.liveAcks[k]; ok && old.Outcome == LiveAckShown && a.Outcome == LiveAckShown {
+		return false, nil
+	}
 	a.AckedAt = a.AckedAt.UTC()
-	s.liveAcks[[3]string{a.TenantID, a.MsgID, a.Agent}] = a
+	s.liveAcks[k] = a
 	return true, nil
 }
 

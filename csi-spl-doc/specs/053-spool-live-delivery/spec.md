@@ -1,6 +1,6 @@
 # Feature Specification: Live delivery — a human post reaches a live agent in seconds, or escalates
 
-**Feature ID**: `053-spool-live-delivery` · **Milestone**: M3 · **Status**: Partial (S1 and S3 hub side built; S2, S4, S5 Planned)
+**Feature ID**: `053-spool-live-delivery` · **Milestone**: M3 · **Status**: Partial (S1, S3 hub side and the S2 shown ack built; S2 nacks, S4, S5 Planned)
 **Created**: 2026-09-30 · **Lane**: LIVE-DELIVERY (hub + box sidecar + orc) · **Epic**: SPL-1225
 **Authority**: this file for the rule; the wire additions here are normative until a `contracts/live-ack-v1.md` lands; `tasks.md` for what is built and where.
 **Closest pattern**: `038-spool-fallback-responder` (SPL-997) — the same audience (a human post, the tenant responder), extended from "no box was sent it" to "no *live* agent acted".
@@ -40,7 +40,7 @@ The sidecar probes each of its agents' panes on a short interval and announces (
 ### 4.2 Per-delivery ack
 For each `recv` the sidecar writes the inbox copy and pokes, then sends a new `TAck` frame keyed by `(msg_id, agent)` carrying the poke outcome (from `spool-notify.sh`: exit 0 shown, 5 no live window, 6 pane refused, 7 exited). The hub records it. A `recv` that no live pane took (nack) is the signal the fast path was missed.
 
-The wire, as built (S1, `internal/wire/wire.go`): hello feature `live_ack` (`wire.FeatureLiveAck`); frame `{"type":"ack","msg_id":<uuid>,"agent":<local agent id>,"outcome":<o>}` (`wire.TAck`), fire and forget, no reply; `outcome` is one of `shown` (exit 0, the ack), `no_window` (5), `refused` (6), `exited` (7), each but `shown` a nack. The hub records an ack only from a box that announced `live_ack`, for an agent that box announced, and for a message it sent that box; the latest poke of a `(msg_id, agent)` replaces the earlier one (rdb `0186_delivery_live_acks.sql`, table `delivery_live_acks`).
+The wire, as built (S1, `internal/wire/wire.go`): hello feature `live_ack` (`wire.FeatureLiveAck`); frame `{"type":"ack","msg_id":<uuid>,"agent":<local agent id>,"outcome":<o>}` (`wire.TAck`), fire and forget, no reply; `outcome` is one of `shown` (exit 0, the ack), `no_window` (5), `refused` (6), `exited` (7), each but `shown` a nack. The hub records an ack only from a box that announced `live_ack`, for an agent that box announced, and for a message it sent that box; the latest poke of a `(msg_id, agent)` replaces the earlier one, except that a `shown` ack over a `shown` ack writes nothing, so the first sight's `acked_at` stands (SPL-6517) (rdb `0186_delivery_live_acks.sql`, table `delivery_live_acks`).
 
 ### 4.3 The escalation ladder
 | When | What |
@@ -54,6 +54,25 @@ The wire, as built (S1, `internal/wire/wire.go`): hello feature `live_ack` (`wir
 ### 4.4 SLO and how it is measured
 p95 human-post → live-agent-poke ≤ **3 s**, end to end. Measured by `do_spl_latency_probe` (per-hop, live DM) and `do_spl_latency_hops` (every poke, read-only, section 8) and the deployed-state checks; the `#spool-hub-ops` alert and `do_spl_report_unheard` catch regressions. Baseline (2026-09-30): hub→box p50 6 ms / p95 0.72 s / max 4.7 s (n=149 real prd); on-box ~0.2 s to a live pane (n=24). Transport already meets 3 s; the fix is liveness, not speed.
 
+### 4.5 The shown ack, as built (SPL-6517, latency action 7)
+
+Before it, 0 live acks had ever been recorded (lat-hub a-600, 2026-11-25): the hub side of S1 was live, but no sidecar's hello carried `live_ack` and nothing on a box wrote a `TAck` frame. So the hub could not tell a message that sat in an inbox file from one an agent had on its screen.
+
+"Shown" is the moment the agent hook puts the message in front of the model. `spool-agent-hook.sh` `inject()` returns it as context at SessionStart, UserPromptSubmit, PreToolUse, PostToolUse and Stop, and moves `.hook-seen` past it, so it is shown once.
+
+| step | where | what |
+|---|---|---|
+| 1 | `spool-agent-hook.sh` `inject_locked()` | after the `surfaced` ledger rows, one detached start (no wait, stdin/stdout/stderr on `/dev/null`, its own session) of `scripts/spool-live-ack.sh <agent> <msg_id>...` with the ids just shown; nothing shown = nothing started |
+| 2 | `scripts/spool-live-ack.sh` | `spool live-ack --as <id> <msg_id>...` under `SPOOL_LIVE_ACK_TIMEOUT` (20 s); one line per run in `<agent>/lifetime/live-ack.log`; exit 0 always |
+| 3 | `spool live-ack` (`cmd/spool/live_ack.go`, `hubclient.LiveAckShown`) | one `live_ack` request `{agent, msg_ids}` on the box's submit socket (spec 030 FP-2). It never dials the hub: a role=box hello of its own would supersede the sidecar's session, and the hub takes acks from role=box only. No sidecar listening = the ack is dropped, exit 0 |
+| 4 | the sidecar (`spool hub-run`, `hubclient/live_ack.go`) | its hello now announces `live_ack`; it writes one `TAck` frame, outcome `shown`, per id on its current session, waiting up to 5 s for one during a reconnect; none by then = dropped |
+| 5 | the hub (`onAck`, `store.RecordLiveAck`) | one `delivery_live_acks` row per `(msg_id, agent)`; a second `shown` writes nothing |
+
+- **Off the send path.** The inbox copy, the injection and the poke do not change. A hub that is down only loses the ack: the hook shows the message at once, and the sender's exit code is read by nobody.
+- **Only what the hub sent this box.** A message delivered on the same box with no hub copy (mirror off) has no `deliveries` row, so its ack records nothing. That is the S1 rule that a box cannot ack what it never got.
+- **S3.** It acts on nacks only, and no box sends one yet, so the shown ack changes no escalation. Once S2's nacks ship, a `shown` row already stands a nack's escalation down.
+- **Checks.** `internal/hub/live_ack_shown_test.go`, memory and Postgres, with box-b's real sidecar (`hubclient.Run`) and a verb whose own hub URL is dead: a delivered message acked shown leaves one row; a second surfacing leaves that row and its `acked_at`; an id the hub never sent the box records nothing; with no sidecar the verb returns `ErrNoSidecar` at once. Red controls: the parent's `hubclient.go` (no `live_ack` in the hello) records nothing; the parent's `store/live_acks.go` rewrites `acked_at` on the second surfacing. `csi-spl-orc/src/bash/features/spawn-agents/tests/test-live-ack-shown.sh` covers the sender: the argv, a qualified `<id>@<box>` dir, no ids = no start, and a failing or hung verb exiting 0 within its timeout.
+
 ## 5. Backwards compatibility (mandatory — running sidecars during the roll)
 
 - Every addition is negotiated by a hello feature (`FeatureLiveAck`, and `FeatureHeartbeat` for §4.1), exactly like `FeatureBackfill`/`FeatureFallback`. A sidecar that does not announce it behaves as today; the hub sends it no new frame and expects no ack from it.
@@ -64,7 +83,7 @@ p95 human-post → live-agent-poke ≤ **3 s**, end to end. Measured by `do_spl_
 ## 6. Rollout — small shippable steps (each live on dev + prd, each with full gates)
 
 - **S1** hub accepts + records a `TAck` frame from a `FeatureLiveAck` box; no behavior change; old sidecars unaffected. (store: a `deliveries` liveness column or a small `delivery_acks` table.) **Implemented** (c-897, SPL-1239): table `delivery_live_acks` (rdb 0186), `store.LiveAcks`, `hub/live_ack.go` `onAck`; checks `hub/live_ack_test.go` (recorded, replaced, refused for an unannounced agent / unknown outcome / unsent message, ignored from a box without the feature), memory and Postgres.
-- **S2** the sidecar maps the `spool-notify.sh` exit code to an ack and sends it per `(msg_id, agent)`.
+- **S2** the sidecar maps the `spool-notify.sh` exit code to an ack and sends it per `(msg_id, agent)`. **The shown ack is implemented** (SPL-6517, latency action 7; the nacks stay Planned), see 4.5.
 - **S3** the hub escalates to the responder on a nack / no-live-recipient at fan-out, immediately (tightens the fast path below 120 s). **Implemented, hub side** (c-897, SPL-1241): every relay tick (`SPOOL_HUB_QUEUE_RELAY`, 5 s) `escalateNacked` hands a signed human post that a nack names, that no agent acked `shown`, that no fallback took and no agent answered, to the responder through the SPL-1225 escalate path, claimed once. A nack waits `nackSettle` (3 s) so another agent's `shown` ack of the same recv lands first. "No live recipient at fan-out" arrives as the desk box's nack (its panes are gone); a post no box was sent at all stays the SPL-997 immediate fallback. Live only once S2 sidecars send acks; until then the 120 s backstop holds. Checks: `hub/live_ack_test.go` (a nack reaches the responder once; control: a `shown` ack does not escalate; inside the settle nothing does).
 - **S4** the sidecar heartbeats a **live-only** roster; `agentOnline` stops counting dead dirs; the SPL-997 immediate fallback becomes honest.
 - **S5** the 10-min "nobody picked this up" → `#spool-hub-ops` post + visible state + alert.
@@ -115,4 +134,4 @@ It also prints the count of each poke exit code. With `ENV=<dev|prd> TENANT_ID=<
 
 Checks: `csi-spl-orc/src/bash/features/spawn-agents/tests/test-poke-ledger.sh` covers a same-box send and a relayed (sidecar) delivery, each leaving one row with monotonic stamps, a refused poke leaving rc 6, the hook's rows, and the rotation. `csi-spl-orc/src/bash/tests/latency-hops.tst.sh` checks the exact table from a fixture tree, the window, and the hub SQL.
 
-<!-- version: 0.3.0 · updated: 2026-11-25 · last-edit: 2026-11-25T00:00:00Z -->
+<!-- version: 0.4.0 · updated: 2026-11-25 · last-edit: 2026-11-25T19:45:00Z -->

@@ -33,6 +33,8 @@
 //	attach-rename --msg-id <uuid> [--as <id>] [--dry-run]   hub mode: name the files of a message
 //	          this box sent that are still named by their sha256 (SPL-1808)
 //	archive --task <uuid> --as <id> [--unarchive]   hub mode: archive a topic (CLE-77869)
+//	live-ack --as <id> <msg_id>...   hub mode: the sidecar sends the hub a shown ack of
+//	          each message (spec 053 S1, SPL-6517); never dials, no sidecar = dropped
 //	move    --task <uuid> --channel <ch> --as <id> [--acting-for <HUM-n>]   hub mode: move a topic to
 //	          another channel (the starter, or for a box operator who is an owner / admin)
 //	move    --msg <uuid> --to-task <uuid> --as <id> [--acting-for <HUM-n>]   hub mode: move one
@@ -179,6 +181,7 @@ on a box (an agent's machine):
   edit, delete        edit or delete a message this box sent
   attach-rename       name the files of a message this box sent that are named by their sha
   archive             archive (or --unarchive) a topic by its task id
+  live-ack            tell the hub, through this box's sidecar, that --as was shown these msg ids
   move                move a topic by its task id to another channel, or (--msg) a message to another topic
   react               add (or --remove, or --list) an emoji reaction on a topic's message
   lease               read, or compare-and-set (--holder --if-gen), a fleet-wide lease
@@ -299,7 +302,8 @@ func run(args []string) int {
 
 // quiesceFree are the box commands that only read the spool: they pass the
 // desk quiesce gate. Every other one waits it out first (spec 069 8.4.1).
-var quiesceFree = map[string]bool{"tail": true, "hub-tail": true, "get-file": true, "get-dir": true, "hub-get-file": true}
+var quiesceFree = map[string]bool{"tail": true, "hub-tail": true, "get-file": true, "get-dir": true, "hub-get-file": true,
+	"live-ack": true} // SPL-6517: writes no local file, and the hook that starts it must not wait
 
 // runGatedBoxCmd runs a box command once its desk is out of the quiesce
 // window; a writing command still quiesced after the wait exits 75.
@@ -324,14 +328,10 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdSend(cfg, rest)
 	case "recv":
 		return cmdRecv(cfg, rest)
-	case "put-file":
-		return cmdPut(cfg, rest, false)
-	case "put-dir":
-		return cmdPut(cfg, rest, true)
-	case "get-file":
-		return cmdGet(cfg, rest, false)
-	case "get-dir":
-		return cmdGet(cfg, rest, true)
+	case "put-file", "put-dir":
+		return cmdPut(cfg, rest, cmd == "put-dir")
+	case "get-file", "get-dir":
+		return cmdGet(cfg, rest, cmd == "get-dir")
 	case "tail":
 		return cmdTail(cfg, rest)
 	case "mcp":
@@ -358,6 +358,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdAttachRename(cfg, rest)
 	case "archive": // CLE-77869
 		return cmdArchive(cfg, rest)
+	case "live-ack": // spec 053 S1, SPL-6517
+		return cmdLiveAck(cfg, rest)
 	case "move":
 		return cmdMove(cfg, rest)
 	case "react": // CLE-77895

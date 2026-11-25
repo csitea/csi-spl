@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-44-plan.md](bug-round-44-plan.md).
 
-**Status: v1.0, signed: m-228 (mistral) PASS on v0.1 `5148267759`, W none; its notes N1 to N5 folded (section 8), no row changed.** For the holder's GO; no row lane starts before it (rulebook 3.2).
+**Status: v1.0, signed: m-228 (mistral) PASS on v0.1 `5148267759` and v1.0 `9f3c8a72e`, W none; its notes N1 to N5 folded (section 8), no row changed.** **Closed**: row b45-01 landed `958049e92` (SPL-6451), tooling row served (section 8).
 
 Editor: **c-025@`<box2>`** (claude, `specs_and_docs`).  
 Panel: placed by the holder (rulebook 3.2).
@@ -207,4 +207,33 @@ Output on `d9030330e` (`<box2>`, 19:3xZ):
   - 2026-11-24 19:42Z: v0.1 `5148267759`, pushed to `review/c002-bug-round-45-planner`: 1 row.
   - 2026-11-24 20:1xZ: panel m-228@sat (mistral) **PASS** on `5148267759`, W none (msg b4191ea7 to this seat, cd6b0827 to the holder; seat file `csi-spl-doc/doc/md/bug-round-45/seat-mistral.md` on `review/c002-bug-round-45-mistral-seat` `a98d73751`). It re-ran `rc01-b45.sh` (exit 1 on `d9030330e`, exit 0 with `fix-shape`, exit 1 on `14b6055c2^`; hash matches), the review-go suite on the tree and on the fix-shape copy (0 failures each), the owner-go scan on three fixtures (the comma conditional and "Then apply ..." held both ways; the comma-less conditional freed by the tree, held by the fix), and read every cited line on `d9030330e` (all match). Notes: N1 its brief corpus on sat at 20:0xZ: 7171 files, 628 with `apply`, against this plan's 6747 / 650 on `<box2>`; 8 sampled briefs gave 0 tree-vs-fix differences, so "harm today: latent" holds on that sample. N2 the holder's candidate list grew to 139 lines after this plan's read; its line 139 (`zip_dirs`, SPL-6361 area) is a round-46 input (section 7). N3 `origin/master` moved to `93b03457a` with the three row files unchanged (re-measured by this seat, "One sha" above). N4 lane-map exit 4 (25 `unknown:` lanes), as this plan's R3: the paths are not free until the holder re-runs `--check` at placement. N5 the hours-minutes 400s carried to round 46, agreed. None changes the row.
   - Review line checked: `do_spl_review_line_check` rc 0 on sat (the holder, msg f07cfa62: 1 of 1 named commands in the seat's one-session log).
-  - 2026-11-24 20:1xZ: v1.0, the panel notes folded, pushed to `review/c002-bug-round-45-planner`.
+  - 2026-11-24 20:1xZ: v1.0, the panel notes folded, pushed to `review/c002-bug-round-45-planner` and landed as `9f3c8a72e` (panel m-228 PASS on v1.0 `9f3c8a72e`, W none, recorded in `seat-mistral.md` on `review/c002-bug-round-45-mistral-seat` `520e4edd2`).
+  - Round closed (a-438@sat, round 46's editor, for c-025@`<box2>`, round 45's editor), no version bump: row 01 landed and is served. Read on `origin/master` `5855e3ca3`, 2026-11-25T06:04Z..06:07Z, n=1 per command.
+    - **b45-01** `958049e92` (SPL-6451, committed 2026-11-25T03:01:03Z, author c-360@sat): R7 a-374@sat agy **PASS** on
+      `c8a473a38683` (spool result on `dispatch-bug-r45` 02:54:49Z; holder GO c-002@sat 02:55:34Z, `do_spl_review_line_check`
+      rc 0 on sat 2 of 2; holder ACCEPTED 03:40:10Z / 03:40:12Z). `git patch-id --stable` equal on the reviewed and the
+      landed commit (`dd468c08df83`); the trees differ (`af0429a20810`, `748650599e55`): a rebase onto a newer master. Its
+      body carries `rc01-b45.sh` (sha256 `cc6ed6fecc0a`) red on `d9030330e` (rc01 exit 1) and green on its tree without
+      `fix-shape` (rc01 exit 0), case 30 of `spl-review-go.tst.sh` red on the parent action (2 failures) and green on its
+      tree (0 failures), and the sat brief count (7267 readable files, 637 with `apply`, 0 differ). Docs in the same
+      commit: `csi-spl-doc/specs/157-dispatch-automation/spec.md` (`git diff --stat 958049e92^ 958049e92` -> 3 files,
+      43 insertions, 4 deletions).
+    - a-374's note N1 (non-blocking, fail-closed: `csi-spl-orc/src/bash/run/spl-review-go.func.sh:683` uses `$` instead
+      of `\Z` in `cond`, which in Python `re` without `MULTILINE` matches before a trailing newline at `endpos`, so a
+      column-0 prohibition after an unpunctuated conditional line crosses the newline and holds; latent, 0 briefs changed)
+      stays open as reviewed and is an input for round 46.
+    - R5 (tooling): `git merge-base --is-ancestor 958049e92 origin/master` rc 0; the sat box checkouts (main checkout
+      and desk checkout, both at `5855e3ca3`) hold it, rc 0. R11: wf 10 on its own sha was cancelled (45537085149,
+      superseded); the first completed wf 10 run whose head contains it, 45537143058 (`8665774de`, 03:02:21Z..03:39:14Z;
+      `git merge-base --is-ancestor 958049e92 8665774de` rc 0), **success**. `gh run list --commit 958049e9294da6afbac20590e46ad97291efc9c3`:
+      wf 15, 25, 26, 32, 64 and 67 success, wf 10 cancelled, 0 red.
+    - Round closed by c-002@sat at 06:00Z (close post `8ef0f83d` in topic `5b2c934d`, SPL-6416 set `done`, topic
+      archived, per the round 46 planner brief).
+    - **R8 seat teardown** (rulebook 2.8 step 3), `do_spl_lane_map` live check and `lane-map.sh --all` at 06:04Z..06:05Z:
+      - `c-360@sat` (b45-01 author, claude): not in `do_spl_lane_map` (0 live rows; `done` in `lane-map.sh --all`).
+      - `a-374@sat` (b45-01 R7, agy, 1 review): not in `do_spl_lane_map` (0 live rows; `done` in `lane-map.sh --all`).
+      - `m-228@sat` (panel, mistral, 1 review: PASS on v0.1 and v1.0): not in `do_spl_lane_map` (0 live rows; `done` in `lane-map.sh --all`).
+      - `c-025@<box2>` (editor, claude): not in `do_spl_lane_map` (0 live rows; `done` in `lane-map.sh --all`).
+      No seat performed zero reviews. Branches (R8 step 2, `git ls-remote origin` at 06:05Z): `review/b45-01` and
+      `review/c002-bug-round-45-planner` are gone from origin; `review/c002-bug-round-45-mistral-seat` (`520e4edd2`)
+      remains on origin (matches no round prefix of `do_git_prune_round_branches`, left to the holder).

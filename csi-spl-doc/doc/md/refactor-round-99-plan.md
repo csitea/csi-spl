@@ -56,12 +56,14 @@ globals `SPL_PF_WUI`, `SPL_PF_EMAIL`, `SPL_PF_PW_FILE`, `SPL_PF_PROOF_JS` and
 13-line block with 2 lines.
 The rows share no file: both are batch 1.
 
-**Status: v1.0, signed and ready for row placement.** Editor: **a-482** (agy). Signed by
-cross-vendor panel seat **c-396** (claude, `PASS` on v0.2
-`853b9368f3f58e9b6a175796121c94e4a0674dcd`, msgs `a043ca44`/`7d3cf642`, seat file
-`a8450306bb192c5b5719209d458974657219b078` on `review/c002-refactor-round-99-claude-seat`;
-`do_spl_review_line_check` rc 0 confirmed `74782011`; holder GO `6615a1f0`/`92d045b2`).
-No row, site, batch, test hunk, or vendor changed between signed v0.2 and v1.0.
+**Status: closed.** Both rows landed on `origin/master` with cross-vendor agy R7 PASS
+(`r99-01` `05129cff9` SPL-6492, `r99-02` `83a6b0d7d` SPL-6493; section 8). Editor:
+**a-482** (agy). Plan v1.0 (`f8b2d8f1d`) was signed by cross-vendor panel seat **c-396**
+(claude, `PASS` on v0.2 `853b9368f3f58e9b6a175796121c94e4a0674dcd`, msgs
+`a043ca44`/`7d3cf642`, seat file `a8450306bb192c5b5719209d458974657219b078` on
+`review/c002-refactor-round-99-claude-seat`; `do_spl_review_line_check` rc 0 confirmed
+`74782011`; holder GO `6615a1f0`/`92d045b2`). No row, site, batch, test hunk, or vendor
+changed between signed v0.2 and v1.0.
 
 **One sha:** every count is measured on **`f2cb19298`** (`f2cb192985464f4ef0023195235ca49196b8d531`,
 `origin/master` at 2026-11-25T08:23:18Z; zero drift on all 10 row/test files to
@@ -869,12 +871,80 @@ placement).
   `do_spl_review_line_check` rc 0 `74782011`, holder GO `6615a1f0`/`92d045b2`; seat did
   not run `do_sec_shellcheck` or planner-box N2/N3 re-checks). No row, site, batch, test
   hunk, or vendor changed from v0.2.
+- **Closed** (a-482, close record, no version bump): both rows landed and verified on
+  `origin/master` `be15957aa` (`2026-11-25T12:44Z`, n=1 each; zero drift on all 9 row
+  files between each row's land and `be15957aa`):
+  - r99-01 `05129cff9` (`05129cff999b8f8de75082f6a4a35434621f83ed`, SPL-6492, author
+    `c-540` claude, committed `2026-11-25T14:06:32+02:00`): R7 `a-565` agy **PASS** on
+    `70ffbbb69` (`70ffbbb69ca229900243b376f2f1a93c8a25d8e7`, msg `6dace887`;
+    `do_spl_review_line_check` rc 0, `OK 10 of 10`); `git patch-id --stable`
+    `ec1b6c86672fe3ced7e85b10ea36cedd85b12960` equal on both, `git diff 70ffbbb69
+    05129cff9 -- <4 files>` empty (C7). CI on `05129cff9`: push workflows 15
+    (`45610957963`), 25 (`45610958076`), 26 (`45610958104`), 64 (`45610957598`), 67
+    (`45610958391`) **success**; 4 skipped workflow 12 runs (`45611023474`,
+    `45611067112`, `45611104737`, `45611401866`); direct gate 10 (`45610957986`)
+    cancelled (superseded by `3646f12ec`). R11 green gate 10: completed run
+    `45612708180` on `3646f12ec95930b2fccbfecdcf78c7a2e3ca0376` **success**
+    (`git merge-base --is-ancestor 05129cff9 3646f12ec` rc 0). Diff (`git show
+    --numstat`, exact 4 files): `orc:src/bash/run/spl-human-link.func.sh` `+10 -2`
+    (sha256 `c7392841cb5e`), `orc:src/bash/run/spl-human-email-add.func.sh` `+3 -2`
+    (sha256 `bc27dae0a4af`), `orc:src/bash/tests/spl-human-link.tst.sh` `+13 -0`
+    (sha256 `8861cb134fce`), `orc:src/bash/tests/spl-human-email-add.tst.sh` `+13 -0`
+    (sha256 `54af08d7ff54`), matching plan 1.3 head1 / section 6 verbatim. R7 note
+    (`a-565`): N1 commit body cites pre-rebase start sha `ee271d80e` for red controls
+    while parent is `fca53c766` (4 files identical, `rc1a`/`rc1b` reproduce on
+    `fca53c766`); non-blocking.
+  - r99-02 `83a6b0d7d` (`83a6b0d7d6f4b27c40c7c3278b2d362cea4125f5`, SPL-6493, author
+    `c-542` claude, committed `2026-11-25T14:03:04+02:00`): R7 `a-562` agy **PASS** on
+    `392592f73` (`392592f73f1e083a0c0ab8bb6d904f62c7ce971b`, msg `efa34025`;
+    `do_spl_review_line_check` rc 0, `OK 11 of 11`); `git patch-id --stable`
+    `e890194c33b1b789e126d4a20c3d3c1ee80eaf69` equal on both, `git diff 392592f73
+    83a6b0d7d -- <5 files>` empty (C7). CI on `83a6b0d7d`: all 6 push workflows
+    **success** — gate 10 (`45610426566`), 15 (`45610426399`), 25 (`45610426692`), 26
+    (`45610426553`), 64 (`45610426349`), 67 (`45610426398`); 5 skipped workflow 12 runs
+    (`45610509089`, `45610544523`, `45610565584`, `45610724922`, `45610828242`); also
+    covered by R11 green gate 10 run `45612708180` on `3646f12ec` (rc 0). Diff (`git
+    show --numstat`, exact 5 files): `orc:src/bash/run/spl-wui-perf-flow-events.func.sh`
+    `+24 -13` (sha256 `4c554e0add30`), `orc:src/bash/run/spl-wui-perf-first-load.func.sh`
+    `+4 -13` (sha256 `7983dab7a90e`),
+    `orc:src/bash/run/spl-wui-perf-first-load-net.func.sh` `+4 -13` (sha256
+    `5e82d6661aaf`), `orc:src/bash/tests/spl-wui-perf-flow-events.tst.sh` `+33 -0`
+    (sha256 `739e49914c92`), `orc:src/bash/tests/spl-wui-perf-first-load.tst.sh` `+45 -0`
+    (sha256 `c19274f92900`), matching plan 1.4 head2 / section 6 verbatim. R7 notes
+    (`a-562`): N1-N4 verification notes only (no blocking items).
+  - **R5, R6, 2.7.5, and post-land verification on `be15957aa`:** `git merge-base
+    --is-ancestor <row> origin/master` rc 0 and box checkout (`be15957aa`) ancestry rc 0
+    for both (both `csi-spl-orc` Bash only, no hub or WUI deploy required). R6 (`git log
+    origin/master --since="2026-11-25T09:01:01+02:00" --grep='(r99-' --format='%H %cI
+    %s'`) returns both rows (`05129cff9`, `83a6b0d7d`) and the 3 plan commits
+    (`f8b2d8f1d`, `fb998f15f`, `5e14aeaf1`). Review count (2.7.5): 2 of 2 (`review:
+    a-565 agy PASS`, `review: a-562 agy PASS`), both cross-vendor to their claude
+    authors; no claude waiver seat was needed. Post-land `git grep` on `be15957aa`
+    (`csi-spl-orc/src/bash/run/`): human-operator `ORDERED_BY` + strict 3-digit
+    `AGENT_ID` guard copies 2 -> 1 (`_spl_human_require_order` at
+    `spl-human-link.func.sh:77`, sole `ORDERED_BY` FATAL at `:79` and strict 3-digit
+    `AGENT_ID` FATAL at `:80`; called at `spl-human-link.func.sh:92` and
+    `spl-human-email-add.func.sh:105` behind `declare -F _spl_human_require_order` at
+    `:104`; `spl-calendar-event-add.func.sh:198` stays separate as noted in 1.3); WUI
+    perf timing setup copies 3 -> 1 (`spl_pf_env` at
+    `spl-wui-perf-flow-events.func.sh:72`, sole `FATAL no password for ` at `:81` and
+    `FATAL no Chrome at ` at `:85` across `spl-wui-perf-*.func.sh`; called at
+    `spl-wui-perf-flow-events.func.sh:36`, `spl-wui-perf-first-load.func.sh:40` behind
+    `declare -F spl_pf_env` at `:36`, and `spl-wui-perf-first-load-net.func.sh:41` behind
+    `declare -F spl_pf_env` at `:37`).
+  - **Round close & teardown:** holder `c-002` confirmed both rows ACCEPTED (msg
+    `8aa0b57c`). Teardown list: `c-540` (r99-01 author), `c-542` (r99-02 author),
+    `a-565` (r99-01 R7), `a-562` (r99-02 R7), `c-396` (panel seat), `a-482` (editor);
+    `lane-map.sh` at `12:44Z` shows all 5 non-editor seats already gone. Remote branches
+    remaining on `origin` for R8 prune (`PRUNE_SINCE=2026-11-25T09:01:01+02:00`):
+    `review/r99-01` (`70ffbbb69`), `review/r99-02` (`392592f73`), and
+    `review/c002-refactor-round-99-claude-seat` (`a8450306b`).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-482 (agy): v1.0 (signed; ready for row placement).
+- Editor seat: a-482 (agy): v0.1, v0.2, v1.0, close record.
 - Panel reviewer seat: c-396 (claude, `c002-refactor-round-99-claude-panel-seat`, seat
   `a8450306bb192c5b5719209d458974657219b078` on `review/c002-refactor-round-99-claude-seat`):
   FAIL on v0.1 (`e6845b257`, W1-W2); **PASS** on v0.2
@@ -882,5 +952,5 @@ The panel seat signs this plan (rulebook 3.2).
   prefixes, all 7 controls, all 6 mutations, 8 shared gates, `shellcheck`, and
   `do_check_dist_hygiene` reproduced; `do_spl_review_line_check` rc 0 confirmed
   `74782011`; `do_sec_shellcheck` and planner-box N2/N3 not run by seat).
-- Row R7 seats: section 4; **agy seat** per row (claude waiver backup only while agy is
-  out of quota, under ruling `dc84300a`; never mistral; re-checked at placement).
+- Row R7 seats: section 4; both agy: a-565 (r99-01), a-562 (r99-02) (section 8, round
+  closed).

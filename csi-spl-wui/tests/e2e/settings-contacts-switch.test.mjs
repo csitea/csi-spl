@@ -11,10 +11,14 @@
 //       on and says the first import started
 //   CS4 a reload keeps it on (the GET), Sync now moves the last sync
 //   CS5 off says so and stays off after a reload
-//   CS6 the binding in another workspace: the line, the switch disabled
+//   CS6 the binding on in another workspace (SPL-6454): the switch on and
+//       disabled, "Synced through <workspace>", no red line; "Sync from here
+//       instead" asks first (Cancel keeps it), then moves it here: the
+//       switch on and enabled, "Synced here."
 //   CS7 on with no grant read back: the "not given access" line and the button
 //   CS8 'off' (the hub's 404): no switch
-//   P   phone 390: no sideways scroll, every button >= 44 px
+//   P   phone 390: no sideways scroll, every button >= 44 px; elsewhere and
+//       its confirm too
 // Red control: on master before B18 there is no switch: CS1 fails.
 //
 //   BASE_URL=<generated mock bundle> OUT=<dir> node tests/e2e/settings-contacts-switch.test.mjs
@@ -138,12 +142,29 @@ try {
   ok('CS5-2 off after a reload', await cview('off') && (await checked())?.on === false)
 
   /* CS6 */
-  await seed(CONNECTED, ME_ON, JSON.stringify({ elsewhere: true }))
+  await seed(CONNECTED, ME_ON, JSON.stringify({ state: 'elsewhere', elsewhere: true, workspace: 'Workspace One', scope_granted: true }))
   await load(DESKTOP, SETTINGS)
-  ok('CS6-1 elsewhere: the line, the switch off and disabled', await cview('elsewhere')
-    && (await text('gcal-contacts-elsewhere')) === 'Contacts sync is on in another of your workspaces. Turn it off there first.'
-    && (await checked())?.disabled === true && (await checked())?.on === false, await checked())
+  ok('CS6-1 elsewhere: on and disabled, "Synced through Workspace One", no red line', await cview('elsewhere')
+    && (await text('gcal-contacts-elsewhere')) === 'Synced through Workspace One.'
+    && (await checked())?.disabled === true && (await checked())?.on === true
+    && !(await p.$('[data-testid=ui-dialog] [data-test=gcal-contacts] .gcal__warn')), await checked())
   await shot('1440-elsewhere')
+  await p.click('[data-testid=ui-dialog] [data-test=gcal-contacts-move]')
+  const moveBody = () => p.waitForSelector('[data-test=gcal-contacts-move-body]', { visible: true, timeout: 5000 }).then(() => true).catch(() => false)
+  ok('CS6-2 Sync from here instead asks first, naming the workspace', await moveBody()
+    && (await p.$eval('[data-test=gcal-contacts-move-body]', (e) => e.textContent).catch(() => '')).includes('Workspace One'))
+  await shot('1440-move-confirm')
+  await p.click('[data-test=gcal-contacts-move-cancel]')
+  await p.waitForSelector('[data-test=gcal-contacts-move-body]', { hidden: true, timeout: 5000 }).catch(() => null)
+  ok('CS6-3 Cancel keeps it elsewhere', await cview('elsewhere') && !(await p.$('[data-test=gcal-contacts-move-body]')))
+  await p.click('[data-testid=ui-dialog] [data-test=gcal-contacts-move]')
+  await moveBody()
+  await p.click('[data-test=gcal-contacts-move-confirm]')
+  await p.waitForSelector('[data-testid=ui-dialog] [data-test=gcal-contacts-result]', { visible: true, timeout: 5000 }).catch(() => null)
+  ok('CS6-4 the move: on here, enabled, "Synced here."', await cview('on')
+    && (await checked())?.on === true && (await checked())?.disabled === false
+    && (await text('gcal-contacts-result')) === 'Synced here.', { said: await text('gcal-contacts-result'), sw: await checked() })
+  await shot('1440-moved')
 
   /* CS7 */
   await seed(CONNECTED, ME_ON, JSON.stringify({ enabled: true, scope_granted: false }))
@@ -169,6 +190,19 @@ try {
   }))
   ok('P2 390: no sideways scroll, every button and the switch row >= 44 px', phone.over <= 0 && phone.short.length === 0, phone)
   await shot('390-on')
+  await seed(CONNECTED, ME_ON, JSON.stringify({ state: 'elsewhere', elsewhere: true, workspace: 'Workspace One', scope_granted: true }))
+  await load(PHONE, SETTINGS)
+  const phoneMove = await cview('elsewhere') && await p.evaluate(() => {
+    const b = document.querySelector('[data-testid=ui-dialog] [data-test=gcal-contacts-move]')?.getBoundingClientRect()
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, h: b ? b.height : 0 }
+  })
+  ok('P3 390 elsewhere: no sideways scroll, Sync from here instead >= 44 px', !!phoneMove && phoneMove.over <= 0 && phoneMove.h >= 44, phoneMove)
+  await p.click('[data-testid=ui-dialog] [data-test=gcal-contacts-move]')
+  await p.waitForSelector('[data-test=gcal-contacts-move-body]', { visible: true, timeout: 5000 }).catch(() => null)
+  const phoneConfirm = await p.evaluate(() => [...document.querySelectorAll('[data-test=gcal-contacts-move-cancel], [data-test=gcal-contacts-move-confirm]')]
+    .map((b) => Math.round(b.getBoundingClientRect().height)))
+  ok('P4 390 the confirm: both buttons >= 44 px', phoneConfirm.length === 2 && phoneConfirm.every((h) => h >= 44), phoneConfirm)
+  await shot('390-move-confirm')
 
   const real = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
   ok('no page errors', real.length === 0, real.slice(0, 3))

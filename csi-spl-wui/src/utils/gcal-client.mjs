@@ -10,9 +10,11 @@
  *   DELETE /v1/me/google-calendar?workspace=&remove_imported=0|1   204
  *
  * Spec 154 B18 (SPL-6278), the Contacts switch in the same section:
- *   GET  /v1/me/contacts/sync?workspace=  {enabled, elsewhere, scope_granted, status_detail, last_synced_at}
+ *   GET  /v1/me/contacts/sync?workspace=  {state, enabled, elsewhere, workspace, scope_granted, status_detail, last_synced_at}
  *   PUT  /v1/me/contacts/sync?workspace=  {enabled}: 204; 409 contacts_sync_elsewhere
  *   POST /v1/me/contacts/sync?workspace=  "Sync now", 202; 409 sync_in_progress
+ *   POST /v1/me/contacts/sync/move?workspace=  "Sync from here instead" (SPL-6454):
+ *        200 the new state; 409 sync_in_progress, gcal_not_connected
  * and connect with ?want=calendar,contacts when the grant lacks the contacts
  * scope. The mock keeps that state in localStorage (MOCK_CONTACTS_SYNC_KEY):
  * 'off' = a workspace outside contacts.workspaces (the hub's 404), else the
@@ -238,7 +240,7 @@ export async function gcalDisconnect(api, removeImported) {
 
 /* ---- spec 154 B18: the Contacts switch ---- */
 
-const CONTACTS_SYNC_NONE = { enabled: false, elsewhere: false, scope_granted: false, status_detail: '', last_synced_at: null }
+const CONTACTS_SYNC_NONE = { state: 'off', enabled: false, elsewhere: false, workspace: '', scope_granted: false, status_detail: '', last_synced_at: null }
 
 function mockContactsRaw() {
   try {
@@ -268,7 +270,8 @@ function mockContactsKeep(v) {
 /**
  * What the Contacts switch shows (spec 154 2.7, B18): 'hidden' (the
  * workspace is outside contacts.workspaces, 404, or no answer yet),
- * 'failed', 'elsewhere' (the person's binding is in another workspace),
+ * 'failed', 'elsewhere' (the person's binding is on in another workspace:
+ * shown on, "Synced through <workspace>", SPL-6454),
  * 'off', 'grant' (on, but the Google grant lacks the contacts scope: the
  * sync waits until it is given) or 'on'.
  * @param {any} state the GET body, null on a refusal or before it
@@ -277,7 +280,7 @@ function mockContactsKeep(v) {
 export function contactsSyncView(state, err) {
   if (err) return err.status === 404 || err.status === 403 ? 'hidden' : 'failed'
   if (!state) return 'hidden'
-  if (state.elsewhere) return 'elsewhere'
+  if (state.state === 'elsewhere' || state.elsewhere) return 'elsewhere'
   if (!state.enabled) return 'off'
   return state.scope_granted ? 'on' : 'grant'
 }
@@ -309,4 +312,20 @@ export async function contactsSyncNow(api) {
     return
   }
   await call(api, 'POST', '', { timeoutMs: HUB_WRITE_TIMEOUT_MS, route: CONTACTS_SYNC_ROUTE })
+}
+
+/**
+ * POST move: "Sync from here instead" (spec 154 2.2 step 6, SPL-6454): the
+ * binding on in another workspace moves here in one call; the new state.
+ * A refusal throws { status, error } (409 sync_in_progress, gcal_not_connected).
+ */
+export async function contactsSyncMove(api) {
+  if (api.mock) {
+    const cs = mockContactsSync()
+    const moved = { ...cs, state: 'here', enabled: true, elsewhere: false, workspace: '' }
+    mockContactsKeep(moved)
+    return moved
+  }
+  const out = await call(api, 'POST', '/move', { timeoutMs: HUB_WRITE_TIMEOUT_MS, route: CONTACTS_SYNC_ROUTE })
+  return { ...CONTACTS_SYNC_NONE, ...(out || {}) }
 }

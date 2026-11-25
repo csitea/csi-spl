@@ -15,7 +15,7 @@ import { describe, it, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   GCAL_WANT_CONTACTS, MOCK_CONTACTS_SYNC_KEY, MOCK_GCAL_KEY,
-  contactsSyncNow, contactsSyncSet, contactsSyncState, contactsSyncView, gcalConnect,
+  contactsSyncMove, contactsSyncNow, contactsSyncSet, contactsSyncState, contactsSyncView, gcalConnect,
 } from '../../src/utils/gcal-client.mjs'
 
 const HUB = { base: 'http://hub.example.com/', tenant: 't1', credentials: 'include', token: 'tok' }
@@ -58,6 +58,7 @@ describe('contactsSyncView', () => {
   })
   it('elsewhere wins over everything; off; grant; on', () => {
     assert.equal(contactsSyncView({ elsewhere: true, enabled: false, scope_granted: true }, null), 'elsewhere')
+    assert.equal(contactsSyncView({ state: 'elsewhere', workspace: 'Workspace One' }, null), 'elsewhere')
     assert.equal(contactsSyncView({ enabled: false, scope_granted: true }, null), 'off')
     assert.equal(contactsSyncView({ enabled: true, scope_granted: false }, null), 'grant')
     assert.equal(contactsSyncView({ enabled: true, scope_granted: true }, null), 'on')
@@ -71,7 +72,7 @@ describe('the hub routes', () => {
     assert.equal(sent[0].url, 'http://hub.example.com/v1/me/contacts/sync?workspace=t1')
     assert.equal(sent[0].method, 'GET')
     assert.equal(sent[0].headers.authorization, undefined)
-    assert.deepEqual(st, { enabled: true, elsewhere: false, scope_granted: false, status_detail: '', last_synced_at: null })
+    assert.deepEqual(st, { state: 'off', enabled: true, elsewhere: false, workspace: '', scope_granted: false, status_detail: '', last_synced_at: null })
   })
   it('PUT sends {enabled}; a 409 throws contacts_sync_elsewhere', async () => {
     hubAnswers(204, null)
@@ -90,6 +91,17 @@ describe('the hub routes', () => {
     assert.equal(sent[0].url, 'http://hub.example.com/v1/me/contacts/sync?workspace=t1')
     hubAnswers(409, { error: 'sync_in_progress' })
     await assert.rejects(contactsSyncNow(HUB), (e) => e.error === 'sync_in_progress')
+  })
+  it('POST /sync/move is Sync from here instead (SPL-6454): the new state; 409 sync_in_progress throws its code', async () => {
+    hubAnswers(200, { state: 'here', enabled: true, scope_granted: true })
+    const st = await contactsSyncMove(HUB)
+    assert.equal(sent[0].method, 'POST')
+    assert.equal(sent[0].url, 'http://hub.example.com/v1/me/contacts/sync/move?workspace=t1')
+    assert.equal(sent[0].headers.authorization, undefined)
+    assert.equal(st.state, 'here')
+    assert.equal(contactsSyncView(st, null), 'on')
+    hubAnswers(409, { error: 'sync_in_progress' })
+    await assert.rejects(contactsSyncMove(HUB), (e) => e.status === 409 && e.error === 'sync_in_progress')
   })
   it('the calendar routes keep their bearer', async () => {
     hubAnswers(200, { authorize_url: 'https://accounts.example.com/o' })
@@ -132,5 +144,11 @@ describe('mock', () => {
   it('elsewhere refuses a switch-on with 409 contacts_sync_elsewhere', async () => {
     kept.set(MOCK_CONTACTS_SYNC_KEY, JSON.stringify({ elsewhere: true }))
     await assert.rejects(contactsSyncSet(MOCK, true), (e) => e.status === 409 && e.error === 'contacts_sync_elsewhere')
+  })
+  it('the move takes it here: on, not elsewhere, kept', async () => {
+    kept.set(MOCK_CONTACTS_SYNC_KEY, JSON.stringify({ state: 'elsewhere', elsewhere: true, workspace: 'Workspace One', scope_granted: true }))
+    const st = await contactsSyncMove(MOCK)
+    assert.equal(contactsSyncView(st, null), 'on')
+    assert.equal(contactsSyncView(await contactsSyncState(MOCK), null), 'on')
   })
 })

@@ -1,6 +1,6 @@
 # Spec 193: the three most essential skills per agent kind
 
-Status: **v1.1** (2026-11-25; editor c-774, claude). Panel: **same-vendor panel, waiver**: two claude seats, c-343 and c-202 (agy is out of quota until 12-01, grok and mistral are off). Both FAILed v0.1 (`99cc31e3c`) and v1.0 (`32c584732`); Appendix C maps each item to its change. Doc only: no skill, code, cnf or workflow changes here. The build is a later lane, after the owner picks (section 6).
+Status: **v1.2** (2026-11-25; editor c-774, claude). Panel: **same-vendor panel, waiver**: two claude seats, c-343 and c-202 (agy is out of quota until 12-01, grok and mistral are off). Both FAILed v0.1 (`99cc31e3c`) and v1.0 (`32c584732`) and PASSed v1.1 (`585691f6e`, landed as `89ac9e740`); v1.2 folds their two v1.1 notes. Appendix C maps each item to its change. Doc only: no skill, code, cnf or workflow changes here. The build is a later lane, after the owner picks (section 6).
 Epic: **SPL-2402**. Issue: **SPL-6375** (label `answer`). Class: `feature`. Kind: `specs_and_docs`.
 Discussion: t1 topic `b1ec7ce2`, task `dispatch-b1ec7ce2`.
 Related: [115 vendor split by task kind](../115-vendor-split-by-task-kind/spec.md), [lane issue and docs](../../doc/md/lane-issue-and-docs.md), [developer guide](../../doc/md/developer-guide.md) section 2.
@@ -43,7 +43,7 @@ The skills must work for the main vendor and the backup. For simple_coding that 
 
 All counts are for **this box's** spawns. The spawn log on the other machine was not read, so "n" here is a lower bound on the fleet's.
 
-- **Lanes**: `SPAWNED` rows of `/var/spool-hub/spawn-remote/serve.log` before the window end (the first is 2026-10-03T03:06Z): n = **3293** (agent id, vendor, slug, brief id). The kind is the brief's `Kind:` line: the 7 kinds of section 1 hold 2615 lanes, 622 have no `Kind:` line, and 56 carry another value (`review` 37, `stability` 8, `clean` 3, `fleet` 3, `reviews` 3, `spec` 2). The issue is the brief's `Issue:` line (1000 lanes). For another 1727 lanes it is the hub issue whose title equals the brief's first line, because the spawn files the issue from the brief's title (65 of those titles were ambiguous: the lowest number was taken). That gives **2727 of 3293** lanes with an issue. **The kind of an issue** is the kind of the first lane (in log order) that carries it; an issue that lanes of two kinds worked counts under the first one only.
+- **Lanes**: `SPAWNED` rows of `/var/spool-hub/spawn-remote/serve.log` before the window end (the first is 2026-10-03T03:06Z): n = **3293** (agent id, vendor, slug, brief id). The kind is the brief's `Kind:` line: the 7 kinds of section 1 hold 2615 lanes, 618 have no `Kind:` line, and 60 carry another value (`review` 37, `stability` 8, `clean` 3, `fleet` 3, `reviews` 3, `spec` 3, `wui` 3). The issue is the brief's `Issue:` line (1000 lanes). For another 1727 lanes it is the hub issue whose title equals the brief's first line, because the spawn files the issue from the brief's title (65 of those titles were ambiguous: the lowest number was taken). That gives **2727 of 3293** lanes with an issue. **The kind of an issue** is the kind of the first lane (in log order) that carries it; an issue that lanes of two kinds worked counts under the first one only.
 - **Landed work**: `git log origin/master --since=2026-09-24` -> **10532** commits. A commit belongs to an issue when its subject or a `Closes:` trailer names the key. **3133** distinct commits cite an issue that some lane carries. Counted per kind they make 3150 (commit, kind) pairs: 2968 in the 7 kinds, 158 for no-`Kind:` lanes, 24 for `review` and other values; 17 commits cite issues of two kinds and count under both.
 - **Deploys**: the first release tag (`v<X.Y.Z>` or `v<X.Y.Z>-c<N>`, `git for-each-ref refs/tags/v*`) at or after the commit on the linear trunk. A push to master deploys dev and prd (developer guide 1.2) and each deploy mints its commit's version as a tag; that one tag time stands for both environments is **inferred** from this, not stated in the guide. Docs-only commits are left out (they do not deploy).
 - **Owner ask**: the owner's (HUM-10) **last** t1 message in the issue's source topic (`## Source /t/<uuid>` in the description) before the issue was created. This is a **lower bound**: in a long topic the actual ask may be older.
@@ -66,8 +66,8 @@ The commands are in Appendix A. The join of these sources is [`join.py`](join.py
 | secret | 205 (claude 184, grok 15, mistral 5, agy 1) | 159 | 128 | 85 / 17 / 8 |
 | i18n | 116 (agy 99, claude 12, grok 5) | 64 | 66 | 8 / 8 / 1 |
 | orchestration | 0 lanes (the role seats do it) | - | - | - |
-| (no `Kind:` line; 620 in October, 2 in November) | 622 | 116 | 158 | - |
-| (`Kind:` review 37, or another value 19) | 56 | 13 | 24 | - |
+| (no `Kind:` line; 616 in October, 2 in November) | 618 | 116 | 158 | - |
+| (`Kind:` review 37, or another value 23) | 60 | 13 | 24 | - |
 | **sum** | **3293** | | **3150 pairs = 3133 commits + 17 counted twice** | |
 
 Spawns, issues and commits come from `join.py`. The last column was counted in v0.1's scratch join and is not in `join.py`. "Author issues" excludes the review, panel and seat lanes (slug matches `review|reviewer|r7|seat|panel|verif|audit`), because a seat's issue is closed `diss` by design. Two numbers need care:
@@ -299,7 +299,7 @@ No lane in the window carried `Kind: orchestration`: the role seats (dispatch an
 **O3 `brief-header-complete`**
 - Trigger: before a brief is enqueued.
 - Does: refuses a brief whose header lacks any of `Issue:` (or "spawn files it"), `Epic:`, `Spec:`, `Kind:` (one of the 7 cnf kinds) and `Topic:`, each in its machine-readable form.
-- Evidence: 622 of 3293 briefs (all in October) have no `Kind:` line. Only 1000 carry an `Issue:` line, so 1727 lanes in this spec could be tied to their issue only by title, 65 of them ambiguously. A lane without these lines is invisible to every per-kind measurement, including this one.
+- Evidence: 618 of 3293 briefs (616 in October, 2 in November) have no `Kind:` line. Only 1000 carry an `Issue:` line, so 1727 lanes in this spec could be tied to their issue only by title, 65 of them ambiguously. A lane without these lines is invisible to every per-kind measurement, including this one.
 - Gain: briefs with both `Kind:` and `Issue:` lines, 990 of 3293 (30 %; `join.py` `lanes_with_kind_and_issue_line`) -> 95 % or more.
 
 ## 5. Cross-kind overlap: 21 slots, 18 skills
@@ -338,7 +338,7 @@ Each question puts the recommended option first, says why in one line, and names
 
 - This box's spawn log only. The other machine's lanes and reviews that never reached the hub are missing, so every n is a lower bound.
 - **The spawn log starts 2026-10-03T03:05Z** (no rotated copy), so lanes cover 52 days while commits, issues and messages cover 61. A commit from 2026-09-24 .. 2026-10-03 maps to a kind only when it cites an issue that a later lane carries.
-- 622 lanes (19 %) have no `Kind:` line and 56 carry another value: they are outside every per-kind number.
+- 618 lanes (19 %) have no `Kind:` line and 60 carry another value: they are outside every per-kind number.
 - The owner-ask time is the last owner message in the source topic before the issue (a lower bound on the wait).
 - The issue for 1727 lanes comes from a title match; 65 were ambiguous (the lowest number was taken).
 - The kind of an issue is its first lane's kind. The 3.3 sample was split by a different map (the lane with the `Issue:` line); 13 of the 45 findings differ (3.3, Appendix B).
@@ -359,7 +359,7 @@ Raw files go in one directory (`<raw>`); `join.py` joins them. Window end `E=202
 5. `<raw>/issues.txt`: `cd csi-spl-orc && ENV=prd SQL="select number||'|'||created_at||'|'||status||'|'||coalesce(completed_at::text,'')||'|'||coalesce(substring(description from '/t/([0-9a-f-]{36})'),'')||'|'||array_to_string(labels,',') as r from issues where tenant_id='t1' and created_at>='2026-09-24' and created_at<'$E' and deleted_at is null" ./run -a do_spl_db_query` -> 6354 rows
 6. `<raw>/titles.txt`: `SQL="select number||'|'||regexp_replace(left(title,200),'[|\s]+',' ','g') as r from issues where tenant_id='t1' and created_at>='2026-09-20' and created_at<'$E' and deleted_at is null"` -> 6354 rows
 7. `<raw>/owner_msgs.txt`: `SQL="select task_id||'|'||ts as r from messages where tenant_id='t1' and from_id='HUM-10' and ts>='2026-09-01' and ts<'$E'"` -> 1371 rows
-8. `<raw>/fails.txt`: `SQL="select msg_id||'|'||ts||'|'||from_id||'|'||kind||'|'||coalesce(array_to_string(array(select distinct m[1] from regexp_matches(body,'SPL-([0-9]+)','g') m),','),'')||'|'||(left(body,300) ~ 'SEND-BACK')::text||'|'||left(regexp_replace(body,'\s+',' ','g'),2000) as r from messages where tenant_id='t1' and ts>='2026-09-24' and ts<'$E' and mirror_of is null and (left(body,300) ~ 'SEND-BACK' or left(body,400) ~ '\m(R7|review|reviewer|verdict)\M.{0,80}\mFAIL\M') order by ts, msg_id"` -> 1091 rows. The v1.0 dump ran without the `order by`, so its rows came in no fixed order (332 out of `(ts, msg_id)` order); [`fails-order.txt`](fails-order.txt) keeps that dump's row order (the 1091 msg ids, nothing else) and `join.py` sorts by it, so a re-dump in any order gives the same seed-11 draw and the same first-message dedup. Checked: a shuffled `fails.txt` -> identical `join.py` output.
+8. `<raw>/fails.txt`: `SQL="select msg_id||'|'||ts||'|'||from_id||'|'||kind||'|'||coalesce(array_to_string(array(select distinct m[1] from regexp_matches(body,'SPL-([0-9]+)','g') m),','),'')||'|'||(left(body,300) ~ 'SEND-BACK')::text||'|'||left(regexp_replace(body,'\s+',' ','g'),2000) as r from messages where tenant_id='t1' and ts>='2026-09-24' and ts<'$E' and mirror_of is null and (left(body,300) ~ 'SEND-BACK' or left(body,400) ~ '\m(R7|review|reviewer|verdict)\M.{0,80}\mFAIL\M') order by ts, msg_id"` -> 1091 rows. The v1.0 dump ran without the `order by`, so its rows came in no fixed order (332 out of `(ts, msg_id)` order); [`fails-order.txt`](fails-order.txt) keeps that dump's row order and each row's SPL keys in their dumped order (the 1091 msg ids and their issue numbers, nothing else); `join.py` uses both, so a re-dump in any order gives the same seed-11 draw, the same first-message dedup and the same first lane-carried key (v1.2). Checked: rows and keys within rows shuffled -> identical `join.py` output.
 9. Join: `SPAWN_DIR=/var/spool-hub/spawn-remote python3 -I csi-spl-doc/specs/193-skills-per-agent-kind/join.py <raw> 2026-11-24T11:25:00Z` (needs read access to the spawn dir) -> JSON with every number of 3.1 (spawns, issues, commits), 3.2 (FAIL columns), 3.3 (pool sizes, the seed-11 draw, the labels of `labels.tsv`) and 3.4.
 10. Queue: `SQL="select work_kind, count(*), percentile_cont(0.5) within group (order by extract(epoch from updated_at-created_at)/3600) from fleet_asks where tenant_id='t1' and created_at>='2026-09-24' and state='done' group by 1"`
 11. CI: `gh run list --workflow 10_ci-quality.yml --branch master --limit 1000 --created '>=2026-09-24' --json headSha,createdAt,conclusion` -> 1000 runs (oldest 2026-11-15T19:10Z); `cd csi-spl-iac && CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate`
@@ -491,4 +491,13 @@ Seat 1 is c-343 (msg e4eba434), seat 2 is c-202 (msg a7e5816f); both FAILed `32c
 | 1-N5 | `join.py` comment: the simple_coding and i18n draws stay because they advance the RNG. | |
 | 1-N6, 2-N3 | Appendix B heading and section 3.3 say 72 rows for 71 messages. | |
 
-<!-- last-edit: 2026-11-25T02:55:00Z -->
+### C.3 v1.1 (`585691f6e`) notes and where v1.2 answers them
+
+Both seats PASSed v1.1 (c-343 msg 452d9df0, c-202 msg 38adb88d); the holder's GO put these two notes in a follow-up commit.
+
+| item | change in v1.2 | check -> result |
+|---|---|---|
+| 2-N1, key order in a row | `fails-order.txt` now also holds each message's SPL keys in the v1.0 dump's order (`<msg id> <keys>`, `-` for none); `fail_rows` uses that order, and number order for a message it lacks. | 72 of the 159 rows with 2+ keys are in text order, so the dump's key order is not reproducible from SQL; rows and keys within rows shuffled -> `join.py` output identical |
+| 1-N1, `Kind:` pattern | `join.py` uses the spawn's pattern, `Kind:[*_ ]*([A-Za-z0-9_]+)`, lowercased. 4 October lanes with no issue move from no `Kind:` to `wui` (3) and `spec` (1): section 2, 3.1, O3 and section 7 read 618 and 60. Section 2's 2615 and every issue, commit and 3.2 number are unchanged. | v1.1 vs v1.2 `join.py` output diff -> only `lanes_by_kind` |
+
+<!-- last-edit: 2026-11-25T03:10:00Z -->

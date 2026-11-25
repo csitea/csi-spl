@@ -63,10 +63,11 @@ def lanes_from_log(spawn_dir, end):
             ).read()
         except OSError:
             t = ""
-        # first "Kind:" anywhere, as the spawn routes it (spawn-window.sh, spl-lane-mix.func.sh)
-        km = re.search(r"Kind:\s*([a-z0-9_]+)", t)
+        # the first "Kind:" anywhere, with the spawn's own pattern and lowercase
+        # (spawn-window.sh, spl-lane-mix.func.sh: grep -m1 -oE 'Kind:[*_ ]*[A-Za-z0-9_]+')
+        km = re.search(r"Kind:[*_ ]*([A-Za-z0-9_]+)", t)
         if km:
-            k = km.group(1)
+            k = km.group(1).lower()
             r["kind"] = (
                 k
                 if k in KINDS
@@ -165,11 +166,16 @@ def hours(a, b):
 
 
 def fail_rows(raw):
-    """FAIL rows in the v1.0 dump's order (fails-order.txt), so the seed-11 draw and the
-    first-message dedup do not depend on the order a re-dump returns; rows it lacks go last."""
+    """FAIL rows in the v1.0 dump's row order, each with its SPL keys in that dump's order
+    (fails-order.txt: msg id, keys), so the seed-11 draw, the first-message dedup and the
+    first lane-carried key do not depend on the order a re-dump returns. Rows it lacks go
+    last; their keys are taken in number order."""
     here = os.path.dirname(os.path.abspath(__file__))
+    order, keys = {}, {}
     with open(os.path.join(here, "fails-order.txt")) as fh:
-        order = {m: i for i, m in enumerate(fh.read().split())}
+        for i, line in enumerate(fh):
+            mid, ks = line.split()
+            order[mid], keys[mid] = i, [k for k in ks.split(",") if k != "-"]
     fs = [
         f
         for f in rows(os.path.join(raw, "fails.txt"), 7)
@@ -177,7 +183,8 @@ def fail_rows(raw):
     ]
     fs.sort(key=lambda f: (order.get(f[0], len(order)), f[1], f[0]))
     for f in fs:
-        yield dict(mid=f[0], keys=["SPL-" + k for k in f[4].split(",") if k], body=f[6])
+        ks = keys.get(f[0]) or sorted((k for k in f[4].split(",") if k), key=int)
+        yield dict(mid=f[0], keys=["SPL-" + k for k in ks], body=f[6])
 
 
 def review_fails(raw, kmap):

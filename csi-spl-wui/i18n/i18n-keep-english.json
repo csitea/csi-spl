@@ -54,6 +54,9 @@
     "reporting.costs.label.tokens": "the Tokens label (SPL-5312): LLM term kept as English 'Tokens' in el, es, nl, as monitoring.tab.tokens (agy language review SPL-2322, a-351, msg 66006252)",
     "reporting.costs.label.total": "the Total label (SPL-5312): es and ro write 'Total' the same as English, as reporting.incomes.col.total (agy language review SPL-5312)",
     "reporting.releases.project_label": "nl spells the word Project like en (B-7 draft, SPL-5853; agy B-8 reviews it)",
-    "reporting.releases.repo_label": "nl and sv use the English loanword Repository (agy a-547, msg ec897a01, SPL-5853)"
+    "reporting.releases.repo_label": "nl and sv use the English loanword Repository (agy a-547, msg ec897a01, SPL-5853)",
+    "reporting.taxes.col.kind": "nl and ro spell Document like en, the correct word in both (spec 143 Taxes page, SPL-6438; gct review 20261125T122130Z-51559ecb)",
+    "reporting.taxes.col.type": "nl spells Type like en, the correct word (spec 143 Taxes page, SPL-6438; gct review 20261125T122130Z-51559ecb)",
+    "reporting.taxes.col.period": "sv spells Period like en, the correct word (spec 143 Taxes page, SPL-6438; gct review 20261125T122130Z-51559ecb)"
   }
 }

@@ -516,43 +516,81 @@ One new hub function, `gcalDeleteSynced` (new file `hub/gcal_delete.go`),
 called from `handleDeleteCalendarEvent` at :1167 in place of the 409 when
 `source_key` starts with `gcal:`.
 
-Kind (b), another calendar: **Google first, then spool-hub.**
+**Whole series, always (W1).** A repeating entry is listed under occurrence
+ids `<series id>_<YYYYMMDDTHHMMSSZ>` (`store/calendar_series.go:99`). The
+store treats a DELETE with no `?scope=` on such an id as "this occurrence"
+(`planCalendarDelete`, :249-251, `scope == ""` -> `planCalendarCancel`), and
+`TrashCalendarEvent` passes `scope ""` (`store/calendar_postgres.go:295-296`).
+So `gcalDeleteSynced` never calls `TrashCalendarEvent` for a `gcal:` entry.
+It trashes with `TrashCalendarScope(..., store.CalendarScopeAll, ...)` for an
+omitted `?scope=` and for `?scope=all`, on a series id and on an occurrence
+id alike. `this` and `following` answer 400 `gcal_series_whole_only` (Q16 A).
+Otherwise Google would lose the whole series while spool-hub kept the other
+occurrences, and for kind (a) the series row would stay live, so the out half
+would never delete it at Google (`hub/gcal_sync.go:501`, :504-525).
 
-1. Checks, with no Google call:
+Step 1 runs for both kinds. Steps 2-6 are kind (b) only.
+
+1. **Checks, with no Google call and no write.**
+   - Scope: `this` or `following`: 400 `gcal_series_whole_only`.
+   - `If-Match` (`want`, `hub/calendar.go:1163`) against the event read: a
+     stale one is 409 with the current event, as today
+     (`writeCalendarConflict`). It is checked here, before Google, so
+     that Google never deletes an entry whose spool-hub trash then fails on
+     the precondition (W4).
+   - The hub has no Google client (`s.o.Gcal` nil or `!configured()`), or
+     the workspace is off (`!s.o.Gcal.listed(tenant)`, 2.9): 503
+     `gcal_not_configured` (the existing token). Nothing is trashed: no
+     cycle would carry the delete to Google.
    - No connection, or the key's connection is not the member's current
      one (an import left over from an earlier connection, kept by a
      disconnect with `remove_imported=0`): trash it in spool-hub only and
      answer 200 with `"google": "not_connected"`. No connection lists that
      key family any more, so nothing can bring it back.
    - Status `revoked`: 409 `gcal_revoked` (the existing token).
-   - cnf `gcal.scopes` holds no write scope (2.11.5): 409
+   - Kind (a), and the grant holds no calendar scope (a contacts-only
+     grant, `!gcalCalendarGranted`, `hub/gcal_sync.go:237`; its cycle syncs
+     no calendar, :201): 409 `gcal_reconnect_to_delete`.
+   - Kind (b), cnf `gcal.scopes` holds no write scope (2.11.5): 409
      `gcal_delete_not_enabled`.
-   - The member's `GrantedScopes` holds no write scope, or is `""`: 409
-     `gcal_reconnect_to_delete`. A `""` row predates every write scope, so
-     it cannot hold one.
+   - Kind (b), the member's `GrantedScopes` holds no write scope, or is `""`:
+     409 `gcal_reconnect_to_delete`. A `""` row predates every write scope,
+     so it cannot hold one.
 2. Take the member's sync lease with `ClaimGcalMember` (as Sync now does,
    `hub/gcal_sync.go:155`), so the delete and a cycle never run at once and
    every token write keeps its fencing (2.5). If a cycle holds the lease:
    409 `sync_in_progress` ("a sync is running; try again in a minute"). A
-   cycle takes seconds, so no wait or retry inside the request.
-3. Get a token with the cycle's own `token` and `call` (:363, :400): a 401
-   refreshes once, and `invalid_grant` sets `revoked` as the cycle does.
+   cycle takes seconds, so no wait or retry inside the request. **From here
+   on, every exit releases the lease** (a `defer`, step 6): a refusal must
+   never hold the 5-minute lease (`gcalLease`, :47).
+3. Get a token with the cycle's own `token` and `call` (:363, :400). A 401
+   refreshes once. Neither of them marks the connection revoked; only `run`
+   does (:210-216). So `gcalDeleteSynced` handles `gcal.ErrInvalidGrant`
+   itself, the same way: `SetGcalStatus(..., store.GcalRevoked, ...)`, then
+   409 `gcal_revoked`.
 4. Find the calendar id (2.11.2). None matches: trash in spool-hub only,
    answer 200 `"google": "calendar_not_read"`. The calendar is no longer
    read, so it cannot bring the entry back.
 5. `events.delete` on that calendar and the Google id, with `sendUpdates`
-   per Q17. Then:
+   set by Q17: A -> `sendUpdates=all`, B -> `sendUpdates=none`. Then:
 
 | Google answers | spool-hub does | member sees |
 |---|---|---|
-| 2xx | trash the import (`TrashCalendarEvent`, `deleted_by` = member) | the entry goes; 200 `"google": "deleted"` |
+| 2xx | `TrashCalendarScope(..., CalendarScopeAll, ...)`, `deleted_by` = member | the entry goes; 200 `"google": "deleted"` |
 | 404 or 410 (already gone; `isGone`) | the same | the same, 200 `"google": "gone"` |
-| 403 (a calendar the member only reads: `reader`, `freeBusyReader`, a subscribed holiday calendar; unchecked, I believe, that Google answers 403 there) | nothing | 409 `gcal_calendar_read_only`: "This calendar is read-only for you in Google. Hide it in Google Calendar to stop seeing it here." |
-| 401 after the one refresh, or `invalid_grant` | nothing; `invalid_grant` sets `revoked` | 409 `gcal_revoked`: reconnect |
+| 403 (`gcal.ErrForbidden`, row D0: a calendar the member only reads: `reader`, `freeBusyReader`, a subscribed holiday calendar; unchecked, I believe, that Google answers 403 there) | nothing | 409 `gcal_calendar_read_only`: "This calendar is read-only for you in Google. Hide it in Google Calendar to stop seeing it here." |
+| 401 after the one refresh, or `invalid_grant` | nothing; `invalid_grant` sets `revoked` (step 3) | 409 `gcal_revoked`: reconnect |
 | 429, 5xx, timeout | nothing | 502 `gcal_unavailable`: "Google did not answer. Nothing was deleted. Try again." |
 
-6. Release the lease with `finish(nil, now)` (`hub/gcal_sync.go:345`: the
-   cursor and tokens are kept), so the next cycle runs at once and confirms.
+6. Release the lease, on every exit after step 2 (success, every refusal,
+   a DB error). It is a new store call, `ReleaseGcalLease(l, nextDue)` (row
+   D1s), not `FinishGcalSync`: that sets `last_synced_at = now` on every
+   call (`store/gcal_postgres.go:334-336`), so a delete would show as a
+   sync in the settings section (N5). `nextDue`:
+   - now, after a delete Google accepted (2xx, 404, 410), so the next
+     cycle runs at once and confirms;
+   - the connection's stored `due_at`, unchanged, after a refusal (403,
+     401, 429, 5xx): a refusal never makes a sync run sooner.
 
 Why nothing is lost or done twice:
 
@@ -561,49 +599,66 @@ Why nothing is lost or done twice:
 - Google deleted it but the spool-hub trash fails (a DB error): 500. The
   next cycle lists the item `cancelled`, and `sourceTake` trashes the import
   (`hub/gcal_sync_sources.go:243-244`). Google is not called again.
+- A stale `If-Match` is refused in step 1, before Google, so it cannot
+  cause that split.
 - Already in the trash: the private filter answers 404, as today.
 - The next cycle never brings it back. The item is gone at Google, so
   `PutGcalImported` never sees it live again; a full list after a 410 does
   not return it.
+- Known limit, a double fault (N5): the trash fails AND the next cycle of
+  that calendar gets a 410 on its sync token. The full list
+  (`sourceList`, without `showDeleted`) does not return the item, and no
+  sweep trashes an import that is missing from a list, so the import stays
+  live in spool-hub with no Google item behind it. A second Delete then
+  gets 404 or 410 from Google and trashes it (the row "404 or 410" above).
 
 Kind (a), the "Spool Hub" calendar: **spool-hub first, then the out half.**
-The checks of step 1 (connection, `revoked`) apply. Then `TrashCalendarScope`
-runs as for any event, and the connection is marked due now. The out half
-deletes the item at Google on its next cycle (60 s or less) with the existing
-`remove`. No new scope is needed: `calendar.app.created` covers that
-calendar (Google's `events.delete` page lists it). No 403 is possible on a
-calendar the hub created. A failed `remove` fails the cycle, and the next
-cycle tries again. Until then the In half ignores the item
-(2.11.2). So kind (a) works on the hub row alone, before any owner step.
+- Step 1 applies.
+- Then `TrashCalendarScope(..., CalendarScopeAll, ...)`.
+- Then `MarkGcalDue` (`store/gcal.go:43`, the call Sync now uses), so the
+  out half runs at once.
+- The out half deletes the item at Google on that cycle with the existing
+  `remove`. A failed `remove` fails the cycle, and the next cycle tries
+  again. Until then the In half ignores the item (2.11.2).
+- No new scope is needed: `calendar.app.created` covers that calendar
+  (Google's `events.delete` page lists it). No 403 is possible on a
+  calendar the hub created.
+- So kind (a) works on the hub rows alone (D1s, D1), before any owner step.
 
 Restore (`handleRestoreCalendarEvent`, `hub/calendar.go:1184`) of an event
 whose `source_key` starts with `gcal:` answers 409 `gcal_deleted_at_google`
-(Q18 A). Restoring it would leave a spool-hub entry that no Google item
-backs: kind (b) is already gone at Google, and kind (a) loses its map row on
-the out half's next `remove`, after which the out half skips an unmapped
-`gcal:` event (`push`, `hub/gcal_sync.go:535`). The calendar trash
-(`CalendarTrash.vue`) shows the restore error. Today such orphans can already
+(Q18 A). The check cannot sit in the hub: `GetCalendarEvent` reads only live
+events (`store/calendar_postgres.go:197`), and `RestoreCalendarEvent`
+(:339-374) clears `deleted_at` in one `UPDATE ... RETURNING`. So the store's
+restore itself refuses a `gcal:` row with a new `store.ErrGcalImportRestore`,
+and the hub maps it to the 409 (row D1s, W3).
+
+Why restore is refused: restoring would leave a spool-hub entry that no
+Google item backs. Kind (b) is already gone at Google, and kind (a) loses its
+map row on the out half's next `remove`, after which the out half skips an
+unmapped `gcal:` event (`push`, `hub/gcal_sync.go:535`). The calendar trash
+(`CalendarTrash.vue`) shows a Google-specific message for the 409, not only
+`calendar_trash.restore_failed` (:77-78). Today such orphans can already
 appear when an import is restored after a Google-side cancel; the rule
 closes that too.
 
 Repeating entries. An import of a Google series is the series itself (its
 `RRULE:` line); changed occurrences (`recurringEventId`) are skipped both
-ways (2.5, 2.10 B). In v1 (Q16 A) a synced repeating entry is deleted whole:
-- the DELETE must carry `?scope=all` (or none);
-- `this` or `following` answers 400 `gcal_series_whole_only`;
-- the WUI does not show the This / Following / All question for it.
-
-Google's recurring-events guide cancels one occurrence with a PUT of
+ways (2.5, 2.10 B). In v1 (Q16 A) a synced repeating entry is deleted whole,
+as above, and the WUI does not show the This / Following / All question for
+it. Google's recurring-events guide cancels one occurrence with a PUT of
 `status: cancelled` on the instance, not with `events.delete`. That is Q16
 B, a later row. That `events.delete` on the series id removes every
 occurrence is unchecked, I believe: Google's `events.delete` page says only
 "Deletes an event."
 
 Audit:
-- One Workspace log row per delete through `s.workspaceEvent`
-  (`hub/rbac.go:96`), kind `calendar.gcal_deleted` (a new constant in
-  `store/log_events.go`, in `LogEventKinds`; it matches rdb 0240's kind
-  check, `^[a-z]+(\.[a-z_]+)+$`, :41).
+- One Workspace log row per delete Google accepted, or per spool-hub-only
+  delete, through `s.workspaceEvent` (`hub/rbac.go:96`).
+- Kind `calendar.gcal_deleted`: a new constant in `store/log_events.go` and
+  in `LogEventKinds`, with `store/log_events_test.go`'s pinned list
+  (`TestLogEventKinds`, :23-34) updated in the same row (D1s). It matches
+  rdb 0240's kind check, `^[a-z]+(\.[a-z_]+)+$` (:41).
 - Actor: the member. Message: the kind ((a) or (b)) and the Google outcome
   (`deleted`, `gone`, `not_connected`, `calendar_not_read`, `queued`).
 - **Never the title, the Google id or the calendar id.** The import is
@@ -670,7 +725,7 @@ lane.
 
 | route | today | after D1 |
 |---|---|---|
-| `DELETE /v1/calendar/events/{id}` on a `gcal:` import of the caller | 409 `synced_read_only` | 200 with the event and `"google": "deleted" \| "gone" \| "not_connected" \| "calendar_not_read" \| "queued"` (`queued` = kind (a), the out half deletes it); or 409 `gcal_revoked`, `gcal_reconnect_to_delete`, `gcal_delete_not_enabled`, `gcal_calendar_read_only`, `sync_in_progress`; 400 `gcal_series_whole_only`; 502 `gcal_unavailable` |
+| `DELETE /v1/calendar/events/{id}` on a `gcal:` import of the caller | 409 `synced_read_only` | 200 with the event and `"google": "deleted" \| "gone" \| "not_connected" \| "calendar_not_read" \| "queued"` (`queued` = kind (a), the out half deletes it); or 409 `gcal_revoked`, `gcal_reconnect_to_delete`, `gcal_delete_not_enabled`, `gcal_calendar_read_only`, `sync_in_progress`, a stale `If-Match` (409 with the current event, before any Google call); 400 `gcal_series_whole_only`; 502 `gcal_unavailable`; 503 `gcal_not_configured`. An omitted `?scope=` deletes the whole series, also on an occurrence id |
 | the same on a repo-synced entry (c), or another member's import | 409 / 404 | unchanged |
 | `PATCH /v1/calendar/events/{id}` on any synced entry | 409 `synced_read_only` | unchanged |
 | `POST /v1/calendar/events/{id}/restore` on a `gcal:` import | 200 | 409 `gcal_deleted_at_google` |
@@ -688,17 +743,24 @@ cross-vendor (`csi-spl-doc/doc/md/rounds-rulebook.md` 2.7.2). "api tests" and
 
 | row | area | files (only these) | after | test (red on master, green on the row) | author | R7 reviewer |
 |---|---|---|---|---|---|---|
-| D0 client | api | `gcal/client.go` (`DeleteEvent` takes `sendUpdates`; a named `ErrForbidden` for 403), `gcal/client_test.go`, `gcal/fakegcal/fakegcal.go` (records `sendUpdates`; answers 403, 429 or 500 for a marked calendar) | - | `TestDeleteEventSendUpdates` (the fake saw `sendUpdates=<Q17>`; red: not sent), `TestDeleteEventForbidden` (`errors.Is(err, gcal.ErrForbidden)`; red: no such error); the existing 404/410-is-done test unchanged; `go test ./internal/gcal/...`; api tests | claude | agy (mistral) |
-| D1 hub | api | new `hub/gcal_delete.go`, new `hub/gcal_delete_test.go`; `hub/calendar.go` (the DELETE branch at :1167, the restore refusal at :1184); `hub/gcal_connect.go` (`delete_scope` on the GET); `hub/gcal_sync_sources.go` (`GcalWriteScopes` beside `GcalReadScopes`); `store/log_events.go` (one kind); `hub/gcal_connect_test.go` (`delete_scope`) | D0 | memory and Postgres: `TestGcalDeleteSourceImportDeletesAtGoogle` (b: the fake saw one `events.delete` on the source calendar; the import trashed, `deleted_by` the member; **red control**: on master 409 `synced_read_only` and 0 deletes); `TestGcalDeleteHubCalendarImport` (a: 200 `queued`, then one cycle: the fake saw `events.delete` on the "Spool Hub" calendar and the map row is gone; red: 409); `TestGcalDeleteNotRevived` (after b, the next cycle lists the item `cancelled`, then a 410 full list without it: still trashed, 0 imports); `TestGcalDeleteGoogleFailsNothingLocal` (500 and 429: 502, the import live, 0 spool-hub writes; twin 404 and 410: trashed); `TestGcalDeleteReadOnlyCalendar` (403: 409 `gcal_calendar_read_only`, live); `TestGcalDeleteNeedsWriteGrant` (grant without the scope, and `""`: 409 `gcal_reconnect_to_delete`, 0 Google calls; cnf without it: `gcal_delete_not_enabled`); `TestGcalDeleteRevoked`; `TestGcalDeleteDuringSync` (lease held: 409 `sync_in_progress`, 0 Google calls); `TestGcalDeleteOrphanImport` (`not_connected`, 0 Google calls); `TestGcalDeleteLocalTrashFailsHeals` (store fails the trash once: 500; the next cycle trashes it; the fake saw exactly 1 delete); `TestGcalDeleteSeriesWholeOnly` (`scope=this`: 400; `all`: the series id deleted); `TestGcalDeleteOtherMember` (M2 deletes M1's import: 404; twin M1: 200); `TestGcalRestoreImportRefused` (409; twin: a plain event restores); `TestGcalDeleteAuditRow` (one `calendar.gcal_deleted` row, its message holds no title); (C) twins: PATCH of an import and DELETE of a `goal:` entry still 409 `synced_read_only`, the operator DELETE still 409; api tests; full tier | claude | agy (mistral) |
-| D2 WUI | wui | `wui/utils/calendar-event-form.mjs` (`calGoogleDeletable(ev, viewer)`: a `gcal:` key and the viewer is its creator; `calEditable` unchanged), `wui/components/CalendarPhonePeek.vue`, `wui/components/CalendarEventPopover.vue`, `wui/components/settings/calendar-google.vue` (the `delete_scope` line), `wui/utils/gcal-client.mjs`, `wui/utils/calendar-mock.mjs` (a `gcal:` item deletes; a marked one answers 409 `gcal_calendar_read_only`), `wui/types/calendar-shims.d.ts`, `csi-spl-wui/i18n/locales/en.json` (new keys only), `tests/unit/calendar-event-form.test.mjs`, `tests/e2e/calendar-phone-peek.test.mjs`, `tests/e2e/calendar-synced.test.mjs` | D1 (its tokens; the mock lets D2 be tested first) | unit: `calGoogleDeletable` true for the viewer's own `gcal:` import, false for `goal:` and for another creator, `calEditable` still false for both (C). **Phone e2e** (`calendar-phone-peek.test.mjs`, 390 px): a Google entry's peek shows Delete, the first tap asks with "also deleted in Google Calendar", the second removes it, no Undo bar; the read-only mock entry shows the 403 message and stays (**red control**: on master the peek has no `calpeek-actions` for it). Desktop e2e (`calendar-synced.test.mjs`): the pop-over's Delete with the same question; a repo-synced entry has none (C). `pnpm run typecheck`; `BASE_URL=<mock bundle> pnpm run test:e2e`; `perf-budget.py` | claude | agy (mistral) |
-| D3 i18n | wui | `csi-spl-wui/i18n/locales/*.json` except `en.json` (D2's keys only) | D2 | `i18n-parity.test.mjs`, `i18n-untranslated.test.mjs` (baseline never raised); `do_spl_lang_review_gct` before land | claude | agy (language) |
-| D4 cnf text | cnf | `csi-spl-cnf/csi-spl/dev.env.yaml` (a `gcal.scopes` override that adds `calendar.events`), its tpl-gen output; later the same in `all.env.yaml` for prd | D1 | `ENV=dev ./run -a do_tpl_gen` then `git diff --exit-code`; that a nested `gcal.scopes` in `dev.env.yaml` overrides `all.env.yaml` is unchecked, I believe, and the lane proves it on the rendered 030 tfvars before it lands | claude | agy (mistral) |
+| D0 client | api | `gcal/client.go` (a new `DeleteEventWith(ctx, access, calendarID, eventID, sendUpdates)`; `DeleteEvent` keeps its signature and calls it with `""`, so its three callers, `hub/gcal_sync.go:580` and `hub/channel_move_steps.go:472`, :480, do not change), `gcal/oauth.go` (the sentinel `ErrForbidden` beside `ErrUnauthorized`, :37-57, and its case in `(*HTTPError).Is`, :411), `gcal/client_test.go`, `gcal/oauth_test.go`, `gcal/fakegcal/fakegcal.go` (records `sendUpdates`; answers 403, 429 or 500 for a marked calendar) | - | `TestDeleteEventWithSendUpdates` (the fake saw `sendUpdates=all` and `none`; red: no such method); `TestDeleteEventForbidden` (`errors.Is(err, gcal.ErrForbidden)`; red: no such error); `DeleteEvent` with no `sendUpdates` sends none (C); the existing 404/410-is-done test unchanged; `go test ./internal/gcal/...`; api tests | claude | agy (mistral) |
+| D1s store | api | `store/calendar.go` (`ErrGcalImportRestore`), `store/calendar_postgres.go` and `store/calendar_memory.go` (`RestoreCalendarEvent` refuses a row whose `source_key` starts with `gcal:`, in the same statement, writing nothing), `store/gcal.go`, `store/gcal_postgres.go`, `store/gcal_memory.go` (`ReleaseGcalLease(l, nextDue)`: fenced like the other lease writes; clears `sync_lease_until`, sets `due_at`; never touches `last_synced_at`, the tokens or the cursors), `store/log_events.go` and `store/log_events_test.go` (`calendar.gcal_deleted`), `store/calendar_test.go`, `store/gcal_test.go` | - | memory and Postgres: `TestCalendarRestoreRefusesGcalImport` (a trashed `gcal:` import: `ErrGcalImportRestore`, still trashed; **red control**: on master it is restored); twin: a plain event and a `goal:` event restore (C); `TestGcalReleaseLease` (lease cleared, `due_at` set, `last_synced_at` unchanged; red: no such method); `TestGcalReleaseLeaseFenced` (a stale lease: `ErrGcalLeaseLost`, no write); `TestLogEventKinds` with the new kind; full tier | claude | agy (mistral) |
+| D1 hub | api | new `hub/gcal_delete.go`, new `hub/gcal_delete_test.go`; `hub/calendar.go` (the DELETE branch at :1167; restore maps `ErrGcalImportRestore` to 409 at :1184); `hub/gcal_connect.go` (`delete_scope` on the GET); `hub/gcal_sync_sources.go` (`GcalWriteScopes` beside `GcalReadScopes`); `hub/gcal_connect_test.go` (`delete_scope`) | D0, D1s | memory and Postgres: `TestGcalDeleteSourceImportDeletesAtGoogle` (b: the fake saw one `events.delete` on the source calendar; the import trashed, `deleted_by` the member; **red control**: on master 409 `synced_read_only` and 0 deletes); `TestGcalDeleteHubCalendarImport` (a: 200 `queued`, `due_at` now; then one cycle: the fake saw `events.delete` on the "Spool Hub" calendar and the map row is gone; red: 409); `TestGcalDeleteSeriesWholeOnly` (a repeating import of each kind, DELETE on an **occurrence id with no `?scope=`** and with `?scope=all`: the series row trashed, no occurrence of it live, for (b) the series id deleted at Google, for (a) the out half deletes it; `this` and `following`: 400, 0 Google calls); `TestGcalDeleteStaleIfMatch` (a stale `If-Match`: 409 conflict, 0 Google calls, the import live); `TestGcalDeleteNotRevived` (after b, the next cycle lists the item `cancelled`, then a 410 full list without it: still trashed, 0 imports); `TestGcalDeleteGoogleFailsNothingLocal` (500 and 429: 502, the import live, 0 spool-hub writes, the lease released and `due_at` unchanged; twin 404 and 410: trashed); `TestGcalDeleteReadOnlyCalendar` (403: 409 `gcal_calendar_read_only`, live, the lease released); `TestGcalDeleteInvalidGrant` (refresh answers `invalid_grant`: 409 `gcal_revoked`, the row `revoked`, the lease released); `TestGcalDeleteNeedsWriteGrant` (grant without the scope, and `""`: 409 `gcal_reconnect_to_delete`, 0 Google calls; cnf without it: `gcal_delete_not_enabled`; kind (a) on a contacts-only grant: `gcal_reconnect_to_delete`); `TestGcalDeleteNotConfigured` (no Google client, and a workspace outside `gcal.workspaces`: 503 `gcal_not_configured`, nothing trashed); `TestGcalDeleteRevoked`; `TestGcalDeleteDuringSync` (lease held: 409 `sync_in_progress`, 0 Google calls); `TestGcalDeleteOrphanImport` (`not_connected`, 0 Google calls); `TestGcalDeleteLocalTrashFailsHeals` (store fails the trash once: 500; the next cycle trashes it; the fake saw exactly 1 delete); `TestGcalDeleteKeepsLastSynced` (`last_synced_at` unchanged by a delete); `TestGcalDeleteOtherMember` (M2 deletes M1's import: 404; twin M1: 200); `TestGcalRestoreImportRefused` (409 `gcal_deleted_at_google`; twin: a plain event restores); `TestGcalDeleteAuditRow` (one `calendar.gcal_deleted` row, its message holds no title); (C) twins: PATCH of an import and DELETE of a `goal:` entry still 409 `synced_read_only`, the operator DELETE still 409; api tests; full tier | claude | agy (mistral) |
+| D2 WUI | wui | `wui/utils/calendar-event-form.mjs` (`calGoogleDeletable(ev, viewer)`: a `gcal:` key and the viewer is its creator; `calEditable` unchanged), `wui/components/CalendarPhonePeek.vue` (the Delete goes through `calendarDelete` with no scope, which keeps the hub's `err.token`; `deleteScoped`, :295, drops it), `wui/components/CalendarEventPopover.vue` (a Delete for it; it gets the `today` prop that `calendarDelete` needs, as the peek has; the "Change it in the repo" label, `calendar_event.synced_link`, :47-50, shows for a repo-synced entry only, and a Google entry shows "From Google Calendar" instead), `wui/components/CalendarTrash.vue` (the `gcal_deleted_at_google` message, :77-78), `wui/components/settings/calendar-google.vue` (the `delete_scope` line), `wui/utils/gcal-client.mjs`, `wui/utils/calendar-mock.mjs` (a `gcal:` item deletes; a marked one answers 409 `gcal_calendar_read_only`; restoring a `gcal:` item answers 409), `wui/types/calendar-shims.d.ts`, `csi-spl-wui/i18n/locales/en.json` (new keys only), `tests/unit/calendar-event-form.test.mjs`, `tests/e2e/calendar-phone-peek.test.mjs`, `tests/e2e/calendar-synced.test.mjs` | D1 (its tokens; the mock lets D2 be tested first) | unit: `calGoogleDeletable` true for the viewer's own `gcal:` import, false for `goal:` and for another creator, `calEditable` still false for both (C). **Phone e2e** (`calendar-phone-peek.test.mjs`, 390 px): a Google entry's peek shows Delete, the first tap asks with "also deleted in Google Calendar", the second removes it, no Undo bar; a repeating one asks "every occurrence" and no This / Following / All; the read-only mock entry shows the 403 message and stays (**red control**: on master the peek has no `calpeek-actions` for it). Desktop e2e (`calendar-synced.test.mjs`): the pop-over's Delete with the same question, and no "Change it in the repo" on a Google entry; a repo-synced entry has no Delete and keeps that label (C). `pnpm run typecheck`; `BASE_URL=<mock bundle> pnpm run test:e2e`; `perf-budget.py` | claude | agy (mistral) |
+| D3 i18n | wui | `csi-spl-wui/i18n/locales/*.json` except `en.json` (D2's and D6's keys only) | D2 | `i18n-parity.test.mjs`, `i18n-untranslated.test.mjs` (baseline never raised); `do_spl_lang_review_gct` before land | claude | agy (language) |
+| D4 cnf text | cnf, iac | `csi-spl-cnf/csi-spl/dev.env.yaml` (a `gcal.scopes` override that adds `calendar.events`), its tpl-gen output; `csi-spl-iac/src/bash/tests/hub-gcal-030.tst.sh` (one more assertion); later the same in `all.env.yaml` for prd | D1 | `hub-gcal-030.tst.sh` (it already compares `SPOOL_HUB_GCAL_SCOPES` in each env's rendered 030 tfvars with the cnf, :34-36) gains: dev's rendered `030-cloud-run-hub.vars.tfvars` carries `https://www.googleapis.com/auth/calendar.events` (**red control**: on `d7d502c0c` dev's scopes lack it; green on D4); `ENV=dev ./run -a do_tpl_gen` then `git diff --exit-code`. That a nested `gcal.scopes` in `dev.env.yaml` overrides `all.env.yaml` is unchecked, I believe: the red control proves it | claude | agy (mistral) |
 | D5 docs | doc | this spec (2.11 status to built, the owner's answers to Q15-Q18), `google-review-submission.md` (the added scope and why), the calendar help page through its qto doc (`csi-spl-doc/doc/help/calendar.md:3`) | D2 | `cd csi-spl-iac && ./run -a do_check_dist_hygiene`; the qto doc drift check | claude | agy (mistral) |
+| D6 public pages | wui | `csi-spl-wui/src/public/about.html` (:61-62, "never writes to, changes or deletes anything in a calendar other than the one it created"), `csi-spl-wui/src/public/privacy.html` (:62-63, "It never writes to, changes or deletes anything in any other calendar of yours"), `tests/unit/legal-pages.test.mjs` | D1 | both pages say instead: spool-hub changes nothing in your other calendars, except that it deletes an entry there when you delete it in spool-hub and confirm; `legal-pages.test.mjs` asserts that sentence on both pages (**red control**: on master both pages carry the "never ... deletes" sentence); `do_spl_lang_review_gct` if the pages carry other languages. Must be live on prd before S11: Google's review reads these pages (12.1) | claude | agy (mistral) |
 
-Order: D0, then D1. D2 after D1 (its mock may start at once). D3 after D2.
-D4 after D1, and its 030 apply is the owner's S9. D5 last. D1 alone makes
-kind (a) deletable everywhere, before any owner step. Kind (b) needs D4
-and S9-S11, plus each member's reconnect.
+Order:
+- D0 and D1s at once, then D1.
+- D2 after D1 (its mock may start at once), then D3.
+- D4 after D1; its 030 apply is the owner's S9.
+- D6 after D1, and live on prd before S11.
+- D5 last.
+
+D0, D1s and D1 alone make kind (a) deletable everywhere, before any owner
+step. Kind (b) needs D4, D6 and S9-S11, plus each member's reconnect.
 
 Which kind the owner's screenshot shows is unchecked: the picture does not
 show the calendar. Entries from the member's primary Google calendar are
@@ -925,7 +987,7 @@ it, per env (dev first, then prd).
 | S8 | Google app verification for `calendar.readonly` | submit the consent screen for Google's review (O2); until it passes only listed test users can grant the scope |
 | S9 | write scope (2.11, Q15) | after row D4 lands: the step-030 apply for dev with `calendar.events` (or Q15's answer) in `gcal.scopes` (owner go), members of dev reconnect and a delete is tried; then the same in `all.env.yaml` and the prd 030 apply. Dev first, prd after (dev equals or leads prd) |
 | S10 | consent screen (2.11) | add the Q15 scope to the OAuth consent screen of each env's project (S0) |
-| S11 | Google verification of the added scope (2.11) | submit the consent screen again with the new scope and why (`google-review-submission.md`, row D5); until it passes only listed test users can grant it (unchecked, I believe, that the added scope reopens the review) |
+| S11 | Google verification of the added scope (2.11) | after row D6 is live on prd (the public pages say spool-hub deletes there when asked), submit the consent screen again with the new scope and why (`google-review-submission.md`, row D5); until it passes only listed test users can grant it (unchecked, I believe, that the added scope reopens the review) |
 
 ## 8. Panel decisions
 
@@ -1009,7 +1071,7 @@ JavaScript was only "Loading Spool… / Buy a workspace", with no link to
 
 | item | where |
 |---|---|
-| `/about`: static, no JavaScript; names spool-hub and Csitea, what it does, why it asks for Google Calendar (the one Spool Hub calendar, two ways; the shown calendars read-only as private events, section 2.10), the Limited Use line; links `/privacy`, `/terms`, `/login` | `csi-spl-wui/src/public/about.html` |
+| `/about`: static, no JavaScript; names spool-hub and Csitea, what it does, why it asks for Google Calendar (the one Spool Hub calendar, two ways; the shown calendars read-only as private events, section 2.10; once 2.11 is built, an entry the member deletes in spool-hub is deleted there too, which row D6 says on this page), the Limited Use line; links `/privacy`, `/terms`, `/login` | `csi-spl-wui/src/public/about.html` |
 | Limited Use, in Google's words, with the policy link; the read of the shown calendars stated (it said "does not read ... any other calendar", which `calendar.readonly` made untrue) | `privacy.html` section 3 |
 | `X-Robots-Tag: index, follow` on `/about`, `/privacy`, `/terms` on an indexable build (cnf `env.wui.seo_index`, prd); every other path keeps `noindex, nofollow`, `/` included | `STATIC_PUBLIC_SOURCES` in `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` = `STATIC_PUBLIC_PAGES` in `csi-spl-wui/src/utils/public-seo.mjs` |
 | `Allow:` lines in robots.txt and one sitemap entry each | `buildRobotsTxt`, `sitemapEntries` (`public-seo.mjs`) |
@@ -1161,7 +1223,7 @@ Today: an unmapped item is imported by `put` (`hub/gcal_sync_in.go:195`)
 as `GcalSpoolOf` (:286): audience `private`, kind `other`,
 `source_key gcal:<connection>:<google id>`; Google always wins on it
 (:182). The member's other Google calendars (2.10 B) stay read-only
-private imports either way.
+private imports either way; only deleting one is written to Google (2.11).
 
 ### 13.5 Rows, files, risks
 
@@ -1301,7 +1363,8 @@ the kind rides on `visibility`, both ways:
   keeps today's private import (`GcalSpoolOf`, `hub/gcal_sync_in.go:286`).
   A workspace kind gets audience `workspace` (the create default, owner
   decision D2, `store/calendar.go:45-48`), never `public`. The member's
-  other Google calendars (2.10 B) stay read-only private imports.
+  other Google calendars (2.10 B) stay read-only private imports (a delete
+  is the one write, 2.11).
 - **In, an edit of a mapped event.** Taken when the member may edit the
   event under 13.6.1 (13.1's `mayEdit`, now with the `edit_level` term).
   A `visibility` change on the phone is not taken in v1: the kind is
@@ -1356,7 +1419,7 @@ for newer columns, `store/calendar.go`, rdb 0139 note).
 |---|---|---|---|---|---|
 | K1 store + migration | `rdb/<next>_calendar_edit_level.sql`, `store/calendar.go`, `store/calendar_postgres.go`, `store/calendar_memory.go`, their tests | the column, its check, read and written everywhere; `CalendarEditEveryone` / `CalendarEditOwner` constants | `TestCalendarEditLevelRoundTrip` (create `owner`, read it back; red: no column); `TestCalendarEditLevelDefault` (an old row reads `everyone`); an `owner` value outside the check is `ErrInvalidCalendarEvent`; `PRE_PUSH_TIER=full` | claude | agy (mistral) |
 | K2 hub rule | `hub/calendar.go`, `hub/calendar_operator_write.go`, `hub/calendar_sync.go` (the shared admin list), their tests | `calendarMayEdit`, `editLevelOwnerOnly`, `edit_level` + `can_edit` on the wire | `TestCalendarOwnerEventRefusesOtherMember` (PATCH and DELETE 403 `edit_owner_only`; **red control**: on master both are 200); twins that pass on master: creator edits, an admin edits, an `everyone` event edited by any member; `TestCalendarEditLevelOwnerOnly` (a non-creator, non-admin PATCH of `edit_level` is 403); `TestCalendarCanEditField`; operator twin; api tests, full tier | claude | agy (mistral) |
-| K3 Google in + out | `hub/gcal_sync_in.go`, `hub/gcal_map.go`, `hub/gcal_sync_in_test.go`, `hub/gcal_map_test.go`, `cnf/all.env.yaml` (+ rendered twins) | after R1: the `edit_level` term in `mayEdit`, `revert`, the visibility mapping both ways, the new-item kind and the Q14 cnf default | `TestGcalSyncInRefusedEditWrittenBack` (member B edits A's `owner` event in Google: Spool keeps A's title AND Google shows A's title after the cycle; **red control**: on master Google keeps B's title, 13.6.5); `TestGcalSyncInNewEventKindFromVisibility` (private, public, default -> the three kinds; red: on master all three are private imports with a `gcal:` key); `TestGcalEventOfOwnerIsPublic`; the 2.10 source-calendar imports still private | claude | agy (mistral) |
+| K3 Google in + out | `hub/gcal_sync_in.go`, `hub/gcal_map.go`, `hub/gcal_sync_in_test.go`, `hub/gcal_map_test.go`, `cnf/all.env.yaml` (+ rendered twins) | after R1: the `edit_level` term in `mayEdit`, `revert`, the visibility mapping both ways, the new-item kind and the Q14 cnf default | `TestGcalSyncInRefusedEditWrittenBack` (member B edits A's `owner` event in Google: Spool keeps A's title AND Google shows A's title after the cycle; **red control**: on master Google keeps B's title, 13.6.5); `TestGcalSyncInNewEventKindFromVisibility` (private, public, default -> the three kinds; red: on master all three are private imports with a `gcal:` key); `TestGcalEventOfOwnerIsPublic`; the 2.10 source-calendar imports still private (and deletable only per 2.11) | claude | agy (mistral) |
 | K4 WUI | `wui/components/CalendarEventDialog.vue`, `wui/components/CalendarEventPopover.vue`, `wui/components/CalendarMainView.vue`, `wui/utils/calendar-event-form.mjs`, `wui/utils/calendar-mock.mjs`, `wui/types/calendar-shims.d.ts`, unit and e2e tests | the three-way kind choice, the label, read-only by `can_edit` | unit: `calEditable` false when `can_edit` is false (red on master: true); e2e: another member opens an `owner` event, no Edit button, drag refused; `pnpm run typecheck`; `BASE_URL=<bundle> pnpm run test:e2e` | claude | agy (mistral) |
 | K5 i18n | `csi-spl-wui/i18n/locales/*.json` (19 files) | the kind labels, hints and the two error tokens | `i18n-parity.test.mjs`, `i18n-untranslated.test.mjs` (baseline never raised); `do_spl_lang_review_gct` before land | claude | agy (language) |
 | K6 docs | this spec (status to built, Q14's answer), spec 097 4.5, the calendar help page through its qto doc (`csi-spl-doc/doc/help/calendar.md:3`), one section | the text follows K1-K4 | `cd csi-spl-iac && ./run -a do_check_dist_hygiene`; the qto doc drift check | agy | claude |

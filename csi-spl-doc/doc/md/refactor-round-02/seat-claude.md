@@ -203,3 +203,40 @@ R1: row 01's 4 files and row 02's 4 files are disjoint (by name).
   here. The holder checks it against the 10 paths at placement.
 - **N5.** Measured on base `c567245fa` and origin/master `d5a2422f4`; the plan's
   "zero drift to `1a8c1ce1c`" (:64, :815) still holds to `d5a2422f4` on the 10 paths.
+
+## v0.2 re-review: `74b11a3b5ba8f42122dac140f61263c22eff965b`
+
+**Verdict on `74b11a3b5`: FAIL** - W1 and W2 are fixed; one new defect, W3,
+came in with the N1 fold. Measured 2026-11-25 20:05Z-20:11Z, n=1 each,
+origin/master `6374a6992`.
+
+- `git diff --stat 16c335852 74b11a3b5` -> 1 file, `+111 -66`; plan 883 lines.
+- The 7 `bash` blocks, v0.1 vs v0.2 (python `re.findall` of the fences):
+  blocks 0-3 and 6 byte-identical (34/49/17/47/53 lines); blocks 4 and 5
+  (disk-headroom, go-cache) each drop their trailing `}` (6 -> 5, 5 -> 4 lines).
+- **W1 fixed.** :195, :200-201, :202-204, :385, :389-392, :835 now say 125 / 90 /
+  275 lines, `+50` / `+18` / `+54`, sha256 `5b907bd5d703` / `1a42b8064d83` /
+  `c880d0a28021`: these match the heads built from the blocks (test blocks
+  unchanged since v0.1, section 3 above).
+- **W2 fixed.** :26, :111, :118, :124, :707, :842 record `3582fc44b` landed
+  19:09:45Z. The new citation `:30-32,40` vs `:29-31,39` on `5fdfae32b`:
+  `git show 5fdfae32b:<file> | sed -n <N>p` prints the `ORDERED_BY` check, the
+  `ORDERED_VIA` length check, the `spl_dry_run` line and the `DRY_RUN=0`
+  `ORDERED_BY` requirement in both files.
+- Siblings rebuilt from v0.2 blocks 4/5 (replace `:57-91`, keep `:92` `}`):
+  `6106f57f2059` 62 and `7e4e89ea9bd4` 61 = the plan. Drift `c567245fa` ->
+  `6374a6992` on the 10 paths: `0`.
+- **W3 (plan :402-404; also :370, :730, :801).** v0.2 says box-stats "replaces
+  `:59-93`, keeping the closing `}` of `do_setup_box_stats_cron`", but block 3
+  (unchanged, 47 lines) already carries that `}` as its 4th line and ends with
+  the helper's `}`. Built literally (`b[:58] + block3 + b[93:]`): 106 lines,
+  sha256 `7946153efded`, `bash -n` rc 2 `line 106: syntax error near unexpected
+  token '}'`. The claimed `2b1f19013437` (105 lines, `bash -n` rc 0) comes only
+  from replacing `:59-94`, the v0.1 reading. Fix: box-stats replaces `:59-94`
+  (its block brings the `}`), the siblings `:57-91` keeping `:92`; or say it
+  once in 1.4 and point :370/:730/:801 at it.
+- **N6.** The plan's "72 remote refs of the last 24 h" (:878): this box's fetch
+  holds 23 such refs at 20:10:40Z; 0 hits on the 10 paths either way.
+- Unchanged from v0.1 and not re-run: the 11 controls and the suites (no test
+  block and no `.func.sh` head byte changed: the 5 `.func.sh` sha256s above
+  match v0.1's).

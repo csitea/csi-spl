@@ -1,4 +1,4 @@
-# Spec 039 FR-014 build round - plan v0.1 (9 rows, 6 batches)
+# Spec 039 FR-014 build round - plan v0.2 (9 rows, 6 batches)
 
 Epic: SPL-2403  
 Spec: csi-spl-doc/specs/039-spool-issues (v0.11.1, FR-014)  
@@ -30,24 +30,25 @@ Owner HUM-10 directives and fleet rules, by pointer:
 filter). Nine rows sit within rulebook 1.1's hard cap of 10 rows. This plan
 re-measures every target site on one `origin/master` sha, partitions
 `T017a-T017i` into **6 batches of strictly disjoint files (R1)** (at most 3
-rows live in Batch 1, 2 in Batch 6, 1 each in Batches 2-5), enforces the
-mandatory `dev` -> `prd` DDL roll gate between `T017a` and `T017b`, assigns
-each row's kind and author vendor per the fleet kind table, assigns a
+rows live in Batch 1, 2 in Batch 6, 1 each in Batches 2-5), orders `T017b`
+after `T017a`'s workflow 20 deploy (`do_spl_db_bootstrap` on `dev` and `prd`),
+assigns each row's kind and author vendor per the fleet kind table, assigns a
 cross-vendor R7 reviewer (never `mistral`), specifies red controls (C2) and R2
 test columns, and proposes one brief per row. This planner writes no code and
 edits no spec 039 file.
 
-**Status: v0.1, draft for cross-vendor review.** Planner: `a-526` (`agy`, main
-for `specs_and_docs`). Cross-vendor reviewer: `claude` seat requested via the
-dispatch holder (`mistral` sits on no review seat and `grok` is off
-fleet-wide). Nothing lands on `master` until the cross-vendor reviewer signs
-PASS and the dispatch holder gives GO.
+**Status: v0.2, revised after cross-vendor review (`c-433`, `claude`, FAIL
+W1-W2, N1-N7 on v0.1 `742af3f59`).** Planner: `a-526` (`agy`, main for
+`specs_and_docs`). Cross-vendor reviewer: `c-433` (`claude`; `mistral` sits on
+no review seat and `grok` is off fleet-wide). Nothing lands on `master` until
+`c-433` signs PASS and the dispatch holder gives GO.
 
 **One sha.** Every file:line read is on **`136bcf31c`**
 (`136bcf31ce50295e15a70abc7d982ee3b7a4edbe`, `origin/master` at
 2026-11-25T10:07Z, after a fresh fetch), verified with `git show` / `git grep`
-(n=1 per command). Lane map, spawn queue, and vendor mix are live state and
-carry their own UTC timestamps.
+(n=1 per command; verified unchanged across all cited files on `222f6efe9` at
+10:33Z). Lane map, spawn queue, and vendor mix are live state and carry their
+own UTC timestamps.
 
 No credential path, token, personal name, OS user name, box shorthand, host, or
 customer name appears in this plan or in any proposed row brief.
@@ -82,26 +83,27 @@ customer name appears in this plan or in any proposed row brief.
 
 | site | what lives there on `136bcf31c` | used by |
 |---|---|---|
+| `.github/workflows/20_hub-build-deploy.yml` | triggers on `csi-spl-rdb/src/sql/postgres/spool-hub/**` (`:59`), targets `wanted=(dev prd)` (`:172`), runs `ENV="$ENV" GCP_ACCOUNT="$DEPLOY_SA" DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_bootstrap` per env before rolling (`:649-665`; a migrate failure fails the deploy `:640-648`) | T017a, T017b (roll order) |
 | `rdb:0323_fleet_ask_queue_order.sql` | template for nullable `bigint CHECK (... > 0)` rank + `_by`/`_at` columns under `SET LOCAL lock_timeout = '5s'` (`:22-31`) | T017a (reference) |
-| `rdb:0181_issue_events.sql` | `issue_events_record` AFTER INSERT/UPDATE trigger on `issues` (`:56-109`): records `'changed'` `'priority'` using `NEW.updated_by`/`NEW.updated_at` ONLY when `OLD.priority IS DISTINCT FROM NEW.priority`; rank-only UPDATEs write zero history rows | T017b (invariant) |
+| `rdb:0181_issue_events.sql` | `issue_events_record()` function (`:65-110`) and AFTER INSERT/UPDATE trigger on `issues` (`:112-113`): records `'changed'` `'priority'` using `NEW.updated_by`/`NEW.updated_at` ONLY when `OLD.priority IS DISTINCT FROM NEW.priority`; rank-only UPDATEs write zero history rows | T017b (invariant) |
 | `api:store/issues.go` | `Issue` struct `:128-165`, `IssuePatch` `:341`, `Issues` interface `:377-420`, Memory `UpdateIssue` `:781-828` (`if p.PriorityOwn && old.Priority != row.Priority` `:807`), Memory `ListIssues` `:939` | T017b |
 | `api:store/issues_postgres.go` | `issueCols` `:15-16`, `issueSheetCols` `:20-21`, `scanIssue` `:23-28`, `scanIssueSheet` `:31-36`, Postgres `UpdateIssue` `:277-335` (`UPDATE issues` `:313-323`, `priority_set_at` `:318`), `ListIssueSheet` `:406`, `listIssueRows` `:410-426` (`archived_at IS NULL` `:416`) | T017b |
 | `api:store/fleet_ask.go` | precedent for rank gap `AskRankGap = 1024` (`:565`) and ordered position helper `askPositions` (`:334`) | T017b (reference) |
-| `api:hub/issues.go` | `toIssueJSON` `:134-148` (empty `assignee ""`, non-nil `labels []`, `deadline ""`), `spreadIssuePriority` call in PATCH `:468-470`, `type epicSummary` `:822-832`, `func epicSummaries` `:836-876` (`sort.SliceStable` `:865-870`), `routeIssues` `:880-901` (`OPTIONS` `:893-900`), `issueWriter` `:951-960`, `issuesPreflight` `:1242-1250` (`Access-Control-Allow-Methods: POST, PATCH, DELETE` `:1246`) | T017c |
+| `api:hub/issues.go` | `toIssueJSON` `:134-148` (empty `assignee ""`, non-nil `labels []`, `deadline ""`), strict JSON decode returning 400 `bad_json` (`:247-249`), `spreadIssuePriority` call in PATCH `:468-470`, `type epicSummary` `:822-832`, `func epicSummaries` `:836-876` (`sort.SliceStable` `:865-870`), `routeIssues` `:880-901` (`OPTIONS` `:893-900`), `issueWriter` `:951-960`, `issuesPreflight` `:1242-1250` (`Access-Control-Allow-Methods: POST, PATCH, DELETE` `:1246`) | T017c |
 | `api:hub/topic_priority_spread.go` & `topic_priority_follow.go` | `spreadIssuePriority` `:42`; `applyIssuePriority` `:280-286` (routes discussion priority changes through `UpdateIssue`, so D4 rank clear in `UpdateIssue` covers discussion priority automatically) | T017c / T017b |
 | `api:hub/issues_test.go` | `TestIssuesPreflight` `:255-267` (asserts `POST, PATCH, DELETE` at `:267`, must update to `POST, PATCH, PUT, DELETE` + `/position`) | T017c |
-| `api:hub/openapi.json` & `openapi_routes_test.go` | `/v1/issues/{ref}` `:6004`, `/v1/view/issues` `:22888`, `epics` schema `:22916-22968`; `TestOpenAPIRoutes` `:314` enforces every `/v1/` route is documented in canonical JSON (`TestOpenAPIRoutesFileForm` `:328`) | T017c |
+| `api:hub/openapi.json` & `openapi_routes_test.go` | `/v1/issues/{ref}` `:6004`, `/v1/view/issues` `:22888`, `epics` schema `:22916-22968`; `TestOpenAPIRoutes` `:314` enforces every `/v1/` route is documented in canonical JSON (`TestOpenAPIRoutesFileForm` `:326`) | T017c |
 | `doc:specs/039-spool-issues/contracts/issues-v1.md` | §1 Routes `:6-19` (`OPTIONS` `:19`), §8 `epics[]` summary `:278-280` | T017c |
 | `api:auth/issues_sort.go` | `IssuesSortColumns` `:21-24`, `IssuesSortDirs` `:27`, `IsIssuesSort` `:30`, `parseIssuesSort` `:46-62`, `issuesSort` `:67-75` | T017d |
 | `api:auth/settings.go` | `HumanSettings.IssuesSort` `:29`, `IssuesSort` struct `:59-62`, `MembershipSettings.IssuesSort` `:84`, `Overlay` `:155-157` | T017d |
 | `api:auth/handler.go` | session reply `IssuesSort` `:565,:656`, `prefsRequest.IssuesSort` `:1132`, `parsedPrefs.sort` `:1213,:1243,:1271`, `PUT /api/v1/auth/preferences` write `:1441,:1463,:1478,:1531`, `nilSort` `:1580` | T017d |
 | `api:auth/native.go` | native session reply `IssuesSort` `:439,:653` | T017d |
-| `api:auth/preferences_test.go` & `api:store/membership_settings.go` / `_test.go` | `SetMembershipSettings` (`membership_settings.go:63-88`, generic jsonb merge — needs no driver edit); `membership_settings_test.go:53-69` (tests both memory & Postgres drivers) | T017d |
-| `wui:pages/issues.vue` | phone epic chip strip `[data-test="issues-epic-chips"]` `:111-124`; desktop filter row `.issues-frow` `:180-260` (status `:196-227`, priority `:228-233`, assignee `:240-251`, label `:252-257`, deadline `:259-260`); mobile filter sheet `[data-test="issues-filter-sheet"]` `:616-688` (status `:630-647`, priority `:648-654`, assignee `:662-672`, label `:673-679`, deadline `:680-683`); `epics = useState('issue-epics')` `:1336`, `labels` `:1421`, `refreshEpics` `:1610-1620`, `live.onIssue` `:1628-1634` | T017e, T017f |
+| `api:auth/preferences_test.go` & `api:store/membership_settings.go` / `_test.go` | `SetMembershipSettings` (Postgres `:85`, Memory `:125`, generic jsonb merge — needs no driver edit); `membership_settings_test.go:53-69` (tests both memory & Postgres drivers) | T017d |
+| `wui:pages/issues.vue` | phone epic chip strip `[data-test="issues-epic-chips"]` `:111-124`; desktop filter row `.issues-frow` `:180-260` (status `:196-227`, priority `:228-233`, assignee `:240-251`, label `:252-257`, deadline `:259-260`); mobile filter sheet `[data-test="issues-filter-sheet"]` `:616-688` (status `:630-647`, priority `:648-654`, assignee `:662-672`, label `:673-679`, deadline `:680-683`); local `labels` ref `:1296` (assigned `:1421`), `epics = useState('issue-epics')` `:1336`, `refreshEpics` `:1610-1620`, `live.onIssue` `:1627-1634` | T017e, T017f |
 | `wui:components/IssueEpicsPanel.vue` | 97 lines: `h2` `:9`, `.sidebar-scroll` `:12`, `NuxtLink` rows `:13-33`, `useState('issue-epics')` `:48`, `createLongPress` `:66` | T017f, T017g |
 | `wui:components/ChannelSidebar.vue` & `wui:composables/useSidebarRailOnly.ts` | `<LazyIssueEpicsPanel v-if="tab === 'issues'" />` (`ChannelSidebar.vue:508`); `issuesRailOnly` reads `useState('issue-epics')` (`useSidebarRailOnly.ts:13-14`, untouched — must stay free of `useEpicPanelList` imports) | budget guard (T017e, T017f, T017g) |
 | `wui:utils/issues.mjs` & `wui:types/mjs-shims.d.ts` | `matchIssue` (`issues.mjs:176-195`), `mockSummaries` (`:311-317`), `createMockIssues` (`:547-621`); `EpicSummary` (`mjs-shims.d.ts:1856-1866`) | T017f, T017g |
-| `wui:utils/person-picker.mjs` | SPL-4610 case/Greek-sigma folding & substring match `foldCase` / `personMatches` (`:8-24`) | T017f (reuse) |
+| `wui:utils/person-picker.mjs` & `wui:composables/useIssuePicker.ts` | SPL-4610 case/Greek-sigma folding & substring match `foldCase` / `personMatches` (`person-picker.mjs:8-24`); parent picker row shape `{ id: x.key, label: `${x.key} ${x.title}` }` (`useIssuePicker.ts:94`) | T017f (reuse) |
 | `wui:stores/session.ts`, `wui:utils/auth-client-core.mjs`, `wui:composables/useAuthClient.ts` | `issues_sort` claim (`session.ts:53`), `setIssuesSort` (`:194-196,:218`), `saveIssuesSort` (`auth-client-core.mjs:356-359`, `useAuthClient.ts:21`) | T017f |
 | `wui:utils/tree-drag.ts` | `TREE_DRAG_START_PX = 5` (`:19`), `TreeDropPlace` (`:23`), `dropWhere` (`:31-42`), `createTreeDrag` (`:108-177`; treats `pen` as `touch` `:139`) | T017g (reuse) |
 | `wui:composables/useIssueCtxMenu.ts`, `useIssueMenu.ts`, `components/UiPointMenu.vue` | `menuItemsFor` (`useIssueCtxMenu.ts:45-62`: `tg.top` branch `:50-58`), `useRunIssueItem` (`:176-199`); `PointMenuItem` ALREADY supports `disabled?: boolean` and `hintKey?: string` (`UiPointMenu.vue:103-105`, no edit needed) | T017g |
@@ -130,25 +132,26 @@ and `csi-spl-cnf/csi-spl/all.env.yaml:1567-1574`. Live
 cross-vendor R7 reviewer before pushing to `master`: `agy` reviews
 `claude`-authored rows; `claude` reviews `agy`-authored `T017h`. `mistral` sits
 on no review seat (`mistral_review_allowed: false`, owner msgs `65a45673` and
-`591ca574`); `grok` is off fleet-wide. If a `claude` row finishes while `agy`
-is paused or out of quota (`2026-11-25T14:03:42Z` at plan time), the dispatch
-holder may assign a fresh `claude` waiver seat under fleet ruling `dc84300a`
-(`bug-round-14-plan.md:50`, `bug-round-17-plan.md:114`), citing `dc84300a` in
-the row brief; once `agy` is available, `agy` reviews every `claude` row.
+`591ca574`); `grok` is off fleet-wide. Per fleet ruling `dc84300a`
+(`refactor-round-98-plan.md:664-667`, `refactor-round-97-plan.md:473`), a
+same-vendor `claude` backup waiver seat (rulebook 2.7.2/2.7.3) applies ONLY
+while `agy` is out of quota (`2026-11-25T14:03:42Z` at plan time), with
+`dc84300a` cited in the row brief if the `claude` backup is used; once `agy`
+has quota, `agy` reviews every `claude` row.
 
 ### 2.1 Action table
 
 | row | what | kind | vendor | R7 reviewer | red control (C2) | depends on | batch |
 |---|---|---|---|---|---|---|---|
-| `T017a` | rdb migration: `issues.epic_rank bigint CHECK (epic_rank > 0)`, `epic_rank_by text`, `epic_rank_at timestamptz` under `SET LOCAL lock_timeout = '5s'`, number from `do_rdb_migration_next`; applied on `dev` then `prd` before `T017b` pushes | `simple_coding` | `claude` | `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never `mistral`) | `INSERT` with `epic_rank = 0` refused by CHECK on throwaway Postgres; accepted with CHECK removed (`lint-migration` green) | none | 1 |
-| `T017d` | hub preference `issues_epics_sort` (`{col: manual\|title\|priority\|updated\|created, dir: asc\|desc}` or `null`) in `MembershipSettings`, session claims (`handler.go` + `native.go`), `PUT /api/v1/auth/preferences` | `simple_coding` | `claude` | `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never `mistral`) | `{col: "rank"}` refused 400 `unsupported_issues_epics_sort`; accepted with shape check removed (memory + Postgres) | none | 1 |
-| `T017e` | WUI refactor (no behaviour change): extract status, priority, assignee, label, deadline filter controls from `pages/issues.vue` (`.issues-frow` + mobile filter sheet) into 5 shared components (`IssueFilter*.vue`) | `simple_coding` | `claude` (never `mistral`) | `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never `mistral`) | unit test asserting all 5 filter fields render via their single component in both desktop filter row and phone sheet: RED on parent inline controls, GREEN after extraction; `bundle-size.mjs` <= parent and <= 155.0 KB | none | 1 |
-| `T017b` | hub store: `SetEpicPosition` on memory + Postgres (D1-D6: `FOR UPDATE` open level-1 rows, neighbour adjacency check, take priority of row below, rank unranked open rows above with no `epic_rank_by`/history, 1024 gap + in-tx renumber, single UPDATE for priority+rank+`priority_set_at`+history); `UpdateIssue` clears `epic_rank` on priority or kind change | `complex_coding` | `claude` | `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never `mistral`) | both drivers (`PRE_PUSH_TIER=full`): stale neighbour moves nothing; drop across priority writes that priority + history; priority PATCH clears `epic_rank` (RED with clear removed); kind change to `issue` clears `epic_rank` | `T017a` landed AND applied on `dev` + `prd` | 2 |
-| `T017c` | hub route + summary + CORS + docs: `PUT /v1/issues/{ref}/position` (FR-014.5 refusals, `issueWriter`, `spreadIssuePriority`, `issue` frames), `OPTIONS /v1/issues/{ref}/position` + `PUT` in `issuesPreflight`, `epics[]` in manual order with 7 new fields (unset as `toIssueJSON`), `openapi.json`, `contracts/issues-v1.md` §1 & §8 | `complex_coding` | `claude` | `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never `mistral`) | preflight test RED with `PUT` omitted from `Access-Control-Allow-Methods`; spread test RED with `spreadIssuePriority` removed; every FR-014.5 refusal (400/403/404/409) verified | `T017b` | 3 |
-| `T017f` | WUI epic panel toolbar: `useEpicPanelList` (`useState`) + `utils/epic-panel.mjs` (sort: manual/name/priority/updated/created, closed always last; persisted `issues_epics_sort`; filter: `matchIssue` + SPL-4610 text + kind + open/closed + T017e components; "n of m epics", Clear), phone sort/filter bottom sheets, phone chip strip reading same list, 19 locales + `do_spl_lang_review_gct` | `complex_coding` | `claude` (never `mistral`) | `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never `mistral`) | sort unit test RED with closed rows sorted among open ones; `bundle-size.mjs` <= 155.0 KB with `useEpicPanelList` absent from entry chunk (throwaway-branch control: importing it from `ChannelSidebar.vue` fails the check) | `T017c`, `T017d`, `T017e` | 4 |
-| `T017g` | WUI epic reorder: `tree-drag.ts` pointer drag (`before`/`after` only; mouse, touch/pen hold-then-move), `Alt+ArrowUp`/`Alt+ArrowDown`, Move up/down/to top in `useIssueCtxMenu.ts` (disabled + hint outside unfiltered manual order), `aria-live` announcement, optimistic move + 409 rollback + inline error, `setEpicPosition` client + mock, 19 locales + `do_spl_lang_review_gct` | `complex_coding` | `claude` (never `mistral`) | `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never `mistral`) | e2e drag RED with drag left enabled under non-manual sort; 409 e2e case RED with optimistic rollback removed; `bundle-size.mjs` <= 155.0 KB | `T017f` | 5 |
-| `T017h` | help: update Epics section in qto doc `9a453b0c-3925-45ac-9679-09fe841b4968` -> `do_spl_doctree_export_md` (`doc/help/issues.md`) -> `node src/node/help/sync-help.mjs` (`wui:public/help-md/issues.md`) | `specs_and_docs` | `agy`, backup `claude` (never `mistral`) | `claude` if `agy` authored; `agy` (or `claude` waiver while paused) if `claude` authored; never `mistral` | `QTO_DRIFT_LIVE=1 ... do_check_qto_doc_drift` catches hand-edited md; `sync-help.mjs --check` fails if `wui:public/help-md/issues.md` drifts | `T017g` | 6 |
-| `T017i` | live proof `csi-spl-wui/tests/e2e/issues-epic-order-live.proof.mjs`, run n=1 on `dev` (`t1`) and `prd` (`e2e`) after `T017c..g` are served: drag across priority line persists at hub, second tab updates live without reload, sort survives reload, cleans up created rows and restores sort preference | `tests` | `claude` (never `mistral`) | `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never `mistral`) | proof run against `dev` before `T017c` is served (or against an unknown `/position` route) fails step 1 with 404/405 | `T017c..T017g` served on `dev` and `prd` | 6 |
+| `T017a` | rdb migration: `issues.epic_rank bigint CHECK (epic_rank > 0)`, `epic_rank_by text`, `epic_rank_at timestamptz` under `SET LOCAL lock_timeout = '5s'`, number from `do_rdb_migration_next`; wf 20 runs `DRY_RUN=0 do_spl_db_bootstrap` on `dev` and `prd` before rolling | `simple_coding` | `claude` | `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never `mistral`) | `INSERT` with `epic_rank = 0` refused by CHECK on throwaway Postgres; accepted with CHECK removed (`lint-migration` green); `information_schema` lists the 3 columns in `dev` and `prd` after wf 20 | none | 1 |
+| `T017d` | hub preference `issues_epics_sort` (`{col: manual\|title\|priority\|updated\|created, dir: asc\|desc}` or `null`) in `MembershipSettings`, session claims (`handler.go` + `native.go`), `PUT /api/v1/auth/preferences` | `simple_coding` | `claude` | `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never `mistral`) | `{col: "rank"}` refused 400 `unsupported_issues_epics_sort`; accepted with shape check removed (memory + Postgres) | none | 1 |
+| `T017e` | WUI refactor (no behaviour change): extract status, priority, assignee, label, deadline filter controls from `pages/issues.vue` (`.issues-frow` + mobile filter sheet) into 5 shared components (`IssueFilter*.vue`) | `simple_coding` | `claude` (never `mistral`) | `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never `mistral`) | unit test asserting all 5 filter fields render via their single component in both desktop filter row and phone sheet: RED on parent inline controls, GREEN after extraction; `bundle-size.mjs` <= parent and <= 155.0 KB | none | 1 |
+| `T017b` | hub store: `SetEpicPosition` on memory + Postgres (D1-D6: `FOR UPDATE` open level-1 rows, neighbour adjacency check, take priority of row below, rank unranked open rows above with no `epic_rank_by`/history, 1024 gap + in-tx renumber, single UPDATE for priority+rank+`priority_set_at`+history); `UpdateIssue` clears `epic_rank` on priority or kind change | `complex_coding` | `claude` | `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never `mistral`) | both drivers (`PRE_PUSH_TIER=full`): stale neighbour moves nothing; drop across priority writes that priority + history; priority PATCH clears `epic_rank` (RED with clear removed); kind change to `issue` clears `epic_rank` | `T017a` wf 20 green on `dev` + `prd` | 2 |
+| `T017c` | hub route + summary + CORS + docs: `PUT /v1/issues/{ref}/position` (FR-014.5 refusals, `issueWriter`, `spreadIssuePriority`, `issue` frames), `OPTIONS /v1/issues/{ref}/position` + `PUT` in `issuesPreflight`, `epics[]` in manual order with 7 new fields (unset as `toIssueJSON`), `openapi.json`, `contracts/issues-v1.md` §1 & §8 | `complex_coding` | `claude` | `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never `mistral`) | preflight test RED with `PUT` omitted from `Access-Control-Allow-Methods`; spread test RED with `spreadIssuePriority` removed; every FR-014.5 refusal (400/403/404/409) verified | `T017b` | 3 |
+| `T017f` | WUI epic panel toolbar: `useEpicPanelList` (`useState`) + `utils/epic-panel.mjs` (sort: manual/name/priority/updated/created, closed always last; persisted `issues_epics_sort`; filter: `matchIssue` + SPL-4610 text + kind + open/closed + T017e components; "n of m epics", Clear), phone sort/filter bottom sheets, phone chip strip reading same list (chips do not drag), 19 locales + `do_spl_lang_review_gct` | `complex_coding` | `claude` (never `mistral`) | `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never `mistral`) | sort unit test RED with closed rows sorted among open ones; `bundle-size.mjs` <= 155.0 KB with `useEpicPanelList` absent from entry chunk (throwaway-branch control: importing it from `ChannelSidebar.vue` fails the check) | `T017c`, `T017d`, `T017e` | 4 |
+| `T017g` | WUI epic reorder: `tree-drag.ts` pointer drag (`before`/`after` only; mouse, touch/pen hold-then-move), `Alt+ArrowUp`/`Alt+ArrowDown`, Move up/down/to top in `useIssueCtxMenu.ts` (disabled + hint outside unfiltered manual order), `aria-live` announcement, optimistic move + 409 rollback + inline error, `setEpicPosition` client + mock, 19 locales + `do_spl_lang_review_gct` | `complex_coding` | `claude` (never `mistral`) | `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never `mistral`) | e2e drag RED with drag left enabled under non-manual sort; 409 e2e case RED with optimistic rollback removed; `bundle-size.mjs` <= 155.0 KB | `T017f` | 5 |
+| `T017h` | help: update Epics section in qto doc `9a453b0c-3925-45ac-9679-09fe841b4968` -> `do_spl_doctree_export_md` (`doc/help/issues.md`) -> `node src/node/help/sync-help.mjs` (`wui:public/help-md/issues.md`) | `specs_and_docs` | `agy`, backup `claude` (never `mistral`) | `claude` if `agy` authored; `agy` (or `claude` backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`) if `claude` authored; never `mistral` | `QTO_DRIFT_LIVE=1 ... do_check_qto_doc_drift` catches hand-edited md; `sync-help.mjs --check` fails if `wui:public/help-md/issues.md` drifts | `T017g` | 6 |
+| `T017i` | live proof `csi-spl-wui/tests/e2e/issues-epic-order-live.proof.mjs`, run n=1 on `dev` (`t1`) and `prd` (`e2e`) after `T017c..g` are served: drag across priority line persists at hub, second tab updates live without reload, sort survives reload, cleans up created rows and restores sort preference | `tests` | `claude` (never `mistral`) | `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never `mistral`) | proof run against `dev` before `T017c` is served (or against an unknown `/position` route) fails step 1 with 404/405 | `T017c..T017g` served on `dev` and `prd` | 6 |
 
 Row count: **9** (within rulebook 1.1's hard cap of 10). Max rows live in any
 batch: **3** (Batch 1).
@@ -173,12 +176,16 @@ No file path appears in two rows of any batch. Dependent batches place within
   - **Disjoint check:** `T017a` touches `csi-spl-rdb/`; `T017d` touches
     `api:auth/` + `api:store/membership_settings_test.go`; `T017e` touches
     `csi-spl-wui/`. Zero overlap.
-- **Operational DDL gate between Batch 1 and Batch 2 (N1):** apply `T017a`'s
-  migration on `dev` (`ENV=dev ./run -a do_spl_db_bootstrap`), verify
-  `information_schema.columns` lists `epic_rank`, `epic_rank_by`,
-  `epic_rank_at`, then apply on `prd` (with owner go) BEFORE `T017b` pushes to
-  `master` (workflow 20 auto-deploys `dev` and `prd` on push).
-- **Batch 2: `T017b`** (after `T017a` landed AND applied on `dev` and `prd`).
+- **Migration roll gate between Batch 1 and Batch 2 (N1):** `T017a`'s push to
+  `master` triggers `.github/workflows/20_hub-build-deploy.yml` (`:59`,
+  `wanted=(dev prd)` `:172`), which runs
+  `ENV="$ENV" GCP_ACCOUNT="$DEPLOY_SA" DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_bootstrap`
+  before rolling each env (`:649-665`). `T017b` places only after `T017a`'s
+  workflow 20 run is green on both `dev` and `prd`
+  (`gh run list --commit <T017a sha>`; `ENV=dev|prd ./run -a do_check_deploy_lag`)
+  and `T017a`'s `information_schema` check confirms all three columns exist in
+  both environments.
+- **Batch 2: `T017b`** (after `T017a`'s wf 20 run is green on `dev` and `prd`).
   - **`T017b`** (`api:store/` only): `api:store/issues.go`,
     `api:store/issues_postgres.go`, new `api:store/issues_epic_position.go`,
     new `api:store/issues_epic_position_test.go`.
@@ -248,16 +255,22 @@ No file path appears in two rows of any batch. Dependent batches place within
 
 ### 2.4 Technical notes for the holder and rows (no owner question)
 
-- **N1. Mandatory `dev` -> `prd` DDL roll before `T017b` pushes.** `T017b`
-  adds `epic_rank, epic_rank_by, epic_rank_at` to `issueCols` and
-  `issueSheetCols` (`store/issues_postgres.go:15,20`). Because pushing `T017b`
-  to `master` automatically triggers `.github/workflows/20_hub-build-deploy.yml`
-  for `dev` and `prd`, `T017a`'s migration MUST be applied on `dev` and `prd`
-  (`do_spl_db_bootstrap`) BEFORE `T017b` is pushed to `master`, or the rolling
-  hub will fail queries on missing columns.
-- **N2. Postgres `issue_events_record` trigger (`rdb:0181:56-109`) & rank-only
-  updates.** The trigger automatically inserts a `'changed'` `'priority'`
-  history row using `NEW.updated_by` / `NEW.updated_at` when
+- **N1. Automatic CI migration roll (`20_hub-build-deploy.yml`) between `T017a`
+  and `T017b`.** On `136bcf31c`, `.github/workflows/20_hub-build-deploy.yml:59`
+  triggers on `csi-spl-rdb/src/sql/postgres/spool-hub/**`, runs
+  `wanted=(dev prd)` (`:172`), and executes
+  `ENV="$ENV" GCP_ACCOUNT="$DEPLOY_SA" DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_bootstrap`
+  before rolling each env (`:649-665`; a migrate failure fails the deploy
+  `:640-648`). No manual `do_spl_db_bootstrap` run or owner DB go is needed:
+  `T017a`'s push migrates both `dev` and `prd` through CI, and `T017b`'s own
+  wf 20 run also migrates before rolling. Still, `T017b` places only after
+  `T017a`'s wf 20 run is green on both `dev` and `prd` (`do_check_deploy_lag`)
+  and `information_schema` confirms the three columns in both environments
+  (`tasks.md:162-165`).
+- **N2. Postgres `issue_events_record` trigger (`rdb:0181:65-113`) & rank-only
+  updates.** The trigger (`issue_events_record()` `:65-110`, `CREATE TRIGGER`
+  `:112-113`) automatically inserts a `'changed'` `'priority'` history row
+  using `NEW.updated_by` / `NEW.updated_at` when
   `OLD.priority IS DISTINCT FROM NEW.priority`, and writes zero history rows
   when only `epic_rank` / `epic_rank_by` / `epic_rank_at` change. Therefore,
   in `T017b`, a rank-only update (same-priority drop, auto-ranking unranked
@@ -287,12 +300,13 @@ No file path appears in two rows of any batch. Dependent batches place within
   and `TestIssuesPreflight` (`api:hub/issues_test.go:267`) asserts the exact
   `Access-Control-Allow-Methods` header (`POST, PATCH, PUT, DELETE`).
 - **N6. Shared labels state for `IssueEpicsPanel.vue` (`T017f`).**
-  On `136bcf31c`, `pages/issues.vue:1421` holds workspace `labels` in a local
-  ref, whereas `epics` is shared via `useState('issue-epics')` (`:1336`). To
-  render `IssueFilterLabel` inside `IssueEpicsPanel.vue` (which mounts in
-  `ChannelSidebar.vue` outside `pages/issues.vue`), `T017f` promotes `labels`
-  in `pages/issues.vue` to `useState<IssueLabel[]>('issue-labels', () => [])`
-  so both the sheet and the panel share the same live label catalogue.
+  On `136bcf31c`, `pages/issues.vue:1296` declares workspace `labels` as a
+  local ref (assigned at `:1421`), whereas `epics` is shared via
+  `useState('issue-epics')` (`:1336`). To render `IssueFilterLabel` inside
+  `IssueEpicsPanel.vue` (which mounts in `ChannelSidebar.vue` outside
+  `pages/issues.vue`), `T017f` promotes `labels` in `pages/issues.vue` to
+  `useState<IssueLabel[]>('issue-labels', () => [])` so both the sheet and the
+  panel share the same live label catalogue.
 - **N7. `T017i` red-control timing and tenant safety.**
   Per spec 039 `tasks.md:230-236` and `issues-views-live.proof.mjs`, `T017i`
   runs on `dev` (`TENANT=t1`) and `prd` (`TENANT=e2e` at
@@ -327,8 +341,8 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
 ### 3.1 `T017a` - rdb migration: `issues.epic_rank`, `epic_rank_by`, `epic_rank_at`
 
 - **Kind:** `simple_coding`. **Vendor:** `claude`. **R7:** `agy` (`claude`
-  waiver only if `agy` paused, ruling `dc84300a`; never `mistral`). **Batch:**
-  1. `PRE_PUSH_TIER=full` (migration).
+  backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never
+  `mistral`). **Batch:** 1. `PRE_PUSH_TIER=full` (migration).
 - **Files: ONLY** new `rdb:<NNNN>_issue_epic_rank.sql` (number claimed with
   `cd csi-spl-orc && DRY_RUN=0 ./run -a do_rdb_migration_next`).
 - **Work:**
@@ -341,26 +355,32 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
      `ALTER TABLE issues ADD COLUMN IF NOT EXISTS epic_rank_at timestamptz;`
      Nullable, no backfill, no rewrite; existing `issues` RLS policies cover
      the new columns.
-  3. After landing on `master`, apply on `dev` via
-     `ENV=dev ./run -a do_spl_db_bootstrap` and verify `information_schema`
-     lists all three columns; report `dev` verified to the holder so `prd`
-     bootstrap runs (on owner go) before Batch 2 (`T017b`) pushes (N1).
+  3. After landing on `master`, watch `.github/workflows/20_hub-build-deploy.yml`
+     (which triggers on `csi-spl-rdb/src/sql/postgres/spool-hub/**` `:59` and
+     runs `DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_bootstrap` on `dev` and
+     `prd` `:172,:649-665`), verify `ENV=dev ./run -a do_check_deploy_lag` and
+     `ENV=prd ./run -a do_check_deploy_lag`, and confirm `information_schema`
+     lists `epic_rank`, `epic_rank_by`, `epic_rank_at` in both environments
+     (`tasks.md:164-165`) before reporting ready for Batch 2 (`T017b`).
 - **Done and red control (C2):** `lint-migration` green; on a throwaway
   Postgres with the migration applied, `INSERT` with `epic_rank = 0` is refused
   by the CHECK constraint, and the same file with the CHECK removed accepts it
-  (both outputs in commit body). `Docs: none (DDL matches spec 039 FR-014.5)`.
+  (both outputs in commit body); `information_schema` check green on `dev` and
+  `prd` after wf 20 completes. `Docs: none (DDL matches spec 039 FR-014.5)`.
 - **Test column (R2):** `cd csi-spl-iac && ./run -a do_check_pre_push_lint`
   (`lint-migration`), `PRE_PUSH_TIER=full ./run -a do_check_pre_push`,
   `bash csi-spl-api/src/bash/tests/run-all-tests.sh` (runs all migrations on
-  Postgres, including `TestRLSCoversEveryTenantTable`).
+  Postgres, including `TestRLSCoversEveryTenantTable`), wf 20 green +
+  `do_check_deploy_lag` on `dev` and `prd`.
 - **Not touched:** `csi-spl-api/`, `csi-spl-wui/`, `csi-spl-orc/`,
   `csi-spl-doc/`.
 
 ### 3.2 `T017d` - hub preference `issues_epics_sort`
 
 - **Kind:** `simple_coding`. **Vendor:** `claude`. **R7:** `agy` (`claude`
-  waiver only if `agy` paused, ruling `dc84300a`; never `mistral`). **Batch:**
-  1. `PRE_PUSH_TIER=full` (store membership settings test on Postgres).
+  backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never
+  `mistral`). **Batch:** 1. `PRE_PUSH_TIER=full` (store membership settings
+  test on Postgres).
 - **Files: ONLY** `api:auth/issues_sort.go` (or new
   `api:auth/issues_epics_sort.go`), `api:auth/settings.go`,
   `api:auth/handler.go`, `api:auth/native.go`, `api:auth/preferences_test.go`,
@@ -392,8 +412,8 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
 ### 3.3 `T017e` - WUI refactor: extract 5 shared filter field components
 
 - **Kind:** `simple_coding`. **Vendor:** `claude` (never `mistral`). **R7:**
-  `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never
-  `mistral`). **Batch:** 1.
+  `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling
+  `dc84300a`; never `mistral`). **Batch:** 1.
 - **Files: ONLY** new `wui:components/IssueFilterStatus.vue`,
   `wui:components/IssueFilterPriority.vue`,
   `wui:components/IssueFilterAssignee.vue`,
@@ -434,9 +454,9 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
 ### 3.4 `T017b` - hub store: `SetEpicPosition` and rank clear on priority/kind update
 
 - **Kind:** `complex_coding`. **Vendor:** `claude`. **R7:** `agy` (`claude`
-  waiver only if `agy` paused, ruling `dc84300a`; never `mistral`). **Batch:**
-  2 (ONLY after `T017a` is landed AND applied on `dev` and `prd`, N1).
-  `PRE_PUSH_TIER=full`.
+  backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never
+  `mistral`). **Batch:** 2 (after `T017a`'s wf 20 deploy is green on `dev` and
+  `prd`, N1). `PRE_PUSH_TIER=full`.
 - **Files: ONLY** `api:store/issues.go`, `api:store/issues_postgres.go`, new
   `api:store/issues_epic_position.go`, new
   `api:store/issues_epic_position_test.go`.
@@ -502,8 +522,8 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
 ### 3.5 `T017c` - hub route `PUT /v1/issues/{ref}/position`, `epics[]` summary, CORS, OpenAPI, contract
 
 - **Kind:** `complex_coding`. **Vendor:** `claude`. **R7:** `agy` (`claude`
-  waiver only if `agy` paused, ruling `dc84300a`; never `mistral`). **Batch:**
-  3 (after `T017b` lands). `PRE_PUSH_TIER=full`.
+  backup waiver ONLY while `agy` is out of quota, ruling `dc84300a`; never
+  `mistral`). **Batch:** 3 (after `T017b` lands). `PRE_PUSH_TIER=full`.
 - **Files: ONLY** `api:hub/issues.go`, new `api:hub/issues_epic_position.go`,
   `api:hub/issues_test.go`, new `api:hub/issues_epic_position_test.go`,
   `api:hub/openapi.json`,
@@ -521,8 +541,13 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
      `TestIssuesPreflight` at `issues_test.go:267`).
   3. Implement `handleSetEpicPosition` (`hub/issues_epic_position.go`):
      - Gate with `issueWriter` (`:951`, D7: 403 `forbidden`, 402 unpaid);
-     - Strictly decode `{"before": string|null, "after": string|null}` (reject
-       unknown fields / bad refs with 400 `bad_position`);
+     - Decode `{"before": string|null, "after": string|null}` with
+       `DisallowUnknownFields()` returning 400 `bad_json` on malformed JSON or
+       unknown fields (author's choice, matching existing hub convention at
+       `hub/issues.go:247-249` and `hub/fleet_ask_order.go:143`); an
+       unparseable non-null neighbour ref string returns 400 `bad_position`
+       (author's choice), while a parsed neighbour key that does not exist or
+       is no longer adjacent returns 409 `stale_position` per FR-014.5;
      - Map store errors to FR-014.5 status/tokens: 400 `not_epic`, 400
        `bad_position`, 409 `epic_closed`, 409 `stale_position`, 404 `not_found`;
      - Fan out an `issue` `op: "update"` frame for every row whose priority or
@@ -553,8 +578,9 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
 ### 3.6 `T017f` - WUI epic panel toolbar: sort, filter, phone sheets, chip strip, 19 locales
 
 - **Kind:** `complex_coding`. **Vendor:** `claude` (never `mistral`). **R7:**
-  `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never
-  `mistral`). **Batch:** 4 (after `T017c`, `T017d`, `T017e` land).
+  `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling
+  `dc84300a`; never `mistral`). **Batch:** 4 (after `T017c`, `T017d`, `T017e`
+  land).
 - **Files: ONLY** new `wui:utils/epic-panel.mjs`, new
   `wui:composables/useEpicPanelList.ts`, `wui:components/IssueEpicsPanel.vue`,
   `wui:components/IssueFilterStatus.vue` (add optional `includeGroups` prop for
@@ -570,7 +596,7 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
 - **Work:**
   1. Pure logic in `wui:utils/epic-panel.mjs`:
      - Sort modes (FR-014.2): `manual` (fixed direction, FR-014.1 order),
-       `title` (`Intl.Collator(locale, { numeric: true, sensitivity: 'base' })`,
+       `title` (`Intl.Collator(locale, { numeric: true })` per FR-014.2,
        default `asc`), `priority` (default `asc`, ties by manual order),
        `updated` (default `desc`, own `updated_at`), `created` (default `desc`,
        own `created_at`). Closed rows (`done`, `diss`) ALWAYS stay after open
@@ -579,8 +605,10 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
        priority, assignee (`me`, `none`, person), label, deadline (`<=` minute),
        and concrete statuses; handle `kind` (`epic`/`feature`/both), status
        groups `open` (not `done`/`diss`) and `closed`, and `text` using
-       SPL-4610's `personMatches` (`utils/person-picker.mjs:20`) on
-       `{ id: key, label: title }`.
+       SPL-4610's `personMatches` (`utils/person-picker.mjs:20`) with the
+       parent pickers' exact row shape `{ id: e.key, label: `${e.key} ${e.title}` }`
+       (`useIssuePicker.ts:94`, so queries spanning key and title such as
+       `"SPL-17 Fix"` match identically to the parent pickers).
   2. Shared composable `wui:composables/useEpicPanelList.ts` (`useState`):
      holds sort (hydrated from `session.claims.issues_epics_sort`, saved via
      `auth.saveIssuesEpicsSort` + `session.setIssuesEpicsSort`), ephemeral
@@ -594,7 +622,8 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
      + Clear, and `"n of m epics"` status line when filtered. On phones
      (`<= 820 px`), two 44 px icon buttons (sort, filter) open bottom sheets.
      `pages/issues.vue:111-124` chip strip renders `filteredEpics` ("All"
-     first).
+     first); **chips do not drag** (`spec.md:492-494`: reordering stays in the
+     panel only).
   4. Update `mockSummaries` (`utils/issues.mjs:311`) and `EpicSummary`
      (`mjs-shims.d.ts:1856`) with the 7 new fields in manual order.
   5. Add all new UI strings across all 19 locale files (`developer-guide.md`
@@ -627,8 +656,8 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
 ### 3.7 `T017g` - WUI epic reorder: drag, keyboard, row menu, 409 rollback
 
 - **Kind:** `complex_coding`. **Vendor:** `claude` (never `mistral`). **R7:**
-  `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`; never
-  `mistral`). **Batch:** 5 (after `T017f` lands).
+  `agy` (`claude` backup waiver ONLY while `agy` is out of quota, ruling
+  `dc84300a`; never `mistral`). **Batch:** 5 (after `T017f` lands).
 - **Files: ONLY** `wui:components/IssueEpicsPanel.vue`,
   `wui:composables/useEpicPanelList.ts`, `wui:composables/useIssueCtxMenu.ts`,
   `wui:composables/useIssueMenu.ts`, `wui:utils/spool-client.mjs`,
@@ -649,7 +678,9 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
      (never `into`): mouse lifts after `TREE_DRAG_START_PX` (5 px) with a
      drop indicator line and `Esc` cancel; touch/pen hold opens the row menu
      first and moving after hold lifts the row (D8). Closed rows never drag,
-     and drops below the last open row land as the last open row (D5).
+     and drops below the last open row land as the last open row (D5). Leave
+     the phone epic chip strip in `pages/issues.vue` untouched (chips do not
+     drag, `spec.md:492-494`).
   3. Add keyboard reorder on focused open rows (`Alt+ArrowUp` /
      `Alt+ArrowDown`) with an `aria-live="polite"` announcement
      (`"<KEY> moved to place <i+1> of <N>"`).
@@ -688,16 +719,16 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
   `issues-mobile.test.mjs`, plus `WUI_E2E_RANGE=<sha>^..<sha> ./run -a do_check_pre_push_e2e`;
   `wui-lang-review`; `do_check_deploy_lag` on `dev` and `prd`.
 - **Not touched:** `wui:components/ChannelSidebar.vue`,
-  `wui:components/UiPointMenu.vue`, `wui:utils/tree-drag.ts`, `csi-spl-api/`,
-  `csi-spl-rdb/`.
+  `wui:components/UiPointMenu.vue`, `wui:utils/tree-drag.ts`,
+  `wui:pages/issues.vue`, `csi-spl-api/`, `csi-spl-rdb/`.
 
 ### 3.8 `T017h` - user help: `doc/help/issues.md` via qto doc + `sync-help.mjs`
 
 - **Kind:** `specs_and_docs`. **Vendor:** `agy`, backup `claude` (never
   `mistral`: `sync-help.mjs` writes under `csi-spl-wui/`, developer guide 5.1).
-  **R7:** cross-vendor (`claude` if `agy` authored; `agy`, or `claude` waiver
-  while paused, if `claude` authored; never `mistral`). **Batch:** 6 (after
-  `T017g` lands).
+  **R7:** cross-vendor (`claude` if `agy` authored; `agy`, or `claude` backup
+  waiver ONLY while `agy` is out of quota, ruling `dc84300a`, if `claude`
+  authored; never `mistral`). **Batch:** 6 (after `T017g` lands).
 - **Files: ONLY** `doc:doc/help/issues.md` (via qto doc
   `9a453b0c-3925-45ac-9679-09fe841b4968` + `do_spl_doctree_export_md`) and
   `wui:public/help-md/issues.md` (ONLY via `sync-help.mjs`, N3).
@@ -728,9 +759,9 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
 ### 3.9 `T017i` - live proof `issues-epic-order-live.proof.mjs`
 
 - **Kind:** `tests`. **Vendor:** `claude` (never `mistral`, developer guide
-  5.1). **R7:** `agy` (`claude` waiver only if `agy` paused, ruling `dc84300a`;
-  never `mistral`). **Batch:** 6 (after `T017c..T017g` are served on `dev` and
-  `prd`).
+  5.1). **R7:** `agy` (`claude` backup waiver ONLY while `agy` is out of quota,
+  ruling `dc84300a`; never `mistral`). **Batch:** 6 (after `T017c..T017g` are
+  served on `dev` and `prd`).
 - **Files: ONLY** new `csi-spl-wui/tests/e2e/issues-epic-order-live.proof.mjs`.
 - **Work:**
   1. Mirror `issues-views-live.proof.mjs` (`BASE`, `API`, `EMAIL`, `PW_FILE`,
@@ -761,24 +792,21 @@ e.g. `feat(api, SPL-<n>): ... (spec 039 T017b)`.
 
 | seat | vendor | sha | verdict |
 |---|---|---|---|
-| planner (`a-526`) | `agy` | v0.1 (`review/a-526-spec039-fr014-build-plan`) | submitted |
-| cross-vendor reviewer | `claude` (requested via holder; never `mistral`) | pending | pending |
+| `c-433` | `claude` (cross-vendor to `agy` planner `a-526`) | `742af3f59` (v0.1) | FAIL (`W1`-`W2`, `N1`-`N7`) |
+| `c-433` | `claude` (cross-vendor to `agy` planner `a-526`) | v0.2 (pending) | pending |
 | dispatch holder (`c-002`) | `claude` | pending | pending |
 
 ## 5. Versions
 
 | version | what |
 |---|---|
-| v0.1 | initial build round plan on `136bcf31c` (`origin/master`): 9 rows (`T017a`-`T017i`) in 6 disjoint batches, mandatory `dev` -> `prd` DDL roll gate between `T017a` and `T017b`, vendor mix per kind table, cross-vendor R7 (never `mistral`), red controls, R2 test columns, and one owner poll block |
+| v0.1 | initial build round plan on `136bcf31c` (`origin/master`): 9 rows (`T017a`-`T017i`) in 6 disjoint batches, vendor mix per kind table, cross-vendor R7 (never `mistral`), red controls, R2 test columns |
+| v0.2 | folded `c-433` (`claude`) FAIL on v0.1 `742af3f59`: **W1** replaced manual DDL gate + owner poll with wf 20's automatic `DRY_RUN=0 do_spl_db_bootstrap` per env (`20_hub-build-deploy.yml:59,:172,:640-665`) and dropped the unnecessary owner poll (section 6 = None); **W2** fixed `dc84300a` citations to `refactor-round-98-plan.md:664-667` and `refactor-round-97-plan.md:473`; **N1** fixed `0181_issue_events.sql` to function `:65-110` / trigger `:112-113`; **N2** fixed `pages/issues.vue` `labels` ref `:1296` (assigned `:1421`) and `live.onIssue` `:1627`; **N3** fixed `TestOpenAPIRoutesFileForm` to `:326`; **N4** fixed `SetMembershipSettings` to Postgres `:85` / Memory `:125`; **N5** dropped unstated `sensitivity: 'base'` from `T017f` collator and marked `400 bad_json` / `400 bad_position` vs `409 stale_position` in `T017c`; **N6** matched `useIssuePicker.ts:94` row shape `{ id: e.key, label: `${e.key} ${e.title}` }` in `T017f`; **N7** added explicit "chips do not drag" (`spec.md:492-494`) to `T017f` and `T017g` |
 
 ## 6. Open points for the owner
 
-One build-execution choice needs your pick (first option recommended). Spec 039
-FR-014 itself is already settled (your answer **A** on form `52f857ff`).
-
-```poll
-1. How should we roll Batch 1 and the T017a database migration (issues.epic_rank) before Batch 2 (T017b)?
-(A) Queue Batch 1 (T017a, T017d, T017e) now, apply T017a on dev first, and ask you for one prd DB go before Batch 2 (T017b) pushes
-(B) Queue Batch 1 now and pre-approve applying T017a's additive nullable columns on prd right after dev passes, so Batches 2-6 roll without pausing
-(C) Hold: do not queue any FR-014 build rows yet
-```
+None. Spec 039 FR-014 is already settled by owner answer **A** on form
+`52f857ff` (`msg 934a8b8e`), and `.github/workflows/20_hub-build-deploy.yml`
+applies `T017a`'s additive nullable-column migration automatically on `dev` and
+`prd` before rolling the hub (`:59,:172,:649-665`), so no owner decision is
+open.

@@ -481,6 +481,12 @@ type Hub struct {
 	// the owner's /v1/view/netvisor/* and /v1/netvisor/* routes serve. Not
 	// the operator workspace. "" = every Netvisor route is off (404).
 	NetvisorWorkspace string `env:"SPOOL_HUB_NETVISOR_WORKSPACE"`
+	// TaxWorkspace is the one workspace whose tax index the hub keeps (spec
+	// 143 taxes-tab.md, SPL-6438; cnf hub env, csitea in dev and prd): the
+	// only workspace the /v1/operator/tax/* sync files into and
+	// /v1/view/tax/* serves; every other workspace gets an unknown route's
+	// 404. "" = every tax route is off (404).
+	TaxWorkspace string `env:"SPOOL_HUB_TAX_WORKSPACE"`
 	// DemoEnabled turns on demo users (specs/077): a demo_user acts in
 	// DemoWorkspace only. OFF by default in dev and prd; on only by the
 	// owner's go, dev first (Q8).
@@ -929,6 +935,9 @@ func (h *Hub) checkViews() error {
 	}
 	if h.NetvisorWorkspace != "" && !tenantIDRe.MatchString(h.NetvisorWorkspace) {
 		return fmt.Errorf("SPOOL_HUB_NETVISOR_WORKSPACE %q must be a tenant id", h.NetvisorWorkspace)
+	}
+	if h.TaxWorkspace != "" && !tenantIDRe.MatchString(h.TaxWorkspace) {
+		return fmt.Errorf("SPOOL_HUB_TAX_WORKSPACE %q must be a tenant id", h.TaxWorkspace)
 	}
 	if h.DemoEnabled && !tenantIDRe.MatchString(h.DemoWorkspace) {
 		return fmt.Errorf("SPOOL_HUB_DEMO_WORKSPACE %q must be a tenant id", h.DemoWorkspace)

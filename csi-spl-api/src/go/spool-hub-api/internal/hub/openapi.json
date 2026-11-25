@@ -17181,6 +17181,125 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/tax/snapshots": {
+      "post": {
+        "description": "Spec 143 taxes-tab.md S2/S4 (SPL-6438): the main-box tax index sync (do_spl_tax_sync) as the env's operator service account (Bearer id token), into the tax workspace only (cnf SPOOL_HUB_TAX_WORKSPACE: csitea; 403 tax_workspace_only when the Host or X-Spool-Tenant names another, the operator workspace included; 404 when the hub names none). An unknown field (a file name, an amount) is 400. Snapshots of a tax year older than 26 weeks before the newest are pruned, the two newest kept. Answers carry counts only.",
+        "operationId": "postOperatorTaxSnapshot",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "documents": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "arrival_date": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "category": {
+                          "enum": [
+                            "decisions",
+                            "payments",
+                            "balance",
+                            "msgs"
+                          ],
+                          "type": "string"
+                        },
+                        "content_sha256": {
+                          "type": "string"
+                        },
+                        "doc_type": {
+                          "type": "string"
+                        },
+                        "due_date": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "period": {
+                          "type": "string"
+                        },
+                        "tax_type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "arrival_date",
+                        "category",
+                        "content_sha256"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10000,
+                    "type": "array"
+                  },
+                  "snapshot_id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "taken_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "tax_year": {
+                    "maximum": 2100,
+                    "minimum": 2000,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "snapshot_id",
+                  "tax_year",
+                  "taken_at",
+                  "documents"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "one sync of one tax year's index: dates YYYY-MM-DD (due_date \"\" when none), text fields at most 80 characters, content_sha256 64 hex",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {snapshot_id, tax_year, documents}, counts only. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/tax.go."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: duplicate (this snapshot id is already filed)."
+          }
+        },
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "File one sync of the main box's tax index into the tax workspace",
+        "tags": [
+          "tax"
+        ]
+      }
+    },
     "/v1/operator/use": {
       "get": {
         "operationId": "getOperatorUse",
@@ -24246,6 +24365,54 @@
         "summary": "Read view search operators",
         "tags": [
           "view"
+        ]
+      }
+    },
+    "/v1/view/tax/overview": {
+      "get": {
+        "description": "Spec 143 taxes-tab.md S2 (SPL-6438; owner HUM-10, csitea topic dc7c9c9a, msg fc8f964e: every person of csitea, agents never): the browser session of any PERSON seated in the tax workspace. 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone, and a seat that is not a person's (agent, time accountant, channel guest). In every workspace but the tax workspace (cnf SPOOL_HUB_TAX_WORKSPACE: csitea), the operator workspace included, the 404 of an unknown /v1/view/* route, byte for byte. No amount, file name or personal data in the body; no MCP tool.",
+        "operationId": "getTaxOverview",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the tax year (YYYY); default the newest year filed",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "maximum": 2100,
+              "minimum": 2000,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {tax_year, years, today, taken_at, previous_taken_at, snapshot_id, documents: [{arrival_date, kind, doc_type, tax_type, period, due_date, category, status (new | changed | \"\"), due_soon, overdue, open_question}]}, newest arrival first; snapshot_id \"\" before the first sync. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/tax.go; doc csi-spl-doc/specs/143-reporting-section/taxes-tab.md."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "memberSession": []
+          }
+        ],
+        "summary": "Read the Costs > Taxes page: persons of the tax workspace only",
+        "tags": [
+          "tax"
         ]
       }
     },

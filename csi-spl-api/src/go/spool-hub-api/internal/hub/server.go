@@ -243,6 +243,11 @@ type Options struct {
 	// (spec 125 B5, netvisor.go; cnf SPOOL_HUB_NETVISOR_WORKSPACE): every
 	// Netvisor route serves it only. "" = those routes are off (404).
 	NetvisorWorkspace string
+	// TaxWorkspace is the one workspace that keeps the main box's tax index
+	// (spec 143 taxes-tab.md, SPL-6438, tax.go; cnf SPOOL_HUB_TAX_WORKSPACE):
+	// the Costs > Taxes routes serve it only. "" = those routes are off
+	// (404).
+	TaxWorkspace string
 	// DemoWorkspace is the one workspace a demo_user may act in (specs/077,
 	// demo.go); "" = the demo is off (SPOOL_HUB_DEMO_ENABLED false, the
 	// default): a demo_user membership grants nothing and GET /v1/demo is 404.
@@ -643,6 +648,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	// spec 163 B1: GET /v1/reporting/marketing, owner + admins, reporting_marketing.go
 	s.routeReportingMarketing(mux)
 	s.routeNetvisor(mux) // spec 125 B5: /v1/view/netvisor/*, /v1/netvisor/*, the Netvisor owner only, netvisor.go
+	s.routeTax(mux)      // spec 143 taxes-tab.md S2: /v1/view/tax/overview, persons of the tax workspace, tax.go
 	// SPL-4697: /v1/reporting/incomes (owner) + PUT /v1/operator/incomes, reporting_incomes.go
 	s.routeReportingIncomes(mux)
 	s.routeChannelBoxPins(mux) // spec 164 B2: /v1/channels/{channel}/box-pins + the operator PUT, channel_box_pins.go

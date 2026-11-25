@@ -301,4 +301,5 @@ func (s *Server) routeOperator(mux *http.ServeMux) {
 	s.routeOperatorHumanEmails(mux) // HUM-10 1ee61a2b: a pending sign-in email, human_email_operator.go
 	s.routeOperatorHumanLinks(mux)  // spec 042 "Note to self": one person's accounts, human_links_operator.go
 	s.routeOperatorNetvisor(mux)    // spec 125 B5: the main-box Netvisor sync, Netvisor workspace only, netvisor.go
+	s.routeOperatorTax(mux)         // spec 143 taxes-tab.md S2: the main-box tax index sync, tax workspace only, tax.go
 }

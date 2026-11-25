@@ -55,10 +55,11 @@ guard inside their action functions and delegate all crontab check/dry-run/remov
 handling to one home.
 The rows share no file: both are batch 1.
 
-**Status: v1.0 signed** (ready for row execution). Editor: **a-712** (agy). Signed by
-cross-vendor panel seat **c-646** (claude, `PASS` on v0.3
-`8a10db57b09f9b5e019b49069af75419bee969bc`, msg `467850fa` / holder copy `4d404c06`, seat
-file `d44d8b7ae0de16caceaac4ac144f2165f471e11a` on
+**Status: closed.** Both rows landed on `origin/master` with cross-vendor agy R7 PASS
+(`r02-01` `f36d8f70f` SPL-6536, `r02-02` `8ff47fd73` SPL-6537; section 8). Editor:
+**a-712** (agy). Plan v1.0 (`be509a40b`) was signed by cross-vendor panel seat **c-646**
+(claude, `PASS` on v0.3 `8a10db57b09f9b5e019b49069af75419bee969bc`, msg `467850fa` /
+holder copy `4d404c06`, seat file `d44d8b7ae0de16caceaac4ac144f2165f471e11a` on
 `review/c002-refactor-round-02-claude-seat`; `do_spl_review_line_check` rc 0 docs-only;
 holder GO `f1a764f4` / `efb35dea`). No row, site, batch, test hunk, or vendor changed
 between signed v0.3 and v1.0.
@@ -908,12 +909,75 @@ backup is used; never mistral; re-checked at placement).
   `review/c002-refactor-round-02-claude-seat`, `do_spl_review_line_check` rc 0 docs-only,
   holder GO `f1a764f4` / `efb35dea`; zero drift on all 10 row/test files to `3f74095fd`).
   No row, site, batch, test hunk, or vendor changed from signed v0.3.
+- **Closed** (a-712, close record, no version bump): both rows landed and verified on
+  `origin/master` `2ba02c0e2` (`2026-11-25T21:32Z`, n=1 each; zero drift on all 4 r02-01
+  files and all 4 r02-02 files between their landed shas and `2ba02c0e2`):
+  - r02-01 `f36d8f70f` (`f36d8f70f438dabf79d1e511e812a0b045488a3c`, SPL-6536, author
+    `c-696` claude, committed `2026-11-25T22:01:13+01:00`): R7 `a-770` agy **PASS** on
+    `d9199991a` (`d9199991a4e170fc3d4b15336c53e44419a2e5c5`; `do_spl_review_line_check`
+    rc 0, `OK 2 of 2`); `git patch-id --stable`
+    `6ad2122e79ed90d1ec13408bf9076444043b69e7` equal on both, `git diff d9199991a
+    f36d8f70f -- <4 files>` empty (C7). CI on `f36d8f70f`: push workflows 10
+    (`45700606214`), 15 (`45700605964`), 25 (`45700606083`), 26 (`45700606115`), 64
+    (`45700606144`), 67 (`45700605963`) **success**; 7 skipped workflow 12 runs
+    (`45700624889`, `45700679565`, `45700687527`, `45700735598`, `45701003748`,
+    `45701350653`, `45701570320`). Direct gate 10 (`45700606214`) **success** (R11).
+    Diff (`git show --numstat`, exact 4 files): `orc:src/bash/run/spl-msg-move.func.sh`
+    `+35 -15` (sha256 `4a442ccdc5ef`), `orc:src/bash/run/spl-topic-move.func.sh`
+    `+7 -20` (sha256 `66ee11218bed`), `orc:src/bash/tests/spl-msg-move.tst.sh`
+    `+50 -0` (sha256 `5b907bd5d703`), `orc:src/bash/tests/spl-topic-move.tst.sh`
+    `+18 -0` (sha256 `1a42b8064d83`), matching plan 1.3 head1 / section 6 verbatim.
+  - r02-02 `8ff47fd73` (`8ff47fd7377281e83813f409fb81afb5cdac810a`, SPL-6537, author
+    `c-698` claude, committed `2026-11-25T22:05:41+01:00`): R7 `a-772` agy **PASS** on
+    `98a132071` (`98a132071a159ceb868d8663242dbf83ce800a75`; `do_spl_review_line_check`
+    rc 0, `OK 3 of 3`); `git patch-id --stable`
+    `567c64afb30220cb65828184af1c2af1457ff7d9` equal on both, `git diff 98a132071
+    8ff47fd73 -- <4 files>` empty (C7). CI on `8ff47fd73`: push workflows 00
+    (`45703045200`), 15 (`45701836434`), 21 (`45702477019`), 25 (`45701836948`), 26
+    (`45701836364`), 40 (`45702435790`), 64 (`45701836520`), 67 (`45701836739`)
+    **success**; 4 skipped workflow 12 runs (`45701920972`, `45701934648`,
+    `45701993378`, `45702165579`); direct gate 10 (`45701837095`) cancelled
+    (superseded by gate 10 `45703273745` on `2ba02c0e2`, `in_progress` at `21:33Z`;
+    R11 verdict follows completion). Diff (`git show --numstat`, exact 4 files):
+    `orc:src/bash/run/setup-box-stats-cron.func.sh` `+16 -5` (sha256 `2b1f19013437`),
+    `orc:src/bash/run/check-disk-headroom-install-cron.func.sh` `+6 -36` (sha256
+    `6106f57f2059`), `orc:src/bash/run/setup-go-cache-prune-cron.func.sh` `+5 -36`
+    (sha256 `7e4e89ea9bd4`), `orc:src/bash/tests/box-stats-cron.tst.sh` `+54 -0`
+    (sha256 `c880d0a28021`), matching plan 1.4 head2 / section 6 verbatim.
+  - **R5, R6, 2.7.5, and post-land verification on `2ba02c0e2`:** `git merge-base
+    --is-ancestor <row> origin/master` rc 0 and box checkout (`2ba02c0e2`) ancestry rc 0
+    for both (both `csi-spl-orc` Bash only, no hub or WUI deploy required). R6 (`git log
+    origin/master --since="2026-11-25T18:51:33+02:00" --format='%H %cI %s' -E
+    --grep='\(r02-'`) returns both rows (`8ff47fd73`, `f36d8f70f`) and the 4 plan commits
+    (`be509a40b`, `f4e56d6f1`, `28dfe76d4`, `894e7633c`). Review count (2.7.5): 2 of 2
+    (`review: a-770 agy PASS`, `review: a-772 agy PASS`), both cross-vendor to their
+    claude authors; no claude waiver seat was needed. Post-land `git grep` on `2ba02c0e2`
+    (`csi-spl-orc/src/bash/run/`): desk-move prep and JSON summary copies 2 -> 1
+    (`_spl_desk_move_prep` at `spl-msg-move.func.sh:71`, sole `OK DRY_RUN nothing was
+    sent. Re-run with DRY_RUN=0 to move.` at `:79`, `_spl_desk_move_json` at `:90`;
+    called at `spl-msg-move.func.sh:51,63` and `spl-topic-move.func.sh:50,71` behind
+    `declare -F _spl_desk_move_prep` at `:49`); periodic cron check/dry-run/remove/install
+    state machine copies 3 -> 1 (`_spl_simple_cron_apply` at
+    `setup-box-stats-cron.func.sh:67`, sole `FATAL the crontab does not read back what was
+    written.` at `:102`; called at `setup-box-stats-cron.func.sh:59`,
+    `check-disk-headroom-install-cron.func.sh:59` behind `declare -F
+    _spl_simple_cron_apply` at `:58`, and `setup-go-cache-prune-cron.func.sh:59` behind
+    `declare -F _spl_simple_cron_apply` at `:58`).
+  - **Round close & teardown:** GC (`c-001`, msg `913b0432`) confirmed both rows landed
+    and requested the close record. Teardown list: `c-696` (r02-01 author), `c-698`
+    (r02-02 author), `a-770` (r02-01 R7), `a-772` (r02-02 R7), `c-646` (panel seat),
+    `a-712` (editor); `do_spl_lane_map --all` at `21:32Z` shows `c-696`, `a-770`, and
+    `c-646` already gone, with `c-698`, `a-772`, and `a-712` still live. Remote branches
+    remaining on `origin` for R8 prune (`PRUNE_SINCE=2026-11-25T18:51:33+02:00`):
+    `review/r02-01` (`d9199991a`), `review/r02-02` (`98a132071`),
+    `review/c002-refactor-round-02-planner` (`8a10db57b`), and
+    `review/c002-refactor-round-02-claude-seat` (`d44d8b7ae`).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-712 (agy): v0.1, v0.2, v0.3, v1.0.
+- Editor seat: a-712 (agy): v0.1, v0.2, v0.3, v1.0, close record.
 - Panel reviewer seat: c-646 (claude, seat `d44d8b7ae0de16caceaac4ac144f2165f471e11a` on
   `review/c002-refactor-round-02-claude-seat`): **PASS** on v0.3
   (`8a10db57b09f9b5e019b49069af75419bee969bc`, msg `467850fa` / holder copy `4d404c06`;
@@ -921,5 +985,5 @@ The panel seat signs this plan (rulebook 3.2).
   head sha256s, all 5 row suites, all 8 shared iac/orc gates, all 6 red/guard controls,
   all 5 mutations, `shellcheck`, and literal `bash -n` rc 0 rebuilds verified; W1-W3 and
   N1-N6 resolved; zero open W).
-- Row R7 seats: section 4 (agy per row, claude waiver backup only under ruling `dc84300a`;
-  never mistral).
+- Row R7 seats: section 4; both agy: a-770 (r02-01), a-772 (r02-02) (section 8, round
+  closed).

@@ -56,7 +56,9 @@
 # @description       Trace / Observed / Measured section, a Never / Don't /
 # @description       Do not / Out of scope section, SPL-5915, a `>` quote, a
 # @description       fenced block or a negated `does not apply`, SPL-5670,
-# @description       or a prohibition `no [w [w [w]]] apply`, b44-01;
+# @description       or a prohibition `no [w [w [w]]] apply`, b44-01,
+# @description       not after a condition word in its clause: `If no
+# @description       errors apply` still counts, b45-01;
 # @description       not a `cmd` -> result measurement in a section whose
 # @description       heading says `verbatim`, SPL-5696),
 # @description       or it carries `Owner-go: <msg id>` and a message with
@@ -625,7 +627,10 @@ _spl_review_go_unplaced() {
 # fenced blocks and `>` quote lines, and without a negated `apply`
 # (`does not apply`, `never apply`, and a prohibition: `no` and up to three
 # words on its line, none of them and / then / but / so, before it: `no
-# terraform apply`, `Run NO terraform plan or apply`; b44-01). Backticked
+# terraform apply`, `Run NO terraform plan or apply`; b44-01; unless a
+# condition word, if / when / unless / once / while / after / until, stands
+# before it in the same clause, since the last . ; : , ! ? or line start:
+# `If no errors apply the migration` is a step, b45-01). Backticked
 # spans stay: a command the lane is told to run is written in backticks. A section whose heading names
 # `verbatim` (any case) quotes another document (SPL-5696): in it, and only
 # there, a measurement (a backticked command followed by `->`, its result)
@@ -674,7 +679,13 @@ for l in lines:
     out.append(l)
 neg = r"(?i)\b(?:(?:(?:does|do|did|will|would|should|shall|may|might|can|could|must)\s+not|doesn't|don't|didn't|won't|cannot|can't|never)\s+|no(?:[^\S\n]+(?!(?:and|then|but|so)\b)\w[\w-]*){0,3}[^\S\n]+)apply\b"
 out += [re.sub(r"`[^`]*`\s*->", "", "\n".join(quote))]
-print(re.sub(neg, "", "\n".join(out)))
+txt = "\n".join(out)
+cond = re.compile(r"(?i)\b(?:if|when|unless|once|while|after|until)\b[^.;:,!?\n]*$")
+def unneg(m):
+    if m.group(0)[:2].lower() == "no" and cond.search(txt, 0, m.start()):
+        return m.group(0)
+    return ""
+print(re.sub(neg, unneg, txt))
 EOF_PY
 }
 

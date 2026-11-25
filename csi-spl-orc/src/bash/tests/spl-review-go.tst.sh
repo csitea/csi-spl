@@ -136,6 +136,11 @@
 #        -> GO; controls: "then apply", "apply the migration to prd",
 #        "do not skip, apply step 053", "no conflicts and apply", "no prd
 #        write" on one line and "apply" on the next -> rc 4
+#    30. a conditional apply step (b45-01): RED CONTROLS "If no errors
+#        apply the migration to prd." under Do and "When the plan shows no
+#        drift apply step 053." under Steps -> rc 4 (on b44-01's tree: GO);
+#        controls: case 29's prohibitions, "if it does not apply", "If
+#        green, no terraform apply", "No prd write. If green, report" -> GO
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -1186,6 +1191,29 @@ for fx in '3. Then apply the migration to prd.' '3. apply the migration to prd' 
   reset; abrief c-222 $'## Do\n\n'"$fx"
   f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 29000000-0000-4000-8000-000000000002)
   run REVIEW_GO_MSG="$f"; refused "29. control: '${fx//$'\n'/ \/ }' still holds" $? 4 "owner-go keyword 'apply'"
+done
+
+# --- 30. a conditional apply step still holds (b45-01) -----------------------------------------------
+# g-750 N2 on b44-01: `no` + up to three words before `apply` also matched a
+# condition written without a comma; a condition word earlier in the clause
+# keeps it a keyword
+for fx in 'Do|## Do
+3. If no errors apply the migration to prd.' \
+          'Steps|## Steps
+4. When the plan shows no drift apply step 053.'; do
+  reset; abrief c-222 "${fx#*|}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 30000000-0000-4000-8000-000000000001)
+  run REVIEW_GO_MSG="$f"; refused "30. RED CONTROL: a conditional apply in a ${fx%%|*} step still holds" $? 4 "owner-go keyword 'apply'"
+done
+for fx in '3. Gates for the trees you touch. No GCP mutation, no prd write, no terraform apply.' \
+          '5. Hygiene. Run NO terraform plan or apply, nothing against dev, prd or GCP.' \
+          '3. Re-make the change if it does not apply cleanly.' \
+          '3. If green, no terraform apply.' '3. No prd write. If green, report.'; do
+  reset; abrief c-222 $'## Do\n\n'"$fx"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 30000000-0000-4000-8000-000000000002)
+  run REVIEW_GO_MSG="$f"; rc=$?
+  (( rc == 0 && $(gos) == 1 )) && pass "30. control: '$fx' passes [4] -> GO" ||
+    fail "30. control '$fx' rc=$rc out=$(tail -2 "$T/out")"
 done
 
 echo "spl-review-go: ${fails} failure(s)"

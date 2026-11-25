@@ -56,12 +56,15 @@ delegate all non-200 error logging to one home (`spl-hub-box-band.func.sh:110-12
 out because it has no `404)` branch).
 The rows share no file: both are batch 1.
 
-**Status: v1.0 signed** (ready for row execution). Editor: **a-649** (agy). Signed by
-cross-vendor panel seat **c-650** (claude, `PASS` on v0.1
-`78277dc10e5bb7f6037b7e469f35ae616f24fc0f`, msg `89b78369`, seat file
-`0561c1ffaebcbc27d9e55b60038b68ef9930cfb7` on `review/c002-refactor-round-01-claude-seat`;
-`do_spl_review_line_check` rc 0 `OK 6 of 6`; holder GO `8b965938`). No row, site, batch,
-test hunk, or vendor changed between signed v0.1 and v1.0; panel notes N1-N6 folded.
+**Status: closed.** Both rows landed on `origin/master` with cross-vendor agy R7 PASS
+(`r01-01` `e108142e8` SPL-6525, `r01-02` `3582fc44b` SPL-6530; section 8). Editor:
+**a-649** (agy). Plan v1.0 (`43a4b3949`) was signed by cross-vendor panel seat **c-650**
+(claude, `PASS` on v0.1 `78277dc10e5bb7f6037b7e469f35ae616f24fc0f`, msg `89b78369`, seat
+file `0561c1ffaebcbc27d9e55b60038b68ef9930cfb7` on `review/c002-refactor-round-01-claude-seat`;
+`do_spl_review_line_check` rc 0 `OK 6 of 6`; holder GO `8b965938`; v1.0 `43a4b3949`
+signed at `792ee31e0721b572195a976b8d70121144de637a`, msg `33e950aa`). No row, site,
+batch, test hunk, or vendor changed between signed v0.1 and v1.0; panel notes N1-N6
+folded.
 
 **One sha:** every count is measured on **`fe1f82671`** (`fe1f82671852a18e322a712a64a18037afdca7ce`,
 `origin/master` at 2026-11-25T16:11:57Z; zero drift on all 7 row/test files to
@@ -810,17 +813,79 @@ brief if the claude backup is used; never mistral; re-checked at placement).
   iac/orc column not run by seat, `bash-cleancode` rc 3 on base/head1 alike in partial
   orc+iac tree) and folded non-blocking notes N1-N6. No row, site, batch, test hunk, or
   vendor changed from v0.1.
+- **Closed** (a-649, close record, no version bump): both rows landed and verified on
+  `origin/master` `3582fc44b` (`2026-11-25T19:33Z`, n=1 each; zero drift on all 3 r01-01
+  row files between `e108142e8` and `3582fc44b`):
+  - r01-01 `e108142e8` (`e108142e8feeec39ee9dea457e8e50b741aa08da`, SPL-6525, author
+    `c-688` claude, committed `2026-11-25T20:34:28+02:00`): R7 `a-697` agy **PASS** on
+    `934b7c371` (`934b7c371ed9617b46c9fd048a91d1390265e61c`; `do_spl_review_line_check`
+    rc 0, `OK 11 of 11`); `git patch-id --stable`
+    `7172df0ba558b24dd43fb9c9966e628cec51e889` equal on both, `git diff 934b7c371
+    e108142e8 -- <3 files>` empty (C7). CI on `e108142e8`: push workflows 15
+    (`45677057041`), 25 (`45677056967`), 26 (`45677056893`), 40 (`45677215672`), 64
+    (`45677056933`), 67 (`45677056990`) **success**; 4 skipped workflow 12 runs
+    (`45677075926`, `45677139175`, `45677148162`, `45677212829`); direct gate 10
+    (`45677056916`) cancelled (superseded). R11 green gate 10: completed run
+    `45682266907` on `1a8c1ce1c7bcdc466111abf5827fb9ab5ac2ea4c` **success**
+    (`git merge-base --is-ancestor e108142e8 1a8c1ce1c` rc 0). Diff (`git show
+    --numstat`, exact 3 files): `orc:src/bash/run/spl-hub-request-minutes.func.sh`
+    `+16 -5` (sha256 `d614c9dd9f63`), `orc:src/bash/run/spl-hub-run-metrics.func.sh`
+    `+4 -5` (sha256 `adf9375567fa`), `orc:src/bash/tests/spl-hub-request-minutes.tst.sh`
+    `+67 -0` (sha256 `fc7d9b8407d5`), matching plan 1.3 head1 / section 6 verbatim.
+  - r01-02 `3582fc44b` (`3582fc44b9d3915d38109393bc2acaf3fdbb1473`, SPL-6530, author
+    `c-639` claude, committed `2026-11-25T20:09:45+01:00`): R7 `a-705` agy **PASS** on
+    `043e458ed` (`043e458ede08d18c7fc99acdd5ac362bda91b2c6`; `do_spl_review_line_check`
+    rc 0, `OK 2 of 2`); `git patch-id --stable`
+    `46bbb442bd7a5bbb439bcd6fd177e0eca6c27632` equal on both, `git diff 043e458ed
+    3582fc44b -- <4 files>` empty (C7). CI on `3582fc44b`: push workflows 15
+    (`45684048571`), 21 (`45684952199`), 25 (`45684048375`), 26 (`45684048373`), 40
+    (`45684817564`), 64 (`45684048612`), 67 (`45684048408`) **success**; 5 skipped
+    workflow 12 runs (`45684139811`, `45684147174`, `45684223674`, `45684496365`,
+    `45686096088`); gate 10 (`45684048340`) `in_progress` at `19:33Z` (R11 verdict
+    follows completion). Diff (`git show --numstat`, exact 4 files):
+    `orc:src/bash/run/spl-hub-agent-kinds.func.sh` `+19 -10` (sha256 `52d20bac44d7`),
+    `orc:src/bash/run/spl-hub-runner-cpu.func.sh` `+7 -11` (sha256 `74a3db121695`),
+    `orc:src/bash/tests/hub-agent-kinds.tst.sh` `+27 -0` (sha256 `918e59626f4d`),
+    `orc:src/bash/tests/hub-runner-cpu.tst.sh` `+23 -0` (sha256 `d7f616c6c177`),
+    matching plan 1.4 head2 / section 6 verbatim.
+  - **R5, R6, 2.7.5, and post-land verification on `3582fc44b`:** `git merge-base
+    --is-ancestor <row> origin/master` rc 0 and box checkout (`3582fc44b`) ancestry rc 0
+    for both (both `csi-spl-orc` Bash only, no hub or WUI deploy required). R6 (`git log
+    origin/master --since="2026-11-25T14:48:03+02:00" --format='%H %cI %s' -E
+    --grep='\(r01-'`) returns both rows (`3582fc44b`, `e108142e8`) and the 2 plan commits
+    (`43a4b3949`, `87c26ea51`). Review count (2.7.5): 2 of 2 (`review: a-697 agy PASS`,
+    `review: a-705 agy PASS`), both cross-vendor to their claude authors; no claude
+    waiver seat was needed. Post-land `git grep` on `3582fc44b`
+    (`csi-spl-orc/src/bash/run/`): hub window service/pin/until setup copies 2 -> 1
+    (`spl_hub_request_minutes_prep` at `spl-hub-request-minutes.func.sh:58`, sole
+    `FATAL env.hub.service_name is not set in` at `:61` across both actions; called at
+    `spl-hub-request-minutes.func.sh:35` and `spl-hub-run-metrics.func.sh:19` behind
+    `declare -F spl_hub_request_minutes_prep` at `:14`); `/v1/operator/fleet-load`
+    non-200 error reporter copies 2 -> 1 (`_spl_hub_fleet_load_error` at
+    `spl-hub-agent-kinds.func.sh:72`, sole 400 / 401|403 / 404 FATAL lines at `:76-78`
+    across both actions; called at `spl-hub-agent-kinds.func.sh:91` and
+    `spl-hub-runner-cpu.func.sh:63` behind `declare -F _spl_hub_fleet_load_error` at
+    `:62`; `spl-hub-box-band.func.sh` stays separate as noted in 1.4).
+  - **Round close & teardown:** GC (`c-001`, msg `f3aa9d5c`) confirmed both rows landed
+    and requested the close record. Teardown list: `c-688` (r01-01 author), `c-639`
+    (r01-02 author), `a-697` (r01-01 R7), `a-705` (r01-02 R7), `c-650` (panel seat),
+    `a-649` (editor); `do_spl_lane_map --all` at `19:32Z` shows `c-688`, `a-697`, and
+    `c-650` already gone, with `c-639`, `a-705`, and `a-649` still live. Remote branches
+    remaining on `origin` for R8 prune (`PRUNE_SINCE=2026-11-25T14:48:03+02:00`):
+    `review/r01-02` (`043e458ed`) and `review/c002-refactor-round-01-claude-seat`
+    (`792ee31e0`) (`review/r01-01` already absent from `origin`).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-649 (agy): v0.1, v1.0.
+- Editor seat: a-649 (agy): v0.1, v1.0, close record.
 - Panel reviewer seat: c-650 (claude, seat `0561c1ffaebcbc27d9e55b60038b68ef9930cfb7` on
   `review/c002-refactor-round-01-claude-seat`): **PASS** on v0.1
   (`78277dc10e5bb7f6037b7e469f35ae616f24fc0f`, msg `89b78369`; `do_spl_review_line_check`
   rc 0 `OK 6 of 6`; holder GO `8b965938`; W: none; N1-N6 folded into v1.0; all 7 head
   sha256 prefixes, 5 controls, 4 plan mutations + `m2c`, `shellcheck`, `func-name-unique`,
-  and `do_check_dist_hygiene` reproduced).
-- Row R7 seats: section 4 (agy per row, claude waiver backup only under ruling `dc84300a`;
-  never mistral).
+  and `do_check_dist_hygiene` reproduced) and **PASS** on landed v1.0 (`43a4b3949`, msg
+  `33e950aa`, seat `792ee31e0721b572195a976b8d70121144de637a`).
+- Row R7 seats: section 4; both agy: a-697 (r01-01), a-705 (r01-02) (section 8, round
+  closed).

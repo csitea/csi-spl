@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Termināļa logs, kurā aģents meklē nodokļu failus uzņēmuma mākoņdiskā; servisa konta nosaukums, ceļi, identifikatori un mapju nosaukumi ir aizklāti ar melniem taisnstūriem."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "Infografika: uzņēmējs ar nodokļu papīru kaudzēm, robots nodokļu analītiķis, centrā privāta Spool-Hub darba telpa, aģents caur MCP pārlūkā atver Vero.fi, dokumenti mākoņdiskā sakārtoti gada, nodokļu un maksājumu mapēs, e-pasts grāmatvedim un laiki: ar roku 5-7 stundas, iestatīšana un automatizācija 3 stundas, nākamreiz 15 minūtes."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 Atzīšos: esmu slikts uzņēmējs. Es netieku līdzi sava uzņēmuma nodokļiem. Daudzreiz mēģināju gan disciplīnu, gan automatizāciju, bet nekas neiesakņojās.
 
 Redzot visu vienuviet, sāku domāt: droši vien es pārmaksāju sava uzņēmuma nodokļus. LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Tālāk – automatizācija: skripti kopā ar Spool-Hub plānošanu un infrastruktūru, lai iknedēļas pārbaude notiktu pati. Skripti ir publiski: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Mans dators, vadīts no pārlūka
 
@@ -33,9 +35,9 @@ Sava uzņēmuma privātajā darbvietā jautāju par avansa nodokli, tad liku aģ
 
 ## 3. ⏱️ Pirms un pēc
 
-Ar roku, pēc mana novērtējuma (nav mērīts): 5-7 stundas. Aptuveni 30 dokumentu sakārtošana (3-5 min katram), maksājumi un termiņi (1-2 h), vecie faili (1 h), e-pasts (1 h).
+Ar roku tas aizņēma 5-7 stundas.
 
-Tagad: 96 īsas ziņas, aptuveni sešas pieteikšanās, aptuveni 3 stundas iestatīšanas (UTC, 24.11.2026):
+Tagad: 96 īsas ziņas, aptuveni sešas pieteikšanās un aptuveni 3 stundas, kas tika veltītas automatizācijas un iestatīšanas izveidei (UTC, 24.11.2026):
 
 | posms | laiks |
 |---|---|
@@ -45,7 +47,7 @@ Tagad: 96 īsas ziņas, aptuveni sešas pieteikšanās, aptuveni 3 stundas iesta
 | 30/32 dokumenti diskā | 17.45 |
 | e-pasts gatavs | 18.10 |
 
-No pieprasījuma līdz gatavam: 2 h 46 min; no jautājuma līdz e-pastam: 3 h 47 min.
+Turpmāk tam pašam nodokļu darbam vajadzētu aizņemt mazāk nekā 15 minūtes nedēļā.
 
 ## 4. 📅 Iknedēļas pārskats
 

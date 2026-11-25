@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Bir ajanın şirketin bulut sürücüsünde vergi dosyaları aradığı bir terminal penceresi; hizmet hesabının adı, yollar, kimlikler ve klasör adları siyah kutularla kapatılmış."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "Bir infografik: vergi kâğıdı yığınlarıyla bir işletme sahibi, robot bir vergi analisti, ortada özel bir Spool-Hub çalışma alanı, MCP üzerinden tarayıcıda Vero.fi'yi açan bir ajan, bulut sürücüde yıl, vergi ve ödeme klasörlerine yerleştirilmiş belgeler, muhasebeciye bir e-posta ve süreler: elle 5-7 saat, kurulum ve otomasyon 3 saat, bir dahaki sefere 15 dakika."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 İtiraf ediyorum: kötü bir işletme sahibiyim. Şirketimin vergilerini takip edemiyorum. Disiplini ve otomasyonu defalarca denedim; hiçbiri kalıcı olmadı.
 
 Her şeyi tek bir yerde görünce düşündüm: muhtemelen şirketim için fazla vergi ödüyorum. LinkedIn'de: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Sıradaki adım otomasyon: betikler artı Spool-Hub'ın zamanlama ve altyapısı; böylece haftalık kontrol kendi kendine çalışacak. Betikler herkese açık: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Kendi makinem, tarayıcıdan yönetim
 
@@ -33,9 +35,9 @@ Bir ajanı kendi dizüstü ya da masaüstü bilgisayarınızda çalıştırın v
 
 ## 3. ⏱️ Önce ve sonra
 
-Elle, benim tahminim (ölçülmedi): 5-7 saat. Yaklaşık 30 belgeyi dosyalamak (her biri 3-5 dk), ödemeler ve son tarihler (1-2 sa), eski dosyalar (1 sa), e-posta (1 sa).
+Elle 5-7 saat sürüyordu.
 
-Şimdi: 96 kısa mesaj, yaklaşık altı giriş, yaklaşık 3 saatlik kurulum (UTC, 24.11.2026):
+Şimdi: 96 kısa mesaj, yaklaşık altı giriş ve otomasyonu ve kurulumu oluşturmaya harcanan yaklaşık 3 saat (UTC, 24.11.2026):
 
 | aşama | saat |
 |---|---|
@@ -45,7 +47,7 @@ Elle, benim tahminim (ölçülmedi): 5-7 saat. Yaklaşık 30 belgeyi dosyalamak 
 | 30/32 belge sürücüde | 17.45 |
 | e-posta hazır | 18.10 |
 
-Talepten bitişe: 2 sa 46 dk; sorudan e-postaya: 3 sa 47 dk.
+Bundan sonra aynı vergi işi haftada 15 dakikadan az sürmeli.
 
 ## 4. 📅 Haftalık rapor
 

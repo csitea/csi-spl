@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "חלון מסוף שבו סוכן מחפש קובצי מס בכונן הענן של החברה; שם חשבון השירות, הנתיבים, המזהים ושמות התיקיות מכוסים בתיבות שחורות."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "אינפוגרפיקה: בעל עסק עם ערימות של מסמכי מס, רובוט אנליסט מס, במרכז סביבת עבודה פרטית של Spool-Hub, סוכן שפותח את Vero.fi בדפדפן דרך MCP, מסמכים מתויקים בתיקיות של שנה, מס ותשלומים בכונן הענן, מייל לרואה החשבון והזמנים: ידנית 5-7 שעות, הקמה ואוטומציה 3 שעות, בפעם הבאה 15 דקות."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 אני מודה: אני בעל עסק גרוע. אני לא מצליח לעקוב אחרי המסים של החברה שלי. ניסיתי משמעת ואוטומציה פעמים רבות; זה אף פעם לא החזיק.
 
 כשראיתי הכול במקום אחד, חשבתי: כנראה שאני משלם יותר מדי מסים על החברה שלי. ב-LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+הצעד הבא: אוטומציה, סקריפטים יחד עם התזמון והתשתית של Spool-Hub, כדי שהבדיקה השבועית תרוץ מעצמה. הסקריפטים פומביים: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ המחשב שלי, בשליטה מהדפדפן
 
@@ -33,9 +35,9 @@ image_prompt: "a screenshot of the agent's terminal and its side panel on a desk
 
 ## 3. ⏱️ לפני ואחרי
 
-ידנית, לפי הערכתי (לא נמדד): 5-7 שעות. כ-30 מסמכים מתויקים (3-5 דקות כל אחד), תשלומים ומועדי תשלום (1-2 שעות), קבצים ישנים (1 שעה), המייל (1 שעה).
+ידנית זה לקח 5-7 שעות.
 
-עכשיו: 96 הודעות קצרות, כשש התחברויות, כ-3 שעות הקמה (UTC, 24.11.2026):
+עכשיו: 96 הודעות קצרות, כשש התחברויות וכ-3 שעות, שהושקעו בבניית האוטומציה וההקמה (UTC, 24.11.2026):
 
 | שלב | זמן |
 |---|---|
@@ -45,7 +47,7 @@ image_prompt: "a screenshot of the agent's terminal and its side panel on a desk
 | 30/32 מסמכים בכונן | 17.45 |
 | המייל מוכן | 18.10 |
 
-מהבקשה ועד הסיום: 2 שעות 46 דקות; מהשאלה ועד המייל: 3 שעות 47 דקות.
+מעכשיו אותה עבודת מס אמורה לקחת פחות מ-15 דקות בשבוע.
 
 ## 4. 📅 הדוח השבועי
 

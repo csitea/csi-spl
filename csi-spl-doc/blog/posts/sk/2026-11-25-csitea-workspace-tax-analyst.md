@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Okno terminálu, v ktorom agent hľadá daňové súbory na cloudovom disku firmy; názov servisného účtu, cesty, identifikátory a názvy priečinkov sú zakryté čiernymi obdĺžnikmi."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "Infografika: podnikateľ s kopami daňových papierov, robot ako daňový analytik, v strede súkromný pracovný priestor Spool-Hub, agent otvára Vero.fi v prehliadači cez MCP, dokumenty v priečinkoch podľa roka, daní a platieb na cloudovom disku, e-mail účtovníkovi a časy: ručne 5-7 hodín, nastavenie a automatizácia 3 hodiny, nabudúce 15 minút."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 Priznávam: som zlý podnikateľ. Nestíham sledovať dane svojej firmy. Mnohokrát som skúšal disciplínu aj automatizáciu; nikdy sa to neudržalo.
 
 Keď som všetko videl na jednom mieste, napadlo mi: dane svojej firmy asi preplácam. Na LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Ďalej automatizácia: skripty s plánovaním a infraštruktúrou Spool-Hubu, aby týždenná kontrola bežala sama. Skripty sú verejné: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Môj počítač, ovládaný z prehliadača
 
@@ -33,9 +35,9 @@ V súkromnom pracovnom priestore mojej firmy som sa spýtal na preddavok na daň
 
 ## 3. ⏱️ Pred a po
 
-Ručne, podľa môjho odhadu (nemerané): 5-7 hodín. Asi 30 zaradených dokumentov (3-5 min každý), platby a termíny splatnosti (1-2 h), staré súbory (1 h), e-mail (1 h).
+Ručne to trvalo 5-7 hodín.
 
-Teraz: 96 krátkych správ, asi šesť prihlásení, asi 3 hodiny nastavovania (UTC, 24.11.2026):
+Teraz: 96 krátkych správ, asi šesť prihlásení a asi 3 hodiny, ktoré padli na vybudovanie automatizácie a nastavenia (UTC, 24.11.2026):
 
 | fáza | čas |
 |---|---|
@@ -45,7 +47,7 @@ Teraz: 96 krátkych správ, asi šesť prihlásení, asi 3 hodiny nastavovania (
 | 30/32 dokumentov na disku | 17.45 |
 | e-mail hotový | 18.10 |
 
-Od požiadavky po hotovo: 2 h 46 min; od otázky po e-mail: 3 h 47 min.
+Odteraz by rovnaká daňová agenda mala trvať menej ako 15 minút týždenne.
 
 ## 4. 📅 Týždenný report
 

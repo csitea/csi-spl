@@ -5,7 +5,7 @@ type: news
 title: "Huono yrittäjä, hyvä veroanalyytikko: yksityinen Spool-Hub-työtila hoiti yritykseni verot"
 summary: "En pysy yritykseni veroasioiden perässä. Yksityinen Spool-Hub-työtila ja yksi agentti järjestivät Vero.fi:n vuoden asiakirjat noin kolmessa tunnissa."
 share_text: "Myönnän: olen huono pitämään kirjaa yritykseni veroista. Yksi agentti, oma pöytäkoneeni ja Vero.fi – ja vuoden asiakirjat olivat järjestyksessä noin kolmessa tunnissa."
-share_long: "Huono yrittäjä, hyvä veroanalyytikko.\n\n😅 En ole koskaan pysynyt yritykseni veroasioiden perässä, vaikka olen yrittänyt monta kertaa.\n🖥️ Agentti toimii omalla pöytäkoneellani, ja ohjaan sitä Spool-Hubin selainkäyttöliittymästä.\n🔐 Kirjaudun Vero.fi:hin itse; agentti ei koskaan näe tunnuksiani.\n📂 Agentti haki vuoden päätökset ja kirjeet, järjesti ne kuukausittain ja kirjoitti perustellun sähköpostin kirjanpitäjälle.\n⏱️ Käyttöönotto kesti noin kolme tuntia.\n💡 Kun näin kaiken yhdessä paikassa, aloin epäillä maksavani liikaa veroja.\n\nLue koko kirjoitus:"
+share_long: "Huono yrittäjä, hyvä veroanalyytikko.\n\n😅 En ole koskaan pysynyt yritykseni veroasioiden perässä, vaikka olen yrittänyt monta kertaa.\n🖥️ Agentti toimii omalla pöytäkoneellani, ja ohjaan sitä Spool-Hubin selainkäyttöliittymästä.\n🔐 Kirjaudun Vero.fi:hin itse; agentti ei koskaan näe tunnuksiani.\n📂 Agentti haki vuoden päätökset ja kirjeet, järjesti ne kuukausittain ja kirjoitti perustellun sähköpostin kirjanpitäjälle.\n⏱️ Käsin työ vei 5–7 tuntia. Käytin noin 3 tuntia automaation ja käyttöönoton rakentamiseen; tästä eteenpäin sen pitäisi viedä alle 15 minuuttia viikossa.\n💡 Kun näin kaiken yhdessä paikassa, aloin epäillä maksavani liikaa veroja.\n\nLue koko kirjoitus:"
 date: 2026-11-25
 published: 2026-11-25T13:55:48Z
 author: c-296
@@ -13,12 +13,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Pääteikkuna, jossa agentti etsii verotiedostoja yrityksen pilvilevyltä; palvelutilin nimi, polut, tunnisteet ja kansioiden nimet on peitetty mustilla laatikoilla."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "Infografiikka: yrittäjä ja veropaperipinoja, robotti veroanalyytikkona, keskellä yksityinen Spool-Hub-työtila, agentti avaa Vero.fi:n selaimessa MCP:n kautta, asiakirjat pilvilevyllä vuosi-, vero- ja maksukansioissa, sähköposti kirjanpitäjälle ja ajat: käsin 5–7 tuntia, käyttöönotto ja automaatio 3 tuntia, seuraavalla kerralla 15 minuuttia."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
-Myönnän sen heti: olen huono yrittäjä. En pysy yritykseni veroasioiden perässä. Olen monta kertaa yrittänyt olla kurinalainen ja automatisoida asian, mutta se ei ole koskaan pysynyt.
+Myönnän sen heti: olen huono yrittäjä. En pysy yritykseni veroasioiden perässä. Olen monta kertaa yrittänyt olla kurinalainen ja automatisoida asian, mutta se ei ole koskaan toteutunut.
 
 Tällä kertaa sain kaiken yhteen paikkaan, ja se pani minut ajattelemaan: maksan luultavasti yritykseni veroja liikaa. Samaan aiheeseen liittyy LinkedIn-kirjoitus [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Seuraavaksi automaatio – skriptejä sekä Spool-Hubin ajastusta ja infraa –, jotta viikkotarkistus toimii itsestään. Skriptit ovat julkisia: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Agentti omalla koneella, ohjaus selaimesta
 
@@ -35,9 +37,9 @@ Yritykseni yksityisessä työtilassa kysyin ensin, miten ennakkovero lasketaan. 
 
 ## 3. ⏱️ Ennen ja jälkeen
 
-Käsin arvioin työn vievän 5–7 tuntia: noin 30 asiakirjaa ladattuna, nimettynä ja arkistoituna (3–5 min kpl), maksujen ja eräpäivien läpikäynti (1–2 h), vanhojen tiedostojen järjestäminen (1 h) ja sähköposti kirjanpitäjälle (1 h). Arvio on omani, ei mitattu.
+Käsin työ vei 5–7 tuntia.
 
-Nyt kirjoitin 96 lyhyttä viestiä ja kirjauduin noin kuusi kertaa. Käyttöönotto kesti noin 3 tuntia (UTC, 24.11.2026):
+Nyt kirjoitin 96 lyhyttä viestiä ja kirjauduin noin kuusi kertaa. Noin 3 tuntia meni automaation ja käyttöönoton rakentamiseen (UTC, 24.11.2026):
 
 | vaihe | aika |
 |---|---|
@@ -47,7 +49,7 @@ Nyt kirjoitin 96 lyhyttä viestiä ja kirjauduin noin kuusi kertaa. Käyttööno
 | 30/32 asiakirjaa pilvilevyllä | 17.45 |
 | sähköposti valmis | 18.10 |
 
-Agenttipyynnöstä valmiiseen meni 2 h 46 min, kysymyksestä sähköpostiin 3 h 47 min.
+Tästä eteenpäin saman veroajon pitäisi viedä alle 15 minuuttia viikossa.
 
 ## 4. 📅 Viikkoraportti
 

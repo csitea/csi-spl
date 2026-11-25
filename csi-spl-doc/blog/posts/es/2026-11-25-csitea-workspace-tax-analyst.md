@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Una ventana de terminal en la que un agente busca archivos fiscales en la unidad en la nube de la empresa; el nombre de la cuenta de servicio, las rutas, los identificadores y los nombres de carpetas están tapados con recuadros negros."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "Una infografía: un empresario con montones de papeles de impuestos, un robot analista fiscal, en el centro un espacio de trabajo privado de Spool-Hub, un agente que abre Vero.fi en un navegador mediante MCP, documentos archivados en carpetas de año, impuestos y pagos en la unidad en la nube, un correo al contable y los tiempos: a mano 5-7 horas, configuración y automatización 3 horas, la próxima vez 15 minutos."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 Lo admito: soy un mal empresario. No llevo al día los impuestos de mi empresa. Probé disciplina y automatización muchas veces; nunca duró.
 
 Verlo todo junto me hizo pensar: seguramente pago demasiados impuestos por mi empresa. En LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Lo siguiente: automatización, scripts más la planificación y la infraestructura de Spool-Hub, para que la revisión semanal se ejecute sola. Los scripts son públicos: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Mi máquina, dirigida desde el navegador
 
@@ -33,9 +35,9 @@ En el espacio de trabajo privado de mi empresa pregunté por el impuesto anticip
 
 ## 3. ⏱️ Antes y después
 
-A mano, a mi juicio (sin medir): 5-7 horas. Unos 30 documentos archivados (3-5 min c/u), pagos y vencimientos (1-2 h), archivos antiguos (1 h), el correo (1 h).
+A mano me llevó 5-7 horas.
 
-Ahora: 96 mensajes breves, unos seis accesos, unas 3 horas de preparación (UTC, 24.11.2026):
+Ahora: 96 mensajes breves, unos seis accesos y unas 3 horas, dedicadas a crear la automatización y la configuración (UTC, 24.11.2026):
 
 | fase | hora |
 |---|---|
@@ -45,7 +47,7 @@ Ahora: 96 mensajes breves, unos seis accesos, unas 3 horas de preparación (UTC,
 | 30/32 documentos en la nube | 17.45 |
 | correo listo | 18.10 |
 
-De la solicitud al final: 2 h 46 min; de la pregunta al correo: 3 h 47 min.
+A partir de ahora, el mismo proceso fiscal debería llevar menos de 15 minutos a la semana.
 
 ## 4. 📅 El informe semanal
 

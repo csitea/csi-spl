@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Ein Terminalfenster, in dem ein Agent auf dem Cloud-Laufwerk der Firma nach Steuerdateien sucht; Name des Dienstkontos, Pfade, IDs und Ordnernamen sind mit schwarzen Kästen verdeckt."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "Eine Infografik: ein Unternehmer mit Stapeln von Steuerpapieren, ein Roboter als Steueranalyst, in der Mitte ein privater Spool-Hub-Workspace, ein Agent, der Vero.fi per MCP im Browser öffnet, Dokumente in Ordnern nach Jahr, Steuer und Zahlungen auf dem Cloud-Laufwerk, eine E-Mail an den Buchhalter und die Zeiten: von Hand 5-7 Stunden, Einrichtung und Automatisierung 3 Stunden, nächstes Mal 15 Minuten."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 Zugegeben: Ich bin ein schlechter Unternehmer. Bei den Steuern meiner Firma verliere ich den Überblick. Disziplin und Automatisierung habe ich oft versucht; es hat nie gehalten.
 
 Alles an einem Ort zu sehen, ließ mich grübeln: Meine Firma zahlt wohl zu viel Steuern. Auf LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Als Nächstes: Automatisierung, Skripte plus Zeitplanung und Infrastruktur von Spool-Hub, damit der wöchentliche Check von selbst läuft. Die Skripte sind öffentlich: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Mein Rechner, gesteuert aus dem Browser
 
@@ -33,9 +35,9 @@ Im privaten Workspace meiner Firma fragte ich nach der Steuervorauszahlung und l
 
 ## 3. ⏱️ Vorher und nachher
 
-Von Hand, meine Schätzung (nicht gemessen): 5-7 Stunden. Etwa 30 Dokumente abgelegt (je 3-5 Min.), Zahlungen und Fälligkeiten (1-2 Std.), alte Dateien (1 Std.), die E-Mail (1 Std.).
+Von Hand hat es 5-7 Stunden gedauert.
 
-Jetzt: 96 kurze Nachrichten, etwa sechs Anmeldungen, rund 3 Stunden Einrichtung (UTC, 24.11.2026):
+Jetzt: 96 kurze Nachrichten, etwa sechs Anmeldungen und rund 3 Stunden, in denen die Automatisierung und die Einrichtung entstanden sind (UTC, 24.11.2026):
 
 | Phase | Zeit |
 |---|---|
@@ -45,7 +47,7 @@ Jetzt: 96 kurze Nachrichten, etwa sechs Anmeldungen, rund 3 Stunden Einrichtung 
 | 30/32 Dokumente auf dem Laufwerk | 17.45 |
 | E-Mail fertig | 18.10 |
 
-Anfrage bis fertig: 2 h 46 min; Frage bis E-Mail: 3 h 47 min.
+Ab jetzt sollte derselbe Steuerdurchlauf weniger als 15 Minuten pro Woche dauern.
 
 ## 4. 📅 Der Wochenbericht
 

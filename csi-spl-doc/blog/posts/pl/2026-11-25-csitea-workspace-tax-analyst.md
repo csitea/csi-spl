@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Okno terminala, w którym agent szuka plików podatkowych na dysku chmurowym firmy; nazwa konta usługi, ścieżki, identyfikatory i nazwy folderów są zakryte czarnymi prostokątami."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "Infografika: przedsiębiorca ze stosami dokumentów podatkowych, robot analityk podatkowy, w środku prywatna przestrzeń robocza Spool-Hub, agent otwierający Vero.fi w przeglądarce przez MCP, dokumenty w folderach roku, podatków i płatności na dysku w chmurze, e-mail do księgowego i czasy: ręcznie 5-7 godzin, konfiguracja i automatyzacja 3 godziny, następnym razem 15 minut."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 Przyznaję: jestem złym przedsiębiorcą. Nie nadążam z podatkami mojej firmy. Wiele razy próbowałem dyscypliny i automatyzacji; nigdy się nie przyjęło.
 
 Widząc wszystko w jednym miejscu, pomyślałem: pewnie przepłacam podatki mojej firmy. Na LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Następny krok: automatyzacja, skrypty z harmonogramem i infrastrukturą Spool-Hub, aby cotygodniowa kontrola działała sama. Skrypty są publiczne: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Mój komputer, sterowany z przeglądarki
 
@@ -33,9 +35,9 @@ W prywatnej przestrzeni roboczej mojej firmy zapytałem o zaliczkę na podatek, 
 
 ## 3. ⏱️ Przed i po
 
-Ręcznie, według mojej oceny (bez pomiaru): 5-7 godzin. Uporządkowanie około 30 dokumentów (3-5 min każdy), płatności i terminy (1-2 h), stare pliki (1 h), e-mail (1 h).
+Ręcznie zajmowało to 5-7 godzin.
 
-Teraz: 96 krótkich wiadomości, około sześciu logowań, około 3 godzin konfiguracji (UTC, 24.11.2026):
+Teraz: 96 krótkich wiadomości, około sześciu logowań i około 3 godzin poświęconych na zbudowanie automatyzacji i konfiguracji (UTC, 24.11.2026):
 
 | etap | czas |
 |---|---|
@@ -45,7 +47,7 @@ Teraz: 96 krótkich wiadomości, około sześciu logowań, około 3 godzin konfi
 | 30/32 dokumentów na dysku | 17.45 |
 | e-mail gotowy | 18.10 |
 
-Od prośby do końca: 2 h 46 min; od pytania do e-maila: 3 h 47 min.
+Od teraz ta sama praca podatkowa powinna zajmować mniej niż 15 minut tygodniowo.
 
 ## 4. 📅 Raport tygodniowy
 

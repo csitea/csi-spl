@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Een terminalvenster waarin een agent belastingbestanden zoekt op de clouddrive van het bedrijf; de naam van het serviceaccount, paden, id's en mapnamen zijn afgedekt met zwarte vakken."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "Een infographic: een ondernemer met stapels belastingpapieren, een robot als belastinganalist, in het midden een privé Spool-Hub-werkruimte, een agent die Vero.fi via MCP in een browser opent, documenten in mappen per jaar, belasting en betalingen op de clouddrive, een e-mail aan de boekhouder en de tijden: handmatig 5-7 uur, opzet en automatisering 3 uur, de volgende keer 15 minuten."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 Ik geef toe: ik ben een slechte ondernemer. Ik houd de belastingen van mijn bedrijf niet bij. Discipline en automatisering probeerde ik vaak; het beklijfde nooit.
 
 Alles op één plek zien deed me denken: mijn bedrijf betaalt waarschijnlijk te veel belasting. Op LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Volgende stap: automatisering, scripts plus de planning en infrastructuur van Spool-Hub, zodat de wekelijkse controle vanzelf draait. De scripts zijn openbaar: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Mijn machine, bestuurd vanuit de browser
 
@@ -33,9 +35,9 @@ In de privéwerkruimte van mijn bedrijf vroeg ik naar de voorlopige aanslag; daa
 
 ## 3. ⏱️ Voor en na
 
-Handmatig, mijn schatting (niet gemeten): 5-7 uur. Zo'n 30 documenten archiveren (3-5 min per stuk), betalingen en vervaldata (1-2 h), oude bestanden (1 h), de e-mail (1 h).
+Handmatig kostte het 5-7 uur.
 
-Nu: 96 korte berichten, ongeveer zes keer inloggen, ongeveer 3 uur opzetten (UTC, 24.11.2026):
+Nu: 96 korte berichten, ongeveer zes keer inloggen en ongeveer 3 uur, besteed aan het bouwen van de automatisering en de opzet (UTC, 24.11.2026):
 
 | fase | tijd |
 |---|---|
@@ -45,7 +47,7 @@ Nu: 96 korte berichten, ongeveer zes keer inloggen, ongeveer 3 uur opzetten (UTC
 | 30/32 documenten op drive | 17.45 |
 | e-mail klaar | 18.10 |
 
-Van verzoek tot klaar: 2 h 46 min; van vraag tot e-mail: 3 h 47 min.
+Vanaf nu zou dezelfde belastingronde minder dan 15 minuten per week moeten kosten.
 
 ## 4. 📅 Het weekrapport
 

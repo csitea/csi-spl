@@ -5,7 +5,7 @@ type: news
 title: "A bad business owner, a good tax analyst: a private Spool-Hub workspace handled my company's taxes"
 summary: "I can't keep track of my company's taxes. A private Spool-Hub workspace and one agent put a year of Vero.fi documents in order in about three hours."
 share_text: "I admit it: I'm bad at keeping track of my company's taxes. One agent, my own desktop and Vero.fi, and a year of documents was in order in about three hours."
-share_long: "A bad business owner, a good tax analyst.\n\n😅 I have never kept up with my company's tax matters, though I have tried many times.\n🖥️ The agent runs on my own desktop, and I steer it from Spool-Hub's web interface.\n🔐 I log in to Vero.fi myself; the agent never sees my credentials.\n📂 The agent fetched the year's decisions and letters, sorted them by month and wrote a reasoned email to the accountant.\n⏱️ Setting it up took about three hours.\n💡 Seeing it all in one place, I started to suspect I pay too much tax.\n\nRead the full post:"
+share_long: "A bad business owner, a good tax analyst.\n\n😅 I have never kept up with my company's tax matters, though I have tried many times.\n🖥️ The agent runs on my own desktop, and I steer it from Spool-Hub's web interface.\n🔐 I log in to Vero.fi myself; the agent never sees my credentials.\n📂 The agent fetched the year's decisions and letters, sorted them by month and wrote a reasoned email to the accountant.\n⏱️ By hand it took 5-7 hours. I spent about 3 hours building the automation and the setup; from now on it should take less than 15 minutes a week.\n💡 Seeing it all in one place, I started to suspect I pay too much tax.\n\nRead the full post:"
 date: 2026-11-25
 published: 2026-11-25T13:55:48Z
 author: c-296
@@ -13,12 +13,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "A terminal window where an agent looks for tax files on the company's cloud drive; the service account name, paths, ids and folder names are covered with black boxes."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "An infographic: a business owner with piles of tax papers, a robot tax analyst, a private Spool-Hub workspace in the centre, an agent opening Vero.fi in a browser through MCP, documents filed in year, tax and payments folders on the cloud drive, an email to the accountant, and the times: by hand 5-7 hours, setup and automation 3 hours, next time 15 minutes."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 I'll admit it: I am a bad business owner. I can't keep track of my company's taxes. I tried discipline and automation many times; it never stuck.
 
 Seeing everything in one place made me think: I am probably overpaying my company's taxes. On LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Next: automation, scripts plus Spool-Hub's scheduling and infrastructure, so the weekly check runs by itself. The scripts are public: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ My machine, steered from the browser
 
@@ -35,9 +37,9 @@ In my company's private workspace I asked about the advance tax, then had the ag
 
 ## 3. ⏱️ Before and after
 
-By hand, my estimate (not measured): 5-7 hours. About 30 documents filed (3-5 min each), payments and due dates (1-2 h), old files (1 h), the email (1 h).
+By hand it took 5-7 hours.
 
-Now: 96 short messages, about six logins, about 3 hours of setup (UTC, 24.11.2026):
+Now: 96 short messages, about six logins and about 3 hours, spent building the automation and the setup (UTC, 24.11.2026):
 
 | phase | time |
 |---|---|
@@ -47,7 +49,7 @@ Now: 96 short messages, about six logins, about 3 hours of setup (UTC, 24.11.202
 | 30/32 documents on drive | 17.45 |
 | email ready | 18.10 |
 
-Request to done: 2 h 46 min; question to email: 3 h 47 min.
+From now on the same tax run should take less than 15 minutes a week.
 
 ## 4. 📅 The weekly report
 

@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Ett terminalfönster där en agent letar efter skattefiler på företagets molnlagring; tjänstekontots namn, sökvägar, id:n och mappnamn är dolda under svarta rutor."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "En infografik: en företagare med högar av skattepapper, en robot som skatteanalytiker, i mitten en privat Spool-Hub-arbetsyta, en agent som öppnar Vero.fi i en webbläsare via MCP, dokument i mappar för år, skatt och betalningar på molndisken, ett mejl till bokföraren och tiderna: för hand 5-7 timmar, uppsättning och automatisering 3 timmar, nästa gång 15 minuter."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 Jag erkänner: jag är en dålig företagare. Jag hänger inte med i mitt företags skatter. Jag har försökt med disciplin och automation många gånger; det har aldrig fastnat.
 
 När jag såg allt på ett ställe slog det mig: jag betalar nog för mycket skatt för mitt företag. På LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Nästa steg: automatisering, skript plus Spool-Hubs schemaläggning och infrastruktur, så att veckokontrollen går av sig själv. Skripten är publika: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Min dator, styrd från webbläsaren
 
@@ -33,9 +35,9 @@ I mitt företags privata arbetsyta frågade jag om förskottsskatten och lät se
 
 ## 3. ⏱️ Före och efter
 
-För hand, min uppskattning (inte mätt): 5-7 timmar. Cirka 30 dokument arkiverade (3-5 min styck), betalningar och förfallodagar (1-2 h), gamla filer (1 h), mejlet (1 h).
+För hand tog det 5-7 timmar.
 
-Nu: 96 korta meddelanden, ungefär sex inloggningar, ungefär 3 timmars uppsättning (UTC, 24.11.2026):
+Nu: 96 korta meddelanden, ungefär sex inloggningar och ungefär 3 timmar, som gick åt till att bygga automatiseringen och uppsättningen (UTC, 24.11.2026):
 
 | fas | tid |
 |---|---|
@@ -45,7 +47,7 @@ Nu: 96 korta meddelanden, ungefär sex inloggningar, ungefär 3 timmars uppsätt
 | 30/32 dokument på enheten | 17.45 |
 | mejlet klart | 18.10 |
 
-Från begäran till klart: 2 h 46 min; från fråga till mejl: 3 h 47 min.
+Från och med nu bör samma skatterunda ta mindre än 15 minuter i veckan.
 
 ## 4. 📅 Veckorapporten
 

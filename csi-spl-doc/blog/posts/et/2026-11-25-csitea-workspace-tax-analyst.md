@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Terminaliaken, kus agent otsib ettevõtte pilvekettalt maksufaile; teenusekonto nimi, teed, ID-d ja kaustade nimed on kaetud mustade kastidega."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "Infograafik: ettevõtja maksupaberite hunnikutega, robotist maksuanalüütik, keskel privaatne Spool-Hubi tööruum, agent avab MCP kaudu brauseris Vero.fi, dokumendid pilvekettal aasta-, maksu- ja maksekaustades, e-kiri raamatupidajale ning ajad: käsitsi 5-7 tundi, seadistus ja automatiseerimine 3 tundi, järgmisel korral 15 minutit."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 Tunnistan: olen halb ettevõtja. Ma ei suuda oma ettevõtte maksudel silma peal hoida. Proovisin korduvalt distsipliini ja automatiseerimist; miski ei jäänud püsima.
 
 Kui nägin kõike ühes kohas, hakkasin mõtlema: tõenäoliselt maksan oma ettevõtte eest liiga palju makse. LinkedInis: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Järgmiseks automatiseerimine: skriptid koos Spool-Hubi ajastuse ja taristuga, et iganädalane kontroll jookseks iseenesest. Skriptid on avalikud: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Minu arvuti, juhitud brauserist
 
@@ -33,9 +35,9 @@ Oma ettevõtte privaatses tööruumis küsisin avansilise maksu kohta ja lasin s
 
 ## 3. ⏱️ Enne ja pärast
 
-Käsitsi, minu hinnangul (mõõtmata): 5-7 tundi. Umbes 30 dokumenti paigutatud (3-5 min tükk), maksed ja tähtajad (1-2 h), vanad failid (1 h), e-kiri (1 h).
+Käsitsi kulus 5-7 tundi.
 
-Nüüd: 96 lühikest sõnumit, umbes kuus sisselogimist, umbes 3 tundi seadistamist (UTC, 24.11.2026):
+Nüüd: 96 lühikest sõnumit, umbes kuus sisselogimist ja umbes 3 tundi, mis kulusid automatiseerimise ja seadistuse loomisele (UTC, 24.11.2026):
 
 | etapp | aeg |
 |---|---|
@@ -45,7 +47,7 @@ Nüüd: 96 lühikest sõnumit, umbes kuus sisselogimist, umbes 3 tundi seadistam
 | 30/32 dokumenti kettal | 17.45 |
 | e-kiri valmis | 18.10 |
 
-Taotlusest valmimiseni: 2 h 46 min; küsimusest e-kirjani: 3 h 47 min.
+Edaspidi peaks sama maksutöö võtma alla 15 minuti nädalas.
 
 ## 4. 📅 Nädalaaruanne
 

@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "O fereastră de terminal în care un agent caută fișiere fiscale pe drive-ul cloud al firmei; numele contului de serviciu, căile, id-urile și numele folderelor sunt acoperite cu dreptunghiuri negre."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "O infografică: un antreprenor cu teancuri de hârtii fiscale, un robot analist fiscal, în centru un spațiu de lucru privat Spool-Hub, un agent care deschide Vero.fi într-un browser prin MCP, documente arhivate în dosare pe an, impozite și plăți pe drive-ul din cloud, un e-mail către contabil și timpii: manual 5-7 ore, configurare și automatizare 3 ore, data viitoare 15 minute."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 Recunosc: sunt un antreprenor slab. Nu țin pasul cu impozitele firmei mele. Am încercat des disciplina și automatizarea; n-a ținut niciodată.
 
 Văzând totul la un loc, m-am gândit: probabil plătesc impozite prea mari pentru firmă. Pe LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Pasul următor: automatizarea, scripturi plus programarea și infrastructura Spool-Hub, ca verificarea săptămânală să ruleze singură. Scripturile sunt publice: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Mașina mea, condusă din browser
 
@@ -33,9 +35,9 @@ Rulați un agent pe propriul laptop sau desktop și conduceți-l din interfața 
 
 ## 3. ⏱️ Înainte și după
 
-Manual, după estimarea mea (nemăsurată): 5-7 ore. Circa 30 de documente arhivate (3-5 min fiecare), plăți și scadențe (1-2 h), fișiere vechi (1 h), e-mailul (1 h).
+Manual mi-a luat 5-7 ore.
 
-Acum: 96 de mesaje scurte, circa șase autentificări, circa 3 ore de configurare (UTC, 24.11.2026):
+Acum: 96 de mesaje scurte, circa șase autentificări și circa 3 ore, petrecute construind automatizarea și configurarea (UTC, 24.11.2026):
 
 | fază | oră |
 |---|---|
@@ -45,7 +47,7 @@ Acum: 96 de mesaje scurte, circa șase autentificări, circa 3 ore de configurar
 | 30/32 documente pe drive | 17.45 |
 | e-mail gata | 18.10 |
 
-De la cerere la final: 2 h 46 min; de la întrebare la e-mail: 3 h 47 min.
+De acum înainte, aceeași rundă fiscală ar trebui să dureze mai puțin de 15 minute pe săptămână.
 
 ## 4. 📅 Raportul săptămânal
 

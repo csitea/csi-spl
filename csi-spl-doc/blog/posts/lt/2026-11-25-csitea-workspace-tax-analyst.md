@@ -11,12 +11,14 @@ agy_review: owner-waiver-36b3ff7f-5685-4bc6-90bf-141c62cd5e11
 tags: [spool-hub, agents, mcp, automation, open-source]
 draft: false
 image: 2026-11-25-csitea-workspace-tax-analyst.webp
-image_alt: "Terminalo langas, kuriame agentas ieško mokesčių failų įmonės debesies diske; paslaugos paskyros pavadinimas, keliai, identifikatoriai ir aplankų pavadinimai uždengti juodais stačiakampiais."
-image_prompt: "a screenshot of the agent's terminal and its side panel on a desktop, private details covered with solid black boxes, cropped to 16:9; not generated"
+image_alt: "Infografikas: verslininkas su mokesčių popierių krūvomis, robotas mokesčių analitikas, centre privati Spool-Hub darbo erdvė, agentas per MCP naršyklėje atidaro Vero.fi, dokumentai debesies diske sudėti į metų, mokesčių ir mokėjimų aplankus, el. laiškas buhalteriui ir laikai: rankomis 5-7 valandos, diegimas ir automatizavimas 3 valandos, kitą kartą 15 minučių."
+image_prompt: "the owner's own infographic (made with Gemini), published as-is; centre-cropped to 16:9 by the blog encoder"
 ---
 Prisipažinsiu: esu blogas verslininkas. Nespėju sekti savo įmonės mokesčių. Daug kartų bandžiau drausmę ir automatizavimą, bet niekas neprigijo.
 
 Pamatęs viską vienoje vietoje, pagalvojau: tikriausiai permoku savo įmonės mokesčius. LinkedIn: [Paisunut julkkari](https://lnkd.in/p/dNWaAK-P).
+
+Toliau – automatizavimas: skriptai ir Spool-Hub planavimas bei infrastruktūra, kad savaitinė patikra vyktų savaime. Skriptai vieši: [github.com/csitea/csi-tax](https://github.com/csitea/csi-tax).
 
 ## 1. 🖥️ Mano kompiuteris, valdomas iš naršyklės
 
@@ -33,9 +35,9 @@ Savo įmonės privačioje darbo srityje paklausiau apie avansinį mokestį, tada
 
 ## 3. ⏱️ Prieš ir po
 
-Rankomis, mano vertinimu (nematuota): 5-7 valandos. Apie 30 dokumentų sutvarkymas (po 3-5 min.), mokėjimai ir terminai (1-2 h), seni failai (1 h), el. laiškas (1 h).
+Rankomis tai užtruko 5-7 valandas.
 
-Dabar: 96 trumpos žinutės, apie šeši prisijungimai, apie 3 valandos diegimo (UTC, 24.11.2026):
+Dabar: 96 trumpos žinutės, apie šeši prisijungimai ir apie 3 valandos, skirtos automatizavimui ir diegimui sukurti (UTC, 24.11.2026):
 
 | etapas | laikas |
 |---|---|
@@ -45,7 +47,7 @@ Dabar: 96 trumpos žinutės, apie šeši prisijungimai, apie 3 valandos diegimo 
 | 30/32 dokumentai diske | 17.45 |
 | el. laiškas paruoštas | 18.10 |
 
-Nuo užklausos iki pabaigos: 2 h 46 min; nuo klausimo iki el. laiško: 3 h 47 min.
+Nuo šiol tas pats mokesčių darbas turėtų užtrukti mažiau nei 15 minučių per savaitę.
 
 ## 4. 📅 Savaitės ataskaita
 

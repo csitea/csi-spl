@@ -52,12 +52,16 @@ error-reporting branches. Extracting `_spl_hub_fleet_load_error <subject_verb>` 
 `spl-hub-agent-kinds.func.sh` (zero top-level code) lets `spl-hub-agent-kinds.func.sh`
 call it directly and lets `spl-hub-runner-cpu.func.sh` lazy-source
 `spl-hub-agent-kinds.func.sh` behind a `declare -F _spl_hub_fleet_load_error` guard and
-delegate all non-200 error logging to one home (`spl-hub-box-band.func.sh:119-121` stays
+delegate all non-200 error logging to one home (`spl-hub-box-band.func.sh:110-123` stays
 out because it has no `404)` branch).
 The rows share no file: both are batch 1.
 
-**Status: v0.1 draft** (submitted for cross-vendor claude panel review by **c-650**).
-Editor: **a-649** (agy).
+**Status: v1.0 signed** (ready for row execution). Editor: **a-649** (agy). Signed by
+cross-vendor panel seat **c-650** (claude, `PASS` on v0.1
+`78277dc10e5bb7f6037b7e469f35ae616f24fc0f`, msg `89b78369`, seat file
+`0561c1ffaebcbc27d9e55b60038b68ef9930cfb7` on `review/c002-refactor-round-01-claude-seat`;
+`do_spl_review_line_check` rc 0 `OK 6 of 6`; holder GO `8b965938`). No row, site, batch,
+test hunk, or vendor changed between signed v0.1 and v1.0; panel notes N1-N6 folded.
 
 **One sha:** every count is measured on **`fe1f82671`** (`fe1f82671852a18e322a712a64a18037afdca7ce`,
 `origin/master` at 2026-11-25T16:11:57Z; zero drift on all 7 row/test files to
@@ -302,7 +306,8 @@ out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" T="$T" STUB_LOG="$T/calls2
 **Behaviour:** `spl_hub_request_minutes_prep` executes the exact `yq` lookup, non-empty
 check, `do_gcp_pin_account`, `do_gcp_require_live_account`, and UTC `date -u -d` end
 computation removed from both actions, in the exact same order; its only new state is the
-two process globals `SPL_HUB_REQ_SVC` and `SPL_HUB_REQ_UNTIL` documented in its header;
+two unexported process globals `SPL_HUB_REQ_SVC` and `SPL_HUB_REQ_UNTIL` documented in
+its header (unread by other callers; N3);
 all row-01 and shared suites pass on base and head1 with identical counts plus the 8 new
 checks (1.5).
 
@@ -330,7 +335,9 @@ checks (1.5).
   `declare -F _spl_hub_fleet_load_error >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-hub-agent-kinds.func.sh"`
   avoids touching `lib/bash/funcs/spl-hub-operator.func.sh` (which 38+ actions and 30+
   test files depend on), keeps both actions lazy under `./run` (`run-lazy-loader.tst.sh`
-  and `run-eager-files.tst.sh` unchanged), and works standalone.
+  and `run-eager-files.tst.sh` unchanged), and works standalone (`spl-hub-runner-cpu.func.sh`
+depends on sibling `spl-hub-agent-kinds.func.sh`, held by the one-copy and lazy-load
+checks; if `agent-kinds` is ever retired, move the helper first; N4).
 - `spl-hub-box-band.func.sh:110-123` (`_spl_hub_box_band_report`) stays out: its `case`
   has no `404)` branch (`404` falls into `*) FATAL box <box> band was not read or changed (http 404): ...`),
   so delegating it to `_spl_hub_fleet_load_error` would change its 404 message (behaviour
@@ -623,8 +630,9 @@ Paths (7, the 3 edited by row 01 + the 4 edited by row 02):
   doc/R7 seats (`c-957`, `c-965`). Live lanes on this box (`a-649`, `c-650` panel seat,
   `c-612`/`a-646` spec 192 L1, `c-609`/`a-637` WUI topic select box, `c-298`/`c-625`
   Reporting Taxes tab, `c-615`/`a-635` latency action 1, `c-638`/`a-473` r98-02 land,
-  `a-607`/`a-628` R7 reviewers) touch none of the 7 paths. No live lane owns any of the
-  7 paths; the holder re-reads at placement per R3.
+  `a-607`/`a-628` R7 reviewers) touch none of the 7 paths. Panel seat `c-650` re-checked `lane-map.sh` at 16:37:48Z -> exit 4, 20 `unknown:` lanes
+  (`c-426` and `c-566` gone) and 0 of 63 remote branches in 24 h touch the 7 paths (N1).
+  No live lane owns any of the 7 paths; the holder re-reads at placement per R3.
 - **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, 16:13:21Z): 9 queued,
   0 placing: this round's claude panel seat (`0c7f810b`, subsequently placed as `c-650`),
   `c002-bug-placer-review-seat-overflow-pass`, `c001-s186-m9-n2-qto-sync`, latency
@@ -673,7 +681,11 @@ Paths (7, the 3 edited by row 01 + the 4 edited by row 02):
 - Editor: **a-649** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
   step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-650**
-  (already placed on this box, ask `0c7f810b`). The seat reviews this plan only.
+  (ask `0c7f810b`), signed **PASS** on v0.1 `78277dc10e5bb7f6037b7e469f35ae616f24fc0f`
+  (msg `89b78369`, seat file `csi-spl-doc/doc/md/refactor-round-01/seat-claude.md` at
+  `0561c1ffaebcbc27d9e55b60038b68ef9930cfb7` on `review/c002-refactor-round-01-claude-seat`;
+  `do_spl_review_line_check` rc 0 `OK 6 of 6`; holder GO `8b965938`). The seat reviews
+  this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-25T16:13:54Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -744,7 +756,9 @@ or any other file. Do: plan section 2 row 02 verbatim, 1.4's shape (verbatim blo
 1.4); red controls (`rc2a` + `rc2b`, head's tests on parent) RED then GREEN in the body;
 guard control (`gc2`, `declare -F _spl_hub_fleet_load_error` deleted in
 `spl-hub-runner-cpu.func.sh`, built in a worktree, not a temp-dir copy; proves
-standalone-source path outside `./run`). Gates: the row's tests (section 2,
+standalone-source path outside `./run`); note in the commit body that dropping the
+unused `detail` `jq` call on the 200 path is unobservable (output discarded, stderr to
+`/dev/null`, `run.sh` sets no `errexit`; N5). Gates: the row's tests (section 2,
 `SPOOL_TEST=1`, in the worktree), `shellcheck -S warning -x` on the 4 files,
 `cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...)`. Kind
 `simple_coding`, vendor claude; R7 **agy seat** (claude waiver backup only while agy is
@@ -776,7 +790,7 @@ brief if the claude backup is used; never mistral; re-checked at placement).
 | `orc:src/bash/run/spl-channel-agent-{add,add-op,remove-op}.func.sh` (`AGENT_BOX` + `AGENTS` validation/dedup) | `dispatch-inbound-pg.tst.sh:141` directly sources `spl-channel-agent-add-op.func.sh`, pulling a PostgreSQL test into R2; unchanged since r99 | r99 7; 1.2 (a) |
 | `orc:src/bash/run/spl-box-restart-install-cron.func.sh` / `spl-peer-crons.func.sh` and `spl-{backfill,fallback,reply,reply-count,topic-reply}-probe.func.sh` | candidates for `r02`+ (the 5 probe actions touch 5+ files); unchanged since r99 | r99 7; 1.2 (a) |
 | `orc:src/bash/run/{spl-accepted-close,spl-desk-poll-ack,spl-review-go}.func.sh` (`_spl_*_holder`) | `spl-review-go.func.sh` changed in `7d3be08fd` (SPL-6505), and moving the helper to `spl-dispatch-lease.func.sh` pulls 30+ tests (incl. PG) into R2 | r99 7; 1.2 (a) |
-| `orc:src/bash/run/spl-wui-perf-report.func.sh:69-75`, `csi-spl-utl/**`, secret-class sites (`spl-lane-handover*`, `spl-release-note-bans-*`, `spl-secret-*`, `iac` GH repo parsers), `iac:sec-*.func.sh`, `orc:scripts/*-cron.sh`, Go/WUI duplicates, remaining r91..r98 non-framework groups, and candidates-file non-refactor / already-served items | unchanged on `fe1f82671`; each stays out for its r99/r98..r91 section 7 reason | r99 7; 1.2 (a), (c) |
+| `orc:src/bash/run/spl-wui-perf-report.func.sh:69-75`, `csi-spl-utl/**`, secret-class sites (`spl-lane-handover*`, `spl-release-note-bans-*`, `spl-secret-*`, `iac` GH repo parsers), `iac:sec-*.func.sh`, `orc:scripts/*-cron.sh`, Go/WUI duplicates, remaining r91..r98 non-framework groups, and candidates-file non-refactor / already-served items (including `i18n-lang-review-exempt.json:2` `_doc`, whose `Lang-review: a-NNN` form is still listed in `check-pre-push-lang-review.func.sh:27` beside `gct` at `:17`; N6) | unchanged on `fe1f82671`; each stays out for its r99/r98..r91 section 7 reason | r99 7; 1.2 (a), (c) |
 
 ## 8. Changes
 
@@ -787,12 +801,26 @@ brief if the claude backup is used; never mistral; re-checked at placement).
   `gc2`) and all 4 mutation checks (`m1a`, `m1b`, `m2a`, `m2b`) RED then GREEN; R3 (2.2)
   and R7 (section 4) checked; numbering `r01` confirmed per rulebook 5.3 and holder ruling
   `83dd3a25`.
+- v1.0 (a-649): recorded cross-vendor panel signature (`c-650` claude PASS on v0.1
+  `78277dc10e5bb7f6037b7e469f35ae616f24fc0f`, msg `89b78369`, seat
+  `0561c1ffaebcbc27d9e55b60038b68ef9930cfb7` on `review/c002-refactor-round-01-claude-seat`,
+  `do_spl_review_line_check` rc 0 `OK 6 of 6`, holder GO `8b965938`; reproduced all 7 head
+  sha256 prefixes, all 5 controls, all 4 plan mutations + extra `m2c` 401/403 mutation,
+  `shellcheck`, `func-name-unique.tst.sh`, and `do_check_dist_hygiene`; rest of shared
+  iac/orc column not run by seat, `bash-cleancode` rc 3 on base/head1 alike in partial
+  orc+iac tree) and folded non-blocking notes N1-N6. No row, site, batch, test hunk, or
+  vendor changed from v0.1.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-649 (agy): v0.1.
-- Panel reviewer seat: c-650 (claude): pending v0.1 review.
+- Editor seat: a-649 (agy): v0.1, v1.0.
+- Panel reviewer seat: c-650 (claude, seat `0561c1ffaebcbc27d9e55b60038b68ef9930cfb7` on
+  `review/c002-refactor-round-01-claude-seat`): **PASS** on v0.1
+  (`78277dc10e5bb7f6037b7e469f35ae616f24fc0f`, msg `89b78369`; `do_spl_review_line_check`
+  rc 0 `OK 6 of 6`; holder GO `8b965938`; W: none; N1-N6 folded into v1.0; all 7 head
+  sha256 prefixes, 5 controls, 4 plan mutations + `m2c`, `shellcheck`, `func-name-unique`,
+  and `do_check_dist_hygiene` reproduced).
 - Row R7 seats: section 4 (agy per row, claude waiver backup only under ruling `dc84300a`;
   never mistral).

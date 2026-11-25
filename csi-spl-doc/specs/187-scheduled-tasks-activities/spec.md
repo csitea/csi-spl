@@ -1,11 +1,10 @@
 # Spec 187: Scheduled Tasks and Activities
 
-Status: **Decided v0.6** (2026-11-25). Lanes `c-150` (v0.1, v0.2),
+Status: **Decided v0.7** (2026-11-25). Lanes `c-150` (v0.1, v0.2),
 `c-660` (v0.3) and `c-074` (v0.4 the build plan's form, v0.5 its review,
-v0.6 the owner's answer to Q1b), `claude`, backup for `specs_and_docs`
-(agy held by the placer). Questions answered: 1.1.2, 1.1.3 and 1.1.4;
-plan question Q1c is open (1.2; rows are built with its option A, B
-changes S7, S8 and S9). Nothing below is built.
+v0.6 the owner's answer to Q1b, v0.7 to Q1c), `claude`, backup for
+`specs_and_docs` (agy held by the placer). Questions answered: 1.1.2 to
+1.1.5; none is open (1.2). Nothing below is built.
 Epic: **SPL-2398**. Issue: **SPL-6067**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:91992830-ca2f-4711-b04e-e4c333d7294d` (`t1`), task
 `dispatch-91992830`.
@@ -156,9 +155,29 @@ Neither A nor B: the owner's own option.
 The question as asked (v0.5 1.2): "Where does a member who is not an
 admin list and create the tasks the D21 menus do not reach: tasks over all
 channels, and every `issue` task". D23 answers it for issue tasks bound to
-an issue or an epic; what it leaves without a member's entry is Q1c (1.2).
+an issue or an epic; what it left without a member's entry was Q1c,
+answered by D24 (1.1.5).
+
+#### 1.1.5 D24: plan question Q1c (HUM-10, t1 91992830, 2026-11-25)
+
+The poll (`a717edfb`), answered in msg
+`c5143a2f-3a49-45d7-832f-85fa35c37fb0`, verbatim: "Answer: A — Admins
+only: a member's save is refused, and a member makes such a task per epic
+or per channel". The recommended option.
+
+| D | Q | answer | where it lands |
+|---|---|---|---|
+| D24 | plan Q1c | **A** (msg `c5143a2f`) | 4.5 and 6.2: a task with an unbound scope (a `topic` or `message` task over all channels; an `issue` task whose query holds no positive `key:` or `epic:` leaf) is admin-only; row S7's save check answers a non-admin's `403 not_allowed` (one more D3 row). A member makes such a task per epic (`epic:<KEY>`) or per channel instead, from that object's dialog. Every member's task therefore shows in a dialog. No fifth entry, no extra filter. |
 
 ### 1.2 Open
+
+None. Q1c, as it was asked, is in 1.3.
+
+D12 is a default the holder chose and told the owner (post
+`921ac359`); a later owner word on the grouping changes only 6.1's topic
+rule, no column and no contract.
+
+### 1.3 Q1b and Q1c as they were asked (answered, D23 and D24)
 
 - **Q1c (plan question; spots S7, S8 and S9; no batch waits on it: the
   rows are built with A, and B changes S7, S8 and S9).** Under D23 a
@@ -182,13 +201,7 @@ an issue or an epic; what it leaves without a member's entry is Q1c (1.2).
     the member's unbound tasks (e.g. an item in the user menu,
     `wui/components/UserMenu.vue`), over a filter S7 adds for them. Cost:
     one more entry and filter, and S7's refusal comes out again.
-  The holder asks the owner.
-
-D12 is a default the holder chose and told the owner (post
-`921ac359`); a later owner word on the grouping changes only 6.1's topic
-rule, no column and no contract.
-
-### 1.3 Q1b as it was asked (answered, D23)
+  Answered by D24 (1.1.5): A.
 
 - **Q1b (plan question, spot S8 only; batches 1-5 do not wait on it).**
   Where does a member who is not an admin list and create the tasks the
@@ -445,12 +458,15 @@ matches now (one read-only search): a count, not an approval step.
 - Delete is soft: the row and its runs are kept 30 days, then a new chore in
   `RunSweeper`'s sweep removes them.
 
-### 4.5 Who may create and edit (D3, D17)
+### 4.5 Who may create and edit (D3, D17, D24)
 
 - **Workspace admins** (a role holding `tenant.settings`, `api/rbac/rbac.go:27`)
   create, edit, pause and delete any workspace task.
 - **A member** creates and edits tasks that touch only their **own
-  objects (D17)**: the topics they started (the starter of the archive
+  objects (D17)**, and only with a bound scope (**D24**): a `topic` or
+  `message` task names its channels (not all), an `issue` task holds a
+  positive `key:` or `epic:` leaf; a member's unbound task is refused at
+  save with `403 not_allowed`. The member's own objects are: the topics they started (the starter of the archive
   policy, `ArchivePolicyStarter`, `api/store/tenant_settings.go:49`), the
   messages they sent (`from`), and the issues assigned to them (`assignee`)
   or reported by them (`created_by`, `rdb/0047_issues.sql`). A task whose
@@ -613,7 +629,7 @@ Workspace admins configure, as registered workspace settings (spec 098,
   no section of it opens to a member who is not an admin
   (`csi-spl-wui/tests/unit/tenant-settings.test.mjs:31`, "CONTROL: a developer sees no entry",
   keeps passing). Such a member reaches tasks only through the dialog
-  below; what it does not reach is Q1c (1.2, open).
+  below, and a member's task always has one (D24).
 - **Instance (D10)**: in `t1`'s Settings, an "Instance" section shown only to
   `t1` admins: the 5.1 settings, the instance tasks, and per workspace its
   task count, runs today and tokens this month against its caps (the 5.1
@@ -664,8 +680,8 @@ Workspace admins configure, as registered workspace settings (spec 098,
   reads the others). "New task" there fills the editor's scope with that
   channel (`where`) or that topic (`where` = its channel, query
   `topic:<task_id>`). Tasks over all channels, and `issue` tasks with no
-  `key:` or `epic:` leaf, are in no dialog: Settings for admins, Q1c (1.2)
-  for members. The items
+  `key:` or `epic:` leaf, are in no dialog: they are admin-only (D24) and
+  listed in Settings. The items
   are built in `wui/utils/sidebar-row-menu.mjs` (`rowMenuItems`) and
   `wui/utils/msg-menu.mjs` (`msgMenuItems`); the topic item follows the
   `topic-loops` item's phone rule (`msg-menu.mjs:155`, desktop only, the
@@ -867,7 +883,7 @@ it.
 | **S4 event triggers + chains** | S3 | `complex_coding` | the hooks in `wui.go`, `ws.go`, `issues.go` (shared with spec 182 row L2: one call per hook, each feature its own function, D9); `taskChainKey` and the chain check (4.2.2) | a new matching message, topic and issue each run the task once; a replay, a `HUB-0` note, a loop prompt and a post in `#scheduled-runs` do not; A -> A is `skipped` `chain_self`, A -> B -> A is `skipped` `chain_self`; A -> B -> C runs all three; `TestRoundTripsPerRequest` shows no extra round trip in a workspace with no event task | a 4-deep chain A -> B -> C -> D: remove the depth check and D runs (the test wants D `skipped` `chain_depth`) |
 | **S5 agent action + caps** | S3 | `complex_coding` | `api/hub/scheduled_task_agent.go`, the cap read over `rdb/0171`, their tests | the prompt reaches the named agent as one `task` in the task's topic with the objects quoted; the named agent offline -> an online agent of the workspace runs it and `agent_id` says which; none online -> `failed` `no_agent` (D11); the answer closes the run `ok`; no answer within the timeout closes it `failed` `no_answer`; at the run cap the next run is `skipped`; at 100 % tokens an agent run is skipped and its task pauses `cap`; the 80 % notice posts once | count fixed runs against the token cap, and the fixed-run test is skipped at 100 % |
 | **S6 two levels** | S1, S3 | `complex_coding` | `api/hub/operator_tasks.go` (the 5.1 routes behind `operatorAuth` and `instanceAdminAuth`); `api/config/config.go` (`SPOOL_HUB_INSTANCE_ADMIN_WORKSPACE`, default `t1`); the 5.2 settings (`RegisterTenantSetting`); `taskEffective` (5.3) | a `t1` member with `admin` or `biz_owner` reaches the instance routes, a `t1` `developer` and an admin of another workspace get `403` (D10); a fresh workspace's caps read 50 runs and 500 000 tokens (D18); instance off stops a workspace that is on; a workspace cap above the instance's is refused and one below is used; an action off at either level is refused at save and skipped at run; an instance task runs in each listed workspace, writes one run row in each with `level = 'instance'`, and leaves the workspace's run count unchanged while the instance's rises (D16) | count instance runs against the workspace cap, and the D16 test sees the workspace's run count rise |
-| **S7 workspace routes** | S1, S2 (D23's `key:` / `epic:` leaves), S3 | `simple_coding` | `api/hub/tasks_routes.go`: `GET` (with D21's `?channel=` and `?topic=`, D23's `?issue=` and `?epic=`) / `POST /v1/tasks`, `PUT` / `DELETE /v1/tasks/{id}`, `POST /v1/tasks/{id}/run`, `GET /v1/tasks/{id}/runs`, `GET /v1/tasks/preview` (the live count) | the D3 table (admin: any task; member: own objects per D17; member on another's objects: 403; member with `object = channel`: 403; member with an unbound scope, Q1c A: 403); a refused query answers the grammar's error; the preview counts and writes nothing | save a member's task without narrowing its scope, and the D3 test passes on another member's objects |
+| **S7 workspace routes** | S1, S2 (D23's `key:` / `epic:` leaves), S3 | `simple_coding` | `api/hub/tasks_routes.go`: `GET` (with D21's `?channel=` and `?topic=`, D23's `?issue=` and `?epic=`) / `POST /v1/tasks`, `PUT` / `DELETE /v1/tasks/{id}`, `POST /v1/tasks/{id}/run`, `GET /v1/tasks/{id}/runs`, `GET /v1/tasks/preview` (the live count) | the D3 table (admin: any task; member: own objects per D17; member on another's objects: 403; member with `object = channel`: 403; member with an unbound scope, D24: 403); a refused query answers the grammar's error; the preview counts and writes nothing | save a member's task without narrowing its scope, and the D3 test passes on another member's objects |
 | **S8 wui** | S7, S11, S12 | `simple_coding`, then `i18n` (agy has the last word) | `wui/components/ScheduledTasks*.vue` (list, editor with the Advanced cron field and the agent pick, history), the Settings section and `t1`'s Instance section, the one `ScheduledTasksDialog.vue` and its "Scheduled tasks" item in `SidebarRowMenu.vue` and `MessageMenu.vue` (D21), in `useIssueCtxMenu.ts` `menuItemsFor` (issue and epic) and `IssueDetailActions.vue` (D23), the four templates, the topic and message label chips, `wui/utils/spool-client*.mjs`, `csi-spl-wui/i18n/locales/*.json` | `pnpm run typecheck`; `test:unit` (i18n parity, untranslated and raw-text gates, cleancode; the editor's required fields per trigger and action kind; the summary sentence per trigger kind, cron included); the Instance section is absent for a non-`t1` admin; `issue-detail-buttons.test.mjs` names the new header button; the issue and epic menus carry the item and "New task" binds `key:` / `epic:`; a developer still sees no Settings entry (`csi-spl-wui/tests/unit/tenant-settings.test.mjs:31` unchanged) | a raw string in the editor, and `i18n-no-raw-text` fails |
 | **S9 e2e** | S8 | `tests` | `csi-spl-wui/tests/e2e/scheduled-tasks.test.mjs` | on the mock: create from each template, edit, pause, resume, run now, read the history, see the result as a reply in the task's topic in `#scheduled-runs`; save a cron task and read its next three times; open the dialog from a channel, a topic, an issue and an epic, each listing only its own tasks | skip the template fill, and the template test finds an empty editor |
 | **S10 docs** | S3-S8, S11, S12 | `specs_and_docs` | this spec's row status; a help page under `csi-spl-doc/doc/help/` | `do_check_dist_hygiene`, `do_check_fleet_rules_drift` | — |
@@ -1110,9 +1126,8 @@ success.
 The v0.2 form (poll `558a4577`, Q1-Q11; its text and the recommendations
 are in v0.2, `1f1a614bd`, section 10) is answered: section 1.1.2, D9-D20.
 The build plan's form (poll `bb3b76c2`) is answered: section 1.1.3, D21-D22.
-Plan question Q1b is answered: section 1.1.4, D23. One plan question is
-open: Q1c (1.2), options A (recommended) and B; rows are built with A, B
-changes S7, S8 and S9.
+Plan questions Q1b and Q1c are answered: sections 1.1.4 and 1.1.5, D23
+and D24. No question is open.
 
 ## 11. Not in this spec
 
@@ -1198,3 +1213,7 @@ changes S7, S8 and S9.
   `issue-detail-buttons.test.mjs` changes (6.2, row S8); N3 the unit
   test's full path; N4 a several-channel task lists in each channel's
   dialog, so Q1c (a) is all channels only.
+- v0.7 (2026-11-25, lane `c-074`): plan question Q1c answered A (1.1.5,
+  D24, msg `c5143a2f`): a task with an unbound scope is admin-only, S7
+  refuses a member's with `403 not_allowed` (4.5, 6.2, row S7's D3 cell);
+  a member makes it per epic or per channel. No question open (1.2, 10).

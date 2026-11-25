@@ -1,7 +1,7 @@
-# Spec 187 build round - plan v1.4 (13 rows (S12 split), 8 batches)
+# Spec 187 build round - plan v1.5 (13 rows (S12 split), 8 batches)
 
 Epic: SPL-2403 (the brief's line; spec 187 names SPL-2398, see 2.4 N1)  
-Spec: csi-spl-doc/specs/187-scheduled-tasks-activities (v0.6)  
+Spec: csi-spl-doc/specs/187-scheduled-tasks-activities (v0.7)  
 Class: feature  
 Kind: specs_and_docs  
 Issue: SPL-6376  
@@ -27,14 +27,15 @@ This plan re-measures each row's sites on one sha, orders the rows into
 batches of disjoint files (R1), names each row's kind, vendor and R7
 reviewer, and proposes one brief per row. It writes no code.
 
-**Status: v1.3, signed v1.0 plus the owner's answers (v1.1), review a-475's fixes (v1.2) the owner's answer to Q1b (v1.3) and review a-521's fixes (v1.4).** Panel PASS (c-342, same-vendor panel, waiver)
+**Status: v1.5, signed v1.0 plus the owner's answers (v1.1), review a-475's fixes (v1.2), the owner's answer to Q1b (v1.3), review a-521's fixes (v1.4) and the owner's answer to Q1c (v1.5).** Panel PASS (c-342, same-vendor panel, waiver)
 on v0.2 `cca84bfdf`; landed as `49f244c16` + `0989526af` (the same tree,
 messages reworded for the release-note gate) on the dispatch holder's GO.
 Owner questions Q1-Q3 are answered (poll `bb3b76c2`, 2.4): Q1 the
 owner's own option (spec D21), Q2 B (spec D22), Q3 A. Q1b is answered
 (spec D23: one "Scheduled tasks" dialog per topic, channel, issue and
-epic; Settings stays admin-only); Q1c is open (2.4: A recommended, the
-rows are built with A; B changes S7, S8 and S9). Planner: c-074 (claude, the
+epic; Settings stays admin-only); Q1c is answered A (spec D24: a
+member's unbound task is refused, made per epic or per channel instead).
+No owner question is open. Planner: c-074 (claude, the
 backup for `specs_and_docs`: agy on its usage limit; the brief's addendum
 reads 2026-11-30T21:31Z on one box, the holder's note 8cc25fff "quota out
 to 12-01"; the placer reads the live pick, not this line). Panel: one seat,
@@ -332,7 +333,10 @@ the briefs below follow it.
   `GET /v1/tasks?issue=` / `?epic=`, S8 builds the dialog and the two new
   entries (S9 opens all four). No row, batch or vendor moves; S2 gains
   `api:hub/search.go` (v1.4), S7 keeps its files.
-- **Q1c (open, raised by D23; the holder asks the owner; spec 187 1.2).**
+- **Q1c (raised by D23; spec 187 1.3). Answered A (v1.5)**, msg
+  `c5143a2f`, verbatim: "Admins only: a member's save is refused, and a
+  member makes such a task per epic or per channel" (spec D24). The rows
+  are built with A as planned; nothing moves. As asked:
   No dialog lists, for a member who is not an admin: (a) a `topic` or
   `message` task over all channels (one naming several channels lists in
   each one's dialog); (b) an `issue` task with no positive `key:` or
@@ -607,9 +611,9 @@ placement and cites it in its subject, e.g.
   `?topic=` matches a positive `OpTopic` leaf of `search.Parse`, the id
   lower-cased, so `-topic:<id>` is not a match); D23's `?issue=` /
   `?epic=` the same way over a positive `key:` / `epic:` leaf, a test
-  each; Q1c A until answered: a non-admin's task over all channels, or an
+  each; D24 (Q1c A): a non-admin's task over all channels, or an
   `issue` task with no positive `key:` / `epic:` leaf, answers `403
-  not_allowed`, a test (B removes it);
+  not_allowed`, a test;
   `mention_assignee` on `object = channel` answers `400 bad_task` (D22)
   from S3's `validateTaskSave`, so S6's instance tasks share it.
   `GET /v1/tasks/preview` counts and writes nothing.
@@ -687,9 +691,10 @@ placement and cites it in its subject, e.g.
   `useAddToNote.ts`, so `pages/issues.vue` is not touched); "New task",
   and the header button, bind `epic:<KEY>` on a level-1 row (epic or
   feature) and `key:<KEY>` otherwise; Settings stays admin-only
-  (`csi-spl-wui/tests/unit/tenant-settings.test.mjs:31` unchanged); Q1c
-  (2.4) A until answered (no entry for unbound tasks), and S8 is not
-  queued before the answer; the
+  (`csi-spl-wui/tests/unit/tenant-settings.test.mjs:31` unchanged); D24
+  (Q1c A): no member entry for unbound tasks, and the editor opened from a
+  dialog keeps the scope bound (no "all channels" choice for a member);
+  the
   editor in spec 6.3's order with the Advanced cron field and its next
   three times (from the preview route or a client copy of the rule: name
   which in the commit), the agent pick (D11), the four templates of spec 7
@@ -757,3 +762,4 @@ placement and cites it in its subject, e.g.
 | v1.2 | review a-475 (agy) FAIL on `31d6b4886`: W1 reading (c) unsound: the member's view of tasks over all channels and `issue` tasks is owner question Q1b, open, spot S8 only (2.4, spec 1.2 / 6.2); W2 `SidebarRowMenu.vue` `:245-277` and the two menu util files in the sites row and batch 6. Notes: N1 `?topic=` by parsed positive leaf (S7); N2 channel refusal in `validateTaskSave`, mentions deduplicated (S3, S7); N3 topic item's phone rule (S8), D21 menus in S9; N4 spec status and sha lines. Readings (a), (b) judged sound |
 | v1.3 | owner answer to Q1b (spec v0.6 D23; B of msg `b6acff79` withdrawn by msg `6b1806e4`): one "Scheduled tasks" dialog per topic, channel, issue and epic, Settings admin-only; the issue and epic entry sites (1.3); S2 `key:` / `epic:`, S7 `?issue=` / `?epic=`, S8 the dialog and two entries, S9 four entries; Q1c open (2.4). Header line 4 now names spec v0.6 (a-475's N1: it said v0.4). No row, batch or vendor moves |
 | v1.4 | review a-521 (agy) FAIL on `6499cd116`: W1 Q1c gets options A (recommended: unbound scopes admin-only, S7 refuses with 403) and B (a fifth member entry), spot S7, S8, S9, rows built with A; W2 issue search is matched in `api:hub/search.go` `issueEntities` (no issue term in `search_postgres.go`): S2 adds that file and its test, `Key` / `Epic` on `search.Entity` via `treeKind`; S7 depends on S2 (still batch 3). Notes: N1 one composable opens the dialog, the header button binds `epic:` on a level-1 row, `issue-detail-buttons.test.mjs` changes; N2 S2's name; N3 the unit test's full path; N4 a several-channel task lists in each channel's dialog, Q1c (a) = all channels |
+| v1.5 | the owner's answer to Q1c (poll `a717edfb`, msg `c5143a2f`): A, spec v0.7 D24: a member's unbound task is refused (S7, `403 not_allowed`), made per epic or per channel instead; S8 has no member entry for unbound tasks. a-521's notes on `6029af37c`: N1 the status line says v1.5 (it said v1.3) and lists the versions with commas; N2 S8's "not queued before the answer" removed (Q1c is answered). No row, batch or vendor moves |

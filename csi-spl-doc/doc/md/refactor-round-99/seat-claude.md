@@ -180,3 +180,42 @@ are about catching such a change, not about the plan making one.
 
 `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene: clean`, rc 0,
 on this worktree (`c9dd02117`) and on a scratch copy of the plan's tree (`git archive e6845b257`).
+
+## Re-review: v0.2 at 853b9368f3f58e9b6a175796121c94e4a0674dcd - PASS
+
+**Verdict: PASS on 853b9368.** `git ls-remote origin refs/heads/review/c002-refactor-round-99-planner`
+-> `853b9368f3f58e9b6a175796121c94e4a0674dcd` (parent `e6845b257`, the only commit between them).
+Plan file sha256 `f3f3782dcaaeab89834c6e92f1fa09787b4e08248be46c05258fd09c78d929c0`.
+`git diff --stat e6845b257 853b9368f` -> only `refactor-round-99-plan.md` (+171 -71).
+
+- **W1, W2 folded and effective.** Row 01's blocks and the `spl_pf_env` helper block are
+  byte-identical to v0.1 (`diff` of plan lines 219-226 / 228-235, 233-244 / 242-253,
+  251-262 / 260-271, 372-392 / 392-412 -> same). head1 and head2 were rebuilt from v0.2's verbatim
+  blocks, and all 9 files match its sha256 prefixes and counts: `c7392841cb5e`, `bc27dae0a4af`,
+  `8861cb134fce`, `54af08d7ff54`, `4c554e0add30`, `7983dab7a90e`, `5e82d6661aaf`,
+  `739e49914c92 102 +33-0`, `c19274f92900 116 +45-0`.
+- Row 02 suites on v0.2 head2 (n=1, `SPOOL_TEST=1`): flow-events rc 0 / 37 pass / 0 fail,
+  first-load 0 / 42 / 0, first-load-net 0 / 39 / 0, as the plan says.
+- Controls on v0.2: rc2a rc 1, 31 / 6 (`spl_pf_env: command not found`); rc2b rc 1, 37 / 5
+  (one copy `own=[46:` / `own=[47:`, lazy `spl_pf_validate: command not found`); gc2a rc 1,
+  40 / 2 (`lazy first-load`); gc2b rc 1, 40 / 2 (`lazy first-load-net`). The plan's numbers match.
+- Mutations, each a 1-line change of head2 (`diff -r` -> 1 line each), each RED:
+  m2 (first-load-net passes `PF_*`) -> first-load.tst rc 1, `FAIL: 4. first-load-net overrides`;
+  m3 (first-load-net drops `"first-load"`) -> first-load.tst rc 1, `FAIL: 4. first-load-net script label: ... FATAL no timing e2e at`;
+  m2_fl (first-load passes `"" ""`) -> rc 1 `first-load overrides`; m3_fl (first-load passes
+  `"first-load"`) -> rc 1 `first-load script label`; m2_flow -> flow-events.tst rc 1 `flow overrides`;
+  m3_flow -> flow-events.tst rc 1 `flow script label`. m2 and m3 still pass flow-events.tst and
+  first-load-net.tst (rc 0). That is expected: the catching checks live in first-load.tst, which is in row 02's test list.
+- The new hunks reach no live state: `grep -E 'SPOOL_ROOT|/var/|gcloud|\./run|curl|\$HOME'` over plan
+  lines 419-450 and 457-500 -> 0 lines. They reuse each suite's own `in_orc` (base `:29`), stub
+  `node`, `$T` temp dir and stub `do_spl_cloud_cnf`.
+- Shared gates on v0.2 head2: no-box-path-source 0/10, action-header-tags 0/6,
+  param-required 0/17, run-lazy-loader 0/30, bash-cleancode 0/15, run-eager-files 0/14,
+  no-literal-paths 0/15, func-name-unique 0/2 (all equal to base). `shellcheck -S warning -x`
+  on the 5 row-02 files -> rc 0 each. Row 01 is unchanged from v0.1 (sha256 equal), so its
+  results above stand.
+- **N1, N4, N5, N6 folded** (plan 1.1, 2.2, 1.3, 1.4, section 5). N2 and N3 are recorded as
+  reads on the planner's box; this seat did not re-check them there.
+- Drift: `git diff --name-only f2cb19298 origin/master -- <10 row/test files>` on `208e5f757`
+  at 09:37Z -> empty. Slug: `git log origin/master --since="$W" --oneline -E --grep='\(r99-' | wc -l` -> 0.
+- `do_sec_shellcheck`: still NOT RUN by this seat (the plan reports it rc 0).

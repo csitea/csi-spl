@@ -92,7 +92,10 @@ any problem it met. If Google has not given access to your contacts yet,
 **Give access to Google Contacts** asks for it.
 
 - The sync runs from one workspace at a time. If it is on in another of
-  your workspaces, the switch says so: turn it off there first.
+  your workspaces, the switch shows on with **Synced through (workspace
+  name).** and a **Sync from here instead** button. The button asks first,
+  then moves the sync to this workspace and its Google connection; your
+  contacts stay as they are.
 - The access Spool asks for is read-only: Spool reads your Google contacts
   and does not change them at Google.
 - The first sync matches your existing contacts by email, so a contact you

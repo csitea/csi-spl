@@ -440,6 +440,12 @@ It shows there only in a workspace where contacts are switched on. An old
   to Google Sync; then turn on **Sync Google Contacts**.
 - **Connected**: **Sync Google Contacts** turns the sync on or off. On, it
   shows the last sync and **Sync now**.
+- **Synced through another workspace**: when the sync runs from another of
+  your workspaces, the switch shows on but cannot be changed here, with
+  **Synced through (workspace name).** under it. **Sync from here
+  instead** asks first, then moves the sync to this workspace and says
+  **Synced here.** If a sync is running at that moment, it says so: try
+  again in a minute.
 
 ---
 

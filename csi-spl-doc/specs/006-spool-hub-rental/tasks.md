@@ -67,22 +67,29 @@ are not duplicated here.
 - [x] T014 [FR-006] Public deploy notes: allow unauthenticated in M2; rate-limit unsigned at the shield — **Implemented** as doc (`plan.md` "Public deploy notes"); the infra is 007's. The M1 IP allowlist / shield part is **Superseded** (no load balancer since 2026-09-19, `ingress: all`, edge limits in-app per 017 T010); spec FR-006 / OQ-006-4.
 - [x] T015 [FR-015] Hygiene tests: no payment-vendor name / product host in Go; no root private key in hub logs — **Implemented** (`no-baked-host.tst.sh`, `TestRootPrivateKeyNotLogged`, `3690211`).
 
-## Phase 7: Commercial offer (spec.md "Commercial offer", SPL-6410)
+## Phase 7: Commercial offer (spec.md "Commercial offer", SPL-6410 / SPL-6473)
 
-The rows of spec.md section CO-6, in its order. Each waits on the owner
-questions it names (section CO-7). None is built.
+The rows of spec.md section CO-6, in its order. All 11 commercial-offer
+questions Q1–Q11 are decided (owner HUM-10, form `38ceff26`, msg `ddf19d47`,
+2026-11-25 07:47Z). Under Q1 C, hosted workspace sales stay off until T036
+measures a closed UTC month and the owner switches them on. None is built.
 
-- [ ] T024 [C1] Public price page `/pricing` rendering `GET /api/v1/checkout/plan`, linked from `about.html` and sign-in; every locale — **Planned**.
-- [ ] T025 [C2] Payment description stops saying "(monthly)" while nothing renews (`stripe_payments.go:99`) — **Planned**.
-- [ ] T026 [C3a] Renewal, store side (decided, spec 121 R7 / section 8): a workspace balance drawn down monthly by the plan and its seats; at zero the workspace goes `grace` — **Planned**, gated on Q1.
+- [ ] T036 [C0] Measure the shared hub's cost per workspace over a closed UTC month (`cost_lines` `origin='billing_export'` + `cost_coverage` all `ok` -> `ceil_cents((cost / W_max) * 1.33)`; read-only; owner switches sales on) — **Planned** (Q1 C, first build row).
+- [ ] T037 [C0b] Take the live EUR 20 hosted checkout off sale (`SPOOL_HUB_PAYMENT_PROVIDER: ""`, `SPOOL_HUB_PAYMENT_PLAN_CENTS: "0"` in `dev.env.yaml` then `prd.env.yaml`, `030-cloud-run-hub` apply on owner's go; private-workspace orders unaffected) — **Planned** (Q1 C, owner go for apply).
+- [ ] T024 [C1] Public price page `/pricing` rendering `GET /api/v1/checkout/plan`, showing "not on sale yet" + offers I and P while `available: false`, linked from `about.html` and sign-in; every locale — **Planned**.
+- [ ] T025 [C2] Payment description stops saying `"(monthly)"` while nothing renews (`stripe_payments.go:99`) — **Planned**.
+- [ ] T026 [C3a] Renewal, store side (decided, spec 121 R7 / section 8): a workspace prepaid balance drawn down monthly by the measured base plan and its human seats (EUR 9/seat, Q2 A, Q3 A); at zero the workspace goes `grace` — **Planned**.
+- [ ] T035 [C3b] Renewal, checkout side: a card top-up of an existing workspace's prepaid balance — **Planned**, after T026.
 - [ ] T027 [C4] = T012a, per-plan quotas — **Planned**, gated on OQ-006-1.
 - [ ] T028 [C5] = T013a, timed grace — **Planned**, gated on OQ-006-3 and T026.
-- [ ] T029 [C6] Human seats on the hosted checkout: cnf price (owner's go), seat count and total in the checkout page — **Planned**, gated on Q2, Q3.
-- [ ] T030 [C7] Seats after purchase: add at once pro rata, remove at month end, "N of M seats used" in workspace settings — **Planned**, gated on Q4 and T026.
-- [ ] T031 [C8] A hub receipt per card payment with the buyer's billing details — **Planned**, gated on Q5.
-- [ ] T032 [C9] Self-service cancel of a hosted workspace by its owner — **Planned**, gated on T026.
-- [ ] T033 [C10] Help page for offers I and P (scope, coverage, response targets, how to buy) — **Planned**, gated on Q6..Q9.
-- [ ] T035 [C3b] Renewal, checkout side: a card top-up of an existing workspace's balance — **Planned**, after T026.
-- [ ] T034 [C11] Spec 075 section 7 broken into build rows (embedding store, worker, semantic search, ACLs), no token sold — **Planned**, gated on Q10, Q11.
+- [ ] T031 [C8] Hub receipt per card payment with the buyer's billing details (VAT id) (Q5 A) — **Planned**, after T035.
+- [ ] T029 [C6] Human seats on the hosted checkout & sales switch-on (Q1 C, Q2 A, Q3 A): measured `SPOOL_HUB_PAYMENT_PLAN_CENTS` + `SPOOL_HUB_PAYMENT_SEAT_USER_CENTS: "900"` + `stripe` in `dev.env.yaml` then `prd.env.yaml` (owner's go), seat count (1..`seats_max`) and month total in `/checkout` — **Planned**, after T036, T037, T035, T031 and owner go.
+- [ ] T030 [C7] Seats after purchase (Q4 A): add at once pro rata from the balance, remove at month end, "N of M seats used" in workspace settings — **Planned**, after T026 and T029.
+- [ ] T032 [C9] Self-service cancel of a hosted workspace by its `biz_owner` (30-day retention as `rdb 0319`) — **Planned**, after T026.
+- [ ] T033 [C10] Help page for offers I and P (fixed setup + monthly upkeep per owner quote, AGPL-3.0 boundary check prerequisite before first contract, one business-hours SLA tier 1/2 business days, monthly/yearly bank-transfer invoice; Q6 A..Q9 A) — **Planned** (AGPL check Q7 A before first offer-I contract).
+- [ ] T034 [C11] Spec 075 section 7 broken into build rows (pgvector store, indexing worker, semantic search, ACLs) wired to our self-hosted embedding model, zero third-party AI keys and zero token resale (Q10 A, Q11 B, D2) — **Planned** (build runs after spec 075 Phases 2–4 document store).
+- [ ] T038 [C12] Hosted embedding model service & IAM key handling (`033-cloud-run-embeddings`, scale-to-zero, `role = "embeddings"`, `roles/run.invoker` for hub runtime SA only, no static API key, stateless; Q11 B) — **Planned**, after T034 and spec 075 Phases 2–4.
+- [ ] T039 [C13] Hub embedding client & per-workspace metering (`SPOOL_HUB_EMBEDDINGS_URL`, IAM ID token, `usage_events` non-token kinds `embed_compute_ms` / `embed_vector_bytes`, per-workspace `ai_retrieval_enabled` opt-in default `false`; Q10 A, Q11 B) — **Planned**, after T038.
+- [ ] T040 [C14] Hosted-model closed-month cost read & Q10 AI retrieval add-on pricing at cloud cost + 33% (`do_spl_embeddings_cost_read`; owner switches add-on on; Q10 A, Q11 B) — **Planned**, after T039.
 
-<!-- version: 1.5.0 · updated: 2026-11-25 · last-edit: 2026-11-25T00:40:00Z -->
+<!-- version: 1.6.0 · updated: 2026-11-25 · last-edit: 2026-11-25T08:40:00Z -->

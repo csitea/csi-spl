@@ -149,6 +149,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `193-skills-per-agent-kind/` | The three most essential skills per agent kind (the 7 kinds of the vendor split): 2 months of lanes, commits, R7 FAILs, CI reds and owner-ask lead times measured per kind, a hand-labelled sample of 45 blocking findings, 21 skill slots (18 distinct), and 7 owner choices | M3 | c-774 (SPL-6375, epic SPL-2402, topic `b1ec7ce2`) |
 | `194-workspace-google-drive-upload/` | Files posted in a workspace topic go to the right folder of the workspace's Google Drive: automatic in the auto channels (`#csi-legal`), a "Save to Drive" action elsewhere; a dedicated per-workspace service account with no GCP role (step 072, key minted out of band, desk box only), a routing map in the workspace settings confirmed by the owner, idempotence by sha256, a `drive_uploads` audit row; the backup-SA reuse inventory of both boxes; Q1-Q6 for the owner (draft v0.1) | M3 | c-171 (SPL-6398, epic SPL-2750, topic `32f85fd8`) |
 | `195-message-revoke/` | Revoke a message card (its right-click menu) or a whole topic (its menu): the card stays visible marked revoked, its text never enters an agent prompt or history again (every hub read that serves a box, the box's local copies, the sweeps and the asks book), a `REVOKED` notice to agents mid-task, and what the card caused found and undone, scheduled or flagged (nothing on prd or git history without the owner's go); build rows T1-T12, Q1-Q7 for the owner (draft v0.2) | M3 | c-210 (SPL-6448, epic SPL-21, topic `8bdf63d0`) |
+| `196-topic-tags/` | Topic tags: split the WUI Channels left panel into Channels and Topic tags tabs (ordered by use, following Message order prepend/postpend), workspace-scoped tags typed freely and listed once used, edited by the topic's author and workspace admins only, clicking a tag lists its visible topics across channels; forward-only rdb migration with fail-closed RLS, hub endpoints, live `topic_tags` WS frame; build rows T1-T7, Q1-Q6 for the owner (draft v0.1) | M3 | a-743 (SPL-6524, epic SPL-23, topic `ec5e6237`) |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -389,4 +390,4 @@ Code prevails. Live GCP was not re-queried. Citations are `git grep` / file read
 | 030 | no `tasks.md`; status lived only in `spec.md` §0.5–0.7 | `030/tasks.md` added as the status list |
 | 031 | no `tasks.md`; `cases.tsv` is the register (OA-10..14 and OA-40 are PENDING) | indexed; no tasks file invented |
 
-<!-- version: 0.7.1 · updated: 2026-11-24 · last-edit: 2026-11-24T08:50:39Z -->
+<!-- version: 0.7.2 · updated: 2026-11-25 · last-edit: 2026-11-25T19:40:00Z -->

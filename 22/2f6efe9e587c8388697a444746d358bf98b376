@@ -1,0 +1,6 @@
+Lay-What: Adds one more prd workspace host to the list the platform serves.
+Lay-How: The automatic host reconcile wrote the new host into the prd settings file.
+Lay-Why: A new workspace was set up and needs its own address in production.
+Tech-What: csi-spl-cnf prd tenant_hosts gains ws-hidden-19 (spec 024).
+Tech-How: Written and pushed by do_spl_tenant_host_reconcile in workflow 40; this note is attached afterwards with do_release_note_attach because the automated commit carried no trailers.
+Tech-Why: Tenant host reconcile for SPL-5877; the prd apply itself was refused by the 052 no-in-place guard and is tracked separately.

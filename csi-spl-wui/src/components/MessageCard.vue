@@ -851,7 +851,9 @@ onMounted(() => {
 /* spec 186 (row M3): the select box sits over the avatar's 36 px place, so
    ticking moves nothing. A desktop shows it on hover and focus until one
    topic is ticked (H3), then on every card; a ticked card takes the
-   selection tint, as an issue row does. */
+   selection tint, as an issue row does. Hidden, it takes no pointer: the
+   avatar under it stays the topmost element, so an unticked feed reads as
+   today (spec 186 4.1 step 1 item 2; avatars-visible, SPL-6446). */
 .msg--selectable { position: relative; }
 .msg-select-box {
   position: absolute;
@@ -864,10 +866,11 @@ onMounted(() => {
   accent-color: var(--color-accent);
   cursor: pointer;
   opacity: 0;
+  pointer-events: none;
 }
 .msg--selectable:hover .msg-select-box,
 .msg--selectable:focus-within .msg-select-box,
-.msg--selecting .msg-select-box { opacity: 1; }
+.msg--selecting .msg-select-box { opacity: 1; pointer-events: auto; }
 .msg-select-box:focus-visible { opacity: 1; outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .msg--ticked { background: var(--color-selected); }
 /* t1 b921518d: the selected topic card has no left bracket bar. A 1px

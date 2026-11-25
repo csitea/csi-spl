@@ -95,6 +95,14 @@ function setSpacers<T extends Row>(w: Win<T>, top: number, bottom: number) {
   if (w.bottom) w.bottom.style.height = `${Math.round(bottom)}px`
 }
 
+/* SPL-6446: the part of a range change that cannot shorten the pane: a
+   spacer that grows takes its new height now, one that shrinks keeps its
+   height until its rows are drawn (setSpacers in the tick after) */
+function growSpacers<T extends Row>(w: Win<T>, top: number, bottom: number) {
+  const px = (el: HTMLElement | null) => Number.parseFloat(el?.style.height || '') || 0
+  setSpacers(w, Math.max(top, px(w.top)), Math.max(bottom, px(w.bottom)))
+}
+
 /* measure what is drawn, pick the rows for the viewport, keep the row on screen in place */
 function update<T extends Row>(w: Win<T>, follow: (s: HTMLElement) => void) {
   if (!w.windowed.value) {
@@ -110,12 +118,20 @@ function update<T extends Row>(w: Win<T>, follow: (s: HTMLElement) => void) {
   const view = viewOf(w, s, w.top, keys, sizes)
   const next = feedRange({ sizes, ...view })
   const cur = w.range.value
-  setSpacers(w, next.top, next.bottom)
-  if (cur && cur.start === next.start && cur.end === next.end) return
+  if (cur && cur.start === next.start && cur.end === next.end) {
+    setSpacers(w, next.top, next.bottom)
+    return
+  }
   const guessed = guessedAbove(w, keys, sizes, next.start, view.viewTop)
   const est = w.est || EST_ROW_PX
+  /* SPL-6446: the pane never gets shorter mid-redraw. A spacer shrunk
+     before its rows were drawn left it shorter for a layout; the browser
+     clamped scrollTop, and a reader at the end lost their place, rows
+     further up on every redraw (the oldest row off screen). */
+  growSpacers(w, next.top, next.bottom)
   w.range.value = { start: next.start, end: next.end }
   void nextTick(() => {
+    setSpacers(w, next.top, next.bottom)
     measure(w)
     settle(w, s, guessed, est)
   })

@@ -56,12 +56,21 @@ three delegate directly to the existing `_spl_simple_cron_apply` (zero edits to
 `declare -F _spl_simple_cron_apply` guard inside their action functions.
 The rows share no file: both are batch 1.
 
-**Status: draft v0.1, awaiting cross-vendor panel signature.** Editor: **a-808** (agy).
-Panel seat: **c-726** (claude, live). No row lane starts before the panel signs the plan
-sha AND its review line passes `do_spl_review_line_check` (rc 0).
+**Status: v1.0, awaiting cross-vendor panel signature on v1.0 sha.** Editor: **a-808**
+(agy). Cross-vendor panel seat **c-726** (claude, seat file
+`cc9a93f2e74b99c0ee11dc010e56ee421b8d5375` on `review/c002-refactor-round-03-claude-seat`)
+returned **PASS** on v0.1 `7103bcac49235686302754839717971f5aadcbb0` (msg `4d08dd05` /
+editor copy `587381f7`, 8/8 head sha256s verified, differential harness byte-identical
+across 40 row-01 cases and 180 row-02 cases) with W1 and N1-N6 folded into this v1.0
+(zero row, site, batch, test hunk, sha256, or vendor change from v0.1). No row lane starts
+and v1.0 does not land on master before c-726 signs this v1.0 sha AND its review line
+passes `do_spl_review_line_check` (rc 0) and the current dispatch holder gives GO.
 
 **One sha:** every count is measured on **`bfdbd57d5`** (`bfdbd57d515fbac4ec5f0cfdf44384ef2f47d9cf`,
-`origin/master` at 2026-11-25T22:25:55Z), n=1 per command unless stated. Reads are on
+`origin/master` at 2026-11-25T22:25:55Z; zero drift on all 11 row/test files to
+`origin/master` `83554762f` at 2026-11-25T23:16:15Z,
+`git diff --name-only bfdbd57d5 origin/master -- <11 files>` -> empty), n=1 per command
+unless stated. Reads are on
 `bfdbd57d5` with `git show` / `git grep`. The tests of 1.5 ran in detached scratch
 worktrees of `bfdbd57d5` (not committed, removed on exit): "base" unmodified, "head1" =
 base with row 01 applied in 1.3's shape, "head2" = base with row 02 applied in 1.4's
@@ -90,7 +99,8 @@ their own time.
 - `git ls-remote origin 'refs/heads/review/r03-*' 'refs/heads/*-r03-*' 'refs/heads/*refactor-round-03*' 'refs/heads/wip/*r03*'`
   -> nothing (before this plan's review branch push).
 - `ls /var/spool-hub/dispatch/briefs | grep -E 'r03-[0-9]{2}|refactor-round-03'` (on the
-  planner's box) -> **2** briefs only: this planner's brief and the panel seat's brief
+  planner/holder box only — neither brief sits in `dispatch/briefs` on the other box;
+  panel N5) -> **2** briefs only: this planner's brief and the panel seat's brief
   (`c002-refactor-round-03-claude-panel-seat.md`); 0 `r03-NN` row briefs.
 - `git ls-tree --name-only bfdbd57d5 csi-spl-doc/doc/md/ | grep -c refactor-round-03`
   -> **0** (only `refactor-round-3-plan.md` exists, so `refactor-round-03-plan.md` is free
@@ -198,7 +208,10 @@ Shape (built as head1 of 1.5):
   `hub-runner-cpu.tst.sh` `2f92257b18c7`.
 - Note for the row and its reviewer: build `gc1` in a detached git worktree, not a
   single-file temp copy, because the guard loads its sibling via
-  `dirname "${BASH_SOURCE[0]}"`.
+  `dirname "${BASH_SOURCE[0]}"`. Keep `SPL_FL_DRY_DONE` unexported (panel N3). In
+  `hub-agent-kinds.tst.sh` section 7's final one-copy check, the single-copy proof is
+  carried by the three `-eq 1` FATAL-line counts alongside `grep -c "_spl_hub_fleet_load_prep " -ge 1`
+  (panel N1; verbatim hunk kept byte-identical to signed v0.1).
 
 Verbatim helper, caller, and test hunks (head1 on `bfdbd57d5`):
 
@@ -393,7 +406,9 @@ Shape (built as head2 of 1.5):
   `setup-gh-runner-cpu-budget-cron.tst.sh` `2a074cdaf4b7`.
 - Note for the row and its reviewer: build `gc2a`, `gc2b`, and `gc2c` in detached git
   worktrees, not single-file temp copies, because the guard loads its sibling via
-  `dirname "${BASH_SOURCE[0]}"`.
+  `dirname "${BASH_SOURCE[0]}"`. Section 5 does not `env -u` ambient `ENV_ORDER_CRON_AT`
+  or `*_CRON_ACTION` (panel N2; run with those vars unset, as CI and `do_check_pre_push`
+  do; verbatim hunk kept byte-identical to signed v0.1).
 
 Verbatim caller and test hunks (head2 on `bfdbd57d5`):
 
@@ -583,7 +598,12 @@ applied, then one defect injected):
 The tests that name the sites (R2): `git grep -lE` over `*.tst.sh` and `features/*/tests/*`
 for row 01 (`spl-hub-agent-kinds|spl-hub-runner-cpu|do_spl_hub_agent_kinds|do_spl_hub_runner_cpu|_spl_hub_agent_kinds_list|_spl_hub_agent_kinds_report|_spl_hub_runner_cpu_report|_spl_hub_fleet_load_error`)
 -> `hub-agent-kinds.tst.sh`, `hub-runner-cpu.tst.sh`, and `spl-review-go.tst.sh` (fixture
-markdown text only at `:1078,1096,1103,1109`, does not source the `.func.sh` files); for
+markdown text only at `:1078,1096,1103,1109`, does not source the `.func.sh` files).
+Across `csi-spl-api/`, `git grep -n 'do_spl_hub_agent_kinds\|do_spl_hub_runner_cpu' origin/master -- csi-spl-api/`
+matches `internal/hub/fleet_load.go:28` and `internal/hub/fleet_load_test.go:238` in Go
+comments only (`// member session: the path of csi-spl-orc do_spl_hub_agent_kinds. A token`;
+panel W1); row 01 makes no Go change and leaves the hub PATCH body byte-identical, so
+`fleet_load_test.go` stays out of row 01's shell test column. For
 row 02 (`check-env-order-install-cron|setup-ci-overflow-cron|setup-gh-runner-cpu-budget-cron|do_check_env_order_install_cron|do_setup_ci_overflow_cron|do_setup_gh_runner_cpu_budget_cron|_spl_simple_cron_apply`)
 -> `setup-gh-runner-cpu-budget-cron.tst.sh`, `check-env-order.tst.sh`,
 `route-ci-overflow.tst.sh`, `apply-gh-runner-cpu-budget.tst.sh`, and
@@ -658,10 +678,11 @@ read-only):
   (`c-645`), tax-analyst blog post follow-up (`c-737`), WUI Delete key for notes
   (`c-741`), and spec 125 doc/R7 seats (`c-957`, `c-965`). Live lanes on this box
   (`a-808`, `a-812` SPL-6541 blog review, `a-810` spec 196 v0.3, `a-806` spec 150 v1.9,
-  `a-801`/`c-780` b47-03 pin-hold weekly quota, `c-718`/`a-767`/`c-722`/`a-789` latency
-  actions 3/6/7, `c-298`/`c-625` Reporting Taxes tab) and panel seat `c-726` touch none
-  of the 11 paths. No live lane owns any of the 11 paths; the holder re-reads at placement
-  per R3.
+  `a-801`/`c-780` b47-03 pin-hold weekly quota, `c-718`/`a-767`/`a-823`/`c-722`/`a-789`
+  latency actions 3/6/7 — `a-823` checked at 23:16:16Z: SPL-6516 latency action 6 commits
+  2+3, 0 overlap, `c-298`/`c-625` Reporting Taxes tab) and panel seat `c-726` touch none
+  of the 11 paths (panel also checked R3 at 23:08:44Z and found 0 owning lanes). No live
+  lane owns any of the 11 paths; the holder re-reads at placement per R3.
 - **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, at 2026-11-25T22:26:19Z):
   2 queued, 0 placing:
   - `5b1b7d82` (`c001-s186-m9-n2-qto-sync`, feature): s186 M9 Qto sync; 0 overlap.
@@ -711,10 +732,13 @@ read-only):
 
 - Editor: **a-808** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
-  step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-726** (live
-  on the other box, queued with this planner). The seat reviews this plan only; plan v1.0
-  lands on master only after c-726 signs the plan sha AND `do_spl_review_line_check`
-  passes (rc 0) and the holder gives GO.
+  step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-726** (seat
+  file `csi-spl-doc/doc/md/refactor-round-03/seat-claude.md` at
+  `cc9a93f2e74b99c0ee11dc010e56ee421b8d5375` on `review/c002-refactor-round-03-claude-seat`),
+  returned **PASS** on v0.1 `7103bcac49235686302754839717971f5aadcbb0` (msg `4d08dd05` /
+  editor copy `587381f7`, W1 and N1-N6 folded into v1.0). Plan v1.0 lands on master only
+  after c-726 signs this v1.0 sha AND `do_spl_review_line_check` passes (rc 0) and the
+  current dispatch holder gives GO.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-25T22:26:44Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -803,7 +827,7 @@ if the claude backup is used; never mistral; re-checked at placement).
 | copies of the `/v1/operator/fleet-load` write-mode prep block (1.3) | 2 on `bfdbd57d5` (`spl-hub-agent-kinds`, `spl-hub-runner-cpu`) -> 1 (`_spl_hub_fleet_load_prep`) after row 01 |
 | copies of the periodic cron check/dry-run/remove/install block in row 02's 3 installers (1.4) | 3 on `bfdbd57d5` (`check-env-order-install-cron`, `setup-ci-overflow-cron`, `setup-gh-runner-cpu-budget-cron`) -> 0 own copies (delegated to existing `_spl_simple_cron_apply`) after row 02 |
 | lines (`git diff --numstat` of each head) | row 01: `spl-hub-agent-kinds.func.sh` +25 -11, `spl-hub-runner-cpu.func.sh` +5 -11, `hub-agent-kinds.tst.sh` +47 -0 (46-line hunk + 1 trailing blank line), `hub-runner-cpu.tst.sh` +13 -0 (12-line hunk + 1 trailing blank line); row 02: `check-env-order-install-cron.func.sh` +6 -31, `setup-ci-overflow-cron.func.sh` +5 -32, `setup-gh-runner-cpu-budget-cron.func.sh` +5 -32, `setup-gh-runner-cpu-budget-cron.tst.sh` +55 -0 (54-line hunk + 1 trailing blank line) |
-| measured on | `bfdbd57d5`; n=1 per command unless stated |
+| measured on | `bfdbd57d5` (zero drift on all 11 row/test files to `83554762f`); n=1 per command unless stated |
 
 ## 7. Left out, measured
 
@@ -824,13 +848,38 @@ if the claude backup is used; never mistral; re-checked at placement).
   `shellcheck 0.10.0 -S warning -x` and `do_sec_shellcheck` rc 0; all 7 red and guard
   controls (`rc1a`, `rc1b`, `gc1`, `rc2`, `gc2a`, `gc2b`, `gc2c`) and all 5 mutation
   checks (`m1a`, `m1b`, `m2a`, `m2b`, `m2c`) run on detached worktrees and verified RED;
-  all helper, caller, and test hunks included verbatim in 1.3 and 1.4.
+  all helper, caller, and test hunks included verbatim in 1.3 and 1.4. Pushed as
+  `7103bcac4` on `review/c002-refactor-round-03-planner`.
+- v1.0 (a-808): folded cross-vendor panel `c-726` (claude) PASS findings on v0.1
+  `7103bcac49235686302754839717971f5aadcbb0` (msg `4d08dd05` / editor copy `587381f7`,
+  seat file `cc9a93f2e74b99c0ee11dc010e56ee421b8d5375` on
+  `review/c002-refactor-round-03-claude-seat`; 8/8 head sha256s verified, differential
+  harness byte-identical over 40 row-01 cases and 180 row-02 cases; zero row, site, batch,
+  test hunk, sha256, or vendor change):
+  - **W1** (1.5): documented `csi-spl-api/src/go/spool-hub-api/internal/hub/fleet_load_test.go:238`
+    (and `fleet_load.go:28`) comment-only mention of `do_spl_hub_agent_kinds` and why it
+    stays out of row 01's shell test column (no Go change, PATCH body byte-identical).
+  - **N1** (1.3): clarified that the single-copy proof in `hub-agent-kinds.tst.sh` section
+    7 is carried by the three `-eq 1` FATAL-line checks alongside `grep -c "_spl_hub_fleet_load_prep " -ge 1`.
+  - **N2** (1.4): noted section 5 runs without `env -u ENV_ORDER_CRON_AT` / `*_CRON_ACTION`.
+  - **N3** (1.3): noted R7 should keep `SPL_FL_DRY_DONE` unexported.
+  - **N4** (intro, 4, 9): unified panel seat status to v0.1 PASS on `7103bcac4` awaiting
+    v1.0 signature.
+  - **N5** (1.1): noted the 2-briefs check applies to the planner/holder box only.
+  - **N6** (intro, 2.2, 6): refreshed drift check on `origin/master` `83554762f` (0 drift
+    on all 11 row/test files) and verified live lane `a-823` (SPL-6516 latency action 6
+    commits 2+3, 0 overlap).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-808 (agy): v0.1.
-- Panel reviewer seat: c-726 (claude, queued with this planner): pending review on v0.1.
+- Editor seat: a-808 (agy): v0.1, v1.0.
+- Panel reviewer seat: c-726 (claude, seat `cc9a93f2e74b99c0ee11dc010e56ee421b8d5375` on
+  `review/c002-refactor-round-03-claude-seat`): **PASS** on v0.1
+  (`7103bcac49235686302754839717971f5aadcbb0`, msg `4d08dd05` / editor copy `587381f7`;
+  8/8 head sha256s, 16 suites, 7 red/guard controls, 5 mutations, `shellcheck`, and
+  differential harness 40 + 180 cases verified); awaiting final signature on v1.0 sha
+  (W1 and N1-N6 folded, zero code/test hunk change).
 - Row R7 seats: section 4 (agy primary; claude waiver backup only if agy is out of quota,
   citing ruling `dc84300a`; never mistral).

@@ -576,6 +576,23 @@ def ledger(kind, msg_id="-", written="-", via=None):
     except OSError:
         pass
 
+def live_ack(ids):
+    # spec 053 section 4.5 (SPL-6517): the shown ack. Starts spool-live-ack.sh
+    # detached (own session, fds on /dev/null) and never waits or fails the hook.
+    ids = [i for i in ids if all(c.isalnum() or c in "._:-" for c in i)]
+    if not ids or not here:
+        return
+    try:
+        nul = os.open(os.devnull, os.O_RDWR)
+        try:
+            fa = [(os.POSIX_SPAWN_DUP2, nul, fd) for fd in (0, 1, 2)]
+            os.posix_spawn(os.path.join(here, "spool-live-ack.sh"), ["spool-live-ack.sh", aid] + ids,
+                           os.environ, file_actions=fa, setsid=True)
+        finally:
+            os.close(nul)
+    except OSError:
+        pass
+
 def inject(all_unread):
     # SPL-6515 R7 W2: parallel tool calls run PreToolUse hooks at once; the
     # lock makes read-marker, show, write-marker one step. W1: no OSError
@@ -617,6 +634,7 @@ def inject_locked(all_unread):
         put(os.path.join(d, ".hook-seen"), "%s %s\n" % last)
     for mid, written in shown:
         ledger("surfaced", mid, written)
+    live_ack([m for m, _ in shown if isinstance(m, str) and m])
     if not parts:
         return ""
     rest = len(keys) - len(parts)

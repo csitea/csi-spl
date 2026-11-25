@@ -67,6 +67,20 @@ func newHarness(t *testing.T) *harness {
 	}
 }
 
+// scrubSpoolEnv drops every SPOOL_* entry of env, so a CLI child built from
+// the caller's environment reads only the SPOOL_* vars the test sets: the MCP
+// side runs on a clean testkit config, and an inherited SPOOL_HUB_URL,
+// SPOOL_DIR_LAYOUT or SPOOL_MSG_VERSION would break the parity (b47-01).
+func scrubSpoolEnv(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		if !strings.HasPrefix(kv, "SPOOL_") {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
 // run invokes the CLI verb and returns stdout without its final newline, the
 // stderr line, and the exit code.
 func (h *harness) run(args ...string) (string, string, int) {
@@ -76,7 +90,7 @@ func (h *harness) run(args ...string) (string, string, int) {
 	// so the CLI must not inherit the box's notifier either. On an agent box the
 	// caller's shell sets it, and the notifier rings a real pane and writes
 	// <agent>/lifetime/poke-ledger.tsv into this test's root (SPL-6511).
-	cmd.Env = append(os.Environ(),
+	cmd.Env = append(scrubSpoolEnv(os.Environ()),
 		"SPOOL_ROOT="+h.cli.cfg.SpoolRoot, "SPOOL_KEYS_DIR="+h.cli.cfg.KeysDir,
 		"SPOOL_PINS_DIR="+h.cli.cfg.PinsDir, "SPOOL_LOG_LEVEL=error",
 		"SPOOL_NOTIFY_CMD=off")
@@ -525,4 +539,39 @@ func TestSeatAgentRunsSeatCmd(t *testing.T) {
 	if d := (tools{}).desks(); d.Seat != nil {
 		t.Error("a server with no SeatCmd seats agents")
 	}
+}
+
+func TestScrubSpoolEnvDropsOnlySpoolVars(t *testing.T) {
+	got := scrubSpoolEnv([]string{"PATH=/bin", "SPOOL_HUB_URL=https://hub.example.invalid", "HOME=/h", "SPOOL_MSG_VERSION=99", "XSPOOL_A=1"})
+	want := []string{"PATH=/bin", "HOME=/h", "XSPOOL_A=1"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("scrubSpoolEnv = %q, want %q", got, want)
+	}
+}
+
+// TestCLISidesIgnoreCallerSpoolEnv: both CLI-spawning tests of this package
+// (harness.run and TestTopicPDFToolEqualsCLI) pass while the caller's shell
+// exports foreign SPOOL_* vars; on a tree without scrubSpoolEnv each fails
+// with "SPOOL_MSG_VERSION 99 must be 1 or 2" (b47-01, rc01-b47.sh).
+func TestCLISidesIgnoreCallerSpoolEnv(t *testing.T) {
+	polluted := map[string]string{"SPOOL_HUB_URL": "https://hub.example.invalid", "SPOOL_TENANT": "t1",
+		"SPOOL_DIR_LAYOUT": "flat", "SPOOL_MSG_VERSION": "99"}
+	t.Run("harness_run", func(t *testing.T) {
+		h := newHarness(t)
+		if _, stderr, rc := h.run("send", "--from", "c-007", "--to", "c-007", "--kind", "note", "--task", task, "--body", "ctrl"); rc != 0 {
+			t.Fatalf("control (caller env as is): rc=%d stderr=%q", rc, stderr)
+		}
+		for k, v := range polluted {
+			t.Setenv(k, v)
+		}
+		if _, stderr, rc := h.run("send", "--from", "c-007", "--to", "c-007", "--kind", "note", "--task", task, "--body", "polluted"); rc != 0 {
+			t.Fatalf("harness.run inherited caller SPOOL_* env: rc=%d stderr=%q", rc, stderr)
+		}
+	})
+	t.Run("topic_pdf_cli", func(t *testing.T) {
+		for k, v := range polluted {
+			t.Setenv(k, v)
+		}
+		TestTopicPDFToolEqualsCLI(t)
+	})
 }

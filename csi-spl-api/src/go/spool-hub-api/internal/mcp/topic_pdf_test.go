@@ -83,7 +83,7 @@ func TestTopicPDFToolEqualsCLI(t *testing.T) {
 	}
 	cli := func(args ...string) (string, string, int) {
 		cmd := exec.Command(bin, append([]string{"topic-pdf"}, args...)...)
-		cmd.Env = append(os.Environ(), "SPOOL_ROOT="+cfg.SpoolRoot, "SPOOL_KEYS_DIR="+cfg.KeysDir, "SPOOL_PINS_DIR="+cfg.PinsDir,
+		cmd.Env = append(scrubSpoolEnv(os.Environ()), "SPOOL_ROOT="+cfg.SpoolRoot, "SPOOL_KEYS_DIR="+cfg.KeysDir, "SPOOL_PINS_DIR="+cfg.PinsDir,
 			"SPOOL_BOX_ID=box-a", "SPOOL_HUB_URL="+url, "SPOOL_TENANT=t1", "SPOOL_SUBMIT_SOCKET=off", "SPOOL_LOG_LEVEL=error",
 			"SPOOL_DESKS=")
 		var so, se bytes.Buffer

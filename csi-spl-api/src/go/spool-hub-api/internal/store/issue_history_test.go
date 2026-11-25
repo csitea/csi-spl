@@ -10,8 +10,9 @@ import (
 
 // rdb 0181 on memory and, with SPOOL_TEST_PG_DSN, Postgres: an issue's
 // history is created, each field change with old -> new and its actor, each
-// comment of its topic, archive / unarchive and the level cascade, oldest
-// first; another tenant never reads it, a deleted issue has none.
+// comment of its topic, each edit of a comment (SPL-6480: who and when),
+// archive / unarchive and the level cascade, oldest first; another tenant
+// never reads it, a deleted issue has none.
 func TestIssueHistory(t *testing.T) {
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
@@ -43,6 +44,13 @@ func TestIssueHistory(t *testing.T) {
 			if _, err := s.InsertMessage(ctx, c); err != nil {
 				t.Fatal(err)
 			}
+			// SPL-6480: the author edits the comment twice; each save is a row
+			for i, sec := range []time.Duration{20 * time.Second, 40 * time.Second} {
+				if _, err := s.(MessageEdits).ApplyEdit(ctx, a, c.MsgID, Edit{Body: strings.Repeat(string(rune('a'+i)), 300),
+					Msg: c.Msg, Env: c.Env, EditedBy: "HUM-3", EditedAt: at(2).Add(sec)}); err != nil {
+					t.Fatal(err)
+				}
+			}
 			kind := IssueKindFeature // an epic-kind row: its subtask becomes an issue (level 2)
 			if _, err := is.UpdateIssue(ctx, a, one.Number, IssuePatch{Kind: &kind}, "HUM-2", at(3)); err != nil {
 				t.Fatal(err)
@@ -64,8 +72,9 @@ func TestIssueHistory(t *testing.T) {
 				if e.Field != "" {
 					l += " " + e.Field + " " + deref(e.Old) + "->" + deref(e.New)
 				}
-				if e.Event == IssueEventCommented {
-					if e.MsgID != c.MsgID || len(deref(e.New)) != issueCommentExcerpt {
+				if e.Event == IssueEventCommented || e.Event == IssueEventCommentEdited {
+					excerpt := e.Event == IssueEventCommented && deref(e.New) != strings.Repeat("b", issueCommentExcerpt)
+					if e.MsgID != c.MsgID || excerpt || (e.Event == IssueEventCommentEdited && e.New != nil) {
 						t.Fatalf("comment: %+v", e)
 					}
 				}
@@ -78,6 +87,8 @@ func TestIssueHistory(t *testing.T) {
 				"1m0s HUM-2 changed priority 5->2",
 				"1m0s HUM-2 changed assignee ->CLE-01",
 				"2m0s HUM-3 commented",
+				"2m20s HUM-3 comment_edited",
+				"2m40s HUM-3 comment_edited",
 				"3m0s HUM-2 changed level 2->1",
 				"3m0s HUM-2 changed kind issue->feature",
 				"4m0s HUM-4 archived",

@@ -104,6 +104,19 @@ Refined the same morning (binding where it differs from the first request):
   `notes.send` (every role, like Linear's "anyone on the team files an issue").
   A non-member reads nothing (403 at the tenant door, as every view); an
   issue number of another tenant reads 404.
+- **FR-007a** A comment is edited like any message (SPL-6480; HUM-24
+  csitea 5c9dcfe7; owner HUM-10 csitea c707c7a5: "everyone who has write
+  access to the Issues must be able to change their own comments too. But
+  there must be a mark that the comment was changed"; t1 66f4500c: the edit
+  shows in History). Its author edits it (`PATCH /v1/messages/{id}`: author
+  only, `notes.send`; a reader and another author get 403), from the card
+  menu, a double-click or `e`; delete follows the message rule. The card
+  shows the message's "(edited)" mark. Each saved edit is one History row,
+  `comment_edited`: who and when, no old text (read from
+  `message_revisions`, no table of its own). The card menu of a comment opens
+  OVER the issue modal (`useInModal`: UiDialog provides it, MessageMenu lifts
+  its panel); before this it opened under the dialog, in the DOM but not
+  clickable, which was the reported "inactive menu".
 - **FR-008** Agents do concrete, specced work as issues (owner): a seated
   agent creates and updates issues and posts its progress as a comment on the
   issue, over its own box socket, as itself (the agent must be one its box
@@ -611,4 +624,4 @@ Only the planned keys change; every other byte stays. A plan holding a key
 above the workspace's `last_number` is refused whole (exit 2, SPL-5073). Dry run unless
 `DRY_RUN=0`. Test: `csi-spl-orc/src/bash/tests/spl-issue-ref-rewrite.tst.sh`.
 
-<!-- version: 0.11.1 · updated: 2026-11-25 · last-edit: 2026-11-25T03:05:00Z -->
+<!-- version: 0.11.2 · updated: 2026-11-25 · last-edit: 2026-11-25T09:50:00Z -->

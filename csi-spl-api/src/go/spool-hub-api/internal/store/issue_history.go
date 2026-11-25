@@ -14,17 +14,21 @@ import (
 // Issue history (rdb 0181, owner HUM-10 t1 62e48cef): the Jira-like History
 // tab of one issue. Field changes, create, delete and archive come from
 // issue_events, written by a trigger on issues; comments are the messages of
-// the issue's topic, read here, never copied.
+// the issue's topic, read here, never copied; so is each comment edit
+// (SPL-6480: message_revisions past the first, who and when, no old text).
 
 // The events of an issue's history.
 const (
-	IssueEventCreated    = "created"
-	IssueEventChanged    = "changed"
-	IssueEventCommented  = "commented"
-	IssueEventDeleted    = "deleted"
-	IssueEventRestored   = "restored"
-	IssueEventArchived   = "archived"
-	IssueEventUnarchived = "unarchived"
+	IssueEventCreated   = "created"
+	IssueEventChanged   = "changed"
+	IssueEventCommented = "commented"
+	// IssueEventCommentEdited is a comment's author changing it (SPL-6480,
+	// owner HUM-10 t1 66f4500c): one row per saved edit.
+	IssueEventCommentEdited = "comment_edited"
+	IssueEventDeleted       = "deleted"
+	IssueEventRestored      = "restored"
+	IssueEventArchived      = "archived"
+	IssueEventUnarchived    = "unarchived"
 )
 
 // IssueHistoryCap bounds one read: the oldest rows win, the tab is
@@ -61,6 +65,10 @@ var issueHistorySQL = `
 		m.msg_id::text, 2, 0
 	FROM messages m
 	WHERE m.tenant_id = $1 AND m.task_id = $3 AND m.archived_at IS NULL
+	UNION ALL
+	SELECT r.edited_at, r.edited_by, 'comment_edited', '', NULL, NULL, r.msg_id::text, 3, r.revision
+	FROM message_revisions r JOIN messages m ON m.tenant_id = r.tenant_id AND m.msg_id = r.msg_id
+	WHERE r.tenant_id = $1 AND m.task_id = $3 AND m.archived_at IS NULL AND r.revision > 1
 	ORDER BY 1, 8, 9
 	LIMIT ` + strconv.Itoa(IssueHistoryCap)
 
@@ -187,15 +195,40 @@ func (s *Memory) IssueHistory(_ context.Context, tenant string, number int) ([]I
 			body = string(r[:issueCommentExcerpt])
 		}
 		out = append(out, IssueEvent{At: m.TS.UTC(), Actor: by, Event: IssueEventCommented, New: &body, MsgID: m.MsgID})
+		out = append(out, s.commentEditsLocked(tenant, m.MsgID)...)
 	}
 	sort.SliceStable(out, func(a, b int) bool {
 		if !out[a].At.Equal(out[b].At) {
 			return out[a].At.Before(out[b].At)
 		}
-		return out[a].Event != IssueEventCommented && out[b].Event == IssueEventCommented
+		return issueEventTie(out[a].Event) < issueEventTie(out[b].Event)
 	})
 	if len(out) > IssueHistoryCap {
 		out = out[:IssueHistoryCap]
 	}
 	return out, nil
+}
+
+// issueEventTie is the SQL's tie column: at one instant the issue's own
+// events, then comments, then comment edits.
+func issueEventTie(event string) int {
+	switch event {
+	case IssueEventCommented:
+		return 2
+	case IssueEventCommentEdited:
+		return 3
+	}
+	return 1
+}
+
+// commentEditsLocked is one comment's edits, the memory twin of the SQL's
+// message_revisions branch: every revision past the first. Caller holds s.mu.
+func (s *Memory) commentEditsLocked(tenant, msgID string) []IssueEvent {
+	var out []IssueEvent
+	for _, r := range s.revisions[[2]string{tenant, msgID}] {
+		if r.Revision > 1 {
+			out = append(out, IssueEvent{At: r.EditedAt.UTC(), Actor: r.EditedBy, Event: IssueEventCommentEdited, MsgID: msgID})
+		}
+	}
+	return out
 }

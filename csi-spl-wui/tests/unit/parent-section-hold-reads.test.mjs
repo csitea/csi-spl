@@ -144,17 +144,19 @@ describe('holdCard: the same end condition and cap', () => {
 
   it('a card that never keeps its place is let go at the cap', () => {
     const { card, scroller } = page()
-    landCard(card, scroller, false)
-    scroller.pending = true
-    /* each read finds it a pixel further than the read before did: never still */
-    const read = card.getBoundingClientRect
-    let n = 0
-    card.getBoundingClientRect = () => { card.top += ++n; return read() }
+    /* the clock is the test's before landCard reads it: a real ms between the
+       two reads moved the cap a frame early under load */
     const now = Date.now
     const t0 = now()
     let t = t0
     Date.now = () => t
     try {
+      landCard(card, scroller, false)
+      scroller.pending = true
+      /* each read finds it a pixel further than the read before did: never still */
+      const read = card.getBoundingClientRect
+      let n = 0
+      card.getBoundingClientRect = () => { card.top += ++n; return read() }
       while (frames.length && t - t0 < 5000) {
         t += 16
         nextFrame()

@@ -466,7 +466,9 @@ matches now (one read-only search): a count, not an approval step.
   objects (D17)**, and only with a bound scope (**D24**): a `topic` or
   `message` task names its channels (not all), an `issue` task holds a
   positive `key:` or `epic:` leaf; a member's unbound task is refused at
-  save with `403 not_allowed`. The member's own objects are: the topics they started (the starter of the archive
+  save with `403 not_allowed`. The check is syntactic: one positive leaf
+  anywhere binds the query (`key:SPL-1 OR status:wip` is bound, lists in
+  `SPL-1`'s dialog, and D17 still narrows it to the member's own issues). The member's own objects are: the topics they started (the starter of the archive
   policy, `ArchivePolicyStarter`, `api/store/tenant_settings.go:49`), the
   messages they sent (`from`), and the issues assigned to them (`assignee`)
   or reported by them (`created_by`, `rdb/0047_issues.sql`). A task whose
@@ -679,8 +681,8 @@ Workspace admins configure, as registered workspace settings (spec 098,
   per-row actions, with D3's rights (a member edits their own tasks and
   reads the others). "New task" there fills the editor's scope with that
   channel (`where`) or that topic (`where` = its channel, query
-  `topic:<task_id>`). Tasks over all channels, and `issue` tasks with no
-  `key:` or `epic:` leaf, are in no dialog: they are admin-only (D24) and
+  `topic:<task_id>`). `topic` and `message` tasks over all channels, and
+  `issue` tasks with no positive `key:` or `epic:` leaf, are in no dialog: they are admin-only (D24) and
   listed in Settings. The items
   are built in `wui/utils/sidebar-row-menu.mjs` (`rowMenuItems`) and
   `wui/utils/msg-menu.mjs` (`msgMenuItems`); the topic item follows the

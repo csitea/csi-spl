@@ -311,7 +311,7 @@ msg `e17e6c09`: "A new field, mention_assignee (yes or no)" (spec D22); Q3
 at once". Spec 187 v0.4 carries Q1 and Q2 (6.2, 4.3, 9.1.1, 9.1.5, 7.2);
 the briefs below follow it.
 
-- **Q1b (open; review a-475 W1; the holder asks the owner).** Q1's menus
+- **Q1b (answered v1.3, below; review a-475 W1).** Q1's menus
   list a channel's and a topic's tasks; they do not reach tasks over all
   channels or `issue` tasks (spec 4.1: issues are all channels only),
   which D17 lets a member own. Settings is admin-only
@@ -611,9 +611,11 @@ placement and cites it in its subject, e.g.
   `?topic=` matches a positive `OpTopic` leaf of `search.Parse`, the id
   lower-cased, so `-topic:<id>` is not a match); D23's `?issue=` /
   `?epic=` the same way over a positive `key:` / `epic:` leaf, a test
-  each; D24 (Q1c A): a non-admin's task over all channels, or an
-  `issue` task with no positive `key:` / `epic:` leaf, answers `403
-  not_allowed`, a test;
+  each; D24 (Q1c A): a non-admin's `topic` or `message` task over
+  all channels (empty `scope_where`), or an `issue` task with no
+  positive `key:` / `epic:` leaf, answers `403 not_allowed`, a test;
+  the `scope_where` check applies to `topic` / `message` only (spec
+  4.5);
   `mention_assignee` on `object = channel` answers `400 bad_task` (D22)
   from S3's `validateTaskSave`, so S6's instance tasks share it.
   `GET /v1/tasks/preview` counts and writes nothing.

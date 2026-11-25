@@ -1,4 +1,4 @@
-# Spec 187 build round - plan (12 rows, 8 batches)
+# Spec 187 build round - plan (13 rows (S12 split), 8 batches)
 
 Epic: SPL-2403 (the brief's line; spec 187 names SPL-2398, see 2.4 N1)  
 Spec: csi-spl-doc/specs/187-scheduled-tasks-activities (v0.3)  
@@ -27,9 +27,13 @@ This plan re-measures each row's sites on one sha, orders the rows into
 batches of disjoint files (R1), names each row's kind, vendor and R7
 reviewer, and proposes one brief per row. It writes no code.
 
-**Status: v0.1, for the panel.** Planner: c-074 (claude, the backup for
-`specs_and_docs`: agy on its usage limit until 2026-11-30T21:31Z). Panel:
-one cross-vendor seat (mistral or grok), asked of the dispatch holder.
+**Status: v0.2, for the panel's re-review.** Planner: c-074 (claude, the
+backup for `specs_and_docs`: agy on its usage limit; the brief's addendum
+reads 2026-11-30T21:31Z on one box, the holder's note 8cc25fff "quota out
+to 12-01"; the placer reads the live pick, not this line). Panel: one seat,
+**c-342 (claude), same-vendor panel, waiver**: agy is out of quota, grok is
+off, and mistral sits on no review seat (rulebook 2.7.2). v0.1 (`36d85b32f`)
+got FAIL W1-W7; v0.2 answers each (section 5).
 
 **One sha.** Every read is on **`5906e1fe2`** (`origin/master` at
 2026-11-24T11:01Z, after a fresh fetch), with `git show` / `git grep`, n=1
@@ -124,7 +128,7 @@ Where the spec's line differs, both are given.
 | `api:store/rls_test.go` `TestRLSCoversEveryTenantTable` | (by name) | `:103` |
 | `api:hub/roundtrips_perf_test.go` `TestRoundTripsPerRequest` | (by name) | `:30` |
 | `api:hub/openapi_routes_test.go` `TestOpenAPIRoutes` | (not cited) | `:314`: every new route of S6, S7 and S11 is also written into `api:hub/openapi.json` |
-| WUI Settings sections | "Settings -> Scheduled tasks" | `wui:utils/tenant-settings-nav.ts` (94 lines): each section carries a `perm` (`:29-39`), filtered by `filterByPerm` (`:69`); pages under `wui:pages/tenant-settings/` (14 files) |
+| WUI Settings sections | "Settings -> Scheduled tasks" | `wui:utils/tenant-settings-nav.ts` (94 lines): each section carries a `perm` (`:29-39`), filtered by `filterByPerm` (`:69`); pages under `wui:pages/tenant-settings/` (13 files) |
 | `csi-spl-wui/i18n/locales/` | (by rule) | 19 files |
 | user help | S10 | `csi-spl-doc/doc/help/` (31 files), copied by `node src/node/help/sync-help.mjs` (csi-spl-wui; `--check` exits 1 on a difference) |
 
@@ -147,37 +151,41 @@ backup when the main cannot run. S8, S9 and S10 (its help copy) touch
 `csi-spl-wui/` and never go to mistral (developer guide 5.1); no coding or
 test row goes to mistral (owner b61851fb msg 91bf8278).
 
-**R7.** `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` (11:04Z) ->
-`pick=hold`, "grok weekly >= 95%" on both boxes. The R7 reviewer of every
-claude-authored row is a **grok** seat; while the grok pick holds on both
-boxes for the weekly limit (not for load), c-001's ruling 5fb1bdab gives a
-claude waiver seat under its conditions (a fresh session, the tree only, the
-brief names the waiver). It lapses on the first grok pick on either box,
-and what counts is when the verdict is given, not when the seat was placed.
-An agy-authored row takes a grok or claude reviewer. No same-vendor line
-outside that ruling.
+**R7** (rulebook 2.7.2: agy reviews claude, claude reviews agy). The R7
+reviewer of every claude-authored row is an **agy** seat. Grok is off
+fleet-wide (cnf `all.env.yaml`, "grok off, t1 476aff8f msg 6c969b3c") and
+mistral sits on no review seat (`mistral_review_allowed: false`), so
+neither is named. While agy is out of quota (above), the row's R7 is a
+**claude same-vendor seat, waiver**, as this plan's own panel: a fresh
+session, the tree only, the brief names the waiver. It lapses when the
+placer's agy pick comes back, and what counts is when the verdict is given,
+not when the seat was placed. An agy-authored row takes a claude reviewer.
+No other same-vendor line.
 
 ### 2.1 Action table
 
 | row | what | kind | vendor (main) | R7 | depends on | batch |
 |---|---|---|---|---|---|---|
-| S1 | rdb + store: tasks, runs, `hub_settings`, `#scheduled-runs` | complex_coding | claude | grok (waiver: 2 R7) | none | 1 |
-| S2 | grammar: `idle:`, `changed:` | simple_coding | claude (pick agy; either) | grok (claude if agy) | none | 1 |
-| S12a | cron parser `api:taskcron` | simple_coding | claude (pick agy; either) | grok (claude if agy) | none | 1 |
-| S3 | hub runner + fixed actions + run cap | complex_coding | claude | grok | S1; c-918 landed (2.3) | 2 |
-| S4 | event triggers + chains | complex_coding | claude | grok | S3; c-918 landed | 3 |
-| S5 | agent action + token cap | complex_coding | claude | grok | S3 | 3 |
-| S7 | workspace routes | simple_coding | claude (pick agy; either) | grok (claude if agy) | S1, S3 | 3 |
-| S12b | cron in store validation and next time | simple_coding | claude (pick agy; either) | grok (claude if agy) | S12a, S3 | 3 |
-| S11 | labels on topics and messages | complex_coding | claude | grok | S1, S2, S7 (`server.go`) | 4 |
-| S6 | two levels | complex_coding | claude | grok | S1, S3, S11 (`server.go`) | 5 |
-| S8 | web UI, then the language check | simple_coding | claude (never mistral) | grok | S6, S7, S11, S12b | 6 |
-| S9 | e2e | tests | claude | grok | S8 | 7 |
-| S10 | docs + help | specs_and_docs | agy, backup claude (never mistral) | cross to the author | S3-S9, S11, S12b | 8 |
+| S1 | rdb + store: tasks, runs, `hub_settings`, `#scheduled-runs` | complex_coding | claude | agy (claude waiver while agy out; 2 R7) | none | 1 |
+| S2 | grammar: `idle:`, `changed:` | simple_coding | claude (pick agy; either) | agy if claude (waiver while out); claude if agy | none | 1 |
+| S12a | cron parser `api:taskcron` | simple_coding | claude (pick agy; either) | agy if claude (waiver while out); claude if agy | none | 1 |
+| S3 | hub runner + fixed actions + run cap + the two seams (2.4 N4 f) | complex_coding | claude | agy (waiver while out) | S1 | 2 |
+| S4 | event triggers + chains | complex_coding | claude | agy (waiver while out) | S3 | 3 |
+| S7 | workspace routes | simple_coding | claude (pick agy; either) | agy if claude (waiver while out); claude if agy | S1, S3 | 3 |
+| S12b | cron in store validation and next time | simple_coding | claude (pick agy; either) | agy if claude (waiver while out); claude if agy | S12a, S3 | 3 |
+| S5 | agent action + token cap + reply hook + timeout | complex_coding | claude | agy (waiver while out) | S3, S4 (reply hook), S12b (`scheduled_tasks.go`) | 4 |
+| S11 | labels on topics and messages | complex_coding | claude | agy (waiver while out) | S1, S2, S3 (`scheduled_task_actions.go`), S7 (`server.go`) | 4 |
+| S6 | two levels | complex_coding | claude | agy (waiver while out) | S1, S3, S11 (`server.go`) | 5 |
+| S8 | web UI, then the language check | simple_coding | claude (never mistral) | agy (waiver while out) | S6, S7, S11, S12b | 6 |
+| S9 | e2e | tests | claude | agy (waiver while out) | S8 | 7 |
+| S10 | docs + help | specs_and_docs | agy, backup claude (never mistral) | cross to the author (claude if agy; agy or waiver if claude) | S3-S9, S11, S12b | 8 |
 
 S12 is split in two, as spec 187 9 and its tasks.md T012 already say
 ("parser: —; store and runner part: T003"). S6 depends on S11 and S8 on S6
-here for the shared files and the Instance section (2.2, 2.4 N4 e).
+here for the shared files and the Instance section (2.2, 2.4 N4 e). S5
+moves to batch 4 (v0.2, W4): its reply hook sits in S4's file and its
+timeout in the ticker file S12b also edits. 13 rows exceed rulebook 1.1's
+hard cap of 10: owner question Q3 (2.4).
 
 ### 2.2 Batches and disjoint files (R1, R16)
 
@@ -202,16 +210,24 @@ order.
   `action_kind`), `scheduled_task_limits.go` (`taskEffective` with the
   instance defaults of 5.1 and the run cap; S6 extends it), their tests;
   `api:hub/server.go` (the ticker start and the 30-day delete chore).
-- **Batch 3: S4, S5, S7, S12b** (within 30 min of S3 landing, R16). S4:
+- **Batch 3: S4, S7, S12b** (within 30 min of S3 landing, R16). S4:
   `api:hub/wui.go`, `ws.go`, `issues.go`, `scheduled_task_run.go` (the
-  chain check), new `api:hub/scheduled_task_events.go` + test. S5: new
-  `api:hub/scheduled_task_agent.go` + test only: it adds `agent` to S3's
-  action table from its own file (an `init` or a registration function in
-  its file), so it does not edit S3's files. S7: new
-  `api:hub/tasks_routes.go` + test, `server.go`, `openapi.json`. S12b:
+  chain check), new `api:hub/scheduled_task_events.go` + test (it also
+  registers the "has event tasks" refresh on S3's task-write seam, 2.4 N4
+  f). S7: new `api:hub/tasks_routes.go` + test, `server.go`,
+  `openapi.json`; every task save calls S3's `validateTaskSave` and every
+  create, update and delete calls S3's `afterTaskWrite` (2.4 N4 f). S12b:
   `api:store/scheduled_task.go` (the `cron` validation),
-  `api:hub/scheduled_tasks.go` (the `cron` next time). Disjoint.
-- **Batch 4: S11.** New `rdb:<NNNN>_topic_message_labels.sql`; new
+  `api:hub/scheduled_tasks.go` (the `cron` next time, and the save-time
+  floor walk as a validator on S3's `validateTaskSave` seam). Disjoint;
+  no edge inside the batch.
+- **Batch 4: S5, S11.** S5: new `api:hub/scheduled_task_agent.go` + test
+  (it adds `agent` to S3's action table from its own file);
+  `api:hub/scheduled_task_events.go` (S4's, landed: its `onSend` hook
+  hands a reply in a run's topic to S5's `taskAgentReply`, which closes the
+  run); `api:hub/scheduled_tasks.go` (S3's and S12b's, landed: the
+  `agent_run_timeout_min` sweep in the ticker, ending a run `no_answer`).
+  S11: new `rdb:<NNNN>_topic_message_labels.sql`; new
   `api:store/object_labels.go`, `object_labels_postgres.go`,
   `object_labels_memory.go`, `object_labels_test.go`; `rls_test.go`;
   `catalogue.go`; `api:search/grammar.go`, `match.go`, `grammar_test.go`;
@@ -233,22 +249,25 @@ order.
   and `tasks.md` (row states), a new `csi-spl-doc/doc/help/<page>.md` and
   its copy under `wui:public/help-md/` (`sync-help.mjs`).
 
+S5 and S11 share no path.
+
 Order of the serial rows: S3 first (four rows wait on it), S7 in batch 3
 (S8's list and editor need it), S11 before S6 (S11 also feeds S9's label
 chips and is the larger store change), S6 last of the api rows.
 
-### 2.3 R3: live and queued lanes, read 11:02-11:04Z
+### 2.3 R3: live and queued lanes, read 11:02-11:04Z (v0.1)
 
 `lane-map.sh --check <row paths> --agent c-074`, per row:
 
-- **c-918** (`c-918-c002-s181-b11-signin-relay`, spec 181 B11): changed in
-  its worktree, among others, `api:hub/server.go`, `api:hub/ws.go`,
-  `api:hub/openapi.json`, `api:config/config.go`, `wui:utils/spool-client.mjs`
-  and the locales (exit 3 on S3, S4, S6 and S8's paths;
-  `git -C <its worktree> diff --name-only <merge-base>` lists 30 files
-  outside the locales). S3, S4, S6, S7, S8 and S11 are placed after c-918
-  lands, or their briefs say to rebase onto it; batch 1 shares nothing with
-  it.
+- **c-918** (`c-918-c002-s181-b11-signin-relay`, spec 181 B11): at v0.1 it
+  had changed `api:hub/server.go`, `ws.go`, `openapi.json`,
+  `api:config/config.go`, `wui:utils/spool-client.mjs` and the locales.
+  **Landed since** (v0.2): `git merge-base --is-ancestor <c> origin/master`
+  rc 0 on `787a3814a` for each of `61869b56f`, `a51a7f1da`, `50dbdaa6d`
+  (SPL-6345), so no row waits on it any more.
+- **c-299** (s158 wui-create-wait-text, no files recorded): the panel's
+  live `--check` flags `csi-spl-wui/i18n/locales/en.json` for it, S8's
+  path; the placer asks it at S8's placement.
 - **15 lanes with no files recorded** (exit 4 on every other row's paths):
   c-029, c-041, c-086, c-146, c-187, c-728, c-927, g-565, g-730 (rotation
   seats), c-678 (`s181-b9-keep-invoices-at-purge`), c-680
@@ -268,24 +287,42 @@ chips and is the larger store change), S6 last of the api rows.
 **For the owner (the holder asks as a form).** The proposed briefs take
 the first reading named, so another answer changes only the cited spot.
 
-- **Q1. Where a member opens "Scheduled tasks".** Spec 6.2 puts the list in
-  Settings and lets a member see their own tasks and, read-only, the
-  others'. Every Settings section is gated by a permission
-  (`wui:utils/tenant-settings-nav.ts:29-39`, `filterByPerm`), and only the
-  roles holding `tenant.settings` are admins (spec 4.5). Reading: the
-  section shows to every member while `tasks.members_may_create` is on,
-  and to admins always. Alternative: members reach their tasks from the
+- **Q1. Where a member opens "Scheduled tasks".** Spec 6.2
+  (`spec.md:526-530` at `07f34efeb`) puts the list in Settings and lets "a
+  member see their own and, read-only, the others". Every Settings section
+  is gated by a permission (`wui:utils/tenant-settings-nav.ts:29-39`,
+  `filterByPerm`), and only the roles holding `tenant.settings` are admins
+  (spec 4.5). Reading: the section shows to every member while
+  `tasks.members_may_create` is on, and to admins always. Note: 6.2 does
+  not tie a member's view to `members_may_create`; that tie is this
+  reading's, and the question shows it. Alternative: members reach their tasks from the
   `#scheduled-runs` channel header, and Settings stays admin-only. Spot:
   S8 (S7's `GET /v1/tasks` already answers a member, spec 6.2).
-- **Q2. Template 7.2 "mentioning each issue's assignee".** The binding
-  contract's `TaskActionSpec.Mention` (9.1.1) is a fixed list of member
-  ids; nothing in it names "the assignee of each matched object". Reading:
+- **Q2. Template 7.2 "mentioning each issue's assignee".** Template 7.2
+  (`spec.md:562`) says "mentioning each issue's assignee"; the `notify`
+  action (`:301`) says "`@`-mentioning listed members", and the binding
+  contract's `TaskActionSpec.Mention` (9.1.1, `:815`, "notify: member
+  ids") is a fixed list; nothing in it names "the assignee of each matched
+  object". Reading:
   a reserved value `assignee` in `mention` resolves per object at run time
   (the issue's assignee; for a topic, its starter). Alternative: a new
   `mention_assignee bool` field. Either is a contract change that lands in
   the spec before the code (spec 9.1); S3 builds `notify` with fixed ids
   only until it is decided. Spot: S3 (or the row the holder names), S8
   (the template).
+- **Q3. Round size.** Rulebook 1.1 (`rounds-rulebook.md:24-26`): "A round
+  must never exceed 10 rows. The 10 is the hard cap for every kind." This
+  plan has 13 rows (S12 split); no build-round exemption is written
+  (`git grep -n -i 'build round' origin/master -- csi-spl-doc/doc/md`
+  finds only the build plans). Precedent: spec 153's plan named the same
+  breach (13 rows) as its H7, and the owner answered A, one plan
+  (`spec-153-build-plan.md:163`). Reading (A): one plan, 13 rows in 8
+  batches; the batches keep at most 3 rows live (batch 3). Alternative
+  (B): cut after batch 4: round 1 = S1, S2, S12a, S3, S4, S7, S12b, S5,
+  S11 (9 rows, batches 1-4); round 2 = S6, S8, S9, S10 (4 rows, batches
+  5-8) under its own plan version and panel line. Spot: the holder's
+  queueing only; no row brief changes. Until answered, nothing past batch
+  4 is queued under either reading.
 
 **For the holder (no owner question).**
 
@@ -297,11 +334,12 @@ the first reading named, so another answer changes only the cited spot.
   S11 lands in the same unreleased version; each row re-reads `Version`
   and writes its version into `search-v1.md`. The matching one-line fix
   of spec 187 4.3.1 and 7 goes with S10.
-- **N3. A shorter order.** Batches 2-5 are four only because of
-  `server.go` and `openapi.json`. If the holder accepts route
-  registration as the one shared spot (each row adds its own lines, the
-  later lane rebases), S6, S7 and S11 join S4, S5 and S12b in batch 3,
-  and the round takes 5 batches. The plan as written keeps R1 strict.
+- **N3. A shorter order (needs an R1 waiver).** Batches 2-5 are four only
+  because of `server.go` and `openapi.json`. Putting S6, S7 and S11 in one
+  batch would put those two files in three rows of one batch, which
+  **breaks** R1 (`rounds-rulebook.md` 2.1); it needs an explicit R1 waiver
+  from whoever may grant one, and this plan does not assume it. The plan as
+  written keeps R1 strict.
 - **N4. File split decisions the spec leaves to the build.** (a) S3's
   `runTask` checks the run cap with the instance defaults
   (`scheduled_task_limits.go`); S6 extends that file with overrides and
@@ -310,7 +348,22 @@ the first reading named, so another answer changes only the cited spot.
   from its own file. (d) The `label` action on topics and messages is
   wired by S11 (S3 builds it for issues; the store S11 adds does not exist
   before), so S3 depends only on S1, as the spec says. (e) S8 also depends
-  on S6 (the Instance section reads the 5.1 routes).
+  on S6 (the Instance section reads the 5.1 routes). (f) **Two seams S3
+  owns** (v0.2, W5 and W6), in `scheduled_tasks.go`: `validateTaskSave(ctx,
+  t) error`, a list of validators run before every task save (S3 seeds it
+  with the scope and action checks; S12b adds the cron floor walk against
+  the effective `tasks.min_interval_min`, spec 4.2.1 `spec.md:253-255`);
+  and `afterTaskWrite(ctx, tenant)`, a list of hooks run after every task
+  create, update and delete (S4 registers the "has event tasks" refresh,
+  spec 8.2 `spec.md:702-703`). The callers are S7's `tasks_routes.go`
+  (batch 3) and S6's `operator_tasks.go` (batch 5). Registration is from
+  each row's own file, so batch 3 has no edge inside it. (g) **The agent
+  reply and timeout** (v0.2, W4): an agent's post reaches the hub only via
+  `onSend` (`ws.go:724` at `5906e1fe2`, `:725` on `787a3814a`), whose
+  187 hook is S4's `scheduled_task_events.go`; S5 (batch 4) adds there the
+  hand-off of a reply in a run's topic to its `taskAgentReply`, and the
+  `agent_run_timeout_min` sweep (`no_answer`, spec `:402-404`) to the
+  ticker in `scheduled_tasks.go`.
 - **N5. The language step.** Spec 187 6.3 says "agy has the final word on
   the locales"; the rule since SPL-6174 (owner msg 36b3ff7f) is the Google
   Cloud Translation check `do_spl_lang_review_gct`, an agy review optional.
@@ -318,10 +371,15 @@ the first reading named, so another answer changes only the cited spot.
   `cd csi-spl-orc && ./run -a do_spl_lang_review_gct` over its new keys,
   and carries the `Lang-review: gct <run id>` line the pre-push part
   `wui-lang-review` checks. S10's help page is English only.
-- **N6. Round size.** Rulebook 5.1's 2-3 rows is the bug / refactor
-  cadence; this is a spec build of 12 rows (13 with S12's split). The
-  batches cap the live rows at four (batch 3). The holder may queue batch
-  by batch.
+- **N6. Round size.** Rulebook 5.1's 2-3 rows binds bug-fix and refactor
+  rounds only (`rounds-rulebook.md:293`), not this build round. Rulebook
+  1.1's hard cap of 10 does bind it: 13 rows, owner question Q3. The
+  batches cap the live rows at three (batch 3).
+- **N7. Drift since `5906e1fe2`.** At v0.2, `origin/master` is `787a3814a`;
+  the hooks moved (`wui.go` topicLoopHuman `:669`, `ws.go` topicLoopAgent
+  `:725`, `issues.go` `:471`, `server.go` runTopicLoopTimer `:752`) and the
+  rdb head is `0323_fleet_ask_queue_order.sql`; the grammar is still 1.7.
+  Every brief re-measures its lines at work time.
 
 ## 3. Proposed row briefs
 
@@ -337,7 +395,7 @@ placement and cites it in its subject, e.g.
 
 ### 3.1 S1 - rdb + store
 
-- Kind `complex_coding`. Batch 1. R7 grok (or the waiver seat, 2 R7).
+- Kind `complex_coding`. Batch 1. R7 agy (the claude waiver seat while agy is out; 2 R7).
 - Files: batch 1's S1 list (2.2). Migration number from
   `DRY_RUN=0 ./run -a do_rdb_migration_next` (csi-spl-orc). The SQL is
   spec 8.1's S1 block, plus `scheduled-runs` added to
@@ -365,8 +423,10 @@ placement and cites it in its subject, e.g.
 
 ### 3.2 S2 - grammar `idle:` and `changed:`
 
-- Kind `simple_coding`. Batch 1. R7 grok (claude if placed on agy).
-- Files: batch 1's S2 list. Version: 2.4 N2.
+- Kind `simple_coding`. Batch 1. R7 agy if placed on claude (the waiver
+  seat while agy is out); claude if placed on agy.
+- Files: batch 1's S2 list. Version: 2.4 N2. It edits a store file
+  (`api:store/search_postgres.go`): `PRE_PUSH_TIER=full`.
 - Content (spec 7): `idle:<duration>` (a topic: no message since; an
   issue: no change since) and `changed:<duration>` (its inverse), on
   `TypeTopic` and `TypeIssue`; in `MatchTopic` / `MatchEntity` and in the
@@ -382,7 +442,8 @@ placement and cites it in its subject, e.g.
 
 ### 3.3 S12a - the cron parser
 
-- Kind `simple_coding`. Batch 1. R7 grok (claude if placed on agy).
+- Kind `simple_coding`. Batch 1. R7 agy if placed on claude (the waiver
+  seat while agy is out); claude if placed on agy.
 - Files: new `api:taskcron/cron.go`, `cron_test.go`; no module added
   (`go.mod` unchanged).
 - Contract: spec 9.1.3 (`Parse`, `Schedule.Next`, `MinGap`, `ErrCron`).
@@ -396,7 +457,7 @@ placement and cites it in its subject, e.g.
 
 ### 3.4 S3 - hub runner, fixed actions, run cap
 
-- Kind `complex_coding`. Batch 2: after S1 and c-918 have landed. R7 grok.
+- Kind `complex_coding`. Batch 2: after S1 has landed. R7 agy (waiver while out).
 - Files: batch 2's list. The ticker `runScheduledTasks` (60 s, the
   `gcalSyncEvery` shape) is started beside `server.go:744`; a test seam
   `ScheduledTaskTickOnce` as 182's `TopicLoopTickOnce`
@@ -406,7 +467,8 @@ placement and cites it in its subject, e.g.
   row under the owner's rights (4.5); the result post in the task's one
   topic in `#scheduled-runs` as `HUB-0` via the `public_notice.go` path;
   the run id a UUIDv5 of `(task_id, cause)` through `api:uid`. `label` on
-  issues only; `notify` with fixed ids only (2.4 Q2).
+  issues only; `notify` with fixed ids only (2.4 Q2). The two seams
+  `validateTaskSave` and `afterTaskWrite` (2.4 N4 f), with their tests.
 - Done and red control: spec 187 S3's cells verbatim (each schedule kind's
   next local time across a DST change, a missed tick runs once, each fixed
   action through its store path, D17's own-object test, owner left, 5
@@ -420,12 +482,13 @@ placement and cites it in its subject, e.g.
 
 ### 3.5 S4 - event triggers and chains
 
-- Kind `complex_coding`. Batch 3: after S3 and c-918. R7 grok.
+- Kind `complex_coding`. Batch 3: after S3. R7 agy (waiver while out).
 - Files: batch 3's S4 list. One call per hook beside 182's (1.2 table:
   `wui.go:658`, `ws.go:724`, `issues.go:471`) and a new one in
   `createIssueOn` (`issues.go:360`), each 187's own function in
   `scheduled_task_events.go`; the per-workspace "has event tasks" bit;
-  `taskChainKey` modelled on `withLoopID` (`topic_loop_fire.go:572`); the
+  registered on S3's `afterTaskWrite` (2.4 N4 f), so every task write
+  refreshes it; `taskChainKey` modelled on `withLoopID` (`topic_loop_fire.go:572`); the
   chain check in `runTask`.
 - Done and red control: spec 187 S4's cells verbatim (one run per new
   message, topic and issue; not on a replay, a `HUB-0` note, a loop prompt
@@ -440,8 +503,11 @@ placement and cites it in its subject, e.g.
 
 ### 3.6 S5 - agent action and the token cap
 
-- Kind `complex_coding`. Batch 3: after S3. R7 grok.
-- Files: new `api:hub/scheduled_task_agent.go` + test only (2.4 N4 c).
+- Kind `complex_coding`. Batch 4: after S3, S4 and S12b. R7 agy (waiver
+  while out).
+- Files: batch 4's S5 list (2.4 N4 c, g): new
+  `api:hub/scheduled_task_agent.go` + test; the reply hand-off in S4's
+  `scheduled_task_events.go`; the timeout sweep in `scheduled_tasks.go`.
 - Content: spec 4.3 "Agent" and D11: one `kind: task` message in the
   task's topic, `dispatchEnvelope` (`dispatch.go:228`) + `commitRowTyped`
   (`ws.go:1045`) as 182's `loopSend` does; the named agent, else the most
@@ -452,15 +518,19 @@ placement and cites it in its subject, e.g.
   notice once; spec 121's `429 token_quota` still applies.
 - Done and red control: spec 187 S5's cells verbatim (red: count fixed
   runs against the token cap, and the fixed-run test is skipped at 100 %).
-- Test column: the new test; the `hub/token_budget*` and
+- Test column: the new test; S4's `scheduled_task_events` test (the
+  reply hand-off); the `hub/token_budget*` and
   `hub/usage_events*` tests; `topic_loop_fire_test.go` (the send path it
   mirrors).
 
 ### 3.7 S7 - workspace routes
 
-- Kind `simple_coding`. Batch 3: after S1 and S3. R7 grok (claude if agy).
+- Kind `simple_coding`. Batch 3: after S1 and S3. R7 agy if placed on
+  claude (the waiver seat while agy is out); claude if placed on agy.
 - Files: new `api:hub/tasks_routes.go` + test, `server.go` (registration),
-  `openapi.json` (the seven routes).
+  `openapi.json` (the seven routes). Every save calls S3's
+  `validateTaskSave`, every create, update and delete S3's
+  `afterTaskWrite` (2.4 N4 f).
 - Contract: spec 9.1.5 (`/v1/tasks` JSON, the errors).
   `GET /v1/tasks/preview` counts and writes nothing.
 - Done and red control: spec 187 S7's cells verbatim (the D3 table; the
@@ -470,18 +540,22 @@ placement and cites it in its subject, e.g.
 
 ### 3.8 S12b - cron in the store and the runner
 
-- Kind `simple_coding`. Batch 3: after S12a and S3. R7 grok (claude if agy).
+- Kind `simple_coding`. Batch 3: after S12a and S3. R7 agy if placed on
+  claude (the waiver seat while agy is out); claude if placed on agy.
+  It edits a store file (`api:store/scheduled_task.go`):
+  `PRE_PUSH_TIER=full`.
 - Files: `api:store/scheduled_task.go` (replace S1's stub: `taskcron.Parse`,
   `fields` / `range` / `syntax` / `never`), `api:hub/scheduled_tasks.go`
   (the `cron` next time with `Schedule.Next`; the save-time floor walk
-  against the effective `min_interval_min`, `floor`).
+  against the effective `min_interval_min`, `floor`, registered as a
+  validator on S3's `validateTaskSave`, which S7's save calls; 2.4 N4 f).
 - Done and red control: spec 187 S12's save cells (`*/15 * * * *` saves;
   `*/5 * * * *` and `0,10 * * * *` refused `floor`; `0 0 30 2 *` refused
   `never`; red: drop the floor walk and `*/5 * * * *` saves).
 
 ### 3.9 S11 - labels on topics and messages
 
-- Kind `complex_coding`. Batch 4: after S1, S2 and S7 have landed. R7 grok.
+- Kind `complex_coding`. Batch 4: after S1, S2, S3 and S7 have landed. R7 agy (waiver while out).
 - Files: batch 4's list; migration number from `do_rdb_migration_next`.
 - Contract: spec 9.1.4 (`ObjectLabelStore`, `ObjectLabelsMax`,
   `ErrBadLabel`), 9.1.5's `400 bad_label` and `204`; the 4.3.1 routes
@@ -499,14 +573,15 @@ placement and cites it in its subject, e.g.
 
 ### 3.10 S6 - two levels
 
-- Kind `complex_coding`. Batch 5: after S1, S3 and S11. R7 grok.
+- Kind `complex_coding`. Batch 5: after S1, S3 and S11. R7 agy (waiver while out).
 - Files: batch 5's list. `SPOOL_HUB_INSTANCE_ADMIN_WORKSPACE`
   (`envDefault:"t1"`) beside `MemberCardNameOnlyWorkspaces`
   (`config.go:560`); `instanceAdmin` (spec 9.1.2) with `rbac.TenantSettings`
   (`rbac.go:27`); the 5.1 routes behind `operatorAuth` (`operator.go:43`)
   and the new `instanceAdminAuth`; the 5.2 settings by
   `RegisterTenantSetting` (`tenant_kv.go:84`); `taskEffective` with 5.3's
-  rules.
+  rules. Its instance-task writes call S3's `validateTaskSave` and
+  `afterTaskWrite` too (2.4 N4 f).
 - Done and red control: spec 187 S6's cells verbatim (D10 door test, D18
   defaults, instance off, the lower-cap rule, the action intersection, D16
   instance runs; red: count instance runs against the workspace cap).
@@ -517,7 +592,7 @@ placement and cites it in its subject, e.g.
 ### 3.11 S8 - the web UI
 
 - Kind `simple_coding`, then the language check. Batch 6: after S6, S7,
-  S11 and S12b. R7 grok. Never mistral.
+  S11 and S12b. R7 agy (waiver while out). Never mistral.
 - Files: batch 6's list. The Settings section by 2.4 Q1's reading; the
   editor in spec 6.3's order with the Advanced cron field and its next
   three times (from the preview route or a client copy of the rule: name
@@ -541,7 +616,7 @@ placement and cites it in its subject, e.g.
 
 ### 3.12 S9 - e2e
 
-- Kind `tests`. Batch 7: after S8. R7 grok. Never mistral.
+- Kind `tests`. Batch 7: after S8. R7 agy (waiver while out). Never mistral.
 - Files: new `csi-spl-wui/tests/e2e/scheduled-tasks.test.mjs` only; the
   mock's answers are S8's (`spool-client-mock.mjs`).
 - Done: spec 187 S9's flows on the generated bundle, mock-served
@@ -553,7 +628,7 @@ placement and cites it in its subject, e.g.
 
 - Kind `specs_and_docs`. Batch 8: after the rows above. agy, backup
   claude; never mistral (the help copy is under `csi-spl-wui/`). R7
-  cross-vendor to the author.
+  claude if agy wrote it; agy (or the waiver seat) if claude did.
 - Files: spec 187's row status and the 2.4 N2 version fix, its `tasks.md`
   states, a new user help page in `csi-spl-doc/doc/help/` (scheduled
   tasks, the `#scheduled-runs` channel, the templates) and its copy by
@@ -568,10 +643,12 @@ placement and cites it in its subject, e.g.
 
 | seat | vendor | sha | verdict |
 |---|---|---|---|
-| (asked of the holder) | mistral or grok | (this plan's review sha) | pending |
+| c-342 | claude, same-vendor panel, waiver | `36d85b32f` (v0.1) | FAIL (W1-W7) |
+| c-342 | claude, same-vendor panel, waiver | (v0.2 head) | pending |
 
 ## 5. Versions
 
 | version | what |
 |---|---|
 | v0.1 | first plan for the panel, on `5906e1fe2` |
+| v0.2 | c-342's FAIL on `36d85b32f`: W1 R7 = agy (claude waiver while out), no grok or mistral reviewer; W2 panel recorded as same-vendor, waiver; W3 owner Q3 (13 rows > 10); W4 S5 to batch 4 with the reply hook and timeout (N4 g); W5 and W6 S3's two seams (N4 f); W7 `PRE_PUSH_TIER=full` on S2 and S12b. Notes: 13 settings pages, S11 after S3, N3 needs an R1 waiver, c-918 landed, drift N7, title 13 rows, Q1/Q2 cite spec lines |

@@ -66,18 +66,27 @@ _spl_hub_agent_kinds_list() {
   echo "${out#,}"
 }
 
-# _spl_hub_agent_kinds_report <set> <ordered_by> <ordered_via> -> the hub's
-# answer as one OK line, or the refusal
-_spl_hub_agent_kinds_report() {
+# _spl_hub_fleet_load_error <subject_verb> -> log the hub refusal for a
+# non-200 /v1/operator/fleet-load response (400, 401/403, 404, or other)
+# using SPL_HUB_OP_STATUS, SPL_HUB_OP_BODY and GCP_ACCOUNT, and return 1.
+_spl_hub_fleet_load_error() {
   local detail
   detail="$(jq -r '.detail // .error // .' <<<"$SPL_HUB_OP_BODY" 2>/dev/null)"
   case "$SPL_HUB_OP_STATUS" in
-    200)
-      do_log "OK $ENV instance agent kinds: $(jq -r '"off [\(.agent_kinds_off // [] | join(","))], paused [\((.agent_kinds_paused // {}) | to_entries | map("\(.key) until \(.value.until) (\(.value.reason))") | join("; "))]"' <<<"$SPL_HUB_OP_BODY")$([[ "$1" != __read__ ]] && echo " (set by ordered_by=$2${3:+ via $3}, $GCP_ACCOUNT)")"
-      return 0 ;;
-    400) do_log "FATAL the hub refused the setting (400): $detail. Nothing changed."; return 1 ;;
-    401|403) do_log "FATAL the hub refused the operator id token ($SPL_HUB_OP_STATUS): is $GCP_ACCOUNT in SPOOL_HUB_OPERATOR_EMAILS? Nothing changed. $detail"; return 1 ;;
-    404) do_log "FATAL the hub answered 404 ($detail): no operator workspace, or a hub without this door yet. Nothing changed."; return 1 ;;
-    *) do_log "FATAL the instance agent kinds were not read or changed (http $SPL_HUB_OP_STATUS): $detail"; return 1 ;;
+    400) do_log "FATAL the hub refused the setting (400): $detail. Nothing changed." ;;
+    401|403) do_log "FATAL the hub refused the operator id token ($SPL_HUB_OP_STATUS): is $GCP_ACCOUNT in SPOOL_HUB_OPERATOR_EMAILS? Nothing changed. $detail" ;;
+    404) do_log "FATAL the hub answered 404 ($detail): no operator workspace, or a hub without this door yet. Nothing changed." ;;
+    *) do_log "FATAL $1 not read or changed (http $SPL_HUB_OP_STATUS): $detail" ;;
   esac
+  return 1
+}
+
+# _spl_hub_agent_kinds_report <set> <ordered_by> <ordered_via> -> the hub's
+# answer as one OK line, or the refusal
+_spl_hub_agent_kinds_report() {
+  if [[ "$SPL_HUB_OP_STATUS" == 200 ]]; then
+    do_log "OK $ENV instance agent kinds: $(jq -r '"off [\(.agent_kinds_off // [] | join(","))], paused [\((.agent_kinds_paused // {}) | to_entries | map("\(.key) until \(.value.until) (\(.value.reason))") | join("; "))]"' <<<"$SPL_HUB_OP_BODY")$([[ "$1" != __read__ ]] && echo " (set by ordered_by=$2${3:+ via $3}, $GCP_ACCOUNT)")"
+    return 0
+  fi
+  _spl_hub_fleet_load_error "the instance agent kinds were"
 }

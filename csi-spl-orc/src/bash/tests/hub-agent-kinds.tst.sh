@@ -75,5 +75,32 @@ run KINDS_OFF=grok ORDERED_BY=HUM-10 DRY_RUN=0 STUB_CODE=400 STUB_BODY='{"error"
 run STUB_CODE=403 STUB_BODY='{"error":"not_operator"}'; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'SPOOL_HUB_OPERATOR_EMAILS' "$T/o" && pass "5. 403 names the operator allowlist" || fail "5. 403: rc=$rc $(cat "$T/o")"
 
+# --- 6. _spl_hub_fleet_load_error (r01-02 one copy) -----------------------------
+out=$(env PROJ_ROOT="$PROJ_ROOT" SPL_HUB_OP_STATUS=400 SPL_HUB_OP_BODY='{"detail":"bad val"}' GCP_ACCOUNT=sa@example.test bash -c '
+  do_log(){ echo "$*"; }; source "$PROJ_ROOT/src/bash/run/spl-hub-agent-kinds.func.sh"; _spl_hub_fleet_load_error "x was"' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == "FATAL the hub refused the setting (400): bad val. Nothing changed." ]] \
+  && pass "6. _spl_hub_fleet_load_error handles 400" || fail "6. err 400: rc=$rc $out"
+out=$(env PROJ_ROOT="$PROJ_ROOT" SPL_HUB_OP_STATUS=401 SPL_HUB_OP_BODY='{"error":"unauth"}' GCP_ACCOUNT=sa@example.test bash -c '
+  do_log(){ echo "$*"; }; source "$PROJ_ROOT/src/bash/run/spl-hub-agent-kinds.func.sh"; _spl_hub_fleet_load_error "x was"' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == "FATAL the hub refused the operator id token (401): is sa@example.test in SPOOL_HUB_OPERATOR_EMAILS? Nothing changed. unauth" ]] \
+  && pass "6. _spl_hub_fleet_load_error handles 401" || fail "6. err 401: rc=$rc $out"
+out=$(env PROJ_ROOT="$PROJ_ROOT" SPL_HUB_OP_STATUS=404 SPL_HUB_OP_BODY='{"error":"no_op"}' GCP_ACCOUNT=sa@example.test bash -c '
+  do_log(){ echo "$*"; }; source "$PROJ_ROOT/src/bash/run/spl-hub-agent-kinds.func.sh"; _spl_hub_fleet_load_error "x was"' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == "FATAL the hub answered 404 (no_op): no operator workspace, or a hub without this door yet. Nothing changed." ]] \
+  && pass "6. _spl_hub_fleet_load_error handles 404" || fail "6. err 404: rc=$rc $out"
+out=$(env PROJ_ROOT="$PROJ_ROOT" SPL_HUB_OP_STATUS=500 SPL_HUB_OP_BODY='{"detail":"boom"}' GCP_ACCOUNT=sa@example.test bash -c '
+  do_log(){ echo "$*"; }; source "$PROJ_ROOT/src/bash/run/spl-hub-agent-kinds.func.sh"; _spl_hub_fleet_load_error "x was"' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == "FATAL x was not read or changed (http 500): boom" ]] \
+  && pass "6. _spl_hub_fleet_load_error handles wildcard status with subject_verb" || fail "6. err 500: rc=$rc $out"
+run STUB_CODE=404 STUB_BODY='{"error":"no_op"}'; rc=$?
+[[ $rc -eq 1 ]] && grep -qxF 'FATAL the hub answered 404 (no_op): no operator workspace, or a hub without this door yet. Nothing changed.' "$T/o" \
+  && pass "6. agent-kinds 404 fails with exact message" || fail "6. kinds 404: rc=$rc $(cat "$T/o")"
+run STUB_CODE=500 STUB_BODY='{"detail":"boom"}'; rc=$?
+[[ $rc -eq 1 ]] && grep -qxF 'FATAL the instance agent kinds were not read or changed (http 500): boom' "$T/o" \
+  && pass "6. agent-kinds 500 fails with exact subject_verb message" || fail "6. kinds 500: rc=$rc $(cat "$T/o")"
+ak_f="$PROJ_ROOT/src/bash/run/spl-hub-agent-kinds.func.sh"
+[[ "$(grep -c "FATAL the hub refused the setting (400):" "$ak_f")" -eq 1 && "$(grep -c "SPOOL_HUB_OPERATOR_EMAILS?" "$ak_f")" -eq 1 && "$(grep -c "FATAL the hub answered 404 (" "$ak_f")" -eq 1 && "$(grep -c "_spl_hub_fleet_load_error " "$ak_f")" -ge 1 ]] \
+  && pass "6. one copy: spl-hub-agent-kinds.func.sh defines and calls _spl_hub_fleet_load_error once" || fail "6. kinds one copy"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

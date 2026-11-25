@@ -54,15 +54,11 @@ do_spl_hub_runner_cpu() {
 # _spl_hub_runner_cpu_report <set> <ordered_by> <ordered_via> -> the hub's
 # answer as one OK line, or the refusal
 _spl_hub_runner_cpu_report() {
-  local detail
-  detail="$(jq -r '.detail // .error // .' <<<"$SPL_HUB_OP_BODY" 2>/dev/null)"
-  case "$SPL_HUB_OP_STATUS" in
-    200)
-      do_log "OK $ENV instance runner CPU cap: $(jq -r '"\(.runner_cpu_pct // "absent (hub before rdb 0152)")% in force, stored \(.stored.runner_cpu_pct // "unset")"' <<<"$SPL_HUB_OP_BODY")$([[ "$1" != __read__ ]] && echo " (set by ordered_by=$2${3:+ via $3}, $GCP_ACCOUNT)")"
-      return 0 ;;
-    400) do_log "FATAL the hub refused the setting (400): $detail. Nothing changed."; return 1 ;;
-    401|403) do_log "FATAL the hub refused the operator id token ($SPL_HUB_OP_STATUS): is $GCP_ACCOUNT in SPOOL_HUB_OPERATOR_EMAILS? Nothing changed. $detail"; return 1 ;;
-    404) do_log "FATAL the hub answered 404 ($detail): no operator workspace, or a hub without this door yet. Nothing changed."; return 1 ;;
-    *) do_log "FATAL the instance runner CPU cap was not read or changed (http $SPL_HUB_OP_STATUS): $detail"; return 1 ;;
-  esac
+  if [[ "$SPL_HUB_OP_STATUS" == 200 ]]; then
+    do_log "OK $ENV instance runner CPU cap: $(jq -r '"\(.runner_cpu_pct // "absent (hub before rdb 0152)")% in force, stored \(.stored.runner_cpu_pct // "unset")"' <<<"$SPL_HUB_OP_BODY")$([[ "$1" != __read__ ]] && echo " (set by ordered_by=$2${3:+ via $3}, $GCP_ACCOUNT)")"
+    return 0
+  fi
+  # shellcheck source=spl-hub-agent-kinds.func.sh
+  declare -F _spl_hub_fleet_load_error >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-hub-agent-kinds.func.sh"
+  _spl_hub_fleet_load_error "the instance runner CPU cap was"
 }

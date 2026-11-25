@@ -66,5 +66,28 @@ run RUNNER_CPU_PCT=80 ORDERED_BY=HUM-10 DRY_RUN=0 STUB_CODE=400 STUB_BODY='{"err
 run STUB_CODE=403 STUB_BODY='{"error":"not_operator"}'; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'SPOOL_HUB_OPERATOR_EMAILS' "$T/o" && pass "5. 403 names the operator allowlist" || fail "5. 403: rc=$rc $(cat "$T/o")"
 
+# --- 6. r01-02 one copy and standalone lazy-source ------------------------------
+run STUB_CODE=404 STUB_BODY='{"error":"no_op"}'; rc=$?
+[[ $rc -eq 1 ]] && grep -qxF 'FATAL the hub answered 404 (no_op): no operator workspace, or a hub without this door yet. Nothing changed.' "$T/o" \
+  && pass "6. runner-cpu 404 fails with exact message" || fail "6. cpu 404: rc=$rc $(cat "$T/o")"
+run STUB_CODE=500 STUB_BODY='{"detail":"boom"}'; rc=$?
+[[ $rc -eq 1 ]] && grep -qxF 'FATAL the instance runner CPU cap was not read or changed (http 500): boom' "$T/o" \
+  && pass "6. runner-cpu 500 fails with exact subject_verb message" || fail "6. cpu 500: rc=$rc $(cat "$T/o")"
+rc_f="$PROJ_ROOT/src/bash/run/spl-hub-runner-cpu.func.sh"
+own="$(grep -nE "FATAL the hub refused the setting \(400\):|SPOOL_HUB_OPERATOR_EMAILS\?|FATAL the hub answered 404 \(" "$rc_f" || true)"
+[[ -z "$own" ]] && grep -q "_spl_hub_fleet_load_error " "$rc_f" \
+  && pass "6. one copy: spl-hub-runner-cpu.func.sh delegates errors to _spl_hub_fleet_load_error" || fail "6. cpu one copy: own=[$own]"
+out=$(env PROJ_PATH="$PROJ_ROOT" ENV=dev bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ :; }
+  do_spl_cloud_cnf(){ SPL_CNF=/dev/null SPL_PROJECT=csi-spl-dev; }
+  spl_hub_operator_url(){ SPL_HUB_URL=https://hub.invalid; }
+  do_gcp_pin_account(){ GCP_ACCOUNT=sa@example.test; }
+  do_gcp_require_live_account(){ :; }
+  spl_hub_operator_call(){ SPL_HUB_OP_STATUS=400; SPL_HUB_OP_BODY="{\"detail\":\"bad\"}"; }
+  source "$PROJ_PATH/src/bash/run/spl-hub-runner-cpu.func.sh"
+  do_spl_hub_runner_cpu' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == "FATAL the hub refused the setting (400): bad. Nothing changed." && "$out" != *"command not found"* ]] \
+  && pass "6. lazy load: spl-hub-runner-cpu.func.sh loads _spl_hub_fleet_load_error standalone" || fail "6. lazy cpu: rc=$rc $out"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

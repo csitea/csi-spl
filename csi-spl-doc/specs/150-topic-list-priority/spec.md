@@ -7,7 +7,8 @@ the free-text "prio" word rule of spec 157 section 4.1 while keeping the
 explicit trailing `prio:N` token of v1.7 (section 3.4.2), adds a
 workspace-owner-managed default priority per channel that new topics inherit
 without changing existing topics (section 3.3.2), and specifies the v1.8
-cases (C410-C419) and build rows (B14-B21). Owner decisions (HUM-10,
+cases (C410-C419, with C414a/C414b) and build rows (B14-B21, with
+B16a-B16c). Owner decisions (HUM-10,
 2026-11-25): t1 `#spool-hub-biz` topic `c2838b08` msgs `ee20b1c9`,
 `d744269f`, poll `32527755` answer msg `3ed8fd13` (Q1 = A, Q2 = B); topic
 `b6c7b21c` msgs `c6438688`, `c4fbafb5`, poll `ab1b0c08` answer msg
@@ -299,7 +300,9 @@ Every `file:line` in this subsection was read on `origin/master` `7481e6cac`:
   - Workspace ownership is checked by `s.workspaceOwner(ctx, tenant, hum)`
     (`hub/blocker_issue.go:320-326`, reading `acc.TenantOwner`) on the hub
     and `ownerAllows(access.me)` (`wui/utils/access.mjs:108-111`, reading
-    `tenant_owner`) in the WUI.
+    `me.tenantOwner`, normalized from `/v1/view/me`'s `tenant_owner` at `:42`;
+    it fails open when `me` or `me.permissions` is missing, so the hub's 403
+    is the real enforcement gate) in the WUI.
 
 ## 3. Design
 
@@ -527,8 +530,18 @@ configurable in channel settings; an unset channel defaults to **3**; only
      owner never reorders the operator queue), and fans out `topic_priority`.
   3. Otherwise (`default_priority IS NULL`), nothing is written: the topic
      reads `3` (`TopicPriorityDefault`), identical to today, so SPL-4725
-     issue class defaults (`bug`/`refactor` = 2) on unset channels are
-     preserved.
+     issue class defaults (`bug`/`refactor` = 2, `alert` = 1;
+     `hub/issue_prio_default.go:18-38`) on unset channels are preserved.
+- **Interaction with issue class defaults (`hub/issue_prio_default.go:18-38`).**
+  Under existing `defaultIssuePriority`, any stored `topic_priorities` row
+  (step 2, `SetTopicPriorities`, including an explicit `3`) takes precedence
+  over step 3's issue class defaults (`bug`/`refactor` = 2, `alert` = 1).
+  Therefore, when the workspace owner explicitly sets a channel's
+  `default_priority` (1..5), new topics in that channel write a
+  `topic_priorities` row and **intentionally override** the issue class
+  default for issues born from those topics (e.g. a low-priority channel set
+  to 4 or 5 starts its bugs at 4 or 5; clearing the channel back to `null`
+  restores unset behaviour and the SPL-4725 class defaults).
 - **Changing it later never touches existing topics.** Updating a channel's
   `default_priority` writes only the channel row; it runs no backfill and
   modifies no existing `topic_priorities`, `issues`, or `fleet_asks` rows.
@@ -601,9 +614,11 @@ configurable in channel settings; an unset channel defaults to **3**; only
     agents switch (and above Boxes) holding a 1..5 native radio group showing
     the channel's effective default (`3` checked when unset), plus a
     "Reset to default (3)" button when explicitly set.
-  - Enabled only when `ownerAllows(access.me)` (`wui/utils/access.mjs:108-111`,
-    checking `tenant_owner === true`; the hub re-enforces 403). Non-owners
-    see the current value read-only with the owner-only hint.
+  - Shown editable when `ownerAllows(access.me)` (`wui/utils/access.mjs:108-111`,
+    reading `me.tenantOwner`, normalized from `tenant_owner` at `:42`; fails
+    open when `me` or `me.permissions` is absent, so the hub's 403
+    `tenant.owner` is the real gate). Known non-owners see the current value
+    read-only with the owner-only hint.
   - Saves immediately on selection via `api.setChannelDefaultPriority(channelId, prio)`;
     rolls back and displays an alert on failure.
 - **Workspace Settings -> Channels table** (`wui/pages/tenant-settings/channels.vue:13-65`):
@@ -792,15 +807,19 @@ Every queued ask's effective priority is computed by `store/fleet_ask.go:274-310
 (steps `:284-290`: agy out, brief on another box, pinned box full, dark box,
 unmet `After:`). Among the remaining **launchable** line, a row at priority
 `P` is **never** taken while any launchable row at priority `< P` is queued.
-A row held on an unmet prerequisite (`After:`), a cordoned/full pinned box,
-or vendor quota does not starve lower-priority launchable rows.
+*Tentative reading (not yet owner-decided; B15 holds on confirmation before
+landing)*: a higher-priority row that is held (`After:` prerequisite,
+cordoned/full pinned box, or exhausted vendor quota) is treated as
+non-launchable so it does not starve launchable prio 4–5 rows; if the owner
+instead wants strict blocking on any queued prio 1–3 row (held or not),
+B15 checks the unfiltered queue before filtering holds.
 
 **Fleet behaviour per priority:**
 
 | prio | queue order (`store/fleet_ask.go`) | placer when resources are free (`spl_spawn_place_band`) | placer when no resources are free (`spl_spawn_place_no_room`) |
 |---|---|---|---|
 | **1** | Leads all rows (`ci` first among 1, then dragged `QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken immediately ahead of review seats, class bands, and prio 2..5. | On a capacity hold (window ceiling or fleet load/overflow hold), triggers **preemption** (below) to pause a running prio 5, 4, or 3 lane and launches immediately once a slot frees (skipping `SPAWN_PLACE_GAP_MIN`). Never preempts for non-capacity holds (quota, missing CLI, `After:`, cordoned box). |
-| **2** | After 1, ahead of 3..5 (`QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken immediately ahead of class bands and ahead of every prio 3..5 row ("bypass others in the queue"). Logged review seats on owner GO yield to `ci`, flagged, prio 1, and prio 2 (a review seat on a prio 1 or 2 topic already sits in prio 1 or 2). | Waits at the head behind any prio 1 row until resources free up. Never preempts running lanes. |
+| **2** | After 1, ahead of 3..5 (`QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken immediately ahead of class bands and ahead of every prio 3..5 row ("bypass others in the queue"). Logged review seats on the owner's review-seat GO (`spl_spawn_place_seat`, `spl-spawn-place.func.sh:465-469`) keep their existing place ahead of prio 2..5 (yielding only to `ci`, flagged, and prio 1, as today). | Waits at the head behind any prio 1 row until resources free up. Never preempts running lanes. |
 | **3** | After 1..2, ahead of 4..5. Strict queue order: dragged `QueueRank` (if explicitly dragged by an admin/owner), then `EnqueuedAt`, then `AskID` — **no class-rank jumping** (pending poll Q6; class-band supply blockers and `do_spl_spawn_fill` still supply refactor/bug rows). | Taken only when zero launchable prio 1..2 rows are queued, strictly in queue `Position` order (no class-band jumping; if poll Q6 picks B, class bands apply only *within* prio 3 and never across priority tiers). | Waits in line. |
 | **4** | After 1..3, ahead of 5 (`QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken **only** when resources are free AND zero launchable prio 1..3 rows are queued (`min_prio == 4`). Class bands never pull a prio 4 row ahead of any queued prio 1..3 row. | Waits in line. |
 | **5** | Last (`QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken **only** when resources are free AND zero launchable prio 1..4 rows are queued (`min_prio == 5`). Class bands never pull a prio 5 row ahead of any queued prio 1..4 row. | Waits in line. |
@@ -908,12 +927,26 @@ Owner HUM-10 (`c2838b08`, poll `32527755` Q2 answered **B Drop the word rule**,
 msg `3ed8fd13`).
 
 - **Where it lives today (`7481e6cac`)**:
-  - Spec: `csi-spl-doc/specs/157-dispatch-automation/spec.md` **section 4.1**
-    ("The owner's prio word puts its ask at the head of the queue (v0.7,
-    SPL-5524)", lines 631-640); summarized in
-    `csi-spl-doc/doc/md/fleet-rules-index.md:56` and referenced in
-    `spec 150` sections 3.3.1, 3.4 item 1, and 3.4 item 4,
-    `spec 182:334`, and `spec 185:321,406`.
+  - Spec & active docs updated by B14:
+    - `csi-spl-doc/specs/157-dispatch-automation/spec.md` **section 4.1**
+      ("The owner's prio word puts its ask at the head of the queue (v0.7,
+      SPL-5524)", lines 631-640) -> mark retired in B14;
+    - `csi-spl-doc/doc/md/fleet-rules-index.md:56` -> remove prio word
+      sentence and `owner_prio_word` code/test refs in B14;
+    - `csi-spl-doc/doc/md/rounds-rulebook.md:320` -> remove "by the owner's
+      prio word" (via its source Qto doc `e621cc32-df7f-49e9-a33c-6d1f872e985c`
+      and `do_spl_doctree_export_md`) in B14;
+    - `csi-spl-doc/specs/153-monitoring-lanes-tab/spec.md:2603` -> update
+      C153's test citation from `TestOwnerPrioWordOperatorQueue` in
+      `hub/owner_prio_word_test.go` to `TestTopicPriorityOperatorQueue` in
+      `hub/topic_priority_test.go` in B14;
+    - `csi-spl-doc/specs/177-reporter-role/checklist.md:151` -> remove
+      "`1` on owner prio word, `SPL-5524`" in B14.
+    - Historical references left unchanged as pre-v1.8 design context:
+      `csi-spl-doc/specs/182-topic-loop-prompt/spec.md:334` and
+      `csi-spl-doc/specs/185-message-forward/spec.md:321,406` (both explain
+      why those features skipped `ownerPrioWord` at the time they were
+      written; they describe no live trigger once `ownerPrioWord` is deleted).
   - Code & config: `hub/owner_prio_word.go` (`prioWordIn`, `ownerPrioWord`,
     `setPrioWord`, `logPrioWordAsks`), `hub/owner_prio_word_test.go`,
     `hub/wui.go:667` (`s.ownerPrioWord(...)`), `hub/server.go:116-118`
@@ -921,18 +954,25 @@ msg `3ed8fd13`).
     `api/internal/config/config.go:391-394,788-796,808`
     (`SPOOL_HUB_OWNER_PRIO_WORDS`, `ownerPrioWordsOff`),
     `api/internal/config/owner_prio_words_test.go`, and `example.env.yaml:256`.
-- **Shared helpers to keep and relocate (do NOT delete)**:
+- **Shared helpers and tests to keep and relocate (do NOT delete)**:
   - `operatorOwner` (`hub/owner_prio_word.go:91-93`) and `prioWordOwners`
     (`:75-85`, renamed to `priorityOperatorTenant`) are still called by
     `hub/topic_priority.go:98` (`priorityToOperator`) and
     `hub/topic_priority_follow.go:237` (`opOwnerCached`) for the v1.6
     cross-workspace operator-owner rule -> relocate to `hub/topic_priority.go`.
+  - `TestTopicPriorityOperatorQueue` (`hub/owner_prio_word_test.go:234`)
+    proves `priorityToOperator` on `PUT /v1/topics/{task_id}/priority` ->
+    **move into `hub/topic_priority_test.go`** in B14 before deleting
+    `hub/owner_prio_word_test.go`.
   - `prioOwnText` and `prioFenceRe` / `prioCodeRe` / `prioQuoteRe`
     (`hub/owner_prio_word.go:34-45`) are still called by
     `hub/topic_create_prio.go:40` (`createPrioSuffix`) -> relocate to
     `hub/topic_create_prio.go`.
   - `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh` tests the
-    placer's priority-1 head selection (not word scanning) and stays.
+    placer's priority-1 head selection (not word scanning) and stays: B14
+    updates its header comment (`:3-6`, removing the deleted
+    `TestOwnerPrioWordMovesAskToHead` reference), and B15 flips its case 3
+    (`:12,72-76`, where priority 2 previously went through the bands).
 - **What replaces it and why**:
   - **No automatic free-text word scanner replaces it.** Priority is set only
     through explicit controls:
@@ -1044,15 +1084,16 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C407 | 4 | lane follows its discussion (v1.2) | a priority set to 1 after the lane and its issue exist: the issue and the lane show 1; a later 3 follows; an issue on the default discussion only keeps 5 | the lane stays at 5 (master 77463637a) | `hub/topic_priority_follow_test.go` `TestTopicPriorityFollowsToIssuesAndLanes` (Memory + Postgres) |
 | C408 | 4 | the 5-min sweep (v1.2) | `prio-sync` dry run lists the change and writes nothing; `--apply` writes it, counts the unset issues, walks every workspace from the operator one; a second run changes nothing | the op does not exist | `hub/topic_priority_follow_test.go` `TestTopicPrioritySyncOp`, `csi-spl-orc/src/bash/tests/spl-topic-prio-sync.tst.sh` |
 | C409 | 4 | the PUT agrees with the sweep (v1.2, R7 W1) | an operator issue on a far priority 1 topic and an own topic: the own topic's PUT to 3 leaves it at 1, the next sweep changes nothing | the PUT's operator run reads its own workspace only: prio 3 (ca1176c0f) | `hub/topic_priority_follow_test.go` `TestTopicPriorityPutAgreesWithSync` |
-| C410 | 4 | prio word rule retired (v1.8) | an owner browser post containing "prio", "priority one" or "urgent" leaves its topic at 3; a new topic ending with `prio:1` still sets 1; `priorityToOperator` still copies an operator owner's PUT across workspaces | restore `s.ownerPrioWord` call in `hub/wui.go` | `hub/topic_create_prio_test.go` `TestOwnerPrioWordRemoved`, `hub/topic_priority_test.go` `TestTopicPriorityOperatorQueue` |
-| C411 | 4 | prio 2 jumps bands and 3..5 (v1.8) | a queued prio 2 feature launches ahead of a queued prio 3 or 4 under-band refactor and ahead of a review seat on a prio 3 topic, without preempting running lanes | keep `7481e6cac` `spl_spawn_place_band` (ignores `.priority` for prio 2..5) | `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh` |
-| C412 | 4 | prio 3 queue order; prio 4 & 5 strict barrier (v1.8) | prio 3 rows launch in `EnqueuedAt` order with no class-band jump; a prio 4 row launches only when zero launchable prio 1..3 rows are queued; a prio 5 row launches only when zero launchable prio 1..4 rows are queued; a held (`After:`) prio 2 row does not block a launchable prio 4 row | drop priority filter before band sort in `spl_spawn_place_band` or keep class rank ahead of `EnqueuedAt` inside prio 3 | `store/fleet_ask_queue_test.go` `TestFleetAskQueuePrio3NoClassJump`, `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh` |
-| C413 | 4 | prio 1 preemption victim order & protections (v1.8) | on a capacity hold with a launchable prio 1 head, `do_spl_lane_preempt` picks a live prio 5 lane before 4 before 3; never picks prio 1, prio 2, role seat, `.human-hold`, or mid-push/gate lane; when none is eligible, preempts nothing and alerts the dispatch holder once | remove priority filter or protection guard in victim picker | `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` |
-| C414 | 4 | prio 1 preemption WIP-safe pause & resume (v1.8) | preempted lane gets a spool note, WIP is pushed to `refs/heads/wip/<branch>`, `paused.json` is written, worktree is kept and protected by `workdir-sweep.sh`, tmux window closes cleanly, a resume ask is queued at the front of its priority, holder + issue are notified, and the prio 1 ask launches skipping `SPAWN_PLACE_GAP_MIN`; when room returns, the resume ask restores the lane and clears `paused.json` | skip `do_spl_lane_wip_push`, skip `paused.json`, or retire/sweep the paused worktree | `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh`, `csi-spl-orc/src/bash/tests/workdir-sweep.tst.sh` |
+| C410 | 4 | prio word rule retired (v1.8) | an owner browser post containing "prio", "priority one" or "urgent" leaves its topic at 3; a new topic ending with `prio:1` still sets 1; `priorityToOperator` still copies an operator owner's PUT across workspaces | restore `s.ownerPrioWord` call in `hub/wui.go` | `hub/topic_create_prio_test.go` `TestOwnerPrioWordRemoved`, `hub/topic_priority_test.go` `TestTopicPriorityOperatorQueue` (moved from `hub/owner_prio_word_test.go:234`) |
+| C411 | 4 | prio 2 jumps bands and 3..5; review-seat GO preserved (v1.8) | a queued prio 2 feature launches ahead of a queued prio 3 or 4 under-band refactor without preempting running lanes (`spl-spawn-place-owner-prio.tst.sh` case 3 flips from "goes through bands" to "launches ahead of bands"); a logged review seat on an owner GO keeps its existing place ahead of prio 2..5 | keep `7481e6cac` `spl_spawn_place_band` (ignores `.priority` for prio 2..5) | `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh` |
+| C412 | 4 | prio 3 queue order; prio 4 & 5 strict barrier (v1.8) | prio 3 rows launch in `EnqueuedAt` order with no class-band jump (per Q6); a prio 4 row launches only when zero launchable prio 1..3 rows are queued; a prio 5 row launches only when zero launchable prio 1..4 rows are queued; tentative held-row reading (pending confirmation before B15 lands): a held (`After:`) prio 2 row does not block a launchable prio 4 row | drop priority filter before band sort in `spl_spawn_place_band` or keep class rank ahead of `EnqueuedAt` inside prio 3 | `store/fleet_ask_queue_test.go` `TestFleetAskQueuePrio3NoClassJump`, `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh` |
+| C413 | 4 | prio 1 preemption victim order & protections, dry run (v1.8) | on a capacity hold with a launchable prio 1 head, `do_spl_lane_preempt` (dry run) selects a live prio 5 lane before 4 before 3; never picks prio 1, prio 2, role seat, `.human-hold`, or mid-push/gate lane; respects Q8 on review seats; when none is eligible, picks nothing and alerts the dispatch holder once | remove priority filter or protection guard in victim picker | `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` |
+| C414a | 4 | prio 1 preemption WIP-safe pause & sweep guard (v1.8) | under `DRY_RUN=0`, preempted lane receives a spool note, WIP is pushed to `refs/heads/wip/<branch>` (secret-scan hit aborts and tries next victim), `paused.json` is written, worktree is kept and protected by `workdir-sweep.sh` (`KEEP paused`), tmux window closes cleanly, holder + issue are notified, `queue.lane_preempted` is logged, and the prio 1 ask launches skipping `SPAWN_PLACE_GAP_MIN` | skip `do_spl_lane_wip_push`, skip `paused.json`, or let `workdir-sweep.sh` delete a paused worktree | `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh`, `csi-spl-orc/src/bash/tests/workdir-sweep.tst.sh` |
+| C414b | 4 | prio 1 preemption resume ask & restore (v1.8, when Q7 = A) | pause enqueues a resume ask (`Resume-Lane: <id>`) preserving original priority and `enqueued_at`; when room returns, placer restores the lane in its worktree via `restore-<vendor>.sh` (or `do_spl_lane_handover` Mode B from `wip_ref` if box unavailable), removes `paused.json`, notifies lane/holder/issue, and logs `queue.lane_resumed` | drop `Resume-Lane:` handling in `spawn-window.sh` or leave `paused.json` stale after restore | `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` |
 | C415 | 3 | channel default priority store & RLS (v1.8) | unset channel returns `nil` (effective 3); set 1..5 round-trips on Memory and Postgres (including unseeded default channel); 0 and 6 refused; `nil` clears back to unset; tenant B reads none of tenant A's rows | widen `CHECK` or drop tenant scope | `store/channel_default_priority_test.go` (Memory + Postgres) |
 | C416 | 3 | channel default priority API & owner-only gate (v1.8) | `PUT /v1/channels/{ch}/default-priority` succeeds for workspace owner (`TenantOwner`); returns 403 `tenant.owner` for admin, member, channel creator (non-owner), and demo visitor; 404 for unknown/archived; `GET /v1/channels/{ch}/members` and `GET /v1/tenant/channels` expose it with constant DB round trips | check `rbac.TenantSettings` instead of `s.workspaceOwner` | `hub/channel_default_priority_test.go`, `hub/n_plus_1_rt_test.go` |
-| C417 | 3 | new topic inherits channel default; existing topics untouched (v1.8) | a new topic (browser or box send) in a channel with `default_priority = 2` starts at 2 and propagates to linked issues; a trailing `prio:4` token overrides it to 4; changing the channel's default later to 5 leaves previously created topics at 2; an unset channel writes no `topic_priorities` row; a non-operator workspace owner's channel default never reorders the operator queue | skip the new-topic hook, backfill existing topics on PUT, or copy non-operator owner's default to op | `hub/channel_default_priority_test.go` |
-| C418 | 3 | channel default priority WUI (v1.8) | workspace owner sets and resets default priority in Channel Properties -> Settings and Workspace Settings -> Channels; non-owner admin sees read-only with owner-only hint; failed PUT rolls back and shows error | enable the control for non-owners or skip rollback on 403/500 | `csi-spl-wui/tests/e2e/channel-default-priority.test.mjs` |
+| C417 | 3 | new topic inherits channel default; existing topics untouched (v1.8) | a new topic (browser or box send) in a channel with `default_priority = 2` starts at 2 and propagates to linked issues; a channel set explicitly to `4` (or `3`) writes a `topic_priorities` row that intentionally overrides SPL-4725's `bug`/`refactor` = 2 class default on issues born from it; a trailing `prio:4` token overrides the channel default; changing the channel's default later to 5 leaves previously created topics at 2; an unset channel (`null`) writes no `topic_priorities` row so SPL-4725 class defaults survive; a non-operator workspace owner's channel default never reorders the operator queue | skip the new-topic hook, backfill existing topics on PUT, or copy non-operator owner's default to op | `hub/channel_default_priority_test.go` |
+| C418 | 3 | channel default priority WUI (v1.8) | workspace owner sets and resets default priority in Channel Properties -> Settings and Workspace Settings -> Channels; known non-owner admin sees read-only with owner-only hint; when `access.me` is not yet loaded (fail-open), a non-owner's PUT receives 403, rolls back, and shows the owner-only error; failed 500 PUT rolls back and shows error | enable the control for a known non-owner or skip rollback on 403/500 | `csi-spl-wui/tests/e2e/channel-default-priority.test.mjs` |
 | C419 | 3 | v1.8 i18n parity, raw text & translation (v1.8) | all 19 locales hold all 8 new keys and updated `topic.priority.hint`; raw-text and untranslated ratchets do not rise; `do_spl_lang_review_gct` passes | drop a key from one locale or put a literal label in a `.vue` template | `csi-spl-wui/tests/unit/i18n-parity.test.mjs`, `i18n-no-raw-text.test.mjs`, `i18n-untranslated.test.mjs`, `do_spl_lang_review_gct` |
 
 ## 5. Build rows
@@ -1077,9 +1118,11 @@ before a row that depends on it starts.
 | B11 | 2-3 | agy's language review of the 19 locales, the last step before the text ships | `csi-spl-wui/i18n/locales/*.json` (after B4, B6, B7 and B8 have landed) | B6, B7, B8 |
 | B12 (Implemented, store half, bfc006e10) | 4 | unanswered posts by priority; C406 | `store/fallback_postgres.go`, `store/fallback_memory.go`, `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` | B1 |
 | B13 (v1.2, SPL-4813) | 4 | issues and lanes follow the discussion's priority: at the PUT and by the 5-min `prio-sync` sweep; C407, C408 | `hub/topic_priority_follow.go`, `hub/topic_priority.go`, `hub/issues_agent.go`, `api/cmd/spool/issue.go`, `api/internal/action/issue.go`, `orc/spl-topic-prio-sync.func.sh`, `csi-spl-orc/src/bash/scripts/topic-prio-sync-cron.sh`, `csi-spl-orc/cnf/box-crons/box-crons.manifest`, and their tests | B1, B9 |
-| B14 (v1.8) | 4 | retire the "prio" word rule (relocate `operatorOwner` / `priorityOperatorTenant` to `topic_priority.go` and `prioOwnText` to `topic_create_prio.go`; delete `owner_prio_word.go`, `SPOOL_HUB_OWNER_PRIO_WORDS`); update spec 157 §4.1 & `fleet-rules-index.md`; C410 | `hub/owner_prio_word.go` (delete), `hub/owner_prio_word_test.go` (delete), `hub/topic_priority.go`, `hub/topic_create_prio.go`, `hub/topic_create_prio_test.go`, `hub/topic_priority_follow.go`, `hub/wui.go`, `hub/server.go`, `api/cmd/spool/hub.go`, `api/internal/config/config.go`, `api/internal/config/owner_prio_words_test.go` (delete), `example.env.yaml`, `csi-spl-doc/specs/157-dispatch-automation/spec.md`, `csi-spl-doc/doc/md/fleet-rules-index.md` | - |
-| B15 (v1.8) | 4 | enforce 1..5 priority barrier and tier rules in queue & placer (prio 2 jumps bands/3..5; prio 3 queue order; prio 4 after 1..3; prio 5 after 1..4); C411, C412 | `store/fleet_ask.go`, `store/fleet_ask_queue_test.go`, `orc/spl-spawn-place.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh`, `csi-spl-doc/doc/md/fleet-rules-index.md` | B14 (and Q6 answered) |
-| B16 (v1.8) | 4 | priority-1 preemption action (`do_spl_lane_preempt`), WIP-safe pause & auto-resume wiring in placer/launcher, disk-sweep `KEEP paused` guard; C413, C414 | `orc/spl-lane-preempt.func.sh`, `orc/spl-spawn-place.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh`, `csi-spl-utl/src/bash/scripts/workdir-sweep.sh`, `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh`, `csi-spl-orc/src/bash/tests/workdir-sweep.tst.sh` | B15 (and Q7, Q8 answered) |
+| B14 (v1.8) | 4 | retire the "prio" word rule: relocate `operatorOwner` / `priorityOperatorTenant` to `topic_priority.go`, move `TestTopicPriorityOperatorQueue` (`owner_prio_word_test.go:234`) into `topic_priority_test.go`, relocate `prioOwnText` to `topic_create_prio.go`, delete `owner_prio_word.go` / `owner_prio_word_test.go` / `SPOOL_HUB_OWNER_PRIO_WORDS`, update `spl-spawn-place-owner-prio.tst.sh` header, update spec 157 §4.1, `fleet-rules-index.md:56`, `rounds-rulebook.md:320` (via Qto doc `e621cc32` + `do_spl_doctree_export_md`), `spec 153:2603`, and `spec 177 checklist.md:151`; C410 | `hub/owner_prio_word.go` (delete), `hub/owner_prio_word_test.go` (delete), `hub/topic_priority.go`, `hub/topic_priority_test.go`, `hub/topic_create_prio.go`, `hub/topic_create_prio_test.go`, `hub/topic_priority_follow.go`, `hub/wui.go`, `hub/server.go`, `api/cmd/spool/hub.go`, `api/internal/config/config.go`, `api/internal/config/owner_prio_words_test.go` (delete), `example.env.yaml`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh` (header only), `csi-spl-doc/specs/157-dispatch-automation/spec.md`, `csi-spl-doc/doc/md/fleet-rules-index.md`, `csi-spl-doc/doc/md/rounds-rulebook.md`, `csi-spl-doc/specs/153-monitoring-lanes-tab/spec.md`, `csi-spl-doc/specs/177-reporter-role/checklist.md` | - |
+| B15 (v1.8) | 4 | enforce 1..5 priority barrier and tier rules in queue & placer (prio 2 jumps bands/3..5 while preserving logged review-seat GO order; flip `spl-spawn-place-owner-prio.tst.sh` case 3; prio 3 queue order per Q6; prio 4 after 1..3; prio 5 after 1..4); C411, C412 | `store/fleet_ask.go`, `store/fleet_ask_queue_test.go`, `orc/spl-spawn-place.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh`, `csi-spl-doc/doc/md/fleet-rules-index.md` | B14, Q6 answered (and W2a held-row reading confirmed) |
+| B16a (v1.8) | 4 | priority-1 preemption victim picker & protections (`do_spl_lane_preempt` dry-run log only: reads `GET /v1/operator/fleet-lanes`, orders 5 -> 4 -> 3, protects prio 1–2 / role seats / `.human-hold` / mid-gate / `ACCEPTED`, applies Q8 on review seats, alerts holder when no victim exists); C413 | `orc/spl-lane-preempt.func.sh`, `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` | B15, Q8 answered |
+| B16b (v1.8) | 4 | priority-1 live pause protocol (`DRY_RUN=0`): spool notice, event-driven grace poll, WIP push (calling `orc/spl-lane-wip-push.func.sh`), `paused.json`, clean window close (calling `tmux-close-window.sh`), disk-sweep `KEEP paused` rule, placer capacity-hold trigger skipping `SPAWN_PLACE_GAP_MIN`, holder/issue notifications & `queue.lane_preempted` event; C414a | `orc/spl-lane-preempt.func.sh`, `orc/spl-spawn-place.func.sh`, `csi-spl-utl/src/bash/scripts/workdir-sweep.sh`, `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh`, `csi-spl-orc/src/bash/tests/workdir-sweep.tst.sh` (calls existing `orc/spl-lane-wip-push.func.sh` and `spawn-agents/scripts/tmux-close-window.sh`, unmodified) | B16a, Q7 answered |
+| B16c (v1.8) | 4 | priority-1 auto-resume ask & lane restore (when Q7 = A): enqueue resume ask (`Resume-Lane: <id>` preserving priority and `enqueued_at`), restore in preserved worktree via `restore-<vendor>.sh` or handover Mode B fallback from `wip_ref`, clear `paused.json`, resume notifications & `queue.lane_resumed` event; C414b | `orc/spl-lane-preempt.func.sh`, `orc/spl-spawn-place.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh`, `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` (calls existing `spawn-agents/scripts/restore-{agy,claude,codex,grok,mistral,qwen}.sh`, `restore-core.inc.sh`, and `orc/spl-lane-handover{,-agy,-mistral,-wip}.func.sh`) | B16b, Q7 = A |
 | B17 (v1.8) | 3 | channel `default_priority` migration (`rdb/<NNNN>_channel_default_priority.sql`) and store (`ChannelDefaultPriority`, batch read in `SetReads`); C415 (`PRE_PUSH_TIER=full`) | `rdb/<NNNN>_channel_default_priority.sql`, `store/channel_default_priority.go`, `store/channel_default_priority_test.go`, `store/channels.go`, `store/channels_memory.go`, `store/channels_postgres.go` | - |
 | B18 (v1.8) | 3 | `PUT /v1/channels/{channel}/default-priority` (workspace owner only), read fields on channel members & tenant channels, new-topic inherit hook (browser & box), OpenAPI; C416, C417 | `hub/channel_default_priority.go`, `hub/channel_default_priority_test.go`, `hub/channel_members.go`, `hub/tenant_settings.go`, `hub/wui.go`, `hub/ws.go`, `hub/server.go`, `hub/openapi.json` | B14, B17 |
 | B19 (v1.8) | 3 | v1.8 i18n keys (8 channel-default keys + updated `topic.priority.hint`) in all 19 locales; C419 | `csi-spl-wui/i18n/locales/*.json` | - |
@@ -1089,7 +1132,7 @@ before a row that depends on it starts.
 **v1.8 build order and gates.**
 
 - Three independent tracks can start immediately in parallel: **B14** (drop prio word), **B17** (channel default rdb + store), and **B19** (i18n keys).
-- Track A (priority semantics): `B14 -> B15 -> B16`. B15 touches `store/fleet_ask.go`, so run `PRE_PUSH_TIER=full`. B14 and B18 both touch `hub/wui.go` and `hub/server.go`, so B18 runs after B14 lands.
+- Track A (priority semantics): `B14 -> B15 -> B16a -> B16b -> B16c` (skip `B16c` if Q7 is answered B). B15 touches `store/fleet_ask.go`, so run `PRE_PUSH_TIER=full`. B14 and B18 both touch `hub/wui.go` and `hub/server.go`, so B18 runs after B14 lands.
 - Track B (channel default priority): `B17 (+ B14) -> B18 -> (wait for dev & prd deploy) -> B20 (+ B19) -> B21`. B17 touches a migration and store (`PRE_PUSH_TIER=full`, claim migration number via `do_rdb_migration_next`); B20 runs WUI e2e on the generated bundle (`pnpm run test:e2e`); B21 runs `do_spl_lang_review_gct` last.
 
 - Every row runs the module gate of the repo CLAUDE.md before its push.
@@ -1204,7 +1247,7 @@ Q5. In the orchestrator's queue, how does a discussion's priority combine with t
 
 Q5 answered **A** (poll `0709b075`).
 
-### v1.8 open questions (holding B15 / B16 nuances; defaults noted in section 3.4.1)
+### v1.8 open questions (holding B15 / B16a–B16c nuances; defaults noted in section 3.4.1)
 
 ```poll
 Q6. Inside priority 3 ("in queue order, no jumping"), how should the 20–30% refactor/bug class bands behave?

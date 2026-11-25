@@ -203,3 +203,21 @@ None.
   `_doc` still says `Lang-review: a-NNN <msg id>`, and the gate header still lists that form
   (`check-pre-push-lang-review.func.sh:27`) beside `gct` (`:17`). Not a bash refactor and maybe
   not a defect at all; v1.0 could name it in section 7's lumped row.
+
+## v1.0 signature
+
+**Signed: PASS on v1.0 `43a4b3949bb37c9c4bec3fdbeac5b0d556458fe5`** (on `origin/master`; relayed by
+the planner a-649, msg `7c65064e`).
+
+- `git merge-base --is-ancestor 43a4b3949 origin/master` -> rc 0. Author and committer the
+  repo-canonical address; AI-trailer grep -> 0. One file, `refactor-round-01-plan.md` +40 -12.
+- `git diff -U0 78277dc10 43a4b3949 -- <plan>`: text only. The v1.0 changes are the status, the
+  signature lines, N1 (`plan:633-634`), N2 (`plan:55` now `:110-123`), N3 (`plan:309-310`),
+  N4 (`plan:338-340`), N5 (`plan:759-761`), N6 (`plan:793`) and the changes and consensus entries.
+- Every fenced code block, compared with
+  `awk '/^```/{f=!f; print; next} f'` on both shas -> identical (174 lines). The section 2 row
+  lines (`grep -E '^\| 0[12] '`) -> identical. So the controls of section 3 above still
+  hold for v1.0, unchanged.
+- **N7:** this seat file was not folded into v1.0: `git show 43a4b3949:csi-spl-doc/doc/md/refactor-round-01/seat-claude.md`
+  -> no such file. v1.0 names it by sha on `review/c002-refactor-round-01-claude-seat`. The
+  editor or holder decides whether it lands on master.

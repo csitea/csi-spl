@@ -90,7 +90,9 @@ do_spl_dispatch_subscribe() {
 #                             DISPATCH_SILENCE_WINDOW and _GRACE minutes ago,
 #                             and how many of them unsigned and not older
 #                             than the live box-wui pin (absent = 0|0).
-#                             #issues, #tasks and #probe are in neither number
+#                             #issues, #tasks and #probe are in neither number,
+#                             nor a loop prompt (loop_id set: stored as HUM-*
+#                             but routed to its one seat only, never the desk)
 # DISPATCH_SUBS_DIR (<dir>/<tenant>.txt holding those lines) replaces the hub
 # DB, for the tests and for an offline look at an export.
 spl_dispatch_with_subs() {
@@ -155,12 +157,18 @@ SELECT 'ros|' || r.box_id || '|' || r.agent_id FROM roster r
 -- #issues, #tasks and #probe are out of both counts: the unanswered sweep's
 -- channel skip. #probe is the live-proof channel. The skip is the channel,
 -- not the sender, so a post there does not count whoever sent it (SPL-1648).
+-- A loop prompt (rdb 0301 messages.loop_id) is from HUM-* in the topic's
+-- channel but goes to one seat's box only (loopStorePrompt, no channel tag),
+-- so the desk never gets it: counting it raised a false SILENT (SPL-6523,
+-- prd csitea 2026-11-25 16:30Z). Not a to_id filter: a person's @mention
+-- reply carries the channel tag and reaches every member box, the desk too.
 SELECT 'hum|' || count(*) || '|' || count(*) FILTER (WHERE m.env_sig = '' AND NOT EXISTS (
          SELECT 1 FROM pins p WHERE p.tenant_id = m.tenant_id AND p.box_id = 'box-wui'
             AND p.revoked_at IS NULL AND p.updated_at > m.received_at))
   FROM messages m
  WHERE m.tenant_id = :'tenant' AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%'
    AND m.channel IS NOT NULL AND m.channel NOT IN ('issues', 'tasks', 'probe') AND m.typed_by IS NULL
+   AND m.loop_id IS NULL
    AND m.received_at > now() - make_interval(mins => :win)
    AND m.received_at <= now() - make_interval(mins => :grace);
 COMMIT;

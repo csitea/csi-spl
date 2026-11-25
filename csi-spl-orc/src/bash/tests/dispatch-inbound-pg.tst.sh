@@ -15,6 +15,10 @@
 #   6. SPL-2423: a humans-only channel (rdb 0206) is one hon| line; the desk
 #      reconcile's add (system=1) skips it and writes nothing, an add by hand
 #      seats the agent and clears the mark
+#   7. SPL-6523: a loop prompt (loop_id set, HUM-* to one seat) is no human
+#      post: a window of loop prompts only is hum|0|0 and no SILENT; two
+#      channel posts (an @mention reply to one seat included) with 0 desk
+#      files still are SILENT
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -149,6 +153,42 @@ o="$(add_op 1)"; rc=$?
 o="$(add_op 0)"; rc=$?
 [[ $rc -eq 0 && "$(seat)" == invite && "$(mark)" == f ]] &&
   pass "6. an add by hand seats the agent and clears the mark" || fail "6. hand add: rc=$rc $o seat=$(seat) mark=$(mark)"
+
+# SPL-6523 (prd csitea 2026-11-25 16:30Z): after the people's last post, the
+# window held only "Loop prompt" rows, stored from HUM-10 to one seat; only
+# that seat's box gets them, so the desk's empty spool was right, not SILENT.
+psql_owner <<'PSQL' >/dev/null || fail "seed loop tenants"
+INSERT INTO tenants (tenant_id, root_pubkey) VALUES ('wl', decode(repeat('ae', 32), 'hex')), ('wc', decode(repeat('af', 32), 'hex'));
+INSERT INTO channels (tenant_id, channel_id, name, created_by) VALUES ('wl', 'ops', 'ops', 'HUM-1'), ('wc', 'ops', 'ops', 'HUM-1');
+PSQL
+# lp <tenant> <seat> <minutes ago>: a loop prompt to <seat> (loopStorePrompt)
+lp() {
+  m "$1" ops HUM-10 '' "$3"
+  psql_owner -c "UPDATE messages SET to_box = 'box-desk', to_id = '$2', loop_id = gen_random_uuid() WHERE msg_id = '$LAST_ID'" >/dev/null ||
+    fail "seed loop prompt $*"
+}
+lp wl c-146 25; lp wl c-041 20; lp wl c-146 10
+lp wc c-146 25; lp wc c-041 20
+m wc ops HUM-10 '' 30
+m wc ops HUM-10 '' 15; psql_owner -c "UPDATE messages SET to_box = 'box-desk', to_id = 'c-146' WHERE msg_id = '$LAST_ID'" >/dev/null
+inbound() {
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/sr" W="$1" HUM="$2" DISPATCH_STATE_DIR="$T/state" DISPATCH_DESK_BOX=box-desk \
+    DISPATCH_MASTER=c-002 DISPATCH_FAILOVER=c-003 bash -c '
+    set -uo pipefail
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-subscribe.func.sh"
+    spl_test_workspace() { return 1; }; spl_dispatch_seated() { return 0; }
+    spl_dispatch_inbound "$W" "$HUM"' 2>&1
+}
+h="$(read_hum wl | grep '^hum|')"
+[[ "$h" == 'hum|0|0' ]] && pass "7. loop prompts to one seat only: no human post counted" || fail "7. wl: $h"
+o="$(inbound wl "$h")"
+[[ "$o" != *SILENT* ]] && pass "7. loop prompts only, 0 desk files: no SILENT" || fail "7. wl inbound: $o"
+h="$(read_hum wc | grep '^hum|')"
+[[ "$h" == 'hum|2|2' ]] && pass "7. two channel posts (one an @mention reply) count, the loop prompts do not" || fail "7. wc: $h"
+o="$(inbound wc "$h")"
+[[ "$o" == *"SILENT wc 2 human posts in 120 min, 0 inbound files"* ]] && pass "7. two channel posts, 0 desk files: still SILENT" ||
+  fail "7. wc inbound: $o"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

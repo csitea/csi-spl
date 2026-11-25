@@ -193,3 +193,16 @@ Read at 06:45Z..06:49Z on 2026-11-25 (`git ls-remote origin refs/heads/review/c0
 - **Hygiene.** `git show 132f817b8:csi-spl-doc/doc/md/bug-round-46-plan.md | grep -c -E '\btnk\b'` -> `0`: the 18 `unknown:` lanes are written as `<box2>`.
 
 No new W, no new N. **Verdict on `132f817b8`: PASS.** If the editor's v1.0 changes nothing but the status lines, I sign that sha again.
+
+---
+
+## Sign: v1.0 `bac71653b9b3596c17f89ca444c0e8f3a127ccc9`: **PASS**
+
+Read at 06:5xZ on 2026-11-25 (`git ls-remote origin refs/heads/review/c002-bug-round-46-planner` -> `bac71653b9b3596c17f89ca444c0e8f3a127ccc9`; one commit on v0.2 `132f817b8`). `git diff --stat 132f817b8 bac71653b` -> `bug-round-46-plan.md | 7 +++++--`: the status line and the review history only.
+
+- `diff` of each red control cut from v1.0 section 4 against the v0.2 copy that this seat ran -> rc01, rc02 and rc03 identical.
+- `diff` of section 5 (rows) between v0.2 and v1.0 -> empty.
+- `grep -c -E '\btnk\b'` on the v1.0 plan -> `0`.
+- `origin/master` is still `d5f1a228d`, so the 0 drift of the 7 row files measured at v0.2 holds.
+
+**Verdict on `bac71653b`: PASS**, W none, N none.

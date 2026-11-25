@@ -25,6 +25,23 @@
 #      line, no run. Red control: the parent commit's sender dials nothing
 #      there (5's run checks fail).
 #   6. the log keeps its last 200 lines once it passes 400
+#   7. c-001 b88ecb74 (a dry run on sat reached the live desks): an explicit
+#      SPOOL_BIN wins over a desk's <env>/bin/spool; SPOOL_LIVE_ACK_DRY_RUN=1
+#      starts no binary, so a listening desk socket counts 0 connects (control:
+#      the same run without it counts 1). PATH starts with a recording spool,
+#      so no run here can reach a real binary. Red control: the parent
+#      commit's sender runs the desk binary under SPOOL_BIN and dials in a
+#      dry run (7's checks fail).
+#   8. R7 a-826 W2: under SPOOL_TEST=1 (t_sandbox sets it) the sender has no
+#      default desk root, so desks under HOME are never walked: 0 runs and a
+#      "<no desk root>" dropped line (control: SPOOL_FLEET_STATE_ROOT still
+#      names them, 2 runs). Then the box user's real HOME and box.env, an id
+#      seated in a real desk when one is readable, as a dry run (so nothing
+#      can dial even if the guard broke): 0 would-be runs. Sections 5 and 7
+#      unset SPOOL_TEST for their sandbox HOME. Red control: the parent
+#      sender walks the sandbox HOME desks under SPOOL_TEST=1 (8's sandbox
+#      checks fail); the real-HOME check is left out of the red run, because
+#      the parent has no dry run and would dial.
 set -uo pipefail
 . "$(dirname "$0")/lib.inc.sh"
 t_sandbox
@@ -107,6 +124,15 @@ check "4. CONTROL: the hanging sender was started" waitargs 1
 
 echo "# 5. the fleet layout: the desk sidecars"
 unset SPOOL_SUBMIT_SOCKET SPOOL_FLEET_STATE_ROOT SPOOL_DESK_USER SPOOL_BOX_ENV
+mkdir -p "$T_TMP/pathbin"
+cat > "$T_TMP/pathbin/spool" <<'STUB'
+#!/usr/bin/env bash
+printf 'path-bin %s %s\n' "${SPOOL_SUBMIT_SOCKET:-}" "$*" >> "$STUB_ARGS"
+echo '{"acked":1}'
+STUB
+chmod +x "$T_TMP/pathbin/spool"
+export PATH="$T_TMP/pathbin:$PATH"
+check "5. CONTROL: the spool on PATH is the recording stub" test "$(command -v spool)" = "$T_TMP/pathbin/spool"
 : > "$SPOOL_ROOT/box.env"
 H5="$T_TMP/home5"
 DR="$H5/.local/share/csi-spl/cloud"
@@ -126,22 +152,22 @@ chmod +x "$DR/prd/bin/spool"
 mkdir -p "$SPOOL_ROOT/c-905/lifetime"
 check "5. CONTROL: the fleet root has no socket" test ! -e "$SPOOL_ROOT/.hub/submit.sock"
 : > "$ARGS"
-HOME="$H5" bash "$SENDER" c-905 "$M1"; rc=$?
+HOME="$H5" env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-905 "$M1"; rc=$?
 eq "5. exit 0" 0 "$rc"
 eq "5. one run per desk that announces c-905, its env's binary, its socket" \
   "prd-bin $(desk prd t1)/.hub/submit.sock live-ack --as c-905 -- $M1|prd-bin $(desk prd w2)/.hub/submit.sock live-ack --as c-905 -- $M1" \
   "$(sort "$ARGS" | paste -sd'|')"
 hasnt "5. a desk without c-905 is not dialed" "$(desk dev t1)" "$(cat "$ARGS")"
 hasnt "5. a desk without a socket is not dialed" "$(desk prd w3)" "$(cat "$ARGS")"
-eq "5. one log line per run" 2 "$(grep -c "$(desk prd)" "$SPOOL_ROOT/c-905/lifetime/live-ack.log")"
+eq "5. one log line per run" 2 "$(grep -c " rc=0 $DR/prd/desk/" "$SPOOL_ROOT/c-905/lifetime/live-ack.log")"
 : > "$ARGS"
-HOME="$H5" bash "$SENDER" c-906 "$M1"
+HOME="$H5" env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-906 "$M1"
 eq "5. no desk announces c-906: nothing runs" "" "$(cat "$ARGS")"
 mkdir -p "$SPOOL_ROOT/c-906/lifetime"
-HOME="$H5" bash "$SENDER" c-906 "$M1"
+HOME="$H5" env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-906 "$M1"
 has "5. ... and one dropped line is logged" "no desk sidecar announces c-906 under $DR; ack dropped" "$(cat "$SPOOL_ROOT/c-906/lifetime/live-ack.log")"
 : > "$ARGS"
-HOME="$H5" SPOOL_FLEET_STATE_ROOT="$T_TMP/none" bash "$SENDER" c-905 "$M1"
+HOME="$H5" SPOOL_FLEET_STATE_ROOT="$T_TMP/none" env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-905 "$M1"
 eq "5. SPOOL_FLEET_STATE_ROOT wins over the default root (an empty one: no run)" "" "$(cat "$ARGS")"
 
 echo "# 6. the log is capped"
@@ -152,5 +178,72 @@ eq "6. past 400 lines: the last 200 are kept" 200 "$(wc -l < "$L6")"
 has "6. ... the newest among them" "c-901 rc=0" "$(tail -n1 "$L6")"
 SPOOL_SUBMIT_SOCKET="$T_TMP/single.sock" bash "$SENDER" c-901 "$M1"
 eq "6. CONTROL: under 400 lines nothing is cut" 201 "$(wc -l < "$L6")"
+
+echo "# 7. an explicit binary wins; a dry run dials nothing"
+: > "$ARGS"
+HOME="$H5" env -u SPOOL_TEST bash "$SENDER" c-905 "$M1"
+eq "7. SPOOL_BIN set: the stub runs once per announcing desk" 2 "$(grep -c "^live-ack --as c-905 -- $M1\$" "$ARGS")"
+hasnt "7. ... and the desk's prd/bin/spool runs 0 times" "prd-bin" "$(cat "$ARGS")"
+: > "$ARGS"
+out7="$(HOME="$H5" SPOOL_LIVE_ACK_DRY_RUN=1 env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-905 "$M1")"; rc=$?
+eq "7. dry run: exit 0" 0 "$rc"
+eq "7. dry run: no binary starts (desk, PATH or stub)" "" "$(cat "$ARGS")"
+eq "7. dry run: it prints the 2 runs it would make" 2 "$(printf '%s\n' "$out7" | grep -c "^dry-run $DR/prd/desk/.*/submit.sock $DR/prd/bin/spool live-ack --as c-905 -- $M1\$")"
+eq "7. dry run: 2 dry-run log lines" 2 "$(grep -c "rc=- .*dry-run $DR/prd/bin/spool: not started" "$SPOOL_ROOT/c-905/lifetime/live-ack.log")"
+HOME="$H5" SPOOL_LIVE_ACK_DRY_RUN=1 SPOOL_SUBMIT_SOCKET="$T_TMP/single.sock" bash "$SENDER" c-901 "$M1" >/dev/null
+eq "7. dry run on the single-socket path: the stub runs 0 times" "" "$(cat "$ARGS")"
+# a listening desk socket that counts connects; its binary dials it
+DR7="$T_TMP/home7/.local/share/csi-spl/cloud"
+S7="$DR7/prd/desk/t1/box-t/spool"
+mkdir -p "$S7/.hub" "$S7/c-907" "$DR7/prd/bin" "$SPOOL_ROOT/c-907/lifetime"
+cat > "$DR7/prd/bin/spool" <<'STUB'
+#!/usr/bin/env bash
+python3 -c 'import socket,sys; c=socket.socket(socket.AF_UNIX); c.connect(sys.argv[1]); c.close()' "$SPOOL_SUBMIT_SOCKET"
+echo '{"acked":1}'
+STUB
+chmod +x "$DR7/prd/bin/spool"
+N7="$T_TMP/connects7"
+: > "$N7"
+python3 -c '
+import socket,sys
+s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(8); s.settimeout(15)
+try:
+    while True:
+        c,_=s.accept(); c.close()
+        open(sys.argv[2],"a").write("1\n")
+except socket.timeout:
+    pass
+' "$S7/.hub/submit.sock" "$N7" &
+lpid=$!
+for _ in $(seq 1 50); do [ -S "$S7/.hub/submit.sock" ] && break; sleep 0.1; done
+check "7. CONTROL: the desk socket listens" test -S "$S7/.hub/submit.sock"
+HOME="$T_TMP/home7" SPOOL_LIVE_ACK_DRY_RUN=1 env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-907 "$M1" >/dev/null
+sleep 0.3
+eq "7. dry run: the live desk socket is dialed 0 times" 0 "$(wc -l < "$N7")"
+HOME="$T_TMP/home7" env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-907 "$M1"
+for _ in $(seq 1 30); do [ "$(wc -l < "$N7")" -ge 1 ] && break; sleep 0.1; done
+eq "7. CONTROL: the same run without the dry run dials it once" 1 "$(wc -l < "$N7")"
+kill "$lpid" 2>/dev/null; wait "$lpid" 2>/dev/null
+
+echo "# 8. SPOOL_TEST=1: no default desk root"
+check "8. CONTROL: the sandbox sets SPOOL_TEST=1" test "${SPOOL_TEST:-}" = 1
+: > "$ARGS"
+HOME="$H5" env -u SPOOL_BIN bash "$SENDER" c-905 "$M1"
+eq "8. SPOOL_TEST=1: the HOME desks are not walked (0 runs)" "" "$(cat "$ARGS")"
+has "8. ... and one dropped line names no desk root" "no desk sidecar announces c-905 under <no desk root>; ack dropped" "$(tail -n1 "$SPOOL_ROOT/c-905/lifetime/live-ack.log")"
+HOME="$H5" SPOOL_FLEET_STATE_ROOT="$DR" env -u SPOOL_BIN bash "$SENDER" c-905 "$M1"
+eq "8. CONTROL: SPOOL_FLEET_STATE_ROOT still names the desks under SPOOL_TEST=1 (2 runs)" 2 "$(grep -c '^prd-bin ' "$ARGS")"
+# REAL-HOME-BEGIN
+: > "$ARGS"
+RH="$(getent passwd "$(id -un)" | cut -d: -f6)"
+RBOX=/var/spool-hub/box.env; [ -f "$RBOX" ] || RBOX="$SPOOL_ROOT/box.env"
+RDR="$(bash "$T_SCRIPTS/../lib/desk-root.inc.sh" "$RH" "$RBOX" 2>/dev/null)"
+RID=c-001
+for d in "$RDR"/*/desk/*/*/spool/c-[0-9]*; do [ -e "$d" ] && [ -S "${d%/*}/.hub/submit.sock" ] && { RID="${d##*/}"; break; }; done 2>/dev/null
+mkdir -p "$SPOOL_ROOT/$RID/lifetime"
+out8="$(HOME="$RH" SPOOL_BOX_ENV="$RBOX" SPOOL_LIVE_ACK_DRY_RUN=1 env -u SPOOL_BIN -u SPOOL_FLEET_STATE_ROOT -u SPOOL_SUBMIT_SOCKET bash "$SENDER" "$RID" "$M1")"
+eq "8. real HOME ($RH, desk root ${RDR:-none}, id $RID), SPOOL_TEST=1, dry run: 0 would-be runs" "" "$out8"
+eq "8. ... and nothing started" "" "$(cat "$ARGS")"
+# REAL-HOME-END
 
 t_done

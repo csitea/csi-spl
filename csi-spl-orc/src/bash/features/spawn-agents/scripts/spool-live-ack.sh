@@ -19,16 +19,24 @@
 #   2. else every desk socket whose spool has a dir (or link) named <id>:
 #      that desk announces <id>, so the hub may have delivered to it. A desk
 #      that did not deliver a message records nothing for it (the hub's
-#      deliveries gate), so asking each such desk is safe. Its binary is
-#      <desk_root>/<env>/bin/spool, the one the desk actions build, else the
-#      one below. A socket the agent user cannot open (a distinct
-#      SPOOL_DESK_USER, mode 0600) fails that run only.
+#      deliveries gate), so asking each such desk is safe. Its binary is an
+#      explicit SPOOL_BIN when set, else <desk_root>/<env>/bin/spool (the one
+#      the desk actions build), else the default below. A socket the agent
+#      user cannot open (a distinct SPOOL_DESK_USER, mode 0600) fails that
+#      run only.
 #
 #   <agent>               the hook's agent dir name; a qualified <id>@<box>
 #                         is acked as <id>
-#   SPOOL_BIN             the spool binary (default: spool on PATH, else
-#                         $HOME/.local/bin/spool; none = nothing to do)
-#   SPOOL_FLEET_STATE_ROOT  the desk root (default: desk-root.inc.sh)
+#   SPOOL_BIN             the spool binary; set, it wins over every desk's
+#                         own binary (a stub in a test or a dry run is never
+#                         bypassed). Unset: spool on PATH, else
+#                         $HOME/.local/bin/spool; none = nothing to do
+#   SPOOL_LIVE_ACK_DRY_RUN  1 = start no binary, so dial no socket: print and
+#                         log each run it would make ("dry-run <socket>
+#                         <binary>") and exit 0
+#   SPOOL_FLEET_STATE_ROOT  the desk root (default: desk-root.inc.sh; under
+#                         SPOOL_TEST=1 no default, as in spool-fleet-relay.sh:
+#                         a test never walks the live $HOME desks)
 #   SPOOL_LIVE_ACK_TIMEOUT  seconds each verb run may take (default 20)
 #   log                   one line per verb run, "<ts> <id> rc=<n> <where>
 #                         <output>", in $SPOOL_ROOT/<agent>/lifetime/
@@ -42,6 +50,7 @@ id="${raw%%@*}"
 [ -n "$id" ] && [ "$#" -gt 0 ] || exit 0
 root="${SPOOL_ROOT:-/var/spool-hub}"
 bin="${SPOOL_BIN:-}"
+pinned="$bin"
 [ -n "$bin" ] || bin="$(command -v spool 2>/dev/null || true)"
 [ -z "$bin" ] && [ -x "$HOME/.local/bin/spool" ] && bin="$HOME/.local/bin/spool"
 lt="$root/$raw/lifetime"
@@ -55,6 +64,11 @@ ack() {  # SOCKET BINARY MSG_ID...
   local sock="$1" b="$2" out rc
   shift 2
   [ -n "$b" ] || { log 127 "$sock" "no spool binary"; return 0; }
+  if [ "${SPOOL_LIVE_ACK_DRY_RUN:-0}" = 1 ]; then
+    printf 'dry-run %s %s live-ack --as %s -- %s\n' "$sock" "$b" "$id" "$*"
+    log - "$sock" "dry-run $b: not started"
+    return 0
+  fi
   out="$(SPOOL_SUBMIT_SOCKET="$sock" timeout "${SPOOL_LIVE_ACK_TIMEOUT:-20}" "$b" live-ack --as "$id" -- "$@" 2>&1)"
   rc=$?
   log "$rc" "$sock" "$out"
@@ -63,8 +77,11 @@ ack() {  # SOCKET BINARY MSG_ID...
 if [ -n "${SPOOL_SUBMIT_SOCKET:-}" ] || [ -S "$root/.hub/submit.sock" ]; then
   ack "${SPOOL_SUBMIT_SOCKET:-$root/.hub/submit.sock}" "$bin" "$@"
 else
-  state="${SPOOL_FLEET_STATE_ROOT:-$(bash "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/desk-root.inc.sh" \
-    "$HOME" "${SPOOL_BOX_ENV:-$root/box.env}" 2>/dev/null)}"
+  state="${SPOOL_FLEET_STATE_ROOT:-}"
+  if [ -z "$state" ] && [ "${SPOOL_TEST:-}" != 1 ]; then
+    state="$(bash "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/desk-root.inc.sh" \
+      "$HOME" "${SPOOL_BOX_ENV:-$root/box.env}" 2>/dev/null)"
+  fi
   n=0
   if [ -n "$state" ]; then
     for sock in "$state"/*/desk/*/*/spool/.hub/submit.sock; do
@@ -72,7 +89,8 @@ else
       d="${sock%/.hub/submit.sock}"
       [ -e "$d/$id" ] || continue
       env="${sock#"$state"/}"; env="${env%%/*}"
-      b="$state/$env/bin/spool"
+      b="$pinned"
+      [ -n "$b" ] || b="$state/$env/bin/spool"
       [ -x "$b" ] || b="$bin"
       ack "$sock" "$b" "$@"
       n=$((n + 1))
@@ -81,6 +99,6 @@ else
   [ "$n" -gt 0 ] || log 0 "-" "no desk sidecar announces $id under ${state:-<no desk root>}; ack dropped"
 fi
 if [ -f "$lt/live-ack.log" ] && [ "$(wc -l < "$lt/live-ack.log")" -gt 400 ]; then
-  tail -n 200 "$lt/live-ack.log" > "$lt/live-ack.log.tmp" 2>/dev/null && mv -f "$lt/live-ack.log.tmp" "$lt/live-ack.log" 2>/dev/null
+  tail -n 200 "$lt/live-ack.log" > "$lt/live-ack.log.tmp.$$" 2>/dev/null && mv -f "$lt/live-ack.log.tmp.$$" "$lt/live-ack.log" 2>/dev/null
 fi
 exit 0

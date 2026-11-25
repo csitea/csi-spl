@@ -185,5 +185,10 @@ run_case "$T/o" "$F" VM_COST_OUT="$T/vm.tsv"
 grep -qP '^2026-11-05\tws-a\tvm-a\tok\t1300000\t200000\t50000\t1550000\t$' "$T/vm.tsv" && ! grep -qP '^2026-11-05\t' "$T/o" \
   && pass "VM_COST_OUT gets the TSV, stdout only the log" || fail "VM_COST_OUT: $(cat "$T/vm.tsv" 2>&1)"
 
+# --- 6. r98-02 one copy ------------------------------------------------------------
+own="$(grep -nE "FATAL DAY must be a UTC day|COST_REREAD_DAYS - 1" "$F" || true)"
+[[ -z "$own" ]] && grep -q "do_spl_cost_gcp_window" "$F" \
+  && pass "6. one copy: spl-vm-cost-per-day.func.sh delegates window prep to do_spl_cost_gcp_window" || fail "6. vm one copy: own=[$own]"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

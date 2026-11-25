@@ -53,17 +53,9 @@ do_spl_estate_cost_read() {
   local b
   for b in gcloud curl jq yq awk; do command -v "${b}" &>/dev/null || { do_log "FATAL ${b} is not installed"; return 1; }; done
   [[ "${dry_run}" == 1 ]] || command -v psql &>/dev/null || { do_log "FATAL psql is not installed"; return 1; }
-  local day="${DAY:-$(date -u -d yesterday +%F)}"
-  if [[ ! "${day}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ || "$(date -u -d "${day}" +%F 2>/dev/null)" != "${day}" ]]; then
-    do_log "FATAL DAY must be a UTC day YYYY-MM-DD, got: ${day}"; return 1
-  fi
-
-  do_resolve_oap ORG
-  do_resolve_oap APP
-  do_spl_cost_gcp_cnf || return 1
-  local -a days=()
-  local i
-  for ((i = COST_REREAD_DAYS - 1; i >= 0; i--)); do days+=("$(date -u -d "${day} -${i} day" +%F)"); done
+  do_spl_cost_gcp_window || return 1
+  local day="${COST_WINDOW_DAY}"
+  local -a days=("${COST_WINDOW_DAYS[@]}")
 
   local tmp run_id
   tmp=$(umask 077 && mktemp -d) || return 1

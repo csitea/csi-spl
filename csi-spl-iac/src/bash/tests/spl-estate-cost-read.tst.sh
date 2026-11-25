@@ -244,5 +244,21 @@ grep -q '^curl GET projects/csi-spl-all/datasets/spl_billing_export/tables' "$T/
   && pass "no export_source_* in the cnf -> the read stays on csi-spl-all.spl_billing_export" \
   || fail "fallback: $(grep '^curl' "$T/log") / $(cat "$T/o")"
 
+# --- 8. do_spl_cost_gcp_window (r98-02 one copy) -----------------------------------
+out=$(env APP_PATH="$APP_ROOT" ENV=prd DAY=2026-10-09 LIB="$LIB" bash -c '
+  do_log(){ echo "$*"; }; do_resolve_oap(){ case "$1" in ORG) ORG=csi ;; APP) APP=spl ;; esac; }
+  source "$LIB"; do_spl_cost_gcp_window || exit 1
+  printf "%s|%s\n" "$COST_WINDOW_DAY" "${COST_WINDOW_DAYS[*]}"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == "2026-10-09|2026-10-05 2026-10-06 2026-10-07 2026-10-08 2026-10-09" ]] \
+  && pass "8. do_spl_cost_gcp_window sets COST_WINDOW_DAY and trailing COST_WINDOW_DAYS" || fail "8. window ok: rc=$rc $out"
+out=$(env APP_PATH="$APP_ROOT" ENV=prd DAY=2026-02-30 LIB="$LIB" bash -c '
+  do_log(){ echo "$*"; }; do_resolve_oap(){ case "$1" in ORG) ORG=csi ;; APP) APP=spl ;; esac; }
+  source "$LIB"; do_spl_cost_gcp_window' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL DAY must be a UTC day YYYY-MM-DD, got: 2026-02-30"* ]] \
+  && pass "8. do_spl_cost_gcp_window refuses bad DAY" || fail "8. window bad day: rc=$rc $out"
+own="$(grep -nE "FATAL DAY must be a UTC day|COST_REREAD_DAYS - 1" "$F" || true)"
+[[ -z "$own" ]] && grep -q "do_spl_cost_gcp_window" "$F" \
+  && pass "8. one copy: spl-estate-cost-read.func.sh delegates window prep to do_spl_cost_gcp_window" || fail "8. estate one copy: own=[$own]"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

@@ -25,7 +25,7 @@
 # @param $1 (optional) the cnf dir, default $APP_PATH/<org>-<app>-cnf/<org>-<app>
 # @example do_spl_cost_gcp_cnf || return 1
 #------------------------------------------------------------------------------
-# shellcheck disable=SC2034 # the COST_* globals are read by the two cost actions
+# shellcheck disable=SC2034,SC2120 # COST_* globals read by callers; optional $1 cnf dir used by tests
 do_spl_cost_gcp_cnf() {
   local cnf="${1:-${APP_PATH:-}/${ORG:-}-${APP:-}-cnf/${ORG:-}-${APP:-}}"
   local files=() vals=() i
@@ -59,6 +59,29 @@ do_spl_cost_gcp_cnf() {
   COST_PROJECT_LIKE="${vals[5]}"
   COST_SOURCE_PROJECT="${vals[6]}"
   COST_SOURCE_DATASET="${vals[7]}"
+}
+
+#------------------------------------------------------------------------------
+# @description Validate DAY (default yesterday UTC), resolve ORG/APP, load cnf
+# @description env.cost (do_spl_cost_gcp_cnf), and build the trailing
+# @description COST_REREAD_DAYS UTC day window, setting process globals
+# @description COST_WINDOW_DAY and COST_WINDOW_DAYS.
+# @example do_spl_cost_gcp_window || return 1
+#------------------------------------------------------------------------------
+# shellcheck disable=SC2034 # COST_WINDOW_DAY / COST_WINDOW_DAYS are read by callers
+do_spl_cost_gcp_window() {
+  local day="${DAY:-$(date -u -d yesterday +%F)}" i
+  if [[ ! "${day}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ || "$(date -u -d "${day}" +%F 2>/dev/null)" != "${day}" ]]; then
+    do_log "FATAL DAY must be a UTC day YYYY-MM-DD, got: ${day}"; return 1
+  fi
+  do_resolve_oap ORG
+  do_resolve_oap APP
+  do_spl_cost_gcp_cnf || return 1
+  COST_WINDOW_DAY="${day}"
+  COST_WINDOW_DAYS=()
+  for ((i = COST_REREAD_DAYS - 1; i >= 0; i--)); do
+    COST_WINDOW_DAYS+=("$(date -u -d "${day} -${i} day" +%F)")
+  done
 }
 
 #------------------------------------------------------------------------------

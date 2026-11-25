@@ -202,9 +202,264 @@ Refined the same morning (binding where it differs from the first request):
     how many pages Load more has read, the row selection, the keyboard cursor
     and an open sheet or picker (they do not decide which rows the list holds).
 
+## Epic panel: order, sort, filter (FR-014, SPL-6455)
+
+Owner HUM-10, t1 topic 7132e969, 2026-11-24:
+
+> one should be able to order the order of the EPICS in the issues section by
+> drag and dropping , which will be their priority (msg 5c3eccd3)
+
+> there should be sorter and filterred on the top of the left list where the
+> epic issues are -sort alphabetically , by prio , by time modified , by time
+> created (msg c92589ce)
+
+> there should be also filter of the issues based on the silar type of fitler
+> as in the issues view on the right (msg 45a3831a)
+
+Status: specified, not built (build rows T017, `tasks.md`).
+
+### FR-014.0 What is there today
+
+Measured on origin/master `2924c633f`:
+
+| what | where | command -> answer |
+|---|---|---|
+| the panel: one link row per level-1 row, no sort, no filter, no drag | `csi-spl-wui/src/components/IssueEpicsPanel.vue` | `wc -l` -> 97 |
+| its order: open before done / canceled, then by number | `csi-spl-api/src/go/spool-hub-api/internal/hub/issues.go` | `grep -n "func epicSummaries"` -> 836; `grep -n "sort.SliceStable(out"` -> 865 |
+| the summary row: key, kind, number, title, status, total, done, canceled, counts; no priority, no times | same file, `type epicSummary` | `grep -n "type epicSummary struct"` -> 822 |
+| archived and deleted rows are never in it | `csi-spl-api/src/go/spool-hub-api/internal/store/issues_postgres.go` | `grep -n "archived_at IS NULL"` -> 416 |
+| a frame re-reads the summary, 400 ms debounced | `csi-spl-wui/src/pages/issues.vue` | `grep -n "function refreshEpics"` -> 1610 |
+| the phone's epic chip strip reads the same summary | same file | `grep -n 'data-test="issues-epic-chips"'` -> 111 |
+| the sheet's filter row and the phone filter sheet | same file | `grep -n 'class="issues-frow"'` -> 180; `grep -n 'data-test="issues-filter-sheet"'` -> 616 |
+| the filter state | `csi-spl-wui/src/composables/useIssueFilters.ts` | `grep -n "export function useIssueFilters"` -> 204 |
+| the client-side match on every attribute | `csi-spl-wui/src/utils/issues.mjs` | `grep -n "export function matchIssue"` -> 176 |
+| a pointer drag with before / after places, a hold that opens the row menu first | `csi-spl-wui/src/utils/tree-drag.ts` | `grep -n "export type TreeDropPlace"` -> 23 |
+| the per-person default sort of the sheet (membership settings, rdb 0078) | `csi-spl-api/src/go/spool-hub-api/internal/auth/issues_sort.go` | `grep -n "^var IssuesSortColumns"` -> 21 |
+| an own priority change is stamped (rdb 0273) | `csi-spl-api/src/go/spool-hub-api/internal/store/issues.go` | `grep -n "if p.PriorityOwn && old.Priority"` -> 807 |
+| the precedent for a dragged order: a rank inside a priority, the drop takes the neighbour's priority | `csi-spl-doc/specs/153-monitoring-lanes-tab/spec.md` 3.22.7, rdb 0323 | `grep -n "3.22.7 Drag"` -> 1846 |
+
+### FR-014.1 The manual order is the epics' priority
+
+The panel has ONE shared order per workspace, the **manual order**, and it is
+the level-1 rows' priority read top-down.
+
+**D1, what is stored.** The existing `priority` (1..5, FR-001) stays the
+priority, and a new rank orders the rows inside one priority:
+`issues.epic_rank` (bigint, NULL = never placed), `epic_rank_by`,
+`epic_rank_at`. The manual order is:
+
+1. open rows, then closed rows (done, diss), as today;
+2. priority, 1 first;
+3. ranked rows first, lower rank first;
+4. then by number, lower first (today's order, so nothing moves on deploy).
+
+Why both, and how they relate: the owner said the dragged order "will be their
+priority". A rank alone would leave two orders that can disagree (the panel
+says A above B, the priority column says B is 1 and A is 3), and every other
+place that reads priority (the sheet's sort, the filters, the agents' issue
+reads) would not see the drag. Mapping the position onto 1..5 alone cannot hold
+a 12-epic order in five numbers. So a drop does both, the way the fleet queue
+already does (spec 153 3.22.7, owner-accepted):
+
+- **the moved row takes the priority of the row it now sits directly above**
+  (of the row above it, when it lands last). A drop across a priority line is
+  therefore what it looks like, and read top-down the priorities never go
+  back up. The write is the row's own priority change (`PriorityOwn`, stamps
+  `priority_set_at`, writes an issue history line), so it beats an older
+  discussion priority (spec 150 3.4 item 4) and shows wherever priority shows;
+- it gets a rank between its two neighbours. Every unranked open row of that
+  priority above it gets a rank in its current order (a rank cannot sit below
+  an unranked row); those rows get no `epic_rank_by` and no history line,
+  because nothing visible about them changed;
+- a drop between two rows of the same priority changes only the rank: no
+  priority write, no history line;
+- ranks use gaps of 1024; when a gap runs out, that priority's ranks are
+  renumbered in the same transaction.
+
+**D2, per workspace, not per user.** The rank is a column of the issue row,
+under the tenant's RLS like every issue column. Why: priority is the
+workspace's, so an order that IS the priority cannot be one person's. A person
+who wants another view picks a sort (FR-014.2), which is theirs.
+
+**D3, a new epic.** No rank: it lands after the ranked rows of its priority,
+by number (rule 4), so the newest epic of a priority is its last. Why: an
+epic nobody placed yet must not jump above ones somebody did place.
+
+**D4, a priority change by any other path** (the picker, the sheet cell, an
+agent's update, a newer discussion priority) clears the row's rank: a new
+decision, the row joins its new priority by rule 4. Stored as: an update that
+changes the priority sets `epic_rank = NULL` in the same UPDATE; a discussion
+priority newer than `epic_rank_at` makes the rank read as none. Other rows
+keep theirs.
+
+**D5, open and closed rows.** Only open rows (every status but done and diss)
+are dragged, and only among open rows; closed rows stay under them, dimmed, as
+today. A closed row keeps its rank, so reopening it puts it back where it was
+(its priority unchanged). A drop below the last open row lands as the last open
+row. Why: the panel is a work list; a finished epic has no priority to set.
+
+**D6, a level change or a delete.** A row that stops being level 1 (kind
+`issue`) loses its rank in the same UPDATE. An archived or deleted row keeps
+its columns; it is not in the summary, and the gaps it leaves are harmless.
+
+**D7, who may reorder.** Any member who may change an issue's priority, i.e.
+`notes.send` (FR-007), in the browser. An agent has no position door in this
+version: it changes an epic's priority with the existing update, which clears
+the rank (D4). Why: a drag is a person's act on a list they see; an agent
+cannot see the neighbours the position names.
+
+**D8, not only a mouse** (HTML drag does not fire on a phone and has no
+keyboard):
+
+- **Mouse / pen**: a row lifts after 5 px of travel (`TREE_DRAG_START_PX`), a
+  line between rows shows where it drops, `Esc` cancels.
+- **Touch**: the hold already opens the row menu (SPL-1226, long-press);
+  a finger that then moves lifts the row instead (`tree-drag.ts`'s rule), so
+  the menu still opens without a drag. A finger that moves before the hold
+  scrolls the list.
+- **Keyboard**: on a focused row, `Alt+ArrowUp` / `Alt+ArrowDown` move it one
+  place. An `aria-live` line says "SPL-17 moved to place 3 of 12".
+- **Row menu** (right-click, long-press): Move up, Move down, Move to top.
+  All of them are the same position call.
+
+The drop is shown at once; a refusal puts the row back and shows the hub's
+reason under the panel heading (the FR-010 rule: the hub decides every write).
+
+### FR-014.2 The sorter
+
+A toolbar under the panel's heading holds the sort and the filter.
+
+| sort | order | default direction |
+|---|---|---|
+| Manual (the default) | FR-014.1 | fixed |
+| Name | the title, `Intl.Collator` of the UI locale, numeric | A to Z |
+| Priority | priority, then the manual order inside it | 1 first |
+| Updated | the row's own `updated_at` | newest first |
+| Created | the row's own `created_at` | newest first |
+
+- A direction button flips every sort but Manual.
+- In every sort, closed rows stay under the open ones. Why: the panel is a
+  work list (D5).
+- Updated and Created are the epic row's own stamps, the same values the
+  sheet's Updated column shows; a change to a child issue does not count. Why:
+  one meaning of "modified" everywhere.
+- Priority ascending lists the same open rows as Manual; it is kept because
+  the owner named it, and descending (5 first) differs.
+- **The choice is remembered per person per workspace**: membership setting
+  `issues_epics_sort` `{col: manual|title|priority|updated|created, dir:
+  asc|desc}` (rdb 0078 column, no migration), written with `PUT
+  /api/v1/auth/preferences` and read from the session claim, like
+  `issues_sort`. Null or never picked = Manual. Why: a sort is a way to look,
+  not the workspace's order.
+- Not in the URL: FR-013's URL names the rows the list holds, and the panel's
+  sort does not change them.
+
+### FR-014.3 The filter
+
+A filter button beside the sort opens the same fields the sheet filters by
+(FR-004), applied to the level-1 rows themselves:
+
+| field | values | note |
+|---|---|---|
+| text | part of the key or the title, any case, non-ASCII too | the parent pickers' match (FR-005); the panel has no column header to sort or find by |
+| kind | epic, feature, both | replaces Level: every row here is level 1 |
+| status | any status, plus Open (not done / diss) and Closed | the owner's "open / done" need without a new control |
+| priority | 1..5 | |
+| assignee | `me`, `none`, a person | |
+| label | a label of the workspace | |
+| deadline | on or before a day | |
+
+- **One filter code**: the rows are matched with `matchIssue`
+  (`utils/issues.mjs`) on the summary rows, which therefore carry the epic's
+  own priority, assignee, labels and deadline (FR-014.4). The status,
+  priority, assignee, label and deadline controls move out of the sheet's
+  filter row into one component per field, used by the sheet's filter row,
+  the phone filter sheet and this panel. No second filter is written. Why:
+  the owner asked for "the silar type of fitler as in the issues view".
+- The filter does not change the issue list on the right; picking an epic
+  still does (`?epic=`).
+- An active filter shows a dot on its button and a line "4 of 12 epics";
+  Clear resets it.
+- **Not remembered**: kept for the browser tab, never stored, not in the URL.
+  Why: a stored filter would hide epics on the next visit with nothing on
+  screen saying why.
+
+### FR-014.4 Drag only in the manual order, unfiltered
+
+Dragging (and Move up / down / to top, and `Alt+Arrow`) works only while the
+sort is Manual and no filter hides a row. Otherwise rows show no drag
+affordance, a press does not lift, and the Move items are disabled with the
+hint "Switch to Manual order and clear the filter to reorder". Why: in another
+sort the place a row is dropped is not a place in the manual order; under a
+filter the neighbours on screen are not the stored neighbours, so the call
+would be refused as stale.
+
+### FR-014.5 Contracts
+
+**Store (rdb, next free number at build, `do_rdb_migration_next`).**
+`ALTER TABLE issues ADD COLUMN IF NOT EXISTS epic_rank bigint CHECK (epic_rank > 0)`,
+`epic_rank_by text`, `epic_rank_at timestamptz`. Nullable, no backfill, no
+rewrite; `SET LOCAL lock_timeout = '5s'` like rdb 0323. The running image
+ignores the columns, so the file rolls before the hub that writes them. RLS:
+the table's existing policies cover new columns. Both drivers (memory and
+Postgres) implement `SetEpicPosition`.
+
+**Hub, the summary.** `epics[]` of `GET /v1/view/issues` (issues-v1 §8) is
+listed in the manual order (FR-014.1) and each row gains:
+
+```json
+{"priority": 2, "rank": 3072, "assignee": "HUM-10", "labels": ["lbl-1"],
+ "deadline": "2026-12-01T09:00:00Z",
+ "created_at": "2026-10-02T08:11:00Z", "updated_at": "2026-11-24T16:20:21Z"}
+```
+
+`rank` is null when unranked (or when D4 makes it read as none). The WUI sorts
+and filters client-side: the summary is every level-1 row of the workspace,
+tens of rows, already sent whole.
+
+**Hub, the move.** `PUT /v1/issues/{ref}/position`, browser session, body
+`{"before": "<key>"|null, "after": "<key>"|null}`: the row's two neighbours as
+the page saw them (`before` = the row now above it). In one transaction, with
+the workspace's open level-1 rows locked (`FOR UPDATE`):
+
+| case | answer |
+|---|---|
+| done | 200 `{"issue": <issue JSON>, "epics": [<summary>]}`; an `issue` frame for every row whose priority or rank changed |
+| `{ref}` not level 1 | 400 `not_epic` |
+| both neighbours null, or one is `{ref}` | 400 `bad_position` |
+| `{ref}` or a neighbour closed | 409 `epic_closed` |
+| a neighbour no longer adjacent, or gone | 409 `stale_position`; nothing changes, the page re-reads and says so |
+| no `notes.send` | 403 `forbidden` |
+| `{ref}` of another tenant | 404 `not_found` |
+
+The PATCH path (FR-010) clears `epic_rank` when it changes the priority or the
+kind (D4, D6).
+
+**Hub, the preference.** `issues_epics_sort` joins `MembershipSettings` and
+the preferences body, its shape checked like `parseIssuesSort` (an unknown
+column or direction: 400 `unsupported_issues_epics_sort`).
+
+**WUI.** `IssueEpicsPanel.vue` gains the toolbar (sort select, direction
+button, filter button with its popover) and the drag through `tree-drag.ts`
+with only the `before` / `after` places. The panel's displayed list is one
+computed (sort, then filter) that the phone's chip strip also reads.
+
+**Phone (<= 820 px, SPL-992).** The panel is level 1, full width; the toolbar
+is two 44 px icon buttons (sort, filter) that open bottom sheets like the
+issue list's. Rows drag by hold-then-move (D8); the row menu has the Move
+items. The epic chip strip (`pages/issues.vue`) shows the panel's sorted and
+filtered list, "All" first; chips do not drag (a horizontal strip of chips is
+no place to set an order): reorder in the panel.
+
+**Help.** `csi-spl-doc/doc/help/issues.md`, its Epics line: the order is the
+priority, how to drag, sort and filter.
+
+
 ## MVP now / next
 
 - **Now**: FR-001..FR-012.
+- **Specified, not built**: FR-014, the epic panel's order, sort and filter
+  (build rows T017).
 - **Next**: sub-issue UI, several teams / prefixes per tenant, cycles and
   projects, bulk select (`X`), an undelete in the UI, archive, an activity history per issue,
   `is:issue` in the omnibox (with the search lane, CLE-34992).
@@ -313,4 +568,4 @@ Only the planned keys change; every other byte stays. A plan holding a key
 above the workspace's `last_number` is refused whole (exit 2, SPL-5073). Dry run unless
 `DRY_RUN=0`. Test: `csi-spl-orc/src/bash/tests/spl-issue-ref-rewrite.tst.sh`.
 
-<!-- version: 0.10.2 · updated: 2026-11-08 · last-edit: 2026-11-08T13:20:00Z -->
+<!-- version: 0.11.0 · updated: 2026-11-25 · last-edit: 2026-11-25T02:38:00Z -->

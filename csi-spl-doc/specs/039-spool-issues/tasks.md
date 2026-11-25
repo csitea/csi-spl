@@ -154,4 +154,53 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
         `issues-views-live.proof.mjs` n=1 per env - dev t1 9/9, prd e2e 9/9
         (the view stored at the hub, a reload keeps it, a group's +, a drag
         = a status at the hub, its row deleted, the person's view restored)
-<!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->
+- [ ] T017 SPL-6455 (owner HUM-10, t1 7132e969, msgs 5c3eccd3, c92589ce,
+      45a3831a): the epic panel's order, sort and filter (spec FR-014). One
+      small lane per row; the kind names the vendor (`do_spl_lane_mix`).
+      Order: a, b, c; d and e any time; f after c, d and e; g after c; i last
+  - [ ] T017a rdb: `issues.epic_rank`, `epic_rank_by`, `epic_rank_at`
+        (FR-014.5), number from `do_rdb_migration_next`; applied on dev,
+        then prd, before the hub of T017b rolls. Kind `simple_coding`.
+        Check: `lint-migration`; information_schema lists the three columns
+        in both envs
+  - [ ] T017b hub store: `SetEpicPosition` on memory and Postgres (FR-014.1
+        D1..D6: neighbour check, the priority of the row below, ranks for the
+        unranked rows above, gaps of 1024 and the renumber); the update path
+        clears the rank on a priority or kind change. Kind `complex_coding`.
+        Check: store tests on both drivers, `PRE_PUSH_TIER=full`, each with
+        a red control (a stale neighbour moves nothing; a drop across a
+        priority line writes that priority)
+  - [ ] T017c hub route + summary: `PUT /v1/issues/{ref}/position` with the
+        FR-014.5 refusals, its `issue` frames; `epics[]` in the manual order
+        with priority, rank, assignee, labels, deadline, created_at,
+        updated_at; issues-v1 §1 and §8 updated. Kind `complex_coding`.
+        Check: `internal/hub` tests (each refusal, the frame fan-out), api
+        run-all-tests
+  - [ ] T017d hub preference `issues_epics_sort` (FR-014.2), shaped like
+        `issues_sort`. Kind `simple_coding`. Check: preferences tests, both
+        drivers
+  - [ ] T017e WUI refactor, no behaviour change: the status, priority,
+        assignee, label and deadline filter controls become one component
+        per field, used by the sheet's filter row and the phone filter sheet
+        (FR-014.3). Kind `simple_coding`. Check: typecheck, the issues mock
+        e2e suites unchanged and green
+  - [ ] T017f WUI panel toolbar: sort (FR-014.2, stored), filter
+        (FR-014.3, `matchIssue` + the T017e fields), "n of m", the phone
+        sheets and the chip strip reading the same list; keys in every
+        locale. Kind `complex_coding`; the locale text then gets its
+        language check (`i18n`). Check: typecheck, unit tests of the sort
+        and filter, mock e2e at 1280x800 and 412x915
+  - [ ] T017g WUI reorder: drag via `tree-drag.ts` (before / after only),
+        `Alt+ArrowUp` / `Alt+ArrowDown`, Move up / down / to top in the row
+        menu, the `aria-live` line, the undo on a refusal, off outside the
+        unfiltered manual order (FR-014.4). Kind `complex_coding`. Check:
+        unit tests with fake timers, mock e2e (mouse, touch hold-then-move,
+        keyboard; a 409 puts the row back)
+  - [ ] T017h help: `csi-spl-doc/doc/help/issues.md`, the Epics line
+        (FR-014.5 Help). Kind `specs_and_docs`. Check: `do_check_dist_hygiene`
+  - [ ] T017i live proof `issues-epic-order-live.proof.mjs`, n=1 per env
+        after T017c..g are served on dev and prd: a drag across a priority
+        line stores that priority at the hub, a second tab shows the new
+        order without a reload, the sort survives a reload, every row it
+        made deleted. Kind `tests`
+<!-- version: 0.8.0 · updated: 2026-11-25 · last-edit: 2026-11-25T02:38:00Z -->

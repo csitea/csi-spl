@@ -1,7 +1,7 @@
-# Spec 187 build round - plan v1.2 (13 rows (S12 split), 8 batches)
+# Spec 187 build round - plan v1.3 (13 rows (S12 split), 8 batches)
 
 Epic: SPL-2403 (the brief's line; spec 187 names SPL-2398, see 2.4 N1)  
-Spec: csi-spl-doc/specs/187-scheduled-tasks-activities (v0.4)  
+Spec: csi-spl-doc/specs/187-scheduled-tasks-activities (v0.6)  
 Class: feature  
 Kind: specs_and_docs  
 Issue: SPL-6376  
@@ -27,12 +27,14 @@ This plan re-measures each row's sites on one sha, orders the rows into
 batches of disjoint files (R1), names each row's kind, vendor and R7
 reviewer, and proposes one brief per row. It writes no code.
 
-**Status: v1.2, signed v1.0 plus the owner's answers (v1.1) and review a-475's fixes (v1.2).** Panel PASS (c-342, same-vendor panel, waiver)
+**Status: v1.3, signed v1.0 plus the owner's answers (v1.1), review a-475's fixes (v1.2) and the owner's answer to Q1b (v1.3).** Panel PASS (c-342, same-vendor panel, waiver)
 on v0.2 `cca84bfdf`; landed as `49f244c16` + `0989526af` (the same tree,
 messages reworded for the release-note gate) on the dispatch holder's GO.
 Owner questions Q1-Q3 are answered (poll `bb3b76c2`, 2.4): Q1 the
-owner's own option (spec D21), Q2 B (spec D22), Q3 A. Q1b is open (2.4,
-spot S8 only). Planner: c-074 (claude, the
+owner's own option (spec D21), Q2 B (spec D22), Q3 A. Q1b is answered
+(spec D23: one "Scheduled tasks" dialog per topic, channel, issue and
+epic; Settings stays admin-only); Q1c is open (2.4, spots S8 and S9
+only). Planner: c-074 (claude, the
 backup for `specs_and_docs`: agy on its usage limit; the brief's addendum
 reads 2026-11-30T21:31Z on one box, the holder's note 8cc25fff "quota out
 to 12-01"; the placer reads the live pick, not this line). Panel: one seat,
@@ -133,7 +135,7 @@ Where the spec's line differs, both are given.
 | `api:store/rls_test.go` `TestRLSCoversEveryTenantTable` | (by name) | `:103` |
 | `api:hub/roundtrips_perf_test.go` `TestRoundTripsPerRequest` | (by name) | `:30` |
 | `api:hub/openapi_routes_test.go` `TestOpenAPIRoutes` | (not cited) | `:314`: every new route of S6, S7 and S11 is also written into `api:hub/openapi.json` |
-| WUI entry points (Q1 = spec D21) | "Settings -> Scheduled tasks"; a "Scheduled tasks" item in the channel and topic right-click menus | channel row menu `wui:components/SidebarRowMenu.vue` (`choose(id)` `:245-277`; items built by `wui:utils/sidebar-row-menu.mjs` `rowMenuItems` `:17-58`, channel block `:24-37`), opened from `ChannelSidebar.vue` `@contextmenu` (`:325`); topic card menu `wui:components/MessageMenu.vue` (spec 182's `loops` item `:75`, `:203`; items built by `wui:utils/msg-menu.mjs` `msgMenuItems` `:102-162`, `topic-loops` `:155`, desktop only), shown by `MessageCard.vue`'s `topicMenu` (`:764-767`); read on `5adcd5fdd`. A channel's item lists that channel's tasks, a topic's that topic's (S7's `?channel=` / `?topic=`) |
+| WUI entry points (Q1 = spec D21) | "Settings -> Scheduled tasks"; a "Scheduled tasks" item in the channel and topic right-click menus | channel row menu `wui:components/SidebarRowMenu.vue` (`choose(id)` `:245-277`; items built by `wui:utils/sidebar-row-menu.mjs` `rowMenuItems` `:17-58`, channel block `:24-37`), opened from `ChannelSidebar.vue` `@contextmenu` (`:325`); topic card menu `wui:components/MessageMenu.vue` (spec 182's `loops` item `:75`, `:203`; items built by `wui:utils/msg-menu.mjs` `msgMenuItems` `:102-162`, `topic-loops` `:155`, desktop only), shown by `MessageCard.vue`'s `topicMenu` (`:764-767`); read on `5adcd5fdd`. A channel's item lists that channel's tasks, a topic's that topic's (S7's `?channel=` / `?topic=`). D23 (read on `208e5f757`): the issue and epic menu `wui:composables/useIssueCtxMenu.ts` `menuItemsFor` (`:45`; `top` = epic or feature), opened from an issue row, the sidebar epic row (`wui:components/IssueEpicsPanel.vue` `:22`, `onEpicContext` `:67`) and the epic title-row button (`openEpicMenu` `:91`); the issue detail header `wui:components/IssueDetailActions.vue` (`:50`). S7's `?issue=` / `?epic=` |
 | WUI Settings sections | "Settings -> Scheduled tasks" | `wui:utils/tenant-settings-nav.ts` (94 lines): each section carries a `perm` (`:29-39`), filtered by `filterByPerm` (`:69`); pages under `wui:pages/tenant-settings/` (13 files) |
 | `csi-spl-wui/i18n/locales/` | (by rule) | 19 files |
 | user help | S10 | `csi-spl-doc/doc/help/` (31 files), copied by `node src/node/help/sync-help.mjs` (csi-spl-wui; `--check` exits 1 on a difference) |
@@ -249,7 +251,10 @@ order.
   `wui:utils/tenant-settings-nav.ts`, the "Scheduled tasks" item in
   `wui:components/SidebarRowMenu.vue` + `ChannelSidebar.vue` +
   `wui:utils/sidebar-row-menu.mjs` and in `wui:components/MessageMenu.vue`
-  + `MessageCard.vue` + `wui:utils/msg-menu.mjs` (Q1, spec D21),
+  + `MessageCard.vue` + `wui:utils/msg-menu.mjs` (Q1, spec D21), the one
+  new `wui:components/ScheduledTasksDialog.vue` and its item in
+  `wui:composables/useIssueCtxMenu.ts` + `wui:components/IssueDetailActions.vue`
+  (Q1b, spec D23),
   the Instance section, the four
   templates, the topic and message label chips, `wui:utils/spool-client*.mjs`,
   `csi-spl-wui/i18n/locales/*.json`, their unit tests.
@@ -312,8 +317,27 @@ the briefs below follow it.
   members get a non-Settings entry for those tasks (the `#scheduled-runs`
   channel menu, or the Issues header). B: "Settings -> Scheduled tasks"
   opens to every member (the test changes; Settings shows to non-admins).
-  Spot: S8 only; batches 1-5 do not wait on it. Spec 187 1.2 and 6.2
-  record it as open.
+  Spot: S8 only; batches 1-5 do not wait on it. **Answered (v1.3)**: the
+  owner chose B (msg `b6acff79`) and withdrew it (msg `6b1806e4`,
+  verbatim: "no no sorry , not b , the scheduled tasks should be accesible
+  via a dialog box , which could be set per discussion/topic and per
+  channel , and per issue , and per epic"). Spec D23: ONE dialog, opened
+  per topic and channel (D21's menus) and per issue and epic (the issue
+  menu `menuItemsFor`, the issue detail header, the epic sidebar row and
+  title button); Settings stays admin-only. A contract change in three
+  rows: S2 adds `key:` and `epic:` on issues to grammar 1.7, S7 adds
+  `GET /v1/tasks?issue=` / `?epic=`, S8 builds the dialog and the two new
+  entries (S9 opens all four). No row, batch or vendor moves; S2 and S7
+  keep their files.
+- **Q1c (open, raised by D23; the holder asks the owner).** No dialog
+  reaches, for a member who is not an admin: (a) a `topic` or `message`
+  task over all channels or several channels (template 7.3 as written);
+  (b) an `issue` task with no positive `key:` or `epic:` leaf (templates
+  7.2 and 7.4 as written). Admins reach them in Settings. Until answered
+  the dialog's "New task" binds the task to its object; S7's save check
+  does not refuse (a) or (b) from the API. Spot: S8 (the templates'
+  scope from a dialog) and S9; batches 1-5 do not wait on it. Spec 187
+  1.2.
 
 The questions as asked:
 
@@ -461,9 +485,13 @@ placement and cites it in its subject, e.g.
   issue: no change since) and `changed:<duration>` (its inverse), on
   `TypeTopic` and `TypeIssue`; in `MatchTopic` / `MatchEntity` and in the
   Postgres compile (`search_postgres.go`); `after:` / `before:` unchanged.
+  D23 (v1.3): `key:<KEY>` (exactly that issue) and `epic:<KEY>` (the
+  issues whose level-1 row is KEY, not KEY itself), on `TypeIssue` only,
+  in the same two paths.
 - Done and red control: spec 187 S2's cells verbatim (31-day vs 29-day
   topic in both paths; an issue by its last change; `changed:7d` the
-  inverse; red: compile `idle:` as `after:`).
+  inverse; `key:SPL-7` not SPL-70; `epic:SPL-17` its issues, not itself;
+  both refused on a non-issue type; red: compile `idle:` as `after:`).
 - Test column: `search/grammar_test.go`, the `search/match*` tests, every
   store test of `search_postgres.go`, the operators route test
   (`GET /v1/view/search/operators`, search-v1 section 6), and any WUI test
@@ -568,7 +596,9 @@ placement and cites it in its subject, e.g.
 - Contract: spec 9.1.5 (`/v1/tasks` JSON, the errors, and D21's
   `GET /v1/tasks?channel=` / `?topic=` filters with a test each;
   `?topic=` matches a positive `OpTopic` leaf of `search.Parse`, the id
-  lower-cased, so `-topic:<id>` is not a match);
+  lower-cased, so `-topic:<id>` is not a match); D23's `?issue=` /
+  `?epic=` the same way over a positive `key:` / `epic:` leaf, a test
+  each;
   `mention_assignee` on `object = channel` answers `400 bad_task` (D22)
   from S3's `validateTaskSave`, so S6's instance tasks share it.
   `GET /v1/tasks/preview` counts and writes nothing.
@@ -638,8 +668,13 @@ placement and cites it in its subject, e.g.
   topic's; "New task" there fills the scope; the topic item desktop only
   as `topic-loops`, `msg-menu.mjs:155`, unless it fits the phone sheet
   budget of `tests/e2e/phone-card-menu.test.mjs`); a member's entry for
-  tasks over all channels and `issue` tasks by Q1b's answer (2.4, open;
-  S8 is not queued before it); the
+  D23 (2.4 Q1b): the list is ONE `ScheduledTasksDialog.vue`, the same
+  from all four entries, with a "Scheduled tasks" item also in the issue
+  and epic menu (`useIssueCtxMenu.ts` `menuItemsFor`, a `top` target for
+  an epic) and the issue detail header (`IssueDetailActions.vue`); "New
+  task" binds `key:<KEY>` or `epic:<KEY>`; Settings stays admin-only
+  (`tenant-settings.test.mjs:31` unchanged); Q1c (2.4, open) decides the
+  member's unbound tasks, and S8 is not queued before it; the
   editor in spec 6.3's order with the Advanced cron field and its next
   three times (from the preview route or a client copy of the rule: name
   which in the commit), the agent pick (D11), the four templates of spec 7
@@ -666,8 +701,9 @@ placement and cites it in its subject, e.g.
 - Files: new `csi-spl-wui/tests/e2e/scheduled-tasks.test.mjs` only; the
   mock's answers are S8's (`spool-client-mock.mjs`).
 - Done: spec 187 S9's flows on the generated bundle, mock-served
-  (`BASE_URL=<bundle> pnpm run test:e2e`), plus the D21 channel and topic
-  right-click items opening the filtered list.
+  (`BASE_URL=<bundle> pnpm run test:e2e`), plus the dialog opened from a
+  channel and a topic (D21) and from an issue and an epic (D23), each
+  listing only its own tasks.
 - Red control: skip the template fill, and the template test finds an
   empty editor (RED, then GREEN, in the commit body).
 
@@ -703,3 +739,4 @@ placement and cites it in its subject, e.g.
 | v1.0 | c-342 PASS on `cca84bfdf` (review line checked rc 0); the holder's GO; landed as `49f244c16` + `0989526af` with release-note trailers added to the two messages (tree unchanged, the holder's second GO); owner Q1-Q3 posted as a form, first readings stand until answered |
 | v1.1 | the owner's answers (poll `bb3b76c2`): Q1 own option, a "Scheduled tasks" item in the channel and topic right-click menus (spec v0.4 D21; S7 filters, S8 items, sites row and batch 6 files); Q2 B, `notify`'s `mention_assignee` (spec D22; S1 struct, S3 mention, S7 save check, S8 template); Q3 A, one plan, unchanged. No row, batch or vendor moves |
 | v1.2 | review a-475 (agy) FAIL on `31d6b4886`: W1 reading (c) unsound: the member's view of tasks over all channels and `issue` tasks is owner question Q1b, open, spot S8 only (2.4, spec 1.2 / 6.2); W2 `SidebarRowMenu.vue` `:245-277` and the two menu util files in the sites row and batch 6. Notes: N1 `?topic=` by parsed positive leaf (S7); N2 channel refusal in `validateTaskSave`, mentions deduplicated (S3, S7); N3 topic item's phone rule (S8), D21 menus in S9; N4 spec status and sha lines. Readings (a), (b) judged sound |
+| v1.3 | owner answer to Q1b (spec v0.6 D23; B of msg `b6acff79` withdrawn by msg `6b1806e4`): one "Scheduled tasks" dialog per topic, channel, issue and epic, Settings admin-only; the issue and epic entry sites (1.3); S2 `key:` / `epic:`, S7 `?issue=` / `?epic=`, S8 the dialog and two entries, S9 four entries; Q1c open (2.4). Header line 4 now names spec v0.6 (a-475's N1: it said v0.4). No row, batch or vendor moves |

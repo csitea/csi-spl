@@ -333,7 +333,8 @@ func TestNetvisorStoreWrites(t *testing.T) {
 }
 
 // TestNetvisorHumanScopeCallers: app.human_id is set in netvisor_postgres.go
-// alone, so no other store path can open a Netvisor owner's rows.
+// and tax_postgres.go (rdb 0324's reader scope) alone, so no other store
+// path can open a Netvisor owner's or the tax index's rows.
 func TestNetvisorHumanScopeCallers(t *testing.T) {
 	ents, err := os.ReadDir(".")
 	if err != nil {
@@ -351,8 +352,9 @@ func TestNetvisorHumanScopeCallers(t *testing.T) {
 		}
 		has := strings.Contains(string(b), "app.human_id")
 		seen = seen || (has && name == "netvisor_postgres.go")
-		if has && name != "netvisor_postgres.go" {
-			t.Errorf("%s names app.human_id: only netvisor_postgres.go sets the Netvisor owner scope", name)
+		// tax_postgres.go (rdb 0324, SPL-6438) sets the Taxes page's reader scope.
+		if has && name != "netvisor_postgres.go" && name != "tax_postgres.go" {
+			t.Errorf("%s names app.human_id: only netvisor_postgres.go and tax_postgres.go set a human scope", name)
 		}
 	}
 	if !seen {

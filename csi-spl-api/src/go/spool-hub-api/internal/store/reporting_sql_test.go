@@ -176,6 +176,7 @@ func TestSQLExecutorRefusesRelations(t *testing.T) {
 		`SELECT * FROM hours_entries`:                                           "hours_entries",
 		`SELECT * FROM rbac_permissions`:                                        "rbac_permissions",
 		`SELECT * FROM netvisor_forecast_items`:                                 "netvisor_forecast_items",
+		`SELECT * FROM tax_documents`:                                           "tax_documents",
 		`SELECT invoice_no, payer, total FROM income_invoices`:                  "income_invoices",
 		`SELECT minutes, amount_micros, currency FROM commit_human_time`:        "commit_human_time",
 		`SELECT * FROM messages WHERE EXISTS (SELECT 1 FROM commit_human_time)`: "commit_human_time",

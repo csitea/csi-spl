@@ -96,6 +96,8 @@ var rlsTables = []string{
 	"box_snapshots",
 	// rdb 0319, spec 181 B9 (SPL-6344): a private workspace's cancel
 	"workspace_cancellations",
+	// rdb 0324, spec 143 taxes-tab.md S1 (SPL-6438): person seats read, the sync writes (tax_test.go)
+	"tax_snapshots", "tax_documents",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

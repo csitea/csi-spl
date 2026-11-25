@@ -700,6 +700,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.NetvisorIngest(ctx, s.tenant, snap); err != nil {
 		t.Fatal(err)
 	}
+	// tax_snapshots, tax_documents (rdb 0324, spec 143 taxes-tab.md S1,
+	// SPL-6438): one invented snapshot of one document, through the store API.
+	if _, err := pg.TaxIngest(ctx, s.tenant, taxSnap(now, s.marker)); err != nil {
+		t.Fatal(err)
+	}
 	// tenant_agent_model and agent_model_reading (rdb 0309, spec 184 row H1):
 	// one default-model cell and one box reading per tenant.
 	if err := pg.SetAgentModels(ctx, s.tenant, AgentModelPatch{By: "HUM-1",
@@ -856,6 +861,11 @@ var operatorBlindTables = map[string]bool{"workspace_vendor_keys": true}
 var ownerScopedTables = map[string]bool{"netvisor_settings": true, "netvisor_snapshots": true,
 	"netvisor_forecast_items": true, "netvisor_card_cost_lines": true}
 
+// taxTables are read by a person seat and written in the tax ingest scope
+// alone (rdb 0324, spec 143 taxes-tab.md): the operator and the tenant
+// alone read 0, so the census reads and writes them in the ingest scope.
+var taxTables = map[string]bool{"tax_snapshots": true, "tax_documents": true}
+
 // nvsOwnerOf is tenant's Netvisor owner, read in the ingest scope.
 func nvsOwnerOf(ctx context.Context, pg *Postgres, tenant string) (owner string, err error) {
 	err = pg.inNetvisorIngest(ctx, tenant, func(tx pgx.Tx) error {
@@ -867,6 +877,9 @@ func nvsOwnerOf(ctx context.Context, pg *Postgres, tenant string) (owner string,
 // crossScope runs fn in tenant's scope for table tb: the owner's scope for
 // an owner-scoped table, else inTenant.
 func crossScope(ctx context.Context, pg *Postgres, tb, tenant string, fn func(pgx.Tx) error) error {
+	if taxTables[tb] {
+		return pg.inTaxIngest(ctx, tenant, fn)
+	}
 	if !ownerScopedTables[tb] {
 		return pg.inTenant(ctx, tenant, fn)
 	}
@@ -883,7 +896,7 @@ func countOf(t *testing.T, pg *Postgres, tb, tenant string) int {
 	t.Helper()
 	var n int
 	run := pg.asOperator
-	if operatorBlindTables[tb] || ownerScopedTables[tb] {
+	if operatorBlindTables[tb] || ownerScopedTables[tb] || taxTables[tb] {
 		run = func(ctx context.Context, fn func(pgx.Tx) error) error { return crossScope(ctx, pg, tb, tenant, fn) }
 	}
 	if err := run(context.Background(), func(tx pgx.Tx) error {

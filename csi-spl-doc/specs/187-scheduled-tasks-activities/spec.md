@@ -1,8 +1,9 @@
 # Spec 187: Scheduled Tasks and Activities
 
-Status: **Decided v0.4** (2026-11-25). Lanes `c-150` (v0.1, v0.2),
-`c-660` (v0.3) and `c-074` (v0.4, the build plan's form), `claude`, backup for `specs_and_docs` (agy held by the
-placer). Every question is answered (1.1.2); nothing below is built.
+Status: **Decided v0.5** (2026-11-25). Lanes `c-150` (v0.1, v0.2),
+`c-660` (v0.3) and `c-074` (v0.4 the build plan's form, v0.5 its review), `claude`, backup for `specs_and_docs` (agy held by the
+placer). Questions answered: 1.1.2 and 1.1.3; plan question Q1b is open
+(1.2, row S8 only). Nothing below is built.
 Epic: **SPL-2398**. Issue: **SPL-6067**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:91992830-ca2f-4711-b04e-e4c333d7294d` (`t1`), task
 `dispatch-91992830`.
@@ -22,7 +23,7 @@ Paths below: `api/` = `csi-spl-api/src/go/spool-hub-api/internal/`,
 `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`, `wui/` =
 `csi-spl-wui/src/`. Every claim about the code was read on `origin/master`
 `d6b810775` (v0.2); every claim v0.3 adds or changes was read on
-`origin/master` `325a47c76`.
+`origin/master` `325a47c76`; every claim v0.4 and v0.5 add on `5adcd5fdd`.
 
 ## 0. The owner's words (HUM-10, t1 91992830, 2026-11-20)
 
@@ -134,7 +135,22 @@ changes only the plan. Verbatim, as relayed by the dispatch holder c-002:
 
 ### 1.2 Open
 
-Nothing. D12 is a default the holder chose and told the owner (post
+- **Q1b (plan question, spot S8 only; batches 1-5 do not wait on it).**
+  Where does a member who is not an admin list and create the tasks the
+  D21 menus do not reach: tasks over all channels, and every `issue` task
+  (`where` is all only for issues, 4.1), which D17 lets a member own
+  (templates 7.2, 7.4)? Every Settings section is gated by an admin
+  permission (`wui/utils/tenant-settings-nav.ts:28-40`, `filterByPerm`
+  `:69`), and `csi-spl-wui/tests/unit/tenant-settings.test.mjs:31` pins
+  "CONTROL: a developer sees no entry". A: Settings stays admin-only, and
+  members get a non-Settings entry for those tasks (e.g. the
+  `#scheduled-runs` channel menu or the Issues header). B: "Settings ->
+  Scheduled tasks" opens to every member (that test changes, and Settings
+  shows in the sidebar, user menu, lobby and command palette for
+  non-admins). Until answered, 6.2's Workspace bullet is the admin view;
+  the member view of those tasks is open. The holder asks the owner.
+
+D12 is a default the holder chose and told the owner (post
 `921ac359`); a later owner word on the grouping changes only 6.1's topic
 rule, no column and no contract.
 
@@ -315,7 +331,7 @@ event trigger, **never the same task, at most 3 tasks deep**.
 | `archive` | message, topic, issue, channel | archives it | `PUT /v1/messages/{msg_id}/archive`, `handleArchiveTopic`, `POST /v1/issues/{ref}/archive`, `PUT /v1/channels/{channel}/archive` |
 | `label` | issue, topic, message (D19) | adds the named label from the workspace's label catalogue | `updateIssue`; for a topic or a message the new label store (4.3.1) |
 | `set_priority` | topic, issue | sets the priority | `PUT /v1/topics/{task_id}/priority`, `updateIssue` |
-| `notify` | any | posts in the task's topic in `#scheduled-runs` (6.1) naming the matched objects, `@`-mentioning listed members and, with `mention_assignee` on (D22), each matched object's assignee: an issue's `assignee`, a topic's starter, a message's sender; an issue with no assignee is named "unassigned" and mentions no one; refused at save for `object = channel` (`400 bad_task`) | a hub post as `HUB-0`, the `PostPublicNotices` path |
+| `notify` | any | posts in the task's topic in `#scheduled-runs` (6.1) naming the matched objects, `@`-mentioning listed members and, with `mention_assignee` on (D22), each matched object's assignee: an issue's `assignee`, a topic's starter, a message's sender; an issue with no assignee is named "unassigned" and mentions no one; a member mentioned twice is mentioned once; refused at save for `object = channel` (`400 bad_task`, in the save check every level shares, so instance tasks too) | a hub post as `HUB-0`, the `PostPublicNotices` path |
 
 #### 4.3.1 Labels on topics and messages (D19)
 
@@ -543,8 +559,9 @@ Workspace admins configure, as registered workspace settings (spec 098,
 - **Workspace**: Settings -> "Scheduled tasks", a new section: name, object,
   next run, last outcome, state (with the pause reason), owner; per row
   Edit, Pause / Resume, Run now, History, Delete; "New task" and "From a
-  template". An admin sees every task; a member sees their own and,
-  read-only, the others.
+  template". An admin sees every task. A member who is not an admin does
+  not see Settings today (`tenant-settings.test.mjs:31`); how such a
+  member reaches tasks the D21 menus do not list is Q1b (1.2, open).
 - **Instance (D10)**: in `t1`'s Settings, an "Instance" section shown only to
   `t1` admins: the 5.1 settings, the instance tasks, and per workspace its
   task count, runs today and tokens this month against its caps (the 5.1
@@ -555,13 +572,18 @@ Workspace admins configure, as registered workspace settings (spec 098,
   (`wui/components/MessageMenu.vue`, the menu spec 182's "Discussion loops"
   item sits in) carry a "Scheduled tasks" item for every member. A
   channel's item lists that channel's tasks: those whose `where` names the
-  channel. A topic's item lists that topic's tasks: those whose query holds
-  `topic:<task_id>` (the grammar's existing `topic:` operator,
+  channel. A topic's item lists that topic's tasks: those whose parsed
+  query holds a positive (not negated) `topic:<task_id>` leaf (the grammar's existing `topic:` operator,
   `api/search/grammar.go:200`). The list is the workspace list's rows and
   per-row actions, with D3's rights (a member edits their own tasks and
   reads the others). "New task" there fills the editor's scope with that
   channel (`where`) or that topic (`where` = its channel, query
-  `topic:<task_id>`). Tasks over all channels show only in Settings.
+  `topic:<task_id>`). Tasks over all channels, and `issue` tasks, are not
+  in these menus: Settings for admins, Q1b (1.2) for members. The items
+  are built in `wui/utils/sidebar-row-menu.mjs` (`rowMenuItems`) and
+  `wui/utils/msg-menu.mjs` (`msgMenuItems`); the topic item follows the
+  `topic-loops` item's phone rule (`msg-menu.mjs:155`, desktop only, the
+  phone bottom-sheet height budget) unless S8 shows it fits.
 - **History**: per task, its runs of the last `history_days`, newest first,
   each linked to its reply in the task's topic.
 
@@ -984,7 +1006,8 @@ success.
 
 The v0.2 form (poll `558a4577`, Q1-Q11; its text and the recommendations
 are in v0.2, `1f1a614bd`, section 10) is answered: section 1.1.2, D9-D20.
-No question is open (1.2).
+The build plan's form (poll `bb3b76c2`) is answered: section 1.1.3, D21-D22.
+One plan question is open: Q1b (1.2), spot row S8 only.
 
 ## 11. Not in this spec
 
@@ -1045,3 +1068,9 @@ No question is open (1.2).
   channel and topic right-click menus (6.2), the list filter `?channel=` /
   `?topic=` (9.1.5, row S7). D22: `notify`'s `mention_assignee` (4.3,
   9.1.1, template 7.2). Code paths read on `origin/master` `5adcd5fdd`.
+- v0.5 (2026-11-25, lane `c-074`): review a-475 (agy) FAIL on `31d6b4886` folded: W1 the member's view of
+  tasks the menus do not list is plan question Q1b, open (1.2, 6.2; spot
+  S8 only); W2 the menu util files named (6.2). Notes N1-N4: the
+  `?topic=` filter matches a positive `topic:` leaf of the parsed query;
+  the `mention_assignee` channel refusal sits in the shared save check;
+  mentions deduplicated; the topic item's phone rule.

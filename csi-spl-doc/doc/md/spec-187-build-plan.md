@@ -1,4 +1,4 @@
-# Spec 187 build round - plan v1.1 (13 rows (S12 split), 8 batches)
+# Spec 187 build round - plan v1.2 (13 rows (S12 split), 8 batches)
 
 Epic: SPL-2403 (the brief's line; spec 187 names SPL-2398, see 2.4 N1)  
 Spec: csi-spl-doc/specs/187-scheduled-tasks-activities (v0.4)  
@@ -27,11 +27,12 @@ This plan re-measures each row's sites on one sha, orders the rows into
 batches of disjoint files (R1), names each row's kind, vendor and R7
 reviewer, and proposes one brief per row. It writes no code.
 
-**Status: v1.1, signed v1.0 plus the owner's answers.** Panel PASS (c-342, same-vendor panel, waiver)
+**Status: v1.2, signed v1.0 plus the owner's answers (v1.1) and review a-475's fixes (v1.2).** Panel PASS (c-342, same-vendor panel, waiver)
 on v0.2 `cca84bfdf`; landed as `49f244c16` + `0989526af` (the same tree,
 messages reworded for the release-note gate) on the dispatch holder's GO.
 Owner questions Q1-Q3 are answered (poll `bb3b76c2`, 2.4): Q1 the
-owner's own option (spec D21), Q2 B (spec D22), Q3 A. Planner: c-074 (claude, the
+owner's own option (spec D21), Q2 B (spec D22), Q3 A. Q1b is open (2.4,
+spot S8 only). Planner: c-074 (claude, the
 backup for `specs_and_docs`: agy on its usage limit; the brief's addendum
 reads 2026-11-30T21:31Z on one box, the holder's note 8cc25fff "quota out
 to 12-01"; the placer reads the live pick, not this line). Panel: one seat,
@@ -132,7 +133,7 @@ Where the spec's line differs, both are given.
 | `api:store/rls_test.go` `TestRLSCoversEveryTenantTable` | (by name) | `:103` |
 | `api:hub/roundtrips_perf_test.go` `TestRoundTripsPerRequest` | (by name) | `:30` |
 | `api:hub/openapi_routes_test.go` `TestOpenAPIRoutes` | (not cited) | `:314`: every new route of S6, S7 and S11 is also written into `api:hub/openapi.json` |
-| WUI entry points (Q1 = spec D21) | "Settings -> Scheduled tasks"; a "Scheduled tasks" item in the channel and topic right-click menus | channel row menu `wui:components/SidebarRowMenu.vue` (its items by id `:246-268`), opened from `ChannelSidebar.vue` `@contextmenu` (`:325`); topic card menu `wui:components/MessageMenu.vue` (spec 182's `loops` item `:75`, `:203`), shown by `MessageCard.vue`'s `topicMenu` (`:764-767`); read on `5adcd5fdd`. A channel's item lists that channel's tasks, a topic's that topic's (S7's `?channel=` / `?topic=`) |
+| WUI entry points (Q1 = spec D21) | "Settings -> Scheduled tasks"; a "Scheduled tasks" item in the channel and topic right-click menus | channel row menu `wui:components/SidebarRowMenu.vue` (`choose(id)` `:245-277`; items built by `wui:utils/sidebar-row-menu.mjs` `rowMenuItems` `:17-58`, channel block `:24-37`), opened from `ChannelSidebar.vue` `@contextmenu` (`:325`); topic card menu `wui:components/MessageMenu.vue` (spec 182's `loops` item `:75`, `:203`; items built by `wui:utils/msg-menu.mjs` `msgMenuItems` `:102-162`, `topic-loops` `:155`, desktop only), shown by `MessageCard.vue`'s `topicMenu` (`:764-767`); read on `5adcd5fdd`. A channel's item lists that channel's tasks, a topic's that topic's (S7's `?channel=` / `?topic=`) |
 | WUI Settings sections | "Settings -> Scheduled tasks" | `wui:utils/tenant-settings-nav.ts` (94 lines): each section carries a `perm` (`:29-39`), filtered by `filterByPerm` (`:69`); pages under `wui:pages/tenant-settings/` (13 files) |
 | `csi-spl-wui/i18n/locales/` | (by rule) | 19 files |
 | user help | S10 | `csi-spl-doc/doc/help/` (31 files), copied by `node src/node/help/sync-help.mjs` (csi-spl-wui; `--check` exits 1 on a difference) |
@@ -246,8 +247,9 @@ order.
 - **Batch 6: S8.** `wui:components/ScheduledTasks*.vue`, a new
   `wui:pages/tenant-settings/scheduled-tasks.vue`,
   `wui:utils/tenant-settings-nav.ts`, the "Scheduled tasks" item in
-  `wui:components/SidebarRowMenu.vue` + `ChannelSidebar.vue` and in
-  `wui:components/MessageMenu.vue` + `MessageCard.vue` (Q1, spec D21),
+  `wui:components/SidebarRowMenu.vue` + `ChannelSidebar.vue` +
+  `wui:utils/sidebar-row-menu.mjs` and in `wui:components/MessageMenu.vue`
+  + `MessageCard.vue` + `wui:utils/msg-menu.mjs` (Q1, spec D21),
   the Instance section, the four
   templates, the topic and message label chips, `wui:utils/spool-client*.mjs`,
   `csi-spl-wui/i18n/locales/*.json`, their unit tests.
@@ -299,7 +301,21 @@ menu, both on the channels and on the topic level." (spec D21); Q2 **B**,
 msg `e17e6c09`: "A new field, mention_assignee (yes or no)" (spec D22); Q3
 **A**, msg `e17e6c09`: "One plan, 13 rows in 8 batches, at most 3 rows live
 at once". Spec 187 v0.4 carries Q1 and Q2 (6.2, 4.3, 9.1.1, 9.1.5, 7.2);
-the briefs below follow it. The questions as asked:
+the briefs below follow it.
+
+- **Q1b (open; review a-475 W1; the holder asks the owner).** Q1's menus
+  list a channel's and a topic's tasks; they do not reach tasks over all
+  channels or `issue` tasks (spec 4.1: issues are all channels only),
+  which D17 lets a member own. Settings is admin-only
+  (`wui:utils/tenant-settings-nav.ts:28-40`; `tenant-settings.test.mjs:31`
+  "CONTROL: a developer sees no entry"). A: Settings stays admin-only, and
+  members get a non-Settings entry for those tasks (the `#scheduled-runs`
+  channel menu, or the Issues header). B: "Settings -> Scheduled tasks"
+  opens to every member (the test changes; Settings shows to non-admins).
+  Spot: S8 only; batches 1-5 do not wait on it. Spec 187 1.2 and 6.2
+  record it as open.
+
+The questions as asked:
 
 - **Q1. Where a member opens "Scheduled tasks".** Spec 6.2
   (`spec.md:526-530` at `07f34efeb`) puts the list in Settings and lets "a
@@ -483,7 +499,9 @@ placement and cites it in its subject, e.g.
   the run id a UUIDv5 of `(task_id, cause)` through `api:uid`. `label` on
   issues only; `notify` with fixed ids and `mention_assignee` (spec 4.3,
   D22: an issue's assignee, a topic's starter, a message's sender;
-  "unassigned" mentions no one). The two seams
+  "unassigned" mentions no one; one mention per member across the matched
+  objects and `mention`). `validateTaskSave` refuses `mention_assignee`
+  on `object = channel` (`ErrBadTask`). The two seams
   `validateTaskSave` and `afterTaskWrite` (2.4 N4 f), with their tests.
 - Done and red control: spec 187 S3's cells verbatim (each schedule kind's
   next local time across a DST change, a missed tick runs once, each fixed
@@ -548,8 +566,11 @@ placement and cites it in its subject, e.g.
   `validateTaskSave`, every create, update and delete S3's
   `afterTaskWrite` (2.4 N4 f).
 - Contract: spec 9.1.5 (`/v1/tasks` JSON, the errors, and D21's
-  `GET /v1/tasks?channel=` / `?topic=` filters with a test each);
-  `mention_assignee` on `object = channel` answers `400 bad_task` (D22).
+  `GET /v1/tasks?channel=` / `?topic=` filters with a test each;
+  `?topic=` matches a positive `OpTopic` leaf of `search.Parse`, the id
+  lower-cased, so `-topic:<id>` is not a match);
+  `mention_assignee` on `object = channel` answers `400 bad_task` (D22)
+  from S3's `validateTaskSave`, so S6's instance tasks share it.
   `GET /v1/tasks/preview` counts and writes nothing.
 - Done and red control: spec 187 S7's cells verbatim (the D3 table; the
   grammar's error; red: save a member's task without narrowing its scope).
@@ -614,7 +635,11 @@ placement and cites it in its subject, e.g.
 - Files: batch 6's list. The Settings section (spec 6.2) and the
   "Scheduled tasks" item in the channel and topic right-click menus (spec
   6.2, D21: a channel's item lists that channel's tasks, a topic's that
-  topic's; "New task" there fills the scope); the
+  topic's; "New task" there fills the scope; the topic item desktop only
+  as `topic-loops`, `msg-menu.mjs:155`, unless it fits the phone sheet
+  budget of `tests/e2e/phone-card-menu.test.mjs`); a member's entry for
+  tasks over all channels and `issue` tasks by Q1b's answer (2.4, open;
+  S8 is not queued before it); the
   editor in spec 6.3's order with the Advanced cron field and its next
   three times (from the preview route or a client copy of the rule: name
   which in the commit), the agent pick (D11), the four templates of spec 7
@@ -641,7 +666,8 @@ placement and cites it in its subject, e.g.
 - Files: new `csi-spl-wui/tests/e2e/scheduled-tasks.test.mjs` only; the
   mock's answers are S8's (`spool-client-mock.mjs`).
 - Done: spec 187 S9's flows on the generated bundle, mock-served
-  (`BASE_URL=<bundle> pnpm run test:e2e`).
+  (`BASE_URL=<bundle> pnpm run test:e2e`), plus the D21 channel and topic
+  right-click items opening the filtered list.
 - Red control: skip the template fill, and the template test finds an
   empty editor (RED, then GREEN, in the commit body).
 
@@ -676,3 +702,4 @@ placement and cites it in its subject, e.g.
 | v0.2 | c-342's FAIL on `36d85b32f`: W1 R7 = agy (claude waiver while out), no grok or mistral reviewer; W2 panel recorded as same-vendor, waiver; W3 owner Q3 (13 rows > 10); W4 S5 to batch 4 with the reply hook and timeout (N4 g); W5 and W6 S3's two seams (N4 f); W7 `PRE_PUSH_TIER=full` on S2 and S12b. Notes: 13 settings pages, S11 after S3, N3 needs an R1 waiver, c-918 landed, drift N7, title 13 rows, Q1/Q2 cite spec lines |
 | v1.0 | c-342 PASS on `cca84bfdf` (review line checked rc 0); the holder's GO; landed as `49f244c16` + `0989526af` with release-note trailers added to the two messages (tree unchanged, the holder's second GO); owner Q1-Q3 posted as a form, first readings stand until answered |
 | v1.1 | the owner's answers (poll `bb3b76c2`): Q1 own option, a "Scheduled tasks" item in the channel and topic right-click menus (spec v0.4 D21; S7 filters, S8 items, sites row and batch 6 files); Q2 B, `notify`'s `mention_assignee` (spec D22; S1 struct, S3 mention, S7 save check, S8 template); Q3 A, one plan, unchanged. No row, batch or vendor moves |
+| v1.2 | review a-475 (agy) FAIL on `31d6b4886`: W1 reading (c) unsound: the member's view of tasks over all channels and `issue` tasks is owner question Q1b, open, spot S8 only (2.4, spec 1.2 / 6.2); W2 `SidebarRowMenu.vue` `:245-277` and the two menu util files in the sites row and batch 6. Notes: N1 `?topic=` by parsed positive leaf (S7); N2 channel refusal in `validateTaskSave`, mentions deduplicated (S3, S7); N3 topic item's phone rule (S8), D21 menus in S9; N4 spec status and sha lines. Readings (a), (b) judged sound |

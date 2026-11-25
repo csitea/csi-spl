@@ -3,11 +3,14 @@
 # Purpose: do_spl_private_overlay_install_cron (spec 158 H4 + H5) with a stub
 # crontab. Every check has a failing control.
 #   1. the master box: the dry run prints the diff and changes nothing; with
-#      no RESERVE_GH_TOKEN_FILE the install is refused (no default)
+#      no RESERVE_GH_TOKEN_FILE and no box GitHub credential the install is
+#      refused
 #   2. the master box, DRY_RUN=0: ONE line, every minute,
-#      do_spl_tenant_host_reserve with the token file and DRY_RUN=0 under
-#      flock, tagged `# csi-spl:tenant-host-reserve`; other lines kept; a
-#      second install changes nothing
+#      do_spl_tenant_host_reserve with DRY_RUN=0 under flock, tagged
+#      `# csi-spl:tenant-host-reserve`; the RESERVE_GH_TOKEN_FILE override in
+#      the line when set, no token path at all when the box credential
+#      (GH_BOX_TOKEN_FILE here) is read; other lines kept; a second install
+#      changes nothing
 #   3. another box: ONE line, every 2 minutes, do_spl_private_overlay_pull
 #      FROM_BOX=<master> under flock, tagged `# csi-spl:private-overlay-pull`;
 #      it drops a reserve line (the box's role moved), needs no token
@@ -26,10 +29,10 @@ CT="$T/crontab"
 printf '0 8 * * * /opt/other/run-me.sh # other:job\n0 9 * * * x # csi-spl:tenant-host-reserve-not-this\n' >"$CT"
 cp "$CT" "$T/ct.orig"
 printf '#!/bin/sh\nif [ "$1" = -l ]; then cat %q; else cp "$1" %q; fi\n' "$CT" "$CT" >"$T/fake-crontab"; chmod +x "$T/fake-crontab"
-mkdir -p "$T/tok"; printf 'synthetic\n' >"$T/tok/token"; chmod 600 "$T/tok/token"
+mkdir -p "$T/tok"; printf 'ALL_CSI_GITHUB_TOKEN=synthetic\n' >"$T/tok/token"; chmod 600 "$T/tok/token"
 cron() {
   SNIPPET='do_spl_private_overlay_install_cron' in_orc PRIVATE_OVERLAY_CRONTAB="$T/fake-crontab" PRIVATE_OVERLAY_ALLOW_WORKTREE=1 \
-    PRIVATE_OVERLAY_CRON_LOG_DIR="$T/log" "$@" 2>&1
+    PRIVATE_OVERLAY_CRON_LOG_DIR="$T/log" GH_BOX_TOKEN_FILE="$T/no-crs" "$@" 2>&1
 }
 tagged() { grep -c " # csi-spl:$1\$" "$CT"; }
 
@@ -38,8 +41,8 @@ out="$(cron SPOOL_DESK_BOX=sat RESERVE_GH_TOKEN_FILE="$T/tok/token")"; rc=$?
 [[ $rc -eq 0 ]] && cmp -s "$CT" "$T/ct.orig" && grep -q '^PLAN cron' <<<"$out" && grep -q '+\* \* \* \* \* cd .*do_spl_tenant_host_reserve' <<<"$out" &&
   pass "1. master box: the dry run prints the diff and changes nothing" || fail "1. dry ($rc: $out)"
 out="$(cron SPOOL_DESK_BOX=sat DRY_RUN=0)"; rc=$?
-[[ $rc -ne 0 ]] && cmp -s "$CT" "$T/ct.orig" && grep -q 'RESERVE_GH_TOKEN_FILE is not set (no default)' <<<"$out" &&
-  pass "1. master box: no token file -> refused, nothing written" || fail "1. no token ($rc: $out)"
+[[ $rc -ne 0 ]] && cmp -s "$CT" "$T/ct.orig" && grep -q "the box GitHub credential $T/no-crs is missing" <<<"$out" &&
+  pass "1. master box: no override and no box credential -> refused, nothing written" || fail "1. no token ($rc: $out)"
 
 # 2. the master box install
 out="$(cron SPOOL_DESK_BOX=sat RESERVE_GH_TOKEN_FILE="$T/tok/token" DRY_RUN=0)"; rc=$?
@@ -51,6 +54,12 @@ line="$(grep ' # csi-spl:tenant-host-reserve$' "$CT")"
 cp "$CT" "$T/ct.1"
 out="$(cron SPOOL_DESK_BOX=sat RESERVE_GH_TOKEN_FILE="$T/tok/token" DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 ]] && cmp -s "$CT" "$T/ct.1" && pass "2. a second install changes nothing" || fail "2. idempotent ($rc: $out)"
+out="$(cron SPOOL_DESK_BOX=sat GH_BOX_TOKEN_FILE="$T/tok/token" DRY_RUN=0)"; rc=$?
+line="$(grep ' # csi-spl:tenant-host-reserve$' "$CT")"
+[[ $rc -eq 0 && "$(tagged tenant-host-reserve)" == 1 ]] &&
+  [[ "$line" == *"flock -n $T/log/reserve.lock env DRY_RUN=0 ./run -a do_spl_tenant_host_reserve >> $T/log/reserve.out 2>&1 # csi-spl:tenant-host-reserve" ]] &&
+  [[ "$line" != *RESERVE_GH_TOKEN_FILE* && "$line" != *"$T/tok"* ]] &&
+  pass "2. no override: the box credential is checked, the line names no token path" || fail "2. box credential install ($rc: $out; $line)"
 
 # 4. check on the master box
 out="$(cron SPOOL_DESK_BOX=sat PRIVATE_OVERLAY_CRON_ACTION=check)"; rc=$?

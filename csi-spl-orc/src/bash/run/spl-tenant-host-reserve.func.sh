@@ -23,13 +23,15 @@
 # @description      so the host is built now, not at the next 15-minute
 # @description      schedule (which stays the backstop); a refused dispatch
 # @description      only warns
-# @description The token is read from RESERVE_GH_TOKEN_FILE, no default: a
-# @description fine-grained token, this repo, secrets write (+ actions write
-# @description for step 5), minted by the owner (spec 158 OD2). It goes to gh
-# @description in its environment, never argv or a log. No log line names a
-# @description hidden slug: counts and placeholders only. Dry run unless
-# @description DRY_RUN=0: it reads the rows and says what it would do.
-# @param RESERVE_GH_TOKEN_FILE (optional) - the token file; needed with DRY_RUN=0
+# @description The token is the box's GitHub credential (gh_box_token_read:
+# @description the ALL_CSI_GITHUB_TOKEN line of $HOME/.github/.csi/crs, spec
+# @description 158 OD2: secrets write, + actions write for step 5);
+# @description RESERVE_GH_TOKEN_FILE, a file of the same form, overrides it.
+# @description The file must be mode 600 or 400, no symlink, not empty. gh gets
+# @description the parsed token in its environment, never argv or a log. No log
+# @description line names a hidden slug: counts and placeholders only. Dry run
+# @description unless DRY_RUN=0: it reads the rows and says what it would do.
+# @param RESERVE_GH_TOKEN_FILE (optional) - overrides the box credential file (same ALL_CSI_GITHUB_TOKEN= form); read with DRY_RUN=0
 # @param RESERVE_ENVS (optional) - the envs read, default "dev prd"
 # @param RESERVE_GH_REPO (optional) - owner/repo, default from git remote origin
 # @param RESERVE_STATE_DIR (optional) - default <var>/<org>/<app>/tenant-host-reserve
@@ -37,7 +39,7 @@
 # @param SPL_PRIVATE_MASTER_BOX (optional) - default sat
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_tenant_host_reserve
-# @example RESERVE_GH_TOKEN_FILE=<token file> DRY_RUN=0 ./run -a do_spl_tenant_host_reserve
+# @example DRY_RUN=0 ./run -a do_spl_tenant_host_reserve
 #------------------------------------------------------------------------------
 do_spl_tenant_host_reserve() {
   do_require_bin yq psql flock gh || return 1
@@ -75,14 +77,17 @@ do_spl_tenant_host_reserve() {
   return "$rc"
 }
 
-# spl_thr_token_file -> RESERVE_GH_TOKEN_FILE when it is a readable, non-empty
-# file closed to its group and other users (mode 600 or 400); FATAL naming what is missing (spec 158 OD2: the
-# owner mints the token, nothing here asks for or stores one)
+# spl_thr_token_file -> the token file: RESERVE_GH_TOKEN_FILE when set, else
+# the box credential (gh_box_token_file). It must be a readable, non-empty
+# file closed to its group and other users (mode 600 or 400), no symlink, with
+# an ALL_CSI_GITHUB_TOKEN line; FATAL naming what is missing (spec 158 OD2:
+# nothing here asks for or stores a token)
 spl_thr_token_file() {
-  local f="${RESERVE_GH_TOKEN_FILE:-}"
-  [[ -n "$f" ]] || { do_log "FATAL RESERVE_GH_TOKEN_FILE is not set (no default): the owner's fine-grained token (this repo, secrets write) is read from it, spec 158 OD2. Nothing reserved" >&2; return 1; }
-  [[ -r "$f" && -s "$f" && ! -L "$f" ]] || { do_log "FATAL RESERVE_GH_TOKEN_FILE $f is missing, empty, unreadable or a symlink. Nothing reserved" >&2; return 1; }
-  [[ "$(stat -c %a "$f")" =~ ^[46]00$ ]] || { do_log "FATAL RESERVE_GH_TOKEN_FILE $f is open to its group or other users (mode $(stat -c %a "$f"), 600 or 400 only): chmod 600 it. Nothing reserved" >&2; return 1; }
+  local f="${RESERVE_GH_TOKEN_FILE:-}" src=RESERVE_GH_TOKEN_FILE
+  [[ -n "$f" ]] || { f="$(gh_box_token_file)"; src="the box GitHub credential"; }
+  [[ -r "$f" && -s "$f" && ! -L "$f" ]] || { do_log "FATAL $src $f is missing, empty, unreadable or a symlink (spec 158 OD2). Nothing reserved" >&2; return 1; }
+  [[ "$(stat -c %a "$f")" =~ ^[46]00$ ]] || { do_log "FATAL $src $f is open to its group or other users (mode $(stat -c %a "$f"), 600 or 400 only): chmod 600 it. Nothing reserved" >&2; return 1; }
+  GH_BOX_TOKEN_FILE="$f" gh_box_token_read >/dev/null || { do_log "FATAL $src $f holds no token. Nothing reserved" >&2; return 1; }
   printf '%s\n' "$f"
 }
 
@@ -93,10 +98,12 @@ spl_thr_repo() {
   printf '%s\n' "$r"
 }
 
-# spl_thr_gh <token file> <gh args...>: gh with the token in its environment only
+# spl_thr_gh <token file> <gh args...>: gh with the file's parsed token in its
+# environment only, never the whole file
 spl_thr_gh() {
-  local f="$1"; shift
-  GH_TOKEN="$(<"$f")" GH_PROMPT_DISABLED=1 gh "$@"
+  local f="$1" tok; shift
+  tok="$(GH_BOX_TOKEN_FILE="$f" gh_box_token_read)" || return 1
+  GH_TOKEN="$tok" GH_PROMPT_DISABLED=1 gh "$@"
 }
 
 # spl_thr_env_read <tmp> (in a subshell with ENV set): the env's open rows to

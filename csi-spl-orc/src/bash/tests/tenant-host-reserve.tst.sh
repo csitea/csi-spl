@@ -5,9 +5,11 @@
 # are made up, no real hidden name is here). The stub gh logs each call and
 # keeps the secret's content and time.
 #   1. on another box it refuses before any read, naming the pull command
-#   2. DRY_RUN=0 with no RESERVE_GH_TOKEN_FILE fails fast (no default), and
-#      a token file open to its group or others (640, 644) is refused;
-#      nothing read or written
+#   2. the token: with RESERVE_GH_TOKEN_FILE unset the box credential
+#      (GH_BOX_TOKEN_FILE, a synthetic KEY=value file) is read, and gh's
+#      environment holds only its ALL_CSI_GITHUB_TOKEN value; with no
+#      credential, a file open to its group or others (640, 644) or a file
+#      with no token line DRY_RUN=0 fails fast, nothing read or written
 #   3. a new hidden pending row: the stamped overlay line, then the box sync,
 #      then the secret set from the overlay (stdin, content equal), then the
 #      read back, then the row's detail, in that order; the token never in
@@ -39,7 +41,8 @@ mkdir -p "$T/bin" "$T/state"
 # stub gh: logs argv (one line), keeps the secret from stdin and its time
 cat >"$T/bin/gh" <<'S'
 #!/usr/bin/env bash
-echo "gh $* token=${GH_TOKEN:+set}" >>"$GH_LOG"
+tk=${GH_TOKEN:+other}; [[ "${GH_TOKEN:-}" == "$WANT_TOKEN" ]] && tk=exact
+echo "gh $* token=$tk" >>"$GH_LOG"
 case "$1 $2" in
   "secret set") [[ -e "$T_DIR/gh.secret.deny" ]] && exit 1; cat >"$T_DIR/secret.yaml"; date -u +%Y-%m-%dT%H:%M:%SZ >"$T_DIR/secret.at"; echo "SECRET" >>"$ORDER_LOG" ;;
   "api repos/"*) echo "READBACK" >>"$ORDER_LOG"; cat "$T_DIR/secret.at" 2>/dev/null || echo 2001-01-01T00:00:00Z ;;
@@ -47,9 +50,9 @@ case "$1 $2" in
 esac
 S
 chmod +x "$T/bin/gh"
-printf 'ghp_synthetic_test_token\n' >"$T/token"; chmod 600 "$T/token"
+printf 'OTHER_CSI_KEY=not-the-token\nexport ALL_CSI_GITHUB_TOKEN="ghp_synthetic_test_token"\n' >"$T/token"; chmod 600 "$T/token"
 OVL="$T/home/.gcp/.csi/csi-spl-private.yaml"; mkdir -p "${OVL%/*}"
-export GH_LOG="$T/gh.log" ORDER_LOG="$T/order.log" T_DIR="$T"
+export GH_LOG="$T/gh.log" ORDER_LOG="$T/order.log" T_DIR="$T" WANT_TOKEN=ghp_synthetic_test_token
 
 # run SNIPPET with every orc function loaded and the cloud / DB edges stubbed;
 # STUB_ROWS_<env>: `row <tenant> <status> <billing> <on|off> <age s>` lines
@@ -87,8 +90,22 @@ out=$(run SPOOL_DESK_BOX=boxb DRY_RUN=0 RESERVE_GH_TOKEN_FILE="$T/token" STUB_RO
 # --- 2. the token -------------------------------------------------------------
 reset
 out=$(run DRY_RUN=0 STUB_ROWS_dev='row zq-new pending active on 60'); rc=$?
-[[ $rc -ne 0 ]] && grep -q 'RESERVE_GH_TOKEN_FILE is not set (no default)' <<<"$out" && [[ ! -s "$ORDER_LOG" && ! -s "$GH_LOG" ]] && ! grep -q zq-new "$OVL" &&
-  pass "2. DRY_RUN=0 with no token file fails fast: nothing read, nothing added" || fail "2. no token rc=$rc :: $out"
+[[ $rc -ne 0 ]] && grep -q "the box GitHub credential $T/home/.github/.csi/crs is missing" <<<"$out" && [[ ! -s "$ORDER_LOG" && ! -s "$GH_LOG" ]] && ! grep -q zq-new "$OVL" &&
+  pass "2. DRY_RUN=0 with no override and no box credential fails fast: nothing read, nothing added" || fail "2. no token rc=$rc :: $out"
+reset; mkdir -p "$T/crs"; cp "$T/token" "$T/crs/crs"; chmod 600 "$T/crs/crs"
+out=$(run DRY_RUN=0 GH_BOX_TOKEN_FILE="$T/crs/crs" STUB_ROWS_dev='row zq-new pending active on 60' STUB_ROWS_prd=''); rc=$?
+[[ $rc -eq 0 ]] && grep -q 'ws-hidden-02: zq-new' "$OVL" && grep -q 'secret set SPL_PRIVATE_CNF_YAML .* token=exact$' "$GH_LOG" &&
+  ! grep -q 'token=other' "$GH_LOG" && ! grep -q ghp_synthetic <<<"$out$(cat "$GH_LOG")" &&
+  pass "2. RESERVE_GH_TOKEN_FILE unset: the box credential is read, gh gets only its token value" || fail "2. box credential rc=$rc gh=[$(cat "$GH_LOG")] :: $out"
+reset; chmod 644 "$T/crs/crs"
+out=$(run DRY_RUN=0 GH_BOX_TOKEN_FILE="$T/crs/crs" STUB_ROWS_dev='row zq-new pending active on 60'); rc=$?
+[[ $rc -ne 0 ]] && grep -q 'the box GitHub credential .* is open to its group or other users (mode 644, 600 or 400 only)' <<<"$out" && [[ ! -s "$GH_LOG" ]] && ! grep -q zq-new "$OVL" &&
+  pass "2. CONTROL: a box credential readable by others is refused" || fail "2. open box credential rc=$rc :: $out"
+reset; printf 'OTHER_CSI_KEY=not-the-token\n' >"$T/crs/crs"; chmod 600 "$T/crs/crs"
+out=$(run DRY_RUN=0 GH_BOX_TOKEN_FILE="$T/crs/crs" STUB_ROWS_dev='row zq-new pending active on 60'); rc=$?
+[[ $rc -ne 0 ]] && grep -q 'holds no token. Nothing reserved' <<<"$out" && [[ ! -s "$GH_LOG" && ! -s "$ORDER_LOG" ]] && ! grep -q zq-new "$OVL" &&
+  pass "2. CONTROL: a credential with no ALL_CSI_GITHUB_TOKEN line is refused before any read" || fail "2. no token line rc=$rc :: $out"
+reset
 cp "$T/token" "$T/token-open"; chmod 644 "$T/token-open"
 out=$(run DRY_RUN=0 RESERVE_GH_TOKEN_FILE="$T/token-open" STUB_ROWS_dev='row zq-new pending active on 60'); rc=$?
 [[ $rc -ne 0 ]] && grep -q 'open to its group or other users (mode 644, 600 or 400 only)' <<<"$out" && ! grep -q zq-new "$OVL" &&
@@ -111,8 +128,8 @@ ord=$(cut -d' ' -f1 "$ORDER_LOG" | paste -sd' ')
 cmp -s "$OVL" "$T/secret.yaml" && pass "3. the secret holds the overlay as it is now (from stdin)" || fail "3. secret content differs"
 grep -q 'MARK dev zq-new pending :: placeholder reserved .* (ws-hidden-02)' "$ORDER_LOG" &&
   pass "3. the row's detail: placeholder reserved <ts> (ws-hidden-02)" || fail "3. detail: $(cat "$ORDER_LOG")"
-grep -q 'secret set SPL_PRIVATE_CNF_YAML -R example-org/example-repo token=set' "$GH_LOG" && ! grep -q ghp_synthetic "$GH_LOG" &&
-  pass "3. gh gets the token in its environment, never in argv" || fail "3. gh argv: $(cat "$GH_LOG")"
+grep -q 'secret set SPL_PRIVATE_CNF_YAML -R example-org/example-repo token=exact' "$GH_LOG" && ! grep -q ghp_synthetic "$GH_LOG" &&
+  pass "3. gh gets the override file's parsed token in its environment, never in argv" || fail "3. gh argv: $(cat "$GH_LOG")"
 grep -n zq-new <<<"$out" && fail "3. a log line names the hidden slug (above)" || pass "3. no log line names the slug ($(grep -c . <<<"$out") lines)"
 grep -q 'ws-hidden-02 reserved' <<<"$out" && pass "3. the log names the placeholder" || fail "3. log: $out"
 ! grep -q 'workflow run' "$GH_LOG" && pass "3. inside the hold: no dispatch yet" || fail "3. dispatched inside the hold: $(cat "$GH_LOG")"

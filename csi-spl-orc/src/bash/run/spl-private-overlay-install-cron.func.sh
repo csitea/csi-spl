@@ -5,8 +5,9 @@
 # @description   the overlay's master box (SPL_PRIVATE_MASTER_BOX, default sat):
 # @description     every minute do_spl_tenant_host_reserve (a new hidden
 # @description     workspace gets its placeholder, the secret and wf 40),
-# @description     tagged `# <org>-<app>:tenant-host-reserve`; it needs
-# @description     RESERVE_GH_TOKEN_FILE (no default), baked into the line
+# @description     tagged `# <org>-<app>:tenant-host-reserve`; the reserve
+# @description     reads the box GitHub credential, which must be in place;
+# @description     RESERVE_GH_TOKEN_FILE, when set, is baked into the line
 # @description   every other box: every 2 minutes do_spl_private_overlay_pull
 # @description     from the master box, tagged `# <org>-<app>:private-overlay-pull`
 # @description One line in the running user's crontab (the box owner user,
@@ -16,14 +17,14 @@
 # @description line is kept. Idempotent. From a linked worktree the install is
 # @description refused. Dry run unless DRY_RUN=0 (prints the crontab diff).
 # @param PRIVATE_OVERLAY_CRON_ACTION (optional) - install (default) | remove | check
-# @param RESERVE_GH_TOKEN_FILE (optional) - the token file; needed to install on the master box
+# @param RESERVE_GH_TOKEN_FILE (optional) - overrides the box GitHub credential file in the master box's line
 # @param SPL_PRIVATE_MASTER_BOX (optional) - default sat
 # @param PRIVATE_OVERLAY_CRON_LOG_DIR (optional) - default <var>/<org>/<app>/private-overlay
 # @param PRIVATE_OVERLAY_CRONTAB (optional, tests) - the crontab command, default crontab
 # @param PRIVATE_OVERLAY_ALLOW_WORKTREE (optional, tests) - 1 accepts a linked worktree
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_private_overlay_install_cron
-# @example RESERVE_GH_TOKEN_FILE=<token file> DRY_RUN=0 ./run -a do_spl_private_overlay_install_cron
+# @example DRY_RUN=0 ./run -a do_spl_private_overlay_install_cron
 # @example PRIVATE_OVERLAY_CRON_ACTION=check ./run -a do_spl_private_overlay_install_cron
 #------------------------------------------------------------------------------
 do_spl_private_overlay_install_cron() {
@@ -72,7 +73,7 @@ spl_poc_worktree_ok() {
 
 # spl_poc_line <here> <master> <tag> <logdir> -> the cron line of this box's role
 spl_poc_line() {
-  local here="$1" master="$2" tag="$3" logdir="$4" tf
+  local here="$1" master="$2" tag="$3" logdir="$4" tf tenv=""
   # cron's PATH is /usr/bin:/bin; $HOME is expanded by the job's shell
   local pre="cd $PROJ_PATH && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$HOME/.local/bin flock -n"
   if [[ "$here" != "$master" ]]; then
@@ -80,6 +81,9 @@ spl_poc_line() {
     return 0
   fi
   tf="$(spl_thr_token_file)" || return 1
-  [[ "$tf" == /* && "$tf" =~ ^[A-Za-z0-9/._-]+$ ]] || { do_log "FATAL RESERVE_GH_TOKEN_FILE must be an absolute path of letters, digits and /._- (it goes into the cron line), got: '$tf'" >&2; return 1; }
-  printf '%s\n' "* * * * * $pre $logdir/reserve.lock env RESERVE_GH_TOKEN_FILE=$tf DRY_RUN=0 ./run -a do_spl_tenant_host_reserve >> $logdir/reserve.out 2>&1 # $tag"
+  if [[ -n "${RESERVE_GH_TOKEN_FILE:-}" ]]; then
+    [[ "$tf" == /* && "$tf" =~ ^[A-Za-z0-9/._-]+$ ]] || { do_log "FATAL RESERVE_GH_TOKEN_FILE must be an absolute path of letters, digits and /._- (it goes into the cron line), got: '$tf'" >&2; return 1; }
+    tenv="RESERVE_GH_TOKEN_FILE=$tf "
+  fi
+  printf '%s\n' "* * * * * $pre $logdir/reserve.lock env ${tenv}DRY_RUN=0 ./run -a do_spl_tenant_host_reserve >> $logdir/reserve.out 2>&1 # $tag"
 }

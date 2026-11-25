@@ -583,18 +583,24 @@ about 22 minutes to its start. The schedule stays as the retry backstop, and so
 does the reserve's minute cron: a run that fails after the overlay add publishes
 on the next run (`<state>/unpublished`), and a refused dispatch is tried again.
 
-**The token (OD2, unchanged).** The reserve reads it from
-`RESERVE_GH_TOKEN_FILE`, no default; it fails fast without it and refuses a file
-its group or other users can read (mode 600 or 400 only). A failed psql or proxy
+**The token (OD2).** The reserve reads the box's GitHub credential, the
+`ALL_CSI_GITHUB_TOKEN` line of the file `gh_box_token_file` names
+(`csi-spl-orc/lib/bash/funcs/gh-box-token.func.sh`), as every other reader
+does (owner HUM-10, t1 cb52b374, msgs a48d680a and 9c4d1f08, 2026-11-25:
+the credential is on both boxes; SPL-6534). `RESERVE_GH_TOKEN_FILE`, a file
+of the same form, overrides it. gh gets the parsed token only, never the whole
+file. It fails fast when the file is missing, empty, a symlink, has no token
+line or is readable by its group or other users (mode 600 or 400 only). A failed psql or proxy
 call logs a fixed line and its rc, never its output, which may name a hidden
 slug (the reserve runs from cron). The owner mints it: a fine-grained token, this repo,
 `secrets: write`, plus `actions: write` for step 4. Nothing here asks for,
 mints or stores one.
 
-**Install, once the owner has minted the token** (the orchestrator, from the
-main checkout of each box, as the box owner user):
+**Install, once the box credential is in place** (the orchestrator, from the
+main checkout of each box, as the box owner user; the master box's cron line
+names no token path unless `RESERVE_GH_TOKEN_FILE` is set for the install):
 
-- the master box: `cd csi-spl-orc && RESERVE_GH_TOKEN_FILE=<the token file> DRY_RUN=0 ./run -a do_spl_private_overlay_install_cron`
+- the master box: `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_private_overlay_install_cron`
 - every other box: `cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_private_overlay_install_cron`
 - check, any box: `cd csi-spl-orc && PRIVATE_OVERLAY_CRON_ACTION=check ./run -a do_spl_private_overlay_install_cron`
 

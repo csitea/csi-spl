@@ -402,6 +402,12 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 
 // dial is Dial with the single-shot retry budget for a busy upgrade answer.
 func (c *Client) dial(ctx context.Context, role string, retries int) (*Session, error) {
+	return c.dialAs(ctx, role, retries, false)
+}
+
+// dialAs is dial; rotating marks a rotation's dial, whose pin sync is bounded
+// and never fails it (syncPinsOnDial).
+func (c *Client) dialAs(ctx context.Context, role string, retries int, rotating bool) (*Session, error) {
 	box, priv, err := c.box()
 	if err != nil {
 		return nil, err
@@ -440,7 +446,7 @@ func (c *Client) dial(ctx context.Context, role string, retries int) (*Session, 
 	s.tokenExp, _ = time.Parse(time.RFC3339, wel.UploadTokenExpiresAt)
 	c.saveRoster(wel.Roster)
 	if role == wire.RoleBox {
-		if err := s.syncPinsOnDial(ctx); err != nil {
+		if err := s.syncPinsOnDial(ctx, rotating); err != nil {
 			s.cancel()
 			conn.CloseNow() //nolint:errcheck
 			return nil, err
@@ -525,7 +531,20 @@ func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string, 
 // same conflict forever. Measured on the dev desk 2026-09-23: box-e2e-a
 // differed, so for 90 minutes no human message reached a desk agent and no
 // reply could be flushed.
-func (s *Session) syncPinsOnDial(ctx context.Context) error {
+//
+// On a rotation's dial (SPL-6514) the hub has already superseded the old
+// session when this runs, so a pin sync that fails or stalls must not cost
+// the link: it gets the ready timeout, and any failure only logs. The pins
+// on disk were synced by the old session; the next refresh syncs them again.
+func (s *Session) syncPinsOnDial(ctx context.Context, rotating bool) error {
+	if rotating {
+		pctx, cancel := context.WithTimeout(ctx, s.c.timeout())
+		defer cancel()
+		if err := s.SyncPins(pctx); err != nil {
+			s.c.Log.Info().Err(err).Msg("pin sync on a rotation dial failed; the pins on disk stay, the next refresh syncs them")
+		}
+		return nil
+	}
 	err := s.SyncPins(ctx)
 	var he *HubError
 	if err != nil && errors.As(err, &he) && he.Token == "pin_conflict" {

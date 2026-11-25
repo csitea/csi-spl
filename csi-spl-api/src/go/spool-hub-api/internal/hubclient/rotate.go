@@ -2,6 +2,7 @@ package hubclient
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/coder/websocket"
@@ -76,8 +77,13 @@ func (c *Client) rotateTimer() (*time.Timer, <-chan time.Time) {
 // rotate dials and welcomes the next role=box session under the daemon's
 // ctx, makes it the submit listener's, and then closes old with 1012. It
 // returns nil, keeping old, when the dial fails.
+//
+// A dial that reaches the same hub process as old supersedes old (4409) as
+// soon as the hub registers it, before the welcome. When the dial then fails,
+// old is already ending: holdOne reads that 4409 as the rotation's own
+// (ended), not as another box process taking the link.
 func (c *Client) rotate(ctx context.Context, old *Session, srv *SubmitServer) *Session {
-	next, err := c.dial(ctx, wire.RoleBox, 0)
+	next, err := c.dialAs(ctx, wire.RoleBox, 0, true)
 	if err != nil {
 		c.Log.Warn().Err(err).Dur("retry_in", rotateRetry).Msg("session rotation dial failed; keeping the current session")
 		return nil
@@ -92,6 +98,10 @@ func (c *Client) rotate(ctx context.Context, old *Session, srv *SubmitServer) *S
 // the hub reads as a roll (hub/ws.go), so the box never reads offline.
 func (s *Session) closeRotated() {
 	s.cancel()
+	if s.dialCtx != nil && s.dialCtx.Err() != nil {
+		s.conn.CloseNow() //nolint:errcheck
+		return
+	}
 	s.conn.Close(websocket.StatusServiceRestart, "rotate") //nolint:errcheck
 }
 
@@ -99,4 +109,18 @@ func (s *Session) closeRotated() {
 // box redials at once instead of waiting its backoff.
 func (s *Session) plannedClose() bool {
 	return s.CloseCode() == websocket.StatusServiceRestart
+}
+
+// ended is holdOne's result for a session that has ended. A 4409 within
+// rotateRetry of a failed rotation dial is that dial's own (rotate): the
+// link is redialled at once, as a planned close, with no supersede yield
+// and no re-hello. A 4409 from another box process in that same window is
+// read the same way once; the next one is yielded to as before.
+func (c *Client) ended(sess *Session, rotateFailed time.Time) (*Session, bool, error) {
+	err := sess.endErr()
+	if errors.Is(err, ErrSuperseded) && !rotateFailed.IsZero() && time.Since(rotateFailed) < rotateRetry {
+		c.Log.Info().Str("box", c.Cfg.BoxID).Msg("the failed rotation dial superseded this session; redialling at once")
+		return nil, true, nil
+	}
+	return nil, sess.plannedClose(), err
 }

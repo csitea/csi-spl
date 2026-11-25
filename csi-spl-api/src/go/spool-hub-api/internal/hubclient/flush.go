@@ -609,21 +609,23 @@ func (c *Client) holdOne(ctx context.Context, sess *Session, srv *SubmitServer) 
 	}
 	t := c.holdTickers()
 	defer t.stop()
+	var rotateFailed time.Time // the last failed rotation dial (ended)
 	for {
 		select {
 		case <-ctx.Done():
 			select {
 			case <-sess.Done(): // the read loop ended: was it a 4409?
-				return nil, sess.plannedClose(), sess.endErr()
+				return c.ended(sess, rotateFailed)
 			default:
 				return nil, false, nil
 			}
 		case <-sess.Done():
-			return nil, sess.plannedClose(), sess.endErr()
+			return c.ended(sess, rotateFailed)
 		case <-t.rotate:
 			if next := c.rotate(daemon, sess, srv); next != nil {
 				return next, false, nil
 			}
+			rotateFailed = time.Now()
 			t.rotateT.Reset(rotateRetry)
 		case <-srv.Kick():
 			if left, _ := c.Pending(); len(left) > 0 {

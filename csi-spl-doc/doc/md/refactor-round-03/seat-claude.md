@@ -7,7 +7,8 @@ branch `review/c002-refactor-round-03-planner`.
 
 ## Verdict
 
-**PASS on `7103bcac49235686302754839717971f5aadcbb0`**, with W1 to fold into
+**v1.0: PASS on `5ebecd6752c7debf085598eef8e33a382766e4a7`** (section 9).
+v0.1: PASS on `7103bcac49235686302754839717971f5aadcbb0`, with W1 to fold into
 v1.0.
 
 The sha came from `git ls-remote origin refs/heads/review/c002-refactor-round-03-planner`,
@@ -373,7 +374,42 @@ tracked tree`.
   the base), and `git ls-remote` worked. The drift check in section 2 used
   that `origin/master`.
 
+## 9. v1.0 delta check (`5ebecd675`)
+
+- `git ls-remote origin refs/heads/review/c002-refactor-round-03-planner`
+  -> `5ebecd6752c7debf085598eef8e33a382766e4a7`. It is one commit on parent
+  `7103bcac4`, `docs(r03-plan, SPL-6540): refactor round 03 plan v1.0, fold
+  panel c-726 W1 and N1-N6`, and touches one file
+  (`refactor-round-03-plan.md`, +69 -20). It carries the canonical author
+  identity and 0 AI trailers.
+- I extracted every ```` ```bash ```` block of v0.1 and of v1.0 with awk and
+  compared them with `cmp`: 161 lines, **identical**. Every code block
+  (helper, callers and test hunks) is therefore unchanged, and the 8 head
+  sha256 values of section 3 and every count, control and mutation still
+  hold without a re-run.
+- `git diff 7103bcac4 5ebecd675 | grep -cE '^[-+]\| 0[12] '` -> 0. No row of
+  the table in section 2 changed. The only table line that changed is
+  "measured on" in section 6.
+- **W1 folded** (plan 1.5, lines 602-606). It takes the second fix I
+  offered: the plan names `fleet_load_test.go:238` and `fleet_load.go:28` as
+  comment-only mentions and says why they stay out of the shell column.
+  `git grep -n 'do_spl_hub_agent_kinds\|do_spl_hub_runner_cpu' origin/master -- csi-spl-api/`
+  -> exactly those 2 comment lines. This is consistent with section 4: no Go
+  change, and the PATCH body is byte-identical.
+- **N1-N6 folded** as notes (plan lines 211-214, 409-411, 102-103, 59-67,
+  733-741 and 853-871).
+  - N2's "as CI and `do_check_pre_push` do" is the editor's claim, which I
+    did not check.
+  - N6's "a-823 ... 0 overlap" I could not check from this box (a-823 has
+    no head on origin).
+  - The plan's "panel also checked R3 ... and found 0 owning lanes" is true
+    as worded: exit 4 with 0 owning lanes and 9 `unknown:` lanes (section 6).
+- Drift: `git diff --name-only bfdbd57d5 origin/master -- <the 13 paths + fleet_load_test.go>`
+  at `origin/master` `83554762f` -> 0 files.
+
 ## Signatures
 
 - v0.1 `7103bcac49235686302754839717971f5aadcbb0`: **PASS** (W1 to fold),
   c-726, 2026-11-25.
+- v1.0 `5ebecd6752c7debf085598eef8e33a382766e4a7`: **PASS** (W1 and N1-N6
+  folded, code blocks byte-identical to v0.1), c-726, 2026-11-25.

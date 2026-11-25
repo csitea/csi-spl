@@ -9,6 +9,10 @@
 //       Performance.getMetrics LayoutCount delta), every run (n=RUNS)
 //     2 CONTROL: the field still grows when the text wraps to a second line
 //       and shrinks back to its one-line height when that text is deleted
+//     3 CONTROL (R7 c-317 case A): a 4-line draft, select all, a longer
+//       one-line text inserted over it: the field goes back to one line
+//     4 CONTROL (R7 c-317 case B): the same draft, one line break replaced
+//       by a space (same length, 3 lines): the field shrinks
 //
 // Run:
 //   pnpm run test:e2e perf-typing-layouts
@@ -101,6 +105,37 @@ async function growShrink(browser) {
   ok('1440px 2 CONTROL: the field grows on a second line and shrinks back on delete', grown > one && shrunk === one, { one, grown, shrunk })
 }
 
+/** Insert text the way a paste or a key does (an input event), over the selection. */
+const insert = (p, text) => p.$eval(BOX, (ta, t) => { ta.focus(); document.execCommand('insertText', false, t) }, text)
+const DRAFT = 'a\nb\nc\nd'
+
+/* the grow-only path is for text added at one place; a replacement that
+   keeps or grows the length with fewer lines must still shrink the field */
+async function replaceShrinks(browser) {
+  let p = await openLobby(browser)
+  const one = await height(p)
+  await insert(p, DRAFT)
+  await settle(p)
+  const tall = await height(p)
+  await p.$eval(BOX, (ta) => ta.select())
+  await insert(p, 'abcdefgh')
+  await settle(p)
+  const replaced = await height(p)
+  await p.close()
+  ok('1440px 3 CONTROL: a 4-line draft replaced by a longer one-line text goes back to one line', tall > one && replaced === one, { one, tall, replaced })
+
+  p = await openLobby(browser)
+  await insert(p, DRAFT)
+  await settle(p)
+  const four = await height(p)
+  await p.$eval(BOX, (ta) => ta.setSelectionRange(1, 2))
+  await insert(p, ' ')
+  await settle(p)
+  const three = await height(p)
+  await p.close()
+  ok('1440px 4 CONTROL: one line break replaced by a space (same length) shrinks the field', three < four, { four, three })
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -113,6 +148,7 @@ try {
   }
   console.log(`  layouts per ${TYPED.length} keys: ${counts.join(' ')} (min ${Math.min(...counts)}, max ${Math.max(...counts)})`)
   await growShrink(browser)
+  await replaceShrinks(browser)
 } finally {
   await browser.close()
   await server.stop()

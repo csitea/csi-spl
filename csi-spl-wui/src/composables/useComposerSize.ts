@@ -34,11 +34,20 @@ function useBoxState() {
 }
 type BoxState = ReturnType<typeof useBoxState>
 
+/* next only adds text to prev at one place (a key, a paste with no
+   selection): no line of prev can go, so the field can only grow */
+function insertedOnly(prev: string, next: string) {
+  if (next.length <= prev.length) return false
+  let p = 0
+  while (p < prev.length && prev.charCodeAt(p) === next.charCodeAt(p)) p++
+  return next.endsWith(prev.slice(p))
+}
+
 function useFit(o: SizeOpts, st: BoxState) {
   const { props } = o
-  /* what the last fit sized: the text length, the cap, the field's width,
-     the height it wrote */
-  const last = { len: -1, cap: 0, width: 0, height: '' }
+  /* what the last fit sized: the text, the cap, the field's width, the
+     height it wrote */
+  const last = { value: '', cap: 0, width: 0, height: '' }
   function omniboxMax() {
     /* docked: 40% of what the keyboard leaves, so the page stays in view */
     if (o.docked.value) return Math.max(36, Math.floor((window.innerHeight - o.kbInset.value) * 0.4))
@@ -70,14 +79,18 @@ function useFit(o: SizeOpts, st: BoxState) {
        grew needs no collapse; after one, the scroll goes back, and a caret at
        the end stays in view. */
     const cap = Math.min(omniboxMax(), Math.floor(window.innerHeight * 0.4))
-    const len = el.value.length
+    const value = el.value
+    const len = value.length
     const width = el.clientWidth
     /* p19-01: a key that only adds text to the box this fit sized last needs
        one scrollHeight read, and a write only when the text outgrew it - not
        the 'auto' collapse and its second forced layout on every key (82
-       forced layouts per 41 keys). Removed text, a new cap or width, or a
-       height set elsewhere (grip, focus, collapse) measure from 'auto' below. */
-    const grew = len >= last.len && cap === last.cap && width === last.width && el.style.height === last.height
+       forced layouts per 41 keys). Anything else measures from 'auto' below:
+       removed or replaced text (R7: a selection replaced by a longer line
+       left the field 4 lines tall), the same text again (a re-fit), a flipped
+       indent, a new cap or width, or a height set elsewhere (grip, focus,
+       collapse). */
+    const grew = insertedOnly(last.value, value) && cap === last.cap && width === last.width && el.style.height === last.height
     if (grew) {
       const sh = el.scrollHeight
       if (sh > el.clientHeight) {
@@ -93,9 +106,14 @@ function useFit(o: SizeOpts, st: BoxState) {
       el.scrollTop = scrolled
     }
     if (!grew && document.activeElement === el && el.selectionEnd === len) el.scrollTop = el.scrollHeight
-    Object.assign(last, { len, cap, width, height: el.style.height })
+    Object.assign(last, { value, cap, width, height: el.style.height })
   }
-  return { omniboxMax, fitGlobalBox }
+  /* the indent flipped with the text: forget the last fit, measure from 'auto' */
+  function refit() {
+    last.cap = -1
+    fitGlobalBox()
+  }
+  return { omniboxMax, fitGlobalBox, refit }
 }
 
 function useCollapse(o: SizeOpts, st: BoxState, fit: ReturnType<typeof useFit>, syncMultiline: () => boolean) {
@@ -184,7 +202,8 @@ export function useComposerSize(o: SizeOpts) {
     void nextTick(() => {
       if (serial !== st.fit.serial) return
       if (changed) wrap.syncMultiline()
-      fit.fitGlobalBox()
+      if (changed) fit.refit()
+      else fit.fitGlobalBox()
     })
   })
   onMounted(() => {

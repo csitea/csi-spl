@@ -1,4 +1,4 @@
-# Spec 187 build round - plan v1.3 (13 rows (S12 split), 8 batches)
+# Spec 187 build round - plan v1.4 (13 rows (S12 split), 8 batches)
 
 Epic: SPL-2403 (the brief's line; spec 187 names SPL-2398, see 2.4 N1)  
 Spec: csi-spl-doc/specs/187-scheduled-tasks-activities (v0.6)  
@@ -27,14 +27,14 @@ This plan re-measures each row's sites on one sha, orders the rows into
 batches of disjoint files (R1), names each row's kind, vendor and R7
 reviewer, and proposes one brief per row. It writes no code.
 
-**Status: v1.3, signed v1.0 plus the owner's answers (v1.1), review a-475's fixes (v1.2) and the owner's answer to Q1b (v1.3).** Panel PASS (c-342, same-vendor panel, waiver)
+**Status: v1.3, signed v1.0 plus the owner's answers (v1.1), review a-475's fixes (v1.2) the owner's answer to Q1b (v1.3) and review a-521's fixes (v1.4).** Panel PASS (c-342, same-vendor panel, waiver)
 on v0.2 `cca84bfdf`; landed as `49f244c16` + `0989526af` (the same tree,
 messages reworded for the release-note gate) on the dispatch holder's GO.
 Owner questions Q1-Q3 are answered (poll `bb3b76c2`, 2.4): Q1 the
 owner's own option (spec D21), Q2 B (spec D22), Q3 A. Q1b is answered
 (spec D23: one "Scheduled tasks" dialog per topic, channel, issue and
-epic; Settings stays admin-only); Q1c is open (2.4, spots S8 and S9
-only). Planner: c-074 (claude, the
+epic; Settings stays admin-only); Q1c is open (2.4: A recommended, the
+rows are built with A; B changes S7, S8 and S9). Planner: c-074 (claude, the
 backup for `specs_and_docs`: agy on its usage limit; the brief's addendum
 reads 2026-11-30T21:31Z on one box, the holder's note 8cc25fff "quota out
 to 12-01"; the placer reads the live pick, not this line). Panel: one seat,
@@ -175,11 +175,11 @@ No other same-vendor line.
 | row | what | kind | vendor (main) | R7 | depends on | batch |
 |---|---|---|---|---|---|---|
 | S1 | rdb + store: tasks, runs, `hub_settings`, `#scheduled-runs` | complex_coding | claude | agy (claude waiver while agy out; 2 R7) | none | 1 |
-| S2 | grammar: `idle:`, `changed:` | simple_coding | claude (pick agy; either) | agy if claude (waiver while out); claude if agy | none | 1 |
+| S2 | grammar: `idle:`, `changed:`, `key:`, `epic:` | simple_coding | claude (pick agy; either) | agy if claude (waiver while out); claude if agy | none | 1 |
 | S12a | cron parser `api:taskcron` | simple_coding | claude (pick agy; either) | agy if claude (waiver while out); claude if agy | none | 1 |
 | S3 | hub runner + fixed actions + run cap + the two seams (2.4 N4 f) | complex_coding | claude | agy (waiver while out) | S1 | 2 |
 | S4 | event triggers + chains | complex_coding | claude | agy (waiver while out) | S3 | 3 |
-| S7 | workspace routes | simple_coding | claude (pick agy; either) | agy if claude (waiver while out); claude if agy | S1, S3 | 3 |
+| S7 | workspace routes | simple_coding | claude (pick agy; either) | agy if claude (waiver while out); claude if agy | S1, S2, S3 | 3 |
 | S12b | cron in store validation and next time | simple_coding | claude (pick agy; either) | agy if claude (waiver while out); claude if agy | S12a, S3 | 3 |
 | S5 | agent action + token cap + reply hook + timeout | complex_coding | claude | agy (waiver while out) | S3, S4 (reply hook), S12b (`scheduled_tasks.go`) | 4 |
 | S11 | labels on topics and messages | complex_coding | claude | agy (waiver while out) | S1, S2, S3 (`scheduled_task_actions.go`), S7 (`server.go`) | 4 |
@@ -210,6 +210,8 @@ order.
   `api:store/channels.go`; `api:store/rls_test.go`;
   `api:channelmove/catalogue.go`. S2: `api:search/grammar.go`,
   `values.go`, `match.go`, `grammar_test.go`, `api:store/search_postgres.go`,
+  `api:hub/search.go` + `api:hub/search_issue_test.go` (D23's `key:` /
+  `epic:`, no other row touches them),
   `csi-spl-doc/specs/003-spool-message-bus/contracts/search-v1.md`. S12a:
   new `api:taskcron/cron.go`, `cron_test.go`. No path in two rows.
 - **Batch 2: S3.** New `api:hub/scheduled_tasks.go` (ticker, claim, next
@@ -254,7 +256,7 @@ order.
   + `MessageCard.vue` + `wui:utils/msg-menu.mjs` (Q1, spec D21), the one
   new `wui:components/ScheduledTasksDialog.vue` and its item in
   `wui:composables/useIssueCtxMenu.ts` + `wui:components/IssueDetailActions.vue`
-  (Q1b, spec D23),
+  + a new `wui:composables/useScheduledTasksDialog.ts` (Q1b, spec D23),
   the Instance section, the four
   templates, the topic and message label chips, `wui:utils/spool-client*.mjs`,
   `csi-spl-wui/i18n/locales/*.json`, their unit tests.
@@ -312,7 +314,7 @@ the briefs below follow it.
   list a channel's and a topic's tasks; they do not reach tasks over all
   channels or `issue` tasks (spec 4.1: issues are all channels only),
   which D17 lets a member own. Settings is admin-only
-  (`wui:utils/tenant-settings-nav.ts:28-40`; `tenant-settings.test.mjs:31`
+  (`wui:utils/tenant-settings-nav.ts:28-40`; `csi-spl-wui/tests/unit/tenant-settings.test.mjs:31`
   "CONTROL: a developer sees no entry"). A: Settings stays admin-only, and
   members get a non-Settings entry for those tasks (the `#scheduled-runs`
   channel menu, or the Issues header). B: "Settings -> Scheduled tasks"
@@ -325,19 +327,22 @@ the briefs below follow it.
   per topic and channel (D21's menus) and per issue and epic (the issue
   menu `menuItemsFor`, the issue detail header, the epic sidebar row and
   title button); Settings stays admin-only. A contract change in three
-  rows: S2 adds `key:` and `epic:` on issues to grammar 1.7, S7 adds
+  rows: S2 adds `key:` and `epic:` on issues to grammar 1.7 (matched in
+  `api:hub/search.go` `issueEntities`, v1.4), S7 (now after S2) adds
   `GET /v1/tasks?issue=` / `?epic=`, S8 builds the dialog and the two new
-  entries (S9 opens all four). No row, batch or vendor moves; S2 and S7
-  keep their files.
-- **Q1c (open, raised by D23; the holder asks the owner).** No dialog
-  reaches, for a member who is not an admin: (a) a `topic` or `message`
-  task over all channels or several channels (template 7.3 as written);
-  (b) an `issue` task with no positive `key:` or `epic:` leaf (templates
-  7.2 and 7.4 as written). Admins reach them in Settings. Until answered
-  the dialog's "New task" binds the task to its object; S7's save check
-  does not refuse (a) or (b) from the API. Spot: S8 (the templates'
-  scope from a dialog) and S9; batches 1-5 do not wait on it. Spec 187
-  1.2.
+  entries (S9 opens all four). No row, batch or vendor moves; S2 gains
+  `api:hub/search.go` (v1.4), S7 keeps its files.
+- **Q1c (open, raised by D23; the holder asks the owner; spec 187 1.2).**
+  No dialog lists, for a member who is not an admin: (a) a `topic` or
+  `message` task over all channels (one naming several channels lists in
+  each one's dialog); (b) an `issue` task with no positive `key:` or
+  `epic:` leaf. Templates 7.2-7.4 opened from a dialog take its object's
+  scope. Admins reach every task in Settings. **A (recommended)**: (a)
+  and (b) admin-only, S7 refuses a non-admin's with `403 not_allowed`.
+  **B**: members keep them, S8 adds a fifth entry (e.g. the user menu)
+  over a filter S7 adds. Spot: S7, S8, S9. No batch waits: the rows are
+  built with A; B changes S7 (drop the refusal, add the filter), S8 (the
+  entry) and S9.
 
 The questions as asked:
 
@@ -475,7 +480,7 @@ placement and cites it in its subject, e.g.
   `bash csi-spl-api/src/bash/tests/run-all-tests.sh`.
 - Not touched: any `api:hub/` file, the search package.
 
-### 3.2 S2 - grammar `idle:` and `changed:`
+### 3.2 S2 - grammar `idle:`, `changed:`, `key:` and `epic:`
 
 - Kind `simple_coding`. Batch 1. R7 agy if placed on claude (the waiver
   seat while agy is out); claude if placed on agy.
@@ -485,15 +490,19 @@ placement and cites it in its subject, e.g.
   issue: no change since) and `changed:<duration>` (its inverse), on
   `TypeTopic` and `TypeIssue`; in `MatchTopic` / `MatchEntity` and in the
   Postgres compile (`search_postgres.go`); `after:` / `before:` unchanged.
-  D23 (v1.3): `key:<KEY>` (exactly that issue) and `epic:<KEY>` (the
-  issues whose level-1 row is KEY, not KEY itself), on `TypeIssue` only,
-  in the same two paths.
+  D23 (v1.3, v1.4): `key:<KEY>` (exactly that issue) and `epic:<KEY>`
+  (the issues and subtasks whose level-1 row is KEY, not KEY itself), on
+  `TypeIssue` only. Issues are not compiled in Postgres
+  (`search_postgres.go` has no issue term): add `Key` and `Epic` to
+  `search.Entity` (`api:search/match.go:43`), set them in `issueEntities`
+  (`api:hub/search.go:825`) with `treeKind` (`api:hub/issues.go:120`), and
+  match them in `MatchEntity`.
 - Done and red control: spec 187 S2's cells verbatim (31-day vs 29-day
   topic in both paths; an issue by its last change; `changed:7d` the
   inverse; `key:SPL-7` not SPL-70; `epic:SPL-17` its issues, not itself;
   both refused on a non-issue type; red: compile `idle:` as `after:`).
-- Test column: `search/grammar_test.go`, the `search/match*` tests, every
-  store test of `search_postgres.go`, the operators route test
+- Test column: `search/grammar_test.go`, the `search/match*` tests,
+  `hub/search_issue_test.go`, every store test of `search_postgres.go`, the operators route test
   (`GET /v1/view/search/operators`, search-v1 section 6), and any WUI test
   that reads the operator list (`git grep -l "search/operators" csi-spl-wui/tests`).
 - Not touched: `label:` (S11's).
@@ -587,7 +596,7 @@ placement and cites it in its subject, e.g.
 
 ### 3.7 S7 - workspace routes
 
-- Kind `simple_coding`. Batch 3: after S1 and S3. R7 agy if placed on
+- Kind `simple_coding`. Batch 3: after S1, S2 and S3 (D23's leaves). R7 agy if placed on
   claude (the waiver seat while agy is out); claude if placed on agy.
 - Files: new `api:hub/tasks_routes.go` + test, `server.go` (registration),
   `openapi.json` (the seven routes). Every save calls S3's
@@ -598,7 +607,9 @@ placement and cites it in its subject, e.g.
   `?topic=` matches a positive `OpTopic` leaf of `search.Parse`, the id
   lower-cased, so `-topic:<id>` is not a match); D23's `?issue=` /
   `?epic=` the same way over a positive `key:` / `epic:` leaf, a test
-  each;
+  each; Q1c A until answered: a non-admin's task over all channels, or an
+  `issue` task with no positive `key:` / `epic:` leaf, answers `403
+  not_allowed`, a test (B removes it);
   `mention_assignee` on `object = channel` answers `400 bad_task` (D22)
   from S3's `validateTaskSave`, so S6's instance tasks share it.
   `GET /v1/tasks/preview` counts and writes nothing.
@@ -667,14 +678,18 @@ placement and cites it in its subject, e.g.
   6.2, D21: a channel's item lists that channel's tasks, a topic's that
   topic's; "New task" there fills the scope; the topic item desktop only
   as `topic-loops`, `msg-menu.mjs:155`, unless it fits the phone sheet
-  budget of `tests/e2e/phone-card-menu.test.mjs`); a member's entry for
-  D23 (2.4 Q1b): the list is ONE `ScheduledTasksDialog.vue`, the same
+  budget of `tests/e2e/phone-card-menu.test.mjs`); D23 (2.4 Q1b): the list is ONE `ScheduledTasksDialog.vue`, the same
   from all four entries, with a "Scheduled tasks" item also in the issue
   and epic menu (`useIssueCtxMenu.ts` `menuItemsFor`, a `top` target for
-  an epic) and the issue detail header (`IssueDetailActions.vue`); "New
-  task" binds `key:<KEY>` or `epic:<KEY>`; Settings stays admin-only
-  (`tenant-settings.test.mjs:31` unchanged); Q1c (2.4, open) decides the
-  member's unbound tasks, and S8 is not queued before it; the
+  an epic) and the issue detail header (`IssueDetailActions.vue`, which
+  only emits: every entry opens the dialog through one composable,
+  `wui:composables/useScheduledTasksDialog.ts`, in the shape of
+  `useAddToNote.ts`, so `pages/issues.vue` is not touched); "New task",
+  and the header button, bind `epic:<KEY>` on a level-1 row (epic or
+  feature) and `key:<KEY>` otherwise; Settings stays admin-only
+  (`csi-spl-wui/tests/unit/tenant-settings.test.mjs:31` unchanged); Q1c
+  (2.4) A until answered (no entry for unbound tasks), and S8 is not
+  queued before the answer; the
   editor in spec 6.3's order with the Advanced cron field and its next
   three times (from the preview route or a client copy of the rule: name
   which in the commit), the agent pick (D11), the four templates of spec 7
@@ -691,7 +706,8 @@ placement and cites it in its subject, e.g.
   `i18n-no-raw-text`).
 - Test column: the new unit tests, the `tests/unit/i18n-*` tests,
   `cleancode.test.mjs`, `unused-exports.test.mjs`, the tests naming
-  `tenant-settings-nav`, and the e2e files
+  `tenant-settings-nav`, `issue-detail-buttons.test.mjs` (`:23-29` pins
+  the header's four buttons; the new one is added), and the e2e files
   `WUI_E2E_RANGE=<sha>^..<sha> ./run -a do_check_pre_push_e2e` (csi-spl-iac)
   selects; the reviewer runs that selection (rulebook 2.7.4).
 
@@ -740,3 +756,4 @@ placement and cites it in its subject, e.g.
 | v1.1 | the owner's answers (poll `bb3b76c2`): Q1 own option, a "Scheduled tasks" item in the channel and topic right-click menus (spec v0.4 D21; S7 filters, S8 items, sites row and batch 6 files); Q2 B, `notify`'s `mention_assignee` (spec D22; S1 struct, S3 mention, S7 save check, S8 template); Q3 A, one plan, unchanged. No row, batch or vendor moves |
 | v1.2 | review a-475 (agy) FAIL on `31d6b4886`: W1 reading (c) unsound: the member's view of tasks over all channels and `issue` tasks is owner question Q1b, open, spot S8 only (2.4, spec 1.2 / 6.2); W2 `SidebarRowMenu.vue` `:245-277` and the two menu util files in the sites row and batch 6. Notes: N1 `?topic=` by parsed positive leaf (S7); N2 channel refusal in `validateTaskSave`, mentions deduplicated (S3, S7); N3 topic item's phone rule (S8), D21 menus in S9; N4 spec status and sha lines. Readings (a), (b) judged sound |
 | v1.3 | owner answer to Q1b (spec v0.6 D23; B of msg `b6acff79` withdrawn by msg `6b1806e4`): one "Scheduled tasks" dialog per topic, channel, issue and epic, Settings admin-only; the issue and epic entry sites (1.3); S2 `key:` / `epic:`, S7 `?issue=` / `?epic=`, S8 the dialog and two entries, S9 four entries; Q1c open (2.4). Header line 4 now names spec v0.6 (a-475's N1: it said v0.4). No row, batch or vendor moves |
+| v1.4 | review a-521 (agy) FAIL on `6499cd116`: W1 Q1c gets options A (recommended: unbound scopes admin-only, S7 refuses with 403) and B (a fifth member entry), spot S7, S8, S9, rows built with A; W2 issue search is matched in `api:hub/search.go` `issueEntities` (no issue term in `search_postgres.go`): S2 adds that file and its test, `Key` / `Epic` on `search.Entity` via `treeKind`; S7 depends on S2 (still batch 3). Notes: N1 one composable opens the dialog, the header button binds `epic:` on a level-1 row, `issue-detail-buttons.test.mjs` changes; N2 S2's name; N3 the unit test's full path; N4 a several-channel task lists in each channel's dialog, Q1c (a) = all channels |

@@ -4,8 +4,8 @@ Status: **Decided v0.6** (2026-11-25). Lanes `c-150` (v0.1, v0.2),
 `c-660` (v0.3) and `c-074` (v0.4 the build plan's form, v0.5 its review,
 v0.6 the owner's answer to Q1b), `claude`, backup for `specs_and_docs`
 (agy held by the placer). Questions answered: 1.1.2, 1.1.3 and 1.1.4;
-plan question Q1c is open (1.2, rows S8 and S9 only). Nothing below is
-built.
+plan question Q1c is open (1.2; rows are built with its option A, B
+changes S7, S8 and S9). Nothing below is built.
 Epic: **SPL-2398**. Issue: **SPL-6067**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:91992830-ca2f-4711-b04e-e4c333d7294d` (`t1`), task
 `dispatch-91992830`.
@@ -160,23 +160,29 @@ an issue or an epic; what it leaves without a member's entry is Q1c (1.2).
 
 ### 1.2 Open
 
-- **Q1c (plan question, spots S8 and S9 only; batches 1-5 do not wait on
-  it).** Under D23 a member reaches a task only through the dialog of the
-  topic, channel, issue or epic it is bound to. These tasks have no such
-  object, so a member who is not an admin has no entry to list, edit or
-  create them (an admin reaches them in Settings -> Scheduled tasks, 6.2):
-  (a) a `topic` or `message` task whose `where` is all channels, or a list
-  of more than one channel (template 7.3 "Archive idle topics" as
-  written: `topic`, `idle:30d`, no channel); (b) an `issue` task whose
-  query holds no positive `key:` or `epic:` leaf (templates 7.2 "Nudge
-  stale issues" and 7.4 "Weekly status report" as written: workspace-wide).
-  A `channel` task is admin-only already (4.5). Until answered, the
-  dialog's "New task" always binds the task to the object it was opened
-  from, so the WUI gives a member no way to create (a) or (b). The hub's
-  save check (row S7, 4.5) does not refuse them, so a member could still
-  save one through `POST /v1/tasks`; it then shows in no member's dialog.
-  The holder asks the owner whether members need such tasks, and where
-  (and so whether S7 refuses them).
+- **Q1c (plan question; spots S7, S8 and S9; no batch waits on it: the
+  rows are built with A, and B changes S7, S8 and S9).** Under D23 a
+  member reaches a task only through the dialog of an object its scope
+  names. No dialog lists: (a) a `topic` or `message` task whose `where` is
+  all channels (a task naming several channels lists in each named
+  channel's dialog, `?channel=`, 9.1.5; a dialog's "New task" makes a
+  one-channel task); (b) an `issue` task whose query holds no positive
+  `key:` or `epic:` leaf. Templates 7.2, 7.3 and 7.4 as written are (a) or
+  (b); opened from a dialog they take its object's scope instead (7.3 from
+  a channel: that channel; 7.2 and 7.4 from an epic: `epic:<KEY>`, from an
+  issue: `key:<KEY>`). An admin reaches every task in Settings (6.2); a
+  `channel` task is admin-only already (4.5).
+  - **A (recommended)**: (a) and (b) are admin-only. S7's save check
+    answers a non-admin's (a) or (b) task `403 not_allowed` (one more D3
+    row: "member, unbound scope: 403"), so every member's task shows in a
+    dialog. Cost: a member's task over all their issues (e.g. 7.2 on every
+    issue assigned to them) is made per epic.
+  - **B**: members keep (a) and (b) (D17's own-object narrowing still
+    applies), and S8 adds a fifth entry that opens the same dialog with
+    the member's unbound tasks (e.g. an item in the user menu,
+    `wui/components/UserMenu.vue`), over a filter S7 adds for them. Cost:
+    one more entry and filter, and S7's refusal comes out again.
+  The holder asks the owner.
 
 D12 is a default the holder chose and told the owner (post
 `921ac359`); a later owner word on the grouping changes only 6.1's topic
@@ -605,7 +611,7 @@ Workspace admins configure, as registered workspace settings (spec 098,
   Edit, Pause / Resume, Run now, History, Delete; "New task" and "From a
   template". An admin sees every task. Settings stays admin-only (D23):
   no section of it opens to a member who is not an admin
-  (`tenant-settings.test.mjs:31`, "CONTROL: a developer sees no entry",
+  (`csi-spl-wui/tests/unit/tenant-settings.test.mjs:31`, "CONTROL: a developer sees no entry",
   keeps passing). Such a member reaches tasks only through the dialog
   below; what it does not reach is Q1c (1.2, open).
 - **Instance (D10)**: in `t1`'s Settings, an "Instance" section shown only to
@@ -637,7 +643,14 @@ Workspace admins configure, as registered workspace settings (spec 098,
     /v1/tasks?epic=<KEY>`); "New task" fills `object = issue`, query
     `epic:<KEY>`.
   A task bound to several objects (e.g. `key:A OR key:B`) lists in each
-  one's dialog.
+  one's dialog. Every entry opens the dialog through one composable
+  (`wui/composables/useScheduledTasksDialog.ts`, in the shape of
+  `useAddToNote.ts`), so `IssueDetailActions.vue`, which only emits, needs
+  no page wiring; its header button, like the menu, binds `epic:<KEY>`
+  when the open issue is a level-1 row (epic or feature: the issue dialog
+  opens those too, `useIssueCtxMenu.ts:48`) and `key:<KEY>` otherwise.
+  `csi-spl-wui/tests/unit/issue-detail-buttons.test.mjs:23-29` pins the
+  header's four buttons and changes with it.
 - **Channel and topic menus (D21)**: the right-click menu of a channel row
   in the sidebar (`wui/components/SidebarRowMenu.vue`, opened from
   `ChannelSidebar.vue`'s `@contextmenu`) and of a topic card
@@ -698,10 +711,16 @@ The grammar has no operator for one issue or for an epic's issues either
 (`OpName` "an issue's key and title" is a contains match,
 `api/search/grammar.go:205`). For D23 row S2 adds to 1.7, on `issue`
 only: `key:<KEY>` (exactly that issue, case-insensitive) and `epic:<KEY>`
-(the issues whose level-1 row is KEY, the `epic` field of
-`api/hub/issues.go:55`; not the epic row itself, which `key:` reaches).
-An epic or feature filtered view already reads that field
-(`issues.go:650`).
+(the issues and subtasks whose level-1 row is KEY; not the epic row
+itself, which `key:` reaches). Issue search is not compiled in Postgres:
+`api/store/search_postgres.go` holds no issue term (`git grep -c -i issue`
+on it: no match at `208e5f757`); `TypeIssue` is matched in process,
+`issueEntities` (`api/hub/search.go:825`) builds a `search.Entity`
+(`api/search/match.go:43`) per issue for `MatchEntity`. `store.Issue` has
+no epic field; `treeKind` (`api/hub/issues.go:120`) gives an issue's
+level-1 key (the `epic` of the issue JSON, `issues.go:55`). So S2 adds
+`Key` and `Epic` to `search.Entity`, sets them in `issueEntities` through
+`treeKind`, and matches `key:` / `epic:` in `MatchEntity`.
 
 ## 8. Store
 
@@ -843,13 +862,13 @@ it.
 | row | depends on | kind | files | done test | red control |
 |---|---|---|---|---|---|
 | **S1 rdb + store** | — | `complex_coding` | `rdb/<NNNN>_scheduled_tasks.sql` (8.1 row S1 and the fifth default channel `scheduled-runs`); `api/store/{scheduled_task.go,scheduled_task_postgres.go,scheduled_task_memory.go,scheduled_task_test.go,hub_settings.go}`; `api/store/channels.go` (`DefaultChannels`); `rls_test.go`; `api/channelmove/catalogue.go` | `PRE_PUSH_TIER=full`: Postgres and Memory parity; each CHECK refuses its stray value (a `chain` of 4, a `trigger_kind` outside the seven); of two concurrent claimers one gets a due task; a second run insert for the same cause is a no-op; RLS covers both tenant tables and an instance row is invisible in a tenant scope; a new and an existing workspace both have `#scheduled-runs` | drop `next_due_at <= now()` from the claim, and the two-claimer test runs the task twice |
-| **S2 grammar** | — | `simple_coding` | `api/search/{grammar.go,values.go,match.go,grammar_test.go}`, the stores' compile of the four new terms (`idle:`, `changed:`, and D23's `key:`, `epic:` on issues), `../003-spool-message-bus/contracts/search-v1.md` (1.7) | `idle:30d` matches a topic with no message for 31 days and not one with a message 29 days ago, in the Postgres compile and in `MatchTopic`; for an issue, by its last change; `changed:7d` is the inverse; `key:SPL-7` matches SPL-7 and not SPL-70; `epic:SPL-17` matches the issues under SPL-17 and not SPL-17 itself; both refused on a non-issue type | compile `idle:` as `after:`, and the 31-day topic is not matched |
+| **S2 grammar** | — | `simple_coding` | `api/search/{grammar.go,values.go,match.go,grammar_test.go}`, the stores' compile of `idle:` and `changed:`, `api/hub/search.go` (`issueEntities`: an issue's `Key` and `Epic` for D23's `key:` and `epic:`, matched in `MatchEntity`; 7) and `api/hub/search_issue_test.go`, `../003-spool-message-bus/contracts/search-v1.md` (1.7) | `idle:30d` matches a topic with no message for 31 days and not one with a message 29 days ago, in the Postgres compile and in `MatchTopic`; for an issue, by its last change; `changed:7d` is the inverse; `key:SPL-7` matches SPL-7 and not SPL-70; `epic:SPL-17` matches the issues under SPL-17 and not SPL-17 itself; both refused on a non-issue type | compile `idle:` as `after:`, and the 31-day topic is not matched |
 | **S3 hub runner + fixed actions** | S1 | `complex_coding` | `api/hub/{scheduled_tasks.go,scheduled_task_run.go,scheduled_task_actions.go}` and their tests; the ticker start in `server.go`; the 30-day delete chore | each schedule kind gives the right next local time, across a DST change in `Europe/Helsinki`; a missed tick runs once; each fixed action changes its object through its store path; a member's task never acts on another member's object (D17: a topic started by, a message sent by, an issue neither assigned to nor reported by the member); an owner who left skips the run and pauses the task; 5 failures pause it; the result is a reply in the task's one topic in `#scheduled-runs` as `HUB-0` (D12), names an unreadable object by id only (D14), and fires no task | remove the own-object check at run (4.5), and the member test archives another member's topic |
 | **S4 event triggers + chains** | S3 | `complex_coding` | the hooks in `wui.go`, `ws.go`, `issues.go` (shared with spec 182 row L2: one call per hook, each feature its own function, D9); `taskChainKey` and the chain check (4.2.2) | a new matching message, topic and issue each run the task once; a replay, a `HUB-0` note, a loop prompt and a post in `#scheduled-runs` do not; A -> A is `skipped` `chain_self`, A -> B -> A is `skipped` `chain_self`; A -> B -> C runs all three; `TestRoundTripsPerRequest` shows no extra round trip in a workspace with no event task | a 4-deep chain A -> B -> C -> D: remove the depth check and D runs (the test wants D `skipped` `chain_depth`) |
 | **S5 agent action + caps** | S3 | `complex_coding` | `api/hub/scheduled_task_agent.go`, the cap read over `rdb/0171`, their tests | the prompt reaches the named agent as one `task` in the task's topic with the objects quoted; the named agent offline -> an online agent of the workspace runs it and `agent_id` says which; none online -> `failed` `no_agent` (D11); the answer closes the run `ok`; no answer within the timeout closes it `failed` `no_answer`; at the run cap the next run is `skipped`; at 100 % tokens an agent run is skipped and its task pauses `cap`; the 80 % notice posts once | count fixed runs against the token cap, and the fixed-run test is skipped at 100 % |
 | **S6 two levels** | S1, S3 | `complex_coding` | `api/hub/operator_tasks.go` (the 5.1 routes behind `operatorAuth` and `instanceAdminAuth`); `api/config/config.go` (`SPOOL_HUB_INSTANCE_ADMIN_WORKSPACE`, default `t1`); the 5.2 settings (`RegisterTenantSetting`); `taskEffective` (5.3) | a `t1` member with `admin` or `biz_owner` reaches the instance routes, a `t1` `developer` and an admin of another workspace get `403` (D10); a fresh workspace's caps read 50 runs and 500 000 tokens (D18); instance off stops a workspace that is on; a workspace cap above the instance's is refused and one below is used; an action off at either level is refused at save and skipped at run; an instance task runs in each listed workspace, writes one run row in each with `level = 'instance'`, and leaves the workspace's run count unchanged while the instance's rises (D16) | count instance runs against the workspace cap, and the D16 test sees the workspace's run count rise |
-| **S7 workspace routes** | S1, S3 | `simple_coding` | `api/hub/tasks_routes.go`: `GET` (with D21's `?channel=` and `?topic=`, D23's `?issue=` and `?epic=`) / `POST /v1/tasks`, `PUT` / `DELETE /v1/tasks/{id}`, `POST /v1/tasks/{id}/run`, `GET /v1/tasks/{id}/runs`, `GET /v1/tasks/preview` (the live count) | the D3 table (admin: any task; member: own objects per D17; member on another's objects: 403; member with `object = channel`: 403); a refused query answers the grammar's error; the preview counts and writes nothing | save a member's task without narrowing its scope, and the D3 test passes on another member's objects |
-| **S8 wui** | S7, S11, S12 | `simple_coding`, then `i18n` (agy has the last word) | `wui/components/ScheduledTasks*.vue` (list, editor with the Advanced cron field and the agent pick, history), the Settings section and `t1`'s Instance section, the one `ScheduledTasksDialog.vue` and its "Scheduled tasks" item in `SidebarRowMenu.vue` and `MessageMenu.vue` (D21), in `useIssueCtxMenu.ts` `menuItemsFor` (issue and epic) and `IssueDetailActions.vue` (D23), the four templates, the topic and message label chips, `wui/utils/spool-client*.mjs`, `csi-spl-wui/i18n/locales/*.json` | `pnpm run typecheck`; `test:unit` (i18n parity, untranslated and raw-text gates, cleancode; the editor's required fields per trigger and action kind; the summary sentence per trigger kind, cron included); the Instance section is absent for a non-`t1` admin; the issue and epic menus carry the item and "New task" binds `key:` / `epic:`; a developer still sees no Settings entry (`tenant-settings.test.mjs:31` unchanged) | a raw string in the editor, and `i18n-no-raw-text` fails |
+| **S7 workspace routes** | S1, S2 (D23's `key:` / `epic:` leaves), S3 | `simple_coding` | `api/hub/tasks_routes.go`: `GET` (with D21's `?channel=` and `?topic=`, D23's `?issue=` and `?epic=`) / `POST /v1/tasks`, `PUT` / `DELETE /v1/tasks/{id}`, `POST /v1/tasks/{id}/run`, `GET /v1/tasks/{id}/runs`, `GET /v1/tasks/preview` (the live count) | the D3 table (admin: any task; member: own objects per D17; member on another's objects: 403; member with `object = channel`: 403; member with an unbound scope, Q1c A: 403); a refused query answers the grammar's error; the preview counts and writes nothing | save a member's task without narrowing its scope, and the D3 test passes on another member's objects |
+| **S8 wui** | S7, S11, S12 | `simple_coding`, then `i18n` (agy has the last word) | `wui/components/ScheduledTasks*.vue` (list, editor with the Advanced cron field and the agent pick, history), the Settings section and `t1`'s Instance section, the one `ScheduledTasksDialog.vue` and its "Scheduled tasks" item in `SidebarRowMenu.vue` and `MessageMenu.vue` (D21), in `useIssueCtxMenu.ts` `menuItemsFor` (issue and epic) and `IssueDetailActions.vue` (D23), the four templates, the topic and message label chips, `wui/utils/spool-client*.mjs`, `csi-spl-wui/i18n/locales/*.json` | `pnpm run typecheck`; `test:unit` (i18n parity, untranslated and raw-text gates, cleancode; the editor's required fields per trigger and action kind; the summary sentence per trigger kind, cron included); the Instance section is absent for a non-`t1` admin; `issue-detail-buttons.test.mjs` names the new header button; the issue and epic menus carry the item and "New task" binds `key:` / `epic:`; a developer still sees no Settings entry (`csi-spl-wui/tests/unit/tenant-settings.test.mjs:31` unchanged) | a raw string in the editor, and `i18n-no-raw-text` fails |
 | **S9 e2e** | S8 | `tests` | `csi-spl-wui/tests/e2e/scheduled-tasks.test.mjs` | on the mock: create from each template, edit, pause, resume, run now, read the history, see the result as a reply in the task's topic in `#scheduled-runs`; save a cron task and read its next three times; open the dialog from a channel, a topic, an issue and an epic, each listing only its own tasks | skip the template fill, and the template test finds an empty editor |
 | **S10 docs** | S3-S8, S11, S12 | `specs_and_docs` | this spec's row status; a help page under `csi-spl-doc/doc/help/` | `do_check_dist_hygiene`, `do_check_fleet_rules_drift` | — |
 | **S11 labels on topics and messages** | S2 | `complex_coding` | `rdb/<NNNN>_topic_message_labels.sql` (8.1 row S11); `api/store/{object_labels.go,object_labels_postgres.go,object_labels_memory.go,object_labels_test.go}`; `rls_test.go`; `api/channelmove/catalogue.go`; `api/search/{grammar.go,match.go,grammar_test.go}` (`label:` applies to message and topic), the stores' compile; `api/hub/object_labels.go` (the 4.3.1 routes); `search-v1.md` (1.7) | `PRE_PUSH_TIER=full`: Postgres and Memory parity; a label not in the catalogue is refused; the 21st label on one object is refused; deleting a catalogue label removes it from topics and messages; `label:urgent` finds a labelled topic and message in the Postgres compile and in `MatchTopic` / `MatchMsg`; RLS covers both tables; a moved channel carries its labels | leave `TypeMessage` out of `label:`'s `Applies`, and the message search for `label:urgent` is refused |
@@ -1092,7 +1111,8 @@ The v0.2 form (poll `558a4577`, Q1-Q11; its text and the recommendations
 are in v0.2, `1f1a614bd`, section 10) is answered: section 1.1.2, D9-D20.
 The build plan's form (poll `bb3b76c2`) is answered: section 1.1.3, D21-D22.
 Plan question Q1b is answered: section 1.1.4, D23. One plan question is
-open: Q1c (1.2), spot rows S8 and S9 only.
+open: Q1c (1.2), options A (recommended) and B; rows are built with A, B
+changes S7, S8 and S9.
 
 ## 11. Not in this spec
 
@@ -1168,3 +1188,13 @@ open: Q1c (1.2), spot rows S8 and S9 only.
   S2); `GET /v1/tasks?issue=` / `?epic=` (9.1.5, row S7). Q1c open: the
   tasks no dialog reaches for a member (1.2). Code paths read on
   `origin/master` `208e5f757`.
+  Review a-521 (agy) FAIL on `6499cd116` folded: W1 Q1c gets options A
+  (recommended: unbound scopes admin-only, S7 refuses) and B, and its spot
+  names S7; W2 issue search is matched in `api/hub/search.go`
+  `issueEntities`, not compiled in `search_postgres.go`: S2 adds that file
+  and `Key` / `Epic` on `search.Entity` via `treeKind` (7, row S2), and S7
+  depends on S2. Notes: N1 the header button binds `epic:` on a level-1
+  row, `key:` otherwise, the dialog opens through one composable, and
+  `issue-detail-buttons.test.mjs` changes (6.2, row S8); N3 the unit
+  test's full path; N4 a several-channel task lists in each channel's
+  dialog, so Q1c (a) is all channels only.

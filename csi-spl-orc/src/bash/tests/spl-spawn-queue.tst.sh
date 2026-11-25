@@ -153,6 +153,10 @@
 #      with the fleet pick holding too (CONTROLS: at 310% it holds; a
 #      non-review pinned row, a -reviewer slug with no review heading and a
 #      seat with no mark set hold at 180%)
+#  44. SPL-6539: a pinned claude or grok row holds on its vendor's weekly
+#      mark and on DISK (plain claude 94% >= 90%, seat 96% >= 95%, grok
+#      unknown past its mark, DISK 88% >= 85%; one pick per (vendor, seat));
+#      CONTROLS: a seat at 94% and a clean box place on sat
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -2594,6 +2598,73 @@ out="$(tick43 "PICK_BOXES=$SAT247" SPAWN_PLACE_SEAT_OVERFLOW=)"
 [[ ! -s "$T/launch.log" ]] && grep -q "ask ${K1:0:8} is pinned to sat: box sat at 247% is past its overflow mark (180%" <<<"$out" &&
   pass "43d. CONTROL no seat mark (no env, no cnf): the pinned seat holds at 180% as before" ||
   fail "43d. no mark: launch=$(cat "$T/launch.log") | $out"
+seat_clear
+
+# 44. SPL-6539 (b47-03, a-677 R7 N1 bc7c0689): spl_spawn_place_pin_hold read
+# do_spl_box_pick with no BOX_PICK_KIND / BOX_PICK_REVIEW_SEAT, and
+# spl_spawn_place_pin_full matched no weekly or DISK "not picked" mark, so a
+# pinned claude or grok row launched onto a box at its vendor's weekly mark or
+# over its disk headroom. Now the pick runs per (vendor, seat) and both marks
+# hold. RED CONTROL: on the parent 44a, 44c, 44d and 44e launch on sat.
+cat >"$T/bin/pick-pin44" <<'STUB'
+#!/usr/bin/env bash
+k="${BOX_PICK_KIND:-}"; s="${BOX_PICK_REVIEW_SEAT:-0}"
+[ -z "${PICK44_LOG:-}" ] || echo "$k:$s" >>"$PICK44_LOG"
+case "${PICK44:-}:$k:$s" in
+  wk:claude:0) w="  claude weekly 94% >= 90%: not picked" ;;
+  wk:claude:1) w="  claude weekly 94%" ;;
+  wk96:claude:1) w="  claude weekly 96% >= 95%: not picked" ;;
+  wk:grok:*) w="  grok weekly unknown, its own mark 95%: not picked" ;;
+  disk:*) w="  DISK /mnt/data 88% >= 85%: not picked" ;;
+  *) w="${k:+  $k weekly 10%}" ;;
+esac
+echo "BOX sat  load5 1.0  cpus 16  6%  under  band 70..90 (box)$w"
+echo "pick=sat reason=sat is under its band"
+STUB
+chmod +x "$T/bin/pick-pin44"
+pin44_q() {  # ASK VENDOR SLUG HEADING: brief SLUG, queued pinned as VENDOR:hand-sat-SLUG
+  printf '# Lane brief: %s\nClass: bug\n%s\n' "$4" "$ES" >"$T/briefs/$3.md"
+  put "$1" c-002@box-desk "dispatch-$3" "SPAWN REQUEST hand-sat-$3"
+  on pc do_spl_spawn_enqueue ASK_ID="$1" SPAWN_CLASS=bug SPAWN_PLACE="$2:hand-sat-$3" >/dev/null 2>&1
+}
+tick44() { rm -f "$T/pick44.log"; : >"$T/launch.log"; tick40 SPAWN_PLACE_PICK_CMD="$T/bin/pick-pin44" PICK44_LOG="$T/pick44.log" SPAWN_PLACE_SEAT_OVERFLOW=300 "$@"; }
+held44() {  # ASK MARK: not launched, still queued, the hold line names MARK
+  [[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$1")")" == queued ]] &&
+    grep -qF "ask ${1:0:8} is pinned to sat: box sat $2" <<<"$out"
+}
+seat_clear; pin44_q "$K1" claude p44-plain "fix the parser, commit and push"
+out="$(tick44 PICK44=wk)"
+held44 "$K1" "claude weekly 94% >= 90%: not picked" && grep -qx 'claude:0' "$T/pick44.log" &&
+  pass "44a. a plain claude row pinned to sat at claude weekly 94% >= 90%: held, the pick ran with BOX_PICK_KIND=claude" ||
+  fail "44a. plain weekly: launch=$(cat "$T/launch.log") pick=$(cat "$T/pick44.log" 2>/dev/null) | $(hubrow "$K1") | $out"
+seat_clear; pin44_q "$K1" claude p44-reviewer "R7 reviewer for SPL-6539, review only"
+out="$(tick44 PICK44=wk LAUNCH_ID=c-581)"
+grep -qx "claude auto $T $T/briefs/p44-reviewer.md p44-reviewer SPAWN_BOX=sat" "$T/launch.log" && grep -qx 'claude:1' "$T/pick44.log" &&
+  ! grep -q "pinned to sat" <<<"$out" &&
+  pass "44b. CONTROL a logged review seat pinned to sat at claude weekly 94% (under the seats' 95%): placed on sat, the pick ran with BOX_PICK_REVIEW_SEAT=1" ||
+  fail "44b. seat 94%: launch=$(cat "$T/launch.log") pick=$(cat "$T/pick44.log" 2>/dev/null) | $(hubrow "$K1") | $out"
+seat_clear; pin44_q "$K1" claude p44-reviewer "R7 reviewer for SPL-6539, review only"
+out="$(tick44 PICK44=wk96)"
+held44 "$K1" "claude weekly 96% >= 95%: not picked" &&
+  pass "44c. a logged review seat pinned to sat at claude weekly 96% >= 95%: held" ||
+  fail "44c. seat 96%: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
+seat_clear; pin44_q "$K1" grok p44-grok "fix the parser, commit and push"
+out="$(tick44 PICK44=wk)"
+held44 "$K1" "grok weekly unknown, its own mark 95%: not picked" &&
+  pass "44d. a plain grok row pinned to sat with grok weekly unknown past its own mark: held" ||
+  fail "44d. grok: launch=$(cat "$T/launch.log") pick=$(cat "$T/pick44.log" 2>/dev/null) | $(hubrow "$K1") | $out"
+seat_clear; pin44_q "$K1" claude p44-disk "fix the parser, commit and push"
+pin44_q "$K2" claude p44-disk2 "fix the lexer, commit and push"
+out="$(tick44 PICK44=disk)"
+held44 "$K1" "DISK /mnt/data 88% >= 85%: not picked" && held44 "$K2" "DISK /mnt/data 88% >= 85%: not picked" &&
+  [[ "$(grep -c . "$T/pick44.log")" == 1 ]] &&
+  pass "44e. two claude rows pinned to sat over its DISK mark: both held, one pick for the (claude, 0) pair" ||
+  fail "44e. disk: launch=$(cat "$T/launch.log") pick=$(cat "$T/pick44.log" 2>/dev/null) | $out"
+seat_clear; pin44_q "$K1" claude p44-ok "fix the parser, commit and push"
+out="$(tick44 LAUNCH_ID=c-582)"
+grep -qx "claude auto $T $T/briefs/p44-ok.md p44-ok SPAWN_BOX=sat" "$T/launch.log" && ! grep -q "pinned to sat" <<<"$out" &&
+  pass "44f. CONTROL a claude row pinned to sat at claude weekly 10%, disk clear: placed on sat" ||
+  fail "44f. clean box: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
 seat_clear
 
 echo

@@ -825,7 +825,9 @@ spl_spawn_place_slug() {  # SLUG
 }
 
 # Prints why the pinned BOX takes no lane now and returns 0: its BOX line is at
-# or past its overflow mark, CORDONED, DEGRADED, RECOVERING or AT CAP. No line for it: returns 1
+# or past its overflow mark, CORDONED, DEGRADED, RECOVERING or AT CAP, or
+# do_spl_box_pick marked it "not picked" for its DISK or, with BOX_PICK_KIND,
+# that vendor's weekly quota (SPL-6539). No line for it: returns 1
 # (spawn-window judges it). PICK_OUT is do_spl_box_pick's output when the caller
 # already read it.
 spl_spawn_place_pin_full() {  # BOX [PICK_OUT]
@@ -841,6 +843,8 @@ spl_spawn_place_pin_full() {  # BOX [PICK_OUT]
     if (/  CORDONED /) { printf "box %s is CORDONED (do_spl_box_cordon)", b; exit 0 }
     if (/DEGRADED/) { printf "box %s is DEGRADED", b; exit 0 }
     if (match($0, /RECOVERING \([^)]*\)/)) { printf "box %s is %s: no new lanes until its hold ends", b, substr($0, RSTART, RLENGTH); exit 0 }
+    if (match($0, /DISK [^ ]+ [0-9]+% >= [0-9]+%: not picked/)) { printf "box %s %s", b, substr($0, RSTART, RLENGTH); exit 0 }
+    if (match($0, /[a-z0-9_-]+ weekly (unknown, its own mark [0-9]+%|[0-9]+% >= [0-9]+%): not picked/)) { printf "box %s %s", b, substr($0, RSTART, RLENGTH); exit 0 }
     if (/AT CAP/) { printf "box %s is at its CI-busy agent cap", b; exit 0 }
     if (seen && hi > 0 && p >= hi * over / 100) { printf "box %s at %d%% is past its overflow mark (%d%%, %d%% of its high %d%%)", b, p, hi * over / 100, over, hi; exit 0 }
     exit 1 }' <<<"$line"
@@ -1428,40 +1432,49 @@ spl_spawn_place_away_hold() {  # MARKED ROWS
 # tick's line, so it blocks no other row; one INFO line and its .place.wait
 # line say why. Before, the hold was judged on the head only, and one row
 # pinned to a full box stopped every row behind it (27 queued, none placed,
-# 2026-10-28). do_spl_box_pick runs once per tick, only when a row is pinned;
-# the line of a row no longer held is dropped. A logged review seat
-# (spl_spawn_place_pin_seat_ovf) is judged at the seats' own overflow mark,
-# as an unpinned one is (spl_spawn_place_seat_past, SPL-6521): before, a
-# hand-<box>- seat held at 200% of the box's high and never reached that pass.
-# Prints ROWS minus the held ones.
+# 2026-10-28). do_spl_box_pick runs once per tick per (vendor, seat) pair, only
+# when a row is pinned, with BOX_PICK_KIND and BOX_PICK_REVIEW_SEAT so a
+# pinned claude or grok row holds on its vendor's weekly quota and on DISK, as
+# an unpinned one does (SPL-6539); agy stays with spl_spawn_place_agy_box_hold.
+# The line of a row no longer held is dropped. A logged review seat
+# (spl_spawn_place_pin_seat) is judged at the seats' own overflow mark and
+# weekly mark, as an unpinned one is (spl_spawn_place_seat_past, SPL-6521):
+# before, a hand-<box>- seat held at 200% of the box's high and never reached
+# that pass. Prints ROWS minus the held ones.
 spl_spawn_place_pin_hold() {  # MARKED ROWS
-  local id slug box why out="" held=() ps=() seats ovf
+  local id vendor slug box why kind seat key held=() ps=() seats ovf
+  local -A outs=()
   seats="$(spl_spawn_place_seats "$1" | jq -r '.[].ask_id')"
-  while IFS=$'\t' read -r id slug; do
+  while IFS=$'\t' read -r id vendor slug; do
     mapfile -t ps < <(spl_spawn_place_slug "$slug")
     box="${ps[0]}"
     [[ -n "$box" ]] || continue
-    [[ -n "$out" ]] || out="$(spl_spawn_place_pick_out)"
-    ovf="$(spl_spawn_place_pin_seat_ovf "$seats" "$id" "$slug")" || ovf="${BOX_PICK_OVERFLOW:-200}"
-    why="$(BOX_PICK_OVERFLOW="$ovf" spl_spawn_place_pin_full "$box" "$out")" || continue
+    seat=0; ovf=""
+    if spl_spawn_place_pin_seat "$seats" "$id" "$slug"; then
+      seat=1; ovf="$(spl_spawn_place_seat_overflow)"
+    fi
+    [[ -n "$ovf" ]] || ovf="${BOX_PICK_OVERFLOW:-200}"
+    kind="$vendor"; [[ "$kind" == agy ]] && { kind=""; seat=0; }
+    key="$kind:$seat"
+    [[ -v "outs[$key]" ]] || outs[$key]="$(BOX_PICK_KIND="$kind" BOX_PICK_REVIEW_SEAT="$seat" spl_spawn_place_pick_out)"
+    why="$(BOX_PICK_OVERFLOW="$ovf" spl_spawn_place_pin_full "$box" "${outs[$key]}")" || continue
     spl_spawn_place_wait "$id" "pinned to $box: $why"
     do_log "INFO hold: ask ${id:0:8} is pinned to $box: $why; it stays queued" >&2
     held+=("$id")
-  done < <(jq -r '.[] | select(.state == "queued" and ._l) | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
+  done < <(jq -r '.[] | select(.state == "queued" and ._l) | "\(.ask_id)\t\(if (.placement | test(":")) then (.placement | sub(":.*$"; "")) else "" end)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
   spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "^pinned to [a-z0-9]+: "
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
 }
 
-# The review seats' overflow mark (spl_spawn_place_seat_overflow) when the row
-# ID (pinned SLUG) is a logged review seat: its ask id is one of SEAT_IDS
-# (spl_spawn_place_seats) and its brief's heading says review
-# (spl_spawn_place_seat_pass). Else returns 1: the row keeps the overflow mark.
-spl_spawn_place_pin_seat_ovf() {  # SEAT_IDS ID SLUG
+# Returns 0 when the row ID (pinned SLUG) is a logged review seat: its ask id
+# is one of SEAT_IDS (spl_spawn_place_seats) and its brief's heading says
+# review (spl_spawn_place_seat_pass). Else returns 1: the row keeps the
+# overflow mark and its vendor's own weekly mark.
+spl_spawn_place_pin_seat() {  # SEAT_IDS ID SLUG
   local brief
   grep -qxF -e "$2" <<<"$1" || return 1
   brief="$(spl_spawn_place_brief "$3")"
-  [[ -n "$brief" ]] && spl_spawn_place_seat_pass "$brief" || return 1
-  spl_spawn_place_seat_overflow
+  [[ -n "$brief" ]] && spl_spawn_place_seat_pass "$brief"
 }
 
 # 2f. A queued row the placer would launch as agy (placed as agy, or swapped

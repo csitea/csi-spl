@@ -10,9 +10,13 @@
 //      bar counts "in 2 channels" after a tick on another channel's page; Esc
 //      clears; the card's box sits at its left, centred on its height and
 //      never on the sender avatar, at 5 rows and in titles (t1 a1329bac),
-//      inside a titles card at font sizes 1 and 2 (R7 W2)
+//      inside a titles card at font sizes 1 and 2 (R7 W2); the box is 16 px
+//      (SPL-6510, t1 a1329bac msg ea8b5f21) in a 24 px target that stays off
+//      the avatar, the move handle's strip and the card's edges, and a click
+//      on that target's margin ticks the card
 //   A' 360 + 390 phone, selecting, rows + titles: the box is off the avatar,
-//      the title/body and the next card, inside its card (R7 W1 + W2)
+//      the title/body and the next card, inside its card (R7 W1 + W2); the
+//      box is 16 px in a 32 px tap target that does the same (SPL-6510)
 //
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/topic-select-phone.test.mjs   # what CI does
@@ -123,8 +127,16 @@ const boxGeo = (p, id) => p.evaluate((sel) => {
   const av = r(c.querySelector('.avatar'))
   const cd = r(c)
   const h = c.querySelector('[data-testid=move-handle]')
+  /* SPL-6510: the 24 px (phone 32 px) target the 16 px box sits in */
+  const he = c.querySelector('[data-test=topic-select-hit]')
+  const hb = he ? r(he) : null
   return {
-    box, av, card: cd,
+    box, av, card: cd, hit: hb,
+    size: { w: Math.round((box.r - box.l) * 10) / 10, h: Math.round((box.b - box.t) * 10) / 10 },
+    hitOk: Boolean(hb) && hb.r - hb.l >= 23.5 && hb.b - hb.t >= 23.5
+      && box.l >= hb.l - 0.5 && box.r <= hb.r + 0.5 && box.t >= hb.t - 0.5 && box.b <= hb.b + 0.5
+      && !hit(hb, av) && hb.t >= cd.t - 0.5 && hb.b <= cd.b + 0.5 && (!h || hb.l >= r(h).r - 0.5)
+      && ![...c.querySelectorAll('.msg-main > :not(.msg-meta)')].map(r).some((e) => e.r > e.l && e.b > e.t && hit(hb, e)),
     overlap: box.l < av.r && av.l < box.r && box.t < av.b && av.t < box.b,
     /* the move handle's strip at the card's left stays grabbable (move-by-drag.test.mjs) */
     clearOfHandle: !h || box.l >= r(h).r - 0.5,
@@ -133,9 +145,14 @@ const boxGeo = (p, id) => p.evaluate((sel) => {
     overlapBody: [...c.querySelectorAll('.msg-main > :not(.msg-meta)')].map(r).some((e) => e.r > e.l && e.b > e.t && hit(box, e)),
     /* R7 W2: never spilling onto the card below */
     overlapNextCard: (() => { const n = c.nextElementSibling?.closest?.('article.msg'); return Boolean(n) && hit(box, r(n)) })(),
+    hitOverlapNextCard: (() => { const n = c.nextElementSibling?.closest?.('article.msg'); return Boolean(n && hb) && hit(hb, r(n)) })(),
     centreOff: Math.round(((box.t + box.b) / 2 - (cd.t + cd.b) / 2) * 10) / 10,
   }
 }, card(id))
+
+/** SPL-6510 (owner HUM-10, t1 a1329bac, msg ea8b5f21): 16 px, about 10 % under the bar's 18 px box. */
+const BOX_PX = 16
+const sized = (g) => Math.abs(g.size.w - BOX_PX) <= 1 && Math.abs(g.size.h - BOX_PX) <= 1
 
 /** The card's clip mode (titles / rows / full), through the header control. */
 const clipMode = async (p, m) => {
@@ -155,6 +172,8 @@ async function boxPlace(d, short) {
   ok('B desktop: 5 rows, the box sits on the card\'s vertical centre', Math.abs(t5.centreOff) <= 3, t5)
   ok('B desktop: 5 rows, the box sits at the card\'s left, under the avatar', t5.box.l <= t5.av.r && t5.box.t >= t5.av.b, t5)
   ok('B desktop: 5 rows, the box leaves the move handle\'s strip free', t5.clearOfHandle, t5)
+  ok(`B desktop: 5 rows, the box is ${BOX_PX} px (+-1) wide and tall`, sized(t5), t5.size)
+  ok('B desktop: 5 rows, its 24 px target holds the box, off the avatar, the handle\'s strip and the body, inside the card', t5.hitOk, t5)
   if (process.env.SHOT_DIR) {
     await d.hover(card(tall))
     await sleep(200)
@@ -163,10 +182,12 @@ async function boxPlace(d, short) {
   const s1 = await boxGeo(d, short)
   console.log('  geo 1 line', JSON.stringify(s1))
   ok('B desktop: a one-line card, the box is off the avatar and inside the card', !s1.overlap && s1.inside, s1)
+  ok(`B desktop: a one-line card, the box is ${BOX_PX} px in its 24 px target, inside the card`, sized(s1) && s1.hitOk, s1)
   await clipMode(d, 'titles')
   const tt = await boxGeo(d, tall)
   console.log('  geo titles', JSON.stringify(tt))
   ok('B desktop: titles, the box is off the avatar and inside the card', !tt.overlap && tt.inside, tt)
+  ok(`B desktop: titles, the box is ${BOX_PX} px in its 24 px target, inside the card`, sized(tt) && tt.hitOk, tt)
   /* R7 W2 (a-549): font sizes 1 and 2 make the titles card shorter */
   for (const lvl of ['1', '2']) {
     await d.evaluate((l) => document.documentElement.setAttribute('data-font-size', l), lvl)
@@ -174,6 +195,7 @@ async function boxPlace(d, short) {
     const g = await boxGeo(d, tall)
     console.log(`  geo titles font ${lvl}`, JSON.stringify(g))
     ok(`B desktop: titles at font size ${lvl}, the box is inside the card, off the avatar and the next card`, g.inside && !g.overlap && !g.overlapNextCard, g)
+    ok(`B desktop: titles at font size ${lvl}, the box is ${BOX_PX} px in its 24 px target, off the next card`, sized(g) && g.hitOk && !g.hitOverlapNextCard, g)
   }
   await d.evaluate(() => document.documentElement.setAttribute('data-font-size', '3'))
   await clipMode(d, 'rows')
@@ -250,6 +272,8 @@ async function phoneGeo(browser, base, w, mode) {
     console.log(`  geo ${w} ${mode} ${name}`, JSON.stringify(g))
     ok(`A ${w} ${mode}: ${name} card while selecting, the box is off the avatar, the title/body and the next card, inside its card`,
       !g.overlap && !g.overlapBody && g.inside && !g.overlapNextCard, g)
+    ok(`A ${w} ${mode}: ${name} card, the box is ${BOX_PX} px in a 32 px tap target off the avatar, the body and the next card`,
+      sized(g) && g.hitOk && g.hit.r - g.hit.l >= 31.5 && !g.hitOverlapNextCard, g)
   }
   if (process.env.SHOT_DIR) await (await p.$(card(tall))).screenshot({ path: `${process.env.SHOT_DIR}/phone-${w}-${mode}-selecting.png` })
   await p.close()
@@ -281,8 +305,13 @@ async function desktop(browser, base) {
   await d.waitForSelector(card(b3), { visible: true, timeout: 10000 })
   ok('B desktop: the selection is still there on channel B\'s page', (await barCount(d)) === 2)
   await d.hover(card(b3))
-  await d.click(`${card(b3)} [data-test=topic-select-box]`)
-  ok('B desktop: a box ticks the card; the bar reads 3 in 2 channels', await until(d, () => {
+  /* SPL-6510: a click on the target's margin, 2 px in from its corner and outside the 16 px box */
+  const tgt = await d.evaluate((sel) => {
+    const h = document.querySelector(sel)?.getBoundingClientRect()
+    return h ? { x: h.left + 2, y: h.top + 2 } : null
+  }, `${card(b3)} [data-test=topic-select-hit]`)
+  if (tgt) await d.mouse.click(tgt.x, tgt.y)
+  ok('B desktop: a click on the box\'s 24 px target, outside the box, ticks the card; the bar reads 3 in 2 channels', await until(d, () => {
     const b = document.querySelector('[data-test=topic-select-bar]')
     return b && b.getAttribute('data-count') === '3' && b.getAttribute('data-channels') === '2'
   }, null, 3000))

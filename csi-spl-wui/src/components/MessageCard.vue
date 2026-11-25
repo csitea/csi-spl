@@ -74,18 +74,27 @@
          on a channel's topic card only. A desktop shows it on
          hover and focus until one topic is ticked (H3), then on every card;
          a phone only once the selection is not empty (its menu's "Select"
-         starts it, H4). -->
-    <input
+         starts it, H4). SPL-6510: the box is 16 px; the label around it is
+         its 24 px target (32 px on a phone): a click on the label's margin
+         ticks the box, and neither reaches the card. -->
+    <label
       v-if="topicSelect && (!mobile || sel.selecting.value)"
-      type="checkbox"
-      class="msg-select-box"
-      data-test="topic-select-box"
-      :checked="sel.ticked.value"
-      :aria-label="t('topic_select.select_row', { title })"
-      :title="t('topic_select.select_row', { title })"
-      @click.stop="sel.toggle($event)"
+      class="msg-select-hit"
+      data-test="topic-select-hit"
+      @click.stop
       @pointerdown.stop
     >
+      <input
+        type="checkbox"
+        class="msg-select-box"
+        data-test="topic-select-box"
+        :checked="sel.ticked.value"
+        :aria-label="t('topic_select.select_row', { title })"
+        :title="t('topic_select.select_row', { title })"
+        @click.stop="sel.toggle($event)"
+        @pointerdown.stop
+      >
+    </label>
     <SpoolAvatar class="avatar" :id="author.id" :box="author.box" />
     <div class="msg-main">
       <!--
@@ -863,25 +872,38 @@ onMounted(() => {
 /* R7 W2 (a-549): a short card (titles, one line; 80 px at font size 1)
    left no room under the avatar, and the box spilled past its bottom onto
    the next card. A selectable card is at least padding + avatar + gap + box
-   + 2 px tall (86 px), so the box always fits inside it. */
-.msg--selectable { position: relative; min-height: calc(8px + 36px + 4px + 36px + 2px); }
-.msg-select-box {
+   + 2 px tall, so the box always fits inside it. */
+/* SPL-6510 (owner HUM-10, t1 a1329bac, msg ea8b5f21): the box is 16 px,
+   about 10 % under the selection bar's 18 px box. Its clickable area stays
+   24 px (WCAG 2.2, 2.5.8): the box sits centred in a 24 px label
+   (.msg-select-hit), which is what is placed, so "the box" in the rules
+   above is that 24 px target; the card is at least 74 px tall. */
+.msg--selectable { position: relative; min-height: calc(8px + 36px + 4px + 24px + 2px); }
+.msg-select-hit {
   position: absolute;
-  inset-block-start: max(50%, calc(8px + 36px + 4px + 18px));
+  inset-block-start: max(50%, calc(8px + 36px + 4px + 12px));
   inset-inline-start: 12px;
   translate: 0 -50%;
   z-index: 3;
-  width: 36px;
-  height: 36px;
-  margin: 0;
-  accent-color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
 }
-.msg--selectable:hover .msg-select-box,
-.msg--selectable:focus-within .msg-select-box,
-.msg--selecting .msg-select-box { opacity: 1; pointer-events: auto; }
+.msg-select-box {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+.msg--selectable:hover .msg-select-hit,
+.msg--selectable:focus-within .msg-select-hit,
+.msg--selecting .msg-select-hit { opacity: 1; pointer-events: auto; }
 .msg-select-box:focus-visible { opacity: 1; outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .msg--ticked { background: var(--color-selected); }
 /* t1 b921518d: the selected topic card has no left bracket bar. A 1px
@@ -1300,11 +1322,13 @@ onMounted(() => {
      selecting, everything under the header keeps to column 2 and the box
      takes the avatar's 32 px column, 4 px from the edge (the move handle is
      not rendered while selecting). Not selecting, the card reads as before.
-     W2: the card is then at least padding + avatar + gap + box + 2 px tall. */
+     W2: the card is then at least padding + avatar + gap + box + 2 px tall.
+     SPL-6510: the 16 px box sits centred in that 32 px column, which stays
+     its tap target. */
   .msg--selectable { min-height: 0; }
   .msg--selecting { min-height: calc(8px + 32px + 4px + 32px + 2px); }
   .msg--selecting .msg-main > :not(.msg-meta) { grid-column: 2; }
-  .msg-select-box {
+  .msg-select-hit {
     inset-block-start: max(50%, calc(8px + 32px + 4px + 16px));
     inset-inline-start: 4px;
     width: 32px;

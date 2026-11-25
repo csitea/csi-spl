@@ -157,7 +157,7 @@ How often does the page refresh?
 
 | slice | where | tests (n=1, this tree) |
 |---|---|---|
-| S1 | rdb `0324_tax_documents.sql`; store `tax.go`, `tax_postgres.go` | `tax_test.go` (read by every door, red control: `tax_read` dropped, writes, prune); the census, RLS and SQL-tab registries; Postgres 16 |
+| S1 | rdb `0326_tax_documents.sql`; store `tax.go`, `tax_postgres.go` | `tax_test.go` (read by every door, red control: `tax_read` dropped, writes, prune); the census, RLS and SQL-tab registries; Postgres 16 |
 | S2 | hub `tax.go`, wire `tax.go`, `openapi.json`; cnf `SPOOL_HUB_TAX_WORKSPACE: "csitea"` | hub `tax_test.go` (doors, other workspaces, ingest, cnf off) on Postgres; `tax_internal_test.go` |
 | S3 | WUI `utils/reporting-tax.mjs`, `pages/reporting/costs/taxes.vue`, the label in `utils/reporting-costs.mjs` (`taxOnly`), 19 locales | `tests/unit/reporting-tax.test.mjs`, `reporting-costs.test.mjs`; e2e `reporting-costs-taxes.test.mjs` |
 | S4 | orc `do_spl_tax_sync` | `spl-tax-sync.tst.sh` (an invented index) |

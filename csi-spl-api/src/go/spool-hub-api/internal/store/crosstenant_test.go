@@ -700,7 +700,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.NetvisorIngest(ctx, s.tenant, snap); err != nil {
 		t.Fatal(err)
 	}
-	// tax_snapshots, tax_documents (rdb 0324, spec 143 taxes-tab.md S1,
+	// tax_snapshots, tax_documents (rdb 0326, spec 143 taxes-tab.md S1,
 	// SPL-6438): one invented snapshot of one document, through the store API.
 	if _, err := pg.TaxIngest(ctx, s.tenant, taxSnap(now, s.marker)); err != nil {
 		t.Fatal(err)
@@ -862,7 +862,7 @@ var ownerScopedTables = map[string]bool{"netvisor_settings": true, "netvisor_sna
 	"netvisor_forecast_items": true, "netvisor_card_cost_lines": true}
 
 // taxTables are read by a person seat and written in the tax ingest scope
-// alone (rdb 0324, spec 143 taxes-tab.md): the operator and the tenant
+// alone (rdb 0326, spec 143 taxes-tab.md): the operator and the tenant
 // alone read 0, so the census reads and writes them in the ingest scope.
 var taxTables = map[string]bool{"tax_snapshots": true, "tax_documents": true}
 

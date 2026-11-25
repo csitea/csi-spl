@@ -1,4 +1,4 @@
--- 0324_tax_documents.sql - the hub tables of the Costs > Taxes page
+-- 0326_tax_documents.sql - the hub tables of the Costs > Taxes page
 -- (spec 143 taxes-tab.md v0.2 sections 3 and 4, build slice S1, SPL-6438;
 -- owner HUM-10, csitea topic dc7c9c9a, msg fc8f964e: "Every person of
 -- csitea; agents never", "Weekly, after the weekly tax check").

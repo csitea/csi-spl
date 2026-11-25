@@ -11,7 +11,7 @@ import (
 )
 
 // The tax index store of the Costs > Taxes page (spec 143 taxes-tab.md
-// sections 3 and 4, build slice S1, SPL-6438; rdb 0324_tax_documents.sql).
+// sections 3 and 4, build slice S1, SPL-6438; rdb 0326_tax_documents.sql).
 // One snapshot per weekly sync of the main box's tax index, one document
 // row per index row. No amount, business id, tax number, file name or
 // personal name has a field here: the index carries none, and the
@@ -20,17 +20,17 @@ import (
 // Every person seated in the tax workspace READS (owner HUM-10, csitea
 // topic dc7c9c9a, msg fc8f964e: "Every person of csitea; agents never"):
 // TaxLatest runs in inTaxReader (the tenant plus the session's human id),
-// where rdb 0324's tax_read passes a person seat only; an agent seat, a
+// where rdb 0326's tax_read passes a person seat only; an agent seat, a
 // time accountant, an act-as clone, a channel guest, another workspace,
 // the tenant alone and the operator scope read 0 rows. Only the operator
 // sync writes (TaxIngest, inTaxIngest). The hub passes as human only the
 // id of an authenticated person's browser session.
 
-// TaxCategories is rdb 0324's tax_documents.category CHECK, the private
+// TaxCategories is rdb 0326's tax_documents.category CHECK, the private
 // tax project's filing folders.
 var TaxCategories = []string{"decisions", "payments", "balance", "msgs"}
 
-// Bounds of one snapshot and its fields (rdb 0324's CHECKs).
+// Bounds of one snapshot and its fields (rdb 0326's CHECKs).
 const (
 	TaxMaxDocuments = 10000
 	TaxMaxText      = 80
@@ -40,7 +40,7 @@ const (
 )
 
 var (
-	// ErrBadTax: a value outside rdb 0324's CHECKs.
+	// ErrBadTax: a value outside rdb 0326's CHECKs.
 	ErrBadTax = errors.New("store: bad tax value")
 	// ErrTaxDuplicate: the snapshot id is already filed.
 	ErrTaxDuplicate = errors.New("store: tax snapshot already filed")
@@ -96,7 +96,7 @@ func taxText(v string) bool {
 	return strings.IndexFunc(v, unicode.IsControl) < 0
 }
 
-// normTaxSnapshot checks snap against rdb 0324's CHECKs and numbers its
+// normTaxSnapshot checks snap against rdb 0326's CHECKs and numbers its
 // documents in order.
 func normTaxSnapshot(snap TaxSnapshot) (TaxSnapshot, error) {
 	switch {

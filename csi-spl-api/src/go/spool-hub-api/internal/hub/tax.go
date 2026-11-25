@@ -18,7 +18,7 @@ import (
 // build slice S2, SPL-6438; owner HUM-10, csitea topic dc7c9c9a, msg
 // fc8f964e: "Every person of csitea; agents never", "Weekly, after the
 // weekly tax check"). Bodies: internal/wire/tax.go. Store: store.Tax
-// (rdb 0324).
+// (rdb 0326).
 //
 //	GET  /v1/view/tax/overview       every PERSON seated in the tax workspace
 //	POST /v1/operator/tax/snapshots  the main-box sync (do_spl_tax_sync) as
@@ -34,7 +34,7 @@ import (
 // cnf: csitea), the operator workspace included, it answers the 404 of an
 // unknown /v1/view/* route, byte for byte: no other workspace learns the
 // page has data. Behind the
-// door rdb 0324's RLS is the second wall: the store reads as that human.
+// door rdb 0326's RLS is the second wall: the store reads as that human.
 //
 // No MCP tool and no spool message carries a row. Logs carry ids, counts
 // and outcomes, never a document's kind, type, period or hash.
@@ -121,7 +121,7 @@ func (s *Server) taxPerson(w http.ResponseWriter, r *http.Request, tenant, hum s
 
 // taxPersonSeat answers whether hum's seat in tenant is a person's: one
 // role of its set is neither an agent's nor a time accountant's, and it is
-// not a channel guest's. rdb 0324's tax_read holds the same rule in the
+// not a channel guest's. rdb 0326's tax_read holds the same rule in the
 // database. false = answered 403.
 func (s *Server) taxPersonSeat(w http.ResponseWriter, r *http.Request, tenant, hum string) bool {
 	a, err := s.access(r.Context(), hum, tenant)
@@ -282,7 +282,7 @@ func (s *Server) handleOperatorTaxIngest(w http.ResponseWriter, r *http.Request)
 }
 
 // taxSnapshotIn parses the wire snapshot's dates; the store checks the rest
-// (rdb 0324's CHECKs). why is "" when it parses.
+// (rdb 0326's CHECKs). why is "" when it parses.
 func taxSnapshotIn(in wire.TaxSnapshotIn, by string) (store.TaxSnapshot, string) {
 	snap := store.TaxSnapshot{SnapshotID: in.SnapshotID, TaxYear: in.TaxYear, FiledBy: by,
 		Documents: make([]store.TaxDocument, 0, len(in.Documents))}

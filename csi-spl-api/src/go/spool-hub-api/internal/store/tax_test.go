@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Spec 143 taxes-tab.md S1 (SPL-6438): the tax index store and rdb 0324's
+// Spec 143 taxes-tab.md S1 (SPL-6438): the tax index store and rdb 0326's
 // RLS. Postgres only (rlsStore skips without SPOOL_TEST_PG_DSN; hub-pg.tst.sh
 // runs it under PRE_PUSH_TIER=full). Every value here is invented.
 
@@ -41,7 +41,7 @@ func taxSnap(now time.Time, marker string) TaxSnapshot {
 		}}
 }
 
-// taxCounts counts each rdb 0324 table's rows under scope, in one
+// taxCounts counts each rdb 0326 table's rows under scope, in one
 // transaction rolled back after setup ran in it.
 func taxCounts(t *testing.T, pg *Postgres, setup, scope string, args ...any) map[string]int {
 	t.Helper()
@@ -148,7 +148,7 @@ func TestTaxStoreRead(t *testing.T) {
 	}
 }
 
-// TestTaxStoreRLSControl is the red control: with rdb 0324's tax_read
+// TestTaxStoreRLSControl is the red control: with rdb 0326's tax_read
 // dropped (in a rolled-back transaction) the tenant alone and an agent seat
 // read the rows; with it, none.
 func TestTaxStoreRLSControl(t *testing.T) {
@@ -178,7 +178,7 @@ func TestTaxStoreRLSControl(t *testing.T) {
 }
 
 // TestTaxStoreWrites: a person's scope writes nothing (42501 on insert, 0
-// rows on delete); a duplicate snapshot id and values outside rdb 0324's
+// rows on delete); a duplicate snapshot id and values outside rdb 0326's
 // CHECKs are refused; the ingest prunes a year's snapshots older than
 // TaxKeepWeeks before the newest, always keeping the two newest; another
 // year is untouched and is read by its year.

@@ -7,17 +7,17 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// The Postgres side of tax.go (rdb 0324). Only the two scopes below open
+// The Postgres side of tax.go (rdb 0326). Only the two scopes below open
 // these tables; inTenant alone, asOperator and the Reporting SQL tab read 0
 // of their rows.
 
 // pgScopeTaxReader is the tenant scope plus the session's human, in one
-// statement: rdb 0324's tax_read then passes a person seated in the tenant.
+// statement: rdb 0326's tax_read then passes a person seated in the tenant.
 // Only tax_postgres.go and netvisor_postgres.go set app.human_id
 // (TestNetvisorHumanScopeCallers).
 const pgScopeTaxReader = `SELECT set_config('app.tenant_id', $1, true), set_config('app.human_id', $2, true)`
 
-// pgScopeTaxIngest is the tenant scope plus rdb 0324's ingest scope, the
+// pgScopeTaxIngest is the tenant scope plus rdb 0326's ingest scope, the
 // one scope that writes.
 const pgScopeTaxIngest = `SELECT set_config('app.tenant_id', $1, true), set_config('app.rls_scope', 'tax_ingest', true)`
 

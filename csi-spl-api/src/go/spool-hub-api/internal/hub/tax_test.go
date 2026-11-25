@@ -17,7 +17,7 @@ import (
 
 // Spec 143 taxes-tab.md S2 (SPL-6438): the Costs > Taxes routes. Real
 // browser sessions (doorRig) on Postgres only, since only the Postgres
-// store keeps the tax index (rdb 0324); hub-pg.tst.sh runs them under
+// store keeps the tax index (rdb 0326); hub-pg.tst.sh runs them under
 // PRE_PUSH_TIER=full. Every value here is invented.
 
 // taxMarker is the invented kind of the seeded document: a body that

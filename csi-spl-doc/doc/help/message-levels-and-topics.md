@@ -154,8 +154,9 @@ prompt to several topics at once (**Multicast**).
   workspace will not be selectable). Direct messages and the `issues` channel
   will not have topic selection boxes.
 - **Ticking topics (desktop)**: hovering over or focusing a topic card will
-  reveal the checkbox at its start; once one topic is ticked, checkboxes will
-  appear on every card. Clicking will toggle a topic, **Shift-click** will
+  reveal the checkbox at its left edge, halfway down the card and never on the
+  sender's icon (on a one-line card, just below the icon); once one topic is
+  ticked, checkboxes will appear on every card. Clicking will toggle a topic, **Shift-click** will
   select a range from the last ticked card, **`x`** on a focused card will
   toggle it, and **`Esc`** will clear the selection.
 - **Ticking topics (phone)**: long-pressing or swiping right on a topic card

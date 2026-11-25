@@ -69,8 +69,9 @@
       @click.stop.prevent
       @contextmenu.stop.prevent
     />
-    <!-- spec 186 4.1 / 4.6 (row M3): the select phase's box, over the
-         avatar's place, on a channel's topic card only. A desktop shows it on
+    <!-- spec 186 4.1 / 4.6 (row M3): the select phase's box, at the card's
+         left under the avatar, centred on the card's height (t1 a1329bac),
+         on a channel's topic card only. A desktop shows it on
          hover and focus until one topic is ticked (H3), then on every card;
          a phone only once the selection is not empty (its menu's "Select"
          starts it, H4). -->
@@ -848,17 +849,23 @@ onMounted(() => {
 
 <style scoped>
 .msg-edit-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px; }
-/* spec 186 (row M3): the select box sits over the avatar's 36 px place, so
-   ticking moves nothing. A desktop shows it on hover and focus until one
-   topic is ticked (H3), then on every card; a ticked card takes the
+/* spec 186 (row M3): the select box sits at the card's left, in the avatar's
+   column, centred on the card's height (owner HUM-10, t1 a1329bac, msg
+   9ffbd794): never on the sender avatar. A card too short for its centre to
+   clear the avatar (titles) puts it just under the avatar instead: the top
+   is the larger of 50 % and the avatar's bottom (8 px padding + 36 px) plus
+   a 4 px gap plus half the box. It starts at 12 px, right of the move
+   handle's 12 px strip, which stays grabbable on hover. Ticking moves nothing. A desktop shows it on
+   hover and focus until one topic is ticked (H3), then on every card; a ticked card takes the
    selection tint, as an issue row does. Hidden, it takes no pointer: the
    avatar under it stays the topmost element, so an unticked feed reads as
    today (spec 186 4.1 step 1 item 2; avatars-visible, SPL-6446). */
 .msg--selectable { position: relative; }
 .msg-select-box {
   position: absolute;
-  inset-block-start: 8px;
-  inset-inline-start: 4px;
+  inset-block-start: max(50%, calc(8px + 36px + 4px + 18px));
+  inset-inline-start: 12px;
+  translate: 0 -50%;
   z-index: 3;
   width: 36px;
   height: 36px;

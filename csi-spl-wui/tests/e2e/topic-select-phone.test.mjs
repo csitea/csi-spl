@@ -8,7 +8,8 @@
 //   B  1280x800 desktop: a card's box ticks it; Select by title (header,
 //      nothing ticked) sends the patterns and the mock hub's topics join; the
 //      bar counts "in 2 channels" after a tick on another channel's page; Esc
-//      clears
+//      clears; the card's box sits at its left, centred on its height and
+//      never on the sender avatar, at 5 rows and in titles (t1 a1329bac)
 //
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/topic-select-phone.test.mjs   # what CI does
@@ -102,6 +103,65 @@ const signIn = (p) => p.evaluateOnNewDocument(() => {
   try { localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'owner@example.com', name: 'FirstName LastName', t: 't1' })) } catch { /* private mode */ }
 })
 
+/** A topic in the open channel whose body is `n` lines; its msg id. */
+const tallTopic = (p, tag, n) => p.evaluate(async ({ tag, n }) => {
+  const store = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
+  const body = Array.from({ length: n }, (_, i) => `${tag} line ${i + 1}`).join('\n')
+  return (await store.send(body, undefined, undefined, undefined, 1)).msg_id
+}, { tag, n })
+
+/** Owner t1 a1329bac (msg 9ffbd794): card `id`'s select box against its sender avatar and the card, px. */
+const boxGeo = (p, id) => p.evaluate((sel) => {
+  const c = document.querySelector(sel)
+  c.scrollIntoView({ block: 'center' })
+  const r = (e) => { const b = e.getBoundingClientRect(); return { t: b.top, b: b.bottom, l: b.left, r: b.right } }
+  const box = r(c.querySelector('[data-test=topic-select-box]'))
+  const av = r(c.querySelector('.avatar'))
+  const cd = r(c)
+  const h = c.querySelector('[data-testid=move-handle]')
+  return {
+    box, av, card: cd,
+    overlap: box.l < av.r && av.l < box.r && box.t < av.b && av.t < box.b,
+    /* the move handle's strip at the card's left stays grabbable (move-by-drag.test.mjs) */
+    clearOfHandle: !h || box.l >= r(h).r - 0.5,
+    inside: box.t >= cd.t - 0.5 && box.b <= cd.b + 0.5,
+    centreOff: Math.round(((box.t + box.b) / 2 - (cd.t + cd.b) / 2) * 10) / 10,
+  }
+}, card(id))
+
+/** The card's clip mode (titles / rows / full), through the header control. */
+const clipMode = async (p, m) => {
+  await p.evaluate((m) => document.querySelector(`[data-testid=card-clip-${m}]`)?.click(), m)
+  await until(p, (m) => document.querySelector('[data-testid=card-clip-control]')?.getAttribute('data-mode') === m, m, 3000)
+  await sleep(300)
+}
+
+/** The box's place on a desktop card: never on the avatar, centred on the card's height. */
+async function boxPlace(d, short) {
+  const tall = await tallTopic(d, 'desk-tall', 8)
+  await d.waitForSelector(card(tall), { visible: true, timeout: 10000 })
+  await clipMode(d, 'rows')
+  const t5 = await boxGeo(d, tall)
+  console.log('  geo 5 rows', JSON.stringify(t5))
+  ok('B desktop: 5 rows, the box is off the sender avatar', !t5.overlap, t5)
+  ok('B desktop: 5 rows, the box sits on the card\'s vertical centre', Math.abs(t5.centreOff) <= 3, t5)
+  ok('B desktop: 5 rows, the box sits at the card\'s left, under the avatar', t5.box.l <= t5.av.r && t5.box.t >= t5.av.b, t5)
+  ok('B desktop: 5 rows, the box leaves the move handle\'s strip free', t5.clearOfHandle, t5)
+  if (process.env.SHOT_DIR) {
+    await d.hover(card(tall))
+    await sleep(200)
+    await (await d.$(card(tall))).screenshot({ path: `${process.env.SHOT_DIR}/select-box-5-rows.png` })
+  }
+  const s1 = await boxGeo(d, short)
+  console.log('  geo 1 line', JSON.stringify(s1))
+  ok('B desktop: a one-line card, the box is off the avatar and inside the card', !s1.overlap && s1.inside, s1)
+  await clipMode(d, 'titles')
+  const tt = await boxGeo(d, tall)
+  console.log('  geo titles', JSON.stringify(tt))
+  ok('B desktop: titles, the box is off the avatar and inside the card', !tt.overlap && tt.inside, tt)
+  await clipMode(d, 'rows')
+}
+
 async function phone(browser, base) {
   const p = await browser.newPage()
   const errors = []
@@ -160,6 +220,7 @@ async function desktop(browser, base) {
   const [, , b3] = await seed(d, CH_B, 'desk-b')
   const [a1] = await seed(d, CH_A, 'desk-a')
   await d.waitForSelector(card(a1), { visible: true, timeout: 10000 })
+  await boxPlace(d, a1)
 
   /* Select by title from the header, nothing ticked yet: the mock hub resolves it */
   await d.click('[data-test=feed-header] [data-test=topic-select-by-title]')

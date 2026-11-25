@@ -540,5 +540,30 @@ o13="$(vh PostToolUse $((T3 + 13)) "{\"cwd\":\"$R13\",\"tool_name\":\"bash\",\"t
 has "13. post_tool keeps the main-checkout warning" "$R13" "$(vctx <<<"$o13")"
 has "13. ... and carries the message beside it" "msg_id: mid-v4" "$(vctx <<<"$o13")"
 git -C "$R13" worktree remove --force "$R13-wt/$ID"
+# R7 W1 (a-767): vibe takes at most 3 post_agent denies per user turn; a
+# 4th is dropped unseen. 12 waiting messages, 3 shown per deny.
+rm -f "$D/inbox"/*.json "$L12"; : >"$A13"
+for i in $(seq 10 21); do msg "w$i" $((T3 + 100 + i)) "mid-w$i" "turn-end batch $i"; done
+SP='{"session_id":"s","transcript_path":"/t"}'
+for k in 1 2 3; do
+  o13="$(vh Stop $((T3 + 130 + k)) "$SP")"
+  has "13. W1 Stop $k of a turn denies (vibe takes up to 3)" '"decision": "deny"' "$o13"
+done
+eq "13. W1 ... after 3 denies: 9 messages shown" 9 "$(grep -o 'msg_id: mid-w' "$A13" | wc -l)"
+seen3="$(cat "$D/.hook-seen")"
+eq "13. W1 the 4th Stop in a row prints nothing (vibe would drop it: RED on 12a7964b9)" "" "$(vh Stop $((T3 + 134)) "$SP")"
+eq "13. W1 ... the marker did not move (the rest stay unread)" "$seen3" "$(cat "$D/.hook-seen")"
+eq "13. W1 ... no false surfaced rows: 9" 9 "$(awk -F'\t' '$1=="surfaced"' "$L12" | wc -l)"
+eq "13. W1 ... state idle" idle "$(hb state)"
+eq "13. W1 ... the count is reset" 0 "$(hb stop_denies)"
+has "13. W1 the next Stop (vibe's count reset by the passthrough) shows the rest" "msg_id: mid-w19" "$(vh Stop $((T3 + 135)) "$SP")"
+eq "13. W1 ... every message shown exactly once" "" "$(for i in $(seq 10 21); do [ "$(grep -c "msg_id: mid-w$i" "$A13")" = 1 ] || echo "mid-w$i"; done)"
+eq "13. W1 ... the empty Stop after it resets the count" "" "$(vh Stop $((T3 + 136)) "$SP")"
+msg w22 $((T3 + 137)) mid-w22 "last of session s"
+vh Stop $((T3 + 138)) "$SP" >/dev/null
+eq "13. W1 CONTROL: one deny in session s, count 1" 1 "$(hb stop_denies)"
+msg w23 $((T3 + 140)) mid-w23 "first of session s2"
+vh Stop $((T3 + 141)) '{"session_id":"s2","transcript_path":"/t"}' >/dev/null
+eq "13. W1 a new session_id restarts the count (1, not 2)" 1 "$(hb stop_denies)"
 
 t_done

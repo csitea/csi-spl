@@ -205,6 +205,10 @@ spl_hook_ping_run() {
     echo "hook-ping REFUSED: SPOOL_TEST=1 and no HOOK_PING_HARNESS_CMD"
     return 97
   fi
+  case "${HOOK_PING_POINT:-post_tool}" in
+    post_tool|post_agent) ;;
+    *) echo "hook-ping REFUSED: HOOK_PING_POINT=${HOOK_PING_POINT} (post_tool or post_agent)"; return 2 ;;
+  esac
   list="$(spl_hook_ping_harnesses)" || return $?
   spl_hook_ping_prepare || return 1
   while IFS= read -r h; do

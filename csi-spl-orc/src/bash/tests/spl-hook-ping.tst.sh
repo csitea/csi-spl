@@ -213,6 +213,13 @@ else
     && pass "CONTROL mistral post_agent skip (post_tool sent) fires no-injection" || fail "CONTROL mistral post_agent skip fires no-injection"
 fi
 
+if run_ping HOOK_PING_HARNESS_CMD="$T/echo.sh" HOOK_PING_POINT=post_agnet HARNESS=mistral N=1; then
+  fail "R7 N1: an unknown HOOK_PING_POINT should be refused"
+else
+  grep -q 'hook-ping REFUSED: HOOK_PING_POINT=post_agnet' "$T/out" \
+    && pass "R7 N1: an unknown HOOK_PING_POINT is refused, no trial runs" || fail "R7 N1: an unknown HOOK_PING_POINT is refused ($(cat "$T/out"))"
+fi
+
 if run_ping HOOK_PING_HARNESS_CMD="$T/echo.sh" HARNESS=all N=1; then
   grep -q 'hook-ping mistral n=1 pass=1 fail=0' "$T/out" && pass "HARNESS=all includes mistral" || fail "HARNESS=all includes mistral"
 else

@@ -537,7 +537,7 @@ marker and the same poke-ledger `surfaced` row, from the one
 | vendor | status | where a waiting message is shown |
 |---|---|---|
 | claude | delivered | SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop (7.1, 7.2.1) |
-| mistral (vibe) | delivered (SPL-6516) | `post_tool`: `hook_specific_output.additional_context`, beside the main-checkout warning; `post_agent`: `decision: "deny"` + `reason` (the turn goes on, state `working`); never `pre_tool` (vibe drops that context, so the marker must not move) |
+| mistral (vibe) | delivered (SPL-6516) | `post_tool`: `hook_specific_output.additional_context`, beside the main-checkout warning; `post_agent`: `decision: "deny"` + `reason` (the turn goes on, state `working`), at most 3 denies in a row (vibe drops a 4th unseen and ends the turn): the 4th `post_agent` prints nothing, the marker stays and the rest wait for the next turn (count `stop_denies` in `heartbeat.json`, reset by a `post_agent` that does not deny and by a new `session_id`; R7 W1); never `pre_tool` (vibe drops that context, so the marker must not move) |
 | agy | ping passes; not wired yet | next: the `PreInvocation` `injectSteps` path |
 | grok | ping passes; not wired yet | next: `PostToolUse` `additionalContext` |
 | qwen | not measured (not installed on sat) | heartbeat only until its ping passes |

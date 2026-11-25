@@ -32,14 +32,28 @@
       "description": "env.box: agent_split_by_kind and agent_model (spec 184) are modelled; the other keys pass through.",
       "properties": {
         "agent_model": {
-          "$ref": "#/definitions/AgentModel"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AgentModel"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "agent_split_by_kind": {
-          "additionalProperties": {
-            "$ref": "#/definitions/KindRow"
-          },
-          "title": "Agent Split By Kind",
-          "type": "object"
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/definitions/KindRow"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Agent Split By Kind"
         }
       },
       "title": "Box",
@@ -271,7 +285,14 @@
         },
         "steps": {
           "additionalProperties": {
-            "type": "object"
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "title": "Steps",
           "type": "object"
@@ -517,9 +538,16 @@
           "type": "integer"
         },
         "reflection_discussion": {
-          "pattern": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
-          "title": "Reflection Discussion",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reflection Discussion"
         },
         "timezone": {
           "default": "Europe/Berlin",
@@ -545,8 +573,15 @@
     "Versions": {
       "properties": {
         "google_provider_version": {
-          "title": "Google Provider Version",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Google Provider Version"
         },
         "infra_version": {
           "title": "Infra Version",

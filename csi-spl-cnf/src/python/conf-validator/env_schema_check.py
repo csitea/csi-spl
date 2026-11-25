@@ -26,6 +26,14 @@ def cannot(msg):
     return EXIT_CANNOT_CHECK
 
 
+def deepest(error):
+    """An anyOf [X, null] error (an Optional field) names only the field; the
+    branch error with the longest path names the bad key itself."""
+    while error.context:
+        error = max(error.context, key=lambda e: len(e.absolute_path))
+    return error
+
+
 def key_path(error):
     parts = [str(p) for p in error.absolute_path]
     return ".".join(parts) if parts else "(top level)"
@@ -45,6 +53,7 @@ def check_one(validator, yaml, label, path):
     errors = sorted(
         validator.iter_errors(doc), key=lambda e: list(map(str, e.absolute_path))
     )
+    errors = [deepest(e) for e in errors]
     for e in errors[:MAX_LINES]:
         print(f"FAIL {label}: {key_path(e)}: {e.message[:300]}", file=sys.stderr)
     if len(errors) > MAX_LINES:

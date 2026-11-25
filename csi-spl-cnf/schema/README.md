@@ -55,12 +55,16 @@ Options: `ENVS` (default `all dev prd lde`), `CNF_DIR`, `ENV_SCHEMA`,
 same fixtures through both and pins their verdicts. They agree on the
 structure: a missing required key, a value outside a `Literal`, a number
 outside a `conint` bound, an extra key where a model forbids extras, a wrong
-type. Two differences are known and pinned, so a change to either is seen:
+type, and `null` (`~`, or a bare `030-x:` step) exactly where a model takes
+`None`. pydantic's own `schema()` drops that `null` of an `Optional[X]`; the
+export puts it back as `anyOf [X, null]`. Two differences are known and
+pinned, so a change to either is seen:
 
 - the models' validators (the realm rule, a split row summing to 100 with one
   main, `i18n.default_locale` in `i18n.locales`, the `agent_model` syntax
   rules) are pydantic-only: JSON schema cannot express them;
-- pydantic coerces (`gcp_region: 5` becomes `"5"`); the schema refuses it.
+- pydantic coerces for a `str` field (`gcp_region: 5` or `true` becomes `"5"`
+  or `"True"`); the schema refuses both.
 
 ## 5. Tests
 

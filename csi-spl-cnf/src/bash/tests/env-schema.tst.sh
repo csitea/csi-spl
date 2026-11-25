@@ -9,9 +9,10 @@
 #      (red controls on all.env.yaml, dev.env.yaml and lde.env.yaml);
 #   4. "could not check" is exit 2, never a pass;
 #   5. pydantic and the schema give the SAME verdict on the structural
-#      fixtures, and the two known differences are pinned so a change to
-#      either one is seen: the root validators (realm rule) are pydantic-only,
-#      and the schema refuses what pydantic would coerce (an int for a str).
+#      fixtures (null included where a model takes None), and the known
+#      differences are pinned so a change to either one is seen: the root
+#      validators (realm rule) are pydantic-only, and the schema refuses what
+#      pydantic would coerce (an int or a bool for a str).
 #
 # Needs the conf-validator's poetry env (pydantic 1.x + jsonschema): CI's
 # cnf-suite, or `cd csi-spl-cnf/src/python/conf-validator && poetry install`.
@@ -128,9 +129,16 @@ agree "pydantic=1 schema=1" '.env.cloud.provider = "azure"'                  "a 
 agree "pydantic=1 schema=1" '.env.box.agent_split_by_kind.tests.claude = 101' "a weight over its conint bound"
 agree "pydantic=1 schema=1" '.env.box.agent_split_by_kind.tests.zz = 0'      "an extra key where the model forbids it"
 agree "pydantic=1 schema=1" '.env.box.agent_model.default = {"claude": 7}'   "a model that is not a string"
-# the two known differences, pinned on purpose (see conf_validator/env_schema_export.py)
+# null where pydantic takes None (Optional[X]): pydantic's schema() drops it,
+# the export puts it back (R7 c-160 B2)
+agree "pydantic=0 schema=0" '.env.box.agent_model = null'                    "null for an Optional model (agent_model: ~)"
+agree "pydantic=0 schema=0" '.env.box.agent_split_by_kind = null'            "null for an Optional dict"
+agree "pydantic=0 schema=0" '.env.steps."030-x" = null'                      "a step with no settings (a bare 030-x:)"
+# the known differences, pinned on purpose (see conf_validator/env_schema_export.py)
 agree "pydantic=1 schema=0" '.env.gcp.state_bucket = "another-tfstate"'      "KNOWN: the realm rule is pydantic-only"
-agree "pydantic=0 schema=1" '.env.gcp.gcp_region = 5'                        "KNOWN: the schema refuses what pydantic coerces"
+agree "pydantic=0 schema=1" '.env.gcp.gcp_region = 5'                        "KNOWN: the schema refuses an int pydantic coerces to str"
+agree "pydantic=0 schema=1" '.env.gcp.gcp_region = true'                     "KNOWN: the schema refuses a bool pydantic coerces to str"
+agree "pydantic=1 schema=1" '.env.gcp.gcp_region = null'                     "null where the model takes no None"
 
 echo
 echo "Summary: ${pass} passed, ${fail} failed"

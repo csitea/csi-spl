@@ -14,6 +14,13 @@
 # tpl-gen. The JSON schema is the second, dependency-light check (jsonschema +
 # pyyaml, no pydantic) that ./run -a do_check_env_schema runs on every env.
 #
+# pydantic's schema() drops the null of an Optional[X]; _allow_null puts it
+# back (anyOf [X, null]) wherever pydantic accepts None, so a bare `030-x:`
+# step or `agent_model: ~` passes both (R7 c-160 B2). What still differs, and
+# is pinned in env-schema.tst.sh: the validators above (pydantic-only), and
+# coercion: pydantic turns 5 or true into "5" / "True" for a str, the schema
+# refuses them.
+#
 # Which model a document is checked against is chosen inside the schema by
 # env.ENV: "lde" = the lde model, any other ENV = the cloud (dev / prd)
 # model, no ENV at all = all.env.yaml's model.
@@ -26,12 +33,45 @@ import json
 import sys
 from pathlib import Path
 
+from pydantic.fields import SHAPE_DICT, SHAPE_LIST, SHAPE_MAPPING
 from pydantic.schema import schema as pydantic_schema
 
 from EnvModels import AllEnv, DevEnv, LdeEnv
 
 SCHEMA_PATH = Path(__file__).resolve().parents[4] / "schema" / "env-schema.json"
 DRAFT = "http://json-schema.org/draft-07/schema#"
+
+
+def _or_null(field, prop):
+    """The property schema of one pydantic field, with null allowed wherever
+    pydantic accepts None: pydantic v1's schema() drops the null of an
+    Optional[X] (R7 c-160 B2: a bare `030-x:` step or `agent_model: ~` passed
+    pydantic and failed the schema). Dict / List values are walked too
+    (steps is Dict[str, Optional[Dict]])."""
+    sub = field.sub_fields or []
+    if (
+        field.shape in (SHAPE_DICT, SHAPE_MAPPING)
+        and sub
+        and "additionalProperties" in prop
+    ):
+        prop["additionalProperties"] = _or_null(sub[0], prop["additionalProperties"])
+    if field.shape == SHAPE_LIST and sub and "items" in prop:
+        prop["items"] = _or_null(sub[0], prop["items"])
+    untyped = not set(prop) - {"title", "description"}
+    if field.allow_none and not untyped:
+        extra = {
+            k: prop.pop(k) for k in ("title", "description", "default") if k in prop
+        }
+        prop = {**extra, "anyOf": [prop, {"type": "null"}]}
+    return prop
+
+
+def _allow_null(defs, names):
+    for model, name in names.items():
+        props = defs[name].get("properties", {})
+        for field in model.__fields__.values():
+            if field.alias in props:
+                props[field.alias] = _or_null(field, props[field.alias])
 
 
 def _ref(model, model_names):
@@ -45,6 +85,7 @@ def build():
     models = [AllEnv, DevEnv, LdeEnv]
     names = get_model_name_map(get_flat_models_from_models(models))
     defs = pydantic_schema(models)["definitions"]
+    _allow_null(defs, names)
     env_is = lambda cond: {  # noqa: E731
         "properties": {"env": {"required": ["ENV"], "properties": {"ENV": cond}}},
         "required": ["env"],

@@ -1,4 +1,4 @@
-# Spec 192 build round - plan v0.2 (8 rows, 5 batches)
+# Spec 192 build round - plan v1.0 (8 rows, 5 batches)
 
 Epic: SPL-2398  
 Spec: csi-spl-doc/specs/192-agent-login-from-wui (v0.3)  
@@ -13,6 +13,14 @@ Owner HUM-10, by pointer:
 - t1 `4781ca4e`, form `90488e20` answer **A** (`msg 32f8e23a`, 2026-11-25 07:56Z):
   "Plan it as a build round now: a planner orders L1-L8, a cross-vendor review
   signs it, the rows are queued".
+- t1 `4781ca4e`, form `a84450a5` (`msg 17fc4112`, 2026-11-25):
+  - **Q1 A:** "L3 wires `SPOOL_SIGNIN_RELAY_CMD` in `do_spl_desk_up` when
+    `env.box.signin_relay_kinds` is non-empty (live sidecar restart waits for
+    your explicit go)".
+  - **Q2 A:** "Run each CLI login in an isolated throwaway `HOME` up to its
+    first prompt to prove URL+code / device-code vs local-redirect `no_relay`
+    (no production login touched)".
+  Both answers are folded into this v1.0; nothing remains open (section 6).
 - Earlier answers built into spec 192 v0.3 (`a16d9b6a4`, SPL-6374): poll
   `2728652b` (`msg 4379dd90`): Q-1 **A** (`admin` and `biz_owner`), Q-2 **B**
   (sign in once, then copy box-to-box over the ssh peer path; per-box sign-in
@@ -34,11 +42,14 @@ files, tokens, and box-to-box copy), author vendor, cross-vendor R7 reviewer,
 red control, and test column (R2), and proposes one brief per row. It writes no
 code and edits no spec file.
 
-**Status: v0.2, revised after cross-vendor review (`c-385`, `claude`, FAIL W1-W3, N1-N4 on v0.1 `6b7e47b1d`).**
+**Status: v1.0, v0.2 landed (`18b6725e6`) plus owner HUM-10 answers Q1 A and Q2 A (form `a84450a5`, `msg 17fc4112`) and `c-385` nit N5 folded; pending cross-vendor re-review (`c-385`) and dispatch holder GO.**
 Planner: `a-486` (`agy`, main for `specs_and_docs`). Cross-vendor reviewer:
 `c-385` (`claude`; `mistral` sits on no review seat and `grok` is off
-fleet-wide). Nothing lands on master until the panel signs PASS and the
-dispatch holder gives GO.
+fleet-wide). v0.2 (`6bff85fdd`) passed cross-vendor review (`c-385`, PASS,
+W1-W3 and N1-N4 closed) and landed on `master` at `18b6725e6` on the dispatch
+holder's GO; form `a84450a5` is now answered (nothing open, section 6). Batch 1
+row **L1** is already queued (`ask 1df79318`). v1.0 does not land on master
+until `c-385` signs PASS and the dispatch holder gives GO.
 
 **One sha.** Every read is on **`f2cb19298`**
 (`f2cb192985464f4ef0023195235ca49196b8d531`, `origin/master` at
@@ -69,7 +80,8 @@ shorthand, or customer name appears in this plan or in any proposed row brief.
   `SPOOL_HUB_SIGNIN_RELAY_KINDS: ""`.
 - **Sidecar command not yet wired in `do_spl_desk_up`.**
   `git grep -n 'SPOOL_SIGNIN_RELAY_CMD' f2cb19298 -- csi-spl-orc/` -> **0**
-  lines (owner Q1, section 2.4).
+  lines (decided Q1 A, sections 2.4 and 6: L3 wires it; live sidecar restart
+  waits for explicit owner go).
 
 ### 1.2 What L0 (spec 181 B11, SPL-6345) already built on `f2cb19298`
 
@@ -118,7 +130,7 @@ Spec 192 builds on these three landed commits and does not re-plan them:
 | `orc:lib/bash/funcs/spl-box-workspace.func.sh` | `spl_box_ws_cnf` `:31`, `spl_box_ws_claim` `:55`, `spl_box_ws_user` `:67`, `spl_box_ws_guard` `:80` | L3, L8 |
 | `orc:src/bash/run/spl-ws-claude-signin.func.sh` | `SPL_WCS_SUBDIR`/`SPL_WCS_SOCKET` `:38`, `spl_wcs_caller_ok` `:58-67` (refuses `SPOOL_AGENT_USER` `:60`), `spl_wcs_runtime` `:71-81`, `spl_wcs_login_argv` `:104-107`, `spl_wcs_in` `:109-129`, `spl_wcs_out` `:131-146` | L3 |
 | `orc:src/bash/run/spl-ws-signin-relay.func.sh` | `do_spl_ws_signin_relay` `:33-50`, `spl_wsr_report` `:53-58`, `spl_wsr_switch_on` `:62-70`, `spl_wsr_start` `:88-105`, `spl_wsr_input` `:111-132`, `spl_wsr_end` `:134-143` | L3, L4 |
-| `orc:src/bash/run/spl-desk-up.func.sh` | `hub-run` sidecar launch `:389-431` (does not set `SPOOL_SIGNIN_RELAY_CMD` yet; owner Q1) | L3 |
+| `orc:src/bash/run/spl-desk-up.func.sh` | `hub-run` sidecar launch `:389-431` (does not set `SPOOL_SIGNIN_RELAY_CMD` yet; wired by L3 per Q1 A) | L3 |
 | `orc:src/bash/scripts/agent-login-cred.sh` | `lc_user` `:43-51`, slot 1/2 setup `:58-65`, `lc_stat` `:70-78`, `lc_put` `:80-96`, `lc_acct` `:105-109`, `lc_acctput` `:113-126`, `lc_probe` `:128-141`, dispatch `:143-152` | L8 |
 | `orc:src/bash/run/spl-agent-login-check.func.sh` | `_lc_cred_at` `:264-270`, `_lc_peer_list` `:274-277`, `_lc_peers` `:281-289`, `_lc_peer_one` `:297-319`, `_lc_repair` `:372-403` | L5, L8 |
 | `orc:src/bash/run/spl-agent-identity-restore.func.sh` | `_ai_grok_why` `:335-350` (grok sign-in check `:344`), seat restore entry point | L4, L5 |
@@ -187,9 +199,9 @@ and `591ca574`); `grok` is off fleet-wide (`all.env.yaml:1493,1539`).
 | row | what | kind | vendor | R7 reviewer | red control | depends on | batch |
 |---|---|---|---|---|---|---|---|
 | L1 | rdb + hub: `vendor_logins.manage` to `admin` & `biz_owner`, act-as & unconfirmed-manager refusals, `openapi.json` 403 descriptions, per-workspace relay switch (operator on; customer per-vendor), widen box check to all enrolled pins | `complex_coding` | `claude` | `agy` (`claude` waiver while `agy` paused) | R2, R4, R6 | L0 (on master) | 1 |
-| L3 | orc + cnf: `do_spl_ws_signin_relay` per workspace OS user on every enrolled box, ops `out`/`renew`/`status`, non-secret box fact output, seams for L4/L5/L8, `env.box.signin_relay_kinds` | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`/`codex`) | `claude` waiver seat (no cross-vendor secret seat while `grok` is off); holder decides at placement | R1, R7, R10 | L0 (on master) | 1 |
+| L3 | orc + cnf: `do_spl_ws_signin_relay` per workspace OS user on every enrolled box, ops `out`/`renew`/`status`, non-secret box fact output, seams for L4/L5/L8, `env.box.signin_relay_kinds`, `SPOOL_SIGNIN_RELAY_CMD` in `do_spl_desk_up` (Q1 A; live restart waits for owner go) | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`/`codex`) | `claude` waiver seat (no cross-vendor secret seat while `grok` is off); holder decides at placement | R1, R7, R10 | L0 (on master) | 1 |
 | L2 | rdb + hub + wire + cmd: `/v1/vendor-logins*` fan-out & status, audit + label + pending tables, box facts ingestion, offline/new-box catch-up & notice, `cmd/spool/signin_relay.go` new ops & report fields | `complex_coding` | `claude` | `agy` (`claude` waiver while `agy` paused) | R1, R3, R5 | L1, L3 | 2 |
-| L4 | orc + cnf: measure `grok` and `agy` CLI terminal login flows (Q2), wire URL+code or device-code login else report `no_relay`; if wired, update `env.box.signin_relay_kinds` & `env.hub.env.SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS` + tfvars (live hub activation needs owner-go terraform `030` apply) | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`/`codex`) | `claude` waiver seat (no cross-vendor secret seat while `grok` is off); holder decides at placement | a `no_relay` kind offered start/Log in -> fails | L3 | 2 |
+| L4 | orc + cnf: measure `grok` and `agy` CLI terminal login flows (Q2 A: isolated throwaway `HOME` up to first prompt, no production login touched), wire URL+code or device-code login else report `no_relay`; if wired, update `env.box.signin_relay_kinds` & `env.hub.env.SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS` + tfvars (live hub activation needs owner-go terraform `030` apply) | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`/`codex`) | `claude` waiver seat (no cross-vendor secret seat while `grok` is off); holder decides at placement | a `no_relay` kind offered start/Log in -> fails | L3 | 2 |
 | L5 | rdb + hub + cmd + orc: `KindPause` keyed by (`<W>`, kind, box) for all workspaces, switch lifts own entry, logout sets entry, post-switch restart of every `<W>` seat via `do_spl_agent_identity_restore` | `complex_coding` | `claude` | `agy` (`claude` waiver while `agy` paused) | R8, R9, R10 | L2, L3 | 3 |
 | L8 | orc: box-to-box copy [Q-2 B] (`agent-login-cred.sh` per workspace OS user + `grok`/`agy` login files; new `do_spl_ws_login_copy` checked against hub pin list) | `secret` | `claude` (backup `grok` [off]; never `agy`/`qwen`/`mistral`/`codex`) | `claude` waiver seat (no cross-vendor secret seat while `grok` is off); holder decides at placement | R5, R10 | L3, L4 | 3 |
 | L6 | wui + help stub: **AI vendors** Settings section (`ai-vendors` after `split`, in `MOCK_GATED`), reuse `SigninRelayPanel.vue` & update `signin-relay.mjs` kinds, multi-box status/actions/confirms/labels/audit, Agent keys link, 19 locales + `do_spl_lang_review_gct`, e2e | `complex_coding` | `claude` (never `mistral`) | `agy` (`claude` waiver while `agy` paused) | member without perm sees section -> e2e fails; `no_relay` row with Log in -> e2e fails; code left in input/DOM/Pinia/storage -> e2e fails | L2, L4, L5, L8 | 4 |
@@ -214,7 +226,9 @@ No file path appears in two rows of any batch. Dependent batches place within
     `api:store/humans_rbac_test.go`; `example.env.yaml`.
   - **L3** (`csi-spl-orc/` + `csi-spl-cnf/` only):
     `orc:src/bash/run/spl-ws-signin-relay.func.sh`;
-    `orc:src/bash/run/spl-desk-up.func.sh` (only if Q1 A; omitted under Q1 B);
+    `orc:src/bash/run/spl-desk-up.func.sh` (wires `SPOOL_SIGNIN_RELAY_CMD` when
+    `env.box.signin_relay_kinds` is non-empty, Q1 A; live sidecar restart waits
+    for explicit owner go);
     `orc:src/bash/tests/ws-signin-relay.tst.sh`;
     `csi-spl-cnf/csi-spl/all.env.yaml` (add `env.box.signin_relay_kinds: "claude"`
     only — claude needs no hub tfvars edit because L1's Go default is `"claude"`),
@@ -317,40 +331,38 @@ exit-3):
   archive warn log), s186 M9 qto-sync, 6 spec/answer/debate lanes (specs 006,
   182, 193, 112, 149, and a debate panel), and spec 039 FR-014 build planner.
   None names any file of spec 192. The placer re-checks at placement.
+- **Queue update (2026-11-25T13:33Z):** Batch 1 row **L1** is already queued
+  (`ask 1df79318`; L1 did not wait on Q1-Q2).
 
 ### 2.4 Rows needing a decision
 
-**For the owner (asked as ONE poll block in section 6, first option
-recommended).**
+**Owner decisions (form `a84450a5`, HUM-10 `msg 17fc4112`, 2026-11-25; nothing
+remains open — see section 6).**
 
-- **Q1. Wiring `SPOOL_SIGNIN_RELAY_CMD` on the fleet boxes' `hub-run` sidecars.**
-  On `f2cb19298`, `spl-desk-up.func.sh` starts `spool hub-run` without setting
-  `SPOOL_SIGNIN_RELAY_CMD`, so no fleet box advertises `FeatureSigninRelay` on
-  its hello (`cmd:signin_relay.go:55`, `hub:signin_relay.go:510`), whereas spec
-  192 4.1 (`:169-170`) states the box switch is set on the fleet boxes.
-  - **(A) (Recommended):** L3 wires `SPOOL_SIGNIN_RELAY_CMD` into
-    `do_spl_desk_up` when `env.box.signin_relay_kinds` is non-empty (off when
-    empty); the actual sidecar restart on fleet boxes still waits for an
-    explicit owner go once L1-L3 land (agents never run `do_spl_desk_up` on
-    prd without owner go).
-  - **(B):** Keep `SPOOL_SIGNIN_RELAY_CMD` opt-in via `box.env` only, never
-    wired in `do_spl_desk_up`, so each box opts in by hand.
-  - Spot: L3 only (whether `spl-desk-up.func.sh` is edited in L3).
-- **Q2. How L4 measures the `grok` and `agy` CLI terminal login flows.**
-  Spec 192 5.2 (`:193`) and section 12 (`:433`) say L4 measures each CLI's
-  login flow on a test account first and wires it if it prints an https URL +
-  pasted code or device code, else reports `no_relay`. Fleet boxes hold the
-  production agent login only, not a spare test account.
-  - **(A) (Recommended):** L4 runs each CLI's login command in an isolated
+- **Q1 — Decided: A.** Wiring `SPOOL_SIGNIN_RELAY_CMD` on the fleet boxes'
+  `hub-run` sidecars. On `f2cb19298`, `spl-desk-up.func.sh` starts
+  `spool hub-run` without setting `SPOOL_SIGNIN_RELAY_CMD`, so no fleet box
+  advertises `FeatureSigninRelay` on its hello (`cmd:signin_relay.go:55`,
+  `hub:signin_relay.go:510`), whereas spec 192 4.1 (`:169-170`) states the box
+  switch is set on the fleet boxes.
+  - **Decision (A):** L3 wires `SPOOL_SIGNIN_RELAY_CMD` into `do_spl_desk_up`
+    when `env.box.signin_relay_kinds` is non-empty (off when empty); the live
+    sidecar restart on fleet boxes still waits for an explicit owner go once
+    L1-L3 land (agents never run `do_spl_desk_up` on prd without owner go).
+  - Spot: **L3** (`orc:src/bash/run/spl-desk-up.func.sh` stays in L3 Files).
+- **Q2 — Decided: A.** How L4 measures the `grok` and `agy` CLI terminal login
+  flows. Spec 192 5.2 (`:193`) and section 12 (`:433`) say L4 measures each
+  CLI's login flow first and wires it if it prints an https URL + pasted code
+  or device code, else reports `no_relay`. Fleet boxes hold the production
+  agent login only, not a spare test account.
+  - **Decision (A):** L4 runs each CLI's login command in an isolated
     throwaway `HOME` (no production login touched, no logout of the live agent
     user) up to its first prompt to prove whether it prints a relayable https
     URL + code / device code or requires a local-browser redirect (`no_relay`),
     and only completes an end-to-end test login if a dedicated test account is
     provided.
-  - **(B):** Hold L4 until dedicated test accounts for `grok` and `agy` are
-    provided to the `claude` lane for full end-to-end login testing.
-  - Spot: **L4, L8** (waits on L4), **L6** (waits on L4, L8), and **L7**
-    (waits on L6). Batches 1 (`L1`, `L3`), `L2`, and `L5` do not wait on it.
+  - Spot: **L4** (unblocks L4 and dependent **L8**, **L6**, and **L7** to run
+    in batch order with no hold waiting on dedicated test accounts).
 
 **For the holder (no owner question).**
 
@@ -437,7 +449,8 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 ### 3.1 L1 - `vendor_logins.manage` permission, refusals, per-workspace relay switch
 
 - **Kind:** `complex_coding`. **Vendor:** `claude`. **R7:** `agy` (`claude`
-  waiver while `agy` paused). **Batch:** 1 (after L0, already on master).
+  waiver while `agy` paused). **Batch:** 1 (after L0, already on master;
+  already queued as `ask 1df79318`).
   `PRE_PUSH_TIER=full` (rdb migration).
 - **Files:** new `rdb:<NNNN>_vendor_logins_manage.sql` (number from
   `cd csi-spl-orc && DRY_RUN=0 ./run -a do_rdb_migration_next`);
@@ -493,7 +506,7 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
   (after L0, already on master).
 - **Brief hygiene:** names NO credential path.
 - **Files:** `orc:src/bash/run/spl-ws-signin-relay.func.sh`;
-  `orc:src/bash/run/spl-desk-up.func.sh` (only under Q1 A; omit under Q1 B);
+  `orc:src/bash/run/spl-desk-up.func.sh` (Q1 A);
   `orc:src/bash/tests/ws-signin-relay.tst.sh`;
   `csi-spl-cnf/csi-spl/all.env.yaml` (`env.box.signin_relay_kinds: "claude"`
   only) + rendered `csi-spl-cnf/csi-spl/{dev,prd}.env.json` via
@@ -524,9 +537,10 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
      (for L8).
   4. Add `env.box.signin_relay_kinds: "claude"` in
      `csi-spl-cnf/csi-spl/all.env.yaml` and re-render with `do_tpl_gen`
-     (developer guide 2.3.3). Under Q1 A, wire `SPOOL_SIGNIN_RELAY_CMD` in
-     `spl-desk-up.func.sh` when `env.box.signin_relay_kinds` is non-empty (do
-     NOT run `do_spl_desk_up` on live boxes).
+     (developer guide 2.3.3). Per Q1 A, wire `SPOOL_SIGNIN_RELAY_CMD` in
+     `spl-desk-up.func.sh` when `env.box.signin_relay_kinds` is non-empty (off
+     when empty); do NOT run `do_spl_desk_up` on live boxes (live sidecar
+     restart waits for explicit owner go).
 - **Done and red controls (R1, R7, R10):**
   - R1: synthetic input/code never appears in stdout, stderr, logs, or status
     output (planted defect printing input to log -> test fails).
@@ -636,10 +650,13 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
   `csi-spl-cnf/csi-spl/prd/tf/030-cloud-run-hub.vars.tfvars`, and
   `csi-spl-cnf/csi-spl/{dev,prd}.env.json` via `do_tpl_gen` (2.4 N5).
 - **Work:**
-  1. Empirically measure `grok` and `agy` CLI terminal login behaviour per Q2's
-     answer (default Q2 A: isolated throwaway `HOME`, never touching any
-     production login or logging out live agents) and record the exact command
-     + observation in the commit body.
+  1. Per Q2 A, empirically measure `grok` and `agy` CLI terminal login
+     behaviour by running each CLI's login command in an isolated throwaway
+     `HOME` up to its first prompt (no production login touched, no logout of
+     live agents) to prove whether it prints a relayable https URL + code /
+     device code or requires a local-browser redirect (`no_relay`), completing
+     an end-to-end test login only if a dedicated test account is provided;
+     record the exact command + observation in the commit body.
   2. For each of `grok` and `agy`:
      - If the CLI prints an https URL and reads a pasted code or completes via
        device code, wire `start`, `input`, `out`, `renew`, `status` (`relayable=yes`)
@@ -809,9 +826,11 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
      `['claude', 'grok', 'mistral']` to `['claude', 'grok', 'agy']` (spec 5.2
      & Q-5 B: `mistral` and `qwen` stay on Agent keys; `agy` is relayed), and
      reuse `wui:components/SigninRelayPanel.vue` inside `AiVendorCard.vue` for
-     the active relay URL link and password-input code submit (so
-     `SigninRelayPanel.vue` is not orphaned and `unused-exports.test.mjs` stays
-     green).
+     the active relay URL link and password-input code submit (keeping
+     `SigninRelayPanel.vue` in active use rather than orphaned, and keeping its
+     imports from `wui:utils/signin-relay.mjs` referenced; note
+     `unused-exports.test.mjs` scans `src/composables` and `src/utils`, not
+     components).
   3. Build `pages/tenant-settings/ai-vendors.vue` behind `useTenantSectionGate('ai-vendors', ...)`:
      - one card per kind (`claude`, `grok`, `agy`, `mistral`, `qwen`; fold any
        kind whose workspace split weight is 0);
@@ -905,8 +924,10 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 | seat | vendor | sha | verdict |
 |---|---|---|---|
 | `c-385` | `claude` (cross-vendor to `agy` planner `a-486`) | `6b7e47b1d` (v0.1) | FAIL (`W1`-`W3`, `N1`-`N4`) |
-| `c-385` | `claude` (cross-vendor to `agy` planner `a-486`) | v0.2 (pending) | pending |
-| holder | dispatch holder (`c-002`) | pending | pending |
+| `c-385` | `claude` (cross-vendor to `agy` planner `a-486`) | `6bff85fdd` (v0.2) | PASS (`W1`-`W3`, `N1`-`N4` closed; non-blocking nit `N5` folded in v1.0) |
+| holder | dispatch holder (`c-002`) | `6bff85fdd` (v0.2) | GO; landed on `master` at `18b6725e6` |
+| `c-385` | `claude` (cross-vendor to `agy` planner `a-486`) | v1.0 (pending) | pending |
+| holder | dispatch holder (`c-002`) | v1.0 (pending) | pending |
 
 ## 5. Versions
 
@@ -914,18 +935,18 @@ its commit subject scope, e.g. `feat(api, SPL-<n>): ... (spec 192 L1)`.
 |---|---|
 | v0.1 | first plan for cross-vendor review, on `f2cb19298` (`origin/master`), 8 rows (L1-L8) in 5 batches on top of landed L0 (SPL-6345) |
 | v0.2 | `c-385` FAIL on `6b7e47b1d` fixed: **W1** hub switch cnf key fixed to `env.hub.env.SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS` (`all.env.yaml:433,497`), rendered `dev/prd/tf/030-cloud-run-hub.vars.tfvars` added to L4 Files (L3 no longer touches hub cnf), explicit owner-go terraform `030` apply noted (`20_hub-build-deploy.yml:713` rolls `--image` only); **W2** dropped Q1 from the owner poll and set L3/L4/L8 R7 to `claude` waiver seat (`bug-round-14-plan.md:50`, `bug-round-17-plan.md:114`); **W3** Q2 (was Q3) Spot widened to L4, L8, L6, and L7; **N1** separated data rule vs coding rule for `mistral`; **N2** added `api:hub/openapi.json` (`:19227,19287,19375`) to L1 Files; **N3** added `SigninRelayPanel.vue` (reused in `AiVendorCard.vue`) and `signin-relay.mjs` (`SIGNIN_RELAY_KINDS` -> `claude,grok,agy`) to L6 Files; **N4** recorded live `agy` pause until `2026-11-25T14:03:42Z` |
+| v1.0 | v0.2 (`6bff85fdd`) signed PASS by `c-385` and landed at `18b6725e6` on holder GO; folded owner HUM-10 answers on form `a84450a5` (`msg 17fc4112`): **Q1 A** (L3 keeps `orc:src/bash/run/spl-desk-up.func.sh` to wire `SPOOL_SIGNIN_RELAY_CMD` when `env.box.signin_relay_kinds` is non-empty; live sidecar restart waits for explicit owner go) and **Q2 A** (L4 measures `grok` and `agy` in an isolated throwaway `HOME` up to first prompt, no production login touched, unblocking L4/L8/L6/L7 per batch order); converted section 6 from open poll to decisions (nothing open); noted Batch 1 row **L1** already queued (`ask 1df79318`); fixed `c-385` nit **N5** in L6 (`unused-exports.test.mjs` scans `src/composables` and `src/utils`, not components) |
 
-## 6. Open points for the owner
+## 6. Owner decisions (nothing open)
 
-Two small build-plan points need your pick (recommended first on each).
-Batches 1 (`L1`), `L2`, and `L5` do not wait on Q1-Q2.
+Owner HUM-10 answered both questions on form `a84450a5` (t1 `4781ca4e`,
+`msg 17fc4112`, 2026-11-25). Nothing remains open for this build round.
 
-```poll
-1. How should fleet boxes turn on SPOOL_SIGNIN_RELAY_CMD so hub-run advertises the sign-in relay?
-(A) L3 wires SPOOL_SIGNIN_RELAY_CMD in do_spl_desk_up when env.box.signin_relay_kinds is non-empty (live sidecar restart waits for your explicit go)
-(B) Keep SPOOL_SIGNIN_RELAY_CMD manual opt-in via box.env only (do_spl_desk_up unchanged)
+| question | answer | decision | spot |
+|---|---|---|---|
+| Q1 | **A** | L3 wires `SPOOL_SIGNIN_RELAY_CMD` in `do_spl_desk_up` when `env.box.signin_relay_kinds` is non-empty (off when empty); live sidecar restart on fleet boxes still waits for explicit owner go | **L3** (`orc:src/bash/run/spl-desk-up.func.sh` stays in L3 Files) |
+| Q2 | **A** | L4 runs each CLI login (`grok`, `agy`) in an isolated throwaway `HOME` up to its first prompt to prove URL+code / device-code vs local-redirect `no_relay` (no production login touched; end-to-end test login only if a dedicated test account is provided) | **L4** (unblocks L4 and dependent **L8**, **L6**, **L7** in batch order; no hold on dedicated test accounts) |
 
-2. How should L4 measure grok and agy CLI terminal login flows without risking a production login?
-(A) Run each CLI login in an isolated throwaway HOME up to its first prompt to prove URL+code / device-code vs local-redirect no_relay (no production login touched)
-(B) Hold L4 (and dependent L8, L6, L7) until dedicated test accounts for grok and agy are provided for full end-to-end login testing
-```
+Queue status: Batch 1 row **L1** is already queued (`ask 1df79318`). Batch 1
+row **L3** and Batches 2-5 (**L2**/**L4** -> **L5**/**L8** -> **L6** -> **L7**)
+are unblocked to queue in batch order once v1.0 is signed and landed.

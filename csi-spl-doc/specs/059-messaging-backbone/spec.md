@@ -1,6 +1,6 @@
 # Feature Specification: the messaging backbone — keep the Postgres log, or move the spool onto Kafka?
 
-**Feature ID**: `059-messaging-backbone` · **Status**: Decided 2026-10-02: no broker; replicate Kafka's mechanisms on Postgres + files (§9). Spike measured (§10); plan in §11
+**Feature ID**: `059-messaging-backbone` · **Status**: Decided 2026-10-02: no broker; replicate Kafka's mechanisms on Postgres + files (§9). Spike measured (§10); plan in §11; box link reconnects in §12
 **Created**: 2026-10-02 · **Lane**: CLE-77931 · **Owner topic**: t1 `302961a0`
 **Builds on**: CLE-77929's asks-only comparison (t1 `12d34d3a`, msg `ded808c0`; `fleet_asks` rdb 0097, `csi-spl-doc/doc/md/SPEC-spool-fleet-roles.md` §4.3). That answer covered the asks to the orchestrator. This one covers the whole stack, and it agrees with it.
 **Related**: `030-spool-wire-fastpath` (latency), `053-spool-live-delivery` (per-delivery ack, planned), `058-multi-machine-fleet` (many machines).
@@ -312,4 +312,23 @@ The other option, one row applied to every tenant by the hub, would need an oper
 
 Tests: `csi-spl-orc/src/bash/tests/fleet-lease.tst.sh` section 16. Red on the code before the copies, 7 assertions.
 
-<!-- version: 0.2.2 · updated: 2026-10-02 -->
+## 12. The box-to-hub link: reconnect behaviour (SPL-6514, latency action 4)
+
+Owner targets (t1 `e3b16fea`, form `ae452613`): under 1 s same box, under 3 s across boxes. Measured on the prd t1 desk of one box, 24 h to 2026-11-25 (lat-hub a-600, `hub-run.log`): **315 session ends a day, 23 `submit refused`, 15 sends that waited for the 10 s scan tick.** About 288 of the ends are the hub's own planned close (`SPOOL_HUB_WS_MAX_LIFE` 5 min less a jitter of up to a fifth: every socket ends after 4..5 min, `hub/ws_maxlife.go`). The other 28 were session-probe doors.
+
+**Why the doors were false.** On that box each of the 28 fell 0..20 min after a new prd hub revision (e.g. rev 02009 at 18:45:36Z, then 7 doors 18:49..18:58Z, each redial met by another door). During a roll two revisions serve; the box's REST (probe, pin sync) lands on either, and a box token is bound to the revision that minted it (SPL-1826), so the other one answers 401 `door` while the socket's own revision is alive, answers pings and delivers (its relay and the store's wake run as long as it does).
+
+What `spool hub-run` does now (`internal/hubclient/rotate.go`, `flush.go`, `submit.go`):
+
+| # | behaviour | before |
+|---|---|---|
+| 1 | **The submit listener outlives a session.** `Run` opens it once and hands it each session. A submit that finds no live session waits up to 5 s for the next one; a send whose link ends under it is retried once on the next session (the hub dedups on `msg_id`). | the listener closed with the session: the CLI was refused, cold-dialled its own socket, or left the send pending |
+| 2 | **Make before break.** At `RotateAfter` (default 3 min 45 s, under the hub's earliest planned close) hold dials and welcomes a new role=box session, hands it to the listener, flushes on it, then closes the old one with 1012 `rotate`. A failed rotation dial keeps the old session (retry in 15 s). | the hub closed the socket, then the box redialled |
+| 3 | **The hub reads the box's 1012 as a roll** (`hub/ws.go`: `rotated`), like its own max-life close: no `left` mark, no offline flash. | — |
+| 4 | **A planned 1012 from the hub** (a session up at least 1 s) is redialled at once, with no backoff. | 0.5..1 s backoff on every end |
+| 5 | **A door no longer ends a live session** while rotation is on: the probe or pin-sync door is logged and the session kept (the socket still pongs); the next rotation dials onto whichever revision takes new sockets, so a socket left on a retired revision moves within `RotateAfter`. A door on the dial's pin sync keeps the new session too (the pins on disk stay). With `RotateAfter < 0` the old strand rule holds: a door ends the session. | every door ended the session |
+| 6 | **Flush at once.** Each new session flushes first; a submit that could not be sent kicks hold to flush now. The 10 s scan tick stays as the backstop for pending files no submit announced. | the 10 s tick |
+
+Tests (`internal/hub`): `TestForcedReconnectLosesNoSend` (n = 24 sends through the hub's max-life close and through make-before-break swaps: 0 pending, 0 cold dials by the sender, every send under 1 s, all 24 received), `TestBoxKeepsLiveSessionDuringHubRoll` (socket on rev-1, REST on the live rev-2: >= 20 refused probes, 1 dial), `TestBoxRedialsAfterHubRedeploy` (adds "rotation moves and drains"), `TestBoxTokenRetiredRevisionStillStrands` (the rule with rotation off).
+
+<!-- version: 0.3.0 · updated: 2026-11-25 -->

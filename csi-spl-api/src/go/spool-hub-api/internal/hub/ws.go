@@ -69,8 +69,9 @@ type session struct {
 	// the welcome waits here, so the box always reads welcome first.
 	welcomed    chan struct{}
 	welcomeOnce sync.Once
-	// rotated: the hub closed this socket at its max life (ws_maxlife.go);
-	// the box redials at once, so drop treats it as a roll.
+	// rotated: the hub closed this socket at its max life (ws_maxlife.go),
+	// or the box closed it 1012 after its make-before-break swap (SPL-6514,
+	// hubclient/rotate.go); the box is already back, so drop treats it as a roll.
 	rotated atomic.Bool
 	// unlockTicket: the ticket a locked box's unlock proof earned at hello
 	// (box_lock_routes.go), sent on the welcome; "" otherwise.
@@ -158,7 +159,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		var f wire.Frame
-		if err := wsjson.Read(ctx, conn, &f); err != nil {
+		if err := readFrame(ctx, conn, x, &f); err != nil {
 			return
 		}
 		switch f.Type {
@@ -203,6 +204,16 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			x.fail(ctx, f.MsgID, "bad_frame", http.StatusBadRequest, "unknown frame type")
 		}
 	}
+}
+
+// readFrame reads the next frame of x. A box that closes 1012 has swapped to
+// its new socket first (SPL-6514, hubclient/rotate.go): a roll, not a leave.
+func readFrame(ctx context.Context, conn *websocket.Conn, x *session, f *wire.Frame) error {
+	err := wsjson.Read(ctx, conn, f)
+	if err != nil && websocket.CloseStatus(err) == websocket.StatusServiceRestart {
+		x.rotated.Store(true)
+	}
+	return err
 }
 
 // onAgentOp runs one request an announced agent makes for itself on the box

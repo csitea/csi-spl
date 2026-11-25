@@ -123,6 +123,11 @@ type Client struct {
 	// only the old one had minted. That refusal is the signal this probe
 	// reads.
 	SessionProbe time.Duration
+	// RotateAfter is the session age at which `spool hub-run` swaps to a
+	// new session, make before break (SPL-6514, rotate.go). 0 =
+	// defaultRotateAfter, under the hub's earliest max-life close; negative
+	// = off, and then a probe door ends the session as before.
+	RotateAfter time.Duration
 	// RESTTimeout bounds one REST call whose ctx carries no deadline of its
 	// own. 0 = defaultRESTTimeout.
 	//
@@ -525,6 +530,12 @@ func (s *Session) syncPinsOnDial(ctx context.Context) error {
 	var he *HubError
 	if err != nil && errors.As(err, &he) && he.Token == "pin_conflict" {
 		s.c.Log.Warn().Err(err).Msg("pin sync left a local pin unchanged; this box stays connected")
+		return nil
+	}
+	if s.role == wire.RoleBox && s.c.rotates() && orphaned(err) {
+		// SPL-6514: during a hub roll the pin REST lands on the other live
+		// revision; the pins on disk stay, the next refresh syncs them.
+		s.c.Log.Info().Err(err).Msg("pin sync refused by another hub revision; this box stays connected")
 		return nil
 	}
 	return err

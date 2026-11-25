@@ -44,6 +44,7 @@ var (
 	runBackoffBase = time.Second
 	runBackoffMax  = time.Minute
 	stableAfter    = time.Minute // a session up this long resets the backoff
+	plannedMinUp   = time.Second // a 1012 max-life close of a session up this long is redialled at once (SPL-6514)
 )
 
 // backoff is capped exponential backoff with full jitter: wait n is uniform in

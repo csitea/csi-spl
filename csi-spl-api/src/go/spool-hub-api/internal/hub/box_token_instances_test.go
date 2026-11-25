@@ -30,6 +30,7 @@ type split struct {
 	ws    *http.Client
 	rest  atomic.Pointer[http.Client]
 	dials atomic.Int32
+	rests atomic.Int32 // every REST request: probes, pin syncs
 }
 
 func newSplit(ws, rest *http.Client) *split {
@@ -44,6 +45,7 @@ func (s *split) client() *http.Client {
 			s.dials.Add(1)
 			return s.ws.Transport.RoundTrip(r)
 		}
+		s.rests.Add(1)
 		return s.rest.Load().Transport.RoundTrip(r)
 	})}
 }
@@ -142,9 +144,45 @@ func TestBoxNoSpuriousRedialOnTheOtherLiveInstance(t *testing.T) {
 	}
 }
 
-// The strand detection holds: B runs the next revision, so the token A
-// minted is refused there 401 door, and the hold loop redials (the new dial
-// fails its pin sync on B too while the WS stays on A, so it keeps trying).
+// SPL-6514 (latency action 4): a hub roll. A (rev-1) holds the box's socket
+// and still serves it; B (rev-2), the new revision, is live too and gets the
+// box's REST, refusing A's token 401 door. On the prd t1 desk each of the 28
+// probe doors of 24 h fell 0..20 min after a new hub revision, and every
+// redial met another door (7 in 9 min after rev 02009). With rotation on (the
+// default) the door no longer ends a session that pongs: n >= 20 probes, all
+// refused, and still the one dial.
+func TestBoxKeepsLiveSessionDuringHubRoll(t *testing.T) {
+	a, b := two(t, "rev-1", "rev-2")
+	tid, _ := a.tenant()
+	bx := a.box(tid, "box-a", "GRK-03")
+	a.pin(tid, bx)
+	sp := newSplit(a.client, a.client)
+	bx.c.HTTP = sp.client()
+	bx.cfg.SubmitSocket = "off"
+	bx.c.SessionProbe = 50 * time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- bx.c.Run(ctx) }()
+	eventually(t, "the first dial", func() bool { return sp.dials.Load() == 1 })
+	time.Sleep(200 * time.Millisecond) // past the dial's pin sync
+	sp.rest.Store(b.client)
+	before := sp.rests.Load()
+	watch(1500*time.Millisecond, func() bool { return sp.dials.Load() > 1 })
+	probes := sp.rests.Load() - before
+	cancel()
+	<-done
+	if d := sp.dials.Load(); d != 1 {
+		t.Fatalf("session dials: %d after %d refused probes, want 1 (false drops %d)", d, probes, d-1)
+	}
+	if probes < 20 {
+		t.Fatalf("probes on the other revision: %d, want >= 20", probes)
+	}
+}
+
+// The strand detection holds with rotation off (RotateAfter < 0): B runs
+// the next revision, so the token A minted is refused there 401 door, and the
+// hold loop redials (the new dial fails its pin sync on B too while the WS
+// stays on A, so it keeps trying).
 func TestBoxTokenRetiredRevisionStillStrands(t *testing.T) {
 	a, b := two(t, "rev-1", "rev-2")
 	tid, _ := a.tenant()
@@ -168,6 +206,7 @@ func TestBoxTokenRetiredRevisionStillStrands(t *testing.T) {
 	sp.rest.Store(a.client)
 	bx.cfg.SubmitSocket = "off"
 	bx.c.SessionProbe = 50 * time.Millisecond
+	bx.c.RotateAfter = -1
 	rctx, cancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
 	// base is read before Run starts: read after, a fast first dial was

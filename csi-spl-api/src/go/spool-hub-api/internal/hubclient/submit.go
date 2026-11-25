@@ -130,7 +130,24 @@ type SubmitServer struct {
 	// for the reply it gets. An interactive box sends far below the ~16/s one
 	// 61.5 ms round trip allows.
 	mu sync.Mutex
+
+	// The listener outlives a session (SPL-6514, latency action 4): Run
+	// opens it once and set() hands it each new session, so a reconnect no
+	// longer takes the socket away and a send never meets a closed link.
+	// cur is the session submits go out on; changed is closed and replaced
+	// on every set, waking a submit that waits for a session.
+	sessMu  sync.Mutex
+	cur     *Session
+	changed chan struct{}
+	// kick asks hold for a flush now: a submit that could not be sent left
+	// its pending file behind (buffered 1: a full one is already asked).
+	kick chan struct{}
 }
+
+// submitWaitSession is how long a submit waits for a live session while the
+// sidecar reconnects, well inside the CLI's submitReplyTimeout. Past it the
+// CLI keeps the send pending and the next session's flush sends it.
+var submitWaitSession = 5 * time.Second
 
 // Listen opens the submit socket. A stale socket file from a crashed sidecar is
 // removed first (a live one would still be accepting, and the caller checks).
@@ -158,13 +175,90 @@ func (c *Client) Listen() (*SubmitServer, error) {
 		ln.Close()
 		return nil, err
 	}
-	return &SubmitServer{c: c, ln: ln}, nil
+	return &SubmitServer{c: c, ln: ln, changed: make(chan struct{}), kick: make(chan struct{}, 1)}, nil
 }
 
-// Serve answers submissions on sess until ctx ends or the listener closes.
+// set makes sess the session submits go out on (nil = none until the next).
+func (s *SubmitServer) set(sess *Session) {
+	if s == nil {
+		return
+	}
+	s.sessMu.Lock()
+	s.cur = sess
+	close(s.changed)
+	s.changed = make(chan struct{})
+	s.sessMu.Unlock()
+}
+
+// session waits up to wait for a live session other than not (one the
+// caller already failed on), and returns nil when none comes.
+func (s *SubmitServer) session(ctx context.Context, not *Session, wait time.Duration) *Session {
+	t := time.NewTimer(wait)
+	defer t.Stop()
+	for {
+		s.sessMu.Lock()
+		cur, changed := s.cur, s.changed
+		s.sessMu.Unlock()
+		if cur != nil && cur != not && cur.ctx.Err() == nil {
+			return cur
+		}
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return nil
+		case <-t.C:
+			return nil
+		}
+	}
+}
+
+// Kick receives when a submit left its pending file behind: hold flushes
+// then, not on its next scan tick. nil (never ready) for a nil server.
+func (s *SubmitServer) Kick() <-chan struct{} {
+	if s == nil {
+		return nil
+	}
+	return s.kick
+}
+
+func (s *SubmitServer) askFlush() {
+	select {
+	case s.kick <- struct{}{}:
+	default:
+	}
+}
+
+// send writes env on the current session. A link that ends under it
+// (ErrUnreachable) is retried once on the next session: the hub dedups on
+// msg_id, so a send the old link did deliver is not stored twice.
+func (s *SubmitServer) send(ctx context.Context, env *wire.Envelope, cl Claims) (wire.Frame, error) {
+	var tried *Session
+	err := fmt.Errorf("%w: no hub session", ErrUnreachable)
+	for attempt := 0; attempt < 2; attempt++ {
+		sess := s.session(ctx, tried, submitWaitSession)
+		if sess == nil {
+			break
+		}
+		s.mu.Lock()
+		f, serr := sess.SendClaims(ctx, env, cl)
+		s.mu.Unlock()
+		if serr == nil || !errors.Is(serr, ErrUnreachable) {
+			return f, serr
+		}
+		tried, err = sess, serr
+	}
+	s.askFlush()
+	return wire.Frame{}, err
+}
+
+// Serve answers submissions until ctx ends or the listener closes; a non-nil
+// sess becomes the current session first.
 func (s *SubmitServer) Serve(ctx context.Context, sess *Session) {
 	if s == nil {
 		return
+	}
+	if sess != nil {
+		s.set(sess)
 	}
 	go func() {
 		<-ctx.Done()
@@ -175,7 +269,7 @@ func (s *SubmitServer) Serve(ctx context.Context, sess *Session) {
 		if err != nil {
 			return
 		}
-		go s.handle(ctx, sess, conn)
+		go s.handle(ctx, conn)
 	}
 }
 
@@ -189,7 +283,7 @@ func (s *SubmitServer) Close() {
 	os.Remove(addr) //nolint:errcheck
 }
 
-func (s *SubmitServer) handle(ctx context.Context, sess *Session, conn net.Conn) {
+func (s *SubmitServer) handle(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(submitReplyTimeout)) //nolint:errcheck
 	reply := func(r submitResponse) {
@@ -210,9 +304,7 @@ func (s *SubmitServer) handle(ctx context.Context, sess *Session, conn net.Conn)
 		reply(submitResponse{Error: err.Error()})
 		return
 	}
-	s.mu.Lock()
-	f, err := sess.SendClaims(ctx, env, Claims{TypedBy: req.TypedBy, RefTaskID: req.RefTaskID})
-	s.mu.Unlock()
+	f, err := s.send(ctx, env, Claims{TypedBy: req.TypedBy, RefTaskID: req.RefTaskID})
 	var he *HubError
 	switch {
 	case errors.As(err, &he):

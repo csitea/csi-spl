@@ -98,7 +98,7 @@ func TestServeSubmitNotOpenedLogsAndStops(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.Cfg.SubmitSocket = filepath.Join(file, "s")
-	stop := c.serveSubmit(context.Background(), nil)
+	_, stop := c.serveSubmit(context.Background())
 	if stop == nil {
 		t.Fatal("no stop func")
 	}
@@ -116,7 +116,7 @@ func TestServeSubmitListensUntilStopped(t *testing.T) {
 	c.Cfg.SubmitSocket = shortSock(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stop := c.serveSubmit(ctx, nil)
+	_, stop := c.serveSubmit(ctx)
 	if !strings.Contains(logs.String(), "submit listener up") {
 		t.Fatalf("logs = %q", logs.String())
 	}

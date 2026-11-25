@@ -497,20 +497,28 @@ func (c *Client) pendingCount() int {
 // so a hub that accepts and drops at once is not hammered every second. It
 // returns when ctx ends, or ErrSuperseded when another hub-run holds the box:
 // a newer hello first makes it yield and say hello again (supersede.go).
+//
+// The submit listener is opened once, for the life of Run, and handed each
+// session in turn; hold swaps sessions make-before-break and a planned 1012
+// close of a stable session is redialled at once (SPL-6514, rotate.go).
 func (c *Client) Run(ctx context.Context) error {
 	wctx, stopWatch := context.WithCancel(ctx)
 	defer stopWatch()
 	go c.watchQueue(wctx) // up or down: a down hub is when the queue grows
+	srv, stopSubmit := c.serveSubmit(ctx)
+	defer stopSubmit()
 	b := newBackoff(runBackoffBase, runBackoffMax, runBackoffMax)
 	b.half = true
 	rehello := false // the session held is the re-hello after a 4409
 	for {
 		var retryAfter time.Duration
+		planned := false
 		sess, err := c.dial(ctx, wire.RoleBox, 0)
 		if err == nil {
 			c.Log.Info().Str("box", c.Cfg.BoxID).Msg("hub session up")
 			up := time.Now()
-			herr := c.hold(ctx, sess)
+			var herr error
+			planned, herr = c.holdLink(ctx, sess, srv)
 			if errors.Is(herr, ErrSuperseded) && ctx.Err() == nil {
 				if c.yield(ctx, &rehello, time.Since(up)) {
 					return herr
@@ -524,11 +532,18 @@ func (c *Client) Run(ctx context.Context) error {
 			if time.Since(up) >= stableAfter {
 				b.reset()
 			}
+			if time.Since(up) < plannedMinUp {
+				planned = false // a hub that closes at once is backed off, 1012 or not
+			}
 		} else {
 			retryAfter = retryAfterOf(err)
 		}
 		if ctx.Err() != nil {
 			return nil
+		}
+		if planned {
+			c.Log.Info().Str("box", c.Cfg.BoxID).Msg("hub closed the session at its max life; redialling at once")
+			continue
 		}
 		sleep := b.next(retryAfter)
 		if err != nil {
@@ -542,115 +557,187 @@ func (c *Client) Run(ctx context.Context) error {
 	}
 }
 
-// hold serves one session until it ends. It returns ErrSuperseded on 4409 and
-// nil for every other close (the caller reconnects).
-//
-// While it holds the session it also answers the box-local submit socket
-// (specs/030 FP-2), so a `spool send` on this box writes its envelope on THIS
-// warm socket instead of dialling its own. The listener lives and dies with the
-// session: between reconnects there is nothing to submit to, and a CLI that
-// finds no listener dials as it did before 030.
-//
-// Everything hold does runs under hctx, which ends with the session as well as
-// with ctx: a session that keepalive has declared dead cancels the pin
-// refresh, probe or flush in flight, and hold returns at once. Before, those
-// REST calls ran under the daemon's never-ending ctx, so one that hit a
-// silent hub kept hold parked for ever on a session already closed - the
-// process up, the box deaf (prd t1 desk, 2026-10-03 11:36Z, 16 min).
 // rosterScanEvery is how often hold re-reads the run report to re-announce a
 // changed one.
 const rosterScanEvery = 10 * time.Second
 
+// hold serves one session until it ends, without a submit listener. It
+// returns ErrSuperseded on 4409 and nil for every other close.
 func (c *Client) hold(ctx context.Context, sess *Session) error {
-	defer sess.Close()
+	_, err := c.holdLink(ctx, sess, nil)
+	return err
+}
+
+// holdLink serves sess, and every session a rotation swaps in after it,
+// until the session held ends. It returns ErrSuperseded on 4409 and nil for
+// every other close (the caller reconnects); planned is a 1012 max-life
+// close by the hub.
+func (c *Client) holdLink(ctx context.Context, sess *Session, srv *SubmitServer) (bool, error) {
+	for {
+		srv.set(sess)
+		next, planned, err := c.holdOne(ctx, sess, srv)
+		if next == nil {
+			return planned, err
+		}
+		sess = next
+	}
+}
+
+// holdOne serves one session. It returns the next session when a rotation
+// swapped one in (the old one is then closing already), else nil with
+// holdLink's results.
+//
+// Everything it does runs under hctx, which ends with the session as well as
+// with ctx: a session that keepalive has declared dead cancels the pin
+// refresh, probe or flush in flight, and holdOne returns at once. Before,
+// those REST calls ran under the daemon's never-ending ctx, so one that hit a
+// silent hub kept hold parked for ever on a session already closed - the
+// process up, the box deaf (prd t1 desk, 2026-10-03 11:36Z, 16 min).
+func (c *Client) holdOne(ctx context.Context, sess *Session, srv *SubmitServer) (next *Session, planned bool, err error) {
+	daemon := ctx
+	defer func() {
+		if next == nil {
+			sess.Close()
+		}
+	}()
 	hctx, stop := context.WithCancel(ctx)
 	defer stop()
 	defer context.AfterFunc(sess.ctx, stop)()
 	ctx = hctx
-	defer c.serveSubmit(ctx, sess)()
 	if _, err := sess.Flush(ctx); err != nil {
 		c.Log.Warn().Err(err).Msg("flush")
 	}
-	last, _ := c.rosterKey()
-	pins := time.NewTicker(c.PinRefresh)
-	defer pins.Stop()
-	scan := time.NewTicker(rosterScanEvery)
-	defer scan.Stop()
-	var probeC <-chan time.Time
-	if every := c.SessionProbe; every >= 0 {
-		if every == 0 {
-			every = defaultSessionProbe
-		}
-		probe := time.NewTicker(every)
-		defer probe.Stop()
-		probeC = probe.C
-	}
-	// stranded logs why this session is being given up and returns true when
-	// err proves the socket belongs to a hub process that no longer serves
-	// REST (see Client.SessionProbe). hold then returns, its deferred Close
-	// ends the socket, and Run redials - onto the process that does serve,
-	// whose hello drains everything queued for this box meanwhile.
-	stranded := func(what string, err error) bool {
-		if !orphaned(err) {
-			return false
-		}
-		c.Log.Warn().Err(err).Str("check", what).
-			Msg("hub no longer knows this session (a hub redeploy or restart); closing it so the session reconnects")
-		return true
-	}
+	t := c.holdTickers()
+	defer t.stop()
 	for {
 		select {
 		case <-ctx.Done():
 			select {
 			case <-sess.Done(): // the read loop ended: was it a 4409?
-				return sess.endErr()
+				return nil, sess.plannedClose(), sess.endErr()
 			default:
-				return nil
+				return nil, false, nil
 			}
 		case <-sess.Done():
-			return sess.endErr()
-		case <-pins.C:
-			if err := sess.SyncPins(ctx); err != nil {
-				if stranded("pin refresh", err) {
-					return nil
-				}
-				c.Log.Warn().Err(err).Msg("pin refresh")
+			return nil, sess.plannedClose(), sess.endErr()
+		case <-t.rotate:
+			if next := c.rotate(daemon, sess, srv); next != nil {
+				return next, false, nil
 			}
-		case <-probeC:
-			if err := sess.Probe(ctx); err != nil {
-				if stranded("session probe", err) {
-					return nil
-				}
-				c.Log.Debug().Err(err).Msg("session probe")
-			}
-		case <-scan.C:
-			// t1 bc1a43e1: a changed run report is re-announced too
-			if k, ok := c.rosterKey(); ok && k != last {
-				last = k
-				sess.Announce(ctx) //nolint:errcheck
-			}
+			t.rotateT.Reset(rotateRetry)
+		case <-srv.Kick():
 			if left, _ := c.Pending(); len(left) > 0 {
 				sess.Flush(ctx) //nolint:errcheck
 			}
+		case <-t.pins:
+			if err := sess.SyncPins(ctx); err != nil {
+				if c.stranded("pin refresh", err) {
+					return nil, false, nil
+				}
+				c.Log.Warn().Err(err).Msg("pin refresh")
+			}
+		case <-t.probe:
+			if err := sess.Probe(ctx); err != nil {
+				if c.stranded("session probe", err) {
+					return nil, false, nil
+				}
+				c.Log.Debug().Err(err).Msg("session probe")
+			}
+		case <-t.scan:
+			c.scanTick(ctx, sess, &t.roster)
 		}
 	}
 }
 
-// serveSubmit opens the box-local submit socket on sess for as long as ctx
-// lives, and returns the func that closes it. A listener that will not open
-// is not fatal: the box keeps working, every send just pays the dial.
-func (c *Client) serveSubmit(ctx context.Context, sess *Session) func() {
+// holdTickers are holdOne's periodic wake-ups; a nil channel never fires.
+type holdTickers struct {
+	pins, probe, scan, rotate <-chan time.Time
+	rotateT                   *time.Timer
+	roster                    string
+	stops                     []func()
+}
+
+func (c *Client) holdTickers() *holdTickers {
+	t := &holdTickers{}
+	t.roster, _ = c.rosterKey()
+	pins := time.NewTicker(c.PinRefresh)
+	scan := time.NewTicker(rosterScanEvery)
+	t.pins, t.scan = pins.C, scan.C
+	t.stops = append(t.stops, pins.Stop, scan.Stop)
+	if every := c.SessionProbe; every >= 0 {
+		if every == 0 {
+			every = defaultSessionProbe
+		}
+		probe := time.NewTicker(every)
+		t.probe = probe.C
+		t.stops = append(t.stops, probe.Stop)
+	}
+	if rt, ch := c.rotateTimer(); rt != nil {
+		t.rotateT, t.rotate = rt, ch
+		t.stops = append(t.stops, func() { rt.Stop() })
+	}
+	return t
+}
+
+func (t *holdTickers) stop() {
+	for _, f := range t.stops {
+		f()
+	}
+}
+
+// scanTick re-announces a changed run report (t1 bc1a43e1) and flushes what
+// is pending: the backstop of the flush kicks, for a pending file no submit
+// told the listener about.
+func (c *Client) scanTick(ctx context.Context, sess *Session, last *string) {
+	if k, ok := c.rosterKey(); ok && k != *last {
+		*last = k
+		sess.Announce(ctx) //nolint:errcheck
+	}
+	if left, _ := c.Pending(); len(left) > 0 {
+		sess.Flush(ctx) //nolint:errcheck
+	}
+}
+
+// stranded logs why a session is being given up and returns true when err
+// proves the socket belongs to a hub process that no longer serves REST (see
+// Client.SessionProbe). holdOne then returns, its deferred Close ends the
+// socket, and Run redials - onto the process that does serve, whose hello
+// drains everything queued for this box meanwhile.
+//
+// With rotation on (SPL-6514, rotate.go) a door is never proof: during a
+// hub roll the door comes from the OTHER live revision while the socket's
+// own still pongs and delivers. The session is kept, and the next rotation
+// moves it.
+func (c *Client) stranded(what string, err error) bool {
+	if !orphaned(err) {
+		return false
+	}
+	if c.rotates() {
+		c.Log.Info().Err(err).Str("check", what).
+			Msg("another hub revision refused this session's token; the socket still answers, so it stays until the next rotation")
+		return false
+	}
+	c.Log.Warn().Err(err).Str("check", what).
+		Msg("hub no longer knows this session (a hub redeploy or restart); closing it so the session reconnects")
+	return true
+}
+
+// serveSubmit opens the box-local submit socket for as long as ctx lives,
+// and returns it (nil when not opened) with the func that closes it. A
+// listener that will not open is not fatal: the box keeps working, every
+// send just pays the dial. Run hands it each session (SubmitServer.set).
+func (c *Client) serveSubmit(ctx context.Context) (*SubmitServer, func()) {
 	sctx, stopSubmit := context.WithCancel(ctx)
 	srv, err := c.Listen()
 	if err != nil {
 		c.Log.Warn().Err(err).Str("socket", c.Cfg.SubmitPath()).Msg("submit listener not opened; sends will dial")
 	}
 	if srv == nil {
-		return stopSubmit
+		return nil, stopSubmit
 	}
-	go srv.Serve(sctx, sess)
+	go srv.Serve(sctx, nil)
 	c.Log.Info().Str("socket", c.Cfg.SubmitPath()).Msg("submit listener up")
-	return func() { stopSubmit(); srv.Close() }
+	return srv, func() { stopSubmit(); srv.Close() }
 }
 
 // endErr is what hold returns for a session whose read loop has ended:

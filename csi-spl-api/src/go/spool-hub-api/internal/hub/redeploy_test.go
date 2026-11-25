@@ -77,12 +77,15 @@ func (r *redeploy) flip() { r.cur.Store(&r.next) }
 // and the message never arrives.
 func TestBoxRedialsAfterHubRedeploy(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		probe time.Duration
-		want  bool
+		name          string
+		probe, rotate time.Duration
+		want          bool
 	}{
-		{"old binary stays stranded", -1, false},
-		{"probe redials and drains", 200 * time.Millisecond, true},
+		{"old binary stays stranded", -1, -1, false},
+		{"probe redials and drains", 200 * time.Millisecond, -1, true},
+		// SPL-6514: with rotation on a door keeps the session; the next
+		// make-before-break rotation dials onto the new process and drains
+		{"rotation moves and drains", 200 * time.Millisecond, 300 * time.Millisecond, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newEnv(t)
@@ -101,6 +104,7 @@ func TestBoxRedialsAfterHubRedeploy(t *testing.T) {
 			}
 
 			b.c.SessionProbe = tc.probe
+			b.c.RotateAfter = tc.rotate
 			done := make(chan error, 1)
 			go func() { done <- b.c.Run(ctx) }()
 			send(t, a, "GRK-03", "CLE-07", "task", "before the redeploy", "box-b")

@@ -1,10 +1,12 @@
 # Spec 195: Revoke a Message Card or a Whole Topic
 
-Status: **Draft v0.2** (2026-11-25). Lane `c-210` (`claude`; agy, the main
+Status: **Draft v0.3** (2026-11-25). Lane `c-210` (`claude`; agy, the main
 vendor for `specs_and_docs`, is on its usage limit). Doc only.
-v0.1 `540e607d8`; v0.2 folds the spec review's W1-W6 and N1-N3 (a-353,
-agy FAIL on v0.1, msg `c4ccdeb3`; holder send-back msg `a67f5dce`):
-section 10.
+v0.1 `0a8127ae0`; v0.2 `62fc03087` folds the spec review's W1-W6 and N1-N3
+(a-353, agy FAIL on v0.1, msg `c4ccdeb3`; holder send-back msg `a67f5dce`):
+section 10.1. v0.3 folds the owner's answers to form `99017105` (msgs
+`5a17847b` and `ad732a51`, relayed by the dispatch holder, msg `139d5da2`):
+section 1, what they changed in section 10.2.
 Epic: **SPL-21**. Issue: **SPL-6448**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:8bdf63d0-a656-4841-9fbf-db81c926f4af` (`t1` #spool-hub-biz).
 Builds on: [003 spool message bus](../003-spool-message-bus/spec.md) (the
@@ -39,16 +41,34 @@ Read as four requirements:
 | R3 | No agent takes a revoked card's text into a prompt or a history again. |
 | R4 | What the card asked for is undone, or scheduled to be undone, where possible; the rest is named. |
 
-## 1. Decided by this spec (say so in the topic if any is wrong)
+## 1. Decided
+
+### 1.1 By the owner
+
+The owner's answers to form `99017105`, verbatim. Two answers came: msg
+`5a17847b`, then msg `ad732a51`, the same but for Answer 7; the newer one
+wins.
+
+| Q | Answer (verbatim) | What it decides here |
+|---|---|---|
+| Q1 | "A — Its author, plus owner and admins for any card, an agent's too" | 4.1 as written: the author revokes an own card; the tenant owner and `admin` revoke any card, a box-signed one included |
+| Q2 | "A — \"Revoked by <name>, <time>\" and the reason; the text only for author, revoker and admins" | 4.2, 4.3: the revoked line for everyone; the hub sends `body` / `files` only to the author, the revoker, the tenant owner and admins |
+| Q3 | "B — No, a revoke is final" | D2: there is no unrevoke. No `DELETE …/revoke`, no unrevoke frames, no `UNREVOKED` notice, no unrevoke rows in T2, T5, T6, T7 |
+| Q4 | "B — Required" | 4.2, 4.3: the reason is required, 1..200 characters; `PUT …/revoke` answers `400 reason_required` on an empty one (the hub enforces it, not only the dialog); the dialog's Revoke button stays disabled until it is filled |
+| Q5 | "B — Ask me first, one form per lane" | 5.4, 6.2: a running lane is not stopped by the revoke; the holder sends the owner one form per lane, and the lane keeps working (without the revoked text) until the answer comes |
+| Q6 | "A — Revoke the text now, send me a form of what cannot be undone" | 6.2 as written: the text is withdrawn at once; the holder turns the flagged effects into one form to the owner; no `409 has_landed_effects` |
+| Q7 | "A — Yes, on the long-press sheet too" (msg `ad732a51`; msg `5a17847b` said "B — Desktop menu only") | 4.2 as written: the phone's long-press sheet lists Revoke and Revoke topic |
+
+### 1.2 By this spec
 
 | D | decision | why |
 |---|---|---|
 | D1 | Revoke is **not a delete**: the row stays, with `revoked_at` / `revoked_by` / `revoke_id`; the text stays in the store. | R2 wants it visible; a hard delete already exists (`DELETE /v1/messages/{msg_id}`, `edit.go:387`) and removes the row for good. Keeping the text also lets an admin see what was revoked. |
-| D2 | A revoke **can be undone** (Unrevoke), and both are recorded in an append-only log. Unrevoke makes the text readable again and tells the agents; it **never redoes** an action the revoke undid. | A topic revoke on the wrong row is costly; the log is the audit; redoing work is a new request, not an undo. Q3 asks the owner. |
+| D2 | A revoke is **final**: there is no unrevoke. Every revoke is recorded in an append-only log. | The owner's Q3 (1.1). A card revoked by mistake is posted again as a new card; redoing work is a new request. |
 | D3 | Agents are told with a normal v:1 message of kind `note` whose first line is `REVOKED <msg_id>` (or `REVOKED-TOPIC <task_id>`), never with the text. No new kind. | `validKinds` (`internal/msg/msg.go:52-57`) and the `messages.kind` CHECK would need widening, and an older reader refuses an unknown kind; a `note` reaches every reader today. |
 | D4 | The hub sends the new box frame `revoke` **only to a box whose `hello` announced it** (a `caps` list on the hello frame, the way `MsgVersions` is announced, `internal/wire/wire.go:296`). A box that did not announce it gets no frame; its copies are flagged (5.2). | An old sidecar does **not** ignore an unknown frame: its `default:` case hands the frame to `s.replies` (`internal/hubclient/hubclient.go:661-665`, buffer 64, `:429`) and waits up to the client timeout, so 64 unasked frames would stall its read loop. |
-| D5 | Local copies are **moved**, not deleted, into `<spool root>/<id>/revoked/<subdir>/<file>`, `<subdir>` being the one it came from (`inbox`, `archive`, `outbox`), FleetRoot copies the same under the FleetRoot. `recv`, `tail`, the hook and `agent-inbox.sh` never read `revoked/`. | Unrevoke (D2) moves each file back to its own subdir; audit stays possible on the box. |
-| D6 | A topic revoke is one `revoke_id` over the same set `DeleteTopic` walks (card + children, message-rooted threads, sub-tasks; `store/topic_archive_postgres.go:160`). The topic revoke is undone only as a whole, on its root, by someone who may revoke the topic (4.1). | One walk, already tested; a reply's author cannot lift a topic revoke through the shared id. |
+| D5 | Local copies are **moved**, not deleted, into `<spool root>/<id>/revoked/<subdir>/<file>`, `<subdir>` being the one it came from (`inbox`, `archive`, `outbox`), FleetRoot copies the same under the FleetRoot. `recv`, `tail`, the hook and `agent-inbox.sh` never read `revoked/`. | Audit stays possible on the box: an admin can read what was withdrawn, and from where. |
+| D6 | A topic revoke is one `revoke_id` over the same set `DeleteTopic` walks (card + children, message-rooted threads, sub-tasks; `store/topic_archive_postgres.go:160`). A card already revoked keeps its first revoke and is not re-marked by a later topic revoke; a card of a revoked topic cannot be revoked again on its own (4.1). | One walk, already tested; one id finds every row of the act. |
 | D7 | Nothing that touches prd or git history is undone without the owner's go (section 6.2). | Owner rule for prd mutations and history. |
 
 ## 2. Terms
@@ -224,8 +244,8 @@ not by this list.
 | G | missing |
 |---|---|
 | G1 | a revoked state on a row that keeps it visible (columns, log) |
-| G2 | the revoke / unrevoke endpoints, the authz door, the frames, the reconnect delta |
-| G3 | the WUI menu entries, the revoked rendering, the Unrevoke |
+| G2 | the revoke endpoint, the effects read, the authz door, the frames, the reconnect delta |
+| G3 | the WUI menu entries, the revoke dialog with its required reason, the revoked rendering |
 | G4 | every reader of 3.2 skipping or blanking revoked rows |
 | G5 | the box learning of a revoke: a capability-gated `revoke` frame, a queue for offline boxes, moving local copies, every local reader skipping them |
 | G6 | the agent notice and the seed rule that tells an agent what to do with it |
@@ -242,34 +262,36 @@ not by this list.
 | revoke a card the person wrote (browser-sent) | its author | the person who said it may take it back |
 | revoke any card, an agent's (box-signed) card included | tenant owner, role `admin` | an agent's card cannot be edited or deleted by anyone today (`edit.go:204`, `:429`); an admin must be able to stop what an agent said |
 | revoke a topic | `mayChangeTopic` (`topic_archive.go:188`): the opening card's author, tenant owner, `admin` | the same door as Delete topic: a topic revoke reaches other people's cards |
-| unrevoke a card revoke (`scope = card`) | whoever may revoke that card now | |
-| unrevoke a topic revoke (`scope = topic`) | `mayChangeTopic` on the revoke's `root_msg_id`, read from `message_revocations`, never from the row the call names | D6: a reply's author must not lift the whole topic's revoke |
+| undo a revoke | no one | D2, the owner's Q3: a revoke is final |
 | an agent revokes | no one | a revoke is a person's act; an agent that wants its own card revoked asks the holder |
 
 A new workspace setting `tenants.message_revoke_policy`
 (`authors_and_admins` default | `admins`) narrows the first row, the way
 `topic_archive_policy` does for archive. Fix the WUI / hub mismatch on the
 way: the hub door counts `biz_owner` as admin if and only if the WUI does
-(row T2; `topic-archive.mjs:20` vs `topic_archive.go:193`). Q1.
+(row T2; `topic-archive.mjs:20` vs `topic_archive.go:193`). The owner
+chose this door (Q1, section 1.1).
 
 An archived topic: revoke is **allowed** (it is not input; spec 041's
 `topicOpenDoor` refuses input, `api/internal/hub/topic_archived_input.go:78`).
 
-A card inside a topic that is revoked as a whole cannot be revoked or
-unrevoked on its own (`409 topic_revoked`) until the topic revoke is lifted.
+A card inside a topic that is revoked as a whole cannot be revoked on its
+own (`409 already_revoked`). A later topic revoke skips the cards already
+revoked on their own: each keeps its first revoke (D6).
 
 ### 4.2 What the UI shows
 
 - **Menu.** On the card's right-click / ⋯ menu, an entry "Revoke…" after
   Edit (`msg-menu.mjs:132`), danger-styled, gated with the `locks` pattern
-  (disabled with the reason for a viewer who may not). On a revoked card it
-  reads "Unrevoke". The topic menu (`topic-menu.mjs`, every topic list, and
+  (disabled with the reason for a viewer who may not). A revoked card has
+  no revoke entry (D2: nothing to undo). The topic menu (`topic-menu.mjs`, every topic list, and
   the opening card's menu) gets "Revoke topic…" next to Archive; the
   opening card's menu therefore offers both. The phone's long-press sheet
-  lists both. Q7.
+  lists both (the owner's Q7).
 - **Confirm.** A dialog: what is revoked (one card, or the topic and its N
   replies, the count from `GET /v1/view/messages/{msg_id}/topic`), a
-  reason (optional, <= 200 characters; Q4), and the effects the hub found
+  reason (required, 1..200 characters, the owner's Q4: the Revoke button
+  stays disabled while it is empty), and the effects the hub found
   (`GET …/revoke/effects?scope=`, section 6.1), each with what will happen
   to it, the box-side ones listed as "checked after the revoke".
 - **The revoked card.** Stays in place. Its body and files are replaced by
@@ -278,14 +300,14 @@ unrevoked on its own (`409 topic_revoked`) until the topic revoke is lifted.
   text" toggle that shows the original struck through; nobody else gets the
   text (the hub does not send it to them, 4.3). Reactions, the poll form,
   link previews and file links are not drawn. The composer stays open in
-  the topic. Q2.
+  the topic (the owner's Q2).
 - **The revoked topic.** Its row in every list carries the revoked mark and
   stays (it is not archived); its subject reads "Revoked topic" for
   everyone without the "Show text" right; opening it shows every card
   revoked.
 - **Live and on reconnect.** Every browser on the topic gets the frame and
   redraws at once; a browser that was offline gets the change from the
-  reconnect delta (`ViewChanges`, kinds `revoke` / `unrevoke`).
+  reconnect delta (`ViewChanges`, kind `revoke`).
 
 ### 4.3 Wire and store
 
@@ -296,32 +318,31 @@ unrevoked on its own (`409 topic_revoked`) until the topic revoke is lifted.
     and `(tenant_id, revoked_at) WHERE revoked_at IS NOT NULL` (for
     `ViewChanges`).
   - `message_revocations` (append-only, RLS like every tenant table):
-    `tenant_id`, `revoke_id`, `op` (`revoke|unrevoke`), `scope`
+    `tenant_id`, `revoke_id` (primary key with `tenant_id`), `scope`
     (`card|topic`), `root_msg_id`, `n_rows`, `by`, `at`, `reason`
-    (<= 200), `effects jsonb` (the walker's plan and the outcome per
-    effect, section 6). One row per act; unrevoke writes its own row with
-    the same `revoke_id`.
-  - `box_revokes` (RLS): `tenant_id`, `revoke_id`, `op`, `to_box`, `state`
+    (`NOT NULL`, CHECK 1..200 characters), `effects jsonb` (the walker's
+    plan and the outcome per effect, section 6). One row per act.
+  - `box_revokes` (RLS): `tenant_id`, `revoke_id`, `to_box`, `state`
     (`queued|sent`), `created_at`, `sent_at`; primary key
-    (`tenant_id`, `revoke_id`, `op`, `to_box`). The queue of `revoke`
+    (`tenant_id`, `revoke_id`, `to_box`). The queue of `revoke`
     frames for boxes that were offline (`deliveries` cannot hold them: it
     references `messages`).
   - `tenants.message_revoke_policy text NULL` CHECK in
     (`authors_and_admins`, `admins`).
 - **HTTP.**
-  - `PUT /v1/messages/{msg_id}/revoke`, body `{scope: card|topic, reason}`.
-  - `DELETE /v1/messages/{msg_id}/revoke`: unrevoke. For a topic revoke
-    it is accepted only on `root_msg_id` (`409 not_revoke_root` on a reply),
-    authorized by 4.1 from the log row.
+  - `PUT /v1/messages/{msg_id}/revoke`, body `{scope: card|topic, reason}`;
+    `reason` is required (trimmed, 1..200 characters). No `DELETE`: a
+    revoke is final (D2); the route answers `405`.
   - `GET /v1/messages/{msg_id}/revoke/effects?scope=card|topic` (default
     `card`): the dry plan for the dialog (6.1 part a).
   - `OPTIONS /v1/messages/{msg_id}/revoke` and
     `OPTIONS /v1/messages/{msg_id}/revoke/effects`, the preflights, as
     `server.go:570`, `:583-584` do for edit and archive.
   - Errors: `not_found` (404, also for unreadable), `not_allowed` (403),
-    `already_revoked` / `not_revoked` (409), `not_a_card` (409, topic
-    scope on a non-opening row), `not_revoke_root` (409), `topic_revoked`
-    (409, 4.1), `bad_scope` (400).
+    `already_revoked` (409, also for a card of a revoked topic, 4.1),
+    `not_a_card` (409, topic scope on a non-opening row), `bad_scope`
+    (400), `reason_required` (400, empty or blank), `reason_too_long`
+    (400, over 200 characters).
 - **View rows.** A revoked row comes back with `revoked: {at, by, reason}`
   and, for the viewers allowed to see it, `body` / `files`; for everyone
   else `body: ""`, `files: []`. The same blanking in every people-facing
@@ -330,19 +351,18 @@ unrevoked on its own (`409 topic_revoked`) until the topic revoke is lifted.
   card's `revoked_at` (`topic_heads` holds no body, so only the badge and
   the subject change).
 - **WUI frames** (`wui-live-ws.md` section 3.2): `message_revoked`
-  `{msg_id, task_id, channel, revoke_id, at, by, reason}`,
-  `message_unrevoked` `{msg_id, task_id, revoke_id}`, `topic_revoked` /
-  `topic_unrevoked` `{root_msg_id, task_ids[], revoke_id, at, by}`.
-  `ViewChanges` gains kinds `revoke` / `unrevoke` from `message_revocations`.
+  `{msg_id, task_id, channel, revoke_id, at, by, reason}`, `topic_revoked`
+  `{root_msg_id, task_ids[], revoke_id, at, by, reason}`.
+  `ViewChanges` gains the kind `revoke` from `message_revocations`.
 - **Box frames.**
   - The box's `hello` gains `caps: ["revoke"]` (optional field, as
     `MsgVersions`, `wire.go:296`). The hub sends a box a `revoke` frame
     only when its current session announced the cap (D4).
-  - `revoke` `{revoke_id, op, msg_ids[], task_ids[]}`: to every box that
+  - `revoke` `{revoke_id, msg_ids[], task_ids[]}`: to every box that
     holds a delivery of any of the rows (`deliveries`) or is an end
     (`from_box` / `to_box`). Written first as `box_revokes` rows
     `queued`; sent at once to a connected box with the cap.
-  - The box answers `revoke_ack {revoke_id, op}` once its local move is
+  - The box answers `revoke_ack {revoke_id}` once its local move is
     done; the hub sets the row `sent`. On `hello` the hub drains the box's
     `queued` rows after `QueuedFor`, oldest first, the same way.
   - A box without the cap keeps its `box_revokes` rows `queued`; the walker
@@ -412,18 +432,22 @@ Every reader of 3.2 changes as follows (`revoked` = `m.revoked_at IS NOT NULL`):
   REVOKED <msg_id>
   Revoke: <revoke_id> by <person> at <ts>
   Reason: <reason>
-  Do not use the revoked text. Stop work it asked for; undo what is
-  undoable per spec 195 section 6; report what you undid with kind result.
+  Do not use the revoked text. Keep working on your task without it
+  until the holder forwards the owner's answer for your lane (spec 195
+  section 6.2); then stop or go on as answered, and report with kind
+  result.
   ```
 
   The body never quotes the revoked text.
-- Seed rule (T10): an agent that receives `REVOKED` stops using that text,
-  does not cite it, and handles its own effects per section 6 (its
-  unpushed commits dropped, its review branch closed, its open asks
-  closed); a landed commit or a prd change is reported, never reverted by
-  itself.
-- An unrevoke sends `UNREVOKED <msg_id>`; the agent may read the text again
-  but restarts nothing on its own (D2).
+- Seed rule (T10): an agent that receives `REVOKED` stops using that text
+  and does not cite it. It does not stop on its own (the owner's Q5): the
+  holder sends the owner one form per lane, and the lane keeps working
+  until the holder forwards the answer. On "stop" it handles its own
+  effects per section 6 (its unpushed commits dropped, its review branch
+  closed, its open asks closed, its issue ended `diss` reason `revoked`);
+  on "go on" it continues. A landed commit or a prd change is reported,
+  never reverted by itself.
+- There is no `UNREVOKED` notice (D2).
 
 ## 6. Actions the card prompted
 
@@ -466,21 +490,23 @@ guessed cannot prove absence.
 |---|---|---|
 | ask `open` / `acked` | **undone** | `do_spl_ask_close` state `declined`, reason `revoked <revoke_id>` |
 | spawn `queued`, request not started | **undone** | `decline` / `spawn-cancel v1` |
-| lane running | **scheduled** | the notice (5.4); the lane stops, ends its issue `diss` reason `revoked`, then the seat is freed like `do_spl_archived_seats_free`. Q5 |
-| issue `eval`, `todo`, `wip`, `blocked`, `onhold` | **undone** | to `diss`, the previous status kept like the archive follow (`issue_follow.go`), restored on unrevoke |
+| lane running | **asked** (the owner's Q5) | the notice (5.4); the holder sends the owner one form per lane ("stop" / "go on"); the lane keeps working until the answer. On "stop": the lane ends its issue `diss` reason `revoked`, then the seat is freed like `do_spl_archived_seats_free`. On "go on": nothing more |
+| issue `eval`, `todo`, `wip`, `blocked`, `onhold` with no running lane | **undone** | to `diss` reason `revoked`, the previous status recorded in the `effects` of `message_revocations` (no restore: D2) |
+| issue of a running lane | **asked** | follows its lane's form |
 | issue `done` | **flagged** | the work landed |
 | agent posts and replies the card caused | **flagged**, revocable by an admin as one more revoke | they are the agent's words, not the revoked text |
 | owner order | **undone** by the owner's revoke (lift) | else flagged |
-| review branch, unpushed work | **scheduled** | the lane drops it on the notice |
+| review branch, unpushed work | **asked** | the lane drops it only on the owner's "stop" for that lane |
 | commit on master | **flagged, not undoable** | a revert is a new commit and needs the owner's go (D7); history is never rewritten |
 | deploy dev / prd | **flagged, not undoable** | a rollback is a prd mutation: the owner's go |
 | terraform apply | **flagged, not undoable** | the owner's go per call |
 | email, chat, calendar, payment | **flagged, not undoable** | outside the hub |
 
 Every flagged effect becomes one line of one post to the dispatch holder
-(kind `note`, on the revoked card's task), who turns the ones that need the
-owner into a form. The revoke never waits on them: the text is withdrawn at
-once, the effects follow. Q6.
+(kind `note`, on the revoked card's task), who sends the owner one form
+listing what cannot be undone (the owner's Q6), plus one form per running
+lane (Q5). The revoke never waits on them: the text is withdrawn at once,
+the effects follow.
 
 ## 7. Build rows
 
@@ -491,15 +517,15 @@ cap gate (D4) means T4 can deploy before or after T5.
 | row | what | files | depends on | done test | red control |
 |---|---|---|---|---|---|
 | T1 | rdb: columns, `message_revocations`, `box_revokes`, policy | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_messages_revoked.sql` | none | applies twice on a throwaway postgres; `\d messages` lists the 3 columns; both tables have RLS (`TestRLSCoversEveryTenantTable`) | the RLS test fails with a policy line removed |
-| T2 | hub: revoke / unrevoke / effects endpoints with preflights, the door, the log, the hub-side walker (6.1 a), WUI frames, `ViewChanges` kinds, people-facing blanking | new `api/internal/hub/revoke.go` + test, `api/internal/hub/server.go`, `api/internal/store` (postgres + memory; `view_changes_postgres.go`, `view_topics_head.go`, `link_preview.go`, `issue_discussions.go`, `embed_visitor_messages.go`, `search_postgres.go`), `api/internal/hub/openapi.json` | T1 (pg tests) | Go tests on postgres: an author revokes an own card; an admin revokes an agent's card; a member is refused 403; a topic revoke marks the 041 set with one id; a reply's author's `DELETE` on a topic revoke answers `409 not_revoke_root`, and on the root `403`; `?scope=topic` previews the topic set; `ViewChanges` returns `revoke`; every people-facing reader blanks the body for a non-viewer | remove the root check: the reply-author unrevoke test fails; remove a blanking: its reader's test prints the text |
+| T2 | hub: revoke and effects endpoints with preflights, the door, the log, the hub-side walker (6.1 a), WUI frames, `ViewChanges` kinds, people-facing blanking | new `api/internal/hub/revoke.go` + test, `api/internal/hub/server.go`, `api/internal/store` (postgres + memory; `view_changes_postgres.go`, `view_topics_head.go`, `link_preview.go`, `issue_discussions.go`, `embed_visitor_messages.go`, `search_postgres.go`), `api/internal/hub/openapi.json` | T1 (pg tests) | Go tests on postgres: an author revokes an own card; an admin revokes an agent's card; a member is refused 403; a topic revoke marks the 041 set with one id; an empty or blank reason answers `400 reason_required` and stores nothing; a second revoke of the same card answers `409 already_revoked`; `DELETE …/revoke` answers `405`; `?scope=topic` previews the topic set; `ViewChanges` returns `revoke`; every people-facing reader blanks the body for a non-viewer | remove the reason check: the empty-reason test gets `200`; remove a blanking: its reader's test prints the text |
 | T3 | hub: every box-facing reader of 5.1 filters or blanks revoked rows, plus a guard | `postgres.go` (`BoxTaskEnvelopes`, `TaskEnvelopes`, `QueuedFor`, `QueuedForBoxes`), `backfill_postgres.go`, `fallback_postgres.go`, `live_acks.go`, `replay_postgres.go`, `store/flow_fold.go`, `hub/flow_fold.go`, `topics_agent.go`, `topic_export.go`, `blocker_issue.go` | T1 | one test per reader: a revoked row is absent or blanked; a revoked reply does not answer a blocker; and a guard test that lists every function in `internal/store` whose SQL reads `messages.body` or `messages.env` and fails on one not in its reviewed list | each test fails with its filter removed; the guard fails when a new `SELECT … m.body FROM messages` function is added without being listed |
 | T4 | hub: the cap, `box_revokes`, the `revoke` frame, the drain on hello, `revoke_ack`, the stored notice | `api/internal/wire` (`caps`, `revoke`, `revoke_ack`), `ws.go` (fan-out, hello drain), the notice writer | T2 | a box with the cap gets the frame online, and after a reconnect from `box_revokes`; the ack marks the row `sent`; a box without the cap gets no frame and stays `queued`; the notice is stored on the task without the revoked text | a box without the cap getting a frame fails the test; the notice test greps the body for the revoked text |
-| T5 | box: announce the cap; on `revoke` move copies to `revoked/<subdir>/`, ack; every local reader skips `revoked/` | `api/internal/hubclient`, `api/internal/spool/spool.go`, `spawn/scripts/spool-agent-hook.sh`, `spawn/scripts/agent-inbox.sh` | the 4.3 frame contract | unit test: inbox, archive, outbox and FleetRoot copies move to their own subdirs; `recv`, `tail`, the hook `inject` and `agent-inbox.sh` do not show them; unrevoke moves each back to its own subdir | remove the move: the recv test prints the text; flatten the subdir: the unrevoke test finds the archive copy in inbox |
-| T6 | WUI: menu entries, the confirm with effects, the revoked card and topic row, Unrevoke, frames, reconnect | `wui/utils/msg-menu.mjs`, `wui/utils/topic-menu.mjs`, `wui/components/MessageCard.vue`, new `RevokeDialog.vue`, `wui/composables/useCardTopicActions.ts`, `wui/utils/live-ws.mjs`, `wui/composables/useLive.ts`, `wui/stores/live.ts`, `spool-client(-mock).mjs`, `csi-spl-wui/i18n/locales/*.json` | 4.3 | `msg-menu.test.mjs` (Revoke gated by `locks`), a unit test of the revoked render (no body for a non-viewer), typecheck, i18n gates | drop the gate: the locked-viewer assertion fails |
-| T7 | WUI e2e | new `csi-spl-wui/tests/e2e/msg-revoke.test.mjs` | T6 | on the generated bundle, mock-served: revoke a reply, it shows "Revoked by…", the text hidden; unrevoke restores it | the e2e fails when the entry is absent |
+| T5 | box: announce the cap; on `revoke` move copies to `revoked/<subdir>/`, ack; every local reader skips `revoked/` | `api/internal/hubclient`, `api/internal/spool/spool.go`, `spawn/scripts/spool-agent-hook.sh`, `spawn/scripts/agent-inbox.sh` | the 4.3 frame contract | unit test: inbox, archive, outbox and FleetRoot copies move to their own subdirs; `recv`, `tail`, the hook `inject` and `agent-inbox.sh` do not show them | remove the move: the recv test prints the text; flatten the subdir: the test finds the archive copy under `revoked/inbox/` |
+| T6 | WUI: menu entries (desktop menu and the phone's long-press sheet), the confirm with effects and the required reason, the revoked card and topic row, frames, reconnect | `wui/utils/msg-menu.mjs`, `wui/utils/topic-menu.mjs`, `wui/components/MessageCard.vue`, new `RevokeDialog.vue`, `wui/composables/useCardTopicActions.ts`, `wui/utils/live-ws.mjs`, `wui/composables/useLive.ts`, `wui/stores/live.ts`, `spool-client(-mock).mjs`, `csi-spl-wui/i18n/locales/*.json` | 4.3 | `msg-menu.test.mjs` (Revoke gated by `locks`; absent on a revoked card; listed on the touch sheet), a dialog unit test (Revoke disabled while the reason is empty), a unit test of the revoked render (no body for a non-viewer), typecheck, i18n gates | drop the gate: the locked-viewer assertion fails |
+| T7 | WUI e2e | new `csi-spl-wui/tests/e2e/msg-revoke.test.mjs` | T6 | on the generated bundle, mock-served: revoke a reply with a reason, it shows "Revoked by…" and the reason, the text hidden; the revoked card's menu has no revoke entry | the e2e fails when the entry is absent |
 | T8 | i18n final language check | the non-en locale files | T6 landed | `do_spl_lang_review_gct` on the new keys; the i18n gates green | leave one new key in English in a non-en locale: `i18n-untranslated.test.mjs` fails |
 | T9 | orc: source ids (G8) | `orc/run/spl-spawn-place.func.sh` (`Source-Msg:`), `spawn/lib/spool-asks.inc.sh` + an rdb migration for `fleet_asks.source_msg_ids`, `orc/run/spl-lane-issue.func.sh` | none | a placed brief carries `Source-Msg:` for the ask's msg; the ask row stores it | the brief test fails without the line |
-| T10 | orc: the box-side walker (6.1 b), outcomes, the placer refusal, sweep + asks drop, seed rule | new `orc/run/spl-revoke-effects.func.sh` + test, `spl-unanswered-sweep.func.sh`, `spl-asks-tick.func.sh`, `spl-spawn-place.func.sh`, the seed rule text under `spawn/assets/` | T2, T9 | on a test spool root: an open ask is declined `revoked`; a queued row is refused; a lane whose brief names the msg gets the notice; an owner order is lifted only on the owner's revoke; a landed commit is flagged, never reverted; the seed carries the rule | a revoked ask still offered by the tick fails the test |
+| T10 | orc: the box-side walker (6.1 b), outcomes, the placer refusal, sweep + asks drop, seed rule | new `orc/run/spl-revoke-effects.func.sh` + test, `spl-unanswered-sweep.func.sh`, `spl-asks-tick.func.sh`, `spl-spawn-place.func.sh`, the seed rule text under `spawn/assets/` | T2, T9 | on a test spool root: an open ask is declined `revoked`; a queued row is refused; a lane whose brief names the msg gets the notice and is not stopped; the holder gets one form request per running lane; an owner order is lifted only on the owner's revoke; a landed commit is flagged, never reverted; the seed carries the rule | a revoked ask still offered by the tick fails the test; a lane stopped without the owner's answer fails it |
 | T11 | docs | `csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` (frames), `view-v1.md` (the row field, the delta kinds), `http-v1.md` (routes, preflights, errors), the box wire contract (`caps`, `revoke`, `revoke_ack`), the user help for the card menu | 4.3 | the contracts name every field, route, frame and error of 4.3 | break one new anchor link: `lint-mdlinks` fails |
 | T12 | live proof | none (a run) | T2-T7 deployed dev + prd | in the prd `e2e` tenant and the dev test tenant: revoke a card an agent received; `spool recv` and `hub-tail` on that agent's box do not show it; `message_revocations` count +1; `box_revokes` row `sent` | the same run before T3 shows the text |
 
@@ -507,54 +533,8 @@ Split: hub T1-T4, box T5, WUI T6-T8, orc T9-T10, docs T11, proof T12.
 
 ## 8. Open questions for the owner
 
-Each question is meant for one `poll` form (how-to-post section 7); the
-recommended option is listed first with its one-line why, and each option
-says what it changes here.
-
-1. **Who may revoke a card?** I recommend **(A)**: the author can take back
-   their own words, and only admins can stop an agent's.
-   - (A) Its author, plus the workspace owner and admins for any card, an
-     agent's too: section 4.1 as written.
-   - (B) Workspace owner and admins only: 4.1 drops the author row and
-     `message_revoke_policy`; T2's author test becomes a 403 test.
-   - (C) Anyone who may post in the topic: 4.1's door becomes the post
-     door; T2's member-refused test is dropped.
-2. **What do others see on a revoked card?** I recommend **(A)**: it stays
-   visible, as you asked, without spreading the text.
-   - (A) "Revoked by <name>, <time>" and the reason; the text only for the
-     author, the revoker and admins: section 4.2 as written.
-   - (B) The text struck through, for everyone: the view rows keep the
-     body (T2 drops the blanking), T6 renders it struck.
-   - (C) The card disappears for everyone but admins: T6 hides the row;
-     the topic keeps a gap marker only for admins.
-3. **Can a revoke be undone?** I recommend **(A)**: a wrong topic revoke is
-   costly, and an undo never restarts work.
-   - (A) Yes, by whoever may revoke it; undone actions are not redone (D2).
-   - (B) No, a revoke is final: `DELETE …/revoke`, the unrevoke frames and
-     the unrevoke parts of T2, T4, T5, T6 and T7 are dropped.
-4. **Is a reason required?** I recommend **(A)**: a quick revoke of a wrong
-   message should not be held up by typing.
-   - (A) Optional (4.2, 4.3).
-   - (B) Required: `PUT …/revoke` answers `400 reason_required` on an
-     empty reason; the dialog's Revoke button stays disabled until it is
-     filled.
-5. **Running lanes the card started?** I recommend **(A)**: the point of a
-   revoke is to stop the work.
-   - (A) Stopped at once, their issue ended `diss` (6.2).
-   - (B) Asked first: the holder sends you one form per lane, and each lane
-     keeps working until you answer.
-6. **A topic revoke on a topic with landed commits or deploys?** I
-   recommend **(A)**: the text is withdrawn at once and nothing on prd
-   moves without you.
-   - (A) Revoke the text now and send you a form listing what cannot be
-     undone (6.2).
-   - (B) Refuse the topic revoke (`409 has_landed_effects`) until you have
-     decided on each landed effect.
-7. **Revoke on the phone?** I recommend **(A)**: revoking is urgent, and
-   you are often on the phone.
-   - (A) On the long-press sheet too (4.2).
-   - (B) Desktop menu only, like Forward: the phone sheet does not list it
-     (T6's touch assertion flips).
+None. The seven questions of form `99017105` are answered; the answers and
+what each decides are in section 1.1.
 
 ## 9. Not in this spec
 
@@ -562,8 +542,11 @@ says what it changes here.
   each stays a separate change with the owner's go.
 - Rewriting vendor transcripts or saved files.
 - Revoking by an agent.
+- Undoing a revoke (the owner's Q3: a revoke is final).
 
-## 10. Changes from v0.1
+## 10. Changes
+
+### 10.1 From v0.1 to v0.2
 
 The review a-353 (agy, FAIL on `540e607d8`, msg `c4ccdeb3`), item by item:
 
@@ -578,3 +561,15 @@ The review a-353 (agy, FAIL on `540e607d8`, msg `c4ccdeb3`), item by item:
 | N1 | the numbering note updated: 193 has landed; measured on `1bc99663b` |
 | N2 | T8 names `do_spl_lang_review_gct` and the planted English key; T11's red control is a broken anchor in `lint-mdlinks`; T2 names `api/internal/hub/openapi.json`; T6 adds `useCardTopicActions.ts` and `wui/stores/live.ts` |
 | N3 | `topic_heads` noted (3.1, 4.3): no body there; topic list rows join the opening card's `revoked_at` for the badge and subject |
+
+### 10.2 From v0.2 to v0.3
+
+The owner's answers to form `99017105` (section 1.1):
+
+| Q | what changed |
+|---|---|
+| Q1 A, Q2 A, Q6 A, Q7 A | as written; the `Q<n>` pointers in 4.1, 4.2 and 6.2 now name the owner's answer |
+| Q3 B | no unrevoke: D2 rewritten; D5 and D6 lose the unrevoke parts; 4.1 "undo a revoke: no one"; 4.2 no Unrevoke entry; 4.3 drops `DELETE …/revoke` (now `405`), `op` from `message_revocations`, `box_revokes`, `revoke` and `revoke_ack`, the `*_unrevoked` frames, the `unrevoke` delta kind and the errors `not_revoked`, `not_revoke_root`, `topic_revoked`; 5.4 no `UNREVOKED`; 6.2 no restore; T2, T5, T6, T7 drop their unrevoke tests; section 9 adds it |
+| Q4 B | reason required: `reason NOT NULL` 1..200 in the log, `400 reason_required` / `reason_too_long` from the hub, the dialog's button disabled while empty; T2 and T6 test it |
+| Q5 B | a running lane is asked, not stopped: 5.4's notice and seed rule, 6.2's lane, its issue and its unpushed work become **asked**, the holder sends one form per lane; T10 tests that the lane is not stopped before the answer |
+| section 8 | the questions removed; it points to 1.1 |

@@ -18,6 +18,9 @@
 #      dirty tree or ENV_ORDER_CACHE_MINUTES=0 plans again.
 #   6. do_tf_plan_pending: plan -detailed-exitcode -lock=false, own run dir
 #      (removed), verdicts clean/pending/error = rc 0/2/1, no apply.
+#   6b. SPL-6528: plan rc 2 whose saved plan (`show -json`) changes only
+#      outputs -> clean, cached; a data source read only -> clean; one update
+#      -> pending; a plan that cannot be shown -> pending (fail closed).
 #   7. static: the three apply actions call the gate; make passes the override.
 #          No terraform, no GCP: terraform and do_tf_init are stubs.
 #------------------------------------------------------------------------------
@@ -31,9 +34,11 @@ RUN_DIR_SRC="$PROJ_ROOT/src/bash/run"
 require_action "$RUN_DIR_SRC/check-dev-leads-prd.func.sh"
 require_action "$RUN_DIR_SRC/tf-plan-pending.func.sh"
 
-# terraform: plan exits STUB_PLAN_RC, apply is recorded
+# terraform: plan exits STUB_PLAN_RC, apply is recorded; show prints the
+# file STUB_SHOW (the plan JSON), and fails when it is unset
 stub terraform 'echo "terraform $*" >>"$CALLS"
 case " $* " in
+  *" show "*) [ -n "${STUB_SHOW:-}" ] || exit 1; cat "$STUB_SHOW"; exit 0 ;;
   *" plan "*) [ "${STUB_PLAN_RC:-0}" = 2 ] && echo "Plan: 0 to add, 1 to change, 0 to destroy."
               [ "${STUB_PLAN_RC:-0}" = 0 ] && echo "No changes. Your infrastructure matches the configuration."
               [ "${STUB_PLAN_RC:-0}" = 1 ] && echo "Error: stub plan failed"
@@ -142,6 +147,30 @@ grep -q 'plan -input=false -detailed-exitcode -lock=false' "$T/calls" && pass "p
 grep -q ' apply' "$T/calls" && fail "do_tf_plan_pending applied" || pass "do_tf_plan_pending never applies"
 grep -q '030-x.plan-pending.[0-9]' "$T/calls" && pass "the plan runs in its own run dir" || fail "plan ran in the shared run dir"
 compgen -G "$P/bin/dev/030-x.plan-pending.*" >/dev/null && fail "the plan dir was left behind" || pass "the plan dir is removed"
+
+# --- 6b. SPL-6528: an output-only change is not pending ----------------------
+plan_json() { # <file> <actions json...>: a plan JSON with these resource actions + an output change
+  local f="$1" rc='' a; shift
+  for a in "$@"; do rc+="${rc:+,}{\"address\":\"x.y\",\"change\":{\"actions\":$a}}"; done
+  printf '{"format_version":"1.2","resource_changes":[%s],"output_changes":{"o":{"actions":["update"]}}}\n' "$rc" >"$f"
+}
+plan_json "$T/out-only.json" '["no-op"]'; plan_json "$T/read.json" '["no-op"]' '["read"]'
+plan_json "$T/update.json" '["no-op"]' '["update"]'; echo 'not json' >"$T/bad.json"
+pp() { in_iac STEP=030-x ENV=dev STUB_PLAN_RC=2 STUB_SHOW="$1" -- 'do_tf_plan_pending' 2>&1; }
+rm -rf "$T/cache"; : >"$T/calls"; out=$(pp "$T/out-only.json"); rc=$?
+[[ $rc -eq 0 && "$out" == "TF_PLAN dev 030-x clean sha="*"No changes. (outputs only)" ]] \
+  && pass "plan rc 2, outputs only -> clean (outputs only)" || fail "outputs only: rc=$rc out=$out"
+compgen -G "$T/cache/dev.030-x.clean" >/dev/null && pass "an outputs-only plan is cached as clean" || fail "outputs-only plan not cached: $(ls "$T/cache" 2>&1)"
+grep -qE 'plan .*-out=.*030-x\.plan-pending\.[0-9]+/' "$T/calls" && grep -qE 'show -json .*030-x\.plan-pending\.[0-9]+/' "$T/calls" \
+  && pass "the plan file is written and shown inside the run dir" || fail "plan file not in the run dir: $(cat "$T/calls")"
+grep -rq 'format_version' "$P/dat/log" && fail "the plan JSON reached the log" || pass "the plan JSON never reaches the log"
+out=$(pp "$T/read.json"); rc=$?
+[[ $rc -eq 0 && "$out" == "TF_PLAN dev 030-x clean "* ]] && pass "a data source read only -> clean" || fail "read only: rc=$rc out=$out"
+rm -rf "$T/cache"; out=$(pp "$T/update.json"); rc=$?
+[[ $rc -eq 2 && "$out" == "TF_PLAN dev 030-x pending "* ]] && pass "plan rc 2, one resource update -> pending" || fail "update: rc=$rc out=$out"
+compgen -G "$T/cache/*" >/dev/null && fail "a pending plan was cached" || pass "a pending plan is not cached"
+out=$(pp "$T/bad.json"); rc=$?
+[[ $rc -eq 2 && "$out" == "TF_PLAN dev 030-x pending "* ]] && pass "plan rc 2, plan not readable -> pending (fail closed)" || fail "bad json: rc=$rc out=$out"
 
 # --- 7. static --------------------------------------------------------------
 for f in provision tf-apply tf-apply-target; do

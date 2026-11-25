@@ -56,13 +56,12 @@ globals `SPL_PF_WUI`, `SPL_PF_EMAIL`, `SPL_PF_PW_FILE`, `SPL_PF_PROOF_JS` and
 13-line block with 2 lines.
 The rows share no file: both are batch 1.
 
-**Status: v0.2, revised for cross-vendor panel re-review.** Editor: **a-482** (agy). Folds
-claude panel seat **c-396**'s FAIL on v0.1 (`e6845b257`, seat file `6ab29281b`): W1
-(per-caller `PF_WUI_URL`/`PF_EMAIL` and `PFL_WUI_URL`/`PFL_EMAIL` override checks via the
-stub-node harness), W2 (per-action missing-script `"timing"` vs `"first-load"` FATAL label
-checks), plus N1, N4, N5, and N6. Awaiting panel signature from **c-396** on
-`review/c002-refactor-round-99-planner` and `do_spl_review_line_check` rc 0 confirmation
-from the dispatch lease holder before landing v1.0 on `origin/master`.
+**Status: v1.0, signed and ready for row placement.** Editor: **a-482** (agy). Signed by
+cross-vendor panel seat **c-396** (claude, `PASS` on v0.2
+`853b9368f3f58e9b6a175796121c94e4a0674dcd`, msgs `a043ca44`/`7d3cf642`, seat file
+`a8450306bb192c5b5719209d458974657219b078` on `review/c002-refactor-round-99-claude-seat`;
+`do_spl_review_line_check` rc 0 confirmed `74782011`; holder GO `6615a1f0`/`92d045b2`).
+No row, site, batch, test hunk, or vendor changed between signed v0.2 and v1.0.
 
 **One sha:** every count is measured on **`f2cb19298`** (`f2cb192985464f4ef0023195235ca49196b8d531`,
 `origin/master` at 2026-11-25T08:23:18Z; zero drift on all 10 row/test files to
@@ -723,10 +722,12 @@ Paths (9, the 4 edited by row 01 + the 5 edited by row 02):
 - Editor: **a-482** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
   step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-396**
-  (`c002-refactor-round-99-claude-panel-seat`, ask `ad83e2d9`), reviewing v0.2 on
-  `review/c002-refactor-round-99-planner` (seat file
-  `csi-spl-doc/doc/md/refactor-round-99/seat-claude.md` on
-  `review/c002-refactor-round-99-claude-seat`). The seat reviews this plan only.
+  (`c002-refactor-round-99-claude-panel-seat`, ask `ad83e2d9`), signed **PASS** on v0.2
+  `853b9368f3f58e9b6a175796121c94e4a0674dcd` (seat file
+  `csi-spl-doc/doc/md/refactor-round-99/seat-claude.md` at
+  `a8450306bb192c5b5719209d458974657219b078` on
+  `review/c002-refactor-round-99-claude-seat`; `do_spl_review_line_check` rc 0). The seat
+  reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-25T08:19:07Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -863,13 +864,23 @@ placement).
     suites, `shellcheck -S warning -x`, `do_sec_shellcheck`, `rc2a`/`rc2b`/`gc2a`/`gc2b`,
     and `m2`–`m3_fl` on `f2cb19298` (zero drift on all 10 row/test files to `208e5f757`).
 
+- v1.0 (a-482): recorded cross-vendor panel signature (`c-396` claude PASS on v0.2
+  `853b9368f3f58e9b6a175796121c94e4a0674dcd`, seat `a8450306bb192c5b5719209d458974657219b078`,
+  `do_spl_review_line_check` rc 0 `74782011`, holder GO `6615a1f0`/`92d045b2`; seat did
+  not run `do_sec_shellcheck` or planner-box N2/N3 re-checks). No row, site, batch, test
+  hunk, or vendor changed from v0.2.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-482 (agy): v0.2 (W1, W2, N1, N4, N5, N6 folded for re-review).
+- Editor seat: a-482 (agy): v1.0 (signed; ready for row placement).
 - Panel reviewer seat: c-396 (claude, `c002-refactor-round-99-claude-panel-seat`, seat
-  `6ab29281b` on `review/c002-refactor-round-99-claude-seat`): FAIL on v0.1 (`e6845b257`,
-  W1-W2); pending re-review of v0.2 on `review/c002-refactor-round-99-planner`.
+  `a8450306bb192c5b5719209d458974657219b078` on `review/c002-refactor-round-99-claude-seat`):
+  FAIL on v0.1 (`e6845b257`, W1-W2); **PASS** on v0.2
+  (`853b9368f3f58e9b6a175796121c94e4a0674dcd`, msgs `a043ca44`/`7d3cf642`; all 9 sha256
+  prefixes, all 7 controls, all 6 mutations, 8 shared gates, `shellcheck`, and
+  `do_check_dist_hygiene` reproduced; `do_spl_review_line_check` rc 0 confirmed
+  `74782011`; `do_sec_shellcheck` and planner-box N2/N3 not run by seat).
 - Row R7 seats: section 4; **agy seat** per row (claude waiver backup only while agy is
   out of quota, under ruling `dc84300a`; never mistral; re-checked at placement).

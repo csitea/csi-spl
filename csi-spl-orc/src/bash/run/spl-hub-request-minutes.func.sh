@@ -32,11 +32,8 @@ do_spl_hub_request_minutes() {
   do_require_bin gcloud python3 yq || return 1
   do_spl_cloud_cnf || return 1
   local svc until out
-  svc="$(yq -r '.env.hub.service_name // ""' "$SPL_CNF")"
-  [[ -n "$svc" && "$svc" != null ]] || { do_log "FATAL env.hub.service_name is not set in $SPL_CNF"; return 1; }
-  do_gcp_pin_account "$SPL_CNF" || return 1
-  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  until="$(date -u -d "$since + $minutes minutes" +%Y-%m-%dT%H:%M:%SZ)" || return 1
+  spl_hub_request_minutes_prep "$since" "$minutes" || return 1
+  svc="$SPL_HUB_REQ_SVC" until="$SPL_HUB_REQ_UNTIL"
   printf '===== csi-spl hub minutes: env=%s project=%s service=%s (%s .. %s)\n' "$ENV" "$SPL_PROJECT" "$svc" "$since" "$until"
   out="${REQ_JSON_OUT:-$(mktemp)}"
   gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"$svc\" AND timestamp>=\"$since\" AND timestamp<\"$until\"" \
@@ -52,6 +49,20 @@ spl_hub_request_minutes_check_args() {
   [[ "$2" =~ ^[0-9]+$ ]] && (( $2 >= 1 && $2 <= 360 )) || { do_log "FATAL REQ_MINUTES must be 1..360, got '$2'"; return 1; }
   [[ "$3" =~ ^[0-9]+$ ]] && (( $3 >= 1 && $3 <= 200000 )) || { do_log "FATAL REQ_LIMIT must be 1..200000, got '$3'"; return 1; }
   [[ "$4" =~ ^[0-9]+$ ]] && (( $4 >= 1 )) || { do_log "FATAL REQ_TOP must be a positive integer, got '$4'"; return 1; }
+}
+
+# spl_hub_request_minutes_prep <since> <minutes> -> resolve env.hub.service_name
+# from SPL_CNF, pin and verify GCP_ACCOUNT, and compute the UTC window end;
+# sets process globals SPL_HUB_REQ_SVC and SPL_HUB_REQ_UNTIL.
+# shellcheck disable=SC2034 # SPL_HUB_REQ_* globals are read by callers
+spl_hub_request_minutes_prep() {
+  local svc until
+  svc="$(yq -r '.env.hub.service_name // ""' "$SPL_CNF")"
+  [[ -n "$svc" && "$svc" != null ]] || { do_log "FATAL env.hub.service_name is not set in $SPL_CNF"; return 1; }
+  do_gcp_pin_account "$SPL_CNF" || return 1
+  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  until="$(date -u -d "$1 + $2 minutes" +%Y-%m-%dT%H:%M:%SZ)" || return 1
+  SPL_HUB_REQ_SVC="$svc" SPL_HUB_REQ_UNTIL="$until"
 }
 
 # spl_hub_request_minutes_table <top> [limit] -> a `gcloud logging read

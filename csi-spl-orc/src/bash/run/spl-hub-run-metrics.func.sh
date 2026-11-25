@@ -10,15 +10,14 @@
 #------------------------------------------------------------------------------
 do_spl_hub_run_metrics() {
   local since="${REQ_SINCE:-}" minutes="${REQ_MINUTES:-30}"
+  # shellcheck source=spl-hub-request-minutes.func.sh
+  declare -F spl_hub_request_minutes_prep >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-hub-request-minutes.func.sh"
   spl_hub_request_minutes_check_args "$since" "$minutes" 1 1 || return 1
   do_require_bin gcloud curl python3 yq || return 1
   do_spl_cloud_cnf || return 1
   local svc until tok hdr spec rc=0
-  svc="$(yq -r '.env.hub.service_name // ""' "$SPL_CNF")"
-  [[ -n "$svc" && "$svc" != null ]] || { do_log "FATAL env.hub.service_name is not set in $SPL_CNF"; return 1; }
-  do_gcp_pin_account "$SPL_CNF" || return 1
-  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  until="$(date -u -d "$since + $minutes minutes" +%Y-%m-%dT%H:%M:%SZ)" || return 1
+  spl_hub_request_minutes_prep "$since" "$minutes" || return 1
+  svc="$SPL_HUB_REQ_SVC" until="$SPL_HUB_REQ_UNTIL"
   tok="$(gcloud auth print-access-token --account="$GCP_ACCOUNT" 2>/dev/null)"
   [[ -n "$tok" ]] || { do_log "ERROR no access token for $GCP_ACCOUNT"; return 1; }
   hdr="$(mktemp)" || return 1

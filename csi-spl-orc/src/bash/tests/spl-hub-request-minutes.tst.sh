@@ -94,5 +94,72 @@ grep -qE 'active +idle' <<<"$MT" && grep -qE '^07:33 +2\.00 +0\.00' <<<"$MT" && 
 SNIPPET='spl_hub_run_metrics_table state' in_orc <<<'{"error":{"message":"denied"}}' >"$T/o" 2>&1 && fail "metrics error: rc 0" || pass "metrics error: rc 1"
 grep -q 'error: denied' "$T/o" && pass "metrics error is printed" || fail "metrics error text: $(cat "$T/o")"
 
+# --- 5. spl_hub_request_minutes_prep (r01-01 one copy) --------------------------------
+printf 'env:\n  hub:\n    service_name: hub-test\n' >"$T/ok.yaml"
+printf 'env:\n  hub: {}\n' >"$T/nosvc.yaml"
+out=$(env SPL_CNF="$T/ok.yaml" PROJ_ROOT="$PROJ_ROOT" bash -c '
+  do_log(){ echo "$*"; }
+  do_gcp_pin_account(){ GCP_ACCOUNT="sa@test.iam.gserviceaccount.com"; echo "pin:$1"; }
+  do_gcp_require_live_account(){ echo "live:$1"; }
+  source "$PROJ_ROOT/src/bash/run/spl-hub-request-minutes.func.sh"
+  spl_hub_request_minutes_prep 2026-10-15T07:15:00Z 25 || exit 1
+  printf "%s|%s\n" "$SPL_HUB_REQ_SVC" "$SPL_HUB_REQ_UNTIL"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"pin:$T/ok.yaml"* && "$out" == *"live:sa@test.iam.gserviceaccount.com"* && "$out" == *"hub-test|2026-10-15T07:40:00Z"* ]] \
+  && pass "5. spl_hub_request_minutes_prep resolves svc, pins account and computes until" || fail "5. prep ok: rc=$rc $out"
+out=$(env SPL_CNF="$T/nosvc.yaml" PROJ_ROOT="$PROJ_ROOT" bash -c '
+  do_log(){ echo "$*"; }
+  do_gcp_pin_account(){ echo "PIN-CALLED"; }
+  do_gcp_require_live_account(){ echo "LIVE-CALLED"; }
+  source "$PROJ_ROOT/src/bash/run/spl-hub-request-minutes.func.sh"
+  spl_hub_request_minutes_prep 2026-10-15T07:15:00Z 25' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL env.hub.service_name is not set in $T/nosvc.yaml"* && "$out" != *"PIN-CALLED"* ]] \
+  && pass "5. spl_hub_request_minutes_prep refuses missing service_name before pin" || fail "5. prep nosvc: rc=$rc $out"
+out=$(env SPL_CNF="$T/ok.yaml" PROJ_ROOT="$PROJ_ROOT" bash -c '
+  do_log(){ echo "$*"; }
+  do_gcp_pin_account(){ return 1; }
+  do_gcp_require_live_account(){ echo "LIVE-CALLED"; }
+  source "$PROJ_ROOT/src/bash/run/spl-hub-request-minutes.func.sh"
+  spl_hub_request_minutes_prep 2026-10-15T07:15:00Z 25' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" != *"LIVE-CALLED"* ]] \
+  && pass "5. spl_hub_request_minutes_prep stops when pin fails" || fail "5. prep pin fail: rc=$rc $out"
+[[ "$(grep -c "FATAL env.hub.service_name is not set in" "$FN")" -eq 1 && "$(grep -c "spl_hub_request_minutes_prep " "$FN")" -ge 1 ]] \
+  && pass "5. one copy: spl-hub-request-minutes.func.sh defines and calls spl_hub_request_minutes_prep once" || fail "5. fn one copy"
+own="$(grep -nE "FATAL env\.hub\.service_name is not set in|date -u -d \"\\\$since \+ \\\$minutes" "$FM" || true)"
+[[ -z "$own" ]] && grep -q "spl_hub_request_minutes_prep " "$FM" \
+  && pass "5. one copy: spl-hub-run-metrics.func.sh delegates window prep to spl_hub_request_minutes_prep" || fail "5. fm one copy: own=[$own]"
+out=$(env PROJ_ROOT="$PROJ_ROOT" T="$T" ENV=dev REQ_SINCE=2026-10-15T07:15:00Z REQ_MINUTES=25 bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ return 0; }
+  do_spl_cloud_cnf(){ SPL_CNF="$T/nosvc.yaml"; SPL_PROJECT=csi-spl-dev; }
+  source "$PROJ_ROOT/src/bash/run/spl-hub-run-metrics.func.sh"
+  do_spl_hub_run_metrics' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL env.hub.service_name is not set in $T/nosvc.yaml"* && "$out" != *"command not found"* ]] \
+  && pass "5. lazy load: spl-hub-run-metrics.func.sh loads spl_hub_request_minutes_prep standalone" || fail "5. lazy metrics: rc=$rc $out"
+mkdir -p "$T/stub2"
+printf '#!/bin/sh\necho "gcloud $*" >>"$STUB_LOG"\nif [ "$1" = auth ]; then echo tok-1; else echo "[]"; fi\n' >"$T/stub2/gcloud"
+printf '#!/bin/sh\necho "curl $*" >>"$STUB_LOG"\necho "{\"timeSeries\":[]}"\n' >"$T/stub2/curl"
+chmod +x "$T/stub2/gcloud" "$T/stub2/curl"
+: >"$T/calls2.log"
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" T="$T" STUB_LOG="$T/calls2.log" PATH="$T/stub2:$PATH" ENV=dev REQ_SINCE=2026-10-15T07:15:00Z REQ_MINUTES=25 bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ return 0; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+  do_spl_cloud_cnf(){ SPL_CNF="$T/ok.yaml"; SPL_PROJECT=csi-spl-dev; }
+  do_gcp_pin_account(){ GCP_ACCOUNT="sa@test.iam.gserviceaccount.com"; }
+  do_gcp_require_live_account(){ return 0; }
+  do_spl_hub_request_minutes' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"service=hub-test (2026-10-15T07:15:00Z .. 2026-10-15T07:40:00Z)"* ]] \
+  && grep -q 'service_name="hub-test".*timestamp<"2026-10-15T07:40:00Z"' "$T/calls2.log" \
+  && pass "5. do_spl_hub_request_minutes wires svc and until into gcloud logging read" || fail "5. minutes wire: rc=$rc $out $(cat "$T/calls2.log")"
+: >"$T/calls2.log"
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" T="$T" STUB_LOG="$T/calls2.log" PATH="$T/stub2:$PATH" ENV=dev REQ_SINCE=2026-10-15T07:15:00Z REQ_MINUTES=25 bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ return 0; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+  do_spl_cloud_cnf(){ SPL_CNF="$T/ok.yaml"; SPL_PROJECT=csi-spl-dev; }
+  do_gcp_pin_account(){ GCP_ACCOUNT="sa@test.iam.gserviceaccount.com"; }
+  do_gcp_require_live_account(){ return 0; }
+  do_spl_hub_run_metrics' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"service=hub-test (2026-10-15T07:15:00Z .. 2026-10-15T07:40:00Z)"* ]] \
+  && grep -q 'service_name="hub-test".*interval\.endTime=2026-10-15T07:40:00Z' "$T/calls2.log" \
+  && pass "5. do_spl_hub_run_metrics wires svc and until into Monitoring curl" || fail "5. metrics wire: rc=$rc $out $(cat "$T/calls2.log")"
+
 echo
 (( fails == 0 )) && { echo "ALL PASS"; exit 0; } || { echo "$fails FAILED"; exit 1; }

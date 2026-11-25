@@ -4018,7 +4018,8 @@
         "persons": "Osoby",
         "cloud": "Cloud",
         "tokens": "Tokeny",
-        "other": "Iné"
+        "other": "Iné",
+        "taxes": "Dane"
       },
       "period": "Obdobie",
       "period_ytd": "Od začiatku roka ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "Účty DPH: najviac 32 čísel s 1 až 12 číslicami.",
         "invalid_tax_accounts": "Daňové účty: najviac 32 čísel s 1 až 12 číslicami.",
         "invalid_vendor_exclusions": "Najviac 200 názvov dodávateľov."
+      }
+    },
+    "taxes": {
+      "loading": "Načítavajú sa daňové dokumenty…",
+      "absent": "Tento pracovný priestor nemá daňové dokumenty.",
+      "error": "Daňové dokumenty sa nepodarilo načítať.",
+      "empty": "Zatiaľ nie sú archivované žiadne daňové dokumenty.",
+      "as_of": "K {time}",
+      "year": "Daňový rok",
+      "due": {
+        "title": "Splatné v nasledujúcich 30 dňoch",
+        "empty": "V nasledujúcich 30 dňoch nie je nič splatné."
+      },
+      "overdue": "Po splatnosti",
+      "week": {
+        "title": "Tento týždeň",
+        "summary": "Nové: {new} · Zmenené: {changed}",
+        "compared": "v porovnaní s {time}",
+        "first": "Prvá synchronizácia: zatiaľ nie je s čím porovnať.",
+        "none": "Tento týždeň žiadne nové ani zmenené dokumenty.",
+        "open": "Otvorené otázky (rozhodnutia bez splatnosti)"
+      },
+      "status": {
+        "new": "Nový",
+        "changed": "Zmenený"
+      },
+      "docs": {
+        "title": "Dokumenty za {year}",
+        "empty": "Filtrom nezodpovedá žiadny dokument."
+      },
+      "filter": {
+        "category": "Kategória",
+        "tax_type": "Druh dane",
+        "all": "Všetky"
+      },
+      "col": {
+        "arrival": "Doručené",
+        "kind": "Dokument",
+        "type": "Typ",
+        "tax_type": "Druh dane",
+        "period": "Obdobie",
+        "due": "Splatnosť",
+        "category": "Kategória"
+      },
+      "category": {
+        "decisions": "Rozhodnutia",
+        "payments": "Platby",
+        "balance": "Zostatok",
+        "msgs": "Správy"
       }
     }
   },

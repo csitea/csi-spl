@@ -4018,7 +4018,8 @@
         "persons": "Kişiler",
         "cloud": "Bulut",
         "tokens": "Belirteçler",
-        "other": "Diğer"
+        "other": "Diğer",
+        "taxes": "Vergiler"
       },
       "period": "Dönem",
       "period_ytd": "Yıl başından beri ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "KDV hesapları: 1 ile 12 basamaklı en çok 32 numara.",
         "invalid_tax_accounts": "Vergi hesapları: 1 ile 12 basamaklı en çok 32 numara.",
         "invalid_vendor_exclusions": "En çok 200 tedarikçi adı."
+      }
+    },
+    "taxes": {
+      "loading": "Vergi belgeleri yükleniyor…",
+      "absent": "Bu çalışma alanında vergi belgesi yok.",
+      "error": "Vergi belgeleri yüklenemedi.",
+      "empty": "Henüz dosyalanmış vergi belgesi yok.",
+      "as_of": "{time} itibarıyla",
+      "year": "Vergi yılı",
+      "due": {
+        "title": "Önümüzdeki 30 gün içinde vadesi gelenler",
+        "empty": "Önümüzdeki 30 gün içinde vadesi gelen bir şey yok."
+      },
+      "overdue": "Vadesi geçmiş",
+      "week": {
+        "title": "Bu hafta",
+        "summary": "Yeni: {new} · Değişen: {changed}",
+        "compared": "{time} ile karşılaştırıldı",
+        "first": "İlk eşitleme: henüz karşılaştırılacak bir şey yok.",
+        "none": "Bu hafta yeni veya değişen belge yok.",
+        "open": "Açık sorular (vade tarihi olmayan kararlar)"
+      },
+      "status": {
+        "new": "Yeni",
+        "changed": "Değişti"
+      },
+      "docs": {
+        "title": "{year} belgeleri",
+        "empty": "Filtrelere uyan belge yok."
+      },
+      "filter": {
+        "category": "Kategori",
+        "tax_type": "Vergi türü",
+        "all": "Tümü"
+      },
+      "col": {
+        "arrival": "Geliş",
+        "kind": "Belge",
+        "type": "Tür",
+        "tax_type": "Vergi türü",
+        "period": "Dönem",
+        "due": "Vade",
+        "category": "Kategori"
+      },
+      "category": {
+        "decisions": "Kararlar",
+        "payments": "Ödemeler",
+        "balance": "Bakiye",
+        "msgs": "Mesajlar"
       }
     }
   },

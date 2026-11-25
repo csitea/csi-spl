@@ -4018,7 +4018,8 @@
         "persons": "Persons",
         "cloud": "Cloud",
         "tokens": "Tokens",
-        "other": "Other"
+        "other": "Other",
+        "taxes": "Taxes"
       },
       "period": "Period",
       "period_ytd": "Year to date ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "VAT accounts: at most 32 numbers of 1 to 12 digits.",
         "invalid_tax_accounts": "Tax accounts: at most 32 numbers of 1 to 12 digits.",
         "invalid_vendor_exclusions": "At most 200 vendor names."
+      }
+    },
+    "taxes": {
+      "loading": "Loading the tax documents…",
+      "absent": "This workspace has no tax documents.",
+      "error": "The tax documents could not be loaded.",
+      "empty": "No tax documents filed yet.",
+      "as_of": "As of {time}",
+      "year": "Tax year",
+      "due": {
+        "title": "Due in the next 30 days",
+        "empty": "Nothing due in the next 30 days."
+      },
+      "overdue": "Overdue",
+      "week": {
+        "title": "This week",
+        "summary": "New: {new} · Changed: {changed}",
+        "compared": "compared with {time}",
+        "first": "First sync: nothing to compare with yet.",
+        "none": "No new or changed document this week.",
+        "open": "Open questions (decisions without a due date)"
+      },
+      "status": {
+        "new": "New",
+        "changed": "Changed"
+      },
+      "docs": {
+        "title": "{year} documents",
+        "empty": "No document matches the filters."
+      },
+      "filter": {
+        "category": "Category",
+        "tax_type": "Tax type",
+        "all": "All"
+      },
+      "col": {
+        "arrival": "Arrived",
+        "kind": "Document",
+        "type": "Type",
+        "tax_type": "Tax type",
+        "period": "Period",
+        "due": "Due",
+        "category": "Category"
+      },
+      "category": {
+        "decisions": "Decisions",
+        "payments": "Payments",
+        "balance": "Balance",
+        "msgs": "Messages"
       }
     }
   },

@@ -4018,7 +4018,8 @@
         "persons": "Personer",
         "cloud": "Moln",
         "tokens": "Token",
-        "other": "Övrigt"
+        "other": "Övrigt",
+        "taxes": "Skatter"
       },
       "period": "Tidsperiod",
       "period_ytd": "Hittills i år ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "Momskonton: högst 32 nummer med 1 till 12 siffror.",
         "invalid_tax_accounts": "Skattekonton: högst 32 nummer med 1 till 12 siffror.",
         "invalid_vendor_exclusions": "Högst 200 leverantörsnamn."
+      }
+    },
+    "taxes": {
+      "loading": "Laddar skattedokumenten…",
+      "absent": "Den här arbetsytan har inga skattedokument.",
+      "error": "Skattedokumenten kunde inte laddas.",
+      "empty": "Inga skattedokument arkiverade ännu.",
+      "as_of": "Per {time}",
+      "year": "Skatteår",
+      "due": {
+        "title": "Förfaller inom 30 dagar",
+        "empty": "Inget förfaller inom 30 dagar."
+      },
+      "overdue": "Försenad",
+      "week": {
+        "title": "Den här veckan",
+        "summary": "Nya: {new} · Ändrade: {changed}",
+        "compared": "jämfört med {time}",
+        "first": "Första synkroniseringen: inget att jämföra med ännu.",
+        "none": "Inga nya eller ändrade dokument den här veckan.",
+        "open": "Öppna frågor (beslut utan förfallodag)"
+      },
+      "status": {
+        "new": "Ny",
+        "changed": "Ändrad"
+      },
+      "docs": {
+        "title": "Dokument {year}",
+        "empty": "Inget dokument matchar filtren."
+      },
+      "filter": {
+        "category": "Kategori",
+        "tax_type": "Skatteslag",
+        "all": "Alla"
+      },
+      "col": {
+        "arrival": "Inkom",
+        "kind": "Dokument",
+        "type": "Typ",
+        "tax_type": "Skatteslag",
+        "period": "Period",
+        "due": "Förfaller",
+        "category": "Kategori"
+      },
+      "category": {
+        "decisions": "Beslut",
+        "payments": "Betalningar",
+        "balance": "Saldo",
+        "msgs": "Meddelanden"
       }
     }
   },

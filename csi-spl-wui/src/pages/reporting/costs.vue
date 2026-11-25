@@ -11,7 +11,10 @@
      Spec 123 P05 (SPL-6117; owner HUM-10, t1 e2c0e6b4, msg 3a795cdb, Q-9
      A): the project's cost is the first label and the default, Total
      second; /reporting/costs lands on it. SPL-6300: the header's month
-     range (`from`, `to`) travels with the bar too. -->
+     range (`from`, `to`) travels with the bar too. SPL-6438 (spec 143
+     taxes-tab.md section 6): Taxes is drawn only after the tax overview
+     read answered 2xx (the tax workspace's persons); the header's period
+     and currency do not apply to it and are hidden there. -->
 <template>
   <div class="reporting-costs" data-test="reporting-costs">
     <nav class="costs-pages" :aria-label="t('reporting.costs.pages_label')" data-test="costs-pages">
@@ -25,7 +28,7 @@
         :data-test="'costs-page-' + page.id"
       >{{ t(page.labelKey) }}</NuxtLink>
     </nav>
-    <CostsHeader />
+    <CostsHeader v-if="costsHeaderApplies(active)" />
     <NuxtPage />
   </div>
 </template>
@@ -33,14 +36,17 @@
 <script setup lang="ts">
 import { useOperatorReader } from '~/composables/useOperatorReader'
 import CostsHeader from '~/components/reporting/costs/CostsHeader.vue'
-import { costsPageFor, legacyCostsPath, visibleCostsPages } from '~/utils/reporting-costs.mjs'
+import { costsHeaderApplies, costsPageFor, legacyCostsPath, visibleCostsPages } from '~/utils/reporting-costs.mjs'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const localePath = useLocalePath()
 const reader = useOperatorReader()
 
-const pages = computed(() => visibleCostsPages({ operator: reader.value }))
+const taxReader = ref(false)
+const api = useSpoolApi() as unknown as { mock?: boolean, base?: string }
+const pages = computed(() => visibleCostsPages({ operator: reader.value, taxReader: taxReader.value }))
 const active = computed(() => costsPageFor(route.path))
 /* the header's picks travel with the page bar */
 const carried = computed(() => {
@@ -50,6 +56,10 @@ const carried = computed(() => {
 })
 
 onMounted(() => {
+  /* the Taxes label: its own chunk, asked once per page load and hub base */
+  void import('~/utils/reporting-tax.mjs')
+    .then(({ taxReaderProbe }) => taxReaderProbe(api))
+    .then((yes) => { taxReader.value = yes }, () => { taxReader.value = false })
   watch(() => route.path, (p) => {
     const to = costsPageFor(p) ? null : legacyCostsPath(p)
     if (to) void navigateTo({ path: localePath(to), query: route.query, hash: route.hash }, { replace: true })

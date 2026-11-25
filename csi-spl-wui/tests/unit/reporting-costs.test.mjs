@@ -29,6 +29,7 @@ describe('the pages (section 3.2; SPL-5312 the four labels; spec 123 P05 the pro
   it('The project\'s cost (default, SPL-6117 Q-9 A), Total, Persons, Cloud, Tokens, each its own path and page file (its own chunk)', () => {
     assert.deepEqual(COSTS_PAGES.map((p) => [p.id, p.path]), [
       ['project', '/reporting/costs/project'], ['total', '/reporting/costs/total'], ['persons', '/reporting/costs/persons'], ['cloud', '/reporting/costs/cloud'], ['tokens', '/reporting/costs/tokens'],
+      ['taxes', '/reporting/costs/taxes'],
     ])
     assert.equal(COSTS_DEFAULT_PATH, '/reporting/costs/project')
     for (const p of COSTS_PAGES) {
@@ -39,7 +40,10 @@ describe('the pages (section 3.2; SPL-5312 the four labels; spec 123 P05 the pro
     for (const f of walk('src')) assert.doesNotMatch(read(f), /import [^\n]*pages\/reporting\/costs\//, f)
   })
   it('every costs reader sees the five labels (the hub scopes the money to the workspace)', () => {
-    for (const who of [undefined, {}, { operator: false }, { operator: true }]) assert.deepEqual(ids(visibleCostsPages(who)), ['project', 'total', 'persons', 'cloud', 'tokens'], JSON.stringify(who))
+    for (const who of [undefined, {}, { operator: false }, { operator: true }, { taxReader: false }]) assert.deepEqual(ids(visibleCostsPages(who)), ['project', 'total', 'persons', 'cloud', 'tokens'], JSON.stringify(who))
+    /* SPL-6438: Taxes, last, only for a reader of the tax workspace (the probe's 2xx) */
+    assert.deepEqual(ids(visibleCostsPages({ taxReader: true })), ['project', 'total', 'persons', 'cloud', 'tokens', 'taxes'])
+    assert.equal(costsPageFor('/fi/reporting/costs/taxes'), 'taxes')
     /* CONTROL: before SPL-5312 Cloud and Price were the operator admin's only */
     assert.equal(COSTS_PAGES.some((p) => p.operatorsOnly), false)
   })

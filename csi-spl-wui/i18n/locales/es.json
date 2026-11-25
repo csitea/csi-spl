@@ -4018,7 +4018,8 @@
         "persons": "Personas",
         "cloud": "Nube",
         "tokens": "Tokens",
-        "other": "Otros"
+        "other": "Otros",
+        "taxes": "Impuestos"
       },
       "period": "Periodo",
       "period_ytd": "Desde el inicio del año ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "Cuentas de IVA: como máximo 32 números de 1 a 12 dígitos.",
         "invalid_tax_accounts": "Cuentas de impuestos: como máximo 32 números de 1 a 12 dígitos.",
         "invalid_vendor_exclusions": "Como máximo 200 nombres de proveedores."
+      }
+    },
+    "taxes": {
+      "loading": "Cargando los documentos fiscales…",
+      "absent": "Este espacio de trabajo no tiene documentos fiscales.",
+      "error": "No se pudieron cargar los documentos fiscales.",
+      "empty": "Aún no hay documentos fiscales archivados.",
+      "as_of": "A fecha de {time}",
+      "year": "Ejercicio fiscal",
+      "due": {
+        "title": "Vence en los próximos 30 días",
+        "empty": "Nada vence en los próximos 30 días."
+      },
+      "overdue": "Vencido",
+      "week": {
+        "title": "Esta semana",
+        "summary": "Nuevos: {new} · Modificados: {changed}",
+        "compared": "comparado con {time}",
+        "first": "Primera sincronización: aún no hay con qué comparar.",
+        "none": "Ningún documento nuevo o modificado esta semana.",
+        "open": "Preguntas abiertas (resoluciones sin fecha de vencimiento)"
+      },
+      "status": {
+        "new": "Nuevo",
+        "changed": "Modificado"
+      },
+      "docs": {
+        "title": "Documentos de {year}",
+        "empty": "Ningún documento coincide con los filtros."
+      },
+      "filter": {
+        "category": "Categoría",
+        "tax_type": "Tipo de impuesto",
+        "all": "Todos"
+      },
+      "col": {
+        "arrival": "Recibido",
+        "kind": "Documento",
+        "type": "Tipo",
+        "tax_type": "Tipo de impuesto",
+        "period": "Período",
+        "due": "Vencimiento",
+        "category": "Categoría"
+      },
+      "category": {
+        "decisions": "Resoluciones",
+        "payments": "Pagos",
+        "balance": "Saldo",
+        "msgs": "Mensajes"
       }
     }
   },

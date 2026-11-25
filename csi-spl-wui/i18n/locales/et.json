@@ -4018,7 +4018,8 @@
         "persons": "Isikud",
         "cloud": "Pilv",
         "tokens": "Tokenid",
-        "other": "Muu"
+        "other": "Muu",
+        "taxes": "Maksud"
       },
       "period": "Periood",
       "period_ytd": "Aasta algusest ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "Käibemaksukontod: kuni 32 numbrit, igaüks 1 kuni 12 kohta.",
         "invalid_tax_accounts": "Maksukontod: kuni 32 numbrit, igaüks 1 kuni 12 kohta.",
         "invalid_vendor_exclusions": "Kuni 200 tarnija nime."
+      }
+    },
+    "taxes": {
+      "loading": "Maksudokumentide laadimine…",
+      "absent": "Selles tööruumis pole maksudokumente.",
+      "error": "Maksudokumente ei õnnestunud laadida.",
+      "empty": "Maksudokumente pole veel arhiveeritud.",
+      "as_of": "Seisuga {time}",
+      "year": "Maksuaasta",
+      "due": {
+        "title": "Tähtaeg järgmise 30 päeva jooksul",
+        "empty": "Järgmise 30 päeva jooksul pole midagi tähtaegset."
+      },
+      "overdue": "Tähtaeg möödas",
+      "week": {
+        "title": "Sel nädalal",
+        "summary": "Uued: {new} · Muudetud: {changed}",
+        "compared": "võrreldes ajaga {time}",
+        "first": "Esimene sünkroonimine: pole veel millega võrrelda.",
+        "none": "Sel nädalal pole uusi ega muudetud dokumente.",
+        "open": "Lahtised küsimused (otsused ilma tähtajata)"
+      },
+      "status": {
+        "new": "Uus",
+        "changed": "Muudetud"
+      },
+      "docs": {
+        "title": "{year}. aasta dokumendid",
+        "empty": "Ükski dokument ei vasta filtritele."
+      },
+      "filter": {
+        "category": "Kategooria",
+        "tax_type": "Maksuliik",
+        "all": "Kõik"
+      },
+      "col": {
+        "arrival": "Saabunud",
+        "kind": "Dokument",
+        "type": "Tüüp",
+        "tax_type": "Maksuliik",
+        "period": "Periood",
+        "due": "Tähtaeg",
+        "category": "Kategooria"
+      },
+      "category": {
+        "decisions": "Otsused",
+        "payments": "Maksed",
+        "balance": "Saldo",
+        "msgs": "Sõnumid"
       }
     }
   },

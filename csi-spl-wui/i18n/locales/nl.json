@@ -4018,7 +4018,8 @@
         "persons": "Personen",
         "cloud": "Cloud",
         "tokens": "Tokens",
-        "other": "Overig"
+        "other": "Overig",
+        "taxes": "Belastingen"
       },
       "period": "Periode",
       "period_ytd": "Sinds het begin van het jaar ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "Btw-rekeningen: maximaal 32 rekeningnummers van 1 tot 12 cijfers.",
         "invalid_tax_accounts": "Belastingrekeningen: maximaal 32 rekeningnummers van 1 tot 12 cijfers.",
         "invalid_vendor_exclusions": "Maximaal 200 leveranciersnamen."
+      }
+    },
+    "taxes": {
+      "loading": "Belastingdocumenten laden…",
+      "absent": "Deze werkruimte heeft geen belastingdocumenten.",
+      "error": "De belastingdocumenten konden niet worden geladen.",
+      "empty": "Nog geen belastingdocumenten gearchiveerd.",
+      "as_of": "Per {time}",
+      "year": "Belastingjaar",
+      "due": {
+        "title": "Vervalt in de komende 30 dagen",
+        "empty": "Niets vervalt in de komende 30 dagen."
+      },
+      "overdue": "Achterstallig",
+      "week": {
+        "title": "Deze week",
+        "summary": "Nieuw: {new} · Gewijzigd: {changed}",
+        "compared": "vergeleken met {time}",
+        "first": "Eerste synchronisatie: nog niets om mee te vergelijken.",
+        "none": "Geen nieuwe of gewijzigde documenten deze week.",
+        "open": "Open vragen (beslissingen zonder vervaldatum)"
+      },
+      "status": {
+        "new": "Nieuw",
+        "changed": "Gewijzigd"
+      },
+      "docs": {
+        "title": "Documenten {year}",
+        "empty": "Geen document past bij de filters."
+      },
+      "filter": {
+        "category": "Categorie",
+        "tax_type": "Belastingsoort",
+        "all": "Alle"
+      },
+      "col": {
+        "arrival": "Ontvangen",
+        "kind": "Document",
+        "type": "Type",
+        "tax_type": "Belastingsoort",
+        "period": "Periode",
+        "due": "Vervalt",
+        "category": "Categorie"
+      },
+      "category": {
+        "decisions": "Beslissingen",
+        "payments": "Betalingen",
+        "balance": "Saldo",
+        "msgs": "Berichten"
       }
     }
   },

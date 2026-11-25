@@ -4018,7 +4018,8 @@
         "persons": "Personas",
         "cloud": "Mākonis",
         "tokens": "Tokeni",
-        "other": "Cits"
+        "other": "Cits",
+        "taxes": "Nodokļi"
       },
       "period": "Periods",
       "period_ytd": "No gada sākuma ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "PVN konti: ne vairāk kā 32 numuri pa 1–12 cipariem.",
         "invalid_tax_accounts": "Nodokļu konti: ne vairāk kā 32 numuri pa 1–12 cipariem.",
         "invalid_vendor_exclusions": "Ne vairāk kā 200 piegādātāju nosaukumu."
+      }
+    },
+    "taxes": {
+      "loading": "Ielādē nodokļu dokumentus…",
+      "absent": "Šajā darbvietā nav nodokļu dokumentu.",
+      "error": "Nodokļu dokumentus neizdevās ielādēt.",
+      "empty": "Nodokļu dokumenti vēl nav reģistrēti.",
+      "as_of": "Uz {time}",
+      "year": "Taksācijas gads",
+      "due": {
+        "title": "Termiņš nākamo 30 dienu laikā",
+        "empty": "Nākamo 30 dienu laikā nav termiņu."
+      },
+      "overdue": "Kavēts",
+      "week": {
+        "title": "Šonedēļ",
+        "summary": "Jauni: {new} · Mainīti: {changed}",
+        "compared": "salīdzinot ar {time}",
+        "first": "Pirmā sinhronizācija: vēl nav ar ko salīdzināt.",
+        "none": "Šonedēļ nav jaunu vai mainītu dokumentu.",
+        "open": "Atvērti jautājumi (lēmumi bez termiņa)"
+      },
+      "status": {
+        "new": "Jauns",
+        "changed": "Mainīts"
+      },
+      "docs": {
+        "title": "{year}. gada dokumenti",
+        "empty": "Neviens dokuments neatbilst filtriem."
+      },
+      "filter": {
+        "category": "Kategorija",
+        "tax_type": "Nodokļa veids",
+        "all": "Visi"
+      },
+      "col": {
+        "arrival": "Saņemts",
+        "kind": "Dokuments",
+        "type": "Veids",
+        "tax_type": "Nodokļa veids",
+        "period": "Periods",
+        "due": "Termiņš",
+        "category": "Kategorija"
+      },
+      "category": {
+        "decisions": "Lēmumi",
+        "payments": "Maksājumi",
+        "balance": "Atlikums",
+        "msgs": "Ziņojumi"
       }
     }
   },

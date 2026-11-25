@@ -15,6 +15,12 @@
 // 12 months and from the start of the year"): the four labels, every one
 // for every costs reader (the hub scopes the money to the workspace), and
 // the period: each of the last 12 months, or the year to date.
+//
+// SPL-6438 (spec 143 taxes-tab.md section 6; owner HUM-10, csitea topic
+// dc7c9c9a, msg fc8f964e): Taxes, last, `taxOnly`: drawn only for a reader
+// of the tax workspace, after GET /v1/view/tax/overview answered 2xx
+// (utils/reporting-tax.mjs taxReaderProbe); every other workspace gets no
+// label, and the page there shows the "not in this workspace" line.
 
 import { productPath } from './signed-out-redirect.mjs'
 
@@ -23,20 +29,27 @@ import { productPath } from './signed-out-redirect.mjs'
  *  "First label and the default ... (five labels, Total second)"): the
  *  project's cost first, then the four labels of SPL-5312.
  *  `operatorsOnly`: drawn for an operator admin only (none since SPL-5312:
- *  a workspace reads its own costs on every label, the hub's scope). */
+ *  a workspace reads its own costs on every label, the hub's scope).
+ *  `taxOnly`: drawn for a reader of the tax workspace only (SPL-6438). */
 export const COSTS_PAGES = Object.freeze([
   Object.freeze({ id: 'project', path: '/reporting/costs/project', labelKey: 'reporting.costs.label.project', operatorsOnly: false }),
   Object.freeze({ id: 'total', path: '/reporting/costs/total', labelKey: 'reporting.costs.label.total', operatorsOnly: false }),
   Object.freeze({ id: 'persons', path: '/reporting/costs/persons', labelKey: 'reporting.costs.label.persons', operatorsOnly: false }),
   Object.freeze({ id: 'cloud', path: '/reporting/costs/cloud', labelKey: 'reporting.costs.label.cloud', operatorsOnly: false }),
   Object.freeze({ id: 'tokens', path: '/reporting/costs/tokens', labelKey: 'reporting.costs.label.tokens', operatorsOnly: false }),
+  Object.freeze({ id: 'taxes', path: '/reporting/costs/taxes', labelKey: 'reporting.costs.label.taxes', operatorsOnly: false, taxOnly: true }),
 ])
 
 export const COSTS_DEFAULT_PATH = COSTS_PAGES[0].path
 
-/** The pages the bar draws for this reader. @param {{ operator?: boolean }} [who] */
+/** The pages the bar draws for this reader. @param {{ operator?: boolean, taxReader?: boolean }} [who] */
 export function visibleCostsPages(who = {}) {
-  return COSTS_PAGES.filter((p) => !p.operatorsOnly || who.operator === true)
+  return COSTS_PAGES.filter((p) => (!p.operatorsOnly || who.operator === true) && (!p.taxOnly || who.taxReader === true))
+}
+
+/** The Costs pages the header's period and currency apply to (not Taxes). @param {string | null} id */
+export function costsHeaderApplies(id) {
+  return id !== 'taxes'
 }
 
 /** The page a route is on, locale prefix or not; null off the pages. @param {string} path */

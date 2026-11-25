@@ -4018,7 +4018,8 @@
         "persons": "Persoane",
         "cloud": "Cloud",
         "tokens": "Tokeni",
-        "other": "Altele"
+        "other": "Altele",
+        "taxes": "Taxe"
       },
       "period": "Perioadă",
       "period_ytd": "De la începutul anului ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "Conturi de TVA: cel mult 32 de numere de 1 până la 12 cifre.",
         "invalid_tax_accounts": "Conturi de impozite: cel mult 32 de numere de 1 până la 12 cifre.",
         "invalid_vendor_exclusions": "Cel mult 200 de nume de furnizori."
+      }
+    },
+    "taxes": {
+      "loading": "Se încarcă documentele fiscale…",
+      "absent": "Acest spațiu de lucru nu are documente fiscale.",
+      "error": "Documentele fiscale nu au putut fi încărcate.",
+      "empty": "Încă nu sunt documente fiscale arhivate.",
+      "as_of": "La data de {time}",
+      "year": "An fiscal",
+      "due": {
+        "title": "Scadent în următoarele 30 de zile",
+        "empty": "Nimic scadent în următoarele 30 de zile."
+      },
+      "overdue": "Restant",
+      "week": {
+        "title": "Săptămâna aceasta",
+        "summary": "Noi: {new} · Modificate: {changed}",
+        "compared": "comparat cu {time}",
+        "first": "Prima sincronizare: încă nu există cu ce compara.",
+        "none": "Niciun document nou sau modificat săptămâna aceasta.",
+        "open": "Întrebări deschise (decizii fără scadență)"
+      },
+      "status": {
+        "new": "Nou",
+        "changed": "Modificat"
+      },
+      "docs": {
+        "title": "Documente {year}",
+        "empty": "Niciun document nu corespunde filtrelor."
+      },
+      "filter": {
+        "category": "Categorie",
+        "tax_type": "Tip de impozit",
+        "all": "Toate"
+      },
+      "col": {
+        "arrival": "Primit",
+        "kind": "Document",
+        "type": "Tip",
+        "tax_type": "Tip de impozit",
+        "period": "Perioadă",
+        "due": "Scadență",
+        "category": "Categorie"
+      },
+      "category": {
+        "decisions": "Decizii",
+        "payments": "Plăți",
+        "balance": "Sold",
+        "msgs": "Mesaje"
       }
     }
   },

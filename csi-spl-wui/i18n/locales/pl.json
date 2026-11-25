@@ -4018,7 +4018,8 @@
         "persons": "Osoby",
         "cloud": "Chmura",
         "tokens": "Tokeny",
-        "other": "Inne"
+        "other": "Inne",
+        "taxes": "Podatki"
       },
       "period": "Okres",
       "period_ytd": "Od początku roku ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "Konta VAT: najwyżej 32 numery od 1 do 12 cyfr.",
         "invalid_tax_accounts": "Konta podatkowe: najwyżej 32 numery od 1 do 12 cyfr.",
         "invalid_vendor_exclusions": "Najwyżej 200 nazw dostawców."
+      }
+    },
+    "taxes": {
+      "loading": "Wczytywanie dokumentów podatkowych…",
+      "absent": "W tym obszarze roboczym nie ma dokumentów podatkowych.",
+      "error": "Nie udało się wczytać dokumentów podatkowych.",
+      "empty": "Nie zarchiwizowano jeszcze dokumentów podatkowych.",
+      "as_of": "Stan na {time}",
+      "year": "Rok podatkowy",
+      "due": {
+        "title": "Termin w ciągu najbliższych 30 dni",
+        "empty": "Brak terminów w ciągu najbliższych 30 dni."
+      },
+      "overdue": "Po terminie",
+      "week": {
+        "title": "W tym tygodniu",
+        "summary": "Nowe: {new} · Zmienione: {changed}",
+        "compared": "w porównaniu z {time}",
+        "first": "Pierwsza synchronizacja: jeszcze nie ma z czym porównać.",
+        "none": "Brak nowych lub zmienionych dokumentów w tym tygodniu.",
+        "open": "Otwarte pytania (decyzje bez terminu)"
+      },
+      "status": {
+        "new": "Nowy",
+        "changed": "Zmieniony"
+      },
+      "docs": {
+        "title": "Dokumenty z {year}",
+        "empty": "Żaden dokument nie pasuje do filtrów."
+      },
+      "filter": {
+        "category": "Kategoria",
+        "tax_type": "Rodzaj podatku",
+        "all": "Wszystkie"
+      },
+      "col": {
+        "arrival": "Otrzymano",
+        "kind": "Dokument",
+        "type": "Typ",
+        "tax_type": "Rodzaj podatku",
+        "period": "Okres",
+        "due": "Termin",
+        "category": "Kategoria"
+      },
+      "category": {
+        "decisions": "Decyzje",
+        "payments": "Płatności",
+        "balance": "Saldo",
+        "msgs": "Wiadomości"
       }
     }
   },

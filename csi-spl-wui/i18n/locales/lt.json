@@ -4018,7 +4018,8 @@
         "persons": "Asmenys",
         "cloud": "Debesija",
         "tokens": "Žetonai",
-        "other": "Kita"
+        "other": "Kita",
+        "taxes": "Mokesčiai"
       },
       "period": "Laikotarpis",
       "period_ytd": "Nuo metų pradžios ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "PVM sąskaitos: ne daugiau kaip 32 numeriai po 1–12 skaitmenų.",
         "invalid_tax_accounts": "Mokesčių sąskaitos: ne daugiau kaip 32 numeriai po 1–12 skaitmenų.",
         "invalid_vendor_exclusions": "Ne daugiau kaip 200 tiekėjų pavadinimų."
+      }
+    },
+    "taxes": {
+      "loading": "Įkeliami mokesčių dokumentai…",
+      "absent": "Šioje darbo erdvėje mokesčių dokumentų nėra.",
+      "error": "Nepavyko įkelti mokesčių dokumentų.",
+      "empty": "Mokesčių dokumentų dar neužregistruota.",
+      "as_of": "{time} duomenimis",
+      "year": "Mokestiniai metai",
+      "due": {
+        "title": "Terminas per artimiausias 30 dienų",
+        "empty": "Per artimiausias 30 dienų terminų nėra."
+      },
+      "overdue": "Pradelsta",
+      "week": {
+        "title": "Šią savaitę",
+        "summary": "Nauji: {new} · Pakeisti: {changed}",
+        "compared": "palyginti su {time}",
+        "first": "Pirmasis sinchronizavimas: dar nėra su kuo palyginti.",
+        "none": "Šią savaitę naujų ar pakeistų dokumentų nėra.",
+        "open": "Atviri klausimai (sprendimai be termino)"
+      },
+      "status": {
+        "new": "Naujas",
+        "changed": "Pakeistas"
+      },
+      "docs": {
+        "title": "{year} m. dokumentai",
+        "empty": "Filtrus atitinkančių dokumentų nėra."
+      },
+      "filter": {
+        "category": "Kategorija",
+        "tax_type": "Mokesčio rūšis",
+        "all": "Visi"
+      },
+      "col": {
+        "arrival": "Gauta",
+        "kind": "Dokumentas",
+        "type": "Tipas",
+        "tax_type": "Mokesčio rūšis",
+        "period": "Laikotarpis",
+        "due": "Terminas",
+        "category": "Kategorija"
+      },
+      "category": {
+        "decisions": "Sprendimai",
+        "payments": "Mokėjimai",
+        "balance": "Likutis",
+        "msgs": "Pranešimai"
       }
     }
   },

@@ -4018,7 +4018,8 @@
         "persons": "Henkilöt",
         "cloud": "Pilvi",
         "tokens": "Tokenit",
-        "other": "Muut"
+        "other": "Muut",
+        "taxes": "Verot"
       },
       "period": "Ajanjakso",
       "period_ytd": "Vuoden alusta ({year})",
@@ -4276,6 +4277,55 @@
         "invalid_vat_accounts": "ALV-tilit: enintään 32 tilinumeroa, kukin 1–12 numeroa.",
         "invalid_tax_accounts": "Verotilit: enintään 32 tilinumeroa, kukin 1–12 numeroa.",
         "invalid_vendor_exclusions": "Enintään 200 toimittajan nimeä."
+      }
+    },
+    "taxes": {
+      "loading": "Ladataan verodokumentteja…",
+      "absent": "Tässä työtilassa ei ole verodokumentteja.",
+      "error": "Verodokumentteja ei voitu ladata.",
+      "empty": "Verodokumentteja ei ole vielä arkistoitu.",
+      "as_of": "Tilanne {time}",
+      "year": "Verovuosi",
+      "due": {
+        "title": "Erääntyy seuraavan 30 päivän aikana",
+        "empty": "Seuraavan 30 päivän aikana ei eräänny mitään."
+      },
+      "overdue": "Myöhässä",
+      "week": {
+        "title": "Tällä viikolla",
+        "summary": "Uusia: {new} · Muuttuneita: {changed}",
+        "compared": "verrattuna hetkeen {time}",
+        "first": "Ensimmäinen synkronointi: ei vielä vertailukohtaa.",
+        "none": "Tällä viikolla ei uusia tai muuttuneita dokumentteja.",
+        "open": "Avoimet kysymykset (päätökset ilman eräpäivää)"
+      },
+      "status": {
+        "new": "Uusi",
+        "changed": "Muuttunut"
+      },
+      "docs": {
+        "title": "Vuoden {year} dokumentit",
+        "empty": "Mikään dokumentti ei vastaa suodattimia."
+      },
+      "filter": {
+        "category": "Luokka",
+        "tax_type": "Verolaji",
+        "all": "Kaikki"
+      },
+      "col": {
+        "arrival": "Saapunut",
+        "kind": "Dokumentti",
+        "type": "Tyyppi",
+        "tax_type": "Verolaji",
+        "period": "Kausi",
+        "due": "Eräpäivä",
+        "category": "Luokka"
+      },
+      "category": {
+        "decisions": "Päätökset",
+        "payments": "Maksut",
+        "balance": "Saldo",
+        "msgs": "Viestit"
       }
     }
   },

@@ -1,4 +1,4 @@
-# Spec 187 build round - plan (13 rows (S12 split), 8 batches)
+# Spec 187 build round - plan v1.0 (13 rows (S12 split), 8 batches)
 
 Epic: SPL-2403 (the brief's line; spec 187 names SPL-2398, see 2.4 N1)  
 Spec: csi-spl-doc/specs/187-scheduled-tasks-activities (v0.3)  
@@ -27,13 +27,17 @@ This plan re-measures each row's sites on one sha, orders the rows into
 batches of disjoint files (R1), names each row's kind, vendor and R7
 reviewer, and proposes one brief per row. It writes no code.
 
-**Status: v0.2, for the panel's re-review.** Planner: c-074 (claude, the
+**Status: v1.0, signed.** Panel PASS (c-342, same-vendor panel, waiver)
+on v0.2 `cca84bfdf`; landed as `49f244c16` + `0989526af` (the same tree,
+messages reworded for the release-note gate) on the dispatch holder's GO.
+Owner questions Q1-Q3 are open (2.4); their first readings (A) stand until
+answered. Planner: c-074 (claude, the
 backup for `specs_and_docs`: agy on its usage limit; the brief's addendum
 reads 2026-11-30T21:31Z on one box, the holder's note 8cc25fff "quota out
 to 12-01"; the placer reads the live pick, not this line). Panel: one seat,
 **c-342 (claude), same-vendor panel, waiver**: agy is out of quota, grok is
 off, and mistral sits on no review seat (rulebook 2.7.2). v0.1 (`36d85b32f`)
-got FAIL W1-W7; v0.2 answers each (section 5).
+got FAIL W1-W7; v0.2 answers each; v0.2 PASS (section 4).
 
 **One sha.** Every read is on **`5906e1fe2`** (`origin/master` at
 2026-11-24T11:01Z, after a fresh fetch), with `git show` / `git grep`, n=1
@@ -644,7 +648,8 @@ placement and cites it in its subject, e.g.
 | seat | vendor | sha | verdict |
 |---|---|---|---|
 | c-342 | claude, same-vendor panel, waiver | `36d85b32f` (v0.1) | FAIL (W1-W7) |
-| c-342 | claude, same-vendor panel, waiver | (v0.2 head) | pending |
+| c-342 | claude, same-vendor panel, waiver | `cca84bfdf` (v0.2) | PASS (W1-W7 closed; nit: two agy-out dates in the status line, no block) |
+| holder | c-002 (dispatch holder) | `cca84bfdf`, then `0989526af` | GO (first on `cca84bfdf`; replaced by a GO on `0989526af` because the release-note gate refused the old messages: same tree, messages only) |
 
 ## 5. Versions
 
@@ -652,3 +657,4 @@ placement and cites it in its subject, e.g.
 |---|---|
 | v0.1 | first plan for the panel, on `5906e1fe2` |
 | v0.2 | c-342's FAIL on `36d85b32f`: W1 R7 = agy (claude waiver while out), no grok or mistral reviewer; W2 panel recorded as same-vendor, waiver; W3 owner Q3 (13 rows > 10); W4 S5 to batch 4 with the reply hook and timeout (N4 g); W5 and W6 S3's two seams (N4 f); W7 `PRE_PUSH_TIER=full` on S2 and S12b. Notes: 13 settings pages, S11 after S3, N3 needs an R1 waiver, c-918 landed, drift N7, title 13 rows, Q1/Q2 cite spec lines |
+| v1.0 | c-342 PASS on `cca84bfdf` (review line checked rc 0); the holder's GO; landed as `49f244c16` + `0989526af` with release-note trailers added to the two messages (tree unchanged, the holder's second GO); owner Q1-Q3 posted as a form, first readings stand until answered |

@@ -1,7 +1,7 @@
 # Spec 112: Goals, strategy and roadmap
 
-Version **v1.2** (2026-10-09): v1.1 plus the owner's answers to OQ1-OQ3 (12.8).
-v1.2: owner answers OQ1-OQ3, msg 730f6f90.
+Version **v1.3** (2026-11-25): v1.2 plus the milestones-as-records, epic dates + roll-up, and `/roadmap` timeline amendment in section 13 (SPL-6452, epic SPL-2396, owner HUM-10 t1 topic `7653cb85`).
+v1.2 (2026-10-09): v1.1 plus the owner's answers to OQ1-OQ3 (12.8), msg 730f6f90.
 v1.1 (2026-10-09): v1.0 plus the per-workspace amendment in section 12.
 v1.0 (2026-10-08) drafted by a-597 (v0.1, v0.2 `8c9766cd1`);
 folded to v1.0 by c-604. Seats s112-2 and s112-3 agreed with changes, and every
@@ -144,6 +144,7 @@ marked "draft", and never reaches the calendar.
   (`?source_key=goal:G01:`), so the WUI never guesses an event id.
 
 > **Amended by v1.1, section 12.4 (sync over several workspaces).**
+> **Extended by v1.3, sections 13.3 and 13.6 (workspace milestones as first-class records and calendar read-only projection; no copy into `calendar_events`).**
 
 ### 4.3. Audience
 
@@ -179,6 +180,7 @@ event reminds at -7 d, each milestone at -1 d.
 - **Filter:** this week / this month (5.3).
 
 > **Amended by v1.1, section 12.6 (workspace filter).**
+> **Extended by v1.3, section 13.4 (`/roadmap` timeline view with large milestone and epic cards, Quarter / Month / Week zoom, and create/edit in place).**
 
 ### 5.1. The done-% rule: ONE rule, one action
 
@@ -492,3 +494,480 @@ m-689's. The owner answered all three in HUM-10, t1 4e373f5d, msg 730f6f90:
 
 `tasks.md` is not changed by v1.1. OQ1-OQ3 are answered (msg 730f6f90); the
 build tasks for 12.2-12.7 come from a later lane.
+
+## 13. v1.3 amendment: milestones as records, epic dates and roll-up, and the /roadmap timeline (2026-11-25)
+
+v1.3 adds this section to v1.2 and changes no existing rule of sections 1-12
+except where noted below. All file:line citations in this section were measured
+on `origin/master` `d7d502c0c` (and the prd database on `2026-11-25T02:24Z`).
+Issue: **SPL-6452**. Epic: **SPL-2396**. Discussion:
+`topic:7653cb85-3382-459f-b6e1-feda580bf9c5` (`t1`).
+
+### 13.1. Owner words and decision (verbatim, HUM-10, t1 topic 7653cb85, 2026-11-24)
+
+| msg | text |
+|---|---|
+| `eedec517` | "we need to be able to handle better milestones and epics" |
+| `d16e58d6` | "like now we are going fast in the forest , but we need to have the capability to go up on the mountain and see the big picture , figuratively speeking ..." |
+| `c5983964` | "an dwe do not have yet the technical means for that" |
+| `da603f20` | "that is we can hande issues programatically and via the ui , but milestones , epics , timetables , not" |
+| `adb74684` | "we do have calendar though ..." |
+| `fc03882b` | "so we do have quite a lot of tools on hand to be able to create the nesseary ui and tooling for thise milestones and epics handling" |
+| **`820187c1`** | **DECIDED** (form `305cba14`): **A — Milestones as records + epic dates/roll-up + a timeline on /roadmap, editable in UI and CLI** |
+| `ec8e44c2` | "it should have a bit differnet inteface as the big things will not be as much as all ofhte other - the issues , the topics etc." |
+
+### 13.2. What exists today (measured on origin/master d7d502c0c and prd)
+
+| piece | what exists today | evidence (`file:line`) |
+|---|---|---|
+| Issues schema | `issues` holds `kind` (`epic \| feature \| issue`), `level` (`1 \| 2 \| 3`), `parent_number`, `status` (`eval\|todo\|wip\|diss\|blocked\|onhold\|qas\|done`), `priority` (`1..5`), `deadline` (`timestamptz NULL`), `spec_path`, `spec_task_id`, `deleted_at`, `archived_at`. No `start_date`, no `end_date`, no `milestone_id`. | `csi-spl-rdb/src/sql/postgres/spool-hub/0047_issues.sql:44-75`, `0053_issue_kinds.sql:16-17`, `0056_issue_level_tree.sql:26`, `0207_issue_spec_attributes.sql:24-31`; highest migration on disk is `0323_fleet_ask_queue_order.sql`. |
+| Epics in prd (`t1`) | Live non-deleted level-1 rows in `t1` (`2026-11-25T02:24Z`): 117 `epic` (40 `wip`, 59 `done`, 9 `diss`, 7 `eval`, 2 `todo`) and 2 `feature` (`done`). | Read-only query on prd `issues` (`tenant_id = 't1' AND deleted_at IS NULL`). |
+| Epic roll-up | `epicSummaries(all)` computes `total`, `done`, `canceled`, `counts` over direct children (`e := by[i.Parent]`) only, emitted solely inside `GET /v1/view/issues`'s `epics` array; `GET /v1/view/issues/{ref}` and `issueJSON` carry no roll-up, no dates, and no next-due field. `ListIssues` / `ListIssueSheet` omit `archived_at IS NOT NULL`, while `ClosesEpic` archives a closed epic and its descendants together. | `csi-spl-api/src/go/spool-hub-api/internal/hub/issues.go:42-76`, `:808`, `:822-876`, `:919-948`; `internal/store/issues.go:177-188`; `internal/store/issues_postgres.go:383-416`. |
+| Epics in WUI | `IssueEpicsPanel.vue` is a narrow side list inside the Issues tab showing title, `done/(total-canceled)` and a 3 px bar (`epicProgress`). No timeline, no dates, no overview screen. | `csi-spl-wui/src/components/IssueEpicsPanel.vue:1-97`; `csi-spl-wui/src/utils/issues-view.mjs:303-306`. |
+| Goals in WUI & hub | `/roadmap` renders `RoadmapGoals.vue` (`RoadmapGoalTable.vue`, `RoadmapWorkspaceFilter.vue`) above `RoadmapSpecTable.vue`, plus `/goals/[id].vue`. Goals come from `goal.yaml` (`do_spl_goals_sync`) or in-app goal docs (`PUT /v1/workspace/doctree/{doc}/goal`), read via `GET /v1/calendar/events?source_key=goal:`. No UI create/edit for goals or milestones, and `/roadmap` has no left-rail tab yet. | `csi-spl-wui/src/pages/roadmap.vue:16-107`, `pages/goals/[id].vue:11-133`, `components/RoadmapGoals.vue:8-48`, `utils/roadmap-goals-api.mjs:32-44`, `utils/rail-order.ts:16,60-117`; `internal/hub/roadmap_goal_docs.go:166-243`. |
+| Milestones today | No `milestones` table, no hub route, no CLI verb, no WUI CRUD. Only `csi-spl-doc/goals/milestones.yaml` (1 live line: `2026-09-17 spool-hub started`) read by `do_spl_goals_backfill_git`, plus inline `goal.yaml` `milestones[]` synced as read-only `calendar_events` rows (`source_key = goal:<Gnn>:m:<key>`). | `csi-spl-doc/goals/milestones.yaml:1-10`; `csi-spl-orc/src/bash/run/spl-goals-backfill-git.func.sh:70,88`; `internal/hub/roadmap_goal_docs.go:155-162`. |
+| Calendar & read-only projection | `GET /v1/calendar/events` and `GET /v1/calendar/marks` already synthesize read-only `source: "issue"` items from `issues.deadline` (`deadlinesIn`, assignee/creator-only per SPL-5963) without copying them into `calendar_events`. Calendar WUI renders `calDeadline` and `calSynced` read-only (`CalendarEventPopover.vue`, `CalendarPhonePeek.vue`). Google Calendar sync (spec 149) reads `calendar_events` only. | `internal/hub/calendar.go:63-66`, `:193-200`, `:645-664`, `:727-762`, `:822-855`; `csi-spl-wui/src/utils/calendar-event-form.mjs:156-187`; `components/CalendarEventPopover.vue:47-62,80-84`; `components/CalendarPhonePeek.vue:148,176`; `csi-spl-rdb/src/sql/postgres/spool-hub/0217_google_calendar.sql:1-25`. |
+| RBAC & CLI for issues | Browser issue reads use `viewHandler` (`topics.read`); writes use `issueWriter` (`notes.send` + `topics.manage` + `billing.AllowsWrite`); delete/archive uses `mayDeleteIssue` (creator or `tenant.settings`). Agents use `spool issue <op> --as <AGENT>` -> `action.Issue` -> one-shot `role=cli` WebSocket frame `wire.TIssue` -> `onIssue` (`senderRefusal` + billing; creator for delete). | `internal/hub/view.go:126-153`; `internal/hub/issues.go:880-901`, `:951-972`, `:1023-1028`; `internal/hub/issues_agent.go:29-99`, `:166-192`; `cmd/spool/issue.go:17-58`; `internal/action/issue.go:26-53`; `internal/hubclient/issue.go:23-42`; `internal/wire/wire.go:45,426-431`; `internal/mcp/mcp.go:183`. |
+| Performance & i18n gates | `ci_initial_gzip_kb` ceiling `155.0 KB` (measured `151.9 KB` after SPL-6342); `ci_roadmap_route_gzip_kb` ceiling `25.0 KB` (measured `3.0 KB`, markers `"roadmap-page"` and `"roadmap-spec-table"`). WUI has 19 locale files (`en.json` + 18). | `csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json:4,10,27,43`; `csi-spl-orc/src/bash/scripts/perf-budget.py:86`; `csi-spl-wui/i18n/locales/*.json` (19 files). |
+
+### 13.3. Data model: milestones as records, epic dates, computed roll-up and hierarchy
+
+#### 13.3.1. Forward-only migration (`RDB-3`)
+
+Claim the next migration number at build time with
+`cd csi-spl-orc && DRY_RUN=0 ./run -a do_rdb_migration_next`
+(`csi-spl-orc/src/bash/run/rdb-migration-next.func.sh:27`; highest on disk on
+`d7d502c0c` is `0323_fleet_ask_queue_order.sql`). The file
+`csi-spl-rdb/src/sql/postgres/spool-hub/<next>_milestones_and_epic_dates.sql`
+is forward-only, additive, and deploys to `dev` and `prd` **before** any hub
+image that reads or writes its objects. Because `issues` carries deferred
+triggers from rdb 0194, the migration opens with
+`SET CONSTRAINTS ALL IMMEDIATE; SET LOCAL lock_timeout = '5s';`
+(`0207_issue_spec_attributes.sql:21-22`).
+
+1. **Table `milestones`** (workspace-scoped, no `channel_id` column):
+   - `milestone_id uuid PRIMARY KEY DEFAULT gen_random_uuid()`
+   - `tenant_id text NOT NULL REFERENCES tenants (tenant_id) ON DELETE CASCADE`
+   - `title text NOT NULL CHECK (length(title) BETWEEN 1 AND 200)`
+   - `description text NOT NULL DEFAULT '' CHECK (length(description) <= 4000)`
+   - `target_date date NOT NULL` (calendar day `YYYY-MM-DD`, matching goal dates in `roadmap_goal_docs.go:90-96`)
+   - `status text NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'active', 'reached', 'missed', 'canceled'))`
+   - `goal_id text NOT NULL DEFAULT '' CHECK (goal_id = '' OR goal_id ~ '^G[0-9]{2}$')` (optional link to a goal of the same workspace, matching `GOAL_ID` in `roadmap-goals.mjs:23`)
+   - `reached_at timestamptz NULL` (stamped when `status` enters `reached`, cleared when it leaves)
+   - `created_by text NOT NULL CHECK (length(created_by) BETWEEN 1 AND 64)`
+   - `created_at timestamptz NOT NULL DEFAULT now()`
+   - `updated_by text NOT NULL CHECK (length(updated_by) BETWEEN 1 AND 64)`
+   - `updated_at timestamptz NOT NULL DEFAULT now()`
+   - `deleted_at timestamptz NULL`, `deleted_by text NULL` (soft delete, matching `issues` rdb 0071 and `calendar_events` rdb 0139)
+   - `UNIQUE (tenant_id, milestone_id)` (supports the same-tenant composite FK from `issues`)
+   - Indexes:
+     - `milestones_tenant_date ON milestones (tenant_id, target_date) WHERE deleted_at IS NULL`
+     - `milestones_tenant_goal ON milestones (tenant_id, goal_id) WHERE goal_id <> '' AND deleted_at IS NULL`
+   - **RLS (fail-closed, 0021/0125 shape):** `ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY`, `tenant_scope` (`tenant_id = NULLIF(current_setting('app.tenant_id', true), '')`) and `operator_scope` (`current_setting('app.rls_scope', true) = 'operator'`).
+   - **Gates:** seed `milestones` in `seedTenantAll` (`internal/store/crosstenant_test.go:30`) so `TestCrossTenantEveryTable` (`:925`) and `TestRLSPoliciesFailClosed` (`rls_failclosed_test.go:252`) cover it. Assert in `TestPublicExportGrantsEqualAllowList` (`public_export_grants_test.go:185`) that `milestones` is absent from `csi-spl-orc/cnf/public-dataset/allow-list.v1.yaml`.
+
+2. **Additions to `issues`** (all nullable, catalogue-only `ADD COLUMN IF NOT EXISTS`):
+   - `start_date date NULL`
+   - `end_date date NULL`
+   - `milestone_id uuid NULL`
+   - `CONSTRAINT issues_date_range_check CHECK (start_date IS NULL OR end_date IS NULL OR end_date >= start_date)`
+   - `CONSTRAINT issues_epic_dates_check CHECK ((start_date IS NULL AND end_date IS NULL) OR kind IN ('epic', 'feature'))`
+   - `CONSTRAINT issues_milestone_epic_check CHECK (milestone_id IS NULL OR kind IN ('epic', 'feature'))`
+   - `CONSTRAINT issues_milestone_fkey FOREIGN KEY (tenant_id, milestone_id) REFERENCES milestones (tenant_id, milestone_id) ON DELETE SET NULL (milestone_id)` (PostgreSQL 16 column-list `SET NULL`, preventing cross-tenant linkage at the DB level; default choice, see Q1).
+   - Partial indexes:
+     - `issues_epic_dates_idx ON issues (tenant_id, start_date, end_date) WHERE kind IN ('epic', 'feature') AND deleted_at IS NULL AND (start_date IS NOT NULL OR end_date IS NOT NULL)`
+     - `issues_milestone_idx ON issues (tenant_id, milestone_id) WHERE milestone_id IS NOT NULL AND deleted_at IS NULL`
+   - Existing `issues.deadline` (`0047_issues.sql:61`, `timestamptz NULL`) is untouched: level-2/3 issues keep their timed `deadline`, while level-1 epics/features use `start_date` and `end_date` for planning spans.
+
+#### 13.3.2. Computed roll-up (never stored twice)
+
+No progress counter is stored on `issues` or `milestones`. Every read computes
+roll-up directly from `issues` rows of the same tenant (`deleted_at IS NULL`):
+
+- **Epic roll-up** (for any `kind IN ('epic', 'feature')`):
+  - **Scope of children:** direct level-2 issues (`parent_number = epic.number`, `deleted_at IS NULL`) — default choice (see Q3), matching `IssueEpicsPanel.vue:31` and `epicSummaries` (`internal/hub/issues.go:850-863`) so the Issues panel and `/roadmap` never show contradictory percentages.
+  - **Archived children:** when computing roll-up for `/roadmap` and `GET /v1/milestones`, non-deleted archived children are **included** so that closing an epic via `ClosesEpic` (`internal/store/issues.go:177-188`, which archives the epic and its descendants in one transaction) preserves its completed count instead of zeroing it out. Live `/v1/view/issues` keeps its existing `archived_at IS NULL` list semantics.
+  - **Fields:** `total` (all non-deleted children), `done` (`status = 'done'`), `canceled` (`status = 'diss'`), `open` (`total - done - canceled`), `active_total` (`total - canceled`), `pct` (`floor(100 * done / (total - canceled))`, or `0` when `total - canceled = 0`, matching spec 5.1's `floor` rule), and **`next_due`**: `{kind: "issue" | "epic_end", key, title, date}` = the earliest non-closed (`status NOT IN ('done', 'diss')`) child's `deadline` (UTC date), else the epic's own `end_date`, else `null`.
+- **Milestone roll-up** (computed over its linked non-deleted epics, archived closed epics included):
+  - `epics_total`, `epics_done` (linked epics with `status = 'done'`), `epics_open` (linked epics not in `done`/`diss`),
+  - `issues_total`, `issues_done`, `issues_canceled` (summed across linked epics),
+  - `pct` = `floor(100 * issues_done / (issues_total - issues_canceled))` when `issues_total - issues_canceled > 0`, else `floor(100 * epics_done / epics_total)` when `epics_total > 0`, else `0`,
+  - `next_due`: earliest upcoming `end_date` (or child `deadline`) among its open linked epics, else `{kind: "milestone", key: milestone_id, title, date: target_date}`.
+
+#### 13.3.3. Hierarchy and coexistence with existing goal/milestone files
+
+```text
+Goal (goal.yaml in git OR spec 113 in-app goal doc; id G<nn>)
+  └── Milestone (milestones table; optional goal_id = G<nn>, workspace-scoped)
+        └── Epic / Feature (issues table; kind IN ('epic','feature'), level = 1,
+                            start_date, end_date, optional milestone_id)
+              └── Issue (issues table; kind = 'issue', level = 2, parent_number = epic.number)
+                    └── Subtask (issues table; kind = 'issue', level = 3, parent_number = issue.number)
+```
+
+- Every link stays optional above `Issue`: a milestone may stand without a goal (`goal_id = ''`), an epic may stand without a milestone (`milestone_id IS NULL`), and an issue may stand without an epic (W16, `internal/store/issues.go:103-106`).
+- Existing `goal.yaml` inline `milestones: [{key, date, title}]` (section 2, `roadmap_goal_docs.go:74`) continue to sync to `calendar_events` as read-only `goal:<Gnn>:m:<key>` rows without breaking. `csi-spl-doc/goals/milestones.yaml` (`spl-goals-backfill-git.func.sh:70`) remains historical git-backfill input only. Editable workspace milestones live exclusively in the `milestones` table.
+
+### 13.4. Interface on `/roadmap` (per owner `ec8e44c2`)
+
+Owner `ec8e44c2`: *"it should have a bit differnet inteface as the big things
+will not be as much as all ofhte other - the issues , the topics etc."*
+
+Issues (5,000+ rows) and Topics (high-frequency message streams) optimize for
+row density and rapid triage. Milestones (typically 3-15 active per workspace)
+and active epics (40 `wip` in `t1` on `2026-11-25T02:24Z`, only a subset active
+on any horizon) are few and strategic. Their screen on `/roadmap` therefore
+uses **spacious, high-signal cards on a visual timeline**, not another compact
+data table.
+
+#### 13.4.1. Page structure and navigation
+
+- `/roadmap` keeps its existing workspace filter (`RoadmapWorkspaceFilter.vue`,
+  `?ws=<slug>`) and adds a top mode switcher: **Timeline** (default for
+  signed-in members) and **Goals & Specs** (the existing `RoadmapGoals.vue` +
+  `RoadmapSpecTable.vue` built in WUI-1/WUI-3, URL `?tab=timeline|specs`, so
+  existing links like `/roadmap?when=week&goal=G01#spec-089` open directly on
+  the Goals & Specs view without regressing `tests/e2e/roadmap*.test.mjs`).
+- Left-rail navigation placement for `/roadmap` is open question **Q2**
+  (`csi-spl-wui/src/utils/rail-order.ts:16,60-117` currently lists 11 tabs and
+  omits `/roadmap`).
+
+#### 13.4.2. Desktop timeline (`> 820 px`)
+
+- **Controls bar:**
+  - Zoom segmented control: **Quarter** / **Month** / **Week**, persisted in URL
+    (`?zoom=quarter|month|week&d=YYYY-MM-DD`, default `month`, centered on
+    today), plus **Today** / Previous / Next navigation buttons.
+  - Filters: status (`Active` default: `planned`/`active`/`missed`, or `All`, or
+    `Reached`), optional Goal filter (`?goal=G01`), and a toggle to show/hide
+    closed epics.
+  - Primary actions (shown to members holding write permission, hidden for
+    `demo_user` / signed-out visitors): **`+ Milestone`** button and quick
+    **Schedule epic** action.
+- **Timeline canvas:**
+  - Sticky top time axis showing:
+    - **Quarter zoom:** 4 quarters (12 months) with month ticks.
+    - **Month zoom:** 3 months with ISO week ticks.
+    - **Week zoom:** 6 weeks with daily ticks.
+  - A full-height accent vertical **"Today"** line across every band.
+  - **Milestone header band / pins:** each milestone appears as a prominent
+    marker at its `target_date` AND heads a collapsible horizontal band holding
+    its linked epics. Milestones linked to the same goal group visually under
+    that goal's header chip; milestones with no goal sit in their own band;
+    dated epics with no milestone sit in an **"Unassigned epics"** band.
+  - **Large cards (not thin Gantt bars):**
+    - **Milestone card** (`RoadmapMilestoneCard.vue`, ~280-320 px wide, generous
+      padding, clear typography on the canonical `rem` scale):
+      - Title, status pill (`planned`, `active`, `reached`, `missed`, `canceled`),
+        optional Goal chip (`G01`).
+      - Target date + countdown (`12d left` / `Due today` / `3d overdue`).
+      - Visual progress bar + counts (`3/5 epics · 24/38 issues · 63%`).
+      - **Next thing due** line (e.g. `Next due: SPL-2396 · 2026-12-02`).
+      - In-place actions: **Edit** (opens `RoadmapMilestoneDialog.vue`) and
+        **+ Link epic**.
+    - **Epic card** (`RoadmapEpicCard.vue`, positioned from `start_date` to
+      `end_date` along the time axis, with a **minimum rendered width of
+      220 px** so short spans remain full readable cards rather than unreadable
+      slivers; an epic with only `end_date` anchors its right edge on `end_date`
+      with a dashed left edge):
+      - Epic key (`SPL-2396`) + kind dot (`epic` / `feature`) + 2-line title.
+      - Date span (`Nov 25 – Dec 14`).
+      - Progress bar + `done / (total - canceled)` + `%`.
+      - **Next thing due** line (earliest open child deadline or epic end date).
+      - Actions: click title opens `/issues?epic=SPL-2396`; **Edit dates** opens
+        the compact inline editor (`RoadmapEpicDatesDialog.vue`).
+  - **Unscheduled epics tray:** collapsible panel below the timeline listing
+    open epics with neither `start_date` nor `end_date` (`count` badge), each
+    with a one-click **Set dates** button that opens `RoadmapEpicDatesDialog.vue`
+    and immediately places the epic onto the timeline.
+- **Create and edit in place (zero page reloads):**
+  - `RoadmapMilestoneDialog.vue`: create (`POST /v1/milestones`), edit
+    (`PATCH /v1/milestones/{id}`), or soft-delete (`DELETE /v1/milestones/{id}`
+    with confirmation noting linked epics stay intact and are only detached).
+    Fields: title, target date (`<input type="date">`), status, optional goal
+    picker, description, multi-select epic picker.
+  - `RoadmapEpicDatesDialog.vue`: edit an epic's `start_date`, `end_date`, and
+    `milestone_id` via `PATCH /v1/issues/{ref}`. Validates `end_date >= start_date`
+    inline before submit.
+  - Subscribes to live `milestone` and `issue` WebSocket frames so edits made by
+    another member or via `spool` CLI reflect immediately.
+
+#### 13.4.3. Phone layout (`<= 820 px`, spec 106 breakpoint)
+
+A wide multi-month horizontal timeline is awkward at 390 px. At `<= 820 px`
+(`pages/roadmap.vue:144`, `RoadmapGoalTable.vue:140`):
+
+- The horizontal canvas becomes a **vertical chronological agenda of full-width
+  large cards**, ordered by `target_date` / `end_date`, split by a sticky
+  **"Today"** divider between overdue/past and upcoming items.
+- The zoom control switches to touch-friendly range pills (**Week** / **Month**
+  / **Quarter** / **All**), every interactive control meeting the 44 px minimum
+  touch target (`var(--tap, 44px)`).
+- Each **Milestone card** spans the full width (`minmax(0, 1fr)`), showing
+  title, status pill, target date + countdown, progress bar (`epics` + `issues`
+  + `%`), **next thing due**, an **Edit** button, and an expandable stack of its
+  nested full-width **Epic cards** (each showing date range, progress bar, next
+  thing due, tap to edit dates/milestone or jump to `/issues?epic=SPL-n`).
+- Unscheduled epics collapse into an expandable card at the bottom with tap to
+  schedule.
+- **`+ Milestone`** and edit dialogs open as full-width bottom/full sheets
+  (matching `CalendarPhoneSheet.vue`).
+
+#### 13.4.4. Theming, i18n and performance budget
+
+- **Theming:** uses existing dark/light CSS variables (`--color-border`,
+  `--color-selected`, `--color-accent`, `--color-ok`, `--color-danger`,
+  `--color-muted`); proven in both themes in e2e.
+- **i18n:** every chrome string (`roadmap.timeline_*`, `milestone.*`,
+  `calendar_event.milestone_*`, `calendar_event.epic_*`) uses `t(...)` in all
+  19 locale files (`csi-spl-wui/i18n/locales/*.json`), keeping
+  `i18n-parity.test.mjs`, `i18n-no-raw-text.test.mjs`, and
+  `i18n-untranslated.test.mjs` green, with Google Cloud Translation check
+  (`do_spl_lang_review_gct`, `CLAUDE.md` language rule). Milestone titles,
+  descriptions, and epic titles are workspace content and stay untranslated.
+- **Performance:** zero bytes added to the initial bundle (`ci_initial_gzip_kb`
+  ceiling `155.0 KB`, `perf-budgets.json:4`). `RoadmapTimeline.vue`,
+  `RoadmapMilestoneDialog.vue`, and `RoadmapEpicDatesDialog.vue` load via
+  `defineAsyncComponent` from `pages/roadmap.vue` only (never imported from
+  `app.vue`, a layout, or a plugin). Register `"roadmap-timeline"` alongside
+  `"roadmap-page"` and `"roadmap-spec-table"` in
+  `csi-spl-orc/src/bash/scripts/perf-budget.py:86` and keep the roadmap route
+  within its `25.0 KB` gzip ceiling (`perf-budgets.json:10`) — or add a
+  dedicated `ci_roadmap_timeline_gzip_kb` ceiling if split, never raising
+  `ci_initial_gzip_kb`.
+
+### 13.5. Programmatic: hub routes, box wire, CLI and RBAC
+
+#### 13.5.1. RBAC (same doors as issues)
+
+| caller / operation | authorization | evidence / parity |
+|---|---|---|
+| Browser read (`GET /v1/milestones*`, `GET /v1/roadmap/timeline`) | `viewHandler` (`topics.read` in the session's active workspace) | `internal/hub/view.go:126-153`, `issues.go:881-882` |
+| Browser create / patch (`POST /v1/milestones`, `PATCH /v1/milestones/{id}`, epic `PATCH /v1/issues/{ref}`) | `issueWriter`: `notes.send` + `topics.manage` + `billing.AllowsWrite` (`demo_user` gets 403) | `internal/hub/issues.go:951-972`; `internal/rbac/rbac.go:291,301-304` |
+| Browser delete (`DELETE /v1/milestones/{id}`) | `issueWriter` + creator or `tenant.settings` (`biz_owner`, `admin`) — see Q6 | `internal/hub/issues.go:1023-1028` (`mayDeleteIssue`) |
+| Agent read (`spool milestone list\|get`) | Box socket hello + `senderRefusal(x, f.As)` (announced agent of that box/tenant) | `internal/hub/issues_agent.go:29-38` |
+| Agent write (`spool milestone create\|update`, epic dates via `spool issue update`) | Box socket hello + `senderRefusal(x, f.As)` + `issueWriteAllowed(ctx, x.tenant)` (billing) | `internal/hub/issues_agent.go:54-59,90-99` |
+| Agent delete (`spool milestone delete`) | Same as write + `cur.CreatedBy == as` (creator only) — see Q6 | `internal/hub/issues_agent.go:166-192` (`agentDeleteIssue`) |
+
+When spec 152 rows B5-B7 switch `issueWriter` from `topics.manage` to the
+granular `issues.create` / `issues.edit` / `issues.status` /
+`issues.remove_others` ids (`internal/rbac/rbac.go:92-116`), milestone handlers
+reuse the same helper and move with it automatically.
+
+#### 13.5.2. Hub HTTP routes (`HUB-5`)
+
+All new routes are wired alongside `routeIssues` and `routeCalendar` in
+`internal/hub/calendar.go:1269-1271`, carry CORS `OPTIONS` preflights matching
+`issuesPreflight` (`issues.go:1242-1250`), decode request bodies with
+`DisallowUnknownFields()`, and are documented in
+`csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json`.
+
+| method | path | body / query | response & errors |
+|---|---|---|---|
+| `GET` | `/v1/milestones` | `?status=planned,active&goal=G01&from=YYYY-MM-DD&to=YYYY-MM-DD` | `200 {milestones: [...]}` sorted by `target_date ASC, title ASC`; each carries computed roll-up (`epics_total`, `epics_done`, `issues_total`, `issues_done`, `issues_canceled`, `pct`, `next_due`) and its linked `epics[]` summaries |
+| `GET` | `/v1/milestones/{id}` | — | `200 {milestone, epics}`; `404 not_found` |
+| `POST` | `/v1/milestones` | `{title, target_date, description?, status?, goal_id?, epics?: ["SPL-17", ...]}` | `201 {milestone}`; `400 bad_milestone` / `bad_epic`; `402` unpaid; fans out `milestone` `op: "create"` frame |
+| `PATCH` | `/v1/milestones/{id}` | partial `{title?, target_date?, description?, status?, goal_id?, epics?}` (`""` clears `goal_id` / `description`; `epics: []` detaches all) | `200 {milestone}`; `400 bad_milestone`; `404 not_found`; fans out `milestone` `op: "update"` frame |
+| `DELETE` | `/v1/milestones/{id}` | — | `200 {milestone}` (soft-deleted `deleted_at`; detaches linked epics' `milestone_id = NULL` in the same transaction); `403 forbidden`; `404 not_found`; fans out `milestone` `op: "delete"` frame |
+| `GET` | `/v1/roadmap/timeline` | `?from=YYYY-MM-DD&to=YYYY-MM-DD&goal=G01&include_closed=1` | `200 {milestones, epics, unscheduled_epics}` — single-roundtrip read for `/roadmap` with computed roll-up and `next_due` on every milestone and epic |
+
+**Extensions to existing issue routes (`internal/hub/issues.go`):**
+
+- `issueRequest` (`issues.go:156-180`): add optional `start_date`, `end_date`
+  (`YYYY-MM-DD`, `""` clears on `PATCH`), and `milestone_id` (UUID, `""` clears
+  on `PATCH`). Hub refuses any of the three on a non-epic/non-feature issue
+  (`400 bad_issue`), refuses `end_date < start_date` (`400 bad_issue`), and
+  refuses a missing/deleted/other-tenant `milestone_id`
+  (`400 unknown_milestone`).
+- `issueJSON` (`issues.go:42-76`): add `start_date`, `end_date`, `milestone_id`
+  (`omitempty`), plus computed `rollup` (`{total, done, canceled, open, pct, next_due}`)
+  on `GET /v1/view/issues/{ref}` for level-1 epics/features.
+- `epicSummary` (`issues.go:822-832`): add `start_date`, `end_date`,
+  `milestone_id`, `pct`, `next_due` (additive; existing fields unchanged).
+- `GET /v1/view/issues` filter (`parseIssueFilter`, `issues.go:601`): add
+  optional `?milestone=<uuid>` to filter epics (and their issues) by milestone.
+
+#### 13.5.3. Box wire, `spool` CLI and MCP (`CLI-1`)
+
+- **Box wire (`internal/wire/wire.go`):** add `TMilestone = "milestone"`
+  alongside `TIssue` (`wire.go:45`), with `MilestoneOp`
+  (`list|get|create|update|delete`), `MilestoneRef`, and `Milestone`
+  (`json.RawMessage`), reusing `MsgID`, `As`, and `Query`. Dispatched in
+  `internal/hub/ws.go:171,214` to `onMilestone`
+  (`internal/hub/milestones_agent.go`). Because `spool milestone` dials a
+  one-shot `role=cli` session (exact pattern of `hubclient.Issue`,
+  `internal/hubclient/issue.go:23-42`), the hub never pushes unsolicited
+  `milestone` frames to `role=box` sidecars, avoiding any stall on older
+  `hub-run` binaries (`internal/hubclient/hubclient.go:661-665`).
+- **CLI subcommand `spool milestone`** (`cmd/spool/milestone.go`,
+  `internal/action/milestone.go`, `internal/hubclient/milestone.go`, listed in
+  `cmd/spool/main.go` `usage` so `TestUsageNamesEveryVerb` at
+  `cmd/spool/usage_test.go:16` stays green):
+  - `spool milestone list --as <AGENT> [--status planned,active] [--goal G01] [--from YYYY-MM-DD] [--to YYYY-MM-DD]`
+  - `spool milestone get --as <AGENT> --ref <uuid>`
+  - `spool milestone create --as <AGENT> --title <T> --date <YYYY-MM-DD> [--status S] [--goal G01] [--description D] [--epics SPL-1,SPL-2]`
+  - `spool milestone update --as <AGENT> --ref <uuid> [--title T] [--date YYYY-MM-DD] [--status S] [--goal G01|""] [--description D] [--epics SPL-1,...]`
+  - `spool milestone delete --as <AGENT> --ref <uuid>`
+- **CLI `spool issue` extensions** (`cmd/spool/issue.go:63-217`):
+  - Add `--start-date <YYYY-MM-DD>`, `--end-date <YYYY-MM-DD>`, and
+    `--milestone <uuid>` to `create` and `update` (`""` clears on `update`),
+    and `--milestone <uuid>` to `list`.
+- **MCP (`internal/mcp/mcp.go:183`):** register `spool_milestone` alongside
+  `spool_issue` (calling `action.Milestone`); `spool_issue` already forwards raw
+  JSON issue bodies so epic dates and `milestone_id` work through it once
+  `issueRequest` accepts them.
+
+### 13.6. Calendar: read the records, never copy them
+
+Milestones and epic end dates are **never copied into `calendar_events`**.
+Instead, the calendar read routes project them live from `milestones` and
+`issues` — the exact pattern `deadlinesIn` already uses for `issues.deadline`
+(`internal/hub/calendar.go:645-664,743-754,834-841`):
+
+1. **Range read (`GET /v1/calendar/events?start=&end=`, `calendar.go:727-762`):**
+   - Joins `milestonesIn(ctx, tenant, rg)`: live non-deleted milestones with
+     `status <> 'canceled'` whose `target_date` falls in `[rg.Start, rg.End)`.
+     Synthesized `calendarEventJSON`:
+     - `id: "milestone:" + m.ID`, `source: "milestone"`, `kind: "milestone"`,
+       `all_day: true`, `starts_at: <target_date>T00:00:00Z`,
+       `ends_at: <target_date + 1d>T00:00:00Z`, `audience: "internal"`,
+       `status: m.Status`,
+       `roadmap_url: "/roadmap?ws=" + tenant + "&milestone=" + m.ID`,
+       `description`: milestone description (with computed progress summary
+       carried in a structured `rollup` field).
+   - Joins `epicEndsIn(ctx, tenant, rg)`: live non-deleted, non-archived epics
+     (`kind IN ('epic', 'feature')`, `!store.IssueClosed(i.Status)`) whose
+     `end_date` falls in `[rg.Start, rg.End)` (end date only by default; see Q5).
+     Synthesized `calendarEventJSON`:
+     - `id: "epic:" + i.Key()`, `source: "epic"`, `kind: "epic"`,
+       `all_day: true`, `starts_at: <end_date>T00:00:00Z`,
+       `ends_at: <end_date + 1d>T00:00:00Z`, `audience: "internal"`,
+       `issue_key: i.Key()`, `status: i.Status`, `assignee: i.Assignee`,
+       `roadmap_url: "/roadmap?ws=" + tenant + "&epic=" + i.Key()`.
+   - **Visibility:** unlike personal issue deadlines (`deadlinesIn`,
+     `calendar.go:648-663`, SPL-5963: assignee and creator only), milestones and
+     epic end dates are **workspace-wide for all signed-in members** of that
+     workspace. Signed-out `/v1/public/calendar/events` (`calendar_web.go:70`)
+     excludes them by default (see Q4). A `demo_user` sees neither unless
+     public.
+   - **Zero lag, zero drift:** changing a milestone's `target_date` or an epic's
+     `end_date` updates the calendar on the very next read with no background
+     sync and no stale `calendar_events` rows.
+   - `?source_key=` lookups (`handleCalendarSourced`, `calendar.go:695`) remain
+     `calendar_events`-only and unchanged.
+2. **Year-strip marks (`GET /v1/calendar/marks`, `calendar.go:822-855`):**
+   - Calls `milestonesIn` (`addMark(marks, day, "milestone")`) and `epicEndsIn`
+     (`addMark(marks, day, "epic")`), so the 36-month `CalendarYearStrip` shows
+     milestone and epic markers automatically.
+3. **Calendar WUI (`WUI-5`):**
+   - `csi-spl-wui/src/utils/calendar-event-form.mjs:156-178`: add
+     `calMilestone(ev)` (`ev.source === 'milestone'`) and `calEpic(ev)`
+     (`ev.source === 'epic'`). Both stay non-editable (`calEditable` returns
+     `false` because `calStored` requires `source === 'event'`), so the grid
+     forbids drag, resize, Edit, and Duplicate.
+   - `CalendarMainView.vue`, `CalendarEventPopover.vue`, `CalendarPhone.vue`,
+     `CalendarPhonePeek.vue`: render distinct milestone/epic styling; clicking
+     opens the read-only popover/peek showing target/end date, status, progress,
+     **"Open on Roadmap"** (`roadmap_url`), and (for epics) **"Open issue"**
+     (`/issues?issue=<key>`).
+   - Spec 149 Google Calendar sync (`0217_google_calendar.sql`,
+     `gcal_event_map`) reads `calendar_events` only, so projected milestones and
+     epic end dates are not pushed to personal Google Calendars.
+
+### 13.7. Build rows and order
+
+Each row is one lane with disjoint file ownership and an explicit red control
+(seen RED on a planted defect, then GREEN, both outputs in the commit body;
+`developer-guide.md` 2.12.1). `kind` names the `do_spl_lane_mix` kind
+(`csi-spl-orc/src/bash/run/spl-lane-mix.func.sh:8-9`); `vendor` follows the
+fleet split (`csi-spl-cnf/csi-spl/all.env.yaml:1567-1574`, no mistral on coding,
+WUI, or reviews).
+
+Order: `RDB-3` applies to `dev` and `prd` **before** `STORE-2` deploys. After
+`STORE-2` lands, `HUB-5` and `HUB-6` run in parallel. After `HUB-5` lands,
+`CLI-1` and `WUI-4` run in parallel; `WUI-5` starts as soon as `HUB-6` lands.
+`WUI-6` follows `WUI-4`; `I18N-2` follows `WUI-4` and `WUI-5`; `DOC-3` follows
+`HUB-5`, `CLI-1`, and `WUI-4`.
+
+| row | layer | what | repo paths | depends on | tests + red control | kind | vendor |
+|---|---|---|---|---|---|---|---|
+| **RDB-3** | rdb | Forward-only migration: `milestones` table + RLS, `issues.start_date`, `issues.end_date`, `issues.milestone_id`, CHECKs, partial indexes; tenant gate seeding & non-export assertion | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_milestones_and_epic_dates.sql`, `csi-spl-api/src/go/spool-hub-api/internal/store/crosstenant_test.go` (`seedTenantAll`), `public_export_grants_test.go`, new `milestones_migrate_test.go` | none | `PRE_PUSH_TIER=full ./run -a do_check_pre_push`: migration applies twice on Postgres; `TestCrossTenantEveryTable`, `TestRLSPoliciesFailClosed`, `TestPublicExportGrantsEqualAllowList` green; CHECKs refuse `end_date < start_date` and dates on level-2 issue. **Red control:** remove `tenant_scope` policy -> `TestRLSPoliciesFailClosed` fails; plant `start_date` on a level-2 issue -> CHECK rejects. | `complex_coding` | `claude` |
+| **STORE-2** | api | Store CRUD for `milestones`, epic `start_date`/`end_date`/`milestone_id` persistence, computed epic + milestone roll-up (including archived closed epics) and `next_due` | `csi-spl-api/src/go/spool-hub-api/internal/store/milestones.go`, `milestones_memory.go`, `milestones_postgres.go`, `milestones_test.go`, `issues.go`, `issues_postgres.go`, `issues_test.go` | `RDB-3` (applied dev+prd) | Memory + Postgres parity suite (`PRE_PUSH_TIER=full`): CRUD, soft delete detaches epics, cross-tenant `milestone_id` refused, roll-up matches direct children with archived closed epic preserved, `next_due` picks earliest open deadline. **Red control:** drop `deleted_at IS NULL` filter or omit archived children from milestone roll-up -> parity test fails. | `complex_coding` | `claude` |
+| **HUB-5** | api | HTTP routes `/v1/milestones`, `/v1/milestones/{id}`, `/v1/roadmap/timeline`, `OPTIONS` preflights, live `milestone` fanout, `issues.go` date/milestone/rollup extensions, RBAC, OpenAPI | `csi-spl-api/src/go/spool-hub-api/internal/hub/milestones.go`, `milestones_test.go`, `issues.go`, `issues_test.go`, `calendar.go` (route wire only), `openapi.json` | `STORE-2` | Go tests on memory + Postgres: CRUD, RBAC (`demo_user` 403, non-creator member 403 on DELETE, admin 200), unpaid tenant 402, epic dates rejected 400 on level-2 issue, `end_date < start_date` 400, `/v1/roadmap/timeline` returns computed roll-up + `next_due`, live `milestone` frame emitted. **Red control:** drop `topics.manage` check -> `demo_user` write test fails; drop level-1 guard -> level-2 date test fails. | `complex_coding` | `claude` |
+| **HUB-6** | api | Calendar read-only projection of milestones and open epic `end_date`s in `GET /v1/calendar/events` and `GET /v1/calendar/marks` (zero writes to `calendar_events`) | `csi-spl-api/src/go/spool-hub-api/internal/hub/calendar.go` (`milestonesIn`, `epicEndsIn`), new `calendar_milestones_test.go` | `STORE-2` | Go tests on memory + Postgres: creating/moving a milestone or epic `end_date` appears immediately in `/v1/calendar/events` and `/v1/calendar/marks` with `calendar_events` row count unchanged (`0` rows written); visible to any workspace member; absent for `demo_user` and signed-out `/v1/public/calendar/events`; `PATCH`/`DELETE` on projected id refused. **Red control:** disable `milestonesIn` or insert into `calendar_events` -> test fails. | `simple_coding` | `claude` |
+| **CLI-1** | cli | Box wire `wire.TMilestone`, `onMilestone` socket handler, `spool milestone` subcommands, `spool issue` `--start-date`/`--end-date`/`--milestone` flags, MCP `spool_milestone` | `csi-spl-api/src/go/spool-hub-api/internal/wire/wire.go`, `internal/hub/ws.go`, `internal/hub/milestones_agent.go`, `milestones_agent_test.go`, `internal/hubclient/milestone.go`, `internal/action/milestone.go`, `cmd/spool/milestone.go`, `cmd/spool/milestone_test.go`, `cmd/spool/main.go`, `cmd/spool/issue.go`, `cmd/spool/issue_test.go`, `internal/mcp/mcp.go` | `HUB-5` | Go CLI + socket tests: `TestUsageNamesEveryVerb` green; agent `create`/`list`/`get`/`update`/`delete` milestone and set/clear epic dates over `role=cli`; unannounced `--as` gets 403; non-creator agent delete gets 403; MCP `spool_milestone` returns JSON. **Red control:** remove `senderRefusal` -> unannounced agent test fails; omit verb from `usage` -> `TestUsageNamesEveryVerb` fails. | `simple_coding` | `claude` (or `agy`) |
+| **WUI-4** | wui | `/roadmap` timeline UI: Quarter/Month/Week zoom, large Milestone & Epic cards (progress, dates, next due), in-place create/edit/delete dialogs, Unscheduled tray, phone `<= 820 px` vertical card agenda, live frame updates, lazy chunks | `csi-spl-wui/src/pages/roadmap.vue` (mount hook), new `components/RoadmapTimeline.vue`, `RoadmapMilestoneCard.vue`, `RoadmapEpicCard.vue`, `RoadmapMilestoneDialog.vue`, `RoadmapEpicDatesDialog.vue`, `composables/useRoadmapTimeline.ts`, `utils/roadmap-timeline.mjs`, `utils/roadmap-timeline-api.mjs`, `utils/roadmap-timeline-mock.mjs`, `csi-spl-wui/tests/unit/roadmap-timeline.test.mjs`, `csi-spl-orc/src/bash/scripts/perf-budget.py` (`"roadmap-timeline"`), `csi-spl-wui/i18n/locales/*.json` (en + drafts) | `HUB-5` | `pnpm run typecheck`, `roadmap-timeline.test.mjs` (zoom geometry, min-width clamp, roll-up, next-due, phone sort), `perf-budget.py bundle` (`ci_initial_gzip_kb <= 155.0`, roadmap route `<= 25.0`), existing `roadmap.test.mjs` and `roadmap-goals.test.mjs` green. **Red control:** import `RoadmapTimeline.vue` eagerly in `app.vue` -> `ci_initial_gzip_kb` / chunk check fails; invert `end_date < start_date` validation -> unit test fails. | `complex_coding` | `claude` |
+| **WUI-5** | wui | Calendar WUI read-only rendering for `source: 'milestone'` and `source: 'epic'` on desktop and phone (no edit/drag/duplicate, popover links to `/roadmap` and `/issues`) | `csi-spl-wui/src/utils/calendar-event-form.mjs`, `utils/calendar-mock.mjs`, `components/CalendarMainView.vue`, `CalendarEventPopover.vue`, `CalendarPhone.vue`, `CalendarPhonePeek.vue`, `csi-spl-wui/tests/e2e/calendar-milestones.test.mjs`, `csi-spl-wui/i18n/locales/*.json` (en + drafts) | `HUB-6` | Unit test for `calMilestone`/`calEpic`/`calEditable` + e2e `calendar-milestones.test.mjs` on generated mock bundle (1280 px & 390 px, dark & light): milestone & epic markers visible, click opens read-only popover with "Open on Roadmap", no Edit/Duplicate button. **Red control:** leave Edit button visible on a milestone popover -> e2e fails. | `simple_coding` | `claude` |
+| **WUI-6** | wui | E2E proof of `/roadmap` timeline on generated mock bundle (desktop + phone, dark + light, CRUD in place, zoom switching, budget check) | `csi-spl-wui/tests/e2e/roadmap-timeline.test.mjs`, `csi-spl-wui/src/node/test/e2e-shard-weights.txt` | `WUI-4` | `BASE_URL=<generated bundle> pnpm run test:e2e` on `roadmap-timeline.test.mjs`: desktop 1280 px (Quarter/Month/Week zoom, create/edit/delete milestone, schedule unscheduled epic, live progress & next-due, dark+light) and phone 390 px (vertical agenda, Today divider, 44 px targets, create/edit sheet). **Red control:** hide the next-due line or drop the `<= 820 px` agenda switch -> e2e fails. | `tests` | `claude` |
+| **I18N-2** | i18n | Translate and verify all new `roadmap.timeline_*`, `milestone.*`, and calendar milestone/epic chrome keys across all 19 locales | `csi-spl-wui/i18n/locales/*.json` (all 19 files) | `WUI-4`, `WUI-5` | `i18n-parity.test.mjs`, `i18n-no-raw-text.test.mjs`, `i18n-untranslated.test.mjs` green; `do_spl_lang_review_gct` passes on all new non-en strings (`CLAUDE.md` language rule). **Red control:** leave one new key in English in a non-en locale -> `i18n-untranslated.test.mjs` fails. | `i18n` | `agy` |
+| **DOC-3** | docs | Contract and user-doc updates: `issues-v1.md` (epic dates/milestone/rollup), spec 089 calendar projection note, `goals/README.md` (DB milestones vs `milestones.yaml`), CLI & `/roadmap` user help | `csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md`, `csi-spl-doc/specs/089-calendar-section/spec.md`, `csi-spl-doc/goals/README.md` | `HUB-5`, `CLI-1`, `WUI-4` | `cd csi-spl-iac && ./run -a do_check_dist_hygiene && ./run -a do_check_pre_push_lint` (including `lint-mdlinks`) green; every new route, CLI flag, and field matches code. **Red control:** plant a broken markdown anchor -> `lint-mdlinks` fails. | `specs_and_docs` | `agy` (or `mistral`) |
+
+### 13.8. Open questions for the owner (Q1–Q6)
+
+Formatted for one `poll` form (`csi-spl-doc/doc/help/how-to-post.md` section 7).
+The recommended option is listed first with its one-line why; each option says
+what it changes in section 13 and the build rows.
+
+1. **Q1. Can an epic belong to one milestone or several?** I recommend **(A)**:
+   it keeps `goal -> milestone -> epic -> issue` a clean tree with no duplicate
+   epic cards on the timeline.
+   - (A) One milestone per epic (`issues.milestone_id` FK): section 13.3.1 as
+     written; each epic sits in one milestone band on `/roadmap`.
+   - (B) Many-to-many (`milestone_epics` join table): an epic can span multiple
+     milestones; `RDB-3` adds `milestone_epics` instead of `issues.milestone_id`,
+     `HUB-5`/`CLI-1` add link/unlink endpoints and flags, and `WUI-4` renders
+     cross-milestone chips.
+2. **Q2. Should `/roadmap` get its own icon in the left navigation rail?** I
+   recommend **(A)**: today `/roadmap` is only reachable by typing the URL
+   (`utils/rail-order.ts:16`), and the "mountain view" should be one click away
+   beside Issues and Calendar.
+   - (A) Yes, add a Roadmap icon to the left rail (`rail-order.ts` + a
+     `humans.rail_order` migration, the same pattern as Notes/Expenses in
+     `rail-order.ts:103-116`): adds one small rail task alongside `RDB-3`/`WUI-4`.
+   - (B) No new rail icon; add a "Roadmap" link inside `IssueEpicsPanel.vue` and
+     the Calendar header instead (no `rail_order` migration needed).
+   - (C) Keep `/roadmap` URL-only for now (no nav change).
+3. **Q3. What counts in an epic's `done / total` roll-up?** I recommend **(A)**:
+   it matches `IssueEpicsPanel.vue:31` (`done / (total - canceled)`) so the
+   Issues panel and `/roadmap` always show the same percentage and never
+   double-count a parent issue plus its subtasks.
+   - (A) Direct level-2 issues only, excluding `diss` (canceled): section 13.3.2
+     as written.
+   - (B) All descendants (level-2 issues + level-3 subtasks), excluding `diss`:
+     `STORE-2` and `epicSummaries` (`issues.go:836`) walk subtasks too so both
+     views reflect subtask granularity.
+4. **Q4. Are workspace milestones and epic dates visible signed out on a public
+   roadmap?** I recommend **(A)**: epics often carry internal operational
+   titles, so keeping milestones and epics member-only while approved goals stay
+   publishable via `roadmap_public` avoids accidental leaks.
+   - (A) Member-only for now: section 13.6 as written (`calendar_web.go`
+     unchanged).
+   - (B) Follow `tenants.roadmap_public` (spec 12.5): when public, milestone
+     titles/dates and epic titles/progress also appear signed out on `/roadmap`
+     and `/v1/public/calendar/events` (`HUB-5`/`HUB-6` extend `calendar_web.go`).
+5. **Q5. On the calendar, which epic dates appear?** I recommend **(A)**: it
+   keeps the calendar clean and focused on target and due dates, leaving
+   multi-week spans to the `/roadmap` timeline.
+   - (A) Epic `end_date` only (open epics), plus every non-canceled milestone
+     `target_date`: section 13.6 as written.
+   - (B) Full epic span (`start_date` to `end_date` as a multi-day all-day
+     banner in Calendar): `HUB-6` projects `[start_date, end_date]` instead of
+     `end_date` alone.
+6. **Q6. Who may delete a milestone?** I recommend **(A)**: it matches
+   `mayDeleteIssue` (`issues.go:1023-1028`) and `agentDeleteIssue`
+   (`issues_agent.go:179`), keeping milestones and issues on one consistent rule.
+   - (A) Its creator, or a `biz_owner` / `admin` (`tenant.settings`),
+     soft-deleted with linked epics detached: section 13.5.1 as written.
+   - (B) `biz_owner` or `admin` only (`tenant.settings` / `roadmap.publish`):
+     other members and agents cannot delete milestones (they can still set
+     status `canceled`); `HUB-5`/`CLI-1` drop the creator-delete branch.
+
+### 13.9. Not in this amendment
+
+- Pushing projected milestones or epic end dates into personal Google Calendars
+  (spec 149 `gcal_event_map` reads `calendar_events` only).
+- Migrating historical `csi-spl-doc/goals/milestones.yaml` lines into
+  `milestones` table rows.
+- Editing git-backed `goal.yaml` files from the WUI (workspaces without a repo
+  already edit in-app goals via `PUT /v1/workspace/doctree/{doc}/goal`, HUB-3).
+- Gantt dependency arrows or automatic date shifting across epics.

@@ -9,6 +9,10 @@ placed by the orchestrator; Postgres tests need the box's docker Postgres,
 browser e2e needs Chrome or runs in CI on the mock bundle).
 Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in progress, `[ ]` Planned).
 
+Version **v1.2** (2026-11-25): v1.1 plus the build tasks for spec section 13
+(milestones as records, epic dates + roll-up, `/roadmap` timeline, CLI and
+calendar read projection; spec v1.3, SPL-6452): RDB-3, STORE-2, HUB-5, HUB-6,
+CLI-1, WUI-4, WUI-5, WUI-6, I18N-2, DOC-3 (sections 8 and 9).
 Version **v1.1**: v1.0 plus the build tasks for spec section 12 (per-workspace
 roadmaps, spec v1.2 with OQ1-OQ3 answered): RDB-2, DOC-2, HUB-2, HUB-3,
 WUI-3, ORC-5, ORC-6 are new; WUI-1 and ORC-2 are re-split; WUI-2, I18N-1 and
@@ -18,6 +22,10 @@ Order: ORC-1 first (everything reads it); RDB-1 lands and is applied to dev
 and prd BEFORE STORE-1/HUB-1 ship; WUI-1 after ORC-1; WUI-2 after HUB-1.
 Section 12: RDB-2 is applied to dev and prd BEFORE HUB-2 ships; ORC-2,
 ORC-5, ORC-6, WUI-3 and HUB-3 come after HUB-2.
+Section 13: RDB-3 is applied to dev and prd BEFORE STORE-2 deploys; HUB-5 and
+HUB-6 run in parallel after STORE-2; CLI-1 and WUI-4 run in parallel after
+HUB-5; WUI-5 starts after HUB-6; WUI-6 after WUI-4; I18N-2 after WUI-4 and
+WUI-5; DOC-3 after HUB-5, CLI-1 and WUI-4.
 
 **Audience glossary** (calendar `audience`, in the words of c-723's rename;
 before it, `workspace` was spelled `public` and `public` was spelled `web`):
@@ -195,3 +203,80 @@ after the other, never side by side.
 | L8 | WUI-3 | claude | L1 and L3 |
 | L9 | HUB-3 | claude | L3 and the spec 113 shape note |
 | L10 | I18N-1 | agy | the WUI lanes L1, L2, L8 (strings frozen) |
+
+## 8. Milestones, epic dates and /roadmap timeline (spec 13, v1.2)
+
+- [ ] **RDB-3**: Migration `<next>_milestones_and_epic_dates.sql` (spec 13.3.1).
+  - Depends: none. Apply to dev and prd BEFORE STORE-2 deploys.
+  - Owns: `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_milestones_and_epic_dates.sql` (claim with `do_rdb_migration_next`; highest on disk `0323_fleet_ask_queue_order.sql`), `seedTenantAll` in `csi-spl-api/src/go/spool-hub-api/internal/store/crosstenant_test.go`, non-export assertion in `public_export_grants_test.go`, new `milestones_migrate_test.go`.
+  - Done: `SET CONSTRAINTS ALL IMMEDIATE; SET LOCAL lock_timeout = '5s';` first; `milestones` table with RLS (`ENABLE + FORCE`, `tenant_scope` with `NULLIF`, `operator_scope`), `UNIQUE (tenant_id, milestone_id)`, partial indexes; `issues.start_date`, `issues.end_date`, `issues.milestone_id`, PG16 composite FK `(tenant_id, milestone_id) -> milestones ON DELETE SET NULL (milestone_id)`, range & level-1 CHECKs; `PRE_PUSH_TIER=full ./run -a do_check_pre_push` green (`TestCrossTenantEveryTable`, `TestRLSPoliciesFailClosed`, `TestPublicExportGrantsEqualAllowList`). Control: drop `tenant_scope` policy -> `TestRLSPoliciesFailClosed` fails; plant `start_date` on a level-2 issue -> CHECK rejects.
+  - Kind: `complex_coding`. Vendor: `claude`. Box: one with docker Postgres.
+
+- [ ] **STORE-2**: Store CRUD for milestones, epic dates/milestone persistence and computed roll-up (spec 13.3.2).
+  - Depends: RDB-3 (applied to dev and prd).
+  - Owns: `csi-spl-api/src/go/spool-hub-api/internal/store/milestones.go`, `milestones_memory.go`, `milestones_postgres.go`, `milestones_test.go`, plus `StartDate`/`EndDate`/`MilestoneID` + roll-up queries in `issues.go`, `issues_postgres.go`, `issues_test.go`.
+  - Done: full CRUD on `milestones`, soft delete detaching linked epics in one transaction, epic date & milestone validation, computed epic + milestone roll-up (direct level-2 children, excluding `diss`, including archived closed children for milestone progress, plus `next_due`) on memory and Postgres (`PRE_PUSH_TIER=full`). Control: remove `deleted_at IS NULL` filter or exclude archived closed epics from milestone roll-up -> parity test fails.
+  - Kind: `complex_coding`. Vendor: `claude`. Box: one with docker Postgres.
+
+- [ ] **HUB-5**: Hub HTTP routes for milestones and timeline, epic date/rollup extensions, RBAC and OpenAPI (spec 13.5.1, 13.5.2).
+  - Depends: STORE-2.
+  - Owns: `csi-spl-api/src/go/spool-hub-api/internal/hub/milestones.go`, `milestones_test.go`, `issues.go`, `issues_test.go`, route wiring in `calendar.go`, `openapi.json`.
+  - Done: `GET/POST /v1/milestones`, `GET/PATCH/DELETE /v1/milestones/{id}`, `GET /v1/roadmap/timeline`, `OPTIONS` preflights, live `milestone` fanout frame, `issueRequest`/`issueJSON`/`epicSummary` extensions (`start_date`, `end_date`, `milestone_id`, `rollup`, `next_due`), RBAC matching issues (`viewHandler` read, `issueWriter` write, creator or `tenant.settings` delete). Memory + Postgres tests green. Control: drop `topics.manage` gate -> `demo_user` write test fails; drop level-1 check -> level-2 date PATCH succeeds and fails the test.
+  - Kind: `complex_coding`. Vendor: `claude`. Box: one with docker Postgres.
+
+- [ ] **HUB-6**: Calendar read-only projection of milestones and epic end dates (spec 13.6).
+  - Depends: STORE-2.
+  - Owns: `milestonesIn` and `epicEndsIn` in `csi-spl-api/src/go/spool-hub-api/internal/hub/calendar.go`, new `calendar_milestones_test.go`.
+  - Done: `GET /v1/calendar/events` and `GET /v1/calendar/marks` project live non-canceled milestones (`source: "milestone"`, `kind: "milestone"`) and open epic `end_date`s (`source: "epic"`, `kind: "epic"`) with zero writes to `calendar_events`; visible to all signed-in workspace members; excluded from `demo_user` and `/v1/public/calendar/events`; `?source_key=` unchanged. Control: disable `milestonesIn` or copy a row into `calendar_events` -> test fails.
+  - Kind: `simple_coding`. Vendor: `claude`. Box: one with docker Postgres.
+
+- [ ] **CLI-1**: `spool milestone` CLI, `spool issue` epic-date flags, `wire.TMilestone` and MCP `spool_milestone` (spec 13.5.3).
+  - Depends: HUB-5.
+  - Owns: `csi-spl-api/src/go/spool-hub-api/internal/wire/wire.go`, `internal/hub/ws.go`, `internal/hub/milestones_agent.go`, `milestones_agent_test.go`, `internal/hubclient/milestone.go`, `internal/action/milestone.go`, `cmd/spool/milestone.go`, `cmd/spool/milestone_test.go`, `cmd/spool/main.go`, `cmd/spool/issue.go`, `cmd/spool/issue_test.go`, `internal/mcp/mcp.go`.
+  - Done: `spool milestone <list|get|create|update|delete> --as <AGENT>` and `spool issue <create|update|list>` `--start-date`/`--end-date`/`--milestone` work over one-shot `role=cli` `wire.TMilestone` / `wire.TIssue`; MCP `spool_milestone` works; `TestUsageNamesEveryVerb` green. Control: remove `senderRefusal` -> unannounced agent test fails; omit `milestone` from `main.go` `usage` -> `TestUsageNamesEveryVerb` fails.
+  - Kind: `simple_coding`. Vendor: `claude` (or `agy`). Box: any.
+
+- [ ] **WUI-4**: `/roadmap` timeline view and in-place milestone/epic CRUD (spec 13.4).
+  - Depends: HUB-5.
+  - Owns: mount hook in `csi-spl-wui/src/pages/roadmap.vue`, new `components/RoadmapTimeline.vue`, `RoadmapMilestoneCard.vue`, `RoadmapEpicCard.vue`, `RoadmapMilestoneDialog.vue`, `RoadmapEpicDatesDialog.vue`, `composables/useRoadmapTimeline.ts`, `utils/roadmap-timeline.mjs`, `utils/roadmap-timeline-api.mjs`, `utils/roadmap-timeline-mock.mjs`, `csi-spl-wui/tests/unit/roadmap-timeline.test.mjs`, `"roadmap-timeline"` marker in `csi-spl-orc/src/bash/scripts/perf-budget.py`, draft keys in `csi-spl-wui/i18n/locales/*.json`.
+  - Done: desktop (`> 820 px`) Quarter/Month/Week timeline with Today line, large Milestone & Epic cards (progress, dates, next due, min width 220 px), Unscheduled tray, in-place create/edit/delete dialogs, live `milestone`/`issue` frame updates; phone (`<= 820 px`) vertical chronological card agenda with Today divider and 44 px targets; `pnpm run typecheck`, `roadmap-timeline.test.mjs`, existing `roadmap*.test.mjs`, and `perf-budget.py bundle` (`ci_initial_gzip_kb <= 155.0`, roadmap route `<= 25.0`) green. Control: import `RoadmapTimeline.vue` eagerly from `app.vue` -> bundle budget check fails; remove `end_date >= start_date` check -> unit test fails.
+  - Kind: `complex_coding`. Vendor: `claude`. Box: one with Chrome, else CI.
+
+- [ ] **WUI-5**: Calendar WUI read-only milestone and epic end-date display (spec 13.6).
+  - Depends: HUB-6.
+  - Owns: `csi-spl-wui/src/utils/calendar-event-form.mjs`, `utils/calendar-mock.mjs`, `components/CalendarMainView.vue`, `CalendarEventPopover.vue`, `CalendarPhone.vue`, `CalendarPhonePeek.vue`, `csi-spl-wui/tests/e2e/calendar-milestones.test.mjs`, draft keys in `csi-spl-wui/i18n/locales/*.json`.
+  - Done: `calMilestone`/`calEpic` read-only (`calEditable` false, no drag/resize/edit/duplicate), popover/peek shows date, status, progress, "Open on Roadmap", and "Open issue" for epics; `calendar-milestones.test.mjs` green at 1280 px and 390 px in dark and light themes. Control: leave Edit button visible on a milestone popover -> e2e fails.
+  - Kind: `simple_coding`. Vendor: `claude`. Box: one with Chrome, else CI.
+
+- [ ] **WUI-6**: E2E proof for `/roadmap` timeline on generated mock bundle (spec 13.4).
+  - Depends: WUI-4.
+  - Owns: `csi-spl-wui/tests/e2e/roadmap-timeline.test.mjs`, `csi-spl-wui/src/node/test/e2e-shard-weights.txt`.
+  - Done: `BASE_URL=<generated bundle> pnpm run test:e2e` runs `roadmap-timeline.test.mjs` green at desktop (1280 px: Quarter/Month/Week zoom, create/edit/delete milestone, schedule unscheduled epic, verify roll-up & next-due, dark+light) and phone (390 px: vertical card agenda, Today divider, 44 px touch targets, create/edit sheet). Control: hide next-due text or drop `<= 820 px` agenda layout -> e2e fails.
+  - Kind: `tests`. Vendor: `claude`. Box: one with Chrome, else CI.
+
+- [ ] **I18N-2**: Translate and check all section 13 chrome keys across 19 locales (spec 13.4.4).
+  - Depends: WUI-4, WUI-5 (strings frozen).
+  - Owns: new keys in `csi-spl-wui/i18n/locales/*.json` (all 19 files).
+  - Done: `i18n-parity.test.mjs`, `i18n-no-raw-text.test.mjs`, `i18n-untranslated.test.mjs`, and `do_spl_lang_review_gct` green. Control: leave one new key in English in a non-en locale -> `i18n-untranslated.test.mjs` fails.
+  - Kind: `i18n`. Vendor: `agy`. Box: any.
+
+- [ ] **DOC-3**: Contracts and user documentation for milestones, epic dates and `/roadmap` timeline (spec 13.5, 13.6).
+  - Depends: HUB-5, CLI-1, WUI-4.
+  - Owns: `csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md`, `csi-spl-doc/specs/089-calendar-section/spec.md`, `csi-spl-doc/goals/README.md`.
+  - Done: every new route, field, CLI flag, and read-only calendar projection is documented and matches code; `do_check_dist_hygiene` and `do_check_pre_push_lint` (`lint-mdlinks`) green. Control: plant a broken markdown anchor -> `lint-mdlinks` fails.
+  - Kind: `specs_and_docs`. Vendor: `agy` (or `mistral`). Box: any.
+
+## 9. Lane split (v1.2, section 13)
+
+| lane | tasks | kind | vendor | starts after |
+|---|---|---|---|---|
+| L11 | RDB-3 (apply to dev and prd before L12 deploys) | `complex_coding` | `claude` | owner answers Q1–Q6 |
+| L12 | STORE-2 | `complex_coding` | `claude` | L11 live on dev and prd |
+| L13 | HUB-5 | `complex_coding` | `claude` | L12 |
+| L14 | HUB-6 | `simple_coding` | `claude` | L12 (parallel with L13) |
+| L15 | CLI-1 | `simple_coding` | `claude` (or `agy`) | L13 (parallel with L16) |
+| L16 | WUI-4 | `complex_coding` | `claude` | L13 (parallel with L15) |
+| L17 | WUI-5 | `simple_coding` | `claude` | L14 (parallel with L16) |
+| L18 | WUI-6 | `tests` | `claude` | L16 |
+| L19 | I18N-2 | `i18n` | `agy` | L16 and L17 (strings frozen) |
+| L20 | DOC-3 | `specs_and_docs` | `agy` (or `mistral`) | L13, L15, L16 |

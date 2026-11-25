@@ -1,0 +1,322 @@
+{
+ "v": 1,
+ "engine": "gct",
+ "run_id": "20261125T040029Z-bb2f0167",
+ "created_at": "2026-11-25T04:00:29Z",
+ "api": "Cloud Translation v3 translateText",
+ "project": "csi-spl-prd",
+ "identity": "project-sa",
+ "base": "origin/master",
+ "base_sha": "8665774de40e69cfd366fa789568510ff2575a20",
+ "files": [
+  "csi-spl-wui/i18n/locales/bg.json",
+  "csi-spl-wui/i18n/locales/he.json",
+  "csi-spl-wui/i18n/locales/lv.json"
+ ],
+ "judge": "reference = fresh en -> lang translation; match = equal after NFC, casefold, whitespace collapse, trailing punctuation dropped; placeholder = the {tokens} differ from en (a failure)",
+ "rows": [
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_synced_through",
+   "why": "new",
+   "en": "Synced through {workspace}.",
+   "text": "Синхронизира се чрез {workspace}.",
+   "reference": "Синхронизирано чрез {workspace} .",
+   "back": "Syncs via {workspace} .",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_move",
+   "why": "new",
+   "en": "Sync from here instead",
+   "text": "Синхронизиране оттук вместо това",
+   "reference": "Синхронизирай оттук вместо това",
+   "back": "Sync from here instead",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_move_title",
+   "why": "new",
+   "en": "Sync contacts from this workspace?",
+   "text": "Да се синхронизират ли контактите от това работно пространство?",
+   "reference": "Синхронизиране на контакти от това работно пространство?",
+   "back": "Sync contacts from this workspace?",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_move_body",
+   "why": "new",
+   "en": "Contacts sync moves from {workspace} to this workspace and uses this workspace's Google connection. Your contacts stay as they are.",
+   "text": "Синхронизирането на контактите се премества от {workspace} в това работно пространство и използва неговата връзка с Google. Контактите ви остават същите.",
+   "reference": "Синхронизирането на контакти се премества от {workspace} в това работно пространство и използва връзката на това работно пространство с Google. Контактите ви остават такива, каквито са.",
+   "back": "Contact sync is moving from {workspace} to this workspace and using its Google connection. Your contacts will remain the same.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_move_confirm",
+   "why": "new",
+   "en": "Sync from here",
+   "text": "Синхронизиране оттук",
+   "reference": "Синхронизиране от тук",
+   "back": "Sync from here",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_moving",
+   "why": "new",
+   "en": "Moving…",
+   "text": "Преместване…",
+   "reference": "Преместване…",
+   "back": "Moving…",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_synced_here",
+   "why": "new",
+   "en": "Synced here.",
+   "text": "Синхронизира се оттук.",
+   "reference": "Синхронизирано тук.",
+   "back": "Sync from here.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_move_busy",
+   "why": "new",
+   "en": "A contacts sync is running. Try again in a minute.",
+   "text": "В момента тече синхронизиране на контактите. Опитайте отново след минута.",
+   "reference": "Синхронизиране на контакти се изпълнява. Опитайте отново след минута.",
+   "back": "Contacts are currently syncing. Please try again in a minute.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/bg.json",
+   "lang": "bg",
+   "key": "gcal.contacts_move_failed",
+   "why": "new",
+   "en": "Could not move the contacts sync.",
+   "text": "Синхронизирането на контактите не можа да бъде преместено.",
+   "reference": "Синхронизирането на контактите не можа да бъде преместено.",
+   "back": "Contact sync could not be moved.",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/he.json",
+   "lang": "he",
+   "key": "gcal.contacts_synced_through",
+   "why": "new",
+   "en": "Synced through {workspace}.",
+   "text": "מסונכרן דרך {workspace}.",
+   "reference": "מסונכרן דרך {workspace} .",
+   "back": "Synced via {workspace} .",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/he.json",
+   "lang": "he",
+   "key": "gcal.contacts_move",
+   "why": "new",
+   "en": "Sync from here instead",
+   "text": "סנכרון מכאן במקום זאת",
+   "reference": "סנכרן מכאן במקום זאת",
+   "back": "Sync from here instead",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/he.json",
+   "lang": "he",
+   "key": "gcal.contacts_move_title",
+   "why": "new",
+   "en": "Sync contacts from this workspace?",
+   "text": "לסנכרן את אנשי הקשר מסביבת העבודה הזו?",
+   "reference": "לסנכרן אנשי קשר מסביבת עבודה זו?",
+   "back": "Sync contacts from this workspace?",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/he.json",
+   "lang": "he",
+   "key": "gcal.contacts_move_body",
+   "why": "new",
+   "en": "Contacts sync moves from {workspace} to this workspace and uses this workspace's Google connection. Your contacts stay as they are.",
+   "text": "סנכרון אנשי הקשר עובר מ-{workspace} לסביבת העבודה הזו ומשתמש בחיבור Google שלה. אנשי הקשר שלך נשארים כפי שהם.",
+   "reference": "סנכרון אנשי הקשר עובר מ- {workspace} לסביבת עבודה זו ומשתמש בחיבור Google של סביבת עבודה זו. אנשי הקשר שלך נשארים כפי שהם.",
+   "back": "Contact sync is moving from {workspace} to this workspace and using its Google connection. Your contacts remain as they are.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/he.json",
+   "lang": "he",
+   "key": "gcal.contacts_move_confirm",
+   "why": "new",
+   "en": "Sync from here",
+   "text": "סנכרון מכאן",
+   "reference": "סנכרון מכאן",
+   "back": "Sync from here",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/he.json",
+   "lang": "he",
+   "key": "gcal.contacts_moving",
+   "why": "new",
+   "en": "Moving…",
+   "text": "מתבצעת העברה…",
+   "reference": "נָע…",
+   "back": "Transferring…",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/he.json",
+   "lang": "he",
+   "key": "gcal.contacts_synced_here",
+   "why": "new",
+   "en": "Synced here.",
+   "text": "מסונכרן מכאן.",
+   "reference": "מסונכרן כאן.",
+   "back": "Synced from here.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/he.json",
+   "lang": "he",
+   "key": "gcal.contacts_move_busy",
+   "why": "new",
+   "en": "A contacts sync is running. Try again in a minute.",
+   "text": "סנכרון אנשי הקשר פועל כעת. נסו שוב בעוד דקה.",
+   "reference": "סנכרון אנשי קשר פועל. נסה שוב בעוד דקה.",
+   "back": "Contact sync is currently running. Please try again in a minute.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/he.json",
+   "lang": "he",
+   "key": "gcal.contacts_move_failed",
+   "why": "new",
+   "en": "Could not move the contacts sync.",
+   "text": "לא ניתן להעביר את סנכרון אנשי הקשר.",
+   "reference": "לא ניתן היה להעביר את סנכרון אנשי הקשר.",
+   "back": "Unable to transfer contact sync.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/lv.json",
+   "lang": "lv",
+   "key": "gcal.contacts_synced_through",
+   "why": "new",
+   "en": "Synced through {workspace}.",
+   "text": "Sinhronizēts caur {workspace}.",
+   "reference": "Sinhronizēts, izmantojot {workspace} .",
+   "back": "Synced via {workspace} .",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/lv.json",
+   "lang": "lv",
+   "key": "gcal.contacts_move",
+   "why": "new",
+   "en": "Sync from here instead",
+   "text": "Sinhronizēt no šejienes",
+   "reference": "Sinhronizēt no šejienes",
+   "back": "Sync from here",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/lv.json",
+   "lang": "lv",
+   "key": "gcal.contacts_move_title",
+   "why": "new",
+   "en": "Sync contacts from this workspace?",
+   "text": "Vai sinhronizēt kontaktus no šīs darbvietas?",
+   "reference": "Vai sinhronizēt kontaktpersonas no šīs darbvietas?",
+   "back": "Sync contacts from this workspace?",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/lv.json",
+   "lang": "lv",
+   "key": "gcal.contacts_move_body",
+   "why": "new",
+   "en": "Contacts sync moves from {workspace} to this workspace and uses this workspace's Google connection. Your contacts stay as they are.",
+   "text": "Kontaktu sinhronizācija pāriet no {workspace} uz šo darbvietu un izmanto tās Google savienojumu. Jūsu kontakti paliek nemainīgi.",
+   "reference": "Kontaktpersonu sinhronizācija tiek pārvietota no {workspace} uz šo darbvietu un izmanto šīs darbvietas Google savienojumu. Jūsu kontaktpersonas paliek nemainīgas.",
+   "back": "Contact sync is moving from {workspace} to this workspace and using its Google connection. Your contacts will remain the same.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/lv.json",
+   "lang": "lv",
+   "key": "gcal.contacts_move_confirm",
+   "why": "new",
+   "en": "Sync from here",
+   "text": "Sinhronizēt no šejienes",
+   "reference": "Sinhronizēt no šejienes",
+   "back": "Sync from here",
+   "mark": "match"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/lv.json",
+   "lang": "lv",
+   "key": "gcal.contacts_moving",
+   "why": "new",
+   "en": "Moving…",
+   "text": "Pārvieto…",
+   "reference": "Pārvietošanās…",
+   "back": "Move…",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/lv.json",
+   "lang": "lv",
+   "key": "gcal.contacts_synced_here",
+   "why": "new",
+   "en": "Synced here.",
+   "text": "Sinhronizēts no šejienes.",
+   "reference": "Sinhronizēts šeit.",
+   "back": "Synced from here.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/lv.json",
+   "lang": "lv",
+   "key": "gcal.contacts_move_busy",
+   "why": "new",
+   "en": "A contacts sync is running. Try again in a minute.",
+   "text": "Notiek kontaktu sinhronizācija. Mēģiniet vēlreiz pēc minūtes.",
+   "reference": "Notiek kontaktu sinhronizācija. Mēģiniet vēlreiz pēc brīža.",
+   "back": "Contacts are syncing. Please try again in a minute.",
+   "mark": "differs"
+  },
+  {
+   "file": "csi-spl-wui/i18n/locales/lv.json",
+   "lang": "lv",
+   "key": "gcal.contacts_move_failed",
+   "why": "new",
+   "en": "Could not move the contacts sync.",
+   "text": "Neizdevās pārvietot kontaktu sinhronizāciju.",
+   "reference": "Nevarēja pārvietot kontaktpersonu sinhronizāciju.",
+   "back": "Failed to move contact sync.",
+   "mark": "differs"
+  }
+ ],
+ "summary": {
+  "match": 6,
+  "differs": 21,
+  "placeholder": 0,
+  "rows": 27
+ }
+}

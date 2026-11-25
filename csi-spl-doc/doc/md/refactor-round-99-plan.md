@@ -56,22 +56,26 @@ globals `SPL_PF_WUI`, `SPL_PF_EMAIL`, `SPL_PF_PW_FILE`, `SPL_PF_PROOF_JS` and
 13-line block with 2 lines.
 The rows share no file: both are batch 1.
 
-**Status: v0.1, draft for cross-vendor panel review.** Editor: **a-482** (agy). Awaiting
-panel signature from the queued claude panel seat
-(`c002-refactor-round-99-claude-panel-seat`, ask `ad83e2d9`) on
+**Status: v0.2, revised for cross-vendor panel re-review.** Editor: **a-482** (agy). Folds
+claude panel seat **c-396**'s FAIL on v0.1 (`e6845b257`, seat file `6ab29281b`): W1
+(per-caller `PF_WUI_URL`/`PF_EMAIL` and `PFL_WUI_URL`/`PFL_EMAIL` override checks via the
+stub-node harness), W2 (per-action missing-script `"timing"` vs `"first-load"` FATAL label
+checks), plus N1, N4, N5, and N6. Awaiting panel signature from **c-396** on
 `review/c002-refactor-round-99-planner` and `do_spl_review_line_check` rc 0 confirmation
 from the dispatch lease holder before landing v1.0 on `origin/master`.
 
 **One sha:** every count is measured on **`f2cb19298`** (`f2cb192985464f4ef0023195235ca49196b8d531`,
-`origin/master` at 2026-11-25T08:23:18Z), n=1 per command unless stated. Reads are on
-`f2cb19298` with `git show` / `git grep`. The tests of 1.5 ran in detached scratch
-worktrees of `f2cb19298` (not committed, removed on exit): "base" unmodified, "head1" =
-base with row 01 applied in 1.3's shape, "head2" = base with row 02 applied in 1.4's
-shape; each red and guard control (1.5) ran in a detached worktree of its own. Both helper
-definitions and all four test hunks are reproduced verbatim in 1.3 and 1.4 so any panel or
-R7 seat can reconstruct head1, head2, and all 7 controls byte-for-byte on `f2cb19298` and
-verify every sha256. Queue, lane map, brief and branch reads are live state and carry
-their own time.
+`origin/master` at 2026-11-25T08:23:18Z; zero drift on all 10 row/test files to
+`origin/master` `208e5f757` at 2026-11-25T09:17Z, `git diff --name-only f2cb19298 208e5f757 -- <10 files>` -> empty),
+n=1 per command unless stated. Reads are on `f2cb19298` with `git show` / `git grep`. The
+tests of 1.5 ran in detached scratch worktrees of `f2cb19298` (not committed, removed on
+exit): "base" unmodified, "head1" = base with row 01 applied in 1.3's shape, "head2" =
+base with row 02 applied in 1.4's shape; each red control, guard control, and mutation
+check (1.5) ran in a detached worktree of its own. Both helper definitions and all four
+test hunks are reproduced verbatim in 1.3 and 1.4 so any panel or R7 seat can reconstruct
+head1, head2, all 7 controls, and all 6 row-02 mutation checks byte-for-byte on
+`f2cb19298` and verify every sha256. Queue, lane map, brief and branch reads are live
+state and carry their own time.
 
 ## 1. Baseline
 
@@ -87,12 +91,15 @@ their own time.
   date (`2026-11-25T09:01:01+02:00`) even after r98's close record lands; all later R4,
   R6, 2.7.5, and `PRUNE_SINCE` reads for r99 must use `W=2026-11-25T09:01:01+02:00`.
 - `git log origin/master --since="$W" --oneline -E --grep='\(r99-' | wc -l` -> **0**
-  (over all history -> **0**).
+  (re-verified on `208e5f757` at 09:17Z: windowed count **0**; all-history `--grep` returns
+  1: `0e918d4b9`, `ci(r10-10-push-master-review-line, SPL-1907)`, whose body quotes
+  `refactor(r99-01-x)` as test case 8 text; all-history subject grep
+  `git log origin/master --format=%s | grep -cE '\(r99-'` -> **0**; N1).
 - `git ls-remote origin 'refs/heads/review/r99-*' 'refs/heads/*-r99-*' 'refs/heads/*refactor-round-99*' 'refs/heads/wip/*r99*'`
-  -> nothing (before this plan's review branch push).
-- `ls /var/spool-hub/dispatch/briefs | grep -E 'r99|refactor-round-99'` -> this plan's
-  planner brief and the panel seat's brief (`c002-refactor-round-99-claude-panel-seat.md`),
-  no other.
+  -> nothing (before this plan's review branch and the panel seat branch push).
+- `ls /var/spool-hub/dispatch/briefs | grep -E 'r99|refactor-round-99'` (on the planner's
+  box) -> this plan's planner brief and the panel seat's brief
+  (`c002-refactor-round-99-claude-panel-seat.md`), no other.
 - `git ls-tree --name-only f2cb19298 csi-spl-doc/doc/md/ | grep -c refactor-round-99`
   -> **0**: the plain name is free.
 
@@ -207,9 +214,11 @@ Shape (built as head1 of 1.5):
   `spl-human-email-add.tst.sh` `54af08d7ff54`.
 - Note for the row and its reviewer: under `./run`, `run.sh`'s lazy stub loader defines a
   stub for `_spl_human_require_order`, so the `declare -F _spl_human_require_order` guard
-  acts only on the standalone-source path outside `./run`. Build `gc1` in a worktree, not
-  a single-file temp copy, because the guard loads its sibling `spl-human-link.func.sh`
-  via `dirname "${BASH_SOURCE[0]}"`.
+  acts only on the standalone-source path outside `./run` (the existing suites source
+  `.func.sh` eagerly; N5). `_spl_calendar_require_actor` (`spl-calendar-event-add.func.sh:196-200`)
+  is not a third copy (accepts `{3,}` digits and legacy ids, optional `ORDERED_BY`,
+  different FATAL; N6). Build `gc1` in a worktree, not a single-file temp copy, because
+  the guard loads its sibling `spl-human-link.func.sh` via `dirname "${BASH_SOURCE[0]}"`.
 
 Verbatim helper and test hunks (head1 on `f2cb19298`):
 
@@ -344,24 +353,35 @@ Shape (built as head2 of 1.5):
 - `orc:src/bash/tests/spl-wui-perf-flow-events.tst.sh`: append section 4 before `:69`
   (`OK spl-wui-perf-flow-events`): 4 direct `spl_pf_env` checks (dev `t1` defaults, prd
   `e2e` tenant host + `human-email`, missing script with custom `first-load` label,
-  missing Chrome) and 1 one-copy check (`spl-wui-perf-flow-events.func.sh` contains each
-  FATAL string once and calls `spl_pf_env`). 69 -> 96 lines (`+27 -0`).
+  missing Chrome), 1 one-copy check (`spl-wui-perf-flow-events.func.sh` contains each
+  FATAL string once and calls `spl_pf_env`), 1 override check (`in_orc` with
+  `PF_WUI_URL=https://o.example.test PF_EMAIL=o@example.test` asserts `BASE=` and
+  `EMAIL=` in `$T/calls.log`; W1), and 1 missing-script label check (`in_orc APP_PATH="$T/no-wui"`
+  asserts rc 1, `FATAL no timing e2e at`, and node never called; W2). 69 -> 102 lines
+  (`+33 -0`).
 - `orc:src/bash/tests/spl-wui-perf-first-load.tst.sh`: append section 4 before `:71`
   (`OK spl-wui-perf-first-load`): 2 one-copy checks (`spl-wui-perf-first-load.func.sh` and
   `spl-wui-perf-first-load-net.func.sh` contain none of `FATAL no password for `,
   `FATAL no Chrome at `, or `FATAL no (timing|first-load) e2e at `, and both call
-  `spl_pf_env`) plus 2 standalone lazy-load checks (sourcing only the target `.func.sh`
+  `spl_pf_env`), 2 standalone lazy-load checks (sourcing only the target `.func.sh`
   without `spl-wui-perf-flow-events.func.sh` invokes each action with `TENANT_ID=nopw` and
-  asserts rc 1, `FATAL no password for `, and no `command not found`). 71 -> 93 lines
-  (`+22 -0`).
+  asserts rc 1, `FATAL no password for `, and no `command not found`), 2 override checks
+  (`do_spl_wui_perf_first_load` with `PF_WUI_URL`/`PF_EMAIL` via `in_orc`, and
+  `do_spl_wui_perf_first_load_net` via the stub-node harness with `PFL_WUI_URL`/`PFL_EMAIL`
+  set while `PF_WUI_URL`/`PF_EMAIL` carry distinct sentinel values; W1), and 2
+  missing-script label checks (`do_spl_wui_perf_first_load` asserting `FATAL no timing e2e at`,
+  and `do_spl_wui_perf_first_load_net` asserting `FATAL no first-load e2e at`, both with
+  node never called; W2). 71 -> 116 lines (`+45 -0`).
 - head2's files, sha256 (12 chars): `spl-wui-perf-flow-events.func.sh` `4c554e0add30`,
   `spl-wui-perf-first-load.func.sh` `7983dab7a90e`,
   `spl-wui-perf-first-load-net.func.sh` `5e82d6661aaf`,
-  `spl-wui-perf-flow-events.tst.sh` `006fd4af56b1`,
-  `spl-wui-perf-first-load.tst.sh` `c1416b2d9ada`.
-- Note for the row and its reviewer: under `./run`, `run.sh`'s lazy stub loader defines
-  stubs for both `spl_pf_validate` and `spl_pf_env`, so the `declare -F spl_pf_env` guard
-  acts only on the standalone-source path outside `./run`. Build `gc2a` / `gc2b` in a
+  `spl-wui-perf-flow-events.tst.sh` `739e49914c92`,
+  `spl-wui-perf-first-load.tst.sh` `c19274f92900`.
+- Note for the row and its reviewer: standalone-sourcing `first-load` or `first-load-net`
+  fails on base with `spl_pf_validate: command not found` (`rc2b`), so the
+  `declare -F spl_pf_env` guard adds standalone-source capability; under `./run`,
+  `run.sh`'s lazy stub loader defines stubs for both `spl_pf_validate` and `spl_pf_env`,
+  and the existing suites source `.func.sh` eagerly (N5). Build `gc2a` / `gc2b` in a
   worktree, not a single-file temp copy.
 
 Verbatim helper and test hunks (head2 on `f2cb19298`):
@@ -422,6 +442,12 @@ out=$(env APP_PATH="$APP_ROOT" SPL_ORG_APP=csi-spl ENV=dev SPL_FQDN=dev.example.
 flow_f="$PROJ_ROOT/src/bash/run/spl-wui-perf-flow-events.func.sh"
 [[ "$(grep -c "FATAL no password for " "$flow_f")" -eq 1 && "$(grep -c "FATAL no Chrome at " "$flow_f")" -eq 1 && "$(grep -c "spl_pf_env " "$flow_f")" -ge 1 ]] \
   && pass "4. one copy: spl-wui-perf-flow-events.func.sh defines and calls spl_pf_env once" || fail "4. flow one copy"
+in_orc ENV=dev PF_WUI_URL=https://o.example.test PF_EMAIL=o@example.test >/dev/null 2>&1; c=$(cat "$T/calls.log")
+grep -q 'BASE=https://o.example.test .*EMAIL=o@example.test' <<<"$c" \
+  && pass "4. flow-events honors PF_WUI_URL and PF_EMAIL overrides" || fail "4. flow overrides: $c"
+out=$(in_orc APP_PATH="$T/no-wui" ENV=dev 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no timing e2e at $T/no-wui/csi-spl-wui/tests/e2e/perf-flow-events.timing.mjs"* && ! -s "$T/calls.log" ]] \
+  && pass "4. flow-events missing script prints timing label and never calls node" || fail "4. flow script label: rc=$rc $out"
 ```
 
 `orc:src/bash/tests/spl-wui-perf-first-load.tst.sh` section 4 (inserted immediately
@@ -449,6 +475,29 @@ out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" T="$T" ENV=dev TENANT_ID=n
   do_spl_wui_perf_first_load_net' 2>&1); rc=$?
 [[ $rc -eq 1 && "$out" == *"FATAL no password for "* && "$out" != *"command not found"* ]] \
   && pass "4. lazy load: spl-wui-perf-first-load-net.func.sh loads spl_pf_env standalone" || fail "4. lazy first-load-net: rc=$rc $out"
+in_orc ENV=dev PF_WUI_URL=https://o.example.test PF_EMAIL=o@example.test >/dev/null 2>&1; c=$(cat "$T/calls.log")
+grep -q 'BASE=https://o.example.test .*EMAIL=o@example.test' <<<"$c" \
+  && pass "4. first-load honors PF_WUI_URL and PF_EMAIL overrides" || fail "4. first-load overrides: $c"
+out=$(in_orc APP_PATH="$T/no-wui" ENV=dev 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no timing e2e at $T/no-wui/csi-spl-wui/tests/e2e/perf-first-load.timing.mjs"* && ! -s "$T/calls.log" ]] \
+  && pass "4. first-load missing script prints timing label and never calls node" || fail "4. first-load script label: rc=$rc $out"
+: >"$T/calls.log"
+env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" STUB_LOG="$T/calls.log" T="$T" PATH="$T/stub:$PATH" CHROME_PATH="$T/stub/chrome" \
+  ENV=dev PF_WUI_URL=https://wrong.example.test PF_EMAIL=wrong@example.test PFL_WUI_URL=https://o.example.test PFL_EMAIL=o@example.test bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ return 0; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+  do_spl_cloud_cnf(){ SPL_ORG_APP=csi-spl; SPL_STATE_DIR="$T/state/$ENV"; SPL_FQDN=dev.example.test; mkdir -p "$SPL_STATE_DIR"; }
+  do_spl_wui_perf_first_load_net' >/dev/null 2>&1; c=$(cat "$T/calls.log")
+grep -q 'BASE=https://o.example.test .*EMAIL=o@example.test' <<<"$c" \
+  && pass "4. first-load-net honors PFL_WUI_URL and PFL_EMAIL overrides" || fail "4. first-load-net overrides: $c"
+: >"$T/calls.log"
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$T/no-wui" STUB_LOG="$T/calls.log" T="$T" PATH="$T/stub:$PATH" CHROME_PATH="$T/stub/chrome" ENV=dev bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ return 0; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+  do_spl_cloud_cnf(){ SPL_ORG_APP=csi-spl; SPL_STATE_DIR="$T/state/$ENV"; SPL_FQDN=dev.example.test; mkdir -p "$SPL_STATE_DIR"; }
+  do_spl_wui_perf_first_load_net' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no first-load e2e at $T/no-wui/csi-spl-wui/tests/e2e/perf-first-load-net.timing.mjs"* && ! -s "$T/calls.log" ]] \
+  && pass "4. first-load-net missing script prints first-load label and never calls node" || fail "4. first-load-net script label: rc=$rc $out"
 ```
 
 **Behaviour:** `spl_pf_env` executes the exact origin default, email fallback, `pw-human`
@@ -457,13 +506,14 @@ Chrome check removed from all three actions, in the exact same order; its only n
 is the five process globals `SPL_PF_WUI`, `SPL_PF_EMAIL`, `SPL_PF_PW_FILE`,
 `SPL_PF_PROOF_JS` and `SPL_PF_CHROME` documented in its header;
 `spl-wui-perf-first-load-net.tst.sh` remains untouched and green; all row-02 and shared
-suites pass on base and head2 with identical counts plus the 5 + 4 new checks (1.5).
+suites pass on base and head2 with identical counts plus the 7 + 8 new checks (1.5).
 
 ### 1.5 Before and on the rows' heads
 
-2026-11-25T08:32:42Z-08:38:23Z (full 13-suite matrix across base, head1 for row 01 +
-shared, head2 for row 02 + shared, `shellcheck -S warning -x`, `do_sec_shellcheck`, and
-controls `rc1a`/`rc1b`/`gc1`/`rc2a`/`rc2b`/`gc2a`/`gc2b`), n=1, as the push user,
+2026-11-25T08:32:42Z-08:38:23Z (base, head1 + shared, controls `rc1a`/`rc1b`/`gc1`) and
+2026-11-25T09:19:16Z-09:23:24Z (v0.2 head2 + 11 suites, `shellcheck -S warning -x`,
+`do_sec_shellcheck`, controls `rc2a`/`rc2b`/`gc2a`/`gc2b`, and mutations
+`m2`/`m2_flow`/`m2_fl`/`m3`/`m3_flow`/`m3_fl`), n=1, as the push user,
 `SPOOL_TEST=1` with `SPOOL_BOX_TAG` and `SPOOL_AGENT_ID` unset and stdin from `/dev/null`;
 pass lines `grep -ciE '^ *(ok|pass)'`, fail lines `grep -ciE '^ *(not ok|fail)'`.
 "=" means equal to base: same rc, pass and fail counts; "-" means that row's head does
@@ -473,8 +523,8 @@ not touch the suite's tree.
 |---|---|---|---|---|
 | `orc:src/bash/tests/spl-human-link.tst.sh` | 01 | 0 / 20 / 0 | 0 / 25 / 0 (+5 new checks) | - |
 | `orc:src/bash/tests/spl-human-email-add.tst.sh` | 01 | 0 / 21 / 0 | 0 / 23 / 0 (+2 new checks) | - |
-| `orc:src/bash/tests/spl-wui-perf-flow-events.tst.sh` | 02 | 0 / 30 / 0 | - | 0 / 35 / 0 (+5 new checks) |
-| `orc:src/bash/tests/spl-wui-perf-first-load.tst.sh` | 02 | 0 / 34 / 0 | - | 0 / 38 / 0 (+4 new checks) |
+| `orc:src/bash/tests/spl-wui-perf-flow-events.tst.sh` | 02 | 0 / 30 / 0 | - | 0 / 37 / 0 (+7 new checks) |
+| `orc:src/bash/tests/spl-wui-perf-first-load.tst.sh` | 02 | 0 / 34 / 0 | - | 0 / 42 / 0 (+8 new checks) |
 | `orc:src/bash/tests/spl-wui-perf-first-load-net.tst.sh` | 02 | 0 / 39 / 0 | - | = |
 | `iac:src/bash/tests/no-box-path-source.tst.sh` | 01, 02 | 0 / 10 / 0 | = | = |
 | `iac:src/bash/tests/action-header-tags.tst.sh` | 01, 02 | 0 / 6 / 0 | = | = |
@@ -488,8 +538,8 @@ not touch the suite's tree.
 Note: the three `spl-wui-perf-*.tst.sh` suites print a final `OK <name>: all checks passed`
 summary line on rc 0 (and `FAIL <name>: <n> check(s)` on rc 1), which
 `grep -ciE '^ *(ok|pass)'` and `grep -ciE '^ *(not ok|fail)'` count (e.g.,
-`spl-wui-perf-flow-events.tst.sh` 30 on base = 29 assertions + 1 summary; 35 on head2 =
-34 + 1; `spl-wui-perf-first-load.tst.sh` 34 on base = 33 + 1; 38 on head2 = 37 + 1;
+`spl-wui-perf-flow-events.tst.sh` 30 on base = 29 assertions + 1 summary; 37 on head2 =
+36 + 1; `spl-wui-perf-first-load.tst.sh` 34 on base = 33 + 1; 42 on head2 = 41 + 1;
 `spl-wui-perf-first-load-net.tst.sh` 39 = 38 + 1). The two `spl-human-*.tst.sh` suites
 print `ALL PASS: ...` on rc 0 (not counted) and `FAILED: <n>` on rc 1 (counted as 1 extra
 fail line).
@@ -514,24 +564,47 @@ reconstructed from the verbatim blocks in 1.3 and 1.4):
   (`FAIL: 6. lazy add: rc=1 .../spl-human-email-add.func.sh: line 104: _spl_human_require_order: command not found`,
   plus `FAILED: 1`).
 - Row 02 red control a (`rc2a`, head2's `spl-wui-perf-flow-events.tst.sh` on base): rc 1,
-  29 pass, 6 fail lines (5 assertions: `FAIL: 4. env dev` / `env prd` rc 1 and
+  31 pass, 6 fail lines (5 assertions: `FAIL: 4. env dev` / `env prd` rc 1 and
   `env script` / `env chrome` rc 127 each `spl_pf_env: command not found`,
-  `FAIL: 4. flow one copy`, plus summary `FAIL spl-wui-perf-flow-events: 5 check(s)`);
-  head2: rc 0, 35 pass, 0 fail.
+  `FAIL: 4. flow one copy`, plus summary `FAIL spl-wui-perf-flow-events: 5 check(s)`; the
+  2 override and missing-script checks pass on base, proving equivalence); head2: rc 0,
+  37 pass, 0 fail.
 - Row 02 red control b (`rc2b`, head2's `spl-wui-perf-first-load.tst.sh` on base): rc 1,
-  33 pass, 5 fail lines (4 assertions: `FAIL: 4. one copy spl-wui-perf-first-load.func.sh: own=[46: ...]`,
+  37 pass, 5 fail lines (4 assertions: `FAIL: 4. one copy spl-wui-perf-first-load.func.sh: own=[46: ...]`,
   `FAIL: 4. one copy spl-wui-perf-first-load-net.func.sh: own=[47: ...]`,
   `FAIL: 4. lazy first-load: rc=1 .../spl-wui-perf-first-load.func.sh: line 35: spl_pf_validate: command not found`,
   `FAIL: 4. lazy first-load-net: rc=1 .../spl-wui-perf-first-load-net.func.sh: line 36: spl_pf_validate: command not found`,
-  plus summary `FAIL spl-wui-perf-first-load: 4 check(s)`); head2: rc 0, 38 pass, 0 fail.
+  plus summary `FAIL spl-wui-perf-first-load: 4 check(s)`; the 4 override and
+  missing-script checks pass on base, proving equivalence); head2: rc 0, 42 pass, 0 fail.
 - Row 02 guard control a (`gc2a`, head2 with the `declare -F spl_pf_env` lazy-source line
-  deleted in `spl-wui-perf-first-load.func.sh`): rc 1, 36 pass, 2 fail lines
+  deleted in `spl-wui-perf-first-load.func.sh`): rc 1, 40 pass, 2 fail lines
   (`FAIL: 4. lazy first-load: rc=1 .../spl-wui-perf-first-load.func.sh: line 36: spl_pf_validate: command not found`,
   plus `FAIL spl-wui-perf-first-load: 1 check(s)`).
 - Row 02 guard control b (`gc2b`, head2 with the `declare -F spl_pf_env` lazy-source line
-  deleted in `spl-wui-perf-first-load-net.func.sh`): rc 1, 36 pass, 2 fail lines
+  deleted in `spl-wui-perf-first-load-net.func.sh`): rc 1, 40 pass, 2 fail lines
   (`FAIL: 4. lazy first-load-net: rc=1 .../spl-wui-perf-first-load-net.func.sh: line 37: spl_pf_validate: command not found`,
   plus `FAIL spl-wui-perf-first-load: 1 check(s)`).
+
+**Row 02 mutation checks (W1, W2)** (n=1 each, detached worktrees of `f2cb19298` with head2
+applied, then one defect injected):
+- `m2` (`spl-wui-perf-first-load-net.func.sh` passes `${PF_WUI_URL:-}`/`${PF_EMAIL:-}`
+  instead of `PFL_*`): `spl-wui-perf-first-load.tst.sh` rc 1, 40 pass, 2 fail lines
+  (`FAIL: 4. first-load-net overrides: ... BASE=https://wrong.example.test ... EMAIL=wrong@example.test`).
+- `m2_flow` (`spl-wui-perf-flow-events.func.sh` passes `"" ""` instead of `PF_*`):
+  `spl-wui-perf-flow-events.tst.sh` rc 1, 35 pass, 2 fail lines
+  (`FAIL: 4. flow overrides: ... BASE=https://dev.example.test ...`).
+- `m2_fl` (`spl-wui-perf-first-load.func.sh` passes `"" ""` instead of `PF_*`):
+  `spl-wui-perf-first-load.tst.sh` rc 1, 40 pass, 2 fail lines
+  (`FAIL: 4. first-load overrides: ... BASE=https://dev.example.test ...`).
+- `m3` (`spl-wui-perf-first-load-net.func.sh` drops 5th arg `"first-load"`):
+  `spl-wui-perf-first-load.tst.sh` rc 1, 40 pass, 2 fail lines
+  (`FAIL: 4. first-load-net script label: rc=1 FATAL no timing e2e at ...`).
+- `m3_flow` (`spl-wui-perf-flow-events.func.sh` passes `"first-load"`):
+  `spl-wui-perf-flow-events.tst.sh` rc 1, 35 pass, 2 fail lines
+  (`FAIL: 4. flow script label: rc=1 FATAL no first-load e2e at ...`).
+- `m3_fl` (`spl-wui-perf-first-load.func.sh` passes `"first-load"`):
+  `spl-wui-perf-first-load.tst.sh` rc 1, 40 pass, 2 fail lines
+  (`FAIL: 4. first-load script label: rc=1 FATAL no first-load e2e at ...`).
 
 The tests that name the sites (R2): `git grep -lE` over `*.tst.sh` and `features/*/tests/*`
 for `spl-human-(email-add|link)|do_spl_human_(email_add|link)|_spl_human_(email_add|link)_body|spl-wui-perf-(flow-events|first-load)|do_spl_wui_perf_(flow_events|first_load)|spl_pf_validate`
@@ -546,7 +619,7 @@ non-separator comment grep within site lines +/- 3 across all `*.tst.sh` and `te
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `refactor(r99-01-orc-human-order-actor)` | one fact, one copy (developer guide 2.2.4) | `spl-human-link.func.sh:83-84` and `spl-human-email-add.func.sh:103-104` duplicate the exact 2-line required `ORDERED_BY` + strict 3-digit `AGENT_ID` check (1.3, r98 section 7) | `orc:src/bash/run/spl-human-link.func.sh:74,83-84`<br>`orc:src/bash/run/spl-human-email-add.func.sh:103-104`<br>`orc:src/bash/tests/spl-human-link.tst.sh:79`<br>`orc:src/bash/tests/spl-human-email-add.tst.sh:88` | copies of the human-operator `ORDERED_BY` + strict 3-digit `AGENT_ID` guard 2 -> 1 (`_spl_human_require_order` in `spl-human-link.func.sh`) | 1.3's shape (verbatim blocks in 1.3). **Red control:** head's `spl-human-link.tst.sh` on parent FAILs 5 checks (`rc1a`, rc 1, 20 pass, 6 fail lines, `_spl_human_require_order: command not found` + one-copy) and head's `spl-human-email-add.tst.sh` on parent FAILs one-copy naming `:103` (`rc1b`, rc 1, 22 pass, 2 fail lines), then GREEN (25/0 and 23/0); guard control (`gc1`, `declare -F _spl_human_require_order` deleted in `spl-human-email-add.func.sh`: rc 1, 22 pass, 2 fail lines with `_spl_human_require_order: command not found`; proves standalone-source path outside `./run`), built in a worktree; outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 5 + 2 new checks. Tests: `orc:.../spl-human-link.tst.sh`, `spl-human-email-add.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
-| 02 `refactor(r99-02-orc-wui-perf-env)` | one fact, one copy (developer guide 2.2.4) | `spl-wui-perf-flow-events.func.sh:36-48`, `spl-wui-perf-first-load.func.sh:38-50`, and `spl-wui-perf-first-load-net.func.sh:39-51` duplicate the exact 13-line WUI origin, member email, `pw-human`, timing-script and Chrome binary setup block (1.4) | `orc:src/bash/run/spl-wui-perf-flow-events.func.sh:36-48,76`<br>`orc:src/bash/run/spl-wui-perf-first-load.func.sh:35,38-50`<br>`orc:src/bash/run/spl-wui-perf-first-load-net.func.sh:36,39-51`<br>`orc:src/bash/tests/spl-wui-perf-flow-events.tst.sh:69`<br>`orc:src/bash/tests/spl-wui-perf-first-load.tst.sh:71` | copies of the WUI perf timing origin/email/password/script/Chrome setup 3 -> 1 (`spl_pf_env` in `spl-wui-perf-flow-events.func.sh`) | 1.4's shape (verbatim blocks in 1.4; header documents process globals `SPL_PF_WUI`, `SPL_PF_EMAIL`, `SPL_PF_PW_FILE`, `SPL_PF_PROOF_JS`, `SPL_PF_CHROME`). **Red control:** head's `spl-wui-perf-flow-events.tst.sh` on parent FAILs 5 checks (`rc2a`, rc 1, 29 pass, 6 fail lines, `spl_pf_env: command not found` + one-copy) and head's `spl-wui-perf-first-load.tst.sh` on parent FAILs 4 checks (`rc2b`, rc 1, 33 pass, 5 fail lines, one-copy `:46`/`:47` + standalone `spl_pf_validate: command not found`), then GREEN (35/0 and 38/0); guard controls (`gc2a`/`gc2b`, `declare -F spl_pf_env` deleted in first-load/first-load-net: rc 1, 36 pass, 2 fail lines each with `spl_pf_validate: command not found`; proves standalone-source path outside `./run`), built in a worktree; outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 5 + 4 new checks. Tests: `orc:.../spl-wui-perf-flow-events.tst.sh`, `spl-wui-perf-first-load.tst.sh`, `spl-wui-perf-first-load-net.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 02 `refactor(r99-02-orc-wui-perf-env)` | one fact, one copy (developer guide 2.2.4) | `spl-wui-perf-flow-events.func.sh:36-48`, `spl-wui-perf-first-load.func.sh:38-50`, and `spl-wui-perf-first-load-net.func.sh:39-51` duplicate the exact 13-line WUI origin, member email, `pw-human`, timing-script and Chrome binary setup block (1.4) | `orc:src/bash/run/spl-wui-perf-flow-events.func.sh:36-48,76`<br>`orc:src/bash/run/spl-wui-perf-first-load.func.sh:35,38-50`<br>`orc:src/bash/run/spl-wui-perf-first-load-net.func.sh:36,39-51`<br>`orc:src/bash/tests/spl-wui-perf-flow-events.tst.sh:69`<br>`orc:src/bash/tests/spl-wui-perf-first-load.tst.sh:71` | copies of the WUI perf timing origin/email/password/script/Chrome setup 3 -> 1 (`spl_pf_env` in `spl-wui-perf-flow-events.func.sh`) | 1.4's shape (verbatim blocks in 1.4; header documents process globals `SPL_PF_WUI`, `SPL_PF_EMAIL`, `SPL_PF_PW_FILE`, `SPL_PF_PROOF_JS`, `SPL_PF_CHROME`). **Red control:** head's `spl-wui-perf-flow-events.tst.sh` on parent FAILs 5 checks (`rc2a`, rc 1, 31 pass, 6 fail lines, `spl_pf_env: command not found` + one-copy) and head's `spl-wui-perf-first-load.tst.sh` on parent FAILs 4 checks (`rc2b`, rc 1, 37 pass, 5 fail lines, one-copy `:46`/`:47` + standalone `spl_pf_validate: command not found`), then GREEN (37/0 and 42/0); guard controls (`gc2a`/`gc2b`, `declare -F spl_pf_env` deleted in first-load/first-load-net: rc 1, 40 pass, 2 fail lines each with `spl_pf_validate: command not found`; proves standalone-source path outside `./run`), built in a worktree; per-caller `PF_*`/`PFL_*` override checks and missing-script `"timing"`/`"first-load"` label checks catch `m2`/`m2_flow`/`m2_fl` and `m3`/`m3_flow`/`m3_fl` (1.5); outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 7 + 8 new checks. Tests: `orc:.../spl-wui-perf-flow-events.tst.sh`, `spl-wui-perf-first-load.tst.sh`, `spl-wui-perf-first-load-net.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 `iac:` = `csi-spl-iac/`, `orc:` = `csi-spl-orc/`.
 
@@ -589,18 +662,17 @@ Paths (9, the 4 edited by row 01 + the 5 edited by row 02):
 `orc:src/bash/tests/spl-wui-perf-first-load.tst.sh`.
 
 - **Lane map, every machine:** `lane-map.sh --check <all 9 paths> --agent a-482`, n=1,
-  2026-11-25T08:38:38Z: **exit 4** ("no live lane lists <the 9 paths>, but 14 live
-  lane(s) record no files"). The 14 `unknown:` lanes, all on the other box
-  (`lane-map.sh list`, 08:25:54Z): channel/workspace and other-repo seats (`c-029`,
-  `c-041`, `c-086`, `c-146`, `c-165`, `c-187`, `c-249`, `c-341`, `c-728`, `c-927`,
-  `c-936`), spec 125 lanes (`c-957`, `c-965`), and skills editor `c-774`. No live lane
-  owns any of the 9 paths; none of those scopes touches `spl-human-{link,email-add}` or
-  `spl-wui-perf-*`.
-- **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, 08:18:29Z): 13 queued,
-  0 placing: this round's claude panel seat (`ad83e2d9`), `c002-api-store-hr-code-collision-flake`,
+  re-checked at 2026-11-25T09:17:27Z (N4): **exit 4** ("no live lane lists <the 9 paths>,
+  but 16 live lane(s) record no files"). The 16 `unknown:` lanes, all on the other box:
+  channel/workspace and other-repo seats (`c-029`, `c-041`, `c-086`, `c-146`, `c-165`,
+  `c-187`, `c-249`, `c-341`, `c-728`, `c-927`, `c-935`, `c-936`), this round's claude
+  panel seat (`c-396`), spec/other-repo seats (`c-957`, `c-965`), and skills editor
+  `c-774`. No live lane owns any of the 9 paths; the holder re-reads at placement per R3.
+- **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, re-checked 09:17:32Z):
+  8 queued, 0 placing: `c002-api-store-hr-code-collision-flake`,
   `c002-issue-comment-edit-mark`, a queued other-repo bug lane,
-  `c001-s186-m9-n2-qto-sync`, `c002-mistral-docs-14d-measure`, and 7 spec planner/answer
-  lanes (specs 192, 006, 182, 193, 112, 149, 039). None touches any of the 9 paths.
+  `c002-orc-box-link-watch-doc-hub-log-is-box-log`, `c001-s186-m9-n2-qto-sync`, and 3
+  spec planner/answer lanes (specs 112, 149, 039). None touches any of the 9 paths.
 - **Unlanded r98-02** (`review/r98-02` `2e37534c6`): touches only 5 `csi-spl-iac` cost
   files (`spl-cost-gcp.func.sh`, `spl-estate-cost-read.{func,tst}.sh`,
   `spl-vm-cost-per-day.{func,tst}.sh`), disjoint from all 9 paths.
@@ -639,18 +711,22 @@ Paths (9, the 4 edited by row 01 + the 5 edited by row 02):
   `spl_pf_validate` and replace their 13-line setup blocks with `spl_pf_env` + 1-line
   `local` unpack (passing `"first-load"` as the label in `first-load-net`).
   `orc:src/bash/tests/spl-wui-perf-flow-events.tst.sh` appends section 4 (4 direct
-  `spl_pf_env` checks + 1 one-copy check);
+  `spl_pf_env` checks, 1 one-copy check, 1 `PF_WUI_URL`/`PF_EMAIL` override check, and 1
+  missing-script `"timing"` label check);
   `orc:src/bash/tests/spl-wui-perf-first-load.tst.sh` appends section 4 (2 one-copy
-  checks + 2 standalone lazy-load checks covering both `first-load` and `first-load-net`).
+  checks, 2 standalone lazy-load checks, 2 per-caller override checks covering `PF_*` on
+  `first-load` and `PFL_*` on `first-load-net`, and 2 missing-script label checks covering
+  `"timing"` on `first-load` and `"first-load"` on `first-load-net`).
 
 ## 4. Panel and reviewers (R7)
 
 - Editor: **a-482** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
-  step 5; mistral sits on no review since 2026-11-25): queued ask `ad83e2d9`
-  (`c002-refactor-round-99-claude-panel-seat`, claude), reviewing v0.1 on
+  step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-396**
+  (`c002-refactor-round-99-claude-panel-seat`, ask `ad83e2d9`), reviewing v0.2 on
   `review/c002-refactor-round-99-planner` (seat file
-  `csi-spl-doc/doc/md/refactor-round-99/seat-claude.md`). The seat reviews this plan only.
+  `csi-spl-doc/doc/md/refactor-round-99/seat-claude.md` on
+  `review/c002-refactor-round-99-claude-seat`). The seat reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-25T08:19:07Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -694,7 +770,8 @@ NOT `spl-human-behaviour.func.sh`, NOT `spl-human-locale.func.sh`, NOT
 1.3's shape (verbatim blocks in 1.3); red controls (`rc1a` + `rc1b`, head's tests on
 parent) RED then GREEN in the body; guard control (`gc1`,
 `declare -F _spl_human_require_order` deleted in `spl-human-email-add.func.sh`, built in a
-worktree, not a temp-dir copy; proves standalone-source path outside `./run`). Gates: the
+worktree, not a temp-dir copy; proves standalone-source path outside `./run`, while under
+`./run` the lazy index emits the stub and the suites source `.func.sh` eagerly). Gates: the
 row's tests (section 2, `SPOOL_TEST=1`, in the worktree), `shellcheck -S warning -x` on
 the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...)`. Kind
 `simple_coding`, vendor claude; R7 **agy seat** (claude waiver backup only while agy is
@@ -713,14 +790,19 @@ replace `:36-48` with `spl_pf_env` + 1-line `local` unpack),
 `csi-spl-orc/src/bash/run/spl-wui-perf-first-load-net.func.sh` (insert same lazy-source
 above `spl_pf_validate` `:36`; replace `:39-51` with `spl_pf_env` passing `"first-load"` +
 1-line `local` unpack), `csi-spl-orc/src/bash/tests/spl-wui-perf-flow-events.tst.sh`
-(append section 4: 4 direct `spl_pf_env` checks + 1 one-copy check before `:69`), and
+(append section 4: 4 direct `spl_pf_env` checks, 1 one-copy check, 1 `PF_WUI_URL`/`PF_EMAIL`
+override check, and 1 missing-script `"timing"` label check before `:69`), and
 `csi-spl-orc/src/bash/tests/spl-wui-perf-first-load.tst.sh` (append section 4: 2 one-copy
-checks + 2 standalone lazy-load checks before `:71`). NOT `spl-wui-perf-report.func.sh`,
+checks, 2 standalone lazy-load checks, 2 per-caller override checks for `first-load`
+`PF_*` and `first-load-net` `PFL_*`, and 2 missing-script label checks asserting
+`"timing"` vs `"first-load"` before `:71`). NOT `spl-wui-perf-report.func.sh`,
 NOT `spl-wui-perf-first-load-net.tst.sh`, NOT `.shellcheck-warning-baseline.txt`, or any
 other file. Do: plan section 2 row 02 verbatim, 1.4's shape (verbatim blocks in 1.4); red
 controls (`rc2a` + `rc2b`, head's tests on parent) RED then GREEN in the body; guard
 controls (`gc2a` + `gc2b`, `declare -F spl_pf_env` deleted in first-load/first-load-net,
-built in a worktree, not a temp-dir copy; proves standalone-source path outside `./run`).
+built in a worktree, not a temp-dir copy; proves standalone-source path outside `./run`,
+which base lacks because `spl_pf_validate` is not sourced standalone; under `./run` the
+lazy index emits stubs for both functions and the suites source `.func.sh` eagerly).
 Gates: the row's tests (section 2, `SPOOL_TEST=1`, in the worktree),
 `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`.
 `Docs: none (...)`. Kind `simple_coding`, vendor claude; R7 **agy seat** (claude waiver
@@ -737,8 +819,8 @@ placement).
 | batches | batch 1: rows 01 and 02 |
 | copies of the human-operator `ORDERED_BY` + strict 3-digit `AGENT_ID` guard (1.3) | 2 on `f2cb19298` (`spl-human-link`, `spl-human-email-add`) -> 1 (`_spl_human_require_order`) after row 01 |
 | copies of the WUI perf timing origin/email/password/script/Chrome setup (1.4) | 3 on `f2cb19298` (`spl-wui-perf-flow-events`, `spl-wui-perf-first-load`, `spl-wui-perf-first-load-net`) -> 1 (`spl_pf_env`) after row 02 |
-| lines (`git diff --numstat` of each head) | row 01: `spl-human-link.func.sh` +10 -2, `spl-human-email-add.func.sh` +3 -2, `spl-human-link.tst.sh` +13 -0, `spl-human-email-add.tst.sh` +13 -0; row 02: `spl-wui-perf-flow-events.func.sh` +24 -13, `spl-wui-perf-first-load.func.sh` +4 -13, `spl-wui-perf-first-load-net.func.sh` +4 -13, `spl-wui-perf-flow-events.tst.sh` +27 -0, `spl-wui-perf-first-load.tst.sh` +22 -0 |
-| measured on | `f2cb19298`; n=1 per command unless stated |
+| lines (`git diff --numstat` of each head) | row 01: `spl-human-link.func.sh` +10 -2, `spl-human-email-add.func.sh` +3 -2, `spl-human-link.tst.sh` +13 -0, `spl-human-email-add.tst.sh` +13 -0; row 02: `spl-wui-perf-flow-events.func.sh` +24 -13, `spl-wui-perf-first-load.func.sh` +4 -13, `spl-wui-perf-first-load-net.func.sh` +4 -13, `spl-wui-perf-flow-events.tst.sh` +33 -0, `spl-wui-perf-first-load.tst.sh` +45 -0 |
+| measured on | `f2cb19298` (zero drift on all 10 row/test files to `208e5f757`); n=1 per command unless stated |
 
 ## 7. Left out, measured
 
@@ -763,13 +845,31 @@ placement).
   `shellcheck -S warning -x` and `do_sec_shellcheck` rc 0; all 7 red and guard controls
   (`rc1a`, `rc1b`, `gc1`, `rc2a`, `rc2b`, `gc2a`, `gc2b`) RED then GREEN; R3 (2.2) and
   R7 (section 4) checked.
+- v0.2 (a-482): folds claude panel seat `c-396` FAIL on v0.1 (`e6845b257`, seat file
+  `6ab29281b`):
+  - **W1:** added per-caller `PF_WUI_URL`/`PF_EMAIL` (`flow-events`, `first-load`) and
+    `PFL_WUI_URL`/`PFL_EMAIL` (`first-load-net`, with `PF_*` set to sentinel values)
+    stub-node override checks in `spl-wui-perf-flow-events.tst.sh` section 4 and
+    `spl-wui-perf-first-load.tst.sh` section 4 (keeping row 02 at 5 files). Verified
+    mutations `m2`, `m2_flow`, `m2_fl` all FAIL (1.5).
+  - **W2:** added per-action missing-script label checks asserting `FATAL no timing e2e at`
+    for `flow-events`/`first-load` and `FATAL no first-load e2e at` for `first-load-net`,
+    with node never called. Verified mutations `m3`, `m3_flow`, `m3_fl` all FAIL (1.5).
+  - **N1, N4, N5, N6:** fixed all-history grep wording in 1.1 (`0e918d4b9` body quote vs
+    windowed count 0 and subject count 0; N1); refreshed R3 lane-map (09:17:27Z, 16
+    unknown) and spawn-queue (09:17:32Z, 8 queued) reads in 2.2 (N4); documented the
+    standalone vs `./run` stub path in 1.3, 1.4, and section 5 (N5); noted
+    `_spl_calendar_require_actor` exclusion in 1.3 (N6). Re-ran all 11 row-02/shared
+    suites, `shellcheck -S warning -x`, `do_sec_shellcheck`, `rc2a`/`rc2b`/`gc2a`/`gc2b`,
+    and `m2`–`m3_fl` on `f2cb19298` (zero drift on all 10 row/test files to `208e5f757`).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-482 (agy): v0.1 (draft for panel review).
-- Panel reviewer seat: queued claude seat (`c002-refactor-round-99-claude-panel-seat`,
-  ask `ad83e2d9`): pending review of v0.1 on `review/c002-refactor-round-99-planner`.
+- Editor seat: a-482 (agy): v0.2 (W1, W2, N1, N4, N5, N6 folded for re-review).
+- Panel reviewer seat: c-396 (claude, `c002-refactor-round-99-claude-panel-seat`, seat
+  `6ab29281b` on `review/c002-refactor-round-99-claude-seat`): FAIL on v0.1 (`e6845b257`,
+  W1-W2); pending re-review of v0.2 on `review/c002-refactor-round-99-planner`.
 - Row R7 seats: section 4; **agy seat** per row (claude waiver backup only while agy is
   out of quota, under ruling `dc84300a`; never mistral; re-checked at placement).

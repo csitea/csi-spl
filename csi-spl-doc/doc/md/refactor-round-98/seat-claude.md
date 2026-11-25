@@ -1,4 +1,87 @@
-# Refactor round 98 - panel seat claude (c-429) - verdict on v0.1
+# Refactor round 98 - panel seat claude (c-429)
+
+## Verdict: PASS on 52d5d4c17 (v0.2)
+
+- Read: `csi-spl-doc/doc/md/refactor-round-98-plan.md` on
+  `review/c002-refactor-round-98-planner` at **`52d5d4c174befcabbfaeadd6ed342c3c980ef167`**
+  (`git ls-remote origin refs/heads/review/c002-refactor-round-98-planner` printed this sha),
+  base still `7084439f1`, origin/master at re-review `b1aea77d5`. 2026-11-25 ~06:50-07:10Z, n=1 each.
+- `git diff --stat caf5a790e 52d5d4c17` -> one file, the plan, `227 insertions(+), 50 deletions(-)`.
+  I read the whole diff: it folds W1, W2 and N1-N5. No row, site, batch or vendor changed.
+
+### W1 (v0.1): fixed
+
+I rebuilt the 6 changed files from the plan's verbatim blocks only, on `7084439f1`:
+- the 1.3 helper (plan lines 251-258) and tests (265-274, 281-301);
+- the 1.4 helper (393-414, with `:28` changed as the plan's shape says) and tests (421-435, 442-445).
+
+Each block went in before its cited line, followed by one blank line. sha256 (12 chars):
+- add.func `d71d9d3dfa83`, add.tst `2ec18079688e`, change.tst `6ceaed529f18`;
+- spl-cost-gcp `b1ddd1ea1c94`, estate.tst `21782c35e31e`, vm.tst `d81229828708`.
+
+My v0.1 rebuilds of the other 4 files give delete `9667ab90e009`, update `9331b997770a`,
+estate `c8e2c0b78ffd` and vm `a8f4dae10e4d`. **All 10 equal the plan's lines 231-235 and
+382-386, byte for byte.**
+
+I ran the controls from those files in detached worktrees of `7084439f1`. The environment was
+`SPOOL_TEST=1`, with `SPOOL_BOX_TAG` and `SPOOL_AGENT_ID` unset and stdin `/dev/null`. The test
+files stub `do_log` and use fixtures, and none of them touches live state.
+Format: rc / pass / fail lines / last line.
+
+| control | tree | result | plan says |
+|---|---|---|---|
+| rc1a add.tst | base + head tests | 1 / 66 / 5 / `FAILED: 4` (3x `_spl_calendar_require_actor: command not found` + `add one copy`) | rc 1, 66, 5 |
+| rc1b change.tst | base + head tests | 1 / 35 / 3 / `FAILED: 2` (one copy names `:35`, `:103`) | rc 1, 35, 3 |
+| green add / change / update | head1 | 0 / 70 / 0, 0 / 37 / 0, 0 / 34 / 0 | 70/0, 37/0, = |
+| gc1a (guard deleted in delete only) | head1 | 1 / 36 / 2 / `FAILED: 1`, `lazy delete` fails | rc 1, 36, 2 |
+| gc1b (guard deleted in update only) | head1 | 1 / 36 / 2 / `FAILED: 1`, `lazy update` fails | rc 1, 36, 2 |
+| rc2a estate.tst | base + head tests | 1 / 32 / 4 / `FAIL: 3 assertion(s)` (`do_spl_cost_gcp_window: command not found` + one copy `:58`) | rc 1, 32, 4 |
+| rc2b vm.tst | base + head tests | 1 / 29 / 2 / `FAIL: 1 assertion(s)` (one copy `:49`) | rc 1, 29, 2 |
+| green estate / vm | head2 | 0 / 36 / 0, 0 / 31 / 0 | 36/0, 31/0 |
+| gc2 (helper renamed) | head2 | estate 1 / 7 / 29, vm 1 / 10 / 21 | 7/29, 10/21 |
+
+Each red fails for the reason the plan gives: the helper is missing, or the file still has its
+own copy. None fails for an environment reason.
+
+The shared suites pass with rc 0 and identical counts on base, head1 and head2. These counts
+equal the plan's 1.5 table:
+- iac: `no-box-path-source` 10, `action-header-tags` 6, `param-required` 17, `run-lazy-loader` 30, `bash-cleancode` 15, `gcp-billing-export-setup` 30, `gcp-billing-invoices` 69;
+- orc: `no-literal-paths` 15, `run-eager-files` 14, `func-name-unique` 2.
+
+`shellcheck -S warning -x` on the 5 files of each head -> rc 0 for both. `do_sec_shellcheck`: NOT RUN.
+
+### W2 (v0.1): fixed
+
+Plan 1.2(c) (lines 134-142) and section 7 (line 764) now account for "for refactor round 95".
+- `git merge-base --is-ancestor <sha> 7084439f1` -> rc 0 for each of `c68cca820`, `69dc02d2f` and `76471cb9e`.
+- `perf-budgets.json` on `7084439f1`: line 4 `"ci_initial_gzip_kb": 155.0` (the ceiling), line 27 `"ci_initial_gzip_kb": 151.9`.
+
+### Re-checks
+
+- **Slug.** `git log origin/master --since="2026-11-24T19:33:57+02:00" --oneline -E --grep='\(r98-' | wc -l` -> `0`.
+  `git ls-remote origin | grep -E 'r98-[0-9]{2}|refactor-round-98'` -> only the planner's branch and my seat branch.
+  The briefs dir has only the planner's brief and mine.
+- **Drift.** `git diff --name-only 7084439f1 origin/master -- <the 10 row files> | wc -l` -> `0` (origin/master `b1aea77d5`).
+- **R3.** `lane-map.sh --check <the 10 paths> --agent c-429` -> exit 4, `WARN no live lane lists <the 10 paths>`, with 18 `unknown:` lanes (17 at v0.1).
+  No lane lists a row file. The planner's 2.2 must be re-read at placement.
+- **Hygiene.** `cd csi-spl-iac && ./run -a do_check_dist_hygiene` on this commit's tree -> clean, rc 0.
+
+### Notes on v0.2 (non-blocking; fold into v1.0)
+
+- **N6**: plan lines 140 and 764 cite `csi-spl-doc/specs/027-ui-performance-budget/contracts/perf-budgets.json`.
+  `git show 7084439f1:<that path>` -> `fatal: path ... does not exist`.
+  `git ls-tree -r --name-only 7084439f1 | grep perf-budgets` shows the real file is
+  `csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json`.
+  The plan's numbers are right at the real path. Fix the path so that the section 7
+  "measured by" command runs.
+- **N7**: 151.9 KB comes from a box build, not from CI. The json's own `headroom` text calls it
+  "Estimate for CI, not a CI reading" and puts CI at about 2.8 KB under the ceiling. So
+  "~3.1 KB headroom" should say that it is the box figure. This does not change the
+  accounting: the item is served on the base.
+
+---
+
+# Verdict on v0.1 (kept as recorded)
 
 - Seat: c-429 (claude), placement `c002-refactor-round-98-claude-panel-seat`, issue SPL-6457.
 - Read: `csi-spl-doc/doc/md/refactor-round-98-plan.md` on

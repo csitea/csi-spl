@@ -52,7 +52,7 @@ actions drop their local helper, lazy-source `gh-set-ci-vars.func.sh` behind a
 edits to `gh-set-ci-vars.func.sh`, zero secret-class sites touched). The rows share no
 file (orc vs iac): both are batch 1.
 
-**Status: v1.0, signed.** The panel (m-161, mistral) passed v0.1 `dc07c2ee4` with one
+**Status: v1.0, signed; round closed (section 8).** The panel (m-161, mistral) passed v0.1 `dc07c2ee4` with one
 defect W1 (folded in v1.0: code R7 = agy seat per ruling `dc84300a`) and notes N1..N3
 (seat file `csi-spl-doc/doc/md/refactor-round-97/seat-mistral.md`, branch
 `review/c002-refactor-round-97-mistral-seat`, `e81302fb9`). Rows queue once the holder
@@ -589,15 +589,80 @@ only while agy is out of quota; never mistral; re-checked at placement).
     section-7 items by direct grep (the planner's 1.2 (e) scratch scan script is not in
     the repo).
   Text unchanged except the status line and sections 4, 5 (R7 line only), 8 and 9.
+- Round closed (a-432 writes the record, SPL-6458), no version bump: both rows landed,
+  read on `origin/master` `7084439f1` (`2026-11-25T05:45Z`, n=1 each; neither row's files
+  were touched between its landing commit and `7084439f1`):
+  - r97-01 `2924c633f` (`2924c633fa496b01756c67b9684013ca8e35d666`, SPL-6449, author
+    `c-355` claude, committed `2026-11-25T04:32:20+02:00`): R7 `a-366` agy **PASS** on
+    `6801ff7ca` (`6801ff7ca75b80d6114ac2dbdc3863b7ee871c35`); `git patch-id --stable`
+    `904d9978fd7987406a50f12c5d4c47ab848086ee` equal on both. CI on `2924c633f`: push
+    workflows 15 (`45533786133`), 25 (`45533786112`), 26 (`45533786072`), 64
+    (`45533786156`), 67 (`45533786411`), scheduled 21 (`45534575722`) and workflow_run 12
+    (`45534325644`) **success**; 5 skipped workflow 12 runs (`45533801978`, `45533839453`,
+    `45533847525`, `45533892606`, `45534093492`). Non-success runs (none from r97-01):
+    push gate 10 (`45533786073`) **failure** from a pre-existing WUI e2e defect outside
+    the row (`wui: browser e2e (mock, generated) 2/8` `avatars-visible.test.mjs` and `3/8`
+    `feed-virtual-rows.test.mjs`, spec 186 M3, fixed in next commit `c69d8b287` SPL-6446;
+    all `orc`, `iac`, hygiene and release-note jobs in `45533786073` passed); scheduled
+    workflow 40 `cd: tenant host reconcile` (`45534569834`) **failure** in `reconcile prd`
+    (`reconcile dev` success; 1 pre-existing tenant host waiting on a private-overlay
+    placeholder, unrelated to r97). R11 green gate 10: scheduled run `45535175137` on
+    `c69d8b287` (`git merge-base --is-ancestor 2924c633f c69d8b287` rc 0) **success**.
+    Diff (`git show --numstat`): `sa:lib/spool-fleet.inc.sh` `+18 -7` (sha256
+    `8f837a32a6cf`), `orc:src/bash/run/spl-unanswered-sweep.func.sh` `+5 -3` (sha256
+    `c91646e0a7ce`), `sa:tests/test-fleet-send.sh` `+8 -0` (sha256 `dc1ede485073`),
+    `orc:src/bash/tests/unanswered-sweep.tst.sh` `+11 -0` (sha256 `4f1a3a9feb96`), 4 files
+    (only the brief's Files).
+  - r97-02 `529f837ef` (`529f837efcac39da72b2afafd348ed24f12b3f57`, SPL-6450, author
+    `c-358` claude, committed `2026-11-25T04:28:03+02:00`): R7 `a-363` agy **PASS** on
+    `e2965e159` (`e2965e159c836e4888e2b91cb0b3a57eb41f8ad3`); `git patch-id --stable`
+    `8adff926e38a871e55e1f5e8803898fdd7a5b129` equal on both. CI on `529f837ef`: push
+    workflows 15 (`45533190737`), 25 (`45533190635`), 26 (`45533190676`), 64
+    (`45533190819`), 67 (`45533190598`) and scheduled 21 (`45533499928`) **success**; 4
+    skipped workflow 12 runs (`45533251666`, `45533255999`, `45533281487`, `45533524782`).
+    Non-success runs (none from r97-02): push gate 10 (`45533190768`) **cancelled**
+    (superseded by `2924c633f` pushed 4 min later); scheduled workflow 40 `cd: tenant host
+    reconcile` (`45533429305`) **failure** in `reconcile prd` (`reconcile dev` success;
+    same pre-existing tenant host waiting on a private-overlay placeholder, unrelated to
+    r97). R11 green gate 10: scheduled run `45535175137` on `c69d8b287` (`git merge-base
+    --is-ancestor 529f837ef c69d8b287` rc 0) **success**. Diff (`git show --numstat`):
+    `iac:src/bash/run/gh-prune-actions-caches.func.sh` `+4 -7` (sha256 `62ba72ce0c9a`),
+    `iac:src/bash/run/spl-gh-master-ruleset.func.sh` `+4 -7` (sha256 `13691403d032`),
+    `iac:src/bash/tests/gh-prune-actions-caches.tst.sh` `+12 -1` (sha256 `99e1f8b119b4`),
+    `iac:src/bash/tests/spl-gh-master-ruleset.tst.sh` `+23 -0` (sha256 `dc8d2506a378`),
+    4 files (only the brief's Files).
+  - `git merge-base --is-ancestor <row> origin/master` rc 0 and box checkout ancestry rc 0
+    for both (checkout at `7084439f1`); R6 (`W=$(git log origin/master -1 --format=%cI -E
+    --grep='^docs\(r96-plan')` -> `2026-11-24T14:16:54+02:00`; `git log origin/master
+    --since="$W" --grep='r97-' --format='%h %cI %s'`) returns both rows (`2924c633f`,
+    `529f837ef`) and both plan commits (`3364c37cf`, `ff928e77c`). **R7 vendor:** both
+    seats agy (section 4: `a-366`, `a-363`); no claude backup seat was needed. Post-land
+    `git grep` on `origin/master` (`7084439f1`): `peer/seats` seat-line existence parser
+    2 -> 1 (`spool_fleet_has_seats` at `sa:lib/spool-fleet.inc.sh:103`, sole `awk` at
+    `:106`, called at `spool-fleet.inc.sh:114` and
+    `orc:src/bash/run/spl-unanswered-sweep.func.sh:201` behind `declare -F` at `:200`;
+    zero `send_to_peers_on` hits); non-secret `$APP_PATH` GitHub origin `<owner>/<repo>`
+    parser in `iac/src/bash/run/` 3 -> 1 (`_gscv_repo` at
+    `iac:src/bash/run/gh-set-ci-vars.func.sh:29`, sole `remote get-url origin` at `:31`,
+    called at `gh-set-ci-vars.func.sh:71`, `gh-prune-actions-caches.func.sh:54` behind
+    `declare -F` at `:53`, and `spl-gh-master-ruleset.func.sh:32` behind `declare -F` at
+    `:31`; zero `_gpac_repo` or `_sgmr_repo` hits).
+  - **Round close & teardown:** holder `c-002` closed topic `44cd9885` (close post
+    `8a61de21`, archived) and set `SPL-6384` done. Teardown list: `c-355` (r97-01 author),
+    `c-358` (r97-02 author), `a-366` (r97-01 R7), `a-363` (r97-02 R7), `m-161` (panel
+    seat), `a-158` (editor) — all 6 already gone (0 live in `lane-map.sh list`, all 6
+    `done` in `lane-map.sh list --all` and retired). Remote branches: `review/r97-01` and
+    `review/r97-02` are absent on `origin`; `review/c002-refactor-round-97-mistral-seat`
+    (`56f33fd64`) remains for R8 prune.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-158 (agy): v0.1, v1.0.
+- Editor seat: a-158 (agy): v0.1, v1.0; close record: a-432 (agy, SPL-6458).
 - Panel reviewer seat: m-161 (mistral, `c002-refactor-round-97-mistral-panel-seat`):
   **PASS** on v0.1 (`dc07c2ee4`), W1 (folded in v1.0), notes N1-N3; seat file
   `refactor-round-97/seat-mistral.md` (`review/c002-refactor-round-97-mistral-seat`,
   `e81302fb9`, section 8).
-- Row R7 seats: section 4; **agy seat** per row (claude backup only while agy is out of
-  quota; never the waiver, never mistral; re-checked at placement).
+- Row R7 seats: section 4; both agy: a-366 (r97-01), a-363 (r97-02) (section 8, round
+  closed).

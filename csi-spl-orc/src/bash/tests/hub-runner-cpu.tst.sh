@@ -89,5 +89,18 @@ out=$(env PROJ_PATH="$PROJ_ROOT" ENV=dev bash -c '
 [[ $rc -eq 1 && "$out" == "FATAL the hub refused the setting (400): bad. Nothing changed." && "$out" != *"command not found"* ]] \
   && pass "6. lazy load: spl-hub-runner-cpu.func.sh loads _spl_hub_fleet_load_error standalone" || fail "6. lazy cpu: rc=$rc $out"
 
+# --- 7. r03-01 _spl_hub_fleet_load_prep one copy and standalone lazy-source -----
+own="$(grep -nE "FATAL ORDERED_BY must be a HUM-\* id|FATAL ORDERED_VIA is at most 64 chars|is required with DRY_RUN=0|OK DRY_RUN would ask the hub" "$rc_f" || true)"
+[[ -z "$own" ]] && grep -q "_spl_hub_fleet_load_prep " "$rc_f" \
+  && pass "7. one copy: spl-hub-runner-cpu.func.sh delegates write-mode prep to _spl_hub_fleet_load_prep" || fail "7. cpu prep one copy: own=[$own]"
+out=$(env PROJ_PATH="$PROJ_ROOT" ENV=dev RUNNER_CPU_PCT=80 ORDERED_BY=HUM-10 ORDERED_VIA=c-543 bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }; do_require_bin(){ :; }; spl_dry_run(){ return 0; }
+  do_spl_cloud_cnf(){ SPL_CNF=/dev/null SPL_PROJECT=csi-spl-dev; }
+  spl_hub_operator_url(){ SPL_HUB_URL=https://hub.invalid; }
+  source "$PROJ_PATH/src/bash/run/spl-hub-runner-cpu.func.sh"
+  do_spl_hub_runner_cpu' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == "OK DRY_RUN would ask the hub https://hub.invalid to set the runner CPU cap to 80 for the whole instance (ordered_by=HUM-10 via c-543), as the csi-spl-dev service account. Re-run with DRY_RUN=0." && "$out" != *"command not found"* ]] \
+  && pass "7. lazy load: spl-hub-runner-cpu.func.sh loads _spl_hub_fleet_load_prep standalone" || fail "7. lazy prep cpu: rc=$rc $out"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

@@ -22,21 +22,15 @@
 #------------------------------------------------------------------------------
 do_spl_hub_runner_cpu() {
   do_require_bin jq curl gcloud || return 1
-  local set="${RUNNER_CPU_PCT-__read__}" ordby="${ORDERED_BY:-}" ordvia="${ORDERED_VIA:-}" dry=1
+  local set="${RUNNER_CPU_PCT-__read__}" ordby="${ORDERED_BY:-}" ordvia="${ORDERED_VIA:-}"
   if [[ "$set" != __read__ ]]; then
     [[ "$set" == default || ( "$set" =~ ^[1-9][0-9]*$ && "$set" -le 100 ) ]] \
       || { do_log "FATAL RUNNER_CPU_PCT must be 1..100 or 'default', got: '$set'"; return 1; }
-    [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
-    [[ ${#ordvia} -le 64 ]] || { do_log "FATAL ORDERED_VIA is at most 64 chars"; return 1; }
-    if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   fi
-  do_spl_cloud_cnf || return 1
-  spl_hub_operator_url || return 1
-  if [[ "$set" != __read__ ]] && (( dry )); then
-    do_log "OK DRY_RUN would ask the hub $SPL_HUB_URL to set the runner CPU cap to $set for the whole instance (ordered_by=${ordby:-<none, REQUIRED for DRY_RUN=0>}${ordvia:+ via $ordvia}), as the $SPL_PROJECT service account. Re-run with DRY_RUN=0."
-    return 0
-  fi
-  [[ "$set" == __read__ || -n "$ordby" ]] || { do_log "FATAL ORDERED_BY (a HUM-* id: who ordered this) is required with DRY_RUN=0"; return 1; }
+  # shellcheck source=spl-hub-agent-kinds.func.sh
+  declare -F _spl_hub_fleet_load_prep >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-hub-agent-kinds.func.sh"
+  _spl_hub_fleet_load_prep "$set" "$ordby" "$ordvia" "set the runner CPU cap to $set" || return 1
+  (( SPL_FL_DRY_DONE )) && return 0
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   if [[ "$set" == __read__ ]]; then

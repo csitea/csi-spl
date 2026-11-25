@@ -24,20 +24,12 @@
 #------------------------------------------------------------------------------
 do_spl_hub_agent_kinds() {
   do_require_bin jq curl gcloud || return 1
-  local set="${KINDS_OFF-__read__}" ordby="${ORDERED_BY:-}" ordvia="${ORDERED_VIA:-}" kinds dry=1
+  local set="${KINDS_OFF-__read__}" ordby="${ORDERED_BY:-}" ordvia="${ORDERED_VIA:-}" kinds=""
   if [[ "$set" != __read__ ]]; then
     kinds="$(_spl_hub_agent_kinds_list "$set")" || return 1
-    [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
-    [[ ${#ordvia} -le 64 ]] || { do_log "FATAL ORDERED_VIA is at most 64 chars"; return 1; }
-    if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   fi
-  do_spl_cloud_cnf || return 1
-  spl_hub_operator_url || return 1
-  if [[ "$set" != __read__ ]] && (( dry )); then
-    do_log "OK DRY_RUN would ask the hub $SPL_HUB_URL to switch off the agent kinds [${kinds:-none}] for the whole instance (ordered_by=${ordby:-<none, REQUIRED for DRY_RUN=0>}${ordvia:+ via $ordvia}), as the $SPL_PROJECT service account. Re-run with DRY_RUN=0."
-    return 0
-  fi
-  [[ "$set" == __read__ || -n "$ordby" ]] || { do_log "FATAL ORDERED_BY (a HUM-* id: who ordered this) is required with DRY_RUN=0"; return 1; }
+  _spl_hub_fleet_load_prep "$set" "$ordby" "$ordvia" "switch off the agent kinds [${kinds:-none}]" || return 1
+  (( SPL_FL_DRY_DONE )) && return 0
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   if [[ "$set" == __read__ ]]; then
@@ -64,6 +56,28 @@ _spl_hub_agent_kinds_list() {
   for k in claude grok agy qwen mistral codex; do [[ ",$raw," == *",$k,"* ]] && out="$out,$k"; done
   [[ "$out" != ",claude,grok,agy,qwen,mistral,codex" ]] || { do_log "FATAL KINDS_OFF names every kind: at least one stays on"; return 1; }
   echo "${out#,}"
+}
+
+# _spl_hub_fleet_load_prep <set> <ordby> <ordvia> <dry_action> -> validate
+# write-mode ORDERED_BY/ORDERED_VIA/DRY_RUN, load cloud cnf and operator URL,
+# log dry-run (setting SPL_FL_DRY_DONE=1), or verify ORDERED_BY for DRY_RUN=0.
+# shellcheck disable=SC2034 # SPL_FL_DRY_DONE is read by callers
+_spl_hub_fleet_load_prep() {
+  local set="$1" ordby="$2" ordvia="$3" dry_action="$4" dry=1
+  SPL_FL_DRY_DONE=0
+  if [[ "$set" != __read__ ]]; then
+    [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
+    [[ ${#ordvia} -le 64 ]] || { do_log "FATAL ORDERED_VIA is at most 64 chars"; return 1; }
+    if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
+  fi
+  do_spl_cloud_cnf || return 1
+  spl_hub_operator_url || return 1
+  if [[ "$set" != __read__ ]] && (( dry )); then
+    do_log "OK DRY_RUN would ask the hub $SPL_HUB_URL to $dry_action for the whole instance (ordered_by=${ordby:-<none, REQUIRED for DRY_RUN=0>}${ordvia:+ via $ordvia}), as the $SPL_PROJECT service account. Re-run with DRY_RUN=0."
+    SPL_FL_DRY_DONE=1
+    return 0
+  fi
+  [[ "$set" == __read__ || -n "$ordby" ]] || { do_log "FATAL ORDERED_BY (a HUM-* id: who ordered this) is required with DRY_RUN=0"; return 1; }
 }
 
 # _spl_hub_fleet_load_error <subject_verb> -> log the hub refusal for a

@@ -34,6 +34,8 @@
 # on a generated mock bundle (n=1, 2026-11-24), until a refresh measures CI.
 # perf-typing-layouts (p19-01, SPL-6418) is new: 25 s, its one local run
 # on a generated mock bundle (n=1, 2026-11-24), until a refresh measures CI.
+# calendar-desk-bars (SPL-6491) is new: 14 s, its local run (20 s alone) scaled by
+# calendar-desk-views on the same box (27..30 s local, 12 s here), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -63,6 +65,7 @@ tests/e2e/box-summary-table.test.mjs 6
 tests/e2e/boxes-three-panes.test.mjs 12
 tests/e2e/build-watch.test.mjs 29
 tests/e2e/calendar-day-order.test.mjs 11
+tests/e2e/calendar-desk-bars.test.mjs 14
 tests/e2e/calendar-desk-views.test.mjs 12
 tests/e2e/calendar-drag.test.mjs 8
 tests/e2e/calendar-event-fields.test.mjs 4

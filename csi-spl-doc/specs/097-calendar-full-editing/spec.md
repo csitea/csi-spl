@@ -811,6 +811,36 @@ not as a separate event".
 - Tests: `csi-spl-wui/tests/unit/calendar-week-label.test.mjs`,
   `csi-spl-wui/tests/e2e/calendar-week-label.test.mjs`.
 
+### 5.3 An event over several days is a bar (SPL-6491)
+
+Member HUM-5 (topic `4f4748dd`, msgs `f20b93b3`, `e8a271fe`): timed events
+of 17 and 2.3 days showed as bars in Google Calendar and nowhere in the
+desktop Week. The hub sent them (it lists every event overlapping the range);
+the WUI put each item on the day it starts only, so an event that began
+before the shown days was on none of them, and one crossing midnight was a
+block cut at 24:00 of its first day.
+
+- An event **spans** when it covers more than one day, or is timed and lasts
+  24 h or more (`calDeskSpans`, `csi-spl-wui/src/utils/calendar-desktop-view.mjs`).
+  The days it covers are `calPhoneEventDays`': an all-day event by its UTC
+  dates, a timed one by the viewer's wall days, an end at 00:00 not counting
+  the day it ends on. A 25 h day of a DST change spans; a 23 h one does not.
+- Desktop Day, 3 days and Week: a spanning event is one bar in the all-day
+  strip, at the foot of the day heads, over every shown day it covers, cut at
+  the range (`calDeskBars`). A cut end is square with a `‹` / `›` mark; a real
+  start or end is rounded. Bars that overlap take separate lanes. The first
+  shown day carries the start time (when it starts there) and the title; the
+  hover shows the start and the end, a click opens the pop-over. It is not on
+  the hour grid and it does not drag (open it and edit the times).
+- A timed event under 24 h that crosses midnight is a bar too, not a block
+  split over two columns: the hour grid has no split block, and one rule for
+  every event that leaves its day is what Google's all-day strip shows.
+- Desktop Month lists a spanning event on each day it covers, with the
+  whole-day events (`calDeskByDay`). The phone views already drew every day
+  an event covers (section 3.3.1) and do not change.
+- Tests: `csi-spl-wui/tests/unit/calendar-desk-bars.test.mjs`,
+  `csi-spl-wui/tests/e2e/calendar-desk-bars.test.mjs`.
+
 ## 6. Ranked value to the owner, and v1
 
 | rank | item | v1 |

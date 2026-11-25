@@ -88,7 +88,7 @@
         </div>
       </div>
       <div
-        v-for="day in shown"
+        v-for="(day, di) in shown"
         :key="day"
         class="cal-week__day"
         :class="{ 'cal-week__day--today': day === today }"
@@ -120,6 +120,27 @@
               <span class="cal-week__title">{{ dropped.title }}</span>
             </li>
           </ul>
+          <!-- SPL-6491: an event over several days (or 24 h and more) is one
+               bar across its shown days, a segment per column in one lane -->
+          <div v-if="bars.lanes" class="cal-week__bars" data-test="calendar-week-bars" :style="{ '--cal-lanes': bars.lanes }">
+            <template v-for="(seg, lane) in barsOn(di)" :key="lane">
+              <div
+                v-if="seg"
+                v-bind="barAttrs(seg, di)"
+                @click.stop="onItemClick($event, seg.ev)"
+                @keydown.enter.prevent.stop="openPeek(seg.ev)"
+                @contextmenu.stop="onItemMenu($event, seg.ev)"
+              >
+                <template v-if="di === seg.from">
+                  <span v-if="seg.before" class="cal-week__bar-more" aria-hidden="true">‹</span>
+                  <span v-if="!seg.ev.all_day && !seg.before" class="cal-week__time" dir="ltr">{{ isoClock(seg.ev.starts_at) }}</span>
+                  <span class="cal-week__title">{{ seg.ev.title }}</span>
+                </template>
+                <span v-if="di === seg.to && seg.after" class="cal-week__bar-more cal-week__bar-more--end" aria-hidden="true">›</span>
+              </div>
+              <div v-else class="cal-week__bar-gap" aria-hidden="true" />
+            </template>
+          </div>
         </div>
         <div
           class="cal-grid"
@@ -226,9 +247,8 @@
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { calLoadWindow, calWeekday, calWeekLabel, calWeekStart } from '~/utils/calendar-year.mjs'
-import { calDayCompare } from '~/utils/calendar-phone-nav.mjs'
-import { CAL_DESK_MIN_HOUR_PX, CAL_DESK_OPEN_MIN, calDeskDays, calDeskHourPx, calDeskRange, calDeskStep, calDeskTitle } from '~/utils/calendar-desktop-view.mjs'
-import { isoClock } from '~/utils/date-iso.mjs'
+import { CAL_DESK_MIN_HOUR_PX, CAL_DESK_OPEN_MIN, calDeskBars, calDeskByDay, calDeskDays, calDeskHourPx, calDeskRange, calDeskSpans, calDeskStep, calDeskTitle } from '~/utils/calendar-desktop-view.mjs'
+import { isoClock, isoDateTime } from '~/utils/date-iso.mjs'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
@@ -281,23 +301,56 @@ const dropDay = computed(() => (dropped.value ? calEventDay(dropped.value) : '')
 const dropBox = computed(() => (dropped.value && !dropped.value.all_day ? calDayLayout([dropped.value])[0] || null : null))
 /* each item on the day it starts: an all-day item (an official day) on its
    UTC day, a timed one on the viewer's day, the zone its clock prints in;
-   each day in the one day order (calDayCompare: whole-day, pinned first) */
-const byDay = computed(() => {
-  const out = new Map<string, CalendarItem[]>()
-  for (const ev of items.value) {
-    const day = calEventDay(ev)
-    out.set(day, [...(out.get(day) || []), ev])
-  }
-  for (const list of out.values()) list.sort((a, b) => calDayCompare(a, b))
-  return out
-})
+   each day in the one day order (calDayCompare: whole-day, pinned first).
+   SPL-6491: an event over several days (or a timed one of 24 h and more) is
+   on every day it covers (Month), and the time grid leaves it to the bars */
+const byDay = computed(() => calDeskByDay(items.value) as Map<string, CalendarItem[]>)
+const spans = computed(() => new Set(items.value.filter((ev) => calDeskSpans(ev)).map((ev) => ev.id)))
 const layouts = computed(() => {
   const out = new Map<string, ReturnType<typeof calDayLayout<CalendarItem>>>()
-  for (const [day, list] of byDay.value) out.set(day, calDayLayout(list.filter((ev) => !ev.all_day)))
+  for (const [day, list] of byDay.value) out.set(day, calDayLayout(list.filter((ev) => !ev.all_day && !spans.value.has(ev.id))))
   return out
 })
-const allDayOf = (day: string) => (byDay.value.get(day) || []).filter((ev) => ev.all_day)
+const allDayOf = (day: string) => (byDay.value.get(day) || []).filter((ev) => ev.all_day && !spans.value.has(ev.id))
 const timedOf = (day: string) => layouts.value.get(day) || []
+
+/* SPL-6491: the all-day strip's bars over the shown days; per column, one
+   slot per lane: the bar crossing that day, or a gap that keeps the lanes
+   level from column to column */
+type Bar = ReturnType<typeof calDeskBars<CalendarItem>>['bars'][number]
+const bars = computed(() => calDeskBars(items.value, shown.value))
+function barsOn(di: number): (Bar | null)[] {
+  const out: (Bar | null)[] = Array.from({ length: bars.value.lanes }, () => null)
+  for (const b of bars.value.bars) if (b.from <= di && di <= b.to) out[b.lane] = b
+  return out
+}
+/* the bar's times on hover (the pop-over has them too) */
+function barSpan(ev: CalendarItem): string {
+  if (!ev.all_day) return `${isoDateTime(ev.starts_at)} – ${isoDateTime(ev.ends_at)}`
+  const end = new Date(Date.parse(ev.ends_at) - 1).toISOString().slice(0, 10)
+  return `${String(ev.starts_at).slice(0, 10)} – ${end}`
+}
+function barAttrs(b: Bar, di: number) {
+  const a = itemAttrs(b.ev)
+  const head = di === b.from
+  return {
+    ...a,
+    class: ['cal-week__bar', {
+      'cal-week__bar--start': head && !b.before,
+      'cal-week__bar--end': di === b.to && !b.after,
+      'cal-week__item--edit': calEditable(b.ev),
+      'cal-week__item--synced': calSynced(b.ev),
+    }],
+    'data-test': 'calendar-bar',
+    'data-day': shown.value[di],
+    'data-seg': head ? 'head' : 'tail',
+    'data-lane': b.lane,
+    'data-before': b.before ? 'true' : undefined,
+    'data-after': b.after ? 'true' : undefined,
+    title: `${b.ev.title}\n${barSpan(b.ev)}`,
+    tabindex: head ? a.tabindex : undefined,
+  }
+}
 
 const HOURS = Array.from({ length: 23 }, (_, i) => i + 1)
 const pct = (min: number) => `${(min / CAL_DAY_MIN) * 100}%`
@@ -684,6 +737,46 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
 }
+/* SPL-6491: the bars sit at the foot of each day's head, lane by lane, so
+   a bar's segments line up across the columns (the heads share one row) */
+.cal-week--grid .cal-week__top { display: flex; flex-direction: column; }
+.cal-week__bars {
+  display: grid;
+  grid-template-rows: repeat(var(--cal-lanes), 1.375rem);
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+.cal-week__bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  /* reach the column's edges (its 6 px padding, the 1 px border before it)
+     so the segments read as one bar; a start or an end is rounded and inset */
+  margin-inline: -7px -6px;
+  padding: 0 6px;
+  overflow: hidden;
+  border-block: var(--cal-card-border);
+  /* SPL-5908: no tint; the start bar carries the event colour */
+  background: var(--color-surface);
+  color: var(--color-fg);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cal-week__bar--start {
+  margin-inline-start: 0;
+  border-inline-start: 4px solid var(--cal-ev-color, var(--color-accent));
+  border-start-start-radius: var(--radius-sm);
+  border-end-start-radius: var(--radius-sm);
+}
+.cal-week__bar--end { margin-inline-end: 0; border-inline-end: var(--cal-card-border); border-start-end-radius: var(--radius-sm); border-end-end-radius: var(--radius-sm); }
+.cal-week__bar .cal-week__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.cal-week__bar .cal-week__time { color: inherit; font-variant-numeric: tabular-nums; }
+.cal-week__bar-more { font-weight: 700; }
+.cal-week__bar-more--end { margin-inline-start: auto; }
+.cal-week__bar:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .cal-grid {
   position: relative;
   height: calc(24 * var(--cal-hour));

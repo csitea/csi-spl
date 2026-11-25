@@ -1,7 +1,7 @@
-# Spec 187 build round - plan v1.0 (13 rows (S12 split), 8 batches)
+# Spec 187 build round - plan v1.1 (13 rows (S12 split), 8 batches)
 
 Epic: SPL-2403 (the brief's line; spec 187 names SPL-2398, see 2.4 N1)  
-Spec: csi-spl-doc/specs/187-scheduled-tasks-activities (v0.3)  
+Spec: csi-spl-doc/specs/187-scheduled-tasks-activities (v0.4)  
 Class: feature  
 Kind: specs_and_docs  
 Issue: SPL-6376  
@@ -27,11 +27,11 @@ This plan re-measures each row's sites on one sha, orders the rows into
 batches of disjoint files (R1), names each row's kind, vendor and R7
 reviewer, and proposes one brief per row. It writes no code.
 
-**Status: v1.0, signed.** Panel PASS (c-342, same-vendor panel, waiver)
+**Status: v1.1, signed v1.0 plus the owner's answers.** Panel PASS (c-342, same-vendor panel, waiver)
 on v0.2 `cca84bfdf`; landed as `49f244c16` + `0989526af` (the same tree,
 messages reworded for the release-note gate) on the dispatch holder's GO.
-Owner questions Q1-Q3 are open (2.4); their first readings (A) stand until
-answered. Planner: c-074 (claude, the
+Owner questions Q1-Q3 are answered (poll `bb3b76c2`, 2.4): Q1 the
+owner's own option (spec D21), Q2 B (spec D22), Q3 A. Planner: c-074 (claude, the
 backup for `specs_and_docs`: agy on its usage limit; the brief's addendum
 reads 2026-11-30T21:31Z on one box, the holder's note 8cc25fff "quota out
 to 12-01"; the placer reads the live pick, not this line). Panel: one seat,
@@ -132,6 +132,7 @@ Where the spec's line differs, both are given.
 | `api:store/rls_test.go` `TestRLSCoversEveryTenantTable` | (by name) | `:103` |
 | `api:hub/roundtrips_perf_test.go` `TestRoundTripsPerRequest` | (by name) | `:30` |
 | `api:hub/openapi_routes_test.go` `TestOpenAPIRoutes` | (not cited) | `:314`: every new route of S6, S7 and S11 is also written into `api:hub/openapi.json` |
+| WUI entry points (Q1 = spec D21) | "Settings -> Scheduled tasks"; a "Scheduled tasks" item in the channel and topic right-click menus | channel row menu `wui:components/SidebarRowMenu.vue` (its items by id `:246-268`), opened from `ChannelSidebar.vue` `@contextmenu` (`:325`); topic card menu `wui:components/MessageMenu.vue` (spec 182's `loops` item `:75`, `:203`), shown by `MessageCard.vue`'s `topicMenu` (`:764-767`); read on `5adcd5fdd`. A channel's item lists that channel's tasks, a topic's that topic's (S7's `?channel=` / `?topic=`) |
 | WUI Settings sections | "Settings -> Scheduled tasks" | `wui:utils/tenant-settings-nav.ts` (94 lines): each section carries a `perm` (`:29-39`), filtered by `filterByPerm` (`:69`); pages under `wui:pages/tenant-settings/` (13 files) |
 | `csi-spl-wui/i18n/locales/` | (by rule) | 19 files |
 | user help | S10 | `csi-spl-doc/doc/help/` (31 files), copied by `node src/node/help/sync-help.mjs` (csi-spl-wui; `--check` exits 1 on a difference) |
@@ -189,7 +190,7 @@ S12 is split in two, as spec 187 9 and its tasks.md T012 already say
 here for the shared files and the Instance section (2.2, 2.4 N4 e). S5
 moves to batch 4 (v0.2, W4): its reply hook sits in S4's file and its
 timeout in the ticker file S12b also edits. 13 rows exceed rulebook 1.1's
-hard cap of 10: owner question Q3 (2.4).
+hard cap of 10: owner question Q3 (2.4), answered A (one plan).
 
 ### 2.2 Batches and disjoint files (R1, R16)
 
@@ -244,7 +245,10 @@ order.
   `scheduled_task_settings.go`); `server.go`; `openapi.json`.
 - **Batch 6: S8.** `wui:components/ScheduledTasks*.vue`, a new
   `wui:pages/tenant-settings/scheduled-tasks.vue`,
-  `wui:utils/tenant-settings-nav.ts`, the Instance section, the four
+  `wui:utils/tenant-settings-nav.ts`, the "Scheduled tasks" item in
+  `wui:components/SidebarRowMenu.vue` + `ChannelSidebar.vue` and in
+  `wui:components/MessageMenu.vue` + `MessageCard.vue` (Q1, spec D21),
+  the Instance section, the four
   templates, the topic and message label chips, `wui:utils/spool-client*.mjs`,
   `csi-spl-wui/i18n/locales/*.json`, their unit tests.
 - **Batch 7: S9.** New `csi-spl-wui/tests/e2e/scheduled-tasks.test.mjs`
@@ -288,8 +292,14 @@ chips and is the larger store change), S6 last of the api rows.
 
 ### 2.4 Rows needing a decision
 
-**For the owner (the holder asks as a form).** The proposed briefs take
-the first reading named, so another answer changes only the cited spot.
+**For the owner (the holder asks as a form).** Answered (poll
+`bb3b76c2`, relayed by c-002, 2026-11-25): Q1 the owner's own words, msg
+`7b63c45e`: "There should be a scheduled tasks option in the right-click
+menu, both on the channels and on the topic level." (spec D21); Q2 **B**,
+msg `e17e6c09`: "A new field, mention_assignee (yes or no)" (spec D22); Q3
+**A**, msg `e17e6c09`: "One plan, 13 rows in 8 batches, at most 3 rows live
+at once". Spec 187 v0.4 carries Q1 and Q2 (6.2, 4.3, 9.1.1, 9.1.5, 7.2);
+the briefs below follow it. The questions as asked:
 
 - **Q1. Where a member opens "Scheduled tasks".** Spec 6.2
   (`spec.md:526-530` at `07f34efeb`) puts the list in Settings and lets "a
@@ -405,7 +415,7 @@ placement and cites it in its subject, e.g.
   spec 8.1's S1 block, plus `scheduled-runs` added to
   `spool_seed_default_channels` (its last body, `rdb:0173:26`) and inserted
   for every existing workspace, as `0173` did for `#public`.
-- Contract: spec 9.1.1 whole (`ScheduledTaskStore`, both stores, the
+- Contract: spec 9.1.1 whole, v0.4 (with `TaskActionSpec.MentionAssignee`, D22) (`ScheduledTaskStore`, both stores, the
   constants, `ChannelScheduledRuns` in `channels.go` beside
   `ChannelPublicID`). `DefaultChannels` gains it (`channels.go:44`);
   `PublicChannels` follows (`:49`). Cron validation is a stub that refuses
@@ -471,7 +481,9 @@ placement and cites it in its subject, e.g.
   row under the owner's rights (4.5); the result post in the task's one
   topic in `#scheduled-runs` as `HUB-0` via the `public_notice.go` path;
   the run id a UUIDv5 of `(task_id, cause)` through `api:uid`. `label` on
-  issues only; `notify` with fixed ids only (2.4 Q2). The two seams
+  issues only; `notify` with fixed ids and `mention_assignee` (spec 4.3,
+  D22: an issue's assignee, a topic's starter, a message's sender;
+  "unassigned" mentions no one). The two seams
   `validateTaskSave` and `afterTaskWrite` (2.4 N4 f), with their tests.
 - Done and red control: spec 187 S3's cells verbatim (each schedule kind's
   next local time across a DST change, a missed tick runs once, each fixed
@@ -535,7 +547,9 @@ placement and cites it in its subject, e.g.
   `openapi.json` (the seven routes). Every save calls S3's
   `validateTaskSave`, every create, update and delete S3's
   `afterTaskWrite` (2.4 N4 f).
-- Contract: spec 9.1.5 (`/v1/tasks` JSON, the errors).
+- Contract: spec 9.1.5 (`/v1/tasks` JSON, the errors, and D21's
+  `GET /v1/tasks?channel=` / `?topic=` filters with a test each);
+  `mention_assignee` on `object = channel` answers `400 bad_task` (D22).
   `GET /v1/tasks/preview` counts and writes nothing.
 - Done and red control: spec 187 S7's cells verbatim (the D3 table; the
   grammar's error; red: save a member's task without narrowing its scope).
@@ -597,11 +611,14 @@ placement and cites it in its subject, e.g.
 
 - Kind `simple_coding`, then the language check. Batch 6: after S6, S7,
   S11 and S12b. R7 agy (waiver while out). Never mistral.
-- Files: batch 6's list. The Settings section by 2.4 Q1's reading; the
+- Files: batch 6's list. The Settings section (spec 6.2) and the
+  "Scheduled tasks" item in the channel and topic right-click menus (spec
+  6.2, D21: a channel's item lists that channel's tasks, a topic's that
+  topic's; "New task" there fills the scope); the
   editor in spec 6.3's order with the Advanced cron field and its next
   three times (from the preview route or a client copy of the rule: name
   which in the commit), the agent pick (D11), the four templates of spec 7
-  (7.2 by 2.4 Q2's answer), the history, the Instance section for `t1`
+  (7.2 with `mention_assignee` on, D22), the history, the Instance section for `t1`
   admins only, the topic and message label chips as the issue chips.
 - Language (2.4 N5): every string a key (developer guide 2.7); en plus
   machine drafts in the 18 other locales; `do_spl_lang_review_gct` over
@@ -658,3 +675,4 @@ placement and cites it in its subject, e.g.
 | v0.1 | first plan for the panel, on `5906e1fe2` |
 | v0.2 | c-342's FAIL on `36d85b32f`: W1 R7 = agy (claude waiver while out), no grok or mistral reviewer; W2 panel recorded as same-vendor, waiver; W3 owner Q3 (13 rows > 10); W4 S5 to batch 4 with the reply hook and timeout (N4 g); W5 and W6 S3's two seams (N4 f); W7 `PRE_PUSH_TIER=full` on S2 and S12b. Notes: 13 settings pages, S11 after S3, N3 needs an R1 waiver, c-918 landed, drift N7, title 13 rows, Q1/Q2 cite spec lines |
 | v1.0 | c-342 PASS on `cca84bfdf` (review line checked rc 0); the holder's GO; landed as `49f244c16` + `0989526af` with release-note trailers added to the two messages (tree unchanged, the holder's second GO); owner Q1-Q3 posted as a form, first readings stand until answered |
+| v1.1 | the owner's answers (poll `bb3b76c2`): Q1 own option, a "Scheduled tasks" item in the channel and topic right-click menus (spec v0.4 D21; S7 filters, S8 items, sites row and batch 6 files); Q2 B, `notify`'s `mention_assignee` (spec D22; S1 struct, S3 mention, S7 save check, S8 template); Q3 A, one plan, unchanged. No row, batch or vendor moves |

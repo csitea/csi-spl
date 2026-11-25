@@ -1,7 +1,7 @@
 # Spec 187: Scheduled Tasks and Activities
 
-Status: **Decided v0.3** (2026-11-21). Lanes `c-150` (v0.1, v0.2) and
-`c-660` (v0.3), `claude`, backup for `specs_and_docs` (agy held by the
+Status: **Decided v0.4** (2026-11-25). Lanes `c-150` (v0.1, v0.2),
+`c-660` (v0.3) and `c-074` (v0.4, the build plan's form), `claude`, backup for `specs_and_docs` (agy held by the
 placer). Every question is answered (1.1.2); nothing below is built.
 Epic: **SPL-2398**. Issue: **SPL-6067**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:91992830-ca2f-4711-b04e-e4c333d7294d` (`t1`), task
@@ -114,6 +114,23 @@ adds is spelled out in the section named, with its own build row or red
 control: D15 the chain depth (4.2.2, row S4), D18 the defaults (5.1, row
 S6), D19 the label store (4.3.1, row S11), D20 the cron grammar (4.2.1, row
 S12).
+
+#### 1.1.3 D21-D22: the build plan's form (poll `bb3b76c2`, HUM-10, t1 91992830, 2026-11-25)
+
+The build plan (`csi-spl-doc/doc/md/spec-187-build-plan.md` 2.4) asked
+three questions; Q1 and Q2 change this spec, Q3 (round size, A: one plan)
+changes only the plan. Verbatim, as relayed by the dispatch holder c-002:
+
+- Q1 (msg `7b63c45e`): "There should be a scheduled tasks option in the
+  right-click menu, both on the channels and on the topic level." The
+  owner's own option, neither A nor B.
+- Q2 (msg `e17e6c09`): "Answer 2: B — A new field, mention_assignee (yes or
+  no)".
+
+| D | Q | answer | where it lands |
+|---|---|---|---|
+| D21 | plan Q1 | the owner's own words (msg `7b63c45e`) | 6.2: a "Scheduled tasks" item in a channel's right-click menu lists that channel's tasks, and in a topic's right-click menu that topic's tasks; the filter is S7's, the items S8's. |
+| D22 | plan Q2 | **B** (msg `e17e6c09`) | 4.3 and 9.1.1: `notify` gets a yes/no field `mention_assignee`; template 7.2 sets it. A contract change: rows S1 (the struct), S3 (the mention), S7 (the save check), S8 (the editor and the template). |
 
 ### 1.2 Open
 
@@ -298,7 +315,7 @@ event trigger, **never the same task, at most 3 tasks deep**.
 | `archive` | message, topic, issue, channel | archives it | `PUT /v1/messages/{msg_id}/archive`, `handleArchiveTopic`, `POST /v1/issues/{ref}/archive`, `PUT /v1/channels/{channel}/archive` |
 | `label` | issue, topic, message (D19) | adds the named label from the workspace's label catalogue | `updateIssue`; for a topic or a message the new label store (4.3.1) |
 | `set_priority` | topic, issue | sets the priority | `PUT /v1/topics/{task_id}/priority`, `updateIssue` |
-| `notify` | any | posts in the task's topic in `#scheduled-runs` (6.1) naming the matched objects, `@`-mentioning listed members | a hub post as `HUB-0`, the `PostPublicNotices` path |
+| `notify` | any | posts in the task's topic in `#scheduled-runs` (6.1) naming the matched objects, `@`-mentioning listed members and, with `mention_assignee` on (D22), each matched object's assignee: an issue's `assignee`, a topic's starter, a message's sender; an issue with no assignee is named "unassigned" and mentions no one; refused at save for `object = channel` (`400 bad_task`) | a hub post as `HUB-0`, the `PostPublicNotices` path |
 
 #### 4.3.1 Labels on topics and messages (D19)
 
@@ -532,6 +549,19 @@ Workspace admins configure, as registered workspace settings (spec 098,
   `t1` admins: the 5.1 settings, the instance tasks, and per workspace its
   task count, runs today and tokens this month against its caps (the 5.1
   routes).
+- **Channel and topic menus (D21)**: the right-click menu of a channel row
+  in the sidebar (`wui/components/SidebarRowMenu.vue`, opened from
+  `ChannelSidebar.vue`'s `@contextmenu`) and of a topic card
+  (`wui/components/MessageMenu.vue`, the menu spec 182's "Discussion loops"
+  item sits in) carry a "Scheduled tasks" item for every member. A
+  channel's item lists that channel's tasks: those whose `where` names the
+  channel. A topic's item lists that topic's tasks: those whose query holds
+  `topic:<task_id>` (the grammar's existing `topic:` operator,
+  `api/search/grammar.go:200`). The list is the workspace list's rows and
+  per-row actions, with D3's rights (a member edits their own tasks and
+  reads the others). "New task" there fills the editor's scope with that
+  channel (`where`) or that topic (`where` = its channel, query
+  `topic:<task_id>`). Tasks over all channels show only in Settings.
 - **History**: per task, its runs of the last `history_days`, newest first,
   each linked to its reply in the task's topic.
 
@@ -559,7 +589,7 @@ A template fills the editor; the person changes anything before saving.
 | # | template | scope | trigger | action |
 |---|---|---|---|---|
 | 7.1 | Daily digest of a channel | `message`, the chosen channel, `after:1d` | `daily` 08:00, the creator's zone | `agent`: "Summarise the messages of the last day in this channel: decisions, open questions, who waits on whom. Link each point." |
-| 7.2 | Nudge stale issues | `issue`, `status:wip idle:7d` | `weekly` Monday 09:00 | `notify`, mentioning each issue's assignee |
+| 7.2 | Nudge stale issues | `issue`, `status:wip idle:7d` | `weekly` Monday 09:00 | `notify` with `mention_assignee` on (D22) |
 | 7.3 | Archive idle topics | `topic`, `idle:30d` | `daily` 03:00 | `archive` |
 | 7.4 | Weekly status report | `issue`, changed in the last 7 days | `weekly` Friday 15:00 | `agent`: "Write a status report of the week from these issues: done, in progress, blocked, next. Link each issue." |
 
@@ -714,8 +744,8 @@ it.
 | **S4 event triggers + chains** | S3 | `complex_coding` | the hooks in `wui.go`, `ws.go`, `issues.go` (shared with spec 182 row L2: one call per hook, each feature its own function, D9); `taskChainKey` and the chain check (4.2.2) | a new matching message, topic and issue each run the task once; a replay, a `HUB-0` note, a loop prompt and a post in `#scheduled-runs` do not; A -> A is `skipped` `chain_self`, A -> B -> A is `skipped` `chain_self`; A -> B -> C runs all three; `TestRoundTripsPerRequest` shows no extra round trip in a workspace with no event task | a 4-deep chain A -> B -> C -> D: remove the depth check and D runs (the test wants D `skipped` `chain_depth`) |
 | **S5 agent action + caps** | S3 | `complex_coding` | `api/hub/scheduled_task_agent.go`, the cap read over `rdb/0171`, their tests | the prompt reaches the named agent as one `task` in the task's topic with the objects quoted; the named agent offline -> an online agent of the workspace runs it and `agent_id` says which; none online -> `failed` `no_agent` (D11); the answer closes the run `ok`; no answer within the timeout closes it `failed` `no_answer`; at the run cap the next run is `skipped`; at 100 % tokens an agent run is skipped and its task pauses `cap`; the 80 % notice posts once | count fixed runs against the token cap, and the fixed-run test is skipped at 100 % |
 | **S6 two levels** | S1, S3 | `complex_coding` | `api/hub/operator_tasks.go` (the 5.1 routes behind `operatorAuth` and `instanceAdminAuth`); `api/config/config.go` (`SPOOL_HUB_INSTANCE_ADMIN_WORKSPACE`, default `t1`); the 5.2 settings (`RegisterTenantSetting`); `taskEffective` (5.3) | a `t1` member with `admin` or `biz_owner` reaches the instance routes, a `t1` `developer` and an admin of another workspace get `403` (D10); a fresh workspace's caps read 50 runs and 500 000 tokens (D18); instance off stops a workspace that is on; a workspace cap above the instance's is refused and one below is used; an action off at either level is refused at save and skipped at run; an instance task runs in each listed workspace, writes one run row in each with `level = 'instance'`, and leaves the workspace's run count unchanged while the instance's rises (D16) | count instance runs against the workspace cap, and the D16 test sees the workspace's run count rise |
-| **S7 workspace routes** | S1, S3 | `simple_coding` | `api/hub/tasks_routes.go`: `GET` / `POST /v1/tasks`, `PUT` / `DELETE /v1/tasks/{id}`, `POST /v1/tasks/{id}/run`, `GET /v1/tasks/{id}/runs`, `GET /v1/tasks/preview` (the live count) | the D3 table (admin: any task; member: own objects per D17; member on another's objects: 403; member with `object = channel`: 403); a refused query answers the grammar's error; the preview counts and writes nothing | save a member's task without narrowing its scope, and the D3 test passes on another member's objects |
-| **S8 wui** | S7, S11, S12 | `simple_coding`, then `i18n` (agy has the last word) | `wui/components/ScheduledTasks*.vue` (list, editor with the Advanced cron field and the agent pick, history), the Settings section and `t1`'s Instance section, the four templates, the topic and message label chips, `wui/utils/spool-client*.mjs`, `csi-spl-wui/i18n/locales/*.json` | `pnpm run typecheck`; `test:unit` (i18n parity, untranslated and raw-text gates, cleancode; the editor's required fields per trigger and action kind; the summary sentence per trigger kind, cron included); the Instance section is absent for a non-`t1` admin | a raw string in the editor, and `i18n-no-raw-text` fails |
+| **S7 workspace routes** | S1, S3 | `simple_coding` | `api/hub/tasks_routes.go`: `GET` (with D21's `?channel=` and `?topic=`) / `POST /v1/tasks`, `PUT` / `DELETE /v1/tasks/{id}`, `POST /v1/tasks/{id}/run`, `GET /v1/tasks/{id}/runs`, `GET /v1/tasks/preview` (the live count) | the D3 table (admin: any task; member: own objects per D17; member on another's objects: 403; member with `object = channel`: 403); a refused query answers the grammar's error; the preview counts and writes nothing | save a member's task without narrowing its scope, and the D3 test passes on another member's objects |
+| **S8 wui** | S7, S11, S12 | `simple_coding`, then `i18n` (agy has the last word) | `wui/components/ScheduledTasks*.vue` (list, editor with the Advanced cron field and the agent pick, history), the Settings section and `t1`'s Instance section, the "Scheduled tasks" item in `SidebarRowMenu.vue` and `MessageMenu.vue` (D21), the four templates, the topic and message label chips, `wui/utils/spool-client*.mjs`, `csi-spl-wui/i18n/locales/*.json` | `pnpm run typecheck`; `test:unit` (i18n parity, untranslated and raw-text gates, cleancode; the editor's required fields per trigger and action kind; the summary sentence per trigger kind, cron included); the Instance section is absent for a non-`t1` admin | a raw string in the editor, and `i18n-no-raw-text` fails |
 | **S9 e2e** | S8 | `tests` | `csi-spl-wui/tests/e2e/scheduled-tasks.test.mjs` | on the mock: create from each template, edit, pause, resume, run now, read the history, see the result as a reply in the task's topic in `#scheduled-runs`; save a cron task and read its next three times | skip the template fill, and the template test finds an empty editor |
 | **S10 docs** | S3-S8, S11, S12 | `specs_and_docs` | this spec's row status; a help page under `csi-spl-doc/doc/help/` | `do_check_dist_hygiene`, `do_check_fleet_rules_drift` | — |
 | **S11 labels on topics and messages** | S2 | `complex_coding` | `rdb/<NNNN>_topic_message_labels.sql` (8.1 row S11); `api/store/{object_labels.go,object_labels_postgres.go,object_labels_memory.go,object_labels_test.go}`; `rls_test.go`; `api/channelmove/catalogue.go`; `api/search/{grammar.go,match.go,grammar_test.go}` (`label:` applies to message and topic), the stores' compile; `api/hub/object_labels.go` (the 4.3.1 routes); `search-v1.md` (1.7) | `PRE_PUSH_TIER=full`: Postgres and Memory parity; a label not in the catalogue is refused; the 21st label on one object is refused; deleting a catalogue label removes it from topics and messages; `label:urgent` finds a labelled topic and message in the Postgres compile and in `MatchTopic` / `MatchMsg`; RLS covers both tables; a moved channel carries its labels | leave `TypeMessage` out of `label:`'s `Applies`, and the message search for `label:urgent` is refused |
@@ -813,6 +843,7 @@ type TaskActionSpec struct {
 	Label    string   `json:"label,omitempty"`    // label: an issue_labels.label_id (issue, topic, message; D19)
 	Priority int      `json:"priority,omitempty"` // set_priority
 	Mention  []string `json:"mention,omitempty"`  // notify: member ids
+	MentionAssignee bool `json:"mention_assignee,omitempty"` // notify (D22): also each matched object's assignee (4.3)
 	Prompt   string   `json:"prompt,omitempty"`   // agent
 	Agent    string   `json:"agent,omitempty"`    // agent (D11): the named agent; offline -> any online agent of the workspace
 }
@@ -940,7 +971,10 @@ type ObjectLabelStore interface {
 
 `/v1/tasks` JSON uses the snake_case of the 8.1 columns, with
 `trigger_spec` and `action_spec` as the objects of 9.1.1's JSON tags; a run
-carries `chain` (task ids) and `agent_id`. Errors: `400 bad_task` (naming
+carries `chain` (task ids) and `agent_id`. `GET /v1/tasks` takes
+`?channel=<channel_id>` (tasks whose `where` names it) and
+`?topic=<task_id>` (tasks whose query holds `topic:<task_id>`) for the D21
+menus. Errors: `400 bad_task` (naming
 the field; for `cron` also the 4.2.1 reason), `400 bad_query` (the
 grammar's message), `400 bad_label`, `403 not_allowed` (D3, D10), `409
 cap_reached`, `404 not_found`. The label routes of 4.3.1 answer `204` on
@@ -1006,3 +1040,8 @@ No question is open (1.2).
   cron trigger (row S12). Status Decided; section 10 answered; claims re-read
   on `origin/master` `325a47c76` (rdb head `0302`, `0301_topic_loops.sql`
   landed).
+- v0.4 (2026-11-25, lane `c-074`): the build plan's form (poll `bb3b76c2`)
+  written in as D21-D22 (1.1.3). D21: a "Scheduled tasks" item in the
+  channel and topic right-click menus (6.2), the list filter `?channel=` /
+  `?topic=` (9.1.5, row S7). D22: `notify`'s `mention_assignee` (4.3,
+  9.1.1, template 7.2). Code paths read on `origin/master` `5adcd5fdd`.

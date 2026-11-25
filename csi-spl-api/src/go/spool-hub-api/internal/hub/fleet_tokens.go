@@ -38,7 +38,7 @@ import (
 // After each push the hub checks the pushing lanes for a sustained surge:
 // fresh tokens (in + out + cache write) above fleetTokenSurgePerMin in each
 // of fleetTokenSurgeMinutes consecutive minutes posts one alert into the
-// operator workspace's #fleet-alerts, then that lane is quiet for
+// operator workspace's #alerts, then that lane is quiet for
 // fleetTokenSurgeCoolOff unless it first drops below fleetTokenSurgeRearm.
 // The hub never creates the channel: without it the alert is logged only.
 
@@ -48,8 +48,11 @@ const (
 	fleetTokenSurgeRearm   = 30000
 	fleetTokenSurgeMinutes = 3
 	fleetTokenSurgeCoolOff = 30 * time.Minute
-	// FleetAlertsChannel is the operator channel the alert goes to.
-	FleetAlertsChannel = "fleet-alerts"
+	// FleetAlertsChannel is the operator channel the alert goes to: the
+	// default #alerts, where automated notices go (SPL-4700); spec 140 first
+	// named a #fleet-alerts no workspace had, so every alert was dropped
+	// (SPL-6461).
+	FleetAlertsChannel = store.ChannelAlerts
 )
 
 // fleetTokenFuture is how far ahead of the hub's clock a sample's minute may
@@ -340,15 +343,15 @@ func fleetSurgeID(sg fleetTokenSurge) string {
 }
 
 // postFleetSurge stores the alert, signed as box-wui like the #public
-// notice, in the operator workspace's #fleet-alerts. A missing channel is
+// notice, in the operator workspace's #alerts. A missing channel is
 // logged, never created.
 func (s *Server) postFleetSurge(ctx context.Context, tenant string, sg fleetTokenSurge) {
 	log := s.o.Log.Warn().Str("box", sg.box).Str("agent", sg.agent).Str("vendor", sg.vendor)
 	if _, err := s.o.Store.Channel(ctx, tenant, FleetAlertsChannel); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			log.Msg("fleet token surge: #fleet-alerts does not exist in the operator workspace, alert not posted")
+			log.Msg("fleet token surge: #alerts does not exist in the operator workspace, alert not posted")
 		} else {
-			log.Err(err).Msg("fleet token surge: #fleet-alerts not read, alert not posted")
+			log.Err(err).Msg("fleet token surge: #alerts not read, alert not posted")
 		}
 		return
 	}
@@ -360,10 +363,10 @@ func (s *Server) postFleetSurge(ctx context.Context, tenant string, sg fleetToke
 		log.Err(err).Msg("fleet token surge: alert not posted")
 		return
 	}
-	log.Msg("fleet token surge: alert posted to #fleet-alerts")
+	log.Msg("fleet token surge: alert posted to #alerts")
 }
 
-// postFleetAlert stores one hub note as its own topic in #fleet-alerts; a
+// postFleetAlert stores one hub note as its own topic in #alerts; a
 // second post of the same id is a no-op insert.
 func (s *Server) postFleetAlert(ctx context.Context, tenant, id, body string) error {
 	now := s.o.Now().UTC().Truncate(time.Second)

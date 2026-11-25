@@ -36,7 +36,7 @@ Owner decisions from poll `63182298` (msg `86ee1e4e-1d33-4c31-bb68-fc4607585321`
 Owner decisions from poll `aa31a0fe` (msg `ca189c3a-8763-486e-9fbd-3efde27322d5`):
 - **1 Ingestion Protocol: Choice B, Over the agent's existing live connection**: Telemetry pushed over WebSocket via `lane_op fleet_tokens_push` frame on the box's existing persistent live session (`TLane` frame), avoiding separate HTTP client overhead, ad-hoc Bearer token exchange, or opening secondary TCP connections from runner boxes.
 - **2 Retention Window: Choice B, Per-minute detail 30 days, daily totals 1 year**: High-resolution 1-minute bucket records are retained for 30 days; nightly aggregated daily rollups (`fleet_token_burn_daily`) are retained for 365 days (1 year) for comprehensive long-term cost auditing.
-- **3 Burn Rate Alerts: Choice B, Colour plus a message in a `#fleet-alerts` channel**: Monitoring UI displays visual badges (amber > 30k/min, red > 60k/min); additionally, when an agent sustains > 60k tokens/min across 3 consecutive minutes, the hub generates an automated alert message posted to the `#fleet-alerts` operator channel.
+- **3 Burn Rate Alerts: Choice B, Colour plus a message in a `#fleet-alerts` channel**: Monitoring UI displays visual badges (amber > 30k/min, red > 60k/min); additionally, when an agent sustains > 60k tokens/min across 3 consecutive minutes, the hub generates an automated alert message posted to the operator workspace's `#alerts` channel (it was `#fleet-alerts` until SPL-6461; section 4.4.2).
 
 What they bind:
 - **B1 (msg ebff27ef & f2f947d1)**: Provide live ("almost real-time") token consumption telemetry on the Monitoring page.
@@ -51,7 +51,7 @@ What they bind:
 - **B5 (Fleet lane gap)**: Today, `store.UsageLedger` and `usage_events` meter only customer-facing workspace channel posts (`csi-spl-api/src/go/spool-hub-api/internal/hub/usage_events.go:41-81`). Autonomous fleet git lanes are entirely unmetered in real time. This spec closes that visibility gap.
 - **B6 (Poll aa31a0fe Q1 Choice B)**: Telemetry is transmitted over the box's existing live WebSocket connection using `lane_op fleet_tokens_push` (matching the pattern in `box_stats.go` and `box_beat.go`).
 - **B7 (Poll aa31a0fe Q2 Choice B)**: Retention is 30 days for 1-minute raw buckets and 365 days (1 year) for daily rollups (`fleet_token_burn_daily`).
-- **B8 (Poll aa31a0fe Q3 Choice B)**: In addition to dashboard amber/red indicators, the hub evaluates rolling 3-minute sustained burn and posts an automated alert message to `#fleet-alerts` when an agent sustains > 60k tokens/min for 3 consecutive minutes.
+- **B8 (Poll aa31a0fe Q3 Choice B)**: In addition to dashboard amber/red indicators, the hub evaluates rolling 3-minute sustained burn and posts an automated alert message to `#alerts` when an agent sustains > 60k tokens/min for 3 consecutive minutes (`#fleet-alerts` until SPL-6461; section 4.4.2).
 
 ---
 
@@ -445,8 +445,9 @@ Where the hub differs from sections 3.2 to 3.6 and 4.4.2, and why. The code is
   per minute with no 3 consecutive minutes above 60k. The dashboard keeps the
   total as `burn_rate_tokens_per_min` and shows the fresh rate beside it.
 - **Alert**: posted as a HUB-0 note, its own topic, in the operator
-  workspace's `#fleet-alerts`. A missing channel is logged and never
-  created. The cool-off state is per hub process; the alert's `msg_id` is
+  workspace's `#alerts`, a default channel every workspace has (SPL-4700,
+  SPL-6461; it was `#fleet-alerts`, see 4.4.2). A missing channel is logged
+  and never created. The cool-off state is per hub process; the alert's `msg_id` is
   fixed per lane and 30-minute slot, so two hub instances never post the
   same slot twice. The body has no "last reported task" (the hub does not
   know it) and gives the cost in the price currency.
@@ -753,9 +754,9 @@ Conforming strictly to `merged.md` D6 and D7:
    - `lag > 90 s` (3x timer): Red warning badge ("Data stale: hub unreachable or collector paused").
 4. **Resilience**: Full empty state (when no lanes are active) and error state with an interactive "Retry" button.
 
-### 4.4 Sustained burn rate alerts & `#fleet-alerts` channel notification
+### 4.4 Sustained burn rate alerts & `#alerts` channel notification
 
-Per owner decision 3 = B (poll `aa31a0fe`, msg `ca189c3a`), the platform implements dual-layer alerting: visual indicators in the Monitoring dashboard and automated proactive alerts to the `#fleet-alerts` operator channel.
+Per owner decision 3 = B (poll `aa31a0fe`, msg `ca189c3a`), the platform implements dual-layer alerting: visual indicators in the Monitoring dashboard and automated proactive alerts to the operator workspace's `#alerts` channel.
 
 #### 4.4.1 Visual threshold highlights in UI
 In both the vendor table and the agent lane breakdown table:
@@ -763,11 +764,11 @@ In both the vendor table and the agent lane breakdown table:
 - **Elevated burn**: `30,000` to `60,000 tokens/min` (Amber warning badge).
 - **Surge burn**: `> 60,000 tokens/min` (Red alert badge with pulsing warning icon).
 
-#### 4.4.2 Automated Spool Hub alert to `#fleet-alerts`
+#### 4.4.2 Automated Spool Hub alert to `#alerts`
 When an LLM agent enters an infinite loop, recursive rebase cycle, or runaway tool failure, rapid alerting prevents material API cost:
 1. **Detection Window**: Upon ingestion of minute samples, the hub tracks rolling token burn per agent over a 3-minute sliding window (`minute_bucket`, `minute_bucket - 1m`, `minute_bucket - 2m`).
 2. **Trigger Invariant**: An alert fires if and only if an agent sustains **> 60,000 tokens/min across 3 consecutive minutes**, counting fresh tokens (in + out + cache write; section 3.7).
-3. **Destination Channel**: The alert is posted directly into the `#fleet-alerts` channel in the operator workspace as a high-visibility spool message.
+3. **Destination Channel**: The alert is posted directly into the `#alerts` channel in the operator workspace as a high-visibility spool message (`FleetAlertsChannel` = `store.ChannelAlerts` in `fleet_tokens.go`). The destination is `#alerts`, not the `#fleet-alerts` the poll named (SPL-4700, SPL-6461): the owner order of 2026-11-03 (HUM-10, t1 3a18a0b5, msg 6a43f1a2) sends automated messages to #alerts, and no workspace had a `#fleet-alerts`, so the hub dropped every alert (5 in the 7 days to 2026-11-25 on prd).
 4. **Message Format**:
    ```markdown
    :warning: **Fleet Token Surge Alert**: Agent `<agent_id>` (`<vendor>` / `<model>`) on box `<box>` has sustained high token burn (>60k tokens/min) for 3 consecutive minutes:
@@ -930,6 +931,7 @@ The owner (HUM-10, t1 topic `e8ae0aad-b8fb-4d3c-8377-072eec9cd404`, msg `ca189c3
 ### Question Q3. Token burn alert notifications
 - **Decided: Option B — Visual colour on page plus automated message in `#fleet-alerts` channel**.
   - *Adopted In*: §0, §4.4, §6, and Tasks T014, T031, T032, T033.
+  - *Channel*: `#alerts` since SPL-6461, see §4.4.2.
   - *Rationale*: Protects against expensive unattended runaway loops by pushing an explicit warning to the operator channel when an agent sustains > 60,000 tokens/min across 3 consecutive minutes, complemented by amber (>30k) and red (>60k) visual styling in the UI.
 
 ---

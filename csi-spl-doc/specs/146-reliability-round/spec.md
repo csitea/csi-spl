@@ -24,6 +24,7 @@ automated msgs should go to the alerts channel and not t othe ops channel".
 | `do_spl_fleet_stopped_alarm` (`fleet-stopped-alarm-cron.sh`), section below | `env.ops_alarms.channel` | `alerts` |
 | weekly full scan, a missed week's blocker (`weekly-full-scan-cron.sh`) | `env.ops_alarms.channel` | `alerts` |
 | weekly full scan summary (`weekly-full-scan-cron.sh`) | `--channel` | `spool-hub-ops`, kept: a weekly report, not an alarm |
+| the hub's fleet token surge alert (`postFleetSurge`, `csi-spl-api/src/go/spool-hub-api/internal/hub/fleet_tokens.go`, spec 140 section 4.4.2) | none, the hub's `FleetAlertsChannel` = `store.ChannelAlerts` | `alerts` (SPL-6461; it was `fleet-alerts`, which no workspace had, so every alert was dropped) |
 
 Both keys live in `csi-spl-cnf/csi-spl/all.env.yaml`. #alerts keeps a post 7
 days (`SPOOL_HUB_RETENTION_ALERTS`), other channels 30. Test:

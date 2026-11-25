@@ -263,18 +263,14 @@ func fleetTokensReadRoute(t *testing.T, r *fleetTokensRig) {
 }
 
 // spec 140 T014: a lane above 60k fresh tokens/min for 3 consecutive minutes
-// posts one alert into #fleet-alerts; a lane still surging inside the
-// 30-minute cool-off posts none; after the cool-off, or once the lane fell
-// below 30k and surged again, it posts again. RED CONTROL: 65k/min for only
-// 2 minutes, then a drop, posts nothing, and a lane below 60k posts nothing.
-// Without #fleet-alerts the push is still acked and no channel is created.
+// posts one alert into #alerts (SPL-4700, SPL-6461); a lane still surging
+// inside the 30-minute cool-off posts none; after the cool-off, or once the
+// lane fell below 30k and surged again, it posts again. RED CONTROL: 65k/min
+// for only 2 minutes, then a drop, posts nothing, and a lane below 60k posts
+// nothing. The workspaces hold only the default channels: no channel is made.
 func TestFleetTokenSurgeAlert(t *testing.T) {
 	r := newFleetTokensRig(t)
 	ctx := context.Background()
-	if err := r.e.st.CreateChannel(ctx, store.Channel{TenantID: r.op, ChannelID: hub.FleetAlertsChannel, Name: hub.FleetAlertsChannel,
-		CreatedBy: r.admin, CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
 	// Minutes from a 30-minute slot start 3 h back, so the slots the alert
 	// ids fall into are fixed.
 	base := time.Now().UTC().Truncate(30 * time.Minute).Add(-3 * time.Hour)
@@ -346,19 +342,24 @@ func TestFleetTokenSurgeAlert(t *testing.T) {
 		t.Fatalf("rearm: first %v, second %v, want both", posted("c-rearm", 62), posted("c-rearm", 66))
 	}
 
-	// No #fleet-alerts: the push is acked, nothing is posted, no channel made.
+	// SPL-6461: a fresh workspace with only the default channels (prd t1 has
+	// no #fleet-alerts): the alert lands in #alerts, and no channel is made.
 	r2 := newFleetTokensRig(t)
 	r2.offset.Store(r.offset.Load())
 	for n := 70; n <= 72; n++ {
 		r2.offset.Store(int64(min(n).Add(30 * time.Second).Sub(time.Now())))
 		if ack, err := r2.push(t, r2.opBox, tokSample{agent: "c-hot", vendor: "claude", minute: min(n), in: 90000}); err != nil || ack.Inserted != 1 {
-			t.Fatalf("push without the channel: %+v %v", ack, err)
+			t.Fatalf("push in a default-channels workspace: %+v %v", ack, err)
 		}
 	}
-	if ok, _ := r2.e.st.HasMessage(ctx, r2.op, hub.FleetSurgeIDOf(r2.opBox.id, "c-hot", min(72))); ok {
-		t.Fatal("an alert was stored without #fleet-alerts")
+	id := hub.FleetSurgeIDOf(r2.opBox.id, "c-hot", min(72))
+	if ok, _ := r2.e.st.HasMessage(ctx, r2.op, id); !ok {
+		t.Fatal("the alert was dropped in a workspace with only the default channels")
 	}
-	if known, _ := r2.e.st.ChannelKnown(ctx, r2.op, hub.FleetAlertsChannel); known {
+	if ch, err := r2.e.st.TopicChannel(ctx, r2.op, id); err != nil || ch != store.ChannelAlerts {
+		t.Fatalf("alert topic channel %q %v, want %q", ch, err, store.ChannelAlerts)
+	}
+	if known, _ := r2.e.st.ChannelKnown(ctx, r2.op, "fleet-alerts"); known {
 		t.Fatal("the alert path created #fleet-alerts")
 	}
 }

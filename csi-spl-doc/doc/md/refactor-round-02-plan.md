@@ -55,7 +55,7 @@ guard inside their action functions and delegate all crontab check/dry-run/remov
 handling to one home.
 The rows share no file: both are batch 1.
 
-**Status: v0.2 draft** (panel W1, W2, N1, N2, N4 folded; pending cross-vendor panel
+**Status: v0.3 draft** (panel W1-W3, N1, N2, N4, N6 folded; pending cross-vendor panel
 re-review and signing on `review/c002-refactor-round-02-planner`, never master before the
 GO). Editor: **a-712** (agy). Cross-vendor panel seat live: **c-646** (claude).
 
@@ -367,7 +367,9 @@ identical counts plus the 7 + 3 new checks (1.5).
 
 Shape (built as head2 of 1.5):
 - `orc:src/bash/run/setup-box-stats-cron.func.sh`: drop unused `current` from `local` at
-  `:43`; replace `:59-93` with `_spl_simple_cron_apply "$act" "$tag" "$src" "$trunk" "$script" "$logdir" "$line" "box-stats" "posts a sample every ${every}m as the box user" ": the hub gets no regular samples of this box"`; append `_spl_simple_cron_apply` after `do_setup_box_stats_cron`'s closing `}`. 94 -> 105 lines (`+16 -5`).
+  `:43`; replace `:59-94` (body plus `do_setup_box_stats_cron`'s closing `}`) with the
+  verbatim 1.4 block calling `_spl_simple_cron_apply "$act" "$tag" "$src" "$trunk" "$script" "$logdir" "$line" "box-stats" "posts a sample every ${every}m as the box user" ": the hub gets no regular samples of this box"`,
+  closing `do_setup_box_stats_cron`, and defining `_spl_simple_cron_apply`. 94 -> 105 lines (`+16 -5`).
 - `orc:src/bash/run/check-disk-headroom-install-cron.func.sh`: drop unused `current` from
   `local` at `:41`; replace `:57-91` with `# shellcheck source=setup-box-stats-cron.func.sh`,
   `declare -F _spl_simple_cron_apply >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/setup-box-stats-cron.func.sh"`,
@@ -399,9 +401,9 @@ Shape (built as head2 of 1.5):
 
 Verbatim helper and test hunks (head2 on `c567245fa`):
 
-`orc:src/bash/run/setup-box-stats-cron.func.sh` (replaces `:59-93`, keeping the closing
-`}` of `do_setup_box_stats_cron`, and appends `_spl_simple_cron_apply` after it; also
-remove `current` from `local` at `:43`):
+`orc:src/bash/run/setup-box-stats-cron.func.sh` (replaces `:59-94` — its block brings
+`do_setup_box_stats_cron`'s closing `}` on line 4 and defines `_spl_simple_cron_apply`
+after it; also remove `current` from `local` at `:43`):
 ```bash
   _spl_simple_cron_apply "$act" "$tag" "$src" "$trunk" "$script" "$logdir" "$line" \
     "box-stats" "posts a sample every ${every}m as the box user" \
@@ -453,7 +455,7 @@ _spl_simple_cron_apply() {
 ```
 
 `orc:src/bash/run/check-disk-headroom-install-cron.func.sh` (replaces `:57-91`, keeping
-the closing `}`; also remove `current` from `local` at `:41`):
+the closing `}` at `:92`; also remove `current` from `local` at `:41`):
 ```bash
   # shellcheck source=setup-box-stats-cron.func.sh
   declare -F _spl_simple_cron_apply >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/setup-box-stats-cron.func.sh"
@@ -463,7 +465,7 @@ the closing `}`; also remove `current` from `local` at `:41`):
 ```
 
 `orc:src/bash/run/setup-go-cache-prune-cron.func.sh` (replaces `:57-91`, keeping the
-closing `}`; also remove `current` from `local` at `:41`):
+closing `}` at `:92`; also remove `current` from `local` at `:41`):
 ```bash
   # shellcheck source=setup-box-stats-cron.func.sh
   declare -F _spl_simple_cron_apply >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/setup-box-stats-cron.func.sh"
@@ -627,7 +629,7 @@ files, 0 test hits). No new test file is added, so `orc-shard-weights.txt` needs
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `refactor(r02-01-orc-desk-move-common)` | one fact, one copy (developer guide 2.2.4) | `spl-msg-move.func.sh:50-60,70-78` and `spl-topic-move.func.sh:47-57,76-84` duplicate both the 11-line desk-dir / dry-run / desk-exists / `spl_host_spool` setup and the 9-line `python3` JSON summary block (1.3, r01 section 7) | `orc:src/bash/run/spl-msg-move.func.sh:50-60,70-78,82`<br>`orc:src/bash/run/spl-topic-move.func.sh:47-57,76-84`<br>`orc:src/bash/tests/spl-msg-move.tst.sh:74`<br>`orc:src/bash/tests/spl-topic-move.tst.sh:71` | copies of desk-move prep and JSON summary blocks 2 -> 1 (`_spl_desk_move_prep` and `_spl_desk_move_json` in `spl-msg-move.func.sh`) | 1.3's shape (verbatim blocks in 1.3; header documents process globals `SPL_MOVE_DIR`, `SPL_MOVE_DRY_DONE`). **Red control:** head's `spl-msg-move.tst.sh` on parent FAILs 7 checks (`rc1a`, rc 1, 19 pass, 8 fail lines incl. `fails=7`, `_spl_desk_move_prep` / `_spl_desk_move_json` command not found + one-copy) and head's `spl-topic-move.tst.sh` on parent FAILs one-copy naming `:53` (`rc1b`, rc 1, 20 pass, 2 fail lines incl. `fails=1`), then GREEN (26/1* and 21/1*, `fails=0`); guard control (`gc1`, `declare -F _spl_desk_move_prep` deleted in `spl-topic-move.func.sh`: rc 1, 20 pass, 2 fail lines with `_spl_desk_move_prep: command not found`; proves standalone-source path outside `./run`), built in a worktree; JSON key checks catch `m1a`/`m1b` (1.5); outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 7 + 3 new checks. Tests: **`orc:.../spl-msg-move.tst.sh`**, **`orc:.../spl-topic-move.tst.sh`**, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
-| 02 `refactor(r02-02-orc-simple-cron-install)` | one fact, one copy (developer guide 2.2.4) | `setup-box-stats-cron.func.sh:59-93`, `check-disk-headroom-install-cron.func.sh:57-91`, and `setup-go-cache-prune-cron.func.sh:57-91` duplicate the exact 35-line `check` / `DRY_RUN=1` / `remove` / `install` crontab state machine differing only in label, optional missing-line suffix, and install OK verb (1.4, r01 section 7) | `orc:src/bash/run/setup-box-stats-cron.func.sh:43,59-93`<br>`orc:src/bash/run/check-disk-headroom-install-cron.func.sh:41,57-91`<br>`orc:src/bash/run/setup-go-cache-prune-cron.func.sh:41,57-91`<br>`orc:src/bash/tests/box-stats-cron.tst.sh:219` | copies of the single-line periodic cron check/dry-run/remove/install state machine 3 -> 1 (`_spl_simple_cron_apply` in `setup-box-stats-cron.func.sh`) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head's `box-stats-cron.tst.sh` on parent FAILs 4 checks (`rc2`, rc 1, 40 pass, 4 fail: `_spl_simple_cron_apply: command not found` + 3 one-copy checks naming `:69`), then GREEN (44/0); guard controls (`gc2a`, `declare -F _spl_simple_cron_apply` deleted in `check-disk-headroom-install-cron.func.sh`: rc 1, 43/1; `gc2b`, deleted in `setup-go-cache-prune-cron.func.sh`: rc 1, 43/1; prove standalone-source path), built in worktrees; label/suffix checks catch `m2a`/`m2b`/`m2c` (1.5); outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 8 new checks in `box-stats-cron.tst.sh`. Tests: **`orc:.../box-stats-cron.tst.sh`**, `orc:.../check-disk-headroom.tst.sh`, `orc:.../prune-go-build-cache.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 02 `refactor(r02-02-orc-simple-cron-install)` | one fact, one copy (developer guide 2.2.4) | `setup-box-stats-cron.func.sh:59-93`, `check-disk-headroom-install-cron.func.sh:57-91`, and `setup-go-cache-prune-cron.func.sh:57-91` duplicate the exact 35-line `check` / `DRY_RUN=1` / `remove` / `install` crontab state machine differing only in label, optional missing-line suffix, and install OK verb (1.4, r01 section 7) | `orc:src/bash/run/setup-box-stats-cron.func.sh:43,59-94`<br>`orc:src/bash/run/check-disk-headroom-install-cron.func.sh:41,57-91`<br>`orc:src/bash/run/setup-go-cache-prune-cron.func.sh:41,57-91`<br>`orc:src/bash/tests/box-stats-cron.tst.sh:219` | copies of the single-line periodic cron check/dry-run/remove/install state machine 3 -> 1 (`_spl_simple_cron_apply` in `setup-box-stats-cron.func.sh`) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head's `box-stats-cron.tst.sh` on parent FAILs 4 checks (`rc2`, rc 1, 40 pass, 4 fail: `_spl_simple_cron_apply: command not found` + 3 one-copy checks naming `:69`), then GREEN (44/0); guard controls (`gc2a`, `declare -F _spl_simple_cron_apply` deleted in `check-disk-headroom-install-cron.func.sh`: rc 1, 43/1; `gc2b`, deleted in `setup-go-cache-prune-cron.func.sh`: rc 1, 43/1; prove standalone-source path), built in worktrees; label/suffix checks catch `m2a`/`m2b`/`m2c` (1.5); outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 8 new checks in `box-stats-cron.tst.sh`. Tests: **`orc:.../box-stats-cron.tst.sh`**, `orc:.../check-disk-headroom.tst.sh`, `orc:.../prune-go-build-cache.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 `iac:` = `csi-spl-iac/`, `orc:` = `csi-spl-orc/`.
 
@@ -708,7 +710,8 @@ Paths (8 edited + 2 regression-run test files = 10 checked):
 - **Briefs on this box** changed in the last 24 h matching any of the 10 paths (re-checked
   at 20:03:23Z): **0 briefs**.
 - **Remote branches committed in the last 24 h** (`git for-each-ref`, re-checked at
-  20:02:23Z across 72 refs):
+  20:02:23Z over every recent remote-tracking ref in the planner box's fetch; panel N6
+  also checked the other box's fetch at 20:10:40Z):
   `git diff --name-only $(git merge-base c567245fa <b>) <b> -- <the 10 paths>` -> **0 hits**.
 - **Commits in the last 24 h** on the 5 `.func.sh` paths (`git log origin/master --since='24 hours ago'`,
   re-checked on `5fdfae32b` at 20:03:23Z) -> **0**.
@@ -725,9 +728,9 @@ Paths (8 edited + 2 regression-run test files = 10 checked):
   direct `_spl_desk_move_prep` checks, 2 direct `_spl_desk_move_json` checks, 1 one-copy
   check); `orc:src/bash/tests/spl-topic-move.tst.sh` appends section 6 (1 top-level JSON
   key check, 1 one-copy check, 1 standalone lazy-load check).
-- **r02-02:** `orc:src/bash/run/setup-box-stats-cron.func.sh` appends
-  `_spl_simple_cron_apply` after `do_setup_box_stats_cron`, removes unused `current` from
-  `local` (`:43`), and replaces `:59-93` with a call to `_spl_simple_cron_apply`;
+- **r02-02:** `orc:src/bash/run/setup-box-stats-cron.func.sh` removes unused `current`
+  from `local` (`:43`) and replaces `:59-94` with the verbatim 1.4 block (call to
+  `_spl_simple_cron_apply`, closing `}`, and `_spl_simple_cron_apply` definition);
   `orc:src/bash/run/check-disk-headroom-install-cron.func.sh` and
   `orc:src/bash/run/setup-go-cache-prune-cron.func.sh` each remove unused `current` from
   `local` (`:41`), lazy-source sibling `setup-box-stats-cron.func.sh` behind a
@@ -743,10 +746,10 @@ Paths (8 edited + 2 regression-run test files = 10 checked):
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
   step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-646**
   (live on the other box; seat file `csi-spl-doc/doc/md/refactor-round-02/seat-claude.md`
-  on `review/c002-refactor-round-02-claude-seat` @ `a31cf4054`; returned FAIL on v0.1
-  `16c335852` for two doc defects W1/W2 while confirming both rows hold; now pending
-  re-review of v0.2 on `review/c002-refactor-round-02-planner`). The seat reviews this
-  plan only.
+  on `review/c002-refactor-round-02-claude-seat` @ `a417282da`; confirmed W1/W2 fixed on
+  v0.2 `74b11a3b5` and returned FAIL for W3 only (the `:59-93` vs `:59-94` range on
+  `setup-box-stats-cron.func.sh`); now pending re-review of v0.3 on
+  `review/c002-refactor-round-02-planner`). The seat reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-25T19:03:19Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -797,8 +800,9 @@ only under ruling `dc84300a` — cite ruling `dc84300a` in the row brief if the 
 backup is used; never mistral; re-checked at placement).
 
 **r02-02 brief, Files: ONLY**
-`csi-spl-orc/src/bash/run/setup-box-stats-cron.func.sh` (drop unused `current` at `:43`,
-append `_spl_simple_cron_apply`, and replace `:59-93` with a call to it),
+`csi-spl-orc/src/bash/run/setup-box-stats-cron.func.sh` (drop unused `current` at `:43`
+and replace `:59-94` with the verbatim 1.4 block: call, closing `}`, and
+`_spl_simple_cron_apply`),
 `csi-spl-orc/src/bash/run/check-disk-headroom-install-cron.func.sh` (drop unused `current`
 at `:41`, lazy-source sibling `setup-box-stats-cron.func.sh` behind a
 `declare -F _spl_simple_cron_apply` guard inside `do_check_disk_headroom_install_cron`,
@@ -875,9 +879,22 @@ backup is used; never mistral; re-checked at placement).
   - **N2** (1.5): noted that suites and controls belong in a git worktree because
     `no-literal-paths.tst.sh` reads `1/13/2` (`STALE`) in a plain `git archive` export.
   - **N3/N4** (2.2): refreshed R3 on `origin/master` `5fdfae32b` (0 drift on all 10
-    row/test files, 0 hits across 72 remote refs of the last 24 h, fresh 20:01Z lane map)
+    row/test files, 0 hits across remote refs of the last 24 h, fresh 20:01Z lane map)
     and added all 7 currently queued rows including `6b14cdc6`
     (`c002-refactor-reserve-reads-box-gh-credential`, brief read on this box, 0 overlap).
   - **N5**: noted panel's check of all 10 r01 section 7 items (`c002-next-round-candidates.md`
     lives on the planner's box; no `r02` block).
+  Pushed as `74b11a3b5` on `review/c002-refactor-round-02-planner`.
+- v0.3 (a-712): folded panel `c-646` (claude) FAIL finding W3 and N6 (`8b026fcd`, seat
+  file `a417282da`) and holder `c-002` send-back (`b113f60b`) on `74b11a3b5` (zero block
+  bytes changed):
+  - **W3** (1.4, 2, 3, 5): restored `setup-box-stats-cron.func.sh`'s replacement range to
+    `:59-94` (its 47-line verbatim block brings `do_setup_box_stats_cron`'s closing `}` on
+    line 4 and defines `_spl_simple_cron_apply` after it), keeping the two siblings at
+    `:57-91` (preserving `:92`'s closing `}`). Literally rebuilt from v0.3: `setup-box-stats-cron.func.sh`
+    105 lines `2b1f19013437` (`bash -n` rc 0), `check-disk-headroom-install-cron.func.sh`
+    62 lines `6106f57f2059` (`bash -n` rc 0), `setup-go-cache-prune-cron.func.sh` 61 lines
+    `7e4e89ea9bd4` (`bash -n` rc 0).
+  - **N6** (2.2, 8): dropped the box-local remote-tracking ref count (0 hits on the 10
+    paths in both the planner box's 20:02:23Z check and the panel box's 20:10:40Z check).
   Pending panel `c-646` re-review on `review/c002-refactor-round-02-planner`.

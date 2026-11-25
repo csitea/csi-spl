@@ -13,6 +13,7 @@ set -uo pipefail
 # shellcheck source=../../../tests/wait-event.inc.sh
 . "$T_FEAT/../../tests/wait-event.inc.sh"
 t_sandbox
+t_spool_bin || { nok "cannot build spool"; t_done; exit 1; }
 SS="${SS:-$T_SCRIPTS/spool-send.sh}"
 export SPOOL_DESK_BOX=box-a
 mkdir -p "$SPOOL_ROOT/c-370/inbox" "$SPOOL_ROOT/c-346/inbox" "$SPOOL_ROOT/dispatch"

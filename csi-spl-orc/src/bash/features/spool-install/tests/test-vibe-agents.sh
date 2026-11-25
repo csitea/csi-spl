@@ -17,7 +17,7 @@
 #      check of section 1 - the check can see the missing file
 #   8. codeword: a stub vibe that reads ~/.vibe/AGENTS.md (vibe's global
 #      instructions) answers with a codeword planted in one part
-#   9. step y9: the lane rule part alone into agy's rules dir and qwen's
+#   9. step y9: the lane rule part (25) into agy's rules dir and qwen's
 #      QWEN.md (its memory text kept after our block); a re-run changes
 #      nothing; a HOME without ~/.gemini / ~/.qwen gets neither; SKIP=0 writes nothing
 #------------------------------------------------------------------------------
@@ -151,7 +151,7 @@ ag="$H/.gemini/config/rules/25-stay-in-your-lane.md" qw="$H/.qwen/QWEN.md"
 [ "$rc" = 0 ] && [ "$(grep -cF "$LANE" "$ag")" = 1 ] && [ "$(grep -cF "$LANE" "$qw")" = 1 ] &&
   [ "$(grep -c '^<!-- fragment spool-install/' "$ag")" = 1 ] && grep -q '^<!-- fragment spool-install/25-stay-in-your-lane -->$' "$qw" &&
   pass "9: agy rules file and QWEN.md carry the lane rule part, and only it" || { fail "9: lane rule not rendered (rc=$rc)"; cat "$T/err9"; }
-grep -q '^<!-- spool-install: begin lane-rule (csi-spl fleet rule 25-stay-in-your-lane' <<<"$(sed -n 1p "$qw")" && grep -q '^- keep me$' "$qw" &&
+grep -q '^<!-- spool-install: begin lane-rule (csi-spl fleet rule 22-ui-forms-for-user-input' <<<"$(sed -n 1p "$qw")" && grep -q '^- keep me$' "$qw" &&
   [ -n "$(find "$H/.qwen" -maxdepth 1 -name 'QWEN.md.bak-spool-install-*')" ] &&
   pass "9: QWEN.md: our block first, qwen's memory text kept, the old file backed up" || fail "9: QWEN.md memory text or backup lost"
 before=$(cat "$ag" "$qw" | sha256sum); y9 "$H" 2>/dev/null

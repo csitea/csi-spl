@@ -4,7 +4,7 @@
 # with "trigger: always_on" frontmatter (SPL-5106; without it the log says
 # "Invalid rule trigger" and the text never reaches the model).
 #   1. y9, y14 and y6 run in a sandbox HOME: every file they put in the agy
-#      rules dir (four, the graft link followed) opens with the frontmatter
+#      rules dir (eight: y9 five parts, the graft link followed) opens with the frontmatter
 #   2. a live file from before the frontmatter gets it on the next run, once,
 #      with the old file backed up; qwen's file gets none
 #   3. the asset sources carry it, so an install from them does too
@@ -33,7 +33,7 @@ H="$T/h1"; mkdir -p "$H/.gemini" "$H/bin"
 y9 "$H" 2>"$T/err" && y14 "$H" 2>>"$T/err" && y6 "$H" 2>>"$T/err" || fail "1: a step failed: $(cat "$T/err")"
 R="$H/.gemini/config/rules"
 got=$(find "$R" -mindepth 1 -maxdepth 1 | wc -l)
-[ "$got" = 4 ] && pass "1: the steps put 4 files in the rules dir" || fail "1: expected 4 files, got $got"
+[ "$got" = 8 ] && pass "1: the steps put 8 files in the rules dir" || fail "1: expected 8 files, got $got"
 for f in "$R"/*; do
   opens "$f" && pass "1: ${f##*/} opens with trigger: always_on" || fail "1: ${f##*/} has no frontmatter: $(head -n 1 "$f")"
 done

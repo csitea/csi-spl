@@ -251,7 +251,11 @@ priority, and a new rank orders the rows inside one priority:
 1. open rows, then closed rows (done, diss), as today;
 2. priority, 1 first;
 3. ranked rows first, lower rank first;
-4. then by number, lower first (today's order, so nothing moves on deploy).
+4. then by number, lower first (today's tie-break).
+
+On deploy no row is ranked yet, so open epics of different priorities move
+into priority order (today the hub ignores priority, `hub/issues.go:865`);
+within one priority today's by-number order stays.
 
 Why both, and how they relate: the owner said the dragged order "will be their
 priority". A rank alone would leave two orders that can disagree (the panel
@@ -266,7 +270,13 @@ already does (spec 153 3.22.7, owner-accepted):
   therefore what it looks like, and read top-down the priorities never go
   back up. The write is the row's own priority change (`PriorityOwn`, stamps
   `priority_set_at`, writes an issue history line), so it beats an older
-  discussion priority (spec 150 3.4 item 4) and shows wherever priority shows;
+  discussion priority (spec 150 3.4 item 4) and shows wherever priority shows.
+  After the transaction commits, the move calls `spreadIssuePriority`
+  exactly as the PATCH path does (`hub/issues.go:468-470`,
+  `hub/topic_priority_spread.go`): the epic's discussions and their issues
+  follow it, the same as for a priority picked in the sheet. The move writes
+  the priority and the rank in one UPDATE, so its own priority write does not
+  clear the rank it sets (D4);
 - it gets a rank between its two neighbours. Every unranked open row of that
   priority above it gets a rank in its current order (a rank cannot sit below
   an unranked row); those rows get no `epic_rank_by` and no history line,
@@ -288,9 +298,12 @@ epic nobody placed yet must not jump above ones somebody did place.
 **D4, a priority change by any other path** (the picker, the sheet cell, an
 agent's update, a newer discussion priority) clears the row's rank: a new
 decision, the row joins its new priority by rule 4. Stored as: an update that
-changes the priority sets `epic_rank = NULL` in the same UPDATE; a discussion
-priority newer than `epic_rank_at` makes the rank read as none. Other rows
-keep theirs.
+changes the priority sets `epic_rank = NULL` in the same UPDATE (store
+`UpdateIssue`). A discussion priority reaches an issue only through that
+same write (`applyIssuePriority` -> `UpdateIssue`,
+`hub/topic_priority_follow.go:280-286`), so it clears the rank the same way.
+Nothing is overlaid at read time: unlike `fleet_asks` (spec 153), the issue
+list never reads `topic_priorities`. Other rows keep theirs.
 
 **D5, open and closed rows.** Only open rows (every status but done and diss)
 are dragged, and only among open rows; closed rows stay under them, dimmed, as
@@ -302,8 +315,10 @@ row. Why: the panel is a work list; a finished epic has no priority to set.
 `issue`) loses its rank in the same UPDATE. An archived or deleted row keeps
 its columns; it is not in the summary, and the gaps it leaves are harmless.
 
-**D7, who may reorder.** Any member who may change an issue's priority, i.e.
-`notes.send` (FR-007), in the browser. An agent has no position door in this
+**D7, who may reorder.** Any member who may change an issue's priority, in
+the browser: the route uses the PATCH path's own gate, `issueWriter`
+(`hub/issues.go:951`: `notes.send` (FR-007), `topics.manage` (spec 077 G3),
+and a paid workspace). An agent has no position door in this
 version: it changes an epic's priority with the existing update, which clears
 the rank (D4). Why: a drag is a person's act on a list they see; an agent
 cannot see the neighbours the position names.
@@ -311,9 +326,10 @@ cannot see the neighbours the position names.
 **D8, not only a mouse** (HTML drag does not fire on a phone and has no
 keyboard):
 
-- **Mouse / pen**: a row lifts after 5 px of travel (`TREE_DRAG_START_PX`), a
+- **Mouse**: a row lifts after 5 px of travel (`TREE_DRAG_START_PX`), a
   line between rows shows where it drops, `Esc` cancels.
-- **Touch**: the hold already opens the row menu (SPL-1226, long-press);
+- **Touch and pen** (`tree-drag.ts:139` treats a pen as touch): the hold
+  already opens the row menu (SPL-1226, long-press);
   a finger that then moves lifts the row instead (`tree-drag.ts`'s rule), so
   the menu still opens without a drag. A finger that moves before the hold
   scrolls the list.
@@ -367,11 +383,12 @@ A filter button beside the sort opens the same fields the sheet filters by
 | priority | 1..5 | |
 | assignee | `me`, `none`, a person | |
 | label | a label of the workspace | |
-| deadline | on or before a day | |
+| deadline | due on or before a minute (`YYYY-MM-DDTHH:MM`, local time) | the sheet's deadline picker, default time 23:59 (FR-013 `deadline`) |
 
 - **One filter code**: the rows are matched with `matchIssue`
   (`utils/issues.mjs`) on the summary rows, which therefore carry the epic's
-  own priority, assignee, labels and deadline (FR-014.4). The status,
+  own priority, assignee, labels and deadline (FR-014.5). The text field
+  is matched outside `matchIssue`, with the parent pickers' match (FR-005). The status,
   priority, assignee, label and deadline controls move out of the sheet's
   filter row into one component per field, used by the sheet's filter row,
   the phone filter sheet and this panel. No second filter is written. Why:
@@ -413,7 +430,10 @@ listed in the manual order (FR-014.1) and each row gains:
  "created_at": "2026-10-02T08:11:00Z", "updated_at": "2026-11-24T16:20:21Z"}
 ```
 
-`rank` is null when unranked (or when D4 makes it read as none). The WUI sorts
+`rank` is null when unranked. Unset values have the issue JSON's shapes
+(`toIssueJSON`, `hub/issues.go:140-145`): `assignee` `""`, `labels` `[]`
+(never null), `deadline` `""`; `matchIssue` relies on them
+(`issue.labels.some`, `assignee === ''` for `none`). The WUI sorts
 and filters client-side: the summary is every level-1 row of the workspace,
 tens of rows, already sent whole.
 
@@ -429,11 +449,17 @@ the workspace's open level-1 rows locked (`FOR UPDATE`):
 | both neighbours null, or one is `{ref}` | 400 `bad_position` |
 | `{ref}` or a neighbour closed | 409 `epic_closed` |
 | a neighbour no longer adjacent, or gone | 409 `stale_position`; nothing changes, the page re-reads and says so |
-| no `notes.send` | 403 `forbidden` |
+| refused by `issueWriter` (D7) | 403 `forbidden`; 402 on an unpaid workspace, as PATCH |
 | `{ref}` of another tenant | 404 `not_found` |
 
 The PATCH path (FR-010) clears `epic_rank` when it changes the priority or the
 kind (D4, D6).
+
+**Hub, CORS.** This is the first `PUT` under `/v1/issues`: `OPTIONS
+/v1/issues/{ref}/position` is registered beside the other write paths
+(`hub/issues.go:893-900`), and `issuesPreflight` (`hub/issues.go:1246`)
+allows `POST, PATCH, PUT, DELETE` (issues-v1 §1, its OPTIONS row, says the
+same). Without it a browser on another origin cannot send the move.
 
 **Hub, the preference.** `issues_epics_sort` joins `MembershipSettings` and
 the preferences body, its shape checked like `parseIssuesSort` (an unknown
@@ -441,8 +467,24 @@ column or direction: 400 `unsupported_issues_epics_sort`).
 
 **WUI.** `IssueEpicsPanel.vue` gains the toolbar (sort select, direction
 button, filter button with its popover) and the drag through `tree-drag.ts`
-with only the `before` / `after` places. The panel's displayed list is one
-computed (sort, then filter) that the phone's chip strip also reads.
+with only the `before` / `after` places. The panel's displayed list (sort,
+then filter) and the sort and filter state live in one shared composable,
+`useEpicPanelList` (`useState`), imported only by `IssueEpicsPanel.vue` and
+`pages/issues.vue`: on a phone at level 2 the lazy panel may not be mounted,
+and the chip strip still reads the same list.
+
+**WUI, first-paint budget.** The initial JS stays at or under the
+`ci_initial_gzip_kb` ceiling, 155.0 KB
+(`csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json`; last
+metric there 151.9 KB, about 3 KB of room). `IssueEpicsPanel.vue` is lazy
+(`<LazyIssueEpicsPanel v-if="tab === 'issues'" />`,
+`components/ChannelSidebar.vue:508`), so everything new stays behind it or
+behind the Issues page: `useEpicPanelList`, the T017e filter components,
+`utils/issues.mjs` and `tree-drag.ts` are never imported by
+`ChannelSidebar.vue`, a layout or any other module of the entry chunk. The
+eager side gains only the `issues_epics_sort` key in the session's settings
+type and the preferences call (a few hundred bytes); the check is
+`csi-spl-wui/src/node/test/bundle-size.mjs` on a mock generate.
 
 **Phone (<= 820 px, SPL-992).** The panel is level 1, full width; the toolbar
 is two 44 px icon buttons (sort, filter) that open bottom sheets like the
@@ -452,12 +494,13 @@ filtered list, "All" first; chips do not drag (a horizontal strip of chips is
 no place to set an order): reorder in the panel.
 
 **Help.** `csi-spl-doc/doc/help/issues.md`, its Epics line: the order is the
-priority, how to drag, sort and filter.
+priority, how to drag, sort and filter. It is the export of a qto doc: the
+change is made there and exported (T017h).
 
 
 ## MVP now / next
 
-- **Now**: FR-001..FR-012.
+- **Now**: FR-001..FR-013.
 - **Specified, not built**: FR-014, the epic panel's order, sort and filter
   (build rows T017).
 - **Next**: sub-issue UI, several teams / prefixes per tenant, cycles and
@@ -568,4 +611,4 @@ Only the planned keys change; every other byte stays. A plan holding a key
 above the workspace's `last_number` is refused whole (exit 2, SPL-5073). Dry run unless
 `DRY_RUN=0`. Test: `csi-spl-orc/src/bash/tests/spl-issue-ref-rewrite.tst.sh`.
 
-<!-- version: 0.11.0 · updated: 2026-11-25 · last-edit: 2026-11-25T02:38:00Z -->
+<!-- version: 0.11.1 · updated: 2026-11-25 · last-edit: 2026-11-25T03:05:00Z -->

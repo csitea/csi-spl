@@ -162,45 +162,76 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
         (FR-014.5), number from `do_rdb_migration_next`; applied on dev,
         then prd, before the hub of T017b rolls. Kind `simple_coding`.
         Check: `lint-migration`; information_schema lists the three columns
-        in both envs
+        in both envs. Red control: an INSERT with `epic_rank = 0` is refused
+        by the CHECK on a throwaway Postgres, and the same file with the
+        CHECK removed accepts it
   - [ ] T017b hub store: `SetEpicPosition` on memory and Postgres (FR-014.1
         D1..D6: neighbour check, the priority of the row below, ranks for the
         unranked rows above, gaps of 1024 and the renumber); the update path
         clears the rank on a priority or kind change. Kind `complex_coding`.
         Check: store tests on both drivers, `PRE_PUSH_TIER=full`, each with
         a red control (a stale neighbour moves nothing; a drop across a
-        priority line writes that priority)
+        priority line writes that priority; a priority PATCH clears the rank,
+        RED with the clear removed)
   - [ ] T017c hub route + summary: `PUT /v1/issues/{ref}/position` with the
         FR-014.5 refusals, its `issue` frames; `epics[]` in the manual order
         with priority, rank, assignee, labels, deadline, created_at,
-        updated_at; issues-v1 §1 and §8 updated. Kind `complex_coding`.
-        Check: `internal/hub` tests (each refusal, the frame fan-out), api
-        run-all-tests
+        updated_at (unset values as `toIssueJSON`); the `issueWriter` gate;
+        `spreadIssuePriority` after a priority change (FR-014.1 D1);
+        `OPTIONS /v1/issues/{ref}/position` and `PUT` in `issuesPreflight`
+        (FR-014.5 CORS); issues-v1 §1 and §8 updated. Kind
+        `complex_coding`. Check: `internal/hub` tests (each refusal, the
+        frame fan-out, the spread, the preflight answer names `PUT`), api
+        run-all-tests. Red controls: the preflight test RED with `PUT` left
+        out of `Access-Control-Allow-Methods`; the spread test RED with the
+        `spreadIssuePriority` call removed
   - [ ] T017d hub preference `issues_epics_sort` (FR-014.2), shaped like
         `issues_sort`. Kind `simple_coding`. Check: preferences tests, both
-        drivers
+        drivers. Red control: `{col: "rank"}` is refused 400
+        `unsupported_issues_epics_sort`, and accepted with the shape check
+        removed
   - [ ] T017e WUI refactor, no behaviour change: the status, priority,
         assignee, label and deadline filter controls become one component
         per field, used by the sheet's filter row and the phone filter sheet
         (FR-014.3). Kind `simple_coding`. Check: typecheck, the issues mock
-        e2e suites unchanged and green
+        e2e suites unchanged and green, `bundle-size.mjs` on a mock generate
+        at or under `ci_initial_gzip_kb` (FR-014.5) and not above the
+        parent's reading. Red control: a unit test that each filter field is
+        rendered from its one component, RED on the parent tree (the inline
+        controls)
   - [ ] T017f WUI panel toolbar: sort (FR-014.2, stored), filter
         (FR-014.3, `matchIssue` + the T017e fields), "n of m", the phone
         sheets and the chip strip reading the same list; keys in every
         locale. Kind `complex_coding`; the locale text then gets its
         language check (`i18n`). Check: typecheck, unit tests of the sort
-        and filter, mock e2e at 1280x800 and 412x915
+        and filter, mock e2e at 1280x800 and 412x915, `bundle-size.mjs` at
+        or under `ci_initial_gzip_kb` with `useEpicPanelList` absent from
+        the entry chunk. Red controls: the sort unit test RED with closed rows
+        sorted among open ones; the bundle check RED with
+        `useEpicPanelList` imported from `ChannelSidebar.vue` (throwaway
+        branch)
   - [ ] T017g WUI reorder: drag via `tree-drag.ts` (before / after only),
         `Alt+ArrowUp` / `Alt+ArrowDown`, Move up / down / to top in the row
         menu, the `aria-live` line, the undo on a refusal, off outside the
         unfiltered manual order (FR-014.4). Kind `complex_coding`. Check:
-        unit tests with fake timers, mock e2e (mouse, touch hold-then-move,
-        keyboard; a 409 puts the row back)
-  - [ ] T017h help: `csi-spl-doc/doc/help/issues.md`, the Epics line
-        (FR-014.5 Help). Kind `specs_and_docs`. Check: `do_check_dist_hygiene`
+        unit tests with fake timers, mock e2e (mouse, touch and pen
+        hold-then-move, keyboard; a 409 puts the row back),
+        `bundle-size.mjs` at or under `ci_initial_gzip_kb`. Red controls:
+        the e2e drag RED with the drag left on under a non-manual sort; the
+        409 case RED with the undo removed
+  - [ ] T017h help: the Epics line of `csi-spl-doc/doc/help/issues.md`
+        (FR-014.5 Help). That file is the export of qto doc
+        `9a453b0c-3925-45ac-9679-09fe841b4968`: edit the qto doc, then
+        `cd csi-spl-orc && ./run -a do_spl_doctree_export_md`. Kind
+        `specs_and_docs`. Check: `do_check_dist_hygiene`,
+        `QTO_DRIFT_LIVE=1 ... do_check_qto_doc_drift` (the live check against
+        the qto doc). Red control: a hand edit of the md alone
+        is reported by that live check
   - [ ] T017i live proof `issues-epic-order-live.proof.mjs`, n=1 per env
         after T017c..g are served on dev and prd: a drag across a priority
         line stores that priority at the hub, a second tab shows the new
         order without a reload, the sort survives a reload, every row it
-        made deleted. Kind `tests`
-<!-- version: 0.8.0 · updated: 2026-11-25 · last-edit: 2026-11-25T02:38:00Z -->
+        made deleted. Kind `tests`. Red control: the proof run against dev
+        before T017c is served fails its first step (the position call
+        answers 404 / 405)
+<!-- version: 0.8.1 · updated: 2026-11-25 · last-edit: 2026-11-25T03:05:00Z -->

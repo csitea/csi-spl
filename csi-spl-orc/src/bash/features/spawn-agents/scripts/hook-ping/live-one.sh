@@ -5,6 +5,7 @@
 # Qwen and agy keep HOME and load a workspace hook file in the trial dir.
 # Mistral (vibe) runs under an isolated VIBE_HOME: its hooks.toml holds the
 # ping, its .env and config.toml are links to the real ones (spec 110 3.4).
+# HOOK_PING_POINT=post_agent pings vibe's turn end instead of post_tool.
 set -uo pipefail
 
 # Sourced by the module test for the agy hooks document. The trial runs only
@@ -18,13 +19,14 @@ spl_hp_agy_hooks_file() {
     >"$dest"
 }
 
-# Sourced by the module test too: vibe's hooks.toml with ONE post_tool entry.
+# Sourced by the module test too: vibe's hooks.toml with ONE entry, of type
+# $3 (post_tool by default; post_agent for the turn-end ping, SPL-6516).
 # The command is a TOML basic string (backslash and quote escaped).
 spl_hp_mistral_hooks_file() {
-  local cmd="$1" dest="$2"
+  local cmd="$1" dest="$2" typ="${3:-post_tool}"
   mkdir -p "$(dirname "$dest")"
   cmd="${cmd//\\/\\\\}"; cmd="${cmd//\"/\\\"}"
-  printf '[[hooks]]\nname = "spl-hook-ping"\ntype = "post_tool"\ncommand = "%s"\ntimeout = 10.0\n' "$cmd" >"$dest"
+  printf '[[hooks]]\nname = "spl-hook-ping"\ntype = "%s"\ncommand = "%s"\ntimeout = 10.0\n' "$typ" "$cmd" >"$dest"
 }
 
 spl_hp_live_main() {
@@ -49,7 +51,9 @@ After the tool returns, a hook message names a ping token shaped ping- plus 16 h
 spl_hp_live_cmd() {
   local script="$1"
   shift
-  printf 'env HOOK_PING_DIR=%q %q' "$dir" "$script"
+  printf 'env HOOK_PING_DIR=%q' "$dir"
+  [[ -n "${HOOK_PING_POINT:-}" ]] && printf ' HOOK_PING_POINT=%q' "$HOOK_PING_POINT"
+  printf ' %q' "$script"
   local a
   for a in "$@"; do printf ' %q' "$a"; done
 }
@@ -95,7 +99,11 @@ spl_hp_live_mistral() {
   for f in .env config.toml; do
     [[ -f "$real_vh/$f" ]] && ln -sfn "$real_vh/$f" "$vh/$f"
   done
-  spl_hp_mistral_hooks_file "$(spl_hp_live_cmd "$root/mistral.sh")" "$vh/hooks.toml"
+  local pt="${HOOK_PING_POINT:-post_tool}"
+  if [[ "$pt" == post_agent ]]; then
+    prompt='Reply with the single word ready. If a later message names a ping token shaped ping- plus 16 hex digits, reply with that token alone and no other text.'
+  fi
+  spl_hp_mistral_hooks_file "$(HOOK_PING_POINT="$pt" spl_hp_live_cmd "$root/mistral.sh")" "$vh/hooks.toml" "$pt"
   VIBE_HOME="$vh" VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false \
     VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false \
     "$bin" --workdir "$work" --auto-approve --max-turns 8 --output text -p "$prompt"

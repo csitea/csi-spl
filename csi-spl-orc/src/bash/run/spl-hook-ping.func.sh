@@ -10,8 +10,11 @@
 # @param   SPOOL_TEST=1).
 # @param HOOK_PING_SKIP_TOOL (optional) - 1 skips the tool-call event, so the
 # @param   hook must not inject (the control).
+# @param HOOK_PING_POINT (optional) - mistral only: post_tool (default) or
+# @param   post_agent, the turn end (vibe's deny reason, SPL-6516).
 # @example HARNESS=grok N=3 ./run -a do_spl_hook_ping
 # @example HOOK_PING_HARNESS_CMD=/tmp/stub.sh HARNESS=agy N=1 ./run -a do_spl_hook_ping
+# @example HOOK_PING_POINT=post_agent HARNESS=mistral N=3 ./run -a do_spl_hook_ping
 #------------------------------------------------------------------------------
 
 _spl_hp_root() {
@@ -58,11 +61,7 @@ spl_hook_ping_inject_post() {
   local script ev
   script="$(_spl_hp_root)/$1.sh"
   if [[ "$1" == mistral ]]; then
-    if [[ "${HOOK_PING_SKIP_TOOL:-}" == 1 ]]; then
-      ev='{"hook_event_name":"post_agent","session_id":"s","transcript_path":"t","cwd":"/"}'
-    else
-      ev='{"hook_event_name":"post_tool","session_id":"s","transcript_path":"t","cwd":"/","tool_name":"bash","tool_call_id":"c1","tool_input":{},"tool_status":"success","tool_output":null,"tool_output_text":"hook-ping-tool","tool_error":null,"duration_ms":1.0}'
-    fi
+    ev="$(spl_hook_ping_vibe_event)"
   elif [[ "${HOOK_PING_SKIP_TOOL:-}" == 1 ]]; then
     ev='{"hook_event_name":"UserPromptSubmit"}'
   else
@@ -70,6 +69,17 @@ spl_hook_ping_inject_post() {
   fi
   HOOK_PING_DIR="$2" bash "$script" <<<"$ev" >"$2/hook.out" 2>>"$2/hook.err" || true
   [[ -s "$2/token" ]]
+}
+
+# The event that injects at HOOK_PING_POINT (post_tool, else post_agent, the
+# turn end); HOOK_PING_SKIP_TOOL=1 sends the other one (the control).
+spl_hook_ping_vibe_event() {
+  local agent='{"hook_event_name":"post_agent","session_id":"s","transcript_path":"t","cwd":"/"}'
+  local tool='{"hook_event_name":"post_tool","session_id":"s","transcript_path":"t","cwd":"/","tool_name":"bash","tool_call_id":"c1","tool_input":{},"tool_status":"success","tool_output":null,"tool_output_text":"hook-ping-tool","tool_error":null,"duration_ms":1.0}'
+  if [[ "${HOOK_PING_POINT:-post_tool}" == post_agent ]]; then
+    local t="$agent"; agent="$tool"; tool="$t"
+  fi
+  if [[ "${HOOK_PING_SKIP_TOOL:-}" == 1 ]]; then printf '%s' "$agent"; else printf '%s' "$tool"; fi
 }
 
 spl_hook_ping_inject_agy() {
@@ -96,7 +106,11 @@ spl_hook_ping_shape() {
     agy)
       jq -e --arg t "$tok" '.injectSteps[0].ephemeralMessage | contains($t)' >/dev/null ;;
     mistral)
-      jq -e --arg t "$tok" '.decision == "allow" and (.hook_specific_output.additional_context | contains($t))' >/dev/null ;;
+      if [[ "${HOOK_PING_POINT:-post_tool}" == post_agent ]]; then
+        jq -e --arg t "$tok" '.decision == "deny" and (.reason | contains($t))' >/dev/null
+      else
+        jq -e --arg t "$tok" '.decision == "allow" and (.hook_specific_output.additional_context | contains($t))' >/dev/null
+      fi ;;
     *) return 2 ;;
   esac
 }

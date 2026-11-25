@@ -52,11 +52,19 @@
 # Never holds the agent: any error goes to <id>/hook.err (else
 # $HOOK_ERR_FALLBACK) and the hook exits 0. No SPOOL_AGENT_ID = not a spool
 # agent: exit 0 at once. Neither file holds a tool's input or output, a body
-# or a secret: hashes and names only. Non-claude harnesses get the heartbeat
-# only (spec 7.3: injection waits for their ping test). mistral's vibe runs it
-# from ~/.vibe/hooks.toml (spool-mirror-hooks.inc.sh) with SPOOL_HARNESS=vibe:
-# pre_tool -> PreToolUse, post_tool -> PostToolUse (tool_output for
-# tool_response), post_agent -> Stop, which is progress.
+# or a secret: hashes and names only. Other non-claude harnesses get the
+# heartbeat only (spec 7.3: injection waits for their ping test). mistral's
+# vibe runs it from ~/.vibe/hooks.toml (spool-mirror-hooks.inc.sh) with
+# SPOOL_HARNESS=vibe: pre_tool -> PreToolUse, post_tool -> PostToolUse
+# (tool_output for tool_response), post_agent -> Stop, which is progress.
+#   inject      (vibe, SPL-6516, latency action 6) the same block, marker and
+#               ledger as claude: PostToolUse returns it as
+#               hook_specific_output.additional_context (appended to the tool
+#               output the model reads); Stop (post_agent) as decision deny +
+#               reason, which vibe 2.26.0 feeds back as a user message and the
+#               turn goes on. PreToolUse injects nothing (vibe drops pre_tool
+#               context, and the marker would move past a message never
+#               shown).
 #   open written (vibe) PostToolUse: the file its tool_input names (file_path),
 #               when it lies under the payload's cwd (the seat's worktree) and
 #               the agent owns it, gets g+rw,o+r, and each agent-owned dir up
@@ -716,9 +724,11 @@ def main():
                 open_written(payload)
             except OSError:
                 pass
-            warn = guard_shell(payload)
-            if warn:
-                out = {"hook_specific_output": {"additional_context": warn}}
+            # SPL-6516 (latency action 6): vibe reads context on post_tool
+            # only (pre_tool drops it), so its tool-path delivery is here
+            vtext = "\n\n".join(c for c in (guard_shell(payload), inject(False)) if c)
+            if vtext:
+                out = {"hook_specific_output": {"additional_context": vtext}}
         if claude:
             ctx.append(inject(False))
             t = sec(hb.get("turn_since"))
@@ -745,6 +755,14 @@ def main():
             ctx.append(inject(False))
             if ctx[-1]:
                 # R7 N1: Stop context continues the turn: not idle
+                hb["state"] = "working"
+        if kind == "vibe":
+            # SPL-6516: vibe's post_agent takes no context; a deny's reason
+            # goes in as a user message and the turn goes on (vibe caps it
+            # at 3 per hook per turn). Nothing new: no output, the turn ends.
+            vtext = inject(False)
+            if vtext:
+                out = {"decision": "deny", "reason": vtext}
                 hb["state"] = "working"
         if claude and not payload.get("stop_hook_active"):
             stubs, stale = open_stubs(), untouched(held())

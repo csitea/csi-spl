@@ -10,6 +10,8 @@
 #   mistral (vibe, spec 110 T013b): a stubbed `post_tool` call records a
 #   token and replies hook_specific_output.additional_context; the control,
 #   a non-tool event (`post_agent`, and claude's PostToolUse name), prints {}.
+#   HOOK_PING_POINT=post_agent (SPL-6516): the turn-end ping replies
+#   decision deny + reason once; post_tool is then the control.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -93,6 +95,20 @@ d="$T/m-claude"; mkdir -p "$d"
 rc="$(hook_out "$d" mistral.sh <<<'{"hook_event_name":"PostToolUse"}')"
 [[ "$rc" == 0 && ! -e "$d/token" ]] && jq -e '. == {}' "$d/out" >/dev/null \
   && pass "CONTROL mistral ignores claude's PostToolUse name" || fail "CONTROL mistral ignores claude's PostToolUse name"
+# HOOK_PING_POINT=post_agent (SPL-6516): the turn-end ping, decision deny +
+# reason, once per trial; a post_tool then prints {} (the control)
+d="$T/m-stop"; mkdir -p "$d"
+rc="$(HOOK_PING_POINT=post_agent hook_out "$d" mistral.sh <<<'{"hook_event_name":"post_agent","session_id":"s1","transcript_path":"/t","cwd":"/"}')"
+tok="$(cat "$d/token" 2>/dev/null)"
+[[ "$rc" == 0 && "$tok" =~ ^ping-[0-9a-f]{16}$ ]] && jq -e --arg t "$tok" '.decision=="deny" and (.reason|contains($t))' "$d/out" >/dev/null \
+  && pass "mistral post_agent point: deny reason carries the token" || fail "mistral post_agent point ($(cat "$d/out"))"
+rc="$(HOOK_PING_POINT=post_agent hook_out "$d" mistral.sh <<<'{"hook_event_name":"post_agent","session_id":"s1","transcript_path":"/t","cwd":"/"}')"
+[[ "$rc" == 0 && "$(cat "$d/token")" == "$tok" ]] && jq -e '. == {}' "$d/out" >/dev/null \
+  && pass "mistral post_agent point: the next post_agent prints {} (no loop)" || fail "mistral post_agent point loops ($(cat "$d/out"))"
+d="$T/m-stop-tool"; mkdir -p "$d"
+rc="$(HOOK_PING_POINT=post_agent hook_out "$d" mistral.sh <<<"$VIBE_POST")"
+[[ "$rc" == 0 && ! -e "$d/token" ]] && jq -e '. == {}' "$d/out" >/dev/null \
+  && pass "CONTROL mistral post_agent point: post_tool prints {}" || fail "CONTROL mistral post_agent point: post_tool prints {}"
 d="$T/m-bad"; mkdir -p "$d"
 rc="$(hook_out "$d" mistral.sh <<<"not-json")"
 [[ "$rc" == 0 && ! -e "$d/token" ]] && jq -e '. == {}' "$d/out" >/dev/null \
@@ -185,6 +201,18 @@ else
     && pass "CONTROL mistral skip-tool (post_agent) fires no-injection" || fail "CONTROL mistral skip-tool fires no-injection"
 fi
 
+if run_ping HOOK_PING_HARNESS_CMD="$T/echo.sh" HOOK_PING_POINT=post_agent HARNESS=mistral N=1; then
+  grep -q 'hook-ping mistral 1 pass' "$T/out" && pass "action mistral post_agent stub echoes -> pass" || fail "action mistral post_agent stub echoes -> pass"
+else
+  fail "action mistral post_agent stub echoes -> pass (rc $(cat "$T/out"))"
+fi
+if run_ping HOOK_PING_HARNESS_CMD="$T/echo.sh" HOOK_PING_SKIP_TOOL=1 HOOK_PING_POINT=post_agent HARNESS=mistral N=1; then
+  fail "CONTROL mistral post_agent skip (post_tool sent) should fail"
+else
+  grep -q 'hook-ping mistral 1 fail no-injection' "$T/out" \
+    && pass "CONTROL mistral post_agent skip (post_tool sent) fires no-injection" || fail "CONTROL mistral post_agent skip fires no-injection"
+fi
+
 if run_ping HOOK_PING_HARNESS_CMD="$T/echo.sh" HARNESS=all N=1; then
   grep -q 'hook-ping mistral n=1 pass=1 fail=0' "$T/out" && pass "HARNESS=all includes mistral" || fail "HARNESS=all includes mistral"
 else
@@ -239,6 +267,8 @@ if python3 -c 'import tomllib' 2>/dev/null; then
 else
   grep -q '^type = "post_tool"$' "$d/hooks.toml" && pass "mistral hooks.toml has a post_tool entry (no tomllib)" || fail "mistral hooks.toml"
 fi
+spl_hp_mistral_hooks_file 'CMD' "$d/stop.toml" post_agent
+grep -q '^type = "post_agent"$' "$d/stop.toml" && pass "mistral hooks.toml for the turn-end ping is a post_agent entry" || fail "mistral stop.toml"
 printf '%s\n' 'ping-0123456789abcdef' >"$d/raw.out"
 spl_hook_ping_echoed mistral ping-0123456789abcdef "$d/raw.out" \
   && pass "mistral reply is the -p text" || fail "mistral reply is the -p text"

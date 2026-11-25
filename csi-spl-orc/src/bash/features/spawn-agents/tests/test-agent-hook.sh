@@ -34,11 +34,18 @@
 #      tool, before the turn ends (Stop); each message once, ever; a second
 #      Stop with nothing new prints nothing (no loop); an API-error Stop
 #      injects nothing (the next prompt does); a Stop block keeps its
-#      decision and carries the context; grok / vibe get none. Red control:
+#      decision and carries the context; grok gets none (vibe: 13). Red control:
 #      the parent commit's hook fails 12's tool-start and Stop checks.
 #      R7 (a-680): an unreadable inbox / file / marker keeps the deny, the
 #      Stop block and heartbeat.json (W1); 4 parallel PreToolUse hooks show
 #      a message once (W2); a Stop that injects leaves state working (N1).
+#  13. SPL-6516 (latency action 6): a mistral (vibe) seat gets the same block
+#      at post_tool (hook_specific_output.additional_context, beside the
+#      main-checkout warning) and at post_agent (decision deny + reason: vibe
+#      feeds it back as a user message); never at pre_tool (vibe drops that
+#      context: the marker must not move); each message once, one .hook-seen
+#      shared with claude; a post_agent with nothing new prints nothing.
+#      Red control: the parent commit's hook fails 13's delivery checks.
 set -uo pipefail
 . "$(dirname "$0")/lib.inc.sh"
 t_sandbox
@@ -430,7 +437,6 @@ rm -f "$D/inbox/st5.json"
 msg a6 $((T2 + 18)) mid-6 "for a grok seat"
 eq "12. grok: no injection at PreToolUse" "" "$(SPOOL_HARNESS=grok hook PreToolUse $((T2 + 19)) '{"tool_name":"Read"}')"
 eq "12. grok: no injection at Stop" "" "$(SPOOL_HARNESS=grok hook Stop $((T2 + 20)) '{}')"
-eq "12. vibe: no injection at Stop" "" "$(SPOOL_HARNESS=vibe hook Stop $((T2 + 21)) '{}')"
 has "12. CONTROL: the same message still reaches claude at its next tool start" "msg_id: mid-6" "$(hook PreToolUse $((T2 + 22)) '{"tool_name":"Read"}' | ctx)"
 
 # R7 W1 (a-680 on 7c0f36a08): an unreadable inbox, inbox file or marker never
@@ -493,5 +499,46 @@ hook Stop $((T2 + 62)) "{\"transcript_path\":\"$TRG\"}" >/dev/null
 eq "12. N1 a Stop that injects: the turn goes on, state working" working "$(hb state)"
 hook Stop $((T2 + 63)) "{\"transcript_path\":\"$TRG\",\"stop_hook_active\":true}" >/dev/null
 eq "12. N1 CONTROL: a Stop with nothing new: idle" idle "$(hb state)"
+
+
+# ---- 13. SPL-6516: a mistral (vibe) seat gets the same delivery -------------
+echo "# 13. vibe in-turn delivery (SPL-6516)"
+rm -f "$D/inbox"/*.json "$D/.hook-seen" "$L12"
+T3=$((T0 + 3000)); A13="$T_TMP/all13.out"; : >"$A13"
+vh() { SPOOL_HARNESS=vibe hook "$@" | tee -a "$A13"; }
+vctx() { python3 -c 'import json,sys; t=sys.stdin.read().strip(); print(((json.loads(t).get("hook_specific_output") or {}).get("additional_context") or "") if t else "")'; }
+VP='{"cwd":"/","tool_name":"bash","tool_input":{"command":"ls"},"tool_status":"success","tool_output":{"stdout":"a"}}'
+eq "13. CONTROL: an empty inbox, post_tool prints nothing" "" "$(vh PostToolUse $((T3 + 1)) "$VP")"
+msg v1 $((T3 + 2)) mid-v1 "written while vibe runs a tool"
+eq "13. pre_tool injects nothing (vibe drops pre_tool context)" "" "$(vh PreToolUse $((T3 + 3)) '{"tool_name":"bash","tool_input":{"command":"ls"}}')"
+check "13. ... and the marker did not move past it" test ! -e "$D/.hook-seen"
+o13="$(vh PostToolUse $((T3 + 4)) "$VP")"
+has "13. post_tool shows it as hook_specific_output.additional_context" "msg_id: mid-v1" "$(vctx <<<"$o13")"
+has "13. ... under the same head as claude's" "spool messages from other agents" "$(vctx <<<"$o13")"
+hasnt "13. ... never claude's camelCase key" "hookSpecificOutput" "$o13"
+hasnt "13. ... never a deny on post_tool" '"decision"' "$o13"
+eq "13. the next post_tool: nothing new" "" "$(vh PostToolUse $((T3 + 5)) "$VP")"
+msg v2 $((T3 + 6)) mid-v2 "written after the last tool"
+o13="$(vh Stop $((T3 + 7)) '{"session_id":"s","transcript_path":"/t"}')"
+eq "13. post_agent: decision deny (vibe's retry user message)" deny "$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("decision",""))' "$o13" 2>/dev/null)"
+has "13. ... its reason carries the message" "msg_id: mid-v2" "$o13"
+eq "13. ... the turn goes on: state working" working "$(hb state)"
+eq "13. the next post_agent has nothing new: no output, the turn ends" "" "$(vh Stop $((T3 + 8)) '{"session_id":"s","transcript_path":"/t"}')"
+eq "13. ... state idle" idle "$(hb state)"
+for m in mid-v1 mid-v2; do
+  eq "13. $m shown exactly once over the turn" 1 "$(grep -c "msg_id: $m" "$A13")"
+done
+eq "13. ledger: one surfaced row each, via the hook that showed it" "mid-v1 PostToolUse|mid-v2 Stop" "$(awk -F'\t' '$1=="surfaced"{printf "%s%s %s", s, $4, $8; s="|"}' "$L12")"
+msg v3 $((T3 + 9)) mid-v3 "one marker for every vendor"
+has "13. CONTROL: a message vibe has not seen reaches claude" "msg_id: mid-v3" "$(hook PreToolUse $((T3 + 10)) '{"tool_name":"Read"}' | ctx)"
+eq "13. ... and is not shown again to vibe (one .hook-seen)" "" "$(vh PostToolUse $((T3 + 11)) "$VP")"
+R13="$(realpath "$T_TMP")/repo13"
+git init -q -b master "$R13" && git -C "$R13" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+git -C "$R13" worktree add -q -b "$ID-y" "$R13-wt/$ID"
+msg v4 $((T3 + 12)) mid-v4 "beside the main-checkout warning"
+o13="$(vh PostToolUse $((T3 + 13)) "{\"cwd\":\"$R13\",\"tool_name\":\"bash\",\"tool_input\":{\"command\":\"ls\"},\"tool_status\":\"success\"}")"
+has "13. post_tool keeps the main-checkout warning" "$R13" "$(vctx <<<"$o13")"
+has "13. ... and carries the message beside it" "msg_id: mid-v4" "$(vctx <<<"$o13")"
+git -C "$R13" worktree remove --force "$R13-wt/$ID"
 
 t_done

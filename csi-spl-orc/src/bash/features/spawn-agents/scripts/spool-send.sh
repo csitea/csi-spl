@@ -611,6 +611,14 @@ if [ "$POKE_ONLY" -eq 0 ]; then
     spool_notice_record "$TO" \
       "$(spool_notice_head_in "$TO" "$_nk" "$_nf" "$TASK" "$MSGID")" "$_nb" || true
   fi
+  # spec 058 section 7 (SPL-6513): a local delivery reaches the hub as a
+  # record-only copy, DETACHED: the inbox file and the poke never wait on it.
+  if [ "${DELIVERY:-}" = local ] && [ -n "$MSGID" ] && ! spool_notify_is_probe "$BODY" &&
+     { [ -n "${SPOOL_RECORD_CMD:-}" ] || [ "${SPOOL_TEST:-0}" != 1 ]; }; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    ( ${SPOOL_RECORD_CMD:-bash $_here/spool-record-forward.sh} --from "$FROM" --to "$TO" --kind "$KIND" \
+        --msg-id "$MSGID" --task "$TASK" --body "$BODY" </dev/null >/dev/null 2>&1 & ) 2>/dev/null
+  fi
 
   # ---- the ask record (CLE-77929) -------------------------------------------
   # Journaled HERE, synchronously, so the ask exists on disk before this

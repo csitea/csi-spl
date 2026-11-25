@@ -430,7 +430,8 @@ func (s *Session) flush(ctx context.Context) (int, error) {
 		}
 		n++
 	}
-	return n, nil
+	r, err := s.flushRecords(ctx) // spec 058 section 7, record.go
+	return n + r, err
 }
 
 // SyncReport is what a one-shot hub-sync did.
@@ -689,13 +690,14 @@ func (t *holdTickers) stop() {
 
 // scanTick re-announces a changed run report (t1 bc1a43e1) and flushes what
 // is pending: the backstop of the flush kicks, for a pending file no submit
-// told the listener about.
+// told the listener about, and the only flush of a queued record-only copy
+// (spec 058 section 7), which never goes through the submit socket.
 func (c *Client) scanTick(ctx context.Context, sess *Session, last *string) {
 	if k, ok := c.rosterKey(); ok && k != *last {
 		*last = k
 		sess.Announce(ctx) //nolint:errcheck
 	}
-	if left, _ := c.Pending(); len(left) > 0 {
+	if c.queued() {
 		sess.Flush(ctx) //nolint:errcheck
 	}
 }
@@ -722,6 +724,14 @@ func (c *Client) stranded(what string, err error) bool {
 	c.Log.Warn().Err(err).Str("check", what).
 		Msg("hub no longer knows this session (a hub redeploy or restart); closing it so the session reconnects")
 	return true
+}
+
+// queued reports a pending envelope or a queued record-only copy (spec 058
+// section 7) for the next flush.
+func (c *Client) queued() bool {
+	left, _ := c.Pending()
+	recs, _ := c.Records()
+	return len(left)+len(recs) > 0
 }
 
 // serveSubmit opens the box-local submit socket for as long as ctx lives,

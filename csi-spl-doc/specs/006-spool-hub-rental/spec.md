@@ -340,15 +340,23 @@ the shared hub's cost per workspace is measured over a closed UTC calendar
 month.** The live EUR 20 hosted checkout (`prd.env.yaml:330-331`,
 `dev.env.yaml:319,325`) is **not offered** until that measurement holds.
 
-- **How hosted sales stay off now (row C0b)**: `SPOOL_HUB_PAYMENT_PROVIDER: ""`
-  and `SPOOL_HUB_PAYMENT_PLAN_CENTS: "0"` (already the `all.env.yaml:626-628`
-  defaults; setting `PLAN_CENTS: "0"` with `PROVIDER: "stripe"` is refused at
-  boot by `internal/payments/config.go:182-184`). With `PROVIDER: ""`,
-  `Rail()` returns `"none"` (`config.go:264-272`), `Methods()` is empty
-  (`config.go:275-285`), `GET /api/v1/checkout/plan` answers
-  `available: false, rail: "none"` (`handler.go:219`), `POST /api/v1/checkout`
-  answers `503 payment_unavailable` (`handler.go:520-521`), `/checkout` renders
-  `checkout.not_on_sale` (`csi-spl-wui/src/pages/checkout/index.vue:19`,
+- **How hosted sales stay off now (row C0b)**: set
+  `SPOOL_HUB_PAYMENT_PROVIDER: ""` and `SPOOL_HUB_PAYMENT_PLAN_CENTS: "0"` in
+  both `dev.env.yaml:319,325` and `prd.env.yaml:330-331` (already the
+  `all.env.yaml:626-628` defaults; setting `PLAN_CENTS: "0"` with
+  `PROVIDER: "stripe"` is refused at boot by
+  `internal/payments/config.go:182-184`), **and** set
+  `SPOOL_HUB_ENABLE_FAKE_PAY: "false"` in `dev.env.yaml:318` (otherwise
+  `Rail()` still returns `"fake"` on dev when `Provider == ""` and
+  `EnableFakePay` is true, `config.go:268`, leaving dev at
+  `available: true` since `dev.env.yaml:328` sets the claim URL and
+  `checkPrices` allows `PLAN_CENTS: "0"` on the fake rail). With all three
+  off, `Rail()` returns `"none"` (`config.go:264-272`) and `Methods()` is
+  empty (`config.go:275-285`) on both dev and prd: `GET /api/v1/checkout/plan`
+  answers `available: false, rail: "none"` (`handler.go:219`),
+  `POST /api/v1/checkout` answers `503 payment_unavailable`
+  (`handler.go:520-521`), `/checkout` renders `checkout.not_on_sale`
+  (`csi-spl-wui/src/pages/checkout/index.vue:19`,
   `csi-spl-wui/src/utils/checkout-client.ts:136`), and
   `BuyWorkspaceLink.vue:33` hides the price. Private-workspace orders on
   `POST /api/v1/checkout/private-workspace` (`handler.go:35,400`) call no
@@ -363,10 +371,20 @@ month.** The live EUR 20 hosted checkout (`prd.env.yaml:330-331`,
   `role = "workspace-docs"`), Firebase Hosting (`019`/`021`), and DNS /
   networking (`025`), plus any shared pool boxes hosting customer workspaces
   (spec 122 Q-5, owner `b6a56949`). Excluded: `csi-spl-dev`, the operator
-  satellite (unless it hosts customer workspaces), private-workspace VMs
-  carrying `workspace=<tenant>` labels (billed directly under spec 181 Q-8 A,
+  satellite (`box=satellite`, unless it hosts customer workspaces),
+  private-workspace VMs (billed directly under spec 181 Q-8 A,
   `csi-spl-iac/src/bash/run/spl-vm-cost-per-day.func.sh:94-104`), and all AI
-  tokens (D2).
+  tokens (D2). Because `do_spl_estate_cost_read` groups by
+  `(day, project, box, service)` and writes `cost_lines.project_or_vendor` as
+  `<project>` or `<project>/box=<label>` (dropping the `workspace` label,
+  `csi-spl-iac/src/bash/run/spl-estate-cost-read.func.sh:23-25,146-154`), and
+  step `062-gcp-workspace-vms` stamps every private VM with
+  `box = "${var.vm_name_prefix}-${tenant}"`
+  (`062-gcp-workspace-vms/03-vm.tf:18-19`, `02-variables.tf:53-55`, cnf
+  `steps.062-gcp-workspace-vms.vm_name_prefix` at `all.env.yaml:314-315`),
+  row C0 excludes private VMs in `cost_lines` by that `box` label prefix in
+  `project_or_vendor` (and `box=satellite` unless hosting customer
+  workspaces).
 - **From which billing data**: a **full, closed UTC calendar month** of the
   GCP BigQuery billing export (`gcp_billing_export_v1_*` in
   `csi-spl-prd.csi_spl_prd`, cnf `env.cost.gcp.export_source_project` and
@@ -531,19 +549,25 @@ Measured baseline (`origin/master` `c9dd02117`):
   (D1) of **an embedding model we host ourselves** (Q11 B). Under D2 no AI
   token is ever sold and no third-party token-billed embedding API is called.
 - **What Q11 B needs (build rows C12–C14, after the document store)**:
-  1. **Hosting (row C12)**: a dedicated internal Cloud Run v2 service
+  1. **Hosting (row C12)**: a dedicated IAM-gated Cloud Run v2 service
      (terraform step `033-cloud-run-embeddings` — step `033` is free on
      `c9dd02117` between `032-gcp-cloud-run-domain-mapping` and
-     `036-spl-demo-workspace` — following the exact
-     `031-cloud-run-pdf` pattern:
+     `036-spl-demo-workspace` — following the `031-cloud-run-pdf` pattern:
+     `ingress = "INGRESS_TRAFFIC_ALL"` with IAM-only invocation,
+     `min_instance_count = 0`, `cpu_idle = true`, `startup_cpu_boost = false`,
      `csi-spl-iac/src/terraform/031-cloud-run-pdf/04-cloud-run-service.tf:24-60`),
      running an open-weights embedding model image pinned in cnf in
-     `europe-north1`, scale-to-zero (`min_instance_count = 0`,
-     `cpu_idle = true`, `startup_cpu_boost = false`, zero idle cost),
-     labelled `{ org, app, env, role = "embeddings" }` so its compute, memory
-     and traffic cost is isolated in `gcp_billing_export_v1_*`. Vector rows
-     sit in Postgres (`pgvector`, HNSW index, strict `tenant_scope` RLS,
-     spec 075 section 7.1).
+     `europe-north1` (zero idle cost), labelled
+     `{ org, app, env, role = "embeddings" }` so its compute, memory and
+     traffic cost is isolated in `gcp_billing_export_v1_*`. Row C12 also
+     wires `hub.embeddings.url` from `all.env.yaml` through step
+     `030-cloud-run-hub` (`030-cloud-run-hub/02-variables.tf:127`,
+     `030-cloud-run-hub/04-cloud-run-service.tf:41,58`,
+     `csi-spl-iac/src/tpl/%org%-%app%/%env%/tf/030-cloud-run-hub.vars.tfvars.tpl:28`,
+     matching `pdf_url` -> `SPOOL_PDF_URL`) so `030` passes
+     `SPOOL_HUB_EMBEDDINGS_URL` only when set. Vector rows sit in Postgres
+     (`pgvector`, HNSW index, strict `tenant_scope` RLS, spec 075 section
+     7.1).
   2. **Key handling (rows C12–C13)**: **no third-party AI API key** (D2) and
      **no static API key or shared secret** in git, cnf, terraform state or
      logs (repo CLAUDE.md). Service-to-service auth is GCP IAM only:
@@ -587,7 +611,9 @@ Phases 2–4 and C11).
 Kind and vendor follow the fleet split (`specs_and_docs` and `i18n`: agy,
 backup claude; coding: claude, backup agy). Concurrent rows own disjoint file
 paths: shared files are strictly serialized by `waits on` (`C0b -> C6` on
-`{dev,prd}.env.yaml` and their rendered `030` tfvars; `C3b -> C8 -> C6 -> C7`
+`{dev,prd}.env.yaml` and `hub-payment-030.tst.sh`; `C0b -> C6 -> C12` on
+rendered `030-cloud-run-hub.vars.tfvars`; `C4 -> C12` on `all.env.yaml`;
+`C4 -> C12 -> C13` on `internal/config/config.go`; `C3b -> C8 -> C6 -> C7`
 on `internal/payments/handler.go` and `checkout/index.vue`; WUI locale keys
 in `csi-spl-wui/i18n/locales/*.json` follow their row order; each new rdb
 migration claims its own number via `do_rdb_migration_next`). Every row ships
@@ -596,8 +622,8 @@ with a red control. `C<n>` rows map 1-to-1 to tasks `T024..T040` in
 
 | row | kind / vendor | what | paths | test and red control | waits on |
 |---|---|---|---|---|---|
-| C0 | simple_coding / claude | **Measure the shared hub's cost per workspace over a closed UTC month** (Q1 C): read-only action reading `cost_lines` (`origin='billing_export'`, `source='gcp'`, `superseded_by IS NULL`) and `cost_coverage` for a closed UTC month (every day `state='ok'` after the 5-day `reread_days` window) over `csi-spl-prd` shared-hub services + any shared customer pool hosts (excluding `csi-spl-dev`, non-hosting satellite, private-VM `workspace=*` lines, and AI tokens), dividing by measured `W_max` (`W_MAX > 0`, or spec 122 M2/M3 `capacity_measurements` once built; also printing active-workspace count), applying `+ 33%` (D1) rounded up to EUR cents, and printing the proposed `SPOOL_HUB_PAYMENT_PLAN_CENTS` for the owner; never mutates cnf or GCP — only the owner switches sales on | `csi-spl-iac/src/bash/run/spl-hub-workspace-cost.func.sh`, `csi-spl-iac/src/bash/tests/spl-hub-workspace-cost.tst.sh` | fixture closed month (all days `ok`) -> prints exact `ceil_cents((cost / W_max) * 1.33)`; red control: 1 `partial`/`missing` day, an `estimate` row, an unset/zero `W_MAX`, a `csi-spl-dev` line, or a private-VM `workspace=*` line included in the sum fails the test | - |
-| C0b | simple_coding / claude, cnf + 030 apply with owner's go | **Take the live EUR 20 hosted checkout off sale** (Q1 C): set `SPOOL_HUB_PAYMENT_PROVIDER: ""` and `SPOOL_HUB_PAYMENT_PLAN_CENTS: "0"` in `dev.env.yaml` then `prd.env.yaml`, re-render tfvars (`do_tpl_gen`), apply `030-cloud-run-hub` dev then prd on owner's go so `GET /api/v1/checkout/plan` answers `available: false, rail: "none"`, `POST /api/v1/checkout` answers `503 payment_unavailable`, and `/checkout` shows `checkout.not_on_sale` while `POST /api/v1/checkout/private-workspace` stays up | `csi-spl-cnf/csi-spl/dev.env.yaml`, `csi-spl-cnf/csi-spl/prd.env.yaml`, rendered `csi-spl-cnf/csi-spl/{dev,prd}/tf/030-cloud-run-hub.vars.tfvars`, `csi-spl-iac/src/bash/tests/hub-payment-030.tst.sh` | `do_tpl_gen` + `hub-payment-030.tst.sh` assert `PROVIDER == ""` and no unmeasured EUR 20 plan rendered; red control: `PLAN_CENTS: "2000"` with `stripe` on prd before C0 fails the test | - (owner go for apply) |
+| C0 | simple_coding / claude | **Measure the shared hub's cost per workspace over a closed UTC month** (Q1 C): read-only action reading `cost_lines` (`origin='billing_export'`, `source='gcp'`, `superseded_by IS NULL`) and `cost_coverage` for a closed UTC month (every day `state='ok'` after the 5-day `reread_days` window) over `csi-spl-prd` shared-hub services + any shared customer pool hosts, excluding `csi-spl-dev`, non-hosting `box=satellite`, private-VM rows by the `062-gcp-workspace-vms` `box` label prefix in `cost_lines.project_or_vendor` (`<project>/box=<vm_name_prefix>-<tenant>`), and AI tokens; divides by measured `W_max` (`W_MAX > 0`, or spec 122 M2/M3 `capacity_measurements` once built; also prints active-workspace count), applies `+ 33%` (D1) rounded up to EUR cents, and prints the proposed `SPOOL_HUB_PAYMENT_PLAN_CENTS` for the owner; never mutates cnf or GCP — only the owner switches sales on | `csi-spl-iac/src/bash/run/spl-hub-workspace-cost.func.sh`, `csi-spl-iac/src/bash/tests/spl-hub-workspace-cost.tst.sh` | fixture closed month (all days `ok`) -> prints exact `ceil_cents((cost / W_max) * 1.33)`; red control: 1 `partial`/`missing` day, an `estimate` row, an unset/zero `W_MAX`, a `csi-spl-dev` line, or a private-VM `project_or_vendor` (`.../box=<vm_name_prefix>-<tenant>`) line included in the sum fails the test | - |
+| C0b | simple_coding / claude, cnf + 030 apply with owner's go | **Take the live EUR 20 hosted checkout off sale** (Q1 C): set `SPOOL_HUB_PAYMENT_PROVIDER: ""`, `SPOOL_HUB_PAYMENT_PLAN_CENTS: "0"`, and `SPOOL_HUB_ENABLE_FAKE_PAY: "false"` in `dev.env.yaml:318,319,325` and `PROVIDER: ""` + `PLAN_CENTS: "0"` in `prd.env.yaml:330-331`, re-render tfvars (`do_tpl_gen`), apply `030-cloud-run-hub` dev then prd on owner's go so both dev and prd answer `available: false, rail: "none"` on `GET /api/v1/checkout/plan`, `503 payment_unavailable` on `POST /api/v1/checkout`, and `checkout.not_on_sale` on `/checkout` while `POST /api/v1/checkout/private-workspace` stays up | `csi-spl-cnf/csi-spl/dev.env.yaml`, `csi-spl-cnf/csi-spl/prd.env.yaml`, rendered `csi-spl-cnf/csi-spl/{dev,prd}/tf/030-cloud-run-hub.vars.tfvars`, `csi-spl-iac/src/bash/tests/hub-payment-030.tst.sh` | `do_tpl_gen` + `hub-payment-030.tst.sh` assert `PROVIDER == ""`, `PLAN_CENTS == "0"`, and `ENABLE_FAKE_PAY == "false"` on dev and prd; red control: `PLAN_CENTS: "2000"` with `stripe` on prd, OR `SPOOL_HUB_ENABLE_FAKE_PAY: "true"` on dev (leaving dev on `rail: "fake", available: true`), fails the test | - (owner go for apply) |
 | C1 | simple_coding / claude, then i18n / agy | Public price page `/pricing` rendering `GET /api/v1/checkout/plan` (no price typed into the page) and linking to `/checkout` only while `available: true`; when `available: false` (Q1 C hold), shows "not on sale yet" and links to offers I and P / private workspace; linked from `about.html` and sign-in; every locale | `csi-spl-wui/src/pages/pricing.vue`, `csi-spl-wui/src/public/about.html`, `csi-spl-wui/src/pages/login.vue`, `csi-spl-wui/i18n/locales/*.json`, `csi-spl-wui/tests/e2e/pricing.test.mjs` | e2e with the plan mocked: `available:false` -> no buy button; `available:true` -> price rendered from JSON; red control: a literal `2000` or `20` typed into `pricing.vue` fails a grep test | - |
 | C2 | simple_coding / claude | Payment description stops saying `"(monthly)"` while nothing renews (G-H1) | `internal/payments/stripe_payments.go`, `internal/payments/stripe_payments_test.go` | unit test asserts the payment intent description omits `"(monthly)"`; red control: the old `" (monthly)"` string fails it | - |
 | C3a | complex_coding / claude | Renewal (G-H1) as D3 says, store side: a workspace prepaid balance, drawn down monthly by the measured base plan and its human seats (EUR 9/seat, Q2 A, Q3 A); at zero the workspace goes `grace` | `internal/store/balance.go`, `internal/store/balance_postgres.go`, `internal/store/balance_test.go`, `internal/billing/drawdown.go`, `internal/billing/drawdown_test.go`, new rdb migration | a month's draw-down lowers the balance by base + seats; at zero -> `grace`; red control: a balance at zero that stays `active` fails it | - |
@@ -605,13 +631,13 @@ with a red control. `C<n>` rows map 1-to-1 to tasks `T024..T040` in
 | C4 | simple_coding / claude | Per-plan quotas (T012a): quotas keyed by `plan_id` instead of deploy-wide `SPOOL_HUB_QUOTA_*` | `internal/config/config.go`, `internal/hub/server.go`, `csi-spl-cnf/csi-spl/all.env.yaml` (quota lines 609–611), `internal/hub/quota_plan_test.go` | a plan with a lower quota -> `429` while the deploy-wide value has room; red control: the deploy-wide value winning fails it | OQ-006-1 |
 | C5 | simple_coding / claude | Timed grace (T013a): `grace_started_at` recorded on entry to `grace`, moved to `unpaid` after `SPOOL_HUB_BILLING_GRACE` | `internal/billing/grace.go`, `internal/billing/grace_test.go`, new rdb migration | fake clock past `BillingGrace` -> `unpaid`; red control: one second before `BillingGrace` moving to `unpaid` fails it | OQ-006-3, C3a |
 | C8 | simple_coding / claude | Hub receipt per card payment (Q5 A): hub sends its own receipt mail with the buyer's billing details (name/company, address, VAT id) on every paid checkout and top-up | `internal/payments/receipt.go`, `internal/payments/receipt_test.go`, `internal/payments/handler.go` (billing details + `afterPaid` hook), `internal/mail/templates/payment_receipt.tmpl`, new rdb migration | paid webhook -> one receipt mail carrying buyer VAT id and line items; red control: a replayed webhook sending a second mail, or a receipt missing billing details, fails it | C3b |
-| C6 | simple_coding / claude, cnf + 030 apply with owner's go | Human seats on the hosted checkout & sales switch-on (Q1 C, Q2 A, Q3 A, D1): set the C0-measured `SPOOL_HUB_PAYMENT_PLAN_CENTS`, `SPOOL_HUB_PAYMENT_SEAT_USER_CENTS: "900"` (bot seats stays `"0"`, guests stay free), and `SPOOL_HUB_PAYMENT_PROVIDER: "stripe"` in `dev.env.yaml` then `prd.env.yaml` (re-render `030` tfvars, apply on owner's go) ONLY after C0's closed-month report and owner go; seat count (1..`seats_max`) and month total in `/checkout` | `csi-spl-cnf/csi-spl/dev.env.yaml`, `csi-spl-cnf/csi-spl/prd.env.yaml`, rendered `csi-spl-cnf/csi-spl/{dev,prd}/tf/030-cloud-run-hub.vars.tfvars`, `csi-spl-wui/src/pages/checkout/index.vue`, `csi-spl-wui/tests/e2e/checkout-seats.test.mjs` | checkout with 3 seats -> total = measured base + 3 x EUR 9; red control: `seats_users: 0` accepted while priced, or a channel guest counted against the seat cap, fails it | C0, C0b, C3b, C8, owner go |
+| C6 | simple_coding / claude, cnf + 030 apply with owner's go | Human seats on the hosted checkout & sales switch-on (Q1 C, Q2 A, Q3 A, D1): set the C0-measured `SPOOL_HUB_PAYMENT_PLAN_CENTS`, `SPOOL_HUB_PAYMENT_SEAT_USER_CENTS: "900"` (bot seats stays `"0"`, guests stay free), and `SPOOL_HUB_PAYMENT_PROVIDER: "stripe"` in `dev.env.yaml` then `prd.env.yaml` (re-render `030` tfvars, update `hub-payment-030.tst.sh` from C0b's off-sale assertion to the measured-price assertion, apply on owner's go) ONLY after C0's closed-month report and owner go; seat count (1..`seats_max`) and month total in `/checkout` | `csi-spl-cnf/csi-spl/dev.env.yaml`, `csi-spl-cnf/csi-spl/prd.env.yaml`, rendered `csi-spl-cnf/csi-spl/{dev,prd}/tf/030-cloud-run-hub.vars.tfvars`, `csi-spl-iac/src/bash/tests/hub-payment-030.tst.sh`, `csi-spl-wui/src/pages/checkout/index.vue`, `csi-spl-wui/tests/e2e/checkout-seats.test.mjs` | checkout with 3 seats -> total = measured base + 3 x EUR 9; red control: `seats_users: 0` accepted while priced, or a channel guest counted against the seat cap, fails it | C0, C0b, C3b, C8, owner go |
 | C7 | complex_coding / claude | Seats after purchase (Q4 A): workspace admin adds or removes seats; add takes effect at once with pro-rata draw from the prepaid balance; remove takes effect at month end; "N of M seats used" in workspace settings | `internal/payments/seats_manage.go`, `internal/payments/seats_manage_test.go`, `internal/payments/handler.go` (seat-change route), `internal/store/seats_postgres.go`, `csi-spl-wui/src/pages/tenant-settings/members.vue` | add 1 seat mid-month -> cap +1 and pro-rata balance draw; remove -> scheduled for month end; red control: a remove that lowers the cap immediately or below occupancy fails it | C3a, C6 |
 | C9 | simple_coding / claude | Self-service cancel of a hosted workspace by its `biz_owner` (G-H7): stops further monthly draw-down, keeps hub data for 30 days as private-workspace cancel (`rdb 0319`) does | `internal/hub/hosted_cancel.go`, `internal/hub/hosted_cancel_test.go`, `csi-spl-wui/src/pages/tenant-settings/general.vue` | `biz_owner` cancel -> no further draw-down and 30-day retention scheduled; red control: a non-owner member cancelling -> 403, allowed fails it | C3a |
 | C10 | specs_and_docs / agy | Written offers I and P (Q6 A, Q7 A, Q8 A, Q9 A): help page with offer I (fixed setup + monthly upkeep per owner quote, private customer repo + generic connector, AGPL-3.0 boundary check prerequisite before first contract) and offer P (one business-hours tier, sev-1 1 business day / sev-2 2 business days, monthly or yearly bank-transfer invoice, support workspace) | `csi-spl-doc/doc/help/commercial-offers.md` | `do_check_dist_hygiene` green, AGPL gate + business-hours targets present; red control: a customer name or a 24/7 SLA promise in the page fails the check | - (AGPL check Q7 A before first offer-I contract) |
 | C11 | specs_and_docs / agy | Document store AI retrieval spec breakdown (Q10 A, Q11 B): update spec 075 section 7 into build rows (pgvector extension + tenant-RLS embeddings table, chunking/indexing worker on doc save, semantic search query, per-doc ACLs 075 7.2) wired to our **self-hosted** embedding model (Q11 B), with zero third-party AI API keys and zero token resale (D2) | `csi-spl-doc/specs/075-docs-section/spec.md`, `csi-spl-doc/specs/075-docs-section/tasks.md` | cross-vendor spec review; red control: a row calling a third-party token-billed embedding API, storing a static API key, or naming no red control fails the review | - (build runs after spec 075 Phases 2–4 document store) |
-| C12 | complex_coding / claude (iac, apply with owner's go) | **Hosted embedding model service & IAM key handling** (Q11 B, after document store): dedicated internal Cloud Run v2 service (`033-cloud-run-embeddings`, pattern `031-cloud-run-pdf`) running an open-weights embedding model in `europe-north1`, scale-to-zero (`min_instance_count = 0`, `cpu_idle = true`, `startup_cpu_boost = false`), labelled `role = "embeddings"`, `roles/run.invoker` granted ONLY to the hub runtime SA (no `allUsers`, no static API key in git/cnf/state/logs), stateless (no doc text persisted or logged) | `csi-spl-iac/src/terraform/033-cloud-run-embeddings/`, `csi-spl-iac/src/tpl/%org%-%app%/%env%/tf/033-cloud-run-embeddings.*`, `csi-spl-iac/src/bash/tests/embeddings-service-033.tst.sh` | terraform plan + test assert `min_instance_count = 0`, `role = "embeddings"`, IAM invoker restricted to hub runtime SA; red control: `allUsers` invoker, static API key env var, or `min_instance_count > 0` fails `embeddings-service-033.tst.sh` | C11, spec 075 Phases 2–4 |
-| C13 | complex_coding / claude | **Hub embedding client & per-workspace metering** (Q10 A, Q11 B): hub client calling `SPOOL_HUB_EMBEDDINGS_URL` via GCP IAM ID token (`idtoken.NewClient`, pattern `internal/topicpdf/render.go:61`; empty URL -> `503 embeddings_unavailable`); forward-only rdb migration adding `embed_compute_ms` and `embed_vector_bytes` kinds to `usage_events` (never `llm_tokens_*`) and per-workspace `ai_retrieval_enabled` opt-in (default `false`); meter every doc-index and semantic-query call per workspace under tenant RLS | `internal/embeddings/`, `internal/hub/doc_semantic_search.go`, new rdb migration, `internal/embeddings/client_test.go`, `internal/store/embed_usage_test.go` | doc index + semantic search write tenant-scoped `usage_events` (`embed_compute_ms`, `embed_vector_bytes`); opted-out workspace refused; red control: an unmetered embedding call, cross-tenant vector read, or `llm_tokens_*` billing line fails the test | C12 |
+| C12 | complex_coding / claude (iac, apply with owner's go) | **Hosted embedding model service, IAM key handling & 030 URL wiring** (Q11 B, after document store): dedicated IAM-gated Cloud Run v2 service (`033-cloud-run-embeddings`, pattern `031-cloud-run-pdf`: `ingress = "INGRESS_TRAFFIC_ALL"` with IAM-only access, scale-to-zero `min_instance_count = 0`, `cpu_idle = true`, `startup_cpu_boost = false`), running an open-weights embedding model in `europe-north1`, labelled `role = "embeddings"`, `roles/run.invoker` granted ONLY to the hub runtime SA (no `allUsers`, no static API key in git/cnf/state/logs), stateless (no doc text persisted or logged); wires `hub.embeddings.url` in `all.env.yaml` through step `030-cloud-run-hub` as `SPOOL_HUB_EMBEDDINGS_URL` (matching `pdf_url` -> `SPOOL_PDF_URL`) | `csi-spl-iac/src/terraform/033-cloud-run-embeddings/`, `csi-spl-iac/src/tpl/%org%-%app%/%env%/tf/033-cloud-run-embeddings.*`, `csi-spl-iac/src/terraform/030-cloud-run-hub/{02-variables.tf,04-cloud-run-service.tf}`, `csi-spl-iac/src/tpl/%org%-%app%/%env%/tf/030-cloud-run-hub.vars.tfvars.tpl`, `csi-spl-cnf/csi-spl/all.env.yaml` (`hub.embeddings.url`), rendered `csi-spl-cnf/csi-spl/{dev,prd}/tf/030-cloud-run-hub.vars.tfvars`, `csi-spl-iac/src/bash/tests/embeddings-service-033.tst.sh` | terraform plan + test assert `ingress = "INGRESS_TRAFFIC_ALL"`, `min_instance_count = 0`, `role = "embeddings"`, IAM invoker restricted to hub runtime SA, and `030` merges `SPOOL_HUB_EMBEDDINGS_URL` only when set; red control: `allUsers` invoker, static API key env var, or `min_instance_count > 0` fails `embeddings-service-033.tst.sh` | C4, C6, C11, spec 075 Phases 2–4 |
+| C13 | complex_coding / claude | **Hub embedding client & per-workspace metering** (Q10 A, Q11 B): load `SPOOL_HUB_EMBEDDINGS_URL` in `internal/config/config.go` (matching `SPOOL_PDF_URL` at `:685`); hub client calling it via GCP IAM ID token (`idtoken.NewClient`, pattern `internal/topicpdf/render.go:61`; empty URL -> `503 embeddings_unavailable`); forward-only rdb migration adding `embed_compute_ms` and `embed_vector_bytes` kinds to `usage_events` (never `llm_tokens_*`) and per-workspace `ai_retrieval_enabled` opt-in (default `false`); meter every doc-index and semantic-query call per workspace under tenant RLS | `internal/config/config.go` (`SPOOL_HUB_EMBEDDINGS_URL`), `internal/embeddings/`, `internal/hub/doc_semantic_search.go`, new rdb migration, `internal/embeddings/client_test.go`, `internal/store/embed_usage_test.go` | doc index + semantic search write tenant-scoped `usage_events` (`embed_compute_ms`, `embed_vector_bytes`); opted-out workspace refused; red control: an unmetered embedding call, cross-tenant vector read, or `llm_tokens_*` billing line fails the test | C12 |
 | C14 | simple_coding / claude | **Hosted-model cost measurement & Q10 add-on pricing** (Q10 A, Q11 B): read-only BigQuery cost action reading `role = "embeddings"` closed-month GCP cloud cost in EUR from `gcp_billing_export_v1_*` (credits netted, every day `ok`), allocating across opted-in workspaces by metered `usage_events` share, applying **cloud cost + 33%** (D1), and gating the Q10 AI retrieval add-on price until a closed-month measurement holds and the owner switches the add-on on | `csi-spl-iac/src/bash/run/spl-embeddings-cost-read.func.sh`, `csi-spl-iac/src/bash/tests/spl-embeddings-cost-read.tst.sh` | fixture closed month of `role = "embeddings"` export rows + metered workspace shares -> exact per-workspace `(cloud_cost * 1.33)` in EUR; red control: an incomplete month, an unlabelled service line, or a non-opted-in workspace billed fails the test | C13 |
 
 Not a row here: the generic finance connector (its own lane, CO-3), the
@@ -679,4 +705,4 @@ Questions as asked in v1.5.0 (form `38ceff26`), kept as the record:
 NATS, Kafka, ysg-box, customer GCP accounts, card storage, custom
 domains, seats (M4), WUI (005).
 
-<!-- version: 1.6.0 · updated: 2026-11-25 · last-edit: 2026-11-25T08:40:00Z -->
+<!-- version: 1.6.0 · updated: 2026-11-25 · last-edit: 2026-11-25T09:05:00Z -->

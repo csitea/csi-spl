@@ -1,5 +1,22 @@
 # Refactor round 98 - panel seat claude (c-429)
 
+## Signature: PASS on f59c0375f (v1.0)
+
+- Read: `csi-spl-doc/doc/md/refactor-round-98-plan.md` on
+  `review/c002-refactor-round-98-planner` at **`f59c0375f6dcad8af8d896bf5be2f95a26b9839a`**
+  (`git ls-remote` printed this sha). 2026-11-25 ~07:10Z, n=1 each.
+- `git merge-base --is-ancestor 52d5d4c17 f59c0375f` -> rc 0. `git log --oneline 52d5d4c17..f59c0375f` -> one commit.
+  `git diff --stat` -> the plan only, `25 insertions(+), 15 deletions(-)`. I read every changed line: the status block, 1.2(c), section 7, sections 8 and 9.
+- Code blocks unchanged: `diff` of every fenced block between v0.2 and v1.0 -> no output.
+  The list of 12-char sha256 values is identical. So every v0.2 result below still holds for v1.0.
+- **N6 folded**: `grep -c 027-ui-performance-budget` on v1.0 -> `0`. Lines 140 and 793 now cite
+  `csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json`, and
+  `git show 7084439f1:<that path>` -> rc 0.
+- **N7 folded**: line 140 reads "box generate, "Estimate for CI, not a CI reading": ~3.1 KB headroom on the box, ~2.8 KB on CI".
+- No row, site, batch or vendor changed. No new defect.
+
+---
+
 ## Verdict: PASS on 52d5d4c17 (v0.2)
 
 - Read: `csi-spl-doc/doc/md/refactor-round-98-plan.md` on

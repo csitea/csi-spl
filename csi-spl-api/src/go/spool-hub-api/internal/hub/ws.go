@@ -697,6 +697,10 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 	if rf == nil { // spec 164 5.1: after the moved check (it reads the topic first), before anything is claimed, stored or queued
 		rf = s.sendChannelBoxRefusal(ctx, x, env, m)
 	}
+	if rf == nil && f.RecordOnly { // spec 058 section 7, record_only.go
+		s.onRecord(ctx, x, env, m, level, f.TypedBy)
+		return
+	}
 	var undo func()
 	if rf == nil {
 		rf, undo = s.claimAnswer(ctx, x, env, m, f)
@@ -1048,33 +1052,11 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		isParent = 0
 	}
 	var c committed
-	ts, err := time.Parse(time.RFC3339, m.TS)
+	row, err := s.messageRow(ctx, tenant, env, m, isParent, typedBy)
 	if err != nil {
 		return c, err
 	}
-	canon, err := env.Marshal()
-	if err != nil {
-		return c, err
-	}
-	channel := s.storedChannel(ctx, tenant, env, m)
-	if isParent == 0 && env.FromBox != WUIBox {
-		channel = s.followMoved(ctx, tenant, m.TaskID, channel)
-	}
-	filesJSON, _ := json.Marshal(m.Files)
-	if m.Files == nil {
-		filesJSON = []byte(`[]`)
-	}
-	// Postgres keeps received_at in µs: an ack / fan-out cursor built from the
-	// ns clock would not match the stored row's (nor a resend's re-ack).
-	now := s.o.Now().Truncate(time.Microsecond)
-	row := store.Message{
-		TenantID: tenant, MsgID: m.MsgID, TaskID: m.TaskID, TS: ts,
-		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind, Body: m.Body,
-		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel, ParentTaskID: env.ParentTaskID,
-		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent, TypedBy: typedBy,
-		NoteToSelf: noteToSelfOf(ctx), // spec 042, set by wuiSend only
-		LoopID:     loopIDOf(ctx),     // spec 182 5.2, set by a loop's fire only
-	}
+	canon, now := row.Env, row.ReceivedAt
 	inserted, sentInOne, err := s.insertRowRef(ctx, &row) // spec 067 L4, dm_ref.go
 	if err != nil {
 		return c, err
@@ -1113,6 +1095,38 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 	}
 	c.delivery = delivery
 	return c, nil
+}
+
+// messageRow is the stored row of a verified envelope (commitRowTyped and
+// the record-only path, record_only.go): its channel, files and times.
+func (s *Server) messageRow(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message, isParent int, typedBy string) (store.Message, error) {
+	ts, err := time.Parse(time.RFC3339, m.TS)
+	if err != nil {
+		return store.Message{}, err
+	}
+	canon, err := env.Marshal()
+	if err != nil {
+		return store.Message{}, err
+	}
+	channel := s.storedChannel(ctx, tenant, env, m)
+	if isParent == 0 && env.FromBox != WUIBox {
+		channel = s.followMoved(ctx, tenant, m.TaskID, channel)
+	}
+	filesJSON, _ := json.Marshal(m.Files)
+	if m.Files == nil {
+		filesJSON = []byte(`[]`)
+	}
+	// Postgres keeps received_at in µs: an ack / fan-out cursor built from the
+	// ns clock would not match the stored row's (nor a resend's re-ack).
+	now := s.o.Now().Truncate(time.Microsecond)
+	return store.Message{
+		TenantID: tenant, MsgID: m.MsgID, TaskID: m.TaskID, TS: ts,
+		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind, Body: m.Body,
+		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel, ParentTaskID: env.ParentTaskID,
+		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent, TypedBy: typedBy,
+		NoteToSelf: noteToSelfOf(ctx), // spec 042, set by wuiSend only
+		LoopID:     loopIDOf(ctx),     // spec 182 5.2, set by a loop's fire only
+	}, nil
 }
 
 // Deliver verifies a hub-originated envelope and commits it (cicdlogs.Bus).

@@ -6,7 +6,7 @@
 #   spool-fleet-relay.sh [--spool-root <dir>] --from <ID> --to <ID> --kind <k>
 #                        --body <text> [--task <uuid>] [--to-box <box>]
 #                        [--accept <msg_id>] [--to-this-box]
-#                        [--tenant <workspace>]
+#                        [--tenant <workspace>] [--record-of <msg_id>]
 #
 # --accept sets the v:1 key `accepts` (spec 130 section 4). --to-this-box
 # sends to an agent of THIS machine through the hub, to the sidecar's own box
@@ -15,6 +15,10 @@
 # this one send, ahead of every source below (SPL-4880: the box link watcher
 # keeps a topic's alert in that topic's workspace; sudo resets the
 # environment, so SPOOL_FLEET_TENANT cannot carry it). Unset: unchanged.
+# --record-of sends a record-only copy of a message this machine already
+# delivered, under that msg_id (spec 058 section 7, spool-record-forward.sh):
+# the hub stores it and delivers it to no box. It names no box (the desk
+# signs it to its own) and takes no --to-box, --to-this-box or --accept.
 #
 # It signs the message with THIS machine's desk box and hands it to the hub
 # through that desk's live `spool hub-run` sidecar (its warm socket, the same
@@ -57,7 +61,7 @@ say() { echo "spool-fleet-relay: $*" >&2; }
 . "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/../lib/desk-root.inc.sh"
 
 ARGV=("$@")
-ROOT="${SPOOL_ROOT:-/var/spool-hub}" FROM="" TO="" KIND="" BODY="" TASK="" TOBOX="" BODY_SET=0 ACCEPT="" THISBOX=0 ARG_TENANT=""
+ROOT="${SPOOL_ROOT:-/var/spool-hub}" FROM="" TO="" KIND="" BODY="" TASK="" TOBOX="" BODY_SET=0 ACCEPT="" THISBOX=0 ARG_TENANT="" RECORD=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --spool-root) [ "$#" -ge 2 ] || exit 2; ROOT="$2"; shift 2 ;;
@@ -70,6 +74,7 @@ while [ "$#" -gt 0 ]; do
     --accept) [ "$#" -ge 2 ] || exit 2; ACCEPT="$2"; shift 2 ;;
     --to-this-box) THISBOX=1; shift ;;
     --tenant) [ "$#" -ge 2 ] || exit 2; ARG_TENANT="$2"; shift 2 ;;
+    --record-of) [ "$#" -ge 2 ] || exit 2; RECORD="$2"; shift 2 ;;
     *) say "unknown argument: $1"; exit 2 ;;
   esac
 done
@@ -78,6 +83,8 @@ spl_is_participant_id "$FROM" && spl_is_participant_id "$TO" && [[ -n "$KIND" &&
 [[ -z "$TOBOX" || "$TOBOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { say "bad --to-box '$TOBOX'"; exit 2; }
 [[ -z "$ACCEPT" || "$ACCEPT" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { say "bad --accept '$ACCEPT'"; exit 2; }
 [[ "$THISBOX" = 0 || -z "$TOBOX" ]] || { say "--to-this-box and --to-box name two boxes"; exit 2; }
+[[ -z "$RECORD" || "$RECORD" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { say "bad --record-of '$RECORD'"; exit 2; }
+[[ -z "$RECORD" || ( -z "$TOBOX" && "$THISBOX" = 0 && -z "$ACCEPT" ) ]] || { say "--record-of takes no --to-box, --to-this-box or --accept"; exit 2; }
 
 BOXENV="${SPOOL_BOX_ENV:-$ROOT/box.env}" LCONF="$ROOT/dispatch/lease.conf"
 ENVN="${SPOOL_FLEET_ENV:-$(spool_box_kv "$BOXENV" SPOOL_FLEET_ENV)}"; ENVN="${ENVN:-$(spool_box_kv "$LCONF" LEASE_ENV)}"
@@ -213,6 +220,7 @@ fi
 [ -n "$TASK" ] && args+=(--task "$TASK")
 [ -n "$TOBOX" ] && args+=(--to-box "$TOBOX")
 [ -n "$ACCEPT" ] && args+=(--accept "$ACCEPT")
+[ -n "$RECORD" ] && args+=(--record-of "$RECORD")
 out="$(env -i HOME="$HOME" PATH=/usr/bin:/bin USER="$(id -un)" SPOOL_LOG_LEVEL=error \
   SPOOL_NOTIFY_CMD=off "${envv[@]}" "$BIN" "${args[@]}" 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ]; then

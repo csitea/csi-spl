@@ -430,7 +430,8 @@ func (s *Session) flush(ctx context.Context) (int, error) {
 		}
 		n++
 	}
-	return n, nil
+	r, err := s.flushRecords(ctx) // spec 058 section 7, record.go
+	return n + r, err
 }
 
 // SyncReport is what a one-shot hub-sync did.
@@ -629,11 +630,19 @@ func (c *Client) hold(ctx context.Context, sess *Session) error {
 				last = k
 				sess.Announce(ctx) //nolint:errcheck
 			}
-			if left, _ := c.Pending(); len(left) > 0 {
+			if c.queued() {
 				sess.Flush(ctx) //nolint:errcheck
 			}
 		}
 	}
+}
+
+// queued reports a pending envelope or a queued record-only copy (spec 058
+// section 7) for the next flush.
+func (c *Client) queued() bool {
+	left, _ := c.Pending()
+	recs, _ := c.Records()
+	return len(left)+len(recs) > 0
 }
 
 // serveSubmit opens the box-local submit socket on sess for as long as ctx

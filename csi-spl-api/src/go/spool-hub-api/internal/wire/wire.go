@@ -250,6 +250,9 @@ const (
 	DeliverySent    = "sent"
 	DeliveryQueued  = "queued"
 	DeliveryPending = "pending"
+	// DeliveryRecorded answers a record_only send (spec 058 section 7): the
+	// hub holds the message as a record and delivered it to no box.
+	DeliveryRecorded = "recorded"
 )
 
 // TokenFromNotAnnounced is the error token for a send whose msg.from is not
@@ -369,6 +372,13 @@ type Frame struct {
 	// turn TurnID names. A send that names a turn without it is written
 	// "unmetered" and alerts, so a gap is never read as zero tokens.
 	Usage *UsageReport `json:"usage,omitempty"`
+
+	// send (spec 058 section 7, SPL-6513): a record-only copy of a message
+	// its own box already delivered locally. The hub stores it once (by
+	// msg_id) and delivers it to no box. Outside the signed envelope like
+	// TypedBy; a box sends it only from its own record queue, which an
+	// older sidecar never flushes.
+	RecordOnly bool `json:"record_only,omitempty"`
 
 	// sent
 	MsgID    string `json:"msg_id,omitempty"`

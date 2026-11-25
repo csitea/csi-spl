@@ -520,6 +520,7 @@ func cmdSend(cfg *config.Config, args []string) int {
 	channel := fs.String("channel", "", "hub mode: post into this channel (a new topic every member reads, to ALL-0), like a human's post; the hub refuses it unless --from is a member")
 	typedBy := fs.String("typed-by", "", "hub mode: the HUM-<n> who typed this line at --from's terminal; the hub refuses it (typed_by_not_bound) unless that human is bound as this box's operator")
 	accept := fs.String("accept", "", "with --kind result: the msg_id of the result this line accepts (spec 130); the hub shows the line as `ready` in the Flow")
+	recordOf := fs.String("record-of", "", "hub mode: send a record-only copy of the message with this msg_id, already delivered on this box (spec 058 section 7); the hub stores it and delivers it to no box")
 	ref := fs.String("ref", "", "hub mode: the channel topic (task_id) this DM is about (spec 067); it rides the send frame as ref_task_id, kept only when --from may read the topic")
 	if err := fs.Parse(args); err != nil {
 		return 1
@@ -533,7 +534,7 @@ func cmdSend(cfg *config.Config, args []string) int {
 		From: *from, To: *to, TaskID: *task, Kind: *kind, Body: *body,
 		FileIDs: fileIDs, FileRefs: fileRefs, DirBlobs: dirBlobs, DirRefs: dirRefs,
 		PutFiles: putFiles, ToBox: *toBox, TypedBy: *typedBy, Channel: *channel,
-		Answers: *answers, IfGen: *ifGen, Ref: *ref, Accepts: *accept,
+		Answers: *answers, IfGen: *ifGen, Ref: *ref, Accepts: *accept, RecordOf: *recordOf,
 	}
 	out, err := action.SendCtx(ctx, cfg, in)
 	if err != nil {

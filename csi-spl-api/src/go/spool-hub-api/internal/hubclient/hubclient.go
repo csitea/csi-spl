@@ -808,7 +808,7 @@ func (s *Session) SendAnswer(ctx context.Context, env *wire.Envelope, answers st
 }
 
 // sendFrame sends env on a send frame carrying extra's typed_by /
-// ref_task_id / answers / turn_id / usage.
+// ref_task_id / answers / turn_id / usage / record_only.
 func (s *Session) sendFrame(ctx context.Context, env *wire.Envelope, extra wire.Frame) (wire.Frame, error) {
 	raw, err := env.Marshal()
 	if err != nil {
@@ -821,7 +821,7 @@ func (s *Session) sendFrame(ctx context.Context, env *wire.Envelope, extra wire.
 	id := m.MsgID
 	send := func() (wire.Frame, error) {
 		return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw, TypedBy: extra.TypedBy, RefTaskID: extra.RefTaskID, Answers: extra.Answers, IfGen: extra.IfGen,
-			TurnID: extra.TurnID, Usage: extra.Usage}, wire.TSent,
+			TurnID: extra.TurnID, Usage: extra.Usage, RecordOnly: extra.RecordOnly}, wire.TSent,
 			func(r wire.Frame) bool { return r.MsgID == id || (r.Type == wire.TError && r.MsgID == "") })
 	}
 	f, err := send()

@@ -338,3 +338,56 @@ Owner go needed: prd `pin`, `copy`, `drain`, `seat` and `retire` (pins and DB ro
 | 7 | the lease goes back to the home box | ~1 min |
 | 8 | later, after a quiet day: per env and tenant `retire` | ~10 s each |
 | R | rollback: `ROLLBACK=1` naming migrate + drop the box.env lines; move `<desk>/rebox-retired/<ts>/<ID>` back into the `box-desk` desk root and re-seat with `do_spl_desk_up_all DESK_BOX=box-desk DESK_SEATED_ONLY=1` (its pin stays until `retire`) | minutes |
+
+## 7. Same-box messages reach the hub as a record (SPL-6513, latency action 3)
+
+Owner HUM-10, t1 `e3b16fea`, form `ae452613`: a hub record plus a box file
+within 10 s, same box first. The latency panel measured 0 % of about 3,700
+same-box messages a day on the hub (lat-hub, lat-box, 2026-11-25), so the
+owner saw none of them.
+
+### 7.1 The path
+
+1. `spool-send.sh` delivers locally as before: the inbox file, the outbox
+   copy and the poke. Nothing on that path waits on the hub.
+2. On a local delivery (`delivery: local`, not a probe line) it starts
+   `scripts/spool-record-forward.sh` detached, with the message's msg_id.
+3. The forwarder calls `spool-fleet-relay.sh --record-of <msg_id>`. Through
+   this machine's desk sidecar, that runs
+   `spool send --record-of <msg_id>`. The desk signs the copy to its own box
+   (`to_box` = the sending box) and sends it on a one-shot session with the
+   send-frame flag `record_only`.
+4. The hub (`internal/hub/record_only.go`) stores the row once and shows it
+   to the browsers. It writes no deliveries row, pushes to no box, and runs
+   no channel fan-out and no tail frame. It answers `delivery: recorded`.
+
+### 7.2 Rules
+
+| case | what happens |
+|---|---|
+| a msg_id the hub already holds (a retry, a replay with a new ts, a cross-box message) | `recorded`, nothing stored, nothing delivered |
+| a `record_only` frame whose `to_box` is not the sending box | refused, `record_not_local` |
+| hub down | the signed copy waits in the desk's `.hub/pending-record/`, and the sidecar flushes it on its 10 s scan |
+| no fleet desk, or no live sidecar | not recorded; one line in `$SPOOL_ROOT/.record/forward.log` |
+| attachments | the copy carries the body only |
+
+The record queue is its own directory, beside `pending/`. An older sidecar
+flushes only `pending/`, and an older hub ignores `record_only`, so either
+one would deliver a record as a normal message. Roll-out order: the hub
+deploys on the push (workflow 20), then each desk binary is rebuilt.
+
+Each record is a row of the 006 message quota, like any stored message.
+The ts of the record is the time of the copy, at most a few seconds after
+the local one.
+
+### 7.3 Tests
+
+- `internal/hub/record_only_test.go`, on the memory store and on Postgres
+  (`SPOOL_TEST_PG_DSN`). n = 20 same-box sends give 20 inbox files, 20 hub
+  rows and no deliveries row. A replay and a cross-box msg_id store
+  nothing. With the hub down the copy waits in the record queue, and the
+  flush sends it once.
+- `spawn-agents/tests/test-spool-record-forward.sh`: one inbox file, one
+  poke and one forward per send (n = 20), each forward with its msg_id. A
+  probe line starts no forward. A hub leg that hangs for 8 s does not delay
+  the send. It also checks the forwarder and relay arguments.

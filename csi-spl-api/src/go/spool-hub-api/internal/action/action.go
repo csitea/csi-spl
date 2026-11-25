@@ -81,6 +81,11 @@ type SendArgs struct {
 	// `accepts`, from which the hub labels the line's Flow events `ready`.
 	// Local and hub mode; only on a result.
 	Accepts string
+	// RecordOf makes the send a record-only copy of the message with that
+	// msg_id, already delivered on this box (spec 058 section 7, `spool
+	// send --record-of <msg_id>`). Hub mode only: the copy keeps the msg_id,
+	// names this box as to_box and is stored by the hub, never delivered.
+	RecordOf string
 	// Channel makes the send a POST INTO that channel (specs/038): a new
 	// topic every member of the channel reads, exactly like a human's post -
 	// to ALL-0, to_box box-wui, the channel signed into the envelope. Hub mode
@@ -153,6 +158,24 @@ func checkAccepts(in SendArgs) error {
 	return nil
 }
 
+// checkRecordOf refuses --record-of outside hub mode, with a value that is
+// not a msg_id, or with a flag that routes or attaches (spec 058 section 7).
+func checkRecordOf(cfg *config.Config, in SendArgs) error {
+	switch {
+	case in.RecordOf == "":
+		return nil
+	case cfg.HubURL == "":
+		return fmt.Errorf("--record-of needs hub mode ($SPOOL_HUB_URL)")
+	case !refRe.MatchString(in.RecordOf):
+		return fmt.Errorf("--record-of must be the msg_id (a uuid) of the delivered message, got %q", in.RecordOf)
+	case in.ToBox != "" || in.Channel != "" || in.Answers != "" || in.TypedBy != "" || in.Ref != "":
+		return fmt.Errorf("--record-of records a message of this box: no --to-box, --channel, --answers, --typed-by or --ref")
+	case len(in.FileIDs)+len(in.FileRefs)+len(in.DirBlobs)+len(in.DirRefs)+len(in.PutFiles) > 0:
+		return fmt.Errorf("--record-of carries no attachments")
+	}
+	return nil
+}
+
 // checkSend refuses the hub-only flags in local mode and a malformed channel
 // post or typed_by claim. A channel post is normalized in place: the channel
 // id, to ALL-0, kind note by default.
@@ -170,6 +193,9 @@ func checkSend(cfg *config.Config, in *SendArgs) error {
 		return err
 	}
 	if err := checkAccepts(*in); err != nil {
+		return err
+	}
+	if err := checkRecordOf(cfg, *in); err != nil {
 		return err
 	}
 	if in.Channel != "" {
@@ -327,6 +353,11 @@ func sendHub(ctx context.Context, cfg *config.Config, in SendArgs, atts []msg.At
 	}
 	var d string
 	switch {
+	case in.RecordOf != "":
+		m.MsgID = in.RecordOf
+		if err = m.Validate(); err == nil {
+			d, err = hc.SendRecord(ctx, m)
+		}
 	case in.Answers != "":
 		d, err = hc.SendAnswerMessage(ctx, m, in.ToBox, in.Answers, in.IfGen)
 	case in.Channel != "":

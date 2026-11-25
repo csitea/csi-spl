@@ -54,13 +54,13 @@ block with `do_spl_cost_gcp_window || return 1`, `local day="${COST_WINDOW_DAY}"
 `tmp` in `spl-vm-cost-per-day.func.sh`), and `local -a days=("${COST_WINDOW_DAYS[@]}")`.
 The rows share no file (orc vs iac): both are batch 1.
 
-**Status: v0.2, revised draft for panel re-review.** Panel seat **c-429** (claude,
-cross-vendor; `c002-refactor-round-98-claude-panel-seat`) reviewed v0.1 (`caf5a790e`) on
-branch `review/c002-refactor-round-98-planner` and returned FAIL (`348c10658`, W1 and W2,
-plus notes N1-N5; both rows confirmed behaviour-preserving). This v0.2 folds W1, W2, and
-N1-N5 and awaits c-429's re-review. Rows queue only after the panel signs v1.0 and the
-holder confirms `do_spl_review_line_check` rc 0 and places them (rulebook 1.4 / 5.2).
-Editor: **a-427** (agy).
+**Status: v1.0, signed and ready for row placement.** Panel seat **c-429** (claude,
+cross-vendor; `c002-refactor-round-98-claude-panel-seat`, branch
+`review/c002-refactor-round-98-claude-seat` `d0f9e15e0`) signed **PASS** on v0.2
+`52d5d4c174befcabbfaeadd6ed342c3c980ef167` (msgs `f649bf4f`, `b47897ff`), and the
+dispatch holder confirmed `do_spl_review_line_check` rc 0 (docs-only) and issued GO v1.0
+(msgs `cf02f977`, `98f046ee`). This v1.0 folds c-429's notes N6 and N7 with no row, site,
+batch, or vendor change. Editor: **a-427** (agy).
 
 **One sha:** every count is measured on **`7084439f1`** (`7084439f15cfdc93915fa52161c3f8c58e1483ae`,
 `origin/master` at 2026-11-25T05:38:47Z), n=1 per command unless stated. Reads are on
@@ -137,9 +137,10 @@ their own time.
       (`refactor(wui, SPL-6342): the hub socket's code leaves the entry chunk, -3.0 KB
       first-load gzip`) and `69dc02d2f` (`docs(perf, SPL-6342)`), both ancestors of
       `7084439f1`, which lowered `metrics.ci_initial_gzip_kb` in
-      `csi-spl-doc/specs/027-ui-performance-budget/contracts/perf-budgets.json` from
-      154.7 KB to 151.9 KB (~3.1 KB headroom under the 155.0 KB ceiling; SPL-6341 B13 also
-      landed in `76471cb9e`, ancestor of `7084439f1`). Recorded in section 7 too (W2).
+      `csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json` from 154.7 KB
+      to 151.9 KB (box generate, "Estimate for CI, not a CI reading": ~3.1 KB headroom on
+      the box, ~2.8 KB on CI under the 155.0 KB ceiling; SPL-6341 B13 also landed in
+      `76471cb9e`, ancestor of `7084439f1`). Recorded in section 7 too (W2, N6, N7).
     - `LOGIN_STATE_DIR` (`orc:src/bash/run/spl-watchdog.func.sh:72,1323`): already uses
       `spl_claude_login_state_dir` from `spl-claude-login.func.sh`.
     - `spl-desk-reply.sh:9,19`: already lists all 12 kinds.
@@ -761,7 +762,7 @@ used, N5; never mistral; re-checked at placement).
 | other `peer/seats` readers (`spl_peer_seats`, `spl-watchdog.func.sh`, `spl-wd-ensure.func.sh`, `spawn-window.sh`) and `sa:lib/spool-fleet.inc.sh:29,100` `[root]` comment (r97-01 R7 N1) | different semantics from boolean existence (and `:29,100` `[root]` is a non-blocking doc nit, not a duplicate-code row); unchanged since r97 | r97 7; 1.2 (a), (b) |
 | other `LEASE_(MASTER|FAILOVER|ORCH)` sites, `specs/172` prose (`:173`), `i18n-lang-review-exempt.json:2` `_doc` | non-identical path vars or prose/doc strings; unchanged since r94..r97 | r97 7; 1.2 (a) |
 | Go duplicate helpers in `csi-spl-api/src/go/spool-hub-api` (`internal/hub`, `internal/hubclient`, `internal/store`, `keyd`/`lockkey`) and TS helpers in `csi-spl-wui` (`issueQuery`, `moveIndex`/`cycleIndex`, `capsError`, `browserStore`) | `csi-spl-api` hub/store requires `PRE_PUSH_TIER=full` Postgres gate and dev/prd deploy lag; `csi-spl-wui` requires Chrome e2e, Firebase deploy lag, and overlaps active WUI lanes (`c-298` Taxes tab, `c-296` blog) | r97 7; 1.2 (a), (e) |
-| `for refactor round 95` (`c002-next-round-candidates.md:124-125`, WUI entry-chunk gzip headroom / eager-core split, `ci_initial_gzip_kb` 154.7 on `c41b7080e`, ceiling 155, blocker on SPL-6341 B13) | already served on `7084439f1` by SPL-6342 (`c68cca820` + `69dc02d2f`: `live-ws.mjs` lazy-loaded, `perf-budgets.json` `ci_initial_gzip_kb` 154.7 -> 151.9 KB, ~3.1 KB under the 155.0 KB ceiling; SPL-6341 B13 also landed in `76471cb9e`); any further WUI entry-chunk cut requires Chrome e2e + CI-node budget measurement and overlaps live WUI lanes (W2) | `git merge-base --is-ancestor c68cca820 7084439f1`, `git show 7084439f1:csi-spl-doc/specs/027-ui-performance-budget/contracts/perf-budgets.json` |
+| `for refactor round 95` (`c002-next-round-candidates.md:124-125`, WUI entry-chunk gzip headroom / eager-core split, `ci_initial_gzip_kb` 154.7 on `c41b7080e`, ceiling 155, blocker on SPL-6341 B13) | already served on `7084439f1` by SPL-6342 (`c68cca820` + `69dc02d2f`: `live-ws.mjs` lazy-loaded, `perf-budgets.json` `ci_initial_gzip_kb` 154.7 -> 151.9 KB box generate, "Estimate for CI": ~3.1 KB headroom on the box, ~2.8 KB on CI under the 155.0 KB ceiling; SPL-6341 B13 also landed in `76471cb9e`); any further WUI entry-chunk cut requires Chrome e2e + CI-node budget measurement and overlaps live WUI lanes (W2, N6, N7) | `git merge-base --is-ancestor c68cca820 7084439f1`, `git show 7084439f1:csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json` |
 | the 10 remaining non-framework 2+ line / >=40-char Bash groups (`do_gcp_*_apis_disable`, `spl_uplink_trim`/`ext_api_trim`, `spl_secrets_none_get`/`spl_self_host_env_get`, `tf_get`, `ndf_link`/`ndp_link`, 7 `_sec_*_need`, `spl_brx_gh_auth`/`ghrh_gh_auth`, `ghr_in` family, `spl_asks_dur`/`spl_fleet_dur`, `_lc_deps`/`_spl_box_leave_deps`) | unchanged on `7084439f1`, each stays out for its r91..r97 section 7 reason | r97 7..r91 7; 1.2 (a), (e) |
 
 ## 8. Changes
@@ -785,15 +786,24 @@ used, N5; never mistral; re-checked at placement).
   guard and `gc1a`/`gc1b` prove the standalone-source path outside `./run`; `update` calls
   `add`'s helpers unguarded at `:62,:111`), N5 (cited ruling `dc84300a` in both row briefs
   for any same-vendor claude R7 backup).
+- v1.0 (a-427): recorded cross-vendor panel signature from `c-429` (claude) PASS on v0.2
+  `52d5d4c174befcabbfaeadd6ed342c3c980ef167` (seat file `d0f9e15e09238e7e0d5bc733938497af7caf154e`,
+  `do_spl_review_line_check` rc 0 confirmed by dispatch holder `cf02f977`) and folded N6
+  (fixed `perf-budgets.json` path in 1.2 (c) and section 7 to
+  `csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json`) and N7 (qualified
+  151.9 KB as a box generate: ~3.1 KB headroom on the box, ~2.8 KB on CI). No row, site,
+  batch, or vendor changed.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-427 (agy): v0.1 (`caf5a790e`), v0.2 (folding c-429 W1, W2, N1-N5).
+- Editor seat: a-427 (agy): v0.1 (`caf5a790e`), v0.2 (`52d5d4c17`), v1.0 (signed; N6-N7
+  folded).
 - Panel reviewer seat: c-429 (claude, `c002-refactor-round-98-claude-panel-seat`):
-  FAIL on v0.1 (`caf5a790e`, seat file `348c10658`, W1 + W2 + N1-N5; rows confirmed
-  behaviour-preserving); pending re-review of v0.2 on
-  `review/c002-refactor-round-98-planner`.
+  FAIL on v0.1 (`caf5a790e`, seat file `348c10658`, W1 + W2 + N1-N5); **PASS** on v0.2
+  `52d5d4c174befcabbfaeadd6ed342c3c980ef167` (seat file
+  `d0f9e15e09238e7e0d5bc733938497af7caf154e`, msgs `f649bf4f` / `b47897ff`;
+  `do_spl_review_line_check` rc 0 confirmed by holder `cf02f977`; N6-N7 folded into v1.0).
 - Row R7 seats: section 4; **agy seat** per row (claude backup only while agy is out of
   quota, under ruling `dc84300a`; never mistral; re-checked at placement).

@@ -1,5 +1,13 @@
 # 154 Contacts section, synced with Google Contacts
 
+Version v1.7 (2026-11-25, SPL-6454): adds 2.2 step 6, "Sync from here
+instead". A workspace whose person's binding is on in another workspace
+shows the switch on, "Synced through <workspace>", and a button that moves
+the binding here in one call (owner HUM-10, t1 `85bdf803`, poll `a42565c0`
+answer A, msg `deec5dc3`). New route `POST /v1/me/contacts/sync/move`, the
+GET gains `state` and `workspace` (section 4), section 12.7 and cases
+C59..C63. P9 is amended to match. The rest of v1.6 is unchanged.
+
 Version v1.6 (2026-11-17, SPL-5830): adds section 12.6, an invitee in a
 name-only workspace (t1) shows no address and no domain to anyone, only
 "Dear future spool-hub user" (owner HUM-10, msg `10b28abb`), as built, and
@@ -243,6 +251,48 @@ consent screen. Contacts adds one scope; it is not a second login:
    This does not depend on 149: `gcal_connections` itself has no
    membership FK (1.2 row 30). The person can then turn sync on in another
    workspace, where the first-sync rules of 2.5 re-link the list.
+6. **Sync from here instead (v1.7, SPL-6454).** Owner HUM-10, t1
+   `85bdf803`, msg `81018be7`: "to my understanding if the contacts are
+   global this error will not have to occur"; poll `a42565c0`, answer A
+   (msg `deec5dc3`): "Show it as on, with "synced through <workspace>" and a
+   "Sync from here instead" button that moves it in one click". The list is
+   already the person's (O5 = B); only the binding has a workspace. So:
+   - `GET /v1/me/contacts/sync` in W2 answers `state: "elsewhere"` and
+     `workspace`: the display name (else the id) of the workspace W1 where
+     the person's binding is on. It is read from the person's own
+     memberships (the binding references their seat in W1, so they belong
+     to it), and only the session's own person's binding is ever named.
+     `state` is `here` (the binding is in W2, on or off as `enabled`
+     says), `elsewhere`, or `off` (no binding, or one that is off
+     elsewhere, which a switch-on replaces, step 3).
+   - `POST /v1/me/contacts/sync/move` in W2 ends the binding in W1 and
+     starts one in W2, enabled and due now, in ONE transaction under the
+     operator scope (the W1 row is invisible from W2), keyed by the
+     session's own person and workspace: lock the person's row
+     (`SELECT … FOR UPDATE`), refuse while its `sync_lease_until` is after
+     now (409 `sync_in_progress`, try again; the lease rule of 2.5: a
+     running cycle is never cut), delete it, insert W2's. A binding already
+     in W2 is switched on instead; a person with none gets one. It needs a
+     `connected` Google connection in W2 (else 409 `gcal_not_connected`);
+     a seat or connection missing at insert (23503) rolls the delete back.
+   - The person's contacts are untouched. The new binding starts empty, so
+     2.5's first-sync rules apply, as for step 3's replace: a full list,
+     linked by `(google_account, google_resource)` (the unique index on
+     `personal.contacts`), else by email, never deleted. The same Google
+     account re-links every contact; another account links by email or
+     creates at the new account (C23d). Nothing is imported twice.
+   - The WUI (Settings -> Google Sync): the switch shows on and disabled,
+     the muted line "Synced through <workspace>." and the button "Sync
+     from here instead". The button asks first (a dialog naming the
+     workspace; Cancel keeps it), then moves, reloads the state and says
+     "Synced here.". When the grant here lacks the contacts scope the
+     reload shows 'grant' and Google's consent page follows, as for a
+     switch-on. No red error for a binding elsewhere: a PUT that still
+     meets the 409 (a race) only reloads into this view.
+   - Red controls: the store test without the lease check (the move under
+     a held lease goes through, C60 red on memory and Postgres); the hub
+     test on the parent tree (origin/master before SPL-6454: the GET has
+     no `state`, the move route is 404, C59 and C61 red).
 
 The People API scope is `https://www.googleapis.com/auth/contacts`: O1 = A,
 two-way (unchecked, I believe, that this is the scope that allows writes;
@@ -828,9 +878,10 @@ decides the kill switch (2.9), the Message match (O3) and the Invite target
 | `DELETE /v1/me/contacts/{id}` | person | 204; 404 for another person's id |
 | `DELETE /v1/me/contacts?scope=spool` | person | 204, the person's whole list (every workspace: it is one list) |
 | `GET /v1/me/contacts/export` | person | `text/csv`, own contacts |
-| `GET /v1/me/contacts/sync` | person | (B18) 200 `{enabled, elsewhere, scope_granted, status_detail, last_synced_at}`, read-only: the person's binding in this workspace; `elsewhere` true (and nothing else of it) when the binding is on in another workspace, which is what a switch-on here answers 409 `contacts_sync_elsewhere` to (one that is off there is not elsewhere: the switch-on replaces it, SPL-6279); `scope_granted` true when the Google connection here holds a scope of cnf `contacts.scopes` |
+| `GET /v1/me/contacts/sync` | person | (B18) 200 `{state, enabled, elsewhere, workspace, scope_granted, status_detail, last_synced_at}`, read-only: `state` `here` / `elsewhere` / `off` (v1.7, 2.2 step 6); `elsewhere` true when the binding is on in another workspace, which is what a switch-on here answers 409 `contacts_sync_elsewhere` to (one that is off there is not elsewhere: the switch-on replaces it, SPL-6279); `workspace` only then: that workspace's display name, else its id; `scope_granted` true when the Google connection here holds a scope of cnf `contacts.scopes` |
 | `PUT /v1/me/contacts/sync` `{enabled}` | person | 204; 409 `gcal_not_connected` without a connection in this workspace; 409 `scope_missing` with a URL to add the scope; 409 `contacts_sync_elsewhere` when the person's binding is on in another workspace (one that is off there is replaced, SPL-6279) |
 | `POST /v1/me/contacts/sync` | person | 202; 409 `sync_in_progress` while the lease is held; 409 `gcal_not_connected` when no binding is in this workspace |
+| `POST /v1/me/contacts/sync/move` | person | (v1.7, 2.2 step 6) 200, the GET's body with `state` `here`: the binding moved here from another workspace in one transaction; 409 `gcal_not_connected` without a connected Google connection here; 409 `sync_in_progress` while a cycle holds the binding's lease |
 | `GET /v1/view/search?q=` | person | gains a `contact` section, own rows only |
 | `GET /v1/view/me` | member | (existing route) gains `contacts: true\|false`, the kill switch for the session's workspace (2.9) |
 | `GET /v1/view/members/{id}/card` | person, member of the session's workspace | `{human_id, display_name, email}` of a member of that same workspace; 404 for anyone else; email null in the demo workspace (section 12) |
@@ -1011,7 +1062,7 @@ cnf change and a new consent from every connected person.
 | P6 | Postgres isolation of a person (**changed in v1.1**) | the personal realm's `person_scope` on `personal.contacts`, plus the store naming `person_id` | v1.0 said "store isolation, as 149" from a grep for the wrong setting; `rdb/0168` isolates persons on master (1.2 row 20), and O5 = B makes the list a person's |
 | P7 | push for contacts | none, a 10 min poll | no watch channel for the People API (unchecked, I believe) |
 | P8 | search index | none: `ILIKE` over the reader's own rows | a person's list is small; spec 100's index is workspace-wide by design |
-| P9 | (v1.1) a person with Google connected in two workspaces | one binding per person (`contacts_sync` primary key `human_id`); a second switch-on answers 409 `contacts_sync_elsewhere` until the first is turned off | one list must sync with one Google account, or two accounts would write one list both ways; moving the binding silently would need an operator write in a request path |
+| P9 | (v1.1) a person with Google connected in two workspaces | one binding per person (`contacts_sync` primary key `human_id`); a second switch-on answers 409 `contacts_sync_elsewhere` until the first is turned off; v1.7: the person moves it in one click from the second workspace ("Sync from here instead", 2.2 step 6), a request the person makes, keyed by their own id | one list must sync with one Google account, or two accounts would write one list both ways; moving the binding silently would need an operator write in a request path |
 | P10 | (v1.1) clones and contacts | refused: `realmRefuses` gates every contacts route | a clone is disabled, never deleted (`store/clones.go:132-138`), so its list would outlive it; an admin acting as a member must not build or read a personal list |
 | P11 | (v1.1) the 30-day purge across persons | one SECURITY DEFINER door owned by a third NOLOGIN realm role | the operator reads 0 realm rows (`0168:21-23`), and the realm already does cross-person work this way (`personal.due_receipts`, :168-176); widening `person_scope` for the operator would undo the realm's OQ-1 A |
 
@@ -1777,4 +1828,16 @@ t1).
 | C57 | name-only workspace: a developer adds an invitee to a channel by its id; the developer and an admin read the channel's members | the 201 `email` "", the `invitees` row `label` "" with its id, `invited` [""], no domain; the undo by id works | `TestChannelInviteesHiddenNameOnly`; twin: a workspace that is not name-only shows the address |
 | C58 | the WUI in t1: People, the Properties picker and the invited list | "Dear future spool-hub user", no `@` in any invitee row, no `…@example.com` on the page | `csi-spl-wui/tests/e2e/invited-inactive-member.test.mjs`, `people-email.test.mjs`; twin: the same flow outside t1 shows the address |
 
-<!-- version: 1.6 · updated: 2026-11-17 -->
+### 12.7 Sync from here instead: cases (v1.7, SPL-6454)
+
+The rule is 2.2 step 6; the route, section 4.
+
+| case | given | expect | proof |
+|---|---|---|---|
+| C59 | P1's binding on in W1 (display name set); P1's W2 session reads the switch | `state` `elsewhere`, `workspace` W1's name, `elsewhere` true; W1 reads `here`, no `workspace` | `TestContactsSyncMove` (hub, memory and Postgres); red control: the parent tree has no `state` |
+| C60 | the move to W3 (no seat), then to W2 while a cycle holds W1's lease | `ErrNotFound`, then `ErrContactsSyncBusy` (hub: 409 `gcal_not_connected`, 409 `sync_in_progress`); W1's binding on, unchanged | `TestContactsSyncMove` (store, memory and Postgres); red control: without the lease check it moves |
+| C61 | the lease ran out; the move to W2 | a fresh binding in W2 (no sync token, no cursor, no lease), W1's gone, P1's one contact kept; W1 now reads `elsewhere` with W2's id (no name); a move where the binding is, and a person with none, each end on in W2 | `TestContactsSyncMove` (store and hub); red control: on the parent the route is 404 |
+| C62 | the move in W2 before a Google connection exists there | 409 `gcal_not_connected`, W1's binding on | `TestContactsSyncMove` (hub) |
+| C63 | the WUI: the binding elsewhere at 1440 and 390 | the switch on and disabled, "Synced through Workspace One.", no red line; the button asks first, Cancel keeps it; the move shows on, enabled, "Synced here."; at 390 no sideways scroll, buttons >= 44 px | `csi-spl-wui/tests/e2e/settings-contacts-switch.test.mjs` CS6, P3, P4; `tests/unit/gcal-contacts-switch.test.mjs` |
+
+<!-- version: 1.7 · updated: 2026-11-25 -->

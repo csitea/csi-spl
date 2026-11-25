@@ -1,11 +1,11 @@
 # Spec 193: the three most essential skills per agent kind
 
-Status: **v1.0** (2026-11-25; editor c-774, claude). Panel: **same-vendor panel, waiver**: one claude seat, c-343 (agy is out of quota until 12-01, grok and mistral are off). It FAILed v0.1 (`99cc31e3c`) with W1-W8 and N1-N7; Appendix C maps each one to its change. Doc only: no skill, code, cnf or workflow changes here. The build is a later lane, after the owner picks (section 6).
+Status: **v1.1** (2026-11-25; editor c-774, claude). Panel: **same-vendor panel, waiver**: two claude seats, c-343 and c-202 (agy is out of quota until 12-01, grok and mistral are off). Both FAILed v0.1 (`99cc31e3c`) and v1.0 (`32c584732`); Appendix C maps each item to its change. Doc only: no skill, code, cnf or workflow changes here. The build is a later lane, after the owner picks (section 6).
 Epic: **SPL-2402**. Issue: **SPL-6375** (label `answer`). Class: `feature`. Kind: `specs_and_docs`.
 Discussion: t1 topic `b1ec7ce2`, task `dispatch-b1ec7ce2`.
 Related: [115 vendor split by task kind](../115-vendor-split-by-task-kind/spec.md), [lane issue and docs](../../doc/md/lane-issue-and-docs.md), [developer guide](../../doc/md/developer-guide.md) section 2.
 
-Baseline tree: the git counts ran on `origin/master` `7e31ade12fd86797b337cab9f55a3f654e5a0c4c`. v1.0 re-ran every count with [`join.py`](join.py) on raw files pinned to the window end (Appendix A).
+Baseline tree: the git counts ran on `origin/master` `7e31ade12fd86797b337cab9f55a3f654e5a0c4c`. v1.0 re-ran every count with [`join.py`](join.py) on raw files pinned to the window end (Appendix A); v1.1 fixed how `join.py` credits a FAIL to an issue, which moved section 3.2.
 Window: **2026-09-24T00:00Z .. 2026-11-24T11:25Z** (the last 2 months) for commits, issues and messages. **Lanes cover only 2026-10-03T03:06Z .. 2026-11-24T11:25Z**: the spawn log's first line is 2026-10-03T03:05Z and there is no rotated copy (section 7).
 Numbering: `git ls-tree --name-only origin/master csi-spl-doc/specs/ | grep -c /193` -> 0 (2026-11-25). 194 is taken by `194-workspace-google-drive-upload`, so 193 fills a gap.
 
@@ -18,7 +18,7 @@ Numbering: `git ls-tree --name-only origin/master csi-spl-doc/specs/ | grep -c /
 ## 0. Answer in five lines
 
 1. The time from the owner's ask to the result is spent **before the lane starts**, not in it: owner's last message -> lane placed has a median of 4.5 h (complex_coding) to 26.8 h (i18n), p90 34 h to 222 h. Lane placed -> landed has a median of 0.5 h to 1.8 h. Landed -> next release tag has a median of 0.3 h or less (section 3.4).
-2. Inside the lane, the review rounds are the likely main cost (an inference: placed -> landed is not split into review time). 27 of the 82 complex_coding issues that got an R7 FAIL failed again on a second head (section 3.2).
+2. Inside the lane, the review rounds are the likely main cost (an inference: placed -> landed is not split into review time). 26 of the 83 complex_coding issues that got an R7 FAIL failed again on a second head (section 3.2).
 3. The most common blocking findings in a hand-labelled sample of 45 are: **a failure path that fails open or is swallowed** (7), **a doc or claim that does not match the tree** (6), **a secret or authorisation leak** (6), and **a test that cannot go red** (5) (section 3.3).
 4. Section 4 gives 21 skill slots (3 per kind), which come to **18 distinct skills** because 3 of them serve two kinds (section 5). None of them is a skill that already exists; S2 leaves migration numbers to the existing `do_rdb_migration_next` (section 4.0).
 5. The owner picks in section 6: which kinds first, where the skills live, and whether the orchestration skills become code instead.
@@ -37,13 +37,13 @@ Source: `csi-spl-cnf/csi-spl/all.env.yaml` key `env.box.agent_split_by_kind` (`g
 | secret | claude 100 | claude | grok |
 | orchestration | claude 100 | claude | grok |
 
-The skills must work for the main vendor and the backup. For simple_coding that means agy as well as claude (41 against 44). codex holds 15 in tests and in simple_coding but is neither main nor backup; it took 3 lanes in the window (3.1), and `do_spl_skills_refresh` renders no codex skill dir. In scope: the 6 vendors that render skills; codex gets them only if the build lane adds its dir (Q2).
+The skills must work for the main vendor and the backup. For simple_coding that means agy as well as claude (41 against 44). codex holds 15 in tests and in simple_coding but is neither main nor backup; it took 3 lanes in the window (3.1), and `do_spl_skills_refresh` renders no codex skill dir. In scope: the 5 vendors that `do_spl_skills_refresh` renders skills for (claude, qwen, agy, mistral, grok); codex gets them only if the build lane adds its dir (Q2).
 
 ## 2. How it was measured
 
 All counts are for **this box's** spawns. The spawn log on the other machine was not read, so "n" here is a lower bound on the fleet's.
 
-- **Lanes**: `SPAWNED` rows of `/var/spool-hub/spawn-remote/serve.log` before the window end (the first is 2026-10-03T03:06Z): n = **3293** (agent id, vendor, slug, brief id). The kind is the brief's `Kind:` line: the 7 kinds of section 1 hold 3237 lanes, 622 have no `Kind:` line, and 56 carry another value (`review` 37, `stability` 8, `clean` 3, `fleet` 3, `reviews` 3, `spec` 2). The issue is the brief's `Issue:` line (1000 lanes). For another 1727 lanes it is the hub issue whose title equals the brief's first line, because the spawn files the issue from the brief's title (65 of those titles were ambiguous: the lowest number was taken). That gives **2727 of 3293** lanes with an issue. **The kind of an issue** is the kind of the first lane (in log order) that carries it; an issue that lanes of two kinds worked counts under the first one only.
+- **Lanes**: `SPAWNED` rows of `/var/spool-hub/spawn-remote/serve.log` before the window end (the first is 2026-10-03T03:06Z): n = **3293** (agent id, vendor, slug, brief id). The kind is the brief's `Kind:` line: the 7 kinds of section 1 hold 2615 lanes, 622 have no `Kind:` line, and 56 carry another value (`review` 37, `stability` 8, `clean` 3, `fleet` 3, `reviews` 3, `spec` 2). The issue is the brief's `Issue:` line (1000 lanes). For another 1727 lanes it is the hub issue whose title equals the brief's first line, because the spawn files the issue from the brief's title (65 of those titles were ambiguous: the lowest number was taken). That gives **2727 of 3293** lanes with an issue. **The kind of an issue** is the kind of the first lane (in log order) that carries it; an issue that lanes of two kinds worked counts under the first one only.
 - **Landed work**: `git log origin/master --since=2026-09-24` -> **10532** commits. A commit belongs to an issue when its subject or a `Closes:` trailer names the key. **3133** distinct commits cite an issue that some lane carries. Counted per kind they make 3150 (commit, kind) pairs: 2968 in the 7 kinds, 158 for no-`Kind:` lanes, 24 for `review` and other values; 17 commits cite issues of two kinds and count under both.
 - **Deploys**: the first release tag (`v<X.Y.Z>` or `v<X.Y.Z>-c<N>`, `git for-each-ref refs/tags/v*`) at or after the commit on the linear trunk. A push to master deploys dev and prd (developer guide 1.2) and each deploy mints its commit's version as a tag; that one tag time stands for both environments is **inferred** from this, not stated in the guide. Docs-only commits are left out (they do not deploy).
 - **Owner ask**: the owner's (HUM-10) **last** t1 message in the issue's source topic (`## Source /t/<uuid>` in the description) before the issue was created. This is a **lower bound**: in a long topic the actual ask may be older.
@@ -80,14 +80,14 @@ The spawn mix on this box is not the cnf split: specs_and_docs went to claude 39
 
 | kind | issues with any FAIL message | issues with >= 1 FAILed head | of them FAILed again on a 2nd head | max FAILed heads | CI red heads (last 748 runs) |
 |---|---|---|---|---|---|
-| complex_coding | 118 | 82 of 599 | 27 | 5 | 11 of 76 |
-| specs_and_docs | 57 | 36 of 642 | 14 | 11 | 17 of 206 |
-| simple_coding | 44 | 25 of 394 | 7 | 4 | 23 of 174 |
+| complex_coding | 114 | 83 of 599 | 26 | 5 | 11 of 76 |
+| specs_and_docs | 51 | 32 of 642 | 17 | 11 | 17 of 206 |
+| simple_coding | 43 | 24 of 394 | 7 | 5 | 23 of 174 |
 | tests | 18 | 15 of 142 | 4 | 2 | 1 of 14 |
-| secret | 19 | 15 of 159 | 4 | 3 | 4 of 21 |
+| secret | 17 | 14 of 159 | 4 | 4 | 4 of 21 |
 | i18n | 6 | 1 of 64 | 0 | 1 | 0 of 6 |
 
-- A "FAILed head" is a distinct `FAIL <sha>` per issue, from a verdict that names the head (`FAIL` then a sha in the first 400 characters), so two reviewers failing the same head count once. "Any FAIL message" also counts relays and send-backs that name no head. That is why i18n has 6 issues with a FAIL message but 1 with a FAILed head. specs_and_docs was 37 in v0.1 (no end bound on the message query).
+- A "FAILed head" is a distinct `FAIL <sha>` per issue, from a verdict that names the head (`FAIL` then a sha in the first 400 characters), so two reviewers failing the same head count once. "Any FAIL message" also counts relays and send-backs that name no head. That is why i18n has 6 issues with a FAIL message but 1 with a FAILed head. specs_and_docs was 37 in v0.1 (no end bound on the message query). An issue is the message's first SPL key that a lane carries; v1.0 took the message's first SPL key, which could be a plan or fleet issue named next to the lane's (c-343 v1.0 W3), and read specs_and_docs 57 / 36 / 14, complex_coding 118 / 82 / 27, simple_coding 44 / 25 / 7 / max 4, secret 19 / 15 / 4 / max 3.
 - The CI column was counted in v0.1's scratch join from the `gh run list` output of Appendix A and is not in `join.py`.
 - A CI red is a red `10_ci-quality` run whose head commit cites an issue of that kind. The head is the pusher, not always the cause.
 - CI is not the main cost: 7 of the last 100 runs failed (2026-11-23T13Z .. 2026-11-24T11Z). By the job that broke each run first: orc hermetic 4/4 broke 2, iac tfvars parity broke 2, hub go test broke 2 and orc hermetic 2/4 broke 1. One of the 7 (run `45223415636`, job orc hermetic 4/4) went red because an orc test printed a SKIP line: the gate fails a skipped check, because a skip proves nothing (`do_report_ci_gate` signature "an orc check skipped in CI").
@@ -97,7 +97,7 @@ The spawn mix on this box is not the cnf split: specs_and_docs went to claude 39
 
 Keyword counts did not work. On a sample of 24, "red control" mostly matched a reviewer *reporting* that it ran the controls, which made only about 1 hit in 3 correct. So the blocking finding (`W1` / `B1`) of FAIL messages was read and labelled by hand.
 
-The pool is the first `W1` / `B1` line of each FAIL message whose issues all map to one kind (`join.py`, `sample`). From it, a random draw (seed 11) took 14 complex_coding, 14 specs_and_docs, 10 tests and 6 secret messages. For simple_coding (pool 16) and i18n (pool 11) every message in the pool was taken. That makes 71 messages. 27 were dropped: 17 relays ("W1 fixed", "W1-W3 folded", a fold list), 5 verdict lines with no finding text ("W1 W2 W3 | log"), and 5 repeats of a finding already labelled on the same issue. The other 44 messages give **n = 45** findings (`fc46d63c` holds two). One labeller (this editor) did the labelling; Appendix B lists all 71 with their labels, and the panel may re-label.
+The pool is the first `W1` / `B1` line of each FAIL message whose issues all map to one kind (`join.py`, `sample`). From it, a random draw (seed 11) took 14 complex_coding, 14 specs_and_docs, 10 tests and 6 secret messages. For simple_coding (pool 16) and i18n (pool 11) every message in the pool was taken. That makes 71 messages. 27 were dropped: 17 relays ("W1 fixed", "W1-W3 folded", a fold list), 5 verdict lines with no finding text ("W1 W2 W3 | log"), and 5 repeats of a finding already labelled on the same issue. The other 44 messages give **n = 45** findings (`fc46d63c` holds two). One labeller (this editor) did the labelling; Appendix B lists all 71 with their labels (72 rows: `fc46d63c` holds two findings), and the panel may re-label.
 
 **Which kind's lanes a finding came from.** The pool was split by the kind of the lane whose `Issue:` line names the issue (the sample map). Section 3.2 uses the kind of the issue's first lane, title matches included. The two disagree for 13 of the 45 findings. In 11 of them a complex_coding lane opened the issue and a later i18n, simple_coding, tests or specs_and_docs lane carried its `Issue:` line (SPL-5372 x3, SPL-5698 x2, SPL-4810, SPL-4895, SPL-4824, SPL-5349, SPL-5000, SPL-4654). In the other 2 a simple_coding lane opened it (SPL-5536 under specs_and_docs) or an i18n lane did (SPL-5480 under simple_coding). Appendix B gives both kinds and every lane kind on the issue. Each skill in section 4 says which kinds its evidence came from.
 
@@ -162,7 +162,7 @@ Each skill below gives: name, trigger, what it does (5 lines or fewer), the evid
 - Does: (1) finds every claim line in the diff that carries a command (backticked command, then `->`, then a result). (2) Re-runs each one read-only on the tree it names. (3) Prints MATCH or DIFF per line. (4) Refuses the push on a DIFF. (5) Flags a bare number with no command as "unchecked".
 - Evidence: "doc or claim does not match the tree" is 6 of 45 sampled findings (3.3), including wrong coverage numbers (`ece509e7`) and a false sentence about what deploys (`a5e1921c`).
 - Evidence kinds: specs_and_docs 4 of the 6 (`53b09832` is complex_coding, `c5183570` simple_coding).
-- Gain: specs_and_docs issues that FAIL again on a 2nd head, 14 of 36 -> under 7.
+- Gain: specs_and_docs issues that FAIL again on a 2nd head, 17 of 32 -> under 8.
 
 **S2 `numbered-id-claim`** (shared with complex_coding)
 - Trigger: a new spec folder, spec section number, case id (`C71`) or plan row id. Migration numbers are out: `do_rdb_migration_next` claims them (4.0).
@@ -174,9 +174,9 @@ Each skill below gives: name, trigger, what it does (5 lines or fewer), the evid
 **S3 `fold-ledger-delta`**
 - Trigger: the editor or author receives a FAIL or SEND-BACK with W/N lines.
 - Does: (1) writes one table, `W/N id | file:line changed | commit | check command -> result`. (2) Requires a check per W (e.g. `grep -c '25 posts' spec.md -> 0`). (3) Pushes ONE new head and sends the table, so the reviewer reviews a delta.
-- Evidence: of the specs_and_docs issues with a FAILed head, 14 of 36 failed again on a later head, and one went to 11 FAILed heads (3.2). In the sample, the same issues come back with W-lines on the same code (SPL-5698, SPL-4629, SPL-4881).
-- Evidence kinds: the 14 of 36 are specs_and_docs; the three sample issues are complex_coding, simple_coding and secret.
-- Gain: maximum FAILed heads per specs_and_docs issue 11 -> 3 or fewer; repeat-FAIL share 14 of 36 (39 %) -> under 20 %.
+- Evidence: of the specs_and_docs issues with a FAILed head, 17 of 32 failed again on a later head, and one went to 11 FAILed heads (3.2). In the sample, the same issues come back with W-lines on the same code (SPL-5698, SPL-4629, SPL-4881).
+- Evidence kinds: the 17 of 32 are specs_and_docs; the three sample issues are complex_coding, simple_coding and secret.
+- Gain: maximum FAILed heads per specs_and_docs issue 11 -> 3 or fewer; repeat-FAIL share 17 of 32 (53 %) -> under 20 %.
 
 ### 4.2 tests (main claude, backup agy)
 
@@ -190,7 +190,7 @@ Each skill below gives: name, trigger, what it does (5 lines or fewer), the evid
 **T2 `failure-path-cases`** (shared with simple_coding)
 - Trigger: a diff that calls something that can be missing or fail: a binary, file, OS user, hub read, network or child process.
 - Does: (1) lists each such call site. (2) For each one, writes the case where it is missing or fails. (3) Asserts the documented outcome: fail fast (`rc != 0`, FATAL on stderr) or a **named** fail-open. (4) Refuses `|| true`, `.catch(() => null)` or `2>/dev/null` without a comment that names the decision.
-- Evidence: the largest class, 7 of 45 (3.3): a FATAL text captured as a unit name (SPL-5698), a match that fails open (SPL-4343), a source status discarded (`5b1e8b4b`), a failed hub read that goes on (`ebadef55`), an uncaught missing tool (`fc46d63c`).
+- Evidence: the largest class, 7 of 45 (3.3): a FATAL text captured as a unit name (SPL-5698), a match that fails open (`21a21369`, SPL-1910), a source status discarded (`5b1e8b4b`), a failed hub read that goes on (`ebadef55`), an uncaught missing tool (`fc46d63c`).
 - Evidence kinds: complex_coding 4 (`a7ebbac7`, `ebadef55`, `0c77b97f`, `a93e795a`), simple_coding 1 (`21a21369`), specs_and_docs 1, secret 1. **From tests lanes: 0 of 7.** It sits under tests because each failure path becomes a test case; the simple_coding slot (C1) has its own items (`21a21369`; `a93e795a`, SPL-5698, also had a simple_coding lane).
 - Gain: failure-path findings, 7 in 45 -> 2 or fewer.
 
@@ -208,9 +208,9 @@ Each skill below gives: name, trigger, what it does (5 lines or fewer), the evid
 **C2 `sweep-bug-class`**
 - Trigger: a reviewer W names a bug, or the lane fixes one.
 - Does: (1) turns the bug into a search pattern (the bad call, the unanchored regex, the unset env knob). (2) Greps the whole repo for siblings. (3) Fixes them in the same head, or lists them with a reason. (4) Adds one test per sibling fixed.
-- Evidence: `5577c422` ("six more caller knobs still reach the hook, same bug class as your knob fix"); SPL-5698 and SPL-4629, which each came back with several FAIL messages on the same function. 7 of the 25 simple_coding issues with a FAILed head failed again on a 2nd head (3.2).
+- Evidence: `5577c422` ("six more caller knobs still reach the hook, same bug class as your knob fix"); SPL-5698 and SPL-4629, which each came back with several FAIL messages on the same function. 7 of the 24 simple_coding issues with a FAILed head failed again on a 2nd head (3.2).
 - Evidence kinds: complex_coding (`5577c422`, SPL-5698) and simple_coding (SPL-4629).
-- Gain: simple_coding repeat FAILs, 7 of 25 -> 3 or fewer.
+- Gain: simple_coding repeat FAILs, 7 of 24 -> 3 or fewer.
 
 **C3 `docs-none-proof`**
 - Trigger: a commit message with `Docs: none (...)`, or a behaviour change with no `csi-spl-doc/` path.
@@ -235,7 +235,7 @@ Each skill below gives: name, trigger, what it does (5 lines or fewer), the evid
 - Does: runs a table-driven test over caller = {owner, member, guest/demo role, another workspace's owner, a box locked to someone else} x action = {read, list, counts, write}. It expects 403 or an empty, counted result where the spec says so. It checks the credential **type** (view token vs upload token), not only that a mock answered.
 - Evidence: `15040649` (any workspace's channel owner could make the operator fleet spawn), SPL-4895 (counts and unread of a locked box leak), `a4433661` (the WUI sends the view token where the hub accepts only an upload token).
 - Evidence kinds: complex_coding 3 of 3.
-- Gain: authorisation-shaped findings, 3 in 45 -> 0; complex_coding issues with a FAILed head, 82 of 599 -> under 60. The 3 cut across the 3.3 classes: 2 (`15040649`, `dd8af748`) are in the leak class, and `a4433661` is labelled "a test that cannot go red".
+- Gain: authorisation-shaped findings, 3 in 45 -> 0; complex_coding issues with a FAILed head, 83 of 599 -> under 60. The 3 cut across the 3.3 classes: 2 (`15040649`, `dd8af748`) are in the leak class, and `a4433661` is labelled "a test that cannot go red".
 
 ### 4.5 i18n (main agy, backup claude)
 
@@ -271,7 +271,7 @@ All three i18n skills rest on one issue each. i18n has 6 issues with a FAIL mess
 - Does: (1) lists everything the "on" path writes. (2) A test turns the feature on, then off, and asserts that each item is gone and that nothing restarts.
 - Evidence: SPL-4881, with 3 FAIL or SEND-BACK messages for the same W1 (turning the watchdog off left the token on disk and the loop restarting).
 - Evidence kinds: secret (SPL-4881).
-- Gain: repeat FAILs on secret lanes, 4 of 15 -> 1 or fewer.
+- Gain: repeat FAILs on secret lanes, 4 of 14 -> 1 or fewer.
 
 **K3 `parse-boundary-cases`**
 - Trigger: a diff that adds or changes a regex or a hand parser (bash `[[ =~ ]]`, Python `re`, Go `regexp`, jq).
@@ -327,7 +327,7 @@ The other 15 are each used by one kind. `sweep-bug-class` would also help comple
 Each question puts the recommended option first, says why in one line, and names the part of this spec its answer changes. The questions are Q1..Q7; O1..O3 stay the names of the orchestration skills (4.7).
 
 - **Q1. Which kinds are built first?** (A, recommended) the 3 shared skills first (`failure-path-cases`, `numbered-id-claim`, `e2e-no-swallowed-waits`): they fill 6 of the 21 slots with 3 builds; (B) the coding kinds first (tests, simple_coding, complex_coding: the most FAILed heads, 3.2); (C) all 7 kinds at once. -> Changes the order of the section 5 table and the build lanes' briefs.
-- **Q2. Where do the skills live?** (A, recommended) in the repo under `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/`, rendered per vendor by the existing `do_spl_skills_refresh` (4.0): no new mechanism; (B) in the repo, read by the brief; (C) only in each agent user's home. -> Changes the paths in section 4.0 and the build lanes' scope; under A, a codex dir is a one-line add (section 1).
+- **Q2. Where do the skills live?** (A, recommended) in the repo under `csi-spl-orc/src/bash/features/spawn-agents/assets/skills/`, rendered per vendor by the existing `do_spl_skills_refresh` (4.0): no new mechanism; (B) in the repo, read by the brief; (C) only in each agent user's home. -> Changes the paths in section 4.0 and the build lanes' scope; under A, a codex dir is a small add: a flag block and a term in the `plan` line, as each vendor has (section 1).
 - **Q3. Skills that a script can check (S1, S2, T1, C3, O3)?** (A, recommended) the skill plus a gate action that refuses: 3.2 shows repeat FAILs on rules the authors already knew, so advice alone is not enough; (B) the skill only; (C) the gate only. -> Changes the "Does" lines of S1, S2, T1, C3 and O3 (each gains its gate action).
 - **Q4. The orchestration three (O1, O2, O3)?** (A, recommended) build them as `./run` actions (code), not skills: owner rule "orchestration = code, not intelligence"; (B) skills for the role seats; (C) drop them. -> Changes section 4.7 and the orchestration row of the section 5 table.
 - **Q5. `native-word-order-pass` (n = 1 issue)?** (A, recommended) keep it and re-measure under Q6: the i18n kind has no thicker baseline (4.5); (B) replace it with the panel's next pick. -> Changes 4.5 L2 and the i18n row of the section 5 table.
@@ -359,13 +359,13 @@ Raw files go in one directory (`<raw>`); `join.py` joins them. Window end `E=202
 5. `<raw>/issues.txt`: `cd csi-spl-orc && ENV=prd SQL="select number||'|'||created_at||'|'||status||'|'||coalesce(completed_at::text,'')||'|'||coalesce(substring(description from '/t/([0-9a-f-]{36})'),'')||'|'||array_to_string(labels,',') as r from issues where tenant_id='t1' and created_at>='2026-09-24' and created_at<'$E' and deleted_at is null" ./run -a do_spl_db_query` -> 6354 rows
 6. `<raw>/titles.txt`: `SQL="select number||'|'||regexp_replace(left(title,200),'[|\s]+',' ','g') as r from issues where tenant_id='t1' and created_at>='2026-09-20' and created_at<'$E' and deleted_at is null"` -> 6354 rows
 7. `<raw>/owner_msgs.txt`: `SQL="select task_id||'|'||ts as r from messages where tenant_id='t1' and from_id='HUM-10' and ts>='2026-09-01' and ts<'$E'"` -> 1371 rows
-8. `<raw>/fails.txt`: `SQL="select msg_id||'|'||ts||'|'||from_id||'|'||kind||'|'||coalesce(array_to_string(array(select distinct m[1] from regexp_matches(body,'SPL-([0-9]+)','g') m),','),'')||'|'||(left(body,300) ~ 'SEND-BACK')::text||'|'||left(regexp_replace(body,'\s+',' ','g'),2000) as r from messages where tenant_id='t1' and ts>='2026-09-24' and ts<'$E' and mirror_of is null and (left(body,300) ~ 'SEND-BACK' or left(body,400) ~ '\m(R7|review|reviewer|verdict)\M.{0,80}\mFAIL\M')"` -> 1091 rows
+8. `<raw>/fails.txt`: `SQL="select msg_id||'|'||ts||'|'||from_id||'|'||kind||'|'||coalesce(array_to_string(array(select distinct m[1] from regexp_matches(body,'SPL-([0-9]+)','g') m),','),'')||'|'||(left(body,300) ~ 'SEND-BACK')::text||'|'||left(regexp_replace(body,'\s+',' ','g'),2000) as r from messages where tenant_id='t1' and ts>='2026-09-24' and ts<'$E' and mirror_of is null and (left(body,300) ~ 'SEND-BACK' or left(body,400) ~ '\m(R7|review|reviewer|verdict)\M.{0,80}\mFAIL\M') order by ts, msg_id"` -> 1091 rows. The v1.0 dump ran without the `order by`, so its rows came in no fixed order (332 out of `(ts, msg_id)` order); [`fails-order.txt`](fails-order.txt) keeps that dump's row order (the 1091 msg ids, nothing else) and `join.py` sorts by it, so a re-dump in any order gives the same seed-11 draw and the same first-message dedup. Checked: a shuffled `fails.txt` -> identical `join.py` output.
 9. Join: `SPAWN_DIR=/var/spool-hub/spawn-remote python3 -I csi-spl-doc/specs/193-skills-per-agent-kind/join.py <raw> 2026-11-24T11:25:00Z` (needs read access to the spawn dir) -> JSON with every number of 3.1 (spawns, issues, commits), 3.2 (FAIL columns), 3.3 (pool sizes, the seed-11 draw, the labels of `labels.tsv`) and 3.4.
 10. Queue: `SQL="select work_kind, count(*), percentile_cont(0.5) within group (order by extract(epoch from updated_at-created_at)/3600) from fleet_asks where tenant_id='t1' and created_at>='2026-09-24' and state='done' group by 1"`
 11. CI: `gh run list --workflow 10_ci-quality.yml --branch master --limit 1000 --created '>=2026-09-24' --json headSha,createdAt,conclusion` -> 1000 runs (oldest 2026-11-15T19:10Z); `cd csi-spl-iac && CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate`
 12. Existing skills: `ls ~/.claude/skills .claude/skills csi-spl-orc/src/bash/features/spool-install/assets/*`; `git ls-tree -r --name-only origin/master | grep -E '/SKILL\.md$'`
 
-## Appendix B. The 71 sampled messages and their labels
+## Appendix B. The 71 sampled messages and their labels (72 rows: `fc46d63c` holds two findings)
 
 From `join.py` (`labels`); the labels are [`labels.tsv`](labels.tsv). "Sample kind" is the kind the pool was split by; "first lane" is the issue's kind in 3.1 and 3.2; "lane kinds" are all kinds of lanes that carried the issue. A `drop:` row is not one of the 45.
 
@@ -444,7 +444,9 @@ From `join.py` (`labels`); the labels are [`labels.tsv`](labels.tsv). "Sample ki
 | `09a4b73b` | SPL-5698 | simple_coding | complex_coding | complex_coding, simple_coding | drop:repeat |
 | `e78d2dd7` | SPL-5740 | simple_coding | simple_coding | simple_coding | drop:repeat |
 
-## Appendix C. v0.1 FAIL items and where v1.0 answers them
+## Appendix C. FAIL items and where they are answered
+
+### C.1 v0.1 (`99cc31e3c`) FAIL items and where v1.0 answers them
 
 Seat 1 is c-343 (msg 436bb29d), seat 2 is c-202 (msg 1ee0f7c0); both FAILed `99cc31e3c`.
 
@@ -473,4 +475,20 @@ Seat 1 is c-343 (msg 436bb29d), seat 2 is c-202 (msg 1ee0f7c0); both FAILed `99c
 | 2-N5 | Section 7: the 252 runs, the 9 of 61 CI days, the 622 + 56 lanes outside the kinds, "first commit". |
 | 2-N6 | Section 2 marks the one-tag-both-envs fact as inferred. |
 
-<!-- last-edit: 2026-11-25T02:00:00Z -->
+### C.2 v1.0 (`32c584732`) FAIL items and where v1.1 answers them
+
+Seat 1 is c-343 (msg e4eba434), seat 2 is c-202 (msg a7e5816f); both FAILed `32c584732`.
+
+| item | change in v1.1 | check -> result |
+|---|---|---|
+| 1-W1, 2-W1, 7 kinds total | Section 2: 3237 -> 2615 (2615 + 622 + 56 = 3293). | `join.py` lanes_by_kind, the 7 kinds -> 924 + 715 + 438 + 217 + 205 + 116 = 2615 |
+| 1-W2, unordered FAIL dump | Appendix A step 8 gains `order by ts, msg_id`; `fails-order.txt` pins the v1.0 dump's row order; `join.py` `fail_rows` sorts by it. The draw and labels are unchanged. | `shuf fails.txt` then `join.py` -> output identical to the unshuffled run |
+| 1-W3, FAIL credited to first key | `review_fails` takes the first key that a lane carries, as `sample` does. 3.2 re-run: four rows move; section 0 line 2, S1, S3, C2, X3 and K2 quote the new numbers; tests, i18n and T1 do not move. | v1.0 and v1.1 `join.py` output diff -> only `review_fails` differs |
+| 1-N1 | Status line names both seats. | |
+| 1-N2, 2-N1 | Section 1: 5 vendors, named; Q2: "a small add". | `spl-skills-refresh.func.sh` checks `.qwen`, `.gemini`, `.vibe`, `.grok` besides `.claude` |
+| 1-N3, 2-N2 | T2: SPL-4343 -> `21a21369` (SPL-1910). | `grep -c SPL-4343 spec.md` -> 0 |
+| 1-N4, anchored `Kind:` | Not changed: the spawn reads the first `Kind:` anywhere (`spawn-window.sh:598`, `spl-lane-mix.func.sh:366`, `grep -m1 -oE 'Kind:...'`), so `join.py` reads it as lanes are routed; a comment says so. Anchoring would move 200 lanes to `none` (e.g. "Language: Go. Kind: stability"). | anchored `join.py` -> 200 lanes change kind |
+| 1-N5 | `join.py` comment: the simple_coding and i18n draws stay because they advance the RNG. | |
+| 1-N6, 2-N3 | Appendix B heading and section 3.3 say 72 rows for 71 messages. | |
+
+<!-- last-edit: 2026-11-25T02:55:00Z -->

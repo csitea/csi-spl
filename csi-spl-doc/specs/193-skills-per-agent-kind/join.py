@@ -63,6 +63,7 @@ def lanes_from_log(spawn_dir, end):
             ).read()
         except OSError:
             t = ""
+        # first "Kind:" anywhere, as the spawn routes it (spawn-window.sh, spl-lane-mix.func.sh)
         km = re.search(r"Kind:\s*([a-z0-9_]+)", t)
         if km:
             k = km.group(1)
@@ -164,11 +165,19 @@ def hours(a, b):
 
 
 def fail_rows(raw):
-    for f in rows(os.path.join(raw, "fails.txt"), 7):
-        if re.fullmatch(r"[0-9a-f]{8}-[0-9a-f-]{27}", f[0]):
-            yield dict(
-                mid=f[0], keys=["SPL-" + k for k in f[4].split(",") if k], body=f[6]
-            )
+    """FAIL rows in the v1.0 dump's order (fails-order.txt), so the seed-11 draw and the
+    first-message dedup do not depend on the order a re-dump returns; rows it lacks go last."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(here, "fails-order.txt")) as fh:
+        order = {m: i for i, m in enumerate(fh.read().split())}
+    fs = [
+        f
+        for f in rows(os.path.join(raw, "fails.txt"), 7)
+        if re.fullmatch(r"[0-9a-f]{8}-[0-9a-f-]{27}", f[0])
+    ]
+    fs.sort(key=lambda f: (order.get(f[0], len(order)), f[1], f[0]))
+    for f in fs:
+        yield dict(mid=f[0], keys=["SPL-" + k for k in f[4].split(",") if k], body=f[6])
 
 
 def review_fails(raw, kmap):
@@ -183,11 +192,13 @@ def review_fails(raw, kmap):
         if len(kinds) != 1 or not re.search(r"\bFAIL\b", m["body"][:600]):
             continue
         kd = kinds.pop()
-        any_fail[kd].add(m["keys"][0])
+        # the lane's issue, not the first key: a message may name a plan or fleet issue too
+        issue = next(k for k in m["keys"] if k in kmap)
+        any_fail[kd].add(issue)
         h = re.search(r"\bFAIL\b\W{0,3}([0-9a-f]{7,40})", m["body"][:400])
-        if h and (m["keys"][0], h.group(1)[:7]) not in seen:
-            seen.add((m["keys"][0], h.group(1)[:7]))
-            heads[kd][m["keys"][0]] += 1
+        if h and (issue, h.group(1)[:7]) not in seen:
+            seen.add((issue, h.group(1)[:7]))
+            heads[kd][issue] += 1
     return {
         kd: dict(
             issues_fail_msg=len(any_fail[kd]),
@@ -222,6 +233,8 @@ def sample(raw, kmap):
                 pool[kd].append(dict(mid=m["mid"][:8], issue=issue, kind=kd, text=text))
             break
     random.seed(11)
+    # simple_coding and i18n are drawn although 3.3 takes their whole pools: the draws
+    # advance the RNG, so dropping them would change the secret draw
     quota = {
         "complex_coding": 14,
         "specs_and_docs": 14,

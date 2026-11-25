@@ -9,7 +9,10 @@
 //      nothing ticked) sends the patterns and the mock hub's topics join; the
 //      bar counts "in 2 channels" after a tick on another channel's page; Esc
 //      clears; the card's box sits at its left, centred on its height and
-//      never on the sender avatar, at 5 rows and in titles (t1 a1329bac)
+//      never on the sender avatar, at 5 rows and in titles (t1 a1329bac),
+//      inside a titles card at font sizes 1 and 2 (R7 W2)
+//   A' 360 + 390 phone, selecting, rows + titles: the box is off the avatar,
+//      the title/body and the next card, inside its card (R7 W1 + W2)
 //
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/topic-select-phone.test.mjs   # what CI does
@@ -115,6 +118,7 @@ const boxGeo = (p, id) => p.evaluate((sel) => {
   const c = document.querySelector(sel)
   c.scrollIntoView({ block: 'center' })
   const r = (e) => { const b = e.getBoundingClientRect(); return { t: b.top, b: b.bottom, l: b.left, r: b.right } }
+  const hit = (a, e) => a.l < e.r - 0.5 && e.l < a.r - 0.5 && a.t < e.b - 0.5 && e.t < a.b - 0.5
   const box = r(c.querySelector('[data-test=topic-select-box]'))
   const av = r(c.querySelector('.avatar'))
   const cd = r(c)
@@ -125,6 +129,10 @@ const boxGeo = (p, id) => p.evaluate((sel) => {
     /* the move handle's strip at the card's left stays grabbable (move-by-drag.test.mjs) */
     clearOfHandle: !h || box.l >= r(h).r - 0.5,
     inside: box.t >= cd.t - 0.5 && box.b <= cd.b + 0.5,
+    /* R7 W1 (a-549): never over the card's title or body (everything under the header) */
+    overlapBody: [...c.querySelectorAll('.msg-main > :not(.msg-meta)')].map(r).some((e) => e.r > e.l && e.b > e.t && hit(box, e)),
+    /* R7 W2: never spilling onto the card below */
+    overlapNextCard: (() => { const n = c.nextElementSibling?.closest?.('article.msg'); return Boolean(n) && hit(box, r(n)) })(),
     centreOff: Math.round(((box.t + box.b) / 2 - (cd.t + cd.b) / 2) * 10) / 10,
   }
 }, card(id))
@@ -159,6 +167,15 @@ async function boxPlace(d, short) {
   const tt = await boxGeo(d, tall)
   console.log('  geo titles', JSON.stringify(tt))
   ok('B desktop: titles, the box is off the avatar and inside the card', !tt.overlap && tt.inside, tt)
+  /* R7 W2 (a-549): font sizes 1 and 2 make the titles card shorter */
+  for (const lvl of ['1', '2']) {
+    await d.evaluate((l) => document.documentElement.setAttribute('data-font-size', l), lvl)
+    await sleep(300)
+    const g = await boxGeo(d, tall)
+    console.log(`  geo titles font ${lvl}`, JSON.stringify(g))
+    ok(`B desktop: titles at font size ${lvl}, the box is inside the card, off the avatar and the next card`, g.inside && !g.overlap && !g.overlapNextCard, g)
+  }
+  await d.evaluate(() => document.documentElement.setAttribute('data-font-size', '3'))
   await clipMode(d, 'rows')
 }
 
@@ -207,6 +224,37 @@ async function phone(browser, base) {
   await p.close()
 }
 
+/** R7 W1 + W2 (a-549): while selecting on a phone, the box covers neither
+ *  the avatar nor the title/body, stays inside its card and off the next one,
+ *  at `w` px wide, in clip mode `mode`, on a tall and a one-line topic. */
+async function phoneGeo(browser, base, w, mode) {
+  const p = await browser.newPage()
+  p.setDefaultNavigationTimeout(NAV_TIMEOUT)
+  await signIn(p)
+  await p.setViewport({ width: w, height: 800, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
+  await p.goto(`${base}/channel/alerts`, { waitUntil: 'networkidle2' })
+  await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
+  await mounted(p)
+  const [s1, s2] = await seed(p, CH_A, `ph${w}${mode}`)
+  const tall = await tallTopic(p, `ph${w}${mode}-tall`, 8)
+  await p.waitForSelector(card(tall), { visible: true, timeout: 10000 })
+  await clipMode(p, mode)
+  await p.evaluate((sel) => { const c = document.querySelector(sel); c.scrollIntoView({ block: 'center' }); c.querySelector('[data-testid=msg-menu-btn]').click() }, card(s2))
+  await until(p, () => [...document.querySelectorAll('[data-testid=msg-menu-topic-select]')].some((e) => e.getClientRects().length), null, 4000)
+  const item = await boxOf(p, '[data-testid=msg-menu-topic-select]')
+  if (item) await p.touchscreen.tap(Math.round(item.x + item.w / 2), Math.round(item.y + item.h / 2))
+  await until(p, () => Boolean(document.querySelector('[data-test=topic-select-bar]')), null, 4000)
+  await sleep(400)
+  for (const [name, id] of [['tall', tall], ['one-line', s1]]) {
+    const g = await boxGeo(p, id)
+    console.log(`  geo ${w} ${mode} ${name}`, JSON.stringify(g))
+    ok(`A ${w} ${mode}: ${name} card while selecting, the box is off the avatar, the title/body and the next card, inside its card`,
+      !g.overlap && !g.overlapBody && g.inside && !g.overlapNextCard, g)
+  }
+  if (process.env.SHOT_DIR) await (await p.$(card(tall))).screenshot({ path: `${process.env.SHOT_DIR}/phone-${w}-${mode}-selecting.png` })
+  await p.close()
+}
+
 async function desktop(browser, base) {
   const d = await browser.newPage()
   const errors = []
@@ -248,6 +296,7 @@ const srv = await startServer()
 const browser = await launch()
 try {
   await phone(browser, srv.base)
+  for (const w of [360, 390]) for (const m of ['rows', 'titles']) await phoneGeo(browser, srv.base, w, m)
   await desktop(browser, srv.base)
 } finally {
   await browser.close()

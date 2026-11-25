@@ -860,7 +860,11 @@ onMounted(() => {
    selection tint, as an issue row does. Hidden, it takes no pointer: the
    avatar under it stays the topmost element, so an unticked feed reads as
    today (spec 186 4.1 step 1 item 2; avatars-visible, SPL-6446). */
-.msg--selectable { position: relative; }
+/* R7 W2 (a-549): a short card (titles, one line; 80 px at font size 1)
+   left no room under the avatar, and the box spilled past its bottom onto
+   the next card. A selectable card is at least padding + avatar + gap + box
+   + 2 px tall (86 px), so the box always fits inside it. */
+.msg--selectable { position: relative; min-height: calc(8px + 36px + 4px + 36px + 2px); }
 .msg-select-box {
   position: absolute;
   inset-block-start: max(50%, calc(8px + 36px + 4px + 18px));
@@ -1291,5 +1295,20 @@ onMounted(() => {
   .msg-reaction { min-height: var(--tap); min-width: var(--tap); justify-content: center; font-size: 1rem; }
   .card-grip { height: var(--tap); margin-top: -16px; }
   .card-grip::after { margin-top: 20px; }
+  /* SPL-6485 R7 W1 (a-549): on a phone the body spans under the avatar
+     column, so the box (shown only while selecting) covered the text. While
+     selecting, everything under the header keeps to column 2 and the box
+     takes the avatar's 32 px column, 4 px from the edge (the move handle is
+     not rendered while selecting). Not selecting, the card reads as before.
+     W2: the card is then at least padding + avatar + gap + box + 2 px tall. */
+  .msg--selectable { min-height: 0; }
+  .msg--selecting { min-height: calc(8px + 32px + 4px + 32px + 2px); }
+  .msg--selecting .msg-main > :not(.msg-meta) { grid-column: 2; }
+  .msg-select-box {
+    inset-block-start: max(50%, calc(8px + 32px + 4px + 16px));
+    inset-inline-start: 4px;
+    width: 32px;
+    height: 32px;
+  }
 }
 </style>

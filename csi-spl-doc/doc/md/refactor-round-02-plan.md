@@ -55,13 +55,17 @@ guard inside their action functions and delegate all crontab check/dry-run/remov
 handling to one home.
 The rows share no file: both are batch 1.
 
-**Status: v0.3 draft** (panel W1-W3, N1, N2, N4, N6 folded; pending cross-vendor panel
-re-review and signing on `review/c002-refactor-round-02-planner`, never master before the
-GO). Editor: **a-712** (agy). Cross-vendor panel seat live: **c-646** (claude).
+**Status: v1.0 signed** (ready for row execution). Editor: **a-712** (agy). Signed by
+cross-vendor panel seat **c-646** (claude, `PASS` on v0.3
+`8a10db57b09f9b5e019b49069af75419bee969bc`, msg `467850fa` / holder copy `4d404c06`, seat
+file `d44d8b7ae0de16caceaac4ac144f2165f471e11a` on
+`review/c002-refactor-round-02-claude-seat`; `do_spl_review_line_check` rc 0 docs-only;
+holder GO `f1a764f4` / `efb35dea`). No row, site, batch, test hunk, or vendor changed
+between signed v0.3 and v1.0.
 
 **One sha:** every count is measured on **`c567245fa`** (`c567245fa3b0eb149ea4eff9412a60fe193a2d31`,
 `origin/master` at 2026-11-25T19:02:15Z; zero drift on all 10 row/test files to
-`origin/master` `5fdfae32b` at 2026-11-25T20:00:22Z,
+`origin/master` `3f74095fd` at 2026-11-25T20:22:06Z,
 `git diff --name-only c567245fa origin/master -- <10 files>` -> empty), n=1 per command unless
 stated. Reads are on `c567245fa` with `git show` / `git grep`. The tests of 1.5 ran in
 detached scratch worktrees of `c567245fa` (not committed, removed on exit): "base"
@@ -744,12 +748,12 @@ Paths (8 edited + 2 regression-run test files = 10 checked):
 
 - Editor: **a-712** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
-  step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-646**
-  (live on the other box; seat file `csi-spl-doc/doc/md/refactor-round-02/seat-claude.md`
-  on `review/c002-refactor-round-02-claude-seat` @ `a417282da`; confirmed W1/W2 fixed on
-  v0.2 `74b11a3b5` and returned FAIL for W3 only (the `:59-93` vs `:59-94` range on
-  `setup-box-stats-cron.func.sh`); now pending re-review of v0.3 on
-  `review/c002-refactor-round-02-planner`). The seat reviews this plan only.
+  step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-646**,
+  signed **PASS** on v0.3 `8a10db57b09f9b5e019b49069af75419bee969bc` (msg `467850fa` /
+  holder copy `4d404c06`, seat file `csi-spl-doc/doc/md/refactor-round-02/seat-claude.md`
+  at `d44d8b7ae0de16caceaac4ac144f2165f471e11a` on
+  `review/c002-refactor-round-02-claude-seat`; `do_spl_review_line_check` rc 0 docs-only;
+  holder GO `f1a764f4` / `efb35dea`; no open W). The seat reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-25T19:03:19Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -837,7 +841,7 @@ backup is used; never mistral; re-checked at placement).
 | copies of the desk-move prep and JSON summary blocks (1.3) | 2 on `c567245fa` (`spl-msg-move`, `spl-topic-move`) -> 1 (`_spl_desk_move_prep`, `_spl_desk_move_json`) after row 01 |
 | copies of the periodic cron check/dry-run/remove/install block (1.4) | 3 on `c567245fa` (`setup-box-stats-cron`, `check-disk-headroom-install-cron`, `setup-go-cache-prune-cron`) -> 1 (`_spl_simple_cron_apply`) after row 02 |
 | lines (`git diff --numstat` of each head) | row 01: `spl-msg-move.func.sh` +35 -15, `spl-topic-move.func.sh` +7 -20, `spl-msg-move.tst.sh` +50 -0 (49-line hunk + 1 trailing blank line), `spl-topic-move.tst.sh` +18 -0 (17-line hunk + 1 trailing blank line); row 02: `setup-box-stats-cron.func.sh` +16 -5, `check-disk-headroom-install-cron.func.sh` +6 -36, `setup-go-cache-prune-cron.func.sh` +5 -36, `box-stats-cron.tst.sh` +54 -0 (53-line hunk + 1 trailing blank line) |
-| measured on | `c567245fa` (zero drift on all 10 row/test files to `5fdfae32b`); n=1 per command unless stated |
+| measured on | `c567245fa` (zero drift on all 10 row/test files to `3f74095fd`); n=1 per command unless stated |
 
 ## 7. Left out, measured
 
@@ -897,4 +901,25 @@ backup is used; never mistral; re-checked at placement).
     `7e4e89ea9bd4` (`bash -n` rc 0).
   - **N6** (2.2, 8): dropped the box-local remote-tracking ref count (0 hits on the 10
     paths in both the planner box's 20:02:23Z check and the panel box's 20:10:40Z check).
-  Pending panel `c-646` re-review on `review/c002-refactor-round-02-planner`.
+  Pushed as `8a10db57b` on `review/c002-refactor-round-02-planner`.
+- v1.0 (a-712): recorded cross-vendor panel signature (`c-646` claude **PASS** on v0.3
+  `8a10db57b09f9b5e019b49069af75419bee969bc`, msg `467850fa` / holder copy `4d404c06`,
+  seat file `d44d8b7ae0de16caceaac4ac144f2165f471e11a` on
+  `review/c002-refactor-round-02-claude-seat`, `do_spl_review_line_check` rc 0 docs-only,
+  holder GO `f1a764f4` / `efb35dea`; zero drift on all 10 row/test files to `3f74095fd`).
+  No row, site, batch, test hunk, or vendor changed from signed v0.3.
+
+## 9. Consensus
+
+The panel seat signs this plan (rulebook 3.2).
+
+- Editor seat: a-712 (agy): v0.1, v0.2, v0.3, v1.0.
+- Panel reviewer seat: c-646 (claude, seat `d44d8b7ae0de16caceaac4ac144f2165f471e11a` on
+  `review/c002-refactor-round-02-claude-seat`): **PASS** on v0.3
+  (`8a10db57b09f9b5e019b49069af75419bee969bc`, msg `467850fa` / holder copy `4d404c06`;
+  `do_spl_review_line_check` rc 0 docs-only; holder GO `f1a764f4` / `efb35dea`; all 8
+  head sha256s, all 5 row suites, all 8 shared iac/orc gates, all 6 red/guard controls,
+  all 5 mutations, `shellcheck`, and literal `bash -n` rc 0 rebuilds verified; W1-W3 and
+  N1-N6 resolved; zero open W).
+- Row R7 seats: section 4 (agy per row, claude waiver backup only under ruling `dc84300a`;
+  never mistral).

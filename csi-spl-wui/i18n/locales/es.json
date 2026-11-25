@@ -1036,6 +1036,7 @@
       "sort_last": "Última actualización",
       "sort_count": "Número de mensajes",
       "sort_prio": "Prioridad",
+      "sort_created": "Fecha de creación",
       "window": "Ordenados: los {n} temas cargados",
       "window_new": "Nuevos entre los {n} temas cargados",
       "empty_new": "No hay temas nuevos.",

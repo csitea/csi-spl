@@ -11,6 +11,9 @@
 //   C207 the "N topics loaded" line shows under a sort and under New only
 //        while an older page exists
 //   C209 the filter and the sort survive a reload in the same browser
+//   SPL-6456 the sort menu holds 4 options, Created last (owner HUM-10,
+//        t1 a81e029c, msg 011b15dd: "add also the "created" attribute to the
+//        sorter drop down"), and Created is kept over a reload
 // (C104, the initial chunk budget, is `python3 perf-budget.py` /
 // `do_spl_perf_budget`, not a browser case.)
 //
@@ -195,6 +198,33 @@ async function reloadCase(p) {
   ok('the defaults carry no dot', reset.filter === 'all' && reset.sort === 'last' && reset.dots === 0, reset)
 }
 
+/* the open sort menu: each option's value and drawn label */
+function sortMenu() {
+  const g = document.querySelector('[data-testid=topic-list-sort-group]')
+  return [...(g?.querySelectorAll('label') || [])].map((l) => ({
+    value: l.querySelector('input')?.getAttribute('value') || '',
+    label: l.textContent?.trim() || '',
+  }))
+}
+
+/* SPL-6456 */
+async function createdCase(p) {
+  await goto(p, CHANNEL)
+  await p.click('[data-testid=topic-list-sort]')
+  await p.waitForSelector('[data-testid=topic-list-sort-created]', { timeout: 5000 })
+  const menu = await p.evaluate(sortMenu)
+  ok('sort menu: 4 options, Last update, Number of messages, Priority, Created', menu.map((o) => o.value).join() === 'last,messages,priority,created' && menu[3].label === 'Created' && menu.every((o) => o.label && !o.label.includes('feed.topic_list')), menu)
+  /* SHOT=<file.png>: the open menu, for the review */
+  if (process.env.SHOT) await p.screenshot({ path: process.env.SHOT })
+  await p.keyboard.press('Escape')
+  await choose(p, 'sort', 'created')
+  await goto(p, CHANNEL)
+  await sleep(300)
+  const after = await p.evaluate(choiceNow)
+  ok('sort Created is applied, dotted and kept over a reload', after.sort === 'created' && after.dots === 1, after)
+  await choose(p, 'sort', 'last')
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -208,6 +238,7 @@ try {
   await keyboardCase(p)
   await windowCase(p)
   await reloadCase(p)
+  await createdCase(p)
   ok('no page error', errors.length === 0, errors)
 } finally {
   await browser.close()

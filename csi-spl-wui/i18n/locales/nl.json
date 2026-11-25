@@ -1036,6 +1036,7 @@
       "sort_last": "Laatst bijgewerkt",
       "sort_count": "Aantal berichten",
       "sort_prio": "Prioriteit",
+      "sort_created": "Aanmaakdatum",
       "window": "Gesorteerd: de {n} geladen onderwerpen",
       "window_new": "Nieuwe onder de {n} geladen onderwerpen",
       "empty_new": "Geen nieuwe onderwerpen.",

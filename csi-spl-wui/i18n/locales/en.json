@@ -1036,6 +1036,7 @@
       "sort_last": "Last update",
       "sort_count": "Number of messages",
       "sort_prio": "Priority",
+      "sort_created": "Created",
       "window": "Sorted: the {n} topics loaded",
       "window_new": "Showing new among the {n} topics loaded",
       "empty_new": "No new topics.",

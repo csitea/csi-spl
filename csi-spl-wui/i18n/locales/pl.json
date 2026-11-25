@@ -1036,6 +1036,7 @@
       "sort_last": "Ostatnia aktualizacja",
       "sort_count": "Liczba wiadomości",
       "sort_prio": "Priorytet",
+      "sort_created": "Data utworzenia",
       "window": "Posortowano wczytane tematy: {n}",
       "window_new": "Nowe spośród wczytanych tematów: {n}",
       "empty_new": "Brak nowych tematów.",

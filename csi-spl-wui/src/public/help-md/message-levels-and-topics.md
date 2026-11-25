@@ -109,8 +109,9 @@ in this browser.
 - **Filter**: **All** shows every topic; **New** shows only the topics with
   messages you have not read.
 - **Sort by**: **Last update** (the newest activity first), **Number of
-  messages** (the most first) or **Priority** (1 first, 5 last; a topic nobody
-  set is 3).
+  messages** (the most first), **Priority** (1 first, 5 last; a topic nobody
+  set is 3) or **Created** (the newest topic first, by the time of its first
+  message).
 - **Unread at the edge**: whatever the sort, the topics with unread messages
   sit at the edge where new posts go, the most unread nearest it.
 - **Your new topic at the edge**: a topic you just started in this channel

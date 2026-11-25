@@ -5,7 +5,8 @@
      (Tab lands on the group, the arrows move, Escape closes back to the
      button; a click outside or Tab out closes too).
        - Filter: New / All (panel D5: New = topics with unread).
-       - Sort: Last update / Messages / Priority (D12: no third sort).
+       - Sort: Last update / Messages / Priority / Created (SPL-6456,
+         owner msg 011b15dd: "add also the created attribute").
      An icon shows a dot when its choice is not the default (All, Last
      update), so a filtered list never looks like a short list. The choice is
      kept per browser (useTopicListChoice, panel D6). FeedHeader loads it
@@ -88,6 +89,7 @@ const GROUPS: { id: GroupId, icon: UiIconName, label: string, options: { value: 
       { value: 'last', label: 'feed.topic_list.sort_last' },
       { value: 'messages', label: 'feed.topic_list.sort_count' },
       { value: 'priority', label: 'feed.topic_list.sort_prio' },
+      { value: 'created', label: 'feed.topic_list.sort_created' },
     ],
   },
 ]

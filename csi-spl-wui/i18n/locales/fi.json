@@ -1036,6 +1036,7 @@
       "sort_last": "Viimeisin päivitys",
       "sort_count": "Viestien määrä",
       "sort_prio": "Prioriteetti",
+      "sort_created": "Luontiaika",
       "window": "Ladatut aiheet lajiteltu: {n}",
       "window_new": "Uudet ladattujen aiheiden joukosta: {n}",
       "empty_new": "Ei uusia aiheita.",

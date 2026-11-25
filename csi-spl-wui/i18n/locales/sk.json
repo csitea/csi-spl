@@ -1036,6 +1036,7 @@
       "sort_last": "Posledná aktualizácia",
       "sort_count": "Počet správ",
       "sort_prio": "Priorita",
+      "sort_created": "Dátum vytvorenia",
       "window": "Zoradené načítané témy: {n}",
       "window_new": "Nové medzi načítanými témami: {n}",
       "empty_new": "Žiadne nové témy.",

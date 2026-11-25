@@ -1036,6 +1036,7 @@
       "sort_last": "Paskutinis atnaujinimas",
       "sort_count": "Žinučių skaičius",
       "sort_prio": "Prioritetas",
+      "sort_created": "Sukūrimo data",
       "window": "Surikiuotos įkeltos temos: {n}",
       "window_new": "Naujos tarp įkeltų temų: {n}",
       "empty_new": "Naujų temų nėra.",

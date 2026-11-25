@@ -1036,6 +1036,7 @@
       "sort_last": "Son güncelleme",
       "sort_count": "Mesaj sayısı",
       "sort_prio": "Öncelik",
+      "sort_created": "Oluşturulma tarihi",
       "window": "Sıralandı: yüklenen {n} konu",
       "window_new": "Yüklenen {n} konu arasında yeniler",
       "empty_new": "Yeni konu yok.",

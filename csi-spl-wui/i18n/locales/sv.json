@@ -1036,6 +1036,7 @@
       "sort_last": "Senast uppdaterad",
       "sort_count": "Antal meddelanden",
       "sort_prio": "Prioritet",
+      "sort_created": "Skapad",
       "window": "Sorterat: de {n} inlästa ämnena",
       "window_new": "Nya bland de {n} inlästa ämnena",
       "empty_new": "Inga nya ämnen.",

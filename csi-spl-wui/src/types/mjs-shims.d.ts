@@ -2324,7 +2324,7 @@ declare module '~/utils/contact-links.mjs' {
 
 declare module '~/utils/topic-list-order.mjs' {
   export type TopicListFilter = 'all' | 'new'
-  export type TopicListSort = 'last' | 'messages' | 'priority'
+  export type TopicListSort = 'last' | 'messages' | 'priority' | 'created'
   export const TOPIC_LIST_FILTERS: readonly TopicListFilter[]
   export const TOPIC_LIST_SORTS: readonly TopicListSort[]
   export const TOPIC_LIST_FILTER_DEFAULT: TopicListFilter
@@ -2343,6 +2343,7 @@ declare module '~/utils/topic-list-order.mjs' {
       countOf?: (row: T) => number | null | undefined
       priorityOf?: (row: T) => number | null | undefined
       lastOf?: (row: T) => string
+      createdOf?: (row: T) => string
       keep?: readonly string[]
     },
   ): T[]

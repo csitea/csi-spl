@@ -9,7 +9,10 @@
  * - Sort, owner poll Q2 answer A ("There is no third sort: three sorts are
  *   enough"): `last` (last update, today's order), `messages` (the topic's
  *   total count, more first), `priority` (1 first, 5 last; a topic nobody
- *   set is 3, between a 2 and a 4: spec 150 v1.1 D7). Ties go by last update, then `task_id`, so the
+ *   set is 3, between a 2 and a 4: spec 150 v1.1 D7), and, owner HUM-10
+ *   (t1 a81e029c, msg 011b15dd: "add also the "created" attribute to the
+ *   sorter drop down", SPL-6456), `created` (newest topic first, by its
+ *   first message's time). Ties go by last update, then `task_id`, so the
  *   order is stable (C206).
  * - Unread stays at the edge after any sort (panel D9, owner rule SPL-2506):
  *   the unread group comes first, the read group after it, each in the
@@ -22,7 +25,7 @@
 import { activityOf } from './feed.mjs'
 
 export const TOPIC_LIST_FILTERS = Object.freeze(['all', 'new'])
-export const TOPIC_LIST_SORTS = Object.freeze(['last', 'messages', 'priority'])
+export const TOPIC_LIST_SORTS = Object.freeze(['last', 'messages', 'priority', 'created'])
 export const TOPIC_LIST_FILTER_DEFAULT = 'all'
 export const TOPIC_LIST_SORT_DEFAULT = 'last'
 /** a discussion nobody set: the owner's "default 3" (msg f5ed1396, spec 150 v1.1 D7, SPL-4367); issues keep 5 */
@@ -34,10 +37,10 @@ export function parseTopicListFilter(raw) {
   return /** @type {'all' | 'new'} */ (TOPIC_LIST_FILTERS.includes(v) ? v : TOPIC_LIST_FILTER_DEFAULT)
 }
 
-/** @param {unknown} raw @returns {'last' | 'messages' | 'priority'} */
+/** @param {unknown} raw @returns {'last' | 'messages' | 'priority' | 'created'} */
 export function parseTopicListSort(raw) {
   const v = String(raw || '')
-  return /** @type {'last' | 'messages' | 'priority'} */ (TOPIC_LIST_SORTS.includes(v) ? v : TOPIC_LIST_SORT_DEFAULT)
+  return /** @type {'last' | 'messages' | 'priority' | 'created'} */ (TOPIC_LIST_SORTS.includes(v) ? v : TOPIC_LIST_SORT_DEFAULT)
 }
 
 /**
@@ -62,10 +65,21 @@ function messageCount(n) {
   return Number.isFinite(c) && c > 0 ? c : 0
 }
 
+/**
+ * When a topic was created: its card is the starter (the earliest message;
+ * a hub topic row carries `first_ts` as `ts`), so its own moment. A time
+ * that does not parse is 0, the oldest.
+ */
+function createdTime(t) {
+  const ms = Date.parse(String(t || ''))
+  return Number.isFinite(ms) ? ms : 0
+}
+
 /** The sort key of a row: a number where a bigger one goes first. */
-function keyOf(sort, row, countOf, priorityOf) {
+function keyOf(sort, row, { countOf, priorityOf, createdOf }) {
   if (sort === 'messages') return messageCount(countOf(row))
   if (sort === 'priority') return -topicPriority(priorityOf(row))
+  if (sort === 'created') return createdTime(createdOf(row))
   return 0
 }
 
@@ -79,6 +93,7 @@ function keyOf(sort, row, countOf, priorityOf) {
  *   countOf?: (row: T) => number,
  *   priorityOf?: (row: T) => number | null | undefined,
  *   lastOf?: (row: T) => string,
+ *   createdOf?: (row: T) => string,
  *   keep?: readonly string[],
  * }} [opts] keep: spec 189 D3, task ids New keeps although read (the fresh cards)
  * @returns {T[]} a new array, unread group first, each group in the chosen sort
@@ -91,10 +106,11 @@ export function topicListView(rows, opts = {}) {
   const countOf = typeof opts.countOf === 'function' ? opts.countOf : (r) => r && r.count
   const priorityOf = typeof opts.priorityOf === 'function' ? opts.priorityOf : (r) => r && r.priority
   const lastOf = typeof opts.lastOf === 'function' ? opts.lastOf : activityOf
+  const createdOf = typeof opts.createdOf === 'function' ? opts.createdOf : (r) => r && (r.received_at || r.ts)
   const items = list.map((row) => ({
     row,
     unread: topicUnreadCount(unreadOf(row)) > 0,
-    k: keyOf(sort, row, countOf, priorityOf),
+    k: keyOf(sort, row, { countOf, priorityOf, createdOf }),
     last: String(lastOf(row) || ''),
     id: String((row && row.task_id) || ''),
   }))

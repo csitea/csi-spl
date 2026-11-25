@@ -1,5 +1,6 @@
 // Spec 150 row B5: topicListView, the topic list's filter (New / All) and
-// sort (Last update / Messages / Priority; owner Q2 answer A: no third sort).
+// sort (Last update / Messages / Priority / Created; owner Q2 answer A, then
+// SPL-6456 added Created).
 // Cases C201-C206, C208, C210 of the spec's case table; each names its red
 // control, a planted change in utils/topic-list-order.mjs that turns it red.
 import { describe, it } from 'node:test'
@@ -90,8 +91,45 @@ describe('C205 sort Priority', () => {
     const rows = [card('p4', at(9), 1, 4), card('zero', at(8), 1, 0)]
     assert.deepEqual(ids(topicListView(rows, { sort: 'priority' })), ['zero', 'p4'])
   })
-  it('there is no third sort (owner Q2 answer A)', () => {
-    assert.deepEqual([...TOPIC_LIST_SORTS], ['last', 'messages', 'priority'])
+  it('the sorts are Last update, Messages, Priority and Created (owner Q2 answer A, then SPL-6456)', () => {
+    assert.deepEqual([...TOPIC_LIST_SORTS], ['last', 'messages', 'priority', 'created'])
+  })
+})
+
+/* SPL-6456 (owner HUM-10, t1 a81e029c, msg 011b15dd): a topic card created at `made` (its own ts) */
+function made(task, created, last, extra = {}) {
+  return { ...card(task, last, 1, 3), ts: created, ...extra }
+}
+
+describe('SPL-6456 sort Created', () => {
+  it('newest topic first, whatever its last update (red: keyOf ignores created)', () => {
+    const rows = [made('old-busy', at(1), at(23)), made('new', at(9), at(9)), made('mid', at(5), at(6))]
+    assert.deepEqual(ids(topicListView(rows, { sort: 'created' })), ['new', 'mid', 'old-busy'])
+    assert.deepEqual(ids(topicListView(rows.slice().reverse(), { sort: 'created' })), ['new', 'mid', 'old-busy'])
+  })
+  it('received_at wins over ts, as the feed orders a message; createdOf overrides both', () => {
+    const rows = [made('a', at(9), at(9), { received_at: at(2) }), made('b', at(4), at(4))]
+    assert.deepEqual(ids(topicListView(rows, { sort: 'created' })), ['b', 'a'])
+    assert.deepEqual(ids(topicListView(rows, { sort: 'created', createdOf: (r) => r.ts })), ['a', 'b'])
+  })
+  it('a hub topic row (feedRow: first_ts as ts) sorts by its first message, not its last', () => {
+    const rows = [made('r1', at(3), at(20), { topic_row: true }), made('r2', at(8), at(8), { topic_row: true })]
+    assert.deepEqual(ids(topicListView(rows, { sort: 'created' })), ['r2', 'r1'])
+  })
+  it('ties and unparsable times go by last update, then task_id (stable; red: drop the tie-break)', () => {
+    const rows = [made('a', at(4), at(5)), made('c', at(4), at(9)), made('b', at(4), at(5)), made('x', 'not a time', at(1)), made('y', '', at(2))]
+    assert.deepEqual(ids(topicListView(rows, { sort: 'created' })), ['c', 'b', 'a', 'y', 'x'])
+    assert.deepEqual(ids(topicListView(rows.slice().reverse(), { sort: 'created' })), ['c', 'b', 'a', 'y', 'x'])
+  })
+  it('unread cards stay at the edge under Created (C208)', () => {
+    const rows = [made('r-new', at(9), at(9)), made('u-old', at(1), at(2), { unread: 1 }), made('u-new', at(7), at(7), { unread: 2 })]
+    assert.deepEqual(ids(topicListView(rows, { sort: 'created', unreadOf })), ['u-new', 'u-old', 'r-new'])
+  })
+  it('parses created; the older stored values parse as before', () => {
+    assert.equal(parseTopicListSort('created'), 'created')
+    for (const v of ['last', 'messages', 'priority']) assert.equal(parseTopicListSort(v), v)
+    assert.equal(parseTopicListSort('Created'), 'last')
+    assert.equal(parseTopicListSort(undefined), 'last')
   })
 })
 

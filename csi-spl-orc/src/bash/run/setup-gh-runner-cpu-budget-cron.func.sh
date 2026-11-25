@@ -42,7 +42,7 @@ declare -F spl_desk_cron_checkout >/dev/null ||
 do_setup_gh_runner_cpu_budget_cron() {
   do_require_bin crontab || return 1
   local act="${CPU_BUDGET_CRON_ACTION:-install}" trunk="${DESK_CRON_TRUNK:-master}"
-  local tag src script logdir line current pre="" ns floor="${CPU_BUDGET_GATE_FLOOR_PCT:-500}"
+  local tag src script logdir line pre="" ns floor="${CPU_BUDGET_GATE_FLOOR_PCT:-500}"
   local reserve="${CPU_BUDGET_CI_RESERVE_PCT:-950}" weight="${CPU_BUDGET_CI_WEIGHT:-400}"
   case "$act" in install|remove|check) ;; *) do_log "FATAL CPU_BUDGET_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
@@ -65,35 +65,8 @@ do_setup_gh_runner_cpu_budget_cron() {
   ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/cron.lock")" || return 1
   line="$(printf '* * * * * %sCPU_BUDGET_GATE_FLOOR_PCT=%s CPU_BUDGET_CI_RESERVE_PCT=%s CPU_BUDGET_CI_WEIGHT=%s %s%s >> %s/cron.out 2>&1 # %s' \
     "$pre" "$floor" "$reserve" "$weight" "$ns" "$script" "$logdir" "$tag")"
-  current="$(spl_desk_cron_line "$tag")"
-
-  if [[ "$act" == check ]]; then
-    [[ -n "$current" ]] || { do_log "FAIL the runner CPU budget cron is NOT installed (no line tagged $tag)"; return 1; }
-    spl_desk_cron_say "$current"
-    local ran; ran="$(spl_desk_cron_script "$current")"
-    [[ -n "$ran" && -x "$ran" ]] ||
-      { do_log "FAIL the line names a script that is gone or not executable: ${ran:-<none>}"; return 1; }
-    [[ "$current" == "$line" ]] || do_log "INFO installed with other settings than this call would write - working"
-    do_log "OK the runner CPU budget cron is installed and its script is executable"
-    return 0
-  fi
-  if [[ "${DRY_RUN:-1}" == 1 ]]; then
-    spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
-    [[ "$act" == install ]] && spl_desk_cron_checkout_dry "$src" "$trunk"
-    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
-    return 0
-  fi
-  if [[ "$act" == remove ]]; then
-    spl_desk_cron_write "$tag" "" || return 1
-    do_log "OK the runner CPU budget cron is out of the crontab"
-    return 0
-  fi
-  spl_desk_cron_checkout "$src" "$trunk" || return 1
-  [[ -x "$script" ]] || { do_log "FATAL $script is missing or not executable in $src (is it on trunk yet?)"; return 1; }
-  mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
-  spl_desk_cron_write "$tag" "$line" || return 1
-  current="$(spl_desk_cron_line "$tag")"
-  [[ "$current" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written. Got: ${current:-<nothing>}"; return 1; }
-  do_log "OK the runner CPU budget cron ticks every minute as the box user:"
-  spl_desk_cron_say "$line"
+  # shellcheck source=setup-box-stats-cron.func.sh
+  declare -F _spl_simple_cron_apply >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/setup-box-stats-cron.func.sh"
+  _spl_simple_cron_apply "$act" "$tag" "$src" "$trunk" "$script" "$logdir" "$line" \
+    "runner CPU budget" "ticks every minute as the box user"
 }

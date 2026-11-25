@@ -90,6 +90,61 @@ else
   pass "red control: an installer without the floor fails check 1"
 fi
 
+# 5. _spl_simple_cron_apply delegation (r03-02 one copy) -----------------------
+eo_f="$PROJ_ROOT/src/bash/run/check-env-order-install-cron.func.sh"
+co_f="$PROJ_ROOT/src/bash/run/setup-ci-overflow-cron.func.sh"
+for sib in "$eo_f" "$co_f" "$FUNC"; do
+  own="$(grep -nE "the crontab does not read back what was written|is installed and its script is executable|OK DRY_RUN nothing was touched" "$sib" || true)"
+  [[ -z "$own" ]] && grep -q "_spl_simple_cron_apply " "$sib" &&
+    pass "5. one copy: $(basename "$sib") delegates apply to _spl_simple_cron_apply" || fail "5. one copy $(basename "$sib"): own=[$own]"
+done
+printf '#!/bin/sh\n' >"$SH/csi-spl-orc/src/bash/scripts/check-env-order.sh"
+printf '#!/bin/sh\n' >"$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh"
+chmod +x "$SH/csi-spl-orc/src/bash/scripts/check-env-order.sh" "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh"
+printf '%s\n' '# keep me' >"$T/crontab.s5"
+out="$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" ENV_ORDER_CRON_LOG_DIR="$T/log-eo" ENV_ORDER_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/check-env-order-install-cron.func.sh"
+  do_check_env_order_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the env order cron is NOT installed (no line tagged csi-spl:env-order): prd ahead of dev warns nobody"* && "$out" != *"command not found"* ]] &&
+  pass "5. lazy load: check-env-order-install-cron.func.sh loads _spl_simple_cron_apply standalone" || fail "5. lazy eo (rc=$rc): $out"
+out="$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" ENV_ORDER_CRON_LOG_DIR="$T/log-eo" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/check-env-order-install-cron.func.sh"
+  do_check_env_order_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the env order cron runs daily at 05:23 as the box user:"* ]] &&
+  pass "5. env order install keeps exact ok_msg" || fail "5. eo ok (rc=$rc): $out"
+out="$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" CI_OVERFLOW_CRON_LOG_DIR="$T/log-co" CI_OVERFLOW_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/setup-ci-overflow-cron.func.sh"
+  do_setup_ci_overflow_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the CI overflow cron is NOT installed (no line tagged csi-spl:ci-overflow)"* && "$out" != *"command not found"* ]] &&
+  pass "5. lazy load: setup-ci-overflow-cron.func.sh loads _spl_simple_cron_apply standalone" || fail "5. lazy co (rc=$rc): $out"
+out="$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" CI_OVERFLOW_CRON_LOG_DIR="$T/log-co" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/setup-ci-overflow-cron.func.sh"
+  do_setup_ci_overflow_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the CI overflow cron ticks every 5 minutes as the box user:"* ]] &&
+  pass "5. CI overflow install keeps exact ok_msg" || fail "5. co ok (rc=$rc): $out"
+out="$(env -u CPU_BUDGET_GATE_FLOOR_PCT -u CPU_BUDGET_CI_RESERVE_PCT -u CPU_BUDGET_CI_WEIGHT PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" CPU_BUDGET_CRON_LOG_DIR="$T/log-cb" CPU_BUDGET_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/setup-gh-runner-cpu-budget-cron.func.sh"
+  do_setup_gh_runner_cpu_budget_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the runner CPU budget cron is NOT installed (no line tagged csi-spl:gh-runner-cpu-budget)"* && "$out" != *"command not found"* ]] &&
+  pass "5. lazy load: setup-gh-runner-cpu-budget-cron.func.sh loads _spl_simple_cron_apply standalone" || fail "5. lazy cb (rc=$rc): $out"
+out="$(env -u CPU_BUDGET_GATE_FLOOR_PCT -u CPU_BUDGET_CI_RESERVE_PCT -u CPU_BUDGET_CI_WEIGHT PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" CPU_BUDGET_CRON_LOG_DIR="$T/log-cb" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/setup-gh-runner-cpu-budget-cron.func.sh"
+  do_setup_gh_runner_cpu_budget_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the runner CPU budget cron ticks every minute as the box user:"* ]] &&
+  pass "5. runner CPU budget install keeps exact ok_msg" || fail "5. cb ok (rc=$rc): $out"
+
 echo
 if [ "$fails" -eq 0 ]; then echo "setup-gh-runner-cpu-budget-cron: all passed"; exit 0; fi
 echo "setup-gh-runner-cpu-budget-cron: $fails FAILED"; exit 1

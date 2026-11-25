@@ -67,4 +67,21 @@ are not duplicated here.
 - [x] T014 [FR-006] Public deploy notes: allow unauthenticated in M2; rate-limit unsigned at the shield — **Implemented** as doc (`plan.md` "Public deploy notes"); the infra is 007's. The M1 IP allowlist / shield part is **Superseded** (no load balancer since 2026-09-19, `ingress: all`, edge limits in-app per 017 T010); spec FR-006 / OQ-006-4.
 - [x] T015 [FR-015] Hygiene tests: no payment-vendor name / product host in Go; no root private key in hub logs — **Implemented** (`no-baked-host.tst.sh`, `TestRootPrivateKeyNotLogged`, `3690211`).
 
-<!-- version: 1.4.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:23:33Z -->
+## Phase 7: Commercial offer (spec.md "Commercial offer", SPL-6410)
+
+The rows of spec.md section CO-6, in its order. Each waits on the owner
+questions it names (section CO-7). None is built.
+
+- [ ] T024 [C1] Public price page `/pricing` rendering `GET /api/v1/checkout/plan`, linked from `about.html` and sign-in; every locale — **Planned**.
+- [ ] T025 [C2] Payment description stops saying "(monthly)" while nothing renews (`stripe_payments.go:99`) — **Planned**.
+- [ ] T026 [C3] Renewal as a prepaid card top-up drawn down (spec 121 R7 / section 8); at zero the workspace goes `grace` — **Planned**, gated on Q1, Q2.
+- [ ] T027 [C4] = T012a, per-plan quotas — **Planned**, gated on OQ-006-1.
+- [ ] T028 [C5] = T013a, timed grace — **Planned**, gated on OQ-006-3 and T026.
+- [ ] T029 [C6] Human seats on the hosted checkout: cnf price (owner's go), seat count and total in the checkout page — **Planned**, gated on Q3, Q4, Q5.
+- [ ] T030 [C7] Seats after purchase: add at once pro rata, remove at month end, "N of M seats used" in workspace settings — **Planned**, gated on Q6 and T026.
+- [ ] T031 [C8] A hub receipt per card payment with the buyer's billing details — **Planned**, gated on Q7.
+- [ ] T032 [C9] Self-service cancel of a hosted workspace by its owner — **Planned**, gated on T026.
+- [ ] T033 [C10] Help page for offers I and P (scope, coverage, response targets, how to buy) — **Planned**, gated on Q8..Q11.
+- [ ] T034 [C11] Spec 075 section 7 broken into build rows (embedding store, worker, semantic search, ACLs), no token sold — **Planned**, gated on Q12, Q13.
+
+<!-- version: 1.5.0 · updated: 2026-11-25 · last-edit: 2026-11-25T00:15:00Z -->

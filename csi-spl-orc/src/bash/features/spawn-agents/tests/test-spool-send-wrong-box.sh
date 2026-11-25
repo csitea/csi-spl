@@ -7,6 +7,8 @@
 # read WARNs once and sends. A FAKE lane map and a stub relay: no hub.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
+# shellcheck source=../../../tests/wait-event.inc.sh
+. "$T_FEAT/../../tests/wait-event.inc.sh"
 t_sandbox
 SS="$T_SCRIPTS/spool-send.sh"
 export SPOOL_DESK_BOX=box-a
@@ -104,8 +106,15 @@ reset; SPOOL_LANE_MAP_TTL=120 send c-500@box-far; SPOOL_LANE_MAP_TTL=120 send c-
 eq "8. two @box sends inside the TTL: one map read" 1 "$(n_map)"
 eq "8. the cached map still refuses the wrong box" 8 "$rc"
 touch -d '-200 seconds' "$SPOOL_ROOT/dispatch/lane-map-send.cache.json"
-SPOOL_LANE_MAP_TTL=120 send c-500@box-far
-eq "8. a cache older than the TTL is read again" 2 "$(n_map)"
+SPOOL_LANE_MAP_TTL=120 send c-500@box-far; rc=$?
+eq "8. a cache older than the TTL still answers: exit 0" 0 "$rc"
+wait_event 10 env_idle "SPOOL_ROOT=$SPOOL_ROOT"
+eq "8. ... and is read again, by the detached refresh (SPL-6512)" 2 "$(n_map)"
+check "8. ... which made the cache fresh" test "$(( $(date +%s) - $(stat -c %Y "$SPOOL_ROOT/dispatch/lane-map-send.cache.json") ))" -lt 100
+touch -d '-200 seconds' "$SPOOL_ROOT/dispatch/lane-map-send.cache.json"
+SPOOL_LANE_MAP_TTL=120 send c-346@box-b; rc=$?
+eq "8. a refusal from a stale cache is re-read first, then refused: exit 8" 8 "$rc"
+eq "8. ... one more map read, on the send path" 3 "$(n_map)"
 
 # ---- 9. SPOOL_SEND_BOX_GUARD=0 turns it off ---------------------------------
 reset; SPOOL_SEND_BOX_GUARD=0 send c-346@box-b; rc=$?

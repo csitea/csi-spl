@@ -147,7 +147,8 @@ has "…names the replacement" "--task dispatch-${L:0:8}" "$err"
 eq "…nothing new in the inbox" "$n0" "$(n_json "$SPOOL_ROOT/CLE-84/inbox")"
 env "${kenv[@]}" SPOOL_TOPIC_KIND_TIMEOUT=1 bash "$K" "$L" >/dev/null
 eq "CONTROL: the old 1 s timeout cannot tell -> exit 3" 3 "$?"
-err="$(env "${kenv[@]}" SPOOL_TOPIC_KIND_TIMEOUT=1 bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$L" --body x --no-poke 2>&1 >/dev/null)"; rc=$?
+# (the index already holds L as owner from the refused send: probe-only here)
+err="$(env "${kenv[@]}" SPOOL_TOPIC_KIND_INDEX=0 SPOOL_TOPIC_KIND_TIMEOUT=1 bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$L" --body x --no-poke 2>&1 >/dev/null)"; rc=$?
 eq "CONTROL: …so that send fails open, exit 0" 0 "$rc"
 has "…with the WARN" "cannot tell whether ${L} is an owner topic" "$err"
 unset SPOOL_OWNER_TOPIC_CMD

@@ -137,6 +137,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-caller.inc.sh"
 # shellcheck source=../lib/spool-send-box-guard.inc.sh
 . "$_here/../lib/spool-send-box-guard.inc.sh"
+# shellcheck source=../lib/spool-topic-kind-index.inc.sh
+. "$_here/../lib/spool-topic-kind-index.inc.sh"
 spool_env_resolve
 
 usage() {
@@ -249,12 +251,30 @@ send_lane_topic() {  # ID
 # cannot tell.
 # SPOOL_OWNER_TOPIC_CMD replaces the lookup; under SPOOL_TEST=1 without it
 # there is no lookup (no hub): 100, silently.
+# The answer comes from the local index first (lib/spool-topic-kind-index.inc.sh,
+# SPL-6512): the probe runs on the send path only for a topic the index does
+# not hold; a stale agent entry is re-probed by a detached refresh.
 send_topic_kind() {  # TASK
+  local e k
+  if [ -z "${SPOOL_OWNER_TOPIC_CMD:-}" ] && [ "${SPOOL_TEST:-}" = 1 ]; then return 100; fi
+  topic_kind_index_on || { _send_topic_probe "$1"; return; }
+  if e="$(topic_kind_index_get "$1")"; then
+    k="${e%% *}"
+    [ "$k" = agent ] && [ $(( $(date +%s) - ${e##* } )) -ge "$(_topic_kind_ttl)" ] &&
+      topic_kind_index_refresh_bg _send_topic_probe
+    echo "$k"; return 0
+  fi
+  k="$(_send_topic_probe "$1")" || return
+  topic_kind_index_put "$1" "$k" 2>/dev/null
+  topic_kind_index_refresh_bg _send_topic_probe
+  echo "$k"
+}
+
+_send_topic_probe() {  # TASK
   if [ -n "${SPOOL_OWNER_TOPIC_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     $SPOOL_OWNER_TOPIC_CMD "$1"; return
   fi
-  [ "${SPOOL_TEST:-}" = 1 ] && return 100
   local probe="$_here/spool-topic-kind.sh" du
   du="$(spool_desk_user)"
   if [ "$(id -un)" = "$du" ]; then

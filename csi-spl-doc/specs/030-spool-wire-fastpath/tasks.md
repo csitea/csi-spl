@@ -11,7 +11,8 @@ Status lives in `spec.md` §0.5–§0.7. This file exists so the index in
 | T004 | FP-1 notifier must not block the sidecar read (FR-002, FR-003) | Implemented | `internal/notify/queue.go`; `cmd/spool/hub.go` `cmdHubRun` calls `notify.Start`. Tests: `TestDeliverDoesNotBlockTheCallerWhileAQueueIsInstalled`, `TestALanePokesInDeliveryOrder`, `TestLanesForDifferentAgentsRunConcurrently` |
 | T005 | `do_spl_wire_probe` dial vs warm submit (FR-001) | Implemented | `csi-spl-orc/src/bash/run/spl-wire-probe.func.sh` |
 | T006 | rollback flags (FR-007) | Implemented | `c850098d`: `Config.NotifyAsyncOff`, `TestNotifyAsyncOff`, `cmdHubRun` skips `notify.Start` when `SPOOL_NOTIFY_ASYNC` is `0`/`false`/`off`. Submit rollback is `SPOOL_SUBMIT_SOCKET=off` (`SubmitOff`, `submit_test.go`). Unset submit socket stays ON (the default path) |
+| T007 | send-path guards off the hot path: box guard stale-while-revalidate, owner-topic local index (SPL-6512) | Implemented | `spec.md` §0.8; `spawn-agents/tests/test-spool-send-guard-latency.sh` |
 
 No open task in this lane asks for a new hub frame.
 
-<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->
+<!-- version: 0.1.2 · updated: 2026-11-25 · last-edit: 2026-11-25T15:30:00Z -->

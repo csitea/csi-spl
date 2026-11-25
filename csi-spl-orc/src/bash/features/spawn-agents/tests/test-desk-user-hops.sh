@@ -41,8 +41,8 @@ send_probe() {  # BOX_USER [DESK_USER]
     unset SPOOL_TEST SPOOL_OWNER_TOPIC_CMD
     . "$T_FEAT/lib/spool-env.inc.sh"
     _here="$T_TMP/stub"
-    eval "$(sed -n '/^send_topic_kind() {/,/^}/p' "$T_SCRIPTS/spool-send.sh")"
-    send_topic_kind 00000000-0000-0000-0000-000000000001 )
+    eval "$(sed -n '/^_send_topic_probe() {/,/^}/p' "$T_SCRIPTS/spool-send.sh")"
+    _send_topic_probe 00000000-0000-0000-0000-000000000001 )
 }
 # the fleet relay (spool-fleet.inc.sh spool_fleet_relay)
 relay() {  # BOX_USER [DESK_USER]

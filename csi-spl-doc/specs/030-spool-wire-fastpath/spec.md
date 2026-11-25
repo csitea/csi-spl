@@ -271,6 +271,49 @@ it already had. It can only END a session, never fail a message. It does not
 make a stall impossible — it **bounds** it, to ~40 s instead of "until a human
 notices". `KeepAlive` / `KeepAliveTimeout` on `hubclient.Client` are the knobs.
 
+### 0.8 The send-path guards, off the hot path (SPL-6512)
+
+Latency action 2 of t1 e3b16fea (owner targets: under 1 s same box, under 3 s
+across boxes). `spool-send.sh` ran two guards synchronously on the send path.
+Measured by lat-hub a-600 on `e452478b`:
+
+| guard | what it waited on | cost |
+|---|---|---|
+| box guard (`lib/spool-send-box-guard.inc.sh`, `--to <ID>@<box>`) | `lane-map.sh --json` when its cache was older than 120 s | p50 9,850 ms (n=3) |
+| owner-topic guard (`scripts/spool-topic-kind.sh`, a uuid `--task`) | a cold `spool hub-tail` on every live desk, every send | p50 1,162 ms, p95 1,408 ms (n=5) |
+
+What they do now:
+
+- **Box guard, stale-while-revalidate.** A usable cache is the answer at any
+  age. Past `SPOOL_LANE_MAP_TTL` (120 s) an allowed send starts ONE detached
+  refresh (`flock -n` on `dispatch/lane-map-send.cache.json.lock`) and does
+  not wait for it. A refusal from a stale cache re-reads the map first, so a
+  refusal always rests on a map younger than the TTL; an id the stale cache
+  does not know (a lane spawned since) sends, as before. Only a box with no
+  usable cache at all reads on the send path.
+- **Owner-topic guard, a local index.** `dispatch/topic-kind.idx`
+  (`lib/spool-topic-kind-index.inc.sh`) holds the probe's own answers, one line
+  per topic: `uuid TAB owner|agent TAB epoch`. `owner` is final; `agent` is
+  the answer at any age, and past `SPOOL_TOPIC_KIND_TTL` (600 s) the send
+  starts ONE detached re-probe. A topic the index does not hold (or no index)
+  is probed on the send path as before and written in. The same detached run
+  warms the index with the uuid topics of this box's inbox messages of the
+  last 24 h (at most 40 per run): 430 of 2157 uuid sends (one fleet box, 2
+  days to 2026-11-25) were the first on their topic from that box.
+  `SPOOL_TOPIC_KIND_INDEX=0` turns the index off.
+- Refusals and their messages are unchanged (the existing guard tests,
+  `test-spool-send-wrong-box.sh` and `test-spool-send-owner-topic.sh`).
+
+Measured by `spawn-agents/tests/test-spool-send-guard-latency.sh` (stub map and
+probe that block until released): with an expired cache and a stale index
+entry a send makes 0 lane-map reads and 0 probes on the path, and n=20
+same-box sends run at p95 under 300 ms. On the parent commit the same test
+waits on both stubs.
+
+Not fixed here, found on the way: `spool-topic-kind.sh` answers `agent` for
+the owner's t1 topic `e3b16fea` (the t1 desk's `hub-tail` returns no rows for
+it, rc 0). The index keeps the probe's verdicts, so it keeps that one too.
+
 ## 1. Requirements
 
 - **FR-001** — Every change in this spec is justified by a measurement in §0 or
@@ -362,4 +405,4 @@ Tokens defined by this spec live in `contracts/fastpath-v1.md`.
 - The browser leg's render cost (CLE-3434).
 - The separate fleet-tooling repo, including its 2-second `outbox-watch.sh` scan.
 
-<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->
+<!-- version: 0.3.0 · updated: 2026-11-25 · last-edit: 2026-11-25T15:30:00Z -->

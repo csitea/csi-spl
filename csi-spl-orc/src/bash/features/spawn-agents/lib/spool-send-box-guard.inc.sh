@@ -19,6 +19,15 @@
 # (default 120): one read took 2.7..3.4 s on a fleet box (n=3, 2026-11-22),
 # a cached one is a jq call. Only a send that names another box reads it.
 #
+# Stale-while-revalidate (SPL-6512, latency action 2): a usable cache is the
+# answer at any age; past the TTL the send starts ONE detached refresh (flock
+# on <cache>.lock) and does not wait for it. The synchronous rebuild cost
+# p50 9,850 ms on a send past the TTL (lat-hub a-600, n=3, 2026-11-25). Two
+# cases still read on the send path: no usable cache at all (a box's first
+# send), and a refusal from a stale cache, re-read before it refuses, so a
+# refusal always rests on a map younger than the TTL. An id the stale cache
+# does not know (a lane spawned since) sends as before: no evidence.
+#
 # lane-map.sh runs ./run without --json, so its stdout can carry do_log lines
 # (INFO/WARN/OK, e.g. "INFO the hub answered on try 2") before the JSON: the
 # map is the first JSON value from the first line that starts with `{`
@@ -33,20 +42,34 @@
 _SEND_BOX_MAP_OK='.hub == "ok" and (.lanes | type == "array")'
 _send_box_cache() { printf '%s/dispatch/lane-map-send.cache.json' "$SPOOL_ROOT"; }
 
-# The map's JSON on stdout; rc 1 when it cannot be read. A fresh read is
-# cached only when the hub answered (`hub: ok`): a local-only map is not the
-# fleet's.
-send_box_map() {
-  local c t="${SPOOL_LANE_MAP_TTL:-120}" lim="${SPOOL_LANE_MAP_TIMEOUT:-15}" out tmp age
-  c="$(_send_box_cache)"
+_send_box_ttl() {
+  local t="${SPOOL_LANE_MAP_TTL:-120}"
   [[ "$t" =~ ^[0-9]+$ ]] || t=120
+  echo "$t"
+}
+
+# The age in s of a usable cache on stdout; rc 1 when there is none.
+_send_box_cache_age() {
+  local c
+  c="$(_send_box_cache)"
+  [ -r "$c" ] && jq -e "$_SEND_BOX_MAP_OK" "$c" >/dev/null 2>&1 || return 1
+  echo $(( $(date +%s) - $(stat -c %Y "$c" 2>/dev/null || echo 0) ))
+}
+
+# A usable cache younger than the TTL: rc 0.
+_send_box_cache_fresh() {
+  local age
+  age="$(_send_box_cache_age)" || return 1
+  [ "$age" -ge 0 ] && [ "$age" -lt "$(_send_box_ttl)" ]
+}
+
+# Read the map now: its JSON on stdout; rc 1 when it cannot be read. A fresh
+# read is cached only when the hub answered (`hub: ok`): a local-only map is
+# not the fleet's.
+send_box_map_read() {
+  local c lim="${SPOOL_LANE_MAP_TIMEOUT:-15}" out tmp
+  c="$(_send_box_cache)"
   [[ "$lim" =~ ^[1-9][0-9]*$ ]] || lim=15
-  if [ -r "$c" ]; then
-    age=$(( $(date +%s) - $(stat -c %Y "$c" 2>/dev/null || echo 0) ))
-    if [ "$age" -ge 0 ] && [ "$age" -lt "$t" ] && jq -e "$_SEND_BOX_MAP_OK" "$c" >/dev/null 2>&1; then
-      cat "$c"; return 0
-    fi
-  fi
   if [ -n "${SPOOL_LANE_MAP_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     out="$(timeout -k 1 "$lim" $SPOOL_LANE_MAP_CMD 2>/dev/null)" || return 1
@@ -61,6 +84,41 @@ send_box_map() {
   printf '%s\n' "$out"
 }
 
+# ONE detached refresh of the cache: a second one while it runs is a no-op
+# (flock -n), and so is one that finds the cache fresh again. Every fd is
+# redirected: a caller's $(...) never waits for it.
+send_box_map_refresh_bg() {
+  local c
+  c="$(_send_box_cache)"
+  [ -d "${c%/*}" ] || return 0
+  (
+    exec 9>>"$c.lock" || exit 0
+    chmod 0664 "$c.lock" 2>/dev/null
+    flock -n 9 || exit 0
+    _send_box_cache_fresh && exit 0
+    send_box_map_read >/dev/null
+  ) </dev/null >/dev/null 2>&1 &
+  disown 2>/dev/null || true
+}
+
+# The map's JSON on stdout; rc 1 when it cannot be read. A usable cache is
+# the answer at any age; only a missing or unusable one is read on the send
+# path. Past the TTL the guard starts the detached refresh, on an allow.
+send_box_map() {
+  if _send_box_cache_age >/dev/null; then
+    cat "$(_send_box_cache)"; return 0
+  fi
+  send_box_map_read
+}
+
+# Allow the send: start the detached refresh when the cache is past the TTL.
+_send_box_allow() { _send_box_cache_fresh || send_box_map_refresh_bg; return 0; }
+
+# The boxes MAP has ID live on, one per line.
+_send_box_live() {  # ID MAP
+  jq -r --arg id "$1" '[.lanes[] | select(.agent_id == $id and .state == "live") | .agent_box] | unique | .[]' <<<"$2" 2>/dev/null
+}
+
 send_box_guard() {  # ID BOX
   local id="$1" box="$2" map boxes fix
   [ -n "$box" ] || return 0
@@ -72,9 +130,15 @@ send_box_guard() {  # ID BOX
     echo "to: WARN cannot read the fleet lane map; sent to ${id}@${box} unchecked" >&2
     return 0
   fi
-  boxes="$(jq -r --arg id "$id" '[.lanes[] | select(.agent_id == $id and .state == "live") | .agent_box] | unique | .[]' <<<"$map" 2>/dev/null)"
-  [ -n "$boxes" ] || return 0
-  grep -qxF -- "$box" <<<"$boxes" && return 0
+  boxes="$(_send_box_live "$id" "$map")"
+  [ -n "$boxes" ] || { _send_box_allow; return 0; }
+  grep -qxF -- "$box" <<<"$boxes" && { _send_box_allow; return 0; }
+  # A refusal rests on a map younger than the TTL: re-read a stale one first.
+  if ! _send_box_cache_fresh && map="$(send_box_map_read)"; then
+    boxes="$(_send_box_live "$id" "$map")"
+    [ -n "$boxes" ] || return 0
+    grep -qxF -- "$box" <<<"$boxes" && return 0
+  fi
   if [ "$(grep -c . <<<"$boxes")" -eq 1 ]; then
     fix="${id}@${boxes}"
     [ "$boxes" = "$(spool_fleet_box)" ] && fix="$id"

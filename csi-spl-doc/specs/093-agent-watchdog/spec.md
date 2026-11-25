@@ -420,9 +420,9 @@ script, and changes none of them.
 |---|---|---|---|
 | `SessionStart` | `state=starting` (no progress) | inject every unread inbox file and every open stub | - |
 | `UserPromptSubmit` | `turn_since=now` (no progress) | inject what is new since the last injection | the existing `spool-mirror.py hook` entry stays beside it |
-| `PreToolUse` | progress; `state=in-tool`, `tool`, `tool_since` | - | - |
+| `PreToolUse` | progress; `state=in-tool`, `tool`, `tool_since` | inject what is new (the tool-start path, SPL-6515) | beside a deny, never in place of it |
 | `PostToolUse` | progress; `state=working`; push to `calls` | inject what is new (the mid-turn path) | S5's first warning |
-| `Stop` | `state=idle`; progress only when the last entry is not an API error, else set `api_error` | an open stub not yet accepted, or a job untouched for over 10 min: block the stop ONCE per turn with "you have N offered jobs / N untouched jobs: accept, park, touch or release them" | the existing `spool-mirror.py hook` entry stays |
+| `Stop` | `state=idle`; progress only when the last entry is not an API error, else set `api_error` | inject what is new, unless the last entry is an API error (the turn-end path, SPL-6515); an open stub not yet accepted, or a job untouched for over 10 min: block the stop ONCE per turn with "you have N offered jobs / N untouched jobs: accept, park, touch or release them" | the existing `spool-mirror.py hook` entry stays |
 
 ### 7.2 The inject hook (c-002's design, msg 4af7e98f, with the claim added)
 
@@ -445,11 +445,42 @@ Registration: one entry per event in the agent user's
 today's `spool-mirror.py` entries do), installed by an action
 (`do_spl_agent_hooks_install`), never by hand.
 
+### 7.2.1 A busy agent: tool start and turn end (SPL-6515, latency action 5)
+
+A busy claude agent used to see a message only at the end of its next tool
+call. The same injection now also runs at `PreToolUse` (a message that came
+while the model chose its next call is shown as that call starts) and at
+`Stop` (a message that came after the turn's last tool is shown before the
+turn ends). Claude Code 2.1.323 takes `additionalContext` on both: on `Stop`
+it is "non-error feedback delivered to the model; the conversation continues
+so the model can act on it" (the binary's schema text).
+
+- **Once per message, ever.** `.hook-seen` moves past every message shown,
+  so a `Stop` with nothing new prints nothing and the turn ends: the `Stop`
+  never loops, and no `decision: block` is added for a message.
+- **An API-error `Stop` injects nothing**: the next prompt shows the message,
+  so no turn is spent on an API that just failed.
+- **Beside, never instead**: on a `PreToolUse` deny or a `Stop` block the
+  context is added to that output; the deny or the block stands.
+- Install: `do_spl_agent_hooks_install` already registers all six events
+  (`PreToolUse` and `Stop` included), so no settings change was needed.
+- Tests: `spawn-agents/tests/test-agent-hook.sh` section 12; red control: the
+  parent commit's hook fails 9 of its checks.
+- Measured (`python3 -I spawn-agents/tests/busy-wait-replay.py <spool root>
+  [--time]`, read-only, a replay over every claude seat's real
+  `heartbeat.log`, before = PostToolUse else the next prompt, after = the
+  first PreToolUse, PostToolUse or Stop), 2026-11-25, one box, 26 claude
+  seats: message-weighted n=18, p90 5.5 s -> 5.5 s (no change visible at
+  this n); time-weighted (an arrival every second of every turn) n=18692,
+  p50 88.5 s -> 66.5 s, p90 416.5 s -> 394.5 s, max 2596.5 s -> 600.5 s. The
+  wait left is a tool still running: no hook fires inside a tool call. The
+  live measure after the deploy is `do_spl_latency_hops`' busy hop.
+
 ### 7.3 The other harnesses
 
 | harness | hook mechanism (claimed, from the binary or the docs) | until its ping test passes | after |
 |---|---|---|---|
-| claude | `additionalContext` on UserPromptSubmit / PostToolUse; Stop block | - | everything in 7.1 |
+| claude | `additionalContext` on SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Stop; Stop block | - | everything in 7.1 |
 | agy | `hooks.json`: PreToolUse, PostToolUse, SessionStart; `PreInvocation` returning `injectSteps` (`ephemeralMessage`) for injection; `Stop` returning `decision: "continue"` (agy-1, agy-2) | the S8 path: progress from its transcript's non-error writes; inbox by poke + `spool recv` | heartbeat from PreToolUse / PostToolUse; injection through `PreInvocation`; its long-turn grace from `PreInvocation`'s `turn_since` and transcript appends (agy-2), not a claude spinner |
 | grok | PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, `additionalContext` (c-002 msg 9f8bc88e, read from the binary) | same as agy | the claude script, if the ping proves `additionalContext` reaches the model |
 | qwen | `qwen hooks` (documented) | same | same |

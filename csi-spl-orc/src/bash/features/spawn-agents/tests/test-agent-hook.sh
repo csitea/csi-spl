@@ -29,6 +29,13 @@
 #      the qualified layout (<id> -> <id>@<box>) is the agent's own dir
 #   9. do_spl_agent_hooks_install: dry run, install, idempotent, mirror kept,
 #      uninstall, a bad file refused, the installed command runs
+#  12. SPL-6515 (latency action 5): a busy claude agent gets a message at the
+#      next tool START (PreToolUse) and, when it came after the turn's last
+#      tool, before the turn ends (Stop); each message once, ever; a second
+#      Stop with nothing new prints nothing (no loop); an API-error Stop
+#      injects nothing (the next prompt does); a Stop block keeps its
+#      decision and carries the context; grok / vibe get none. Red control:
+#      the parent commit's hook fails 12's tool-start and Stop checks.
 set -uo pipefail
 . "$(dirname "$0")/lib.inc.sh"
 t_sandbox
@@ -177,7 +184,7 @@ eq "nothing new: no output" "" "$out3"
 eq "never archives: 5 files still in the inbox" 5 "$(ls "$D/inbox" | wc -l)"
 eq "never archives: archive empty" 0 "$(ls "$D/archive" | wc -l)"
 outp="$(hook PreToolUse $((T0 + 203)) '{"tool_name":"Read"}')"
-eq "PreToolUse never injects" "" "$outp"
+eq "PreToolUse: nothing new, nothing injected (each message once)" "" "$outp"
 out4="$(hook SessionStart $((T0 + 204)) '{}' | ctx)"
 has "SessionStart re-injects every unread file (oldest first)" "msg_id: id-1" "$out4"
 msg m6 $((T0 + 6)) id-6 "late body"
@@ -376,5 +383,51 @@ mkdir -p "$SPOOL_ROOT/c-905@box-t/inbox"; ln -s c-905@box-t "$SPOOL_ROOT/c-905"
 err="$(env SPOOL_AGENT_ID=c-905 HOOK_NOW=$((T0 + 1002)) bash "$HOOK" PreToolUse <<<'{}' 2>&1 >/dev/null)"
 check "11. CONTROL: the qualified layout c-905 -> c-905@box-t is its own dir: written, no REFUSE" test -s "$SPOOL_ROOT/c-905@box-t/heartbeat.json" -a -z "$err"
 rm -rf "$G" "$SPOOL_ROOT/c-001" "$SPOOL_ROOT/c-905" "$SPOOL_ROOT/c-905@box-t"
+
+# ---- 12. SPL-6515: tool start and turn end deliver to a busy agent ----------
+echo "# 12. tool start + turn end delivery (SPL-6515)"
+rm -f "$D/inbox"/*.json "$D/.hook-seen" "$D/lifetime/poke-ledger.tsv"
+T2=$((T0 + 2000)); A12="$T_TMP/all12.out"; : >"$A12"
+run12() { hook "$@" | tee -a "$A12"; }  # every output of the turn, for the once-only count
+run12 SessionStart $T2 '{}' >/dev/null
+run12 UserPromptSubmit $((T2 + 1)) '{"prompt":"work"}' >/dev/null
+eq "12. CONTROL: an empty inbox, PreToolUse prints nothing" "" "$(run12 PreToolUse $((T2 + 2)) '{"tool_name":"Bash"}')"
+msg a1 $((T2 + 3)) mid-1 "written during tool 1"
+has "12. written during tool 1: its PostToolUse shows it" "msg_id: mid-1" "$(run12 PostToolUse $((T2 + 4)) '{"tool_name":"Bash","tool_input":{"c":1}}' | ctx)"
+msg a2 $((T2 + 5)) mid-2 "written while the model chose tool 2"
+o12="$(run12 PreToolUse $((T2 + 6)) '{"tool_name":"Read"}')"
+has "12. written before tool 2 starts: its PreToolUse shows it" "msg_id: mid-2" "$(ctx <<<"$o12")"
+has "12. ... as PreToolUse additionalContext" '"hookEventName": "PreToolUse"' "$o12"
+hasnt "12. ... never a deny" "permissionDecision" "$o12"
+hasnt "12. ... and not mid-1 again" "msg_id: mid-1" "$o12"
+eq "12. tool 2's PostToolUse: nothing new" "" "$(run12 PostToolUse $((T2 + 7)) '{"tool_name":"Read","tool_input":{"c":2}}')"
+msg a3 $((T2 + 8)) mid-3 "written after the last tool"
+o12="$(run12 Stop $((T2 + 9)) "{\"transcript_path\":\"$TRG\"}")"
+has "12. written after the last tool: the Stop shows it before the turn ends" "msg_id: mid-3" "$(ctx <<<"$o12")"
+has "12. ... as Stop additionalContext" '"hookEventName": "Stop"' "$o12"
+hasnt "12. ... not a block" '"decision"' "$o12"
+eq "12. the next Stop has nothing new: no output, the turn ends (no loop)" "" "$(run12 Stop $((T2 + 10)) "{\"transcript_path\":\"$TRG\",\"stop_hook_active\":true}")"
+eq "12. the next prompt: nothing again" "" "$(run12 UserPromptSubmit $((T2 + 11)) '{"prompt":": SPOOL poke"}')"
+for m in mid-1 mid-2 mid-3; do
+  eq "12. $m shown exactly once over the turn" 1 "$(grep -c "msg_id: $m" "$A12")"
+done
+L12="$D/lifetime/poke-ledger.tsv"
+eq "12. ledger: one surfaced row each, via the hook that showed it" "mid-1 PostToolUse|mid-2 PreToolUse|mid-3 Stop" "$(awk -F'\t' '$1=="surfaced"{printf "%s%s %s", s, $4, $8; s="|"}' "$L12")"
+msg a4 $((T2 + 12)) mid-4 "written before an API error"
+TRE="$T_TMP/err12.jsonl"; transcript "$TRE" 1 "API Error: 529 overloaded"
+eq "12. an API-error Stop injects nothing (no turn spent on a failing API)" "" "$(hook Stop $((T2 + 13)) "{\"transcript_path\":\"$TRE\"}")"
+has "12. ... the next prompt shows it" "msg_id: mid-4" "$(hook UserPromptSubmit $((T2 + 14)) '{}' | ctx)"
+msg a5 $((T2 + 15)) mid-5 "written beside an offered job"
+msg st5 $((T2 + 16)) job-55 "" 2
+o12="$(hook Stop $((T2 + 17)) "{\"transcript_path\":\"$TRG\"}")"
+has "12. a Stop block keeps its decision" '"decision": "block"' "$o12"
+has "12. ... and its reason" "you have 1 offered jobs" "$o12"
+has "12. ... and carries the new message" "msg_id: mid-5" "$(ctx <<<"$o12")"
+rm -f "$D/inbox/st5.json"
+msg a6 $((T2 + 18)) mid-6 "for a grok seat"
+eq "12. grok: no injection at PreToolUse" "" "$(SPOOL_HARNESS=grok hook PreToolUse $((T2 + 19)) '{"tool_name":"Read"}')"
+eq "12. grok: no injection at Stop" "" "$(SPOOL_HARNESS=grok hook Stop $((T2 + 20)) '{}')"
+eq "12. vibe: no injection at Stop" "" "$(SPOOL_HARNESS=vibe hook Stop $((T2 + 21)) '{}')"
+has "12. CONTROL: the same message still reaches claude at its next tool start" "msg_id: mid-6" "$(hook PreToolUse $((T2 + 22)) '{"tool_name":"Read"}' | ctx)"
 
 t_done

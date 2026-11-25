@@ -20,8 +20,18 @@
 #   inject      (claude) inbox files newer than <id>/.hook-seen, oldest first,
 #               at most 3 messages and 12 KB per injection, a body cut at 4 KB,
 #               returned as additionalContext on SessionStart (every unread
-#               file), UserPromptSubmit and PostToolUse. It never archives and
-#               never accepts. A stub is an inbox object with a "round".
+#               file), UserPromptSubmit, PreToolUse, PostToolUse and Stop. It
+#               never archives and never accepts. A stub is an inbox object
+#               with a "round". PreToolUse and Stop (SPL-6515, latency action
+#               5): a busy agent sees a message at the next tool START, and
+#               one that arrived during the turn's last tool before the turn
+#               ends (claude 2.1.323: Stop additionalContext is fed to the
+#               model and the turn goes on). .hook-seen moves past every
+#               message shown, so each one is injected once, ever: a Stop
+#               with nothing new prints nothing and the turn ends; no Stop
+#               loops. An API-error Stop injects nothing (the next prompt
+#               does). The context is added beside a deny or a block, never
+#               in place of it.
 #   ledger      <id>/lifetime/poke-ledger.tsv (spec 053 section 8): a
 #               "surfaced" row per injected message (msg_id, inbox mtime) and
 #               a "prompt" row per UserPromptSubmit, beside the "poke" rows
@@ -668,6 +678,8 @@ def main():
         elif claude:
             # vibe reads additional_context on post_tool only: it warns there
             ctx.append(guard_shell(payload))
+        if claude:
+            ctx.append(inject(False))
     elif event == "PostToolUse":
         tool = str(payload.get("tool_name") or "?")
         sig = h(tool, payload.get("tool_input"))[:6]
@@ -706,6 +718,8 @@ def main():
             # vibe's post_agent fires only after a turn that completed (an
             # LLM error raises before it: vibe/core/agent_loop/_loop.py)
             hb.update(progress_ts=iso(now), api_error=None)
+        if claude and not (e is not None and e.get("isApiErrorMessage")):
+            ctx.append(inject(False))
         if claude and not payload.get("stop_hook_active"):
             stubs, stale = open_stubs(), untouched(held())
             if stubs or stale:
@@ -726,7 +740,7 @@ def main():
 
     text = "\n\n".join(c for c in ctx if c)
     if text:
-        out = {"hookSpecificOutput": {"hookEventName": event, "additionalContext": text}}
+        out.setdefault("hookSpecificOutput", {"hookEventName": event})["additionalContext"] = text
     if out:
         sys.stdout.write(dumps(out) + "\n")
 

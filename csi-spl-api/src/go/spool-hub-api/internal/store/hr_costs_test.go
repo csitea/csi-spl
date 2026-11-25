@@ -2,8 +2,12 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,7 +42,7 @@ func TestHRPeopleNames(t *testing.T) {
 	for name, st := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
 			hs := st.(HRCostStore)
-			code := "T-" + digitsOf(uid(""))
+			code := hrTestCode('T')
 			p, err := hs.CreateHRPerson(ctx, HRPerson{Code: code, Name: "FirstName LastName", Department: "Dev", EmploymentType: "employee", BirthYear: 1990, CreatedBy: "op"})
 			if err != nil || !uuidRe.MatchString(p.ID) || p.Name != "FirstName LastName" {
 				t.Fatalf("create: %+v %v", p, err)
@@ -78,13 +82,53 @@ func TestHRPeopleNames(t *testing.T) {
 	}
 }
 
-// digitsOf is 4 digits made from s, for a unique code per run.
+// digitsOf is 4 digits made from s, for a month far back.
 func digitsOf(s string) string {
 	out := []byte{}
 	for i := 0; len(out) < 4; i++ {
 		out = append(out, '0'+s[i%len(s)]%10)
 	}
 	return string(out)
+}
+
+// hrCodeSpace is every code hrTestCode mints: two capital letters after
+// the marker, times four digits.
+const hrCodeSpace = 26 * 26 * 10000
+
+// hrCodeNext counts the codes this process minted, from a random start: two
+// calls never repeat, and a database an earlier run left codes in is hit
+// only at random. The old "T-" + digitsOf(uid("")) repeated once in ~7000
+// pairs (4 digits, uneven from hex), and hr_people.code is UNIQUE: two
+// tests on one group database drew the same code and got ErrConflict.
+var hrCodeNext = func() *atomic.Uint64 {
+	var n atomic.Uint64
+	b := make([]byte, 8)
+	rand.Read(b) //nolint:errcheck
+	n.Store(binary.BigEndian.Uint64(b) % hrCodeSpace)
+	return &n
+}()
+
+// hrTestCode is a person code unique in this process: the marker, two
+// letters, a dash and four digits (rdb 0280's CHECK, CheckHRPerson).
+func hrTestCode(marker byte) string {
+	n := hrCodeNext.Add(1) % hrCodeSpace
+	return fmt.Sprintf("%c%c%c-%04d", marker, 'A'+n/260000, 'A'+n/10000%26, n%10000)
+}
+
+// More draws than 4 digits hold: every one passes the code CHECK and none
+// repeats (the old generator must repeat by draw 10001).
+func TestHRTestCodesAreUnique(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 20000; i++ {
+		code := hrTestCode('T')
+		if msg := CheckHRPerson(HRPerson{Code: code, Name: "x", EmploymentType: "employee"}); msg != "" {
+			t.Fatalf("draw %d: %s: %s", i, code, msg)
+		}
+		if seen[code] {
+			t.Fatalf("draw %d repeated %s", i, code)
+		}
+		seen[code] = true
+	}
 }
 
 // SPL-5433: the name table's policy hides it unless app.costs_names is on,
@@ -95,7 +139,7 @@ func TestHRPersonNamesNeedTheFlag(t *testing.T) {
 	if !ok {
 		t.Skip("no SPOOL_TEST_PG_DSN")
 	}
-	if _, err := pg.CreateHRPerson(ctx, HRPerson{Code: "N-" + digitsOf(uid("")), Name: "FirstName LastName", EmploymentType: "contractor", CreatedBy: "op"}); err != nil {
+	if _, err := pg.CreateHRPerson(ctx, HRPerson{Code: hrTestCode('N'), Name: "FirstName LastName", EmploymentType: "contractor", CreatedBy: "op"}); err != nil {
 		t.Fatal(err)
 	}
 	var without, with int
@@ -174,7 +218,7 @@ func TestCostEntryHRFields(t *testing.T) {
 	for name, st := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
 			ce, hs := st.(CostEntryStore), st.(HRCostStore)
-			p, err := hs.CreateHRPerson(ctx, HRPerson{Code: "F-" + digitsOf(uid("")), Name: "FirstName LastName", EmploymentType: "hourly", CreatedBy: "op"})
+			p, err := hs.CreateHRPerson(ctx, HRPerson{Code: hrTestCode('F'), Name: "FirstName LastName", EmploymentType: "hourly", CreatedBy: "op"})
 			if err != nil {
 				t.Fatal(err)
 			}

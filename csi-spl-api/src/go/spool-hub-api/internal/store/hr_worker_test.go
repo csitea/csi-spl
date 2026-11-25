@@ -177,7 +177,7 @@ func TestHRWorkerStore(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ws := st.(HRWorkerStore)
 			hs := st.(HRCostStore)
-			person, err := hs.CreateHRPerson(ctx, HRPerson{Code: "W-" + digitsOf(uid("")), Name: "FirstName LastName", EmploymentType: "employee", BirthYear: 1990, CreatedBy: "op"})
+			person, err := hs.CreateHRPerson(ctx, HRPerson{Code: hrTestCode('W'), Name: "FirstName LastName", EmploymentType: "employee", BirthYear: 1990, CreatedBy: "op"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -261,7 +261,7 @@ func TestHRWorkerTablesNeedTheFlag(t *testing.T) {
 	if !ok {
 		t.Skip("no SPOOL_TEST_PG_DSN")
 	}
-	person, err := pg.CreateHRPerson(ctx, HRPerson{Code: "T-" + digitsOf(uid("")), Name: "FirstName LastName", EmploymentType: "employee", CreatedBy: "op"})
+	person, err := pg.CreateHRPerson(ctx, HRPerson{Code: hrTestCode('T'), Name: "FirstName LastName", EmploymentType: "employee", CreatedBy: "op"})
 	if err != nil {
 		t.Fatal(err)
 	}

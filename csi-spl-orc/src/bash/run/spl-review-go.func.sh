@@ -411,13 +411,34 @@ _spl_review_go_title() {
   return 0
 }
 
+# _spl_review_go_wt_slug <id>: the <slug> of the <id>-<slug> branch checked
+# out in the worktree its identity record names (live, else newest retired),
+# read from the worktree's HEAD file (no git call: the seat's tree may be
+# another user's); empty when none (SPL-6505: a seat retitled by hand keeps
+# its branch).
+_spl_review_go_wt_slug() {
+  local rec="$SPOOL_ROOT/agents/$1.json" recs wt gd br
+  recs=("$SPOOL_ROOT/agents/retired/$1".*.json)
+  [[ -s "$rec" ]] || rec="${recs[-1]}"
+  wt="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree") or "")' "$rec" 2>/dev/null)"
+  [[ -n "$wt" && -d "$wt" ]] || return 0
+  gd="$(sed -n 's/^gitdir: //p' "$wt/.git" 2>/dev/null)"
+  [[ -n "$gd" ]] || gd="$wt/.git"
+  [[ "$gd" == /* ]] || gd="$wt/$gd"
+  br="$(sed -n 's#^ref: refs/heads/##p' "$gd/HEAD" 2>/dev/null)"
+  [[ "$br" == "$1-"* && "${br#"$1"-}" =~ ^[A-Za-z0-9._-]+$ ]] && echo "${br#"$1"-}"
+  return 0
+}
+
 # _spl_review_go_slug <reviewer> <its brief>: the reviewer's placement slug:
 # the brief's name when it is a dispatch/briefs copy, else its identity
-# title, else `-` (no sibling brief is then ever matched to it).
+# title, else its worktree branch's slug (_spl_review_go_wt_slug), else `-`
+# (no sibling brief is then ever matched to it).
 _spl_review_go_slug() {
   local t
   if [[ "$2" == "$SPOOL_ROOT/dispatch/briefs/"*.md ]]; then t="${2##*/}"; echo "${t%.md}"; return 0; fi
   t="$(_spl_review_go_title "$1")"
+  [[ -n "$t" ]] || t="$(_spl_review_go_wt_slug "$1")"
   echo "${t:--}"
 }
 

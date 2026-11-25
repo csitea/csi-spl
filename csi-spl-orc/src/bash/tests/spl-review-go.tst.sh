@@ -146,6 +146,12 @@
 #        terraform apply." after "3. Run when ready" -> GO (on b45-01's tree,
 #        the `$` of cond crossed the newline: rc 4); controls: the same-line
 #        "If no errors apply ..." under Do and Steps -> rc 4
+#    32. a seat whose title is no slug (SPL-6505, a-565: a human /rename
+#        "review human-order actor"), a lifetime brief: RED CONTROL its own
+#        dispatch/briefs/<slug>.md, the slug of its worktree branch
+#        <id>-<slug>, is not a sibling -> GO (was rc 10, WAIT on itself);
+#        controls: a real second seat still waits (rc 10, WAIT names it,
+#        not the reviewer); a record with no worktree keeps today's rc 10
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -1244,6 +1250,40 @@ for fx in 'Do|## Do
   f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 31000000-0000-4000-8000-000000000002)
   run REVIEW_GO_MSG="$f"; refused "31. control: a same-line conditional apply in a ${fx%%|*} step still holds" $? 4 "owner-go keyword 'apply'"
 done
+
+# --- 32. a seat whose title is no slug: its own slug from its worktree branch (SPL-6505) ----------------
+# a-565 on sat: title "review human-order actor", branch a-565-c002-r99-01-orc-human-order-actor-agy-reviewer,
+# its lifetime brief the placed brief plus the owner orders the spawn appends (so no byte match either)
+reset32() {
+  reset; rm -rf "${S:?}/g-111"; mkdir -p "$S/agents" "$S/dispatch/briefs" "$S/a-333/lifetime"
+  "${G[@]}" -C "$T/repo" worktree remove --force "$T/wt/a-333" 2>/dev/null
+  "${G[@]}" -C "$T/repo" branch -qD a-333-c002-x-agy-reviewer 2>/dev/null
+  "${G[@]}" -C "$T/repo" worktree add -q -b a-333-c002-x-agy-reviewer "$T/wt/a-333" "$SHA" 2>/dev/null
+  printf '{"id":"a-333","title":"review x actor","worktree":"%s","v":1}\n' "${1-$T/wt/a-333}" >"$S/agents/a-333.json"
+  pbrief c002-x-agy-reviewer "$(prose)"
+  { cat "$S/dispatch/briefs/c002-x-agy-reviewer.md"; printf '\n## Owner orders on these paths\n\n- none\n'; } >"$S/a-333/lifetime/brief.md"
+  rlog a-333 "bash csi-spl-orc/src/bash/tests/foo.tst.sh"
+}
+reset32
+f=$(msg 20261028T115900Z a-333@boxa "$(line a-333 agy PASS)" 32000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 && $(gos) == 1 && $(waits) == 0 )) && grep -qE "^PASS [^ ]+ 32000000-0000-4000-8000-000000000001 $TASK c-222 a-333 $SHA$" "$LOG" &&
+  pass "32. RED CONTROL: a seat titled 'review x actor' on branch a-333-c002-x-agy-reviewer is not its own sibling -> GO" ||
+  fail "32. own seat rc=$rc gos=$(gos) log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"
+reset32; live g-111 c002-x-grok-reviewer; pbrief c002-x-grok-reviewer "$(prose)"
+f=$(msg 20261028T115900Z a-333@boxa "$(line a-333 agy PASS)" 32000000-0000-4000-8000-000000000002)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 10 && $(gos) == 0 && $(waits) == 1 )) &&
+  grep -qE "^WAIT [^ ]+ 32000000-0000-4000-8000-000000000002 $TASK c-222 a-333 $SHA c002-x-agy-reviewer$" "$LOG" &&
+  grep -q 'other review seat(s): c002-x-grok-reviewer\.' "$T/s/sent.log" && ! grep -q 'seat(s):.*c002-x-agy-reviewer' "$T/s/sent.log" &&
+  pass "32. control: a real second seat still waits (rc 10), the WAIT names it, the reviewer's own slug on the line" ||
+  fail "32. second seat rc=$rc gos=$(gos) log=$(cat "$LOG" 2>/dev/null) sent=$(cat "$T/s/sent.log")"
+reset32 ""
+f=$(msg 20261028T115900Z a-333@boxa "$(line a-333 agy PASS)" 32000000-0000-4000-8000-000000000003)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 10 && $(gos) == 0 )) && pass "32. control: a record with no worktree keeps today's path (rc 10)" ||
+  fail "32. no worktree rc=$rc out=$(tail -3 "$T/out")"
+"${G[@]}" -C "$T/repo" worktree remove --force "$T/wt/a-333" 2>/dev/null
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

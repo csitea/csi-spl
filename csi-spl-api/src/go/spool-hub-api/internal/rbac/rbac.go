@@ -87,6 +87,13 @@ const (
 	// an operator-made member in a workspace that holds a key until a
 	// confirmed manager confirms it (hub/vendor_keys.go).
 	VendorKeysManage = "vendor_keys.manage"
+	// VendorLoginsManage is the permission to sign the workspace's agent
+	// CLIs in and out of their vendor subscriptions from the web UI (spec
+	// 192 section 2, rdb 0325): the sign-in relay /v1/signin-relay*.
+	// biz_owner and admin (spec 192 Q-1 A). The hub refuses it under an
+	// act-as session and for an unconfirmed operator-made manager, the same
+	// two rules as VendorKeysManage (hub/signin_relay.go).
+	VendorLoginsManage = "vendor_logins.manage"
 )
 
 // The 23 action ids of spec 152 3.1 (rdb 0223, build row B1). Each one's
@@ -238,6 +245,7 @@ var Permissions = []PermissionDoc{
 	{ReportingSQL, "run reporting SQL"},
 	{EmbedsVisitors, "see and handle website visitors: lead, block"},
 	{VendorKeysManage, "set, replace and remove the workspace's agent vendor keys; confirm an operator-made manager"},
+	{VendorLoginsManage, "sign the workspace's agent CLIs in and out of their vendor subscriptions"},
 }
 
 // Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
@@ -266,19 +274,20 @@ var Permissions = []PermissionDoc{
 // only (specs/123 16, SPL-5359). rdb 0279 adds hours.norm to biz_owner,
 // product_owner and admin (specs/107 FR-41, SPL-5440). rdb 0294 adds
 // hours.prices to biz_owner alone, pinned there by a CHECK (specs/107 21.5
-// rule 1, SPL-5871).
+// rule 1, SPL-5871). rdb 0325 adds vendor_logins.manage to biz_owner and
+// admin (spec 192 section 2, Q-1 A).
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite,
 		HoursRead, HoursApprove,
 		ChannelsAIAgents, MessagesKind, IssuesBlocker, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
-		RoadmapPublish, MarketingPublish, EmbedsManage, PermsEdit, EmbedsVisitors, VendorKeysManage, CostsWrite, HoursNorm, HoursPrices)...)},
+		RoadmapPublish, MarketingPublish, EmbedsManage, PermsEdit, EmbedsVisitors, VendorKeysManage, VendorLoginsManage, CostsWrite, HoursNorm, HoursPrices)...)},
 	{ID: ProductOwner, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite,
 		ResultsAccept, ShipApprove, HoursNorm)...)},
 	{ID: Admin, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin, DocsRead, DocsWrite,
 		ChannelsAIAgents, MessagesKind, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
-		RoadmapPublish, PermsEdit, ReportingSQL, EmbedsVisitors, VendorKeysManage, CostsWrite, HoursNorm)...)},
+		RoadmapPublish, PermsEdit, ReportingSQL, EmbedsVisitors, VendorKeysManage, VendorLoginsManage, CostsWrite, HoursNorm)...)},
 	{ID: Developer, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite,
 		ResultsAccept, ShipApprove)...)},
 	{ID: Tester, Perms: withMember(TopicsRead, NotesSend, DocsRead, DocsWrite)},

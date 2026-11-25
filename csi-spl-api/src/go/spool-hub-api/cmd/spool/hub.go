@@ -449,6 +449,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		NotesAgentAddEnabled:         hc.NotesAgentAddEnabled,         // spec 155 2.11 (OQ-5)
 		CalendarOutlookImportEnabled: hc.CalendarOutlookImportEnabled, // spec 180 FR-11
 		SigninRelayKinds:             hc.SigninRelayKinds,             // spec 181 B11: one switch per vendor, default off
+		OperatorSigninRelayKinds:     hc.OperatorSigninRelayKinds,     // spec 192 4.1: the operator workspace's own switch
 		ContactsWorkspaces:           hc.ContactsWorkspaces,           // spec 154 2.9 B3
 		ContactsPhotos: hub.ContactsPhotoConfig{Hosts: hc.ContactsPhotoHosts, // spec 154 11.4 B16
 			MaxPerPerson: hc.ContactsPhotoMaxPerPerson},

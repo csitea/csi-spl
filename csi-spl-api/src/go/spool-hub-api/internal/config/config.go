@@ -321,6 +321,12 @@ type Hub struct {
 	// (spec 181 B11, Q-14 A): one switch per vendor, each turned on only
 	// after that vendor's written OK. Unset = off for every vendor.
 	SigninRelayKinds []string `env:"SPOOL_HUB_SIGNIN_RELAY_KINDS" envSeparator:","`
+	// OperatorSigninRelayKinds are the kinds whose sign-in relay is on for
+	// the operator workspace alone (spec 192 4.1, Q-3 B): every kind with a
+	// wired login, the owner's own accounts on the fleet's own boxes. Every other
+	// workspace reads SigninRelayKinds. Unset or empty = "claude"; a list
+	// naming no kind (e.g. "off") turns it off.
+	OperatorSigninRelayKinds []string `env:"SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS" envSeparator:"," envDefault:"claude"`
 	// Editable Repo Docs (spec 075 repo-edit; cnf env.docs.repo_edit, which
 	// do_spl_merged_cnf derives into SPOOL_HUB_DOCS_EDIT_*). Enabled false is
 	// the kill switch: the edit routes 404 and no worker pushes. The App key

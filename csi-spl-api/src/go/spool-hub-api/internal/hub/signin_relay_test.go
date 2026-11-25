@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -35,6 +36,14 @@ import (
 // a private workspace's VM. The row's two red controls:
 //   - a relayed input found in a hub table or log -> TestSigninRelayNeverStoresInput fails;
 //   - the switch off -> the relay refuses: TestSigninRelaySwitchOff.
+//
+// Spec 192 row L1 (SPL-6519) widens it; its red controls:
+//   - R2: a member without vendor_logins.manage -> 403, the permission
+//     check removed -> 200/201: TestSigninRelayRefusals, TestSigninRelayLoginsPermission;
+//   - R4: a customer workspace's switch off -> 403 signin_relay_off while the
+//     operator workspace's own switch answers 201: TestSigninRelayOperatorSwitch;
+//   - R6: act-as -> 403 act_as_refused, an unconfirmed operator-made manager
+//     -> 403 admin_unconfirmed: TestSigninRelayActAsAndUnconfirmed.
 
 // relayInput is the person's pasted code in these tests; a real one is a
 // vendor's, never in a test.
@@ -232,14 +241,17 @@ func TestSigninRelayRefusals(t *testing.T) {
 		return code, s
 	}
 	if code, tok := start(biz, map[string]any{"kind": "claude"}); code != http.StatusConflict || tok != "no_private_vm" {
-		t.Fatalf("no dedicated box: %d %s, want 409 no_private_vm", code, tok)
+		t.Fatalf("no box: %d %s, want 409 no_private_vm", code, tok)
 	}
 	b := e.box(tid, "shared-1")
 	e.pin(tid, b)
-	if code, tok := start(biz, map[string]any{"kind": "claude"}); code != http.StatusConflict || tok != "no_private_vm" {
-		t.Fatalf("only a non-dedicated box: %d %s, want 409 no_private_vm", code, tok)
+	if code, tok := start(biz, map[string]any{"kind": "claude"}); code != http.StatusConflict || tok != "box_key_not_enrolled" {
+		t.Fatalf("only a box with no desk key: %d %s, want 409 box_key_not_enrolled", code, tok)
 	}
 	relayVM(t, e, tid, "vm-1")
+	other, _ := e.tenant()
+	e.pin(other, e.box(other, "elsewhere-1"))
+	enrolDesk(t, e, other, "elsewhere-1")
 	for _, c := range []struct {
 		as   string
 		body map[string]any
@@ -248,7 +260,8 @@ func TestSigninRelayRefusals(t *testing.T) {
 	}{
 		{member, map[string]any{"kind": "claude"}, http.StatusForbidden, "forbidden"},
 		{biz, map[string]any{"kind": "nope"}, http.StatusBadRequest, "bad_kind"},
-		{biz, map[string]any{"kind": "claude", "box": "shared-1"}, http.StatusConflict, "no_private_vm"},
+		{biz, map[string]any{"kind": "claude", "box": "shared-1"}, http.StatusConflict, "box_key_not_enrolled"},
+		{biz, map[string]any{"kind": "claude", "box": "elsewhere-1"}, http.StatusConflict, "no_private_vm"},
 		{biz, map[string]any{"kind": "claude", "extra": 1}, http.StatusBadRequest, "bad_request"},
 	} {
 		if code, tok := start(c.as, c.body); code != c.code || (c.tok != "forbidden" && tok != c.tok) {
@@ -264,7 +277,6 @@ func TestSigninRelayRefusals(t *testing.T) {
 	if code, _ := call(t, e, tid, http.MethodGet, "/v1/signin-relay/"+relay, admin, nil); code != http.StatusNotFound {
 		t.Errorf("another manager reads the relay: %d, want 404", code)
 	}
-	other, _ := e.tenant()
 	if code, _ := call(t, e, other, http.MethodGet, "/v1/signin-relay/"+relay, biz, nil); code == http.StatusOK {
 		t.Errorf("the relay read from another workspace: %d", code)
 	}
@@ -521,4 +533,132 @@ func pgCount(t *testing.T, pg *store.Postgres, tbl, tenant, needle, control stri
 		return 0, 0
 	}
 	return hits, ctl
+}
+
+// relayStart POSTs a claude relay in tid as as: its code and error token.
+func relayStart(t *testing.T, e *env, tid, as string, body map[string]any) (int, string) {
+	t.Helper()
+	if body == nil {
+		body = map[string]any{"kind": "claude"}
+	}
+	code, b := call(t, e, tid, http.MethodPost, "/v1/signin-relay", as, body)
+	tok, _ := b["error"].(string)
+	return code, tok
+}
+
+// TestSigninRelayEveryEnrolledBox is spec 192 A1: any box pinned to the
+// workspace with a desk key, a shared fleet box included, not only a
+// dedicated VM; several enrolled boxes need one named.
+func TestSigninRelayEveryEnrolledBox(t *testing.T) {
+	e := relayEnv(t, nil, "claude")
+	tid, _ := e.tenant()
+	biz := seat(t, e, tid, rbac.BizOwner)
+	e.pin(tid, e.box(tid, "shared-1"))
+	enrolDesk(t, e, tid, "shared-1")
+	if code, tok := relayStart(t, e, tid, biz, nil); code != http.StatusCreated {
+		t.Fatalf("the only enrolled box is a shared one: %d %s, want 201", code, tok)
+	}
+	relayVM(t, e, tid, "vm-1")
+	if code, tok := relayStart(t, e, tid, biz, nil); code != http.StatusConflict || tok != "box_required" {
+		t.Fatalf("two enrolled boxes, none named: %d %s, want 409 box_required", code, tok)
+	}
+	for _, box := range []string{"shared-1", "vm-1"} {
+		if code, tok := relayStart(t, e, tid, biz, map[string]any{"kind": "claude", "box": box}); code != http.StatusCreated {
+			t.Errorf("named %s: %d %s, want 201", box, code, tok)
+		}
+	}
+}
+
+// TestSigninRelayLoginsPermission is R2: both roles of spec 192 Q-1 A
+// (admin, biz_owner) start a relay; every other role reads 403.
+func TestSigninRelayLoginsPermission(t *testing.T) {
+	e := relayEnv(t, nil, "claude")
+	tid, _ := e.tenant()
+	relayVM(t, e, tid, "vm-1")
+	for _, r := range rbac.Defaults {
+		want := http.StatusForbidden
+		if r.ID == rbac.Admin || r.ID == rbac.BizOwner {
+			want = http.StatusCreated
+		}
+		if slices.Contains(r.Perms, rbac.VendorLoginsManage) != (want == http.StatusCreated) {
+			t.Errorf("rbac.Defaults %s: vendor_logins.manage held = %v, want only admin and biz_owner", r.ID, !(want == http.StatusCreated))
+		}
+		if code, tok := relayStart(t, e, tid, seat(t, e, tid, r.ID), nil); code != want {
+			t.Errorf("%s: POST = %d %s, want %d", r.ID, code, tok, want)
+		}
+	}
+}
+
+// TestSigninRelayOperatorSwitch is R4, spec 192 4.1 (Q-3 B): the operator
+// workspace reads its own list (default claude), every other workspace the
+// per-vendor list (default off); each list rules only its side.
+func TestSigninRelayOperatorSwitch(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		customer, operator []string
+		wantCust, wantOp   int
+	}{
+		{"defaults: customer off, operator claude", nil, []string{"claude"}, http.StatusForbidden, http.StatusCreated},
+		{"operator off, customer on", []string{"claude"}, []string{"off"}, http.StatusCreated, http.StatusForbidden},
+		{"operator grok only", nil, []string{"grok"}, http.StatusForbidden, http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			op := newTenantID("op")
+			e := rbacEnv(t, func(o *hub.Options) {
+				o.OperatorTenant, o.SigninRelayKinds, o.OperatorSigninRelayKinds = op, tc.customer, tc.operator
+			})
+			pub, _, _ := ed25519.GenerateKey(nil)
+			if err := e.st.CreateTenant(context.Background(), store.Tenant{ID: op, RootPubKey: pub}); err != nil {
+				t.Fatal(err)
+			}
+			cust, _ := e.tenant()
+			for _, c := range []struct {
+				tid  string
+				want int
+			}{{cust, tc.wantCust}, {op, tc.wantOp}} {
+				relayVM(t, e, c.tid, "vm-1")
+				code, tok := relayStart(t, e, c.tid, seat(t, e, c.tid, rbac.BizOwner), nil)
+				if code != c.want || (c.want == http.StatusForbidden && tok != "signin_relay_off") {
+					t.Errorf("%s (operator %v): POST = %d %s, want %d", c.tid, c.tid == op, code, tok, c.want)
+				}
+			}
+		})
+	}
+}
+
+// TestSigninRelayActAsAndUnconfirmed is R6: an act-as session reads 403
+// act_as_refused; an operator-made manager of a workspace that holds a key
+// reads 403 admin_unconfirmed until a confirmed manager confirms it (the
+// vendor_keys.manage rules, spec 192 section 2).
+func TestSigninRelayActAsAndUnconfirmed(t *testing.T) {
+	mem := store.NewMemory()
+	cm := &cloneMemory{Memory: mem}
+	e := rbacEnv(t, func(o *hub.Options) { o.Store, o.SigninRelayKinds = cm, []string{"claude"} })
+	e.st = cm
+	tid, _ := e.tenant()
+	relayVM(t, e, tid, "vm-1")
+	first := seat(t, e, tid, rbac.BizOwner) // operator-made, no key yet: confirmed
+	if code, tok := relayStart(t, e, tid, first, nil); code != http.StatusCreated {
+		t.Fatalf("CONTROL operator-made, no key held: %d %s, want 201", code, tok)
+	}
+	cm.clone = first
+	if code, tok := relayStart(t, e, tid, first, nil); code != http.StatusForbidden || tok != "act_as_refused" {
+		t.Fatalf("act-as: %d %s, want 403 act_as_refused", code, tok)
+	}
+	cm.clone = ""
+	if _, err := mem.PutVendorKey(context.Background(), tid, store.VendorKeyPut{Kind: "claude", KeyID: "k-1",
+		Ciphertext: []byte{1}, WrappedDEK: []byte{1}, KMSKeyVersion: "1", Last4: "abcd", Fingerprint: "fp", Actor: first}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	confirmed, _ := seatBy(t, e, tid, rbac.Admin, first)
+	late := seat(t, e, tid, rbac.Admin) // operator-made, the workspace holds a key now
+	if code, tok := relayStart(t, e, tid, late, nil); code != http.StatusForbidden || tok != "admin_unconfirmed" {
+		t.Fatalf("unconfirmed operator-made admin: %d %s, want 403 admin_unconfirmed", code, tok)
+	}
+	if err := mem.ConfirmVendorKeyManager(context.Background(), tid, late, confirmed, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if code, tok := relayStart(t, e, tid, late, nil); code != http.StatusCreated {
+		t.Fatalf("CONTROL confirmed: %d %s, want 201", code, tok)
+	}
 }

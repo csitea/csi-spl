@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -36,15 +35,21 @@ import (
 //	POST   /v1/signin-relay/{relay}/input  {"input"} -> 202 {"relay","state":"input_sent"}
 //	DELETE /v1/signin-relay/{relay}        -> 204
 //
-// One switch per vendor, default off: hub env SPOOL_HUB_SIGNIN_RELAY_KINDS
-// (Options.SigninRelayKinds) names the kinds whose vendor gave its written
-// OK (O1 Anthropic, O2 xAI, O3 Mistral). A kind it does not name is 403
+// The switch per workspace (spec 192 4.1, Q-3 B): the operator workspace
+// reads hub env SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS
+// (Options.OperatorSigninRelayKinds, default "claude": every kind with a
+// wired login, the owner's own accounts on the fleet's own boxes); every other
+// workspace reads SPOOL_HUB_SIGNIN_RELAY_KINDS (Options.SigninRelayKinds,
+// default empty), the kinds whose vendor gave its written OK (O1 Anthropic,
+// O2 xAI, O3 Mistral). A kind its list does not name is 403
 // signin_relay_off, before anything is announced or sent.
 //
-// Who: a member with vendor_keys.manage (biz owner, admin), never under an
-// act-as session; only the person who started a relay reads or feeds it.
-// Where: the workspace's dedicated box (its private VM, 108 3.8) whose pin
-// holds a desk recipient (rdb 0235).
+// Who: a member with vendor_logins.manage (biz owner, admin; spec 192
+// section 2), never under an act-as session, and never an operator-made
+// manager a confirmed one has not confirmed (403 admin_unconfirmed, the
+// vendor_keys.manage rule); only the person who started a relay reads or
+// feeds it. Where: any box pinned to the workspace whose pin holds a desk
+// recipient (rdb 0235), shared fleet boxes included (spec 192 A1).
 //
 // Nothing is stored (Q-14 A): no table, no row, no log line holds the
 // input. The relay's state lives in each hub instance's memory until its
@@ -219,14 +224,18 @@ func (s *Server) routeSigninRelay(mux *http.ServeMux) {
 }
 
 // signinRelayActor is the caller: a member who manages the workspace's
-// vendor keys, not under act-as, on a hub whose store carries the relay.
+// vendor logins, not under act-as, not an unconfirmed operator-made
+// manager, on a hub whose store carries the relay.
 func (s *Server) signinRelayActor(w http.ResponseWriter, r *http.Request) (tenant, hum string, wk store.SigninRelayWaker, ok bool) {
-	t, a, _, _, ok := s.membersActor(w, r, rbac.VendorKeysManage)
+	t, a, _, _, ok := s.membersActor(w, r, rbac.VendorLoginsManage)
 	if !ok {
 		return "", "", nil, false
 	}
 	if s.vendorKeyActAs(r.Context(), t.ID, a.HumanID) {
 		writeErr(w, http.StatusForbidden, "act_as_refused", "a subscription is never signed in under an act-as session")
+		return "", "", nil, false
+	}
+	if !s.signinRelayConfirmed(w, r.Context(), t.ID, a.HumanID) {
 		return "", "", nil, false
 	}
 	wk, ok = s.o.Store.(store.SigninRelayWaker)
@@ -237,14 +246,50 @@ func (s *Server) signinRelayActor(w http.ResponseWriter, r *http.Request) (tenan
 	return t.ID, a.HumanID, wk, true
 }
 
-// signinRelayKindOn checks kind and its switch: 400 bad_kind, 403
+// signinRelayConfirmed refuses an operator-made manager no confirmed
+// manager has confirmed yet (403 admin_unconfirmed), the vendor_keys.manage
+// rule (vendor_keys.go, spec 192 section 2). A store that keeps no vendor
+// keys has no such manager; a store error refuses (500), never guesses.
+func (s *Server) signinRelayConfirmed(w http.ResponseWriter, ctx context.Context, tenant, hum string) bool {
+	st, ok := s.o.Store.(store.VendorKeys)
+	if !ok {
+		return true
+	}
+	confirmed, err := st.VendorKeyManagerConfirmed(ctx, tenant, hum)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "manager confirmation unavailable")
+		return false
+	}
+	if !confirmed {
+		writeErr(w, http.StatusForbidden, "admin_unconfirmed",
+			"an operator-made admin or business owner signs vendor accounts in only after a confirmed admin or business owner of this workspace confirms them")
+		return false
+	}
+	return true
+}
+
+// signinRelayKinds is tenant's switch (spec 192 4.1): the operator
+// workspace's own list, else the per-vendor list. An unreadable operator
+// flag reads as a customer workspace: the stricter list, never the wider.
+func (s *Server) signinRelayKinds(ctx context.Context, tenant string) []string {
+	op, err := s.operatorTenant(ctx)
+	if err != nil {
+		s.o.Log.Warn().Err(err).Str("tenant", tenant).Msg("signin_relay.operator_unread")
+	}
+	if err == nil && op != "" && op == tenant {
+		return s.o.OperatorSigninRelayKinds
+	}
+	return s.o.SigninRelayKinds
+}
+
+// signinRelayKindOn checks kind and tenant's switch: 400 bad_kind, 403
 // signin_relay_off.
-func (s *Server) signinRelayKindOn(w http.ResponseWriter, kind string) bool {
+func (s *Server) signinRelayKindOn(w http.ResponseWriter, ctx context.Context, tenant, kind string) bool {
 	if !slices.Contains(store.VendorKeyKinds, kind) {
 		writeErr(w, http.StatusBadRequest, "bad_kind", "not a vendor kind")
 		return false
 	}
-	if !slices.Contains(s.o.SigninRelayKinds, kind) {
+	if !slices.Contains(s.signinRelayKinds(ctx, tenant), kind) {
 		writeErr(w, http.StatusForbidden, "signin_relay_off",
 			"the sign-in relay is off for this vendor: it is switched on only after the vendor's written OK; an API key on Agent keys works meanwhile")
 		return false
@@ -272,7 +317,7 @@ func (s *Server) handleSigninRelayStart(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusBadRequest, "bad_request", `want {"kind", "box"?}`)
 		return
 	}
-	if !s.signinRelayKindOn(w, in.Kind) {
+	if !s.signinRelayKindOn(w, r.Context(), tenant, in.Kind) {
 		return
 	}
 	box, _, ok := s.signinRelayBox(w, r.Context(), tenant, in.Box)
@@ -291,25 +336,26 @@ func (s *Server) handleSigninRelayStart(w http.ResponseWriter, r *http.Request) 
 		ExpiresAt: time.UnixMilli(ev.Deadline).UTC().Format(time.RFC3339)})
 }
 
-// signinRelayBox is the workspace's private VM: its dedicated box (the one
-// named, else the only one) and that pin's desk recipient. 409
-// no_private_vm, box_required, box_key_not_enrolled.
+// signinRelayBox is the box to sign in on: any box pinned to the
+// workspace (spec 192 A1, shared fleet boxes included), the one named, else
+// the only enrolled one, and that pin's desk recipient. A box outside the
+// workspace is never reached. 409 no_private_vm (no such pinned box; the
+// token the web UI already maps), box_required, box_key_not_enrolled.
 func (s *Server) signinRelayBox(w http.ResponseWriter, ctx context.Context, tenant, want string) (string, age.Recipient, bool) {
-	boxes, err := s.dedicatedBoxes(ctx, tenant)
+	pins, err := s.o.Store.ListPins(ctx, tenant)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "the workspace's boxes were not read")
 		return "", nil, false
 	}
-	box := want
-	switch {
-	case want != "" && !slices.Contains(boxes, want), len(boxes) == 0:
-		writeErr(w, http.StatusConflict, "no_private_vm", "this workspace has no such dedicated box (its private VM) to sign in on")
+	box, ok := want, true
+	if want == "" {
+		box, ok = s.signinRelayOnlyBox(w, ctx, tenant, pins)
+	} else if !slices.ContainsFunc(pins, func(p store.Pin) bool { return p.BoxID == want }) {
+		writeErr(w, http.StatusConflict, "no_private_vm", "this workspace has no such box to sign in on")
 		return "", nil, false
-	case want == "" && len(boxes) > 1:
-		writeErr(w, http.StatusConflict, "box_required", "this workspace has several dedicated boxes: name one")
+	}
+	if !ok {
 		return "", nil, false
-	case want == "":
-		box = boxes[0]
 	}
 	to, ok := s.deskRecipient(ctx, tenant, box)
 	if !ok {
@@ -319,28 +365,27 @@ func (s *Server) signinRelayBox(w http.ResponseWriter, ctx context.Context, tena
 	return box, to, true
 }
 
-// dedicatedBoxes are tenant's pinned boxes that joined as dedicated.
-func (s *Server) dedicatedBoxes(ctx context.Context, tenant string) ([]string, error) {
-	pm, ok := s.o.Store.(store.BoxJoinSwitch)
-	if !ok {
-		return nil, nil
-	}
-	pins, err := s.o.Store.ListPins(ctx, tenant)
-	if err != nil {
-		return nil, err
-	}
-	var out []string
+// signinRelayOnlyBox is the one pin of pins whose desk is enrolled, when no
+// box is named: 409 no_private_vm (no pin), box_key_not_enrolled (pins, none
+// enrolled), box_required (several enrolled).
+func (s *Server) signinRelayOnlyBox(w http.ResponseWriter, ctx context.Context, tenant string, pins []store.Pin) (string, bool) {
+	var enrolled []string
 	for _, p := range pins {
-		mode, err := pm.PinBoxMode(ctx, tenant, p.BoxID)
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			return nil, err
-		}
-		if mode == store.BoxModeDedicated {
-			out = append(out, p.BoxID)
+		if _, ok := s.deskRecipient(ctx, tenant, p.BoxID); ok {
+			enrolled = append(enrolled, p.BoxID)
 		}
 	}
-	slices.Sort(out)
-	return out, nil
+	switch {
+	case len(pins) == 0:
+		writeErr(w, http.StatusConflict, "no_private_vm", "this workspace has no box to sign in on")
+	case len(enrolled) == 0:
+		writeErr(w, http.StatusConflict, "box_key_not_enrolled", "no box of this workspace registered an X25519 key at join, so nothing can be sealed to one")
+	case len(enrolled) > 1:
+		writeErr(w, http.StatusConflict, "box_required", "this workspace has several enrolled boxes: name one")
+	default:
+		return enrolled[0], true
+	}
+	return "", false
 }
 
 // deskRecipient is box's desk X25519 recipient (rdb 0235).
@@ -418,7 +463,7 @@ func (s *Server) handleSigninRelayGet(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSigninRelayInput(w http.ResponseWriter, r *http.Request) {
 	v, tenant, wk, ok := s.signinRelayOwn(w, r)
-	if !ok || !s.signinRelayKindOn(w, v.Kind) {
+	if !ok || !s.signinRelayKindOn(w, r.Context(), tenant, v.Kind) {
 		return
 	}
 	var in struct {

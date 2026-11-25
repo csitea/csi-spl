@@ -19201,7 +19201,7 @@
                 }
               }
             },
-            "description": "Started: the hub asked the private VM to start the CLI's own terminal login"
+            "description": "Started: the hub asked the box to start the CLI's own terminal login"
           },
           "400": {
             "content": {
@@ -19224,7 +19224,7 @@
                 }
               }
             },
-            "description": "Forbidden: no vendor_keys.manage, act_as_refused, or signin_relay_off (the vendor's switch is off, the default)"
+            "description": "Forbidden: no vendor_logins.manage, act_as_refused, admin_unconfirmed (an operator-made manager waits for a confirmed one), or signin_relay_off (the vendor's switch is off for this workspace: the operator workspace reads SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS, default claude; every other workspace SPOOL_HUB_SIGNIN_RELAY_KINDS, default off)"
           },
           "409": {
             "content": {
@@ -19234,7 +19234,7 @@
                 }
               }
             },
-            "description": "Conflict: no_private_vm, box_required, box_key_not_enrolled"
+            "description": "Conflict: no_private_vm (no such box pinned to the workspace), box_required (several enrolled boxes, none named), box_key_not_enrolled"
           },
           "503": {
             "content": {
@@ -19247,7 +19247,7 @@
             "description": "Service Unavailable: signin_relay_unavailable"
           }
         },
-        "summary": "Start the web-UI sign-in relay to a CLI's terminal login on the workspace's private VM (spec 181 B11)",
+        "summary": "Start the web-UI sign-in relay to a CLI's terminal login on a box pinned to the workspace (spec 181 B11, spec 192 A1)",
         "tags": [
           "tenant"
         ]
@@ -19284,7 +19284,7 @@
                 }
               }
             },
-            "description": "Forbidden: no vendor_keys.manage, act_as_refused, or signin_relay_off (the vendor's switch is off, the default)"
+            "description": "Forbidden: no vendor_logins.manage, act_as_refused, admin_unconfirmed (an operator-made manager waits for a confirmed one), or signin_relay_off (the vendor's switch is off for this workspace: the operator workspace reads SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS, default claude; every other workspace SPOOL_HUB_SIGNIN_RELAY_KINDS, default off)"
           },
           "404": {
             "content": {
@@ -19372,7 +19372,7 @@
                 }
               }
             },
-            "description": "Forbidden: no vendor_keys.manage, act_as_refused, or signin_relay_off (the vendor's switch is off, the default)"
+            "description": "Forbidden: no vendor_logins.manage, act_as_refused, admin_unconfirmed (an operator-made manager waits for a confirmed one), or signin_relay_off (the vendor's switch is off for this workspace: the operator workspace reads SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS, default claude; every other workspace SPOOL_HUB_SIGNIN_RELAY_KINDS, default off)"
           },
           "404": {
             "content": {
@@ -19477,7 +19477,7 @@
                 }
               }
             },
-            "description": "Forbidden: no vendor_keys.manage, act_as_refused, or signin_relay_off (the vendor's switch is off, the default)"
+            "description": "Forbidden: no vendor_logins.manage, act_as_refused, admin_unconfirmed (an operator-made manager waits for a confirmed one), or signin_relay_off (the vendor's switch is off for this workspace: the operator workspace reads SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS, default claude; every other workspace SPOOL_HUB_SIGNIN_RELAY_KINDS, default off)"
           },
           "404": {
             "content": {
@@ -19510,7 +19510,7 @@
             "description": "Service Unavailable: signin_relay_unavailable"
           }
         },
-        "summary": "Send the code the vendor showed to the CLI's login on the private VM (spec 181 B11)",
+        "summary": "Send the code the vendor showed to the CLI's login on the box (spec 181 B11)",
         "tags": [
           "tenant"
         ]

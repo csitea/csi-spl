@@ -331,6 +331,12 @@ type Options struct {
 	// the default, = off for every vendor: the relay answers 403
 	// signin_relay_off (signin_relay.go).
 	SigninRelayKinds []string
+	// OperatorSigninRelayKinds is hub env
+	// SPOOL_HUB_OPERATOR_SIGNIN_RELAY_KINDS (spec 192 4.1, Q-3 B): the
+	// switch of the operator workspace alone, which reads it in place of
+	// SigninRelayKinds (signin_relay.go). The config default is "claude";
+	// empty here = off.
+	OperatorSigninRelayKinds []string
 	// InvoiceReminderMail mails the day-15 reminder of an unpaid monthly
 	// invoice to each biz owner (spec 181 B12, invoice_reminder.go); nil = no
 	// relay, no reminder is claimed.

@@ -226,9 +226,9 @@ do_spl_done_claim_check() {
       verdict=seat; n_seat=$((n_seat + 1))
     elif [[ -z "$shas" ]] && spl_done_claim_doc "$body"; then
       verdict=doc; n_doc=$((n_doc + 1))
-    elif bad="$(spl_done_claim_missing "$tmp/r" "$shas" "$tmp/gh" "$tmp/unchk")" && [[ -n "$shas" && -z "$bad" ]]; then
+    elif bad="$(spl_done_claim_missing "$tmp/r" "$shas" "$tmp/gh" "$tmp/unchk" "$tmp/ghseen")" && [[ -n "$shas" && -z "$bad" ]]; then
       verdict=landed; n_ok=$((n_ok + 1))
-    elif [[ -n "$bad" && "$(spl_done_claim_unknown "$tmp/r" "$bad")" == "$bad" ]] &&
+    elif [[ -n "$bad" && "$(spl_done_claim_unknown "$tmp/r" "$bad" "$tmp/ghseen")" == "$bad" ]] &&
       spl_done_claim_rewrite "$tmp/r" "$body" "$(spl_done_claim_since "$root" "${from%@*}" "$now")"; then
       verdict=rewritten; n_rew=$((n_rew + 1))
     elif unchk="$(spl_done_claim_unchecked "$tmp/r" "$tmp/unchk" "${from%@*}" "$bad")" &&
@@ -242,7 +242,7 @@ do_spl_done_claim_check() {
     elif [[ "$dry" == 1 ]]; then
       verdict=would-alert; n_alert=$((n_alert + 1))
     else
-      spl_done_claim_note "$from" "$id" "$ts" "$task" "$bad" "$tmp/r" "$tmp/stale" "$unchk" >"$tmp/note"
+      spl_done_claim_note "$from" "$id" "$ts" "$task" "$bad" "$tmp/r" "$tmp/stale" "$unchk" "$tmp/ghseen" >"$tmp/note"
       spl_done_claim_send "$to" "$tmp/note" || { rc=1; continue; }
       verdict=alert; n_alert=$((n_alert + 1))
     fi
@@ -556,7 +556,10 @@ spl_done_claim_gh_repos() {
 # (base=trunk, head=sha: "behind" or "identical" is landed). A failed compare,
 # or a failed lookup while the repo itself no longer answers, adds that repo's
 # "R" row to <unchecked file> (the sha is then not checked) and skips the repo
-# for the rest of the run.
+# for the rest of the run. SPL-6460: a commit GitHub knows off the trunk
+# ("ahead", "diverged") adds "<sha>\t<repo shown>\t<trunk>\t<review/* head>"
+# to [seen file] (spl_done_claim_gh_seen): the note names that repo, never
+# "not an object in any repository".
 spl_done_claim_on_gh() {
   local repo t n full st why
   while read -r repo t n; do
@@ -564,7 +567,7 @@ spl_done_claim_on_gh() {
     if full="$(spl_landed_repo_gh_commit "$repo" "$3")"; then
       st="$(spl_landed_repo_gh "$repo" "compare/$t...$full" .status)"
       [[ "$st" =~ ^(behind|identical)$ ]] && return 0
-      [[ -n "$st" ]] && continue
+      [[ -n "$st" ]] && { spl_done_claim_gh_seen "$3" "$n" "$repo" "$t" "$full" >>"${4:-/dev/null}"; continue; }
       why="compare failed"
     else
       [[ -z "$(spl_landed_repo_gh "$repo" "" .full_name)" ]] || continue
@@ -573,6 +576,16 @@ spl_done_claim_on_gh() {
     printf 'R\tgh:%s\t%s not read (%s)\n' "$repo" "$(spl_landed_repo_gh_shown "$n" "$repo")" "$why" >>"$2"
   done <"$1"
   return 1
+}
+
+# spl_done_claim_gh_seen <sha> <name> <owner/repo> <trunk> <full sha>: one
+# [seen file] row; the head is the first review/* branch whose head is the
+# commit on GitHub (branches-where-head), else "-".
+spl_done_claim_gh_seen() {
+  local b
+  b="$(spl_landed_repo_gh "$3" "commits/$5/branches-where-head" '.[].name')"
+  b="$(grep -m1 '^review/' <<<"$b")" || b=-
+  printf '%s\t%s\t%s\t%s\n' "$1" "$(spl_landed_repo_gh_shown "$2" "$3")" "$4" "$b"
 }
 
 # spl_done_claim_gh_clone <path> <gh file>: true when <path> is the clone of a
@@ -596,7 +609,8 @@ spl_done_claim_gh_clone() {
 # under another sha, as a review-branch sha after the rebase that landed it.
 # In a commit-only repo (spl_done_claim_on_any_branch) any local branch counts.
 # SPL-5248: a sha on no local trunk is then read on GitHub, on the trunk of
-# each GitHub-only landed repo of [gh file] (spl_done_claim_on_gh).
+# each GitHub-only landed repo of [gh file] (spl_done_claim_on_gh); one GitHub
+# knows off its trunk is a row of [seen file] (SPL-6460).
 spl_done_claim_missing() {
   local s full top ref ok out=()
   for s in $2; do
@@ -607,7 +621,7 @@ spl_done_claim_missing() {
         git -C "$top" cherry "$ref" "$full" "$full^" 2>/dev/null | grep -x -- "- $full" >/dev/null ||
         spl_done_claim_on_any_branch "$top" "$full"; then ok=1; break; fi
     done <"$1"
-    (( ok )) || { [[ -n "${3:-}" ]] && spl_done_claim_on_gh "$3" "${4:-/dev/null}" "$s"; } || out+=("$s")
+    (( ok )) || { [[ -n "${3:-}" ]] && spl_done_claim_on_gh "$3" "${4:-/dev/null}" "$s" "${5:-}"; } || out+=("$s")
   done
   echo "${out[*]}"
 }
@@ -736,12 +750,14 @@ spl_done_claim_unchk_text() {
   awk -F'\t' 'NF { printf "%snot checked (%s): %s", (n++ ? "; " : ""), $2, $1 }' <<<"$1"
 }
 
-# spl_done_claim_unknown <repos file> <shas>: the shas that are no object in
-# any repo (a pre-rebase sha of another tree), as against an unpushed one.
+# spl_done_claim_unknown <repos file> <shas> [seen file]: the shas that are no
+# object in any repo (a pre-rebase sha of another tree), as against an
+# unpushed one. A sha GitHub knows off a trunk ([seen file], SPL-6460) is known.
 spl_done_claim_unknown() {
   local s top ref ok out=()
   for s in $2; do
     ok=0
+    grep -q -- "^$s"$'\t' "${3:-/dev/null}" 2>/dev/null && continue
     while read -r top ref; do
       git -C "$top" cat-file -e "$s^{object}" 2>/dev/null && { ok=1; break; }
     done <"$1"
@@ -957,16 +973,23 @@ spl_done_claim_to() {
 # spl_done_claim_note <lane> <msg id> <ts> <task> <missing shas> <repos file>
 # [stale file] [unchecked rows]: the body. A sha that is no object in any repo says so
 # (SPL-2327); a lane whose own repo failed its fetch says so (SPL-2930); a sha
-# the check could not judge is listed apart, not counted (SPL-3020).
+# the check could not judge is listed apart, not counted (SPL-3020). A sha
+# GitHub knows off a trunk ([seen file]) names its repo and head (SPL-6460).
 spl_done_claim_note() {
-  local s gone rv tr known=() what=() w
-  gone=" $(spl_done_claim_unknown "$6" "$5") "
+  local s gone rv gh tr known=() what=() w
+  gone=" $(spl_done_claim_unknown "$6" "$5" "${9:-}") "
   rv="$(spl_done_claim_on_review "$6" "$5")"
-  for s in $5; do [[ "$gone" == *" $s "* ]] || grep -q -- "^$s"$'\t' <<<"$rv" || known+=("$s"); done
+  gh="$(for s in $5; do grep -m1 -- "^$s"$'\t' "${9:-/dev/null}" 2>/dev/null; done)"
+  for s in $5; do [[ "$gone" == *" $s "* ]] || grep -q -- "^$s"$'\t' <<<"$rv"$'\n'"$gh" || known+=("$s"); done
   gone="$(xargs <<<"$gone")"
   [[ -n "$5" ]] || what+=("names no sha (a commit sha is 9-12 or 40 hex digits, 8-digit forms are not read)")
   [[ ${#known[@]} -gt 0 ]] && w="${known[*]}" && what+=("sha ${w// /, } not in the repository")
   while IFS=$'\t' read -r s w tr; do [[ -n "$s" ]] && what+=("sha $s on review branch $w, not on $tr"); done <<<"$rv"
+  while IFS=$'\t' read -r s w tr rv; do
+    [[ -n "$s" ]] || continue
+    if [[ "$rv" == - ]]; then rv=""; else rv=", on $rv"; fi
+    what+=("sha $s in $w$rv, not on $tr")
+  done <<<"$gh"
   [[ -n "$gone" ]] && what+=("sha ${gone// /, } not an object in any repository (a pre-rebase sha?)")
   w="${what[*]/%/;}"
   printf 'done-claim check: %s result %s (%s, task %s): %s\n\n' "$1" "$2" "$3" "${4:-none}" "${w%;}"

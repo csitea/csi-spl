@@ -217,6 +217,21 @@ named the box's clone, which is never fetched, so its `origin/master` was
   read (gh failed))" in the row, never an alert; a box-side row is named
   `a workspace repo` there.
 
+**A sha GitHub knows off the trunk (SPL-6460).** c-114's sha 97172761de60
+alerted "not an object in any repository" (c-001 alert 0d040018,
+2026-11-25, n=1): `git ls-remote` named it the head of a `review/*` branch
+of a repo the tree must not name, read on GitHub only. A GitHub-only row
+for it belongs in the box-side file above (SPL-5083), never in the cnf.
+
+- A sha GitHub knows but that is not on the row's trunk (compare "ahead"
+  or "diverged") alerts with its repo named: "sha <sha> in <name> on GitHub
+  (<owner>/<repo>), on review/<branch>, not on <trunk>"; for a box-side row
+  "in a workspace repo on GitHub". The branch is the first `review/*`
+  branch whose head is that commit (`commits/<sha>/branches-where-head`);
+  with none, the ", on ..." part is left out.
+- It is never "not an object in any repository", which stays for a sha no
+  repo and no GitHub-only row knows.
+
 - The repos read for a result also include the sender lane's OWN repo:
   its worktree from `registry.tsv` (column 4), else its newest
   `workdirs.tsv` worktree row that still exists, then
@@ -324,3 +339,9 @@ lacks it; an unknown sha still alerts; a PATH-stubbed `git` logs 0 calls in
 that clone; gh failing makes them `unchecked` with the reason, never an
 alert (red on the code before: all three would alert, 32 git calls in the
 clone).
+SPL-6460: with a GitHub-only row (stubbed `gh`), a sha on its trunk is
+`landed`; a sha only on a `review/*` head ("ahead") alerts "in <name> on
+GitHub (<owner>/<repo>), on review/<branch>, not on master", and for a
+box-side row "in a workspace repo on GitHub" with no repo name; a sha in no
+repo still alerts "not an object in any repository" (red on the code
+before: the review-head sha alerted "not an object in any repository").

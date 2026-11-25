@@ -1089,4 +1089,65 @@ run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st27"; rc=$?
   pass "27. SPL-5841: a result naming its shas in 8 hex beside 11-digit run ids still alerts, and the note says it names no sha (9-12 or 40 hex count, 8 hex is not read), never 'not in the repository' nor a run id as a sha" ||
   fail "27. no-sha wording (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
+# 28. SPL-6460 (c-001 alert 0d040018 on c-114's result bdceddbd, 11-25, n=1;
+# synthetic names here): a sha on a review/* head of a GitHub-only landed
+# repo, read on GitHub off its trunk (compare "ahead"), alerted "not an object
+# in any repository": the note judged it on the local clones only. Now the
+# note names the repo (a box-side row: "a workspace repo", SPL-5083) and the
+# review head; a sha on the trunk stays landed, a sha in no repo still reads
+# "not an object". gh is stubbed: no network, no clone.
+SP="$T/spool28"
+mkdir -p "$SP" "$T/stub"
+printf 'env:\n  box:\n    landed_repos:\n      - {name: far-rel28, github: example-org/far-rel28, trunk: master}\n' >"$T/cnf28.yaml"
+printf 'env:\n  box:\n    landed_repos:\n      - {name: far-rel28, github: example-org/far-rel28, trunk: master, box: box-a}\n' >"$T/box28.yaml"
+chmod 644 "$T/box28.yaml"
+TRK28=abcdef0123456789abcdef0123456789abcdef01
+REV28=bcdef0123456789abcdef0123456789abcdef012
+printf 'c-951\tclaude\t%%9\t%s\t-\nc-952\tclaude\t%%9\t%s\t-\nc-953\tclaude\t%%9\t%s\t-\n' \
+  "$T/wt/c-563" "$T/wt/c-563" "$T/wt/c-563" >"$SP/registry.tsv"
+msg c-002/archive trk28 c-951 c-002 30 "- sha: ${TRK28:0:12}"
+msg c-002/archive rev28 c-952 c-002 30 "- sha: ${REV28:0:12}"
+msg c-002/archive unk28 c-953 c-002 30 "- sha: feedface0130"
+cat >"$T/stub/gh" <<'EOF'
+#!/bin/bash
+echo "gh $*" >>"$GH28_LOG"
+r=repos/example-org/far-rel28
+case "$2" in
+  "$r") echo example-org/far-rel28 ;;
+  "$r"/branches/master) echo master ;;
+  "$r"/commits/"$GH28_REV"/branches-where-head) printf 'c-952-wip\nreview/c-999-x\n' ;;
+  "$r"/commits/*) s="${2##*/}"
+    for f in "$GH28_TRK" "$GH28_REV"; do [ "${f#"$s"}" != "$f" ] && { echo "$f"; exit 0; }; done; exit 1 ;;
+  "$r"/compare/master..."$GH28_TRK") echo behind ;;
+  "$r"/compare/master..."$GH28_REV") echo ahead ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$T/stub/gh"
+run28() {
+  : >"$T/gh28.log"
+  run GH28_LOG="$T/gh28.log" GH28_TRK="$TRK28" GH28_REV="$REV28" "$@"
+}
+N28="done-claim-check done-claim check: c-95[23] result"
+run28 DONE_CLAIM_STATE_DIR="$T/st28" LANE_LANDED_CNF="$T/cnf28.yaml"; rc=$?
+v="$(for k in trk28 rev28 unk28; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "trk28=landed rev28=would-alert unk28=would-alert " ] && grep -q "compare/master...$TRK28" "$T/gh28.log" &&
+  pass "28. SPL-6460: a sha on the trunk of a GitHub-only row (gh compare 'behind') is landed; a sha only on a review head ('ahead') and a sha in no repo would alert" ||
+  fail "28. GitHub-only row (rc $rc) got '$v': $(cat "$T/o") // gh: $(cat "$T/gh28.log")"
+run28 DONE_CLAIM_STATE_DIR="$T/st28a" LANE_LANDED_CNF="$T/cnf28.yaml" DRY_RUN=0 DONE_CLAIM_TO=c-009; rc=$?
+[ "$rc" = 0 ] && [ "$(verdict trk28)" = landed ] &&
+  grep -q "^SEND c-009 $N28 rev28 (.*): sha ${REV28:0:12} in far-rel28 on GitHub (example-org/far-rel28), on review/c-999-x, not on master$" "$T/calls.log" &&
+  grep -q "^SEND c-009 $N28 unk28 (.*): sha feedface0130 not an object in any repository (a pre-rebase sha?)$" "$T/calls.log" &&
+  ! grep "rev28" "$T/calls.log" | grep "not an object" >/dev/null &&
+  pass "28. SPL-6460: the note for a sha only on a review head of a cnf GitHub-only repo names that repo, the review branch and the trunk, never 'not an object in any repository'; a sha in no repo still reads 'not an object'" ||
+  fail "28. cnf row note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+run28 DONE_CLAIM_STATE_DIR="$T/st28b" SPOOL_LANDED_REPOS_FILE="$T/box28.yaml" DRY_RUN=0 DONE_CLAIM_TO=c-009; rc=$?
+[ "$rc" = 0 ] && [ "$(verdict trk28)" = landed ] &&
+  grep -q "^SEND c-009 $N28 rev28 (.*): sha ${REV28:0:12} in a workspace repo on GitHub, on review/c-999-x, not on master$" "$T/calls.log" &&
+  grep -q "^SEND c-009 $N28 unk28 (.*): sha feedface0130 not an object in any repository (a pre-rebase sha?)$" "$T/calls.log" &&
+  ! grep -q "far-rel28" "$T/calls.log" &&
+  pass "28. SPL-6460: a box-side GitHub-only row (a repo the tree must not name): the same note reads 'a workspace repo on GitHub', no repo name in it" ||
+  fail "28. box-side row note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+rm -f "$T/stub/gh"
+
 exit "$fails"

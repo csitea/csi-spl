@@ -467,7 +467,7 @@ tasks T024..T035 in `tasks.md` (C3b is T035).
 | C8 | simple_coding / claude | a receipt per card payment, from the hub, with the buyer's billing details (VAT id) | `internal/payments/`, `internal/mail/templates/` | paid webhook -> one receipt mail; red: a replayed webhook that sends a second mail fails it | Q5 |
 | C9 | simple_coding / claude | self-service cancel of a hosted workspace by its owner: no renewal, data kept as the private-workspace cancel does | `internal/hub/`, `csi-spl-wui/src/pages/tenant-settings/general.vue` | cancel -> no further draw; red: a member (not owner) can cancel | C3a |
 | C10 | specs_and_docs / agy | the written offers I and P: a help page with scope, what is covered, response targets, how to buy | `csi-spl-doc/doc/help/` (new page) | `do_check_dist_hygiene` green; red: a customer name in the page fails it | Q6..Q9 |
-| C11 | specs_and_docs / agy | spec 075 section 7 broken into build rows (embedding store, worker, semantic search, ACLs), D2-compliant | `csi-spl-doc/specs/075-docs-section/` | a spec review panel; red: a row whose embeddings run on our AI key (D2) or that names no red control fails the review | Q10 |
+| C11 | specs_and_docs / agy | spec 075 section 7 broken into build rows (embedding store, worker, semantic search, ACLs), D2-compliant | `csi-spl-doc/specs/075-docs-section/` | a spec review panel; red: a row whose embeddings run on our AI key (D2) or that names no red control fails the review | Q10, Q11 |
 
 Not a row here: the generic finance connector (its own lane, CO-3), the
 cloud-drive upload (spec 194), the private-workspace invoice (spec 181).
@@ -501,7 +501,7 @@ cloud-drive upload (spec 194), the private-workspace invoice (spec 181).
   because round-the-clock needs a person on call; (B) two tiers, business
   hours and 24/7; (C) best effort only, no response targets.
 - **Q9 Offer P billing.** (A) an invoice, monthly or yearly, bank transfer,
-  *recommended*; (B) the card checkout (needs C3 first).
+  *recommended*; (B) the card checkout (needs C3b first).
 - **Q10 Offer K packaging.** (A) storage and word search in every hosted
   workspace now; AI retrieval an add-on priced when spec 075 section 7 is
   built, *recommended*; (B) a separate higher plan; (C) per GB stored.

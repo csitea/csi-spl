@@ -5,7 +5,7 @@ Plan: `csi-spl-doc/doc/md/bug-round-46-plan.md` v0.1 on `review/c002-bug-round-4
 Seat: c-440@sat, claude, cross-vendor panel seat of rulebook 3.2 (planner a-438@sat, agy). Read only: no code written, no plan edited.  
 Ran on sat, 06:30Z..06:36Z on 2026-11-25, go1.26.10, `origin/master` = `d5f1a228d`. n=1 per command unless stated.
 
-## Verdict: **FAIL** on `58d224dad`
+## Verdict: **FAIL** on v0.1 `58d224dad` (v0.2 `132f817b8`: **PASS**, last section)
 
 One defect, W1, in row b46-02. The plan says no other test creates a non-`zz` category. That is false: `TestCategoryDeleteInUseRefused` in the same file does. So the row's fix scope and its red control both leave part of the defect it names in place. Rows b46-01 and b46-03 hold as written, and every cited line matches. Fold W1 (widen b46-02, or carry the rest of it out with a reason) and I sign v1.0.
 
@@ -165,3 +165,31 @@ Each script was cut verbatim from section 4 of `58d224dad`'s plan into this seat
 - **N3 (rc03 discards output).** rc03 sends the scan's output to `/dev/null`, so an rc 1 from any other refusal would read the same. I checked the reason by hand (section 3). Printing the `owner-go keyword 'apply'` line, or grepping for it, would make the control self-proving.
 - **N4 (b46-02 kind).** The row changes test files only, so kind `tests` fits better than `simple_coding`. Both route to claude main / agy backup, so placement does not change.
 - **N5 (R3 at placement).** Lane-map exit 4 (17 `unknown:` on `<box2>`) means the holder must re-run `--check` at placement, as the plan says.
+
+---
+
+## Re-review: v0.2 `132f817b8d487ede9911f0c4da2c62b62405d052`: **PASS**
+
+Read at 06:45Z..06:49Z on 2026-11-25 (`git ls-remote origin refs/heads/review/c002-bug-round-46-planner` -> `132f817b8d487ede9911f0c4da2c62b62405d052`; parent `58d224dad`, one commit, only `bug-round-46-plan.md` changed). `origin/master` is still `d5f1a228d`.
+
+- **W1 folded.** Row b46-02 now names all four sites:
+  - `store/categories_test.go:64` and `:113-117` (`t_` -> `zzt_`);
+  - `hub/categories_test.go:44`;
+  - `reporting_schema_test.go:196`, where a `(^|/)zz` filter is added to the `parent_path IS NULL` count.
+
+  The R1 list (plan section 5) adds `reporting_schema_test.go` to b46-02 only, so R1 still holds. The v0.1 sweep of this seat (`git grep -n -E 'INSERT INTO activity_categories|CreateCategory\(|coding/hard/' 5c0ba2f40 -- 'csi-spl-api/**/*_test.go'`) found no other category-creating test site, which agrees with the plan.
+- **Red controls, cut from v0.2 section 4 and re-run:**
+  - `sha256sum`: rc01 `a30567d4343c...` 3735 B (byte-identical to v0.1, `cmp` -> same), rc02 `dedae163967f...` 4051 B, rc03 `f3d0f9ed92fd...` 2572 B. All three match the plan.
+  - `bash rc02-b46.sh 5c0ba2f40` -> 4 lines (`leaf "coding/hard/go_deadbeef"`, `root "t_deadbeef"`, hub `leaf`, `top-level parent_path IS NULL count lacks (^|/)zz filter`), `rc02 exit 1`.
+  - `bash rc02-b46.sh 5c0ba2f40 fix-shape` -> `ok .../internal/store 0.025s`, `rc02 exit 0`. The fix-shape tree compiles with the `:196` change.
+  - `bash rc03-b46.sh 5c0ba2f40` -> `rc 1, 1, 1 (apply-hold), 1 (apply-hold)`, `rc03 exit 1`.
+  - `bash rc03-b46.sh 5c0ba2f40 fix-shape` -> `rc 0, 0, 1, 1`, `rc03 exit 0`.
+  - `bash rc03-b46.sh 958049e92^` -> `rc 0, 0, 0, 0`, `rc03 exit 1`.
+
+  rc03 now refuses an rc 1 that lacks `owner-go keyword 'apply'` (N3 closed).
+- **N1** (8 PUT 400s in 72 h, with 08:21:10Z), **N2** (Postgres leak check a mandatory gate) and **N4** (row 02 kind = `tests`, batch 1: the row 02 cell) are all folded.
+- **N5.** `lane-map.sh --check <the 7 row paths incl. reporting_schema_test.go> --agent c-440` (06:48:59Z) -> exit 4, 18 `unknown:` lines, as the plan says. The holder re-runs it at placement.
+- **New owner.** The `#fleet-alerts` item is now owned by a live lane (plan section 6): `ls /var/spool-hub/dispatch/briefs | grep -i fleet-surge` -> `c002-fleet-surge-alert-to-alerts.md`.
+- **Hygiene.** `git show 132f817b8:csi-spl-doc/doc/md/bug-round-46-plan.md | grep -c -E '\btnk\b'` -> `0`: the 18 `unknown:` lanes are written as `<box2>`.
+
+No new W, no new N. **Verdict on `132f817b8`: PASS.** If the editor's v1.0 changes nothing but the status lines, I sign that sha again.

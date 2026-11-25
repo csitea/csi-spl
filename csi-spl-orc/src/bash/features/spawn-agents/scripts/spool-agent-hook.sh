@@ -52,8 +52,9 @@
 # Never holds the agent: any error goes to <id>/hook.err (else
 # $HOOK_ERR_FALLBACK) and the hook exits 0. No SPOOL_AGENT_ID = not a spool
 # agent: exit 0 at once. Neither file holds a tool's input or output, a body
-# or a secret: hashes and names only. Other non-claude harnesses get the
-# heartbeat only (spec 7.3: injection waits for their ping test). mistral's
+# or a secret: hashes and names only. grok (SPL-6516) gets the same block at
+# PostToolUse only; other non-claude harnesses get the heartbeat only (spec
+# 7.3: injection waits for their ping test). mistral's
 # vibe runs it from ~/.vibe/hooks.toml (spool-mirror-hooks.inc.sh) with
 # SPOOL_HARNESS=vibe: pre_tool -> PreToolUse, post_tool -> PostToolUse
 # (tool_output for tool_response), post_agent -> Stop, which is progress.
@@ -737,6 +738,12 @@ def main():
             turn = [c for c in calls if t is None or (sec(c.get("ts")) or t) >= t]
             if sum(1 for c in turn if c.get("sig") == sig and c.get("res") == res) == LOOP_N:
                 ctx.append("watchdog: you repeated %s %d times with the same result" % (tool, LOOP_N))
+        elif kind == "grok":
+            # SPL-6516 (latency action 6): grok reads hookSpecificOutput.
+            # additionalContext after a tool (ping 3/3, grok 1.0.92); only
+            # here: its other points are not ping-proven, so the marker
+            # never moves past a message the model did not see
+            ctx.append(inject(False))
     elif event == "StopFailure":
         # claude: "fires instead of Stop when an API error ended the turn";
         # its output is ignored, so no block and no injection here

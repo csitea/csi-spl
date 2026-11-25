@@ -34,7 +34,7 @@
 #      tool, before the turn ends (Stop); each message once, ever; a second
 #      Stop with nothing new prints nothing (no loop); an API-error Stop
 #      injects nothing (the next prompt does); a Stop block keeps its
-#      decision and carries the context; grok gets none (vibe: 13). Red control:
+#      decision and carries the context; grok none there (vibe: 13, grok: 14). Red control:
 #      the parent commit's hook fails 12's tool-start and Stop checks.
 #      R7 (a-680): an unreadable inbox / file / marker keeps the deny, the
 #      Stop block and heartbeat.json (W1); 4 parallel PreToolUse hooks show
@@ -200,8 +200,8 @@ has "SessionStart re-injects every unread file (oldest first)" "msg_id: id-1" "$
 msg m6 $((T0 + 6)) id-6 "late body"
 out5="$(hook UserPromptSubmit $((T0 + 205)) '{}' | ctx)"
 has "UserPromptSubmit injects what is new" "msg_id: id-4" "$out5"
-SPOOL_HARNESS=grok hook PostToolUse $((T0 + 206)) '{"tool_name":"Read"}' >"$T_TMP/og"
-eq "a non-claude harness gets no injection (7.3)" "" "$(cat "$T_TMP/og")"
+SPOOL_HARNESS=qwen hook PostToolUse $((T0 + 206)) '{"tool_name":"Read"}' >"$T_TMP/og"
+eq "a harness with no passed ping (qwen) gets no injection (7.3)" "" "$(cat "$T_TMP/og")"
 rm -f "$D/inbox"/*.json "$D/.hook-seen"
 big="$(head -c 5000 /dev/zero | tr '\0' 'x')"
 for i in 1 2 3; do msg "b$i" $((T0 + i)) "big-$i" "$big"; done
@@ -565,5 +565,35 @@ eq "13. W1 CONTROL: one deny in session s, count 1" 1 "$(hb stop_denies)"
 msg w23 $((T3 + 140)) mid-w23 "first of session s2"
 vh Stop $((T3 + 141)) '{"session_id":"s2","transcript_path":"/t"}' >/dev/null
 eq "13. W1 a new session_id restarts the count (1, not 2)" 1 "$(hb stop_denies)"
+
+# ---- 14. SPL-6516: a grok seat gets it after a tool (PostToolUse) -----------
+echo "# 14. grok in-turn delivery (SPL-6516)"
+rm -f "$D/inbox"/*.json "$D/.hook-seen" "$L12"
+T4=$((T0 + 4000)); A14="$T_TMP/all14.out"; : >"$A14"
+gh() { SPOOL_HARNESS=grok hook "$@" | tee -a "$A14"; }
+GP='{"tool_name":"run_terminal_cmd","tool_input":{"command":"ls"},"tool_response":"a"}'
+eq "14. CONTROL: an empty inbox, PostToolUse prints nothing" "" "$(gh PostToolUse $((T4 + 1)) "$GP")"
+msg g1 $((T4 + 2)) mid-g1 "written while grok runs a tool"
+eq "14. PreToolUse injects nothing (not ping-proven)" "" "$(gh PreToolUse $((T4 + 3)) '{"tool_name":"run_terminal_cmd"}')"
+eq "14. UserPromptSubmit injects nothing (grok discards it)" "" "$(gh UserPromptSubmit $((T4 + 4)) '{}')"
+eq "14. Stop injects nothing" "" "$(gh Stop $((T4 + 5)) '{}')"
+check "14. ... and the marker did not move past it" test ! -e "$D/.hook-seen"
+o14="$(gh PostToolUse $((T4 + 6)) "$GP")"
+has "14. PostToolUse shows it as hookSpecificOutput.additionalContext" "msg_id: mid-g1" "$(ctx <<<"$o14")"
+has "14. ... under the same head as claude's" "spool messages from other agents" "$(ctx <<<"$o14")"
+has "14. ... its hookEventName is PostToolUse" '"hookEventName": "PostToolUse"' "$o14"
+hasnt "14. ... never vibe's snake_case key" "hook_specific_output" "$o14"
+hasnt "14. ... never a decision" '"decision"' "$o14"
+eq "14. the next PostToolUse: nothing new" "" "$(gh PostToolUse $((T4 + 7)) "$GP")"
+msg g2 $((T4 + 8)) mid-g2 "a second message"
+has "14. a later message at the next PostToolUse" "msg_id: mid-g2" "$(gh PostToolUse $((T4 + 9)) "$GP" | ctx)"
+for m in mid-g1 mid-g2; do
+  eq "14. $m shown exactly once" 1 "$(grep -c "msg_id: $m" "$A14")"
+done
+eq "14. ledger: one surfaced row each, at PostToolUse" "mid-g1 PostToolUse|mid-g2 PostToolUse" "$(awk -F'\t' '$1=="surfaced"{printf "%s%s %s", s, $4, $8; s="|"}' "$L12")"
+eq "14. heartbeat harness grok" grok "$(hb harness)"
+msg g3 $((T4 + 10)) mid-g3 "one marker for every vendor"
+has "14. CONTROL: a message grok has not seen reaches claude" "msg_id: mid-g3" "$(hook PreToolUse $((T4 + 11)) '{"tool_name":"Read"}' | ctx)"
+eq "14. ... and is not shown again to grok (one .hook-seen)" "" "$(gh PostToolUse $((T4 + 12)) "$GP")"
 
 t_done

@@ -680,7 +680,7 @@ for l in lines:
 neg = r"(?i)\b(?:(?:(?:does|do|did|will|would|should|shall|may|might|can|could|must)\s+not|doesn't|don't|didn't|won't|cannot|can't|never)\s+|no(?:[^\S\n]+(?!(?:and|then|but|so)\b)\w[\w-]*){0,3}[^\S\n]+)apply\b"
 out += [re.sub(r"`[^`]*`\s*->", "", "\n".join(quote))]
 txt = "\n".join(out)
-cond = re.compile(r"(?i)\b(?:if|when|unless|once|while|after|until)\b[^.;:,!?\n]*$")
+cond = re.compile(r"(?i)\b(?:if|when|unless|once|while|after|until)\b[^.;:,!?\n]*\Z")
 def unneg(m):
     if m.group(0)[:2].lower() == "no" and cond.search(txt, 0, m.start()):
         return m.group(0)

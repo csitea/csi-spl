@@ -141,6 +141,11 @@
 #        drift apply step 053." under Steps -> rc 4 (on b44-01's tree: GO);
 #        controls: case 29's prohibitions, "if it does not apply", "If
 #        green, no terraform apply", "No prd write. If green, report" -> GO
+#    31. a prohibition after a conditional line (b46-03): RED CONTROLS
+#        column-0 "No terraform apply." after "3. Check if green" and "no
+#        terraform apply." after "3. Run when ready" -> GO (on b45-01's tree,
+#        the `$` of cond crossed the newline: rc 4); controls: the same-line
+#        "If no errors apply ..." under Do and Steps -> rc 4
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -1214,6 +1219,30 @@ for fx in '3. Gates for the trees you touch. No GCP mutation, no prd write, no t
   run REVIEW_GO_MSG="$f"; rc=$?
   (( rc == 0 && $(gos) == 1 )) && pass "30. control: '$fx' passes [4] -> GO" ||
     fail "30. control '$fx' rc=$rc out=$(tail -2 "$T/out")"
+done
+
+# --- 31. a prohibition after a conditional line is no instruction (b46-03) ---------------------------
+# a-374 N1 on b45-01: cond ended in `$`, which also matches before a trailing
+# newline, so a condition word on the line above reached a column-0 `No`
+for fx in 'Do|## Do
+3. Check if green
+No terraform apply.' \
+          'Steps|## Steps
+3. Run when ready
+no terraform apply.'; do
+  reset; abrief c-222 "${fx#*|}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 31000000-0000-4000-8000-000000000001)
+  run REVIEW_GO_MSG="$f"; rc=$?
+  (( rc == 0 && $(gos) == 1 )) && pass "31. RED CONTROL: a prohibition after a conditional ${fx%%|*} line passes [4] -> GO" ||
+    fail "31. ${fx%%|*} rc=$rc out=$(tail -2 "$T/out")"
+done
+for fx in 'Do|## Do
+3. If no errors apply the migration to prd.' \
+          'Steps|## Steps
+4. When the plan shows no drift apply step 053.'; do
+  reset; abrief c-222 "${fx#*|}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 31000000-0000-4000-8000-000000000002)
+  run REVIEW_GO_MSG="$f"; refused "31. control: a same-line conditional apply in a ${fx%%|*} step still holds" $? 4 "owner-go keyword 'apply'"
 done
 
 echo "spl-review-go: ${fails} failure(s)"

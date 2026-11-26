@@ -225,3 +225,32 @@ clean over the tracked tree` (run on this seat's worktree, this file included).
 ## Review line
 
 review: c-893 claude PASS e97c0dcc55aae42f058b608f5f7a7beea06f0a84 ran: bash csi-spl-orc/src/bash/tests/orch-rotate.tst.sh ; bash csi-spl-orc/src/bash/tests/spl-spawn-fill.tst.sh ; bash csi-spl-orc/src/bash/tests/spl-security-round-queue.tst.sh ; bash csi-spl-orc/src/bash/tests/spl-desk-poll-ack.tst.sh ; bash csi-spl-orc/src/bash/tests/spl-accepted-close.tst.sh ; bash csi-spl-orc/src/bash/tests/box-stats-cron.tst.sh ; bash csi-spl-iac/src/bash/tests/satellite-ansible.tst.sh ; 9 shared gates ; shellcheck -S warning -x ; lane-map.sh --check ; ./run -a do_check_dist_hygiene | read: rc1 1 198/1, head1 0 199/0, rc2 1 49/6, head2 0 55/0, m1a 1, m2a 1, siblings equal, gates equal, shellcheck rc 0, lane-map exit 4, hygiene rc 0 | log: c-893:~/.claude/projects/-opt-csi-csi-spl-wt-c-893/a470bb35-5c79-48a3-82dc-0c1d141dae7f.jsonl
+
+## v1.0 signature: PASS on 78812b3d75ee018ce4497ad5d82af3ac37d39cd8
+
+I read v1.0 at `78812b3d75ee018ce4497ad5d82af3ac37d39cd8`. Running `git ls-remote origin
+refs/heads/review/c002-refactor-round-05-planner` prints that sha. It is a fast-forward
+on v0.1 `e97c0dcc5`, and `git diff --stat e97c0dcc5 78812b3d7` touches only the plan
+(+104 -50).
+
+- **Code unchanged.** I extracted the fenced `bash` blocks of v0.1 and v1.0 (`awk` from
+  `^```bash` to `^````) and hashed them. Both give sha256 `fb2591d977ad...`, over 7
+  blocks. Every head, red control and mutation result of sections 3 and 4 above
+  therefore still holds.
+- **W1 folded.** 1.2 (c) and section 7 now name candidates-file lines 1, 25, 48, 76, 104
+  and 133 as served, and 113, 115 and 125 as open with a disposition (gate design, a doc
+  or bug line, perf). I checked each number with `sed -n` against the candidates file,
+  and they match. `_ppe_keys` is at `check-pre-push-e2e.func.sh:121-128` on
+  `b42d34d7b`: `sed -n '121p;128p'` prints `_ppe_keys() {` and `}`.
+- **W2 folded.** The prose now says one blank line before and after the section. The
+  numbers read `390 -> 485`, `+95 -0`, sha256 `1b29f5d84f85`, which is my v0.1
+  measurement of that shape.
+- **N1-N7 folded.** The helper is cited as `:64-107`, with the definition at `:68-107`.
+  N2 zero drift: `git diff --name-only 5dbcaec84 origin/master -- <13 files>` prints
+  nothing, and origin/master is `5dbcaec84`. The N3 lane map now reads exit 4, 15
+  unknown, 0 owned. N4-N7 are noted in 1.3, 1.4 and 2.2.
+- **Window.** `Window: W=2026-11-26T04:08:14+02:00` is unchanged (rulebook 5.3).
+- **Hygiene.** a `grep -nwE` for the 4 user and box literals of the hygiene rule (CLAUDE.md section 4) on the v1.0 plan finds 0 lines.
+  The `do_check_dist_hygiene` run on this seat's tree is below.
+
+review: c-893 claude PASS 78812b3d75ee018ce4497ad5d82af3ac37d39cd8 ran: none (v1.0 is docs-only; code blocks byte-identical to v0.1, whose tests ran above) ; ./run -a do_check_dist_hygiene | read: refactor-round-05-plan.md v0.1..v1.0 diff, fenced-block sha256 equal, candidates-file lines 1 25 48 76 104 113 115 125 133, check-pre-push-e2e.func.sh:121-128 | log: c-893:~/.claude/projects/-opt-csi-csi-spl-wt-c-893/a470bb35-5c79-48a3-82dc-0c1d141dae7f.jsonl

@@ -111,15 +111,20 @@ func TestFleetAskQueue(t *testing.T) {
 
 // rdb 0195 (SPL-1817, owner HUM-10 t1 3209f8b8 msg 8cb6cc7d): the queue
 // orders by class, ci, a flagged row (urgent bug, bypass feature), refactor,
-// bug, feature, and only then by enqueued_at. CONTROL: the rows are queued
-// oldest-feature-first, so today's FIFO would put the feature at 1. A queue
+// bug, feature, and only then by enqueued_at. The rows sit in a discussion
+// set to 4: inside priority 3 the queue is strict FIFO since spec 150 row
+// B15a (Q6 = A, TestFleetAskQueuePrio3NoClassJump). CONTROL: the rows are
+// queued oldest-feature-first, so FIFO would put the feature at 1. A queue
 // op with no class (none stored) is ErrAskClass, a re-queue with none keeps
 // the stored one, and a flag its class does not take is refused. The bypass
 // records who set it and when. Run on Memory and Postgres.
 func TestFleetAskQueueClassOrder(t *testing.T) {
 	ctx := context.Background()
 	t0 := time.Date(2026, 10, 14, 8, 0, 0, 0, time.UTC)
-	const owner = "8cb6cc7d-7628-4ac3-be00-86e427bb3487"
+	const (
+		owner = "8cb6cc7d-7628-4ac3-be00-86e427bb3487"
+		dP4   = "8cb6cc7d-90fa-4341-989e-ec3675da3744" // a discussion set to 4: the class order holds outside 3
+	)
 	ids := map[string]string{
 		"feature": "f0f0f0f0-0000-4000-8000-000000000001", "bug": "b0b0b0b0-0000-4000-8000-000000000002",
 		"refactor": "a0a0a0a0-0000-4000-8000-000000000003", "ci": "c0c0c0c0-0000-4000-8000-000000000004",
@@ -129,9 +134,12 @@ func TestFleetAskQueueClassOrder(t *testing.T) {
 	for name, st := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
 			tid := newTenant(t, st)
+			if _, err := st.(TopicPriorityStore).SetTopicPriority(ctx, tid, dP4, 4, "HUM-10", t0); err != nil {
+				t.Fatal(err)
+			}
 			for i, k := range order {
 				if _, _, err := st.PutFleetAsk(ctx, tid, FleetAsk{Fleet: "main", AskID: ids[k], Role: "orch", Kind: "task", From: "c-002@box-b",
-					Summary: "SPAWN REQUEST " + k}, "box-b", t0.Add(time.Duration(i)*time.Minute)); err != nil {
+					Topic: "dispatch-8cb6cc7d", Discussion: dP4, Summary: "SPAWN REQUEST " + k}, "box-b", t0.Add(time.Duration(i)*time.Minute)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -227,14 +235,15 @@ func TestCheckFleetAskQueue(t *testing.T) {
 // answer A: "priority first: a priority 1 feature goes before a priority 3
 // bug"). The queue ranks by the discussion's priority (rdb 0214, none = 3,
 // the owner's default, msg f5ed1396, SPL-4367),
-// then by class, then by enqueued_at. Run on Memory and Postgres.
+// then by class (except inside 3, spec 150 row B15a, Q6 = A), then by
+// enqueued_at. Run on Memory and Postgres.
 //
 //   - C401: of two queued bugs, the one whose discussion is priority 1 is
 //     position 1 although it was queued later. CONTROL: the rank ignores
 //     priority (FIFO puts the older bug first).
-//   - C402: asks with no discussion, or a discussion nobody set, keep the
-//     class, then enqueued_at order at 3: after a priority 2 bug, before a
-//     priority 4 ci row. CONTROL: a default that ranks first, or the old 5.
+//   - C402: asks with no discussion, or a discussion nobody set, rank at 3
+//     in enqueued_at order (Q6 = A: no class jump inside 3): after a
+//     priority 2 bug. CONTROL: a default that ranks first, or the old 5.
 //   - C403: a priority 1 feature goes before a priority 2 bug. CONTROL: class
 //     first (poll Q5 B) puts the bug first.
 //   - spec 153 C121 (H3 A, SPL-6396): a ci row ranks as priority 1, first by
@@ -293,8 +302,8 @@ func TestFleetAskQueuePriority(t *testing.T) {
 			want := map[string][2]int{ // position, priority
 				"ciNone": {1, 3}, "ciP4": {2, 4}, // C121: a ci row ranks as priority 1, its own priority still reads
 				"bugP1": {3, 1}, "featP1": {4, 1}, // C401: the priority 1 bug before the older bugs; the class orders within 1
-				"bugP2":    {5, 2},                                       // C403: a priority 2 bug after the priority 1 feature
-				"refUnset": {6, 3}, "bugOld": {7, 3}, "featNone": {8, 3}, // C402: the class order at the unset 3, after a 2 (SPL-4367)
+				"bugP2":  {5, 2},                                         // C403: a priority 2 bug after the priority 1 feature
+				"bugOld": {6, 3}, "refUnset": {7, 3}, "featNone": {8, 3}, // C402: queue order at the unset 3, after a 2 (SPL-4367, Q6 = A)
 			}
 			for k, w := range want {
 				if got[k].Position != w[0] || got[k].Priority != w[1] || got[k].QueueLen != len(rows) {
@@ -310,7 +319,7 @@ func TestFleetAskQueuePriority(t *testing.T) {
 				t.Fatal("empty list")
 			}
 			for _, a := range as {
-				if a.AskID == ids["refUnset"] && (a.Priority != unsetTopicPriority || a.Position != 6) {
+				if a.AskID == ids["refUnset"] && (a.Priority != unsetTopicPriority || a.Position != 7) {
 					t.Fatalf("another workspace's priority leaked: %+v", a)
 				}
 			}
@@ -473,4 +482,74 @@ func waitForAskLockWait(t *testing.T, pg *Postgres) {
 		}
 	}
 	t.Fatal("no order op waited for the fleet_asks row lock within 10 s")
+}
+
+// Spec 150 row B15a, case C412 store half (owner poll 42eb27c6 Q6 = A, msg
+// 9b05df65): inside priority 3 the queue is strict FIFO, QueueRank then
+// EnqueuedAt then AskID; the class rank (refactor, bug, feature, a flagged
+// row) never lets a row jump another priority 3 row, whether its 3 is the
+// default, an unset discussion or a discussion set to 3. Outside 3 the class
+// order still holds: the priority 4 bug goes before the older priority 4
+// feature. CONTROL: askBefore with its askQueueRank step for priority 3 (the
+// code before B15a) puts the urgent bug at 1 and the oldest feature at 4.
+// Memory and Postgres.
+func TestFleetAskQueuePrio3NoClassJump(t *testing.T) {
+	ctx := context.Background()
+	t0 := time.Date(2026, 11, 26, 8, 0, 0, 0, time.UTC)
+	const (
+		dP3    = "c412c412-90fa-4341-989e-ec3675da3743" // a discussion set to 3
+		dP4    = "c412c412-90fa-4341-989e-ec3675da3744" // a discussion set to 4
+		dUnset = "c412c412-90fa-4341-989e-ec3675da3745" // a discussion nobody set
+	)
+	type row struct{ key, class, flag, disc string }
+	rows := []row{ // queued in this order, one minute apart
+		{"featOld", "feature", "", ""}, {"bugUnset", "bug", "", dUnset}, {"refP3", "refactor", "", dP3},
+		{"urgentBug", "bug", "urgent", ""}, {"featP4", "feature", "", dP4}, {"bugP4", "bug", "", dP4},
+	}
+	ids := map[string]string{}
+	for i, r := range rows {
+		ids[r.key] = "c412c412-0000-4000-8000-00000000000" + string(rune('1'+i))
+	}
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			tid := newTenant(t, st)
+			for p, d := range map[int]string{3: dP3, 4: dP4} {
+				if _, err := st.(TopicPriorityStore).SetTopicPriority(ctx, tid, d, p, "HUM-10", t0); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for i, r := range rows {
+				at := t0.Add(time.Duration(i) * time.Minute)
+				if _, _, err := st.PutFleetAsk(ctx, tid, FleetAsk{Fleet: "main", AskID: ids[r.key], Role: "orch", Kind: "task", From: "c-002@box-b",
+					Topic: "dispatch-c412c412", Discussion: r.disc, Summary: "SPAWN REQUEST " + r.key}, "box-b", at); err != nil {
+					t.Fatalf("put %s: %v", r.key, err)
+				}
+				if _, err := st.UpdateFleetAsk(ctx, tid, AskUpdate{Fleet: "main", AskID: ids[r.key], Op: AskQueue, By: "c-001@sat",
+					Class: r.class, Flag: r.flag}, "sat", at); err != nil {
+					t.Fatalf("queue %s: %v", r.key, err)
+				}
+			}
+			as, err := st.ListFleetAsks(ctx, tid, "main", "orch", false, t0.Add(time.Hour))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := map[string]FleetAsk{}
+			for k, id := range ids {
+				for _, a := range as {
+					if a.AskID == id {
+						got[k] = a
+					}
+				}
+			}
+			want := map[string][2]int{ // position, priority
+				"featOld": {1, 3}, "bugUnset": {2, 3}, "refP3": {3, 3}, "urgentBug": {4, 3}, // Q6 = A: queue order inside 3
+				"bugP4": {5, 4}, "featP4": {6, 4}, // the class order still holds inside 4
+			}
+			for k, w := range want {
+				if got[k].Position != w[0] || got[k].Priority != w[1] || got[k].QueueLen != len(rows) {
+					t.Errorf("%s at %d priority %d, want %d priority %d", k, got[k].Position, got[k].Priority, w[0], w[1])
+				}
+			}
+		})
+	}
 }

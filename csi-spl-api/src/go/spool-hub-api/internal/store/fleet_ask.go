@@ -329,11 +329,13 @@ func askDiscussions(as []FleetAsk) []string {
 // askPositions numbers each role's queued asks (spec 153 3.22.7): by the
 // effective priority (spec 150 row B9, owner poll Q5 answer A: a priority 1
 // feature before a priority 3 bug; a ci row ranks as 1, askPrio), then the
-// dragged rank (ranked rows first, lower first), then class rank (rdb 0195),
-// then EnqueuedAt, then AskID: position 1 is placed next unless the placer's
-// bands pick another class. An ask with neither priority ranks at
-// TopicPriorityDefault (3), so with no priority and no drag the order is the
-// class order. Both drivers call it on a list.
+// dragged rank (ranked rows first, lower first), then class rank (rdb 0195)
+// except inside priority 3, then EnqueuedAt, then AskID: position 1 is placed
+// next unless the placer's bands pick another class. Priority 3 is strict
+// queue order (spec 150 row B15a, owner poll 42eb27c6 Q6 = A): no class jumps
+// another 3 row. An ask with neither priority ranks at TopicPriorityDefault
+// (3), so with no priority and no drag the order is FIFO. Both drivers call
+// it on a list.
 func askPositions(as []FleetAsk) {
 	byRole := map[string][]int{}
 	for i, a := range as {
@@ -360,7 +362,8 @@ func askBefore(a, b FleetAsk) bool {
 	if a.QueueRank != b.QueueRank {
 		return a.QueueRank < b.QueueRank
 	}
-	if ra, rb := askQueueRank(a), askQueueRank(b); ra != rb {
+	// Q6 = A (spec 150 row B15a): priority 3 is strict queue order, no class jump
+	if ra, rb := askQueueRank(a), askQueueRank(b); ra != rb && askPrio(a) != TopicPriorityDefault {
 		return ra < rb
 	}
 	if !a.EnqueuedAt.Equal(b.EnqueuedAt) {

@@ -27,17 +27,10 @@ do_spl_agent_hooks_install() {
   local f="${HOOKS_SETTINGS:-$HOME/.claude/settings.json}"
   local script="$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-agent-hook.sh"
   [[ -r "$script" ]] || { do_log "FATAL the hook $script is not readable"; return 1; }
-  local gd cd
   # The entries name THIS checkout's script: from a linked worktree (torn down
   # when its lane closes) they would point at nothing.
-  gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-  cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-  if [[ -n "$gd" && "$gd" != "$cd" && "${HOOKS_ALLOW_WORKTREE:-0}" != 1 ]]; then
-    if [[ "$dry" == 0 && "$un" != 1 ]]; then
-      do_log "FATAL $PROJ_PATH is a linked worktree: run the install from the main checkout - nothing changed"; return 1
-    fi
-    echo "WARN $PROJ_PATH is a linked worktree: the paths below would vanish with it; install from the main checkout"
-  fi
+  declare -F cron_refuse_linked_worktree >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/cron-tagged-line.func.sh" || return 1
+  cron_refuse_linked_worktree "$([[ "$un" == 1 ]] && echo 1 || echo "$dry")" "${HOOKS_ALLOW_WORKTREE:-0}" "run the install" "the paths below" || return 1
   local after rc
   after="$(mktemp)"
   spl_agent_hooks_merge "$f" "$script" "$un" >"$after"; rc=$?

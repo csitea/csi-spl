@@ -9,6 +9,9 @@
 #   4. a dry run reports PLAN and the diff, rc 2, writes nothing
 #   5. append a line: replaced in place, the log dir created; again -> unchanged
 #   6. a refusing crontab: FATAL, rc 1
+#   7. cron_refuse_linked_worktree and wave-1 delegation (r06-02)
+#   8. cron_refuse_linked_worktree wave-2 delegation (r07-01)
+#   9. cron_refuse_linked_worktree optional wording and plural callers (r08-01)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -91,7 +94,7 @@ out="$(wt_check "$T/wt-linked/csi-spl-orc" 0 1)"; rc=$?
 [ "$rc" = 0 ] && [ -z "$out" ] && pass "7. cron_refuse_linked_worktree skips when allow=1" || fail "7. linked allow=1 ($rc: $out)"
 
 ctl_f="$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh"
-[ "$(grep -c 'is a linked worktree: install from the main checkout' "$ctl_f")" -eq 1 ] && grep -q '^cron_refuse_linked_worktree()' "$ctl_f" \
+[ "$(grep -c 'is a linked worktree: \$fatal_verb from the main checkout' "$ctl_f")" -eq 1 ] && grep -q '^cron_refuse_linked_worktree()' "$ctl_f" \
   && pass "7. one copy: cron-tagged-line.func.sh hosts cron_refuse_linked_worktree" || fail "7. host one copy"
 for sib in \
   "$PROJ_ROOT/src/bash/run/spl-box-update-install-cron.func.sh" \
@@ -163,5 +166,82 @@ out="$(env -u REAP_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROO
   "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/spl-agent-id-reap-install-cron.func.sh" 2>&1)"; rc=$?
 [ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
   && pass "8. spl-agent-id-reap refuses a linked worktree when DRY_RUN=0" || fail "8. spl-agent-id-reap dry=0 ($rc: $out)"
+
+# 9. cron_refuse_linked_worktree optional wording and plural callers (r08-01 one copy)
+out="$(wt_check "$T/wt-linked/csi-spl-orc" 0 0 "run the install" "the paths below")"; rc=$?
+[ "$rc" = 1 ] && [ "$out" = "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: run the install from the main checkout - nothing changed" ] \
+  && pass "9. cron_refuse_linked_worktree honours custom fatal_verb when dry=0" || fail "9. custom dry=0 ($rc: $out)"
+out="$(wt_check "$T/wt-linked/csi-spl-orc" 1 0 "run the install" "the paths below")"; rc=$?
+[ "$rc" = 0 ] && [ "$out" = "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the paths below would vanish with it; install from the main checkout" ] \
+  && pass "9. cron_refuse_linked_worktree honours custom warn_noun when dry=1" || fail "9. custom dry=1 ($rc: $out)"
+out="$(wt_check "$T/wt-linked/csi-spl-orc" 0 1 "run the install" "the paths below")"; rc=$?
+[ "$rc" = 0 ] && [ -z "$out" ] && pass "9. cron_refuse_linked_worktree custom wording still skips when allow=1" || fail "9. custom allow=1 ($rc: $out)"
+
+for sib in \
+  "$PROJ_ROOT/src/bash/run/install-box-crons.func.sh" \
+  "$PROJ_ROOT/src/bash/run/spl-agent-hooks-install.func.sh" \
+  "$PROJ_ROOT/src/bash/run/spl-agent-identity-install.func.sh"; do
+  own="$(grep -nE 'is a linked worktree:|--git-common-dir' "$sib" || true)"
+  [ -z "$own" ] && grep -q 'cron_refuse_linked_worktree ' "$sib" \
+    && pass "9. one copy: $(basename "$sib") delegates worktree check to cron_refuse_linked_worktree" \
+    || fail "9. one copy $(basename "$sib"): own=[$own]"
+done
+
+# standalone plural-caller linked-worktree checks (lazy-loads cron-tagged-line.func.sh)
+printf 'demo | * * * * * | demo.sh | demo.log |\n' >"$T/wt-linked/demo.manifest"
+touch "$T/wt-linked/csi-spl-orc/demo.sh"
+out="$(env -u BOX_CRONS_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" BOX_CRONS_MANIFEST="$T/wt-linked/demo.manifest" BOX_CRONS_STATE_DIR="$T/state" BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_DESK_USER="$(id -un)" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; do_install_box_crons' _ \
+  "$PROJ_ROOT/src/bash/run/install-box-crons.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
+  && pass "9. install-box-crons refuses a linked worktree when DRY_RUN=0" || fail "9. box-crons dry=0 ($rc: $out)"
+out="$(env -u BOX_CRONS_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" BOX_CRONS_MANIFEST="$T/wt-linked/demo.manifest" BOX_CRONS_STATE_DIR="$T/state" BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_DESK_USER="$(id -un)" DRY_RUN=1 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; do_install_box_crons' _ \
+  "$PROJ_ROOT/src/bash/run/install-box-crons.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the paths below would vanish with it; install from the main checkout" <<<"$out" \
+  && pass "9. install-box-crons warns with plural wording when DRY_RUN=1" || fail "9. box-crons dry=1 ($rc: $out)"
+out="$(env -u BOX_CRONS_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" BOX_CRONS_MANIFEST="$T/wt-linked/demo.manifest" BOX_CRONS_STATE_DIR="$T/state" BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_DESK_USER="$(id -un)" BOX_CRONS_ACTION=remove DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; do_install_box_crons' _ \
+  "$PROJ_ROOT/src/bash/run/install-box-crons.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && ! grep -q 'linked worktree' <<<"$out" \
+  && pass "9. install-box-crons remove skips worktree refusal" || fail "9. box-crons remove ($rc: $out)"
+
+mkdir -p "$T/wt-linked/csi-spl-orc/src/bash/features/spawn-agents/scripts"
+touch "$T/wt-linked/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent-hook.sh"
+printf '{}\n' >"$T/hooks-set.json"
+out="$(env -u HOOKS_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" HOOKS_SETTINGS="$T/hooks-set.json" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; do_require_bin() { return 0; }; source "$1"; do_spl_agent_hooks_install' _ \
+  "$PROJ_ROOT/src/bash/run/spl-agent-hooks-install.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: run the install from the main checkout - nothing changed" <<<"$out" \
+  && pass "9. spl-agent-hooks-install refuses a linked worktree when DRY_RUN=0" || fail "9. hooks dry=0 ($rc: $out)"
+out="$(env -u HOOKS_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" HOOKS_SETTINGS="$T/hooks-set.json" DRY_RUN=1 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; do_require_bin() { return 0; }; source "$1"; do_spl_agent_hooks_install' _ \
+  "$PROJ_ROOT/src/bash/run/spl-agent-hooks-install.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the paths below would vanish with it; install from the main checkout" <<<"$out" \
+  && pass "9. spl-agent-hooks-install warns with plural wording when DRY_RUN=1" || fail "9. hooks dry=1 ($rc: $out)"
+out="$(env -u HOOKS_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" HOOKS_SETTINGS="$T/hooks-set.json" HOOKS_UNINSTALL=1 DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; do_require_bin() { return 0; }; source "$1"; do_spl_agent_hooks_install' _ \
+  "$PROJ_ROOT/src/bash/run/spl-agent-hooks-install.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the paths below would vanish with it; install from the main checkout" <<<"$out" \
+  && pass "9. spl-agent-hooks-install uninstall warns instead of refusing when DRY_RUN=0" || fail "9. hooks uninstall ($rc: $out)"
+
+mkdir -p "$T/wt-linked/csi-spl-orc/src/bash/features/spawn-agents/lib" "$T/wt-linked/csi-spl-orc/lib/bash/funcs" "$T/wt-id-spool/agents"
+cp "$PROJ_ROOT/src/bash/features/spawn-agents/lib/agent-identity.inc.sh" "$T/wt-linked/csi-spl-orc/src/bash/features/spawn-agents/lib/"
+cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-lock.func.sh" "$T/wt-linked/csi-spl-orc/lib/bash/funcs/"
+out="$(env -u IDENTITY_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROOT="$T/wt-id-spool" IDENTITY_CRONTAB="$T/fake-crontab" SPOOL_TMUX_SOCKET="$T/no.sock" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; do_spl_agent_identity_install' _ \
+  "$PROJ_ROOT/src/bash/run/spl-agent-identity-install.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: run the install from the main checkout - nothing changed" <<<"$out" \
+  && pass "9. spl-agent-identity-install refuses a linked worktree when DRY_RUN=0" || fail "9. identity dry=0 ($rc: $out)"
+out="$(env -u IDENTITY_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROOT="$T/wt-id-spool" IDENTITY_CRONTAB="$T/fake-crontab" SPOOL_TMUX_SOCKET="$T/no.sock" DRY_RUN=1 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; do_spl_agent_identity_install' _ \
+  "$PROJ_ROOT/src/bash/run/spl-agent-identity-install.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the paths below would vanish with it; install from the main checkout" <<<"$out" \
+  && pass "9. spl-agent-identity-install warns with plural wording when DRY_RUN=1" || fail "9. identity dry=1 ($rc: $out)"
+out="$(env -u IDENTITY_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROOT="$T/wt-id-spool" IDENTITY_CRONTAB="$T/fake-crontab" SPOOL_TMUX_SOCKET="$T/no.sock" IDENTITY_UNINSTALL=1 DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; do_spl_agent_identity_install' _ \
+  "$PROJ_ROOT/src/bash/run/spl-agent-identity-install.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the paths below would vanish with it; install from the main checkout" <<<"$out" \
+  && pass "9. spl-agent-identity-install uninstall warns instead of refusing when DRY_RUN=0" || fail "9. identity uninstall ($rc: $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

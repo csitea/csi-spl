@@ -32,17 +32,11 @@ do_spl_agent_identity_install() {
     source "$PROJ_PATH/lib/bash/funcs/spl-desk-cron-lock.func.sh" || return 1
   local ns; ns="$(spl_cron_no_stack_pre "$PROJ_PATH" "${log%/*}/reconcile.cron.lock")" || return 1
   local want="* * * * * ${ns}bash $script --apply >> $log 2>&1 # $AI_CRON_TAG"
-  local ct="${IDENTITY_CRONTAB:-crontab}" before after hook h cmd rc=0 gd cd
+  local ct="${IDENTITY_CRONTAB:-crontab}" before after hook h cmd rc=0
   # The cron line and the hooks name THIS checkout's script: from a linked
   # worktree (torn down when its lane closes) they would point at nothing.
-  gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-  cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-  if [[ -n "$gd" && "$gd" != "$cd" && "${IDENTITY_ALLOW_WORKTREE:-0}" != 1 ]]; then
-    if [[ "$dry" == 0 && "$un" != 1 ]]; then
-      do_log "FATAL $PROJ_PATH is a linked worktree: run the install from the main checkout - nothing changed"; return 1
-    fi
-    echo "WARN $PROJ_PATH is a linked worktree: the paths below would vanish with it; install from the main checkout"
-  fi
+  declare -F cron_refuse_linked_worktree >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/cron-tagged-line.func.sh" || return 1
+  cron_refuse_linked_worktree "$([[ "$un" == 1 ]] && echo 1 || echo "$dry")" "${IDENTITY_ALLOW_WORKTREE:-0}" "run the install" "the paths below" || return 1
   before="$(mktemp)"; after="$(mktemp)"
   $ct -l 2>/dev/null >"$before"
   # A line whose tag only STARTS with ours is someone else's job that an

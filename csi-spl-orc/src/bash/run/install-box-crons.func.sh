@@ -52,7 +52,7 @@ do_install_box_crons() {
   local state="${BOX_CRONS_STATE_DIR:-}" ct="${BOX_CRONS_CRONTAB:-crontab}"
   local man="${BOX_CRONS_MANIFEST:-$PROJ_PATH/cnf/box-crons/box-crons.manifest}"
   local -a names=() scheds=() scripts=() logs=() repls=() ases=() sel=() bsel=() dsel=()
-  local i missing="" gd cd du dct
+  local i missing="" du dct
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   case "$act" in install|remove) ;; *) do_log "FATAL BOX_CRONS_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
   if [[ -z "$state" ]]; then
@@ -62,11 +62,9 @@ do_install_box_crons() {
   fi
   box_crons_read_manifest "$man" || return 1
   box_crons_select "$only" || return 1
-  gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-  cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-  if [[ "$act" == install && -n "$gd" && "$gd" != "$cd" && "${BOX_CRONS_ALLOW_WORKTREE:-0}" != 1 ]]; then
-    [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
-    echo "WARN $PROJ_PATH is a linked worktree: the paths below would vanish with it; install from the main checkout"
+  if [[ "$act" == install ]]; then
+    declare -F cron_refuse_linked_worktree >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/cron-tagged-line.func.sh" || return 1
+    cron_refuse_linked_worktree "$dry" "${BOX_CRONS_ALLOW_WORKTREE:-0}" "install" "the paths below" || return 1
   fi
   if [[ "$act" == install ]]; then
     for i in "${sel[@]}"; do

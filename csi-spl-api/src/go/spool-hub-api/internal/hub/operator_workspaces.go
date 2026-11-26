@@ -281,7 +281,8 @@ func (c *createWorkspaceReq) check() (ed25519.PublicKey, ed25519.PrivateKey, str
 // POST /v1/operator/workspaces: create a workspace (409 when the id exists),
 // optionally invite its first admin. A generated root private key is in the
 // 201 body ONCE and is never stored or logged (the shell action's contract).
-// display_name.status (stored|not_stored) says whether the name was saved.
+// display_name.status (stored|not_stored) says whether the name was saved;
+// box_wui_pin.status whether the hub pinned its box-wui key (wui_pin.go).
 func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Request) {
 	a, ok := s.operatorActor(w, r)
 	if !ok {
@@ -334,6 +335,9 @@ func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Re
 	s.opAudit(r, a, req.ID, store.AuditCreate, map[string]any{"billing_status": req.BillingStatus,
 		"display_name": req.DisplayName, "first_admin_email": req.FirstAdminEmail, "key_generated": priv != nil,
 		"fleet_seating": req.fleetSeating()})
+	// Spec 158 10.6 item 2: the hub pins its own box-wui key; a failure is
+	// reported in the body, never fails the create (the root key is answered once).
+	out["box_wui_pin"] = map[string]any{"status": s.ensureWUIPin(r.Context(), req.ID, wuiPinActor{a.tenant, a.hum})}
 	writeJSON(w, http.StatusCreated, out)
 }
 

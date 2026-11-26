@@ -42,6 +42,18 @@ accessor binding only (never a version).
    hub has no key at all).
 3. Boxes pick the pin up with their normal `GET /v1/pins` sync
    (`$SPOOL_ROOT/pins/box-box-wui.pub`).
+4. **Amended by spec 158 10.6 (row P1, SPL-5019): the hub pins its own key.**
+   The operator create (`POST /v1/operator/workspaces`) writes the box-wui pin
+   itself, with no root signature: `ensureWUIPin` (`internal/hub/wui_pin.go`)
+   pins the hub's loaded key, never forced and only when the workspace has no
+   box-wui pin row, and writes one `operator_audit` row (action `update`,
+   detail `box_wui_pin`). A live pin of another key and a revoked pin stay as
+   they are, so a tenant that revoked box-wui (2.4) is never re-pinned. The
+   201 body says `box_wui_pin.status`: `pinned`, `present`, `kept`, `no_key`
+   or `failed`; none of them fails the create. Steps 1-2 stay the way for
+   every other create path and for a re-pin. Why it adds no power: boxes read
+   their pins from the hub with no root signature, and the key is only ever
+   the hub's own (spec 158 10.6, threat model).
 
 ### 2.3 Rotation
 

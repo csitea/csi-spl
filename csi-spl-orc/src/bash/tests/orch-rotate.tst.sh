@@ -945,6 +945,37 @@ ROTATE_CRON_TOOLS=no-such-tool-x bash "$SRC/csi-spl-orc/src/bash/scripts/orch-ro
 got="$(cd "$PROJ_ROOT/src/bash/scripts" && grep -lE '^(say|check_tools|rotate_cron_orc)\(\) *\{' orch-rotate-cron.sh dispatch-rotate-cron.sh rotate-cron.inc.sh | tr '\n' ' ')"
 [[ "$got" == "rotate-cron.inc.sh " ]] && pass "10. say, check_tools and rotate_cron_orc are defined once, in rotate-cron.inc.sh" || fail "10. defined once (want 'rotate-cron.inc.sh ', got '$got')"
 
+# --- 10c. r05-01 one copy and standalone lazy-source (delegates to _spl_simple_cron_apply) ---
+or_f="$PROJ_ROOT/src/bash/run/spl-orch-rotate-install-cron.func.sh"
+or_own="$(grep -nE "the crontab does not read back what was written|is installed and its script is executable|OK DRY_RUN nothing was touched" "$or_f" || true)"
+[[ -z "$or_own" ]] && grep -q "_spl_simple_cron_apply " "$or_f" &&
+  pass "10c. r05-01 one copy: spl-orch-rotate-install-cron.func.sh delegates apply to _spl_simple_cron_apply" ||
+  fail "10c. r05-01 one copy: own=[$or_own]"
+printf '%s\n' '*/3 * * * * other job # csi-spl:desk-reconcile' >"$T/crontab.10c"
+out="$(env -u CRON_REMOVE -u ROTATE_CRON_ACTION -u ROTATE_CRON_MINUTE PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.10c" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" ROTATE_CRON_LOG_DIR="$T/log-10c" ROTATE_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-orch-rotate-install-cron.func.sh"
+  do_spl_orch_rotate_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the orchestrator rotation is NOT installed (no line tagged csi-spl:orch-rotate): the orchestrator session is never renewed"* && "$out" != *"orchestrator rotation cron"* && "$out" != *"command not found"* ]] &&
+  pass "10c. r05-01 lazy load: spl-orch-rotate-install-cron.func.sh loads _spl_simple_cron_apply standalone" ||
+  fail "10c. r05-01 lazy load (rc=$rc): $out"
+out="$(env -u CRON_REMOVE -u ROTATE_CRON_ACTION -u ROTATE_CRON_MINUTE PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.10c" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" ROTATE_CRON_LOG_DIR="$T/log-10c" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-orch-rotate-install-cron.func.sh"
+  do_spl_orch_rotate_install_cron; echo "rc1=$?"
+  ROTATE_CRON_ACTION=check do_spl_orch_rotate_install_cron; echo "rc2=$?"
+  ROTATE_CRON_ACTION=remove do_spl_orch_rotate_install_cron; echo "rc3=$?"' 2>&1)"
+[[ "$out" == *"OK the orchestrator rotation runs hourly at :05 as the box user:"* && "$out" == *"rc1=0"* \
+  && "$out" == *"OK the orchestrator rotation is installed and its script is executable"* && "$out" == *"rc2=0"* \
+  && "$out" == *"OK the orchestrator rotation is out of the crontab"* && "$out" == *"rc3=0"* \
+  && "$out" != *"orchestrator rotation cron"* ]] &&
+  pass "10c. r05-01 lifecycle: install, check and remove keep exact messages without ' cron'" ||
+  fail "10c. r05-01 lifecycle: $out"
+
 # --- 13. spec 061 L6: the rotation switches a legacy LEASE_ORCH to its new id ------------------
 # (owner 2026-10-02 21:37Z: "Why the orc does not restart from cron")
 cat >"$T/bin/rename" <<'EOF2'

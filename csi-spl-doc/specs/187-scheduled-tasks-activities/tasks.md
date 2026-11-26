@@ -8,7 +8,7 @@ SPL-6067.
 | task | row | depends on | kind | state |
 |---|---|---|---|---|
 | T001 | S1 rdb + store | — | `complex_coding` | not started |
-| T002 | S2 grammar `idle:` / `changed:` | — | `simple_coding` | not started |
+| T002 | S2 grammar `idle:` / `changed:` | — | `simple_coding` | done (6a8907804, SPL-6568) |
 | T003 | S3 hub runner + fixed actions | T001 | `complex_coding` | not started |
 | T004 | S4 event triggers + chains | T003 | `complex_coding` | not started |
 | T005 | S5 agent action + caps | T003 | `complex_coding` | not started |

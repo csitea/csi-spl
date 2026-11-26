@@ -32,10 +32,11 @@ export interface TopicLoopBody {
   daily_tz?: string
 }
 
-/** The dialog's form (emptyLoopForm, loopForm). */
+/** The dialog's form (emptyLoopForm, loopForm): one trigger (v0.11); `others` the rest of a loop stored with several. */
 export interface TopicLoopForm {
   prompt: string
-  triggers: string[]
+  trigger: string
+  others: string[]
   interval: number
   keyword: string
   idle: number

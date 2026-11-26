@@ -1083,7 +1083,7 @@
       "locked": "Sinu tööruumi arhiveerimise seade ei luba selle teema tsükleid muuta.",
       "err_prompt": "Kirjuta viip.",
       "err_prompt_long": "Viip on pikem kui 4000 märki.",
-      "err_trigger": "Märgi vähemalt üks käivitaja.",
+      "err_trigger": "Vali üks käivitaja.",
       "err_interval": "Vali 5 kuni 1440 minutit.",
       "err_bad_loop": "Keskus lükkas selle tsükli tagasi. Kontrolli viipa ja käivitajaid.",
       "err_not_allowed": "Sa ei tohi selle teema tsükleid muuta.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Ajavöönd",
       "err_keyword": "Kirjuta sõna või fraas, kuni 200 märki.",
       "err_daily_at": "Vali kellaaeg.",
-      "err_daily_tz": "Vali ajavöönd loendist."
+      "err_daily_tz": "Vali ajavöönd loendist.",
+      "multi_note": "See tsükkel salvestati rohkem kui ühe käivitajaga; see käivitub ka: {triggers}. Salvestamisel jääb alles ainult valitud käivitaja."
     }
   },
   "topic": {

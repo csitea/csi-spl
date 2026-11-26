@@ -1083,7 +1083,7 @@
       "locked": "De archiefinstelling van je werkruimte laat je de lussen van dit onderwerp niet wijzigen.",
       "err_prompt": "Schrijf een opdracht.",
       "err_prompt_long": "De opdracht is langer dan 4000 tekens.",
-      "err_trigger": "Vink minstens één trigger aan.",
+      "err_trigger": "Kies één trigger.",
       "err_interval": "Kies 5 tot 1440 minuten.",
       "err_bad_loop": "De hub weigerde deze lus. Controleer de opdracht en de triggers.",
       "err_not_allowed": "Je mag de lussen van dit onderwerp niet wijzigen.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Tijdzone",
       "err_keyword": "Schrijf een woord of zinsdeel van hoogstens 200 tekens.",
       "err_daily_at": "Kies een tijdstip.",
-      "err_daily_tz": "Kies een tijdzone uit de lijst."
+      "err_daily_tz": "Kies een tijdzone uit de lijst.",
+      "multi_note": "Deze lus is opgeslagen met meer dan één trigger; hij draait ook bij: {triggers}. Bij opslaan blijft alleen de gekozen trigger over."
     }
   },
   "topic": {

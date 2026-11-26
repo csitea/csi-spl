@@ -1083,7 +1083,7 @@
       "locked": "Ustawienie archiwizacji w Twojej przestrzeni roboczej nie pozwala zmieniać pętli tego tematu.",
       "err_prompt": "Wpisz polecenie.",
       "err_prompt_long": "Polecenie ma ponad 4000 znaków.",
-      "err_trigger": "Zaznacz co najmniej jeden wyzwalacz.",
+      "err_trigger": "Wybierz jeden wyzwalacz.",
       "err_interval": "Wybierz od 5 do 1440 minut.",
       "err_bad_loop": "Centrum odrzuciło tę pętlę. Sprawdź polecenie i wyzwalacze.",
       "err_not_allowed": "Nie możesz zmieniać pętli tego tematu.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Strefa czasowa",
       "err_keyword": "Wpisz słowo lub frazę, najwyżej 200 znaków.",
       "err_daily_at": "Wybierz porę dnia.",
-      "err_daily_tz": "Wybierz strefę czasową z listy."
+      "err_daily_tz": "Wybierz strefę czasową z listy.",
+      "multi_note": "Ta pętla została zapisana z więcej niż jednym wyzwalaczem; uruchamia się też przy: {triggers}. Zapisanie zachowa tylko wybrany wyzwalacz."
     }
   },
   "topic": {

@@ -1083,7 +1083,7 @@
       "locked": "Your workspace's archive setting does not let you change the loops of this topic.",
       "err_prompt": "Write a prompt.",
       "err_prompt_long": "The prompt is longer than 4000 characters.",
-      "err_trigger": "Check at least one trigger.",
+      "err_trigger": "Choose one trigger.",
       "err_interval": "Choose 5 to 1440 minutes.",
       "err_bad_loop": "The hub refused this loop. Check the prompt and the triggers.",
       "err_not_allowed": "You may not change the loops of this topic.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Time zone",
       "err_keyword": "Write a word or phrase of at most 200 characters.",
       "err_daily_at": "Choose a time of day.",
-      "err_daily_tz": "Choose a time zone from the list."
+      "err_daily_tz": "Choose a time zone from the list.",
+      "multi_note": "This loop was saved with more than one trigger; it also runs on: {triggers}. Saving keeps only the trigger you choose."
     }
   },
   "topic": {

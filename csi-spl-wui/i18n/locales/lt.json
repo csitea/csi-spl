@@ -1083,7 +1083,7 @@
       "locked": "Jūsų darbo erdvės archyvavimo nustatymas neleidžia keisti šios temos ciklų.",
       "err_prompt": "Parašykite užklausą.",
       "err_prompt_long": "Užklausa ilgesnė nei 4000 simbolių.",
-      "err_trigger": "Pažymėkite bent vieną paleidiklį.",
+      "err_trigger": "Pasirinkite vieną paleidiklį.",
       "err_interval": "Pasirinkite nuo 5 iki 1440 minučių.",
       "err_bad_loop": "Centras atmetė šį ciklą. Patikrinkite užklausą ir paleidiklius.",
       "err_not_allowed": "Jūs negalite keisti šios temos ciklų.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Laiko juosta",
       "err_keyword": "Parašykite žodį ar frazę, ne ilgesnę nei 200 simbolių.",
       "err_daily_at": "Pasirinkite paros laiką.",
-      "err_daily_tz": "Pasirinkite laiko juostą iš sąrašo."
+      "err_daily_tz": "Pasirinkite laiko juostą iš sąrašo.",
+      "multi_note": "Šis ciklas išsaugotas su daugiau nei vienu paleidikliu; jis taip pat paleidžiamas: {triggers}. Išsaugojus lieka tik jūsų pasirinktas paleidiklis."
     }
   },
   "topic": {

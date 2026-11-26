@@ -1083,7 +1083,7 @@
       "locked": "Çalışma alanınızın arşivleme ayarı bu konunun döngülerini değiştirmenize izin vermiyor.",
       "err_prompt": "Bir istem yazın.",
       "err_prompt_long": "İstem 4000 karakterden uzun.",
-      "err_trigger": "En az bir tetikleyici işaretleyin.",
+      "err_trigger": "Bir tetikleyici seçin.",
       "err_interval": "5 ile 1440 dakika arasında seçin.",
       "err_bad_loop": "Merkez bu döngüyü reddetti. İstemi ve tetikleyicileri kontrol edin.",
       "err_not_allowed": "Bu konunun döngülerini değiştiremezsiniz.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Saat dilimi",
       "err_keyword": "En fazla 200 karakterlik bir sözcük veya ifade yazın.",
       "err_daily_at": "Günün bir saatini seçin.",
-      "err_daily_tz": "Listeden bir saat dilimi seçin."
+      "err_daily_tz": "Listeden bir saat dilimi seçin.",
+      "multi_note": "Bu döngü birden fazla tetikleyiciyle kaydedildi; şu durumlarda da çalışır: {triggers}. Kaydetmek yalnızca seçtiğiniz tetikleyiciyi tutar."
     }
   },
   "topic": {

@@ -290,12 +290,17 @@ function mockLoopTell(taskId, loops) {
   bc.close()
 }
 
-/** A route body (7.1.2) over the loop it edits, as the form of topic-loops.mjs. */
+/**
+ * A route body (7.1.2) over the loop it edits, as the form of topic-loops.mjs.
+ * v0.11: `others` keeps the extra triggers of a loop stored with several,
+ * while the body does not send triggers (a pause / resume keeps them).
+ */
 function mockLoopForm(body, old = {}) {
   const b = body && typeof body === 'object' ? body : {}
   const pick = (k) => (b[k] !== undefined ? b[k] : old[k])
+  const [trigger = '', ...others] = Array.isArray(pick('triggers')) ? pick('triggers').map(String) : []
   return {
-    prompt: pick('prompt'), triggers: pick('triggers'), interval: pick('interval_min'), keyword: pick('keyword'),
+    prompt: pick('prompt'), trigger, others: b.triggers !== undefined ? [] : others, sent: b.triggers, interval: pick('interval_min'), keyword: pick('keyword'),
     idle: pick('idle_min'), dailyAt: pick('daily_at'), dailyTz: pick('daily_tz') || 'UTC',
   }
 }
@@ -313,7 +318,11 @@ const MOCK_LOOP_FIELDS = ['interval_min', 'next_due_at', 'keyword', 'idle_min', 
 
 /** The loop JSON of 7.1.2 from a checked form and the row it replaces: each field only with its box. */
 function mockLoopRow(form, old) {
-  const body = loopBody(form)
+  const body = { triggers: [] }
+  for (const trigger of [form.trigger, ...(form.others || [])]) {
+    const one = loopBody({ ...form, trigger })
+    Object.assign(body, one, { triggers: [...body.triggers, ...one.triggers] })
+  }
   const row = { ...old, prompt: body.prompt, triggers: body.triggers }
   for (const k of MOCK_LOOP_FIELDS) delete row[k]
   for (const k of ['interval_min', 'keyword', 'idle_min', 'daily_at', 'daily_tz']) if (body[k] !== undefined) row[k] = body[k]
@@ -323,8 +332,10 @@ function mockLoopRow(form, old) {
   return row
 }
 
+/* v0.11: a write that sends triggers sends exactly one (the hub's 400 bad_loop) */
 function mockLoopBad(form) {
-  if (loopFormError(form)) throw Object.assign(new Error('bad loop'), { status: 400, token: 'bad_loop' })
+  const several = Array.isArray(form.sent) && new Set(form.sent).size !== 1
+  if (several || loopFormError(form)) throw Object.assign(new Error('bad loop'), { status: 400, token: 'bad_loop' })
 }
 
 /** GET: { task_id, may_edit, loops } */

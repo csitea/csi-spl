@@ -1083,7 +1083,7 @@
       "locked": "Arbetsytans arkiveringsinställning låter dig inte ändra slingorna i det här ämnet.",
       "err_prompt": "Skriv en instruktion.",
       "err_prompt_long": "Instruktionen är längre än 4000 tecken.",
-      "err_trigger": "Markera minst en utlösare.",
+      "err_trigger": "Välj en utlösare.",
       "err_interval": "Välj 5 till 1440 minuter.",
       "err_bad_loop": "Navet avvisade slingan. Kontrollera instruktionen och utlösarna.",
       "err_not_allowed": "Du får inte ändra slingorna i det här ämnet.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Tidszon",
       "err_keyword": "Skriv ett ord eller en fras på högst 200 tecken.",
       "err_daily_at": "Välj en tid på dagen.",
-      "err_daily_tz": "Välj en tidszon i listan."
+      "err_daily_tz": "Välj en tidszon i listan.",
+      "multi_note": "Den här loopen sparades med mer än en utlösare; den körs också vid: {triggers}. När du sparar behålls bara den utlösare du väljer."
     }
   },
   "topic": {

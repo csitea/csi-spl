@@ -1083,7 +1083,7 @@
       "locked": "Setarea de arhivare a spațiului tău de lucru nu îți permite să schimbi buclele acestui subiect.",
       "err_prompt": "Scrie o instrucțiune.",
       "err_prompt_long": "Instrucțiunea depășește 4000 de caractere.",
-      "err_trigger": "Bifează cel puțin un declanșator.",
+      "err_trigger": "Alege un declanșator.",
       "err_interval": "Alege între 5 și 1440 de minute.",
       "err_bad_loop": "Hubul a refuzat această buclă. Verifică instrucțiunea și declanșatoarele.",
       "err_not_allowed": "Nu poți schimba buclele acestui subiect.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Fus orar",
       "err_keyword": "Scrie un cuvânt sau o expresie de cel mult 200 de caractere.",
       "err_daily_at": "Alege o oră din zi.",
-      "err_daily_tz": "Alege un fus orar din listă."
+      "err_daily_tz": "Alege un fus orar din listă.",
+      "multi_note": "Această buclă a fost salvată cu mai multe declanșatoare; rulează și la: {triggers}. La salvare se păstrează doar declanșatorul ales."
     }
   },
   "topic": {

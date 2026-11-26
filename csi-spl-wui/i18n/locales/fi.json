@@ -1083,7 +1083,7 @@
       "locked": "Työtilasi arkistointiasetus ei salli tämän aiheen silmukoiden muuttamista.",
       "err_prompt": "Kirjoita kehote.",
       "err_prompt_long": "Kehote on yli 4000 merkkiä pitkä.",
-      "err_trigger": "Valitse vähintään yksi käynnistin.",
+      "err_trigger": "Valitse yksi käynnistin.",
       "err_interval": "Valitse 5–1440 minuuttia.",
       "err_bad_loop": "Keskus hylkäsi tämän silmukan. Tarkista kehote ja käynnistimet.",
       "err_not_allowed": "Et voi muuttaa tämän aiheen silmukoita.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Aikavyöhyke",
       "err_keyword": "Kirjoita sana tai ilmaus, enintään 200 merkkiä.",
       "err_daily_at": "Valitse kellonaika.",
-      "err_daily_tz": "Valitse aikavyöhyke luettelosta."
+      "err_daily_tz": "Valitse aikavyöhyke luettelosta.",
+      "multi_note": "Tämä silmukka tallennettiin useammalla kuin yhdellä käynnistimellä; se käynnistyy myös: {triggers}. Tallennus säilyttää vain valitsemasi käynnistimen."
     }
   },
   "topic": {

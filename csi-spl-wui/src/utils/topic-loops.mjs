@@ -9,6 +9,13 @@
 // mock (spool-client-mock.mjs) checks a write with the same rules the hub
 // answers 400 bad_loop for. Pure: the Node tests import it. Its types:
 // topic-loops.d.ts (the shim file's module count may only fall).
+//
+// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb, SPL-6580 / SPL-6582): one trigger per
+// loop (msg febf1db4, radio buttons; it reverses Q3 B), and that trigger,
+// with its parameter, is the loop's title (msgs 543a5bde, 9e3161d9,
+// a04bba37). The title is derived, never stored: loopTitle. A loop stored
+// before v0.11 with several triggers still reads and fires as it is; its
+// form opens on the first, and saving it keeps only the one chosen.
 
 import { isKnownTimeZone } from './date-iso.mjs'
 
@@ -46,16 +53,22 @@ const KEY = 'feed.topic_loops.'
  * browser's, 4.1 step 2).
  */
 export function emptyLoopForm(tz = 'UTC') {
-  return { prompt: '', triggers: [], interval: 30, keyword: '', idle: 30, dailyAt: '09:00', dailyTz: String(tz || 'UTC') }
+  return { prompt: '', trigger: '', others: [], interval: 30, keyword: '', idle: 30, dailyAt: '09:00', dailyTz: String(tz || 'UTC') }
 }
 
-/** A loop JSON (7.1.2) back into the form, for Edit. */
+/**
+ * A loop JSON (7.1.2) back into the form, for Edit: `trigger` is its one
+ * trigger; `others` the rest of a loop stored before v0.11 with several,
+ * which the form names and a save drops.
+ */
 export function loopForm(loop, tz = 'UTC') {
   const l = loop && typeof loop === 'object' ? loop : {}
   const minutes = (v) => (Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : 30)
+  const [trigger = '', ...others] = knownTriggers(l.triggers)
   return {
     prompt: String(l.prompt || ''),
-    triggers: knownTriggers(l.triggers),
+    trigger,
+    others,
     interval: minutes(l.interval_min),
     keyword: String(l.keyword || ''),
     idle: minutes(l.idle_min),
@@ -81,40 +94,40 @@ function knownTimeZone(tz) {
   return z.length <= 64 && isKnownTimeZone(z)
 }
 
-/** The broken rule of each box's own field (v0.4), '' when every checked one holds. */
-function fieldError(f, list) {
-  if (list.includes(LOOP_EVERY_N) && !minutesOk(f.interval)) return KEY + 'err_interval'
+/** The broken rule of the trigger's own field (v0.4), '' when it holds. */
+function fieldError(f, k) {
+  if (k === LOOP_EVERY_N && !minutesOk(f.interval)) return KEY + 'err_interval'
   const kw = String(f.keyword ?? '').trim()
-  if (list.includes(LOOP_KEYWORD) && (!kw || kw.length > LOOP_KEYWORD_MAX)) return KEY + 'err_keyword'
-  if (list.includes(LOOP_IDLE) && !minutesOk(f.idle)) return KEY + 'err_interval'
-  if (list.includes(LOOP_DAILY) && !HHMM.test(String(f.dailyAt ?? ''))) return KEY + 'err_daily_at'
-  if (list.includes(LOOP_DAILY) && !knownTimeZone(f.dailyTz)) return KEY + 'err_daily_tz'
+  if (k === LOOP_KEYWORD && (!kw || kw.length > LOOP_KEYWORD_MAX)) return KEY + 'err_keyword'
+  if (k === LOOP_IDLE && !minutesOk(f.idle)) return KEY + 'err_interval'
+  if (k === LOOP_DAILY && !HHMM.test(String(f.dailyAt ?? ''))) return KEY + 'err_daily_at'
+  if (k === LOOP_DAILY && !knownTimeZone(f.dailyTz)) return KEY + 'err_daily_tz'
   return ''
 }
 
 /**
  * The form's first broken rule as an i18n key, '' when it may be saved:
- * a prompt of 1..4000 characters, AT LEAST ONE trigger (answer 3 B, 4.1
- * step 2), only known triggers, and each box's field exactly when it is
- * checked: n of 5..1440 (each n minutes, no reply for n minutes), a keyword
- * of 1..200 characters, a time hh:mm and a known zone (every day at).
+ * a prompt of 1..4000 characters, EXACTLY ONE known trigger (v0.11, msg
+ * febf1db4), and that trigger's field when it has one: n of 5..1440 (each
+ * n minutes, no reply for n minutes), a keyword of 1..200 characters, a
+ * time hh:mm and a known zone (every day at).
  *
- * @param {{ prompt?: unknown, triggers?: unknown, interval?: unknown, keyword?: unknown, idle?: unknown, dailyAt?: unknown, dailyTz?: unknown }} form
+ * @param {{ prompt?: unknown, trigger?: unknown, interval?: unknown, keyword?: unknown, idle?: unknown, dailyAt?: unknown, dailyTz?: unknown }} form
  */
 export function loopFormError(form) {
   const f = form && typeof form === 'object' ? form : {}
   const prompt = String(f.prompt ?? '').trim()
   if (!prompt) return KEY + 'err_prompt'
   if (prompt.length > LOOP_PROMPT_MAX) return KEY + 'err_prompt_long'
-  const list = Array.isArray(f.triggers) ? f.triggers.map(String) : []
-  if (!list.length || list.some((k) => !LOOP_TRIGGERS.includes(k))) return KEY + 'err_trigger'
-  return fieldError(f, list)
+  const k = String(f.trigger ?? '')
+  if (!LOOP_TRIGGERS.includes(k)) return KEY + 'err_trigger'
+  return fieldError(f, k)
 }
 
-/** POST / PUT body of 7.1.2: each field only with its box. */
+/** POST / PUT body of 7.1.2: the one trigger, and its field when it has one. */
 export function loopBody(form) {
   const f = form && typeof form === 'object' ? form : {}
-  const triggers = knownTriggers(f.triggers)
+  const triggers = knownTriggers([f.trigger])
   const body = { prompt: String(f.prompt ?? '').trim(), triggers }
   if (triggers.includes(LOOP_EVERY_N)) body.interval_min = Number(f.interval)
   if (triggers.includes(LOOP_KEYWORD)) body.keyword = String(f.keyword ?? '').trim()
@@ -124,6 +137,12 @@ export function loopBody(form) {
     body.daily_tz = String(f.dailyTz || 'UTC')
   }
   return body
+}
+
+/** The form as the loop JSON its save would store, for loopTitle: the title follows each pick. */
+export function formLoop(form) {
+  const f = form && typeof form === 'object' ? form : {}
+  return { triggers: knownTriggers([f.trigger]), interval_min: f.interval, keyword: String(f.keyword ?? '').trim(), idle_min: f.idle, daily_at: f.dailyAt, daily_tz: f.dailyTz }
 }
 
 /**
@@ -142,6 +161,36 @@ export function loopTriggerLabels(loop) {
     if (k === LOOP_DAILY) return [KEY + 'daily_row', { time: l.daily_at ?? '', tz: l.daily_tz || 'UTC' }]
     return [KEY + 'trigger.' + k, {}]
   })
+}
+
+/**
+ * The loop's title (v0.11, change 1): its trigger's label with its
+ * parameter, first letter upper case ("Every 30 minutes", "Before each
+ * agent reply"); a loop stored with several triggers names them all, comma
+ * separated; '' with none. `t` is vue-i18n's; `locale` cases the first
+ * letter (Turkish i). The hub's fire line carries the same English title
+ * (hub/topic_loop_title.go, its parity test reads en.json).
+ *
+ * @param {unknown} loop
+ * @param {(key: string, params?: Record<string, unknown>) => string} t
+ * @param {string} [locale]
+ */
+export function loopTitle(loop, t, locale) {
+  return loopTriggerLabels(loop).map(([key, params], i) => {
+    const label = String(t(key, params))
+    return i === 0 ? upperFirst(label, locale) : label
+  }).join(', ')
+}
+
+function upperFirst(s, locale) {
+  const first = [...s][0] || ''
+  let up
+  try {
+    up = first.toLocaleUpperCase(locale || undefined)
+  } catch {
+    up = first.toUpperCase()
+  }
+  return up + s.slice(first.length)
 }
 
 /** The prompt's first non-empty line, for the list row. */

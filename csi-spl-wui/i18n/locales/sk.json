@@ -1083,7 +1083,7 @@
       "locked": "Nastavenie archivácie vo vašom pracovnom priestore vám nedovoľuje meniť slučky tejto témy.",
       "err_prompt": "Napíšte pokyn.",
       "err_prompt_long": "Pokyn má viac ako 4000 znakov.",
-      "err_trigger": "Označte aspoň jeden spúšťač.",
+      "err_trigger": "Vyberte jeden spúšťač.",
       "err_interval": "Zvoľte 5 až 1440 minút.",
       "err_bad_loop": "Centrum túto slučku odmietlo. Skontrolujte pokyn a spúšťače.",
       "err_not_allowed": "Slučky tejto témy nemôžete meniť.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Časové pásmo",
       "err_keyword": "Napíšte slovo alebo frázu s najviac 200 znakmi.",
       "err_daily_at": "Zvoľte čas dňa.",
-      "err_daily_tz": "Zvoľte časové pásmo zo zoznamu."
+      "err_daily_tz": "Zvoľte časové pásmo zo zoznamu.",
+      "multi_note": "Táto slučka bola uložená s viacerými spúšťačmi; spúšťa sa aj pri: {triggers}. Uložením zostane len spúšťač, ktorý vyberiete."
     }
   },
   "topic": {

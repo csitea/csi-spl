@@ -11,12 +11,19 @@
      section 7.1.2; the hub re-checks the archive policy on every write, and
      `may_edit` from the list read locks the buttons. A `topic_loops` frame
      (another tab or member) replaces the list. Loaded lazily
-     (LazyTopicLoopsDialog): needed only after the entry is picked. -->
+     (LazyTopicLoopsDialog): needed only after the entry is picked.
+     Spec 182 v0.11 (HUM-10, t1 6e8c1cdb): one trigger per loop, a radio
+     group (msg febf1db4, SPL-6582); the trigger with its parameter is the
+     loop's title, set the moment a radio is picked and shown on the list row
+     above the prompt's first line (msgs 543a5bde, 9e3161d9, a04bba37,
+     SPL-6580 / SPL-6581). A loop stored with several triggers names them on
+     its row; its form opens on the first and says a save keeps only one. -->
 <template>
   <UiDialog :open="open" :title="t('feed.topic_loops.title')" size="md" @update:open="emit('update:open', $event)">
     <div class="topic-loops" data-testid="topic-loops">
       <p v-if="error" class="topic-loops__error" role="alert" data-testid="topic-loops-error">{{ t(error) }}</p>
       <form v-if="form" class="topic-loops__form" data-testid="topic-loops-form" @submit.prevent="save">
+        <h3 v-if="formTitle" class="topic-loops__title" data-testid="topic-loops-form-title">{{ formTitle }}</h3>
         <label class="topic-loops__field">
           <span>{{ t('feed.topic_loops.prompt') }}</span>
           <textarea
@@ -31,9 +38,10 @@
         </label>
         <fieldset class="topic-loops__triggers" :disabled="busy">
           <legend>{{ t('feed.topic_loops.triggers') }}</legend>
+          <p v-if="form.others.length" class="topic-loops__note" data-testid="topic-loops-multi-note">{{ t('feed.topic_loops.multi_note', { triggers: othersText }) }}</p>
           <div v-for="k in LOOP_TRIGGERS" :key="k" class="topic-loops__trigger">
             <label>
-              <input v-model="form.triggers" type="checkbox" :value="k" :data-testid="'topic-loops-trigger-' + k">
+              <input v-model="form.trigger" type="radio" name="topic-loops-trigger" :value="k" :data-testid="'topic-loops-trigger-' + k">
               <span>{{ t('feed.topic_loops.trigger.' + k) }}</span>
             </label>
             <input
@@ -84,9 +92,9 @@
         <p v-else-if="!loops.length" class="muted" data-testid="topic-loops-empty">{{ t('feed.topic_loops.empty') }}</p>
         <ul v-else class="topic-loops__list">
           <li v-for="l in loops" :key="l.loop_id" class="topic-loops__row" data-testid="topic-loops-row" :data-state="loopRowState(l).state">
-            <p class="topic-loops__first">{{ loopFirstLine(l.prompt) }}</p>
+            <p class="topic-loops__first" data-testid="topic-loops-row-title">{{ loopTitle(l, t, locale) }}</p>
+            <p class="topic-loops__prompt" data-testid="topic-loops-row-prompt">{{ loopFirstLine(l.prompt) }}</p>
             <p class="topic-loops__meta muted">
-              <span data-testid="topic-loops-row-triggers">{{ triggerNames(l) }}</span>
               <span data-testid="topic-loops-row-state">{{ stateText(l) }}</span>
               <span>{{ t('feed.topic_loops.by', { who: people.label(l.set_by) }) }}</span>
             </p>
@@ -116,13 +124,13 @@ import { createLatest } from '~/utils/latest-only.mjs'
 import { browserTimeZone, isoClock, knownTimeZones } from '~/utils/date-iso.mjs'
 import {
   LOOP_DAILY, LOOP_EVERY_N, LOOP_IDLE, LOOP_INTERVAL_MAX, LOOP_INTERVAL_MIN, LOOP_KEYWORD, LOOP_KEYWORD_MAX, LOOP_PROMPT_MAX, LOOP_TRIGGERS,
-  emptyLoopForm, loopBody, loopErrorKey, loopFirstLine, loopForm, loopFormError, loopRowState, loopsFromFrame, loopTriggerLabels,
+  emptyLoopForm, formLoop, loopBody, loopErrorKey, loopFirstLine, loopForm, loopFormError, loopRowState, loopsFromFrame, loopTitle,
 } from '~/utils/topic-loops.mjs'
 import type { TopicLoop, TopicLoopForm } from '~/utils/topic-loops'
 
 const props = defineProps<{ open: boolean, taskId: string }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 const people = useHumanNames()
 
@@ -142,9 +150,9 @@ const lockTitle = computed(() => (mayEdit.value ? undefined : t('feed.topic_loop
 const tz = browserTimeZone() || 'UTC'
 const zones = computed(() => (form.value ? knownTimeZones() : []))
 
-function triggerNames(l: TopicLoop): string {
-  return loopTriggerLabels(l).map(([key, params]) => t(key, params)).join(', ')
-}
+/* the title follows the picked radio and its field (v0.11, change 1) */
+const formTitle = computed(() => (form.value ? loopTitle(formLoop(form.value), t, locale.value) : ''))
+const othersText = computed(() => (form.value ? loopTitle({ triggers: form.value.others }, t, locale.value) : ''))
 
 function stateText(l: TopicLoop): string {
   const s = loopRowState(l)
@@ -251,7 +259,9 @@ onUnmounted(() => offFrame())
 .topic-loops__note { flex-basis: 100%; padding-left: 24px; font-size: 0.8125rem; color: var(--color-muted); }
 .topic-loops__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .topic-loops__row { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 12px; }
+.topic-loops__title { margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-heading); overflow-wrap: anywhere; }
 .topic-loops__first { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.topic-loops__prompt { margin: 2px 0 0; overflow-wrap: anywhere; }
 .topic-loops__meta { margin: 4px 0; font-size: 0.8125rem; display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .topic-loops__row-actions, .topic-loops__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 </style>

@@ -1083,7 +1083,7 @@
       "locked": "La configuración de archivo de tu espacio de trabajo no te permite cambiar los bucles de este tema.",
       "err_prompt": "Escribe una instrucción.",
       "err_prompt_long": "La instrucción supera los 4000 caracteres.",
-      "err_trigger": "Marca al menos un disparador.",
+      "err_trigger": "Elige un disparador.",
       "err_interval": "Elige de 5 a 1440 minutos.",
       "err_bad_loop": "El hub rechazó este bucle. Revisa la instrucción y los disparadores.",
       "err_not_allowed": "No puedes cambiar los bucles de este tema.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Zona horaria",
       "err_keyword": "Escribe una palabra o frase de 200 caracteres como máximo.",
       "err_daily_at": "Elige una hora del día.",
-      "err_daily_tz": "Elige una zona horaria de la lista."
+      "err_daily_tz": "Elige una zona horaria de la lista.",
+      "multi_note": "Este bucle se guardó con más de un disparador; también se ejecuta con: {triggers}. Al guardar solo se conserva el disparador que elijas."
     }
   },
   "topic": {

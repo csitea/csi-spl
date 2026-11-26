@@ -1083,7 +1083,7 @@
       "locked": "Jūsu darbvietas arhivēšanas iestatījums neļauj mainīt šīs tēmas ciklus.",
       "err_prompt": "Uzrakstiet uzvedni.",
       "err_prompt_long": "Uzvedne ir garāka par 4000 rakstzīmēm.",
-      "err_trigger": "Atzīmējiet vismaz vienu palaidēju.",
+      "err_trigger": "Izvēlieties vienu palaidēju.",
       "err_interval": "Izvēlieties no 5 līdz 1440 minūtēm.",
       "err_bad_loop": "Centrs noraidīja šo ciklu. Pārbaudiet uzvedni un palaidējus.",
       "err_not_allowed": "Jūs nedrīkstat mainīt šīs tēmas ciklus.",
@@ -1100,7 +1100,8 @@
       "daily_tz": "Laika josla",
       "err_keyword": "Uzrakstiet vārdu vai frāzi, ne garāku par 200 rakstzīmēm.",
       "err_daily_at": "Izvēlieties diennakts laiku.",
-      "err_daily_tz": "Izvēlieties laika joslu no saraksta."
+      "err_daily_tz": "Izvēlieties laika joslu no saraksta.",
+      "multi_note": "Šis cikls tika saglabāts ar vairāk nekā vienu palaidēju; tas darbojas arī: {triggers}. Saglabājot paliek tikai jūsu izvēlētais palaidējs."
     }
   },
   "topic": {

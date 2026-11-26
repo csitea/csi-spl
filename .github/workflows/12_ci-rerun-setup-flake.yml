@@ -18,7 +18,7 @@
 # Local equivalent: RUN_ID=<id> REPO=<owner>/<repo> DRY_RUN=1 ./csi-spl-orc/run -a do_ci_rerun_setup_flake
 #
 # It watches only the workflows that ever lost a job at "Set up job", plus
-# wf 26 (SPL-6385 A7; csi-spl-doc/specs/016-spool-testability/
+# wf 26 through wf 16 (SPL-6385 A7, A6; csi-spl-doc/specs/016-spool-testability/
 # ci-volume-2026-11-24.md section 3). Each watched completion is one wf 12
 # run. Measured 2026-10-27..2026-11-26: n=14,410 wf 12 runs, 13,857 skipped;
 # the job logs of the 553 that ran: 1 rerun (wf 10 41638443630, "wui: browser
@@ -29,7 +29,7 @@
 # |----------|-------------------------:|-------------------------------------|
 # | 10       | 1                        | the 30-day rerun; 38685379352 above |
 # | 20       | 0                        | 38684002050, 38687357160 above      |
-# | 26       | 0                        | SPL-4988: a lost run delays notes   |
+# | 16       | 0                        | runs 26; SPL-4988: late notes       |
 #
 # The other 14 (15, 23, 30, 32, 50, 61-67, 70, 85): 0 in 30 days, dropped; a
 # setup flake there needs a hand rerun (gh run rerun <id> --failed).
@@ -40,7 +40,7 @@ on:
     workflows:
       - "10 ci: quality gate"
       - "20 ci-cd: spool hub build + deploy"
-      - "26 ops: release notes ingest"
+      - "16 push: commit links, release notes, secret scans"
     types: [completed]
     branches: [master]
 

@@ -23,7 +23,8 @@
 #  12. a post that fails moves no state: the next tick posts it
 #  13. the default reader asks do_spl_db_query for ENV and parses psql's table
 #  14. a bad limit is refused; the manifest row, the cron script, and wf 12
-#      listing wf 26's name verbatim (c-917 N6)
+#      listing by its name verbatim wf 16, which runs wf 26 on push (c-917 N6;
+#      SPL-6385 A6)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -194,8 +195,9 @@ grep -qE '\| \*/15 \* \* \* \* +\| src/bash/scripts/release-notes-lag-alarm-cron
   && pass "14. the manifest row runs the executable cron script every 15 min" || fail "14. row ($row)"
 out="$(bash "$PROJ_ROOT/src/bash/scripts/release-notes-lag-alarm-cron.sh" --bad 2>&1)"; rc=$?
 [ "$rc" = 2 ] && pass "14. the cron script refuses an unknown argument" || fail "14. cron (rc $rc: $out)"
-wf26="$(sed -n 's/^name: "\(.*\)"$/\1/p' "$APP_ROOT/.github/workflows/26_release-notes-ingest.yml")"
-[ -n "$wf26" ] && grep -qF "      - \"$wf26\"" "$APP_ROOT/.github/workflows/12_ci-rerun-setup-flake.yml" \
-  && pass "14. wf 12 lists wf 26 by its name, verbatim" || fail "14. wf 12 lacks '$wf26'"
+wf16="$(sed -n 's/^name: "\(.*\)"$/\1/p' "$APP_ROOT/.github/workflows/16_push-checks.yml")"
+[ -n "$wf16" ] && grep -qF "uses: ./.github/workflows/26_release-notes-ingest.yml" "$APP_ROOT/.github/workflows/16_push-checks.yml" \
+  && grep -qF "      - \"$wf16\"" "$APP_ROOT/.github/workflows/12_ci-rerun-setup-flake.yml" \
+  && pass "14. wf 12 lists wf 16 (which runs wf 26 on push) by its name, verbatim" || fail "14. wf 12 lacks '$wf16', or wf 16 no longer calls wf 26"
 
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

@@ -142,12 +142,13 @@ run_it REPO= GITHUB_REPOSITORY=
 
 # --- 9. the watch list is the measured set (SPL-6385 A7) ------------------------
 # wf 12 watches only the workflows that lost a job at "Set up job" (its header
-# comment holds the measurement), plus wf 26 for SPL-4988; each entry must be
+# comment holds the measurement), plus wf 16 for SPL-4988 (on push it runs
+# wf 26 as a reusable workflow, SPL-6385 A6); each entry must be
 # a workflow's name: line verbatim, or it never fires.
 WF12="$APP_ROOT/.github/workflows/12_ci-rerun-setup-flake.yml"
-want=$'10 ci: quality gate\n20 ci-cd: spool hub build + deploy\n26 ops: release notes ingest'
+want=$'10 ci: quality gate\n20 ci-cd: spool hub build + deploy\n16 push: commit links, release notes, secret scans'
 got="$(sed -n '/^    workflows:/,/^    types:/s/^      - "\(.*\)"$/\1/p' "$WF12")"
-[[ "$got" == "$want" ]] && pass "9 wf 12 watches the measured set: 10, 20, 26" ||
+[[ "$got" == "$want" ]] && pass "9 wf 12 watches the measured set: 10, 20, 16" ||
   fail "9 wf 12 watches $(grep -c . <<<"$got") workflow(s), not the measured 3: '$(tr '\n' ',' <<<"$got")'"
 missing=''
 while IFS= read -r w; do

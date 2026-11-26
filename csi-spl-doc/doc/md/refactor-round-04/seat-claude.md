@@ -322,3 +322,71 @@ RUN** (row gates, run by the row lanes; my scratch trees are not lane worktrees)
 ## 5. Signatures
 
 - v0.1 `4ded3bf46a50baf4ace5e7919ea9720857af5db7`: **FAIL** (W1, W2), c-804 claude.
+
+## 6. Re-review of v0.2
+
+**PASS** on v0.2 **`84178fd66cb774ff2b05402815cc7da78f880833`**
+(`git ls-remote origin refs/heads/review/c002-refactor-round-04-planner` -> that sha,
+2026-11-26T01:5xZ; parent `4ded3bf46`). Base unchanged, `ffba81845`. Session
+`55bbd52a-82ec-4824-951b-c782185d2762`, n=1 each, 01:50Z to 01:59Z.
+
+### 6.1 What changed
+
+- `git diff --stat 4ded3bf46 84178fd66` -> `refactor-round-04-plan.md | 194`, 1 file,
+  `+135 -59`. Read in full.
+- The 12 fenced `bash` blocks of v0.1 and v0.2 compared one by one -> only block **7**
+  differs (row 01's `spl-issue-owner-question-diss.tst.sh` checks, the new mode check).
+  Row 02's blocks are unchanged, so the head2 results of 2.3 and 2.9 stand.
+
+### 6.2 W1 folded (option a)
+
+- Text: intro, 1.3 (Shape, Behaviour), row 01, the Docs paragraph, section 3 and section 5
+  now name the tightening: a pre-existing `ISSUE_PLAN` becomes `0600`, and a failing
+  `chmod` returns 1. Row 01's `Docs: none (...)` line names it.
+- head1 rebuilt from v0.2 (`apply_heads.py`, fresh `git clone` of base): `git diff --numstat`
+  `+20 -10`, `+9 -34`, `+46 -0`, `+35 -0`; `sha256sum | cut -c1-12`: `c9476da5a155`,
+  `3cfae296d937`, `29126e34f396`, **`fcd6c8c7efbd`** (plan: same), oq test 124 lines.
+- Runs (`SPOOL_TEST=1 bash src/bash/tests/<t>`), all as the plan says:
+
+| run | rc / pass / fail | last line / FAIL lines |
+|---|---|---|
+| base oq test | 0 / 11 / 0 | `ALL PASS` |
+| base brc test | 0 / 18 / 0 | `ALL PASS` |
+| head1 oq test | 0 / 15 / 0 | `ALL PASS` |
+| head1 brc test | 0 / 22 / 0 | `ALL PASS` |
+| rc1b (head1's oq test on base) | 1 / 13 / 2 | `oq one copy: own=[38: ...`, **`r04-01 existing plan mode (rc=0): 644`** |
+| gc1a (head1, oq `:39` `declare -F` deleted) | 1 / 13 / 2 | `r90-02 sourced alone`, `r04-01 oq solo dry` |
+| gc1b (head1, oq `:73` deleted) | 1 / 14 / 1 | `r04-01 oq solo query (rc=127)` |
+| m1a (oq `:40` plan path with no subdir) | 1 / 14 / 2 | `oq one copy`, `oq solo dry` |
+| m1b (oq `:74` query with no SQL fn) | 1 / 13 / 2 | `oq one copy`, `oq solo query` |
+| **m1c** (mine: brc `:75` `&& chmod 600 "$p"` dropped) | oq 1 / 14 / 1; brc 1 / 21 / 1 | oq `r04-01 existing plan mode (rc=0): 644`; brc `existing plan mode: 644` |
+
+  m1c shows the new check guards the W1 contract from both suites.
+- `shellcheck -S warning -x` on head1's oq test -> rc 0.
+
+### 6.3 W2 folded
+
+Plan `:1049` (section 7) names brc/oq `*_read` (`brc:81-86` vs `oq:83-89`) and `*_apply`
+(`brc:126-151` vs `oq:136-162`), why they stay out (`do_spl_cloud_cnf` placement, distinct
+re-read semantics) and `r05`+; `:115` adds the 1.2 (a) note. Accounted for.
+
+### 6.4 Re-checks
+
+- Slug: `git log origin/master --since=2026-11-26T02:43:46+02:00 --oneline -E --grep='\(r04-' | wc -l` -> `0`.
+- Drift: `git diff --name-only ffba81845 origin/master -- <the 9 row files>` with
+  origin/master `7e7962df5` -> `0` lines.
+- R3: `lane-map.sh --check <the 9 row files> --agent c-804` at 01:59:03Z -> exit 4,
+  unknown lanes `c-298@sat`, `c-722@sat` (no files recorded; their pushed branches touch
+  no row file, 2.6). The holder re-checks at placement.
+- Hygiene: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> `clean`, rc 0.
+
+### 6.5 Notes on v0.2
+
+- **N7:** after W1(a) row 01 is a refactor with one stated, tested tightening (mode of a
+  pre-existing plan file, and rc 1 where `chmod` fails, which base did not run). That is
+  the holder's ruling (send-back 78253b0d, option a); it is named everywhere the plan said
+  "no change". I sign on that basis.
+- **N8:** N1 and N3 (briefs, candidates file) are answered from the holder's box by the
+  holder; I still have not read them myself.
+
+- v0.2 `84178fd66cb774ff2b05402815cc7da78f880833`: **PASS**, c-804 claude.

@@ -12,6 +12,13 @@
  * Select by title sends the lines as typed in one `topic_select` frame
  * (7.1.2); the hub resolves them. The WUI never evaluates a pattern (4.2):
  * it adds exactly the task ids the answer names.
+ *
+ * SPL-6613 (owner HUM-10, t1 f7b53cf8, msg 5b8f9db2: "make the search by
+ * title part of the filter and the select the one which actually selects
+ * either all , but the already listed / filtered"): the topic list filter's
+ * title field resolves through the same frame, and its answer narrows the
+ * list (store.titleMatch) instead of joining the selection. The page box
+ * then ticks exactly the topics listed.
  */
 import { computed, getCurrentScope, nextTick, onScopeDispose, watch } from 'vue'
 import { TOPIC_SELECT_DEFAULT_ACTION, uniquePicks, useTopicSelectStore, type TopicPick, type TopicSelectAction } from '~/stores/topicSelect'
@@ -59,6 +66,11 @@ function readSelectAnswer(newest: string, ans: TopicSelectAnswer | null | undefi
   return { topics: uniquePicks(Array.isArray(ans.topics) ? ans.topics : []), bad: null, error: '' }
 }
 
+/** A thrown topic_select as the note's text: its token, else its message. */
+function errorOf(e: unknown): string {
+  return String((e as { token?: string })?.token || (e as Error)?.message || 'error')
+}
+
 function newReqId(): string {
   const c = globalThis.crypto as Crypto | undefined
   if (c && typeof c.randomUUID === 'function') return c.randomUUID()
@@ -95,7 +107,7 @@ function useSelectByTitle(store: ReturnType<typeof useTopicSelectStore>) {
       ans = await api.topicSelect({ req_id, action: action(), task_ids: [], patterns })
     } catch (e) {
       if (store.lastReq !== req_id) return null
-      return { added: 0, none: false, bad: null, error: String((e as { token?: string })?.token || (e as Error)?.message || 'error') }
+      return { added: 0, none: false, bad: null, error: errorOf(e) }
     }
     const read = readSelectAnswer(store.lastReq, ans)
     if (!read) return null
@@ -103,7 +115,33 @@ function useSelectByTitle(store: ReturnType<typeof useTopicSelectStore>) {
     store.add(read.topics)
     return { added: store.count - before, none: !read.bad && !read.error && read.topics.length === 0, bad: read.bad, error: read.error }
   }
-  return { selectByTitle, byTitleOn }
+  /**
+   * SPL-6613: the topic list filter's title field. One `topic_select` with the
+   * text as typed; the answer's topics become the filter (store.titleMatch),
+   * never the selection. An empty field, a refusal or a failure ends the
+   * filter; a newer frame drops this answer. `added` = the topics matched.
+   */
+  async function filterByTitle(text: string): Promise<PatternOutcome | null> {
+    const req_id = newReqId()
+    store.titleReq = req_id
+    if (!String(text ?? '').trim()) {
+      store.titleMatch = null
+      return null
+    }
+    let ans: TopicSelectAnswer
+    try {
+      ans = await api.topicSelect({ req_id, action: action(), task_ids: [], patterns: [String(text)] })
+    } catch (e) {
+      if (store.titleReq !== req_id) return null
+      store.titleMatch = null
+      return { added: 0, none: false, bad: null, error: errorOf(e) }
+    }
+    const read = readSelectAnswer(store.titleReq, ans)
+    if (!read) return null
+    store.titleMatch = read.bad || read.error ? null : read.topics
+    return { added: read.topics.length, none: !read.bad && !read.error && read.topics.length === 0, bad: read.bad, error: read.error }
+  }
+  return { selectByTitle, filterByTitle, byTitleOn }
 }
 
 function useSelectRun(store: ReturnType<typeof useTopicSelectStore>) {
@@ -135,10 +173,26 @@ function useSelectRun(store: ReturnType<typeof useTopicSelectStore>) {
 }
 
 function useSelectPage(store: ReturnType<typeof useTopicSelectStore>) {
+  /** SPL-6613: under a title filter, the hub's matches in the channels the page shows (null = no title filter) */
+  const titleHere = computed(() => {
+    const m = store.titleMatch
+    if (!m) return null
+    const chs = new Set(store.shown.map((p) => p.channel))
+    return m.filter((p) => chs.has(p.channel))
+  })
   /** more topics match than the page holds: Gmail's line under a page-wide tick */
-  const canMatchAll = computed(() => store.page === 'all' && Boolean(store.matcher?.more()))
-  /** "Select all N matching": the page's pages to the end, then every topic shown, under the page's own filter */
+  const canMatchAll = computed(() => store.page === 'all' && (titleHere.value
+    ? titleHere.value.some((p) => !store.has(p.task_id))
+    : Boolean(store.matcher?.more())))
+  /** the N of "Select all N matching": the title filter's exact count, else "shown+" */
+  const matchTotal = computed(() => (titleHere.value ? String(titleHere.value.length) : `${store.shown.length}+`))
+  /** "Select all N matching": the title filter's matches, else the page's pages to the end and every topic shown, under the page's own filter */
   async function selectAllMatching() {
+    if (titleHere.value) {
+      store.add(titleHere.value)
+      store.allMatching = true
+      return
+    }
     const m = store.matcher
     if (!m || store.matching) return
     store.matching = true
@@ -156,7 +210,7 @@ function useSelectPage(store: ReturnType<typeof useTopicSelectStore>) {
     if (ev.key !== 'Escape' || !store.active || ev.defaultPrevented || keyIsElsewhere(ev)) return
     store.clear()
   }
-  return { canMatchAll, selectAllMatching, onKey }
+  return { canMatchAll, matchTotal, selectAllMatching, onKey }
 }
 
 /** The select phase: the shared selection, its page tools, Select by title and the action list. */

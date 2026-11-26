@@ -81,10 +81,18 @@ function selectionState() {
   const allMatching = ref(false)
   /* the newest topic_select sent: an answer to an older one is dropped (7.1.2) */
   const lastReq = ref('')
+  /* SPL-6613: the hub's answer to the topic list filter's title field (null =
+     no title filter) and the newest frame sent for it */
+  const titleMatch = shallowRef<TopicPick[] | null>(null)
+  const titleReq = ref('')
+  /* the headers that hold the title filter: the last one to go ends it */
+  const titleHolders = ref(0)
   const keys = computed(() => picks.value.map((p) => p.task_id))
   const shownKeys = computed(() => shown.value.map((p) => p.task_id))
   return {
-    ws, picks, shown, anchor, actions, busy, progress, result, matcher, matching, allMatching, lastReq, keys, shownKeys,
+    ws, picks, shown, anchor, actions, busy, progress, result, matcher, matching, allMatching, lastReq, titleMatch, titleReq, titleHolders, keys, shownKeys,
+    /** the task ids the title field matched, or null while it is empty */
+    titleIds: computed(() => (titleMatch.value ? new Set(titleMatch.value.map((p) => p.task_id)) : null)),
     keySet: computed(() => new Set(keys.value)),
     count: computed(() => picks.value.length),
     active: computed(() => picks.value.length > 0),
@@ -141,7 +149,10 @@ export const useTopicSelectStore = defineStore('topicSelect', () => {
   /** the reader's workspace; another one empties the selection (a multicast cannot cross workspaces, 3.3) */
   function setWorkspace(id: string) {
     const next = String(id || '')
-    if (s.ws.value && next !== s.ws.value) edits.clear()
+    if (s.ws.value && next !== s.ws.value) {
+      edits.clear()
+      s.titleMatch.value = null
+    }
     s.ws.value = next
   }
   /** the page's tickable topics, in reading order (the page box, shift-range) */

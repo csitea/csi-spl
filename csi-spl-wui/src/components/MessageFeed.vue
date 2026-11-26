@@ -114,9 +114,10 @@ const freshIds = computed(() => (channel.peer ? [] : fresh.idsFor(channel.active
 onBeforeRouteLeave((to) => { fresh.leaveTo(to.path) })
 const listRows = computed(() => {
   const rows = channel.newestFirst
-  if (!choice.filtered.value && !choice.sorted.value) return rows
+  if (!choice.filtered.value && !choice.sorted.value && !choice.titled.value) return rows
   return topicListView(rows, {
     keep: freshIds.value,
+    only: choice.titleIds.value,
     filter: choice.filter.value,
     sort: choice.sort.value,
     unreadOf: (m: SpoolMessage) => cardNew.unseen(m),

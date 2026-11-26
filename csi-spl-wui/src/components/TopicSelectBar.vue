@@ -7,9 +7,19 @@
      Clear; a progress and a result line the running action fills, and
      Gmail's "Select all N matching" under a page-wide tick. The tick logic is
      utils/issues-bulk.ts, through stores/topicSelect.ts. Esc clears.
+     SPL-6613 (owner HUM-10, t1 f7b53cf8, msg 5b8f9db2): the title search
+     is a field of the topic list filter (TopicListControl.vue), so the bar
+     has no Select by title; the page box ticks the topics listed, and under
+     a title filter "Select all N matching" adds the hub's N matches.
+     On a channel page the bar starts with the topic list's filter and sort
+     (TopicListControl, the header's own), so the list can be filtered by
+     title while topics are ticked; a filter change keeps the selection
+     (spec 186 4.1 step 1 item 3), and the page box then ticks what is
+     listed (SPL-6613, holder GO dc0fa0cb).
      Loaded lazily: nothing renders it until a topic is ticked. -->
 <template>
   <header class="feed-header topic-select" role="toolbar" :aria-label="t('topic_select.label')" data-test="topic-select-bar" :data-count="store.count" :data-channels="store.channels">
+    <span v-if="channelPage" class="topic-select__list"><LazyTopicListControl /></span>
     <input
       v-if="store.shown.length"
       ref="boxEl"
@@ -23,10 +33,6 @@
     >
     <span class="topic-select__n" data-test="topic-select-count" aria-live="polite" :title="countText">{{ countText }}</span>
     <span class="topic-select__acts">
-      <button v-if="byTitleOn" type="button" class="btn ghost topic-select__btn" data-test="topic-select-by-title" :aria-expanded="patternsOpen ? 'true' : 'false'" :aria-label="t('topic_select.by_title')" :title="t('topic_select.by_title')" @click="patternsOpen = !patternsOpen">
-        <UiIcon name="search" :size="16" />
-        <span v-if="!phone" class="topic-select__label">{{ t('topic_select.by_title') }}</span>
-      </button>
       <button
         v-for="a in store.actions"
         :key="a.id"
@@ -46,11 +52,10 @@
       <UiIcon name="x" :size="16" />
       <span v-if="!phone" class="topic-select__label">{{ t('topic_select.clear') }}</span>
     </button>
-    <div v-if="patternsOpen || canMatchAll || store.progress || store.result" class="topic-select__notes">
-      <LazyTopicSelectPatterns v-if="byTitleOn && patternsOpen" @close="patternsOpen = false" @added="patternsOpen = false" />
+    <div v-if="canMatchAll || store.progress || store.result" class="topic-select__notes">
       <p v-if="canMatchAll && !store.allMatching" class="topic-select__note muted" data-test="topic-select-matching-line">
         <button type="button" class="topic-select__link" data-test="topic-select-all-matching" :disabled="store.matching || store.busy" @click="selectAllMatching()">
-          {{ t('topic_select.select_matching', { total: store.shown.length + '+' }) }}
+          {{ t('topic_select.select_matching', { total: matchTotal }) }}
         </button>
       </p>
       <p v-if="store.progress" class="topic-select__note muted" role="status" data-test="topic-select-progress">{{ t('issues_bulk.progress', { done: store.progress.done, total: store.progress.total }) }}</p>
@@ -69,10 +74,12 @@ import { useMulticastAction } from '~/composables/useMulticastSend'
 
 defineProps<{ phone?: boolean }>()
 const { t } = useI18n({ useScope: 'global' })
-const { store, runAction, canMatchAll, selectAllMatching, onKey, byTitleOn } = useTopicSelect()
+const { store, runAction, canMatchAll, matchTotal, selectAllMatching, onKey } = useTopicSelect()
 /* spec 186 M11: Multicast joins the bar's actions (7.1.6); its dialog opens on the selection */
 const multicast = useMulticastAction()
-const patternsOpen = ref(false)
+/* SPL-6613: a channel's topic list keeps its filter (and the title field) in the bar */
+const route = useRoute()
+const channelPage = computed(() => /\/channel\/[^/]+\/?$/.test(route.path))
 const countText = computed(() => store.channels > 1
   ? `${t('topic_select.count', { count: store.count })} ${t('topic_select.in_channels', { n: store.channels })}`
   : t('topic_select.count', { count: store.count }))
@@ -91,6 +98,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .topic-select { flex-wrap: wrap; gap: 8px; row-gap: 4px; background: var(--color-selected); }
+.topic-select__list { display: inline-flex; flex: 0 0 auto; }
 .topic-select__box { width: 18px; height: 18px; margin: 0; flex: 0 0 auto; accent-color: var(--color-accent); cursor: pointer; }
 .topic-select__n { flex: 0 1 auto; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topic-select__acts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }

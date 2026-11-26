@@ -2351,6 +2351,7 @@ declare module '~/utils/topic-list-order.mjs' {
       lastOf?: (row: T) => string
       createdOf?: (row: T) => string
       keep?: readonly string[]
+      only?: ReadonlySet<string> | null
     },
   ): T[]
   export function pinEdge<T>(

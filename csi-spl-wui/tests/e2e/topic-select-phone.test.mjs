@@ -5,8 +5,7 @@
 //      another card then ticks it instead of opening its topic; a long LEFT
 //      swipe does not archive while the selection is not empty; Clear empties
 //      it and the bar goes
-//   B  1280x800 desktop: a card's box ticks it; Select by title (header,
-//      nothing ticked) sends the patterns and the mock hub's topics join; the
+//   B  1280x800 desktop: a card's box ticks it (two cards); the
 //      bar counts "in 2 channels" after a tick on another channel's page; Esc
 //      clears; the card's box sits at its left, centred on its height and
 //      never on the sender avatar, at 5 rows and in titles (t1 a1329bac),
@@ -290,16 +289,19 @@ async function desktop(browser, base) {
   await d.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
   await mounted(d)
   const [, , b3] = await seed(d, CH_B, 'desk-b')
-  const [a1] = await seed(d, CH_A, 'desk-a')
+  const [a1, a2] = await seed(d, CH_A, 'desk-a')
   await d.waitForSelector(card(a1), { visible: true, timeout: 10000 })
   await boxPlace(d, a1)
 
-  /* Select by title from the header, nothing ticked yet: the mock hub resolves it */
-  await d.click('[data-test=feed-header] [data-test=topic-select-by-title]')
-  await d.waitForSelector('[data-test=topic-select-patterns-field]', { visible: true, timeout: 5000 })
-  await d.type('[data-test=topic-select-patterns-field]', '^desk-a topic [12]$')
-  await d.click('[data-test=topic-select-apply]')
-  ok('B desktop: Select by title adds the two topics the hub matched', await until(d, () => Number(document.querySelector('[data-test=topic-select-bar]')?.getAttribute('data-count')) === 2, null, 5000), { count: await barCount(d) })
+  /* SPL-6613: the header has no Select by title (the title search is a filter
+     field, tests/e2e/topic-title-filter.test.mjs); two cards ticked by their boxes */
+  ok('B desktop: the header has no Select by title button', !(await shown(d, '[data-test=topic-select-by-title]')))
+  /* the first tick puts the bar in the header's place and moves the cards: each box is clicked where it is now */
+  for (const id of [a1, a2]) {
+    await d.hover(card(id))
+    await d.$eval(`${card(id)} [data-test=topic-select-box]`, (e) => e.click())
+  }
+  ok('B desktop: two cards ticked by their boxes', await until(d, () => Number(document.querySelector('[data-test=topic-select-bar]')?.getAttribute('data-count')) === 2, null, 5000), { count: await barCount(d) })
 
   await d.evaluate((ch) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/channel/' + ch), CH_B)
   await d.waitForSelector(card(b3), { visible: true, timeout: 10000 })

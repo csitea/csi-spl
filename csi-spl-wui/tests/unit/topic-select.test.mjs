@@ -285,14 +285,90 @@ describe('Select by title shows only where topic_select can be sent (R7 W1)', ()
     assert.equal(live.canTopicSelect(), false)
     assert.equal(createSpoolClient({ mock: true }).canTopicSelect(), true)
   })
-  it('the header and the bar gate the button and the field on it', () => {
-    const head = template('src/components/FeedHeader.vue')
-    assert.match(head, /<button\s+v-if="byTitleOn"\s+type="button"\s+class="icon-btn feed-header__select"/)
-    assert.match(head, /<div v-if="byTitleOn && patternsOpen" class="feed-header__patterns">/)
-    assert.match(read('src/components/FeedHeader.vue'), /const byTitleOn = computed\(\(\) => selectOn\.value && canTopicSelect\)/)
-    const bar = template('src/components/TopicSelectBar.vue')
-    assert.match(bar, /<button v-if="byTitleOn" type="button" class="btn ghost topic-select__btn" data-test="topic-select-by-title"/)
-    assert.match(bar, /<LazyTopicSelectPatterns v-if="byTitleOn && patternsOpen"/)
+  it('the title field is gated on it, on a channel page only (SPL-6613)', () => {
+    const choice = read('src/composables/useTopicListChoice.ts')
+    assert.match(choice, /const titleOn = computed\(\(\) => canTopicSelect && \/\\\/channel\\\/\[\^\/\]\+\\\/\?\$\/\.test\(route\.path\)\)/)
+    assert.match(choice, /const titleIds = computed\(\(\) => \(titleOn\.value \? topicSelect\.titleIds : null\)\)/, 'a DM or the lobby is never narrowed')
+    assert.match(template('src/components/TopicListControl.vue'), /<div v-if="g\.id === 'filter' && titleOn" class="tl-ctl__title">/)
     assert.equal(sel.byTitleOn, false, 'the stub api has no canTopicSelect: nothing offered')
+  })
+})
+
+// SPL-6613 (owner HUM-10, t1 f7b53cf8, msg 5b8f9db2: "make the search by
+// title part of the filter and the select the one which actually selects
+// either all , but the already listed / filtered"). Red on origin/master
+// a464b5399: filterByTitle, store.titleMatch and matchTotal do not exist,
+// the header and the bar still carry Select by title.
+describe('SPL-6613 the title search is a filter; the tick selects the topics listed', () => {
+  it('the title field sends one topic_select as typed; its answer narrows the list, never the selection', async () => {
+    hub.answer = (f) => ({ req_id: f.req_id, ok: true, topics: [pick('a2', 'alpha', 'zzz'), pick('b1', 'beta', 'yyy'), pick('a2', 'alpha', 'zzz')] })
+    const out = await sel.filterByTitle('  ^rel ')
+    assert.equal(hub.frames.length, 1)
+    assert.deepEqual(hub.frames[0].patterns, ['  ^rel '], 'as typed: the hub trims and matches (4.2)')
+    assert.deepEqual(hub.frames[0].task_ids, [])
+    assert.equal(sel.store.count, 0, 'nothing selected')
+    assert.deepEqual([...sel.store.titleIds], ['a2', 'b1'])
+    assert.equal(out.added, 2)
+  })
+  it('an empty field ends the filter without a frame; a bad pattern ends it and names the line', async () => {
+    hub.answer = (f) => ({ req_id: f.req_id, ok: true, topics: [pick('a1')] })
+    await sel.filterByTitle('x')
+    assert.ok(sel.store.titleIds)
+    assert.equal(await sel.filterByTitle('   '), null)
+    assert.equal(sel.store.titleIds, null)
+    assert.equal(hub.frames.length, 1)
+    hub.answer = (f) => ({ req_id: f.req_id, ok: false, error: 'topic_select_bad_pattern', detail: 'line 1: ^(: missing closing )', topics: [] })
+    const out = await sel.filterByTitle('^(')
+    assert.equal(sel.store.titleIds, null)
+    assert.deepEqual(out.bad, { line: '1', reason: '^(: missing closing )' })
+  })
+  it('an answer to an older title frame is dropped', async () => {
+    const held = []
+    hub.answer = (f) => new Promise((resolve) => held.push(() => resolve({ req_id: f.req_id, ok: true, topics: [pick(f.patterns[0])] })))
+    const first = sel.filterByTitle('old')
+    const second = sel.filterByTitle('new')
+    held[1]()
+    held[0]()
+    assert.equal(await first, null)
+    await second
+    assert.deepEqual([...sel.store.titleIds], ['new'])
+  })
+  it('the tick selects exactly the topics listed: all unfiltered, only the filtered ones under the filter', async () => {
+    sel.store.setShown(A)
+    sel.store.togglePage()
+    assert.deepEqual(sel.store.keys, ['a1', 'a2', 'a3', 'a4'], 'no filter: every topic listed')
+    sel.store.clear()
+    hub.answer = (f) => ({ req_id: f.req_id, ok: true, topics: [A[1], A[3], B[0]] })
+    await sel.filterByTitle('2|4')
+    /* the feed lists what the filter keeps (MessageFeed -> topicListView only) and LiveFeed hands it to setShown */
+    sel.store.setShown(A.filter((p) => sel.store.titleIds.has(p.task_id)))
+    sel.store.togglePage()
+    assert.deepEqual(sel.store.keys, ['a2', 'a4'], 'filtered: only the listed ones')
+    assert.equal(sel.canMatchAll.value, false, 'every match of this channel is listed and ticked')
+  })
+  it('"Select all N matching" under a title filter adds the hub\'s matches in this channel, N exact, no paging', async () => {
+    let loads = 0
+    sel.store.matcher = { more: () => true, load: async () => { loads++ } }
+    hub.answer = (f) => ({ req_id: f.req_id, ok: true, topics: [A[0], A[1], A[2], B[0]] })
+    await sel.filterByTitle('a')
+    sel.store.setShown([A[0], A[1]])
+    sel.store.togglePage()
+    assert.equal(sel.canMatchAll.value, true)
+    assert.equal(sel.matchTotal.value, '3', 'the 3 matches in alpha, not beta\'s')
+    await sel.selectAllMatching()
+    assert.deepEqual(sel.store.keys, ['a1', 'a2', 'a3'])
+    assert.equal(loads, 0)
+    assert.equal(sel.store.allMatching, true)
+  })
+  it('the header and the bar carry no Select by title; the header\'s tick ticks the listed topics', () => {
+    const head = template('src/components/FeedHeader.vue')
+    assert.doesNotMatch(head, /topic-select-by-title|TopicSelectPatterns/)
+    assert.match(head, /data-test="topic-select-listed"/)
+    assert.match(head, /@click\.prevent="topicSelect\.togglePage\(\)"/)
+    const bar = template('src/components/TopicSelectBar.vue')
+    assert.doesNotMatch(bar, /topic-select-by-title|TopicSelectPatterns/)
+    assert.match(bar, /t\('topic_select\.select_matching', \{ total: matchTotal \}\)/)
+    assert.match(bar, /<span v-if="channelPage" class="topic-select__list"><LazyTopicListControl \/><\/span>/, 'the filter stays usable while topics are ticked (holder GO dc0fa0cb)')
+    assert.match(read('src/components/MessageFeed.vue'), /only: choice\.titleIds\.value,/)
   })
 })

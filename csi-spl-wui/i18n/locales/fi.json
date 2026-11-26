@@ -1032,6 +1032,7 @@
       "filter": "Suodata",
       "filter_new": "Uudet",
       "filter_all": "Kaikki",
+      "filter_title": "Aiheen otsikko",
       "sort": "Lajittele",
       "sort_last": "Viimeisin päivitys",
       "sort_count": "Viestien määrä",

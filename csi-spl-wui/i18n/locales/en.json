@@ -1032,6 +1032,7 @@
       "filter": "Filter",
       "filter_new": "New",
       "filter_all": "All",
+      "filter_title": "Topic title",
       "sort": "Sort by",
       "sort_last": "Last update",
       "sort_count": "Number of messages",

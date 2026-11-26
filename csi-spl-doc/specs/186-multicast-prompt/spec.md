@@ -380,22 +380,38 @@ Measured on `387370a79`:
 3. **Criteria.** The list's own filters narrow what is shown (the channel
    page's Filter New/All, Monitoring -> Topics' column filters); the page
    box ticks every topic shown, and Gmail's line then offers "Select all
-   N matching" (3.6). A filter change does NOT clear the selection, unlike
+   N matching" (3.6). On a channel's topic list the filter also holds the
+   **title search** (item 4), and the header's **select tick** (row 2,
+   while nothing is ticked) ticks exactly the topics listed: all of them
+   with no filter, only the filtered ones with a filter (owner HUM-10, t1
+   `f7b53cf8`, 2026-11-26, msg `5b8f9db2`: "make the search by title part
+   of the filter and the select the one which actually selects either all ,
+   but the already listed / filtered"; SPL-6613). A filter change does NOT clear the selection, unlike
    the issues list (3.6): the selection spans channels, so moving from one
    channel's page to another keeps it (question H2). It is kept for the
    session in one store per workspace and cleared by Clear, by a finished
    bulk action, or by switching workspace.
-4. **By title pattern** (Q6, msg `4b3833e7`). The selection bar has a
-   "Select by title" field: one pattern per line, the RE2 rules of 4.2,
-   `*` = every topic in scope. Apply sends one `topic_select` frame
-   (7.1.2); the hub resolves the patterns and returns the explicit
-   `task_id`s, which join the selection (union, deduplicated by
-   `task_id`). The WUI never evaluates a pattern. A bad pattern names its
-   line and adds nothing. "Select by title" is also on the list header
-   while nothing is selected, so a selection can start from a pattern.
+4. **By title pattern** (Q6, msg `4b3833e7`; a filter since SPL-6613,
+   msg `5b8f9db2`). The channel topic list's Filter popover (the funnel,
+   beside New / All) has a "Topic title" field: one pattern, the RE2 rules
+   of 4.2, `*` = every topic in scope. 300 ms after the last key it sends
+   one `topic_select` frame (7.1.2) with the text as typed; the hub
+   resolves it and returns the explicit `task_id`s, and the list keeps only
+   those topics (New and the sort still apply). The WUI never evaluates a
+   pattern. A bad pattern names its line under the field and ends the
+   title filter; an empty field ends it too. The answer narrows the list,
+   it does not join the selection: the select tick then ticks the topics
+   listed. The filter icon's dot shows while the title narrows the list.
+   The field is on a channel's topic list only (not the lobby or a DM) and
+   only where `topic_select` can be sent (R7 W1); it lives while the
+   page's header does. The bar and the header have no "Select by title"
+   button. `TopicSelectPatterns.vue` (the multi-line pattern box) stays
+   for the multicast loop's field (4.8, M10).
 5. **The selection bar.** While the selection is not empty the bar takes
-   the list header's place, as `IssuesBulkBar` does (3.6): the page box,
-   "n selected" (with "in k channels" when k > 1), "Select by title", the
+   the list header's place, as `IssuesBulkBar` does (3.6): on a channel
+   page first the list's filter and sort (so the title filter of item 4
+   stays usable while topics are ticked; SPL-6613), the page box (it ticks
+   the topics listed), "n selected" (with "in k channels" when k > 1), the
    bulk buttons, Clear. Its buttons come from a list each bulk action adds
    itself to; this spec adds **Multicast**, spec 153 adds **Set
    priority** (8.3). A progress line and a result line, as on issues,
@@ -430,7 +446,8 @@ Measured on `387370a79`:
 
 ### 4.2 The selector: ticks and title patterns (Q6)
 
-- The "Select by title" field (4.1, step 1 item 4) takes one pattern per
+- The title field of the topic list filter (4.1, step 1 item 4; the loop's
+  pattern box, 4.8, takes several lines) takes one pattern per
   line, at most 10 lines, each at most 256 bytes. The hub trims each line (Go `strings.TrimSpace`) before
   anything else and drops a line that is then empty.
 - The trimmed line `*` means every topic in scope, so ` * ` does too.
@@ -519,8 +536,8 @@ Attach | Send) are not touched.
   the move handle are off until the selection is empty (question H4).
 - **The selection bar** takes the header's place at the top, as the
   issues list's does on a phone (3.6): icon buttons, each name on
-  `aria-label` and `title`: the page box, the count, Select by title
-  (opens a sheet with the pattern field), Multicast, Clear.
+  `aria-label` and `title`: the page box, the count, Multicast, Clear
+  (the title search is in the Filter popover, SPL-6613).
 - **Moving between channels** (the Channels list, the left panel) keeps the
   selection (4.1, step 1 item 3); the bar shows on every channel page of
   that workspace while the selection is not empty.
@@ -752,7 +769,8 @@ New i18n keys (en text). The select phase (M3): `topic_select.label`
 `topic_select.in_channels` "in {n} channels", `topic_select.select_page`
 "Select all topics shown", `topic_select.select_row` "Select {title}",
 `topic_select.select_matching` "Select all {total} matching",
-`topic_select.select` "Select" (the card menu's item),
+`topic_select.select` "Select" (the card menu's item), SPL-6613's
+`feed.topic_list.filter_title` "Topic title" (the filter's title field),
 `topic_select.by_title` "Select by title",
 `topic_select.patterns` "Topic title patterns, one per line; * = every
 topic", `topic_select.apply` "Add matching topics",
@@ -786,22 +804,38 @@ second topic multi-select (owner addendum `ae2caeb2`, 8.3).
   Topics rows of the reader's own workspace. Never on a DM card, an
   `issues` card, a reply card inside a topic, nor another workspace's row.
 - **Bar.** `TopicSelectBar.vue`, drawn while the selection is not empty in
-  the header's place on those pages: the page box, the count ("in k
-  channels" when k > 1), Select by title, the registered actions in their
-  registration order, Clear; a progress line and a result line an action
+  the header's place on those pages: on a channel page the topic list's
+  filter and sort first (`TopicListControl`, the header's own, Topic title
+  included: a filter change while topics are ticked keeps the selection,
+  4.1 step 1 item 3; SPL-6613, holder GO `dc0fa0cb`), the page box (it
+  ticks the topics listed), the count ("in k
+  channels" when k > 1), the registered actions in their
+  registration order, Clear; at 390 px it fits with no horizontal
+  overflow and Multicast on screen (`multicast-prompt.test.mjs` P); a progress line and a result line an action
   fills, as on issues (3.6).
 - **Actions.** `useTopicSelect().registerAction({ id, icon, labelKey,
   run(selection) })`; `run` gets the selection and returns when the action
   is done or cancelled; a finished action clears the selection. Multicast
   (M11) registers `multicast`; spec 153 registers its priority action.
-- **Patterns.** `TopicSelectPatterns.vue`: the field of 4.2, sending
-  `topic_select` (7.1.2) with the action the page was opened for; with no
-  action yet chosen it sends the action of the first registered button
-  (`multicast` while this spec's action is the only one).
-- **Criteria.** The page box and "Select all N matching" use the page's
-  own filters; on a channel page "all N matching" pages the channel's
-  topics through the existing list call (`listTopics`, as
-  `MovePickerDialog.vue:111-116` reads them) until the end.
+- **Patterns.** The title field of the topic list filter
+  (`TopicListControl.vue`, SPL-6613): `useTopicSelect().filterByTitle`
+  sends `topic_select` (7.1.2) with the action the page was opened for;
+  with no action yet chosen it sends the action of the first registered
+  button (`multicast` while this spec's action is the only one). The
+  answer is `stores/topicSelect.ts` `titleMatch`; `useTopicListChoice`
+  exposes its ids (`titleIds`, a channel page only) and `MessageFeed`
+  passes them to `topicListView` (`only`). `TopicSelectPatterns.vue`, the
+  multi-line field, is the loop's (M10).
+- **Criteria.** The page box, the header's select tick and "Select all N
+  matching" use the page's own filters: the tick and the page box tick the
+  topics listed (`store.shown`, what the filters keep). On a channel page
+  "all N matching" pages the channel's topics through the existing list
+  call (`listTopics`, as `MovePickerDialog.vue:111-116` reads them) until
+  the end; under a title filter it adds the hub's answer for the page's
+  channel instead, N exact, with no paging. Tests:
+  `csi-spl-wui/tests/unit/topic-select.test.mjs`,
+  `tests/unit/topic-list-order.test.mjs` and
+  `tests/e2e/topic-title-filter.test.mjs` (desktop and 390x844).
 
 #### 7.1.7 The loop targets (Q10 CMP, M10)
 

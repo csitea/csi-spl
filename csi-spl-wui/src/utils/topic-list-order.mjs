@@ -6,6 +6,9 @@
  * - Filter (panel D5): `all` keeps every card; `new` keeps the cards with
  *   unread messages, by the same count `unreadFirst` ranks by, so a card at
  *   the unread edge is always a card New keeps (case C210).
+ * - Title (SPL-6613, spec 186 7.1.6): `only`, the task ids the hub's
+ *   `topic_select` answer named for the filter's title field, keeps those
+ *   cards alone. The ids come resolved; nothing here reads a pattern (4.2).
  * - Sort, owner poll Q2 answer A ("There is no third sort: three sorts are
  *   enough"): `last` (last update, today's order), `messages` (the topic's
  *   total count, more first), `priority` (1 first, 5 last; a topic nobody
@@ -95,7 +98,10 @@ function keyOf(sort, row, { countOf, priorityOf, createdOf }) {
  *   lastOf?: (row: T) => string,
  *   createdOf?: (row: T) => string,
  *   keep?: readonly string[],
- * }} [opts] keep: spec 189 D3, task ids New keeps although read (the fresh cards)
+ *   only?: ReadonlySet<string> | null,
+ * }} [opts] keep: spec 189 D3, task ids New keeps although read (the fresh cards);
+ *   only: SPL-6613, the task ids the hub matched for the filter's title field
+ *   (null = no title filter): every other row goes, `keep` included
  * @returns {T[]} a new array, unread group first, each group in the chosen sort
  */
 export function topicListView(rows, opts = {}) {
@@ -115,7 +121,9 @@ export function topicListView(rows, opts = {}) {
     id: String((row && row.task_id) || ''),
   }))
   const keep = new Set(Array.isArray(opts.keep) ? opts.keep.map(String) : [])
-  const kept = filter === 'new' ? items.filter((d) => d.unread || keep.has(d.id)) : items
+  const only = opts.only instanceof Set ? opts.only : null
+  const titled = only ? items.filter((d) => only.has(d.id)) : items
+  const kept = filter === 'new' ? titled.filter((d) => d.unread || keep.has(d.id)) : titled
   /* unread group first (the edge), then the chosen key, then last update, then task_id */
   kept.sort((a, b) => Number(b.unread) - Number(a.unread) || b.k - a.k || b.last.localeCompare(a.last) || b.id.localeCompare(a.id))
   return kept.map((d) => d.row)

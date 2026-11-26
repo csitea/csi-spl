@@ -21,7 +21,13 @@
      Spec 186 4.1 step 1 items 4-5 (row M3): on a channel's or the lobby's
      topic list, while topics are ticked the selection bar
      (TopicSelectBar.vue, lazy) takes this header's place; while none is,
-     row 2 offers Select by title, so a selection can start from a pattern.
+     row 2 offers the select tick.
+     SPL-6613 (owner HUM-10, t1 f7b53cf8, msg 5b8f9db2: "make the search by
+     title part of the filter and the select the one which actually selects
+     either all , but the already listed / filtered"): the title search is a
+     field of the filter (TopicListControl.vue), and row 2's tick selects
+     exactly the topics listed: all of them unfiltered, the filtered ones
+     under a filter. The title filter lives while this header does.
      A DM page has neither (Q8 CHN). -->
 <template>
   <LazyTopicSelectBar v-if="selectOn && topicSelect.active" :phone="phone" />
@@ -51,22 +57,17 @@
     </span>
     <div class="feed-header__row2" data-test="feed-header-row2">
       <span class="topic-list-slot"><LazyTopicListControl /></span>
-      <button
-        v-if="byTitleOn"
-        type="button"
-        class="icon-btn feed-header__select"
-        data-test="topic-select-by-title"
-        :aria-expanded="patternsOpen ? 'true' : 'false'"
-        :aria-label="t('topic_select.by_title')"
-        :title="t('topic_select.by_title')"
-        @click="patternsOpen = !patternsOpen"
+      <input
+        v-if="selectOn && topicSelect.shown.length"
+        type="checkbox"
+        class="feed-header__select"
+        data-test="topic-select-listed"
+        :checked="false"
+        :aria-label="t('topic_select.select_page')"
+        :title="t('topic_select.select_page')"
+        @click.prevent="topicSelect.togglePage()"
       >
-        <UiIcon name="check" :size="16" />
-      </button>
       <CardClipControl />
-    </div>
-    <div v-if="byTitleOn && patternsOpen" class="feed-header__patterns">
-      <LazyTopicSelectPatterns @close="patternsOpen = false" @added="patternsOpen = false" />
     </div>
   </header>
 </template>
@@ -74,7 +75,8 @@
 <script setup lang="ts">
 import { useTopicSelectStore } from '~/stores/topicSelect'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useTopicListChoice } from '~/composables/useTopicListChoice'
+import { useTopicSelect } from '~/composables/useTopicSelect'
 
 defineProps<{
   title: string
@@ -104,10 +106,20 @@ const route = useRoute()
 const selectOn = computed(() => /\/(?:channel\/[^/]+|lobby)\/?$/.test(route.path))
 const topicSelect = useTopicSelectStore()
 const phone = useMobileStack().isMobile
-const patternsOpen = ref(false)
-/* R7 W1: Select by title only where the client can send topic_select (the mock; live once the socket's request half is wired) */
-const canTopicSelect = Boolean((useSpoolApi() as unknown as { canTopicSelect?: () => boolean }).canTopicSelect?.())
-const byTitleOn = computed(() => selectOn.value && canTopicSelect)
+/* SPL-6613: the filter's title field narrows the list while this header lives:
+   resolved again on a new page (topics opened since), ended when it goes */
+const choice = useTopicListChoice()
+const { filterByTitle } = useTopicSelect()
+onMounted(() => {
+  topicSelect.titleHolders++
+  if (choice.titleOn.value && choice.title.value.trim()) void filterByTitle(choice.title.value)
+})
+/* the next page's header may mount before this one goes: only the last holder ends the filter */
+onBeforeUnmount(() => {
+  if (--topicSelect.titleHolders > 0) return
+  topicSelect.titleMatch = null
+  topicSelect.titleReq = ''
+})
 </script>
 
 <style scoped>
@@ -130,14 +142,14 @@ const byTitleOn = computed(() => selectOn.value && canTopicSelect)
 }
 @media (max-width: 820px) {
   .feed-header__row2 { min-height: var(--tap); }
+  .feed-header__select { width: var(--tap, 44px); }
   .topic-list-slot {
     min-width: calc(2 * 35px + 2px);
     min-height: 32px;
   }
 }
-/* spec 186: Select by title sits after the filter and sort; its field opens under row 2 */
-.feed-header__select { flex-shrink: 0; }
-.feed-header__patterns { flex: 0 0 100%; min-width: 0; }
+/* spec 186, SPL-6613: the select tick sits after the filter and sort, as the bar's page box */
+.feed-header__select { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--color-accent); cursor: pointer; }
 /* gives way (ellipsis) before the name does; the badge never shrinks */
 .feed-header__topic {
   display: inline-flex;

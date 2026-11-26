@@ -3,22 +3,27 @@
 // the lde mock (no hub). Rows M3 (the select phase) and M11 (the Multicast
 // dialog) on the generated bundle.
 //   D  1280x800 desktop: on channel A's page a card's box ticks one topic;
-//      on channel B's page Select by title `^release` adds the two topics
-//      whose titles start with "release" (not "pre-release"); the bar reads
+//      on channel B's page the bar's filter, Topic title `^release`, lists
+//      the two topics whose titles start with "release" (not "pre-release")
+//      and keeps the selection; the bar's page box ticks them (SPL-6613);
+//      emptying the field keeps the selection too; the bar reads
 //      "3 selected in 2 channels"; Multicast opens "Send to 3 topics"; one
 //      send puts the card into all three topics with one mc_id; the dialog
 //      closes and the selection is empty
-//   R  1280x800 desktop: a check that refuses one target keeps Send off with
+//   R  1280x800 desktop: the header's filter, Topic title `^release`, then
+//      the header's tick selects the 2 topics listed (SPL-6613); a check
+//      that refuses one target keeps Send off with
 //      the reason shown; that target's cross removes it, the check runs
 //      again and Send is on
 //   P  390x844 touch: a thumb held on a topic card opens its menu, whose
 //      "Select" ticks the card; taps tick two more; the bar's Multicast opens
 //      the full-screen sheet; Send puts the card into the three topics, the
-//      sheet closes and the selection is empty; the dock row is still
+//      sheet closes and the selection is empty; the bar with its filter fits
+//      390 px with Multicast on screen (SPL-6613); the dock row is still
 //      dock-back,attach,send and Attach still opens the OS picker at once
 //
 // Red control (spec 186 M7): the file fails with the card box, the menu's
-// "Select" item, the bar's Multicast button or Select by title removed.
+// "Select" item, the bar's Multicast button or the title filter removed.
 //
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/multicast-prompt.test.mjs   # what CI does
@@ -110,6 +115,23 @@ const signIn = (p) => p.evaluateOnNewDocument(() => {
   try { localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'owner@example.com', name: 'FirstName LastName', t: 't1' })) } catch { /* private mode */ }
 })
 
+/** SPL-6613: the topic list filter's Topic title field (in the header, or in the bar while topics are ticked) set to `text`; the popover closes again */
+async function titleFilter(p, text) {
+  await p.click('[data-testid=topic-list-filter]')
+  await p.waitForSelector('[data-testid=topic-list-filter-title]', { visible: true, timeout: 4000 })
+  /* select the whole text (a triple click can miss it), then one Backspace empties it */
+  await p.$eval('[data-testid=topic-list-filter-title]', (e) => { e.focus(); e.select() })
+  await p.keyboard.press('Backspace')
+  if (text) await p.type('[data-testid=topic-list-filter-title]', text)
+  await p.keyboard.press('Escape')
+}
+/** the msg ids the middle pane lists */
+const listedIds = (p) => p.evaluate(() => [...document.querySelectorAll('.spool-main article.msg[data-msg-id]')].filter((e) => e.getClientRects().length).map((e) => e.getAttribute('data-msg-id')))
+const lists = (p, ids, not) => until(p, ({ ids, not }) => {
+  const got = [...document.querySelectorAll('.spool-main article.msg[data-msg-id]')].filter((e) => e.getClientRects().length).map((e) => e.getAttribute('data-msg-id'))
+  return ids.every((id) => got.includes(id)) && !not.some((id) => got.includes(id))
+}, { ids, not }, 5000)
+
 const toChannel = async (p, ch, first) => {
   await p.evaluate((ch) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/channel/' + ch), ch)
   await p.waitForSelector(card(first), { visible: true, timeout: 10000 })
@@ -182,19 +204,19 @@ async function desktop(browser, base) {
   if (hit) await d.mouse.click(hit.x, hit.y)
   ok('D desktop: the card box on channel A ticks the topic, "1 selected"', await until(d, () => document.querySelector('[data-test=topic-select-bar]')?.getAttribute('data-count') === '1', null, 4000), { hit, bar: await bar(d) })
 
-  /* D: channel B, Select by title `^release` from the bar */
+  /* D: channel B, the bar's filter, Topic title `^release` (SPL-6613), then the bar's page box */
   await toChannel(d, CH_B, b1.msg_id)
   ok('D desktop: the selection is still there on channel B\'s page', (await bar(d))?.count === 1, await bar(d))
-  const byTitle = '[data-test=topic-select-bar] [data-test=topic-select-by-title]'
-  const hasByTitle = await shown(d, byTitle)
-  if (hasByTitle) await d.click(byTitle)
-  ok('D desktop: the bar offers Select by title', hasByTitle && await until(d, () => Boolean(document.querySelector('[data-test=topic-select-patterns-field]')), null, 4000))
-  if (hasByTitle) {
-    await d.type('[data-test=topic-select-patterns-field]', '^release')
-    await d.click('[data-test=topic-select-apply]')
-  }
-  ok('D desktop: `^release` adds "release one" and "Release two", not "pre-release": the bar reads 3 in 2 channels',
+  const hasFilter = await shown(d, '[data-test=topic-select-bar] [data-testid=topic-list-filter]')
+  ok('D desktop: the bar carries the topic list filter', hasFilter)
+  if (hasFilter) await titleFilter(d, '^release')
+  ok('D desktop: Topic title `^release` lists "release one" and "Release two", not "pre-release"', await lists(d, [b1.msg_id, b2.msg_id], [b3.msg_id]), await listedIds(d))
+  ok('D desktop: ... and the filter change keeps the selection: 1', (await bar(d))?.count === 1, await bar(d))
+  await d.click('[data-test=topic-select-bar] [data-test=topic-select-page]')
+  ok('D desktop: the bar\'s page box ticks the 2 topics listed: the bar reads 3 in 2 channels',
     await until(d, () => { const b = document.querySelector('[data-test=topic-select-bar]'); return b?.getAttribute('data-count') === '3' && b.getAttribute('data-channels') === '2' }, null, 5000), await bar(d))
+  if (hasFilter) await titleFilter(d, '')
+  ok('D desktop: emptying the title lists "pre-release three check" again and keeps the selection: 3', await lists(d, [b1.msg_id, b2.msg_id, b3.msg_id], []) && (await bar(d))?.count === 3, { listed: await listedIds(d), bar: await bar(d) })
   const b = await bar(d)
   ok('D desktop: the bar says "3 selected in 2 channels"', /3 selected/.test(b?.text || '') && /in 2 channels/.test(b?.text || ''), b)
   ok('D desktop: "pre-release three check" is not ticked', !(await d.evaluate((sel) => Boolean(document.querySelector(sel)?.classList.contains('msg--ticked')), card(b3.msg_id))))
@@ -225,13 +247,14 @@ async function desktop(browser, base) {
   /* R: a refused target keeps Send off with its reason; its cross re-checks and Send is on */
   await toChannel(d, CH_B, b1.msg_id)
   await d.evaluate(({ key, title }) => localStorage.setItem(key, JSON.stringify({ [title]: 'topic_archived' })), { key: REFUSE_KEY, title: 'Release two plan' })
-  /* by title, not two box clicks: a mouse click on a second card's box while
-     the first one has the focus misses it (reported to the dispatch holder) */
-  await d.click('[data-test=feed-header] [data-test=topic-select-by-title]')
-  await d.waitForSelector('[data-test=topic-select-patterns-field]', { visible: true, timeout: 4000 })
-  await d.type('[data-test=topic-select-patterns-field]', '^release')
-  await d.click('[data-test=topic-select-apply]')
-  ok('R desktop: `^release` selects "release one notes" and "Release two plan"', await until(d, () => document.querySelector('[data-test=topic-select-bar]')?.getAttribute('data-count') === '2', null, 4000), await bar(d))
+  /* by the title filter and the header's tick, not two box clicks: a mouse click on a second card's
+     box while the first one has the focus misses it (reported to the dispatch holder) */
+  await titleFilter(d, '^release')
+  await lists(d, [b1.msg_id, b2.msg_id], [b3.msg_id])
+  await d.click('[data-test=feed-header] [data-test=topic-select-listed]')
+  ok('R desktop: Topic title `^release`, then the header\'s tick, selects "release one notes" and "Release two plan"', await until(d, () => document.querySelector('[data-test=topic-select-bar]')?.getAttribute('data-count') === '2', null, 4000), await bar(d))
+  await titleFilter(d, '')
+  ok('R desktop: emptying the title keeps the selection: 2', await lists(d, [b3.msg_id], []) && (await bar(d))?.count === 2, await bar(d))
   if (await shown(d, mcBtn)) await d.click(mcBtn)
   const refusedShown = await until(d, () => document.querySelectorAll('[data-test=multicast-refused]').length === 1, null, 5000)
   /* text typed: only the refusal can keep Send off now */
@@ -305,6 +328,14 @@ async function phone(browser, base) {
     await sleep(400)
   }
   ok('P 390: two taps tick two more: the bar reads 3', await until(p, () => document.querySelector('[data-test=topic-select-bar]')?.getAttribute('data-count') === '3', null, 4000), await bar(p))
+  /* SPL-6613: the bar starts with the topic list filter; it still fits 390 px and Multicast stays on screen */
+  const fit = await p.evaluate(() => {
+    const b = document.querySelector('[data-test=topic-select-bar]')
+    const f = b?.querySelector('[data-testid=topic-list-filter]')?.getBoundingClientRect()
+    const m = b?.querySelector('[data-test=topic-select-act-multicast]')?.getBoundingClientRect()
+    return { filter: Boolean(f && f.width), sw: b?.scrollWidth, cw: b?.clientWidth, doc: document.documentElement.scrollWidth, vw: window.innerWidth, mc: m ? { l: m.left, r: m.right, w: m.width } : null }
+  })
+  ok('P 390: the bar carries the filter, no horizontal overflow, Multicast on screen', Boolean(fit.filter && fit.sw <= fit.cw && fit.doc <= fit.vw && fit.mc && fit.mc.w > 0 && fit.mc.l >= 0 && fit.mc.r <= fit.vw), fit)
 
   /* P: the bar's Multicast opens the full-screen sheet */
   const mcBtn = '[data-test=topic-select-bar] [data-test=topic-select-act-multicast]'

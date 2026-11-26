@@ -241,3 +241,23 @@ describe('spec 189 B1 the fresh card at the list edge', () => {
     assert.deepEqual(ids(topicListView(base(), { filter: 'new', unreadOf })).sort(), ['u-p1-a', 'u-p1-b'])
   })
 })
+
+// SPL-6613 (owner HUM-10, t1 f7b53cf8, msg 5b8f9db2): the filter's title
+// field. `only` = the task ids the hub's topic_select answer matched; the
+// list keeps those cards alone, with New and the sort applied on top.
+// Red on origin/master a464b5399: the option is ignored and every card stays.
+describe('SPL-6613 title filter: only the ids the hub matched', () => {
+  const rows = () => [card('a', at(9), 1, null, 1), card('b', at(8), 5, null), card('c', at(7), 2, null, 2), card('d', at(6), 9, null)]
+  it('keeps only the cards named in `only`, in today\'s order', () => {
+    assert.deepEqual(ids(topicListView(rows(), { only: new Set(['d', 'a']) })), ['a', 'd'])
+  })
+  it('an empty match keeps no card; null keeps every card', () => {
+    assert.deepEqual(ids(topicListView(rows(), { only: new Set() })), [])
+    assert.deepEqual(ids(topicListView(rows(), { only: null })), ['a', 'b', 'c', 'd'])
+  })
+  it('New and the sort apply on top; a kept (fresh) card outside the match goes', () => {
+    assert.deepEqual(ids(topicListView(rows(), { only: new Set(['a', 'b', 'c']), filter: 'new', unreadOf, keep: ['b'] })), ['a', 'c', 'b'])
+    assert.deepEqual(ids(topicListView(rows(), { only: new Set(['a', 'c']), filter: 'new', unreadOf, keep: ['d'] })), ['a', 'c'])
+    assert.deepEqual(ids(topicListView(rows(), { only: new Set(['b', 'c', 'd']), sort: 'messages' })), ['d', 'b', 'c'])
+  })
+})

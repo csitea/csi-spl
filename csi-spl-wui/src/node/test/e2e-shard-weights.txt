@@ -47,6 +47,8 @@
 # mock bundle (n=1, 2026-11-26), until a refresh measures CI.
 # multicast-prompt (SPL-6607) is new: 27 s, its one runner line on a generated
 # mock bundle (n=1, 2026-11-26), until a refresh measures CI.
+# topic-title-filter (SPL-6613) is new: 11 s, its one runner line on a generated
+# mock bundle (n=1, 2026-11-26), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -424,6 +426,7 @@ tests/e2e/topic-priority-phone.test.mjs 22
 tests/e2e/topic-priority.test.mjs 6
 tests/e2e/topic-select-phone.test.mjs 13
 tests/e2e/topic-send-target.test.mjs 57
+tests/e2e/topic-title-filter.test.mjs 11
 tests/e2e/topic-unread-count.test.mjs 7
 tests/e2e/topic-unread-live.test.mjs 28
 tests/e2e/topic-view-door.test.mjs 5

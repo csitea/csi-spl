@@ -11,7 +11,13 @@
      update), so a filtered list never looks like a short list. The choice is
      kept per browser (useTopicListChoice, panel D6). FeedHeader loads it
      lazily in a fixed-size slot, so the shell's initial chunk does not grow
-     and the title does not jump. -->
+     and the title does not jump.
+     SPL-6613 (owner HUM-10, t1 f7b53cf8, msg 5b8f9db2: "make the search by
+     title part of the filter"): on a channel's topic list the Filter popover
+     also holds a Title field. Its text goes as typed in one topic_select
+     frame (spec 186 4.2, the hub resolves it, 300 ms after the last key);
+     the hub's matches narrow the list, a bad pattern or no match is named
+     under the field, and the filter icon's dot shows while it narrows. -->
 <template>
   <div
     ref="root"
@@ -28,7 +34,7 @@
         :ref="(el) => { triggers[g.id] = el as HTMLElement | null }"
         type="button"
         class="tl-ctl__btn"
-        :class="{ 'tl-ctl__btn--set': g.id === 'filter' ? filtered : sorted }"
+        :class="{ 'tl-ctl__btn--set': g.id === 'filter' ? filtered || titled : sorted }"
         :data-testid="`topic-list-${g.id}`"
         aria-haspopup="true"
         :aria-expanded="open === g.id ? 'true' : 'false'"
@@ -38,29 +44,43 @@
         @click="toggle(g.id)"
       >
         <UiIcon :name="g.icon" size="1em" />
-        <span v-if="g.id === 'filter' ? filtered : sorted" class="tl-ctl__dot" aria-hidden="true" :data-testid="`topic-list-${g.id}-dot`" />
+        <span v-if="g.id === 'filter' ? filtered || titled : sorted" class="tl-ctl__dot" aria-hidden="true" :data-testid="`topic-list-${g.id}-dot`" />
       </button>
       <div
         v-if="open === g.id"
         :id="`${uid}-${g.id}`"
         :ref="(el) => { pops[g.id] = el as HTMLElement | null }"
         class="tl-ctl__pop"
-        role="radiogroup"
-        :aria-label="t(g.label)"
-        :data-testid="`topic-list-${g.id}-group`"
         @keydown.esc.stop.prevent="close(true)"
       >
-        <label v-for="o in g.options" :key="o.value" class="tl-ctl__opt" :class="{ 'tl-ctl__opt--on': current(g.id) === o.value }">
+        <div class="tl-ctl__radios" role="radiogroup" :aria-label="t(g.label)" :data-testid="`topic-list-${g.id}-group`">
+          <label v-for="o in g.options" :key="o.value" class="tl-ctl__opt" :class="{ 'tl-ctl__opt--on': current(g.id) === o.value }">
+            <input
+              type="radio"
+              :name="`${uid}-${g.id}`"
+              :value="o.value"
+              :checked="current(g.id) === o.value"
+              :data-testid="`topic-list-${g.id}-${o.value}`"
+              @change="choose(g.id, o.value)"
+            />
+            <span>{{ t(o.label) }}</span>
+          </label>
+        </div>
+        <div v-if="g.id === 'filter' && titleOn" class="tl-ctl__title">
+          <label :for="`${uid}-title`" class="tl-ctl__title-label">{{ t('feed.topic_list.filter_title') }}</label>
           <input
-            type="radio"
-            :name="`${uid}-${g.id}`"
-            :value="o.value"
-            :checked="current(g.id) === o.value"
-            :data-testid="`topic-list-${g.id}-${o.value}`"
-            @change="choose(g.id, o.value)"
+            :id="`${uid}-title`"
+            type="text"
+            class="tl-ctl__title-field"
+            data-testid="topic-list-filter-title"
+            :value="title"
+            spellcheck="false"
+            autocomplete="off"
+            @input="onTitle(($event.target as HTMLInputElement).value)"
+            @keydown.enter.prevent
           />
-          <span>{{ t(o.label) }}</span>
-        </label>
+          <p v-if="titleNote" class="tl-ctl__note" :class="{ 'is-error': titleBad }" role="status" data-testid="topic-list-filter-title-note">{{ titleNote }}</p>
+        </div>
       </div>
     </span>
   </div>
@@ -68,6 +88,7 @@
 
 <script setup lang="ts">
 import { useTopicListChoice } from '~/composables/useTopicListChoice'
+import { useTopicSelect, type PatternOutcome } from '~/composables/useTopicSelect'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type GroupId = 'filter' | 'sort'
@@ -95,7 +116,7 @@ const GROUPS: { id: GroupId, icon: UiIconName, label: string, options: { value: 
 ]
 
 const { t } = useI18n({ useScope: 'global' })
-const { filter, sort, setFilter, setSort, filtered, sorted } = useTopicListChoice()
+const { filter, sort, setFilter, setSort, filtered, sorted, title, setTitle, titled, titleOn } = useTopicListChoice()
 /* one pair of radio groups per control on the page */
 const uid = `topic-list-${useId()}`
 const root = ref<HTMLElement | null>(null)
@@ -125,6 +146,32 @@ function close(refocus: boolean) {
   open.value = ''
   if (refocus && was) triggers[was]?.focus()
 }
+
+/* SPL-6613: the title field. The hub resolves the text 300 ms after the last
+   key (spec 186 4.1: one frame per 300 ms); the note names a bad pattern,
+   no match or a failure. FeedHeader re-resolves it on a page and ends it. */
+const TITLE_DEBOUNCE_MS = 300
+const { filterByTitle } = useTopicSelect()
+const titleOutcome = ref<PatternOutcome | null>(null)
+const titleBad = computed(() => Boolean(titleOutcome.value?.bad))
+const titleNote = computed(() => {
+  const o = titleOutcome.value
+  if (!o) return ''
+  if (o.bad) return t('topic_select.bad_pattern', { line: o.bad.line, reason: o.bad.reason })
+  if (o.none) return t('topic_select.none')
+  return o.error
+})
+let titleTimer: ReturnType<typeof setTimeout> | undefined
+function onTitle(value: string) {
+  setTitle(value)
+  clearTimeout(titleTimer)
+  titleTimer = setTimeout(() => { void resolveTitle(value) }, TITLE_DEBOUNCE_MS)
+}
+async function resolveTitle(value: string) {
+  const out = await filterByTitle(value)
+  if (out || !value.trim()) titleOutcome.value = out
+}
+onBeforeUnmount(() => clearTimeout(titleTimer))
 
 /* Tab out of the control, or a click elsewhere, closes the popover */
 function onFocusOut(e: FocusEvent) {
@@ -212,11 +259,19 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocDown))
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .tl-ctl__opt input { margin: 0; }
+.tl-ctl__radios { display: flex; flex-direction: column; }
+/* SPL-6613: the title field under New / All */
+.tl-ctl__title { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; padding: 6px 8px 4px; border-top: 1px solid var(--color-border); }
+.tl-ctl__title-label { font-size: 0.8125rem; color: var(--color-muted); }
+.tl-ctl__title-field { width: 16rem; max-width: calc(100vw - 48px); box-sizing: border-box; font-family: var(--font-mono, monospace); font-size: 0.875rem; }
+.tl-ctl__note { margin: 0; max-width: 16rem; font-size: 0.8125rem; white-space: normal; }
+.tl-ctl__note.is-error { color: var(--color-danger); }
 /* SPL-989: on a phone each button keeps a 44 px tall target - an
    invisible box standing out of the drawn one (SPL-5349) */
 @media (max-width: 820px) {
   .tl-ctl__btn { width: 35px; height: 32px; font-size: 0.875rem; }
   .tl-ctl__btn::after { content: ''; position: absolute; inset: 50% 0 auto; height: var(--tap); transform: translateY(-50%); }
   .tl-ctl__opt { min-height: var(--tap); }
+  .tl-ctl__title-field { min-height: var(--tap); font-size: 1rem; }
 }
 </style>

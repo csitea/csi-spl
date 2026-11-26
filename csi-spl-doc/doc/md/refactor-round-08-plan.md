@@ -58,13 +58,14 @@ Both rows are **one fact, one copy** (developer guide 2.2.4), with zero behaviou
 
 The two rows share no file: both are **Batch 1**.
 
-**Status: v1.0 for final cross-vendor panel signature.** Editor: **a-121** (agy).
-Cross-vendor claude panel seat **c-157** reviewed v0.1
-(`fa70bea3bc7dec4c38d58344b09777a0b394309f`, seat commit
-`323c005d2d67bd2b9833f641ae763cba7be0f884` on `review/c002-refactor-round-08-claude-seat`,
-msg `3faaef16` / holder `6aca38b3`; FAIL on W1-W3); W1-W3 and N1/N5 are folded here and
-N2-N4/N6 recorded in section 8. Pending final v1.0 PASS signature from **c-157** and
-`do_spl_review_line_check` rc 0 on `review/c002-refactor-round-08-planner`.
+**Status: closed.** Both rows landed on `origin/master` with cross-vendor agy R7 PASS
+(`r08-01` `761e1275f` SPL-6618, `r08-02` `48431f0f5` SPL-6621; section 8). Editor:
+**a-121** (agy). Plan v1.0 (`36b319c89`) was signed by cross-vendor claude panel seat
+**c-157** (`6c477fd56cac6c501ce5a65528031bf9d3f05a56`, seat commit `c8605c6c5`, msg
+`bd31c87d`; `do_spl_review_line_check` `REVIEW_LINE_SYNTAX=1` rc 0; dispatch holder
+`c-003` GO LAND `ee0a824a`). Zero drift on all 9 row files from `e5af88d93` to
+`origin/master` `ce545c3e5` at plan landing, and zero drift on all 9 edited files from
+their landed shas to `origin/master` `652d956ef` at close.
 
 **One sha:** every count is measured on **`e5af88d93`**
 (`e5af88d937230224ba556e6f2753b0356a4a1dd0`, `origin/master` at 2026-11-26T15:00:12Z),
@@ -812,9 +813,11 @@ checked at 15:04:28Z):
   on no review since 2026-11-25): claude panel seat **c-157** (`c002-refactor-round-08-claude-panel-seat`,
   seat branch `review/c002-refactor-round-08-claude-seat`). Reviewed v0.1
   (`fa70bea3bc7dec4c38d58344b09777a0b394309f`, seat commit `323c005d2d67bd2b9833f641ae763cba7be0f884`,
-  msg `3faaef16` / holder `6aca38b3`; W1-W3 and N1/N5 folded in v1.0, N2-N4/N6 recorded;
-  pending final v1.0 PASS signature and `do_spl_review_line_check` rc 0). The seat reviews
-  this plan only.
+  msg `3faaef16` / holder `6aca38b3`; W1-W3 and N1/N5 folded in v1.0, N2-N4/N6 recorded)
+  and signed v1.0 (`6c477fd56cac6c501ce5a65528031bf9d3f05a56`, seat commit
+  `c8605c6c523e123405e7912e189fa57108ea1605`, msg `bd31c87d`,
+  `do_spl_review_line_check` `REVIEW_LINE_SYNTAX=1` rc 0, holder `c-003` GO LAND
+  `ee0a824a`). The seat reviewed this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-26T15:01:57Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -833,8 +836,8 @@ checked at 15:04:28Z):
 
 | seat | vendor | role | plan sha | verdict | review line / note |
 |---|---|---|---|---|---|
-| `a-121` | agy | editor | `fa70bea3b` (v0.1) -> v1.0 (this commit) | v1.0 | W1-W3 and N1/N5 folded; N2-N4/N6 recorded; submitted to panel |
-| `c-157` | claude | panel | `fa70bea3b` (v0.1) | FAIL -> pending v1.0 | seat `323c005d2`, msg `3faaef16` (W1-W3); signs v1.0 once folded |
+| `a-121` | agy | editor | `fa70bea3b` (v0.1) -> `6c477fd56` (v1.0, landed `36b319c89`) -> closed | closed | W1-W3 and N1/N5 folded; N2-N4/N6 recorded; both rows landed, close record written |
+| `c-157` | claude | panel | `fa70bea3b` (v0.1) -> `6c477fd56` (v1.0) | PASS | v0.1 FAIL `323c005d2` (msg `3faaef16`); v1.0 **PASS** `c8605c6c5` (msg `bd31c87d`, `REVIEW_LINE_SYNTAX=1` rc 0, holder `c-003` GO LAND `ee0a824a`) |
 
 ## 5. Proposed row briefs
 
@@ -968,5 +971,97 @@ backup is used; never mistral; re-checked at placement).
     the ~22-line loop.
   - **N6 (R3):** recorded that the panel box sees 7 `unknown:` lanes on the planner box
     (none has a pushed head on a row file); the holder re-reads at placement per R3.
-  Pushed fast-forward to `review/c002-refactor-round-08-planner` for final panel
-  signature.
+  Pushed fast-forward to `review/c002-refactor-round-08-planner` (`6c477fd56`), signed by
+  `c-157` (seat commit `c8605c6c5`, msg `bd31c87d`, `do_spl_review_line_check`
+  `REVIEW_LINE_SYNTAX=1` rc 0, holder `c-003` GO LAND `ee0a824a`), and landed on
+  `origin/master` at `36b319c89`.
+- closed (a-121): both rows landed on `origin/master`, cross-vendor agy R7 PASS, push
+  scanners/ingest green (measured on `origin/master` `652d956ef` at `2026-11-26T22:33Z`,
+  n=1):
+  - r08-01 `761e1275f` (`761e1275fdbfb05f59e5948eca55a8dc387ce238`, SPL-6618, author
+    `c-251` claude, committed `2026-11-26T23:14:21+01:00`): R7 `a-230` agy **PASS** on
+    `61363cd1b` (`61363cd1bfdcc1412949cc695b1c426e87da114a`; `do_spl_review_line_check`
+    rc 0, `OK 21 of 21`, 19 commands read); `git patch-id --stable`
+    `3008d5602b6039b3a5d6090fe2aba7fc46a93885` equal on both, `git diff 61363cd1b
+    761e1275f -- <5 files>` empty (C7), zero drift to `652d956ef`. CI on `761e1275f`: push
+    workflows 15 (`45903541672`), 25 (`45903541699`), 26 (`45903541711`), 64
+    (`45903541760`), 67 (`45903541691`) **success** (plus schedule 00 `45903855607`, 21
+    `45904603024`, 40 `45903652360` **success**; 1 skipped workflow 12 `45903650342`);
+    workflow 10 (`45903541768`) was cancelled by subsequent master push (`8b8168473`,
+    cancelled by `652d956ef` whose run `45905322386` is pending; R11 covering workflow 10
+    run completes on this close commit or a descendant). Diff (`git show --numstat`, exact
+    5 files): `orc:lib/bash/funcs/cron-tagged-line.func.sh` `+8 -6` (sha256 `35815c400147`),
+    `orc:src/bash/run/install-box-crons.func.sh` `+4 -6` (sha256 `8e966e56793f`),
+    `orc:src/bash/run/spl-agent-hooks-install.func.sh` `+2 -9` (sha256 `0d2593700f57`),
+    `orc:src/bash/run/spl-agent-identity-install.func.sh` `+3 -9` (sha256 `0912482b3903`),
+    `orc:src/bash/tests/cron-tagged-line.tst.sh` `+81 -1` (sha256 `c56e361e4bb2`),
+    matching plan 1.3 head1 / section 6 verbatim. R7 notes: N1 cosmetic parent sha in
+    `61363cd1b` body (fixed to `c01efc31a` on `761e1275f`), N2 box-dependent
+    `test-agent-hook.sh` (225 vs 227) and `gcloud-account-pinned.tst.sh` (48) counts equal
+    on parent and head.
+  - r08-02 `48431f0f5` (`48431f0f563dc3e9945f892b166e924d208627a3`, SPL-6621, author
+    `c-262` claude, committed `2026-11-26T22:57:15+01:00`): R7 `a-242` agy **PASS** on
+    `198a9988a` (`198a9988a3d8577ada95e136af26f72880ac2377`; `do_spl_review_line_check`
+    rc 0, `OK 12 of 12`, 13 commands read); `git patch-id --stable`
+    `0d9514dfe2a5d6517dd0a3f4dc9d3e9237ebe46d` equal on both, `git diff 198a9988a
+    48431f0f5 -- <4 files>` empty (C7), zero drift to `652d956ef`. CI on `48431f0f5`: push
+    workflows 15 (`45901924354`), 25 (`45901924286`), 26 (`45901924233`), 64
+    (`45901924218`), 67 (`45901924229`) **success** (1 skipped workflow 12 `45902041737`);
+    workflow 10 (`45901924314`) was cancelled by subsequent master push (`78369668c`, run
+    `45902214807` `in_progress`; R11 covering workflow 10 run completes on `78369668c` or
+    this close commit). Diff (`git show --numstat`, exact 4 files):
+    `orc:src/bash/run/spl-git-pager-off-install.func.sh` `+30 -11` (sha256 `0900fd75c3b6`),
+    `orc:src/bash/run/spl-vibe-output-cap-install.func.sh` `+6 -24` (sha256 `7bef959013de`),
+    `orc:src/bash/run/spl-vibe-push-guard-install.func.sh` `+6 -24` (sha256 `be118d1a811a`),
+    `orc:src/bash/features/spool-install/tests/test-y16-git-pager-off.sh` `+56 -0` (sha256
+    `e3554ae3158c`), matching plan 1.4 head2 / section 6 verbatim. R7 notes: N1 optional 7th
+    `repo` arg on `_spl_user_step_install` pre-approved for `r09` wave 2 (plan 1.4 & 8 N2).
+  - **R5, R6, 2.7.5, and post-land verification on `652d956ef`:** `git merge-base
+    --is-ancestor <row> origin/master` rc 0 and box checkout (`652d956ef`) ancestry rc 0
+    for both (both `csi-spl-orc` Bash only, no hub or WUI deploy required). R6 (`git log
+    origin/master --since="2026-11-26T15:42:29+02:00" --format='%H %cI %s' -E
+    --grep='\(r08-'`) returns both rows (`761e1275f`, `48431f0f5`) and the 2 plan commits
+    (`36b319c89`, `17f763ff5`). Review count (2.7.5): 2 of 2 row reviews
+    (`review: a-230 agy PASS`, `review: a-242 agy PASS`), both cross-vendor to their claude
+    authors (`c-251`, `c-262`); no claude waiver seat was needed. Post-land `git grep` on
+    `652d956ef`:
+    - `cron_refuse_linked_worktree` exists once at
+      `csi-spl-orc/lib/bash/funcs/cron-tagged-line.func.sh:47` and is called by all
+      **13/13** non-secret linked-worktree installers in `csi-spl-orc/src/bash/run/`;
+      `git grep -n "is a linked worktree:" 652d956ef -- csi-spl-orc/src/bash/run/` returns
+      only the 3 kept-out files (`box-peer-ssh-grant.func.sh:53`,
+      `spl-box-deploy.func.sh:151`, `spl-private-overlay-install-cron.func.sh:70-71`, down
+      from 6 files / 10 lines on `e5af88d93`).
+    - `_spl_user_step_install` exists once at
+      `csi-spl-orc/src/bash/run/spl-git-pager-off-install.func.sh:29` and is called by all
+      3 wave-1 actions (`spl-git-pager-off-install`, `spl-vibe-output-cap-install`,
+      `spl-vibe-push-guard-install`); `git grep -l "spool-install/steps/" 652d956ef --
+      csi-spl-orc/src/bash/run/ | ... | git grep -n "s/\^SPOOL_AGENT_USER=//p"` returns 3
+      files (the 1 host + the 2 wave-2 `r09` candidates `spl-agy-memory-install.func.sh:35`
+      and `spl-grok-memory-install.func.sh:33`, down from 5 on `e5af88d93`).
+  - **Round close & teardown:** orchestrator GC (`c-001`, msg `41bbd709`) confirmed both
+    rows landed on `origin/master` and requested the close record with `Closes: SPL-6604`.
+    `do_spl_lane_map --all` at `22:32Z` shows editor `a-121` and row authors `c-251`,
+    `c-262` still live for r08 (`c-157`, `a-230`, `a-242` already gone). Remote branches
+    remaining on `origin` for R8 prune (`PRUNE_SINCE=2026-11-26T15:42:29+02:00`):
+    `review/c002-refactor-round-08-claude-seat` (`c8605c6c5`), `review/r08-01`
+    (`61363cd1b`), and `review/r08-02` (`198a9988a`);
+    `review/c002-refactor-round-08-planner` is already pruned.
+
+## 9. Consensus
+
+The panel seat signs this plan (rulebook 3.2).
+
+- Editor seat: a-121 (agy): v0.1 (`fa70bea3b`), v1.0 (`6c477fd56`, landed `36b319c89`),
+  close record.
+- Panel reviewer seat: c-157 (claude, seat `c8605c6c523e123405e7912e189fa57108ea1605` on
+  `review/c002-refactor-round-08-claude-seat`):
+  - v0.1 `fa70bea3bc7dec4c38d58344b09777a0b394309f`: FAIL (seat commit `323c005d2`, msg
+    `3faaef16` / holder `6aca38b3`; W1-W3 and N1/N5 folded in v1.0, N2-N4/N6 recorded).
+  - v1.0 `6c477fd56cac6c501ce5a65528031bf9d3f05a56`: **PASS** (seat commit
+    `c8605c6c523e123405e7912e189fa57108ea1605`, msg `bd31c87d`;
+    `do_spl_review_line_check` `REVIEW_LINE_SYNTAX=1` rc 0; holder `c-003` GO LAND
+    `ee0a824a`; 11/12 fenced `bash` blocks byte-identical to v0.1, W1 verified under
+    logging tmux shim and real tmux, zero open W).
+- Row R7 seats: section 4; both agy: a-230 (r08-01), a-242 (r08-02) (section 8, round
+  closed).

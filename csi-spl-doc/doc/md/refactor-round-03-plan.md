@@ -56,16 +56,17 @@ three delegate directly to the existing `_spl_simple_cron_apply` (zero edits to
 `declare -F _spl_simple_cron_apply` guard inside their action functions.
 The rows share no file: both are batch 1.
 
-**Status: v1.0 signed** (ready for row execution). Editor: **a-808** (agy). Signed by
-cross-vendor panel seat **c-726** (claude, `PASS` on v1.0
-`5ebecd6752c7debf085598eef8e33a382766e4a7`, msg `a215cc4e` / holder copy `ffb46a6b`, seat
-file `e02ff9e17019f54c691e7662da69f5e6d3a4a340` on
+**Status: closed.** Both rows landed on `origin/master` with cross-vendor agy R7 PASS
+(`r03-01` `3f1383643` SPL-6545, `r03-02` `0fcaa450b` SPL-6546; section 8). Editor:
+**a-808** (agy). Plan v1.0 (`fffd329fd`) was signed by cross-vendor panel seat **c-726**
+(claude, `PASS` on v1.0 `5ebecd6752c7debf085598eef8e33a382766e4a7`, msg `a215cc4e` /
+holder copy `ffb46a6b`, seat file `e02ff9e17019f54c691e7662da69f5e6d3a4a340` on
 `review/c002-refactor-round-03-claude-seat`; `do_spl_review_line_check` rc 0, `OK 1 of 1`,
 msg `608b1354`; holder GO `2d65a1c5` / `a4034b8c`). W1 and N1-N6 from v0.1 PASS
 (`7103bcac49235686302754839717971f5aadcbb0`, msg `4d08dd05` / `587381f7`, 8/8 head sha256s
 verified, differential harness byte-identical across 40 row-01 cases and 180 row-02 cases)
 folded with zero open W; no row, site, batch, test hunk, sha256, or vendor changed between
-signed v1.0 `5ebecd675` and this landed sign-off commit.
+signed v1.0 `5ebecd675` and landed `fffd329fd`.
 
 **One sha:** every count is measured on **`bfdbd57d5`** (`bfdbd57d515fbac4ec5f0cfdf44384ef2f47d9cf`,
 `origin/master` at 2026-11-25T22:25:55Z; zero drift on all 11 row/test files to
@@ -878,12 +879,81 @@ if the claude backup is used; never mistral; re-checked at placement).
   msg `608b1354`; holder GO `2d65a1c5` / `a4034b8c`; zero drift on all 11 row/test files
   to `83554762f`). No row, site, batch, test hunk, sha256, or vendor changed from signed
   v1.0 `5ebecd675`.
+- **Closed** (a-808, close record, no version bump): both rows landed and verified on
+  `origin/master` `fe99a5bc6` (`2026-11-26T00:41Z`, n=1 each; zero drift on all 4 r03-01
+  files and all 4 r03-02 files between their landed shas and `fe99a5bc6`):
+  - r03-01 `3f1383643` (`3f1383643a1da14511651354baa6a7feabb46fb2`, SPL-6545, author
+    `c-779` claude, committed `2026-11-26T01:04:35+01:00`): R7 `a-838` agy **PASS** on
+    `0caad6b18` (`0caad6b18d821da98f9a42604dbf097538379283`; `do_spl_review_line_check`
+    rc 0, `OK 4 of 4`); `git patch-id --stable`
+    `dcd5955e7d9719f56b405bd0fc6cda5c7d7710fc` equal on both, `git diff 0caad6b18
+    3f1383643 -- <4 files>` empty (C7). CI on `3f1383643`: push workflows 10
+    (`45726181846`), 15 (`45726181737`), 25 (`45726181786`), 26 (`45726181739`), 64
+    (`45726181751`), 67 (`45726181772`) **success**; 5 skipped workflow 12 runs
+    (`45726244549`, `45726250265`, `45726285856`, `45726434611`, `45726621441`). Direct
+    gate 10 (`45726181846`) **success** (R11). Diff (`git show --numstat`, exact 4
+    files): `orc:src/bash/run/spl-hub-agent-kinds.func.sh` `+25 -11` (sha256
+    `d5669d819ac0`), `orc:src/bash/run/spl-hub-runner-cpu.func.sh` `+5 -11` (sha256
+    `1e90207feada`), `orc:src/bash/tests/hub-agent-kinds.tst.sh` `+47 -0` (sha256
+    `caafd2cde3bc`), `orc:src/bash/tests/hub-runner-cpu.tst.sh` `+13 -0` (sha256
+    `2f92257b18c7`), matching plan 1.3 head1 / section 6 verbatim.
+  - r03-02 `0fcaa450b` (`0fcaa450baa580568ce7db8355e0f1bd6a554388`, SPL-6546, author
+    `c-784` claude, committed `2026-11-26T01:10:45+01:00`): R7 `a-841` agy **PASS** on
+    `26776d8b1` (`26776d8b1f121c6b488de90769bef7618788b9e4`; `do_spl_review_line_check`
+    rc 0, `OK 7 of 7`); `git patch-id --stable`
+    `b68d1eed8d3810118edf4a08fdaa8217f3a82cdc` equal on both, `git diff 26776d8b1
+    0fcaa450b -- <4 files>` empty (C7). CI on `0fcaa450b`: push workflows 10
+    (`45727106024`), 15 (`45727106052`), 25 (`45727106084`), 26 (`45727106065`), 64
+    (`45727106026`), 67 (`45727106031`) **success**; 5 skipped workflow 12 runs
+    (`45727169157`, `45727170622`, `45727208792`, `45727357252`, `45728491943`). Direct
+    gate 10 (`45727106024`) **success** (R11). Diff (`git show --numstat`, exact 4
+    files): `orc:src/bash/run/check-env-order-install-cron.func.sh` `+6 -31` (sha256
+    `a0a3a3065509`), `orc:src/bash/run/setup-ci-overflow-cron.func.sh` `+5 -32` (sha256
+    `5b72fb89a439`), `orc:src/bash/run/setup-gh-runner-cpu-budget-cron.func.sh` `+5 -32`
+    (sha256 `abe05471b1f7`), `orc:src/bash/tests/setup-gh-runner-cpu-budget-cron.tst.sh`
+    `+55 -0` (sha256 `2a074cdaf4b7`), matching plan 1.4 head2 / section 6 verbatim.
+  - **R5, R6, 2.7.5, and post-land verification on `fe99a5bc6`:** `git merge-base
+    --is-ancestor <row> origin/master` rc 0 and box checkout (`fe99a5bc6`) ancestry rc 0
+    for both (both `csi-spl-orc` Bash only, no hub or WUI deploy required). R6 (`git log
+    origin/master --since="2026-11-25T23:34:49+02:00" --format='%H %cI %s' -E
+    --grep='\(r03-'`) returns both rows (`0fcaa450b`, `3f1383643`) and the 3 plan commits
+    (`fffd329fd`, `2de1788cc`, `f0cce3005`). Review count (2.7.5): 2 of 2
+    (`review: a-838 agy PASS`, `review: a-841 agy PASS`), both cross-vendor to their
+    claude authors; no claude waiver seat was needed. Post-land `git grep` on `fe99a5bc6`
+    (`csi-spl-orc/src/bash/run/`): `/v1/operator/fleet-load` write-mode prep copies 2 -> 1
+    (`_spl_hub_fleet_load_prep` at `spl-hub-agent-kinds.func.sh:65`, sole `FATAL
+    ORDERED_BY` / `FATAL ORDERED_VIA` / `DRY_RUN` / `is required with DRY_RUN=0` lines at
+    `:69,70,76,80`; called at `spl-hub-agent-kinds.func.sh:31` and
+    `spl-hub-runner-cpu.func.sh:32` behind `declare -F _spl_hub_fleet_load_prep` at
+    `:31`); periodic cron check/dry-run/remove/install state machine copies in the 3
+    wave-2 installers 3 -> 0 own copies (delegated to `_spl_simple_cron_apply` at
+    `setup-box-stats-cron.func.sh:67`, sole `FATAL the crontab does not read back what was
+    written.` at `:102`; called at `check-env-order-install-cron.func.sh:54` behind
+    `declare -F _spl_simple_cron_apply` at `:53`, `setup-ci-overflow-cron.func.sh:52`
+    behind `:51`, and `setup-gh-runner-cpu-budget-cron.func.sh:70` behind `:69`).
+  - **Next-round candidate (noted, no action in r03):** relayed by `c-002` (msg
+    `01f0b32f`, from `c-784` msg `dfce04bd`, not re-run by holder or editor): section 4
+    "red control" of `orc:src/bash/tests/setup-gh-runner-cpu-budget-cron.tst.sh` passes
+    even when nothing is wrong because it copies the installer into `$T/` where relative
+    sources do not resolve, so an unmodified copy fails too (base rc 1
+    `spl_desk_cron_checkout: command not found`, head rc 127 `_spl_simple_cron_apply:
+    command not found`). Suggested fix: build the copy inside a worktree.
+  - **Round close & teardown:** dispatch holder (`c-002`, msg `ccf7fbed`; GC `c-001`, msg
+    `b949bc15`) confirmed both rows landed and ACCEPTED (gate 10 green on both) and
+    requested the close record. Teardown list: `c-779` (r03-01 author), `c-784` (r03-02
+    author), `a-838` (r03-01 R7), `a-841` (r03-02 R7), `c-726` (panel seat), `a-808`
+    (editor); `do_spl_lane_map --all` at `00:41Z` shows `c-779` and `a-838` already gone,
+    with `c-784`, `a-841`, `c-726`, and `a-808` still live. Remote branches remaining on
+    `origin` for R8 prune (`PRUNE_SINCE=2026-11-25T23:34:49+02:00`): `review/r03-01`
+    (`0caad6b18`), `review/r03-02` (`26776d8b1`),
+    `review/c002-refactor-round-03-planner` (`5ebecd675`), and
+    `review/c002-refactor-round-03-claude-seat` (`e02ff9e17`).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-808 (agy): v0.1, v1.0.
+- Editor seat: a-808 (agy): v0.1, v1.0, close record.
 - Panel reviewer seat: c-726 (claude, seat `e02ff9e17019f54c691e7662da69f5e6d3a4a340` on
   `review/c002-refactor-round-03-claude-seat`): **PASS** on v1.0
   (`5ebecd6752c7debf085598eef8e33a382766e4a7`, msg `a215cc4e` / holder copy `ffb46a6b`;
@@ -891,5 +961,5 @@ The panel seat signs this plan (rulebook 3.2).
   `a4034b8c`; all 161 lines of `bash` fenced code blocks byte-identical to v0.1, 8/8 head
   sha256s, 16 suites, 7 red/guard controls, 5 mutations, `shellcheck`, and differential
   harness 40 + 180 cases verified; W1 and N1-N6 folded, zero open W).
-- Row R7 seats: section 4 (agy primary; claude waiver backup only if agy is out of quota,
-  citing ruling `dc84300a`; never mistral).
+- Row R7 seats: section 4; both agy: a-838 (r03-01), a-841 (r03-02) (section 8, round
+  closed).

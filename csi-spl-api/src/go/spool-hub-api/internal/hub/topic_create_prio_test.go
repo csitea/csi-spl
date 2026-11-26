@@ -2,11 +2,13 @@ package hub_test
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -65,16 +67,47 @@ func TestCreatePrioNewTopic(t *testing.T) {
 	}
 }
 
-// The owner's prio word (SPL-5524) sets 1; "prio:04" names 4, and the
-// number wins.
-func TestCreatePrioBeatsOwnerPrioWord(t *testing.T) {
-	e := archiveEnv(t, func(o *hub.Options) { o.OwnerPrioWords = testPrioWords })
-	tid, _ := e.tenant()
-	task := uuidV4()
-	sendInto(t, e, tid, "HUM-8", task, "urgent but next week prio:04", 1)
-	if got := storedPriority(t, e, tid, task); got != 4 {
-		t.Fatalf("topic priority %d, want 4", got)
+// C410 (SPL-6622, spec 150 section 3.4.2; the owner, poll 32527755 Q2 = B
+// "Drop the word rule"): the owner's prio word is retired. The workspace
+// owner's browser post holding "prio", "priority one" or "urgent" leaves its
+// topic at 3 and its queued ask where it was; a new topic whose first post
+// ends with prio:1 still sets 1; neither hub.Options nor the hub config
+// carries a word list (SPOOL_HUB_OWNER_PRIO_WORDS is gone).
+// RED CONTROL: on origin/master before B14 the "no word list" case fails
+// (both structs carry OwnerPrioWords); restore the s.ownerPrioWord call in
+// wuiAfterStore with the old default words and the owner cases fail with the
+// topic at 1 and the ask at 1.
+func TestOwnerPrioWordRemoved(t *testing.T) {
+	t.Run("no word list", func(t *testing.T) {
+		for _, typ := range []reflect.Type{reflect.TypeOf(hub.Options{}), reflect.TypeOf(config.Hub{})} {
+			if _, ok := typ.FieldByName("OwnerPrioWords"); ok {
+				t.Fatalf("%s still carries OwnerPrioWords", typ)
+			}
+		}
+	})
+	for _, body := range []string{"prio", "This is PRIO, please.", "priority one for this", "urgent: the queue"} {
+		t.Run("owner says "+body, func(t *testing.T) {
+			q := newPrioQueue(t)
+			sendInto(t, q.e, q.tid, "HUM-8", q.task, body, 0)
+			if got := storedPriority(t, q.e, q.tid, q.task); got != unsetTopicPriority {
+				t.Fatalf("owner post %q set the topic to %d, want %d", body, got, unsetTopicPriority)
+			}
+			if got := q.position(t); got != 2 {
+				t.Fatalf("owner post %q moved the ask to %d, want 2", body, got)
+			}
+		})
 	}
+	t.Run("a new topic ending with prio:1 still sets 1", func(t *testing.T) {
+		e := archiveEnv(t)
+		tid, _ := e.tenant()
+		task := uuidV4()
+		if got := sendInto(t, e, tid, "HUM-8", task, "urgent but explicit prio:1", 1); got != "urgent but explicit" {
+			t.Fatalf("stored body %q, want the text without the token", got)
+		}
+		if got := storedPriority(t, e, tid, task); got != 1 {
+			t.Fatalf("topic priority %d, want 1", got)
+		}
+	})
 }
 
 func TestCreatePrioRefusals(t *testing.T) {

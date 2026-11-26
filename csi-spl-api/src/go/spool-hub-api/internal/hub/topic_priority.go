@@ -91,11 +91,11 @@ func (s *Server) handleTopicPriority(w http.ResponseWriter, r *http.Request) {
 // the caller owns it and the topic is another workspace's (SPL-5905): the
 // fleet's spawn queue lives in op and ranks an ask by op's own row for its
 // discussion (store askListPriorities), so a t1 ask working for a csitea
-// topic the owner set to 1 listed at 3. The rule is ownerPrioWord's
-// (prioWordOwners, R7 W1): a workspace's own owner who does not own op sets
-// the topic there and never reorders op's queue.
+// topic the owner set to 1 listed at 3. The rule is priorityOperatorTenant's
+// (R7 W1 of SPL-5524): a workspace's own owner who does not own op sets the
+// topic there and never reorders op's queue.
 func (s *Server) priorityToOperator(ctx context.Context, ps store.TopicPriorityStore, q topicPriorityReq, prio int) {
-	_, op := s.prioWordOwners(ctx, q.t.ID, q.hum)
+	op := s.priorityOperatorTenant(ctx, q.t.ID, q.hum)
 	if op == "" {
 		return
 	}
@@ -104,6 +104,25 @@ func (s *Server) priorityToOperator(ctx context.Context, ps store.TopicPriorityS
 		return
 	}
 	s.o.Log.Info().Str("tenant", op).Str("from_tenant", q.t.ID).Str("task", q.task).Str("by", q.from).Int("priority", prio).Msg("topic priority: operator copy")
+}
+
+// priorityOperatorTenant is op, the operator workspace, when member owns it
+// and tenant is another workspace, because the fleet's spawn queue lives in
+// op; "" otherwise. A non-operator workspace's owner never touches op.
+func (s *Server) priorityOperatorTenant(ctx context.Context, tenant, member string) string {
+	o, err := s.operatorTenant(ctx)
+	if err != nil || o == "" || o == tenant || !s.operatorOwner(ctx, o, member) {
+		return ""
+	}
+	return o
+}
+
+// operatorOwner: member owns op, the operator workspace (its owner's role,
+// or the business owner's member row). Only such a member orders the
+// agents' work: op's queue (priorityOperatorTenant) and op's issues
+// (linkedSetPriorities, SPL-5933).
+func (s *Server) operatorOwner(ctx context.Context, op, member string) bool {
+	return s.workspaceOwner(ctx, op, member) || s.channelMoveOwner(ctx, op, member)
 }
 
 // priorityCaller is who may ask: the member session, billing, then the

@@ -2600,7 +2600,7 @@ plant named.
 | C150 | unit, mock client: 3 topics selected, open the action, pick 2, Set | 3 `setTopicPriority` calls with 2, at most 4 at a time; the line reads "Priority set to 2 on 3 topics"; the selection is empty | master: no action registered |
 | C151 | unit, mock: of 3, the middle PUT answers 403 `not_allowed` | 2 written; only the middle topic stays selected; the line names it with its reason | clear the selection on any end: the refused topic is no longer selected |
 | C152 | unit: open the dialog and close it with Esc; then with nothing picked | no call, the selection unchanged; Set is disabled with nothing picked | check a default value (3): Set is enabled with nothing picked |
-| C153 | Go: a bulk run's PUT on a topic with an open issue and a queued ask, by the operator workspace's owner on another workspace's topic | each PUT is a single set: the issue follows, and the operator copy is written (as `TestOwnerPrioWordOperatorQueue`, `hub/owner_prio_word_test.go`) | none new: `topic_priority_test.go` and `owner_prio_word_test.go` stay green |
+| C153 | Go: a bulk run's PUT on a topic with an open issue and a queued ask, by the operator workspace's owner on another workspace's topic | each PUT is a single set: the issue follows, and the operator copy is written (as `TestTopicPriorityOperatorQueue`, `hub/topic_priority_test.go`) | none new: `topic_priority_test.go` stays green |
 | C154 | e2e on the mock, 1440 and 390 px: tick 2 topics on Monitoring -> Topics and 1 on a channel page, Set priority, pick 1, Set | the bar shows Set priority after Multicast; each card's badge reads P1; on 390 the dialog is a full-screen sheet; no sideways scroll | master: no Set priority button |
 
 #### 3.30.6 Row Q13

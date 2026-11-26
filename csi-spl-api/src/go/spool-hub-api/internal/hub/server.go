@@ -113,9 +113,6 @@ type Options struct {
 	// that person already got from an agent in the last 24 h. false = off
 	// (the zero value: test rigs post agent DMs as fixtures).
 	HumanPostGuard bool
-	// OwnerPrioWords (SPL-5524, owner_prio_word.go): a workspace owner's
-	// browser post holding one of them sets its topic to priority 1. nil = off.
-	OwnerPrioWords []string
 	// TopicLoopCap (spec 182 5.1, topic_loop_fire.go): the fires per
 	// discussion loop per hour (SPOOL_HUB_TOPIC_LOOP_CAP). 0 = 12.
 	TopicLoopCap int

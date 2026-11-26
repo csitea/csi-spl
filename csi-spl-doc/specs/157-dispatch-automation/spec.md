@@ -1,7 +1,7 @@
 # Spec 157: Dispatch Automation — Deterministic Execution of Mechanical Dispatch Procedures
 
 **Feature ID**: `157-dispatch-automation` · **Status**: Draft v0.8 · **Epic**: SPL-2398 · **Issue**: SPL-3392  
-**Created**: 2026-10-25 · **Updated**: 2026-11-18 (v0.9: section 4.2, a held row alarms and is no supply, SPL-5897; v0.8: section 4.2, the dependent queue row, SPL-5874; v0.7 2026-11-14: section 4.1, the owner's prio word, SPL-5524; v0.6 2026-10-25: cross-vendor review feedback from `c-220@sat` resolving Z1–Z3) · **Lead**: a-213 · **Placement slug**: `c002-spec-157-dispatch-automation`  
+**Created**: 2026-10-25 · **Updated**: 2026-11-26 (v0.10: section 4.1 retired, spec 150 section 3.4.2 row B14, SPL-6622; v0.9: section 4.2, a held row alarms and is no supply, SPL-5897; v0.8: section 4.2, the dependent queue row, SPL-5874; v0.7 2026-11-14: section 4.1, the owner's prio word, SPL-5524; v0.6 2026-10-25: cross-vendor review feedback from `c-220@sat` resolving Z1–Z3) · **Lead**: a-213 · **Placement slug**: `c002-spec-157-dispatch-automation`  
 **Related Specs & Docs**:  
 - [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md) (Fleet roles, 3-minute SLA, routing rules, lease failover, owner go gates, and asks ledger)  
 - [spec 060 Role Rotation](../060-role-rotation/spec.md) (Hourly rotation, standby states, handoff files)  
@@ -629,7 +629,9 @@ In message `604472ca`, standby dispatcher `c-003@sat` highlighted seven candidat
 3. `c002-bug-placer-brief-other-box` (Resolves N4, X4): touches `spl-spawn-place.func.sh`. Row B6 (Rule 3) touches `spl-spawn-place.func.sh:584` (`spl_spawn_place_launch`) and is therefore **strictly ordered AFTER `c002-bug-placer-brief-other-box`**.
 4. `c-184@sat` lease scripts (Resolves N10, X6): rows B1–B6 do NOT touch `spl-dispatch-lease*` or `spl-orch-lease*`. They perform read-only lease queries via `do_spl_dispatch_lease show`.
 
-### 4.1 The owner's prio word puts its ask at the head of the queue (v0.7, SPL-5524)
+### 4.1 The owner's prio word puts its ask at the head of the queue (v0.7, SPL-5524) — RETIRED (v0.10)
+
+> **Retired 2026-11-26** by spec 150 section 3.4.2, build row B14 (SPL-6622; owner HUM-10, poll `32527755` Q2 = B "Drop the word rule"). Under spec 150 v1.8 priority 1 preempts running lanes, so scanning prose for `prio` / `urgent` raised false escalations. The hub no longer scans posts: `owner_prio_word.go`, its tests and `SPOOL_HUB_OWNER_PRIO_WORDS` are deleted. A priority is set only by the topic's 1..5 chooser, a trailing `prio:N` token on a new topic's first post (`hub/topic_create_prio.go`), the channel default, the issue priority field or the operator queue. What stays from this section: the operator copy (`priorityToOperator`, `priorityOperatorTenant` in `hub/topic_priority.go`, test `TestTopicPriorityOperatorQueue` in `topic_priority_test.go`) and the placer's priority 1 head (`spl-spawn-place-owner-prio.tst.sh`). The text below is the v0.7 design, kept as history. Test of the retirement: `TestOwnerPrioWordRemoved` (`hub/topic_create_prio_test.go`, case C410).
 
 Origin: csitea weekly item 10 (topic `48d75e5f`, poll `d0c7b716`, ticked by HUM-10 in msg `457da676`). Evidence (c-518's, not re-measured): queue positions up to 74 of 80, and "priority one" written twice by the owner (`89bedc75`, `28ad6624`) before a dispatcher acted on it.
 

@@ -665,10 +665,8 @@ func (s *Server) wuiAfterStore(ctx context.Context, c *wuiConn, rt wuiRouted, en
 	}
 	s.noteMentionNonMembers(ctx, c.tenant, rt.channel, c.member, m) // SPL-2419
 	s.noteMentionAgentsHumansOnly(ctx, c.tenant, rt.channel, m)     // SPL-2423
-	if !s.createPrioSet(ctx, c, m, rt.createPrio) {                 // SPL-6145: the number the poster wrote beats the prio word
-		s.ownerPrioWord(ctx, c.tenant, c.member, m, rt.noteToSelf) // SPL-5524
-	}
-	s.topicLoopHuman(ctx, c.tenant, rt, m) // spec 182 4.2 step 1, topic_loop_fire.go
+	s.createPrioSet(ctx, c, m, rt.createPrio)                       // SPL-6145; the prio word is retired (SPL-6622)
+	s.topicLoopHuman(ctx, c.tenant, rt, m)                          // spec 182 4.2 step 1, topic_loop_fire.go
 }
 
 // wuiRefuse logs one line for a browser send the hub did not store and

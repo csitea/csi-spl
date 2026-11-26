@@ -26,10 +26,27 @@ import (
 // topic is covered by one place. A box or CLI post is signed by its box and
 // its body is not the hub's to change: it carries no token.
 // The set follows as the PUT's: issues and lanes (followTopicPriority), the
-// operator copy (priorityToOperator), the topic_priority frame. It beats the
-// owner's prio word (ownerPrioWord): a number the owner wrote is the one meant.
+// operator copy (priorityToOperator), the topic_priority frame. No word in
+// the text sets a priority: the owner's prio word (SPL-5524) is retired
+// (spec 150 section 3.4.2, SPL-6622); the token is the one typed way.
 
 var createPrioRe = regexp.MustCompile(`(?i)(?:^|\s)prio(?::|-|[ \t]+)0?([1-5])\s*$`)
+
+// prioFenceRe, prioCodeRe and prioQuoteRe drop what the poster quotes
+// rather than says: a fenced code block, an inline code span, and a "> "
+// quote line (a reply quoting a post, or the WUI's "Chat about this" prefill).
+var (
+	prioFenceRe = regexp.MustCompile("(?s)```.*?(?:```|$)|~~~.*?(?:~~~|$)")
+	prioCodeRe  = regexp.MustCompile("`[^`\\n]*`")
+	prioQuoteRe = regexp.MustCompile(`(?m)^[ \t]*>.*$`)
+)
+
+// prioOwnText is body without its code and quoted lines.
+func prioOwnText(body string) string {
+	body = prioFenceRe.ReplaceAllString(body, " ")
+	body = prioCodeRe.ReplaceAllString(body, " ")
+	return prioQuoteRe.ReplaceAllString(body, " ")
+}
 
 // createPrioSuffix is body without its trailing prio token, and the token's
 // priority; (body, 0) when there is none. The token matched in body must be
@@ -79,17 +96,17 @@ func (s *Server) mayCreatePrio(ctx context.Context, c *wuiConn) bool {
 }
 
 // createPrioSet is wuiAfterStore's step: it stores prio for m's new topic;
-// false when prio is 0 or the write failed.
-func (s *Server) createPrioSet(ctx context.Context, c *wuiConn, m *msg.Message, prio int) bool {
+// nothing when prio is 0 or the store keeps no priorities.
+func (s *Server) createPrioSet(ctx context.Context, c *wuiConn, m *msg.Message, prio int) {
 	ps, ok := s.o.Store.(store.TopicPriorityStore)
 	if prio == 0 || !ok {
-		return false
+		return
 	}
 	task := strings.ToLower(m.TaskID)
 	row, err := ps.SetTopicPriority(ctx, c.tenant, task, prio, c.from, s.o.Now().UTC())
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", c.tenant).Str("task", task).Msg("topic create prio: not stored")
-		return false
+		return
 	}
 	s.o.Log.Info().Str("tenant", c.tenant).Str("task", task).Str("by", c.from).Str("msg_id", m.MsgID).Int("priority", prio).Msg("topic create prio")
 	s.followTopicPriority(ctx, c.tenant, task, c.from)
@@ -99,5 +116,4 @@ func (s *Server) createPrioSet(ctx context.Context, c *wuiConn, m *msg.Message, 
 		out := map[string]any{"task_id": task, "priority": row.Priority, "set_by": row.SetBy, "set_at": rfc(row.SetAt)}
 		s.fanoutTopic(ctx, c.tenant, card, withType(topicPriorityFrame, card, out))
 	}
-	return true
 }

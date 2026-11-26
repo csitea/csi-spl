@@ -70,7 +70,7 @@ Run every item below on `:00` rounds (reading `facts.json`; direct drill-down co
   - Box-user `do_spl_reporter_gather` runs `SWEEP_FORMAT=metadata-json` on `do_spl_unanswered_sweep` (`csi-spl-orc/src/bash/run/spl-unanswered-sweep.func.sh`; hub store counterpart `UnansweredPosts` in `csi-spl-api/src/go/spool-hub-api/internal/store/fallback_postgres.go:114-130`), **dropping all message bodies across every workspace** before writing `facts.json`.
   - Direct drill-down (`cd csi-spl-orc && ENV=prd DELIVER=0 ./run -a do_spl_unanswered_sweep`, which prints `body[:120]` on non-`spool_enc` workspaces): **`claude` / `grok` / `mistral` rounds only — NEVER run directly in an `agy` or `codex` session (Data Rule 1.5)**.
   - Exposing `topic_priorities.priority` and body-free `SWEEP_FORMAT=metadata-json` on `do_spl_unanswered_sweep`: **`no action yet`** on `origin/master` (store `UnansweredPosts` already orders by `coalesce(tp.priority, $5)` at `:130`; Spec 177 row `B3` adds both to `spl-unanswered-sweep.func.sh`).
-- **Priority linking**: Topic's `topic_priorities.priority` (`1..5`, unset = `P3`; owner prio-word posts are already `P1` via `hub/owner_prio_word.go`). Link `https://<ws-host>/m/<msg_id>` and `https://<ws-host>/t/<task_id>` (metadata only — never quote customer message bodies).
+- **Priority linking**: Topic's `topic_priorities.priority` (`1..5`, unset = `P3`). Link `https://<ws-host>/m/<msg_id>` and `https://<ws-host>/t/<task_id>` (metadata only — never quote customer message bodies).
 
 ### 2.5 CI Red on `master` and Stuck CI Runs
 
@@ -148,7 +148,7 @@ The `:30` round is a fast delta pulse (`<= 3 min` wall budget): read `facts.json
 
 | Source Object | Stored / Derived Priority | Fallback When Unset | Required Clickable Link in `#reports` |
 |---|---|---|---|
-| **Discussion / Topic** | `topic_priorities.priority` (`1..5`, `rdb 0214`; `1` on owner prio word, `SPL-5524`) | `P3` (`store.TopicPriorityDefault`) | `topic:<task_uuid>` or `https://<ws-host>/t/<task_uuid>` |
+| **Discussion / Topic** | `topic_priorities.priority` (`1..5`, `rdb 0214`) | `P3` (`store.TopicPriorityDefault`) | `topic:<task_uuid>` or `https://<ws-host>/t/<task_uuid>` |
 | **Issue** | `issues.priority` (`1..5`, `rdb 0047/0273`, linked via `0194_issue_discussions.sql` & synced via `SPL-4813`) | `P5` (DB default; `bug`/`alert` created at `P1`) | Bare `SPL-<n>` in `t1`, else `[<KEY>](https://<ws-host>/issues?issue=<KEY>)` |
 | **Active Lane** | `lanePrio`: `min(priority)` across linked issues (`hub/fleet_lanes_view.go:351`) | Topic priority (`1..5`), else `P3` | `[<id@box>](https://<t1-host>/monitoring/lanes?lane=<id@box>)` + `SPL-<n>` |
 | **Queued Spawn Ask** | `fleet_asks.discussion` -> `topic_priorities.priority` (`store/fleet_ask.go`) | `P3` (`urgent` class escalates to `P1`) | `topic:<discussion_uuid>` + ask 8-hex ID |

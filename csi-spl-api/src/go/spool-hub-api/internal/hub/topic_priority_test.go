@@ -2,6 +2,7 @@ package hub_test
 
 import (
 	"context"
+	"crypto/ed25519"
 	"net/http"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -203,4 +205,130 @@ func TestTopicPriorityFrame(t *testing.T) {
 		t.Fatalf("frame: %v", f)
 	}
 	watcher.Close(websocket.StatusNormalClosure, "") //nolint:errcheck
+}
+
+// The operator copy and its queue (moved from owner_prio_word_test.go when
+// the owner's prio word was retired, spec 150 B14, SPL-6622).
+
+// prioQueue is a topic with an opening card, a queued feature ask working
+// for it, and an older queued bug with no discussion that ranks before it.
+type prioQueue struct {
+	e        *env
+	tid      string
+	task     string
+	askTopic string
+	askOther string
+}
+
+func newPrioQueue(t *testing.T) prioQueue {
+	t.Helper()
+	e := archiveEnv(t)
+	tid, _ := e.tenant()
+	t0 := time.Now().UTC().Add(-time.Hour)
+	q := prioQueue{e: e, tid: tid, task: uuidV4(), askTopic: uuidV4(), askOther: uuidV4()}
+	putCard(t, e, tid, q.task, "", "HUM-2", hub.WUIBox, 1, t0)
+	queuePrioAsks(t, e, tid, q)
+	return q
+}
+
+// queuePrioAsks queues, in tid, an older bug with no discussion and a
+// feature ask working for q.task, which therefore ranks 2nd.
+func queuePrioAsks(t *testing.T, e *env, tid string, q prioQueue) {
+	t.Helper()
+	ctx := context.Background()
+	t0 := time.Now().UTC().Add(-time.Hour)
+	for i, a := range []struct{ id, disc, class string }{{q.askOther, "", "bug"}, {q.askTopic, q.task, "feature"}} {
+		at := t0.Add(time.Duration(i) * time.Minute)
+		if _, _, err := e.st.PutFleetAsk(ctx, tid, store.FleetAsk{Fleet: "main", AskID: a.id, Role: "orch", Kind: "task",
+			From: "c-002@box-b", Topic: "dispatch-" + q.task[:8], Discussion: a.disc, Summary: "SPAWN REQUEST " + a.class}, "box-b", at); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.st.UpdateFleetAsk(ctx, tid, store.AskUpdate{Fleet: "main", AskID: a.id, Op: store.AskQueue, By: "c-001@sat", Class: a.class}, "sat", at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	q.tid = tid
+	if got := q.position(t); got != 2 {
+		t.Fatalf("before any post the topic's ask is at %d in %s, want 2", got, tid)
+	}
+}
+
+// position is the topic's ask's place in the orch queue.
+func (q prioQueue) position(t *testing.T) int {
+	t.Helper()
+	as, err := q.e.st.ListFleetAsks(context.Background(), q.tid, "main", "orch", false, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range as {
+		if a.AskID == q.askTopic {
+			return a.Position
+		}
+	}
+	t.Fatalf("ask %s is not listed", q.askTopic)
+	return 0
+}
+
+// tenantRoles is an authorizer whose roles depend on the workspace; any
+// other member is a developer.
+type tenantRoles map[string]map[string]string
+
+func (m tenantRoles) Access(ctx context.Context, hum, tenant string) (rbac.Access, error) {
+	if r, ok := m[tenant][hum]; ok {
+		return rbac.Fixed(r).Access(ctx, hum, tenant)
+	}
+	return rbac.Fixed(rbac.Developer).Access(ctx, hum, tenant)
+}
+
+func (m tenantRoles) Roles(ctx context.Context, tenant string) (map[string]rbac.Role, error) {
+	return rbac.Fixed(rbac.Developer).Roles(ctx, tenant)
+}
+
+// SPL-5905 (prd ask 58a67da0): the priority chooser, PUT
+// /v1/topics/{task_id}/priority, on a topic of another workspace copies the
+// set into the operator workspace (priorityOperatorTenant). The operator
+// workspace's owner (HUM-7, also an owner of the topic's workspace) setting
+// 1 moves op's ask working for the topic to the head; the topic workspace's
+// own owner (HUM-8, not op's) sets the topic there and op's queue keeps its
+// order and its own unset row.
+// RED CONTROL: drop the priorityToOperator call in handleTopicPriority ->
+// the HUM-7 case fails with op's ask at 2 and op's row at 3.
+func TestTopicPriorityOperatorQueue(t *testing.T) {
+	for _, c := range []struct {
+		name, as      string
+		want, wantRow int
+	}{
+		{"the operator workspace's owner", "HUM-7", 1, 1},
+		{"the topic workspace's owner only", "HUM-8", 2, unsetTopicPriority},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			op := newTenantID("op")
+			roles := tenantRoles{op: {"HUM-7": rbac.BizOwner}}
+			e := archiveEnv(t, func(o *hub.Options) {
+				o.OperatorTenant = op
+				o.Authorizer = roles
+			})
+			pub, _, _ := ed25519.GenerateKey(nil)
+			if err := e.st.CreateTenant(context.Background(), store.Tenant{ID: op, RootPubKey: pub}); err != nil {
+				t.Fatal(err)
+			}
+			tid, _ := e.tenant()
+			roles[tid] = map[string]string{"HUM-7": rbac.BizOwner, "HUM-8": rbac.BizOwner}
+			q := prioQueue{e: e, tid: op, task: uuidV4(), askTopic: uuidV4(), askOther: uuidV4()}
+			queuePrioAsks(t, e, op, q)
+			putCard(t, e, tid, q.task, "", "HUM-2", hub.WUIBox, 1, time.Now().UTC().Add(-time.Hour))
+			if code, out := putPriority(t, e, tid, q.task, c.as, map[string]any{"priority": 1}); code != http.StatusOK {
+				t.Fatalf("%s: PUT priority %d %v", c.as, code, out)
+			}
+			if got := storedPriority(t, e, tid, q.task); got != 1 {
+				t.Fatalf("%s: the topic's own priority %d, want 1", c.as, got)
+			}
+			if got := storedPriority(t, e, op, q.task); got != c.wantRow {
+				t.Fatalf("%s: op's row for the topic %d, want %d", c.as, got, c.wantRow)
+			}
+			if got := q.position(t); got != c.want {
+				t.Fatalf("%s: op's ask is at %d, want %d", c.as, got, c.want)
+			}
+		})
+	}
 }

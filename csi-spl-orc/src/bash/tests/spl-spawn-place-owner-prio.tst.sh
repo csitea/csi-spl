@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: SPL-5524 (spec 157 section 4.1, csitea weekly item 10). The owner's
-#          prio word sets the topic to priority 1 on the hub, so its queued
-#          ask is the queue's head (the hub's Go test
-#          TestOwnerPrioWordMovesAskToHead); the placer then takes a priority
+# Purpose: SPL-5524 (spec 157 section 4.1, csitea weekly item 10). A topic
+#          at priority 1 (the chooser, a prio:N token or the issue field; the
+#          owner's prio word is retired, spec 150 B14, SPL-6622) makes its
+#          queued ask the queue's head; the placer then takes a priority
 #          1 head as it is, ahead of the class bands and a review seat.
 #   1. a priority 1 feature head, bug UNDER its band, a review seat queued:
 #      the head is placed, "INFO priority 1 head" logged (RED on
